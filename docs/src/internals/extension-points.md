@@ -367,7 +367,19 @@ snapshot.
 `extend.AttributeComputer` (`Compute(rows extend.Rows, field)
 ([]float64, error)`, one value per row, aligned with `rows`). The probe
 asserts the `extend` sibling on the factory's own value; the adapter
-forwards exactly the tier it implements. An attribute MAY declare a
+forwards exactly the tier it implements. To give a row no value, an
+attribute of any `Mode` implements the optional
+`extend.NullableAttribute` (`EmitsNull() bool`, answered per
+instance) and returns `NaN` for that row from `Compute` or `Row`: when
+`EmitsNull` reports true, every arm (streaming, two-pass, buffered,
+both crosstab arms, parallel decode, shard archive) writes the `NaN` as
+a null under the label, exactly like a built-in score of a null input
+— the row reads `null` in `Data`, a downstream aggregation skips it
+and counts it in `n_null`, a grouper buckets it nowhere. Without the
+interface, or when it reports false, a `NaN` stays an ordinary value
+(the aggregation folds it), byte-identically to before. Follow the
+built-ins' null-in, null-out rule: a null source cell scores null, not
+`0`. An attribute MAY declare a
 `ComponentSchema` + `ComponentsFunc` (`pulse.AttributeComponentsFunc`,
 called once after the attribute scored every filter-passing row): its
 slot then carries one `Response.Components.Attributes` entry — the

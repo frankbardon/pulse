@@ -2839,6 +2839,8 @@ pulse/extend: type MergeableGrouper imethod Group(rows pulse/extend.Rows, field 
 pulse/extend: type MergeableGrouper imethod MergeState(other pulse/extend.Grouper) error
 pulse/extend: type MultiKeyStreamingGrouper interface
 pulse/extend: type MultiKeyStreamingGrouper imethod KeysForRow(rec pulse/extend.Record, field string) (keys []string, ok bool, err error)
+pulse/extend: type NullableAttribute interface
+pulse/extend: type NullableAttribute imethod EmitsNull() bool
 pulse/extend: type OnlineAggregator interface
 pulse/extend: type OnlineAggregator imethod Finalize() (float64, error)
 pulse/extend: type OnlineAggregator imethod UpdateRow(rec pulse/extend.Record, field string) error
@@ -5635,4 +5637,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 3bdaa346ba1e330a672fd867d55ac8d6829f348f72c273deb79f2a5a693f08d4
+// golden-hash: e4a2356f7dc46088abca72a3d762bcafdcef74e7df263eeb0cbd2ef4027443bc

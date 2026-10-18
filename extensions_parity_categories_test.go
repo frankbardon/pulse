@@ -398,10 +398,10 @@ const (
 )
 
 // parityZScore mirrors ATTR_ZSCORE: a population Welford pass, then
-// (x - mean) / sd per row; a zero sd yields 0. A null row yields 0 too:
-// an extension attribute has no null output (extend owes every row a
-// value), while the built-in scores it null since U50 E6-S1 — so the
-// parity rows drop null source rows first (attributeParitySuite).
+// (x - mean) / sd per row; a zero sd yields 0 and a null row yields
+// null — NaN, written as a null because the twin is an
+// extend.NullableAttribute (EmitsNull), exactly as the built-in's
+// null-in, null-out rule.
 type parityZScore struct {
 	probe          *parityProbe
 	count          uint64
@@ -437,7 +437,10 @@ func (a *parityZScore) Finalize() error {
 
 func (a *parityZScore) Row(rec extend.Record, field string) (float64, error) {
 	v, ok := rec.NumericValue(field)
-	if !ok || a.fStdDev == 0 {
+	if !ok {
+		return math.NaN(), nil
+	}
+	if a.fStdDev == 0 {
 		return 0, nil
 	}
 	return (v - a.fMean) / a.fStdDev, nil
@@ -460,9 +463,8 @@ func (a *parityZScore) Compute(rows extend.Rows, field string) ([]float64, error
 }
 
 // parityPopcount mirrors ATTR_SET_POPCOUNT: the selected-member count of
-// the row's set mask (0 for a null row, where the built-in is null —
-// see parityZScore). The online probe counts Row calls the engine makes
-// outside Compute.
+// the row's set mask, null (NaN under EmitsNull) for a null row. The
+// online probe counts Row calls the engine makes outside Compute.
 type parityPopcount struct {
 	probe     *parityProbe
 	computing bool
@@ -474,7 +476,7 @@ func (a *parityPopcount) Row(rec extend.Record, field string) (float64, error) {
 	}
 	m, ok := rec.SetMaskValue(field)
 	if !ok {
-		return 0, nil
+		return math.NaN(), nil
 	}
 	return float64(m.PopCount()), nil
 }
@@ -490,21 +492,24 @@ func (a *parityPopcount) Compute(rows extend.Rows, field string) ([]float64, err
 	return out, nil
 }
 
+// EmitsNull makes both twins' NaN a null (extend.NullableAttribute).
+func (a *parityZScore) EmitsNull() bool   { return true }
+func (a *parityPopcount) EmitsNull() bool { return true }
+
 var (
 	_ extend.TwoPassAttribute  = (*parityZScore)(nil)
 	_ extend.RowLocalAttribute = (*parityPopcount)(nil)
+	_ extend.NullableAttribute = (*parityZScore)(nil)
+	_ extend.NullableAttribute = (*parityPopcount)(nil)
 )
 
 func attributeParitySuite() paritySuite {
 	row := func(name string, b, e types.AttributeType, field string, groups []*types.Group) parityRow {
 		req := func(at types.AttributeType) *types.Request {
 			return &types.Request{
-				// The built-in scores a null source null (counted in
-				// n_null) and an extension cannot emit null, so both
-				// arms drop the null source rows; the built-in null rule
-				// has its own every-mode gate
-				// (TestScoringAttributes_NullInputIsNullEveryMode).
-				Filterers:    []*types.Filterer{{Type: types.FILTER_NULL, Field: field, Values: []string{"is_not_null"}}},
+				// No null filter: a null source scores null on both
+				// arms (the twins are extend.NullableAttribute), so
+				// Data and the n_null floors cover the null path.
 				Attributes:   []*types.Attribute{{Type: at, Field: field, Label: "derived"}},
 				Aggregations: []*types.Aggregation{sumAgg("total", "derived"), {Type: types.AGG_MAX, Field: "derived", Label: "hi"}},
 				Groups:       groups,
