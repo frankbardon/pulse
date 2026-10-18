@@ -643,8 +643,10 @@ var errorOwners = map[errors.Code][]string{
 	// Per-slot partial success: only a regression, test (tier-1 or
 	// post) or matrix slot can fail alone.
 	errors.PULSE_SLOT_FAILED: plus(ownAllRegs, ownAllTests, ownAllMats),
-	// A scoring slot over a Compose fit that failed on its data.
-	errors.PULSE_FIT_UNAVAILABLE: own("ATTR_REG_PREDICT"),
+	// Any attribute reading a failed Compose fit (scoring, a literal
+	// coef(), a vector params.fit, a {population}); failed fits exist
+	// only under Compose fits.
+	errors.PULSE_FIT_UNAVAILABLE: own(featComposeFits),
 	// The weighted AGG_AUC's withheld DeLong interval.
 	errors.PULSE_AUC_DELONG_WEIGHTED: own("AGG_AUC"),
 

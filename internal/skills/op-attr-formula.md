@@ -41,6 +41,7 @@ One `float64` per record (bools → `1.0` / `0.0`); a `nil` result → null (`n_
 - Categorical → STRING (`==` / `in`); `set_*` → `[]string` (`"a" in tags`, `has_any(tags, "a", "b")`).
 - `decimal128` is exact: `price / cost`, `price * 1.1` and comparisons keep every digit (`decimal-formulas`); the column takes the nearest f64. `float(price)` opts out; `price / 0` → `PULSE_DECIMAL_DIVIDE_BY_ZERO`.
 - `date` binds epoch days, `datetime` epoch seconds: `weekday` / `month_index` / `date_trunc` read days, so a bare datetime there → `PULSE_FORMULA_COMPILE_ERROR`; wrap it in `to_day` (request zone; `calendar-formulas`).
+- A literal `coef("m", …)` of a compose fit that failed on its data: null on every row + `PULSE_FIT_UNAVAILABLE` `{fit, attribute, code}`; a non-literal fit name reaching it is refused with the fit's code.
 - `%` on a field: float `math.Mod` (`score % 1`, dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.
 
 ## See

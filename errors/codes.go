@@ -3630,11 +3630,13 @@ const (
 	// with the slot's own code instead.
 	PULSE_SLOT_FAILED Code = "PULSE_SLOT_FAILED"
 
-	// PULSE_FIT_UNAVAILABLE is a WARNING: an ATTR_REG_PREDICT slot scores
-	// from a Compose fit that failed on its data (ComposedResponse
-	// fits[name].error), so there is no model to score with — the slot's
-	// column is all null and every other slot of the response is computed
-	// normally. Details carry "fit" (the fit's name), "attribute" (the
+	// PULSE_FIT_UNAVAILABLE is a WARNING: an attribute slot reads a
+	// Compose fit that failed on its data (ComposedResponse
+	// fits[name].error) — ATTR_REG_PREDICT scoring it, an ATTR_FORMULA
+	// naming it in a literal coef() call, a fitted vector attribute's
+	// params.fit, a {population} reference — so there is no model to read:
+	// the slot's column is all null and every other slot of the response
+	// is computed normally. Details carry "fit" (the fit's name), "attribute" (the
 	// slot's label) and "code" (the fit's own error code). Under
 	// Options.Strict the failed fit already failed the whole batch with
 	// its own code.

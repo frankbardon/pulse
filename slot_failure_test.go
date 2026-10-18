@@ -439,10 +439,9 @@ func TestSlotFailure_ComposeFitStrict(t *testing.T) {
 	}
 }
 
-// TestSlotFailure_ComposeFitOtherReaders: a failed fit writes no `save`
-// file, and a reader other than ATTR_REG_PREDICT — coef() — is refused
-// with the fit's own code naming the fit (there is no model to read).
-func TestSlotFailure_ComposeFitOtherReaders(t *testing.T) {
+// TestSlotFailure_ComposeFitSaveSkipped: a failed fit writes no `save`
+// file (there is no model to write).
+func TestSlotFailure_ComposeFitSaveSkipped(t *testing.T) {
 	p, fs, cohort := slotCohort(t, pulse.Options{})
 	batch := failedFitBatch(cohort)
 	batch.Fits[0].Save = "models/m.pulse-model.json"
@@ -452,11 +451,252 @@ func TestSlotFailure_ComposeFitOtherReaders(t *testing.T) {
 	if ok, _ := afero.Exists(fs, "models/m.pulse-model.json"); ok {
 		t.Error("a failed fit's save wrote a model file")
 	}
-	batch = failedFitBatch(cohort)
-	batch.Requests[1].Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "c", Expression: `coef("m", "x")`}}
-	var ce *perr.CodedError
-	if _, err := p.Compose(context.Background(), batch); !stderrors.As(err, &ce) || ce.Code != perr.PROCESSING_REGRESSION_SEPARATION || ce.Details["fit"] != "m" {
-		t.Fatalf("coef over a failed fit: %v, want the fit's own code with details.fit", err)
+}
+
+// readersBatch: fits "m" (a separated GLM), "ok" (a good OLS) and "pop"
+// (a vector fit whose singular MAT_PARTIAL_CORRELATION battery fails);
+// slot "formula" reads coef() of m (row-local and two-pass total()) and
+// of ok, slot "vector" reads pop
+// through a fitted attribute's params.fit and a {population}
+// reference, slot "matrix" reads pop through a MAT_* params.fit beside
+// a good matrix, slot "other" counts.
+func readersBatch(cohort string) *types.ComposedRequest {
+	c := func() *types.Cohort { return &types.Cohort{Filename: cohort} }
+	xzu := []string{"x", "z", "u"}
+	count := &types.Aggregation{Type: types.AGG_COUNT, Field: "x", Label: "n"}
+	return &types.ComposedRequest{
+		Fits: []types.FitSpec{
+			{Name: "m", Request: &types.Request{Cohort: c(), Regressions: []*types.RegressionSpec{separatedGLM("")}}},
+			{Name: "ok", Request: &types.Request{Cohort: c(), Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "v", Predictors: []string{"x"}}}}},
+			{Name: "pop", Request: &types.Request{Cohort: c(),
+				Matrices: []types.MatrixSpec{{Name: "prec", Type: types.MAT_PARTIAL_CORRELATION, Fields: xzu}}}},
+		},
+		Requests: []*types.Request{
+			{Cohort: c(), Label: "formula",
+				Attributes: []*types.Attribute{
+					{Type: types.ATTR_FORMULA, Label: "c", Expression: `coef("m", "x") * x`},
+					{Type: types.ATTR_FORMULA, Label: "c_ok", Expression: `coef("ok", "x") * x`},
+					{Type: types.ATTR_FORMULA, Label: "ct", Expression: `x / total(coef("m", "x") * x)`},
+				},
+				Aggregations: []*types.Aggregation{count,
+					{Type: types.AGG_AVERAGE, Field: "c", Label: "mean_c"},
+					{Type: types.AGG_AVERAGE, Field: "c_ok", Label: "mean_c_ok"},
+					{Type: types.AGG_AVERAGE, Field: "ct", Label: "mean_ct"}}},
+			{Cohort: c(), Label: "vector",
+				Attributes: []*types.Attribute{
+					{Type: types.ATTR_MAHALANOBIS, Label: "md", Fields: xzu, Params: json.RawMessage(`{"fit":"pop"}`)},
+					{Type: types.ATTR_PROFILE_SIMILARITY, Label: "sim", Fields: xzu, Params: json.RawMessage(`{"metric":"cosine","reference":{"population":"pop"}}`)},
+				},
+				Aggregations: []*types.Aggregation{count,
+					{Type: types.AGG_AVERAGE, Field: "md", Label: "mean_md"},
+					{Type: types.AGG_AVERAGE, Field: "sim", Label: "mean_sim"}}},
+			{Cohort: c(), Label: "matrix",
+				Aggregations: []*types.Aggregation{count},
+				Matrices: []types.MatrixSpec{
+					{Name: "cov", Type: types.MAT_COVARIANCE, Fields: xzu, Params: json.RawMessage(`{"fit":"pop"}`)},
+					{Name: "cor", Type: types.MAT_CORRELATION, Fields: []string{"x", "v"}},
+				}},
+			{Cohort: c(), Label: "other", Aggregations: []*types.Aggregation{count}},
+		},
+	}
+}
+
+// fitUnavailable is resp's PULSE_FIT_UNAVAILABLE warnings' details.
+func fitUnavailable(resp *types.Response) []map[string]any {
+	var out []map[string]any
+	for _, w := range resp.Warnings {
+		if w.Code == string(perr.PULSE_FIT_UNAVAILABLE) {
+			out = append(out, w.Details)
+		}
+	}
+	return out
+}
+
+// TestSlotFailure_ComposeFitReadersFailAlone: every reader of a failed
+// Compose fit fails alone. An attribute — coef() in ATTR_FORMULA, a
+// fitted vector attribute's params.fit, a {population} reference — is
+// an all-null column (its mean null, every row in n_null) with one
+// PULSE_FIT_UNAVAILABLE {fit, attribute, code} warning, as
+// ATTR_REG_PREDICT; a MAT_* slot's params.fit fails that slot alone
+// (the fit's own code plus details.fit, a PULSE_SLOT_FAILED warning);
+// the good fit's reader, the good matrix and every other slot compute —
+// serial, parallel and DecodeWorkers 1 / 4 byte-identical.
+func TestSlotFailure_ComposeFitReadersFailAlone(t *testing.T) {
+	ctx := context.Background()
+	var ref []byte
+	for _, workers := range []int{1, 4} {
+		p, _, cohort := slotCohort(t, pulse.Options{DecodeWorkers: workers})
+		serial, err := p.Compose(ctx, readersBatch(cohort))
+		if err != nil {
+			t.Fatalf("workers %d: Compose: %v", workers, err)
+		}
+		parallel, err := p.ComposeParallel(ctx, readersBatch(cohort), pulse.ComposeOptions{MaxWorkers: 4})
+		if err != nil {
+			t.Fatalf("workers %d: ComposeParallel: %v", workers, err)
+		}
+		sb, _ := json.Marshal(serial)
+		pb, _ := json.Marshal(parallel)
+		if string(sb) != string(pb) {
+			t.Errorf("workers %d: serial and parallel differ\n%s\n%s", workers, sb, pb)
+		}
+		if ref == nil {
+			ref = sb
+		} else if string(ref) != string(sb) {
+			t.Errorf("DecodeWorkers 1 and %d differ\n%s\n%s", workers, ref, sb)
+		}
+		for name, out := range map[string]*types.ComposedResponse{"serial": serial, "parallel": parallel} {
+			name = fmt.Sprintf("workers %d %s", workers, name)
+			nullMean := func(resp *types.Response, label string) {
+				t.Helper()
+				if v, ok := asFloat(resp.Data[0][label]); ok && !math.IsNaN(v) {
+					t.Errorf("%s: %s %v, want undefined", name, label, resp.Data[0][label])
+				}
+				if c := resp.Components; c != nil {
+					for _, a := range c.Aggregations {
+						if a.Label == label && a.NNull != 40 {
+							t.Errorf("%s: %s n_null %d, want 40", name, label, a.NNull)
+						}
+					}
+				}
+			}
+			formula := out.Responses[0]
+			if n, _ := asFloat(formula.Data[0]["n"]); n != 40 {
+				t.Errorf("%s: formula count %v", name, formula.Data[0]["n"])
+			}
+			nullMean(formula, "mean_c")
+			nullMean(formula, "mean_ct")
+			if v, ok := asFloat(formula.Data[0]["mean_c_ok"]); !ok || math.IsNaN(v) {
+				t.Errorf("%s: mean over the good fit's coef %v", name, formula.Data[0]["mean_c_ok"])
+			}
+			sep := string(perr.PROCESSING_REGRESSION_SEPARATION)
+			sing := string(perr.PULSE_MATRIX_SINGULAR)
+			if got := fitUnavailable(formula); !reflect.DeepEqual(got, []map[string]any{
+				{"fit": "m", "attribute": "c", "code": sep}, {"fit": "m", "attribute": "ct", "code": sep}}) {
+				t.Errorf("%s: formula PULSE_FIT_UNAVAILABLE %v", name, got)
+			}
+			vector := out.Responses[1]
+			nullMean(vector, "mean_md")
+			nullMean(vector, "mean_sim")
+			if got := fitUnavailable(vector); !reflect.DeepEqual(got, []map[string]any{
+				{"fit": "pop", "attribute": "md", "code": sing},
+				{"fit": "pop", "attribute": "sim", "code": sing},
+			}) {
+				t.Errorf("%s: vector PULSE_FIT_UNAVAILABLE %v", name, got)
+			}
+			for _, w := range vector.Warnings {
+				if w.Code == string(perr.PULSE_VECTOR_REFERENCE_MISSING) {
+					t.Errorf("%s: an unavailable population also counted as a missing reference: %+v", name, w)
+				}
+			}
+			matrix := out.Responses[2]
+			if len(matrix.Matrices) != 2 {
+				t.Fatalf("%s: matrices %+v", name, matrix.Matrices)
+			}
+			if m := matrix.Matrices[0]; m.Name != "cov" || m.Type != types.MAT_COVARIANCE || m.Error == nil || m.Error.Code != sing ||
+				m.Error.Details["fit"] != "pop" || m.Primary != nil {
+				t.Errorf("%s: matrix over the failed fit %+v (error %+v)", name, m, m.Error)
+			}
+			if m := matrix.Matrices[1]; m.Error != nil || m.Primary == nil {
+				t.Errorf("%s: good matrix %+v", name, m)
+			}
+			if ws := slotWarnings(matrix); len(ws) != 1 || !reflect.DeepEqual(ws[0].Details, map[string]any{
+				"slot_kind": "matrices", "index": 0, "label": "cov", "code": sing}) {
+				t.Errorf("%s: matrix slot warnings %+v", name, ws)
+			}
+			if n, _ := asFloat(matrix.Data[0]["n"]); n != 40 {
+				t.Errorf("%s: matrix slot count %v", name, matrix.Data[0]["n"])
+			}
+			if other := out.Responses[3]; len(other.Data) != 1 || len(other.Warnings) != 0 {
+				t.Errorf("%s: other slot %+v", name, other)
+			}
+		}
+	}
+}
+
+// TestSlotFailure_ComposeFitReadersStrict: under Strict every reader's
+// batch fails with the failed fit's OWN code located by details.fit —
+// the fit fails before any reader runs — serial and parallel alike.
+func TestSlotFailure_ComposeFitReadersStrict(t *testing.T) {
+	p, _, cohort := slotCohort(t, pulse.Options{Strict: true})
+	ctx := context.Background()
+	for i, label := range []string{"formula", "vector", "matrix"} {
+		mk := func() *types.ComposedRequest {
+			b := readersBatch(cohort)
+			b.Requests = []*types.Request{b.Requests[i]}
+			return b
+		}
+		for arm, run := range map[string]func() error{
+			"serial": func() error { _, err := p.Compose(ctx, mk()); return err },
+			"parallel": func() error {
+				_, err := p.ComposeParallel(ctx, mk(), pulse.ComposeOptions{MaxWorkers: 4})
+				return err
+			},
+		} {
+			var ce *perr.CodedError
+			if err := run(); !stderrors.As(err, &ce) || ce.Code != perr.PROCESSING_REGRESSION_SEPARATION || ce.Details["fit"] != 0 {
+				t.Errorf("%s %s strict: %v, want PROCESSING_REGRESSION_SEPARATION with details.fit 0", label, arm, err)
+			}
+		}
+	}
+}
+
+// TestSlotFailure_ComposeFitStrictLowestIndexWins: under Strict with
+// two failing fits (m, index 0, and pop, index 2) the parallel fit
+// stage reports the LOWEST-index failure, as the serial loop does — a
+// later fit's failure never cancels an earlier one before it finishes.
+func TestSlotFailure_ComposeFitStrictLowestIndexWins(t *testing.T) {
+	p, _, cohort := slotCohort(t, pulse.Options{Strict: true})
+	ctx := context.Background()
+	for range 30 {
+		b := readersBatch(cohort)
+		b.Requests = b.Requests[3:]
+		// pop first in launch order would race m without the rule:
+		// m (the GLM) runs longer than pop's battery.
+		var ce *perr.CodedError
+		_, err := p.ComposeParallel(ctx, b, pulse.ComposeOptions{MaxWorkers: 4})
+		if !stderrors.As(err, &ce) || ce.Code != perr.PROCESSING_REGRESSION_SEPARATION || ce.Details["fit"] != 0 {
+			t.Fatalf("parallel strict: %v, want fit 0's PROCESSING_REGRESSION_SEPARATION", err)
+		}
+	}
+}
+
+// TestSlotFailure_ComposeFitFatalReaders: the readers that cannot
+// degrade stay refused with the fit's own code plus details.fit — a
+// FILTER_EXPRESSION naming the failed fit (a filter cannot be null; the
+// refusal comes at build, so it fires even when no row reaches the
+// filter) and a coef() whose fit name is not a literal (unknown until
+// a row evaluates it).
+func TestSlotFailure_ComposeFitFatalReaders(t *testing.T) {
+	p, _, cohort := slotCohort(t, pulse.Options{})
+	ctx := context.Background()
+	for name, edit := range map[string]func(*types.Request){
+		"filter": func(r *types.Request) {
+			r.Filterers = []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: `x > coef("m", "x")`}}
+		},
+		"filter no row reaches": func(r *types.Request) {
+			r.Filterers = []*types.Filterer{
+				{Type: types.FILTER_EXPRESSION, Expression: `x < 0`},
+				{Type: types.FILTER_EXPRESSION, Expression: `x > coef("m", "x")`},
+			}
+		},
+		"dynamic coef": func(r *types.Request) {
+			r.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "d", Expression: `coef("m" + "", "x")`}}
+		},
+	} {
+		for arm, run := range map[string]func(*types.ComposedRequest) error{
+			"serial": func(b *types.ComposedRequest) error { _, err := p.Compose(ctx, b); return err },
+			"parallel": func(b *types.ComposedRequest) error {
+				_, err := p.ComposeParallel(ctx, b, pulse.ComposeOptions{MaxWorkers: 4, FailFast: true})
+				return err
+			},
+		} {
+			b := readersBatch(cohort)
+			edit(b.Requests[3])
+			var ce *perr.CodedError
+			if err := run(b); !stderrors.As(err, &ce) || ce.Code != perr.PROCESSING_REGRESSION_SEPARATION || ce.Details["fit"] != "m" {
+				t.Errorf("%s %s: %v, want PROCESSING_REGRESSION_SEPARATION with details.fit m", name, arm, err)
+			}
+		}
 	}
 }
 
@@ -490,15 +730,7 @@ func TestSlotFailure_ComposeVectorFitFailsAlone(t *testing.T) {
 	if len(out.Responses[0].Data) != 1 {
 		t.Errorf("slot %+v", out.Responses[0])
 	}
-	// A matrix slot reading the failed fit's state is refused with the
-	// fit's own code, naming it: there is no state to read.
-	reader := mk(cohort)
-	reader.Requests = append(reader.Requests, &types.Request{Cohort: &types.Cohort{Filename: cohort},
-		Matrices: []types.MatrixSpec{{Name: "cov", Type: types.MAT_COVARIANCE, Fields: []string{"x", "z", "u"}, Params: json.RawMessage(`{"fit":"pop"}`)}}})
 	var ce *perr.CodedError
-	if _, err := p.Compose(context.Background(), reader); !stderrors.As(err, &ce) || ce.Code != perr.PULSE_MATRIX_SINGULAR || ce.Details["fit"] != "pop" {
-		t.Fatalf("params.fit over a failed vector fit: %v, want PULSE_MATRIX_SINGULAR with details.fit pop", err)
-	}
 	strict, _, cohort := slotCohort(t, pulse.Options{Strict: true})
 	if _, err := strict.Compose(context.Background(), mk(cohort)); !stderrors.As(err, &ce) || ce.Code != perr.PULSE_MATRIX_SINGULAR || ce.Details["fit"] != 0 {
 		t.Fatalf("strict: %v, want PULSE_MATRIX_SINGULAR with details.fit 0", err)

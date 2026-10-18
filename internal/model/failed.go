@@ -17,11 +17,16 @@ import (
 // checks at runtime as in predict, and reading it is told apart from
 // naming an unbound fit.
 //
-// A reader asks Failed before it reads the model: ATTR_REG_PREDICT
-// scores an all-null column (with a PULSE_FIT_UNAVAILABLE warning);
-// every other reader (Lookup / LookupVector / Coef — coef(), a fitted
-// vector attribute's or MAT_* slot's params.fit, a {population}
-// reference) is refused with the fit's OWN code (FailedFitRefusal).
+// A reader asks Failed / FailedOfKind before it reads the model, and
+// fails alone: an attribute (ATTR_REG_PREDICT, an ATTR_FORMULA naming
+// the fit in a literal coef() call, a fitted vector attribute's
+// params.fit, a {population} reference) scores an all-null column with
+// one PULSE_FIT_UNAVAILABLE warning (FitUnavailable); a MAT_* slot's
+// params.fit fails that slot alone with the fit's own code
+// (FailedFitSlotError). A FILTER_EXPRESSION naming it — no filter can
+// be null — and a coef() whose fit name is not a literal stay refused
+// with the fit's OWN code (FailedFitRefusal, also what Lookup /
+// LookupVector / Coef return).
 type failedFit struct {
 	sig Signature
 	err *types.SlotError
@@ -48,6 +53,28 @@ func (s *Set) Failed(name string) (*types.SlotError, bool) {
 	}
 	f, ok := s.failed[name]
 	return f.err, ok
+}
+
+// FailedOfKind is Failed for a reader of kind: false for a failed fit
+// of the other kind, whose reader keeps PULSE_MODEL_KIND_MISMATCH
+// (Lookup / LookupVector). Nil-receiver-safe.
+func (s *Set) FailedOfKind(name string, kind types.FitKind) (*types.SlotError, bool) {
+	if s == nil {
+		return nil, false
+	}
+	f, ok := s.failed[name]
+	if !ok || f.sig.EffectiveKind() != kind {
+		return nil, false
+	}
+	return f.err, true
+}
+
+// FailedFitSlotError is the per-slot error of a slot (a MAT_* slot's
+// params.fit) whose fit name failed on its data: the fit's own code,
+// message and details, plus details.fit = name.
+func FailedFitSlotError(name string, se *types.SlotError) *types.SlotError {
+	ce := FailedFitRefusal(name, se)
+	return &types.SlotError{Code: string(ce.Code), Message: ce.Message, Details: ce.Details}
 }
 
 // ErrFitFailed is the Cause of every FailedFitRefusal: an expression

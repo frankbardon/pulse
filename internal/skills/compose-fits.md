@@ -33,18 +33,18 @@ A **fit** is a named model a Compose batch runs ONCE, before any slot, so every 
 - `request` is an ordinary request, no `groups` / `crosstab`, holding exactly ONE regression (a **regression fit**) or ONE vector battery and no regression (a **vector fit**: one fitted vector attribute<!-- feature: capability:matrices --> or one `matrices` entry<!-- /feature -->, its listwise mean + co-moment). Fit another model as another entry.
 - Its own cohort, filters, features and weight decide the fit rows, independent of every slot: fit weeks 0–90 while a slot filters 91–103 for a train/holdout split.
 - Its `return` is ignored; the whole result is reported.
-- Every fit runs exactly once per batch; serial and parallel answers are byte-identical.
+- Each fit runs once per batch; serial and parallel answers are byte-identical.
 
 ## Names
 
-- `name` is required and unique. Both kinds share ONE namespace; a duplicate is `PULSE_MODEL_NAME_COLLISION`, an unbound name `PULSE_MODEL_UNKNOWN` (`details.available`: the bound names of the kind read), a name of the other kind `PULSE_MODEL_KIND_MISMATCH` (`details.fit`, `kind`, `expected`).
+- `name` is required and unique. Both kinds share ONE namespace; a duplicate is `PULSE_MODEL_NAME_COLLISION`, an unbound name `PULSE_MODEL_UNKNOWN` (`details.available`: bound names of that kind), a name of the other kind `PULSE_MODEL_KIND_MISMATCH` (`details.fit`, `kind`, `expected`).
 - Every slot, sweep-expanded ones included, receives every fit: a sweep axis varies the slot, the model stays fixed.
 - A regression's predictor list is authoritative: a scoring slot supplies those columns itself; a one-hot column left out is the reference level.
 <!-- feature: ATTR_REG_PREDICT -->
 - A slot scores a fit per row with `ATTR_REG_PREDICT` (`params: {fit: "<name>"}`, optional `terms` / `scale` / `bound`): no refit, full precision, null on a null predictor; see `op-attr-reg-predict`.
 <!-- /feature -->
 - A slot's formula or filter expression reads a regression figure with `coef("<name>", "<term>"[, "point|lower|upper|se"])`; see `expression-language`.
-- A vector fit is read by `params.fit` on a fitted vector attribute (`op-attr-mahalanobis`, …)<!-- feature: capability:matrices --> or any matrix slot (`op-mat-correlation`)<!-- /feature -->: it emits from the bound state, reading no row of its own, matched BY LABEL, the fit's weight basis governing.
+- A vector fit is read by `params.fit` on a fitted vector attribute (`op-attr-mahalanobis`, …)<!-- feature: capability:matrices --> or any matrix slot (`op-mat-correlation`)<!-- /feature -->: it emits from the bound state, reading no row of its own, matched BY LABEL under the fit's weight basis.
 
 ## Response
 
@@ -66,7 +66,7 @@ Registered populations (`PULSE_POPULATIONS_DIR` or the embedder; manifest `exten
 
 ## A failed fit
 
-A fit its data refuses (separation, a singular battery) fails alone: its `fits` entry keeps identity + `error`; compose `warnings` gain `PULSE_SLOT_FAILED` (`details.fit`), nothing saves, the rest runs.<!-- feature: ATTR_REG_PREDICT --> Scoring it gives a null column + `PULSE_FIT_UNAVAILABLE`.<!-- /feature --> Other reads (`coef()`, `params.fit`) and strict mode fail with its code.
+A fit its data refuses (separation, singular battery) fails alone: its `fits` entry keeps identity + `error`, compose `warnings` gain `PULSE_SLOT_FAILED` (`details.fit`), nothing saves. Attributes reading it go null (`PULSE_FIT_UNAVAILABLE`), a matrix `params.fit` slot fails alone; a filter's `coef()`, a non-literal name, strict mode fail with its code.
 
 ## Refusals
 

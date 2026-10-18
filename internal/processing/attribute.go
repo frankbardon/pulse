@@ -239,8 +239,11 @@ func (a *normalizedAttribute) Compute(records []*Record, field string) ([]float6
 
 type formulaAttribute struct {
 	expression string
-	schema     *encoding.Schema
-	exts       *ExtensionRegistry
+	// label is the slot's output label (its own or the default), the
+	// one a PULSE_FIT_UNAVAILABLE warning names.
+	label  string
+	schema *encoding.Schema
+	exts   *ExtensionRegistry
 	// models are the request's bound models coef() reads (nil: none),
 	// set by bindModels before prepare compiles.
 	models *model.Set
@@ -257,7 +260,15 @@ type formulaAttribute struct {
 	once    sync.Once
 	prog    *exprProgram
 	progErr error
+	// unavailable are the PULSE_FIT_UNAVAILABLE warnings of a formula
+	// whose literal coef() calls name a fit that failed on its data
+	// (set by prepare; nil otherwise): the formula then has no value
+	// on any row, so every row is null — as ATTR_REG_PREDICT over a
+	// failed fit — one warning per failed fit named.
+	unavailable []*types.ResponseWarning
 }
+
+var _ attributeWarner = (*formulaAttribute)(nil)
 
 // newFormulaAttribute builds ATTR_FORMULA. A formula that calls
 // total(expr) is built as a formulaTotalAttribute — a TwoPassAttribute
@@ -275,6 +286,7 @@ func newFormulaAttribute(attr *types.Attribute, schema *encoding.Schema) (Attrib
 	}
 	a := &formulaAttribute{
 		expression: attr.Expression,
+		label:      attributeSlotLabel(attr),
 		schema:     schema,
 		zone:       zone,
 	}
@@ -304,6 +316,9 @@ func (a *formulaAttribute) prepare() error {
 	a.once.Do(func() {
 		if a.progErr = a.exts.coefStaticRefusal(a.expression, a.models); a.progErr != nil {
 			return
+		}
+		for _, f := range a.exts.failedCoefFits(a.expression, a.models) {
+			a.unavailable = append(a.unavailable, model.FitUnavailable(f.name, a.label, f.err))
 		}
 		if a.totals != nil {
 			a.prog, a.progErr = a.prepareTotals()
@@ -357,6 +372,10 @@ func (a *formulaAttribute) Row(r *Record, _ string) (float64, error) {
 	if err := a.prepare(); err != nil {
 		return 0, err
 	}
+	if a.unavailable != nil {
+		// A literal coef() names a failed fit: no row has a value.
+		return AttributeNull, nil
+	}
 	output, _, err := a.prog.runRecord(r)
 	if err != nil {
 		return 0, err
@@ -365,6 +384,15 @@ func (a *formulaAttribute) Row(r *Record, _ string) (float64, error) {
 		return AttributeNull, nil
 	}
 	return formulaNumber(output)
+}
+
+// attributeWarnings satisfies attributeWarner: the PULSE_FIT_UNAVAILABLE
+// warnings of a formula over a failed fit (none when prepare refused).
+func (a *formulaAttribute) attributeWarnings() []*types.ResponseWarning {
+	if a.prepare() != nil {
+		return nil
+	}
+	return a.unavailable
 }
 
 // formulaNumber is a formula's numeric reading of an expression value:

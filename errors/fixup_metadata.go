@@ -4634,15 +4634,15 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FIT_UNAVAILABLE: {
-		Message: "Warning-class — an ATTR_REG_PREDICT slot scores from a Compose fit that failed on its data (its `fits` entry carries `error`), so no model is bound under that name: the slot's column is null on every row (aggregations over it count the rows in n_null) and every other slot of the response is computed normally. Details carry `fit` (the fit's name), `attribute` (the scoring slot's label) and `code` (the fit's own error code). Under Options.Strict the failed fit fails the whole batch with its own code before any slot runs.",
+		Message: "Warning-class — an attribute slot reads a Compose fit that failed on its data (its `fits` entry carries `error`): scoring it, a formula naming it in a literal coef() call, a fitted vector attribute's params.fit or a {population} reference. No model is bound under that name, so the slot's column is null on every row (aggregations over it count the rows in n_null) and every other slot of the response is computed normally. Details carry `fit` (the fit's name), `attribute` (the reading slot's label) and `code` (the fit's own error code). Under Options.Strict the failed fit fails the whole batch with its own code before any slot runs.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Look up the fit's own error code (details.code) and apply its fixup to the fit request named by details.fit, then rerun the batch; the scoring slot needs no change.",
+				Hint:   "Look up the fit's own error code (details.code) and apply its fixup to the fit request named by details.fit, then rerun the batch; the reading slot needs no change.",
 			},
 			{
 				Action: FixupReplaceField,
-				Hint:   "Point the slot's params.fit at another fit that converged, or drop the scoring slot when the failed fit cannot be repaired.",
+				Hint:   "Point the slot's params.fit, coef() call or population reference at another fit that converged, or drop the slot when the failed fit cannot be repaired.",
 			},
 		},
 	},

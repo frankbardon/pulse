@@ -154,13 +154,43 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 			}
 		}
 	} else {
-		runCtx, cancel := context.WithCancel(ctx)
-		defer cancel()
+		// Fail-fast, yet the serial loop's winner: fit i's failure
+		// cancels (and stops launching) only the fits AFTER it, so
+		// every earlier fit runs to completion and the lowest-index
+		// failure is the one reported (failFastWinner) — never a race
+		// between two fits that both fail on their data under Strict.
+		ctxs := make([]context.Context, n)
+		cancels := make([]context.CancelFunc, n)
+		for i := range fits {
+			ctxs[i], cancels[i] = context.WithCancel(ctx)
+		}
+		defer func() {
+			for _, c := range cancels {
+				c()
+			}
+		}()
+		var mu sync.Mutex
+		stopAt := n // no fit at or after stopAt is launched
+		fail := func(i int) {
+			mu.Lock()
+			defer mu.Unlock()
+			if i >= stopAt {
+				return
+			}
+			stopAt = i
+			for j := i + 1; j < n; j++ {
+				cancels[j]()
+			}
+		}
+		launchable := func(i int) bool {
+			mu.Lock()
+			defer mu.Unlock()
+			return i < stopAt
+		}
 		sem := make(chan struct{}, workers)
 		var wg sync.WaitGroup
-		var once sync.Once
 		for i := range fits {
-			if runCtx.Err() != nil {
+			if ctx.Err() != nil || !launchable(i) {
 				break
 			}
 			wg.Add(1)
@@ -168,8 +198,8 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 			go func() {
 				defer wg.Done()
 				defer func() { <-sem }()
-				if run(runCtx, i); errs[i] != nil {
-					once.Do(cancel)
+				if run(ctxs[i], i); errs[i] != nil {
+					fail(i)
 				}
 			}()
 		}

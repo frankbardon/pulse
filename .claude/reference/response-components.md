@@ -20,7 +20,7 @@ Load it before changing `CrosstabSpec.MarginAggregations` (the auxiliary margin-
 7. Per-group aggregation components (`aggregations[*].groups`)
 8. Attribute components (`Components.Attributes`, U27 E2-S4)
 9. Run-time warnings in the envelope and the stream (U44 E2-S5)
-10. Per-slot failures (`types.SlotError`, `PULSE_SLOT_FAILED`, failed Compose fits + `PULSE_FIT_UNAVAILABLE`, U49 E1-S2 / E1-S3)
+10. Per-slot failures (`types.SlotError`, `PULSE_SLOT_FAILED`, failed Compose fits + their readers + `PULSE_FIT_UNAVAILABLE`, U49 E1-S2 / E1-S3 / E1-S4)
 
 **Skill homes (U10 split).** The LLM-facing prose for this surface lives in these skills: `skills/response-components.md` (floor, five sub-blocks, opt-out, manifest declaration, mergeability classes), `skills/crosstab-margin-aggregations.md` (the auxiliary figures, the admission rule, `present`, the display gate), `skills/crosstab-measures.md` (multi-measure crosstabs) and `skills/streaming-and-watching.md` (per-chunk Components by mergeability class). Contributor-only detail that used to sit in those skills is in section 4 below and in `.claude/reference/execution-modes.md` (parallel reducers, the Welford overlay parity reads).
 

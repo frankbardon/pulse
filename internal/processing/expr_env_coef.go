@@ -3,6 +3,7 @@ package processing
 import (
 	stderrors "errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/expr-lang/expr"
@@ -11,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
 	"github.com/frankbardon/pulse/internal/temporal"
+	"github.com/frankbardon/pulse/types"
 )
 
 // coef(fit, term[, stat]) — the bound-model reader for ATTR_FORMULA and
@@ -89,6 +91,45 @@ func (r *ExtensionRegistry) coefStaticRefusal(src string, models *model.Set) err
 	}
 	if cerr := coefcall.StaticRefusal(src, models); cerr != nil {
 		return cerr
+	}
+	return nil
+}
+
+// failedCoefFits are the failed fits (model.Set.FailedOfKind — a
+// Compose regression fit that failed on its data) src names in a
+// literal coef() call, each once in first-call order with its error;
+// nil when there is none, or when an embedder function shadows coef.
+// A non-literal fit name is not judged here: a row that evaluates it to
+// a failed fit is refused with the fit's own code (modelRefusal).
+func (r *ExtensionRegistry) failedCoefFits(src string, models *model.Set) []failedCoefFit {
+	if models == nil || r.coefShadowed() || !strings.Contains(src, model.CoefFunc) {
+		return nil
+	}
+	var out []failedCoefFit
+	for _, c := range coefcall.LiteralCalls(src) {
+		se, failed := models.FailedOfKind(c.Fit, types.FitKindRegression)
+		if !failed || slices.ContainsFunc(out, func(f failedCoefFit) bool { return f.name == c.Fit }) {
+			continue
+		}
+		out = append(out, failedCoefFit{name: c.Fit, err: se})
+	}
+	return out
+}
+
+// failedCoefFit is one failed fit a literal coef() call names.
+type failedCoefFit struct {
+	name string
+	err  *types.SlotError
+}
+
+// coefFailedRefusal is the build-time refusal of an expression that
+// cannot degrade (FILTER_EXPRESSION: a filter's verdict is never null)
+// naming a failed fit in a literal coef() call: the first such fit's
+// own code plus details.fit (model.FailedFitRefusal) — raised before
+// any row, so it fires even when no row reaches the filter.
+func (r *ExtensionRegistry) coefFailedRefusal(src string, models *model.Set) error {
+	if fs := r.failedCoefFits(src, models); len(fs) > 0 {
+		return model.FailedFitRefusal(fs[0].name, fs[0].err)
 	}
 	return nil
 }

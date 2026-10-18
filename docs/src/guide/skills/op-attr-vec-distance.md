@@ -45,7 +45,7 @@ Floor `{n, n_null}` + `n_reference_missing`, `n_domain_invalid`. `Mergeable`.
 
 - `std_euclidean` / `mahalanobis`: two-pass fit (listwise, weighted under a weight); N* ≤ p or singular → all null + warning. With `fit`: row-local, one pass, streams beside groupers; never merged, like its row-local metrics (shards run serially; a chain stage refuses it).
 - A centroid reference is two-pass for every metric (and keeps a `fit` slot two-pass); weighted, cohort-wide.
-- Matched BY LABEL: `PULSE_VECTOR_REFERENCE_MISMATCH` at predict; unbound population `PULSE_VECTOR_REFERENCE_UNKNOWN`. A record matches by member column; its lookup refuses at run time only (`PULSE_INDEX_*`, `PULSE_LOOKUP_*`).
+- Matched BY LABEL: `PULSE_VECTOR_REFERENCE_MISMATCH` at predict; unbound population `PULSE_VECTOR_REFERENCE_UNKNOWN`; a failed compose fit (population or `fit`) nulls every row + `PULSE_FIT_UNAVAILABLE`. A record matches by member column; its lookup refuses at run time only (`PULSE_INDEX_*`, `PULSE_LOOKUP_*`).
 - A null / profile-less key (`key_field` or `by`) or a domain violation (`hellinger`, `aitchison`) nulls the row and warns once per slot: `PULSE_VECTOR_REFERENCE_MISSING`, `PULSE_VECTOR_METRIC_DOMAIN`; strict does not escalate.
 
 ## See

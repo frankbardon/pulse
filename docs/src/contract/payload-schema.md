@@ -1262,12 +1262,18 @@ A Compose `fits` entry whose fit fails on its data fails alone too: its
 error}}` for a vector fit (on `VectorFitResult` `operator` stays
 required and the figures move under the same `if` / `then`) — its
 `PULSE_SLOT_FAILED` warning lifts to the batch `warnings` with
-`details.fit`, and every other fit and slot runs. An `ATTR_REG_PREDICT`
-scoring from it is `null` on every row and adds a
+`details.fit`, and every other fit and slot runs. An attribute reading
+it — `ATTR_REG_PREDICT` scoring it, an `ATTR_FORMULA` naming it in a
+literal `coef()` call, a fitted vector attribute's `params.fit`, a
+`{population}` reference — is `null` on every row and adds a
 `PULSE_FIT_UNAVAILABLE` warning `{fit, attribute, code}` to that slot's
-response; `coef()`, a vector `params.fit` or a `{population}` naming it
-is refused with the fit's own code and `details.fit`. Under
-`Options.Strict` the batch fails with the fit's own code. Predict
+response; a `MAT_*` slot's `params.fit` fails that slot alone (a
+`matrices` entry `{name, type, error}` with the fit's own code and
+`details.fit`, plus its `PULSE_SLOT_FAILED` warning). A
+`FILTER_EXPRESSION` naming it in `coef()` (a filter's verdict cannot be
+null) and a `coef()` whose fit name is not a literal are refused with
+the fit's own code and `details.fit`. Under `Options.Strict` the batch
+fails with the fit's own code. Predict
 cannot foresee a data fault, so `pulse predict` never reports a fit as
 failing.
 

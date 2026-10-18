@@ -104,3 +104,38 @@ func must(s *Set, err error) *Set {
 	}
 	return s
 }
+
+// TestSet_FailedOfKind: a reader of kind sees a failed fit of its own
+// kind only (the other kind keeps PULSE_MODEL_KIND_MISMATCH through
+// Lookup / LookupVector), and FailedFitSlotError carries the fit's own
+// code, message and details plus details.fit — a fresh map each call.
+func TestSet_FailedOfKind(t *testing.T) {
+	s := failedSet(t)
+	if se, ok := s.FailedOfKind("pop", types.FitKindVector); !ok || se.Code != string(errors.PULSE_MATRIX_SINGULAR) {
+		t.Errorf("FailedOfKind(pop, vector) %+v %v", se, ok)
+	}
+	if se, ok := s.FailedOfKind("m", types.FitKindRegression); !ok || se.Code != string(errors.PROCESSING_REGRESSION_SEPARATION) {
+		t.Errorf("FailedOfKind(m, regression) %+v %v", se, ok)
+	}
+	for _, c := range []struct {
+		name string
+		kind types.FitKind
+	}{{"pop", types.FitKindRegression}, {"m", types.FitKindVector}, {"nope", types.FitKindVector}} {
+		if se, ok := s.FailedOfKind(c.name, c.kind); ok || se != nil {
+			t.Errorf("FailedOfKind(%s, %s) %+v %v, want none", c.name, c.kind, se, ok)
+		}
+	}
+	var nilSet *Set
+	if _, ok := nilSet.FailedOfKind("m", types.FitKindRegression); ok {
+		t.Error("nil set reported a failed fit")
+	}
+	src, _ := s.Failed("m")
+	a := FailedFitSlotError("m", src)
+	if a.Code != string(errors.PROCESSING_REGRESSION_SEPARATION) || a.Details["fit"] != "m" || a.Details["predictors"] == nil || a.Message == "" {
+		t.Errorf("slot error %+v", a)
+	}
+	a.Details["matrix"] = "cov"
+	if b := FailedFitSlotError("m", src); b.Details["matrix"] != nil || src.Details["fit"] != nil {
+		t.Errorf("FailedFitSlotError shares its details: %+v / %+v", b.Details, src.Details)
+	}
+}
