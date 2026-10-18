@@ -686,6 +686,27 @@ library knob is `io.ExportJob.TimeZone`; the manifest's
 pulse export csv -i orders.pulse -o orders.csv --tz Asia/Kolkata
 ```
 
+### `--time-zone` (cohort filter)
+
+Available on: `cohort filter`.
+
+`--time-zone Zone` is the zone a `to_day()` call in `--filter` reads,
+on both predicate shapes (`--filter` alone, and `--include-from` AND
+`--filter`): `to_day(ts) == d` keeps a row whose `ts` falls on `d` on
+`Zone`'s wall clock. It is the instance default zone
+(`Options.DefaultTimeZone`), so a predicate reads it exactly as
+`FilterToFileRequest.TimeZone` would. `Zone` is an IANA name or `UTC`;
+an unknown name is a `PULSE_TIMEZONE_UNKNOWN` envelope, exit 1, refused
+before the cohort is read and with nothing written. Absent, `to_day`
+reads UTC and the output is byte-identical to today's. The output path
+is always `-o`; the leaf does no dedup naming (that is
+[`FilterToFileWithRequest`](../library/filter-to-file.md)).
+
+```bash
+pulse cohort filter -i orders.pulse -o ny_same_day.pulse \
+  --filter 'to_day(placed_at) == ship_day' --time-zone America/New_York
+```
+
 ### `--labels` (export)
 
 Available on: every `export <format>` leaf and `export predict`.
@@ -764,7 +785,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse api process` | Execute a processing request against a cohort | [api process](api-process.md) |
 | `pulse api process-chain` | Source-rooted linear chain of mergeable stages | [api process](api-process.md) |
 | `pulse api sample` | Return sample rows from a cohort | [api sample](api-sample.md) |
-| `pulse cohort filter` | Filter a `.pulse` file to a new `.pulse` file | `--help` |
+| `pulse cohort filter` | Filter a `.pulse` file to a new `.pulse` file: `-i IN -o OUT` plus `--filter EXPR` and / or `--include-from FILE --include-field F` (AND-combined, set first); `--time-zone Zone` is the zone a `to_day()` in `--filter` reads (absent = UTC) | [`--time-zone`](#--time-zone-cohort-filter) |
 | `pulse cohort inspect` | Inspect a `.pulse` header and schema | [cohort inspect](cohort-inspect.md) |
 | `pulse convert` | Convert between tabular formats, auto-detected from extensions | [import spss](import-spss.md), [export spss](export-spss.md) |
 | `pulse convert predict` | Validate a conversion without writing output | [export spss](export-spss.md) |

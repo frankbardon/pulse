@@ -141,6 +141,10 @@ res, err := p.FilterToFileWithRequest(ctx, &pulse.FilterToFileRequest{
 })
 ```
 
+The CLI's `pulse cohort filter --time-zone Zone` gives `to_day()` the
+same zone (as the instance default); see
+[`--time-zone`](../cli/flags.md#--time-zone-cohort-filter).
+
 ## Deterministic output naming
 
 When `OutputName` is empty, the basename is computed as:
