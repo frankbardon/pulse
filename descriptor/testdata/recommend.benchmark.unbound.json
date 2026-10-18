@@ -80,7 +80,6 @@
           },
           "windows": [
             {
-              "field": "\u003cfield\u003e",
               "order_by": [
                 {
                   "field": "\u003corder_by\u003e"
@@ -92,7 +91,6 @@
         },
         "placeholders": [
           "cohort",
-          "field",
           "order_by"
         ],
         "alternatives": [
@@ -160,7 +158,6 @@
           },
           "windows": [
             {
-              "field": "\u003cfield\u003e",
               "order_by": [
                 {
                   "field": "\u003corder_by\u003e"
@@ -172,7 +169,6 @@
         },
         "placeholders": [
           "cohort",
-          "field",
           "order_by"
         ],
         "alternatives": [
@@ -431,4 +427,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 31420ef5648d37110a3aef8ea9a58433ae0af2ca82fecc34012156affb85c414
+// golden-hash: 3824dd375c6e249bb9b747b14c1f5c10aa3359df037289196b962fc0311673b4

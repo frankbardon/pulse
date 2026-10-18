@@ -19,6 +19,11 @@ import (
 // (internal/windowparams), so predict and the engine agree.
 func WindowFrameRequired(t types.WindowType) bool { return windowparams.FrameRequired(t) }
 
+// WindowFieldForbidden reports whether predict refuses a window of type
+// t that names a field (the order-only operators) — Recommend's drafts
+// and skeletons omit the slot for them.
+func WindowFieldForbidden(t types.WindowType) bool { return windowparams.FieldForbidden(t) }
+
 // IsOrderableType is the ONE window ORDER BY orderability rule, applied
 // on both sides by the shared FieldRefRefusals walk (predict reports it,
 // every runtime execution mode refuses with it). It admits exactly the

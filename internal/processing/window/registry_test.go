@@ -109,6 +109,11 @@ func TestFactories_RefuseSlotConfigAtConstruction(t *testing.T) {
 			w.Field = ""
 			bad["no field"] = w
 		}
+		if windowparams.FieldForbidden(typ) {
+			w = valid(typ)
+			w.Field = "x"
+			bad["field given"] = w
+		}
 		w = valid(typ)
 		if windowparams.FrameRequired(typ) {
 			w.Frame = nil

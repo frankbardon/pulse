@@ -27,7 +27,7 @@ Use something else:
 
 ## Params
 
-None. `partition_by` (carve), `order_by` (≥1, required, numeric / `date`), `frame` (forbidden), `field` (forbidden — no value read).
+None. `partition_by` (carve), `order_by` (≥1, required, numeric / `date`), `frame` (forbidden), `field` (refused `PULSE_WINDOW_INVALID` — no value read).
 
 ## Inputs
 

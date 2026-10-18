@@ -115,9 +115,13 @@ func TestTables(t *testing.T) {
 			t.Errorf("%s: frame required %v, rejected %v — every built-in takes a frame or refuses one", typ, FrameRequired(typ), FrameRejected(typ))
 		}
 	}
-	for _, typ := range []types.WindowType{types.WIN_ROW_NUMBER, types.WIN_RANK, types.WIN_DENSE_RANK} {
-		if FieldRequired(typ) {
-			t.Errorf("%s reads no value field", typ)
+	for _, typ := range types.AllWindowTypes() {
+		if FieldRequired(typ) == FieldForbidden(typ) {
+			t.Errorf("%s: field required %v, forbidden %v — every built-in reads a field or refuses one", typ, FieldRequired(typ), FieldForbidden(typ))
 		}
+	}
+	got := messages(Check(&types.Window{Type: types.WIN_RANK, Field: "x", OrderBy: []types.OrderKey{{Field: "t"}}}))
+	if len(got) != 1 || got[0] != "field is not allowed: this operator reads only its order_by keys" {
+		t.Errorf("rank with a field: Check = %q", got)
 	}
 }

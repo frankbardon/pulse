@@ -125,6 +125,12 @@ func windowParityCases(t *testing.T, typ types.WindowType, row windowParityRow) 
 		m = parse()
 		delete(m, "field")
 		cases = append(cases, windowParityCase{name: "no field", slot: m, refuse: windowparams.FieldRequired(typ)})
+	} else {
+		// An operator whose valid slot names no field: the order-only
+		// ones refuse one (FieldForbidden).
+		m = parse()
+		m["field"] = "x"
+		cases = append(cases, windowParityCase{name: "field given", slot: m, refuse: windowparams.FieldForbidden(typ)})
 	}
 
 	if _, ok := parse()["frame"]; ok {
@@ -152,7 +158,8 @@ func windowParityCases(t *testing.T, typ types.WindowType, row windowParityRow) 
 // reported (PULSE_WINDOW_INVALID: predict "window[0] (TYPE): rule",
 // runtime "TYPE: rule"), and each slot predict accepts runs on all three.
 // The verdicts themselves follow the shared reading's tables: order_by
-// required, field required on value-bearing operators, frame required
+// required, field required on value-bearing operators and refused on
+// the order-only ones (row number, rank, dense rank), frame required
 // on running / moving / EWMA aggregates and refused everywhere else.
 func TestWindowRefusals_PredictMatchesRuntime(t *testing.T) {
 	for _, typ := range types.AllWindowTypes() {

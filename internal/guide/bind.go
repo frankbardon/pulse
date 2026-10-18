@@ -385,7 +385,7 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 			needs = append(needs, bneed{key: shape.key, loc: loc, list: listKeys[shape.key] || shape.inParam})
 		}
 	case catWindow:
-		if !op.ignoresField {
+		if !op.ignoresField && !descx.WindowFieldForbidden(types.WindowType(op.name)) {
 			slots = append(slots, bslot{key: "field", accept: fieldAccept})
 		}
 		slots = append(slots, bslot{key: "order_by", loc: locOrderBy, accept: kindIs(descriptor.FieldKindDate, descriptor.FieldKindNumeric), prefer: preferDate})

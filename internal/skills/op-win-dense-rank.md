@@ -15,7 +15,7 @@ Window operators emit row-level values; they do not produce `Response.Components
 
 ## Params
 
-None. `partition_by` (carve), `order_by` (≥1, required, numeric / `date` — tie comparison reads these keys), `frame` (forbidden), `field` (forbidden — no value read).
+None. `partition_by` (carve), `order_by` (≥1, required, numeric / `date` — tie comparison reads these keys), `frame` (forbidden), `field` (refused `PULSE_WINDOW_INVALID` — no value read).
 
 ## Inputs
 

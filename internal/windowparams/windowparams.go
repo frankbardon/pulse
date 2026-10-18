@@ -9,7 +9,9 @@
 //   - order_by needs at least one key — except WIN_SHARE / WIN_LIFT,
 //     whose own reading (internal/shareparams) needs it only when
 //     cumulative — and every key names a field;
-//   - field is required on every value-bearing operator (FieldRequired);
+//   - field is required on every value-bearing operator (FieldRequired)
+//     and refused on the order-only ones (FieldForbidden: row number,
+//     rank, dense rank read no value);
 //   - frame is refused on the operators that read none (FrameRejected),
 //     required on the ones that do (FrameRequired); a given frame is
 //     mode "rows", its bounds are >= 0, and a moving average bounds both
@@ -76,6 +78,17 @@ var fieldRequired = map[types.WindowType]bool{
 	types.WIN_LIFT:        true,
 }
 
+// fieldForbidden lists the order-only operators: they read no value
+// field, so a slot naming one is refused rather than silently ignored.
+var fieldForbidden = map[types.WindowType]bool{
+	types.WIN_ROW_NUMBER: true,
+	types.WIN_RANK:       true,
+	types.WIN_DENSE_RANK: true,
+}
+
+// FieldForbidden reports whether a window of type t refuses a field.
+func FieldForbidden(t types.WindowType) bool { return fieldForbidden[t] }
+
 // FrameRequired reports whether a window of type t without a frame is
 // refused.
 func FrameRequired(t types.WindowType) bool { return frameRequired[t] }
@@ -141,6 +154,9 @@ func Check(w *types.Window) []*Refusal {
 	// refusal, judged with its params below.
 	if fieldRequired[w.Type] && w.Field == "" && !shareparams.Handles(w.Type) {
 		refuse("field is required", nil)
+	}
+	if fieldForbidden[w.Type] && w.Field != "" {
+		refuse("field is not allowed: this operator reads only its order_by keys", map[string]any{"field": w.Field})
 	}
 
 	if w.Frame != nil && frameRejected[w.Type] {
