@@ -97,7 +97,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-feat-one-hot`](skills/op-feat-one-hot.md): One-hot encode a categorical or packed_bool field as one f64 column per level.
 - [`op-feat-poly`](skills/op-feat-poly.md): Per-row polynomial expansion x^2..x^Degree of a numeric field — the basis for a polynomial regression.
 - [`op-feat-sqrt`](skills/op-feat-sqrt.md): Per-row sqrt(x) of a numeric field; emits one f64 column.
-- [`op-feat-target-encode`](skills/op-feat-target-encode.md): Replace each categorical value with the smoothed mean of a numeric Target field for that category. Leakage trap — see Gotchas.
+- [`op-feat-target-encode`](skills/op-feat-target-encode.md): Replace each categorical value with the smoothed mean of a numeric Target field over the training rows (fit_on), optionally out-of-fold. Leakage trap — see Gotchas.
 - [`op-feat-train-test-split`](skills/op-feat-train-test-split.md): Deterministic split-assignment column (0=train, 1=val, 2=test) for ML workflows.
 - [`op-filter-date-ranges`](skills/op-filter-date-ranges.md): Keep records whose date/datetime field falls inside any of a validated set of labeled date ranges.
 - [`op-filter-exclude`](skills/op-filter-exclude.md): Drop records whose field value appears in the supplied Values list.

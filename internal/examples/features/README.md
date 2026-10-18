@@ -52,7 +52,7 @@ errors.
 | `05_date_features_seasonality.json` | `FEAT_DATE_FEATURES` | Calendar decomposition + group-by-quarter |
 | `06_frequency_encode.json` | `FEAT_FREQUENCY_ENCODE` | Replace high-cardinality categorical with frequency |
 | `07_train_test_split.json` | `FEAT_TRAIN_TEST_SPLIT` | Stratified 70/15/15 partition by category |
-| `08_target_encode_safe.json` | `FEAT_TARGET_ENCODE` | Split-then-encode order, smoothing=5 — still in-sample, still warns |
+| `08_target_encode_safe.json` | `FEAT_TARGET_ENCODE` | Split, then encode with `fit_on: "split == 0"` + `folds: 5` — leakage-safe, no warning |
 | `09_target_encode_leaky.json` | `FEAT_TARGET_ENCODE` | Triggers `PULSE_FEAT_TARGET_LEAKAGE_RISK` |
 | `10_full_ml_pipeline.json` | All eight | Compose the full preprocessing graph |
 | `12_date_features_datetime.json` | `FEAT_DATE_FEATURES` | Local calendar features + `hour` of a `datetime` (request `time_zone`) |
@@ -86,12 +86,12 @@ bin/pulse api predict --request internal/examples/features/09_target_encode_leak
 # error: PULSE_FEAT_TARGET_LEAKAGE_RISK
 ```
 
-The warning fires on every `FEAT_TARGET_ENCODE`, including after a
-`FEAT_TRAIN_TEST_SPLIT` (see `08_target_encode_safe.json`): the encoder
-reads no split column, so every mean includes validation/test rows and the
-row's own target. For train-only means, compute `AGG_AVERAGE` of the
-target grouped by the category on `split == 0` in a separate request and
-map them back.
+The warning fires on every `FEAT_TARGET_ENCODE` without `params.fit_on`,
+including after a `FEAT_TRAIN_TEST_SPLIT`: features run before filters, so
+every mean includes validation/test rows and the row's own target. Pass
+`fit_on: "split == 0"` (see `08_target_encode_safe.json`) so only the
+training rows feed the means, and `folds` to encode the training rows
+out-of-fold; `folds` without `fit_on` keeps a reworded warning.
 
 ## Default output column names
 

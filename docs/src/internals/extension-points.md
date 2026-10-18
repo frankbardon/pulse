@@ -1322,8 +1322,8 @@ counterpart of `FieldInputs` and must gain an arm on the same day such
 an operator does — `AGG_DISTINCT_SUM`'s `distinct_by`,
 `AGG_WEIGHTED_MEAN`'s `weight_field`, `AGG_RATIO`'s
 `numerator_field` / `denominator_field`, `FEAT_TRAIN_TEST_SPLIT`'s
-`stratify` and `FEAT_TARGET_ENCODE`'s `target` are the whole set
-today, and the field-reference rule (`aggParamFieldKeys` in
+`stratify` and `FEAT_TARGET_ENCODE`'s `target` (plus every field its
+`fit_on` expression reads) are the whole set today, and the field-reference rule (`aggParamFieldKeys` in
 `internal/descriptor/field_refs.go`) must gain the same arm so an
 unknown name there is refused rather than read as all-null. **Forgetting one fails silently, not loudly:** the field is
 decoded onto no `Record`, `Record.NumericValue` answers `ok=false` for

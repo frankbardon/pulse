@@ -19,10 +19,11 @@ import "github.com/frankbardon/pulse/descriptor"
 // Each Purpose states the operator as Pulse implements it
 // (internal/processing/feature/*.go), not as the textbook default:
 // FEAT_LOG is ln(1 + x), FEAT_FREQUENCY_ENCODE is a share of the
-// non-missing rows, and FEAT_TARGET_ENCODE reads no split column, so it
-// encodes from every record — test rows and the row's own target
-// included — whatever FEAT_TRAIN_TEST_SPLIT runs before it. The pinning
-// tests are in internal/processing/feature/reading_semantics_test.go.
+// non-missing rows, and FEAT_TARGET_ENCODE without params.fit_on encodes
+// from every record — test rows and the row's own target included —
+// whatever FEAT_TRAIN_TEST_SPLIT runs before it. The pinning tests are in
+// internal/processing/feature/reading_semantics_test.go and
+// target_encode_fiton_test.go.
 var featurePurposes = map[string]descriptor.Purpose{
 	"FEAT_BUCKETIZE":        purposeFeatBucketize,
 	"FEAT_DATE_FEATURES":    purposeFeatDateFeatures,
@@ -196,8 +197,9 @@ var (
 		},
 		Assumptions: []string{
 			featBeforeFilters,
-			featWholeCohort,
-			"It reads no split column: placing FEAT_TRAIN_TEST_SPLIT first changes nothing, and test rows and each row's own outcome still feed every average.",
+			"Its averages come from the training records params.fit_on picks (for example split == 0 after FEAT_TRAIN_TEST_SPLIT); every record is encoded, and a category with no training record reads the overall training average.",
+			"Without fit_on every record is a training record: test rows and each row's own outcome feed every average, and placing FEAT_TRAIN_TEST_SPLIT first changes nothing.",
+			"With folds k each training record reads the averages of the training records outside its fold, so its own outcome never feeds its value.",
 			"Smoothing s gives (n * category average + s * overall average) / (n + s); 0 means no pull.",
 		},
 		Level:    descriptor.LevelAdvanced,

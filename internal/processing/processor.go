@@ -494,7 +494,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 	if hasTwoPassAttr && (len(req.Features) > 0 || len(req.Groups) > 0) {
 		return false
 	}
-	if len(req.Features) > 0 && !feature.IsStreamableWithExt(req.Features, p.schema, p.exts.LookupFeature) {
+	if len(req.Features) > 0 && !feature.IsStreamableWithExt(req.Features, p.schema, p.featureResolver()) {
 		return false
 	}
 	if !hasStreamingWork(req) {
@@ -563,7 +563,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 	// PROCESSING_CONFIG bubbling up the canonical error.
 	var streamingFeatures []feature.StreamingHandle
 	if len(req.Features) > 0 {
-		handles, err := feature.BuildStreamingWithExt(req.Features, p.schema, p.exts.LookupFeature)
+		handles, err := feature.BuildStreamingWithExt(req.Features, p.schema, p.featureResolver())
 		if err != nil {
 			return nil, err
 		}
@@ -956,7 +956,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	// Build feature handles + filter funcs + row-local attrs once.
 	var streamingFeatures []feature.StreamingHandle
 	if len(req.Features) > 0 {
-		handles, err := feature.BuildStreamingWithExt(req.Features, p.schema, p.exts.LookupFeature)
+		handles, err := feature.BuildStreamingWithExt(req.Features, p.schema, p.featureResolver())
 		if err != nil {
 			return nil, err
 		}
@@ -1652,25 +1652,78 @@ func buildFilterFuncsWith(filterers []*types.Filterer, schema *encoding.Schema, 
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown filter type: %s", f.Type))
 		}
-		builder := factory()
-		if aware, ok := builder.(ExtensionAware); ok {
-			aware.SetExtensions(exts)
-		}
-		if mb, ok := builder.(modelBinder); ok {
-			if err := mb.bindModels(models); err != nil {
-				return nil, err
-			}
-		}
-		if vb, ok := builder.(vectorBinder); ok {
-			vb.bindVectors(vecs)
-		}
-		fn, err := builder.Build(f, schema)
+		fn, err := buildFilterFunc(factory, f, schema, exts, models, vecs)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, wrapFilterPrecompute(fn, f, schema, exts))
+		out = append(out, fn)
 	}
 	return out, nil
+}
+
+// buildFilterFunc builds one filterer from factory with the registry,
+// the bound models and the named vectors bound — buildFilterFuncsWith's
+// per-slot step, shared with a feature's fit_on (featureResolver).
+func buildFilterFunc(factory FiltererFactory, f *types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) (FilterFunc, error) {
+	builder := factory()
+	if aware, ok := builder.(ExtensionAware); ok {
+		aware.SetExtensions(exts)
+	}
+	if mb, ok := builder.(modelBinder); ok {
+		if err := mb.bindModels(models); err != nil {
+			return nil, err
+		}
+	}
+	if vb, ok := builder.(vectorBinder); ok {
+		vb.bindVectors(vecs)
+	}
+	fn, err := builder.Build(f, schema)
+	if err != nil {
+		return nil, err
+	}
+	return wrapFilterPrecompute(fn, f, schema, exts), nil
+}
+
+// featureResolver is the instance's feature lookup (exts.LookupFeature)
+// with each constructed Computer's fit_on bound (feature.FitOnBinder):
+// the expression compiles through the built-in FILTER_EXPRESSION
+// builder — the one build every expression filter gets, its null rule
+// included — whether or not the instance lists FILTER_EXPRESSION, as it
+// is a param of an operator the instance enabled. It inherits the
+// feature slot's `tz` (written by descriptor.ZonedExpressions when
+// fit_on calls to_day). Every feature entry point (Apply, the streaming
+// build, the streaming verdict) resolves through it.
+func (p *Processor) featureResolver() feature.Resolver {
+	return func(t types.FeatureType) (feature.Factory, bool) {
+		factory, ok := p.exts.LookupFeature(t)
+		if !ok {
+			return nil, false
+		}
+		return func(feat *types.Feature, schema *encoding.Schema) (feature.Computer, error) {
+			c, err := factory(feat, schema)
+			if err != nil {
+				return nil, err
+			}
+			b, ok := c.(feature.FitOnBinder)
+			if !ok || b.FitOnExpression() == "" {
+				return c, nil
+			}
+			spec := &types.Filterer{Type: types.FILTER_EXPRESSION, Expression: b.FitOnExpression(), TimeZone: feat.TimeZone}
+			fn, err := buildFilterFunc(filtererRegistry[types.FILTER_EXPRESSION], spec, schema, p.exts, p.models, p.exprVectors)
+			if err != nil {
+				return nil, err
+			}
+			b.BindFitOn(func(r feature.Record) (bool, error) {
+				rec, ok := r.(*Record)
+				if !ok {
+					return false, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+						fmt.Sprintf("feature %s params.fit_on: record type %T is not an engine record", feat.Type, r))
+				}
+				return fn(rec)
+			})
+			return c, nil
+		}, true
+	}
 }
 
 // ProcessComposed executes multiple requests against a shared record set.
@@ -2106,7 +2159,7 @@ func (p *Processor) applyFeatures(features []*types.Feature, records []*Record) 
 	for i, r := range records {
 		view[i] = r
 	}
-	return feature.ApplyWithExt(view, features, p.schema, p.exts.LookupFeature)
+	return feature.ApplyWithExt(view, features, p.schema, p.featureResolver())
 }
 
 // applyAttributes runs attrs in DECLARED order over records (the

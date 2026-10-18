@@ -269,6 +269,14 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 			if name, ok := jsonStringField(f.Params, "target"); ok {
 				addKnown(name)
 			}
+			// params.fit_on is an expression filter over the record:
+			// every schema field it reads is a decoded column.
+			if src, ok := jsonStringField(f.Params, "fit_on"); ok && src != "" {
+				if !appendExprIdents(out, src, known, vecMembers) {
+					out.Widen()
+					return out
+				}
+			}
 		}
 		// Extension features: defer to the registered FieldInputs hook
 		// if any; otherwise widen.

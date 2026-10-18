@@ -29,7 +29,9 @@ import (
 // that is not zone-capable whose params carry a nested filter calling it
 // (a fitted attribute's params.fit_on, a centroid reference's filter —
 // the engine hands its slot `tz` down to those nested
-// FILTER_EXPRESSIONs). req itself is returned when the inherited zone is
+// FILTER_EXPRESSIONs), and likewise any feature that is not
+// zone-capable whose params mention it (FEAT_TARGET_ENCODE
+// params.fit_on). req itself is returned when the inherited zone is
 // UTC-equivalent (or unknown — ResolveZones refused it already) or no
 // slot calls to_day; otherwise a shallow copy whose written slots are
 // copies. req is never mutated.
@@ -67,6 +69,25 @@ func ZonedExpressions(req *types.Request, defaultZone string, load ZoneLoader) *
 	if attrs != nil {
 		copyReq()
 		c.Attributes = attrs
+	}
+	// A feature that is not zone-capable whose params carry an
+	// expression calling to_day (FEAT_TARGET_ENCODE params.fit_on): the
+	// engine hands the slot `tz` down to the expression it compiles.
+	var feats []*types.Feature
+	for i, f := range req.Features {
+		if f == nil || f.TimeZone != "" || IsZoneCapable(string(f.Type)) || !bytes.Contains(f.Params, []byte(exprenv.FuncToDay)) {
+			continue
+		}
+		if feats == nil {
+			feats = append([]*types.Feature(nil), req.Features...)
+		}
+		cp := *f
+		cp.TimeZone = tz
+		feats[i] = &cp
+	}
+	if feats != nil {
+		copyReq()
+		c.Features = feats
 	}
 	if c == nil {
 		return req

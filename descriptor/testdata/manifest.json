@@ -6511,6 +6511,25 @@
               "required": false,
               "default": 0,
               "description": "Bayesian smoothing weight blending category mean with global mean."
+            },
+            {
+              "name": "fit_on",
+              "type": "string",
+              "required": false,
+              "description": "Boolean expression (expression-filter syntax) choosing the training rows, e.g. \"split == 0\"; may read earlier features' columns. Only training rows feed the means; every row is encoded, an unseen category with the training global mean. Silences PULSE_FEAT_TARGET_LEAKAGE_RISK."
+            },
+            {
+              "name": "folds",
+              "type": "int",
+              "required": false,
+              "default": 0,
+              "description": "0 (off) or 2..100: encode each training row out-of-fold, from the training rows outside its fold; other rows get the full-training encoding."
+            },
+            {
+              "name": "rng_seed",
+              "type": "int",
+              "required": false,
+              "description": "Seed of the fold assignment; only valid with folds."
             }
           ],
           "accepts_types": [
@@ -6520,7 +6539,7 @@
             "packed_bool"
           ],
           "emits_type": "f32",
-          "emits_type_note": "single column \"\u003clabel\u003e\"; risk of target leakage on non-CV pipelines",
+          "emits_type_note": "single column \"\u003clabel\u003e\"; leaks the holdout's outcomes unless fit_on names the training rows",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -12359,7 +12378,7 @@
       },
       {
         "name": "op-feat-target-encode",
-        "description": "Replace each categorical value with the smoothed mean of a numeric Target field for that category. Leakage trap — see Gotchas."
+        "description": "Replace each categorical value with the smoothed mean of a numeric Target field over the training rows (fit_on), optionally out-of-fold. Leakage trap — see Gotchas."
       },
       {
         "name": "op-feat-train-test-split",
@@ -19187,4 +19206,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f4bd035bd4de669b96121cd71bb64b1f3f52ee850d296b861167e621eb272cc9
+// golden-hash: 3df391ee1b5a981356032a88d33fc66043f937044818b05edb49895bdf0a0ed3

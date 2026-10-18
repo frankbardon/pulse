@@ -130,3 +130,97 @@ func hasCode(entries []*descriptor.EnvelopeEntry, code errors.Code) bool {
 	}
 	return false
 }
+
+// TestPredict_TargetEncode_FitOnLeakageRule pins the E3-S3 rule, decided
+// from the request alone: fit_on silences PULSE_FEAT_TARGET_LEAKAGE_RISK
+// (and its strict error); folds without fit_on keeps a reworded entry
+// carrying details.folds; neither keeps the full one. One entry per
+// unprotected encoder, in request order.
+func TestPredict_TargetEncode_FitOnLeakageRule(t *testing.T) {
+	schema := makeLeakageSchema(t)
+	data := buildTestPulseFile(t, schema)
+	split := &types.Feature{Type: types.FEAT_TRAIN_TEST_SPLIT, Label: "split", Params: json.RawMessage(`{"ratios":[0.7,0.3]}`)}
+	te := func(params string) *types.Feature {
+		return &types.Feature{Type: types.FEAT_TARGET_ENCODE, Field: "region", Params: json.RawMessage(params)}
+	}
+	leaks := func(es []*descriptor.EnvelopeEntry) []*descriptor.EnvelopeEntry {
+		var out []*descriptor.EnvelopeEntry
+		for _, e := range es {
+			if e.Code == string(errors.PULSE_FEAT_TARGET_LEAKAGE_RISK) {
+				out = append(out, e)
+			}
+		}
+		return out
+	}
+
+	fitOn := &types.Request{Features: []*types.Feature{split, te(`{"target":"price","fit_on":"split == 0"}`)}}
+	for _, strict := range []bool{false, true} {
+		env := predictFromBytes(data, fitOn, &PredictOptions{Strict: strict})
+		if n := len(leaks(env.Warnings)) + len(leaks(env.Errors)); n != 0 {
+			t.Errorf("strict=%v: fit_on still raised %d leakage entries", strict, n)
+		}
+		if len(env.Errors) != 0 && !strict {
+			t.Errorf("fit_on request refused: %v", env.Errors)
+		}
+	}
+	if got := TargetLeakageWarnings(fitOn, nil); len(got) != 0 {
+		t.Errorf("TargetLeakageWarnings = %v, want none under fit_on", got)
+	}
+
+	mixed := &types.Request{Features: []*types.Feature{
+		split,
+		te(`{"target":"price","folds":5,"rng_seed":2}`),
+		te(`{"target":"price","fit_on":"split == 0","folds":5}`),
+		te(`{"target":"price"}`),
+	}}
+	env := predictFromBytes(data, mixed, nil)
+	got := leaks(env.Warnings)
+	if len(got) != 2 {
+		t.Fatalf("leakage warnings %v, want the folds-only and the bare encoders", got)
+	}
+	if got[0].Details["feature_index"] != 1 || got[0].Details["folds"] != 5 ||
+		!strings.Contains(got[0].Message, "out-of-fold") || !strings.Contains(got[0].Message, "fit_on") {
+		t.Errorf("folds-only entry = %q %v", got[0].Message, got[0].Details)
+	}
+	if got[1].Details["feature_index"] != 3 || got[1].Details["folds"] != nil || !strings.Contains(got[1].Message, "without params.fit_on") {
+		t.Errorf("bare entry = %q %v", got[1].Message, got[1].Details)
+	}
+	rule := TargetLeakageWarnings(mixed, nil)
+	if len(rule) != 2 || rule[0].Message != got[0].Message || rule[1].Message != got[1].Message {
+		t.Errorf("TargetLeakageWarnings %v disagrees with predict %v", rule, got)
+	}
+}
+
+// TestFieldRefRefusals_TargetEncodeFitOn: fit_on compiles against the
+// schema plus EARLIER features' columns — a forward or self reference is
+// the PULSE_FORMULA_COMPILE_ERROR unknown-name refusal, an earlier
+// feature's column compiles.
+func TestFieldRefRefusals_TargetEncodeFitOn(t *testing.T) {
+	schema := makeLeakageSchema(t)
+	split := &types.Feature{Type: types.FEAT_TRAIN_TEST_SPLIT, Label: "split", Params: json.RawMessage(`{"ratios":[0.7,0.3]}`)}
+	te := &types.Feature{Type: types.FEAT_TARGET_ENCODE, Field: "region", Label: "te", Params: json.RawMessage(`{"target":"price","fit_on":"split == 0"}`)}
+	self := &types.Feature{Type: types.FEAT_TARGET_ENCODE, Field: "region", Label: "te", Params: json.RawMessage(`{"target":"price","fit_on":"te > 0"}`)}
+	cases := []struct {
+		name  string
+		feats []*types.Feature
+		bad   bool
+	}{
+		{"earlier split", []*types.Feature{split, te}, false},
+		{"stored field", []*types.Feature{{Type: types.FEAT_TARGET_ENCODE, Field: "region", Params: json.RawMessage(`{"target":"price","fit_on":"price < 10"}`)}}, false},
+		{"forward reference", []*types.Feature{te, split}, true},
+		{"self reference", []*types.Feature{self}, true},
+		{"not boolean-typed name", []*types.Feature{{Type: types.FEAT_TARGET_ENCODE, Field: "region", Params: json.RawMessage(`{"target":"price","fit_on":"nope == 1"}`)}}, true},
+	}
+	for _, c := range cases {
+		got := FieldRefRefusals(&types.Request{Features: c.feats}, schema, nil)
+		if !c.bad {
+			if len(got) != 0 {
+				t.Errorf("%s: refused %v", c.name, got)
+			}
+			continue
+		}
+		if len(got) == 0 || got[0].Code != errors.PULSE_FORMULA_COMPILE_ERROR {
+			t.Errorf("%s: %v, want %s", c.name, got, errors.PULSE_FORMULA_COMPILE_ERROR)
+		}
+	}
+}

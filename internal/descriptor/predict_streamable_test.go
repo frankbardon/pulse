@@ -497,6 +497,27 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 	grouped := func(r *types.Request) {
 		r.Groups = []*types.Group{{Type: types.GROUP_RANGE, Field: "a", Interval: 10}}
 	}
+	teDict := encoding.NewDictionary()
+	teDict.Add("a")
+	teDict.Add("b")
+	teSchema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "g", Type: encoding.FieldTypeCategoricalU8, Dictionary: teDict, Description: "Loan purpose category"},
+			{Name: "y", Type: encoding.FieldTypeF64, Description: "Default outcome indicator"},
+			{Name: "s", Type: encoding.FieldTypeU8, Description: "Stored training flag"},
+		},
+	}
+	// teReq target-encodes g with params, sums the encoding, mutate applied.
+	teReq := func(params string, mutate func(*types.Request)) *types.Request {
+		r := &types.Request{
+			Features:     []*types.Feature{{Type: types.FEAT_TARGET_ENCODE, Field: "g", Label: "te", Params: json.RawMessage(params)}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "te", Label: "s_te"}},
+		}
+		if mutate != nil {
+			mutate(r)
+		}
+		return r
+	}
 	cases := []struct {
 		name   string
 		req    *types.Request
@@ -716,6 +737,28 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		{"total formula with a matrix buffers", ftotReq(func(r *types.Request) {
 			r.Matrices = []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"score"}}}
 		}), numericSchema},
+		// model-workbench E3-S3: a target encoder's pre-pass reads its
+		// field, target and fit_on from the raw record — a stored column
+		// streams, an earlier feature's column buffers.
+		{"target encode streams", teReq(`{"target":"y"}`, nil), teSchema},
+		{"target encode fit_on stored streams", teReq(`{"target":"y","fit_on":"s == 0","folds":3,"rng_seed":1}`, nil), teSchema},
+		{"target encode fit_on derived buffers", teReq(`{"target":"y","fit_on":"split == 0"}`, func(r *types.Request) {
+			r.Features = append([]*types.Feature{{Type: types.FEAT_TRAIN_TEST_SPLIT, Label: "split", Params: json.RawMessage(`{"ratios":[0.5,0.5]}`)}}, r.Features...)
+		}), teSchema},
+		{"target encode derived target buffers", teReq(`{"target":"ly"}`, func(r *types.Request) {
+			r.Features = append([]*types.Feature{{Type: types.FEAT_LOG, Field: "y", Label: "ly"}}, r.Features...)
+		}), teSchema},
+		{"bucketize quantiles of a stored column streams", teReq(`{"target":"y"}`, func(r *types.Request) {
+			r.Features = []*types.Feature{{Type: types.FEAT_BUCKETIZE, Field: "y", Label: "b", Params: json.RawMessage(`{"quantiles":4}`)}}
+			r.Aggregations[0].Field = "b"
+		}), teSchema},
+		{"bucketize quantiles of a derived column buffers", teReq(`{"target":"y"}`, func(r *types.Request) {
+			r.Features = []*types.Feature{
+				{Type: types.FEAT_LOG, Field: "y", Label: "ly"},
+				{Type: types.FEAT_BUCKETIZE, Field: "ly", Label: "b", Params: json.RawMessage(`{"quantiles":4}`)},
+			}
+			r.Aggregations[0].Field = "b"
+		}), teSchema},
 		{
 			"TEST_MARDIA buffers",
 			&types.Request{

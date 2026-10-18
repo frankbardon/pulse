@@ -17,8 +17,8 @@ import "github.com/frankbardon/pulse/descriptor"
 // per-operator tests: FEAT_LOG is ln(1 + x), missing at x <= -1;
 // FEAT_SQRT is missing below 0; FEAT_POLY emits x^2 .. x^degree only;
 // FEAT_FREQUENCY_ENCODE divides by the records with a category; and
-// FEAT_TARGET_ENCODE averages every record's outcome — the row's own and
-// the test rows' included — because it reads no split column.
+// FEAT_TARGET_ENCODE without params.fit_on averages every record's
+// outcome — the row's own and the test rows' included.
 var featureInterpretations = map[string][]descriptor.Interpretation{
 	"FEAT_FREQUENCY_ENCODE": interpFeatFrequencyEncode,
 	"FEAT_LOG":              interpFeatLog,
@@ -112,19 +112,18 @@ var (
 	interpFeatTargetEncode = []descriptor.Interpretation{
 		{
 			Field: "value",
-			Means: "The average of the outcome field over records in this record's category, in the outcome's units; with smoothing s, " +
+			Means: "The average of the outcome field over the training records (params.fit_on, else every record) in this record's category, in the outcome's units; with smoothing s, " +
 				"(n * category average + s * overall average) / (n + s), so a category with few records sits nearer the overall average.",
 			Caveats: []string{
-				"Target leakage: every average includes the record's own outcome and the outcomes of validation and test records, because the encoder " +
-					"reads no split column. Placing FEAT_TRAIN_TEST_SPLIT first does not change a single value, " +
-					"and filtering to split 0 afterwards keeps the leaked figures.",
-				"A model trained on this column will look better than it is: with no smoothing, a category seen once encodes exactly its own outcome. " +
-					"To encode from the training rows only, compute each category's AGG_AVERAGE of the outcome on split 0 in a separate request " +
-					"and map those averages onto the validation and test records yourself. For the training records, leave each record's own outcome out " +
-					"(out-of-fold or leave-one-out averages) and smooth, since a split-0 average still contains it.",
+				"Target leakage without params.fit_on: every average includes the record's own outcome and the outcomes of validation and test " +
+					"records. Placing FEAT_TRAIN_TEST_SPLIT first does not change a single value, and filtering to split 0 afterwards keeps the " +
+					"leaked figures; set fit_on to the training records (for example split == 0) so only they feed the averages.",
+				"A training record's average still holds its own outcome unless folds is set, so a model trained on the column looks better " +
+					"than it is: with folds k each training record reads the averages of the training records outside its fold, and every other " +
+					"record reads the full training averages. Smooth as well, since a category seen once encodes exactly its own outcome.",
 				featWholeCohortCaveat,
-				"Only records with both a category and an outcome count; a category whose outcomes are all missing reads the overall average, " +
-					"and a record missing the category reads missing.",
+				"Only training records with both a category and an outcome count; a category with no such record reads the overall training " +
+					"average, a record missing the category reads missing, and so does a training record whose fold leaves no outcome outside it.",
 			},
 		},
 	}

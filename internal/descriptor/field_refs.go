@@ -3,6 +3,7 @@ package descriptor
 import (
 	"encoding/json"
 	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -284,6 +285,18 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 						return refusal("feature FEAT_TARGET_ENCODE: target references unknown field "+t,
 							map[string]any{"field": t, "feature": string(feat.Type)})
 					})
+				}
+				// params.fit_on compiles as an expression filter
+				// against the schema plus EARLIER features' outputs
+				// (this feature's labels join cols only below), so a
+				// forward or self reference is the compile's
+				// unknown-name refusal — on both sides, this walk being
+				// the runtime's entry check too.
+				if src := paramString(feat.Params, "fit_on"); strings.TrimSpace(src) != "" {
+					before := len(w.out)
+					w.checkTotal(src, string(types.FILTER_EXPRESSION))
+					w.checkCoef(src, models)
+					w.checkCompile(src, false, before)
 				}
 			}
 		}

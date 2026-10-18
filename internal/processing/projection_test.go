@@ -286,6 +286,25 @@ func TestNeededFields_FeatureTargetEncodeFromParams(t *testing.T) {
 	}
 }
 
+// TestNeededFields_FeatureTargetEncodeFitOn: every stored field
+// params.fit_on reads decodes (a derived name is no schema field and
+// adds nothing); an unparsable fit_on widens.
+func TestNeededFields_FeatureTargetEncodeFitOn(t *testing.T) {
+	schema := mkSchema("category", "outcome", "flag", "cohort", "unused")
+	te := func(params string) *types.Request {
+		return &types.Request{Features: []*types.Feature{{
+			Type: types.FEAT_TARGET_ENCODE, Field: "category", Params: json.RawMessage(params),
+		}}}
+	}
+	got := NeededFields(te(`{"target":"outcome","fit_on":"flag == 0 && cohort > 1 && split == 0"}`), schema, nil)
+	if g, want := sortedFields(got), []string{"category", "cohort", "flag", "outcome"}; !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+	if got := NeededFields(te(`{"target":"outcome","fit_on":"flag == ("}`), schema, nil); !got.IsWide() {
+		t.Errorf("unparsable fit_on: %v, want the widened set", sortedFields(got))
+	}
+}
+
 func TestNeededFields_UnknownExtensionWidens(t *testing.T) {
 	schema := mkSchema("a", "b")
 	ext := &ExtensionRegistry{

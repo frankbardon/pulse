@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/featstream"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
@@ -822,6 +823,12 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	for _, feat := range req.Features {
 		if !streamableWithOverlay(opts, "feature", string(feat.Type), opRoute(opts.instance(), feat.Type).Streamable()) {
 			reasons = append(reasons, "feature "+string(feat.Type)+" is not streamable")
+			continue
+		}
+		// A global-pass pre-pass reading an earlier feature's column
+		// routes buffered (internal/featstream, the runtime's verdict).
+		if ok, reason := featstream.Streamable(&types.Feature{Type: opRoute(opts.instance(), feat.Type), Field: feat.Field, Params: feat.Params}, schema); !ok {
+			reasons = append(reasons, reason)
 		}
 	}
 

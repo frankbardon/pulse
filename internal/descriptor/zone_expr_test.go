@@ -140,3 +140,31 @@ func TestExpressionZone(t *testing.T) {
 		}
 	}
 }
+
+// TestZonedExpressions_TargetEncodeFitOn: a feature that is not
+// zone-capable whose params carry a to_day expression
+// (FEAT_TARGET_ENCODE params.fit_on) inherits the zone; one without
+// to_day, or with an explicit tz, does not.
+func TestZonedExpressions_TargetEncodeFitOn(t *testing.T) {
+	req := &types.Request{
+		TimeZone: "America/New_York",
+		Features: []*types.Feature{
+			{Type: types.FEAT_TARGET_ENCODE, Field: "g", Params: json.RawMessage(`{"target":"y","fit_on":"to_day(ts) < d"}`)},
+			{Type: types.FEAT_TARGET_ENCODE, Field: "g", Params: json.RawMessage(`{"target":"y","fit_on":"split == 0"}`)},
+			{Type: types.FEAT_TARGET_ENCODE, Field: "g", TimeZone: "Asia/Tokyo", Params: json.RawMessage(`{"target":"y","fit_on":"to_day(ts) < d"}`)},
+		},
+	}
+	got := ZonedExpressions(req, "", nil)
+	want := []string{"America/New_York", "", "Asia/Tokyo"}
+	for i, f := range got.Features {
+		if f.TimeZone != want[i] {
+			t.Errorf("features[%d].tz = %q, want %q", i, f.TimeZone, want[i])
+		}
+	}
+	if req.Features[0].TimeZone != "" {
+		t.Error("req mutated")
+	}
+	if got.Features[1] != req.Features[1] {
+		t.Error("an untouched feature was copied")
+	}
+}

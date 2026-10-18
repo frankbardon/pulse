@@ -536,15 +536,15 @@ const (
 	// table writes the refusal.
 	PULSE_FIELD_TYPE_UNSUPPORTED Code = "PULSE_FIELD_TYPE_UNSUPPORTED"
 
-	// PULSE_FEAT_TARGET_LEAKAGE_RISK flags every FEAT_TARGET_ENCODE. The
-	// encoder reads no split column and features run before filters, so
-	// each encoded value averages every record's outcome — the record's
-	// own and the validation/test records' included — whether or not a
-	// FEAT_TRAIN_TEST_SPLIT precedes it. Mitigation: compute train-only
-	// category averages (AGG_AVERAGE on split 0) in a separate request and
-	// map them back, or accept the in-sample encoding for descriptive use.
-	// Predict raises it and Process repeats it on Response.Warnings;
-	// under strict both refuse (Process before any record is read).
+	// PULSE_FEAT_TARGET_LEAKAGE_RISK flags every FEAT_TARGET_ENCODE that
+	// sets no params.fit_on. Features run before filters, so each encoded
+	// value averages every record's outcome — the validation/test
+	// records' included (and, without folds, the record's own) — whether
+	// or not a FEAT_TRAIN_TEST_SPLIT precedes it. Mitigation: set
+	// params.fit_on to the training rows (e.g. "split == 0"); folds
+	// without fit_on keeps a reworded warning. Predict raises it from the
+	// request alone and Process repeats it on Response.Warnings; under
+	// strict both refuse (Process before any record is read).
 	PULSE_FEAT_TARGET_LEAKAGE_RISK Code = "PULSE_FEAT_TARGET_LEAKAGE_RISK"
 
 	// PULSE_DECIMAL_OVERFLOW indicates a decimal arithmetic or aggregation

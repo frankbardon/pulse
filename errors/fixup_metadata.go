@@ -927,12 +927,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FEAT_TARGET_LEAKAGE_RISK: {
-		Message: "FEAT_TARGET_ENCODE averages every record's outcome, the record's own and validation/test records' included, because it reads no split column; a preceding train/test split does not change a single value. Predict warns, and Process (a Compose slot too) repeats the warning on the response's warnings with predict's details {feature, feature_index}; under strict both refuse — predict as an error, Process before any record is read.",
+		Message: "FEAT_TARGET_ENCODE without params.fit_on averages every record's outcome, the validation/test records' included (and, without folds, the record's own): features run before filters, so a preceding train/test split changes no value. With folds but no fit_on the warning is reworded — no record sees its own outcome, every record still sees the holdout's. Only fit_on silences it. Predict decides from the request alone and warns; Process (a Compose slot too) repeats the warning on the response's warnings with predict's details {feature, feature_index} (+ folds); under strict both refuse — predict as an error, Process before any record is read.",
 		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Features", "Params", "fit_on"},
+				Hint:   "Set params.fit_on to the training rows — e.g. \"split == 0\" after a FEAT_TRAIN_TEST_SPLIT labelled split — so only they feed the category means; add folds (with rng_seed) to encode the training rows out-of-fold as well.",
+			},
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Features"},
-				Hint:   "To encode from the training rows only, drop FEAT_TARGET_ENCODE and compute each category's AGG_AVERAGE of the outcome on split 0 in a separate request, then map those averages onto the records with a join or lookup table; for descriptive use, keep the in-sample encoding knowing it is not a held-out estimate.",
+				Hint:   "For descriptive use, keep the in-sample encoding knowing it is not a held-out estimate.",
 			},
 		},
 	},

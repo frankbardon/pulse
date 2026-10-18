@@ -38,17 +38,17 @@ Features run **before** filters: `features → filterers → attributes → grou
 
 ## Streamability
 
-Stream-eligible when every feature implements the streaming computer interface (embedder-authored features implement `extend.StreamingFeatureComputer`) AND the rest is stream-eligible (online aggregators, no groups, attributes, or windows). Per-row features stream record-by-record. Global-pass features precompute then rewind via `iter.Reset()` — slice iterator O(1), file-backed iterator re-reads the file (doubles I/O).
+Stream-eligible when every feature implements the streaming computer interface (embedder-authored features implement `extend.StreamingFeatureComputer`) AND the rest is stream-eligible (online aggregators, no groups, attributes, or windows). Per-row features stream record-by-record. Global-pass features precompute then rewind via `iter.Reset()` — slice iterator O(1), file-backed iterator re-reads the file (doubles I/O); one whose precompute reads an earlier feature's column runs buffered.
 
 Train/test assignment materialises its table in precompute — O(rows) memory either way. Predict reports per-slot streamability under `data.streamable_reasons`.
 
 ## Target-leakage trap — `PULSE_FEAT_TARGET_LEAKAGE_RISK`
 
-Target encoding replaces a categorical with the MEAN of a numeric target over rows sharing that category. Optional smoothing `s` shrinks rare categories toward the global mean: `encoded = (n * mean_cat + s * mean_global) / (n + s)`.
+Target encoding replaces a categorical with the MEAN of a numeric target per category; smoothing `s`: `encoded = (n * mean_cat + s * mean_global) / (n + s)`.
 
-The trap: each encoded value averages EVERY row's target — test / val rows and the row's own included. The encoder reads no split column and features run pre-filter, so a `split == 0` filter keeps the leaked means.
+The trap: features run pre-filter, so without `params.fit_on` each mean averages EVERY row's target — test / val rows and the row's own; a split or a `split == 0` filter changes no value. Set `fit_on: "split == 0"` (a boolean expression over the schema and EARLIER features): only those rows feed the means, every row is encoded. Add `folds: k` + `rng_seed` to encode training rows out-of-fold.
 
-Predict surfaces `PULSE_FEAT_TARGET_LEAKAGE_RISK` (warning; error under `--strict` / `Options.Strict: true`) on EVERY target encoder — a preceding train/test split changes no value, so it does not silence it. Train-only means: a separate request averaging the target grouped by the category, filtered to `split == 0`, mapped back yourself.
+Predict warns (error under `--strict` / `Options.Strict: true`) on every encoder without `fit_on`; `folds` alone keeps a reworded warning.
 
 ## Train / test / split semantics
 

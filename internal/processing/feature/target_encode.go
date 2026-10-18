@@ -2,11 +2,13 @@ package feature
 
 import (
 	"fmt"
+	"math/rand"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/targetencode"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -14,52 +16,164 @@ func init() {
 	register(types.FEAT_TARGET_ENCODE, newTargetEncode)
 }
 
-// targetEncodeParams configures the operator. Target is required.
+// targetEncode replaces a categorical value with the mean of a numeric
+// target field over the TRAINING rows sharing that category. Params
+// (internal/targetencode, shared with predict):
 //
-//	{"target": "label", "smoothing": 0.0}
+//	{"target": "label", "smoothing": 0.0, "fit_on": "split == 0", "folds": 5, "rng_seed": 7}
 //
 // Smoothing applies the standard additive prior toward the global mean:
 // encoded = (count_cat * mean_cat + smoothing * global_mean) / (count_cat + smoothing).
-// Smoothing 0 reproduces the unsmoothed mean. Higher values pull rare
-// categories toward the global mean to fight overfitting.
-type targetEncodeParams struct {
-	Target    string  `json:"target"`
-	Smoothing float64 `json:"smoothing"`
+//
+// Training rows: the rows params.fit_on admits (a boolean expression
+// compiled like FILTER_EXPRESSION by the engine, BindFitOn; a null
+// operand admits nothing), or every row without it. Only training rows
+// with a non-null category and target feed the category and global
+// means; EVERY row is encoded from them, an unseen category with the
+// training global mean. A holdout row's outcome therefore never moves a
+// value — the leakage guarantee.
+//
+// Out-of-fold (params.folds = k): each training row is dealt a fold —
+// the training rows in order, in blocks of k, each block a seeded
+// permutation of 0..k-1 (rng_seed) — and is encoded from the training
+// rows OUTSIDE its fold (their category and global means); a row whose
+// out-of-fold set holds no outcome is null. Rows fit_on does not admit
+// get the full-training encoding.
+//
+// Two passes: PrePass tallies, Finalize freezes the means, EmitRow
+// writes; Compute is that drive over the slice. The fold deal and
+// fit_on are re-read in EmitRow, so rows must be emitted in the
+// PrePass order (as FEAT_TRAIN_TEST_SPLIT's are).
+//
+// Without fit_on every encoded value includes the row's own target and
+// the validation/test rows' targets — features run before filters.
+// Predict flags such an encoder with PULSE_FEAT_TARGET_LEAKAGE_RISK
+// (internal/descriptor TargetLeakageWarnings) and Process repeats it,
+// refusing under strict; fit_on silences it.
+type targetEncode struct {
+	label  string
+	params targetencode.Params
+	// fitOn is the bound fit_on predicate (nil without fit_on).
+	fitOn    RowPredicate
+	fitBound bool
+	// Streaming state (PrePass / Finalize / EmitRow).
+	st *targetState
 }
 
-// targetEncode replaces a categorical value with the mean of a numeric
-// target field over rows sharing that category. Two passes: pass one
-// computes per-category sums and counts; pass two writes the per-row mean.
-//
-// LEAKAGE WARNING: this operator computes statistics on every row in the
-// stream and reads no split column, so every encoded value includes the
-// row's own target and the validation/test rows' targets — even when
-// FEAT_TRAIN_TEST_SPLIT runs first (features run before filters). Predict
-// flags every FEAT_TARGET_ENCODE with PULSE_FEAT_TARGET_LEAKAGE_RISK
-// (internal/descriptor/predict_feature.go) and Process repeats it on
-// Response.Warnings, refusing under strict (service/feature_leakage.go,
-// the same descx.TargetLeakageWarnings rule); a split does not silence it.
-// targetStat tallies sum and count for one category during PrePass.
-// Promoted to a package-level type so per-record streaming state has a
-// stable place to live alongside Compute's local-only equivalent.
+// targetStat tallies sum and count for one category.
 type targetStat struct {
 	sum   float64
 	count int
 }
 
-type targetEncode struct {
-	label     string
-	target    string
-	smoothing float64
-	// Streaming state. per is populated during PrePass; Finalize
-	// captures globalMean (or marks empty=true when no non-null target
-	// rows were observed) so EmitRow is O(1) per row.
+// targetTally is one set of training means: per category and global.
+type targetTally struct {
 	per         map[string]*targetStat
 	globalSum   float64
 	globalCount int
-	globalMean  float64
-	empty       bool
 }
+
+func newTargetTally() *targetTally {
+	return &targetTally{per: make(map[string]*targetStat, 16)}
+}
+
+func (t *targetTally) add(cat string, y float64) {
+	st := t.per[cat]
+	if st == nil {
+		st = &targetStat{}
+		t.per[cat] = st
+	}
+	st.sum += y
+	st.count++
+	t.globalSum += y
+	t.globalCount++
+}
+
+// merge folds o into t, category by category.
+func (t *targetTally) merge(o *targetTally) {
+	for cat, s := range o.per {
+		st := t.per[cat]
+		if st == nil {
+			st = &targetStat{}
+			t.per[cat] = st
+		}
+		st.sum += s.sum
+		st.count += s.count
+	}
+	t.globalSum += o.globalSum
+	t.globalCount += o.globalCount
+}
+
+// encode is the row's value from tally: ok=false when the tally holds
+// no outcome (the row is null).
+func (t *targetTally) encode(cat string, smoothing float64) (float64, bool) {
+	if t.globalCount == 0 {
+		return 0, false
+	}
+	return encodedValue(t.per, cat, t.globalSum/float64(t.globalCount), smoothing), true
+}
+
+// targetState is one run's tallies and fold deals.
+type targetState struct {
+	full *targetTally
+	// folds holds each fold's own training tally during PrePass;
+	// Finalize replaces each with its OUT-of-fold tally (every other
+	// fold merged, in fold order).
+	folds    []*targetTally
+	prepDeal *foldDealer
+	emitDeal *foldDealer
+	final    bool
+}
+
+func (c *targetEncode) newState() *targetState {
+	s := &targetState{full: newTargetTally()}
+	if k := c.params.Folds; k > 0 {
+		s.folds = make([]*targetTally, k)
+		for i := range s.folds {
+			s.folds[i] = newTargetTally()
+		}
+		s.prepDeal = newFoldDealer(k, c.params.Seed())
+		s.emitDeal = newFoldDealer(k, c.params.Seed())
+	}
+	return s
+}
+
+// foldDealer deals folds to the training rows in order: blocks of k,
+// each a Fisher-Yates permutation of 0..k-1 drawn from one seeded
+// source (Int63n only, whose seeded sequence is stable), so the folds
+// are balanced to within one row and the deal depends on nothing but
+// the seed and the training rows' order.
+type foldDealer struct {
+	rng  *rand.Rand
+	perm []int
+	pos  int
+}
+
+func newFoldDealer(k int, seed int64) *foldDealer {
+	return &foldDealer{rng: rand.New(rand.NewSource(seed)), perm: make([]int, k), pos: k}
+}
+
+func (d *foldDealer) next() int {
+	k := len(d.perm)
+	if d.pos == k {
+		for i := range d.perm {
+			d.perm[i] = i
+		}
+		for i := k - 1; i > 0; i-- {
+			j := int(d.rng.Int63n(int64(i + 1)))
+			d.perm[i], d.perm[j] = d.perm[j], d.perm[i]
+		}
+		d.pos = 0
+	}
+	f := d.perm[d.pos]
+	d.pos++
+	return f
+}
+
+var (
+	_ StreamingComputer = (*targetEncode)(nil)
+	_ FitOnBinder       = (*targetEncode)(nil)
+)
 
 func newTargetEncode(feat *types.Feature, schema *encoding.Schema) (Computer, error) {
 	if feat.Field == "" {
@@ -70,18 +184,13 @@ func newTargetEncode(feat *types.Feature, schema *encoding.Schema) (Computer, er
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"FEAT_TARGET_ENCODE requires params with a 'target' field")
 	}
-	var p targetEncodeParams
+	var p targetencode.Params
 	if err := paramread.Decode(paramread.Feature, string(feat.Type), feat.Params, &p); err != nil {
 		return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG,
 			"parsing FEAT_TARGET_ENCODE params")
 	}
-	if p.Target == "" {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"FEAT_TARGET_ENCODE: 'target' is required in params")
-	}
-	if p.Smoothing < 0 {
-		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-			"FEAT_TARGET_ENCODE: 'smoothing' must be >= 0")
+	if ce := targetencode.Check(p); ce != nil {
+		return nil, ce
 	}
 	if schema != nil {
 		if cerr := fieldaccept.Check(string(types.FEAT_TARGET_ENCODE), fieldaccept.SlotField, feat.Field, schema); cerr != nil {
@@ -96,108 +205,159 @@ func newTargetEncode(feat *types.Feature, schema *encoding.Schema) (Computer, er
 	if label == "" {
 		label = fmt.Sprintf("TARGET_%s", feat.Field)
 	}
-	return &targetEncode{label: label, target: p.Target, smoothing: p.Smoothing}, nil
+	return &targetEncode{label: label, params: p}, nil
+}
+
+// FitOnExpression implements FitOnBinder.
+func (c *targetEncode) FitOnExpression() string { return c.params.FitOn }
+
+// BindFitOn implements FitOnBinder.
+func (c *targetEncode) BindFitOn(pred RowPredicate) {
+	c.fitOn, c.fitBound = pred, true
+}
+
+// training reports whether r is a training row.
+func (c *targetEncode) training(r Record) (bool, error) {
+	if c.params.FitOn == "" {
+		return true, nil
+	}
+	if !c.fitBound || c.fitOn == nil {
+		return false, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+			"FEAT_TARGET_ENCODE params.fit_on was not bound before the pre-pass")
+	}
+	return c.fitOn(r)
 }
 
 func (c *targetEncode) Compute(records []Record, field string) (map[string]Output, error) {
 	if len(records) == 0 {
 		return map[string]Output{c.label: {Values: []float64{}}}, nil
 	}
-
-	per := make(map[string]*targetStat, 16)
-	var globalSum float64
-	var globalCount int
-
+	st := c.newState()
 	for _, r := range records {
-		s, sOk := r.LevelValue(field)
-		t, tOk := r.NumericValue(c.target)
-		if !sOk || !tOk {
-			continue
+		if err := c.prePass(st, r, field); err != nil {
+			return nil, err
 		}
-		st := per[s]
-		if st == nil {
-			st = &targetStat{}
-			per[s] = st
-		}
-		st.sum += t
-		st.count++
-		globalSum += t
-		globalCount++
 	}
-
+	c.finalize(st)
 	values := make([]float64, len(records))
 	nulls := make([]bool, len(records))
-
-	if globalCount == 0 {
-		for i := range nulls {
-			nulls[i] = true
-		}
-		return map[string]Output{c.label: {Values: values, Nulls: nulls}}, nil
-	}
-	globalMean := globalSum / float64(globalCount)
-
 	for i, r := range records {
-		s, ok := r.LevelValue(field)
-		if !ok {
-			nulls[i] = true
-			continue
+		v, ok, err := c.emit(st, r, field)
+		if err != nil {
+			return nil, err
 		}
-		values[i] = encodedValue(per, s, globalMean, c.smoothing)
+		if ok {
+			values[i] = v
+		} else {
+			nulls[i] = true
+		}
 	}
 	return map[string]Output{c.label: {Values: values, Nulls: nulls}}, nil
 }
 
-// PrePass folds the record's (category, target) pair into the running
-// per-category and global stats. Rows with a null category or null
-// target contribute nothing — same as Compute.
-func (c *targetEncode) PrePass(r Record, field string) error {
-	if c.per == nil {
-		c.per = make(map[string]*targetStat, 16)
+// prePass folds one record into st: a training row with a non-null
+// category and target into the full tally and, out-of-fold, into its
+// dealt fold's. Every training row is dealt a fold, nulls included, so
+// the deal reads only fit_on.
+func (c *targetEncode) prePass(st *targetState, r Record, field string) error {
+	train, err := c.training(r)
+	if err != nil || !train {
+		return err
+	}
+	fold := -1
+	if st.prepDeal != nil {
+		fold = st.prepDeal.next()
 	}
 	s, sOk := r.LevelValue(field)
-	t, tOk := r.NumericValue(c.target)
-	if !sOk || !tOk {
+	y, yOk := r.NumericValue(c.params.Target)
+	if !sOk || !yOk {
 		return nil
 	}
-	st := c.per[s]
-	if st == nil {
-		st = &targetStat{}
-		c.per[s] = st
+	st.full.add(s, y)
+	if fold >= 0 {
+		st.folds[fold].add(s, y)
 	}
-	st.sum += t
-	st.count++
-	c.globalSum += t
-	c.globalCount++
 	return nil
 }
 
-// Finalize freezes globalMean. When no non-null target rows were
-// observed every emitted row is null.
-func (c *targetEncode) Finalize() error {
-	if c.globalCount == 0 {
-		c.empty = true
-		return nil
+// finalize turns each fold's own tally into its out-of-fold tally:
+// every OTHER fold merged in fold order.
+func (c *targetEncode) finalize(st *targetState) {
+	if len(st.folds) > 0 {
+		oof := make([]*targetTally, len(st.folds))
+		for f := range st.folds {
+			t := newTargetTally()
+			for g, other := range st.folds {
+				if g != f {
+					t.merge(other)
+				}
+			}
+			oof[f] = t
+		}
+		st.folds = oof
 	}
-	c.globalMean = c.globalSum / float64(c.globalCount)
-	return nil
+	st.final = true
 }
 
-// EmitRow returns the encoded mean for the record's category, applying
-// smoothing when configured. Mirrors Compute's per-row branch.
-func (c *targetEncode) EmitRow(r Record, field string) (map[string]Output, error) {
-	if c.empty {
-		return map[string]Output{c.label: {Values: []float64{0}, Nulls: []bool{true}}}, nil
+// emit is one record's value: ok=false for a null.
+func (c *targetEncode) emit(st *targetState, r Record, field string) (float64, bool, error) {
+	tally := st.full
+	if st.emitDeal != nil {
+		train, err := c.training(r)
+		if err != nil {
+			return 0, false, err
+		}
+		if train {
+			tally = st.folds[st.emitDeal.next()]
+		}
 	}
 	s, ok := r.LevelValue(field)
 	if !ok {
+		return 0, false, nil
+	}
+	v, ok := tally.encode(s, c.params.Smoothing)
+	return v, ok, nil
+}
+
+// PrePass folds the record into the running tallies. Rows with a null
+// category or null target contribute nothing — same as Compute.
+func (c *targetEncode) PrePass(r Record, field string) error {
+	if c.st == nil {
+		c.st = c.newState()
+	}
+	return c.prePass(c.st, r, field)
+}
+
+// Finalize freezes the tallies. When no training outcome was observed
+// every emitted row is null.
+func (c *targetEncode) Finalize() error {
+	if c.st == nil {
+		c.st = c.newState()
+	}
+	c.finalize(c.st)
+	return nil
+}
+
+// EmitRow returns the record's encoded value. Mirrors Compute's
+// per-row branch.
+func (c *targetEncode) EmitRow(r Record, field string) (map[string]Output, error) {
+	if c.st == nil || !c.st.final {
+		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+			"FEAT_TARGET_ENCODE EmitRow before Finalize")
+	}
+	v, ok, err := c.emit(c.st, r, field)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
 		return map[string]Output{c.label: {Values: []float64{0}, Nulls: []bool{true}}}, nil
 	}
-	return map[string]Output{c.label: {Values: []float64{encodedValue(c.per, s, c.globalMean, c.smoothing)}}}, nil
+	return map[string]Output{c.label: {Values: []float64{v}}}, nil
 }
 
 // encodedValue is the shared smoothing math: returns globalMean for an
 // unseen category, the per-cat mean otherwise, with optional additive
-// smoothing toward globalMean. Used by both Compute and EmitRow.
+// smoothing toward globalMean.
 func encodedValue(per map[string]*targetStat, s string, globalMean, smoothing float64) float64 {
 	st, found := per[s]
 	if !found || st.count == 0 {

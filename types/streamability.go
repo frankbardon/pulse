@@ -407,7 +407,9 @@ func (t WindowType) Streamable() bool {
 // pre-pass+finalize+emit streaming pipeline (feature.StreamingComputer).
 //
 // Source of truth is feature.IsStreamable(req.Features, schema) at runtime;
-// this method mirrors the per-type capability used by predict.
+// this method mirrors the per-type capability used by predict. A spec can
+// still route buffered: a global-pass pre-pass reading an earlier
+// feature's column (internal/featstream, shared by both sides).
 func (t FeatureType) Streamable() bool {
 	switch t {
 	case FEAT_LOG, FEAT_SQRT, FEAT_BUCKETIZE,

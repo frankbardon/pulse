@@ -78,6 +78,22 @@ type StreamingComputer interface {
 	EmitRow(record Record, field string) (map[string]Output, error)
 }
 
+// RowPredicate is a compiled boolean expression over one record: the
+// engine's FILTER_EXPRESSION build (a null operand admits nothing).
+type RowPredicate func(Record) (bool, error)
+
+// FitOnBinder is implemented by a Computer whose params carry a row
+// expression (FEAT_TARGET_ENCODE params.fit_on). The engine compiles
+// FitOnExpression — when non-empty — exactly as it compiles an
+// expression filter, against the schema plus the columns earlier
+// features emit, and binds it before the first record. The
+// field-reference walk compiled the same expression at entry, so a bad
+// one (a forward reference included) is refused on both sides first.
+type FitOnBinder interface {
+	FitOnExpression() string
+	BindFitOn(pred RowPredicate)
+}
+
 // Factory constructs a Computer from a feature specification. The schema is
 // the cohort schema before any feature output is added; Computers consult it
 // to validate field types and resolve dictionaries.
