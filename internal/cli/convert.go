@@ -33,6 +33,7 @@ func ConvertCommand() *cli.Command {
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample for schema inference (min 50)"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage + ". A zoned naive value is written to the target as its UTC instant (…Z)"},
+			&cli.StringFlag{Name: "source-tz-field", Usage: sourceTZFieldFlagUsage},
 			&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
 		},
 		// A --source-tz col=Zone value is one flag even when the column
@@ -190,6 +191,7 @@ func convertPredictCmd() *cli.Command {
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.IntFlag{Name: "sample-rows", Value: 500, Usage: "Rows to sample (min 50)"},
 			&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage},
+			&cli.StringFlag{Name: "source-tz-field", Usage: sourceTZFieldFlagUsage},
 			&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
 		},
 		DisableSliceFlagSeparator: true,

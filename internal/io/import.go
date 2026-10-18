@@ -608,6 +608,7 @@ func (j *ImportJob) Predict(ctx context.Context) (*PredictReport, error) {
 		// the plain predict does not report row errors, so it is
 		// passed over here too.
 		if zones != nil {
+			zones.beginRow(row)
 			for i := range schema.Fields {
 				colIdx := schema.Fields[i].CsvColumnIdx
 				if !zones.zoned(i) || colIdx >= len(row) {

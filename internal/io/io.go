@@ -310,6 +310,20 @@ type ImportJob struct {
 	// `datetime` (a `date` column included), is refused with
 	// SERVICE_VALIDATION before the row pass.
 	ColumnSourceTZ map[string]string
+	// SourceTZField names a column whose raw cell holds each ROW's
+	// source zone (same spellings as SourceTZ). Every `datetime` field
+	// ColumnSourceTZ does not name reads its naive literals in the zone
+	// its own row names; a literal with its own `Z` / offset ignores it.
+	// The zone column itself imports as an ordinary column. An empty
+	// cell reads in SourceTZ when one is set and is otherwise a row
+	// error (PULSE_IMPORT_ROW_ERROR); an unknown name is a row error
+	// carrying PULSE_TIMEZONE_UNKNOWN; both name the row, the datetime
+	// column and details.zone_column. A name naming no field, or a
+	// `datetime` / vector field, is refused with SERVICE_VALIDATION
+	// (details.option "source_tz_field") before the row pass. Zones are
+	// loaded once per distinct name per pass; DST policy applies per row.
+	// Empty (the default) changes nothing.
+	SourceTZField string
 	// DSTPolicy decides a naive literal a source zone's DST transition
 	// makes ambiguous (shown twice) or nonexistent (skipped): DSTPolicyError
 	// (the default; "" means it) refuses the import at the first such row
@@ -616,8 +630,15 @@ type ConvertJob struct {
 	// `Z` / offset, an unparseable cell and every non-zoned column pass
 	// through verbatim. The KeepPulseAt intermediate is imported in the
 	// same zone. Empty (the default) changes nothing.
+	//
+	// SourceTZField reads each row's zone from a column, with
+	// ImportJob.SourceTZField's semantics; a row whose zone cannot be
+	// resolved (empty cell without SourceTZ, unknown name) is a row
+	// error dropped BEFORE the target (PULSE_IMPORT_ROWS_DROPPED stage
+	// DroppedStageSource), never handed through as a naive literal.
 	SourceTZ       string
 	ColumnSourceTZ map[string]string
+	SourceTZField  string
 	DSTPolicy      DSTPolicy
 }
 

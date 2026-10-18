@@ -543,6 +543,7 @@ pulse: type ImportSidecar field RowsImported int "json:\"rows_imported\""
 pulse: type ImportSidecar field SourceFormat string "json:\"source_format\""
 pulse: type ImportSidecar field SourcePath string "json:\"source_path\""
 pulse: type ImportSidecar field SourceTZ string "json:\"source_tz,omitempty\""
+pulse: type ImportSidecar field SourceTZField string "json:\"source_tz_field,omitempty\""
 pulse: type ImportSidecar field TTLSeconds int64 "json:\"ttl_seconds\""
 pulse: type ImportSidecar field Vectors []pulse/io.VectorDecl "json:\"vectors,omitempty\""
 pulse: type ImportSidecar method (ImportSidecar) Pinned() bool
@@ -564,6 +565,7 @@ pulse: type ImportSpec field SetInferenceMinPct int
 pulse: type ImportSpec field Sheet string
 pulse: type ImportSpec field SourcePath string
 pulse: type ImportSpec field SourceTZ string
+pulse: type ImportSpec field SourceTZField string
 pulse: type ImportSpec field StrictRows bool
 pulse: type ImportSpec field SuggestGroups bool
 pulse: type ImportSpec field TTL time.Duration
@@ -2928,6 +2930,7 @@ pulse/io: type ConvertJob field SampleRows int
 pulse/io: type ConvertJob field Schema *pulse/encoding.Schema
 pulse/io: type ConvertJob field Source pulse/internal/io.Reader
 pulse/io: type ConvertJob field SourceTZ string
+pulse/io: type ConvertJob field SourceTZField string
 pulse/io: type ConvertJob field StrictRows bool
 pulse/io: type ConvertJob field Target pulse/internal/io.Writer
 pulse/io: type ConvertJob method (*ConvertJob) Hash() string
@@ -3112,6 +3115,7 @@ pulse/io: type ImportJob field SetDelimiters map[string]string
 pulse/io: type ImportJob field SetInferenceMinPct int
 pulse/io: type ImportJob field Source pulse/internal/io.Reader
 pulse/io: type ImportJob field SourceTZ string
+pulse/io: type ImportJob field SourceTZField string
 pulse/io: type ImportJob field StrictDedup bool
 pulse/io: type ImportJob field StrictRows bool
 pulse/io: type ImportJob field SuggestGroups bool
@@ -5631,4 +5635,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 24e4110e1dde033d5d2028c13d7c31c18ea482abe0a52e402dc56b82007df317
+// golden-hash: 3bdaa346ba1e330a672fd867d55ac8d6829f348f72c273deb79f2a5a693f08d4

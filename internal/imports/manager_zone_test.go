@@ -2,6 +2,7 @@ package imports
 
 import (
 	"context"
+	"encoding/json"
 	stderrors "errors"
 	"reflect"
 	"strings"
@@ -155,5 +156,66 @@ func TestManager_Open_NoSourceTZSidecarUnchanged(t *testing.T) {
 		if !stderrors.As(err, &ce) || ce.Code != tc.code {
 			t.Errorf("%s: err = %v, want %s", tc.spec.Handle, err, tc.code)
 		}
+	}
+}
+
+// TestManager_Open_SourceTZFieldStoredAndPersisted: a managed import reads
+// each row's naive literals in the zone its zone column names (falling
+// back to SourceTZ on an empty cell), and the sidecar round-trips
+// source_tz_field beside source_tz.
+func TestManager_Open_SourceTZFieldStoredAndPersisted(t *testing.T) {
+	m, afs, _ := newTestManager(t)
+	csv := "local,zone\n" +
+		"2026-07-01 12:00,America/New_York\n" +
+		"2026-07-01 12:00,Asia/Tokyo\n" +
+		"2026-07-01 12:00,\n"
+	if err := afero.WriteFile(afs, "src.csv", []byte(csv), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, err := m.Open(context.Background(), Spec{SourcePath: "src.csv", Handle: "rows",
+		SourceTZ: "Europe/Berlin", SourceTZField: "zone"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []any{"2026-07-01T16:00:00Z", "2026-07-01T03:00:00Z", "2026-07-01T10:00:00Z"}
+	if got := columnText(t, afs, res.Path, 0); !reflect.DeepEqual(got, want) {
+		t.Fatalf("local = %v, want %v (each row in its own zone)", got, want)
+	}
+	sc, err := m.readSidecar(res.Path + SidecarSuffix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sc.SourceTZField != "zone" || sc.SourceTZ != "Europe/Berlin" {
+		t.Fatalf("sidecar = field %q tz %q", sc.SourceTZField, sc.SourceTZ)
+	}
+	raw, _ := afero.ReadFile(afs, res.Path+SidecarSuffix)
+	if !strings.Contains(string(raw), `"source_tz_field": "zone"`) && !strings.Contains(string(raw), `"source_tz_field":"zone"`) {
+		t.Fatalf("sidecar JSON lacks source_tz_field:\n%s", raw)
+	}
+
+	// A zone column the source does not carry is refused by option.
+	_, err = m.Open(context.Background(), Spec{SourcePath: "src.csv", Handle: "bad", SourceTZField: "tz"})
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != perr.SERVICE_VALIDATION || ce.Details["option"] != "source_tz_field" {
+		t.Fatalf("missing zone column = %v", err)
+	}
+}
+
+// TestSidecar_SourceTZFieldOmittedWhenUnset: a sidecar without a zone
+// column marshals exactly as before the field existed.
+func TestSidecar_SourceTZFieldOmittedWhenUnset(t *testing.T) {
+	sc := Sidecar{Handle: "h", Format: "pulse", SourceTZ: "UTC", DSTPolicy: "later"}
+	b, err := json.Marshal(sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "source_tz_field") {
+		t.Fatalf("unset SourceTZField reached the sidecar: %s", b)
+	}
+	sc.SourceTZField = "zone"
+	b, _ = json.Marshal(sc)
+	var back Sidecar
+	if err := json.Unmarshal(b, &back); err != nil || back.SourceTZField != "zone" {
+		t.Fatalf("round trip = %q (%v)", back.SourceTZField, err)
 	}
 }

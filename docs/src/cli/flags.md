@@ -585,7 +585,7 @@ pulse import parquet -i embeddings.parquet -o emb.pulse \
   --vector embedding:f32 --vector-kind embedding:measure
 ```
 
-### `--source-tz` / `--dst-policy`
+### `--source-tz` / `--source-tz-field` / `--dst-policy`
 
 Available on: every `import <format>` leaf, `import auto`, `import predict`,
 `convert` and `convert predict`.
@@ -601,6 +601,20 @@ a calendar day and has no zone). The bare form skips `date` columns. A
 value carrying its own `Z` or offset names that instant and ignores the
 zone. Without `--source-tz` the cohort is byte-identical to before.
 
+`--source-tz-field col` reads each ROW's zone from column `col` (same
+spellings, `±HH:MM` included): every naive `datetime` column not named by a
+`--source-tz col=Zone` reads in the zone its own row names, so one source
+can mix New York, Berlin and Kolkata rows. The zone column imports as an
+ordinary column (typically a categorical). A bare `--source-tz` becomes the
+fallback for an empty zone cell; with no fallback that row is a row error
+(`PULSE_IMPORT_ROW_ERROR`), and an unknown name is a row error coded
+`PULSE_TIMEZONE_UNKNOWN` — both name `row`, `column` and `zone_column`,
+skip the row, and count toward `PULSE_IMPORT_ROWS_DROPPED` (fatal under
+`--strict`). A value with its own `Z` / offset never consults the zone. A
+`col` the source does not carry, or a `datetime` column, is `CLI_INPUT`.
+Each distinct zone name is loaded once per pass; `--dst-policy` applies
+row by row, and a refusal names that row's zone.
+
 `--dst-policy` decides a naive value a DST transition makes ambiguous (a
 fall-back repeats the hour) or nonexistent (a spring-forward skips it):
 `error` (default) fails the import at the first such row with
@@ -614,7 +628,8 @@ the pre-transition offset (an overlap's first occurrence; Berlin
 policy is inert without a zone and under a fixed offset.
 
 On `import auto` the zone, per-column map and policy are persisted onto
-the managed sidecar (`source_tz`, `column_source_tz`, `dst_policy`); a
+the managed sidecar (`source_tz`, `column_source_tz`, `source_tz_field`,
+`dst_policy`; each omitted when unset); a
 handle is never reused across zones — re-importing in another zone needs
 `--overwrite`. `import predict` and `convert predict` raise the refusal
 the real run would and report the resolved count. `convert` is a text
@@ -622,13 +637,20 @@ pass, so a zoned naive value is written to the target as the canonical
 UTC literal of the instant it names (`2026-07-01T16:00:00Z`); a value
 with its own `Z` / offset, an unparseable cell and every other column
 pass through verbatim, and a `--keep-pulse` cohort is imported in the
-same zone. `pulse_import` (MCP) takes `source_tz`, `column_source_tz`
-(`{column: zone}`) and `dst_policy`.
+same zone. Under `--source-tz-field` a row whose zone cannot be resolved
+is dropped before the target (`PULSE_IMPORT_ROWS_DROPPED` with `stage`
+`source`) rather than written as a naive literal. `pulse_import` (MCP)
+takes `source_tz`, `column_source_tz` (`{column: zone}`),
+`source_tz_field` and `dst_policy`.
 
 ```bash
 pulse import csv -i orders.csv -o orders.pulse \
   --source-tz America/New_York --source-tz shipped_at=Europe/London \
   --dst-policy later
+
+# each row names its own zone; empty cells read in UTC
+pulse import csv -i shipments.csv -o shipments.pulse \
+  --source-tz-field warehouse_tz --source-tz UTC
 ```
 
 ### `--tz` (export)
@@ -736,7 +758,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse features init` | Print strict feature-profile JSON listing every feature this build offers, or `--from NAME` seeded from an example feature profile | [feature profiles](../library/feature-profiles.md) |
 | `pulse features show` | Describe every feature a feature profile lists: kind, category, source, since and dependencies | [feature profiles](../library/feature-profiles.md) |
 | `pulse import arrow` | Import Arrow IPC into `.pulse` | `--help` |
-| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--schema` / `--ignore-extra` / `--float` as on `import <format>`, `--strict` (a partial import is fatal), `--group` parent-group declarations, `--vector` / `--vector-kind` vector folds, `--source-tz` / `--dst-policy`, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
+| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--schema` / `--ignore-extra` / `--float` as on `import <format>`, `--strict` (a partial import is fatal), `--group` parent-group declarations, `--vector` / `--vector-kind` vector folds, `--source-tz` / `--source-tz-field` / `--dst-policy`, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
 | `pulse import csv` | Import CSV into `.pulse` | `--help` |
 | `pulse import drop` | Remove a managed-import handle | `--help` |
 | `pulse import excel` | Import Excel into `.pulse` | `--help` |

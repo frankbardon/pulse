@@ -57,7 +57,7 @@ Roots auto-loaded at `pulse.New`:
 
 A name on disk and in code: `PULSE_EXTENSION_DUPLICATE`. `PULSE_BENCH_DIR` is benchmark-only.
 
-Managed imports (`PULSE_IMPORTS_DIR`) persist each handle's read settings in a sidecar (`format`, `source_path`, `ttl_seconds`, `column_type_overrides`, `source_tz`, `column_source_tz`, `dst_policy`, `--vector` folds); a handle read in one zone is never reused for another — re-import with `overwrite: true`. See [`time-zones`](time-zones.md).
+Managed imports (`PULSE_IMPORTS_DIR`) persist each handle's read settings in a sidecar (`format`, `source_path`, `ttl_seconds`, `column_type_overrides`, `source_tz`, `column_source_tz`, `source_tz_field`, `dst_policy`, `--vector` folds); a handle is never reused across zones — re-import with `overwrite: true`. See [`time-zones`](time-zones.md).
 
 Server-side (`pulse mcp` / an embedder's `mcpserve`): `PULSE_MCP_NO_COHORT_SCAN` (flag `--no-cohort-scan`) skips enumerating `pulse://<path>` resources at startup. **There an empty `resources/list` is not evidence of no cohorts** — `resources/read pulse://<path>` and `pulse_inspect` still resolve; ask for the path. Tool responses default to the `standard` preset (no `components`; host flag `--return`); send `"return": {"preset": "full"}` for everything — see [`response-shaping`](response-shaping.md). The host caps resources (flag `--limit name=value`); plan within `manifest.limits` (`-1` = none), re-fetch the manifest on a new `limits_digest`; a breach is `PULSE_LIMIT_EXCEEDED`. Host diagnostics (`--log-level`, `--metrics-addr`) never reach tool responses.
 

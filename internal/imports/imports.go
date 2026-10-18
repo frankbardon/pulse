@@ -120,6 +120,11 @@ type Spec struct {
 	SourceTZ       string
 	ColumnSourceTZ map[string]string
 	DSTPolicy      pio.DSTPolicy
+	// SourceTZField names a column whose cell holds each row's source
+	// zone, exactly as io.ImportJob.SourceTZField (SourceTZ is the
+	// empty-cell fallback; ColumnSourceTZ still wins per column).
+	// Persisted onto the sidecar as source_tz_field, omitted when empty.
+	SourceTZField string
 
 	// Groups declares parent groups exactly as io.ImportJob.Groups does:
 	// each stores its distinct member tuples once in the schema block
@@ -287,6 +292,10 @@ type Sidecar struct {
 	SourceTZ       string            `json:"source_tz,omitempty"`
 	ColumnSourceTZ map[string]string `json:"column_source_tz,omitempty"`
 	DSTPolicy      string            `json:"dst_policy,omitempty"`
+	// SourceTZField records the column each row's zone was read from
+	// (Spec.SourceTZField). Omitted when unset, so every sidecar without
+	// it is unchanged.
+	SourceTZField string `json:"source_tz_field,omitempty"`
 	// Vectors records the vector declarations the handle was imported
 	// with (Spec.Vectors). Omitted when none, so a vector-free sidecar
 	// is unchanged.

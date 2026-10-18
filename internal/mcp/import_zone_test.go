@@ -88,3 +88,43 @@ func mustJSON(t *testing.T, v any) string {
 	}
 	return string(b)
 }
+
+// TestPulseImport_SourceTZField: source_tz_field reaches the managed
+// import — each row's naive literal stored as its own zone's instant, the
+// empty cell in the source_tz fallback — the sidecar records it, and a
+// zone column the source lacks is SERVICE_VALIDATION.
+func TestPulseImport_SourceTZField(t *testing.T) {
+	afs := afero.NewMemMapFs()
+	csv := "local,zone\n2026-07-01 12:00,America/New_York\n2026-07-01 12:00,Asia/Tokyo\n2026-07-01 12:00,\n"
+	if err := afero.WriteFile(afs, "zf.csv", []byte(csv), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := pulse.New(pulse.Options{FS: afs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := invokeImport(t, p, `{"source":"zf.csv","source_tz_field":"zone","source_tz":"Europe/Berlin"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sink := &zoneRowSink{}
+	ej := pio.NewExportJob(out["path"].(string), sink)
+	ej.FS = afs
+	if _, err := ej.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	for i, want := range []string{"2026-07-01T16:00:00Z", "2026-07-01T03:00:00Z", "2026-07-01T10:00:00Z"} {
+		if sink.rows[i][0] != want {
+			t.Fatalf("row %d local = %v, want %s", i+1, sink.rows[i][0], want)
+		}
+	}
+	sc, _ := afero.ReadFile(afs, out["path"].(string)+".meta.json")
+	if !bytes.Contains(sc, []byte(`"source_tz_field": "zone"`)) {
+		t.Fatalf("sidecar lacks the zone column:\n%s", sc)
+	}
+	_, err = invokeImport(t, p, `{"source":"zf.csv","handle":"bad","source_tz_field":"tz"}`)
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != perr.SERVICE_VALIDATION {
+		t.Fatalf("missing zone column: err = %v", err)
+	}
+}

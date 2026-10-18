@@ -15,16 +15,19 @@ import (
 // sourceTZFlagUsage / dstPolicyFlagUsage are the shared help lines for the
 // source-zone import flags.
 const (
-	sourceTZFlagUsage  = "Zone naive datetime values were recorded in (IANA name such as America/New_York, UTC, or a fixed +HH:MM / -HH:MM offset); stored values stay UTC instants. Bare Zone applies to every datetime column (date columns are skipped); repeatable col=Zone sets one column and wins over the bare form. A value with its own Z or offset ignores the zone"
-	dstPolicyFlagUsage = "How a naive datetime that a DST transition makes ambiguous (repeated hour) or nonexistent (skipped hour) resolves under --source-tz: error (default — the import fails naming the first such row), earlier (pre-transition offset) or later (post-transition offset); a resolved value is counted in a PULSE_IMPORT_DST_RESOLVED warning"
+	sourceTZFlagUsage      = "Zone naive datetime values were recorded in (IANA name such as America/New_York, UTC, or a fixed +HH:MM / -HH:MM offset); stored values stay UTC instants. Bare Zone applies to every datetime column (date columns are skipped); repeatable col=Zone sets one column and wins over the bare form. A value with its own Z or offset ignores the zone"
+	sourceTZFieldFlagUsage = "Column whose cell holds each row's source zone (same spellings as --source-tz); every naive datetime column not named by a col=Zone --source-tz reads in its own row's zone. A bare --source-tz is the fallback for an empty zone cell (else the row is a row error); an unknown zone name is a PULSE_TIMEZONE_UNKNOWN row error. The zone column itself imports as an ordinary column"
+	dstPolicyFlagUsage     = "How a naive datetime that a DST transition makes ambiguous (repeated hour) or nonexistent (skipped hour) resolves under --source-tz: error (default — the import fails naming the first such row), earlier (pre-transition offset) or later (post-transition offset); a resolved value is counted in a PULSE_IMPORT_DST_RESOLVED warning"
 )
 
-// sourceZoneFlags is the parsed --source-tz / --dst-policy triple, in
+// sourceZoneFlags is the parsed --source-tz / --source-tz-field /
+// --dst-policy set, in
 // the shape every job that reads a source takes (io.ImportJob,
 // io.ConvertJob, imports.Spec).
 type sourceZoneFlags struct {
 	tz     string
 	cols   map[string]string
+	field  string
 	policy pio.DSTPolicy
 }
 
@@ -35,6 +38,7 @@ type sourceZoneFlags struct {
 func sourceZoneCLIFlags() []cli.Flag {
 	return []cli.Flag{
 		&cli.StringSliceFlag{Name: "source-tz", Usage: sourceTZFlagUsage},
+		&cli.StringFlag{Name: "source-tz-field", Usage: sourceTZFieldFlagUsage},
 		&cli.StringFlag{Name: "dst-policy", Value: "error", Usage: dstPolicyFlagUsage},
 	}
 }
@@ -45,7 +49,7 @@ func applySourceZoneFlags(cmd *cli.Command, job *pio.ImportJob) error {
 	if err != nil {
 		return err
 	}
-	job.SourceTZ, job.ColumnSourceTZ, job.DSTPolicy = f.tz, f.cols, f.policy
+	job.SourceTZ, job.ColumnSourceTZ, job.SourceTZField, job.DSTPolicy = f.tz, f.cols, f.field, f.policy
 	return nil
 }
 
@@ -56,7 +60,7 @@ func applyConvertZoneFlags(cmd *cli.Command, job *pio.ConvertJob) error {
 	if err != nil {
 		return err
 	}
-	job.SourceTZ, job.ColumnSourceTZ, job.DSTPolicy = f.tz, f.cols, f.policy
+	job.SourceTZ, job.ColumnSourceTZ, job.SourceTZField, job.DSTPolicy = f.tz, f.cols, f.field, f.policy
 	return nil
 }
 
@@ -99,6 +103,7 @@ func parseSourceZoneFlags(cmd *cli.Command) (sourceZoneFlags, error) {
 		}
 		out.cols[col] = zone
 	}
+	out.field = cmd.String("source-tz-field")
 	switch p := cmd.String("dst-policy"); p {
 	case "":
 		// A leaf without the flag: the library default (error).
