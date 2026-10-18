@@ -427,3 +427,9 @@ source(file.path(script_dir, "gen_auc.R"), local = FALSE)
 # the cluster cases cross-checked against survey's JK1 design); survey +
 # glmnet + jsonlite.
 source(file.path(script_dir, "gen_jackknife.R"), local = FALSE)
+
+# The model-workbench end-to-end golden (credit_workbench.json + the
+# committed fixture credit/loans.csv): fit_on target encoding, ridge
+# REG_GLM with a delete-a-vintage jackknife, holdout AUC (pROC DeLong)
+# and the holdout decile gains table; glmnet + pROC + jsonlite.
+source(file.path(script_dir, "gen_credit_workbench.R"), local = FALSE)

@@ -1,0 +1,163 @@
+{
+  "generator": "scripts/reference/gen_credit_workbench.R (via gen_reference.R)",
+  "r_version": "R version 4.6.1 (2026-06-24)",
+  "packages": {
+    "glmnet": "5.1",
+    "pROC": "1.19.1",
+    "jsonlite": "2.0.0"
+  },
+  "primitive": "model-workbench end to end: fit_on target encoding, ridge REG_GLM, delete-a-vintage jackknife, ATTR_REG_PREDICT, AGG_AUC (DeLong), GROUP_QUANTILE deciles with WIN_SHARE / WIN_LIFT",
+  "r_function": "glmnet(alpha = 0, standardize = FALSE, thresh = 1e-20) per fit and per replicate; pROC roc / var(delong) / ci.auc(delong)",
+  "note": "fixture credit/loans.csv (sha256 below); train vintage <= 18, holdout >= 19; coefficients ordered (intercept), te_purpose, income, dti, collections_flag",
+  "fixture": "credit/loans.csv",
+  "fixture_sha256": "11643958469427e8e34561ff4838d8e9ca6390c0c71e00a7c78e22e74cd3f2d2",
+  "rows": 3000,
+  "train_vintage_max": 18,
+  "smoothing": 5,
+  "alpha": 0.002,
+  "predictors": ["te_purpose", "income", "dti", "collections_flag"],
+  "te_purpose": {
+    "auto": 0.1136614466815809,
+    "business": 0.24476608187134502,
+    "debt_consolidation": 0.19308321308321308,
+    "education": 0.15608370702541105,
+    "home": 0.10131313131313131,
+    "medical": 0.20179148311306902
+  },
+  "coefficients": [
+    -1.934513860463851,
+    0.99805745245360056,
+    -0.015534772400555395,
+    0.036852152260014544,
+    1.3944368257092854
+  ],
+  "jackknife_groups": 18,
+  "std_errors": [
+    0.1455872802181713,
+    0.13805348986213536,
+    0.0013341524049803525,
+    0.0051445280920568567,
+    0.14341352886761988
+  ],
+  "holdout_auc": {
+    "n": 750,
+    "n_pos": 111,
+    "n_neg": 639,
+    "auc": 0.67959508804579294,
+    "se": 0.028384892393196273,
+    "ci_lower": 0.62396172125008265,
+    "ci_upper": 0.7352284548415019
+  },
+  "train_auc": {
+    "n": 2250,
+    "n_pos": 363,
+    "n_neg": 1887,
+    "auc": 0.71619504774584986,
+    "se": 0.014505899468944483,
+    "ci_lower": 0.68776400722335995,
+    "ci_upper": 0.74462608826833976
+  },
+  "deciles": [
+    {
+      "key": "D1",
+      "loans": 75,
+      "defaults": 4,
+      "mean_pd": 0.041436327152189041,
+      "default_share": 0.036036036036036036,
+      "lift": 0.36036036036036034,
+      "cum_default_share": 1,
+      "cum_lift": 1
+    },
+    {
+      "key": "D2",
+      "loans": 75,
+      "defaults": 6,
+      "mean_pd": 0.070496422460268257,
+      "default_share": 0.054054054054054057,
+      "lift": 0.54054054054054057,
+      "cum_default_share": 0.963963963963964,
+      "cum_lift": 1.0710710710710711
+    },
+    {
+      "key": "D3",
+      "loans": 75,
+      "defaults": 9,
+      "mean_pd": 0.088960916415196142,
+      "default_share": 0.081081081081081086,
+      "lift": 0.81081081081081086,
+      "cum_default_share": 0.90990990990990994,
+      "cum_lift": 1.1373873873873874
+    },
+    {
+      "key": "D4",
+      "loans": 75,
+      "defaults": 6,
+      "mean_pd": 0.10423618462545105,
+      "default_share": 0.054054054054054057,
+      "lift": 0.54054054054054057,
+      "cum_default_share": 0.8288288288288288,
+      "cum_lift": 1.184041184041184
+    },
+    {
+      "key": "D5",
+      "loans": 75,
+      "defaults": 6,
+      "mean_pd": 0.12239971233682266,
+      "default_share": 0.054054054054054057,
+      "lift": 0.54054054054054057,
+      "cum_default_share": 0.77477477477477474,
+      "cum_lift": 1.2912912912912913
+    },
+    {
+      "key": "D6",
+      "loans": 75,
+      "defaults": 9,
+      "mean_pd": 0.14524664316971558,
+      "default_share": 0.081081081081081086,
+      "lift": 0.81081081081081086,
+      "cum_default_share": 0.72072072072072069,
+      "cum_lift": 1.4414414414414414
+    },
+    {
+      "key": "D7",
+      "loans": 75,
+      "defaults": 13,
+      "mean_pd": 0.17112657823539282,
+      "default_share": 0.11711711711711711,
+      "lift": 1.171171171171171,
+      "cum_default_share": 0.63963963963963966,
+      "cum_lift": 1.599099099099099
+    },
+    {
+      "key": "D8",
+      "loans": 75,
+      "defaults": 13,
+      "mean_pd": 0.20091192500749125,
+      "default_share": 0.11711711711711711,
+      "lift": 1.171171171171171,
+      "cum_default_share": 0.52252252252252251,
+      "cum_lift": 1.7417417417417418
+    },
+    {
+      "key": "D9",
+      "loans": 75,
+      "defaults": 17,
+      "mean_pd": 0.24891137512745637,
+      "default_share": 0.15315315315315314,
+      "lift": 1.5315315315315314,
+      "cum_default_share": 0.40540540540540543,
+      "cum_lift": 2.0270270270270272
+    },
+    {
+      "key": "D10",
+      "loans": 75,
+      "defaults": 28,
+      "mean_pd": 0.3786801592601049,
+      "default_share": 0.25225225225225223,
+      "lift": 2.5225225225225221,
+      "cum_default_share": 0.25225225225225223,
+      "cum_lift": 2.5225225225225221
+    }
+  ]
+}
+// golden-hash: 65853df128b7c84ab73fd3d3230f8ce078ed95e10cd6a4e972a81c25446985c0
