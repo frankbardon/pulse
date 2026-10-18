@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -305,5 +306,87 @@ func TestRegPredict_ProjectionReadsBoundPredictors(t *testing.T) {
 	got := NeededFieldsWithModels(req, predictSchema(), nil, set)
 	if got.IsWide() || !got.Has("x1") || !got.Has("x3") || got.Has("x2") {
 		t.Fatalf("needed fields = %v, want x1 and x3", got)
+	}
+}
+
+// TestRegPredict_ScoresPenalizedGLM: a penalised REG_GLM fit (l2, and
+// l1 with a predictor dropped to exactly 0) scores like any other —
+// the link scale is the shared kernel over the penalised coefficients
+// bit for bit, the response scale its inverse logit — and a dropped
+// predictor contributes nothing.
+func TestRegPredict_ScoresPenalizedGLM(t *testing.T) {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "x1", Type: encoding.FieldTypeF64},
+		{Name: "x2", Type: encoding.FieldTypeF64},
+		{Name: "b", Type: encoding.FieldTypeF64},
+	}}
+	rows := func() []*Record {
+		out := make([]*Record, 60)
+		for i := range out {
+			f := float64(i)
+			x1, x2 := math.Sin(0.9*f)*2, math.Cos(1.7*f)*0.05
+			b := 0.0
+			if x1+0.8*math.Sin(2.1*f+0.4) > 0 {
+				b = 1
+			}
+			out[i] = NewRecord(schema, map[string]float64{"x1": x1, "x2": x2, "b": b})
+		}
+		return out
+	}
+	for _, tc := range []struct {
+		name, penalty string
+		alpha         float64
+		dropped       string
+	}{
+		{"l2", "l2", 0.05, ""},
+		{"l1", "l1", 0.08, "x2"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			spec := &types.RegressionSpec{Type: types.REG_GLM, Name: "m", Family: "binomial", Target: "b",
+				Predictors: []string{"x1", "x2"}, Penalty: tc.penalty, Alpha: tc.alpha}
+			resp, err := NewProcessor(schema).Process(context.Background(),
+				&types.Request{Regressions: []*types.RegressionSpec{spec}}, NewSliceIterator(rows()))
+			if err != nil {
+				t.Fatalf("fit: %v", err)
+			}
+			res := resp.Regressions[0]
+			if res.Error != nil || res.Penalty != tc.penalty {
+				t.Fatalf("fit error %+v, penalty echo %q", res.Error, res.Penalty)
+			}
+			if tc.dropped != "" && res.Coefficients[tc.dropped] != 0 {
+				t.Fatalf("%s = %v, want dropped to 0 (fixture no longer exercises l1)", tc.dropped, res.Coefficients[tc.dropped])
+			}
+			b, err := model.Bind("m", spec, res)
+			if err != nil {
+				t.Fatalf("Bind: %v", err)
+			}
+			set := &model.Set{}
+			if err := set.Add(b); err != nil {
+				t.Fatal(err)
+			}
+			p := NewProcessor(schema)
+			p.SetModels(set)
+			recs := rows()
+			if _, _, err := p.applyAttributes([]*types.Attribute{
+				predictAttr(`{"fit":"m","scale":"link"}`),
+				{Type: types.ATTR_REG_PREDICT, Label: "r", Params: json.RawMessage(`{"fit":"m"}`)},
+			}, recs); err != nil {
+				t.Fatal(err)
+			}
+			beta := []float64{res.Coefficients["x1"], res.Coefficients["x2"]}
+			for i, r := range recs {
+				x1, _ := r.NumericValue("x1")
+				x2, _ := r.NumericValue("x2")
+				eta := regression.LinearPredictor(res.Coefficients[regression.InterceptKey], beta, []float64{x1, x2})
+				gotEta, _ := r.NumericValue("p")
+				if math.Float64bits(gotEta) != math.Float64bits(eta) {
+					t.Fatalf("row %d: link score %v, kernel %v", i, gotEta, eta)
+				}
+				gotMu, _ := r.NumericValue("r")
+				if mu := 1 / (1 + math.Exp(-eta)); math.Abs(gotMu-mu) > 1e-15 {
+					t.Fatalf("row %d: response score %v, inverse logit %v", i, gotMu, mu)
+				}
+			}
+		})
 	}
 }

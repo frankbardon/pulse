@@ -185,7 +185,7 @@ func (e *modifierEngine) makeCriterionFn() func(*refitResult, int) float64 {
 func (e *modifierEngine) makeRefitFitter() func([]Record, []string) (*refitResult, error) {
 	if e.family == "GLM" {
 		return func(recs []Record, active []string) (*refitResult, error) {
-			return glmFitter(recs, e.spec.Target, active, e.glmFam, e.spec.MaxIters, e.spec.Tol)
+			return glmFitter(recs, e.spec.Target, active, e.glmFam, e.spec.MaxIters, e.spec.Tol, e.spec)
 		}
 	}
 	return func(recs []Record, active []string) (*refitResult, error) {
@@ -200,7 +200,7 @@ func (e *modifierEngine) makeRefitFitter() func([]Record, []string) (*refitResul
 func (e *modifierEngine) makeResampleFitter(activePredictors []string) (func([]Record) (*refitResult, error), func(coef, se float64) float64) {
 	if e.family == "GLM" {
 		return func(recs []Record) (*refitResult, error) {
-				return glmFitter(recs, e.spec.Target, activePredictors, e.glmFam, e.spec.MaxIters, e.spec.Tol)
+				return glmFitter(recs, e.spec.Target, activePredictors, e.glmFam, e.spec.MaxIters, e.spec.Tol, e.spec)
 			}, func(coef, se float64) float64 {
 				return waldZTwoSidedP(coef, se)
 			}
@@ -345,7 +345,7 @@ func (e *modifierEngine) fitOLSInterceptOnly(records []Record) (*types.Regressio
 // fitGLMInterceptOnly produces the degenerate intercept-only GLM fit.
 // β₀ = g(ȳ); deviance = NullDeviance for the family.
 func (e *modifierEngine) fitGLMInterceptOnly(records []Record) (*types.RegressionResult, error) {
-	fit, err := glmFitter(records, e.spec.Target, nil, e.glmFam, e.spec.MaxIters, e.spec.Tol)
+	fit, err := glmFitter(records, e.spec.Target, nil, e.glmFam, e.spec.MaxIters, e.spec.Tol, e.spec)
 	if err != nil {
 		return nil, err
 	}

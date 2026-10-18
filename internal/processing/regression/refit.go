@@ -147,13 +147,17 @@ func olsFitter(records []Record, target string, activePredictors []string, spec 
 // Caller responsibilities:
 //   - selectFamily(family, link) has already been validated.
 //   - spec.MaxIters / spec.Tol are usable (defaults applied upstream).
+//   - knobs, when non-nil, is the spec whose Penalty / Alpha / L1Ratio
+//     penalise every refit (glm_penalty.go; nil or Penalty "" = the MLE);
+//     nothing else on it is read.
 //
 // Returns:
-//   - refitResult with Deviance populated (RSS untouched).
+//   - refitResult with Deviance populated (RSS untouched; the
+//     unpenalised deviance at the penalised estimate).
 //   - PROCESSING_REGRESSION_INSUFFICIENT_DATA when n < p + 1.
 //   - PROCESSING_REGRESSION_RANK_DEFICIENT / SEPARATION / NO_CONVERGE
 //     bubbled untouched.
-func glmFitter(records []Record, target string, activePredictors []string, fam glmFamily, maxIters int, tol float64) (*refitResult, error) {
+func glmFitter(records []Record, target string, activePredictors []string, fam glmFamily, maxIters int, tol float64, knobs *types.RegressionSpec) (*refitResult, error) {
 	if maxIters <= 0 {
 		maxIters = defaultGLMMaxIters
 	}
@@ -193,12 +197,17 @@ func glmFitter(records []Record, target string, activePredictors []string, fam g
 	// The same weighted IRLS loop glmEngine.FitBuffered runs (every
 	// prior weight 1), without the final (XᵀWX)⁻¹: selection / resample
 	// need only β, deviance and n.
-	sol, err := irlsFit(&irlsProblem{
+	pr := &irlsProblem{
 		X: xRows, Y: yVec, K: p + 1,
 		Columns:  append([]string{InterceptKey}, activePredictors...),
 		Family:   fam,
 		MaxIters: maxIters, Tol: tol,
-	})
+	}
+	// The spec's penalty, N* = n (every prior weight 1).
+	if pen := newGLMPenalty(knobs, float64(n)); pen != nil {
+		pr.Penalty = pen
+	}
+	sol, err := irlsFit(pr)
 	if err != nil {
 		return nil, err
 	}

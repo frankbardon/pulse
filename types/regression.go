@@ -74,9 +74,10 @@ type RegressionSpec struct {
 	// linear regression.
 	Predictors []string `json:"predictors,omitempty"`
 
-	// Penalty selects the regularization scheme for REG_OLS. One of
-	// "" (no penalty), "l1" (lasso), "l2" (ridge), or "elasticnet".
-	// Ignored by REG_GLM and REG_BAYES_LINEAR.
+	// Penalty selects the regularization scheme for REG_OLS and REG_GLM
+	// (binomial / poisson; gamma refuses it). One of "" (no penalty),
+	// "l1" (lasso), "l2" (ridge), or "elasticnet". REG_BAYES_LINEAR
+	// refuses it.
 	Penalty string `json:"penalty,omitempty"`
 
 	// Alpha is the regularization strength for l1 / l2 / elasticnet
@@ -281,13 +282,13 @@ type RegressionResult struct {
 	// Link echoes RegressionSpec.Link (GLM only).
 	Link string `json:"link,omitempty"`
 
-	// Penalty echoes RegressionSpec.Penalty (REG_OLS only).
+	// Penalty echoes RegressionSpec.Penalty (REG_OLS / REG_GLM).
 	Penalty string `json:"penalty,omitempty"`
 
-	// Alpha echoes RegressionSpec.Alpha (regularized OLS only).
+	// Alpha echoes RegressionSpec.Alpha (regularized OLS / GLM).
 	Alpha float64 `json:"alpha,omitempty"`
 
-	// L1Ratio echoes RegressionSpec.L1Ratio (elastic-net OLS only).
+	// L1Ratio echoes RegressionSpec.L1Ratio (elastic-net OLS / GLM).
 	L1Ratio float64 `json:"l1_ratio,omitempty"`
 
 	// Prior echoes RegressionSpec.Prior (Bayes only).

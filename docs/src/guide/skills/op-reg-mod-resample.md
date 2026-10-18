@@ -28,14 +28,14 @@ Inherits `target` / `predictors` from the host `RegressionSpec`. No additional f
 | Host | Accepted? |
 |---|---|
 | `REG_OLS` (any penalty) | yes |
-| `REG_GLM` | yes |
+| `REG_GLM` (any penalty) | yes |
 | `REG_BAYES_LINEAR` | rejected — credible intervals already convey uncertainty |
 
 ## Output
 
 - `StdErrors[name]` — jackknife `√((n−1)/n · Σ(β⁽⁻ⁱ⁾ − β̄)²)`; bootstrap sample std of replicates.
 - `PValues[name]` — jackknife pivotal; bootstrap percentile-method two-sided.
-- `Resample` echoes back; `Coefficients` unchanged. For `l1` / `elasticnet` OLS, bootstrap suppresses `PROCESSING_REGRESSION_APPROXIMATE_SE`.
+- `Resample` echoes back; `Coefficients` unchanged. For `l1` / `elasticnet` (OLS or GLM), a resample suppresses `PROCESSING_REGRESSION_APPROXIMATE_SE`; a penalty refits every replicate penalized.
 - Bootstrap echoes `bootstrap_requested` (replicates run) and `bootstrap_succeeded` (refits that succeeded; SE / p / vcov use only these). A failed refit is skipped, so `succeeded < requested` flags an unstable fit; under 10 successes is `PROCESSING_REGRESSION_NO_CONVERGE`.
 
 ## Gotchas

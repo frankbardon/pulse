@@ -61,10 +61,10 @@ const (
 	convergenceEps = 1e-12
 )
 
-// newGLMEngine validates the REG_GLM spec and constructs an engine.
-// Modifiers (Resample / Selection) and Penalty are rejected at this
-// phase; Phase 5 (modifiers) and a later phase (GLM regularization)
-// will widen the supported configurations.
+// newGLMEngine validates the REG_GLM spec and constructs an engine; a
+// spec with a Resample / Selection modifier gets the modifier wrapper.
+// A penalty (l2 / l1 / elasticnet, binomial and poisson) rides the same
+// IRLS loop (glm_penalty.go).
 func newGLMEngine(spec *types.RegressionSpec, schema *encoding.Schema) (Engine, error) {
 	if spec.Type != types.REG_GLM {
 		return nil, errors.NewCodedErrorWithDetails(
@@ -180,17 +180,24 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 
 	// The one weighted IRLS loop (glm_irls.go): the up-front rank check,
 	// per-row starting values, step-halving and the separation refusal.
-	// yBar (the prior-weighted mean) seeds only the null deviance below.
-	yBar := weightedMean(yVec, prior)
-	sol, err := irlsFit(&irlsProblem{
+	pr := &irlsProblem{
 		X: xRows, Y: yVec, Prior: prior, K: p + 1,
 		Columns:  append([]string{InterceptKey}, e.spec.Predictors...),
 		Family:   e.family,
 		MaxIters: maxIters, Tol: tol,
 		WantInverse: true,
-	})
+	}
+	// A penalty's N* is Σw* (n unweighted): glmnet's −loglik/N*.
+	pen := newGLMPenalty(e.spec, sum(prior))
+	if pen != nil {
+		pr.Penalty = pen
+	}
+	sol, err := irlsFit(pr)
 	if err != nil {
 		return nil, err
+	}
+	if pen != nil {
+		return e.penalizedResult(pen, sol, yVec, prior, sumW, sumWSq, rw)
 	}
 	beta, eta, mu := sol.Beta, sol.Eta, sol.Mu
 	convergedIters := sol.Iters
@@ -225,17 +232,7 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	// Null deviance: intercept-only model. The null fit has
 	// μ_i = ȳ for every i; for binomial/poisson/gamma with their
 	// canonical links the closed-form null intercept is g(ȳ).
-	nullMu := e.family.SafeMean(yBar)
-	nullDeviance := 0.0
-	for i := 0; i < n; i++ {
-		nullDeviance += prior[i] * e.family.Deviance(yVec[i], nullMu)
-	}
-	nullDeviance *= 2.0
-
-	pseudoR2 := 0.0
-	if nullDeviance > 0 {
-		pseudoR2 = 1 - deviance/nullDeviance
-	}
+	nullDeviance, pseudoR2 := e.nullDeviance(yVec, prior, deviance)
 
 	// Package result. Coefficients[0] is the intercept; remaining
 	// entries map to spec.Predictors in order. We use Wald-z p-values
@@ -290,6 +287,102 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		attachVcov(res, predictors, symVcov(p+1, lastInvXtWX.At, 1, diag))
 	}
 	return res, nil
+}
+
+// nullDeviance returns the intercept-only model's deviance — μᵢ = ȳ
+// (prior-weighted) for every row, the closed-form null intercept g(ȳ)
+// under the canonical links — and the pseudo-R² 1 − D/D₀ (0 when D₀ is
+// not positive).
+func (e *glmEngine) nullDeviance(yVec, prior []float64, deviance float64) (float64, float64) {
+	nullMu := e.family.SafeMean(weightedMean(yVec, prior))
+	nullDeviance := 0.0
+	for i := range yVec {
+		nullDeviance += prior[i] * e.family.Deviance(yVec[i], nullMu)
+	}
+	nullDeviance *= 2.0
+	pseudoR2 := 0.0
+	if nullDeviance > 0 {
+		pseudoR2 = 1 - deviance/nullDeviance
+	}
+	return nullDeviance, pseudoR2
+}
+
+// penalizedResult packages a penalised fit (glm_penalty.go). The
+// coefficients are the penalised estimate; the standard errors, Wald-z
+// p-values and intervals read the penalised-Fisher sandwich
+// H⁻¹·XᵀWX·H⁻¹, H = XᵀWX + λ₂·D, at the converged working weights — over
+// every coefficient for l2 (vcov allowed), over the intercept and the
+// nonzero predictors for l1 / elasticnet (a plug-in that treats the
+// active set as fixed: a dropped predictor has no std error, p-value or
+// interval, and vcov is refused up front). Deviance, null deviance and
+// pseudo-R² are the unpenalised figures at the penalised estimate.
+func (e *glmEngine) penalizedResult(pen *glmPenalty, sol *irlsSolution, yVec, prior []float64, sumW, sumWSq float64, rw rowWeights) (*types.RegressionResult, error) {
+	predictors := e.spec.Predictors
+	k := len(predictors) + 1
+	active, cov, ok := pen.covariance(k, sol.Gram, sol.Beta)
+	if !ok {
+		return nil, errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_REGRESSION_NO_CONVERGE,
+			"REG_GLM penalised fit: the penalised information matrix XᵀWX + λ·D is not positive-definite at the converged weights",
+			map[string]any{
+				"n": len(yVec), "p": k - 1,
+				"family": e.family.Name, "link": e.family.Link,
+				"penalty": pen.kind, "reason": "working_weights_collapsed",
+			},
+		)
+	}
+	keys := coefficientKeys(predictors)
+	coefMap := make(map[string]float64, k)
+	for j, key := range keys {
+		coefMap[key] = sol.Beta[j]
+	}
+	seMap := make(map[string]float64, len(active))
+	pMap := make(map[string]float64, len(active))
+	for u, j := range active {
+		v := cov[u][u]
+		if v < 0 {
+			v = 0
+		}
+		se := math.Sqrt(v)
+		seMap[keys[j]] = se
+		pMap[keys[j]] = waldZTwoSidedP(sol.Beta[j], se)
+	}
+	nullDeviance, pseudoR2 := e.nullDeviance(yVec, prior, sol.Deviance)
+	res := &types.RegressionResult{
+		Name:           e.spec.Name,
+		Type:           types.REG_GLM,
+		Family:         e.family.Name,
+		Link:           e.family.Link,
+		Penalty:        e.spec.Penalty,
+		Alpha:          e.spec.Alpha,
+		L1Ratio:        e.spec.L1Ratio,
+		Coefficients:   coefMap,
+		StdErrors:      seMap,
+		PValues:        pMap,
+		Deviance:       sol.Deviance,
+		NullDeviance:   nullDeviance,
+		PseudoR2:       pseudoR2,
+		NObs:           len(yVec),
+		ConvergedIters: sol.Iters,
+	}
+	rw.note(res, sumW, sumWSq)
+	attachIntervals(res, resolvedConfLevel(e.spec), 0, false)
+	if e.spec.Vcov && !pen.approximateSE() {
+		attachVcov(res, predictors, cov)
+	}
+	if e.fitted != nil {
+		e.fitted(sol.Eta, sol.Mu)
+	}
+	return res, nil
+}
+
+// sum is Σx.
+func sum(x []float64) float64 {
+	s := 0.0
+	for _, v := range x {
+		s += v
+	}
+	return s
 }
 
 // buildWeightedDesign is buildDesign plus the per-row prior weights the

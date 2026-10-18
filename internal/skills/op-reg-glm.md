@@ -21,10 +21,12 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 | `predictors` | []field | required | ≥1 numeric predictor. |
 | `family` | enum | required | `binomial`, `poisson`, `gamma`. |
 | `link` | enum | family default | `binomial→logit`, `poisson→log`, `gamma→inverse`. `identity`, `probit`, `cloglog`, `sqrt` reserved. |
+| `penalty` | enum | `""` | `l2`, `l1`, `elasticnet` (binomial / poisson). Minimizes −loglik/N* + `alpha`·[(1−`l1_ratio`)/2‖β‖² + `l1_ratio`‖β‖₁] — glmnet `standardize=FALSE`: raw predictor units, intercept unpenalized, N* = Σw. |
+| `alpha` / `l1_ratio` | float | — | Strength (>0, glmnet `lambda`) / mix (`elasticnet` only, 0<r<1). |
 | `max_iters` / `tol` | int / float | engine | IRLS caps. |
 | `weight` | slot weight | inherited | `null` opts out; both kinds. IRLS prior weights w* (R `glm(weights = w*)`); SEs, deviances on w*. |
 | `conf_level` | float | `0.95` | `CILower` / `CIUpper` coverage, `0<c<1`. |
-| `vcov` | bool | `false` | Adds `Vcov` = (XᵀWX)⁻¹ at the converged weights (dispersion 1) + `Correlation`; √diag = `StdErrors`. Resample: replicate covariance; selection: final refit's. |
+| `vcov` | bool | `false` | Adds `Vcov` = (XᵀWX)⁻¹ at the converged weights (dispersion 1; `l2`: sandwich H⁻¹XᵀWXH⁻¹) + `Correlation`; √diag = `StdErrors`. Resample: replicate covariance; selection: final refit's. |
 | `covariance` | object | absent | `{type, cluster, order_by, lags}` as `op-reg-ols`: `hc0`–`hc3`, `cluster` (CR1), `hac` (Newey–West). Sandwich over the IRLS scores at the converged weights (R `sandwich` on `glm`) behind `StdErrors`, `PValues`, CIs, `Vcov`; still Wald z (no `DF`, cluster too). Weighted: w* rule. |
 <!-- feature: capability:multiplicity -->
 | `multiplicity` | object | absent | `{method, family, alpha, coefficients}` as `op-reg-ols`: the member coefficients' Wald p-values join a `request` / `compose` family; adds `PAdjusted` / `SignificantAdjusted` + echo beside `PValues`. |
@@ -38,15 +40,15 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs (link scale); `StdErrors`, `PValues` (Wald-z from `Cov(β) = (XᵀWX)⁻¹`); `CILower` / `CIUpper` = Wald β ∓ z·SE (R `confint.default`, not the profile `confint`), `ConfLevel`, no `DF`; `Deviance`, `NullDeviance`, `PseudoR2` = 1 − D/D₀ (McFadden only for 0/1 binomial); `Family`, `Link` echoed; `ConvergedIters` = IRLS steps (R's per-row start, step-halving); `NObs` raw rows, weighted adds `SumWeights` (+ `NEff`, probability); a robust `covariance` adds the `Covariance` echo. Always buffered — IRLS needs multiple passes.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs (link scale); `StdErrors`, `PValues` (Wald-z from `Cov(β) = (XᵀWX)⁻¹`); `CILower` / `CIUpper` = Wald β ∓ z·SE (R `confint.default`, not the profile `confint`), `ConfLevel`, no `DF`; `Deviance`, `NullDeviance`, `PseudoR2` = 1 − D/D₀ (McFadden only for 0/1 binomial); `Family`, `Link` (+ `Penalty`, `Alpha`, `L1Ratio`) echoed; penalized SEs are the H = XᵀWX + N*·α(1−r)·D sandwich, `l1` / `elasticnet` only over kept predictors (a 0 coefficient has no SE / p / CI); `ConvergedIters` = IRLS steps (R's per-row start, step-halving); `NObs` raw rows, weighted adds `SumWeights` (+ `NEff`, probability); a robust `covariance` adds the `Covariance` echo. Always buffered — IRLS needs multiple passes.
 
 <!-- generated: reading-the-output -->
 
 ## Gotchas
 
 - Weighted: `resample` / `selection` → `PULSE_WEIGHT_UNSUPPORTED`; n_eff < p+1 → `PULSE_WEIGHT_LOW_NEFF`.
-- `penalty` / `alpha` / `l1_ratio` rejected → `PROCESSING_CONFIG`. Regularized GLM is a later phase.
-- Binomial separation (a predictor splits the outcome, e.g. an empty 2×2 cell) → `PROCESSING_REGRESSION_SEPARATION`, `details.predictors` named, no coefficients (the MLE is infinite); the slot fails alone (`error`), the rest of the response survives. Drop or merge it; check it is not recorded after the outcome. A strong but unseparated predictor converges.
+- `penalty` on gamma, or `alpha` / `l1_ratio` without one → `PROCESSING_CONFIG`. `l1` / `elasticnet`: `PROCESSING_REGRESSION_APPROXIMATE_SE` (unless `resample`), `vcov` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`; + `selection` warns `PROCESSING_REGRESSION_REGULARIZED_SELECTION`.
+- Binomial separation (a predictor splits the outcome, e.g. an empty 2×2 cell) → `PROCESSING_REGRESSION_SEPARATION`, `details.predictors` named, no coefficients (the MLE is infinite); the slot fails alone (`error`). Add `penalty: l2` (finite fit), or drop / merge it; check it is not recorded after the outcome. A strong but unseparated predictor converges.
 - Other non-convergence → `PROCESSING_REGRESSION_NO_CONVERGE` (`details.reason`): raise `max_iters`, rescale.
 - Unsupported link → `PROCESSING_REGRESSION_INVALID_LINK`.
 - Dispersion fixed at 1 for binomial / poisson, and gamma (weighted too) inherits it — be sceptical of gamma SEs and overdispersed counts; `covariance` `hc0`–`hc3` is dispersion-free.

@@ -31,7 +31,8 @@ Inherits `target` / `predictors` from the host `RegressionSpec`. No additional f
 | `REG_OLS` (`penalty != ""`) | → `PROCESSING_REGRESSION_REGULARIZED_SELECTION` |
 <!-- /feature -->
 <!-- feature: REG_GLM -->
-| `REG_GLM` | yes |
+| `REG_GLM` (`penalty == ""`) | yes |
+| `REG_GLM` (`penalty != ""`) | → `PROCESSING_REGRESSION_REGULARIZED_SELECTION` |
 <!-- /feature -->
 <!-- feature: REG_BAYES_LINEAR -->
 | `REG_BAYES_LINEAR` | rejected — stepwise on a NIG fit is out of scope |

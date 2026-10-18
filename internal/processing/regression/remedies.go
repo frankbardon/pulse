@@ -15,18 +15,6 @@ func regOffered(offered func(string) bool, t types.RegressionType) bool {
 	return offered == nil || offered(string(t))
 }
 
-// remedyGLMAlpha completes the REG_GLM Alpha refusal. A penalty is what
-// a separated binomial fit asks for, so the clause names the remedy that
-// works today for that case — never collinearity, which the up-front
-// rank check reports on its own.
-func remedyGLMAlpha(offered func(string) bool) string {
-	const separated = "; GLM penalties are not available yet: for a separated binomial fit drop or merge the separating predictor"
-	if regOffered(offered, types.REG_OLS) {
-		return separated + ", or use REG_OLS for a regularized linear fit"
-	}
-	return separated
-}
-
 // remedyBayesResample completes the REG_BAYES_LINEAR Resample refusal.
 func remedyBayesResample(offered func(string) bool) string {
 	if regOffered(offered, types.REG_OLS) {
@@ -71,7 +59,6 @@ func remedyBayesLink(offered func(string) bool) string {
 // processing.ExtensionRegistry.ScopeRefusal.
 func Remedies() []func(offered func(string) bool) string {
 	return []func(func(string) bool) string{
-		remedyGLMAlpha,
 		remedyBayesResample,
 		remedyBayesSelection,
 		remedyBayesPenalty,

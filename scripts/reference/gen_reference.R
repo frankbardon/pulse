@@ -401,9 +401,15 @@ source(file.path(script_dir, "gen_matrix_multiplicity.R"), local = FALSE)
 # The REG_GLM IRLS golden (glm_irls.json: two-level designs whose MLE has
 # a closed form — the credit-risk showcase's default x collections_flag
 # table among them — fitted by glm and checked against the closed form,
-# plus complete and quasi-complete separations glm itself flags); base
-# stats only.
+# plus complete and quasi-complete separations glm itself flags, and an
+# unseparated fit with fitted probabilities down to ~7e-13); base stats
+# only.
 source(file.path(script_dir, "gen_glm_irls.R"), local = FALSE)
+
+# The penalised REG_GLM golden (glm_penalty.json: l2 / l1 / elasticnet
+# on binomial and poisson, weighted and separated cases, under glmnet's
+# objective with standardize = FALSE, KKT-self-checked); glmnet + jsonlite.
+source(file.path(script_dir, "gen_glm_penalty.R"), local = FALSE)
 
 # The AGG_AUC golden (auc.json: pROC rank-sum AUC with ties half and its
 # DeLong se / 95% interval, plus weighted cases computed as the weighted

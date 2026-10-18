@@ -174,7 +174,7 @@ func TestRegGLM_RankDeficient_UpFront(t *testing.T) {
 			}
 			spec := &types.RegressionSpec{Type: types.REG_GLM, Target: "y", Predictors: c.predictors, Family: "binomial"}
 			_, err := asBuffered(t, newGLM(t, spec)).FitBuffered(recs)
-			_, rerr := glmFitter(recs, "y", c.predictors, binomialLogit, 0, 0)
+			_, rerr := glmFitter(recs, "y", c.predictors, binomialLogit, 0, 0, nil)
 			for path, e := range map[string]error{"engine": err, "refit": rerr} {
 				var ce *errors.CodedError
 				if !stderrors.As(e, &ce) || ce.Code != errors.PROCESSING_REGRESSION_RANK_DEFICIENT {
@@ -234,7 +234,7 @@ func TestRegGLM_Separation_NotBlamedOnCollinearity(t *testing.T) {
 		t.Errorf("max_iters 2: err = %v, want PROCESSING_REGRESSION_NO_CONVERGE (no boundary evidence yet)", err)
 	}
 	// The refit path classifies identically.
-	_, rerr := glmFitter(recs, "y", []string{"x"}, binomialLogit, 50, 0)
+	_, rerr := glmFitter(recs, "y", []string{"x"}, binomialLogit, 50, 0, nil)
 	if !errors.HasCode(rerr, errors.PROCESSING_REGRESSION_SEPARATION) {
 		t.Errorf("refit: err = %v, want PROCESSING_REGRESSION_SEPARATION", rerr)
 	}

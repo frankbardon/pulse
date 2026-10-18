@@ -33,8 +33,9 @@
 # "fitted probabilities numerically 0 or 1 occurred" warning in
 # r_warnings; Pulse refuses those with PROCESSING_REGRESSION_SEPARATION
 # rather than reporting where the loop happened to stop, so they carry
-# no coefficients. epoch_seconds_poisson (x = epoch seconds) has no
-# closed form: glm alone is the oracle.
+# no coefficients. epoch_seconds_poisson (x = epoch seconds) and
+# extreme_fitted_probabilities (fitted probabilities down to ~7e-13,
+# unseparated) have no closed form: glm alone is the oracle.
 
 suppressPackageStartupMessages(library(jsonlite))
 
@@ -152,6 +153,19 @@ gi_i <- 0:47
 gi_case("epoch_seconds_poisson", "poisson",
   data.frame(x = as.numeric(as.POSIXct(sprintf("2024-%02d-%02d %02d:15:00", 1 + gi_i %% 12, 1 + (gi_i * 3) %% 28, gi_i %% 24), tz = "UTC")),
              y = ((gi_i * 13) %% 17) + 0.5, n = rep(1, 48)))
+
+# Legitimately extreme fitted probabilities, NOT separated (one
+# overlapping pair at x = -1 / 1): the MLE exists and glm converges
+# without warning, yet 15 of the 61 rows are fitted beyond 1e-9 of 0 or 1
+# (down to ~7e-13). Pins the unclamped binomial variance: a V(mu) floored
+# at 1e-9 shrinks those rows' working weights and moves the converged
+# coefficients off R's.
+gi_ext_x <- seq(-30, 30, by = 1)
+gi_ext_y <- as.numeric(gi_ext_x > 0)
+gi_ext_y[gi_ext_x == -1] <- 1
+gi_ext_y[gi_ext_x == 1] <- 0
+gi_case("extreme_fitted_probabilities", "binomial",
+  data.frame(x = gi_ext_x, y = gi_ext_y, n = rep(1, length(gi_ext_x))))
 
 # Complete separation: y = 1 exactly when x >= 0.
 gi_case("complete_separation", "binomial",

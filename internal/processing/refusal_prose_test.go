@@ -28,7 +28,6 @@ func TestRefusalRemedies_DefaultsAreHistorical(t *testing.T) {
 		", or use OVERLAY_PAIRWISE_PROP_Z / OVERLAY_PAIRWISE_PROBIT_T, which read a separate n leg",
 		", admitted: AGG_DISTINCT_SUM, AGG_DISTINCT_COUNT",
 		" The count of the field's most common value is AGG_MODE_COUNT.",
-		"; GLM penalties are not available yet: for a separated binomial fit drop or merge the separating predictor, or use REG_OLS for a regularized linear fit",
 		"; use REG_OLS if you want resample-based uncertainty",
 		". Use REG_OLS for greedy AIC/BIC selection",
 		" or switch to REG_OLS",

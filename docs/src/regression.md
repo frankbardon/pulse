@@ -87,12 +87,17 @@ Generalized linear model via iteratively-reweighted least squares.
 | `link`        | no       | Family-specific default when empty (`binomial`→`logit`, `poisson`→`log`, `gamma`→`inverse`). |
 | `max_iters`   | no       | IRLS iteration cap (default 50).                                                       |
 | `tol`         | no       | Convergence tolerance (default `1e-8`).                                                |
+| `penalty`     | no       | `"l2"`, `"l1"`, `"elasticnet"` (binomial / poisson only; gamma refuses it).            |
+| `alpha`       | no       | Penalty strength, `> 0` when `penalty` is set.                                         |
+| `l1_ratio`    | no       | Elastic-net mix, `0 < l1_ratio < 1`; `elasticnet` only.                                |
 | `resample`    | no       | `"jackknife"` or `"bootstrap"`.                                                        |
 | `selection`   | no       | Subset-selection wrapper; requires `criterion`.                                        |
 | `conf_level`  | no       | Coverage of the Wald `ci_lower` / `ci_upper`, `0 < c < 1`. Default 0.95.               |
 | `covariance`  | no       | As `REG_OLS`: the sandwich over the IRLS scores at the converged weights (R `sandwich` on `glm`) behind `std_errors`, `p_values`, the intervals and `vcov`. Inference stays Wald z, `cluster` included. |
 
-Always buffered. Setting `penalty` / `alpha` / `l1_ratio` on a `REG_GLM` spec is rejected with `PROCESSING_CONFIG`; regularized GLM is reserved for a later phase.
+Always buffered.
+
+**Penalties.** `penalty` minimizes glmnet's objective with `standardize = FALSE` — `−loglik/N* + alpha·[(1 − l1_ratio)/2·‖β‖² + l1_ratio·‖β‖₁]`, `N*` the sum of the (prior) weights, the predictors on their own units and the intercept unpenalized (`l2` is `l1_ratio = 0`, `l1` is `1`). Each IRLS step solves the penalized working least-squares problem: in closed form for `l2`, by coordinate descent with an exact active-set finish for `l1` / `elasticnet`. Standard errors, Wald p-values and intervals read the penalized-Fisher sandwich `H⁻¹·XᵀWX·H⁻¹`, `H = XᵀWX + N*·alpha·(1 − l1_ratio)·D` (`D` zero on the intercept); for `l1` / `elasticnet` only over the intercept and the kept predictors (a dropped predictor has no standard error, p-value or interval), with predict's `PROCESSING_REGRESSION_APPROXIMATE_SE` warning unless `resample` is set, and `vcov` refused `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. `deviance` and `pseudo_r2` are the unpenalized figures at the penalized estimate. A penalty rides `resample` (every replicate penalized) and `selection` (predict warns `PROCESSING_REGRESSION_REGULARIZED_SELECTION`). An `l2` penalty keeps a separated binomial fit finite. Oracle: R `glmnet` (`scripts/reference/gen_glm_penalty.R`).
 
 The fit is R's `glm.fit` IRLS: per-row starting values (binomial `(w·y + 0.5)/(w + 1)`, poisson `y + 0.1`, gamma `y`), the step halved back toward the previous coefficients whenever the deviance rises, and convergence on the relative change in the coefficients. An up-front QR rank check of the (weighted) design is the only source of `PROCESSING_REGRESSION_RANK_DEFICIENT` (`details.columns` names the aliased columns). A binomial fit whose fitted probabilities reach numerically 0 or 1 while a predictor's coefficient keeps climbing is separated — the maximum-likelihood estimate is at infinity — and is refused `PROCESSING_REGRESSION_SEPARATION` (`details.predictors`) rather than reporting wherever the loop stopped.
 
@@ -224,7 +229,7 @@ See [Payload JSON Schema](contract/payload-schema.md) (Failed slots).
 | `PROCESSING_REGRESSION_INSUFFICIENT_DATA`     | Filtered set has fewer rows than predictors + 1, or below resample minimum.   |
 | `PROCESSING_REGRESSION_APPROXIMATE_SE`        | Warning: l1 / elasticnet SE is a plug-in approximation; set `resample` for rigor. |
 | `PROCESSING_REGRESSION_REGULARIZED_SELECTION` | Warning: `penalty != ""` plus `selection != ""` is unusual.                   |
-| `PROCESSING_CONFIG`                           | Invalid spec combination (e.g. Bayes + Resample, GLM + Penalty).              |
+| `PROCESSING_CONFIG`                           | Invalid spec combination (e.g. Bayes + Resample, gamma GLM + Penalty).        |
 
 ## Worked examples
 

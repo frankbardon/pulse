@@ -27,7 +27,8 @@ import (
 //  3. Each iteration: working weights Wᵢ = w*ᵢ·μ'(ηᵢ)²/V(μᵢ), working
 //     response zᵢ = ηᵢ + (yᵢ − μᵢ)/μ'(ηᵢ), β_new solves (XᵀWX)β = XᵀWz
 //     (Cholesky on the exactly power-of-two-equilibrated Gram, or the
-//     penalty's own solve).
+//     penalty's own solve — glmPenalty's penalised working least
+//     squares).
 //  4. Converged when a FULL (un-halved) step moves β by a relative
 //     ||Δβ|| / (||β|| + ε) < tol (to a finite objective and a valid η)
 //     — checked before halving; a halved step is short by construction
@@ -67,12 +68,13 @@ const (
 	rankTol = 1e-7
 
 	// separationMuEps: a fitted probability below it or above 1 − it is
-	// "numerically 0 or 1" for this engine — the binomial family's own
-	// boundary clamp (binomialEps), past which V(μ) is clamped and the
-	// row's working weight collapses toward 0. R warns at 10·eps, but R
-	// iterates on past the point where this loop's working Gram gives
-	// out (the clamp drives the weights down faster), so R's bound would
-	// miss the separations this loop actually stops on.
+	// "numerically 0 or 1" for this engine (the binomial family's
+	// binomialEps). It is only the separation EVIDENCE threshold, judged
+	// on a fit that already stopped short: a converged fit may carry
+	// fitted probabilities far beyond it (the variance and working
+	// weights are R's, unclamped). R warns at 10·eps; a bound that tight
+	// would miss separations this loop stops on before its fitted
+	// probabilities get there.
 	separationMuEps = binomialEps
 
 	// separationGrowthSteps: a predictor "keeps growing" when |β_j|
@@ -86,8 +88,9 @@ const (
 	separationMinGrowthRatio = 0.5
 )
 
-// irlsPenalty is the hook a penalised fit plugs into the loop; nil (every
-// current caller) is the unpenalised MLE. solve replaces the Cholesky
+// irlsPenalty is the hook a penalised fit plugs into the loop —
+// glmPenalty (glm_penalty.go) for REG_GLM's l2 / l1 / elasticnet; nil is
+// the unpenalised MLE. solve replaces the Cholesky
 // step on the working normal equations — xtwx is the row-major k × k
 // XᵀWX, xtwz the XᵀWz, beta the previous β (nil on the first
 // iteration) — reporting false when it cannot produce a step, and
@@ -133,8 +136,11 @@ type irlsSolution struct {
 	// Iters is the number of IRLS iterations run.
 	Iters int
 	// Inverse is (XᵀWX)⁻¹ at the converged weights; nil unless
-	// WantInverse.
+	// WantInverse, and nil on a penalised fit.
 	Inverse *linalg.Sym
+	// Gram is XᵀWX (row-major K × K, both triangles) at the converged
+	// weights; nil unless WantInverse.
+	Gram []float64
 	// Deviance is 2·Σ w*ᵢ·d(yᵢ, μᵢ) at Beta.
 	Deviance float64
 }
@@ -233,11 +239,16 @@ func irlsFit(pr *irlsProblem) (*irlsSolution, error) {
 			sol.Deviance = pr.deviance(mu, prior)
 			if pr.WantInverse {
 				pr.workingSystem(eta, prior, w, z, xtwx, xtwz)
-				inv, ok := pr.inverse(xtwx)
-				if !ok {
-					return nil, stop("working_weights_collapsed")
+				sol.Gram = append([]float64(nil), xtwx...)
+				// A penalised fit's covariance is its penalty's sandwich
+				// over Gram (glmPenalty.covariance), never (XᵀWX)⁻¹.
+				if pr.Penalty == nil {
+					inv, ok := inverseEquilibrated(k, xtwx)
+					if !ok {
+						return nil, stop("working_weights_collapsed")
+					}
+					sol.Inverse = inv
 				}
-				sol.Inverse = inv
 			}
 			return sol, nil
 		}
@@ -298,54 +309,14 @@ func (pr *irlsProblem) workingSystem(eta, prior, w, z, xtwx, xtwz []float64) {
 	}
 }
 
-// step solves the working normal equations for the next β.
+// step solves the working normal equations for the next β: the
+// penalty's own solve, or the equilibrated Cholesky solve
+// (solveEquilibrated, which scales xtwx in place).
 func (pr *irlsProblem) step(xtwx, xtwz, beta []float64) ([]float64, bool) {
 	if pr.Penalty != nil {
 		return pr.Penalty.solve(pr.K, xtwx, xtwz, beta)
 	}
-	k := pr.K
-	d := equilibrate(k, xtwx)
-	chol, ok := factorSPD(k, xtwx)
-	if !ok {
-		return nil, false
-	}
-	rhs := make([]float64, k)
-	for a := range rhs {
-		rhs[a] = d[a] * xtwz[a]
-	}
-	next, err := solveSPD(chol, rhs)
-	if err != nil {
-		return nil, false
-	}
-	for a := range next {
-		next[a] *= d[a]
-	}
-	return next, true
-}
-
-// inverse returns (XᵀWX)⁻¹ through the same equilibrated factor.
-func (pr *irlsProblem) inverse(xtwx []float64) (*linalg.Sym, bool) {
-	k := pr.K
-	d := equilibrate(k, xtwx)
-	chol, ok := factorSPD(k, xtwx)
-	if !ok {
-		return nil, false
-	}
-	inv, err := chol.Inverse()
-	if err != nil {
-		return nil, false
-	}
-	packed := make([]float64, 0, k*(k+1)/2)
-	for i := 0; i < k; i++ {
-		for j := i; j < k; j++ {
-			packed = append(packed, d[i]*d[j]*inv.At(i, j))
-		}
-	}
-	out, err := linalg.NewSym(k, packed)
-	if err != nil {
-		return nil, false
-	}
-	return out, true
+	return solveEquilibrated(pr.K, xtwx, xtwz)
 }
 
 // equilibrate scales the row-major k × k Gram a in place to D·a·D and
@@ -446,7 +417,10 @@ func relativeChange(next, prev []float64) float64 {
 // predictor's coefficient keeps growing) or NO_CONVERGE.
 func (pr *irlsProblem) failure(reason string, beta []float64, history [][]float64, eta []float64, iters, maxIters int, tol float64) error {
 	fam, n, p := pr.Family, len(pr.Y), pr.K-1
-	if fam.Name == "binomial" && beta != nil {
+	// A penalised estimate is finite even on separated data, so a
+	// penalised fit that stops short is never SEPARATION.
+	_, penalised := pr.Penalty.(*glmPenalty)
+	if fam.Name == "binomial" && beta != nil && !penalised {
 		boundary := 0
 		// μ at the last ACCEPTED β (eta), never a rejected candidate.
 		for _, e := range eta {

@@ -361,42 +361,6 @@ func TestRegGLM_InvalidLink(t *testing.T) {
 	}
 }
 
-// TestRegGLM_PenaltyRejected asserts the engine refuses any Penalty /
-// Alpha / L1Ratio knob on a REG_GLM spec. Regularized GLM is deferred
-// to a later phase; silently dropping the knob would mislead callers
-// into thinking they got a regularized fit.
-func TestRegGLM_PenaltyRejected(t *testing.T) {
-	cases := []struct {
-		name string
-		mod  func(*types.RegressionSpec)
-	}{
-		{"l1 penalty", func(s *types.RegressionSpec) { s.Penalty = "l1" }},
-		{"l2 penalty", func(s *types.RegressionSpec) { s.Penalty = "l2" }},
-		{"elasticnet penalty", func(s *types.RegressionSpec) { s.Penalty = "elasticnet" }},
-		{"nonzero alpha", func(s *types.RegressionSpec) { s.Alpha = 0.1 }},
-		{"nonzero l1_ratio", func(s *types.RegressionSpec) { s.L1Ratio = 0.5 }},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			spec := &types.RegressionSpec{
-				Type:       types.REG_GLM,
-				Target:     "y",
-				Predictors: []string{"x"},
-				Family:     "binomial",
-			}
-			c.mod(spec)
-			schema := schemaWithFields("y", "x")
-			_, err := newGLMEngine(spec, schema)
-			if err == nil {
-				t.Fatal("newGLMEngine returned nil error; want PROCESSING_CONFIG")
-			}
-			if !errors.HasCode(err, errors.PROCESSING_CONFIG) {
-				t.Errorf("err = %v, want PROCESSING_CONFIG", err)
-			}
-		})
-	}
-}
-
 // TestRegGLM_InsufficientData covers n < p + 1: 2 observations against
 // 3 predictors fails the n ≥ p + 1 = 4 threshold inside FitBuffered.
 func TestRegGLM_InsufficientData(t *testing.T) {
