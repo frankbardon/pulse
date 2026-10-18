@@ -339,12 +339,12 @@ func TestTrendPost_OrderingApplied(t *testing.T) {
 	}
 }
 
-// TestTrendPost_StringOrderKeysSortLexicographically pins that TEST_TREND
-// re-sorts by OrderBy and never follows the grouper's row order: string
-// keys compare byte-wise, so day_of_week names (Monday-first from the
-// grouper) are re-ordered alphabetically. Rows arrive Monday-first with a
-// rising value; the alphabetical re-sort scrambles the series, so S is not
-// the monotone 28.
+// TestTrendPost_StringOrderKeysSortLexicographically pins the fallback:
+// an order_by STRING column that is not a grouper key column (no key
+// order stamped — here a bare post-test over hand-built rows) still
+// sorts byte-wise, so day names re-sort alphabetically. A grouper key
+// column follows its grouper's key order instead
+// (TestTrendPost_DayOfWeekKeyFollowsGrouperOrder: S = +21 Monday-first).
 func TestTrendPost_StringOrderKeysSortLexicographically(t *testing.T) {
 	post, _ := newTrendPost(&types.Test{
 		Type:    types.TEST_TREND,

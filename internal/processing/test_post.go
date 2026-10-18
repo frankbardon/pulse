@@ -177,7 +177,14 @@ type trendPost struct {
 	orderBy []types.OrderKey
 	alpha   float64
 	variant string
+	// keyOrders is the intrinsic key order of every grouper key column
+	// of the run (setKeyOrders), nil before it is stamped.
+	keyOrders map[string]*includeFilter
 }
+
+// setKeyOrders implements keyOrderedPostTest: an order_by naming a
+// grouper key column sorts by that grouper's key order.
+func (tr *trendPost) setKeyOrders(orders map[string]*includeFilter) { tr.keyOrders = orders }
 
 func newTrendPost(spec *types.Test, schema *encoding.Schema) (PostTest, error) {
 	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, true, fieldaccept.TestSlotsOf(spec)); cerr != nil {
@@ -228,7 +235,7 @@ func (tr *trendPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	ordered := append([]map[string]any(nil), rows...)
 	if len(tr.orderBy) > 0 {
 		sort.SliceStable(ordered, func(i, j int) bool {
-			return compareRows(ordered[i], ordered[j], tr.orderBy) < 0
+			return compareRowsKeyed(ordered[i], ordered[j], tr.orderBy, tr.keyOrders) < 0
 		})
 	}
 	values := make([]float64, 0, len(ordered))
@@ -319,7 +326,40 @@ func mannKendall(x []float64) (float64, float64) {
 // last regardless of direction. This arm's own comparator used to tie a
 // present-null against everything and could not order a decimal.
 func compareRows(a, b map[string]any, keys []types.OrderKey) int {
+	return compareRowsKeyed(a, b, keys, nil)
+}
+
+// compareRowsKeyed is compareRows with grouper key orders: a key whose
+// column is a grouper key column with an intrinsic key order (orders,
+// keyed by column; see postTestKeyOrders) compares two string keys by
+// that order — day_of_week Monday-first, GROUP_DATE_RANGES labels in
+// supplied order, numeric buckets by value — reversed under Desc. A
+// key the grouper does not rank falls back to byte-wise order
+// (includeFilter.less), so an ISO date key orders exactly as before;
+// any other column, and a non-string or null cell, keeps
+// window.CompareKey (nulls last).
+func compareRowsKeyed(a, b map[string]any, keys []types.OrderKey, orders map[string]*includeFilter) int {
 	for _, k := range keys {
+		if f := orders[k.Field]; f != nil {
+			as, aok := a[k.Field].(string)
+			bs, bok := b[k.Field].(string)
+			if aok && bok {
+				c := 0
+				switch {
+				case f.less(as, bs):
+					c = -1
+				case f.less(bs, as):
+					c = 1
+				}
+				if k.Desc {
+					c = -c
+				}
+				if c != 0 {
+					return c
+				}
+				continue
+			}
+		}
 		if c := window.CompareKey(a[k.Field], b[k.Field], k.Desc); c != 0 {
 			return c
 		}

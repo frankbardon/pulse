@@ -364,6 +364,14 @@ func realignTestResults(results []*types.TestResult, idx []int, n int) []*types.
 // grouper, or partition_by []) is the one run over every row, unchanged.
 // The warnings are the partitioned run's sparse-partition warnings.
 func (p *Processor) runPostTests(tests []*types.Test, groups []*types.Group, rows []map[string]any) ([]*types.TestResult, []*types.ResponseWarning, error) {
+	return p.runPostTestsOrdered(tests, groups, groups, rows)
+}
+
+// runPostTestsOrdered is runPostTests whose row key columns are the key
+// columns of keyGroups (a crosstab's row and column axes, unpartitioned:
+// groups nil): a keyOrderedPostTest (TEST_TREND) whose order_by names
+// one sorts it by that grouper's intrinsic key order (postTestKeyOrders).
+func (p *Processor) runPostTestsOrdered(tests []*types.Test, groups, keyGroups []*types.Group, rows []map[string]any) ([]*types.TestResult, []*types.ResponseWarning, error) {
 	depth, derr := groupedtests.PostTestDepth(tests, groups)
 	if derr != nil {
 		return nil, nil, derr
@@ -375,12 +383,14 @@ func (p *Processor) runPostTests(tests []*types.Test, groups []*types.Group, row
 	if len(entries) == 0 {
 		return nil, nil, nil
 	}
+	orders := p.postTestKeyOrders(entries, keyGroups)
 	if depth > 0 {
-		return p.runPartitionedPostTests(entries, len(tests), groups, depth, rows)
+		return p.runPartitionedPostTests(entries, len(tests), groups, depth, rows, orders)
 	}
 	out := make([]*types.TestResult, 0, len(entries))
 	idx := make([]int, 0, len(entries))
 	for _, e := range entries {
+		stampKeyOrders(e.test, orders)
 		workPostTestRuns.Add(1)
 		res, err := e.test.Run(rows)
 		if err != nil {
@@ -412,7 +422,7 @@ func (p *Processor) runPostTests(tests []*types.Test, groups []*types.Group, row
 // a data-dependent code (sparseTestCodes) gets a null-statistics result
 // plus one warning naming its group_key; the others proceed. No rows,
 // no results.
-func (p *Processor) runPartitionedPostTests(entries []postTestEntry, n int, groups []*types.Group, depth int, rows []map[string]any) ([]*types.TestResult, []*types.ResponseWarning, error) {
+func (p *Processor) runPartitionedPostTests(entries []postTestEntry, n int, groups []*types.Group, depth int, rows []map[string]any, orders map[string]*includeFilter) ([]*types.TestResult, []*types.ResponseWarning, error) {
 	keys := seriespartition.RowKeys(rows, seriespartition.KeyColumns(groups))
 	parts := seriespartition.Partition(keys, depth)
 	if len(parts) == 0 {
@@ -432,6 +442,7 @@ func (p *Processor) runPartitionedPostTests(entries []postTestEntry, n int, grou
 			if err != nil {
 				return nil, nil, err
 			}
+			stampKeyOrders(inst, orders)
 			workPostTestRuns.Add(1)
 			res, err := inst.Run(sub)
 			if err != nil {
@@ -454,4 +465,70 @@ func (p *Processor) runPartitionedPostTests(entries []postTestEntry, n int, grou
 		}
 	}
 	return out, warns, nil
+}
+
+// keyOrderedPostTest is a post-test whose order_by sorts a grouper key
+// column by that grouper's intrinsic key order rather than byte-wise
+// (TEST_TREND): the run stamps the per-column orders before Run.
+type keyOrderedPostTest interface {
+	setKeyOrders(orders map[string]*includeFilter)
+}
+
+// stampKeyOrders hands orders to t when it orders by grouper keys.
+func stampKeyOrders(t PostTest, orders map[string]*includeFilter) {
+	if ko, ok := t.(keyOrderedPostTest); ok && orders != nil {
+		ko.setKeyOrders(orders)
+	}
+}
+
+// postTestKeyOrders maps each grouper key column of groups (the row
+// column vectors.GroupKeyField names) to that grouper's intrinsic key
+// order (keyOrderFilter: GROUP_DATE day_of_week Monday-first,
+// GROUP_DATE_RANGES / GROUP_NUMERIC_RANGES supplied order, the numeric
+// bucket groupers by value). The rank derives from the grouper's
+// configuration alone, so a fresh instance orders as the one that
+// partitioned. Nil when no entry orders by keys or no grouper carries a
+// key order. A column two groupers share is ambiguous and dropped (it
+// stays byte-wise); a grouper that does not construct here contributes
+// nothing (the partition pass already ran it, so this is defensive).
+func (p *Processor) postTestKeyOrders(entries []postTestEntry, groups []*types.Group) map[string]*includeFilter {
+	wanted := false
+	for _, e := range entries {
+		if _, ok := e.test.(keyOrderedPostTest); ok {
+			wanted = true
+			break
+		}
+	}
+	if !wanted || len(groups) == 0 {
+		return nil
+	}
+	var orders map[string]*includeFilter
+	seen := make(map[string]bool, len(groups))
+	for _, grp := range groups {
+		if grp == nil {
+			continue
+		}
+		col := vectors.GroupKeyField(grp.Type, grp)
+		if seen[col] {
+			delete(orders, col)
+			continue
+		}
+		seen[col] = true
+		factory, ok := p.exts.LookupGrouper(grp.Type)
+		if !ok {
+			continue
+		}
+		g, err := factory(grp, p.schema)
+		if err != nil {
+			continue
+		}
+		ApplyGrouperExtensions(g, p.exts)
+		if f := keyOrderFilter(g); f != nil {
+			if orders == nil {
+				orders = make(map[string]*includeFilter, len(groups))
+			}
+			orders[col] = f
+		}
+	}
+	return orders
 }
