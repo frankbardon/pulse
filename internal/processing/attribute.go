@@ -36,6 +36,11 @@ import (
 // mean or the sd) and scores AttributeNull in pass 2: a missing value has
 // no position, so its score is null (the aggregation's n_null), never a
 // real-looking 0 (50 for the T-score).
+//
+// A zero sd — a constant field, a base with one non-null row (the
+// population sd, ddof 0, of one value is 0), or no contributing mass at
+// all — makes every score 0/0: undefined, so every row scores
+// AttributeNull (U50 E7-S2), never the 0 / 50 it used to answer.
 type popScoreState struct {
 	weight *types.WeightSpec
 	bucket weighting.Welford
@@ -106,7 +111,7 @@ func (a *zscoreAttribute) Row(r *Record, field string) (float64, error) {
 		return AttributeNull, nil
 	}
 	if a.finalStdDev == 0 {
-		return 0, nil
+		return AttributeNull, nil // 0/0: undefined spread
 	}
 	return (v - a.finalMean) / a.finalStdDev, nil
 }
@@ -144,7 +149,7 @@ func (a *tscoreAttribute) Row(r *Record, field string) (float64, error) {
 		return AttributeNull, nil
 	}
 	if a.finalStdDev == 0 {
-		return 50, nil // T-score of the mean when sd = 0
+		return AttributeNull, nil // 0/0: undefined spread
 	}
 	return ((v-a.finalMean)/a.finalStdDev)*10 + 50, nil
 }
@@ -180,7 +185,9 @@ func computeTwoPass(a TwoPassAttribute, records []*Record, field string) ([]floa
 
 // normalizedAttribute emits (x-min)/(max-min) per row using population
 // min/max from a Welford-shaped pass 1. Implements TwoPassAttribute. A
-// null source cell is skipped by the pre-pass and scores AttributeNull.
+// null source cell is skipped by the pre-pass and scores AttributeNull;
+// a zero range (max = min: a constant field or one non-null row) is
+// 0/0, so every row scores AttributeNull (U50 E7-S2).
 type normalizedAttribute struct {
 	seen     bool
 	min, max float64
@@ -224,7 +231,7 @@ func (a *normalizedAttribute) Row(r *Record, field string) (float64, error) {
 		return AttributeNull, nil
 	}
 	if a.rng == 0 {
-		return 0, nil
+		return AttributeNull, nil // 0/0: undefined range
 	}
 	return (v - a.min) / a.rng, nil
 }

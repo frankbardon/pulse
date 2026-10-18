@@ -48,7 +48,7 @@ One `float64` per record — `(value − pop_mean) / pop_stddev`. Null source �
 ## Gotchas
 
 - Two-pass: pre-pass computes mean/stddev over filter-passing rows, then pass 2 emits per row. Orchestrator handles transparently — no full buffering unless paired with a buffered op downstream.
-- Zero stddev (constant field) → `0` per row.
+- Zero stddev (constant field, or one non-null row) → `null` per row (0/0), counted in `n_null`.
 - Two-pass attributes are not mergeable: shard archives and parallel decode take the sequential shard iterator, walking every shard for both passes — global standardization.
 - `set_*` and categorical rejected at build time with `PULSE_FIELD_TYPE_UNSUPPORTED` — a bitmask or dictionary index has no value to standardise.
 

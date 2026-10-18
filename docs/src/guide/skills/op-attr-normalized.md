@@ -43,13 +43,13 @@ One `float64` per record in `[0, 1]`. Null source → `null` (counted in `n_null
 
 - `value`: Where the row's value sits between the smallest and largest value, on a 0-to-1 scale: (value - min) / (max - min). 0 is the minimum, 1 the maximum and 0.5 halfway between them, which is not the median.
   - Caveat: One extreme value sets the minimum or maximum and squeezes every other row into a narrow part of the scale; ATTR_PERCENTILE is not affected that way.
-  - Caveat: A row with a missing value gets no value (null) and is left out of the minimum and maximum; every row reads 0 when all values are equal (max = min).
+  - Caveat: A row with a missing value gets no value (null) and is left out of the minimum and maximum; every row reads null when all values are equal (max = min: 0/0, undefined).
 
 ## Gotchas
 
 - Not weightable (a min-max rescale has no weighted meaning): `Options.DefaultWeight` is skipped; an explicit slot or request weight is `PROCESSING_CONFIG`.
 - Two-pass: pre-pass tracks min/max across filter-passing rows; pass 2 emits per row.
-- Constant field (`max == min`) → `0` per row.
+- Constant field (`max == min`, or one non-null row) → `null` per row (0/0), counted in `n_null`.
 - Outlier-sensitive — one extreme value compresses the rest of the range.
 - Frequently used as a feature input for a downstream formula or external ML — but no in-slot chaining; stage via Compose / ProcessChain.
 - `set_*` and categorical rejected at build time with `PULSE_FIELD_TYPE_UNSUPPORTED` — a bitmask or dictionary index has no value to standardise.

@@ -71,9 +71,10 @@ func TestAttribute_ZScore_SingleValue(t *testing.T) {
 	if len(result) != 1 {
 		t.Fatalf("result length = %d, want 1", len(result))
 	}
-	// Stddev=0 => z-score=0
-	if result[0] != 0 {
-		t.Errorf("zscore = %f, want 0", result[0])
+	// One value: the population sd is 0, so z = 0/0 — undefined, null
+	// (U50 E7-S2), never 0.
+	if !IsAttributeNull(result[0]) {
+		t.Errorf("zscore = %f, want AttributeNull", result[0])
 	}
 }
 
@@ -132,10 +133,11 @@ func TestAttribute_Normalized_AllSame(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// All same => all 0
+	// All same: max = min, so every (x-min)/(max-min) is 0/0 — null
+	// (U50 E7-S2), never 0.
 	for i, v := range result {
-		if v != 0 {
-			t.Errorf("normalized[%d] = %f, want 0", i, v)
+		if !IsAttributeNull(v) {
+			t.Errorf("normalized[%d] = %f, want AttributeNull", i, v)
 		}
 	}
 }
@@ -495,20 +497,21 @@ var _ = math.Abs
 // atomic skills and the manifest notes state these values. A missing
 // input scores null (AttributeNull) on every score — never the 0 (50 for
 // the T-score) it read before U50 E6-S1 — and is left out of the
-// pre-pass; a field with no spread reads 0 / 50 / 0 for ATTR_ZSCORE /
-// ATTR_TSCORE / ATTR_NORMALIZED. A missing set is null for
+// pre-pass; a field with no spread (sd = 0, max = min) scores null on
+// every row for ATTR_ZSCORE / ATTR_TSCORE / ATTR_NORMALIZED — 0/0 is
+// undefined, never the 0 / 50 / 0 it read before U50 E7-S2. A missing set is null for
 // ATTR_SET_POPCOUNT (an empty selection stays 0) and 0 for the
 // membership flag ATTR_SET_HAS (a null set holds no label).
 func TestAttribute_NullAndDegenerateInputs(t *testing.T) {
 	schema := numericSchema()
 	cases := []struct {
 		typ       types.AttributeType
-		constWant float64
+		constNull bool
 	}{
-		{types.ATTR_ZSCORE, 0},
-		{types.ATTR_TSCORE, 50},
-		{types.ATTR_NORMALIZED, 0},
-		{types.ATTR_PERCENTILE, -1}, // constant case pinned by the ties test
+		{types.ATTR_ZSCORE, true},
+		{types.ATTR_TSCORE, true},
+		{types.ATTR_NORMALIZED, true},
+		{types.ATTR_PERCENTILE, false}, // constant case pinned by the ties test
 	}
 	for _, c := range cases {
 		t.Run(string(c.typ), func(t *testing.T) {
@@ -532,7 +535,7 @@ func TestAttribute_NullAndDegenerateInputs(t *testing.T) {
 					t.Errorf("row %d = %v, want %v (the null row reached the pre-pass)", i, got[i], w)
 				}
 			}
-			if c.constWant < 0 {
+			if !c.constNull {
 				return
 			}
 			attr = makeAttribute(t, c.typ, "score", schema, "")
@@ -541,8 +544,8 @@ func TestAttribute_NullAndDegenerateInputs(t *testing.T) {
 				t.Fatalf("Compute: %v", err)
 			}
 			for i, v := range got {
-				if v != c.constWant || math.IsNaN(v) {
-					t.Errorf("constant field row %d = %v, want %v", i, v, c.constWant)
+				if !IsAttributeNull(v) {
+					t.Errorf("constant field row %d = %v, want AttributeNull", i, v)
 				}
 			}
 		})

@@ -56,7 +56,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Description:   "Per-row standardized z-score: (value − mean) / stddev computed via Welford two-pass streaming.",
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_ZSCORE), fieldaccept.SlotField),
 			EmitsType:     "f64",
-			EmitsTypeNote: "one float per record (0 when stddev=0; null when the value is null)",
+			EmitsTypeNote: "one float per record (null when stddev=0 or the value is null)",
 			Streamable:    true,
 		},
 		{
@@ -65,7 +65,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Description:   "Per-row T-score: z-score scaled and shifted to mean 50, stddev 10.",
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_TSCORE), fieldaccept.SlotField),
 			EmitsType:     "f64",
-			EmitsTypeNote: "one float per record (50 when stddev=0; null when the value is null)",
+			EmitsTypeNote: "one float per record (null when stddev=0 or the value is null)",
 			Streamable:    true,
 		},
 		{
@@ -74,7 +74,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Description:   "Per-row min-max normalization: (value − min) / (max − min) ∈ [0, 1].",
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_NORMALIZED), fieldaccept.SlotField),
 			EmitsType:     "f64",
-			EmitsTypeNote: "one float per record in [0, 1] (0 when max=min; null when the value is null)",
+			EmitsTypeNote: "one float per record in [0, 1] (null when max=min or the value is null)",
 			Streamable:    true,
 		},
 		{

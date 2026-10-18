@@ -201,7 +201,7 @@ var (
 		Assumptions: []string{
 			attrOverFilteredRows,
 			"Uses the population standard deviation (dividing by n).",
-			"A missing value gets no score (null) and is left out of the mean and standard deviation; every row reads 0 when all values are equal.",
+			"A missing value gets no score (null) and is left out of the mean and standard deviation; every row gets no score (null) when all values are equal (no spread).",
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"z-score", "standard-deviation", "mean", "outlier", "missing-value"},
@@ -225,7 +225,7 @@ var (
 		Assumptions: []string{
 			attrOverFilteredRows,
 			"Uses the population standard deviation (dividing by n).",
-			"A missing value gets no score (null) and is left out of the mean and standard deviation; every row reads 50 when all values are equal.",
+			"A missing value gets no score (null) and is left out of the mean and standard deviation; every row gets no score (null) when all values are equal (no spread).",
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"z-score", "standard-deviation", "mean", "missing-value"},
@@ -280,7 +280,7 @@ var (
 			attrOverFilteredRows,
 			"It uses the OBSERVED lowest and highest values, not a scale's endpoints: if nobody answered 1 on a 1-5 item, 2 maps to 0, " +
 				"so the same raw score lands at different positions across items, filtered subsets or waves.",
-			"A missing value gets no value (null) and is left out of the minimum and maximum; every row reads 0 when all values are equal.",
+			"A missing value gets no value (null) and is left out of the minimum and maximum; every row gets no value (null) when all values are equal.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"outlier", "missing-value"},

@@ -223,7 +223,7 @@ Rescales a numeric field to 0 to 1 on every row: 0 is the smallest value, 1 the 
 
 - Computed over every row that passed the filters, before grouping: a group never re-centres it.
 - It uses the OBSERVED lowest and highest values, not a scale's endpoints: if nobody answered 1 on a 1-5 item, 2 maps to 0, so the same raw score lands at different positions across items, filtered subsets or waves.
-- A missing value gets no value (null) and is left out of the minimum and maximum; every row reads 0 when all values are equal.
+- A missing value gets no value (null) and is left out of the minimum and maximum; every row gets no value (null) when all values are equal.
 
 **Use something else:**
 
@@ -607,7 +607,7 @@ Adds to every row its T-score: the z-score rescaled so the mean is 50 and one st
 
 - Computed over every row that passed the filters, before grouping: a group never re-centres it.
 - Uses the population standard deviation (dividing by n).
-- A missing value gets no score (null) and is left out of the mean and standard deviation; every row reads 50 when all values are equal.
+- A missing value gets no score (null) and is left out of the mean and standard deviation; every row gets no score (null) when all values are equal (no spread).
 
 **Use something else:**
 
@@ -680,7 +680,7 @@ Adds to every row its z-score: how many standard deviations the row's value sits
 
 - Computed over every row that passed the filters, before grouping: a group never re-centres it.
 - Uses the population standard deviation (dividing by n).
-- A missing value gets no score (null) and is left out of the mean and standard deviation; every row reads 0 when all values are equal.
+- A missing value gets no score (null) and is left out of the mean and standard deviation; every row gets no score (null) when all values are equal (no spread).
 
 **Use something else:**
 

@@ -361,7 +361,7 @@ Where the row's value sits between the smallest and largest value, on a 0-to-1 s
 **Caveats:**
 
 - One extreme value sets the minimum or maximum and squeezes every other row into a narrow part of the scale; ATTR_PERCENTILE is not affected that way.
-- A row with a missing value gets no value (null) and is left out of the minimum and maximum; every row reads 0 when all values are equal (max = min).
+- A row with a missing value gets no value (null) and is left out of the minimum and maximum; every row reads null when all values are equal (max = min: 0/0, undefined).
 - The scale comes from every row that passed the filters, not from the row's group: averaging it per group shows how each group sits against the whole, and a different filter gives different values.
 
 <a id="op-attr_pc_score"></a>
@@ -495,7 +495,7 @@ The z-score rescaled to a mean of 50 and a standard deviation of 10: 50 + 10 * z
 - One extreme row inflates the standard deviation and pulls every other score toward the centre; on n rows no z-score can exceed sqrt(n - 1) in size (Shiffler 1988), so on a small set a modest score may be the most extreme possible.
 - The scale comes from every row that passed the filters, not from the row's group: averaging it per group shows how each group sits against the whole, and a different filter gives different values.
 - Under a row weight the mean and standard deviation are weighted (dividing by the sum of weights), the same for frequency and probability weights; a row with no usable weight adds nothing to them but is still scored.
-- A row with a missing value gets no score (null) and is left out of the mean and standard deviation; every row reads 50 when all values are equal, and an extreme row can fall below 0 or above 100.
+- A row with a missing value gets no score (null) and is left out of the mean and standard deviation; every row reads null when all values are equal (no spread: 0/0, undefined), and an extreme row can fall below 0 or above 100.
 
 <a id="op-attr_zscore"></a>
 
@@ -519,7 +519,7 @@ How many standard deviations the row's value sits from the mean: (value - mean) 
 - One extreme row inflates the standard deviation and pulls every other score toward the centre; on n rows no z-score can exceed sqrt(n - 1) in size (Shiffler 1988), so on a small set a modest score may be the most extreme possible.
 - The scale comes from every row that passed the filters, not from the row's group: averaging it per group shows how each group sits against the whole, and a different filter gives different values.
 - Under a row weight the mean and standard deviation are weighted (dividing by the sum of weights), the same for frequency and probability weights; a row with no usable weight adds nothing to them but is still scored.
-- A row with a missing value gets no score (null) and is left out of the mean and standard deviation; every row reads 0 when all values are equal (no spread), so check the field's spread before reading a 0 as average.
+- A row with a missing value gets no score (null) and is left out of the mean and standard deviation; every row reads null when all values are equal or only one row has a value (no spread: the score is 0/0, undefined).
 
 ## Window operators
 

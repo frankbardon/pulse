@@ -16,7 +16,8 @@ import "github.com/frankbardon/pulse/descriptor"
 // Every fact follows internal/processing/attribute*.go and
 // internal/processing/regression/coeffs.go: the population standard
 // deviation (dividing by n), a missing input that scores null (left out
-// of the pre-pass, U50 E6-S1), rank / n * 100 with distinct ranks for ties,
+// of the pre-pass, U50 E6-S1), a zero spread that scores every row null
+// (0/0, U50 E7-S2), rank / n * 100 with distinct ranks for ties,
 // and the hat-matrix identity h = 1/n + (x - mean)' M^-1 (x - mean).
 var attributeInterpretations = map[string][]descriptor.Interpretation{
 	"ATTR_MAHALANOBIS":  interpAttrMahalanobis,
@@ -73,7 +74,7 @@ var (
 				attrGlobalScale,
 				attrZWeighted,
 				"A row with a missing value gets no score (null) and is left out of the mean and standard deviation; " +
-					"every row reads 0 when all values are equal (no spread), so check the field's spread before reading a 0 as average.",
+					"every row reads null when all values are equal or only one row has a value (no spread: the score is 0/0, undefined).",
 			},
 		},
 	}
@@ -91,7 +92,7 @@ var (
 				attrGlobalScale,
 				attrZWeighted,
 				"A row with a missing value gets no score (null) and is left out of the mean and standard deviation; " +
-					"every row reads 50 when all values are equal, and an extreme row can fall below 0 or above 100.",
+					"every row reads null when all values are equal (no spread: 0/0, undefined), and an extreme row can fall below 0 or above 100.",
 			},
 		},
 	}
@@ -124,7 +125,7 @@ var (
 				"0 is the minimum, 1 the maximum and 0.5 halfway between them, which is not the median.",
 			Caveats: []string{
 				"One extreme value sets the minimum or maximum and squeezes every other row into a narrow part of the scale; ATTR_PERCENTILE is not affected that way.",
-				"A row with a missing value gets no value (null) and is left out of the minimum and maximum; every row reads 0 when all values are equal (max = min).",
+				"A row with a missing value gets no value (null) and is left out of the minimum and maximum; every row reads null when all values are equal (max = min: 0/0, undefined).",
 				attrGlobalScale,
 			},
 		},

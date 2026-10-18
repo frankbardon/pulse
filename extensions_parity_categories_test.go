@@ -398,8 +398,8 @@ const (
 )
 
 // parityZScore mirrors ATTR_ZSCORE: a population Welford pass, then
-// (x - mean) / sd per row; a zero sd yields 0 and a null row yields
-// null — NaN, written as a null because the twin is an
+// (x - mean) / sd per row; a zero sd (0/0, undefined) and a null row
+// both yield null — NaN, written as a null because the twin is an
 // extend.NullableAttribute (EmitsNull), exactly as the built-in's
 // null-in, null-out rule.
 type parityZScore struct {
@@ -441,7 +441,7 @@ func (a *parityZScore) Row(rec extend.Record, field string) (float64, error) {
 		return math.NaN(), nil
 	}
 	if a.fStdDev == 0 {
-		return 0, nil
+		return math.NaN(), nil
 	}
 	return (v - a.fMean) / a.fStdDev, nil
 }

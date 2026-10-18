@@ -3638,7 +3638,7 @@
             "u8"
           ],
           "emits_type": "f64",
-          "emits_type_note": "one float per record in [0, 1] (0 when max=min; null when the value is null)",
+          "emits_type_note": "one float per record in [0, 1] (null when max=min or the value is null)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -4297,7 +4297,7 @@
             "u8"
           ],
           "emits_type": "f64",
-          "emits_type_note": "one float per record (50 when stddev=0; null when the value is null)",
+          "emits_type_note": "one float per record (null when stddev=0 or the value is null)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -4446,7 +4446,7 @@
             "u8"
           ],
           "emits_type": "f64",
-          "emits_type_note": "one float per record (0 when stddev=0; null when the value is null)",
+          "emits_type_note": "one float per record (null when stddev=0 or the value is null)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -19077,4 +19077,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 24a53adf516eee845df1feef0e8bc120b8d5cde2264c327314943d3c21392a06
+// golden-hash: b73977ef6b83af34ec10c27a0a917513e01d3adb5067f0ced0a4b1f5ef013a40

@@ -92,13 +92,15 @@ func writeScoreNulls(t *testing.T, fs afero.Fs, rows []scoreNullRow) (single, ar
 	t.Helper()
 	p := nullDatePulse(t, pulse.Options{FS: fs})
 	ctx := context.Background()
-	write := func(path string, rows []scoreNullRow) {
+	// n is the row's index in rows, on the single cohort and the archive
+	// alike.
+	write := func(path string, rows []scoreNullRow, from int) {
 		b, err := p.NewCohortBuilder(ctx, path, scoreNullSchema(), pulse.CohortBuilderOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
 		for i, r := range rows {
-			row := pulse.CohortRow{r.site, r.half, nil, nil, nil, nil, nil, float64(i)}
+			row := pulse.CohortRow{r.site, r.half, nil, nil, nil, nil, nil, float64(from + i)}
 			if !r.null {
 				row[2], row[3], row[4], row[5] = r.x, r.k, r.ts, r.tags
 			}
@@ -114,10 +116,10 @@ func writeScoreNulls(t *testing.T, fs afero.Fs, rows []scoreNullRow) (single, ar
 		}
 	}
 	single = "scorenulls.pulse"
-	write(single, rows)
+	write(single, rows, 0)
 	half := len(rows) / 2
-	write("scorenulls_a.pulse", rows[:half])
-	write("scorenulls_b.pulse", rows[half:])
+	write("scorenulls_a.pulse", rows[:half], 0)
+	write("scorenulls_b.pulse", rows[half:], half)
 	archive = "scorenulls_archive.pulse"
 	if _, err := p.CreateShardArchive(ctx, archive, []string{"scorenulls_a.pulse", "scorenulls_b.pulse"}); err != nil {
 		t.Fatalf("CreateShardArchive: %v", err)
@@ -328,6 +330,141 @@ func TestMembershipIndicators_NullReadsZeroEveryMode(t *testing.T) {
 	for _, a := range resp.Components.Aggregations {
 		if a.NNull != 0 || a.N != len(rows) {
 			t.Fatalf("aggregation %s floor {n %d, n_null %d}, want {%d, 0}", a.Label, a.N, a.NNull, len(rows))
+		}
+	}
+}
+
+// TestScoringAttributes_UndefinedSpreadIsNullEveryMode: a score whose
+// spread is zero is 0/0 — undefined — so ATTR_ZSCORE / ATTR_TSCORE
+// (population sd = 0) and ATTR_NORMALIZED (max = min) score every row
+// null, never the 0 / 50 / 0 they used to answer (U50 E7-S2). Three
+// ways to reach it, each in every execution mode with the n_null floor:
+//   - a constant field (f64, u16 and datetime, nulls interleaved);
+//   - a single non-null row in the filtered base (the population sd,
+//     ddof 0, of one value is 0) — FILTER_RANGE keeps rows 1 (null)
+//     and 2 of the spread fixture;
+//   - the weighted z / T variants: a constant field under a general
+//     weight, and the single-row base whose one row carries the only
+//     mass.
+//
+// The score's COUNT must be 0 in every group and crosstab cell (a
+// legacy 0 / 50 is counted), beside a COUNT of a non-null column so the
+// expected figures are never empty; every score row is in n_null.
+func TestScoringAttributes_UndefinedSpreadIsNullEveryMode(t *testing.T) {
+	ctx := context.Background()
+	constFS, spreadFS := afero.NewMemMapFs(), afero.NewMemMapFs()
+	constRows := scoreNullRows()
+	for i := range constRows {
+		constRows[i].x, constRows[i].k, constRows[i].ts = 7.25, 12, constRows[0].ts
+	}
+	constCohort, constArchive := writeScoreNulls(t, constFS, constRows)
+	spreadRows := scoreNullRows()
+	spreadCohort, spreadArchive := writeScoreNulls(t, spreadFS, spreadRows)
+
+	type spreadCase struct {
+		name   string
+		fs     afero.Fs
+		single string
+		arch   string
+		rows   []scoreNullRow // the rows the request keeps
+		typ    types.AttributeType
+		field  string
+		weight bool
+		filter bool
+	}
+	var cases []spreadCase
+	for _, typ := range []types.AttributeType{types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED} {
+		for _, field := range []string{"x", "k", "ts"} {
+			cases = append(cases, spreadCase{name: "constant", fs: constFS, single: constCohort, arch: constArchive, rows: constRows, typ: typ, field: field})
+		}
+		cases = append(cases, spreadCase{name: "single-row", fs: spreadFS, single: spreadCohort, arch: spreadArchive,
+			rows: spreadRows[1:3], typ: typ, field: "x", filter: true})
+		if typ != types.ATTR_NORMALIZED { // not weightable
+			cases = append(cases,
+				spreadCase{name: "weighted-constant", fs: constFS, single: constCohort, arch: constArchive, rows: constRows, typ: typ, field: "x", weight: true},
+				spreadCase{name: "weighted-single-row", fs: spreadFS, single: spreadCohort, arch: spreadArchive,
+					rows: spreadRows[1:3], typ: typ, field: "x", weight: true, filter: true})
+		}
+	}
+	for _, c := range cases {
+		attr := func() []*types.Attribute {
+			a := &types.Attribute{Type: c.typ, Field: c.field, Label: "s"}
+			if c.weight {
+				a.Weight = types.SlotWeightField("n")
+			}
+			return []*types.Attribute{a}
+		}
+		filters := func() []*types.Filterer {
+			if !c.filter {
+				return nil
+			}
+			return []*types.Filterer{{Type: types.FILTER_RANGE, Field: "n", Values: []string{"1", "2"}}}
+		}
+		build := func(path string) *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: path}, Attributes: attr(), Filterers: filters(),
+				Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "site"}},
+				Aggregations: []*types.Aggregation{
+					{Type: types.AGG_COUNT, Field: "s", Label: "ns"},
+					{Type: types.AGG_COUNT, Field: "n", Label: "rows"},
+				}}
+		}
+		crosstab := func(path string) *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: path}, Attributes: attr(), Filterers: filters(),
+				Crosstab: &types.CrosstabSpec{
+					Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "site"}},
+					Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "half"}},
+					Cell:    &types.Aggregation{Type: types.AGG_COUNT, Field: "s"},
+				}}
+		}
+		want := map[string]float64{}
+		for _, r := range c.rows {
+			want[r.site+"|rows"]++
+		}
+		name := fmt.Sprintf("%s/%s/%s", c.name, c.typ, c.field)
+		for _, rn := range perRowRunners(t, c.fs) {
+			if rn.name == "stream" && !c.typ.Streamable() {
+				continue
+			}
+			path := c.single
+			if rn.archive {
+				path = c.arch
+			}
+			t.Run(name+"/"+rn.name+"/grouped", func(t *testing.T) {
+				requireFigures(t, rn.name, rn.run(t, build(path)), want)
+			})
+			if rn.name != "stream" {
+				t.Run(name+"/"+rn.name+"/crosstab", func(t *testing.T) {
+					requireFigures(t, rn.name, rn.run(t, crosstab(path)), map[string]float64{})
+				})
+			}
+		}
+		for _, arm := range []struct {
+			name string
+			o    pulse.Options
+			arch bool
+		}{{"single", pulse.Options{}, false}, {"single-serial", pulse.Options{DecodeWorkers: 1}, false},
+			{"archive", pulse.Options{}, true}, {"archive-serial", pulse.Options{ShardWorkers: 1}, true}} {
+			t.Run(name+"/"+arm.name+"/n_null", func(t *testing.T) {
+				arm.o.FS = c.fs
+				path := c.single
+				if arm.arch {
+					path = c.arch
+				}
+				resp, err := nullDatePulse(t, arm.o).Process(ctx, build(path))
+				if err != nil {
+					t.Fatal(err)
+				}
+				got := map[string][2]int{}
+				for _, a := range resp.Components.Aggregations {
+					got[a.Label] = [2]int{a.N, a.NNull}
+				}
+				if w := [2]int{0, len(c.rows)}; got["ns"] != w {
+					t.Fatalf("score floor {n, n_null} = %v, want %v", got["ns"], w)
+				}
+				if w := [2]int{len(c.rows), 0}; got["rows"] != w {
+					t.Fatalf("row-count floor {n, n_null} = %v, want %v", got["rows"], w)
+				}
+			})
 		}
 	}
 }
