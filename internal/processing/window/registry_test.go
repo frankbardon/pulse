@@ -2,8 +2,13 @@ package window
 
 import (
 	"context"
+	"encoding/json"
+	stderrors "errors"
+	"strings"
 	"testing"
 
+	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/windowparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -55,5 +60,69 @@ func TestWindowLabel(t *testing.T) {
 				t.Errorf("windowLabel = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// TestFactories_RefuseSlotConfigAtConstruction: every registered
+// factory judges the slot through the reading predict shares
+// (internal/windowparams) before it builds a computer — a missing
+// order_by, a missing value field, a frame on an operator that takes
+// none and a missing frame on one that needs it are refused at
+// construction with PULSE_WINDOW_INVALID and the "TYPE: rule" sentence,
+// whatever the caller skipped.
+func TestFactories_RefuseSlotConfigAtConstruction(t *testing.T) {
+	params := map[types.WindowType]json.RawMessage{
+		types.WIN_EWMA:  json.RawMessage(`{"alpha": 0.5}`),
+		types.WIN_SHARE: json.RawMessage(`{"cumulative": true}`),
+		types.WIN_LIFT:  json.RawMessage(`{"base": "y", "cumulative": true}`),
+	}
+	one, zero := 1, 0
+	frame := func() *types.FrameSpec { return &types.FrameSpec{Mode: "rows", Preceding: &one, Following: &zero} }
+	valid := func(typ types.WindowType) *types.Window {
+		w := &types.Window{Type: typ, OrderBy: []types.OrderKey{{Field: "t"}}, Params: params[typ]}
+		if windowparams.FieldRequired(typ) {
+			w.Field = "x"
+		}
+		if windowparams.FrameRequired(typ) {
+			w.Frame = frame()
+		}
+		return w
+	}
+	if len(RegisteredTypes()) != len(types.AllWindowTypes()) {
+		t.Fatalf("registered %d window types, AllWindowTypes lists %d", len(RegisteredTypes()), len(types.AllWindowTypes()))
+	}
+	for _, typ := range types.AllWindowTypes() {
+		factory, ok := Lookup(typ)
+		if !ok {
+			t.Errorf("%s: not registered", typ)
+			continue
+		}
+		if _, err := factory(valid(typ), WindowOptions{}); err != nil {
+			t.Errorf("%s: valid slot refused: %v", typ, err)
+		}
+		bad := map[string]*types.Window{}
+		w := valid(typ)
+		w.OrderBy = nil
+		bad["no order_by"] = w
+		if windowparams.FieldRequired(typ) {
+			w = valid(typ)
+			w.Field = ""
+			bad["no field"] = w
+		}
+		w = valid(typ)
+		if windowparams.FrameRequired(typ) {
+			w.Frame = nil
+			bad["no frame"] = w
+		} else {
+			w.Frame = frame()
+			bad["frame given"] = w
+		}
+		for name, w := range bad {
+			_, err := factory(w, WindowOptions{})
+			var ce *errors.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_WINDOW_INVALID || !strings.HasPrefix(ce.Message, string(typ)+": ") {
+				t.Errorf("%s %s: err = %v, want PULSE_WINDOW_INVALID %q…", typ, name, err, string(typ)+": ")
+			}
+		}
 	}
 }

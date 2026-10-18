@@ -518,8 +518,10 @@ const (
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY Code = "PULSE_FIELD_DESCRIPTION_LOW_QUALITY"
 
 	// PULSE_WINDOW_INVALID indicates a structural validation failure for a
-	// window operation: invalid frame matrix, alpha out of bounds,
-	// non-orderable order key, label collision, or unsupported window type.
+	// window operation: invalid frame matrix, bad params, missing order key
+	// or value field, non-orderable order key, label collision, or
+	// unsupported window type. Predict and the engine raise it alike, with
+	// one rule sentence.
 	PULSE_WINDOW_INVALID Code = "PULSE_WINDOW_INVALID"
 
 	// PULSE_FIELD_TYPE_UNSUPPORTED indicates an operator slot names a

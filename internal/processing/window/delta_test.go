@@ -275,9 +275,9 @@ func TestDelta_FrameRejected(t *testing.T) {
 	}
 	err := Apply(context.Background(), rows, w)
 	if err == nil {
-		t.Fatal("Apply with a frame: got nil error, want PROCESSING_CONFIG")
+		t.Fatal("Apply with a frame: got nil error, want PULSE_WINDOW_INVALID")
 	}
-	assertProcessingConfig(t, err)
+	assertWindowInvalid(t, err)
 }
 
 // TestDelta_PeriodsValidation covers the params contract: default 1, malformed
@@ -312,9 +312,9 @@ func TestDelta_PeriodsValidation(t *testing.T) {
 			err := Apply(context.Background(), rows, w)
 			if tc.wantErr {
 				if err == nil {
-					t.Fatalf("params %s: got nil error, want PROCESSING_CONFIG", tc.params)
+					t.Fatalf("params %s: got nil error, want PULSE_WINDOW_INVALID", tc.params)
 				}
-				assertProcessingConfig(t, err)
+				assertWindowInvalid(t, err)
 				return
 			}
 			if err != nil {
@@ -371,13 +371,13 @@ func TestDelta_DefaultLabel(t *testing.T) {
 	}
 }
 
-func assertProcessingConfig(t *testing.T, err error) {
+func assertWindowInvalid(t *testing.T, err error) {
 	t.Helper()
 	var ce *errors.CodedError
 	if !stderrors.As(err, &ce) {
 		t.Fatalf("error %v (%T) is not a *errors.CodedError", err, err)
 	}
-	if ce.Code != errors.PROCESSING_CONFIG {
-		t.Errorf("error code = %s, want %s", ce.Code, errors.PROCESSING_CONFIG)
+	if ce.Code != errors.PULSE_WINDOW_INVALID {
+		t.Errorf("error code = %s, want %s", ce.Code, errors.PULSE_WINDOW_INVALID)
 	}
 }

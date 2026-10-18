@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/internal/windowparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -232,7 +233,7 @@ func vectorScalarRefusals(req *types.Request, schema *encoding.Schema, snap *Ext
 			continue
 		}
 		slot := at("windows", i, string(win.Type))
-		if windowFieldRequired[opRoute(inst, win.Type)] {
+		if windowparams.FieldRequired(opRoute(inst, win.Type)) {
 			judge(win.Field, slot+" field", "")
 		}
 		if opRoute(inst, win.Type) == types.WIN_LIFT {

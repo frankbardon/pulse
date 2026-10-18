@@ -86,7 +86,7 @@ func TestResolve_Refusals(t *testing.T) {
 			t.Errorf("%q: message %q, want %q", tc.raw, ref.Message, tc.want)
 		}
 		ce := ref.Coded()
-		if ce.Code != errors.PROCESSING_CONFIG || ce.Message != "WIN_EWMA: "+ref.Message {
+		if ce.Code != errors.PULSE_WINDOW_INVALID || ce.Message != "WIN_EWMA: "+ref.Message {
 			t.Errorf("%q: coded %v %q", tc.raw, ce.Code, ce.Message)
 		}
 		if len(ref.Details) != len(ce.Details) {

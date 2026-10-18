@@ -32,7 +32,7 @@ One `float64` per row written to `Label` (default `WIN_MOVING_AVG_<field>`). Mea
 ## Gotchas
 
 - Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.
-- Unbounded frame on either end is REJECTED at predict.
+- Unbounded frame on either end is REJECTED (`PULSE_WINDOW_INVALID`, predict and runtime).
 - Trailing 7-row window: `frame: {mode: "rows", preceding: 6, following: 0}`.
 - Nulls skipped (not zero-filled); denominator is non-null count.
 - Result rows are NOT reordered — use `Request.Sort`.

@@ -897,17 +897,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_WINDOW_INVALID: {
-		Message: "A window operator's configuration is invalid (bad frame, alpha out of bounds, no order key, label collision).",
+		Message: "A window operator's configuration is invalid (bad frame, bad params, no order key, no value field, label collision); predict and every runtime surface refuse it alike.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Windows", "*", "OrderBy"},
-				Hint:   "Every WIN_* operator requires at least one OrderBy key; supply a date or numeric field.",
+				Hint:   "Every WIN_* operator requires at least one OrderBy key (WIN_SHARE / WIN_LIFT only when params.cumulative is true); supply a date or numeric field.",
 			},
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"Windows", "*", "Frame"},
-				Hint:   "Drop Frame for ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, PCT_CHANGE; supply Frame with bounded preceding/following for MOVING_AVG, EWMA, RUNNING_*.",
+				Hint:   "Drop Frame for ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, PCT_CHANGE, DELTA, SHARE, LIFT; supply Frame (mode \"rows\") for MOVING_AVG (both bounds), EWMA, RUNNING_*.",
 			},
 		},
 	},

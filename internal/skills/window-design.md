@@ -38,7 +38,7 @@ Entry shape:
 | `label` | no | Output column; default `<TYPE>_<field>`. Naming an existing output column or earlier window label is `SERVICE_VALIDATION` (shadow). |
 | `partition_by` | no | Field names. Empty → single global partition. |
 | `order_by` | yes (≥1; a non-cumulative share / lift needs none) | `{field, desc}`. Any type but `set_*` (`PULSE_WINDOW_INVALID`, predict and runtime): numbers / `decimal128` by value, `date` / `datetime` by signed epoch (pre-1970 first), `packed_bool` false first, categorical by LABEL byte-wise. Nulls last in BOTH directions — `desc` reverses non-null values only. A NaN (an undefined figure, e.g. an expanded vector element no row answered) is a null. |
-| `frame` | conditional | Required for running, moving and exponentially weighted aggregates; forbidden for offset, rank, change and share / lift ops. Mode `"rows"`. |
+| `frame` | conditional | Required for running, moving and exponentially weighted aggregates; forbidden for offset, rank, change and share / lift ops. Mode `"rows"`. Every slot refusal is `PULSE_WINDOW_INVALID`, predict and runtime alike. |
 | `params` | per op | Operator-specific overrides (`offset`, `alpha`, `periods`, `default`, ...). |
 
 ## Partition / order / frame
@@ -51,7 +51,7 @@ The three axes every window shares:
 
 Frame (mode `"rows"`): `preceding: null` → UNBOUNDED PRECEDING; `preceding: N` → up to N rows before; `following: null` → UNBOUNDED FOLLOWING; `following: N` → up to N rows after; `preceding: 0, following: 0` → current row only.
 
-A moving average requires BOTH bounds; an unbounded frame degenerates to the running average and is rejected by predict.
+A moving average requires BOTH bounds; an unbounded frame degenerates to the running average and is refused.
 
 ## Choosing a window
 
@@ -70,7 +70,7 @@ Every window op:
 1. Compute the partition map from `partition_by`.
 2. Sort each partition once by `order_by`.
 3. For each row in scan order, read the framed slice and emit one value into `label`.
-4. Result rows are NOT reordered — `order_by` is scan order, not response order; use `Request.Sort` (SQL semantics).
+4. Result rows are NOT reordered — `order_by` is scan order, not response order; use `Request.Sort`.
 
 Windows sharing a `(partition_by, order_by)` tuple share the sort — O(n log n) per distinct tuple.
 
@@ -82,7 +82,7 @@ For a percentage metric, 97.9 vs 90.0 is 7.9 points (delta) or 8.8% (pct-change)
 
 ## Streamability per window
 
-Any non-empty `windows` slate forces the BUFFERED path — a window needs a sort over the row set — and predict marks the request `Streamable=false`. `WindowType.Streamable()` (`types/streamability.go`) is `false` for every window, kept so a future exception stays declarable.
+Any non-empty `windows` slate forces the BUFFERED path — a window needs a sort over the row set — and predict marks the request `Streamable=false`. `WindowType.Streamable()` (`types/streamability.go`) is `false` for every window.
 
 ## Components
 

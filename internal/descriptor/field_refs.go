@@ -13,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/internal/windowparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -619,7 +620,7 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 		// Only a value-bearing operator reads Field (WIN_ROW_NUMBER /
 		// RANK / DENSE_RANK name none, and an extension window's Field
 		// is its own business).
-		if win.Field != "" && windowFieldRequired[opRoute(inst, win.Type)] &&
+		if win.Field != "" && windowparams.FieldRequired(opRoute(inst, win.Type)) &&
 			!w.arrayRef(win.Field, "window["+idx+"] ("+string(win.Type)+") field", map[string]any{"window_index": i, "type": string(win.Type)}) {
 			w.check(win.Field, func() *errors.CodedError {
 				return refusal("window["+idx+"] ("+string(win.Type)+"): field "+win.Field+" does not exist in schema or upstream pipeline output",

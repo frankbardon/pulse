@@ -1,8 +1,7 @@
 package window
 
 import (
-	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/windowparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -22,31 +21,15 @@ type deltaComputer struct {
 	periods int
 }
 
-type deltaParams struct {
-	Periods *int `json:"periods"`
-}
-
 func init() {
 	register(types.WIN_DELTA, func(w *types.Window, _ WindowOptions) (WindowComputer, error) {
-		if w.Frame != nil {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				"delta does not accept a frame")
+		// The params reading is shared with predict (internal/windowparams);
+		// a frame is refused by the registry's slot check, as predict does.
+		periods, ref := windowparams.Periods(w)
+		if ref != nil {
+			return nil, ref.Coded()
 		}
-		c := &deltaComputer{field: w.Field, periods: 1}
-		paramread.Declare(paramread.Window, string(w.Type), (*deltaParams)(nil))
-		if len(w.Params) > 0 {
-			var p deltaParams
-			if err := paramread.Decode(paramread.Window, string(w.Type), w.Params, &p); err != nil {
-				return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG, "delta params")
-			}
-			if p.Periods != nil {
-				c.periods = *p.Periods
-			}
-		}
-		if c.periods <= 0 {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "delta periods must be >= 1")
-		}
-		return c, nil
+		return &deltaComputer{field: w.Field, periods: periods}, nil
 	})
 }
 

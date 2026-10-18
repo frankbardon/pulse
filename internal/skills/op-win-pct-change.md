@@ -36,7 +36,7 @@ One `float64` per row written to `Label` (default `WIN_PCT_CHANGE_<field>`). `(c
 ## Gotchas
 
 - Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.
-- `periods <= 0` REJECTED at predict (`PULSE_WINDOW_INVALID`).
+- `periods <= 0` REJECTED (`PULSE_WINDOW_INVALID`, predict and runtime).
 - `prev == 0` emits `null` (no `+Inf`); a negative `prev` flips the sign.
 - Either side null emits `null`.
 - Result rows are NOT reordered — use `Request.Sort`.

@@ -52,7 +52,7 @@ func calendarRequest() *types.Request {
 		Windows: []*types.Window{
 			{Type: types.WIN_LAG, Field: "d", Label: "prev_d", OrderBy: byD},
 			{Type: types.WIN_DELTA, Field: "d", Label: "dd", OrderBy: byD},
-			{Type: types.WIN_RUNNING_SUM, Field: "d", Label: "rs", OrderBy: byD},
+			{Type: types.WIN_RUNNING_SUM, Field: "d", Label: "rs", OrderBy: byD, Frame: &types.FrameSpec{Mode: "rows"}},
 			{Type: types.WIN_ROW_NUMBER, Label: "rn", OrderBy: []types.OrderKey{{Field: "ts", Desc: true}}},
 		},
 		Sort: byD}
