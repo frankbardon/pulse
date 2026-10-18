@@ -234,12 +234,14 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-win-ewma`](skills/op-win-ewma.md): Exponentially weighted moving average; s_i = alpha*x_i + (1-alpha)*s_{i-1}.
 - [`op-win-lag`](skills/op-win-lag.md): Per-row value of Field from N rows earlier in the ordered partition.
 - [`op-win-lead`](skills/op-win-lead.md): Per-row value of Field from N rows later in the ordered partition.
+- [`op-win-lift`](skills/op-win-lift.md): Lift of a field over a base column — the field's share over the base's share, (x/Σx)/(b/Σb); cumulative gives a gains table's cumulative lift.
 - [`op-win-moving-avg`](skills/op-win-moving-avg.md): Moving average of Field over a bounded Frame; both ends must be set.
 - [`op-win-pct-change`](skills/op-win-pct-change.md): Fractional change (0.05 = 5%) against the row `periods` positions earlier in the ordered partition.
 - [`op-win-rank`](skills/op-win-rank.md): Sparse rank with gaps after ties (1, 2, 2, 4, ...) within the ordered partition.
 - [`op-win-row-number`](skills/op-win-row-number.md): 1-based row index within the ordered partition; never ties.
 - [`op-win-running-avg`](skills/op-win-running-avg.md): Running average of Field over the configured Frame within the ordered partition.
 - [`op-win-running-sum`](skills/op-win-running-sum.md): Running total of Field over the configured Frame within the ordered partition.
+- [`op-win-share`](skills/op-win-share.md): Each row's share of its partition's total (x / Σx), or with cumulative the running share down the ordered rows — a capture curve.
 - [`overlay-system`](skills/overlay-system.md): Overlay framework — OverlaySpec composition, reference families, three payload shapes, host-arm wiring (SERIES / MATRIX_RESULT / FACET / CHAIN / FORMULA), named payload parts of multi-output kinds. Per-kind detail lives in op-overlay-* atomics.
 - [`pairwise-n-sources`](skills/pairwise-n-sources.md): The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source.
 - [`predict-advisories`](skills/predict-advisories.md): Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one.

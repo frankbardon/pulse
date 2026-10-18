@@ -32,6 +32,8 @@ var windowPurposes = map[string]descriptor.Purpose{
 	"WIN_ROW_NUMBER":  purposeWinRowNumber,
 	"WIN_RUNNING_AVG": purposeWinRunningAvg,
 	"WIN_RUNNING_SUM": purposeWinRunningSum,
+	"WIN_SHARE":       purposeWinShare,
+	"WIN_LIFT":        purposeWinLift,
 }
 
 // Shared assumption sentences, so sibling windows say the same thing the
@@ -351,5 +353,63 @@ var (
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"rank", "ties"},
+	}
+)
+
+// --- Shares and lift (needs reading) ---------------------------------------
+
+var (
+	purposeWinShare = descriptor.Purpose{
+		Plain:   "Adds each row's share of its partition's total, or the running share down the ordered rows, such as the share of defaults caught so far.",
+		Intents: []string{IntentComposition, IntentBenchmark},
+		Questions: []string{
+			"What share of all defaults falls in each score decile, and how much do the riskiest deciles capture together?",
+			"What fraction of each region's revenue does each store bring in?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Each answer's share of the responses within its question.",
+			descriptor.DomainOps:     "Cumulative share of tickets handled by the busiest agents first.",
+			descriptor.DomainScience: "Share of the total dose each visit delivered, per subject.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want the running total itself, not as a share", Use: "WIN_RUNNING_SUM"},
+			{When: "you want how much richer in the field a row is than its share of another column", Use: "WIN_LIFT"},
+			{When: "you want each group's share as a decoration on the result", Use: "OVERLAY_SHARE_OF_TOTAL"},
+		},
+		Assumptions: []string{
+			winOnResultRows,
+			winPerPartition,
+			"Without cumulative no order is needed; with it the running total runs from the partition's first row in order_by order to this one.",
+			"Missing values add nothing to the total; a zero total reads null.",
+		},
+		Level:    descriptor.LevelBasic,
+		Glossary: []string{"missing-value"},
+	}
+
+	purposeWinLift = descriptor.Purpose{
+		Plain:   "Adds how many times its share of one column a row holds of another, such as a decile's share of defaults over its share of loans.",
+		Intents: []string{IntentBenchmark, IntentComposition},
+		Questions: []string{
+			"How many times the average default rate do the riskiest deciles of a score capture?",
+			"Which stores sell more than their share of floor space would predict?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "A segment's share of complaints over its share of respondents.",
+			descriptor.DomainOps:     "Cumulative lift of a churn score: share of churners caught over share of customers contacted.",
+			descriptor.DomainScience: "A site's share of cases over its share of the population at risk.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want one column's share of its own total", Use: "WIN_SHARE"},
+			{When: "you want how well a score ranks one outcome above the other as one number", Use: "AGG_AUC"},
+			{When: "you want each group against the overall figure as an index", Use: "OVERLAY_INDEX_VS_TOTAL"},
+		},
+		Assumptions: []string{
+			winOnResultRows,
+			winPerPartition,
+			"It is the field's share divided by the base's share, each total over its own values present; with cumulative both are running shares in order_by order.",
+			"A missing value on either side, or a zero base share, reads null.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"baseline", "missing-value"},
 	}
 )

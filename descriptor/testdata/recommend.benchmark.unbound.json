@@ -191,6 +191,48 @@
         ]
       },
       {
+        "operator": "WIN_SHARE",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds each row's share of its partition's total, or the running share down the ordered rows, such as the share of defaults caught so far. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "windows": [
+            {
+              "field": "\u003cfield\u003e",
+              "order_by": [
+                {
+                  "field": "\u003corder_by\u003e"
+                }
+              ],
+              "type": "WIN_SHARE"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "order_by"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the running total itself, not as a share",
+            "use": "WIN_RUNNING_SUM"
+          },
+          {
+            "when": "you want how much richer in the field a row is than its share of another column",
+            "use": "WIN_LIFT"
+          },
+          {
+            "when": "you want each group's share as a decoration on the result",
+            "use": "OVERLAY_SHARE_OF_TOTAL"
+          }
+        ]
+      },
+      {
         "operator": "ATTR_PERCENTILE",
         "category": "attribute",
         "level": "basic",
@@ -381,48 +423,12 @@
             "use": "AGG_RMSE"
           }
         ]
-      },
-      {
-        "operator": "AGG_RMSE",
-        "category": "aggregator",
-        "level": "intermediate",
-        "why": "Typical size of a prediction's miss in the actual's own units, with large misses counting more: the root of the average squared miss. Fill in each placeholder in the draft before you run it.",
-        "bound": false,
-        "request": {
-          "aggregations": [
-            {
-              "field": "\u003cfield\u003e",
-              "params": {
-                "prediction_field": "\u003cprediction_field\u003e"
-              },
-              "type": "AGG_RMSE"
-            }
-          ],
-          "cohort": {
-            "filename": "\u003ccohort\u003e"
-          }
-        },
-        "placeholders": [
-          "cohort",
-          "field",
-          "prediction_field"
-        ],
-        "alternatives": [
-          {
-            "when": "every unit of miss should count the same, so a few large misses do not dominate",
-            "use": "AGG_MAE"
-          },
-          {
-            "when": "you want the miss as a share of the actual value",
-            "use": "AGG_MAPE"
-          }
-        ]
       }
     ],
     "truncated": true,
-    "candidates_considered": 18
+    "candidates_considered": 20
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1eeaffd601482c4e17dba5acd52cc23b5713c83a9dc4e53cf65d58c526b3a00c
+// golden-hash: 31420ef5648d37110a3aef8ea9a58433ae0af2ca82fecc34012156affb85c414

@@ -77,7 +77,7 @@ func TestCapabilities_AcceptsTypesMatchFieldAcceptTable(t *testing.T) {
 			t.Errorf("%s accepts_types %v, table %v", op, got, want)
 		}
 	}
-	if want := 12 + 19 + 14 + 2 + 2 + 10 + 19; checked != want {
-		t.Errorf("checked %d tabled operators with a declaration, want %d (8 windows, FEAT_POLY, 3 regressions, 19 value readers, 14 set operators, 2 date-range operators, FILTER_TRUE / FILTER_FALSE, FEAT_DATE_FEATURES / ATTR_DATE_PART, ATTR_CODE_IN, 3 model-error aggregators + AGG_AUC, 3 categorical encoders, 16 numeric aggregators + FEAT_LOG / FEAT_SQRT / FEAT_BUCKETIZE)", checked, want)
+	if want := 14 + 19 + 14 + 2 + 2 + 10 + 19; checked != want {
+		t.Errorf("checked %d tabled operators with a declaration, want %d (10 windows, FEAT_POLY, 3 regressions, 19 value readers, 14 set operators, 2 date-range operators, FILTER_TRUE / FILTER_FALSE, FEAT_DATE_FEATURES / ATTR_DATE_PART, ATTR_CODE_IN, 3 model-error aggregators + AGG_AUC, 3 categorical encoders, 16 numeric aggregators + FEAT_LOG / FEAT_SQRT / FEAT_BUCKETIZE)", checked, want)
 	}
 }

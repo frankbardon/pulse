@@ -583,6 +583,28 @@ A smoothed level of the field: s = alpha * current + (1 - alpha) * previous s, s
 - The required frame is not used: the smoothing always runs from the partition's first row.
 - A step is one row of the result in order_by order, not a calendar period: when a period has no row (a month with no sales), the comparison silently spans the gap, so check the series has a row for every period.
 
+<a id="op-win_lift"></a>
+
+### `WIN_LIFT`
+
+Adds how many times its share of one column a row holds of another, such as a decile's share of defaults over its share of loans. See its [catalog entry](../catalog/window.md#op-win_lift).
+
+#### `value`
+
+The field's share over the base's share: 1 means the row holds the same share of both, 2 twice its base share of the field. With cumulative, the running shares are compared, so 2.3 on the second decile says the top two deciles hold 2.3 times their share of loans in defaults.
+
+**Sign:**
+
+- `+`: above 1: the row holds more of the field than its share of the base
+- `-`: below 1: the row holds less of the field than its share of the base
+
+**Caveats:**
+
+- Lift on a small base share is jumpy: a decile with 1% of the loans and 3% of the defaults reads 3 on a handful of defaults, so read the counts beside it.
+- Cumulative lift falls to exactly 1 on the last row, where both running shares reach 1; compare lifts at the same depth.
+- A missing value on either side, or a base share of 0, reads null.
+- With groups, each row is one group's figure and counts once whatever the group's size: an average over rows is an average of group figures, not the average over all records.
+
 <a id="op-win_moving_avg"></a>
 
 ### `WIN_MOVING_AVG`
@@ -658,6 +680,23 @@ The mean of the field over the rows in the frame. With the usual frame (no prece
 - Early values rest on few rows and swing; later ones rest on the whole history and barely move, so a late cumulative average says little about the recent level (use WIN_MOVING_AVG for that).
 - A frame with a following bound above 0, or none, takes in later rows too.
 - Missing values are skipped, so the mean is over the values present; a frame with no value reads null.
+- With groups, each row is one group's figure and counts once whatever the group's size: an average over rows is an average of group figures, not the average over all records.
+
+<a id="op-win_share"></a>
+
+### `WIN_SHARE`
+
+Adds each row's share of its partition's total, or the running share down the ordered rows, such as the share of defaults caught so far. See its [catalog entry](../catalog/window.md#op-win_share).
+
+#### `value`
+
+The row's value as a fraction of its partition's total: 0.25 is a quarter, not 25. With cumulative it is the running total up to this row over the same total, rising to exactly 1 on the partition's last row with a value.
+
+**Caveats:**
+
+- The total is the partition's, over the values present: a missing value adds nothing, so shares of a column with gaps sum to 1 over the rows that answered.
+- A cumulative share depends on the order: ordered by a score from riskiest down it is the capture curve; set desc for that.
+- A field that can be negative can push a share above 1 or below 0, and a total of exactly 0 reads null.
 - With groups, each row is one group's figure and counts once whatever the group's size: an average over rows is an average of group figures, not the average over all records.
 
 ## Feature operators

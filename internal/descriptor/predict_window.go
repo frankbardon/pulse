@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/ewmaparams"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/shareparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -48,6 +49,8 @@ var windowFieldRequired = map[types.WindowType]bool{
 	types.WIN_EWMA:        true,
 	types.WIN_PCT_CHANGE:  true,
 	types.WIN_DELTA:       true,
+	types.WIN_SHARE:       true,
+	types.WIN_LIFT:        true,
 }
 
 // IsOrderableType is the ONE window ORDER BY orderability rule, applied
@@ -128,8 +131,9 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 			continue
 		}
 
-		// OrderBy required (≥1).
-		if len(w.OrderBy) == 0 {
+		// OrderBy required (≥1) — except WIN_SHARE / WIN_LIFT, whose own
+		// reading (internal/shareparams) requires it only when cumulative.
+		if len(w.OrderBy) == 0 && !shareparams.Handles(w.Type) {
 			env.AddError(
 				string(errors.PULSE_WINDOW_INVALID),
 				"window["+idx+"] ("+string(w.Type)+"): order_by is required (at least one key)",
@@ -154,16 +158,21 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 		// Field required for value-bearing operators; missing field is SERVICE_VALIDATION
 		// to share semantics with the existing validators.
 		if windowFieldRequired[w.Type] {
-			if w.Field == "" {
+			// A missing field on WIN_SHARE / WIN_LIFT is the shared
+			// reading's refusal (validateWindowParams), raised alike at
+			// runtime.
+			if w.Field == "" && !shareparams.Handles(w.Type) {
 				env.AddError(
 					string(errors.SERVICE_VALIDATION),
 					"window["+idx+"] ("+string(w.Type)+"): field is required",
 					map[string]any{"window_index": i, "type": string(w.Type)},
 				)
-			} else if cerr := fieldaccept.Check(string(w.Type), fieldaccept.SlotField, w.Field, schema); cerr != nil {
+			} else if w.Field != "" {
 				// The accepted-types table's refusal, the runtime's
 				// (processing applyWindows) word for word.
-				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+				if cerr := fieldaccept.Check(string(w.Type), fieldaccept.SlotField, w.Field, schema); cerr != nil {
+					env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+				}
 			}
 		}
 
@@ -218,6 +227,16 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 		// Operator-specific param validation.
 		validateWindowParams(env, i, w)
 
+		// WIN_LIFT's base column: the accepted-types table's refusal,
+		// the runtime's (processing applyWindows) word for word.
+		if w.Type == types.WIN_LIFT {
+			if spec, ref := shareparams.Resolve(w); ref == nil {
+				if cerr := fieldaccept.Check(string(w.Type), fieldaccept.SlotBase, spec.Base, schema); cerr != nil {
+					env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+				}
+			}
+		}
+
 	}
 }
 
@@ -236,6 +255,19 @@ func windowLabel(w *types.Window) string {
 func validateWindowParams(env *descriptor.Envelope, i int, w *types.Window) {
 	idx := strconv.Itoa(i)
 	switch w.Type {
+	case types.WIN_SHARE, types.WIN_LIFT:
+		// One slot reading with the runtime factory (internal/shareparams):
+		// the same code and rule sentence on both sides.
+		if _, ref := shareparams.Resolve(w); ref != nil {
+			details := map[string]any{"window_index": i, "type": string(w.Type)}
+			maps.Copy(details, ref.Details)
+			env.AddError(
+				string(errors.PULSE_WINDOW_INVALID),
+				"window["+idx+"] ("+string(w.Type)+"): "+ref.Message,
+				details,
+			)
+		}
+
 	case types.WIN_EWMA:
 		// One params reading with the runtime factory (internal/ewmaparams):
 		// exactly one of alpha / decay, each in range.

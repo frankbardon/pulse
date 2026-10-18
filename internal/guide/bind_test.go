@@ -139,6 +139,11 @@ func TestRecommendBound_EveryDraftPassesPredict(t *testing.T) {
 var unmappedOnFixture = map[[2]string]string{
 	{"compare_groups", "GROUP_DATE_RANGES"}:     "compare_groups takes no date field",
 	{"compare_groups", "GROUP_SET_PER_ELEMENT"}: "compare_groups takes no set field",
+	// A share / lift window reads a numeric column — on a mix table the
+	// count an aggregation emits per category — and composition binds
+	// only categorical fields; benchmark drafts both.
+	{"composition", "WIN_LIFT"}:  "composition takes no numeric field",
+	{"composition", "WIN_SHARE"}: "composition takes no numeric field",
 }
 
 // TestRecommendBound_ServingOperatorsMapped covers the slot mapping for

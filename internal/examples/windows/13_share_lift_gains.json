@@ -1,0 +1,65 @@
+{
+  "_meta": {
+    "category": "windows",
+    "description": "Gains table on grouped rows: subscribers bucketed into revenue quartiles, then WIN_SHARE gives each quartile's share of total revenue (no order_by needed) and, with params.cumulative, the running share of revenue from the top quartile down; WIN_LIFT (base = the subscriber count) gives the cumulative lift — the running share of revenue over the running share of subscribers, 1 meaning no concentration. A zero total or a zero base share reads null, never 0.",
+    "intents": [
+      "composition",
+      "benchmark"
+    ],
+    "name": "win_share_lift_gains",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "AGG_SUM",
+      "GROUP_QUANTILE",
+      "WIN_LIFT",
+      "WIN_SHARE"
+    ],
+    "tags": [
+      "proportion-analysis",
+      "financial",
+      "window-operator",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "subscribers.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_QUANTILE",
+      "field": "revenue",
+      "interval": 4
+    }
+  ],
+  "aggregations": [
+    {"type": "AGG_COUNT", "field": "id", "label": "subscribers"},
+    {"type": "AGG_SUM", "field": "revenue", "label": "revenue_total"},
+    {"type": "AGG_AVERAGE", "field": "revenue", "label": "mean_revenue"}
+  ],
+  "windows": [
+    {
+      "type": "WIN_SHARE",
+      "field": "revenue_total",
+      "label": "revenue_share"
+    },
+    {
+      "type": "WIN_SHARE",
+      "field": "revenue_total",
+      "label": "cum_revenue_share",
+      "order_by": [{"field": "mean_revenue", "desc": true}],
+      "params": {"cumulative": true}
+    },
+    {
+      "type": "WIN_LIFT",
+      "field": "revenue_total",
+      "label": "cum_lift",
+      "order_by": [{"field": "mean_revenue", "desc": true}],
+      "params": {"base": "subscribers", "cumulative": true}
+    }
+  ],
+  "sort": [
+    {"field": "mean_revenue", "desc": true}
+  ]
+}

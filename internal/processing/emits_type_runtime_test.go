@@ -562,6 +562,21 @@ var emitsTypeProbes = map[string]func(t *testing.T) emitted{
 		}, emitsWindowRows())
 	},
 
+	string(types.WIN_SHARE): func(t *testing.T) emitted {
+		return winEmitted(t, &types.Window{
+			Type: types.WIN_SHARE, Field: "x", Label: "out",
+			OrderBy: []types.OrderKey{{Field: "ts"}},
+			Params:  json.RawMessage(`{"cumulative":true}`),
+		}, emitsWindowRows())
+	},
+	string(types.WIN_LIFT): func(t *testing.T) emitted {
+		return winEmitted(t, &types.Window{
+			Type: types.WIN_LIFT, Field: "x", Label: "out",
+			OrderBy: []types.OrderKey{{Field: "ts"}},
+			Params:  json.RawMessage(`{"base":"ts","cumulative":true}`),
+		}, emitsWindowRows())
+	},
+
 	// --- feature operators ------------------------------------------
 	string(types.FEAT_LOG): func(t *testing.T) emitted {
 		s := numericSchema()

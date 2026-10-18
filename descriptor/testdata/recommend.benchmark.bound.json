@@ -378,9 +378,9 @@
       }
     ],
     "truncated": true,
-    "candidates_considered": 48
+    "candidates_considered": 54
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8528acbb65614ed7f7ead2b168509bfe3b9fc30ba8f22835e9c084b5b5758812
+// golden-hash: 692b07a6f5cfbeb18905dd2073abb03dc8e7fe86c4a0caaf7ee66197dab01aae

@@ -243,6 +243,11 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 			continue
 		}
 		addKnown(w.Field)
+		if w.Type == types.WIN_LIFT {
+			if name, ok := jsonStringField(w.Params, "base"); ok {
+				addKnown(name)
+			}
+		}
 		addAllKnown(w.PartitionBy)
 		for _, k := range w.OrderBy {
 			addKnown(k.Field)

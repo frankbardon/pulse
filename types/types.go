@@ -516,6 +516,8 @@ const (
 	WIN_EWMA        WindowType = "WIN_EWMA"
 	WIN_PCT_CHANGE  WindowType = "WIN_PCT_CHANGE"
 	WIN_DELTA       WindowType = "WIN_DELTA"
+	WIN_SHARE       WindowType = "WIN_SHARE"
+	WIN_LIFT        WindowType = "WIN_LIFT"
 )
 
 // AllWindowTypes returns all defined window types in alphabetical order.
@@ -526,12 +528,14 @@ func AllWindowTypes() []WindowType {
 		WIN_EWMA,
 		WIN_LAG,
 		WIN_LEAD,
+		WIN_LIFT,
 		WIN_MOVING_AVG,
 		WIN_PCT_CHANGE,
 		WIN_RANK,
 		WIN_ROW_NUMBER,
 		WIN_RUNNING_AVG,
 		WIN_RUNNING_SUM,
+		WIN_SHARE,
 	}
 }
 

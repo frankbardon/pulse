@@ -235,6 +235,9 @@ func vectorScalarRefusals(req *types.Request, schema *encoding.Schema, snap *Ext
 		if windowFieldRequired[opRoute(inst, win.Type)] {
 			judge(win.Field, slot+" field", "")
 		}
+		if opRoute(inst, win.Type) == types.WIN_LIFT {
+			judge(paramString(win.Params, "base"), slot+" params.base", "")
+		}
 		for j, k := range win.OrderBy {
 			judge(k.Field, slot+" order_by["+strconv.Itoa(j)+"]", "")
 		}

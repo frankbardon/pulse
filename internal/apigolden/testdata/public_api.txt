@@ -5575,12 +5575,14 @@ pulse/types: const WIN_DENSE_RANK pulse/types.WindowType = "WIN_DENSE_RANK"
 pulse/types: const WIN_EWMA pulse/types.WindowType = "WIN_EWMA"
 pulse/types: const WIN_LAG pulse/types.WindowType = "WIN_LAG"
 pulse/types: const WIN_LEAD pulse/types.WindowType = "WIN_LEAD"
+pulse/types: const WIN_LIFT pulse/types.WindowType = "WIN_LIFT"
 pulse/types: const WIN_MOVING_AVG pulse/types.WindowType = "WIN_MOVING_AVG"
 pulse/types: const WIN_PCT_CHANGE pulse/types.WindowType = "WIN_PCT_CHANGE"
 pulse/types: const WIN_RANK pulse/types.WindowType = "WIN_RANK"
 pulse/types: const WIN_ROW_NUMBER pulse/types.WindowType = "WIN_ROW_NUMBER"
 pulse/types: const WIN_RUNNING_AVG pulse/types.WindowType = "WIN_RUNNING_AVG"
 pulse/types: const WIN_RUNNING_SUM pulse/types.WindowType = "WIN_RUNNING_SUM"
+pulse/types: const WIN_SHARE pulse/types.WindowType = "WIN_SHARE"
 pulse/types: type WeightKind string
 pulse/types: const WeightKindFrequency pulse/types.WeightKind = "frequency"
 pulse/types: const WeightKindProbability pulse/types.WeightKind = "probability"
@@ -5600,4 +5602,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 97ef9972193a9223aabae08f908b29857319aa45de6bbb923ec5a5d1740f4f65
+// golden-hash: 1b10537ffe0e04611e3e24ece75ae5d695e8975f5119916bc076d6b0cb70d94e

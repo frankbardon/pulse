@@ -255,12 +255,14 @@ skills/op-win-dense-rank.md
 skills/op-win-ewma.md
 skills/op-win-lag.md
 skills/op-win-lead.md
+skills/op-win-lift.md
 skills/op-win-moving-avg.md
 skills/op-win-pct-change.md
 skills/op-win-rank.md
 skills/op-win-row-number.md
 skills/op-win-running-avg.md
 skills/op-win-running-sum.md
+skills/op-win-share.md
 skills/overlay-system.md
 skills/pairwise-n-sources.md
 skills/predict-advisories.md

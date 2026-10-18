@@ -85,6 +85,9 @@ const (
 	// SlotOutcome is AGG_AUC's `params.outcome` (the binary outcome
 	// scored against the score in `field`).
 	SlotOutcome Slot = "outcome"
+	// SlotBase is WIN_LIFT's `params.base` (the column the field's share
+	// is compared with).
+	SlotBase Slot = "base"
 )
 
 // Rule is one tabled slot: the accepted types and the refusal code.
@@ -328,7 +331,8 @@ func init() {
 	field := []Slot{SlotField}
 	add(windowValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, field,
 		"WIN_LAG", "WIN_LEAD", "WIN_RUNNING_SUM", "WIN_RUNNING_AVG", "WIN_MOVING_AVG",
-		"WIN_EWMA", "WIN_PCT_CHANGE", "WIN_DELTA")
+		"WIN_EWMA", "WIN_PCT_CHANGE", "WIN_DELTA", "WIN_SHARE")
+	add(windowValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotField, SlotBase}, "WIN_LIFT")
 	add(polyValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, field, "FEAT_POLY")
 	add(analyticsValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotTarget, SlotPredictor},
 		"REG_OLS", "REG_GLM", "REG_BAYES_LINEAR")

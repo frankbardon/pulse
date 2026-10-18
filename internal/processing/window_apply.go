@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/processing/window"
+	"github.com/frankbardon/pulse/internal/shareparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -26,6 +27,16 @@ func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, win
 		}
 		if cerr := fieldaccept.Check(string(w.Type), fieldaccept.SlotField, w.Field, p.schema); cerr != nil {
 			return cerr
+		}
+		// WIN_LIFT's base column, judged like its field (predict
+		// validateWindows reports the same error). A slot the shared
+		// reading refuses is left to the factory's refusal.
+		if w.Type == types.WIN_LIFT {
+			if spec, ref := shareparams.Resolve(w); ref == nil {
+				if cerr := fieldaccept.Check(string(w.Type), fieldaccept.SlotBase, spec.Base, p.schema); cerr != nil {
+					return cerr
+				}
+			}
 		}
 	}
 	return window.ApplyWithExt(ctx, rows, windows, p.exts.LookupWindow)

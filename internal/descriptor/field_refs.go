@@ -626,6 +626,16 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 					map[string]any{"window_index": i, "field": win.Field, "type": string(win.Type)})
 			})
 		}
+		// WIN_LIFT's params.base names a column like its field does.
+		if opRoute(inst, win.Type) == types.WIN_LIFT {
+			if base := paramString(win.Params, "base"); base != "" &&
+				!w.arrayRef(base, "window["+idx+"] (WIN_LIFT) params.base", map[string]any{"window_index": i, "type": string(win.Type)}) {
+				w.check(base, func() *errors.CodedError {
+					return refusal("window["+idx+"] ("+string(win.Type)+"): params.base "+base+" does not exist in schema or upstream pipeline output",
+						map[string]any{"window_index": i, "field": base, "type": string(win.Type), "param": "base"})
+				})
+			}
+		}
 		w.checkInputs("window", string(win.Type), win.Params, "window")
 		label := windowLabel(win)
 		w.shadow(label, func() *errors.CodedError {

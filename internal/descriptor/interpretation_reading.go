@@ -77,7 +77,7 @@ var needsReadingOperators = []string{
 	// window
 	string(types.WIN_DELTA), string(types.WIN_DENSE_RANK), string(types.WIN_EWMA),
 	string(types.WIN_MOVING_AVG), string(types.WIN_PCT_CHANGE), string(types.WIN_RANK),
-	string(types.WIN_RUNNING_AVG),
+	string(types.WIN_RUNNING_AVG), string(types.WIN_SHARE), string(types.WIN_LIFT),
 	// feature
 	string(types.FEAT_FREQUENCY_ENCODE), string(types.FEAT_LOG), string(types.FEAT_POLY),
 	string(types.FEAT_SQRT), string(types.FEAT_TARGET_ENCODE),

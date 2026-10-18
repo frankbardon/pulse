@@ -140,5 +140,30 @@ func windowCapabilities() []descriptor.Operator {
 			EmitsTypeNote: "one float per row; null (not NaN) when no comparison row exists — the first Periods rows of each partition, or a missing value on either side",
 			Streamable:    false,
 		},
+		{
+			Name:        string(types.WIN_SHARE),
+			Category:    "window",
+			Description: "Share of the partition's total: field / Σfield over the partition (order_by optional). With cumulative, the running total from the partition's first row in order_by order to this one, over the same total (order_by required) — a capture curve. Missing values add nothing; a zero total reads null. No frame.",
+			Params: []descriptor.Param{
+				{Name: "cumulative", Type: "bool", Required: false, Default: false, Description: "Running share (unbounded preceding to the current row) instead of the row's own; requires order_by."},
+			},
+			AcceptsTypes:  tableAcceptsTypes(types.WIN_SHARE),
+			EmitsType:     "f64",
+			EmitsTypeNote: "one float per row, a fraction (0.25 = 25%); null when the row's value is missing (non-cumulative), before the first value present (cumulative) or when the partition total is zero",
+			Streamable:    false,
+		},
+		{
+			Name:        string(types.WIN_LIFT),
+			Category:    "window",
+			Description: "Lift of field over base: (field / Σfield) / (base / Σbase) within the partition — exactly the field's share over the base's share, each total over its own present values. With cumulative, the running share of field over the running share of base (order_by required), e.g. the cumulative lift of a gains table. 1 is no lift. No frame.",
+			Params: []descriptor.Param{
+				{Name: "base", Type: "field", Required: true, FieldFilter: "numeric", Description: "Column the field's share is compared with (e.g. the record count per decile); its share is the denominator."},
+				{Name: "cumulative", Type: "bool", Required: false, Default: false, Description: "Running shares (unbounded preceding to the current row) instead of the row's own; requires order_by."},
+			},
+			AcceptsTypes:  tableAcceptsTypes(types.WIN_LIFT),
+			EmitsType:     "f64",
+			EmitsTypeNote: "one float per row, a ratio (1 = no lift); null when either share is null or the base share is zero",
+			Streamable:    false,
+		},
 	}
 }

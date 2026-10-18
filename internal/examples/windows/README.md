@@ -2,7 +2,8 @@
 
 Runnable JSON requests demonstrating each `WIN_*` operator. Windows run
 after aggregation (or instead of it, when no groups + aggs are set) and
-emit one output column per window. Every window requires `order_by`.
+emit one output column per window. Every window requires `order_by`,
+except a non-cumulative `WIN_SHARE` / `WIN_LIFT`.
 
 Setup is documented in [`../README.md`](../README.md). Run all:
 
@@ -26,12 +27,13 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `10_pct_change.json` | `WIN_PCT_CHANGE` | Percent change vs `params.periods` rows ago |
 | `11_delta.json` | `WIN_DELTA` | Point difference vs `params.periods` rows ago (same units as the field) |
 | `12_ewma_for_each.json` | `WIN_EWMA` | One item fanned out by `for_each` (zip of a label axis and a `decay` axis) into three EWMA columns |
+| `13_share_lift_gains.json` | `WIN_SHARE`, `WIN_LIFT` | Gains table on revenue quartiles: share of total, cumulative share and cumulative lift over the subscriber count (`order_by` only for the cumulative forms) |
 
 ## Frame requirements
 
 | Operator | Frame |
 |---|---|
-| `LAG`, `LEAD`, `PCT_CHANGE`, `DELTA`, `ROW_NUMBER`, `RANK`, `DENSE_RANK` | forbidden |
+| `LAG`, `LEAD`, `PCT_CHANGE`, `DELTA`, `ROW_NUMBER`, `RANK`, `DENSE_RANK`, `SHARE`, `LIFT` | forbidden |
 | `RUNNING_SUM`, `RUNNING_AVG` | required (`preceding: null` = unbounded) |
 | `MOVING_AVG` | required, both bounds set |
 | `EWMA` | required (typically unbounded preceding to current) |

@@ -647,8 +647,8 @@ func TestWindowEnumValues(t *testing.T) {
 // TestAllWindowTypesAlphabetical verifies AllWindowTypes returns alphabetically sorted entries.
 func TestAllWindowTypesAlphabetical(t *testing.T) {
 	all := types.AllWindowTypes()
-	if len(all) != 11 {
-		t.Fatalf("AllWindowTypes returned %d entries, want 11", len(all))
+	if len(all) != 13 {
+		t.Fatalf("AllWindowTypes returned %d entries, want 13", len(all))
 	}
 	for i := 1; i < len(all); i++ {
 		if string(all[i]) < string(all[i-1]) {

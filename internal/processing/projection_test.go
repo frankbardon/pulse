@@ -85,6 +85,26 @@ func TestNeededFields_WindowReferencesPartitionAndOrder(t *testing.T) {
 	}
 }
 
+// WIN_LIFT's params.base names a column like its field does, so it
+// decodes beside the field (the mirror of addKnown(w.Field)).
+func TestNeededFields_WindowLiftBase(t *testing.T) {
+	schema := mkSchema("a", "ts", "v", "b", "unused")
+	req := &types.Request{
+		Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "a"}},
+		Windows: []*types.Window{{
+			Type:    types.WIN_LIFT,
+			Field:   "v",
+			OrderBy: []types.OrderKey{{Field: "ts"}},
+			Params:  json.RawMessage(`{"base": "b", "cumulative": true}`),
+		}},
+	}
+	got := NeededFields(req, schema, nil)
+	want := []string{"a", "b", "ts", "v"}
+	if g := sortedFields(got); !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
 // Windows-only requests emit the filtered records as rows, and a record
 // row carries every schema field, so the set widens (#201d); a window
 // beside an aggregation, a group or a crosstab rides aggregated rows
