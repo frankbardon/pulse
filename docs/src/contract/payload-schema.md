@@ -1050,7 +1050,8 @@ fit's `{"vector": VectorFitResult}` — `operator`, `labels`, `members`,
 `basis`, `n`, `n_weight_invalid`, `sum_weights`, `n_star`, `mean` and
 `covariance` (a full square-symmetric `MatrixValues`, M2*/(N* − 1) on the
 fit's weight basis; undefined cells `null`). The `vector` key
-discriminates. The object is pinned outside the Compose-level `return`
+discriminates. A fit that failed on its data keeps its entry with
+an `error` and no figures (see Failed slots). The object is pinned outside the Compose-level `return`
 like `ranking` (always emitted, never rounded). Both slots are gated by
 `capability:compose_fits`. `pulse_predict` with `composed` lists them as
 `fits [{name, type, target, predictors, cohort}]` — a vector fit as
@@ -1253,8 +1254,22 @@ envelope lifts to its `warnings`; the run exits 0. Under
 own code. Only data-dependent refusals fail alone: a configuration
 fault is still fatal for the whole request. A failed slot's `error` is
 kept by every `return` preset and include list (like a nested
-`warnings`); only an explicit exclude removes it. A Compose `fits`
-entry whose fit fails still fails the batch with the fit's own code.
+`warnings`); only an explicit exclude removes it.
+
+A Compose `fits` entry whose fit fails on its data fails alone too: its
+`ComposedResponse.fits[name]` entry carries `error` beside its identity
+— `{name, type, error}` for a regression fit, `{"vector": {operator,
+error}}` for a vector fit (on `VectorFitResult` `operator` stays
+required and the figures move under the same `if` / `then`) — its
+`PULSE_SLOT_FAILED` warning lifts to the batch `warnings` with
+`details.fit`, and every other fit and slot runs. An `ATTR_REG_PREDICT`
+scoring from it is `null` on every row and adds a
+`PULSE_FIT_UNAVAILABLE` warning `{fit, attribute, code}` to that slot's
+response; `coef()`, a vector `params.fit` or a `{population}` naming it
+is refused with the fit's own code and `details.fit`. Under
+`Options.Strict` the batch fails with the fit's own code. Predict
+cannot foresee a data fault, so `pulse predict` never reports a fit as
+failing.
 
 Additive: a response with no failed slot is byte-identical, and
 `format_version` stays `"1.1"`.

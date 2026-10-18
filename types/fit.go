@@ -111,6 +111,11 @@ const (
 // byte-identical to the regression-only shape; a vector entry is
 // {"vector": VectorFitResult}. The `vector` key is the discriminator: a
 // regression entry never carries it.
+//
+// A fit that failed on its data keeps its entry: the arm carries
+// `error` (SlotError) beside its identity — {name, type, error} for a
+// regression, {"vector": {operator, error}} for a vector fit — and its
+// name binds no model, so a slot scoring from it reads no state.
 type FitResult struct {
 	// RegressionResult is a regression fit's result (nil on a vector
 	// fit).
@@ -177,11 +182,28 @@ type VectorFitResult struct {
 	// Covariance is the fit's covariance over Labels (square
 	// symmetric, full encoding; RowKeys = ColumnKeys = Labels).
 	Covariance *MatrixValues `json:"covariance"`
+
+	// Error is set when the fit failed on its data (its battery's
+	// data-dependent refusal — a singular or non-PSD matrix, too few
+	// rows): the entry keeps Operator and the error, every other figure
+	// absent on the wire, and nothing is bound under the fit's name — a
+	// consumer of it reads no state (see SlotError).
+	Error *SlotError `json:"error,omitempty"`
+}
+
+// slotFailureVectorFit is the wire form of a VectorFitResult carrying
+// an Error: its operator and the error, no figure.
+type slotFailureVectorFit struct {
+	Operator string     `json:"operator"`
+	Error    *SlotError `json:"error"`
 }
 
 // MarshalJSON writes the summary with every non-finite float as null;
-// see MarshalFinite.
+// see MarshalFinite. A failed fit writes {operator, error} only.
 func (v VectorFitResult) MarshalJSON() ([]byte, error) {
+	if v.Error != nil {
+		return MarshalFinite(slotFailureVectorFit{Operator: v.Operator, Error: v.Error})
+	}
 	type alias VectorFitResult
 	return MarshalFinite((*alias)(&v))
 }

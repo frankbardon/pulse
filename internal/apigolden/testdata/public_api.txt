@@ -2470,6 +2470,7 @@ pulse/errors: const PULSE_FEAT_TARGET_LEAKAGE_RISK pulse/errors.Code = "PULSE_FE
 pulse/errors: const PULSE_FIELD_DESCRIPTION_LOW_QUALITY pulse/errors.Code = "PULSE_FIELD_DESCRIPTION_LOW_QUALITY"
 pulse/errors: const PULSE_FIELD_TYPE_UNSUPPORTED pulse/errors.Code = "PULSE_FIELD_TYPE_UNSUPPORTED"
 pulse/errors: const PULSE_FIT_INVALID pulse/errors.Code = "PULSE_FIT_INVALID"
+pulse/errors: const PULSE_FIT_UNAVAILABLE pulse/errors.Code = "PULSE_FIT_UNAVAILABLE"
 pulse/errors: const PULSE_FORMULA_COMPILE_ERROR pulse/errors.Code = "PULSE_FORMULA_COMPILE_ERROR"
 pulse/errors: const PULSE_FORMULA_TOTAL_ARITY pulse/errors.Code = "PULSE_FORMULA_TOTAL_ARITY"
 pulse/errors: const PULSE_FORMULA_TOTAL_NESTED pulse/errors.Code = "PULSE_FORMULA_TOTAL_NESTED"
@@ -5538,6 +5539,7 @@ pulse/types: const VectorCoerceBinary pulse/types.VectorCoerce = "binary"
 pulse/types: type VectorFitResult struct
 pulse/types: type VectorFitResult field Basis string "json:\"basis\""
 pulse/types: type VectorFitResult field Covariance *pulse/types.MatrixValues "json:\"covariance\""
+pulse/types: type VectorFitResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type VectorFitResult field Labels []string "json:\"labels\""
 pulse/types: type VectorFitResult field Mean []float64 "json:\"mean\""
 pulse/types: type VectorFitResult field Members []string "json:\"members\""
@@ -5595,4 +5597,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 2b9ee6c41eed1988860b94fced35fd98a1a39b4674ec35f8ebbd5a35d807c3f7
+// golden-hash: 742acdfef741045af811eebf160d048be427bbcd6b23ff9220d4eee1de017ea2

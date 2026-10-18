@@ -4618,6 +4618,19 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_FIT_UNAVAILABLE: {
+		Message: "Warning-class — an ATTR_REG_PREDICT slot scores from a Compose fit that failed on its data (its `fits` entry carries `error`), so no model is bound under that name: the slot's column is null on every row (aggregations over it count the rows in n_null) and every other slot of the response is computed normally. Details carry `fit` (the fit's name), `attribute` (the scoring slot's label) and `code` (the fit's own error code). Under Options.Strict the failed fit fails the whole batch with its own code before any slot runs.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Look up the fit's own error code (details.code) and apply its fixup to the fit request named by details.fit, then rerun the batch; the scoring slot needs no change.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "Point the slot's params.fit at another fit that converged, or drop the scoring slot when the failed fit cannot be repaired.",
+			},
+		},
+	},
 	PULSE_LIMIT_INVALID: {
 		Message: "An instance resource limit in Options.Limits holds a negative value other than -1, so pulse.New refused it before any instance existed. Every limit field uses one encoding: 0 means the built-in default, -1 (pulse.Unlimited) means no limit, and a positive value is the bound (nanoseconds for RequestTimeout). The snake_case limit name is under `limit` and the refused value under `value`.",
 		Fixups: []Fixup{

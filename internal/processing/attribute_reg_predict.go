@@ -25,6 +25,13 @@ import (
 // and runtime) runs first; bind re-runs it so a processor driven without
 // the service refuses the same way. A null in any column the score reads
 // emits NaN, which the orchestrator writes as a NULL (NullEmitter).
+//
+// A failed fit (a Compose `fits` entry that failed on its data —
+// model.Set.Failed) has no model: bind passes the same static checks
+// (the failed fit keeps its signature) and marks the slot unavailable,
+// so every row scores NaN — an all-null column — and the slot raises
+// one PULSE_FIT_UNAVAILABLE warning (attributeWarner) naming the fit;
+// every other slot of the request is computed normally.
 
 // regPredictAttribute is the ATTR_REG_PREDICT computer. scorer is nil
 // until bindModels resolves the fit.
@@ -32,12 +39,16 @@ type regPredictAttribute struct {
 	attr   *types.Attribute
 	schema *encoding.Schema
 	scorer *regression.Scorer
+	// unavailable is the PULSE_FIT_UNAVAILABLE warning of a slot whose
+	// fit failed on its data (nil otherwise): no scorer, every row null.
+	unavailable *types.ResponseWarning
 }
 
 var (
 	_ RowLocalAttribute = (*regPredictAttribute)(nil)
 	_ NullEmitter       = (*regPredictAttribute)(nil)
 	_ modelBinder       = (*regPredictAttribute)(nil)
+	_ attributeWarner   = (*regPredictAttribute)(nil)
 )
 
 // newRegPredictAttribute judges the params shape only (no model is in
@@ -70,6 +81,10 @@ func (a *regPredictAttribute) bindModels(models *model.Set) error {
 			}
 		}
 	}
+	if se, failed := models.Failed(p.Fit); failed {
+		a.unavailable = model.FitUnavailable(p.Fit, regPredictLabel(a.attr), se)
+		return nil
+	}
 	b, err := models.Lookup(p.Fit)
 	if err != nil {
 		return err
@@ -85,8 +100,30 @@ func (a *regPredictAttribute) bindModels(models *model.Set) error {
 // EmitsNull satisfies NullEmitter: a NaN from Row / Compute is a null.
 func (a *regPredictAttribute) EmitsNull() bool { return true }
 
-// Row is the row's score, NaN (null) when any column it reads is null.
+// attributeWarnings satisfies attributeWarner: the PULSE_FIT_UNAVAILABLE
+// warning of a slot over a failed fit.
+func (a *regPredictAttribute) attributeWarnings() []*types.ResponseWarning {
+	if a.unavailable == nil {
+		return nil
+	}
+	return []*types.ResponseWarning{a.unavailable}
+}
+
+// regPredictLabel is the slot's output label: its own, or the default
+// a scoring slot is written under.
+func regPredictLabel(attr *types.Attribute) string {
+	if attr.Label != "" {
+		return attr.Label
+	}
+	return model.DefaultScoreLabel(attr)
+}
+
+// Row is the row's score, NaN (null) when any column it reads is null
+// or the slot's fit failed on its data.
 func (a *regPredictAttribute) Row(rec *Record, _ string) (float64, error) {
+	if a.unavailable != nil {
+		return math.NaN(), nil
+	}
 	if a.scorer == nil {
 		return 0, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"ATTR_REG_PREDICT scored before its model was bound")

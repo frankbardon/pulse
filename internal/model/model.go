@@ -183,6 +183,9 @@ type Set struct {
 	// (record.go), keyed by vectors.ComparisonReference.RecordKey —
 	// not names: they share no namespace with the fits.
 	records map[string]RecordBinding
+	// failed are the Compose fits that failed on their data
+	// (failed.go): bound names with a Signature and no model.
+	failed map[string]failedFit
 }
 
 // Add binds b under b.Name; a name already bound is
@@ -209,6 +212,12 @@ func (s *Set) Lookup(name string) (*Bound, error) {
 		}
 		if _, ok := s.vectors[name]; ok {
 			return nil, KindMismatch(name, types.FitKindRegression, types.FitKindVector)
+		}
+		if f, ok := s.failed[name]; ok {
+			if k := f.sig.EffectiveKind(); k != types.FitKindRegression {
+				return nil, KindMismatch(name, types.FitKindRegression, k)
+			}
+			return nil, FailedFitRefusal(name, f.err)
 		}
 	}
 	return nil, UnknownModel(name, s.RegressionNames())
@@ -240,6 +249,9 @@ func (s *Set) Names() []string {
 	for n := range s.vectors {
 		out = append(out, n)
 	}
+	for n := range s.failed {
+		out = append(out, n)
+	}
 	sort.Strings(out)
 	return out
 }
@@ -254,6 +266,7 @@ func (s *Set) RegressionNames() []string {
 	for n := range s.byName {
 		out = append(out, n)
 	}
+	out = append(out, s.failedOfKind(types.FitKindRegression)...)
 	sort.Strings(out)
 	return out
 }
@@ -263,7 +276,7 @@ func (s *Set) Len() int {
 	if s == nil {
 		return 0
 	}
-	return len(s.byName) + len(s.vectors)
+	return len(s.byName) + len(s.vectors) + len(s.failed)
 }
 
 // setKey carries a request's bound-model Set on a context.

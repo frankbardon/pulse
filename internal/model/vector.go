@@ -113,6 +113,12 @@ func (s *Set) LookupVector(name string) (*VectorFit, error) {
 		if _, ok := s.byName[name]; ok {
 			return nil, KindMismatch(name, types.FitKindVector, types.FitKindRegression)
 		}
+		if f, ok := s.failed[name]; ok {
+			if k := f.sig.EffectiveKind(); k != types.FitKindVector {
+				return nil, KindMismatch(name, types.FitKindVector, k)
+			}
+			return nil, FailedFitRefusal(name, f.err)
+		}
 	}
 	ce := UnknownModel(name, s.VectorNames())
 	ce.Message = fmt.Sprintf("no vector fit named %q is bound in this request", name)
@@ -129,6 +135,7 @@ func (s *Set) VectorNames() []string {
 	for n := range s.vectors {
 		out = append(out, n)
 	}
+	out = append(out, s.failedOfKind(types.FitKindVector)...)
 	sort.Strings(out)
 	return out
 }
@@ -140,7 +147,8 @@ func (s *Set) bound(name string) bool {
 	}
 	_, reg := s.byName[name]
 	_, vec := s.vectors[name]
-	return reg || vec
+	_, failed := s.failed[name]
+	return reg || vec || failed
 }
 
 func nameCollision(name string) error {
@@ -237,7 +245,7 @@ func (c *VectorCapture) Fits() []*VectorFit {
 func (s *Set) WithCapture(c *VectorCapture) *Set {
 	out := &Set{capture: c}
 	if s != nil {
-		out.byName, out.vectors, out.records = s.byName, s.vectors, s.records
+		out.byName, out.vectors, out.records, out.failed = s.byName, s.vectors, s.records, s.failed
 	}
 	return out
 }

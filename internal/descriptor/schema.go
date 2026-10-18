@@ -600,12 +600,13 @@ func (b *schemaBuilder) structSchema(t reflect.Type) any {
 const slotErrorKey = "error"
 
 // slotIdentityKeys are the always-written keys a failed slot still
-// writes beside its `error` (types.SlotError): its name and type.
-var slotIdentityKeys = map[string]bool{"name": true, "type": true}
+// writes beside its `error` (types.SlotError): its name and type — a
+// failed vector fit (types.VectorFitResult) its operator.
+var slotIdentityKeys = map[string]bool{"name": true, "type": true, "operator": true}
 
 // hasSlotError reports whether struct t carries a per-slot failure
 // field — `error` of type *types.SlotError (a regression, test or
-// matrix result).
+// matrix result, or a vector fit's summary).
 func hasSlotError(t reflect.Type) bool {
 	f, ok := t.FieldByName("Error")
 	if !ok || f.Type != reflect.TypeFor[*types.SlotError]() {

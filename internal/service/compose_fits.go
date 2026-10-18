@@ -9,7 +9,6 @@ import (
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
-	"github.com/frankbardon/pulse/internal/slotfail"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -30,7 +29,18 @@ var slotModelsObserver func(label string, set *model.Set)
 // identical either way, since each fit is an independent, deterministic
 // Process. The structural rules (model.CheckFits) have already passed.
 //
-// A fit's own refusal keeps its code and gains details.fit — the
+// A fit that fails on its DATA (a data-dependent refusal its fit
+// request's Process turned into a failed slot — slotfail) fails alone:
+// its ComposedResponse.Fits entry carries `error` (types.SlotError), its
+// name binds as a failed fit (model.Set.AddFailed — no model, the
+// static signature kept), its own PULSE_SLOT_FAILED warning lifts to
+// the batch with details.fit, and no `save` file is written; every other
+// fit and slot runs. A slot scoring from it reads an all-null column
+// (ATTR_REG_PREDICT, PULSE_FIT_UNAVAILABLE); any other reader is refused
+// with the fit's own code. Under Strict the fit request's Process
+// already failed with that code, which fails the batch below.
+//
+// Any other fit refusal keeps its code and gains details.fit — the
 // 0-based entry index — the way a slot's gains details.request. With
 // several failing fits the lowest-index one is reported, serial and
 // parallel alike. No fits returns all nils: nothing is bound and
@@ -57,6 +67,10 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 	}
 	results := make([]*types.RegressionResult, n)
 	vectorFits := make([]*model.VectorFit, n)
+	// failed[i] is fit i's data failure (nil when it fitted), and
+	// failedOp a failed vector fit's battery operator.
+	failed := make([]*types.SlotError, n)
+	failedOp := make([]string, n)
 	saveWarnings := make([][]*types.ResponseWarning, n)
 	errs := make([]error, n)
 	run := func(ctx context.Context, i int) {
@@ -71,9 +85,14 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 			return
 		}
 		if model.FitKindOf(fits[i].Request) == types.FitKindVector {
-			vf, err := s.runVectorFit(ctx, fits[i], fitSet)
+			vf, fail, err := s.runVectorFit(ctx, fits[i], fitSet)
 			if err != nil {
 				errs[i] = err
+				return
+			}
+			if fail != nil {
+				failed[i], failedOp[i] = fail.err, fail.operator
+				saveWarnings[i] = append(saveWarnings[i], fail.warnings(i)...)
 				return
 			}
 			vectorFits[i] = vf
@@ -99,13 +118,14 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 				fmt.Sprintf("fit %q produced no regression result", fits[i].Name))
 			return
 		}
+		results[i] = resp.Regressions[0]
 		if se := resp.Regressions[0].Error; se != nil {
-			// A fit that failed on its data has no model to bind: the
-			// fit fails with its own code, as before per-slot results.
-			errs[i] = slotfail.AsError(se)
+			// Failed on its data: no model to bind or save; the fit's
+			// own PULSE_SLOT_FAILED warning lifts to the batch.
+			failed[i] = se
+			saveWarnings[i] = append(saveWarnings[i], slotFailedWarnings(resp, i)...)
 			return
 		}
-		results[i] = resp.Regressions[0]
 		// The fit's own response is not returned, so a model-file
 		// overwrite its regression's `save` reported is lifted to the
 		// batch (details.fit), then the fit's own `save` runs.
@@ -175,6 +195,18 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 	out := make(map[string]*types.FitResult, n)
 	var warnings []*types.ResponseWarning
 	for i, f := range fits {
+		if se := failed[i]; se != nil {
+			if err := set.AddFailed(failedSignature(f, i), se); err != nil {
+				return nil, nil, nil, fitFailure(fits, i, err)
+			}
+			if results[i] != nil {
+				out[f.Name] = &types.FitResult{RegressionResult: results[i]}
+			} else {
+				out[f.Name] = &types.FitResult{Vector: &types.VectorFitResult{Operator: failedOp[i], Error: se}}
+			}
+			warnings = append(warnings, saveWarnings[i]...)
+			continue
+		}
 		if vf := vectorFits[i]; vf != nil {
 			vf.Name, vf.Source = f.Name, model.FitSource(i)
 			summary, err := processing.VectorFitResult(vf)
@@ -205,23 +237,69 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 	return set, out, warnings, nil
 }
 
+// vectorFitFailure is a vector fit's data failure: its battery's error
+// and operator, and the fit request's response (its PULSE_SLOT_FAILED
+// warnings lift to the batch).
+type vectorFitFailure struct {
+	err      *types.SlotError
+	operator string
+	resp     *types.Response
+}
+
+// warnings are the failure's PULSE_SLOT_FAILED warnings with
+// details.fit = i.
+func (v *vectorFitFailure) warnings(i int) []*types.ResponseWarning {
+	return slotFailedWarnings(v.resp, i)
+}
+
 // runVectorFit runs a vector fit request with a capture on its bound
 // set and returns the one closed state its battery offered (unnamed:
-// the caller binds it). No offer, or more than one, is an engine
-// invariant violation (PROCESSING_INTERNAL) — CheckFits admitted one
-// battery.
-func (s *Service) runVectorFit(ctx context.Context, f types.FitSpec, fitSet *model.Set) (*model.VectorFit, error) {
+// the caller binds it) — or, when the battery (its one MAT_* slot)
+// failed on its data, that failure: a failed battery binds nothing,
+// whether or not it offered a state before failing. No offer, or more
+// than one, from a battery that did not fail is an engine invariant
+// violation (PROCESSING_INTERNAL) — CheckFits admitted one battery.
+func (s *Service) runVectorFit(ctx context.Context, f types.FitSpec, fitSet *model.Set) (*model.VectorFit, *vectorFitFailure, error) {
 	capture := &model.VectorCapture{}
-	if _, err := s.Process(withModelsBound(ctx, fitSet.WithCapture(capture)), model.FitRequest(f)); err != nil {
-		return nil, err
+	resp, err := s.Process(withModelsBound(ctx, fitSet.WithCapture(capture)), model.FitRequest(f))
+	if err != nil {
+		return nil, nil, err
+	}
+	if resp != nil {
+		for k := range resp.Matrices {
+			if se := resp.Matrices[k].Error; se != nil {
+				return nil, &vectorFitFailure{err: se, operator: string(resp.Matrices[k].Type), resp: resp}, nil
+			}
+		}
 	}
 	got := capture.Fits()
 	if len(got) != 1 {
-		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 			fmt.Sprintf("vector fit %q closed %d battery states; a vector fit closes exactly one", f.Name, len(got)),
 			map[string]any{"name": f.Name, "states": len(got)})
 	}
-	return got[0], nil
+	return got[0], nil, nil
+}
+
+// slotFailedWarnings are resp's PULSE_SLOT_FAILED warnings — a fit
+// request's failed battery or regression — each with details.fit = i.
+func slotFailedWarnings(resp *types.Response, i int) []*types.ResponseWarning {
+	var out []*types.ResponseWarning
+	for _, w := range resp.Warnings {
+		if w != nil && w.Code == string(errors.PULSE_SLOT_FAILED) {
+			out = append(out, fitWarning(w, i))
+		}
+	}
+	return out
+}
+
+// failedSignature is failed fit i's static signature — the one
+// predict's FitCatalog holds for it (model.CatalogFromFits), so a
+// reference to it is judged at runtime exactly as in predict.
+func failedSignature(f types.FitSpec, i int) model.Signature {
+	sig := model.CatalogFromFits([]types.FitSpec{f})[f.Name]
+	sig.Source = model.FitSource(i)
+	return sig
 }
 
 // fitWarning copies w with details.fit = i.

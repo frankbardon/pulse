@@ -481,3 +481,41 @@ func TestPayloadSchema_FailedSlotsValidate(t *testing.T) {
 		}
 	}
 }
+
+// TestPayloadSchema_FailedFitsValidate: a ComposedResponse whose
+// regression and vector fits failed alone — {name, type, error} and
+// {"vector": {operator, error}} — validates against the payload schema,
+// while a vector fit summary with neither its figures nor an error is
+// refused.
+func TestPayloadSchema_FailedFitsValidate(t *testing.T) {
+	c := jsonschema.NewCompiler()
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(BuildPayloadSchema()))
+	if err != nil {
+		t.Fatalf("unmarshal schema: %v", err)
+	}
+	if err := c.AddResource(payloadSchemaID, doc); err != nil {
+		t.Fatalf("add resource: %v", err)
+	}
+	se := &types.SlotError{Code: "PROCESSING_REGRESSION_SEPARATION", Message: "separated"}
+	out := types.ComposedResponse{
+		Responses: []*types.Response{{Data: []map[string]any{{"n": 40}},
+			Warnings: []*types.ResponseWarning{{Code: "PULSE_FIT_UNAVAILABLE", Message: "m", Details: map[string]any{"fit": "m"}}}}},
+		Fits: map[string]*types.FitResult{
+			"m":   {RegressionResult: &types.RegressionResult{Name: "m", Type: types.REG_GLM, Error: se}},
+			"pop": {Vector: &types.VectorFitResult{Operator: "MAT_COVARIANCE", Error: &types.SlotError{Code: "PULSE_MATRIX_SINGULAR", Message: "singular"}}},
+		},
+	}
+	validateAgainst(t, c, "#/$defs/ComposedResponse", out)
+
+	sch, err := c.Compile(payloadSchemaID + "#/$defs/VectorFitResult")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inst, err := jsonschema.UnmarshalJSON(strings.NewReader(`{"operator":"MAT_COVARIANCE"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sch.Validate(inst) == nil {
+		t.Error("VectorFitResult accepted without its figures or an error")
+	}
+}

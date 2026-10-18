@@ -124,6 +124,9 @@ func (s *Set) Signature(name string) (Signature, bool) {
 	if v, ok := s.vectors[name]; ok {
 		return v.Signature(), true
 	}
+	if f, ok := s.failed[name]; ok {
+		return f.sig, true
+	}
 	return Signature{}, false
 }
 

@@ -94,7 +94,9 @@ func (r *ExtensionRegistry) coefStaticRefusal(src string, models *model.Set) err
 }
 
 // modelRefusal returns the bound-model refusal (a PULSE_MODEL_* coded
-// error coef() raised) an expression evaluation error carries, or nil.
+// error coef() raised, or its refusal of a failed fit — the fit's own
+// code, model.ErrFitFailed) an expression evaluation error carries, or
+// nil.
 // Such a refusal is the request's fault, never the row's: it surfaces
 // under its own code, and a filter never reads it as an UNKNOWN verdict.
 func modelRefusal(err error) *errors.CodedError {
@@ -103,7 +105,7 @@ func modelRefusal(err error) *errors.CodedError {
 		if !stderrors.As(e, &ce) {
 			return nil
 		}
-		if strings.HasPrefix(string(ce.Code), "PULSE_MODEL_") {
+		if strings.HasPrefix(string(ce.Code), "PULSE_MODEL_") || stderrors.Is(ce.Cause, model.ErrFitFailed) {
 			return ce
 		}
 		e = ce.Cause

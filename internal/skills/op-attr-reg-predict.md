@@ -31,7 +31,7 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 ## Output
 
-One `f64` per record; null when a column the score reads is null. Training rows equal the fit's own fitted values bit for bit.
+One `f64` per record; null when a column the score reads is null, and on EVERY row when the fit failed on its data (its `fits` entry carries `error`): the slot then warns `PULSE_FIT_UNAVAILABLE` `{fit, attribute, code}` and the response's other slots compute normally (strict mode fails the batch with the fit's code first). Predict cannot foresee a failed fit. Training rows equal the fit's own fitted values bit for bit.
 
 <!-- generated: reading-the-output -->
 

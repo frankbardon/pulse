@@ -3621,6 +3621,16 @@ const (
 	// with the slot's own code instead.
 	PULSE_SLOT_FAILED Code = "PULSE_SLOT_FAILED"
 
+	// PULSE_FIT_UNAVAILABLE is a WARNING: an ATTR_REG_PREDICT slot scores
+	// from a Compose fit that failed on its data (ComposedResponse
+	// fits[name].error), so there is no model to score with — the slot's
+	// column is all null and every other slot of the response is computed
+	// normally. Details carry "fit" (the fit's name), "attribute" (the
+	// slot's label) and "code" (the fit's own error code). Under
+	// Options.Strict the failed fit already failed the whole batch with
+	// its own code.
+	PULSE_FIT_UNAVAILABLE Code = "PULSE_FIT_UNAVAILABLE"
+
 	// PULSE_LIMIT_INVALID indicates an instance resource limit
 	// (pulse.Options.Limits) holding a negative value other than
 	// pulse.Unlimited (-1). Raised by pulse.New before any instance
@@ -4251,6 +4261,7 @@ var allCodes = []Code{
 	PULSE_RETURN_PATH_UNKNOWN,
 	PULSE_RETURN_PATH_UNMATCHED,
 	PULSE_SLOT_FAILED,
+	PULSE_FIT_UNAVAILABLE,
 	PULSE_LIMIT_INVALID,
 	PULSE_LIMIT_EXCEEDED,
 	PULSE_DOCS_EXPORT_DIR_NOT_EMPTY,

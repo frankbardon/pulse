@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
+	"math"
 	"reflect"
 	"sort"
 	"strings"
@@ -295,20 +296,212 @@ func TestSlotFailure_ComposeHosted(t *testing.T) {
 	}
 }
 
-// TestSlotFailure_ComposeFitStillFailsWithItsCode: a Compose `fits`
-// entry whose regression fails on its data has no model to bind, so the
-// batch fails with the fit's own code (not a generic internal one).
-func TestSlotFailure_ComposeFitStillFailsWithItsCode(t *testing.T) {
+// scoreAttr is an ATTR_REG_PREDICT slot scoring fit under label.
+func scoreAttr(fit, label string) *types.Attribute {
+	return &types.Attribute{Type: types.ATTR_REG_PREDICT, Label: label, Params: json.RawMessage(`{"fit":"` + fit + `"}`)}
+}
+
+// failedFitBatch: fits "m" (a separated GLM) and "ok" (a good OLS); slot
+// "scored" scores both and averages each score, slot "other" counts.
+func failedFitBatch(cohort string) *types.ComposedRequest {
+	c := func() *types.Cohort { return &types.Cohort{Filename: cohort} }
+	return &types.ComposedRequest{
+		Fits: []types.FitSpec{
+			{Name: "m", Request: &types.Request{Cohort: c(), Regressions: []*types.RegressionSpec{separatedGLM("")}}},
+			{Name: "ok", Request: &types.Request{Cohort: c(), Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "v", Predictors: []string{"x"}}}}},
+		},
+		Requests: []*types.Request{
+			{Cohort: c(), Label: "scored",
+				Attributes: []*types.Attribute{scoreAttr("m", "p_m"), scoreAttr("ok", "p_ok")},
+				Aggregations: []*types.Aggregation{
+					{Type: types.AGG_COUNT, Field: "x", Label: "n"},
+					{Type: types.AGG_AVERAGE, Field: "p_m", Label: "mean_m"},
+					{Type: types.AGG_AVERAGE, Field: "p_ok", Label: "mean_ok"},
+				}},
+			{Cohort: c(), Label: "other", Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x", Label: "n"}}},
+		},
+	}
+}
+
+func asFloat(v any) (float64, bool) {
+	switch x := v.(type) {
+	case float64:
+		return x, true
+	case int64:
+		return float64(x), true
+	case int:
+		return float64(x), true
+	}
+	return 0, false
+}
+
+// TestSlotFailure_ComposeFitFailsAlone: a Compose fit that fails on its
+// data fails alone — its fits entry carries `error` (the fit's own code;
+// identity + error only on the wire), its PULSE_SLOT_FAILED warning
+// lifts to the batch with details.fit, the good fit binds and scores,
+// the ATTR_REG_PREDICT slot over the failed fit is an all-null column
+// (its mean null, every row in n_null) with one PULSE_FIT_UNAVAILABLE
+// warning naming the fit, and every other aggregation and slot is
+// computed normally — serial and parallel byte-identical.
+func TestSlotFailure_ComposeFitFailsAlone(t *testing.T) {
 	p, _, cohort := slotCohort(t, pulse.Options{})
-	_, err := p.Compose(context.Background(), &types.ComposedRequest{
-		Fits: []types.FitSpec{{Name: "m", Request: &types.Request{Cohort: &types.Cohort{Filename: cohort},
-			Regressions: []*types.RegressionSpec{separatedGLM("")}}}},
-		Requests: []*types.Request{{Cohort: &types.Cohort{Filename: cohort},
-			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x", Label: "n"}}}},
-	})
+	ctx := context.Background()
+	serial, err := p.Compose(ctx, failedFitBatch(cohort))
+	if err != nil {
+		t.Fatalf("Compose: %v", err)
+	}
+	parallel, err := p.ComposeParallel(ctx, failedFitBatch(cohort), pulse.ComposeOptions{MaxWorkers: 4})
+	if err != nil {
+		t.Fatalf("ComposeParallel: %v", err)
+	}
+	sb, _ := json.Marshal(serial)
+	pb, _ := json.Marshal(parallel)
+	if string(sb) != string(pb) {
+		t.Errorf("serial and parallel differ\n%s\n%s", sb, pb)
+	}
+	for name, out := range map[string]*types.ComposedResponse{"serial": serial, "parallel": parallel} {
+		m := out.Fits["m"]
+		if m == nil || m.RegressionResult == nil || m.Error == nil || m.Error.Code != string(perr.PROCESSING_REGRESSION_SEPARATION) || m.Coefficients != nil {
+			t.Fatalf("%s: failed fit entry %+v", name, m)
+		}
+		if ok := out.Fits["ok"]; ok == nil || ok.RegressionResult == nil || ok.Error != nil || ok.Coefficients == nil {
+			t.Errorf("%s: good fit entry %+v", name, ok)
+		}
+		var fitWarned bool
+		for _, w := range out.Warnings {
+			if w.Code == string(perr.PULSE_SLOT_FAILED) && w.Details["fit"] == 0 && w.Details["code"] == string(perr.PROCESSING_REGRESSION_SEPARATION) {
+				fitWarned = true
+			}
+		}
+		if !fitWarned {
+			t.Errorf("%s: no batch PULSE_SLOT_FAILED warning with details.fit 0: %+v", name, out.Warnings)
+		}
+		scored := out.Responses[0]
+		row := scored.Data[0]
+		if n, _ := asFloat(row["n"]); n != 40 {
+			t.Errorf("%s: count %v", name, row["n"])
+		}
+		if v, ok := asFloat(row["mean_m"]); ok && !math.IsNaN(v) {
+			t.Errorf("%s: mean over the failed fit's score %v, want undefined", name, row["mean_m"])
+		}
+		if v, ok := asFloat(row["mean_ok"]); !ok || math.IsNaN(v) {
+			t.Errorf("%s: mean over the good fit's score %v", name, row["mean_ok"])
+		}
+		if c := scored.Components; c != nil {
+			for _, a := range c.Aggregations {
+				if a.Label == "mean_m" && a.NNull != 40 {
+					t.Errorf("%s: mean_m n_null %d, want 40", name, a.NNull)
+				}
+			}
+		}
+		var unavailable []*types.ResponseWarning
+		for _, w := range scored.Warnings {
+			if w.Code == string(perr.PULSE_FIT_UNAVAILABLE) {
+				unavailable = append(unavailable, w)
+			}
+		}
+		if len(unavailable) != 1 || !reflect.DeepEqual(unavailable[0].Details, map[string]any{
+			"fit": "m", "attribute": "p_m", "code": string(perr.PROCESSING_REGRESSION_SEPARATION)}) {
+			t.Errorf("%s: PULSE_FIT_UNAVAILABLE warnings %+v", name, unavailable)
+		}
+		if other := out.Responses[1]; len(other.Data) != 1 || len(other.Warnings) != 0 {
+			t.Errorf("%s: other slot %+v", name, other)
+		}
+	}
+	var wire struct {
+		Fits map[string]map[string]json.RawMessage `json:"fits"`
+	}
+	if err := json.Unmarshal(sb, &wire); err != nil {
+		t.Fatal(err)
+	}
+	if keys := mapKeys(wire.Fits["m"]); !reflect.DeepEqual(keys, []string{"error", "name", "type"}) && !reflect.DeepEqual(keys, []string{"error", "type"}) {
+		t.Errorf("failed fit wire keys %v, want identity + error only", keys)
+	}
+}
+
+// TestSlotFailure_ComposeFitStrict: under Strict a fit that fails on its
+// data fails the whole batch with the fit's OWN code, located by
+// details.fit — serial and parallel.
+func TestSlotFailure_ComposeFitStrict(t *testing.T) {
+	p, _, cohort := slotCohort(t, pulse.Options{Strict: true})
+	ctx := context.Background()
+	for name, run := range map[string]func() error{
+		"serial": func() error { _, err := p.Compose(ctx, failedFitBatch(cohort)); return err },
+		"parallel": func() error {
+			_, err := p.ComposeParallel(ctx, failedFitBatch(cohort), pulse.ComposeOptions{MaxWorkers: 4})
+			return err
+		},
+	} {
+		var ce *perr.CodedError
+		if err := run(); !stderrors.As(err, &ce) || ce.Code != perr.PROCESSING_REGRESSION_SEPARATION || ce.Details["fit"] != 0 {
+			t.Errorf("%s strict: %v, want PROCESSING_REGRESSION_SEPARATION with details.fit 0", name, err)
+		}
+	}
+}
+
+// TestSlotFailure_ComposeFitOtherReaders: a failed fit writes no `save`
+// file, and a reader other than ATTR_REG_PREDICT — coef() — is refused
+// with the fit's own code naming the fit (there is no model to read).
+func TestSlotFailure_ComposeFitOtherReaders(t *testing.T) {
+	p, fs, cohort := slotCohort(t, pulse.Options{})
+	batch := failedFitBatch(cohort)
+	batch.Fits[0].Save = "models/m.pulse-model.json"
+	if _, err := p.Compose(context.Background(), batch); err != nil {
+		t.Fatalf("Compose: %v", err)
+	}
+	if ok, _ := afero.Exists(fs, "models/m.pulse-model.json"); ok {
+		t.Error("a failed fit's save wrote a model file")
+	}
+	batch = failedFitBatch(cohort)
+	batch.Requests[1].Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "c", Expression: `coef("m", "x")`}}
 	var ce *perr.CodedError
-	if !stderrors.As(err, &ce) || ce.Code != perr.PROCESSING_REGRESSION_SEPARATION {
-		t.Fatalf("compose fit: %v, want PROCESSING_REGRESSION_SEPARATION", err)
+	if _, err := p.Compose(context.Background(), batch); !stderrors.As(err, &ce) || ce.Code != perr.PROCESSING_REGRESSION_SEPARATION || ce.Details["fit"] != "m" {
+		t.Fatalf("coef over a failed fit: %v, want the fit's own code with details.fit", err)
+	}
+}
+
+// TestSlotFailure_ComposeVectorFitFailsAlone: a vector fit whose battery
+// fails on its data (a singular MAT_PARTIAL_CORRELATION) fails alone — its entry
+// is {"vector": {operator, error}}, nothing binds, the other slots run —
+// and fails the batch with its own code under Strict.
+func TestSlotFailure_ComposeVectorFitFailsAlone(t *testing.T) {
+	mk := func(cohort string) *types.ComposedRequest {
+		return &types.ComposedRequest{
+			Fits: []types.FitSpec{{Name: "pop", Request: &types.Request{Cohort: &types.Cohort{Filename: cohort},
+				Matrices: []types.MatrixSpec{{Name: "prec", Type: types.MAT_PARTIAL_CORRELATION, Fields: []string{"x", "z", "u"}}}}}},
+			Requests: []*types.Request{{Cohort: &types.Cohort{Filename: cohort},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x", Label: "n"}}}},
+		}
+	}
+	p, _, cohort := slotCohort(t, pulse.Options{})
+	out, err := p.Compose(context.Background(), mk(cohort))
+	if err != nil {
+		t.Fatalf("Compose: %v", err)
+	}
+	pop := out.Fits["pop"]
+	if pop == nil || pop.Vector == nil || pop.Vector.Error == nil || pop.Vector.Error.Code != string(perr.PULSE_MATRIX_SINGULAR) ||
+		pop.Vector.Operator != string(types.MAT_PARTIAL_CORRELATION) {
+		t.Fatalf("failed vector fit entry %+v", pop)
+	}
+	b, _ := json.Marshal(out)
+	if !strings.Contains(string(b), `"pop":{"vector":{"operator":"MAT_PARTIAL_CORRELATION","error":{"code":"PULSE_MATRIX_SINGULAR"`) {
+		t.Errorf("failed vector fit wire %s", b)
+	}
+	if len(out.Responses[0].Data) != 1 {
+		t.Errorf("slot %+v", out.Responses[0])
+	}
+	// A matrix slot reading the failed fit's state is refused with the
+	// fit's own code, naming it: there is no state to read.
+	reader := mk(cohort)
+	reader.Requests = append(reader.Requests, &types.Request{Cohort: &types.Cohort{Filename: cohort},
+		Matrices: []types.MatrixSpec{{Name: "cov", Type: types.MAT_COVARIANCE, Fields: []string{"x", "z", "u"}, Params: json.RawMessage(`{"fit":"pop"}`)}}})
+	var ce *perr.CodedError
+	if _, err := p.Compose(context.Background(), reader); !stderrors.As(err, &ce) || ce.Code != perr.PULSE_MATRIX_SINGULAR || ce.Details["fit"] != "pop" {
+		t.Fatalf("params.fit over a failed vector fit: %v, want PULSE_MATRIX_SINGULAR with details.fit pop", err)
+	}
+	strict, _, cohort := slotCohort(t, pulse.Options{Strict: true})
+	if _, err := strict.Compose(context.Background(), mk(cohort)); !stderrors.As(err, &ce) || ce.Code != perr.PULSE_MATRIX_SINGULAR || ce.Details["fit"] != 0 {
+		t.Fatalf("strict: %v, want PULSE_MATRIX_SINGULAR with details.fit 0", err)
 	}
 }
 

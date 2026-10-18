@@ -4991,12 +4991,22 @@
     },
     "VectorFitResult": {
       "additionalProperties": false,
+      "if": {
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      },
       "properties": {
         "basis": {
           "type": "string"
         },
         "covariance": {
           "$ref": "#/$defs/MatrixValues"
+        },
+        "error": {
+          "$ref": "#/$defs/SlotError"
         },
         "labels": {
           "items": {
@@ -5051,17 +5061,21 @@
         }
       },
       "required": [
-        "basis",
-        "covariance",
-        "labels",
-        "mean",
-        "members",
-        "n",
-        "n_star",
-        "n_weight_invalid",
-        "operator",
-        "sum_weights"
+        "operator"
       ],
+      "then": {
+        "required": [
+          "basis",
+          "covariance",
+          "labels",
+          "mean",
+          "members",
+          "n",
+          "n_star",
+          "n_weight_invalid",
+          "sum_weights"
+        ]
+      },
       "type": "object"
     },
     "VectorKind": {
@@ -5267,4 +5281,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: b67d366ecf63070c2159874a3554cd33e1ac5175c79824d49a10d799dd26fe6f
+// golden-hash: 91533f7bc5fe980f8bc2496e4bfd6a2a35a7dd7576304d0098937fbdb70a58d0
