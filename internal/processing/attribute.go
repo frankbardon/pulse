@@ -599,8 +599,8 @@ func (a *percentileAttribute) Compute(records []*Record, field string) ([]float6
 // epoch days on the calendar (no zone ever applies); a `datetime` column
 // as an instant whose parts are the wall clock in the slot's zone (zone
 // nil: UTC), via temporal.LocalParts — or, under a per-row zone field
-// (`tz_field`), in the zone the row's own cell names; a null zone cell
-// makes the part null (AttributeNull).
+// (`tz_field`), in the zone the row's own cell names. A null date cell,
+// and a null zone cell, make the part null (AttributeNull).
 type datePartAttribute struct {
 	part string
 	date dateField
@@ -641,15 +641,16 @@ func (a *datePartAttribute) Compute(records []*Record, field string) ([]float64,
 	return result, nil
 }
 
-// Row extracts the configured date part from a single record. Null date
-// values produce 0 (matches buffered Compute semantics). Under a per-row
-// zone field a null zone cell produces AttributeNull: the instant is
-// known but its local calendar is not, so the part is null (the slot's
-// n_null), never the UTC part.
+// Row extracts the configured date part from a single record (Compute
+// is Row per record). A null `date` / `datetime` cell produces
+// AttributeNull: a null date has no part, so the part is null (the
+// aggregation's n_null), never a real-looking 0. Under a per-row zone
+// field a null zone cell does too: the instant is known but its local
+// calendar is not, so the part is null, never the UTC part.
 func (a *datePartAttribute) Row(r *Record, field string) (float64, error) {
 	v, ok := r.NumericValue(field)
 	if !ok {
-		return 0, nil
+		return AttributeNull, nil
 	}
 	if a.date.perRow() {
 		z, ok := a.date.rowZone(r)

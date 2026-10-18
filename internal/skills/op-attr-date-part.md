@@ -23,7 +23,7 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 ## Output
 
-One `f64` integer per record: `year` = YYYY, `month` = 1..12, `day` = 1..31, `year_month` = YYYYMM, `year_month_day` = YYYYMMDD, `month_day` = MMDD, `hour` = 0..23, `iso_weekday` = 1..7 (ISO: 1 = Monday, 7 = Sunday; the LOCAL day on a `datetime`). Null source → `0` (not null).
+One `f64` integer per record: `year` = YYYY, `month` = 1..12, `day` = 1..31, `year_month` = YYYYMM, `year_month_day` = YYYYMMDD, `month_day` = MMDD, `hour` = 0..23, `iso_weekday` = 1..7 (ISO: 1 = Monday, 7 = Sunday; the LOCAL day on a `datetime`). Null `date` / `datetime` source → `null` (never `0`), counted in the aggregation's `n_null`.
 
 ## Gotchas
 

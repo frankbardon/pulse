@@ -411,7 +411,7 @@ func TestAttribute_DatePart_Empty(t *testing.T) {
 	}
 }
 
-func TestAttribute_DatePart_NullReturnsZero(t *testing.T) {
+func TestAttribute_DatePart_NullReturnsNull(t *testing.T) {
 	schema := dateSchema()
 	attr := makeDatePartAttribute(t, "enrolled", schema, "year")
 	records := makeRecordsWithNulls(schema, "enrolled", []float64{19797, 0}, []int{1})
@@ -423,8 +423,8 @@ func TestAttribute_DatePart_NullReturnsZero(t *testing.T) {
 	if result[0] != 2024 {
 		t.Errorf("year[0] = %f, want 2024", result[0])
 	}
-	if result[1] != 0 {
-		t.Errorf("year[1] = %f, want 0 (null)", result[1])
+	if !IsAttributeNull(result[1]) {
+		t.Errorf("year[1] = %f, want AttributeNull (a null date has no year)", result[1])
 	}
 }
 

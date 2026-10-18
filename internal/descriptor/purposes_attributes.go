@@ -16,8 +16,9 @@ import "github.com/frankbardon/pulse/descriptor"
 // Each Purpose states the operator as Pulse implements it
 // (internal/processing/attribute*.go), not as the textbook default: the
 // z- and T-scores use the population standard deviation (dividing by n),
-// a missing input reads 0 (50 for the T-score), never null, and
-// ATTR_PERCENTILE gives tied values distinct ranks.
+// a missing input to a standardised score reads 0 (50 for the T-score),
+// never null, while a missing date gives ATTR_DATE_PART a missing part,
+// and ATTR_PERCENTILE gives tied values distinct ranks.
 var attributePurposes = map[string]descriptor.Purpose{
 	"ATTR_CODE_IN":    purposeAttrCodeIn,
 	"ATTR_DATE_PART":  purposeAttrDatePart,
@@ -72,7 +73,7 @@ var (
 		Assumptions: []string{
 			"Reads a date field (epoch days) or a datetime field; a datetime is read on the local clock of its time zone, and the hour part needs a datetime.",
 			"The part is an encoded number (YYYYMM for year_month), so arithmetic on it is meaningless.",
-			"A missing date reads 0.",
+			"A missing date gives a missing part, never 0.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"missing-value"},

@@ -2,7 +2,6 @@ package processing
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -140,10 +139,10 @@ func TestAttribute_DatePart_FieldRefusals(t *testing.T) {
 	}
 }
 
-// TestAttribute_DatePart_DateIgnoresZoneKeepsNullZero: over a `date` the
-// zone-free calendar reading and the pre-existing null → 0 posture are
-// unchanged.
-func TestAttribute_DatePart_DateIgnoresZoneKeepsNullZero(t *testing.T) {
+// TestAttribute_DatePart_DateIgnoresZoneNullIsNull: over a `date` the
+// zone-free calendar reading is unchanged and a null date is a null
+// part (AttributeNull), never 0.
+func TestAttribute_DatePart_DateIgnoresZoneNullIsNull(t *testing.T) {
 	schema := dateTimeSchema()
 	attr, err := attributeRegistry[types.ATTR_DATE_PART](&types.Attribute{
 		Type: types.ATTR_DATE_PART, Field: "d", Label: "p", Params: json.RawMessage(`{"part":"year_month_day"}`),
@@ -156,8 +155,55 @@ func TestAttribute_DatePart_DateIgnoresZoneKeepsNullZero(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []float64{20240315, 0, 19691231}; fmt.Sprint(got) != fmt.Sprint(want) {
-		t.Fatalf("got %v, want %v", got, want)
+	if got[0] != 20240315 || !IsAttributeNull(got[1]) || got[2] != 19691231 {
+		t.Fatalf("got %v, want [20240315 AttributeNull 19691231]", got)
+	}
+}
+
+// TestAttribute_DatePart_NullInputIsNullEveryPart: a null `date` or
+// `datetime` cell is a null part — AttributeNull, which every arm
+// writes as a null and every aggregation counts in n_null — for every
+// part, on the buffered (Compute) and row-at-a-time (Row) paths, with
+// no zone, a slot zone, and a per-row zone field whose cell is set.
+// Never the legacy 0, a real-looking number.
+func TestAttribute_DatePart_NullInputIsNullEveryPart(t *testing.T) {
+	schema := dateTimeSchema()
+	dateParts := []string{"year", "month", "day", "year_month", "year_month_day", "month_day", "iso_weekday"}
+	for _, tc := range []struct {
+		field, tz string
+		parts     []string
+		value     float64
+	}{
+		{"d", "", dateParts, 19797},
+		{"ts", "", append(append([]string{}, dateParts...), "hour"), 1773000000},
+		{"ts", "Asia/Tokyo", append(append([]string{}, dateParts...), "hour"), 1773000000},
+	} {
+		for _, part := range tc.parts {
+			t.Run(tc.field+"/"+tc.tz+"/"+part, func(t *testing.T) {
+				attr, err := attributeRegistry[types.ATTR_DATE_PART](&types.Attribute{
+					Type: types.ATTR_DATE_PART, Field: tc.field, Label: "p", TimeZone: tc.tz,
+					Params: json.RawMessage(`{"part":"` + part + `"}`),
+				}, schema)
+				if err != nil {
+					t.Fatal(err)
+				}
+				recs := makeRecordsWithNulls(schema, tc.field, []float64{tc.value, 0}, []int{1})
+				got, err := attr.Compute(recs, tc.field)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if IsAttributeNull(got[0]) || !IsAttributeNull(got[1]) {
+					t.Fatalf("Compute = %v, want [value AttributeNull]", got)
+				}
+				row, err := attr.(RowLocalAttribute).Row(recs[1], tc.field)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !IsAttributeNull(row) {
+					t.Fatalf("Row on a null %s = %v, want AttributeNull", tc.field, row)
+				}
+			})
+		}
 	}
 }
 

@@ -82,7 +82,7 @@ Adds a calendar part of a date or timestamp to every row, such as the year, the 
 
 - Reads a date field (epoch days) or a datetime field; a datetime is read on the local clock of its time zone, and the hour part needs a datetime.
 - The part is an encoded number (YYYYMM for year_month), so arithmetic on it is meaningless.
-- A missing date reads 0.
+- A missing date gives a missing part, never 0.
 
 **Use something else:**
 
