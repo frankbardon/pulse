@@ -620,9 +620,11 @@ fall-back repeats the hour) or nonexistent (a spring-forward skips it):
 `error` (default) fails the import at the first such row with
 `PULSE_IMPORT_DST_AMBIGUOUS` / `PULSE_IMPORT_DST_NONEXISTENT`, naming
 `row`, `column`, `value` and `zone`, and writes nothing; `earlier` uses
-the pre-transition offset (an overlap's first occurrence; Berlin
-`2026-03-29 02:30` → `01:30Z`), `later` the post-transition offset
-(second occurrence; → `00:30Z`). A resolved value is never silent: one
+the pre-transition offset, `later` the post-transition offset. For an
+overlap that is the first / second occurrence. For a nonexistent time it
+inverts the wall clock: Berlin `2026-03-29 02:30` under `earlier` is
+`01:30Z` = `03:30` local (the LATER wall clock), under `later` `00:30Z` =
+`01:30` local. A resolved value is never silent: one
 `PULSE_IMPORT_DST_RESOLVED` warning carries `ambiguous_n` /
 `nonexistent_n` (`warnings` and `data.zone_warnings` under `--json`). The
 policy is inert without a zone and under a fixed offset.

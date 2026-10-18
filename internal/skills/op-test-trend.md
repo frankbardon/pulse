@@ -26,7 +26,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Inputs
 
-`Field` — numeric output column (typically a smoothed window column or a grouped aggregate). `OrderBy` — numeric or `date`, defining order.
+`Field` — numeric output column (typically a smoothed window column or a grouped aggregate). `OrderBy` — numeric or `date`, defining order. The test always re-sorts by `OrderBy`, never following grouper row order; a STRING key sorts byte-wise (lexicographic): zero-padded `GROUP_DATE` keys (month, ISO week, quarter, `hour_of_day`) sort chronologically, but `day_of_week` names (grouper order Monday-first) re-sort alphabetically (Friday, Monday, ...) — order by a numeric key (`iso_weekday`) instead. See `op-group-date`.
 
 ## Output
 

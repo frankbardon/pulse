@@ -339,6 +339,35 @@ func TestTrendPost_OrderingApplied(t *testing.T) {
 	}
 }
 
+// TestTrendPost_StringOrderKeysSortLexicographically pins that TEST_TREND
+// re-sorts by OrderBy and never follows the grouper's row order: string
+// keys compare byte-wise, so day_of_week names (Monday-first from the
+// grouper) are re-ordered alphabetically. Rows arrive Monday-first with a
+// rising value; the alphabetical re-sort scrambles the series, so S is not
+// the monotone 28.
+func TestTrendPost_StringOrderKeysSortLexicographically(t *testing.T) {
+	post, _ := newTrendPost(&types.Test{
+		Type:    types.TEST_TREND,
+		Field:   "value",
+		Alpha:   0.05,
+		OrderBy: []types.OrderKey{{Field: "day"}},
+	}, nil)
+	days := []string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
+	rows := make([]map[string]any, 0, len(days))
+	for i, d := range days {
+		rows = append(rows, map[string]any{"day": d, "value": float64(i + 1)})
+	}
+	res, err := post.Run(rows)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	// Alphabetical: Friday(5) Monday(1) Saturday(6) Sunday(7) Thursday(4)
+	// Tuesday(2) Wednesday(3) -> S = -3 (not the Monday-first S = 21).
+	if got := res.Details["s"].(float64); got != -3 {
+		t.Errorf("S = %g, want -3 (lexicographic re-sort of string keys)", got)
+	}
+}
+
 func chiSquareFixtureSchema() *encoding.Schema {
 	kindDict := encoding.NewDictionary()
 	outcomeDict := encoding.NewDictionary()
