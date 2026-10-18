@@ -175,6 +175,20 @@ following gates:
 - `TestGroupSetValue_IncludeFiltersCompositeKey`
 - `TestGroupSetPerElement_IncludeFilters`
 
+### Bucket emission order
+
+Buckets emit alphabetically unless the grouper declares an order. A
+built-in grouper whose keys carry an intrinsic order (quantile ids,
+numeric range edges) implements the unexported `keyOrderer` hook in
+`internal/processing/grouper.go` — `keyRank(key string) (float64, bool)`,
+derived from the key and the grouper's configuration only, never from
+the records it saw — and adds a `_ keyOrderer = (*yourGrouper)(nil)`
+lock. Every emission site (grouped rows on every arm, `groups`
+composites, both crosstab arms, grouped matrices) then honours it; an
+explicit `Include` and `Request.Sort` still win. Pin it with a shuffled
+`orderKeysByInclude(includeFilterOf(g), keys)` case and a fused-vs-
+buffered crosstab case (`grouper_bucket_order_test.go`).
+
 ## 8. Update the grouper-design skill
 
 Add a section in `skills/grouper-design.md` covering the new

@@ -29,4 +29,6 @@ picks the day a week begins. `GROUP_QUANTILE` interval picks the bucket count; k
 prefix changes by N (Q for 4, D for 10, P for 100, B otherwise).
 `GROUP_RANGE` and `GROUP_ROUNDED` use the same binning formula but
 different key formats: `GROUP_RANGE` keys are `"low-high"` strings,
-`GROUP_ROUNDED` keys are the bin's lower bound.
+`GROUP_ROUNDED` keys are the bin's lower bound. Quantile and range rows
+come out in bucket order (`D1…D10`, ranges by low edge) with no `sort`;
+a `sort` on the key column would compare the key strings instead.

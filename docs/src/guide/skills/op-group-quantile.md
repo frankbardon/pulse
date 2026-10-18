@@ -39,7 +39,7 @@ Weight (both kinds; `"weight": null` opts out): buckets cut at the weighted orde
 
 ## Output
 
-Bucket label per row (`Qk` / `Dk` / `Pk`).
+Bucket label per row (`Qk` / `Dk` / `Pk`). Rows emit in bucket order (`D1`, `D2`, …, `D10`, never `D1`, `D10`, `D2`) — grouped rows, `groups` composites, crosstab axes; keys stay unpadded. An explicit `sort` wins (sorting the key column compares strings).
 
 ## Components
 

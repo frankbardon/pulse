@@ -25,7 +25,7 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 ## Output
 
-String label `"low-high"` per row (`"10-20"` holds `[10, 20)`). Smart default (Interval=10) for numeric.
+String label `"low-high"` per row (`"10-20"` holds `[10, 20)`). Smart default (Interval=10) for numeric. Rows emit by numeric low edge (`"-20--10"`, `"-10-0"`, `"0-10"`, `"10-20"`, `"100-110"`) on every arm (streaming, shards, fused crosstab). An explicit `sort` or crosstab-axis `include` wins; sorting the key column compares strings.
 
 ## Components
 
