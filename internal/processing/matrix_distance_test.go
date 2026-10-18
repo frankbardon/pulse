@@ -479,6 +479,41 @@ func TestMatrixDistance_DateBetweenSlotZone(t *testing.T) {
 	}
 }
 
+// TestMatrixDistance_DateBetweenPerRowZone (U50): a GROUP_DATE between
+// carrying a per-row zone field reads each row on the local day of the
+// zone its own cell names — bucket g=1 in UTC (2026-03-26), g=2 and
+// g=3 in Europe/Berlin (the NEXT days, 03-28 and 03-29) — so its
+// centroids and distances still equal the GROUP_CATEGORY answer over
+// g; a row whose zone cell is null is a null key like a null instant.
+func TestMatrixDistance_DateBetweenPerRowZone(t *testing.T) {
+	schema, _ := distanceSchema(2)
+	zd := encoding.NewDictionary()
+	_, _ = zd.Add("UTC")
+	_, _ = zd.Add("Europe/Berlin")
+	schema.Fields = append(schema.Fields,
+		encoding.Field{Name: "ts", Type: encoding.FieldTypeDateTime, Nullable: true},
+		encoding.Field{Name: "tz", Type: encoding.FieldTypeCategoricalU8, Dictionary: zd, Nullable: true})
+	rows, nulls := distanceRows()
+	for i, r := range rows {
+		r["ts"] = float64(time.Date(2026, 3, 25+int(r["g"]), 23, 30, 0, 0, time.UTC).Unix())
+		r["tz"] = 0 // UTC
+		if r["g"] != 1 {
+			r["tz"] = 1 // Europe/Berlin
+		}
+		if nulls[i]["g"] {
+			// the null key rides the zone cell, not the instant
+			nulls[i]["tz"] = true
+		}
+	}
+	want, _ := runDistance(t, schema, distanceSpec(`{"between": {"type": "GROUP_CATEGORY", "field": "g"}, "metric": "mahalanobis", "standardize": true}`), rows, nulls)
+	got, comp := runDistance(t, schema, distanceSpec(`{"between": {"type": "GROUP_DATE", "field": "ts", "tz_field": "tz", "params": {"component": "day"}}, "metric": "mahalanobis", "standardize": true}`), rows, nulls)
+	if keys := []string{"2026-03-26", "2026-03-28", "2026-03-29"}; fmt.Sprint(got.Primary.RowKeys) != fmt.Sprint(keys) || comp.Operator["n_null_key"] != 1 {
+		t.Fatalf("keys %v (n_null_key %v), want %v", got.Primary.RowKeys, comp.Operator["n_null_key"], keys)
+	}
+	distNearRows(t, "primary", got.Primary, want.Primary.Values)
+	distNearRows(t, "centroids", got.Auxiliary["centroids"], want.Auxiliary["centroids"].Values)
+}
+
 // TestMatrixDistance_ProjectionReadsExtensionBetween (TODO #411): an
 // extension grouper as params.between is projected like one in
 // Request.Groups — its field plus what its FieldInputs hook declares,

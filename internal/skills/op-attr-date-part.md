@@ -28,9 +28,9 @@ One `f64` integer per record: `year` = YYYY, `month` = 1..12, `day` = 1..31, `ye
 ## Gotchas
 
 - Row-local one-pass — streams cleanly.
-- Useful as a grouping key (e.g. `month_day` for seasonality) or as a `FEAT` substitute when post-filter visibility is needed.
+- A grouping key (`month_day` for seasonality) or a post-filter `FEAT` substitute.
 - Non-date-family field, `hour` on a `date` → `PULSE_FIELD_TYPE_UNSUPPORTED`; unknown `part` → `PROCESSING_CONFIG`.
-- Zone-capable: a `datetime` reads the LOCAL clock (slot `tz` → `time_zone` → default → UTC). A `date` ignores zones: explicit `tz` refused, inherited not applied.
+- Zone-capable: a `datetime` reads the LOCAL clock (slot `tz` / `tz_field` → `time_zone_field` / `time_zone` → default → UTC); null `tz_field` cell → `null`. A `date` ignores zones (explicit refused).
 
 ## See
 

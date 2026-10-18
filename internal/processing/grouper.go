@@ -1310,7 +1310,7 @@ func newDateGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) 
 	// introduce a new rejection. The call resolves the day-vs-second
 	// reading of the column and nothing else. Only `hour` — which needs
 	// a time of day — insists on a datetime (dategroup.CheckField).
-	date, err := resolveDateField("GROUP_DATE", grp.Field, grp.TimeZone, schema, false)
+	date, err := resolveDateField("GROUP_DATE", grp.Field, grp.TimeZone, grp.TimeZoneField, schema, false)
 	if err != nil {
 		return nil, err
 	}
@@ -1395,21 +1395,29 @@ func (g *dateGrouper) KeyFor(r *Record) (string, error) {
 	if !ok {
 		return "", ErrGrouperKeyNull
 	}
-	if g.hour {
-		return temporal.HourToTime(g.date.epochHour(v)).Format(hourKeyLayout), nil
+	u, ok := g.unit(r, v)
+	if !ok {
+		// A null per-row zone cell: the row has no local calendar
+		// value, so it lands in no bucket (the grouper's n_null).
+		return "", ErrGrouperKeyNull
 	}
-	t := temporal.DayToTime(g.date.epochDay(v))
-	return g.formatDateKey(t), nil
+	if g.hour {
+		return temporal.HourToTime(u).Format(hourKeyLayout), nil
+	}
+	return g.formatDateKey(temporal.DayToTime(u)), nil
 }
 
-// unit is the bucket unit of a decoded value: its (local) epoch day, or
-// its local epoch hour for the `hour` component. Components() boundaries
-// and range_start / range_end are derived from it.
-func (g *dateGrouper) unit(v float64) int64 {
+// unit is the bucket unit of decoded value v of record r: its (local)
+// epoch day, or its local epoch hour for the `hour` component, in the
+// slot's zone or — under a per-row zone field — in r's own zone.
+// ok=false when r's zone cell is null (no local value). Bucket keys,
+// Components() boundaries and range_start / range_end are derived
+// from it.
+func (g *dateGrouper) unit(r *Record, v float64) (int64, bool) {
 	if g.hour {
-		return g.date.epochHour(v)
+		return g.date.epochHourAt(r, v)
 	}
-	return g.date.epochDay(v)
+	return g.date.epochDayAt(r, v)
 }
 
 // KeyForRow is the StreamingGrouper-shape adapter on top of KeyFor.
@@ -1430,7 +1438,9 @@ func (g *dateGrouper) KeyForRow(r *Record, _ string) (string, bool, error) {
 		// tracker safe under contract drift.
 		return key, ok, nil
 	}
-	g.trackDateRow(g.unit(v), key)
+	if u, ok3 := g.unit(r, v); ok3 {
+		g.trackDateRow(u, key)
+	}
 	return key, ok, nil
 }
 
@@ -1459,7 +1469,9 @@ func (g *dateGrouper) Group(records []*Record, field string) (map[string][]*Reco
 			if !ok {
 				continue
 			}
-			g.trackDateRow(g.unit(v), key)
+			if u, ok := g.unit(r, v); ok {
+				g.trackDateRow(u, key)
+			}
 		}
 	}
 	return groups, nil
@@ -1574,7 +1586,7 @@ func newDateRangesGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, e
 	// Validate against the schema when present (the runtime always
 	// supplies one); a nil schema (e.g. a probe with no field) skips
 	// the check. A `datetime` Field day-truncates per record.
-	date, err := resolveDateField("GROUP_DATE_RANGES", grp.Field, grp.TimeZone, schema, true)
+	date, err := resolveDateField("GROUP_DATE_RANGES", grp.Field, grp.TimeZone, grp.TimeZoneField, schema, true)
 	if err != nil {
 		return nil, err
 	}
@@ -1683,7 +1695,13 @@ func (g *dateRangesGrouper) KeyFor(r *Record) (string, error) {
 	if !ok {
 		return "", ErrGrouperKeyNull
 	}
-	if label, matched := g.set.Match(g.date.epochDay(v)); matched {
+	day, ok := g.date.epochDayAt(r, v)
+	if !ok {
+		// A null per-row zone cell: no local day, so no bucket — not
+		// even the unmatched one (the grouper's n_null).
+		return "", ErrGrouperKeyNull
+	}
+	if label, matched := g.set.Match(day); matched {
 		return label, nil
 	}
 	return g.unmatchedLabel, nil

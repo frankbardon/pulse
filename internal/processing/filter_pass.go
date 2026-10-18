@@ -66,7 +66,9 @@ func newFilterPassCounters(filterers []*types.Filterer) []filterPassCounters {
 //  1. nIn[i]++ unconditionally on entry — a record reaches slot i iff
 //     every prior slot admitted it.
 //  2. nNullInput[i]++ when filterers[i].Field is non-empty and the
-//     record's Field is null on input.
+//     record's Field is null on input — or, for a slot reading a
+//     per-row zone field (TimeZoneField), that field's cell is null
+//     (the row's local value is null). Counted once either way.
 //  3. nOut[i]++ iff the filter function returns true.
 //
 // AND semantics: the first rejecting filterer short-circuits — no
@@ -86,6 +88,11 @@ func applyFilterPass(
 	for i, fn := range filterFns {
 		counters[i].nIn++
 		if field := filterers[i].Field; field != "" && record.IsNull(field) {
+			counters[i].nNullInput++
+		} else if zf := filterers[i].TimeZoneField; zf != "" && field != "" && record.IsNull(zf) {
+			// A per-row zone field's null cell leaves the row's local
+			// day null: the slot's input is null even though the
+			// instant is not (FILTER_DATE_RANGES drops it).
 			counters[i].nNullInput++
 		}
 		ok, err := fn(record)

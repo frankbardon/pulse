@@ -682,9 +682,9 @@ func ZonedFacetRequest(req *types.FacetRequest, zones []descriptor.ResolvedZone,
 // `datetime` (or not judged) — and the write is skipped by the slot
 // writer when the slot already names that field (its own `tz_field`).
 //
-// TODO(local-time/E1-S2): the operators do not read `tz_field` yet; a
-// field-sourced slot executes on UTC days until E1-S2 wires the per-row
-// zone table (temporal.ZoneTable) into internal/processing/date_field.go.
+// The operators read a slot's `tz_field` through a temporal.ZoneTable
+// (internal/processing/date_field.go, the FEAT_DATE_FEATURES computer)
+// and the projection decodes it (processing.NeededFields).
 func inheritedZoneWrites(zones []descriptor.ResolvedZone, load ZoneLoader) map[string]zoneWrite {
 	if load == nil {
 		load = temporal.LoadZone

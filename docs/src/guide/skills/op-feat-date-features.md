@@ -48,10 +48,10 @@ Columns prefixed by `Label` (default the field name):
 
 ## Gotchas
 
-- Null source → every column `null`.
+- Null source or `tz_field` cell → every column `null`.
 - `dow` `0` = Sunday, NOT ISO; ignores `week_start`.
 - Suffixes are `dow` / `quarter` (not `day_of_week` / `is_weekend`).
-- Zone-capable: a `datetime` reads the LOCAL clock (slot `tz` → `time_zone` → default → UTC). A `date` ignores zones: explicit `tz` refused, inherited not applied.
+- Zone-capable: a `datetime` reads the LOCAL clock (slot `tz` / `tz_field` → `time_zone_field` / `time_zone` → default → UTC). A `date` ignores zones (explicit refused).
 - Streamable per-row.
 
 ## See

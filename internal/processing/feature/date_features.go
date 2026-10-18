@@ -27,11 +27,19 @@ func init() {
 // zone resolution) via temporal.LocalParts — UTC when none applies. A
 // field absent from the schema (derived) is read as epoch days; the
 // zone resolver refuses a non-UTC zone onto one.
+//
+// Under a per-row zone field (`tz_field`, or an inherited request
+// `time_zone_field`) a `datetime` is read on the wall clock of the zone
+// its own row's zone cell names (zones, indexed by dictionary code);
+// a null zone cell makes every column of that row null — the instant
+// is known, its local calendar is not — never the UTC parts.
 type dateFeatures struct {
-	prefix  string
-	parts   []string
-	seconds bool
-	zone    *temporal.Zone
+	prefix    string
+	parts     []string
+	seconds   bool
+	zone      *temporal.Zone
+	zoneField string
+	zones     *temporal.ZoneTable
 }
 
 // featureZones memoises zones loaded from a slot `tz` (a Zone is
@@ -60,9 +68,14 @@ func newDateFeatures(feat *types.Feature, schema *encoding.Schema) (Computer, er
 			}
 		}
 	}
-	// TODO(local-time/E1-S2): feat.TimeZoneField (a per-row zone field,
-	// validated by internal/descriptor.ResolveZones) is not read yet; the
-	// slot executes in UTC until E1-S2 wires a temporal.ZoneTable here.
+	if feat.TimeZoneField != "" && c.seconds {
+		zones, err := featureZoneTable(feat.TimeZoneField, schema)
+		if err != nil {
+			return nil, err
+		}
+		c.zoneField, c.zones = feat.TimeZoneField, zones
+		return c, nil
+	}
 	if feat.TimeZone != "" {
 		z, err := featureZones.Load(feat.TimeZone)
 		if err != nil {
@@ -73,6 +86,43 @@ func newDateFeatures(feat *types.Feature, schema *encoding.Schema) (Computer, er
 		}
 	}
 	return c, nil
+}
+
+// featureZoneTable builds the per-row zone table of zone field name
+// (its dictionary's entries through featureZones), forked for this
+// operator. ResolveZones and the field-reference pass refuse an absent
+// or non-categorical zone field first; reaching one here is a wiring
+// fault, PROCESSING_CONFIG.
+func featureZoneTable(name string, schema *encoding.Schema) (*temporal.ZoneTable, error) {
+	var f *encoding.Field
+	if schema != nil {
+		f = schema.Field(name)
+	}
+	if f == nil || !f.Type.IsCategorical() || f.Dictionary == nil {
+		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("FEAT_DATE_FEATURES tz_field %q must name a categorical schema field of IANA zone names", name),
+			map[string]any{"operator": string(types.FEAT_DATE_FEATURES), "tz_field": name})
+	}
+	t, err := temporal.LoadZones(f.Dictionary.Values(), featureZones.Load)
+	if err != nil {
+		return nil, err
+	}
+	return t.Fork(), nil
+}
+
+// rowZone is the zone record r's instant is read in: the slot zone
+// (nil: UTC) without a per-row zone field, else the zone r's zone cell
+// names; ok=false when that cell is null or names no dictionary entry.
+func (c *dateFeatures) rowZone(r Record) (*temporal.Zone, bool) {
+	if c.zones == nil {
+		return c.zone, true
+	}
+	code, ok := r.NumericValue(c.zoneField)
+	if !ok {
+		return nil, false
+	}
+	z := c.zones.At(uint32(code))
+	return z, z != nil
 }
 
 var dateFeatureParts = []string{"year", "month", "day", "dow", "quarter"}
@@ -92,6 +142,10 @@ func (c *dateFeatures) Compute(records []Record, field string) (map[string]Outpu
 
 	for i, r := range records {
 		v, ok := r.NumericValue(field)
+		var z *temporal.Zone
+		if ok && c.seconds {
+			z, ok = c.rowZone(r)
+		}
 		if !ok {
 			for _, p := range c.parts {
 				out[c.columnName(p)].Nulls[i] = true
@@ -99,7 +153,7 @@ func (c *dateFeatures) Compute(records []Record, field string) (map[string]Outpu
 			continue
 		}
 		if c.seconds {
-			y, m, d, dow, q, h := c.decodeInstantParts(int64(v))
+			y, m, d, dow, q, h := decodeInstantParts(int64(v), z)
 			out[c.columnName("year")].Values[i] = y
 			out[c.columnName("month")].Values[i] = m
 			out[c.columnName("day")].Values[i] = d
@@ -125,6 +179,10 @@ func (c *dateFeatures) Finalize() error { return nil }
 func (c *dateFeatures) EmitRow(r Record, field string) (map[string]Output, error) {
 	out := make(map[string]Output, len(c.parts))
 	v, ok := r.NumericValue(field)
+	var z *temporal.Zone
+	if ok && c.seconds {
+		z, ok = c.rowZone(r)
+	}
 	if !ok {
 		for _, p := range c.parts {
 			out[c.columnName(p)] = Output{Values: []float64{0}, Nulls: []bool{true}}
@@ -132,7 +190,7 @@ func (c *dateFeatures) EmitRow(r Record, field string) (map[string]Output, error
 		return out, nil
 	}
 	if c.seconds {
-		y, m, d, dow, q, h := c.decodeInstantParts(int64(v))
+		y, m, d, dow, q, h := decodeInstantParts(int64(v), z)
 		out[c.columnName("year")] = Output{Values: []float64{y}}
 		out[c.columnName("month")] = Output{Values: []float64{m}}
 		out[c.columnName("day")] = Output{Values: []float64{d}}
@@ -160,10 +218,9 @@ func decodeDateParts(v float64) (year, month, day, dow, quarter float64) {
 }
 
 // decodeInstantParts is decodeDateParts for a `datetime` instant sec
-// (epoch seconds) on the wall clock of the slot's zone (UTC when none
-// applies), plus the hour. dow keeps Sunday = 0.
-func (c *dateFeatures) decodeInstantParts(sec int64) (year, month, day, dow, quarter, hour float64) {
-	z := c.zone
+// (epoch seconds) on the wall clock of zone z (the slot's or the row's;
+// nil: UTC), plus the hour. dow keeps Sunday = 0.
+func decodeInstantParts(sec int64, z *temporal.Zone) (year, month, day, dow, quarter, hour float64) {
 	if z == nil {
 		z = temporal.UTC
 	}

@@ -27,10 +27,10 @@ Use something else:
 
 - `component`: enum, default `month`: `hour`, `day`, `day_of_week`, `week`, `month`, `quarter`, `year`.
 - `week_start`: `week` only; `monday` (default, ISO `2026-W09`) .. `sunday` (key = first day: 2026-03-01).
-- `fiscal_offset`: int -11..11; `year`/`quarter` only; keys `FY` (end-year).
+- `fiscal_offset`: -11..11, `year`/`quarter`; keys `FY` (end-year).
 - `frequency`: not a bucketing knob — the `OVERLAY_YOY` frequency an overlay on this grouper inherits when it sets none.
-- Any other key (`unit`, …) → `PULSE_REQUEST_UNKNOWN_FIELD`; the bucket is `component`.
-- `tz`: slot key (IANA), beats `time_zone`.
+- Other keys (`unit`, …) → `PULSE_REQUEST_UNKNOWN_FIELD`.
+- `tz` (IANA) / `tz_field` (per-row zone column): slot keys.
 
 ## Inputs
 
@@ -47,8 +47,8 @@ Floor `{total_n, n_null}` + `granularity`, `range_start` / `range_end`, `n_bucke
 ## Gotchas
 
 - `day_of_week` lex-sorts; `Group.Include` ignored.
-- Local wall clock: a skipped DST hour has no bucket; a repeated one is ONE.
-- `PROCESSING_CONFIG`: `tz` on `date`, zone on a derived field, `hour` off `datetime`, misplaced `week_start` / `fiscal_offset`.
+- Local clock: a skipped DST hour has no bucket; a repeated one is ONE. Null `tz_field` cell → `n_null`.
+- `PROCESSING_CONFIG`: zone on `date` / derived field, `hour` off `datetime`, misplaced `week_start` / `fiscal_offset`.
 
 ## See
 

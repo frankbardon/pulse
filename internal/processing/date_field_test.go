@@ -438,7 +438,7 @@ func TestResolveDateField_Zone(t *testing.T) {
 		{"date column ignores zone", dateSchema(), "Europe/Berlin", false, mar28, int64(mar28)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			df, err := resolveDateField("OP", "enrolled", tc.tz, tc.schema, true)
+			df, err := resolveDateField("OP", "enrolled", tc.tz, "", tc.schema, true)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -450,7 +450,7 @@ func TestResolveDateField_Zone(t *testing.T) {
 			}
 		})
 	}
-	_, err := resolveDateField("OP", "enrolled", "Mars/Base", datetimeSchema(), true)
+	_, err := resolveDateField("OP", "enrolled", "Mars/Base", "", datetimeSchema(), true)
 	ce, ok := err.(*errors.CodedError)
 	if !ok || ce.Code != errors.PULSE_TIMEZONE_UNKNOWN {
 		t.Fatalf("unknown zone: %v", err)

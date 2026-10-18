@@ -213,7 +213,7 @@ func (f *dateRangesFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 	// supplies one); a nil schema skips the check (probe path with no
 	// field). A `datetime` Field is day-truncated per record before the
 	// range set — which is compiled in epoch days — is consulted.
-	date, err := resolveDateField("FILTER_DATE_RANGES", filter.Field, filter.TimeZone, schema, true)
+	date, err := resolveDateField("FILTER_DATE_RANGES", filter.Field, filter.TimeZone, filter.TimeZoneField, schema, true)
 	if err != nil {
 		return nil, err
 	}
@@ -242,6 +242,25 @@ func (f *dateRangesFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 	}
 
 	field := filter.Field
+	if date.perRow() {
+		// Per-row zone field: each instant is matched on the local day
+		// of the zone its own row names. A null zone cell leaves the
+		// row without a local day, so — exactly like a null date — it
+		// matches no range and is dropped (and counted in the slot's
+		// n_null_input, applyFilterPass).
+		return func(record *Record) (bool, error) {
+			v, ok := record.NumericValue(field)
+			if !ok {
+				return false, nil // null/missing date → drop
+			}
+			day, ok := date.rowDay(record, v)
+			if !ok {
+				return false, nil // null zone → no local day → drop
+			}
+			_, matched := set.Match(day)
+			return matched, nil
+		}, nil
+	}
 	if date.zone != nil {
 		return func(record *Record) (bool, error) {
 			v, ok := record.NumericValue(field)

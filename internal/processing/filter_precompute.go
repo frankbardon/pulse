@@ -329,6 +329,11 @@ func precomputeInputs(f *types.Filterer, exts *ExtensionRegistry) ([]string, boo
 		if f.Field == "" {
 			return nil, false
 		}
+		if f.TimeZoneField != "" {
+			// A per-row zone field is an input too: the verdict depends
+			// on the row's zone cell, so both must sit in ONE group.
+			return []string{f.Field, f.TimeZoneField}, true
+		}
 		return []string{f.Field}, true
 	case types.FILTER_EXPRESSION:
 		return exprPureInputs(f.Expression, exts)

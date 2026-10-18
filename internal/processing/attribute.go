@@ -598,11 +598,12 @@ func (a *percentileAttribute) Compute(records []*Record, field string) ([]float6
 // datePartAttribute is ATTR_DATE_PART. A `date` column is read as
 // epoch days on the calendar (no zone ever applies); a `datetime` column
 // as an instant whose parts are the wall clock in the slot's zone (zone
-// nil: UTC), via temporal.LocalParts.
+// nil: UTC), via temporal.LocalParts — or, under a per-row zone field
+// (`tz_field`), in the zone the row's own cell names; a null zone cell
+// makes the part null (AttributeNull).
 type datePartAttribute struct {
-	part    string
-	seconds bool
-	zone    *temporal.Zone
+	part string
+	date dateField
 }
 
 func newDatePartAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
@@ -617,11 +618,11 @@ func newDatePartAttribute(attr *types.Attribute, schema *encoding.Schema) (Attri
 	if err := datepart.CheckField(part, attr.Field, f); err != nil {
 		return nil, err
 	}
-	df, err := resolveDateField(string(types.ATTR_DATE_PART), attr.Field, attr.TimeZone, schema, true)
+	df, err := resolveDateField(string(types.ATTR_DATE_PART), attr.Field, attr.TimeZone, attr.TimeZoneField, schema, true)
 	if err != nil {
 		return nil, err
 	}
-	return &datePartAttribute{part: part, seconds: df.seconds, zone: df.zone}, nil
+	return &datePartAttribute{part: part, date: df}, nil
 }
 
 func (a *datePartAttribute) Compute(records []*Record, field string) ([]float64, error) {
@@ -641,13 +642,23 @@ func (a *datePartAttribute) Compute(records []*Record, field string) ([]float64,
 }
 
 // Row extracts the configured date part from a single record. Null date
-// values produce 0 (matches buffered Compute semantics).
+// values produce 0 (matches buffered Compute semantics). Under a per-row
+// zone field a null zone cell produces AttributeNull: the instant is
+// known but its local calendar is not, so the part is null (the slot's
+// n_null), never the UTC part.
 func (a *datePartAttribute) Row(r *Record, field string) (float64, error) {
 	v, ok := r.NumericValue(field)
 	if !ok {
 		return 0, nil
 	}
-	if a.seconds {
+	if a.date.perRow() {
+		z, ok := a.date.rowZone(r)
+		if !ok {
+			return AttributeNull, nil
+		}
+		return a.partIn(int64(v), z), nil
+	}
+	if a.date.seconds {
 		return a.instantPart(int64(v)), nil
 	}
 	t := temporal.DayToTime(int64(v))
@@ -658,7 +669,12 @@ func (a *datePartAttribute) Row(r *Record, field string) (float64, error) {
 // instantPart is the `datetime` arm of Row: the part of instant sec on
 // the wall clock of the slot's zone (UTC when none applies).
 func (a *datePartAttribute) instantPart(sec int64) float64 {
-	z := a.zone
+	return a.partIn(sec, a.date.zone)
+}
+
+// partIn is the part of instant sec on the wall clock of zone z (nil:
+// UTC).
+func (a *datePartAttribute) partIn(sec int64, z *temporal.Zone) float64 {
 	if z == nil {
 		z = temporal.UTC
 	}
