@@ -23,8 +23,10 @@ import (
 // Derive a scalar count per row = popcount(mask). The value is an int
 // widened to float64 like every attribute output — never a byte: a
 // fully-selected column at the widest rung counts 256, past a uint8.
-// Null input rows yield 0 (consistent with other row-local attribute
-// paths that surface 0 for null inputs through Compute).
+// A null set yields AttributeNull: the count of an unknown selection is
+// unknown, never the 0 of an empty selection ("no selection" is a real
+// answer and stays 0), so the row is null in Data and counted in an
+// aggregation's n_null — as AGG_SET_CARDINALITY_AVG skips it.
 
 type setPopcountAttribute struct{}
 
@@ -62,14 +64,18 @@ func (a *setPopcountAttribute) Compute(records []*Record, field string) ([]float
 func (a *setPopcountAttribute) Row(r *Record, field string) (float64, error) {
 	m, ok := r.SetMaskValue(field)
 	if !ok {
-		return 0, nil
+		return AttributeNull, nil
 	}
 	return float64(m.PopCount()), nil
 }
 
 // Derive bool (0/1) per row = whether the named label's bit is set.
 // Resolved at construction via the field's dictionary so per-row work
-// is a single bitwise op against a precomputed bit position.
+// is a single bitwise op against a precomputed bit position. A null set
+// reads 0 — deliberately, unlike ATTR_SET_POPCOUNT: a membership flag
+// answers "is the label known to be selected?", and a null set holds no
+// label, so the row stays in the base and the flag's mean is the share
+// of the whole base (ATTR_CODE_IN's rule; FILTER_NULL drops the nulls).
 
 type setHasParams struct {
 	Label string `json:"label"`

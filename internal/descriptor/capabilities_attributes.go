@@ -56,7 +56,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Description:   "Per-row standardized z-score: (value − mean) / stddev computed via Welford two-pass streaming.",
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_ZSCORE), fieldaccept.SlotField),
 			EmitsType:     "f64",
-			EmitsTypeNote: "one float per record (0 when stddev=0 or the value is null)",
+			EmitsTypeNote: "one float per record (0 when stddev=0; null when the value is null)",
 			Streamable:    true,
 		},
 		{
@@ -65,7 +65,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Description:   "Per-row T-score: z-score scaled and shifted to mean 50, stddev 10.",
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_TSCORE), fieldaccept.SlotField),
 			EmitsType:     "f64",
-			EmitsTypeNote: "one float per record",
+			EmitsTypeNote: "one float per record (50 when stddev=0; null when the value is null)",
 			Streamable:    true,
 		},
 		{
@@ -74,7 +74,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Description:   "Per-row min-max normalization: (value − min) / (max − min) ∈ [0, 1].",
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_NORMALIZED), fieldaccept.SlotField),
 			EmitsType:     "f64",
-			EmitsTypeNote: "one float per record in [0, 1]",
+			EmitsTypeNote: "one float per record in [0, 1] (0 when max=min; null when the value is null)",
 			Streamable:    true,
 		},
 		{
@@ -94,7 +94,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Description:    "Per-row percentile rank against the post-filter value set; requires sorting.",
 			AcceptsTypes:   fieldaccept.TypeNames(string(types.ATTR_PERCENTILE), fieldaccept.SlotField),
 			EmitsType:      "f64",
-			EmitsTypeNote:  "one float per record in (0, 100]; 0 when the value is null",
+			EmitsTypeNote:  "one float per record in (0, 100]; null when the value is null",
 			Streamable:     false,
 			StreamableHint: "Use ATTR_NORMALIZED for a streaming-friendly rank proxy.",
 		},
@@ -201,7 +201,7 @@ func attributeCapabilities() []descriptor.Operator {
 			// processing.TestManifestEmitsTypeHoldsAtRuntime, which
 			// probes a fully-selected column at the widest rung.
 			EmitsType:     "u16",
-			EmitsTypeNote: "one integer per record: 0..set width inclusive, so 0..256 at the widest rung (set_u256)",
+			EmitsTypeNote: "one integer per record: 0..set width inclusive, so 0..256 at the widest rung (set_u256); null when the set is null",
 			Streamable:    true,
 		},
 		{
@@ -218,7 +218,7 @@ func attributeCapabilities() []descriptor.Operator {
 			},
 			AcceptsTypes:  tableAcceptsTypes(types.ATTR_SET_HAS),
 			EmitsType:     "packed_bool",
-			EmitsTypeNote: "one 0/1 per record",
+			EmitsTypeNote: "one 0/1 per record (0 when the set is null)",
 			Streamable:    true,
 		},
 		{

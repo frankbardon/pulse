@@ -39,7 +39,7 @@ Use something else:
 
 ## Output
 
-One `packed_bool` per record — `1` if the named label's bit is set, `0` otherwise. Null source → `0` (not null).
+One `packed_bool` per record — `1` if the named label's bit is set, `0` otherwise. Null source → `0` (not null): a membership flag, so its mean is the share of the whole base.
 
 ## Gotchas
 

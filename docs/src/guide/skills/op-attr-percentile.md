@@ -38,12 +38,12 @@ None.
 
 ## Output
 
-One `float64` per record in `(0, 100]` — `rank / n * 100` within the filter-passing value set (smallest = `100/n`). Null source → `0` (not null).
+One `float64` per record in `(0, 100]` — `rank / n * 100` within the filter-passing value set (smallest = `100/n`). Null source → `null` (counted in `n_null`), not ranked or counted in `n`.
 
 ## Reading the output
 
 - `value`: The row's position among the sorted values, as a percentage: rank / n * 100, where the smallest value has rank 1 and n counts the rows with a value. The largest value reads 100 and the smallest 100 / n, so for a value no other row shares it is the share of rows at or below this one; tied values break that (see below).
-  - Caveat: A row with a missing value reads 0, which no row with a value can: treat 0 as missing.
+  - Caveat: A row with a missing value gets no percentile (null) and is not counted in n.
   - Caveat: Other tools define it differently (smallest at 0, or ties at their midpoint), so the same row can read a few points apart elsewhere.
 
 ## Gotchas

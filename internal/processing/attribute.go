@@ -31,6 +31,11 @@ import (
 // owes every row a value. The weighted mean and √(M2_w/Σw) are
 // invariant to rescaling the weights, so frequency and probability
 // weights give the same scores (statsmodels DescrStatsW(ddof = 0)).
+//
+// A null source cell is skipped by the pre-pass (it adds no mass to the
+// mean or the sd) and scores AttributeNull in pass 2: a missing value has
+// no position, so its score is null (the aggregation's n_null), never a
+// real-looking 0 (50 for the T-score).
 type popScoreState struct {
 	weight *types.WeightSpec
 	bucket weighting.Welford
@@ -97,7 +102,10 @@ func (a *zscoreAttribute) Finalize() error {
 
 func (a *zscoreAttribute) Row(r *Record, field string) (float64, error) {
 	v, ok := r.NumericValue(field)
-	if !ok || a.finalStdDev == 0 {
+	if !ok {
+		return AttributeNull, nil
+	}
+	if a.finalStdDev == 0 {
 		return 0, nil
 	}
 	return (v - a.finalMean) / a.finalStdDev, nil
@@ -132,8 +140,11 @@ func (a *tscoreAttribute) Finalize() error {
 
 func (a *tscoreAttribute) Row(r *Record, field string) (float64, error) {
 	v, ok := r.NumericValue(field)
-	if !ok || a.finalStdDev == 0 {
-		return 50, nil // T-score of mean when sd=0 or null input
+	if !ok {
+		return AttributeNull, nil
+	}
+	if a.finalStdDev == 0 {
+		return 50, nil // T-score of the mean when sd = 0
 	}
 	return ((v-a.finalMean)/a.finalStdDev)*10 + 50, nil
 }
@@ -168,7 +179,8 @@ func computeTwoPass(a TwoPassAttribute, records []*Record, field string) ([]floa
 }
 
 // normalizedAttribute emits (x-min)/(max-min) per row using population
-// min/max from a Welford-shaped pass 1. Implements TwoPassAttribute.
+// min/max from a Welford-shaped pass 1. Implements TwoPassAttribute. A
+// null source cell is skipped by the pre-pass and scores AttributeNull.
 type normalizedAttribute struct {
 	seen     bool
 	min, max float64
@@ -208,7 +220,10 @@ func (a *normalizedAttribute) Finalize() error {
 
 func (a *normalizedAttribute) Row(r *Record, field string) (float64, error) {
 	v, ok := r.NumericValue(field)
-	if !ok || a.rng == 0 {
+	if !ok {
+		return AttributeNull, nil
+	}
+	if a.rng == 0 {
 		return 0, nil
 	}
 	return (v - a.min) / a.rng, nil
@@ -549,6 +564,9 @@ func (p *Processor) bindAttribute(computer AttributeComputer) error {
 	return BindAttributeWithVectors(computer, p.exts, p.models, p.exprVectors)
 }
 
+// percentileAttribute is ATTR_PERCENTILE: rank / n * 100 over the rows
+// with a value (n counts them; ties take distinct ranks). A null source
+// cell is not ranked and scores AttributeNull.
 type percentileAttribute struct{}
 
 func newPercentileAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
@@ -576,8 +594,13 @@ func (a *percentileAttribute) Compute(records []*Record, field string) ([]float6
 		}
 	}
 
+	// Every row starts null; a ranked row overwrites its slot.
+	result := make([]float64, len(records))
+	for i := range result {
+		result[i] = AttributeNull
+	}
 	if len(indexed) == 0 {
-		return make([]float64, len(records)), nil
+		return result, nil
 	}
 
 	// Sort by value
@@ -586,7 +609,6 @@ func (a *percentileAttribute) Compute(records []*Record, field string) ([]float6
 	})
 
 	// Compute percentile rank for each position
-	result := make([]float64, len(records))
 	n := float64(len(indexed))
 	for rank, iv := range indexed {
 		// Percentile = (rank + 1) / n * 100

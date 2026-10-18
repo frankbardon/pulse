@@ -26,7 +26,7 @@ None.
 
 ## Output
 
-One `float64` per record in `[0, 1]`. Null source → `0` (not null).
+One `float64` per record in `[0, 1]`. Null source → `null` (counted in `n_null`), left out of min / max.
 
 <!-- generated: reading-the-output -->
 

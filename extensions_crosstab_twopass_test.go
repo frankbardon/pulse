@@ -16,7 +16,10 @@ import (
 // arm.
 func twoPassCrosstabRequest(at types.AttributeType) *types.Request {
 	return &types.Request{
-		Cohort:     &types.Cohort{Filename: "parity.pulse"},
+		Cohort: &types.Cohort{Filename: "parity.pulse"},
+		// Null scores drop first: the built-in scores them null and an
+		// extension attribute cannot (parityZScore).
+		Filterers:  []*types.Filterer{{Type: types.FILTER_NULL, Field: "score", Values: []string{"is_not_null"}}},
 		Attributes: []*types.Attribute{{Type: at, Field: "score", Label: "derived"}},
 		Crosstab: &types.CrosstabSpec{
 			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},

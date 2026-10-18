@@ -26,7 +26,7 @@ None. Weight (both kinds, same scores; `"weight": null` opts out): weighted mean
 
 ## Output
 
-One `float64` per record — `50 + 10 * zscore`. Null source → `50` (not null).
+One `float64` per record — `50 + 10 * zscore`. Null source → `null` (counted in `n_null`), left out of the mean / sd.
 
 <!-- generated: reading-the-output -->
 

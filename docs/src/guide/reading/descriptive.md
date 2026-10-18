@@ -361,7 +361,7 @@ Where the row's value sits between the smallest and largest value, on a 0-to-1 s
 **Caveats:**
 
 - One extreme value sets the minimum or maximum and squeezes every other row into a narrow part of the scale; ATTR_PERCENTILE is not affected that way.
-- A row with a missing value reads 0, the same as the minimum, and every row reads 0 when all values are equal (max = min).
+- A row with a missing value gets no value (null) and is left out of the minimum and maximum; every row reads 0 when all values are equal (max = min).
 - The scale comes from every row that passed the filters, not from the row's group: averaging it per group shows how each group sits against the whole, and a different filter gives different values.
 
 <a id="op-attr_pc_score"></a>
@@ -395,7 +395,7 @@ The row's position among the sorted values, as a percentage: rank / n * 100, whe
 **Caveats:**
 
 - Tied values do not share a percentile: each tied row takes its own rank in an arbitrary order, so equal values can read different percentiles, far apart on a field with few distinct values (a 1-5 rating); use WIN_RANK when ties must share a rank.
-- A row with a missing value reads 0, which no row with a value can: treat 0 as missing.
+- A row with a missing value gets no percentile (null) and is not counted in n.
 - Other tools define it differently (smallest at 0, or ties at their midpoint), so the same row can read a few points apart elsewhere.
 - Equal steps in percentile are not equal steps in the value: near the middle of a bell-shaped field a small change in value moves the percentile a lot.
 - The scale comes from every row that passed the filters, not from the row's group: averaging it per group shows how each group sits against the whole, and a different filter gives different values.
@@ -415,7 +415,7 @@ The target value the fitted straight-line model predicts for the row from its pr
 - The model describes association in these rows: a fitted value is what rows with these predictor values look like here, not what would happen to a row if a predictor were changed; a causal reading needs a design that supports it.
 - The model is fitted and read on the same rows, so it matches them more closely than it will match new rows (overfitting), most of all with many predictors and few rows.
 - A straight-line model: where the target bends with a predictor, fitted values miss in a pattern over parts of its range; read ATTR_REG_RESIDUAL to see it.
-- A row missing the target still gets a fitted value when its predictors are present; a row missing any predictor reads 0, which is not a prediction.
+- A row missing the target still gets a fitted value when its predictors are present; a row missing any predictor gets null, never 0.
 - With a penalty (l1, l2, elasticnet) the coefficients are deliberately shrunk toward 0, so fitted values sit closer to the target's mean and the residuals are larger overall (their sum of squares rises) than an unpenalized fit's, though a single row's can go either way; use no penalty for diagnostics.
 
 <a id="op-attr_reg_leverage"></a>
@@ -432,7 +432,7 @@ How far the row's predictor values sit from the other rows' (from the predictors
 
 - A common rule of thumb flags leverage above 2p / n, twice the average (Hoaglin & Welsch 1978); it is a screening threshold, not a graded convention, and with few rows per coefficient it flags many rows.
 - It reads the predictors only, never the target: a high-leverage row can sit right on the line. Whether it moved the fit depends on its residual too (ATTR_REG_RESIDUAL); influence measures that combine the two, such as Cook's distance, are not computed.
-- A row outside the fit (missing the target) still gets a leverage from its predictors, which can exceed 1 when it lies beyond the fitted rows; a row missing any predictor reads 0, below the 1/n floor, so 0 marks a missing row.
+- A row outside the fit (missing the target) still gets a leverage from its predictors, which can exceed 1 when it lies beyond the fitted rows; a row missing any predictor gets null; a row a weighted fit leaves out (no usable weight) reads 0.
 - Unpenalized least squares only; a request with a penalty is refused.
 
 <a id="op-attr_reg_predict"></a>
@@ -474,7 +474,7 @@ Actual minus predicted: the row's target value minus the value the straight-line
 - A row with high leverage (ATTR_REG_LEVERAGE) pulls the line toward itself, so its residual can be small even when the row is unusual.
 - Patterns across rows (a curve, or spread that grows with the predicted value) point to a missing term or heteroscedasticity, not to rows that are wrong.
 - The model describes association in these rows: a fitted value is what rows with these predictor values look like here, not what would happen to a row if a predictor were changed; a causal reading needs a design that supports it.
-- A row missing the target or any predictor reads 0, the same as a row the model fits exactly.
+- A row missing the target or any predictor gets null, never 0.
 - With a penalty (l1, l2, elasticnet) the coefficients are deliberately shrunk toward 0, so fitted values sit closer to the target's mean and the residuals are larger overall (their sum of squares rises) than an unpenalized fit's, though a single row's can go either way; use no penalty for diagnostics.
 
 <a id="op-attr_tscore"></a>
@@ -495,7 +495,7 @@ The z-score rescaled to a mean of 50 and a standard deviation of 10: 50 + 10 * z
 - One extreme row inflates the standard deviation and pulls every other score toward the centre; on n rows no z-score can exceed sqrt(n - 1) in size (Shiffler 1988), so on a small set a modest score may be the most extreme possible.
 - The scale comes from every row that passed the filters, not from the row's group: averaging it per group shows how each group sits against the whole, and a different filter gives different values.
 - Under a row weight the mean and standard deviation are weighted (dividing by the sum of weights), the same for frequency and probability weights; a row with no usable weight adds nothing to them but is still scored.
-- A row with a missing value reads 50, the same as an exactly average row, and every row reads 50 when all values are equal; an extreme row can fall below 0 or above 100.
+- A row with a missing value gets no score (null) and is left out of the mean and standard deviation; every row reads 50 when all values are equal, and an extreme row can fall below 0 or above 100.
 
 <a id="op-attr_zscore"></a>
 
@@ -519,7 +519,7 @@ How many standard deviations the row's value sits from the mean: (value - mean) 
 - One extreme row inflates the standard deviation and pulls every other score toward the centre; on n rows no z-score can exceed sqrt(n - 1) in size (Shiffler 1988), so on a small set a modest score may be the most extreme possible.
 - The scale comes from every row that passed the filters, not from the row's group: averaging it per group shows how each group sits against the whole, and a different filter gives different values.
 - Under a row weight the mean and standard deviation are weighted (dividing by the sum of weights), the same for frequency and probability weights; a row with no usable weight adds nothing to them but is still scored.
-- A row with a missing value reads 0, the same as an exactly average row, and every row reads 0 when all values are equal (no spread); check the source field before reading a 0 as average.
+- A row with a missing value gets no score (null) and is left out of the mean and standard deviation; every row reads 0 when all values are equal (no spread), so check the field's spread before reading a 0 as average.
 
 ## Window operators
 

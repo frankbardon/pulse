@@ -37,13 +37,13 @@ None.
 
 ## Output
 
-One `float64` per record in `[0, 1]`. Null source → `0` (not null).
+One `float64` per record in `[0, 1]`. Null source → `null` (counted in `n_null`), left out of min / max.
 
 ## Reading the output
 
 - `value`: Where the row's value sits between the smallest and largest value, on a 0-to-1 scale: (value - min) / (max - min). 0 is the minimum, 1 the maximum and 0.5 halfway between them, which is not the median.
   - Caveat: One extreme value sets the minimum or maximum and squeezes every other row into a narrow part of the scale; ATTR_PERCENTILE is not affected that way.
-  - Caveat: A row with a missing value reads 0, the same as the minimum, and every row reads 0 when all values are equal (max = min).
+  - Caveat: A row with a missing value gets no value (null) and is left out of the minimum and maximum; every row reads 0 when all values are equal (max = min).
 
 ## Gotchas
 

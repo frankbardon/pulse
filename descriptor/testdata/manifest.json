@@ -3638,7 +3638,7 @@
             "u8"
           ],
           "emits_type": "f64",
-          "emits_type_note": "one float per record in [0, 1]",
+          "emits_type_note": "one float per record in [0, 1] (0 when max=min; null when the value is null)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -3772,7 +3772,7 @@
             "u8"
           ],
           "emits_type": "f64",
-          "emits_type_note": "one float per record in (0, 100]; 0 when the value is null",
+          "emits_type_note": "one float per record in (0, 100]; null when the value is null",
           "streamable": false,
           "streamable_hint": "Use ATTR_NORMALIZED for a streaming-friendly rank proxy.",
           "component_schema": {
@@ -4245,7 +4245,7 @@
             "set_u8"
           ],
           "emits_type": "packed_bool",
-          "emits_type_note": "one 0/1 per record",
+          "emits_type_note": "one 0/1 per record (0 when the set is null)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -4268,7 +4268,7 @@
             "set_u8"
           ],
           "emits_type": "u16",
-          "emits_type_note": "one integer per record: 0..set width inclusive, so 0..256 at the widest rung (set_u256)",
+          "emits_type_note": "one integer per record: 0..set width inclusive, so 0..256 at the widest rung (set_u256); null when the set is null",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -4297,7 +4297,7 @@
             "u8"
           ],
           "emits_type": "f64",
-          "emits_type_note": "one float per record",
+          "emits_type_note": "one float per record (50 when stddev=0; null when the value is null)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -4446,7 +4446,7 @@
             "u8"
           ],
           "emits_type": "f64",
-          "emits_type_note": "one float per record (0 when stddev=0 or the value is null)",
+          "emits_type_note": "one float per record (0 when stddev=0; null when the value is null)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -19077,4 +19077,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 35816c5f1a0eaae80a72a8109423cda596a667f7cd7d601edd1f85e4361302e5
+// golden-hash: 24a53adf516eee845df1feef0e8bc120b8d5cde2264c327314943d3c21392a06
