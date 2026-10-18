@@ -67,6 +67,7 @@ Ordinary least squares with optional regularization.
 | `max_iters`   | no       | Coordinate-descent cap (default 1000).                                                 |
 | `tol`         | no       | Convergence tolerance (default `1e-6`).                                                |
 | `resample`    | no       | `"jackknife"` or `"bootstrap"`. Downgrades streaming.                                  |
+| `jackknife_groups` / `jackknife_by` | no | Delete-a-group jackknife (see `Resample` below); exclusive. |
 | `selection`   | no       | `"forward"`, `"backward"`, or `"stepwise"`. Requires `criterion`. Downgrades streaming. |
 | `conf_level`  | no       | Coverage of `ci_lower` / `ci_upper`, `0 < c < 1`. Default 0.95. Student t on the residual df. |
 | `covariance`  | no       | `{type, cluster, order_by, lags}`: `classical` (default), `hc0`–`hc3`, `cluster` (CR1 on `cluster`'s levels, df = clusters − 1) or `hac` (Newey–West over `order_by`, `lags` an integer or `"auto"`). Drives `std_errors`, `p_values`, the intervals and `vcov`; refused beside a penalty, `resample` or `selection` (`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`). Downgrades streaming. |
@@ -92,7 +93,7 @@ Generalized linear model via iteratively-reweighted least squares.
 | `penalty`     | no       | `"l2"`, `"l1"`, `"elasticnet"` (binomial / poisson only; gamma refuses it).            |
 | `alpha`       | no       | Penalty strength, `> 0` when `penalty` is set.                                         |
 | `l1_ratio`    | no       | Elastic-net mix, `0 < l1_ratio < 1`; `elasticnet` only.                                |
-| `resample`    | no       | `"jackknife"` or `"bootstrap"`.                                                        |
+| `resample`    | no       | `"jackknife"` or `"bootstrap"`; `jackknife_groups` / `jackknife_by` as for REG_OLS.         |
 | `selection`   | no       | Subset-selection wrapper; requires `criterion`.                                        |
 | `conf_level`  | no       | Coverage of the Wald `ci_lower` / `ci_upper`, `0 < c < 1`. Default 0.95.               |
 | `covariance`  | no       | As `REG_OLS`: the sandwich over the IRLS scores at the converged weights (R `sandwich` on `glm`) behind `std_errors`, `p_values`, the intervals and `vcov`. Inference stays Wald z, `cluster` included. |
@@ -139,7 +140,7 @@ Layered on top of any base operator (except `REG_BAYES_LINEAR`).
 | Value          | Behavior                                                                                                |
 |----------------|---------------------------------------------------------------------------------------------------------|
 | `""`           | No resampling. Closed-form / asymptotic standard errors.                                                |
-| `"jackknife"`  | Leave-one-out resampling. `SE = sqrt((n−1)/n · Σᵢ (β⁽⁻ⁱ⁾ − β̄)²)`.                                       |
+| `"jackknife"`  | Leave-one-out resampling, `SE = sqrt((n−1)/n · Σᵢ (β⁽⁻ⁱ⁾ − β̄)²)`; or delete-a-group with `jackknife_groups: g` (fitted rows split into g seeded random groups, `rng_seed`) or `jackknife_by: field` (one group per distinct value; a null value drops the row): `SE = sqrt((g−1)/g · Σₖ (β₍ₖ₎ − β̄)²)`, echoed `jackknife_groups`. The two knobs are exclusive. Weighted (JK1): each replicate refits the remaining rows with their own weights. Every replicate must refit — the first failure fails the slot with its code (`details.jackknife_group`). Predict's `PULSE_ADVISORY_JACKKNIFE_COST` flags leave-one-out at ≥ 10,000 records. |
 | `"bootstrap"`  | Non-parametric bootstrap. `bootstrap_iters` (default 1000), `rng_seed` (`0` → a seed derived from the request and the rows the fit reads, so the same request over the same cohort is reproducible; non-zero → reproducible across cohorts too). |
 
 For l1 / elasticnet OLS, setting `Resample` is the rigorous answer for standard errors: it suppresses the `PROCESSING_REGRESSION_APPROXIMATE_SE` warning (the SEs are now resample-based, not plug-in over the active set).

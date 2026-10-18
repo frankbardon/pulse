@@ -82,7 +82,10 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   number), `ExplainResult` (its `findings[].numbers` values are
   `["number", "null"]`, `verdict` the closed `Verdict` enum; `warnings` relays predict's
   coded warnings). A bootstrap `RegressionResult` echoes
-  `bootstrap_requested` / `bootstrap_succeeded`. Each
+  `bootstrap_requested` / `bootstrap_succeeded`; a delete-a-group
+  jackknife (`RegressionSpec.jackknife_groups` / `jackknife_by`, both
+  additive `omitempty`) echoes its replicate count as
+  `jackknife_groups`, absent on leave-one-out. Each
   `ComposedResponse.responses[i]` echoes its slot's final `label`
   (absent on a standalone `Response`).
 - **Advisory** — `#/$defs/Advisory`, one entry of a predict result's
@@ -752,7 +755,8 @@ reads the inference size N* (Σw frequency, n_eff probability), as its
 standard errors do. `correlation` is `vcov` scaled to a unit diagonal
 (R's `cov2cor`); an entry with a zero or undefined variance is `null`.
 Under `resample` it is the replicate covariance (jackknife
-(n−1)/n·Σ(β₋ᵢ−β̄)(β₋ᵢ−β̄)ᵀ, bootstrap the B−1 sample covariance of the
+(g−1)/g·Σ(β₋ₖ−β̄)(β₋ₖ−β̄)ᵀ over its g delete groups, g = n on
+leave-one-out; bootstrap the B−1 sample covariance of the
 successful replicates), under `selection` the final refit's covariance
 keyed `(intercept)` + the selected predictors — so its diagonal is
 `std_errors`² there too. Lasso / elastic net refuse `vcov`, with or

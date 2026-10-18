@@ -1885,6 +1885,9 @@
         "family": {
           "type": "string"
         },
+        "jackknife_groups": {
+          "type": "integer"
+        },
         "l1_ratio": {
           "type": [
             "number",
@@ -2010,6 +2013,12 @@
         },
         "family": {
           "type": "string"
+        },
+        "jackknife_by": {
+          "type": "string"
+        },
+        "jackknife_groups": {
+          "type": "integer"
         },
         "l1_ratio": {
           "type": "number"
@@ -2781,4 +2790,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 7304b8a0b3eb5b6d72badf19a1746317e558bff1a12d61e419096c7457477d96
+// golden-hash: b2579799f8782e67183c98ef468d0a1798fd4e5fd6d4ffa3c68fe457dd11a8d0

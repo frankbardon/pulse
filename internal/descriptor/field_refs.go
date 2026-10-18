@@ -435,6 +435,12 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 				})
 			}
 		}
+		if f := reg.JackknifeBy; f != "" {
+			w.check(f, func() *errors.CodedError {
+				return refusal("regression jackknife_by references unknown field: "+f,
+					map[string]any{"field": f, "type": string(reg.Type)})
+			})
+		}
 	}
 	for _, grp := range req.Groups {
 		if grp == nil {

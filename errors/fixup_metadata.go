@@ -1061,6 +1061,17 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ADVISORY_JACKKNIFE_COST: {
+		Message: "A regression runs the leave-one-out jackknife over a large cohort, so the run refits the model once per row and its cost grows with the square of the row count; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Regressions", "*", "jackknife_groups"},
+				Hint:     "Set jackknife_groups (details.suggested) for a delete-a-group jackknife: g refits instead of one per row, the groups drawn by rng_seed. Or set jackknife_by to a field whose values are natural clusters.",
+				Examples: []any{map[string]any{"jackknife_groups": 50}},
+			},
+		},
+	},
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE: {
 		Message: "A series overlay that reads its rows in order (a prior, rolling, baseline or sibling overlay) runs over two or more groupers with no params.partition_by, so it partitions by every key but the last and runs its series down the last grouper, which is not a date grouper; this is an advisory, not an error.",
 		Fixups: []Fixup{

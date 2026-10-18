@@ -163,6 +163,7 @@ func vectorScalarRefusals(req *types.Request, schema *encoding.Schema, snap *Ext
 			judge(c.Cluster, slot+" covariance.cluster", "")
 			judge(c.OrderBy, slot+" covariance.order_by", "")
 		}
+		judge(reg.JackknifeBy, slot+" jackknife_by", "")
 	}
 
 	grouper := func(g *types.Group, slot string) {

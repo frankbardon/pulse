@@ -217,8 +217,10 @@ below the predictor count plus one warns `PULSE_WEIGHT_LOW_NEFF`: its
 residual degrees of freedom are zero or negative, so the standard
 errors, p-values, residual standard error and adjusted R² are reported
 as `null` (the coefficients and R² stay defined). A
-regression with `resample` or `selection` refuses any weight, because
-neither has a standard weighted form.
+regression with `resample: bootstrap` or `selection` refuses any
+weight, because neither has a standard weighted form. A jackknife is
+weighted (JK1): each replicate refits the rows outside its delete group
+with their own weights.
 
 The GLM runs iteratively reweighted least squares with the row weights
 as prior weights on w* = w·N*/Σw, so its fit is R's

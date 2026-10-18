@@ -1506,7 +1506,7 @@
       },
       {
         "name": "predict-advisories",
-        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
+        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families, a leave-one-out jackknife over a large cohort); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
       },
       {
         "name": "regression-inference",
@@ -2379,4 +2379,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 48ccbc4ba5cb2ff56cd70af39a211c5e945a4b4e42c582ab4badc98aeec50ca5
+// golden-hash: d5a73d91162fc3ed15231e1e69337adcb7a2081755d4584095190ef32677dd3b

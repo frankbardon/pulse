@@ -40,10 +40,10 @@ Both compose with the OLS and GLM fits; the Bayesian fit rejects both — credib
 | Value | Behavior |
 |---|---|
 | `""` | closed-form / asymptotic SE |
-| `"jackknife"` | LOO refit; SE = √((n−1)/n · Σ(β⁽⁻ⁱ⁾ − β̄)²) |
+| `"jackknife"` | LOO, or `jackknife_groups` / `jackknife_by` groups; SE = √((g−1)/g·Σ(β₍ₖ₎−β̄)²) |
 | `"bootstrap"` | non-parametric (`bootstrap_iters` as given, `<= 0` → 1000; `rng_seed`); SE = sample std of replicates; percentile-method p; echoes `bootstrap_requested` / `bootstrap_succeeded` |
 
-Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. `RNGSeed = 0` derives a deterministic seed from the request. For `l1` / `elasticnet`, `Resample` is the rigorous SE answer and suppresses `PROCESSING_REGRESSION_APPROXIMATE_SE`.
+Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. For `l1` / `elasticnet`, `Resample` is the rigorous SE answer and suppresses `PROCESSING_REGRESSION_APPROXIMATE_SE`.
 
 ### `Selection` (stepwise)
 

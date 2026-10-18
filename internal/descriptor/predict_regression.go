@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/internal/regpenalty"
+	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -144,6 +145,11 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		} else if reg.Covariance.Robust() {
 			checkCovarianceFields(env, reg, schema)
+		}
+		// jackknife_groups / jackknife_by — the runtime's rule itself
+		// (internal/regresample.Check, shared).
+		if cerr := regresample.Check(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 
 		// L1-penalized OLS / GLM fits (Penalty=="l1" or "elasticnet")

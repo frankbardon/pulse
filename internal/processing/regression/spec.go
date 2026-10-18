@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/internal/regpenalty"
+	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -48,6 +49,11 @@ func ValidateRegression(spec *types.RegressionSpec) error {
 	// (penalty, resample, selection, a type without the estimators) —
 	// the one rule predict applies too (internal/regcov).
 	if cerr := regcov.Check(spec); cerr != nil {
+		return cerr
+	}
+	// The jackknife knobs (jackknife_groups / jackknife_by) — the one
+	// rule predict applies too (internal/regresample).
+	if cerr := regresample.Check(spec); cerr != nil {
 		return cerr
 	}
 	return nil

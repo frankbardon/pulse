@@ -1,6 +1,6 @@
 ---
 name: predict-advisories
-description: Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one.
+description: Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families, a leave-one-out jackknife over a large cohort); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one.
 kind: design
 type: guide
 applies_to: predict
@@ -36,6 +36,7 @@ Predict answers "will this run" (errors, warnings). An **advisory** answers a di
 | `PULSE_ADVISORY_EXTRA_PASS` | an `ATTR_FORMULA` calls `total(expr)`, so the run adds a pre-pass over the filtered rows (one per such formula) | `slot`, `operator`, `label`, `totals` (distinct arguments), `added_scans` (1; formulas in one pre-pass layer share it) |
 <!-- /feature -->
 | `PULSE_ADVISORY_SERIES_AXIS_NOT_DATE` | a series overlay that reads rows in order (prior, rolling, baseline, sibling) runs over two or more groupers with no `params.partition_by`, and the last grouper — the series axis — is not a date grouper | `slot`, `operator`, `series_axis`, `grouper`, `groups`, `date_axis` (a leading date grouper to move last; absent when none) |
+| `PULSE_ADVISORY_JACKKNIFE_COST` | a regression runs the leave-one-out jackknife (`resample: jackknife`, no `jackknife_groups` / `jackknife_by`) over a cohort of at least `threshold` (10,000) records: one refit per row, cost growing with n² (Compose slot predict has no record count and stays silent) | `slot`, `operator`, `records`, `threshold`, `suggested: {"jackknife_groups": 50}` |
 | `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED` | a slot names an embedder extension operator whose registration declares no params, and carries a non-empty `params` object: its keys pass to the operator unchecked, so a misspelled key is not refused (a declaring extension, like every built-in, refuses it `PULSE_REQUEST_UNKNOWN_FIELD`) | `slot`, `operator`, `keys` |
 
 <!-- feature: capability:multiplicity -->

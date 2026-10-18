@@ -215,8 +215,10 @@ var testClasses = map[types.TestType]Class{
 // frequency-only: the conjugate posterior with X'WX, X'Wy, y'Wy and Σw
 // equals the posterior on the expanded rows, while under probability
 // weights it is a pseudo-posterior with no reference form. A regression
-// carrying a resample or selection modifier is refused at the slot,
-// whatever its class (the resolver's weightSlot.reason).
+// carrying a bootstrap resample or a selection modifier is refused at
+// the slot, whatever its class (the resolver's weightSlot.reason); a
+// jackknife is weighted (JK1 — every replicate refits the remaining
+// rows with their own weights).
 var regressionClasses = map[types.RegressionType]Class{
 	types.REG_OLS:          ClassAware,
 	types.REG_GLM:          ClassAware,

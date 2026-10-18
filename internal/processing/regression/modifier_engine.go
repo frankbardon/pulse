@@ -98,6 +98,19 @@ func (e *modifierEngine) FitBuffered(records []Record) (*types.RegressionResult,
 	}
 	e.finalized = true
 
+	// jackknife_by: a row whose cluster value is null drops from the
+	// fit listwise — from the full-data fit (and any selection) as from
+	// every replicate, like a null predictor.
+	if e.spec.Resample == "jackknife" && e.spec.JackknifeBy != "" {
+		kept := make([]Record, 0, len(records))
+		for _, rec := range records {
+			if _, ok := clusterKey(rec, e.spec.JackknifeBy); ok {
+				kept = append(kept, rec)
+			}
+		}
+		records = kept
+	}
+
 	// Predictor universe for selection / refit.
 	predictors := e.spec.Predictors
 	activePredictors := predictors
@@ -144,7 +157,7 @@ func (e *modifierEngine) runResampleWith(
 	baseResult *types.RegressionResult,
 ) (*types.RegressionResult, error) {
 	innerFitter, pValueFn := e.makeResampleFitter(activePredictors)
-	out, err := runResample(e.spec, records, activePredictors, baseResult, innerFitter, pValueFn)
+	out, err := runResample(e.spec, records, activePredictors, baseResult, innerFitter, e.makeWarmFitter(activePredictors), pValueFn)
 	if err != nil {
 		return nil, err
 	}
@@ -219,6 +232,19 @@ func (e *modifierEngine) makeResampleFitter(activePredictors []string) (func([]R
 		}
 }
 
+// makeWarmFitter returns the warm-started refit the delete-a-group
+// jackknife runs each replicate through: REG_GLM's IRLS started at the
+// full-data β (irlsProblem.Start). nil for REG_OLS, whose refit is a
+// closed-form (or coordinate-descent) solve over one pass of the rows.
+func (e *modifierEngine) makeWarmFitter(activePredictors []string) func([]Record, []float64) (*refitResult, error) {
+	if e.family != "GLM" {
+		return nil
+	}
+	return func(recs []Record, start []float64) (*refitResult, error) {
+		return glmRefit(recs, e.spec.Target, activePredictors, e.glmFam, e.spec.MaxIters, e.spec.Tol, e.spec, start)
+	}
+}
+
 // makeFinalizeFn returns the closure selection uses to fit the *final*
 // model on the chosen active set and package a full RegressionResult.
 // This is what surfaces back to the response when Selection is the only
@@ -240,6 +266,8 @@ func (e *modifierEngine) finalizeOnPredictors(records []Record, active []string)
 	inner := *e.spec
 	inner.Predictors = active
 	inner.Resample = ""
+	inner.JackknifeGroups = 0
+	inner.JackknifeBy = ""
 	inner.Selection = ""
 	inner.Criterion = ""
 

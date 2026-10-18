@@ -2409,6 +2409,7 @@ pulse/errors: const PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC pulse/errors.Code = "P
 pulse/errors: const PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT pulse/errors.Code = "PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT"
 pulse/errors: const PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED pulse/errors.Code = "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED"
 pulse/errors: const PULSE_ADVISORY_EXTRA_PASS pulse/errors.Code = "PULSE_ADVISORY_EXTRA_PASS"
+pulse/errors: const PULSE_ADVISORY_JACKKNIFE_COST pulse/errors.Code = "PULSE_ADVISORY_JACKKNIFE_COST"
 pulse/errors: const PULSE_ADVISORY_MANY_TESTS pulse/errors.Code = "PULSE_ADVISORY_MANY_TESTS"
 pulse/errors: const PULSE_ADVISORY_ORDINAL_PARAMETRIC pulse/errors.Code = "PULSE_ADVISORY_ORDINAL_PARAMETRIC"
 pulse/errors: const PULSE_ADVISORY_SERIES_AXIS_NOT_DATE pulse/errors.Code = "PULSE_ADVISORY_SERIES_AXIS_NOT_DATE"
@@ -4789,6 +4790,7 @@ pulse/types: type FitResult field RegressionResult.DF float64 "json:\"df,omitemp
 pulse/types: type FitResult field RegressionResult.Deviance float64 "json:\"deviance,omitempty\""
 pulse/types: type FitResult field RegressionResult.Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type FitResult field RegressionResult.Family string "json:\"family,omitempty\""
+pulse/types: type FitResult field RegressionResult.JackknifeGroups int "json:\"jackknife_groups,omitempty\""
 pulse/types: type FitResult field RegressionResult.L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type FitResult field RegressionResult.Link string "json:\"link,omitempty\""
 pulse/types: type FitResult field RegressionResult.Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
@@ -5302,6 +5304,7 @@ pulse/types: type RegressionResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type RegressionResult field Deviance float64 "json:\"deviance,omitempty\""
 pulse/types: type RegressionResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type RegressionResult field Family string "json:\"family,omitempty\""
+pulse/types: type RegressionResult field JackknifeGroups int "json:\"jackknife_groups,omitempty\""
 pulse/types: type RegressionResult field L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type RegressionResult field Link string "json:\"link,omitempty\""
 pulse/types: type RegressionResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
@@ -5333,6 +5336,8 @@ pulse/types: type RegressionSpec field Covariance *pulse/types.RegressionCovaria
 pulse/types: type RegressionSpec field CredibleLevel float64 "json:\"credible_level,omitempty\""
 pulse/types: type RegressionSpec field Criterion string "json:\"criterion,omitempty\""
 pulse/types: type RegressionSpec field Family string "json:\"family,omitempty\""
+pulse/types: type RegressionSpec field JackknifeBy string "json:\"jackknife_by,omitempty\""
+pulse/types: type RegressionSpec field JackknifeGroups int "json:\"jackknife_groups,omitempty\""
 pulse/types: type RegressionSpec field L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type RegressionSpec field Link string "json:\"link,omitempty\""
 pulse/types: type RegressionSpec field MaxIters int "json:\"max_iters,omitempty\""
@@ -5613,4 +5618,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 46fdbdf4d01ead7144dbd2826310fad69af59c56b292a3489750cd50085856e5
+// golden-hash: 4888a4342740a55d753b8f2a04e2542cea0cea8ec716cb198212995c8bcc3943

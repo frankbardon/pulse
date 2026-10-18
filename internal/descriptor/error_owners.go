@@ -226,6 +226,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_ADVISORY_ORDINAL_PARAMETRIC:      own(advisoryParametricTestNames()...),
 	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED: own(featWeighting),
 	errors.PULSE_ADVISORY_EXTRA_PASS:              own("ATTR_FORMULA"),
+	// Fires only on a regression that accepts resample jackknife.
+	errors.PULSE_ADVISORY_JACKKNIFE_COST: own("REG_OLS", "REG_GLM"),
 	// Fires only on the ordered series overlays (seriespartition.Ordered).
 	errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE: own(advisoryOrderedOverlayNames()...),
 	// Fires on an embedder extension operator, which any instance may

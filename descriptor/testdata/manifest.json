@@ -8049,10 +8049,22 @@
             "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded)."
           },
           {
+            "name": "jackknife_groups",
+            "type": "int",
+            "required": false,
+            "description": "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row; SE √((g−1)/g·Σ(β₍ₖ₎−β̄)²), echoed as jackknife_groups. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out, unchanged."
+          },
+          {
+            "name": "jackknife_by",
+            "type": "field",
+            "required": false,
+            "description": "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups."
+          },
+          {
             "name": "rng_seed",
             "type": "int",
             "required": false,
-            "description": "Seed for the bootstrap RNG."
+            "description": "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows."
           },
           {
             "name": "selection",
@@ -8214,10 +8226,22 @@
             "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded)."
           },
           {
+            "name": "jackknife_groups",
+            "type": "int",
+            "required": false,
+            "description": "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row; SE √((g−1)/g·Σ(β₍ₖ₎−β̄)²), echoed as jackknife_groups. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out, unchanged."
+          },
+          {
+            "name": "jackknife_by",
+            "type": "field",
+            "required": false,
+            "description": "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups."
+          },
+          {
             "name": "rng_seed",
             "type": "int",
             "required": false,
-            "description": "Seed for the bootstrap RNG."
+            "description": "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows."
           },
           {
             "name": "selection",
@@ -10076,7 +10100,7 @@
         ]
       }
     ],
-    "error_codes_count": 391,
+    "error_codes_count": 392,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10119,6 +10143,7 @@
       "PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT",
       "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED",
       "PULSE_ADVISORY_EXTRA_PASS",
+      "PULSE_ADVISORY_JACKKNIFE_COST",
       "PULSE_ADVISORY_MANY_TESTS",
       "PULSE_ADVISORY_ORDINAL_PARAMETRIC",
       "PULSE_ADVISORY_SERIES_AXIS_NOT_DATE",
@@ -12690,7 +12715,7 @@
       },
       {
         "name": "op-reg-mod-resample",
-        "description": "Spec-level resampling modifier (jackknife / bootstrap) that composes with an OLS or GLM fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path."
+        "description": "Spec-level resampling modifier (jackknife — leave-one-out, grouped or by cluster — / bootstrap) that composes with an OLS or GLM fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path."
       },
       {
         "name": "op-reg-mod-selection",
@@ -12926,7 +12951,7 @@
       },
       {
         "name": "predict-advisories",
-        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
+        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families, a leave-one-out jackknife over a large cohort); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
       },
       {
         "name": "process-chain",
@@ -19162,4 +19187,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e011b376a9c446e90667fd8033215da6017680e4b8e7868fd0ef4c56c0439d42
+// golden-hash: f4bd035bd4de669b96121cd71bb64b1f3f52ee850d296b861167e621eb272cc9

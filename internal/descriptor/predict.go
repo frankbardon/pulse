@@ -590,6 +590,8 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 		suggestedWeight: result.SuggestedWeight,
 		measures:        opts.SidecarMeasureLevels,
 		inst:            opts.Instance,
+		records:         matrixRecords,
+		recordsKnown:    matrixRecords >= 0,
 	})
 
 	// If any errors were added, mark invalid.

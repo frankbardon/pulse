@@ -243,6 +243,18 @@ func TestNeededFields_RegressionCovarianceKeys(t *testing.T) {
 	}
 }
 
+// TestNeededFields_RegressionJackknifeBy: a jackknife_by field is
+// decoded — its values are the delete groups.
+func TestNeededFields_RegressionJackknifeBy(t *testing.T) {
+	schema := mkSchema("y", "x1", "region", "unused")
+	req := &types.Request{Regressions: []*types.RegressionSpec{{
+		Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"}, Resample: "jackknife", JackknifeBy: "region",
+	}}}
+	if g, want := sortedFields(NeededFields(req, schema, nil)), []string{"region", "x1", "y"}; !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
 func TestNeededFields_FeatureStratifyFromParams(t *testing.T) {
 	schema := mkSchema("a", "label", "unused")
 	req := &types.Request{

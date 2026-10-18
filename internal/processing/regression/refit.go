@@ -47,16 +47,27 @@ type refitResult struct {
 //   - any solver error (rank deficient, etc.) bubbled untouched.
 func olsFitter(records []Record, target string, activePredictors []string, spec *types.RegressionSpec) (*refitResult, error) {
 	p := len(activePredictors)
+	// The slot's stamped weight (the weighted — JK1 — jackknife; nil on
+	// selection / bootstrap, which the weight resolver refuses): each
+	// listwise-complete row folds with its weight exactly as the
+	// olsEngine does; unweighted every row weighs exactly 1, which is
+	// UpdateRow bit for bit.
+	rw := newRowWeights(spec)
 	if p == 0 {
 		// Intercept-only model: β₀ = ȳ; RSS = Σ(y − ȳ)² = m2YY.
 		acc := newOLSAccumulator(0)
+		acc.basis = rw.basis
 		buf := make([]float64, 0)
 		for _, rec := range records {
 			y, ok := rec.NumericValue(target)
 			if !ok {
 				continue
 			}
-			acc.UpdateRow(buf, y)
+			w, ok := rw.of(rec)
+			if !ok {
+				continue
+			}
+			acc.UpdateRowWeighted(buf, y, w)
 		}
 		if acc.n == 0 {
 			return nil, errors.NewCodedErrorWithDetails(
@@ -75,6 +86,7 @@ func olsFitter(records []Record, target string, activePredictors []string, spec 
 	}
 
 	acc := newOLSAccumulator(p)
+	acc.basis = rw.basis
 	xBuf := make([]float64, p)
 	for _, rec := range records {
 		y, ok := rec.NumericValue(target)
@@ -93,7 +105,11 @@ func olsFitter(records []Record, target string, activePredictors []string, spec 
 		if skip {
 			continue
 		}
-		acc.UpdateRow(xBuf, y)
+		w, ok := rw.of(rec)
+		if !ok {
+			continue
+		}
+		acc.UpdateRowWeighted(xBuf, y, w)
 	}
 	if acc.n < p+1 {
 		return nil, errors.NewCodedErrorWithDetails(
@@ -158,6 +174,17 @@ func olsFitter(records []Record, target string, activePredictors []string, spec 
 //   - PROCESSING_REGRESSION_RANK_DEFICIENT / SEPARATION / NO_CONVERGE
 //     bubbled untouched.
 func glmFitter(records []Record, target string, activePredictors []string, fam glmFamily, maxIters int, tol float64, knobs *types.RegressionSpec) (*refitResult, error) {
+	return glmRefit(records, target, activePredictors, fam, maxIters, tol, knobs, nil)
+}
+
+// glmRefit is glmFitter with an optional warm start (irlsProblem.Start:
+// the intercept then one coefficient per active predictor; nil starts
+// from the family's per-row values). knobs' stamped Weight, when set,
+// weights the refit exactly as glmEngine.FitBuffered weights the full
+// fit (buildWeightedDesign: prior weights w*, the penalty's N* = Σw*) —
+// the weighted (JK1) jackknife; selection and bootstrap never carry one
+// (the weight resolver refuses it).
+func glmRefit(records []Record, target string, activePredictors []string, fam glmFamily, maxIters int, tol float64, knobs *types.RegressionSpec, start []float64) (*refitResult, error) {
 	if maxIters <= 0 {
 		maxIters = defaultGLMMaxIters
 	}
@@ -166,7 +193,16 @@ func glmFitter(records []Record, target string, activePredictors []string, fam g
 	}
 
 	p := len(activePredictors)
-	xRows, yVec := buildDesign(records, activePredictors, target)
+	var rw rowWeights
+	if knobs != nil {
+		rw = newRowWeights(knobs)
+	}
+	var xRows, yVec, prior []float64
+	if rw.weighted() {
+		xRows, yVec, prior, _, _, _ = buildWeightedDesign(records, activePredictors, target, rw, nil)
+	} else {
+		xRows, yVec = buildDesign(records, activePredictors, target)
+	}
 	n := len(yVec)
 	if n < p+1 {
 		return nil, errors.NewCodedErrorWithDetails(
@@ -176,12 +212,19 @@ func glmFitter(records []Record, target string, activePredictors []string, fam g
 		)
 	}
 	yBar := mean(yVec)
+	if prior != nil {
+		yBar = weightedMean(yVec, prior)
+	}
 
 	if p == 0 {
 		// Intercept-only fit: β₀ = g(ȳ), deviance = NullDeviance.
 		mu0 := fam.SafeMean(yBar)
 		nullDev := 0.0
 		for i := 0; i < n; i++ {
+			if prior != nil {
+				nullDev += prior[i] * fam.Deviance(yVec[i], mu0)
+				continue
+			}
 			nullDev += fam.Deviance(yVec[i], mu0)
 		}
 		nullDev *= 2
@@ -195,16 +238,21 @@ func glmFitter(records []Record, target string, activePredictors []string, fam g
 	}
 
 	// The same weighted IRLS loop glmEngine.FitBuffered runs (every
-	// prior weight 1), without the final (XᵀWX)⁻¹: selection / resample
-	// need only β, deviance and n.
+	// prior weight 1 unless the slot is weighted), without the final
+	// (XᵀWX)⁻¹: selection / resample need only β, deviance and n.
 	pr := &irlsProblem{
-		X: xRows, Y: yVec, K: p + 1,
+		X: xRows, Y: yVec, Prior: prior, K: p + 1,
 		Columns:  append([]string{InterceptKey}, activePredictors...),
 		Family:   fam,
 		MaxIters: maxIters, Tol: tol,
+		Start: start,
 	}
-	// The spec's penalty, N* = n (every prior weight 1).
-	if pen := newGLMPenalty(knobs, float64(n)); pen != nil {
+	// The spec's penalty, N* = Σw* (n unweighted: every prior weight 1).
+	nStar := float64(n)
+	if prior != nil {
+		nStar = sum(prior)
+	}
+	if pen := newGLMPenalty(knobs, nStar); pen != nil {
 		pr.Penalty = pen
 	}
 	sol, err := irlsFit(pr)

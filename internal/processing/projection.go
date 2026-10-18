@@ -324,6 +324,7 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 			addKnown(c.Cluster)
 			addKnown(c.OrderBy)
 		}
+		addKnown(r.JackknifeBy)
 	}
 
 	// Virtual vectors decode every member (internal/vectors, the one

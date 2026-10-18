@@ -420,3 +420,10 @@ source(file.path(script_dir, "gen_ols_penalty.R"), local = FALSE)
 # DeLong se / 95% interval, plus weighted cases computed as the weighted
 # Mann-Whitney double sum); pROC + jsonlite.
 source(file.path(script_dir, "gen_auc.R"), local = FALSE)
+
+# The REG_OLS / REG_GLM jackknife golden (jackknife.json: delete-a-group
+# by cluster and by a group assignment, frequency-weighted (JK1),
+# l2-penalised and weighted leave-one-out cases, all by manual deletions;
+# the cluster cases cross-checked against survey's JK1 design); survey +
+# glmnet + jsonlite.
+source(file.path(script_dir, "gen_jackknife.R"), local = FALSE)

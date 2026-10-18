@@ -45,7 +45,7 @@ Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) to
 | GLM | (XᵀWX)⁻¹ at the converged IRLS weights, dispersion fixed at 1 |
 | Bayesian linear | the posterior covariance b_N/(a_N−1)·Λ⁻¹; `null` when a_N ≤ 1 |
 
-| Resample `jackknife` | (n−1)/n·Σ(β₋ᵢ−β̄)(β₋ᵢ−β̄)ᵀ over the leave-one-out refits |
+| Resample `jackknife` | (g−1)/g·Σ(β₋ₖ−β̄)(β₋ₖ−β̄)ᵀ over its g delete-group refits (g = n leave-one-out) |
 | Resample `bootstrap` | sample covariance (B−1 divisor) of the successful replicates; seeded = deterministic |
 | Selection | the engine's matrix from the final refit on the selected predictors |
 

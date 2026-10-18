@@ -128,9 +128,26 @@ type RegressionSpec struct {
 	CredibleLevel float64 `json:"credible_level,omitempty"`
 
 	// Resample selects an orthogonal resampling layer applied to any
-	// regression family. One of "" (none), "jackknife" (leave-one-out),
-	// or "bootstrap". Non-empty forces the buffered path.
+	// regression family. One of "" (none), "jackknife" (leave-one-out,
+	// or delete-a-group with JackknifeGroups / JackknifeBy), or
+	// "bootstrap". Non-empty forces the buffered path.
 	Resample string `json:"resample,omitempty"`
+
+	// JackknifeGroups turns the leave-one-out jackknife into a
+	// delete-a-group one (Resample "jackknife" only): the fitted rows are
+	// assigned to this many groups by a seeded random permutation
+	// (RNGSeed; zero derives the seed as the bootstrap does), sizes
+	// differing by at most one, and each replicate refits without one
+	// group — g refits instead of n. 2 ≤ g ≤ the fitted row count; zero
+	// is absent (leave-one-out, unchanged). Exclusive with JackknifeBy.
+	JackknifeGroups int `json:"jackknife_groups,omitempty"`
+
+	// JackknifeBy names a field whose values are the jackknife's delete
+	// groups (a delete-a-cluster jackknife; Resample "jackknife" only):
+	// one replicate per distinct value. A row whose value is null drops
+	// from the fit listwise, like a null predictor. Exclusive with
+	// JackknifeGroups.
+	JackknifeBy string `json:"jackknife_by,omitempty"`
 
 	// BootstrapIters is the bootstrap replicate count when
 	// Resample == "bootstrap", used as given; zero or negative means the
@@ -138,10 +155,11 @@ type RegressionSpec struct {
 	// Ignored otherwise.
 	BootstrapIters int `json:"bootstrap_iters,omitempty"`
 
-	// RNGSeed seeds the bootstrap RNG for reproducibility. Defaults to
-	// 0: a deterministic seed derived from the request and the rows the
-	// fit reads (never the clock), so the same request over the same
-	// cohort is bit-identical; pin non-zero to keep it across cohorts.
+	// RNGSeed seeds the bootstrap RNG, and the JackknifeGroups
+	// assignment, for reproducibility. Defaults to 0: a deterministic
+	// seed derived from the request and the rows the fit reads (never
+	// the clock), so the same request over the same cohort is
+	// bit-identical; pin non-zero to keep it across cohorts.
 	RNGSeed int64 `json:"rng_seed,omitempty"`
 
 	// Selection requests an automated subset-selection wrapper around
@@ -160,7 +178,8 @@ type RegressionSpec struct {
 	// ridge: the sandwich), REG_GLM ((XᵀWX)⁻¹ at the converged weights)
 	// and REG_BAYES_LINEAR (the POSTERIOR covariance b_n/(a_n−1)·Λ_n⁻¹)
 	// support it. Under Resample it is the replicate covariance (jackknife
-	// (n−1)/n·Σ(β₋ᵢ−β̄)(β₋ᵢ−β̄)ᵀ, bootstrap the B−1 sample covariance of
+	// (g−1)/g·Σ(β₋ₖ−β̄)(β₋ₖ−β̄)ᵀ over its g replicates, g = n for
+	// leave-one-out; bootstrap the B−1 sample covariance of
 	// the successful replicates); under Selection the final refit's
 	// covariance keyed by the selected predictors — so √diag always
 	// equals StdErrors. Lasso / elastic net refuse it, alone or under a
@@ -308,6 +327,12 @@ type RegressionResult struct {
 	// skipped, so BootstrapSucceeded < BootstrapRequested exactly when
 	// some failed. Bootstrap only.
 	BootstrapSucceeded int `json:"bootstrap_succeeded,omitempty"`
+
+	// JackknifeGroups is the delete-a-group jackknife's replicate count
+	// g — RegressionSpec.JackknifeGroups, or the distinct JackknifeBy
+	// values among the fitted rows. Absent on a leave-one-out jackknife
+	// and every other fit.
+	JackknifeGroups int `json:"jackknife_groups,omitempty"`
 
 	// Selection echoes RegressionSpec.Selection when set.
 	Selection string `json:"selection,omitempty"`

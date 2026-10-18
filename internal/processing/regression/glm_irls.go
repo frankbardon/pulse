@@ -119,6 +119,14 @@ type irlsProblem struct {
 	Tol      float64
 	// Penalty, when set, penalises the fit (see irlsPenalty).
 	Penalty irlsPenalty
+	// Start, when set (length K), warm-starts the loop at η = X·Start
+	// instead of the family's per-row starting values — a jackknife
+	// replicate starts from the full-data fit, a few iterations from
+	// its own. A start whose objective or η is invalid for the family
+	// falls back to the per-row start. The converged fit is the same
+	// fixed point either way (to the convergence tolerance), not the
+	// same bits.
+	Start []float64
 	// WantInverse asks for (XᵀWX)⁻¹ at the converged working weights.
 	WantInverse bool
 
@@ -178,20 +186,31 @@ func irlsFit(pr *irlsProblem) (*irlsSolution, error) {
 		)
 	}
 
-	// Per-row start: μ⁰ = MuStart(y, w*), η⁰ = g(μ⁰).
 	eta := make([]float64, n)
 	mu := make([]float64, n)
-	for i := 0; i < n; i++ {
-		eta[i] = fam.LinkFunc(fam.MuStart(pr.Y[i], prior[i]))
+	var beta []float64 // nil until the first step lands (or a warm start)
+	var objOld float64
+	if len(pr.Start) == k {
+		// Warm start at η = X·Start: the first step is then judged for
+		// convergence and step-halving against Start like any other.
+		start := append([]float64(nil), pr.Start...)
+		if obj := pr.candidate(start, eta, mu, prior); pr.valid(obj, eta) {
+			beta, objOld = start, obj
+		}
 	}
-	objOld := pr.objective(eta, mu, prior, nil)
+	if beta == nil {
+		// Per-row start: μ⁰ = MuStart(y, w*), η⁰ = g(μ⁰).
+		for i := 0; i < n; i++ {
+			eta[i] = fam.LinkFunc(fam.MuStart(pr.Y[i], prior[i]))
+		}
+		objOld = pr.objective(eta, mu, prior, nil)
+	}
 
 	w := make([]float64, n)
 	z := make([]float64, n)
 	xtwx := make([]float64, k*k)
 	xtwz := make([]float64, k)
 	etaNew := make([]float64, n)
-	var beta []float64 // nil until the first step lands
 	var history [][]float64
 	iters := 0
 

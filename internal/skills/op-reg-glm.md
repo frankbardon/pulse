@@ -46,7 +46,7 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 ## Gotchas
 
-- Weighted: `resample` / `selection` → `PULSE_WEIGHT_UNSUPPORTED`; n_eff < p+1 → `PULSE_WEIGHT_LOW_NEFF`.
+- Weighted: `resample: bootstrap` / `selection` → `PULSE_WEIGHT_UNSUPPORTED` (a jackknife is weighted); n_eff < p+1 → `PULSE_WEIGHT_LOW_NEFF`.
 - `penalty` on gamma, or `alpha` / `l1_ratio` without one → `PROCESSING_CONFIG`. `l1` / `elasticnet`: `PROCESSING_REGRESSION_APPROXIMATE_SE` (unless `resample`), `vcov` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`; + `selection` warns `PROCESSING_REGRESSION_REGULARIZED_SELECTION`.
 - Binomial separation (a predictor splits the outcome, e.g. an empty 2×2 cell) → `PROCESSING_REGRESSION_SEPARATION`, `details.predictors` named, no coefficients (the MLE is infinite); the slot fails alone (`error`). Add `penalty: l2` (finite fit), or drop / merge it; check it is not recorded after the outcome. A strong but unseparated predictor converges.
 - Other non-convergence → `PROCESSING_REGRESSION_NO_CONVERGE` (`details.reason`): raise `max_iters`, rescale.

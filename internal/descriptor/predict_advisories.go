@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
@@ -35,6 +36,7 @@ var advisoryCodes = []errors.Code{
 	errors.PULSE_ADVISORY_EXTRA_PASS,
 	errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
 	errors.PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
+	errors.PULSE_ADVISORY_JACKKNIFE_COST,
 	errors.PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT,
 }
 
@@ -92,6 +94,11 @@ type advisoryInput struct {
 	// measures is PredictOptions.SidecarMeasureLevels.
 	measures map[string]string
 	inst     *InstanceSnapshot
+	// records is the cohort's record count (the file length's, or the
+	// archive's shard sum) when recordsKnown — header metadata, never a
+	// record read.
+	records      int64
+	recordsKnown bool
 	// prefix is prepended to every slot path an advisory names
 	// ("requests[1]." for a Compose slot; "" on a Request root) and
 	// extra is merged into every advisory's details (a Compose slot's
@@ -131,6 +138,45 @@ func computeAdvisories(in advisoryInput) []descriptor.Advisory {
 	add(extraPassAdvisories(in.req, in.prefix, in.inst)...)
 	add(seriesAxisAdvisories(in.req, in.schema, in.prefix, in.inst)...)
 	add(extensionParamsAdvisories(in.req, in.prefix, in.inst)...)
+	if in.recordsKnown {
+		add(jackknifeCostAdvisories(in.req, in.records, in.prefix, in.inst)...)
+	}
+	return out
+}
+
+// jackknifeCostAdvisories: one PULSE_ADVISORY_JACKKNIFE_COST per
+// REG_OLS / REG_GLM slot the instance offers that runs the leave-one-out
+// jackknife (regresample.LeaveOneOut) over a cohort of at least
+// regresample.LeaveOneOutCostRows records. The count is the cohort's —
+// filters may leave fewer rows, so it is an upper bound on the refits.
+func jackknifeCostAdvisories(req *types.Request, records int64, prefix string, inst *InstanceSnapshot) []descriptor.Advisory {
+	if records < regresample.LeaveOneOutCostRows {
+		return nil
+	}
+	var out []descriptor.Advisory
+	for i, reg := range req.Regressions {
+		if reg == nil || !regresample.LeaveOneOut(reg) {
+			continue
+		}
+		if op := opRoute(inst, reg.Type); op != types.REG_OLS && op != types.REG_GLM {
+			continue
+		}
+		slot := prefix + "regressions[" + strconv.Itoa(i) + "]"
+		out = append(out, descriptor.Advisory{
+			Code: string(errors.PULSE_ADVISORY_JACKKNIFE_COST),
+			Message: string(reg.Type) + " at " + slot + " runs the leave-one-out jackknife over a cohort of " +
+				strconv.FormatInt(records, 10) + " records, so the run refits the model once per row and its cost grows with the square of the row count; " +
+				"jackknife_groups " + strconv.Itoa(regresample.SuggestedGroups) + " refits " + strconv.Itoa(regresample.SuggestedGroups) +
+				" times instead (or jackknife_by a field of natural clusters).",
+			Details: map[string]any{
+				"slot":      slot,
+				"operator":  string(reg.Type),
+				"records":   records,
+				"threshold": regresample.LeaveOneOutCostRows,
+				"suggested": map[string]any{"jackknife_groups": regresample.SuggestedGroups},
+			},
+		})
+	}
 	return out
 }
 

@@ -45,7 +45,7 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 ## Gotchas
 
-- Weighted: `resample` / `selection` → `PULSE_WEIGHT_UNSUPPORTED`; n_eff ≤ p+1 → `PULSE_WEIGHT_LOW_NEFF`; residual df ≤ 0 makes SEs, p, `CILower`/`CIUpper`, `DF`, `AdjR2`, `ResidualStdErr` null.
+- Weighted: `resample: bootstrap` / `selection` → `PULSE_WEIGHT_UNSUPPORTED` (a jackknife is weighted); n_eff ≤ p+1 → `PULSE_WEIGHT_LOW_NEFF`; residual df ≤ 0 makes SEs, p, `CILower`/`CIUpper`, `DF`, `AdjR2`, `ResidualStdErr` null.
 - `l1` / `elasticnet` SE is plug-in over the active set — pair with `op-reg-mod-resample`; otherwise `PROCESSING_REGRESSION_APPROXIMATE_SE` warns.
 - The penalty reads raw units: a predictor on a large scale is barely shrunk. To penalize all alike, divide each predictor by its SD upstream (a derived column).
 - Robust `covariance` forces the buffered path (second pass for residuals / leverage); beside `penalty` / `resample` / `selection`, < 2 clusters or a repeated `order_by` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. A null `cluster` / `order_by` drops the row.

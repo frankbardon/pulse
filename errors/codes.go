@@ -644,6 +644,16 @@ const (
 	// slot, the operator and the params keys.
 	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED Code = "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED"
 
+	// PULSE_ADVISORY_JACKKNIFE_COST is a predict advisory: a REG_OLS /
+	// REG_GLM slot runs the leave-one-out jackknife (resample
+	// "jackknife" with neither jackknife_groups nor jackknife_by) over a
+	// cohort of at least regresample.LeaveOneOutCostRows records, so the
+	// run refits the model once per row — a cost that grows with the
+	// square of the row count. One per such slot; details carry the
+	// slot, the operator, the record count, the threshold and the patch
+	// {"jackknife_groups": 50}.
+	PULSE_ADVISORY_JACKKNIFE_COST Code = "PULSE_ADVISORY_JACKKNIFE_COST"
+
 	// PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT is a Compose predict
 	// advisory: two or more slots emit p-values, they join two or more
 	// distinct correction families other than the batch-wide `compose`
@@ -4010,6 +4020,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_EXTRA_PASS,
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
 	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
+	PULSE_ADVISORY_JACKKNIFE_COST,
 	PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT,
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN,
 	PULSE_RECOMMEND_INTENT_UNKNOWN,
