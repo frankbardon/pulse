@@ -4,7 +4,7 @@ slug: model-workbench
 title: "Models fit reliably and are validated with standard metrics, and leakage-safe encoding is one parameter"
 track: Statistical integrity
 size: L
-status: not-started
+status: done
 depends_on: []
 soft_depends_on: [U42]
 blocks: [U32]
@@ -35,15 +35,15 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#339** (Model workbench) `REG_GLM` fits robustly: per-row starting values (`mustart`) and step-halving on deviance increase; a distinct coded error for divergence or separation instead of `RANK_DEFICIENT`; an oracle case on the showcase's `default ~ collections_flag` against R
-- [ ] **#340** (Model workbench) A failing regression slot reports its own error without discarding the request's other results (decision below)
-- [ ] **#341** (Model workbench) Penalised GLM (`l2`, and `l1` / `elasticnet`) for the binomial and Poisson families
-- [ ] **#342** (Model workbench) Discrimination metrics: a weight-aware AUC / Gini aggregator over a score and a binary outcome, and a share-of-partition window for cumulative capture curves
-- [ ] **#343** (Model workbench) A grouped (k-fold or delete-d) jackknife, so resampled standard errors are practical at tens of thousands of rows
-- [ ] **#344** (Model workbench) Leakage-safe encoding in one parameter: `FEAT_TARGET_ENCODE` `fit_on` (category means from the training rows, applied to all) or out-of-fold encoding
+- [x] **#339** (Model workbench) `REG_GLM` fits robustly: per-row starting values (`mustart`) and step-halving on deviance increase; a distinct coded error for divergence or separation instead of `RANK_DEFICIENT`; an oracle case on the showcase's `default ~ collections_flag` against R
+- [x] **#340** (Model workbench) A failing regression slot reports its own error without discarding the request's other results (decision below)
+- [x] **#341** (Model workbench) Penalised GLM (`l2`, and `l1` / `elasticnet`) for the binomial and Poisson families
+- [x] **#342** (Model workbench) Discrimination metrics: a weight-aware AUC / Gini aggregator over a score and a binary outcome, and a share-of-partition window for cumulative capture curves
+- [x] **#343** (Model workbench) A grouped (k-fold or delete-d) jackknife, so resampled standard errors are practical at tens of thousands of rows
+- [x] **#344** (Model workbench) Leakage-safe encoding in one parameter: `FEAT_TARGET_ENCODE` `fit_on` (category means from the training rows, applied to all) or out-of-fold encoding
 - [x] **#345** (Model workbench) `ATTR_REG_PREDICT` (U42) scores GLM families on the response scale and can fit on a subset (training rows) while scoring all rows. **Delivered by [U42](U42-fit-scoring.md) (E1-S2):** `scale: response` (the default) applies the inverse link and `scale: link` returns the linear predictor; a compose `fits` entry's own filter picks the training rows while a slot scores every row
-- [ ] **#346** (Model workbench) `GROUP_QUANTILE` and `GROUP_RANGE` keys sort in bucket order (D01…D10, numeric ranges), not lexicographically
-- [ ] **#347** (Model workbench) Acceptance: the credit example demonstrates leakage with the binary `collections_flag`, reports AUC, uses train-only target encoding, and scores the holdout with no transcribed coefficient
+- [x] **#346** (Model workbench) `GROUP_QUANTILE` and `GROUP_RANGE` keys sort in bucket order (D01…D10, numeric ranges), not lexicographically
+- [x] **#347** (Model workbench) Acceptance: the credit example demonstrates leakage with the binary `collections_flag`, reports AUC, uses train-only target encoding, and scores the holdout with no transcribed coefficient
 
 ## Scope
 
@@ -78,12 +78,12 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(model-workbench/E
 
 ## Acceptance criteria
 
-- [ ] `default ~ collections_flag` converges and matches R's coefficients within oracle tolerance
-- [ ] AUC on the showcase holdout matches a reference implementation
-- [ ] The credit README's requests 11–14 contain no copied numbers
-- [ ] Showcase examples simplified where this unit allows (credit risk model): requests converted, README and REPRODUCE.md expected numbers refreshed, every step still pure Pulse
-- [ ] `format_version` stays `"1.1"`; every change is additive (or the unit's decision records the one deliberate bump)
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] `default ~ collections_flag` converges and matches R's coefficients within oracle tolerance (E1-S1, `glm_irls.json`)
+- [x] AUC on the holdout matches a reference implementation — in repo on the committed credit-shaped fixture against pROC (E3-S4, `TestCreditWorkbench_EndToEnd`, `credit_workbench.json`); the casebook showcase holdout re-run is E3-S5
+- [ ] The credit README's requests 11–14 contain no copied numbers — **pending E3-S5** (pulse-casebook PR)
+- [ ] Showcase examples simplified where this unit allows (credit risk model): requests converted, README and REPRODUCE.md expected numbers refreshed, every step still pure Pulse — **pending E3-S5** (pulse-casebook PR)
+- [x] `format_version` stays `"1.1"`; every wire change is additive; the deliberate behaviour breaks are listed in [03-embedder-migration](../v1.0.0-api-and-release/03-embedder-migration.md) "Changes from U49"
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit)) — the casebook conversion (E3-S5) lands in its own repository
 
 ## Gates & tests
 
@@ -101,9 +101,19 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(model-workbench/E
 
 Filed from [U42 handed on](U42-fit-scoring.md#handed-on) and moved here from [U46](U46-grouped-analysis.md) (U46 E4-S3): a numeric-range grouper is the train/holdout split a model workbench needs. Tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#395** — A grouper over explicit numeric ranges (e.g. 0–90 and 91–103), so a train/holdout split that is not a multiple of the `GROUP_RANGE` interval is one slot instead of a filter or two slots. Found in U42 (E2-S1).
+- [x] **#395** — A grouper over explicit numeric ranges (e.g. 0–90 and 91–103), so a train/holdout split that is not a multiple of the `GROUP_RANGE` interval is one slot instead of a filter or two slots. Found in U42 (E2-S1).
 
 ## Human inputs & decisions
 
-- **Open:** per-slot regression errors change today's all-or-nothing failure; decide whether partial success is the default or opt-in.
-- **Open:** AUC as an aggregator over (score, outcome) or a test that also reports a confidence interval.
+- **Decided:** partial success is the DEFAULT for a failed regression, test or matrix slot and a failed Compose fit (`types.SlotError` on the result, `PULSE_SLOT_FAILED` warning); `Options.Strict` keeps fail-fast with the slot's own code. Configuration faults stay fatal.
+- **Decided:** AUC is an aggregator (`AGG_AUC` over a score and a 0/1 outcome, per group), with a DeLong interval that is `null` under a weight; lift is a dedicated `WIN_LIFT`, a general `WIN_FORMULA` is v1.x backlog (#479).
+- **Decided:** one penalty objective across `REG_OLS` and `REG_GLM` — glmnet's with `standardize = FALSE`. OLS `l2` already was it; OLS `l1` / `elasticnet` were standardized and now are not (the behaviour break), and a coefficient the penalty zeroes carries no p-value.
+- **Decided:** separation is refused (`PROCESSING_REGRESSION_SEPARATION`), never returned with a warning; the jackknife is weighted (JK1) while bootstrap + weight stays refused; leave-one-out deletes fitted rows only.
+- **Decided:** target encoding takes a `fit_on` expression (+ optional `folds`) and ignores weights; only `fit_on` silences the leakage warning.
+
+## Handed on
+
+| Item | To | Why |
+|---|---|---|
+| #479 `WIN_FORMULA` (a general post-window formula site) | v1.x backlog (no unit) | `WIN_LIFT` covers the gains table in v1; the general site is additive |
+| Credit showcase conversion (README requests 11–14, REPRODUCE.md) | E3-S5 (pulse-casebook) | separate repository and PR |
