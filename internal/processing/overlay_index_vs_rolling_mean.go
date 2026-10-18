@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
@@ -45,13 +46,15 @@ import (
 //
 //   - resolver returns (0, false)  ⇒ absent host point: emit nil-Stat
 //                                     entry, do NOT advance the ring.
-//   - ring count < W              ⇒ window not yet filled: emit NaN
+//   - ring count < min_periods    ⇒ warm-up (params.min_periods,
+//                                     1 .. W, default W — the window
+//                                     not yet filled): emit NaN
 //                                     (no warning — "no comparison
 //                                     available" is structurally
 //                                     distinct from "denominator was
 //                                     zero"). Push the value into the
 //                                     ring.
-//   - ring count == W             ⇒ compute mean(ring). If mean == 0
+//   - else                        ⇒ compute mean(ring). If mean == 0
 //                                     emit NaN + PULSE_OVERLAY_REF_ZERO;
 //                                     else emit value/mean*100. Then
 //                                     evict the oldest entry and push
@@ -72,6 +75,10 @@ import (
 //                                     for "value out of valid range"
 //                                     semantics on Params slots — keeps
 //                                     the error code surface narrow).
+//   - min_periods non-integer or  ⇒ PULSE_OVERLAY_LEVEL_OUT_OF_RANGE
+//     outside 1 .. W                  {kind, param, min_periods, min,
+//                                     max} (overlayhost.RollingMinPeriods,
+//                                     predict's rule too).
 //
 // Structural invariants:
 //
@@ -97,12 +104,13 @@ import (
 // future work lifts the rolling carrier into the streaming fold the
 // SAME struct can ride alongside the per-group accumulators.
 type rollingCarrier struct {
-	window int
-	buf    []float64 // ring buffer of length window; only first `count` slots populated until full
-	head   int       // next write index (wraps at window)
-	count  int       // number of values currently in the ring (0 .. window)
-	mean   float64   // Welford running mean over the W ring entries
-	m2     float64   // Welford M2 (sum of squared deviations from current mean)
+	window     int
+	minPeriods int       // present prior points a figure needs (params.min_periods; default window)
+	buf        []float64 // ring buffer of length window; only first `count` slots populated until full
+	head       int       // next write index (wraps at window)
+	count      int       // number of values currently in the ring (0 .. window)
+	mean       float64   // Welford running mean over the W ring entries
+	m2         float64   // Welford M2 (sum of squared deviations from current mean)
 }
 
 // newRollingCarrier returns a fresh rolling carrier sized for the
@@ -110,11 +118,19 @@ type rollingCarrier struct {
 // non-positive window will panic on the first push via an out-of-range
 // slice write — callers are expected to validate the window first
 // (handler does the validation up front, before any carrier exists).
-func newRollingCarrier(window int) *rollingCarrier {
+func newRollingCarrier(window, minPeriods int) *rollingCarrier {
 	return &rollingCarrier{
-		window: window,
-		buf:    make([]float64, window),
+		window:     window,
+		minPeriods: minPeriods,
+		buf:        make([]float64, window),
 	}
+}
+
+// ready reports whether the carrier holds enough present prior points
+// (params.min_periods) for the next point to get a figure; before that
+// the point is null, without a warning.
+func (c *rollingCarrier) ready() bool {
+	return c.count >= c.minPeriods
 }
 
 // push folds a new PRESENT value into the carrier. The ring evicts the
@@ -176,24 +192,44 @@ func (c *rollingCarrier) push(v float64) {
 	c.head = (c.head + 1) % c.window
 }
 
-// rollingMean returns the carrier's current rolling mean. Valid only
-// when the ring is at capacity (count == window) — callers gate the
-// read with `c.count == c.window`.
+// rollingMean returns the carrier's current rolling mean over the
+// `count` present priors it holds. Callers gate the read with ready().
 func (c *rollingCarrier) rollingMean() float64 {
 	return c.mean
 }
 
+// extractRollingParams reads a rolling kind's window (extractWindowParam,
+// then the kind's floor, overlayhost.RollingWindowFloorRefusal) and its
+// params.min_periods warm-up (overlayhost.RollingMinPeriods: default the
+// window; route's floor .. window) — the refusals predict raises too.
+func extractRollingParams(spec *types.OverlaySpec, route types.OverlayKind) (window, minPeriods int, err error) {
+	window, m, err := extractWindowParam(spec)
+	if err != nil {
+		return 0, 0, err
+	}
+	if cerr := overlayhost.RollingWindowFloorRefusal(spec, route, window, -1); cerr != nil {
+		return 0, 0, cerr
+	}
+	paramread.Read(paramread.Overlay, string(spec.Kind), overlayhost.MinPeriodsParam)
+	minPeriods, cerr := overlayhost.RollingMinPeriods(spec, route, m, window, -1)
+	if cerr != nil {
+		return 0, 0, cerr
+	}
+	return window, minPeriods, nil
+}
+
 // extractWindowParam reads OverlaySpec.Params["window"] as a positive
-// integer. Returns (window, ok=true) on a valid value; returns (0,
-// ok=false) and a coded error on a missing or invalid value.
+// integer, with the decoded params object. Returns (window, params,
+// nil) on a valid value; (0, nil, coded error) on a missing or invalid
+// value.
 //
 // JSON numbers decode into Go's encoding/json as float64; the helper
 // accepts integral float64 values as well as native int / int64 values
 // so callers that author specs in Go OR over the wire get the same
 // behaviour.
-func extractWindowParam(spec *types.OverlaySpec) (int, error) {
+func extractWindowParam(spec *types.OverlaySpec) (int, map[string]any, error) {
 	if len(spec.Params) == 0 {
-		return 0, errors.NewCodedErrorWithDetails(
+		return 0, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" requires Params[\"window\"] (positive integer); Params is missing or empty",
 			map[string]any{
@@ -203,7 +239,7 @@ func extractWindowParam(spec *types.OverlaySpec) (int, error) {
 	}
 	var m map[string]any
 	if err := paramread.Decode(paramread.Overlay, string(spec.Kind), spec.Params, &m); err != nil {
-		return 0, errors.NewCodedErrorWithDetails(
+		return 0, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" Params must be a JSON object carrying \"window\"",
 			map[string]any{
@@ -214,7 +250,7 @@ func extractWindowParam(spec *types.OverlaySpec) (int, error) {
 	paramread.Read(paramread.Overlay, string(spec.Kind), "window")
 	raw, present := m["window"]
 	if !present {
-		return 0, errors.NewCodedErrorWithDetails(
+		return 0, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_PARAM_MISSING,
 			"overlay "+string(spec.Kind)+" requires Params[\"window\"] (positive integer)",
 			map[string]any{
@@ -228,7 +264,7 @@ func extractWindowParam(spec *types.OverlaySpec) (int, error) {
 		// surface as a non-positive window. LEVEL_OUT_OF_RANGE is the
 		// canonical "value out of valid range" code; reusing it keeps
 		// the error code surface narrow.
-		return 0, errors.NewCodedErrorWithDetails(
+		return 0, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
 			"overlay "+string(spec.Kind)+" Params[\"window\"] must be a positive integer",
 			map[string]any{
@@ -238,7 +274,7 @@ func extractWindowParam(spec *types.OverlaySpec) (int, error) {
 			})
 	}
 	if window <= 0 {
-		return 0, errors.NewCodedErrorWithDetails(
+		return 0, nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE,
 			"overlay "+string(spec.Kind)+" Params[\"window\"] must be > 0",
 			map[string]any{
@@ -247,7 +283,7 @@ func extractWindowParam(spec *types.OverlaySpec) (int, error) {
 				"window": window,
 			})
 	}
-	return window, nil
+	return window, m, nil
 }
 
 // coerceIntegralNumber turns a JSON-decoded number into an int. Returns
@@ -292,11 +328,13 @@ func coerceIntegralNumber(v any) (int, bool) {
 // Summary.Statistic. Walks the host group-key list once with a
 // rolling-window carrier (the `rollingCarrier` struct above).
 //
-// Window-fill semantics: the first W present ordinals all emit NaN
-// without warning — "window not yet filled" is structurally distinct
-// from "denominator was zero" (mirrors the INDEX_VS_PRIOR first-point
-// rule). When the host series is shorter than W (no ordinal ever sees
-// a full window) every entry's Statistic is NaN with no warning.
+// Window-fill semantics: the first min_periods present ordinals
+// (params.min_periods, 1 .. W, default W) all emit NaN without warning
+// — "no comparison available" is structurally distinct from
+// "denominator was zero" (mirrors the INDEX_VS_PRIOR first-point rule).
+// Below a full window the mean is over the present priors held. When
+// the host series has no more than min_periods present points every
+// entry's Statistic is NaN with no warning.
 //
 // Zero-rolling-mean path: when the window mean is exactly `0` at the
 // divide step (e.g. every prior point in the window was zero) the
@@ -322,13 +360,13 @@ func applyIndexVsRollingMean(spec *types.OverlaySpec, host *SeriesHostView) (typ
 			})
 	}
 
-	window, err := extractWindowParam(spec)
+	window, minPeriods, err := extractRollingParams(spec, types.OverlayKindIndexVsRollingMean)
 	if err != nil {
 		return types.OverlayLayer{}, nil, err
 	}
 
 	groupCount := host.GroupCount()
-	carrier := newRollingCarrier(window)
+	carrier := newRollingCarrier(window, minPeriods)
 
 	entries := make([]types.SeriesEntry, 0, groupCount)
 	var (
@@ -349,8 +387,9 @@ func applyIndexVsRollingMean(spec *types.OverlaySpec, host *SeriesHostView) (typ
 		if present {
 			var index float64
 			switch {
-			case carrier.count < window:
-				// Window not yet filled. Emit NaN without warning —
+			case !carrier.ready():
+				// Fewer than min_periods present priors (default: the
+				// window not yet filled). Emit NaN without warning —
 				// "no comparison available" rather than "denominator
 				// was zero". This entry consumes the ring slot.
 				index = math.NaN()

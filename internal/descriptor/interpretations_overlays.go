@@ -736,8 +736,8 @@ var (
 			Sign: zScoreSign,
 			Caveats: []string{
 				overlayZScoreNoBands,
-				"A short window gives a jumpy spread, and a trend or seasonal pattern makes many points look unusual; points stay empty (NaN) until the window holds 2 values.",
-				"Until W prior points exist the window is partial (from 2 points up), so the first values rest on a very unstable spread; treat them with caution.",
+				"A short window gives a jumpy spread, and a trend or seasonal pattern makes many points look unusual.",
+				"Points stay empty (null) until min_periods prior points exist (by default the full window W); a smaller min_periods answers earlier from a partial window whose spread is very unstable, so treat those first values with caution.",
 			},
 		},
 	}

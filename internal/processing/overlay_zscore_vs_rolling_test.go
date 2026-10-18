@@ -26,6 +26,18 @@ func newZScoreVsRollingSpec(name string, window int) types.OverlaySpec {
 	}
 }
 
+// newZScoreVsRollingSpecMinPeriods is newZScoreVsRollingSpec with an
+// explicit params.min_periods. The early-point math tests below pin
+// min_periods 2 (the smallest the sample SD allows — the pre-U50
+// behaviour) so a z-score appears from the third present point; the
+// default (min_periods = window) is pinned in
+// overlay_rolling_min_periods_test.go.
+func newZScoreVsRollingSpecMinPeriods(name string, window, minPeriods int) types.OverlaySpec {
+	spec := newZScoreVsRollingSpec(name, window)
+	spec.Params, _ = json.Marshal(map[string]any{"window": window, "min_periods": minPeriods})
+	return spec
+}
+
 // TestOverlay_ZScoreVsRolling_Basic_Window5 pins the canonical happy
 // path: a 20-point series with window=5 produces z-scores at known
 // indices. The first two entries carry NaN (carrier `count < 2` — the
@@ -53,7 +65,7 @@ func TestOverlay_ZScoreVsRolling_Basic_Window5(t *testing.T) {
 		values[i] = float64((i + 1) * 10) // 10, 20, 30, ..., 200
 	}
 	host := newStubSeriesHost(keys, values)
-	specs := []types.OverlaySpec{newZScoreVsRollingSpec("zscore_rolling", 5)}
+	specs := []types.OverlaySpec{newZScoreVsRollingSpecMinPeriods("zscore_rolling", 5, 2)}
 
 	layers, warnings, err := ApplyOverlaysSeries(specs, host)
 	if err != nil {
@@ -122,19 +134,17 @@ func TestOverlay_ZScoreVsRolling_Basic_Window5(t *testing.T) {
 // the ring). Acceptance: every entry's Statistic is set; the first two
 // are NaN; the rest are finite numbers.
 //
-// Note: this test deliberately uses the "window > series length" shape
-// the story called out, but our handler's count<2 rule makes the first
-// two entries NaN regardless — there is no separate "window not yet
-// filled" arm because sample SD only requires count >= 2, not count ==
-// W. This is structurally distinct from INDEX_VS_ROLLING_MEAN which
-// requires the FULL window to be filled before computing the mean.
+// Note: this test pins params.min_periods 2, so a z-score appears once
+// two present priors exist even though the window never fills. Under
+// the default (min_periods = window = 20) every entry here would be
+// null, like INDEX_VS_ROLLING_MEAN's default.
 func TestOverlay_ZScoreVsRolling_WindowExceedsSeries(t *testing.T) {
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}, {"e"},
 		{"f"}, {"g"}, {"h"}, {"i"}, {"j"}}
 	values := []float64{10.0, 20.0, 30.0, 40.0, 50.0,
 		60.0, 70.0, 80.0, 90.0, 100.0}
 	host := newStubSeriesHost(keys, values)
-	specs := []types.OverlaySpec{newZScoreVsRollingSpec("zscore_rolling", 20)}
+	specs := []types.OverlaySpec{newZScoreVsRollingSpecMinPeriods("zscore_rolling", 20, 2)}
 
 	layers, warnings, err := ApplyOverlaysSeries(specs, host)
 	if err != nil {
@@ -182,7 +192,7 @@ func TestOverlay_ZScoreVsRolling_CountLessThanTwoEmitsNaN(t *testing.T) {
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}}
 	values := []float64{10.0, 20.0, 30.0}
 	host := newStubSeriesHost(keys, values)
-	specs := []types.OverlaySpec{newZScoreVsRollingSpec("zscore_rolling", 5)}
+	specs := []types.OverlaySpec{newZScoreVsRollingSpecMinPeriods("zscore_rolling", 5, 2)}
 
 	layers, warnings, err := ApplyOverlaysSeries(specs, host)
 	if err != nil {
@@ -264,7 +274,7 @@ func TestOverlay_ZScoreVsRolling_AbsentPointDoesNotAdvanceCarrier(t *testing.T) 
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}, {"e"}, {"f"}}
 	values := []float64{10.0, 20.0, 30.0, math.NaN(), 40.0, 50.0}
 	host := newStubSeriesHost(keys, values)
-	specs := []types.OverlaySpec{newZScoreVsRollingSpec("zscore_rolling", 4)}
+	specs := []types.OverlaySpec{newZScoreVsRollingSpecMinPeriods("zscore_rolling", 4, 2)}
 
 	layers, warnings, err := ApplyOverlaysSeries(specs, host)
 	if err != nil {
@@ -441,7 +451,7 @@ func TestOverlay_ZScoreVsRolling_SampleSDDocumentedContrast(t *testing.T) {
 	keys := []types.AxisKey{{"a"}, {"b"}, {"c"}, {"d"}, {"e"}}
 	values := []float64{1.0, 2.0, 3.0, 4.0, 5.0}
 	host := newStubSeriesHost(keys, values)
-	specs := []types.OverlaySpec{newZScoreVsRollingSpec("zscore_rolling", 3)}
+	specs := []types.OverlaySpec{newZScoreVsRollingSpecMinPeriods("zscore_rolling", 3, 2)}
 
 	layers, warnings, err := ApplyOverlaysSeries(specs, host)
 	if err != nil {

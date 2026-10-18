@@ -14603,6 +14603,12 @@
             "type": "int",
             "required": true,
             "description": "Rolling window width in rows, a positive integer."
+          },
+          {
+            "name": "min_periods",
+            "type": "int",
+            "required": false,
+            "description": "Present prior points a row needs before it gets a figure (null before), an integer from 1 to the window; absent, the window. Absent points never count."
           }
         ]
       },
@@ -15742,6 +15748,12 @@
             "type": "int",
             "required": true,
             "description": "Rolling window width in rows, a positive integer."
+          },
+          {
+            "name": "min_periods",
+            "type": "int",
+            "required": false,
+            "description": "Present prior points a row needs before it gets a figure (null before), an integer from 2 to the window; absent, the window. Absent points never count."
           }
         ]
       },
@@ -19065,4 +19077,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4a19bf484803a8dc95077c47a6ddf50df84777949d969ea503650c0f84486c28
+// golden-hash: 35816c5f1a0eaae80a72a8109423cda596a667f7cd7d601edd1f85e4361302e5

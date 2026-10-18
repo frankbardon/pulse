@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/twosample"
@@ -99,7 +100,14 @@ func overlayParamsFor(kind types.OverlayKind) []descriptor.Param {
 			descriptor.Param{Name: "baseline_position", Type: "int", Required: false, Description: "SERIES host: the 0-based row of each partition `baseline` reads; a non-negative integer."},
 		)
 	case types.OverlayKindIndexVsRollingMean, types.OverlayKindZScoreVsRolling:
-		ps = append(ps, descriptor.Param{Name: "window", Type: "int", Required: true, Description: "Rolling window width in rows, a positive integer."})
+		floor := "1"
+		if kind == types.OverlayKindZScoreVsRolling {
+			floor = "2"
+		}
+		ps = append(ps,
+			descriptor.Param{Name: "window", Type: "int", Required: true, Description: "Rolling window width in rows, a positive integer."},
+			descriptor.Param{Name: overlayhost.MinPeriodsParam, Type: "int", Required: false, Description: "Present prior points a row needs before it gets a figure (null before), an integer from " + floor + " to the window; absent, the window. Absent points never count."},
+		)
 	case types.OverlayKindYoY:
 		ps = append(ps, descriptor.Param{Name: "frequency", Type: "enum", Required: false, EnumValues: []string{"annual", "daily", "hourly", "monthly", "quarterly", "weekly"}, Description: "Period the year-over-year lag is counted in; absent, the host GROUP_DATE grouper's params.frequency."})
 	case types.OverlayKindIndexVsRef, types.OverlayKindPanelIndexVsRef:

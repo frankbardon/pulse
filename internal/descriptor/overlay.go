@@ -1919,8 +1919,9 @@ func isYoYSupportedFrequencyPredict(frequency string) bool {
 // so the rolling family stays parity-true at predict time. Surfaces
 // PULSE_OVERLAY_PARAM_MISSING when the slot is absent and
 // PULSE_OVERLAY_LEVEL_OUT_OF_RANGE when the value is non-integer or
-// non-positive. Mirrors the runtime gate in
-// processing.extractWindowParam — the predict gate surfaces the same
+// non-positive, then the kind's window floor and params.min_periods
+// range (overlayhost.RollingWindowFloorRefusal / RollingMinPeriods).
+// Mirrors the runtime gate in processing.extractRollingParams — the predict gate surfaces the same
 // failure shape so MCP / CLI envelopes carry the same structured
 // context the runtime would have emitted.
 func validateOverlayRollingWindowParam(env *descriptor.Envelope, spec *types.OverlaySpec, index int) {
@@ -1982,6 +1983,12 @@ func validateOverlayRollingWindowParam(env *descriptor.Envelope, spec *types.Ove
 	// The kind's floor (OVERLAY_ZSCORE_VS_ROLLING: >= 2), shared with the
 	// runtime handler (U35 #431).
 	if cerr := overlayhost.RollingWindowFloorRefusal(spec, spec.Kind, window, index); cerr != nil {
+		addCodedError(env, cerr)
+		return
+	}
+	// params.min_periods (U50): the kind's floor .. window, default the
+	// window — the runtime's overlayhost.RollingMinPeriods rule.
+	if _, cerr := overlayhost.RollingMinPeriods(spec, spec.Kind, m, window, index); cerr != nil {
 		addCodedError(env, cerr)
 	}
 }

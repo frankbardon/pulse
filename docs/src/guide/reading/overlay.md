@@ -825,8 +825,8 @@ In each series entry: how far the point sits from the mean of up to W points bef
 **Caveats:**
 
 - There are no sourced bands for reading this z-score: the familiar 1.96 / 2.58 cut-offs are critical values of a test statistic built from a standard error, and this value is built from a spread of values instead, so it has no p-value behind it.
-- A short window gives a jumpy spread, and a trend or seasonal pattern makes many points look unusual; points stay empty (NaN) until the window holds 2 values.
-- Until W prior points exist the window is partial (from 2 points up), so the first values rest on a very unstable spread; treat them with caution.
+- A short window gives a jumpy spread, and a trend or seasonal pattern makes many points look unusual.
+- Points stay empty (null) until min_periods prior points exist (by default the full window W); a smaller min_periods answers earlier from a partial window whose spread is very unstable, so treat those first values with caution.
 
 <a id="op-overlay_zscore_vs_total"></a>
 

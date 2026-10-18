@@ -940,12 +940,13 @@ const (
 	// rule — the next present ordinal will compare against the most recent
 	// W PRESENT values, not absent slots.
 	//
-	// Window-fill semantics: the first W present ordinals all emit NaN
-	// without warning — "window not yet filled" is structurally distinct
-	// from "denominator was zero" (mirrors the `OVERLAY_INDEX_VS_PRIOR`
-	// first-point NaN rule). When the host series is shorter than W (no
-	// ordinal ever sees a full window) every entry's Statistic is NaN with
-	// no warning.
+	// Window-fill semantics: the first `Params["min_periods"]` present
+	// ordinals (an integer from 1 to W; default W, the window not yet
+	// filled) all emit NaN without warning — "no comparison available"
+	// is structurally distinct from "denominator was zero" (mirrors the
+	// `OVERLAY_INDEX_VS_PRIOR` first-point NaN rule). Below a full window
+	// the mean is over the present priors held. Out of range or
+	// non-integer is `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`.
 	//
 	// Zero-rolling-mean path: when the window mean is exactly `0` at the
 	// divide step (e.g. every prior point in the window was zero) the
@@ -1601,14 +1602,14 @@ const (
 	// shared carrier keeps the per-group accumulator footprint flat as
 	// more rolling-family kinds land.
 	//
-	// Window-fill semantics: when the carrier `count < 2` (the Welford
-	// recurrence requires at least two observations to define a sample
-	// variance), the handler emits NaN without warning — "window not yet
-	// filled with at least 2 priors" is structurally distinct from
-	// "denominator was zero" (mirrors the `OVERLAY_INDEX_VS_ROLLING_MEAN`
-	// window-not-yet-filled rule). When the host series is shorter than W
-	// (no ordinal ever sees a full window) every entry's Statistic is NaN
-	// with no warning.
+	// Window-fill semantics: a point gets a z-score only once the carrier
+	// holds `Params["min_periods"]` PRESENT priors (an integer from 2 —
+	// the n-1 sample SD is undefined below — to W; default W, a full
+	// window). Earlier points emit NaN without warning, structurally
+	// distinct from "denominator was zero" (the same rule
+	// `OVERLAY_INDEX_VS_ROLLING_MEAN` applies). Out of range or
+	// non-integer is `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`, predict and
+	// runtime alike.
 	//
 	// Absent-point policy (ring buffer does not advance): an absent host
 	// ordinal (resolver reports `(0, false)`) emits a present
