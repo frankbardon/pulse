@@ -210,10 +210,22 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 		})
 	}
 	for name, t := range ext.RangeTables {
+		labels := make([]string, 0, len(t.Ranges)+len(t.NumericRanges))
+		for _, r := range t.Ranges {
+			labels = append(labels, r.Label)
+		}
+		for _, r := range t.NumericRanges {
+			labels = append(labels, r.Label)
+		}
+		if snap.RangeTableLabels == nil {
+			snap.RangeTableLabels = make(map[string][]string, len(ext.RangeTables))
+		}
+		snap.RangeTableLabels[name] = labels
 		snap.RangeTables = append(snap.RangeTables, descriptor.RangeTableMeta{
 			Name:        name,
 			Description: t.Description,
-			RangeCount:  len(t.Ranges),
+			Kind:        t.Kind(),
+			RangeCount:  len(t.Ranges) + len(t.NumericRanges),
 		})
 	}
 	return snap

@@ -133,8 +133,9 @@ type Extensions struct {
 	// only end-user output rendering.
 	LabelTables map[string]LabelTable
 
-	// RangeTables expose named sets of labeled date ranges so a
-	// GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter can
+	// RangeTables expose named sets of labeled ranges so a
+	// GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter (a date
+	// table) or a GROUP_NUMERIC_RANGES grouper (a numeric table) can
 	// reference an ordered {label, start, end} bucketing by name
 	// instead of authoring it inline per request. Each table is
 	// validated at pulse.New time via the shared range-compilation
@@ -903,26 +904,41 @@ type LabelTable struct {
 	Order []string
 }
 
-// RangeTable is a named, ordered set of labeled date ranges. It is the
+// RangeTable is a named, ordered set of labeled ranges. It is the
 // reusable, register-once form of the inline range list authored on a
-// GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter: a caller
-// registers the table under a name and references it by that name from
-// any number of requests.
+// GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter (a DATE table,
+// Ranges) or on a GROUP_NUMERIC_RANGES grouper (a NUMERIC table,
+// NumericRanges): a caller registers the table under a name and
+// references it by that name from any number of requests.
 //
-// Ranges are the ordered {label, start, end} entries. Start / End are
-// ISO date literals (nil / empty means an open bound; both bounds are
-// inclusive). The set is validated at pulse.New time via the shared
-// range-compilation pass — overlap, duplicate label, empty set, and
-// unparseable / inverted boundaries each surface the matching
-// PULSE_RANGE_* code. Order is preserved as authored; the compiler
-// sorts internally for deterministic matching.
+// A table is typed by its bounds and carries exactly one of Ranges /
+// NumericRanges (both is PULSE_EXTENSION_PARAM_INVALID at New). Ranges
+// are ISO date literals, inclusive on both sides; NumericRanges are
+// numbers, half-open [start, end). nil / empty is an open bound. A range
+// operator naming a table of the other kind is refused with
+// PULSE_RANGE_TABLE_KIND_MISMATCH. The set is validated at pulse.New
+// time via the shared range-compilation pass — overlap, duplicate label,
+// empty set, and unparseable / inverted boundaries each surface the
+// matching PULSE_RANGE_* code. Order is preserved as authored; the
+// compiler sorts internally for deterministic matching.
 type RangeTable struct {
 	// Description is an optional human-readable summary surfaced in the
 	// manifest projection.
 	Description string
-	// Ranges is the ordered list of labeled date ranges. Must be
-	// non-empty and pass the shared validation pass.
+	// Ranges is a date table's ordered list of labeled date ranges.
 	Ranges []DateRangeSpec
+	// NumericRanges is a numeric table's ordered list of labeled
+	// half-open numeric ranges.
+	NumericRanges []NumericRangeSpec
+}
+
+// Kind is the table's kind, typed by its bounds: "numeric" when it
+// carries NumericRanges, else "date".
+func (t RangeTable) Kind() string {
+	if len(t.NumericRanges) > 0 {
+		return "numeric"
+	}
+	return "date"
 }
 
 // Population is one registered population: a saved vector fit's

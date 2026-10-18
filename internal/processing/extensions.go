@@ -5,7 +5,9 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/daterange"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/numrange"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/processing/window"
@@ -274,6 +276,18 @@ type LabelTable struct {
 // (validation is idempotent — the compile cannot fail post-registration).
 type RangeTable struct {
 	Ranges []DateRangeSpec
+	// NumericRanges is a numeric table's ranges (pulse.RangeTable.
+	// NumericRanges); exactly one of Ranges / NumericRanges is set.
+	NumericRanges []numrange.Spec
+}
+
+// Kind is the table's kind, typed by its bounds: daterange.KindNumeric
+// when it carries numeric ranges, else daterange.KindDate.
+func (t RangeTable) Kind() string {
+	if len(t.NumericRanges) > 0 {
+		return daterange.KindNumeric
+	}
+	return daterange.KindDate
 }
 
 // Named tables are not features; each rides its capability. These are

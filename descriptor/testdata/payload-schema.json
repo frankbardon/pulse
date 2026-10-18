@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:c45a1541d8782fa8b83b4fd02aed25f17e026b4c548dac09f436285873bd6e50",
+  "$comment": "feature_set_digest: fs1:5630a947678103aa5bb95637e1f323c12ae53cdb72e622863326214744ebfb90",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -2260,6 +2260,7 @@
         "GROUP_DATE",
         "GROUP_DATE_RANGES",
         "GROUP_KMEANS",
+        "GROUP_NUMERIC_RANGES",
         "GROUP_QUANTILE",
         "GROUP_RANGE",
         "GROUP_ROUNDED",
@@ -5284,4 +5285,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: af19e937f75129414f0dad41f615f3b9866d145bebb99adfc0db4546d45b2af7
+// golden-hash: 7b3f91ab7af674cdaf06aecf1510d76b648b6fcd65faf7dec0db1eaba99163ab

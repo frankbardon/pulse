@@ -8,8 +8,9 @@ The groupers this instance offers: what each is for, the questions it answers an
 | [`GROUP_DATE`](#op-group_date) | Splits the rows by calendar period of a date, such as month, quarter, ISO week or weekday, to see a measure over time. | How many orders came in each month? | basic | [`GROUP_DATE_RANGES`](#op-group_date_ranges) when your periods are custom, such as campaign windows.<br>[`OVERLAY_INDEX_VS_PRIOR`](overlay.md#op-overlay_index_vs_prior) when you want each period against the one before it.<br>[`WIN_RUNNING_SUM`](window.md#op-win_running_sum) when you want a running total down the periods. |
 | [`GROUP_DATE_RANGES`](#op-group_date_ranges) | Labels each row with the named date range its date falls in, such as custom fiscal quarters or before and after a launch. | How did sales compare before, during and after the campaign? | basic | [`GROUP_DATE`](#op-group_date) when plain calendar months, quarters or weeks are enough.<br>[`FILTER_DATE_RANGES`](filterer.md#op-filter_date_ranges) when you want to keep only the rows inside the ranges. |
 | [`GROUP_KMEANS`](#op-group_kmeans) | Finds k segments of rows that are alike across several numbers at once, such as customer types by spend, visits and tenure. | What natural customer segments do spend, visits and tenure suggest? | advanced | [`GROUP_CATEGORY`](#op-group_category) when you already know the groups.<br>[`GROUP_QUANTILE`](#op-group_quantile) when you want bands of one number.<br>[`ATTR_MAHALANOBIS`](attribute.md#op-attr_mahalanobis) when you want how unusual each row is. |
+| [`GROUP_NUMERIC_RANGES`](#op-group_numeric_ranges) | Labels each row with the named number range its value falls in, such as a train/holdout split on a row index or custom score bands. | How does the model do on the training rows against the holdout rows? | intermediate | [`GROUP_RANGE`](#op-group_range) when bands of one fixed width are enough.<br>[`GROUP_QUANTILE`](#op-group_quantile) when you want groups of equal size.<br>[`GROUP_DATE_RANGES`](#op-group_date_ranges) when the field is a date. |
 | [`GROUP_QUANTILE`](#op-group_quantile) | Splits the rows into equal-sized groups by rank of a number, such as quartiles or deciles of spend, to compare top and bottom. | How do the top 25% of spenders differ from the bottom 25%? | intermediate | [`GROUP_RANGE`](#op-group_range) when you want bands of a fixed width, such as every 10 years of age.<br>[`ATTR_PERCENTILE`](attribute.md#op-attr_percentile) when you want each row's rank as a number, not a group.<br>[`AGG_PERCENTILE`](aggregator.md#op-agg_percentile) when you want the cut-off values themselves. |
-| [`GROUP_RANGE`](#op-group_range) | Splits a number into bands of equal width, such as ages 20-30 and 30-40, to see how values spread or to compare bands. | How many customers fall in each 10-year age band? | basic | [`GROUP_QUANTILE`](#op-group_quantile) when you want groups of equal size rather than equal width.<br>[`GROUP_ROUNDED`](#op-group_rounded) when you want each band named by its lower edge alone.<br>[`FILTER_RANGE`](filterer.md#op-filter_range) when you want to keep one band, not split into all of them. |
+| [`GROUP_RANGE`](#op-group_range) | Splits a number into bands of equal width, such as ages 20-30 and 30-40, to see how values spread or to compare bands. | How many customers fall in each 10-year age band? | basic | [`GROUP_QUANTILE`](#op-group_quantile) when you want groups of equal size rather than equal width.<br>[`GROUP_ROUNDED`](#op-group_rounded) when you want each band named by its lower edge alone.<br>[`FILTER_RANGE`](filterer.md#op-filter_range) when you want to keep one band, not split into all of them.<br>[`GROUP_NUMERIC_RANGES`](#op-group_numeric_ranges) when your bands have uneven, named edges, such as a train/holdout split. |
 | [`GROUP_ROUNDED`](#op-group_rounded) | Groups a number by rounding it down to a multiple of a step, such as 23 and 27 both to 20, naming each group by that multiple. | How many orders are there at each price point, to the nearest lower 10? | basic | [`GROUP_RANGE`](#op-group_range) when you want the band's both edges in its name.<br>[`GROUP_QUANTILE`](#op-group_quantile) when you want groups of equal size. |
 | [`GROUP_SET_PER_ELEMENT`](#op-group_set_per_element) | Splits a multi-select answer into one group per option, counting each row once in every option it picked. | How many respondents picked each brand they are aware of? | intermediate | [`GROUP_SET_VALUE`](#op-group_set_value) when you want each exact combination of options as one group.<br>[`AGG_SET_FREQUENCY`](aggregator.md#op-agg_set_frequency) when you only want the count per option, without other figures. |
 | [`GROUP_SET_VALUE`](#op-group_set_value) | Groups the rows by the exact combination of options picked in a multi-select answer, such as A only, A and B, or none. | Which combinations of payment methods do customers use, and how common is each? | intermediate | [`GROUP_SET_PER_ELEMENT`](#op-group_set_per_element) when you want one group per option, counting a row in each it picked.<br>[`FILTER_SET_EQUALS`](filterer.md#op-filter_set_equals) when you want to keep one combination rather than see them all. |
@@ -164,6 +165,43 @@ Finds k segments of rows that are alike across several numbers at once, such as 
 
 **Skill:** [`op-group-kmeans`](../skills/op-group-kmeans.md)
 
+<a id="op-group_numeric_ranges"></a>
+
+### `GROUP_NUMERIC_RANGES`
+
+Labels each row with the named number range its value falls in, such as a train/holdout split on a row index or custom score bands.
+
+**Level:** intermediate
+
+**Questions it answers:**
+
+- How does the model do on the training rows against the holdout rows?
+- What are the totals in each of our named score bands?
+
+**Use cases by domain:**
+
+- *survey:* Scores per named income band with uneven edges.
+- *ops:* A train/holdout split on a row index before scoring a model.
+- *science:* Readings per named dose band.
+
+**Assumptions:**
+
+- Buckets are built from the rows the filters kept; each aggregation is then worked out once per bucket.
+- Each range holds values from its start up to, but not including, its end, so 0-91 and 91-104 meet without overlap and 91 falls in the second; the ranges may not overlap.
+- A row outside every range goes to an unmatched group (named "unmatched" unless you rename it), not dropped.
+- Groups come back in the order the ranges are listed, the unmatched group last.
+- A row whose field is missing lands in no bucket; it is counted as missing, not as a bucket of its own.
+
+**Use something else:**
+
+- [`GROUP_RANGE`](#op-group_range) when bands of one fixed width are enough.
+- [`GROUP_QUANTILE`](#op-group_quantile) when you want groups of equal size.
+- [`GROUP_DATE_RANGES`](#op-group_date_ranges) when the field is a date.
+
+**Glossary:** [`missing-value`](../glossary.md#term-missing-value)
+
+**Skill:** [`op-group-numeric-ranges`](../skills/op-group-numeric-ranges.md)
+
 <a id="op-group_quantile"></a>
 
 ### `GROUP_QUANTILE`
@@ -189,7 +227,7 @@ Splits the rows into equal-sized groups by rank of a number, such as quartiles o
 - Groups are cut by rank among the rows with a value, so each holds as close to the same count as possible; under a row weight each holds as close to the same total weight as possible, a heavy row is never split, and counts stay row counts.
 - Equal values can fall in two neighbouring groups when a cut lands among them.
 - Groups are named Q1 to Q4 for quartiles, D1 to D10 for deciles, P1 to P100 for percentiles and B1, B2 and so on otherwise; Q1 is the lowest.
-- Groups come back in text order of their names, so deciles read D1, D10, D2, ... D9; sort them by number before reading a trend.
+- Groups come back in bucket order, D1 up to D10, not text order; an explicit sort still wins.
 - It needs every row before it can cut, so it cannot stream.
 - A row whose field is missing lands in no bucket; it is counted as missing, not as a bucket of its own.
 
@@ -227,7 +265,7 @@ Splits a number into bands of equal width, such as ages 20-30 and 30-40, to see 
 - Buckets are built from the rows the filters kept; each aggregation is then worked out once per bucket.
 - Each band is named low-high and holds values from its low edge up to, but not including, its high edge.
 - Bands start at multiples of the width, counted from 0; with no width given it is 1, or 10 when picked by default for a numeric field.
-- Rows come back in text order of the band names (100-150 before 50-100); sort by the low edge and add the missing bands before charting a histogram.
+- Rows come back in order of the low edge (50-100 before 100-150, negatives first); add the missing bands before charting a histogram.
 - Only buckets that hold at least one row appear; an empty band or period is left out, not shown as zero.
 - A row whose field is missing lands in no bucket; it is counted as missing, not as a bucket of its own.
 
@@ -236,6 +274,7 @@ Splits a number into bands of equal width, such as ages 20-30 and 30-40, to see 
 - [`GROUP_QUANTILE`](#op-group_quantile) when you want groups of equal size rather than equal width.
 - [`GROUP_ROUNDED`](#op-group_rounded) when you want each band named by its lower edge alone.
 - [`FILTER_RANGE`](filterer.md#op-filter_range) when you want to keep one band, not split into all of them.
+- [`GROUP_NUMERIC_RANGES`](#op-group_numeric_ranges) when your bands have uneven, named edges, such as a train/holdout split.
 
 **Glossary:** [`missing-value`](../glossary.md#term-missing-value)
 
@@ -265,6 +304,7 @@ Groups a number by rounding it down to a multiple of a step, such as 23 and 27 b
 - Buckets are built from the rows the filters kept; each aggregation is then worked out once per bucket.
 - Values are rounded down, not to the nearest: 19 with a step of 10 goes to 10, and -3 goes to -10.
 - It makes the same groups as equal-width bands of the same step; only the names differ.
+- Groups come back in numeric order of their names (-5, 9.5, 10), not text order.
 - Only buckets that hold at least one row appear; an empty band or period is left out, not shown as zero.
 - A row whose field is missing lands in no bucket; it is counted as missing, not as a bucket of its own.
 

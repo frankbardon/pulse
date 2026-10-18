@@ -1536,17 +1536,18 @@ const (
 	// import time.
 	PULSE_JOIN_FIELD_COLLISION Code = "PULSE_JOIN_FIELD_COLLISION"
 
-	// PULSE_RANGE_EMPTY indicates a labeled-date-range set
-	// (GROUP_DATE_RANGES / FILTER_DATE_RANGES inline ranges, or a named
-	// range table) was presented with zero ranges. At least one
+	// PULSE_RANGE_EMPTY indicates a labeled-range set
+	// (GROUP_DATE_RANGES / FILTER_DATE_RANGES / GROUP_NUMERIC_RANGES
+	// inline ranges, or a named range table) was presented with zero ranges. At least one
 	// {label, start, end} range is required.
 	PULSE_RANGE_EMPTY Code = "PULSE_RANGE_EMPTY"
 
-	// PULSE_RANGE_INVALID indicates a single labeled date range is
-	// malformed: a start or end boundary literal could not be parsed
-	// against any known date layout (encoding.DateFormats), or the range
-	// is bounded on both sides with start strictly after end. Details
-	// carry the offending label and the boundary value(s).
+	// PULSE_RANGE_INVALID indicates a single labeled range is
+	// malformed: a date boundary literal could not be parsed against any
+	// known date layout (encoding.DateFormats), a date range is bounded
+	// on both sides with start strictly after end, or a numeric
+	// (half-open) range is bounded on both sides with start >= end.
+	// Details carry the offending label and the boundary value(s).
 	PULSE_RANGE_INVALID Code = "PULSE_RANGE_INVALID"
 
 	// PULSE_RANGE_DUPLICATE_LABEL indicates two ranges in the same
@@ -1555,26 +1556,35 @@ const (
 	// duplicated label.
 	PULSE_RANGE_DUPLICATE_LABEL Code = "PULSE_RANGE_DUPLICATE_LABEL"
 
-	// PULSE_RANGE_OVERLAP indicates two ranges in the same
-	// labeled-date-range set cover an overlapping span of days. Bounds are
-	// inclusive on both sides (so a range ending 2024-03-31 and one
-	// starting 2024-04-01 are contiguous, not overlapping), and an open
-	// (omitted/null) boundary extends to -inf / +inf. A record day landing
-	// in an overlap would map ambiguously to two labels, so the set is
-	// rejected. Details carry the two offending labels.
+	// PULSE_RANGE_OVERLAP indicates two ranges in the same labeled-range
+	// set overlap. Date bounds are inclusive on both sides (so a range
+	// ending 2024-03-31 and one starting 2024-04-01 are contiguous, not
+	// overlapping); numeric bounds are half-open [start, end) (so [0, 91)
+	// and [91, 104) are adjacent, not overlapping); an open (omitted/null)
+	// boundary extends to -inf / +inf. A record landing in an overlap
+	// would map ambiguously to two labels, so the set is rejected.
+	// Details carry the two offending labels.
 	PULSE_RANGE_OVERLAP Code = "PULSE_RANGE_OVERLAP"
 
 	// PULSE_RANGE_SOURCE_AMBIGUOUS indicates a GROUP_DATE_RANGES /
-	// FILTER_DATE_RANGES operator did not name exactly one range source.
+	// FILTER_DATE_RANGES / GROUP_NUMERIC_RANGES operator did not name exactly one range source.
 	// Exactly one of an inline `ranges` array or a named `table` reference
 	// is required: supplying both, or neither, is ambiguous and rejected.
 	PULSE_RANGE_SOURCE_AMBIGUOUS Code = "PULSE_RANGE_SOURCE_AMBIGUOUS"
 
 	// PULSE_RANGE_TABLE_UNKNOWN indicates a GROUP_DATE_RANGES /
-	// FILTER_DATE_RANGES operator referenced a range table by a name that
+	// FILTER_DATE_RANGES / GROUP_NUMERIC_RANGES operator referenced a range table by a name that
 	// is not registered (via Options.Extensions.RangeTables or the
 	// PULSE_RANGE_TABLES_DIR loader). Details carry the offending name.
 	PULSE_RANGE_TABLE_UNKNOWN Code = "PULSE_RANGE_TABLE_UNKNOWN"
+
+	// PULSE_RANGE_TABLE_KIND_MISMATCH indicates a range operator named a
+	// registered range table of the other kind. A range table is typed by
+	// its bounds — ISO date strings make a date table, JSON numbers a
+	// numeric table — and GROUP_DATE_RANGES / FILTER_DATE_RANGES resolve
+	// only a date table, GROUP_NUMERIC_RANGES only a numeric one. Details
+	// carry the operator, the table, and the wanted and found kinds.
+	PULSE_RANGE_TABLE_KIND_MISMATCH Code = "PULSE_RANGE_TABLE_KIND_MISMATCH"
 
 	// PULSE_LABEL_FIELD_UNKNOWN indicates a LabelBinding references a
 	// field name not present in the cohort schema.
@@ -4118,6 +4128,7 @@ var allCodes = []Code{
 	PULSE_RANGE_OVERLAP,
 	PULSE_RANGE_SOURCE_AMBIGUOUS,
 	PULSE_RANGE_TABLE_UNKNOWN,
+	PULSE_RANGE_TABLE_KIND_MISMATCH,
 	PULSE_LABEL_FIELD_UNKNOWN,
 	PULSE_LABEL_FIELD_NOT_CATEGORICAL,
 	PULSE_LABEL_TABLE_UNKNOWN,

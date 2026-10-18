@@ -320,6 +320,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("GROUP_DATE"),
 	op("GROUP_DATE_RANGES"),
 	op("GROUP_KMEANS"),
+	op("GROUP_NUMERIC_RANGES"),
 	op("GROUP_QUANTILE"),
 	op("GROUP_RANGE"),
 	op("GROUP_ROUNDED"),

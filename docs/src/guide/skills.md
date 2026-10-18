@@ -115,6 +115,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-group-date`](skills/op-group-date.md): Partition date/datetime records by calendar component (hour..year); week_start picks the week day; fiscal_offset shifts year/quarter.
 - [`op-group-date-ranges`](skills/op-group-date-ranges.md): Bucket date records by inline labeled date ranges; the range label becomes the bucket key.
 - [`op-group-kmeans`](skills/op-group-kmeans.md): Segment records into k clusters by seeded, deterministic k-means over a vector of numeric members; keys cluster_1..cluster_k by descending size.
+- [`op-group-numeric-ranges`](skills/op-group-numeric-ranges.md): Bucket numeric records by labeled half-open ranges [start, end); the range label becomes the bucket key.
 - [`op-group-quantile`](skills/op-group-quantile.md): Partition records into N equal-population quantile buckets (Q1..Q4 / D1..D10 / P1..P100).
 - [`op-group-range`](skills/op-group-range.md): Partition numeric records into half-open ranges [a, b); Interval controls bucket width.
 - [`op-group-rounded`](skills/op-group-rounded.md): Round each numeric value down to a multiple of Interval (floor, not nearest) and group by that scalar.
@@ -311,7 +312,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`tool-process`](skills/tool-process.md): Execute one pre-built processing request against a cohort.
 - [`tool-process-chain`](skills/tool-process-chain.md): Linear chain of stages; stage N+1 consumes stage N's output rows.
 - [`tool-rake`](skills/tool-rake.md): Compute survey weights (rim or cell weighting to inline target shares) and write them as a weight column of a new cohort.
-- [`tool-range-tables`](skills/tool-range-tables.md): List registered range tables — named, reusable sets of labeled date ranges.
+- [`tool-range-tables`](skills/tool-range-tables.md): List registered range tables — named, reusable sets of labeled date or numeric ranges.
 - [`tool-recommend`](skills/tool-recommend.md): Turn a question kind (an intent ID) into ranked draft requests — placeholder skeletons, or predict-checked drafts bound to a cohort's fields.
 - [`tool-sample`](skills/tool-sample.md): Return up to N rows from a cohort for eyeball / preview.
 - [`tool-skills-get`](skills/tool-skills-get.md): Fetch the markdown body of one named skill.

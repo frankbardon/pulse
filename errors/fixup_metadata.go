@@ -2371,7 +2371,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_EMPTY: {
-		Message: "A labeled-date-range set (the inline ranges of a date-range grouper or filterer, or a named range table) was presented with zero ranges.",
+		Message: "A labeled-range set (the inline ranges of a date-range grouper or filterer or a numeric-range grouper, or a named range table) was presented with zero ranges.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
@@ -2380,16 +2380,16 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_INVALID: {
-		Message: "A labeled date range is malformed: a start or end boundary is not a parseable date literal, or the range is bounded on both sides with start after end.",
+		Message: "A labeled range is malformed: a date boundary is not a parseable date literal or a date range starts after it ends, or a numeric (half-open) range does not start strictly before it ends.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Write boundaries as ISO dates (YYYY-MM-DD) and ensure start <= end. Omit or null a boundary to leave that side open (unbounded).",
+				Hint:   "Write date boundaries as ISO dates (YYYY-MM-DD) and ensure start <= end; write numeric boundaries as JSON numbers with start < end ([start, end) is half-open). Omit or null a boundary to leave that side open (unbounded).",
 			},
 		},
 	},
 	PULSE_RANGE_DUPLICATE_LABEL: {
-		Message: "Two ranges in the same labeled-date-range set share a Label; labels are bucket keys and must be unique within a set.",
+		Message: "Two ranges in the same labeled-range set share a Label; labels are bucket keys and must be unique within a set.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2398,16 +2398,16 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_OVERLAP: {
-		Message: "Two ranges in the same labeled-date-range set cover an overlapping span of days (bounds are inclusive; open boundaries extend to -inf/+inf), so a record day could map ambiguously to two labels.",
+		Message: "Two ranges in the same labeled-range set overlap (date bounds are inclusive, numeric bounds half-open [start, end); open boundaries extend to -inf/+inf), so a record could map ambiguously to two labels.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Adjust the boundaries so ranges are disjoint. Because bounds are inclusive, make one range end the day before the next begins (e.g. ...-03-31 then ...-04-01). Only one range may have an open lower bound and one an open upper bound.",
+				Hint:   "Adjust the boundaries so ranges are disjoint. Date bounds are inclusive: make one range end the day before the next begins (e.g. ...-03-31 then ...-04-01). Numeric bounds are half-open: let one range end where the next begins (e.g. [0, 91) then [91, 104)). Only one range may have an open lower bound and one an open upper bound.",
 			},
 		},
 	},
 	PULSE_RANGE_SOURCE_AMBIGUOUS: {
-		Message: "A date-range grouper or filterer must name exactly one range source; supplying both an inline `ranges` array and a named `table`, or neither, is ambiguous.",
+		Message: "A range grouper or filterer must name exactly one range source; supplying both an inline `ranges` array and a named `table`, or neither, is ambiguous.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
@@ -2416,11 +2416,20 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_TABLE_UNKNOWN: {
-		Message: "A date-range grouper or filterer referenced a range table by a name that is not registered.",
+		Message: "A range grouper or filterer referenced a range table by a name that is not registered.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Set Params.table to a table registered via Options.Extensions.RangeTables or the PULSE_RANGE_TABLES_DIR loader, or register the referenced table before running the request.",
+			},
+		},
+	},
+	PULSE_RANGE_TABLE_KIND_MISMATCH: {
+		Message: "A range operator referenced a registered range table of the other kind: a table with ISO date bounds is a date table, one with JSON number bounds a numeric table.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Use GROUP_DATE_RANGES / FILTER_DATE_RANGES with a date table and GROUP_NUMERIC_RANGES with a numeric table; pulse_range_tables (Pulse.RangeTables) reports each table's kind. Otherwise point Params.table at a table of the operator's kind, or author the ranges inline.",
 			},
 		},
 	},

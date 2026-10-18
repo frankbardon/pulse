@@ -301,6 +301,14 @@ const (
 	// Streamable + mergeable (each row maps independently to one bucket).
 	GROUP_DATE_RANGES GroupType = "GROUP_DATE_RANGES"
 
+	// GROUP_NUMERIC_RANGES buckets each numeric row by a validated set
+	// of labeled half-open ranges ({label, start, end}, [start, end); an
+	// omitted bound is open), inline or from a numeric range table. The
+	// bucket key is the matching range's label; rows outside every range
+	// land in a configurable unmatched bucket (default "unmatched").
+	// Buckets emit in supplied range order. Streamable + mergeable.
+	GROUP_NUMERIC_RANGES GroupType = "GROUP_NUMERIC_RANGES"
+
 	// GROUP_SET_VALUE treats the set mask as an atomic value. Each
 	// distinct mask is its own bucket; the bucket key is the sorted
 	// pipe-delimited label list (e.g. "AMEX|VISA"). One row → one
@@ -331,6 +339,7 @@ func AllGroupTypes() []GroupType {
 		GROUP_DATE,
 		GROUP_DATE_RANGES,
 		GROUP_KMEANS,
+		GROUP_NUMERIC_RANGES,
 		GROUP_QUANTILE,
 		GROUP_RANGE,
 		GROUP_ROUNDED,

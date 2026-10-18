@@ -155,6 +155,17 @@ func quantityValue(ft encoding.FieldType) bool {
 	return nonSetValue(ft) && !ft.IsCategorical()
 }
 
+// plainNumeric is GROUP_NUMERIC_RANGES' set: u4, the unsigned integers
+// and the floats — the scalar types whose stored number IS the quantity.
+func plainNumeric(ft encoding.FieldType) bool {
+	switch ft {
+	case encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
+		encoding.FieldTypeF32, encoding.FieldTypeF64:
+		return true
+	}
+	return false
+}
+
 // strictScalar is AGG_WELFORD's set: the six plain integer and float
 // types its single float64 hot path reads (no u4 / packed_bool bit
 // packing, no temporal ordinal, no decimal128, categorical or set).
@@ -358,6 +369,11 @@ func init() {
 		"ATTR_NORMALIZED", "ATTR_PERCENTILE", "ATTR_TSCORE", "ATTR_ZSCORE",
 		"GROUP_QUANTILE", "GROUP_RANGE", "GROUP_ROUNDED", "FILTER_RANGE")
 	add(strictScalar, unsupported, field, "AGG_WELFORD")
+	// GROUP_NUMERIC_RANGES: the plain integers and floats. A date's
+	// number is an epoch ordinal (GROUP_DATE_RANGES buckets dates), a
+	// decimal128's a lossy float, a packed_bool's a flag — none is a
+	// quantity to cut into labeled numeric ranges.
+	add(plainNumeric, unsupported, field, "GROUP_NUMERIC_RANGES")
 	// The numeric readers: aggregators and features whose figure is
 	// arithmetic on the field's stored number. A categorical's number is
 	// its dictionary index and a set's is no number at all (Record.

@@ -135,6 +135,7 @@
     - [op-group-date](skills/op-group-date.md)
     - [op-group-date-ranges](skills/op-group-date-ranges.md)
     - [op-group-kmeans](skills/op-group-kmeans.md)
+    - [op-group-numeric-ranges](skills/op-group-numeric-ranges.md)
     - [op-group-quantile](skills/op-group-quantile.md)
     - [op-group-range](skills/op-group-range.md)
     - [op-group-rounded](skills/op-group-rounded.md)

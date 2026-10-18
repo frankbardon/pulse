@@ -619,7 +619,7 @@ func addSaturating(a, b int64) int64 {
 //   - Built-in dictionary / boolean / include / quantile / k-means
 //     cases wrap vectors.EstimateBuckets, the estimator the matrix and
 //     return-size predictions share.
-//   - GROUP_DATE_RANGES: the range count (inline `ranges`, or the named
+//   - GROUP_DATE_RANGES / GROUP_NUMERIC_RANGES: the range count (inline `ranges`, or the named
 //     table's range_count from the instance snapshot) plus the
 //     unmatched bucket. An unknown table yields no estimate (the
 //     runtime reports PULSE_RANGE_TABLE_UNKNOWN).
@@ -757,7 +757,7 @@ func groupEstimate(g *types.Group, schema *encoding.Schema, inst *InstanceSnapsh
 	if g == nil {
 		return 0, false
 	}
-	if g.Type == types.GROUP_DATE_RANGES {
+	if g.Type == types.GROUP_DATE_RANGES || g.Type == types.GROUP_NUMERIC_RANGES {
 		ranges, ok := dateRangeCount(g, inst)
 		if !ok {
 			return 0, false
@@ -825,7 +825,7 @@ func mulSaturating(a, b int64) int64 {
 	return a * b
 }
 
-// dateRangeCount is a GROUP_DATE_RANGES grouper's range count: its
+// dateRangeCount is a GROUP_DATE_RANGES / GROUP_NUMERIC_RANGES grouper's range count: its
 // inline `ranges`, else the registered range_count of its named
 // `table`. False when the params do not decode or name no source the
 // instance knows.

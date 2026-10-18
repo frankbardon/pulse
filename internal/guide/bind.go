@@ -166,7 +166,7 @@ var needWhy = map[string]string{
 	"df_within":    "Give the within-group degrees of freedom from that same ANOVA.",
 	"values":       "List the values the filter keeps, drops or matches.",
 	"expression":   "Write the expression that picks the rows to keep.",
-	"ranges":       "List the labelled date ranges to use.",
+	"ranges":       "List the labelled ranges to use, each with a label, a start and an end.",
 	"interval":     "Choose the bucket width.",
 	"value":        "Name the value whose share to count.",
 	"part":         "Choose the date part to extract.",

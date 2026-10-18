@@ -96,6 +96,7 @@ var builtinGrouperKeyable = map[types.GroupType]bool{
 	types.GROUP_CATEGORY:        true,
 	types.GROUP_DATE:            true,
 	types.GROUP_DATE_RANGES:     true,
+	types.GROUP_NUMERIC_RANGES:  true,
 	types.GROUP_KMEANS:          false,
 	types.GROUP_QUANTILE:        false,
 	types.GROUP_RANGE:           true,

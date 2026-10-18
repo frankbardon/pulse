@@ -626,6 +626,7 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 	validateRegisteredOperators(env, req, opts)
 	validateAggregationParams(env, req, opts.instance())
 	validateGroupDateParams(env, req, schema, opts.instance())
+	validateRangeOperatorParams(env, req, opts.instance())
 	validateGroupFitParams(env, req, opts.instance())
 	validateDatePartParams(env, req, schema, opts.instance())
 

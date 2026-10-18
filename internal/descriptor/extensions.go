@@ -37,6 +37,11 @@ type ExtensionsSnapshot struct {
 	ReferenceVectors []descriptor.ReferenceVectorMeta
 	LabelTables      []descriptor.LabelTableMeta
 	RangeTables      []descriptor.RangeTableMeta
+	// RangeTableLabels is each registered range table's labels in
+	// authored order, keyed by table name: predict's view of what a
+	// GROUP_NUMERIC_RANGES unmatched_label may not collide with. Never
+	// projected into the manifest (RangeTableMeta stays count-only).
+	RangeTableLabels map[string][]string
 	// Populations are the instance's registered populations: the names
 	// and member labels predict binds beneath every request (the
 	// runtime's registered set, statically — PopulationCatalog).

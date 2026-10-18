@@ -22,6 +22,7 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `09_date_hour.json` | `GROUP_DATE` | Local wall-clock hour buckets of a `datetime` (`component: hour`, request `time_zone`) |
 | `10_date_week_start.json` | `GROUP_DATE` | Sunday-start weeks keyed by their first day (`week_start: sunday`) |
 | `11_kmeans.json` | `GROUP_KMEANS` | Three seeded k-means segments over age and income (`cluster_1..3` by size) |
+| `12_numeric_ranges.json` | `GROUP_NUMERIC_RANGES` | Train/holdout split on `id` with labeled half-open ranges (`[1,161)`, `[161,201)`), supplied order |
 
 `GROUP_DATE` components: `year`, `quarter`, `month`, `week`, `day`,
 `hour` (`datetime` only), `day_of_week`; `week_start` (`week` only)
@@ -29,6 +30,8 @@ picks the day a week begins. `GROUP_QUANTILE` interval picks the bucket count; k
 prefix changes by N (Q for 4, D for 10, P for 100, B otherwise).
 `GROUP_RANGE` and `GROUP_ROUNDED` use the same binning formula but
 different key formats: `GROUP_RANGE` keys are `"low-high"` strings,
-`GROUP_ROUNDED` keys are the bin's lower bound. Quantile and range rows
-come out in bucket order (`D1…D10`, ranges by low edge) with no `sort`;
-a `sort` on the key column would compare the key strings instead.
+`GROUP_ROUNDED` keys are the bin's lower bound. Quantile, range and
+rounded rows come out in bucket order (`D1…D10`, ranges by low edge,
+rounded keys by value) and numeric-ranges rows in supplied range order,
+with no `sort`; a `sort` on the key column would compare the key strings
+instead.

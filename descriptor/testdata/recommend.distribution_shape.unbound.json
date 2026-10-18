@@ -233,6 +233,10 @@
           {
             "when": "you want to keep one band, not split into all of them",
             "use": "FILTER_RANGE"
+          },
+          {
+            "when": "your bands have uneven, named edges, such as a train/holdout split",
+            "use": "GROUP_NUMERIC_RANGES"
           }
         ]
       },
@@ -393,4 +397,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 73ea9a49769b6618f54874b93a5de2e745b6314573112387e736ff59188ffdec
+// golden-hash: 6ca55e1b1cfde5c8632751d8b08d18211dc6a3083f8b977a4413e01d34b1fbbe

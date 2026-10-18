@@ -671,6 +671,10 @@ pulse: type MemberSet interface
 pulse: type MemberSet imethod Kind() string
 pulse: type MemberSet imethod Len() int
 pulse: func New(opts pulse.Options) (*pulse.Pulse, error)
+pulse: type NumericRangeSpec struct
+pulse: type NumericRangeSpec field End *float64 "json:\"end,omitempty\""
+pulse: type NumericRangeSpec field Label string "json:\"label\""
+pulse: type NumericRangeSpec field Start *float64 "json:\"start,omitempty\""
 pulse: type Options struct
 pulse: type Options field AutoLabels []pulse.LabelBinding
 pulse: type Options field DataDir string
@@ -914,11 +918,15 @@ pulse: type RakeResult field WeightField string "json:\"weight_field\""
 pulse: type RakeResult method (RakeResult) MarshalJSON() ([]byte, error)
 pulse: type RangeTable struct
 pulse: type RangeTable field Description string
+pulse: type RangeTable field NumericRanges []pulse.NumericRangeSpec
 pulse: type RangeTable field Ranges []pulse.DateRangeSpec
+pulse: type RangeTable method (RangeTable) Kind() string
 pulse: type RangeTableInfo struct
+pulse: type RangeTableInfo field Kind string "json:\"kind\""
 pulse: type RangeTableInfo field Name string "json:\"name\""
+pulse: type RangeTableInfo field NumericRanges []pulse.NumericRangeSpec "json:\"numeric_ranges,omitempty\""
 pulse: type RangeTableInfo field RangeCount int "json:\"range_count\""
-pulse: type RangeTableInfo field Ranges []pulse.DateRangeSpec "json:\"ranges\""
+pulse: type RangeTableInfo field Ranges []pulse.DateRangeSpec "json:\"ranges,omitempty\""
 pulse: type Record = map[string]any
 pulse: type RenderedTemplate = pulse/internal/template.Rendered
 pulse: type RenderedTemplate underlying struct
@@ -1890,6 +1898,7 @@ pulse/descriptor: type Purpose field Questions []string "json:\"questions\""
 pulse/descriptor: type Purpose field UseCases map[pulse/descriptor.Domain]string "json:\"use_cases,omitempty\""
 pulse/descriptor: type RangeTableMeta struct
 pulse/descriptor: type RangeTableMeta field Description string "json:\"description,omitempty\""
+pulse/descriptor: type RangeTableMeta field Kind string "json:\"kind\""
 pulse/descriptor: type RangeTableMeta field Name string "json:\"name\""
 pulse/descriptor: type RangeTableMeta field RangeCount int "json:\"range_count\""
 pulse/descriptor: type RecommendNeed struct
@@ -2620,6 +2629,7 @@ pulse/errors: const PULSE_RANGE_EMPTY pulse/errors.Code = "PULSE_RANGE_EMPTY"
 pulse/errors: const PULSE_RANGE_INVALID pulse/errors.Code = "PULSE_RANGE_INVALID"
 pulse/errors: const PULSE_RANGE_OVERLAP pulse/errors.Code = "PULSE_RANGE_OVERLAP"
 pulse/errors: const PULSE_RANGE_SOURCE_AMBIGUOUS pulse/errors.Code = "PULSE_RANGE_SOURCE_AMBIGUOUS"
+pulse/errors: const PULSE_RANGE_TABLE_KIND_MISMATCH pulse/errors.Code = "PULSE_RANGE_TABLE_KIND_MISMATCH"
 pulse/errors: const PULSE_RANGE_TABLE_UNKNOWN pulse/errors.Code = "PULSE_RANGE_TABLE_UNKNOWN"
 pulse/errors: const PULSE_RECOMMEND_INTENT_UNKNOWN pulse/errors.Code = "PULSE_RECOMMEND_INTENT_UNKNOWN"
 pulse/errors: const PULSE_REQUEST_UNKNOWN_FIELD pulse/errors.Code = "PULSE_REQUEST_UNKNOWN_FIELD"
@@ -4819,6 +4829,7 @@ pulse/types: const GROUP_CATEGORY pulse/types.GroupType = "GROUP_CATEGORY"
 pulse/types: const GROUP_DATE pulse/types.GroupType = "GROUP_DATE"
 pulse/types: const GROUP_DATE_RANGES pulse/types.GroupType = "GROUP_DATE_RANGES"
 pulse/types: const GROUP_KMEANS pulse/types.GroupType = "GROUP_KMEANS"
+pulse/types: const GROUP_NUMERIC_RANGES pulse/types.GroupType = "GROUP_NUMERIC_RANGES"
 pulse/types: const GROUP_QUANTILE pulse/types.GroupType = "GROUP_QUANTILE"
 pulse/types: const GROUP_RANGE pulse/types.GroupType = "GROUP_RANGE"
 pulse/types: const GROUP_ROUNDED pulse/types.GroupType = "GROUP_ROUNDED"
@@ -5602,4 +5613,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 1b10537ffe0e04611e3e24ece75ae5d695e8975f5119916bc076d6b0cb70d94e
+// golden-hash: 46fdbdf4d01ead7144dbd2826310fad69af59c56b292a3489750cd50085856e5

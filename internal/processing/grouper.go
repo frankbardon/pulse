@@ -143,8 +143,10 @@ type emissionOrderer interface {
 // streamed, sharded), a Request.Groups composite, a crosstab axis on both
 // the buffered and the fused arm, grouped matrices — emits its buckets in
 // that order. GROUP_QUANTILE ranks by bucket id (D1…D10, never D1, D10,
-// D2) and GROUP_RANGE by its numeric low edge ("-20--10" before "-10-0"
-// before "0-10"); keys themselves never change. keyRank returns key's
+// D2), GROUP_RANGE by its numeric low edge ("-20--10" before "-10-0"
+// before "0-10"), GROUP_ROUNDED by its key's value ("-5", "9.5", "10")
+// and GROUP_NUMERIC_RANGES by supplied range index, unmatched last; keys
+// themselves never change. keyRank returns key's
 // ascending sort position and false for a key the grouper never mints
 // (such a straggler sorts after every ranked key, alphabetically); equal
 // ranks tie-break alphabetically. The rank must derive from the key and
@@ -525,6 +527,19 @@ func (g *roundedGrouper) KeyFor(r *Record) (string, error) {
 	}
 	rounded := math.Floor(v/g.interval) * g.interval
 	return formatRoundedNumeric(rounded), nil
+}
+
+// keyRank implements keyOrderer: a rounded key ranks by its numeric
+// value, so buckets emit ascending — "-5", "9.5", "10" — where
+// alphabetical order would put "10" before "9.5" and scramble the
+// negatives. formatRoundedNumeric writes shortest-exact decimals, so the
+// key round-trips; a key that does not parse, or NaN, is unranked.
+func (g *roundedGrouper) keyRank(key string) (float64, bool) {
+	v, err := strconv.ParseFloat(key, 64)
+	if err != nil || math.IsNaN(v) {
+		return 0, false
+	}
+	return v, true
 }
 
 // KeyForRow folds a single observation into the live components state
@@ -1758,4 +1773,6 @@ var (
 	// keyOrderer locks — the groupers whose keys carry an intrinsic order.
 	_ keyOrderer = (*quantileGrouper)(nil)
 	_ keyOrderer = (*rangeGrouper)(nil)
+	_ keyOrderer = (*roundedGrouper)(nil)
+	_ keyOrderer = (*numericRangesGrouper)(nil)
 )

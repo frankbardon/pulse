@@ -16,7 +16,7 @@ examples_tags: [time-series, cohort-analysis]
 One source — `ranges` XOR `table`:
 
 - `ranges` — ordered `[]{label,start,end}`; ISO, omitted = open, inclusive.
-- `table` — registered `RangeTable` (Extensions or `PULSE_RANGE_TABLES_DIR`).
+- `table` — a DATE `RangeTable` (ISO bounds; Extensions or `PULSE_RANGE_TABLES_DIR`).
 - `unmatched_label` — default `unmatched`; not a range label.
 - `tz` — slot key (not `params`); IANA, beats `time_zone`.
 
@@ -34,7 +34,7 @@ Floor `{total_n, n_null}` + `n_ranges` (int), `unmatched_label` (string), `bucke
 
 ## Gotchas
 
-- Both/neither source → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`; non-date → `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Both/neither source → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`; numeric table → `PULSE_RANGE_TABLE_KIND_MISMATCH`; non-date → `PULSE_FIELD_TYPE_UNSUPPORTED`.
 - Overlap / dup label / bad bound → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL` / `_INVALID`.
 - `tz` on `date`, or non-UTC on a derived field → `PROCESSING_CONFIG`.
 - `Group.Include` not honoured.

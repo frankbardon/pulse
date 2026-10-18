@@ -6,7 +6,7 @@ import "github.com/frankbardon/pulse/descriptor"
 // builtinPurposes assembles it with the other category maps.
 //
 // A grouper splits the filtered records into buckets, and every
-// aggregation is then worked out once per bucket. All eight are
+// aggregation is then worked out once per bucket. All of them are
 // self-reading (interpretation_reading.go): the result is a bucket key
 // per row, not a figure. A row whose field is missing lands in no bucket
 // (it is counted in the grouper's n_null component instead).
@@ -24,6 +24,7 @@ var grouperPurposes = map[string]descriptor.Purpose{
 	"GROUP_DATE":            purposeGroupDate,
 	"GROUP_DATE_RANGES":     purposeGroupDateRanges,
 	"GROUP_KMEANS":          purposeGroupKMeans,
+	"GROUP_NUMERIC_RANGES":  purposeGroupNumericRanges,
 	"GROUP_QUANTILE":        purposeGroupQuantile,
 	"GROUP_RANGE":           purposeGroupRange,
 	"GROUP_ROUNDED":         purposeGroupRounded,
@@ -152,7 +153,7 @@ var (
 				"under a row weight each holds as close to the same total weight as possible, a heavy row is never split, and counts stay row counts.",
 			"Equal values can fall in two neighbouring groups when a cut lands among them.",
 			"Groups are named Q1 to Q4 for quartiles, D1 to D10 for deciles, P1 to P100 for percentiles and B1, B2 and so on otherwise; Q1 is the lowest.",
-			"Groups come back in text order of their names, so deciles read D1, D10, D2, ... D9; sort them by number before reading a trend.",
+			"Groups come back in bucket order, D1 up to D10, not text order; an explicit sort still wins.",
 			"It needs every row before it can cut, so it cannot stream.",
 			groupMissingOut,
 		},
@@ -205,16 +206,45 @@ var (
 			{When: "you want groups of equal size rather than equal width", Use: "GROUP_QUANTILE"},
 			{When: "you want each band named by its lower edge alone", Use: "GROUP_ROUNDED"},
 			{When: "you want to keep one band, not split into all of them", Use: "FILTER_RANGE"},
+			{When: "your bands have uneven, named edges, such as a train/holdout split", Use: "GROUP_NUMERIC_RANGES"},
 		},
 		Assumptions: []string{
 			groupAfterFilters,
 			"Each band is named low-high and holds values from its low edge up to, but not including, its high edge.",
 			"Bands start at multiples of the width, counted from 0; with no width given it is 1, or 10 when picked by default for a numeric field.",
-			"Rows come back in text order of the band names (100-150 before 50-100); sort by the low edge and add the missing bands before charting a histogram.",
+			"Rows come back in order of the low edge (50-100 before 100-150, negatives first); add the missing bands before charting a histogram.",
 			groupOnlySeen,
 			groupMissingOut,
 		},
 		Level:    descriptor.LevelBasic,
+		Glossary: []string{"missing-value"},
+	}
+
+	purposeGroupNumericRanges = descriptor.Purpose{
+		Plain:   "Labels each row with the named number range its value falls in, such as a train/holdout split on a row index or custom score bands.",
+		Intents: []string{IntentSegment, IntentCompareGroups},
+		Questions: []string{
+			"How does the model do on the training rows against the holdout rows?",
+			"What are the totals in each of our named score bands?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Scores per named income band with uneven edges.",
+			descriptor.DomainOps:     "A train/holdout split on a row index before scoring a model.",
+			descriptor.DomainScience: "Readings per named dose band.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "bands of one fixed width are enough", Use: "GROUP_RANGE"},
+			{When: "you want groups of equal size", Use: "GROUP_QUANTILE"},
+			{When: "the field is a date", Use: "GROUP_DATE_RANGES"},
+		},
+		Assumptions: []string{
+			groupAfterFilters,
+			"Each range holds values from its start up to, but not including, its end, so 0-91 and 91-104 meet without overlap and 91 falls in the second; the ranges may not overlap.",
+			"A row outside every range goes to an unmatched group (named \"unmatched\" unless you rename it), not dropped.",
+			"Groups come back in the order the ranges are listed, the unmatched group last.",
+			groupMissingOut,
+		},
+		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"missing-value"},
 	}
 
@@ -238,6 +268,7 @@ var (
 			groupAfterFilters,
 			"Values are rounded down, not to the nearest: 19 with a step of 10 goes to 10, and -3 goes to -10.",
 			"It makes the same groups as equal-width bands of the same step; only the names differ.",
+			"Groups come back in numeric order of their names (-5, 9.5, 10), not text order.",
 			groupOnlySeen,
 			groupMissingOut,
 		},

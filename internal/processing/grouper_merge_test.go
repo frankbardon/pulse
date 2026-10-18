@@ -70,6 +70,7 @@ func TestMergeableGrouper_MergedComponentsEqualSerial(t *testing.T) {
 		{Type: types.GROUP_CATEGORY, Field: "region", Include: []string{"west", "north"}},
 		{Type: types.GROUP_RANGE, Field: "score", Interval: 5},
 		{Type: types.GROUP_DATE_RANGES, Field: "enrolled", Params: ranges},
+		{Type: types.GROUP_NUMERIC_RANGES, Field: "score", Params: json.RawMessage(`{"ranges":[{"label":"hi","start":50},{"label":"lo","end":20},{"label":"mid","start":20,"end":50}],"unmatched_label":"none"}`)},
 		{Type: types.GROUP_SET_VALUE, Field: "tags"},
 		{Type: types.GROUP_SET_PER_ELEMENT, Field: "tags"},
 	}

@@ -170,12 +170,15 @@ type LabelTableMeta struct {
 }
 
 // RangeTableMeta is the manifest projection of a registered labeled-
-// date-range table. RangeCount surfaces how many {label, start, end}
-// entries the table carries without exposing the boundaries themselves,
-// mirroring how LabelTableMeta.HasRowsData characterises a label table.
+// range table. Kind is "date" (ISO date bounds; GROUP_DATE_RANGES /
+// FILTER_DATE_RANGES) or "numeric" (number bounds; GROUP_NUMERIC_RANGES).
+// RangeCount surfaces how many {label, start, end} entries the table
+// carries without exposing the boundaries themselves, mirroring how
+// LabelTableMeta.HasRowsData characterises a label table.
 type RangeTableMeta struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
+	Kind        string `json:"kind"`
 	RangeCount  int    `json:"range_count"`
 }
 

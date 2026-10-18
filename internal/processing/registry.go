@@ -116,13 +116,14 @@ var filtererRegistry = map[types.FiltererType]FiltererFactory{
 
 // grouperRegistry maps group types to their factory functions.
 var grouperRegistry = map[types.GroupType]GrouperFactory{
-	types.GROUP_CATEGORY:    newCategoryGrouper,
-	types.GROUP_DATE:        newDateGrouper,
-	types.GROUP_DATE_RANGES: newDateRangesGrouper,
-	types.GROUP_KMEANS:      newKMeansGrouper,
-	types.GROUP_QUANTILE:    newQuantileGrouper,
-	types.GROUP_RANGE:       newRangeGrouper,
-	types.GROUP_ROUNDED:     newRoundedGrouper,
+	types.GROUP_CATEGORY:       newCategoryGrouper,
+	types.GROUP_DATE:           newDateGrouper,
+	types.GROUP_DATE_RANGES:    newDateRangesGrouper,
+	types.GROUP_NUMERIC_RANGES: newNumericRangesGrouper,
+	types.GROUP_KMEANS:         newKMeansGrouper,
+	types.GROUP_QUANTILE:       newQuantileGrouper,
+	types.GROUP_RANGE:          newRangeGrouper,
+	types.GROUP_ROUNDED:        newRoundedGrouper,
 
 	types.GROUP_SET_VALUE:       newSetValueGrouper,
 	types.GROUP_SET_PER_ELEMENT: newSetPerElementGrouper,

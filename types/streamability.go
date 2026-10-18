@@ -282,7 +282,7 @@ const (
 // we exercise in goldens today.
 func (t GroupType) Mergeable() bool {
 	switch t {
-	case GROUP_CATEGORY, GROUP_RANGE, GROUP_DATE_RANGES,
+	case GROUP_CATEGORY, GROUP_RANGE, GROUP_DATE_RANGES, GROUP_NUMERIC_RANGES,
 		GROUP_SET_VALUE, GROUP_SET_PER_ELEMENT:
 		return true
 	case GROUP_ROUNDED, GROUP_QUANTILE, GROUP_DATE, GROUP_KMEANS:
@@ -355,7 +355,7 @@ func (t FiltererType) Streamable() bool {
 // is streamable — with two or more groupers, by composite key.
 func (t GroupType) Streamable() bool {
 	switch t {
-	case GROUP_CATEGORY, GROUP_ROUNDED, GROUP_RANGE, GROUP_DATE_RANGES,
+	case GROUP_CATEGORY, GROUP_ROUNDED, GROUP_RANGE, GROUP_DATE_RANGES, GROUP_NUMERIC_RANGES,
 		GROUP_SET_VALUE, GROUP_SET_PER_ELEMENT:
 		return true
 	case GROUP_QUANTILE, GROUP_DATE, GROUP_KMEANS:
@@ -388,7 +388,7 @@ func (t GroupType) FansOut() bool {
 	switch t {
 	case GROUP_SET_PER_ELEMENT:
 		return true
-	case GROUP_CATEGORY, GROUP_DATE, GROUP_DATE_RANGES,
+	case GROUP_CATEGORY, GROUP_DATE, GROUP_DATE_RANGES, GROUP_NUMERIC_RANGES,
 		GROUP_KMEANS, GROUP_QUANTILE, GROUP_RANGE, GROUP_ROUNDED,
 		GROUP_SET_VALUE:
 		return false

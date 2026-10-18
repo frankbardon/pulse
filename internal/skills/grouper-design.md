@@ -24,6 +24,7 @@ Read the intent first (`pulse_skills_get intents`): `compare_groups`, `compositi
 - **One bucket per distinct value** of a categorical, boolean or low-cardinality field? → the category grouper.
 - **A number in bands?** Fixed-width bands (`"low-high"` key or rounded-down floor), or EQUAL-COUNT bands (by rank; equal values may straddle two; buffers the whole input)?
 - **Calendar periods** (hour to fiscal year, weekday)? → the date grouper. **Custom named periods** (campaigns, irregular fiscal quarters)? → the date-ranges grouper.
+- **Uneven named number bands** (train/holdout)? → the numeric-ranges grouper.
 - **A multi-select field?** One bucket per OPTION (fan-out: a record lands in every option it chose) or per exact COMBINATION?
 
 **High cardinality.** Each distinct key is a bucket; past the instance `max_groups` the run is refused `PULSE_LIMIT_EXCEEDED`; `pulse_predict` flags a dictionary over it in `limit_findings`.
@@ -71,23 +72,23 @@ Never overrides an explicit `type`; predict reports filled slots at `data.defaul
 
 Other groupers ignore `include`; use a value filter instead.
 
-**Order-significant.** A non-empty `include` also fixes emission order: listed order (grouped `Data`, the `buckets` component, each crosstab axis). Empty keeps alphabetical (or dictionary-index) order. Zero-record values are still dropped.
+**Order-significant.** A non-empty `include` also fixes emission order: listed order (grouped `Data`, the `buckets` component, each crosstab axis). Empty keeps the grouper's own order (alphabetical, dictionary-index or bucket order). Zero-record values are still dropped.
 
 ## Fused crosstab eligibility
 
-A crosstab builds its grid in one decode pass (much lower peak memory) when every axis grouper keys records one at a time. Every built-in does EXCEPT the equal-count (quantile) grouper, which needs a finalize-time sorted view and forces a buffered crosstab. Fan-out groupers fuse at any axis position. Overlays never prevent fusing.
+A crosstab builds its grid in one decode pass (lower peak memory) when every axis grouper keys records one at a time. Every built-in does EXCEPT the equal-count (quantile) grouper, which needs a finalize-time sorted view and forces a buffered crosstab. Fan-out groupers fuse at any axis position. Overlays never prevent fusing.
 
 ## Components
 
-Every `Response.Components.Groupers[i]` carries the **universal floor** `total_n` (post-filter records partitioned) + `n_null` (records that took the null / skip path) — ALL post-filter records, unlike the aggregator's non-null `n`. Operator-specific keys ride `operator`; per-grouper lists are in `manifest.components_schemas.groupers` and each atomic skill.
+Every `Response.Components.Groupers[i]` carries the **universal floor** `total_n` (post-filter records partitioned) + `n_null` (null / skip path) — ALL post-filter records, unlike the aggregator's non-null `n`. Operator-specific keys ride `operator`; per-grouper lists are in `manifest.components_schemas.groupers` and each atomic skill.
 
-Mergeability is in the manifest: `mergeable` groupers fold across streaming chunks; a `none` grouper (equal-count bands) emits at the terminal flush only. With N ≥ 2 there is one entry per slot and `groups[].group_key` is the tuple. Shape: `response-components`.
+Mergeability is in the manifest: `mergeable` groupers fold across streaming chunks; a `none` grouper (equal-count bands) emits at the terminal flush only. With N ≥ 2 there is one entry per slot and `groups[].group_key` is the tuple.
 
 ## Gotchas
 
 - Fan-out: `sum(buckets[].count) > total_n` is correct; on a crosstab axis its margins are non-additive (a 3-option row counts 3× across row margins, once in the grand total).
 - Empty-mask `set_*`: the combination grouper buckets it under the empty key; the per-option grouper skips it. Neither increments `n_null`.
-- Weekday names lex-sort, not Sun→Sat; sort explicitly.
+- Weekday names lex-sort; sort explicitly.
 
 ## See
 

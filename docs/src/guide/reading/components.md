@@ -606,6 +606,18 @@ Only the floor keys.
 | `converged` | bool | always | Whether the winning start reached a fixed point before max_iter. |
 | `best_init` | int | always | The winning start, 1-based. |
 
+<a id="op-group_numeric_ranges"></a>
+
+#### `GROUP_NUMERIC_RANGES`
+
+**Mergeability:** mergeable. See its [catalog entry](../catalog/grouper.md#op-group_numeric_ranges).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `n_ranges` | int | always | Number of configured labeled numeric ranges. |
+| `unmatched_label` | string | always | Bucket label used for rows outside every configured range. |
+| `buckets` | []bucket | always | Per-bucket records in supplied range order (unmatched last when observed); each entry carries {key, label, count}. |
+
 <a id="op-group_quantile"></a>
 
 #### `GROUP_QUANTILE`

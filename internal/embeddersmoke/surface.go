@@ -181,6 +181,9 @@ var (
 // DateRangeSpec is root-native and feeds a RangeTable extension.
 var _ = pulse.RangeTable{Ranges: []pulse.DateRangeSpec{{Label: "all"}}}
 
+// NumericRangeSpec is root-native and feeds a numeric RangeTable.
+var _ = pulse.RangeTable{NumericRanges: []pulse.NumericRangeSpec{{Label: "all"}}}.Kind()
+
 // io: the format factory, its option sub-structs and the jobs.
 var (
 	_ func(pio.Format, afero.Fs, string, pio.ReaderOptions) (pio.Reader, error) = pio.NewReader

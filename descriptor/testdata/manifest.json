@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:c45a1541d8782fa8b83b4fd02aed25f17e026b4c548dac09f436285873bd6e50",
+    "feature_set_digest": "fs1:5630a947678103aa5bb95637e1f323c12ae53cdb72e622863326214744ebfb90",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -4477,7 +4477,7 @@
               "name": "table",
               "type": "string",
               "required": false,
-              "description": "Name of a registered range table (Extensions.RangeTables / PULSE_RANGE_TABLES_DIR) to filter by instead of inline ranges; give exactly one of ranges and table."
+              "description": "Name of a registered DATE range table (Extensions.RangeTables / PULSE_RANGE_TABLES_DIR, bounds ISO date strings) to filter by instead of inline ranges; give exactly one of ranges and table. A numeric table is refused (PULSE_RANGE_TABLE_KIND_MISMATCH)."
             }
           ],
           "accepts_types": [
@@ -5215,7 +5215,7 @@
               "name": "table",
               "type": "string",
               "required": false,
-              "description": "Name of a registered range table (Extensions.RangeTables / PULSE_RANGE_TABLES_DIR) to bucket by instead of inline ranges; give exactly one of ranges and table."
+              "description": "Name of a registered DATE range table (Extensions.RangeTables / PULSE_RANGE_TABLES_DIR, bounds ISO date strings) to bucket by instead of inline ranges; give exactly one of ranges and table. A numeric table is refused (PULSE_RANGE_TABLE_KIND_MISMATCH)."
             }
           ],
           "accepts_types": [
@@ -5439,6 +5439,77 @@
             "frequency"
           ],
           "intents": [
+            "segment"
+          ]
+        },
+        {
+          "name": "GROUP_NUMERIC_RANGES",
+          "category": "grouper",
+          "description": "Partition numeric records by a set of labeled half-open ranges ({label, start, end} covers [start, end)); the bucket key is the matching range's label. Ranges come inline or from a numeric range table. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order, the unmatched bucket last.",
+          "params": [
+            {
+              "name": "ranges",
+              "type": "array",
+              "required": true,
+              "description": "Ordered list of {label, start, end} labeled numeric ranges. start/end are JSON numbers; an omitted/null bound is open. Bounds are half-open [start, end) — [0, 91) and [91, 104) are adjacent, not overlapping, and an integer 91 lands in the second; ranges must be non-overlapping with distinct labels."
+            },
+            {
+              "name": "unmatched_label",
+              "type": "string",
+              "required": false,
+              "default": "unmatched",
+              "description": "Bucket label for rows outside every configured range. Must not collide with a range label."
+            },
+            {
+              "name": "table",
+              "type": "string",
+              "required": false,
+              "description": "Name of a registered NUMERIC range table (Extensions.RangeTables / PULSE_RANGE_TABLES_DIR, bounds JSON numbers) to bucket by instead of inline ranges; give exactly one of ranges and table. A date table is refused (PULSE_RANGE_TABLE_KIND_MISMATCH)."
+            }
+          ],
+          "accepts_types": [
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "labeled range key per row (the matching range's label, or the unmatched label)",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "n_ranges",
+                "type": "int",
+                "description": "Number of configured labeled numeric ranges."
+              },
+              {
+                "name": "unmatched_label",
+                "type": "string",
+                "description": "Bucket label used for rows outside every configured range."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-bucket records in supplied range order (unmatched last when observed); each entry carries {key, label, count}."
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "intents": [
+            "compare_groups",
             "segment"
           ]
         },
@@ -9980,7 +10051,7 @@
         ]
       }
     ],
-    "error_codes_count": 390,
+    "error_codes_count": 391,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10243,6 +10314,7 @@
       "PULSE_RANGE_INVALID",
       "PULSE_RANGE_OVERLAP",
       "PULSE_RANGE_SOURCE_AMBIGUOUS",
+      "PULSE_RANGE_TABLE_KIND_MISMATCH",
       "PULSE_RANGE_TABLE_UNKNOWN",
       "PULSE_RECOMMEND_INTENT_UNKNOWN",
       "PULSE_REQUEST_UNKNOWN_FIELD",
@@ -10468,7 +10540,7 @@
       },
       {
         "name": "pulse_range_tables",
-        "description": "CALL TO FIND WHICH NAMED DATE-RANGE SETS EXIST BEFORE GROUPING OR FILTERING BY ONE. List the registered range tables (named, reusable sets of labeled date ranges — e.g. fiscal quarters, marketing campaigns, product-launch windows). Returns each table's name, range count, and the ordered {label, start, end} ranges themselves (ISO date literals; empty start/end is an open bound). A GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter references a table by name — the INPUT direction, turning a table name into the usable range set. Returns an empty list (never an error) when no range tables are registered; tables are supplied programmatically via Options.Extensions.RangeTables or loaded from the PULSE_RANGE_TABLES_DIR directory at pulse.New time."
+        "description": "CALL TO FIND WHICH NAMED RANGE SETS EXIST BEFORE GROUPING OR FILTERING BY ONE. List the registered range tables (named, reusable sets of labeled ranges — date tables such as fiscal quarters or campaign windows, numeric tables such as a train/holdout split or score bands). Returns each table's name, kind (date | numeric), range count, and the ordered {label, start, end} ranges themselves (ranges: ISO date literals, inclusive; numeric_ranges: numbers, half-open [start, end); an omitted start/end is an open bound). A GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter references a date table by name, a GROUP_NUMERIC_RANGES grouper a numeric one — the INPUT direction, turning a table name into the usable range set; a table of the other kind is refused PULSE_RANGE_TABLE_KIND_MISMATCH. Returns an empty list (never an error) when no range tables are registered; tables are supplied programmatically via Options.Extensions.RangeTables or loaded from the PULSE_RANGE_TABLES_DIR directory at pulse.New time."
       },
       {
         "name": "pulse_recommend",
@@ -10555,6 +10627,7 @@
         "compatible_groupers": [
           "GROUP_CATEGORY",
           "GROUP_KMEANS",
+          "GROUP_NUMERIC_RANGES",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -10649,6 +10722,7 @@
         "compatible_groupers": [
           "GROUP_CATEGORY",
           "GROUP_KMEANS",
+          "GROUP_NUMERIC_RANGES",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -10743,6 +10817,7 @@
         "compatible_groupers": [
           "GROUP_CATEGORY",
           "GROUP_KMEANS",
+          "GROUP_NUMERIC_RANGES",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -10837,6 +10912,7 @@
         "compatible_groupers": [
           "GROUP_CATEGORY",
           "GROUP_KMEANS",
+          "GROUP_NUMERIC_RANGES",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -10930,6 +11006,7 @@
         "compatible_groupers": [
           "GROUP_CATEGORY",
           "GROUP_KMEANS",
+          "GROUP_NUMERIC_RANGES",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -11023,6 +11100,7 @@
         "compatible_groupers": [
           "GROUP_CATEGORY",
           "GROUP_KMEANS",
+          "GROUP_NUMERIC_RANGES",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -11116,6 +11194,7 @@
         "compatible_groupers": [
           "GROUP_CATEGORY",
           "GROUP_KMEANS",
+          "GROUP_NUMERIC_RANGES",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -12301,6 +12380,10 @@
         "description": "Segment records into k clusters by seeded, deterministic k-means over a vector of numeric members; keys cluster_1..cluster_k by descending size."
       },
       {
+        "name": "op-group-numeric-ranges",
+        "description": "Bucket numeric records by labeled half-open ranges [start, end); the range label becomes the bucket key."
+      },
+      {
         "name": "op-group-quantile",
         "description": "Partition records into N equal-population quantile buckets (Q1..Q4 / D1..D10 / P1..P100)."
       },
@@ -13086,7 +13169,7 @@
       },
       {
         "name": "tool-range-tables",
-        "description": "List registered range tables — named, reusable sets of labeled date ranges."
+        "description": "List registered range tables — named, reusable sets of labeled date or numeric ranges."
       },
       {
         "name": "tool-recommend",
@@ -13209,7 +13292,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 241,
+    "examples_count": 242,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -17825,6 +17908,36 @@
           ],
           "mergeability": "none"
         },
+        "GROUP_NUMERIC_RANGES": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "n_ranges",
+              "type": "int",
+              "description": "Number of configured labeled numeric ranges."
+            },
+            {
+              "name": "unmatched_label",
+              "type": "string",
+              "description": "Bucket label used for rows outside every configured range."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records in supplied range order (unmatched last when observed); each entry carries {key, label, count}."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
         "GROUP_QUANTILE": {
           "keys": [
             {
@@ -19024,4 +19137,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 5458a439b738aee7cfa0e3d0561cbf773b65702694c4b45380b127ffeb32f05e
+// golden-hash: 40ea71b5975cd4b009d5b4bb220fa7a2f8d8002e282d9185dfd9484fb90eb917

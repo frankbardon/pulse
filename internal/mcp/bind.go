@@ -606,7 +606,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 					"type": "object",
 					"properties": map[string]any{
 						"type":     enumStringField(groupTypes, ""),
-						"field":    enumStringField(c.AllFields, "Field to group by. GROUP_CATEGORY expects a categorical field. GROUP_ROUNDED and GROUP_RANGE expect numeric. GROUP_DATE expects date."),
+						"field":    enumStringField(c.AllFields, "Field to group by. GROUP_CATEGORY expects a categorical field. GROUP_ROUNDED, GROUP_RANGE and GROUP_NUMERIC_RANGES expect numeric. GROUP_DATE expects date."),
 						"interval": map[string]any{"type": "number"},
 						"params":   map[string]any{},
 						"weight":   slotWeightSchema(c),

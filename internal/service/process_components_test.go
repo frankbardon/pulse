@@ -683,6 +683,14 @@ func allGroupServiceFixtures(t *testing.T) map[types.GroupType]groupServiceFixtu
 			companionField: "score",
 			params:         json.RawMessage(`{"k":2}`),
 		},
+		types.GROUP_NUMERIC_RANGES: {
+			svc:            scoreSvc,
+			schema:         scoreSchema,
+			cohortName:     "scores.pulse",
+			field:          "score",
+			companionField: "score",
+			params:         json.RawMessage(`{"ranges":[{"label":"low","end":30},{"label":"high","start":30}]}`),
+		},
 		types.GROUP_QUANTILE: {
 			svc:            scoreSvc,
 			schema:         scoreSchema,
