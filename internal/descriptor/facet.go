@@ -268,7 +268,7 @@ func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	if _, zerr := ResolveFacetZones(req, schema, opts.DefaultTimeZone, opts.ZoneLoader, opts.instance()); zerr != nil {
 		addCodedError(env, zerr)
 	}
-	for _, ce := range fieldRefRefusalsWithModels(&types.Request{Filterers: req.Filterers}, schema, snap, opts.instance(), models) {
+	for _, ce := range fieldRefRefusalsWithModels(&types.Request{Filterers: req.Filterers, TimeZoneField: req.TimeZoneField}, schema, snap, opts.instance(), models) {
 		addCodedError(env, ce)
 	}
 	// The accepted-types table's filterer type refusals, as FacetSchema's

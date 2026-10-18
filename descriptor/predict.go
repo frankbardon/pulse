@@ -174,7 +174,8 @@ type PredictResult struct {
 	// (GROUP_DATE, GROUP_DATE_RANGES, FILTER_DATE_RANGES, ATTR_DATE_PART,
 	// FEAT_DATE_FEATURES — crosstab axes included) in request order:
 	// filterers, features, attributes, groups, crosstab rows, crosstab
-	// columns. Resolution is slot `tz` → Request.TimeZone →
+	// columns. Resolution is slot `tz` → slot `tz_field` →
+	// Request.TimeZoneField → Request.TimeZone →
 	// Options.DefaultTimeZone → UTC, computed by the same function the
 	// runtime validates with. Empty when no zone-capable slot is present;
 	// never nil in JSON output.
@@ -491,6 +492,10 @@ const (
 	ZoneSourceOptions = "options"
 	// ZoneSourceDefault: nothing named a zone; UTC.
 	ZoneSourceDefault = "default"
+	// ZoneSourceField: a per-row zone read from a categorical field —
+	// the slot's own `tz_field`, else the request root's
+	// `time_zone_field` (ResolvedZone.TZField names it).
+	ZoneSourceField = "field"
 )
 
 // ResolvedZone is the resolved time zone of one zone-capable request
@@ -516,9 +521,17 @@ type ResolvedZone struct {
 	// zone is not applied to it.
 	TZ *string `json:"tz"`
 
-	// Source names where TZ came from: "slot", "request", "options" or
-	// "default". On a null TZ it names the level the skipped zone was
-	// inherited from.
+	// TZField names the categorical field the slot's per-row zone is
+	// read from when Source is "field" (TZ is then null: the zone varies
+	// per row). Omitted for every other source. On a non-`datetime`
+	// field an inherited zone field is not applied — FieldType tells the
+	// two apart, exactly as for an inherited zone name.
+	TZField string `json:"tz_field,omitempty"`
+
+	// Source names where TZ came from: "slot", "field", "request",
+	// "options" or "default". On a null TZ it names the level the
+	// skipped zone was inherited from ("field" also when the per-row
+	// zone applies).
 	Source string `json:"source"`
 }
 

@@ -351,3 +351,20 @@ func TestFilterToFileRequest_RefusesTZ(t *testing.T) {
 	})
 	requireCode(t, err, errors.PROCESSING_CONFIG)
 }
+
+// TestFilterToFileRequest_RefusesTZField: a per-row `tz_field` on a
+// structured filter-to-file filterer is refused like a `tz`, never
+// dropped.
+func TestFilterToFileRequest_RefusesTZField(t *testing.T) {
+	fs, cohort := zoneCohort(t)
+	p := zonePulse(t, fs, "")
+	_, err := p.FilterToFileWithRequest(context.Background(), &pulse.FilterToFileRequest{
+		SourcePath: cohort,
+		Filterers:  []*types.Filterer{{Type: types.FILTER_INCLUDE, Field: "cat", Values: []string{"a"}, TimeZoneField: "cat"}},
+		OutputDir:  "out",
+	})
+	ce := requireCode(t, err, errors.PROCESSING_CONFIG)
+	if ce.Details["tz_field"] != "cat" || ce.Details["operator"] != "FILTER_INCLUDE" {
+		t.Fatalf("details = %v", ce.Details)
+	}
+}

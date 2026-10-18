@@ -386,12 +386,14 @@ func buildFacetSchemaRequestSchema(c fieldClassification, inst *descx.InstanceSn
 						"expression": map[string]any{"type": "string"},
 						"params":     map[string]any{"description": "Operator-specific configuration (e.g. FILTER_DATE_RANGES' inline `ranges`)."},
 						"tz":         zoneSchema("Per-slot IANA zone override; empty inherits time_zone. Accepted only on zone-capable filterers."),
+						"tz_field":   zoneFieldSchema("Per-slot per-row zone: a categorical field of IANA zone names read for each row; empty inherits time_zone_field. Not with `tz`; accepted only on zone-capable filterers over a datetime field."),
 					},
 					"required":             []string{"type"},
 					"additionalProperties": true,
 				},
 			},
-			"time_zone": zoneSchema("IANA zone (`UTC` or an `Area/Location` name) inherited by every zone-capable filterer that sets no `tz`. Empty inherits the instance default, then UTC."),
+			"time_zone":       zoneSchema("IANA zone (`UTC` or an `Area/Location` name) inherited by every zone-capable filterer that sets no `tz`. Empty inherits the instance default, then UTC."),
+			"time_zone_field": zoneFieldSchema("Per-row zone: a categorical field of IANA zone names inherited by every zone-capable filterer that sets neither `tz` nor `tz_field`; outranks time_zone."),
 			"discrete_top_k": map[string]any{
 				"type":        "integer",
 				"description": "Cap discrete values per field; 0 means no cap.",
@@ -832,6 +834,7 @@ func relaxEnumStrings(node any) (any, map[string]any) {
 func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *descx.InstanceSnapshot) {
 	props["label"] = map[string]any{"type": "string", "description": "Slot label. In a pulse_compose batch it names this slot for Compose overlay reference / targets (empty auto-defaults to request_<i+1>); standalone it has no effect."}
 	props["time_zone"] = zoneSchema("Request-level IANA zone (`UTC` or an `Area/Location` name) inherited by every zone-capable slot that sets no `tz` of its own. Empty inherits the instance default, then UTC.")
+	props["time_zone_field"] = zoneFieldSchema("Request-level per-row zone: a categorical field of IANA zone names inherited by every zone-capable slot that sets neither `tz` nor `tz_field`; outranks time_zone (expressions' to_day() still read time_zone).")
 	props["disable_components"] = map[string]any{"type": "boolean", "description": "true suppresses Response.Components for this request; false forces them on even when the engine default disables them. Omit to inherit."}
 	props["return"] = returnSchema("Response shaping for this request: a preset, include / exclude paths over the Response, a wire float precision. Omitted on pulse_process / pulse_compose slots, the MCP default preset `standard` applies; {\"preset\":\"full\"} returns everything.")
 	props["joins"] = joinsSchema(c)
@@ -848,8 +851,10 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 		return p
 	}
 	slotZone := zoneSchema("Per-slot IANA zone override; empty inherits the request's time_zone. Accepted only on zone-capable operators (manifest operator `zone` key).")
+	slotZoneField := zoneFieldSchema("Per-slot per-row zone: a categorical field of IANA zone names read for each row; empty inherits the request's time_zone_field. Not with `tz`; accepted only on zone-capable operators over a datetime field.")
 	for _, slot := range []string{"filterers", "groups", "features", "attributes"} {
 		itemProps(slot)["tz"] = slotZone
+		itemProps(slot)["tz_field"] = slotZoneField
 	}
 	itemProps("filterers")["params"] = map[string]any{"description": "Operator-specific configuration (e.g. FILTER_DATE_RANGES' inline `ranges`)."}
 	itemProps("groups")["include"] = groupIncludeSchema()
@@ -889,6 +894,7 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 			np["vector"] = groupVectorSchema()
 			np["fields"] = groupFieldsSchema()
 			np["tz"] = slotZone
+			np["tz_field"] = slotZoneField
 			nItems := make(map[string]any, len(items))
 			for k, v := range items {
 				nItems[k] = v
@@ -901,6 +907,15 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 
 // zoneSchema is an IANA zone name (`UTC` or `Area/Location`).
 func zoneSchema(description string) map[string]any {
+	return map[string]any{"type": "string", "description": description}
+}
+
+// zoneFieldSchema is a per-row zone field key (`tz_field`,
+// `time_zone_field`): a field name. Deliberately not an enum of the
+// bound cohort's categoricals — a joined or chain-stage column is a
+// valid zone field the bound schema does not list; the request-time
+// resolver judges it.
+func zoneFieldSchema(description string) map[string]any {
 	return map[string]any{"type": "string", "description": description}
 }
 

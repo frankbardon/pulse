@@ -99,6 +99,14 @@ type dateField struct {
 // (an explicit `tz` on a schema field that is not `datetime` is refused,
 // an inherited one is not written, a derived field is refused). An
 // unknown tz is the PULSE_TIMEZONE_UNKNOWN coded error.
+//
+// TODO(local-time/E1-S2): a slot's per-row zone field (`tz_field`, or an
+// inherited `time_zone_field` that descx.ZonedRequest writes into it) is
+// resolved and validated by internal/descriptor.ResolveZones but NOT read
+// here yet — the slot executes on UTC days. E1-S2 builds a
+// temporal.ZoneTable from the zone field's dictionary (LoadZones), forks
+// it per worker, reads the row's code per record, and adds the field to
+// NeededFields.
 func resolveDateField(operator, fieldName, tz string, schema *encoding.Schema, strict bool) (dateField, error) {
 	seconds, err := resolveDateFieldSeconds(operator, fieldName, schema, strict)
 	if err != nil {

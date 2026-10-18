@@ -91,6 +91,7 @@ func TestResolveMatrices_Distance(t *testing.T) {
 		{"unknown between", `{"between": {"type": "GROUP_NOPE", "field": "region"}}`, "unknown_between_type", errors.SERVICE_VALIDATION},
 		{"between weight", `{"between": {"type": "GROUP_CATEGORY", "field": "region", "weight": null}}`, "bad_params", errors.SERVICE_VALIDATION},
 		{"between tz", `{"between": {"type": "GROUP_CATEGORY", "field": "region", "tz": "UTC"}}`, "bad_params", errors.SERVICE_VALIDATION},
+		{"between tz_field", `{"between": {"type": "GROUP_CATEGORY", "field": "region", "tz_field": "region"}}`, "bad_params", errors.SERVICE_VALIDATION},
 		{"extension type unregistered", `{"between": {"type": "GROUP_ACME_PARITY", "field": "region"}}`, "unknown_between_type", errors.SERVICE_VALIDATION},
 		{"no field", `{"between": {"type": "GROUP_CATEGORY"}}`, "bad_params", errors.SERVICE_VALIDATION},
 		{"unknown field", `{"between": {"type": "GROUP_CATEGORY", "field": "nope"}}`, "unknown_field", errors.SERVICE_VALIDATION},

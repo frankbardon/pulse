@@ -60,6 +60,9 @@ func newDateFeatures(feat *types.Feature, schema *encoding.Schema) (Computer, er
 			}
 		}
 	}
+	// TODO(local-time/E1-S2): feat.TimeZoneField (a per-row zone field,
+	// validated by internal/descriptor.ResolveZones) is not read yet; the
+	// slot executes in UTC until E1-S2 wires a temporal.ZoneTable here.
 	if feat.TimeZone != "" {
 		z, err := featureZones.Load(feat.TimeZone)
 		if err != nil {

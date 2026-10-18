@@ -84,7 +84,7 @@ func ScopedFacetFieldRefRefusalsWithModels(req *types.FacetRequest, schema *enco
 	if req == nil {
 		return nil
 	}
-	return fieldRefRefusalsWithModels(&types.Request{Filterers: req.Filterers}, schema, inst.Extensions(), inst, models)
+	return fieldRefRefusalsWithModels(&types.Request{Filterers: req.Filterers, TimeZoneField: req.TimeZoneField}, schema, inst.Extensions(), inst, models)
 }
 
 // FacetFieldRefRefusals is FieldRefRefusals for a FacetRequest: its
@@ -97,7 +97,7 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 	if req == nil {
 		return nil
 	}
-	return FieldRefRefusals(&types.Request{Filterers: req.Filterers}, schema, snap)
+	return FieldRefRefusals(&types.Request{Filterers: req.Filterers, TimeZoneField: req.TimeZoneField}, schema, snap)
 }
 
 // FieldRefRefusals walks every slot that names a field, in PIPELINE
@@ -415,6 +415,7 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 
 	// 4. Record-level consumers.
 	w.checkWeights(req, schema)
+	w.checkZoneFields(req, schema)
 	for _, t := range req.Tests {
 		if t != nil {
 			w.checkTest(t, -1)
@@ -1163,6 +1164,28 @@ func (w *fieldRefWalk) checkWeights(req *types.Request, schema *encoding.Schema)
 	judge("weight", req.Weight)
 	for _, s := range weightSlots(req, w.inst) {
 		judge(s.slot+".weight", s.weight.Spec())
+	}
+}
+
+// checkZoneFields judges every per-row zone field — the request's
+// `time_zone_field` and each slot's own `tz_field` — against the cohort
+// SCHEMA, not the derived column set: a zone is read through the
+// field's dictionary, which only a stored categorical column carries.
+// It is the refusal of a zone field absent from the schema the request
+// executes over (the joined schema of a join, the synthesised schema of
+// a chain stage); ResolveZones, which runs first, judges a present
+// one's type and dictionary.
+func (w *fieldRefWalk) checkZoneFields(req *types.Request, schema *encoding.Schema) {
+	judge := func(slot, name string) {
+		if name == "" || schema.Field(name) != nil {
+			return
+		}
+		w.out = append(w.out, refusal(slot+" references unknown field: "+name+" (a zone field must name a categorical cohort field)",
+			map[string]any{"field": name, "slot": slot}))
+	}
+	judge("time_zone_field", req.TimeZoneField)
+	for _, s := range requestZoneSlots(req, w.inst) {
+		judge(s.slot+".tz_field", s.tzField)
 	}
 }
 

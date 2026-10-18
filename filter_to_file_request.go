@@ -226,7 +226,8 @@ func (r *FilterToFileRequest) canonicalExpression(inst *descx.InstanceSnapshot) 
 // FILTER_INCLUDE / FILTER_EXCLUDE (in / not in list), FILTER_RANGE
 // (closed interval), and FILTER_NULL (is_null / is_not_null). A type
 // inst hides falls through to the unsupported-type refusal, the same
-// one a never-registered type gets, after the same `tz` check.
+// one a never-registered type gets, after the same `tz` / `tz_field`
+// checks.
 func filtererToExpression(f *types.Filterer, inst *descx.InstanceSnapshot) (string, error) {
 	if f == nil {
 		return "", errors.New("filter_to_file: nil filterer")
@@ -238,6 +239,12 @@ func filtererToExpression(f *types.Filterer, inst *descx.InstanceSnapshot) (stri
 		return "", perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG,
 			fmt.Sprintf("filter_to_file: operator %s does not accept `tz`", f.Type),
 			map[string]any{"operator": string(f.Type), perr.DetailTimeZone: f.TimeZone})
+	}
+	if f.TimeZoneField != "" {
+		// Likewise a per-row zone field.
+		return "", perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG,
+			fmt.Sprintf("filter_to_file: operator %s does not accept `tz_field`", f.Type),
+			map[string]any{"operator": string(f.Type), "tz_field": f.TimeZoneField})
 	}
 	if inst.Hidden(string(f.Type)) {
 		return "", unsupportedFilterType(f.Type)

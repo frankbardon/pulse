@@ -31,6 +31,18 @@ func TestTimeZoneSlots_RoundTrip(t *testing.T) {
 			func(v any) string { return v.(*types.Attribute).TimeZone }},
 		{"Feature", &types.Feature{Type: types.FEAT_DATE_FEATURES, Field: "d", TimeZone: "Europe/Berlin"}, func() any { return &types.Feature{} }, `"tz":"Europe/Berlin"`,
 			func(v any) string { return v.(*types.Feature).TimeZone }},
+		{"Request field", &types.Request{TimeZoneField: "zone"}, func() any { return &types.Request{} }, `"time_zone_field":"zone"`,
+			func(v any) string { return v.(*types.Request).TimeZoneField }},
+		{"FacetRequest field", &types.FacetRequest{Fields: []string{"x"}, TimeZoneField: "zone"}, func() any { return &types.FacetRequest{} }, `"time_zone_field":"zone"`,
+			func(v any) string { return v.(*types.FacetRequest).TimeZoneField }},
+		{"Group field", &types.Group{Type: types.GROUP_DATE, Field: "d", TimeZoneField: "zone"}, func() any { return &types.Group{} }, `"tz_field":"zone"`,
+			func(v any) string { return v.(*types.Group).TimeZoneField }},
+		{"Filterer field", &types.Filterer{Type: types.FILTER_DATE_RANGES, Field: "d", TimeZoneField: "zone"}, func() any { return &types.Filterer{} }, `"tz_field":"zone"`,
+			func(v any) string { return v.(*types.Filterer).TimeZoneField }},
+		{"Attribute field", &types.Attribute{Type: types.ATTR_DATE_PART, Field: "d", TimeZoneField: "zone"}, func() any { return &types.Attribute{} }, `"tz_field":"zone"`,
+			func(v any) string { return v.(*types.Attribute).TimeZoneField }},
+		{"Feature field", &types.Feature{Type: types.FEAT_DATE_FEATURES, Field: "d", TimeZoneField: "zone"}, func() any { return &types.Feature{} }, `"tz_field":"zone"`,
+			func(v any) string { return v.(*types.Feature).TimeZoneField }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -45,7 +57,7 @@ func TestTimeZoneSlots_RoundTrip(t *testing.T) {
 			if err := json.Unmarshal(b, got); err != nil {
 				t.Fatalf("unmarshal: %v", err)
 			}
-			if tc.get(got) != "Europe/Berlin" {
+			if want := tc.get(tc.in); tc.get(got) != want {
 				t.Fatalf("round trip lost the zone: %s", b)
 			}
 		})
@@ -93,7 +105,7 @@ func TestTimeZoneSlots_NotOnExcludedRoots(t *testing.T) {
 		for i := 0; i < rt.NumField(); i++ {
 			f := rt.Field(i)
 			key, _, _ := strings.Cut(f.Tag.Get("json"), ",")
-			if f.Name == "TimeZone" || key == "tz" || key == "time_zone" {
+			if f.Name == "TimeZone" || f.Name == "TimeZoneField" || key == "tz" || key == "time_zone" || key == "tz_field" || key == "time_zone_field" {
 				t.Errorf("%s carries zone slot %s (json %q)", rt.Name(), f.Name, key)
 			}
 		}
