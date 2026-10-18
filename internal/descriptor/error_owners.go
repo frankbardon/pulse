@@ -116,6 +116,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA: ownAllRegs,
 	errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED:  own("REG_OLS"),
 	errors.PROCESSING_VECTOR_LENGTH_MISMATCH:       ownExpr,
+	errors.PROCESSING_AUC_OUTCOME_NOT_BINARY:       own("AGG_AUC"),
 	errors.SERVICE_VALIDATION:                      shared,
 	errors.SERVICE_RESOURCE:                        shared,
 	errors.SERVICE_REGISTRY:                        shared,
@@ -644,6 +645,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SLOT_FAILED: plus(ownAllRegs, ownAllTests, ownAllMats),
 	// A scoring slot over a Compose fit that failed on its data.
 	errors.PULSE_FIT_UNAVAILABLE: own("ATTR_REG_PREDICT"),
+	// The weighted AGG_AUC's withheld DeLong interval.
+	errors.PULSE_AUC_DELONG_WEIGHTED: own("AGG_AUC"),
 
 	// The reference export (Pulse.ExportReference, `pulse docs
 	// export`) is an ungated core surface every instance offers.

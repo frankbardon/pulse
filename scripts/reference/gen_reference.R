@@ -404,3 +404,8 @@ source(file.path(script_dir, "gen_matrix_multiplicity.R"), local = FALSE)
 # plus complete and quasi-complete separations glm itself flags); base
 # stats only.
 source(file.path(script_dir, "gen_glm_irls.R"), local = FALSE)
+
+# The AGG_AUC golden (auc.json: pROC rank-sum AUC with ties half and its
+# DeLong se / 95% interval, plus weighted cases computed as the weighted
+# Mann-Whitney double sum); pROC + jsonlite.
+source(file.path(script_dir, "gen_auc.R"), local = FALSE)

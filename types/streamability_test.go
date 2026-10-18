@@ -33,6 +33,7 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 		AGG_MAPE:           true,
 		AGG_RMSE:           true,
 		AGG_MAE:            true,
+		AGG_AUC:            false,
 
 		AGG_WELFORD: true,
 
@@ -108,6 +109,7 @@ func TestStreamability_MarginReducibilityKnown(t *testing.T) {
 		AGG_MAPE:       MarginRecompute,
 		AGG_RMSE:       MarginRecompute,
 		AGG_MAE:        MarginRecompute,
+		AGG_AUC:        MarginRecompute,
 
 		AGG_SET_UNION:           MarginSummable,
 		AGG_SET_FREQUENCY:       MarginSummable,

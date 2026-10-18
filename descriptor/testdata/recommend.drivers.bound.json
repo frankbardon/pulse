@@ -201,6 +201,99 @@
         ]
       },
       {
+        "operator": "AGG_AUC",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "How well a score separates a yes/no outcome: the chance that a randomly picked yes row scores higher than a randomly picked no row. It uses revenue (f64) and seats (u16).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "revenue",
+              "params": {
+                "outcome": "seats"
+              },
+              "type": "AGG_AUC"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you need the size of the miss of a numeric prediction, not how well it ranks",
+            "use": "AGG_MAE"
+          },
+          {
+            "when": "you want to test whether the two groups' score distributions differ",
+            "use": "TEST_MANN_WHITNEY_U"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_AUC",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "How well a score separates a yes/no outcome: the chance that a randomly picked yes row scores higher than a randomly picked no row. It uses revenue (f64) and score (f64).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "revenue",
+              "params": {
+                "outcome": "score"
+              },
+              "type": "AGG_AUC"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you need the size of the miss of a numeric prediction, not how well it ranks",
+            "use": "AGG_MAE"
+          },
+          {
+            "when": "you want to test whether the two groups' score distributions differ",
+            "use": "TEST_MANN_WHITNEY_U"
+          }
+        ]
+      },
+      {
+        "operator": "AGG_AUC",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "How well a score separates a yes/no outcome: the chance that a randomly picked yes row scores higher than a randomly picked no row. It uses seats (u16) and revenue (f64).",
+        "bound": true,
+        "request": {
+          "aggregations": [
+            {
+              "field": "seats",
+              "params": {
+                "outcome": "revenue"
+              },
+              "type": "AGG_AUC"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "you need the size of the miss of a numeric prediction, not how well it ranks",
+            "use": "AGG_MAE"
+          },
+          {
+            "when": "you want to test whether the two groups' score distributions differ",
+            "use": "TEST_MANN_WHITNEY_U"
+          }
+        ]
+      },
+      {
         "operator": "AGG_MAE",
         "category": "aggregator",
         "level": "intermediate",
@@ -292,105 +385,12 @@
             "use": "AGG_MAPE"
           }
         ]
-      },
-      {
-        "operator": "AGG_MAPE",
-        "category": "aggregator",
-        "level": "intermediate",
-        "why": "Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row. It uses revenue (f64) and seats (u16).",
-        "bound": true,
-        "request": {
-          "aggregations": [
-            {
-              "field": "revenue",
-              "params": {
-                "prediction_field": "seats"
-              },
-              "type": "AGG_MAPE"
-            }
-          ],
-          "cohort": {
-            "filename": "recommend.pulse"
-          }
-        },
-        "alternatives": [
-          {
-            "when": "actual values can be 0 or close to 0, where a share is undefined or explodes",
-            "use": "AGG_MAE"
-          },
-          {
-            "when": "large misses should count for more than small ones",
-            "use": "AGG_RMSE"
-          }
-        ]
-      },
-      {
-        "operator": "AGG_MAPE",
-        "category": "aggregator",
-        "level": "intermediate",
-        "why": "Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row. It uses revenue (f64) and score (f64).",
-        "bound": true,
-        "request": {
-          "aggregations": [
-            {
-              "field": "revenue",
-              "params": {
-                "prediction_field": "score"
-              },
-              "type": "AGG_MAPE"
-            }
-          ],
-          "cohort": {
-            "filename": "recommend.pulse"
-          }
-        },
-        "alternatives": [
-          {
-            "when": "actual values can be 0 or close to 0, where a share is undefined or explodes",
-            "use": "AGG_MAE"
-          },
-          {
-            "when": "large misses should count for more than small ones",
-            "use": "AGG_RMSE"
-          }
-        ]
-      },
-      {
-        "operator": "AGG_MAPE",
-        "category": "aggregator",
-        "level": "intermediate",
-        "why": "Average size of a prediction's miss as a share of the actual value, comparing an actual column with a prediction column row by row. It uses seats (u16) and revenue (f64).",
-        "bound": true,
-        "request": {
-          "aggregations": [
-            {
-              "field": "seats",
-              "params": {
-                "prediction_field": "revenue"
-              },
-              "type": "AGG_MAPE"
-            }
-          ],
-          "cohort": {
-            "filename": "recommend.pulse"
-          }
-        },
-        "alternatives": [
-          {
-            "when": "actual values can be 0 or close to 0, where a share is undefined or explodes",
-            "use": "AGG_MAE"
-          },
-          {
-            "when": "large misses should count for more than small ones",
-            "use": "AGG_RMSE"
-          }
-        ]
       }
     ],
     "truncated": true,
-    "candidates_considered": 23
+    "candidates_considered": 26
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0e8abc72c7226ca46a15be4cb3be21e66671570979102013be722cde224d7fa5
+// golden-hash: 5aa2e03013916863192ae1ba1226f2cabfd49522e18e212c1eeac5338bb11bf5

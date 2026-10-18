@@ -214,9 +214,12 @@ var acceptanceTemplates = map[string]string{
 	// Model error: the field under judgement is the actual; the paired
 	// prediction column (params.prediction_field, the same type check)
 	// is pinned by TestModelError_PredictMatchesRuntime.
-	"AGG_MAPE":                `{"aggregations":[{"type":"AGG_MAPE","field":"$F","params":{"prediction_field":"y"}}]}`,
-	"AGG_RMSE":                `{"aggregations":[{"type":"AGG_RMSE","field":"$F","params":{"prediction_field":"y"}}]}`,
-	"AGG_MAE":                 `{"aggregations":[{"type":"AGG_MAE","field":"$F","params":{"prediction_field":"y"}}]}`,
+	"AGG_MAPE": `{"aggregations":[{"type":"AGG_MAPE","field":"$F","params":{"prediction_field":"y"}}]}`,
+	"AGG_RMSE": `{"aggregations":[{"type":"AGG_RMSE","field":"$F","params":{"prediction_field":"y"}}]}`,
+	"AGG_MAE":  `{"aggregations":[{"type":"AGG_MAE","field":"$F","params":{"prediction_field":"y"}}]}`,
+	// AGG_AUC's template judges the score; the outcome column is pinned
+	// by TestModelError_PredictionFieldTypeParity.
+	"AGG_AUC":                 `{"aggregations":[{"type":"AGG_AUC","field":"$F","params":{"outcome":"t_packed_bool"}}]}`,
 	"AGG_CI_LOWER":            `{"aggregations":[{"type":"AGG_CI_LOWER","field":"$F","params":{"confidence":0.95,"method":"normal"}}]}`,
 	"AGG_CI_UPPER":            `{"aggregations":[{"type":"AGG_CI_UPPER","field":"$F","params":{"confidence":0.95,"method":"normal"}}]}`,
 	"AGG_WELFORD":             `{"aggregations":[{"type":"AGG_WELFORD","field":"$F"}]}`,
@@ -575,9 +578,11 @@ func TestModelError_PredictionFieldTypeParity(t *testing.T) {
 		encoding.FieldTypeU32: true, encoding.FieldTypeU64: true,
 		encoding.FieldTypeF32: true, encoding.FieldTypeF64: true, encoding.FieldTypePackedBool: true,
 	}
-	for _, op := range []string{"AGG_MAPE", "AGG_RMSE", "AGG_MAE"} {
+	// AGG_AUC's outcome column shares the set (model-workbench E2-S1).
+	paramKey := map[string]string{"AGG_MAPE": "prediction_field", "AGG_RMSE": "prediction_field", "AGG_MAE": "prediction_field", "AGG_AUC": "outcome"}
+	for _, op := range []string{"AGG_MAPE", "AGG_RMSE", "AGG_MAE", "AGG_AUC"} {
 		for _, ft := range acceptanceFieldTypes() {
-			body := `{"aggregations":[{"type":"` + op + `","field":"x","params":{"prediction_field":"t_` + ft.String() + `"}}]}`
+			body := `{"aggregations":[{"type":"` + op + `","field":"x","params":{"` + paramKey[op] + `":"t_` + ft.String() + `"}}]}`
 			mk := func() *types.Request {
 				var req types.Request
 				if err := json.Unmarshal([]byte(body), &req); err != nil {
@@ -587,6 +592,13 @@ func TestModelError_PredictionFieldTypeParity(t *testing.T) {
 				return &req
 			}
 			_, rerr := p.Process(ctx, mk())
+			// The fixture's values are not 0 / 1: an AUC outcome whose TYPE
+			// is accepted reaches the run and is refused on its VALUES, a
+			// data fault predict cannot see — the type passed.
+			var ce *errors.CodedError
+			if op == "AGG_AUC" && stderrors.As(rerr, &ce) && ce.Code == errors.PROCESSING_AUC_OUTCOME_NOT_BINARY {
+				rerr = nil
+			}
 			predictOK := len(predictEnvelope(t, p, fs, cohort, mk()).Errors) == 0
 			if (rerr == nil) != predictOK {
 				t.Errorf("%s prediction %s: runtime err %v, predict ok %v", op, ft, rerr, predictOK)

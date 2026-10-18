@@ -35,6 +35,7 @@ var aggregatorRegistry = map[types.AggregationType]AggregatorFactory{
 	types.AGG_MAPE:           newModelErrorAggregator(modelErrorMAPE),
 	types.AGG_RMSE:           newModelErrorAggregator(modelErrorRMSE),
 	types.AGG_MAE:            newModelErrorAggregator(modelErrorMAE),
+	types.AGG_AUC:            newAUCAggregator,
 
 	types.AGG_SET_UNION:           newSetUnionAggregator,
 	types.AGG_SET_INTERSECTION:    newSetIntersectionAggregator,

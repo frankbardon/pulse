@@ -98,6 +98,9 @@ var aggregatorClasses = map[types.AggregationType]Class{
 	types.AGG_MAPE: ClassAware,
 	types.AGG_RMSE: ClassAware,
 	types.AGG_MAE:  ClassAware,
+	// The weighted probability a positive outranks a negative; the
+	// DeLong interval is withheld under a weight (se_note).
+	types.AGG_AUC: ClassAware,
 
 	// vector-metrics-aggregates E2-S2: per element Σw·x (AGG_VEC_SUM)
 	// and Σw·x / Σw (AGG_VEC_MEAN); matrix-extensions-hardening E5-S1:

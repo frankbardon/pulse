@@ -971,6 +971,7 @@ var aggParamFieldKeys = map[types.AggregationType][]string{
 	types.AGG_MAPE:          {"prediction_field"},
 	types.AGG_RMSE:          {"prediction_field"},
 	types.AGG_MAE:           {"prediction_field"},
+	types.AGG_AUC:           {"outcome"},
 }
 
 // postTestParamFieldKeys lists, per built-in tier-2 test, the Params

@@ -69,7 +69,10 @@ func (t AggregationType) Streamable() bool {
 		AGG_SET_DISTINCT_VALUES,
 		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD:
 		return true
-	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE:
+	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE,
+		// A rank-sum over every scored row: needs the full sorted
+		// input, so it is buffered (terminal flush in a stream).
+		AGG_AUC:
 		return false
 	}
 	return false
@@ -111,7 +114,8 @@ func (t AggregationType) Mergeable() bool {
 		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD:
 		return true
 	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE,
-		AGG_SKEWNESS, AGG_KURTOSIS:
+		AGG_SKEWNESS, AGG_KURTOSIS,
+		AGG_AUC:
 		return false
 	}
 	return false
@@ -191,6 +195,9 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 		// to the reshape pass, so the margin re-walks raw rows (RMSE's
 		// square root does not pool by addition either).
 		AGG_MAPE, AGG_RMSE, AGG_MAE,
+		// A rank-sum over the cell's rows: a margin's AUC is neither a
+		// sum nor a mean of its cells' — re-walk the raw rows.
+		AGG_AUC,
 		// Welford emits a running (mean, sample-variance, n) triple.
 		// Sample variance does not pool by addition across cells — the
 		// margin must re-walk raw rows. Mirrors AGG_VARIANCE / AGG_STDDEV.

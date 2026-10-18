@@ -275,6 +275,42 @@
         ]
       },
       {
+        "operator": "AGG_AUC",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "How well a score separates a yes/no outcome: the chance that a randomly picked yes row scores higher than a randomly picked no row. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "params": {
+                "outcome": "\u003coutcome\u003e"
+              },
+              "type": "AGG_AUC"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "outcome"
+        ],
+        "alternatives": [
+          {
+            "when": "you need the size of the miss of a numeric prediction, not how well it ranks",
+            "use": "AGG_MAE"
+          },
+          {
+            "when": "you want to test whether the two groups' score distributions differ",
+            "use": "TEST_MANN_WHITNEY_U"
+          }
+        ]
+      },
+      {
         "operator": "AGG_MAE",
         "category": "aggregator",
         "level": "intermediate",
@@ -381,56 +417,12 @@
             "use": "AGG_MAPE"
           }
         ]
-      },
-      {
-        "operator": "ATTR_PROFILE_SIMILARITY",
-        "category": "attribute",
-        "level": "intermediate",
-        "why": "Adds to every row how closely its related fields match a target profile: an ideal pattern, a benchmark, or its own segment target. Fill in each placeholder in the draft before you run it.",
-        "bound": false,
-        "request": {
-          "attributes": [
-            {
-              "fields": [
-                "\u003cfields\u003e"
-              ],
-              "params": {
-                "metric": "\u003cmetric\u003e",
-                "reference": "\u003creference\u003e"
-              },
-              "type": "ATTR_PROFILE_SIMILARITY"
-            }
-          ],
-          "cohort": {
-            "filename": "\u003ccohort\u003e"
-          }
-        },
-        "placeholders": [
-          "cohort",
-          "fields",
-          "metric",
-          "reference"
-        ],
-        "alternatives": [
-          {
-            "when": "you want how far apart the values are rather than how alike the pattern is",
-            "use": "ATTR_VEC_DISTANCE"
-          },
-          {
-            "when": "you want how unusual a row is against the whole cohort",
-            "use": "ATTR_MAHALANOBIS"
-          },
-          {
-            "when": "you want how far apart whole groups are",
-            "use": "MAT_DISTANCE"
-          }
-        ]
       }
     ],
     "truncated": true,
-    "candidates_considered": 17
+    "candidates_considered": 18
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: dfe0b1c6b13a585354ddbbda6e9d196a9631da342287cd434d59f68991758ead
+// golden-hash: 1eeaffd601482c4e17dba5acd52cc23b5713c83a9dc4e53cf65d58c526b3a00c

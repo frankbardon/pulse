@@ -272,6 +272,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("AGG_MAPE"),
 	op("AGG_RMSE"),
 	op("AGG_MAE"),
+	op("AGG_AUC"),
 	op("AGG_SET_UNION"),
 	op("AGG_SET_INTERSECTION"),
 	op("AGG_SET_FREQUENCY"),

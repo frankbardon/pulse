@@ -523,6 +523,12 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		}), vecSchema},
 		{"online aggregations on numeric", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}}}, numericSchema},
 		{"median on numeric", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "score"}}}, numericSchema},
+		// model-workbench E2-S1: AGG_AUC sorts every scored row — buffered,
+		// alone and beside a streamable slot.
+		{"AUC buffers", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_AUC, Field: "score", Params: json.RawMessage(`{"outcome":"score"}`)}}}, numericSchema},
+		{"AUC beside a sum buffers", &types.Request{Aggregations: []*types.Aggregation{
+			{Type: types.AGG_SUM, Field: "score"},
+			{Type: types.AGG_AUC, Field: "score", Params: json.RawMessage(`{"outcome":"score"}`)}}}, numericSchema},
 		{"sum on decimal", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "amount"}}}, decimalSchema},
 		{"empty request", &types.Request{}, numericSchema},
 		// U46 E3-S1: a grouped request runs every tier-1 test once per
@@ -769,6 +775,14 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 				name:       "AGG_PERCENTILE flags buffered components",
 				req:        &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_PERCENTILE, Field: "score", Params: json.RawMessage(`{"percentile":0.9}`)}}},
 				wantSlot:   types.AGG_PERCENTILE,
+				wantBuf:    true,
+				wantMerge:  descriptor.None,
+				wantStream: false,
+			},
+			{
+				name:       "AGG_AUC flags buffered components",
+				req:        &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_AUC, Field: "score", Params: json.RawMessage(`{"outcome":"score"}`)}}},
+				wantSlot:   types.AGG_AUC,
 				wantBuf:    true,
 				wantMerge:  descriptor.None,
 				wantStream: false,

@@ -81,6 +81,11 @@ definition:
     mean_absolute_percentage_error with sample_weight, actual x against
     prediction y (no zero actual in the fixture, so sklearn's eps floor
     on |y| never engages).
+  * AGG_AUC (model-workbench E2-S1) — scikit-learn metrics
+    roc_auc_score(b, x, sample_weight=w) over the rows with x present
+    and a valid weight (the trapezoid under the weighted ROC curve, which
+    equals the weighted Mann-Whitney double sum with ties half);
+    cross-checked against that double sum. Score x, outcome b (OUTCOME).
   * AGG_MODE / AGG_MODE_COUNT / AGG_FREQUENCY / AGG_RATIO / AGG_SET_* —
     numpy weighted sums (np.unique + np.bincount(weights=...), masked
     np.sum): Σw per value, Σw_match / Σw, Σw·num / Σw·den, Σw per
@@ -233,6 +238,12 @@ ROWS = [
     (4.0, 3.25, 0b01000, 0.45, 0),
     (6.5, 2.0, 0b00110, 0.95, 1.5),
 ]
+
+# OUTCOME is the binary column b, row-aligned with ROWS: AGG_AUC's
+# outcome (x is its score). x = 3.5 sits in both classes (rows 0, 3, 8),
+# so the tie-counts-half rule is exercised.
+OUTCOME = [1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1]
+assert len(OUTCOME) == len(ROWS)
 
 
 def p_of(f):
@@ -485,6 +496,25 @@ def cases():
         add("AGG_RMSE", {"": math.sqrt(mse)}, params=merr,
             comp={"mse": mse, "rmse": math.sqrt(mse), "weight_sum": float(wv.sum())}, src=msrc)
         add("AGG_MAPE", {"": mape}, params=merr, comp={"mape": mape, "weight_sum": float(wv.sum())}, src=msrc)
+
+        # AUC (model-workbench E2-S1): score x against the binary b over
+        # the rows with x present and a valid weight > 0 (a zero weight
+        # contributes nothing, as in sample_weight).
+        aidx = [i for i in present_rows("x") if valid(ws[i], kind) and ws[i] > 0]
+        ax = np.array([ROWS[i][0] for i in aidx])
+        ab = np.array([OUTCOME[i] for i in aidx])
+        aw = np.array([ws[i] for i in aidx])
+        auc = float(sklearn.metrics.roc_auc_score(ab, ax, sample_weight=aw))
+        num = 0.0
+        for i in range(len(aidx)):
+            for j in range(len(aidx)):
+                if ab[i] == 1 and ab[j] == 0:
+                    num += aw[i] * aw[j] * (1.0 if ax[i] > ax[j] else 0.5 if ax[i] == ax[j] else 0.0)
+        pair = num / (float(aw[ab == 1].sum()) * float(aw[ab == 0].sum()))
+        assert close(auc, pair, 1e-12), (wname, auc, pair)
+        add("AGG_AUC", {"": auc}, params='{"outcome":"b"}',
+            comp={"auc": auc, "gini": 2 * auc - 1, "n_pos": float(np.sum(ab == 1)), "n_neg": float(np.sum(ab == 0))},
+            src=f"scikit-learn {sklearn.__version__} metrics.roc_auc_score(sample_weight)")
 
         if kind == "frequency":
             e = np.repeat(x, w.astype(int))
@@ -2654,7 +2684,7 @@ def emit(out, tout, oout, rout):
     w(f"const weightRefPScale = {P_SCALE!r}")
     w("")
     w("var weightRefRows = []weightRefRow{")
-    for r in ROWS:
+    for r, b in zip(ROWS, OUTCOME):
         x, y, s, wv, f = r
         f = float(f)
         fields = [
@@ -2666,6 +2696,7 @@ def emit(out, tout, oout, rout):
             f"w: {gofloat(wv)}",
             f"f: {gofloat(f)}",
             f"p: {gofloat(p_of(f))}",
+            f"b: {gofloat(float(b))}",
         ]
         w("\t{" + ", ".join(fields) + "},")
     w("}")

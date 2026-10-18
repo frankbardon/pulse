@@ -95,6 +95,15 @@ const (
 	// bare named vectors) are refused when the expression compiles and
 	// by predict. details carry function, left and right.
 	PROCESSING_VECTOR_LENGTH_MISMATCH Code = "PROCESSING_VECTOR_LENGTH_MISMATCH"
+
+	// PROCESSING_AUC_OUTCOME_NOT_BINARY indicates an AGG_AUC slot met an
+	// outcome value other than 0 or 1 (NaN included) on a scored row:
+	// the area under the ROC curve needs a binary outcome, and no
+	// coercion (a threshold, a non-zero test) is ever guessed. The run
+	// fails. Predict cannot see values; it refuses only an outcome
+	// column whose TYPE cannot be binary. Details carry "aggregation",
+	// "outcome" (the column) and "value" (the first offending value).
+	PROCESSING_AUC_OUTCOME_NOT_BINARY Code = "PROCESSING_AUC_OUTCOME_NOT_BINARY"
 )
 
 // SERVICE domain - HTTP/API layer and service operations
@@ -3631,6 +3640,14 @@ const (
 	// its own code.
 	PULSE_FIT_UNAVAILABLE Code = "PULSE_FIT_UNAVAILABLE"
 
+	// PULSE_AUC_DELONG_WEIGHTED is a NOTE, never an error or a
+	// warning: it rides an AGG_AUC slot's components as `se_note` when
+	// the slot is weighted, beside a `se` / `ci_lower` / `ci_upper` that
+	// are null. There is no defensible weighted DeLong variance, so the
+	// interval is withheld rather than computed on the wrong sample
+	// size; the weighted AUC and Gini are exact.
+	PULSE_AUC_DELONG_WEIGHTED Code = "PULSE_AUC_DELONG_WEIGHTED"
+
 	// PULSE_LIMIT_INVALID indicates an instance resource limit
 	// (pulse.Options.Limits) holding a negative value other than
 	// pulse.Unlimited (-1). Raised by pulse.New before any instance
@@ -3892,6 +3909,7 @@ var allCodes = []Code{
 	PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED,
 	PROCESSING_VECTOR_LENGTH_MISMATCH,
+	PROCESSING_AUC_OUTCOME_NOT_BINARY,
 	// SERVICE
 	SERVICE_VALIDATION,
 	SERVICE_RESOURCE,
@@ -4262,6 +4280,7 @@ var allCodes = []Code{
 	PULSE_RETURN_PATH_UNMATCHED,
 	PULSE_SLOT_FAILED,
 	PULSE_FIT_UNAVAILABLE,
+	PULSE_AUC_DELONG_WEIGHTED,
 	PULSE_LIMIT_INVALID,
 	PULSE_LIMIT_EXCEEDED,
 	PULSE_DOCS_EXPORT_DIR_NOT_EMPTY,

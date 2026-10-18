@@ -79,6 +79,25 @@ Each operator's own keys, beyond the floor and the weighted floor keys.
 
 ### Aggregators
 
+<a id="op-agg_auc"></a>
+
+#### `AGG_AUC`
+
+**Mergeability:** none. See its [catalog entry](../catalog/aggregator.md#op-agg_auc).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `auc` | float64 | always | Resolved AUC (the scalar). |
+| `gini` | float64 | always | Gini coefficient (accuracy ratio) 2·AUC − 1: 0 is no discrimination, 1 perfect, negative when the score ranks backwards. |
+| `n_pos` | int | always | Scored rows whose outcome equals params.positive (raw rows, also on a weighted slot). |
+| `n_neg` | int | always | Scored rows whose outcome is the other value (raw rows, also on a weighted slot). |
+| `n_null_outcome` | int | always | Rows whose score answered but whose outcome is null; skipped. The floor's n / n_null key on the score (field) only. |
+| `se` | float64 | always | DeLong standard error of the AUC (pROC's delong variance); null under a weight (see se_note) or when either class has fewer than 2 rows. |
+| `ci_lower` | float64 | always | Lower end of the DeLong interval at conf_level, AUC − z·se clipped to 0; null whenever se is. |
+| `ci_upper` | float64 | always | Upper end of the DeLong interval at conf_level, AUC + z·se clipped to 1; null whenever se is. |
+| `conf_level` | float64 | always | Confidence level of the DeLong interval: fixed at 0.95. |
+| `se_note` | string | when its condition holds | Weighted slots only: PULSE_AUC_DELONG_WEIGHTED — se and the interval are withheld (null) because no weighted DeLong variance is defensible; the weighted AUC and gini are exact. |
+
 <a id="op-agg_average"></a>
 
 #### `AGG_AVERAGE`

@@ -994,6 +994,9 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 	// runtime constructor's refusals, re-derived from the schema.
 	validateModelErrorAggs(env, req, schema, opts)
 
+	// AGG_AUC: the shared configuration rules (internal/aucspec).
+	validateAUCAggs(env, req, schema, opts)
+
 	// Check regression slots. Phase 0 validates structural shape only
 	// (known type, target + predictors named, fields exist); deeper
 	// runtime checks (n ≥ p + 1, family/link compatibility) land with

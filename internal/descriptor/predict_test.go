@@ -259,6 +259,10 @@ func TestPredictKeyComposerMatchesAggregatorKey(t *testing.T) {
 			// Model error compares field with a required prediction column.
 			agg.Params = json.RawMessage(`{"prediction_field":"val"}`)
 		}
+		if aggType == types.AGG_AUC {
+			// AUC scores field against a required binary outcome column.
+			agg.Params = json.RawMessage(`{"outcome":"val"}`)
+		}
 		if aggType.ArrayValued() {
 			// A vector aggregator reads fields, never field.
 			agg.Field, agg.Fields = "", []string{"val"}

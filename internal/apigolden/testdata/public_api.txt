@@ -2380,6 +2380,7 @@ pulse/errors: type Metadata field Message string
 pulse/errors: func MetadataFor(c pulse/errors.Code) (pulse/errors.Metadata, bool)
 pulse/errors: func NewCodedError(code pulse/errors.Code, message string) *pulse/errors.CodedError
 pulse/errors: func NewCodedErrorWithDetails(code pulse/errors.Code, message string, details map[string]any) *pulse/errors.CodedError
+pulse/errors: const PROCESSING_AUC_OUTCOME_NOT_BINARY pulse/errors.Code = "PROCESSING_AUC_OUTCOME_NOT_BINARY"
 pulse/errors: const PROCESSING_CONFIG pulse/errors.Code = "PROCESSING_CONFIG"
 pulse/errors: const PROCESSING_GROUP pulse/errors.Code = "PROCESSING_GROUP"
 pulse/errors: const PROCESSING_INTERNAL pulse/errors.Code = "PROCESSING_INTERNAL"
@@ -2410,6 +2411,7 @@ pulse/errors: const PULSE_ARCHIVE_CORRUPT pulse/errors.Code = "PULSE_ARCHIVE_COR
 pulse/errors: const PULSE_ARCHIVE_MAGIC_INVALID pulse/errors.Code = "PULSE_ARCHIVE_MAGIC_INVALID"
 pulse/errors: const PULSE_ATTR_CODE_NOT_IN_DICTIONARY pulse/errors.Code = "PULSE_ATTR_CODE_NOT_IN_DICTIONARY"
 pulse/errors: const PULSE_ATTR_SCALE_OUT_OF_RANGE pulse/errors.Code = "PULSE_ATTR_SCALE_OUT_OF_RANGE"
+pulse/errors: const PULSE_AUC_DELONG_WEIGHTED pulse/errors.Code = "PULSE_AUC_DELONG_WEIGHTED"
 pulse/errors: const PULSE_BANNER_INVALID pulse/errors.Code = "PULSE_BANNER_INVALID"
 pulse/errors: const PULSE_CHAIN_EMPTY pulse/errors.Code = "PULSE_CHAIN_EMPTY"
 pulse/errors: const PULSE_CHAIN_NOT_MERGEABLE pulse/errors.Code = "PULSE_CHAIN_NOT_MERGEABLE"
@@ -4277,6 +4279,7 @@ pulse/synth: type VectorSpec field ScaleMax *float64 "json:\"scale_max,omitempty
 pulse/synth: type VectorSpec field ScaleMin *float64 "json:\"scale_min,omitempty\""
 pulse/synth: func WriteSpec(fs github.com/spf13/afero.Fs, spec *pulse/synth.Spec, path string) error
 pulse/types: package types
+pulse/types: const AGG_AUC pulse/types.AggregationType = "AGG_AUC"
 pulse/types: const AGG_AVERAGE pulse/types.AggregationType = "AGG_AVERAGE"
 pulse/types: const AGG_CI_LOWER pulse/types.AggregationType = "AGG_CI_LOWER"
 pulse/types: const AGG_CI_UPPER pulse/types.AggregationType = "AGG_CI_UPPER"
@@ -5597,4 +5600,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 742acdfef741045af811eebf160d048be427bbcd6b23ff9220d4eee1de017ea2
+// golden-hash: 97ef9972193a9223aabae08f908b29857319aa45de6bbb923ec5a5d1740f4f65

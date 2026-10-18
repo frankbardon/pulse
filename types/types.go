@@ -90,6 +90,16 @@ const (
 	AGG_RMSE AggregationType = "AGG_RMSE"
 	AGG_MAE  AggregationType = "AGG_MAE"
 
+	// AGG_AUC is the area under the ROC curve of a score against a
+	// binary outcome: Field is the score, params.outcome the 0/1 (or
+	// packed_bool) outcome, params.positive (0 or 1, default 1) the
+	// event value. Exact rank-sum (Mann-Whitney) with ties counted as
+	// half; weighted, the weighted probability a positive outranks a
+	// negative. Components carry gini (2·AUC − 1) and the DeLong
+	// standard error and interval (null under a weight). Buffered (a
+	// sort), never streamable or mergeable.
+	AGG_AUC AggregationType = "AGG_AUC"
+
 	// AGG_CI_LOWER and AGG_CI_UPPER emit the lower / upper bound of a
 	// confidence interval for the mean of the named numeric field.
 	// Params: `confidence` (float, default 0.95), `method` (string,
@@ -186,6 +196,7 @@ func AllAggregationTypes() []AggregationType {
 		AGG_CI_LOWER, AGG_CI_UPPER,
 		AGG_WELFORD,
 		AGG_MAPE, AGG_RMSE, AGG_MAE,
+		AGG_AUC,
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES,
@@ -1736,8 +1747,8 @@ type AggregationComponents struct {
 	// N is the number of NON-NULL input values the aggregator observed
 	// (post-filter, after the null skip): the records counted in NNull
 	// are not in N, so N + NNull is the post-filter record count. On a
-	// paired-input slot (AGG_MAPE / AGG_RMSE / AGG_MAE) presence is
-	// judged on Field alone. Universal floor — emitted by every
+	// paired-input slot (AGG_MAPE / AGG_RMSE / AGG_MAE, AGG_AUC)
+	// presence is judged on Field alone. Universal floor — emitted by every
 	// aggregator.
 	N int `json:"n"`
 

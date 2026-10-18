@@ -53,6 +53,7 @@
     "AGG_MAPE",
     "AGG_RMSE",
     "AGG_MAE",
+    "AGG_AUC",
     "AGG_SET_UNION",
     "AGG_SET_INTERSECTION",
     "AGG_SET_FREQUENCY",

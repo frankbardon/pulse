@@ -579,10 +579,15 @@ func TestHookPanicRecovered(t *testing.T) {
 // predict 266 → 265 and inspect 66 → 65: both read the cohort through
 // its open handle (header + schema) instead of slurping the whole file
 // into one buffer first (U35 #248).
+//
+// Re-pinned by model-workbench E2-S1 (branch model-workbench, on
+// d5edbefd + the change, go1.27, arm64): predict 265 → 272 is the same
+// capability-table rebuild growing by the AGG_AUC row (265 exactly with
+// that row removed).
 var obsOffAllocBaseline = map[string]float64{
 	"process":       161,
 	"count_records": 45,
-	"predict":       265,
+	"predict":       272,
 	"inspect":       65,
 }
 

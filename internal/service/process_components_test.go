@@ -939,6 +939,23 @@ func allAggServiceFixtures(t *testing.T) map[types.AggregationType]aggServiceFix
 	ratioCfg := setupTestFS(t, "predict_ratio.pulse", ratioSchema, ratioRecords)
 	ratioSvc := New(ratioCfg)
 
+	// AUC cohort: an f64 score + a 0 / 1 outcome.
+	aucSchema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "score", Type: encoding.FieldTypeF64, ByteOffset: 0, CsvColumnIdx: 0},
+			{Name: "y", Type: encoding.FieldTypeF64, ByteOffset: 8, CsvColumnIdx: 1},
+		},
+	}
+	aucRecords := [][]uint64{
+		{math.Float64bits(0.9), math.Float64bits(1)},
+		{math.Float64bits(0.2), math.Float64bits(0)},
+		{math.Float64bits(0.6), math.Float64bits(1)},
+		{math.Float64bits(0.7), math.Float64bits(0)},
+		{math.Float64bits(0.3), math.Float64bits(0)},
+	}
+	aucCfg := setupTestFS(t, "predict_auc.pulse", aucSchema, aucRecords)
+	aucSvc := New(aucCfg)
+
 	// Weighted-mean cohort: value + weight columns on f64.
 	wmSchema := &encoding.Schema{
 		Fields: []encoding.Field{
@@ -1033,6 +1050,8 @@ func allAggServiceFixtures(t *testing.T) map[types.AggregationType]aggServiceFix
 		types.AGG_MAPE: {svc: ratioSvc, schema: ratioSchema, cohortName: "predict_ratio.pulse", field: "num", params: json.RawMessage(`{"prediction_field":"den"}`)},
 		types.AGG_RMSE: {svc: ratioSvc, schema: ratioSchema, cohortName: "predict_ratio.pulse", field: "num", params: json.RawMessage(`{"prediction_field":"den"}`)},
 		types.AGG_MAE:  {svc: ratioSvc, schema: ratioSchema, cohortName: "predict_ratio.pulse", field: "num", params: json.RawMessage(`{"prediction_field":"den"}`)},
+		// AUC scores score against the binary y.
+		types.AGG_AUC: {svc: aucSvc, schema: aucSchema, cohortName: "predict_auc.pulse", field: "score", params: json.RawMessage(`{"outcome":"y"}`)},
 		types.AGG_DISTINCT_SUM: {
 			svc:        scoreSvc,
 			schema:     scoreSchema,

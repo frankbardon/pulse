@@ -16,6 +16,7 @@ import "github.com/frankbardon/pulse/descriptor"
 // operator counts them, AGG_MODE breaks ties by the smallest value, and
 // AGG_DISTINCT_SUM keeps the first value seen per key.
 var aggregatorPurposes = map[string]descriptor.Purpose{
+	"AGG_AUC":                 purposeAggAUC,
 	"AGG_AVERAGE":             purposeAggAverage,
 	"AGG_CI_LOWER":            purposeAggCILower,
 	"AGG_CI_UPPER":            purposeAggCIUpper,
@@ -886,6 +887,33 @@ var (
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"residual", "overfitting", "missing-value"},
+	}
+
+	purposeAggAUC = descriptor.Purpose{
+		Plain:   "How well a score separates a yes/no outcome: the chance that a randomly picked yes row scores higher than a randomly picked no row.",
+		KnownAs: []string{"area under the curve", "ROC AUC", "c-statistic", "concordance", "Gini", "accuracy ratio"},
+		Intents: []string{IntentBenchmark, IntentDrivers},
+		Questions: []string{
+			"How well does the default model rank the held-out loans?",
+			"Does the new churn score separate leavers from stayers better than the old one?",
+			"Is the model's ranking power similar in every region?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainOps:     "Holdout discrimination of a credit default or churn score.",
+			descriptor.DomainScience: "How well a diagnostic marker separates cases from controls.",
+			descriptor.DomainSurvey:  "How well a propensity score separates respondents who converted from those who did not.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you need the size of the miss of a numeric prediction, not how well it ranks", Use: "AGG_MAE"},
+			{When: "you want to test whether the two groups' score distributions differ", Use: "TEST_MANN_WHITNEY_U"},
+		},
+		Assumptions: []string{
+			"The outcome is 0/1 or a yes/no field; params.positive picks which value is the event.",
+			"It judges ranking only: a score can rank well and still be badly calibrated.",
+			"Train and holdout rows are separated with a filter or a range grouper; the operator itself never splits rows.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"confidence-interval", "standard-error", "overfitting", "missing-value"},
 	}
 )
 

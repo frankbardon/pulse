@@ -4,6 +4,44 @@ How to read the descriptive results whose number a name alone does not explain: 
 
 ## Aggregators
 
+<a id="op-agg_auc"></a>
+
+### `AGG_AUC`
+
+How well a score separates a yes/no outcome: the chance that a randomly picked yes row scores higher than a randomly picked no row. See its [catalog entry](../catalog/aggregator.md#op-agg_auc).
+
+#### `value`
+
+The chance that a randomly picked positive row scores higher than a randomly picked negative row, a tie counting half. 0.5 is a coin flip; 1 means every positive outscores every negative; below 0.5 the score ranks backwards.
+
+**Caveats:**
+
+- It measures ranking, not calibration: multiplying every score by 2 leaves it unchanged, so a well-ranked score can still predict the wrong rates.
+- Two models are comparable only on the same rows and outcome; a gap smaller than the DeLong interval width is not a reliable difference.
+- A row counts only when the score and the outcome both have a value; components n_null_outcome is the rows skipped for a missing outcome. Empty (NaN) when either class has no row.
+- Measured on the rows the model was fitted to, it is optimistic: read it on held-out rows (a filter or range grouper keeps them apart) to judge how the model does on new data.
+
+#### `components.gini`
+
+The Gini coefficient (accuracy ratio) 2 x AUC - 1: 0 is no discrimination and 1 perfect. It is the credit-scoring convention for the same ranking power.
+
+#### `components.ci_lower`
+
+The lower end of the 95% DeLong confidence interval for the AUC, clipped to 0. The true ranking power is plausibly anywhere in the interval.
+
+**Caveats:**
+
+- Null on a weighted slot (components se_note says why) and when either class has fewer than 2 rows.
+- The interval assumes independent rows; repeated rows of one customer make it too narrow.
+
+#### `components.ci_upper`
+
+The upper end of the 95% DeLong confidence interval for the AUC, clipped to 1.
+
+**Caveats:**
+
+- Null on a weighted slot (components se_note says why) and when either class has fewer than 2 rows.
+
 <a id="op-agg_ci_lower"></a>
 
 ### `AGG_CI_LOWER`

@@ -220,6 +220,7 @@ is the whole list in one place.
 | `GPArotation` | 2026.8-2 | oblimin rotation (`gen_rotation.R`, `gen_factor.R`) |
 | `sandwich` | 3.1-3 | robust covariance (`gen_robust_vcov*.R`) |
 | `lmtest` | 0.9-40 | robust covariance tests |
+| `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |
 
 `ICSNP`, `MVTests` and `MVN` do NOT build on R 4.6.1; nothing needs
 them. The scripts compute what they would (the unequal-covariance
@@ -238,7 +239,7 @@ Rscript -e 'r <- "https://cloud.r-project.org"; l <- Sys.getenv("R_LIBS_USER");
   install.packages("remotes", lib = l, repos = r)
   pins <- c(psych = "2.6.9", car = "3.1-5", ppcor = "1.1", corpcor = "1.6.10",
             gdata = "3.0.1", Hotelling = "1.0-8", biotools = "4.3",
-            GPArotation = "2026.8-2", sandwich = "3.1-3", lmtest = "0.9-40")
+            GPArotation = "2026.8-2", sandwich = "3.1-3", lmtest = "0.9-40", pROC = "1.19.1")
   for (p in names(pins)) remotes::install_version(p, pins[[p]], lib = l, repos = r, upgrade = "never")
   install.packages(paste0(r, "/src/contrib/Archive/perturb/perturb_2.10.tar.gz"),
                    lib = l, repos = NULL, type = "source")'

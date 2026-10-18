@@ -211,6 +211,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PROCESSING_AUC_OUTCOME_NOT_BINARY: {
+		Message: "An AGG_AUC slot met an outcome value other than 0 or 1 (NaN included) on a row whose score and outcome both answered: the area under the ROC curve needs a binary outcome, and Pulse never guesses a threshold. The run fails. Predict refuses only an outcome column whose type cannot hold 0 / 1; a value is seen at run time. details.aggregation names the operator, details.outcome the column, details.value the first offending value.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Aggregations", "*", "Params", "outcome"},
+				Hint:   "Point params.outcome at a 0/1 column or a packed_bool, or derive one first: an ATTR_FORMULA such as `status == 2 ? 1 : 0` (or an ATTR_CODE_IN over a categorical) and score against its label.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Filterers"},
+				Hint:   "If only a few rows carry another code, drop them with a filter (FILTER_RANGE or FILTER_EXPRESSION on the outcome) before the slot reads them.",
+			},
+		},
+	},
 
 	// ---------- SERVICE ----------
 	SERVICE_VALIDATION: {
@@ -4628,6 +4643,16 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Point the slot's params.fit at another fit that converged, or drop the scoring slot when the failed fit cannot be repaired.",
+			},
+		},
+	},
+	PULSE_AUC_DELONG_WEIGHTED: {
+		Message: "A note, not an error: a weighted AGG_AUC slot reports the weighted AUC and Gini exactly, but its components `se`, `ci_lower` and `ci_upper` are null and `se_note` carries this code. No weighted DeLong variance is defensible (the placement variances assume independent unit rows), so the interval is withheld rather than computed on the wrong sample size.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Aggregations", "*", "Weight"},
+				Hint:   "Set \"weight\": null on the AGG_AUC slot to get the unweighted AUC with its DeLong standard error and 95% interval.",
 			},
 		},
 	},

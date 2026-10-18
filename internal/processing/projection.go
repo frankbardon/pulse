@@ -663,6 +663,7 @@ func (v *exprIdentVisitor) Visit(node *exprast.Node) {
 //   - AGG_WEIGHTED_MEAN: Params.weight_field
 //   - AGG_RATIO:         Params.numerator_field, Params.denominator_field
 //   - AGG_MAPE / AGG_RMSE / AGG_MAE: Params.prediction_field
+//   - AGG_AUC:           Params.outcome
 //
 // A field named ONLY here and not projected is decoded onto no Record,
 // so Record.NumericValue answers ok=false for it on every row and the
@@ -694,6 +695,12 @@ func addAggParamFields(out FieldSet, a *types.Aggregation, known map[string]stru
 		}
 	case types.AGG_MAPE, types.AGG_RMSE, types.AGG_MAE:
 		if name, ok := jsonStringField(a.Params, "prediction_field"); ok {
+			if _, in := known[name]; in {
+				out.Add(name)
+			}
+		}
+	case types.AGG_AUC:
+		if name, ok := jsonStringField(a.Params, "outcome"); ok {
 			if _, in := known[name]; in {
 				out.Add(name)
 			}
