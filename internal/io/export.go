@@ -90,6 +90,14 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 	// out its own columns from the cohort, so it is handed the per-field
 	// header and the source schema unchanged.
 	_, cohortWriter := j.Target.(CohortWriter)
+
+	// A row writer refuses a label binding it could never apply before
+	// a byte is written; a CohortWriter validates its own bindings.
+	if !cohortWriter {
+		if err := checkRowLabelBindings(schema, j.Labels, j.LabelResolver); err != nil {
+			return nil, err
+		}
+	}
 	listWriter, listAware := j.Target.(ListAwareWriter)
 	expand := !listAware && !cohortWriter && schema.HasVectors()
 	layout, err := planExportColumns(schema, includeMask, augmentInsertAfter, replaceFields, expand)
@@ -587,6 +595,15 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 	zone, err := exportZone(j.TimeZone)
 	if err != nil {
 		return nil, err
+	}
+
+	// The row-writer label refusals Run raises, raised here on the same
+	// terms — with no target too, since every target refuses them (the
+	// `.sav` writer through its own validator below).
+	if _, cw := j.Target.(CohortWriter); !cw {
+		if err := checkRowLabelBindings(schema, j.Labels, j.LabelResolver); err != nil {
+			return nil, err
+		}
 	}
 
 	// Estimate record count from remaining bytes and per-record size.

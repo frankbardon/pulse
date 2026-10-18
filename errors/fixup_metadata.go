@@ -2460,12 +2460,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LABEL_FIELD_NOT_CATEGORICAL: {
-		Message: "A LabelBinding references a non-categorical field. Labels translate dictionary string values; numeric and date fields have no dictionary key to translate.",
+		Message: "A LabelBinding references a non-categorical field. Labels translate dictionary string values; numeric and date fields have no dictionary key to translate. An export (every format) also accepts an integer-coded u4 / u8 / u16 / u32 field.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Labels", "*", "Field"},
-				Hint:   "Pick a categorical_u8 / categorical_u16 / categorical_u32 field. For numeric translation, derive a categorical column upstream during import.",
+				Hint:   "Pick a categorical_u8 / categorical_u16 / categorical_u32 field (on an export, a u4 / u8 / u16 / u32 code field too). For float, u64 or date translation, derive a categorical column upstream during import.",
 			},
 		},
 	},
@@ -2501,7 +2501,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LABEL_KEY_INVALID: {
-		Message: "A value-label binding on an integer-coded field (u4 / u8 / u16 / u32, .sav export) uses a table key that is not the canonical decimal spelling of a value the field can store; the stored integers are the codes, so the key could never label a value.",
+		Message: "A label binding on an integer-coded field (u4 / u8 / u16 / u32, on any export format) uses a table key that is not the canonical decimal spelling of a value the field can store; the stored integers are the codes, so the key could never label a value.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,

@@ -1606,7 +1606,9 @@ const (
 	// references a schema field whose type is not one of
 	// categorical_u8 / categorical_u16 / categorical_u32. Labels
 	// translate dictionary string values; other types have no
-	// dictionary key to translate.
+	// dictionary key to translate. An export also accepts an
+	// integer-coded u4 / u8 / u16 / u32 field, keyed by its stored
+	// integers' decimal spellings.
 	PULSE_LABEL_FIELD_NOT_CATEGORICAL Code = "PULSE_LABEL_FIELD_NOT_CATEGORICAL"
 
 	// PULSE_LABEL_TABLE_UNKNOWN indicates a LabelBinding references a
@@ -1627,9 +1629,9 @@ const (
 	// must be unique per field within a request.
 	PULSE_LABEL_DUPLICATE_BINDING Code = "PULSE_LABEL_DUPLICATE_BINDING"
 
-	// PULSE_LABEL_KEY_INVALID indicates a value-label binding on an
-	// integer-coded field (u4 / u8 / u16 / u32, `.sav` export only) whose
-	// table carries a key that is not the canonical decimal spelling of a
+	// PULSE_LABEL_KEY_INVALID indicates a label binding on an
+	// integer-coded field (u4 / u8 / u16 / u32, on an export — `.sav` value
+	// labels or a row format's replace / augment) whose table carries a key that is not the canonical decimal spelling of a
 	// value the field can store (text, a leading zero, a fraction, a
 	// negative, or past the type's maximum). The stored integers are the
 	// codes, so such a key could never label a value; it is refused rather

@@ -1318,7 +1318,10 @@ func (p *Pulse) exportJob(ctx context.Context, job *pio.ExportJob) (*pio.ExportR
 // run the way Export runs the job. When job.Labels is non-empty and
 // job.LabelResolver is nil, the resolver is built from the instance's
 // registered LabelTables first, exactly as Export builds it — so a label
-// refusal (PULSE_LABEL_TABLE_UNKNOWN, and through a target's
+// refusal (PULSE_LABEL_TABLE_UNKNOWN; for every row target, and with no
+// target, a binding on a field neither categorical nor integer-coded,
+// PULSE_LABEL_FIELD_NOT_CATEGORICAL, or an integer-coded field's
+// non-decimal key, PULSE_LABEL_KEY_INVALID; and through a target's
 // ValidateCohort the `.sav` value-label refusals: PULSE_LABEL_FIELD_UNKNOWN,
 // PULSE_LABEL_FIELD_NOT_CATEGORICAL, PULSE_LABEL_KEY_INVALID,
 // PULSE_LABEL_TABLE_NOT_ENUMERABLE, a binding beside an honoured SPSS

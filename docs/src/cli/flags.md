@@ -686,6 +686,38 @@ library knob is `io.ExportJob.TimeZone`; the manifest's
 pulse export csv -i orders.pulse -o orders.csv --tz Asia/Kolkata
 ```
 
+### `--labels` (export)
+
+Available on: every `export <format>` leaf and `export predict`.
+
+`--labels FIELD=TABLE[:replace|augment]` binds a label table (from
+`PULSE_LABEL_TABLES_DIR`) to a field. On every row format (`csv`, `tsv`,
+`ndjson`, `jsonarray`, `excel`, `arrow`, `parquet`) `replace` rewrites
+the cell to its label and `augment` adds a `FIELD_label` column after
+it; `export spss` writes value labels instead (see
+[Value labels](export-spss.md#value-labels)). The field may be:
+
+- a `categorical_*` field — the table is keyed by its dictionary text;
+- an integer-coded `u4` / `u8` / `u16` / `u32` field — the table is
+  keyed by the stored integers' plain decimal spellings (`"1"`, `"7"`).
+  A `replace` column becomes text (`arrow` / `parquet` / `excel` type it
+  as a string); an `augment` column keeps its integer type. A key that is
+  not such a spelling (text, `"01"`, `"1.0"`, past the type's maximum)
+  refuses the export `PULSE_LABEL_KEY_INVALID`.
+
+Any other type (`f32` / `f64`, `u64`, `decimal128`, `date`, `datetime`,
+`packed_bool`, `set_*`, `vec_*`) refuses
+`PULSE_LABEL_FIELD_NOT_CATEGORICAL` before a byte is written, and
+`export predict --labels` raises the same code with or without
+`--format`. A value the table lacks keeps its raw text — an unmatched
+code keeps its number — and `augment` leaves its `FIELD_label` cell
+empty; one `PULSE_LABEL_LOOKUP_MISS` warning per field summarises them.
+
+```bash
+PULSE_LABEL_TABLES_DIR=./labels \
+  pulse export csv -i survey.pulse -o survey.csv --labels gender=gender_names:augment
+```
+
 ### Vector fields (export)
 
 Not a flag — how every `export <format>` leaf writes a `vec_f32` /

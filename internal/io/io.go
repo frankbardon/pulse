@@ -465,7 +465,11 @@ type ExportJob struct {
 	// the column value, mode=augment emits a sibling "<field>_label"
 	// column. See types.LabelBinding for semantics. Nil/empty means
 	// the exporter writes raw resolved categorical values, matching
-	// pre-label behaviour.
+	// pre-label behaviour. An integer-coded u4 / u8 / u16 / u32 field
+	// binds too, its table keyed by the stored integers' decimal
+	// spellings (else PULSE_LABEL_KEY_INVALID); a binding on any other
+	// non-categorical type refuses PULSE_LABEL_FIELD_NOT_CATEGORICAL,
+	// from Run and Predict alike, before anything is written.
 	Labels []*types.LabelBinding
 	// LabelResolver carries the runtime resolver built from Labels +
 	// the pulse Service's registered LabelTables. The pulse.Export

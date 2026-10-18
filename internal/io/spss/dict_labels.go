@@ -47,6 +47,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	iio "github.com/frankbardon/pulse/internal/io"
 )
 
 // maxExactCode is the largest integer magnitude every double represents
@@ -99,30 +100,18 @@ func valueLabelBindings(s *encoding.Schema, vls []ValueLabels) (map[int]*ValueLa
 	return out, nil
 }
 
-// integerCodeMax reports whether ft is an integer-coded type a value-label
-// binding may name, and the largest value it stores. u64 is not one: its
-// values past 2^53 have no exact SPSS (double) code.
+// integerCodeMax is the shared integer-coded rule (iio.IntegerLabelCodeMax):
+// a row export and a `.sav` export accept the same fields.
 func integerCodeMax(ft encoding.FieldType) (uint64, bool) {
-	switch ft {
-	case encoding.FieldTypeU4:
-		return 15, true
-	case encoding.FieldTypeU8:
-		return 255, true
-	case encoding.FieldTypeU16:
-		return 65535, true
-	case encoding.FieldTypeU32:
-		return 1<<32 - 1, true
-	}
-	return 0, false
+	return iio.IntegerLabelCodeMax(ft)
 }
 
 // checkIntegerKeys validates a binding on an integer-coded field. Such a
 // field has no dictionary, so its value labels are the binding's own
 // entries: Labels must be present (nil means the table could not list
 // them) and every key must be the canonical decimal spelling of a value
-// the field can store — any other key could never label a stored value,
-// and dropping it silently would hide the mistake. Keys are checked in
-// sorted order so the refusal names the same key on every run.
+// the field can store (iio.CheckIntegerLabelKeys, the check a row export
+// makes too).
 func checkIntegerKeys(b *ValueLabels, ft encoding.FieldType, max uint64) error {
 	if b.Labels == nil {
 		return errors.NewCodedErrorWithDetails(errors.PULSE_LABEL_TABLE_NOT_ENUMERABLE,
@@ -135,19 +124,7 @@ func checkIntegerKeys(b *ValueLabels, ft encoding.FieldType, max uint64) error {
 	for k := range b.Labels {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		n, err := strconv.ParseUint(k, 10, 64)
-		if err == nil && strconv.FormatUint(n, 10) == k && n <= max {
-			continue
-		}
-		return errors.NewCodedErrorWithDetails(errors.PULSE_LABEL_KEY_INVALID,
-			"spss: the value-label binding on "+strconv.Quote(b.Field)+", a "+ft.String()+
-				" field, has the key "+strconv.Quote(k)+", which is not the plain decimal spelling of a value from 0 to "+
-				strconv.FormatUint(max, 10)+"; the field's stored integers are its codes, so the key could never label one",
-			map[string]any{"field": b.Field, "type": ft.String(), "key": k, "max": max, "option": "--labels"})
-	}
-	return nil
+	return iio.CheckIntegerLabelKeys("spss", b.Field, ft, max, keys)
 }
 
 // labelledInteger attaches b's entries to v — an integer-coded field's
