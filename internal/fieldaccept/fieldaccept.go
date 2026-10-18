@@ -82,6 +82,12 @@ const (
 	// `params.numerator_field` / `params.denominator_field`.
 	SlotNumerator   Slot = "numerator_field"
 	SlotDenominator Slot = "denominator_field"
+	// SlotOutcome is AGG_AUC's `params.outcome` (the binary outcome
+	// scored against the score in `field`).
+	SlotOutcome Slot = "outcome"
+	// SlotBase is WIN_LIFT's `params.base` (the column the field's share
+	// is compared with).
+	SlotBase Slot = "base"
 )
 
 // Rule is one tabled slot: the accepted types and the refusal code.
@@ -147,6 +153,17 @@ func nonSetValue(ft encoding.FieldType) bool {
 // as the numbers they are.
 func quantityValue(ft encoding.FieldType) bool {
 	return nonSetValue(ft) && !ft.IsCategorical()
+}
+
+// plainNumeric is GROUP_NUMERIC_RANGES' set: u4, the unsigned integers
+// and the floats — the scalar types whose stored number IS the quantity.
+func plainNumeric(ft encoding.FieldType) bool {
+	switch ft {
+	case encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
+		encoding.FieldTypeF32, encoding.FieldTypeF64:
+		return true
+	}
+	return false
 }
 
 // strictScalar is AGG_WELFORD's set: the six plain integer and float
@@ -296,8 +313,8 @@ func codeValue(ft encoding.FieldType) bool {
 }
 
 // modelErrorValue is the model-error aggregators' set (AGG_MAE /
-// AGG_MAPE / AGG_RMSE, actual and prediction): the integers, the floats
-// and packed_bool (a 0/1 outcome).
+// AGG_MAPE / AGG_RMSE, actual and prediction) and AGG_AUC's (score and
+// outcome): the integers, the floats and packed_bool (a 0/1 outcome).
 func modelErrorValue(ft encoding.FieldType) bool {
 	switch ft {
 	case encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64,
@@ -325,7 +342,8 @@ func init() {
 	field := []Slot{SlotField}
 	add(windowValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, field,
 		"WIN_LAG", "WIN_LEAD", "WIN_RUNNING_SUM", "WIN_RUNNING_AVG", "WIN_MOVING_AVG",
-		"WIN_EWMA", "WIN_PCT_CHANGE", "WIN_DELTA")
+		"WIN_EWMA", "WIN_PCT_CHANGE", "WIN_DELTA", "WIN_SHARE")
+	add(windowValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotField, SlotBase}, "WIN_LIFT")
 	add(polyValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, field, "FEAT_POLY")
 	add(analyticsValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotTarget, SlotPredictor},
 		"REG_OLS", "REG_GLM", "REG_BAYES_LINEAR")
@@ -351,6 +369,11 @@ func init() {
 		"ATTR_NORMALIZED", "ATTR_PERCENTILE", "ATTR_TSCORE", "ATTR_ZSCORE",
 		"GROUP_QUANTILE", "GROUP_RANGE", "GROUP_ROUNDED", "FILTER_RANGE")
 	add(strictScalar, unsupported, field, "AGG_WELFORD")
+	// GROUP_NUMERIC_RANGES: the plain integers and floats. A date's
+	// number is an epoch ordinal (GROUP_DATE_RANGES buckets dates), a
+	// decimal128's a lossy float, a packed_bool's a flag — none is a
+	// quantity to cut into labeled numeric ranges.
+	add(plainNumeric, unsupported, field, "GROUP_NUMERIC_RANGES")
 	// The numeric readers: aggregators and features whose figure is
 	// arithmetic on the field's stored number. A categorical's number is
 	// its dictionary index and a set's is no number at all (Record.
@@ -374,6 +397,11 @@ func init() {
 	add(packedBool, unsupported, field, "FILTER_TRUE", "FILTER_FALSE")
 	add(codeValue, unsupported, field, "ATTR_CODE_IN")
 	add(modelErrorValue, unsupported, []Slot{SlotField, SlotPrediction}, "AGG_MAE", "AGG_MAPE", "AGG_RMSE")
+	// AGG_AUC: a numeric score (field) against a 0/1 outcome — the same
+	// set (packed_bool is the natural outcome; a 0/1 integer or float
+	// too). A value other than 0 / 1 is the runtime's
+	// PROCESSING_AUC_OUTCOME_NOT_BINARY: no schema type promises it.
+	add(modelErrorValue, unsupported, []Slot{SlotField, SlotOutcome}, "AGG_AUC")
 	add(categoricalValue, unsupported, field, "TEST_PROP_Z")
 	add(categoricalValue, unsupported, field, "FEAT_ONE_HOT", "FEAT_FREQUENCY_ENCODE", "FEAT_TARGET_ENCODE")
 	add(categoricalValue, unsupported, []Slot{SlotStratify}, "FEAT_TRAIN_TEST_SPLIT")

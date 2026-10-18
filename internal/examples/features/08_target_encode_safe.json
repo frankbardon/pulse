@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "features",
-    "description": "Smoothed target encoding after a train/test split, averaged over the split 0 rows. The encoder reads no split column, so every encoded mean still includes validation/test rows and the row's own target, and PULSE_FEAT_TARGET_LEAKAGE_RISK still fires.",
+    "description": "Leakage-safe target encoding: the encoder runs after a train/test split with fit_on \"split == 0\", so only training rows feed the category means, and folds 5 encodes each training row out-of-fold; holdout outcomes never move a value and PULSE_FEAT_TARGET_LEAKAGE_RISK does not fire.",
     "intents": [
       "prepare"
     ],
@@ -54,7 +54,10 @@
       "label": "category_target_mean",
       "params": {
         "target": "price",
-        "smoothing": 5.0
+        "smoothing": 5.0,
+        "fit_on": "split == 0",
+        "folds": 5,
+        "rng_seed": 42
       }
     }
   ],

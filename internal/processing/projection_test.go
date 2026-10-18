@@ -85,6 +85,26 @@ func TestNeededFields_WindowReferencesPartitionAndOrder(t *testing.T) {
 	}
 }
 
+// WIN_LIFT's params.base names a column like its field does, so it
+// decodes beside the field (the mirror of addKnown(w.Field)).
+func TestNeededFields_WindowLiftBase(t *testing.T) {
+	schema := mkSchema("a", "ts", "v", "b", "unused")
+	req := &types.Request{
+		Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "a"}},
+		Windows: []*types.Window{{
+			Type:    types.WIN_LIFT,
+			Field:   "v",
+			OrderBy: []types.OrderKey{{Field: "ts"}},
+			Params:  json.RawMessage(`{"base": "b", "cumulative": true}`),
+		}},
+	}
+	got := NeededFields(req, schema, nil)
+	want := []string{"a", "b", "ts", "v"}
+	if g := sortedFields(got); !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
 // Windows-only requests emit the filtered records as rows, and a record
 // row carries every schema field, so the set widens (#201d); a window
 // beside an aggregation, a group or a crosstab rides aggregated rows
@@ -223,6 +243,18 @@ func TestNeededFields_RegressionCovarianceKeys(t *testing.T) {
 	}
 }
 
+// TestNeededFields_RegressionJackknifeBy: a jackknife_by field is
+// decoded — its values are the delete groups.
+func TestNeededFields_RegressionJackknifeBy(t *testing.T) {
+	schema := mkSchema("y", "x1", "region", "unused")
+	req := &types.Request{Regressions: []*types.RegressionSpec{{
+		Type: types.REG_OLS, Target: "y", Predictors: []string{"x1"}, Resample: "jackknife", JackknifeBy: "region",
+	}}}
+	if g, want := sortedFields(NeededFields(req, schema, nil)), []string{"region", "x1", "y"}; !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
 func TestNeededFields_FeatureStratifyFromParams(t *testing.T) {
 	schema := mkSchema("a", "label", "unused")
 	req := &types.Request{
@@ -251,6 +283,25 @@ func TestNeededFields_FeatureTargetEncodeFromParams(t *testing.T) {
 	want := []string{"category", "outcome"}
 	if g := sortedFields(got); !equalStrings(g, want) {
 		t.Errorf("fields = %v, want %v", g, want)
+	}
+}
+
+// TestNeededFields_FeatureTargetEncodeFitOn: every stored field
+// params.fit_on reads decodes (a derived name is no schema field and
+// adds nothing); an unparsable fit_on widens.
+func TestNeededFields_FeatureTargetEncodeFitOn(t *testing.T) {
+	schema := mkSchema("category", "outcome", "flag", "cohort", "unused")
+	te := func(params string) *types.Request {
+		return &types.Request{Features: []*types.Feature{{
+			Type: types.FEAT_TARGET_ENCODE, Field: "category", Params: json.RawMessage(params),
+		}}}
+	}
+	got := NeededFields(te(`{"target":"outcome","fit_on":"flag == 0 && cohort > 1 && split == 0"}`), schema, nil)
+	if g, want := sortedFields(got), []string{"category", "cohort", "flag", "outcome"}; !equalStrings(g, want) {
+		t.Errorf("fields = %v, want %v", g, want)
+	}
+	if got := NeededFields(te(`{"target":"outcome","fit_on":"flag == ("}`), schema, nil); !got.IsWide() {
+		t.Errorf("unparsable fit_on: %v, want the widened set", sortedFields(got))
 	}
 }
 

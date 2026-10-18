@@ -74,9 +74,10 @@ type RegressionSpec struct {
 	// linear regression.
 	Predictors []string `json:"predictors,omitempty"`
 
-	// Penalty selects the regularization scheme for REG_OLS. One of
-	// "" (no penalty), "l1" (lasso), "l2" (ridge), or "elasticnet".
-	// Ignored by REG_GLM and REG_BAYES_LINEAR.
+	// Penalty selects the regularization scheme for REG_OLS and REG_GLM
+	// (binomial / poisson; gamma refuses it). One of "" (no penalty),
+	// "l1" (lasso), "l2" (ridge), or "elasticnet". REG_BAYES_LINEAR
+	// refuses it.
 	Penalty string `json:"penalty,omitempty"`
 
 	// Alpha is the regularization strength for l1 / l2 / elasticnet
@@ -127,9 +128,28 @@ type RegressionSpec struct {
 	CredibleLevel float64 `json:"credible_level,omitempty"`
 
 	// Resample selects an orthogonal resampling layer applied to any
-	// regression family. One of "" (none), "jackknife" (leave-one-out),
-	// or "bootstrap". Non-empty forces the buffered path.
+	// regression family. One of "" (none), "jackknife" (leave-one-out,
+	// or delete-a-group with JackknifeGroups / JackknifeBy), or
+	// "bootstrap". Non-empty forces the buffered path.
 	Resample string `json:"resample,omitempty"`
+
+	// JackknifeGroups turns the leave-one-out jackknife into a
+	// delete-a-group one (Resample "jackknife" only): the fitted rows are
+	// assigned to this many groups by a seeded random permutation
+	// (RNGSeed; zero derives the seed as the bootstrap does), sizes
+	// differing by at most one, and each replicate refits without one
+	// group — g refits instead of n. 2 ≤ g ≤ the fitted row count; zero
+	// is absent: leave-one-out over the fitted rows — a row the fit drops
+	// (null target or predictor, zero or invalid weight) is no replicate
+	// and no part of n. Exclusive with JackknifeBy.
+	JackknifeGroups int `json:"jackknife_groups,omitempty"`
+
+	// JackknifeBy names a field whose values are the jackknife's delete
+	// groups (a delete-a-cluster jackknife; Resample "jackknife" only):
+	// one replicate per distinct value. A row whose value is null drops
+	// from the fit listwise, like a null predictor. Exclusive with
+	// JackknifeGroups.
+	JackknifeBy string `json:"jackknife_by,omitempty"`
 
 	// BootstrapIters is the bootstrap replicate count when
 	// Resample == "bootstrap", used as given; zero or negative means the
@@ -137,10 +157,11 @@ type RegressionSpec struct {
 	// Ignored otherwise.
 	BootstrapIters int `json:"bootstrap_iters,omitempty"`
 
-	// RNGSeed seeds the bootstrap RNG for reproducibility. Defaults to
-	// 0: a deterministic seed derived from the request and the rows the
-	// fit reads (never the clock), so the same request over the same
-	// cohort is bit-identical; pin non-zero to keep it across cohorts.
+	// RNGSeed seeds the bootstrap RNG, and the JackknifeGroups
+	// assignment, for reproducibility. Defaults to 0: a deterministic
+	// seed derived from the request and the rows the fit reads (never
+	// the clock), so the same request over the same cohort is
+	// bit-identical; pin non-zero to keep it across cohorts.
 	RNGSeed int64 `json:"rng_seed,omitempty"`
 
 	// Selection requests an automated subset-selection wrapper around
@@ -159,7 +180,8 @@ type RegressionSpec struct {
 	// ridge: the sandwich), REG_GLM ((XᵀWX)⁻¹ at the converged weights)
 	// and REG_BAYES_LINEAR (the POSTERIOR covariance b_n/(a_n−1)·Λ_n⁻¹)
 	// support it. Under Resample it is the replicate covariance (jackknife
-	// (n−1)/n·Σ(β₋ᵢ−β̄)(β₋ᵢ−β̄)ᵀ, bootstrap the B−1 sample covariance of
+	// (g−1)/g·Σ(β₋ₖ−β̄)(β₋ₖ−β̄)ᵀ over its g replicates, g = n for
+	// leave-one-out; bootstrap the B−1 sample covariance of
 	// the successful replicates); under Selection the final refit's
 	// covariance keyed by the selected predictors — so √diag always
 	// equals StdErrors. Lasso / elastic net refuse it, alone or under a
@@ -262,8 +284,8 @@ func (m *RegressionMultiplicity) Block() *Multiplicity {
 
 // RegressionResult is the per-spec outcome embedded in
 // Response.Regressions. Fields irrelevant to a given operator carry
-// their zero value; engines never partially populate a result on
-// failure.
+// their zero value; engines never partially populate a result: a fit
+// that fails on its data carries Name / Type and Error only.
 //
 // Locked at Phase 0: every field of every operator family is declared
 // now. Later phases populate the engine-specific branches but never
@@ -281,13 +303,13 @@ type RegressionResult struct {
 	// Link echoes RegressionSpec.Link (GLM only).
 	Link string `json:"link,omitempty"`
 
-	// Penalty echoes RegressionSpec.Penalty (REG_OLS only).
+	// Penalty echoes RegressionSpec.Penalty (REG_OLS / REG_GLM).
 	Penalty string `json:"penalty,omitempty"`
 
-	// Alpha echoes RegressionSpec.Alpha (regularized OLS only).
+	// Alpha echoes RegressionSpec.Alpha (regularized OLS / GLM).
 	Alpha float64 `json:"alpha,omitempty"`
 
-	// L1Ratio echoes RegressionSpec.L1Ratio (elastic-net OLS only).
+	// L1Ratio echoes RegressionSpec.L1Ratio (elastic-net OLS / GLM).
 	L1Ratio float64 `json:"l1_ratio,omitempty"`
 
 	// Prior echoes RegressionSpec.Prior (Bayes only).
@@ -307,6 +329,12 @@ type RegressionResult struct {
 	// skipped, so BootstrapSucceeded < BootstrapRequested exactly when
 	// some failed. Bootstrap only.
 	BootstrapSucceeded int `json:"bootstrap_succeeded,omitempty"`
+
+	// JackknifeGroups is the delete-a-group jackknife's replicate count
+	// g — RegressionSpec.JackknifeGroups, or the distinct JackknifeBy
+	// values among the fitted rows. Absent on a leave-one-out jackknife
+	// and every other fit.
+	JackknifeGroups int `json:"jackknife_groups,omitempty"`
 
 	// Selection echoes RegressionSpec.Selection when set.
 	Selection string `json:"selection,omitempty"`
@@ -436,6 +464,13 @@ type RegressionResult struct {
 	// coefficients: method, family, alpha, the family size m and the
 	// excluded (undefined-p) member count. Absent when none ran.
 	Multiplicity *AppliedMultiplicity `json:"multiplicity,omitempty"`
+
+	// Error is the data-dependent refusal that failed this fit alone
+	// (PROCESSING_REGRESSION_SEPARATION, _NO_CONVERGE, _RANK_DEFICIENT,
+	// _INSUFFICIENT_DATA) while the rest of the response survived; see
+	// SlotError. A result carrying one has Name / Type and the error
+	// only: every coefficient and figure is absent on the wire.
+	Error *SlotError `json:"error,omitempty"`
 }
 
 // Streamable reports whether a regression type can run via the

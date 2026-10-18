@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/windowparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -14,11 +15,20 @@ import (
 var windowRegistry = map[types.WindowType]WindowFactory{}
 
 // register installs a factory in the registry. Called from per-operator init().
+// The installed factory first judges the slot's configuration through the
+// reading predict shares (internal/windowparams), so every built-in
+// refuses at construction exactly what predict refuses — order_by, field,
+// frame and params — with the same PULSE_WINDOW_INVALID rule sentence.
 func register(t types.WindowType, f WindowFactory) {
 	if _, exists := windowRegistry[t]; exists {
 		panic("window: duplicate registration for " + string(t))
 	}
-	windowRegistry[t] = f
+	windowRegistry[t] = func(w *types.Window, o WindowOptions) (WindowComputer, error) {
+		if ref := windowparams.First(w); ref != nil {
+			return nil, ref.Coded()
+		}
+		return f(w, o)
+	}
 }
 
 // Lookup returns the factory for a window type, if registered.

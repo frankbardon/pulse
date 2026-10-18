@@ -61,6 +61,11 @@ type parityOp struct {
 	// weightOnlyKeys are operator-map keys only a weighted slot emits,
 	// beyond the manifest's optional keys (which are stripped already).
 	weightOnlyKeys []string
+	// weightNullKeys are operator-map keys the unweighted twin fills
+	// but a weighted slot withholds as null (AGG_AUC's DeLong se and
+	// interval): unity parity asserts the weighted value is NaN and
+	// drops the key from both sides.
+	weightNullKeys []string
 
 	// expandExact lists the fields whose figure must match the
 	// expanded twin EXACTLY (counts; sums over integer data).
@@ -142,6 +147,12 @@ var parityOps = []parityOp{
 	{op: types.AGG_MAPE, fields: []string{"x", "y"}, params: json.RawMessage(`{"prediction_field":"g"}`)},
 	{op: types.AGG_RMSE, fields: []string{"x", "y"}, params: json.RawMessage(`{"prediction_field":"g"}`), expandExact: []string{"x"}},
 	{op: types.AGG_MAE, fields: []string{"x", "y"}, params: json.RawMessage(`{"prediction_field":"g"}`), expandExact: []string{"x"}},
+	// model-workbench E2-S1: AUC of x (and y) against the 0 / 1 b. With
+	// integer weights every pair sum is an integer or a half, so the
+	// figure is exact on expansion. Buffered only (never streams). The
+	// DeLong figures are withheld (null) under any weight.
+	{op: types.AGG_AUC, fields: []string{"x", "y"}, params: json.RawMessage(`{"outcome":"b"}`), expandExact: []string{"x", "y"},
+		weightNullKeys: []string{"se", "ci_lower", "ci_upper"}},
 	// vector-metrics-aggregates E2-S2: ONE vector slot over x and y
 	// (array-valued: per element Σw·x, Σw·x / Σw). y is fractional, so
 	// no element is exact on expansion. A crosstab cell only through params.element (one element as a scalar).
@@ -645,6 +656,7 @@ func TestWeightUnityParity(t *testing.T) {
 					return
 				}
 				stripSteer(base)
+				dropOperatorKeys(base, row.weightNullKeys)
 				want := mustMarshal(t, base)
 				for _, src := range paritySources() {
 					t.Run(src.name, func(t *testing.T) {
@@ -705,6 +717,12 @@ func shedUnity(t *testing.T, resp *types.Response, row parityOp, op descriptor.O
 				delete(operator, k)
 			}
 		}
+		for _, k := range row.weightNullKeys {
+			if v, ok := operator[k].(float64); !ok || !math.IsNaN(v) {
+				t.Errorf("%s: %s = %v under a weight, want null (NaN)", where, k, operator[k])
+			}
+			delete(operator, k)
+		}
 	}
 	for i := range resp.Components.Aggregations {
 		a := &resp.Components.Aggregations[i]
@@ -714,6 +732,23 @@ func shedUnity(t *testing.T, resp *types.Response, row parityOp, op descriptor.O
 		for j := range a.Groups {
 			g := &a.Groups[j]
 			shed(fmt.Sprintf("%s group %v", where, g.GroupKey), g.N, &g.SumWeights, &g.NEff, &g.NWeightInvalid, g.Operator)
+		}
+	}
+}
+
+// dropOperatorKeys removes keys from every aggregation slot's operator
+// map (and each group's) in resp.
+func dropOperatorKeys(resp *types.Response, keys []string) {
+	if resp.Components == nil || len(keys) == 0 {
+		return
+	}
+	for i := range resp.Components.Aggregations {
+		a := &resp.Components.Aggregations[i]
+		for _, k := range keys {
+			delete(a.Operator, k)
+			for j := range a.Groups {
+				delete(a.Groups[j].Operator, k)
+			}
 		}
 	}
 }

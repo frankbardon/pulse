@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:1d5583b6515868de18967b5c24224e167db995032635201304790dbb005552fd",
+    "feature_set_digest": "fs1:5630a947678103aa5bb95637e1f323c12ae53cdb72e622863326214744ebfb90",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -399,6 +399,133 @@
     ],
     "components": {
       "aggregators": [
+        {
+          "name": "AGG_AUC",
+          "category": "aggregator",
+          "description": "Area under the ROC curve of a score (field) against a binary outcome (params.outcome): the share of (positive, negative) row pairs the score ranks the right way round, ties counting half — the exact Mann-Whitney rank sum. 0.5 is no discrimination, 1 perfect. Weighted: the weighted probability a positive outranks a negative. Components add gini (2·AUC − 1), the class counts and the DeLong standard error and 95% interval (null under a weight). An outcome value other than 0 / 1 fails the run (PROCESSING_AUC_OUTCOME_NOT_BINARY). Buffered (sorts every scored row). No positive or no negative yields NaN (null in JSON).",
+          "params": [
+            {
+              "name": "outcome",
+              "type": "field",
+              "required": true,
+              "description": "Binary outcome column scored against the score in field: a packed_bool, or a numeric column holding only 0 and 1 on the scored rows. A null outcome skips the row (counted in n_null_outcome).",
+              "field_filter": "numeric"
+            },
+            {
+              "name": "positive",
+              "type": "float",
+              "required": false,
+              "default": 1,
+              "description": "The outcome value counted as the event (the positive class): 0 or 1. Any other value is PROCESSING_CONFIG."
+            }
+          ],
+          "accepts_types": [
+            "f32",
+            "f64",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "scalar float64 in [0, 1] (NaN, null in JSON, when either class is empty or a score is NaN)",
+          "streamable": false,
+          "streamable_hint": "No streaming discrimination proxy exists; accept the buffered path (a stream reports it at terminal flush).",
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Number of records aggregated (non-null inputs)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Number of null inputs encountered."
+              },
+              {
+                "name": "sum_weights",
+                "type": "float64",
+                "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+                "optional": true
+              },
+              {
+                "name": "n_eff",
+                "type": "float64",
+                "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+                "optional": true
+              },
+              {
+                "name": "n_weight_invalid",
+                "type": "int",
+                "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+                "optional": true
+              },
+              {
+                "name": "auc",
+                "type": "float64",
+                "description": "Resolved AUC (the scalar)."
+              },
+              {
+                "name": "gini",
+                "type": "float64",
+                "description": "Gini coefficient (accuracy ratio) 2·AUC − 1: 0 is no discrimination, 1 perfect, negative when the score ranks backwards."
+              },
+              {
+                "name": "n_pos",
+                "type": "int",
+                "description": "Scored rows whose outcome equals params.positive (raw rows, also on a weighted slot)."
+              },
+              {
+                "name": "n_neg",
+                "type": "int",
+                "description": "Scored rows whose outcome is the other value (raw rows, also on a weighted slot)."
+              },
+              {
+                "name": "n_null_outcome",
+                "type": "int",
+                "description": "Rows whose score answered but whose outcome is null; skipped. The floor's n / n_null key on the score (field) only."
+              },
+              {
+                "name": "se",
+                "type": "float64",
+                "description": "DeLong standard error of the AUC (pROC's delong variance); null under a weight (see se_note) or when either class has fewer than 2 rows."
+              },
+              {
+                "name": "ci_lower",
+                "type": "float64",
+                "description": "Lower end of the DeLong interval at conf_level, AUC − z·se clipped to 0; null whenever se is."
+              },
+              {
+                "name": "ci_upper",
+                "type": "float64",
+                "description": "Upper end of the DeLong interval at conf_level, AUC + z·se clipped to 1; null whenever se is."
+              },
+              {
+                "name": "conf_level",
+                "type": "float64",
+                "description": "Confidence level of the DeLong interval: fixed at 0.95."
+              },
+              {
+                "name": "se_note",
+                "type": "string",
+                "description": "Weighted slots only: PULSE_AUC_DELONG_WEIGHTED — se and the interval are withheld (null) because no weighted DeLong variance is defensible; the weighted AUC and gini are exact.",
+                "optional": true
+              }
+            ],
+            "mergeability": "none"
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency",
+            "probability"
+          ],
+          "intents": [
+            "benchmark",
+            "drivers"
+          ]
+        },
         {
           "name": "AGG_AVERAGE",
           "category": "aggregator",
@@ -3872,7 +3999,7 @@
         {
           "name": "ATTR_REG_PREDICT",
           "category": "attribute",
-          "description": "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS (penalties; under selection the selected features), REG_GLM and REG_BAYES_LINEAR (posterior mean). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound.",
+          "description": "Per-row score from a BOUND model (a ComposedRequest `fits` entry, named by params.fit) instead of a refit: intercept + Σ coefficient·predictor at full precision, the GLM inverse link applied on the response scale. Scores REG_OLS and REG_GLM (penalties included; under selection the selected features) and REG_BAYES_LINEAR (posterior mean). The model's predictor list is authoritative and read off the slot's own columns (an absent one-hot column is the reference level); a null in any column the score reads yields null. Row-local once bound.",
           "params": [
             {
               "name": "fit",
@@ -4350,7 +4477,7 @@
               "name": "table",
               "type": "string",
               "required": false,
-              "description": "Name of a registered range table (Extensions.RangeTables / PULSE_RANGE_TABLES_DIR) to filter by instead of inline ranges; give exactly one of ranges and table."
+              "description": "Name of a registered DATE range table (Extensions.RangeTables / PULSE_RANGE_TABLES_DIR, bounds ISO date strings) to filter by instead of inline ranges; give exactly one of ranges and table. A numeric table is refused (PULSE_RANGE_TABLE_KIND_MISMATCH)."
             }
           ],
           "accepts_types": [
@@ -5088,7 +5215,7 @@
               "name": "table",
               "type": "string",
               "required": false,
-              "description": "Name of a registered range table (Extensions.RangeTables / PULSE_RANGE_TABLES_DIR) to bucket by instead of inline ranges; give exactly one of ranges and table."
+              "description": "Name of a registered DATE range table (Extensions.RangeTables / PULSE_RANGE_TABLES_DIR, bounds ISO date strings) to bucket by instead of inline ranges; give exactly one of ranges and table. A numeric table is refused (PULSE_RANGE_TABLE_KIND_MISMATCH)."
             }
           ],
           "accepts_types": [
@@ -5312,6 +5439,77 @@
             "frequency"
           ],
           "intents": [
+            "segment"
+          ]
+        },
+        {
+          "name": "GROUP_NUMERIC_RANGES",
+          "category": "grouper",
+          "description": "Partition numeric records by a set of labeled half-open ranges ({label, start, end} covers [start, end)); the bucket key is the matching range's label. Ranges come inline or from a numeric range table. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order, the unmatched bucket last.",
+          "params": [
+            {
+              "name": "ranges",
+              "type": "array",
+              "required": true,
+              "description": "Ordered list of {label, start, end} labeled numeric ranges. start/end are JSON numbers; an omitted/null bound is open. Bounds are half-open [start, end) — [0, 91) and [91, 104) are adjacent, not overlapping, and an integer 91 lands in the second; ranges must be non-overlapping with distinct labels."
+            },
+            {
+              "name": "unmatched_label",
+              "type": "string",
+              "required": false,
+              "default": "unmatched",
+              "description": "Bucket label for rows outside every configured range. Must not collide with a range label."
+            },
+            {
+              "name": "table",
+              "type": "string",
+              "required": false,
+              "description": "Name of a registered NUMERIC range table (Extensions.RangeTables / PULSE_RANGE_TABLES_DIR, bounds JSON numbers) to bucket by instead of inline ranges; give exactly one of ranges and table. A date table is refused (PULSE_RANGE_TABLE_KIND_MISMATCH)."
+            }
+          ],
+          "accepts_types": [
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type_note": "labeled range key per row (the matching range's label, or the unmatched label)",
+          "streamable": true,
+          "component_schema": {
+            "keys": [
+              {
+                "name": "total_n",
+                "type": "int",
+                "description": "Total records partitioned across all buckets (post-filter)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Records that landed in the null/skip path (no bucket assignment)."
+              },
+              {
+                "name": "n_ranges",
+                "type": "int",
+                "description": "Number of configured labeled numeric ranges."
+              },
+              {
+                "name": "unmatched_label",
+                "type": "string",
+                "description": "Bucket label used for rows outside every configured range."
+              },
+              {
+                "name": "buckets",
+                "type": "[]bucket",
+                "description": "Per-bucket records in supplied range order (unmatched last when observed); each entry carries {key, label, count}."
+              }
+            ],
+            "mergeability": "mergeable"
+          },
+          "intents": [
+            "compare_groups",
             "segment"
           ]
         },
@@ -5682,28 +5880,8 @@
           "category": "window",
           "description": "Dense rank with no gaps after ties (1, 2, 2, 3, …) within the ordered partition.",
           "params": null,
-          "accepts_types": [
-            "categorical_u16",
-            "categorical_u32",
-            "categorical_u8",
-            "date",
-            "datetime",
-            "decimal128",
-            "f32",
-            "f64",
-            "packed_bool",
-            "set_u128",
-            "set_u16",
-            "set_u256",
-            "set_u32",
-            "set_u64",
-            "set_u8",
-            "u16",
-            "u32",
-            "u4",
-            "u64",
-            "u8"
-          ],
+          "accepts_types": [],
+          "forbids_field": true,
           "emits_type": "u32",
           "emits_type_note": "one integer per row",
           "streamable": false,
@@ -5836,6 +6014,47 @@
           ]
         },
         {
+          "name": "WIN_LIFT",
+          "category": "window",
+          "description": "Lift of field over base: (field / Σfield) / (base / Σbase) within the partition — exactly the field's share over the base's share, each total over its own present values. With cumulative, the running share of field over the running share of base (order_by required), e.g. the cumulative lift of a gains table. 1 is no lift. No frame.",
+          "params": [
+            {
+              "name": "base",
+              "type": "field",
+              "required": true,
+              "description": "Column the field's share is compared with (e.g. the record count per decile); its share is the denominator.",
+              "field_filter": "numeric"
+            },
+            {
+              "name": "cumulative",
+              "type": "bool",
+              "required": false,
+              "default": false,
+              "description": "Running shares (unbounded preceding to the current row) instead of the row's own; requires order_by."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one float per row, a ratio (1 = no lift); null when either share is null or the base share is zero",
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          },
+          "intents": [
+            "benchmark",
+            "composition"
+          ]
+        },
+        {
           "name": "WIN_MOVING_AVG",
           "category": "window",
           "description": "Moving average of Field over the configured Frame; Frame width must be bounded.",
@@ -5899,28 +6118,8 @@
           "category": "window",
           "description": "Sparse rank with gaps after ties (1, 2, 2, 4, …) within the ordered partition.",
           "params": null,
-          "accepts_types": [
-            "categorical_u16",
-            "categorical_u32",
-            "categorical_u8",
-            "date",
-            "datetime",
-            "decimal128",
-            "f32",
-            "f64",
-            "packed_bool",
-            "set_u128",
-            "set_u16",
-            "set_u256",
-            "set_u32",
-            "set_u64",
-            "set_u8",
-            "u16",
-            "u32",
-            "u4",
-            "u64",
-            "u8"
-          ],
+          "accepts_types": [],
+          "forbids_field": true,
           "emits_type": "u32",
           "emits_type_note": "one integer per row",
           "streamable": false,
@@ -5936,28 +6135,8 @@
           "category": "window",
           "description": "1-based row index within the ordered partition.",
           "params": null,
-          "accepts_types": [
-            "categorical_u16",
-            "categorical_u32",
-            "categorical_u8",
-            "date",
-            "datetime",
-            "decimal128",
-            "f32",
-            "f64",
-            "packed_bool",
-            "set_u128",
-            "set_u16",
-            "set_u256",
-            "set_u32",
-            "set_u64",
-            "set_u8",
-            "u16",
-            "u32",
-            "u4",
-            "u64",
-            "u8"
-          ],
+          "accepts_types": [],
+          "forbids_field": true,
           "emits_type": "u32",
           "emits_type_note": "one integer per row (resets per partition)",
           "streamable": false,
@@ -6018,6 +6197,40 @@
           "intents": [
             "change_over_time",
             "describe"
+          ]
+        },
+        {
+          "name": "WIN_SHARE",
+          "category": "window",
+          "description": "Share of the partition's total: field / Σfield over the partition (order_by optional). With cumulative, the running total from the partition's first row in order_by order to this one, over the same total (order_by required) — a capture curve. Missing values add nothing; a zero total reads null. No frame.",
+          "params": [
+            {
+              "name": "cumulative",
+              "type": "bool",
+              "required": false,
+              "default": false,
+              "description": "Running share (unbounded preceding to the current row) instead of the row's own; requires order_by."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one float per row, a fraction (0.25 = 25%); null when the row's value is missing (non-cumulative), before the first value present (cumulative) or when the partition total is zero",
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          },
+          "intents": [
+            "benchmark",
+            "composition"
           ]
         }
       ],
@@ -6238,6 +6451,25 @@
               "required": false,
               "default": 0,
               "description": "Bayesian smoothing weight blending category mean with global mean."
+            },
+            {
+              "name": "fit_on",
+              "type": "string",
+              "required": false,
+              "description": "Boolean expression (expression-filter syntax) choosing the training rows, e.g. \"split == 0\"; may read earlier features' columns. Only training rows feed the means; every row is encoded, an unseen category with the training global mean. Silences PULSE_FEAT_TARGET_LEAKAGE_RISK."
+            },
+            {
+              "name": "folds",
+              "type": "int",
+              "required": false,
+              "default": 0,
+              "description": "0 (off) or 2..100: encode each training row out-of-fold, from the training rows outside its fold; other rows get the full-training encoding."
+            },
+            {
+              "name": "rng_seed",
+              "type": "int",
+              "required": false,
+              "description": "Seed of the fold assignment; only valid with folds."
             }
           ],
           "accepts_types": [
@@ -6247,7 +6479,7 @@
             "packed_bool"
           ],
           "emits_type": "f32",
-          "emits_type_note": "single column \"\u003clabel\u003e\"; risk of target leakage on non-CV pipelines",
+          "emits_type_note": "single column \"\u003clabel\u003e\"; leaks the holdout's outcomes unless fit_on names the training rows",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -7663,7 +7895,7 @@
       },
       {
         "name": "REG_GLM",
-        "description": "Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-appropriate links.",
+        "description": "Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-appropriate links, and l1/l2/elasticnet regularization on binomial and poisson.",
         "accepts_types": [
           "date",
           "datetime",
@@ -7677,7 +7909,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, Wald ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R²; a robust covariance adds its covariance echo.",
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, Wald ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R²; a penalty echoes penalty / alpha / l1_ratio (l1 / elasticnet: std errors only for the kept predictors); a robust covariance adds its covariance echo.",
         "streamable": false,
         "streamable_hint": "Always buffered; IRLS requires multiple passes over the data.",
         "params": [
@@ -7721,6 +7953,31 @@
             ]
           },
           {
+            "name": "penalty",
+            "type": "enum",
+            "required": false,
+            "default": "",
+            "description": "Regularization scheme (binomial / poisson; gamma refuses it, PROCESSING_CONFIG); empty for the maximum-likelihood fit. Minimizes -loglik/N* + alpha·[(1-l1_ratio)/2·||b||² + l1_ratio·||b||₁] (glmnet, standardize = FALSE): predictors unstandardized, intercept unpenalized, N* = Σw. l2 keeps a separated fit finite.",
+            "enum_values": [
+              "",
+              "elasticnet",
+              "l1",
+              "l2"
+            ]
+          },
+          {
+            "name": "alpha",
+            "type": "float",
+            "required": false,
+            "description": "Regularization strength (\u003e0 when penalty is set; glmnet's lambda)."
+          },
+          {
+            "name": "l1_ratio",
+            "type": "float",
+            "required": false,
+            "description": "Elastic-net mixing parameter, 0 \u003c l1_ratio \u003c 1; only read when penalty == elasticnet (glmnet's alpha)."
+          },
+          {
             "name": "max_iters",
             "type": "int",
             "required": false,
@@ -7751,10 +8008,22 @@
             "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded)."
           },
           {
+            "name": "jackknife_groups",
+            "type": "int",
+            "required": false,
+            "description": "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row; SE √((g−1)/g·Σ(β₍ₖ₎−β̄)²), echoed as jackknife_groups. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out over the fitted rows (a row the fit drops is no replicate)."
+          },
+          {
+            "name": "jackknife_by",
+            "type": "field",
+            "required": false,
+            "description": "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups."
+          },
+          {
             "name": "rng_seed",
             "type": "int",
             "required": false,
-            "description": "Seed for the bootstrap RNG."
+            "description": "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows."
           },
           {
             "name": "selection",
@@ -7790,7 +8059,7 @@
             "type": "bool",
             "required": false,
             "default": false,
-            "description": "Emit the coefficient covariance (vcov, (XᵀWX)⁻¹ at the converged weights, dispersion 1) and its correlation, keyed (intercept) then predictors; √diag = std_errors. Resample gives the replicate covariance, selection the final refit's."
+            "description": "Emit the coefficient covariance (vcov, (XᵀWX)⁻¹ at the converged weights, dispersion 1; l2: the penalized sandwich H⁻¹XᵀWXH⁻¹, H = XᵀWX + N*·alpha·D) and its correlation, keyed (intercept) then predictors; √diag = std_errors. Resample gives the replicate covariance, selection the final refit's; l1 / elasticnet refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED)."
           },
           {
             "name": "covariance",
@@ -7865,7 +8134,7 @@
             "type": "enum",
             "required": false,
             "default": "",
-            "description": "Regularization scheme; empty for OLS.",
+            "description": "Regularization scheme; empty for OLS. Minimizes (1/2N*)·Σw·r² + alpha·[(1-l1_ratio)/2·||b||² + l1_ratio·||b||₁] (glmnet, standardize = FALSE; the same alpha meaning as REG_GLM): predictors unstandardized, intercept unpenalized, N* = Σw.",
             "enum_values": [
               "",
               "elasticnet",
@@ -7877,13 +8146,13 @@
             "name": "alpha",
             "type": "float",
             "required": false,
-            "description": "Regularization strength (\u003e0 when penalty is set)."
+            "description": "Regularization strength (\u003e0 when penalty is set; glmnet's lambda)."
           },
           {
             "name": "l1_ratio",
             "type": "float",
             "required": false,
-            "description": "Elastic-net mixing parameter in [0,1]; only read when penalty == elasticnet."
+            "description": "Elastic-net mixing parameter, 0 \u003c l1_ratio \u003c 1; only read when penalty == elasticnet (glmnet's alpha)."
           },
           {
             "name": "max_iters",
@@ -7916,10 +8185,22 @@
             "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded)."
           },
           {
+            "name": "jackknife_groups",
+            "type": "int",
+            "required": false,
+            "description": "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row; SE √((g−1)/g·Σ(β₍ₖ₎−β̄)²), echoed as jackknife_groups. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out over the fitted rows (a row the fit drops is no replicate)."
+          },
+          {
+            "name": "jackknife_by",
+            "type": "field",
+            "required": false,
+            "description": "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups."
+          },
+          {
             "name": "rng_seed",
             "type": "int",
             "required": false,
-            "description": "Seed for the bootstrap RNG."
+            "description": "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows."
           },
           {
             "name": "selection",
@@ -9778,7 +10059,7 @@
         ]
       }
     ],
-    "error_codes_count": 385,
+    "error_codes_count": 392,
     "error_domains": [
       "CLI",
       "DATA",
@@ -9801,6 +10082,7 @@
       "ENCODING_INVALID",
       "ENCODING_IO",
       "ENCODING_TYPE_MISMATCH",
+      "PROCESSING_AUC_OUTCOME_NOT_BINARY",
       "PROCESSING_CONFIG",
       "PROCESSING_GROUP",
       "PROCESSING_INTERNAL",
@@ -9810,6 +10092,7 @@
       "PROCESSING_REGRESSION_NOT_IMPLEMENTED",
       "PROCESSING_REGRESSION_NO_CONVERGE",
       "PROCESSING_REGRESSION_RANK_DEFICIENT",
+      "PROCESSING_REGRESSION_SEPARATION",
       "PROCESSING_REGRESSION_SINGULAR_GRAM",
       "PROCESSING_REGRESSION_VCOV_UNSUPPORTED",
       "PROCESSING_RUNTIME",
@@ -9819,6 +10102,7 @@
       "PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT",
       "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED",
       "PULSE_ADVISORY_EXTRA_PASS",
+      "PULSE_ADVISORY_JACKKNIFE_COST",
       "PULSE_ADVISORY_MANY_TESTS",
       "PULSE_ADVISORY_ORDINAL_PARAMETRIC",
       "PULSE_ADVISORY_SERIES_AXIS_NOT_DATE",
@@ -9830,6 +10114,7 @@
       "PULSE_ARCHIVE_MAGIC_INVALID",
       "PULSE_ATTR_CODE_NOT_IN_DICTIONARY",
       "PULSE_ATTR_SCALE_OUT_OF_RANGE",
+      "PULSE_AUC_DELONG_WEIGHTED",
       "PULSE_BANNER_INVALID",
       "PULSE_CHAIN_EMPTY",
       "PULSE_CHAIN_NOT_MERGEABLE",
@@ -9890,6 +10175,7 @@
       "PULSE_FIELD_DESCRIPTION_LOW_QUALITY",
       "PULSE_FIELD_TYPE_UNSUPPORTED",
       "PULSE_FIT_INVALID",
+      "PULSE_FIT_UNAVAILABLE",
       "PULSE_FORMULA_COMPILE_ERROR",
       "PULSE_FORMULA_TOTAL_ARITY",
       "PULSE_FORMULA_TOTAL_NESTED",
@@ -10037,6 +10323,7 @@
       "PULSE_RANGE_INVALID",
       "PULSE_RANGE_OVERLAP",
       "PULSE_RANGE_SOURCE_AMBIGUOUS",
+      "PULSE_RANGE_TABLE_KIND_MISMATCH",
       "PULSE_RANGE_TABLE_UNKNOWN",
       "PULSE_RECOMMEND_INTENT_UNKNOWN",
       "PULSE_REQUEST_UNKNOWN_FIELD",
@@ -10053,6 +10340,7 @@
       "PULSE_SHARD_RESERVED_NAME",
       "PULSE_SHARD_SCHEMA_MISMATCH",
       "PULSE_SHARD_SET_WIDENED",
+      "PULSE_SLOT_FAILED",
       "PULSE_SPSS_CARDINALITY_HIGH",
       "PULSE_SPSS_CATEGORICAL_OVERFLOW",
       "PULSE_SPSS_CATEGORICAL_USER_MISSING",
@@ -10261,7 +10549,7 @@
       },
       {
         "name": "pulse_range_tables",
-        "description": "CALL TO FIND WHICH NAMED DATE-RANGE SETS EXIST BEFORE GROUPING OR FILTERING BY ONE. List the registered range tables (named, reusable sets of labeled date ranges — e.g. fiscal quarters, marketing campaigns, product-launch windows). Returns each table's name, range count, and the ordered {label, start, end} ranges themselves (ISO date literals; empty start/end is an open bound). A GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter references a table by name — the INPUT direction, turning a table name into the usable range set. Returns an empty list (never an error) when no range tables are registered; tables are supplied programmatically via Options.Extensions.RangeTables or loaded from the PULSE_RANGE_TABLES_DIR directory at pulse.New time."
+        "description": "CALL TO FIND WHICH NAMED RANGE SETS EXIST BEFORE GROUPING OR FILTERING BY ONE. List the registered range tables (named, reusable sets of labeled ranges — date tables such as fiscal quarters or campaign windows, numeric tables such as a train/holdout split or score bands). Returns each table's name, kind (date | numeric), range count, and the ordered {label, start, end} ranges themselves (ranges: ISO date literals, inclusive; numeric_ranges: numbers, half-open [start, end); an omitted start/end is an open bound). A GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter references a date table by name, a GROUP_NUMERIC_RANGES grouper a numeric one — the INPUT direction, turning a table name into the usable range set; a table of the other kind is refused PULSE_RANGE_TABLE_KIND_MISMATCH. Returns an empty list (never an error) when no range tables are registered; tables are supplied programmatically via Options.Extensions.RangeTables or loaded from the PULSE_RANGE_TABLES_DIR directory at pulse.New time."
       },
       {
         "name": "pulse_recommend",
@@ -10286,6 +10574,7 @@
         "categorical": false,
         "sharded_capable": true,
         "compatible_aggregators": [
+          "AGG_AUC",
           "AGG_AVERAGE",
           "AGG_CI_LOWER",
           "AGG_CI_UPPER",
@@ -10347,22 +10636,22 @@
         "compatible_groupers": [
           "GROUP_CATEGORY",
           "GROUP_KMEANS",
+          "GROUP_NUMERIC_RANGES",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
           "WIN_DELTA",
-          "WIN_DENSE_RANK",
           "WIN_EWMA",
           "WIN_LAG",
           "WIN_LEAD",
+          "WIN_LIFT",
           "WIN_MOVING_AVG",
           "WIN_PCT_CHANGE",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER",
           "WIN_RUNNING_AVG",
-          "WIN_RUNNING_SUM"
+          "WIN_RUNNING_SUM",
+          "WIN_SHARE"
         ],
         "compatible_features": [
           "FEAT_BUCKETIZE",
@@ -10377,6 +10666,7 @@
         "categorical": false,
         "sharded_capable": true,
         "compatible_aggregators": [
+          "AGG_AUC",
           "AGG_AVERAGE",
           "AGG_CI_LOWER",
           "AGG_CI_UPPER",
@@ -10438,22 +10728,22 @@
         "compatible_groupers": [
           "GROUP_CATEGORY",
           "GROUP_KMEANS",
+          "GROUP_NUMERIC_RANGES",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
           "WIN_DELTA",
-          "WIN_DENSE_RANK",
           "WIN_EWMA",
           "WIN_LAG",
           "WIN_LEAD",
+          "WIN_LIFT",
           "WIN_MOVING_AVG",
           "WIN_PCT_CHANGE",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER",
           "WIN_RUNNING_AVG",
-          "WIN_RUNNING_SUM"
+          "WIN_RUNNING_SUM",
+          "WIN_SHARE"
         ],
         "compatible_features": [
           "FEAT_BUCKETIZE",
@@ -10468,6 +10758,7 @@
         "categorical": false,
         "sharded_capable": true,
         "compatible_aggregators": [
+          "AGG_AUC",
           "AGG_AVERAGE",
           "AGG_CI_LOWER",
           "AGG_CI_UPPER",
@@ -10529,22 +10820,22 @@
         "compatible_groupers": [
           "GROUP_CATEGORY",
           "GROUP_KMEANS",
+          "GROUP_NUMERIC_RANGES",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
           "WIN_DELTA",
-          "WIN_DENSE_RANK",
           "WIN_EWMA",
           "WIN_LAG",
           "WIN_LEAD",
+          "WIN_LIFT",
           "WIN_MOVING_AVG",
           "WIN_PCT_CHANGE",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER",
           "WIN_RUNNING_AVG",
-          "WIN_RUNNING_SUM"
+          "WIN_RUNNING_SUM",
+          "WIN_SHARE"
         ],
         "compatible_features": [
           "FEAT_BUCKETIZE",
@@ -10559,6 +10850,7 @@
         "categorical": false,
         "sharded_capable": true,
         "compatible_aggregators": [
+          "AGG_AUC",
           "AGG_AVERAGE",
           "AGG_CI_LOWER",
           "AGG_CI_UPPER",
@@ -10620,22 +10912,22 @@
         "compatible_groupers": [
           "GROUP_CATEGORY",
           "GROUP_KMEANS",
+          "GROUP_NUMERIC_RANGES",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
           "WIN_DELTA",
-          "WIN_DENSE_RANK",
           "WIN_EWMA",
           "WIN_LAG",
           "WIN_LEAD",
+          "WIN_LIFT",
           "WIN_MOVING_AVG",
           "WIN_PCT_CHANGE",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER",
           "WIN_RUNNING_AVG",
-          "WIN_RUNNING_SUM"
+          "WIN_RUNNING_SUM",
+          "WIN_SHARE"
         ],
         "compatible_features": [
           "FEAT_BUCKETIZE",
@@ -10650,6 +10942,7 @@
         "categorical": false,
         "sharded_capable": true,
         "compatible_aggregators": [
+          "AGG_AUC",
           "AGG_AVERAGE",
           "AGG_CI_LOWER",
           "AGG_CI_UPPER",
@@ -10710,22 +11003,22 @@
         "compatible_groupers": [
           "GROUP_CATEGORY",
           "GROUP_KMEANS",
+          "GROUP_NUMERIC_RANGES",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
           "WIN_DELTA",
-          "WIN_DENSE_RANK",
           "WIN_EWMA",
           "WIN_LAG",
           "WIN_LEAD",
+          "WIN_LIFT",
           "WIN_MOVING_AVG",
           "WIN_PCT_CHANGE",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER",
           "WIN_RUNNING_AVG",
-          "WIN_RUNNING_SUM"
+          "WIN_RUNNING_SUM",
+          "WIN_SHARE"
         ],
         "compatible_features": [
           "FEAT_BUCKETIZE",
@@ -10740,6 +11033,7 @@
         "categorical": false,
         "sharded_capable": true,
         "compatible_aggregators": [
+          "AGG_AUC",
           "AGG_AVERAGE",
           "AGG_CI_LOWER",
           "AGG_CI_UPPER",
@@ -10800,22 +11094,22 @@
         "compatible_groupers": [
           "GROUP_CATEGORY",
           "GROUP_KMEANS",
+          "GROUP_NUMERIC_RANGES",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
           "WIN_DELTA",
-          "WIN_DENSE_RANK",
           "WIN_EWMA",
           "WIN_LAG",
           "WIN_LEAD",
+          "WIN_LIFT",
           "WIN_MOVING_AVG",
           "WIN_PCT_CHANGE",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER",
           "WIN_RUNNING_AVG",
-          "WIN_RUNNING_SUM"
+          "WIN_RUNNING_SUM",
+          "WIN_SHARE"
         ],
         "compatible_features": [
           "FEAT_BUCKETIZE",
@@ -10830,6 +11124,7 @@
         "categorical": false,
         "sharded_capable": true,
         "compatible_aggregators": [
+          "AGG_AUC",
           "AGG_AVERAGE",
           "AGG_CI_LOWER",
           "AGG_CI_UPPER",
@@ -10890,22 +11185,22 @@
         "compatible_groupers": [
           "GROUP_CATEGORY",
           "GROUP_KMEANS",
+          "GROUP_NUMERIC_RANGES",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
           "WIN_DELTA",
-          "WIN_DENSE_RANK",
           "WIN_EWMA",
           "WIN_LAG",
           "WIN_LEAD",
+          "WIN_LIFT",
           "WIN_MOVING_AVG",
           "WIN_PCT_CHANGE",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER",
           "WIN_RUNNING_AVG",
-          "WIN_RUNNING_SUM"
+          "WIN_RUNNING_SUM",
+          "WIN_SHARE"
         ],
         "compatible_features": [
           "FEAT_BUCKETIZE",
@@ -10986,16 +11281,15 @@
         ],
         "compatible_windows": [
           "WIN_DELTA",
-          "WIN_DENSE_RANK",
           "WIN_EWMA",
           "WIN_LAG",
           "WIN_LEAD",
+          "WIN_LIFT",
           "WIN_MOVING_AVG",
           "WIN_PCT_CHANGE",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER",
           "WIN_RUNNING_AVG",
-          "WIN_RUNNING_SUM"
+          "WIN_RUNNING_SUM",
+          "WIN_SHARE"
         ],
         "compatible_features": [
           "FEAT_BUCKETIZE",
@@ -11011,6 +11305,7 @@
         "categorical": false,
         "sharded_capable": true,
         "compatible_aggregators": [
+          "AGG_AUC",
           "AGG_AVERAGE",
           "AGG_CI_LOWER",
           "AGG_CI_UPPER",
@@ -11063,11 +11358,6 @@
           "GROUP_RANGE",
           "GROUP_ROUNDED"
         ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER"
-        ],
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_FREQUENCY_ENCODE",
@@ -11106,11 +11396,6 @@
         "compatible_groupers": [
           "GROUP_CATEGORY"
         ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER"
-        ],
         "compatible_features": [
           "FEAT_FREQUENCY_ENCODE",
           "FEAT_ONE_HOT",
@@ -11146,11 +11431,6 @@
         "compatible_groupers": [
           "GROUP_CATEGORY"
         ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER"
-        ],
         "compatible_features": [
           "FEAT_FREQUENCY_ENCODE",
           "FEAT_ONE_HOT",
@@ -11185,11 +11465,6 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY"
-        ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER"
         ],
         "compatible_features": [
           "FEAT_FREQUENCY_ENCODE",
@@ -11239,11 +11514,6 @@
           "GROUP_RANGE",
           "GROUP_ROUNDED"
         ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER"
-        ],
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_LOG",
@@ -11286,11 +11556,6 @@
           "GROUP_SET_PER_ELEMENT",
           "GROUP_SET_VALUE"
         ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER"
-        ],
         "compatible_features": [
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -11328,11 +11593,6 @@
         "compatible_groupers": [
           "GROUP_SET_PER_ELEMENT",
           "GROUP_SET_VALUE"
-        ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER"
         ],
         "compatible_features": [
           "FEAT_TRAIN_TEST_SPLIT"
@@ -11372,11 +11632,6 @@
           "GROUP_SET_PER_ELEMENT",
           "GROUP_SET_VALUE"
         ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER"
-        ],
         "compatible_features": [
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -11414,11 +11669,6 @@
         "compatible_groupers": [
           "GROUP_SET_PER_ELEMENT",
           "GROUP_SET_VALUE"
-        ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER"
         ],
         "compatible_features": [
           "FEAT_TRAIN_TEST_SPLIT"
@@ -11482,11 +11732,6 @@
           "GROUP_RANGE",
           "GROUP_ROUNDED"
         ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER"
-        ],
         "compatible_features": [
           "FEAT_BUCKETIZE",
           "FEAT_DATE_FEATURES",
@@ -11529,11 +11774,6 @@
           "GROUP_SET_PER_ELEMENT",
           "GROUP_SET_VALUE"
         ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER"
-        ],
         "compatible_features": [
           "FEAT_TRAIN_TEST_SPLIT"
         ]
@@ -11571,11 +11811,6 @@
         "compatible_groupers": [
           "GROUP_SET_PER_ELEMENT",
           "GROUP_SET_VALUE"
-        ],
-        "compatible_windows": [
-          "WIN_DENSE_RANK",
-          "WIN_RANK",
-          "WIN_ROW_NUMBER"
         ],
         "compatible_features": [
           "FEAT_TRAIN_TEST_SPLIT"
@@ -11744,6 +11979,10 @@
       {
         "name": "multivariate-outputs",
         "description": "Long-form output and parameter detail for the multivariate operators — how rotated PCA and factor loadings, the maximum-likelihood fit indices, centroid distances, row scores and the vector tests lay out their figures. Topical design; the atomic op-mat-*, op-attr-* and op-test-* skills keep the short form."
+      },
+      {
+        "name": "op-agg-auc",
+        "description": "Area under the ROC curve of a score against a binary outcome — exact rank sum, ties half; gini and a DeLong interval in components."
       },
       {
         "name": "op-agg-average",
@@ -11995,7 +12234,7 @@
       },
       {
         "name": "op-feat-target-encode",
-        "description": "Replace each categorical value with the smoothed mean of a numeric Target field for that category. Leakage trap — see Gotchas."
+        "description": "Replace each categorical value with the smoothed mean of a numeric Target field over the training rows (fit_on), optionally out-of-fold. Leakage trap — see Gotchas."
       },
       {
         "name": "op-feat-train-test-split",
@@ -12064,6 +12303,10 @@
       {
         "name": "op-group-kmeans",
         "description": "Segment records into k clusters by seeded, deterministic k-means over a vector of numeric members; keys cluster_1..cluster_k by descending size."
+      },
+      {
+        "name": "op-group-numeric-ranges",
+        "description": "Bucket numeric records by labeled half-open ranges [start, end); the range label becomes the bucket key."
       },
       {
         "name": "op-group-quantile",
@@ -12347,7 +12590,7 @@
       },
       {
         "name": "op-reg-mod-resample",
-        "description": "Spec-level resampling modifier (jackknife / bootstrap) that composes with an OLS or GLM fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path."
+        "description": "Spec-level resampling modifier (jackknife — leave-one-out, grouped or by cluster — / bootstrap) that composes with an OLS or GLM fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path."
       },
       {
         "name": "op-reg-mod-selection",
@@ -12542,6 +12785,10 @@
         "description": "Per-row value of Field from N rows later in the ordered partition."
       },
       {
+        "name": "op-win-lift",
+        "description": "Lift of a field over a base column — the field's share over the base's share, (x/Σx)/(b/Σb); cumulative gives a gains table's cumulative lift."
+      },
+      {
         "name": "op-win-moving-avg",
         "description": "Moving average of Field over a bounded Frame; both ends must be set."
       },
@@ -12566,6 +12813,10 @@
         "description": "Running total of Field over the configured Frame within the ordered partition."
       },
       {
+        "name": "op-win-share",
+        "description": "Each row's share of its partition's total (x / Σx), or with cumulative the running share down the ordered rows — a capture curve."
+      },
+      {
         "name": "overlay-system",
         "description": "Overlay framework — OverlaySpec composition, reference families, three payload shapes, host-arm wiring (SERIES / MATRIX_RESULT / FACET / CHAIN / FORMULA), named payload parts of multi-output kinds. Per-kind detail lives in op-overlay-* atomics."
       },
@@ -12575,7 +12826,7 @@
       },
       {
         "name": "predict-advisories",
-        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
+        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families, a leave-one-out jackknife over a large cohort); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
       },
       {
         "name": "process-chain",
@@ -12843,7 +13094,7 @@
       },
       {
         "name": "tool-range-tables",
-        "description": "List registered range tables — named, reusable sets of labeled date ranges."
+        "description": "List registered range tables — named, reusable sets of labeled date or numeric ranges."
       },
       {
         "name": "tool-recommend",
@@ -12966,7 +13217,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 239,
+    "examples_count": 242,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -13217,6 +13468,7 @@
         "AGG_MODE_COUNT"
       ],
       "recompute_aggregators": [
+        "AGG_AUC",
         "AGG_CI_LOWER",
         "AGG_CI_UPPER",
         "AGG_KURTOSIS",
@@ -15680,6 +15932,90 @@
     ],
     "components_schemas": {
       "aggregators": {
+        "AGG_AUC": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Number of records aggregated (non-null inputs)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Number of null inputs encountered."
+            },
+            {
+              "name": "sum_weights",
+              "type": "float64",
+              "description": "Weighted slots only: the sum of the valid weights of the rows whose value was present.",
+              "optional": true
+            },
+            {
+              "name": "n_eff",
+              "type": "float64",
+              "description": "Weighted slots of kind probability only: Kish effective sample size (sum of weights)^2 / sum of squared weights.",
+              "optional": true
+            },
+            {
+              "name": "n_weight_invalid",
+              "type": "int",
+              "description": "Weighted slots only: rows with a present value whose weight was invalid (null, negative, NaN/Inf, non-integer frequency) and was excluded.",
+              "optional": true
+            },
+            {
+              "name": "auc",
+              "type": "float64",
+              "description": "Resolved AUC (the scalar)."
+            },
+            {
+              "name": "gini",
+              "type": "float64",
+              "description": "Gini coefficient (accuracy ratio) 2·AUC − 1: 0 is no discrimination, 1 perfect, negative when the score ranks backwards."
+            },
+            {
+              "name": "n_pos",
+              "type": "int",
+              "description": "Scored rows whose outcome equals params.positive (raw rows, also on a weighted slot)."
+            },
+            {
+              "name": "n_neg",
+              "type": "int",
+              "description": "Scored rows whose outcome is the other value (raw rows, also on a weighted slot)."
+            },
+            {
+              "name": "n_null_outcome",
+              "type": "int",
+              "description": "Rows whose score answered but whose outcome is null; skipped. The floor's n / n_null key on the score (field) only."
+            },
+            {
+              "name": "se",
+              "type": "float64",
+              "description": "DeLong standard error of the AUC (pROC's delong variance); null under a weight (see se_note) or when either class has fewer than 2 rows."
+            },
+            {
+              "name": "ci_lower",
+              "type": "float64",
+              "description": "Lower end of the DeLong interval at conf_level, AUC − z·se clipped to 0; null whenever se is."
+            },
+            {
+              "name": "ci_upper",
+              "type": "float64",
+              "description": "Upper end of the DeLong interval at conf_level, AUC + z·se clipped to 1; null whenever se is."
+            },
+            {
+              "name": "conf_level",
+              "type": "float64",
+              "description": "Confidence level of the DeLong interval: fixed at 0.95."
+            },
+            {
+              "name": "se_note",
+              "type": "string",
+              "description": "Weighted slots only: PULSE_AUC_DELONG_WEIGHTED — se and the interval are withheld (null) because no weighted DeLong variance is defensible; the weighted AUC and gini are exact.",
+              "optional": true
+            }
+          ],
+          "mergeability": "none"
+        },
         "AGG_AVERAGE": {
           "keys": [
             {
@@ -17497,6 +17833,36 @@
           ],
           "mergeability": "none"
         },
+        "GROUP_NUMERIC_RANGES": {
+          "keys": [
+            {
+              "name": "total_n",
+              "type": "int",
+              "description": "Total records partitioned across all buckets (post-filter)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Records that landed in the null/skip path (no bucket assignment)."
+            },
+            {
+              "name": "n_ranges",
+              "type": "int",
+              "description": "Number of configured labeled numeric ranges."
+            },
+            {
+              "name": "unmatched_label",
+              "type": "string",
+              "description": "Bucket label used for rows outside every configured range."
+            },
+            {
+              "name": "buckets",
+              "type": "[]bucket",
+              "description": "Per-bucket records in supplied range order (unmatched last when observed); each entry carries {key, label, count}."
+            }
+          ],
+          "mergeability": "mergeable"
+        },
         "GROUP_QUANTILE": {
           "keys": [
             {
@@ -18696,4 +19062,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 088fac14631ef7e2c6b1fd04a8eeebefeffd703691430116e2f7066a086dfbf2
+// golden-hash: 9ab9fd553edf9e4aa7ef5ff40f2dedfc1e9e0536cfb1739349836d087d338a6a

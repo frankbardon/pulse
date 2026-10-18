@@ -113,6 +113,42 @@
         ]
       },
       {
+        "operator": "AGG_AUC",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "How well a score separates a yes/no outcome: the chance that a randomly picked yes row scores higher than a randomly picked no row. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "params": {
+                "outcome": "\u003coutcome\u003e"
+              },
+              "type": "AGG_AUC"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "outcome"
+        ],
+        "alternatives": [
+          {
+            "when": "you need the size of the miss of a numeric prediction, not how well it ranks",
+            "use": "AGG_MAE"
+          },
+          {
+            "when": "you want to test whether the two groups' score distributions differ",
+            "use": "TEST_MANN_WHITNEY_U"
+          }
+        ]
+      },
+      {
         "operator": "AGG_MAE",
         "category": "aggregator",
         "level": "intermediate",
@@ -378,9 +414,9 @@
       }
     ],
     "truncated": false,
-    "candidates_considered": 9
+    "candidates_considered": 10
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: decc4cfcc5b6a892d6312d94ba0d55916912e92435b513ded4152756dab5c1ae
+// golden-hash: d92294b23af28e5d63f9638a3715e2a36d6915fdb04dc6c4360b3742415108c5

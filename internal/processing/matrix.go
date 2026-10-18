@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/slotfail"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/linalg"
@@ -76,6 +77,10 @@ type matrixSlot struct {
 	// fit rebuilt in cols order, bindMatrixFit): the slot folds no row
 	// and emits from it; nil folds the filtered rows.
 	bound *fittedState
+	// fitFailed is the per-slot error of a params.fit slot whose vector
+	// fit failed on its data (bindMatrixFit; nil otherwise): the slot
+	// folds no row and fails alone with it (slotResult).
+	fitFailed *types.SlotError
 	// capture receives the slot's closed listwise state when it is a
 	// Compose vector fit request's battery (nil otherwise).
 	capture *model.VectorCapture
@@ -235,8 +240,9 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 // and skips the row. A weight of 0 is valid: the row counts toward n
 // and adds no mass. The field argument is ignored (BlockMerger shape).
 func (m *matrixSlot) UpdateRow(r *Record, _ string) error {
-	if m.bound != nil {
-		// A bound fit is already folded: no row is read.
+	if m.bound != nil || m.fitFailed != nil {
+		// A bound fit is already folded, a failed one has no state: no
+		// row is read.
 		return nil
 	}
 	if m.dist != nil {
@@ -365,6 +371,28 @@ func (m *matrixSlot) result() (types.MatrixResult, *types.MatrixComponents, erro
 	return res, c, nil
 }
 
+// slotResult is result with the per-slot rule applied: a
+// data-dependent refusal (slotfail.MatrixCodes — a singular or non-PSD
+// matrix, too few rows, …) fails this slot alone, as a result carrying
+// the error (its Name and Type, no matrix) and no Components entry; any
+// other error is returned and fails the run. A params.fit slot whose
+// vector fit failed on its data fails alone the same way, with the
+// fit's own code plus details.fit (model.FailedFitSlotError).
+func (m *matrixSlot) slotResult() (types.MatrixResult, *types.MatrixComponents, error) {
+	if m.fitFailed != nil {
+		return types.MatrixResult{Name: m.plan.Name, Type: m.plan.Type, Error: m.fitFailed}, nil, nil
+	}
+	res, c, err := m.result()
+	if err == nil {
+		return res, c, nil
+	}
+	se, ok := slotfail.From(slotfail.KindMatrices, err)
+	if !ok {
+		return types.MatrixResult{}, nil, err
+	}
+	return types.MatrixResult{Name: m.plan.Name, Type: m.plan.Type, Error: se}, nil, nil
+}
+
 // merged is the state the slot emits from: the bound fit's co-moment
 // (a fresh copy per call, so no finalizer can disturb the binding) or
 // the fixed merge tree over the folded blocks.
@@ -381,8 +409,14 @@ func (m *matrixSlot) merged() (*linalg.CoMoment, error) {
 // (plan.FitLabels; PULSE_VECTOR_REFERENCE_MISMATCH labels_differ) and
 // rebuilt in column order — every figure copied, none recomputed. The
 // fit's own weight basis governs the result (the slot's weight is
-// replaced by the basis's kind), as for a fitted attribute.
+// replaced by the basis's kind), as for a fitted attribute. A failed
+// vector fit binds no state: the slot fails alone (fitFailed).
 func (m *matrixSlot) bindMatrixFit(models *model.Set) error {
+	if se, failed := models.FailedOfKind(m.plan.Fit, types.FitKindVector); failed {
+		m.fitFailed = model.FailedFitSlotError(m.plan.Fit, se)
+		m.fitFailed.Details["matrix"] = m.plan.Name
+		return nil
+	}
 	vf, err := models.LookupVector(m.plan.Fit)
 	if err != nil {
 		if ce, ok := err.(*errors.CodedError); ok {
@@ -691,7 +725,7 @@ func finalizeMatrixSlots(slots []*matrixSlot) ([]types.MatrixResult, []types.Mat
 	var out []types.MatrixResult
 	var comps []types.MatrixComponents
 	for _, s := range slots {
-		res, c, err := s.result()
+		res, c, err := s.slotResult()
 		if err != nil {
 			return nil, nil, err
 		}

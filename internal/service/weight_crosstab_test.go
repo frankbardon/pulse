@@ -181,6 +181,13 @@ func TestWeightCrosstabUnityParity(t *testing.T) {
 				}
 				ran[arm.name]++
 				assertNoWeightFloor(t, base)
+				forEachCrosstabMap(t, base, func(_, auxLabel string, m map[string]any) {
+					if auxLabel == "" {
+						for _, k := range row.weightNullKeys {
+							delete(m, k)
+						}
+					}
+				})
 				want := mustMarshal(t, base)
 				for _, src := range crosstabSources() {
 					t.Run(src.name, func(t *testing.T) {
@@ -318,6 +325,14 @@ func shedCrosstabUnity(t *testing.T, resp *types.Response, row parityOp, aware m
 		}
 		for _, k := range weightOnly {
 			delete(m, k)
+		}
+		if auxLabel == "" {
+			for _, k := range row.weightNullKeys {
+				if v, ok := m[k].(float64); !ok || !math.IsNaN(v) {
+					t.Errorf("%s: %s = %v under a weight, want null (NaN)", where, k, m[k])
+				}
+				delete(m, k)
+			}
 		}
 	})
 }

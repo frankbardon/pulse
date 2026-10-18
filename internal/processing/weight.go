@@ -180,8 +180,8 @@ func StampWeightsWith(req *types.Request, def *types.WeightSpec, exts *Extension
 	// A built-in regression reads the weight when its class has a kind
 	// (there is no extension REG_* category); the resolver has already
 	// refused a weight in force on a pending regression, on one carrying
-	// a resample or selection modifier, and a probability weight on a
-	// frequency-only one.
+	// a bootstrap resample or a selection modifier, and a probability
+	// weight on a frequency-only one.
 	if len(req.Regressions) > 0 {
 		c.Regressions = make([]*types.RegressionSpec, len(req.Regressions))
 		for i, r := range req.Regressions {
@@ -189,10 +189,11 @@ func StampWeightsWith(req *types.Request, def *types.WeightSpec, exts *Extension
 			if r == nil {
 				continue
 			}
-			// A resample / selection modifier refits on row subsets with no
-			// weighted form: such a slot is never stamped (the resolver
-			// refuses any weight in force on it).
-			aware := weighting.IsAware(string(r.Type)) && r.Resample == "" && r.Selection == ""
+			// A bootstrap / selection modifier refits on row subsets with
+			// no weighted form: such a slot is never stamped (the resolver
+			// refuses any weight in force on it). A jackknife is weighted
+			// (JK1): every replicate refits with the remaining weights.
+			aware := weighting.IsAware(string(r.Type)) && (r.Resample == "" || r.Resample == "jackknife") && r.Selection == ""
 			if w, ok := stampSlotWeight(r.Weight, aware, req.Weight, def); ok {
 				cp := *r
 				cp.Weight = w

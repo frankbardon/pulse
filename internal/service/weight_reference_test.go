@@ -55,6 +55,7 @@ type weightRefRow struct {
 	s       uint64
 	sNull   bool
 	w, f, p float64
+	b       float64 // binary outcome (AGG_AUC)
 }
 
 type weightRefCase struct {
@@ -80,6 +81,7 @@ func weightRefSchema() *encoding.Schema {
 		{Name: "w", Type: encoding.FieldTypeF64, ByteOffset: 17, CsvColumnIdx: 3},
 		{Name: "f", Type: encoding.FieldTypeF64, ByteOffset: 25, CsvColumnIdx: 4},
 		{Name: "p", Type: encoding.FieldTypeF64, ByteOffset: 33, CsvColumnIdx: 5},
+		{Name: "b", Type: encoding.FieldTypeF64, ByteOffset: 41, CsvColumnIdx: 6},
 	}}
 }
 
@@ -88,7 +90,7 @@ func weightRefService(t *testing.T) *Service {
 	recs := make([][]uint64, len(weightRefRows))
 	for i, r := range weightRefRows {
 		recs[i] = []uint64{math.Float64bits(r.x), math.Float64bits(r.y), r.s,
-			math.Float64bits(r.w), math.Float64bits(r.f), math.Float64bits(r.p)}
+			math.Float64bits(r.w), math.Float64bits(r.f), math.Float64bits(r.p), math.Float64bits(r.b)}
 	}
 	b := writeNullablePulse(t, weightRefSchema(), recs, func(r, f int) bool {
 		return (f == 0 && weightRefRows[r].xNull) || (f == 2 && weightRefRows[r].sNull)
@@ -337,6 +339,8 @@ var weightRefScale = map[types.AggregationType]string{
 	types.AGG_MAPE: "free",
 	types.AGG_RMSE: "free",
 	types.AGG_MAE:  "free",
+	// A ratio of weighted pair sums: Σwᵢwⱼψ / (Σw₊·Σw₋).
+	types.AGG_AUC: "free",
 	// Per element: a weighted mean is scale-free, a weighted total
 	// scales.
 	types.AGG_VEC_MEAN: "free",

@@ -1879,8 +1879,14 @@
             "null"
           ]
         },
+        "error": {
+          "$ref": "#/$defs/SlotError"
+        },
         "family": {
           "type": "string"
+        },
+        "jackknife_groups": {
+          "type": "integer"
         },
         "l1_ratio": {
           "type": [
@@ -2007,6 +2013,12 @@
         },
         "family": {
           "type": "string"
+        },
+        "jackknife_by": {
+          "type": "string"
+        },
+        "jackknife_groups": {
+          "type": "integer"
         },
         "l1_ratio": {
           "type": "number"
@@ -2510,6 +2522,26 @@
       ],
       "type": "object"
     },
+    "SlotError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
     "StageRef": {
       "additionalProperties": false,
       "properties": {
@@ -2596,6 +2628,13 @@
     },
     "TestResult": {
       "additionalProperties": false,
+      "if": {
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      },
       "properties": {
         "alpha": {
           "type": [
@@ -2612,6 +2651,9 @@
             "number",
             "null"
           ]
+        },
+        "error": {
+          "$ref": "#/$defs/SlotError"
         },
         "group_key": {
           "items": true,
@@ -2655,12 +2697,16 @@
         }
       },
       "required": [
-        "alpha",
-        "p_value",
-        "reject_null",
-        "statistic",
         "type"
       ],
+      "then": {
+        "required": [
+          "alpha",
+          "p_value",
+          "reject_null",
+          "statistic"
+        ]
+      },
       "type": "object"
     },
     "TestType": {
@@ -2744,4 +2790,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 71d3ff6748c9ff647851c16f45e1be46ec23db6e9426d992f953fe1c73b0c7f9
+// golden-hash: b2579799f8782e67183c98ef468d0a1798fd4e5fd6d4ffa3c68fe457dd11a8d0

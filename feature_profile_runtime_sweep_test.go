@@ -108,7 +108,6 @@ func runtimeSweepCases() []runtimeSweepCase {
 				r.Aggregations = []*types.Aggregation{count}
 				r.PostTests = []*types.Test{{Type: types.TEST_TUKEY_HSD, Field: "n", SplitBy: "region"}}
 			}))},
-		{"REG_GLM alpha", with("REG_GLM"), []string{"REG_OLS"}, sweepProcess(reg(types.RegressionSpec{Type: types.REG_GLM, Family: "poisson", Alpha: 1}))},
 		{"REG_BAYES_LINEAR penalty", with("REG_BAYES_LINEAR"), []string{"REG_OLS"}, sweepProcess(reg(types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Penalty: "l2"}))},
 		{"REG_BAYES_LINEAR family", with("REG_BAYES_LINEAR"), []string{"REG_GLM"}, sweepProcess(reg(types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Family: "poisson"}))},
 		{"REG_BAYES_LINEAR link", with("REG_BAYES_LINEAR"), []string{"REG_GLM"}, sweepProcess(reg(types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Link: "log"}))},

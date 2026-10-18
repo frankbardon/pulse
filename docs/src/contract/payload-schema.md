@@ -82,7 +82,10 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   number), `ExplainResult` (its `findings[].numbers` values are
   `["number", "null"]`, `verdict` the closed `Verdict` enum; `warnings` relays predict's
   coded warnings). A bootstrap `RegressionResult` echoes
-  `bootstrap_requested` / `bootstrap_succeeded`. Each
+  `bootstrap_requested` / `bootstrap_succeeded`; a delete-a-group
+  jackknife (`RegressionSpec.jackknife_groups` / `jackknife_by`, both
+  additive `omitempty`) echoes its replicate count as
+  `jackknife_groups`, absent on leave-one-out. Each
   `ComposedResponse.responses[i]` echoes its slot's final `label`
   (absent on a standalone `Response`).
 - **Advisory** — `#/$defs/Advisory`, one entry of a predict result's
@@ -752,7 +755,8 @@ reads the inference size N* (Σw frequency, n_eff probability), as its
 standard errors do. `correlation` is `vcov` scaled to a unit diagonal
 (R's `cov2cor`); an entry with a zero or undefined variance is `null`.
 Under `resample` it is the replicate covariance (jackknife
-(n−1)/n·Σ(β₋ᵢ−β̄)(β₋ᵢ−β̄)ᵀ, bootstrap the B−1 sample covariance of the
+(g−1)/g·Σ(β₋ₖ−β̄)(β₋ₖ−β̄)ᵀ over its g delete groups, g = n on
+leave-one-out; bootstrap the B−1 sample covariance of the
 successful replicates), under `selection` the final refit's covariance
 keyed `(intercept)` + the selected predictors — so its diagonal is
 `std_errors`² there too. Lasso / elastic net refuse `vcov`, with or
@@ -1050,7 +1054,8 @@ fit's `{"vector": VectorFitResult}` — `operator`, `labels`, `members`,
 `basis`, `n`, `n_weight_invalid`, `sum_weights`, `n_star`, `mean` and
 `covariance` (a full square-symmetric `MatrixValues`, M2*/(N* − 1) on the
 fit's weight basis; undefined cells `null`). The `vector` key
-discriminates. The object is pinned outside the Compose-level `return`
+discriminates. A fit that failed on its data keeps its entry with
+an `error` and no figures (see Failed slots). The object is pinned outside the Compose-level `return`
 like `ranking` (always emitted, never rounded). Both slots are gated by
 `capability:compose_fits`. `pulse_predict` with `composed` lists them as
 `fits [{name, type, target, predictors, cohort}]` — a vector fit as
@@ -1213,6 +1218,71 @@ Widening those slots did not move `format_version` (still `"1.1"`):
 every document the schema accepted before it still accepts, and output
 that serialised before is byte-identical — the only outputs that
 change are ones that previously failed to serialise at all.
+
+## Failed slots
+
+A regression, test (tier-1 or post) or matrix slot whose data its
+operator refuses — a separated or unconverged fit, a rank-deficient
+design, too few rows, zero variance, a singular matrix — fails **that
+slot alone**; every other slot of the response is returned as usual.
+The failed result keeps its object (never `null` in the array: a
+`null` entry still means the slot was skipped by `return`) with its
+identity and an `error` — a `SlotError` `{code, message, details}`,
+the refusal's own code, message and details, the shape of an envelope
+error entry:
+
+```json
+{"regressions": [
+  {"name": "default", "type": "REG_GLM",
+   "error": {"code": "PROCESSING_REGRESSION_SEPARATION",
+             "message": "…", "details": {"predictors": ["collections_flag"]}}},
+  {"name": "ols", "type": "REG_OLS", "coefficients": {"…": 0.5}}
+]}
+```
+
+Every numeric field of a failed result is **absent** (not `null`): a
+`RegressionResult` writes `name`, `type` and `error`; a `TestResult`
+`label`, `type`, `group_key` and `error`; a `MatrixResult` `name`,
+`type`, `group_key`, `group_header` and `error`. The schema says so:
+on `TestResult`, `RegressionResult` and `MatrixResult` the identity
+keys (`name` / `type`) stay required and the figures that are always
+written otherwise (`statistic`, `p_value`, `alpha`, `reject_null`;
+`primary`) are required only when `error` is absent (`if` / `then`).
+
+Each failed slot also adds a `PULSE_SLOT_FAILED` response warning,
+details `{slot_kind, index, label, code}` (`slot_kind` the response
+key, `index` the request slot index, `code` the slot's own code;
+`group_key` for one bucket of a grouped matrix), which the `--json`
+envelope lifts to its `warnings`; the run exits 0. Under
+`Options.Strict` (`--strict`) the run instead fails with the slot's
+own code. Only data-dependent refusals fail alone: a configuration
+fault is still fatal for the whole request. A failed slot's `error` is
+kept by every `return` preset and include list (like a nested
+`warnings`); only an explicit exclude removes it.
+
+A Compose `fits` entry whose fit fails on its data fails alone too: its
+`ComposedResponse.fits[name]` entry carries `error` beside its identity
+— `{name, type, error}` for a regression fit, `{"vector": {operator,
+error}}` for a vector fit (on `VectorFitResult` `operator` stays
+required and the figures move under the same `if` / `then`) — its
+`PULSE_SLOT_FAILED` warning lifts to the batch `warnings` with
+`details.fit`, and every other fit and slot runs. An attribute reading
+it — `ATTR_REG_PREDICT` scoring it, an `ATTR_FORMULA` naming it in a
+literal `coef()` call, a fitted vector attribute's `params.fit`, a
+`{population}` reference — is `null` on every row and adds a
+`PULSE_FIT_UNAVAILABLE` warning `{fit, attribute, code}` to that slot's
+response; a `MAT_*` slot's `params.fit` fails that slot alone (a
+`matrices` entry `{name, type, error}` with the fit's own code and
+`details.fit`, plus its `PULSE_SLOT_FAILED` warning). A
+`FILTER_EXPRESSION` naming it in `coef()` (a filter's verdict cannot be
+null) and a `coef()` whose fit name is not a literal are refused with
+the fit's own code and `details.fit`. Under `Options.Strict` the batch
+fails with the fit's own code. Predict
+cannot foresee a data fault, so `pulse predict` never reports a fit as
+failing.
+
+Additive: a response with no failed slot is byte-identical, and
+`format_version` stays `"1.1"`.
 
 ## Whether a crosstab fuses is a predict answer
 

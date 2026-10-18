@@ -6,6 +6,7 @@ package daterange
 
 import (
 	"sort"
+	"strconv"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -189,4 +190,40 @@ func Compile(specs []Spec) (*Set, error) {
 	}
 
 	return &Set{ranges: ranges}, nil
+}
+
+// SourceAmbiguity enforces the inline-XOR-table source contract every
+// range operator shares (GROUP_DATE_RANGES, FILTER_DATE_RANGES,
+// GROUP_NUMERIC_RANGES): exactly one of an inline `ranges` array or a
+// named `table`. Both, or neither, is PULSE_RANGE_SOURCE_AMBIGUOUS. It
+// needs no registry, so callers surface it before any table lookup.
+func SourceAmbiguity(operator string, hasInline, hasTable bool) error {
+	switch {
+	case hasInline && hasTable:
+		return errors.NewCodedErrorWithDetails(errors.PULSE_RANGE_SOURCE_AMBIGUOUS,
+			operator+": specify exactly one of inline `ranges` or a named `table`, not both",
+			map[string]any{"operator": operator})
+	case !hasInline && !hasTable:
+		return errors.NewCodedErrorWithDetails(errors.PULSE_RANGE_SOURCE_AMBIGUOUS,
+			operator+": one of inline `ranges` or a named `table` is required",
+			map[string]any{"operator": operator})
+	default:
+		return nil
+	}
+}
+
+// The two range-table kinds. A table is typed by its bounds: ISO date
+// strings make a date table, JSON numbers a numeric table.
+const (
+	KindDate    = "date"
+	KindNumeric = "numeric"
+)
+
+// KindMismatch is the refusal of a range operator naming a registered
+// table of the other kind: PULSE_RANGE_TABLE_KIND_MISMATCH, details
+// {operator, table, want, got}.
+func KindMismatch(operator, table, want, got string) error {
+	return errors.NewCodedErrorWithDetails(errors.PULSE_RANGE_TABLE_KIND_MISMATCH,
+		operator+": range table "+strconv.Quote(table)+" is a "+got+" table; "+operator+" reads a "+want+" table",
+		map[string]any{"operator": operator, "table": table, "want": want, "got": got})
 }

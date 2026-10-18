@@ -32,7 +32,7 @@ One `float64` per row written to `Label` (default `WIN_RUNNING_AVG_<field>`). Ar
 ## Gotchas
 
 - Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.
-- Mechanically identical to a moving average; the differentiator is FRAME — `MOVING_AVG` requires bounded both sides, `RUNNING_AVG` accepts unbounded preceding (cumulative).
+- Mechanically identical to a moving average; the differentiator is FRAME — `MOVING_AVG` requires bounded both sides, `RUNNING_AVG` accepts unbounded preceding (cumulative). No frame → `PULSE_WINDOW_INVALID` (predict and runtime).
 - Nulls skipped (not zero-filled); denominator is non-null count.
 - Result rows are NOT reordered — use `Request.Sort` for response order.
 - Forces buffered execution (`Streamable=false`).

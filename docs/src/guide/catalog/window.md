@@ -9,12 +9,14 @@ The window operators this instance offers: what each is for, the questions it an
 | [`WIN_EWMA`](#op-win_ewma) | Adds a smoothed series: each new value counts for a fixed share w, the previous smoothed level for 1 - w, so older values fade. | What is the underlying level of daily demand once day-to-day noise is damped? | intermediate | [`WIN_MOVING_AVG`](#op-win_moving_avg) when you want every row in a fixed window to count equally.<br>[`OVERLAY_ZSCORE_VS_ROLLING`](overlay.md#op-overlay_zscore_vs_rolling) when you want how unusual each period is against its recent run. |
 | [`WIN_LAG`](#op-win_lag) | Adds to every row the value of a field from a set number of rows earlier in the ordered series, such as last month's sales. | What were each store's sales in the month before, on the same row as this month's? | basic | [`WIN_DELTA`](#op-win_delta) when you want the difference from the earlier row, not its value.<br>[`WIN_LEAD`](#op-win_lead) when you want the value from a later row.<br>[`OVERLAY_INDEX_VS_PRIOR`](overlay.md#op-overlay_index_vs_prior) when you want each period against the period before it as an index. |
 | [`WIN_LEAD`](#op-win_lead) | Adds to every row the value of a field from a set number of rows later in the ordered series, such as next month's sales. | What did each customer spend in the following month, beside this month's spend? | basic | [`WIN_LAG`](#op-win_lag) when you want the value from an earlier row.<br>[`WIN_DELTA`](#op-win_delta) when you want how much the field changed between rows. |
+| [`WIN_LIFT`](#op-win_lift) | Adds how many times its share of one column a row holds of another, such as a decile's share of defaults over its share of loans. | How many times the average default rate do the riskiest deciles of a score capture? | intermediate | [`WIN_SHARE`](#op-win_share) when you want one column's share of its own total.<br>[`AGG_AUC`](aggregator.md#op-agg_auc) when you want how well a score ranks one outcome above the other as one number.<br>[`OVERLAY_INDEX_VS_TOTAL`](overlay.md#op-overlay_index_vs_total) when you want each group against the overall figure as an index. |
 | [`WIN_MOVING_AVG`](#op-win_moving_avg) | Adds a moving average: the mean of a field over a fixed number of neighbouring rows, smoothing short-term swings in a series. | What is the trailing seven-day average of daily orders? | basic | [`WIN_RUNNING_AVG`](#op-win_running_avg) when you want the average of everything up to this row.<br>[`WIN_EWMA`](#op-win_ewma) when you want recent rows to count more than older ones.<br>[`OVERLAY_INDEX_VS_ROLLING_MEAN`](overlay.md#op-overlay_index_vs_rolling_mean) when you want each period against its recent average. |
 | [`WIN_PCT_CHANGE`](#op-win_pct_change) | Adds the change from a set number of rows earlier as a fraction of the earlier value: 0.05 is a 5% rise on last month. | By what percentage did each month's revenue grow on the month before? | basic | [`WIN_DELTA`](#op-win_delta) when the earlier value can be 0, near 0 or negative, or the field is itself a percentage.<br>[`OVERLAY_YOY`](overlay.md#op-overlay_yoy) when you want the same year-ago period as the comparison.<br>[`OVERLAY_INDEX_VS_PRIOR`](overlay.md#op-overlay_index_vs_prior) when you want each period as an index value against the one before. |
 | [`WIN_RANK`](#op-win_rank) | Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next skips: 1, 2, 2, 4. | Where does each store rank on revenue within its region? | basic | [`WIN_DENSE_RANK`](#op-win_dense_rank) when equal values should share a rank with no gap after them.<br>[`WIN_ROW_NUMBER`](#op-win_row_number) when every row needs its own number even when values are equal.<br>[`ATTR_PERCENTILE`](attribute.md#op-attr_percentile) when you want each record's position as a percentage of all records. |
 | [`WIN_ROW_NUMBER`](#op-win_row_number) | Numbers the rows 1, 2, 3 within each partition in the chosen order, for picking the first few rows of every group. | Which are the top three products by revenue in each region? | basic | [`WIN_RANK`](#op-win_rank) when rows with equal values should share a position.<br>[`WIN_DENSE_RANK`](#op-win_dense_rank) when you want ranks without gaps after equal values. |
 | [`WIN_RUNNING_AVG`](#op-win_running_avg) | Adds the average of a field over the rows so far in the ordered series, such as the average order value to date. | What is the average monthly revenue for the year so far, at each month? | basic | [`WIN_MOVING_AVG`](#op-win_moving_avg) when you want the average of a fixed number of recent rows.<br>[`AGG_AVERAGE`](aggregator.md#op-agg_average) when you want one average per group, not a running one. |
 | [`WIN_RUNNING_SUM`](#op-win_running_sum) | Adds a running total of a field down the ordered rows, such as revenue for the year to date. | What is the year-to-date revenue at the end of each month? | basic | [`AGG_SUM`](aggregator.md#op-agg_sum) when you want one total per group, not a running one.<br>[`WIN_RUNNING_AVG`](#op-win_running_avg) when you want the running average instead of the total. |
+| [`WIN_SHARE`](#op-win_share) | Adds each row's share of its partition's total, or the running share down the ordered rows, such as the share of defaults caught so far. | What share of all defaults falls in each score decile, and how much do the riskiest deciles capture together? | basic | [`WIN_RUNNING_SUM`](#op-win_running_sum) when you want the running total itself, not as a share.<br>[`WIN_LIFT`](#op-win_lift) when you want how much richer in the field a row is than its share of another column.<br>[`OVERLAY_SHARE_OF_TOTAL`](overlay.md#op-overlay_share_of_total) when you want each group's share as a decoration on the result. |
 
 ## Operators
 
@@ -196,6 +198,42 @@ Adds to every row the value of a field from a set number of rows later in the or
 **Glossary:** [`missing-value`](../glossary.md#term-missing-value)
 
 **Skill:** [`op-win-lead`](../skills/op-win-lead.md)
+
+<a id="op-win_lift"></a>
+
+### `WIN_LIFT`
+
+Adds how many times its share of one column a row holds of another, such as a decile's share of defaults over its share of loans.
+
+**Level:** intermediate
+
+**Questions it answers:**
+
+- How many times the average default rate do the riskiest deciles of a score capture?
+- Which stores sell more than their share of floor space would predict?
+
+**Use cases by domain:**
+
+- *survey:* A segment's share of complaints over its share of respondents.
+- *ops:* Cumulative lift of a churn score: share of churners caught over share of customers contacted.
+- *science:* A site's share of cases over its share of the population at risk.
+
+**Assumptions:**
+
+- Runs on the result's rows after grouping: one row per group, or one per filtered record when nothing is grouped.
+- Computed separately within each partition_by slice, in order_by order; with no partition the whole result is one series.
+- It is the field's share divided by the base's share, each total over its own values present; with cumulative both are running shares in order_by order.
+- A missing value on either side, or a zero base share, reads null.
+
+**Use something else:**
+
+- [`WIN_SHARE`](#op-win_share) when you want one column's share of its own total.
+- [`AGG_AUC`](aggregator.md#op-agg_auc) when you want how well a score ranks one outcome above the other as one number.
+- [`OVERLAY_INDEX_VS_TOTAL`](overlay.md#op-overlay_index_vs_total) when you want each group against the overall figure as an index.
+
+**Glossary:** [`baseline`](../glossary.md#term-baseline), [`missing-value`](../glossary.md#term-missing-value)
+
+**Skill:** [`op-win-lift`](../skills/op-win-lift.md)
 
 <a id="op-win_moving_avg"></a>
 
@@ -412,3 +450,39 @@ Adds a running total of a field down the ordered rows, such as revenue for the y
 **Glossary:** [`missing-value`](../glossary.md#term-missing-value)
 
 **Skill:** [`op-win-running-sum`](../skills/op-win-running-sum.md)
+
+<a id="op-win_share"></a>
+
+### `WIN_SHARE`
+
+Adds each row's share of its partition's total, or the running share down the ordered rows, such as the share of defaults caught so far.
+
+**Level:** basic
+
+**Questions it answers:**
+
+- What share of all defaults falls in each score decile, and how much do the riskiest deciles capture together?
+- What fraction of each region's revenue does each store bring in?
+
+**Use cases by domain:**
+
+- *survey:* Each answer's share of the responses within its question.
+- *ops:* Cumulative share of tickets handled by the busiest agents first.
+- *science:* Share of the total dose each visit delivered, per subject.
+
+**Assumptions:**
+
+- Runs on the result's rows after grouping: one row per group, or one per filtered record when nothing is grouped.
+- Computed separately within each partition_by slice, in order_by order; with no partition the whole result is one series.
+- Without cumulative no order is needed; with it the running total runs from the partition's first row in order_by order to this one.
+- Missing values add nothing to the total; a zero total reads null.
+
+**Use something else:**
+
+- [`WIN_RUNNING_SUM`](#op-win_running_sum) when you want the running total itself, not as a share.
+- [`WIN_LIFT`](#op-win_lift) when you want how much richer in the field a row is than its share of another column.
+- [`OVERLAY_SHARE_OF_TOTAL`](overlay.md#op-overlay_share_of_total) when you want each group's share as a decoration on the result.
+
+**Glossary:** [`missing-value`](../glossary.md#term-missing-value)
+
+**Skill:** [`op-win-share`](../skills/op-win-share.md)

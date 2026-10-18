@@ -1,6 +1,7 @@
 package pulse
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -18,11 +19,13 @@ const envRangeTablesDir = "PULSE_RANGE_TABLES_DIR"
 // opts.Extensions.RangeTables; a name that is already declared
 // programmatically is PULSE_EXTENSION_DUPLICATE (dirCollision — a
 // table must have exactly one source of truth). The registered ranges are validated later, at
-// extension-validation time, via daterange.Compile.
+// extension-validation time, via daterange.Compile / numrange.Compile.
 //
 // File format: either a bare array of range objects
 // [{"label":"Q1","start":"2024-01-01","end":"2024-03-31"}, ...] or a
-// wrapped object {"description": "...", "ranges": [ ... ]}. The filename
+// wrapped object {"description": "...", "ranges": [ ... ]}. The bounds
+// type the table: ISO date strings a date table, JSON numbers a numeric
+// one ([{"label":"train","start":0,"end":91}, ...]). The filename
 // without .json becomes the registered table name.
 //
 // Files matching a known Pulse sidecar suffix (internal/imports.SidecarSuffix,
@@ -96,24 +99,70 @@ func loadRangeTablesFromDir(opts *Options) error {
 }
 
 // parseRangeTableFile accepts either a bare array of range specs or a
-// wrapped object carrying an optional description. Structural validation
-// of the ranges themselves (overlap / duplicate label / empty / invalid
-// boundary) is deferred to daterange.Compile at extension-validation
-// time — this parser only unmarshals the file shape.
+// wrapped object carrying an optional description, and types the table
+// by its bounds: JSON numbers make a numeric table (NumericRanges), ISO
+// date strings a date table (Ranges). A table mixing the two is refused
+// here; a table whose every bound is omitted / null is a date table (the
+// shape every pre-numeric table file had). Structural validation of the
+// ranges themselves (overlap / duplicate label / empty / invalid
+// boundary) is deferred to the shared range-compilation pass at
+// extension-validation time — this parser only unmarshals the file shape.
 func parseRangeTableFile(raw []byte) (RangeTable, error) {
 	var wrapped struct {
-		Description string          `json:"description"`
-		Ranges      []DateRangeSpec `json:"ranges"`
+		Description string            `json:"description"`
+		Ranges      []json.RawMessage `json:"ranges"`
 	}
 	if err := json.Unmarshal(raw, &wrapped); err == nil && wrapped.Ranges != nil {
-		return RangeTable{Description: wrapped.Description, Ranges: wrapped.Ranges}, nil
+		return typedRangeTable(wrapped.Description, wrapped.Ranges)
 	}
-	var flat []DateRangeSpec
+	var flat []json.RawMessage
 	if err := json.Unmarshal(raw, &flat); err != nil {
 		return RangeTable{}, err
 	}
 	if len(flat) == 0 {
 		return RangeTable{}, fmt.Errorf("empty range table")
 	}
-	return RangeTable{Ranges: flat}, nil
+	return typedRangeTable("", flat)
+}
+
+// typedRangeTable decodes ranges into a date or a numeric table by the
+// JSON type of their present, non-null bounds.
+func typedRangeTable(description string, ranges []json.RawMessage) (RangeTable, error) {
+	var sawString, sawNumber bool
+	for _, r := range ranges {
+		var bounds struct {
+			Start json.RawMessage `json:"start"`
+			End   json.RawMessage `json:"end"`
+		}
+		if err := json.Unmarshal(r, &bounds); err != nil {
+			return RangeTable{}, err
+		}
+		for _, b := range []json.RawMessage{bounds.Start, bounds.End} {
+			b = bytes.TrimSpace(b)
+			switch {
+			case len(b) == 0 || string(b) == "null":
+			case b[0] == '"':
+				sawString = true
+			default:
+				sawNumber = true
+			}
+		}
+	}
+	if sawString && sawNumber {
+		return RangeTable{}, fmt.Errorf("range table mixes date (string) and numeric bounds; a table is one kind")
+	}
+	joined, err := json.Marshal(ranges)
+	if err != nil {
+		return RangeTable{}, err
+	}
+	tbl := RangeTable{Description: description}
+	if sawNumber {
+		err = json.Unmarshal(joined, &tbl.NumericRanges)
+	} else {
+		err = json.Unmarshal(joined, &tbl.Ranges)
+	}
+	if err != nil {
+		return RangeTable{}, err
+	}
+	return tbl, nil
 }

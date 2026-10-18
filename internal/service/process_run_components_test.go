@@ -154,7 +154,7 @@ func TestService_Process_RunComponents_BufferedPath(t *testing.T) {
 			{Type: types.AGG_SUM, Field: "score", Label: "total"},
 		},
 		Windows: []*types.Window{
-			{Type: types.WIN_RANK, Field: "score", Label: "rk"},
+			{Type: types.WIN_RANK, Label: "rk", OrderBy: []types.OrderKey{{Field: "total"}}},
 		},
 	}
 	run := runProcessForRunComponents(t, svc, req)

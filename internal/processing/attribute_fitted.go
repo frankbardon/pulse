@@ -308,6 +308,11 @@ type fittedVectorAttribute struct {
 	fitName  string
 	labels   []string
 	prebuilt *fittedState
+	// fitFailed: params.fit names a Compose vector fit that failed on
+	// its data (model.Set.FailedOfKind) — no state to bind, so the slot
+	// closes at bind unusable (every score null) with one
+	// PULSE_FIT_UNAVAILABLE warning; row-local like a bound fit.
+	fitFailed bool
 
 	weight *types.WeightSpec
 	basis  weighting.Basis
@@ -402,6 +407,11 @@ func (a *fittedVectorAttribute) bindFitOn(exts *ExtensionRegistry, models *model
 		a.capture = models.Capture()
 	}
 	if a.fitName != "" {
+		if se, failed := models.FailedOfKind(a.fitName, types.FitKindVector); failed {
+			a.fitFailed, a.finalized = true, true
+			a.warnings = append(a.warnings, model.FitUnavailable(a.fitName, a.label, se))
+			return nil
+		}
 		vf, err := models.LookupVector(a.fitName)
 		if err != nil {
 			if ce, ok := err.(*errors.CodedError); ok {
@@ -452,9 +462,9 @@ func (a *fittedVectorAttribute) readMembers(rec *Record, x []float64) bool {
 // positive.
 func (a *fittedVectorAttribute) PrePass(rec *Record, _ string) error {
 	if a.fitName != "" {
-		// A bound fit is already fitted (and closed at bind): nothing
-		// to fold.
-		if a.prebuilt == nil {
+		// A bound fit is already fitted (and closed at bind), a failed
+		// one has nothing to fit: nothing to fold.
+		if a.prebuilt == nil && !a.fitFailed {
 			return errors.NewCodedError(errors.PROCESSING_INTERNAL,
 				string(a.typ)+" params.fit was not bound before PrePass")
 		}
@@ -495,7 +505,7 @@ func (a *fittedVectorAttribute) PrePass(rec *Record, _ string) error {
 // PULSE_MATRIX_INSUFFICIENT_N; otherwise the model fits. A bound fit
 // (params.fit) closed at bind, so Finalize is then a no-op.
 func (a *fittedVectorAttribute) Finalize() error {
-	if a.prebuilt != nil && a.finalized {
+	if (a.prebuilt != nil || a.fitFailed) && a.finalized {
 		return nil
 	}
 	if a.finalized {
@@ -506,8 +516,9 @@ func (a *fittedVectorAttribute) Finalize() error {
 }
 
 // prebuiltFit reports whether the slot is bound to a prebuilt fit
-// (params.fit) — closed at bind, so row-local (prebuiltAttribute).
-func (a *fittedVectorAttribute) prebuiltFit() bool { return a.prebuilt != nil }
+// (params.fit) — closed at bind, so row-local (prebuiltAttribute); a
+// failed fit's slot closed at bind too (unusable).
+func (a *fittedVectorAttribute) prebuiltFit() bool { return a.prebuilt != nil || a.fitFailed }
 
 // close is Finalize's body: decompose the fit (folded, or the bound
 // prebuilt state) and decide usability, once.

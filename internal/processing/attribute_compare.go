@@ -99,6 +99,11 @@ type comparisonCore struct {
 	exts   *ExtensionRegistry
 	models *model.Set
 	bound  bool
+	// unavailable is the PULSE_FIT_UNAVAILABLE warning of a
+	// {population} reference naming a Compose vector fit that failed on
+	// its data (bindPopulation; nil otherwise): every row is null,
+	// counted in no tally.
+	unavailable *types.ResponseWarning
 	// centroid folds a centroid reference (nil for any other form).
 	centroid *centroidFold
 	// static is the reference in member order (every form but
@@ -193,6 +198,11 @@ func (c *comparisonCore) bindInputs(exts *ExtensionRegistry, models *model.Set, 
 // stored mean, aligned to the slot's labels by label.
 func (c *comparisonCore) bindPopulation() error {
 	name := c.cfg.Reference.Population
+	if se, failed := c.models.FailedOfKind(name, types.FitKindVector); failed {
+		c.unavailable = model.FitUnavailable(name, c.label, se)
+		c.bound = true
+		return nil
+	}
 	vf, err := c.models.LookupVector(name)
 	if err != nil {
 		var ce *errors.CodedError
@@ -395,6 +405,14 @@ func (c *comparisonCore) row(rec *Record, stats *metric.Stats) (float64, error) 
 	if len(c.members) == 0 {
 		return math.NaN(), nil
 	}
+	if !c.bound {
+		if err := c.bind(); err != nil {
+			return math.NaN(), err
+		}
+	}
+	if c.unavailable != nil {
+		return math.NaN(), nil
+	}
 	ref, ok, err := c.reference(rec)
 	if err != nil || !ok {
 		return math.NaN(), err
@@ -415,12 +433,16 @@ func (c *comparisonCore) resetTally() {
 	c.nRefMissing, c.nKeyNull, c.unmatched, c.nDomain, c.domainReasons = 0, 0, nil, 0, nil
 }
 
-// warnings are the slot's Response warnings: one
+// warnings are the slot's Response warnings: its PULSE_FIT_UNAVAILABLE
+// (a {population} over a failed fit), then one
 // PULSE_VECTOR_REFERENCE_MISSING when any row had no profile, one
 // PULSE_VECTOR_METRIC_DOMAIN when any row fell outside the metric's
 // domain; none on a clean run.
 func (c *comparisonCore) warnings() []*types.ResponseWarning {
 	var out []*types.ResponseWarning
+	if c.unavailable != nil {
+		out = append(out, c.unavailable)
+	}
 	if c.nRefMissing > 0 {
 		keys := c.unmatched
 		if keys == nil {

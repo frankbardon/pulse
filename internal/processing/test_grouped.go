@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/groupedtests"
 	"github.com/frankbardon/pulse/internal/limits"
+	"github.com/frankbardon/pulse/internal/slotfail"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -37,21 +38,9 @@ import (
 
 // sparseTestCodes are the data-dependent Finalize refusals a grouped run
 // turns into a null-statistics result for the one group they hit.
-var sparseTestCodes = map[errors.Code]bool{
-	errors.PULSE_TEST_SPLIT_GROUPS_LT_2:      true,
-	errors.PULSE_TEST_INSUFFICIENT_N:         true,
-	errors.PULSE_TEST_VARIANCE_ZERO:          true,
-	errors.PULSE_TEST_CONTINGENCY_DEGENERATE: true,
-	errors.PULSE_TEST_CORRELATION_UNDEFINED:  true,
-	// A group whose two split levels exclude params.reference (U48).
-	errors.PULSE_TEST_REFERENCE_MISSING: true,
-	// A rank-deficient or too-small group's covariance (#404). The five
-	// built-in vector tests warn rather than refuse on these, so this
-	// reaches a test that refuses (an extension's) and keeps one
-	// degenerate group from aborting the whole grouped request.
-	errors.PULSE_MATRIX_SINGULAR:       true,
-	errors.PULSE_MATRIX_INSUFFICIENT_N: true,
-}
+// It is the per-slot test set (slotfail.TestCodes): ungrouped, the same
+// refusal fails the one test slot alone (a result carrying an Error).
+var sparseTestCodes = slotfail.TestCodes
 
 // groupedRowTests is a grouped run's tier-1 test state: the mintable
 // plans and one instance set per bucket key. A nil *groupedRowTests is

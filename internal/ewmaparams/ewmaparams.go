@@ -39,13 +39,14 @@ type Refusal struct {
 // Error renders the refusal for callers that wrap it.
 func (r *Refusal) Error() string { return r.Message }
 
-// Coded returns the refusal as a PROCESSING_CONFIG error with the runtime
-// prefix — the factory's refusal.
+// Coded returns the refusal as a PULSE_WINDOW_INVALID error with the
+// runtime prefix — the factory's refusal, predict's code (the window
+// family's one code, internal/windowparams).
 func (r *Refusal) Coded() *errors.CodedError {
 	if len(r.Details) == 0 {
-		return errors.NewCodedError(errors.PROCESSING_CONFIG, "WIN_EWMA: "+r.Message)
+		return errors.NewCodedError(errors.PULSE_WINDOW_INVALID, "WIN_EWMA: "+r.Message)
 	}
-	return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG, "WIN_EWMA: "+r.Message, r.Details)
+	return errors.NewCodedErrorWithDetails(errors.PULSE_WINDOW_INVALID, "WIN_EWMA: "+r.Message, r.Details)
 }
 
 var (

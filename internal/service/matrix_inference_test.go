@@ -630,7 +630,7 @@ func TestMatrixInference_ZeroWeightRowsFloorLikeTest(t *testing.T) {
 				Type: types.TEST_PEARSON_R, Field: "x1", Field2: "x2", Label: "r",
 				Weight: covSpec("", "", 0, c.weight, "").Weight,
 			}}}
-			resp, err := New(cfg).Process(context.Background(), req)
+			resp, err := processOrSlotErr(context.Background(), New(cfg), req)
 			if c.testRefused {
 				var ce *errors.CodedError
 				if err == nil || !stderrors.As(err, &ce) || ce.Code != errors.PULSE_TEST_INSUFFICIENT_N {

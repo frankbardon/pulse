@@ -59,8 +59,14 @@ func isGrouperKeyNull(err error) bool {
 // slice — later duplicates are ignored, so a key buckets once, at its
 // first position. A nil *includeFilter means "accept-all", preserving
 // byte-identity against the pre-Include bucket set.
+//
+// rank, set only by keyOrderFilter, carries a grouper's intrinsic key
+// order (the keyOrderer hook) for a filter that does NOT constrain
+// membership: pos stays empty, so includeAccepts accepts every key and
+// active() stays false — the order applies, the bucket set never moves.
 type includeFilter struct {
-	pos map[string]int
+	pos  map[string]int
+	rank func(key string) (float64, bool)
 }
 
 // buildIncludeFilter materialises Group.Include into an ordered filter.
@@ -131,6 +137,83 @@ type emissionOrderer interface {
 	emissionOrder() *includeFilter
 }
 
+// keyOrderer is the ordered-keys hook: a grouper whose bucket keys carry
+// an intrinsic order that alphabetical sorting would scramble declares it
+// here, and every emission site — the grouped Data rows (buffered,
+// streamed, sharded), a Request.Groups composite, a crosstab axis on both
+// the buffered and the fused arm, grouped matrices — emits its buckets in
+// that order. GROUP_QUANTILE ranks by bucket id (D1…D10, never D1, D10,
+// D2), GROUP_RANGE by its numeric low edge ("-20--10" before "-10-0"
+// before "0-10"), GROUP_ROUNDED by its key's value ("-5", "9.5", "10")
+// and GROUP_NUMERIC_RANGES by supplied range index, unmatched last; keys
+// themselves never change. keyRank returns key's
+// ascending sort position and false for a key the grouper never mints
+// (such a straggler sorts after every ranked key, alphabetically); equal
+// ranks tie-break alphabetically. The rank must derive from the key and
+// the grouper's configuration alone — never from the records it saw — so
+// a fresh instance (a shard merge, the fused arm, a whole-set crosstab
+// axis) orders exactly as the instance that partitioned. An explicit
+// Group.Include (the include-ordered groupers, any crosstab axis) and an
+// explicit Request.Sort both win over it; a grouper with neither the hook
+// nor an include list stays alphabetical, byte-identically.
+type keyOrderer interface {
+	keyRank(key string) (float64, bool)
+}
+
+// keyOrderFilter returns g's intrinsic key order as an ordering-only
+// filter, or nil when g does not implement keyOrderer (nil g included).
+func keyOrderFilter(g Grouper) *includeFilter {
+	if ko, ok := g.(keyOrderer); ok {
+		return &includeFilter{rank: ko.keyRank}
+	}
+	return nil
+}
+
+// axisOrderFilter is the emission order of one crosstab axis position:
+// its explicit Include list when supplied, else the position grouper's
+// intrinsic key order (keyOrderer), else nil (alphabetical). g may be nil.
+func axisOrderFilter(grp *types.Group, g Grouper) *includeFilter {
+	if f := buildIncludeFilter(grp.Include); f != nil {
+		return f
+	}
+	return keyOrderFilter(g)
+}
+
+// less reports whether key a emits before key b under f. A filter that
+// constrains membership orders members by include index, before any
+// non-member straggler (alphabetical among themselves); an ordering-only
+// filter orders ranked keys by ascending rank, before unranked keys, with
+// rank ties and unranked keys alphabetical; a nil filter is alphabetical.
+func (f *includeFilter) less(a, b string) bool {
+	if f.active() {
+		ia, aok := f.pos[a]
+		ib, bok := f.pos[b]
+		switch {
+		case aok && bok:
+			return ia < ib
+		case aok != bok:
+			return aok
+		}
+		return a < b
+	}
+	if f != nil && f.rank != nil {
+		ra, aok := f.rank(a)
+		rb, bok := f.rank(b)
+		switch {
+		case aok && bok && ra != rb:
+			return ra < rb
+		case aok != bok:
+			return aok
+		}
+	}
+	return a < b
+}
+
+// ordered reports whether f imposes any non-alphabetical order.
+func (f *includeFilter) ordered() bool {
+	return f.active() || (f != nil && f.rank != nil)
+}
+
 // grouperWarner is a grouper that raises Response-level warnings from
 // its Group pass (GROUP_KMEANS's non-convergence).
 type grouperWarner interface {
@@ -188,48 +271,39 @@ func stringsAxisKey(tuple []string) types.AxisKey {
 	return out
 }
 
-// includeFilterOf extracts the ordered include filter from a grouper —
-// a grouper's intrinsic emission order (emissionOrderer) first —
-// returning nil for groupers that don't implement IncludeOrdered
+// includeFilterOf extracts the emission order of a grouper's buckets —
+// its fitted emission order (emissionOrderer) first, then an active
+// include list (IncludeOrdered), then its intrinsic key order
+// (keyOrderer) — returning nil for a grouper with none of them
 // (extension groupers fall through to sort.Strings via orderKeysByInclude).
 func includeFilterOf(g Grouper) *includeFilter {
 	if eo, ok := g.(emissionOrderer); ok {
 		return eo.emissionOrder()
 	}
 	if io, ok := g.(IncludeOrdered); ok {
-		return io.IncludeFilter()
+		if f := io.IncludeFilter(); f.active() {
+			return f
+		}
 	}
-	return nil
+	return keyOrderFilter(g)
 }
 
-// orderKeysByInclude returns keys ordered for bucket emission. A nil /
-// inactive filter funnels through sort.Strings — the byte-identity
-// guarantee for the no-include path. An active filter sorts present
-// member keys by their include index (first-occurrence order); any
-// non-member straggler (which should not occur once KeyFor filters
-// non-members, but is guarded defensively) sorts alphabetically after
-// all members. keys is not mutated — a fresh slice is returned.
+// orderKeysByInclude returns keys ordered for bucket emission. A nil
+// filter funnels through sort.Strings — the byte-identity guarantee for
+// the no-include path. An active filter sorts present member keys by
+// their include index (first-occurrence order); any non-member straggler
+// (which should not occur once KeyFor filters non-members, but is guarded
+// defensively) sorts alphabetically after all members. An ordering-only
+// filter (keyOrderer) sorts by the grouper's key rank (includeFilter.less).
+// keys is not mutated — a fresh slice is returned.
 func orderKeysByInclude(f *includeFilter, keys []string) []string {
 	out := make([]string, len(keys))
 	copy(out, keys)
-	if !f.active() {
+	if !f.ordered() {
 		sort.Strings(out)
 		return out
 	}
-	sort.SliceStable(out, func(i, j int) bool {
-		ii, iok := f.index(out[i])
-		ji, jok := f.index(out[j])
-		switch {
-		case iok && jok:
-			return ii < ji
-		case iok != jok:
-			// members sort before non-member stragglers
-			return iok
-		default:
-			// both non-members: defensive alphabetical tail
-			return out[i] < out[j]
-		}
-	})
+	sort.SliceStable(out, func(i, j int) bool { return f.less(out[i], out[j]) })
 	return out
 }
 
@@ -455,6 +529,19 @@ func (g *roundedGrouper) KeyFor(r *Record) (string, error) {
 	return formatRoundedNumeric(rounded), nil
 }
 
+// keyRank implements keyOrderer: a rounded key ranks by its numeric
+// value, so buckets emit ascending — "-5", "9.5", "10" — where
+// alphabetical order would put "10" before "9.5" and scramble the
+// negatives. formatRoundedNumeric writes shortest-exact decimals, so the
+// key round-trips; a key that does not parse, or NaN, is unranked.
+func (g *roundedGrouper) keyRank(key string) (float64, bool) {
+	v, err := strconv.ParseFloat(key, 64)
+	if err != nil || math.IsNaN(v) {
+		return 0, false
+	}
+	return v, true
+}
+
 // KeyForRow folds a single observation into the live components state
 // after delegating bucket-key derivation to KeyFor. Mirrors the
 // categoryGrouper / dateGrouper pattern so MetaGrouper.Components()
@@ -610,6 +697,33 @@ func (g *rangeGrouper) KeyFor(r *Record) (string, error) {
 	low := math.Floor(v/g.interval) * g.interval
 	high := low + g.interval
 	return formatRoundedNumeric(low) + "-" + formatRoundedNumeric(high), nil
+}
+
+// keyRank implements keyOrderer: a "lo-hi" bucket key ranks by its
+// numeric low edge, so buckets emit ascending — "-20--10", "-10-0",
+// "0-10", "10-20" — where alphabetical order would put "10-20" before
+// "2-4" and scramble the negatives. The low edge is the text before the
+// first '-' past a leading sign; it round-trips exactly
+// (formatRoundedNumeric writes shortest-exact decimals, never an
+// exponent). A key that does not parse, or a NaN edge, is unranked.
+func (g *rangeGrouper) keyRank(key string) (float64, bool) {
+	return rangeKeyLow(key)
+}
+
+// rangeKeyLow parses the low edge of a GROUP_RANGE "lo-hi" key.
+func rangeKeyLow(key string) (float64, bool) {
+	if len(key) < 3 {
+		return 0, false
+	}
+	i := strings.IndexByte(key[1:], '-')
+	if i < 0 {
+		return 0, false
+	}
+	low, err := strconv.ParseFloat(key[:i+1], 64)
+	if err != nil || math.IsNaN(low) {
+		return 0, false
+	}
+	return low, true
 }
 
 // KeyForRow folds a single observation into the live components state
@@ -847,16 +961,7 @@ func (g *quantileGrouper) Group(records []*Record, field string) (map[string][]*
 		return items[i].value < items[j].value
 	})
 
-	// Determine key prefix.
-	prefix := "B"
-	switch g.buckets {
-	case 4:
-		prefix = "Q"
-	case 10:
-		prefix = "D"
-	case 100:
-		prefix = "P"
-	}
+	prefix := quantileKeyPrefix(g.buckets)
 
 	// Each sorted item's bucket: rank·buckets/n unweighted, the
 	// weighted order-statistic cut under a weight (weightedBuckets).
@@ -937,6 +1042,36 @@ func (g *quantileGrouper) Group(records []*Record, field string) (map[string][]*
 	g.frozenEdges = edges
 
 	return groups, nil
+}
+
+// quantileKeyPrefix is the bucket-key prefix for a bucket count: Q
+// (quartiles), D (deciles), P (percentiles), else B.
+func quantileKeyPrefix(buckets int) string {
+	switch buckets {
+	case 4:
+		return "Q"
+	case 10:
+		return "D"
+	case 100:
+		return "P"
+	}
+	return "B"
+}
+
+// keyRank implements keyOrderer: a bucket key ranks by its 1-based
+// bucket id, so deciles emit D1, D2, …, D10 (never D1, D10, D2). A key
+// not of the form <prefix><1..buckets> is unranked.
+func (g *quantileGrouper) keyRank(key string) (float64, bool) {
+	prefix := quantileKeyPrefix(g.buckets)
+	rest, ok := strings.CutPrefix(key, prefix)
+	if !ok {
+		return 0, false
+	}
+	id, err := strconv.Atoi(rest)
+	if err != nil || id < 1 || id > g.buckets {
+		return 0, false
+	}
+	return float64(id), true
 }
 
 // weightedBuckets writes, for each value-sorted item, its bucket under
@@ -1634,4 +1769,10 @@ var (
 	// an ordered filter; every other grouper falls through to sort.Strings
 	// via includeFilterOf returning nil.
 	_ IncludeOrdered = (*categoryGrouper)(nil)
+
+	// keyOrderer locks — the groupers whose keys carry an intrinsic order.
+	_ keyOrderer = (*quantileGrouper)(nil)
+	_ keyOrderer = (*rangeGrouper)(nil)
+	_ keyOrderer = (*roundedGrouper)(nil)
+	_ keyOrderer = (*numericRangesGrouper)(nil)
 )

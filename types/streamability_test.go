@@ -33,6 +33,7 @@ func TestStreamability_AggregationsKnown(t *testing.T) {
 		AGG_MAPE:           true,
 		AGG_RMSE:           true,
 		AGG_MAE:            true,
+		AGG_AUC:            false,
 
 		AGG_WELFORD: true,
 
@@ -108,6 +109,7 @@ func TestStreamability_MarginReducibilityKnown(t *testing.T) {
 		AGG_MAPE:       MarginRecompute,
 		AGG_RMSE:       MarginRecompute,
 		AGG_MAE:        MarginRecompute,
+		AGG_AUC:        MarginRecompute,
 
 		AGG_SET_UNION:           MarginSummable,
 		AGG_SET_FREQUENCY:       MarginSummable,
@@ -248,8 +250,10 @@ func TestStreamability_GroupsKnown(t *testing.T) {
 		GROUP_RANGE:       true,
 		GROUP_DATE_RANGES: true,
 		GROUP_QUANTILE:    false,
-		GROUP_DATE:        false,
-		GROUP_KMEANS:      false,
+
+		GROUP_NUMERIC_RANGES: true,
+		GROUP_DATE:           false,
+		GROUP_KMEANS:         false,
 
 		GROUP_SET_VALUE:       true,
 		GROUP_SET_PER_ELEMENT: true,
@@ -283,6 +287,8 @@ func TestGroupFanOutKnown(t *testing.T) {
 		GROUP_RANGE:       false,
 		GROUP_ROUNDED:     false,
 		GROUP_SET_VALUE:   false,
+
+		GROUP_NUMERIC_RANGES: false,
 
 		// The one built-in that fans a record into many buckets.
 		GROUP_SET_PER_ELEMENT: true,

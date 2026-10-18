@@ -161,7 +161,7 @@ func TestExtensions_WindowRoundTrip(t *testing.T) {
 			{Type: types.AGG_SUM, Field: "score", Label: "s"},
 		},
 		Windows: []*types.Window{
-			{Type: "WIN_ACME_CONST", Field: "score", Label: "k"},
+			{Type: "WIN_ACME_CONST", Field: "score", Label: "k", OrderBy: []types.OrderKey{{Field: "s"}}},
 		},
 	}
 	resp, err := proc.Process(context.Background(), req, NewSliceIterator(records))

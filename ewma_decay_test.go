@@ -144,8 +144,9 @@ func TestEWMADecay_EqualsLiteralAlphaOnEverySurface(t *testing.T) {
 
 // TestEWMADecay_PredictRefusesWhatRuntimeRefuses: for every params
 // violation, predict reports PULSE_WINDOW_INVALID and Process,
-// ProcessStream and Materialize refuse with PROCESSING_CONFIG — the same
-// rule sentence on every surface — and a valid params set passes all.
+// ProcessStream and Materialize refuse with PULSE_WINDOW_INVALID too —
+// the window family's one code (internal/windowparams), the same rule
+// sentence on every surface — and a valid params set passes all.
 func TestEWMADecay_PredictRefusesWhatRuntimeRefuses(t *testing.T) {
 	p, fsys := ewmaCohort(t)
 	ctx := context.Background()
@@ -174,7 +175,7 @@ func TestEWMADecay_PredictRefusesWhatRuntimeRefuses(t *testing.T) {
 			_, serr := p.ProcessStream(ctx, ewmaReq(params))
 			_, merr := p.Materialize(ctx, ewmaReq(params), "bad.pulse", pulse.MaterializeOptions{})
 			for surface, err := range map[string]error{"Process": perr, "ProcessStream": serr, "Materialize": merr} {
-				ce := requireCode(t, err, errors.PROCESSING_CONFIG)
+				ce := requireCode(t, err, errors.PULSE_WINDOW_INVALID)
 				if ce.Message != "WIN_EWMA: "+rule {
 					t.Errorf("%s message %q, predict rule %q", surface, ce.Message, rule)
 				}

@@ -461,6 +461,18 @@ func allAggParityFixtures(t *testing.T) map[types.AggregationType]aggParityFixtu
 		types.AGG_MAPE: coh(json.RawMessage(`{"prediction_field":"num"}`)),
 		types.AGG_RMSE: coh(json.RawMessage(`{"prediction_field":"num"}`)),
 		types.AGG_MAE:  coh(json.RawMessage(`{"prediction_field":"num"}`)),
+		// AUC scores s against the binary y; two null scores ride the
+		// floor (it keys on the score), one null outcome n_null_outcome.
+		types.AGG_AUC: {
+			schema: aucSchema(),
+			field:  "s",
+			params: json.RawMessage(`{"outcome":"y"}`),
+			records: aucRecords([]aucRow{{0.9, 1, 1, 0}, {0.2, 0, 1, 0}, {math.NaN(), 1, 1, 0}, {0.6, 1, 1, 0},
+				{0.7, 0, 1, 0}, {0.4, math.NaN(), 1, 0}, {math.NaN(), 0, 1, 0}, {0.3, 0, 1, 0}, {0.8, 1, 1, 0}, {0.1, 0, 1, 0}}),
+			expectedN:       8,
+			expectedNull:    2,
+			filteredRecords: 10,
+		},
 
 		// Vector aggregators read value, num and den of the cohort
 		// schema (never null): the floor counts every row.

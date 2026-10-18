@@ -53,6 +53,12 @@ const (
 	// failed to converge within MaxIters.
 	PROCESSING_REGRESSION_NO_CONVERGE Code = "PROCESSING_REGRESSION_NO_CONVERGE"
 
+	// PROCESSING_REGRESSION_SEPARATION indicates a binomial REG_GLM fit
+	// is separated: fitted probabilities reached numerically 0 or 1
+	// while a predictor's coefficient kept growing, so the maximum-
+	// likelihood estimate lies at infinity. Details name the predictors.
+	PROCESSING_REGRESSION_SEPARATION Code = "PROCESSING_REGRESSION_SEPARATION"
+
 	// PROCESSING_REGRESSION_SINGULAR_GRAM indicates XᵀX remained
 	// non-invertible even after regularization. Typically caused by a
 	// degenerate predictor (all-zero column) or a vanishingly small
@@ -89,6 +95,15 @@ const (
 	// bare named vectors) are refused when the expression compiles and
 	// by predict. details carry function, left and right.
 	PROCESSING_VECTOR_LENGTH_MISMATCH Code = "PROCESSING_VECTOR_LENGTH_MISMATCH"
+
+	// PROCESSING_AUC_OUTCOME_NOT_BINARY indicates an AGG_AUC slot met an
+	// outcome value other than 0 or 1 (NaN included) on a scored row:
+	// the area under the ROC curve needs a binary outcome, and no
+	// coercion (a threshold, a non-zero test) is ever guessed. The run
+	// fails. Predict cannot see values; it refuses only an outcome
+	// column whose TYPE cannot be binary. Details carry "aggregation",
+	// "outcome" (the column) and "value" (the first offending value).
+	PROCESSING_AUC_OUTCOME_NOT_BINARY Code = "PROCESSING_AUC_OUTCOME_NOT_BINARY"
 )
 
 // SERVICE domain - HTTP/API layer and service operations
@@ -503,8 +518,10 @@ const (
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY Code = "PULSE_FIELD_DESCRIPTION_LOW_QUALITY"
 
 	// PULSE_WINDOW_INVALID indicates a structural validation failure for a
-	// window operation: invalid frame matrix, alpha out of bounds,
-	// non-orderable order key, label collision, or unsupported window type.
+	// window operation: invalid frame matrix, bad params, missing order key
+	// or value field, non-orderable order key, label collision, or
+	// unsupported window type. Predict and the engine raise it alike, with
+	// one rule sentence.
 	PULSE_WINDOW_INVALID Code = "PULSE_WINDOW_INVALID"
 
 	// PULSE_FIELD_TYPE_UNSUPPORTED indicates an operator slot names a
@@ -519,15 +536,15 @@ const (
 	// table writes the refusal.
 	PULSE_FIELD_TYPE_UNSUPPORTED Code = "PULSE_FIELD_TYPE_UNSUPPORTED"
 
-	// PULSE_FEAT_TARGET_LEAKAGE_RISK flags every FEAT_TARGET_ENCODE. The
-	// encoder reads no split column and features run before filters, so
-	// each encoded value averages every record's outcome — the record's
-	// own and the validation/test records' included — whether or not a
-	// FEAT_TRAIN_TEST_SPLIT precedes it. Mitigation: compute train-only
-	// category averages (AGG_AVERAGE on split 0) in a separate request and
-	// map them back, or accept the in-sample encoding for descriptive use.
-	// Predict raises it and Process repeats it on Response.Warnings;
-	// under strict both refuse (Process before any record is read).
+	// PULSE_FEAT_TARGET_LEAKAGE_RISK flags every FEAT_TARGET_ENCODE that
+	// sets no params.fit_on. Features run before filters, so each encoded
+	// value averages every record's outcome — the validation/test
+	// records' included (and, without folds, the record's own) — whether
+	// or not a FEAT_TRAIN_TEST_SPLIT precedes it. Mitigation: set
+	// params.fit_on to the training rows (e.g. "split == 0"); folds
+	// without fit_on keeps a reworded warning. Predict raises it from the
+	// request alone and Process repeats it on Response.Warnings; under
+	// strict both refuse (Process before any record is read).
 	PULSE_FEAT_TARGET_LEAKAGE_RISK Code = "PULSE_FEAT_TARGET_LEAKAGE_RISK"
 
 	// PULSE_DECIMAL_OVERFLOW indicates a decimal arithmetic or aggregation
@@ -626,6 +643,16 @@ const (
 	// that declares its params. One per such slot; details carry the
 	// slot, the operator and the params keys.
 	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED Code = "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED"
+
+	// PULSE_ADVISORY_JACKKNIFE_COST is a predict advisory: a REG_OLS /
+	// REG_GLM slot runs the leave-one-out jackknife (resample
+	// "jackknife" with neither jackknife_groups nor jackknife_by) over a
+	// cohort of at least regresample.LeaveOneOutCostRows records, so the
+	// run refits the model once per row — a cost that grows with the
+	// square of the row count. One per such slot; details carry the
+	// slot, the operator, the record count, the threshold and the patch
+	// {"jackknife_groups": 50}.
+	PULSE_ADVISORY_JACKKNIFE_COST Code = "PULSE_ADVISORY_JACKKNIFE_COST"
 
 	// PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT is a Compose predict
 	// advisory: two or more slots emit p-values, they join two or more
@@ -1521,17 +1548,18 @@ const (
 	// import time.
 	PULSE_JOIN_FIELD_COLLISION Code = "PULSE_JOIN_FIELD_COLLISION"
 
-	// PULSE_RANGE_EMPTY indicates a labeled-date-range set
-	// (GROUP_DATE_RANGES / FILTER_DATE_RANGES inline ranges, or a named
-	// range table) was presented with zero ranges. At least one
+	// PULSE_RANGE_EMPTY indicates a labeled-range set
+	// (GROUP_DATE_RANGES / FILTER_DATE_RANGES / GROUP_NUMERIC_RANGES
+	// inline ranges, or a named range table) was presented with zero ranges. At least one
 	// {label, start, end} range is required.
 	PULSE_RANGE_EMPTY Code = "PULSE_RANGE_EMPTY"
 
-	// PULSE_RANGE_INVALID indicates a single labeled date range is
-	// malformed: a start or end boundary literal could not be parsed
-	// against any known date layout (encoding.DateFormats), or the range
-	// is bounded on both sides with start strictly after end. Details
-	// carry the offending label and the boundary value(s).
+	// PULSE_RANGE_INVALID indicates a single labeled range is
+	// malformed: a date boundary literal could not be parsed against any
+	// known date layout (encoding.DateFormats), a date range is bounded
+	// on both sides with start strictly after end, or a numeric
+	// (half-open) range is bounded on both sides with start >= end.
+	// Details carry the offending label and the boundary value(s).
 	PULSE_RANGE_INVALID Code = "PULSE_RANGE_INVALID"
 
 	// PULSE_RANGE_DUPLICATE_LABEL indicates two ranges in the same
@@ -1540,26 +1568,35 @@ const (
 	// duplicated label.
 	PULSE_RANGE_DUPLICATE_LABEL Code = "PULSE_RANGE_DUPLICATE_LABEL"
 
-	// PULSE_RANGE_OVERLAP indicates two ranges in the same
-	// labeled-date-range set cover an overlapping span of days. Bounds are
-	// inclusive on both sides (so a range ending 2024-03-31 and one
-	// starting 2024-04-01 are contiguous, not overlapping), and an open
-	// (omitted/null) boundary extends to -inf / +inf. A record day landing
-	// in an overlap would map ambiguously to two labels, so the set is
-	// rejected. Details carry the two offending labels.
+	// PULSE_RANGE_OVERLAP indicates two ranges in the same labeled-range
+	// set overlap. Date bounds are inclusive on both sides (so a range
+	// ending 2024-03-31 and one starting 2024-04-01 are contiguous, not
+	// overlapping); numeric bounds are half-open [start, end) (so [0, 91)
+	// and [91, 104) are adjacent, not overlapping); an open (omitted/null)
+	// boundary extends to -inf / +inf. A record landing in an overlap
+	// would map ambiguously to two labels, so the set is rejected.
+	// Details carry the two offending labels.
 	PULSE_RANGE_OVERLAP Code = "PULSE_RANGE_OVERLAP"
 
 	// PULSE_RANGE_SOURCE_AMBIGUOUS indicates a GROUP_DATE_RANGES /
-	// FILTER_DATE_RANGES operator did not name exactly one range source.
+	// FILTER_DATE_RANGES / GROUP_NUMERIC_RANGES operator did not name exactly one range source.
 	// Exactly one of an inline `ranges` array or a named `table` reference
 	// is required: supplying both, or neither, is ambiguous and rejected.
 	PULSE_RANGE_SOURCE_AMBIGUOUS Code = "PULSE_RANGE_SOURCE_AMBIGUOUS"
 
 	// PULSE_RANGE_TABLE_UNKNOWN indicates a GROUP_DATE_RANGES /
-	// FILTER_DATE_RANGES operator referenced a range table by a name that
+	// FILTER_DATE_RANGES / GROUP_NUMERIC_RANGES operator referenced a range table by a name that
 	// is not registered (via Options.Extensions.RangeTables or the
 	// PULSE_RANGE_TABLES_DIR loader). Details carry the offending name.
 	PULSE_RANGE_TABLE_UNKNOWN Code = "PULSE_RANGE_TABLE_UNKNOWN"
+
+	// PULSE_RANGE_TABLE_KIND_MISMATCH indicates a range operator named a
+	// registered range table of the other kind. A range table is typed by
+	// its bounds — ISO date strings make a date table, JSON numbers a
+	// numeric table — and GROUP_DATE_RANGES / FILTER_DATE_RANGES resolve
+	// only a date table, GROUP_NUMERIC_RANGES only a numeric one. Details
+	// carry the operator, the table, and the wanted and found kinds.
+	PULSE_RANGE_TABLE_KIND_MISMATCH Code = "PULSE_RANGE_TABLE_KIND_MISMATCH"
 
 	// PULSE_LABEL_FIELD_UNKNOWN indicates a LabelBinding references a
 	// field name not present in the cohort schema.
@@ -3603,6 +3640,38 @@ const (
 	// are knowable only at runtime. Details carry "path".
 	PULSE_RETURN_PATH_UNMATCHED Code = "PULSE_RETURN_PATH_UNMATCHED"
 
+	// PULSE_SLOT_FAILED is a WARNING: one regression, test or matrix slot
+	// failed on its data (a data-dependent runtime refusal — separation,
+	// non-convergence, a rank-deficient design, too few rows, zero
+	// variance, a singular matrix) while every other slot of the response
+	// survived. The failed result keeps its identity and carries
+	// `error` {code, message, details} — the refusal's own code. Details
+	// carry "slot_kind" (regressions / tests / post_tests / matrices),
+	// "index" (the request slot index), "label" and "code"; a grouped
+	// matrix bucket adds "group_key". Under Options.Strict the run fails
+	// with the slot's own code instead.
+	PULSE_SLOT_FAILED Code = "PULSE_SLOT_FAILED"
+
+	// PULSE_FIT_UNAVAILABLE is a WARNING: an attribute slot reads a
+	// Compose fit that failed on its data (ComposedResponse
+	// fits[name].error) — ATTR_REG_PREDICT scoring it, an ATTR_FORMULA
+	// naming it in a literal coef() call, a fitted vector attribute's
+	// params.fit, a {population} reference — so there is no model to read:
+	// the slot's column is all null and every other slot of the response
+	// is computed normally. Details carry "fit" (the fit's name), "attribute" (the
+	// slot's label) and "code" (the fit's own error code). Under
+	// Options.Strict the failed fit already failed the whole batch with
+	// its own code.
+	PULSE_FIT_UNAVAILABLE Code = "PULSE_FIT_UNAVAILABLE"
+
+	// PULSE_AUC_DELONG_WEIGHTED is a NOTE, never an error or a
+	// warning: it rides an AGG_AUC slot's components as `se_note` when
+	// the slot is weighted, beside a `se` / `ci_lower` / `ci_upper` that
+	// are null. There is no defensible weighted DeLong variance, so the
+	// interval is withheld rather than computed on the wrong sample
+	// size; the weighted AUC and Gini are exact.
+	PULSE_AUC_DELONG_WEIGHTED Code = "PULSE_AUC_DELONG_WEIGHTED"
+
 	// PULSE_LIMIT_INVALID indicates an instance resource limit
 	// (pulse.Options.Limits) holding a negative value other than
 	// pulse.Unlimited (-1). Raised by pulse.New before any instance
@@ -3857,12 +3926,14 @@ var allCodes = []Code{
 	PROCESSING_REGRESSION_NOT_IMPLEMENTED,
 	PROCESSING_REGRESSION_RANK_DEFICIENT,
 	PROCESSING_REGRESSION_NO_CONVERGE,
+	PROCESSING_REGRESSION_SEPARATION,
 	PROCESSING_REGRESSION_SINGULAR_GRAM,
 	PROCESSING_REGRESSION_INVALID_FAMILY,
 	PROCESSING_REGRESSION_INVALID_LINK,
 	PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED,
 	PROCESSING_VECTOR_LENGTH_MISMATCH,
+	PROCESSING_AUC_OUTCOME_NOT_BINARY,
 	// SERVICE
 	SERVICE_VALIDATION,
 	SERVICE_RESOURCE,
@@ -3949,6 +4020,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_EXTRA_PASS,
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
 	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
+	PULSE_ADVISORY_JACKKNIFE_COST,
 	PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT,
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN,
 	PULSE_RECOMMEND_INTENT_UNKNOWN,
@@ -4069,6 +4141,7 @@ var allCodes = []Code{
 	PULSE_RANGE_OVERLAP,
 	PULSE_RANGE_SOURCE_AMBIGUOUS,
 	PULSE_RANGE_TABLE_UNKNOWN,
+	PULSE_RANGE_TABLE_KIND_MISMATCH,
 	PULSE_LABEL_FIELD_UNKNOWN,
 	PULSE_LABEL_FIELD_NOT_CATEGORICAL,
 	PULSE_LABEL_TABLE_UNKNOWN,
@@ -4231,6 +4304,9 @@ var allCodes = []Code{
 	PULSE_RETURN_INVALID,
 	PULSE_RETURN_PATH_UNKNOWN,
 	PULSE_RETURN_PATH_UNMATCHED,
+	PULSE_SLOT_FAILED,
+	PULSE_FIT_UNAVAILABLE,
+	PULSE_AUC_DELONG_WEIGHTED,
 	PULSE_LIMIT_INVALID,
 	PULSE_LIMIT_EXCEEDED,
 	PULSE_DOCS_EXPORT_DIR_NOT_EMPTY,

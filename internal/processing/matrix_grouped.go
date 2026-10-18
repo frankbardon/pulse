@@ -240,7 +240,7 @@ func (g *GroupedMatrices) finalize(keys []string, groups []*types.Group, set *Co
 	var comps []types.MatrixComponents
 	for i := range g.set.plans {
 		for k, key := range keys {
-			res, c, err := sets[k][i].result()
+			res, c, err := sets[k][i].slotResult()
 			if err != nil {
 				return nil, nil, err
 			}

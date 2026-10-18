@@ -29,7 +29,7 @@ Arithmetic on a categorical errors; branch on the label.
 
 - **Operators**: arithmetic (`+ - * / % **`), comparison, logical, membership / pattern (`in`; string-only `contains`, `startsWith`, `endsWith`, `matches`), range (`..`), nil-coalesce (`??`), ternary.
 - **Functions**: numeric (`abs`, `ceil`, `floor`, `round`, `min`, `max`, `sum`, `mean`, `median`), cast (`int`, `float` — a decimal's f64 escape, `string`), collection (`len`, `keys`, `values`, `concat`, `sort`, `uniq`, `filter`, `map`, `reduce`, `all`, `any`), string (`join`, `split`, `replace`, `trim`, `lower`, `upper`, `hasPrefix`, `hasSuffix`, `indexOf`), JSON / time (`toJSON`, `fromJSON`, `now`, `date`, `duration`).
-- **Set helpers**: `has_any`, `has_all`, `has_none`, `popcount`, `set_union`, `set_intersect`, `set_diff`, `set_xor`. `contains` is a string operator keyword, never a set helper — test membership with `"x" in tags`.
+- **Set helpers**: `has_any`, `has_all`, `has_none`, `popcount`, `set_union`, `set_intersect`, `set_diff`, `set_xor`. `contains` is a string keyword, not a set helper: use `"x" in tags`.
 - `%` on a field is float `math.Mod` (dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.
 
 ## Vector and maths built-ins
@@ -65,7 +65,7 @@ Compiled once, predict included: bad syntax, an unknown name or a type error is 
 
 ## Bound models
 
-`coef(fit, term[, stat])` reads a compose fit's figure at full precision: `term` is a predictor or `"(intercept)"`; `stat` is `point` (default), `lower` / `upper` (interval at the fit's `conf_level`) or `se`. Marginal return: `coef("mmm", "tv_sat") * tv / (1 + tv)`. Codes: `PULSE_MODEL_UNKNOWN`, `_TERM_UNKNOWN`, `_STAT_UNKNOWN` (predict checks literal arguments), `_INTERVALS_UNAVAILABLE` (fit has no standard errors). A figure the fit lacks for one term is NaN, never 0. An embedder `coef` shadows it.
+`coef(fit, term[, stat])` reads a compose fit's figure at full precision: `term` is a predictor or `"(intercept)"`; `stat` is `point` (default), `lower` / `upper` (interval at the fit's `conf_level`) or `se`. Marginal: `coef("m", "tv") * tv / (1 + tv)`. Codes: `PULSE_MODEL_UNKNOWN`, `_TERM_UNKNOWN`, `_STAT_UNKNOWN` (literal arguments: predict too), `_INTERVALS_UNAVAILABLE` (no standard errors). A missing figure is NaN; a failed fit nulls a formula (`PULSE_FIT_UNAVAILABLE`), refuses a filter. An embedder `coef` shadows it.
 
 ## Patterns
 
@@ -73,7 +73,7 @@ Compiled once, predict included: bad syntax, an unknown name or a type error is 
 {"label": "bmi", "expression": "weight_kg / (height_m ** 2)"}
 ```
 
-A formula's result is coerced to a scalar (`bool` → `1.0` / `0.0`); a filter's must be `bool` — a non-bool on a non-null row is `PROCESSING_RUNTIME`.
+A formula's result is coerced to a scalar (`bool` → `1.0` / `0.0`); a filter's must be `bool`: typed non-bool fails compile, untyped `PROCESSING_RUNTIME`.
 
 ## Gotchas
 

@@ -3,6 +3,8 @@ package regression
 import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/regcov"
+	"github.com/frankbardon/pulse/internal/regpenalty"
+	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -49,29 +51,28 @@ func ValidateRegression(spec *types.RegressionSpec) error {
 	if cerr := regcov.Check(spec); cerr != nil {
 		return cerr
 	}
+	// The jackknife knobs (jackknife_groups / jackknife_by) — the one
+	// rule predict applies too (internal/regresample).
+	if cerr := regresample.Check(spec); cerr != nil {
+		return cerr
+	}
 	return nil
 }
 
 // validateVcov refuses Vcov on a fit with no coefficient covariance to
-// report: lasso / elastic net (the l1 active set is data-dependent, so
-// no sampling covariance exists, and Pulse never approximates one) —
-// alone or under a Resample / Selection modifier. Every other fit
-// reports one: a Resample fit the replicate covariance its SEs are the
-// square roots of the diagonal of, a Selection fit the inner engine's
-// covariance from the final refit on the selected predictors. A nil or
-// Vcov-free spec passes.
+// report: lasso / elastic net on REG_OLS or REG_GLM (the l1 active set
+// is data-dependent, so no sampling covariance exists, and Pulse never
+// approximates one) — alone or under a Resample / Selection modifier.
+// Every other fit reports one: a Resample fit the replicate covariance
+// its SEs are the square roots of the diagonal of, a Selection fit the
+// inner engine's covariance from the final refit on the selected
+// predictors, an l2 fit its penalised sandwich. The one rule predict
+// applies too (internal/regpenalty.VcovRefusal).
 func validateVcov(spec *types.RegressionSpec) error {
-	if spec == nil || !spec.Vcov {
-		return nil
+	if cerr := regpenalty.VcovRefusal(spec); cerr != nil {
+		return cerr
 	}
-	if spec.Type != types.REG_OLS || (spec.Penalty != "l1" && spec.Penalty != "elasticnet") {
-		return nil
-	}
-	return errors.NewCodedErrorWithDetails(
-		errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED,
-		string(spec.Type)+" with penalty="+spec.Penalty+" has no coefficient covariance; drop vcov or fit without penalty",
-		map[string]any{"reason": "penalty", "penalty": spec.Penalty, "type": string(spec.Type)},
-	)
+	return nil
 }
 
 // validateRegressionSpec is ValidateRegression's per-type rule set.
@@ -92,65 +93,10 @@ func validateRegressionSpec(spec *types.RegressionSpec) error {
 		return nil
 	}
 
-	switch spec.Penalty {
-	case "":
-		if spec.Alpha != 0 {
-			return errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_CONFIG,
-				"REG_OLS Alpha is only valid when Penalty is set (l1, l2, or elasticnet)",
-				map[string]any{"alpha": spec.Alpha, "penalty": spec.Penalty},
-			)
-		}
-		if spec.L1Ratio != 0 {
-			return errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_CONFIG,
-				"REG_OLS L1Ratio is only valid when Penalty is elasticnet",
-				map[string]any{"l1_ratio": spec.L1Ratio, "penalty": spec.Penalty},
-			)
-		}
-	case "l1", "l2":
-		if spec.Alpha <= 0 {
-			return errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_CONFIG,
-				"REG_OLS Penalty="+spec.Penalty+" requires Alpha > 0",
-				map[string]any{"alpha": spec.Alpha, "penalty": spec.Penalty},
-			)
-		}
-		if spec.L1Ratio != 0 {
-			return errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_CONFIG,
-				"REG_OLS L1Ratio is only valid when Penalty=elasticnet; use Penalty=elasticnet to mix l1/l2",
-				map[string]any{"l1_ratio": spec.L1Ratio, "penalty": spec.Penalty},
-			)
-		}
-	case "elasticnet":
-		if spec.Alpha <= 0 {
-			return errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_CONFIG,
-				"REG_OLS Penalty=elasticnet requires Alpha > 0",
-				map[string]any{"alpha": spec.Alpha, "penalty": spec.Penalty},
-			)
-		}
-		if spec.L1Ratio <= 0 {
-			return errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_CONFIG,
-				"REG_OLS Penalty=elasticnet requires L1Ratio > 0 (use Penalty=l2 for pure ridge)",
-				map[string]any{"l1_ratio": spec.L1Ratio, "penalty": spec.Penalty},
-			)
-		}
-		if spec.L1Ratio >= 1 {
-			return errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_CONFIG,
-				"REG_OLS Penalty=elasticnet requires L1Ratio < 1 (use Penalty=l1 for pure lasso)",
-				map[string]any{"l1_ratio": spec.L1Ratio, "penalty": spec.Penalty},
-			)
-		}
-	default:
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_OLS Penalty must be one of \"\", \"l1\", \"l2\", \"elasticnet\"; got "+spec.Penalty,
-			map[string]any{"penalty": spec.Penalty},
-		)
+	// Penalty / Alpha / L1Ratio: the rule predict applies too
+	// (internal/regpenalty).
+	if cerr := regpenalty.Check(spec); cerr != nil {
+		return cerr
 	}
 
 	// MaxIters / Tol: zero means "use the engine default"; negative is a
@@ -186,9 +132,9 @@ func validateRegressionSpec(spec *types.RegressionSpec) error {
 //     constructor (newGLMEngine) re-runs the same family/link check via
 //     selectFamily; validating here keeps the error reachable from spec
 //     introspection tests that never instantiate the engine.
-//   - Penalty / Alpha / L1Ratio must be empty / zero. GLM regularization
-//     lands in a later phase; mixing it with REG_GLM today produces
-//     silent misconfiguration if we don't reject the spec.
+//   - Penalty / Alpha / L1Ratio follow the shared rule
+//     (internal/regpenalty.Check): the OLS coupling, and no penalty on
+//     the gamma family.
 //   - MaxIters / Tol must be ≥ 0; zero selects the engine default
 //     (50 / 1e-8 respectively).
 func validateGLMSpec(spec *types.RegressionSpec) error {
@@ -269,29 +215,10 @@ func validateGLMSpec(spec *types.RegressionSpec) error {
 		}
 	}
 
-	// GLM penalty / regularization deferred to a later phase. Reject any
-	// penalty knob on REG_GLM today so a future user doesn't think a
-	// silent fall-through produced a regularized fit.
-	if spec.Penalty != "" {
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_GLM Penalty is not supported in this phase; regularized GLM is deferred",
-			map[string]any{"penalty": spec.Penalty, "type": string(spec.Type)},
-		)
-	}
-	if spec.Alpha != 0 {
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_GLM Alpha is not supported in this phase (no GLM penalty)"+remedyGLMAlpha(nil),
-			map[string]any{"alpha": spec.Alpha, "type": string(spec.Type)},
-		)
-	}
-	if spec.L1Ratio != 0 {
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_GLM L1Ratio is not supported in this phase (no GLM penalty)",
-			map[string]any{"l1_ratio": spec.L1Ratio, "type": string(spec.Type)},
-		)
+	// Penalty / Alpha / L1Ratio (gamma refuses a penalty): the rule
+	// predict applies too (internal/regpenalty).
+	if cerr := regpenalty.Check(spec); cerr != nil {
+		return cerr
 	}
 
 	if spec.MaxIters < 0 {

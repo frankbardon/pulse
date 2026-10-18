@@ -36,7 +36,7 @@ One `u8`-valued `f64` column at `Label` (default `split`), from `internal/proces
 - Streamable via `iter.Reset()`; file-backed iterators pay a second I/O.
 - Stratified mode seeds each group distinctly, so groups never share one shuffle.
 <!-- feature: FEAT_TARGET_ENCODE -->
-- Does NOT protect `FEAT_TARGET_ENCODE`: it reads no split column, so `PULSE_FEAT_TARGET_LEAKAGE_RISK` still fires.
+- Does not by itself protect `FEAT_TARGET_ENCODE`: place the encoder AFTER the split with `fit_on: "split == 0"`, else `PULSE_FEAT_TARGET_LEAKAGE_RISK` fires.
 <!-- /feature -->
 
 ## See

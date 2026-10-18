@@ -19,12 +19,10 @@ import (
 // fit must zero out predictors 1, 3, 4 and recover predictors 0 and 2
 // near (2, −3). The intercept lies near 0.5.
 //
-// reference: coordinate descent on the standardized Gram with this
-// fixture converges in ≤ 8 cycles to the constants embedded in
-// TestRegOLS_Lasso_SparseRecovery / TestRegOLS_ElasticNet_SparseRecovery.
-// The same algorithm is the scikit-learn Lasso / ElasticNet inner loop;
-// values match scikit-learn (alpha=λ, fit_intercept=True,
-// normalize=False) to ≥ 1e-3 once Pulse's standardization is applied.
+// reference: R glmnet(standardize = FALSE) on the unit-SD response
+// (scripts/reference/gen_ols_penalty.R, KKT-checked at 1e-10; the full
+// pin is TestRegOLS_PenaltyMatchesGlmnet) gives the constants embedded
+// in TestRegOLS_Lasso_SparseRecovery / TestRegOLS_ElasticNet_SparseRecovery.
 func lassoFixture() ([]string, []Record) {
 	predictors := []string{"x0", "x1", "x2", "x3", "x4"}
 	n := 50
@@ -48,10 +46,8 @@ func lassoFixture() ([]string, []Record) {
 // (a) zeros out the three noise predictors exactly, and
 // (b) recovers the two signal predictors near their true values.
 //
-// Reference β values are documented below per alpha; each comes from
-// the closed coordinate-descent fixed point on the standardized Gram
-// for this exact fixture (deterministic generator means the reference
-// is reproducible from the codebase alone).
+// Reference β values per alpha: the glmnet oracle's (lassoFixture),
+// asserted at the default tolerance.
 func TestRegOLS_Lasso_SparseRecovery(t *testing.T) {
 	predictors, records := lassoFixture()
 
@@ -60,41 +56,39 @@ func TestRegOLS_Lasso_SparseRecovery(t *testing.T) {
 		wantBeta      map[string]float64
 		wantIntercept float64
 	}{
-		// reference: coordinate descent on standardized Gram with this
-		// fixture (50 rows). Matches scikit-learn Lasso(alpha=0.05,
-		// fit_intercept=True, normalize=False) within 1e-3.
+		// reference: glmnet(standardize = FALSE), gen_ols_penalty.R.
 		{
 			alpha: 0.05,
 			wantBeta: map[string]float64{
-				"x0": 1.9267363013769214,
+				"x0": 1.894618887569843,
 				"x1": 0,
-				"x2": -2.926195464431608,
+				"x2": -2.8976837930255774,
 				"x3": 0,
 				"x4": 0,
 			},
-			wantIntercept: 0.49742634476365866,
+			wantIntercept: 0.4956201318005414,
 		},
 		{
 			alpha: 0.1,
 			wantBeta: map[string]float64{
-				"x0": 1.8533061444031074,
+				"x0": 1.7890713167889487,
 				"x1": 0,
-				"x2": -2.854791981537304,
+				"x2": -2.797768638725244,
 				"x3": 0,
 				"x4": 0,
 			},
-			wantIntercept: 0.49289281335320506,
+			wantIntercept: 0.4892803874269709,
 		},
 		{
 			alpha: 0.2,
 			wantBeta: map[string]float64{
-				"x0": 1.706445830455479,
+				"x0": 1.5779761752271606,
 				"x1": 0,
-				"x2": -2.711985015748696,
+				"x2": -2.5979383301245758,
 				"x3": 0,
 				"x4": 0,
 			},
-			wantIntercept: 0.48382575053229787,
+			wantIntercept: 0.47660089867982985,
 		},
 	}
 
@@ -115,14 +109,14 @@ func TestRegOLS_Lasso_SparseRecovery(t *testing.T) {
 					t.Errorf("noise predictor %s coefficient = %v, want exactly 0", name, res.Coefficients[name])
 				}
 			}
-			// Signal predictors within 1e-3 of the reference.
+			// Signal predictors within 1e-6 of the reference.
 			for _, name := range []string{"x0", "x2"} {
-				if !closef(res.Coefficients[name], c.wantBeta[name], 1e-3) {
-					t.Errorf("β_%s = %v, want %v ±1e-3", name, res.Coefficients[name], c.wantBeta[name])
+				if !closef(res.Coefficients[name], c.wantBeta[name], 1e-6) {
+					t.Errorf("β_%s = %v, want %v ±1e-6", name, res.Coefficients[name], c.wantBeta[name])
 				}
 			}
-			if !closef(res.Coefficients[InterceptKey], c.wantIntercept, 1e-3) {
-				t.Errorf("intercept = %v, want %v ±1e-3", res.Coefficients[InterceptKey], c.wantIntercept)
+			if !closef(res.Coefficients[InterceptKey], c.wantIntercept, 1e-6) {
+				t.Errorf("intercept = %v, want %v ±1e-6", res.Coefficients[InterceptKey], c.wantIntercept)
 			}
 			// Convergence metadata.
 			if res.Penalty != "l1" {
@@ -174,15 +168,13 @@ func TestRegOLS_Lasso_NonConvergence(t *testing.T) {
 	}
 }
 
-// TestRegOLS_RegularizedStandardizationRoundTrip asserts the
-// standardization step recovers original-scale coefficients correctly.
-// We fit on raw data, then fit on 2·x (predictors doubled), and check
-// that the slope coefficients halve as expected. Tests both lasso and
-// ridge.
-//
-// Scaling the predictors by a factor c changes β_j → β_j / c on the
-// recovered scale; the intercept is unchanged.
-func TestRegOLS_RegularizedStandardizationRoundTrip(t *testing.T) {
+// TestRegOLS_PenaltyReadsPredictorUnits: the penalty reads each
+// coefficient on its predictor's own units (glmnet standardize =
+// FALSE). Doubling the predictors halves the coefficients only when the
+// strength follows the units: a lasso on 2·x at α is the lasso on x at
+// α/2 with every slope halved (the objective is the same function), and
+// the same α on 2·x is a weaker penalty than on x.
+func TestRegOLS_PenaltyReadsPredictorUnits(t *testing.T) {
 	predictors := []string{"x0", "x1"}
 	n := 40
 	makeRecords := func(scale float64) []Record {
@@ -198,50 +190,23 @@ func TestRegOLS_RegularizedStandardizationRoundTrip(t *testing.T) {
 		}
 		return recs
 	}
-
-	// l1 and elasticnet standardize predictors internally so the
-	// per-coordinate penalty is invariant under a global predictor
-	// rescale — β_j halves exactly when x_j doubles. Ridge applies the
-	// penalty on the original-scale coefficients (matching sklearn's
-	// Ridge with normalize=False), so under a 2× rescale the effective
-	// penalty drops and β_j no longer halves cleanly. The round-trip
-	// invariant tested here is therefore restricted to l1 / elasticnet.
-	for _, penalty := range []string{"l1", "elasticnet"} {
-		t.Run(penalty, func(t *testing.T) {
-			spec := &types.RegressionSpec{
-				Type: types.REG_OLS, Target: "y", Predictors: predictors,
-				Penalty: penalty, Alpha: 0.01,
-			}
-			if penalty == "elasticnet" {
-				spec.L1Ratio = 0.5
-			}
-
-			eng1 := newOLS(t, spec)
-			r1, err := eng1.FitBuffered(makeRecords(1.0))
-			if err != nil {
-				t.Fatalf("scale=1: %v", err)
-			}
-
-			spec2 := *spec
-			eng2 := newOLS(t, &spec2)
-			r2, err := eng2.FitBuffered(makeRecords(2.0))
-			if err != nil {
-				t.Fatalf("scale=2: %v", err)
-			}
-
-			// On the 2x-scaled predictors, β_j should be half of the
-			// raw β_j (to ≈1e-3 — the standardization layer absorbs the
-			// rescale so the per-coordinate penalty stays comparable).
-			for _, name := range predictors {
-				if r1.Coefficients[name] == 0 && r2.Coefficients[name] == 0 {
-					continue
-				}
-				want := r1.Coefficients[name] / 2.0
-				if !closef(r2.Coefficients[name], want, 1e-3) {
-					t.Errorf("β_%s scale=2 = %v, want %v (= β_%s scale=1 / 2)",
-						name, r2.Coefficients[name], want, name)
-				}
-			}
-		})
+	fit := func(alpha, scale float64) *types.RegressionResult {
+		spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: predictors,
+			Penalty: "l1", Alpha: alpha, Tol: 1e-15, MaxIters: 1000000}
+		r, err := newOLS(t, spec).FitBuffered(makeRecords(scale))
+		if err != nil {
+			t.Fatalf("α=%v scale=%v: %v", alpha, scale, err)
+		}
+		return r
+	}
+	const alpha = 0.05
+	raw, doubled, weaker := fit(alpha/2, 1), fit(alpha, 2), fit(alpha, 1)
+	for _, name := range predictors {
+		if want := raw.Coefficients[name] / 2; !oracleClose(doubled.Coefficients[name], want, 1e-10) {
+			t.Errorf("β_%s on 2·x at α = %.17g, want (β on x at α/2)/2 = %.17g", name, doubled.Coefficients[name], want)
+		}
+		if 2*doubled.Coefficients[name] == weaker.Coefficients[name] {
+			t.Errorf("β_%s: the same α on 2·x and x gave the same fit; the penalty ignored the units", name)
+		}
 	}
 }

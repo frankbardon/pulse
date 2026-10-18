@@ -51,7 +51,10 @@ func TestExprDocExamples_Compile(t *testing.T) {
 		t.Fatal(verr)
 	}
 	for _, ex := range exprs {
-		p, err := newExprProgram(ex.src, "filter", schema, vecs, reg.ReferenceVectors, reg.ExprOptions())
+		// Compiled at the formula site: the harvest mixes filter and
+		// formula examples, and only a filter must yield a bool
+		// (exprenv.ResultRefusal).
+		p, err := newExprProgram(ex.src, exprenv.SiteFormula, schema, vecs, reg.ReferenceVectors, reg.ExprOptions())
 		if err != nil {
 			t.Errorf("%s: documented expression %q does not compile: %v", ex.where, ex.src, err)
 			continue

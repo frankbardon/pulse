@@ -98,6 +98,9 @@ var aggregatorClasses = map[types.AggregationType]Class{
 	types.AGG_MAPE: ClassAware,
 	types.AGG_RMSE: ClassAware,
 	types.AGG_MAE:  ClassAware,
+	// The weighted probability a positive outranks a negative; the
+	// DeLong interval is withheld under a weight (se_note).
+	types.AGG_AUC: ClassAware,
 
 	// vector-metrics-aggregates E2-S2: per element Σw·x (AGG_VEC_SUM)
 	// and Σw·x / Σw (AGG_VEC_MEAN); matrix-extensions-hardening E5-S1:
@@ -212,8 +215,10 @@ var testClasses = map[types.TestType]Class{
 // frequency-only: the conjugate posterior with X'WX, X'Wy, y'Wy and Σw
 // equals the posterior on the expanded rows, while under probability
 // weights it is a pseudo-posterior with no reference form. A regression
-// carrying a resample or selection modifier is refused at the slot,
-// whatever its class (the resolver's weightSlot.reason).
+// carrying a bootstrap resample or a selection modifier is refused at
+// the slot, whatever its class (the resolver's weightSlot.reason); a
+// jackknife is weighted (JK1 — every replicate refits the remaining
+// rows with their own weights).
 var regressionClasses = map[types.RegressionType]Class{
 	types.REG_OLS:          ClassAware,
 	types.REG_GLM:          ClassAware,

@@ -1,0 +1,46 @@
+{
+  "_meta": {
+    "category": "aggregations",
+    "description": "Discrimination of a credit default score per plan: ATTR_FORMULA scores each subscriber with a fitted logistic default model, then AGG_AUC (field = the score, params.outcome = the packed_bool defaulted flag) reports how well the score ranks defaulters above non-defaulters, with gini (2·AUC − 1), the class counts and the DeLong standard error and 95% interval in its components. Read it on held-out rows to judge new data.",
+    "intents": [
+      "benchmark",
+      "compare_groups"
+    ],
+    "name": "auc_default_score",
+    "operators": [
+      "AGG_AUC",
+      "ATTR_FORMULA",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "logistic",
+      "financial",
+      "comparison"
+    ]
+  },
+  "cohort": {
+    "filename": "subscribers.pulse",
+    "data_dir": ".data"
+  },
+  "attributes": [
+    {
+      "type": "ATTR_FORMULA",
+      "label": "default_score",
+      "expression": "1 / (1 + exp(-(-1.6094379124341003 + 0.9162907318741551 * late_payment)))"
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "plan"
+    }
+  ],
+  "aggregations": [
+    {"type": "AGG_AUC", "field": "default_score", "label": "auc", "params": {"outcome": "defaulted"}}
+  ],
+  "sort": [
+    {
+      "field": "plan"
+    }
+  ]
+}

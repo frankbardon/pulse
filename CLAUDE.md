@@ -99,11 +99,12 @@ A slot naming a field but omitting `Type` gets an operator inferred from the sch
 All `--json` CLI output and every descriptor operation use `descriptor.Envelope` — `{format_version, data, request, errors, warnings}`, built with `descriptor.NewEnvelope(data)`.
 
 - `format_version` is always `"1.1"`, bumped from `"1.0"` for the Compose facade lift. **Additive-only: bump only on a backward-incompatible shape change** — new `data` fields do not bump, renames and removals do. Any bump MUST update this section.
-- `errors` / `warnings` are `{"code", "message", "details"}` entries, an empty array (never null) when absent; `warnings` also lifts a result's run-time warnings (`data` keeps them). **A FATAL `*errors.CodedError` carries its own code** — every CLI leaf (`pulse api *` included) routes through `writeCodedErrorEnvelope`, which unwraps with `errors.As` and falls back to the placeholder (`PROCESS_ERROR`, …) only for an UNCODED error. **The overlay family follows the same rule**: every `PULSE_OVERLAY_*` fault is raised with that code as its own `Code`, never `PROCESSING_INTERNAL` with a `details["code"]` echo; `PROCESSING_INTERNAL` marks only an invariant violation. **Exit status follows the envelope** (not `mcp`): `errors` → 1, else 0; usage → 2 (`docs/src/cli/flags.md`).
+- `errors` / `warnings` are `{"code", "message", "details"}` entries, an empty array (never null) when absent; `warnings` also lifts a result's run-time warnings (`data` keeps them). **A FATAL `*errors.CodedError` carries its own code** — every CLI leaf (`pulse api *` included) routes through `writeCodedErrorEnvelope`, which unwraps with `errors.As` and falls back to the placeholder (`PROCESS_ERROR`, …) only for an UNCODED error. **So does the overlay family**: a `PULSE_OVERLAY_*` fault is its own `Code`, never `PROCESSING_INTERNAL` + a `details["code"]` echo (that marks only an invariant violation). **Exit status follows the envelope** (not `mcp`): `errors` → 1, else 0; usage → 2 (`docs/src/cli/flags.md`).
 - **Undefined figures are `null`.** A non-finite float is JSON `null` in place, key kept (`types.MarshalFinite`); Go keeps NaN; a result read back decodes `null` → NaN (`internal/jsonfinite`), never 0. Long form: `.claude/reference/response-components.md` (Undefined figures on the wire).
-- `request` is an opt-in echo of the *normalized* request, omitted unless `Options.EchoRequest` / `--echo-request`; shaped per operation (five request roots). Streaming skips it; additive `omitempty`, no `format_version` bump.
+- `request`: opt-in echo of the *normalized* request (`Options.EchoRequest` / `--echo-request`), shaped per operation, skipped by streaming.
+- **A slot fails alone.** A regression / test / matrix slot's (or fit's) data-dependent refusal keeps its result (identity + `error` `{code, message, details}`, figures absent, never `nil`) and warns `PULSE_SLOT_FAILED`; `Strict` fails with the slot's own code; config faults stay fatal. Long form: `.claude/reference/response-components.md` (Per-slot failures).
 
-**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, each response echoing its `label`; `--stream` writes bare per-row NDJSON. `sweep` / `rank` / `fits` / `banner` add slots (skills `compose-sweeps`, `compose-fits`, `compose-banner`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
+**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, each response echoing its `label`; `--stream` writes bare per-row NDJSON. `sweep` / `rank` / `fits` / `banner` add slots (skills `compose-*`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
 
 **Item fan-out.** A `for_each` on a window / feature / attribute item expands in place before validation (absent = byte-identical). Long form: `execution-modes.md` (Item fan-out).
 
@@ -111,7 +112,7 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 
 **Response shaping.** Opt-in `Request.Return {preset, include, exclude, precision}`; an excluded part is ABSENT on the wire (never `null`), output stamped `returned`. Long form: `update-demand.md` (`Request.Return` row), `skills/response-shaping.md`.
 
-**Matrices.** `Request.Vectors` + `Request.Matrices` → `Response.Matrices` (`MatrixResult`, each matrix a dedicated `MatrixValues`, never the crosstab `MatrixPayload`). Long form: `matrix-and-vectors.md` (Matrix slot); skill `multivariate-design` picks the operator. `Test` / `Attribute` `vector` / `fields` reuse the vector rules (Virtual vectors), where a vector's `kind` and `PULSE_VECTOR_METRIC_UNSUITED` live. Opt-in `RegressionSpec.Vcov` (`RegressionResult.Vcov` / `Correlation`; off = byte-identical): `matrix-and-vectors.md` (Regression vcov).
+**Matrices.** `Request.Vectors` + `Request.Matrices` → `Response.Matrices` (`MatrixResult`, each matrix a dedicated `MatrixValues`, never the crosstab `MatrixPayload`). Long form: `matrix-and-vectors.md` (Matrix slot); skill `multivariate-design` picks the operator. `Test` / `Attribute` `vector` / `fields` reuse the vector rules (Virtual vectors: `kind`, `PULSE_VECTOR_METRIC_UNSUITED`). Opt-in `RegressionSpec.Vcov` (`RegressionResult.Vcov` / `Correlation`; off = byte-identical): `matrix-and-vectors.md` (Regression vcov).
 
 ### Response.Components
 
@@ -158,7 +159,7 @@ Per-operator schemas live in `descriptor.Manifest.ComponentsSchemas.{Aggregators
 
 ### Execution modes (pointers)
 
-**Contract: `.claude/reference/execution-modes.md` — load it before engine work.** Its "Mode index" section lists every mode with its knob and named skill (streaming, projection, parallel Compose / shards / decode, ProcessChain, join, crosstab, facet, filter precompute, point lookup, overlays, matrices).
+**Contract: `.claude/reference/execution-modes.md` — load it before engine work.** Its "Mode index" section lists every mode with its knob and named skill.
 
 ## Non-Skippable CI Gates
 

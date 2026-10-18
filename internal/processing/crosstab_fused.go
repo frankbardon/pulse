@@ -615,6 +615,17 @@ func classifyFusedAxisGrouper(instance Grouper, field string) fusedAxisGrouper {
 	return entry
 }
 
+// axisGrouperList is the constructed grouper of every fused axis
+// position, in axis order — the instances whose intrinsic key order
+// (keyOrderer) the fused key emission honours.
+func axisGrouperList(axis []fusedAxisGrouper) []Grouper {
+	out := make([]Grouper, len(axis))
+	for i, a := range axis {
+		out[i] = a.grouper
+	}
+	return out
+}
+
 // buildStreamableAxis constructs the per-axis grouper chain. Every
 // instance must implement one of the two per-record keying interfaces —
 // StreamableGrouper (one key per record) or MultiKeyStreamingGrouper
@@ -1848,8 +1859,8 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 	// We order the row/col axis key permutations so we can walk the slice in
 	// the canonical order without materializing every cell into a string-keyed
 	// map.
-	rowKeys := orderCompositeKeysByAxisInclude(s.rowKeys, s.rowAxis, s.spec.Rows)
-	colKeys := orderCompositeKeysByAxisInclude(s.colKeys, s.colAxis, s.spec.Columns)
+	rowKeys := orderCompositeKeysByAxisInclude(s.rowKeys, s.rowAxis, s.spec.Rows, axisGrouperList(s.rowGroupers))
+	colKeys := orderCompositeKeysByAxisInclude(s.colKeys, s.colAxis, s.spec.Columns, axisGrouperList(s.colGroupers))
 
 	// Build per-key tuple lookup for the downstream MatrixPayload /
 	// long-shape emitters.
@@ -2073,7 +2084,7 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 		}
 	} else {
 		resp.Crosstab = &types.CrosstabResult{Shape: shape}
-		resp.Data = buildLongRowsFused(s.spec, rowPart, colPart,
+		resp.Data = buildLongRowsFused(s.spec, axisGrouperList(s.rowGroupers), axisGrouperList(s.colGroupers), rowPart, colPart,
 			cellValues, cellPresent,
 			rowMargins, rowMarginPresent,
 			colMargins, colMarginPresent,
@@ -2603,7 +2614,7 @@ func tuplesForKeys(keys []string, tuples map[string]types.AxisKey) []types.AxisK
 // the emitted row sequence — cell rows in sorted (row, col) order, then
 // row margins, then column margins, then grand, then partial-depth
 // margins — is identical to the buffered emitter.
-func buildLongRowsFused(spec *types.CrosstabSpec,
+func buildLongRowsFused(spec *types.CrosstabSpec, rowGroupers, colGroupers []Grouper,
 	rowPart, colPart *CrosstabAxisPartition,
 	cellValues map[crosstabCellKey]any,
 	cellPresent map[crosstabCellKey]bool,
@@ -2624,8 +2635,8 @@ func buildLongRowsFused(spec *types.CrosstabSpec,
 	// per-grouper key tuple at each level by splitting the composite key
 	// on crosstabAxisKeySep — partition shape isn't preserved on the
 	// fused path because we never partition by raw records.
-	partialRowPart := buildPartialAxisFromKeys(partialRowMargins, rowNormLevel, spec.Rows)
-	partialColPart := buildPartialAxisFromKeys(partialColMargins, colNormLevel, spec.Columns)
+	partialRowPart := buildPartialAxisFromKeys(partialRowMargins, rowNormLevel, spec.Rows, rowGroupers)
+	partialColPart := buildPartialAxisFromKeys(partialColMargins, colNormLevel, spec.Columns, colGroupers)
 	return buildLongRows(spec,
 		rowPart, colPart,
 		cellValues, cellPresent,
@@ -2648,7 +2659,7 @@ func buildLongRowsFused(spec *types.CrosstabSpec,
 // the same partial axis via PartitionByAxis(spec.Rows[:level+1], …),
 // whose per-level orderKeysByInclude produces this exact order — so the
 // fused partial margins stay byte-equal to buffered.
-func buildPartialAxisFromKeys(margins map[string]float64, level int, axis []*types.Group) *CrosstabAxisPartition {
+func buildPartialAxisFromKeys(margins map[string]float64, level int, axis []*types.Group, groupers []Grouper) *CrosstabAxisPartition {
 	if len(margins) == 0 || level < 0 {
 		return nil
 	}
@@ -2671,7 +2682,7 @@ func buildPartialAxisFromKeys(margins map[string]float64, level int, axis []*typ
 	if level+1 <= len(axis) {
 		leading = axis[:level+1]
 	}
-	keys = orderCompositeKeysByAxisInclude(keys, tuples, leading)
+	keys = orderCompositeKeysByAxisInclude(keys, tuples, leading, groupers)
 	// Rebuild tuples parallel to the newly ordered keys.
 	tuples = tuples[:0]
 	for _, k := range keys {

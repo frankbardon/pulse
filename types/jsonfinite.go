@@ -520,6 +520,9 @@ func (v OverlaySummary) MarshalJSON() ([]byte, error) {
 // MarshalJSON writes the test result with every non-finite float as null;
 // see MarshalFinite.
 func (v TestResult) MarshalJSON() ([]byte, error) {
+	if v.Error != nil {
+		return MarshalFinite(slotFailureTest{Label: v.Label, Type: v.Type, GroupKey: v.GroupKey, Error: v.Error})
+	}
 	type alias TestResult
 	return MarshalFinite((*alias)(&v))
 }
@@ -527,6 +530,9 @@ func (v TestResult) MarshalJSON() ([]byte, error) {
 // MarshalJSON writes the regression result with every non-finite float as null;
 // see MarshalFinite.
 func (v RegressionResult) MarshalJSON() ([]byte, error) {
+	if v.Error != nil {
+		return MarshalFinite(slotFailureRegression{Name: v.Name, Type: v.Type, Error: v.Error})
+	}
 	type alias RegressionResult
 	return MarshalFinite((*alias)(&v))
 }

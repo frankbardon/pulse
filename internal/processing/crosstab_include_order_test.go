@@ -271,7 +271,7 @@ func TestOrderCompositeKeysByAxisInclude_FlatReuse(t *testing.T) {
 		keys[i] = CompositeAxisKey(parts)
 	}
 
-	got := orderCompositeKeysByAxisInclude(keys, tuples, axis)
+	got := orderCompositeKeysByAxisInclude(keys, tuples, axis, nil)
 	want := []string{
 		CompositeAxisKey([]string{"452", "aud"}),
 		CompositeAxisKey([]string{"452", "online"}),

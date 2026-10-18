@@ -124,11 +124,45 @@ func parityOutcome(v any, err error) []byte {
 		}
 		return []byte("error: " + err.Error())
 	}
+	// A slot that failed on its data fails alone (per-slot partial
+	// success): the run's outcome for the harness is that slot's
+	// refusal, exactly the error it raised before slots failed alone.
+	if resp, ok := v.(*types.Response); ok {
+		if se := firstFailedSlot(resp); se != nil {
+			return parityOutcome(nil, perr.NewCodedErrorWithDetails(perr.Code(se.Code), se.Message, se.Details))
+		}
+	}
 	b, mErr := json.Marshal(v)
 	if mErr != nil {
 		return []byte("unmarshalable result: " + mErr.Error())
 	}
 	return append([]byte("ok: "), b...)
+}
+
+// firstFailedSlot is resp's first failed slot's error — tests,
+// post-tests, regressions, then matrices — nil when none failed.
+func firstFailedSlot(resp *types.Response) *types.SlotError {
+	if resp == nil {
+		return nil
+	}
+	for _, rs := range [][]*types.TestResult{resp.Tests, resp.PostTests} {
+		for _, r := range rs {
+			if r != nil && r.Error != nil {
+				return r.Error
+			}
+		}
+	}
+	for _, r := range resp.Regressions {
+		if r != nil && r.Error != nil {
+			return r.Error
+		}
+	}
+	for i := range resp.Matrices {
+		if resp.Matrices[i].Error != nil {
+			return resp.Matrices[i].Error
+		}
+	}
+	return nil
 }
 
 func parityIsError(outcome []byte) bool {

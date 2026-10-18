@@ -232,6 +232,48 @@
         ]
       },
       {
+        "operator": "WIN_SHARE",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds each row's share of its partition's total, or the running share down the ordered rows, such as the share of defaults caught so far. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "windows": [
+            {
+              "field": "\u003cfield\u003e",
+              "order_by": [
+                {
+                  "field": "\u003corder_by\u003e"
+                }
+              ],
+              "type": "WIN_SHARE"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "order_by"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the running total itself, not as a share",
+            "use": "WIN_RUNNING_SUM"
+          },
+          {
+            "when": "you want how much richer in the field a row is than its share of another column",
+            "use": "WIN_LIFT"
+          },
+          {
+            "when": "you want each group's share as a decoration on the result",
+            "use": "OVERLAY_SHARE_OF_TOTAL"
+          }
+        ]
+      },
+      {
         "operator": "GROUP_CATEGORY",
         "category": "grouper",
         "level": "basic",
@@ -264,6 +306,52 @@
           {
             "when": "the field is a multi-select answer",
             "use": "GROUP_SET_PER_ELEMENT"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_LIFT",
+        "category": "window",
+        "level": "intermediate",
+        "why": "Adds how many times its share of one column a row holds of another, such as a decile's share of defaults over its share of loans. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "windows": [
+            {
+              "field": "\u003cfield\u003e",
+              "order_by": [
+                {
+                  "field": "\u003corder_by\u003e"
+                }
+              ],
+              "params": {
+                "base": "\u003cbase\u003e"
+              },
+              "type": "WIN_LIFT"
+            }
+          ]
+        },
+        "placeholders": [
+          "base",
+          "cohort",
+          "field",
+          "order_by"
+        ],
+        "alternatives": [
+          {
+            "when": "you want one column's share of its own total",
+            "use": "WIN_SHARE"
+          },
+          {
+            "when": "you want how well a score ranks one outcome above the other as one number",
+            "use": "AGG_AUC"
+          },
+          {
+            "when": "you want each group against the overall figure as an index",
+            "use": "OVERLAY_INDEX_VS_TOTAL"
           }
         ]
       },
@@ -330,44 +418,12 @@
             "use": "AGG_SET_FREQUENCY"
           }
         ]
-      },
-      {
-        "operator": "GROUP_SET_VALUE",
-        "category": "grouper",
-        "level": "intermediate",
-        "why": "Groups the rows by the exact combination of options picked in a multi-select answer, such as A only, A and B, or none. Fill in each placeholder in the draft before you run it.",
-        "bound": false,
-        "request": {
-          "cohort": {
-            "filename": "\u003ccohort\u003e"
-          },
-          "groups": [
-            {
-              "field": "\u003cfield\u003e",
-              "type": "GROUP_SET_VALUE"
-            }
-          ]
-        },
-        "placeholders": [
-          "cohort",
-          "field"
-        ],
-        "alternatives": [
-          {
-            "when": "you want one group per option, counting a row in each it picked",
-            "use": "GROUP_SET_PER_ELEMENT"
-          },
-          {
-            "when": "you want to keep one combination rather than see them all",
-            "use": "FILTER_SET_EQUALS"
-          }
-        ]
       }
     ],
-    "truncated": false,
-    "candidates_considered": 9
+    "truncated": true,
+    "candidates_considered": 11
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 86c19c771c51d22f99af7c219f9a55b99f2ba16be6541708e820a9232d2ba222
+// golden-hash: e3a7d6bcc9b01a53d4a7fb8844bdfcadff3e8d9f2700c417e4b774480de03005

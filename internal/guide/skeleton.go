@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"sort"
 
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -119,7 +120,7 @@ func skeleton(op opInfo, intent string) (draft, bool) {
 			}
 		}
 	case catWindow:
-		if !op.ignoresField {
+		if !op.ignoresField && !descx.WindowFieldForbidden(types.WindowType(op.name)) {
 			entry["field"] = str("field")
 		}
 		note("order_by")

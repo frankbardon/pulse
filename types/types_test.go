@@ -607,26 +607,19 @@ func TestFiltererWithExpression(t *testing.T) {
 	}
 }
 
-// TestWindowEnumValues verifies all 10 window types are present and round-trip via JSON.
+// TestWindowEnumValues verifies every registered window type
+// (AllWindowTypes, the registry list) is a WIN_-prefixed constant and
+// round-trips via JSON.
 func TestWindowEnumValues(t *testing.T) {
-	expected := []types.WindowType{
-		types.WIN_LAG,
-		types.WIN_LEAD,
-		types.WIN_ROW_NUMBER,
-		types.WIN_RANK,
-		types.WIN_DENSE_RANK,
-		types.WIN_RUNNING_SUM,
-		types.WIN_RUNNING_AVG,
-		types.WIN_MOVING_AVG,
-		types.WIN_EWMA,
-		types.WIN_PCT_CHANGE,
-	}
-
-	if len(expected) != 10 {
-		t.Errorf("expected 10 window types, got %d", len(expected))
+	expected := types.AllWindowTypes()
+	if len(expected) == 0 {
+		t.Fatal("AllWindowTypes is empty")
 	}
 
 	for _, wt := range expected {
+		if !strings.HasPrefix(string(wt), "WIN_") {
+			t.Errorf("window type %s lacks the WIN_ prefix", wt)
+		}
 		w := types.Window{Type: wt, Field: "x", OrderBy: []types.OrderKey{{Field: "ts"}}}
 		data, err := json.Marshal(w)
 		if err != nil {
@@ -647,8 +640,8 @@ func TestWindowEnumValues(t *testing.T) {
 // TestAllWindowTypesAlphabetical verifies AllWindowTypes returns alphabetically sorted entries.
 func TestAllWindowTypesAlphabetical(t *testing.T) {
 	all := types.AllWindowTypes()
-	if len(all) != 11 {
-		t.Fatalf("AllWindowTypes returned %d entries, want 11", len(all))
+	if len(all) != 13 {
+		t.Fatalf("AllWindowTypes returned %d entries, want 13", len(all))
 	}
 	for i := 1; i < len(all); i++ {
 		if string(all[i]) < string(all[i-1]) {

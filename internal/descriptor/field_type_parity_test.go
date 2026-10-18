@@ -66,7 +66,7 @@ func decimalTypeName(t *testing.T) string {
 func TestCapabilities_AcceptsTypesAreRegisteredNames(t *testing.T) {
 	for kind, ops := range capabilityOperatorTables() {
 		for _, op := range ops {
-			if len(op.AcceptsTypes) == 0 {
+			if len(op.AcceptsTypes) == 0 && !op.ForbidsField {
 				t.Errorf("%s %s declares no accepted field types", kind, op.Name)
 			}
 			for _, name := range op.AcceptsTypes {

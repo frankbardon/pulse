@@ -1,6 +1,7 @@
 package model
 
 import (
+	"maps"
 	"sort"
 
 	"github.com/frankbardon/pulse/types"
@@ -77,8 +78,11 @@ func (s *Set) Clone() *Set {
 			out.vectors[k] = v
 		}
 	}
-	// Resolved records are read-only too: shared.
+	// Resolved records and failed fits are read-only too: shared.
 	out.records = s.records
+	if len(s.failed) > 0 {
+		out.failed = maps.Clone(s.failed)
+	}
 	return out
 }
 

@@ -1,6 +1,6 @@
 ```yaml
 name: op-reg-mod-resample
-description: Spec-level resampling modifier (jackknife / bootstrap) that composes with an OLS or GLM fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path.
+description: Spec-level resampling modifier (jackknife — leave-one-out, grouped or by cluster — / bootstrap) that composes with an OLS or GLM fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path.
 kind: operator
 category: REG
 operator: REG_RESAMPLE
@@ -13,13 +13,15 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. T
 
 ## Params
 
-Top-level `resample` on `RegressionSpec` plus two bootstrap knobs. A **wrapper, not a fit**: the host fit runs once per replicate (jackknife = `n` refits; bootstrap = `bootstrap_iters`) and β samples are aggregated.
+Top-level `resample` on `RegressionSpec` plus its knobs. A **wrapper, not a fit**: the host fit runs once per replicate (leave-one-out = `n` refits; delete-a-group = `g`; bootstrap = `bootstrap_iters`) and β samples are aggregated.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `resample` | enum | `""` | `""`, `jackknife` (leave-one-out), `bootstrap` (non-parametric). |
+| `resample` | enum | `""` | `""`, `jackknife`, `bootstrap` (non-parametric). |
+| `jackknife_groups` | int | absent | Jackknife only: delete-a-group over `g` seeded random groups (2 ≤ g ≤ fitted rows, sizes within one). Absent = leave-one-out. |
+| `jackknife_by` | field | absent | Jackknife only: delete-a-cluster, one replicate per distinct value (≥ 2); a null value drops the row from the fit. Exclusive with `jackknife_groups` (`PROCESSING_CONFIG`). |
 | `bootstrap_iters` | int | `1000` | Replicate count, used as given (`<= 0` → `1000`); read only when `resample == "bootstrap"`. |
-| `rng_seed` | int | `0` | `0` derives a deterministic per-request seed; non-zero is reproducible. |
+| `rng_seed` | int | `0` | Seeds the bootstrap and the `jackknife_groups` draw; `0` derives a deterministic per-request seed; non-zero is reproducible. |
 
 ## Inputs
 
@@ -28,23 +30,25 @@ Inherits `target` / `predictors` from the host `RegressionSpec`. No additional f
 | Host | Accepted? |
 |---|---|
 | `REG_OLS` (any penalty) | yes |
-| `REG_GLM` | yes |
+| `REG_GLM` (any penalty) | yes |
 | `REG_BAYES_LINEAR` | rejected — credible intervals already convey uncertainty |
 
 ## Output
 
-- `StdErrors[name]` — jackknife `√((n−1)/n · Σ(β⁽⁻ⁱ⁾ − β̄)²)`; bootstrap sample std of replicates.
+- `StdErrors[name]` — jackknife `√((g−1)/g · Σ(β₍ₖ₎ − β̄)²)` over its `g` replicates (leave-one-out: `g` = the fitted rows; a row the fit drops is no replicate); bootstrap sample std of replicates.
+- A delete-a-group jackknife echoes `jackknife_groups` (`g`; the distinct `jackknife_by` values); leave-one-out omits it.
 - `PValues[name]` — jackknife pivotal; bootstrap percentile-method two-sided.
-- `Resample` echoes back; `Coefficients` unchanged. For `l1` / `elasticnet` OLS, bootstrap suppresses `PROCESSING_REGRESSION_APPROXIMATE_SE`.
+- `Resample` echoes back; `Coefficients` unchanged. For `l1` / `elasticnet` (OLS or GLM), a resample suppresses `PROCESSING_REGRESSION_APPROXIMATE_SE`; a penalty refits every replicate penalized.
 - Bootstrap echoes `bootstrap_requested` (replicates run) and `bootstrap_succeeded` (refits that succeeded; SE / p / vcov use only these). A failed refit is skipped, so `succeeded < requested` flags an unstable fit; under 10 successes is `PROCESSING_REGRESSION_NO_CONVERGE`.
 
 ## Gotchas
 
 - Any non-empty `resample` forces buffered — `RegressionSpec.Streamable()` → false. Predict reports the downgrade.
-- Jackknife is `O(n)` refits; on large cohorts prefer bootstrap with moderate replicates.
+- Leave-one-out is `n` refits — cost grows with n²; predict's `PULSE_ADVISORY_JACKKNIFE_COST` fires at ≥ 10,000 records. Use `jackknife_groups: 50` (or a natural cluster in `jackknife_by`).
+- Every jackknife replicate must refit: one failure (e.g. separation once a group is gone) fails the slot with that refit's code, `details.jackknife_group` naming it. `g` above the fitted rows, or one cluster, is `PROCESSING_REGRESSION_INSUFFICIENT_DATA`.
 - Composes with `selection` — the resample wraps the selected-feature fit.
 - `rng_seed = 0` is deterministic per request but cohort-dependent; pin non-zero for cross-cohort reproducibility.
-- Never weighted: any row weight in force on the regression (slot, request or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; `"weight": null` on the slot runs it unweighted.
+- Jackknife is weighted (JK1): each replicate refits the remaining rows with their own weights. Bootstrap is never weighted: a weight in force is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; `"weight": null` opts out.
 
 ## See
 

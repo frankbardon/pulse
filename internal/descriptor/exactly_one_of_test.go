@@ -24,7 +24,8 @@ var exactlyOneOfSamples = map[string]map[string]any{
 // empty params object naming an optional, ungrouped param, and why
 // that refusal is not an exactly-one-of rule among params.
 var exactlyOneOfExempt = map[string]string{
-	string(types.AGG_WEIGHTED_MEAN): "weight_field is one way to name the weight; a slot or request weight is the other, and neither is a param",
+	string(types.AGG_WEIGHTED_MEAN):    "weight_field is one way to name the weight; a slot or request weight is the other, and neither is a param",
+	string(types.GROUP_NUMERIC_RANGES): "ranges XOR table is the range-source rule every range operator shares (PULSE_RANGE_SOURCE_AMBIGUOUS, like GROUP_DATE_RANGES); ranges is declared Required as the common case and table is the named-table alternative",
 }
 
 // allManifestParams yields every operator-like entry's name and params

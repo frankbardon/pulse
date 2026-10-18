@@ -39,11 +39,6 @@
       "field": "income",
       "interval": 25000
     }
-  ],
-  "sort": [
-    {
-      "field": "income"
-    }
   ]
 
 }

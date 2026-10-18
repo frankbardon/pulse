@@ -797,7 +797,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 188,
+    "error_codes_count": 189,
     "error_domains": [
       "CLI",
       "DATA",
@@ -931,6 +931,7 @@
       "PULSE_SHARD_HEADER_INVALID",
       "PULSE_SHARD_MISSING",
       "PULSE_SHARD_RESERVED_NAME",
+      "PULSE_SLOT_FAILED",
       "PULSE_SPSS_CARDINALITY_HIGH",
       "PULSE_SPSS_CATEGORICAL_OVERFLOW",
       "PULSE_SPSS_CATEGORICAL_USER_MISSING",
@@ -1505,7 +1506,7 @@
       },
       {
         "name": "predict-advisories",
-        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
+        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families, a leave-one-out jackknife over a large cohort); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
       },
       {
         "name": "regression-inference",
@@ -2378,4 +2379,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3f7d59186451bd0c9869bae98207e9de53e843b0ea39e07a11c66f5f6a2f8c18
+// golden-hash: d5a73d91162fc3ed15231e1e69337adcb7a2081755d4584095190ef32677dd3b

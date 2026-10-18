@@ -310,7 +310,7 @@ func TestMatrixPCA_NotPSDGuard(t *testing.T) {
 			Matrices: []types.MatrixSpec{{Name: "pca", Type: types.MAT_PCA, Fields: fields, Params: json.RawMessage(params)}},
 		}
 	}
-	_, err := New(cfg).Process(t.Context(), req(`{"missing": "pairwise", "components": 3}`))
+	_, err := processOrSlotErr(t.Context(), New(cfg), req(`{"missing": "pairwise", "components": 3}`))
 	var ce *errors.CodedError
 	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_MATRIX_NOT_PSD {
 		t.Fatalf("unrepaired: error %v, want PULSE_MATRIX_NOT_PSD", err)

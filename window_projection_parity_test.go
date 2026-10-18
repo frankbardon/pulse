@@ -96,6 +96,10 @@ func wpWindow(wt types.WindowType) *types.Window {
 		w.Params = json.RawMessage(`{"periods":1}`)
 	case types.WIN_LAG, types.WIN_LEAD:
 		w.Params = json.RawMessage(`{"offset":1}`)
+	case types.WIN_SHARE:
+		w.Params = json.RawMessage(`{"cumulative":true}`)
+	case types.WIN_LIFT:
+		w.Params = json.RawMessage(`{"base":"score","cumulative":true}`)
 	}
 	return w
 }

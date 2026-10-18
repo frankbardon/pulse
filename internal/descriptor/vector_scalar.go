@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/internal/windowparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -162,6 +163,7 @@ func vectorScalarRefusals(req *types.Request, schema *encoding.Schema, snap *Ext
 			judge(c.Cluster, slot+" covariance.cluster", "")
 			judge(c.OrderBy, slot+" covariance.order_by", "")
 		}
+		judge(reg.JackknifeBy, slot+" jackknife_by", "")
 	}
 
 	grouper := func(g *types.Group, slot string) {
@@ -232,8 +234,11 @@ func vectorScalarRefusals(req *types.Request, schema *encoding.Schema, snap *Ext
 			continue
 		}
 		slot := at("windows", i, string(win.Type))
-		if windowFieldRequired[opRoute(inst, win.Type)] {
+		if windowparams.FieldRequired(opRoute(inst, win.Type)) {
 			judge(win.Field, slot+" field", "")
+		}
+		if opRoute(inst, win.Type) == types.WIN_LIFT {
+			judge(paramString(win.Params, "base"), slot+" params.base", "")
 		}
 		for j, k := range win.OrderBy {
 			judge(k.Field, slot+" order_by["+strconv.Itoa(j)+"]", "")

@@ -277,7 +277,7 @@ func TestMatrixSEM_FrequencyWeightIsExpansion(t *testing.T) {
 
 func semProcessErr(t *testing.T, cfg *fs.Config, spec types.MatrixSpec) (*types.Response, *errors.CodedError) {
 	t.Helper()
-	resp, err := New(cfg).Process(context.Background(), &types.Request{Cohort: &types.Cohort{Filename: "sem.pulse"}, Matrices: []types.MatrixSpec{spec}})
+	resp, err := processOrSlotErr(context.Background(), New(cfg), &types.Request{Cohort: &types.Cohort{Filename: "sem.pulse"}, Matrices: []types.MatrixSpec{spec}})
 	var ce *errors.CodedError
 	if err != nil && !stderrors.As(err, &ce) {
 		t.Fatalf("uncoded error %v", err)

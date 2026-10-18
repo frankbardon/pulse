@@ -19,12 +19,14 @@ import (
 //
 // Response mode reads the response into Findings — one per test,
 // regression coefficient and fit, overlay layer, matrix and
-// aggregation — each with a closed verdict read at the result's own
+// aggregation — a regression run under a selection named by the
+// predictors it kept, its dropped candidates in its sentence — each with a closed verdict read at the result's own
 // alpha (adjusted when a correction ran), a strength band only where
 // the figure's Interpretation names a convention, and the figures it
 // rests on (undefined ones null). Without the companion an aggregation
 // is described by count only and a caveat says the reading is partial.
-// A ComposedResponse is read slot by slot then its batch overlays, a
+// A ComposedResponse is read slot by slot, then its regression fits
+// (at fits.<name>), then its batch overlays, a
 // ChainResponse stage by stage with the request it echoes (else its
 // companion), a FacetResult field by field with the overlays that
 // decorate each; every finding's Slot is the wire path it reads, and
@@ -41,9 +43,12 @@ import (
 // request raises and predict's verdict (Valid, with each refusal a
 // caveat). Without a cohort nothing is checked, and a caveat says so. A
 // cohort that cannot be read is DATA_FILE (ENCODING_INVALID for a
-// malformed header or schema). A Compose root predicts each slot over
-// its own cohort — every rule Predict applies to a request, each
-// refusal located by its slot — and validates the batch; a chain root predicts its
+// malformed header or schema). A Compose root is judged exactly as
+// PredictCompose judges it — the batch's fits and each slot's models
+// bound before any slot, every slot predicted over its own cohort,
+// each refusal located by its slot (requests[i], fits[k]) — and that
+// verdict is Explain's (each slot's own predict only names its
+// inferred operators and warnings); a chain root predicts its
 // first stage and validates the chain; a Sample root names no operator
 // and is never predicted.
 //

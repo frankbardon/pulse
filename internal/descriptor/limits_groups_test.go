@@ -78,6 +78,8 @@ func TestEstimateGroups(t *testing.T) {
 		{"date ranges table + unmatched", dateRangesGroup(t, map[string]string{"table": "fiscal"}), -1, 5, true},
 		{"date ranges unknown table", dateRangesGroup(t, map[string]string{"table": "nope"}), -1, 0, false},
 		{"date ranges no params", &types.Group{Type: types.GROUP_DATE_RANGES, Field: "day"}, -1, 0, false},
+		{"numeric ranges inline + unmatched", &types.Group{Type: types.GROUP_NUMERIC_RANGES, Field: "num", Params: json.RawMessage(`{"ranges":[{"label":"a","end":1},{"label":"b","start":1}]}`)}, -1, 3, true},
+		{"numeric ranges table + unmatched", &types.Group{Type: types.GROUP_NUMERIC_RANGES, Field: "num", Params: json.RawMessage(`{"table":"fiscal"}`)}, -1, 5, true},
 		{"GROUP_RANGE unknown", &types.Group{Type: types.GROUP_RANGE, Field: "num", Interval: 10}, -1, 0, false},
 		{"GROUP_DATE unknown", &types.Group{Type: types.GROUP_DATE, Field: "day"}, -1, 0, false},
 		{"GROUP_ROUNDED unknown", &types.Group{Type: types.GROUP_ROUNDED, Field: "num"}, -1, 0, false},

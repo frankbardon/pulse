@@ -100,15 +100,15 @@ type weightSlot struct {
 	specTotal bool
 	// reason is a slot-level PERMANENT refusal of a built-in operator
 	// that is otherwise classed by the table: every post-test (it reads
-	// aggregated rows) and a regression carrying a resample or
-	// selection modifier.
+	// aggregated rows) and a regression carrying a bootstrap resample
+	// or a selection modifier (a jackknife is weighted: JK1).
 	reason string
 }
 
 // Slot-level permanent refusal reasons (weightSlot.reason).
 const (
 	reasonPostTest  = "a post-test reads the aggregated result rows, which carry no row weights"
-	reasonResample  = "row resampling under weights is replicate-weight (design-based) territory with no standard form"
+	reasonResample  = "a weighted bootstrap is replicate-weight (design-based) territory with no standard form; resample jackknife is weighted (JK1)"
 	reasonSelection = "an information criterion has no standard form under weights (a probability-weighted likelihood is only a pseudo-likelihood)"
 )
 
@@ -448,7 +448,10 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 		if r != nil {
 			add(fmt.Sprintf("regressions[%d]", i), string(r.Type), r.Weight)
 			switch {
-			case r.Resample != "":
+			case r.Resample != "" && r.Resample != "jackknife":
+				// The jackknife is weighted (JK1: each replicate refits
+				// the remaining rows with their own weights); a bootstrap
+				// stays refused.
 				slots[len(slots)-1].reason = reasonResample
 			case r.Selection != "":
 				slots[len(slots)-1].reason = reasonSelection
@@ -587,8 +590,8 @@ func slotOwnWeight(s weightSlot) (spec *types.WeightSpec, null, set bool, err er
 //     weight, so only the request weight is explicit there; refused
 //     (ClassRefuse — a pending inferential operator, or a permanent
 //     refusal carrying details.reason: weighting.RefusalReason, every
-//     built-in post-test, a regression with a resample or selection
-//     modifier) ⇒ PULSE_WEIGHT_UNSUPPORTED under any weight, the
+//     built-in post-test, a regression with a bootstrap resample or a
+//     selection modifier) ⇒ PULSE_WEIGHT_UNSUPPORTED under any weight, the
 //     instance default included; frequency-only ⇒ applied under kind
 //     frequency, PULSE_WEIGHT_UNSUPPORTED naming the kind under kind
 //     probability (the default included); every operator the table

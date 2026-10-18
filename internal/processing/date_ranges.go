@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/daterange"
+	"github.com/frankbardon/pulse/internal/numrange"
 )
 
 // DateRangeSpec is the wire-level shape of a single labeled date range as
@@ -31,18 +32,7 @@ func compileDateRanges(specs []DateRangeSpec) (*dateRangeSet, error) {
 // an exactly-one selection returns nil. The check needs no registry, so
 // callers can surface it at construction time before any table lookup.
 func dateRangeSourceAmbiguity(operator string, hasInline, hasTable bool) error {
-	switch {
-	case hasInline && hasTable:
-		return errors.NewCodedErrorWithDetails(errors.PULSE_RANGE_SOURCE_AMBIGUOUS,
-			operator+": specify exactly one of inline `ranges` or a named `table`, not both",
-			map[string]any{"operator": operator})
-	case !hasInline && !hasTable:
-		return errors.NewCodedErrorWithDetails(errors.PULSE_RANGE_SOURCE_AMBIGUOUS,
-			operator+": one of inline `ranges` or a named `table` is required",
-			map[string]any{"operator": operator})
-	default:
-		return nil
-	}
+	return daterange.SourceAmbiguity(operator, hasInline, hasTable)
 }
 
 // resolveDateRangeSpecs selects the labeled date-range specs for a
@@ -67,11 +57,38 @@ func resolveDateRangeSpecs(operator string, inline []DateRangeSpec, table string
 	if hasInline {
 		return inline, nil
 	}
+	rt, err := lookupRangeTable(operator, table, exts)
+	if err != nil {
+		return nil, err
+	}
+	if rt.Kind() != daterange.KindDate {
+		return nil, daterange.KindMismatch(operator, table, daterange.KindDate, rt.Kind())
+	}
+	return rt.Ranges, nil
+}
+
+// lookupRangeTable resolves a named range table of either kind;
+// an unregistered (or hidden) name is PULSE_RANGE_TABLE_UNKNOWN.
+func lookupRangeTable(operator, table string, exts *ExtensionRegistry) (RangeTable, error) {
 	rt, ok := exts.LookupRangeTable(table)
 	if !ok {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_RANGE_TABLE_UNKNOWN,
+		return RangeTable{}, errors.NewCodedErrorWithDetails(errors.PULSE_RANGE_TABLE_UNKNOWN,
 			operator+": unknown range table "+strconv.Quote(table),
 			map[string]any{"operator": operator, "table": table})
 	}
-	return rt.Ranges, nil
+	return rt, nil
+}
+
+// resolveNumericRangeSpecs resolves a GROUP_NUMERIC_RANGES table source:
+// an unknown name is PULSE_RANGE_TABLE_UNKNOWN, a date table
+// PULSE_RANGE_TABLE_KIND_MISMATCH.
+func resolveNumericRangeSpecs(table string, exts *ExtensionRegistry) ([]numrange.Spec, error) {
+	rt, err := lookupRangeTable(numrange.Operator, table, exts)
+	if err != nil {
+		return nil, err
+	}
+	if rt.Kind() != daterange.KindNumeric {
+		return nil, daterange.KindMismatch(numrange.Operator, table, daterange.KindNumeric, rt.Kind())
+	}
+	return rt.NumericRanges, nil
 }

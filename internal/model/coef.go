@@ -71,6 +71,9 @@ func Coef(set *Set, fit, term, stat string) (float64, *errors.CodedError) {
 	if cerr := CheckCoef(set, fit, term, stat); cerr != nil {
 		return math.NaN(), cerr
 	}
+	if se, failed := set.Failed(fit); failed {
+		return math.NaN(), FailedFitRefusal(fit, se)
+	}
 	b := set.byName[fit]
 	switch stat {
 	case StatLower, StatUpper:

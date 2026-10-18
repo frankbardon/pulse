@@ -180,10 +180,11 @@ func (w *fieldRefWalk) compileRefusal(src, site string, opts []expr.Option) *err
 			}
 		}
 	}
-	all := make([]expr.Option, 0, 2+len(opts))
+	all := make([]expr.Option, 0, 3+len(opts))
 	all = append(all, expr.Env(decl), exprenv.CalendarGuard(c.schema))
-	if _, err := expr.Compile(src, append(all, opts...)...); err != nil {
+	prog, err := expr.Compile(src, append(all, opts...)...)
+	if err != nil {
 		return exprenv.CompileError(site, src, err)
 	}
-	return nil
+	return exprenv.ResultRefusal(site, src, prog)
 }

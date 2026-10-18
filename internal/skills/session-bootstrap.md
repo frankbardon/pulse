@@ -55,7 +55,7 @@ Scripts can trust the CLI exit status (all but `pulse mcp`): `0` ok, warnings al
 Roots auto-loaded at `pulse.New`:
 
 - `PULSE_LABEL_TABLES_DIR` — output-time label tables. **Use its own dir:** every `*.json` must parse as one (else `pulse.New` fails); only Pulse's sidecars are skipped.
-- `PULSE_RANGE_TABLES_DIR` — named `{label,start,end}` sets for date-range operators. Same rule.
+- `PULSE_RANGE_TABLES_DIR` — named `{label,start,end}` sets for range operators. Same rule.
 - `PULSE_POPULATIONS_DIR` — `*.pulse-population.json` files, bound in every request by stem.
 - `PULSE_TEMPLATES_DIR` — parameterised request templates; `os.PathListSeparator`-separated roots in precedence order, first root wins. Render via `RenderTemplate` / `RenderTemplateRequest`, then predict the rendered request.<!-- feature: capability:templates --> See `request-templating`.<!-- /feature -->
 

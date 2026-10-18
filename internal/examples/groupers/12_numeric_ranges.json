@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "category": "groupers",
+    "description": "Split customers into a train and a holdout set on their id with labeled half-open numeric ranges ([1,161) and [161,201)), then compare count and average income per set.",
+    "intents": [
+      "compare_groups",
+      "segment"
+    ],
+    "name": "group_numeric_ranges_split",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "GROUP_NUMERIC_RANGES"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "income",
+      "label": "avg_income"
+    }
+  ],
+  "cohort": {
+    "filename": "customers.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_NUMERIC_RANGES",
+      "field": "id",
+      "params": {
+        "ranges": [
+          {"label": "train", "start": 1, "end": 161},
+          {"label": "holdout", "start": 161, "end": 201}
+        ],
+        "unmatched_label": "other"
+      }
+    }
+  ]
+
+}

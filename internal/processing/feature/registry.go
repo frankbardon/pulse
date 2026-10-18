@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/featstream"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -65,7 +66,7 @@ func IsStreamable(features []*types.Feature, schema *encoding.Schema) bool {
 }
 
 // IsStreamableWithExt reports whether every feature's Computer implements
-// StreamingComputer, resolving operators through resolve (nil = built-ins). Returns
+// StreamingComputer and its spec streams on raw records (featstream), resolving operators through resolve (nil = built-ins). Returns
 // false on any unknown type or factory error so the buffered path can
 // surface the canonical error.
 func IsStreamableWithExt(features []*types.Feature, schema *encoding.Schema, resolve Resolver) bool {
@@ -79,6 +80,9 @@ func IsStreamableWithExt(features []*types.Feature, schema *encoding.Schema, res
 			return false
 		}
 		if _, ok := c.(StreamingComputer); !ok {
+			return false
+		}
+		if ok, _ := featstream.Streamable(feat, schema); !ok {
 			return false
 		}
 	}
@@ -114,6 +118,9 @@ func BuildStreamingWithExt(features []*types.Feature, schema *encoding.Schema, r
 		if !ok {
 			return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 				fmt.Sprintf("feature %s does not implement StreamingComputer", feat.Type))
+		}
+		if ok, reason := featstream.Streamable(feat, schema); !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL, reason)
 		}
 		out = append(out, StreamingHandle{Feature: feat, Computer: sc})
 	}

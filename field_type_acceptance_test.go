@@ -214,9 +214,12 @@ var acceptanceTemplates = map[string]string{
 	// Model error: the field under judgement is the actual; the paired
 	// prediction column (params.prediction_field, the same type check)
 	// is pinned by TestModelError_PredictMatchesRuntime.
-	"AGG_MAPE":                `{"aggregations":[{"type":"AGG_MAPE","field":"$F","params":{"prediction_field":"y"}}]}`,
-	"AGG_RMSE":                `{"aggregations":[{"type":"AGG_RMSE","field":"$F","params":{"prediction_field":"y"}}]}`,
-	"AGG_MAE":                 `{"aggregations":[{"type":"AGG_MAE","field":"$F","params":{"prediction_field":"y"}}]}`,
+	"AGG_MAPE": `{"aggregations":[{"type":"AGG_MAPE","field":"$F","params":{"prediction_field":"y"}}]}`,
+	"AGG_RMSE": `{"aggregations":[{"type":"AGG_RMSE","field":"$F","params":{"prediction_field":"y"}}]}`,
+	"AGG_MAE":  `{"aggregations":[{"type":"AGG_MAE","field":"$F","params":{"prediction_field":"y"}}]}`,
+	// AGG_AUC's template judges the score; the outcome column is pinned
+	// by TestModelError_PredictionFieldTypeParity.
+	"AGG_AUC":                 `{"aggregations":[{"type":"AGG_AUC","field":"$F","params":{"outcome":"t_packed_bool"}}]}`,
 	"AGG_CI_LOWER":            `{"aggregations":[{"type":"AGG_CI_LOWER","field":"$F","params":{"confidence":0.95,"method":"normal"}}]}`,
 	"AGG_CI_UPPER":            `{"aggregations":[{"type":"AGG_CI_UPPER","field":"$F","params":{"confidence":0.95,"method":"normal"}}]}`,
 	"AGG_WELFORD":             `{"aggregations":[{"type":"AGG_WELFORD","field":"$F"}]}`,
@@ -273,6 +276,7 @@ var acceptanceTemplates = map[string]string{
 	"GROUP_QUANTILE":        `{"groups":[{"type":"GROUP_QUANTILE","field":"$F","interval":4}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,
 	"GROUP_DATE":            `{"groups":[{"type":"GROUP_DATE","field":"$F","params":{"component":"month"}}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,
 	"GROUP_DATE_RANGES":     `{"groups":[{"type":"GROUP_DATE_RANGES","field":"$F","params":{"ranges":[{"label":"h1","start":"2024-01-01","end":"2024-06-30"}]}}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,
+	"GROUP_NUMERIC_RANGES":  `{"groups":[{"type":"GROUP_NUMERIC_RANGES","field":"$F","params":{"ranges":[{"label":"lo","end":10},{"label":"hi","start":10}]}}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,
 	"GROUP_SET_VALUE":       `{"groups":[{"type":"GROUP_SET_VALUE","field":"$F"}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,
 	"GROUP_SET_PER_ELEMENT": `{"groups":[{"type":"GROUP_SET_PER_ELEMENT","field":"$F"}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,
 
@@ -288,6 +292,8 @@ var acceptanceTemplates = map[string]string{
 	"WIN_EWMA":        `{"windows":[{"type":"WIN_EWMA","field":"$F","order_by":[{"field":"x"}],"frame":{"mode":"rows","preceding":null,"following":0},"params":{"alpha":0.3}}]}`,
 	"WIN_PCT_CHANGE":  `{"windows":[{"type":"WIN_PCT_CHANGE","field":"$F","order_by":[{"field":"x"}],"params":{"periods":1}}]}`,
 	"WIN_DELTA":       `{"windows":[{"type":"WIN_DELTA","field":"$F","order_by":[{"field":"x"}],"params":{"periods":1}}]}`,
+	"WIN_SHARE":       `{"windows":[{"type":"WIN_SHARE","field":"$F","order_by":[{"field":"x"}],"params":{"cumulative":true}}]}`,
+	"WIN_LIFT":        `{"windows":[{"type":"WIN_LIFT","field":"$F","order_by":[{"field":"x"}],"params":{"base":"x","cumulative":true}}]}`,
 
 	// Filterers.
 	"FILTER_INCLUDE":           `{"filterers":[{"type":"FILTER_INCLUDE","field":"$F","values":["$V"]}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,
@@ -575,9 +581,11 @@ func TestModelError_PredictionFieldTypeParity(t *testing.T) {
 		encoding.FieldTypeU32: true, encoding.FieldTypeU64: true,
 		encoding.FieldTypeF32: true, encoding.FieldTypeF64: true, encoding.FieldTypePackedBool: true,
 	}
-	for _, op := range []string{"AGG_MAPE", "AGG_RMSE", "AGG_MAE"} {
+	// AGG_AUC's outcome column shares the set (model-workbench E2-S1).
+	paramKey := map[string]string{"AGG_MAPE": "prediction_field", "AGG_RMSE": "prediction_field", "AGG_MAE": "prediction_field", "AGG_AUC": "outcome"}
+	for _, op := range []string{"AGG_MAPE", "AGG_RMSE", "AGG_MAE", "AGG_AUC"} {
 		for _, ft := range acceptanceFieldTypes() {
-			body := `{"aggregations":[{"type":"` + op + `","field":"x","params":{"prediction_field":"t_` + ft.String() + `"}}]}`
+			body := `{"aggregations":[{"type":"` + op + `","field":"x","params":{"` + paramKey[op] + `":"t_` + ft.String() + `"}}]}`
 			mk := func() *types.Request {
 				var req types.Request
 				if err := json.Unmarshal([]byte(body), &req); err != nil {
@@ -587,6 +595,13 @@ func TestModelError_PredictionFieldTypeParity(t *testing.T) {
 				return &req
 			}
 			_, rerr := p.Process(ctx, mk())
+			// The fixture's values are not 0 / 1: an AUC outcome whose TYPE
+			// is accepted reaches the run and is refused on its VALUES, a
+			// data fault predict cannot see — the type passed.
+			var ce *errors.CodedError
+			if op == "AGG_AUC" && stderrors.As(rerr, &ce) && ce.Code == errors.PROCESSING_AUC_OUTCOME_NOT_BINARY {
+				rerr = nil
+			}
 			predictOK := len(predictEnvelope(t, p, fs, cohort, mk()).Errors) == 0
 			if (rerr == nil) != predictOK {
 				t.Errorf("%s prediction %s: runtime err %v, predict ok %v", op, ft, rerr, predictOK)

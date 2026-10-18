@@ -63,15 +63,18 @@ Ordinary least squares with optional regularization.
 | `predictors`  | yes      | One or more numeric predictor fields.                                                  |
 | `penalty`     | no       | `""` (default), `"l1"`, `"l2"`, or `"elasticnet"`.                                     |
 | `alpha`       | conditional | Required and `> 0` when `penalty != ""`.                                            |
-| `l1_ratio`    | conditional | Required and in `[0, 1]` when `penalty == "elasticnet"`.                            |
+| `l1_ratio`    | conditional | Required and in `(0, 1)` when `penalty == "elasticnet"`.                            |
 | `max_iters`   | no       | Coordinate-descent cap (default 1000).                                                 |
 | `tol`         | no       | Convergence tolerance (default `1e-6`).                                                |
 | `resample`    | no       | `"jackknife"` or `"bootstrap"`. Downgrades streaming.                                  |
+| `jackknife_groups` / `jackknife_by` | no | Delete-a-group jackknife (see `Resample` below); exclusive. |
 | `selection`   | no       | `"forward"`, `"backward"`, or `"stepwise"`. Requires `criterion`. Downgrades streaming. |
 | `conf_level`  | no       | Coverage of `ci_lower` / `ci_upper`, `0 < c < 1`. Default 0.95. Student t on the residual df. |
 | `covariance`  | no       | `{type, cluster, order_by, lags}`: `classical` (default), `hc0`–`hc3`, `cluster` (CR1 on `cluster`'s levels, df = clusters − 1) or `hac` (Newey–West over `order_by`, `lags` an integer or `"auto"`). Drives `std_errors`, `p_values`, the intervals and `vcov`; refused beside a penalty, `resample` or `selection` (`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`). Downgrades streaming. |
 
 Modifier compatibility: `Resample` and `Selection` may be combined; `Selection` runs first, `Resample` re-fits the selected subset.
+
+Every penalty minimizes one objective, glmnet's with `standardize = FALSE` and the same one `REG_GLM` uses: `(1/2N*)·Σw·(y − β₀ − Xβ)² + alpha·[(1 − l1_ratio)/2·‖β‖² + l1_ratio·‖β‖₁]` (`l2` is `l1_ratio = 0`, `l1` is `1`), `N*` the sum of the weights, the intercept unpenalized and the predictors on their own units — so `l2` at `alpha` is the elastic net's limit at `l1_ratio → 0` at the same `alpha`, and a predictor on a large scale is barely shrunk (divide it by its SD upstream to penalize all alike). `l2` is solved in closed form, `l1` / `elasticnet` by coordinate descent on the centred Gram; a coefficient shrunk to 0 has no `std_errors` / `p_values` entry. Oracle: R `glmnet` (`scripts/reference/gen_ols_penalty.R`).
 
 Error codes: `PROCESSING_REGRESSION_RANK_DEFICIENT`, `PROCESSING_REGRESSION_SINGULAR_GRAM`, `PROCESSING_REGRESSION_NO_CONVERGE`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PROCESSING_REGRESSION_APPROXIMATE_SE` (warning, l1/elasticnet without resample), `PROCESSING_REGRESSION_REGULARIZED_SELECTION` (warning, penalty + selection), `PROCESSING_CONFIG`.
 
@@ -87,14 +90,21 @@ Generalized linear model via iteratively-reweighted least squares.
 | `link`        | no       | Family-specific default when empty (`binomial`→`logit`, `poisson`→`log`, `gamma`→`inverse`). |
 | `max_iters`   | no       | IRLS iteration cap (default 50).                                                       |
 | `tol`         | no       | Convergence tolerance (default `1e-8`).                                                |
-| `resample`    | no       | `"jackknife"` or `"bootstrap"`.                                                        |
+| `penalty`     | no       | `"l2"`, `"l1"`, `"elasticnet"` (binomial / poisson only; gamma refuses it).            |
+| `alpha`       | no       | Penalty strength, `> 0` when `penalty` is set.                                         |
+| `l1_ratio`    | no       | Elastic-net mix, `0 < l1_ratio < 1`; `elasticnet` only.                                |
+| `resample`    | no       | `"jackknife"` or `"bootstrap"`; `jackknife_groups` / `jackknife_by` as for REG_OLS.         |
 | `selection`   | no       | Subset-selection wrapper; requires `criterion`.                                        |
 | `conf_level`  | no       | Coverage of the Wald `ci_lower` / `ci_upper`, `0 < c < 1`. Default 0.95.               |
 | `covariance`  | no       | As `REG_OLS`: the sandwich over the IRLS scores at the converged weights (R `sandwich` on `glm`) behind `std_errors`, `p_values`, the intervals and `vcov`. Inference stays Wald z, `cluster` included. |
 
-Always buffered. Setting `penalty` / `alpha` / `l1_ratio` on a `REG_GLM` spec is rejected with `PROCESSING_CONFIG`; regularized GLM is reserved for a later phase.
+Always buffered.
 
-Error codes: `PROCESSING_REGRESSION_INVALID_FAMILY`, `PROCESSING_REGRESSION_INVALID_LINK`, `PROCESSING_REGRESSION_NO_CONVERGE`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PROCESSING_CONFIG`.
+**Penalties.** `penalty` minimizes glmnet's objective with `standardize = FALSE` — `−loglik/N* + alpha·[(1 − l1_ratio)/2·‖β‖² + l1_ratio·‖β‖₁]`, `N*` the sum of the (prior) weights, the predictors on their own units and the intercept unpenalized (`l2` is `l1_ratio = 0`, `l1` is `1`). Each IRLS step solves the penalized working least-squares problem: in closed form for `l2`, by coordinate descent with an exact active-set finish for `l1` / `elasticnet`. Standard errors, Wald p-values and intervals read the penalized-Fisher sandwich `H⁻¹·XᵀWX·H⁻¹`, `H = XᵀWX + N*·alpha·(1 − l1_ratio)·D` (`D` zero on the intercept); for `l1` / `elasticnet` only over the intercept and the kept predictors (a dropped predictor has no standard error, p-value or interval), with predict's `PROCESSING_REGRESSION_APPROXIMATE_SE` warning unless `resample` is set, and `vcov` refused `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. `deviance` and `pseudo_r2` are the unpenalized figures at the penalized estimate. A penalty rides `resample` (every replicate penalized) and `selection` (predict warns `PROCESSING_REGRESSION_REGULARIZED_SELECTION`). An `l2` penalty keeps a separated binomial fit finite. Oracle: R `glmnet` (`scripts/reference/gen_glm_penalty.R`).
+
+The fit is R's `glm.fit` IRLS: per-row starting values (binomial `(w·y + 0.5)/(w + 1)`, poisson `y + 0.1`, gamma `y`), the step halved back toward the previous coefficients whenever the deviance rises, and convergence on the relative change in the coefficients. An up-front QR rank check of the (weighted) design is the only source of `PROCESSING_REGRESSION_RANK_DEFICIENT` (`details.columns` names the aliased columns). A binomial fit whose fitted probabilities reach numerically 0 or 1 while a predictor's coefficient keeps climbing is separated — the maximum-likelihood estimate is at infinity — and is refused `PROCESSING_REGRESSION_SEPARATION` (`details.predictors`) rather than reporting wherever the loop stopped.
+
+Error codes: `PROCESSING_REGRESSION_INVALID_FAMILY`, `PROCESSING_REGRESSION_INVALID_LINK`, `PROCESSING_REGRESSION_RANK_DEFICIENT`, `PROCESSING_REGRESSION_SEPARATION`, `PROCESSING_REGRESSION_NO_CONVERGE`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PROCESSING_CONFIG`.
 
 ### `REG_BAYES_LINEAR`
 
@@ -130,7 +140,7 @@ Layered on top of any base operator (except `REG_BAYES_LINEAR`).
 | Value          | Behavior                                                                                                |
 |----------------|---------------------------------------------------------------------------------------------------------|
 | `""`           | No resampling. Closed-form / asymptotic standard errors.                                                |
-| `"jackknife"`  | Leave-one-out resampling. `SE = sqrt((n−1)/n · Σᵢ (β⁽⁻ⁱ⁾ − β̄)²)`.                                       |
+| `"jackknife"`  | Leave-one-out resampling, `SE = sqrt((n−1)/n · Σᵢ (β⁽⁻ⁱ⁾ − β̄)²)`; or delete-a-group with `jackknife_groups: g` (fitted rows split into g seeded random groups, `rng_seed`) or `jackknife_by: field` (one group per distinct value; a null value drops the row): `SE = sqrt((g−1)/g · Σₖ (β₍ₖ₎ − β̄)²)`, echoed `jackknife_groups`. The two knobs are exclusive. Weighted (JK1): each replicate refits the remaining rows with their own weights. Every replicate must refit — the first failure fails the slot with its code (`details.jackknife_group`). Predict's `PULSE_ADVISORY_JACKKNIFE_COST` flags leave-one-out at ≥ 10,000 records (Process predict, and each Compose slot and fit). Leave-one-out deletes each FITTED row: a row the fit drops (null target or predictor, zero weight) is no replicate and no part of n. |
 | `"bootstrap"`  | Non-parametric bootstrap. `bootstrap_iters` (default 1000), `rng_seed` (`0` → a seed derived from the request and the rows the fit reads, so the same request over the same cohort is reproducible; non-zero → reproducible across cohorts too). |
 
 For l1 / elasticnet OLS, setting `Resample` is the rigorous answer for standard errors: it suppresses the `PROCESSING_REGRESSION_APPROXIMATE_SE` warning (the SEs are now resample-based, not plug-in over the active set).
@@ -201,10 +211,20 @@ Each attribute references a sibling regression spec by `regression_name`. See `s
 
 Look up full prose via `pulse_errors_lookup` or `pulse errors lookup CODE`.
 
+A fit that fails on its data — `RANK_DEFICIENT`, `SEPARATION`,
+`NO_CONVERGE`, `SINGULAR_GRAM`, `INSUFFICIENT_DATA` — fails its slot
+alone: `regressions[i]` keeps `name` / `type` and carries `error`
+`{code, message, details}`, the other slots of the response survive,
+and a `PULSE_SLOT_FAILED` warning names it. Under `Options.Strict` the
+run fails with the fit's own code instead. The configuration codes
+(`INVALID_FAMILY`, `INVALID_LINK`, `PROCESSING_CONFIG`) stay fatal.
+See [Payload JSON Schema](contract/payload-schema.md) (Failed slots).
+
 | Code                                          | Meaning (one-liner)                                                           |
 |-----------------------------------------------|-------------------------------------------------------------------------------|
 | `PROCESSING_REGRESSION_NOT_IMPLEMENTED`       | Reserved as of Phase 8; no engine returns this today.                         |
 | `PROCESSING_REGRESSION_RANK_DEFICIENT`        | XᵀX is singular; add regularization or drop a predictor.                       |
+| `PROCESSING_REGRESSION_SEPARATION`            | Binomial `REG_GLM` is separated (a predictor splits the outcome); `details.predictors`. |
 | `PROCESSING_REGRESSION_NO_CONVERGE`           | IRLS or coordinate descent failed within `MaxIters`.                          |
 | `PROCESSING_REGRESSION_SINGULAR_GRAM`         | XᵀX non-invertible even after regularization; increase `alpha`.               |
 | `PROCESSING_REGRESSION_INVALID_FAMILY`        | `REG_GLM` Family outside `{binomial, poisson, gamma}`.                        |
@@ -212,7 +232,7 @@ Look up full prose via `pulse_errors_lookup` or `pulse errors lookup CODE`.
 | `PROCESSING_REGRESSION_INSUFFICIENT_DATA`     | Filtered set has fewer rows than predictors + 1, or below resample minimum.   |
 | `PROCESSING_REGRESSION_APPROXIMATE_SE`        | Warning: l1 / elasticnet SE is a plug-in approximation; set `resample` for rigor. |
 | `PROCESSING_REGRESSION_REGULARIZED_SELECTION` | Warning: `penalty != ""` plus `selection != ""` is unusual.                   |
-| `PROCESSING_CONFIG`                           | Invalid spec combination (e.g. Bayes + Resample, GLM + Penalty).              |
+| `PROCESSING_CONFIG`                           | Invalid spec combination (e.g. Bayes + Resample, gamma GLM + Penalty).        |
 
 ## Worked examples
 

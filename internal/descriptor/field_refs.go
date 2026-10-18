@@ -3,6 +3,7 @@ package descriptor
 import (
 	"encoding/json"
 	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -13,6 +14,7 @@ import (
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/internal/windowparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -284,6 +286,18 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 							map[string]any{"field": t, "feature": string(feat.Type)})
 					})
 				}
+				// params.fit_on compiles as an expression filter
+				// against the schema plus EARLIER features' outputs
+				// (this feature's labels join cols only below), so a
+				// forward or self reference is the compile's
+				// unknown-name refusal — on both sides, this walk being
+				// the runtime's entry check too.
+				if src := paramString(feat.Params, "fit_on"); strings.TrimSpace(src) != "" {
+					before := len(w.out)
+					w.checkTotal(src, string(types.FILTER_EXPRESSION))
+					w.checkCoef(src, models)
+					w.checkCompile(src, false, before)
+				}
 			}
 		}
 		w.checkInputs("feature", string(feat.Type), feat.Params, "feature")
@@ -433,6 +447,12 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 						map[string]any{"field": f, "type": string(reg.Type)})
 				})
 			}
+		}
+		if f := reg.JackknifeBy; f != "" {
+			w.check(f, func() *errors.CodedError {
+				return refusal("regression jackknife_by references unknown field: "+f,
+					map[string]any{"field": f, "type": string(reg.Type)})
+			})
 		}
 	}
 	for _, grp := range req.Groups {
@@ -619,12 +639,22 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 		// Only a value-bearing operator reads Field (WIN_ROW_NUMBER /
 		// RANK / DENSE_RANK name none, and an extension window's Field
 		// is its own business).
-		if win.Field != "" && windowFieldRequired[opRoute(inst, win.Type)] &&
+		if win.Field != "" && windowparams.FieldRequired(opRoute(inst, win.Type)) &&
 			!w.arrayRef(win.Field, "window["+idx+"] ("+string(win.Type)+") field", map[string]any{"window_index": i, "type": string(win.Type)}) {
 			w.check(win.Field, func() *errors.CodedError {
 				return refusal("window["+idx+"] ("+string(win.Type)+"): field "+win.Field+" does not exist in schema or upstream pipeline output",
 					map[string]any{"window_index": i, "field": win.Field, "type": string(win.Type)})
 			})
+		}
+		// WIN_LIFT's params.base names a column like its field does.
+		if opRoute(inst, win.Type) == types.WIN_LIFT {
+			if base := paramString(win.Params, "base"); base != "" &&
+				!w.arrayRef(base, "window["+idx+"] (WIN_LIFT) params.base", map[string]any{"window_index": i, "type": string(win.Type)}) {
+				w.check(base, func() *errors.CodedError {
+					return refusal("window["+idx+"] ("+string(win.Type)+"): params.base "+base+" does not exist in schema or upstream pipeline output",
+						map[string]any{"window_index": i, "field": base, "type": string(win.Type), "param": "base"})
+				})
+			}
 		}
 		w.checkInputs("window", string(win.Type), win.Params, "window")
 		label := windowLabel(win)
@@ -971,6 +1001,7 @@ var aggParamFieldKeys = map[types.AggregationType][]string{
 	types.AGG_MAPE:          {"prediction_field"},
 	types.AGG_RMSE:          {"prediction_field"},
 	types.AGG_MAE:           {"prediction_field"},
+	types.AGG_AUC:           {"outcome"},
 }
 
 // postTestParamFieldKeys lists, per built-in tier-2 test, the Params

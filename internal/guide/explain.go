@@ -318,6 +318,13 @@ func (e *explainer) caveat(s string) {
 // are taken separately: a Compose root's slot advisories already ride
 // the Compose check, so a slot predict's own are not repeated.
 func (e *explainer) absorb(env *descriptor.Envelope, prefix string) {
+	e.absorbLocated(env, prefix, false)
+}
+
+// absorbLocated is absorb; located (a Compose batch's own envelope)
+// names the slot of each refusal the batch validator located
+// (locatedSlot) as a prefix would.
+func (e *explainer) absorbLocated(env *descriptor.Envelope, prefix string, located bool) {
 	if env == nil {
 		return
 	}
@@ -332,19 +339,23 @@ func (e *explainer) absorb(env *descriptor.Envelope, prefix string) {
 			continue
 		}
 		ref := descriptor.EnvelopeEntry{Code: er.Code, Message: er.Message}
-		if prefix != "" || len(er.Details) > 0 {
+		at := prefix
+		if at == "" && located {
+			at = locatedSlot(er.Details)
+		}
+		if at != "" || len(er.Details) > 0 {
 			ref.Details = map[string]any{}
 			for k, v := range er.Details {
 				ref.Details[k] = v
 			}
-			if prefix != "" {
-				ref.Details["slot"] = strings.TrimSuffix(prefix, ".")
+			if at != "" {
+				ref.Details["slot"] = strings.TrimSuffix(at, ".")
 			}
 		}
 		e.res.Refusals = append(e.res.Refusals, ref)
 		// The caveat names the code only: the message is predict's
 		// prose, relayed whole in Refusals, not an Explain template.
-		e.caveat("Predict refuses " + prefixWords(prefix) + "with " + er.Code + "; pulse errors lookup " + er.Code + " says how to fix it.")
+		e.caveat("Predict refuses " + prefixWords(at) + "with " + er.Code + "; pulse errors lookup " + er.Code + " says how to fix it.")
 	}
 	e.warnings(env, prefix)
 }
@@ -381,6 +392,18 @@ func (e *explainer) warnings(env *descriptor.Envelope, prefix string) {
 		}
 		e.res.Warnings = append(e.res.Warnings, ref)
 	}
+}
+
+// locatedSlot is the wire path a batch validator's located refusal
+// names — details.request = i is "requests[i]", details.fit = k is
+// "fits[k]" — or "" when the refusal is not located.
+func locatedSlot(details map[string]any) string {
+	for _, k := range []struct{ key, path string }{{"request", "requests"}, {"fit", "fits"}} {
+		if i, ok := details[k.key].(int); ok {
+			return k.path + "[" + strconv.Itoa(i) + "]"
+		}
+	}
+	return ""
 }
 
 func prefixWords(prefix string) string {
@@ -633,8 +656,14 @@ func (e *explainer) requestSteps(prefix string, r *types.Request, inferred map[s
 		if g == nil {
 			continue
 		}
+		detail := predicting(g.Target, g.Predictors)
+		if g.Selection != "" && len(g.Predictors) > 0 {
+			// The predictors are candidates: the selection keeps a subset.
+			detail = predicting(g.Target, nil) + ", choosing among the candidate predictors " + andList(ticks(g.Predictors)) +
+				" by " + strings.ToLower(selectionWords(g.Selection, g.Criterion)[:1]) + selectionWords(g.Selection, g.Criterion)[1:]
+		}
 		e.opStep(stepIn{slot: prefix + "regressions[" + strconv.Itoa(i) + "]", role: roleRegression, n: i + 1,
-			op: string(g.Type), fields: append(nonEmpty(g.Target), g.Predictors...), detail: predicting(g.Target, g.Predictors)})
+			op: string(g.Type), fields: append(nonEmpty(g.Target), g.Predictors...), detail: detail})
 	}
 	for i, m := range r.Matrices {
 		detail := ""
@@ -729,13 +758,22 @@ func predicting(target string, predictors []string) string {
 
 // explainComposed is the Compose root: each slot as a Request, then
 // the Compose-level overlays and correction.
+//
+// The Compose check is the batch's verdict: it binds the batch's `fits`
+// (and each slot's own `models` and populations) before any slot is
+// judged, exactly as PredictCompose does, and locates each refusal by
+// its slot. A slot's own predict sees no in-batch fit, so with the
+// Compose check present it only names the slot's inferred operators and
+// relays its warnings; its refusals would be a second, fit-blind
+// verdict. Without a Compose check the slot predicts are the verdict.
 func (e *explainer) explainComposed(c *types.ComposedRequest) error {
-	if e.checks.Compose != nil {
+	batch := e.checks.Compose != nil
+	if batch {
 		env, err := e.checks.Compose(c)
 		if err != nil {
 			return err
 		}
-		e.absorb(env, "")
+		e.absorbLocated(env, "", true)
 		e.advisories(env)
 	}
 	for i, r := range c.Requests {
@@ -747,7 +785,13 @@ func (e *explainer) explainComposed(c *types.ComposedRequest) error {
 		if err != nil {
 			return err
 		}
-		e.absorb(env, prefix)
+		if batch {
+			if env != nil {
+				e.warnings(env, prefix)
+			}
+		} else {
+			e.absorb(env, prefix)
+		}
 		e.requestSteps(prefix, r, e.defaults(env, []string{"Requests", strconv.Itoa(i)}))
 	}
 	for i, o := range c.Overlays {

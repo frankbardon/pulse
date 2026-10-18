@@ -175,7 +175,7 @@ func (e *explainer) readResponse(rr *responseReader, resp *types.Response, req *
 		if req != nil && i < len(req.Regressions) {
 			spec = req.Regressions[i]
 		}
-		e.regressionFindings(rr, i+1, g, spec)
+		e.regressionFindings(rr, e.at+"regressions["+strconv.Itoa(i)+"]", e.lead(stepIn{role: roleRegression, n: i + 1}), g, spec)
 	}
 	if n > 0 {
 		parts = append(parts, count(n, "regression", "regressions"))
@@ -338,26 +338,35 @@ func (e *explainer) testFinding(rr *responseReader, r *role, n int, t *types.Tes
 	e.addFinding(rr, f, text)
 }
 
-// regressionFindings reads one regression: a model finding, then one
-// finding per predictor coefficient.
-func (e *explainer) regressionFindings(rr *responseReader, n int, g *types.RegressionResult, spec *types.RegressionSpec) {
+// regressionFindings reads one regression at wire path slot, named by
+// lead ("Regression 1", "Fit `pd`"): a model finding, then one finding
+// per predictor coefficient. Under a selection (Selection set) the
+// model is named by the predictors the selection kept — never the
+// candidate list — and its sentence says which candidates it dropped.
+func (e *explainer) regressionFindings(rr *responseReader, slot, lead string, g *types.RegressionResult, spec *types.RegressionSpec) {
 	op := string(g.Type)
 	shown := e.shownOp(op)
 	subject := g.Name
 	words := ""
+	predictors := []string(nil)
 	if spec != nil {
-		if d := strings.TrimPrefix(predicting(spec.Target, spec.Predictors), " "); d != "" {
+		predictors = spec.Predictors
+	}
+	if g.Selection != "" {
+		predictors = g.SelectedFeatures
+	}
+	if spec != nil {
+		if d := strings.TrimPrefix(predicting(spec.Target, predictors), " "); d != "" {
 			subject = d
 			words = " " + d
 		}
 	} else if g.Name != "" {
 		words = " labelled " + tick(g.Name)
 	}
-	slot := e.at + "regressions[" + strconv.Itoa(n-1) + "]"
 	if subject == "" {
 		subject = slot
 	}
-	lead := e.lead(stepIn{role: roleRegression, n: n}) + opParen(shown) + words
+	lead += opParen(shown) + words
 	model := descriptor.ExplainFinding{Slot: slot, Subject: subject, Operator: shown, Verdict: descriptor.VerdictDescriptive, Numbers: map[string]*float64{}}
 	fit := map[string]float64{}
 	for k, v := range map[string]float64{"r2": g.R2, "adj_r2": g.AdjR2, "pseudo_r2": g.PseudoR2, "deviance": g.Deviance,
@@ -375,6 +384,9 @@ func (e *explainer) regressionFindings(rr *responseReader, n int, g *types.Regre
 		text += " on " + count(g.NObs, "row", "rows")
 	}
 	text += "."
+	if g.Selection != "" {
+		text += " " + selectedSentence(g, spec)
+	}
 	var fitKeys []string
 	for _, k := range []string{"r2", "adj_r2", "pseudo_r2"} {
 		if _, ok := fit[k]; ok {
@@ -427,6 +439,46 @@ func (e *explainer) regressionFindings(rr *responseReader, n int, g *types.Regre
 		}
 		e.addFinding(rr, f, text)
 	}
+}
+
+// selectedSentence says what a selection kept: "Stepwise selection on
+// BIC kept 2 of 3 candidate predictors and dropped `age`." With the
+// request beside the result the candidates are its predictors; without
+// it only the kept ones are known.
+func selectedSentence(g *types.RegressionResult, spec *types.RegressionSpec) string {
+	how := selectionWords(g.Selection, g.Criterion)
+	kept := g.SelectedFeatures
+	if spec == nil || len(spec.Predictors) == 0 {
+		if len(kept) == 0 {
+			return how + " kept no predictor."
+		}
+		return how + " kept " + andList(ticks(kept)) + "."
+	}
+	in := map[string]bool{}
+	for _, k := range kept {
+		in[k] = true
+	}
+	var dropped []string
+	for _, c := range spec.Predictors {
+		if !in[c] {
+			dropped = append(dropped, c)
+		}
+	}
+	s := how + " kept " + strconv.Itoa(len(kept)) + " of " + count(len(spec.Predictors), "candidate predictor", "candidate predictors")
+	if len(dropped) > 0 {
+		s += " and dropped " + andList(ticks(dropped))
+	}
+	return s + "."
+}
+
+// selectionWords names a selection and its criterion: "Stepwise
+// selection on BIC".
+func selectionWords(selection, criterion string) string {
+	s := strings.ToUpper(selection[:1]) + selection[1:] + " selection"
+	if criterion != "" {
+		s += " on " + strings.ToUpper(criterion)
+	}
+	return s
 }
 
 // descriptive is the verdict of a figure with no p-value: descriptive,

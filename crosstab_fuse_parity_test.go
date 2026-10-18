@@ -111,6 +111,7 @@ func fusionParityCorpus() []fusionCase {
 		types.GROUP_CATEGORY:        {Type: types.GROUP_CATEGORY, Field: "region"},
 		types.GROUP_DATE:            {Type: types.GROUP_DATE, Field: "day"},
 		types.GROUP_DATE_RANGES:     {Type: types.GROUP_DATE_RANGES, Field: "day", Params: json.RawMessage(`{"ranges":[{"label":"h1","start":"2024-01-01","end":"2024-06-30"}]}`)},
+		types.GROUP_NUMERIC_RANGES:  {Type: types.GROUP_NUMERIC_RANGES, Field: "qty", Params: json.RawMessage(`{"ranges":[{"label":"lo","end":5},{"label":"hi","start":5}]}`)},
 		types.GROUP_QUANTILE:        {Type: types.GROUP_QUANTILE, Field: "score"},
 		types.GROUP_RANGE:           {Type: types.GROUP_RANGE, Field: "qty", Interval: 5},
 		types.GROUP_ROUNDED:         {Type: types.GROUP_ROUNDED, Field: "score"},

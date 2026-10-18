@@ -202,6 +202,14 @@ func singularityMatrix(t *testing.T, schema *encoding.Schema, recs []*Record, sp
 		}
 		t.Fatalf("%s: finalize: %v", spec.Type, err)
 	}
+	// A refused (singular) slot fails alone: its result carries the
+	// error (per-slot partial success).
+	if e := res[0].Error; e != nil {
+		if e.Code == string(errors.PULSE_MATRIX_SINGULAR) {
+			return true, nil
+		}
+		t.Fatalf("%s: slot failed: %s", spec.Type, e.Code)
+	}
 	for _, w := range res[0].Warnings {
 		if w.Code == string(errors.PULSE_MATRIX_SINGULAR) {
 			return true, &res[0]

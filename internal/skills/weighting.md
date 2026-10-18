@@ -47,7 +47,7 @@ The manifest is the table: an entry's `weight_kinds` lists the kinds it weights 
 | filters, features, row-local attributes, most groupers | skipped | skipped |
 | inferential, no `weight_kinds` | `PULSE_WEIGHT_UNSUPPORTED` | same |
 
-`PULSE_WEIGHT_UNSUPPORTED` details: `reason` (permanent: post-tests, regression resample / selection, a few tests), `alternative` (a weighted twin), `kind` + `supported_kinds` (frequency-only). Opt out with `"weight": null` (instance default: on every refused slot). A weight-aware aggregator over `decimal128` refuses too. Extensions declaring `weight_aware` run under both kinds; others are `PULSE_EXTENSION_NOT_WEIGHT_AWARE`.
+`PULSE_WEIGHT_UNSUPPORTED` details: `reason` (permanent: post-tests, regression bootstrap / selection, some tests), `alternative` (a weighted twin), `kind` + `supported_kinds` (frequency-only). Opt out with `"weight": null` (instance default: on every refused slot). A weight-aware aggregator over `decimal128` refuses too. Extensions declaring `weight_aware` run under both kinds; others are `PULSE_EXTENSION_NOT_WEIGHT_AWARE`.
 
 Quantiles (and buckets) follow Hmisc `wtd.quantile`, probability weights rescaled to Σw = n. Share and index overlays read the weighted host payload.<!-- feature: AGG_WEIGHTED_MEAN, AGG_AVERAGE --> `AGG_WEIGHTED_MEAN` is weighted `AGG_AVERAGE`; its `params.weight_field` is slot-weight sugar.<!-- /feature -->
 

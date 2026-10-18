@@ -128,6 +128,17 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PROCESSING_REGRESSION_SEPARATION: {
+		Message: "A binomial REG_GLM fit is separated: a predictor splits the outcome perfectly, or almost perfectly, so fitted probabilities reach numerically 0 or 1 while its coefficient keeps growing; the maximum-likelihood estimate does not exist and no coefficients are reported. details.predictors names the separating predictors.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceOperator,
+				Path:     []string{"Regressions", "*", "Penalty"},
+				Hint:     "Add penalty: l2 (a ridge penalty keeps every coefficient finite), or drop the named predictor, merge its rare level, or check that it is not recorded after the outcome.",
+				Examples: []any{"l2"},
+			},
+		},
+	},
 	PROCESSING_REGRESSION_SINGULAR_GRAM: {
 		Message: "The Gram matrix XᵀX remained non-invertible even after regularization.",
 		Fixups: []Fixup{
@@ -197,6 +208,21 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupSetDefault,
 				Path:   []string{"Filterers", "*", "Expression"},
 				Hint:   "The same rule applies in a FILTER_EXPRESSION or a total() argument: compare vectors of equal length only.",
+			},
+		},
+	},
+	PROCESSING_AUC_OUTCOME_NOT_BINARY: {
+		Message: "An AGG_AUC slot met an outcome value other than 0 or 1 (NaN included) on a row whose score and outcome both answered: the area under the ROC curve needs a binary outcome, and Pulse never guesses a threshold. The run fails. Predict refuses only an outcome column whose type cannot hold 0 / 1; a value is seen at run time. details.aggregation names the operator, details.outcome the column, details.value the first offending value.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Aggregations", "*", "Params", "outcome"},
+				Hint:   "Point params.outcome at a 0/1 column or a packed_bool, or derive one first: an ATTR_FORMULA such as `status == 2 ? 1 : 0` (or an ATTR_CODE_IN over a categorical) and score against its label.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Filterers"},
+				Hint:   "If only a few rows carry another code, drop them with a filter (FILTER_RANGE or FILTER_EXPRESSION on the outcome) before the slot reads them.",
 			},
 		},
 	},
@@ -871,17 +897,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_WINDOW_INVALID: {
-		Message: "A window operator's configuration is invalid (bad frame, alpha out of bounds, no order key, label collision).",
+		Message: "A window operator's configuration is invalid (bad frame, bad params, no order key, no value field, label collision); predict and every runtime surface refuse it alike.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Windows", "*", "OrderBy"},
-				Hint:   "Every WIN_* operator requires at least one OrderBy key; supply a date or numeric field.",
+				Hint:   "Every WIN_* operator requires at least one OrderBy key (WIN_SHARE / WIN_LIFT only when params.cumulative is true); supply a date or numeric field.",
 			},
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"Windows", "*", "Frame"},
-				Hint:   "Drop Frame for ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, PCT_CHANGE; supply Frame with bounded preceding/following for MOVING_AVG, EWMA, RUNNING_*.",
+				Hint:   "Drop Frame for ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, PCT_CHANGE, DELTA, SHARE, LIFT; supply Frame (mode \"rows\") for MOVING_AVG (both bounds), EWMA, RUNNING_*.",
 			},
 		},
 	},
@@ -901,12 +927,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FEAT_TARGET_LEAKAGE_RISK: {
-		Message: "FEAT_TARGET_ENCODE averages every record's outcome, the record's own and validation/test records' included, because it reads no split column; a preceding train/test split does not change a single value. Predict warns, and Process (a Compose slot too) repeats the warning on the response's warnings with predict's details {feature, feature_index}; under strict both refuse — predict as an error, Process before any record is read.",
+		Message: "FEAT_TARGET_ENCODE without params.fit_on averages every record's outcome, the validation/test records' included (and, without folds, the record's own): features run before filters, so a preceding train/test split changes no value. With folds but no fit_on the warning is reworded — no record sees its own outcome, every record still sees the holdout's. Only fit_on silences it. Predict decides from the request alone and warns; Process (a Compose slot too) repeats the warning on the response's warnings with predict's details {feature, feature_index} (+ folds); under strict both refuse — predict as an error, Process before any record is read.",
 		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Features", "Params", "fit_on"},
+				Hint:   "Set params.fit_on to the training rows — e.g. \"split == 0\" after a FEAT_TRAIN_TEST_SPLIT labelled split — so only they feed the category means; add folds (with rng_seed) to encode the training rows out-of-fold as well.",
+			},
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Features"},
-				Hint:   "To encode from the training rows only, drop FEAT_TARGET_ENCODE and compute each category's AGG_AVERAGE of the outcome on split 0 in a separate request, then map those averages onto the records with a join or lookup table; for descriptive use, keep the in-sample encoding knowing it is not a held-out estimate.",
+				Hint:   "For descriptive use, keep the in-sample encoding knowing it is not a held-out estimate.",
 			},
 		},
 	},
@@ -1032,6 +1063,17 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Attributes", "*", "Expression"},
 				Hint:   "No change is needed when the cohort-wide total is what you want. To skip the extra pass, divide two sums after aggregation with AGG_RATIO, or replace total(expr) with a constant read from an earlier run.",
+			},
+		},
+	},
+	PULSE_ADVISORY_JACKKNIFE_COST: {
+		Message: "A regression runs the leave-one-out jackknife over a large cohort, so the run refits the model once per row and its cost grows with the square of the row count; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Regressions", "*", "jackknife_groups"},
+				Hint:     "Set jackknife_groups (details.suggested) for a delete-a-group jackknife: g refits instead of one per row, the groups drawn by rng_seed. Or set jackknife_by to a field whose values are natural clusters.",
+				Examples: []any{map[string]any{"jackknife_groups": 50}},
 			},
 		},
 	},
@@ -2345,7 +2387,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_EMPTY: {
-		Message: "A labeled-date-range set (the inline ranges of a date-range grouper or filterer, or a named range table) was presented with zero ranges.",
+		Message: "A labeled-range set (the inline ranges of a date-range grouper or filterer or a numeric-range grouper, or a named range table) was presented with zero ranges.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
@@ -2354,16 +2396,16 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_INVALID: {
-		Message: "A labeled date range is malformed: a start or end boundary is not a parseable date literal, or the range is bounded on both sides with start after end.",
+		Message: "A labeled range is malformed: a date boundary is not a parseable date literal or a date range starts after it ends, or a numeric (half-open) range does not start strictly before it ends.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Write boundaries as ISO dates (YYYY-MM-DD) and ensure start <= end. Omit or null a boundary to leave that side open (unbounded).",
+				Hint:   "Write date boundaries as ISO dates (YYYY-MM-DD) and ensure start <= end; write numeric boundaries as JSON numbers with start < end ([start, end) is half-open). Omit or null a boundary to leave that side open (unbounded).",
 			},
 		},
 	},
 	PULSE_RANGE_DUPLICATE_LABEL: {
-		Message: "Two ranges in the same labeled-date-range set share a Label; labels are bucket keys and must be unique within a set.",
+		Message: "Two ranges in the same labeled-range set share a Label; labels are bucket keys and must be unique within a set.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2372,16 +2414,16 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_OVERLAP: {
-		Message: "Two ranges in the same labeled-date-range set cover an overlapping span of days (bounds are inclusive; open boundaries extend to -inf/+inf), so a record day could map ambiguously to two labels.",
+		Message: "Two ranges in the same labeled-range set overlap (date bounds are inclusive, numeric bounds half-open [start, end); open boundaries extend to -inf/+inf), so a record could map ambiguously to two labels.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Adjust the boundaries so ranges are disjoint. Because bounds are inclusive, make one range end the day before the next begins (e.g. ...-03-31 then ...-04-01). Only one range may have an open lower bound and one an open upper bound.",
+				Hint:   "Adjust the boundaries so ranges are disjoint. Date bounds are inclusive: make one range end the day before the next begins (e.g. ...-03-31 then ...-04-01). Numeric bounds are half-open: let one range end where the next begins (e.g. [0, 91) then [91, 104)). Only one range may have an open lower bound and one an open upper bound.",
 			},
 		},
 	},
 	PULSE_RANGE_SOURCE_AMBIGUOUS: {
-		Message: "A date-range grouper or filterer must name exactly one range source; supplying both an inline `ranges` array and a named `table`, or neither, is ambiguous.",
+		Message: "A range grouper or filterer must name exactly one range source; supplying both an inline `ranges` array and a named `table`, or neither, is ambiguous.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
@@ -2390,11 +2432,20 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_RANGE_TABLE_UNKNOWN: {
-		Message: "A date-range grouper or filterer referenced a range table by a name that is not registered.",
+		Message: "A range grouper or filterer referenced a range table by a name that is not registered.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Set Params.table to a table registered via Options.Extensions.RangeTables or the PULSE_RANGE_TABLES_DIR loader, or register the referenced table before running the request.",
+			},
+		},
+	},
+	PULSE_RANGE_TABLE_KIND_MISMATCH: {
+		Message: "A range operator referenced a registered range table of the other kind: a table with ISO date bounds is a date table, one with JSON number bounds a numeric table.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Use GROUP_DATE_RANGES / FILTER_DATE_RANGES with a date table and GROUP_NUMERIC_RANGES with a numeric table; pulse_range_tables (Pulse.RangeTables) reports each table's kind. Otherwise point Params.table at a table of the operator's kind, or author the ranges inline.",
 			},
 		},
 	},
@@ -4591,6 +4642,42 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"return", "include"},
 				Hint:   "Check the key against the full response (`return` absent) or the operator's component schema in the manifest, then correct or drop the path.",
+			},
+		},
+	},
+	PULSE_SLOT_FAILED: {
+		Message: "Warning-class — one regression, test or matrix slot failed on its data (a data-dependent runtime refusal: separation, non-convergence, a rank-deficient design, too few rows, zero variance, a singular matrix) while every other slot of the response survived. The failed result keeps its label / name and type and carries `error` {code, message, details} — the refusal's own code and fixups — with every numeric field absent. Details carry `slot_kind`, `index`, `label` and `code` (plus `group_key` for one bucket of a grouped matrix). Under Options.Strict the run fails with the slot's own code instead.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Look up the slot's own error code (details.code) and apply its fixup to that slot only, then rerun just that slot; the other slots' results are already valid.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "When the slot's data cannot carry the fit or test (too few rows, a constant column, perfectly separated or collinear predictors), filter or reshape the input before rerunning the slot.",
+			},
+		},
+	},
+	PULSE_FIT_UNAVAILABLE: {
+		Message: "Warning-class — an attribute slot reads a Compose fit that failed on its data (its `fits` entry carries `error`): scoring it, a formula naming it in a literal coef() call, a fitted vector attribute's params.fit or a {population} reference. No model is bound under that name, so the slot's column is null on every row (aggregations over it count the rows in n_null) and every other slot of the response is computed normally. Details carry `fit` (the fit's name), `attribute` (the reading slot's label) and `code` (the fit's own error code). Under Options.Strict the failed fit fails the whole batch with its own code before any slot runs.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Look up the fit's own error code (details.code) and apply its fixup to the fit request named by details.fit, then rerun the batch; the reading slot needs no change.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "Point the slot's params.fit, coef() call or population reference at another fit that converged, or drop the slot when the failed fit cannot be repaired.",
+			},
+		},
+	},
+	PULSE_AUC_DELONG_WEIGHTED: {
+		Message: "A note, not an error: a weighted AGG_AUC slot reports the weighted AUC and Gini exactly, but its components `se`, `ci_lower` and `ci_upper` are null and `se_note` carries this code. No weighted DeLong variance is defensible (the placement variances assume independent unit rows), so the interval is withheld rather than computed on the wrong sample size.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"Aggregations", "*", "Weight"},
+				Hint:   "Set \"weight\": null on the AGG_AUC slot to get the unweighted AUC with its DeLong standard error and 95% interval.",
 			},
 		},
 	},

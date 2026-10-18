@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/targetencode"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -48,18 +49,19 @@ func validateFeatures(env *descriptor.Envelope, req *types.Request, schema *enco
 		// features (e.g. BUCKETIZE on LOG's output) validate cleanly.
 		validateFeatureSpec(env, feat, schema, cols, opts)
 
-		// Every target encoding leaks: the encoder reads no split column
-		// and features run before filters, so each encoded value averages
-		// every record's outcome — the record's own and the validation /
-		// test records' included. A preceding train/test split changes no
-		// value, so it does not silence this warning either.
+		// A target encoding without params.fit_on leaks: features run
+		// before filters, so each encoded value averages every record's
+		// outcome — the validation / test records' included, and (without
+		// folds) the record's own. A preceding train/test split changes no
+		// value; only fit_on silences the warning.
 		if feat.Type == types.FEAT_TARGET_ENCODE {
-			w := targetLeakageWarning(idx, opts.instance())
-			entry := &descriptor.EnvelopeEntry{Code: string(w.Code), Message: w.Message, Details: w.Details}
-			if opts.Strict {
-				env.Errors = append(env.Errors, entry)
-			} else {
-				env.Warnings = append(env.Warnings, entry)
+			if w := targetLeakageWarning(idx, feat, opts.instance()); w != nil {
+				entry := &descriptor.EnvelopeEntry{Code: string(w.Code), Message: w.Message, Details: w.Details}
+				if opts.Strict {
+					env.Errors = append(env.Errors, entry)
+				} else {
+					env.Warnings = append(env.Warnings, entry)
+				}
 			}
 		}
 
@@ -75,13 +77,14 @@ func validateFeatures(env *descriptor.Envelope, req *types.Request, schema *enco
 
 // TargetLeakageWarnings is the PULSE_FEAT_TARGET_LEAKAGE_RISK rule the
 // runtime repeats (#309): one coded warning per FEAT_TARGET_ENCODE in
-// req.Features (after item expansion), in request order, each carrying
-// predict's message and details {feature, feature_index}. A type the
-// instance hides yields none — predict refuses it as unknown and skips
-// the warning, so the runtime does too. Under Options.Strict the
-// runtime refuses the first entry before any record is read (predict
-// reports every entry as an error); otherwise each rides
-// Response.Warnings.
+// req.Features (after item expansion) that sets no params.fit_on, in
+// request order, each carrying predict's message and details
+// {feature, feature_index} (+ folds when set). It reads the request
+// alone, never the cohort. A type the instance hides yields none —
+// predict refuses it as unknown and skips the warning, so the runtime
+// does too. Under Options.Strict the runtime refuses the first entry
+// before any record is read (predict reports every entry as an error);
+// otherwise each rides Response.Warnings.
 func TargetLeakageWarnings(req *types.Request, inst *InstanceSnapshot) []*errors.CodedError {
 	if req == nil || inst.Hidden(string(types.FEAT_TARGET_ENCODE)) {
 		return nil
@@ -89,7 +92,9 @@ func TargetLeakageWarnings(req *types.Request, inst *InstanceSnapshot) []*errors
 	var out []*errors.CodedError
 	for idx, feat := range req.Features {
 		if feat != nil && feat.Type == types.FEAT_TARGET_ENCODE {
-			out = append(out, targetLeakageWarning(idx, inst))
+			if w := targetLeakageWarning(idx, feat, inst); w != nil {
+				out = append(out, w)
+			}
 		}
 	}
 	return out
@@ -97,12 +102,34 @@ func TargetLeakageWarnings(req *types.Request, inst *InstanceSnapshot) []*errors
 
 // targetLeakageWarning is the one PULSE_FEAT_TARGET_LEAKAGE_RISK entry
 // predict and the runtime both raise for the FEAT_TARGET_ENCODE at
-// features[idx].
-func targetLeakageWarning(idx int, inst *InstanceSnapshot) *errors.CodedError {
+// features[idx], decided from its params alone: nil when params.fit_on
+// names the training rows (only they feed the means); with folds but
+// no fit_on, the reworded entry (no row sees its own outcome, every row
+// still sees the holdout's); otherwise the full one. Params that do not
+// decode leave fit_on and folds unset — their refusal is the params
+// check's.
+func targetLeakageWarning(idx int, feat *types.Feature, inst *InstanceSnapshot) *errors.CodedError {
+	var p targetencode.Params
+	if len(feat.Params) > 0 {
+		_ = json.Unmarshal(feat.Params, &p)
+	}
+	if strings.TrimSpace(p.FitOn) != "" {
+		return nil
+	}
+	details := map[string]any{"feature": string(types.FEAT_TARGET_ENCODE), "feature_index": idx}
+	if p.Folds > 0 {
+		details["folds"] = p.Folds
+		return errors.NewCodedErrorWithDetails(errors.PULSE_FEAT_TARGET_LEAKAGE_RISK,
+			"FEAT_TARGET_ENCODE with folds but no params.fit_on encodes each record out-of-fold, so no record's own outcome enters its value, "+
+				"but every value still averages the validation/test records' outcomes; set params.fit_on to the training rows "+
+				"(e.g. \"split == 0\" after "+trainTestSplitName(inst)+") to keep them out",
+			details)
+	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_FEAT_TARGET_LEAKAGE_RISK,
-		"FEAT_TARGET_ENCODE averages every record's outcome, the record's own and validation/test records' included, "+
-			"because it reads no split column; a preceding "+trainTestSplitName(inst)+" does not change that",
-		map[string]any{"feature": string(types.FEAT_TARGET_ENCODE), "feature_index": idx})
+		"FEAT_TARGET_ENCODE without params.fit_on averages every record's outcome, the record's own and validation/test records' included; "+
+			"a preceding "+trainTestSplitName(inst)+" does not change that — set params.fit_on to the training rows (e.g. \"split == 0\"), "+
+			"optionally with folds for out-of-fold training values",
+		details)
 }
 
 // isKnownFeatureType reports whether the type is in types.AllFeatureTypes().
@@ -349,10 +376,7 @@ func validateTargetEncodeParams(env *descriptor.Envelope, feat *types.Feature, s
 		)
 		return
 	}
-	var p struct {
-		Target    string  `json:"target"`
-		Smoothing float64 `json:"smoothing"`
-	}
+	var p targetencode.Params
 	if err := json.Unmarshal(feat.Params, &p); err != nil {
 		env.AddError(
 			string(errors.PROCESSING_CONFIG),
@@ -361,20 +385,8 @@ func validateTargetEncodeParams(env *descriptor.Envelope, feat *types.Feature, s
 		)
 		return
 	}
-	if p.Target == "" {
-		env.AddError(
-			string(errors.PROCESSING_CONFIG),
-			"feature FEAT_TARGET_ENCODE: 'target' is required in params",
-			map[string]any{"feature": string(feat.Type)},
-		)
-		return
-	}
-	if p.Smoothing < 0 {
-		env.AddError(
-			string(errors.PROCESSING_CONFIG),
-			"feature FEAT_TARGET_ENCODE: 'smoothing' must be non-negative",
-			map[string]any{"feature": string(feat.Type)},
-		)
+	if ce := targetencode.Check(p); ce != nil {
+		env.AddError(string(ce.Code), ce.Message, map[string]any{"feature": string(feat.Type)})
 		return
 	}
 	if field != nil {

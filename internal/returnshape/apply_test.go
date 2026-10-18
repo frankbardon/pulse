@@ -14,6 +14,11 @@ import (
 
 var rawMessageType = reflect.TypeFor[json.RawMessage]()
 
+// slotErrorType is a failed slot's error: a result carrying one writes
+// only its identity, so fill leaves it nil (the success shape) and
+// filledFailedResponse sets it where a path reaches into it.
+var slotErrorType = reflect.TypeFor[*types.SlotError]()
+
 // fill populates v with a non-zero value in every slot reachable
 // through structs, pointers, slices (one element) and string-keyed maps
 // (one key); a type already on the stack stays zero.
@@ -32,7 +37,7 @@ func fill(v reflect.Value, stack map[reflect.Type]bool) {
 		stack[v.Type()] = true
 		defer delete(stack, v.Type())
 		for i := range v.NumField() {
-			if v.Type().Field(i).IsExported() {
+			if f := v.Type().Field(i); f.IsExported() && f.Type != slotErrorType {
 				fill(v.Field(i), stack)
 			}
 		}
@@ -205,6 +210,34 @@ func filledResponse() *types.Response {
 	return r
 }
 
+// filledFailedResponse is filledResponse with every regression, test
+// and matrix result failed: each carries a SlotError, so the wire holds
+// its identity and the error.
+func filledFailedResponse() *types.Response {
+	r := filledResponse()
+	se := func() *types.SlotError {
+		return &types.SlotError{Code: "c", Message: "m", Details: map[string]any{"k": "v"}}
+	}
+	for _, ts := range [][]*types.TestResult{r.Tests, r.PostTests} {
+		for _, x := range ts {
+			x.Error = se()
+		}
+	}
+	for _, x := range r.Regressions {
+		x.Error = se()
+	}
+	for i := range r.Matrices {
+		r.Matrices[i].Error = se()
+	}
+	return r
+}
+
+// isSlotErrorPath reports whether path reaches into a result's per-slot
+// `error` (present only on a failed slot).
+func isSlotErrorPath(path string) bool {
+	return strings.Contains(path, "].error")
+}
+
 func planFor(t *testing.T, ret *types.Return) *returnplan.Plan {
 	t.Helper()
 	plan, err := descx.ResolveReturn(&types.Request{Return: ret}, nil)
@@ -230,24 +263,32 @@ func TestReturn_ExcludeEveryFieldAbsent(t *testing.T) {
 	if nonOmit < 20 {
 		t.Fatalf("only %d non-omitempty slots found; the walk is broken", nonOmit)
 	}
-	baseline, err := json.Marshal(filledResponse())
-	if err != nil {
-		t.Fatal(err)
+	docOf := func(r *types.Response) any {
+		baseline, err := json.Marshal(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var doc any
+		if err := json.Unmarshal(baseline, &doc); err != nil {
+			t.Fatal(err)
+		}
+		return doc
 	}
-	var baseDoc any
-	if err := json.Unmarshal(baseline, &baseDoc); err != nil {
-		t.Fatal(err)
-	}
+	baseDoc, failedDoc := docOf(filledResponse()), docOf(filledFailedResponse())
 	for _, rp := range paths {
 		parsed, err := returnplan.Parse(rp.path)
 		if err != nil {
 			t.Fatalf("%s: %v", rp.path, err)
 		}
-		if !present(baseDoc, parsed.Segments) {
+		mk, base := filledResponse, baseDoc
+		if isSlotErrorPath(rp.path) {
+			mk, base = filledFailedResponse, failedDoc
+		}
+		if !present(base, parsed.Segments) {
 			t.Errorf("%s: absent from the fully populated baseline", rp.path)
 			continue
 		}
-		resp := filledResponse()
+		resp := mk()
 		returnshape.Apply(resp, planFor(t, &types.Return{Exclude: []string{rp.path}}))
 		if !goZero(reflect.ValueOf(resp), parsed.Segments) {
 			t.Errorf("%s: excluded but non-zero in Go", rp.path)

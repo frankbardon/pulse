@@ -397,3 +397,39 @@ source(file.path(script_dir, "gen_matrix_inference.R"), local = FALSE)
 # p-values of a correlation matrix, per result or pooled across buckets
 # and specs); base stats + ppcor.
 source(file.path(script_dir, "gen_matrix_multiplicity.R"), local = FALSE)
+
+# The REG_GLM IRLS golden (glm_irls.json: two-level designs whose MLE has
+# a closed form — the credit-risk showcase's default x collections_flag
+# table among them — fitted by glm and checked against the closed form,
+# plus complete and quasi-complete separations glm itself flags, and an
+# unseparated fit with fitted probabilities down to ~7e-13); base stats
+# only.
+source(file.path(script_dir, "gen_glm_irls.R"), local = FALSE)
+
+# The penalised REG_GLM golden (glm_penalty.json: l2 / l1 / elasticnet
+# on binomial and poisson, weighted and separated cases, under glmnet's
+# objective with standardize = FALSE, KKT-self-checked); glmnet + jsonlite.
+source(file.path(script_dir, "gen_glm_penalty.R"), local = FALSE)
+
+# The penalised REG_OLS golden (ols_penalty.json: l2 / l1 / elasticnet
+# on the shared standardize = FALSE objective, glmnet on the unit-SD
+# response, KKT-self-checked); glmnet + jsonlite.
+source(file.path(script_dir, "gen_ols_penalty.R"), local = FALSE)
+
+# The AGG_AUC golden (auc.json: pROC rank-sum AUC with ties half and its
+# DeLong se / 95% interval, plus weighted cases computed as the weighted
+# Mann-Whitney double sum); pROC + jsonlite.
+source(file.path(script_dir, "gen_auc.R"), local = FALSE)
+
+# The REG_OLS / REG_GLM jackknife golden (jackknife.json: delete-a-group
+# by cluster and by a group assignment, frequency-weighted (JK1),
+# l2-penalised and weighted leave-one-out cases, all by manual deletions;
+# the cluster cases cross-checked against survey's JK1 design); survey +
+# glmnet + jsonlite.
+source(file.path(script_dir, "gen_jackknife.R"), local = FALSE)
+
+# The model-workbench end-to-end golden (credit_workbench.json + the
+# committed fixture credit/loans.csv): fit_on target encoding, ridge
+# REG_GLM with a delete-a-vintage jackknife, holdout AUC (pROC DeLong)
+# and the holdout decile gains table; glmnet + pROC + jsonlite.
+source(file.path(script_dir, "gen_credit_workbench.R"), local = FALSE)

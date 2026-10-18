@@ -55,6 +55,7 @@ skills/matrix-results.md
 skills/multiplicity-correction.md
 skills/multivariate-design.md
 skills/multivariate-outputs.md
+skills/op-agg-auc.md
 skills/op-agg-average.md
 skills/op-agg-ci-lower.md
 skills/op-agg-ci-upper.md
@@ -135,6 +136,7 @@ skills/op-group-category.md
 skills/op-group-date-ranges.md
 skills/op-group-date.md
 skills/op-group-kmeans.md
+skills/op-group-numeric-ranges.md
 skills/op-group-quantile.md
 skills/op-group-range.md
 skills/op-group-rounded.md
@@ -254,12 +256,14 @@ skills/op-win-dense-rank.md
 skills/op-win-ewma.md
 skills/op-win-lag.md
 skills/op-win-lead.md
+skills/op-win-lift.md
 skills/op-win-moving-avg.md
 skills/op-win-pct-change.md
 skills/op-win-rank.md
 skills/op-win-row-number.md
 skills/op-win-running-avg.md
 skills/op-win-running-sum.md
+skills/op-win-share.md
 skills/overlay-system.md
 skills/pairwise-n-sources.md
 skills/predict-advisories.md

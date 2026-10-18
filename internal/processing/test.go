@@ -3,11 +3,13 @@ package processing
 import (
 	stderrors "errors"
 	"fmt"
+	"math"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/groupedtests"
 	"github.com/frankbardon/pulse/internal/seriespartition"
+	"github.com/frankbardon/pulse/internal/slotfail"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -296,7 +298,11 @@ func finalizeRowTests(entries []rowTestEntry, n int) ([]*types.TestResult, error
 	for _, e := range entries {
 		res, err := e.test.Finalize()
 		if err != nil {
-			return nil, err
+			se, ok := slotfail.From(slotfail.KindTests, err)
+			if !ok {
+				return nil, err
+			}
+			res = failedTestResult(e.spec, e.label, se)
 		}
 		if res != nil && res.Label == "" {
 			res.Label = e.label
@@ -308,6 +314,26 @@ func finalizeRowTests(entries []rowTestEntry, n int) ([]*types.TestResult, error
 		idx[i] = e.idx
 	}
 	return realignTestResults(out, idx, n), nil
+}
+
+// failedTestResult is the result of a test slot whose data the test
+// refused with a data-dependent code (slotfail.TestCodes): its label,
+// type and alpha, NaN statistic and p-value (absent on the wire, which
+// writes the identity and the error only) and the SlotError. Only that
+// slot fails; the service lifts it to a PULSE_SLOT_FAILED warning.
+func failedTestResult(spec *types.Test, label string, se *types.SlotError) *types.TestResult {
+	alpha := spec.Alpha
+	if alpha == 0 {
+		alpha = 0.05
+	}
+	return &types.TestResult{
+		Label:     label,
+		Type:      spec.Type,
+		Statistic: math.NaN(),
+		PValue:    math.NaN(),
+		Alpha:     alpha,
+		Error:     se,
+	}
 }
 
 // realignTestResults places results (one per built entry, at request
@@ -358,7 +384,11 @@ func (p *Processor) runPostTests(tests []*types.Test, groups []*types.Group, row
 		workPostTestRuns.Add(1)
 		res, err := e.test.Run(rows)
 		if err != nil {
-			return nil, nil, err
+			se, ok := slotfail.From(slotfail.KindPostTests, err)
+			if !ok {
+				return nil, nil, err
+			}
+			res = failedTestResult(e.spec, e.label, se)
 		}
 		if res != nil && res.Label == "" {
 			res.Label = e.label

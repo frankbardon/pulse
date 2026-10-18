@@ -132,7 +132,12 @@ which is not evidence of none. An undefined figure stays `null` in the
 result, and a result you decode from JSON keeps its `null`s as undefined
 rather than reading them as zero. Regressions and overlays without a
 multiplicity correction are read against an alpha of 0.05, and the
-result says so. CLI: `pulse explain --request FILE` or `--response FILE`;
+result says so. A Compose request is checked exactly as `PredictCompose`
+checks it — its `fits` and each slot's `models` bind every slot — and
+a Compose result's regression fits are read beside its slots. A
+regression run with a `selection` is described by the predictors the
+selection kept, with the candidates it dropped named in its sentence.
+CLI: `pulse explain --request FILE` or `--response FILE`;
 MCP: `pulse_explain`.
 
 ## Predict advisories

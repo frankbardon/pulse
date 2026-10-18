@@ -27,6 +27,8 @@ var windowInterpretations = map[string][]descriptor.Interpretation{
 	"WIN_PCT_CHANGE":  interpWinPctChange,
 	"WIN_RANK":        interpWinRank,
 	"WIN_RUNNING_AVG": interpWinRunningAvg,
+	"WIN_SHARE":       interpWinShare,
+	"WIN_LIFT":        interpWinLift,
 }
 
 // Shared caveat sentences, so sibling windows say the same thing the same
@@ -175,6 +177,42 @@ var (
 				winRankPositions,
 				winRankNulls,
 				"Dense rank 3 does not mean two rows came first: many rows can share ranks 1 and 2. Use WIN_RANK when the count of rows ahead matters.",
+			},
+		},
+	}
+)
+
+// --- Shares and lift ---------------------------------------------------------
+
+var (
+	interpWinShare = []descriptor.Interpretation{
+		{
+			Field: "value",
+			Means: "The row's value as a fraction of its partition's total: 0.25 is a quarter, not 25. " +
+				"With cumulative it is the running total up to this row over the same total, rising to exactly 1 on the partition's last row with a value.",
+			Caveats: []string{
+				"The total is the partition's, over the values present: a missing value adds nothing, so shares of a column with gaps sum to 1 over the rows that answered.",
+				"A cumulative share depends on the order: ordered by a score from riskiest down it is the capture curve; set desc for that.",
+				"A field that can be negative can push a share above 1 or below 0, and a total of exactly 0 reads null.",
+				winGroupRowsCaveat,
+			},
+		},
+	}
+
+	interpWinLift = []descriptor.Interpretation{
+		{
+			Field: "value",
+			Means: "The field's share over the base's share: 1 means the row holds the same share of both, 2 twice its base share of the field. " +
+				"With cumulative, the running shares are compared, so 2.3 on the second decile says the top two deciles hold 2.3 times their share of loans in defaults.",
+			Sign: map[string]string{
+				"+": "above 1: the row holds more of the field than its share of the base",
+				"-": "below 1: the row holds less of the field than its share of the base",
+			},
+			Caveats: []string{
+				"Lift on a small base share is jumpy: a decile with 1% of the loans and 3% of the defaults reads 3 on a handful of defaults, so read the counts beside it.",
+				"Cumulative lift falls to exactly 1 on the last row, where both running shares reach 1; compare lifts at the same depth.",
+				"A missing value on either side, or a base share of 0, reads null.",
+				winGroupRowsCaveat,
 			},
 		},
 	}

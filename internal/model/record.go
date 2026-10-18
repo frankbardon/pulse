@@ -39,7 +39,7 @@ type RecordBinding struct {
 func (s *Set) WithRecords(recs map[string]RecordBinding) *Set {
 	out := &Set{}
 	if s != nil {
-		out.byName, out.vectors, out.capture = s.byName, s.vectors, s.capture
+		out.byName, out.vectors, out.capture, out.failed = s.byName, s.vectors, s.capture, s.failed
 		if len(s.records) > 0 {
 			out.records = make(map[string]RecordBinding, len(s.records)+len(recs))
 			for k, v := range s.records {

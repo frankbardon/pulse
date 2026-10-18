@@ -43,6 +43,17 @@ are part of the operator's contract and ride in the operator's struct
 parameters; the orchestrator's window-pass invokes the implementation
 per row in declared order.
 
+Slot validation is NOT the factory's job alone. `internal/windowparams` is
+the one reading of a window slot, shared by predict
+(`internal/descriptor/predict_window.go`) and the engine (`register` wraps
+every factory with it; `applyWindows` runs it for extension windows too):
+add the operator to its `fieldRequired` / `frameRequired` /
+`frameRejected` tables and put any params rule in `paramsRefusal`, so both
+sides refuse with `PULSE_WINDOW_INVALID` and the same rule sentence. Then
+add the operator's row to `windowParityRows` in
+`window_refusal_parity_test.go` — `TestWindowRefusals_PredictMatchesRuntime`
+fails for a window type without one.
+
 ## 3. Streamability — nothing to do
 
 No window operator streams today. `WindowType.Streamable()` in

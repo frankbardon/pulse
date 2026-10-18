@@ -46,3 +46,31 @@ func TestFitResult_Wire(t *testing.T) {
 		t.Fatalf("empty entry %s", b)
 	}
 }
+
+// TestFitResult_FailedWire: a failed fit carries `error`
+// (SlotError) beside its identity only — a regression arm writes
+// {name, type, error}, a vector arm {"vector": {operator, error}} — and
+// each reads back into its own arm with the error.
+func TestFitResult_FailedWire(t *testing.T) {
+	se := &SlotError{Code: "PROCESSING_REGRESSION_SEPARATION", Message: "separated", Details: map[string]any{"k": "v"}}
+	got, err := json.Marshal(map[string]*FitResult{
+		"r": {RegressionResult: &RegressionResult{Name: "r", Type: REG_GLM, Error: se, NObs: 9}},
+		"v": {Vector: &VectorFitResult{Operator: "MAT_PRECISION", Labels: []string{"a"}, N: 3, Error: &SlotError{Code: "PULSE_MATRIX_SINGULAR", Message: "singular"}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"r":{"name":"r","type":"REG_GLM","error":{"code":"PROCESSING_REGRESSION_SEPARATION","message":"separated","details":{"k":"v"}}},` +
+		`"v":{"vector":{"operator":"MAT_PRECISION","error":{"code":"PULSE_MATRIX_SINGULAR","message":"singular"}}}}`
+	if string(got) != want {
+		t.Fatalf("failed fits\n got %s\nwant %s", got, want)
+	}
+	var back map[string]*FitResult
+	if err := json.Unmarshal(got, &back); err != nil {
+		t.Fatal(err)
+	}
+	if back["r"].RegressionResult == nil || back["r"].Error == nil || back["r"].Error.Code != se.Code ||
+		back["v"].Vector == nil || back["v"].Vector.Error == nil || back["v"].Vector.Error.Code != "PULSE_MATRIX_SINGULAR" {
+		t.Fatalf("read back %+v / %+v", back["r"], back["v"])
+	}
+}

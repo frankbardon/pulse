@@ -1,7 +1,9 @@
 package regression
 
 import (
+	stderrors "errors"
 	"math"
+	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -48,8 +50,8 @@ func asBuffered(t *testing.T, eng Engine) BufferedEngine {
 // The 0.9·sin perturbation introduces enough label noise around the
 // decision boundary to keep the dataset non-separable so IRLS
 // converges to a finite optimum (a strictly-separable design would
-// drive coefficients to infinity and surface NO_CONVERGE — see
-// TestRegGLM_Separable_Diverges for that case).
+// drive coefficients to infinity and refuse with
+// PROCESSING_REGRESSION_SEPARATION — see TestRegGLM_Separable_Diverges).
 //
 // Reference values were derived by running the engine itself on this
 // exact fixture (the IRLS algorithm is textbook; this fixture's
@@ -245,7 +247,9 @@ func TestRegGLM_Poisson_NumericalFixture(t *testing.T) {
 // TestRegGLM_Separable_Diverges constructs a perfectly separable
 // logistic dataset (all y=0 for x<0, all y=1 for x≥0). IRLS coefficients
 // blow up because the maximum-likelihood estimate is at infinity; the
-// engine surfaces PROCESSING_REGRESSION_NO_CONVERGE after MaxIters.
+// engine refuses with exactly PROCESSING_REGRESSION_SEPARATION naming x —
+// never NO_CONVERGE, and never RANK_DEFICIENT (the working weights
+// collapsing is not collinearity).
 func TestRegGLM_Separable_Diverges(t *testing.T) {
 	predictors := []string{"x"}
 	target := "y"
@@ -273,16 +277,12 @@ func TestRegGLM_Separable_Diverges(t *testing.T) {
 	}
 	eng := asBuffered(t, newGLM(t, spec))
 	_, err := eng.FitBuffered(records)
-	if err == nil {
-		t.Fatal("FitBuffered on separable data returned nil error; want PROCESSING_REGRESSION_NO_CONVERGE or RANK_DEFICIENT")
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_REGRESSION_SEPARATION {
+		t.Fatalf("err = %v, want exactly PROCESSING_REGRESSION_SEPARATION", err)
 	}
-	// Either NO_CONVERGE (β grew without converging) or RANK_DEFICIENT
-	// (the working-weight diagonal collapsed) is acceptable here — both
-	// are the correct symptom of a separable design and both surface
-	// canonical regression error codes.
-	if !errors.HasCode(err, errors.PROCESSING_REGRESSION_NO_CONVERGE) &&
-		!errors.HasCode(err, errors.PROCESSING_REGRESSION_RANK_DEFICIENT) {
-		t.Errorf("err = %v, want PROCESSING_REGRESSION_NO_CONVERGE or RANK_DEFICIENT", err)
+	if got := ce.Details["predictors"]; !reflect.DeepEqual(got, []string{"x"}) {
+		t.Errorf("details.predictors = %v, want [x]", got)
 	}
 }
 
@@ -356,42 +356,6 @@ func TestRegGLM_InvalidLink(t *testing.T) {
 			}
 			if !errors.HasCode(err, errors.PROCESSING_REGRESSION_INVALID_LINK) {
 				t.Errorf("err = %v, want PROCESSING_REGRESSION_INVALID_LINK", err)
-			}
-		})
-	}
-}
-
-// TestRegGLM_PenaltyRejected asserts the engine refuses any Penalty /
-// Alpha / L1Ratio knob on a REG_GLM spec. Regularized GLM is deferred
-// to a later phase; silently dropping the knob would mislead callers
-// into thinking they got a regularized fit.
-func TestRegGLM_PenaltyRejected(t *testing.T) {
-	cases := []struct {
-		name string
-		mod  func(*types.RegressionSpec)
-	}{
-		{"l1 penalty", func(s *types.RegressionSpec) { s.Penalty = "l1" }},
-		{"l2 penalty", func(s *types.RegressionSpec) { s.Penalty = "l2" }},
-		{"elasticnet penalty", func(s *types.RegressionSpec) { s.Penalty = "elasticnet" }},
-		{"nonzero alpha", func(s *types.RegressionSpec) { s.Alpha = 0.1 }},
-		{"nonzero l1_ratio", func(s *types.RegressionSpec) { s.L1Ratio = 0.5 }},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			spec := &types.RegressionSpec{
-				Type:       types.REG_GLM,
-				Target:     "y",
-				Predictors: []string{"x"},
-				Family:     "binomial",
-			}
-			c.mod(spec)
-			schema := schemaWithFields("y", "x")
-			_, err := newGLMEngine(spec, schema)
-			if err == nil {
-				t.Fatal("newGLMEngine returned nil error; want PROCESSING_CONFIG")
-			}
-			if !errors.HasCode(err, errors.PROCESSING_CONFIG) {
-				t.Errorf("err = %v, want PROCESSING_CONFIG", err)
 			}
 		})
 	}

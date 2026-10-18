@@ -273,10 +273,11 @@ func (e *olsEngine) finalizeFromAccumulator(records []Record) (*types.Regression
 	for i, name := range predictors {
 		coefMap[name] = solve.Coefficients[i]
 		// For L1-penalized fits, only the active set (non-zero coefs)
-		// gets a (naive) SE entry; the zeroed coordinates have no
-		// well-defined SE so their map entries are omitted.
+		// gets a (naive) SE and p-value; the zeroed coordinates have
+		// neither, so both map entries are omitted (as REG_GLM does) —
+		// never a p-value of 0, which would read as maximally
+		// significant.
 		if e.approximateSE && solve.Coefficients[i] == 0 {
-			pMap[name] = 0
 			continue
 		}
 		seMap[name] = solve.StdErrors[i+1]

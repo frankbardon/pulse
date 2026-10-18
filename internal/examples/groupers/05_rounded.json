@@ -39,11 +39,6 @@
       "field": "age",
       "interval": 10
     }
-  ],
-  "sort": [
-    {
-      "field": "age"
-    }
   ]
 
 }

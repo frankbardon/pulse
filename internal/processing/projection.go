@@ -243,6 +243,11 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 			continue
 		}
 		addKnown(w.Field)
+		if w.Type == types.WIN_LIFT {
+			if name, ok := jsonStringField(w.Params, "base"); ok {
+				addKnown(name)
+			}
+		}
 		addAllKnown(w.PartitionBy)
 		for _, k := range w.OrderBy {
 			addKnown(k.Field)
@@ -263,6 +268,14 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		case types.FEAT_TARGET_ENCODE:
 			if name, ok := jsonStringField(f.Params, "target"); ok {
 				addKnown(name)
+			}
+			// params.fit_on is an expression filter over the record:
+			// every schema field it reads is a decoded column.
+			if src, ok := jsonStringField(f.Params, "fit_on"); ok && src != "" {
+				if !appendExprIdents(out, src, known, vecMembers) {
+					out.Widen()
+					return out
+				}
 			}
 		}
 		// Extension features: defer to the registered FieldInputs hook
@@ -319,6 +332,7 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 			addKnown(c.Cluster)
 			addKnown(c.OrderBy)
 		}
+		addKnown(r.JackknifeBy)
 	}
 
 	// Virtual vectors decode every member (internal/vectors, the one
@@ -663,6 +677,7 @@ func (v *exprIdentVisitor) Visit(node *exprast.Node) {
 //   - AGG_WEIGHTED_MEAN: Params.weight_field
 //   - AGG_RATIO:         Params.numerator_field, Params.denominator_field
 //   - AGG_MAPE / AGG_RMSE / AGG_MAE: Params.prediction_field
+//   - AGG_AUC:           Params.outcome
 //
 // A field named ONLY here and not projected is decoded onto no Record,
 // so Record.NumericValue answers ok=false for it on every row and the
@@ -694,6 +709,12 @@ func addAggParamFields(out FieldSet, a *types.Aggregation, known map[string]stru
 		}
 	case types.AGG_MAPE, types.AGG_RMSE, types.AGG_MAE:
 		if name, ok := jsonStringField(a.Params, "prediction_field"); ok {
+			if _, in := known[name]; in {
+				out.Add(name)
+			}
+		}
+	case types.AGG_AUC:
+		if name, ok := jsonStringField(a.Params, "outcome"); ok {
 			if _, in := known[name]; in {
 				out.Add(name)
 			}

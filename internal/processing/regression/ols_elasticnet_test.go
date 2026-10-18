@@ -13,17 +13,15 @@ import (
 // coefficients to exactly zero; the active-set coefficients shrink
 // slightly relative to the pure-lasso case due to the L2 contribution.
 //
-// reference: coordinate descent on the standardized Gram for this
-// deterministic fixture; the same algorithm matches scikit-learn
-// ElasticNet(alpha=λ, l1_ratio=0.5, fit_intercept=True,
-// normalize=False) to ≥ 1e-3 once standardization is applied.
+// reference: R glmnet(standardize = FALSE) on the unit-SD response
+// (scripts/reference/gen_ols_penalty.R, KKT-checked at 1e-10):
 //
 //	alpha = 0.05, L1Ratio = 0.5:
-//	β = [1.9140413033823895, 0, -2.8886851723372433, 0, 0]
-//	intercept = 0.49500733818430903
+//	β = [1.848823752171123, 0, -2.8083428580480168, 0, 0]
+//	intercept = 0.4898811034051959
 //	alpha = 0.10, L1Ratio = 0.5:
-//	β = [1.8321241669615214, 0, -2.7850384639746646, 0, 0]
-//	intercept = 0.4883909625313358
+//	β = [1.7119963906750262, 0, -2.636211728115934, 0, 0]
+//	intercept = 0.478894099318167
 func TestRegOLS_ElasticNet_SparseRecovery(t *testing.T) {
 	predictors, records := lassoFixture()
 
@@ -37,25 +35,25 @@ func TestRegOLS_ElasticNet_SparseRecovery(t *testing.T) {
 			alpha:   0.05,
 			l1Ratio: 0.5,
 			wantBeta: map[string]float64{
-				"x0": 1.9140413033823895,
+				"x0": 1.848823752171123,
 				"x1": 0,
-				"x2": -2.8886851723372433,
+				"x2": -2.8083428580480168,
 				"x3": 0,
 				"x4": 0,
 			},
-			wantIntercept: 0.49500733818430903,
+			wantIntercept: 0.4898811034051959,
 		},
 		{
 			alpha:   0.10,
 			l1Ratio: 0.5,
 			wantBeta: map[string]float64{
-				"x0": 1.8321241669615214,
+				"x0": 1.7119963906750262,
 				"x1": 0,
-				"x2": -2.7850384639746646,
+				"x2": -2.636211728115934,
 				"x3": 0,
 				"x4": 0,
 			},
-			wantIntercept: 0.4883909625313358,
+			wantIntercept: 0.478894099318167,
 		},
 	}
 
@@ -76,12 +74,12 @@ func TestRegOLS_ElasticNet_SparseRecovery(t *testing.T) {
 				}
 			}
 			for _, name := range []string{"x0", "x2"} {
-				if !closef(res.Coefficients[name], c.wantBeta[name], 1e-3) {
-					t.Errorf("β_%s = %v, want %v ±1e-3", name, res.Coefficients[name], c.wantBeta[name])
+				if !closef(res.Coefficients[name], c.wantBeta[name], 1e-6) {
+					t.Errorf("β_%s = %v, want %v ±1e-6", name, res.Coefficients[name], c.wantBeta[name])
 				}
 			}
-			if !closef(res.Coefficients[InterceptKey], c.wantIntercept, 1e-3) {
-				t.Errorf("intercept = %v, want %v ±1e-3", res.Coefficients[InterceptKey], c.wantIntercept)
+			if !closef(res.Coefficients[InterceptKey], c.wantIntercept, 1e-6) {
+				t.Errorf("intercept = %v, want %v ±1e-6", res.Coefficients[InterceptKey], c.wantIntercept)
 			}
 			if res.Penalty != "elasticnet" {
 				t.Errorf("Penalty = %q, want elasticnet", res.Penalty)

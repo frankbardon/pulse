@@ -113,6 +113,9 @@ func (a *formulaTotalAttribute) PrePass(r *Record, _ string) error {
 	if err := a.prepare(); err != nil {
 		return err
 	}
+	if a.unavailable != nil {
+		return nil // no row has a value (a failed fit): nothing to total
+	}
 	t := a.totals
 	for i, prog := range t.args {
 		out, nullInput, err := prog.runRecord(r)

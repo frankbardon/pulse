@@ -15,6 +15,7 @@ import (
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/slotfail"
 	"github.com/frankbardon/pulse/internal/temporal"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
@@ -706,6 +707,14 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 
 	resp, err := s.processDispatch(ctx, req)
 	if err != nil {
+		return nil, err
+	}
+	// Per-slot partial success: every arm turned a regression, test or
+	// matrix slot's data-dependent refusal into a result carrying its
+	// error; each one is lifted here, once, to a PULSE_SLOT_FAILED
+	// warning — or, under Strict, fails the run with the slot's own code.
+	slotfail.Scope(resp, s.scopeRefusal)
+	if err := slotfail.Apply(req, resp, s.strict); err != nil {
 		return nil, err
 	}
 	// Observability row counters (no-op off): read off Metadata, which

@@ -671,6 +671,10 @@ pulse: type MemberSet interface
 pulse: type MemberSet imethod Kind() string
 pulse: type MemberSet imethod Len() int
 pulse: func New(opts pulse.Options) (*pulse.Pulse, error)
+pulse: type NumericRangeSpec struct
+pulse: type NumericRangeSpec field End *float64 "json:\"end,omitempty\""
+pulse: type NumericRangeSpec field Label string "json:\"label\""
+pulse: type NumericRangeSpec field Start *float64 "json:\"start,omitempty\""
 pulse: type Options struct
 pulse: type Options field AutoLabels []pulse.LabelBinding
 pulse: type Options field DataDir string
@@ -914,11 +918,15 @@ pulse: type RakeResult field WeightField string "json:\"weight_field\""
 pulse: type RakeResult method (RakeResult) MarshalJSON() ([]byte, error)
 pulse: type RangeTable struct
 pulse: type RangeTable field Description string
+pulse: type RangeTable field NumericRanges []pulse.NumericRangeSpec
 pulse: type RangeTable field Ranges []pulse.DateRangeSpec
+pulse: type RangeTable method (RangeTable) Kind() string
 pulse: type RangeTableInfo struct
+pulse: type RangeTableInfo field Kind string "json:\"kind\""
 pulse: type RangeTableInfo field Name string "json:\"name\""
+pulse: type RangeTableInfo field NumericRanges []pulse.NumericRangeSpec "json:\"numeric_ranges,omitempty\""
 pulse: type RangeTableInfo field RangeCount int "json:\"range_count\""
-pulse: type RangeTableInfo field Ranges []pulse.DateRangeSpec "json:\"ranges\""
+pulse: type RangeTableInfo field Ranges []pulse.DateRangeSpec "json:\"ranges,omitempty\""
 pulse: type Record = map[string]any
 pulse: type RenderedTemplate = pulse/internal/template.Rendered
 pulse: type RenderedTemplate underlying struct
@@ -1741,6 +1749,7 @@ pulse/descriptor: type Operator field ComponentSchema pulse/descriptor.Component
 pulse/descriptor: type Operator field Description string "json:\"description\""
 pulse/descriptor: type Operator field EmitsType string "json:\"emits_type,omitempty\""
 pulse/descriptor: type Operator field EmitsTypeNote string "json:\"emits_type_note,omitempty\""
+pulse/descriptor: type Operator field ForbidsField bool "json:\"forbids_field,omitempty\""
 pulse/descriptor: type Operator field IgnoresField bool "json:\"ignores_field,omitempty\""
 pulse/descriptor: type Operator field IgnoresFrame bool "json:\"ignores_frame,omitempty\""
 pulse/descriptor: type Operator field Intents []string "json:\"intents,omitempty\""
@@ -1890,6 +1899,7 @@ pulse/descriptor: type Purpose field Questions []string "json:\"questions\""
 pulse/descriptor: type Purpose field UseCases map[pulse/descriptor.Domain]string "json:\"use_cases,omitempty\""
 pulse/descriptor: type RangeTableMeta struct
 pulse/descriptor: type RangeTableMeta field Description string "json:\"description,omitempty\""
+pulse/descriptor: type RangeTableMeta field Kind string "json:\"kind\""
 pulse/descriptor: type RangeTableMeta field Name string "json:\"name\""
 pulse/descriptor: type RangeTableMeta field RangeCount int "json:\"range_count\""
 pulse/descriptor: type RecommendNeed struct
@@ -2380,6 +2390,7 @@ pulse/errors: type Metadata field Message string
 pulse/errors: func MetadataFor(c pulse/errors.Code) (pulse/errors.Metadata, bool)
 pulse/errors: func NewCodedError(code pulse/errors.Code, message string) *pulse/errors.CodedError
 pulse/errors: func NewCodedErrorWithDetails(code pulse/errors.Code, message string, details map[string]any) *pulse/errors.CodedError
+pulse/errors: const PROCESSING_AUC_OUTCOME_NOT_BINARY pulse/errors.Code = "PROCESSING_AUC_OUTCOME_NOT_BINARY"
 pulse/errors: const PROCESSING_CONFIG pulse/errors.Code = "PROCESSING_CONFIG"
 pulse/errors: const PROCESSING_GROUP pulse/errors.Code = "PROCESSING_GROUP"
 pulse/errors: const PROCESSING_INTERNAL pulse/errors.Code = "PROCESSING_INTERNAL"
@@ -2389,6 +2400,7 @@ pulse/errors: const PROCESSING_REGRESSION_INVALID_LINK pulse/errors.Code = "PROC
 pulse/errors: const PROCESSING_REGRESSION_NOT_IMPLEMENTED pulse/errors.Code = "PROCESSING_REGRESSION_NOT_IMPLEMENTED"
 pulse/errors: const PROCESSING_REGRESSION_NO_CONVERGE pulse/errors.Code = "PROCESSING_REGRESSION_NO_CONVERGE"
 pulse/errors: const PROCESSING_REGRESSION_RANK_DEFICIENT pulse/errors.Code = "PROCESSING_REGRESSION_RANK_DEFICIENT"
+pulse/errors: const PROCESSING_REGRESSION_SEPARATION pulse/errors.Code = "PROCESSING_REGRESSION_SEPARATION"
 pulse/errors: const PROCESSING_REGRESSION_SINGULAR_GRAM pulse/errors.Code = "PROCESSING_REGRESSION_SINGULAR_GRAM"
 pulse/errors: const PROCESSING_REGRESSION_VCOV_UNSUPPORTED pulse/errors.Code = "PROCESSING_REGRESSION_VCOV_UNSUPPORTED"
 pulse/errors: const PROCESSING_RUNTIME pulse/errors.Code = "PROCESSING_RUNTIME"
@@ -2398,6 +2410,7 @@ pulse/errors: const PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC pulse/errors.Code = "P
 pulse/errors: const PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT pulse/errors.Code = "PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT"
 pulse/errors: const PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED pulse/errors.Code = "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED"
 pulse/errors: const PULSE_ADVISORY_EXTRA_PASS pulse/errors.Code = "PULSE_ADVISORY_EXTRA_PASS"
+pulse/errors: const PULSE_ADVISORY_JACKKNIFE_COST pulse/errors.Code = "PULSE_ADVISORY_JACKKNIFE_COST"
 pulse/errors: const PULSE_ADVISORY_MANY_TESTS pulse/errors.Code = "PULSE_ADVISORY_MANY_TESTS"
 pulse/errors: const PULSE_ADVISORY_ORDINAL_PARAMETRIC pulse/errors.Code = "PULSE_ADVISORY_ORDINAL_PARAMETRIC"
 pulse/errors: const PULSE_ADVISORY_SERIES_AXIS_NOT_DATE pulse/errors.Code = "PULSE_ADVISORY_SERIES_AXIS_NOT_DATE"
@@ -2409,6 +2422,7 @@ pulse/errors: const PULSE_ARCHIVE_CORRUPT pulse/errors.Code = "PULSE_ARCHIVE_COR
 pulse/errors: const PULSE_ARCHIVE_MAGIC_INVALID pulse/errors.Code = "PULSE_ARCHIVE_MAGIC_INVALID"
 pulse/errors: const PULSE_ATTR_CODE_NOT_IN_DICTIONARY pulse/errors.Code = "PULSE_ATTR_CODE_NOT_IN_DICTIONARY"
 pulse/errors: const PULSE_ATTR_SCALE_OUT_OF_RANGE pulse/errors.Code = "PULSE_ATTR_SCALE_OUT_OF_RANGE"
+pulse/errors: const PULSE_AUC_DELONG_WEIGHTED pulse/errors.Code = "PULSE_AUC_DELONG_WEIGHTED"
 pulse/errors: const PULSE_BANNER_INVALID pulse/errors.Code = "PULSE_BANNER_INVALID"
 pulse/errors: const PULSE_CHAIN_EMPTY pulse/errors.Code = "PULSE_CHAIN_EMPTY"
 pulse/errors: const PULSE_CHAIN_NOT_MERGEABLE pulse/errors.Code = "PULSE_CHAIN_NOT_MERGEABLE"
@@ -2469,6 +2483,7 @@ pulse/errors: const PULSE_FEAT_TARGET_LEAKAGE_RISK pulse/errors.Code = "PULSE_FE
 pulse/errors: const PULSE_FIELD_DESCRIPTION_LOW_QUALITY pulse/errors.Code = "PULSE_FIELD_DESCRIPTION_LOW_QUALITY"
 pulse/errors: const PULSE_FIELD_TYPE_UNSUPPORTED pulse/errors.Code = "PULSE_FIELD_TYPE_UNSUPPORTED"
 pulse/errors: const PULSE_FIT_INVALID pulse/errors.Code = "PULSE_FIT_INVALID"
+pulse/errors: const PULSE_FIT_UNAVAILABLE pulse/errors.Code = "PULSE_FIT_UNAVAILABLE"
 pulse/errors: const PULSE_FORMULA_COMPILE_ERROR pulse/errors.Code = "PULSE_FORMULA_COMPILE_ERROR"
 pulse/errors: const PULSE_FORMULA_TOTAL_ARITY pulse/errors.Code = "PULSE_FORMULA_TOTAL_ARITY"
 pulse/errors: const PULSE_FORMULA_TOTAL_NESTED pulse/errors.Code = "PULSE_FORMULA_TOTAL_NESTED"
@@ -2616,6 +2631,7 @@ pulse/errors: const PULSE_RANGE_EMPTY pulse/errors.Code = "PULSE_RANGE_EMPTY"
 pulse/errors: const PULSE_RANGE_INVALID pulse/errors.Code = "PULSE_RANGE_INVALID"
 pulse/errors: const PULSE_RANGE_OVERLAP pulse/errors.Code = "PULSE_RANGE_OVERLAP"
 pulse/errors: const PULSE_RANGE_SOURCE_AMBIGUOUS pulse/errors.Code = "PULSE_RANGE_SOURCE_AMBIGUOUS"
+pulse/errors: const PULSE_RANGE_TABLE_KIND_MISMATCH pulse/errors.Code = "PULSE_RANGE_TABLE_KIND_MISMATCH"
 pulse/errors: const PULSE_RANGE_TABLE_UNKNOWN pulse/errors.Code = "PULSE_RANGE_TABLE_UNKNOWN"
 pulse/errors: const PULSE_RECOMMEND_INTENT_UNKNOWN pulse/errors.Code = "PULSE_RECOMMEND_INTENT_UNKNOWN"
 pulse/errors: const PULSE_REQUEST_UNKNOWN_FIELD pulse/errors.Code = "PULSE_REQUEST_UNKNOWN_FIELD"
@@ -2632,6 +2648,7 @@ pulse/errors: const PULSE_SHARD_NAME_COLLISION pulse/errors.Code = "PULSE_SHARD_
 pulse/errors: const PULSE_SHARD_RESERVED_NAME pulse/errors.Code = "PULSE_SHARD_RESERVED_NAME"
 pulse/errors: const PULSE_SHARD_SCHEMA_MISMATCH pulse/errors.Code = "PULSE_SHARD_SCHEMA_MISMATCH"
 pulse/errors: const PULSE_SHARD_SET_WIDENED pulse/errors.Code = "PULSE_SHARD_SET_WIDENED"
+pulse/errors: const PULSE_SLOT_FAILED pulse/errors.Code = "PULSE_SLOT_FAILED"
 pulse/errors: const PULSE_SPSS_CARDINALITY_HIGH pulse/errors.Code = "PULSE_SPSS_CARDINALITY_HIGH"
 pulse/errors: const PULSE_SPSS_CATEGORICAL_OVERFLOW pulse/errors.Code = "PULSE_SPSS_CATEGORICAL_OVERFLOW"
 pulse/errors: const PULSE_SPSS_CATEGORICAL_USER_MISSING pulse/errors.Code = "PULSE_SPSS_CATEGORICAL_USER_MISSING"
@@ -4274,6 +4291,7 @@ pulse/synth: type VectorSpec field ScaleMax *float64 "json:\"scale_max,omitempty
 pulse/synth: type VectorSpec field ScaleMin *float64 "json:\"scale_min,omitempty\""
 pulse/synth: func WriteSpec(fs github.com/spf13/afero.Fs, spec *pulse/synth.Spec, path string) error
 pulse/types: package types
+pulse/types: const AGG_AUC pulse/types.AggregationType = "AGG_AUC"
 pulse/types: const AGG_AVERAGE pulse/types.AggregationType = "AGG_AVERAGE"
 pulse/types: const AGG_CI_LOWER pulse/types.AggregationType = "AGG_CI_LOWER"
 pulse/types: const AGG_CI_UPPER pulse/types.AggregationType = "AGG_CI_UPPER"
@@ -4771,7 +4789,9 @@ pulse/types: type FitResult field RegressionResult.CredibleIntervals map[string]
 pulse/types: type FitResult field RegressionResult.Criterion string "json:\"criterion,omitempty\""
 pulse/types: type FitResult field RegressionResult.DF float64 "json:\"df,omitempty\""
 pulse/types: type FitResult field RegressionResult.Deviance float64 "json:\"deviance,omitempty\""
+pulse/types: type FitResult field RegressionResult.Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type FitResult field RegressionResult.Family string "json:\"family,omitempty\""
+pulse/types: type FitResult field RegressionResult.JackknifeGroups int "json:\"jackknife_groups,omitempty\""
 pulse/types: type FitResult field RegressionResult.L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type FitResult field RegressionResult.Link string "json:\"link,omitempty\""
 pulse/types: type FitResult field RegressionResult.Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
@@ -4812,6 +4832,7 @@ pulse/types: const GROUP_CATEGORY pulse/types.GroupType = "GROUP_CATEGORY"
 pulse/types: const GROUP_DATE pulse/types.GroupType = "GROUP_DATE"
 pulse/types: const GROUP_DATE_RANGES pulse/types.GroupType = "GROUP_DATE_RANGES"
 pulse/types: const GROUP_KMEANS pulse/types.GroupType = "GROUP_KMEANS"
+pulse/types: const GROUP_NUMERIC_RANGES pulse/types.GroupType = "GROUP_NUMERIC_RANGES"
 pulse/types: const GROUP_QUANTILE pulse/types.GroupType = "GROUP_QUANTILE"
 pulse/types: const GROUP_RANGE pulse/types.GroupType = "GROUP_RANGE"
 pulse/types: const GROUP_ROUNDED pulse/types.GroupType = "GROUP_ROUNDED"
@@ -4953,6 +4974,7 @@ pulse/types: type MatrixPayload field RowMargins []pulse/types.MatrixCell "json:
 pulse/types: type MatrixPayload method (MatrixPayload) MarshalJSON() ([]byte, error)
 pulse/types: type MatrixResult struct
 pulse/types: type MatrixResult field Auxiliary map[string]*pulse/types.MatrixValues "json:\"auxiliary,omitempty\""
+pulse/types: type MatrixResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type MatrixResult field GroupHeader *pulse/types.AxisHeader "json:\"group_header,omitempty\""
 pulse/types: type MatrixResult field GroupKey pulse/types.AxisKey "json:\"group_key,omitempty\""
 pulse/types: type MatrixResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
@@ -5281,7 +5303,9 @@ pulse/types: type RegressionResult field CredibleIntervals map[string][2]float64
 pulse/types: type RegressionResult field Criterion string "json:\"criterion,omitempty\""
 pulse/types: type RegressionResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type RegressionResult field Deviance float64 "json:\"deviance,omitempty\""
+pulse/types: type RegressionResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type RegressionResult field Family string "json:\"family,omitempty\""
+pulse/types: type RegressionResult field JackknifeGroups int "json:\"jackknife_groups,omitempty\""
 pulse/types: type RegressionResult field L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type RegressionResult field Link string "json:\"link,omitempty\""
 pulse/types: type RegressionResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
@@ -5313,6 +5337,8 @@ pulse/types: type RegressionSpec field Covariance *pulse/types.RegressionCovaria
 pulse/types: type RegressionSpec field CredibleLevel float64 "json:\"credible_level,omitempty\""
 pulse/types: type RegressionSpec field Criterion string "json:\"criterion,omitempty\""
 pulse/types: type RegressionSpec field Family string "json:\"family,omitempty\""
+pulse/types: type RegressionSpec field JackknifeBy string "json:\"jackknife_by,omitempty\""
+pulse/types: type RegressionSpec field JackknifeGroups int "json:\"jackknife_groups,omitempty\""
 pulse/types: type RegressionSpec field L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type RegressionSpec field Link string "json:\"link,omitempty\""
 pulse/types: type RegressionSpec field MaxIters int "json:\"max_iters,omitempty\""
@@ -5425,6 +5451,10 @@ pulse/types: type SeriesEntry field Key pulse/types.AxisKey "json:\"key\""
 pulse/types: type SeriesEntry field Summary pulse/types.OverlaySummary "json:\"summary\""
 pulse/types: type SeriesPayload struct
 pulse/types: type SeriesPayload field Entries []pulse/types.SeriesEntry "json:\"entries\""
+pulse/types: type SlotError struct
+pulse/types: type SlotError field Code string "json:\"code\""
+pulse/types: type SlotError field Details map[string]any "json:\"details,omitempty\""
+pulse/types: type SlotError field Message string "json:\"message\""
 pulse/types: type SlotWeight struct
 pulse/types: type SlotWeight method (*SlotWeight) UnmarshalJSON(b []byte) error
 pulse/types: type SlotWeight method (SlotWeight) IsNull() bool
@@ -5505,6 +5535,7 @@ pulse/types: type TestResult struct
 pulse/types: type TestResult field Alpha float64 "json:\"alpha\""
 pulse/types: type TestResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type TestResult field Details map[string]any "json:\"details,omitempty\""
+pulse/types: type TestResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type TestResult field GroupKey pulse/types.AxisKey "json:\"group_key,omitempty\""
 pulse/types: type TestResult field Label string "json:\"label,omitempty\""
 pulse/types: type TestResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
@@ -5528,6 +5559,7 @@ pulse/types: const VectorCoerceBinary pulse/types.VectorCoerce = "binary"
 pulse/types: type VectorFitResult struct
 pulse/types: type VectorFitResult field Basis string "json:\"basis\""
 pulse/types: type VectorFitResult field Covariance *pulse/types.MatrixValues "json:\"covariance\""
+pulse/types: type VectorFitResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type VectorFitResult field Labels []string "json:\"labels\""
 pulse/types: type VectorFitResult field Mean []float64 "json:\"mean\""
 pulse/types: type VectorFitResult field Members []string "json:\"members\""
@@ -5560,12 +5592,14 @@ pulse/types: const WIN_DENSE_RANK pulse/types.WindowType = "WIN_DENSE_RANK"
 pulse/types: const WIN_EWMA pulse/types.WindowType = "WIN_EWMA"
 pulse/types: const WIN_LAG pulse/types.WindowType = "WIN_LAG"
 pulse/types: const WIN_LEAD pulse/types.WindowType = "WIN_LEAD"
+pulse/types: const WIN_LIFT pulse/types.WindowType = "WIN_LIFT"
 pulse/types: const WIN_MOVING_AVG pulse/types.WindowType = "WIN_MOVING_AVG"
 pulse/types: const WIN_PCT_CHANGE pulse/types.WindowType = "WIN_PCT_CHANGE"
 pulse/types: const WIN_RANK pulse/types.WindowType = "WIN_RANK"
 pulse/types: const WIN_ROW_NUMBER pulse/types.WindowType = "WIN_ROW_NUMBER"
 pulse/types: const WIN_RUNNING_AVG pulse/types.WindowType = "WIN_RUNNING_AVG"
 pulse/types: const WIN_RUNNING_SUM pulse/types.WindowType = "WIN_RUNNING_SUM"
+pulse/types: const WIN_SHARE pulse/types.WindowType = "WIN_SHARE"
 pulse/types: type WeightKind string
 pulse/types: const WeightKindFrequency pulse/types.WeightKind = "frequency"
 pulse/types: const WeightKindProbability pulse/types.WeightKind = "probability"
@@ -5585,4 +5619,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: dd46b3692ded57c47be6f1edcc16e435ddf8e48fb8865f52902eabcd95d0c262
+// golden-hash: 7382653419d8bbb4124fe6fd386a0de1f2203eee9633c0796624dbeec88f2c25

@@ -13,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/internal/daterange"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/exprenv"
+	"github.com/frankbardon/pulse/internal/numrange"
 	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -997,7 +998,20 @@ func validateRangeTables(tables map[string]RangeTable) error {
 				map[string]any{"category": "range_table"},
 			)
 		}
-		if _, err := daterange.Compile(toEngineDateRanges(t.Ranges)); err != nil {
+		if len(t.Ranges) > 0 && len(t.NumericRanges) > 0 {
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_PARAM_INVALID,
+				"range table carries both date Ranges and NumericRanges; a table is one kind",
+				map[string]any{"category": "range_table", "range_table": name},
+			)
+		}
+		var err error
+		if len(t.NumericRanges) > 0 {
+			_, err = numrange.Compile(toEngineNumericRanges(t.NumericRanges))
+		} else {
+			_, err = daterange.Compile(toEngineDateRanges(t.Ranges))
+		}
+		if err != nil {
 			// daterange.Compile emits the PULSE_RANGE_* coded error; wrap
 			// it with the offending table name for actionable diagnostics.
 			if ce, ok := err.(*errors.CodedError); ok {

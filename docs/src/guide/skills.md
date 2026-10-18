@@ -34,6 +34,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`multiplicity-correction`](skills/multiplicity-correction.md): Multiple-comparison correction on a Request — the multiplicity block (method, family, alpha), which p-values are corrected together, the per-surface family table and its refusals, precedence, the additive adjusted outputs, row and column geometry on pairwise overlays, and what is never corrected.
 - [`multivariate-design`](skills/multivariate-design.md): Choosing a multivariate operator on a battery of numeric fields — which matrix answers which question, what to do with missing data and weights, when a decomposition needs a repaired matrix, and where p-values stand. Topical design; per-operator params in the atomic op-mat-* skills.
 - [`multivariate-outputs`](skills/multivariate-outputs.md): Long-form output and parameter detail for the multivariate operators — how rotated PCA and factor loadings, the maximum-likelihood fit indices, centroid distances, row scores and the vector tests lay out their figures. Topical design; the atomic op-mat-*, op-attr-* and op-test-* skills keep the short form.
+- [`op-agg-auc`](skills/op-agg-auc.md): Area under the ROC curve of a score against a binary outcome — exact rank sum, ties half; gini and a DeLong interval in components.
 - [`op-agg-average`](skills/op-agg-average.md): Arithmetic mean of a numeric field across the input set.
 - [`op-agg-ci-lower`](skills/op-agg-ci-lower.md): Lower bound of the confidence interval for the mean.
 - [`op-agg-ci-upper`](skills/op-agg-ci-upper.md): Upper bound of the confidence interval for the mean.
@@ -96,7 +97,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-feat-one-hot`](skills/op-feat-one-hot.md): One-hot encode a categorical or packed_bool field as one f64 column per level.
 - [`op-feat-poly`](skills/op-feat-poly.md): Per-row polynomial expansion x^2..x^Degree of a numeric field — the basis for a polynomial regression.
 - [`op-feat-sqrt`](skills/op-feat-sqrt.md): Per-row sqrt(x) of a numeric field; emits one f64 column.
-- [`op-feat-target-encode`](skills/op-feat-target-encode.md): Replace each categorical value with the smoothed mean of a numeric Target field for that category. Leakage trap — see Gotchas.
+- [`op-feat-target-encode`](skills/op-feat-target-encode.md): Replace each categorical value with the smoothed mean of a numeric Target field over the training rows (fit_on), optionally out-of-fold. Leakage trap — see Gotchas.
 - [`op-feat-train-test-split`](skills/op-feat-train-test-split.md): Deterministic split-assignment column (0=train, 1=val, 2=test) for ML workflows.
 - [`op-filter-date-ranges`](skills/op-filter-date-ranges.md): Keep records whose date/datetime field falls inside any of a validated set of labeled date ranges.
 - [`op-filter-exclude`](skills/op-filter-exclude.md): Drop records whose field value appears in the supplied Values list.
@@ -114,6 +115,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-group-date`](skills/op-group-date.md): Partition date/datetime records by calendar component (hour..year); week_start picks the week day; fiscal_offset shifts year/quarter.
 - [`op-group-date-ranges`](skills/op-group-date-ranges.md): Bucket date records by inline labeled date ranges; the range label becomes the bucket key.
 - [`op-group-kmeans`](skills/op-group-kmeans.md): Segment records into k clusters by seeded, deterministic k-means over a vector of numeric members; keys cluster_1..cluster_k by descending size.
+- [`op-group-numeric-ranges`](skills/op-group-numeric-ranges.md): Bucket numeric records by labeled half-open ranges [start, end); the range label becomes the bucket key.
 - [`op-group-quantile`](skills/op-group-quantile.md): Partition records into N equal-population quantile buckets (Q1..Q4 / D1..D10 / P1..P100).
 - [`op-group-range`](skills/op-group-range.md): Partition numeric records into half-open ranges [a, b); Interval controls bucket width.
 - [`op-group-rounded`](skills/op-group-rounded.md): Round each numeric value down to a multiple of Interval (floor, not nearest) and group by that scalar.
@@ -184,7 +186,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-overlay-zscore-vs-total`](skills/op-overlay-zscore-vs-total.md): Per-group streamable z-score against the SERIES host's grand-total distribution (population SD).
 - [`op-reg-bayes-linear`](skills/op-reg-bayes-linear.md): Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior; emits posterior means, std errors, and credible intervals. Streams the same sufficient statistics as an OLS fit.
 - [`op-reg-glm`](skills/op-reg-glm.md): Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-specific link functions. Always buffered.
-- [`op-reg-mod-resample`](skills/op-reg-mod-resample.md): Spec-level resampling modifier (jackknife / bootstrap) that composes with an OLS or GLM fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path.
+- [`op-reg-mod-resample`](skills/op-reg-mod-resample.md): Spec-level resampling modifier (jackknife — leave-one-out, grouped or by cluster — / bootstrap) that composes with an OLS or GLM fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path.
 - [`op-reg-mod-selection`](skills/op-reg-mod-selection.md): Spec-level subset-selection modifier (forward / backward / stepwise) that composes with an OLS or GLM fit; drives a greedy search over predictors against an information criterion. Non-empty value forces the buffered path.
 - [`op-reg-ols`](skills/op-reg-ols.md): Ordinary least squares with optional l1/l2/elasticnet penalty; covers simple, multiple, ridge, lasso, and elastic-net regression over streaming sufficient statistics.
 - [`op-synth-bernoulli`](skills/op-synth-bernoulli.md): Bernoulli samples emitting 0 or 1 with probability p; pairs with packed_bool or unsigned int fields.
@@ -233,15 +235,17 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-win-ewma`](skills/op-win-ewma.md): Exponentially weighted moving average; s_i = alpha*x_i + (1-alpha)*s_{i-1}.
 - [`op-win-lag`](skills/op-win-lag.md): Per-row value of Field from N rows earlier in the ordered partition.
 - [`op-win-lead`](skills/op-win-lead.md): Per-row value of Field from N rows later in the ordered partition.
+- [`op-win-lift`](skills/op-win-lift.md): Lift of a field over a base column — the field's share over the base's share, (x/Σx)/(b/Σb); cumulative gives a gains table's cumulative lift.
 - [`op-win-moving-avg`](skills/op-win-moving-avg.md): Moving average of Field over a bounded Frame; both ends must be set.
 - [`op-win-pct-change`](skills/op-win-pct-change.md): Fractional change (0.05 = 5%) against the row `periods` positions earlier in the ordered partition.
 - [`op-win-rank`](skills/op-win-rank.md): Sparse rank with gaps after ties (1, 2, 2, 4, ...) within the ordered partition.
 - [`op-win-row-number`](skills/op-win-row-number.md): 1-based row index within the ordered partition; never ties.
 - [`op-win-running-avg`](skills/op-win-running-avg.md): Running average of Field over the configured Frame within the ordered partition.
 - [`op-win-running-sum`](skills/op-win-running-sum.md): Running total of Field over the configured Frame within the ordered partition.
+- [`op-win-share`](skills/op-win-share.md): Each row's share of its partition's total (x / Σx), or with cumulative the running share down the ordered rows — a capture curve.
 - [`overlay-system`](skills/overlay-system.md): Overlay framework — OverlaySpec composition, reference families, three payload shapes, host-arm wiring (SERIES / MATRIX_RESULT / FACET / CHAIN / FORMULA), named payload parts of multi-output kinds. Per-kind detail lives in op-overlay-* atomics.
 - [`pairwise-n-sources`](skills/pairwise-n-sources.md): The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source.
-- [`predict-advisories`](skills/predict-advisories.md): Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one.
+- [`predict-advisories`](skills/predict-advisories.md): Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families, a leave-one-out jackknife over a large cohort); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one.
 - [`process-chain`](skills/process-chain.md): ChainRequest source-rooted linear pipeline — mergeable-only v1 gate, per-stage Response.Components, dual-slot overlays (per-stage + whole-chain), StageRef resolution, shape-divergence warning.
 - [`regression-inference`](skills/regression-inference.md): Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills.
 - [`regression-modeling`](skills/regression-modeling.md): Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills.
@@ -308,7 +312,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`tool-process`](skills/tool-process.md): Execute one pre-built processing request against a cohort.
 - [`tool-process-chain`](skills/tool-process-chain.md): Linear chain of stages; stage N+1 consumes stage N's output rows.
 - [`tool-rake`](skills/tool-rake.md): Compute survey weights (rim or cell weighting to inline target shares) and write them as a weight column of a new cohort.
-- [`tool-range-tables`](skills/tool-range-tables.md): List registered range tables — named, reusable sets of labeled date ranges.
+- [`tool-range-tables`](skills/tool-range-tables.md): List registered range tables — named, reusable sets of labeled date or numeric ranges.
 - [`tool-recommend`](skills/tool-recommend.md): Turn a question kind (an intent ID) into ranked draft requests — placeholder skeletons, or predict-checked drafts bound to a cohort's fields.
 - [`tool-sample`](skills/tool-sample.md): Return up to N rows from a cohort for eyeball / preview.
 - [`tool-skills-get`](skills/tool-skills-get.md): Fetch the markdown body of one named skill.

@@ -8,7 +8,7 @@ import (
 
 // glmFamily bundles the link function, inverse link, link derivative,
 // variance function, and deviance contribution for a single GLM error
-// family + link combination. The IRLS loop in glm.go consumes this
+// family + link combination. The IRLS loop in glm_irls.go consumes this
 // interface without branching on the family name; the families table
 // (selectFamily) wires concrete implementations for binomial+logit,
 // poisson+log, and gamma+inverse.
@@ -46,11 +46,32 @@ type glmFamily struct {
 	// the link's saturation boundary (e.g. ȳ = 0 for binomial logit).
 	// Implementations clamp the input to a family-specific interior.
 	SafeMean func(yBar float64) float64
+
+	// MuStart is the per-row starting mean μ⁰ for a response y under
+	// prior weight w — R's family `initialize` (binomial
+	// (w·y + 0.5)/(w + 1), poisson y + 0.1, gamma y); the IRLS loop
+	// starts from η⁰ = LinkFunc(μ⁰).
+	MuStart func(y, w float64) float64
+
+	// ValidEta, when set, reports whether η is inside the link's valid
+	// range (R's family valideta / validmu); a step landing outside it
+	// is halved. nil = every finite η is valid.
+	ValidEta func(eta float64) bool
 }
 
-// epsilons used for boundary clamps. Conservative enough that
-// log/log1p never produce −Inf and small enough not to bias coefficients
-// at typical scales.
+// log1mMu is log(1 − μ) for a probability μ: log1p(−μ) where that is
+// the accurate form, and 1 − μ floored at the smallest positive float
+// when μ rounds to 1.
+func log1mMu(mu float64) float64 {
+	if mu < 0.5 {
+		return math.Log1p(-mu)
+	}
+	return math.Log(math.Max(1-mu, math.SmallestNonzeroFloat64))
+}
+
+// epsilons used for the link and starting-value clamps (LinkFunc,
+// SafeMean) — never the variance or deviance, which follow R unclamped.
+// binomialEps is also the separation boundary (separationMuEps).
 const (
 	binomialEps = 1e-9
 	poissonEps  = 1e-9
@@ -95,28 +116,26 @@ var binomialLogit = glmFamily{
 		return mu * (1 - mu)
 	},
 	Variance: func(mu float64) float64 {
-		// μ(1−μ); never zero since IRLS clamps mu away from {0,1}.
-		if mu < binomialEps {
-			mu = binomialEps
-		} else if mu > 1-binomialEps {
-			mu = 1 - binomialEps
-		}
+		// μ(1−μ), unclamped (R's binomial variance): the working weight
+		// μ'(η)²/V(μ) is then exactly μ(1−μ) — DmuDeta computes the
+		// same product — however close a fitted probability sits to 0
+		// or 1. (A clamp here once floored V at 1e-9 and so shrank the
+		// working weight of every row fitted beyond 1e-9, moving the
+		// converged coefficients off R's.) μ exactly 0 or 1 (|η| past
+		// float range) gives V = 0 and a zero working weight.
 		return mu * (1 - mu)
 	},
 	Deviance: func(y, mu float64) float64 {
 		// 2·[y·log(y/μ) + (1−y)·log((1−y)/(1−μ))]; the factor 2 is
 		// applied by the caller after summing per-row contributions.
-		if mu < binomialEps {
-			mu = binomialEps
-		} else if mu > 1-binomialEps {
-			mu = 1 - binomialEps
-		}
+		// Unclamped but for μ (or 1 − μ) rounding to exactly 0, floored
+		// at the smallest positive float so the term stays finite.
 		var a, b float64
 		if y > 0 {
-			a = y * math.Log(y/mu)
+			a = y * math.Log(y/math.Max(mu, math.SmallestNonzeroFloat64))
 		}
 		if y < 1 {
-			b = (1 - y) * math.Log((1-y)/(1-mu))
+			b = (1 - y) * (math.Log(1-y) - log1mMu(mu))
 		}
 		return a + b
 	},
@@ -128,6 +147,9 @@ var binomialLogit = glmFamily{
 			return 1 - binomialEps
 		}
 		return yBar
+	},
+	MuStart: func(y, w float64) float64 {
+		return (w*y + 0.5) / (w + 1)
 	},
 }
 
@@ -149,19 +171,16 @@ var poissonLog = glmFamily{
 		return math.Exp(eta)
 	},
 	Variance: func(mu float64) float64 {
-		if mu < poissonEps {
-			mu = poissonEps
-		}
+		// μ, unclamped (R's poisson variance): the working weight
+		// μ'(η)²/V(μ) is exactly μ for every fitted mean.
 		return mu
 	},
 	Deviance: func(y, mu float64) float64 {
 		// 2·[y·log(y/μ) − (y − μ)]; factor 2 applied by caller.
-		if mu < poissonEps {
-			mu = poissonEps
-		}
+		// Unclamped but for μ underflowing to 0.
 		var a float64
 		if y > 0 {
-			a = y * math.Log(y/mu)
+			a = y * math.Log(y/math.Max(mu, math.SmallestNonzeroFloat64))
 		}
 		return a - (y - mu)
 	},
@@ -170,6 +189,9 @@ var poissonLog = glmFamily{
 			return poissonEps
 		}
 		return yBar
+	},
+	MuStart: func(y, _ float64) float64 {
+		return y + 0.1
 	},
 }
 
@@ -231,6 +253,13 @@ var gammaInverse = glmFamily{
 			return gammaEps
 		}
 		return yBar
+	},
+	MuStart: func(y, _ float64) float64 {
+		return y
+	},
+	// μ = 1/η must stay positive (R's Gamma validmu).
+	ValidEta: func(eta float64) bool {
+		return eta > 0
 	},
 }
 

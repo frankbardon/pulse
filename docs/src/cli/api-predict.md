@@ -233,7 +233,7 @@ pulse api predict-compose --request batch.json --json | jq '.data.valid'
 | `PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL` | A facet's `numeric_percentiles` / `include_histogram` names a non-numeric field, which gets no numeric statistic; facet a numeric field (a numeric aggregation over a categorical is the error `PULSE_FIELD_TYPE_UNSUPPORTED`: use `AGG_COUNT` / `AGG_MODE_COUNT`) |
 | `PULSE_ATTR_CODE_NOT_IN_DICTIONARY`        | An `ATTR_CODE_IN` code is not a label of the categorical field's dictionary (it matches no row); fix or drop each entry in `details.missing_codes` |
 | `PULSE_FIELD_DESCRIPTION_LOW_QUALITY`      | Edit the schema description; re-import |
-| `PULSE_FEAT_TARGET_LEAKAGE_RISK`           | Every `FEAT_TARGET_ENCODE` averages all rows' targets (a prior split does not help); compute train-only means in a separate request. `process` repeats it on the response's `warnings` and, under `--strict`, refuses the run |
+| `PULSE_FEAT_TARGET_LEAKAGE_RISK`           | A `FEAT_TARGET_ENCODE` without `params.fit_on` averages all rows' targets (a prior split does not help); set `fit_on` to the training rows (e.g. `"split == 0"`), optionally with `folds`. `folds` alone keeps a reworded warning. `process` repeats it on the response's `warnings` and, under `--strict`, refuses the run |
 
 A field the operator cannot read is an ERROR, not a warning, and it is
 the code `Process` raises: `PULSE_FIELD_TYPE_UNSUPPORTED` (pick a field of

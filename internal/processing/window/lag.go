@@ -1,10 +1,7 @@
 package window
 
 import (
-	"encoding/json"
-
-	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/windowparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -21,42 +18,22 @@ func init() {
 	register(types.WIN_LEAD, newLead)
 }
 
-type lagLeadParams struct {
-	Offset  *int            `json:"offset"`
-	Default json.RawMessage `json:"default"`
-}
-
 func newLag(w *types.Window, _ WindowOptions) (WindowComputer, error) {
-	c, err := newLagLead(w, false)
-	return c, err
+	return newLagLead(w, false)
 }
 
 func newLead(w *types.Window, _ WindowOptions) (WindowComputer, error) {
-	c, err := newLagLead(w, true)
-	return c, err
+	return newLagLead(w, true)
 }
 
+// newLagLead reads the params through the reading predict shares
+// (internal/windowparams): the same refusal on both sides.
 func newLagLead(w *types.Window, forward bool) (*lagComputer, error) {
-	c := &lagComputer{field: w.Field, offset: 1, forward: forward}
-	paramread.Declare(paramread.Window, string(w.Type), (*lagLeadParams)(nil))
-	if len(w.Params) > 0 {
-		var p lagLeadParams
-		if err := paramread.Decode(paramread.Window, string(w.Type), w.Params, &p); err != nil {
-			return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG, "lag/lead params")
-		}
-		if p.Offset != nil {
-			c.offset = *p.Offset
-		}
-		if len(p.Default) > 0 && string(p.Default) != "null" {
-			var v any
-			if err := json.Unmarshal(p.Default, &v); err != nil {
-				return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG, "lag/lead default")
-			}
-			c.hasDef = true
-			c.defVal = v
-		}
+	spec, ref := windowparams.Lag(w)
+	if ref != nil {
+		return nil, ref.Coded()
 	}
-	return c, nil
+	return &lagComputer{field: w.Field, offset: spec.Offset, hasDef: spec.HasDefault, defVal: spec.Default, forward: forward}, nil
 }
 
 func (c *lagComputer) Compute(rows []map[string]any, partitions [][]int, label string) error {

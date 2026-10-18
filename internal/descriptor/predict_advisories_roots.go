@@ -164,6 +164,11 @@ func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan
 				suggested = SuggestWeight(cohort, weightVar, inst)
 			}
 		}
+		// The slot cohort's header record count (opts.CohortCounter, the
+		// runtime pre-flight's header-only reader; floors a truncated
+		// tail silently) — the figure Process predict reads from the file
+		// length, so the record-count rules fire identically.
+		counts := opts.cohortCounts(slot.Cohort)
 		out = append(out, computeAdvisories(advisoryInput{
 			req:             defaulted,
 			schema:          schema,
@@ -173,11 +178,14 @@ func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan
 			suggestedWeight: suggested,
 			measures:        measures,
 			inst:            inst,
+			records:         counts.Records,
+			recordsKnown:    counts.Records >= 0,
 			prefix:          at + ".",
 			extra:           map[string]any{"request": i},
 			subject:         "The request at " + at + " emits",
 		})...)
 	}
+	out = append(out, fitJackknifeCostAdvisories(req, opts, inst)...)
 	if a, ok := familiesSplitAdvisory(slots); ok && !inst.AdvisorySuppressed(a.Code) {
 		out = append(out, a)
 	}
@@ -185,6 +193,33 @@ func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan
 		out = append(out, a)
 	}
 	return out, slots
+}
+
+// fitJackknifeCostAdvisories is PULSE_ADVISORY_JACKKNIFE_COST over the
+// batch's regression fits: a fit's request is a Request like a slot's,
+// so its leave-one-out jackknife over a large cohort draws the advisory
+// Process predict gives the same request, attributed to the fit
+// (details.fit = i, the slot path prefixed "fits[i].request."). A fit
+// reaches no p-site and no other advisory rule reads it.
+func fitJackknifeCostAdvisories(req *types.ComposedRequest, opts *PredictOptions, inst *InstanceSnapshot) []descriptor.Advisory {
+	var out []descriptor.Advisory
+	for i, f := range req.Fits {
+		if f.Request == nil || len(f.Request.Regressions) == 0 {
+			continue
+		}
+		counts := opts.cohortCounts(f.Request.Cohort)
+		if counts.Records < 0 {
+			continue
+		}
+		for _, a := range jackknifeCostAdvisories(f.Request, counts.Records, "fits["+strconv.Itoa(i)+"].request.", inst) {
+			if inst.AdvisorySuppressed(a.Code) {
+				continue
+			}
+			a.Details["fit"] = i
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // pvalueFamilyID names the family rm resolved for a slot of the Compose

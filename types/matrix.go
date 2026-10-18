@@ -450,6 +450,12 @@ type MatrixResult struct {
 	// auxiliary.significant_adjusted (method, family, alpha, m and the
 	// excluded null-p cells). Nil when no correction reached the result.
 	Multiplicity *AppliedMultiplicity `json:"multiplicity,omitempty"`
+	// Error is the data-dependent refusal that failed this slot (or this
+	// group bucket of it) alone — PULSE_MATRIX_SINGULAR, _NOT_PSD, … —
+	// while the rest of the response survived; see SlotError. A result
+	// carrying one has Name / Type / GroupKey / GroupHeader and the
+	// error only: Primary and every other figure are absent on the wire.
+	Error *SlotError `json:"error,omitempty"`
 }
 
 // MatrixPair is one entry of a MAT_CORRELATION result's
@@ -476,6 +482,9 @@ func (v MatrixValues) MarshalJSON() ([]byte, error) {
 // MarshalJSON writes the matrix result with every non-finite float as
 // null; see MarshalFinite.
 func (v MatrixResult) MarshalJSON() ([]byte, error) {
+	if v.Error != nil {
+		return MarshalFinite(slotFailureMatrix{Name: v.Name, Type: v.Type, GroupKey: v.GroupKey, GroupHeader: v.GroupHeader, Error: v.Error})
+	}
 	type alias MatrixResult
 	return MarshalFinite((*alias)(&v))
 }

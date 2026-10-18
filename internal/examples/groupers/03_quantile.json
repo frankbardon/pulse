@@ -52,11 +52,6 @@
       "field": "income",
       "interval": 4
     }
-  ],
-  "sort": [
-    {
-      "field": "income"
-    }
   ]
 
 }

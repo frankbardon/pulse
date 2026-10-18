@@ -133,7 +133,7 @@
         "operator": "WIN_DENSE_RANK",
         "category": "window",
         "level": "basic",
-        "why": "Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next follows on: 1, 2, 2, 3. It uses region (categorical_u8, 4 groups) and signup (date).",
+        "why": "Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next follows on: 1, 2, 2, 3. It uses signup (date).",
         "bound": true,
         "request": {
           "cohort": {
@@ -141,7 +141,6 @@
           },
           "windows": [
             {
-              "field": "region",
               "order_by": [
                 {
                   "field": "signup"
@@ -166,7 +165,7 @@
         "operator": "WIN_DENSE_RANK",
         "category": "window",
         "level": "basic",
-        "why": "Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next follows on: 1, 2, 2, 3. It uses region (categorical_u8, 4 groups) and revenue (f64).",
+        "why": "Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next follows on: 1, 2, 2, 3. It uses revenue (f64).",
         "bound": true,
         "request": {
           "cohort": {
@@ -174,7 +173,6 @@
           },
           "windows": [
             {
-              "field": "region",
               "order_by": [
                 {
                   "field": "revenue"
@@ -199,7 +197,7 @@
         "operator": "WIN_DENSE_RANK",
         "category": "window",
         "level": "basic",
-        "why": "Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next follows on: 1, 2, 2, 3. It uses region (categorical_u8, 4 groups) and seats (u16).",
+        "why": "Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next follows on: 1, 2, 2, 3. It uses seats (u16).",
         "bound": true,
         "request": {
           "cohort": {
@@ -207,7 +205,6 @@
           },
           "windows": [
             {
-              "field": "region",
               "order_by": [
                 {
                   "field": "seats"
@@ -343,7 +340,7 @@
         "operator": "WIN_RANK",
         "category": "window",
         "level": "basic",
-        "why": "Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next skips: 1, 2, 2, 4. It uses region (categorical_u8, 4 groups) and signup (date).",
+        "why": "Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next skips: 1, 2, 2, 4. It uses signup (date).",
         "bound": true,
         "request": {
           "cohort": {
@@ -351,7 +348,6 @@
           },
           "windows": [
             {
-              "field": "region",
               "order_by": [
                 {
                   "field": "signup"
@@ -378,9 +374,9 @@
       }
     ],
     "truncated": true,
-    "candidates_considered": 45
+    "candidates_considered": 54
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: d7b6aa5b87d00e3c0bcf7da168e01057d361c95a8f9edc58148a7ae96ba734e5
+// golden-hash: 441191aef033ca2f51cc864328c6b11c3d47df4bd41151e313283f65c55915f3

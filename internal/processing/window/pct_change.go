@@ -1,8 +1,7 @@
 package window
 
 import (
-	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/windowparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -11,27 +10,15 @@ type pctChangeComputer struct {
 	periods int
 }
 
-type pctChangeParams struct {
-	Periods *int `json:"periods"`
-}
-
 func init() {
 	register(types.WIN_PCT_CHANGE, func(w *types.Window, _ WindowOptions) (WindowComputer, error) {
-		c := &pctChangeComputer{field: w.Field, periods: 1}
-		paramread.Declare(paramread.Window, string(w.Type), (*pctChangeParams)(nil))
-		if len(w.Params) > 0 {
-			var p pctChangeParams
-			if err := paramread.Decode(paramread.Window, string(w.Type), w.Params, &p); err != nil {
-				return nil, errors.WrapCodedError(err, errors.PROCESSING_CONFIG, "pct_change params")
-			}
-			if p.Periods != nil {
-				c.periods = *p.Periods
-			}
+		// The params reading is shared with predict (internal/windowparams);
+		// a frame is refused by the registry's slot check, as predict does.
+		periods, ref := windowparams.Periods(w)
+		if ref != nil {
+			return nil, ref.Coded()
 		}
-		if c.periods <= 0 {
-			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "pct_change periods must be >= 1")
-		}
-		return c, nil
+		return &pctChangeComputer{field: w.Field, periods: periods}, nil
 	})
 }
 

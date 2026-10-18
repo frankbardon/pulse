@@ -86,10 +86,13 @@ func featureCapabilities() []descriptor.Operator {
 			Params: []descriptor.Param{
 				{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Numeric field whose grouped mean is encoded into the output column."},
 				{Name: "smoothing", Type: "float", Required: false, Default: 0.0, Description: "Bayesian smoothing weight blending category mean with global mean."},
+				{Name: "fit_on", Type: "string", Required: false, Description: "Boolean expression (expression-filter syntax) choosing the training rows, e.g. \"split == 0\"; may read earlier features' columns. Only training rows feed the means; every row is encoded, an unseen category with the training global mean. Silences PULSE_FEAT_TARGET_LEAKAGE_RISK."},
+				{Name: "folds", Type: "int", Required: false, Default: 0, Description: "0 (off) or 2..100: encode each training row out-of-fold, from the training rows outside its fold; other rows get the full-training encoding."},
+				{Name: "rng_seed", Type: "int", Required: false, Description: "Seed of the fold assignment; only valid with folds."},
 			},
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.FEAT_TARGET_ENCODE), fieldaccept.SlotField),
 			EmitsType:     "f32",
-			EmitsTypeNote: "single column \"<label>\"; risk of target leakage on non-CV pipelines",
+			EmitsTypeNote: "single column \"<label>\"; leaks the holdout's outcomes unless fit_on names the training rows",
 			Streamable:    true,
 		},
 		{

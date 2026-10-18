@@ -90,6 +90,16 @@ const (
 	AGG_RMSE AggregationType = "AGG_RMSE"
 	AGG_MAE  AggregationType = "AGG_MAE"
 
+	// AGG_AUC is the area under the ROC curve of a score against a
+	// binary outcome: Field is the score, params.outcome the 0/1 (or
+	// packed_bool) outcome, params.positive (0 or 1, default 1) the
+	// event value. Exact rank-sum (Mann-Whitney) with ties counted as
+	// half; weighted, the weighted probability a positive outranks a
+	// negative. Components carry gini (2·AUC − 1) and the DeLong
+	// standard error and interval (null under a weight). Buffered (a
+	// sort), never streamable or mergeable.
+	AGG_AUC AggregationType = "AGG_AUC"
+
 	// AGG_CI_LOWER and AGG_CI_UPPER emit the lower / upper bound of a
 	// confidence interval for the mean of the named numeric field.
 	// Params: `confidence` (float, default 0.95), `method` (string,
@@ -186,6 +196,7 @@ func AllAggregationTypes() []AggregationType {
 		AGG_CI_LOWER, AGG_CI_UPPER,
 		AGG_WELFORD,
 		AGG_MAPE, AGG_RMSE, AGG_MAE,
+		AGG_AUC,
 		AGG_SET_UNION, AGG_SET_INTERSECTION, AGG_SET_FREQUENCY,
 		AGG_SET_CARDINALITY_SUM, AGG_SET_CARDINALITY_AVG,
 		AGG_SET_DISTINCT_VALUES,
@@ -290,6 +301,14 @@ const (
 	// Streamable + mergeable (each row maps independently to one bucket).
 	GROUP_DATE_RANGES GroupType = "GROUP_DATE_RANGES"
 
+	// GROUP_NUMERIC_RANGES buckets each numeric row by a validated set
+	// of labeled half-open ranges ({label, start, end}, [start, end); an
+	// omitted bound is open), inline or from a numeric range table. The
+	// bucket key is the matching range's label; rows outside every range
+	// land in a configurable unmatched bucket (default "unmatched").
+	// Buckets emit in supplied range order. Streamable + mergeable.
+	GROUP_NUMERIC_RANGES GroupType = "GROUP_NUMERIC_RANGES"
+
 	// GROUP_SET_VALUE treats the set mask as an atomic value. Each
 	// distinct mask is its own bucket; the bucket key is the sorted
 	// pipe-delimited label list (e.g. "AMEX|VISA"). One row → one
@@ -320,6 +339,7 @@ func AllGroupTypes() []GroupType {
 		GROUP_DATE,
 		GROUP_DATE_RANGES,
 		GROUP_KMEANS,
+		GROUP_NUMERIC_RANGES,
 		GROUP_QUANTILE,
 		GROUP_RANGE,
 		GROUP_ROUNDED,
@@ -505,6 +525,8 @@ const (
 	WIN_EWMA        WindowType = "WIN_EWMA"
 	WIN_PCT_CHANGE  WindowType = "WIN_PCT_CHANGE"
 	WIN_DELTA       WindowType = "WIN_DELTA"
+	WIN_SHARE       WindowType = "WIN_SHARE"
+	WIN_LIFT        WindowType = "WIN_LIFT"
 )
 
 // AllWindowTypes returns all defined window types in alphabetical order.
@@ -515,12 +537,14 @@ func AllWindowTypes() []WindowType {
 		WIN_EWMA,
 		WIN_LAG,
 		WIN_LEAD,
+		WIN_LIFT,
 		WIN_MOVING_AVG,
 		WIN_PCT_CHANGE,
 		WIN_RANK,
 		WIN_ROW_NUMBER,
 		WIN_RUNNING_AVG,
 		WIN_RUNNING_SUM,
+		WIN_SHARE,
 	}
 }
 
@@ -954,6 +978,15 @@ type TestResult struct {
 	// expected-count thresholds, etc.) so the envelope-level Warnings list
 	// is not the only signal.
 	Warnings []string `json:"warnings,omitempty"`
+
+	// Error is the data-dependent refusal that failed this test slot
+	// alone (PULSE_TEST_VARIANCE_ZERO, _INSUFFICIENT_N, …) while the rest
+	// of the response survived; see SlotError. A result carrying one has
+	// Label / Type / GroupKey and the error only: the statistic, p-value
+	// and every other figure are absent on the wire (in Go, Statistic and
+	// PValue are NaN). A grouped run's one sparse GROUP keeps its
+	// null-statistics result and per-group warning instead.
+	Error *SlotError `json:"error,omitempty"`
 }
 
 // Feature defines a feature engineering operation. Features run pre-filter
@@ -1543,7 +1576,8 @@ type Response struct {
 	// per (test x group): test-major, the groups in the final Data row
 	// order, each carrying GroupKey — entry k belongs to
 	// Request.Tests[k / groups]. A slot a `return` plan skips is nil at
-	// each of its positions.
+	// each of its positions; a test that failed on its data keeps its
+	// entry with an Error (SlotError) — see Regressions.
 	Tests []*TestResult `json:"tests,omitempty"`
 
 	// PostTests holds tier-2 statistical test results, one per entry in
@@ -1552,13 +1586,20 @@ type Response struct {
 
 	// Regressions holds the per-spec regression fits, one entry per
 	// Request.Regressions in the same order. Engines never partially
-	// populate a result on failure; a failed fit surfaces as a
-	// PROCESSING_REGRESSION_* error on the envelope instead.
+	// populate a result: a fit that fails on its data (separation,
+	// non-convergence, a rank-deficient design, too few rows) keeps its
+	// entry with Name / Type and an Error (SlotError) — never a nil
+	// entry, which means the slot was skipped by `return` — while every
+	// other slot survives, and a PULSE_SLOT_FAILED warning names it.
+	// Under Options.Strict the run fails with the fit's own code
+	// instead. A configuration fault stays fatal at validation.
 	Regressions []*RegressionResult `json:"regressions,omitempty"`
 
 	// Matrices holds the matrix operator results, one entry per
 	// Request.Matrices spec in the same order (ungrouped). Undefined
-	// cells and scalars are null on the wire. See MatrixResult.
+	// cells and scalars are null on the wire; a matrix that failed on
+	// its data keeps its entry with an Error (SlotError) — see
+	// Regressions. See MatrixResult.
 	Matrices []MatrixResult `json:"matrices,omitempty"`
 
 	// Warnings carries the run's coded run-time diagnostics: label
@@ -1719,8 +1760,8 @@ type AggregationComponents struct {
 	// N is the number of NON-NULL input values the aggregator observed
 	// (post-filter, after the null skip): the records counted in NNull
 	// are not in N, so N + NNull is the post-filter record count. On a
-	// paired-input slot (AGG_MAPE / AGG_RMSE / AGG_MAE) presence is
-	// judged on Field alone. Universal floor — emitted by every
+	// paired-input slot (AGG_MAPE / AGG_RMSE / AGG_MAE, AGG_AUC)
+	// presence is judged on Field alone. Universal floor — emitted by every
 	// aggregator.
 	N int `json:"n"`
 

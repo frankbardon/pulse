@@ -80,7 +80,6 @@
           },
           "windows": [
             {
-              "field": "\u003cfield\u003e",
               "order_by": [
                 {
                   "field": "\u003corder_by\u003e"
@@ -92,7 +91,6 @@
         },
         "placeholders": [
           "cohort",
-          "field",
           "order_by"
         ],
         "alternatives": [
@@ -160,7 +158,6 @@
           },
           "windows": [
             {
-              "field": "\u003cfield\u003e",
               "order_by": [
                 {
                   "field": "\u003corder_by\u003e"
@@ -172,7 +169,6 @@
         },
         "placeholders": [
           "cohort",
-          "field",
           "order_by"
         ],
         "alternatives": [
@@ -187,6 +183,48 @@
           {
             "when": "you want each record's position as a percentage of all records",
             "use": "ATTR_PERCENTILE"
+          }
+        ]
+      },
+      {
+        "operator": "WIN_SHARE",
+        "category": "window",
+        "level": "basic",
+        "why": "Adds each row's share of its partition's total, or the running share down the ordered rows, such as the share of defaults caught so far. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "windows": [
+            {
+              "field": "\u003cfield\u003e",
+              "order_by": [
+                {
+                  "field": "\u003corder_by\u003e"
+                }
+              ],
+              "type": "WIN_SHARE"
+            }
+          ]
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "order_by"
+        ],
+        "alternatives": [
+          {
+            "when": "you want the running total itself, not as a share",
+            "use": "WIN_RUNNING_SUM"
+          },
+          {
+            "when": "you want how much richer in the field a row is than its share of another column",
+            "use": "WIN_LIFT"
+          },
+          {
+            "when": "you want each group's share as a decoration on the result",
+            "use": "OVERLAY_SHARE_OF_TOTAL"
           }
         ]
       },
@@ -275,6 +313,42 @@
         ]
       },
       {
+        "operator": "AGG_AUC",
+        "category": "aggregator",
+        "level": "intermediate",
+        "why": "How well a score separates a yes/no outcome: the chance that a randomly picked yes row scores higher than a randomly picked no row. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "aggregations": [
+            {
+              "field": "\u003cfield\u003e",
+              "params": {
+                "outcome": "\u003coutcome\u003e"
+              },
+              "type": "AGG_AUC"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "outcome"
+        ],
+        "alternatives": [
+          {
+            "when": "you need the size of the miss of a numeric prediction, not how well it ranks",
+            "use": "AGG_MAE"
+          },
+          {
+            "when": "you want to test whether the two groups' score distributions differ",
+            "use": "TEST_MANN_WHITNEY_U"
+          }
+        ]
+      },
+      {
         "operator": "AGG_MAE",
         "category": "aggregator",
         "level": "intermediate",
@@ -345,92 +419,12 @@
             "use": "AGG_RMSE"
           }
         ]
-      },
-      {
-        "operator": "AGG_RMSE",
-        "category": "aggregator",
-        "level": "intermediate",
-        "why": "Typical size of a prediction's miss in the actual's own units, with large misses counting more: the root of the average squared miss. Fill in each placeholder in the draft before you run it.",
-        "bound": false,
-        "request": {
-          "aggregations": [
-            {
-              "field": "\u003cfield\u003e",
-              "params": {
-                "prediction_field": "\u003cprediction_field\u003e"
-              },
-              "type": "AGG_RMSE"
-            }
-          ],
-          "cohort": {
-            "filename": "\u003ccohort\u003e"
-          }
-        },
-        "placeholders": [
-          "cohort",
-          "field",
-          "prediction_field"
-        ],
-        "alternatives": [
-          {
-            "when": "every unit of miss should count the same, so a few large misses do not dominate",
-            "use": "AGG_MAE"
-          },
-          {
-            "when": "you want the miss as a share of the actual value",
-            "use": "AGG_MAPE"
-          }
-        ]
-      },
-      {
-        "operator": "ATTR_PROFILE_SIMILARITY",
-        "category": "attribute",
-        "level": "intermediate",
-        "why": "Adds to every row how closely its related fields match a target profile: an ideal pattern, a benchmark, or its own segment target. Fill in each placeholder in the draft before you run it.",
-        "bound": false,
-        "request": {
-          "attributes": [
-            {
-              "fields": [
-                "\u003cfields\u003e"
-              ],
-              "params": {
-                "metric": "\u003cmetric\u003e",
-                "reference": "\u003creference\u003e"
-              },
-              "type": "ATTR_PROFILE_SIMILARITY"
-            }
-          ],
-          "cohort": {
-            "filename": "\u003ccohort\u003e"
-          }
-        },
-        "placeholders": [
-          "cohort",
-          "fields",
-          "metric",
-          "reference"
-        ],
-        "alternatives": [
-          {
-            "when": "you want how far apart the values are rather than how alike the pattern is",
-            "use": "ATTR_VEC_DISTANCE"
-          },
-          {
-            "when": "you want how unusual a row is against the whole cohort",
-            "use": "ATTR_MAHALANOBIS"
-          },
-          {
-            "when": "you want how far apart whole groups are",
-            "use": "MAT_DISTANCE"
-          }
-        ]
       }
     ],
     "truncated": true,
-    "candidates_considered": 17
+    "candidates_considered": 20
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: dfe0b1c6b13a585354ddbbda6e9d196a9631da342287cd434d59f68991758ead
+// golden-hash: 3824dd375c6e249bb9b747b14c1f5c10aa3359df037289196b962fc0311673b4

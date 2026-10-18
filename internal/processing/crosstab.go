@@ -108,6 +108,13 @@ func (p *Processor) partitionByAxis(axis []*types.Group, records []*Record, oute
 		}
 	}
 
+	if order == nil {
+		// No Include and no fitted order: the grouper's intrinsic key
+		// order (GROUP_QUANTILE bucket id, GROUP_RANGE low edge) — the
+		// order the plain grouped exit gives the same grouper.
+		order = keyOrderFilter(grouper)
+	}
+
 	headKeys := make([]string, 0, len(buckets))
 	for k := range buckets {
 		headKeys = append(headKeys, k)
@@ -177,9 +184,11 @@ func CompositeAxisKey(parts []string) string {
 //     (types.AxisKey elements are `any` but always string per the
 //     Grouper.Group contract). len(tuples[i]) == len(axis).
 //   - axis[p] is the *types.Group at position p; axis[p].Include drives
-//     the position-p ordering. When Include is empty/nil that position
-//     sorts alphabetically (the byte-identity no-include path, funneled
-//     through orderKeysByInclude / sort.Strings).
+//     the position-p ordering. When Include is empty/nil the position
+//     follows groupers[p]'s intrinsic key order (keyOrderer — the fused
+//     arm passes its constructed axis groupers; groupers may be nil or
+//     short), else sorts alphabetically (the byte-identity no-include
+//     path, funneled through orderKeysByInclude / sort.Strings).
 //
 // Ordering is lexicographic across positions: position 0 is the primary
 // sort key, position 1 breaks ties within a position-0 bucket, etc.
@@ -196,7 +205,7 @@ func CompositeAxisKey(parts []string) string {
 // tuple is shorter than the axis are ordered by the positions they do
 // carry, then alphabetically by composite key as a final defensive tie-
 // break.
-func orderCompositeKeysByAxisInclude(keys []string, tuples []types.AxisKey, axis []*types.Group) []string {
+func orderCompositeKeysByAxisInclude(keys []string, tuples []types.AxisKey, axis []*types.Group, groupers []Grouper) []string {
 	out := make([]string, len(keys))
 	copy(out, keys)
 	if len(keys) != len(tuples) {
@@ -206,12 +215,16 @@ func orderCompositeKeysByAxisInclude(keys []string, tuples []types.AxisKey, axis
 		return out
 	}
 
-	// Pre-build one include filter per axis position. A nil filter
-	// (no Include) makes that position alphabetical via the same
-	// orderKeysByInclude comparator the single-axis path uses.
+	// Pre-build one order filter per axis position (axisOrderFilter):
+	// its Include list, else groupers[p]'s intrinsic key order, else nil
+	// (alphabetical) — the order PartitionByAxis gives that position.
 	filters := make([]*includeFilter, len(axis))
 	for p, grp := range axis {
-		filters[p] = buildIncludeFilter(grp.Include)
+		var g Grouper
+		if p < len(groupers) {
+			g = groupers[p]
+		}
+		filters[p] = axisOrderFilter(grp, g)
 	}
 
 	// Track each key's parallel tuple so the comparator can read
@@ -260,19 +273,9 @@ func sortCompositeKeys(out []string, tupleOf map[string]types.AxisKey, filters [
 			if ca == cb {
 				continue
 			}
-			f := filters[p]
-			ia, iamem := f.index(ca)
-			ib, ibmem := f.index(cb)
-			switch {
-			case iamem && ibmem:
-				return ia < ib
-			case iamem != ibmem:
-				// members sort before non-member stragglers
-				return iamem
-			default:
-				// include-less position or both non-members: alphabetical
-				return ca < cb
-			}
+			// Include index (members before stragglers), else the
+			// position grouper's key rank, else alphabetical.
+			return filters[p].less(ca, cb)
 		}
 		// All axis positions tie — defensive alphabetical composite-key
 		// tie-break for stability.

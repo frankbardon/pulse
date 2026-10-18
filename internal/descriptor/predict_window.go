@@ -1,54 +1,28 @@
 package descriptor
 
 import (
-	"encoding/json"
 	"maps"
 	"strconv"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/ewmaparams"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/shareparams"
+	"github.com/frankbardon/pulse/internal/windowparams"
 	"github.com/frankbardon/pulse/types"
 )
 
-// windowFrameRequired lists window types that REQUIRE a frame specification.
-var windowFrameRequired = map[types.WindowType]bool{
-	types.WIN_RUNNING_SUM: true,
-	types.WIN_RUNNING_AVG: true,
-	types.WIN_MOVING_AVG:  true,
-	types.WIN_EWMA:        true,
-}
+// WindowFrameRequired reports whether a window of type t that carries
+// no frame is refused — the rule Recommend's drafts ask the caller to
+// satisfy. The table is the shared window reading's
+// (internal/windowparams), so predict and the engine agree.
+func WindowFrameRequired(t types.WindowType) bool { return windowparams.FrameRequired(t) }
 
-// WindowFrameRequired reports whether predict refuses a window of type
-// t that carries no frame — the rule Recommend's drafts ask the caller
-// to satisfy.
-func WindowFrameRequired(t types.WindowType) bool { return windowFrameRequired[t] }
-
-// windowFrameRejected lists window types that REJECT a frame specification.
-var windowFrameRejected = map[types.WindowType]bool{
-	types.WIN_LAG:        true,
-	types.WIN_LEAD:       true,
-	types.WIN_ROW_NUMBER: true,
-	types.WIN_RANK:       true,
-	types.WIN_DENSE_RANK: true,
-	types.WIN_PCT_CHANGE: true,
-	types.WIN_DELTA:      true,
-}
-
-// windowFieldRequired reports whether the operator requires a Field at all.
-// ROW_NUMBER / RANK / DENSE_RANK have no value field.
-var windowFieldRequired = map[types.WindowType]bool{
-	types.WIN_LAG:         true,
-	types.WIN_LEAD:        true,
-	types.WIN_RUNNING_SUM: true,
-	types.WIN_RUNNING_AVG: true,
-	types.WIN_MOVING_AVG:  true,
-	types.WIN_EWMA:        true,
-	types.WIN_PCT_CHANGE:  true,
-	types.WIN_DELTA:       true,
-}
+// WindowFieldForbidden reports whether predict refuses a window of type
+// t that names a field (the order-only operators) — Recommend's drafts
+// and skeletons omit the slot for them.
+func WindowFieldForbidden(t types.WindowType) bool { return windowparams.FieldForbidden(t) }
 
 // IsOrderableType is the ONE window ORDER BY orderability rule, applied
 // on both sides by the shared FieldRefRefusals walk (predict reports it,
@@ -128,95 +102,38 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 			continue
 		}
 
-		// OrderBy required (≥1).
-		if len(w.OrderBy) == 0 {
+		// The slot's configuration: one reading with the engine
+		// (internal/windowparams), the same code and rule sentence on
+		// both sides — predict reports every rule broken, the engine
+		// the first. OrderBy / PartitionBy existence and orderability:
+		// FieldRefRefusals.
+		for _, ref := range windowparams.Check(w) {
+			details := map[string]any{"window_index": i, "type": string(w.Type)}
+			maps.Copy(details, ref.Details)
 			env.AddError(
 				string(errors.PULSE_WINDOW_INVALID),
-				"window["+idx+"] ("+string(w.Type)+"): order_by is required (at least one key)",
-				map[string]any{"window_index": i, "type": string(w.Type)},
+				"window["+idx+"] ("+string(w.Type)+"): "+ref.Message,
+				details,
 			)
 		}
 
-		// OrderBy keys must name a field.
-		for j, ok := range w.OrderBy {
-			if ok.Field == "" {
-				env.AddError(
-					string(errors.PULSE_WINDOW_INVALID),
-					"window["+idx+"]: order_by["+strconv.Itoa(j)+"] missing field",
-					map[string]any{"window_index": i, "order_index": j},
-				)
-			}
-			// Existence and orderability: FieldRefRefusals.
-		}
-
-		// PartitionBy existence: FieldRefRefusals.
-
-		// Field required for value-bearing operators; missing field is SERVICE_VALIDATION
-		// to share semantics with the existing validators.
-		if windowFieldRequired[w.Type] {
-			if w.Field == "" {
-				env.AddError(
-					string(errors.SERVICE_VALIDATION),
-					"window["+idx+"] ("+string(w.Type)+"): field is required",
-					map[string]any{"window_index": i, "type": string(w.Type)},
-				)
-			} else if cerr := fieldaccept.Check(string(w.Type), fieldaccept.SlotField, w.Field, schema); cerr != nil {
-				// The accepted-types table's refusal, the runtime's
-				// (processing applyWindows) word for word.
+		// The accepted-types table's refusal, the runtime's (processing
+		// applyWindows) word for word.
+		if windowparams.FieldRequired(w.Type) && w.Field != "" {
+			if cerr := fieldaccept.Check(string(w.Type), fieldaccept.SlotField, w.Field, schema); cerr != nil {
 				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
 		}
 
-		// Frame matrix.
-		if w.Frame != nil && windowFrameRejected[w.Type] {
-			env.AddError(
-				string(errors.PULSE_WINDOW_INVALID),
-				"window["+idx+"] ("+string(w.Type)+"): frame is not allowed for this operator",
-				map[string]any{"window_index": i, "type": string(w.Type)},
-			)
-		}
-		if w.Frame == nil && windowFrameRequired[w.Type] {
-			env.AddError(
-				string(errors.PULSE_WINDOW_INVALID),
-				"window["+idx+"] ("+string(w.Type)+"): frame is required",
-				map[string]any{"window_index": i, "type": string(w.Type)},
-			)
-		}
-		if w.Frame != nil {
-			if w.Frame.Mode != "rows" {
-				env.AddError(
-					string(errors.PULSE_WINDOW_INVALID),
-					"window["+idx+"] ("+string(w.Type)+"): frame.mode must be \"rows\" (got "+strconv.Quote(w.Frame.Mode)+")",
-					map[string]any{"window_index": i, "mode": w.Frame.Mode},
-				)
-			}
-			if w.Type == types.WIN_MOVING_AVG {
-				if w.Frame.Preceding == nil || w.Frame.Following == nil {
-					env.AddError(
-						string(errors.PULSE_WINDOW_INVALID),
-						"window["+idx+"] (WIN_MOVING_AVG): frame must have bounded preceding AND following",
-						map[string]any{"window_index": i},
-					)
+		// WIN_LIFT's base column: the accepted-types table's refusal,
+		// the runtime's (processing applyWindows) word for word.
+		if w.Type == types.WIN_LIFT {
+			if spec, ref := shareparams.Resolve(w); ref == nil {
+				if cerr := fieldaccept.Check(string(w.Type), fieldaccept.SlotBase, spec.Base, schema); cerr != nil {
+					env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 				}
 			}
-			if w.Frame.Preceding != nil && *w.Frame.Preceding < 0 {
-				env.AddError(
-					string(errors.PULSE_WINDOW_INVALID),
-					"window["+idx+"]: frame.preceding must be >= 0",
-					map[string]any{"window_index": i, "preceding": *w.Frame.Preceding},
-				)
-			}
-			if w.Frame.Following != nil && *w.Frame.Following < 0 {
-				env.AddError(
-					string(errors.PULSE_WINDOW_INVALID),
-					"window["+idx+"]: frame.following must be >= 0",
-					map[string]any{"window_index": i, "following": *w.Frame.Following},
-				)
-			}
 		}
-
-		// Operator-specific param validation.
-		validateWindowParams(env, i, w)
 
 	}
 }
@@ -230,72 +147,4 @@ func windowLabel(w *types.Window) string {
 		return string(w.Type)
 	}
 	return string(w.Type) + "_" + w.Field
-}
-
-// validateWindowParams checks operator-specific Params bounds.
-func validateWindowParams(env *descriptor.Envelope, i int, w *types.Window) {
-	idx := strconv.Itoa(i)
-	switch w.Type {
-	case types.WIN_EWMA:
-		// One params reading with the runtime factory (internal/ewmaparams):
-		// exactly one of alpha / decay, each in range.
-		if _, ref := ewmaparams.Resolve(w.Params); ref != nil {
-			details := map[string]any{"window_index": i}
-			maps.Copy(details, ref.Details)
-			env.AddError(
-				string(errors.PULSE_WINDOW_INVALID),
-				"window["+idx+"] (WIN_EWMA): "+ref.Message,
-				details,
-			)
-		}
-
-	case types.WIN_LAG, types.WIN_LEAD:
-		if len(w.Params) == 0 {
-			return
-		}
-		var p struct {
-			Offset *int `json:"offset"`
-		}
-		if err := json.Unmarshal(w.Params, &p); err != nil {
-			env.AddError(
-				string(errors.PULSE_WINDOW_INVALID),
-				"window["+idx+"] ("+string(w.Type)+"): malformed params: "+err.Error(),
-				map[string]any{"window_index": i},
-			)
-			return
-		}
-		if p.Offset != nil && *p.Offset < 0 {
-			env.AddError(
-				string(errors.PULSE_WINDOW_INVALID),
-				"window["+idx+"] ("+string(w.Type)+"): params.offset must be >= 0",
-				map[string]any{"window_index": i, "offset": *p.Offset},
-			)
-		}
-
-	// WIN_PCT_CHANGE and WIN_DELTA share one params shape (periods >= 1), so they
-	// share one case — as WIN_LAG / WIN_LEAD do above. The rendered messages are
-	// unchanged for WIN_PCT_CHANGE: string(w.Type) is its own constant.
-	case types.WIN_PCT_CHANGE, types.WIN_DELTA:
-		if len(w.Params) == 0 {
-			return
-		}
-		var p struct {
-			Periods *int `json:"periods"`
-		}
-		if err := json.Unmarshal(w.Params, &p); err != nil {
-			env.AddError(
-				string(errors.PULSE_WINDOW_INVALID),
-				"window["+idx+"] ("+string(w.Type)+"): malformed params: "+err.Error(),
-				map[string]any{"window_index": i},
-			)
-			return
-		}
-		if p.Periods != nil && *p.Periods <= 0 {
-			env.AddError(
-				string(errors.PULSE_WINDOW_INVALID),
-				"window["+idx+"] ("+string(w.Type)+"): params.periods must be >= 1",
-				map[string]any{"window_index": i, "periods": *p.Periods},
-			)
-		}
-	}
 }

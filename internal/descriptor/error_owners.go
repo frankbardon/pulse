@@ -110,11 +110,13 @@ var errorOwners = map[errors.Code][]string{
 	errors.PROCESSING_REGRESSION_RANK_DEFICIENT:    ownAllRegs,
 	errors.PROCESSING_REGRESSION_NO_CONVERGE:       ownAllRegs,
 	errors.PROCESSING_REGRESSION_SINGULAR_GRAM:     ownAllRegs,
+	errors.PROCESSING_REGRESSION_SEPARATION:        own("REG_GLM"),
 	errors.PROCESSING_REGRESSION_INVALID_FAMILY:    own("REG_GLM"),
 	errors.PROCESSING_REGRESSION_INVALID_LINK:      own("REG_GLM"),
 	errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA: ownAllRegs,
 	errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED:  own("REG_OLS"),
 	errors.PROCESSING_VECTOR_LENGTH_MISMATCH:       ownExpr,
+	errors.PROCESSING_AUC_OUTCOME_NOT_BINARY:       own("AGG_AUC"),
 	errors.SERVICE_VALIDATION:                      shared,
 	errors.SERVICE_RESOURCE:                        shared,
 	errors.SERVICE_REGISTRY:                        shared,
@@ -224,6 +226,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_ADVISORY_ORDINAL_PARAMETRIC:      own(advisoryParametricTestNames()...),
 	errors.PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED: own(featWeighting),
 	errors.PULSE_ADVISORY_EXTRA_PASS:              own("ATTR_FORMULA"),
+	// Fires only on a regression that accepts resample jackknife.
+	errors.PULSE_ADVISORY_JACKKNIFE_COST: own("REG_OLS", "REG_GLM"),
 	// Fires only on the ordered series overlays (seriespartition.Ordered).
 	errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE: own(advisoryOrderedOverlayNames()...),
 	// Fires on an embedder extension operator, which any instance may
@@ -372,12 +376,13 @@ var errorOwners = map[errors.Code][]string{
 	// Range compilation runs for a named range table (loaded under
 	// capability:range_tables) and for the inline ranges of the two
 	// date-range operators; table resolution only from the operators.
-	errors.PULSE_RANGE_EMPTY:            own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES"),
-	errors.PULSE_RANGE_INVALID:          own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES"),
-	errors.PULSE_RANGE_DUPLICATE_LABEL:  own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES"),
-	errors.PULSE_RANGE_OVERLAP:          own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES"),
-	errors.PULSE_RANGE_SOURCE_AMBIGUOUS: own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES"),
-	errors.PULSE_RANGE_TABLE_UNKNOWN:    own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES"),
+	errors.PULSE_RANGE_EMPTY:               own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
+	errors.PULSE_RANGE_INVALID:             own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
+	errors.PULSE_RANGE_DUPLICATE_LABEL:     own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
+	errors.PULSE_RANGE_OVERLAP:             own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
+	errors.PULSE_RANGE_SOURCE_AMBIGUOUS:    own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
+	errors.PULSE_RANGE_TABLE_UNKNOWN:       own("GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
+	errors.PULSE_RANGE_TABLE_KIND_MISMATCH: own(featRangeTables, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "GROUP_NUMERIC_RANGES"),
 
 	// Label bindings ride the request's labels slot (part of every
 	// request host, not capability:labels) and sample / facet output, so
@@ -637,6 +642,16 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_RETURN_PATH_UNMATCHED: shared,
 	errors.PULSE_LIMIT_INVALID:         shared,
 	errors.PULSE_LIMIT_EXCEEDED:        shared,
+
+	// Per-slot partial success: only a regression, test (tier-1 or
+	// post) or matrix slot can fail alone.
+	errors.PULSE_SLOT_FAILED: plus(ownAllRegs, ownAllTests, ownAllMats),
+	// Any attribute reading a failed Compose fit (scoring, a literal
+	// coef(), a vector params.fit, a {population}); failed fits exist
+	// only under Compose fits.
+	errors.PULSE_FIT_UNAVAILABLE: own(featComposeFits),
+	// The weighted AGG_AUC's withheld DeLong interval.
+	errors.PULSE_AUC_DELONG_WEIGHTED: own("AGG_AUC"),
 
 	// The reference export (Pulse.ExportReference, `pulse docs
 	// export`) is an ungated core surface every instance offers.

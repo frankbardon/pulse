@@ -127,6 +127,7 @@ The change in the linear predictor, on the link scale, for a one-unit increase i
 - Its size depends on the predictor's units, so do not rank predictors by raw coefficients unless they share units; standardize the predictors first to compare them.
 - With strongly related predictors (multicollinearity) a coefficient can swing, or even flip sign, between fits on similar data.
 - A very large coefficient with a very large standard error in a logistic model is a sign of near-separation; do not read it as a strong association.
+- Penalized fits (l1, l2, elasticnet) shrink coefficients toward 0 on purpose, on the predictors' own units; an l1 coefficient shrunk to 0 means the penalty dropped it, not that the predictor is unrelated to the outcome.
 
 #### `std_errors.*`
 
@@ -137,12 +138,14 @@ How much the coefficient would vary from sample to sample, from the inverse of t
 - With overdispersion (counts varying more than their mean) the Poisson standard errors are too small.
 - Gamma data rarely have dispersion 1, so gamma standard errors are unreliable.
 - Unless the request's covariance names a robust one: hc0-hc3 (sandwich over the fit's scores, which also absorbs overdispersion), cluster (rows grouped by a field) or hac (a series in time); p_values, the intervals and vcov follow it, still Wald z.
+- On a penalized fit it is the penalized sandwich, which treats the shrinkage as fixed; for l1 and elasticnet it covers the kept predictors only and is approximate (Pulse warns); request resample for an empirical one.
 
 #### `p_values.*`
 
 **Caveats:**
 
 - Wald z at dispersion fixed to 1: with overdispersed counts the Poisson p-values come out too small, and gamma p-values are unreliable.
+- The request's alpha param is the penalty strength, not a significance level; on a penalized fit the coefficients are shrunk on purpose, so these p-values do not have the usual reading.
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
@@ -156,6 +159,7 @@ Lower bound of the coefficient's two-sided confidence interval at conf_level: th
 - Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
 - Wald at dispersion fixed to 1: too narrow with overdispersed counts, unreliable for gamma, and poor near separation in a logistic model.
 - Raised to the power e, the bounds of a binomial or Poisson coefficient bound its odds ratio or rate ratio.
+- On a penalized fit the interval is centred on a shrunken coefficient, so it does not have the usual coverage; l1 and elasticnet ones exist only for the kept predictors.
 
 #### `ci_upper.*`
 
@@ -167,6 +171,7 @@ Upper bound of the coefficient's two-sided confidence interval at conf_level: th
 - Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
 - Wald at dispersion fixed to 1: too narrow with overdispersed counts, unreliable for gamma, and poor near separation in a logistic model.
 - Raised to the power e, the bounds of a binomial or Poisson coefficient bound its odds ratio or rate ratio.
+- On a penalized fit the interval is centred on a shrunken coefficient, so it does not have the usual coverage; l1 and elasticnet ones exist only for the kept predictors.
 
 #### `conf_level`
 
@@ -178,6 +183,7 @@ How far the fitted predictions sit from the observed outcomes, as twice the log-
 
 **Caveats:**
 
+- On a penalized fit it is the unpenalized deviance at the shrunken coefficients, so it sits above the unpenalized fit's.
 - It has no fixed scale: compare it only with null_deviance or with another model fitted to the same rows and outcome.
 - For a 0/1 outcome the deviance alone does not show whether the model fits.
 
@@ -205,7 +211,7 @@ Rows used in the fit, after rows with a null target or predictor were dropped.
 
 #### `converged_iters`
 
-Iteratively reweighted least squares steps taken before the coefficients stopped changing (relative change below tol).
+Iteratively reweighted least squares steps taken before the coefficients stopped changing (relative change below tol); a penalized fit counts the same outer steps.
 
 **Caveats:**
 
@@ -232,7 +238,7 @@ The difference in the outcome's expected value between rows one unit apart on th
 - Its size depends on the predictor's units, so do not rank predictors by raw coefficients unless they share units; standardize the predictors first to compare them.
 - With strongly related predictors (multicollinearity) a coefficient can swing, or even flip sign, between fits on similar data.
 - (intercept) is the prediction when every predictor is 0, which may lie outside the data and mean nothing.
-- Penalized fits (l1, l2, elasticnet) shrink coefficients toward 0 on purpose; an l1 coefficient shrunk to 0 means the penalty dropped it, not that the predictor is unrelated to the outcome.
+- Penalized fits (l1, l2, elasticnet) shrink coefficients toward 0 on purpose, on the predictors' own units (a predictor on a large scale is barely shrunk); an l1 coefficient shrunk to 0 means the penalty dropped it, not that the predictor is unrelated to the outcome.
 
 #### `std_errors.*`
 

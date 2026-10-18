@@ -311,6 +311,11 @@ func (f *expressionFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 	if err := f.exts.coefStaticRefusal(filter.Expression, f.models); err != nil {
 		return nil, err
 	}
+	// A filter naming a failed fit stays refused (its verdict cannot be
+	// null — a row is admitted or not), at build, before any row.
+	if err := f.exts.coefFailedRefusal(filter.Expression, f.models); err != nil {
+		return nil, err
+	}
 	zone, err := exprZone(filter.TimeZone)
 	if err != nil {
 		return nil, err

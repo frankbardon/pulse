@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/featstream"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
@@ -590,6 +591,8 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 		suggestedWeight: result.SuggestedWeight,
 		measures:        opts.SidecarMeasureLevels,
 		inst:            opts.Instance,
+		records:         matrixRecords,
+		recordsKnown:    matrixRecords >= 0,
 	})
 
 	// If any errors were added, mark invalid.
@@ -626,6 +629,7 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 	validateRegisteredOperators(env, req, opts)
 	validateAggregationParams(env, req, opts.instance())
 	validateGroupDateParams(env, req, schema, opts.instance())
+	validateRangeOperatorParams(env, req, opts.instance())
 	validateGroupFitParams(env, req, opts.instance())
 	validateDatePartParams(env, req, schema, opts.instance())
 
@@ -819,6 +823,12 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	for _, feat := range req.Features {
 		if !streamableWithOverlay(opts, "feature", string(feat.Type), opRoute(opts.instance(), feat.Type).Streamable()) {
 			reasons = append(reasons, "feature "+string(feat.Type)+" is not streamable")
+			continue
+		}
+		// A global-pass pre-pass reading an earlier feature's column
+		// routes buffered (internal/featstream, the runtime's verdict).
+		if ok, reason := featstream.Streamable(&types.Feature{Type: opRoute(opts.instance(), feat.Type), Field: feat.Field, Params: feat.Params}, schema); !ok {
+			reasons = append(reasons, reason)
 		}
 	}
 
@@ -993,6 +1003,9 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 	// Model-error aggregators (AGG_MAPE / AGG_RMSE / AGG_MAE): the
 	// runtime constructor's refusals, re-derived from the schema.
 	validateModelErrorAggs(env, req, schema, opts)
+
+	// AGG_AUC: the shared configuration rules (internal/aucspec).
+	validateAUCAggs(env, req, schema, opts)
 
 	// Check regression slots. Phase 0 validates structural shape only
 	// (known type, target + predictors named, fields exist); deeper

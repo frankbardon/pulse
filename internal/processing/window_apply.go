@@ -5,11 +5,14 @@ import (
 
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/processing/window"
+	"github.com/frankbardon/pulse/internal/shareparams"
+	"github.com/frankbardon/pulse/internal/windowparams"
 	"github.com/frankbardon/pulse/types"
 )
 
 // applyWindows runs req's windows over rows, after refusing every
-// window whose value field the accepted-types table (internal/fieldaccept)
+// window whose configuration the shared window reading
+// (internal/windowparams) refuses, and every window whose value field the accepted-types table (internal/fieldaccept)
 // does not accept — a categorical's dictionary index, a set's bitmask,
 // decimal128, packed_bool, datetime. The refusal is predict's
 // (validateWindows reports the same *errors.CodedError) and is raised
@@ -24,8 +27,25 @@ func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, win
 		if _, ok := p.exts.LookupWindow(w.Type); !ok {
 			continue
 		}
+		// The slot's configuration, one reading with predict
+		// (internal/windowparams): the first rule predict reports, with
+		// its code and sentence — an embedder's window judged on the
+		// type-neutral rules, as predict judges it.
+		if ref := windowparams.First(w); ref != nil {
+			return ref.Coded()
+		}
 		if cerr := fieldaccept.Check(string(w.Type), fieldaccept.SlotField, w.Field, p.schema); cerr != nil {
 			return cerr
+		}
+		// WIN_LIFT's base column, judged like its field (predict
+		// validateWindows reports the same error). A slot the shared
+		// reading refuses is left to the factory's refusal.
+		if w.Type == types.WIN_LIFT {
+			if spec, ref := shareparams.Resolve(w); ref == nil {
+				if cerr := fieldaccept.Check(string(w.Type), fieldaccept.SlotBase, spec.Base, p.schema); cerr != nil {
+					return cerr
+				}
+			}
 		}
 	}
 	return window.ApplyWithExt(ctx, rows, windows, p.exts.LookupWindow)

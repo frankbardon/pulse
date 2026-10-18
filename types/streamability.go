@@ -69,7 +69,10 @@ func (t AggregationType) Streamable() bool {
 		AGG_SET_DISTINCT_VALUES,
 		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD:
 		return true
-	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE:
+	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE,
+		// A rank-sum over every scored row: needs the full sorted
+		// input, so it is buffered (terminal flush in a stream).
+		AGG_AUC:
 		return false
 	}
 	return false
@@ -111,7 +114,8 @@ func (t AggregationType) Mergeable() bool {
 		AGG_VEC_MEAN, AGG_VEC_SUM, AGG_VEC_SD:
 		return true
 	case AGG_MEDIAN, AGG_PERCENTILE, AGG_ZSCORE,
-		AGG_SKEWNESS, AGG_KURTOSIS:
+		AGG_SKEWNESS, AGG_KURTOSIS,
+		AGG_AUC:
 		return false
 	}
 	return false
@@ -191,6 +195,9 @@ func (t AggregationType) MarginReducibility() MarginReducibility {
 		// to the reshape pass, so the margin re-walks raw rows (RMSE's
 		// square root does not pool by addition either).
 		AGG_MAPE, AGG_RMSE, AGG_MAE,
+		// A rank-sum over the cell's rows: a margin's AUC is neither a
+		// sum nor a mean of its cells' — re-walk the raw rows.
+		AGG_AUC,
 		// Welford emits a running (mean, sample-variance, n) triple.
 		// Sample variance does not pool by addition across cells — the
 		// margin must re-walk raw rows. Mirrors AGG_VARIANCE / AGG_STDDEV.
@@ -275,7 +282,7 @@ const (
 // we exercise in goldens today.
 func (t GroupType) Mergeable() bool {
 	switch t {
-	case GROUP_CATEGORY, GROUP_RANGE, GROUP_DATE_RANGES,
+	case GROUP_CATEGORY, GROUP_RANGE, GROUP_DATE_RANGES, GROUP_NUMERIC_RANGES,
 		GROUP_SET_VALUE, GROUP_SET_PER_ELEMENT:
 		return true
 	case GROUP_ROUNDED, GROUP_QUANTILE, GROUP_DATE, GROUP_KMEANS:
@@ -348,7 +355,7 @@ func (t FiltererType) Streamable() bool {
 // is streamable — with two or more groupers, by composite key.
 func (t GroupType) Streamable() bool {
 	switch t {
-	case GROUP_CATEGORY, GROUP_ROUNDED, GROUP_RANGE, GROUP_DATE_RANGES,
+	case GROUP_CATEGORY, GROUP_ROUNDED, GROUP_RANGE, GROUP_DATE_RANGES, GROUP_NUMERIC_RANGES,
 		GROUP_SET_VALUE, GROUP_SET_PER_ELEMENT:
 		return true
 	case GROUP_QUANTILE, GROUP_DATE, GROUP_KMEANS:
@@ -381,7 +388,7 @@ func (t GroupType) FansOut() bool {
 	switch t {
 	case GROUP_SET_PER_ELEMENT:
 		return true
-	case GROUP_CATEGORY, GROUP_DATE, GROUP_DATE_RANGES,
+	case GROUP_CATEGORY, GROUP_DATE, GROUP_DATE_RANGES, GROUP_NUMERIC_RANGES,
 		GROUP_KMEANS, GROUP_QUANTILE, GROUP_RANGE, GROUP_ROUNDED,
 		GROUP_SET_VALUE:
 		return false
@@ -400,7 +407,9 @@ func (t WindowType) Streamable() bool {
 // pre-pass+finalize+emit streaming pipeline (feature.StreamingComputer).
 //
 // Source of truth is feature.IsStreamable(req.Features, schema) at runtime;
-// this method mirrors the per-type capability used by predict.
+// this method mirrors the per-type capability used by predict. A spec can
+// still route buffered: a global-pass pre-pass reading an earlier
+// feature's column (internal/featstream, shared by both sides).
 func (t FeatureType) Streamable() bool {
 	switch t {
 	case FEAT_LOG, FEAT_SQRT, FEAT_BUCKETIZE,

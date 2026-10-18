@@ -279,6 +279,10 @@
           {
             "when": "you want to keep one band, not split into all of them",
             "use": "FILTER_RANGE"
+          },
+          {
+            "when": "your bands have uneven, named edges, such as a train/holdout split",
+            "use": "GROUP_NUMERIC_RANGES"
           }
         ]
       },
@@ -321,6 +325,10 @@
           {
             "when": "you want to keep one band, not split into all of them",
             "use": "FILTER_RANGE"
+          },
+          {
+            "when": "your bands have uneven, named edges, such as a train/holdout split",
+            "use": "GROUP_NUMERIC_RANGES"
           }
         ]
       },
@@ -363,6 +371,10 @@
           {
             "when": "you want to keep one band, not split into all of them",
             "use": "FILTER_RANGE"
+          },
+          {
+            "when": "your bands have uneven, named edges, such as a train/holdout split",
+            "use": "GROUP_NUMERIC_RANGES"
           }
         ]
       },
@@ -406,9 +418,9 @@
       }
     ],
     "truncated": true,
-    "candidates_considered": 14
+    "candidates_considered": 17
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: ece6769227403d0bff3bd485bf17815378075160a8084eb3e1a54d9dc0fd4ea8
+// golden-hash: d3c76d21416a976dd04addad4d20f1286dad2098314471f025526ab35a2f9662

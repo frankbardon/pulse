@@ -66,7 +66,7 @@ var multiColumnOutputs = map[string]string{
 var needsReadingOperators = []string{
 	// aggregator
 	string(types.AGG_CI_LOWER), string(types.AGG_CI_UPPER), string(types.AGG_KURTOSIS),
-	string(types.AGG_MAE), string(types.AGG_MAPE), string(types.AGG_RMSE),
+	string(types.AGG_MAE), string(types.AGG_MAPE), string(types.AGG_RMSE), string(types.AGG_AUC),
 	string(types.AGG_PERCENTILE), string(types.AGG_RATIO), string(types.AGG_SKEWNESS),
 	string(types.AGG_STDDEV), string(types.AGG_VARIANCE), string(types.AGG_WEIGHTED_MEAN),
 	string(types.AGG_WELFORD), string(types.AGG_ZSCORE), string(types.AGG_VEC_SD),
@@ -77,7 +77,7 @@ var needsReadingOperators = []string{
 	// window
 	string(types.WIN_DELTA), string(types.WIN_DENSE_RANK), string(types.WIN_EWMA),
 	string(types.WIN_MOVING_AVG), string(types.WIN_PCT_CHANGE), string(types.WIN_RANK),
-	string(types.WIN_RUNNING_AVG),
+	string(types.WIN_RUNNING_AVG), string(types.WIN_SHARE), string(types.WIN_LIFT),
 	// feature
 	string(types.FEAT_FREQUENCY_ENCODE), string(types.FEAT_LOG), string(types.FEAT_POLY),
 	string(types.FEAT_SQRT), string(types.FEAT_TARGET_ENCODE),
@@ -107,7 +107,7 @@ var selfReadingOperators = []string{
 	string(types.FILTER_SET_EQUALS), string(types.FILTER_TRUE),
 	// grouper
 	string(types.GROUP_CATEGORY), string(types.GROUP_DATE), string(types.GROUP_DATE_RANGES),
-	string(types.GROUP_KMEANS), string(types.GROUP_QUANTILE), string(types.GROUP_RANGE), string(types.GROUP_ROUNDED),
+	string(types.GROUP_KMEANS), string(types.GROUP_NUMERIC_RANGES), string(types.GROUP_QUANTILE), string(types.GROUP_RANGE), string(types.GROUP_ROUNDED),
 	string(types.GROUP_SET_PER_ELEMENT), string(types.GROUP_SET_VALUE),
 	// window
 	string(types.WIN_LAG), string(types.WIN_LEAD), string(types.WIN_ROW_NUMBER),

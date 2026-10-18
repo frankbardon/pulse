@@ -4,6 +4,44 @@ How to read the descriptive results whose number a name alone does not explain: 
 
 ## Aggregators
 
+<a id="op-agg_auc"></a>
+
+### `AGG_AUC`
+
+How well a score separates a yes/no outcome: the chance that a randomly picked yes row scores higher than a randomly picked no row. See its [catalog entry](../catalog/aggregator.md#op-agg_auc).
+
+#### `value`
+
+The chance that a randomly picked positive row scores higher than a randomly picked negative row, a tie counting half. 0.5 is a coin flip; 1 means every positive outscores every negative; below 0.5 the score ranks backwards.
+
+**Caveats:**
+
+- It measures ranking, not calibration: multiplying every score by 2 leaves it unchanged, so a well-ranked score can still predict the wrong rates.
+- Two models are comparable only on the same rows and outcome; a gap smaller than the DeLong interval width is not a reliable difference.
+- A row counts only when the score and the outcome both have a value; components n_null_outcome is the rows skipped for a missing outcome. Empty (NaN) when either class has no row.
+- Measured on the rows the model was fitted to, it is optimistic: read it on held-out rows (a filter or range grouper keeps them apart) to judge how the model does on new data.
+
+#### `components.gini`
+
+The Gini coefficient (accuracy ratio) 2 x AUC - 1: 0 is no discrimination and 1 perfect. It is the credit-scoring convention for the same ranking power.
+
+#### `components.ci_lower`
+
+The lower end of the 95% DeLong confidence interval for the AUC, clipped to 0. The true ranking power is plausibly anywhere in the interval.
+
+**Caveats:**
+
+- Null on a weighted slot (components se_note says why) and when either class has fewer than 2 rows.
+- The interval assumes independent rows; repeated rows of one customer make it too narrow.
+
+#### `components.ci_upper`
+
+The upper end of the 95% DeLong confidence interval for the AUC, clipped to 1.
+
+**Caveats:**
+
+- Null on a weighted slot (components se_note says why) and when either class has fewer than 2 rows.
+
 <a id="op-agg_ci_lower"></a>
 
 ### `AGG_CI_LOWER`
@@ -545,6 +583,28 @@ A smoothed level of the field: s = alpha * current + (1 - alpha) * previous s, s
 - The required frame is not used: the smoothing always runs from the partition's first row.
 - A step is one row of the result in order_by order, not a calendar period: when a period has no row (a month with no sales), the comparison silently spans the gap, so check the series has a row for every period.
 
+<a id="op-win_lift"></a>
+
+### `WIN_LIFT`
+
+Adds how many times its share of one column a row holds of another, such as a decile's share of defaults over its share of loans. See its [catalog entry](../catalog/window.md#op-win_lift).
+
+#### `value`
+
+The field's share over the base's share: 1 means the row holds the same share of both, 2 twice its base share of the field. With cumulative, the running shares are compared, so 2.3 on the second decile says the top two deciles hold 2.3 times their share of loans in defaults.
+
+**Sign:**
+
+- `+`: above 1: the row holds more of the field than its share of the base
+- `-`: below 1: the row holds less of the field than its share of the base
+
+**Caveats:**
+
+- Lift on a small base share is jumpy: a decile with 1% of the loans and 3% of the defaults reads 3 on a handful of defaults, so read the counts beside it.
+- Cumulative lift falls to exactly 1 on the last row, where both running shares reach 1; compare lifts at the same depth.
+- A missing value on either side, or a base share of 0, reads null.
+- With groups, each row is one group's figure and counts once whatever the group's size: an average over rows is an average of group figures, not the average over all records.
+
 <a id="op-win_moving_avg"></a>
 
 ### `WIN_MOVING_AVG`
@@ -620,6 +680,23 @@ The mean of the field over the rows in the frame. With the usual frame (no prece
 - Early values rest on few rows and swing; later ones rest on the whole history and barely move, so a late cumulative average says little about the recent level (use WIN_MOVING_AVG for that).
 - A frame with a following bound above 0, or none, takes in later rows too.
 - Missing values are skipped, so the mean is over the values present; a frame with no value reads null.
+- With groups, each row is one group's figure and counts once whatever the group's size: an average over rows is an average of group figures, not the average over all records.
+
+<a id="op-win_share"></a>
+
+### `WIN_SHARE`
+
+Adds each row's share of its partition's total, or the running share down the ordered rows, such as the share of defaults caught so far. See its [catalog entry](../catalog/window.md#op-win_share).
+
+#### `value`
+
+The row's value as a fraction of its partition's total: 0.25 is a quarter, not 25. With cumulative it is the running total up to this row over the same total, rising to exactly 1 on the partition's last row with a value.
+
+**Caveats:**
+
+- The total is the partition's, over the values present: a missing value adds nothing, so shares of a column with gaps sum to 1 over the rows that answered.
+- A cumulative share depends on the order: ordered by a score from riskiest down it is the capture curve; set desc for that.
+- A field that can be negative can push a share above 1 or below 0, and a total of exactly 0 reads null.
 - With groups, each row is one group's figure and counts once whatever the group's size: an average over rows is an average of group figures, not the average over all records.
 
 ## Feature operators
@@ -706,11 +783,11 @@ Replaces each category with the average outcome of the records in that category,
 
 #### `value`
 
-The average of the outcome field over records in this record's category, in the outcome's units; with smoothing s, (n * category average + s * overall average) / (n + s), so a category with few records sits nearer the overall average.
+The average of the outcome field over the training records (params.fit_on, else every record) in this record's category, in the outcome's units; with smoothing s, (n * category average + s * overall average) / (n + s), so a category with few records sits nearer the overall average.
 
 **Caveats:**
 
-- Target leakage: every average includes the record's own outcome and the outcomes of validation and test records, because the encoder reads no split column. Placing FEAT_TRAIN_TEST_SPLIT first does not change a single value, and filtering to split 0 afterwards keeps the leaked figures.
-- A model trained on this column will look better than it is: with no smoothing, a category seen once encodes exactly its own outcome. To encode from the training rows only, compute each category's AGG_AVERAGE of the outcome on split 0 in a separate request and map those averages onto the validation and test records yourself. For the training records, leave each record's own outcome out (out-of-fold or leave-one-out averages) and smooth, since a split-0 average still contains it.
+- Target leakage without params.fit_on: every average includes the record's own outcome and the outcomes of validation and test records. Placing FEAT_TRAIN_TEST_SPLIT first does not change a single value, and filtering to split 0 afterwards keeps the leaked figures; set fit_on to the training records (for example split == 0) so only they feed the averages.
+- A training record's average still holds its own outcome unless folds is set, so a model trained on the column looks better than it is: with folds k each training record reads the averages of the training records outside its fold, and every other record reads the full training averages. Smooth as well, since a category seen once encodes exactly its own outcome.
 - Computed over every record of the cohort before any filter runs, so a filtered result still carries figures from the records it filtered out.
-- Only records with both a category and an outcome count; a category whose outcomes are all missing reads the overall average, and a record missing the category reads missing.
+- Only training records with both a category and an outcome count; a category with no such record reads the overall training average, a record missing the category reads missing, and so does a training record whose fold leaves no outcome outside it.

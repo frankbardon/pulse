@@ -63,6 +63,7 @@ func (e *explainer) explainComposedResponse(resp *types.ComposedResponse, req *t
 		}
 		e.readSlot(rr, "Request "+strconv.Itoa(i+1), "responses["+strconv.Itoa(i)+"].", r, spec)
 	}
+	fits := e.readComposeFits(rr, resp.Fits, req)
 	layers := make([]*types.OverlayLayer, len(resp.Overlays))
 	for i := range resp.Overlays {
 		layers[i] = &resp.Overlays[i]
@@ -73,11 +74,52 @@ func (e *explainer) explainComposedResponse(resp *types.ComposedResponse, req *t
 	}
 	e.finalCaveats(rr, "composed")
 	s := "This batch reports " + count(slots, "response", "responses") + " side by side"
+	if fits > 0 {
+		s += " and " + count(fits, "regression fit", "regression fits")
+	}
 	if overlays > 0 {
 		s += " and " + count(overlays, "batch overlay", "batch overlays") + " across them"
 	}
 	e.res.Summary = s + rr.evidencePhrase() + "."
 	e.notes = rr.notes
+}
+
+// readComposeFits reads each regression fit of a ComposedResponse —
+// in the batch request's declaration order when it rides beside the
+// result, else by name — as a regression at wire path "fits.<name>",
+// with the fit request's regression as its spec. A vector fit carries
+// no coefficient and is not read. It returns the fits read.
+func (e *explainer) readComposeFits(rr *responseReader, fits map[string]*types.FitResult, req *types.ComposedRequest) int {
+	specs := map[string]*types.RegressionSpec{}
+	var names []string
+	if req != nil {
+		for _, f := range req.Fits {
+			if _, ok := fits[f.Name]; !ok {
+				continue
+			}
+			names = append(names, f.Name)
+			if f.Request != nil && len(f.Request.Regressions) == 1 {
+				specs[f.Name] = f.Request.Regressions[0]
+			}
+		}
+	}
+	if len(names) != len(fits) {
+		names = names[:0]
+		for name := range fits {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+	}
+	n := 0
+	for _, name := range names {
+		f := fits[name]
+		if f == nil || f.RegressionResult == nil {
+			continue
+		}
+		n++
+		e.regressionFindings(rr, "fits."+name, "Fit "+tick(name), f.RegressionResult, specs[name])
+	}
+	return n
 }
 
 // explainChainResponse reads a ChainResponse stage by stage, then its

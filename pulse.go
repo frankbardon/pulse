@@ -23,6 +23,7 @@ import (
 	"github.com/frankbardon/pulse/internal/examples"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/imports"
+	"github.com/frankbardon/pulse/internal/numrange"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/returnplan"
 	"github.com/frankbardon/pulse/internal/returnshape"
@@ -68,7 +69,7 @@ type LoadMemberSetResult struct {
 // DateRangeSpec is the wire-level shape of a single labeled date range
 // ({label, start, end}). It is the shared model authored inline on a
 // GROUP_DATE_RANGES grouper or FILTER_DATE_RANGES filter and registered
-// in an Extensions.RangeTables entry. Start / End are ISO date literals;
+// in a date Extensions.RangeTables entry (RangeTable.Ranges). Start / End are ISO date literals;
 // nil / empty is an open bound; both bounds are inclusive.
 type DateRangeSpec struct {
 	Label string  `json:"label"`
@@ -85,6 +86,44 @@ func toEngineDateRanges(in []DateRangeSpec) []processing.DateRangeSpec {
 	out := make([]processing.DateRangeSpec, len(in))
 	for i, r := range in {
 		out[i] = processing.DateRangeSpec(r)
+	}
+	return out
+}
+
+// NumericRangeSpec is the wire-level shape of a single labeled numeric
+// range ({label, start, end}): the model authored inline on a
+// GROUP_NUMERIC_RANGES grouper and registered in a numeric
+// Extensions.RangeTables entry (RangeTable.NumericRanges). Start / End
+// are numbers; nil is an open bound. Bounds are half-open: the range
+// covers [Start, End), so [0, 91) and [91, 104) are adjacent.
+type NumericRangeSpec struct {
+	Label string   `json:"label"`
+	Start *float64 `json:"start,omitempty"`
+	End   *float64 `json:"end,omitempty"`
+}
+
+// toEngineNumericRanges converts root NumericRangeSpecs to the engine's
+// identical-layout type. A nil slice stays nil.
+func toEngineNumericRanges(in []NumericRangeSpec) []numrange.Spec {
+	if in == nil {
+		return nil
+	}
+	out := make([]numrange.Spec, len(in))
+	for i, r := range in {
+		out[i] = numrange.Spec(r)
+	}
+	return out
+}
+
+// fromEngineNumericRanges is the inverse of toEngineNumericRanges; it
+// always returns a fresh slice so callers never alias engine-owned state.
+func fromEngineNumericRanges(in []numrange.Spec) []NumericRangeSpec {
+	if in == nil {
+		return nil
+	}
+	out := make([]NumericRangeSpec, len(in))
+	for i, r := range in {
+		out[i] = NumericRangeSpec(r)
 	}
 	return out
 }

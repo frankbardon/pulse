@@ -4,6 +4,7 @@ The aggregators this instance offers: what each is for, the questions it answers
 
 | Operator | In plain words | Answers questions like | Level | Instead, when… |
 |---|---|---|---|---|
+| [`AGG_AUC`](#op-agg_auc) | How well a score separates a yes/no outcome: the chance that a randomly picked yes row scores higher than a randomly picked no row. | How well does the default model rank the held-out loans? | intermediate | [`AGG_MAE`](#op-agg_mae) when you need the size of the miss of a numeric prediction, not how well it ranks.<br>[`TEST_MANN_WHITNEY_U`](test.md#op-test_mann_whitney_u) when you want to test whether the two groups' score distributions differ. |
 | [`AGG_AVERAGE`](#op-agg_average) | Average of a numeric field, over all rows or per group. | What is the average order value? | basic | [`AGG_MEDIAN`](#op-agg_median) when the field is skewed or has extreme values and you want the typical row.<br>[`AGG_WEIGHTED_MEAN`](#op-agg_weighted_mean) when rows carry weights.<br>[`AGG_WELFORD`](#op-agg_welford) when you also need the spread around the average. |
 | [`AGG_CI_LOWER`](#op-agg_ci_lower) | Lower end of a confidence interval for the mean of a numeric field, showing how precisely the average is pinned down. | How precisely do we know the average satisfaction in each segment? | intermediate | [`AGG_CI_UPPER`](#op-agg_ci_upper) when you want the upper end of the same interval.<br>[`TEST_WELCH`](test.md#op-test_welch) when you want to test whether two group means differ.<br>[`AGG_PERCENTILE`](#op-agg_percentile) when you want the range individual rows fall in, not the mean. |
 | [`AGG_CI_UPPER`](#op-agg_ci_upper) | Upper end of a confidence interval for the mean of a numeric field, showing how precisely the average is pinned down. | What is the highest average wait time the data are consistent with at 95% confidence? | intermediate | [`AGG_CI_LOWER`](#op-agg_ci_lower) when you want the lower end of the same interval.<br>[`TEST_WELCH`](test.md#op-test_welch) when you want to test whether two group means differ. |
@@ -42,6 +43,43 @@ The aggregators this instance offers: what each is for, the questions it answers
 | [`AGG_ZSCORE`](#op-agg_zscore) | Population mean and standard deviation of a numeric field, for standardizing it; the value itself is always 0. | What centre and scale standardize this field in each group? | intermediate | [`ATTR_ZSCORE`](attribute.md#op-attr_zscore) when you want a z-score on every row.<br>[`OVERLAY_ZSCORE_VS_TOTAL`](overlay.md#op-overlay_zscore_vs_total) when you want each group's value against all groups.<br>[`AGG_STDDEV`](#op-agg_stddev) when you want only the spread. |
 
 ## Operators
+
+<a id="op-agg_auc"></a>
+
+### `AGG_AUC`
+
+How well a score separates a yes/no outcome: the chance that a randomly picked yes row scores higher than a randomly picked no row.
+
+**Level:** intermediate
+
+**Also known as:** `area under the curve`, `ROC AUC`, `c-statistic`, `concordance`, `Gini`, `accuracy ratio`
+
+**Questions it answers:**
+
+- How well does the default model rank the held-out loans?
+- Does the new churn score separate leavers from stayers better than the old one?
+- Is the model's ranking power similar in every region?
+
+**Use cases by domain:**
+
+- *survey:* How well a propensity score separates respondents who converted from those who did not.
+- *ops:* Holdout discrimination of a credit default or churn score.
+- *science:* How well a diagnostic marker separates cases from controls.
+
+**Assumptions:**
+
+- The outcome is 0/1 or a yes/no field; params.positive picks which value is the event.
+- It judges ranking only: a score can rank well and still be badly calibrated.
+- Train and holdout rows are separated with a filter or a range grouper; the operator itself never splits rows.
+
+**Use something else:**
+
+- [`AGG_MAE`](#op-agg_mae) when you need the size of the miss of a numeric prediction, not how well it ranks.
+- [`TEST_MANN_WHITNEY_U`](test.md#op-test_mann_whitney_u) when you want to test whether the two groups' score distributions differ.
+
+**Glossary:** [`confidence-interval`](../glossary.md#term-confidence-interval), [`standard-error`](../glossary.md#term-standard-error), [`overfitting`](../glossary.md#term-overfitting), [`missing-value`](../glossary.md#term-missing-value)
+
+**Skill:** [`op-agg-auc`](../skills/op-agg-auc.md)
 
 <a id="op-agg_average"></a>
 

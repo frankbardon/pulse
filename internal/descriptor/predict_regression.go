@@ -7,6 +7,8 @@ import (
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/regcov"
+	"github.com/frankbardon/pulse/internal/regpenalty"
+	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -124,16 +126,15 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			)
 		}
 
-		// vcov: true needs a coefficient covariance: refused on lasso /
-		// elastic net (under a Resample / Selection modifier too) — the
-		// runtime's regression.validateVcov rule, mirrored here (predict
-		// cannot import the engine).
-		if reason, value := vcovRefusal(reg); reason != "" {
-			env.AddError(
-				string(errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED),
-				string(reg.Type)+" with "+reason+"="+value+" has no coefficient covariance; drop vcov or fit without "+reason,
-				map[string]any{"reason": reason, reason: value, "type": string(reg.Type)},
-			)
+		// Penalty / Alpha / L1Ratio (and no penalty on gamma), then vcov:
+		// true on lasso / elastic net (under a Resample / Selection
+		// modifier too) — the runtime's rules themselves
+		// (internal/regpenalty, shared).
+		if cerr := regpenalty.Check(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+		if cerr := regpenalty.VcovRefusal(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 
 		// covariance: the block's shape and the robust-type refusals —
@@ -145,49 +146,39 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		} else if reg.Covariance.Robust() {
 			checkCovarianceFields(env, reg, schema)
 		}
+		// jackknife_groups / jackknife_by — the runtime's rule itself
+		// (internal/regresample.Check, shared).
+		if cerr := regresample.Check(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
 
-		// L1-penalized OLS fits (Penalty=="l1" or "elasticnet") produce
-		// analytical standard errors only as a coarse plug-in over the
+		// L1-penalized OLS / GLM fits (Penalty=="l1" or "elasticnet")
+		// produce analytical standard errors only as a plug-in over the
 		// data-dependent active set. Warn callers so they treat the
 		// reported SE / p-value entries as approximate. Suppressed when
 		// a Resample modifier is set — bootstrap / jackknife is the
-		// rigorous answer and replaces the analytical SE entirely
-		// (Phase 5).
-		if reg.Type == types.REG_OLS && (reg.Penalty == "l1" || reg.Penalty == "elasticnet") && reg.Resample == "" {
+		// rigorous answer and replaces the analytical SE entirely.
+		if regpenalty.ApproximateSE(reg) && reg.Resample == "" {
 			env.AddWarning(
 				"PROCESSING_REGRESSION_APPROXIMATE_SE",
-				"REG_OLS with Penalty="+reg.Penalty+" emits std errors / p-values for the active set only, as a naive plug-in estimate; for rigorous uncertainty quantification set Resample to \"bootstrap\" or \"jackknife\"",
+				string(reg.Type)+" with Penalty="+reg.Penalty+" emits std errors / p-values for the active set only, as a naive plug-in estimate; for rigorous uncertainty quantification set Resample to \"bootstrap\" or \"jackknife\"",
 				map[string]any{"penalty": reg.Penalty, "type": string(reg.Type)},
 			)
 		}
 
-		// Regularized OLS + Selection: regularization already does
-		// feature selection (lasso zeroes coefficients) or shrinks
+		// Regularized OLS / GLM + Selection: regularization already
+		// does feature selection (lasso zeroes coefficients) or shrinks
 		// (ridge); pairing it with greedy stepwise / forward / backward
 		// is rarely meaningful but not strictly invalid. Warn the user
 		// so they know the combination is unusual.
-		if reg.Type == types.REG_OLS && reg.Penalty != "" && reg.Selection != "" {
+		if (reg.Type == types.REG_OLS || reg.Type == types.REG_GLM) && reg.Penalty != "" && reg.Selection != "" {
 			env.AddWarning(
 				"PROCESSING_REGRESSION_REGULARIZED_SELECTION",
-				"REG_OLS combines Penalty="+reg.Penalty+" with Selection="+reg.Selection+"; regularization already performs feature shrinkage / selection, so layering greedy subset search on top is unusual and may produce a model harder to interpret than either alone",
+				string(reg.Type)+" combines Penalty="+reg.Penalty+" with Selection="+reg.Selection+"; regularization already performs feature shrinkage / selection, so layering greedy subset search on top is unusual and may produce a model harder to interpret than either alone",
 				map[string]any{"penalty": reg.Penalty, "selection": reg.Selection, "type": string(reg.Type)},
 			)
 		}
 	}
-}
-
-// vcovRefusal returns why reg's vcov: true cannot be honoured (the
-// blocking setting's name and value), or "" when it can or was not
-// asked for. Kept in step with internal/processing/regression
-// validateVcov by TestRegressionVcov_Refusals (internal/service).
-func vcovRefusal(reg *types.RegressionSpec) (reason, value string) {
-	if !reg.Vcov {
-		return "", ""
-	}
-	if reg.Type == types.REG_OLS && (reg.Penalty == "l1" || reg.Penalty == "elasticnet") {
-		return "penalty", reg.Penalty
-	}
-	return "", ""
 }
 
 // regressionAcceptsType reports whether a given encoding.FieldType is a

@@ -21,6 +21,7 @@ var descriptiveInterpretations = map[string][]descriptor.Interpretation{
 	"AGG_CI_UPPER":      interpAggCIUpper,
 	"AGG_KURTOSIS":      interpAggKurtosis,
 	"AGG_PERCENTILE":    interpAggPercentile,
+	"AGG_AUC":           interpAggAUC,
 	"AGG_MAE":           interpAggMAE,
 	"AGG_MAPE":          interpAggMAPE,
 	"AGG_RATIO":         interpAggRatio,
@@ -287,6 +288,38 @@ var (
 				"It has the actual's units, so compare it only between models scored on the same rows and target.",
 				descModelErrorRows,
 				descModelErrorHoldout,
+			},
+		},
+	}
+
+	interpAggAUC = []descriptor.Interpretation{
+		{
+			Field: "value",
+			Means: "The chance that a randomly picked positive row scores higher than a randomly picked negative row, a tie counting half. 0.5 is a coin flip; 1 means every positive outscores every negative; below 0.5 the score ranks backwards.",
+			Caveats: []string{
+				"It measures ranking, not calibration: multiplying every score by 2 leaves it unchanged, so a well-ranked score can still predict the wrong rates.",
+				"Two models are comparable only on the same rows and outcome; a gap smaller than the DeLong interval width is not a reliable difference.",
+				"A row counts only when the score and the outcome both have a value; components n_null_outcome is the rows skipped for a missing outcome. Empty (NaN) when either class has no row.",
+				descModelErrorHoldout,
+			},
+		},
+		{
+			Field: "components.gini",
+			Means: "The Gini coefficient (accuracy ratio) 2 x AUC - 1: 0 is no discrimination and 1 perfect. It is the credit-scoring convention for the same ranking power.",
+		},
+		{
+			Field: "components.ci_lower",
+			Means: "The lower end of the 95% DeLong confidence interval for the AUC, clipped to 0. The true ranking power is plausibly anywhere in the interval.",
+			Caveats: []string{
+				"Null on a weighted slot (components se_note says why) and when either class has fewer than 2 rows.",
+				"The interval assumes independent rows; repeated rows of one customer make it too narrow.",
+			},
+		},
+		{
+			Field: "components.ci_upper",
+			Means: "The upper end of the 95% DeLong confidence interval for the AUC, clipped to 1.",
+			Caveats: []string{
+				"Null on a weighted slot (components se_note says why) and when either class has fewer than 2 rows.",
 			},
 		},
 	}

@@ -15,14 +15,6 @@ func regOffered(offered func(string) bool, t types.RegressionType) bool {
 	return offered == nil || offered(string(t))
 }
 
-// remedyGLMAlpha completes the REG_GLM Alpha refusal.
-func remedyGLMAlpha(offered func(string) bool) string {
-	if regOffered(offered, types.REG_OLS) {
-		return "; use REG_OLS for regularized fits or wait for the GLM regularization phase"
-	}
-	return "; wait for the GLM regularization phase"
-}
-
 // remedyBayesResample completes the REG_BAYES_LINEAR Resample refusal.
 func remedyBayesResample(offered func(string) bool) string {
 	if regOffered(offered, types.REG_OLS) {
@@ -67,7 +59,6 @@ func remedyBayesLink(offered func(string) bool) string {
 // processing.ExtensionRegistry.ScopeRefusal.
 func Remedies() []func(offered func(string) bool) string {
 	return []func(func(string) bool) string{
-		remedyGLMAlpha,
 		remedyBayesResample,
 		remedyBayesSelection,
 		remedyBayesPenalty,

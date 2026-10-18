@@ -279,8 +279,9 @@ Replaces each category with the average outcome of the records in that category,
 **Assumptions:**
 
 - Runs on every record before filters, so a filter can use the new column but never narrows what the feature sees.
-- Its figures come from every record of the cohort, before any filter: filtering afterwards does not recompute them.
-- It reads no split column: placing FEAT_TRAIN_TEST_SPLIT first changes nothing, and test rows and each row's own outcome still feed every average.
+- Its averages come from the training records params.fit_on picks (for example split == 0 after FEAT_TRAIN_TEST_SPLIT); every record is encoded, and a category with no training record reads the overall training average.
+- Without fit_on every record is a training record: test rows and each row's own outcome feed every average, and placing FEAT_TRAIN_TEST_SPLIT first changes nothing.
+- With folds k each training record reads the averages of the training records outside its fold, so its own outcome never feeds its value.
 - Smoothing s gives (n * category average + s * overall average) / (n + s); 0 means no pull.
 
 **Use something else:**
