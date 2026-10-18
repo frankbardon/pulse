@@ -20,13 +20,13 @@
 // derived numeric column never carries — null on both arms alike) or are
 // row-local (their pre-pass is a no-op and pass 2 emits in order).
 //
-// Leaf: stdlib + the public encoding / types packages + targetencode.
+// Leaf: the public encoding / types packages + targetencode + paramread
+// (a Probe: the operator itself decodes and records its params).
 package featstream
 
 import (
-	"encoding/json"
-
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/targetencode"
 	"github.com/frankbardon/pulse/types"
 )
@@ -44,7 +44,7 @@ func Streamable(feat *types.Feature, schema *encoding.Schema) (bool, string) {
 	switch feat.Type {
 	case types.FEAT_TARGET_ENCODE:
 		var p targetencode.Params
-		if len(feat.Params) > 0 && json.Unmarshal(feat.Params, &p) != nil {
+		if len(feat.Params) > 0 && paramread.Probe(feat.Params, &p) != nil {
 			return true, ""
 		}
 		if !targetencode.Streamable(feat.Field, p, schema) {
@@ -54,7 +54,7 @@ func Streamable(feat *types.Feature, schema *encoding.Schema) (bool, string) {
 		var p struct {
 			Quantiles int `json:"quantiles"`
 		}
-		if len(feat.Params) > 0 && json.Unmarshal(feat.Params, &p) != nil {
+		if len(feat.Params) > 0 && paramread.Probe(feat.Params, &p) != nil {
 			return true, ""
 		}
 		if p.Quantiles > 0 && feat.Field != "" && !stored(feat.Field) {
