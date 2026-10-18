@@ -4605,6 +4605,19 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SLOT_FAILED: {
+		Message: "Warning-class — one regression, test or matrix slot failed on its data (a data-dependent runtime refusal: separation, non-convergence, a rank-deficient design, too few rows, zero variance, a singular matrix) while every other slot of the response survived. The failed result keeps its label / name and type and carries `error` {code, message, details} — the refusal's own code and fixups — with every numeric field absent. Details carry `slot_kind`, `index`, `label` and `code` (plus `group_key` for one bucket of a grouped matrix). Under Options.Strict the run fails with the slot's own code instead.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Look up the slot's own error code (details.code) and apply its fixup to that slot only, then rerun just that slot; the other slots' results are already valid.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "When the slot's data cannot carry the fit or test (too few rows, a constant column, perfectly separated or collinear predictors), filter or reshape the input before rerunning the slot.",
+			},
+		},
+	},
 	PULSE_LIMIT_INVALID: {
 		Message: "An instance resource limit in Options.Limits holds a negative value other than -1, so pulse.New refused it before any instance existed. Every limit field uses one encoding: 0 means the built-in default, -1 (pulse.Unlimited) means no limit, and a positive value is the bound (nanoseconds for RequestTimeout). The snake_case limit name is under `limit` and the refused value under `value`.",
 		Fixups: []Fixup{

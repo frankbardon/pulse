@@ -954,6 +954,15 @@ type TestResult struct {
 	// expected-count thresholds, etc.) so the envelope-level Warnings list
 	// is not the only signal.
 	Warnings []string `json:"warnings,omitempty"`
+
+	// Error is the data-dependent refusal that failed this test slot
+	// alone (PULSE_TEST_VARIANCE_ZERO, _INSUFFICIENT_N, …) while the rest
+	// of the response survived; see SlotError. A result carrying one has
+	// Label / Type / GroupKey and the error only: the statistic, p-value
+	// and every other figure are absent on the wire (in Go, Statistic and
+	// PValue are NaN). A grouped run's one sparse GROUP keeps its
+	// null-statistics result and per-group warning instead.
+	Error *SlotError `json:"error,omitempty"`
 }
 
 // Feature defines a feature engineering operation. Features run pre-filter
@@ -1543,7 +1552,8 @@ type Response struct {
 	// per (test x group): test-major, the groups in the final Data row
 	// order, each carrying GroupKey — entry k belongs to
 	// Request.Tests[k / groups]. A slot a `return` plan skips is nil at
-	// each of its positions.
+	// each of its positions; a test that failed on its data keeps its
+	// entry with an Error (SlotError) — see Regressions.
 	Tests []*TestResult `json:"tests,omitempty"`
 
 	// PostTests holds tier-2 statistical test results, one per entry in
@@ -1552,13 +1562,20 @@ type Response struct {
 
 	// Regressions holds the per-spec regression fits, one entry per
 	// Request.Regressions in the same order. Engines never partially
-	// populate a result on failure; a failed fit surfaces as a
-	// PROCESSING_REGRESSION_* error on the envelope instead.
+	// populate a result: a fit that fails on its data (separation,
+	// non-convergence, a rank-deficient design, too few rows) keeps its
+	// entry with Name / Type and an Error (SlotError) — never a nil
+	// entry, which means the slot was skipped by `return` — while every
+	// other slot survives, and a PULSE_SLOT_FAILED warning names it.
+	// Under Options.Strict the run fails with the fit's own code
+	// instead. A configuration fault stays fatal at validation.
 	Regressions []*RegressionResult `json:"regressions,omitempty"`
 
 	// Matrices holds the matrix operator results, one entry per
 	// Request.Matrices spec in the same order (ungrouped). Undefined
-	// cells and scalars are null on the wire. See MatrixResult.
+	// cells and scalars are null on the wire; a matrix that failed on
+	// its data keeps its entry with an Error (SlotError) — see
+	// Regressions. See MatrixResult.
 	Matrices []MatrixResult `json:"matrices,omitempty"`
 
 	// Warnings carries the run's coded run-time diagnostics: label

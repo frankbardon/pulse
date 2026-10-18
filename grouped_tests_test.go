@@ -192,7 +192,7 @@ func TestGroupedTests_EqualFilteredSingleGroupRuns(t *testing.T) {
 					for i, g := range groups {
 						single.Filterers = append(single.Filterers, gtKeyFilter(g, r.GroupKey[i]))
 					}
-					sresp, serr := f.p.Process(context.Background(), single)
+					sresp, serr := processOrSlotErr(context.Background(), f.p, single)
 					if serr != nil {
 						var coded *perr.CodedError
 						if !perrAs(serr, &coded) {

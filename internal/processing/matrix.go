@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/slotfail"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/linalg"
@@ -365,6 +366,23 @@ func (m *matrixSlot) result() (types.MatrixResult, *types.MatrixComponents, erro
 	return res, c, nil
 }
 
+// slotResult is result with the per-slot rule applied: a
+// data-dependent refusal (slotfail.MatrixCodes — a singular or non-PSD
+// matrix, too few rows, …) fails this slot alone, as a result carrying
+// the error (its Name and Type, no matrix) and no Components entry; any
+// other error is returned and fails the run.
+func (m *matrixSlot) slotResult() (types.MatrixResult, *types.MatrixComponents, error) {
+	res, c, err := m.result()
+	if err == nil {
+		return res, c, nil
+	}
+	se, ok := slotfail.From(slotfail.KindMatrices, err)
+	if !ok {
+		return types.MatrixResult{}, nil, err
+	}
+	return types.MatrixResult{Name: m.plan.Name, Type: m.plan.Type, Error: se}, nil, nil
+}
+
 // merged is the state the slot emits from: the bound fit's co-moment
 // (a fresh copy per call, so no finalizer can disturb the binding) or
 // the fixed merge tree over the folded blocks.
@@ -691,7 +709,7 @@ func finalizeMatrixSlots(slots []*matrixSlot) ([]types.MatrixResult, []types.Mat
 	var out []types.MatrixResult
 	var comps []types.MatrixComponents
 	for _, s := range slots {
-		res, c, err := s.result()
+		res, c, err := s.slotResult()
 		if err != nil {
 			return nil, nil, err
 		}

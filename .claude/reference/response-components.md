@@ -20,6 +20,7 @@ Load it before changing `CrosstabSpec.MarginAggregations` (the auxiliary margin-
 7. Per-group aggregation components (`aggregations[*].groups`)
 8. Attribute components (`Components.Attributes`, U27 E2-S4)
 9. Run-time warnings in the envelope and the stream (U44 E2-S5)
+10. Per-slot failures (`types.SlotError`, `PULSE_SLOT_FAILED`, U49 E1-S2)
 
 **Skill homes (U10 split).** The LLM-facing prose for this surface lives in these skills: `skills/response-components.md` (floor, five sub-blocks, opt-out, manifest declaration, mergeability classes), `skills/crosstab-margin-aggregations.md` (the auxiliary figures, the admission rule, `present`, the display gate), `skills/crosstab-measures.md` (multi-measure crosstabs) and `skills/streaming-and-watching.md` (per-chunk Components by mergeability class). Contributor-only detail that used to sit in those skills is in section 4 below and in `.claude/reference/execution-modes.md` (parallel reducers, the Welford overlay parity reads).
 
@@ -28,5 +29,5 @@ Load it before changing `CrosstabSpec.MarginAggregations` (the auxiliary margin-
 | Slice | Sections and bold leads, in file order |
 |---|---|
 | `response-components/margins-and-opt-out.md` | Auxiliary crosstab margin aggregations; Multi-measure crosstabs; Opt-out and the Compose surface; Opt-out; Compute plan (U18); Compose surface (v1.1); Compose envelope (relocated from CLAUDE.md "Output Format Contract" at U18 E1-S1); Sweep (U40); Banner (U47 #326); Fits (U42; vector fits U30 E2-S2) |
-| `response-components/notes-and-undefined.md` | Implementation notes displaced from the skill pack; Undefined figures on the wire; One rule for every JSON payload: a non-finite float (NaN, +Inf, -Inf) is written as JSO…; Under `Return.precision`; Run-time warnings in the envelope and the stream; Promotion (U44 E2-S5); Streams |
+| `response-components/notes-and-undefined.md` | Implementation notes displaced from the skill pack; Undefined figures on the wire; One rule for every JSON payload: a non-finite float (NaN, +Inf, -Inf) is written as JSO…; Under `Return.precision`; Run-time warnings in the envelope and the stream; Promotion (U44 E2-S5); Streams; Per-slot failures |
 | `response-components/matrix-group-attribute.md` | Matrix components; Per-group aggregation components; Attribute components |

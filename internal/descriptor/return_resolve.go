@@ -45,8 +45,8 @@ import (
 // A preset is an INCLUDE allowlist: "X minus Y" is spelled as X's
 // remaining keys, never as an exclude, so a caller's include on top of a
 // preset can always add Y back (an exclude would win over it). Nested
-// `*.warnings` need no entry — they are KEEP paths, emitted wherever
-// their parent object is.
+// `*.warnings` and a failed slot's `*.error` need no entry — they are
+// KEEP paths, emitted wherever their parent object is.
 var returnPresetPaths = map[types.ReturnPreset][]string{
 	types.ReturnPresetFull: nil,
 	// standard: the primary result of every slot plus the figures most
@@ -133,6 +133,12 @@ func ReturnPresetsFor(inst *InstanceSnapshot) []descriptor.ReturnPresetMeta {
 
 // returnWarningsKey is the JSON key retained unless explicitly excluded.
 const returnWarningsKey = "warnings"
+
+// returnErrorKey is a failed slot's `error` (types.SlotError on a
+// regression, test or matrix result): kept wherever its parent object is
+// emitted, like a nested `warnings`, so no preset or include list can
+// shape a failed slot into an empty object.
+const returnErrorKey = "error"
 
 // returnRoot is the Go type a Request's `return` paths root at.
 var returnRoot = reflect.TypeFor[types.Response]()
@@ -582,9 +588,10 @@ func resolveReturnPath(root reflect.Type, p *returnplan.Path, inst *InstanceSnap
 	return nil
 }
 
-// returnWarningPaths lists every visible `warnings` slot reachable from
-// root through fixed object keys and arrays (never through a map or an
-// open value), in canonical order.
+// returnWarningPaths lists every visible `warnings` slot — and every
+// nested failed-slot `error` — reachable from root through fixed object
+// keys and arrays (never through a map or an open value), in canonical
+// order: the KEEP paths.
 func returnWarningPaths(root reflect.Type, inst *InstanceSnapshot) []returnplan.Path {
 	var out []returnplan.Path
 	onStack := map[reflect.Type]bool{}
@@ -610,7 +617,7 @@ func returnWarningPaths(root reflect.Type, inst *InstanceSnapshot) []returnplan.
 		defer delete(onStack, t)
 		for _, f := range returnStructFields(t, inst) {
 			path := append(append([]returnplan.Segment(nil), prefix...), returnplan.Key(f.name))
-			if f.name == returnWarningsKey {
+			if f.name == returnWarningsKey || (f.name == returnErrorKey && len(prefix) > 0) {
 				out = append(out, returnplan.Path{Segments: path})
 				continue
 			}

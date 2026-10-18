@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/processing/regression"
+	"github.com/frankbardon/pulse/internal/slotfail"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -21,7 +22,7 @@ func applyRegressionLowNEff(resp *types.Response, specs []*types.RegressionSpec,
 		return nil
 	}
 	for i, res := range results {
-		if res == nil || res.NEff == 0 || i >= len(specs) || specs[i] == nil {
+		if res == nil || res.Error != nil || res.NEff == 0 || i >= len(specs) || specs[i] == nil {
 			continue
 		}
 		spec := specs[i]
@@ -57,4 +58,28 @@ func applyRegressionLowNEff(resp *types.Response, specs []*types.RegressionSpec,
 		})
 	}
 	return nil
+}
+
+// regressionSlotResults pairs each regression spec's fit with its fit
+// error (index-aligned with specs): a data-dependent refusal
+// (slotfail.RegressionCodes) becomes that slot's result carrying the
+// error — its Name and Type, no figure — so the other slots survive;
+// any other error is returned and fails the run. Shared by the buffered
+// and streaming paths so the two can never disagree on a failed slot.
+func regressionSlotResults(specs []*types.RegressionSpec, fits []*types.RegressionResult, fitErrs []error) ([]*types.RegressionResult, error) {
+	out := make([]*types.RegressionResult, len(fits))
+	for i, res := range fits {
+		if i < len(fitErrs) && fitErrs[i] != nil {
+			se, ok := slotfail.From(slotfail.KindRegressions, fitErrs[i])
+			if !ok {
+				return nil, fitErrs[i]
+			}
+			res = &types.RegressionResult{Error: se}
+			if i < len(specs) && specs[i] != nil {
+				res.Name, res.Type = specs[i].Name, specs[i].Type
+			}
+		}
+		out[i] = res
+	}
+	return out, nil
 }

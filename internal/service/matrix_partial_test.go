@@ -174,7 +174,7 @@ func TestMatrixPartialCorrelation_NotPSDGuard(t *testing.T) {
 	}
 	cohort := &types.Cohort{Filename: filepath.Join(dir, "nonpsd_pairwise.pulse")}
 
-	_, err := New(cfg).Process(context.Background(), &types.Request{Cohort: cohort,
+	_, err := processOrSlotErr(context.Background(), New(cfg), &types.Request{Cohort: cohort,
 		Matrices: []types.MatrixSpec{partialSpec("pc", fields, map[string]any{"missing": "pairwise"}, "")}})
 	var ce *errors.CodedError
 	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_MATRIX_NOT_PSD {
@@ -270,7 +270,7 @@ func TestMatrixPartialCorrelation_Singular(t *testing.T) {
 	}
 	cfg := writeMatrixCohort(t, "s.pulse", rows)
 	for _, params := range []map[string]any{{}, {"control": []string{"x3"}}} {
-		_, err := New(cfg).Process(context.Background(), &types.Request{Cohort: &types.Cohort{Filename: "s.pulse"},
+		_, err := processOrSlotErr(context.Background(), New(cfg), &types.Request{Cohort: &types.Cohort{Filename: "s.pulse"},
 			Matrices: []types.MatrixSpec{partialSpec("m", x123, params, "")}})
 		var ce *errors.CodedError
 		if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_MATRIX_SINGULAR {

@@ -797,7 +797,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 188,
+    "error_codes_count": 189,
     "error_domains": [
       "CLI",
       "DATA",
@@ -931,6 +931,7 @@
       "PULSE_SHARD_HEADER_INVALID",
       "PULSE_SHARD_MISSING",
       "PULSE_SHARD_RESERVED_NAME",
+      "PULSE_SLOT_FAILED",
       "PULSE_SPSS_CARDINALITY_HIGH",
       "PULSE_SPSS_CATEGORICAL_OVERFLOW",
       "PULSE_SPSS_CATEGORICAL_USER_MISSING",
@@ -2378,4 +2379,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3f7d59186451bd0c9869bae98207e9de53e843b0ea39e07a11c66f5f6a2f8c18
+// golden-hash: 48ccbc4ba5cb2ff56cd70af39a211c5e945a4b4e42c582ab4badc98aeec50ca5

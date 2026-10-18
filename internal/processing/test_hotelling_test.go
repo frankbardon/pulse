@@ -17,6 +17,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/slotfail"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -359,10 +360,25 @@ func hotellingReq(mod func(*types.Test)) func() *types.Request {
 	}
 }
 
+// processErr is the run's error — or, when the run succeeded, the
+// first failed slot's refusal (a data-dependent refusal fails its slot
+// alone, per-slot partial success).
 func processErr(t *testing.T, schema *encoding.Schema, recs []*Record, req *types.Request) error {
 	t.Helper()
-	_, err := NewProcessor(schema).Process(context.Background(), req, NewSliceIterator(recs))
-	return err
+	resp, err := NewProcessor(schema).Process(context.Background(), req, NewSliceIterator(recs))
+	if err != nil {
+		return err
+	}
+	return firstSlotError(req, resp)
+}
+
+// firstSlotError is resp's first failed slot as its coded error, nil
+// when no slot failed.
+func firstSlotError(req *types.Request, resp *types.Response) error {
+	if fails := slotfail.Collect(req, resp); len(fails) > 0 {
+		return slotfail.AsError(fails[0].Err)
+	}
+	return nil
 }
 
 func hotCode(err error) errors.Code {

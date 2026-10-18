@@ -203,6 +203,15 @@ Each attribute references a sibling regression spec by `regression_name`. See `s
 
 Look up full prose via `pulse_errors_lookup` or `pulse errors lookup CODE`.
 
+A fit that fails on its data — `RANK_DEFICIENT`, `SEPARATION`,
+`NO_CONVERGE`, `SINGULAR_GRAM`, `INSUFFICIENT_DATA` — fails its slot
+alone: `regressions[i]` keeps `name` / `type` and carries `error`
+`{code, message, details}`, the other slots of the response survive,
+and a `PULSE_SLOT_FAILED` warning names it. Under `Options.Strict` the
+run fails with the fit's own code instead. The configuration codes
+(`INVALID_FAMILY`, `INVALID_LINK`, `PROCESSING_CONFIG`) stay fatal.
+See [Payload JSON Schema](contract/payload-schema.md) (Failed slots).
+
 | Code                                          | Meaning (one-liner)                                                           |
 |-----------------------------------------------|-------------------------------------------------------------------------------|
 | `PROCESSING_REGRESSION_NOT_IMPLEMENTED`       | Reserved as of Phase 8; no engine returns this today.                         |

@@ -90,10 +90,8 @@ Per model (atomic skill): Student-t p for unpenalized / `l2` OLS, plug-in SE ove
 ## Gotchas
 
 - `n_obs` < record count when nulls drop rows.
-- `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`: collinear columns (the GLM names them) — drop one, or regularize.
-- `PROCESSING_REGRESSION_SEPARATION` (binomial GLM): a predictor separates the outcome, not collinearity — drop or merge it.
-- `PROCESSING_REGRESSION_NO_CONVERGE`: raise `MaxIters` / `Tol`, or reduce `Alpha`.
-- Knobs belong to their engine: a penalty on the GLM, or `Penalty` / `Family` / `Link` on the Bayesian fit, is rejected (`PROCESSING_CONFIG`).
+- A fit failing on data fails ALONE: `{name, type, error}` + `PULSE_SLOT_FAILED` ([`cohort-null-states`](cohort-null-states.md)). Codes: `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM` (collinear; GLM names them) — drop one or regularize; `_SEPARATION` (binomial GLM: a predictor splits the outcome) — drop or merge it; `_NO_CONVERGE` — raise `MaxIters` / `Tol` or cut `Alpha`.
+- Knobs belong to their engine: a GLM penalty, or `Penalty` / `Family` / `Link` on the Bayesian fit, is `PROCESSING_CONFIG`.
 
 ## See
 

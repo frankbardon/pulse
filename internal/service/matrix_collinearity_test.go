@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/slotfail"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -218,7 +220,7 @@ func TestMatrixCollinearity_SingularRefused(t *testing.T) {
 		rows[i] = [5]float64{a, b, a + b, 1, 1}
 	}
 	cfg := writeMatrixCohort(t, "sing.pulse", rows)
-	_, err := New(cfg).Process(t.Context(), &types.Request{
+	_, err := processOrSlotErr(t.Context(), New(cfg), &types.Request{
 		Cohort:   &types.Cohort{Filename: "sing.pulse"},
 		Matrices: []types.MatrixSpec{{Name: "coll", Type: types.MAT_COLLINEARITY, Fields: []string{"x1", "x2", "x3"}}},
 	})
@@ -282,7 +284,7 @@ func TestMatrixCollinearity_NotPSDGuard(t *testing.T) {
 			Matrices: []types.MatrixSpec{{Name: "coll", Type: types.MAT_COLLINEARITY, Fields: []string{"x", "y", "z"}, Params: json.RawMessage(params)}},
 		}
 	}
-	_, err := New(cfg).Process(t.Context(), req(`{"missing": "pairwise"}`))
+	_, err := processOrSlotErr(t.Context(), New(cfg), req(`{"missing": "pairwise"}`))
 	var ce *errors.CodedError
 	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_MATRIX_NOT_PSD {
 		t.Fatalf("unrepaired: error %v, want PULSE_MATRIX_NOT_PSD", err)
@@ -333,4 +335,19 @@ func TestMatrixCollinearity_Refusals(t *testing.T) {
 			t.Errorf("%s: error %v, want %s", params, err, want)
 		}
 	}
+}
+
+// processOrSlotErr runs req and returns the run's error — or, when the
+// run succeeded, its first failed slot's refusal as the coded error it
+// was raised as (a data-dependent refusal fails its slot alone, the
+// response carrying it as a SlotError: per-slot partial success).
+func processOrSlotErr(ctx context.Context, s *Service, req *types.Request) (*types.Response, error) {
+	resp, err := s.Process(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if fails := slotfail.Collect(req, resp); len(fails) > 0 {
+		return resp, slotfail.AsError(fails[0].Err)
+	}
+	return resp, nil
 }

@@ -46,7 +46,7 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 - Weighted: `resample` / `selection` → `PULSE_WEIGHT_UNSUPPORTED`; n_eff < p+1 → `PULSE_WEIGHT_LOW_NEFF`.
 - `penalty` / `alpha` / `l1_ratio` rejected → `PROCESSING_CONFIG`. Regularized GLM is a later phase.
-- Binomial separation (a predictor splits the outcome, e.g. an empty 2×2 cell) → `PROCESSING_REGRESSION_SEPARATION`, `details.predictors` named, no coefficients (the MLE is infinite). Drop or merge it; check it is not recorded after the outcome. A strong but unseparated predictor converges.
+- Binomial separation (a predictor splits the outcome, e.g. an empty 2×2 cell) → `PROCESSING_REGRESSION_SEPARATION`, `details.predictors` named, no coefficients (the MLE is infinite); the slot fails alone (`error`), the rest of the response survives. Drop or merge it; check it is not recorded after the outcome. A strong but unseparated predictor converges.
 - Other non-convergence → `PROCESSING_REGRESSION_NO_CONVERGE` (`details.reason`): raise `max_iters`, rescale.
 - Unsupported link → `PROCESSING_REGRESSION_INVALID_LINK`.
 - Dispersion fixed at 1 for binomial / poisson, and gamma (weighted too) inherits it — be sceptical of gamma SEs and overdispersed counts; `covariance` `hc0`–`hc3` is dispersion-free.

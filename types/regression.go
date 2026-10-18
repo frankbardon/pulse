@@ -262,8 +262,8 @@ func (m *RegressionMultiplicity) Block() *Multiplicity {
 
 // RegressionResult is the per-spec outcome embedded in
 // Response.Regressions. Fields irrelevant to a given operator carry
-// their zero value; engines never partially populate a result on
-// failure.
+// their zero value; engines never partially populate a result: a fit
+// that fails on its data carries Name / Type and Error only.
 //
 // Locked at Phase 0: every field of every operator family is declared
 // now. Later phases populate the engine-specific branches but never
@@ -436,6 +436,13 @@ type RegressionResult struct {
 	// coefficients: method, family, alpha, the family size m and the
 	// excluded (undefined-p) member count. Absent when none ran.
 	Multiplicity *AppliedMultiplicity `json:"multiplicity,omitempty"`
+
+	// Error is the data-dependent refusal that failed this fit alone
+	// (PROCESSING_REGRESSION_SEPARATION, _NO_CONVERGE, _RANK_DEFICIENT,
+	// _INSUFFICIENT_DATA) while the rest of the response survived; see
+	// SlotError. A result carrying one has Name / Type and the error
+	// only: every coefficient and figure is absent on the wire.
+	Error *SlotError `json:"error,omitempty"`
 }
 
 // Streamable reports whether a regression type can run via the

@@ -149,7 +149,7 @@ func TestGroupedMultivariateTests_EqualFilteredRunsAndDegenerateGroupsDoNotAbort
 					for i, g := range groups {
 						single.Filterers = append(single.Filterers, gtKeyFilter(g, r.GroupKey[i]))
 					}
-					sresp, serr := p.Process(ctx, single)
+					sresp, serr := processOrSlotErr(ctx, p, single)
 					if serr != nil {
 						var coded *perr.CodedError
 						if !perrAs(serr, &coded) {
@@ -260,7 +260,7 @@ func TestGroupedTests_MatrixRefusalIsSparseGroup(t *testing.T) {
 		single := &types.Request{Cohort: &types.Cohort{Filename: cohort}, Tests: req.Tests,
 			Filterers: []*types.Filterer{gtKeyFilter(req.Groups[0], r.GroupKey[0])}}
 		var coded *perr.CodedError
-		if _, serr := p.Process(ctx, single); !perrAs(serr, &coded) || coded.Code != code {
+		if _, serr := processOrSlotErr(ctx, p, single); !perrAs(serr, &coded) || coded.Code != code {
 			t.Fatalf("group %s filtered run: %v, want %s", key, serr, code)
 		}
 	}

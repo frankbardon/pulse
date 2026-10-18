@@ -639,6 +639,10 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_LIMIT_INVALID:         shared,
 	errors.PULSE_LIMIT_EXCEEDED:        shared,
 
+	// Per-slot partial success: only a regression, test (tier-1 or
+	// post) or matrix slot can fail alone.
+	errors.PULSE_SLOT_FAILED: plus(ownAllRegs, ownAllTests, ownAllMats),
+
 	// The reference export (Pulse.ExportReference, `pulse docs
 	// export`) is an ungated core surface every instance offers.
 	errors.PULSE_DOCS_EXPORT_DIR_NOT_EMPTY: shared,

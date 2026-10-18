@@ -267,7 +267,10 @@ func TestReturnSkipsTests_ErrorRule(t *testing.T) {
 				c.mut(r)
 				return r
 			}
-			_, err := svc.Process(context.Background(), build(nil))
+			// Kept, the refusal is raised: fatal for the config fault (a
+			// non-numeric test field), the slot's own error for the
+			// data-dependent one (per-slot partial success).
+			_, err := processOrSlotErr(context.Background(), svc, build(nil))
 			var ce *errors.CodedError
 			if !stderrors.As(err, &ce) || ce.Code != c.code {
 				t.Fatalf("kept: err %v; want %s", err, c.code)

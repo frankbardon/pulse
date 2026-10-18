@@ -2633,6 +2633,7 @@ pulse/errors: const PULSE_SHARD_NAME_COLLISION pulse/errors.Code = "PULSE_SHARD_
 pulse/errors: const PULSE_SHARD_RESERVED_NAME pulse/errors.Code = "PULSE_SHARD_RESERVED_NAME"
 pulse/errors: const PULSE_SHARD_SCHEMA_MISMATCH pulse/errors.Code = "PULSE_SHARD_SCHEMA_MISMATCH"
 pulse/errors: const PULSE_SHARD_SET_WIDENED pulse/errors.Code = "PULSE_SHARD_SET_WIDENED"
+pulse/errors: const PULSE_SLOT_FAILED pulse/errors.Code = "PULSE_SLOT_FAILED"
 pulse/errors: const PULSE_SPSS_CARDINALITY_HIGH pulse/errors.Code = "PULSE_SPSS_CARDINALITY_HIGH"
 pulse/errors: const PULSE_SPSS_CATEGORICAL_OVERFLOW pulse/errors.Code = "PULSE_SPSS_CATEGORICAL_OVERFLOW"
 pulse/errors: const PULSE_SPSS_CATEGORICAL_USER_MISSING pulse/errors.Code = "PULSE_SPSS_CATEGORICAL_USER_MISSING"
@@ -4772,6 +4773,7 @@ pulse/types: type FitResult field RegressionResult.CredibleIntervals map[string]
 pulse/types: type FitResult field RegressionResult.Criterion string "json:\"criterion,omitempty\""
 pulse/types: type FitResult field RegressionResult.DF float64 "json:\"df,omitempty\""
 pulse/types: type FitResult field RegressionResult.Deviance float64 "json:\"deviance,omitempty\""
+pulse/types: type FitResult field RegressionResult.Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type FitResult field RegressionResult.Family string "json:\"family,omitempty\""
 pulse/types: type FitResult field RegressionResult.L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type FitResult field RegressionResult.Link string "json:\"link,omitempty\""
@@ -4954,6 +4956,7 @@ pulse/types: type MatrixPayload field RowMargins []pulse/types.MatrixCell "json:
 pulse/types: type MatrixPayload method (MatrixPayload) MarshalJSON() ([]byte, error)
 pulse/types: type MatrixResult struct
 pulse/types: type MatrixResult field Auxiliary map[string]*pulse/types.MatrixValues "json:\"auxiliary,omitempty\""
+pulse/types: type MatrixResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type MatrixResult field GroupHeader *pulse/types.AxisHeader "json:\"group_header,omitempty\""
 pulse/types: type MatrixResult field GroupKey pulse/types.AxisKey "json:\"group_key,omitempty\""
 pulse/types: type MatrixResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
@@ -5282,6 +5285,7 @@ pulse/types: type RegressionResult field CredibleIntervals map[string][2]float64
 pulse/types: type RegressionResult field Criterion string "json:\"criterion,omitempty\""
 pulse/types: type RegressionResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type RegressionResult field Deviance float64 "json:\"deviance,omitempty\""
+pulse/types: type RegressionResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type RegressionResult field Family string "json:\"family,omitempty\""
 pulse/types: type RegressionResult field L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type RegressionResult field Link string "json:\"link,omitempty\""
@@ -5426,6 +5430,10 @@ pulse/types: type SeriesEntry field Key pulse/types.AxisKey "json:\"key\""
 pulse/types: type SeriesEntry field Summary pulse/types.OverlaySummary "json:\"summary\""
 pulse/types: type SeriesPayload struct
 pulse/types: type SeriesPayload field Entries []pulse/types.SeriesEntry "json:\"entries\""
+pulse/types: type SlotError struct
+pulse/types: type SlotError field Code string "json:\"code\""
+pulse/types: type SlotError field Details map[string]any "json:\"details,omitempty\""
+pulse/types: type SlotError field Message string "json:\"message\""
 pulse/types: type SlotWeight struct
 pulse/types: type SlotWeight method (*SlotWeight) UnmarshalJSON(b []byte) error
 pulse/types: type SlotWeight method (SlotWeight) IsNull() bool
@@ -5506,6 +5514,7 @@ pulse/types: type TestResult struct
 pulse/types: type TestResult field Alpha float64 "json:\"alpha\""
 pulse/types: type TestResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type TestResult field Details map[string]any "json:\"details,omitempty\""
+pulse/types: type TestResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type TestResult field GroupKey pulse/types.AxisKey "json:\"group_key,omitempty\""
 pulse/types: type TestResult field Label string "json:\"label,omitempty\""
 pulse/types: type TestResult field Multiplicity *pulse/types.AppliedMultiplicity "json:\"multiplicity,omitempty\""
@@ -5586,4 +5595,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: a439f4bd552808a8ec6969af19caaa93ef907c33acb58a023d3bddb4badeb2ff
+// golden-hash: 2b9ee6c41eed1988860b94fced35fd98a1a39b4674ec35f8ebbd5a35d807c3f7

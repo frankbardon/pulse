@@ -44,6 +44,12 @@ func (s *Service) saveRegressionModels(ctx context.Context, req *types.Request, 
 			return model.WriteFailed(spec.Save, spec.Name, "result", fmt.Errorf("regression %d produced no result", i))
 		}
 		res := resp.Regressions[i]
+		if res.Error != nil {
+			// A fit that failed on its data has no model to write: no
+			// file, and its PULSE_SLOT_FAILED warning names the slot
+			// (under Strict the run already failed).
+			continue
+		}
 		// The regression's name; an unnamed one is named after its
 		// file ("models/mmm.pulse-model.json" → "mmm").
 		name := spec.Name

@@ -1214,6 +1214,51 @@ every document the schema accepted before it still accepts, and output
 that serialised before is byte-identical — the only outputs that
 change are ones that previously failed to serialise at all.
 
+## Failed slots
+
+A regression, test (tier-1 or post) or matrix slot whose data its
+operator refuses — a separated or unconverged fit, a rank-deficient
+design, too few rows, zero variance, a singular matrix — fails **that
+slot alone**; every other slot of the response is returned as usual.
+The failed result keeps its object (never `null` in the array: a
+`null` entry still means the slot was skipped by `return`) with its
+identity and an `error` — a `SlotError` `{code, message, details}`,
+the refusal's own code, message and details, the shape of an envelope
+error entry:
+
+```json
+{"regressions": [
+  {"name": "default", "type": "REG_GLM",
+   "error": {"code": "PROCESSING_REGRESSION_SEPARATION",
+             "message": "…", "details": {"predictors": ["collections_flag"]}}},
+  {"name": "ols", "type": "REG_OLS", "coefficients": {"…": 0.5}}
+]}
+```
+
+Every numeric field of a failed result is **absent** (not `null`): a
+`RegressionResult` writes `name`, `type` and `error`; a `TestResult`
+`label`, `type`, `group_key` and `error`; a `MatrixResult` `name`,
+`type`, `group_key`, `group_header` and `error`. The schema says so:
+on `TestResult`, `RegressionResult` and `MatrixResult` the identity
+keys (`name` / `type`) stay required and the figures that are always
+written otherwise (`statistic`, `p_value`, `alpha`, `reject_null`;
+`primary`) are required only when `error` is absent (`if` / `then`).
+
+Each failed slot also adds a `PULSE_SLOT_FAILED` response warning,
+details `{slot_kind, index, label, code}` (`slot_kind` the response
+key, `index` the request slot index, `code` the slot's own code;
+`group_key` for one bucket of a grouped matrix), which the `--json`
+envelope lifts to its `warnings`; the run exits 0. Under
+`Options.Strict` (`--strict`) the run instead fails with the slot's
+own code. Only data-dependent refusals fail alone: a configuration
+fault is still fatal for the whole request. A failed slot's `error` is
+kept by every `return` preset and include list (like a nested
+`warnings`); only an explicit exclude removes it. A Compose `fits`
+entry whose fit fails still fails the batch with the fit's own code.
+
+Additive: a response with no failed slot is byte-identical, and
+`format_version` stays `"1.1"`.
+
 ## Whether a crosstab fuses is a predict answer
 
 The schema cannot tell you which arm the engine will build a crosstab

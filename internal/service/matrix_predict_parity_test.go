@@ -99,7 +99,7 @@ func TestMatrixPredict_MatchesRuntime(t *testing.T) {
 						t.Fatalf("%s: predict reports %d matrices, want 1", label, len(pr.Matrices))
 					}
 					mp := pr.Matrices[0]
-					resp, err := New(cfg).Process(context.Background(), req)
+					resp, err := processOrSlotErr(context.Background(), New(cfg), req)
 					if err != nil {
 						// A decomposition of a singular input (perfectly
 						// collinear members on these small fixtures)

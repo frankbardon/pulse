@@ -1083,6 +1083,9 @@
             "null"
           ]
         },
+        "error": {
+          "$ref": "#/$defs/SlotError"
+        },
         "family": {
           "type": "string"
         },
@@ -1655,6 +1658,26 @@
       ],
       "type": "object"
     },
+    "SlotError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
     "Test": {
       "additionalProperties": false,
       "properties": {
@@ -1729,6 +1752,13 @@
     },
     "TestResult": {
       "additionalProperties": false,
+      "if": {
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      },
       "properties": {
         "alpha": {
           "type": [
@@ -1745,6 +1775,9 @@
             "number",
             "null"
           ]
+        },
+        "error": {
+          "$ref": "#/$defs/SlotError"
         },
         "group_key": {
           "items": true,
@@ -1788,12 +1821,16 @@
         }
       },
       "required": [
-        "alpha",
-        "p_value",
-        "reject_null",
-        "statistic",
         "type"
       ],
+      "then": {
+        "required": [
+          "alpha",
+          "p_value",
+          "reject_null",
+          "statistic"
+        ]
+      },
       "type": "object"
     },
     "TestType": {
@@ -1867,4 +1904,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 857f2b9e0c24ef35a8da83490cbb1c9cca44a684327e31442daf810b76887c6e
+// golden-hash: 2dfd10baa319b42af15fec4ac70506f77c07242764e0360c3fda5b28eba3227f

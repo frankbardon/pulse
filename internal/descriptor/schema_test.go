@@ -437,3 +437,47 @@ func TestPayloadSchema_OverlayParts(t *testing.T) {
 		}
 	}
 }
+
+// TestPayloadSchema_FailedSlotsValidate: a response whose regression,
+// test and matrix slots failed alone — each {identity, error}, no
+// statistic, coefficient or primary — validates against the payload
+// schema, while a result missing those keys WITHOUT an error is still
+// refused (the figures stay required on a slot that did not fail).
+func TestPayloadSchema_FailedSlotsValidate(t *testing.T) {
+	c := jsonschema.NewCompiler()
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(BuildPayloadSchema()))
+	if err != nil {
+		t.Fatalf("unmarshal schema: %v", err)
+	}
+	if err := c.AddResource(payloadSchemaID, doc); err != nil {
+		t.Fatalf("add resource: %v", err)
+	}
+	se := &types.SlotError{Code: "PULSE_MATRIX_SINGULAR", Message: "singular", Details: map[string]any{"rank": 2}}
+	resp := types.Response{
+		Data:        []map[string]any{{"n": 40}},
+		Tests:       []*types.TestResult{{Label: "t", Type: types.TEST_T, Error: se}},
+		PostTests:   []*types.TestResult{{Type: types.TEST_TUKEY_HSD, Error: se}},
+		Regressions: []*types.RegressionResult{{Name: "r", Type: types.REG_GLM, Error: se}},
+		Matrices:    []types.MatrixResult{{Name: "m", Type: types.MAT_PCA, GroupKey: types.AxisKey{"a"}, Error: se}},
+		Warnings:    []*types.ResponseWarning{{Code: "PULSE_SLOT_FAILED", Message: "m", Details: map[string]any{"slot_kind": "matrices"}}},
+	}
+	validateAgainst(t, c, "#/$defs/Response", resp)
+	validateAgainst(t, c, "#/$defs/Envelope", descriptor.NewEnvelope(resp))
+
+	for def, body := range map[string]string{
+		"TestResult":   `{"type":"TEST_T"}`,
+		"MatrixResult": `{"name":"m","type":"MAT_PCA"}`,
+	} {
+		sch, err := c.Compile(payloadSchemaID + "#/$defs/" + def)
+		if err != nil {
+			t.Fatal(err)
+		}
+		inst, err := jsonschema.UnmarshalJSON(strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if sch.Validate(inst) == nil {
+			t.Errorf("%s %s accepted without its figures or an error", def, body)
+		}
+	}
+}

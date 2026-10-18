@@ -793,18 +793,20 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 		return nil, err
 	}
 
-	// Finalize streaming regression fits. Each engine's Finalize() may
-	// return PROCESSING_REGRESSION_INSUFFICIENT_DATA / _RANK_DEFICIENT;
-	// either short-circuits the Process call, matching the buffered path.
+	// Finalize streaming regression fits. An engine's Finalize() may
+	// return PROCESSING_REGRESSION_INSUFFICIENT_DATA / _RANK_DEFICIENT:
+	// that data-dependent refusal fails its slot alone (a result
+	// carrying the error), any other error fails the run — the buffered
+	// path's rule (regressionSlotResults).
 	var regressionResults []*types.RegressionResult
 	if len(regressionEngines) > 0 {
-		regressionResults = make([]*types.RegressionResult, 0, len(regressionEngines))
-		for _, re := range regressionEngines {
-			res, err := re.Finalize()
-			if err != nil {
-				return nil, err
-			}
-			regressionResults = append(regressionResults, res)
+		fits := make([]*types.RegressionResult, len(regressionEngines))
+		fitErrs := make([]error, len(regressionEngines))
+		for i, re := range regressionEngines {
+			fits[i], fitErrs[i] = re.Finalize()
+		}
+		if regressionResults, err = regressionSlotResults(req.Regressions, fits, fitErrs); err != nil {
+			return nil, err
 		}
 	}
 
@@ -1828,7 +1830,11 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	var regressionResults []*types.RegressionResult
 	if p.compute.Regressions && len(req.Regressions) > 0 {
 		workRegressionFits.Add(int64(len(req.Regressions)))
-		if regressionResults, err = regression.FitBufferedWith(req.Regressions, p.schema, recordsAsRegressionRecords(filtered), p.exts.LookupRegression); err != nil {
+		fits, fitErrs, err := regression.FitEachBufferedWith(req.Regressions, p.schema, recordsAsRegressionRecords(filtered), p.exts.LookupRegression)
+		if err != nil {
+			return nil, err
+		}
+		if regressionResults, err = regressionSlotResults(req.Regressions, fits, fitErrs); err != nil {
 			return nil, err
 		}
 	}

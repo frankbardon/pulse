@@ -176,34 +176,47 @@ func FitBuffered(specs []*types.RegressionSpec, schema *encoding.Schema, records
 	return FitBufferedWith(specs, schema, records, nil)
 }
 
-// FitBufferedWith is FitBuffered resolving each type through resolve.
+// FitBufferedWith is FitBuffered resolving each type through resolve:
+// the first per-spec fit error short-circuits and propagates.
 func FitBufferedWith(specs []*types.RegressionSpec, schema *encoding.Schema, records []Record, resolve Resolver) ([]*types.RegressionResult, error) {
-	engines, err := BuildWith(specs, schema, resolve)
+	out, errs, err := FitEachBufferedWith(specs, schema, records, resolve)
 	if err != nil {
 		return nil, err
 	}
-	if len(engines) == 0 {
-		return nil, nil
+	for _, e := range errs {
+		if e != nil {
+			return nil, e
+		}
 	}
-	out := make([]*types.RegressionResult, 0, len(engines))
-	for _, eng := range engines {
+	return out, nil
+}
+
+// FitEachBufferedWith builds every engine (a Build error — a
+// configuration fault — is returned as err) and then fits EACH one,
+// never stopping at a failed fit: results and fitErrs are index-aligned
+// with specs, a failed spec holding a nil result and its error. The
+// processor turns a data-dependent fit error into that slot's
+// per-slot failure (internal/slotfail) and returns any other as fatal.
+func FitEachBufferedWith(specs []*types.RegressionSpec, schema *encoding.Schema, records []Record, resolve Resolver) (results []*types.RegressionResult, fitErrs []error, err error) {
+	engines, err := BuildWith(specs, schema, resolve)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(engines) == 0 {
+		return nil, nil, nil
+	}
+	results = make([]*types.RegressionResult, len(engines))
+	fitErrs = make([]error, len(engines))
+	for i, eng := range engines {
 		if be, ok := eng.(BufferedEngine); ok {
-			res, err := be.FitBuffered(records)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, res)
+			results[i], fitErrs[i] = be.FitBuffered(records)
 			continue
 		}
 		// Not-implemented stubs ignore the records and surface the
 		// canonical PROCESSING_REGRESSION_NOT_IMPLEMENTED via Fit.
-		res, err := eng.Fit()
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, res)
+		results[i], fitErrs[i] = eng.Fit()
 	}
-	return out, nil
+	return results, fitErrs, nil
 }
 
 // BuildStreaming constructs StreamingEngine handles for the single-pass

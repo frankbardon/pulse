@@ -2630,12 +2630,22 @@
     },
     "MatrixResult": {
       "additionalProperties": false,
+      "if": {
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      },
       "properties": {
         "auxiliary": {
           "additionalProperties": {
             "$ref": "#/$defs/MatrixValues"
           },
           "type": "object"
+        },
+        "error": {
+          "$ref": "#/$defs/SlotError"
         },
         "group_header": {
           "$ref": "#/$defs/AxisHeader"
@@ -2684,9 +2694,13 @@
       },
       "required": [
         "name",
-        "primary",
         "type"
       ],
+      "then": {
+        "required": [
+          "primary"
+        ]
+      },
       "type": "object"
     },
     "MatrixSpec": {
@@ -3817,6 +3831,9 @@
             "null"
           ]
         },
+        "error": {
+          "$ref": "#/$defs/SlotError"
+        },
         "family": {
           "type": "string"
         },
@@ -4620,6 +4637,26 @@
       ],
       "type": "object"
     },
+    "SlotError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
     "SlotWeight": {
       "description": "Per-slot row weight. Absent: inherit the request weight, then the instance default. null: opt this slot out (run unweighted). A string names the weight field (kind probability); an object is a full WeightSpec.",
       "oneOf": [
@@ -4822,6 +4859,13 @@
     },
     "TestResult": {
       "additionalProperties": false,
+      "if": {
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      },
       "properties": {
         "alpha": {
           "type": [
@@ -4838,6 +4882,9 @@
             "number",
             "null"
           ]
+        },
+        "error": {
+          "$ref": "#/$defs/SlotError"
         },
         "group_key": {
           "items": true,
@@ -4893,12 +4940,16 @@
         }
       },
       "required": [
-        "alpha",
-        "p_value",
-        "reject_null",
-        "statistic",
         "type"
       ],
+      "then": {
+        "required": [
+          "alpha",
+          "p_value",
+          "reject_null",
+          "statistic"
+        ]
+      },
       "type": "object"
     },
     "TestType": {
@@ -5216,4 +5267,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 369a743a69977edc1b1f23ca0cd704ecbb2c5caeee87036ad433a3604e810325
+// golden-hash: b67d366ecf63070c2159874a3554cd33e1ac5175c79824d49a10d799dd26fe6f

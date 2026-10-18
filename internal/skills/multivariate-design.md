@@ -88,7 +88,7 @@ Rank correlation (`spearman`, `kendall`) suits ordinal data, outliers and monoto
 - `listwise` (default): one row set for every cell; the matrix is PSD by construction. Prefer it when few rows drop; `max_drop_share` warns when many do.
 - `pairwise`: each cell uses its own rows (`auxiliary.n` has the counts). It keeps more data but the matrix can fail to be PSD.
 - Decompositions (partial correlation, PCA, factor analysis, collinearity, the omega of reliability) refuse a non-PSD pairwise input with `PULSE_MATRIX_NOT_PSD`. `params.repair: "nearest"` projects it to the nearest correlation matrix (Higham) and warns with the size of the change; a repair stopped at its cap also warns `PULSE_MATRIX_NOT_CONVERGED`. Reliability keeps alpha and nulls omega instead of refusing.
-- A singular matrix is refused as `PULSE_MATRIX_SINGULAR` with `rank`, `condition_number` and `dependent_fields`: drop or combine the named fields, do not repair.
+- A singular matrix fails its slot alone (`error` `PULSE_MATRIX_SINGULAR`: `rank`, `condition_number`, `dependent_fields`): drop or merge the named fields; never repair.
 - Pairwise inference sizes use a conservative N* (the smallest pair); `PULSE_MATRIX_PAIRWISE_N_STAR` says so on PCA and factor analysis.
 
 ## Weights

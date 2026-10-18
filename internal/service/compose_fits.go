@@ -9,6 +9,7 @@ import (
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
+	"github.com/frankbardon/pulse/internal/slotfail"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -96,6 +97,12 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 		if resp == nil || len(resp.Regressions) != 1 || resp.Regressions[0] == nil {
 			errs[i] = errors.NewCodedError(errors.PROCESSING_INTERNAL,
 				fmt.Sprintf("fit %q produced no regression result", fits[i].Name))
+			return
+		}
+		if se := resp.Regressions[0].Error; se != nil {
+			// A fit that failed on its data has no model to bind: the
+			// fit fails with its own code, as before per-slot results.
+			errs[i] = slotfail.AsError(se)
 			return
 		}
 		results[i] = resp.Regressions[0]

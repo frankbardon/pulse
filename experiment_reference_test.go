@@ -245,7 +245,7 @@ func TestReference_MissingLevelIsRuntimeRefusal(t *testing.T) {
 		if env := predictEnvelope(t, p, fs, cohort, &req); len(env.Errors) != 0 {
 			t.Errorf("predict refused %s: %+v", test, env.Errors)
 		}
-		_, err := p.Process(context.Background(), &req)
+		_, err := processOrSlotErr(context.Background(), p, &req)
 		var ce *errors.CodedError
 		if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_TEST_REFERENCE_MISSING {
 			t.Errorf("%s: runtime %v, want PULSE_TEST_REFERENCE_MISSING", test, err)

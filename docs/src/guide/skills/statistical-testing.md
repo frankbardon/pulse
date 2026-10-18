@@ -9,7 +9,7 @@ covers: [TEST, tier-1, tier-2, tests, post_tests, ANOVA, Tukey, assumption-gates
 
 # Statistical testing
 
-Two test slots; this file teaches choosing and chaining, per-test detail is in `op-test-<name>`. No `Response.Components`; results ride `Response.Tests` / `PostTests`.
+Two test slots; this file teaches choosing and chaining; per-test detail: `op-test-<name>`. No `Response.Components`; results ride `Response.Tests` / `PostTests`.
 
 ## Finding the right test
 
@@ -21,10 +21,10 @@ Two test slots; this file teaches choosing and chaining, per-test detail is in `
 
 | Slot | Stage | Consumes | Cost |
 |---|---|---|---|
-| `tests` (tier 1) | during row scan | raw records | near-zero when reusing aggregator Welford state |
+| `tests` (tier 1) | during row scan | raw records | near-zero reusing Welford state |
 | `post_tests` (tier 2) | after `windows` | materialized result rows | one pass over `Response.Data` |
 
-Same `Test` shape and `TestResult`. A post-test over a `null` cell (a group with no value) gives `null` `statistic` / `p_value`; filter the group out first.
+Same `Test` shape and `TestResult`. A post-test over a `null` cell gives `null` `statistic` / `p_value`; filter the group out first.
 
 ## Picking the tier
 
@@ -79,13 +79,13 @@ With `groups` set, every `tests[]` entry runs once per group (composite key): `R
 
 ## Streamability
 
-A tier-1 test streams when it can run on online state (mean / variance / n, or contingency counts); rank-, sort- and permutation-based tests are forced buffered, as is `TEST_MARDIA` (needs the fitted covariance first). Read manifest `tests[].streamable` or `pulse_predict`, never memory. Tier 2 is always buffered; some families exist on tier 2 only (one manifest entry per tier).
+A tier-1 test streams when it can run on online state (mean / variance / n, or contingency counts); rank-, sort- and permutation-based tests are forced buffered, as is `TEST_MARDIA` (needs the fitted covariance first). Read manifest `tests[].streamable` or `pulse_predict`. Tier 2 is always buffered; some families exist on tier 2 only (one manifest entry per tier).
 
 ## Gotchas
 
 - Tier-2 `field` names match the aggregator's projected column (`AGG_<TYPE>_<field>`).
 - Tier-2 Welch's ANOVA needs `params.n_col` + `params.variance_col`; Tukey HSD needs `params.ms_within` + `params.df_within` from a tier-1 ANOVA.
-- `PULSE_TEST_VARIANCE_ZERO`: a constant field within a split group breaks correlation and t-tests.
+- A test failing on its data (`PULSE_TEST_VARIANCE_ZERO`: a constant field) fails alone: `{label, type, error}` + `PULSE_SLOT_FAILED` ([`cohort-null-states`](cohort-null-states.md)).
 
 ## See
 

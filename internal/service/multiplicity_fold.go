@@ -139,7 +139,7 @@ func collectRequestSites(fams *multFamilies, scope string, plan *descx.Multiplic
 // explicit list keeps it as an undefined (NaN) member, excluded from m.
 func collectRegressionSites(fams *multFamilies, scope string, slots []descx.ResolvedMultiplicity, results []*types.RegressionResult) {
 	for i, r := range results {
-		if i >= len(slots) || r == nil || !slots[i].Member {
+		if i >= len(slots) || r == nil || r.Error != nil || !slots[i].Member {
 			continue
 		}
 		rm := slots[i]
@@ -188,7 +188,7 @@ func writeRegressionAdjusted(r *types.RegressionResult, echo *types.AppliedMulti
 func collectTestSites(fams *multFamilies, scope string, slots []descx.ResolvedMultiplicity, results []*types.TestResult) {
 	for k, r := range results {
 		i := groupedtests.SpecIndex(k, len(slots), len(results))
-		if i < 0 || r == nil {
+		if i < 0 || r == nil || r.Error != nil {
 			continue
 		}
 		rm := slots[i]

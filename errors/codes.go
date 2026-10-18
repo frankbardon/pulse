@@ -3609,6 +3609,18 @@ const (
 	// are knowable only at runtime. Details carry "path".
 	PULSE_RETURN_PATH_UNMATCHED Code = "PULSE_RETURN_PATH_UNMATCHED"
 
+	// PULSE_SLOT_FAILED is a WARNING: one regression, test or matrix slot
+	// failed on its data (a data-dependent runtime refusal — separation,
+	// non-convergence, a rank-deficient design, too few rows, zero
+	// variance, a singular matrix) while every other slot of the response
+	// survived. The failed result keeps its identity and carries
+	// `error` {code, message, details} — the refusal's own code. Details
+	// carry "slot_kind" (regressions / tests / post_tests / matrices),
+	// "index" (the request slot index), "label" and "code"; a grouped
+	// matrix bucket adds "group_key". Under Options.Strict the run fails
+	// with the slot's own code instead.
+	PULSE_SLOT_FAILED Code = "PULSE_SLOT_FAILED"
+
 	// PULSE_LIMIT_INVALID indicates an instance resource limit
 	// (pulse.Options.Limits) holding a negative value other than
 	// pulse.Unlimited (-1). Raised by pulse.New before any instance
@@ -4238,6 +4250,7 @@ var allCodes = []Code{
 	PULSE_RETURN_INVALID,
 	PULSE_RETURN_PATH_UNKNOWN,
 	PULSE_RETURN_PATH_UNMATCHED,
+	PULSE_SLOT_FAILED,
 	PULSE_LIMIT_INVALID,
 	PULSE_LIMIT_EXCEEDED,
 	PULSE_DOCS_EXPORT_DIR_NOT_EMPTY,

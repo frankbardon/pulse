@@ -570,11 +570,49 @@ func (b *schemaBuilder) structSchema(t reflect.Type) any {
 		"properties":           props,
 		"additionalProperties": false,
 	}
+	if hasSlotError(t) {
+		// A failed slot (a result carrying `error`, types.SlotError)
+		// writes its identity and the error only: every other
+		// always-written key is required only when `error` is absent.
+		var always, figures []string
+		for _, name := range required {
+			if slotIdentityKeys[name] {
+				always = append(always, name)
+			} else {
+				figures = append(figures, name)
+			}
+		}
+		required = always
+		if len(figures) > 0 {
+			sort.Strings(figures)
+			schema["if"] = map[string]any{"not": map[string]any{"required": []string{slotErrorKey}}}
+			schema["then"] = map[string]any{"required": figures}
+		}
+	}
 	if len(required) > 0 {
 		sort.Strings(required)
 		schema["required"] = required
 	}
 	return schema
+}
+
+// slotErrorKey is the json key of a result's per-slot failure.
+const slotErrorKey = "error"
+
+// slotIdentityKeys are the always-written keys a failed slot still
+// writes beside its `error` (types.SlotError): its name and type.
+var slotIdentityKeys = map[string]bool{"name": true, "type": true}
+
+// hasSlotError reports whether struct t carries a per-slot failure
+// field — `error` of type *types.SlotError (a regression, test or
+// matrix result).
+func hasSlotError(t reflect.Type) bool {
+	f, ok := t.FieldByName("Error")
+	if !ok || f.Type != reflect.TypeFor[*types.SlotError]() {
+		return false
+	}
+	name, _, skip := jsonFieldName(f)
+	return !skip && name == slotErrorKey
 }
 
 // overlayRefDef builds the strict OverlayRef union: an object whose arms

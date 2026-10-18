@@ -9,7 +9,7 @@ covers: [return, presets, include, exclude, precision, returned]
 
 # Response shaping (`return`)
 
-`return` trims a response to what the caller reads, saving tokens. Absent `return` (or `preset: full`) the response is byte-identical to before and hashes identically. Predict validates it before any record is read; `pulse_predict` echoes `data.return` (`{preset, include, exclude, keep, companions?, precision?, identity, digest, unresolved_includes?}`) and, on every request, `data.sizes` (per section `{section, full_bytes, shaped_bytes, basis}`; shaped = full without `return`).
+`return` trims a response to what the caller reads. Absent `return` (or `preset: full`) the response is byte-identical to before and hashes identically. Predict validates it before any record is read; `pulse_predict` echoes `data.return` (`{preset, include, exclude, keep, companions?, precision?, identity, digest, unresolved_includes?}`) and, on every request, `data.sizes` (per section `{section, full_bytes, shaped_bytes, basis}`; shaped = full without `return`).
 
 ```json
 {"return": {"preset": "standard", "exclude": ["warnings"], "precision": 4}}
@@ -17,7 +17,7 @@ covers: [return, presets, include, exclude, precision, returned]
 
 ## Resolution
 
-Order: **preset, then `include` adds, then `exclude` removes — exclude wins.** `include` with no preset starts from an EMPTY base (an allowlist). `exclude` / `precision` alone shape the full response. Top-level `warnings`, and every nested `warnings` whose parent is emitted, are kept unless excluded.
+Order: **preset, then `include` adds, then `exclude` removes — exclude wins.** `include` with no preset starts from an EMPTY base (an allowlist). `exclude` / `precision` alone shape the full response. Top-level `warnings`, and every nested `warnings` (or failed slot's `error`) whose parent is emitted, are kept unless excluded.
 
 Presets (closed enum; the manifest `return_presets` lists each one's paths, narrowed to this instance):
 
@@ -49,7 +49,7 @@ An excluded part is ABSENT on the wire — never `null`, even a required key suc
 
 Instance default: `Options.DefaultReturn`, else the feature profile's `return`, else `full`. A request's `return` REPLACES the default entirely (include-only over a `standard` default gives an empty base) — blocks never merge.
 
-MCP tools default to `standard`: request `return` > host `pulse mcp --return` / `DefaultReturn` > instance default > `standard`. Send `"return": {"preset": "full"}` when you need components or everything.
+MCP tools default to `standard`: request `return` > host `pulse mcp --return` / `DefaultReturn` > instance default > `standard`. Send `"return": {"preset": "full"}` for components or everything.
 
 `disable_components` is shorthand: alone it only skips computing components (byte-identical, no marker). Combined with any `return` layer it adds `exclude: ["components"]`. An engine that disabled components stays disabled under a request `return`: the components are not computed and the block gains `exclude: ["components"]`. Only an explicit request `disable_components: false` re-opens them.
 
