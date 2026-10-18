@@ -76,6 +76,21 @@ func (f snapshotFuseFacts) AttributeSlotTwoPass(a *types.Attribute, specs []type
 	return a != nil && !f.inst.Hidden(string(a.Type)) && vectors.ComparisonTwoPass(a.Type, a, specs, schema)
 }
 
+// AttributeBuffered mirrors the runtime: a visible attribute the
+// instance knows (a built-in, or an extension by its declared
+// Streamable) that is not streamable is buffered-only.
+func (f snapshotFuseFacts) AttributeBuffered(t types.AttributeType) bool {
+	if f.inst.Hidden(string(t)) {
+		return false
+	}
+	if f.s != nil {
+		if m, ok := findMeta(f.s.Attributes, string(t)); ok {
+			return !m.Streamable
+		}
+	}
+	return builtinAttributes[t] && !t.Streamable()
+}
+
 // AttributeSlotBound mirrors the runtime: a fitted slot the instance
 // offers, bound to a prebuilt fit (vectors.FitBound), is row-local.
 func (f snapshotFuseFacts) AttributeSlotBound(a *types.Attribute) bool {

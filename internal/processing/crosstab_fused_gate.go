@@ -197,6 +197,13 @@ func (f registryFuseFacts) AttributeSlotTwoPass(a *types.Attribute, specs []type
 	return a != nil && !f.r.isHidden(string(a.Type)) && vectors.ComparisonTwoPass(a.Type, a, specs, schema)
 }
 
+// AttributeBuffered is a known, visible attribute the fused arm cannot
+// score per record: not streamable by its built-in type or its
+// extension declaration (IsStreamable — Processor.canStream's fact).
+func (f registryFuseFacts) AttributeBuffered(t types.AttributeType) bool {
+	return !f.r.isHidden(string(t)) && f.r.HasAttribute(t) && !f.r.IsStreamable("attribute", string(t))
+}
+
 // AttributeSlotBound is the per-slot exemption: a fitted slot bound to
 // a prebuilt fit (vectors.FitBound) is row-local (attrRequiresTwoPassIn).
 func (f registryFuseFacts) AttributeSlotBound(a *types.Attribute) bool {

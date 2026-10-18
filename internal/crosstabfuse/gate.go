@@ -59,6 +59,14 @@ type Facts interface {
 	// before the scan and runs row-local, so neither two-pass fact
 	// applies to it. Hidden: false.
 	AttributeSlotBound(a *types.Attribute) bool
+	// AttributeBuffered reports whether attribute t is buffered-only —
+	// it implements neither the row-local nor the two-pass sibling and
+	// needs the materialised record set (the built-in ATTR_PERCENTILE,
+	// an extension registered with the buffered mode, i.e. declared not
+	// streamable). The fused arm scores attributes per record, so it
+	// cannot run one. Hidden or unknown: false (refused before dispatch,
+	// so a hidden name answers as a never-registered one).
+	AttributeBuffered(t types.AttributeType) bool
 	// GrouperKeyable reports whether grouper g derives its bucket key(s)
 	// per record (StreamableGrouper or MultiKeyStreamingGrouper on the
 	// engine side). A built-in answers from BuiltinGrouperKeyable; an
@@ -205,7 +213,14 @@ func Decide(req *types.Request, schema *encoding.Schema, facts Facts) (bool, []s
 	}
 
 	for _, a := range req.Attributes {
-		if a != nil && !facts.AttributeSlotBound(a) && (facts.AttributeTwoPass(a.Type) || facts.AttributeSlotTwoPass(a, req.Vectors, schema)) {
+		if a == nil {
+			continue
+		}
+		if facts.AttributeBuffered(a.Type) {
+			decline(fmt.Sprintf("buffered attribute (%s)", a.Type))
+			continue
+		}
+		if !facts.AttributeSlotBound(a) && (facts.AttributeTwoPass(a.Type) || facts.AttributeSlotTwoPass(a, req.Vectors, schema)) {
 			decline(fmt.Sprintf("two-pass attribute (%s)", a.Type))
 		}
 	}
