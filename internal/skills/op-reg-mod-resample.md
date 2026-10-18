@@ -43,7 +43,7 @@ Inherits `target` / `predictors` from the host `RegressionSpec`. No additional f
 
 ## Output
 
-- `StdErrors[name]` — jackknife `√((g−1)/g · Σ(β₍ₖ₎ − β̄)²)` over its `g` replicates (`g = n` leave-one-out); bootstrap sample std of replicates.
+- `StdErrors[name]` — jackknife `√((g−1)/g · Σ(β₍ₖ₎ − β̄)²)` over its `g` replicates (leave-one-out: `g` = the fitted rows; a row the fit drops is no replicate); bootstrap sample std of replicates.
 - A delete-a-group jackknife echoes `jackknife_groups` (`g`; the distinct `jackknife_by` values); leave-one-out omits it.
 - `PValues[name]` — jackknife pivotal; bootstrap percentile-method two-sided.
 - `Resample` echoes back; `Coefficients` unchanged. For `l1` / `elasticnet` (OLS or GLM), a resample suppresses `PROCESSING_REGRESSION_APPROXIMATE_SE`; a penalty refits every replicate penalized.

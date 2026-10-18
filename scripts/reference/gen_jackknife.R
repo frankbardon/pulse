@@ -61,6 +61,8 @@ jk_num <- function(x) {
   structure(sprintf("%.17g", x), class = "json")
 }
 jk_vec <- function(v) lapply(unname(as.numeric(v)), jk_num)
+# jk_cell is a row cell: NA (a null field in the Go fixture) is JSON null.
+jk_cell <- function(x) if (is.na(x)) structure("null", class = "json") else jk_num(x)
 
 # jk_fit fits one model on data frame d (columns x1, x2, y, w) and
 # returns (intercept, x1, x2).
@@ -87,6 +89,12 @@ jk_fit <- function(d, type, family, penalty, alpha) {
 jk_cases <- list()
 
 jk_case <- function(name, type, family, d, penalty = "", alpha = 0, loo = FALSE, check_survey = FALSE) {
+  # The rows the fit drops (a null target or predictor, a zero weight)
+  # are written to the fixture but enter neither the full fit nor any
+  # replicate: the complete-case jackknife (leave-one-out over the
+  # fitted rows only).
+  all_rows <- d
+  d <- d[complete.cases(d[, c("x1", "x2", "y", "w")]) & d$w > 0, ]
   full <- jk_fit(d, type, family, penalty, alpha)
   groups <- if (loo) seq_len(nrow(d)) else sort(unique(d$c))
   reps <- t(sapply(groups, function(k) {
@@ -112,7 +120,10 @@ jk_case <- function(name, type, family, d, penalty = "", alpha = 0, loo = FALSE,
       stop(name, ": manual deletions disagree with survey JK1: ", max(abs(sv - V)))
     }
   }
-  rows <- lapply(seq_len(nrow(d)), function(i) jk_vec(c(d$x1[i], d$x2[i], d$y[i], d$w[i], d$c[i])))
+  rows <- lapply(seq_len(nrow(all_rows)), function(i) {
+    r <- all_rows[i, ]
+    lapply(c(r$x1, r$x2, r$y, r$w, r$c), jk_cell)
+  })
   jk_cases[[length(jk_cases) + 1]] <<- list(
     name = name, type = type, family = if (type == "REG_GLM") family else "",
     penalty = penalty, alpha = jk_num(alpha), leave_one_out = loo,
@@ -148,6 +159,19 @@ jk_case("glm_l2_cluster", "REG_GLM", "binomial", data.frame(x1, x2, y = yb, w = 
 k <- 1:60
 jk_case("ols_loo_weighted", "REG_OLS", "", data.frame(x1 = x1[k], x2 = x2[k], y = yo[k], w = fw[k], c = k), loo = TRUE)
 jk_case("glm_loo_weighted", "REG_GLM", "binomial", data.frame(x1 = x1[k], x2 = x2[k], y = yb[k], w = fw[k], c = k), loo = TRUE)
+# Leave-one-out with rows the fit drops (a null target, a null
+# predictor, a zero weight) on rows 31..90: a dropped row is no
+# replicate and no part of g (model-workbench E3-S4).
+k <- 31:90
+dropped <- function(y) {
+  d <- data.frame(x1 = x1[k], x2 = x2[k], y = y[k], w = fw[k], c = seq_along(k))
+  d$y[c(3, 17)] <- NA
+  d$x1[c(8, 40)] <- NA
+  d$w[c(25, 51)] <- 0
+  d
+}
+jk_case("ols_loo_dropped_weighted", "REG_OLS", "", dropped(yo), loo = TRUE)
+jk_case("glm_loo_dropped_weighted", "REG_GLM", "binomial", dropped(yb), loo = TRUE)
 
 jk_doc <- list(
   generator = "scripts/reference/gen_jackknife.R (via gen_reference.R)",
@@ -161,6 +185,7 @@ jk_doc <- list(
     "rows are [x1, x2, y, w, c]; c is the delete-group id, w a frequency weight.",
     "SE = sqrt((g - 1)/g * sum_k (b_(k) - bbar)^2); vcov the same scaled cross-product.",
     "Unweighted unpenalised cluster cases are cross-checked against survey JK1 (mse = FALSE) at relative 1e-8.",
-    "leave_one_out cases make every row its own group."),
+    "leave_one_out cases make every fitted row its own group;",
+    "a null cell (or zero weight) drops the row from the fit and from every replicate."),
   cases = jk_cases)
 write_golden("jackknife", jk_doc)

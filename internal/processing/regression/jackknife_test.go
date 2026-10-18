@@ -17,20 +17,21 @@ import (
 )
 
 // jackknifeCase is one jackknife.json case (scripts/reference/
-// gen_jackknife.R): manual deletions in R, rows [x1, x2, y, w, c].
+// gen_jackknife.R): manual deletions in R, rows [x1, x2, y, w, c]; a
+// JSON null cell is a null field (the row drops from the fit).
 type jackknifeCase struct {
-	Name         string      `json:"name"`
-	Type         string      `json:"type"`
-	Family       string      `json:"family"`
-	Penalty      string      `json:"penalty"`
-	Alpha        float64     `json:"alpha"`
-	LeaveOneOut  bool        `json:"leave_one_out"`
-	Weighted     bool        `json:"weighted"`
-	Groups       int         `json:"groups"`
-	Rows         [][]float64 `json:"rows"`
-	Coefficients []float64   `json:"coefficients"`
-	StdErrors    []float64   `json:"std_errors"`
-	Vcov         [][]float64 `json:"vcov"`
+	Name         string       `json:"name"`
+	Type         string       `json:"type"`
+	Family       string       `json:"family"`
+	Penalty      string       `json:"penalty"`
+	Alpha        float64      `json:"alpha"`
+	LeaveOneOut  bool         `json:"leave_one_out"`
+	Weighted     bool         `json:"weighted"`
+	Groups       int          `json:"groups"`
+	Rows         [][]*float64 `json:"rows"`
+	Coefficients []float64    `json:"coefficients"`
+	StdErrors    []float64    `json:"std_errors"`
+	Vcov         [][]float64  `json:"vcov"`
 }
 
 func loadJackknifeReference(t *testing.T) []jackknifeCase {
@@ -58,8 +59,17 @@ func loadJackknifeReference(t *testing.T) []jackknifeCase {
 
 func (c jackknifeCase) records() []Record {
 	recs := make([]Record, len(c.Rows))
+	names := []string{"x1", "x2", "y", "w", "c"}
 	for i, r := range c.Rows {
-		recs[i] = mockRecord{values: map[string]float64{"x1": r[0], "x2": r[1], "y": r[2], "w": r[3], "c": r[4]}}
+		rec := mockRecord{values: map[string]float64{}, nulls: map[string]bool{}}
+		for j, name := range names {
+			if r[j] == nil {
+				rec.nulls[name] = true
+				continue
+			}
+			rec.values[name] = *r[j]
+		}
+		recs[i] = rec
 	}
 	return recs
 }

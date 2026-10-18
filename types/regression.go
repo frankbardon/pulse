@@ -139,7 +139,9 @@ type RegressionSpec struct {
 	// (RNGSeed; zero derives the seed as the bootstrap does), sizes
 	// differing by at most one, and each replicate refits without one
 	// group — g refits instead of n. 2 ≤ g ≤ the fitted row count; zero
-	// is absent (leave-one-out, unchanged). Exclusive with JackknifeBy.
+	// is absent: leave-one-out over the fitted rows — a row the fit drops
+	// (null target or predictor, zero or invalid weight) is no replicate
+	// and no part of n. Exclusive with JackknifeBy.
 	JackknifeGroups int `json:"jackknife_groups,omitempty"`
 
 	// JackknifeBy names a field whose values are the jackknife's delete

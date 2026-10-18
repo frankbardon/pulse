@@ -91,11 +91,12 @@ func runResample(
 // replicate matrix. The Sherman-Morrison rank-1 downdate optimization
 // is acknowledged in the phase doc but deferred.
 //
-// Listwise null deletion happens inside fitter; the driver loops over
-// the raw record slice and trusts each refit to skip null rows. As a
-// result the effective replicate count can be lower than len(records)
-// when the target or some predictor has many nulls, but every retained
-// replicate still contributes to the SE sum.
+// The replicates run over the FITTED rows only (jackknifeRows: the
+// target and every active predictor present, a valid non-zero weight on
+// a weighted slot) — the complete-case jackknife R's manual deletions
+// compute. A row the fit drops is no replicate and no part of n: its
+// deletion would refit the full data, a zero-deviation replicate that
+// shrinks the SE through both the sum and the (n − 1)/n factor.
 func runJackknife(
 	spec *types.RegressionSpec,
 	records []Record,
@@ -104,6 +105,7 @@ func runJackknife(
 	fitter func([]Record) (*refitResult, error),
 	pValueFn func(coef, se float64) float64,
 ) (*types.RegressionResult, error) {
+	records = jackknifeRows(spec, records, predictors)
 	n := len(records)
 	if n < 3 {
 		return nil, errors.NewCodedErrorWithDetails(
@@ -463,6 +465,7 @@ func runBootstrap(
 	fitter func([]Record) (*refitResult, error),
 	pValueFn func(coef, se float64) float64,
 ) (*types.RegressionResult, error) {
+	records = jackknifeRows(spec, records, predictors)
 	n := len(records)
 	if n < 3 {
 		return nil, errors.NewCodedErrorWithDetails(

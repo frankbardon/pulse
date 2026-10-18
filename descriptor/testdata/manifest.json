@@ -8071,7 +8071,7 @@
             "name": "jackknife_groups",
             "type": "int",
             "required": false,
-            "description": "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row; SE √((g−1)/g·Σ(β₍ₖ₎−β̄)²), echoed as jackknife_groups. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out, unchanged."
+            "description": "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row; SE √((g−1)/g·Σ(β₍ₖ₎−β̄)²), echoed as jackknife_groups. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out over the fitted rows (a row the fit drops is no replicate)."
           },
           {
             "name": "jackknife_by",
@@ -8248,7 +8248,7 @@
             "name": "jackknife_groups",
             "type": "int",
             "required": false,
-            "description": "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row; SE √((g−1)/g·Σ(β₍ₖ₎−β̄)²), echoed as jackknife_groups. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out, unchanged."
+            "description": "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row; SE √((g−1)/g·Σ(β₍ₖ₎−β̄)²), echoed as jackknife_groups. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out over the fitted rows (a row the fit drops is no replicate)."
           },
           {
             "name": "jackknife_by",
@@ -19206,4 +19206,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3df391ee1b5a981356032a88d33fc66043f937044818b05edb49895bdf0a0ed3
+// golden-hash: ed3839b25186b65442d547cc6f202e8a128d34f7886dec33c51ee70797c65c37
