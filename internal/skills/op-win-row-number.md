@@ -15,7 +15,7 @@ Window operators emit row-level values; they do not produce `Response.Components
 
 ## Params
 
-None. `partition_by` (carve), `order_by` (≥1, required, numeric / `date`), `frame` (forbidden), `field` (refused `PULSE_WINDOW_INVALID` — no value read).
+None. `partition_by` (carve), `order_by` (≥1, required, numeric / `date`), `frame` (forbidden), `field` (refused `PULSE_WINDOW_INVALID` — no value read; manifest `forbids_field`, `accepts_types: []`).
 
 ## Inputs
 

@@ -1749,6 +1749,7 @@ pulse/descriptor: type Operator field ComponentSchema pulse/descriptor.Component
 pulse/descriptor: type Operator field Description string "json:\"description\""
 pulse/descriptor: type Operator field EmitsType string "json:\"emits_type,omitempty\""
 pulse/descriptor: type Operator field EmitsTypeNote string "json:\"emits_type_note,omitempty\""
+pulse/descriptor: type Operator field ForbidsField bool "json:\"forbids_field,omitempty\""
 pulse/descriptor: type Operator field IgnoresField bool "json:\"ignores_field,omitempty\""
 pulse/descriptor: type Operator field IgnoresFrame bool "json:\"ignores_frame,omitempty\""
 pulse/descriptor: type Operator field Intents []string "json:\"intents,omitempty\""
@@ -5618,4 +5619,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 4888a4342740a55d753b8f2a04e2542cea0cea8ec716cb198212995c8bcc3943
+// golden-hash: 7382653419d8bbb4124fe6fd386a0de1f2203eee9633c0796624dbeec88f2c25

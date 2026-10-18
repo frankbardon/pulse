@@ -65,8 +65,13 @@ func TestManifestOperatorsComplete(t *testing.T) {
 				if op.Category != tc.kind {
 					t.Errorf("%s entry %q has Category=%q, want %q", tc.name, w, op.Category, tc.kind)
 				}
-				if len(op.AcceptsTypes) == 0 {
+				// Empty AcceptsTypes is honest only on an operator whose
+				// slot refuses a field (ForbidsField).
+				if len(op.AcceptsTypes) == 0 && !op.ForbidsField {
 					t.Errorf("%s entry %q has empty AcceptsTypes", tc.name, w)
+				}
+				if op.ForbidsField && len(op.AcceptsTypes) != 0 {
+					t.Errorf("%s entry %q forbids a field yet accepts %v", tc.name, w, op.AcceptsTypes)
 				}
 				if strings.TrimSpace(op.Description) == "" {
 					t.Errorf("%s entry %q has empty Description", tc.name, w)

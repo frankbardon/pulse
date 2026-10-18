@@ -47,28 +47,37 @@ func windowCapabilities() []descriptor.Operator {
 			Streamable:    false,
 		},
 		{
-			Name:          string(types.WIN_ROW_NUMBER),
-			Category:      "window",
-			Description:   "1-based row index within the ordered partition.",
-			AcceptsTypes:  nonVectorFieldTypes,
+			Name:        string(types.WIN_ROW_NUMBER),
+			Category:    "window",
+			Description: "1-based row index within the ordered partition.",
+			// Order-only: the slot refuses a field (ForbidsField), so
+			// it accepts no field type.
+			AcceptsTypes:  []string{},
+			ForbidsField:  true,
 			EmitsType:     "u32",
 			EmitsTypeNote: "one integer per row (resets per partition)",
 			Streamable:    false,
 		},
 		{
-			Name:          string(types.WIN_RANK),
-			Category:      "window",
-			Description:   "Sparse rank with gaps after ties (1, 2, 2, 4, …) within the ordered partition.",
-			AcceptsTypes:  nonVectorFieldTypes,
+			Name:        string(types.WIN_RANK),
+			Category:    "window",
+			Description: "Sparse rank with gaps after ties (1, 2, 2, 4, …) within the ordered partition.",
+			// Order-only: the slot refuses a field (ForbidsField), so
+			// it accepts no field type.
+			AcceptsTypes:  []string{},
+			ForbidsField:  true,
 			EmitsType:     "u32",
 			EmitsTypeNote: "one integer per row",
 			Streamable:    false,
 		},
 		{
-			Name:          string(types.WIN_DENSE_RANK),
-			Category:      "window",
-			Description:   "Dense rank with no gaps after ties (1, 2, 2, 3, …) within the ordered partition.",
-			AcceptsTypes:  nonVectorFieldTypes,
+			Name:        string(types.WIN_DENSE_RANK),
+			Category:    "window",
+			Description: "Dense rank with no gaps after ties (1, 2, 2, 3, …) within the ordered partition.",
+			// Order-only: the slot refuses a field (ForbidsField), so
+			// it accepts no field type.
+			AcceptsTypes:  []string{},
+			ForbidsField:  true,
 			EmitsType:     "u32",
 			EmitsTypeNote: "one integer per row",
 			Streamable:    false,
