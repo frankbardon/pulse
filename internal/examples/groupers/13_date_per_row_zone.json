@@ -1,0 +1,49 @@
+{
+  "_meta": {
+    "category": "groupers",
+    "description": "Bucket each order on its own warehouse's local calendar day: GROUP_DATE reads the zone per row from the categorical warehouse_tz field (time_zone_field), so one request replaces one slot per zone.",
+    "intents": [
+      "change_over_time"
+    ],
+    "name": "group_date_per_row_zone",
+    "operators": [
+      "AGG_COUNT",
+      "AGG_SUM",
+      "GROUP_DATE"
+    ],
+    "tags": [
+      "time-series"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "total"
+    }
+  ],
+  "cohort": {
+    "filename": "warehouse_orders.pulse",
+    "data_dir": ".data"
+  },
+  "time_zone_field": "warehouse_tz",
+  "groups": [
+    {
+      "type": "GROUP_DATE",
+      "field": "ordered_at",
+      "params": {
+        "component": "day"
+      }
+    }
+  ],
+  "sort": [
+    {
+      "field": "ordered_at"
+    }
+  ]
+}
