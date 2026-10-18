@@ -386,14 +386,18 @@ var errorOwners = map[errors.Code][]string{
 
 	// Label bindings ride the request's labels slot (part of every
 	// request host, not capability:labels) and sample / facet output, so
-	// every binding code is shared; only enumerating a table through the
-	// label-resolve surface belongs to capability:labels.
+	// every binding code is shared. PULSE_LABEL_TABLE_NOT_ENUMERABLE is
+	// shared too: besides the label-resolve surface, a `.sav` export
+	// raises it for an integer-coded field's binding with no entries,
+	// which io.SPSSWriterOptions.ValueLabels reaches without any
+	// registered table.
 	errors.PULSE_LABEL_FIELD_UNKNOWN:         shared,
 	errors.PULSE_LABEL_FIELD_NOT_CATEGORICAL: shared,
 	errors.PULSE_LABEL_TABLE_UNKNOWN:         shared,
 	errors.PULSE_LABEL_FIELD_COLLISION:       shared,
 	errors.PULSE_LABEL_DUPLICATE_BINDING:     shared,
-	errors.PULSE_LABEL_TABLE_NOT_ENUMERABLE:  own(featLabels),
+	errors.PULSE_LABEL_KEY_INVALID:           shared,
+	errors.PULSE_LABEL_TABLE_NOT_ENUMERABLE:  shared,
 	errors.PULSE_LABEL_COLLISION:             shared,
 	errors.PULSE_LABEL_LOOKUP_MISS:           shared,
 	errors.PULSE_LABEL_NOT_APPLIED:           own(featLabels),

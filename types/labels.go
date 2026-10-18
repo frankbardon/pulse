@@ -29,7 +29,9 @@ const (
 // categorical field through the named label table.
 //
 // Field must reference a categorical_u8 / categorical_u16 /
-// categorical_u32 schema field. Table must reference a label table
+// categorical_u32 schema field — except on a `.sav` export, whose value
+// labels also bind an integer-coded u4 / u8 / u16 / u32 field (the table's
+// keys are the stored integers' decimal spellings). Table must reference a label table
 // registered on pulse.Options.Extensions.LabelTables. Mode picks
 // between "replace" (rewrite the field's value) and "augment" (emit
 // a sibling "<field>_label" field).

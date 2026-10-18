@@ -1320,7 +1320,8 @@ func (p *Pulse) exportJob(ctx context.Context, job *pio.ExportJob) (*pio.ExportR
 // registered LabelTables first, exactly as Export builds it — so a label
 // refusal (PULSE_LABEL_TABLE_UNKNOWN, and through a target's
 // ValidateCohort the `.sav` value-label refusals: PULSE_LABEL_FIELD_UNKNOWN,
-// PULSE_LABEL_FIELD_NOT_CATEGORICAL, a binding beside an honoured SPSS
+// PULSE_LABEL_FIELD_NOT_CATEGORICAL, PULSE_LABEL_KEY_INVALID,
+// PULSE_LABEL_TABLE_NOT_ENUMERABLE, a binding beside an honoured SPSS
 // metadata sidecar) is raised with the code the export would raise. The
 // job's FS field is set to the instance's filesystem if not already set.
 // Reports as a `predict` operation.

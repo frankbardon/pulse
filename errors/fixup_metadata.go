@@ -2500,8 +2500,18 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_LABEL_KEY_INVALID: {
+		Message: "A value-label binding on an integer-coded field (u4 / u8 / u16 / u32, .sav export) uses a table key that is not the canonical decimal spelling of a value the field can store; the stored integers are the codes, so the key could never label a value.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Labels", "*", "Table"},
+				Hint:   "Bind a table keyed by the field's stored integers in plain decimal (\"1\", \"7\" — no leading zeros, signs or fractions, within the type's range); details carry the offending key and the field's maximum.",
+			},
+		},
+	},
 	PULSE_LABEL_TABLE_NOT_ENUMERABLE: {
-		Message: "A reverse label lookup was attempted against a function-driven table (Lookup closure only, no static Rows map). Reverse search requires enumerable Rows.",
+		Message: "A reverse label lookup, or a .sav value-label binding on an integer-coded field, needs the table's entries, but the table is function-driven (Lookup closure only, no static Rows map or Order).",
 		// No caller-request field to repair: the fix is registration-time
 		// (register the table with a static Rows map, e.g. from a cached
 		// snapshot, rather than a Lookup-only closure).

@@ -2543,6 +2543,7 @@ pulse/errors: const PULSE_LABEL_DUPLICATE_BINDING pulse/errors.Code = "PULSE_LAB
 pulse/errors: const PULSE_LABEL_FIELD_COLLISION pulse/errors.Code = "PULSE_LABEL_FIELD_COLLISION"
 pulse/errors: const PULSE_LABEL_FIELD_NOT_CATEGORICAL pulse/errors.Code = "PULSE_LABEL_FIELD_NOT_CATEGORICAL"
 pulse/errors: const PULSE_LABEL_FIELD_UNKNOWN pulse/errors.Code = "PULSE_LABEL_FIELD_UNKNOWN"
+pulse/errors: const PULSE_LABEL_KEY_INVALID pulse/errors.Code = "PULSE_LABEL_KEY_INVALID"
 pulse/errors: const PULSE_LABEL_LOOKUP_MISS pulse/errors.Code = "PULSE_LABEL_LOOKUP_MISS"
 pulse/errors: const PULSE_LABEL_NOT_APPLIED pulse/errors.Code = "PULSE_LABEL_NOT_APPLIED"
 pulse/errors: const PULSE_LABEL_TABLE_NOT_ENUMERABLE pulse/errors.Code = "PULSE_LABEL_TABLE_NOT_ENUMERABLE"
@@ -5630,4 +5631,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 6ebb61feb11db91f57d4b396bc9290f026d03bb0d5af579ab1c0bb2c33e39d77
+// golden-hash: 24e4110e1dde033d5d2028c13d7c31c18ea482abe0a52e402dc56b82007df317

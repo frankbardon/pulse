@@ -33,6 +33,13 @@ package spss
 //
 // The plan marks every such code Known, because it is now a stated value
 // rather than a gap: the data encoder writes it like a sidecar's code.
+//
+// An INTEGER-CODED field (u4 / u8 / u16 / u32) binds too, and needs none of
+// the above: it has no dictionary and its stored integers already are the
+// codes, so its variable stays the unbound numeric one and the binding's
+// keys — the decimal spellings of those integers — become its value labels
+// (checkIntegerKeys, labelledInteger). u64 is not integer-coded here: its
+// values past 2^53 have no exact double.
 
 import (
 	"sort"
@@ -70,11 +77,17 @@ func valueLabelBindings(s *encoding.Schema, vls []ValueLabels) (map[int]*ValueLa
 					", which is not a field of the cohort being exported",
 				map[string]any{"field": b.Field, "option": "--labels"})
 		}
-		if !s.Fields[at].Type.IsCategorical() {
+		ft := s.Fields[at].Type
+		if max, coded := integerCodeMax(ft); coded {
+			if err := checkIntegerKeys(b, ft, max); err != nil {
+				return nil, err
+			}
+		} else if !ft.IsCategorical() {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_LABEL_FIELD_NOT_CATEGORICAL,
-				"spss: a value-label binding names "+strconv.Quote(b.Field)+", a "+s.Fields[at].Type.String()+
-					" field; value labels bind to categorical_* fields only, whose dictionary supplies the codes",
-				map[string]any{"field": b.Field, "type": s.Fields[at].Type.String(), "option": "--labels"})
+				"spss: a value-label binding names "+strconv.Quote(b.Field)+", a "+ft.String()+
+					" field; value labels bind to categorical_* fields, whose dictionary supplies the codes, "+
+					"and to integer-coded u4 / u8 / u16 / u32 fields, whose stored integers are the codes",
+				map[string]any{"field": b.Field, "type": ft.String(), "option": "--labels"})
 		}
 		if _, dup := out[at]; dup {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_LABEL_DUPLICATE_BINDING,
@@ -84,6 +97,74 @@ func valueLabelBindings(s *encoding.Schema, vls []ValueLabels) (map[int]*ValueLa
 		out[at] = b
 	}
 	return out, nil
+}
+
+// integerCodeMax reports whether ft is an integer-coded type a value-label
+// binding may name, and the largest value it stores. u64 is not one: its
+// values past 2^53 have no exact SPSS (double) code.
+func integerCodeMax(ft encoding.FieldType) (uint64, bool) {
+	switch ft {
+	case encoding.FieldTypeU4:
+		return 15, true
+	case encoding.FieldTypeU8:
+		return 255, true
+	case encoding.FieldTypeU16:
+		return 65535, true
+	case encoding.FieldTypeU32:
+		return 1<<32 - 1, true
+	}
+	return 0, false
+}
+
+// checkIntegerKeys validates a binding on an integer-coded field. Such a
+// field has no dictionary, so its value labels are the binding's own
+// entries: Labels must be present (nil means the table could not list
+// them) and every key must be the canonical decimal spelling of a value
+// the field can store — any other key could never label a stored value,
+// and dropping it silently would hide the mistake. Keys are checked in
+// sorted order so the refusal names the same key on every run.
+func checkIntegerKeys(b *ValueLabels, ft encoding.FieldType, max uint64) error {
+	if b.Labels == nil {
+		return errors.NewCodedErrorWithDetails(errors.PULSE_LABEL_TABLE_NOT_ENUMERABLE,
+			"spss: a value-label binding names "+strconv.Quote(b.Field)+", a "+ft.String()+
+				" field with no dictionary, so its value labels must be the binding's own entries; the binding lists none "+
+				"(a Lookup-only label table with no Order, or a binding with no Labels)",
+			map[string]any{"field": b.Field, "type": ft.String(), "option": "--labels"})
+	}
+	keys := make([]string, 0, len(b.Labels))
+	for k := range b.Labels {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		n, err := strconv.ParseUint(k, 10, 64)
+		if err == nil && strconv.FormatUint(n, 10) == k && n <= max {
+			continue
+		}
+		return errors.NewCodedErrorWithDetails(errors.PULSE_LABEL_KEY_INVALID,
+			"spss: the value-label binding on "+strconv.Quote(b.Field)+", a "+ft.String()+
+				" field, has the key "+strconv.Quote(k)+", which is not the plain decimal spelling of a value from 0 to "+
+				strconv.FormatUint(max, 10)+"; the field's stored integers are its codes, so the key could never label one",
+			map[string]any{"field": b.Field, "type": ft.String(), "key": k, "max": max, "option": "--labels"})
+	}
+	return nil
+}
+
+// labelledInteger attaches b's entries to v — an integer-coded field's
+// numeric variable — as value labels. The codes are the keys' integers
+// (checkIntegerKeys has validated them); every other attribute of the
+// variable, its data encoding included, is the unbound one. A label equal
+// to the code's own spelling, or empty, is omitted, as on a categorical.
+func labelledInteger(v *outVar, b *ValueLabels) {
+	for k, label := range b.Labels {
+		if label == "" || label == k {
+			continue
+		}
+		n, _ := strconv.ParseUint(k, 10, 64)
+		v.labels = append(v.labels, outLabel{numeric: float64(n), label: label})
+	}
+	// Value labels go out in code order, which is the order SPSS lists them.
+	sort.SliceStable(v.labels, func(a, c int) bool { return v.labels[a].numeric < v.labels[c].numeric })
 }
 
 // sidecarWithLabels refuses a value-label binding beside an honoured

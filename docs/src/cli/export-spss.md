@@ -319,8 +319,22 @@ PULSE_LABEL_TABLES_DIR=./labels \
   `PULSE_LABEL_LOOKUP_MISS` warning). A label that would just repeat an
   integer code is omitted. `replace` and `augment` bindings both write
   value labels — no cell is rewritten and no sibling column is added.
+- **Integer-coded fields.** A `u4` / `u8` / `u16` / `u32` field (`1` =
+  Male, an ISO weekday `1..7`) takes value labels too. It has no
+  dictionary, so its variable stays the ordinary numeric one and its
+  stored integers ARE the codes; the bound table's keys are their plain
+  decimal spellings (`"1"`, `"7"`), and every key is labelled, whether or
+  not a row holds it. A key that is not the canonical decimal spelling of
+  a value the type stores — text, a leading zero, a sign, a fraction, or
+  past the type's maximum — is `PULSE_LABEL_KEY_INVALID` (details carry
+  the key and the maximum), never silently dropped. The table must list
+  its entries: a `Rows` table does; a `Lookup` table needs an `Order`, else
+  `PULSE_LABEL_TABLE_NOT_ENUMERABLE`. `u64` (values past 2^53 have no
+  exact SPSS code), floats and dates stay
+  `PULSE_LABEL_FIELD_NOT_CATEGORICAL`.
 - **Library.** `io.SPSSWriterOptions.ValueLabels` binds a field to a
-  `map[string]string` (nil: label each code with its entry text) and an
+  `map[string]string` (nil: label each code with its entry text — on a
+  categorical; an integer-coded field needs the map) and an
   optional `Order` — the same mechanism; an `ExportJob` binding replaces
   it on the same field.
 - **Refusals,** predicted by `pulse export predict --format spss --labels`
@@ -329,8 +343,10 @@ PULSE_LABEL_TABLES_DIR=./labels \
   them: an unregistered table is `PULSE_LABEL_TABLE_UNKNOWN`, a binding beside an honoured metadata sidecar is
   `PULSE_SPSS_EXPORT_UNSUPPORTED` (the sidecar already carries the
   source's labels; `--ignore-sidecar` relabels from the table), an unknown
-  field `PULSE_LABEL_FIELD_UNKNOWN`, a non-categorical field
-  `PULSE_LABEL_FIELD_NOT_CATEGORICAL`, two bindings on one field
+  field `PULSE_LABEL_FIELD_UNKNOWN`, a field that is neither categorical
+  nor integer-coded `PULSE_LABEL_FIELD_NOT_CATEGORICAL`, an integer-coded
+  binding with a bad key `PULSE_LABEL_KEY_INVALID` or no listable entries
+  `PULSE_LABEL_TABLE_NOT_ENUMERABLE`, two bindings on one field
   `PULSE_LABEL_DUPLICATE_BINDING`, and a label past 255 bytes
   `PULSE_SPSS_WIDTH_OVERFLOW` (the export's data-free pass sees it too).
   On the CLI a field bound twice is refused while the flags are parsed,
@@ -448,7 +464,7 @@ and every string lives in the schema block's dictionaries.
 | `PULSE_SPSS_CHARSET_UNSUPPORTED` / `_UNENCODABLE` in dictionary text | `PULSE_SPSS_EXPORT_UNSUPPORTED` for a dictionary ID with no source code |
 | `PULSE_SPSS_COLUMN_UNMAPPED`, `PULSE_SPSS_DERIVED_UNFOLDABLE` | |
 | `PULSE_SPSS_EXPORT_UNSUPPORTED` for `--include` / non-UTC `--tz` / a value-label binding beside a sidecar | |
-| `PULSE_LABEL_FIELD_UNKNOWN` / `_NOT_CATEGORICAL` / `_DUPLICATE_BINDING` for a value-label binding | |
+| `PULSE_LABEL_FIELD_UNKNOWN` / `_NOT_CATEGORICAL` / `_KEY_INVALID` / `_TABLE_NOT_ENUMERABLE` / `_DUPLICATE_BINDING` for a value-label binding | |
 | `PULSE_SPSS_COMPRESSION_UNSUPPORTED` / `_INVALID` | |
 
 **So predict is a sound but incomplete filter.** A refusal is real; a pass

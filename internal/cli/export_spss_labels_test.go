@@ -18,7 +18,9 @@ import (
 
 // TestExportSPSS_LabelsBecomeValueLabels: `pulse export spss --labels` on a
 // native cohort is no longer refused — the bound categorical goes out with
-// the table's labels as value labels — and a binding on a numeric field is
+// the table's labels as value labels. An integer-coded field (u8) takes a
+// table keyed by its stored integers; one keyed by text is
+// PULSE_LABEL_KEY_INVALID, and a float field is
 // PULSE_LABEL_FIELD_NOT_CATEGORICAL.
 func TestExportSPSS_LabelsBecomeValueLabels(t *testing.T) {
 	dir := t.TempDir()
@@ -29,17 +31,21 @@ func TestExportSPSS_LabelsBecomeValueLabels(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(tables, "regions.json"), []byte(`{"NE":"Northeast","SO":"South"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(tables, "counts.json"), []byte(`{"1":"Single","2":"Pair"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("PULSE_LABEL_TABLES_DIR", tables)
 
 	cohort := filepath.Join(dir, "native.pulse")
 	b, err := iio.NewCohortBuild(context.Background(), afero.NewOsFs(), cohort, &encoding.Schema{Fields: []encoding.Field{
 		{Name: "region", Type: encoding.FieldTypeCategoricalU8},
 		{Name: "n", Type: encoding.FieldTypeU8},
+		{Name: "score", Type: encoding.FieldTypeF64},
 	}}, iio.CohortBuildOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, row := range [][]any{{"NE", uint64(1)}, {"SO", uint64(2)}} {
+	for _, row := range [][]any{{"NE", uint64(1), 1.5}, {"SO", uint64(2), 2.5}} {
 		if err := b.Append(row); err != nil {
 			t.Fatal(err)
 		}
@@ -62,7 +68,23 @@ func TestExportSPSS_LabelsBecomeValueLabels(t *testing.T) {
 		}
 	}
 
+	coded := filepath.Join(dir, "coded.sav")
+	if err := runExportCLI("spss", "-i", cohort, "-o", coded, "--labels", "n=counts"); err != nil {
+		t.Fatalf("export spss --labels n=counts: %v", err)
+	}
+	sav, err = os.ReadFile(coded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, label := range []string{"Single", "Pair"} {
+		if !bytes.Contains(sav, []byte(label)) {
+			t.Errorf("the .sav carries no value label %q on the u8 field", label)
+		}
+	}
+
 	err = runExportCLI("spss", "-i", cohort, "-o", filepath.Join(dir, "bad.sav"), "--labels", "n=regions")
+	wantCode(t, err, perrors.PULSE_LABEL_KEY_INVALID)
+	err = runExportCLI("spss", "-i", cohort, "-o", filepath.Join(dir, "bad.sav"), "--labels", "score=counts")
 	wantCode(t, err, perrors.PULSE_LABEL_FIELD_NOT_CATEGORICAL)
 }
 
@@ -189,7 +211,7 @@ func TestExportPredict_LabelsRefuseLikeTheExport(t *testing.T) {
 	}{
 		{"clean", native, []string{"region=regions"}, ""},
 		{"unknown field", native, []string{"nope=regions"}, perrors.PULSE_LABEL_FIELD_UNKNOWN},
-		{"numeric field", native, []string{"n=regions"}, perrors.PULSE_LABEL_FIELD_NOT_CATEGORICAL},
+		{"integer field, text keys", native, []string{"n=regions"}, perrors.PULSE_LABEL_KEY_INVALID},
 		{"unknown table", native, []string{"region=missing"}, perrors.PULSE_LABEL_TABLE_UNKNOWN},
 		{"duplicate binding", native, []string{"region=regions", "region=regions:augment"}, perrors.PULSE_LABEL_DUPLICATE_BINDING},
 		{"beside a sidecar", spssCohort, []string{"region=regions"}, perrors.PULSE_SPSS_EXPORT_UNSUPPORTED},

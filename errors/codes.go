@@ -1627,10 +1627,23 @@ const (
 	// must be unique per field within a request.
 	PULSE_LABEL_DUPLICATE_BINDING Code = "PULSE_LABEL_DUPLICATE_BINDING"
 
+	// PULSE_LABEL_KEY_INVALID indicates a value-label binding on an
+	// integer-coded field (u4 / u8 / u16 / u32, `.sav` export only) whose
+	// table carries a key that is not the canonical decimal spelling of a
+	// value the field can store (text, a leading zero, a fraction, a
+	// negative, or past the type's maximum). The stored integers are the
+	// codes, so such a key could never label a value; it is refused rather
+	// than silently dropped.
+	PULSE_LABEL_KEY_INVALID Code = "PULSE_LABEL_KEY_INVALID"
+
 	// PULSE_LABEL_TABLE_NOT_ENUMERABLE indicates a reverse lookup
 	// (ResolveLabel / pulse_label_resolve) was attempted against a
 	// function-driven label table that exposes only a Lookup closure
 	// and no static Rows map. Reverse search requires enumerable Rows.
+	// A `.sav` export raises it too when a binding on an integer-coded
+	// field has no entries to list (a Lookup-only table with no Order,
+	// or an io.SPSSValueLabels with nil Labels): such a field has no
+	// dictionary, so its value labels are the table's own entries.
 	PULSE_LABEL_TABLE_NOT_ENUMERABLE Code = "PULSE_LABEL_TABLE_NOT_ENUMERABLE"
 
 	// PULSE_LABEL_COLLISION is a warning emitted in replace mode when
@@ -4147,6 +4160,7 @@ var allCodes = []Code{
 	PULSE_LABEL_TABLE_UNKNOWN,
 	PULSE_LABEL_FIELD_COLLISION,
 	PULSE_LABEL_DUPLICATE_BINDING,
+	PULSE_LABEL_KEY_INVALID,
 	PULSE_LABEL_TABLE_NOT_ENUMERABLE,
 	PULSE_LABEL_COLLISION,
 	PULSE_LABEL_LOOKUP_MISS,

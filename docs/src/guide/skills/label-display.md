@@ -33,7 +33,7 @@ LabelTables: map[string]pulse.LabelTable{
 
 `PULSE_LABEL_TABLES_DIR` auto-loads `*.json` (filename minus `.json` = table name). Flat `{"US":"United States"}` or wrapped `{"description":"...","rows":{...}}`. Programmatic + disk-loaded can't share a name (`pulse.New` rejects).
 
-**Pulse's own sidecars are skipped; any other unparseable `*.json` is fatal.** `*.spss.json`, `*.meta.json` and `*.indexes.json` are excluded by suffix (a cohort directory is safe); any OTHER `*.json` that fails to parse hard-fails `pulse.New` naming the path — a typo never becomes a silently missing table. `PULSE_RANGE_TABLES_DIR` behaves identically.
+**Pulse's own sidecars are skipped; any other unparseable `*.json` is fatal.** `*.spss.json`, `*.meta.json` and `*.indexes.json` are excluded by suffix (a cohort directory is safe); any OTHER unparseable `*.json` hard-fails `pulse.New` naming the path — a typo never becomes a silently missing table. `PULSE_RANGE_TABLES_DIR` behaves identically.
 
 ### 2. Attach a binding
 
@@ -59,7 +59,7 @@ Each `LabelBinding` pairs a categorical field with a table and mode:
 | Crosstab matrix axes | `row_keys` / `column_keys` → label; overlay keys follow, a pairwise PAIR key rebuilt from the labelled legs | not applied: `PULSE_LABEL_NOT_APPLIED` (no sibling on a key; use `replace` or shape `long`) |
 | `ProcessChain` stages | every stage's `labels` + `Options.AutoLabels`, bar a `replace` default on a key an earlier stage replaced | every stage |
 | `Export` / `Convert` | column value → label | extra column inserted after source |
-| `.sav` export | value labels on the code, in table key order (cells untouched) | same — [`spss-export`](spss-export.md) |
+| `.sav` export | value labels on the code (table key order; `u4`–`u32` too), cells untouched | same — [`spss-export`](spss-export.md) |
 
 Only key TEXT moves: overlay coordinates address the same host cell; no figure changes. A Compose overlay over slots bound differently refuses `PULSE_OVERLAY_KEY_SET_DIVERGENT`. **A binding that reaches no surface warns `PULSE_LABEL_NOT_APPLIED`** (`details.reason` `field_not_in_output`: the field is no output column, axis or group key — bind a grouped field); `AutoLabels` defaults never warn.
 
@@ -76,7 +76,7 @@ Validated before any record is read; `pulse_predict` reports the same codes:
 | Code | Meaning |
 |---|---|
 | `PULSE_LABEL_FIELD_UNKNOWN` | Binding references a field not in the schema. |
-| `PULSE_LABEL_FIELD_NOT_CATEGORICAL` | Bound field is not `categorical_u8/u16/u32`. |
+| `PULSE_LABEL_FIELD_NOT_CATEGORICAL` | Bound field is not `categorical_*`. |
 | `PULSE_LABEL_TABLE_UNKNOWN` | Table not registered. |
 | `PULSE_LABEL_FIELD_COLLISION` | Augment sibling collides with an existing field or agg label. |
 | `PULSE_LABEL_DUPLICATE_BINDING` | Two bindings target the same field. |
@@ -93,7 +93,7 @@ Labels are output-only; the INPUT direction needs a lookup. `pulse_label_tables`
 - They don't filter. Filter `country = "United States"` won't match; write `country = "US"`.
 - They don't sort. Sort keys see raw values.
 - They don't persist. Different `LabelTables` give different output, no re-encoding.
-- They don't work for non-categoricals (derive a categorical column at import).
+- No non-categoricals (derive a categorical at import), bar `.sav` value labels.
 
 ## See
 

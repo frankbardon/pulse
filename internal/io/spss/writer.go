@@ -594,14 +594,12 @@ func (w *Writer) optionsFor(src iocore.CohortSource) (WriterOptions, error) {
 		}
 	}
 	for _, name := range names {
-		labels := src.ValueLabels[name]
-		if labels == nil {
-			// A bound field that is not a categorical of this schema: an
-			// empty, non-nil table keeps the binding a table binding, and
-			// the dictionary build refuses the field on its own terms.
-			labels = map[string]string{}
-		}
-		merged = append(merged, ValueLabels{Field: name, Labels: labels, Order: src.ValueLabelOrder[name]})
+		// A nil entry is a bound field with no dictionary whose table could
+		// not be listed (or a field the schema lacks); it stays nil, and the
+		// dictionary build refuses it on its own terms — an integer-coded
+		// field PULSE_LABEL_TABLE_NOT_ENUMERABLE, any other type as not
+		// categorical. A bound categorical always arrives non-nil.
+		merged = append(merged, ValueLabels{Field: name, Labels: src.ValueLabels[name], Order: src.ValueLabelOrder[name]})
 	}
 	opts.ValueLabels = merged
 	return opts, nil

@@ -108,7 +108,11 @@ func synthesiseDictionary(req DictionaryRequest) (*outFile, error) {
 			return nil, err
 		}
 		if b := bindings[i]; b != nil {
-			labelledCategorical(vars[0], &req.Schema.Fields[i], b)
+			if _, coded := integerCodeMax(req.Schema.Fields[i].Type); coded {
+				labelledInteger(vars[0], b)
+			} else {
+				labelledCategorical(vars[0], &req.Schema.Fields[i], b)
+			}
 		}
 		f.vars = append(f.vars, vars...)
 	}
