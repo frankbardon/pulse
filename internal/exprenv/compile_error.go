@@ -1,8 +1,12 @@
 package exprenv
 
 import (
+	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/expr-lang/expr/vm"
 
 	"github.com/frankbardon/pulse/errors"
 )
@@ -15,6 +19,40 @@ const (
 	SiteFilter        = "filter"                   // a FILTER_EXPRESSION expression
 	SiteTotalArgument = "formula total() argument" // one total(expr) argument
 )
+
+// ResultRefusal is the compile-time result-type check of site: nil, or
+// the CompileError an expression whose result the checker types as
+// something its site cannot use raises — the runtime build (and a
+// deferred first-record compile) and predict both call it on the
+// compiled program, so both refuse the same source with the same code
+// and sentence, before any row. A filter (SiteFilter: FILTER_EXPRESSION
+// and every expression built through it, FEAT_TARGET_ENCODE's fit_on
+// included) must yield a bool: "x + 1" is refused "expected bool, but
+// got float64" (expr-lang's own AsBool wording), which the run used to
+// discover only on the first row, as PROCESSING_RUNTIME. A result the
+// checker cannot type (`any`: an extension function, a ref() lookup, a
+// ternary mixing types) and a vector ([]float64 — the shared vector
+// result refusal) stay judged per row. expr.AsBool itself is not used:
+// it also casts an untyped result at run time, which would move those
+// per-row refusals' codes.
+func ResultRefusal(site, src string, prog *vm.Program) *errors.CodedError {
+	if site != SiteFilter || prog == nil {
+		return nil
+	}
+	t := prog.Node().Type()
+	if t == nil {
+		return nil
+	}
+	switch t.Kind() {
+	case reflect.Bool, reflect.Interface:
+		return nil
+	case reflect.Slice:
+		if t.Elem().Kind() == reflect.Float64 {
+			return nil
+		}
+	}
+	return CompileError(site, src, fmt.Errorf("expected bool, but got %s", t))
+}
 
 // CompileError is the coded error an expression that expr-lang cannot
 // compile raises — PULSE_FORMULA_COMPILE_ERROR, at every compile site

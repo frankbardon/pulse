@@ -183,6 +183,9 @@ func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Re
 	if err != nil {
 		return nil, p.compileError(err)
 	}
+	if ce := exprenv.ResultRefusal(p.what, p.src, prog); ce != nil {
+		return nil, ce
+	}
 	p.settleInputs()
 	p.typed.Store(prog)
 	return p, nil
@@ -384,6 +387,10 @@ func (p *exprProgram) program(env map[string]any, nullMarked func(string) bool) 
 	prog, err := p.compile(decl)
 	if err != nil {
 		p.compileErr = p.compileError(err)
+		return nil, p.compileErr
+	}
+	if ce := exprenv.ResultRefusal(p.what, p.src, prog); ce != nil {
+		p.compileErr = ce
 		return nil, p.compileErr
 	}
 	p.decl = decl

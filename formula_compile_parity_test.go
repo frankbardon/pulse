@@ -82,6 +82,12 @@ var formulaCompileCases = []struct {
 	// result) on both sides, so its misuse surfaces at evaluation; a
 	// misspelt one is an unknown name at compile.
 	{"extension function misspelt", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"twicee(score)"}]}`, true},
+	// A filter must yield a bool: a result the checker types otherwise is
+	// refused at compile on both sides (exprenv.ResultRefusal) — it used
+	// to pass predict and fail the run's first row PROCESSING_RUNTIME.
+	{"filter non-bool", `{"filterers":[{"type":"FILTER_EXPRESSION","expression":"score + 1"}]}`, true},
+	{"filter non-bool string", `{"filterers":[{"type":"FILTER_EXPRESSION","expression":"\"yes\""}]}`, true},
+	{"filter non-bool on feature output", `{"features":[{"type":"FEAT_LOG","field":"score"}],"filterers":[{"type":"FILTER_EXPRESSION","expression":"LOG_score * 2"}]}`, true},
 	{"vector as number", `{"vectors":[{"name":"battery","fields":["b*"]}],"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"len(battery) + \"a\""}]}`, true},
 
 	{"valid formula", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"qty * 2 + score"}]}`, false},
@@ -92,6 +98,7 @@ var formulaCompileCases = []struct {
 	{"valid earlier attribute", `{"attributes":[{"type":"ATTR_FORMULA","label":"a","expression":"qty * 2"},{"type":"ATTR_FORMULA","label":"g","expression":"a + 1"}]}`, false},
 	{"valid null earlier attribute", `{"attributes":[{"type":"ATTR_FORMULA","label":"a","expression":"b1"},{"type":"ATTR_FORMULA","label":"g","expression":"(a ?? 0) + 1"}]}`, false},
 	{"valid feature output", `{"features":[{"type":"FEAT_LOG","field":"score"}],"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"LOG_score * 2"}]}`, false},
+	{"valid untyped filter", `{"filterers":[{"type":"FILTER_EXPRESSION","expression":"twice(score) > 1 ? true : false"}]}`, false},
 	{"valid filter on feature output", `{"features":[{"type":"FEAT_LOG","field":"score"}],"filterers":[{"type":"FILTER_EXPRESSION","expression":"LOG_score > 1"}]}`, false},
 	{"valid vector", `{"vectors":[{"name":"battery","fields":["b*"]}],"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"vsum(battery) + len(battery)"}]}`, false},
 	{"valid set helper and let", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"let k = qty; k * 2"}]}`, false},

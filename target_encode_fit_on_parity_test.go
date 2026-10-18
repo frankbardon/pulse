@@ -77,7 +77,7 @@ func TestTargetEncodeFitOn_LeakageParity(t *testing.T) {
 
 // TestTargetEncodeFitOn_CompileParity: fit_on reads only the schema and
 // EARLIER features' columns — a forward reference to a later split, a
-// self reference and an unknown name are the same
+// self reference, an unknown name and a non-bool result are the same
 // PULSE_FORMULA_COMPILE_ERROR (code, message, details) on both sides.
 func TestTargetEncodeFitOn_CompileParity(t *testing.T) {
 	p, fs, cohort := acceptanceCohort(t)
@@ -86,6 +86,10 @@ func TestTargetEncodeFitOn_CompileParity(t *testing.T) {
 		"forward reference": `{"features":[{"type":"FEAT_TARGET_ENCODE","field":"g","params":{"target":"x","fit_on":"split == 0"}},` + teSplit + teCount,
 		"self reference":    `{"features":[{"type":"FEAT_TARGET_ENCODE","field":"g","label":"te","params":{"target":"x","fit_on":"te > 1"}}` + teCount,
 		"unknown name":      `{"features":[{"type":"FEAT_TARGET_ENCODE","field":"g","params":{"target":"x","fit_on":"nope == 1"}}` + teCount,
+		// A non-bool fit_on is refused at compile (exprenv.ResultRefusal),
+		// never PROCESSING_RUNTIME on the first row (model-workbench E3-S4).
+		"non-bool":                `{"features":[{"type":"FEAT_TARGET_ENCODE","field":"g","params":{"target":"x","fit_on":"x + 1"}}` + teCount,
+		"non-bool earlier column": `{"features":[` + teSplit + `,{"type":"FEAT_TARGET_ENCODE","field":"g","params":{"target":"x","fit_on":"split + 1"}}` + teCount,
 	}
 	for name, body := range cases {
 		_, rerr := p.Process(ctx, categoricalRequest(t, body, cohort))

@@ -73,7 +73,7 @@ Compiled once, predict included: bad syntax, an unknown name or a type error is 
 {"label": "bmi", "expression": "weight_kg / (height_m ** 2)"}
 ```
 
-A formula's result is coerced to a scalar (`bool` → `1.0` / `0.0`); a filter's must be `bool` — a non-bool on a non-null row is `PROCESSING_RUNTIME`.
+A formula's result is coerced to a scalar (`bool` → `1.0` / `0.0`); a filter's must be `bool`: typed non-bool fails compile, untyped `PROCESSING_RUNTIME`.
 
 ## Gotchas
 
