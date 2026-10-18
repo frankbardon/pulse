@@ -237,7 +237,8 @@ func estimateGrouperBuckets(g *types.Group, schema *encoding.Schema) (buckets in
 		}
 		return 0, BucketBasisUnknown, false
 	}
-	includable := g.Type == types.GROUP_CATEGORY || g.Type == types.GROUP_SET_VALUE || g.Type == types.GROUP_SET_PER_ELEMENT
+	includable := g.Type == types.GROUP_CATEGORY || g.Type == types.GROUP_SET_VALUE || g.Type == types.GROUP_SET_PER_ELEMENT ||
+		g.Type == types.GROUP_DATE || g.Type == types.GROUP_DATE_RANGES
 	if includable && len(g.Include) > 0 {
 		var universe map[string]bool
 		if basis != BucketBasisUnknown {

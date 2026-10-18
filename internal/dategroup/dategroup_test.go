@@ -18,6 +18,7 @@ func TestParse_Accepts(t *testing.T) {
 		{``, Spec{Component: "month", WeekStart: time.Monday}, false},
 		{`{}`, Spec{Component: "month", WeekStart: time.Monday}, false},
 		{`{"component":"hour"}`, Spec{Component: "hour", WeekStart: time.Monday}, false},
+		{`{"component":"hour_of_day"}`, Spec{Component: "hour_of_day", WeekStart: time.Monday}, false},
 		{`{"component":"week"}`, Spec{Component: "week", WeekStart: time.Monday}, false},
 		{`{"component":"week","week_start":"monday"}`, Spec{Component: "week", WeekStart: time.Monday}, false},
 		{`{"component":"week","week_start":"sunday"}`, Spec{Component: "week", WeekStart: time.Sunday}, true},
@@ -38,8 +39,9 @@ func TestParse_Accepts(t *testing.T) {
 func TestParse_Refusals(t *testing.T) {
 	for _, tc := range []struct{ raw, msg string }{
 		{`{`, "invalid GROUP_DATE params: unexpected end of JSON input"},
-		{`{"component":"minute"}`, `invalid date group component "minute": must be one of year, quarter, month, week, day, hour, day_of_week`},
+		{`{"component":"minute"}`, `invalid date group component "minute": must be one of year, quarter, month, week, day, hour, hour_of_day, day_of_week`},
 		{`{"component":"year","fiscal_offset":12}`, "invalid GROUP_DATE fiscal_offset 12: must be in range [-11, 11]"},
+		{`{"component":"hour_of_day","fiscal_offset":3}`, `GROUP_DATE fiscal_offset only applies to component=year or component=quarter, got "hour_of_day"`},
 		{`{"component":"hour","fiscal_offset":3}`, `GROUP_DATE fiscal_offset only applies to component=year or component=quarter, got "hour"`},
 		{`{"component":"week","week_start":"Sunday"}`, `invalid GROUP_DATE week_start "Sunday": must be one of monday, tuesday, wednesday, thursday, friday, saturday, sunday`},
 		{`{"component":"week","week_start":"sun"}`, `invalid GROUP_DATE week_start "sun": must be one of monday, tuesday, wednesday, thursday, friday, saturday, sunday`},
@@ -62,6 +64,7 @@ func TestCheckField(t *testing.T) {
 	}}
 	hour := Spec{Component: "hour", WeekStart: time.Monday}
 	day := Spec{Component: "day", WeekStart: time.Monday}
+	hod := Spec{Component: "hour_of_day", WeekStart: time.Monday}
 	for _, tc := range []struct {
 		spec   Spec
 		field  string
@@ -74,6 +77,8 @@ func TestCheckField(t *testing.T) {
 		{day, "n", schema, ""},
 		{hour, "d", schema, `GROUP_DATE component=hour requires a datetime field; field "d" is of type date`},
 		{hour, "n", schema, `GROUP_DATE component=hour requires a datetime field; field "n" is of type u32`},
+		{hod, "ts", schema, ""},
+		{hod, "d", schema, `GROUP_DATE component=hour_of_day requires a datetime field; field "d" is of type date`},
 		{hour, "derived", schema, `GROUP_DATE component=hour requires a datetime field; field "derived" is absent from the schema (a derived field is read as epoch days)`},
 	} {
 		err := CheckField(tc.spec, tc.field, tc.schema)

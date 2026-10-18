@@ -26,20 +26,36 @@ const Operator = "GROUP_DATE"
 // DefaultComponent is the component a GROUP_DATE without one buckets by.
 const DefaultComponent = "month"
 
-// ComponentHour is the sub-day component: the local wall-clock hour.
+// ComponentHour is the sub-day component: the local wall-clock hour,
+// keyed with its date (`2026-03-29T03`).
 const ComponentHour = "hour"
 
+// ComponentHourOfDay is the hour-of-day profile: the local wall-clock
+// hour alone, keyed `00`..`23`, so every day's 09:00 shares one bucket.
+const ComponentHourOfDay = "hour_of_day"
+
+// ComponentDayOfWeek is the weekday profile, keyed by the English day
+// name (`Monday`..`Sunday`).
+const ComponentDayOfWeek = "day_of_week"
+
 // componentList is the component set in the order refusals name it.
-const componentList = "year, quarter, month, week, day, hour, day_of_week"
+const componentList = "year, quarter, month, week, day, hour, hour_of_day, day_of_week"
 
 var validComponents = map[string]bool{
 	"year": true, "quarter": true, "month": true,
-	"week": true, "day": true, ComponentHour: true, "day_of_week": true,
+	"week": true, "day": true, ComponentHour: true, ComponentHourOfDay: true, ComponentDayOfWeek: true,
+}
+
+// SubDay reports whether component reads a time of day (hour,
+// hour_of_day): its bucket unit is the local epoch hour, and it needs a
+// datetime field.
+func SubDay(component string) bool {
+	return component == ComponentHour || component == ComponentHourOfDay
 }
 
 // fiscalComponents lists the only components that meaningfully accept a
-// fiscal_offset. Month / week / day / hour / day_of_week buckets do not
-// shift under a fiscal calendar.
+// fiscal_offset. Month / week / day / hour / hour_of_day / day_of_week
+// buckets do not shift under a fiscal calendar.
 var fiscalComponents = map[string]bool{"year": true, "quarter": true}
 
 // params is the wire shape of GROUP_DATE params.
@@ -116,15 +132,16 @@ func Parse(raw json.RawMessage) (Spec, error) {
 	return spec, nil
 }
 
-// CheckField refuses an `hour` component over field unless schema
-// declares it `datetime`: a `date` carries no time of day, a
+// CheckField refuses a sub-day component (`hour`, `hour_of_day`) over
+// field unless schema declares it `datetime`: a `date` carries no time
+// of day, a
 // non-temporal column is read as epoch days, and a field absent from
 // the schema (derived) is read as epoch days too — each would put every
 // row in hour 00 rather than fail. A nil schema (the probe paths, which
 // build an operator with no cohort behind it) is not judged. Every other
 // component keeps GROUP_DATE's permissive field posture.
 func CheckField(spec Spec, field string, schema *encoding.Schema) error {
-	if spec.Component != ComponentHour || schema == nil {
+	if !SubDay(spec.Component) || schema == nil {
 		return nil
 	}
 	f := schema.Field(field)
@@ -136,5 +153,5 @@ func CheckField(spec Spec, field string, schema *encoding.Schema) error {
 		got = "of type " + f.Type.String()
 	}
 	return errors.NewCodedError(errors.PROCESSING_CONFIG,
-		fmt.Sprintf("GROUP_DATE component=hour requires a datetime field; field %q is %s", field, got))
+		fmt.Sprintf("GROUP_DATE component=%s requires a datetime field; field %q is %s", spec.Component, field, got))
 }

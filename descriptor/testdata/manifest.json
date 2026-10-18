@@ -5085,7 +5085,7 @@
         {
           "name": "GROUP_DATE",
           "category": "grouper",
-          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour its wall-clock hour (datetime only). Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
+          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, hour_of_day, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour / hour_of_day its wall-clock hour (datetime only). Keys emit chronologically; day_of_week Monday to Sunday, hour_of_day 00 to 23. Group.Include restricts the keys and sets their order. Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
           "params": [
             {
               "name": "component",
@@ -5097,6 +5097,7 @@
                 "day",
                 "day_of_week",
                 "hour",
+                "hour_of_day",
                 "month",
                 "quarter",
                 "week",
@@ -5145,7 +5146,7 @@
             "date",
             "datetime"
           ],
-          "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1, 2026-W09, 2026-03-29T03)",
+          "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1, 2026-W09, 2026-03-29T03, Monday, 09)",
           "streamable": false,
           "streamable_hint": "Use GROUP_CATEGORY on an ATTR_DATE_PART output column for a streaming-friendly substitute.",
           "component_schema": {
@@ -5163,7 +5164,7 @@
               {
                 "name": "granularity",
                 "type": "string",
-                "description": "Calendar component used to bucket (hour, day, day_of_week, week, month, quarter, year)."
+                "description": "Calendar component used to bucket (hour, hour_of_day, day, day_of_week, week, month, quarter, year)."
               },
               {
                 "name": "range_start",
@@ -5196,7 +5197,7 @@
         {
           "name": "GROUP_DATE_RANGES",
           "category": "grouper",
-          "description": "Partition date-typed records by a set of inline labeled date ranges ({label, start, end}); the bucket key is the matching range's label. A datetime field is truncated to the UTC calendar day containing its instant before matching. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order.",
+          "description": "Partition date-typed records by a set of inline labeled date ranges ({label, start, end}); the bucket key is the matching range's label. A datetime field is read as the local calendar day of its resolved zone (UTC by default) before matching. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order, the unmatched bucket last; Group.Include restricts the labels and sets their order.",
           "params": [
             {
               "name": "ranges",
@@ -17679,7 +17680,7 @@
             {
               "name": "granularity",
               "type": "string",
-              "description": "Calendar component used to bucket (hour, day, day_of_week, week, month, quarter, year)."
+              "description": "Calendar component used to bucket (hour, hour_of_day, day, day_of_week, week, month, quarter, year)."
             },
             {
               "name": "range_start",
@@ -19063,4 +19064,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8ae221e9be3f179624f4056f327691a6d2053824dc8128a06105939a34d96cc4
+// golden-hash: 98286f347c213e44f010baa9e8d7a98fa167963b657c48d40fc5824ae1e521e0

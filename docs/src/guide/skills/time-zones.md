@@ -31,7 +31,7 @@ Expressions (`to_day`, `weekday`) stay request-zone only (`time_zone`), never pe
 
 A `datetime` is read on its LOCAL calendar day in every mode (process, stream, compose, parallel, shards, crosstab, join, chain, facet); a Berlin request's days are Berlin calendar days, DST changes included. Say so: "days are Berlin calendar days".
 
-- `GROUP_DATE` keys are local labels. `component: hour` keys `YYYY-MM-DDTHH` local wall clock (datetime only; the skipped DST hour has no bucket, the repeated hour is one bucket). `week_start` (week only) defaults to `monday` (ISO `YYYY-Www`); any other day keys by the week's first local date.
+- `GROUP_DATE` keys are local labels. `component: hour` keys `YYYY-MM-DDTHH` (`hour_of_day`: `HH`) local wall clock (datetime only; the skipped DST hour has no bucket, the repeated hour is one bucket). `week_start` (week only) defaults to `monday` (ISO `YYYY-Www`); any other day keys by the week's first local date.
 - Range literals (inline or `RangeTables`) are LOCAL calendar days in the slot's zone; a range table has no zone of its own.
 - `ATTR_DATE_PART` and `FEAT_DATE_FEATURES` accept `datetime` and read the zone's wall clock; part `hour` (and the sixth `<prefix>_hour` feature column) is datetime-only. Feature `dow` stays Sunday = 0 and ignores `week_start`.
 - Formulas and expression filters: `to_day(ts)` reads the inherited zone (request `time_zone` -> `Options.DefaultTimeZone` -> UTC) on every entry point — `FilterToFileRequest.TimeZone` is filter-to-file's request zone; they take no slot `tz` ([`calendar-formulas`](calendar-formulas.md)).

@@ -40,16 +40,18 @@ func groupSchema(merge descriptor.ComponentsMergeability, extra ...descriptor.Co
 // grouperCapabilities returns the metadata for every registered
 // GrouperFactory.
 //
-// Group.Include ordering note: for the three groupers that honour
+// Group.Include ordering note: for the groupers that honour
 // Group.Include (GROUP_CATEGORY on the label string, GROUP_SET_VALUE on
 // the pipe-joined composite key, GROUP_SET_PER_ELEMENT on each individual
-// fan-out label) a non-empty Include is order-significant — output buckets
+// fan-out label, GROUP_DATE on its calendar key, GROUP_DATE_RANGES on the
+// range label) a non-empty Include is order-significant — output buckets
 // emit in the order values are listed in Include, across both the plain
 // grouped payload (Response.Data + Response.Components buckets) and each
-// crosstab axis independently (an axis without Include keeps the prior
-// alphabetical / dict-index order). An empty or absent Include preserves
-// the prior alphabetical (dict-index for GROUP_SET_PER_ELEMENT) order and
-// is byte-identical to the pre-Include output. Include values that match
+// crosstab axis independently (an axis without Include keeps the
+// grouper's own key order). An empty or absent Include preserves that
+// order — the keyOrderer rank (GROUP_DATE day_of_week Monday first, a
+// range grouper's supplied order), else alphabetical (dict-index for
+// GROUP_SET_PER_ELEMENT; chronological for the other GROUP_DATE keys). Include values that match
 // zero records are still dropped, never emitted as empty buckets. This is
 // a runtime emission-ordering property only — no ComponentSchema key,
 // capability shape, or manifest field changes, so the descriptor surface
@@ -71,7 +73,7 @@ func grouperCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.GROUP_DATE),
 			Category:    "grouper",
-			Description: "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour its wall-clock hour (datetime only). Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
+			Description: "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, hour_of_day, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour / hour_of_day its wall-clock hour (datetime only). Keys emit chronologically; day_of_week Monday to Sunday, hour_of_day 00 to 23. Group.Include restricts the keys and sets their order. Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
 			Params: []descriptor.Param{
 				{
 					Name:        "component",
@@ -79,7 +81,7 @@ func grouperCapabilities() []descriptor.Operator {
 					Required:    false,
 					Default:     "month",
 					Description: "Calendar component to bucket by.",
-					EnumValues:  []string{"day", "day_of_week", "hour", "month", "quarter", "week", "year"},
+					EnumValues:  []string{"day", "day_of_week", "hour", "hour_of_day", "month", "quarter", "week", "year"},
 				},
 				{
 					Name:        "week_start",
@@ -105,11 +107,11 @@ func grouperCapabilities() []descriptor.Operator {
 				},
 			},
 			AcceptsTypes:   []string{"date", "datetime"},
-			EmitsTypeNote:  "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1, 2026-W09, 2026-03-29T03)",
+			EmitsTypeNote:  "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1, 2026-W09, 2026-03-29T03, Monday, 09)",
 			Streamable:     false,
 			StreamableHint: "Use GROUP_CATEGORY on an ATTR_DATE_PART output column for a streaming-friendly substitute.",
 			ComponentSchema: groupSchema(descriptor.Mergeable,
-				descriptor.ComponentKey{Name: "granularity", Type: "string", Description: "Calendar component used to bucket (hour, day, day_of_week, week, month, quarter, year)."},
+				descriptor.ComponentKey{Name: "granularity", Type: "string", Description: "Calendar component used to bucket (hour, hour_of_day, day, day_of_week, week, month, quarter, year)."},
 				descriptor.ComponentKey{Name: "range_start", Type: "string", Description: "ISO date string of the earliest period observed (YYYY-MM-DDTHH for component=hour)."},
 				descriptor.ComponentKey{Name: "range_end", Type: "string", Description: "ISO date string of the latest period observed (YYYY-MM-DDTHH for component=hour)."},
 				descriptor.ComponentKey{Name: "n_buckets", Type: "int", Description: "Number of distinct calendar buckets observed."},
@@ -119,7 +121,7 @@ func grouperCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.GROUP_DATE_RANGES),
 			Category:    "grouper",
-			Description: "Partition date-typed records by a set of inline labeled date ranges ({label, start, end}); the bucket key is the matching range's label. A datetime field is truncated to the UTC calendar day containing its instant before matching. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order.",
+			Description: "Partition date-typed records by a set of inline labeled date ranges ({label, start, end}); the bucket key is the matching range's label. A datetime field is read as the local calendar day of its resolved zone (UTC by default) before matching. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order, the unmatched bucket last; Group.Include restricts the labels and sets their order.",
 			Params: []descriptor.Param{
 				{
 					Name:        "ranges",

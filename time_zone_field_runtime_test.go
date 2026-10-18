@@ -243,6 +243,20 @@ func perRowCases() []perRowCase {
 			},
 		},
 		{
+			name: "site-hour-of-day",
+			build: func(cohort string, z perRowZoning) *types.Request {
+				req := perRowBase(cohort, z)
+				req.Aggregations = count
+				req.Groups = []*types.Group{site, perRowDateGroup("hour_of_day", z)}
+				return req
+			},
+			reference: func(t *testing.T, rows []perRowRow) map[string]float64 {
+				return perRowCountBy(t, rows, func(r perRowRow, loc *time.Location) string {
+					return time.Unix(r.ts, 0).In(loc).Format("15")
+				})
+			},
+		},
+		{
 			name: "site-date-ranges",
 			build: func(cohort string, z perRowZoning) *types.Request {
 				req := perRowBase(cohort, z)
@@ -609,7 +623,7 @@ func TestTimeZoneField_NullZoneCellIsNullLocalValue(t *testing.T) {
 			return resp, got
 		}
 		t.Run(arm.name+"/groupers", func(t *testing.T) {
-			for _, name := range []string{"site-day", "site-hour", "site-date-ranges"} {
+			for _, name := range []string{"site-day", "site-hour", "site-hour-of-day", "site-date-ranges"} {
 				resp, _ := run(t, name)
 				g := resp.Components.Groupers[1]
 				if g.NNull != nulls || g.TotalN != len(rows)-nulls {

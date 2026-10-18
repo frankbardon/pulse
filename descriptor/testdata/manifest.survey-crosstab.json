@@ -570,7 +570,7 @@
         {
           "name": "GROUP_DATE",
           "category": "grouper",
-          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour its wall-clock hour (datetime only). Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
+          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, hour_of_day, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour / hour_of_day its wall-clock hour (datetime only). Keys emit chronologically; day_of_week Monday to Sunday, hour_of_day 00 to 23. Group.Include restricts the keys and sets their order. Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
           "params": [
             {
               "name": "component",
@@ -582,6 +582,7 @@
                 "day",
                 "day_of_week",
                 "hour",
+                "hour_of_day",
                 "month",
                 "quarter",
                 "week",
@@ -630,7 +631,7 @@
             "date",
             "datetime"
           ],
-          "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1, 2026-W09, 2026-03-29T03)",
+          "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1, 2026-W09, 2026-03-29T03, Monday, 09)",
           "streamable": false,
           "component_schema": {
             "keys": [
@@ -647,7 +648,7 @@
               {
                 "name": "granularity",
                 "type": "string",
-                "description": "Calendar component used to bucket (hour, day, day_of_week, week, month, quarter, year)."
+                "description": "Calendar component used to bucket (hour, hour_of_day, day, day_of_week, week, month, quarter, year)."
               },
               {
                 "name": "range_start",
@@ -2132,7 +2133,7 @@
             {
               "name": "granularity",
               "type": "string",
-              "description": "Calendar component used to bucket (hour, day, day_of_week, week, month, quarter, year)."
+              "description": "Calendar component used to bucket (hour, hour_of_day, day, day_of_week, week, month, quarter, year)."
             },
             {
               "name": "range_start",
@@ -2381,4 +2382,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a116c0f51f081d5a9597806a3369b92075de8063f2188e4f078391e5ff54b07a
+// golden-hash: 22adcc8da34050c1606ace0fdd510c72090801759941f043f0da0e5f26ef62a3
