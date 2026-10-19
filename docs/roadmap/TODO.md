@@ -421,7 +421,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#474** The ontology example detector has no `cells` entry (crosstab `cells` / `capability:crosstab_cells`), so example 19 declares `_meta.capabilities` by hand; add the detector entry. Found in U47 (E4-S5) · [U32](units/U32-docs-audit.md)
 - [ ] **#475** Optional `PULSE_ADVISORY_*` for an `ATTR_FORMULA` that can yield null without a guard: predict cannot know, so an advisory is a contract call (owner). Found in U47 (E4-S5) · [U35](units/U35-predict-runtime-parity.md)
 - [ ] **#476** `OVERLAY_PAIRWISE_WELCH_T` / `_TWO_MEANS_Z` on a multi-measure crosstab whose measures have mixed cell types is refused whole; refuse per measure, predict and runtime alike. Found in U47 (E4-S5) · [U35](units/U35-predict-runtime-parity.md)
-- [ ] **#477** `weight_reference_values_test.go` was hand-edited in U47 (E4-S6) because Hmisc was absent; re-run `uv run --no-project gen_weight_reference.py --check` with Hmisc 5.3.0 and commit any regenerated values. Found in U47 (E4-S5) · [U36](units/U36-reference-oracles.md)
+- [x] **#477** `weight_reference_values_test.go` was hand-edited in U47 (E4-S6) because Hmisc was absent; re-run `uv run --no-project gen_weight_reference.py --check` with Hmisc 5.3.0 and commit any regenerated values. Found in U47 (E4-S5) · [U36](units/U36-reference-oracles.md)
 
 #### Experiment readout ([U48](units/U48-experiment-readout.md))
 - [x] **#332** Goodness-of-fit chi-square against supplied expected proportions (`TEST_CHISQ` `params.expected` or a dedicated GOF test) and a one-sample `TEST_PROP_Z` (`p0`), so a sample-ratio check is one test · [U48](units/U48-experiment-readout.md)

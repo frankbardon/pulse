@@ -10,11 +10,13 @@ Python or R; the generated Go file is the oracle. Never hand-edit it.
 
 ```sh
 cd internal/service/testdata/weight_reference
-# once: Hmisc 5.3.0 in a private library (never commit it); see
-# "R toolchain" below for the Homebrew Fortran workaround
-R_LIBS=/tmp/rlib Rscript -e 'install.packages("remotes", lib = "/tmp/rlib", repos = "https://cloud.r-project.org")' \
-  -e 'remotes::install_version("Hmisc", "5.3.0", lib = "/tmp/rlib", repos = "https://cloud.r-project.org", upgrade = "never")'
-R_LIBS=/tmp/rlib uv run --no-project gen_weight_reference.py   # Python versions pinned in the PEP 723 header
+# once: Hmisc 5.3.0 in the user R library (R_LIBS_USER, the same one
+# `make reference` uses); see "R toolchain" below for the Homebrew
+# Fortran workaround
+Rscript -e 'l <- Sys.getenv("R_LIBS_USER"); r <- "https://cloud.r-project.org"' \
+  -e 'install.packages("remotes", lib = l, repos = r)' \
+  -e 'remotes::install_version("Hmisc", "5.3.0", lib = l, repos = r, upgrade = "never")'
+uv run --no-project gen_weight_reference.py   # Python versions pinned in the PEP 723 header
 gofmt -w ../../weight_reference_values_test.go
 go test ../.. -run TestWeightReference
 ```
@@ -29,7 +31,7 @@ reported, not compared. It needs the same toolchain; once uv's cache
 holds the pinned wheels it runs without network (`--offline`):
 
 ```sh
-R_LIBS=/tmp/rlib uv run --offline --no-project gen_weight_reference.py --check
+uv run --offline --no-project gen_weight_reference.py --check
 ```
 
 ### Pinned toolchain and the last ulps
@@ -73,7 +75,7 @@ TRIPLE=$(ls "$GCC/gcc")                     # e.g. aarch64-apple-darwin23
 VER=$(ls "$GCC/gcc/$TRIPLE")                # e.g. 16
 printf 'FLIBS = -L%s/gcc/%s/%s -L%s/gcc -L%s -lemutls_w -lheapt_w -lgfortran -lquadmath\n' \
   "$GCC" "$TRIPLE" "$VER" "$GCC" "$GCC" > /tmp/Makevars.pulse
-R_MAKEVARS_USER=/tmp/Makevars.pulse R_LIBS=/tmp/rlib Rscript -e '...install line above...'
+R_MAKEVARS_USER=/tmp/Makevars.pulse Rscript -e '...install line above...'
 ```
 
 The multivariate R oracle (`make reference`) has its own pinned package
