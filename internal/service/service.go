@@ -791,7 +791,7 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 	// Inject configured default label bindings (schema-filtered) before
 	// validation so registered tables render display strings without the
 	// caller specifying bindings per request.
-	s.applyAutoLabels(&req.Labels, cohort.Schema(), s.autoLabelOccupied(req, cohort.Schema()), nil)
+	s.applyAutoLabels(&req.Labels, cohort.Schema(), s.autoLabelOccupied(req, cohort.Schema()), nil, req.Attributes)
 
 	// Label-binding validation runs before any record bytes are read so
 	// schema / table / collision failures surface as typed errors.

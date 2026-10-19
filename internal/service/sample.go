@@ -46,7 +46,7 @@ func (s *Service) sampleWithRequest(ctx context.Context, req *types.SampleReques
 	// validateSampleLabels / sampleOffsetLimit below.
 	if len(s.autoLabels) > 0 {
 		if cohort, err := s.Open(ctx, path); err == nil {
-			s.applyAutoLabels(&req.Labels, cohort.Schema(), nil, nil)
+			s.applyAutoLabels(&req.Labels, cohort.Schema(), nil, nil, nil)
 		}
 	}
 

@@ -458,8 +458,10 @@ func TestPredict_CrosstabFusableMatchesRuntime(t *testing.T) {
 					}
 				}
 				// ATTR_PREVIOUS_STATE is buffered only: both arms decline it
-				// with the buffered-attribute reason.
-				if c.name == "attr/ATTR_PREVIOUS_STATE" && !inst.disable && req.Crosstab != nil && !refused {
+				// with the buffered-attribute reason wherever it is visible
+				// (the profiled instance hides it: no fusion fact there,
+				// like any never-registered name).
+				if c.name == "attr/ATTR_PREVIOUS_STATE" && inst.profile == nil && !inst.disable && req.Crosstab != nil && !refused {
 					want := "buffered attribute (ATTR_PREVIOUS_STATE)"
 					if rtOK || !slices.Contains(rtReasons, want) || res.CrosstabFusable == nil || *res.CrosstabFusable || !slices.Contains(res.CrosstabFusionReasons, want) {
 						t.Errorf("%s: runtime=(%v, %q) predict=(%v, %q); want both declined with %q", c.name, rtOK, rtReasons, res.CrosstabFusable, res.CrosstabFusionReasons, want)

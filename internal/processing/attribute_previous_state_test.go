@@ -165,7 +165,7 @@ func TestPreviousState_Compute(t *testing.T) {
 			if len(warns) != 1 || warns[0].Code != string(errors.PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE) {
 				t.Fatalf("warnings %+v, want one %s", warns, errors.PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE)
 			}
-			if warns[0].Details["n_ambiguous"] != c.ambiguous || warns[0].Details["n_subjects"] != c.ambSubj {
+			if warns[0].Details["n_ambiguous"] != c.ambiguous || warns[0].Details["n_subjects_ambiguous"] != c.ambSubj {
 				t.Errorf("details %+v", warns[0].Details)
 			}
 		})
@@ -209,7 +209,7 @@ func TestPreviousState_StrictFailsTheRun(t *testing.T) {
 	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE {
 		t.Fatalf("strict: err %v, want %s", err, errors.PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE)
 	}
-	if ce.Details["n_ambiguous"] != int64(1) || ce.Details["n_subjects"] != int64(1) {
+	if ce.Details["n_ambiguous"] != int64(1) || ce.Details["n_subjects_ambiguous"] != int64(1) {
 		t.Errorf("strict details %+v", ce.Details)
 	}
 	if _, _, err := p.applyAttributes(attrs, mk(false)); err != nil {
@@ -257,5 +257,64 @@ func TestPreviousState_FactoryRefusals(t *testing.T) {
 	}
 	if _, err := newPreviousStateAttribute(base(), s); err != nil {
 		t.Errorf("valid slot refused: %v", err)
+	}
+}
+
+// TestPreviousState_Components: the operator keys of the slot's
+// Response.Components.Attributes entry. n_subjects counts the subjects
+// holding a record with a present subject and order; every null output
+// is a first time point (n_first), a null previous state (n_gap), an
+// ambiguous tie (n_ambiguous) or a record with a null subject / order —
+// so the four add up with those to n_null.
+func TestPreviousState_Components(t *testing.T) {
+	s := prevStateSchema(t)
+	type row = map[string]float64
+	rows := []row{
+		// subject 1: A, gap (null state), C ← null previous → n_gap 1.
+		{"id": 1, "d": 1, "st": psA}, {"id": 1, "d": 2, "st": psNull}, {"id": 1, "d": 3, "st": psC},
+		// subject 2: a differing tie on d1, two records at d2 → n_ambiguous 2;
+		// the tied d1 records are both first time points.
+		{"id": 2, "d": 1, "st": psA}, {"id": 2, "d": 1, "st": psB}, {"id": 2, "d": 2, "st": psC}, {"id": 2, "d": 2, "st": psC},
+		// a null subject and a null order: null, counted by neither key.
+		{"id": psNull, "d": 4, "st": psA}, {"id": 3, "d": psNull, "st": psA},
+		// subject 4: one record, its first time point.
+		{"id": 4, "d": 9, "st": psB},
+	}
+	comp, err := newPreviousStateAttribute(&types.Attribute{Type: types.ATTR_PREVIOUS_STATE, Field: "st", SubjectField: "id", OrderField: "d", Label: "prev"}, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recs := make([]*Record, len(rows))
+	for i, r := range rows {
+		recs[i] = psRec(s, r)
+	}
+	if _, err := comp.Compute(recs, "st"); err != nil {
+		t.Fatal(err)
+	}
+	meta, ok := comp.(MetaAttribute)
+	if !ok {
+		t.Fatal("ATTR_PREVIOUS_STATE is not a MetaAttribute")
+	}
+	got, err := meta.Components()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{"n_subjects": int64(3), "n_first": int64(4), "n_gap": int64(1), "n_ambiguous": int64(2)}
+	if len(got) != len(want) {
+		t.Fatalf("components %v, want %v", got, want)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s = %v, want %v", k, got[k], v)
+		}
+	}
+
+	// A second Compute starts the tallies afresh.
+	if _, err := comp.Compute(recs[:3], "st"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = meta.Components()
+	if got["n_subjects"] != int64(1) || got["n_first"] != int64(1) || got["n_gap"] != int64(1) || got["n_ambiguous"] != int64(0) {
+		t.Errorf("recomputed components %v", got)
 	}
 }

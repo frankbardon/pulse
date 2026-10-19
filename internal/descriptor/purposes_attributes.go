@@ -28,6 +28,8 @@ var attributePurposes = map[string]descriptor.Purpose{
 	"ATTR_NORMALIZED": purposeAttrNormalized,
 	"ATTR_PERCENTILE": purposeAttrPercentile,
 
+	"ATTR_PREVIOUS_STATE": purposeAttrPreviousState,
+
 	"ATTR_PROFILE_SIMILARITY": purposeAttrProfileSimilarity,
 	"ATTR_VEC_DISTANCE":       purposeAttrVecDistance,
 
@@ -257,6 +259,33 @@ var (
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"percentile", "rank", "ties", "missing-value"},
+	}
+
+	purposeAttrPreviousState = descriptor.Purpose{
+		Plain:   "Adds to each row of a long panel the state the same subject held at its previous date, so moves can be counted from-state by to-state.",
+		Intents: []string{IntentFlows, IntentPrepare},
+		Questions: []string{
+			"How many customers moved from each plan to each other plan between snapshots, when the data has one row per customer per snapshot?",
+			"Which tier was each member in at the previous monthly snapshot?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainOps:     "Turn a plan-history log into a last-plan by current-plan table for switching and churn analysis.",
+			descriptor.DomainSurvey:  "Pair each respondent's answer with their answer in the previous wave of a panel.",
+			descriptor.DomainScience: "Pair each visit's disease stage with the stage at the same patient's previous visit.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "the data already holds one row per subject with a from column and a to column", Use: "GROUP_CATEGORY"},
+			{When: "you want the previous value of a number on result rows", Use: "WIN_LAG"},
+		},
+		Assumptions: []string{
+			"Each subject's rows are put in order by a date or date-time, never by row order; rows on the same date each read the date before it.",
+			"A subject's first date has no previous state, and neither does a row after a missing state: both are missing, never a guessed earlier state, so they drop out of a from-state by to-state table.",
+			"When rows on one date disagree on the state, the next date has no single previous state: it is missing, and a warning counts it.",
+			"It reads each subject's whole history across the cohort, and no weight applies: it is a value copied from another row, not an estimate.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		KnownAs:  []string{"previous state", "lagged state"},
+		Glossary: []string{"cross-tabulation", "missing-value"},
 	}
 
 	purposeAttrNormalized = descriptor.Purpose{

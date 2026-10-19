@@ -1,0 +1,58 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Plan switching from a long panel (one row per customer per month-end snapshot, rows not sorted by customer): ATTR_PREVIOUS_STATE adds each row's plan at the same customer's previous snapshot, typed as plan with plan's dictionary, so a prev_plan x plan crosstab counts the moves with plan names on both axes. Each customer's first snapshot has no previous plan and drops from the row axis.",
+    "intents": [
+      "flows",
+      "prepare"
+    ],
+    "name": "previous_state_transitions",
+    "operators": [
+      "AGG_COUNT",
+      "ATTR_PREVIOUS_STATE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "buffered-pipeline",
+      "cohort-analysis",
+      "cross-tabulation"
+    ]
+  },
+  "cohort": {
+    "filename": "plan_history.pulse",
+    "data_dir": ".data"
+  },
+  "attributes": [
+    {
+      "type": "ATTR_PREVIOUS_STATE",
+      "label": "prev_plan",
+      "field": "plan",
+      "subject_field": "customer_id",
+      "order_field": "seen_at"
+    }
+  ],
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "prev_plan"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "plan"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  }
+}

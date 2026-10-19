@@ -79,10 +79,12 @@ func regressionShaped(op opInfo) bool {
 	return op.category == catRegression || (op.category == catAttribute && regressionAttributes[op.name])
 }
 
-// topLevelParam reports whether op's declared param name is a top-level
-// key of the slot entry rather than a member of its params object.
-func topLevelParam(op opInfo, name string) bool {
-	return regressionShaped(op) || topLevelParams[op.category][name]
+// topLevelParam reports whether op's declared param p is a top-level
+// key of the slot entry rather than a member of its params object: a
+// param the manifest marks Slot (ATTR_PREVIOUS_STATE's subject_field /
+// order_field), or one the tables above place there.
+func topLevelParam(op opInfo, p param) bool {
+	return p.slot || regressionShaped(op) || topLevelParams[op.category][p.name]
 }
 
 // opInfo is what a draft needs to know about one operator: its
@@ -111,6 +113,8 @@ type param struct {
 	typ          string
 	fieldFilter  string
 	alternatives []string
+	// slot: the manifest's Param.Slot — a key of the slot object itself.
+	slot bool
 }
 
 // catalog indexes the instance manifest's operator entries by name. A
@@ -194,7 +198,7 @@ func requiredParams(ps []descriptor.Param) []param {
 	var out []param
 	for _, p := range ps {
 		if alts, first := groups.first(p.Name, p.ExactlyOneOf); (p.Required && p.Default == nil) || first {
-			out = append(out, param{name: p.Name, list: p.Type == "list" || p.Type == "array", typ: p.Type, fieldFilter: p.FieldFilter, alternatives: alts})
+			out = append(out, param{name: p.Name, list: p.Type == "list" || p.Type == "array", typ: p.Type, fieldFilter: p.FieldFilter, alternatives: alts, slot: p.Slot})
 		}
 	}
 	return out

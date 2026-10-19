@@ -604,8 +604,8 @@ func chunkComponents(buffered *types.ResponseComponents, aggMerge, grpMerge []de
 }
 
 // attributeNoneTypes is the set of built-in attribute operators whose
-// ComponentSchema mergeability is None (none today: ATTR_SCALE_SCORE's
-// counters are Mergeable). Read once from the static capability table;
+// ComponentSchema mergeability is None (ATTR_PREVIOUS_STATE: its
+// counts are of one whole-cohort pass). Read once from the static capability table;
 // an extension attribute, like an extension aggregator, is kept as-is.
 var attributeNoneTypes = sync.OnceValue(func() map[types.AttributeType]bool {
 	out := map[types.AttributeType]bool{}

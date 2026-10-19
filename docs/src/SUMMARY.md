@@ -111,6 +111,7 @@
     - [op-attr-normalized](guide/skills/op-attr-normalized.md)
     - [op-attr-pc-score](guide/skills/op-attr-pc-score.md)
     - [op-attr-percentile](guide/skills/op-attr-percentile.md)
+    - [op-attr-previous-state](guide/skills/op-attr-previous-state.md)
     - [op-attr-profile-similarity](guide/skills/op-attr-profile-similarity.md)
     - [op-attr-reg-fitted](guide/skills/op-attr-reg-fitted.md)
     - [op-attr-reg-leverage](guide/skills/op-attr-reg-leverage.md)

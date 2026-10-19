@@ -590,7 +590,7 @@ const (
 	// tie on the order value with DIFFERENT states, so the next time
 	// point has no single previous state: each of its records is null
 	// (never a guessed sequence). details carry n_ambiguous (the records
-	// nulled so) and n_subjects (the subjects holding one or more).
+	// nulled so) and n_subjects_ambiguous (the subjects holding one or more).
 	// Under Strict the run fails with this code instead.
 	PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE Code = "PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE"
 

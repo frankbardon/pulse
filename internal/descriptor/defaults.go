@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -116,6 +117,15 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema, inst *Instance
 
 	var applied []descriptor.DefaultApplied
 
+	// An ATTR_PREVIOUS_STATE output column reads as its state field
+	// (prevstate.KeySchema), so a slot naming it takes the state field's
+	// default — on predict and at runtime, both of which call here. The
+	// view serves the field-type lookups of the aggregation, grouper and
+	// crosstab-cell slots only; a request without the attribute gets the
+	// cohort schema itself.
+	cohort := schema
+	schema = prevstate.KeySchema(req.Attributes, schema)
+
 	for i, agg := range req.Aggregations {
 		if agg == nil || agg.Type != "" || agg.Field == "" {
 			continue
@@ -198,7 +208,7 @@ func ResolveDefaults(req *types.Request, schema *encoding.Schema, inst *Instance
 		}
 	}
 
-	applied = append(applied, resolveMetricDefaults(req, schema, inst)...)
+	applied = append(applied, resolveMetricDefaults(req, cohort, inst)...)
 
 	return applied
 }

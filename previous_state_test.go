@@ -225,7 +225,7 @@ func TestPreviousState_ProjectedDecodeReadsSubjectAndOrder(t *testing.T) {
 }
 
 // TestPreviousState_AmbiguousTieWarnsOrFailsUnderStrict: end to end,
-// an ambiguous tie warns (details n_ambiguous, n_subjects) and the run
+// an ambiguous tie warns (details n_ambiguous, n_subjects_ambiguous) and the run
 // succeeds; under Options.Strict the run fails with the same code and
 // details.
 func TestPreviousState_AmbiguousTieWarnsOrFailsUnderStrict(t *testing.T) {
@@ -251,7 +251,7 @@ func TestPreviousState_AmbiguousTieWarnsOrFailsUnderStrict(t *testing.T) {
 			if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE {
 				t.Fatalf("strict: err %v, want %s", err, errors.PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE)
 			}
-			if ce.Details["n_ambiguous"] != int64(1) || ce.Details["n_subjects"] != int64(1) {
+			if ce.Details["n_ambiguous"] != int64(1) || ce.Details["n_subjects_ambiguous"] != int64(1) {
 				t.Errorf("strict details %+v", ce.Details)
 			}
 			continue
@@ -271,7 +271,7 @@ func TestPreviousState_AmbiguousTieWarnsOrFailsUnderStrict(t *testing.T) {
 		if hit == nil {
 			t.Fatalf("no %s warning in %+v", errors.PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE, resp.Warnings)
 		}
-		if hit.Details["n_ambiguous"] != int64(1) || hit.Details["n_subjects"] != int64(1) {
+		if hit.Details["n_ambiguous"] != int64(1) || hit.Details["n_subjects_ambiguous"] != int64(1) {
 			t.Errorf("warning details %+v", hit.Details)
 		}
 	}

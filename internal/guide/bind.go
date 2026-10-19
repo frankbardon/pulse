@@ -339,6 +339,8 @@ func fieldFilterAccept(filter string) func(*encoding.Field) bool {
 		return kindIs(descriptor.FieldKindNumeric)
 	case "categorical":
 		return categoricalField
+	case "date":
+		return kindIs(descriptor.FieldKindDate)
 	}
 	return func(*encoding.Field) bool { return true }
 }
@@ -417,7 +419,7 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 	}
 	for _, p := range op.params {
 		loc := locParams
-		if topLevelParam(op, p.name) {
+		if topLevelParam(op, p) {
 			loc = locTop
 		}
 		switch {

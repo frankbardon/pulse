@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:5630a947678103aa5bb95637e1f323c12ae53cdb72e622863326214744ebfb90",
+    "feature_set_digest": "fs1:f9c82a3572375114addfe09629d1bb9399dfc0fd242076ffece101bee8a500df",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -3815,8 +3815,44 @@
           "streamable": false,
           "streamable_hint": "No streaming form: a subject's records may sit anywhere in the cohort.",
           "component_schema": {
-            "mergeability": ""
-          }
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Filter-passing rows whose attribute output is present (non-null)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Filter-passing rows whose attribute output is null."
+              },
+              {
+                "name": "n_subjects",
+                "type": "int",
+                "description": "Distinct subjects holding a record whose subject and order values are both present."
+              },
+              {
+                "name": "n_first",
+                "type": "int",
+                "description": "Records at their subject's first time point (null: nothing before them)."
+              },
+              {
+                "name": "n_gap",
+                "type": "int",
+                "description": "Records whose previous time point's state is null (null: no carry-forward to an earlier state)."
+              },
+              {
+                "name": "n_ambiguous",
+                "type": "int",
+                "description": "Records nulled because their previous time point is a tie on differing states (PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE). With the records whose subject or order is null, n_first + n_gap + n_ambiguous make up n_null."
+              }
+            ],
+            "mergeability": "none"
+          },
+          "intents": [
+            "flows",
+            "prepare"
+          ]
         },
         {
           "name": "ATTR_PROFILE_SIMILARITY",
@@ -12204,6 +12240,10 @@
         "description": "Per-row percentile rank column against the post-filter value set; requires sorting."
       },
       {
+        "name": "op-attr-previous-state",
+        "description": "Per-row previous state of a long panel — the state the same subject held at its previous time point, typed as the state field."
+      },
+      {
         "name": "op-attr-profile-similarity",
         "description": "Per-row similarity to a target profile — correlation, cosine or a set similarity across a vector's members, against a literal, label-map, registered, centroid, saved-population or stored-record reference."
       },
@@ -13260,7 +13300,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 244,
+    "examples_count": 245,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -18821,6 +18861,41 @@
         }
       },
       "attributes": {
+        "ATTR_PREVIOUS_STATE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Filter-passing rows whose attribute output is present (non-null)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Filter-passing rows whose attribute output is null."
+            },
+            {
+              "name": "n_subjects",
+              "type": "int",
+              "description": "Distinct subjects holding a record whose subject and order values are both present."
+            },
+            {
+              "name": "n_first",
+              "type": "int",
+              "description": "Records at their subject's first time point (null: nothing before them)."
+            },
+            {
+              "name": "n_gap",
+              "type": "int",
+              "description": "Records whose previous time point's state is null (null: no carry-forward to an earlier state)."
+            },
+            {
+              "name": "n_ambiguous",
+              "type": "int",
+              "description": "Records nulled because their previous time point is a tie on differing states (PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE). With the records whose subject or order is null, n_first + n_gap + n_ambiguous make up n_null."
+            }
+          ],
+          "mergeability": "none"
+        },
         "ATTR_PROFILE_SIMILARITY": {
           "keys": [
             {
@@ -19117,4 +19192,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f4f3c4e3a214084fdf06e1664be97df5c785fb42d9d0d713ab99b8e0cbb35399
+// golden-hash: cc8742ad573426a60d7cc5a5661757fc61115d4242bcf43132693cdcc2137778

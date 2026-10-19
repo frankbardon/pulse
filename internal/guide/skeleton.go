@@ -76,7 +76,7 @@ func skeleton(op opInfo, intent string) (draft, bool) {
 		if p.list {
 			v = list(p.name)
 		}
-		if topLevelParam(op, p.name) {
+		if topLevelParam(op, p) {
 			entry[p.name] = v
 			return
 		}

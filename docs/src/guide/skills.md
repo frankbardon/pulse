@@ -79,6 +79,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-attr-normalized`](skills/op-attr-normalized.md): Per-row min-max normalized column — (value − min) / (max − min) ∈ [0, 1].
 - [`op-attr-pc-score`](skills/op-attr-pc-score.md): Per-row standardized score on one principal component of a vector of numeric members, with the PCA matrix operator's sign and order and optional orthogonal rotation; fit_on fits on a subset and still scores every row.
 - [`op-attr-percentile`](skills/op-attr-percentile.md): Per-row percentile rank column against the post-filter value set; requires sorting.
+- [`op-attr-previous-state`](skills/op-attr-previous-state.md): Per-row previous state of a long panel — the state the same subject held at its previous time point, typed as the state field.
 - [`op-attr-profile-similarity`](skills/op-attr-profile-similarity.md): Per-row similarity to a target profile — correlation, cosine or a set similarity across a vector's members, against a literal, label-map, registered, centroid, saved-population or stored-record reference.
 - [`op-attr-reg-fitted`](skills/op-attr-reg-fitted.md): Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from an OLS refit during the attribute prepass.
 - [`op-attr-reg-leverage`](skills/op-attr-reg-leverage.md): Per-row hat-matrix diagonal hᵢᵢ from an unpenalized OLS refit — leverage diagnostic.

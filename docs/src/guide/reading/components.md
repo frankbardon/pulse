@@ -866,6 +866,19 @@ Only the floor keys.
 
 ### Attributes
 
+<a id="op-attr_previous_state"></a>
+
+#### `ATTR_PREVIOUS_STATE`
+
+**Mergeability:** none. See its [catalog entry](../catalog/attribute.md#op-attr_previous_state).
+
+| Key | Type | Emitted | Meaning |
+|---|---|---|---|
+| `n_subjects` | int | always | Distinct subjects holding a record whose subject and order values are both present. |
+| `n_first` | int | always | Records at their subject's first time point (null: nothing before them). |
+| `n_gap` | int | always | Records whose previous time point's state is null (null: no carry-forward to an earlier state). |
+| `n_ambiguous` | int | always | Records nulled because their previous time point is a tie on differing states (PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE). With the records whose subject or order is null, n_first + n_gap + n_ambiguous make up n_null. |
+
 <a id="op-attr_profile_similarity"></a>
 
 #### `ATTR_PROFILE_SIMILARITY`

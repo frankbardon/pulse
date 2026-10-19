@@ -353,7 +353,7 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 	// stage 0's — except a replace-mode default on a key an earlier stage
 	// already replaced: its values are labels by now, and a second pass
 	// would only miss on them.
-	s.applyAutoLabels(&stage.Labels, synthSchema, s.autoLabelOccupied(stage, synthSchema), chainAutoLabelFields(s.autoLabels, req.Stages[:i], synthSchema))
+	s.applyAutoLabels(&stage.Labels, synthSchema, s.autoLabelOccupied(stage, synthSchema), chainAutoLabelFields(s.autoLabels, req.Stages[:i], synthSchema), stage.Attributes)
 	if err := s.validateProcessLabels(stage, synthSchema); err != nil {
 		return nil, nil, locate(err, "stage", i)
 	}

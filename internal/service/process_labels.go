@@ -120,6 +120,6 @@ func (s *Service) buildAndApplyLabels(req *types.Request, resp *types.Response) 
 	if err != nil {
 		return err
 	}
-	applyLabelsToResponse(req, resp, resolver, s.autoLabels)
+	applyLabelsToResponse(req, resp, resolver, s.autoLabelDefaults(req.Attributes))
 	return nil
 }

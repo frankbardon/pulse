@@ -101,7 +101,7 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 		for _, f := range req.Fields {
 			faceted[f] = true
 		}
-		s.applyAutoLabels(&req.Labels, schema, nil, faceted)
+		s.applyAutoLabels(&req.Labels, schema, nil, faceted, nil)
 	}
 	if err := s.validateFacetLabels(req, schema); err != nil {
 		return nil, err

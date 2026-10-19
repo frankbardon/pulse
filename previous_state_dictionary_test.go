@@ -291,3 +291,124 @@ func TestPreviousState_SeriesBaselineBoundMatchesRuntime(t *testing.T) {
 		})
 	}
 }
+
+// TestPreviousState_AutoLabelsCarryToTheOutputColumn: an
+// Options.AutoLabels default on the state field also binds each
+// previous-state output column, so both axes of a previous-state ×
+// state crosstab show display labels; a request binding the output
+// column itself keeps its own binding, and a request without the
+// attribute is untouched.
+func TestPreviousState_AutoLabelsCarryToTheOutputColumn(t *testing.T) {
+	tables := map[string]pulse.LabelTable{
+		"plans": {Rows: map[string]string{"free": "Free tier", "paid": "Paid tier", "pro": "Pro tier"}},
+		"short": {Rows: map[string]string{"free": "F", "paid": "P", "pro": "R"}},
+	}
+	p, _ := prevStateLongAndWide(t, pulse.Options{
+		Extensions: pulse.Extensions{LabelTables: tables},
+		AutoLabels: []pulse.LabelBinding{{Field: "plan", Table: "plans"}},
+	})
+	ctx := context.Background()
+	resp, err := p.Process(ctx, transitionCrosstab("panel.pulse", "prev", "plan", prevStateAttr()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := resp.Crosstab.Matrix
+	want := []types.AxisKey{{"Free tier"}, {"Paid tier"}, {"Pro tier"}}
+	if !reflect.DeepEqual(m.RowKeys, want) || !reflect.DeepEqual(m.ColumnKeys, want) {
+		t.Fatalf("auto-labelled axes rows %v cols %v, want %v on both", m.RowKeys, m.ColumnKeys, want)
+	}
+
+	// Grouped (non-crosstab) Process: the GROUP_CATEGORY key on the
+	// output column is the display label too.
+	grouped := &types.Request{
+		Cohort:       &types.Cohort{Filename: "panel.pulse"},
+		Attributes:   prevStateAttr(),
+		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "prev"}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "plan", Label: "n"}},
+	}
+	gr, err := p.Process(ctx, grouped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keys []any
+	for _, row := range gr.Data {
+		keys = append(keys, row["prev"])
+	}
+	if !reflect.DeepEqual(keys, []any{"Free tier", "Paid tier", "Pro tier"}) {
+		t.Errorf("grouped keys %v, want the display labels", keys)
+	}
+
+	// The copied default, like every default, never warns when no
+	// surface carries the output column.
+	plain := &types.Request{
+		Cohort:       &types.Cohort{Filename: "panel.pulse"},
+		Attributes:   prevStateAttr(),
+		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "plan", Label: "n"}},
+	}
+	pr, err := p.Process(ctx, plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range pr.Warnings {
+		if w.Code == string(errors.PULSE_LABEL_NOT_APPLIED) {
+			t.Errorf("copied default warned: %+v", w)
+		}
+	}
+
+	// An explicit binding on the output column wins over the default.
+	req := transitionCrosstab("panel.pulse", "prev", "plan", prevStateAttr())
+	req.Labels = []*types.LabelBinding{{Field: "prev", Table: "short"}}
+	resp, err = p.Process(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := resp.Crosstab.Matrix.RowKeys; !reflect.DeepEqual(got, []types.AxisKey{{"F"}, {"P"}, {"R"}}) {
+		t.Errorf("explicit binding rows %v, want the short table", got)
+	}
+}
+
+// TestPreviousState_SmartDefaultsReadTheOutputAsItsStateField: a group
+// or aggregation slot naming the output column without a Type takes
+// the state field's default (GROUP_CATEGORY / AGG_MODE_COUNT), on
+// predict (DefaultsApplied, valid) and at runtime alike, and runs
+// exactly as the explicit spelling does.
+func TestPreviousState_SmartDefaultsReadTheOutputAsItsStateField(t *testing.T) {
+	p, _ := prevStateLongAndWide(t, pulse.Options{})
+	ctx := context.Background()
+	mk := func(group types.GroupType, agg types.AggregationType) *types.Request {
+		return &types.Request{
+			Cohort:       &types.Cohort{Filename: "panel.pulse"},
+			Attributes:   prevStateAttr(),
+			Groups:       []*types.Group{{Type: group, Field: "prev"}},
+			Aggregations: []*types.Aggregation{{Type: agg, Field: "prev", Label: "m"}},
+		}
+	}
+	pred, err := p.Predict(ctx, mk("", ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !pred.Valid {
+		t.Fatalf("predict refused the defaulted slots: %+v", pred)
+	}
+	got := map[string]string{}
+	for _, d := range pred.DefaultsApplied {
+		got[d.Category] = d.Type
+	}
+	if want := map[string]string{"grouper": "GROUP_CATEGORY", "aggregation": "AGG_MODE_COUNT"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("predict defaults %v, want %v", got, want)
+	}
+	defaulted, err := p.Process(ctx, mk("", ""))
+	if err != nil {
+		t.Fatalf("runtime refused the defaulted slots: %v", err)
+	}
+	explicit, err := p.Process(ctx, mk(types.GROUP_CATEGORY, types.AGG_MODE_COUNT))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(defaulted.Data, explicit.Data) {
+		t.Errorf("defaulted data %v, explicit %v", defaulted.Data, explicit.Data)
+	}
+	if len(defaulted.Data) == 0 || defaulted.Data[0]["prev"] != "free" {
+		t.Errorf("defaulted group keys %v, want state names", defaulted.Data)
+	}
+}

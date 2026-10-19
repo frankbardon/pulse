@@ -1016,7 +1016,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Attributes", "*", "OrderField"},
-				Hint:   "Order by a finer field (a datetime instead of a date) or drop the duplicate records first (pulse dedup, or a filter) so each subject has one record per time point. details.n_ambiguous counts the nulled records, details.n_subjects the subjects affected.",
+				Hint:   "Order by a finer field (a datetime instead of a date) or drop the duplicate records first (pulse dedup, or a filter) so each subject has one record per time point. details.n_ambiguous counts the nulled records, details.n_subjects_ambiguous the subjects affected.",
 			},
 		},
 	},

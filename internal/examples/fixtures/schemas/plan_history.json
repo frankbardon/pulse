@@ -1,0 +1,6 @@
+[
+  {"name": "id", "type": "u32", "description": "Snapshot-row identifier: one row per customer per month-end snapshot (a long panel), rows not sorted by customer"},
+  {"name": "customer_id", "type": "u32", "description": "Customer the snapshot row belongs to; each customer appears once per month-end snapshot"},
+  {"name": "seen_at", "type": "date", "description": "Month-end date of the snapshot the row was taken at: 2025-01-31, 2025-02-28 or 2025-03-31"},
+  {"name": "plan", "type": "categorical_u8", "description": "Subscription plan the customer held at that snapshot: basic, plus or pro"}
+]

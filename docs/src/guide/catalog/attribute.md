@@ -12,6 +12,7 @@ The attributes this instance offers: what each is for, the questions it answers 
 | [`ATTR_NORMALIZED`](#op-attr_normalized) | Rescales a numeric field to 0 to 1 on every row: 0 is the smallest value, 1 the largest. | How can fields on very different scales be put on one 0-to-1 scale before combining them? | basic | [`ATTR_PERCENTILE`](#op-attr_percentile) when the field has extreme values that would squeeze the rest of the range.<br>[`ATTR_ZSCORE`](#op-attr_zscore) when you want distance from the mean in standard deviations.<br>[`ATTR_FORMULA`](#op-attr_formula) when you want a composite on the scales' fixed endpoints (1-5, 0-10), such as (x - 1) / 4. |
 | [`ATTR_PC_SCORE`](#op-attr_pc_score) | Adds to every row its score on one principal component of several related numeric fields: one number standing in for what they share. | What is each respondent's score on the main dimension behind these rating questions? | advanced | [`MAT_PCA`](matrix.md#op-mat_pca) when you want how many dimensions there are and which fields load on each.<br>[`ATTR_MAHALANOBIS`](#op-attr_mahalanobis) when you want how unusual a row is across the fields. |
 | [`ATTR_PERCENTILE`](#op-attr_percentile) | Adds to every row its percentile rank, rank / n * 100: the share of rows at or below it when values are untied. | Where does each store's revenue rank among all stores, as a percentage? | basic | [`AGG_PERCENTILE`](aggregator.md#op-agg_percentile) when you want the value at a chosen percentile, such as the 90th.<br>[`WIN_RANK`](window.md#op-win_rank) when you want ranks within partitions, or tied values to share a rank.<br>[`GROUP_QUANTILE`](grouper.md#op-group_quantile) when you want rows split into equal-sized bands. |
+| [`ATTR_PREVIOUS_STATE`](#op-attr_previous_state) | Adds to each row of a long panel the state the same subject held at its previous date, so moves can be counted from-state by to-state. | How many customers moved from each plan to each other plan between snapshots, when the data has one row per customer per snapshot? | intermediate | [`GROUP_CATEGORY`](grouper.md#op-group_category) when the data already holds one row per subject with a from column and a to column.<br>[`WIN_LAG`](window.md#op-win_lag) when you want the previous value of a number on result rows. |
 | [`ATTR_PROFILE_SIMILARITY`](#op-attr_profile_similarity) | Adds to every row how closely its related fields match a target profile: an ideal pattern, a benchmark, or its own segment target. | How closely does each respondent's brand ratings follow the ideal loyalist profile? | intermediate | [`ATTR_VEC_DISTANCE`](#op-attr_vec_distance) when you want how far apart the values are rather than how alike the pattern is.<br>[`ATTR_MAHALANOBIS`](#op-attr_mahalanobis) when you want how unusual a row is against the whole cohort.<br>[`MAT_DISTANCE`](matrix.md#op-mat_distance) when you want how far apart whole groups are. |
 | [`ATTR_REG_FITTED`](#op-attr_reg_fitted) | Adds to every row the value a straight-line model predicts for its target from its predictors. | What order value would we expect for each customer given their visits and tenure? | advanced | [`REG_OLS`](regression.md#op-reg_ols) when you want the coefficients, R-squared and p-values of the model.<br>[`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want how far each row sits from its prediction.<br>[`REG_GLM`](regression.md#op-reg_glm) when the target is yes/no or a count. |
 | [`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) | Adds to every row its leverage: how unusual its predictor values are, and so how hard it can pull a straight-line fit. | Which rows have predictor values so far from the rest that they could steer the model? | advanced | [`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) when you want rows the model predicts badly.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want the model itself. |
@@ -307,6 +308,43 @@ Adds to every row its percentile rank, rank / n * 100: the share of rows at or b
 **Glossary:** [`percentile`](../glossary.md#term-percentile), [`rank`](../glossary.md#term-rank), [`ties`](../glossary.md#term-ties), [`missing-value`](../glossary.md#term-missing-value)
 
 **Skill:** [`op-attr-percentile`](../skills/op-attr-percentile.md)
+
+<a id="op-attr_previous_state"></a>
+
+### `ATTR_PREVIOUS_STATE`
+
+Adds to each row of a long panel the state the same subject held at its previous date, so moves can be counted from-state by to-state.
+
+**Level:** intermediate
+
+**Also known as:** `previous state`, `lagged state`
+
+**Questions it answers:**
+
+- How many customers moved from each plan to each other plan between snapshots, when the data has one row per customer per snapshot?
+- Which tier was each member in at the previous monthly snapshot?
+
+**Use cases by domain:**
+
+- *survey:* Pair each respondent's answer with their answer in the previous wave of a panel.
+- *ops:* Turn a plan-history log into a last-plan by current-plan table for switching and churn analysis.
+- *science:* Pair each visit's disease stage with the stage at the same patient's previous visit.
+
+**Assumptions:**
+
+- Each subject's rows are put in order by a date or date-time, never by row order; rows on the same date each read the date before it.
+- A subject's first date has no previous state, and neither does a row after a missing state: both are missing, never a guessed earlier state, so they drop out of a from-state by to-state table.
+- When rows on one date disagree on the state, the next date has no single previous state: it is missing, and a warning counts it.
+- It reads each subject's whole history across the cohort, and no weight applies: it is a value copied from another row, not an estimate.
+
+**Use something else:**
+
+- [`GROUP_CATEGORY`](grouper.md#op-group_category) when the data already holds one row per subject with a from column and a to column.
+- [`WIN_LAG`](window.md#op-win_lag) when you want the previous value of a number on result rows.
+
+**Glossary:** [`cross-tabulation`](../glossary.md#term-cross-tabulation), [`missing-value`](../glossary.md#term-missing-value)
+
+**Skill:** [`op-attr-previous-state`](../skills/op-attr-previous-state.md)
 
 <a id="op-attr_profile_similarity"></a>
 

@@ -30,7 +30,7 @@ import (
 //     carry-forward to an earlier one);
 //   - a tie (two or more records): the tied state when every tied
 //     state agrees (an all-null tie is null), else null — counted
-//     (n_ambiguous records, n_subjects affected) and warned once per
+//     (n_ambiguous records, n_subjects_ambiguous affected) and warned once per
 //     slot (PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE, attributeWarner); under
 //     Strict the run fails with that code (attributeStrictRefuser).
 //
@@ -54,12 +54,19 @@ type previousStateAttribute struct {
 	// nAmbiguousSubjects the subjects holding one or more.
 	nAmbiguous         int64
 	nAmbiguousSubjects int64
+
+	// The Components tallies: nSubjects the subjects holding a record
+	// with a present subject and order, nFirst the records at their
+	// subject's first time point, nGap the records whose previous time
+	// point's state is null.
+	nSubjects, nFirst, nGap int64
 }
 
 var (
 	_ AttributeComputer      = (*previousStateAttribute)(nil)
 	_ attributeWarner        = (*previousStateAttribute)(nil)
 	_ attributeStrictRefuser = (*previousStateAttribute)(nil)
+	_ MetaAttribute          = (*previousStateAttribute)(nil)
 )
 
 // prevSubjectKey is a subject's identity: w the value's bits (a float64
@@ -152,6 +159,7 @@ const (
 // Compute emits every record's previous state (see the type comment).
 func (a *previousStateAttribute) Compute(records []*Record, _ string) ([]float64, error) {
 	a.nAmbiguous, a.nAmbiguousSubjects = 0, 0
+	a.nSubjects, a.nFirst, a.nGap = 0, 0, 0
 	out := make([]float64, len(records))
 	for i := range out {
 		out[i] = AttributeNull
@@ -168,6 +176,7 @@ func (a *previousStateAttribute) Compute(records []*Record, _ string) ([]float64
 		}
 		bySubject[k] = append(bySubject[k], prevRow{idx: i, order: o})
 	}
+	a.nSubjects = int64(len(bySubject))
 	for _, rows := range bySubject {
 		// Appended in record order, so a stable sort keeps a tie's
 		// records in record order (no output depends on it).
@@ -181,8 +190,12 @@ func (a *previousStateAttribute) Compute(records []*Record, _ string) ([]float64
 			}
 			for _, row := range rows[j:k] {
 				switch kind {
+				case prevNone:
+					a.nFirst++
 				case prevValue:
 					out[row.idx] = state
+				case prevNull:
+					a.nGap++
 				case prevAmbiguous:
 					a.nAmbiguous++
 					ambiguous = true
@@ -215,6 +228,20 @@ func (a *previousStateAttribute) timePointState(records []*Record, rows []prevRo
 	return prevValue, s0
 }
 
+// Components satisfies MetaAttribute: the operator keys of the slot's
+// Response.Components.Attributes entry (ComponentSchema in
+// capabilities_attributes.go; mergeability None — the counts are of one
+// whole-cohort pass). With the records whose subject or order is null,
+// n_first + n_gap + n_ambiguous make up the floor's n_null.
+func (a *previousStateAttribute) Components() (map[string]any, error) {
+	return map[string]any{
+		"n_subjects":  a.nSubjects,
+		"n_first":     a.nFirst,
+		"n_gap":       a.nGap,
+		"n_ambiguous": a.nAmbiguous,
+	}, nil
+}
+
 // ambiguousTie is the slot's PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE message
 // and details (nil details when no record was ambiguous).
 func (a *previousStateAttribute) ambiguousTie() (string, map[string]any) {
@@ -225,9 +252,9 @@ func (a *previousStateAttribute) ambiguousTie() (string, map[string]any) {
 			" subject(s) follow a time point whose tied records (same " + a.order + ") carry different " + a.field +
 			" states, so they have no single previous state and are null",
 		map[string]any{
-			"attribute":   a.label,
-			"n_ambiguous": a.nAmbiguous,
-			"n_subjects":  a.nAmbiguousSubjects,
+			"attribute":            a.label,
+			"n_ambiguous":          a.nAmbiguous,
+			"n_subjects_ambiguous": a.nAmbiguousSubjects,
 		}
 }
 

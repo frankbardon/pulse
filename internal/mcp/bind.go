@@ -871,6 +871,8 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	attr["l1_ratio"] = map[string]any{"type": "number", "description": "Elastic-net mixing in (0, 1) when penalty is elasticnet."}
 	attr["vector"] = map[string]any{"type": "string", "description": "Vector-input attributes (ATTR_MAHALANOBIS, ATTR_PC_SCORE, ATTR_FACTOR_SCORE, ATTR_SCALE_SCORE, ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE): the Request.Vectors entry whose members are the attribute's columns; exactly one of vector / fields."}
 	attr["fields"] = map[string]any{"type": "array", "description": "Vector-input attributes: inline members (names and / or globs); exactly one of vector / fields.", "items": map[string]any{"type": "string"}}
+	attr["subject_field"] = enumStringField(c.AllFields, "ATTR_PREVIOUS_STATE: the field identifying each record's subject (any scalar type but a set or vector).")
+	attr["order_field"] = enumStringField(c.AllFields, "ATTR_PREVIOUS_STATE: the date or datetime field ordering each subject's records by instant.")
 	itemProps("windows")["frame"] = frameSchema()
 	if inst.Enabled(descx.FeatureForEach) {
 		for _, slot := range []string{"features", "attributes", "windows"} {
