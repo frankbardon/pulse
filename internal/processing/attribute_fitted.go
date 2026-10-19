@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/linalg"
@@ -793,6 +794,10 @@ func ResolveAttributeInputs(req *types.Request, schema *encoding.Schema, exts *E
 // for the expression operators (Processor.exprVectors).
 func (p *Processor) prepare(req *types.Request) *types.Request {
 	p.exprVectors = ExprVectors(req, p.schema)
+	p.keySchema = nil
+	if req != nil {
+		p.keySchema = prevstate.KeySchema(req.Attributes, p.schema)
+	}
 	return ResolveAggregationInputs(p.resolveGroupInputs(p.resolveAttributeInputs(p.stampWeights(req))), p.schema, p.exts)
 }
 

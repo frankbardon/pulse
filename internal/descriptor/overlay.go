@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -730,7 +731,7 @@ func validateFormulaBaselineBound(env *descriptor.Envelope, req *types.Request, 
 	if err != nil || depth >= len(req.Groups) {
 		return
 	}
-	bound := categoricalSeriesLengthBound(req.Groups[depth:], schema, inst)
+	bound := categoricalSeriesLengthBound(req.Groups[depth:], prevstate.KeySchema(req.Attributes, schema), inst)
 	if bound < 0 || pos < bound {
 		return
 	}
@@ -889,7 +890,7 @@ func overlayBaselineIndexPredictedSeriesLength(req *types.Request, schema *encod
 	if req == nil {
 		return -1
 	}
-	return categoricalSeriesLengthBound(req.Groups, schema, inst)
+	return categoricalSeriesLengthBound(req.Groups, prevstate.KeySchema(req.Attributes, schema), inst)
 }
 
 // categoricalSeriesLengthBound is the schema upper bound on the rows of

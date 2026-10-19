@@ -14,6 +14,7 @@ import (
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -682,9 +683,12 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 	// carries the registered label tables; augment-mode collisions are
 	// checked against OutputLabels — the one output-column set the
 	// runtime checks too — so a sibling "<field>_label" cannot shadow an
-	// aggregation, attribute, group-key, window or feature column.
+	// aggregation, attribute, group-key, window or feature column. The
+	// schema is the dictionary-inheritance view (prevstate.KeySchema), the
+	// runtime's too: a binding on an ATTR_PREVIOUS_STATE output column
+	// validates as one on its state field.
 	if len(req.Labels) > 0 {
-		ValidateLabels(env, req.Labels, schema, extensionsFromOpts(opts), opts.instance(), OutputLabels(req, schema, opts.instance()))
+		ValidateLabels(env, req.Labels, prevstate.KeySchema(req.Attributes, schema), extensionsFromOpts(opts), opts.instance(), OutputLabels(req, schema, opts.instance()))
 	}
 }
 

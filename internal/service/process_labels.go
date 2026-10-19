@@ -5,6 +5,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
 )
@@ -19,7 +20,10 @@ func (s *Service) validateProcessLabels(req *types.Request, schema *encoding.Sch
 	}
 	extras := s.outputLabels(req, schema)
 	env := descriptor.NewEnvelope(nil)
-	descx.ValidateLabels(env, req.Labels, schema, s.ExtensionsSnapshot(), s.InstanceSnapshot(), extras)
+	// The dictionary-inheritance view: a binding on an ATTR_PREVIOUS_STATE
+	// output column validates as one on its state field (predict reads
+	// the same view).
+	descx.ValidateLabels(env, req.Labels, prevstate.KeySchema(req.Attributes, schema), s.ExtensionsSnapshot(), s.InstanceSnapshot(), extras)
 	if len(env.Errors) == 0 {
 		return nil
 	}

@@ -92,6 +92,27 @@ type Processor struct {
 	// []float64 identifiers; set by prepare, nil when the request
 	// defines none.
 	exprVectors []vectors.Resolved
+
+	// keySchema is the current run's dictionary-inheritance view
+	// (prevstate.KeySchema): the schema plus one virtual field per
+	// ATTR_PREVIOUS_STATE output column, carrying its state field's type
+	// and dictionary. Set by prepare; the same pointer as schema when the
+	// request has no such slot. Only GROUP_CATEGORY is built against it
+	// (grouperSchema) — never a decode, stride or aggregator schema.
+	keySchema *encoding.Schema
+}
+
+// grouperSchema is the schema grp's grouper is built against: the
+// dictionary-inheritance view for a GROUP_CATEGORY slot (its keys, its
+// Group.Include and its dict_size then resolve a previous-state output
+// column through the state field's dictionary, as they do the state
+// field itself), the cohort schema for every other grouper — whose
+// construction and keys stay exactly what they were.
+func (p *Processor) grouperSchema(grp *types.Group) *encoding.Schema {
+	if grp != nil && grp.Type == types.GROUP_CATEGORY && p.keySchema != nil {
+		return p.keySchema
+	}
+	return p.schema
 }
 
 // SetModels installs the request's bound models (nil: none). The
@@ -2263,7 +2284,7 @@ func (p *Processor) processGroupedSingle(req *types.Request, records []*Record, 
 		return nil, nil, nil, nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			fmt.Sprintf("unknown group type: %s", grp.Type))
 	}
-	grouper, err := factory(grp, p.schema)
+	grouper, err := factory(grp, p.grouperSchema(grp))
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}

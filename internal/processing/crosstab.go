@@ -79,7 +79,7 @@ func (p *Processor) partitionByAxis(axis []*types.Group, records []*Record, oute
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			fmt.Sprintf("unknown group type: %s", grp.Type))
 	}
-	grouper, err := factory(grp, p.schema)
+	grouper, err := factory(grp, p.grouperSchema(grp))
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +316,7 @@ func (p *Processor) axisComponentsFor(axis []*types.Group, filtered []*Record) (
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown group type: %s", grp.Type))
 		}
-		grouper, err := factory(grp, p.schema)
+		grouper, err := factory(grp, p.grouperSchema(grp))
 		if err != nil {
 			return nil, err
 		}

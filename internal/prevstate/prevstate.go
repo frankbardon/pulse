@@ -5,7 +5,9 @@
 // Check, so the two raise the same code, message and details by
 // construction; the field-reference walk (internal/descriptor, run on
 // both sides before any operator is built) calls FieldRefs and
-// ForeignSlotRefusal.
+// ForeignSlotRefusal. KeySchema is the internal dictionary-inheritance
+// view both sides read, so the output column resolves through its state
+// field's dictionary on every label-resolving consumer.
 //
 // It is a leaf: it imports only the public errors / encoding / types
 // packages and internal/fieldaccept, never internal/processing or
@@ -144,6 +146,79 @@ func unsignedInteger(ft encoding.FieldType) bool {
 	switch ft {
 	case encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64:
 		return true
+	}
+	return false
+}
+
+// Label is the output column attr writes: its label, else the default
+// attribute label (TYPE_field), the one processing.defaultAttributeLabel
+// and predict's attributeDefaultLabel mint for this type.
+func Label(attr *types.Attribute) string {
+	if attr.Label != "" {
+		return attr.Label
+	}
+	return string(attr.Type) + "_" + attr.Field
+}
+
+// KeySchema is the dictionary-inheritance hook: schema with one virtual
+// field per ATTR_PREVIOUS_STATE output column of attrs, typed as the
+// slot's state field and carrying its dictionary (its packed_bool type
+// for a packed_bool state), nullable — the output values ARE the source
+// field's codes (dictionary indices, or 0 / 1), so every label-resolving
+// consumer reads the output column as it reads the source field:
+// GROUP_CATEGORY keys, Group.Include, crosstab axes, req.Labels
+// validation and predict's dictionary-derived axis bounds. A
+// previous-state × state crosstab then carries the same labels on both
+// axes.
+//
+// The virtual fields are appended after the cohort's fields (every
+// existing field index stays put) and have no physical presence: the
+// result is a NAME-LOOKUP view, never a decode, stride or write schema.
+// A slot whose state field the schema does not carry (or carries with
+// another type — Check refuses it), or whose label already names a
+// schema field, contributes nothing. schema itself is returned — the
+// same pointer — when no slot contributes, so a request without the
+// attribute is byte-identical. Internal: only this attribute declares
+// an inherited dictionary (an extension attribute cannot).
+func KeySchema(attrs []*types.Attribute, schema *encoding.Schema) *encoding.Schema {
+	if schema == nil {
+		return schema
+	}
+	var extra []encoding.Field
+	for _, attr := range attrs {
+		if attr == nil || attr.Type != types.ATTR_PREVIOUS_STATE || attr.Field == "" {
+			continue
+		}
+		src := schema.Field(attr.Field)
+		if src == nil || !(src.Type.IsCategorical() || src.Type == encoding.FieldTypePackedBool) {
+			continue
+		}
+		label := Label(attr)
+		if schema.Field(label) != nil || hasField(extra, label) {
+			continue
+		}
+		extra = append(extra, encoding.Field{
+			Name:        label,
+			Type:        src.Type,
+			Nullable:    true,
+			Description: src.Description,
+			Dictionary:  src.Dictionary,
+		})
+	}
+	if len(extra) == 0 {
+		return schema
+	}
+	view := *schema
+	view.Fields = append(append(make([]encoding.Field, 0, len(schema.Fields)+len(extra)), schema.Fields...), extra...)
+	return &view
+}
+
+// hasField reports whether fields names name.
+func hasField(fields []encoding.Field, name string) bool {
+	for i := range fields {
+		if fields[i].Name == name {
+			return true
+		}
 	}
 	return false
 }
