@@ -56,6 +56,8 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 		// The flows overlays (U30 E7) on a from x to crosstab.
 		{"overlays-crosstab-symmetry", "overlays", 1, "*_crosstab_symmetry.json"},
 		{"overlays-crosstab-retention", "overlays", 1, "*_crosstab_retention.json"},
+		// The three flows overlays straight from a long panel (U55).
+		{"overlays-crosstab-previous-state", "overlays", 1, "*_crosstab_previous_state_*.json"},
 	}
 
 	for _, cat := range categories {
@@ -85,7 +87,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 // the anchor-syntax example reads.
 func buildExampleFixtures(t *testing.T, p *pulse.Pulse, fs afero.Fs, tmp string) {
 	t.Helper()
-	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers", "tier_migrations", "survey", "subscribers", "warehouse_orders", "plan_history"}
+	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers", "tier_migrations", "survey", "subscribers", "warehouse_orders", "plan_history", "plan_history_wide"}
 	for _, name := range cohorts {
 		csvPath := filepath.Join("internal", "examples", "fixtures", name+".csv")
 		schemaPath := filepath.Join("internal", "examples", "fixtures", "schemas", name+".json")

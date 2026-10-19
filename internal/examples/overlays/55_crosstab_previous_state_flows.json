@@ -1,0 +1,79 @@
+{
+  "_meta": {
+    "category": "overlays",
+    "description": "Plan flows straight from a long panel (one row per customer per month-end snapshot), no pre-pivot: ATTR_PREVIOUS_STATE adds each row's plan at the customer's previous snapshot, typed as plan with plan's dictionary, so the prev_plan x plan count crosstab is the transition table and the three flows overlays read it as they read a wide from x to table. OVERLAY_MARKOV gives the transition matrix, its 1- and 3-step powers and the plan mix projected from the observed margin; OVERLAY_SYMMETRY tests whether customers moved between each pair of plans as often one way as back; OVERLAY_RETENTION gives each plan's stay and switch rates. Each customer's first snapshot has no previous plan and reaches no cell. A state seen only as a later state (a churned with no move out) is a column-only key: name it in the Markov and retention absorbing lists, or Markov refuses PULSE_OVERLAY_MATRIX_NOT_SQUARE.",
+    "intents": [
+      "flows"
+    ],
+    "name": "crosstab-previous-state-flows",
+    "operators": [
+      "AGG_COUNT",
+      "ATTR_PREVIOUS_STATE",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "buffered-pipeline",
+      "cohort-analysis",
+      "cross-tabulation",
+      "overlay"
+    ]
+  },
+  "cohort": {
+    "filename": "plan_history.pulse",
+    "data_dir": ".data"
+  },
+  "attributes": [
+    {
+      "type": "ATTR_PREVIOUS_STATE",
+      "label": "prev_plan",
+      "field": "plan",
+      "subject_field": "customer_id",
+      "order_field": "seen_at"
+    }
+  ],
+  "crosstab": {
+    "rows": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "prev_plan"
+      }
+    ],
+    "columns": [
+      {
+        "type": "GROUP_CATEGORY",
+        "field": "plan"
+      }
+    ],
+    "cell": {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    "margins": {
+      "rows": true,
+      "columns": true,
+      "grand": true
+    }
+  },
+  "overlays": [
+    {
+      "name": "flow",
+      "kind": "OVERLAY_MARKOV",
+      "scope": "matrix",
+      "params": {
+        "steps": [1, 3],
+        "initial": "margin"
+      }
+    },
+    {
+      "name": "shift",
+      "kind": "OVERLAY_SYMMETRY",
+      "scope": "matrix"
+    },
+    {
+      "name": "retention",
+      "kind": "OVERLAY_RETENTION",
+      "scope": "row"
+    }
+  ]
+}
