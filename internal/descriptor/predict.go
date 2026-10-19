@@ -569,6 +569,10 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// the extensions snapshot when present so custom operator overrides land.
 	result.Streamable, result.StreamableReasons = computeStreamable(req, schema, opts)
 
+	// Before-filters attributes (ATTR_PREVIOUS_STATE) — the rule the
+	// runtime's buffered pipeline splits the attribute list on.
+	result.ComputedBeforeFilters = prevstate.BeforeFiltersLabels(req.Attributes, func(t types.AttributeType) types.AttributeType { return opRoute(opts.Instance, t) })
+
 	// Fused-crosstab dispatch — the engine's own rule on the
 	// defaults-resolved request over the cohort's schema (the runtime
 	// gate reads cohort.Schema(); a join declines first either way).

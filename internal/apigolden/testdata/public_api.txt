@@ -1851,6 +1851,7 @@ pulse/descriptor: type PopulationMeta field Operator string "json:\"operator,omi
 pulse/descriptor: type PredictResult struct
 pulse/descriptor: type PredictResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
 pulse/descriptor: type PredictResult field Aggregations []pulse/descriptor.AggregationPredict "json:\"aggregations\""
+pulse/descriptor: type PredictResult field ComputedBeforeFilters []string "json:\"computed_before_filters,omitempty\""
 pulse/descriptor: type PredictResult field CrosstabFusable *bool "json:\"crosstab_fusable,omitempty\""
 pulse/descriptor: type PredictResult field CrosstabFusionReasons []string "json:\"crosstab_fusion_reasons,omitempty\""
 pulse/descriptor: type PredictResult field DefaultsApplied []pulse/descriptor.DefaultApplied "json:\"defaults_applied\""
@@ -5641,4 +5642,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 09dcef40dc9029e9338b8815a431ad6ef5c2c16b032e478190af92248a5c23d2
+// golden-hash: 30ea169a8cf8a3fc74daa5120356bdd7f41eda95fd1b3510e9caf030a55ef977

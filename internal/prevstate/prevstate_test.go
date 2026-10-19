@@ -1,6 +1,7 @@
 package prevstate
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -80,5 +81,38 @@ func TestKeySchema_InheritsTypeAndDictionary(t *testing.T) {
 	b := view.Field(string(types.ATTR_PREVIOUS_STATE) + "_active")
 	if b == nil || b.Type != encoding.FieldTypePackedBool || !b.Nullable {
 		t.Fatalf("default-labelled packed_bool output %+v", b)
+	}
+}
+
+// TestBeforeFilters_OnlyPreviousState: the before-filters property is
+// ATTR_PREVIOUS_STATE's alone, across every built-in attribute type.
+func TestBeforeFilters_OnlyPreviousState(t *testing.T) {
+	for _, at := range types.AllAttributeTypes() {
+		if got, want := BeforeFilters(at), at == types.ATTR_PREVIOUS_STATE; got != want {
+			t.Errorf("BeforeFilters(%s) = %v, want %v", at, got, want)
+		}
+	}
+}
+
+// TestBeforeFiltersLabels: the effective output labels of the
+// before-filters slots in declared order (the default label when the
+// slot names none), routed — a hidden type contributes nothing — and
+// nil when no slot is.
+func TestBeforeFiltersLabels(t *testing.T) {
+	attrs := []*types.Attribute{
+		{Type: types.ATTR_PREVIOUS_STATE, Field: "plan", Label: "b"},
+		nil,
+		{Type: types.ATTR_ZSCORE, Field: "x", Label: "z"},
+		{Type: types.ATTR_PREVIOUS_STATE, Field: "plan"},
+	}
+	if got, want := BeforeFiltersLabels(attrs, nil), []string{"b", "ATTR_PREVIOUS_STATE_plan"}; !slices.Equal(got, want) {
+		t.Errorf("labels %v, want %v", got, want)
+	}
+	hide := func(types.AttributeType) types.AttributeType { return "" }
+	if got := BeforeFiltersLabels(attrs, hide); got != nil {
+		t.Errorf("hidden route: %v, want nil", got)
+	}
+	if got := BeforeFiltersLabels(attrs[2:3], nil); got != nil {
+		t.Errorf("no before-filters slot: %v, want nil", got)
 	}
 }

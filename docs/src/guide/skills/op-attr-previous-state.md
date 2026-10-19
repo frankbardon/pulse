@@ -44,7 +44,7 @@ Floor `{n, n_null}` + `n_subjects`, `n_first`, `n_gap`, `n_ambiguous`. `None`: t
 
 - Null (never `0`): first time point, null subject / order (never a predecessor), null previous state (no carry-forward).
 - Ties (same subject + order) read the time point before; the next reads the tied state only if all agree, else null + `PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE` (error under Strict).
-- Runs over the whole cohort before filters.
+- Runs over the whole cohort before filters: a date window keeps each first in-window record's true previous state; Components count every record. An expression filter may read it (`prev != nil`; it holds the state's code), a field filter may not.
 - Buffered: no streaming, fused crosstab or shard merge.
 - Weight refused (`"weight": null` runs it).
 

@@ -1978,12 +1978,15 @@ type AttributeComponents struct {
 	Type AttributeType `json:"type"`
 
 	// N is the number of filter-passing rows whose attribute output is
-	// PRESENT (non-null). Attribute floor.
+	// PRESENT (non-null). Attribute floor. A before-filters attribute
+	// (ATTR_PREVIOUS_STATE) scores every decoded record, so its N and
+	// NNull count the pre-filter rows.
 	N int `json:"n"`
 
 	// NNull is the number of filter-passing rows whose attribute
 	// output is null. N + NNull is the post-filter record count the
-	// attribute scored. Attribute floor.
+	// attribute scored (the pre-filter count for a before-filters
+	// attribute). Attribute floor.
 	NNull int `json:"n_null"`
 
 	// Operator carries the operator's schema-declared keys (the

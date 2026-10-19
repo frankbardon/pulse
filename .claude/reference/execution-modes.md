@@ -16,6 +16,7 @@ Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md ke
 - **Pushdown hash join** (`Request.Joins`) — v1 is exactly one inner join per Request. `skills/join-design.md`.
 - **Crosstab / fused crosstab** (`Request.Crosstab`; fusion rule `crosstabfuse.Decide` in `internal/crosstabfuse`, shared by `CanFuseCrosstab` and predict) — composed row×column grid whose margins recompute from raw rows, plus an in-decode streaming arm. `skills/crosstab-guide.md`.
 - **Facet endpoints** — simple (`pulse.Facet`) + rich (`pulse.FacetSchema`); four FACET-host overlay kinds ride `FacetRequest.Overlays`. `skills/facet-design.md`.
+- **Before-filters attributes** — `ATTR_PREVIOUS_STATE` alone runs over every record before the filter pass; an expression filter may read its label. `execution-modes.md` (Before-filters attributes).
 - **Filter precompute** (grouped cohorts) — a filter over ONE group's members is evaluated once per dictionary entry, per-row otherwise. `execution-modes.md`.
 - **Grouped tier-1 tests** — `groups` + `tests[]` run every test once per composite group key, buffered; flat `tests[]` with `group_key`. `skills/statistical-testing.md`.
 - **Point lookup** (`pulse.Lookup`) — O(1) key-exact rows via a prebuilt sidecar index; single-file cohorts, equality-only, full-key. `skills/tool-lookup.md`.
@@ -32,7 +33,7 @@ Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md ke
 |---|---|
 | Streaming Process; Projected buffered decode; Parallel buffered Process; Cooperative cancellation (ctx polling); Request timeout (`Limits.RequestTimeout`) | `execution-modes/streaming-and-decode.md` |
 | Parallel Compose; Compose fits; Compose banner; Item fan-out (`for_each`) | `execution-modes/compose.md` |
-| Parallel shards; Blocked merge (`processing.BlockMerger`); Filter precompute (grouped cohorts); Compile-once expressions (`FILTER_EXPRESSION`, `ATTR_FORMULA`) | `execution-modes/shards-and-merge.md` |
+| Parallel shards; Blocked merge (`processing.BlockMerger`); Filter precompute (grouped cohorts); Before-filters attributes (`ATTR_PREVIOUS_STATE`); Compile-once expressions (`FILTER_EXPRESSION`, `ATTR_FORMULA`) | `execution-modes/shards-and-merge.md` |
 | ProcessChain; Pushdown hash join; Facet endpoints | `execution-modes/chain-join-facet.md` |
 | Crosstab; Fused crosstab | `execution-modes/crosstab.md` |
 | Overlays (hosts, Level / Within, per-host wiring, FORMULA, displaced contributor bullets through "Adding an overlay kind", Weighted hosts, Overlay knobs) | `execution-modes/overlays.md` |

@@ -173,7 +173,7 @@ func (w *fieldRefWalk) compileRefusal(src, site string, opts []expr.Option) *err
 				continue
 			}
 			switch {
-			case w.cols[name]:
+			case w.cols[name], w.preFilter[name]:
 				decl[name] = exprenv.DerivedType
 			case w.open, c.vecsFailed && c.vecNames[name]:
 				return nil

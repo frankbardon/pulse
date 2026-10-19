@@ -160,6 +160,40 @@ func Label(attr *types.Attribute) string {
 	return string(attr.Type) + "_" + attr.Field
 }
 
+// BeforeFilters is the per-operator "computed before filters" property:
+// an attribute of type t runs over the whole decoded cohort BEFORE the
+// filter pass (after the pre-filter features), so a filter keeps each
+// subject's first in-window record with its true previous state and an
+// expression filter may read the output column. Only
+// ATTR_PREVIOUS_STATE carries it; every other attribute (an extension's
+// included) runs over the filter-passing records. The runtime's
+// buffered pipeline and the field-reference walk (predict and runtime
+// alike) both read it here.
+func BeforeFilters(t types.AttributeType) bool {
+	return t == types.ATTR_PREVIOUS_STATE
+}
+
+// BeforeFiltersLabels returns the output column of every attrs slot
+// whose type route reports BeforeFilters, in declared order; nil when
+// none. route maps a slot's type to the operator it runs as (predict's
+// instance route; the identity at runtime).
+func BeforeFiltersLabels(attrs []*types.Attribute, route func(types.AttributeType) types.AttributeType) []string {
+	var out []string
+	for _, attr := range attrs {
+		if attr == nil {
+			continue
+		}
+		t := attr.Type
+		if route != nil {
+			t = route(t)
+		}
+		if BeforeFilters(t) {
+			out = append(out, Label(attr))
+		}
+	}
+	return out
+}
+
 // KeySchema is the dictionary-inheritance hook: schema with one virtual
 // field per ATTR_PREVIOUS_STATE output column of attrs, typed as the
 // slot's state field and carrying its dictionary (its packed_bool type

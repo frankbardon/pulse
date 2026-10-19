@@ -70,6 +70,11 @@ streaming Process path; `streamable_reasons` lists every gate that
 forced the buffered path. See [Performance
 Notes](../ops/performance.md) for the full streaming/buffered table.
 
+`computed_before_filters` lists the output label of every attribute
+the engine computes over the whole unfiltered cohort before the filters
+run (today only `ATTR_PREVIOUS_STATE`, so a date window keeps each
+subject's first in-window transition). Absent when there is none.
+
 For a crosstab request, `crosstab_fusable` reports whether the grid
 will be built on the fused one-pass arm (memory proportional to cells +
 margins) instead of buffering every filter-passing record, and
