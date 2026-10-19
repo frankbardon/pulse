@@ -117,6 +117,15 @@ type Service struct {
 	// directory), bound as vector fits beneath every request's own
 	// bindings; nil binds nothing. Frozen at pulse.New.
 	populations *model.Set
+
+	// disablePanicRecovery is pulse.Options.DisablePanicRecovery for
+	// this instance: when true a panic on an engine worker goroutine
+	// (parallel decode, parallel shards, ComposeParallel slots, compose
+	// fits) re-panics with the original value instead of returning
+	// PROCESSING_PANIC (recoverInto). Installed by
+	// SetDisablePanicRecovery; New seeds it from
+	// testForcePanicRecoveryOff.
+	disablePanicRecovery bool
 }
 
 // SetDisableCrosstabFusion toggles the fused-crosstab dispatch in
@@ -138,8 +147,28 @@ func (s *Service) CrosstabFusionDisabled() bool { return s.disableCrosstabFusion
 // out per instance (or pass pulse.Options{DisableDefaults: true} via the
 // facade).
 func New(fsConfig *fs.Config) *Service {
-	return &Service{fs: fsConfig}
+	return &Service{fs: fsConfig, disablePanicRecovery: testForcePanicRecoveryOff}
 }
+
+// testForcePanicRecoveryOff is a test-only override, never set in
+// production: this package's TestMain sets it so every Service its
+// tests build through New re-panics a worker panic (an engine bug
+// crashes the test that hit it). The panic suite
+// (panic_recovery*_test.go) re-enables recovery per instance with
+// SetDisablePanicRecovery(false).
+var testForcePanicRecoveryOff bool
+
+// SetDisablePanicRecovery installs pulse.Options.DisablePanicRecovery
+// for this instance. False (the production default) recovers a panic
+// on an engine worker goroutine into PROCESSING_PANIC returned through
+// the pool's error path, siblings cancelled; true re-panics it with the
+// original value. Per instance — never a package global.
+func (s *Service) SetDisablePanicRecovery(disabled bool) {
+	s.disablePanicRecovery = disabled
+}
+
+// PanicRecoveryDisabled reports SetDisablePanicRecovery.
+func (s *Service) PanicRecoveryDisabled() bool { return s.disablePanicRecovery }
 
 // SetDisableDefaults toggles the smart-defaults pass. Predict still
 // computes and reports DefaultsApplied independently; this flag governs

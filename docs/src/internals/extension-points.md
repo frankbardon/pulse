@@ -1669,6 +1669,10 @@ keeps `PULSE_TEST_FIELD_NOT_NUMERIC` / `PULSE_TEST_FIELD2_NOT_NUMERIC`. An
 EXTENSION operator is never in the table — it declares `Accepts` on its
 registration and judges its own fields.
 
+## When an extension panics
+
+Two different moments. At `pulse.New`, the factory probe runs your factory once and a panic, error or nil return is `PULSE_EXTENSION_FACTORY_PANIC` (see the table above). At run time, a panic raised while an operation executes your operator is recovered at the facade (or in the engine's worker pool or stream producer that ran it) and returned as a `PROCESSING_PANIC` coded error: `details.op`, `details.panic_type` (the Go type name) and `details.stack` (at most 32 frames); the panic value is never kept, because it can carry row data. The instance stays usable and, with observability on, the operation ends with that code. A panicking registered expression function is recovered by the expression engine and returns `PROCESSING_RUNTIME`. An embedder who would rather crash sets `Options.DisablePanicRecovery`. Do not rely on a panic as a control-flow signal: return an error instead. See [Observability](../library/observability.md#panics-inside-an-operation).
+
 ## Limits of extension operators
 
 State these plainly to users rather than discovering them at run time:

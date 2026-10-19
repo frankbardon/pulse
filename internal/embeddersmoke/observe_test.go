@@ -15,7 +15,8 @@ func TestObserveHooksFlow(t *testing.T) {
 	var starts, ends int
 	var code string
 	p, err := pulse.New(pulse.Options{
-		FS: afero.NewMemMapFs(),
+		FS:                   afero.NewMemMapFs(),
+		DisablePanicRecovery: true, // an engine panic crashes the test, never a recovered error
 		Hooks: &observe.Hooks{
 			OnOperationStart: func(ctx context.Context, info observe.OperationInfo) context.Context {
 				if info.Kind == observe.OpManifest {

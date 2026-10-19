@@ -14,7 +14,6 @@ import (
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
-	"golang.org/x/sync/errgroup"
 )
 
 // parallel_decode.go implements segment-aware parallel decoding of the
@@ -64,7 +63,7 @@ import (
 // across workers.
 //
 // Returning a non-nil error aborts the worker's decode loop; the
-// errgroup propagates the error and cancels every other worker.
+// worker group propagates the error and cancels every other worker.
 type DecodeCallback func(rec *processing.Record) error
 
 // DecodeCallbackFactory constructs a per-worker DecodeCallback. Called
@@ -264,6 +263,9 @@ type parallelDecodeContext struct {
 	// keep when a plan is installed (O(retained fields) per record),
 	// full otherwise. Built once here, shared read-only by every worker.
 	binding *processing.RecordBinding
+	// rethrowPanics is the owning Service's disablePanicRecovery: a
+	// worker re-panics instead of recovering into PROCESSING_PANIC.
+	rethrowPanics bool
 }
 
 // parallelDecodeMmap segments the record region into worker-count
@@ -281,7 +283,7 @@ type parallelDecodeContext struct {
 //
 // Context cancellation aborts every in-flight worker promptly: the
 // per-record loop polls ctx.Err() at segment boundaries. The first
-// error any worker returns propagates through the errgroup; remaining
+// error any worker returns propagates through the worker group; remaining
 // workers are cancelled and their callbacks no longer invoked.
 func parallelDecodeMmap(
 	ctx context.Context,
@@ -329,13 +331,19 @@ func parallelDecodeMmap(
 	// workers (more workers than blocks) get an empty segment.
 	segs := blockAlignedSegments(pctx.totalRecords, workers)
 
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(workers)
+	// workerGroup, not errgroup: errgroup defers its join, so a worker
+	// re-panicking under DisablePanicRecovery would release Wait with a
+	// nil error before the crash (joinOnReturn).
+	g, gctx := newWorkerGroup(ctx)
 
 	for w := 0; w < workers; w++ {
 		seg := segs[w]
 		idx := w
-		g.Go(func() error {
+		g.Go(func() (err error) {
+			// Operator code runs per row on this goroutine: recover a
+			// panic into PROCESSING_PANIC so the worker group cancels the
+			// siblings and Wait returns it.
+			defer recoverInto(panicOpParallelDecode, pctx.rethrowPanics, &err)
 			segmentCount := seg.endRec - seg.startRec
 			if segmentCount <= 0 {
 				return nil
@@ -464,7 +472,7 @@ func materializeRecordsParallel(
 	// per-record append stays amortised O(1) without a resize storm.
 	// Each worker owns its own slot for the duration of decode; no
 	// cross-worker writes happen, so no synchronisation is required
-	// during the hot loop. The errgroup.Wait barrier below establishes
+	// during the hot loop. The worker group's Wait barrier establishes
 	// the happens-before edge the orchestrator relies on before
 	// stitching.
 	partials := make([][]*processing.Record, workers)
@@ -594,6 +602,7 @@ func buildParallelDecodeContext(
 		keep:              keep,
 		projectMapHint:    projectMapHint,
 		binding:           recordBindingFor(schema, plan, keep),
+		rethrowPanics:     s.disablePanicRecovery,
 	}
 	return pctx, cleanupFn, true, nil
 }

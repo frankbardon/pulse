@@ -112,7 +112,7 @@ func TestSpecFromProfile_SetsNullableFromObservedNullRate(t *testing.T) {
 // left to preserve.
 func TestAugmentFromProfile_NullableNumericFieldPreservesNullBitmap(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}

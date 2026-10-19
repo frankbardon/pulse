@@ -44,7 +44,7 @@ func TestProfile_FitShapeCapturesBimodalMixture(t *testing.T) {
 		mean2, std2 = 10.0, 1.5
 	)
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestProfile_FitShapeCapturesBimodalMixture(t *testing.T) {
 // still uses the plain normal capture (Shape stays nil) for that field.
 func TestProfile_FitShapeDoesNotForceFitNearNormalField(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestProfile_FitShapeDoesNotForceFitNearNormalField(t *testing.T) {
 // genuinely bimodal. Shape fitting must be opt-in, not automatic.
 func TestProfile_WithoutFitShape_NumericGeneratesAsToday(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestProfile_FitShapeThenSynth_ReproducesBimodalShape(t *testing.T) {
 		mean2, std2 = 10.0, 1.5
 	)
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}

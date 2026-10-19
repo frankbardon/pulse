@@ -628,6 +628,17 @@ type Options struct {
 	// factory may be called lazily after New, at most once per label
 	// combination, and must be safe for concurrent use.
 	Metrics observe.Metrics
+
+	// DisablePanicRecovery turns off operation panic recovery. By
+	// default (false) a panic inside an operation — a faulty embedder
+	// operator or expression function, or an engine bug — is recovered
+	// and returned as a PROCESSING_PANIC *errors.CodedError (details op,
+	// panic_type and stack; never the panic value), and the instance
+	// stays usable. Set it to true to crash instead: the recover
+	// re-panics with the original value (useful under a debugger, in a
+	// test, or when a supervisor restarts the process). Library only —
+	// the CLI and MCP server always recover.
+	DisablePanicRecovery bool
 }
 
 // Pulse is the top-level library facade. It wraps the service layer and
@@ -667,7 +678,21 @@ type Pulse struct {
 	// when Metrics is unset.
 	om    *opMetrics
 	opSeq atomic.Uint64
+
+	// disablePanicRecovery is Options.DisablePanicRecovery: the facade
+	// recover (recoverOp) and the stream producer goroutines re-panic
+	// instead of returning PROCESSING_PANIC. The engine's worker pools
+	// read the same value from the service (SetDisablePanicRecovery).
+	disablePanicRecovery bool
 }
+
+// testForcePanicRecoveryOff is a test-only override, never set in
+// production: when true every instance New builds behaves as if
+// Options.DisablePanicRecovery were set, so an engine panic crashes the
+// Pulse test that hit it instead of being recovered into an error. The
+// root package's TestMain sets it; the panic suite
+// (panic_recovery*_test.go) turns recovery back on per instance.
+var testForcePanicRecoveryOff bool
 
 // New creates a new Pulse instance with the given options.
 func New(opts Options) (*Pulse, error) {
@@ -768,6 +793,8 @@ func New(opts Options) (*Pulse, error) {
 	svc := service.New(fsCfg)
 	svc.SetDisableDefaults(opts.DisableDefaults)
 	svc.SetDisableComponents(opts.DisableComponents)
+	// The engine's worker-pool recovers honour the knob per instance.
+	svc.SetDisablePanicRecovery(opts.DisablePanicRecovery || testForcePanicRecoveryOff)
 	svc.SetProjectBufferedFields(opts.ProjectBufferedFields || !opts.DisableProjection)
 	svc.SetExtensions(buildRuntimeExtensions(visibleExt))
 	extSnap := buildExtensionsSnapshot(visibleExt)
@@ -846,6 +873,8 @@ func New(opts Options) (*Pulse, error) {
 		logger:         opts.Logger,
 		hooks:          opts.Hooks,
 		metrics:        opts.Metrics,
+
+		disablePanicRecovery: opts.DisablePanicRecovery || testForcePanicRecoveryOff,
 	}
 	if opts.Metrics != nil {
 		p.om = newOpMetrics(opts.Metrics)

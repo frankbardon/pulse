@@ -216,7 +216,7 @@ func TestAugmentFromProfile_SetMarginalMatchesSourceWithinTolerance(t *testing.T
 	const tolerance = 0.03
 
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestAugmentFromProfile_ReconstructsSetCategoricalAssociationWithinTolerance
 	srcData := buildSetCategoricalCohort(t, featureOpts, regionOpts, featureSelected, rowCount)
 
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -443,7 +443,7 @@ func TestAugmentFromProfile_ReconstructsSetNumericMeanWithinTolerance(t *testing
 	srcData := synthSetNumericPair(t, rowCount, 71, 100.0, 10.0, 5.0, 0.5)
 
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -563,7 +563,7 @@ func TestAugmentFromProfile_ReconstructsSetSetAssociationWithinTolerance(t *test
 	srcData := synthSetSetPair(t, rowCount, 10) // 90% co-occurrence
 
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -665,7 +665,7 @@ func TestAugmentFromProfile_WithoutSetConditional_GeneratesIndependentMarginals(
 	srcData := buildSetCategoricalCohort(t, featureOpts, regionOpts, featureSelected, rowCount)
 
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}

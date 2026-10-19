@@ -41,7 +41,7 @@ func auxParityPulse(t *testing.T) (*pulse.Pulse, []byte) {
 	if err := afero.WriteFile(afs, "m.csv", csv.Bytes(), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	p, err := pulse.New(pulse.Options{FS: afs})
+	p, err := pulse.New(pulse.Options{FS: afs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatal(err)
 	}

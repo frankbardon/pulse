@@ -18,7 +18,7 @@ import (
 // output/source paths.
 func setupAugmentFixture(t *testing.T, fs afero.Fs, sourcePath string, sourceRows int) (*pulse.Pulse, *synth.Spec) {
 	t.Helper()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}

@@ -36,6 +36,17 @@ const (
 	// PROCESSING_INTERNAL indicates unexpected errors in processing layer.
 	PROCESSING_INTERNAL Code = "PROCESSING_INTERNAL"
 
+	// PROCESSING_PANIC indicates an operation panicked — an embedder
+	// operator or expr function, or an engine bug — and Pulse recovered
+	// it into this error instead of crashing the host. details carry op
+	// (the operation kind), panic_type (the Go type of the panic value,
+	// never the value) and stack (at most 32 "function file:line"
+	// frames). Distinct from PROCESSING_INTERNAL (an invariant check
+	// that returned an error) and PULSE_EXTENSION_FACTORY_PANIC (a
+	// registration-time probe). Options.DisablePanicRecovery crashes
+	// instead.
+	PROCESSING_PANIC Code = "PROCESSING_PANIC"
+
 	// PROCESSING_REGRESSION_NOT_IMPLEMENTED indicates the request named a
 	// regression operator whose engine has not yet shipped. Phase 0
 	// stubs return this for every REG_* spec; later phases retire the
@@ -3948,6 +3959,7 @@ var allCodes = []Code{
 	PROCESSING_RUNTIME,
 	PROCESSING_GROUP,
 	PROCESSING_INTERNAL,
+	PROCESSING_PANIC,
 	PROCESSING_REGRESSION_NOT_IMPLEMENTED,
 	PROCESSING_REGRESSION_RANK_DEFICIENT,
 	PROCESSING_REGRESSION_NO_CONVERGE,

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/oppanic"
 	"github.com/frankbardon/pulse/internal/service"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/observe"
@@ -55,23 +56,48 @@ func (p *Pulse) observing() bool {
 // before the work, runs fn under the context that hook returned, and
 // fires OnOperationEnd with the duration and the error's code.
 //
+// On both paths a panic in fn is recovered into a PROCESSING_PANIC
+// error (recoverOp), deferred ABOVE the observing() branch so the
+// default, unobserved instance gets it too; on the on path the
+// recovered error still ends the operation.
+//
 // It is deliberately NOT hung on Service.BoundRequest, which nests per
 // Compose slot.
-func (p *Pulse) observe(ctx context.Context, op opSpec, fn func(context.Context) error) error {
+func (p *Pulse) observe(ctx context.Context, op opSpec, fn func(context.Context) error) (err error) {
+	var run *opRun
+	defer p.recoverOp(op.kind, &run, &err)
 	if !p.observing() {
 		return fn(ctx)
 	}
-	return p.observeOn(ctx, op, fn, nil)
+	run = p.beginOp(ctx, p.topInfo(op))
+	err = fn(run.work)
+	run.end(err, nil)
+	return err
 }
 
-// observeOn is the on path of observe. result, when non-nil, returns the
-// operation's result value after fn ran, so the logger can report the
-// warning codes it carries.
-func (p *Pulse) observeOn(ctx context.Context, op opSpec, fn func(context.Context) error, result func() any) error {
-	run := p.beginOp(ctx, p.topInfo(op))
-	err := fn(run.work)
-	run.end(err, result)
-	return err
+// recoverOp is the facade's operation-panic recover. Deferred directly
+// by observe / observed / observedStream (recover only works there), it
+// turns a panic into the shared PROCESSING_PANIC error (internal/oppanic
+// — the panic value is never kept) and, when the operation was observed
+// (*run non-nil), ends its open children and then the operation with
+// that error, so log, hook and metric all report PROCESSING_PANIC. With
+// Options.DisablePanicRecovery it re-panics with the original value
+// after ending the operation. No panic: one recover() call, nothing
+// else.
+func (p *Pulse) recoverOp(kind observe.OperationKind, run **opRun, err *error) {
+	r := recover()
+	if r == nil {
+		return
+	}
+	coded := oppanic.Error(string(kind), r)
+	if *run != nil {
+		(*run).endChildren(coded)
+		(*run).end(coded, nil)
+	}
+	if p.disablePanicRecovery {
+		panic(r)
+	}
+	*err = coded
 }
 
 // topInfo builds a top-level operation's OperationInfo. On path only:
@@ -101,6 +127,12 @@ type opRun struct {
 	// one; a finished child folds its counters into it.
 	parent *opRun
 	once   sync.Once
+	// children are the child operations started under a fanning-out
+	// operation, so a recovered panic — which unwinds past the ends the
+	// service would have called — can still end each one (end is
+	// once-only, so finished children are untouched).
+	childMu  sync.Mutex
+	children []*opRun
 }
 
 // fansOut reports the kinds whose slots or stages run as child
@@ -147,7 +179,21 @@ func (run *opRun) startChild(ctx context.Context, index int, req *types.Request)
 	}
 	child := p.beginOp(ctx, info)
 	child.parent = run
+	run.childMu.Lock()
+	run.children = append(run.children, child)
+	run.childMu.Unlock()
 	return child.work, func(err error) { child.end(err, nil) }
+}
+
+// endChildren ends every child still open with err — the recovered
+// panic's error. Children that already ended are no-ops.
+func (run *opRun) endChildren(err error) {
+	run.childMu.Lock()
+	children := run.children
+	run.childMu.Unlock()
+	for _, c := range children {
+		c.end(err, nil)
+	}
 }
 
 // end finishes the operation exactly once (later calls are no-ops, so
@@ -203,17 +249,16 @@ func (run *opRun) finish(err error, result func() any) {
 }
 
 // observed adapts observe to a method returning (T, error). Off, it is
-// fn(ctx) and nothing else.
-func observed[T any](p *Pulse, ctx context.Context, op opSpec, fn func(context.Context) (T, error)) (T, error) {
+// fn(ctx) and nothing else (plus the panic recover observe has).
+func observed[T any](p *Pulse, ctx context.Context, op opSpec, fn func(context.Context) (T, error)) (out T, err error) {
+	var run *opRun
+	defer p.recoverOp(op.kind, &run, &err)
 	if !p.observing() {
 		return fn(ctx)
 	}
-	var out T
-	err := p.observeOn(ctx, op, func(ctx context.Context) error {
-		var err error
-		out, err = fn(ctx)
-		return err
-	}, func() any { return out })
+	run = p.beginOp(ctx, p.topInfo(op))
+	out, err = fn(run.work)
+	run.end(err, func() any { return out })
 	return out, err
 }
 
@@ -224,11 +269,27 @@ func observed[T any](p *Pulse, ctx context.Context, op opSpec, fn func(context.C
 // the operation at once. Off, fn gets a nil end and nothing else
 // happens. A stream the caller never drains, closes or cancels never
 // ends (a leaked iterator is a caller bug).
-func observedStream[T any](p *Pulse, ctx context.Context, op opSpec, fn func(ctx context.Context, end func(error)) (T, error)) (T, error) {
+//
+// The panic recover covers fn — the stream's setup, which is where every
+// operator runs today (ProcessStream materialises its rows inside the
+// call). Work after fn returns is outside it: the stream producer
+// goroutines (stream.go) recover their own panics into a StreamErrored
+// terminator, and the caller's iteration is the caller's.
+func observedStream[T any](p *Pulse, ctx context.Context, op opSpec, fn func(ctx context.Context, end func(error)) (T, error)) (out T, err error) {
+	var run *opRun
+	defer p.recoverOp(op.kind, &run, &err)
 	if !p.observing() {
 		return fn(ctx, nil)
 	}
-	run := p.beginOp(ctx, p.topInfo(op))
+	run = p.beginOp(ctx, p.topInfo(op))
+	return observedStreamOn(run, fn)
+}
+
+// observedStreamOn is the on path of observedStream. A separate
+// function because the end closure captures run: inlined, that capture
+// moves observedStream's run to the heap on the OFF path too
+// (TestPanicRecovery_OffPathNoAllocs).
+func observedStreamOn[T any](run *opRun, fn func(ctx context.Context, end func(error)) (T, error)) (T, error) {
 	out, err := fn(run.work, func(err error) { run.end(err, nil) })
 	if err != nil {
 		run.end(err, nil)

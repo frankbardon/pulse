@@ -194,8 +194,10 @@ func (s *Service) composeParallel(
 		i, req := i, req
 		wg.Add(1)
 		sem <- struct{}{}
-		go func() {
-			defer wg.Done()
+		// joinOnReturn, never a deferred wg.Done: a slot re-panicking
+		// under DisablePanicRecovery must not release wg.Wait (nil
+		// error, nil slot) before the crash.
+		go joinOnReturn(&wg, func() {
 			defer func() { <-sem }()
 
 			reqCtx := bindSlotModels(ext.slotContext(deferMatrixResultOverlays(composeSlotContext(runCtx, vetoes, multPlan, i), &deferred[i]), i), slotSets[i], req)
@@ -206,7 +208,7 @@ func (s *Service) composeParallel(
 			}
 
 			reqCtx, end := startChild(reqCtx, i, req)
-			resp, err := s.Process(reqCtx, req)
+			resp, err := s.processSlotRecovered(reqCtx, req)
 			end(err)
 			if err != nil {
 				errs[i] = err
@@ -215,7 +217,7 @@ func (s *Service) composeParallel(
 			}
 			echoSlotLabel(resp, req)
 			responses[i] = resp
-		}()
+		})
 	}
 	wg.Wait()
 	ei.Mark()
@@ -335,4 +337,14 @@ func failFastWinner(ctx context.Context, errs []error, failed []int) int {
 		}
 	}
 	return failed[0]
+}
+
+// processSlotRecovered is s.Process for one ComposeParallel slot on its
+// pool goroutine. Operator code runs there, so a panic is recovered into
+// PROCESSING_PANIC (recoverInto) and returned as the slot's error: the
+// slot's child operation ends with it, FailFast cancels the siblings,
+// and wg.Done / the semaphore release still run.
+func (s *Service) processSlotRecovered(ctx context.Context, req *types.Request) (resp *types.Response, err error) {
+	defer recoverInto(panicOpComposeParallel, s.disablePanicRecovery, &err)
+	return s.Process(ctx, req)
 }
