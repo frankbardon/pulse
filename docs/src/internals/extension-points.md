@@ -460,7 +460,11 @@ siblings are `extend.StreamingGrouper` (`KeyForRow`) and
 `extend.ErrGrouperKeyNull` from either is the same as `ok=false` — the
 row lands in no bucket. A filterer is an `extend.FiltererFactory`
 returning an `extend.FiltererBuilder` whose `Build` compiles an
-`extend.FilterFunc func(extend.Record) (bool, error)`. The adapter
+`extend.FilterFunc func(extend.Record) (bool, error)`. A registered
+filterer runs on every entry point a built-in filterer does —
+`FilterToFileWithRequest`'s structured `Filterers` included, where it
+is built through the same registry `Process` uses and keeps the same
+rows (it is never translated into an expression). The adapter
 forwards each keying sibling explicitly, so a fan-out grouper that also
 supplies `ComponentsFunc` stays multi-key (and fuses in a crosstab).
 A single-key `extend.StreamingGrouper` fuses too: the adapter binds the

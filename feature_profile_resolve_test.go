@@ -312,7 +312,7 @@ func TestExtensionDependsOnMustBeKnown(t *testing.T) {
 }
 
 // TestFeatureProfile_FilterToFileRequiresFilterExpression: FilterToFile
-// compiles every filterer into an engine-internal FILTER_EXPRESSION, so
+// compiles every translatable filterer into an engine-internal FILTER_EXPRESSION, so
 // a profile enabling capability:filter_to_file without FILTER_EXPRESSION
 // is refused at pulse.New — never reaching a run-time "unknown filter
 // type" that would also leak the hidden name. With both, a request using

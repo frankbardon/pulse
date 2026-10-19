@@ -72,8 +72,8 @@ Expression: "age >= 18 && (region == \"NA\" || region == \"EU\")",
 
 ### Filterers
 
-A slice of structured `types.Filterer` entries translated into the
-equivalent expression and AND-combined. Useful when the predicate is
+A slice of structured `types.Filterer` entries, AND-combined: a row
+is written only when every entry passes. Useful when the predicate is
 built programmatically:
 
 ```go
@@ -84,19 +84,35 @@ Filterers: []*types.Filterer{
 },
 ```
 
-Supported types: `FILTER_EXPRESSION` (pass-through), `FILTER_INCLUDE`,
-`FILTER_EXCLUDE`, `FILTER_RANGE`, `FILTER_NULL`. Any other type —
-`FILTER_DATE_RANGES`, an extension filterer, a type the instance's
-feature profile hides, a never-registered name — is refused
-`PROCESSING_CONFIG` `filter_to_file: unsupported filter type "<T>"`
-with details `{operator}`; express a date window as a
-`FILTER_EXPRESSION` over `to_day(ts)` instead. A filterer `tz` is
-refused `PROCESSING_CONFIG` too (none of the translatable types is
-zone-capable); set the request `TimeZone`.
+`FILTER_EXPRESSION` (pass-through), `FILTER_INCLUDE`,
+`FILTER_EXCLUDE`, `FILTER_RANGE` and `FILTER_NULL` are translated into
+the equivalent expression. Every other filterer the instance has
+registered — an extension filterer (`Options.Extensions`),
+`FILTER_TRUE` / `FILTER_FALSE`, the `FILTER_SET_*` family — is built
+through the engine's filterer registry exactly as `Process` builds it,
+so it keeps the same rows `Process` keeps (an extension filterer reads
+a `u64` field's exact word through `extend.Record.Uint64Value`, and
+its `FieldInputs` hook drives the decode projection).
+
+Two refusals remain, both `PROCESSING_CONFIG` with details
+`{operator}`:
+
+- a zone-capable filterer (`FILTER_DATE_RANGES`) — details `reason:
+  "zone_capable"`, message `filter_to_file: zone-capable filter type
+  "<T>" is not supported; ...`: the zone it would resolve does not key
+  the deterministic output name. Express a date window as a
+  `FILTER_EXPRESSION` over `to_day(ts)` with the request `TimeZone`
+  instead (that zone does key the name);
+- a type the instance's feature profile hides, or a never-registered
+  name — `filter_to_file: unsupported filter type "<T>"`.
+
+A filterer `tz` (or `tz_field`) is refused `PROCESSING_CONFIG` too
+(none of the types filter-to-file runs is zone-capable); set the
+request `TimeZone`.
 
 Each filterer's `Field` is judged by the same field rule `Process` and
 predict use, against the cohort schema (a shard archive's canonical
-schema) and before the translated expression compiles: an unknown or
+schema) and before any filterer builds: an unknown or
 empty `Field` is `SERVICE_VALIDATION` `filter references unknown field:
 <f>` with details `{field, filter}`, exactly as `Process` refuses it.
 

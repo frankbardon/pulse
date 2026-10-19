@@ -98,8 +98,13 @@ func (s *Service) FilterToFileBySetAndExpr(ctx context.Context, src, dst, includ
 
 // FilterToFileFilterers is FilterToFile for the facade's
 // FilterToFileRequest: filterExpr is the request's predicate (its
-// Expression, or the expression its structured filterers translate to
-// — FilterToFileRequest.canonicalExpression). Non-empty filterers are
+// Expression, or the expression its translatable structured filterers
+// translate to — FilterToFileRequest.canonicalPredicate) and direct the
+// structured filterers it does not translate (an extension filterer,
+// FILTER_TRUE / FILTER_FALSE, FILTER_SET_*), built through the engine
+// filterer registry exactly as Process builds them; a row is kept only
+// when filterExpr (if non-empty) and every direct filterer pass. At
+// least one of the two must be supplied. Non-empty filterers are
 // judged by the shared field rule
 // (internal/descriptor.FieldRefRefusals, filterer half) against the
 // cohort schema — the canonical one for a shard archive — before the
@@ -108,12 +113,12 @@ func (s *Service) FilterToFileBySetAndExpr(ctx context.Context, src, dst, includ
 // expression compile error. timeZone is the request zone the
 // expression's to_day() reads (Request.TimeZone's rule; "" inherits
 // Options.DefaultTimeZone, else UTC).
-func (s *Service) FilterToFileFilterers(ctx context.Context, src, dst string, filterers []*types.Filterer, filterExpr, timeZone string) (int64, error) {
-	if filterExpr == "" {
+func (s *Service) FilterToFileFilterers(ctx context.Context, src, dst string, filterers []*types.Filterer, filterExpr string, direct []*types.Filterer, timeZone string) (int64, error) {
+	if filterExpr == "" && len(direct) == 0 {
 		return 0, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"filter_to_file requires a non-empty filter expression")
 	}
-	return s.filterToFile(ctx, src, dst, filterPlan{filterExpr: filterExpr, filterers: filterers, timeZone: timeZone})
+	return s.filterToFile(ctx, src, dst, filterPlan{filterExpr: filterExpr, filterers: filterers, direct: direct, timeZone: timeZone})
 }
 
 // filterPlan captures the per-call predicate inputs so the input-shape
@@ -126,6 +131,10 @@ type filterPlan struct {
 	// filterers is the structured predicate filterExpr was translated
 	// from (FilterToFileFilterers), judged by the shared field rule.
 	filterers []*types.Filterer
+	// direct is the subset of filterers built through the engine
+	// filterer registry rather than translated into filterExpr (an
+	// extension filterer, FILTER_TRUE / FILTER_FALSE, FILTER_SET_*).
+	direct []*types.Filterer
 	// models is the bound-model set the expression's coef() reads
 	// (nil binds nothing).
 	models *model.Set
@@ -506,12 +515,7 @@ func (s *Service) fieldFilterForPlan(schema *encoding.Schema, plan filterPlan) e
 	if schema == nil {
 		return nil
 	}
-	req := &types.Request{}
-	if plan.filterExpr != "" {
-		req.Filterers = []*types.Filterer{
-			{Type: types.FILTER_EXPRESSION, Expression: plan.filterExpr},
-		}
-	}
+	req := &types.Request{Filterers: plan.predicateFilterers()}
 	set := s.neededFields(context.Background(), req, schema)
 	if set.IsWide() {
 		return nil
@@ -525,17 +529,36 @@ func (s *Service) fieldFilterForPlan(schema *encoding.Schema, plan filterPlan) e
 	return func(name string) bool { return set.Has(name) }
 }
 
-// buildSingleFilter resolves filterExpr into a single FilterFunc bound
-// to schema. Extensions (expr functions + lookup tables) registered on
-// the Service are honored; coef() reads models (nil binds nothing).
+// predicateFilterers is the plan's predicate as the filterer list
+// Process would build: filterExpr as one FILTER_EXPRESSION (when set),
+// then every direct filterer in request order.
+func (p filterPlan) predicateFilterers() []*types.Filterer {
+	out := make([]*types.Filterer, 0, 1+len(p.direct))
+	if p.filterExpr != "" {
+		out = append(out, &types.Filterer{Type: types.FILTER_EXPRESSION, Expression: p.filterExpr})
+	}
+	return append(out, p.direct...)
+}
+
+// buildPredicateFilter resolves the plan's predicate (filterExpr plus
+// the direct filterers) into one FilterFunc bound to schema, each
+// filterer built through the engine filterer registry — the build
+// Process uses — so an extension filterer runs here exactly as it runs
+// there. Extensions (operators, expr functions, lookup tables)
+// registered on the Service are honored; coef() reads plan.models (nil
+// binds nothing). Returns nil when the plan carries no predicate.
 //
 // The predicate runs zoned exactly as a Process filterer does: it is
 // resolved (resolveZones) and handed through the one zone choke point
 // (zoned), so a to_day() call reads the inherited zone: timeZone (the
 // FilterToFileRequest's `time_zone`, in Request.TimeZone's place), else
 // Options.DefaultTimeZone, else UTC.
-func (s *Service) buildSingleFilter(schema *encoding.Schema, filterExpr, timeZone string, models *model.Set) (processing.FilterFunc, error) {
-	req := &types.Request{Filterers: []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: filterExpr}}, TimeZone: timeZone}
+func (s *Service) buildPredicateFilter(schema *encoding.Schema, plan filterPlan) (processing.FilterFunc, error) {
+	filterers := plan.predicateFilterers()
+	if len(filterers) == 0 {
+		return nil, nil
+	}
+	req := &types.Request{Filterers: filterers, TimeZone: plan.timeZone}
 	zones, err := s.resolveZones(req, schema)
 	if err != nil {
 		return nil, err
@@ -545,18 +568,30 @@ func (s *Service) buildSingleFilter(schema *encoding.Schema, filterExpr, timeZon
 		req.Filterers,
 		schema,
 		s.extensions,
-		models,
+		plan.models,
 	)
 	if err != nil {
 		return nil, err
 	}
-	return fns[0], nil
+	if len(fns) == 1 {
+		return fns[0], nil
+	}
+	return func(rec *processing.Record) (bool, error) {
+		for _, fn := range fns {
+			ok, err := fn(rec)
+			if err != nil || !ok {
+				return false, err
+			}
+		}
+		return true, nil
+	}, nil
 }
 
 // buildCombinedFilter composes an optional MemberSet membership test
-// with an optional FILTER_EXPRESSION into one FilterFunc. The set
+// with the plan's optional predicate (FILTER_EXPRESSION plus direct
+// filterers, buildPredicateFilter) into one FilterFunc. The set
 // predicate runs first when both are present, so per-row work
-// short-circuits on misses without paying the expr eval cost.
+// short-circuits on misses without paying the predicate's cost.
 func (s *Service) buildCombinedFilter(schema *encoding.Schema, plan filterPlan) (processing.FilterFunc, error) {
 	if len(plan.filterers) > 0 {
 		if err := s.checkFieldRefs(context.Background(), &types.Request{Filterers: plan.filterers}, schema); err != nil {
@@ -572,13 +607,9 @@ func (s *Service) buildCombinedFilter(schema *encoding.Schema, plan filterPlan) 
 		setFn = fn
 	}
 
-	var exprFn processing.FilterFunc
-	if plan.filterExpr != "" {
-		fn, err := s.buildSingleFilter(schema, plan.filterExpr, plan.timeZone, plan.models)
-		if err != nil {
-			return nil, err
-		}
-		exprFn = fn
+	exprFn, err := s.buildPredicateFilter(schema, plan)
+	if err != nil {
+		return nil, err
 	}
 
 	switch {

@@ -311,8 +311,9 @@ func TestTimeZone_DefaultZoneReachesEveryEntryPoint(t *testing.T) {
 }
 
 // TestTimeZone_FilterToFileDateRangesRefused: the filter-to-file request
-// cannot carry FILTER_DATE_RANGES (it translates to an expression), so
-// it is refused rather than computed in some zone.
+// cannot carry FILTER_DATE_RANGES (the zone it resolves would not key
+// the deterministic output name), so it is refused — reason
+// zone_capable — rather than computed in some zone.
 func TestTimeZone_FilterToFileDateRangesRefused(t *testing.T) {
 	fsys := zepFS(t)
 	p := zepPulse(t, fsys, zepZone)
@@ -321,13 +322,13 @@ func TestTimeZone_FilterToFileDateRangesRefused(t *testing.T) {
 			continue
 		}
 		_, err := p.FilterToFileWithRequest(context.Background(), &pulse.FilterToFileRequest{SourcePath: calfCohort, Filterers: pr.filterers, OutputDir: "zep_out"})
-		if err == nil || !strings.Contains(err.Error(), "unsupported filter type") {
-			t.Fatalf("%s: err = %v, want the unsupported-type refusal", pr.name, err)
+		if err == nil || !strings.Contains(err.Error(), "zone-capable filter type") {
+			t.Fatalf("%s: err = %v, want the zone-capable refusal", pr.name, err)
 		}
 		// The refusal is coded (#468), so the CLI / MCP envelope carries
 		// PROCESSING_CONFIG, never the uncoded placeholder.
 		ce := requireCode(t, err, errors.PROCESSING_CONFIG)
-		if ce.Details["operator"] != string(types.FILTER_DATE_RANGES) {
+		if ce.Details["operator"] != string(types.FILTER_DATE_RANGES) || ce.Details["reason"] != "zone_capable" {
 			t.Errorf("%s: details = %v, want operator %s", pr.name, ce.Details, types.FILTER_DATE_RANGES)
 		}
 	}
