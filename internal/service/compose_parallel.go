@@ -194,8 +194,10 @@ func (s *Service) composeParallel(
 		i, req := i, req
 		wg.Add(1)
 		sem <- struct{}{}
-		go func() {
-			defer wg.Done()
+		// joinOnReturn, never a deferred wg.Done: a slot re-panicking
+		// under DisablePanicRecovery must not release wg.Wait (nil
+		// error, nil slot) before the crash.
+		go joinOnReturn(&wg, func() {
 			defer func() { <-sem }()
 
 			reqCtx := bindSlotModels(ext.slotContext(deferMatrixResultOverlays(composeSlotContext(runCtx, vetoes, multPlan, i), &deferred[i]), i), slotSets[i], req)
@@ -215,7 +217,7 @@ func (s *Service) composeParallel(
 			}
 			echoSlotLabel(resp, req)
 			responses[i] = resp
-		}()
+		})
 	}
 	wg.Wait()
 	ei.Mark()

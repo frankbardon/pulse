@@ -140,12 +140,14 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 
 	for w := 0; w < workers; w++ {
 		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		// joinOnReturn, never a deferred wg.Done: a worker re-panicking
+		// under DisablePanicRecovery must not release wg.Wait before the
+		// crash.
+		go joinOnReturn(&wg, func() {
 			if err := s.shardWorker(cctx, req, schema, arch, jobs, starts, shards, partials); err != nil {
 				errOnce.Do(func() { firstErr = err; cancel() })
 			}
-		}()
+		})
 	}
 
 	for i := range shards {

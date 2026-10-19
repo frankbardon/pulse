@@ -22,7 +22,7 @@ import (
 // already uses for archive-shard parallelism). When the per-record
 // callback fires the worker updates its own partial — no shared mutable
 // state across goroutines, no locks on the hot path. After
-// parallelDecodeMmap's errgroup boundary completes, the orchestrator
+// parallelDecodeMmap's worker group boundary completes, the orchestrator
 // folds the partials in worker-index order via mergeShardPartials and
 // finalises through finalizeMergedPartial — both reused verbatim from
 // shard_reduce.go, so byte-equal vs serial holds for every
@@ -42,7 +42,7 @@ import (
 // the same factory shape the parallel-decode path uses. The factory closure builds
 // a fresh aggregator/grouper/filter/attribute instance set per worker
 // (no shared mutable state) and returns a DecodeCallback that updates
-// the worker's partial on each decoded Record. After the errgroup
+// the worker's partial on each decoded Record. After the worker group
 // completes, mergeShardPartials folds partials in worker-index order
 // (which equals cohort byte order because parallelDecodeMmap assigns
 // contiguous record ranges per worker), then finalizeMergedPartial
@@ -57,7 +57,7 @@ import (
 // shard_reduce.go enforces by walking shards in central-directory
 // order.
 //
-// On any worker error, parallelDecodeMmap's errgroup propagates the
+// On any worker error, parallelDecodeMmap's worker group propagates the
 // first failure and cancels remaining workers; reduceParallelBuffered
 // returns the error untouched so the caller can wrap with cohort path
 // context.
@@ -129,7 +129,7 @@ func (s *Service) reduceParallelBuffered(
 	// Per-worker partial slots. The hot loop writes only to its own
 	// index; no synchronisation is required during decode. publishMu
 	// gates only the final slice-header write per worker so the Go
-	// memory model sees a well-defined publication; the errgroup.Wait
+	// memory model sees a well-defined publication; the worker group Wait
 	// barrier inside parallelDecodeMmap supplies the happens-before
 	// edge before the orchestrator reads the slots.
 	partials := make([]*shardPartial, workers)
@@ -142,7 +142,7 @@ func (s *Service) reduceParallelBuffered(
 
 	factory := func(workerIdx, _, recordCount int) DecodeCallback {
 		// Build a fresh, per-worker operator set. Returning an error
-		// from the callback aborts the worker via the errgroup, but
+		// from the callback aborts the worker via the worker group, but
 		// factory itself runs inside the worker goroutine — so a
 		// factory-time failure has to be deferred to the first
 		// callback invocation. Capture the build error in a closure
@@ -184,7 +184,7 @@ func (s *Service) reduceParallelBuffered(
 			}
 			// Even when the record is filtered out we still need to
 			// account for the publish-on-last-record check below — the
-			// errgroup ends once all records have been visited, not
+			// worker group ends once all records have been visited, not
 			// once filter-passing records are exhausted.
 			emitted++
 

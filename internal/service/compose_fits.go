@@ -205,13 +205,15 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 			}
 			wg.Add(1)
 			sem <- struct{}{}
-			go func() {
-				defer wg.Done()
+			// joinOnReturn, never a deferred wg.Done: a fit re-panicking
+			// under DisablePanicRecovery must not release wg.Wait before
+			// the crash.
+			go joinOnReturn(&wg, func() {
 				defer func() { <-sem }()
 				if runRecovered(ctxs[i], i); errs[i] != nil {
 					fail(i)
 				}
-			}()
+			})
 		}
 		wg.Wait()
 		var failed []int

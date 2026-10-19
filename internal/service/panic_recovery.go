@@ -1,6 +1,11 @@
 package service
 
-import "github.com/frankbardon/pulse/internal/oppanic"
+import (
+	"context"
+	"sync"
+
+	"github.com/frankbardon/pulse/internal/oppanic"
+)
 
 // recoverInto is the engine's worker-goroutine panic recover. recover()
 // only catches a panic on its own goroutine, so every pool goroutine
@@ -35,3 +40,53 @@ const (
 	panicOpComposeParallel = "compose_parallel"
 	panicOpComposeFits     = "compose_fits"
 )
+
+// joinOnReturn runs f, then wg.Done — the Done NEVER deferred. A pool
+// worker that re-panics (DisablePanicRecovery) still runs every outer
+// defer while it unwinds; a deferred Done would release the caller's
+// wg.Wait before the crash, with no error recorded for the slot, and
+// the caller would return a partial "success" (nil slot, nil error)
+// in the window before the process dies. Joining only on a normal
+// return keeps the caller blocked in Wait until the crash, so a
+// re-panic is never observable as a return. With recovery on, the
+// worker's recoverInto turns the panic into its error and f returns
+// normally, so the join always happens.
+func joinOnReturn(wg *sync.WaitGroup, f func()) {
+	f()
+	wg.Done()
+}
+
+// workerGroup is errgroup.WithContext with joinOnReturn's rule:
+// errgroup.Group.Go defers its own join, so a re-panicking worker
+// would release Wait (nil error) before the crash. Go records the
+// first worker error and cancels the group context; Wait returns it
+// once every worker returned normally, then cancels the context.
+type workerGroup struct {
+	wg     sync.WaitGroup
+	once   sync.Once
+	err    error
+	cancel context.CancelFunc
+}
+
+func newWorkerGroup(ctx context.Context) (*workerGroup, context.Context) {
+	gctx, cancel := context.WithCancel(ctx)
+	return &workerGroup{cancel: cancel}, gctx
+}
+
+func (g *workerGroup) Go(f func() error) {
+	g.wg.Add(1)
+	go joinOnReturn(&g.wg, func() {
+		if err := f(); err != nil {
+			g.once.Do(func() {
+				g.err = err
+				g.cancel()
+			})
+		}
+	})
+}
+
+func (g *workerGroup) Wait() error {
+	g.wg.Wait()
+	g.cancel()
+	return g.err
+}
