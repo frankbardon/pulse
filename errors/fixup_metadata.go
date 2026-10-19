@@ -2450,22 +2450,22 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LABEL_FIELD_UNKNOWN: {
-		Message: "A LabelBinding references a field name not present in the cohort schema.",
+		Message: "A LabelBinding references a field name not present in the cohort schema (on a convert, the schema convert resolves from the source). Every export format and convert refuse it before writing, rather than labelling nothing.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Labels", "*", "Field"},
-				Hint:   "Use a field name reported by pulse_inspect; categorical fields only.",
+				Hint:   "Use a field name reported by pulse_inspect: a categorical field, or on an export or convert a u4 / u8 / u16 / u32 code field.",
 			},
 		},
 	},
 	PULSE_LABEL_FIELD_NOT_CATEGORICAL: {
-		Message: "A LabelBinding references a non-categorical field. Labels translate dictionary string values; numeric and date fields have no dictionary key to translate.",
+		Message: "A LabelBinding references a non-categorical field. Labels translate dictionary string values; numeric and date fields have no dictionary key to translate. An export (every format) or a convert also accepts an integer-coded u4 / u8 / u16 / u32 field.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Labels", "*", "Field"},
-				Hint:   "Pick a categorical_u8 / categorical_u16 / categorical_u32 field. For numeric translation, derive a categorical column upstream during import.",
+				Hint:   "Pick a categorical_u8 / categorical_u16 / categorical_u32 field (on an export or convert, a u4 / u8 / u16 / u32 code field too). For float, u64 or date translation, derive a categorical column upstream during import.",
 			},
 		},
 	},
@@ -2491,7 +2491,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_LABEL_DUPLICATE_BINDING: {
-		Message: "Two LabelBinding entries target the same Field. Each field may carry at most one binding per request.",
+		Message: "Two LabelBinding entries target the same Field. Each field may carry at most one binding per request, export or convert.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2500,8 +2500,18 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_LABEL_KEY_INVALID: {
+		Message: "A label binding on an integer-coded field (u4 / u8 / u16 / u32, on any export format or a convert) uses a table key that is not the canonical decimal spelling of a value the field can store; the stored integers are the codes, so the key could never label a value.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Labels", "*", "Table"},
+				Hint:   "Bind a table keyed by the field's stored integers in plain decimal (\"1\", \"7\" — no leading zeros, signs or fractions, within the type's range); details carry the offending key and the field's maximum.",
+			},
+		},
+	},
 	PULSE_LABEL_TABLE_NOT_ENUMERABLE: {
-		Message: "A reverse label lookup was attempted against a function-driven table (Lookup closure only, no static Rows map). Reverse search requires enumerable Rows.",
+		Message: "A reverse label lookup, or a .sav value-label binding on an integer-coded field, needs the table's entries, but the table is function-driven (Lookup closure only, no static Rows map or Order).",
 		// No caller-request field to repair: the fix is registration-time
 		// (register the table with a static Rows map, e.g. from a cached
 		// snapshot, rather than a Lookup-only closure).

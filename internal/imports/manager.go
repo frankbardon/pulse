@@ -403,6 +403,7 @@ func (m *Manager) Open(ctx context.Context, spec Spec) (*Result, error) {
 		SourceTZ:            spec.SourceTZ,
 		ColumnSourceTZ:      spec.ColumnSourceTZ,
 		DSTPolicy:           string(spec.DSTPolicy),
+		SourceTZField:       spec.SourceTZField,
 		Vectors:             spec.Vectors,
 	}
 	if ttl > 0 {
@@ -626,6 +627,7 @@ func (m *Manager) newJob(spec Spec, format, target string) (*pio.ImportJob, erro
 	job.Vectors = spec.Vectors
 	job.SourceTZ = spec.SourceTZ
 	job.ColumnSourceTZ = spec.ColumnSourceTZ
+	job.SourceTZField = spec.SourceTZField
 	job.DSTPolicy = spec.DSTPolicy
 	job.Schema = spec.Schema
 	job.IgnoreExtra = spec.IgnoreExtra

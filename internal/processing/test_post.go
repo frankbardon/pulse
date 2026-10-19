@@ -177,7 +177,14 @@ type trendPost struct {
 	orderBy []types.OrderKey
 	alpha   float64
 	variant string
+	// keyOrders is the intrinsic key order of every grouper key column
+	// of the run (setKeyOrders), nil before it is stamped.
+	keyOrders window.KeyOrders
 }
+
+// setKeyOrders implements keyOrderedPostTest: an order_by naming a
+// grouper key column sorts by that grouper's key order.
+func (tr *trendPost) setKeyOrders(orders window.KeyOrders) { tr.keyOrders = orders }
 
 func newTrendPost(spec *types.Test, schema *encoding.Schema) (PostTest, error) {
 	if cerr := fieldaccept.RequiredSlotsRefusal(spec.Type, true, fieldaccept.TestSlotsOf(spec)); cerr != nil {
@@ -228,7 +235,12 @@ func (tr *trendPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	ordered := append([]map[string]any(nil), rows...)
 	if len(tr.orderBy) > 0 {
 		sort.SliceStable(ordered, func(i, j int) bool {
-			return compareRows(ordered[i], ordered[j], tr.orderBy) < 0
+			// A grouper key column sorts by its grouper's key order —
+			// day_of_week Monday-first, GROUP_DATE_RANGES labels in
+			// supplied order, numeric buckets by value — reversed under
+			// Desc; an unranked key (ISO date), a numeric or null cell
+			// and any other column keep the CompareKey order.
+			return window.CompareRows(ordered[i], ordered[j], tr.orderBy, tr.keyOrders) < 0
 		})
 	}
 	values := make([]float64, 0, len(ordered))
@@ -314,17 +326,12 @@ func mannKendall(x []float64) (float64, float64) {
 
 // compareRows returns negative / 0 / positive for ordering by keys.
 // Operates on the post-aggregate row map. It is the same comparator
-// window ORDER BY and Request.Sort use (window.CompareKey): values order
+// window ORDER BY and Request.Sort use (window.CompareRows): values order
 // by type (numbers, decimals, labels), and a null or missing key sorts
 // last regardless of direction. This arm's own comparator used to tie a
 // present-null against everything and could not order a decimal.
 func compareRows(a, b map[string]any, keys []types.OrderKey) int {
-	for _, k := range keys {
-		if c := window.CompareKey(a[k.Field], b[k.Field], k.Desc); c != 0 {
-			return c
-		}
-	}
-	return 0
+	return window.CompareRows(a, b, keys, nil)
 }
 
 func toFloat64(v any) float64 {

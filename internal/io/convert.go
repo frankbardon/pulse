@@ -141,6 +141,13 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		return nil, err
 	}
 
+	// A label binding convert could never apply is refused against the
+	// resolved schema before the target sees a header, with the row
+	// export's rules and codes (Predict makes the same call).
+	if err := checkRowLabelBindings("convert", schema, j.Labels, j.LabelResolver, widenable); err != nil {
+		return nil, err
+	}
+
 	augmentInsertAfter, _, replaceFields := planLabelColumns(schema, j.LabelResolver, includeMask)
 
 	// Hand the SOURCE's declared facts to a target that rebuilds a cohort
@@ -201,6 +208,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 			IgnoreExtra:    j.IgnoreExtra,
 			SourceTZ:       j.SourceTZ,
 			ColumnSourceTZ: j.ColumnSourceTZ,
+			SourceTZField:  j.SourceTZField,
 			DSTPolicy:      j.DSTPolicy,
 			StrictRows:     j.StrictRows,
 		}
@@ -221,6 +229,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		rowNum++
 
 		values := make([]any, len(schema.Fields))
+		zones.beginRow(row)
 		for i, f := range schema.Fields {
 			colIdx := f.CsvColumnIdx
 			var raw string
@@ -235,6 +244,13 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 				// KeepPulseAt intermediate, as it stops an import.
 				txt, zerr := zones.render(i, raw, f.Name, rowNum)
 				if zerr != nil {
+					if isZoneRowError(zerr) {
+						// The row's zone cannot be resolved: drop the row
+						// before the target (and the intermediate) rather
+						// than hand a naive literal through as UTC.
+						rowErrors = append(rowErrors, RowError{Row: rowNum, Err: zerr})
+						return nil
+					}
 					return zerr
 				}
 				values[i] = txt
@@ -317,12 +333,28 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 	//
 	// The fallback code is PULSE_EXPORT_ROW_ERROR, by provenance. Convert's
 	// row loop hands raw cell text through and never objects to it; every
-	// RowError it can record comes from Target.WriteRow. Naming the import
-	// code here would point the caller at a source that said nothing.
+	// uncoded RowError it can record comes from Target.WriteRow. Naming the
+	// import code here would point the caller at a source that said
+	// nothing. (A SourceTZField row whose zone cannot be resolved is the
+	// one source-side row error, and it is coded, so it names itself.)
 	if failure := totalRowFailure("convert", converted, rowNum, rowErrors, perrors.PULSE_EXPORT_ROW_ERROR); failure != nil {
 		return nil, failure
 	}
-	targetDropped := rowsDropped(converted, rowErrors, DroppedStageTarget)
+	// Rows the per-row source zone could not read never reached the
+	// target; they are a drop of their own (stage source).
+	var sourceErrs, targetErrs []RowError
+	for _, re := range rowErrors {
+		if isZoneRowError(re.Err) {
+			sourceErrs = append(sourceErrs, re)
+		} else {
+			targetErrs = append(targetErrs, re)
+		}
+	}
+	sourceDropped := rowsDropped(converted, sourceErrs, DroppedStageSource)
+	if err := strictRowsDropped(j.StrictRows, sourceDropped); err != nil {
+		return nil, err
+	}
+	targetDropped := rowsDropped(converted, targetErrs, DroppedStageTarget)
 	if err := strictRowsDropped(j.StrictRows, targetDropped); err != nil {
 		return nil, err
 	}
@@ -370,7 +402,7 @@ func (j *ConvertJob) Run(ctx context.Context) (*ConvertReport, error) {
 		SourceWarnings: j.sourceWarnings(),
 		TargetWarnings: targetWarnings(j.Target),
 	}
-	for _, w := range []*perrors.CodedError{targetDropped, keepDropped} {
+	for _, w := range []*perrors.CodedError{sourceDropped, targetDropped, keepDropped} {
 		if w != nil {
 			report.DroppedWarnings = append(report.DroppedWarnings, w)
 		}
@@ -417,6 +449,7 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 		}
 	}
 
+	inferredSchema := schema == nil
 	if schema == nil {
 		rr, ok := j.Source.(ResetReader)
 		if !ok {
@@ -444,6 +477,11 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 		return nil, err
 	}
 
+	// Run's label-binding refusals, on the same schema and terms.
+	if err := checkRowLabelBindings("convert", schema, j.Labels, j.LabelResolver, widenableFields(schema, inferredSchema, nil)); err != nil {
+		return nil, err
+	}
+
 	// Count rows. A zoned datetime cell is parsed as Run parses it, so a
 	// DST refusal Run would raise is predicted and a resolved count is
 	// reported; without a source zone no cell is read.
@@ -453,6 +491,7 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 		if zones == nil {
 			return nil
 		}
+		zones.beginRow(row)
 		for i, f := range schema.Fields {
 			if !zones.zoned(i) || f.CsvColumnIdx >= len(row) {
 				continue
@@ -462,6 +501,9 @@ func (j *ConvertJob) Predict(ctx context.Context) (*PredictReport, error) {
 				continue
 			}
 			if _, zerr := zones.render(i, raw, f.Name, rowCount); zerr != nil {
+				if isZoneRowError(zerr) {
+					return nil // a row Run drops; predict reports no row errors
+				}
 				return zerr
 			}
 		}
@@ -516,7 +558,7 @@ func (j *ConvertJob) inferSchema() (*encoding.Schema, []InferenceWarning, error)
 }
 
 func (j *ConvertJob) zoneJob() *ImportJob {
-	return &ImportJob{SourceTZ: j.SourceTZ, ColumnSourceTZ: j.ColumnSourceTZ, DSTPolicy: j.DSTPolicy}
+	return &ImportJob{SourceTZ: j.SourceTZ, ColumnSourceTZ: j.ColumnSourceTZ, SourceTZField: j.SourceTZField, DSTPolicy: j.DSTPolicy}
 }
 
 // offerConvertSource hands the source's declared facts to a

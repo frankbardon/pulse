@@ -197,6 +197,7 @@ func cohortFilterCmd() *cli.Command {
 			&cli.StringFlag{Name: "filter", Usage: "Filter expression (FILTER_EXPRESSION semantics)"},
 			&cli.StringFlag{Name: "include-from", Usage: "Path to newline-delimited file of values to include"},
 			&cli.StringFlag{Name: "include-field", Usage: "Field name whose value is tested against --include-from"},
+			&cli.StringFlag{Name: "time-zone", Usage: "IANA zone (UTC or Area/Location) a to_day() call in --filter reads; omitted reads UTC. An unknown name is PULSE_TIMEZONE_UNKNOWN and nothing is written"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -222,7 +223,12 @@ func cohortFilterCmd() *cli.Command {
 				return err
 			}
 
-			p, err := newPulse(ctx)
+			// --time-zone is the instance default zone (the
+			// Options.DefaultTimeZone rule a to_day() in the predicate
+			// inherits), validated by pulse.New before any read, so an
+			// unknown name is PULSE_TIMEZONE_UNKNOWN and nothing is
+			// written. Omitted, the instance is exactly today's (UTC).
+			p, err := newPulseOpts(ctx, pulse.Options{DefaultTimeZone: cmd.String("time-zone")})
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)

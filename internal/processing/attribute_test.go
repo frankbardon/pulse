@@ -71,9 +71,10 @@ func TestAttribute_ZScore_SingleValue(t *testing.T) {
 	if len(result) != 1 {
 		t.Fatalf("result length = %d, want 1", len(result))
 	}
-	// Stddev=0 => z-score=0
-	if result[0] != 0 {
-		t.Errorf("zscore = %f, want 0", result[0])
+	// One value: the population sd is 0, so z = 0/0 — undefined, null
+	// (U50 E7-S2), never 0.
+	if !IsAttributeNull(result[0]) {
+		t.Errorf("zscore = %f, want AttributeNull", result[0])
 	}
 }
 
@@ -132,10 +133,11 @@ func TestAttribute_Normalized_AllSame(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// All same => all 0
+	// All same: max = min, so every (x-min)/(max-min) is 0/0 — null
+	// (U50 E7-S2), never 0.
 	for i, v := range result {
-		if v != 0 {
-			t.Errorf("normalized[%d] = %f, want 0", i, v)
+		if !IsAttributeNull(v) {
+			t.Errorf("normalized[%d] = %f, want AttributeNull", i, v)
 		}
 	}
 }
@@ -411,7 +413,7 @@ func TestAttribute_DatePart_Empty(t *testing.T) {
 	}
 }
 
-func TestAttribute_DatePart_NullReturnsZero(t *testing.T) {
+func TestAttribute_DatePart_NullReturnsNull(t *testing.T) {
 	schema := dateSchema()
 	attr := makeDatePartAttribute(t, "enrolled", schema, "year")
 	records := makeRecordsWithNulls(schema, "enrolled", []float64{19797, 0}, []int{1})
@@ -423,8 +425,8 @@ func TestAttribute_DatePart_NullReturnsZero(t *testing.T) {
 	if result[0] != 2024 {
 		t.Errorf("year[0] = %f, want 2024", result[0])
 	}
-	if result[1] != 0 {
-		t.Errorf("year[1] = %f, want 0 (null)", result[1])
+	if !IsAttributeNull(result[1]) {
+		t.Errorf("year[1] = %f, want AttributeNull (a null date has no year)", result[1])
 	}
 }
 
@@ -492,22 +494,24 @@ var _ = math.Abs
 // TestAttribute_NullAndDegenerateInputs pins what the per-row attributes
 // emit for a missing input and for a constant field. The guidance (the
 // ATTR_* Purposes and value Interpretations in internal/descriptor), the
-// atomic skills and the manifest notes state these values: an attribute
-// never emits null or NaN here. A missing input reads 0 (50 for the
-// T-score, the T-score of the mean), and a field with no spread reads
-// 0 / 50 / 0 for ATTR_ZSCORE / ATTR_TSCORE / ATTR_NORMALIZED. A missing
-// set reads 0 for both set attributes.
+// atomic skills and the manifest notes state these values. A missing
+// input scores null (AttributeNull) on every score — never the 0 (50 for
+// the T-score) it read before U50 E6-S1 — and is left out of the
+// pre-pass; a field with no spread (sd = 0, max = min) scores null on
+// every row for ATTR_ZSCORE / ATTR_TSCORE / ATTR_NORMALIZED — 0/0 is
+// undefined, never the 0 / 50 / 0 it read before U50 E7-S2. A missing set is null for
+// ATTR_SET_POPCOUNT (an empty selection stays 0) and 0 for the
+// membership flag ATTR_SET_HAS (a null set holds no label).
 func TestAttribute_NullAndDegenerateInputs(t *testing.T) {
 	schema := numericSchema()
 	cases := []struct {
 		typ       types.AttributeType
-		nullWant  float64
-		constWant float64
+		constNull bool
 	}{
-		{types.ATTR_ZSCORE, 0, 0},
-		{types.ATTR_TSCORE, 50, 50},
-		{types.ATTR_NORMALIZED, 0, 0},
-		{types.ATTR_PERCENTILE, 0, -1}, // constant case pinned by the ties test
+		{types.ATTR_ZSCORE, true},
+		{types.ATTR_TSCORE, true},
+		{types.ATTR_NORMALIZED, true},
+		{types.ATTR_PERCENTILE, false}, // constant case pinned by the ties test
 	}
 	for _, c := range cases {
 		t.Run(string(c.typ), func(t *testing.T) {
@@ -517,10 +521,21 @@ func TestAttribute_NullAndDegenerateInputs(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Compute: %v", err)
 			}
-			if got[2] != c.nullWant {
-				t.Errorf("null row = %v, want %v", got[2], c.nullWant)
+			if !IsAttributeNull(got[2]) {
+				t.Errorf("null row = %v, want AttributeNull", got[2])
 			}
-			if c.constWant < 0 {
+			// The null row is out of the pre-pass: the other rows score as
+			// over {10, 20, 40} alone.
+			want := map[types.AttributeType][]float64{
+				types.ATTR_NORMALIZED: {0, 1.0 / 3, 0, 1},
+				types.ATTR_PERCENTILE: {100.0 / 3, 200.0 / 3, 0, 100},
+			}[c.typ]
+			for i, w := range want {
+				if i != 2 && math.Abs(got[i]-w) > 1e-12 {
+					t.Errorf("row %d = %v, want %v (the null row reached the pre-pass)", i, got[i], w)
+				}
+			}
+			if !c.constNull {
 				return
 			}
 			attr = makeAttribute(t, c.typ, "score", schema, "")
@@ -529,8 +544,8 @@ func TestAttribute_NullAndDegenerateInputs(t *testing.T) {
 				t.Fatalf("Compute: %v", err)
 			}
 			for i, v := range got {
-				if v != c.constWant || math.IsNaN(v) {
-					t.Errorf("constant field row %d = %v, want %v", i, v, c.constWant)
+				if !IsAttributeNull(v) {
+					t.Errorf("constant field row %d = %v, want AttributeNull", i, v)
 				}
 			}
 		})
@@ -546,14 +561,19 @@ func TestAttribute_NullAndDegenerateInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for name, a := range map[string]AttributeComputer{"ATTR_SET_POPCOUNT": pop, "ATTR_SET_HAS": has} {
-		got, err := a.Compute([]*Record{missing}, "tags")
-		if err != nil {
-			t.Fatalf("%s Compute: %v", name, err)
-		}
-		if got[0] != 0 {
-			t.Errorf("%s null set row = %v, want 0", name, got[0])
-		}
+	got, err := pop.Compute([]*Record{missing}, "tags")
+	if err != nil {
+		t.Fatalf("ATTR_SET_POPCOUNT Compute: %v", err)
+	}
+	if !IsAttributeNull(got[0]) {
+		t.Errorf("ATTR_SET_POPCOUNT null set row = %v, want AttributeNull", got[0])
+	}
+	got, err = has.Compute([]*Record{missing}, "tags")
+	if err != nil {
+		t.Fatalf("ATTR_SET_HAS Compute: %v", err)
+	}
+	if got[0] != 0 {
+		t.Errorf("ATTR_SET_HAS null set row = %v, want 0", got[0])
 	}
 }
 

@@ -353,6 +353,7 @@ pulse: type FacetRequest field Models []pulse/types.ModelRef "json:\"models,omit
 pulse: type FacetRequest field NumericPercentiles []float64 "json:\"numeric_percentiles,omitempty\""
 pulse: type FacetRequest field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
 pulse: type FacetRequest field TimeZone string "json:\"time_zone,omitempty\""
+pulse: type FacetRequest field TimeZoneField string "json:\"time_zone_field,omitempty\""
 pulse: type FacetRequest method (*FacetRequest) Hash() string
 pulse: type FacetResult = pulse/types.FacetResult
 pulse: type FacetResult underlying struct
@@ -448,6 +449,7 @@ pulse: type FilterToFileRequest field Models []pulse/types.ModelRef "json:\"mode
 pulse: type FilterToFileRequest field OutputDir string "json:\"output_dir\""
 pulse: type FilterToFileRequest field OutputName string "json:\"output_name,omitempty\""
 pulse: type FilterToFileRequest field SourcePath string "json:\"source_path\""
+pulse: type FilterToFileRequest field TimeZone string "json:\"time_zone,omitempty\""
 pulse: type FilterToFileResult struct
 pulse: type FilterToFileResult field ElapsedMs int64 "json:\"elapsed_ms\""
 pulse: type FilterToFileResult field OutputHash string "json:\"output_hash\""
@@ -541,6 +543,7 @@ pulse: type ImportSidecar field RowsImported int "json:\"rows_imported\""
 pulse: type ImportSidecar field SourceFormat string "json:\"source_format\""
 pulse: type ImportSidecar field SourcePath string "json:\"source_path\""
 pulse: type ImportSidecar field SourceTZ string "json:\"source_tz,omitempty\""
+pulse: type ImportSidecar field SourceTZField string "json:\"source_tz_field,omitempty\""
 pulse: type ImportSidecar field TTLSeconds int64 "json:\"ttl_seconds\""
 pulse: type ImportSidecar field Vectors []pulse/io.VectorDecl "json:\"vectors,omitempty\""
 pulse: type ImportSidecar method (ImportSidecar) Pinned() bool
@@ -562,6 +565,7 @@ pulse: type ImportSpec field SetInferenceMinPct int
 pulse: type ImportSpec field Sheet string
 pulse: type ImportSpec field SourcePath string
 pulse: type ImportSpec field SourceTZ string
+pulse: type ImportSpec field SourceTZField string
 pulse: type ImportSpec field StrictRows bool
 pulse: type ImportSpec field SuggestGroups bool
 pulse: type ImportSpec field TTL time.Duration
@@ -963,6 +967,7 @@ pulse: type Request field Return *pulse/types.Return "json:\"return,omitempty\""
 pulse: type Request field Sort []pulse/types.OrderKey "json:\"sort,omitempty\""
 pulse: type Request field Tests []*pulse/types.Test "json:\"tests,omitempty\""
 pulse: type Request field TimeZone string "json:\"time_zone,omitempty\""
+pulse: type Request field TimeZoneField string "json:\"time_zone_field,omitempty\""
 pulse: type Request field Vectors []pulse/types.VectorSpec "json:\"vectors,omitempty\""
 pulse: type Request field Weight *pulse/types.WeightSpec "json:\"weight,omitempty\""
 pulse: type Request field Windows []*pulse/types.Window "json:\"windows,omitempty\""
@@ -1964,6 +1969,7 @@ pulse/descriptor: type ResolvedZone field Operator string "json:\"operator\""
 pulse/descriptor: type ResolvedZone field Slot string "json:\"slot\""
 pulse/descriptor: type ResolvedZone field Source string "json:\"source\""
 pulse/descriptor: type ResolvedZone field TZ *string "json:\"tz\""
+pulse/descriptor: type ResolvedZone field TZField string "json:\"tz_field,omitempty\""
 pulse/descriptor: type ResponseSectionSize struct
 pulse/descriptor: type ResponseSectionSize field Basis string "json:\"basis\""
 pulse/descriptor: type ResponseSectionSize field FullBytes int64 "json:\"full_bytes\""
@@ -2066,6 +2072,7 @@ pulse/descriptor: const WeightStatusOptedOut untyped string = "opted_out"
 pulse/descriptor: const WeightStatusSkippedNotWeightAware untyped string = "skipped_not_weight_aware"
 pulse/descriptor: const WeightSuggestionSourceSPSSSidecar untyped string = "spss_sidecar"
 pulse/descriptor: const ZoneSourceDefault untyped string = "default"
+pulse/descriptor: const ZoneSourceField untyped string = "field"
 pulse/descriptor: const ZoneSourceOptions untyped string = "options"
 pulse/descriptor: const ZoneSourceRequest untyped string = "request"
 pulse/descriptor: const ZoneSourceSlot untyped string = "slot"
@@ -2538,6 +2545,7 @@ pulse/errors: const PULSE_LABEL_DUPLICATE_BINDING pulse/errors.Code = "PULSE_LAB
 pulse/errors: const PULSE_LABEL_FIELD_COLLISION pulse/errors.Code = "PULSE_LABEL_FIELD_COLLISION"
 pulse/errors: const PULSE_LABEL_FIELD_NOT_CATEGORICAL pulse/errors.Code = "PULSE_LABEL_FIELD_NOT_CATEGORICAL"
 pulse/errors: const PULSE_LABEL_FIELD_UNKNOWN pulse/errors.Code = "PULSE_LABEL_FIELD_UNKNOWN"
+pulse/errors: const PULSE_LABEL_KEY_INVALID pulse/errors.Code = "PULSE_LABEL_KEY_INVALID"
 pulse/errors: const PULSE_LABEL_LOOKUP_MISS pulse/errors.Code = "PULSE_LABEL_LOOKUP_MISS"
 pulse/errors: const PULSE_LABEL_NOT_APPLIED pulse/errors.Code = "PULSE_LABEL_NOT_APPLIED"
 pulse/errors: const PULSE_LABEL_TABLE_NOT_ENUMERABLE pulse/errors.Code = "PULSE_LABEL_TABLE_NOT_ENUMERABLE"
@@ -2831,6 +2839,8 @@ pulse/extend: type MergeableGrouper imethod Group(rows pulse/extend.Rows, field 
 pulse/extend: type MergeableGrouper imethod MergeState(other pulse/extend.Grouper) error
 pulse/extend: type MultiKeyStreamingGrouper interface
 pulse/extend: type MultiKeyStreamingGrouper imethod KeysForRow(rec pulse/extend.Record, field string) (keys []string, ok bool, err error)
+pulse/extend: type NullableAttribute interface
+pulse/extend: type NullableAttribute imethod EmitsNull() bool
 pulse/extend: type OnlineAggregator interface
 pulse/extend: type OnlineAggregator imethod Finalize() (float64, error)
 pulse/extend: type OnlineAggregator imethod UpdateRow(rec pulse/extend.Record, field string) error
@@ -2922,6 +2932,7 @@ pulse/io: type ConvertJob field SampleRows int
 pulse/io: type ConvertJob field Schema *pulse/encoding.Schema
 pulse/io: type ConvertJob field Source pulse/internal/io.Reader
 pulse/io: type ConvertJob field SourceTZ string
+pulse/io: type ConvertJob field SourceTZField string
 pulse/io: type ConvertJob field StrictRows bool
 pulse/io: type ConvertJob field Target pulse/internal/io.Writer
 pulse/io: type ConvertJob method (*ConvertJob) Hash() string
@@ -3106,6 +3117,7 @@ pulse/io: type ImportJob field SetDelimiters map[string]string
 pulse/io: type ImportJob field SetInferenceMinPct int
 pulse/io: type ImportJob field Source pulse/internal/io.Reader
 pulse/io: type ImportJob field SourceTZ string
+pulse/io: type ImportJob field SourceTZField string
 pulse/io: type ImportJob field StrictDedup bool
 pulse/io: type ImportJob field StrictRows bool
 pulse/io: type ImportJob field SuggestGroups bool
@@ -4421,6 +4433,7 @@ pulse/types: type Attribute field Penalty string "json:\"penalty,omitempty\""
 pulse/types: type Attribute field Predictors []string "json:\"predictors,omitempty\""
 pulse/types: type Attribute field Target string "json:\"target,omitempty\""
 pulse/types: type Attribute field TimeZone string "json:\"tz,omitempty\""
+pulse/types: type Attribute field TimeZoneField string "json:\"tz_field,omitempty\""
 pulse/types: type Attribute field Type pulse/types.AttributeType "json:\"type\""
 pulse/types: type Attribute field Vector string "json:\"vector,omitempty\""
 pulse/types: type Attribute field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
@@ -4727,6 +4740,7 @@ pulse/types: type FacetRequest field Models []pulse/types.ModelRef "json:\"model
 pulse/types: type FacetRequest field NumericPercentiles []float64 "json:\"numeric_percentiles,omitempty\""
 pulse/types: type FacetRequest field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
 pulse/types: type FacetRequest field TimeZone string "json:\"time_zone,omitempty\""
+pulse/types: type FacetRequest field TimeZoneField string "json:\"time_zone_field,omitempty\""
 pulse/types: type FacetRequest method (*FacetRequest) Hash() string
 pulse/types: type FacetResult struct
 pulse/types: type FacetResult field Additive map[string]*pulse/types.FacetField "json:\"additive,omitempty\""
@@ -4745,6 +4759,7 @@ pulse/types: type Feature field ForEach *pulse/types.ForEach "json:\"for_each,om
 pulse/types: type Feature field Label string "json:\"label,omitempty\""
 pulse/types: type Feature field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type Feature field TimeZone string "json:\"tz,omitempty\""
+pulse/types: type Feature field TimeZoneField string "json:\"tz_field,omitempty\""
 pulse/types: type Feature field Type pulse/types.FeatureType "json:\"type\""
 pulse/types: type FeatureType string
 pulse/types: type FeatureType method (FeatureType) Streamable() bool
@@ -4760,6 +4775,7 @@ pulse/types: type Filterer field Expression string "json:\"expression,omitempty\
 pulse/types: type Filterer field Field string "json:\"field,omitempty\""
 pulse/types: type Filterer field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type Filterer field TimeZone string "json:\"tz,omitempty\""
+pulse/types: type Filterer field TimeZoneField string "json:\"tz_field,omitempty\""
 pulse/types: type Filterer field Type pulse/types.FiltererType "json:\"type\""
 pulse/types: type Filterer field Values []string "json:\"values,omitempty\""
 pulse/types: type FiltererComponents struct
@@ -4845,6 +4861,7 @@ pulse/types: type Group field Include []string "json:\"include,omitempty\""
 pulse/types: type Group field Interval float64 "json:\"interval,omitempty\""
 pulse/types: type Group field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type Group field TimeZone string "json:\"tz,omitempty\""
+pulse/types: type Group field TimeZoneField string "json:\"tz_field,omitempty\""
 pulse/types: type Group field Type pulse/types.GroupType "json:\"type\""
 pulse/types: type Group field Vector string "json:\"vector,omitempty\""
 pulse/types: type Group field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
@@ -5387,6 +5404,7 @@ pulse/types: type Request field Return *pulse/types.Return "json:\"return,omitem
 pulse/types: type Request field Sort []pulse/types.OrderKey "json:\"sort,omitempty\""
 pulse/types: type Request field Tests []*pulse/types.Test "json:\"tests,omitempty\""
 pulse/types: type Request field TimeZone string "json:\"time_zone,omitempty\""
+pulse/types: type Request field TimeZoneField string "json:\"time_zone_field,omitempty\""
 pulse/types: type Request field Vectors []pulse/types.VectorSpec "json:\"vectors,omitempty\""
 pulse/types: type Request field Weight *pulse/types.WeightSpec "json:\"weight,omitempty\""
 pulse/types: type Request field Windows []*pulse/types.Window "json:\"windows,omitempty\""
@@ -5619,4 +5637,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7382653419d8bbb4124fe6fd386a0de1f2203eee9633c0796624dbeec88f2c25
+// golden-hash: e4a2356f7dc46088abca72a3d762bcafdcef74e7df263eeb0cbd2ef4027443bc

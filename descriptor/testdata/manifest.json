@@ -3336,7 +3336,7 @@
         {
           "name": "ATTR_DATE_PART",
           "category": "attribute",
-          "description": "Extract a calendar component (year, month, day, year_month, year_month_day, month_day, hour) from a date or datetime field; a datetime reads the wall clock of its resolved time zone, and hour needs a datetime.",
+          "description": "Extract a calendar component (year, month, day, year_month, year_month_day, month_day, hour, iso_weekday) from a date or datetime field; a datetime reads the wall clock of its resolved time zone, and hour needs a datetime.",
           "params": [
             {
               "name": "part",
@@ -3346,6 +3346,7 @@
               "enum_values": [
                 "day",
                 "hour",
+                "iso_weekday",
                 "month",
                 "month_day",
                 "year",
@@ -3359,7 +3360,7 @@
             "datetime"
           ],
           "emits_type": "f64",
-          "emits_type_note": "encoded integer per record (e.g. year_month=YYYYMM)",
+          "emits_type_note": "encoded integer per record (e.g. year_month=YYYYMM, iso_weekday=1..7 with Monday=1)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -3637,7 +3638,7 @@
             "u8"
           ],
           "emits_type": "f64",
-          "emits_type_note": "one float per record in [0, 1]",
+          "emits_type_note": "one float per record in [0, 1] (null when max=min or the value is null)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -3771,7 +3772,7 @@
             "u8"
           ],
           "emits_type": "f64",
-          "emits_type_note": "one float per record in (0, 100]; 0 when the value is null",
+          "emits_type_note": "one float per record in (0, 100]; null when the value is null",
           "streamable": false,
           "streamable_hint": "Use ATTR_NORMALIZED for a streaming-friendly rank proxy.",
           "component_schema": {
@@ -4244,7 +4245,7 @@
             "set_u8"
           ],
           "emits_type": "packed_bool",
-          "emits_type_note": "one 0/1 per record",
+          "emits_type_note": "one 0/1 per record (0 when the set is null)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -4267,7 +4268,7 @@
             "set_u8"
           ],
           "emits_type": "u16",
-          "emits_type_note": "one integer per record: 0..set width inclusive, so 0..256 at the widest rung (set_u256)",
+          "emits_type_note": "one integer per record: 0..set width inclusive, so 0..256 at the widest rung (set_u256); null when the set is null",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -4296,7 +4297,7 @@
             "u8"
           ],
           "emits_type": "f64",
-          "emits_type_note": "one float per record",
+          "emits_type_note": "one float per record (null when stddev=0 or the value is null)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -4445,7 +4446,7 @@
             "u8"
           ],
           "emits_type": "f64",
-          "emits_type_note": "one float per record (0 when stddev=0 or the value is null)",
+          "emits_type_note": "one float per record (null when stddev=0 or the value is null)",
           "streamable": true,
           "component_schema": {
             "mergeability": ""
@@ -5085,7 +5086,7 @@
         {
           "name": "GROUP_DATE",
           "category": "grouper",
-          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour its wall-clock hour (datetime only). Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
+          "description": "Partition date-typed records by a calendar component (year, quarter, month, week, day, hour, hour_of_day, day_of_week). A datetime field is read on the local wall clock of its resolved zone (UTC by default): its calendar day, or for component=hour / hour_of_day its wall-clock hour (datetime only). Keys emit chronologically; day_of_week Monday to Sunday, hour_of_day 00 to 23. Group.Include restricts the keys and sets their order. Optional week_start picks the day a week begins; optional fiscal_offset shifts year/quarter bucketing onto a fiscal calendar with end-year labels (FY-prefixed keys).",
           "params": [
             {
               "name": "component",
@@ -5097,6 +5098,7 @@
                 "day",
                 "day_of_week",
                 "hour",
+                "hour_of_day",
                 "month",
                 "quarter",
                 "week",
@@ -5145,7 +5147,7 @@
             "date",
             "datetime"
           ],
-          "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1, 2026-W09, 2026-03-29T03)",
+          "emits_type_note": "string group key per row (e.g. 2024-Q1, 2024-01, FY2025-Q1, 2026-W09, 2026-03-29T03, Monday, 09)",
           "streamable": false,
           "streamable_hint": "Use GROUP_CATEGORY on an ATTR_DATE_PART output column for a streaming-friendly substitute.",
           "component_schema": {
@@ -5163,7 +5165,7 @@
               {
                 "name": "granularity",
                 "type": "string",
-                "description": "Calendar component used to bucket (hour, day, day_of_week, week, month, quarter, year)."
+                "description": "Calendar component used to bucket (hour, hour_of_day, day, day_of_week, week, month, quarter, year)."
               },
               {
                 "name": "range_start",
@@ -5196,7 +5198,7 @@
         {
           "name": "GROUP_DATE_RANGES",
           "category": "grouper",
-          "description": "Partition date-typed records by a set of inline labeled date ranges ({label, start, end}); the bucket key is the matching range's label. A datetime field is truncated to the UTC calendar day containing its instant before matching. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order.",
+          "description": "Partition date-typed records by a set of inline labeled date ranges ({label, start, end}); the bucket key is the matching range's label. A datetime field is read as the local calendar day of its resolved zone (UTC by default) before matching. Out-of-range rows land in a configurable unmatched bucket (default label \"unmatched\"). Buckets emit in supplied range order, the unmatched bucket last; Group.Include restricts the labels and sets their order.",
           "params": [
             {
               "name": "ranges",
@@ -6282,7 +6284,7 @@
         {
           "name": "FEAT_DATE_FEATURES",
           "category": "feature",
-          "description": "Expand a date or datetime field into year, month, day, day-of-week (dow, 0 = Sunday) and quarter columns, plus hour over a datetime; a datetime reads the wall clock of its resolved time zone.",
+          "description": "Expand a date or datetime field into year, month, day, day-of-week (dow, ISO: 1 = Monday .. 7 = Sunday) and quarter columns, plus hour over a datetime; a datetime reads the wall clock of its resolved time zone.",
           "params": null,
           "accepts_types": [
             "date",
@@ -10059,7 +10061,7 @@
         ]
       }
     ],
-    "error_codes_count": 392,
+    "error_codes_count": 393,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10230,6 +10232,7 @@
       "PULSE_LABEL_FIELD_COLLISION",
       "PULSE_LABEL_FIELD_NOT_CATEGORICAL",
       "PULSE_LABEL_FIELD_UNKNOWN",
+      "PULSE_LABEL_KEY_INVALID",
       "PULSE_LABEL_LOOKUP_MISS",
       "PULSE_LABEL_NOT_APPLIED",
       "PULSE_LABEL_TABLE_NOT_ENUMERABLE",
@@ -12134,7 +12137,7 @@
       },
       {
         "name": "op-attr-date-part",
-        "description": "Extract a calendar component (year, month, day, year_month, ..., hour) from a date or datetime field."
+        "description": "Extract a calendar component (year, month, day, year_month, ..., hour, iso_weekday) from a date or datetime field."
       },
       {
         "name": "op-attr-factor-score",
@@ -13217,7 +13220,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 242,
+    "examples_count": 244,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -14600,6 +14603,12 @@
             "type": "int",
             "required": true,
             "description": "Rolling window width in rows, a positive integer."
+          },
+          {
+            "name": "min_periods",
+            "type": "int",
+            "required": false,
+            "description": "Present prior points a row needs before it gets a figure (null before), an integer from 1 to the window; absent, the window. Absent points never count."
           }
         ]
       },
@@ -15739,6 +15748,12 @@
             "type": "int",
             "required": true,
             "description": "Rolling window width in rows, a positive integer."
+          },
+          {
+            "name": "min_periods",
+            "type": "int",
+            "required": false,
+            "description": "Present prior points a row needs before it gets a figure (null before), an integer from 2 to the window; absent, the window. Absent points never count."
           }
         ]
       },
@@ -17678,7 +17693,7 @@
             {
               "name": "granularity",
               "type": "string",
-              "description": "Calendar component used to bucket (hour, day, day_of_week, week, month, quarter, year)."
+              "description": "Calendar component used to bucket (hour, hour_of_day, day, day_of_week, week, month, quarter, year)."
             },
             {
               "name": "range_start",
@@ -19062,4 +19077,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9ab9fd553edf9e4aa7ef5ff40f2dedfc1e9e0536cfb1739349836d087d338a6a
+// golden-hash: b73977ef6b83af34ec10c27a0a917513e01d3adb5067f0ced0a4b1f5ef013a40

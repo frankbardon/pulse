@@ -928,6 +928,17 @@ func (a attrCore) Compute(records []*processing.Record, field string) ([]float64
 	return a.inner.Compute(recordRows(records), field)
 }
 
+// EmitsNull satisfies processing.NullEmitter on every adapted tier:
+// true iff the embedder value is an extend.NullableAttribute reporting
+// true, so its NaN is written as a null in every arm. Any other value
+// answers false, which every arm treats exactly as no NullEmitter.
+func (a attrCore) EmitsNull() bool {
+	ne, ok := a.inner.(extend.NullableAttribute)
+	return ok && ne.EmitsNull()
+}
+
+var _ processing.NullEmitter = attrCore{}
+
 // attrView hands a weighted slot's per-row view (any row, see attrCore)
 // or the record as-is when view is nil.
 func attrView(view *rowView, rec *processing.Record) extend.Record {

@@ -62,13 +62,13 @@ func TestAttrSetPopcountWide_CountsAbove64Bits(t *testing.T) {
 		t.Errorf("popcount of a 206-member mask = %v (err %v), want 206", got, err)
 	}
 
-	// Empty mask is 0 and so is a null, but only the empty mask is a real
-	// zero — both surface 0 through the float64 attribute channel.
+	// An empty mask is a real 0; a null is null (AttributeNull), never
+	// the empty selection's 0.
 	if got, _ := rl.Row(makeWideSetRecord(schema, encoding.SetMask{}), "tags"); got != 0 {
 		t.Errorf("popcount of an empty mask = %v, want 0", got)
 	}
-	if got, err := rl.Row(setOpNullRecord(schema), "tags"); err != nil || got != 0 {
-		t.Errorf("popcount of a null = %v (err %v), want 0", got, err)
+	if got, err := rl.Row(setOpNullRecord(schema), "tags"); err != nil || !IsAttributeNull(got) {
+		t.Errorf("popcount of a null = %v (err %v), want AttributeNull", got, err)
 	}
 }
 
@@ -88,11 +88,14 @@ func TestAttrSetPopcountWide_ComputeMatchesRow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Compute: %v", err)
 	}
-	want := []float64{0, 1, 3, 0}
+	want := []float64{0, 1, 3}
 	for i := range want {
 		if got[i] != want[i] {
 			t.Errorf("Compute[%d] = %v, want %v", i, got[i], want[i])
 		}
+	}
+	if !IsAttributeNull(got[3]) {
+		t.Errorf("Compute[3] (null) = %v, want AttributeNull", got[3])
 	}
 }
 

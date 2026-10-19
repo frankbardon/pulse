@@ -344,4 +344,16 @@ func TestFeatureProfile_FilterToFileRequiresFilterExpression(t *testing.T) {
 	if res.RowCount <= 0 {
 		t.Errorf("RowCount = %d; want > 0", res.RowCount)
 	}
+
+	// A hidden filterer type (FILTER_RANGE here) is refused exactly as
+	// a never-registered one is: the coded untranslatable-filter refusal
+	// (#468), its operator named in details.
+	_, err = p.FilterToFileWithRequest(context.Background(), &FilterToFileRequest{
+		SourcePath: parityCohort,
+		OutputDir:  "out",
+		Filterers:  []*types.Filterer{{Type: types.FILTER_RANGE, Field: "age", Values: []string{"1", "2"}}},
+	})
+	if ce := requireCode(t, err, errors.PROCESSING_CONFIG); ce.Details["operator"] != string(types.FILTER_RANGE) {
+		t.Errorf("hidden FILTER_RANGE: details = %v", ce.Details)
+	}
 }

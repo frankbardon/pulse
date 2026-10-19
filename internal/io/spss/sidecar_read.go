@@ -167,15 +167,20 @@ type WriterOptions struct {
 	// ValueLabels binds value labels onto categorical fields, one entry
 	// per field. A bound categorical goes out as a NUMERIC variable with
 	// value labels instead of a STRING variable holding the dictionary
-	// text — see [ValueLabels] for the code and label rules.
+	// text — see [ValueLabels] for the code and label rules. An
+	// integer-coded field (u4 / u8 / u16 / u32) binds too: its stored
+	// integers are the codes and Labels' keys their decimal spellings.
 	//
 	// Synthesised path only: a cohort whose metadata sidecar is honoured
 	// already carries the source's own codes and labels, so a binding
 	// beside one is refused with PULSE_SPSS_EXPORT_UNSUPPORTED rather
 	// than silently overriding them (--ignore-sidecar labels from the
 	// binding instead). A binding naming no field is
-	// PULSE_LABEL_FIELD_UNKNOWN, one naming a non-categorical field
-	// PULSE_LABEL_FIELD_NOT_CATEGORICAL and two naming one field
+	// PULSE_LABEL_FIELD_UNKNOWN, one naming a field neither categorical
+	// nor integer-coded PULSE_LABEL_FIELD_NOT_CATEGORICAL, an
+	// integer-coded one with a key that is not a value the type stores
+	// PULSE_LABEL_KEY_INVALID or with nil Labels
+	// PULSE_LABEL_TABLE_NOT_ENUMERABLE, and two naming one field
 	// PULSE_LABEL_DUPLICATE_BINDING — every one raised by the dictionary
 	// build, so `pulse export predict` refuses on the same terms.
 	ValueLabels []ValueLabels
@@ -201,11 +206,15 @@ type ValueLabels struct {
 	Field string
 
 	// Labels maps a dictionary entry's text to its value label. Nil
-	// labels every code with its own dictionary text.
+	// labels every code with its own dictionary text. On an integer-coded
+	// field (no dictionary) the keys are the stored integers' decimal
+	// spellings, every key is labelled, and nil is refused
+	// (PULSE_LABEL_TABLE_NOT_ENUMERABLE).
 	Labels map[string]string
 
 	// Order is the entry order the codes follow — a label table's own
-	// entry order. Nil codes by sorted dictionary order.
+	// entry order. Nil codes by sorted dictionary order. Ignored on an
+	// integer-coded field, whose stored integers are the codes.
 	Order []string
 }
 

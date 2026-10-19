@@ -133,6 +133,15 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 	for _, name := range requestWeightFields(req) {
 		addKnown(name)
 	}
+	// Per-row zone fields: the request's `time_zone_field` and every
+	// slot's own `tz_field` (an inherited one written there by
+	// descx.ZonedRequest included). A zone column left out of the
+	// projection decodes as null on every row, and a null zone cell
+	// makes the row's local value null — every row would silently drop
+	// out of the date operators.
+	for _, name := range requestZoneFields(req) {
+		addKnown(name)
+	}
 
 	for _, f := range req.Filterers {
 		if f == nil {
@@ -540,6 +549,59 @@ func windowsEmitRecordRows(req *types.Request) bool {
 // cell and margin aggregations, tests, post-tests, regressions,
 // attributes, overlays, groups and crosstab axes). A `null` slot names
 // none.
+// requestZoneFields lists every per-row zone field req names: the
+// request's TimeZoneField and each slot's TimeZoneField — filterers,
+// features, attributes, groups, both crosstab axes and each
+// MAT_DISTANCE params.between grouper. Duplicates are harmless (the
+// caller adds into a set).
+func requestZoneFields(req *types.Request) []string {
+	var out []string
+	add := func(name string) {
+		if name != "" {
+			out = append(out, name)
+		}
+	}
+	add(req.TimeZoneField)
+	for _, f := range req.Filterers {
+		if f != nil {
+			add(f.TimeZoneField)
+		}
+	}
+	for _, f := range req.Features {
+		if f != nil {
+			add(f.TimeZoneField)
+		}
+	}
+	for _, a := range req.Attributes {
+		if a != nil {
+			add(a.TimeZoneField)
+		}
+	}
+	for _, g := range req.Groups {
+		if g != nil {
+			add(g.TimeZoneField)
+		}
+	}
+	if ct := req.Crosstab; ct != nil {
+		for _, g := range ct.Rows {
+			if g != nil {
+				add(g.TimeZoneField)
+			}
+		}
+		for _, g := range ct.Columns {
+			if g != nil {
+				add(g.TimeZoneField)
+			}
+		}
+	}
+	for _, m := range req.Matrices {
+		if g, ok := vectors.SpecBetween(m); ok {
+			add(g.TimeZoneField)
+		}
+	}
+	return out
+}
+
 func requestWeightFields(req *types.Request) []string {
 	var out []string
 	add := func(w types.SlotWeight) {

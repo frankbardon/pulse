@@ -37,3 +37,61 @@ func TestRollingWindowFloorRefusal(t *testing.T) {
 		}
 	}
 }
+
+// TestRollingMinPeriods (U50 E2-S3): params.min_periods defaults to the
+// window; an explicit value must be an integer in [RollingWindowMin,
+// window] — 2 for the rolling z-score (a sample SD needs two points), 1
+// for the rolling-mean index — else PULSE_OVERLAY_LEVEL_OUT_OF_RANGE with
+// {kind, param: "min_periods", min_periods, min, max} (+ index when >= 0).
+func TestRollingMinPeriods(t *testing.T) {
+	z := &types.OverlaySpec{Kind: types.OverlayKindZScoreVsRolling}
+	idx := &types.OverlaySpec{Kind: types.OverlayKindIndexVsRollingMean}
+	route := func(s *types.OverlaySpec) types.OverlayKind { return s.Kind }
+
+	for _, c := range []struct {
+		spec   *types.OverlaySpec
+		params map[string]any
+		window int
+		want   int
+	}{
+		{z, map[string]any{"window": 28.0}, 28, 28},
+		{idx, nil, 5, 5},
+		{z, map[string]any{"min_periods": 2.0}, 28, 2},
+		{z, map[string]any{"min_periods": 28.0}, 28, 28},
+		{idx, map[string]any{"min_periods": 1.0}, 3, 1},
+		{idx, map[string]any{"min_periods": 3}, 3, 3},
+	} {
+		got, ce := RollingMinPeriods(c.spec, route(c.spec), c.params, c.window, 0)
+		if ce != nil || got != c.want {
+			t.Errorf("%s %v window %d: got %d %v, want %d", c.spec.Kind, c.params, c.window, got, ce, c.want)
+		}
+	}
+
+	for _, c := range []struct {
+		spec   *types.OverlaySpec
+		raw    any
+		window int
+		min    int
+	}{
+		{z, 1.0, 28, 2},
+		{z, 29.0, 28, 2},
+		{z, 2.5, 28, 2},
+		{z, "3", 28, 2},
+		{z, true, 28, 2},
+		{idx, 0.0, 3, 1},
+		{idx, -1.0, 3, 1},
+		{idx, 4.0, 3, 1},
+	} {
+		_, ce := RollingMinPeriods(c.spec, route(c.spec), map[string]any{"min_periods": c.raw}, c.window, 7)
+		if ce == nil || ce.Code != errors.PULSE_OVERLAY_LEVEL_OUT_OF_RANGE {
+			t.Fatalf("%s min_periods %v: want LEVEL_OUT_OF_RANGE, got %+v", c.spec.Kind, c.raw, ce)
+		}
+		if ce.Details["param"] != "min_periods" || ce.Details["min"] != c.min || ce.Details["max"] != c.window ||
+			ce.Details["index"] != 7 || ce.Details["kind"] != string(c.spec.Kind) {
+			t.Errorf("%s min_periods %v: details %#v", c.spec.Kind, c.raw, ce.Details)
+		}
+	}
+	if _, ce := RollingMinPeriods(z, route(z), map[string]any{"min_periods": 1.0}, 28, -1); ce == nil || ce.Details["index"] != nil {
+		t.Fatalf("runtime form carries no index: %+v", ce)
+	}
+}

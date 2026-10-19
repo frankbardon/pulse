@@ -702,7 +702,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	postRows := folded.postRows
 	// Unpartitioned (nil groups), so no warning today; kept after the
 	// attribute and refit warnings — the process buffered arm's order.
-	postResults, postWarnings, err := p.runPostTests(req.PostTests, nil, postRows)
+	// The axis key columns carry their groupers' key order (TEST_TREND).
+	axes := append(append([]*types.Group(nil), req.Crosstab.Rows...), req.Crosstab.Columns...)
+	postResults, postWarnings, err := p.runPostTestsOrdered(req.PostTests, nil, axes, postRows)
 	if err != nil {
 		return nil, err
 	}

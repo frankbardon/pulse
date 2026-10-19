@@ -56,15 +56,17 @@ Never overrides an explicit `type`; predict reports filled slots at `data.defaul
 
 ## `Group.Include` — inclusion list
 
-`Group.Include []string` allow-lists bucket keys. A row whose key (each fan-out key, for a fan-out grouper) is not listed is skipped, as on the null path. Empty / nil = no filter. Supported by:
+`Group.Include []string` allow-lists bucket keys. An unlisted key (each fan-out key) skips the row, as on the null path. Empty / nil = no filter. Supported by:
 
 - `GROUP_CATEGORY` — the label string.
 - `GROUP_SET_VALUE` — the pipe-joined composite key.
 - `GROUP_SET_PER_ELEMENT` — each fan-out label.
+- `GROUP_DATE` — the calendar key.
+- `GROUP_DATE_RANGES` — the range label.
 
-Other groupers ignore `include`; use a value filter instead.
+Other groupers ignore `include`; filter values instead.
 
-**Order-significant.** A non-empty `include` also fixes emission order: listed order (grouped `Data`, the `buckets` component, each crosstab axis). Empty keeps the grouper's own order (alphabetical, dictionary-index or bucket order). Zero-record values are still dropped.
+**Order-significant.** A non-empty `include` also fixes emission order: listed order (grouped `Data`, the `buckets` component, each crosstab axis). Empty keeps the grouper's native key order. Zero-record values are still dropped.
 
 ## Fused crosstab eligibility
 

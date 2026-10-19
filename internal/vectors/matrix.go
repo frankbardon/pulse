@@ -1521,6 +1521,9 @@ func resolveDistance(at string, specs []types.VectorSpec, resolved []Resolved, s
 	case g.TimeZone != "" && !IsDateBetween(typ):
 		return matrixInvalid(at, "bad_params", bt+".tz is accepted only on a date-family between (GROUP_DATE, GROUP_DATE_RANGES)",
 			map[string]any{"param": "between.tz"})
+	case g.TimeZoneField != "" && !IsDateBetween(typ):
+		return matrixInvalid(at, "bad_params", bt+".tz_field is accepted only on a date-family between (GROUP_DATE, GROUP_DATE_RANGES)",
+			map[string]any{"param": "between.tz_field"})
 	}
 	var in GroupInput
 	if extension {

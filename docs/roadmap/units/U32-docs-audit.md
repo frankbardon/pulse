@@ -5,7 +5,7 @@ title: "Pulse goes live with the most helpful, current and comprehensive documen
 track: API & release
 size: L
 status: not-started
-depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53]
+depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53, U55]
 soft_depends_on: [all feature units]
 blocks: [U33]
 todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 469, 472, 473, 474, 478]
@@ -16,7 +16,7 @@ branch: docs-audit
 
 **Outcome:** Pulse goes live with the most helpful, current and comprehensive documentation we can produce.
 
-**Track:** API & release · **Size:** L · **Depends on:** [U01](U01-release-pipeline.md), [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md), [U02c](U02c-cohort-facade.md), [U06](U06-profiles-mcp-tooling.md), [U10](U10-skill-ontology.md), [U18](U18-response-shaping-execution.md), [U19](U19-resource-limits.md), [U20](U20-observability.md), [U23](U23-guidance-mcp.md), [U30](U30-matrix-extensions-hardening.md), [U31](U31-guidance-guides.md), [U37](U37-shell-completion.md), [U38](U38-skill-sync.md), [U40](U40-compose-sweep.md), [U41](U41-derived-cohort.md), [U42](U42-fit-scoring.md), [U43](U43-post-aggregation-ratios.md), [U44](U44-strict-input.md), [U45](U45-binary-and-decimal.md), [U46](U46-grouped-analysis.md), [U47](U47-survey-tables.md), [U48](U48-experiment-readout.md), [U49](U49-model-workbench.md), [U50](U50-local-time.md), [U51](U51-archive-scale.md), [U52](U52-synth-realism.md), [U53](U53-custom-regressions.md) · **Soft:** all feature units · **Unblocks:** [U33](U33-v1-release.md)
+**Track:** API & release · **Size:** L · **Depends on:** [U01](U01-release-pipeline.md), [U02](U02-public-surface.md), [U02b](U02b-extension-contract.md), [U02c](U02c-cohort-facade.md), [U06](U06-profiles-mcp-tooling.md), [U10](U10-skill-ontology.md), [U18](U18-response-shaping-execution.md), [U19](U19-resource-limits.md), [U20](U20-observability.md), [U23](U23-guidance-mcp.md), [U30](U30-matrix-extensions-hardening.md), [U31](U31-guidance-guides.md), [U37](U37-shell-completion.md), [U38](U38-skill-sync.md), [U40](U40-compose-sweep.md), [U41](U41-derived-cohort.md), [U42](U42-fit-scoring.md), [U43](U43-post-aggregation-ratios.md), [U44](U44-strict-input.md), [U45](U45-binary-and-decimal.md), [U46](U46-grouped-analysis.md), [U47](U47-survey-tables.md), [U48](U48-experiment-readout.md), [U49](U49-model-workbench.md), [U50](U50-local-time.md), [U51](U51-archive-scale.md), [U52](U52-synth-realism.md), [U53](U53-custom-regressions.md), [U55](U55-previous-state.md) · **Soft:** all feature units · **Unblocks:** [U33](U33-v1-release.md)
 
 ## Summary
 

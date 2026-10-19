@@ -72,7 +72,7 @@ Splits a date into year, month, day, day of week and quarter columns, so each pa
 **Assumptions:**
 
 - Runs on every record before filters, so a filter can use the new column but never narrows what the feature sees.
-- Accepts a date or datetime field; a datetime is read on the local clock of its time zone and adds an hour column. Day of week is 0 for Sunday through 6 for Saturday.
+- Accepts a date or datetime field; a datetime is read on the local clock of its time zone and adds an hour column. Day of week is 1 for Monday through 7 for Sunday.
 - A missing date gives missing values in every column.
 
 **Use something else:**

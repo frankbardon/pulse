@@ -82,7 +82,7 @@ Adds a calendar part of a date or timestamp to every row, such as the year, the 
 
 - Reads a date field (epoch days) or a datetime field; a datetime is read on the local clock of its time zone, and the hour part needs a datetime.
 - The part is an encoded number (YYYYMM for year_month), so arithmetic on it is meaningless.
-- A missing date reads 0.
+- A missing date gives a missing part, never 0.
 
 **Use something else:**
 
@@ -223,7 +223,7 @@ Rescales a numeric field to 0 to 1 on every row: 0 is the smallest value, 1 the 
 
 - Computed over every row that passed the filters, before grouping: a group never re-centres it.
 - It uses the OBSERVED lowest and highest values, not a scale's endpoints: if nobody answered 1 on a 1-5 item, 2 maps to 0, so the same raw score lands at different positions across items, filtered subsets or waves.
-- A missing value reads 0, the same as the minimum, as does every row when all values are equal; in a composite that pulls the score down.
+- A missing value gets no value (null) and is left out of the minimum and maximum; every row gets no value (null) when all values are equal.
 
 **Use something else:**
 
@@ -296,6 +296,7 @@ Adds to every row its percentile rank, rank / n * 100: the share of rows at or b
 - Tied values do not share a percentile: each tied row takes its own rank in an arbitrary order, so equal values can read tens of points apart.
 - Rows tied at a cut-off are split across it arbitrarily and can change between runs; cut on the value (AGG_PERCENTILE, then a filter) for a reproducible top tenth.
 - Not streamable: every value is sorted before the first row is ready.
+- A missing value gets no percentile (null) and is not counted in n.
 
 **Use something else:**
 
@@ -303,7 +304,7 @@ Adds to every row its percentile rank, rank / n * 100: the share of rows at or b
 - [`WIN_RANK`](window.md#op-win_rank) when you want ranks within partitions, or tied values to share a rank.
 - [`GROUP_QUANTILE`](grouper.md#op-group_quantile) when you want rows split into equal-sized bands.
 
-**Glossary:** [`percentile`](../glossary.md#term-percentile), [`rank`](../glossary.md#term-rank), [`ties`](../glossary.md#term-ties)
+**Glossary:** [`percentile`](../glossary.md#term-percentile), [`rank`](../glossary.md#term-rank), [`ties`](../glossary.md#term-ties), [`missing-value`](../glossary.md#term-missing-value)
 
 **Skill:** [`op-attr-percentile`](../skills/op-attr-percentile.md)
 
@@ -368,7 +369,7 @@ Adds to every row the value a straight-line model predicts for its target from i
 - The model is fitted to the rows that passed the filters and have the target and every predictor (listwise deletion).
 - Each ATTR_REG_* slot fits its own straight-line model; the request's regressions are not reused.
 - A prediction reflects association in these rows, never what would happen if a predictor were changed.
-- A row missing any predictor reads 0, which is not a prediction.
+- A row missing any predictor gets no value (null), never 0.
 
 **Use something else:**
 
@@ -472,7 +473,7 @@ Adds to every row its residual: the actual target value minus the value a straig
 
 - The model is fitted to the rows that passed the filters and have the target and every predictor (listwise deletion).
 - Each ATTR_REG_* slot fits its own straight-line model; the request's regressions are not reused.
-- A row missing the target or any predictor reads 0, the same as a row the model fits exactly.
+- A row missing the target or any predictor gets no value (null), never 0.
 
 **Use something else:**
 
@@ -573,7 +574,7 @@ Adds to every row the number of options its multi-select field has selected.
 
 **Assumptions:**
 
-- An empty selection reads 0, and so does a row with a missing value.
+- An empty selection reads 0; a row with a missing value gets no count (null), never 0.
 
 **Use something else:**
 
@@ -606,14 +607,14 @@ Adds to every row its T-score: the z-score rescaled so the mean is 50 and one st
 
 - Computed over every row that passed the filters, before grouping: a group never re-centres it.
 - Uses the population standard deviation (dividing by n).
-- A missing value reads 50, as does every row when all values are equal.
+- A missing value gets no score (null) and is left out of the mean and standard deviation; every row gets no score (null) when all values are equal (no spread).
 
 **Use something else:**
 
 - [`ATTR_ZSCORE`](#op-attr_zscore) when you want plain standard-deviation units centred on 0.
 - [`ATTR_PERCENTILE`](#op-attr_percentile) when you want each row's percentile rank (the share at or below it when values are untied).
 
-**Glossary:** [`z-score`](../glossary.md#term-z-score), [`standard-deviation`](../glossary.md#term-standard-deviation), [`mean`](../glossary.md#term-mean)
+**Glossary:** [`z-score`](../glossary.md#term-z-score), [`standard-deviation`](../glossary.md#term-standard-deviation), [`mean`](../glossary.md#term-mean), [`missing-value`](../glossary.md#term-missing-value)
 
 **Skill:** [`op-attr-tscore`](../skills/op-attr-tscore.md)
 
@@ -679,7 +680,7 @@ Adds to every row its z-score: how many standard deviations the row's value sits
 
 - Computed over every row that passed the filters, before grouping: a group never re-centres it.
 - Uses the population standard deviation (dividing by n).
-- A missing value reads 0, as does every row when all values are equal.
+- A missing value gets no score (null) and is left out of the mean and standard deviation; every row gets no score (null) when all values are equal (no spread).
 
 **Use something else:**
 
@@ -687,6 +688,6 @@ Adds to every row its z-score: how many standard deviations the row's value sits
 - [`ATTR_PERCENTILE`](#op-attr_percentile) when the field is skewed or has extreme values and you want a position they cannot distort.
 - [`OVERLAY_ZSCORE_VS_TOTAL`](overlay.md#op-overlay_zscore_vs_total) when you want each group's value against all groups.
 
-**Glossary:** [`z-score`](../glossary.md#term-z-score), [`standard-deviation`](../glossary.md#term-standard-deviation), [`mean`](../glossary.md#term-mean), [`outlier`](../glossary.md#term-outlier)
+**Glossary:** [`z-score`](../glossary.md#term-z-score), [`standard-deviation`](../glossary.md#term-standard-deviation), [`mean`](../glossary.md#term-mean), [`outlier`](../glossary.md#term-outlier), [`missing-value`](../glossary.md#term-missing-value)
 
 **Skill:** [`op-attr-zscore`](../skills/op-attr-zscore.md)

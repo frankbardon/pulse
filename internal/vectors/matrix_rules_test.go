@@ -54,6 +54,8 @@ func TestEstimateBuckets(t *testing.T) {
 		{"range", []*types.Group{{Type: types.GROUP_RANGE, Field: "x", Interval: 5}}, 0, BucketBasisUnknown, false},
 		{"range ignores include", []*types.Group{{Type: types.GROUP_RANGE, Field: "x", Interval: 5, Include: []string{"0"}}}, 0, BucketBasisUnknown, false},
 		{"date", []*types.Group{{Type: types.GROUP_DATE, Field: "d"}}, 0, BucketBasisUnknown, false},
+		{"date include bounds the keys", []*types.Group{{Type: types.GROUP_DATE, Field: "d", Include: []string{"Friday", "Monday", "Friday"}}}, 2, BucketBasisInclude, true},
+		{"date ranges include bounds the keys", []*types.Group{{Type: types.GROUP_DATE_RANGES, Field: "d", Include: []string{"q1"}}}, 1, BucketBasisInclude, true},
 		{"unknown field", []*types.Group{{Type: types.GROUP_CATEGORY, Field: "nope"}}, 0, BucketBasisUnknown, false},
 		// Two or more groupers: the product of every grouper's bound
 		// (a multi-grouper run emits one bucket per observed

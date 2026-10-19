@@ -190,7 +190,7 @@ result slots are optional and absent on a single-`cell` crosstab, so a
 
 ## Time-zone slots
 
-Two additive, optional string slots name a time zone (`format_version`
+Four additive, optional string slots name a time zone (`format_version`
 stays `"1.1"`; omitting them is byte-identical to the earlier wire form):
 
 - **`time_zone`** on `Request` and `FacetRequest` — the request-level
@@ -200,25 +200,33 @@ stays `"1.1"`; omitting them is byte-identical to the earlier wire form):
   `crosstab.columns[]`), `Filterer`, `Attribute` and `Feature` entry —
   the per-slot override. It is a slot key beside `type` / `field`,
   never a key inside `params`.
+- **`time_zone_field`** (request) and **`tz_field`** (slot), on the
+  same objects — a per-row zone: the name of a categorical cohort field
+  whose values are IANA zone names, so each row is read in its own zone.
 
-Both are typed as plain strings. The schema does not encode the zone
-name set or which operators accept `tz`; three rules are enforced by
+All are typed as plain strings. The schema does not encode the zone
+name set or which operators accept `tz`; these rules are enforced by
 `pulse predict` and at run time instead:
 
 - a name must be exactly `UTC` or an IANA `Area/Location` zone
   (`Europe/Berlin`, `Etc/GMT-5`) — anything else is
   `PULSE_TIMEZONE_UNKNOWN`;
-- `tz` is accepted only on operators whose manifest entry carries
-  `"zone": "capable"`, and never on a `date` field — otherwise
-  `PROCESSING_CONFIG`;
-- precedence is slot `tz` → `time_zone` → the engine's
-  `DefaultTimeZone` → `UTC`; a resolved zone on a `datetime` field
-  reads each instant on its local calendar day, and a non-UTC zone
-  reaching a derived field (absent from the schema) is refused with
-  `PROCESSING_CONFIG`.
+- `tz` and `tz_field` are accepted only on operators whose manifest
+  entry carries `"zone": "capable"`, never on a `date` field, and never
+  both on one slot — otherwise `PROCESSING_CONFIG`;
+- a zone field must be a `categorical_*` cohort field (absent:
+  `SERVICE_VALIDATION`; another type: `PROCESSING_CONFIG`) whose every
+  dictionary entry is a valid zone name (else `PULSE_TIMEZONE_UNKNOWN`
+  with `details.dictionary_index`);
+- precedence is slot `tz` → slot `tz_field` → `time_zone_field` →
+  `time_zone` → the engine's `DefaultTimeZone` → `UTC`; a resolved zone
+  on a `datetime` field reads each instant on its local calendar day,
+  and a non-UTC zone (or any zone field) reaching a derived field
+  (absent from the schema) is refused with `PROCESSING_CONFIG`.
 
 The resolved zone per slot is echoed by predict as
-`data.time_zones[]` — `{slot, operator, field_type, tz, source}` —
+`data.time_zones[]` — `{slot, operator, field_type, tz, tz_field,
+source}` (`source: "field"` with `tz: null` for a per-row zone) —
 which is a predict result field, not part of this schema. See
 `skills/request-envelope.md` (Time zones).
 

@@ -26,7 +26,7 @@ None.
 
 ## Output
 
-One `float64` per record in `(0, 100]` — `rank / n * 100` within the filter-passing value set (smallest = `100/n`). Null source → `0` (not null).
+One `float64` per record in `(0, 100]` — `rank / n * 100` within the filter-passing value set (smallest = `100/n`). Null source → `null` (counted in `n_null`), not ranked or counted in `n`.
 
 <!-- generated: reading-the-output -->
 

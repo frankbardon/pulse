@@ -16,8 +16,11 @@ import "github.com/frankbardon/pulse/descriptor"
 // Each Purpose states the operator as Pulse implements it
 // (internal/processing/attribute*.go), not as the textbook default: the
 // z- and T-scores use the population standard deviation (dividing by n),
-// a missing input reads 0 (50 for the T-score), never null, and
-// ATTR_PERCENTILE gives tied values distinct ranks.
+// a missing input gives every score (standardised, rank, min-max, date
+// part, selection count, model score) a missing value, never 0 (U50
+// E6-S1) — only the 0/1 membership flags ATTR_CODE_IN / ATTR_SET_HAS
+// read it as "not in the set" — and ATTR_PERCENTILE gives tied values
+// distinct ranks.
 var attributePurposes = map[string]descriptor.Purpose{
 	"ATTR_CODE_IN":    purposeAttrCodeIn,
 	"ATTR_DATE_PART":  purposeAttrDatePart,
@@ -72,7 +75,7 @@ var (
 		Assumptions: []string{
 			"Reads a date field (epoch days) or a datetime field; a datetime is read on the local clock of its time zone, and the hour part needs a datetime.",
 			"The part is an encoded number (YYYYMM for year_month), so arithmetic on it is meaningless.",
-			"A missing date reads 0.",
+			"A missing date gives a missing part, never 0.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"missing-value"},
@@ -167,7 +170,7 @@ var (
 			{When: "you want whether one particular option was chosen", Use: "ATTR_SET_HAS"},
 		},
 		Assumptions: []string{
-			"An empty selection reads 0, and so does a row with a missing value.",
+			"An empty selection reads 0; a row with a missing value gets no count (null), never 0.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"missing-value"},
@@ -198,10 +201,10 @@ var (
 		Assumptions: []string{
 			attrOverFilteredRows,
 			"Uses the population standard deviation (dividing by n).",
-			"A missing value reads 0, as does every row when all values are equal.",
+			"A missing value gets no score (null) and is left out of the mean and standard deviation; every row gets no score (null) when all values are equal (no spread).",
 		},
 		Level:    descriptor.LevelIntermediate,
-		Glossary: []string{"z-score", "standard-deviation", "mean", "outlier"},
+		Glossary: []string{"z-score", "standard-deviation", "mean", "outlier", "missing-value"},
 	}
 
 	purposeAttrTScore = descriptor.Purpose{
@@ -222,10 +225,10 @@ var (
 		Assumptions: []string{
 			attrOverFilteredRows,
 			"Uses the population standard deviation (dividing by n).",
-			"A missing value reads 50, as does every row when all values are equal.",
+			"A missing value gets no score (null) and is left out of the mean and standard deviation; every row gets no score (null) when all values are equal (no spread).",
 		},
 		Level:    descriptor.LevelIntermediate,
-		Glossary: []string{"z-score", "standard-deviation", "mean"},
+		Glossary: []string{"z-score", "standard-deviation", "mean", "missing-value"},
 	}
 
 	purposeAttrPercentile = descriptor.Purpose{
@@ -250,9 +253,10 @@ var (
 			"Tied values do not share a percentile: each tied row takes its own rank in an arbitrary order, so equal values can read tens of points apart.",
 			"Rows tied at a cut-off are split across it arbitrarily and can change between runs; cut on the value (AGG_PERCENTILE, then a filter) for a reproducible top tenth.",
 			"Not streamable: every value is sorted before the first row is ready.",
+			"A missing value gets no percentile (null) and is not counted in n.",
 		},
 		Level:    descriptor.LevelBasic,
-		Glossary: []string{"percentile", "rank", "ties"},
+		Glossary: []string{"percentile", "rank", "ties", "missing-value"},
 	}
 
 	purposeAttrNormalized = descriptor.Purpose{
@@ -276,7 +280,7 @@ var (
 			attrOverFilteredRows,
 			"It uses the OBSERVED lowest and highest values, not a scale's endpoints: if nobody answered 1 on a 1-5 item, 2 maps to 0, " +
 				"so the same raw score lands at different positions across items, filtered subsets or waves.",
-			"A missing value reads 0, the same as the minimum, as does every row when all values are equal; in a composite that pulls the score down.",
+			"A missing value gets no value (null) and is left out of the minimum and maximum; every row gets no value (null) when all values are equal.",
 		},
 		Level:    descriptor.LevelBasic,
 		Glossary: []string{"outlier", "missing-value"},
@@ -307,7 +311,7 @@ var (
 			attrRegListwise,
 			attrRegOwnFit,
 			"A prediction reflects association in these rows, never what would happen if a predictor were changed.",
-			"A row missing any predictor reads 0, which is not a prediction.",
+			"A row missing any predictor gets no value (null), never 0.",
 		},
 		Level:    descriptor.LevelAdvanced,
 		Glossary: []string{"regression-coefficient", "overfitting", "listwise-deletion"},
@@ -359,7 +363,7 @@ var (
 		Assumptions: []string{
 			attrRegListwise,
 			attrRegOwnFit,
-			"A row missing the target or any predictor reads 0, the same as a row the model fits exactly.",
+			"A row missing the target or any predictor gets no value (null), never 0.",
 		},
 		Level:    descriptor.LevelAdvanced,
 		Glossary: []string{"residual", "heteroscedasticity", "outlier", "listwise-deletion"},

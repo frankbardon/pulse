@@ -562,7 +562,7 @@ Only the floor keys.
 
 | Key | Type | Emitted | Meaning |
 |---|---|---|---|
-| `granularity` | string | always | Calendar component used to bucket (hour, day, day_of_week, week, month, quarter, year). |
+| `granularity` | string | always | Calendar component used to bucket (hour, hour_of_day, day, day_of_week, week, month, quarter, year). |
 | `range_start` | string | always | ISO date string of the earliest period observed (YYYY-MM-DDTHH for component=hour). |
 | `range_end` | string | always | ISO date string of the latest period observed (YYYY-MM-DDTHH for component=hour). |
 | `n_buckets` | int | always | Number of distinct calendar buckets observed. |

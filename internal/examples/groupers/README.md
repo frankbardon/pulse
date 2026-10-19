@@ -23,6 +23,7 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `10_date_week_start.json` | `GROUP_DATE` | Sunday-start weeks keyed by their first day (`week_start: sunday`) |
 | `11_kmeans.json` | `GROUP_KMEANS` | Three seeded k-means segments over age and income (`cluster_1..3` by size) |
 | `12_numeric_ranges.json` | `GROUP_NUMERIC_RANGES` | Train/holdout split on `id` with labeled half-open ranges (`[1,161)`, `[161,201)`), supplied order |
+| `13_date_per_row_zone.json` | `GROUP_DATE` | Each order on its own warehouse's local day (request `time_zone_field` over a `categorical` IANA-name field; a null zone cell is null, never UTC) |
 
 `GROUP_DATE` components: `year`, `quarter`, `month`, `week`, `day`,
 `hour` (`datetime` only), `day_of_week`; `week_start` (`week` only)

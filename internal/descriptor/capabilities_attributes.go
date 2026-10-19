@@ -56,7 +56,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Description:   "Per-row standardized z-score: (value − mean) / stddev computed via Welford two-pass streaming.",
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_ZSCORE), fieldaccept.SlotField),
 			EmitsType:     "f64",
-			EmitsTypeNote: "one float per record (0 when stddev=0 or the value is null)",
+			EmitsTypeNote: "one float per record (null when stddev=0 or the value is null)",
 			Streamable:    true,
 		},
 		{
@@ -65,7 +65,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Description:   "Per-row T-score: z-score scaled and shifted to mean 50, stddev 10.",
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_TSCORE), fieldaccept.SlotField),
 			EmitsType:     "f64",
-			EmitsTypeNote: "one float per record",
+			EmitsTypeNote: "one float per record (null when stddev=0 or the value is null)",
 			Streamable:    true,
 		},
 		{
@@ -74,7 +74,7 @@ func attributeCapabilities() []descriptor.Operator {
 			Description:   "Per-row min-max normalization: (value − min) / (max − min) ∈ [0, 1].",
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_NORMALIZED), fieldaccept.SlotField),
 			EmitsType:     "f64",
-			EmitsTypeNote: "one float per record in [0, 1]",
+			EmitsTypeNote: "one float per record in [0, 1] (null when max=min or the value is null)",
 			Streamable:    true,
 		},
 		{
@@ -94,26 +94,26 @@ func attributeCapabilities() []descriptor.Operator {
 			Description:    "Per-row percentile rank against the post-filter value set; requires sorting.",
 			AcceptsTypes:   fieldaccept.TypeNames(string(types.ATTR_PERCENTILE), fieldaccept.SlotField),
 			EmitsType:      "f64",
-			EmitsTypeNote:  "one float per record in (0, 100]; 0 when the value is null",
+			EmitsTypeNote:  "one float per record in (0, 100]; null when the value is null",
 			Streamable:     false,
 			StreamableHint: "Use ATTR_NORMALIZED for a streaming-friendly rank proxy.",
 		},
 		{
 			Name:        string(types.ATTR_DATE_PART),
 			Category:    "attribute",
-			Description: "Extract a calendar component (year, month, day, year_month, year_month_day, month_day, hour) from a date or datetime field; a datetime reads the wall clock of its resolved time zone, and hour needs a datetime.",
+			Description: "Extract a calendar component (year, month, day, year_month, year_month_day, month_day, hour, iso_weekday) from a date or datetime field; a datetime reads the wall clock of its resolved time zone, and hour needs a datetime.",
 			Params: []descriptor.Param{
 				{
 					Name:        "part",
 					Type:        "enum",
 					Required:    true,
 					Description: "Which calendar component to extract.",
-					EnumValues:  []string{"day", "hour", "month", "month_day", "year", "year_month", "year_month_day"},
+					EnumValues:  []string{"day", "hour", "iso_weekday", "month", "month_day", "year", "year_month", "year_month_day"},
 				},
 			},
 			AcceptsTypes:  []string{"date", "datetime"},
 			EmitsType:     "f64",
-			EmitsTypeNote: "encoded integer per record (e.g. year_month=YYYYMM)",
+			EmitsTypeNote: "encoded integer per record (e.g. year_month=YYYYMM, iso_weekday=1..7 with Monday=1)",
 			Streamable:    true,
 		},
 		{
@@ -201,7 +201,7 @@ func attributeCapabilities() []descriptor.Operator {
 			// processing.TestManifestEmitsTypeHoldsAtRuntime, which
 			// probes a fully-selected column at the widest rung.
 			EmitsType:     "u16",
-			EmitsTypeNote: "one integer per record: 0..set width inclusive, so 0..256 at the widest rung (set_u256)",
+			EmitsTypeNote: "one integer per record: 0..set width inclusive, so 0..256 at the widest rung (set_u256); null when the set is null",
 			Streamable:    true,
 		},
 		{
@@ -218,7 +218,7 @@ func attributeCapabilities() []descriptor.Operator {
 			},
 			AcceptsTypes:  tableAcceptsTypes(types.ATTR_SET_HAS),
 			EmitsType:     "packed_bool",
-			EmitsTypeNote: "one 0/1 per record",
+			EmitsTypeNote: "one 0/1 per record (0 when the set is null)",
 			Streamable:    true,
 		},
 		{

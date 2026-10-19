@@ -4,7 +4,6 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -57,12 +56,14 @@ import (
 //   - resolver returns (0, false)  ⇒ absent host point: emit SeriesEntry
 //                                     with empty Summary, do NOT advance
 //                                     the ring buffer.
-//   - carrier count < 2            ⇒ Welford sample SD undefined: emit
-//                                     NaN (no warning — "no comparison
-//                                     available" is structurally
-//                                     distinct from "denominator was
-//                                     zero"). Push the value into the
-//                                     ring.
+//   - carrier count < min_periods  ⇒ warm-up: emit NaN (no warning —
+//                                     "no comparison available" is
+//                                     structurally distinct from
+//                                     "denominator was zero"). Push the
+//                                     value into the ring. min_periods
+//                                     is params.min_periods, 2 .. W,
+//                                     default W (U50: before it the
+//                                     z-score answered from 2 priors).
 //   - rolling_sd == 0              ⇒ emit NaN + PULSE_OVERLAY_REF_ZERO
 //                                     warning (constant window: every
 //                                     prior point in the window has the
@@ -137,17 +138,13 @@ func (c *rollingCarrier) rollingSampleSD() float64 {
 // with a rolling-window carrier (the shared `rollingCarrier` struct
 // from INDEX_VS_ROLLING_MEAN).
 //
-// Window-fill semantics: the carrier needs at least 2 PRESENT prior
-// points to compute a sample SD (the n-1 denominator is undefined for a
-// single observation). The first present point hits `count == 0` at the
-// divide step and emits NaN without warning; the second present point
-// hits `count == 1` at the divide step and ALSO emits NaN without
-// warning. From the third present point onward (when `count >= 2`) the
-// handler emits the standardised z-score. This is the "no comparison
-// available" path — structurally distinct from "denominator was zero"
-// (mirrors the INDEX_VS_ROLLING_MEAN window-not-yet-filled rule but
-// with the additional `count >= 2` requirement specific to sample
-// variance).
+// Window-fill semantics: a present point gets a z-score only once the
+// carrier holds params.min_periods PRESENT prior points (default the
+// window W; at least 2, since the n-1 sample SD is undefined over one).
+// Earlier points emit NaN without warning — the "no comparison
+// available" path, structurally distinct from "denominator was zero",
+// and the same warm-up rule INDEX_VS_ROLLING_MEAN applies (its floor is
+// 1). Absent points never count toward the warm-up.
 //
 // Zero-rolling-SD path: when the rolling SD is exactly `0` at the
 // divide step (e.g. every prior point in the window has the same value
@@ -174,18 +171,16 @@ func applyZScoreVsRolling(spec *types.OverlaySpec, host *SeriesHostView) (types.
 			})
 	}
 
-	window, err := extractWindowParam(spec)
+	// Window 1 would answer null at every row (a one-point sample SD is
+	// undefined): the shared floor predict raises too (U35 #431), as is
+	// the min_periods range (2 .. window; default window).
+	window, minPeriods, err := extractRollingParams(spec, types.OverlayKindZScoreVsRolling)
 	if err != nil {
 		return types.OverlayLayer{}, nil, err
 	}
-	// Window 1 would answer null at every row (a one-point sample SD is
-	// undefined): the shared floor predict raises too (U35 #431).
-	if cerr := overlayhost.RollingWindowFloorRefusal(spec, types.OverlayKindZScoreVsRolling, window, -1); cerr != nil {
-		return types.OverlayLayer{}, nil, cerr
-	}
 
 	groupCount := host.GroupCount()
-	carrier := newRollingCarrier(window)
+	carrier := newRollingCarrier(window, minPeriods)
 
 	entries := make([]types.SeriesEntry, 0, groupCount)
 	var (
@@ -206,11 +201,11 @@ func applyZScoreVsRolling(spec *types.OverlaySpec, host *SeriesHostView) (types.
 		if present {
 			var z float64
 			switch {
-			case carrier.count < 2:
-				// Sample variance undefined — need at least 2 prior
-				// observations. Emit NaN without warning ("no comparison
-				// available" rather than "denominator was zero"). The
-				// carrier still consumes the slot.
+			case !carrier.ready():
+				// Fewer than min_periods (>= 2, default the window)
+				// present priors. Emit NaN without warning ("no
+				// comparison available" rather than "denominator was
+				// zero"). The carrier still consumes the slot.
 				z = math.NaN()
 			default:
 				mean := carrier.rollingMean()

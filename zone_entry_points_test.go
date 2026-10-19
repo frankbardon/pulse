@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -322,6 +323,107 @@ func TestTimeZone_FilterToFileDateRangesRefused(t *testing.T) {
 		_, err := p.FilterToFileWithRequest(context.Background(), &pulse.FilterToFileRequest{SourcePath: calfCohort, Filterers: pr.filterers, OutputDir: "zep_out"})
 		if err == nil || !strings.Contains(err.Error(), "unsupported filter type") {
 			t.Fatalf("%s: err = %v, want the unsupported-type refusal", pr.name, err)
+		}
+		// The refusal is coded (#468), so the CLI / MCP envelope carries
+		// PROCESSING_CONFIG, never the uncoded placeholder.
+		ce := requireCode(t, err, errors.PROCESSING_CONFIG)
+		if ce.Details["operator"] != string(types.FILTER_DATE_RANGES) {
+			t.Errorf("%s: details = %v, want operator %s", pr.name, ce.Details, types.FILTER_DATE_RANGES)
+		}
+	}
+	// A never-registered type takes the same coded refusal.
+	_, err := p.FilterToFileWithRequest(context.Background(), &pulse.FilterToFileRequest{SourcePath: calfCohort, Filterers: []*types.Filterer{{Type: "FILTER_NOPE", Field: "x"}}, OutputDir: "zep_out"})
+	if ce := requireCode(t, err, errors.PROCESSING_CONFIG); ce.Details["operator"] != "FILTER_NOPE" {
+		t.Errorf("unknown type: details = %v", ce.Details)
+	}
+}
+
+// TestTimeZone_FilterToFileRequestZone: FilterToFileRequest.TimeZone
+// (#467) is the zone a to_day() predicate reads — over
+// Options.DefaultTimeZone, exactly as Request.TimeZone is — on both
+// predicate shapes; the zone the predicate read keys the dedup name, so
+// the same resolved zone lands on the same output whichever knob named
+// it and different zones never share one.
+func TestTimeZone_FilterToFileRequestZone(t *testing.T) {
+	ctx := context.Background()
+	fsys := zepFS(t)
+	utc, ny := zepPulse(t, fsys, ""), zepPulse(t, fsys, zepZone)
+	pr := zepPredicates(t)[0]
+	shapes := map[string]func(tz string) *pulse.FilterToFileRequest{
+		"expression": func(tz string) *pulse.FilterToFileRequest {
+			return &pulse.FilterToFileRequest{SourcePath: calfCohort, Expression: pr.expr, OutputDir: "zep_reqtz_expr", TimeZone: tz}
+		},
+		"filterers": func(tz string) *pulse.FilterToFileRequest {
+			return &pulse.FilterToFileRequest{SourcePath: calfCohort, Filterers: pr.filterers, OutputDir: "zep_reqtz_filt", TimeZone: tz}
+		},
+	}
+	for name, mk := range shapes {
+		t.Run(name, func(t *testing.T) {
+			run := func(p *pulse.Pulse, tz string) *pulse.FilterToFileResult {
+				t.Helper()
+				res, err := p.FilterToFileWithRequest(ctx, mk(tz))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return res
+			}
+			// The request zone on a UTC instance selects local-day rows.
+			a := run(utc, zepZone)
+			if a.Reused || a.RowCount != zepWant(t, pr, zepZone) {
+				t.Fatalf("request zone: rows %d (reused=%v), want %d", a.RowCount, a.Reused, zepWant(t, pr, zepZone))
+			}
+			// Same resolved zone via the instance default: same output.
+			if b := run(ny, ""); !b.Reused || b.OutputPath != a.OutputPath {
+				t.Fatalf("default-zone run: path %s reused=%v, want the request-zone output %s", b.OutputPath, b.Reused, a.OutputPath)
+			}
+			// The request zone wins over the default.
+			c := run(ny, "UTC")
+			if c.OutputPath == a.OutputPath || c.RowCount != zepWant(t, pr, "") {
+				t.Fatalf("UTC request over NY default: path %s rows %d, want a fresh output with %d rows", c.OutputPath, c.RowCount, zepWant(t, pr, ""))
+			}
+			// UTC named or absent is the same zone, so the same output.
+			if d := run(utc, ""); !d.Reused || d.OutputPath != c.OutputPath {
+				t.Fatalf("empty TimeZone on a UTC instance: path %s reused=%v, want %s", d.OutputPath, d.Reused, c.OutputPath)
+			}
+			// A third zone is a third output.
+			if e := run(utc, "Asia/Tokyo"); e.Reused || e.OutputPath == a.OutputPath || e.OutputPath == c.OutputPath {
+				t.Fatalf("Asia/Tokyo reused another zone's output %s", e.OutputPath)
+			}
+		})
+	}
+	// A zone-free predicate reads no zone, so a request zone never
+	// changes its output name.
+	run := func(tz string) *pulse.FilterToFileResult {
+		res, err := utc.FilterToFileWithRequest(ctx, &pulse.FilterToFileRequest{SourcePath: calfCohort, Expression: "x > 1", OutputDir: "zep_reqtz_free", TimeZone: tz})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+	if f, g := run(""), run(zepZone); !g.Reused || f.OutputPath != g.OutputPath {
+		t.Fatalf("zone-free predicate: paths %s / %s reused=%v", f.OutputPath, g.OutputPath, g.Reused)
+	}
+}
+
+// TestTimeZone_FilterToFileRequestUnknownZone: an unknown
+// FilterToFileRequest.TimeZone is PULSE_TIMEZONE_UNKNOWN — validated up
+// front, as Request.TimeZone is, whether or not the predicate reads it,
+// before the source is read — and no output is written.
+func TestTimeZone_FilterToFileRequestUnknownZone(t *testing.T) {
+	fsys := zepFS(t)
+	p := zepPulse(t, fsys, "")
+	for _, expr := range []string{"to_day(ts) == d", "x > 1"} {
+		_, err := p.FilterToFileWithRequest(context.Background(), &pulse.FilterToFileRequest{SourcePath: calfCohort, Expression: expr, OutputDir: "zep_badtz", TimeZone: "Mars/Olympus"})
+		requireCode(t, err, errors.PULSE_TIMEZONE_UNKNOWN)
+	}
+	// Refused before any read: a missing source never gets as far as a
+	// file error.
+	_, err := p.FilterToFileWithRequest(context.Background(), &pulse.FilterToFileRequest{SourcePath: "missing.pulse", Expression: "x > 1", OutputDir: "zep_badtz", TimeZone: "Mars/Olympus"})
+	requireCode(t, err, errors.PULSE_TIMEZONE_UNKNOWN)
+	if ok, _ := afero.DirExists(fsys, "zep_badtz"); ok {
+		entries, _ := afero.ReadDir(fsys, "zep_badtz")
+		if len(entries) > 0 {
+			t.Fatalf("an unknown zone wrote %d entries", len(entries))
 		}
 	}
 }

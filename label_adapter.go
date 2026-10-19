@@ -33,6 +33,13 @@ func (a labelResolverAdapter) Order(field string) []string {
 	return a.r.Order(field)
 }
 
+// Entries lists the bound table's entries; the export's cohort writers
+// discover it through the io package's optional label-entries method and
+// label a field with no dictionary (an integer-coded `.sav` variable) by it.
+func (a labelResolverAdapter) Entries(field string) ([]string, bool) {
+	return a.r.Entries(field)
+}
+
 func (a labelResolverAdapter) FieldsWithAugment() []string {
 	return a.r.FieldsWithAugment()
 }

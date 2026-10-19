@@ -8,9 +8,11 @@ import (
 )
 
 // Convert stages a PULSE_IMPORT_ROWS_DROPPED raised by ConvertJob names
-// in details.stage: rows the target Writer refused, or rows the
-// KeepPulseAt intermediate import skipped.
+// in details.stage: rows whose per-row source zone (SourceTZField) could
+// not be resolved, dropped before the target; rows the target Writer
+// refused; or rows the KeepPulseAt intermediate import skipped.
 const (
+	DroppedStageSource    = "source"
 	DroppedStageTarget    = "target"
 	DroppedStageKeepPulse = "keep_pulse"
 )

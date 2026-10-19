@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/groupedtests"
+	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/slotfail"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -364,6 +365,14 @@ func realignTestResults(results []*types.TestResult, idx []int, n int) []*types.
 // grouper, or partition_by []) is the one run over every row, unchanged.
 // The warnings are the partitioned run's sparse-partition warnings.
 func (p *Processor) runPostTests(tests []*types.Test, groups []*types.Group, rows []map[string]any) ([]*types.TestResult, []*types.ResponseWarning, error) {
+	return p.runPostTestsOrdered(tests, groups, groups, rows)
+}
+
+// runPostTestsOrdered is runPostTests whose row key columns are the key
+// columns of keyGroups (a crosstab's row and column axes, unpartitioned:
+// groups nil): a keyOrderedPostTest (TEST_TREND) whose order_by names
+// one sorts it by that grouper's intrinsic key order (postTestKeyOrders).
+func (p *Processor) runPostTestsOrdered(tests []*types.Test, groups, keyGroups []*types.Group, rows []map[string]any) ([]*types.TestResult, []*types.ResponseWarning, error) {
 	depth, derr := groupedtests.PostTestDepth(tests, groups)
 	if derr != nil {
 		return nil, nil, derr
@@ -375,12 +384,14 @@ func (p *Processor) runPostTests(tests []*types.Test, groups []*types.Group, row
 	if len(entries) == 0 {
 		return nil, nil, nil
 	}
+	orders := p.postTestKeyOrders(entries, keyGroups)
 	if depth > 0 {
-		return p.runPartitionedPostTests(entries, len(tests), groups, depth, rows)
+		return p.runPartitionedPostTests(entries, len(tests), groups, depth, rows, orders)
 	}
 	out := make([]*types.TestResult, 0, len(entries))
 	idx := make([]int, 0, len(entries))
 	for _, e := range entries {
+		stampKeyOrders(e.test, orders)
 		workPostTestRuns.Add(1)
 		res, err := e.test.Run(rows)
 		if err != nil {
@@ -412,7 +423,7 @@ func (p *Processor) runPostTests(tests []*types.Test, groups []*types.Group, row
 // a data-dependent code (sparseTestCodes) gets a null-statistics result
 // plus one warning naming its group_key; the others proceed. No rows,
 // no results.
-func (p *Processor) runPartitionedPostTests(entries []postTestEntry, n int, groups []*types.Group, depth int, rows []map[string]any) ([]*types.TestResult, []*types.ResponseWarning, error) {
+func (p *Processor) runPartitionedPostTests(entries []postTestEntry, n int, groups []*types.Group, depth int, rows []map[string]any, orders window.KeyOrders) ([]*types.TestResult, []*types.ResponseWarning, error) {
 	keys := seriespartition.RowKeys(rows, seriespartition.KeyColumns(groups))
 	parts := seriespartition.Partition(keys, depth)
 	if len(parts) == 0 {
@@ -432,6 +443,7 @@ func (p *Processor) runPartitionedPostTests(entries []postTestEntry, n int, grou
 			if err != nil {
 				return nil, nil, err
 			}
+			stampKeyOrders(inst, orders)
 			workPostTestRuns.Add(1)
 			res, err := inst.Run(sub)
 			if err != nil {
@@ -454,4 +466,29 @@ func (p *Processor) runPartitionedPostTests(entries []postTestEntry, n int, grou
 		}
 	}
 	return out, warns, nil
+}
+
+// keyOrderedPostTest is a post-test whose order_by sorts a grouper key
+// column by that grouper's intrinsic key order rather than byte-wise
+// (TEST_TREND): the run stamps the per-column orders before Run.
+type keyOrderedPostTest interface {
+	setKeyOrders(orders window.KeyOrders)
+}
+
+// stampKeyOrders hands orders to t when it orders by grouper keys.
+func stampKeyOrders(t PostTest, orders window.KeyOrders) {
+	if ko, ok := t.(keyOrderedPostTest); ok && orders != nil {
+		ko.setKeyOrders(orders)
+	}
+}
+
+// postTestKeyOrders is the run's grouper key orders (groupKeyOrders)
+// when some entry orders by keys (keyOrderedPostTest), else nil.
+func (p *Processor) postTestKeyOrders(entries []postTestEntry, groups []*types.Group) window.KeyOrders {
+	for _, e := range entries {
+		if _, ok := e.test.(keyOrderedPostTest); ok {
+			return windowKeyOrders(p.groupKeyOrders(groups))
+		}
+	}
+	return nil
 }

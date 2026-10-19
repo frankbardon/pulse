@@ -37,7 +37,7 @@ None. Weight (both kinds, same scores; `"weight": null` opts out): weighted mean
 
 ## Output
 
-One `float64` per record — `50 + 10 * zscore`. Null source → `50` (not null).
+One `float64` per record — `50 + 10 * zscore`. Null source → `null` (counted in `n_null`), left out of the mean / sd.
 
 ## Reading the output
 
@@ -48,7 +48,7 @@ One `float64` per record — `50 + 10 * zscore`. Null source → `50` (not null)
 ## Gotchas
 
 - Two-pass: a Welford pre-pass computes the mean and sd. Reading-friendly scale for survey / education contexts (mean 50, sd 10, no negatives in the typical range).
-- Zero stddev → `50` per row.
+- Zero stddev (constant field, or one non-null row) → `null` per row (0/0), counted in `n_null`.
 - Not a percentile — same shape as the underlying distribution.
 - `set_*` and categorical rejected at build time with `PULSE_FIELD_TYPE_UNSUPPORTED` — a bitmask or dictionary index has no value to standardise.
 

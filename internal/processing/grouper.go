@@ -1175,9 +1175,15 @@ type dateGrouper struct {
 	// week by the local date of its first day instead of `YYYY-Www`.
 	weekStart  time.Weekday
 	datedWeeks bool
-	// hour: the `hour` component, whose bucket unit is the local epoch
-	// HOUR (temporal.LocalHour) rather than the local epoch day.
+	// hour: a sub-day component (`hour`, `hour_of_day`), whose bucket
+	// unit is the local epoch HOUR (temporal.LocalHour) rather than the
+	// local epoch day.
 	hour bool
+
+	// include is the ordered Group.Include filter (nil = accept-all):
+	// KeyFor drops a non-member key, and every emission site orders
+	// members by it (IncludeOrdered).
+	include *includeFilter
 
 	// date reads Field: epoch SECONDS (a `datetime` column) or epoch
 	// DAYS (a `date` column), and for an instant the zone whose local
@@ -1238,9 +1244,13 @@ func (g *dateGrouper) dateRangeBoundaries(u int64) (string, string) {
 		// strings rather than guess the wrong calendar boundary.
 		return "", ""
 	}
-	if g.hour {
+	if g.component == dategroup.ComponentHour {
 		s := temporal.HourToTime(u).Format(hourKeyLayout)
 		return s, s
+	}
+	if g.hour {
+		// hour_of_day: a profile across days, no contiguous span.
+		return "", ""
 	}
 	day := u
 	t := temporal.DayToTime(day)
@@ -1265,13 +1275,18 @@ func (g *dateGrouper) dateRangeBoundaries(u int64) (string, string) {
 		last := first.AddDate(1, 0, -1)
 		return first.Format("2006-01-02"), last.Format("2006-01-02")
 	}
-	// day_of_week and any unknown component — no calendar span.
+	// day_of_week, hour_of_day and any unknown component — no calendar
+	// span.
 	return "", ""
 }
 
 // hourKeyLayout is the `hour` component's key: the local wall-clock date
 // and hour, the layout OVERLAY_YOY's hourly arm parses.
 const hourKeyLayout = "2006-01-02T15"
+
+// hourOfDayKeyLayout is the `hour_of_day` component's key: the local
+// wall-clock hour alone, zero-padded "00".."23".
+const hourOfDayKeyLayout = "15"
 
 // trackDateRow folds a single (record bucket unit, bucket key) observation
 // into the date grouper's live components state. Called once per
@@ -1310,7 +1325,7 @@ func newDateGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) 
 	// introduce a new rejection. The call resolves the day-vs-second
 	// reading of the column and nothing else. Only `hour` — which needs
 	// a time of day — insists on a datetime (dategroup.CheckField).
-	date, err := resolveDateField("GROUP_DATE", grp.Field, grp.TimeZone, schema, false)
+	date, err := resolveDateField("GROUP_DATE", grp.Field, grp.TimeZone, grp.TimeZoneField, schema, false)
 	if err != nil {
 		return nil, err
 	}
@@ -1324,8 +1339,9 @@ func newDateGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) 
 		fiscalOffset: spec.FiscalOffset,
 		weekStart:    spec.WeekStart,
 		datedWeeks:   spec.DatedWeeks(),
-		hour:         spec.Component == dategroup.ComponentHour,
+		hour:         dategroup.SubDay(spec.Component),
 		date:         date,
+		include:      buildIncludeFilter(grp.Include),
 	}, nil
 }
 
@@ -1395,21 +1411,63 @@ func (g *dateGrouper) KeyFor(r *Record) (string, error) {
 	if !ok {
 		return "", ErrGrouperKeyNull
 	}
-	if g.hour {
-		return temporal.HourToTime(g.date.epochHour(v)).Format(hourKeyLayout), nil
+	u, ok := g.unit(r, v)
+	if !ok {
+		// A null per-row zone cell: the row has no local calendar
+		// value, so it lands in no bucket (the grouper's n_null).
+		return "", ErrGrouperKeyNull
 	}
-	t := temporal.DayToTime(g.date.epochDay(v))
-	return g.formatDateKey(t), nil
+	var key string
+	switch {
+	case g.component == dategroup.ComponentHourOfDay:
+		key = temporal.HourToTime(u).Format(hourOfDayKeyLayout)
+	case g.hour:
+		key = temporal.HourToTime(u).Format(hourKeyLayout)
+	default:
+		key = g.formatDateKey(temporal.DayToTime(u))
+	}
+	if !includeAccepts(g.include, key) {
+		return "", ErrGrouperKeyNull
+	}
+	return key, nil
 }
 
-// unit is the bucket unit of a decoded value: its (local) epoch day, or
-// its local epoch hour for the `hour` component. Components() boundaries
-// and range_start / range_end are derived from it.
-func (g *dateGrouper) unit(v float64) int64 {
-	if g.hour {
-		return g.date.epochHour(v)
+// IncludeFilter implements IncludeOrdered: an include list restricts
+// GROUP_DATE's keys and fixes their emission order.
+func (g *dateGrouper) IncludeFilter() *includeFilter { return g.include }
+
+// keyRank implements keyOrderer: a day_of_week key ranks Monday (0)
+// through Sunday (6). Every other component's keys already sort
+// chronologically as strings — ISO dates, and hour_of_day's zero-padded
+// "00".."23" — so they stay unranked: alphabetical, byte-identically.
+func (g *dateGrouper) keyRank(key string) (float64, bool) {
+	if g.component == dategroup.ComponentDayOfWeek {
+		if wd, ok := weekdayRank[key]; ok {
+			return float64(wd), true
+		}
 	}
-	return g.date.epochDay(v)
+	return 0, false
+}
+
+// weekdayRank maps a day_of_week key (time.Weekday.String) to its ISO
+// position, Monday first.
+var weekdayRank = map[string]int{
+	time.Monday.String(): 0, time.Tuesday.String(): 1, time.Wednesday.String(): 2,
+	time.Thursday.String(): 3, time.Friday.String(): 4, time.Saturday.String(): 5,
+	time.Sunday.String(): 6,
+}
+
+// unit is the bucket unit of decoded value v of record r: its (local)
+// epoch day, or its local epoch hour for the `hour` component, in the
+// slot's zone or — under a per-row zone field — in r's own zone.
+// ok=false when r's zone cell is null (no local value). Bucket keys,
+// Components() boundaries and range_start / range_end are derived
+// from it.
+func (g *dateGrouper) unit(r *Record, v float64) (int64, bool) {
+	if g.hour {
+		return g.date.epochHourAt(r, v)
+	}
+	return g.date.epochDayAt(r, v)
 }
 
 // KeyForRow is the StreamingGrouper-shape adapter on top of KeyFor.
@@ -1430,7 +1488,9 @@ func (g *dateGrouper) KeyForRow(r *Record, _ string) (string, bool, error) {
 		// tracker safe under contract drift.
 		return key, ok, nil
 	}
-	g.trackDateRow(g.unit(v), key)
+	if u, ok3 := g.unit(r, v); ok3 {
+		g.trackDateRow(u, key)
+	}
 	return key, ok, nil
 }
 
@@ -1459,7 +1519,9 @@ func (g *dateGrouper) Group(records []*Record, field string) (map[string][]*Reco
 			if !ok {
 				continue
 			}
-			g.trackDateRow(g.unit(v), key)
+			if u, ok := g.unit(r, v); ok {
+				g.trackDateRow(u, key)
+			}
 		}
 	}
 	return groups, nil
@@ -1486,7 +1548,7 @@ func (g *dateGrouper) Components() (map[string]any, error) {
 	for k := range g.liveBuckets {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	keys = orderKeysByInclude(includeFilterOf(g), keys)
 
 	buckets := make([]map[string]any, 0, len(keys))
 	for _, k := range keys {
@@ -1547,6 +1609,13 @@ type dateRangesGrouper struct {
 	order          []string // supplied range labels, in author order
 	unmatchedLabel string
 
+	// rank maps each supplied label to its author-order index and the
+	// unmatched label to len(order): the keyOrderer rank, built from the
+	// configuration alone (inline ranges or the resolved table).
+	rank map[string]float64
+	// include is the ordered Group.Include filter (nil = accept-all).
+	include *includeFilter
+
 	// date reads Field (epoch seconds or days, and the slot zone).
 	// Resolved once at construction; applied per record by
 	// date.epochDay so the range set — compiled in epoch days — is
@@ -1574,7 +1643,7 @@ func newDateRangesGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, e
 	// Validate against the schema when present (the runtime always
 	// supplies one); a nil schema (e.g. a probe with no field) skips
 	// the check. A `datetime` Field day-truncates per record.
-	date, err := resolveDateField("GROUP_DATE_RANGES", grp.Field, grp.TimeZone, schema, true)
+	date, err := resolveDateField("GROUP_DATE_RANGES", grp.Field, grp.TimeZone, grp.TimeZoneField, schema, true)
 	if err != nil {
 		return nil, err
 	}
@@ -1596,6 +1665,7 @@ func newDateRangesGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, e
 		field:          grp.Field,
 		unmatchedLabel: unmatched,
 		date:           date,
+		include:        buildIncludeFilter(grp.Include),
 	}
 
 	// Source selection: exactly one of inline `ranges` or a named `table`.
@@ -1643,8 +1713,26 @@ func (g *dateRangesGrouper) applyRanges(specs []DateRangeSpec) error {
 	}
 	g.set = set
 	g.order = order
+	g.rank = make(map[string]float64, len(order)+1)
+	for i, label := range order {
+		g.rank[label] = float64(i)
+	}
+	g.rank[g.unmatchedLabel] = float64(len(order))
 	return nil
 }
+
+// keyRank implements keyOrderer: a supplied label ranks by its position
+// in the ranges (author order), the unmatched label last; any other key
+// is unranked. Configuration-only, so every arm emits supplied order.
+func (g *dateRangesGrouper) keyRank(key string) (float64, bool) {
+	r, ok := g.rank[key]
+	return r, ok
+}
+
+// IncludeFilter implements IncludeOrdered: an include list restricts
+// GROUP_DATE_RANGES' labels (the unmatched one included) and fixes their
+// emission order.
+func (g *dateRangesGrouper) IncludeFilter() *includeFilter { return g.include }
 
 // SetExtensions implements ExtensionAware. For a named-table grouper it
 // resolves the table against the live registry and compiles it into the
@@ -1683,10 +1771,20 @@ func (g *dateRangesGrouper) KeyFor(r *Record) (string, error) {
 	if !ok {
 		return "", ErrGrouperKeyNull
 	}
-	if label, matched := g.set.Match(g.date.epochDay(v)); matched {
-		return label, nil
+	day, ok := g.date.epochDayAt(r, v)
+	if !ok {
+		// A null per-row zone cell: no local day, so no bucket — not
+		// even the unmatched one (the grouper's n_null).
+		return "", ErrGrouperKeyNull
 	}
-	return g.unmatchedLabel, nil
+	key := g.unmatchedLabel
+	if label, matched := g.set.Match(day); matched {
+		key = label
+	}
+	if !includeAccepts(g.include, key) {
+		return "", ErrGrouperKeyNull
+	}
+	return key, nil
 }
 
 // KeyForRow is the StreamingGrouper adapter on top of KeyFor. Folds the
@@ -1724,22 +1822,31 @@ func (g *dateRangesGrouper) Group(records []*Record, field string) (map[string][
 // emit in supplied range order (author order), followed by the
 // unmatched bucket when any out-of-range rows were observed. Every
 // configured range emits a bucket even at zero count so the customer's
-// labels are always present. The universal floor ({total_n, n_null}) is
+// labels are always present. An include list keeps only its members, in
+// its order. The universal floor ({total_n, n_null}) is
 // filled by the orchestrator — Components() returns operator keys only.
 func (g *dateRangesGrouper) Components() (map[string]any, error) {
-	buckets := make([]map[string]any, 0, len(g.order)+1)
+	labels := make([]string, 0, len(g.order)+1)
 	for _, label := range g.order {
+		if includeAccepts(g.include, label) {
+			labels = append(labels, label)
+		}
+	}
+	if g.liveBuckets[g.unmatchedLabel] > 0 {
+		labels = append(labels, g.unmatchedLabel)
+	}
+	if g.include.active() {
+		// An include list restricts the buckets to its members (a
+		// configured range it omits never emits, even at zero count) and
+		// orders them by it.
+		labels = orderKeysByInclude(g.include, labels)
+	}
+	buckets := make([]map[string]any, 0, len(labels))
+	for _, label := range labels {
 		buckets = append(buckets, map[string]any{
 			"key":   label,
 			"label": label,
 			"count": g.liveBuckets[label],
-		})
-	}
-	if n := g.liveBuckets[g.unmatchedLabel]; n > 0 {
-		buckets = append(buckets, map[string]any{
-			"key":   g.unmatchedLabel,
-			"label": g.unmatchedLabel,
-			"count": n,
 		})
 	}
 	return map[string]any{
@@ -1766,13 +1873,17 @@ var (
 	_ ExtensionAware = (*dateRangesGrouper)(nil)
 
 	// IncludeOrdered locks — only the include-capable groupers surface
-	// an ordered filter; every other grouper falls through to sort.Strings
-	// via includeFilterOf returning nil.
+	// an ordered filter; every other grouper falls through to its
+	// keyOrderer rank, else sort.Strings.
 	_ IncludeOrdered = (*categoryGrouper)(nil)
+	_ IncludeOrdered = (*dateGrouper)(nil)
+	_ IncludeOrdered = (*dateRangesGrouper)(nil)
 
 	// keyOrderer locks — the groupers whose keys carry an intrinsic order.
 	_ keyOrderer = (*quantileGrouper)(nil)
 	_ keyOrderer = (*rangeGrouper)(nil)
 	_ keyOrderer = (*roundedGrouper)(nil)
 	_ keyOrderer = (*numericRangesGrouper)(nil)
+	_ keyOrderer = (*dateGrouper)(nil)
+	_ keyOrderer = (*dateRangesGrouper)(nil)
 )

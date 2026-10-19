@@ -78,12 +78,21 @@ func Apply(ctx context.Context, rows []map[string]any, windows []*types.Window) 
 // built-in-only path; an unresolved type fails with the canonical
 // unknown-window error.
 func ApplyWithExt(ctx context.Context, rows []map[string]any, windows []*types.Window, resolve Resolver) error {
+	return ApplyKeyed(ctx, rows, windows, resolve, nil)
+}
+
+// ApplyKeyed is ApplyWithExt under grouper key orders: an order_by key
+// whose column orders names (a grouped row's grouper key column) sorts
+// by that grouper's intrinsic key order (CompareKeyOrdered), and a
+// keyOrderedComputer (WIN_RANK / WIN_DENSE_RANK) judges ties through the
+// same comparator. Nil orders is ApplyWithExt, byte-identically.
+func ApplyKeyed(ctx context.Context, rows []map[string]any, windows []*types.Window, resolve Resolver, orders KeyOrders) error {
 	_ = ctx
 	if len(windows) == 0 || len(rows) == 0 {
 		return nil
 	}
 
-	cache := newSortCache(rows)
+	cache := newSortCache(rows, orders)
 
 	for _, w := range windows {
 		factory, ok := resolve.lookup(w.Type)
@@ -94,6 +103,9 @@ func ApplyWithExt(ctx context.Context, rows []map[string]any, windows []*types.W
 		computer, err := factory(w, WindowOptions{})
 		if err != nil {
 			return err
+		}
+		if ko, ok := computer.(keyOrderedComputer); ok && orders != nil {
+			ko.setKeyOrders(orders)
 		}
 
 		sortedIdx, err := cache.get(w.PartitionBy, w.OrderBy)
@@ -108,6 +120,14 @@ func ApplyWithExt(ctx context.Context, rows []map[string]any, windows []*types.W
 		}
 	}
 	return nil
+}
+
+// keyOrderedComputer is a built-in window computer whose output reads
+// the order_by comparator beyond the sorted partitions (WIN_RANK /
+// WIN_DENSE_RANK tie detection): ApplyKeyed stamps the run's key orders
+// on it before Compute, so a tie is exactly a CompareRows tie.
+type keyOrderedComputer interface {
+	setKeyOrders(orders KeyOrders)
 }
 
 // windowLabel returns the effective output column name for a window. Mirrors

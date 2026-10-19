@@ -1018,6 +1018,15 @@ type Feature struct {
 	// zone-capable operators (see the manifest operator `zone` key).
 	TimeZone string `json:"tz,omitempty"`
 
+	// TimeZoneField names a categorical cohort field whose dictionary
+	// entries are IANA zone names: each row is read in its own zone (a
+	// per-row zone). Precedence: slot `tz` → slot `tz_field` →
+	// Request.TimeZoneField → Request.TimeZone →
+	// pulse.Options.DefaultTimeZone → UTC. Setting both `tz` and
+	// `tz_field` on one slot is refused; accepted only where `tz` is
+	// (zone-capable operators over a `datetime` field).
+	TimeZoneField string `json:"tz_field,omitempty"`
+
 	// ForEach, when set, fans this item out over parameter axes before
 	// validation (see ForEach). Gated by capability:for_each.
 	ForEach *ForEach `json:"for_each,omitempty"`
@@ -1135,6 +1144,15 @@ type Filterer struct {
 	// pulse.Options.DefaultTimeZone, then UTC. Accepted only on
 	// zone-capable operators (see the manifest operator `zone` key).
 	TimeZone string `json:"tz,omitempty"`
+
+	// TimeZoneField names a categorical cohort field whose dictionary
+	// entries are IANA zone names: each row is read in its own zone (a
+	// per-row zone). Precedence: slot `tz` → slot `tz_field` →
+	// Request.TimeZoneField → Request.TimeZone →
+	// pulse.Options.DefaultTimeZone → UTC. Setting both `tz` and
+	// `tz_field` on one slot is refused; accepted only where `tz` is
+	// (zone-capable operators over a `datetime` field).
+	TimeZoneField string `json:"tz_field,omitempty"`
 }
 
 // Group defines a grouping operation to partition results.
@@ -1203,6 +1221,15 @@ type Group struct {
 	// pulse.Options.DefaultTimeZone, then UTC. Accepted only on
 	// zone-capable operators (see the manifest operator `zone` key).
 	TimeZone string `json:"tz,omitempty"`
+
+	// TimeZoneField names a categorical cohort field whose dictionary
+	// entries are IANA zone names: each row is read in its own zone (a
+	// per-row zone). Precedence: slot `tz` → slot `tz_field` →
+	// Request.TimeZoneField → Request.TimeZone →
+	// pulse.Options.DefaultTimeZone → UTC. Setting both `tz` and
+	// `tz_field` on one slot is refused; accepted only where `tz` is
+	// (zone-capable operators over a `datetime` field).
+	TimeZoneField string `json:"tz_field,omitempty"`
 
 	// Weight is the per-slot weight override, carried by a grouper
 	// mainly to opt OUT: GROUP_QUANTILE's cutpoints have no weighted
@@ -1302,6 +1329,15 @@ type Attribute struct {
 	// pulse.Options.DefaultTimeZone, then UTC. Accepted only on
 	// zone-capable operators (see the manifest operator `zone` key).
 	TimeZone string `json:"tz,omitempty"`
+
+	// TimeZoneField names a categorical cohort field whose dictionary
+	// entries are IANA zone names: each row is read in its own zone (a
+	// per-row zone). Precedence: slot `tz` → slot `tz_field` →
+	// Request.TimeZoneField → Request.TimeZone →
+	// pulse.Options.DefaultTimeZone → UTC. Setting both `tz` and
+	// `tz_field` on one slot is refused; accepted only where `tz` is
+	// (zone-capable operators over a `datetime` field).
+	TimeZoneField string `json:"tz_field,omitempty"`
 
 	// Weight is the per-slot weight override: absent inherits
 	// Request.Weight, then pulse.Options.DefaultWeight; `null` opts the
@@ -1513,6 +1549,13 @@ type Request struct {
 	// sets no `tz` of its own. Empty inherits
 	// pulse.Options.DefaultTimeZone, then UTC.
 	TimeZone string `json:"time_zone,omitempty"`
+
+	// TimeZoneField is the request-level per-row zone: a categorical
+	// cohort field of IANA zone names inherited by every zone-capable
+	// slot that sets neither `tz` nor `tz_field` of its own. It takes
+	// precedence over TimeZone for those slots; expressions (to_day)
+	// read TimeZone only.
+	TimeZoneField string `json:"time_zone_field,omitempty"`
 
 	// Weight is the request-level row weight inherited by every slot
 	// that sets no `weight` of its own (a slot's `null` opts it out).

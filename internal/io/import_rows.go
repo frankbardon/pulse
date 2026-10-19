@@ -112,6 +112,7 @@ func (c *rowConverter) takePending() []widening {
 // schema.Fields[i].Nullable and recording promoted[i]).
 func (c *rowConverter) convert(rowNum int, row []string, declaredNulls []bool) *RowError {
 	c.reset()
+	c.zones.beginRow(row)
 	rowErr := func(f encoding.Field, msg string) *RowError {
 		return &RowError{
 			Row: rowNum,
@@ -216,9 +217,10 @@ func (c *rowConverter) convert(rowNum int, row []string, declaredNulls []bool) *
 			f = c.schema.Fields[i]
 		}
 		if err != nil {
-			if isDSTRefusal(err) {
-				// Already names row, column, value and zone; fatal,
-				// never a skipped row (the caller checks).
+			if isDSTRefusal(err) || isZoneRowError(err) {
+				// Already names row, column, value and zone. A DST
+				// refusal is fatal (the caller checks); a per-row zone
+				// row error keeps its own code and skips the row.
 				return &RowError{Row: rowNum, Err: err}
 			}
 			if c.isForced(i) {

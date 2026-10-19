@@ -77,6 +77,12 @@ type FacetRequest struct {
 	// pulse.Options.DefaultTimeZone, then UTC.
 	TimeZone string `json:"time_zone,omitempty"`
 
+	// TimeZoneField is the request-level per-row zone: a categorical
+	// cohort field of IANA zone names inherited by every zone-capable
+	// filterer that sets neither `tz` nor `tz_field`. It takes
+	// precedence over TimeZone for those filterers.
+	TimeZoneField string `json:"time_zone_field,omitempty"`
+
 	// Models loads saved model files by name for the filterers' coef()
 	// calls — the Request.Models contract. Gated by capability:models.
 	Models []ModelRef `json:"models,omitempty"`

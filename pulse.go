@@ -1318,9 +1318,15 @@ func (p *Pulse) exportJob(ctx context.Context, job *pio.ExportJob) (*pio.ExportR
 // run the way Export runs the job. When job.Labels is non-empty and
 // job.LabelResolver is nil, the resolver is built from the instance's
 // registered LabelTables first, exactly as Export builds it — so a label
-// refusal (PULSE_LABEL_TABLE_UNKNOWN, and through a target's
+// refusal (PULSE_LABEL_TABLE_UNKNOWN; for every row target, and with no
+// target, a binding on a field the cohort lacks, PULSE_LABEL_FIELD_UNKNOWN,
+// two bindings on one field, PULSE_LABEL_DUPLICATE_BINDING, a binding on a
+// field neither categorical nor integer-coded,
+// PULSE_LABEL_FIELD_NOT_CATEGORICAL, or an integer-coded field's
+// non-decimal key, PULSE_LABEL_KEY_INVALID; and through a target's
 // ValidateCohort the `.sav` value-label refusals: PULSE_LABEL_FIELD_UNKNOWN,
-// PULSE_LABEL_FIELD_NOT_CATEGORICAL, a binding beside an honoured SPSS
+// PULSE_LABEL_FIELD_NOT_CATEGORICAL, PULSE_LABEL_KEY_INVALID,
+// PULSE_LABEL_TABLE_NOT_ENUMERABLE, a binding beside an honoured SPSS
 // metadata sidecar) is raised with the code the export would raise. The
 // job's FS field is set to the instance's filesystem if not already set.
 // Reports as a `predict` operation.
@@ -1387,7 +1393,11 @@ func (p *Pulse) importTransfer(ctx context.Context, job *pio.TransferImportJob) 
 // Convert chains import and export with no intermediate file on disk.
 // The job's FS field is set to the Pulse instance's filesystem if not already set.
 //
-// Labels apply to the export half only — see Export.
+// Labels apply to the export half only — see Export. They are refused
+// as a row export refuses them (PULSE_LABEL_FIELD_UNKNOWN,
+// PULSE_LABEL_DUPLICATE_BINDING, PULSE_LABEL_FIELD_NOT_CATEGORICAL,
+// PULSE_LABEL_KEY_INVALID), against the schema convert resolves, before
+// anything is written; ConvertJob.Predict makes the same check.
 func (p *Pulse) Convert(ctx context.Context, job *pio.ConvertJob) (*pio.ConvertReport, error) {
 	return observed(p, ctx, opSpec{kind: observe.OpConvert}, func(ctx context.Context) (*pio.ConvertReport, error) {
 		return p.convert(ctx, job)

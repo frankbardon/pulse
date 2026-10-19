@@ -310,6 +310,20 @@ type ImportJob struct {
 	// `datetime` (a `date` column included), is refused with
 	// SERVICE_VALIDATION before the row pass.
 	ColumnSourceTZ map[string]string
+	// SourceTZField names a column whose raw cell holds each ROW's
+	// source zone (same spellings as SourceTZ). Every `datetime` field
+	// ColumnSourceTZ does not name reads its naive literals in the zone
+	// its own row names; a literal with its own `Z` / offset ignores it.
+	// The zone column itself imports as an ordinary column. An empty
+	// cell reads in SourceTZ when one is set and is otherwise a row
+	// error (PULSE_IMPORT_ROW_ERROR); an unknown name is a row error
+	// carrying PULSE_TIMEZONE_UNKNOWN; both name the row, the datetime
+	// column and details.zone_column. A name naming no field, or a
+	// `datetime` / vector field, is refused with SERVICE_VALIDATION
+	// (details.option "source_tz_field") before the row pass. Zones are
+	// loaded once per distinct name per pass; DST policy applies per row.
+	// Empty (the default) changes nothing.
+	SourceTZField string
 	// DSTPolicy decides a naive literal a source zone's DST transition
 	// makes ambiguous (shown twice) or nonexistent (skipped): DSTPolicyError
 	// (the default; "" means it) refuses the import at the first such row
@@ -451,7 +465,16 @@ type ExportJob struct {
 	// the column value, mode=augment emits a sibling "<field>_label"
 	// column. See types.LabelBinding for semantics. Nil/empty means
 	// the exporter writes raw resolved categorical values, matching
-	// pre-label behaviour.
+	// pre-label behaviour. An integer-coded u4 / u8 / u16 / u32 field
+	// binds too, its table keyed by the stored integers' decimal
+	// spellings (else PULSE_LABEL_KEY_INVALID); a binding on any other
+	// non-categorical type refuses PULSE_LABEL_FIELD_NOT_CATEGORICAL,
+	// a binding on a field the cohort lacks PULSE_LABEL_FIELD_UNKNOWN
+	// and a second binding on one field PULSE_LABEL_DUPLICATE_BINDING —
+	// from Run and Predict alike, on every row target, before anything
+	// is written (the `.sav` writer raises the same codes itself). The
+	// bindings are checked even with no LabelResolver; the key check
+	// needs one that lists the table's entries.
 	Labels []*types.LabelBinding
 	// LabelResolver carries the runtime resolver built from Labels +
 	// the pulse Service's registered LabelTables. The pulse.Export
@@ -584,7 +607,13 @@ type ConvertJob struct {
 	Includes []string
 	// Labels apply to the export phase only — the import side reads
 	// raw source bytes and has no use for label translation. See
-	// ExportJob.Labels.
+	// ExportJob.Labels: the bindings are checked by the row export's
+	// rules and codes against the schema convert resolves (inferred,
+	// declared or explicit) — on every target, `.sav` included, since
+	// convert labels the row stream — from Run and Predict alike,
+	// before anything is written. An INFERRED integer field may promote
+	// past its sampled width in the row pass, so its keys are bounded
+	// by u32 rather than the sampled type.
 	Labels []*types.LabelBinding
 	// LabelResolver carries the runtime resolver. See
 	// ExportJob.LabelResolver.
@@ -616,8 +645,15 @@ type ConvertJob struct {
 	// `Z` / offset, an unparseable cell and every non-zoned column pass
 	// through verbatim. The KeepPulseAt intermediate is imported in the
 	// same zone. Empty (the default) changes nothing.
+	//
+	// SourceTZField reads each row's zone from a column, with
+	// ImportJob.SourceTZField's semantics; a row whose zone cannot be
+	// resolved (empty cell without SourceTZ, unknown name) is a row
+	// error dropped BEFORE the target (PULSE_IMPORT_ROWS_DROPPED stage
+	// DroppedStageSource), never handed through as a naive literal.
 	SourceTZ       string
 	ColumnSourceTZ map[string]string
+	SourceTZField  string
 	DSTPolicy      DSTPolicy
 }
 

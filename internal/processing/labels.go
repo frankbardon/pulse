@@ -2,6 +2,7 @@ package processing
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
@@ -131,6 +132,34 @@ func (r *LabelResolver) Order(field string) []string {
 		return nil
 	}
 	return st.table.Order
+}
+
+// Entries lists the entries of the table bound to field: a Rows table's
+// keys in byte-wise sorted order, else a Lookup table's Order. ok is false
+// when the field is unbound or its table can list neither (a Lookup-only
+// table with no Order). A cohort writer labelling a field that has no
+// dictionary (an integer-coded field on a `.sav` export) labels these
+// entries. Nil-safe.
+func (r *LabelResolver) Entries(field string) ([]string, bool) {
+	if r == nil {
+		return nil, false
+	}
+	st, ok := r.bindings[field]
+	if !ok {
+		return nil, false
+	}
+	if st.table.Rows != nil {
+		keys := make([]string, 0, len(st.table.Rows))
+		for k := range st.table.Rows {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		return keys, true
+	}
+	if len(st.table.Order) > 0 {
+		return append([]string(nil), st.table.Order...), true
+	}
+	return nil, false
 }
 
 // Has reports whether the resolver carries any binding for the named

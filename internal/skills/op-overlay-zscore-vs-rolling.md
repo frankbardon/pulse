@@ -15,11 +15,11 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` required, must be `group`. `Ref.RollingMean` empty marker tags the ref family. `params.window` required, width `W` ≥ 2. `Level` / `Within` must be `0`. `params.field` (string, optional) — OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`. `params.partition_by` (string list, optional) — a leading prefix of the group key columns (Host shape); anything else → `PULSE_OVERLAY_PARTITION_INVALID`.
+`Scope` required, must be `group`. `Ref.RollingMean` empty marker tags the ref family. `params.window` required, width `W` ≥ 2. `params.min_periods` (int, 2..`W`, default `W`) — present priors a point needs for a figure. `Level` / `Within` must be `0`. `params.field` (string, optional) — OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`. `params.partition_by` (string list, optional) — a leading prefix of the group key columns (Host shape); anything else → `PULSE_OVERLAY_PARTITION_INVALID`.
 
 ## Host shape
 
-SERIES ordered grouped Process host. Over two or more `groups` it runs once per partition — the rows sharing the leading keys `params.partition_by` names (default all but the last, so the series runs down the last grouper; `[]` = one walk over every row), matched by key equality so a `sort` may interleave them — never crossing a segment. Shares the rolling-mean index's ring buffer + Welford trio, reading `mean` + `M2`.
+SERIES ordered grouped Process host. Over two or more `groups` it runs once per partition — the rows sharing the leading keys `params.partition_by` names (default all but the last, so the series runs down the last grouper; `[]` = one walk over every row), matched by key equality so a `sort` may interleave them — never crossing a segment.
 
 ## Output
 
@@ -30,9 +30,8 @@ SERIES — one `SeriesEntry` per host group key carrying `z = (point - rolling_m
 ## Gotchas
 
 - **SAMPLE SD**: the window IS a sample of the wider series → unbiased variance. Contrast the total z-score (population SD, ÷N).
-- Missing `params.window` → `PULSE_OVERLAY_PARAM_MISSING`; `window < 2` → `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` (`details.min` 2: a one-point sample SD is undefined), predict and runtime.
-- `count < 2` → NaN, no warning (Welford needs ≥2). Zero rolling SD → NaN + ONE `PULSE_OVERLAY_REF_ZERO`.
-- Absent host point → NaN, and the ring does NOT advance.
+- Missing `params.window` → `PULSE_OVERLAY_PARAM_MISSING`; `window < 2` or `min_periods` outside 2..`W` → `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE` (`details.min`), predict and runtime.
+- Under `min_periods` present priors → `null`, no warning (default: a full window); an absent point gets no figure and never advances the ring. Zero rolling SD → `null` + ONE `PULSE_OVERLAY_REF_ZERO`.
 - Buffered.
 
 ## See

@@ -90,6 +90,14 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 	// out its own columns from the cohort, so it is handed the per-field
 	// header and the source schema unchanged.
 	_, cohortWriter := j.Target.(CohortWriter)
+
+	// A row writer refuses a label binding it could never apply before
+	// a byte is written; a CohortWriter validates its own bindings.
+	if !cohortWriter {
+		if err := checkRowLabelBindings("export", schema, j.Labels, j.LabelResolver, nil); err != nil {
+			return nil, err
+		}
+	}
 	listWriter, listAware := j.Target.(ListAwareWriter)
 	expand := !listAware && !cohortWriter && schema.HasVectors()
 	layout, err := planExportColumns(schema, includeMask, augmentInsertAfter, replaceFields, expand)
@@ -589,6 +597,15 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 		return nil, err
 	}
 
+	// The row-writer label refusals Run raises, raised here on the same
+	// terms — with no target too, since every target refuses them (the
+	// `.sav` writer through its own validator below).
+	if _, cw := j.Target.(CohortWriter); !cw {
+		if err := checkRowLabelBindings("export", schema, j.Labels, j.LabelResolver, nil); err != nil {
+			return nil, err
+		}
+	}
+
 	// Estimate record count from remaining bytes and per-record size.
 	recordSize := schema.RecordByteSize()
 	estimatedRows := 0
@@ -663,8 +680,11 @@ func (j *ExportJob) Predict(ctx context.Context) (*PredictReport, error) {
 // categorical maps each dictionary entry the binding resolves to its
 // label: a replace binding's display text, an augment binding's sibling
 // label. Entries the table misses are absent, and the resolver records them
-// for its PULSE_LABEL_LOOKUP_MISS summary. Any other bound field maps to
-// nil. Nil without a resolver; Run and Predict both call it, so a writer
+// for its PULSE_LABEL_LOOKUP_MISS summary. Any other bound schema field has
+// no dictionary to walk, so it maps the bound TABLE's entries instead
+// (tableValueLabels; nil when the table cannot list them) — the `.sav`
+// writer accepts that for an integer-coded field and refuses every other
+// type. A field the schema lacks maps to nil. Nil without a resolver; Run and Predict both call it, so a writer
 // validates exactly what it would write.
 func cohortValueLabels(schema *encoding.Schema, bindings []*types.LabelBinding, r LabelResolver) map[string]map[string]string {
 	if r == nil || schema == nil {
@@ -690,8 +710,12 @@ func cohortValueLabels(schema *encoding.Schema, bindings []*types.LabelBinding, 
 	out := make(map[string]map[string]string, len(bound))
 	for _, name := range bound {
 		at, ok := byName[name]
-		if !ok || !schema.Fields[at].Type.IsCategorical() {
+		if !ok {
 			out[name] = nil
+			continue
+		}
+		if !schema.Fields[at].Type.IsCategorical() {
+			out[name] = tableValueLabels(name, r)
 			continue
 		}
 		labels := map[string]string{}
@@ -711,6 +735,47 @@ func cohortValueLabels(schema *encoding.Schema, bindings []*types.LabelBinding, 
 		out[name] = labels
 	}
 	return out
+}
+
+// labelEntrier is the optional resolver method that lists a bound
+// table's own entries (pulse's resolver implements it: a Rows table's keys,
+// else a Lookup table's Order; ok false when the table can list neither).
+// A field with no dictionary — an integer-coded field on a `.sav` export —
+// takes its value labels from these entries instead.
+type labelEntrier interface {
+	Entries(field string) ([]string, bool)
+}
+
+// tableValueLabels resolves a bound field that has no dictionary by
+// enumerating its TABLE: each entry maps to its label exactly as a
+// dictionary entry would (a replace binding's display text, an augment
+// binding's sibling label). Nil when the resolver cannot list the table's
+// entries — the cohort writer decides what that means for the field's type
+// (the `.sav` writer refuses an integer-coded field with
+// PULSE_LABEL_TABLE_NOT_ENUMERABLE and any other type as not categorical),
+// so a non-listing resolver changes nothing it did not already refuse.
+func tableValueLabels(name string, r LabelResolver) map[string]string {
+	e, ok := r.(labelEntrier)
+	if !ok || !r.Has(name) {
+		return nil
+	}
+	entries, ok := e.Entries(name)
+	if !ok {
+		return nil
+	}
+	labels := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		shown, sibling, hit := r.Apply(name, entry)
+		if !hit {
+			continue
+		}
+		if r.Mode(name) == types.LabelModeAugment {
+			labels[entry] = sibling
+		} else {
+			labels[entry] = shown
+		}
+	}
+	return labels
 }
 
 // labelOrderer is the optional resolver method that reports a bound

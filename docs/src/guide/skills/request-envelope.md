@@ -26,17 +26,17 @@ Every `--json` output and facade response uses `descriptor.Envelope`:
 
 | Operation (CLI) | Wire type | Top-level keys |
 |---|---|---|
-| process, predict (`pulse api process`) | `Request` | `cohort, time_zone, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, joins, crosstab, overlays, outputs, return`, `multiplicity`, `vectors`, `matrices` |
+| process, predict (`pulse api process`) | `Request` | `cohort, time_zone, time_zone_field, filterers, features, attributes, groups, aggregations, windows, sort, tests, post_tests, joins, crosstab, overlays, outputs, return`, `multiplicity`, `vectors`, `matrices` |
 | compose (`pulse api compose`) | `ComposedRequest` | `requests[]` (each = `Request`), `return` (overlays only) |
 | process chain (`pulse api process-chain`) | `ChainRequest` | `cohort, stages[], overlays` (each stage: `{request: Request}`) |
-| facet (`pulse api facet`) | `FacetRequest` | `cohort, time_zone, fields[], top_k, percentiles, histogram, additive, overlays` |
+| facet (`pulse api facet`) | `FacetRequest` | `cohort, time_zone, time_zone_field, fields[], top_k, percentiles, histogram, additive, overlays` |
 | sample (`pulse api sample`) | `SampleRequest` | `cohort, count, offset` |
 
-Each operation's MCP tool is listed in manifest `mcp_tools`.
+Each operation's MCP tool: manifest `mcp_tools`.
 
 Row weight: `Request.weight` `{field, kind}`; per-slot `weight` — a field, `{field, kind}` or `null` (`null` opts out, absent inherits); `pulse.Options.DefaultWeight`. See [`weighting`](weighting.md).
 
-`Request` slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`; `sort` shares the window comparator (nulls last both ways). A derived name (feature output, attribute / aggregation / window label) exists only DOWNSTREAM of its producer. Runtime and predict refuse (`SERVICE_VALIDATION`) a name nothing produces, a label shadowing a column, and an aggregation label equal to a group field or another aggregation label.
+Slot order is pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`; `sort` shares the window comparator (nulls last both ways, grouper keys in key order). A derived name (feature output, attribute / aggregation / window label) exists only DOWNSTREAM of its producer. Runtime and predict refuse (`SERVICE_VALIDATION`) a name nothing produces, a label shadowing a column, and an aggregation label equal to a group field or another aggregation label.
 
 ## Canonical process Request
 
@@ -92,15 +92,15 @@ Never override explicit `type` or cross categories; tests / filterers / attrs / 
 
 ## Time zones
 
-`time_zone` sits on `Request` and `FacetRequest` (Compose / Chain: per inner Request; `SampleRequest`: none). Slot `tz` sits on `groups`, `filterers`, `attributes`, `features` and `crosstab.rows`/`columns` entries — a slot key, never inside `params`. Names are `UTC` or IANA (`Europe/Berlin`); `EST`, `Local`, `+05:00` → `PULSE_TIMEZONE_UNKNOWN`.
+`time_zone` (or per-row `time_zone_field`) sits on `Request` and `FacetRequest` (Compose / Chain: per inner Request). Slot `tz` (or `tz_field`, not both) sits on `groups`, `filterers`, `attributes`, `features` and `crosstab.rows`/`columns` entries — never inside `params`. Names are `UTC` or IANA; `EST`, `Local`, `+05:00` → `PULSE_TIMEZONE_UNKNOWN`.
 
-Precedence per slot: `tz` → `time_zone` → `pulse.Options.DefaultTimeZone` → `UTC`. Only manifest `zone: "capable"` operators take `tz`; a `zone: "following"` operator (the year-over-year overlay) inherits its host grouper's zone; extension operators are never capable.
+Precedence per slot: `tz` → `tz_field` → `time_zone_field` → `time_zone` → `pulse.Options.DefaultTimeZone` → `UTC`. Only manifest `zone: "capable"` operators take `tz`; a `zone: "following"` operator inherits its host grouper's zone; extensions never are.
 
-On a `datetime` field instants read on their local day (DST-correct). Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; explicit `tz` on a `date` field (even `"UTC"`); a non-UTC zone on a derived field. An inherited zone on a `date` field is not applied. UTC (and aliases like `Etc/UTC`) is byte-identical to no zone.
+On a `datetime` field instants read on their local day. Refused with `PROCESSING_CONFIG`: `tz` on a non-capable operator; explicit `tz` on a `date` field (even `"UTC"`); a non-UTC zone on a derived field. An inherited zone on a `date` field is not applied. UTC is byte-identical to no zone.
 
 ## Predict-specific data fields
 
-`streamable`, `streamable_reasons`, `defaults_applied`, `weights` / `suggested_weight` ([`weighting`](weighting.md)), `resolved_vectors`, `time_zones` (per zone-capable slot: `{slot, operator, field_type, tz, source}`, `source` ∈ `slot|request|options|default`), `suggestions` (`on_invalid="suggest"`), per-slot `buffered_components` (non-mergeable).
+`streamable`, `streamable_reasons`, `defaults_applied`, `weights` / `suggested_weight` ([`weighting`](weighting.md)), `resolved_vectors`, `time_zones` (per zone-capable slot: `{slot, operator, field_type, tz, source}`, `source` ∈ `slot|request|options|default|field`), `suggestions` (`on_invalid="suggest"`), per-slot `buffered_components` (non-mergeable).
 
 ## Cross-links
 

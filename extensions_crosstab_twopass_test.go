@@ -16,6 +16,9 @@ import (
 // arm.
 func twoPassCrosstabRequest(at types.AttributeType) *types.Request {
 	return &types.Request{
+		// score is nullable: a null source scores null on both arms
+		// (parityZScore is an extend.NullableAttribute), so the cells
+		// and the n_null floors cover the null path too.
 		Cohort:     &types.Cohort{Filename: "parity.pulse"},
 		Attributes: []*types.Attribute{{Type: at, Field: "score", Label: "derived"}},
 		Crosstab: &types.CrosstabSpec{

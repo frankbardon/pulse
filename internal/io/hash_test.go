@@ -174,3 +174,34 @@ func TestExportJob_Hash_TimeZone(t *testing.T) {
 		t.Fatal("TimeZone does not participate in ExportJob.Hash")
 	}
 }
+
+// TestConvertJob_Hash_SourceZoneParticipates: every source-zone option
+// changes what a convert writes (the target's datetime text and the kept
+// cohort), so each one moves the hash; a zone-free job hashes exactly as
+// the pre-zone shape did.
+func TestConvertJob_Hash_SourceZoneParticipates(t *testing.T) {
+	base := &ConvertJob{KeepPulseAt: "k.pulse", Includes: []string{"x"}}
+	legacy := types.CanonicalHash("convert_job", &struct {
+		KeepPulseAt string   `json:"keep_pulse_at,omitempty"`
+		SampleRows  int      `json:"sample_rows,omitempty"`
+		Includes    []string `json:"includes,omitempty"`
+	}{KeepPulseAt: "k.pulse", Includes: []string{"x"}})
+	if base.Hash() != legacy {
+		t.Fatal("a zone-free ConvertJob's hash moved")
+	}
+	seen := map[string]string{base.Hash(): "none"}
+	for name, set := range map[string]func(*ConvertJob){
+		"source_tz":        func(j *ConvertJob) { j.SourceTZ = "Europe/Berlin" },
+		"column_source_tz": func(j *ConvertJob) { j.ColumnSourceTZ = map[string]string{"t": "Asia/Tokyo"} },
+		"source_tz_field":  func(j *ConvertJob) { j.SourceTZField = "zone" },
+		"dst_policy":       func(j *ConvertJob) { j.DSTPolicy = DSTPolicyLater },
+	} {
+		j := &ConvertJob{KeepPulseAt: "k.pulse", Includes: []string{"x"}}
+		set(j)
+		h := j.Hash()
+		if prev, dup := seen[h]; dup {
+			t.Errorf("%s hashes like %s", name, prev)
+		}
+		seen[h] = name
+	}
+}

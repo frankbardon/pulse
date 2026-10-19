@@ -12,16 +12,19 @@ import (
 // sortCache memoizes sorted index slices for distinct (partitionBy, orderBy)
 // tuples over a single Apply invocation. Key encoding is intentionally simple
 // (\x00 separators between names) — it's only ever compared for equality and
-// never persisted.
+// never persisted. orders is the run's grouper key orders (KeyOrders),
+// fixed for the whole invocation, so it never enters the cache key.
 type sortCache struct {
-	rows []map[string]any
-	by   map[string][]int
+	rows   []map[string]any
+	by     map[string][]int
+	orders KeyOrders
 }
 
-func newSortCache(rows []map[string]any) *sortCache {
+func newSortCache(rows []map[string]any, orders KeyOrders) *sortCache {
 	return &sortCache{
-		rows: rows,
-		by:   make(map[string][]int),
+		rows:   rows,
+		by:     make(map[string][]int),
+		orders: orders,
 	}
 }
 
@@ -36,7 +39,7 @@ func (c *sortCache) get(partitionBy []string, orderBy []types.OrderKey) ([]int, 
 	for i := range idx {
 		idx[i] = i
 	}
-	sortIndices(c.rows, idx, partitionBy, orderBy)
+	sortIndices(c.rows, idx, partitionBy, orderBy, c.orders)
 	c.by[key] = idx
 	return idx, nil
 }
@@ -66,17 +69,41 @@ func tupleKey(partitionBy []string, orderBy []types.OrderKey) string {
 	return sb.String()
 }
 
+// KeyLess orders two string cells of one column ascending: true when a
+// sorts strictly before b. It is a grouper's intrinsic key order — the
+// window package cannot see groupers, so the engine hands the order in
+// as data (KeyOrders). It must be a strict weak order whose ties are
+// exactly equal strings, so a key it does not rank still orders
+// byte-wise.
+type KeyLess func(a, b string) bool
+
+// KeyOrders maps a grouper key column (a grouped row's key cell) to its
+// grouper's intrinsic key order: GROUP_DATE day_of_week Monday-first,
+// GROUP_DATE_RANGES / GROUP_NUMERIC_RANGES labels in supplied order,
+// the numeric bucket groupers by value. Every sort here — Request.Sort
+// (SortKeyed), window ORDER BY (ApplyKeyed) and WIN_RANK / DENSE_RANK
+// ties — compares a column it names through CompareKeyOrdered. Nil (or
+// a column it does not name) is the plain CompareKey order.
+type KeyOrders map[string]KeyLess
+
 // Sort orders rows in place by keys. Stable sort; nulls last regardless of
 // each key's Desc direction. Used by the processor for response-level sort
 // (Request.Sort) and reusable by callers who want a top-level reorder.
 //
 // When keys is empty, Sort is a no-op.
 func Sort(rows []map[string]any, keys []types.OrderKey) {
+	SortKeyed(rows, keys, nil)
+}
+
+// SortKeyed is Sort under grouper key orders: a key whose column
+// orders names compares two string cells by that column's KeyLess
+// (CompareKeyOrdered). Nil orders is Sort.
+func SortKeyed(rows []map[string]any, keys []types.OrderKey, orders KeyOrders) {
 	if len(keys) == 0 || len(rows) == 0 {
 		return
 	}
 	sort.SliceStable(rows, func(a, b int) bool {
-		return rowsLess(rows[a], rows[b], keys)
+		return rowsLess(rows[a], rows[b], keys, orders)
 	})
 }
 
@@ -86,7 +113,9 @@ func Sort(rows []map[string]any, keys []types.OrderKey) {
 // same stability (ties keep their input order), nulls last in both
 // directions. Nil when keys is empty (the identity order). The
 // materialize path orders source indices with it, so its output rows
-// follow exactly the order Request.Sort gives Process's row set.
+// follow exactly the order Request.Sort gives Process's row set. It
+// takes no key orders: materialize refuses groups, so its rows carry no
+// grouper key column.
 func SortOrder(rows []map[string]any, keys []types.OrderKey) []int {
 	if len(keys) == 0 {
 		return nil
@@ -96,20 +125,30 @@ func SortOrder(rows []map[string]any, keys []types.OrderKey) []int {
 		idx[i] = i
 	}
 	sort.SliceStable(idx, func(a, b int) bool {
-		return rowsLess(rows[idx[a]], rows[idx[b]], keys)
+		return rowsLess(rows[idx[a]], rows[idx[b]], keys, nil)
 	})
 	return idx
 }
 
 // rowsLess is Request.Sort's comparator: the first key whose cells
-// differ decides (CompareKey); equal on every key is not less.
-func rowsLess(a, b map[string]any, keys []types.OrderKey) bool {
+// differ decides (CompareKeyOrdered); equal on every key is not less.
+func rowsLess(a, b map[string]any, keys []types.OrderKey, orders KeyOrders) bool {
+	return CompareRows(a, b, keys, orders) < 0
+}
+
+// CompareRows orders two rows under keys: the first key whose cells
+// differ decides, each through CompareKeyOrdered with its column's
+// KeyLess (orders[key.Field], nil when orders does not name it).
+// Negative when a sorts before b; 0 when equal on every key. It is the
+// one row comparator of Request.Sort, window ORDER BY and post-test
+// order_by.
+func CompareRows(a, b map[string]any, keys []types.OrderKey, orders KeyOrders) int {
 	for _, k := range keys {
-		if cmp := CompareKey(a[k.Field], b[k.Field], k.Desc); cmp != 0 {
-			return cmp < 0
+		if cmp := CompareKeyOrdered(a[k.Field], b[k.Field], k.Desc, orders[k.Field]); cmp != 0 {
+			return cmp
 		}
 	}
-	return false
+	return 0
 }
 
 // CompareKey orders two cells under one sort key: negative when a sorts
@@ -120,6 +159,16 @@ func rowsLess(a, b map[string]any, keys []types.OrderKey) bool {
 // post-test order_by) says nulls last regardless of direction. Every
 // ordering arm in the engine routes through here.
 func CompareKey(a, b any, desc bool) int {
+	return CompareKeyOrdered(a, b, desc, nil)
+}
+
+// CompareKeyOrdered is CompareKey under a grouper key order: when less
+// is non-nil and both cells are strings (grouper keys), they compare by
+// less — reversed under desc — instead of byte-wise. A null, a
+// non-string cell, or a nil less keeps CompareKey's order exactly, so a
+// key the grouper does not rank (an ISO date) and every numeric column
+// order as before.
+func CompareKeyOrdered(a, b any, desc bool, less KeyLess) int {
 	a, b = sortValue(a), sortValue(b)
 	aNull, bNull := isNullCell(a), isNullCell(b)
 	switch {
@@ -130,7 +179,19 @@ func CompareKey(a, b any, desc bool) int {
 	case bNull:
 		return -1
 	}
-	cmp := compareCell(a, b)
+	var cmp int
+	as, aok := a.(string)
+	bs, bok := b.(string)
+	if less != nil && aok && bok {
+		switch {
+		case less(as, bs):
+			cmp = -1
+		case less(bs, as):
+			cmp = 1
+		}
+	} else {
+		cmp = compareCell(a, b)
+	}
 	if desc {
 		return -cmp
 	}
@@ -138,7 +199,8 @@ func CompareKey(a, b any, desc bool) int {
 }
 
 // sortIndices sorts idx by (partitionBy ASC, orderBy). Stable. Nulls last.
-func sortIndices(rows []map[string]any, idx []int, partitionBy []string, orderBy []types.OrderKey) {
+// An order key whose column orders names follows that grouper key order.
+func sortIndices(rows []map[string]any, idx []int, partitionBy []string, orderBy []types.OrderKey, orders KeyOrders) {
 	sort.SliceStable(idx, func(a, b int) bool {
 		ra, rb := rows[idx[a]], rows[idx[b]]
 		for _, p := range partitionBy {
@@ -147,12 +209,7 @@ func sortIndices(rows []map[string]any, idx []int, partitionBy []string, orderBy
 				return cmp < 0
 			}
 		}
-		for _, o := range orderBy {
-			if cmp := CompareKey(ra[o.Field], rb[o.Field], o.Desc); cmp != 0 {
-				return cmp < 0
-			}
-		}
-		return false
+		return CompareRows(ra, rb, orderBy, orders) < 0
 	})
 }
 

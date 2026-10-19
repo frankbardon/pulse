@@ -1,0 +1,6 @@
+[
+  {"name": "id", "type": "u32", "description": "Unique order identifier (1..N)"},
+  {"name": "warehouse_tz", "type": "categorical_u8", "description": "IANA time zone of the warehouse that fulfilled the order; every dictionary entry is a zone name"},
+  {"name": "ordered_at", "type": "datetime", "description": "Instant the order was placed (UTC epoch seconds)"},
+  {"name": "revenue", "type": "f64", "description": "Order revenue in USD"}
+]

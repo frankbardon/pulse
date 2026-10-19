@@ -24,6 +24,7 @@ type FilterToFileRequest struct {
     OutputDir  string             // Where to write the result
     OutputName string             // Optional override; default: {srcHash}_{predHash}.pulse
     Models     []types.ModelRef   // Saved models the predicate's coef() reads
+    TimeZone   string             // IANA zone a to_day() in the predicate reads
 }
 
 type FilterToFileResult struct {
@@ -84,7 +85,14 @@ Filterers: []*types.Filterer{
 ```
 
 Supported types: `FILTER_EXPRESSION` (pass-through), `FILTER_INCLUDE`,
-`FILTER_EXCLUDE`, `FILTER_RANGE`, `FILTER_NULL`.
+`FILTER_EXCLUDE`, `FILTER_RANGE`, `FILTER_NULL`. Any other type —
+`FILTER_DATE_RANGES`, an extension filterer, a type the instance's
+feature profile hides, a never-registered name — is refused
+`PROCESSING_CONFIG` `filter_to_file: unsupported filter type "<T>"`
+with details `{operator}`; express a date window as a
+`FILTER_EXPRESSION` over `to_day(ts)` instead. A filterer `tz` is
+refused `PROCESSING_CONFIG` too (none of the translatable types is
+zone-capable); set the request `TimeZone`.
 
 Each filterer's `Field` is judged by the same field rule `Process` and
 predict use, against the cohort schema (a shard archive's canonical
@@ -116,6 +124,27 @@ A load fault carries the model codes (`PULSE_MODEL_FILE_UNREADABLE`,
 instance whose feature profile hides it refuses a set `Models` as
 `PULSE_REQUEST_UNKNOWN_FIELD`, as `Request` and `FacetRequest` do.
 
+### Time zone
+
+`TimeZone` (`time_zone`) is the request-level IANA zone a `to_day()`
+call in the predicate reads, by the `Request.TimeZone` rule: it wins
+over `Options.DefaultTimeZone`, which wins over UTC. An unknown name
+is `PULSE_TIMEZONE_UNKNOWN`, refused before the source is read whether
+or not the predicate calls `to_day`:
+
+```go
+res, err := p.FilterToFileWithRequest(ctx, &pulse.FilterToFileRequest{
+    SourcePath: "orders.pulse",
+    Expression: `to_day(placed_at) == ship_day`,
+    OutputDir:  "derived/",
+    TimeZone:   "America/New_York",
+})
+```
+
+The CLI's `pulse cohort filter --time-zone Zone` gives `to_day()` the
+same zone (as the instance default); see
+[`--time-zone`](../cli/flags.md#--time-zone-cohort-filter).
+
 ## Deterministic output naming
 
 When `OutputName` is empty, the basename is computed as:
@@ -132,11 +161,12 @@ When `OutputName` is empty, the basename is computed as:
   payload, so rewriting a model file (same name and path, a different
   fit) lands on a new output instead of silently reusing the one built
   from the old fit. A request without `Models` hashes exactly as it
-  always has. A predicate calling `to_day()` reads the instance's
-  `Options.DefaultTimeZone` (filter-to-file carries no request zone);
-  a non-UTC zone joins the payload too, so two instances in different
-  zones never share an output. A predicate that reads no zone hashes
-  as it always has.
+  always has. A predicate calling `to_day()` reads the request
+  `TimeZone`, else the instance's `Options.DefaultTimeZone`, else UTC;
+  a non-UTC zone joins the payload too, so two runs in different zones
+  never share an output, while the same resolved zone named by either
+  knob lands on the same one. A predicate that reads no zone, or reads
+  UTC, hashes as it always has.
 
 Independent consumers building the same request reach the same path
 without coordination. Combined with a `Watch` on `OutputDir`, this is

@@ -585,7 +585,7 @@ pulse import parquet -i embeddings.parquet -o emb.pulse \
   --vector embedding:f32 --vector-kind embedding:measure
 ```
 
-### `--source-tz` / `--dst-policy`
+### `--source-tz` / `--source-tz-field` / `--dst-policy`
 
 Available on: every `import <format>` leaf, `import auto`, `import predict`,
 `convert` and `convert predict`.
@@ -601,20 +601,37 @@ a calendar day and has no zone). The bare form skips `date` columns. A
 value carrying its own `Z` or offset names that instant and ignores the
 zone. Without `--source-tz` the cohort is byte-identical to before.
 
+`--source-tz-field col` reads each ROW's zone from column `col` (same
+spellings, `±HH:MM` included): every naive `datetime` column not named by a
+`--source-tz col=Zone` reads in the zone its own row names, so one source
+can mix New York, Berlin and Kolkata rows. The zone column imports as an
+ordinary column (typically a categorical). A bare `--source-tz` becomes the
+fallback for an empty zone cell; with no fallback that row is a row error
+(`PULSE_IMPORT_ROW_ERROR`), and an unknown name is a row error coded
+`PULSE_TIMEZONE_UNKNOWN` — both name `row`, `column` and `zone_column`,
+skip the row, and count toward `PULSE_IMPORT_ROWS_DROPPED` (fatal under
+`--strict`). A value with its own `Z` / offset never consults the zone. A
+`col` the source does not carry, or a `datetime` column, is `CLI_INPUT`.
+Each distinct zone name is loaded once per pass; `--dst-policy` applies
+row by row, and a refusal names that row's zone.
+
 `--dst-policy` decides a naive value a DST transition makes ambiguous (a
 fall-back repeats the hour) or nonexistent (a spring-forward skips it):
 `error` (default) fails the import at the first such row with
 `PULSE_IMPORT_DST_AMBIGUOUS` / `PULSE_IMPORT_DST_NONEXISTENT`, naming
 `row`, `column`, `value` and `zone`, and writes nothing; `earlier` uses
-the pre-transition offset (an overlap's first occurrence; Berlin
-`2026-03-29 02:30` → `01:30Z`), `later` the post-transition offset
-(second occurrence; → `00:30Z`). A resolved value is never silent: one
+the pre-transition offset, `later` the post-transition offset. For an
+overlap that is the first / second occurrence. For a nonexistent time it
+inverts the wall clock: Berlin `2026-03-29 02:30` under `earlier` is
+`01:30Z` = `03:30` local (the LATER wall clock), under `later` `00:30Z` =
+`01:30` local. A resolved value is never silent: one
 `PULSE_IMPORT_DST_RESOLVED` warning carries `ambiguous_n` /
 `nonexistent_n` (`warnings` and `data.zone_warnings` under `--json`). The
 policy is inert without a zone and under a fixed offset.
 
 On `import auto` the zone, per-column map and policy are persisted onto
-the managed sidecar (`source_tz`, `column_source_tz`, `dst_policy`); a
+the managed sidecar (`source_tz`, `column_source_tz`, `source_tz_field`,
+`dst_policy`; each omitted when unset); a
 handle is never reused across zones — re-importing in another zone needs
 `--overwrite`. `import predict` and `convert predict` raise the refusal
 the real run would and report the resolved count. `convert` is a text
@@ -622,13 +639,20 @@ pass, so a zoned naive value is written to the target as the canonical
 UTC literal of the instant it names (`2026-07-01T16:00:00Z`); a value
 with its own `Z` / offset, an unparseable cell and every other column
 pass through verbatim, and a `--keep-pulse` cohort is imported in the
-same zone. `pulse_import` (MCP) takes `source_tz`, `column_source_tz`
-(`{column: zone}`) and `dst_policy`.
+same zone. Under `--source-tz-field` a row whose zone cannot be resolved
+is dropped before the target (`PULSE_IMPORT_ROWS_DROPPED` with `stage`
+`source`) rather than written as a naive literal. `pulse_import` (MCP)
+takes `source_tz`, `column_source_tz` (`{column: zone}`),
+`source_tz_field` and `dst_policy`.
 
 ```bash
 pulse import csv -i orders.csv -o orders.pulse \
   --source-tz America/New_York --source-tz shipped_at=Europe/London \
   --dst-policy later
+
+# each row names its own zone; empty cells read in UTC
+pulse import csv -i shipments.csv -o shipments.pulse \
+  --source-tz-field warehouse_tz --source-tz UTC
 ```
 
 ### `--tz` (export)
@@ -660,6 +684,64 @@ library knob is `io.ExportJob.TimeZone`; the manifest's
 
 ```bash
 pulse export csv -i orders.pulse -o orders.csv --tz Asia/Kolkata
+```
+
+### `--time-zone` (cohort filter)
+
+Available on: `cohort filter`.
+
+`--time-zone Zone` is the zone a `to_day()` call in `--filter` reads,
+on both predicate shapes (`--filter` alone, and `--include-from` AND
+`--filter`): `to_day(ts) == d` keeps a row whose `ts` falls on `d` on
+`Zone`'s wall clock. It is the instance default zone
+(`Options.DefaultTimeZone`), so a predicate reads it exactly as
+`FilterToFileRequest.TimeZone` would. `Zone` is an IANA name or `UTC`;
+an unknown name is a `PULSE_TIMEZONE_UNKNOWN` envelope, exit 1, refused
+before the cohort is read and with nothing written. Absent, `to_day`
+reads UTC and the output is byte-identical to today's. The output path
+is always `-o`; the leaf does no dedup naming (that is
+[`FilterToFileWithRequest`](../library/filter-to-file.md)).
+
+```bash
+pulse cohort filter -i orders.pulse -o ny_same_day.pulse \
+  --filter 'to_day(placed_at) == ship_day' --time-zone America/New_York
+```
+
+### `--labels` (export)
+
+Available on: every `export <format>` leaf and `export predict`.
+
+`--labels FIELD=TABLE[:replace|augment]` binds a label table (from
+`PULSE_LABEL_TABLES_DIR`) to a field. On every row format (`csv`, `tsv`,
+`ndjson`, `jsonarray`, `excel`, `arrow`, `parquet`) `replace` rewrites
+the cell to its label and `augment` adds a `FIELD_label` column after
+it; `export spss` writes value labels instead (see
+[Value labels](export-spss.md#value-labels)). The field may be:
+
+- a `categorical_*` field — the table is keyed by its dictionary text;
+- an integer-coded `u4` / `u8` / `u16` / `u32` field — the table is
+  keyed by the stored integers' plain decimal spellings (`"1"`, `"7"`).
+  A `replace` column becomes text (`arrow` / `parquet` / `excel` type it
+  as a string); an `augment` column keeps its integer type. A key that is
+  not such a spelling (text, `"01"`, `"1.0"`, past the type's maximum)
+  refuses the export `PULSE_LABEL_KEY_INVALID`.
+
+Any other type (`f32` / `f64`, `u64`, `decimal128`, `date`, `datetime`,
+`packed_bool`, `set_*`, `vec_*`) refuses
+`PULSE_LABEL_FIELD_NOT_CATEGORICAL` before a byte is written, and
+`export predict --labels` raises the same code with or without
+`--format`. So does a binding on a field the cohort lacks
+(`PULSE_LABEL_FIELD_UNKNOWN`) and a second binding on one field
+(`PULSE_LABEL_DUPLICATE_BINDING`) — the codes `export spss` raises — on
+every row format, rather than labelling nothing or letting the last
+binding win. Under `--json` each refusal is the envelope's error, exit
+status 1. A value the table lacks keeps its raw text — an unmatched
+code keeps its number — and `augment` leaves its `FIELD_label` cell
+empty; one `PULSE_LABEL_LOOKUP_MISS` warning per field summarises them.
+
+```bash
+PULSE_LABEL_TABLES_DIR=./labels \
+  pulse export csv -i survey.pulse -o survey.csv --labels gender=gender_names:augment
 ```
 
 ### Vector fields (export)
@@ -708,7 +790,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse api process` | Execute a processing request against a cohort | [api process](api-process.md) |
 | `pulse api process-chain` | Source-rooted linear chain of mergeable stages | [api process](api-process.md) |
 | `pulse api sample` | Return sample rows from a cohort | [api sample](api-sample.md) |
-| `pulse cohort filter` | Filter a `.pulse` file to a new `.pulse` file | `--help` |
+| `pulse cohort filter` | Filter a `.pulse` file to a new `.pulse` file: `-i IN -o OUT` plus `--filter EXPR` and / or `--include-from FILE --include-field F` (AND-combined, set first); `--time-zone Zone` is the zone a `to_day()` in `--filter` reads (absent = UTC) | [`--time-zone`](#--time-zone-cohort-filter) |
 | `pulse cohort inspect` | Inspect a `.pulse` header and schema | [cohort inspect](cohort-inspect.md) |
 | `pulse convert` | Convert between tabular formats, auto-detected from extensions | [import spss](import-spss.md), [export spss](export-spss.md) |
 | `pulse convert predict` | Validate a conversion without writing output | [export spss](export-spss.md) |
@@ -736,7 +818,7 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse features init` | Print strict feature-profile JSON listing every feature this build offers, or `--from NAME` seeded from an example feature profile | [feature profiles](../library/feature-profiles.md) |
 | `pulse features show` | Describe every feature a feature profile lists: kind, category, source, since and dependencies | [feature profiles](../library/feature-profiles.md) |
 | `pulse import arrow` | Import Arrow IPC into `.pulse` | `--help` |
-| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--schema` / `--ignore-extra` / `--float` as on `import <format>`, `--strict` (a partial import is fatal), `--group` parent-group declarations, `--vector` / `--vector-kind` vector folds, `--source-tz` / `--dst-policy`, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
+| `pulse import auto` | Auto-detect a source format into the managed pool; carries the per-format read knobs `--sheet` (Excel) and `--charset` (SPSS), `--schema` / `--ignore-extra` / `--float` as on `import <format>`, `--strict` (a partial import is fatal), `--group` parent-group declarations, `--vector` / `--vector-kind` vector folds, `--source-tz` / `--source-tz-field` / `--dst-policy`, and deliberately not `--spss-missing` | [import spss](import-spss.md) |
 | `pulse import csv` | Import CSV into `.pulse` | `--help` |
 | `pulse import drop` | Remove a managed-import handle | `--help` |
 | `pulse import excel` | Import Excel into `.pulse` | `--help` |

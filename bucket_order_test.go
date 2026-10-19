@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -220,15 +221,23 @@ func TestBucketOrder_ExplicitSortWins(t *testing.T) {
 	if got := columnOf(resp.Data, "s"); !reflect.DeepEqual(got, want) {
 		t.Errorf("sum-desc rows = %v, want %v", got, want)
 	}
-	// Sorting on the key column itself compares the key strings.
-	req = bucketOrderGroupReq("flat.pulse", decileGroup())
-	req.Sort = []types.OrderKey{{Field: "s"}}
-	resp, err = p.Process(context.Background(), req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := columnOf(resp.Data, "s"); got[1] != "D10" {
-		t.Errorf("key-column sort = %v, want the string order (D1, D10, …)", got)
+	// Sorting on the key column itself follows the grouper's key order
+	// (D1, D2, …, D10), never the key strings (D1, D10, …) — and desc
+	// reverses it.
+	for _, desc := range []bool{false, true} {
+		req = bucketOrderGroupReq("flat.pulse", decileGroup())
+		req.Sort = []types.OrderKey{{Field: "s", Desc: desc}}
+		resp, err = p.Process(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := append([]string(nil), bucketOrderDeciles...)
+		if desc {
+			slices.Reverse(want)
+		}
+		if got := columnOf(resp.Data, "s"); !reflect.DeepEqual(got, want) {
+			t.Errorf("key-column sort (desc=%v) = %v, want the bucket order %v", desc, got, want)
+		}
 	}
 }
 

@@ -245,3 +245,81 @@ func TestGrouper_DateRanges_UnmatchedLabelCollision(t *testing.T) {
 		t.Errorf("collision error code = %v, want PROCESSING_CONFIG", got)
 	}
 }
+
+// TestGrouper_DateRanges_KeyRankAndInclude: the keyOrderer rank is the
+// supplied index, unmatched last, any other key unranked; an include
+// list drops non-member rows at KeyFor and restricts the Components
+// buckets to its members — a zero-count included range still emits —
+// in include order.
+func TestGrouper_DateRanges_KeyRankAndInclude(t *testing.T) {
+	schema := dateSchema()
+	ko := makeDateRangesGrouper(t, phaseRangesParams(t, ""), schema).(keyOrderer)
+	for key, want := range map[string]float64{"launch": 0, "growth": 1, "steady": 2, "unmatched": 3} {
+		if r, ok := ko.keyRank(key); !ok || r != want {
+			t.Errorf("keyRank(%q) = %v, %v; want %v", key, r, ok, want)
+		}
+	}
+	if _, ok := ko.keyRank("nope"); ok {
+		t.Error("keyRank ranks a label the grouper never mints")
+	}
+
+	factory := grouperRegistry[types.GROUP_DATE_RANGES]
+	g, err := factory(&types.Group{Type: types.GROUP_DATE_RANGES, Field: "enrolled", Params: phaseRangesParams(t, ""),
+		Include: []string{"unmatched", "growth", "launch", "nope"}}, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	records := makeRecords(schema, "enrolled", []float64{
+		epochDays(2024, 12, 1), // steady: not included
+		epochDays(2024, 2, 15), // launch
+		epochDays(2023, 6, 1),  // unmatched
+	})
+	groups, err := g.Group(records, "enrolled")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(groups) != 2 || len(groups["launch"]) != 1 || len(groups["unmatched"]) != 1 {
+		t.Fatalf("groups = %v, want launch and unmatched only", groupKeys(groups))
+	}
+	comp, err := g.(MetaGrouper).Components()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keys []string
+	for _, b := range comp["buckets"].([]map[string]any) {
+		keys = append(keys, b["key"].(string))
+	}
+	if want := []string{"unmatched", "growth", "launch"}; !equalStrings(keys, want) {
+		t.Errorf("components buckets = %v, want %v", keys, want)
+	}
+}
+
+// TestGrouper_Date_KeyRank: day_of_week ranks Monday..Sunday; every
+// other component, and a key the component never mints, is unranked
+// (alphabetical, byte-identically).
+func TestGrouper_Date_KeyRank(t *testing.T) {
+	mk := func(component string) keyOrderer {
+		g, err := grouperRegistry[types.GROUP_DATE](&types.Group{Type: types.GROUP_DATE, Field: "enrolled",
+			Params: json.RawMessage(`{"component":"` + component + `"}`)}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return g.(keyOrderer)
+	}
+	dow := mk("day_of_week")
+	for i, d := range []string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"} {
+		if r, ok := dow.keyRank(d); !ok || r != float64(i) {
+			t.Errorf("day_of_week keyRank(%q) = %v, %v; want %d", d, r, ok, i)
+		}
+	}
+	// hour_of_day's zero-padded keys sort numerically as strings, so
+	// it — like every ISO-keyed component — needs no rank.
+	for _, tc := range []struct {
+		g   keyOrderer
+		key string
+	}{{dow, "monday"}, {mk("hour_of_day"), "07"}, {mk("day"), "2026-03-02"}, {mk("month"), "2026-03"}} {
+		if _, ok := tc.g.keyRank(tc.key); ok {
+			t.Errorf("keyRank(%q) ranked", tc.key)
+		}
+	}
+}

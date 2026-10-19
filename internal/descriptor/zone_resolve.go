@@ -28,6 +28,8 @@ type zoneSlot struct {
 	operator string
 	field    string
 	tz       string
+	// tzField is the slot's own `tz_field` (a per-row zone field).
+	tzField string
 	// hidden: the instance hides operator, so it is judged as a
 	// never-registered (not zone-capable) name; messages keep naming it.
 	hidden bool
@@ -37,14 +39,19 @@ type zoneSlot struct {
 // runtime (internal/service, every execution mode) and predict both
 // call it, so a request is refused or accepted identically by both.
 //
-// Precedence per zone-capable slot: slot `tz` → req.TimeZone →
-// defaultZone (pulse.Options.DefaultTimeZone) → "UTC". Rules, in
-// evaluation order:
+// Precedence per zone-capable slot: slot `tz` → slot `tz_field` →
+// req.TimeZoneField → req.TimeZone → defaultZone
+// (pulse.Options.DefaultTimeZone) → "UTC". A `tz_field` /
+// `time_zone_field` names a categorical field read per row; its rules
+// are resolveFieldZone's. Rules, in evaluation order:
 //
 //   - an unknown req.TimeZone or defaultZone → PULSE_TIMEZONE_UNKNOWN,
 //     whether or not a zone-capable slot is present;
-//   - an explicit slot `tz` on an operator that is not zone-capable
-//     (every extension operator included) → PROCESSING_CONFIG;
+//   - an explicit slot `tz` (then `tz_field`) on an operator that is
+//     not zone-capable (every extension operator included) →
+//     PROCESSING_CONFIG;
+//   - `tz` and `tz_field` both set on one slot → PROCESSING_CONFIG
+//     {slot, operator, tz, tz_field};
 //   - an explicit slot `tz` whose field is in the schema and is not
 //     `datetime` (a calendar `date`, or an epoch-day count) →
 //     PROCESSING_CONFIG;
@@ -78,36 +85,42 @@ func ResolveZones(req *types.Request, schema *encoding.Schema, defaultZone strin
 	if req == nil {
 		return []descriptor.ResolvedZone{}, nil
 	}
+	return resolveZoneSlots(requestZoneSlots(req, inst), req.TimeZone, req.TimeZoneField, schema, defaultZone, load, inst)
+}
+
+// requestZoneSlots flattens every slot of req that can carry a `tz` /
+// `tz_field`, in resolution order (see ResolveZones).
+func requestZoneSlots(req *types.Request, inst *InstanceSnapshot) []zoneSlot {
 	var slots []zoneSlot
 	for i, f := range req.Filterers {
 		if f != nil {
-			slots = append(slots, zoneSlot{fmt.Sprintf("filterers[%d]", i), string(f.Type), f.Field, f.TimeZone, inst.Hidden(string(f.Type))})
+			slots = append(slots, zoneSlot{slot: fmt.Sprintf("filterers[%d]", i), operator: string(f.Type), field: f.Field, tz: f.TimeZone, tzField: f.TimeZoneField, hidden: inst.Hidden(string(f.Type))})
 		}
 	}
 	for i, f := range req.Features {
 		if f != nil {
-			slots = append(slots, zoneSlot{fmt.Sprintf("features[%d]", i), string(f.Type), f.Field, f.TimeZone, inst.Hidden(string(f.Type))})
+			slots = append(slots, zoneSlot{slot: fmt.Sprintf("features[%d]", i), operator: string(f.Type), field: f.Field, tz: f.TimeZone, tzField: f.TimeZoneField, hidden: inst.Hidden(string(f.Type))})
 		}
 	}
 	for i, a := range req.Attributes {
 		if a != nil {
-			slots = append(slots, zoneSlot{fmt.Sprintf("attributes[%d]", i), string(a.Type), a.Field, a.TimeZone, inst.Hidden(string(a.Type))})
+			slots = append(slots, zoneSlot{slot: fmt.Sprintf("attributes[%d]", i), operator: string(a.Type), field: a.Field, tz: a.TimeZone, tzField: a.TimeZoneField, hidden: inst.Hidden(string(a.Type))})
 		}
 	}
 	for i, g := range req.Groups {
 		if g != nil {
-			slots = append(slots, zoneSlot{fmt.Sprintf("groups[%d]", i), string(g.Type), g.Field, g.TimeZone, inst.Hidden(string(g.Type))})
+			slots = append(slots, zoneSlot{slot: fmt.Sprintf("groups[%d]", i), operator: string(g.Type), field: g.Field, tz: g.TimeZone, tzField: g.TimeZoneField, hidden: inst.Hidden(string(g.Type))})
 		}
 	}
 	if ct := req.Crosstab; ct != nil {
 		for i, g := range ct.Rows {
 			if g != nil {
-				slots = append(slots, zoneSlot{fmt.Sprintf("crosstab.rows[%d]", i), string(g.Type), g.Field, g.TimeZone, inst.Hidden(string(g.Type))})
+				slots = append(slots, zoneSlot{slot: fmt.Sprintf("crosstab.rows[%d]", i), operator: string(g.Type), field: g.Field, tz: g.TimeZone, tzField: g.TimeZoneField, hidden: inst.Hidden(string(g.Type))})
 			}
 		}
 		for i, g := range ct.Columns {
 			if g != nil {
-				slots = append(slots, zoneSlot{fmt.Sprintf("crosstab.columns[%d]", i), string(g.Type), g.Field, g.TimeZone, inst.Hidden(string(g.Type))})
+				slots = append(slots, zoneSlot{slot: fmt.Sprintf("crosstab.columns[%d]", i), operator: string(g.Type), field: g.Field, tz: g.TimeZone, tzField: g.TimeZoneField, hidden: inst.Hidden(string(g.Type))})
 			}
 		}
 	}
@@ -122,10 +135,10 @@ func ResolveZones(req *types.Request, schema *encoding.Schema, defaultZone strin
 			continue
 		}
 		if g, ok := vectors.SpecBetween(m); ok {
-			slots = append(slots, zoneSlot{fmt.Sprintf("matrices[%d].params.between", i), string(g.Type), g.Field, g.TimeZone, inst.Hidden(string(g.Type))})
+			slots = append(slots, zoneSlot{slot: fmt.Sprintf("matrices[%d].params.between", i), operator: string(g.Type), field: g.Field, tz: g.TimeZone, tzField: g.TimeZoneField, hidden: inst.Hidden(string(g.Type))})
 		}
 	}
-	return resolveZoneSlots(slots, req.TimeZone, schema, defaultZone, load, inst)
+	return slots
 }
 
 // ResolveFacetZones is ResolveZones for a FacetRequest: its filterers
@@ -138,13 +151,13 @@ func ResolveFacetZones(req *types.FacetRequest, schema *encoding.Schema, default
 	var slots []zoneSlot
 	for i, f := range req.Filterers {
 		if f != nil {
-			slots = append(slots, zoneSlot{fmt.Sprintf("filterers[%d]", i), string(f.Type), f.Field, f.TimeZone, inst.Hidden(string(f.Type))})
+			slots = append(slots, zoneSlot{slot: fmt.Sprintf("filterers[%d]", i), operator: string(f.Type), field: f.Field, tz: f.TimeZone, tzField: f.TimeZoneField, hidden: inst.Hidden(string(f.Type))})
 		}
 	}
-	return resolveZoneSlots(slots, req.TimeZone, schema, defaultZone, load, inst)
+	return resolveZoneSlots(slots, req.TimeZone, req.TimeZoneField, schema, defaultZone, load, inst)
 }
 
-func resolveZoneSlots(slots []zoneSlot, requestZone string, schema *encoding.Schema, defaultZone string, load ZoneLoader, inst *InstanceSnapshot) ([]descriptor.ResolvedZone, error) {
+func resolveZoneSlots(slots []zoneSlot, requestZone, requestZoneField string, schema *encoding.Schema, defaultZone string, load ZoneLoader, inst *InstanceSnapshot) ([]descriptor.ResolvedZone, error) {
 	if load == nil {
 		load = temporal.LoadZone
 	}
@@ -185,7 +198,17 @@ func resolveZoneSlots(slots []zoneSlot, requestZone string, schema *encoding.Sch
 					fmt.Sprintf("%s: operator %s does not accept `tz`; %s", s.slot, s.operator, zoneCapableAdvice(inst)),
 					map[string]any{"slot": s.slot, "operator": s.operator, errors.DetailTimeZone: s.tz})
 			}
+			if s.tzField != "" {
+				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+					fmt.Sprintf("%s: operator %s does not accept `tz_field`; %s", s.slot, s.operator, zoneCapableAdvice(inst)),
+					map[string]any{"slot": s.slot, "operator": s.operator, detailZoneField: s.tzField})
+			}
 			continue
+		}
+		if s.tz != "" && s.tzField != "" {
+			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("%s: %s sets both `tz` (%q) and `tz_field` (%q); a slot reads one zone — set `tz` for one zone, or `tz_field` for a per-row zone", s.slot, s.operator, s.tz, s.tzField),
+				map[string]any{"slot": s.slot, "operator": s.operator, errors.DetailTimeZone: s.tz, detailZoneField: s.tzField})
 		}
 
 		// A date-family slot over a vector field is not a zone question:
@@ -209,6 +232,21 @@ func resolveZoneSlots(slots []zoneSlot, requestZone string, schema *encoding.Sch
 		// schema-less check never refuses what the runtime — which
 		// always has the schema — accepts.
 		schemaKnown := schema != nil
+
+		// A per-row zone field: the slot's own `tz_field`, else the
+		// request's `time_zone_field` — both outrank every zone name but
+		// the slot's own `tz`.
+		if zoneField, explicit := s.tzField, s.tzField != ""; s.tz == "" && (explicit || requestZoneField != "") {
+			if !explicit {
+				zoneField = requestZoneField
+			}
+			rz, err := resolveFieldZone(s, zoneField, explicit, fieldType, known, instants, schema)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, rz)
+			continue
+		}
 
 		name, source := inherited, inheritedSource
 		if s.tz != "" {
@@ -250,6 +288,76 @@ func resolveZoneSlots(slots []zoneSlot, requestZone string, schema *encoding.Sch
 		out = append(out, rz)
 	}
 	return out, nil
+}
+
+// detailZoneField is the CodedError.Details key carrying a slot's
+// per-row zone field (`tz_field`, or the inherited `time_zone_field`).
+const detailZoneField = "tz_field"
+
+// resolveFieldZone resolves one zone-capable slot whose zone is read
+// per row from zoneField — its own `tz_field` (explicit) or the
+// request's inherited `time_zone_field`. The echo is source "field",
+// tz_field named and tz null (the zone varies per row). Rules, mirroring
+// a zone name's:
+//
+//   - an explicit `tz_field` on a field in the schema that is not
+//     `datetime` → PROCESSING_CONFIG {slot, operator, tz_field, field,
+//     field_type}; an inherited one is not applied (nor judged);
+//   - the zone field, when in the schema, must be `categorical_*` →
+//     else PROCESSING_CONFIG {slot, operator, tz_field, field,
+//     field_type} (field and field_type the zone field's);
+//   - every dictionary entry must be a zone name LoadZone accepts
+//     (temporal.ValidZoneName — no table is built) → else
+//     PULSE_TIMEZONE_UNKNOWN {slot, field, tz, dictionary_index};
+//   - onto a slot field absent from the schema (a derived column) →
+//     PROCESSING_CONFIG {slot, operator, tz_field}: a per-row zone
+//     cannot be applied there any more than a zone name.
+//
+// A zone field absent from the schema is not judged here: the
+// field-reference pass (checkZoneFields), which every mode runs right
+// after this one, refuses it — against the joined schema of a join and
+// the synthesised schema of a chain stage alike. A nil schema skips
+// every field-dependent rule.
+func resolveFieldZone(s zoneSlot, zoneField string, explicit bool, fieldType string, known, instants bool, schema *encoding.Schema) (descriptor.ResolvedZone, error) {
+	rz := descriptor.ResolvedZone{Slot: s.slot, Operator: s.operator, FieldType: fieldType, TZField: zoneField, Source: descriptor.ZoneSourceField}
+	if schema == nil {
+		return rz, nil
+	}
+	if !instants {
+		if explicit {
+			return rz, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("%s: `tz_field` is set on %s over field %q of type %s; a time zone applies only to a datetime field (a calendar date carries no instant)", s.slot, s.operator, s.field, fieldType),
+				map[string]any{"slot": s.slot, "operator": s.operator, detailZoneField: zoneField, "field": s.field, "field_type": fieldType})
+		}
+		// Inherited zone field on a calendar-date field: not applied.
+		return rz, nil
+	}
+	if zf := schema.Field(zoneField); zf != nil {
+		if !zf.Type.IsCategorical() {
+			return rz, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+				fmt.Sprintf("%s: %s reads its per-row zone from field %q of type %s; a zone field must be categorical (categorical_u8 / u16 / u32) with IANA zone names as its values", s.slot, s.operator, zoneField, zf.Type),
+				map[string]any{"slot": s.slot, "operator": s.operator, detailZoneField: zoneField, "field": zoneField, "field_type": zf.Type.String()})
+		}
+		if zf.Dictionary != nil {
+			for i, name := range zf.Dictionary.Values() {
+				if err := temporal.ValidZoneName(name); err != nil {
+					ce, ok := err.(*errors.CodedError)
+					if !ok {
+						return rz, err
+					}
+					return rz, errors.NewCodedErrorWithDetails(ce.Code,
+						fmt.Sprintf("%s: zone field %q entry %d: %s", s.slot, zoneField, i, ce.Message),
+						map[string]any{"slot": s.slot, "field": zoneField, errors.DetailTimeZone: name, temporal.DetailDictionaryIndex: i})
+				}
+			}
+		}
+	}
+	if !known {
+		return rz, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("%s: %s reads a per-row zone from field %q onto field %q, which is not in the schema; a zone cannot be applied to a derived field — name a datetime schema field", s.slot, s.operator, zoneField, s.field),
+			map[string]any{"slot": s.slot, "operator": s.operator, detailZoneField: zoneField})
+	}
+	return rz, nil
 }
 
 // RefusalAt returns a located request-level refusal: err with its
@@ -391,37 +499,58 @@ func zoneCapableAdvice(inst *InstanceSnapshot) string {
 }
 
 // ZonedRequest returns the Request an execution arm runs: req itself
-// when no INHERITED zone (request `time_zone` or the options default)
-// that is not UTC-equivalent resolved onto a slot, otherwise a shallow
-// copy whose affected slots are copies carrying that zone in their
-// `tz`. zones is ResolveZones' result for req; load resolves a name
-// (nil: temporal.LoadZone).
+// when no INHERITED zone resolved onto a slot that must carry it,
+// otherwise a shallow copy whose affected slots are copies carrying it.
+// Two write-sets: an inherited zone NAME (request `time_zone` or the
+// options default) that is not UTC-equivalent is written into the
+// slot's `tz`; an inherited per-row zone FIELD (request
+// `time_zone_field`) resolved onto a `datetime` slot is written into
+// the slot's `tz_field`. zones is ResolveZones' result for req; load
+// resolves a name (nil: temporal.LoadZone).
 //
 // The operator factories see only the slot and the schema, so the zone
 // rides on the slot: every arm (buffered, streaming, fused crosstab,
 // parallel decode, shard reduce, chain stages) builds its operators
 // from the returned request and sees the zone with no further
-// plumbing. An explicit slot `tz` is already on the slot, an inherited
-// zone on a non-`datetime` field resolved to a null TZ and is never
-// written, and a UTC-equivalent zone is never written — so the zone-free
-// request executes the unchanged object. req is never mutated: the
-// caller's request (request echo, request hashing, the Compose echo)
-// stays exactly as the caller wrote it plus smart defaults.
+// plumbing. An explicit slot `tz` / `tz_field` is already on the slot,
+// an inherited zone (name or field) on a non-`datetime` field is never
+// written, and a UTC-equivalent zone name is never written — so the
+// zone-free request executes the unchanged object. req is never
+// mutated: the caller's request (request echo, request hashing, the
+// Compose echo) stays exactly as the caller wrote it plus smart
+// defaults.
 func ZonedRequest(req *types.Request, zones []descriptor.ResolvedZone, load ZoneLoader) *types.Request {
 	writes := inheritedZoneWrites(zones, load)
 	if req == nil || writes == nil {
 		return req
 	}
 	c := *req
-	c.Filterers = zonedFilterers(req.Filterers, writes)
-	if s, ok := zonedSlots(req.Features, "features", writes, func(f *types.Feature, tz string) *types.Feature { cp := *f; cp.TimeZone = tz; return &cp }); ok {
-		c.Features = s
+	changed := false
+	if s, ok := zonedSlots(req.Filterers, "filterers", writes, zonedFilterer); ok {
+		c.Filterers, changed = s, true
 	}
-	if s, ok := zonedSlots(req.Attributes, "attributes", writes, func(a *types.Attribute, tz string) *types.Attribute { cp := *a; cp.TimeZone = tz; return &cp }); ok {
-		c.Attributes = s
+	if s, ok := zonedSlots(req.Features, "features", writes, func(f *types.Feature, w zoneWrite) (*types.Feature, bool) {
+		if !w.changes(f.TimeZone, f.TimeZoneField) {
+			return f, false
+		}
+		cp := *f
+		w.apply(&cp.TimeZone, &cp.TimeZoneField)
+		return &cp, true
+	}); ok {
+		c.Features, changed = s, true
+	}
+	if s, ok := zonedSlots(req.Attributes, "attributes", writes, func(a *types.Attribute, w zoneWrite) (*types.Attribute, bool) {
+		if !w.changes(a.TimeZone, a.TimeZoneField) {
+			return a, false
+		}
+		cp := *a
+		w.apply(&cp.TimeZone, &cp.TimeZoneField)
+		return &cp, true
+	}); ok {
+		c.Attributes, changed = s, true
 	}
 	if s, ok := zonedSlots(req.Groups, "groups", writes, zonedGroup); ok {
-		c.Groups = s
+		c.Groups, changed = s, true
 	}
 	if req.Crosstab != nil {
 		rows, rok := zonedSlots(req.Crosstab.Rows, "crosstab.rows", writes, zonedGroup)
@@ -434,30 +563,63 @@ func ZonedRequest(req *types.Request, zones []descriptor.ResolvedZone, load Zone
 			if cok {
 				ct.Columns = cols
 			}
-			c.Crosstab = &ct
+			c.Crosstab, changed = &ct, true
 		}
 	}
 	if m, ok := zonedMatrices(req.Matrices, writes); ok {
-		c.Matrices = m
+		c.Matrices, changed = m, true
+	}
+	if !changed {
+		return req
 	}
 	return &c
 }
 
+// zoneWrite is one inherited zone to carry onto a slot: a zone name
+// (into `tz`) or a per-row zone field (into `tz_field`) — exactly one
+// is set.
+type zoneWrite struct {
+	tz      string
+	tzField string
+}
+
+// changes reports whether writing w onto a slot carrying tz / tzField
+// changes it.
+func (w zoneWrite) changes(tz, tzField string) bool {
+	if w.tzField != "" {
+		return tzField != w.tzField
+	}
+	return tz != w.tz
+}
+
+// apply writes w into a slot copy's `tz` / `tz_field`.
+func (w zoneWrite) apply(tz, tzField *string) {
+	if w.tzField != "" {
+		*tzField = w.tzField
+		return
+	}
+	*tz = w.tz
+}
+
 // zonedMatrices returns a copy of in with each MAT_DISTANCE spec whose
 // params.between inherited a zone (writes key
-// "matrices[i].params.between") carrying it as the between's `tz`, and
-// whether any spec was; in (and its Params bytes) is never mutated. The
-// params are re-encoded with the between's `tz` key set and every other
-// key kept; a between that does not decode as an object is left as is
-// (the matrix resolver refuses it).
-func zonedMatrices(in []types.MatrixSpec, writes map[string]string) ([]types.MatrixSpec, bool) {
+// "matrices[i].params.between") carrying it as the between's `tz` (or
+// `tz_field`), and whether any spec was; in (and its Params bytes) is
+// never mutated. The params are re-encoded with that key set and every
+// other key kept; a between that does not decode as an object is left
+// as is (the matrix resolver refuses it).
+func zonedMatrices(in []types.MatrixSpec, writes map[string]zoneWrite) ([]types.MatrixSpec, bool) {
 	var out []types.MatrixSpec
 	for i := range in {
-		tz, ok := writes[fmt.Sprintf("matrices[%d].params.between", i)]
+		w, ok := writes[fmt.Sprintf("matrices[%d].params.between", i)]
 		if !ok {
 			continue
 		}
-		params, ok := betweenWithZone(in[i].Params, tz)
+		key, value := "tz", w.tz
+		if w.tzField != "" {
+			key, value = "tz_field", w.tzField
+		}
+		params, ok := betweenWithZone(in[i].Params, key, value)
 		if !ok {
 			continue
 		}
@@ -470,8 +632,8 @@ func zonedMatrices(in []types.MatrixSpec, writes map[string]string) ([]types.Mat
 }
 
 // betweenWithZone re-encodes MAT_DISTANCE params with params.between's
-// `tz` set to tz.
-func betweenWithZone(raw json.RawMessage, tz string) (json.RawMessage, bool) {
+// key (`tz` or `tz_field`) set to value.
+func betweenWithZone(raw json.RawMessage, key, value string) (json.RawMessage, bool) {
 	var params map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &params); err != nil {
 		return nil, false
@@ -480,11 +642,11 @@ func betweenWithZone(raw json.RawMessage, tz string) (json.RawMessage, bool) {
 	if err := json.Unmarshal(params["between"], &between); err != nil || between == nil {
 		return nil, false
 	}
-	name, err := json.Marshal(tz)
+	name, err := json.Marshal(value)
 	if err != nil {
 		return nil, false
 	}
-	between["tz"] = name
+	between[key] = name
 	if params["between"], err = json.Marshal(between); err != nil {
 		return nil, false
 	}
@@ -502,64 +664,93 @@ func ZonedFacetRequest(req *types.FacetRequest, zones []descriptor.ResolvedZone,
 	if req == nil || writes == nil {
 		return req
 	}
+	s, ok := zonedSlots(req.Filterers, "filterers", writes, zonedFilterer)
+	if !ok {
+		return req
+	}
 	c := *req
-	c.Filterers = zonedFilterers(req.Filterers, writes)
+	c.Filterers = s
 	return &c
 }
 
-// inheritedZoneWrites maps each slot path that inherited a zone which is
-// not UTC-equivalent to that zone's name; nil when there is none (the
-// zone-free and UTC paths, which then allocate nothing). A slot-sourced
-// zone is already on its slot and the default source is always "UTC".
-func inheritedZoneWrites(zones []descriptor.ResolvedZone, load ZoneLoader) map[string]string {
+// inheritedZoneWrites maps each slot path that must carry an inherited
+// zone to it; nil when there is none (the zone-free and UTC paths,
+// which then allocate nothing). A zone name is written when it is not
+// UTC-equivalent and did not come from the slot (a slot-sourced zone is
+// already on its slot; the default source is always "UTC"). A per-row
+// zone field is written when it applies — the slot's field is
+// `datetime` (or not judged) — and the write is skipped by the slot
+// writer when the slot already names that field (its own `tz_field`).
+//
+// The operators read a slot's `tz_field` through a temporal.ZoneTable
+// (internal/processing/date_field.go, the FEAT_DATE_FEATURES computer)
+// and the projection decodes it (processing.NeededFields).
+func inheritedZoneWrites(zones []descriptor.ResolvedZone, load ZoneLoader) map[string]zoneWrite {
 	if load == nil {
 		load = temporal.LoadZone
 	}
-	var writes map[string]string
+	var writes map[string]zoneWrite
 	for _, z := range zones {
-		if z.TZ == nil || z.Source == descriptor.ZoneSourceSlot || z.Source == descriptor.ZoneSourceDefault {
+		var w zoneWrite
+		switch {
+		case z.Source == descriptor.ZoneSourceField:
+			if z.TZField == "" || (z.FieldType != "" && z.FieldType != encoding.FieldTypeDateTime.String()) {
+				continue
+			}
+			w = zoneWrite{tzField: z.TZField}
+		case z.TZ == nil || z.Source == descriptor.ZoneSourceSlot || z.Source == descriptor.ZoneSourceDefault:
 			continue
-		}
-		zone, err := load(*z.TZ)
-		if err != nil || zone.IsUTC() {
-			continue
+		default:
+			zone, err := load(*z.TZ)
+			if err != nil || zone.IsUTC() {
+				continue
+			}
+			w = zoneWrite{tz: *z.TZ}
 		}
 		if writes == nil {
-			writes = make(map[string]string)
+			writes = make(map[string]zoneWrite)
 		}
-		writes[z.Slot] = *z.TZ
+		writes[z.Slot] = w
 	}
 	return writes
 }
 
-func zonedGroup(g *types.Group, tz string) *types.Group {
+func zonedGroup(g *types.Group, w zoneWrite) (*types.Group, bool) {
+	if !w.changes(g.TimeZone, g.TimeZoneField) {
+		return g, false
+	}
 	cp := *g
-	cp.TimeZone = tz
-	return &cp
+	w.apply(&cp.TimeZone, &cp.TimeZoneField)
+	return &cp, true
 }
 
-func zonedFilterers(in []*types.Filterer, writes map[string]string) []*types.Filterer {
-	out, ok := zonedSlots(in, "filterers", writes, func(f *types.Filterer, tz string) *types.Filterer { cp := *f; cp.TimeZone = tz; return &cp })
-	if !ok {
-		return in
+func zonedFilterer(f *types.Filterer, w zoneWrite) (*types.Filterer, bool) {
+	if !w.changes(f.TimeZone, f.TimeZoneField) {
+		return f, false
 	}
-	return out
+	cp := *f
+	w.apply(&cp.TimeZone, &cp.TimeZoneField)
+	return &cp, true
 }
 
 // zonedSlots returns a copy of in with each slot named in writes
-// replaced by with(slot, zone), and whether any slot was; in is never
-// mutated.
-func zonedSlots[T any](in []*T, family string, writes map[string]string, with func(*T, string) *T) ([]*T, bool) {
+// replaced by with(slot, write) when that changes it, and whether any
+// slot was; in is never mutated.
+func zonedSlots[T any](in []*T, family string, writes map[string]zoneWrite, with func(*T, zoneWrite) (*T, bool)) ([]*T, bool) {
 	var out []*T
 	for i, s := range in {
-		tz, ok := writes[fmt.Sprintf("%s[%d]", family, i)]
+		w, ok := writes[fmt.Sprintf("%s[%d]", family, i)]
 		if !ok || s == nil {
+			continue
+		}
+		cp, changed := with(s, w)
+		if !changed {
 			continue
 		}
 		if out == nil {
 			out = append([]*T(nil), in...)
 		}
-		out[i] = with(s, tz)
+		out[i] = cp
 	}
 	return out, out != nil
 }

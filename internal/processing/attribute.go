@@ -31,6 +31,16 @@ import (
 // owes every row a value. The weighted mean and √(M2_w/Σw) are
 // invariant to rescaling the weights, so frequency and probability
 // weights give the same scores (statsmodels DescrStatsW(ddof = 0)).
+//
+// A null source cell is skipped by the pre-pass (it adds no mass to the
+// mean or the sd) and scores AttributeNull in pass 2: a missing value has
+// no position, so its score is null (the aggregation's n_null), never a
+// real-looking 0 (50 for the T-score).
+//
+// A zero sd — a constant field, a base with one non-null row (the
+// population sd, ddof 0, of one value is 0), or no contributing mass at
+// all — makes every score 0/0: undefined, so every row scores
+// AttributeNull (U50 E7-S2), never the 0 / 50 it used to answer.
 type popScoreState struct {
 	weight *types.WeightSpec
 	bucket weighting.Welford
@@ -97,8 +107,11 @@ func (a *zscoreAttribute) Finalize() error {
 
 func (a *zscoreAttribute) Row(r *Record, field string) (float64, error) {
 	v, ok := r.NumericValue(field)
-	if !ok || a.finalStdDev == 0 {
-		return 0, nil
+	if !ok {
+		return AttributeNull, nil
+	}
+	if a.finalStdDev == 0 {
+		return AttributeNull, nil // 0/0: undefined spread
 	}
 	return (v - a.finalMean) / a.finalStdDev, nil
 }
@@ -132,8 +145,11 @@ func (a *tscoreAttribute) Finalize() error {
 
 func (a *tscoreAttribute) Row(r *Record, field string) (float64, error) {
 	v, ok := r.NumericValue(field)
-	if !ok || a.finalStdDev == 0 {
-		return 50, nil // T-score of mean when sd=0 or null input
+	if !ok {
+		return AttributeNull, nil
+	}
+	if a.finalStdDev == 0 {
+		return AttributeNull, nil // 0/0: undefined spread
 	}
 	return ((v-a.finalMean)/a.finalStdDev)*10 + 50, nil
 }
@@ -168,7 +184,10 @@ func computeTwoPass(a TwoPassAttribute, records []*Record, field string) ([]floa
 }
 
 // normalizedAttribute emits (x-min)/(max-min) per row using population
-// min/max from a Welford-shaped pass 1. Implements TwoPassAttribute.
+// min/max from a Welford-shaped pass 1. Implements TwoPassAttribute. A
+// null source cell is skipped by the pre-pass and scores AttributeNull;
+// a zero range (max = min: a constant field or one non-null row) is
+// 0/0, so every row scores AttributeNull (U50 E7-S2).
 type normalizedAttribute struct {
 	seen     bool
 	min, max float64
@@ -208,8 +227,11 @@ func (a *normalizedAttribute) Finalize() error {
 
 func (a *normalizedAttribute) Row(r *Record, field string) (float64, error) {
 	v, ok := r.NumericValue(field)
-	if !ok || a.rng == 0 {
-		return 0, nil
+	if !ok {
+		return AttributeNull, nil
+	}
+	if a.rng == 0 {
+		return AttributeNull, nil // 0/0: undefined range
 	}
 	return (v - a.min) / a.rng, nil
 }
@@ -549,6 +571,9 @@ func (p *Processor) bindAttribute(computer AttributeComputer) error {
 	return BindAttributeWithVectors(computer, p.exts, p.models, p.exprVectors)
 }
 
+// percentileAttribute is ATTR_PERCENTILE: rank / n * 100 over the rows
+// with a value (n counts them; ties take distinct ranks). A null source
+// cell is not ranked and scores AttributeNull.
 type percentileAttribute struct{}
 
 func newPercentileAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
@@ -576,8 +601,13 @@ func (a *percentileAttribute) Compute(records []*Record, field string) ([]float6
 		}
 	}
 
+	// Every row starts null; a ranked row overwrites its slot.
+	result := make([]float64, len(records))
+	for i := range result {
+		result[i] = AttributeNull
+	}
 	if len(indexed) == 0 {
-		return make([]float64, len(records)), nil
+		return result, nil
 	}
 
 	// Sort by value
@@ -586,7 +616,6 @@ func (a *percentileAttribute) Compute(records []*Record, field string) ([]float6
 	})
 
 	// Compute percentile rank for each position
-	result := make([]float64, len(records))
 	n := float64(len(indexed))
 	for rank, iv := range indexed {
 		// Percentile = (rank + 1) / n * 100
@@ -598,11 +627,12 @@ func (a *percentileAttribute) Compute(records []*Record, field string) ([]float6
 // datePartAttribute is ATTR_DATE_PART. A `date` column is read as
 // epoch days on the calendar (no zone ever applies); a `datetime` column
 // as an instant whose parts are the wall clock in the slot's zone (zone
-// nil: UTC), via temporal.LocalParts.
+// nil: UTC), via temporal.LocalParts — or, under a per-row zone field
+// (`tz_field`), in the zone the row's own cell names. A null date cell,
+// and a null zone cell, make the part null (AttributeNull).
 type datePartAttribute struct {
-	part    string
-	seconds bool
-	zone    *temporal.Zone
+	part string
+	date dateField
 }
 
 func newDatePartAttribute(attr *types.Attribute, schema *encoding.Schema) (AttributeComputer, error) {
@@ -617,11 +647,11 @@ func newDatePartAttribute(attr *types.Attribute, schema *encoding.Schema) (Attri
 	if err := datepart.CheckField(part, attr.Field, f); err != nil {
 		return nil, err
 	}
-	df, err := resolveDateField(string(types.ATTR_DATE_PART), attr.Field, attr.TimeZone, schema, true)
+	df, err := resolveDateField(string(types.ATTR_DATE_PART), attr.Field, attr.TimeZone, attr.TimeZoneField, schema, true)
 	if err != nil {
 		return nil, err
 	}
-	return &datePartAttribute{part: part, seconds: df.seconds, zone: df.zone}, nil
+	return &datePartAttribute{part: part, date: df}, nil
 }
 
 func (a *datePartAttribute) Compute(records []*Record, field string) ([]float64, error) {
@@ -640,15 +670,29 @@ func (a *datePartAttribute) Compute(records []*Record, field string) ([]float64,
 	return result, nil
 }
 
-// Row extracts the configured date part from a single record. Null date
-// values produce 0 (matches buffered Compute semantics).
+// Row extracts the configured date part from a single record (Compute
+// is Row per record). A null `date` / `datetime` cell produces
+// AttributeNull: a null date has no part, so the part is null (the
+// aggregation's n_null), never a real-looking 0. Under a per-row zone
+// field a null zone cell does too: the instant is known but its local
+// calendar is not, so the part is null, never the UTC part.
 func (a *datePartAttribute) Row(r *Record, field string) (float64, error) {
 	v, ok := r.NumericValue(field)
 	if !ok {
-		return 0, nil
+		return AttributeNull, nil
 	}
-	if a.seconds {
+	if a.date.perRow() {
+		z, ok := a.date.rowZone(r)
+		if !ok {
+			return AttributeNull, nil
+		}
+		return a.partIn(int64(v), z), nil
+	}
+	if a.date.seconds {
 		return a.instantPart(int64(v)), nil
+	}
+	if a.part == datepart.PartISOWeekday {
+		return float64(temporal.ISOWeekday(int64(v))), nil
 	}
 	t := temporal.DayToTime(int64(v))
 	year, month, day := t.Date()
@@ -658,13 +702,21 @@ func (a *datePartAttribute) Row(r *Record, field string) (float64, error) {
 // instantPart is the `datetime` arm of Row: the part of instant sec on
 // the wall clock of the slot's zone (UTC when none applies).
 func (a *datePartAttribute) instantPart(sec int64) float64 {
-	z := a.zone
+	return a.partIn(sec, a.date.zone)
+}
+
+// partIn is the part of instant sec on the wall clock of zone z (nil:
+// UTC).
+func (a *datePartAttribute) partIn(sec int64, z *temporal.Zone) float64 {
 	if z == nil {
 		z = temporal.UTC
 	}
 	p := temporal.LocalParts(sec, z)
-	if a.part == datepart.PartHour {
+	switch a.part {
+	case datepart.PartHour:
 		return float64(p.Hour)
+	case datepart.PartISOWeekday:
+		return float64(temporal.ISOWeekdayOf(p.Weekday))
 	}
 	return encodeDatePart(a.part, p.Year, p.Month, p.Day)
 }

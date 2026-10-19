@@ -105,7 +105,8 @@ type SPSSWriterOptions struct {
 
 	// ValueLabels binds value labels onto categorical fields: a bound
 	// field is written as a NUMERIC variable with value labels instead of
-	// a string variable of dictionary text. Codes are the dictionary's
+	// a string variable of dictionary text. An integer-coded u4 / u8 /
+	// u16 / u32 field binds too, its stored integers the codes. Codes are the dictionary's
 	// own integers when every entry is one, else the table's entry order
 	// (SPSSValueLabels.Order) or, without one, sorted dictionary order —
 	// never first-seen order; a code's label is the table's label for its entry, else the entry
@@ -120,10 +121,13 @@ type SPSSWriterOptions struct {
 // `.sav` export (SPSSWriterOptions.ValueLabels).
 type SPSSValueLabels struct {
 	// Field is the cohort field name; it must be a categorical_* field
+	// or an integer-coded u4 / u8 / u16 / u32 one
 	// (PULSE_LABEL_FIELD_UNKNOWN / PULSE_LABEL_FIELD_NOT_CATEGORICAL).
 	Field string
 	// Labels maps a dictionary entry's text to its value label. Nil
-	// labels every code with its own dictionary text.
+	// labels every code with its own dictionary text. On an integer-coded
+	// field the keys are the stored integers' decimal spellings (else
+	// PULSE_LABEL_KEY_INVALID) and nil is PULSE_LABEL_TABLE_NOT_ENUMERABLE.
 	Labels map[string]string
 	// Order is the entry order the codes follow (entry Order[i] -> code
 	// i+1, unlisted entries after it in sorted order). Nil codes by sorted

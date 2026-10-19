@@ -37,7 +37,7 @@ Entry shape:
 | `field` | conditional | Required for value-bearing ops; forbidden for the row-number / rank family (they read only order). |
 | `label` | no | Output column; default `<TYPE>_<field>`. Naming an existing output column or earlier window label is `SERVICE_VALIDATION` (shadow). |
 | `partition_by` | no | Field names. Empty → single global partition. |
-| `order_by` | yes (≥1; a non-cumulative share / lift needs none) | `{field, desc}`. Any type but `set_*` (`PULSE_WINDOW_INVALID`, predict and runtime): numbers / `decimal128` by value, `date` / `datetime` by signed epoch (pre-1970 first), `packed_bool` false first, categorical by LABEL byte-wise. Nulls last in BOTH directions — `desc` reverses non-null values only. A NaN (an undefined figure, e.g. an expanded vector element no row answered) is a null. |
+| `order_by` | yes (≥1; a non-cumulative share / lift needs none) | `{field, desc}`. Any type but `set_*` (`PULSE_WINDOW_INVALID`, predict and runtime): numbers / `decimal128` by value, `date` / `datetime` by signed epoch (pre-1970 first), `packed_bool` false first, categorical by LABEL byte-wise. A grouper key follows its grouper's order (Monday first, ranges as supplied, buckets by value). Nulls last in BOTH directions — `desc` reverses non-null values only. A NaN (an undefined figure, e.g. an expanded vector element no row answered) is a null. |
 | `frame` | conditional | Required for running, moving and exponentially weighted aggregates; forbidden for offset, rank, change and share / lift ops. Mode `"rows"`. Every slot refusal is `PULSE_WINDOW_INVALID`, predict and runtime alike. |
 | `params` | per op | Operator-specific overrides (`offset`, `alpha`, `periods`, `default`, ...). |
 
@@ -92,7 +92,7 @@ Windowed-Process overlays (index vs prior, year-over-year, …) DO produce typed
 
 ## Gotchas
 
-- Ordering on a day-of-week column (a calendar-part attribute or a date grouper's string key) sorts lexicographically, not Sun→Sat. Order on epoch days or a year-bearing key.
+- A weekday STRING column (not a grouper key) sorts byte-wise. Order on epoch days or a year-bearing key.
 - Partitioning by the raw `date` field collapses every row into its own partition. Partition by a coarser key (region, product) and order by the date.
 
 ## See

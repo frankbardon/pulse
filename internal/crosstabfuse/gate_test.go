@@ -15,6 +15,7 @@ import (
 type fakeFacts struct {
 	extAggs     map[types.AggregationType]bool // name → declared mergeable
 	extAttrs    map[types.AttributeType]bool   // name → two-pass
+	bufAttrs    map[types.AttributeType]bool   // extension name → buffered-only
 	extGroupers map[types.GroupType]bool       // name → keyable
 	fieldInputs map[string]bool
 	hidden      map[string]bool
@@ -48,6 +49,12 @@ func (f fakeFacts) AttributeTwoPass(t types.AttributeType) bool {
 }
 func (f fakeFacts) AttributeSlotTwoPass(a *types.Attribute, _ []types.VectorSpec, _ *encoding.Schema) bool {
 	return f.slotTwoPass != nil && f.slotTwoPass(a)
+}
+func (f fakeFacts) AttributeBuffered(t types.AttributeType) bool {
+	if f.hidden[string(t)] {
+		return false
+	}
+	return (t == types.ATTR_PERCENTILE && !t.Streamable()) || f.bufAttrs[t]
 }
 func (f fakeFacts) AttributeSlotBound(a *types.Attribute) bool {
 	return f.slotBound != nil && f.slotBound(a)
@@ -247,5 +254,30 @@ func TestDecide_SlotMarginClass(t *testing.T) {
 	want := []string{"recompute-margin cell aggregator (AGG_VEC_MEAN)"}
 	if ok || !reflect.DeepEqual(why, want) {
 		t.Fatalf("no slot class: Decide = (%v, %q), want %q", ok, why, want)
+	}
+}
+
+// TestDecide_BufferedAttributeDeclines: a buffered-only attribute (the
+// built-in ATTR_PERCENTILE, an extension declared not streamable) has
+// no per-record arm, so the fused crosstab cannot score it — it declines
+// once per slot, in slot order beside the two-pass rule; a hidden one
+// answers as never-registered (no decline).
+func TestDecide_BufferedAttributeDeclines(t *testing.T) {
+	req := happy()
+	req.Attributes = []*types.Attribute{
+		{Type: types.ATTR_PERCENTILE, Label: "p"},
+		{Type: types.ATTR_ZSCORE, Label: "z"},
+		{Type: "ATTR_ACME_BUF", Label: "b"},
+	}
+	facts := fakeFacts{bufAttrs: map[types.AttributeType]bool{"ATTR_ACME_BUF": true}}
+	ok, why := crosstabfuse.Decide(req, gateSchema(), facts)
+	want := []string{"buffered attribute (ATTR_PERCENTILE)", "two-pass attribute (ATTR_ZSCORE)", "buffered attribute (ATTR_ACME_BUF)"}
+	if ok || !reflect.DeepEqual(why, want) {
+		t.Fatalf("Decide = (%v, %q), want %q", ok, why, want)
+	}
+	req.Attributes = req.Attributes[:1]
+	hidden := fakeFacts{hidden: map[string]bool{string(types.ATTR_PERCENTILE): true}}
+	if ok, why := crosstabfuse.Decide(req, gateSchema(), hidden); !ok {
+		t.Fatalf("hidden ATTR_PERCENTILE declined: %q", why)
 	}
 }

@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
@@ -176,5 +177,47 @@ func TestLabelResolver_FieldsWithAugment(t *testing.T) {
 	got := r.FieldsWithAugment()
 	if len(got) != 1 || got[0] != "b" {
 		t.Fatalf("expected [b], got %v", got)
+	}
+}
+
+// TestLabelResolver_Entries: a Rows table lists its keys (sorted), a
+// Lookup-only table lists its Order, and a Lookup-only table with no Order
+// — or an unbound field — lists nothing. A `.sav` export labels an
+// integer-coded field from these entries.
+func TestLabelResolver_Entries(t *testing.T) {
+	lookup := func(k string) (string, bool, error) { return "L" + k, true, nil }
+	r, err := BuildLabelResolver(
+		[]*types.LabelBinding{
+			{Field: "rows", Table: "rows"},
+			{Field: "ordered", Table: "ordered"},
+			{Field: "closure", Table: "closure"},
+		},
+		registryWithLabelTables(map[string]LabelTable{
+			"rows":    {Rows: map[string]string{"7": "Sunday", "1": "Monday", "2": "Tuesday"}, Order: []string{"7"}},
+			"ordered": {Lookup: lookup, Order: []string{"3", "1"}},
+			"closure": {Lookup: lookup},
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		field string
+		want  []string
+		ok    bool
+	}{
+		{"rows", []string{"1", "2", "7"}, true},
+		{"ordered", []string{"3", "1"}, true},
+		{"closure", nil, false},
+		{"unbound", nil, false},
+	} {
+		got, ok := r.Entries(tc.field)
+		if ok != tc.ok || !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("Entries(%q) = %v, %v; want %v, %v", tc.field, got, ok, tc.want, tc.ok)
+		}
+	}
+	var nilR *LabelResolver
+	if got, ok := nilR.Entries("rows"); ok || got != nil {
+		t.Errorf("nil resolver Entries = %v, %v; want nil, false", got, ok)
 	}
 }

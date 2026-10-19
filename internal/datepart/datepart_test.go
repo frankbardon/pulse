@@ -9,7 +9,7 @@ import (
 )
 
 func TestParse(t *testing.T) {
-	for _, part := range []string{"year", "month", "day", "year_month", "year_month_day", "month_day", "hour"} {
+	for _, part := range []string{"year", "month", "day", "year_month", "year_month_day", "month_day", "hour", "iso_weekday"} {
 		got, err := Parse(json.RawMessage(`{"part":"` + part + `"}`))
 		if err != nil || got != part {
 			t.Errorf("%s: got %q, %v", part, got, err)
@@ -18,7 +18,7 @@ func TestParse(t *testing.T) {
 	for raw, want := range map[string]string{
 		``:                  `date_part attribute requires params with a "part" field`,
 		`{}`:                `date_part attribute requires a "part" field in params`,
-		`{"part":"minute"}`: `invalid date part "minute": must be one of year, month, day, year_month, year_month_day, month_day, hour`,
+		`{"part":"minute"}`: `invalid date part "minute": must be one of year, month, day, year_month, year_month_day, month_day, hour, iso_weekday`,
 	} {
 		_, err := Parse(json.RawMessage(raw))
 		ce, ok := err.(*errors.CodedError)
@@ -42,6 +42,7 @@ func TestCheckField(t *testing.T) {
 	}{
 		{"year", date, true}, {"year", dt, true}, {"hour", dt, true},
 		{"hour", date, false}, {"year", num, false}, {"year", nil, false},
+		{"iso_weekday", date, true}, {"iso_weekday", dt, true}, {"iso_weekday", num, false},
 	} {
 		err := CheckField(tc.part, "f", tc.f)
 		if (err == nil) != tc.ok {

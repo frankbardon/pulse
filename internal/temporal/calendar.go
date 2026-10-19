@@ -16,6 +16,14 @@ func ISOWeekday(day int64) int64 {
 	return (((day+3)%7)+7)%7 + 1
 }
 
+// ISOWeekdayOf renumbers a stdlib weekday (Sunday = 0) ISO 8601:
+// 1 = Monday through 7 = Sunday — the one weekday numbering Pulse
+// emits (ATTR_DATE_PART iso_weekday, FEAT_DATE_FEATURES dow, the
+// formula weekday). A local wall clock's Parts.Weekday reaches it.
+func ISOWeekdayOf(w time.Weekday) int64 {
+	return (int64(w)+6)%7 + 1
+}
+
 // MonthIndex returns year*12 + (month-1) for the calendar month holding
 // epoch day day — a running month count, so the difference of two
 // indexes is the number of calendar months between their days

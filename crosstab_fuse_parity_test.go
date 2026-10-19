@@ -161,7 +161,7 @@ func fusionParityCorpus() []fusionCase {
 	add("post_tests", with(func(r *types.Request) { r.PostTests = []*types.Test{{Type: types.TEST_T}} }))
 	add("overlays", with(func(r *types.Request) { r.Overlays = []types.OverlaySpec{{Kind: types.OverlayKindPairwisePropZ}} }))
 	for _, at := range []types.AttributeType{types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED,
-		types.ATTR_REG_FITTED, types.ATTR_DATE_PART, types.ATTR_SET_POPCOUNT} {
+		types.ATTR_REG_FITTED, types.ATTR_DATE_PART, types.ATTR_SET_POPCOUNT, types.ATTR_PERCENTILE} {
 		add("attr/"+string(at), with(func(r *types.Request) { r.Attributes = []*types.Attribute{{Type: at, Field: "score", Label: "a"}} }))
 	}
 	add("attr/ATTR_CODE_IN", with(func(r *types.Request) {
@@ -485,4 +485,58 @@ func cloneFusionRequest(t *testing.T, r *types.Request) *types.Request {
 		t.Fatal(err)
 	}
 	return &out
+}
+
+// TestCrosstab_BufferedAttributeRunsBuffered: a crosstab beside a
+// buffered-only attribute (ATTR_PERCENTILE: no row-local or two-pass
+// arm) declines the fused arm on predict and runtime alike — "buffered
+// attribute (ATTR_PERCENTILE)" — and runs the buffered one, answering
+// exactly what a DisableCrosstabFusion instance answers. The fused arm
+// used to take it and fail PROCESSING_INTERNAL ("does not implement
+// RowLocalAttribute") while predict promised a fused run.
+func TestCrosstab_BufferedAttributeRunsBuffered(t *testing.T) {
+	ctx := context.Background()
+	schema := paritySchema(t)
+	fsys := afero.NewMemMapFs()
+	writeParityCohort(t, fsys, "parity.pulse", schema, 0, 40)
+	req := func() *types.Request {
+		r := fusionXtab([]*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}, nil,
+			&types.Aggregation{Type: types.AGG_SUM, Field: "pc"})
+		r.Crosstab.Columns = r.Crosstab.Rows
+		r.Cohort = &types.Cohort{Filename: "parity.pulse"}
+		r.Attributes = []*types.Attribute{{Type: types.ATTR_PERCENTILE, Field: "score", Label: "pc"}}
+		return r
+	}
+	p, err := pulse.New(pulse.Options{FS: fsys})
+	if err != nil {
+		t.Fatal(err)
+	}
+	off, err := pulse.New(pulse.Options{FS: fsys, DisableCrosstabFusion: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pr, err := p.Predict(ctx, req())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"buffered attribute (ATTR_PERCENTILE)"}
+	if pr.CrosstabFusable == nil || *pr.CrosstabFusable || !reflect.DeepEqual(pr.CrosstabFusionReasons, want) {
+		t.Fatalf("predict CrosstabFusable=%v reasons=%q, want false %q", pr.CrosstabFusable, pr.CrosstabFusionReasons, want)
+	}
+	if ok, why := processing.CanFuseCrosstab(req(), schema, pulse.ServiceForTest(p).Extensions()); ok || why != want[0] {
+		t.Fatalf("runtime CanFuseCrosstab = (%v, %q), want (false, %q)", ok, why, want[0])
+	}
+	got, err := p.Process(ctx, req())
+	if err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+	ref, err := off.Process(ctx, req())
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, _ := json.Marshal(got.Crosstab)
+	w, _ := json.Marshal(ref.Crosstab)
+	if string(g) != string(w) || got.Crosstab == nil || len(got.Crosstab.Matrix.Cells) == 0 {
+		t.Fatalf("fusion-eligible instance %s, fusion-disabled instance %s", g, w)
+	}
 }

@@ -77,13 +77,20 @@ func (j *ExportJob) Hash() string {
 // intermediate file path) and the inference behaviour respectively.
 // Source and Target are runtime carriers (Reader / Writer
 // interfaces) so neither is serialisable nor part of the job's
-// semantic identity for cache-keying purposes.
+// semantic identity for cache-keying purposes. The source-zone options
+// (SourceTZ, ColumnSourceTZ, SourceTZField, DSTPolicy) participate: each
+// changes the target's datetime text and the kept cohort. All
+// `omitempty`, so a zone-free job's hash is unchanged.
 type convertJobHashShape struct {
 	KeepPulseAt     string                `json:"keep_pulse_at,omitempty"`
 	SampleRows      int                   `json:"sample_rows,omitempty"`
 	Includes        []string              `json:"includes,omitempty"`
 	Labels          []*types.LabelBinding `json:"labels,omitempty"`
 	IncludeOverlays *bool                 `json:"include_overlays,omitempty"`
+	SourceTZ        string                `json:"source_tz,omitempty"`
+	ColumnSourceTZ  map[string]string     `json:"column_source_tz,omitempty"`
+	SourceTZField   string                `json:"source_tz_field,omitempty"`
+	DSTPolicy       DSTPolicy             `json:"dst_policy,omitempty"`
 }
 
 // Hash returns the canonical content hash of the ConvertJob. Same
@@ -102,5 +109,9 @@ func (j *ConvertJob) Hash() string {
 		Includes:        j.Includes,
 		Labels:          j.Labels,
 		IncludeOverlays: j.IncludeOverlays,
+		SourceTZ:        j.SourceTZ,
+		ColumnSourceTZ:  j.ColumnSourceTZ,
+		SourceTZField:   j.SourceTZField,
+		DSTPolicy:       j.DSTPolicy,
 	})
 }

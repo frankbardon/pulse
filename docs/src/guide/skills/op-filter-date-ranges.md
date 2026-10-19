@@ -29,15 +29,15 @@ One source in `Params` (not `Values`) — `ranges` XOR `table`:
 
 - `ranges` — `[]{label,start,end}`, ISO; null bound = open; inclusive.
 - `table` — registered `RangeTable` (Extensions or `PULSE_RANGE_TABLES_DIR`).
-- `tz` — slot key (not `params`); IANA, beats `time_zone`.
+- `tz` (IANA) / `tz_field` (per-row zone column) — slot keys.
 
 ## Inputs
 
-`Field` — `date` or `datetime`, else `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime). `datetime` floors to its local day in the resolved zone (UTC default); bounds (inline or `table`; tables carry no zone) are local days.
+`Field` — `date` or `datetime` (else `PULSE_FIELD_TYPE_UNSUPPORTED`). `datetime` floors to its local day (resolved zone, UTC default); bounds (inline or `table`; tables carry no zone) are local days.
 
 ## Output
 
-Keeps rows whose day is in any range; `label` unused, no column.
+Keeps rows whose day is in a range; `label` unused, no column.
 
 ## Components
 
@@ -45,11 +45,12 @@ Floor only — `{n_in, n_out, n_null_input}`. Mergeable (additive).
 
 ## Gotchas
 
-- Null date → dropped.
+- Null date / `tz_field` cell → dropped (`n_null_input`).
 - Both/neither → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`.
 - Overlap/dup → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL`; bad literal, start>end → `_INVALID`.
 - `start: 2026-03-01`, `tz: Europe/Berlin` keeps `2026-02-28T23:30Z`.
-- `tz` on `date`, non-UTC on a derived field, any `tz` under `FilterToFileWithRequest` → `PROCESSING_CONFIG`.
+- Zone on `date` / derived field → `PROCESSING_CONFIG`.
+- Untranslatable (any slot zone too) under `FilterToFileWithRequest` → `PROCESSING_CONFIG` `{operator}`; use an expression filter over `to_day(ts)` + the request `TimeZone`.
 - Row-local streamable.
 
 ## See

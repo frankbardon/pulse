@@ -178,8 +178,10 @@ func mergeSlotSets(dst, src []*matrixSlot) error {
 // FinalizeGroupedStream — serial streaming and both parallel reducers)
 // sorts through here. The permutation is read off row identity, never
 // the group cell, so a window or label that rewrites that cell cannot
-// misplace a matrix. Without a Sort it is a no-op.
-func sortGroupedRows(data []map[string]any, order []types.OrderKey, keys []string) ([]string, error) {
+// misplace a matrix. Without a Sort it is a no-op. orders is the run's
+// grouper key orders (groupKeyOrders / keyOrdersOf): a sort key naming
+// a grouper key column follows that grouper's key order.
+func sortGroupedRows(data []map[string]any, order []types.OrderKey, keys []string, orders window.KeyOrders) ([]string, error) {
 	if len(order) == 0 {
 		return keys, nil
 	}
@@ -192,7 +194,7 @@ func sortGroupedRows(data []map[string]any, order []types.OrderKey, keys []strin
 	for i, row := range data {
 		at[reflect.ValueOf(row).Pointer()] = keys[i]
 	}
-	window.Sort(data, order)
+	window.SortKeyed(data, order, orders)
 	sorted := make([]string, len(data))
 	for i, row := range data {
 		key, ok := at[reflect.ValueOf(row).Pointer()]

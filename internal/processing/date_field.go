@@ -26,12 +26,15 @@ import (
 // unless the slot carries a non-UTC zone in its `tz` — written there by
 // the request's zone resolution (slot `tz` → request `time_zone` →
 // Options.DefaultTimeZone) — in which case it is the LOCAL day a wall
-// clock in that zone shows (temporal.LocalDay).
+// clock in that zone shows (temporal.LocalDay). A slot carrying a
+// per-row zone field in its `tz_field` reads each instant on the local
+// day of the zone its own row names (dateField.epochDayAt); a row whose
+// zone cell is null has a null local day.
 //
 // The helpers below are the only sanctioned way an operator reads a
 // date-family column: resolveDateField decides ONCE at construction how
 // a column's decoded values must be read (seconds or days, and in which
-// zone), and dateField.epochDay applies that decision per record. No
+// zone), and dateField.epochDay (epochDayAt) applies that decision per record. No
 // call site open-codes a seconds-to-days division or a zone offset.
 
 // resolveDateFieldSeconds classifies fieldName on schema and reports
@@ -88,23 +91,47 @@ var slotZones temporal.Cache
 // is resolveDateFieldSeconds' answer and zone the slot's resolved zone,
 // nil for UTC, a UTC-equivalent zone or a `date` column — the nil case
 // is exactly the pre-zone code path.
+//
+// zones is the per-row arm (slot `tz_field`, or an inherited request
+// `time_zone_field` that descx.ZonedRequest wrote there): the zone of
+// every entry of the categorical zoneField's dictionary, indexed by
+// dictionary code, built once per constructed operator and forked so
+// each worker's lookup caches are its own. Non-nil only over a
+// `datetime` column; a record's instant is then read in the zone its
+// own zoneField cell names, and a NULL cell (or a code outside the
+// dictionary) makes the row's local value null — never a silent UTC
+// day (rowZone).
 type dateField struct {
-	seconds bool
-	zone    *temporal.Zone
+	seconds   bool
+	zone      *temporal.Zone
+	zoneField string
+	zones     *temporal.ZoneTable
 }
 
 // resolveDateField is resolveDateFieldSeconds plus the slot zone tz
-// ("" = none). A zone applies only to a `datetime` column (seconds);
-// the zone resolver never lets a non-UTC zone reach any other field
-// (an explicit `tz` on a schema field that is not `datetime` is refused,
-// an inherited one is not written, a derived field is refused). An
-// unknown tz is the PULSE_TIMEZONE_UNKNOWN coded error.
-func resolveDateField(operator, fieldName, tz string, schema *encoding.Schema, strict bool) (dateField, error) {
+// ("" = none) or per-row zone field tzField ("" = none; the zone
+// resolver never lets both reach one slot). A zone applies only to a
+// `datetime` column (seconds); the zone resolver never lets a non-UTC
+// zone reach any other field (an explicit `tz` / `tz_field` on a schema
+// field that is not `datetime` is refused, an inherited one is not
+// written, a derived field is refused). An unknown tz is the
+// PULSE_TIMEZONE_UNKNOWN coded error; so is a zone-field dictionary
+// entry that names no zone (temporal.LoadZones, which ResolveZones
+// refuses first).
+func resolveDateField(operator, fieldName, tz, tzField string, schema *encoding.Schema, strict bool) (dateField, error) {
 	seconds, err := resolveDateFieldSeconds(operator, fieldName, schema, strict)
 	if err != nil {
 		return dateField{}, err
 	}
 	df := dateField{seconds: seconds}
+	if tzField != "" && seconds {
+		zones, err := loadZoneTable(operator, tzField, schema)
+		if err != nil {
+			return dateField{}, err
+		}
+		df.zoneField, df.zones = tzField, zones
+		return df, nil
+	}
 	if tz == "" {
 		return df, nil
 	}
@@ -121,15 +148,87 @@ func resolveDateField(operator, fieldName, tz string, schema *encoding.Schema, s
 	return df, nil
 }
 
+// loadZoneTable builds the per-row zone table of zone field name: its
+// dictionary's entries loaded through the process-wide slotZones cache
+// (a repeated name shares one Zone), then forked for this operator. The
+// field-reference pass and ResolveZones refuse an absent or
+// non-categorical zone field before any operator is built; reaching
+// one here is a wiring fault, PROCESSING_CONFIG naming the operator.
+func loadZoneTable(operator, name string, schema *encoding.Schema) (*temporal.ZoneTable, error) {
+	var f *encoding.Field
+	if schema != nil {
+		f = schema.Field(name)
+	}
+	if f == nil || !f.Type.IsCategorical() || f.Dictionary == nil {
+		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("%s tz_field %q must name a categorical schema field of IANA zone names", operator, name),
+			map[string]any{"operator": operator, "tz_field": name})
+	}
+	t, err := temporal.LoadZones(f.Dictionary.Values(), slotZones.Load)
+	if err != nil {
+		return nil, err
+	}
+	return t.Fork(), nil
+}
+
+// perRow reports whether a per-row zone field applies.
+func (d dateField) perRow() bool { return d.zones != nil }
+
+// rowZone is the zone record r's instant is read in under a per-row
+// zone field: the zone its zoneField cell names, nil when that zone is
+// UTC-equivalent (the zone-free arithmetic applies). ok=false when the
+// cell is null or names no dictionary entry: the row's local value is
+// null. Reads one decoded value and indexes a slice — no allocation.
+func (d dateField) rowZone(r *Record) (z *temporal.Zone, ok bool) {
+	code, ok := r.NumericValue(d.zoneField)
+	if !ok {
+		return nil, false
+	}
+	z = d.zones.At(uint32(code))
+	if z == nil {
+		return nil, false
+	}
+	if z.IsUTC() {
+		return nil, true
+	}
+	return z, true
+}
+
 // epochDay is epochDayFromValue in the column's zone: the local epoch
 // day of an instant when a non-UTC zone applies, the UTC path otherwise.
 // The zoned arm is a separate call so this stays inlinable and the
-// zone-free path costs one nil check over epochDayFromValue.
+// zone-free path costs one nil check over epochDayFromValue. It ignores
+// a per-row zone field; the record-reading operators call epochDayAt.
 func (d dateField) epochDay(v float64) int64 {
 	if d.zone == nil {
 		return epochDayFromValue(v, d.seconds)
 	}
 	return d.localDay(v)
+}
+
+// epochDayAt is epochDay for value v of record r: under a per-row zone
+// field the local day in r's own zone, ok=false when r's zone cell is
+// null (rowZone). Without one it is epochDay(v), always ok.
+func (d dateField) epochDayAt(r *Record, v float64) (int64, bool) {
+	if d.zones == nil {
+		return d.epochDay(v), true
+	}
+	return d.rowDay(r, v)
+}
+
+// rowDay is the per-row arm of epochDayAt, kept out of line so
+// epochDayAt inlines.
+//
+//go:noinline
+func (d dateField) rowDay(r *Record, v float64) (int64, bool) {
+	z, ok := d.rowZone(r)
+	if !ok {
+		return 0, false
+	}
+	if z == nil {
+		return epochDayFromValue(v, d.seconds), true
+	}
+	return temporal.LocalDay(int64(v), z), true
 }
 
 // localDay is the zoned arm of epochDay (zone non-nil, a `datetime`).
@@ -154,6 +253,23 @@ func (d dateField) epochHour(v float64) int64 {
 		z = temporal.UTC
 	}
 	return temporal.LocalHour(int64(v), z)
+}
+
+// epochHourAt is epochHour for value v of record r: under a per-row
+// zone field the local hour in r's own zone, ok=false when r's zone
+// cell is null (rowZone).
+func (d dateField) epochHourAt(r *Record, v float64) (int64, bool) {
+	if d.zones == nil {
+		return d.epochHour(v), true
+	}
+	z, ok := d.rowZone(r)
+	if !ok {
+		return 0, false
+	}
+	if z == nil {
+		z = temporal.UTC
+	}
+	return temporal.LocalHour(int64(v), z), true
 }
 
 // epochDayFromValue converts a decoded record value for a date-family

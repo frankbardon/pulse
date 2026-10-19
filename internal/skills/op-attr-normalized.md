@@ -26,7 +26,7 @@ None.
 
 ## Output
 
-One `float64` per record in `[0, 1]`. Null source → `0` (not null).
+One `float64` per record in `[0, 1]`. Null source → `null` (counted in `n_null`), left out of min / max.
 
 <!-- generated: reading-the-output -->
 
@@ -34,7 +34,7 @@ One `float64` per record in `[0, 1]`. Null source → `0` (not null).
 
 - Not weightable (a min-max rescale has no weighted meaning): `Options.DefaultWeight` is skipped; an explicit slot or request weight is `PROCESSING_CONFIG`.
 - Two-pass: pre-pass tracks min/max across filter-passing rows; pass 2 emits per row.
-- Constant field (`max == min`) → `0` per row.
+- Constant field (`max == min`, or one non-null row) → `null` per row (0/0), counted in `n_null`.
 - Outlier-sensitive — one extreme value compresses the rest of the range.
 - Frequently used as a feature input for a downstream formula or external ML — but no in-slot chaining; stage via Compose / ProcessChain.
 - `set_*` and categorical rejected at build time with `PULSE_FIELD_TYPE_UNSUPPORTED` — a bitmask or dictionary index has no value to standardise.
