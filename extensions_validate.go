@@ -92,6 +92,13 @@ var validJSONTypes = map[string]struct{}{
 // then by slice index; ExprFunctions / LookupTables come after the
 // operator slices.
 //
+// A nil Factory on an aggregator, attribute, filterer, grouper, window
+// or feature registration is refused here (validateOperatorSlice,
+// PULSE_EXTENSION_PARAM_INVALID reason missing_factory), before the
+// probe could only report it as a recovered FACTORY_PANIC; matrix ops
+// (validateMatrixOps) and tests (validateTestTiers) refuse theirs in
+// their own pass.
+//
 // Built-in collision checks use the live type registries
 // (types.All*Types() + internal/synth.AllDistributions()) so adding a new
 // built-in automatically reserves its name against embedder
@@ -99,7 +106,7 @@ var validJSONTypes = map[string]struct{}{
 func validateExtensions(ext Extensions) error {
 	if err := validateOperatorSlice(ext.Aggregators, categoryAggregator, builtinAggregatorNames(), func(r AggregatorRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
-	}); err != nil {
+	}, func(r AggregatorRegistration) bool { return r.Factory != nil }); err != nil {
 		return err
 	}
 	if err := validateAggregatorVectorInputs(ext.Aggregators); err != nil {
@@ -107,7 +114,7 @@ func validateExtensions(ext Extensions) error {
 	}
 	if err := validateOperatorSlice(ext.Attributes, categoryAttribute, builtinAttributeNames(), func(r AttributeRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
-	}); err != nil {
+	}, func(r AttributeRegistration) bool { return r.Factory != nil }); err != nil {
 		return err
 	}
 	if err := validateAttributeModes(ext.Attributes); err != nil {
@@ -115,27 +122,27 @@ func validateExtensions(ext Extensions) error {
 	}
 	if err := validateOperatorSlice(ext.Filterers, categoryFilterer, builtinFiltererNames(), func(r FiltererRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
-	}); err != nil {
+	}, func(r FiltererRegistration) bool { return r.Factory != nil }); err != nil {
 		return err
 	}
 	if err := validateOperatorSlice(ext.Groupers, categoryGrouper, builtinGrouperNames(), func(r GrouperRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
-	}); err != nil {
+	}, func(r GrouperRegistration) bool { return r.Factory != nil }); err != nil {
 		return err
 	}
 	if err := validateOperatorSlice(ext.Windows, categoryWindow, builtinWindowNames(), func(r WindowRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
-	}); err != nil {
+	}, func(r WindowRegistration) bool { return r.Factory != nil }); err != nil {
 		return err
 	}
 	if err := validateOperatorSlice(ext.Features, categoryFeature, builtinFeatureNames(), func(r FeatureRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
-	}); err != nil {
+	}, func(r FeatureRegistration) bool { return r.Factory != nil }); err != nil {
 		return err
 	}
 	if err := validateOperatorSlice(ext.Tests, categoryTest, builtinTestNames(), func(r TestRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
-	}); err != nil {
+	}, nil); err != nil {
 		return err
 	}
 	if err := validateTestTiers(ext.Tests); err != nil {
@@ -143,12 +150,12 @@ func validateExtensions(ext Extensions) error {
 	}
 	if err := validateOperatorSlice(ext.SynthDistributions, categoryDistribution, builtinDistributionNames(), func(r DistributionRegistration) (string, []ParamMeta) {
 		return r.Name, r.Params
-	}); err != nil {
+	}, nil); err != nil {
 		return err
 	}
 	if err := validateOperatorSlice(ext.MatrixOps, categoryMatrix, builtinMatrixNames(), func(r MatrixOpRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
-	}); err != nil {
+	}, nil); err != nil {
 		return err
 	}
 	if err := validateMatrixOps(ext.MatrixOps); err != nil {
@@ -524,13 +531,25 @@ func matrixFloorKeyNames() map[string]bool {
 }
 
 // validateOperatorSlice runs the common naming + duplicate + ParamMeta
-// validation pass against any registration slice. The extract callback
-// pulls the registration's name + params, which differ by struct.
+// + factory-presence validation pass against any registration slice.
+// The extract callback pulls the registration's name + params, which
+// differ by struct.
+//
+// hasFactory reports whether the registration carries its Factory; a
+// nil Factory is refused here, before any probe runs, with
+// PULSE_EXTENSION_PARAM_INVALID, details {category, name, index,
+// reason: "missing_factory"} — the same shape validateMatrixOps uses.
+// Every category whose registration has a single Factory passes it
+// (aggregator, attribute, filterer, grouper, window, feature). A nil
+// hasFactory skips the check: tests validate RowFactory / PostFactory
+// per tier (validateTestTiers), matrix ops in validateMatrixOps, and
+// a synth distribution's Factory is held opaque.
 func validateOperatorSlice[R any](
 	regs []R,
 	cat extensionCategory,
 	builtins map[string]struct{},
 	extract func(R) (string, []ParamMeta),
+	hasFactory func(R) bool,
 ) error {
 	seen := make(map[string]struct{}, len(regs))
 	for i, r := range regs {
@@ -560,6 +579,13 @@ func validateOperatorSlice[R any](
 		seen[name] = struct{}{}
 		if err := validateParams(params, cat, name); err != nil {
 			return err
+		}
+		if hasFactory != nil && !hasFactory(r) {
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("extension %s %q has nil Factory", cat, name),
+				map[string]any{"category": string(cat), "name": name, "index": i, "reason": "missing_factory"},
+			)
 		}
 	}
 	return nil

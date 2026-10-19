@@ -208,6 +208,12 @@ Failure modes raised at registration time:
   `MAT_*` name under `Aggregators`) → `PULSE_EXTENSION_NAME_INVALID`.
 - The same name appears twice in one `pulse.New` call →
   `PULSE_EXTENSION_DUPLICATE`.
+- An aggregator, attribute, filterer, grouper, window or feature
+  registration with a nil `Factory` → `PULSE_EXTENSION_PARAM_INVALID`,
+  `details.reason` `missing_factory` (with `category`, `name`,
+  `index`), refused before any probe runs. A matrix operator refuses a
+  nil `Factory` the same way in its own pass (table below); a test
+  refuses a missing `RowFactory` / `PostFactory` per tier.
 
 Two embedders in the same process must use disjoint namespaces.
 
