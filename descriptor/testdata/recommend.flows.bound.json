@@ -32,6 +32,36 @@
         "operator": "ATTR_PREVIOUS_STATE",
         "category": "attribute",
         "level": "intermediate",
+        "why": "Adds to each row of a long panel the state the same subject held at its previous date, so moves can be counted from-state by to-state. It uses region (categorical_u8, 4 groups), seats (u16) and signup (date).",
+        "bound": true,
+        "request": {
+          "attributes": [
+            {
+              "field": "region",
+              "order_field": "signup",
+              "subject_field": "seats",
+              "type": "ATTR_PREVIOUS_STATE"
+            }
+          ],
+          "cohort": {
+            "filename": "recommend.pulse"
+          }
+        },
+        "alternatives": [
+          {
+            "when": "the data already holds one row per subject with a from column and a to column",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "you want the previous value of a number on result rows",
+            "use": "WIN_LAG"
+          }
+        ]
+      },
+      {
+        "operator": "ATTR_PREVIOUS_STATE",
+        "category": "attribute",
+        "level": "intermediate",
         "why": "Adds to each row of a long panel the state the same subject held at its previous date, so moves can be counted from-state by to-state. It uses region (categorical_u8, 4 groups), plan (categorical_u8, 2 groups) and signup (date).",
         "bound": true,
         "request": {
@@ -87,36 +117,6 @@
             "use": "WIN_LAG"
           }
         ]
-      },
-      {
-        "operator": "ATTR_PREVIOUS_STATE",
-        "category": "attribute",
-        "level": "intermediate",
-        "why": "Adds to each row of a long panel the state the same subject held at its previous date, so moves can be counted from-state by to-state. It uses region (categorical_u8, 4 groups), seats (u16) and signup (date).",
-        "bound": true,
-        "request": {
-          "attributes": [
-            {
-              "field": "region",
-              "order_field": "signup",
-              "subject_field": "seats",
-              "type": "ATTR_PREVIOUS_STATE"
-            }
-          ],
-          "cohort": {
-            "filename": "recommend.pulse"
-          }
-        },
-        "alternatives": [
-          {
-            "when": "the data already holds one row per subject with a from column and a to column",
-            "use": "GROUP_CATEGORY"
-          },
-          {
-            "when": "you want the previous value of a number on result rows",
-            "use": "WIN_LAG"
-          }
-        ]
       }
     ],
     "truncated": false,
@@ -125,4 +125,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7e1ea02f44bafcaad59d717cd4129ded6b45c92de760218c7ae71275410fcb9e
+// golden-hash: 6b3c27638415cb2379216eb3025e097ab530c71817765f5e3280febf4fc8e637
