@@ -33,7 +33,7 @@ Use something else:
 
 ## Host shape
 
-MATRIX crosstab of PAIRED units: earlier-state rows × later-state columns, one grouper each, count cells. States align by key; a one-axis state is a zero row / column.
+MATRIX crosstab of PAIRED units: earlier-state rows × later-state columns, one grouper each, count cells. States align by key; a one-axis state is a zero row / column. A long panel needs no pre-pivot: previous-state rows ([`op-attr-previous-state`](op-attr-previous-state.md)) × the state.
 
 ## Output
 
@@ -54,4 +54,4 @@ SCALAR χ² = Σ_{i<j} `(n_ij − n_ji)² / (n_ij + n_ji)`. `Summary.Parameters`
 
 ## See
 
-- Skills: [`overlay-system`](overlay-system.md), [`op-overlay-chisq-matrix`](op-overlay-chisq-matrix.md), [`op-overlay-markov`](op-overlay-markov.md), [`op-overlay-retention`](op-overlay-retention.md).
+- Skills: [`overlay-system`](overlay-system.md), [`op-overlay-chisq-matrix`](op-overlay-chisq-matrix.md), [`op-overlay-markov`](op-overlay-markov.md), [`op-overlay-retention`](op-overlay-retention.md), [`op-attr-previous-state`](op-attr-previous-state.md).

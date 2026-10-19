@@ -23,7 +23,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-MATRIX crosstab, from-state rows × to-state columns, same keys (aligned by key); count or sum cells.
+MATRIX crosstab, from-state rows × to-state columns, same keys (aligned by key); count or sum cells. A long panel needs no pre-pivot: previous-state rows (`op-attr-previous-state`) × the state; a last-only state (never left) is column-only — list it in `absorbing`.
 
 ## Output
 
@@ -41,4 +41,4 @@ Primary MATRIX: transition P (rows sum to 1). Parts: `step_<n>` (MATRIX Pⁿ), `
 
 ## See
 
-- Skills: `overlay-system`, `op-overlay-share-of-row`, `op-overlay-chisq-matrix`, `op-overlay-symmetry`, `op-overlay-retention`.
+- Skills: `overlay-system`, `op-overlay-share-of-row`, `op-overlay-chisq-matrix`, `op-overlay-symmetry`, `op-overlay-retention`, `op-attr-previous-state`.

@@ -32,7 +32,7 @@ Use something else:
 
 ## Host shape
 
-MATRIX crosstab: earlier-state rows × later-state columns, one grouper each, count (or sum) cells. Staying = the column whose key names the row's state (by key, never position).
+MATRIX crosstab: earlier-state rows × later-state columns, one grouper each, count (or sum) cells. Staying = the column whose key names the row's state (by key, never position). A long panel needs no pre-pivot: previous-state rows ([`op-attr-previous-state`](op-attr-previous-state.md)) × the state.
 
 ## Output
 
@@ -54,4 +54,4 @@ SERIES, one entry per from-state in row order: `summary.statistic` = stay `n_ii 
 
 ## See
 
-- Skills: [`overlay-system`](overlay-system.md), [`op-overlay-markov`](op-overlay-markov.md), [`op-overlay-symmetry`](op-overlay-symmetry.md), [`op-overlay-share-of-row`](op-overlay-share-of-row.md).
+- Skills: [`overlay-system`](overlay-system.md), [`op-overlay-markov`](op-overlay-markov.md), [`op-overlay-symmetry`](op-overlay-symmetry.md), [`op-overlay-share-of-row`](op-overlay-share-of-row.md), [`op-attr-previous-state`](op-attr-previous-state.md).

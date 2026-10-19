@@ -50,5 +50,5 @@ Floor `{n, n_null}` + `n_subjects`, `n_first`, `n_gap`, `n_ambiguous`. `None`: t
 
 ## See
 
-- `pulse_examples_search tags=[cohort-analysis]`
-- Skills: [`crosstab-guide`](crosstab-guide.md), [`attribute-composition`](attribute-composition.md)
+- `pulse_examples_search tags=[cohort-analysis]`, `pulse_examples_search tags=[cohort-analysis, overlay]` (flows)
+- Skills: [`crosstab-guide`](crosstab-guide.md), [`attribute-composition`](attribute-composition.md), [`op-overlay-markov`](op-overlay-markov.md), [`op-overlay-symmetry`](op-overlay-symmetry.md), [`op-overlay-retention`](op-overlay-retention.md)

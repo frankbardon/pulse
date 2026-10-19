@@ -24,7 +24,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-MATRIX crosstab of PAIRED units: earlier-state rows × later-state columns, one grouper each, count cells. States align by key; a one-axis state is a zero row / column.
+MATRIX crosstab of PAIRED units: earlier-state rows × later-state columns, one grouper each, count cells. States align by key; a one-axis state is a zero row / column. A long panel needs no pre-pivot: previous-state rows (`op-attr-previous-state`) × the state.
 
 ## Output
 
@@ -41,4 +41,4 @@ SCALAR χ² = Σ_{i<j} `(n_ij − n_ji)² / (n_ij + n_ji)`. `Summary.Parameters`
 
 ## See
 
-- Skills: `overlay-system`, `op-overlay-chisq-matrix`, `op-overlay-markov`, `op-overlay-retention`.
+- Skills: `overlay-system`, `op-overlay-chisq-matrix`, `op-overlay-markov`, `op-overlay-retention`, `op-attr-previous-state`.

@@ -21,7 +21,7 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Host shape
 
-MATRIX crosstab: earlier-state rows × later-state columns, one grouper each, count (or sum) cells. Staying = the column whose key names the row's state (by key, never position).
+MATRIX crosstab: earlier-state rows × later-state columns, one grouper each, count (or sum) cells. Staying = the column whose key names the row's state (by key, never position). A long panel needs no pre-pivot: previous-state rows (`op-attr-previous-state`) × the state.
 
 ## Output
 
@@ -39,4 +39,4 @@ SERIES, one entry per from-state in row order: `summary.statistic` = stay `n_ii 
 
 ## See
 
-- Skills: `overlay-system`, `op-overlay-markov`, `op-overlay-symmetry`, `op-overlay-share-of-row`.
+- Skills: `overlay-system`, `op-overlay-markov`, `op-overlay-symmetry`, `op-overlay-share-of-row`, `op-attr-previous-state`.
