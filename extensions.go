@@ -85,14 +85,13 @@ type FieldInputsFunc func(raw json.RawMessage) []string
 // namespace from the built-in registries (no collision risk) and the
 // runtime treats them identically to built-ins.
 type Extensions struct {
-	Aggregators        []AggregatorRegistration
-	Attributes         []AttributeRegistration
-	Filterers          []FiltererRegistration
-	Groupers           []GrouperRegistration
-	Windows            []WindowRegistration
-	Features           []FeatureRegistration
-	Tests              []TestRegistration
-	SynthDistributions []DistributionRegistration
+	Aggregators []AggregatorRegistration
+	Attributes  []AttributeRegistration
+	Filterers   []FiltererRegistration
+	Groupers    []GrouperRegistration
+	Windows     []WindowRegistration
+	Features    []FeatureRegistration
+	Tests       []TestRegistration
 	// MatrixOps installs embedder MAT_* matrix operators for
 	// Request.Matrices (see MatrixOpRegistration).
 	MatrixOps []MatrixOpRegistration
@@ -832,30 +831,6 @@ type MatrixOpRegistration struct {
 	// (n, n_null, n_listwise_dropped, min_pair_n, max_pair_n,
 	// sum_weights, n_eff, n_weight_invalid).
 	ComponentSchema descriptor.ComponentSchema
-}
-
-// DistributionRegistration installs a custom synthetic-data
-// distribution kind. The factory shape is finalised alongside the
-// synth wiring in a later phase; for now this registration is
-// validated for naming + duplicates only and the Factory field is
-// held opaque.
-type DistributionRegistration struct {
-	Name        string
-	Description string
-	// Purpose is the optional plain-language guidance for the
-	// operator — what it is for, the intents it answers, when to use
-	// something else. It is validated at pulse.New with the same rules
-	// as the built-in tier (NotFor.Use resolves against built-ins, the
-	// other registered extensions and the feature table); a broken rule
-	// fails with PULSE_EXTENSION_PURPOSE_INVALID. Only its intent IDs
-	// reach the manifest entry's intents list; nil declares no intents.
-	Purpose *descriptor.Purpose
-	// Factory is the sampler-construction callback. Its concrete
-	// signature is finalised when the synth distribution overlay
-	// lands; until then this field is held opaque to keep the API
-	// shape stable.
-	Factory any
-	Params  []ParamMeta
 }
 
 // ExprFunction describes a function callable from runtime expressions

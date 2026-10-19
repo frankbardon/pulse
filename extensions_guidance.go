@@ -44,9 +44,6 @@ func guidanceEntries(ext Extensions) []guidanceEntry {
 	for i, r := range ext.Tests {
 		out = append(out, guidanceEntry{categoryTest, string(r.Name), i, r.Purpose, r.Interpretation})
 	}
-	for i, r := range ext.SynthDistributions {
-		out = append(out, guidanceEntry{categoryDistribution, r.Name, i, r.Purpose, nil})
-	}
 	for i, r := range ext.MatrixOps {
 		out = append(out, guidanceEntry{categoryMatrix, string(r.Name), i, r.Purpose, nil})
 	}

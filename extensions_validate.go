@@ -14,7 +14,6 @@ import (
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/numrange"
-	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -22,7 +21,7 @@ import (
 
 // extensionNameRegex captures the embedder-registration naming policy:
 //
-//	^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH|MAT)_<NAMESPACE>_<NAME>$
+//	^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT)_<NAMESPACE>_<NAME>$
 //
 // with NAMESPACE and NAME drawn from uppercase ASCII (digits and
 // underscores allowed after the first letter). The Pulse-shipped
@@ -32,7 +31,7 @@ import (
 // fit the pattern (MAT_PARTIAL_CORRELATION) is still reserved by the
 // built-in collision check, which runs first.
 var extensionNameRegex = regexp.MustCompile(
-	`^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH|MAT)_([A-Z][A-Z0-9]+)_([A-Z](?:[A-Z0-9_]*[A-Z0-9])?)$`,
+	`^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT)_([A-Z][A-Z0-9]+)_([A-Z](?:[A-Z0-9_]*[A-Z0-9])?)$`,
 )
 
 // extensionCategory tags every registration slot for validation
@@ -41,15 +40,14 @@ var extensionNameRegex = regexp.MustCompile(
 type extensionCategory string
 
 const (
-	categoryAggregator   extensionCategory = "aggregator"
-	categoryAttribute    extensionCategory = "attribute"
-	categoryFilterer     extensionCategory = "filterer"
-	categoryGrouper      extensionCategory = "grouper"
-	categoryWindow       extensionCategory = "window"
-	categoryFeature      extensionCategory = "feature"
-	categoryTest         extensionCategory = "test"
-	categoryDistribution extensionCategory = "synth_distribution"
-	categoryMatrix       extensionCategory = "matrix"
+	categoryAggregator extensionCategory = "aggregator"
+	categoryAttribute  extensionCategory = "attribute"
+	categoryFilterer   extensionCategory = "filterer"
+	categoryGrouper    extensionCategory = "grouper"
+	categoryWindow     extensionCategory = "window"
+	categoryFeature    extensionCategory = "feature"
+	categoryTest       extensionCategory = "test"
+	categoryMatrix     extensionCategory = "matrix"
 )
 
 // expectedPrefix is the category-token half of the registration name
@@ -70,8 +68,6 @@ func (c extensionCategory) expectedPrefix() string {
 		return "FEAT"
 	case categoryTest:
 		return "TEST"
-	case categoryDistribution:
-		return "SYNTH"
 	case categoryMatrix:
 		return "MAT"
 	}
@@ -146,11 +142,6 @@ func validateExtensions(ext Extensions) error {
 		return err
 	}
 	if err := validateTestTiers(ext.Tests); err != nil {
-		return err
-	}
-	if err := validateOperatorSlice(ext.SynthDistributions, categoryDistribution, builtinDistributionNames(), func(r DistributionRegistration) (string, []ParamMeta) {
-		return r.Name, r.Params
-	}, nil); err != nil {
 		return err
 	}
 	if err := validateOperatorSlice(ext.MatrixOps, categoryMatrix, builtinMatrixNames(), func(r MatrixOpRegistration) (string, []ParamMeta) {
@@ -1138,15 +1129,6 @@ func builtinMatrixNames() map[string]struct{} {
 	out := make(map[string]struct{}, 16)
 	for _, t := range types.AllMatrixTypes() {
 		out[string(t)] = struct{}{}
-	}
-	return out
-}
-
-func builtinDistributionNames() map[string]struct{} {
-	dists := synth.AllDistributions()
-	out := make(map[string]struct{}, len(dists))
-	for _, name := range dists {
-		out[name] = struct{}{}
 	}
 	return out
 }

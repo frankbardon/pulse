@@ -166,14 +166,6 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Params:      paramMetaSnapshot(r.Params),
 		})
 	}
-	for _, r := range ext.SynthDistributions {
-		snap.SynthDistributions = append(snap.SynthDistributions, descriptor.OperatorMeta{
-			Name:        r.Name,
-			Namespace:   parseNamespace(r.Name),
-			Description: r.Description,
-			Params:      paramMetaSnapshot(r.Params),
-		})
-	}
 	addSnapshotMatrixOps(snap, ext.MatrixOps)
 	snap.Purposes, snap.Interpretations = extensionGuidance(ext)
 	for _, fn := range ext.ExprFunctions {

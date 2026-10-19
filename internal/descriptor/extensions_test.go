@@ -16,12 +16,12 @@ func TestExtensionsManifestFromSnapshot_NilYieldsEmpty(t *testing.T) {
 	// Every slice must be a populated (non-nil) zero-length slice.
 	if got.Aggregators == nil || got.Attributes == nil || got.Filterers == nil ||
 		got.Groupers == nil || got.Windows == nil || got.Features == nil ||
-		got.Tests == nil || got.SynthDistributions == nil ||
+		got.Tests == nil ||
 		got.ExprFunctions == nil || got.LookupTables == nil {
 		t.Fatalf("nil snapshot must produce empty (non-nil) slices: %#v", got)
 	}
 	if len(got.Aggregators)+len(got.Attributes)+len(got.Filterers)+len(got.Groupers)+
-		len(got.Windows)+len(got.Features)+len(got.Tests)+len(got.SynthDistributions)+
+		len(got.Windows)+len(got.Features)+len(got.Tests)+
 		len(got.ExprFunctions)+len(got.LookupTables) != 0 {
 		t.Errorf("nil snapshot produced non-empty slices: %#v", got)
 	}
@@ -40,9 +40,6 @@ func TestExtensionsManifestFromSnapshot_PopulatedSortsByName(t *testing.T) {
 		Windows:    []descriptor.OperatorMeta{{Name: "WIN_ACME_B"}, {Name: "WIN_ACME_A"}},
 		Features:   []descriptor.OperatorMeta{{Name: "FEAT_ACME_B"}, {Name: "FEAT_ACME_A"}},
 		Tests:      []descriptor.OperatorMeta{{Name: "TEST_ACME_B"}, {Name: "TEST_ACME_A"}},
-		SynthDistributions: []descriptor.OperatorMeta{
-			{Name: "SYNTH_ACME_B"}, {Name: "SYNTH_ACME_A"},
-		},
 		ExprFunctions: []descriptor.ExprFunctionMeta{
 			{Name: "zfunc"}, {Name: "afunc"}, {Name: "mfunc"},
 		},
@@ -71,9 +68,6 @@ func TestExtensionsManifestFromSnapshot_PopulatedSortsByName(t *testing.T) {
 	}
 	if got.Tests[0].Name != "TEST_ACME_A" {
 		t.Errorf("Tests not sorted: %v", got.Tests)
-	}
-	if got.SynthDistributions[0].Name != "SYNTH_ACME_A" {
-		t.Errorf("SynthDistributions not sorted: %v", got.SynthDistributions)
 	}
 	if got.ExprFunctions[0].Name != "afunc" || got.ExprFunctions[2].Name != "zfunc" {
 		t.Errorf("ExprFunctions not sorted: %v", got.ExprFunctions)
@@ -270,15 +264,14 @@ func TestExtensionsManifestFromSnapshot_PartialPopulationCoercesEmpty(t *testing
 		t.Errorf("Aggregators = %v, want 1 entry", got.Aggregators)
 	}
 	for name, s := range map[string]any{
-		"Attributes":         got.Attributes,
-		"Filterers":          got.Filterers,
-		"Groupers":           got.Groupers,
-		"Windows":            got.Windows,
-		"Features":           got.Features,
-		"Tests":              got.Tests,
-		"SynthDistributions": got.SynthDistributions,
-		"ExprFunctions":      got.ExprFunctions,
-		"LookupTables":       got.LookupTables,
+		"Attributes":    got.Attributes,
+		"Filterers":     got.Filterers,
+		"Groupers":      got.Groupers,
+		"Windows":       got.Windows,
+		"Features":      got.Features,
+		"Tests":         got.Tests,
+		"ExprFunctions": got.ExprFunctions,
+		"LookupTables":  got.LookupTables,
 	} {
 		switch v := s.(type) {
 		case []descriptor.OperatorMeta:

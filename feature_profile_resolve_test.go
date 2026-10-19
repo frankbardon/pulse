@@ -113,7 +113,6 @@ func TestFeatureProfile_UnknownReasons(t *testing.T) {
 		{"SYNTH_ACME_DIST", featureUnknownUnregistered, ""},
 	}
 	ext := profileExt()
-	ext.SynthDistributions = []DistributionRegistration{{Name: "SYNTH_ACME_DIST"}}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			ce := requireCode(t, newWithProfile(t, ext, tc.name, "capability:process"),

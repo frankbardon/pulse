@@ -10,14 +10,13 @@ package descriptor
 // Extensions block emits as nested empty slices (not null) for
 // JSON-stability across releases.
 type ExtensionsManifest struct {
-	Aggregators        []OperatorMeta `json:"aggregators"`
-	Attributes         []OperatorMeta `json:"attributes"`
-	Filterers          []OperatorMeta `json:"filterers"`
-	Groupers           []OperatorMeta `json:"groupers"`
-	Windows            []OperatorMeta `json:"windows"`
-	Features           []OperatorMeta `json:"features"`
-	Tests              []OperatorMeta `json:"tests"`
-	SynthDistributions []OperatorMeta `json:"synth_distributions"`
+	Aggregators []OperatorMeta `json:"aggregators"`
+	Attributes  []OperatorMeta `json:"attributes"`
+	Filterers   []OperatorMeta `json:"filterers"`
+	Groupers    []OperatorMeta `json:"groupers"`
+	Windows     []OperatorMeta `json:"windows"`
+	Features    []OperatorMeta `json:"features"`
+	Tests       []OperatorMeta `json:"tests"`
 	// MatrixOps lists the embedder-registered MAT_* matrix operators
 	// in the built-in Matrices shape (MatrixMeta): member types, the
 	// engine-owned params then the operator's own, OutputKeys, the

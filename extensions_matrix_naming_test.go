@@ -43,8 +43,8 @@ func TestBuiltinMatrixNames_CoverRegistry(t *testing.T) {
 
 // TestLooksLikeExtensionName_Matrix audits the feature-universe
 // predicate after MAT joined the regex: an embedder MAT_* name is an
-// extension feature name, a reserved namespace is not, and SYNTH stays
-// excluded.
+// extension feature name, a reserved namespace is not, and a SYNTH name
+// (no extension category since U34) fails the regex.
 func TestLooksLikeExtensionName_Matrix(t *testing.T) {
 	for name, want := range map[string]bool{
 		"MAT_ACME_SCATTER":  true,

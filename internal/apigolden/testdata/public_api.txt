@@ -231,12 +231,6 @@ pulse: const DefaultMaxMatrixDim int64 = 2048
 pulse: const DefaultRequestTimeout time.Duration = -1
 pulse: func DescribeFeatureProfile(fp *pulse.FeatureProfile, ext ...pulse.Extensions) (*pulse.FeatureProfileDescription, error)
 pulse: func DiffFeatureProfile(fp *pulse.FeatureProfile, ext ...pulse.Extensions) (*pulse.FeatureProfileDiff, error)
-pulse: type DistributionRegistration struct
-pulse: type DistributionRegistration field Description string
-pulse: type DistributionRegistration field Factory any
-pulse: type DistributionRegistration field Name string
-pulse: type DistributionRegistration field Params []pulse.ParamMeta
-pulse: type DistributionRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type ErrorFixup = pulse/errors.Fixup
 pulse: type ErrorFixup underlying struct
 pulse: type ErrorFixup field Action pulse/errors.FixupAction "json:\"action\""
@@ -298,7 +292,6 @@ pulse: type Extensions field Populations map[string]pulse.Population
 pulse: type Extensions field RangeTables map[string]pulse.RangeTable
 pulse: type Extensions field ReferenceVectors map[string]pulse/types.ReferenceVectorTable
 pulse: type Extensions field Skills io/fs.FS
-pulse: type Extensions field SynthDistributions []pulse.DistributionRegistration
 pulse: type Extensions field Tests []pulse.TestRegistration
 pulse: type Extensions field Windows []pulse.WindowRegistration
 pulse: type FacetDiscrete = pulse/types.FacetDiscrete
@@ -1458,7 +1451,6 @@ pulse/descriptor: type ExtensionsManifest field MatrixOps []pulse/descriptor.Mat
 pulse/descriptor: type ExtensionsManifest field Populations []pulse/descriptor.PopulationMeta "json:\"populations\""
 pulse/descriptor: type ExtensionsManifest field RangeTables []pulse/descriptor.RangeTableMeta "json:\"range_tables\""
 pulse/descriptor: type ExtensionsManifest field ReferenceVectors []pulse/descriptor.ReferenceVectorMeta "json:\"reference_vectors\""
-pulse/descriptor: type ExtensionsManifest field SynthDistributions []pulse/descriptor.OperatorMeta "json:\"synth_distributions\""
 pulse/descriptor: type ExtensionsManifest field Tests []pulse/descriptor.OperatorMeta "json:\"tests\""
 pulse/descriptor: type ExtensionsManifest field Windows []pulse/descriptor.OperatorMeta "json:\"windows\""
 pulse/descriptor: type FacetCapability struct
@@ -5653,4 +5645,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0540f9531fbc73637c3ee29abe43ca4b1db000d7c7f75ec70ca6a989849c51c7
+// golden-hash: 76b00562362f0f7e4088cb67810fc38d389c83fdfa3ceea8c2207edd44d7624d

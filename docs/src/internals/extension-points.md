@@ -148,15 +148,14 @@ The full public surface is a single struct on `pulse.Options`:
 import "github.com/frankbardon/pulse"
 
 ext := pulse.Extensions{
-    Aggregators:        []pulse.AggregatorRegistration{...},
-    Attributes:         []pulse.AttributeRegistration{...},
-    Filterers:          []pulse.FiltererRegistration{...},
-    Groupers:           []pulse.GrouperRegistration{...},
-    Windows:            []pulse.WindowRegistration{...},
-    Features:           []pulse.FeatureRegistration{...},
-    Tests:              []pulse.TestRegistration{...},
-    SynthDistributions: []pulse.DistributionRegistration{...},
-    MatrixOps:          []pulse.MatrixOpRegistration{...},
+    Aggregators: []pulse.AggregatorRegistration{...},
+    Attributes:  []pulse.AttributeRegistration{...},
+    Filterers:   []pulse.FiltererRegistration{...},
+    Groupers:    []pulse.GrouperRegistration{...},
+    Windows:     []pulse.WindowRegistration{...},
+    Features:    []pulse.FeatureRegistration{...},
+    Tests:       []pulse.TestRegistration{...},
+    MatrixOps:   []pulse.MatrixOpRegistration{...},
 
     ExprFunctions:    []pulse.ExprFunction{...},
     LookupTables:     map[string]pulse.LookupTable{...},
@@ -178,6 +177,14 @@ exactly as the unmodified binary. All registrations are validated
 together; the first failure short-circuits `pulse.New` with a typed
 `CodedError`.
 
+**Synthetic-data distributions are not an extension category in v1.**
+`pulse synth` / `Pulse.Synth` draw only from the built-in kinds the
+manifest lists under `synth_distributions`; there is no registration
+slot, no `SYNTH_*` extension prefix and no `extensions.synth_distributions`
+manifest key. (An earlier alpha carried an `Extensions.SynthDistributions`
+slot that reserved a name but could never sample; it was removed in U34.
+An authoring contract may arrive additively in a v1.x release.)
+
 ## Naming policy
 
 Embedder registrations MUST use a three-segment namespaced form:
@@ -189,7 +196,7 @@ Embedder registrations MUST use a three-segment namespaced form:
 The regex enforced by `extensions_validate.go` is:
 
 ```
-^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH|MAT)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$
+^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$
 ```
 
 | Example | Category | Namespace | Name |
@@ -223,7 +230,7 @@ Two embedders in the same process must use disjoint namespaces.
 
 ## Per-category registration shapes
 
-The nine operator categories plus expression functions and lookup
+The eight operator categories plus expression functions and lookup
 tables cover everything `pulse.Options.Extensions` accepts. Field-input
 introspection and component-schema emission attach to operator
 registrations as additional optional fields — see the dedicated
