@@ -92,7 +92,7 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U52 | [synth-realism](U52-synth-realism.md): Pulse can synthesize time series, outcomes drawn from a model, and privacy-checked twins without outside tooling | API & release | L | — (U50 soft) | 362, 363, 364, 365, 366, 367, 368, 369, 370, 450, 457 |
 | U53 | [custom-regressions](U53-custom-regressions.md): Embedders register their own regression models, treated exactly like built-ins, and the core gains the model options media-mix work needs | API & release | L | — (U34, U36, U42 soft) | 381, 382, 383, 384, 385, 386, 387, 388, 389 |
 | U54 | [multi-grouper](U54-multi-grouper.md): Two or more groupers give one row per key combination, in every execution path | API & release | M | — (U27 soft) | 200, 318, 421, 422 |
-| U55 | [previous-state](U55-previous-state.md): A long panel feeds a from-state × to-state crosstab: a per-subject previous-state attribute read in local time | Time zones | S | U50 | 452 |
+| U55 | [previous-state](U55-previous-state.md): A long panel feeds a from-state × to-state crosstab: a per-subject previous-state attribute | Time zones | M | U50 | 452 |
 
 ## Dependency graph
 

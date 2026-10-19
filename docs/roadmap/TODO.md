@@ -458,7 +458,7 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#353** Acceptance: the multi-time-zone example's six-slot Compose views become single requests, including one warehouse × local-hour matrix, and the anomaly screen excludes local Saturdays in Pulse · [U50](units/U50-local-time.md). Delivered by U50 (E4-S1) in [pulse-casebook#7](https://github.com/frankbardon/pulse-casebook/pull/7)
 
 #### Previous state ([U55](units/U55-previous-state.md))
-- [ ] **#452** `ATTR_PREVIOUS_STATE`: a per-subject previous-state attribute. For each record it gives the state the same subject (a key field) held at its previous time point (ordered by a date / datetime field, read in the row's local time), or null for the subject's first record. A long panel then feeds a from-state × to-state crosstab (and `OVERLAY_MARKOV` / `OVERLAY_SYMMETRY` / `OVERLAY_RETENTION`) without pre-pivoting to wide `state_t1` / `state_t2` columns. It would be the fourth `flows` declarer. Handed on from U30 (E7-S2, #449) · [U55](units/U55-previous-state.md)
+- [x] **#452** `ATTR_PREVIOUS_STATE`: a per-subject previous-state attribute. For each record it gives the state the same subject (a key field) held at its previous time point (ordered by a date / datetime field, read in the row's local time), or null for the subject's first record. A long panel then feeds a from-state × to-state crosstab (and `OVERLAY_MARKOV` / `OVERLAY_SYMMETRY` / `OVERLAY_RETENTION`) without pre-pivoting to wide `state_t1` / `state_t2` columns. It would be the fourth `flows` declarer. Handed on from U30 (E7-S2, #449) · [U55](units/U55-previous-state.md) — *Delivered by U55: `ATTR_PREVIOUS_STATE` (ordered by instant, so zone-independent rather than read in local time), computed before filters, a categorical key a crosstab axis / expression (by state name) / materialize accepts, the fourth `flows` declarer; example `overlays/55_crosstab_previous_state_flows`*
 
 #### Follow-ups from U50 (local time)
 - [ ] **#480** A cohort-level default zone: a schema-declared zone column (a field the schema marks as the row's IANA zone) so every request inherits it with no `time_zone_field` on each slot. Needs a `0x02` schema section or a sidecar, so it is a byte-layout change. Interview decision in U50: v1.x backlog · no unit
@@ -466,6 +466,10 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#482** `ATTR_ZSCORE` / `ATTR_TSCORE` / `ATTR_NORMALIZED` over a field with zero spread score every row null with only the aggregation's `n_null` as a sign; the multivariate attributes warn `PULSE_MATRIX_SINGULAR`. Consider a warning (a new or reused code). Found in U50 (E7-S2) · no unit
 - [ ] **#483** `Pulse.PredictConvert` facade and a `pulse convert --labels` flag: library `ConvertJob.Predict` without a resolver cannot raise `PULSE_LABEL_KEY_INVALID`, and the CLI cannot bind labels on a convert. Found in U50 (E6-S2) · no unit
 - [ ] **#484** Numeric label bindings on process / sample / facet / chain responses: `descriptor.ValidateLabels` still refuses a numeric field (replace mode would turn a number into a string, so it is a design call). Found in U50 (E3-S2) · no unit
+
+#### Follow-ups from U55 (previous state)
+- [ ] **#485** `ATTR_PREVIOUS_STATE` sorted-input O(subjects) fast path: a cohort already ordered by subject then instant is scored in one pass with no per-subject sort. Found in U55 (E1-S1) · no unit
+- [ ] **#486** Extension attributes declaring an output dictionary, so an `extend` attribute emitting a categorical inherits a dictionary the way `ATTR_PREVIOUS_STATE` inherits its state field's. Found in U55 (E1-S2) · no unit
 
 #### Archive scale ([U51](units/U51-archive-scale.md))
 - [ ] **#354** Archives open through `io.ReaderAt` and the zip central directory: `inspect`, `predict`, `CountRecords`, `shard list` and anchor reads touch only headers and the central directory (O(shards)), as CLAUDE.md promises · [U51](units/U51-archive-scale.md)
