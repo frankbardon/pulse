@@ -28,14 +28,14 @@ func (p *Pulse) prepareSidecarCarry(source string) (*spss.SidecarCarry, *errors.
 // warning, or a failure to carry. A carried sidecar is fresh, so it is
 // dropped from built.InvalidatedSidecars — an overwrite no longer leaves
 // it stale.
-func (p *Pulse) carrySidecar(c *spss.SidecarCarry, prepWarn *errors.CodedError, built *CohortBuildResult, replaced []string) []*errors.CodedError {
+func (p *Pulse) carrySidecar(c *spss.SidecarCarry, prepWarn *errors.CodedError, built *CohortBuildResult, replaced []string, mirrors map[string]string) []*errors.CodedError {
 	if prepWarn != nil {
 		return []*errors.CodedError{prepWarn}
 	}
 	if c == nil {
 		return nil
 	}
-	if w := c.WriteFor(p.fsys, built.Target, built.Schema, replaced); w != nil {
+	if w := c.WriteFor(p.fsys, built.Target, built.Schema, replaced, mirrors); w != nil {
 		return []*errors.CodedError{w}
 	}
 	kept := built.InvalidatedSidecars[:0]

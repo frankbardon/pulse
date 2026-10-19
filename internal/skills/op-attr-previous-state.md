@@ -27,7 +27,7 @@ Source columns only.
 
 ## Output
 
-The previous state, typed as `field` (its dictionary, nullable); crosstab it × `field`.
+The previous state, typed as `field` (its dictionary, nullable); crosstab it × `field`.<!-- feature: capability:materialize --> `pulse_materialize` writes it as a real column of that type and dictionary.<!-- /feature -->
 
 ## Components
 

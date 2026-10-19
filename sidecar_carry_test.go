@@ -190,3 +190,117 @@ func TestMaterialize_StaleSidecarIsNotCarried(t *testing.T) {
 		t.Fatal("a stale sidecar was carried")
 	}
 }
+
+// TestMaterialize_CarriesPreviousStateValueLabels: an ATTR_PREVIOUS_STATE
+// column inherits its state field's type and dictionary, so the carried
+// sidecar describes it as that state variable does — the same codes and
+// value labels — instead of refusing a categorical column (which would
+// drop the whole sidecar); a .sav export carries the labels and the
+// re-imported column holds the previous codes.
+func TestMaterialize_CarriesPreviousStateValueLabels(t *testing.T) {
+	// SPSS DATE counts seconds from 1582-10-14; epoch day d is
+	// 12219379200 + 86400·d.
+	day := func(d float64) spsstest.Value { return spsstest.Num(12219379200 + 86400*d) }
+	spec := labelledSavSpec()
+	spec.Vars = append(spec.Vars, spsstest.Var{Name: "DAY", Label: "Interview day",
+		Print: spsstest.Format{Type: spsstest.FormatDATE, Width: 11}})
+	spec.Cases = [][]spsstest.Value{
+		{spsstest.Num(1), spsstest.Num(1), spsstest.Num(1), day(1)},
+		{spsstest.Num(1), spsstest.Num(2), spsstest.Num(1), day(2)},
+		{spsstest.Num(2), spsstest.Num(2), spsstest.Num(1), day(1)},
+		{spsstest.Num(2), spsstest.Num(1), spsstest.Num(1), day(2)},
+	}
+	afs := afero.NewMemMapFs()
+	p := importSav(t, afs, spec, Options{})
+	res, err := p.Materialize(context.Background(), &Request{
+		Cohort: &types.Cohort{Filename: suggestCohort},
+		Attributes: []*types.Attribute{{Type: types.ATTR_PREVIOUS_STATE, Field: "Q1",
+			SubjectField: "ID", OrderField: "DAY", Label: "prev_q1"}},
+	}, "derived.pulse", MaterializeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Warnings) != 0 {
+		t.Fatalf("warnings %v", res.Warnings)
+	}
+	sc, err := spss.LoadSidecar(afs, "derived.pulse", spss.WriterOptions{})
+	if err != nil || sc == nil || sc.Document == nil {
+		t.Fatalf("no fresh sidecar beside derived.pulse: %v", err)
+	}
+	var q1, prev *spss.Variable
+	for i := range sc.Document.Payload.Variables {
+		switch v := &sc.Document.Payload.Variables[i]; v.Name {
+		case "Q1":
+			q1 = v
+		case "prev_q1":
+			prev = v
+		}
+	}
+	if q1 == nil || prev == nil {
+		t.Fatalf("sidecar variables Q1 %v prev_q1 %v", q1, prev)
+	}
+	if !reflect.DeepEqual(prev.Categories, q1.Categories) || prev.Kind != q1.Kind || !prev.Nullable {
+		t.Errorf("prev_q1 = %+v, want Q1's categories %+v (nullable)", prev, q1.Categories)
+	}
+	if prev.ShortName == q1.ShortName || prev.Index == q1.Index {
+		t.Errorf("prev_q1 short name %q index %d collide with Q1's", prev.ShortName, prev.Index)
+	}
+
+	w, err := pio.NewWriter(pio.FormatSPSS, afs, "derived.sav", pio.WriterOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := pio.NewExportJob("derived.pulse", w)
+	job.FS = afs
+	rep, err := p.Export(context.Background(), job)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for _, warn := range rep.TargetWarnings {
+		if warn.Code == perrors.PULSE_SPSS_SIDECAR_ABSENT {
+			t.Fatalf("export found no sidecar: %v", warn)
+		}
+	}
+	r, err := pio.NewReader(pio.FormatSPSS, afs, "derived.sav", pio.ReaderOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	imp := pio.NewImportJob(r, "back.pulse")
+	imp.FS = afs
+	if _, err := p.Import(context.Background(), imp); err != nil {
+		t.Fatal(err)
+	}
+	back, err := spss.LoadSidecar(afs, "back.pulse", spss.WriterOptions{})
+	if err != nil || back.Document == nil {
+		t.Fatalf("re-imported sidecar: %v", err)
+	}
+	labels := map[float64]string{}
+	for _, v := range back.Document.Payload.Variables {
+		if v.Name != "prev_q1" {
+			continue
+		}
+		for _, c := range v.Categories {
+			if c.Labelled && c.Code != nil {
+				labels[float64(*c.Code)] = c.Label
+			}
+		}
+	}
+	if want := map[float64]string{1: "Low", 2: "High"}; !reflect.DeepEqual(labels, want) {
+		t.Errorf("prev_q1 labels after the .sav round trip = %v, want %v", labels, want)
+	}
+	srcSchema, _ := readAll(t, p, "derived.pulse")
+	pi := len(srcSchema.Fields) - 1
+	_, srcRows := readAll(t, p, "derived.pulse")
+	_, backRows := readAll(t, p, "back.pulse")
+	for i := range srcRows {
+		if srcRows[i][pi] != backRows[i][pi] {
+			t.Errorf("row %d prev_q1 = %v after the round trip, want %v", i, backRows[i][pi], srcRows[i][pi])
+		}
+	}
+	if srcRows[1][pi] != "1" || srcRows[0][pi] != nil {
+		t.Errorf("prev_q1 cells %v / %v, want nil / the first wave's code", srcRows[0][pi], srcRows[1][pi])
+	}
+}

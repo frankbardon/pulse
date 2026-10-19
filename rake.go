@@ -237,7 +237,7 @@ func (p *Pulse) rake(ctx context.Context, req *RakeRequest) (*RakeResult, error)
 	if replace >= 0 {
 		replaced = []string{plan.WeightField()}
 	}
-	carried := p.carrySidecar(carry, carryWarn, built, replaced)
+	carried := p.carrySidecar(carry, carryWarn, built, replaced, nil)
 	p.touchManaged(ctx, req.Cohort)
 	rep := sol.Report
 	res := &RakeResult{
