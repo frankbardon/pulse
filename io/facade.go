@@ -448,6 +448,30 @@ const (
 // tri-state behaves identically on every adapter.
 type NullAwareReader = iocore.NullAwareReader
 
+// LateKeyRefuser is an optional extension of Reader for keyed sources —
+// a format whose column set is the key order of its FIRST record, as the
+// built-in NDJSON and JSON-array readers are — where a key that first
+// appears in a later record has no column to land in. By default such a
+// key is dropped, which stays the inference path's behaviour.
+//
+// # When it is armed
+//
+// ImportJob and ConvertJob (Run and Predict alike) type-assert it when
+// an explicit Schema is matched to the source by name, after the header
+// has been resolved and before any row is read: RefuseLateKeys(true) unless IgnoreExtra is set,
+// RefuseLateKeys(false) when it is. An inferred import never calls it.
+// The setting must survive Reset.
+//
+// # What an armed reader does
+//
+// ReadRows fails at the first record carrying a key outside the header
+// with a *errors.CodedError of code PULSE_IMPORT_SCHEMA_KEY_LATE, details
+// "column" (the key), "row" (1-based data row) and "columns" (the
+// header), instead of silently losing that key's values. A source that
+// does not implement LateKeyRefuser keeps whatever it does with such a
+// key; implement it whenever your format can produce one.
+type LateKeyRefuser = iocore.LateKeyRefuser
+
 // NullAwareWriter is an optional extension of Writer for targets whose
 // format has a native null channel and which therefore need to know
 // which caller is handing them rows.

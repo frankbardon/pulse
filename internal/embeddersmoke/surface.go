@@ -212,6 +212,8 @@ var (
 	_ func(pio.ColumnAwareWriter, []pio.ExportColumn) = pio.ColumnAwareWriter.SetExportColumns
 	// RowList's error return: a source's failure to READ a list cell.
 	_ func(pio.ListAwareReader, int, *pio.ListCell) error = pio.ListAwareReader.RowList
+	// The explicit-schema late-key refusal a keyed external reader arms.
+	_ func(pio.LateKeyRefuser, bool) = pio.LateKeyRefuser.RefuseLateKeys
 )
 
 // encoding: schema nouns, the raw ungrouped write primitives and the

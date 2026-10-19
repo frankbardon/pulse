@@ -3167,6 +3167,12 @@ pulse/io: type LabelWarning underlying struct
 pulse/io: type LabelWarning field Code string "json:\"code\""
 pulse/io: type LabelWarning field Details map[string]any "json:\"details,omitempty\""
 pulse/io: type LabelWarning field Message string "json:\"message\""
+pulse/io: type LateKeyRefuser = pulse/internal/iocore.LateKeyRefuser
+pulse/io: type LateKeyRefuser underlying interface
+pulse/io: type LateKeyRefuser imethod Close() error
+pulse/io: type LateKeyRefuser imethod ReadHeader() ([]string, error)
+pulse/io: type LateKeyRefuser imethod ReadRows(ctx context.Context, fn func(row []string) error) error
+pulse/io: type LateKeyRefuser imethod RefuseLateKeys(on bool)
 pulse/io: type ListAwareReader = pulse/internal/iocore.ListAwareReader
 pulse/io: type ListAwareReader underlying interface
 pulse/io: type ListAwareReader imethod Close() error
@@ -5646,4 +5652,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 9a7fc478364d0ac574f1dccf2b8b869e5e5db9cdb89eda70b0fbc0adff22968d
+// golden-hash: 7444c758b912a9938664b04258bc199443a3f43c9668b4bc0fbc29e692e93f2d
