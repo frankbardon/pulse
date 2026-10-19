@@ -859,14 +859,8 @@ func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Re
 		return
 	}
 	if ref.Position >= predictedLength {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_UNKNOWN),
-			"overlay "+string(spec.Kind)+" baseline-index position exceeds the predicted host series length",
-			map[string]any{
-				"index":          index,
-				"kind":           string(spec.Kind),
-				"baseline_index": ref.Position,
-				"series_length":  predictedLength,
-			})
+		// The runtime resolver's refusal (series_length the bound).
+		addCodedError(env, overlayhost.BaselineIndexOutOfRange(spec.Kind, index, ref.Position, predictedLength))
 		return
 	}
 }

@@ -255,40 +255,35 @@ func TestPreviousState_CorrespondenceDimensionsMatchRuntime(t *testing.T) {
 // grouped by the previous-state column is bounded by its inherited
 // dictionary (3 states), so a baseline position past the end is refused
 // by predict as the runtime refuses it — the FORMULA baseline_position
-// with the runtime's code, message and details; the baseline-index ref
-// with the runtime's code (its predict message differs from the
-// runtime's for every GROUP_CATEGORY host, the state field's too).
+// and the INDEX_VS_BASELINE / DELTA_VS_BASELINE baseline-index ref
+// alike, with the runtime's code, message and details; so is the same
+// overlay over the state field's own GROUP_CATEGORY host.
 func TestPreviousState_SeriesBaselineBoundMatchesRuntime(t *testing.T) {
 	p, fs := prevStateLongAndWide(t, pulse.Options{})
+	baselineRef := types.OverlayRef{BaselineIndex: &types.OverlayBaselineIndexRef{Position: 3}}
 	for _, c := range []struct {
-		name  string
-		spec  types.OverlaySpec
-		exact bool
+		name string
+		spec types.OverlaySpec
 	}{
 		{"formula", types.OverlaySpec{Kind: types.OverlayKindFormula, Scope: types.OverlayScopeGroup,
-			Params: json.RawMessage(`{"formula": "value / baseline", "baseline_position": 3}`)}, true},
-		{"index_vs_baseline", types.OverlaySpec{Kind: types.OverlayKindIndexVsBaseline, Scope: types.OverlayScopeGroup,
-			Ref: types.OverlayRef{BaselineIndex: &types.OverlayBaselineIndexRef{Position: 3}}}, false},
+			Params: json.RawMessage(`{"formula": "value / baseline", "baseline_position": 3}`)}},
+		{"index_vs_baseline", types.OverlaySpec{Kind: types.OverlayKindIndexVsBaseline, Scope: types.OverlayScopeGroup, Ref: baselineRef}},
+		{"delta_vs_baseline", types.OverlaySpec{Kind: types.OverlayKindDeltaVsBaseline, Scope: types.OverlayScopeGroup, Ref: baselineRef}},
 	} {
-		t.Run(c.name, func(t *testing.T) {
-			req := &types.Request{
-				Cohort:       &types.Cohort{Filename: "panel.pulse"},
-				Attributes:   prevStateAttr(),
-				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "prev"}},
-				Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "plan", Label: "n"}},
-				Overlays:     []types.OverlaySpec{c.spec},
-			}
-			_, err := p.Process(context.Background(), req)
-			ce := requireCode(t, err, errors.PULSE_OVERLAY_REF_UNKNOWN)
-			env := predictEnvelope(t, p, fs, "panel.pulse", req)
-			if c.exact {
-				sameEntry(t, env, err)
-				return
-			}
-			if len(env.Errors) == 0 || env.Errors[0].Code != string(ce.Code) {
-				t.Fatalf("predict errors %+v, want %s", env.Errors, ce.Code)
-			}
-		})
+		for _, host := range []string{"prev", "plan"} {
+			t.Run(c.name+"/"+host, func(t *testing.T) {
+				req := &types.Request{
+					Cohort:       &types.Cohort{Filename: "panel.pulse"},
+					Attributes:   prevStateAttr(),
+					Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: host}},
+					Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "plan", Label: "n"}},
+					Overlays:     []types.OverlaySpec{c.spec},
+				}
+				_, err := p.Process(context.Background(), req)
+				requireCode(t, err, errors.PULSE_OVERLAY_REF_UNKNOWN)
+				sameEntry(t, predictEnvelope(t, p, fs, "panel.pulse", req), err)
+			})
+		}
 	}
 }
 
