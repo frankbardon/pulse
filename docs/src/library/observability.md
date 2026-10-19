@@ -61,6 +61,14 @@ Hooks: &observe.Hooks{
 - A streaming operation ends when its stream is drained, closed, errors or its context is cancelled. **A stream you abandon without closing never ends**, and its in-flight gauge stays up. Always `Close` an iterator.
 - `OperationResult.Code` is `ok`, an error code, or `uncoded`.
 
+## Panics inside an operation
+
+A panic raised inside an operation (most plausibly a faulty extension operator, or an engine bug) does not crash your process. The facade recovers it and returns a `PROCESSING_PANIC` `*errors.CodedError` with `details.op`, `details.panic_type` (the Go type name) and `details.stack` (at most 32 frames). The panic *value* is never kept, in the message, details or logs, because it can carry row data. The instance stays usable. Recovery covers the instrumented facade methods, the engine's worker pools (`details.op` then names the pool: `parallel_decode`, `shard_parallel`, `compose_parallel`, `compose_fits`) and the stream producers (the error arrives as the stream's error terminator).
+
+With a logger, hooks or metrics set, the observed operation ends with that code, so the log record, `OperationResult.Code` and `pulse_operations_total{code}` all report `PROCESSING_PANIC`.
+
+To crash instead (a debugger, a test, a supervisor that restarts the process), set `Options.DisablePanicRecovery`: the original panic is re-raised at every site. `pulse` and `pulse mcp` always recover. A panicking expression function is recovered by the expression engine and surfaces as `PROCESSING_RUNTIME`.
+
 ## Metrics
 
 | Metric | Type | Labels |

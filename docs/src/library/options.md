@@ -137,6 +137,14 @@ gate's own answer and every reason it declines.
 p, err := pulse.New(pulse.Options{DisableCrosstabFusion: true})
 ```
 
+### `DisablePanicRecovery bool`
+
+By default a panic raised inside an operation (a faulty extension operator, an engine bug) is recovered and returned as a `PROCESSING_PANIC` coded error (`details.op`, `details.panic_type`, `details.stack`; never the panic value), and the instance stays usable. Set `DisablePanicRecovery = true` to re-panic with the original value instead, for a debugger, a test, or a supervisor that restarts the process. It is per instance, fixed at `pulse.New`, and library-only: the CLI and `pulse mcp` always recover. See [Observability](observability.md#panics-inside-an-operation).
+
+```go
+p, err := pulse.New(pulse.Options{DisablePanicRecovery: true})
+```
+
 ### `DefaultTimeZone string`
 
 The zone a zone-capable slot falls back to when neither its own `tz`

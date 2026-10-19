@@ -99,4 +99,4 @@ The deviations from the proposal above, all deliberate:
 - **No environment variables.** Logging is configured by flags and `Options` only; Pulse never reads `slog.Default()`.
 - **Contrib release.** The adapters are tagged `contrib/<module>/vX` in lockstep with the root tag by a `contrib` job in `release.yml`; they carry no GitHub Release. The main branch keeps `require github.com/frankbardon/pulse v0.0.0` with a `replace`; only the detached tagged commit carries the real version.
 - **Gates.** Beyond the four named above: an allocation pin on the off path, `TestObservabilityDocCoversEnums` and `TestObservedMethodsCoverSurface`.
-- **Panic recovery.** Only hook panics are recovered. Recovering a panic inside an operation is U56 (#231).
+- **Panic recovery.** Hook panics are recovered per call (U20). A panic inside an operation is recovered into `PROCESSING_PANIC` at the facade, the worker pools and the stream producers (U56, #231); `Options.DisablePanicRecovery` opts out. Contract: `.claude/reference/observability.md` (Operation panic recovery).

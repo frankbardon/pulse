@@ -4,7 +4,7 @@ slug: operation-panic-recovery
 title: "A panic raised inside an operation becomes a coded error at the facade instead of crashing the host"
 track: Embedder operations
 size: S
-status: not-started
+status: done
 depends_on: [U20]
 soft_depends_on: [U34]
 blocks: [U32]
@@ -20,7 +20,7 @@ branch: operation-panic-recovery
 
 ## Summary
 
-[U20](U20-observability.md)'s hooks are panic-safe (a panicking hook is recovered and counted in `pulse_hook_panics_total`), but a panic raised INSIDE an operation, most plausibly a faulty `extend` operator or expr function, still unwinds through the facade and crashes the host. This unit recovers it at the instrumented facade boundary (`observeOn`), turns it into a coded error, and ends the observed operation with that code so logs, hooks and metrics report it. Split out of [U34](U34-extension-validation.md), which it is not about.
+[U20](U20-observability.md)'s hooks are panic-safe (a panicking hook is recovered and counted in `pulse_hook_panics_total`), but a panic raised INSIDE an operation, most plausibly a faulty `extend` operator or expr function, still unwinds through the facade and crashes the host. This unit recovers it at the instrumented facade boundary (`observe` / `observed` / `observedStream`, above the off-path return), turns it into a coded error, and ends the observed operation with that code so logs, hooks and metrics report it. Split out of [U34](U34-extension-validation.md), which it is not about.
 
 ## References
 
@@ -30,18 +30,20 @@ branch: operation-panic-recovery
 
 **TODO items delivered** (tick in [`TODO.md`](../TODO.md)):
 
-- [ ] **#231** Recover a panic raised inside an operation (a faulty extension operator or expr function, an engine bug) into a coded error at the facade instead of crashing the host; only hook panics are recovered today
+- [x] **#231** Recover a panic raised inside an operation (a faulty extension operator or expr function, an engine bug) into a coded error at the facade instead of crashing the host; only hook panics are recovered today
 
 ## Scope
 
 **In scope**
-- Recovery at the instrumented facade boundary (`observeOn`) for every observed operation
+- Recovery at the instrumented facade boundary (`observe` / `observed` / `observedStream`) for every observed operation, on both the off and on path
+- Panics in goroutines the engine owns: the worker pools (`parallel_decode`, `shard_parallel`, `compose_parallel`, `compose_fits`) and the stream producers (`synth_stream`, `process_stream`)
+- `Options.DisablePanicRecovery` (re-panic with the original value; CLI and MCP always recover)
 - A new `PROCESSING_*` or `SERVICE_*` code with `codeMetadata` (Message + at least one Fixup) and an `internal/descriptor/error_owners.go` owner
 - The observed operation ends with that code, so logs, hooks and metrics report it
 - The off path (no logger, hooks or metrics) stays allocation-identical
 
 **Out of scope**
-- Recovering panics in goroutines the engine owns, unless the first decision below says so
+- Panics in the `watch.go` stat poller, the `internal/obsprom` HTTP server and the `context.AfterFunc` in `observability_stream.go` (not operations)
 
 ## Epics & stories
 
@@ -69,4 +71,4 @@ branch: operation-panic-recovery
 
 ## Human inputs & decisions
 
-- **Open:** whether the engine's own panics (not just extensions') are recovered or left to crash. Decide in E1-S1.
+- [x] Decided: the engine's own panics are recovered too, in the facade and in every engine-owned worker goroutine; `Options.DisablePanicRecovery` opts out.

@@ -560,7 +560,7 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#123** Silence, no-row-data, dependency and panic gates; "Observability" docs page · [U20](units/U20-observability.md)
 
 #### Follow-ups from U20
-- [ ] **#231** Recover a panic raised inside an operation (a faulty extension operator or expr function, an engine bug) into a coded error at the facade instead of crashing the host; only hook panics are recovered today · [U56](units/U56-operation-panic-recovery.md)
+- [x] **#231** Recover a panic raised inside an operation (a faulty extension operator or expr function, an engine bug) into a coded error at the facade instead of crashing the host; only hook panics are recovered today · [U56](units/U56-operation-panic-recovery.md)
 - [ ] **#232** Release rehearsal: exercise the lockstep contrib tag procedure (`scripts/release-contrib.sh`, `contrib` job in `release.yml`) on `v1.0.0-rc.1`, and decide how a root dependency bump keeps `make contrib-tidy` green (Dependabot root bumps fail `make contrib` until it is run in the PR) · [U33](units/U33-v1-release.md)
 - [ ] **#233** Decide the frozen shape of `mcpserve.ServeInfo`: U20 added `Limits []descriptor.LimitMeta`, which makes the struct non-comparable with `==`; keep, or carry `pulse.Limits` instead, before the API freeze · [U33](units/U33-v1-release.md)
 - [ ] **#234** Decide whether the `*Pulse` methods deliberately left without an `OperationKind` (`CohortArtifacts`, `NewCohortBuilder`, `Imports`, `ResolveImport`, `ResolveCanonicalSchema`, `ApplySeriesOverlays`, `InvalidatedSidecars`, `Watch*`) stay uninstrumented in the frozen `observe` enum; adding a kind later is additive but widens metric cardinality · [U33](units/U33-v1-release.md)
