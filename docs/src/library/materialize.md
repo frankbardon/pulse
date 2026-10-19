@@ -69,7 +69,8 @@ res, err := p.Materialize(ctx, &pulse.Request{
   atomically through `NewCohortBuilder`. The source's SPSS metadata
   sidecar is carried — rewritten with a plain numeric variable per
   derived column (a previous-state column copies its state variable's
-  codes and value labels) and re-fingerprinted, so value labels survive to
+  codes and value labels, each category's `observed` flag recomputed
+  from the rows written) and re-fingerprinted, so value labels survive to
   `pulse export spss`; a stale or unreadable one is dropped with a warning
   carrying its own code. No other sidecar is carried. An existing target needs `Overwrite`; replacing one reports
   its stale sidecars in `InvalidatedSidecars` plus a

@@ -304,3 +304,59 @@ func TestMaterialize_CarriesPreviousStateValueLabels(t *testing.T) {
 		t.Errorf("prev_q1 cells %v / %v, want nil / the first wave's code", srcRows[0][pi], srcRows[1][pi])
 	}
 }
+
+// TestMaterialize_PreviousStateObservedRecomputed: the carried
+// previous-state variable copies its state variable's codes and labels,
+// but each category's Observed flag is recomputed from the column
+// written — a code the state field carried only at a subject's LAST
+// wave never occurs as a previous state, so it is unobserved there
+// (and a declared label nothing used stays unobserved), while the
+// state variable keeps its own flags.
+func TestMaterialize_PreviousStateObservedRecomputed(t *testing.T) {
+	day := func(d float64) spsstest.Value { return spsstest.Num(12219379200 + 86400*d) }
+	spec := labelledSavSpec()
+	spec.Vars = append(spec.Vars, spsstest.Var{Name: "DAY", Label: "Interview day",
+		Print: spsstest.Format{Type: spsstest.FormatDATE, Width: 11}})
+	spec.ValueLabels[0].Labels = append(spec.ValueLabels[0].Labels, spsstest.ValueLabel{Value: spsstest.Num(3), Label: "Mid"})
+	// Code 2 only ever closes a subject's history; code 3 is declared
+	// and never carried.
+	spec.Cases = [][]spsstest.Value{
+		{spsstest.Num(1), spsstest.Num(1), spsstest.Num(1), day(1)},
+		{spsstest.Num(1), spsstest.Num(2), spsstest.Num(1), day(2)},
+		{spsstest.Num(2), spsstest.Num(1), spsstest.Num(1), day(1)},
+		{spsstest.Num(2), spsstest.Num(1), spsstest.Num(1), day(2)},
+	}
+	afs := afero.NewMemMapFs()
+	p := importSav(t, afs, spec, Options{})
+	res, err := p.Materialize(context.Background(), &Request{
+		Cohort: &types.Cohort{Filename: suggestCohort},
+		Attributes: []*types.Attribute{{Type: types.ATTR_PREVIOUS_STATE, Field: "Q1",
+			SubjectField: "ID", OrderField: "DAY", Label: "prev_q1"}},
+	}, "derived.pulse", MaterializeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Warnings) != 0 {
+		t.Fatalf("warnings %v", res.Warnings)
+	}
+	sc, err := spss.LoadSidecar(afs, "derived.pulse", spss.WriterOptions{})
+	if err != nil || sc == nil || sc.Document == nil {
+		t.Fatalf("no fresh sidecar beside derived.pulse: %v", err)
+	}
+	observed := map[string]map[string]bool{}
+	for _, v := range sc.Document.Payload.Variables {
+		if v.Name != "Q1" && v.Name != "prev_q1" {
+			continue
+		}
+		observed[v.Name] = map[string]bool{}
+		for _, c := range v.Categories {
+			observed[v.Name][c.Label] = c.Observed
+		}
+	}
+	if want := map[string]bool{"Low": true, "High": true, "Mid": false}; !reflect.DeepEqual(observed["Q1"], want) {
+		t.Errorf("Q1 observed %v, want %v", observed["Q1"], want)
+	}
+	if want := map[string]bool{"Low": true, "High": false, "Mid": false}; !reflect.DeepEqual(observed["prev_q1"], want) {
+		t.Errorf("prev_q1 observed %v, want %v (recomputed from the written column)", observed["prev_q1"], want)
+	}
+}

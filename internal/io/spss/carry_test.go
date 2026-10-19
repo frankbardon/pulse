@@ -143,7 +143,15 @@ func TestSidecarCarry_MirroredColumnCopiesItsSourceVariable(t *testing.T) {
 		return s
 	}
 	sat := withPrev(encoding.FieldTypeF64).Field("Satisfaction")
-	doc, err := c.rewrite(withPrev(sat.Type), nil, map[string]string{"prev_sat": "Satisfaction"})
+	// Observed as Satisfaction is, so the categories copy verbatim.
+	var seen []bool
+	for _, cat := range variableNamed(src, "Satisfaction").Categories {
+		for int(cat.ID) >= len(seen) {
+			seen = append(seen, false)
+		}
+		seen[cat.ID] = seen[cat.ID] || cat.Observed
+	}
+	doc, err := c.rewrite(withPrev(sat.Type), nil, map[string]Mirror{"prev_sat": {Source: "Satisfaction", Observed: seen}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,9 +190,57 @@ func TestSidecarCarry_MirroredColumnCopiesItsSourceVariable(t *testing.T) {
 		"type":       {withPrev(encoding.FieldTypeF64), nil, "Satisfaction"},
 		"dictionary": {shortDict, nil, "Satisfaction"},
 	} {
-		_, err := c.rewrite(tc.schema, tc.replaced, map[string]string{"prev_sat": tc.src})
+		_, err := c.rewrite(tc.schema, tc.replaced, map[string]Mirror{"prev_sat": {Source: tc.src}})
 		if ce := codedErr(t, err); ce.Code != perr.PULSE_SPSS_SIDECAR_INVALID || !strings.Contains(ce.Message, "prev_sat") {
 			t.Errorf("%s: %v, want a PULSE_SPSS_SIDECAR_INVALID refusal of prev_sat", name, err)
+		}
+	}
+}
+
+// TestSidecarCarry_MirroredObservedFromTheColumn: a mirrored column's
+// categories keep the source's codes and labels, but each Observed flag
+// is the column's own — true iff a written record carried its ID — never
+// the source variable's.
+func TestSidecarCarry_MirroredObservedFromTheColumn(t *testing.T) {
+	fs, cohort, src := importFixture(t, richSpec())
+	c, _ := PrepareSidecarCarry(fs, cohort)
+	s := carrySchema(t, fs, cohort)
+	sat := s.Field("Satisfaction")
+	s.Fields = append(s.Fields, encoding.Field{Name: "prev_sat", Type: sat.Type, Nullable: true,
+		Description: "previous satisfaction", Dictionary: sat.Dictionary})
+	orig := variableNamed(src, "Satisfaction")
+	if len(orig.Categories) < 2 {
+		t.Fatalf("fixture Satisfaction has %d categories", len(orig.Categories))
+	}
+	first := orig.Categories[0].ID
+	for name, seen := range map[string][]bool{
+		"none":     nil,
+		"first id": append(make([]bool, first), true),
+		"every id": func() []bool {
+			out := make([]bool, maxCategoryID(orig.Categories)+1)
+			for i := range out {
+				out[i] = true
+			}
+			return out
+		}(),
+	} {
+		doc, err := c.rewrite(s, nil, map[string]Mirror{"prev_sat": {Source: "Satisfaction", Observed: seen}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		v := variableNamed(doc, "prev_sat")
+		if len(v.Categories) != len(orig.Categories) {
+			t.Fatalf("%s: %d categories, want %d", name, len(v.Categories), len(orig.Categories))
+		}
+		for j, cat := range v.Categories {
+			want := int(cat.ID) < len(seen) && seen[cat.ID]
+			o := orig.Categories[j]
+			if cat.Observed != want || cat.ID != o.ID || cat.Label != o.Label || cat.Labelled != o.Labelled || cat.Value != o.Value {
+				t.Errorf("%s: category %d = %+v, want %+v observed=%v", name, j, cat, o, want)
+			}
+		}
+		if got := variableNamed(doc, "Satisfaction").Categories; !reflect.DeepEqual(got, orig.Categories) {
+			t.Errorf("%s: Satisfaction's own categories moved: %+v", name, got)
 		}
 	}
 }

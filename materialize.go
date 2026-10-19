@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/io/spss"
 	"github.com/frankbardon/pulse/internal/service"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
@@ -141,7 +142,7 @@ func (p *Pulse) materialize(ctx context.Context, req *Request, out string, opts 
 	if err != nil {
 		return nil, err
 	}
-	carried := p.carrySidecar(carry, carryWarn, built, nil, sink.mirrors)
+	carried := p.carrySidecar(carry, carryWarn, built, nil, sink.mirrors())
 	// A read of a managed import slides its expiry, as Process does.
 	p.touchManaged(ctx, source)
 	res := &MaterializeResult{
@@ -177,10 +178,30 @@ type materializeSink struct {
 	// warns are the run's attribute warnings (service.MaterializeWarner).
 	warns []*errors.CodedError
 	// inherited holds, per derived column, the field shape it inherits
-	// (nil for a nullable f64); mirrors maps each inheriting column to
-	// the source field whose SPSS description it carries.
+	// (nil for a nullable f64) and sources the source field whose SPSS
+	// description it carries; observed marks, per inheriting column and
+	// dictionary code, whether a written row carried that code — the
+	// carried variable's Observed flags (spss.Mirror).
 	inherited []*encoding.Field
-	mirrors   map[string]string
+	sources   []string
+	observed  [][]bool
+}
+
+// mirrors maps each inheriting column to its SPSS mirror: the source
+// field it holds the codes of and the codes the written rows carried.
+// Nil when no column inherits.
+func (m *materializeSink) mirrors() map[string]spss.Mirror {
+	var out map[string]spss.Mirror
+	for i, f := range m.inherited {
+		if f == nil {
+			continue
+		}
+		if out == nil {
+			out = map[string]spss.Mirror{}
+		}
+		out[f.Name] = spss.Mirror{Source: m.sources[i], Observed: m.observed[i]}
+	}
+	return out
 }
 
 // Warn records the run's attribute warnings (a fitted vector
@@ -205,6 +226,8 @@ func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.Materialize
 	fields = append(fields, src.Fields...)
 	m.names = make([]string, len(cols))
 	m.inherited = make([]*encoding.Field, len(cols))
+	m.sources = make([]string, len(cols))
+	m.observed = make([][]bool, len(cols))
 	for i, c := range cols {
 		m.names[i] = c.Name
 		f := encoding.Field{
@@ -217,11 +240,7 @@ func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.Materialize
 			// A previous-state column: its state field's type and
 			// dictionary, its values that field's codes.
 			f.Type, f.Dictionary = c.Type, c.Dictionary
-			m.inherited[i] = &f
-			if m.mirrors == nil {
-				m.mirrors = map[string]string{}
-			}
-			m.mirrors[c.Name] = c.Inherits
+			m.inherited[i], m.sources[i] = &f, c.Inherits
 		}
 		fields = append(fields, f)
 	}
@@ -243,9 +262,18 @@ func (m *materializeSink) Row(source int64, derived []any) error {
 		if f == nil {
 			continue
 		}
-		v, err := inheritedCell(f, derived[i])
+		code := derived[i]
+		v, err := inheritedCell(f, code)
 		if err != nil {
 			return err
+		}
+		if v != nil {
+			// A non-nil cell is a valid code (inheritedCell): mark it.
+			id := int(code.(float64))
+			if id >= len(m.observed[i]) {
+				m.observed[i] = append(m.observed[i], make([]bool, id+1-len(m.observed[i]))...)
+			}
+			m.observed[i][id] = true
 		}
 		derived[i] = v
 	}
