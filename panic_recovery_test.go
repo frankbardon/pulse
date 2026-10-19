@@ -3,7 +3,11 @@ package pulse
 // The operation panic suite (U56). This file — with its siblings named
 // panic_recovery_*_test.go — is the only place tests may expect
 // PROCESSING_PANIC: everywhere else an engine panic must crash the test
-// that hit it.
+// that hit it. TestMain (testmain_test.go) forces recovery off for every
+// instance New builds; suite instances re-enable it explicitly through
+// enablePanicRecovery. TestPanicRecoverySuiteIsolated
+// (panic_recovery_gate_test.go) fails on any other test file naming the
+// code.
 
 import (
 	"context"
@@ -64,15 +68,30 @@ func panicExtensions() Extensions {
 	}
 }
 
-// panicFixture is obsFixture plus the panicking extensions, pinned to
-// the serial arm (worker-pool recovery is a separate story).
+// enablePanicRecovery undoes TestMain's testForcePanicRecoveryOff for
+// one instance: p recovers exactly as a production instance built from
+// opts would (recovery on unless opts.DisablePanicRecovery). Every
+// panic-suite instance that expects PROCESSING_PANIC goes through it.
+func enablePanicRecovery(p *Pulse, opts Options) *Pulse {
+	p.disablePanicRecovery = opts.DisablePanicRecovery
+	return p
+}
+
+// recoveringFixture is obsFixture with recovery re-enabled per opts.
+func recoveringFixture(t *testing.T, opts Options) *Pulse {
+	t.Helper()
+	p, _ := obsFixture(t, opts)
+	return enablePanicRecovery(p, opts)
+}
+
+// panicFixture is recoveringFixture plus the panicking extensions,
+// pinned to the serial arm (worker-pool recovery is a separate story).
 func panicFixture(t *testing.T, opts Options) *Pulse {
 	t.Helper()
 	opts.Extensions = panicExtensions()
 	opts.ShardWorkers = 1
 	opts.DecodeWorkers = 1
-	p, _ := obsFixture(t, opts)
-	return p
+	return recoveringFixture(t, opts)
 }
 
 func panicAggRequest() *Request {
@@ -319,12 +338,12 @@ func TestPanicRecovery_HelpersBothPaths(t *testing.T) {
 	}
 	for name, h := range helpers {
 		t.Run(name+"/off", func(t *testing.T) {
-			p, _ := obsFixture(t, Options{})
+			p := recoveringFixture(t, Options{})
 			assertPanicError(t, h(p), observe.OpOpen)
 		})
 		t.Run(name+"/on", func(t *testing.T) {
 			rec := &hookRecorder{}
-			p, _ := obsFixture(t, Options{Hooks: rec.hooks()})
+			p := recoveringFixture(t, Options{Hooks: rec.hooks()})
 			assertPanicError(t, h(p), observe.OpOpen)
 			evs := rec.take()
 			if len(evs) != 2 || evs[1].res.Code != string(errors.PROCESSING_PANIC) {
@@ -381,7 +400,7 @@ func TestPanicRecovery_DisableRepanics(t *testing.T) {
 // crash), on Process with a FILTER_EXPRESSION, and that the coded
 // error's text does not carry the panic value.
 func TestPanicRecovery_ExprFunctionCoded(t *testing.T) {
-	p, _ := obsFixture(t, Options{ShardWorkers: 1, DecodeWorkers: 1, Extensions: Extensions{
+	p := recoveringFixture(t, Options{ShardWorkers: 1, DecodeWorkers: 1, Extensions: Extensions{
 		ExprFunctions: []ExprFunction{{Name: "acme_boom", Fn: func(x float64) float64 {
 			if x > 0 {
 				panic(panicSecret)
@@ -408,4 +427,33 @@ func TestPanicRecovery_ExprFunctionCoded(t *testing.T) {
 	if strings.Contains(err.Error(), panicSecret) {
 		t.Errorf("error text leaks the panic value: %v", err)
 	}
+}
+
+// TestPanicRecovery_TestOverrideCrashes (FR-15): under this test binary
+// TestMain forces recovery off, so an instance built WITHOUT
+// enablePanicRecovery re-panics with the original value — an engine
+// panic in an ordinary test crashes it rather than returning
+// PROCESSING_PANIC — while the same Options re-enabled recover.
+//
+// Falsified by deleting the testForcePanicRecoveryOff assignment in
+// TestMain (the ordinary instance returns an error), and by dropping
+// `|| testForcePanicRecoveryOff` in New likewise.
+func TestPanicRecovery_TestOverrideCrashes(t *testing.T) {
+	ctx := context.Background()
+	if !testForcePanicRecoveryOff {
+		t.Fatal("TestMain did not set testForcePanicRecoveryOff")
+	}
+	opts := Options{Extensions: panicExtensions(), ShardWorkers: 1, DecodeWorkers: 1}
+	ordinary, _ := obsFixture(t, opts)
+	var got any
+	func() {
+		defer func() { got = recover() }()
+		_, err := ordinary.Process(ctx, panicAggRequest())
+		t.Errorf("ordinary instance returned (err %v) instead of crashing", err)
+	}()
+	if got != panicSecret {
+		t.Fatalf("ordinary instance panicked with %#v, want the original value %q", got, panicSecret)
+	}
+	_, err := panicFixture(t, Options{}).Process(ctx, panicAggRequest())
+	assertPanicError(t, err, observe.OpProcess)
 }

@@ -685,6 +685,14 @@ type Pulse struct {
 	disablePanicRecovery bool
 }
 
+// testForcePanicRecoveryOff is a test-only override, never set in
+// production: when true every instance New builds behaves as if
+// Options.DisablePanicRecovery were set, so an engine panic crashes the
+// Pulse test that hit it instead of being recovered into an error. The
+// root package's TestMain sets it; the panic suite
+// (panic_recovery*_test.go) turns recovery back on per instance.
+var testForcePanicRecoveryOff bool
+
 // New creates a new Pulse instance with the given options.
 func New(opts Options) (*Pulse, error) {
 	start := time.Now()
@@ -863,7 +871,7 @@ func New(opts Options) (*Pulse, error) {
 		hooks:          opts.Hooks,
 		metrics:        opts.Metrics,
 
-		disablePanicRecovery: opts.DisablePanicRecovery,
+		disablePanicRecovery: opts.DisablePanicRecovery || testForcePanicRecoveryOff,
 	}
 	if opts.Metrics != nil {
 		p.om = newOpMetrics(opts.Metrics)
