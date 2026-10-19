@@ -56,15 +56,15 @@ func probeExtensions(ext Extensions) error {
 // aggregators must return an OnlineAggregator; non-streamable
 // aggregators just need to construct without panicking.
 //
-// When the registration supplies a ComponentsFunc, the probe invokes it
-// once against the constructed instance and confirms the returned map
-// keys are a subset of ComponentSchema.Keys (universal-floor keys are
-// allowed but not required). Divergence raises
+// The components emitter — the registration's ComponentsFunc, else the
+// instance's own Components() method — is invoked once against the
+// constructed instance and its returned map keys checked against
+// ComponentSchema.Keys (probeComponentEmission; universal-floor keys
+// are allowed but not required). Divergence raises
 // PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH; the
 // emitter-without-schema and Mergeability-without-Keys variants raise
-// PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA (wired via the parity check
-// below). Factory panics still surface as
-// PULSE_EXTENSION_FACTORY_PANIC.
+// PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA. Factory and emitter panics
+// surface as PULSE_EXTENSION_FACTORY_PANIC.
 func probeAggregators(regs []AggregatorRegistration) error {
 	probeSchema := &encoding.Schema{}
 	for _, reg := range regs {
@@ -90,28 +90,12 @@ func probeAggregators(regs []AggregatorRegistration) error {
 		if err := verifyAggregatorArrayValued(reg, instance); err != nil {
 			return err
 		}
+		var viaFunc func() (map[string]any, error)
 		if reg.ComponentsFunc != nil {
-			if err := verifyComponentSchemaPresence(
-				"aggregator", string(reg.Name), reg.ComponentSchema, true,
-			); err != nil {
-				return err
-			}
-			emitted, err := safeInvokeAggregatorComponents(reg, instance)
-			if err != nil {
-				return err
-			}
-			if err := verifyComponentKeysSubset(
-				"aggregator", string(reg.Name),
-				reg.ComponentSchema, emitted,
-			); err != nil {
-				return err
-			}
-		} else {
-			if err := verifyComponentSchemaPresence(
-				"aggregator", string(reg.Name), reg.ComponentSchema, false,
-			); err != nil {
-				return err
-			}
+			viaFunc = func() (map[string]any, error) { return safeInvokeAggregatorComponents(reg, instance) }
+		}
+		if err := probeComponentEmission("aggregator", string(reg.Name), reg.ComponentSchema, viaFunc, instance); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -309,28 +293,12 @@ func probeGroupers(regs []GrouperRegistration) error {
 				return err
 			}
 		}
+		var viaFunc func() (map[string]any, error)
 		if reg.ComponentsFunc != nil {
-			if err := verifyComponentSchemaPresence(
-				"grouper", string(reg.Name), reg.ComponentSchema, true,
-			); err != nil {
-				return err
-			}
-			emitted, err := safeInvokeGrouperComponents(reg, instance)
-			if err != nil {
-				return err
-			}
-			if err := verifyComponentKeysSubset(
-				"grouper", string(reg.Name),
-				reg.ComponentSchema, emitted,
-			); err != nil {
-				return err
-			}
-		} else {
-			if err := verifyComponentSchemaPresence(
-				"grouper", string(reg.Name), reg.ComponentSchema, false,
-			); err != nil {
-				return err
-			}
+			viaFunc = func() (map[string]any, error) { return safeInvokeGrouperComponents(reg, instance) }
+		}
+		if err := probeComponentEmission("grouper", string(reg.Name), reg.ComponentSchema, viaFunc, instance); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -381,45 +349,32 @@ func verifyGrouperMergeable(reg GrouperRegistration, instance extend.Grouper) er
 	return nil
 }
 
-// probeFilterers validates every registered filterer. When
-// ComponentsFunc is supplied the probe invokes it against a constructed
-// FiltererBuilder and confirms the emitted key set matches the declared
-// schema. Mirrors probeAggregators in shape.
+// probeFilterers validates every registered filterer. The components
+// emitter (ComponentsFunc, else the builder's own Components()) is
+// invoked against a constructed FiltererBuilder and the emitted key set
+// checked against the declared schema. Mirrors probeAggregators in
+// shape.
 func probeFilterers(regs []FiltererRegistration) error {
 	for _, reg := range regs {
 		builder, err := safeBuildFilterer(reg)
 		if err != nil {
 			return err
 		}
+		var viaFunc func() (map[string]any, error)
 		if reg.ComponentsFunc != nil {
-			if err := verifyComponentSchemaPresence(
-				"filterer", string(reg.Name), reg.ComponentSchema, true,
-			); err != nil {
-				return err
-			}
-			emitted, err := safeInvokeFiltererComponents(reg, builder)
-			if err != nil {
-				return err
-			}
-			if err := verifyComponentKeysSubset(
-				"filterer", string(reg.Name),
-				reg.ComponentSchema, emitted,
-			); err != nil {
-				return err
-			}
-		} else {
-			if err := verifyComponentSchemaPresence(
-				"filterer", string(reg.Name), reg.ComponentSchema, false,
-			); err != nil {
-				return err
-			}
+			viaFunc = func() (map[string]any, error) { return safeInvokeFiltererComponents(reg, builder) }
+		}
+		if err := probeComponentEmission("filterer", string(reg.Name), reg.ComponentSchema, viaFunc, builder); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
 // probeAttributes validates every registered attribute factory
-// matches its declared Mode.
+// matches its declared Mode, and probes its components emitter
+// (ComponentsFunc, else the value's own Components()) on the unweighted
+// instance.
 func probeAttributes(regs []AttributeRegistration) error {
 	probeSchema := &encoding.Schema{}
 	for _, reg := range regs {
@@ -448,19 +403,11 @@ func probeAttributes(regs []AttributeRegistration) error {
 			if weighted {
 				continue
 			}
-			if err := verifyComponentSchemaPresence(
-				"attribute", string(reg.Name), reg.ComponentSchema, reg.ComponentsFunc != nil,
-			); err != nil {
-				return err
+			var viaFunc func() (map[string]any, error)
+			if reg.ComponentsFunc != nil {
+				viaFunc = func() (map[string]any, error) { return safeInvokeAttributeComponents(reg, instance) }
 			}
-			if reg.ComponentsFunc == nil {
-				continue
-			}
-			emitted, err := safeInvokeAttributeComponents(reg, instance)
-			if err != nil {
-				return err
-			}
-			if err := verifyComponentKeysSubset("attribute", string(reg.Name), reg.ComponentSchema, emitted); err != nil {
+			if err := probeComponentEmission("attribute", string(reg.Name), reg.ComponentSchema, viaFunc, instance); err != nil {
 				return err
 			}
 		}
@@ -792,6 +739,94 @@ func safeInvokeFiltererComponents(reg FiltererRegistration, builder extend.Filte
 	return out, nil
 }
 
+// probeComponentEmission runs the components half of a category probe
+// against one constructed probe value. The emitter is viaFunc (the
+// registration's ComponentsFunc, already wrapped panic-safe) when set,
+// else the value's own Components() method (componentsEmitter) — the
+// self-emitter the runtime adapters adopt (extensions_adapt.go). Both
+// paths are held to one contract:
+//
+//   - an emitter must declare ComponentSchema.Keys
+//     (PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA, reason
+//     "emitter_without_schema_keys" / "self_emitter_without_schema_keys");
+//   - a panic or error from the emitter is PULSE_EXTENSION_FACTORY_PANIC;
+//   - emitted keys must be a subset of the declared keys plus the
+//     universal floor (PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH, details
+//     "emitter": "ComponentsFunc" / "Components()").
+//
+// With no emitter at all, declared Keys can never be satisfied:
+// PULSE_EXTENSION_PARAM_INVALID, reason "schema_without_emitter".
+//
+// The probe instance has seen no row, so an emitter returning an empty
+// map passes (identically on both paths).
+func probeComponentEmission(category, name string, schema descriptor.ComponentSchema, viaFunc func() (map[string]any, error), value any) error {
+	if viaFunc != nil {
+		if err := verifyComponentSchemaPresence(category, name, schema, true); err != nil {
+			return err
+		}
+		emitted, err := viaFunc()
+		if err != nil {
+			return err
+		}
+		return verifyComponentKeysSubset(category, name, "ComponentsFunc", schema, emitted)
+	}
+	self, ok := value.(componentsEmitter)
+	if !ok {
+		if len(schema.Keys) > 0 {
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("extension %s %q declares ComponentSchema.Keys but supplies no ComponentsFunc and its value has no Components() method (no emitter would satisfy the schema)", category, name),
+				map[string]any{
+					"category": category,
+					"name":     name,
+					"reason":   "schema_without_emitter",
+				},
+			)
+		}
+		return verifyComponentSchemaPresence(category, name, schema, false)
+	}
+	if len(schema.Keys) == 0 {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA,
+			fmt.Sprintf("extension %s %q value has its own Components() method but ComponentSchema.Keys is empty (declare the keys it emits)", category, name),
+			map[string]any{
+				"category": category,
+				"name":     name,
+				"reason":   "self_emitter_without_schema_keys",
+			},
+		)
+	}
+	emitted, err := safeInvokeSelfComponents(category, name, self)
+	if err != nil {
+		return err
+	}
+	return verifyComponentKeysSubset(category, name, "Components()", schema, emitted)
+}
+
+// safeInvokeSelfComponents calls a probe value's own Components() method
+// under a deferred recover, with the safeInvoke*Components contract: a
+// panic or a returned error is PULSE_EXTENSION_FACTORY_PANIC.
+func safeInvokeSelfComponents(category, name string, self componentsEmitter) (out map[string]any, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_FACTORY_PANIC,
+				fmt.Sprintf("%s %q Components() panicked during probe-validation: %v", category, name, r),
+				map[string]any{"category": category, "name": name, "panic": fmt.Sprintf("%v", r)},
+			)
+		}
+	}()
+	out, err = self.Components()
+	if err != nil {
+		return nil, errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_FACTORY_PANIC,
+			fmt.Sprintf("%s %q Components() returned error during probe-validation: %v", category, name, err),
+			map[string]any{"category": category, "name": name, "components_error": err.Error()},
+		)
+	}
+	return out, nil
+}
+
 // verifyComponentKeysSubset asserts every key in emitted appears in the
 // declared schema's Keys list. Universal-floor keys are allowed but not
 // required — embedders may smuggle a {"n", "n_null"} pair without
@@ -808,7 +843,7 @@ func safeInvokeFiltererComponents(reg FiltererRegistration, builder extend.Filte
 // Divergence raises PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH; the
 // details payload carries the offending extras and the declared key
 // list so callers can either widen the schema or trim the emission.
-func verifyComponentKeysSubset(category, name string, schema descriptor.ComponentSchema, emitted map[string]any) error {
+func verifyComponentKeysSubset(category, name, emitter string, schema descriptor.ComponentSchema, emitted map[string]any) error {
 	if len(emitted) == 0 {
 		return nil
 	}
@@ -840,10 +875,11 @@ func verifyComponentKeysSubset(category, name string, schema descriptor.Componen
 	}
 	return errors.NewCodedErrorWithDetails(
 		errors.PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH,
-		fmt.Sprintf("extension %s %q ComponentsFunc emitted keys not declared in ComponentSchema: %v (declared: %v)", category, name, extras, declared),
+		fmt.Sprintf("extension %s %q %s emitted keys not declared in ComponentSchema: %v (declared: %v)", category, name, emitter, extras, declared),
 		map[string]any{
 			"category":      category,
 			"name":          name,
+			"emitter":       emitter,
 			"undeclared":    extras,
 			"declared_keys": declared,
 			"reason":        "components_schema_mismatch",
@@ -865,9 +901,11 @@ func verifyComponentKeysSubset(category, name string, schema descriptor.Componen
 //
 // The floor-only path (empty Keys + empty Mergeability + nil emitter)
 // remains a valid registration shape and is NOT subject to this code.
-// The schema-without-emitter and schema-without-mergeability shapes are
-// caught earlier by validateComponentSchemas with the legacy
-// PULSE_EXTENSION_PARAM_INVALID code — those remain unchanged.
+// The schema-without-mergeability shape is caught earlier by
+// validateComponentSchemas, and schema-without-emitter by
+// probeComponentEmission, both with PULSE_EXTENSION_PARAM_INVALID. A
+// self-emitter without Keys is refused by probeComponentEmission with
+// its own reason.
 func verifyComponentSchemaPresence(category, name string, schema descriptor.ComponentSchema, hasEmitter bool) error {
 	hasKeys := len(schema.Keys) > 0
 	hasMergeability := schema.Mergeability != ""

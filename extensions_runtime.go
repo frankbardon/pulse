@@ -124,7 +124,12 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 				}
 				r.TwoPassAttributes[reg.Name] = true
 			}
-			if reg.ComponentsFunc != nil {
+			// An emitting attribute (ComponentsFunc, or a self-emitting
+			// value) must declare Keys — pulse.New's probe refuses
+			// either emitter without them — so declared Keys mark it,
+			// the same fact predict reads off the snapshot's
+			// ComponentSchemas.
+			if reg.ComponentsFunc != nil || len(reg.ComponentSchema.Keys) > 0 {
 				if r.ComponentAttributes == nil {
 					r.ComponentAttributes = make(map[types.AttributeType]bool)
 				}

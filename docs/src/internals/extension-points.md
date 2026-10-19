@@ -984,18 +984,27 @@ universal floor is the entire payload" — the floor-only shape.
 **Self-emitting operators (the type-level path).** If the value your
 factory returns already has a `Components() (map[string]any, error)`
 method, you may leave `ComponentsFunc` nil — the adapter adopts the
-method as the emitter, for aggregators, groupers and filterers alike.
-An explicit `ComponentsFunc` wins over the method. This holds for every
-emitting category, and it is an intentional, documented deviation from a
-strict "emission only through `ComponentsFunc`" reading: an operator's
-own `Components()` method still emits when no `ComponentsFunc` is
-registered.
+method as the emitter, for aggregators, groupers, filterers and
+attributes alike. An explicit `ComponentsFunc` wins over the method.
 
-Probe-validation asserts emitted keys against `ComponentSchema.Keys`
-only for an explicit `ComponentsFunc`; a self-emitting `Components()`
-method is NOT probe-validated (it is not invoked at `pulse.New`), so
-prefer `ComponentsFunc` when you want that check. Use `ComponentsFunc` too when the factory returns a third-party
-type you cannot extend.
+A self-emitter is held to the same contract as a `ComponentsFunc`, and
+probe-validation enforces it at `pulse.New`: the probe calls the probe
+instance's `Components()` once and refuses the registration when
+
+- `ComponentSchema.Keys` is empty —
+  `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA`, reason
+  `self_emitter_without_schema_keys` (declare the keys it emits);
+- an emitted key is outside the declared keys plus the universal floor —
+  `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH`, `details.emitter`
+  `"Components()"`;
+- the method panics or returns an error — `PULSE_EXTENSION_FACTORY_PANIC`.
+
+The probe instance has seen no row, so an empty map passes, exactly as
+on the `ComponentsFunc` path. `ComponentSchema.Keys` with neither a
+`ComponentsFunc` nor a `Components()` method on the probe value is
+`PULSE_EXTENSION_PARAM_INVALID`, reason `schema_without_emitter`. Use
+`ComponentsFunc` when the factory returns a third-party type you cannot
+extend.
 
 ### Floor-only registrations
 
@@ -1878,8 +1887,8 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH` | aggregator `MarginReducibility` is not a known class, or is a fusable class (summable / mean_reducible / independent) without `Mergeable` |
 | `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | a matrix operator, finalized over the probe's synthetic co-moment, returned no `Primary` or an output key its `OutputKeys` does not declare |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe |
-| `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, lookup table with neither `Rows` nor `Lookup`, a malformed reference-vector table, etc. |
-| `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (closure or sibling interface) but `ComponentSchema.Keys` empty |
+| `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, `ComponentSchema.Keys` with no emitter (`schema_without_emitter`), lookup table with neither `Rows` nor `Lookup`, a malformed reference-vector table, etc. |
+| `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (`ComponentsFunc`, or the value's own `Components()` method) but `ComponentSchema.Keys` empty |
 | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` | emitter returned a key not in `ComponentSchema.Keys`, or re-emitted a floor key |
 | `PULSE_EXTENSION_SKILL_INVALID` | an `Extensions.Skills` file breaks a rule in "Embedder skills" — `details.reason` names which |
 | `PULSE_EXTENSION_SKILL_COLLISION` | an `Extensions.Skills` stem is a built-in skill or is shipped twice |

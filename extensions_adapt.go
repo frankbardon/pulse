@@ -985,7 +985,7 @@ func (a attrMeta) Components() (map[string]any, error) { return a.emit(a.inner) 
 // One wrapper per capability tier: buffered, (R)ow-local, (T)wo-pass.
 // TwoPassAttribute embeds RowLocalAttribute, so the tiers nest and
 // there is no fourth combination. The M variants add MetaAttribute
-// (a registration with a ComponentsFunc).
+// (a registration with a ComponentsFunc, or a self-emitting value).
 type (
 	attrAdapted  struct{ attrCore }
 	attrAdaptedR struct {
@@ -1017,9 +1017,17 @@ type (
 // adaptAttribute wraps an extend.AttributeComputer so the engine's
 // RowLocalAttribute / TwoPassAttribute assertions succeed iff the
 // embedder value implements the matching extend sibling, and
-// MetaAttribute iff emit is non-nil. ExtensionAware is engine-only and
-// never forwarded.
+// MetaAttribute iff emit is non-nil — or, with no ComponentsFunc, the
+// value carries its own Components() method, adopted as the emitter
+// exactly as adaptAggregator / adaptGrouper / adaptFilterer adopt it
+// (pulse.New probe-validates it against the declared ComponentSchema).
+// ExtensionAware is engine-only and never forwarded.
 func adaptAttribute(inner extend.AttributeComputer, wt *slotWeighting, emit AttributeComponentsFunc) processing.AttributeComputer {
+	if emit == nil {
+		if self, ok := inner.(componentsEmitter); ok {
+			emit = func(extend.AttributeComputer) (map[string]any, error) { return self.Components() }
+		}
+	}
 	core := attrCore{inner: inner, wt: wt}
 	var view *rowView
 	if wt != nil {

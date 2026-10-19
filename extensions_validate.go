@@ -188,12 +188,17 @@ func validateExtensions(ext Extensions) error {
 //     contract bug (the orchestrator would have no way to validate
 //     emitted keys). Raises PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA.
 //   - Schema + emitter: non-empty Keys, declared Mergeability,
-//     ComponentsFunc supplied. The canonical extension path.
+//     ComponentsFunc supplied — or no ComponentsFunc and an operator
+//     value with its own Components() method (the self-emitter; the
+//     probe checks it the same way).
 //
-// Schema-without-emitter (non-empty Keys, nil ComponentsFunc) is also
+// Schema-without-emitter (non-empty Keys, nil ComponentsFunc, and a
+// probe instance with no Components() method of its own) is also
 // rejected — the declared schema would never be satisfied at runtime.
-// Raises PULSE_EXTENSION_PARAM_INVALID (the schema exists, the emitter
-// is missing — a parameter contradiction, not a missing schema).
+// The probe raises it (it needs the constructed value):
+// PULSE_EXTENSION_PARAM_INVALID, reason "schema_without_emitter" (the
+// schema exists, the emitter is missing — a parameter contradiction,
+// not a missing schema).
 //
 // Schema-without-mergeability (non-empty Keys, empty Mergeability) is
 // rejected — every schema must declare a mergeability classification.
@@ -287,19 +292,12 @@ func validateComponentSchemaDeclaration(
 			},
 		)
 	}
-	// Schema without emitter — declared schema can never be satisfied.
-	if hasKeys && !hasEmitter {
-		return errors.NewCodedErrorWithDetails(
-			errors.PULSE_EXTENSION_PARAM_INVALID,
-			fmt.Sprintf("extension %s %q declares ComponentSchema.Keys but supplies no ComponentsFunc (no emitter would satisfy the schema)", category, name),
-			map[string]any{
-				"category": category,
-				"name":     name,
-				"index":    idx,
-				"reason":   "schema_without_emitter",
-			},
-		)
-	}
+	// Schema without emitter (Keys declared, no ComponentsFunc) is
+	// decided by the probe, not here: the emitter may be the operator
+	// value's own Components() method, which only a constructed
+	// instance reveals (probeComponentEmission, reason
+	// "schema_without_emitter").
+	//
 	// Schema without mergeability — every schema must declare intent.
 	if hasKeys && !hasMergeability {
 		return errors.NewCodedErrorWithDetails(

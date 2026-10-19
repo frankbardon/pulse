@@ -1767,12 +1767,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH: {
-		Message: "An extension operator's ComponentsFunc emitted keys that are not declared in the registration's ComponentSchema. The probe rejects the registration so the runtime never sees a half-declared components contract.",
+		Message: "An extension operator's components emitter (its ComponentsFunc, or the operator value's own Components() method — details.emitter names which) emitted keys that are not declared in the registration's ComponentSchema. The probe rejects the registration so the runtime never sees a half-declared components contract.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Extensions", "*", "ComponentSchema", "Keys"},
-				Hint:   "Add the undeclared emitted keys to ComponentSchema.Keys (with the matching JSONType + Mergeability), or remove them from the ComponentsFunc emission. See docs/src/internals/extension-points.md for the per-category contract.",
+				Hint:   "Add the undeclared emitted keys to ComponentSchema.Keys (with the matching JSONType + Mergeability), or remove them from the ComponentsFunc (or Components() method) emission. See docs/src/internals/extension-points.md for the per-category contract.",
 			},
 			{
 				Action: FixupRemoveParam,
@@ -1782,12 +1782,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA: {
-		Message: "An extension operator declared a ComponentsFunc without a matching ComponentSchema (or a non-empty ComponentSchema without a ComponentsFunc). Both halves of the contract must be present together; the floor-only path keeps both empty.",
+		Message: "An extension operator has a components emitter — a ComponentsFunc, or an operator value with its own Components() method (details.reason self_emitter_without_schema_keys) — but declares no ComponentSchema.Keys (or declares Mergeability without Keys). Both halves of the contract must be present together; the floor-only path keeps both empty.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Extensions", "*", "ComponentSchema"},
-				Hint:   "Add a ComponentSchema with the keys + Mergeability that the ComponentsFunc emits, or drop the ComponentsFunc to fall back to the floor-only path. See docs/src/internals/extension-points.md for examples.",
+				Hint:   "Add a ComponentSchema with the keys + Mergeability that the ComponentsFunc (or the value's Components() method) emits, or drop the emitter to fall back to the floor-only path. See docs/src/internals/extension-points.md for examples.",
 			},
 		},
 	},

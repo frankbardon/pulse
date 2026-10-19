@@ -360,10 +360,12 @@ type AggregatorRegistration struct {
 	// Leaving the schema empty (zero-value Keys plus
 	// empty Mergeability) makes the operator floor-only — the
 	// orchestrator emits the universal floor ({"n", "n_null"}) and no
-	// extra keys. When ComponentSchema.Keys is non-empty, the
-	// ComponentsFunc emitter MUST be supplied and its returned map
-	// keys MUST be a subset of the declared key set; probe-validation
-	// enforces both at pulse.New time.
+	// extra keys. When ComponentSchema.Keys is non-empty an emitter
+	// MUST exist — ComponentsFunc, or the value's own Components()
+	// method — and its returned map keys MUST be a subset of the
+	// declared key set; an emitter in turn MUST declare Keys.
+	// Probe-validation enforces all three at pulse.New time, for either
+	// emitter.
 	ComponentSchema descriptor.ComponentSchema
 	// ComponentsFunc is the optional sibling-interface emitter. When
 	// set, the orchestrator routes the returned map onto
@@ -446,9 +448,11 @@ type AttributeRegistration struct {
 	// ComponentSchema declares the per-operator components contract
 	// surfaced through the slot's Response.Components.Attributes entry
 	// (Operator). Empty (zero Keys and Mergeability) emits no entry.
-	// When Keys is non-empty ComponentsFunc MUST be supplied and its
-	// returned keys MUST be a subset of the declared set; probe-
-	// validation enforces both at pulse.New time.
+	// When Keys is non-empty an emitter MUST exist — ComponentsFunc,
+	// or the value's own Components() method (adopted when no
+	// ComponentsFunc is set) — and its returned keys MUST be a subset of
+	// the declared set; an emitter MUST declare Keys. Probe-validation
+	// enforces all three at pulse.New time, for either emitter.
 	ComponentSchema descriptor.ComponentSchema
 	// ComponentsFunc is the optional emitter (see
 	// AttributeComponentsFunc). Nil emits no entry.
@@ -493,9 +497,10 @@ type FiltererRegistration struct {
 	// surfaced through Response.Components.Filterers[i].Operator.
 	// v1 ships every built-in filterer as floor-only
 	// (uniform {n_in, n_out, n_null_input}); extensions may opt in by
-	// declaring a non-empty ComponentSchema alongside a ComponentsFunc.
-	// Mismatch between declared schema and emitted keys is rejected at
-	// pulse.New time.
+	// declaring a non-empty ComponentSchema alongside a ComponentsFunc
+	// or a builder with its own Components() method. Mismatch between
+	// declared schema and emitted keys (either emitter) is rejected at
+	// pulse.New time, as is an emitter with no declared Keys.
 	ComponentSchema descriptor.ComponentSchema
 	// ComponentsFunc is the optional sibling-interface emitter. When
 	// set, the orchestrator routes the returned map onto
@@ -581,8 +586,10 @@ type GrouperRegistration struct {
 	// Leaving the schema empty makes the operator
 	// floor-only — the orchestrator emits the universal floor
 	// ({total_n, n_null}) without operator-specific extras. When
-	// ComponentSchema.Keys is non-empty, the ComponentsFunc emitter
-	// MUST be supplied and its keys MUST match the declared schema.
+	// ComponentSchema.Keys is non-empty an emitter MUST exist —
+	// ComponentsFunc, or the value's own Components() method — and its
+	// keys MUST match the declared schema; an emitter MUST declare
+	// Keys. Probe-validation enforces both at pulse.New time.
 	ComponentSchema descriptor.ComponentSchema
 	// ComponentsFunc is the optional sibling-interface emitter. When
 	// set, the orchestrator routes the returned map onto
