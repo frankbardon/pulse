@@ -158,7 +158,7 @@ func ResolveReturn(req *types.Request, inst *InstanceSnapshot) (*returnplan.Plan
 		return nil, err
 	}
 	if plan.Precision > 0 {
-		plan.Exact = returnExactPaths(req)
+		plan.Exact = returnExactPaths(req, inst)
 	}
 	return plan, nil
 }

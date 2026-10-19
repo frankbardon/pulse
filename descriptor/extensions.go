@@ -100,6 +100,18 @@ type OperatorMeta struct {
 	// categorical_* or packed_bool field it is a code and the slot is
 	// refused as the aggregation an overlay scores. Omitted otherwise.
 	EmitsInputValue bool `json:"emits_input_value,omitempty"`
+	// CountSemantic is the aggregator-only projection of
+	// pulse.AggregatorRegistration.CountSemantic: the finished value is
+	// a count carried as a float64, so Request.Return precision writes
+	// the slot's column (and a count crosstab's figures) exact, as for
+	// the built-in counts. Omitted otherwise.
+	CountSemantic bool `json:"count_semantic,omitempty"`
+	// ValueState is the aggregator-only projection of
+	// pulse.AggregatorRegistration.ValueState: the state grows with the
+	// distinct values seen, so the memory estimate charges the
+	// per-distinct-value term a built-in value-state aggregator pays.
+	// Omitted otherwise.
+	ValueState bool `json:"value_state,omitempty"`
 	// WeightAware is the aggregator / attribute / test projection of
 	// the registration's WeightAware declaration — the extension half
 	// of the built-in Operator.WeightAware. True means the operator

@@ -1551,6 +1551,32 @@ is refused under every MATRIX overlay kind that reads cell values. Undeclared, a
 as a magnitude. The manifest's extension entry carries
 `emits_input_value`.
 
+Add `CountSemantic: true` when the finished value is a count carried as
+a `float64` — the extension half of the built-in count classification
+(`AGG_COUNT`, `AGG_DISTINCT_COUNT`, `AGG_FREQUENCY`, …). Under a
+`return.precision` the slot's `data[*].<label>` column is then written
+exact instead of rounded, as is a count crosstab cell's matrix (cells,
+margins and grand total; `normalize` none; a multi-measure matrix only
+when every measure counts) and a count auxiliary margin aggregation's
+figures under `components.crosstab`. Undeclared, the column rounds like
+any measure. A member-set value is not one count, so `CountSemantic` on
+a `VectorInput` or `ArrayValued` registration is refused at `pulse.New`
+with `PULSE_EXTENSION_PARAM_INVALID`, reason
+`count_semantic_vector_input`. The check is structural only — no probe
+runs the operator. The manifest's extension entry carries
+`count_semantic`.
+
+Add `ValueState: true` when the operator's state grows with the
+distinct values it sees (a map entry per value, like `AGG_MODE` or
+`AGG_DISTINCT_COUNT`) rather than staying a fixed-size accumulator.
+The `MaxEstimatedMemory` estimate then charges the slot the same
+per-distinct-value term a built-in value-state aggregator pays, on
+every arm, so predict and the run's pre-flight refuse it at the same
+figure. Undeclared, the slot is priced as a fixed accumulator, which
+under-estimates a value-keyed state. The manifest's extension entry
+carries `value_state`. See
+[Tuning limits](../library/tuning-limits.md#the-memory-estimate).
+
 A mergeable extension's partials fold through its own `Merge`, so —
 unlike the built-in `AGG_VEC_*`, which key their partials by global
 record ordinal — its figures under `ShardWorkers` / `DecodeWorkers` may

@@ -1761,12 +1761,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_PARAM_INVALID: {
-		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default, or an ExactlyOneOf group with one member or a Required / defaulted member).",
+		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default, or an ExactlyOneOf group with one member or a Required / defaulted member), or a registration declares a contradictory flag (details.reason names it, e.g. count_semantic_vector_input).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Hint:     "Set Name, set JSONType to one of {string, number, boolean, array, object}, and drop Default when Required=true. An ExactlyOneOf group needs two or more members, each Required=false with no Default.",
 				Examples: []any{"string", "number", "boolean", "array", "object"},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Extensions", "Aggregators", "*", "CountSemantic"},
+				Hint:   "reason count_semantic_vector_input: CountSemantic declares one count per slot, which a VectorInput / ArrayValued aggregator (one figure per member) never finishes as — drop CountSemantic, or register a single-field aggregator.",
 			},
 		},
 	},

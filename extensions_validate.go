@@ -326,6 +326,9 @@ func validateComponentSchemaDeclaration(
 //   - PULSE_EXTENSION_PARAM_INVALID, reason reserved_vector_param — a
 //     VectorInput registration's params.labels / params.expand are the
 //     engine's (the resolved member labels; one column per member).
+//   - PULSE_EXTENSION_PARAM_INVALID, reason count_semantic_vector_input
+//     — CountSemantic on a VectorInput / ArrayValued registration: a
+//     member-set value is not one count.
 //
 // The RichAggregator half of ArrayValued is probe-validated
 // (verifyAggregatorArrayValued).
@@ -343,6 +346,11 @@ func validateAggregatorVectorInputs(regs []AggregatorRegistration) error {
 		if r.ArrayValued && r.MarginReducibility != "" {
 			return mismatch("array_valued_margin_reducibility",
 				fmt.Sprintf("MarginReducibility=%q (a crosstab refuses an array-valued cell; leave it empty)", r.MarginReducibility))
+		}
+		if r.CountSemantic && (r.VectorInput || r.ArrayValued) {
+			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("extension aggregator %q declares CountSemantic=true on a vector-input aggregator (VectorInput=%v, ArrayValued=%v); a member-set value is not one count — drop CountSemantic or read one field", r.Name, r.VectorInput, r.ArrayValued),
+				map[string]any{"category": "aggregator", "name": string(r.Name), "index": i, "reason": "count_semantic_vector_input"})
 		}
 		if !r.VectorInput {
 			continue

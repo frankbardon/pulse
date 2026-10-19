@@ -477,6 +477,28 @@ func aggregationKinds(inst *InstanceSnapshot, snap *ExtensionsSnapshot) vectors.
 	return k
 }
 
+// AggregatorCountSemantic reports whether t is an embedder-registered
+// aggregator that declared CountSemantic — the extension half of
+// countSemanticAggregations. Nil-safe.
+func (s *ExtensionsSnapshot) AggregatorCountSemantic(t types.AggregationType) bool {
+	if s == nil {
+		return false
+	}
+	m, ok := findMeta(s.Aggregators, string(t))
+	return ok && m.CountSemantic
+}
+
+// AggregatorValueState reports whether t is an embedder-registered
+// aggregator that declared ValueState — the extension half of
+// valueStateAggregation. Nil-safe.
+func (s *ExtensionsSnapshot) AggregatorValueState(t types.AggregationType) bool {
+	if s == nil {
+		return false
+	}
+	m, ok := findMeta(s.Aggregators, string(t))
+	return ok && m.ValueState
+}
+
 // HasAggregator reports whether name is an embedder-registered
 // aggregator in the snapshot. Nil-safe.
 func (s *ExtensionsSnapshot) HasAggregator(name string) bool {

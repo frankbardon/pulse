@@ -13,6 +13,7 @@ pulse: type AggregatorRegistration field Accepts []pulse/encoding.FieldType
 pulse: type AggregatorRegistration field ArrayValued bool
 pulse: type AggregatorRegistration field ComponentSchema pulse/descriptor.ComponentSchema
 pulse: type AggregatorRegistration field ComponentsFunc pulse.AggregatorComponentsFunc
+pulse: type AggregatorRegistration field CountSemantic bool
 pulse: type AggregatorRegistration field DependsOn []string
 pulse: type AggregatorRegistration field Description string
 pulse: type AggregatorRegistration field EmitsInputValue bool
@@ -25,6 +26,7 @@ pulse: type AggregatorRegistration field NonScalar bool
 pulse: type AggregatorRegistration field Params []pulse.ParamMeta
 pulse: type AggregatorRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type AggregatorRegistration field Streamable bool
+pulse: type AggregatorRegistration field ValueState bool
 pulse: type AggregatorRegistration field VectorInput bool
 pulse: type AggregatorRegistration field WeightAware bool
 pulse: type AttributeComponentsFunc func(instance pulse/extend.AttributeComputer) (map[string]any, error)
@@ -1769,6 +1771,7 @@ pulse/descriptor: type Operator field Zone string "json:\"zone,omitempty\""
 pulse/descriptor: type OperatorMeta struct
 pulse/descriptor: type OperatorMeta field Accepts []string "json:\"accepts,omitempty\""
 pulse/descriptor: type OperatorMeta field ArrayValued bool "json:\"array_valued,omitempty\""
+pulse/descriptor: type OperatorMeta field CountSemantic bool "json:\"count_semantic,omitempty\""
 pulse/descriptor: type OperatorMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type OperatorMeta field Emits string "json:\"emits,omitempty\""
 pulse/descriptor: type OperatorMeta field EmitsInputValue bool "json:\"emits_input_value,omitempty\""
@@ -1783,6 +1786,7 @@ pulse/descriptor: type OperatorMeta field NonScalar bool "json:\"non_scalar,omit
 pulse/descriptor: type OperatorMeta field Params []pulse/descriptor.OperatorParamMeta "json:\"params,omitempty\""
 pulse/descriptor: type OperatorMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type OperatorMeta field Tier string "json:\"tier,omitempty\""
+pulse/descriptor: type OperatorMeta field ValueState bool "json:\"value_state,omitempty\""
 pulse/descriptor: type OperatorMeta field VectorInput bool "json:\"vector_input,omitempty\""
 pulse/descriptor: type OperatorMeta field WeightAware bool "json:\"weight_aware,omitempty\""
 pulse/descriptor: type OperatorParamMeta struct
@@ -5642,4 +5646,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 30ea169a8cf8a3fc74daa5120356bdd7f41eda95fd1b3510e9caf030a55ef977
+// golden-hash: 9a7fc478364d0ac574f1dccf2b8b869e5e5db9cdb89eda70b0fbc0adff22968d

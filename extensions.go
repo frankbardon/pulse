@@ -348,8 +348,28 @@ type AggregatorRegistration struct {
 	// Undeclared, an overlay scores the code as a magnitude. Projected
 	// as the manifest's emits_input_value.
 	EmitsInputValue bool
-	Accepts         []encoding.FieldType
-	Params          []ParamMeta
+	// CountSemantic declares that the operator's finished value is a
+	// count carried as a float64 (the extension half of the built-in
+	// count classification — AGG_COUNT, AGG_DISTINCT_COUNT, …). Under
+	// Request.Return precision the slot's data column, a count crosstab
+	// cell's matrix figures (normalize none; a multi-measure matrix only
+	// when every measure counts) and a count margin aggregation's figures
+	// are then written exact instead of rounded. Refused on a
+	// VectorInput or ArrayValued registration (PULSE_EXTENSION_PARAM_INVALID,
+	// reason count_semantic_vector_input): a member-set value is not one
+	// count. Undeclared, the column rounds like any measure. Projected as
+	// the manifest's count_semantic.
+	CountSemantic bool
+	// ValueState declares that the operator's state grows with the
+	// distinct values it sees (a map entry per value, like AGG_MODE or
+	// AGG_DISTINCT_COUNT) rather than staying a fixed-size accumulator.
+	// The MaxEstimatedMemory estimate then charges the slot the same
+	// per-distinct-value term a built-in value-state aggregator pays.
+	// Undeclared, the slot is priced as a fixed accumulator. Projected
+	// as the manifest's value_state.
+	ValueState bool
+	Accepts    []encoding.FieldType
+	Params     []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc. Omit to keep the operator opaque to
 	// projection (runtime widens the field set when this operator

@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/returnplan"
 	"github.com/frankbardon/pulse/types"
 )
@@ -102,5 +103,36 @@ func TestResolveReturn_ExactPaths(t *testing.T) {
 				t.Errorf("Exact = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+// TestResolveReturn_ExactPaths_ExtensionCountSemantic (U34 #216): an
+// extension aggregator declaring CountSemantic contributes its Exact
+// paths like a built-in count; an undeclared one and a nil instance
+// contribute none.
+func TestResolveReturn_ExactPaths_ExtensionCountSemantic(t *testing.T) {
+	inst := UnscopedInstanceSnapshot(&ExtensionsSnapshot{Aggregators: []descriptor.OperatorMeta{
+		{Name: "AGG_X_CNT", CountSemantic: true}, {Name: "AGG_X_MEAS"},
+	}})
+	req := &types.Request{
+		Aggregations: []*types.Aggregation{
+			{Type: "AGG_X_CNT", Field: "x", Label: "n"},
+			{Type: "AGG_X_MEAS", Field: "x", Label: "m"},
+		},
+		Return: &types.Return{Precision: 3},
+	}
+	p, err := ResolveReturn(req, inst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := returnplan.Strings(p.Exact); !reflect.DeepEqual(got, []string{"data[*].n"}) {
+		t.Errorf("Exact = %v, want [data[*].n]", got)
+	}
+	if p, err = ResolveReturn(req, nil); err != nil || len(p.Exact) != 0 {
+		t.Errorf("nil instance: Exact = %v err = %v, want none", p.Exact, err)
+	}
+	if !inst.Extensions().AggregatorCountSemantic("AGG_X_CNT") || inst.Extensions().AggregatorValueState("AGG_X_CNT") ||
+		(*ExtensionsSnapshot)(nil).AggregatorValueState("AGG_X_CNT") {
+		t.Error("snapshot lookups disagree with the declarations")
 	}
 }
