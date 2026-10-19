@@ -90,7 +90,7 @@ type prebuiltAttribute interface {
 // filterers compile against the request's registry and bound models
 // before any record is read.
 type fitOnBinder interface {
-	bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) error
+	bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) error
 }
 
 // attributeWarner is implemented by an attribute whose Finalize can
@@ -411,7 +411,7 @@ func newFittedVectorAttribute(attr *types.Attribute, schema *encoding.Schema, sr
 
 // bindFitOn compiles params.fit_on, or resolves and aligns params.fit
 // against the request's bound models (fitOnBinder).
-func (a *fittedVectorAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) error {
+func (a *fittedVectorAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) error {
 	if model.IsVectorFitAttribute(a.typ) {
 		a.capture = models.Capture()
 	}
@@ -444,7 +444,7 @@ func (a *fittedVectorAttribute) bindFitOn(exts *ExtensionRegistry, models *model
 		// raised whether or not a row is scored.
 		return a.close()
 	}
-	fns, err := buildFilterFuncsWith(a.fitOnSpec, a.schema, exts, models, vecs)
+	fns, err := buildFilterFuncsWith(a.fitOnSpec, a.schema, exts, models, vecs, keys)
 	if err != nil {
 		return err
 	}

@@ -87,14 +87,14 @@ func (a *formulaAttribute) prepareTotals() (*exprProgram, error) {
 	t.counts = make([]int, len(t.keys))
 	argOpts := a.exts.exprOptionsWithModels(a.models, a.zone)
 	for i, key := range t.keys {
-		prog, err := newExprProgram(key, exprenv.SiteTotalArgument, a.schema, a.vecs, a.exts.referenceTables(), argOpts)
+		prog, err := newExprProgramKeyed(key, exprenv.SiteTotalArgument, a.schema, a.keys, a.vecs, a.exts.referenceTables(), argOpts)
 		if err != nil {
 			return nil, err
 		}
 		t.args[i] = prog
 	}
 	opts := append(a.exts.exprOptionsWithModels(a.models, a.zone), totalcall.Options(t.index, t.read)...)
-	return newExprProgram(a.expression, exprenv.SiteFormula, a.schema, a.vecs, a.exts.referenceTables(), opts)
+	return newExprProgramKeyed(a.expression, exprenv.SiteFormula, a.schema, a.keys, a.vecs, a.exts.referenceTables(), opts)
 }
 
 // read is the patched total(i): slot i's published sum. Reading before

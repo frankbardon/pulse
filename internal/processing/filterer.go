@@ -291,11 +291,18 @@ type expressionFilterer struct {
 	// vecs are the request's resolved named vectors the expression may
 	// read (nil: none), injected before Build.
 	vecs []vectors.Resolved
+	// keys is the run's dictionary-inheritance view (nil: none),
+	// injected before Build.
+	keys *encoding.Schema
 }
 
 // bindVectors satisfies vectorBinder: the expression reads the
 // request's named vectors as []float64 identifiers.
 func (f *expressionFilterer) bindVectors(vecs []vectors.Resolved) { f.vecs = vecs }
+
+// bindKeys satisfies keysBinder: the expression reads a derived
+// categorical column (a previous-state output) by name.
+func (f *expressionFilterer) bindKeys(keys *encoding.Schema) { f.keys = keys }
 
 // bindModels satisfies modelBinder: coef() reads the request's bound
 // models (injected before Build).
@@ -339,7 +346,7 @@ func (f *expressionFilterer) Build(filter *types.Filterer, schema *encoding.Sche
 	if err != nil {
 		return nil, err
 	}
-	prog, err := newExprProgram(filter.Expression, exprenv.SiteFilter, schema, f.vecs, f.exts.referenceTables(), f.exts.exprOptionsWithModels(f.models, zone))
+	prog, err := newExprProgramKeyed(filter.Expression, exprenv.SiteFilter, schema, f.keys, f.vecs, f.exts.referenceTables(), f.exts.exprOptionsWithModels(f.models, zone))
 	if err != nil {
 		return nil, err
 	}

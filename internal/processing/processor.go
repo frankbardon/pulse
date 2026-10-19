@@ -1655,7 +1655,7 @@ func (p *Processor) buildRowLocalAttributes(attrs []*types.Attribute) ([]rowLoca
 // Shared between streaming and buffered paths to keep error semantics
 // identical.
 func (p *Processor) buildFilterFuncs(filterers []*types.Filterer) ([]FilterFunc, error) {
-	return buildFilterFuncsWith(filterers, p.schema, p.exts, p.models, p.exprVectors)
+	return buildFilterFuncsWith(filterers, p.schema, p.exts, p.models, p.exprVectors, p.keySchema)
 }
 
 // buildFilterFuncsWith compiles filterers against schema with the
@@ -1663,7 +1663,7 @@ func (p *Processor) buildFilterFuncs(filterers []*types.Filterer) ([]FilterFunc,
 // vectors — the one filter build, shared by the request's filter chain,
 // a fitted attribute's params.fit_on (fitOnBinder) and the service's
 // per-worker builds (BuildFiltersWithVectors).
-func buildFilterFuncsWith(filterers []*types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) ([]FilterFunc, error) {
+func buildFilterFuncsWith(filterers []*types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) ([]FilterFunc, error) {
 	if len(filterers) == 0 {
 		return nil, nil
 	}
@@ -1674,7 +1674,7 @@ func buildFilterFuncsWith(filterers []*types.Filterer, schema *encoding.Schema, 
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown filter type: %s", f.Type))
 		}
-		fn, err := buildFilterFunc(factory, f, schema, exts, models, vecs)
+		fn, err := buildFilterFunc(factory, f, schema, exts, models, vecs, keys)
 		if err != nil {
 			return nil, err
 		}
@@ -1686,7 +1686,7 @@ func buildFilterFuncsWith(filterers []*types.Filterer, schema *encoding.Schema, 
 // buildFilterFunc builds one filterer from factory with the registry,
 // the bound models and the named vectors bound — buildFilterFuncsWith's
 // per-slot step, shared with a feature's fit_on (featureResolver).
-func buildFilterFunc(factory FiltererFactory, f *types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) (FilterFunc, error) {
+func buildFilterFunc(factory FiltererFactory, f *types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) (FilterFunc, error) {
 	builder := factory()
 	if aware, ok := builder.(ExtensionAware); ok {
 		aware.SetExtensions(exts)
@@ -1698,6 +1698,9 @@ func buildFilterFunc(factory FiltererFactory, f *types.Filterer, schema *encodin
 	}
 	if vb, ok := builder.(vectorBinder); ok {
 		vb.bindVectors(vecs)
+	}
+	if kb, ok := builder.(keysBinder); ok {
+		kb.bindKeys(keys)
 	}
 	fn, err := builder.Build(f, schema)
 	if err != nil {
@@ -1731,7 +1734,7 @@ func (p *Processor) featureResolver() feature.Resolver {
 				return c, nil
 			}
 			spec := &types.Filterer{Type: types.FILTER_EXPRESSION, Expression: b.FitOnExpression(), TimeZone: feat.TimeZone}
-			fn, err := buildFilterFunc(filtererRegistry[types.FILTER_EXPRESSION], spec, schema, p.exts, p.models, p.exprVectors)
+			fn, err := buildFilterFunc(filtererRegistry[types.FILTER_EXPRESSION], spec, schema, p.exts, p.models, p.exprVectors, p.keySchema)
 			if err != nil {
 				return nil, err
 			}

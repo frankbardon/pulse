@@ -74,3 +74,50 @@ func ValueType(f *encoding.Field) reflect.Type {
 	}
 	return exprFloat64Type
 }
+
+// DerivedFields returns the fields view declares that schema does not,
+// keyed by name: the derived columns a dictionary-inheritance view
+// (internal/prevstate.KeySchema — a previous-state output typed as its
+// state field, on its dictionary) types for an expression. Nil when view
+// is nil, is schema itself, or adds nothing, so a request without such a
+// column binds exactly as before.
+//
+// The runtime's expression program declares each one from its field
+// ([ValueType]) and lifts its value through [Bind] (the record carries
+// the dictionary code); predict declares it through [DerivedDecl] — so
+// a derived categorical reads in every expression exactly as its source
+// field does: same value kind, same comparisons, a null absent.
+func DerivedFields(schema, view *encoding.Schema) map[string]*encoding.Field {
+	if view == nil || view == schema {
+		return nil
+	}
+	var out map[string]*encoding.Field
+	for i := range view.Fields {
+		f := &view.Fields[i]
+		if schema != nil && schema.Field(f.Name) != nil {
+			continue
+		}
+		if _, dup := out[f.Name]; dup {
+			continue
+		}
+		if out == nil {
+			out = map[string]*encoding.Field{}
+		}
+		out[f.Name] = f
+	}
+	return out
+}
+
+// DerivedDecl is the declared type of derived column name: the type its
+// field in view binds as ([ValueType] — a dictionary categorical is a
+// string) when view declares it, else [DerivedType]. Predict's
+// expression compile declares every derived name through it, the
+// runtime's from the same view ([DerivedFields]).
+func DerivedDecl(view *encoding.Schema, name string) exprtypes.Type {
+	if view != nil {
+		if f := view.Field(name); f != nil {
+			return exprtypes.TypeOf(reflect.Zero(ValueType(f)).Interface())
+		}
+	}
+	return DerivedType
+}
