@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -169,6 +170,11 @@ func fusionParityCorpus() []fusionCase {
 	}))
 	add("attr/ATTR_CODE_IN_u32", with(func(r *types.Request) {
 		r.Attributes = []*types.Attribute{{Type: types.ATTR_CODE_IN, Field: "qty", Label: "a", Params: json.RawMessage(`{"codes":[1, 2]}`)}}
+	}))
+	// Buffered only (it orders every record of a subject): both arms
+	// decline it as a buffered attribute.
+	add("attr/ATTR_PREVIOUS_STATE", with(func(r *types.Request) {
+		r.Attributes = []*types.Attribute{{Type: types.ATTR_PREVIOUS_STATE, Field: "region", SubjectField: "qty", OrderField: "day", Label: "a"}}
 	}))
 	add("attr/ATTR_SCALE_SCORE", with(func(r *types.Request) {
 		r.Attributes = []*types.Attribute{{Type: types.ATTR_SCALE_SCORE, Fields: []string{"score", "qty"}, Label: "a", Params: json.RawMessage(`{"stat":"sum","min_valid":1}`)}}
@@ -449,6 +455,14 @@ func TestPredict_CrosstabFusableMatchesRuntime(t *testing.T) {
 				if strings.HasPrefix(c.name, "attr/ATTR_CODE_IN") && !inst.disable && req.Crosstab != nil && !refused {
 					if !rtOK || res.CrosstabFusable == nil || !*res.CrosstabFusable {
 						t.Errorf("%s: runtime fused=%v, predict CrosstabFusable=%v; want both true", c.name, rtOK, res.CrosstabFusable)
+					}
+				}
+				// ATTR_PREVIOUS_STATE is buffered only: both arms decline it
+				// with the buffered-attribute reason.
+				if c.name == "attr/ATTR_PREVIOUS_STATE" && !inst.disable && req.Crosstab != nil && !refused {
+					want := "buffered attribute (ATTR_PREVIOUS_STATE)"
+					if rtOK || !slices.Contains(rtReasons, want) || res.CrosstabFusable == nil || *res.CrosstabFusable || !slices.Contains(res.CrosstabFusionReasons, want) {
+						t.Errorf("%s: runtime=(%v, %q) predict=(%v, %q); want both declined with %q", c.name, rtOK, rtReasons, res.CrosstabFusable, res.CrosstabFusionReasons, want)
 					}
 				}
 				if req.Crosstab != nil && !refused {

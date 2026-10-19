@@ -177,15 +177,17 @@ func TestAggregationClassification_Welford(t *testing.T) {
 
 func TestStreamability_AttributesKnown(t *testing.T) {
 	expected := map[AttributeType]bool{
-		ATTR_ZSCORE:       true,
-		ATTR_TSCORE:       true,
-		ATTR_NORMALIZED:   true,
-		ATTR_FORMULA:      true,
-		ATTR_PERCENTILE:   false,
-		ATTR_DATE_PART:    true,
-		ATTR_REG_FITTED:   true,
-		ATTR_REG_RESIDUAL: true,
-		ATTR_REG_LEVERAGE: true,
+		ATTR_ZSCORE:     true,
+		ATTR_TSCORE:     true,
+		ATTR_NORMALIZED: true,
+		ATTR_FORMULA:    true,
+		ATTR_PERCENTILE: false,
+		// Orders every record of a subject: buffered only.
+		ATTR_PREVIOUS_STATE: false,
+		ATTR_DATE_PART:      true,
+		ATTR_REG_FITTED:     true,
+		ATTR_REG_RESIDUAL:   true,
+		ATTR_REG_LEVERAGE:   true,
 
 		ATTR_SET_POPCOUNT: true,
 		ATTR_SET_HAS:      true,

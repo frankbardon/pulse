@@ -2626,6 +2626,7 @@ pulse/errors: const PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT pulse/errors.Code = "PULS
 pulse/errors: const PULSE_OVERLAY_TARGET_UNKNOWN pulse/errors.Code = "PULSE_OVERLAY_TARGET_UNKNOWN"
 pulse/errors: const PULSE_OVERLAY_YOY_FREQUENCY_MISSING pulse/errors.Code = "PULSE_OVERLAY_YOY_FREQUENCY_MISSING"
 pulse/errors: const PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY pulse/errors.Code = "PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY"
+pulse/errors: const PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE pulse/errors.Code = "PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE"
 pulse/errors: const PULSE_PROFILE_FIELD_UNSUPPORTED pulse/errors.Code = "PULSE_PROFILE_FIELD_UNSUPPORTED"
 pulse/errors: const PULSE_RAKE_EMPTY_CELL pulse/errors.Code = "PULSE_RAKE_EMPTY_CELL"
 pulse/errors: const PULSE_RAKE_INVALID pulse/errors.Code = "PULSE_RAKE_INVALID"
@@ -4348,6 +4349,7 @@ pulse/types: const ATTR_MAHALANOBIS pulse/types.AttributeType = "ATTR_MAHALANOBI
 pulse/types: const ATTR_NORMALIZED pulse/types.AttributeType = "ATTR_NORMALIZED"
 pulse/types: const ATTR_PC_SCORE pulse/types.AttributeType = "ATTR_PC_SCORE"
 pulse/types: const ATTR_PERCENTILE pulse/types.AttributeType = "ATTR_PERCENTILE"
+pulse/types: const ATTR_PREVIOUS_STATE pulse/types.AttributeType = "ATTR_PREVIOUS_STATE"
 pulse/types: const ATTR_PROFILE_SIMILARITY pulse/types.AttributeType = "ATTR_PROFILE_SIMILARITY"
 pulse/types: const ATTR_REG_FITTED pulse/types.AttributeType = "ATTR_REG_FITTED"
 pulse/types: const ATTR_REG_LEVERAGE pulse/types.AttributeType = "ATTR_REG_LEVERAGE"
@@ -4428,9 +4430,11 @@ pulse/types: type Attribute field Fields []string "json:\"fields,omitempty\""
 pulse/types: type Attribute field ForEach *pulse/types.ForEach "json:\"for_each,omitempty\""
 pulse/types: type Attribute field L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type Attribute field Label string "json:\"label,omitempty\""
+pulse/types: type Attribute field OrderField string "json:\"order_field,omitempty\""
 pulse/types: type Attribute field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type Attribute field Penalty string "json:\"penalty,omitempty\""
 pulse/types: type Attribute field Predictors []string "json:\"predictors,omitempty\""
+pulse/types: type Attribute field SubjectField string "json:\"subject_field,omitempty\""
 pulse/types: type Attribute field Target string "json:\"target,omitempty\""
 pulse/types: type Attribute field TimeZone string "json:\"tz,omitempty\""
 pulse/types: type Attribute field TimeZoneField string "json:\"tz_field,omitempty\""
@@ -5637,4 +5641,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e4a2356f7dc46088abca72a3d762bcafdcef74e7df263eeb0cbd2ef4027443bc
+// golden-hash: 09dcef40dc9029e9338b8815a431ad6ef5c2c16b032e478190af92248a5c23d2

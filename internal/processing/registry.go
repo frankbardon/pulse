@@ -92,6 +92,8 @@ var attributeRegistry = map[types.AttributeType]AttributeFactory{
 
 	types.ATTR_SCALE_SCORE: newScaleScoreAttribute,
 
+	types.ATTR_PREVIOUS_STATE: newPreviousStateAttribute,
+
 	types.ATTR_PROFILE_SIMILARITY: newComparisonAttribute,
 	types.ATTR_VEC_DISTANCE:       newComparisonAttribute,
 }

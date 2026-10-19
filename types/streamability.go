@@ -307,6 +307,8 @@ func (t GroupType) Mergeable() bool {
 //     records, Finalize, then per-row Row() in pass 2 (iter.Reset()).
 //   - Buffered-only: PERCENTILE needs a sorted view of every value;
 //     no streaming algorithm preserves exact rank semantics.
+//     PREVIOUS_STATE orders every record of a subject, wherever in the
+//     cohort it sits.
 //
 // Streamable() returns true for the first two tiers since both routes
 // avoid materializing the full record set in memory. The tier is per
@@ -325,7 +327,7 @@ func (t AttributeType) Streamable() bool {
 		ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE,
 		ATTR_MAHALANOBIS, ATTR_PC_SCORE, ATTR_FACTOR_SCORE:
 		return true
-	case ATTR_PERCENTILE:
+	case ATTR_PERCENTILE, ATTR_PREVIOUS_STATE:
 		return false
 	}
 	return false

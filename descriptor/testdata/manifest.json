@@ -3784,6 +3784,41 @@
           ]
         },
         {
+          "name": "ATTR_PREVIOUS_STATE",
+          "category": "attribute",
+          "description": "Per-record previous state of a long panel: the state field's value on the same subject's record at the previous time point, ordered by order_field's instant (never local time). Null on a subject's first time point, on a record whose subject or order value is null (never a predecessor either), and when the previous state is null (no carry-forward). Records tied on (subject, order) each read the last earlier time point; the time point after a tie reads the tied state only when every tied state agrees, else null with a PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE warning (an error under Strict). Not weightable; buffered.",
+          "params": [
+            {
+              "name": "subject_field",
+              "type": "field",
+              "required": true,
+              "description": "Cohort field identifying each record's subject (any scalar type but a set or vector); a top-level key of the attribute entry.",
+              "field_filter": "any",
+              "slot": true
+            },
+            {
+              "name": "order_field",
+              "type": "field",
+              "required": true,
+              "description": "Date or datetime cohort field ordering each subject's records by instant; a top-level key of the attribute entry.",
+              "field_filter": "date",
+              "slot": true
+            }
+          ],
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "packed_bool"
+          ],
+          "emits_type_note": "one state code per record — the field's dictionary index (categorical) or 0 / 1 (packed_bool); null where no single previous state exists",
+          "streamable": false,
+          "streamable_hint": "No streaming form: a subject's records may sit anywhere in the cohort.",
+          "component_schema": {
+            "mergeability": ""
+          }
+        },
+        {
           "name": "ATTR_PROFILE_SIMILARITY",
           "category": "attribute",
           "description": "Per-row similarity to a reference across the p members of vector / fields (exactly one): correlation, cosine or a set similarity, pairwise-complete (a null member drops its pair). Row-local and single-pass, the weight irrelevant — except over a centroid reference, folded (weighted) in a pre-pass first.",
@@ -10061,7 +10096,7 @@
         ]
       }
     ],
-    "error_codes_count": 393,
+    "error_codes_count": 394,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10313,6 +10348,7 @@
       "PULSE_OVERLAY_TARGET_UNKNOWN",
       "PULSE_OVERLAY_YOY_FREQUENCY_MISSING",
       "PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY",
+      "PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE",
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
       "PULSE_RAKE_EMPTY_CELL",
       "PULSE_RAKE_INVALID",
@@ -11340,6 +11376,7 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_PREVIOUS_STATE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_RESIDUAL",
@@ -11386,7 +11423,8 @@
         ],
         "compatible_attributes": [
           "ATTR_CODE_IN",
-          "ATTR_FORMULA"
+          "ATTR_FORMULA",
+          "ATTR_PREVIOUS_STATE"
         ],
         "compatible_filterers": [
           "FILTER_EXCLUDE",
@@ -11421,7 +11459,8 @@
         ],
         "compatible_attributes": [
           "ATTR_CODE_IN",
-          "ATTR_FORMULA"
+          "ATTR_FORMULA",
+          "ATTR_PREVIOUS_STATE"
         ],
         "compatible_filterers": [
           "FILTER_EXCLUDE",
@@ -11456,7 +11495,8 @@
         ],
         "compatible_attributes": [
           "ATTR_CODE_IN",
-          "ATTR_FORMULA"
+          "ATTR_FORMULA",
+          "ATTR_PREVIOUS_STATE"
         ],
         "compatible_filterers": [
           "FILTER_EXCLUDE",
@@ -19077,4 +19117,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b73977ef6b83af34ec10c27a0a917513e01d3adb5067f0ced0a4b1f5ef013a40
+// golden-hash: f4f3c4e3a214084fdf06e1664be97df5c785fb42d9d0d713ab99b8e0cbb35399

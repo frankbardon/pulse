@@ -791,6 +791,10 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	}
 	for _, attr := range req.Attributes {
 		if !streamableWithOverlay(opts, "attribute", string(attr.Type), opRoute(opts.instance(), attr.Type).Streamable()) {
+			if opRoute(opts.instance(), attr.Type) == types.ATTR_PREVIOUS_STATE {
+				reasons = append(reasons, "attribute "+string(attr.Type)+" orders every record of each subject, so it runs via the buffered path")
+				continue
+			}
 			reasons = append(reasons, "attribute "+string(attr.Type)+" requires a full pass for population stats")
 		}
 	}
@@ -1016,6 +1020,9 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 	// ATTR_CODE_IN: the runtime constructor's refusals, re-derived from
 	// the schema, and the absent-categorical-code warning.
 	validateCodeIn(env, req, schema, projected, opts)
+
+	// ATTR_PREVIOUS_STATE: the shared slot rule (internal/prevstate).
+	validatePreviousState(env, req, schema, opts)
 
 	// ATTR_FORMULA: the runtime constructor's empty-expression refusal
 	// (an expression in params.expression is not read).

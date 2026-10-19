@@ -99,6 +99,14 @@ type attributeWarner interface {
 	attributeWarnings() []*types.ResponseWarning
 }
 
+// attributeStrictRefuser is implemented by an attribute whose
+// data-dependent warning becomes the run's error under Strict
+// (ATTR_PREVIOUS_STATE's ambiguous tie): strictRefusal, read after
+// Compute, is nil when there is nothing to refuse.
+type attributeStrictRefuser interface {
+	strictRefusal() *errors.CodedError
+}
+
 // AttributeWarnings returns computer's Response-level warnings (nil for
 // an attribute that raises none).
 func AttributeWarnings(computer any) []*types.ResponseWarning {

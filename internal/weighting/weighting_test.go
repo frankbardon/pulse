@@ -61,6 +61,8 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	want[string(types.ATTR_ZSCORE)] = ClassAware
 	want[string(types.ATTR_TSCORE)] = ClassAware
 	want[string(types.ATTR_NORMALIZED)] = ClassNotWeightable
+	// U55: a previous state is a value read off another record.
+	want[string(types.ATTR_PREVIOUS_STATE)] = ClassNotWeightable
 	// U12 E4-S2: the regression attributes refit REG_OLS weighted.
 	for _, a := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE, types.ATTR_FACTOR_SCORE} {
 		want[string(a)] = ClassAware

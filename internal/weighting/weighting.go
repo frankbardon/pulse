@@ -129,6 +129,9 @@ var attributeClasses = map[types.AttributeType]Class{
 	types.ATTR_TSCORE:     ClassAware,
 	types.ATTR_PERCENTILE: ClassRefuse,
 	types.ATTR_NORMALIZED: ClassNotWeightable,
+	// ATTR_PREVIOUS_STATE reads a value off another record of the
+	// subject — no estimate, so no weighted meaning.
+	types.ATTR_PREVIOUS_STATE: ClassNotWeightable,
 
 	types.ATTR_REG_FITTED:   ClassAware,
 	types.ATTR_REG_RESIDUAL: ClassAware,

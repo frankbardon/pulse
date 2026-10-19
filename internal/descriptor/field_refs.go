@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/windowparams"
@@ -342,7 +343,21 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 			continue
 		}
 		attrRoute := opRoute(inst, attr.Type)
+		if cerr := prevstate.ForeignSlotRefusal(attr, attrRoute); cerr != nil {
+			w.out = append(w.out, cerr)
+		}
 		switch attrRoute {
+		case types.ATTR_PREVIOUS_STATE:
+			// Source columns only (the schema): the state's levels and
+			// the subject / order values are cohort fields, never an
+			// earlier attribute's or feature's output.
+			for _, ref := range prevstate.FieldRefs(attr) {
+				if schema == nil || schema.Field(ref.Name) != nil {
+					continue
+				}
+				w.out = append(w.out, refusal(string(attr.Type)+" "+string(ref.Slot)+" references unknown cohort field: "+ref.Name+" (it reads source columns only)",
+					map[string]any{"field": ref.Name, "attribute": string(attr.Type), "slot": string(ref.Slot)}))
+			}
 		case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
 			if attr.Target != "" {
 				w.check(attr.Target, func() *errors.CodedError {

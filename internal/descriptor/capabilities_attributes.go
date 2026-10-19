@@ -99,6 +99,19 @@ func attributeCapabilities() []descriptor.Operator {
 			StreamableHint: "Use ATTR_NORMALIZED for a streaming-friendly rank proxy.",
 		},
 		{
+			Name:        string(types.ATTR_PREVIOUS_STATE),
+			Category:    "attribute",
+			Description: "Per-record previous state of a long panel: the state field's value on the same subject's record at the previous time point, ordered by order_field's instant (never local time). Null on a subject's first time point, on a record whose subject or order value is null (never a predecessor either), and when the previous state is null (no carry-forward). Records tied on (subject, order) each read the last earlier time point; the time point after a tie reads the tied state only when every tied state agrees, else null with a PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE warning (an error under Strict). Not weightable; buffered.",
+			Params: []descriptor.Param{
+				{Name: "subject_field", Type: "field", Required: true, Description: "Cohort field identifying each record's subject (any scalar type but a set or vector); a top-level key of the attribute entry.", Slot: true, FieldFilter: "any"},
+				{Name: "order_field", Type: "field", Required: true, Description: "Date or datetime cohort field ordering each subject's records by instant; a top-level key of the attribute entry.", Slot: true, FieldFilter: "date"},
+			},
+			AcceptsTypes:   fieldaccept.TypeNames(string(types.ATTR_PREVIOUS_STATE), fieldaccept.SlotField),
+			EmitsTypeNote:  "one state code per record — the field's dictionary index (categorical) or 0 / 1 (packed_bool); null where no single previous state exists",
+			Streamable:     false,
+			StreamableHint: "No streaming form: a subject's records may sit anywhere in the cohort.",
+		},
+		{
 			Name:        string(types.ATTR_DATE_PART),
 			Category:    "attribute",
 			Description: "Extract a calendar component (year, month, day, year_month, year_month_day, month_day, hour, iso_weekday) from a date or datetime field; a datetime reads the wall clock of its resolved time zone, and hour needs a datetime.",

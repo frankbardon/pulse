@@ -213,6 +213,11 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		addKnown(a.Field)
 		addKnown(a.Target)
 		addAllKnown(a.Predictors)
+		// ATTR_PREVIOUS_STATE's subject and order columns (typed slot
+		// keys, never params): projected out, they would decode null and
+		// every record would read as having no subject.
+		addKnown(a.SubjectField)
+		addKnown(a.OrderField)
 		if a.Type == types.ATTR_REG_PREDICT {
 			if p, err := model.DecodeScoreParams(a.Params); err == nil {
 				if b, lerr := models.Lookup(p.Fit); lerr == nil {

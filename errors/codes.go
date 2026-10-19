@@ -585,6 +585,15 @@ const (
 	// PROCESSING_CONFIG instead.
 	PULSE_ATTR_SCALE_OUT_OF_RANGE Code = "PULSE_ATTR_SCALE_OUT_OF_RANGE"
 
+	// PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE is a runtime Response warning
+	// raised once per ATTR_PREVIOUS_STATE slot when a subject's records
+	// tie on the order value with DIFFERENT states, so the next time
+	// point has no single previous state: each of its records is null
+	// (never a guessed sequence). details carry n_ambiguous (the records
+	// nulled so) and n_subjects (the subjects holding one or more).
+	// Under Strict the run fails with this code instead.
+	PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE Code = "PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE"
+
 	// PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS is a predict advisory
 	// (PredictResult.Advisories, never a warning or error): a TEST_T or
 	// TEST_WELCH whose split_by grouping resolves to more than two
@@ -4028,6 +4037,7 @@ var allCodes = []Code{
 	PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL,
 	PULSE_ATTR_CODE_NOT_IN_DICTIONARY,
 	PULSE_ATTR_SCALE_OUT_OF_RANGE,
+	PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE,
 	PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS,
 	PULSE_ADVISORY_MANY_TESTS,
 	PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC,

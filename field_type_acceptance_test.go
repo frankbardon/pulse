@@ -239,8 +239,11 @@ var acceptanceTemplates = map[string]string{
 	"ATTR_NORMALIZED": `{"attributes":[{"type":"ATTR_NORMALIZED","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_FORMULA":    `{"attributes":[{"type":"ATTR_FORMULA","field":"$F","label":"o","expression":"x * 2"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_PERCENTILE": `{"attributes":[{"type":"ATTR_PERCENTILE","field":"$F","label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
-	"ATTR_DATE_PART":  `{"attributes":[{"type":"ATTR_DATE_PART","field":"$F","label":"o","params":{"part":"year"}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
-	"ATTR_REG_FITTED": `{"attributes":[{"type":"ATTR_REG_FITTED","target":"x","predictors":["$F"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	// The state under judgement; the subject / order columns' types are
+	// pinned by TestPreviousState_PredictRefusalsMatchRuntime.
+	"ATTR_PREVIOUS_STATE": `{"attributes":[{"type":"ATTR_PREVIOUS_STATE","field":"$F","subject_field":"subj","order_field":"t_date","label":"o"}],"aggregations":[{"type":"AGG_COUNT","field":"o"}]}`,
+	"ATTR_DATE_PART":      `{"attributes":[{"type":"ATTR_DATE_PART","field":"$F","label":"o","params":{"part":"year"}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_REG_FITTED":     `{"attributes":[{"type":"ATTR_REG_FITTED","target":"x","predictors":["$F"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	// Scores a model bound by a compose fit, which a plain request never
 	// has; its predictor-type parity is pinned by
 	// TestRegPredict_PredictRuntimeParity.

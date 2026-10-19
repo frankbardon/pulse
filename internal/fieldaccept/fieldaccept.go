@@ -68,8 +68,11 @@ const (
 	SlotPredictor Slot = "predictor"
 	// SlotSplitBy is a test's `split_by` grouping column.
 	SlotSplitBy Slot = "split_by"
-	// SlotSubject is TEST_ANOVA_RM's `subject_field`.
+	// SlotSubject is TEST_ANOVA_RM's and ATTR_PREVIOUS_STATE's
+	// `subject_field`.
 	SlotSubject Slot = "subject_field"
+	// SlotOrder is ATTR_PREVIOUS_STATE's `order_field`.
+	SlotOrder Slot = "order_field"
 	// SlotRows / SlotCols are a contingency test's `rows` / `cols`.
 	SlotRows Slot = "rows"
 	SlotCols Slot = "cols"
@@ -412,6 +415,13 @@ func init() {
 		"TEST_KS", "TEST_KRUSKAL_WALLIS", "TEST_MANN_WHITNEY_U", "TEST_SHAPIRO_WILK", "TEST_Z_TWO_SAMPLE",
 		"TEST_PROP_Z", "TEST_HOTELLING_T2", "TEST_MANOVA", "TEST_BOX_M")
 	add(categoricalOnly, unsupported, []Slot{SlotSubject}, "TEST_ANOVA_RM")
+	// ATTR_PREVIOUS_STATE: the state is a level (its output inherits the
+	// levels, so a coded integer, which has none, is refused); the
+	// subject is matched by value (nonSetValue); the order is an instant
+	// (a date's epoch day or a datetime's epoch second).
+	add(categoricalValue, unsupported, field, "ATTR_PREVIOUS_STATE")
+	add(nonSetValue, unsupported, []Slot{SlotSubject}, "ATTR_PREVIOUS_STATE")
+	add(temporalValue, unsupported, []Slot{SlotOrder}, "ATTR_PREVIOUS_STATE")
 
 	for _, t := range types.AllAggregationTypes() {
 		// A vector aggregator (AGG_VEC_*) reads its vector members, not

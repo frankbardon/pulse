@@ -2195,6 +2195,13 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 		if err != nil {
 			return nil, nil, err
 		}
+		// Under Strict (strictWeights carries the instance's Strict
+		// flag) a refusing attribute's warning is the run's error.
+		if sr, ok := computer.(attributeStrictRefuser); ok && p.strictWeights {
+			if cerr := sr.strictRefusal(); cerr != nil {
+				return nil, nil, cerr
+			}
+		}
 		warns = append(warns, AttributeWarnings(computer)...)
 
 		// Inject computed values back into records under the label name
