@@ -749,3 +749,48 @@ func TestBind_ManyGroupTestsPreferThreeLevels(t *testing.T) {
 		t.Errorf("TEST_ANOVA_F over a 2-level-only cohort splits by %q, want passed", got)
 	}
 }
+
+// TestRecommendBound_PreviousStateSubjectPrefersAnID: over a long panel
+// (a row id, a subject id, a snapshot date and a plan), the lead flows
+// draft's ATTR_PREVIOUS_STATE names the subject id as subject_field —
+// an id-named field ahead of a categorical state or a bare row id the
+// "any" field filter would also take — and the plan as the state.
+func TestRecommendBound_PreviousStateSubjectPrefersAnID(t *testing.T) {
+	s := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "plan", Type: encoding.FieldTypeCategoricalU8, Description: "Plan the customer held at the snapshot", Dictionary: dict(t, "basic", "plus", "pro")},
+		{Name: "id", Type: encoding.FieldTypeU32, Description: "Snapshot row identifier"},
+		{Name: "seen_at", Type: encoding.FieldTypeDate, Description: "Day of the snapshot"},
+		{Name: "customer_id", Type: encoding.FieldTypeU32, Description: "Customer the snapshot belongs to"},
+	}}
+	res, err := RecommendBound(nil, descriptor.RecommendRequest{Intent: descx.IntentFlows, Limit: 1000}, bound(t, nil, s, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, r := range res.Recommendations {
+		if r.Operator != string(types.ATTR_PREVIOUS_STATE) {
+			continue
+		}
+		if found {
+			break // later drafts are alternatives; the lead one is judged
+		}
+		found = true
+		var req types.Request
+		if err := json.Unmarshal(r.Request, &req); err != nil {
+			t.Fatal(err)
+		}
+		if len(req.Attributes) != 1 {
+			t.Fatalf("draft attributes %s", r.Request)
+		}
+		a := req.Attributes[0]
+		if a.Field != "plan" || a.SubjectField != "customer_id" || a.OrderField != "seen_at" {
+			t.Errorf("draft field %q subject %q order %q, want plan / customer_id / seen_at: %s", a.Field, a.SubjectField, a.OrderField, r.Request)
+		}
+		if !r.Bound {
+			t.Errorf("draft not bound: needs %v", r.Needs)
+		}
+	}
+	if !found {
+		t.Fatal("no ATTR_PREVIOUS_STATE draft for the flows intent")
+	}
+}

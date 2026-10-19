@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -19,10 +20,21 @@ import (
 // label Process emits), its generated field description, and where the
 // value is read — off the record (a feature or attribute output) or
 // off the windowed row set (a window output).
+//
+// Inherits, non-empty, names the source field whose type and dictionary
+// the column takes instead of the nullable f64 every other derived
+// column is: an ATTR_PREVIOUS_STATE output, whose values ARE its state
+// field's codes, is written as that field's categorical_* (or
+// packed_bool) type with its dictionary (prevstate.KeySchema, the view
+// every label-resolving consumer reads), nullable. Type and Dictionary
+// then carry that shape; both are zero when Inherits is empty.
 type MaterializeColumn struct {
 	Name        string
 	Description string
 	Window      bool
+	Inherits    string
+	Type        encoding.FieldType
+	Dictionary  *encoding.Dictionary
 }
 
 // materializeDescriptionMax is the field-description ceiling a cohort
@@ -92,6 +104,9 @@ func MaterializeColumns(req *types.Request, schema *encoding.Schema, inst *Insta
 			"materialize needs at least one feature, attribute or window: there is no derived column to append")
 	}
 	from := path.Base(source)
+	// The previous-state outputs' inherited shapes (the same pointer as
+	// schema when the request has none).
+	view := prevstate.KeySchema(req.Attributes, schema)
 	var out []MaterializeColumn
 	for i, feat := range req.Features {
 		if feat == nil {
@@ -146,8 +161,14 @@ func MaterializeColumns(req *types.Request, schema *encoding.Schema, inst *Insta
 			}
 			extra = regPenaltyClauses(attr)
 		}
-		out = append(out, MaterializeColumn{Name: label,
-			Description: derivedDescription(operatorPhrase(op, field, attr.Params, extra), from)})
+		col := MaterializeColumn{Name: label,
+			Description: derivedDescription(operatorPhrase(op, field, attr.Params, extra), from)}
+		if attr.Type == types.ATTR_PREVIOUS_STATE && view != schema && schema.Field(label) == nil {
+			if vf := view.Field(label); vf != nil {
+				col.Inherits, col.Type, col.Dictionary = attr.Field, vf.Type, vf.Dictionary
+			}
+		}
+		out = append(out, col)
 	}
 	for _, w := range req.Windows {
 		if w == nil {

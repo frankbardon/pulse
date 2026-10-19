@@ -61,17 +61,37 @@ func PrepareSidecarCarry(fs afero.Fs, srcCohort string) (*SidecarCarry, *errors.
 	return &SidecarCarry{doc: res.Document, source: srcCohort}, nil
 }
 
+// Mirror describes a new column holding the codes of a recorded field
+// under that field's type and dictionary (Materialize's previous-state
+// column): Source names the field; Observed reports, per dictionary ID,
+// whether at least one record WRITTEN to the column carried that code
+// (an ID past its end: none did). The column's categories copy Source's
+// codes and labels, but each Observed flag is recomputed from Observed —
+// never copied, since a code the source field carried need not occur in
+// the column (a state that only ever closes a subject's history is
+// never a previous state).
+type Mirror struct {
+	Source   string
+	Observed []bool
+}
+
 // WriteFor rewrites the carried document against dstCohort's schema and
 // writes it beside dstCohort, fingerprinted over dstCohort's bytes (which
 // must already be written). replaced names the schema fields whose values
-// the write replaced. A nil receiver writes nothing. The returned warning,
+// the write replaced. mirrors maps a new column to the recorded source
+// field whose values (codes) it holds — Materialize's previous-state
+// column, which inherits its state field's type and dictionary — so the
+// column is described as that variable is (same codes, value labels and
+// missing specification, each category's Observed flag recomputed from
+// the column: Mirror); every other new column is a plain numeric.
+// A nil receiver writes nothing. The returned warning,
 // when non-nil, says the sidecar was not carried and why; the cohort itself
 // is unaffected.
-func (c *SidecarCarry) WriteFor(fs afero.Fs, dstCohort string, schema *encoding.Schema, replaced []string) *errors.CodedError {
+func (c *SidecarCarry) WriteFor(fs afero.Fs, dstCohort string, schema *encoding.Schema, replaced []string, mirrors map[string]Mirror) *errors.CodedError {
 	if c == nil {
 		return nil
 	}
-	doc, err := c.rewrite(schema, replaced)
+	doc, err := c.rewrite(schema, replaced, mirrors)
 	if err != nil {
 		return notCarried(err, c.source)
 	}
@@ -87,7 +107,7 @@ func (c *SidecarCarry) WriteFor(fs afero.Fs, dstCohort string, schema *encoding.
 }
 
 // rewrite returns a copy of the carried document describing schema.
-func (c *SidecarCarry) rewrite(schema *encoding.Schema, replaced []string) (*Document, error) {
+func (c *SidecarCarry) rewrite(schema *encoding.Schema, replaced []string, mirrors map[string]Mirror) (*Document, error) {
 	// A deep copy through JSON: the document is plain data by contract
 	// (`payload` is flat and self-contained), and the carry must never
 	// mutate the source's resolution.
@@ -153,18 +173,79 @@ func (c *SidecarCarry) rewrite(schema *encoding.Schema, replaced []string) (*Doc
 		if known[strings.ToLower(fld.Name)] {
 			continue
 		}
-		v := Variable{Name: fld.Name, Index: nextIndex, Position: len(p.Variables), Segments: 1}
+		v := Variable{Segments: 1}
+		if mir, ok := mirrors[fld.Name]; ok {
+			m, err := mirroredVariable(p, mir, fld)
+			if err != nil {
+				return nil, err
+			}
+			v = m
+		} else if err := plainNumeric(&v, fld, display); err != nil {
+			return nil, err
+		}
+		v.Name, v.LongName, v.Index, v.Position = fld.Name, "", nextIndex, len(p.Variables)
 		v.ShortName = minter.mint(fld.Name)
 		if v.ShortName != fld.Name {
 			v.LongName = fld.Name
 		}
-		if err := plainNumeric(&v, fld, display); err != nil {
-			return nil, err
-		}
 		p.Variables = append(p.Variables, v)
-		nextIndex++
+		nextIndex += int32(max(v.Segments, 1))
 	}
 	return doc, nil
+}
+
+// mirroredVariable is the description of the new column fld, which holds
+// the codes of the recorded field src under src's own type and
+// dictionary: a copy of src's variable — codes, value labels, missing
+// specification, formats — relabelled with fld's description and
+// nullable as fld is, each category observed iff the column carried its
+// ID (mir.Observed). The caller assigns the name, short name, index and
+// position. Refused (the sidecar is then not carried, with a warning)
+// when src is not a recorded variable, does not share fld's type and
+// dictionary size (a replaced src is a plain numeric by now), or is a
+// very long string (its segment names cannot be copied).
+func mirroredVariable(p *Payload, mir Mirror, fld *encoding.Field) (Variable, error) {
+	src := mir.Source
+	for i := range p.Variables {
+		v := p.Variables[i]
+		if !strings.EqualFold(v.Name, src) {
+			continue
+		}
+		dictLen := 0
+		if fld.Dictionary != nil {
+			dictLen = fld.Dictionary.Count()
+		}
+		if v.PulseType != fld.Type.String() || v.VeryLongString != nil || (fld.Dictionary != nil && len(v.Categories) > 0 && maxCategoryID(v.Categories) >= dictLen) {
+			return Variable{}, carryRefused(fld.Name, "it holds the codes of "+strconv.Quote(src)+", whose recorded description does not fit it")
+		}
+		// A deep copy: the column must never share the source
+		// variable's slices.
+		raw, err := stdjson.Marshal(v)
+		if err != nil {
+			return Variable{}, err
+		}
+		var out Variable
+		if err := stdjson.Unmarshal(raw, &out); err != nil {
+			return Variable{}, err
+		}
+		out.Label, out.HasLabel = fld.Description, fld.Description != ""
+		out.Nullable = fld.Nullable
+		for j := range out.Categories {
+			id := int(out.Categories[j].ID)
+			out.Categories[j].Observed = id < len(mir.Observed) && mir.Observed[id]
+		}
+		return out, nil
+	}
+	return Variable{}, carryRefused(fld.Name, "it holds the codes of "+strconv.Quote(src)+", which the sidecar does not record")
+}
+
+// maxCategoryID is the largest dictionary ID cats names.
+func maxCategoryID(cats []Category) int {
+	m := 0
+	for _, c := range cats {
+		m = max(m, int(c.ID))
+	}
+	return m
 }
 
 // referenced reports which part of the document names the variable or

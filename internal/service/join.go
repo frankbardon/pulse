@@ -72,7 +72,7 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 	// Inject configured default label bindings against the joined output
 	// schema before rendering. Defaults whose field was renamed by a
 	// JoinSpec.As prefix simply do not match and are skipped.
-	s.applyAutoLabels(&req.Labels, joinedSchema, s.autoLabelOccupied(req, joinedSchema), nil)
+	s.applyAutoLabels(&req.Labels, joinedSchema, s.autoLabelOccupied(req, joinedSchema), nil, req.Attributes)
 	if err := s.buildAndApplyLabels(req, resp); err != nil {
 		return nil, err
 	}

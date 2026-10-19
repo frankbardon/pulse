@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:5630a947678103aa5bb95637e1f323c12ae53cdb72e622863326214744ebfb90",
+    "feature_set_digest": "fs1:f9c82a3572375114addfe09629d1bb9399dfc0fd242076ffece101bee8a500df",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -3781,6 +3781,77 @@
           "intents": [
             "benchmark",
             "distribution_shape"
+          ]
+        },
+        {
+          "name": "ATTR_PREVIOUS_STATE",
+          "category": "attribute",
+          "description": "Per-record previous state of a long panel: the state field's value on the same subject's record at the previous time point, ordered by order_field's instant (never local time). Null on a subject's first time point, on a record whose subject or order value is null (never a predecessor either), and when the previous state is null (no carry-forward). Records tied on (subject, order) each read the last earlier time point; the time point after a tie reads the tied state only when every tied state agrees, else null with a PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE warning (an error under Strict). Not weightable; buffered.",
+          "params": [
+            {
+              "name": "subject_field",
+              "type": "field",
+              "required": true,
+              "description": "Cohort field identifying each record's subject (any scalar type but a set or vector); a top-level key of the attribute entry.",
+              "field_filter": "any",
+              "slot": true
+            },
+            {
+              "name": "order_field",
+              "type": "field",
+              "required": true,
+              "description": "Date or datetime cohort field ordering each subject's records by instant; a top-level key of the attribute entry.",
+              "field_filter": "date",
+              "slot": true
+            }
+          ],
+          "accepts_types": [
+            "categorical_u16",
+            "categorical_u32",
+            "categorical_u8",
+            "packed_bool"
+          ],
+          "emits_type_note": "one state code per record — the field's dictionary index (categorical) or 0 / 1 (packed_bool); null where no single previous state exists",
+          "streamable": false,
+          "streamable_hint": "No streaming form: a subject's records may sit anywhere in the cohort.",
+          "component_schema": {
+            "keys": [
+              {
+                "name": "n",
+                "type": "int",
+                "description": "Filter-passing rows whose attribute output is present (non-null)."
+              },
+              {
+                "name": "n_null",
+                "type": "int",
+                "description": "Filter-passing rows whose attribute output is null."
+              },
+              {
+                "name": "n_subjects",
+                "type": "int",
+                "description": "Distinct subjects holding a record whose subject and order values are both present."
+              },
+              {
+                "name": "n_first",
+                "type": "int",
+                "description": "Records at their subject's first time point (null: nothing before them)."
+              },
+              {
+                "name": "n_gap",
+                "type": "int",
+                "description": "Records whose previous time point's state is null (null: no carry-forward to an earlier state)."
+              },
+              {
+                "name": "n_ambiguous",
+                "type": "int",
+                "description": "Records nulled because their previous time point is a tie on differing states (PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE). With the records whose subject or order is null, n_first + n_gap + n_ambiguous make up n_null."
+              }
+            ],
+            "mergeability": "none"
+          },
+          "intents": [
+            "flows",
+            "prepare"
           ]
         },
         {
@@ -10061,7 +10132,7 @@
         ]
       }
     ],
-    "error_codes_count": 393,
+    "error_codes_count": 394,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10313,6 +10384,7 @@
       "PULSE_OVERLAY_TARGET_UNKNOWN",
       "PULSE_OVERLAY_YOY_FREQUENCY_MISSING",
       "PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY",
+      "PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE",
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
       "PULSE_RAKE_EMPTY_CELL",
       "PULSE_RAKE_INVALID",
@@ -11340,6 +11412,7 @@
           "ATTR_FORMULA",
           "ATTR_NORMALIZED",
           "ATTR_PERCENTILE",
+          "ATTR_PREVIOUS_STATE",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_RESIDUAL",
@@ -11386,7 +11459,8 @@
         ],
         "compatible_attributes": [
           "ATTR_CODE_IN",
-          "ATTR_FORMULA"
+          "ATTR_FORMULA",
+          "ATTR_PREVIOUS_STATE"
         ],
         "compatible_filterers": [
           "FILTER_EXCLUDE",
@@ -11421,7 +11495,8 @@
         ],
         "compatible_attributes": [
           "ATTR_CODE_IN",
-          "ATTR_FORMULA"
+          "ATTR_FORMULA",
+          "ATTR_PREVIOUS_STATE"
         ],
         "compatible_filterers": [
           "FILTER_EXCLUDE",
@@ -11456,7 +11531,8 @@
         ],
         "compatible_attributes": [
           "ATTR_CODE_IN",
-          "ATTR_FORMULA"
+          "ATTR_FORMULA",
+          "ATTR_PREVIOUS_STATE"
         ],
         "compatible_filterers": [
           "FILTER_EXCLUDE",
@@ -12162,6 +12238,10 @@
       {
         "name": "op-attr-percentile",
         "description": "Per-row percentile rank column against the post-filter value set; requires sorting."
+      },
+      {
+        "name": "op-attr-previous-state",
+        "description": "Per-row previous state of a long panel — the state the same subject held at its previous time point, typed as the state field."
       },
       {
         "name": "op-attr-profile-similarity",
@@ -13220,7 +13300,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 244,
+    "examples_count": 246,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -18781,6 +18861,41 @@
         }
       },
       "attributes": {
+        "ATTR_PREVIOUS_STATE": {
+          "keys": [
+            {
+              "name": "n",
+              "type": "int",
+              "description": "Filter-passing rows whose attribute output is present (non-null)."
+            },
+            {
+              "name": "n_null",
+              "type": "int",
+              "description": "Filter-passing rows whose attribute output is null."
+            },
+            {
+              "name": "n_subjects",
+              "type": "int",
+              "description": "Distinct subjects holding a record whose subject and order values are both present."
+            },
+            {
+              "name": "n_first",
+              "type": "int",
+              "description": "Records at their subject's first time point (null: nothing before them)."
+            },
+            {
+              "name": "n_gap",
+              "type": "int",
+              "description": "Records whose previous time point's state is null (null: no carry-forward to an earlier state)."
+            },
+            {
+              "name": "n_ambiguous",
+              "type": "int",
+              "description": "Records nulled because their previous time point is a tie on differing states (PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE). With the records whose subject or order is null, n_first + n_gap + n_ambiguous make up n_null."
+            }
+          ],
+          "mergeability": "none"
+        },
         "ATTR_PROFILE_SIMILARITY": {
           "keys": [
             {
@@ -19077,4 +19192,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b73977ef6b83af34ec10c27a0a917513e01d3adb5067f0ced0a4b1f5ef013a40
+// golden-hash: 4dc461f5431dcee96902563af2ba82d8b35a847db6a3398eb036332f0551ba29

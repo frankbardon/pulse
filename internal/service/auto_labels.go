@@ -2,6 +2,7 @@ package service
 
 import (
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -23,9 +24,33 @@ import (
 // non-nil, limits injection to the named fields (used by Facet to bind
 // only the fields actually being faceted); pass nil to allow any
 // categorical schema field.
-func (s *Service) applyAutoLabels(labels *[]*types.LabelBinding, schema *encoding.Schema, occupied, restrictTo map[string]bool) {
+//
+// attrs are the request's attribute slots: an ATTR_PREVIOUS_STATE
+// output column reads as its state field (prevstate.KeySchema), so a
+// default on the state field also binds each such column (one copy per
+// label, autoLabelDefaults) — else a previous-state × state crosstab
+// shows display labels on one axis and raw codes on the other. A label
+// that names a real schema field gets no copy. Pass nil when the
+// request carries no attributes.
+func (s *Service) applyAutoLabels(labels *[]*types.LabelBinding, schema *encoding.Schema, occupied, restrictTo map[string]bool, attrs []*types.Attribute) {
 	if len(s.autoLabels) == 0 || schema == nil || labels == nil {
 		return
+	}
+	defaults := s.autoLabels
+	// derivedFrom maps a previous-state output label to its state
+	// field: restrictTo is judged on the state field.
+	var derivedFrom map[string]string
+	if derived := prevStateAutoLabels(s.autoLabels, attrs); len(derived) > 0 {
+		derivedFrom = map[string]string{}
+		for _, attr := range attrs {
+			if attr != nil && attr.Type == types.ATTR_PREVIOUS_STATE {
+				if _, real := schemaFieldByName(schema, prevstate.Label(attr)); !real {
+					derivedFrom[prevstate.Label(attr)] = attr.Field
+				}
+			}
+		}
+		defaults = append(append([]*types.LabelBinding(nil), s.autoLabels...), derived...)
+		schema = prevstate.KeySchema(attrs, schema)
 	}
 
 	bound := make(map[string]bool, len(*labels))
@@ -35,11 +60,19 @@ func (s *Service) applyAutoLabels(labels *[]*types.LabelBinding, schema *encodin
 		}
 	}
 
-	for _, def := range s.autoLabels {
+	for i, def := range defaults {
 		if def == nil || bound[def.Field] {
 			continue
 		}
-		if restrictTo != nil && !restrictTo[def.Field] {
+		origin := def.Field
+		if i >= len(s.autoLabels) {
+			src, ok := derivedFrom[def.Field]
+			if !ok {
+				continue // the label names a real schema field
+			}
+			origin = src
+		}
+		if restrictTo != nil && !restrictTo[origin] {
 			continue
 		}
 		field, ok := schemaFieldByName(schema, def.Field)
@@ -66,6 +99,40 @@ func (s *Service) applyAutoLabels(labels *[]*types.LabelBinding, schema *encodin
 		*labels = append(*labels, &cp)
 		bound[def.Field] = true
 	}
+}
+
+// autoLabelDefaults is the instance's default bindings plus, for each
+// ATTR_PREVIOUS_STATE slot of attrs, a copy of every default on its
+// state field rebound to the slot's output label — the set
+// applyAutoLabels injects from, and the set whose bindings never raise
+// PULSE_LABEL_NOT_APPLIED.
+func (s *Service) autoLabelDefaults(attrs []*types.Attribute) []*types.LabelBinding {
+	derived := prevStateAutoLabels(s.autoLabels, attrs)
+	if len(derived) == 0 {
+		return s.autoLabels
+	}
+	return append(append([]*types.LabelBinding(nil), s.autoLabels...), derived...)
+}
+
+// prevStateAutoLabels copies each default bound to an
+// ATTR_PREVIOUS_STATE slot's state field onto the slot's output label,
+// in slot order; nil when no slot's state field has a default.
+func prevStateAutoLabels(defaults []*types.LabelBinding, attrs []*types.Attribute) []*types.LabelBinding {
+	var out []*types.LabelBinding
+	for _, attr := range attrs {
+		if attr == nil || attr.Type != types.ATTR_PREVIOUS_STATE || attr.Field == "" {
+			continue
+		}
+		label := prevstate.Label(attr)
+		for _, def := range defaults {
+			if def != nil && def.Field == attr.Field && label != attr.Field {
+				cp := *def
+				cp.Field = label
+				out = append(out, &cp)
+			}
+		}
+	}
+	return out
 }
 
 // labelTableRegistered reports whether a label table is registered on

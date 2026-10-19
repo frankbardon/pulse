@@ -20,7 +20,7 @@ requires: [capability:crosstab]
 }}
 ```
 
-Result `Response.Crosstab.Matrix` — `RowKeys`, `ColumnKeys`, `Cells`, margins, `GrandTotal`.
+Result: `Response.Crosstab.Matrix` (keys, cells, margins).
 
 ## Choosing a crosstab
 
@@ -28,6 +28,7 @@ Result `Response.Crosstab.Matrix` — `RowKeys`, `ColumnKeys`, `Cells`, margins,
 - Only one figure per key combination, no totals? → plain `groups` + `aggregations` ([`grouper-design`](grouper-design.md)).
 - Several figures per cell? → `cells`, one stub row per measure ([`crosstab-measures`](crosstab-measures.md)), or one crosstab per figure (Compose them). A second figure only on the MARGINS (e.g. an unweighted base, `"weight": null`) rides `margin_aggregations` ([`crosstab-margin-aggregations`](crosstab-margin-aggregations.md)).
 - Comparing cells statistically? → crosstab + overlays ([`overlay-system`](overlay-system.md)).
+- Moves in a long panel (a row per subject per time)? → previous-state rows × state columns ([`op-attr-previous-state`](op-attr-previous-state.md)), then [`op-overlay-markov`](op-overlay-markov.md).
 
 ## Axes, cell
 
@@ -39,7 +40,7 @@ Result `Response.Crosstab.Matrix` — `RowKeys`, `ColumnKeys`, `Cells`, margins,
 
 **Fit.** A `GROUP_QUANTILE` / `GROUP_KMEANS` axis fits once over the filtered set (`params.fit` `global`, as in `groups`); `within` refits per outer bucket (rows, then columns).
 
-Most cells are scalars (`MatrixCell.Value: float64`). Map- or list-valued cells (manifest `crosstab.map_valued_cell_aggregators` and the set unions / intersections) refuse a non-`none` normalize with `PULSE_CROSSTAB_NORMALIZE_MAP_VALUED`. An array-valued cell or margin aggregation needs `params.element` (one member, a scalar; [`op-agg-vec-mean`](op-agg-vec-mean.md)), else `array_valued`.
+Map- or list-valued cells (manifest `crosstab.map_valued_cell_aggregators` and the set unions / intersections) refuse a non-`none` normalize with `PULSE_CROSSTAB_NORMALIZE_MAP_VALUED`. An array-valued cell or margin aggregation needs `params.element` (one member, a scalar; [`op-agg-vec-mean`](op-agg-vec-mean.md)), else `array_valued`.
 
 ## Margins recompute from raw rows
 
@@ -49,7 +50,7 @@ The manifest classifies every cell aggregator: `crosstab.summable_aggregators`, 
 
 ## Normalize
 
-`none` (default), `row`, `column`, `total` — each cell divided by the matching margin. Zero margin ⇒ `MatrixCell.Present=false`. Normalize computes the matching margin even when `margins.*` is false.
+`none` (default), `row`, `column`, `total` — each cell divided by the matching margin. Zero margin ⇒ `MatrixCell.Present=false`. It needs no `margins.*` flag.
 
 - `normalize_level: L` — same-axis rollup; cells sharing the first `L+1` groupers sum to 1. Rejections: `_OUT_OF_RANGE`, `_WITHOUT_NESTED_AXIS`, `_INCOMPATIBLE` (with `total`).
 - `normalize_within: W` — fixes a prefix of the **opposite** axis in the denominator; composes with `normalize_level`. E.g. `columns=[wave,response]`, `normalize=row`, `normalize_within=0` ⇒ per-wave response share. Rejections: `_WITHIN_OUT_OF_RANGE`, `_WITHIN_WITHOUT_AXIS`, `_WITHIN_INCOMPATIBLE`.
@@ -70,7 +71,7 @@ One decode pass into per-cell / per-margin state — memory `O(cells + margins)`
 - every axis grouper keys one record at a time — all but the rank-based quantile one, fan-out included, any axis (extension: declared `Streamable` / `FansOut`);
 - nothing needs whole-cohort context: no join, no tests, features, formula attributes or expression filters, no decimal cell field.
 
-Overlays never prevent fusing. Fan-out margins are non-additive (3 options count 3× in row margins).
+Overlays never prevent fusing. Fan-out margins are non-additive (3 options count 3×).
 
 **Grid cap.** Rows × columns over `max_crosstab_cells` refuses with `PULSE_LIMIT_EXCEEDED`; predict flags it `possible`.
 

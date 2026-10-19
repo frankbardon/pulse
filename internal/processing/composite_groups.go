@@ -194,7 +194,7 @@ func (p *Processor) newRequestGroupers(groups []*types.Group) ([]Grouper, error)
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown group type: %s", grp.Type))
 		}
-		g, err := factory(grp, p.schema)
+		g, err := factory(grp, p.grouperSchema(grp))
 		if err != nil {
 			return nil, err
 		}

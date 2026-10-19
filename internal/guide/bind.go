@@ -247,6 +247,30 @@ func preferDate(f *encoding.Field) int {
 	return 1
 }
 
+// preferSubject orders a subject_field's candidates (ATTR_PREVIOUS_STATE's
+// "any" field filter takes every scalar): a field named like a subject
+// id (`customer_id`) first, then a bare `id` (often the row id, one
+// record per subject), then any other integer, then the rest — a
+// categorical state, a measure, a date. The schema is the binder's only
+// word, so the name is the evidence; a hint still pins any field.
+func preferSubject(f *encoding.Field) int {
+	name := strings.ToLower(f.Name)
+	integer := false
+	switch f.Type {
+	case encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32, encoding.FieldTypeU64:
+		integer = true
+	}
+	switch {
+	case integer && (strings.HasSuffix(name, "_id") || strings.HasSuffix(name, "id") && name != "id"):
+		return 0
+	case integer && name == "id":
+		return 1
+	case integer:
+		return 2
+	}
+	return 3
+}
+
 // intentKinds is every field kind some role of the intent takes.
 func intentKinds(in descriptor.Intent) []descriptor.FieldKind {
 	var out []descriptor.FieldKind
@@ -339,6 +363,8 @@ func fieldFilterAccept(filter string) func(*encoding.Field) bool {
 		return kindIs(descriptor.FieldKindNumeric)
 	case "categorical":
 		return categoricalField
+	case "date":
+		return kindIs(descriptor.FieldKindDate)
 	}
 	return func(*encoding.Field) bool { return true }
 }
@@ -417,7 +443,7 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 	}
 	for _, p := range op.params {
 		loc := locParams
-		if topLevelParam(op, p.name) {
+		if topLevelParam(op, p) {
 			loc = locTop
 		}
 		switch {
@@ -426,7 +452,11 @@ func plan(op opInfo, in descriptor.Intent) (slots []bslot, needs []bneed, ok boo
 			if regressionShaped(op) {
 				accept = both(accept, typeIn(op.accepts))
 			}
-			slots = append(slots, bslot{key: p.name, loc: loc, accept: accept})
+			var prefer func(*encoding.Field) int
+			if p.name == "subject_field" {
+				prefer = preferSubject
+			}
+			slots = append(slots, bslot{key: p.name, loc: loc, accept: accept, prefer: prefer})
 		case regressionShaped(op) && p.name == "predictors":
 			slots = append(slots, bslot{key: p.name, loc: loc, list: true, min: 1, accept: typeIn(op.accepts)})
 		case fieldNameParams[op.name][p.name]:

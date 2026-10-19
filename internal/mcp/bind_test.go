@@ -84,10 +84,12 @@ func enumOf(req map[string]any, arrayKey, innerKey string) []string {
 	return out
 }
 
-// TestMCPSchemaBinding_RemovesInvalidFields verifies attributes[].field is
-// constrained to numeric fields only (categorical "category" must not appear),
-// while the v1 aggregation cut applies the all-fields union but still carries
-// the numeric "score".
+// TestMCPSchemaBinding_RemovesInvalidFields verifies attributes[].field
+// binds per attribute type: the base enum is the union the attribute
+// types accept (the categorical "category" is an ATTR_PREVIOUS_STATE /
+// ATTR_CODE_IN field), and a real validator still refuses it on the
+// numeric-only ATTR_ZSCORE; the v1 aggregation cut applies the
+// all-fields union but still carries the numeric "score".
 func TestMCPSchemaBinding_RemovesInvalidFields(t *testing.T) {
 	schemas, err := Bind(makeBindSchema())
 	if err != nil {
@@ -96,11 +98,15 @@ func TestMCPSchemaBinding_RemovesInvalidFields(t *testing.T) {
 	req := decodeBoundRequest(t, schemas[toolmeta.ToolProcess])
 
 	attrFields := enumOf(req, "attributes", "field")
-	if !slices.Contains(attrFields, "score") {
-		t.Errorf("attributes.field enum missing numeric 'score': %v", attrFields)
+	if want := []string{"score", "category", "observed_on"}; !slices.Equal(attrFields, want) {
+		t.Errorf("attributes.field enum = %v, want the per-type union %v", attrFields, want)
 	}
-	if slices.Contains(attrFields, "category") {
-		t.Errorf("attributes.field enum must not contain categorical 'category': %v", attrFields)
+	sch := compileBound(t, schemas[toolmeta.ToolProcess])
+	if validates(t, sch, `{"cohort": {"filename": "c.pulse"}, "attributes": [{"type": "ATTR_ZSCORE", "field": "category"}]}`) == nil {
+		t.Error("ATTR_ZSCORE accepted the categorical 'category'")
+	}
+	if err := validates(t, sch, `{"cohort": {"filename": "c.pulse"}, "attributes": [{"type": "ATTR_CODE_IN", "field": "category"}]}`); err != nil {
+		t.Errorf("ATTR_CODE_IN refused the categorical 'category': %v", err)
 	}
 
 	aggFields := enumOf(req, "aggregations", "field")

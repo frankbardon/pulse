@@ -2,6 +2,7 @@ package spss
 
 import (
 	"bufio"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -52,7 +53,7 @@ func TestSidecarCarry_AddsAPlainNumericPerNewColumn(t *testing.T) {
 	if warn != nil || c == nil {
 		t.Fatalf("prepare: %v", warn)
 	}
-	doc, err := c.rewrite(carrySchema(t, fs, cohort, "Q1_z"), nil)
+	doc, err := c.rewrite(carrySchema(t, fs, cohort, "Q1_z"), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +87,7 @@ func TestSidecarCarry_ReplacedValuesBecomePlainNumeric(t *testing.T) {
 			s.Fields[i] = encoding.Field{Name: "Satisfaction", Type: encoding.FieldTypeF64, Nullable: true}
 		}
 	}
-	doc, err := c.rewrite(s, []string{"Satisfaction"})
+	doc, err := c.rewrite(s, []string{"Satisfaction"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +95,7 @@ func TestSidecarCarry_ReplacedValuesBecomePlainNumeric(t *testing.T) {
 		t.Errorf("replaced variable = %+v, want a plain numeric", v)
 	}
 
-	_, err = c.rewrite(carrySchema(t, fs, cohort), []string{"MD1"})
+	_, err = c.rewrite(carrySchema(t, fs, cohort), []string{"MD1"}, nil)
 	if ce := codedErr(t, err); ce.Code != perr.PULSE_SPSS_SIDECAR_INVALID || !strings.Contains(ce.Message, "refers to it") {
 		t.Errorf("replacing a response-set member: %v", err)
 	}
@@ -112,7 +113,7 @@ func TestSidecarCarry_WriteForIsFreshAndExports(t *testing.T) {
 	if err := afero.WriteFile(fs, "copy.pulse", raw, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if w := c.WriteFor(fs, "copy.pulse", carrySchema(t, fs, "copy.pulse"), nil); w != nil {
+	if w := c.WriteFor(fs, "copy.pulse", carrySchema(t, fs, "copy.pulse"), nil, nil); w != nil {
 		t.Fatal(w)
 	}
 	res, err := LoadSidecar(fs, "copy.pulse", WriterOptions{})
@@ -121,5 +122,125 @@ func TestSidecarCarry_WriteForIsFreshAndExports(t *testing.T) {
 	}
 	if _, _, err := exportVecSav(t, fs, "copy.pulse", WriterOptions{}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestSidecarCarry_MirroredColumnCopiesItsSourceVariable: a new column
+// mirroring a recorded categorical (the previous-state column, holding
+// that field's codes under its type and dictionary) is described as the
+// source variable — codes, labels, missing specification — under its own
+// name, short name, index and label, nullable; a mirror the document
+// cannot honour (an unrecorded or replaced source, another type) refuses
+// the carry rather than mis-describing the column.
+func TestSidecarCarry_MirroredColumnCopiesItsSourceVariable(t *testing.T) {
+	fs, cohort, src := importFixture(t, richSpec())
+	c, _ := PrepareSidecarCarry(fs, cohort)
+	withPrev := func(typ encoding.FieldType) *encoding.Schema {
+		s := carrySchema(t, fs, cohort)
+		sat := s.Field("Satisfaction")
+		s.Fields = append(s.Fields, encoding.Field{Name: "prev_sat", Type: typ, Nullable: true,
+			Description: "previous satisfaction", Dictionary: sat.Dictionary})
+		return s
+	}
+	sat := withPrev(encoding.FieldTypeF64).Field("Satisfaction")
+	// Observed as Satisfaction is, so the categories copy verbatim.
+	var seen []bool
+	for _, cat := range variableNamed(src, "Satisfaction").Categories {
+		for int(cat.ID) >= len(seen) {
+			seen = append(seen, false)
+		}
+		seen[cat.ID] = seen[cat.ID] || cat.Observed
+	}
+	doc, err := c.rewrite(withPrev(sat.Type), nil, map[string]Mirror{"prev_sat": {Source: "Satisfaction", Observed: seen}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, orig := variableNamed(doc, "prev_sat"), variableNamed(src, "Satisfaction")
+	if v == nil || len(v.Categories) == 0 || !reflect.DeepEqual(v.Categories, orig.Categories) ||
+		!reflect.DeepEqual(v.Missing, orig.Missing) || v.Kind != orig.Kind || v.PulseType != orig.PulseType {
+		t.Fatalf("mirrored variable %+v, want Satisfaction's description %+v", v, orig)
+	}
+	if v.Label != "previous satisfaction" || !v.Nullable || strings.EqualFold(v.ShortName, orig.ShortName) ||
+		v.Index == orig.Index || v.Position != len(doc.Payload.Variables)-1 {
+		t.Errorf("mirrored variable identity %+v", v)
+	}
+	if &v.Categories[0] == &variableNamed(doc, "Satisfaction").Categories[0] {
+		t.Error("mirrored variable shares the source's categories")
+	}
+
+	replacedSat := withPrev(sat.Type)
+	for i := range replacedSat.Fields {
+		if replacedSat.Fields[i].Name == "Satisfaction" {
+			replacedSat.Fields[i] = encoding.Field{Name: "Satisfaction", Type: encoding.FieldTypeF64, Nullable: true}
+		}
+	}
+	shortDict := withPrev(sat.Type)
+	one := encoding.NewDictionary()
+	if _, err := one.Add("only"); err != nil {
+		t.Fatal(err)
+	}
+	shortDict.Fields[len(shortDict.Fields)-1].Dictionary = one
+	for name, tc := range map[string]struct {
+		schema   *encoding.Schema
+		replaced []string
+		src      string
+	}{
+		"unrecorded": {withPrev(sat.Type), nil, "Nope"},
+		"replaced":   {replacedSat, []string{"Satisfaction"}, "Satisfaction"},
+		"type":       {withPrev(encoding.FieldTypeF64), nil, "Satisfaction"},
+		"dictionary": {shortDict, nil, "Satisfaction"},
+	} {
+		_, err := c.rewrite(tc.schema, tc.replaced, map[string]Mirror{"prev_sat": {Source: tc.src}})
+		if ce := codedErr(t, err); ce.Code != perr.PULSE_SPSS_SIDECAR_INVALID || !strings.Contains(ce.Message, "prev_sat") {
+			t.Errorf("%s: %v, want a PULSE_SPSS_SIDECAR_INVALID refusal of prev_sat", name, err)
+		}
+	}
+}
+
+// TestSidecarCarry_MirroredObservedFromTheColumn: a mirrored column's
+// categories keep the source's codes and labels, but each Observed flag
+// is the column's own — true iff a written record carried its ID — never
+// the source variable's.
+func TestSidecarCarry_MirroredObservedFromTheColumn(t *testing.T) {
+	fs, cohort, src := importFixture(t, richSpec())
+	c, _ := PrepareSidecarCarry(fs, cohort)
+	s := carrySchema(t, fs, cohort)
+	sat := s.Field("Satisfaction")
+	s.Fields = append(s.Fields, encoding.Field{Name: "prev_sat", Type: sat.Type, Nullable: true,
+		Description: "previous satisfaction", Dictionary: sat.Dictionary})
+	orig := variableNamed(src, "Satisfaction")
+	if len(orig.Categories) < 2 {
+		t.Fatalf("fixture Satisfaction has %d categories", len(orig.Categories))
+	}
+	first := orig.Categories[0].ID
+	for name, seen := range map[string][]bool{
+		"none":     nil,
+		"first id": append(make([]bool, first), true),
+		"every id": func() []bool {
+			out := make([]bool, maxCategoryID(orig.Categories)+1)
+			for i := range out {
+				out[i] = true
+			}
+			return out
+		}(),
+	} {
+		doc, err := c.rewrite(s, nil, map[string]Mirror{"prev_sat": {Source: "Satisfaction", Observed: seen}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		v := variableNamed(doc, "prev_sat")
+		if len(v.Categories) != len(orig.Categories) {
+			t.Fatalf("%s: %d categories, want %d", name, len(v.Categories), len(orig.Categories))
+		}
+		for j, cat := range v.Categories {
+			want := int(cat.ID) < len(seen) && seen[cat.ID]
+			o := orig.Categories[j]
+			if cat.Observed != want || cat.ID != o.ID || cat.Label != o.Label || cat.Labelled != o.Labelled || cat.Value != o.Value {
+				t.Errorf("%s: category %d = %+v, want %+v observed=%v", name, j, cat, o, want)
+			}
+		}
+		if got := variableNamed(doc, "Satisfaction").Categories; !reflect.DeepEqual(got, orig.Categories) {
+			t.Errorf("%s: Satisfaction's own categories moved: %+v", name, got)
+		}
 	}
 }

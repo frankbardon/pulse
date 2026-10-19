@@ -39,6 +39,9 @@ var routes = map[string][]descriptor.Alternative{
 	descx.IntentMeasureConstruct: {
 		{When: "you want to check that a battery of items is reliable (Cronbach's alpha, McDonald's omega) before scoring it", Use: "MAT_RELIABILITY"},
 	},
+	// flows drafts ATTR_PREVIOUS_STATE (a long panel's previous state);
+	// the route answers when no draft survives — a bound cohort with no
+	// date field to order by, such as a wide from / to table.
 	descx.IntentFlows: {
 		{When: "you want a table of the from state against the to state", Use: "capability:crosstab"},
 	},

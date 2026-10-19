@@ -77,11 +77,9 @@ func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter 
 	if err := p.applyFeatures(req.Features, all); err != nil {
 		return err
 	}
-	filtered, _, err := p.applyFiltersWithCounters(req.Filterers, all)
-	if err != nil {
-		return err
-	}
-	warns, _, err := p.applyAttributes(req.Attributes, filtered)
+	// A before-filters attribute (ATTR_PREVIOUS_STATE) runs over every
+	// record ahead of the filters; the rest over the survivors.
+	filtered, _, warns, _, err := p.filterThenAttributes(req, all)
 	if err != nil {
 		return err
 	}

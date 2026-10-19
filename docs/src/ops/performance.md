@@ -112,6 +112,8 @@ buffering reason. The current set, from `.claude/reference/execution-modes/strea
   summed deviations.
 - `ATTR_PERCENTILE` — sorted view of every value; no streaming
   algorithm preserves exact rank.
+- `ATTR_PREVIOUS_STATE` — orders every record of each subject, which
+  may sit anywhere in the cohort.
 - `GROUP_QUANTILE`, `GROUP_DATE` — finalize-time work over the full
   set.
 - Window operators (`WIN_*`) — operate on a sorted post-aggregate row

@@ -562,10 +562,11 @@ func applyOverlaysSeriesPerSpec(specs []types.OverlaySpec, hostFor func(int, *ty
 		}
 		layer, ws, err := runSeriesHandlerPartitioned(handler, exts, spec, host, plan)
 		if err != nil {
-			if route == types.OverlayKindFormula {
-				// A baseline_position past a partition carries the
-				// spec index, as predict's bound does
-				// (formulaident.BaselineOutOfRange).
+			if route == types.OverlayKindFormula || route == types.OverlayKindIndexVsBaseline || route == types.OverlayKindDeltaVsBaseline {
+				// A baseline_position / baseline-index position past a
+				// partition carries the spec index, as predict's bound
+				// does (formulaident.BaselineOutOfRange,
+				// overlayhost.BaselineIndexOutOfRange).
 				err = codeAt(err, errors.PULSE_OVERLAY_REF_UNKNOWN, i)
 			}
 			if overlayhost.PriorTestKind(route) {

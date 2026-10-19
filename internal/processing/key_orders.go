@@ -22,7 +22,7 @@ func (p *Processor) groupKeyOrders(groups []*types.Group) map[string]*includeFil
 		if !ok {
 			return nil
 		}
-		g, err := factory(grp, p.schema)
+		g, err := factory(grp, p.grouperSchema(grp))
 		if err != nil {
 			return nil
 		}

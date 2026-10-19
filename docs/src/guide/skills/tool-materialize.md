@@ -21,7 +21,7 @@ A derived value lives only inside the request that computes it: a regression, gr
 
 `target`, `records` (one per filter-passing source record; source order, or `sort` order), `derived_columns` (output order: feature outputs, attributes, windows), `warnings`, `invalidated_sidecars` (overwrite only, each with its rebuild command).
 
-The cohort holds the source fields verbatim, then one nullable `f64` per derived column, described by operator, field, params and (when the operator reads it) frame.
+The cohort holds the source fields verbatim, then one nullable `f64` per derived column (an `ATTR_PREVIOUS_STATE` column keeps its state field's categorical type and dictionary), described by operator, field, params and (when the operator reads it) frame.
 
 ## Gotchas
 

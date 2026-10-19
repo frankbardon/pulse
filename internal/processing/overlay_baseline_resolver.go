@@ -1,7 +1,7 @@
 package processing
 
 import (
-	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -81,18 +81,20 @@ import (
 // resolver will land alongside the future "vs designated cell" kind
 // (per PRD §4) and live in its own file.
 func ResolveBaselineIndex(host *SeriesHostView, ref *types.OverlayBaselineIndexRef) (float64, error) {
+	return ResolveBaselineIndexFor("", host, ref)
+}
+
+// ResolveBaselineIndexFor is ResolveBaselineIndex for the handler of
+// kind: its refusal is overlayhost.BaselineIndexOutOfRange, the one
+// predict raises — same message, kind in the message and details (the
+// series dispatcher stamps the spec index).
+func ResolveBaselineIndexFor(kind types.OverlayKind, host *SeriesHostView, ref *types.OverlayBaselineIndexRef) (float64, error) {
 	if ref == nil {
 		return 0, nil
 	}
 	seriesLength := host.GroupCount()
 	if host == nil || ref.Position < 0 || ref.Position >= seriesLength {
-		return 0, errors.NewCodedErrorWithDetails(
-			errors.PULSE_OVERLAY_REF_UNKNOWN,
-			"overlay baseline-index position is out of range for the host series",
-			map[string]any{
-				"baseline_index": ref.Position,
-				"series_length":  seriesLength,
-			})
+		return 0, overlayhost.BaselineIndexOutOfRange(kind, -1, ref.Position, seriesLength)
 	}
 	// The host's own resolver decides whether the requested ordinal
 	// surfaces a value or reports absent. Either way the caller (the

@@ -2,11 +2,13 @@ package pulse
 
 import (
 	"context"
+	"math"
 	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/io/spss"
 	"github.com/frankbardon/pulse/internal/service"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
@@ -57,7 +59,8 @@ type MaterializeResult struct {
 // Materialize writes a NEW single-file cohort at out holding every
 // filter-passing record of req's cohort — the source columns verbatim,
 // then one nullable f64 column per derived output of req (features,
-// attributes, windows) — so the derived columns become ordinary fields
+// attributes, windows; an ATTR_PREVIOUS_STATE output instead takes its
+// state field's categorical_* / packed_bool type and dictionary) — so the derived columns become ordinary fields
 // any later request can read, filter, group or join on.
 //
 // req may carry only features, filterers, attributes, windows, sort,
@@ -72,7 +75,8 @@ type MaterializeResult struct {
 // feature). Every one fails before anything is created at out.
 //
 // The pipeline is Process's record-level half over a full decode:
-// features over every record, filters, attributes over the survivors,
+// features over every record, ATTR_PREVIOUS_STATE over every record,
+// filters, the other attributes over the survivors,
 // windows over the survivors in source order. Output rows follow source
 // order (an archive's records in shard order) unless req carries sort:
 // then they follow the order Request.Sort gives Process's row set —
@@ -85,7 +89,9 @@ type MaterializeResult struct {
 // dictionaries, descriptions — followed by the derived columns in
 // pipeline order (declaration order within features, attributes,
 // windows; a multi-output feature contributes every output), each
-// nullable f64 with a generated description naming its operator,
+// nullable f64 (a previous-state column: nullable, of its state
+// field's type, carrying that field's dictionary, its cells the
+// previous states' labels / flags) with a generated description naming its operator,
 // source field, params (a window's partition, order and — when the
 // operator reads it — frame) and source cohort. An integer window output
 // (row number, rank) is stored as f64; a value that is not a number
@@ -96,7 +102,8 @@ type MaterializeResult struct {
 // breach (PULSE_LIMIT_EXCEEDED), a write error, cancellation — leaves
 // nothing at out (an overwritten cohort stays as it was). The source's
 // SPSS metadata sidecar is carried — rewritten with a plain numeric
-// variable per derived column and re-fingerprinted, so value labels
+// variable per derived column (a previous-state column copies its state
+// variable's codes and value labels) and re-fingerprinted, so value labels
 // survive to a .sav export; a stale or unreadable one is not, with one
 // warning carrying its code. No other sidecar is carried; a
 // managed-import source slides its expiry, as a Process read does. An anchored target
@@ -135,7 +142,7 @@ func (p *Pulse) materialize(ctx context.Context, req *Request, out string, opts 
 	if err != nil {
 		return nil, err
 	}
-	carried := p.carrySidecar(carry, carryWarn, built, nil)
+	carried := p.carrySidecar(carry, carryWarn, built, nil, sink.mirrors())
 	// A read of a managed import slides its expiry, as Process does.
 	p.touchManaged(ctx, source)
 	res := &MaterializeResult{
@@ -170,6 +177,31 @@ type materializeSink struct {
 	names   []string
 	// warns are the run's attribute warnings (service.MaterializeWarner).
 	warns []*errors.CodedError
+	// inherited holds, per derived column, the field shape it inherits
+	// (nil for a nullable f64) and sources the source field whose SPSS
+	// description it carries; observed marks, per inheriting column and
+	// dictionary code, whether a written row carried that code — the
+	// carried variable's Observed flags (spss.Mirror).
+	inherited []*encoding.Field
+	sources   []string
+	observed  [][]bool
+}
+
+// mirrors maps each inheriting column to its SPSS mirror: the source
+// field it holds the codes of and the codes the written rows carried.
+// Nil when no column inherits.
+func (m *materializeSink) mirrors() map[string]spss.Mirror {
+	var out map[string]spss.Mirror
+	for i, f := range m.inherited {
+		if f == nil {
+			continue
+		}
+		if out == nil {
+			out = map[string]spss.Mirror{}
+		}
+		out[f.Name] = spss.Mirror{Source: m.sources[i], Observed: m.observed[i]}
+	}
+	return out
 }
 
 // Warn records the run's attribute warnings (a fitted vector
@@ -193,14 +225,24 @@ func (m *materializeSink) Begin(cohort *service.Cohort, cols []descx.Materialize
 	fields := make([]encoding.Field, 0, len(src.Fields)+len(cols))
 	fields = append(fields, src.Fields...)
 	m.names = make([]string, len(cols))
+	m.inherited = make([]*encoding.Field, len(cols))
+	m.sources = make([]string, len(cols))
+	m.observed = make([][]bool, len(cols))
 	for i, c := range cols {
 		m.names[i] = c.Name
-		fields = append(fields, encoding.Field{
+		f := encoding.Field{
 			Name:        c.Name,
 			Type:        encoding.FieldTypeF64,
 			Nullable:    true,
 			Description: c.Description,
-		})
+		}
+		if c.Inherits != "" {
+			// A previous-state column: its state field's type and
+			// dictionary, its values that field's codes.
+			f.Type, f.Dictionary = c.Type, c.Dictionary
+			m.inherited[i], m.sources[i] = &f, c.Inherits
+		}
+		fields = append(fields, f)
 	}
 	b, err := m.p.NewCohortBuilder(m.ctx, m.out, encoding.Schema{Fields: fields},
 		CohortBuilderOptions{Strict: m.opts.Strict, Overwrite: m.opts.Overwrite})
@@ -216,5 +258,45 @@ func (m *materializeSink) Row(source int64, derived []any) error {
 	if err != nil {
 		return err
 	}
+	for i, f := range m.inherited {
+		if f == nil {
+			continue
+		}
+		code := derived[i]
+		v, err := inheritedCell(f, code)
+		if err != nil {
+			return err
+		}
+		if v != nil {
+			// A non-nil cell is a valid code (inheritedCell): mark it.
+			id := int(code.(float64))
+			if id >= len(m.observed[i]) {
+				m.observed[i] = append(m.observed[i], make([]bool, id+1-len(m.observed[i]))...)
+			}
+			m.observed[i][id] = true
+		}
+		derived[i] = v
+	}
 	return m.builder.Append(append(CohortRow(row), derived...))
+}
+
+// inheritedCell turns one inherited column's derived value — its source
+// field's code as a float64, or nil — into the CohortRow value of f's
+// type: the dictionary label (categorical_*) or the flag (packed_bool).
+// A NaN is null; a code outside the dictionary is an invariant
+// violation (PROCESSING_INTERNAL), never a silently wrong label.
+func inheritedCell(f *encoding.Field, v any) (any, error) {
+	code, ok := v.(float64)
+	if !ok || math.IsNaN(code) {
+		return nil, nil
+	}
+	if f.Type == encoding.FieldTypePackedBool {
+		return code != 0, nil
+	}
+	if f.Dictionary != nil && code >= 0 && code == math.Trunc(code) && code < float64(f.Dictionary.Count()) {
+		return f.Dictionary.Resolve(uint32(code)), nil
+	}
+	return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+		"derived column "+f.Name+" holds a code outside its inherited dictionary",
+		map[string]any{"column": f.Name, "code": code})
 }

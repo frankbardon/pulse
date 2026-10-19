@@ -27,17 +27,48 @@
         ]
       }
     ],
-    "recommendations": [],
-    "routes_to": [
+    "recommendations": [
       {
-        "when": "you want a table of the from state against the to state",
-        "use": "capability:crosstab"
+        "operator": "ATTR_PREVIOUS_STATE",
+        "category": "attribute",
+        "level": "intermediate",
+        "why": "Adds to each row of a long panel the state the same subject held at its previous date, so moves can be counted from-state by to-state. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "attributes": [
+            {
+              "field": "\u003cfield\u003e",
+              "order_field": "\u003corder_field\u003e",
+              "subject_field": "\u003csubject_field\u003e",
+              "type": "ATTR_PREVIOUS_STATE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "field",
+          "order_field",
+          "subject_field"
+        ],
+        "alternatives": [
+          {
+            "when": "the data already holds one row per subject with a from column and a to column",
+            "use": "GROUP_CATEGORY"
+          },
+          {
+            "when": "you want the previous value of a number on result rows",
+            "use": "WIN_LAG"
+          }
+        ]
       }
     ],
     "truncated": false,
-    "candidates_considered": 0
+    "candidates_considered": 1
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: fa3baf79fa7067a66f8fdc52810c088c1cacb04fa3157b9c1840d3fff7403a0d
+// golden-hash: 2df4416e0a98820ddda648c175addf29f179119773edbe1629a4b90896082f45

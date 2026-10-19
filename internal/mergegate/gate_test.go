@@ -88,6 +88,10 @@ func TestMergeRefusal(t *testing.T) {
 		{"scale-score attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_SCALE_SCORE}}}, nil, "attribute ATTR_SCALE_SCORE is not row-local"},
 		{"profile-similarity attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY}}}, nil, "attribute ATTR_PROFILE_SIMILARITY is not row-local"},
 		{"refit attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_REG_FITTED}}}, nil, "attribute ATTR_REG_FITTED is not row-local"},
+		// A subject's records may sit in any partition or shard: a
+		// partition-local previous state would be wrong (U55). Never
+		// row-local.
+		{"previous-state attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PREVIOUS_STATE, Field: "n", SubjectField: "n", OrderField: "n"}}}, nil, "attribute ATTR_PREVIOUS_STATE is not row-local"},
 		{"row-local extension attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: "ATTR_X_ROW"}}}, fakeExt{}, ""},
 		{"two-pass extension attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: "ATTR_X_TWO"}}}, fakeExt{}, "attribute ATTR_X_TWO is not row-local"},
 		{"extension attribute without registry", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: "ATTR_X_ROW"}}}, nil, "not row-local"},

@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:5630a947678103aa5bb95637e1f323c12ae53cdb72e622863326214744ebfb90",
+  "$comment": "feature_set_digest: fs1:f9c82a3572375114addfe09629d1bb9399dfc0fd242076ffece101bee8a500df",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -274,6 +274,9 @@
         "label": {
           "type": "string"
         },
+        "order_field": {
+          "type": "string"
+        },
         "params": {
           "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
         },
@@ -288,6 +291,9 @@
             "array",
             "null"
           ]
+        },
+        "subject_field": {
+          "type": "string"
         },
         "target": {
           "type": "string"
@@ -351,6 +357,7 @@
         "ATTR_NORMALIZED",
         "ATTR_PC_SCORE",
         "ATTR_PERCENTILE",
+        "ATTR_PREVIOUS_STATE",
         "ATTR_PROFILE_SIMILARITY",
         "ATTR_REG_FITTED",
         "ATTR_REG_LEVERAGE",
@@ -5312,4 +5319,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 2a9036d1b09ac8a41d65890351621bd3049f8536e5bd9f2737b05ef906ab22b3
+// golden-hash: 8fed72089a7dc1ac7e1fa2dfb3129814ca63cb5e6f2613906404d96c73430bda

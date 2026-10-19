@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/windowparams"
@@ -110,7 +111,9 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     (Field; FEAT_TARGET_ENCODE params.target; FEAT_TRAIN_TEST_SPLIT
 //     params.stratify);
 //  2. filterers — the schema plus every feature output (attributes run
-//     after filters, so their labels are NOT visible to a filter);
+//     after filters, so their labels are NOT visible to a filter — save
+//     a before-filters attribute's (ATTR_PREVIOUS_STATE), which an
+//     expression filter may read: it runs over the whole cohort first);
 //  3. attributes — as filterers plus each EARLIER attribute's label
 //     (Field, or Target / Predictors for ATTR_REG_*; ATTR_FORMULA reads
 //     its expression and may omit Field);
@@ -315,7 +318,17 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 		}
 	}
 
-	// 2. Filterers.
+	// 2. Filterers. A before-filters attribute (prevstate.BeforeFilters:
+	// ATTR_PREVIOUS_STATE) runs over the whole cohort ahead of the
+	// filter pass, so an expression filter — and any later expression —
+	// may read its output column (a derived float column, null on a
+	// first record); a field-keyed filter still may not.
+	for _, label := range prevstate.BeforeFiltersLabels(req.Attributes, func(t types.AttributeType) types.AttributeType { return opRoute(inst, t) }) {
+		if w.preFilter == nil {
+			w.preFilter = map[string]bool{}
+		}
+		w.preFilter[label] = true
+	}
 	for _, fil := range req.Filterers {
 		if fil == nil {
 			continue
@@ -342,7 +355,21 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 			continue
 		}
 		attrRoute := opRoute(inst, attr.Type)
+		if cerr := prevstate.ForeignSlotRefusal(attr, attrRoute); cerr != nil {
+			w.out = append(w.out, cerr)
+		}
 		switch attrRoute {
+		case types.ATTR_PREVIOUS_STATE:
+			// Source columns only (the schema): the state's levels and
+			// the subject / order values are cohort fields, never an
+			// earlier attribute's or feature's output.
+			for _, ref := range prevstate.FieldRefs(attr) {
+				if schema == nil || schema.Field(ref.Name) != nil {
+					continue
+				}
+				w.out = append(w.out, refusal(string(attr.Type)+" "+string(ref.Slot)+" references unknown cohort field: "+ref.Name+" (it reads source columns only)",
+					map[string]any{"field": ref.Name, "attribute": string(attr.Type), "slot": string(ref.Slot)}))
+			}
 		case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
 			if attr.Target != "" {
 				w.check(attr.Target, func() *errors.CodedError {
@@ -920,6 +947,11 @@ type fieldRefWalk struct {
 	// compile is the expression compile's state (predict_formula.go,
 	// initCompile).
 	compile exprCompileScope
+	// preFilter holds the output column of every before-filters
+	// attribute (prevstate.BeforeFilters): an expression compiled from
+	// the filter step on reads it as a derived column, since the runtime
+	// writes it before any filter runs.
+	preFilter map[string]bool
 }
 
 // arrayRef refuses a downstream read (a Sort key, a window's field /

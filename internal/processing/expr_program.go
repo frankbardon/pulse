@@ -97,11 +97,19 @@ type exprProgram struct {
 	// schema is the build's schema; decimals marks that it declares a
 	// decimal128 field, whose value binds lifted (exprenv.Bind — the
 	// mantissa plus the field's scale). inputDecs is index-aligned with
-	// inputs: the decimal field an input names, else nil (nil slice: no
-	// decimal input — the per-row bind then costs nothing).
+	// inputs: the decimal field (or derived column) an input names, else
+	// nil (nil slice: no such input — the per-row bind then costs
+	// nothing).
 	schema    *encoding.Schema
 	decimals  bool
 	inputDecs []*encoding.Field
+	// derived are the derived columns the run's dictionary-inheritance
+	// view declares beyond schema (exprenv.DerivedFields; nil: none — a
+	// request without one binds exactly as before). Each is declared as
+	// its field binds and its value — the dictionary code the record
+	// carries — lifted through exprenv.Bind, so a previous-state column
+	// reads as its state field does.
+	derived map[string]*encoding.Field
 	// refs are every free identifier the AST names (callees and let
 	// bindings excluded), used to decide at build whether the schema
 	// alone can declare them.
@@ -128,7 +136,17 @@ type exprProgram struct {
 	untypedSet bool
 }
 
-// newExprProgram builds an expression's program against schema. When
+// newExprProgram is newExprProgramKeyed with no dictionary-inheritance
+// view.
+func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Resolved, refTables vectors.ReferenceTables, opts []expr.Option) (*exprProgram, error) {
+	return newExprProgramKeyed(src, what, schema, nil, vecs, refTables, opts)
+}
+
+// newExprProgramKeyed builds an expression's program against schema,
+// keys the run's dictionary-inheritance view over it
+// (prevstate.KeySchema; nil or schema itself: none) — every derived
+// column keys declares is typed as its field binds and its code lifted
+// to its label (exprenv.DerivedFields). When
 // every name the expression references is a schema field or one of the
 // request's named vectors (vecs, resolved by internal/vectors; nil:
 // none), or the expression does not parse, it compiles now and returns
@@ -139,11 +157,15 @@ type exprProgram struct {
 // expression calling ref() is judged against them and the named vectors
 // at build (refStaticRefusal — predict's rules) and every compile
 // patches its ref() calls (refPatcher).
-func newExprProgram(src, what string, schema *encoding.Schema, vecs []vectors.Resolved, refTables vectors.ReferenceTables, opts []expr.Option) (*exprProgram, error) {
+func newExprProgramKeyed(src, what string, schema, keys *encoding.Schema, vecs []vectors.Resolved, refTables vectors.ReferenceTables, opts []expr.Option) (*exprProgram, error) {
 	if err := vectorStaticRefusal(src, what, vectors.ExprVectorLen(vecs, schema)); err != nil {
 		return nil, err
 	}
 	p := &exprProgram{src: src, what: what, opts: opts, decl: exprenv.Prototype(schema), schema: schema}
+	p.derived = exprenv.DerivedFields(schema, keys)
+	for name := range p.derived {
+		p.decl[name] = exprenv.DerivedDecl(keys, name)
+	}
 	if schema != nil {
 		for i := range schema.Fields {
 			if schema.Fields[i].Type == encoding.FieldTypeDecimal128 {
@@ -230,11 +252,17 @@ func (p *exprProgram) settleInputs() {
 			p.inputs = append(p.inputs, name)
 		}
 	}
-	if !p.decimals {
+	if !p.decimals && p.derived == nil {
 		return
 	}
 	for i, name := range p.inputs {
-		if f := p.schema.Field(name); f != nil && f.Type == encoding.FieldTypeDecimal128 {
+		f := p.derived[name]
+		if f == nil && p.decimals {
+			if sf := p.schema.Field(name); sf != nil && sf.Type == encoding.FieldTypeDecimal128 {
+				f = sf
+			}
+		}
+		if f != nil {
 			if p.inputDecs == nil {
 				p.inputDecs = make([]*encoding.Field, len(p.inputs))
 			}
@@ -244,12 +272,14 @@ func (p *exprProgram) settleInputs() {
 }
 
 // bindEnv copies the record's whole AllValues map into a pooled env,
-// every decimal lifted (exprenv.Bind): the map is the record's shared
-// cache and is never written.
+// every decimal and derived column lifted (exprenv.Bind): the map is the
+// record's shared cache and is never written.
 func (p *exprProgram) bindEnv(all map[string]any) map[string]any {
 	env := exprEnvPool.Get().(map[string]any)
 	for k, v := range all {
-		if p.decimals {
+		if f := p.derived[k]; f != nil {
+			v = exprenv.Bind(f, v)
+		} else if p.decimals {
 			v = exprenv.Bind(p.schema.Field(k), v)
 		}
 		env[k] = v
@@ -439,12 +469,12 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 	if p.typed.Load() == nil || p.wholeEnv || r.allValuesCache != nil {
 		// Deferred compile, $env, or a record whose AllValues map is
 		// already built (a buffered record another expression read).
-		if len(p.vecs) == 0 && !p.decimals {
+		if len(p.vecs) == 0 && !p.decimals && p.derived == nil {
 			return p.run(r.AllValues(), r.nullMarked)
 		}
 		// The AllValues map is the record's shared cache: bind the
-		// vectors and lift the decimals in a pooled copy, never in the
-		// cache.
+		// vectors and lift the decimals and derived columns in a pooled
+		// copy, never in the cache.
 		env := p.bindEnv(r.AllValues())
 		var f *exprVectorFrame
 		if len(p.vecs) > 0 {

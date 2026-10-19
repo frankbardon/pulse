@@ -14,6 +14,7 @@ import (
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -568,6 +569,10 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// the extensions snapshot when present so custom operator overrides land.
 	result.Streamable, result.StreamableReasons = computeStreamable(req, schema, opts)
 
+	// Before-filters attributes (ATTR_PREVIOUS_STATE) — the rule the
+	// runtime's buffered pipeline splits the attribute list on.
+	result.ComputedBeforeFilters = prevstate.BeforeFiltersLabels(req.Attributes, func(t types.AttributeType) types.AttributeType { return opRoute(opts.Instance, t) })
+
 	// Fused-crosstab dispatch — the engine's own rule on the
 	// defaults-resolved request over the cohort's schema (the runtime
 	// gate reads cohort.Schema(); a join declines first either way).
@@ -682,9 +687,12 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 	// carries the registered label tables; augment-mode collisions are
 	// checked against OutputLabels — the one output-column set the
 	// runtime checks too — so a sibling "<field>_label" cannot shadow an
-	// aggregation, attribute, group-key, window or feature column.
+	// aggregation, attribute, group-key, window or feature column. The
+	// schema is the dictionary-inheritance view (prevstate.KeySchema), the
+	// runtime's too: a binding on an ATTR_PREVIOUS_STATE output column
+	// validates as one on its state field.
 	if len(req.Labels) > 0 {
-		ValidateLabels(env, req.Labels, schema, extensionsFromOpts(opts), opts.instance(), OutputLabels(req, schema, opts.instance()))
+		ValidateLabels(env, req.Labels, prevstate.KeySchema(req.Attributes, schema), extensionsFromOpts(opts), opts.instance(), OutputLabels(req, schema, opts.instance()))
 	}
 }
 
@@ -791,6 +799,10 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	}
 	for _, attr := range req.Attributes {
 		if !streamableWithOverlay(opts, "attribute", string(attr.Type), opRoute(opts.instance(), attr.Type).Streamable()) {
+			if opRoute(opts.instance(), attr.Type) == types.ATTR_PREVIOUS_STATE {
+				reasons = append(reasons, "attribute "+string(attr.Type)+" orders every record of each subject, so it runs via the buffered path")
+				continue
+			}
 			reasons = append(reasons, "attribute "+string(attr.Type)+" requires a full pass for population stats")
 		}
 	}
@@ -1016,6 +1028,9 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 	// ATTR_CODE_IN: the runtime constructor's refusals, re-derived from
 	// the schema, and the absent-categorical-code warning.
 	validateCodeIn(env, req, schema, projected, opts)
+
+	// ATTR_PREVIOUS_STATE: the shared slot rule (internal/prevstate).
+	validatePreviousState(env, req, schema, opts)
 
 	// ATTR_FORMULA: the runtime constructor's empty-expression refusal
 	// (an expression in params.expression is not read).

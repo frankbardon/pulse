@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/processing/feature"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/processing/window"
@@ -92,6 +93,27 @@ type Processor struct {
 	// []float64 identifiers; set by prepare, nil when the request
 	// defines none.
 	exprVectors []vectors.Resolved
+
+	// keySchema is the current run's dictionary-inheritance view
+	// (prevstate.KeySchema): the schema plus one virtual field per
+	// ATTR_PREVIOUS_STATE output column, carrying its state field's type
+	// and dictionary. Set by prepare; the same pointer as schema when the
+	// request has no such slot. Only GROUP_CATEGORY is built against it
+	// (grouperSchema) — never a decode, stride or aggregator schema.
+	keySchema *encoding.Schema
+}
+
+// grouperSchema is the schema grp's grouper is built against: the
+// dictionary-inheritance view for a GROUP_CATEGORY slot (its keys, its
+// Group.Include and its dict_size then resolve a previous-state output
+// column through the state field's dictionary, as they do the state
+// field itself), the cohort schema for every other grouper — whose
+// construction and keys stay exactly what they were.
+func (p *Processor) grouperSchema(grp *types.Group) *encoding.Schema {
+	if grp != nil && grp.Type == types.GROUP_CATEGORY && p.keySchema != nil {
+		return p.keySchema
+	}
+	return p.schema
 }
 
 // SetModels installs the request's bound models (nil: none). The
@@ -1633,7 +1655,7 @@ func (p *Processor) buildRowLocalAttributes(attrs []*types.Attribute) ([]rowLoca
 // Shared between streaming and buffered paths to keep error semantics
 // identical.
 func (p *Processor) buildFilterFuncs(filterers []*types.Filterer) ([]FilterFunc, error) {
-	return buildFilterFuncsWith(filterers, p.schema, p.exts, p.models, p.exprVectors)
+	return buildFilterFuncsWith(filterers, p.schema, p.exts, p.models, p.exprVectors, p.keySchema)
 }
 
 // buildFilterFuncsWith compiles filterers against schema with the
@@ -1641,7 +1663,7 @@ func (p *Processor) buildFilterFuncs(filterers []*types.Filterer) ([]FilterFunc,
 // vectors — the one filter build, shared by the request's filter chain,
 // a fitted attribute's params.fit_on (fitOnBinder) and the service's
 // per-worker builds (BuildFiltersWithVectors).
-func buildFilterFuncsWith(filterers []*types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) ([]FilterFunc, error) {
+func buildFilterFuncsWith(filterers []*types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) ([]FilterFunc, error) {
 	if len(filterers) == 0 {
 		return nil, nil
 	}
@@ -1652,7 +1674,7 @@ func buildFilterFuncsWith(filterers []*types.Filterer, schema *encoding.Schema, 
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown filter type: %s", f.Type))
 		}
-		fn, err := buildFilterFunc(factory, f, schema, exts, models, vecs)
+		fn, err := buildFilterFunc(factory, f, schema, exts, models, vecs, keys)
 		if err != nil {
 			return nil, err
 		}
@@ -1664,7 +1686,7 @@ func buildFilterFuncsWith(filterers []*types.Filterer, schema *encoding.Schema, 
 // buildFilterFunc builds one filterer from factory with the registry,
 // the bound models and the named vectors bound — buildFilterFuncsWith's
 // per-slot step, shared with a feature's fit_on (featureResolver).
-func buildFilterFunc(factory FiltererFactory, f *types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) (FilterFunc, error) {
+func buildFilterFunc(factory FiltererFactory, f *types.Filterer, schema *encoding.Schema, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) (FilterFunc, error) {
 	builder := factory()
 	if aware, ok := builder.(ExtensionAware); ok {
 		aware.SetExtensions(exts)
@@ -1676,6 +1698,9 @@ func buildFilterFunc(factory FiltererFactory, f *types.Filterer, schema *encodin
 	}
 	if vb, ok := builder.(vectorBinder); ok {
 		vb.bindVectors(vecs)
+	}
+	if kb, ok := builder.(keysBinder); ok {
+		kb.bindKeys(keys)
 	}
 	fn, err := builder.Build(f, schema)
 	if err != nil {
@@ -1709,7 +1734,7 @@ func (p *Processor) featureResolver() feature.Resolver {
 				return c, nil
 			}
 			spec := &types.Filterer{Type: types.FILTER_EXPRESSION, Expression: b.FitOnExpression(), TimeZone: feat.TimeZone}
-			fn, err := buildFilterFunc(filtererRegistry[types.FILTER_EXPRESSION], spec, schema, p.exts, p.models, p.exprVectors)
+			fn, err := buildFilterFunc(filtererRegistry[types.FILTER_EXPRESSION], spec, schema, p.exts, p.models, p.exprVectors, p.keySchema)
 			if err != nil {
 				return nil, err
 			}
@@ -1757,13 +1782,12 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// Response.Components.Filterers. Empty filter chains short-circuit
 	// to a nil counters slice so the omitempty wire shape stays
 	// byte-identical.
-	filtered, filterCounters, err := p.applyFiltersWithCounters(req.Filterers, records)
-	if err != nil {
-		return nil, err
-	}
-
-	// Step 2: Compute attributes (adds derived fields to records)
-	attrWarnings, attrComps, err := p.applyAttributes(req.Attributes, filtered)
+	//
+	// Step 2: Compute attributes (adds derived fields to records) over
+	// the filtered set — save a before-filters attribute
+	// (ATTR_PREVIOUS_STATE), computed over every record ahead of step 1
+	// (filterThenAttributes).
+	filtered, filterCounters, attrWarnings, attrComps, err := p.filterThenAttributes(req, records)
 	if err != nil {
 		return nil, err
 	}
@@ -2113,11 +2137,6 @@ func recordsToRows(records []*Record) []map[string]any {
 	return rows
 }
 
-func (p *Processor) applyFilters(filterers []*types.Filterer, records []*Record) ([]*Record, error) {
-	filtered, _, err := p.applyFiltersWithCounters(filterers, records)
-	return filtered, err
-}
-
 // applyFiltersWithCounters is the buffered-path companion to
 // applyFilterPass: it runs the per-record filter walk over a
 // materialised []*Record slice while tracking the per-slot
@@ -2179,55 +2198,145 @@ func (p *Processor) applyAttributes(attrs []*types.Attribute, records []*Record)
 	var warns []*types.ResponseWarning
 	var comps []types.AttributeComponents
 	for _, attr := range attrs {
-		factory, ok := p.exts.LookupAttribute(attr.Type)
-		if !ok {
-			return nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("unknown attribute type: %s", attr.Type))
-		}
-		computer, err := factory(attr, p.schema)
+		w, entry, ok, err := p.applyAttribute(attr, records)
 		if err != nil {
 			return nil, nil, err
 		}
-		if err := p.bindAttribute(computer); err != nil {
-			return nil, nil, err
-		}
-		values, err := computer.Compute(records, attr.Field)
-		if err != nil {
-			return nil, nil, err
-		}
-		warns = append(warns, AttributeWarnings(computer)...)
-
-		// Inject computed values back into records under the label name
-		label := attr.Label
-		if label == "" {
-			label = defaultAttributeLabel(attr)
-		}
-		nullable := EmitsNull(computer)
-		floor := attributeFloorFor(computer, p.compute)
-		for i, r := range records {
-			if i < len(values) {
-				floor.observe(values[i], nullable)
-				if attributeOutputNull(values[i], nullable) {
-					// A null output (AttributeNull, or a NullEmitter's
-					// NaN): the row has no value under the label, so
-					// aggregations skip it.
-					r.SetNull(label)
-					continue
-				}
-				// Writes the value without clearing a null mark and
-				// invalidates any cached AllValues() result.
-				r.injectValue(label, values[i])
-			}
-		}
-		entry, ok, err := attributeComponents(attr, label, computer, floor)
-		if err != nil {
-			return nil, nil, err
-		}
+		warns = append(warns, w...)
 		if ok {
 			comps = append(comps, entry)
 		}
 	}
 	return warns, comps, nil
+}
+
+// filterThenAttributes is the buffered pipeline's filter + attribute
+// step over records (features already applied): it returns the
+// filter-passing records, the per-filterer counters and the attribute
+// warnings / Components entries in DECLARED slot order.
+//
+// A before-filters attribute (prevstate.BeforeFilters —
+// ATTR_PREVIOUS_STATE only) is computed first, in declared order, over
+// EVERY record, so a filter keeps a subject's first in-window record
+// with its true previous state and an expression filter may read the
+// output column; the filter pass then runs (its counters judge the
+// filter alone), and every other attribute runs over the survivors as
+// before. A request with no such slot takes exactly the historical
+// path — filters, then every attribute — byte-identically.
+func (p *Processor) filterThenAttributes(req *types.Request, records []*Record) ([]*Record, []filterPassCounters, []*types.ResponseWarning, []types.AttributeComponents, error) {
+	pre := -1
+	for i, attr := range req.Attributes {
+		if attr != nil && prevstate.BeforeFilters(attr.Type) {
+			pre = i
+			break
+		}
+	}
+	if pre < 0 {
+		filtered, counters, err := p.applyFiltersWithCounters(req.Filterers, records)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		warns, comps, err := p.applyAttributes(req.Attributes, filtered)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		return filtered, counters, warns, comps, nil
+	}
+	type slotOut struct {
+		warns []*types.ResponseWarning
+		comp  types.AttributeComponents
+		ok    bool
+	}
+	outs := make([]slotOut, len(req.Attributes))
+	for i, attr := range req.Attributes {
+		if attr == nil || !prevstate.BeforeFilters(attr.Type) {
+			continue
+		}
+		w, entry, ok, err := p.applyAttribute(attr, records)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		outs[i] = slotOut{warns: w, comp: entry, ok: ok}
+	}
+	filtered, counters, err := p.applyFiltersWithCounters(req.Filterers, records)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	var warns []*types.ResponseWarning
+	var comps []types.AttributeComponents
+	for i, attr := range req.Attributes {
+		if attr == nil || !prevstate.BeforeFilters(attr.Type) {
+			w, entry, ok, err := p.applyAttribute(attr, filtered)
+			if err != nil {
+				return nil, nil, nil, nil, err
+			}
+			outs[i] = slotOut{warns: w, comp: entry, ok: ok}
+		}
+		warns = append(warns, outs[i].warns...)
+		if outs[i].ok {
+			comps = append(comps, outs[i].comp)
+		}
+	}
+	return filtered, counters, warns, comps, nil
+}
+
+// applyAttribute runs one attribute slot over records, writing its
+// output under its label, and returns the warnings it raised and its
+// Components.Attributes entry (ok false when it emits none).
+func (p *Processor) applyAttribute(attr *types.Attribute, records []*Record) ([]*types.ResponseWarning, types.AttributeComponents, bool, error) {
+	var none types.AttributeComponents
+	factory, ok := p.exts.LookupAttribute(attr.Type)
+	if !ok {
+		return nil, none, false, errors.NewCodedError(errors.PROCESSING_CONFIG,
+			fmt.Sprintf("unknown attribute type: %s", attr.Type))
+	}
+	computer, err := factory(attr, p.schema)
+	if err != nil {
+		return nil, none, false, err
+	}
+	if err := p.bindAttribute(computer); err != nil {
+		return nil, none, false, err
+	}
+	values, err := computer.Compute(records, attr.Field)
+	if err != nil {
+		return nil, none, false, err
+	}
+	// Under Strict (strictWeights carries the instance's Strict
+	// flag) a refusing attribute's warning is the run's error.
+	if sr, ok := computer.(attributeStrictRefuser); ok && p.strictWeights {
+		if cerr := sr.strictRefusal(); cerr != nil {
+			return nil, none, false, cerr
+		}
+	}
+	warns := AttributeWarnings(computer)
+
+	// Inject computed values back into records under the label name
+	label := attr.Label
+	if label == "" {
+		label = defaultAttributeLabel(attr)
+	}
+	nullable := EmitsNull(computer)
+	floor := attributeFloorFor(computer, p.compute)
+	for i, r := range records {
+		if i < len(values) {
+			floor.observe(values[i], nullable)
+			if attributeOutputNull(values[i], nullable) {
+				// A null output (AttributeNull, or a NullEmitter's
+				// NaN): the row has no value under the label, so
+				// aggregations skip it.
+				r.SetNull(label)
+				continue
+			}
+			// Writes the value without clearing a null mark and
+			// invalidates any cached AllValues() result.
+			r.injectValue(label, values[i])
+		}
+	}
+	entry, ok, err := attributeComponents(attr, label, computer, floor)
+	if err != nil {
+		return nil, none, false, err
+	}
+	return warns, entry, ok, nil
 }
 
 // processGrouped is the buffered grouped exit: one Data row per bucket
@@ -2256,7 +2365,7 @@ func (p *Processor) processGroupedSingle(req *types.Request, records []*Record, 
 		return nil, nil, nil, nil, nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			fmt.Sprintf("unknown group type: %s", grp.Type))
 	}
-	grouper, err := factory(grp, p.schema)
+	grouper, err := factory(grp, p.grouperSchema(grp))
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}

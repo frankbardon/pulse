@@ -405,6 +405,9 @@ func TestRegistryAttributeStreamabilityMatchesTypes(t *testing.T) {
 			spec.Params = []byte(`{"codes":[1]}`)
 		case types.ATTR_REG_PREDICT:
 			spec.Params = []byte(`{"fit":"m"}`)
+		case types.ATTR_PREVIOUS_STATE:
+			schema.Fields = append(schema.Fields, encoding.Field{Name: "state", Type: encoding.FieldTypePackedBool})
+			spec.Field, spec.SubjectField, spec.OrderField = "state", "y", "x"
 		case types.ATTR_MAHALANOBIS:
 			spec.Fields = []string{"y", "p1"}
 		case types.ATTR_PC_SCORE:

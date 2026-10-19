@@ -53,6 +53,14 @@ type PredictResult struct {
 	// CrosstabFusable is false — short stable prose. Empty when it is
 	// true or nil.
 	CrosstabFusionReasons []string `json:"crosstab_fusion_reasons,omitempty"`
+	// ComputedBeforeFilters lists, in declared order, the output column
+	// of every attribute slot computed over the whole UNFILTERED cohort
+	// before the filter pass rather than over the filter-passing records
+	// (today only ATTR_PREVIOUS_STATE): a filter then keeps each
+	// subject's first in-window record with its true previous state, and
+	// an expression filter may read the column. The runtime's buffered
+	// pipeline reads the same rule. Omitted when no slot is.
+	ComputedBeforeFilters []string `json:"computed_before_filters,omitempty"`
 	// Suggestions enumerates structured next-actions the caller can apply
 	// to repair (or improve) the request. Suggestions fire on validation
 	// issues — field-name typos, operator/type mismatches, date misuse,

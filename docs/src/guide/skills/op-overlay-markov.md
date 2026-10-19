@@ -30,7 +30,7 @@ Questions it answers:
 
 ## Host shape
 
-MATRIX crosstab, from-state rows × to-state columns, same keys (aligned by key); count or sum cells.
+MATRIX crosstab, from-state rows × to-state columns, same keys (aligned by key); count or sum cells. A long panel needs no pre-pivot: previous-state rows ([`op-attr-previous-state`](op-attr-previous-state.md)) × the state; a last-only state (never left) is column-only — list it in `absorbing`.
 
 ## Output
 
@@ -52,4 +52,4 @@ Primary MATRIX: transition P (rows sum to 1). Parts: `step_<n>` (MATRIX Pⁿ), `
 
 ## See
 
-- Skills: [`overlay-system`](overlay-system.md), [`op-overlay-share-of-row`](op-overlay-share-of-row.md), [`op-overlay-chisq-matrix`](op-overlay-chisq-matrix.md), [`op-overlay-symmetry`](op-overlay-symmetry.md), [`op-overlay-retention`](op-overlay-retention.md).
+- Skills: [`overlay-system`](overlay-system.md), [`op-overlay-share-of-row`](op-overlay-share-of-row.md), [`op-overlay-chisq-matrix`](op-overlay-chisq-matrix.md), [`op-overlay-symmetry`](op-overlay-symmetry.md), [`op-overlay-retention`](op-overlay-retention.md), [`op-attr-previous-state`](op-attr-previous-state.md).

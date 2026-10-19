@@ -64,6 +64,8 @@ func TestBind_JoinTargetWidensFieldEnums(t *testing.T) {
 		{"unknown field refused", j + `, "aggregations": [{"type": "AGG_SUM", "field": "r_nope"}]`, false},
 		{"bare right name under a prefix refused", j + `, "aggregations": [{"type": "AGG_SUM", "field": "spend"}]`, false},
 		{"joined categorical not numeric", j + `, "attributes": [{"type": "ATTR_ZSCORE", "field": "r_region"}]`, false},
+		{"joined categorical state field", j + `, "attributes": [{"type": "ATTR_CODE_IN", "field": "r_region"}]`, true},
+		{"joined numeric not a state", j + `, "attributes": [{"type": "ATTR_PREVIOUS_STATE", "field": "r_spend"}]`, false},
 		{"unknown right_field refused", join("r_", "nope"), false},
 		{"left_field stays left-only", `"joins": [{"right": "r.pulse", "on": [{"left_field": "r_spend", "right_field": "spend"}]}]`, false},
 	}

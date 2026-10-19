@@ -272,6 +272,9 @@ type formulaAttribute struct {
 	// vecs are the request's resolved named vectors the formula may
 	// read (nil: none), set by bindVectors before prepare compiles.
 	vecs []vectors.Resolved
+	// keys is the run's dictionary-inheritance view (nil: none), set by
+	// bindKeys before prepare compiles.
+	keys *encoding.Schema
 	// totals is the cohort-total state of a formula that calls
 	// total(expr) (formula_total.go); nil for a row-local formula.
 	totals *formulaTotals
@@ -346,7 +349,7 @@ func (a *formulaAttribute) prepare() error {
 			a.prog, a.progErr = a.prepareTotals()
 			return
 		}
-		a.prog, a.progErr = newExprProgram(a.expression, exprenv.SiteFormula, a.schema, a.vecs, a.exts.referenceTables(), a.exts.exprOptionsWithModels(a.models, a.zone))
+		a.prog, a.progErr = newExprProgramKeyed(a.expression, exprenv.SiteFormula, a.schema, a.keys, a.vecs, a.exts.referenceTables(), a.exts.exprOptionsWithModels(a.models, a.zone))
 	})
 	return a.progErr
 }
@@ -361,6 +364,10 @@ func (a *formulaAttribute) bindModels(models *model.Set) error {
 // bindVectors satisfies vectorBinder: the formula reads the request's
 // named vectors as []float64 identifiers.
 func (a *formulaAttribute) bindVectors(vecs []vectors.Resolved) { a.vecs = vecs }
+
+// bindKeys satisfies keysBinder: the formula reads a derived categorical
+// column (a previous-state output) by name.
+func (a *formulaAttribute) bindKeys(keys *encoding.Schema) { a.keys = keys }
 
 func (a *formulaAttribute) Compute(records []*Record, field string) ([]float64, error) {
 	if err := a.prepare(); err != nil {
@@ -514,6 +521,16 @@ type vectorBinder interface {
 	bindVectors(vecs []vectors.Resolved)
 }
 
+// keysBinder is implemented by the expression operators (ATTR_FORMULA,
+// FILTER_EXPRESSION): bindKeys hands them the run's
+// dictionary-inheritance view (prevstate.KeySchema, Processor.keySchema;
+// nil: none) before they compile, so a derived column it declares — a
+// previous-state output — reads in the expression exactly as its source
+// field does (exprenv.DerivedFields): by label, a null absent.
+type keysBinder interface {
+	bindKeys(keys *encoding.Schema)
+}
+
 // ExprVectors resolves req's named vectors (Request.Vectors) against
 // schema for the expression operators, followed by the schema's native
 // vector fields (vectors.Resolve): nil when there are neither, or when
@@ -543,11 +560,21 @@ func BindAttribute(computer AttributeComputer, exts *ExtensionRegistry, models *
 // expression attribute the request's resolved named vectors
 // (ExprVectors; nil: none).
 func BindAttributeWithVectors(computer AttributeComputer, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) error {
+	return bindAttributeWith(computer, exts, models, vecs, nil)
+}
+
+// bindAttributeWith is BindAttributeWithVectors that also hands the
+// expression operators (and a params.fit_on filter) the run's
+// dictionary-inheritance view keys (keysBinder; nil: none).
+func bindAttributeWith(computer AttributeComputer, exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) error {
 	if aware, ok := computer.(ExtensionAware); ok {
 		aware.SetExtensions(exts)
 	}
 	if vb, ok := computer.(vectorBinder); ok {
 		vb.bindVectors(vecs)
+	}
+	if kb, ok := computer.(keysBinder); ok {
+		kb.bindKeys(keys)
 	}
 	if mb, ok := computer.(modelBinder); ok {
 		if err := mb.bindModels(models); err != nil {
@@ -555,7 +582,7 @@ func BindAttributeWithVectors(computer AttributeComputer, exts *ExtensionRegistr
 		}
 	}
 	if fb, ok := computer.(fitOnBinder); ok {
-		if err := fb.bindFitOn(exts, models, vecs); err != nil {
+		if err := fb.bindFitOn(exts, models, vecs, keys); err != nil {
 			return err
 		}
 	}
@@ -565,10 +592,11 @@ func BindAttributeWithVectors(computer AttributeComputer, exts *ExtensionRegistr
 	return nil
 }
 
-// bindAttribute is BindAttributeWithVectors with this processor's
-// registry, bound models and the run's named vectors.
+// bindAttribute is bindAttributeWith with this processor's registry,
+// bound models, the run's named vectors and its dictionary-inheritance
+// view.
 func (p *Processor) bindAttribute(computer AttributeComputer) error {
-	return BindAttributeWithVectors(computer, p.exts, p.models, p.exprVectors)
+	return bindAttributeWith(computer, p.exts, p.models, p.exprVectors, p.keySchema)
 }
 
 // percentileAttribute is ATTR_PERCENTILE: rank / n * 100 over the rows

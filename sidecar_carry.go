@@ -24,18 +24,19 @@ func (p *Pulse) prepareSidecarCarry(source string) (*spss.SidecarCarry, *errors.
 
 // carrySidecar writes the carried sidecar beside the cohort just built,
 // rewritten against its schema (replaced names the fields whose values
-// the write replaced), and returns the warnings to report: the prepare
+// the write replaced; mirrors the columns holding a recorded field's
+// codes, spss.Mirror), and returns the warnings to report: the prepare
 // warning, or a failure to carry. A carried sidecar is fresh, so it is
 // dropped from built.InvalidatedSidecars — an overwrite no longer leaves
 // it stale.
-func (p *Pulse) carrySidecar(c *spss.SidecarCarry, prepWarn *errors.CodedError, built *CohortBuildResult, replaced []string) []*errors.CodedError {
+func (p *Pulse) carrySidecar(c *spss.SidecarCarry, prepWarn *errors.CodedError, built *CohortBuildResult, replaced []string, mirrors map[string]spss.Mirror) []*errors.CodedError {
 	if prepWarn != nil {
 		return []*errors.CodedError{prepWarn}
 	}
 	if c == nil {
 		return nil
 	}
-	if w := c.WriteFor(p.fsys, built.Target, built.Schema, replaced); w != nil {
+	if w := c.WriteFor(p.fsys, built.Target, built.Schema, replaced, mirrors); w != nil {
 		return []*errors.CodedError{w}
 	}
 	kept := built.InvalidatedSidecars[:0]

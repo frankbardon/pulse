@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -67,8 +68,9 @@ func validateOverlayCorrespondence(env *descriptor.Envelope, req *types.Request,
 			return
 		}
 	}
-	rows := axisBuckets(req.Crosstab.Rows, schema, inst)
-	cols := axisBuckets(req.Crosstab.Columns, schema, inst)
+	keys := prevstate.KeySchema(req.Attributes, schema) // dictionary-inheritance view
+	rows := axisBuckets(req.Crosstab.Rows, keys, inst)
+	cols := axisBuckets(req.Crosstab.Columns, keys, inst)
 	if rows > 0 && cols > 0 {
 		if cerr := overlayhost.CorrespondenceDimensionsRefusal(spec.Kind, params, rows, cols, index); cerr != nil {
 			addCodedError(env, cerr)

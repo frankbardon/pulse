@@ -99,6 +99,7 @@
     - [op-attr-normalized](skills/op-attr-normalized.md)
     - [op-attr-pc-score](skills/op-attr-pc-score.md)
     - [op-attr-percentile](skills/op-attr-percentile.md)
+    - [op-attr-previous-state](skills/op-attr-previous-state.md)
     - [op-attr-profile-similarity](skills/op-attr-profile-similarity.md)
     - [op-attr-reg-fitted](skills/op-attr-reg-fitted.md)
     - [op-attr-reg-leverage](skills/op-attr-reg-leverage.md)

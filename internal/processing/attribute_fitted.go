@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/linalg"
@@ -89,7 +90,7 @@ type prebuiltAttribute interface {
 // filterers compile against the request's registry and bound models
 // before any record is read.
 type fitOnBinder interface {
-	bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) error
+	bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) error
 }
 
 // attributeWarner is implemented by an attribute whose Finalize can
@@ -97,6 +98,14 @@ type fitOnBinder interface {
 // or insufficient fit).
 type attributeWarner interface {
 	attributeWarnings() []*types.ResponseWarning
+}
+
+// attributeStrictRefuser is implemented by an attribute whose
+// data-dependent warning becomes the run's error under Strict
+// (ATTR_PREVIOUS_STATE's ambiguous tie): strictRefusal, read after
+// Compute, is nil when there is nothing to refuse.
+type attributeStrictRefuser interface {
+	strictRefusal() *errors.CodedError
 }
 
 // AttributeWarnings returns computer's Response-level warnings (nil for
@@ -402,7 +411,7 @@ func newFittedVectorAttribute(attr *types.Attribute, schema *encoding.Schema, sr
 
 // bindFitOn compiles params.fit_on, or resolves and aligns params.fit
 // against the request's bound models (fitOnBinder).
-func (a *fittedVectorAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) error {
+func (a *fittedVectorAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) error {
 	if model.IsVectorFitAttribute(a.typ) {
 		a.capture = models.Capture()
 	}
@@ -435,7 +444,7 @@ func (a *fittedVectorAttribute) bindFitOn(exts *ExtensionRegistry, models *model
 		// raised whether or not a row is scored.
 		return a.close()
 	}
-	fns, err := buildFilterFuncsWith(a.fitOnSpec, a.schema, exts, models, vecs)
+	fns, err := buildFilterFuncsWith(a.fitOnSpec, a.schema, exts, models, vecs, keys)
 	if err != nil {
 		return err
 	}
@@ -785,6 +794,10 @@ func ResolveAttributeInputs(req *types.Request, schema *encoding.Schema, exts *E
 // for the expression operators (Processor.exprVectors).
 func (p *Processor) prepare(req *types.Request) *types.Request {
 	p.exprVectors = ExprVectors(req, p.schema)
+	p.keySchema = nil
+	if req != nil {
+		p.keySchema = prevstate.KeySchema(req.Attributes, p.schema)
+	}
 	return ResolveAggregationInputs(p.resolveGroupInputs(p.resolveAttributeInputs(p.stampWeights(req))), p.schema, p.exts)
 }
 

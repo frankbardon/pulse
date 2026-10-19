@@ -1,0 +1,7 @@
+[
+  {"name": "id", "type": "u32", "description": "Move identifier: one row per customer per pair of consecutive month-end snapshots (the wide twin of plan_history)"},
+  {"name": "customer_id", "type": "u32", "description": "Customer the move belongs to, the same ids plan_history carries"},
+  {"name": "moved_at", "type": "date", "description": "Month-end date of the later snapshot of the pair: 2025-02-28 or 2025-03-31"},
+  {"name": "plan_before", "type": "categorical_u8", "description": "Subscription plan at the earlier snapshot of the pair: basic, plus or pro"},
+  {"name": "plan_after", "type": "categorical_u8", "description": "Subscription plan at the later snapshot of the pair, on the same three plans as plan_before"}
+]

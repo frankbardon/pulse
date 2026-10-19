@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/groupedtests"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -102,8 +103,12 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 	}
 	rows, cols := 0, 0
 	if req.Crosstab != nil {
-		rows = axisBuckets(req.Crosstab.Rows, schema, inst)
-		cols = axisBuckets(req.Crosstab.Columns, schema, inst)
+		// The dictionary-inheritance view: an ATTR_PREVIOUS_STATE output
+		// axis is bounded by its state field's dictionary, as the
+		// runtime's GROUP_CATEGORY keys it.
+		keys := prevstate.KeySchema(req.Attributes, schema)
+		rows = axisBuckets(req.Crosstab.Rows, keys, inst)
+		cols = axisBuckets(req.Crosstab.Columns, keys, inst)
 		if req.Crosstab.HasImplicitTotalColumn() {
 			cols = 1 // the one implicit Total column
 		}

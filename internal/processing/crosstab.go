@@ -79,7 +79,7 @@ func (p *Processor) partitionByAxis(axis []*types.Group, records []*Record, oute
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			fmt.Sprintf("unknown group type: %s", grp.Type))
 	}
-	grouper, err := factory(grp, p.schema)
+	grouper, err := factory(grp, p.grouperSchema(grp))
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +316,7 @@ func (p *Processor) axisComponentsFor(axis []*types.Group, filtered []*Record) (
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 				fmt.Sprintf("unknown group type: %s", grp.Type))
 		}
-		grouper, err := factory(grp, p.schema)
+		grouper, err := factory(grp, p.grouperSchema(grp))
 		if err != nil {
 			return nil, err
 		}
@@ -535,11 +535,9 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	if err := p.applyFeatures(req.Features, records); err != nil {
 		return nil, err
 	}
-	filtered, err := p.applyFilters(req.Filterers, records)
-	if err != nil {
-		return nil, err
-	}
-	attrWarnings, attrComps, err := p.applyAttributes(req.Attributes, filtered)
+	// A before-filters attribute (ATTR_PREVIOUS_STATE) runs over every
+	// record ahead of the filters; the rest over the survivors.
+	filtered, _, attrWarnings, attrComps, err := p.filterThenAttributes(req, records)
 	if err != nil {
 		return nil, err
 	}

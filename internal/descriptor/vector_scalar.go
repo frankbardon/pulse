@@ -129,6 +129,10 @@ func vectorScalarRefusals(req *types.Request, schema *encoding.Schema, snap *Ext
 				judge(p, slot+" predictors["+strconv.Itoa(j)+"]", "")
 			}
 		case route == types.ATTR_FORMULA || route == types.ATTR_REG_PREDICT:
+		case route == types.ATTR_PREVIOUS_STATE:
+			judge(attr.Field, slot+" field", "")
+			judge(attr.SubjectField, slot+" subject_field", "")
+			judge(attr.OrderField, slot+" order_field", "")
 		case slices.Contains(types.AllAttributeTypes(), route):
 			judge(attr.Field, slot+" field", "")
 		}

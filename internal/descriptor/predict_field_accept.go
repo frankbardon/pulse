@@ -124,13 +124,14 @@ func validateFieldAcceptance(env *descriptor.Envelope, req *types.Request, schem
 // ownTypeValidator are the operators whose own predict validator reads
 // the table in the runtime constructor's order, among its other
 // refusals (validateModelErrorAggs, validateAUCAggs, validateCodeIn,
-// validateDatePartParams): their row is not reported a second time here.
+// validateDatePartParams, validatePreviousState): their row is not reported a second time here.
 // The decimal rule is still reported here — it runs before any
 // aggregator constructor.
 var ownTypeValidator = map[string]bool{
 	string(types.AGG_MAE): true, string(types.AGG_MAPE): true, string(types.AGG_RMSE): true,
 	string(types.AGG_AUC):      true,
 	string(types.ATTR_CODE_IN): true, string(types.ATTR_DATE_PART): true,
+	string(types.ATTR_PREVIOUS_STATE): true,
 }
 
 // filterTypeChecked reports whether the table judges a filterer's field

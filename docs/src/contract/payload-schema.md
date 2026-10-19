@@ -530,6 +530,20 @@ scores with a `PULSE_MATRIX_HEYWOOD` / `PULSE_MATRIX_NOT_CONVERGED`
 entry otherwise. `format_version` stays `"1.1"`; an attribute without
 them is byte-identical.
 
+## Attribute subject and order slots
+
+`Attribute` carries two additive string slots read only by
+`ATTR_PREVIOUS_STATE`: `subject_field` (the cohort field identifying
+each record's subject — any scalar type but a `set_*` or a vector) and
+`order_field` (a `date` or `datetime` cohort field ordering each
+subject's records by instant). Both are required on that operator, name
+source columns only (an earlier attribute or feature output is refused
+`SERVICE_VALIDATION`), and are refused `PROCESSING_CONFIG` on every
+other attribute type; a field of the wrong type is
+`PULSE_FIELD_TYPE_UNSUPPORTED` (`details.slot` names the key). They are
+slot keys, never `params` keys. `format_version` stays `"1.1"`; an
+attribute without them is byte-identical.
+
 ## Grouper vector inputs
 
 `Group` carries the same two additive slots, `vector` / `fields`, on

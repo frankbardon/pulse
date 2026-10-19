@@ -924,6 +924,11 @@ var codeMetadata = map[Code]Metadata{
 				Hint:     "A numeric aggregation over a categorical field would read its dictionary index: count its values instead.",
 				Examples: []any{"AGG_MODE", "AGG_MODE_COUNT", "AGG_DISTINCT_COUNT", "AGG_COUNT"},
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Attributes", "*", "Field"},
+				Hint:   "ATTR_PREVIOUS_STATE reads a categorical_* or packed_bool state: a state stored as coded integers has no labels to carry, so re-import it as a categorical (an explicit import schema typing the column categorical_u8) and name that field.",
+			},
 		},
 	},
 	PULSE_FEAT_TARGET_LEAKAGE_RISK: {
@@ -1002,6 +1007,16 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupSetDefault,
 				Path:   []string{"Attributes", "*", "Params", "scale_min"},
 				Hint:   "Check the declared range against the data: set params.scale_min / scale_max (or the kind \"scale\" vector's bounds) to the battery's true range, or drop the out-of-range codes (e.g. a 99 'don't know') with a filter or recode first. details.n_out_of_range counts the values, details.n_rows the rows.",
+			},
+		},
+	},
+	PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE: {
+		Message: "An ATTR_PREVIOUS_STATE subject has two or more records at one time point (the same order value) carrying different states, so its next time point has no single previous state; those records are null, never a guessed order.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Attributes", "*", "OrderField"},
+				Hint:   "Order by a finer field (a datetime instead of a date) or drop the duplicate records first (pulse dedup, or a filter) so each subject has one record per time point. details.n_ambiguous counts the nulled records, details.n_subjects_ambiguous the subjects affected.",
 			},
 		},
 	},

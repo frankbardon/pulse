@@ -483,6 +483,22 @@ const (
 	// params.fit_on, weighted when a weight is in force). A similarity
 	// metric is refused with a pointer to ATTR_PROFILE_SIMILARITY.
 	ATTR_VEC_DISTANCE AttributeType = "ATTR_VEC_DISTANCE"
+
+	// ATTR_PREVIOUS_STATE emits, per record of a long panel, the state
+	// its subject held at the subject's previous time point: Field (a
+	// categorical_* or packed_bool state) read on the subject's
+	// (SubjectField) record ordered just before this one by OrderField
+	// (a date or datetime, ordered by instant — never by local time).
+	// The output is the earlier record's state code (its dictionary
+	// index, or 0 / 1), null on the subject's first time point, on a
+	// row whose subject or order value is null (such a row is never a
+	// predecessor either), and when the previous state is null (no
+	// carry-forward). Rows tied on (subject, order) each take the state
+	// at the last earlier distinct time point; the time point after a
+	// tie reads the tied state when every tied state agrees, else null,
+	// counted and warned (PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE; an error
+	// under Strict). Buffered only: it reads every record of a subject.
+	ATTR_PREVIOUS_STATE AttributeType = "ATTR_PREVIOUS_STATE"
 )
 
 // AllAttributeTypes returns all defined attribute types.
@@ -496,6 +512,7 @@ func AllAttributeTypes() []AttributeType {
 		ATTR_NORMALIZED,
 		ATTR_PC_SCORE,
 		ATTR_PERCENTILE,
+		ATTR_PREVIOUS_STATE,
 		ATTR_PROFILE_SIMILARITY,
 		ATTR_REG_FITTED,
 		ATTR_REG_LEVERAGE,
@@ -1324,6 +1341,18 @@ type Attribute struct {
 	// attribute family when Penalty == "elasticnet" (0 < L1Ratio < 1).
 	L1Ratio float64 `json:"l1_ratio,omitempty"`
 
+	// SubjectField names the cohort field whose value identifies a
+	// record's subject for ATTR_PREVIOUS_STATE (any scalar type but a
+	// set_* or a vector). Read only by ATTR_PREVIOUS_STATE; refused on
+	// every other attribute type.
+	SubjectField string `json:"subject_field,omitempty"`
+
+	// OrderField names the date or datetime cohort field that orders a
+	// subject's records for ATTR_PREVIOUS_STATE (by instant: epoch days
+	// or epoch seconds). Read only by ATTR_PREVIOUS_STATE; refused on
+	// every other attribute type.
+	OrderField string `json:"order_field,omitempty"`
+
 	// TimeZone is the per-slot IANA zone override (`"UTC"` or an
 	// `Area/Location` name). Empty inherits Request.TimeZone, then
 	// pulse.Options.DefaultTimeZone, then UTC. Accepted only on
@@ -1949,12 +1978,15 @@ type AttributeComponents struct {
 	Type AttributeType `json:"type"`
 
 	// N is the number of filter-passing rows whose attribute output is
-	// PRESENT (non-null). Attribute floor.
+	// PRESENT (non-null). Attribute floor. A before-filters attribute
+	// (ATTR_PREVIOUS_STATE) scores every decoded record, so its N and
+	// NNull count the pre-filter rows.
 	N int `json:"n"`
 
 	// NNull is the number of filter-passing rows whose attribute
 	// output is null. N + NNull is the post-filter record count the
-	// attribute scored. Attribute floor.
+	// attribute scored (the pre-filter count for a before-filters
+	// attribute). Attribute floor.
 	NNull int `json:"n_null"`
 
 	// Operator carries the operator's schema-declared keys (the

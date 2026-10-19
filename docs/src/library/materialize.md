@@ -33,7 +33,8 @@ res, err := p.Materialize(ctx, &pulse.Request{
 - **Rows.** One per filter-passing source record, in source order (an
   archive's shards concatenated in archive order). Features see every
   record, attributes and windows the survivors — exactly as `Process`
-  computes them. With `sort`, the rows follow the order `Request.Sort`
+  computes them; `ATTR_PREVIOUS_STATE` also sees every record (it runs
+  before the filters). With `sort`, the rows follow the order `Request.Sort`
   gives `Process`'s row set — the engine's own comparator, ties in
   source order, nulls last in both directions — on keys naming source
   fields or derived columns (feature outputs, attribute and window
@@ -46,7 +47,11 @@ res, err := p.Materialize(ctx, &pulse.Request{
 - **Schema.** The source's logical schema verbatim (order, types,
   nullability, dictionaries, descriptions), then one nullable `f64` per
   derived output in pipeline order — features (every output of a
-  multi-output feature), attributes, windows — each with a generated
+  multi-output feature), attributes, windows — except an
+  `ATTR_PREVIOUS_STATE` output, which is written as its state field's
+  own type (`categorical_*` or `packed_bool`) and dictionary, nullable
+  (a null rides the bitmap), so it reads back as the same labels and a
+  crosstab on the derived cohort equals the in-request one; each with a generated
   description such as `WIN_LAG of spend (partition region; order week)
   — derived from sales.pulse`. A window's frame is stated only when the
   operator reads it: `WIN_EWMA` is cumulative whatever its required
@@ -63,7 +68,9 @@ res, err := p.Materialize(ctx, &pulse.Request{
 - **Writing.** Always an ungrouped (`0x01`) single file, written
   atomically through `NewCohortBuilder`. The source's SPSS metadata
   sidecar is carried — rewritten with a plain numeric variable per
-  derived column and re-fingerprinted, so value labels survive to
+  derived column (a previous-state column copies its state variable's
+  codes and value labels, each category's `observed` flag recomputed
+  from the rows written) and re-fingerprinted, so value labels survive to
   `pulse export spss`; a stale or unreadable one is dropped with a warning
   carrying its own code. No other sidecar is carried. An existing target needs `Overwrite`; replacing one reports
   its stale sidecars in `InvalidatedSidecars` plus a

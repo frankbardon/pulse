@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/exprident"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -66,7 +67,11 @@ func validateFormulaExpressions(env *descriptor.Envelope, req *types.Request, op
 //   - the named vectors the expression reads, []float64
 //     (vectors.ExprBindings, exprenv.VectorType);
 //   - every name an earlier slot derives — a feature output, an
-//     earlier attribute's label — float64 (exprenv.DerivedType). The
+//     earlier attribute's label — float64 (exprenv.DerivedType), except
+//     a derived column the dictionary-inheritance view types
+//     (prevstate.KeySchema: a previous-state output), declared as its
+//     state field binds (exprenv.DerivedDecl — a categorical is a
+//     string), the engine's declaration from the same view. The
 //     engine meets these only on the first record (a deferred compile)
 //     and types them from it; predict types them from the producing
 //     slot. A name no slot produces stays undeclared and fails as the
@@ -92,6 +97,10 @@ func validateFormulaExpressions(env *descriptor.Envelope, req *types.Request, op
 // exprCompileScope is the walk's compile state, fixed per request.
 type exprCompileScope struct {
 	schema *encoding.Schema
+	// keys is the request's dictionary-inheritance view over schema
+	// (prevstate.KeySchema; schema itself when no slot contributes): a
+	// derived column it declares is typed as its source field.
+	keys *encoding.Schema
 	// vecs are the request's named vectors, resolved over schema;
 	// vecNames their names, and vecsFailed set when Resolve refused
 	// (its refusal is reported elsewhere): a name among vecNames is then
@@ -106,6 +115,7 @@ type exprCompileScope struct {
 func (w *fieldRefWalk) initCompile(req *types.Request, schema *encoding.Schema) {
 	c := &w.compile
 	c.schema = schema
+	c.keys = prevstate.KeySchema(req.Attributes, schema)
 	if len(req.Vectors) > 0 {
 		c.vecNames = make(map[string]bool, len(req.Vectors))
 		for _, v := range req.Vectors {
@@ -173,8 +183,8 @@ func (w *fieldRefWalk) compileRefusal(src, site string, opts []expr.Option) *err
 				continue
 			}
 			switch {
-			case w.cols[name]:
-				decl[name] = exprenv.DerivedType
+			case w.cols[name], w.preFilter[name]:
+				decl[name] = exprenv.DerivedDecl(c.keys, name)
 			case w.open, c.vecsFailed && c.vecNames[name]:
 				return nil
 			}

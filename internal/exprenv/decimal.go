@@ -113,13 +113,24 @@ var (
 
 // Bind is the env value of field f's decoded value v: a decimal128
 // field's encoding.Decimal128 becomes a [Decimal] at the field's scale;
-// every other value (and a nil f) passes through unchanged.
+// a dictionary code (float64) on a dictionary-bearing categorical — a
+// derived column a dictionary-inheritance view declares ([DerivedFields]),
+// whose value rides the record as its code — becomes its label, as
+// Record.AllValues resolves a schema categorical; every other value
+// (and a nil f) passes through unchanged.
 func Bind(f *encoding.Field, v any) any {
-	if f == nil || f.Type != encoding.FieldTypeDecimal128 {
+	if f == nil {
 		return v
 	}
-	if d, ok := v.(encoding.Decimal128); ok {
-		return Decimal{Value: d, Scale: f.Scale}
+	switch {
+	case f.Type == encoding.FieldTypeDecimal128:
+		if d, ok := v.(encoding.Decimal128); ok {
+			return Decimal{Value: d, Scale: f.Scale}
+		}
+	case f.Type.IsCategorical() && f.Dictionary != nil:
+		if code, ok := v.(float64); ok {
+			return f.Dictionary.Resolve(uint32(code))
+		}
 	}
 	return v
 }

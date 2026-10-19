@@ -207,8 +207,9 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_DECIMAL_DIVIDE_BY_ZERO:         shared,
 	errors.PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL: shared,
 	// Predict only: an ATTR_CODE_IN code absent from a categorical dictionary.
-	errors.PULSE_ATTR_CODE_NOT_IN_DICTIONARY: own("ATTR_CODE_IN"),
-	errors.PULSE_ATTR_SCALE_OUT_OF_RANGE:     own("ATTR_SCALE_SCORE"),
+	errors.PULSE_ATTR_CODE_NOT_IN_DICTIONARY:  own("ATTR_CODE_IN"),
+	errors.PULSE_ATTR_SCALE_OUT_OF_RANGE:      own("ATTR_SCALE_SCORE"),
+	errors.PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE: own("ATTR_PREVIOUS_STATE"),
 	// Predict advisories: the two-group rule fires only on the two
 	// two-sample tests; the many-tests rule needs the p-value count,
 	// which a hidden capability:multiplicity withholds. The suppression

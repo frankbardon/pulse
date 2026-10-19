@@ -87,7 +87,7 @@ import (
 // dispatch, but the defense matches the INDEX_VS_BASELINE / INDEX_VS_TOTAL
 // safety pattern.
 func applyDeltaVsBaseline(spec *types.OverlaySpec, host *SeriesHostView) (types.OverlayLayer, []types.OverlayWarning, error) {
-	baselineValue, err := ResolveBaselineIndex(host, spec.Ref.BaselineIndex)
+	baselineValue, err := ResolveBaselineIndexFor(spec.Kind, host, spec.Ref.BaselineIndex)
 	if err != nil {
 		return types.OverlayLayer{}, nil, err
 	}

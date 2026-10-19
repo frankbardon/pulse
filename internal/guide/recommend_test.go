@@ -25,10 +25,10 @@ func all(t *testing.T, inst *descx.InstanceSnapshot, intent string) *descriptor.
 }
 
 // noDraftIntents are the intents that must answer with routes, never
-// drafts: the non-analytic three and the one no operator serves yet.
+// drafts: the non-analytic three. (flows drafts ATTR_PREVIOUS_STATE; its
+// crosstab route is the fallback when no draft survives.)
 var noDraftIntents = map[string]bool{
 	descx.IntentPrepare: true, descx.IntentSimulate: true, descx.IntentLookup: true,
-	descx.IntentFlows: true,
 }
 
 // TestRecommend_CronbachAlphaReachesReliability: a "cronbach's alpha"
@@ -169,7 +169,12 @@ func declaredParams(m *descriptor.Manifest) map[string]map[string]bool {
 	add := func(name string, ps []descriptor.Param) {
 		set := map[string]bool{}
 		for _, p := range ps {
-			set[p.Name] = true
+			// A Slot param is a key of the slot object itself, never of
+			// its params object (descriptor.Param.Slot): a draft writing
+			// it under params is refused at run time.
+			if !p.Slot {
+				set[p.Name] = true
+			}
 		}
 		out[name] = set
 	}

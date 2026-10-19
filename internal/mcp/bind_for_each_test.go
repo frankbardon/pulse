@@ -69,7 +69,13 @@ func TestBind_ForEachPlaceholders(t *testing.T) {
 		{"placeholder order key without for_each", `"windows": [{"type": "WIN_EWMA", "field": "score", "order_by": [{"field": "{{ch}}"}]}]`, false},
 		{"typo field without for_each", `"windows": [{"type": "WIN_EWMA", "field": "scroe", "order_by": [{"field": "observed_on"}]}]`, false},
 		{"typo field under for_each", `"windows": [{"type": "WIN_EWMA", "field": "scroe", "order_by": [{"field": "observed_on"}], ` + fe + `}]`, false},
+		// The attribute field binds per type (E2-S5): ATTR_ZSCORE reads a
+		// quantity, so a categorical is refused; ATTR_PREVIOUS_STATE reads
+		// a categorical state, so it is admitted.
 		{"categorical attribute field without for_each", `"attributes": [{"type": "ATTR_ZSCORE", "field": "category"}]`, false},
+		{"categorical attribute field under for_each", `"attributes": [{"type": "ATTR_ZSCORE", "field": "category", ` + fe + `}]`, false},
+		{"categorical state field without for_each", `"attributes": [{"type": "ATTR_PREVIOUS_STATE", "field": "category", "subject_field": "category", "order_field": "observed_on"}]`, true},
+		{"numeric state field without for_each", `"attributes": [{"type": "ATTR_PREVIOUS_STATE", "field": "score"}]`, false},
 	}
 	wrap := map[string]func(string) string{
 		toolmeta.ToolProcess: func(b string) string { return `{"cohort": {"filename": "c.pulse"}, ` + b + `}` },

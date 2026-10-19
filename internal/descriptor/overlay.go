@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/overlayhost"
+	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/seriesfield"
 	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -730,7 +731,7 @@ func validateFormulaBaselineBound(env *descriptor.Envelope, req *types.Request, 
 	if err != nil || depth >= len(req.Groups) {
 		return
 	}
-	bound := categoricalSeriesLengthBound(req.Groups[depth:], schema, inst)
+	bound := categoricalSeriesLengthBound(req.Groups[depth:], prevstate.KeySchema(req.Attributes, schema), inst)
 	if bound < 0 || pos < bound {
 		return
 	}
@@ -858,14 +859,8 @@ func validateOverlayBaselineIndexPredict(env *descriptor.Envelope, req *types.Re
 		return
 	}
 	if ref.Position >= predictedLength {
-		env.AddError(string(errors.PULSE_OVERLAY_REF_UNKNOWN),
-			"overlay "+string(spec.Kind)+" baseline-index position exceeds the predicted host series length",
-			map[string]any{
-				"index":          index,
-				"kind":           string(spec.Kind),
-				"baseline_index": ref.Position,
-				"series_length":  predictedLength,
-			})
+		// The runtime resolver's refusal (series_length the bound).
+		addCodedError(env, overlayhost.BaselineIndexOutOfRange(spec.Kind, index, ref.Position, predictedLength))
 		return
 	}
 }
@@ -889,7 +884,7 @@ func overlayBaselineIndexPredictedSeriesLength(req *types.Request, schema *encod
 	if req == nil {
 		return -1
 	}
-	return categoricalSeriesLengthBound(req.Groups, schema, inst)
+	return categoricalSeriesLengthBound(req.Groups, prevstate.KeySchema(req.Attributes, schema), inst)
 }
 
 // categoricalSeriesLengthBound is the schema upper bound on the rows of
