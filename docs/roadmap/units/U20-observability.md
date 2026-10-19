@@ -112,7 +112,7 @@ Shipped on `observability`, released as `v1.0.0-alpha.6` together with the two c
 
 Handed on; tracked in [TODO](../TODO.md) "Follow-ups from U20".
 
-- #231 → [U34](U34-extension-validation.md): recover panics raised inside an operation into a coded error
+- #231 → [U56](U56-operation-panic-recovery.md) (split out of U34): recover panics raised inside an operation into a coded error
 - #232 → [U33](U33-v1-release.md): rehearse the lockstep contrib release on `rc.1`; keep `make contrib-tidy` green on root dependency bumps
 - #233 → [U33](U33-v1-release.md): freeze decision on `mcpserve.ServeInfo.Limits` (non-comparable struct)
 - #234 → [U33](U33-v1-release.md): confirm the deliberately uninstrumented `*Pulse` methods before the `observe` enum freezes

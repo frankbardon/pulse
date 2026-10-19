@@ -1,6 +1,6 @@
 # v1.0.0 Units of Work
 
-The v1.0.0 roadmap broken into **56 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
+The v1.0.0 roadmap broken into **57 Flow-sized units**. Each unit is one initiative: one branch (`branch:` = `slug`), one PR, and 1–3 vertical-slice epics. Every unit document carries:
 - machine-readable frontmatter: `id`, `slug`, `depends_on`, `blocks`, `todo_items`, `size`, `status`;
 - the outcome and scope;
 - the exact TODO items it delivers, quoted verbatim with their `TODO.md` number;
@@ -32,7 +32,7 @@ These files were generated once from the theme documents and `TODO.md`, and are 
 
 ## Suggested order
 
-The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U38 (skill sync, appended after U21) lands after U21 and before U32. U39 (code-in attribute, appended after U38) is done and has no dependencies. U40 (compose sweep, added after U39) is done and lands before U32; U41 (derived cohort), U42 (fit scoring) and U43 (post-aggregation ratios) are done; U41, U42 and U43 follow it in a chain (derived cohort, fit scoring, post-aggregation ratios) and ship in v1.0.0 (owner decision 2026-10-10). U44–U52 (from the [showcase examples](https://github.com/frankbardon/pulse-casebook/tree/main/showcase)) also ship in v1.0.0 and land before U32; they have no hard dependencies on each other, so they can run in parallel sessions, with the soft dependencies in each unit's frontmatter. U53 (custom regressions, appended after U52) ships in v1.0.0 (owner decision 2026-10-10) and lands before U32; it has no hard dependency, with U34, U36 and U42 soft. U55 (previous state, appended after U50 on 2026-10-18) owns #452 and follows U50; it ships in v1.0.0 and lands before U32. U54 (multi-grouper, appended after U53 on 2026-10-11) runs NEXT, immediately after U27 (owner decision): plain `groups` has only ever executed its first grouper, silently; it takes #200 from U35 and #318 from U46, and U46 now depends on it. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
+The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U38 (skill sync, appended after U21) lands after U21 and before U32. U39 (code-in attribute, appended after U38) is done and has no dependencies. U40 (compose sweep, added after U39) is done and lands before U32; U41 (derived cohort), U42 (fit scoring) and U43 (post-aggregation ratios) are done; U41, U42 and U43 follow it in a chain (derived cohort, fit scoring, post-aggregation ratios) and ship in v1.0.0 (owner decision 2026-10-10). U44–U52 (from the [showcase examples](https://github.com/frankbardon/pulse-casebook/tree/main/showcase)) also ship in v1.0.0 and land before U32; they have no hard dependencies on each other, so they can run in parallel sessions, with the soft dependencies in each unit's frontmatter. U53 (custom regressions, appended after U52) ships in v1.0.0 (owner decision 2026-10-10) and lands before U32; it has no hard dependency, with U34, U36 and U42 soft. U56 (operation panic recovery, split out of U34 on 2026-10-19) owns #231 and follows U20; it ships in v1.0.0 and lands before U32. U55 (previous state, appended after U50 on 2026-10-18) owns #452 and follows U50; it ships in v1.0.0 and lands before U32. U54 (multi-grouper, appended after U53 on 2026-10-11) runs NEXT, immediately after U27 (owner decision): plain `groups` has only ever executed its first grouper, silently; it takes #200 from U35 and #318 from U46, and U46 now depends on it. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
 
 | # | Unit | Track | Size | Depends on | TODO items |
 |---|---|---|---|---|---|
@@ -71,7 +71,7 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U31 | [guidance-guides](U31-guidance-guides.md): A developer can start from a question and find the right analysis without knowing statistics | Guided analysis | M | U21, U24, U28 | 100, 101, 102, 103, 250, 251, 252, 269, 377 |
 | U32 | [docs-audit](U32-docs-audit.md): Pulse goes live with the most helpful, current and comprehensive documentation we can produce | API & release | L | U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40 | 159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 412, 413, 435, 453, 463, 472, 473, 474 |
 | U33 | [v1-release](U33-v1-release.md): Pulse v1.0.0 is released with a written stability promise | API & release | S | U32 | 168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 232, 233, 234 |
-| U34 | [extension-validation](U34-extension-validation.md): Extension registrations are validated as strictly as built-ins, and chain predict knows them | API & release | S | U02b | 194, 195, 196, 197, 216, 231, 374, 409, 451, 458, 459 |
+| U34 | [extension-validation](U34-extension-validation.md): Extension registrations are validated as strictly as built-ins, and chain predict knows them | API & release | M | U02b | 194, 195, 196, 197, 216, 230, 374, 409, 451, 459 |
 | U35 | [predict-runtime-parity](U35-predict-runtime-parity.md): Predict and runtime agree on every built-in, and the runtime never answers with a wrong number | API & release | XL | U02c (soft) | 198, 199, 201, 207, 213, 214, 215, 221, 225, 226, 229, 248, 249, 253, 254, 255, 256, 259, 260, 267, 299, 300, 313, 372, 378, 379, 391, 393, 394, 400, 404, 418, 419, 427, 431, 432, 436, 437, 439, 440, 442, 448, 475, 476 |
 | U36 | [reference-oracles](U36-reference-oracles.md): Every inferential output is pinned to an external reference, and none answers with a wrong or unencodable number | Statistical integrity | M | U08 | 202, 203, 204, 205, 266, 271, 401, 405, 410, 414, 454, 477 |
 | U37 | [shell-completion](U37-shell-completion.md): The pulse CLI completes commands, flags and values natively in the terminal | API & release | M | — (U06 soft) | 208, 209, 210, 211, 212 |
@@ -93,6 +93,7 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U53 | [custom-regressions](U53-custom-regressions.md): Embedders register their own regression models, treated exactly like built-ins, and the core gains the model options media-mix work needs | API & release | L | — (U34, U36, U42 soft) | 381, 382, 383, 384, 385, 386, 387, 388, 389 |
 | U54 | [multi-grouper](U54-multi-grouper.md): Two or more groupers give one row per key combination, in every execution path | API & release | M | — (U27 soft) | 200, 318, 421, 422 |
 | U55 | [previous-state](U55-previous-state.md): A long panel feeds a from-state × to-state crosstab: a per-subject previous-state attribute | Time zones | M | U50 | 452 |
+| U56 | [operation-panic-recovery](U56-operation-panic-recovery.md): A panic raised inside an operation becomes a coded error at the facade instead of crashing the host | Embedder operations | S | U20 (U34 soft) | 231 |
 
 ## Dependency graph
 
@@ -155,6 +156,7 @@ graph TD
   U53["U53 custom-regressions"]
   U54["U54 multi-grouper"]
   U55["U55 previous-state"]
+  U56["U56 operation-panic-recovery"]
   U02 --> U02b
   U02 --> U02c
   U02 --> U04
@@ -242,6 +244,8 @@ graph TD
   U53 --> U32
   U54 --> U32
   U55 --> U32
+  U56 --> U32
+  U20 --> U56
   U50 --> U55
   U54 --> U46
   U35 -.-> U44
@@ -257,6 +261,7 @@ graph TD
   U19 -.-> U51
   U50 -.-> U52
   U34 -.-> U53
+  U34 -.-> U56
   U36 -.-> U53
   U42 -.-> U53
 ```
@@ -271,7 +276,6 @@ graph TD
 - **U25 multivariate-tests-segmentation:** done without a human reviewer — an automated review (deterministic R-oracle gates plus an advisory LLM panel on Purpose/Interpretation and the formula choices) is recorded in [`reviews/U25-multivariate-review.md`](../reviews/U25-multivariate-review.md); human sign-off moved to U33 (#206)
 - **U28 matrix-overlays:** Decide the correspondence-analysis payload shape (open question in vm6)
 - **U32 docs-audit:** Maintainer sign-off; a fresh reader (developer without a statistics background) for the review
-- **U34 extension-validation:** the synth-distribution decision (#197): extension category or retire the slot; whether a feature profile can hide `LookupTables`
 - **U35 predict-runtime-parity:** multi-entry `Groups` — execute every group or refuse (#200)
 - **U36 reference-oracles:** Shapiro–Francia at n < 5 (refuse or exact method); how an infinite statistic is encoded
 - **U37 shell-completion:** whether completion respects a feature profile; library helper vs internal CLI glue; where field-taking flags find their cohort
