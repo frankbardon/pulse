@@ -206,7 +206,7 @@ func (s *Service) composeParallel(
 			}
 
 			reqCtx, end := startChild(reqCtx, i, req)
-			resp, err := s.Process(reqCtx, req)
+			resp, err := s.processSlotRecovered(reqCtx, req)
 			end(err)
 			if err != nil {
 				errs[i] = err
@@ -335,4 +335,14 @@ func failFastWinner(ctx context.Context, errs []error, failed []int) int {
 		}
 	}
 	return failed[0]
+}
+
+// processSlotRecovered is s.Process for one ComposeParallel slot on its
+// pool goroutine. Operator code runs there, so a panic is recovered into
+// PROCESSING_PANIC (recoverInto) and returned as the slot's error: the
+// slot's child operation ends with it, FailFast cancels the siblings,
+// and wg.Done / the semaphore release still run.
+func (s *Service) processSlotRecovered(ctx context.Context, req *types.Request) (resp *types.Response, err error) {
+	defer recoverInto(panicOpComposeParallel, s.disablePanicRecovery, &err)
+	return s.Process(ctx, req)
 }

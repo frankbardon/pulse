@@ -28,7 +28,7 @@ func TestAugmentFromProfile_ReconstructsCategoricalContingencyWithinTolerance(t 
 	const tolerance = 0.03
 
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestAugmentFromProfile_ReconstructsCategoricalNumericMeanWithinTolerance(t 
 	const tolerance = 2.0 // well under the fixture's ~60-unit east/west separation
 
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestAugmentFromProfile_WithoutCategoricalConditional_GeneratesIndependentMa
 	const meanIndependenceBound = 5.0
 
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}

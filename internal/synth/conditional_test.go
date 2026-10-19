@@ -52,7 +52,7 @@ func TestSynth_CorrelationReconstructionWithinTolerance(t *testing.T) {
 // an accurate co-occurrence N (no nulls here, so N == the row count).
 func TestProfile_ConditionalCapturesNumericPairs(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestProfile_ConditionalCapturesNumericPairs(t *testing.T) {
 // without --conditional is byte-for-byte the pre-existing shape.
 func TestProfile_WithoutConditional_OmitsSection(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestProfile_WithoutConditional_OmitsSection(t *testing.T) {
 // categorical / set_* pair captures.
 func TestProfile_ConditionalThinPairWarning(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestProfile_ConditionalThinPairWarning(t *testing.T) {
 func TestProfile_ConditionalThenSynth_ReconstructsCorrelationWithinTolerance(t *testing.T) {
 	const tolerance = 0.03
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -239,7 +239,7 @@ func TestProfile_LegacyDocumentWithoutConditional_StillValidInput(t *testing.T) 
 	}
 
 	fsMap := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fsMap})
+	p, err := pulse.New(pulse.Options{FS: fsMap, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}

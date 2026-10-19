@@ -26,7 +26,7 @@ func TestSynthExamples_RunAll(t *testing.T) {
 	}
 
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}

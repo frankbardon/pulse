@@ -33,7 +33,7 @@ import (
 // luck. It cannot do so repeatedly across a 200-key map.
 func TestProfile_ConditionalCaptureIsByteReproducible(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}

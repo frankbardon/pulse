@@ -30,7 +30,7 @@ func TestAugmentFromProfile_ReconstructsCorrelationWithinTolerance(t *testing.T)
 	const newRows = 20000
 
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestAugmentFromProfile_WithoutConditional_GeneratesIndependentMarginals(t *
 	const newRows = 20000
 
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}

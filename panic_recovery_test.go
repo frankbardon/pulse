@@ -69,11 +69,13 @@ func panicExtensions() Extensions {
 }
 
 // enablePanicRecovery undoes TestMain's testForcePanicRecoveryOff for
-// one instance: p recovers exactly as a production instance built from
-// opts would (recovery on unless opts.DisablePanicRecovery). Every
-// panic-suite instance that expects PROCESSING_PANIC goes through it.
+// one instance, on the facade and on its service's worker pools: p
+// recovers exactly as a production instance built from opts would
+// (recovery on unless opts.DisablePanicRecovery). Every panic-suite
+// instance that expects PROCESSING_PANIC goes through it.
 func enablePanicRecovery(p *Pulse, opts Options) *Pulse {
 	p.disablePanicRecovery = opts.DisablePanicRecovery
+	p.svc.SetDisablePanicRecovery(opts.DisablePanicRecovery)
 	return p
 }
 

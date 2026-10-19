@@ -102,10 +102,12 @@ var (
 )
 
 // Options carries the crosstab-fusion switch that replaced mutating the
-// service, alongside the filesystem an embedder supplies.
+// service, alongside the filesystem an embedder supplies, and the
+// operation panic-recovery opt-out.
 var _ = pulse.Options{
 	FS:                    afero.NewMemMapFs(),
 	DisableCrosstabFusion: true,
+	DisablePanicRecovery:  true,
 }
 
 // ComposeOptions is a root alias with the parallel-compose knobs.

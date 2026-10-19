@@ -272,8 +272,9 @@ func observed[T any](p *Pulse, ctx context.Context, op opSpec, fn func(context.C
 //
 // The panic recover covers fn — the stream's setup, which is where every
 // operator runs today (ProcessStream materialises its rows inside the
-// call). Work after fn returns (a producer goroutine, the caller's
-// iteration) is outside it.
+// call). Work after fn returns is outside it: the stream producer
+// goroutines (stream.go) recover their own panics into a StreamErrored
+// terminator, and the caller's iteration is the caller's.
 func observedStream[T any](p *Pulse, ctx context.Context, op opSpec, fn func(ctx context.Context, end func(error)) (T, error)) (out T, err error) {
 	var run *opRun
 	defer p.recoverOp(op.kind, &run, &err)

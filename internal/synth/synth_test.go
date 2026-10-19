@@ -397,7 +397,7 @@ func TestSynth_UnknownDistributionErrors(t *testing.T) {
 // Inspect round-trips and produces a readable .pulse file.
 func TestSynth_RoundTripsThroughPulseFacade(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -455,7 +455,7 @@ func TestSynth_NullableU8RespectsNullRate(t *testing.T) {
 // categorical frequencies survive the round trip.
 func TestProfile_ThenSynth_RoundTripsCategoricalShape(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}

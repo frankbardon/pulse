@@ -142,16 +142,8 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for idx := range jobs {
-				if cctx.Err() != nil {
-					return
-				}
-				p, err := s.processOneShard(cctx, req, schema, arch, idx, starts[idx], shards[idx].Filename)
-				if err != nil {
-					errOnce.Do(func() { firstErr = err; cancel() })
-					return
-				}
-				partials[idx] = p
+			if err := s.shardWorker(cctx, req, schema, arch, jobs, starts, shards, partials); err != nil {
+				errOnce.Do(func() { firstErr = err; cancel() })
 			}
 		}()
 	}
@@ -190,6 +182,26 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 		return nil, err
 	}
 	return resp, nil
+}
+
+// shardWorker is one parallel-shard worker: it scans the shards it
+// takes from jobs until jobs closes, ctx is done or a shard fails.
+// Operator code runs per row on its goroutine, so it recovers a panic
+// into PROCESSING_PANIC (recoverInto) returned like any shard error —
+// the caller records the first and cancels the siblings.
+func (s *Service) shardWorker(ctx context.Context, req *types.Request, schema *encoding.Schema, arch *encx.Archive, jobs <-chan int, starts []int, shards []ShardEntry, partials []*shardPartial) (err error) {
+	defer recoverInto(panicOpShardParallel, s.disablePanicRecovery, &err)
+	for idx := range jobs {
+		if ctx.Err() != nil {
+			return nil
+		}
+		p, err := s.processOneShard(ctx, req, schema, arch, idx, starts[idx], shards[idx].Filename)
+		if err != nil {
+			return err
+		}
+		partials[idx] = p
+	}
+	return nil
 }
 
 // shardPartial holds a single shard's per-aggregator (and per-group

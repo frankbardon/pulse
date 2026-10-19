@@ -530,7 +530,7 @@ func TestRules_AppliedOnlyToTheGeneratedPartition(t *testing.T) {
 	if err := afero.WriteFile(fs, "/source.pulse", srcData, 0o644); err != nil {
 		t.Fatalf("write source: %v", err)
 	}
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}

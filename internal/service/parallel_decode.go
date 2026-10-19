@@ -264,6 +264,9 @@ type parallelDecodeContext struct {
 	// keep when a plan is installed (O(retained fields) per record),
 	// full otherwise. Built once here, shared read-only by every worker.
 	binding *processing.RecordBinding
+	// rethrowPanics is the owning Service's disablePanicRecovery: a
+	// worker re-panics instead of recovering into PROCESSING_PANIC.
+	rethrowPanics bool
 }
 
 // parallelDecodeMmap segments the record region into worker-count
@@ -335,7 +338,11 @@ func parallelDecodeMmap(
 	for w := 0; w < workers; w++ {
 		seg := segs[w]
 		idx := w
-		g.Go(func() error {
+		g.Go(func() (err error) {
+			// Operator code runs per row on this goroutine: recover a
+			// panic into PROCESSING_PANIC so the errgroup cancels the
+			// siblings and Wait returns it.
+			defer recoverInto(panicOpParallelDecode, pctx.rethrowPanics, &err)
 			segmentCount := seg.endRec - seg.startRec
 			if segmentCount <= 0 {
 				return nil
@@ -594,6 +601,7 @@ func buildParallelDecodeContext(
 		keep:              keep,
 		projectMapHint:    projectMapHint,
 		binding:           recordBindingFor(schema, plan, keep),
+		rethrowPanics:     s.disablePanicRecovery,
 	}
 	return pctx, cleanupFn, true, nil
 }

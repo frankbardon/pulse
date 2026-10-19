@@ -27,7 +27,7 @@ import (
 // capture merely completes without error.
 func TestProfile_ConditionalCapturesCategoricalNumericPair(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestProfile_ConditionalCapturesCategoricalNumericPair(t *testing.T) {
 // key at all unless --conditional was requested.
 func TestProfile_WithoutConditional_OmitsCategoricalNumericPairs(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestProfile_WithoutConditional_OmitsCategoricalNumericPairs(t *testing.T) {
 // bucket).
 func TestProfile_ConditionalCategoricalNumericRespectsPerFieldTopK(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestProfile_ConditionalCategoricalNumericRespectsPerFieldTopK(t *testing.T)
 // divergent warning mechanism for this third pair kind.
 func TestProfile_ConditionalCategoricalNumericThinCellWarning(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
@@ -307,7 +307,7 @@ func synthSkewedCategoricalNumeric(t *testing.T, rowCount int, seed int64, commo
 func importCSVFixture(t *testing.T, csvText string, sampleRows int) []byte {
 	t.Helper()
 	fs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: fs})
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}

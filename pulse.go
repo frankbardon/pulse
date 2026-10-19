@@ -680,8 +680,9 @@ type Pulse struct {
 	opSeq atomic.Uint64
 
 	// disablePanicRecovery is Options.DisablePanicRecovery: the facade
-	// recover (recoverOp) re-panics instead of returning
-	// PROCESSING_PANIC.
+	// recover (recoverOp) and the stream producer goroutines re-panic
+	// instead of returning PROCESSING_PANIC. The engine's worker pools
+	// read the same value from the service (SetDisablePanicRecovery).
 	disablePanicRecovery bool
 }
 
@@ -792,6 +793,8 @@ func New(opts Options) (*Pulse, error) {
 	svc := service.New(fsCfg)
 	svc.SetDisableDefaults(opts.DisableDefaults)
 	svc.SetDisableComponents(opts.DisableComponents)
+	// The engine's worker-pool recovers honour the knob per instance.
+	svc.SetDisablePanicRecovery(opts.DisablePanicRecovery || testForcePanicRecoveryOff)
 	svc.SetProjectBufferedFields(opts.ProjectBufferedFields || !opts.DisableProjection)
 	svc.SetExtensions(buildRuntimeExtensions(visibleExt))
 	extSnap := buildExtensionsSnapshot(visibleExt)

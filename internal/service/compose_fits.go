@@ -144,12 +144,22 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 		}
 	}
 
+	// runRecovered is run with a panic recovered into PROCESSING_PANIC
+	// as fit i's error (recoverInto): on the pool it must be (a worker
+	// goroutine panic escapes every other recover), and the serial arm
+	// uses it too so a panicking fit fails identically under any worker
+	// count.
+	runRecovered := func(ctx context.Context, i int) {
+		defer recoverInto(panicOpComposeFits, s.disablePanicRecovery, &errs[i])
+		run(ctx, i)
+	}
+
 	if workers <= 1 {
 		for i := range fits {
 			if err := ctx.Err(); err != nil {
 				return nil, nil, nil, err
 			}
-			if run(ctx, i); errs[i] != nil {
+			if runRecovered(ctx, i); errs[i] != nil {
 				return nil, nil, nil, fitFailure(fits, i, errs[i])
 			}
 		}
@@ -198,7 +208,7 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 			go func() {
 				defer wg.Done()
 				defer func() { <-sem }()
-				if run(ctxs[i], i); errs[i] != nil {
+				if runRecovered(ctxs[i], i); errs[i] != nil {
 					fail(i)
 				}
 			}()

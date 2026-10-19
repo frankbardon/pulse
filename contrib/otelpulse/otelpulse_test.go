@@ -30,6 +30,7 @@ func engine(t *testing.T, opts pulse.Options) *pulse.Pulse {
 	t.Helper()
 	fs := afero.NewMemMapFs()
 	opts.FS = fs
+	opts.DisablePanicRecovery = true // an engine panic crashes the test, never a recovered error
 	p, err := pulse.New(opts)
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)

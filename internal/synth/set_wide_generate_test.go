@@ -277,7 +277,7 @@ func TestSynth_SetU256_SampleReadsBackExpectedLabels(t *testing.T) {
 	}
 
 	memfs := afero.NewMemMapFs()
-	p, err := pulse.New(pulse.Options{FS: memfs})
+	p, err := pulse.New(pulse.Options{FS: memfs, DisablePanicRecovery: true})
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}

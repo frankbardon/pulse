@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/oppanic"
 	"github.com/frankbardon/pulse/internal/service"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/synth"
@@ -192,6 +193,9 @@ func (p *Pulse) processStreamResult(ctx context.Context, req *Request, end func(
 		release()
 		return StreamResult[Row]{}, service.MapRequestTimeout(ctx, err)
 	}
+	if testWrapStreamIter != nil {
+		iter = testWrapStreamIter(iter)
+	}
 	marker, _ := iter.(interface{ Returned() *types.ReturnedMarker })
 	warner, _ := iter.(interface {
 		Warnings() []*types.ResponseWarning
@@ -213,17 +217,37 @@ func (p *Pulse) processStreamResult(ctx context.Context, req *Request, end func(
 	go func() {
 		defer release()
 		defer close(chunks)
-		defer iter.Close()
 		var (
 			seq         int
 			rows        int64
 			pending     Row
 			pendingHave bool
+			terminated  bool
 		)
+		var emitTerminator func(status StreamStatus, err error)
+		// A panic on this goroutine (row shaping, Components, Warnings,
+		// Close) escapes the facade's recover: recover it here into
+		// PROCESSING_PANIC delivered as the StreamErrored terminator —
+		// unless the terminator already went out — then Chunks closes
+		// and release runs as on any end. With DisablePanicRecovery it
+		// re-panics with the original value.
+		defer func() {
+			r := recover()
+			if r == nil {
+				return
+			}
+			if p.disablePanicRecovery {
+				panic(r)
+			}
+			if !terminated {
+				emitTerminator(StreamErrored, oppanic.Error(string(observe.OpProcessStream), r))
+			}
+		}()
+		defer iter.Close()
 		if finish != nil {
 			service.ExecInfoFrom(ctx).Mark()
 		}
-		emitTerminator := func(status StreamStatus, err error) {
+		emitTerminator = func(status StreamStatus, err error) {
 			if finish != nil {
 				finish(err)
 			}
@@ -238,6 +262,7 @@ func (p *Pulse) processStreamResult(ctx context.Context, req *Request, end func(
 			}
 			done <- term
 			close(done)
+			terminated = true
 		}
 		// stopped terminates a stream whose ctx is done: the
 		// RequestTimeout deadline is StreamErrored with the coded limit
@@ -345,9 +370,10 @@ func (p *Pulse) synthStream(ctx context.Context, spec *SynthSpec, opts SynthOpti
 	finish := streamEnd(ctx, end)
 	go func() {
 		defer close(chunks)
-		if finish != nil {
-			service.ExecInfoFrom(ctx).Mark()
-		}
+		var (
+			emitted    int64
+			terminated bool
+		)
 		emit := func(status StreamStatus, err error, rows int64) {
 			if finish != nil {
 				finish(err)
@@ -359,9 +385,30 @@ func (p *Pulse) synthStream(ctx context.Context, spec *SynthSpec, opts SynthOpti
 				Error:       err,
 			}
 			close(done)
+			terminated = true
+		}
+		// Generation runs on this goroutine, outside the facade's
+		// recover: a panic is recovered here into PROCESSING_PANIC
+		// delivered as the StreamErrored terminator (unless it already
+		// went out), then Chunks closes. With DisablePanicRecovery it
+		// re-panics with the original value.
+		defer func() {
+			r := recover()
+			if r == nil {
+				return
+			}
+			if p.disablePanicRecovery {
+				panic(r)
+			}
+			if !terminated {
+				emit(StreamErrored, oppanic.Error(string(observe.OpSynthStream), r), emitted)
+			}
+		}()
+		if finish != nil {
+			service.ExecInfoFrom(ctx).Mark()
 		}
 
-		buf, _, err := synth.SynthBytes(spec, opts)
+		buf, _, err := synthStreamBytes(spec, opts)
 		if err != nil {
 			if ctx.Err() != nil {
 				emit(StreamCancelled, ctx.Err(), 0)
@@ -375,7 +422,6 @@ func (p *Pulse) synthStream(ctx context.Context, spec *SynthSpec, opts SynthOpti
 			emit(StreamErrored, err, 0)
 			return
 		}
-		var emitted int64
 		for i, row := range rows {
 			select {
 			case <-ctx.Done():
@@ -402,6 +448,16 @@ func (p *Pulse) synthStream(ctx context.Context, spec *SynthSpec, opts SynthOpti
 		Done:   done,
 	}, nil
 }
+
+// synthStreamBytes is SynthStream's generator: synth.SynthBytes, a
+// variable only so the panic suite can make generation panic (synth
+// distributions are not embedder-extensible, so no request can).
+var synthStreamBytes = synth.SynthBytes
+
+// testWrapStreamIter, when non-nil (tests only), wraps the iterator
+// ProcessStreamResult's producer goroutine drains, so the panic suite
+// can make that goroutine panic (no operator code runs there today).
+var testWrapStreamIter func(RowIter) RowIter
 
 // decodeSynthRows reads a complete synth .pulse byte buffer into a
 // row slice keyed by field name. Decimal128 wide values are surfaced
