@@ -685,6 +685,7 @@ pulse: type Options field DefaultWeight *pulse/types.WeightSpec
 pulse: type Options field DisableComponents bool
 pulse: type Options field DisableCrosstabFusion bool
 pulse: type Options field DisableDefaults bool
+pulse: type Options field DisablePanicRecovery bool
 pulse: type Options field DisableProjection bool
 pulse: type Options field EchoRequest bool
 pulse: type Options field Extensions pulse.Extensions
@@ -2398,6 +2399,7 @@ pulse/errors: const PROCESSING_AUC_OUTCOME_NOT_BINARY pulse/errors.Code = "PROCE
 pulse/errors: const PROCESSING_CONFIG pulse/errors.Code = "PROCESSING_CONFIG"
 pulse/errors: const PROCESSING_GROUP pulse/errors.Code = "PROCESSING_GROUP"
 pulse/errors: const PROCESSING_INTERNAL pulse/errors.Code = "PROCESSING_INTERNAL"
+pulse/errors: const PROCESSING_PANIC pulse/errors.Code = "PROCESSING_PANIC"
 pulse/errors: const PROCESSING_REGRESSION_INSUFFICIENT_DATA pulse/errors.Code = "PROCESSING_REGRESSION_INSUFFICIENT_DATA"
 pulse/errors: const PROCESSING_REGRESSION_INVALID_FAMILY pulse/errors.Code = "PROCESSING_REGRESSION_INVALID_FAMILY"
 pulse/errors: const PROCESSING_REGRESSION_INVALID_LINK pulse/errors.Code = "PROCESSING_REGRESSION_INVALID_LINK"
@@ -5645,4 +5647,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 76b00562362f0f7e4088cb67810fc38d389c83fdfa3ceea8c2207edd44d7624d
+// golden-hash: e251d8b46119467402f2d6d79bff28d903dc6dda704c32d765bdd8e86092ca36

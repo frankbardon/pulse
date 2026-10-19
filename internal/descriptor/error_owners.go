@@ -104,6 +104,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PROCESSING_RUNTIME:     shared,
 	errors.PROCESSING_GROUP:       shared,
 	errors.PROCESSING_INTERNAL:    shared,
+	errors.PROCESSING_PANIC:       shared,
 	// Regression engine: ATTR_REG_* reach it only through REG_OLS (a hard
 	// dependency), so the REG_* family covers every path.
 	errors.PROCESSING_REGRESSION_NOT_IMPLEMENTED:   ownAllRegs,

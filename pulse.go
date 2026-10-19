@@ -628,6 +628,17 @@ type Options struct {
 	// factory may be called lazily after New, at most once per label
 	// combination, and must be safe for concurrent use.
 	Metrics observe.Metrics
+
+	// DisablePanicRecovery turns off operation panic recovery. By
+	// default (false) a panic inside an operation — a faulty embedder
+	// operator or expression function, or an engine bug — is recovered
+	// and returned as a PROCESSING_PANIC *errors.CodedError (details op,
+	// panic_type and stack; never the panic value), and the instance
+	// stays usable. Set it to true to crash instead: the recover
+	// re-panics with the original value (useful under a debugger, in a
+	// test, or when a supervisor restarts the process). Library only —
+	// the CLI and MCP server always recover.
+	DisablePanicRecovery bool
 }
 
 // Pulse is the top-level library facade. It wraps the service layer and
@@ -667,6 +678,11 @@ type Pulse struct {
 	// when Metrics is unset.
 	om    *opMetrics
 	opSeq atomic.Uint64
+
+	// disablePanicRecovery is Options.DisablePanicRecovery: the facade
+	// recover (recoverOp) re-panics instead of returning
+	// PROCESSING_PANIC.
+	disablePanicRecovery bool
 }
 
 // New creates a new Pulse instance with the given options.
@@ -846,6 +862,8 @@ func New(opts Options) (*Pulse, error) {
 		logger:         opts.Logger,
 		hooks:          opts.Hooks,
 		metrics:        opts.Metrics,
+
+		disablePanicRecovery: opts.DisablePanicRecovery,
 	}
 	if opts.Metrics != nil {
 		p.om = newOpMetrics(opts.Metrics)

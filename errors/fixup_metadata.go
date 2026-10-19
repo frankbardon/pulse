@@ -96,6 +96,24 @@ var codeMetadata = map[Code]Metadata{
 		Message:            "Internal invariant violated inside the processing layer; report with reproducer.",
 		FixupNotApplicable: true,
 	},
+	PROCESSING_PANIC: {
+		Message: "An operation panicked (an embedder operator or expression function, or an engine bug) and was recovered into this error; the instance stays usable.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Hint:   "Inspect details.stack: when its top frames are embedder code, fix that operator or expression function to return a coded error instead of panicking, or drop it from the request.",
+			},
+			{
+				Action: FixupReplaceOperator,
+				Hint:   "When details.stack shows only Pulse engine frames, report it as a Pulse bug with the request and the stack (details.panic_type names the panic's Go type; the value is never kept).",
+			},
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Options", "DisablePanicRecovery"},
+				Hint:   "To crash with the original panic instead of receiving this error (e.g. under a debugger or a test), set pulse.Options.DisablePanicRecovery to true.",
+			},
+		},
+	},
 	PROCESSING_REGRESSION_NOT_IMPLEMENTED: {
 		Message: "The requested regression operator is registered but its engine has not landed yet (Phase 0 stub).",
 		Fixups: []Fixup{
