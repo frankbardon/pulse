@@ -783,6 +783,18 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 			},
 			numericSchema,
 		},
+		// U55: buffered only (it orders every record of a subject) —
+		// grouped, beside an expression filter reading it by name.
+		{
+			"ATTR_PREVIOUS_STATE buffers",
+			&types.Request{
+				Attributes:   []*types.Attribute{{Type: types.ATTR_PREVIOUS_STATE, Field: "plan", SubjectField: "id", OrderField: "seen", Label: "prev"}},
+				Filterers:    []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: `prev == "paid"`}},
+				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "plan"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "plan", Label: "n"}},
+			},
+			prevStatePredictSchema(),
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
