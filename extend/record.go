@@ -22,9 +22,9 @@ type Record interface {
 	// It is ALWAYS false for set-typed fields — read them through
 	// SetMaskValue — and for vector fields (VectorValue). A
 	// categorical field yields its dictionary index; date yields epoch
-	// days and datetime epoch seconds; u64 values above 2^53 lose
-	// precision through the float64 echo; decimal128 yields only a
-	// rounded echo (use DecimalValue).
+	// days and datetime epoch seconds; a u64 value above 2^53 is only
+	// its float64 echo (2^53 and 2^53+1 read alike — use Uint64Value);
+	// decimal128 yields only a rounded echo (use DecimalValue).
 	//
 	// An element member "f[k]" of a native vector field f — the
 	// literal member names a vector-input slot hands its factory in
@@ -36,6 +36,18 @@ type Record interface {
 	// and every name whose base is not a vector field (or whose k is
 	// out of range or non-canonical) keep the ordinary lookup.
 	NumericValue(field string) (float64, bool)
+
+	// Uint64Value returns the field's value as an EXACT uint64 and true,
+	// or (0, false) exactly when NumericValue reports false (null,
+	// missing, projected out, set, vector). On a u64 field it is the
+	// stored on-wire word on every decode path — streaming, buffered,
+	// parallel, shard archive, point lookup, filter-to-file — so values
+	// above 2^53 (where distinct u64s share one float64 echo) and up to
+	// math.MaxUint64 stay distinct: read it to key or match on a u64.
+	// Any other numeric field (or a value a feature wrote) converts its
+	// float64 echo to uint64, an echo at or above 2^64 saturating to
+	// math.MaxUint64; it is meaningful only for non-negative integers.
+	Uint64Value(field string) (uint64, bool)
 
 	// StringValue returns the dictionary-resolved label of a
 	// categorical field. It is (“”, false) for a null field and for

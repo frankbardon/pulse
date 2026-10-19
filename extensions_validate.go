@@ -14,7 +14,6 @@ import (
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/numrange"
-	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -22,7 +21,7 @@ import (
 
 // extensionNameRegex captures the embedder-registration naming policy:
 //
-//	^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH|MAT)_<NAMESPACE>_<NAME>$
+//	^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT)_<NAMESPACE>_<NAME>$
 //
 // with NAMESPACE and NAME drawn from uppercase ASCII (digits and
 // underscores allowed after the first letter). The Pulse-shipped
@@ -32,7 +31,7 @@ import (
 // fit the pattern (MAT_PARTIAL_CORRELATION) is still reserved by the
 // built-in collision check, which runs first.
 var extensionNameRegex = regexp.MustCompile(
-	`^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH|MAT)_([A-Z][A-Z0-9]+)_([A-Z](?:[A-Z0-9_]*[A-Z0-9])?)$`,
+	`^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT)_([A-Z][A-Z0-9]+)_([A-Z](?:[A-Z0-9_]*[A-Z0-9])?)$`,
 )
 
 // extensionCategory tags every registration slot for validation
@@ -41,15 +40,14 @@ var extensionNameRegex = regexp.MustCompile(
 type extensionCategory string
 
 const (
-	categoryAggregator   extensionCategory = "aggregator"
-	categoryAttribute    extensionCategory = "attribute"
-	categoryFilterer     extensionCategory = "filterer"
-	categoryGrouper      extensionCategory = "grouper"
-	categoryWindow       extensionCategory = "window"
-	categoryFeature      extensionCategory = "feature"
-	categoryTest         extensionCategory = "test"
-	categoryDistribution extensionCategory = "synth_distribution"
-	categoryMatrix       extensionCategory = "matrix"
+	categoryAggregator extensionCategory = "aggregator"
+	categoryAttribute  extensionCategory = "attribute"
+	categoryFilterer   extensionCategory = "filterer"
+	categoryGrouper    extensionCategory = "grouper"
+	categoryWindow     extensionCategory = "window"
+	categoryFeature    extensionCategory = "feature"
+	categoryTest       extensionCategory = "test"
+	categoryMatrix     extensionCategory = "matrix"
 )
 
 // expectedPrefix is the category-token half of the registration name
@@ -70,8 +68,6 @@ func (c extensionCategory) expectedPrefix() string {
 		return "FEAT"
 	case categoryTest:
 		return "TEST"
-	case categoryDistribution:
-		return "SYNTH"
 	case categoryMatrix:
 		return "MAT"
 	}
@@ -92,6 +88,13 @@ var validJSONTypes = map[string]struct{}{
 // then by slice index; ExprFunctions / LookupTables come after the
 // operator slices.
 //
+// A nil Factory on an aggregator, attribute, filterer, grouper, window
+// or feature registration is refused here (validateOperatorSlice,
+// PULSE_EXTENSION_PARAM_INVALID reason missing_factory), before the
+// probe could only report it as a recovered FACTORY_PANIC; matrix ops
+// (validateMatrixOps) and tests (validateTestTiers) refuse theirs in
+// their own pass.
+//
 // Built-in collision checks use the live type registries
 // (types.All*Types() + internal/synth.AllDistributions()) so adding a new
 // built-in automatically reserves its name against embedder
@@ -99,7 +102,7 @@ var validJSONTypes = map[string]struct{}{
 func validateExtensions(ext Extensions) error {
 	if err := validateOperatorSlice(ext.Aggregators, categoryAggregator, builtinAggregatorNames(), func(r AggregatorRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
-	}); err != nil {
+	}, func(r AggregatorRegistration) bool { return r.Factory != nil }); err != nil {
 		return err
 	}
 	if err := validateAggregatorVectorInputs(ext.Aggregators); err != nil {
@@ -107,7 +110,7 @@ func validateExtensions(ext Extensions) error {
 	}
 	if err := validateOperatorSlice(ext.Attributes, categoryAttribute, builtinAttributeNames(), func(r AttributeRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
-	}); err != nil {
+	}, func(r AttributeRegistration) bool { return r.Factory != nil }); err != nil {
 		return err
 	}
 	if err := validateAttributeModes(ext.Attributes); err != nil {
@@ -115,40 +118,35 @@ func validateExtensions(ext Extensions) error {
 	}
 	if err := validateOperatorSlice(ext.Filterers, categoryFilterer, builtinFiltererNames(), func(r FiltererRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
-	}); err != nil {
+	}, func(r FiltererRegistration) bool { return r.Factory != nil }); err != nil {
 		return err
 	}
 	if err := validateOperatorSlice(ext.Groupers, categoryGrouper, builtinGrouperNames(), func(r GrouperRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
-	}); err != nil {
+	}, func(r GrouperRegistration) bool { return r.Factory != nil }); err != nil {
 		return err
 	}
 	if err := validateOperatorSlice(ext.Windows, categoryWindow, builtinWindowNames(), func(r WindowRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
-	}); err != nil {
+	}, func(r WindowRegistration) bool { return r.Factory != nil }); err != nil {
 		return err
 	}
 	if err := validateOperatorSlice(ext.Features, categoryFeature, builtinFeatureNames(), func(r FeatureRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
-	}); err != nil {
+	}, func(r FeatureRegistration) bool { return r.Factory != nil }); err != nil {
 		return err
 	}
 	if err := validateOperatorSlice(ext.Tests, categoryTest, builtinTestNames(), func(r TestRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
-	}); err != nil {
+	}, nil); err != nil {
 		return err
 	}
 	if err := validateTestTiers(ext.Tests); err != nil {
 		return err
 	}
-	if err := validateOperatorSlice(ext.SynthDistributions, categoryDistribution, builtinDistributionNames(), func(r DistributionRegistration) (string, []ParamMeta) {
-		return r.Name, r.Params
-	}); err != nil {
-		return err
-	}
 	if err := validateOperatorSlice(ext.MatrixOps, categoryMatrix, builtinMatrixNames(), func(r MatrixOpRegistration) (string, []ParamMeta) {
 		return string(r.Name), r.Params
-	}); err != nil {
+	}, nil); err != nil {
 		return err
 	}
 	if err := validateMatrixOps(ext.MatrixOps); err != nil {
@@ -188,12 +186,17 @@ func validateExtensions(ext Extensions) error {
 //     contract bug (the orchestrator would have no way to validate
 //     emitted keys). Raises PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA.
 //   - Schema + emitter: non-empty Keys, declared Mergeability,
-//     ComponentsFunc supplied. The canonical extension path.
+//     ComponentsFunc supplied — or no ComponentsFunc and an operator
+//     value with its own Components() method (the self-emitter; the
+//     probe checks it the same way).
 //
-// Schema-without-emitter (non-empty Keys, nil ComponentsFunc) is also
+// Schema-without-emitter (non-empty Keys, nil ComponentsFunc, and a
+// probe instance with no Components() method of its own) is also
 // rejected — the declared schema would never be satisfied at runtime.
-// Raises PULSE_EXTENSION_PARAM_INVALID (the schema exists, the emitter
-// is missing — a parameter contradiction, not a missing schema).
+// The probe raises it (it needs the constructed value):
+// PULSE_EXTENSION_PARAM_INVALID, reason "schema_without_emitter" (the
+// schema exists, the emitter is missing — a parameter contradiction,
+// not a missing schema).
 //
 // Schema-without-mergeability (non-empty Keys, empty Mergeability) is
 // rejected — every schema must declare a mergeability classification.
@@ -287,19 +290,12 @@ func validateComponentSchemaDeclaration(
 			},
 		)
 	}
-	// Schema without emitter — declared schema can never be satisfied.
-	if hasKeys && !hasEmitter {
-		return errors.NewCodedErrorWithDetails(
-			errors.PULSE_EXTENSION_PARAM_INVALID,
-			fmt.Sprintf("extension %s %q declares ComponentSchema.Keys but supplies no ComponentsFunc (no emitter would satisfy the schema)", category, name),
-			map[string]any{
-				"category": category,
-				"name":     name,
-				"index":    idx,
-				"reason":   "schema_without_emitter",
-			},
-		)
-	}
+	// Schema without emitter (Keys declared, no ComponentsFunc) is
+	// decided by the probe, not here: the emitter may be the operator
+	// value's own Components() method, which only a constructed
+	// instance reveals (probeComponentEmission, reason
+	// "schema_without_emitter").
+	//
 	// Schema without mergeability — every schema must declare intent.
 	if hasKeys && !hasMergeability {
 		return errors.NewCodedErrorWithDetails(
@@ -328,6 +324,9 @@ func validateComponentSchemaDeclaration(
 //   - PULSE_EXTENSION_PARAM_INVALID, reason reserved_vector_param — a
 //     VectorInput registration's params.labels / params.expand are the
 //     engine's (the resolved member labels; one column per member).
+//   - PULSE_EXTENSION_PARAM_INVALID, reason count_semantic_vector_input
+//     — CountSemantic on a VectorInput / ArrayValued registration: a
+//     member-set value is not one count.
 //
 // The RichAggregator half of ArrayValued is probe-validated
 // (verifyAggregatorArrayValued).
@@ -345,6 +344,11 @@ func validateAggregatorVectorInputs(regs []AggregatorRegistration) error {
 		if r.ArrayValued && r.MarginReducibility != "" {
 			return mismatch("array_valued_margin_reducibility",
 				fmt.Sprintf("MarginReducibility=%q (a crosstab refuses an array-valued cell; leave it empty)", r.MarginReducibility))
+		}
+		if r.CountSemantic && (r.VectorInput || r.ArrayValued) {
+			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("extension aggregator %q declares CountSemantic=true on a vector-input aggregator (VectorInput=%v, ArrayValued=%v); a member-set value is not one count — drop CountSemantic or read one field", r.Name, r.VectorInput, r.ArrayValued),
+				map[string]any{"category": "aggregator", "name": string(r.Name), "index": i, "reason": "count_semantic_vector_input"})
 		}
 		if !r.VectorInput {
 			continue
@@ -518,13 +522,25 @@ func matrixFloorKeyNames() map[string]bool {
 }
 
 // validateOperatorSlice runs the common naming + duplicate + ParamMeta
-// validation pass against any registration slice. The extract callback
-// pulls the registration's name + params, which differ by struct.
+// + factory-presence validation pass against any registration slice.
+// The extract callback pulls the registration's name + params, which
+// differ by struct.
+//
+// hasFactory reports whether the registration carries its Factory; a
+// nil Factory is refused here, before any probe runs, with
+// PULSE_EXTENSION_PARAM_INVALID, details {category, name, index,
+// reason: "missing_factory"} — the same shape validateMatrixOps uses.
+// Every category whose registration has a single Factory passes it
+// (aggregator, attribute, filterer, grouper, window, feature). A nil
+// hasFactory skips the check: tests validate RowFactory / PostFactory
+// per tier (validateTestTiers), matrix ops in validateMatrixOps, and
+// a synth distribution's Factory is held opaque.
 func validateOperatorSlice[R any](
 	regs []R,
 	cat extensionCategory,
 	builtins map[string]struct{},
 	extract func(R) (string, []ParamMeta),
+	hasFactory func(R) bool,
 ) error {
 	seen := make(map[string]struct{}, len(regs))
 	for i, r := range regs {
@@ -554,6 +570,13 @@ func validateOperatorSlice[R any](
 		seen[name] = struct{}{}
 		if err := validateParams(params, cat, name); err != nil {
 			return err
+		}
+		if hasFactory != nil && !hasFactory(r) {
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("extension %s %q has nil Factory", cat, name),
+				map[string]any{"category": string(cat), "name": name, "index": i, "reason": "missing_factory"},
+			)
 		}
 	}
 	return nil
@@ -1106,15 +1129,6 @@ func builtinMatrixNames() map[string]struct{} {
 	out := make(map[string]struct{}, 16)
 	for _, t := range types.AllMatrixTypes() {
 		out[string(t)] = struct{}{}
-	}
-	return out
-}
-
-func builtinDistributionNames() map[string]struct{} {
-	dists := synth.AllDistributions()
-	out := make(map[string]struct{}, len(dists))
-	for _, name := range dists {
-		out[name] = struct{}{}
 	}
 	return out
 }

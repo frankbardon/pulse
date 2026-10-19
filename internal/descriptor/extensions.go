@@ -17,14 +17,13 @@ import (
 // importing the live processing registry — keeping
 // TestPredictNoExecutionImports satisfied.
 type ExtensionsSnapshot struct {
-	Aggregators        []descriptor.OperatorMeta
-	Attributes         []descriptor.OperatorMeta
-	Filterers          []descriptor.OperatorMeta
-	Groupers           []descriptor.OperatorMeta
-	Windows            []descriptor.OperatorMeta
-	Features           []descriptor.OperatorMeta
-	Tests              []descriptor.OperatorMeta
-	SynthDistributions []descriptor.OperatorMeta
+	Aggregators []descriptor.OperatorMeta
+	Attributes  []descriptor.OperatorMeta
+	Filterers   []descriptor.OperatorMeta
+	Groupers    []descriptor.OperatorMeta
+	Windows     []descriptor.OperatorMeta
+	Features    []descriptor.OperatorMeta
+	Tests       []descriptor.OperatorMeta
 	// MatrixOps are the extension MAT_* operators
 	// (pulse.MatrixOpRegistration): Name, Namespace, Description,
 	// Streamable (the declared tier; Mergeable follows it), WeightAware,
@@ -167,21 +166,20 @@ func (s *ExtensionsSnapshot) DeclaredFieldInputs(category, name string, raw json
 // JSON shape stays stable.
 func emptyExtensionsManifest() descriptor.ExtensionsManifest {
 	return descriptor.ExtensionsManifest{
-		Aggregators:        []descriptor.OperatorMeta{},
-		Attributes:         []descriptor.OperatorMeta{},
-		Filterers:          []descriptor.OperatorMeta{},
-		Groupers:           []descriptor.OperatorMeta{},
-		Windows:            []descriptor.OperatorMeta{},
-		Features:           []descriptor.OperatorMeta{},
-		Tests:              []descriptor.OperatorMeta{},
-		SynthDistributions: []descriptor.OperatorMeta{},
-		MatrixOps:          []descriptor.MatrixMeta{},
-		ExprFunctions:      []descriptor.ExprFunctionMeta{},
-		LookupTables:       []descriptor.LookupTableMeta{},
-		ReferenceVectors:   []descriptor.ReferenceVectorMeta{},
-		LabelTables:        []descriptor.LabelTableMeta{},
-		RangeTables:        []descriptor.RangeTableMeta{},
-		Populations:        []descriptor.PopulationMeta{},
+		Aggregators:      []descriptor.OperatorMeta{},
+		Attributes:       []descriptor.OperatorMeta{},
+		Filterers:        []descriptor.OperatorMeta{},
+		Groupers:         []descriptor.OperatorMeta{},
+		Windows:          []descriptor.OperatorMeta{},
+		Features:         []descriptor.OperatorMeta{},
+		Tests:            []descriptor.OperatorMeta{},
+		MatrixOps:        []descriptor.MatrixMeta{},
+		ExprFunctions:    []descriptor.ExprFunctionMeta{},
+		LookupTables:     []descriptor.LookupTableMeta{},
+		ReferenceVectors: []descriptor.ReferenceVectorMeta{},
+		LabelTables:      []descriptor.LabelTableMeta{},
+		RangeTables:      []descriptor.RangeTableMeta{},
+		Populations:      []descriptor.PopulationMeta{},
 	}
 }
 
@@ -193,20 +191,19 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 		return emptyExtensionsManifest()
 	}
 	out := descriptor.ExtensionsManifest{
-		Aggregators:        snap.withExtIntents(sortOperatorMeta(snap.Aggregators)),
-		Attributes:         snap.withExtIntents(sortOperatorMeta(snap.Attributes)),
-		Filterers:          snap.withExtIntents(sortOperatorMeta(snap.Filterers)),
-		Groupers:           snap.withExtIntents(sortOperatorMeta(snap.Groupers)),
-		Windows:            snap.withExtIntents(sortOperatorMeta(snap.Windows)),
-		Features:           snap.withExtIntents(sortOperatorMeta(snap.Features)),
-		Tests:              snap.withExtIntents(sortOperatorMeta(snap.Tests)),
-		SynthDistributions: snap.withExtIntents(sortOperatorMeta(snap.SynthDistributions)),
-		ExprFunctions:      sortExprFunctionMeta(snap.ExprFunctions),
-		LookupTables:       sortLookupTableMeta(snap.LookupTables),
-		ReferenceVectors:   sortReferenceVectorMeta(snap.ReferenceVectors),
-		LabelTables:        sortLabelTableMeta(snap.LabelTables),
-		RangeTables:        sortRangeTableMeta(snap.RangeTables),
-		Populations:        sortPopulationMeta(snap.Populations),
+		Aggregators:      snap.withExtIntents(sortOperatorMeta(snap.Aggregators)),
+		Attributes:       snap.withExtIntents(sortOperatorMeta(snap.Attributes)),
+		Filterers:        snap.withExtIntents(sortOperatorMeta(snap.Filterers)),
+		Groupers:         snap.withExtIntents(sortOperatorMeta(snap.Groupers)),
+		Windows:          snap.withExtIntents(sortOperatorMeta(snap.Windows)),
+		Features:         snap.withExtIntents(sortOperatorMeta(snap.Features)),
+		Tests:            snap.withExtIntents(sortOperatorMeta(snap.Tests)),
+		ExprFunctions:    sortExprFunctionMeta(snap.ExprFunctions),
+		LookupTables:     sortLookupTableMeta(snap.LookupTables),
+		ReferenceVectors: sortReferenceVectorMeta(snap.ReferenceVectors),
+		LabelTables:      sortLabelTableMeta(snap.LabelTables),
+		RangeTables:      sortRangeTableMeta(snap.RangeTables),
+		Populations:      sortPopulationMeta(snap.Populations),
 	}
 	if out.Aggregators == nil {
 		out.Aggregators = []descriptor.OperatorMeta{}
@@ -228,9 +225,6 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 	}
 	if out.Tests == nil {
 		out.Tests = []descriptor.OperatorMeta{}
-	}
-	if out.SynthDistributions == nil {
-		out.SynthDistributions = []descriptor.OperatorMeta{}
 	}
 	// The weighting-aware projection is stamped by assembleManifest,
 	// which knows whether the instance offers capability:weighting.
@@ -475,6 +469,28 @@ func aggregationKinds(inst *InstanceSnapshot, snap *ExtensionsSnapshot) vectors.
 		}
 	}
 	return k
+}
+
+// AggregatorCountSemantic reports whether t is an embedder-registered
+// aggregator that declared CountSemantic — the extension half of
+// countSemanticAggregations. Nil-safe.
+func (s *ExtensionsSnapshot) AggregatorCountSemantic(t types.AggregationType) bool {
+	if s == nil {
+		return false
+	}
+	m, ok := findMeta(s.Aggregators, string(t))
+	return ok && m.CountSemantic
+}
+
+// AggregatorValueState reports whether t is an embedder-registered
+// aggregator that declared ValueState — the extension half of
+// valueStateAggregation. Nil-safe.
+func (s *ExtensionsSnapshot) AggregatorValueState(t types.AggregationType) bool {
+	if s == nil {
+		return false
+	}
+	m, ok := findMeta(s.Aggregators, string(t))
+	return ok && m.ValueState
 }
 
 // HasAggregator reports whether name is an embedder-registered

@@ -164,14 +164,15 @@ func TestFilterToFileWithRequest_ModelIdentityInDedupHash(t *testing.T) {
 
 // TestFilterToFileWithRequest_NoModelsHashUnchanged: a request without
 // Models hashes exactly as before the field existed, so every output a
-// model-free request already wrote is still reused.
+// model-free request already wrote is still reused. A predicate naming
+// no registered table (nil tables) hashes the same way.
 func TestFilterToFileWithRequest_NoModelsHashUnchanged(t *testing.T) {
 	req := &FilterToFileRequest{Expression: "age >= 20"}
 	legacy := types.CanonicalHash("filter_predicate", struct {
 		Expression string            `json:"expression,omitempty"`
 		Filterers  []*types.Filterer `json:"filterers,omitempty"`
 	}{Expression: req.Expression})
-	if got := req.predicateHash(nil, ""); got != legacy {
+	if got := req.predicateHash(nil, "", nil, nil); got != legacy {
 		t.Errorf("model-free predicate hash moved: %s vs %s", got, legacy)
 	}
 }

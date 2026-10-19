@@ -284,15 +284,20 @@ func (s *Service) lookupRecords(ctx context.Context, req *types.LookupRequest) (
 	}
 	keep := encx.FieldFilter(func(name string) bool { return wantCols[name] })
 
+	// The map decode echoes a u64 above 2^53 lossily; the capture keeps
+	// its exact word for the record (nil when the schema has no u64).
+	exact := encx.NewExactU64Words(schema)
 	out := make([]lookupMatch, 0, len(rowIDs))
 	for _, rowID := range rowIDs {
 		values := make(map[string]float64)
 		nulls := make(map[string]bool)
 		wide := make(map[string]any)
-		if err := encx.ReadRecordAt(loc, cohortFile, rowID, values, nulls, wide, keep, plan); err != nil {
+		if err := encx.ReadRecordAtExact(loc, cohortFile, rowID, values, nulls, wide, keep, plan, exact); err != nil {
 			return nil, nil, err
 		}
-		out = append(out, lookupMatch{rec: processing.NewRecordWithWide(schema, values, nulls, wide), schema: schema, path: path})
+		rec := processing.NewRecordWithWide(schema, values, nulls, wide)
+		exact.ApplyTo(rec)
+		out = append(out, lookupMatch{rec: rec, schema: schema, path: path})
 	}
 
 	return out, returnCols, nil

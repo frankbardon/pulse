@@ -12,7 +12,7 @@ import (
 
 // Whole-chain overlay predict-time validator.
 //
-// Extends ValidateChain (internal/descriptor/chain.go) with an Overlays walk that
+// Extends ValidateChainWithOptions (internal/descriptor/chain.go) with an Overlays walk that
 // runs AFTER the per-stage chain gate but BEFORE any stage executes.
 // Three classes of failure surface here:
 //
@@ -89,7 +89,7 @@ func chainOverlayKindAllowed(kind types.OverlayKind) bool {
 // validateChainOverlays walks req.Overlays and appends per-spec
 // validation errors, shape-divergence warnings and divergence pairs
 // onto env / result. Called from
-// ValidateChain in internal/descriptor/chain.go after the per-stage gate loop
+// ValidateChainWithOptions in internal/descriptor/chain.go after the per-stage gate loop
 // finishes; no-op when req.Overlays is empty.
 //
 // The validator runs even if the per-stage gate already added stage-

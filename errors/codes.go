@@ -2045,7 +2045,7 @@ const (
 	// PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE (structural shape
 	// mismatch caught at predict time, but for CHAIN-host kinds the
 	// divergence is between two stages, not between a single Ref and
-	// the host). Surfaced at both predict (internal/descriptor.ValidateChain
+	// the host). Surfaced at both predict (internal/descriptor.ValidateChainWithOptions
 	// shape-divergence gate) and runtime (the dispatcher's authored-shape
 	// pre-check, then processing.applyIndexVsStage /
 	// processing.applyDeltaVsStage shape-divergence defence), with
@@ -2084,7 +2084,7 @@ const (
 	// reference coordinate that does not exist, the warning rides this
 	// code with `ref_missing: true` and the handler folds against an
 	// implicit zero reference (so the delta equals the target value
-	// verbatim). Surfaced at both predict (internal/descriptor.ValidateChain) and
+	// verbatim). Surfaced at both predict (internal/descriptor.ValidateChainWithOptions) and
 	// runtime (processing.ApplyChainOverlays + per-kind handlers).
 	PULSE_OVERLAY_REFERENCE_UNKNOWN Code = "PULSE_OVERLAY_REFERENCE_UNKNOWN"
 

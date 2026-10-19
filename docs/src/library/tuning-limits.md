@@ -156,9 +156,17 @@ three places to raise it (`Options.Limits.<Field>`, the profile key,
 no filter selectivity is assumed, and the model carries a x3 collector
 headroom. Calibration against measured peak heap lands the estimate at
 roughly 1.3x to 4.9x the peak depending on the arm. Not modelled: a
-`GOGC` above 100 and extension aggregators. There is no `GOMEMLIMIT` coupling: the limit is
+`GOGC` above 100. There is no `GOMEMLIMIT` coupling: the limit is
 opt-in and independent of the Go runtime's own limit. Set it
 a little under the memory you can spare.
+
+**Extension aggregators.** An extension aggregator is priced as a
+fixed-size accumulator, like `AGG_SUM`, unless its registration declares
+`ValueState: true`. Declared, it is charged the per-distinct-value term
+a built-in value-state aggregator (`AGG_MODE`, `AGG_DISTINCT_COUNT`,
+`AGG_FREQUENCY`, …) pays — the same estimate on predict and the run.
+Declare it for any operator whose state keeps a map entry per value it
+sees; an undeclared one can exceed the estimate.
 
 **Fan-out groupers and tests.** A `GROUP_SET_PER_ELEMENT` grouper puts a
 record in one bucket per selected set member. The estimate assumes every

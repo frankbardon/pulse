@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	perrors "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/extend"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/mcp/gosdk"
@@ -212,7 +213,12 @@ var (
 	_ func(pio.ColumnAwareWriter, []pio.ExportColumn) = pio.ColumnAwareWriter.SetExportColumns
 	// RowList's error return: a source's failure to READ a list cell.
 	_ func(pio.ListAwareReader, int, *pio.ListCell) error = pio.ListAwareReader.RowList
+	// The explicit-schema late-key refusal a keyed external reader arms.
+	_ func(pio.LateKeyRefuser, bool) = pio.LateKeyRefuser.RefuseLateKeys
 )
+
+// extend.Record: the exact u64 read beside the float64 NumericValue echo.
+var _ func(extend.Record, string) (uint64, bool) = extend.Record.Uint64Value
 
 // encoding: schema nouns, the raw ungrouped write primitives and the
 // record-locator geometry.

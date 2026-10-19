@@ -1,7 +1,6 @@
 package pulse_test
 
 import (
-	"slices"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -9,7 +8,6 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
-	"github.com/frankbardon/pulse/internal/synth"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -116,9 +114,6 @@ func TestExtensions_RuntimeRegistryAllCategoriesPopulated(t *testing.T) {
 			{Name: "TEST_ACME_BRAND_ROW", Tier: pulse.TestTierRow, RowFactory: stubRowTestFactory, Streamable: true},
 			{Name: "TEST_ACME_BRAND_POST", Tier: pulse.TestTierPost, PostFactory: stubPostTestFactory},
 		},
-		SynthDistributions: []pulse.DistributionRegistration{
-			{Name: "SYNTH_ACME_BRAND_PARETO", Description: "ACME Pareto override"},
-		},
 		ExprFunctions: []pulse.ExprFunction{
 			{Name: "rank_familiarity", Fn: func(args ...any) (any, error) { return args[0], nil }},
 		},
@@ -180,7 +175,6 @@ func TestExtensions_RuntimeRegistryAllCategoriesPopulated(t *testing.T) {
 	checkSnapshotPresent(t, snap.Features, "FEAT_ACME_BRAND_DOUBLE")
 	checkSnapshotPresent(t, snap.Tests, "TEST_ACME_BRAND_ROW")
 	checkSnapshotPresent(t, snap.Tests, "TEST_ACME_BRAND_POST")
-	checkSnapshotPresent(t, snap.SynthDistributions, "SYNTH_ACME_BRAND_PARETO")
 	if len(snap.ExprFunctions) == 0 || snap.ExprFunctions[0].Name != "rank_familiarity" {
 		t.Errorf("ExprFunctions snapshot incomplete: %v", snap.ExprFunctions)
 	}
@@ -239,47 +233,6 @@ func TestExtensions_ProbeAttribute_FactoryReturnsNil(t *testing.T) {
 	}
 }
 
-// ---- Synth registration round-trip (covers SynthDistributions path) --
-
-func TestExtensions_SynthDistributionRegistrationStable(t *testing.T) {
-	ext := pulse.Extensions{
-		SynthDistributions: []pulse.DistributionRegistration{
-			{
-				Name:        "SYNTH_ACME_BRAND_CUSTOM",
-				Description: "ACME custom distribution.",
-				Params: []pulse.ParamMeta{
-					{Name: "alpha", JSONType: "number", Required: true},
-				},
-			},
-		},
-	}
-	p, err := pulse.New(newTestOptions(ext))
-	if err != nil {
-		t.Fatalf("pulse.New: %v", err)
-	}
-	snap := pulse.ServiceForTest(p).ExtensionsSnapshot()
-	if snap == nil {
-		t.Fatal("expected non-nil snapshot")
-	}
-	found := false
-	for _, m := range snap.SynthDistributions {
-		if m.Name == "SYNTH_ACME_BRAND_CUSTOM" {
-			found = true
-			if len(m.Params) == 0 || m.Params[0].Name != "alpha" {
-				t.Errorf("alpha param missing in snapshot: %+v", m.Params)
-			}
-		}
-	}
-	if !found {
-		t.Error("custom synth distribution missing from snapshot")
-	}
-	// Sanity: built-in pareto remains reachable via synth manifest;
-	// the override is name-only at this phase.
-	if !slices.Contains(synth.AllDistributions(), "pareto") {
-		t.Error("built-in pareto must still be enumerated")
-	}
-}
-
 // ---- LookupTable empty-name path (validateLookupTables 87.5%) --------
 
 func TestExtensions_LookupTableEmptyName(t *testing.T) {
@@ -290,28 +243,4 @@ func TestExtensions_LookupTableEmptyName(t *testing.T) {
 	}
 	_, err := pulse.New(newTestOptions(ext))
 	assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
-}
-
-// ---- parseNamespace edge case: synth distribution names ---------------
-
-func TestExtensions_SynthDistributionNamespaceParsed(t *testing.T) {
-	ext := pulse.Extensions{
-		SynthDistributions: []pulse.DistributionRegistration{
-			{Name: "SYNTH_ACME_BRAND_FOO"},
-		},
-	}
-	p, err := pulse.New(newTestOptions(ext))
-	if err != nil {
-		t.Fatalf("pulse.New: %v", err)
-	}
-	snap := pulse.ServiceForTest(p).ExtensionsSnapshot()
-	if snap == nil {
-		t.Fatal("snap nil")
-	}
-	if len(snap.SynthDistributions) == 0 {
-		t.Fatal("synth distributions empty")
-	}
-	if snap.SynthDistributions[0].Namespace != "ACME" {
-		t.Errorf("expected ACME namespace, got %q", snap.SynthDistributions[0].Namespace)
-	}
 }

@@ -13,6 +13,7 @@ pulse: type AggregatorRegistration field Accepts []pulse/encoding.FieldType
 pulse: type AggregatorRegistration field ArrayValued bool
 pulse: type AggregatorRegistration field ComponentSchema pulse/descriptor.ComponentSchema
 pulse: type AggregatorRegistration field ComponentsFunc pulse.AggregatorComponentsFunc
+pulse: type AggregatorRegistration field CountSemantic bool
 pulse: type AggregatorRegistration field DependsOn []string
 pulse: type AggregatorRegistration field Description string
 pulse: type AggregatorRegistration field EmitsInputValue bool
@@ -25,6 +26,7 @@ pulse: type AggregatorRegistration field NonScalar bool
 pulse: type AggregatorRegistration field Params []pulse.ParamMeta
 pulse: type AggregatorRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type AggregatorRegistration field Streamable bool
+pulse: type AggregatorRegistration field ValueState bool
 pulse: type AggregatorRegistration field VectorInput bool
 pulse: type AggregatorRegistration field WeightAware bool
 pulse: type AttributeComponentsFunc func(instance pulse/extend.AttributeComputer) (map[string]any, error)
@@ -229,12 +231,6 @@ pulse: const DefaultMaxMatrixDim int64 = 2048
 pulse: const DefaultRequestTimeout time.Duration = -1
 pulse: func DescribeFeatureProfile(fp *pulse.FeatureProfile, ext ...pulse.Extensions) (*pulse.FeatureProfileDescription, error)
 pulse: func DiffFeatureProfile(fp *pulse.FeatureProfile, ext ...pulse.Extensions) (*pulse.FeatureProfileDiff, error)
-pulse: type DistributionRegistration struct
-pulse: type DistributionRegistration field Description string
-pulse: type DistributionRegistration field Factory any
-pulse: type DistributionRegistration field Name string
-pulse: type DistributionRegistration field Params []pulse.ParamMeta
-pulse: type DistributionRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type ErrorFixup = pulse/errors.Fixup
 pulse: type ErrorFixup underlying struct
 pulse: type ErrorFixup field Action pulse/errors.FixupAction "json:\"action\""
@@ -296,7 +292,6 @@ pulse: type Extensions field Populations map[string]pulse.Population
 pulse: type Extensions field RangeTables map[string]pulse.RangeTable
 pulse: type Extensions field ReferenceVectors map[string]pulse/types.ReferenceVectorTable
 pulse: type Extensions field Skills io/fs.FS
-pulse: type Extensions field SynthDistributions []pulse.DistributionRegistration
 pulse: type Extensions field Tests []pulse.TestRegistration
 pulse: type Extensions field Windows []pulse.WindowRegistration
 pulse: type FacetDiscrete = pulse/types.FacetDiscrete
@@ -1456,7 +1451,6 @@ pulse/descriptor: type ExtensionsManifest field MatrixOps []pulse/descriptor.Mat
 pulse/descriptor: type ExtensionsManifest field Populations []pulse/descriptor.PopulationMeta "json:\"populations\""
 pulse/descriptor: type ExtensionsManifest field RangeTables []pulse/descriptor.RangeTableMeta "json:\"range_tables\""
 pulse/descriptor: type ExtensionsManifest field ReferenceVectors []pulse/descriptor.ReferenceVectorMeta "json:\"reference_vectors\""
-pulse/descriptor: type ExtensionsManifest field SynthDistributions []pulse/descriptor.OperatorMeta "json:\"synth_distributions\""
 pulse/descriptor: type ExtensionsManifest field Tests []pulse/descriptor.OperatorMeta "json:\"tests\""
 pulse/descriptor: type ExtensionsManifest field Windows []pulse/descriptor.OperatorMeta "json:\"windows\""
 pulse/descriptor: type FacetCapability struct
@@ -1769,6 +1763,7 @@ pulse/descriptor: type Operator field Zone string "json:\"zone,omitempty\""
 pulse/descriptor: type OperatorMeta struct
 pulse/descriptor: type OperatorMeta field Accepts []string "json:\"accepts,omitempty\""
 pulse/descriptor: type OperatorMeta field ArrayValued bool "json:\"array_valued,omitempty\""
+pulse/descriptor: type OperatorMeta field CountSemantic bool "json:\"count_semantic,omitempty\""
 pulse/descriptor: type OperatorMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type OperatorMeta field Emits string "json:\"emits,omitempty\""
 pulse/descriptor: type OperatorMeta field EmitsInputValue bool "json:\"emits_input_value,omitempty\""
@@ -1783,6 +1778,7 @@ pulse/descriptor: type OperatorMeta field NonScalar bool "json:\"non_scalar,omit
 pulse/descriptor: type OperatorMeta field Params []pulse/descriptor.OperatorParamMeta "json:\"params,omitempty\""
 pulse/descriptor: type OperatorMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type OperatorMeta field Tier string "json:\"tier,omitempty\""
+pulse/descriptor: type OperatorMeta field ValueState bool "json:\"value_state,omitempty\""
 pulse/descriptor: type OperatorMeta field VectorInput bool "json:\"vector_input,omitempty\""
 pulse/descriptor: type OperatorMeta field WeightAware bool "json:\"weight_aware,omitempty\""
 pulse/descriptor: type OperatorParamMeta struct
@@ -2856,6 +2852,7 @@ pulse/extend: type Record imethod NumericValue(field string) (float64, bool)
 pulse/extend: type Record imethod Schema() *pulse/encoding.Schema
 pulse/extend: type Record imethod SetMaskValue(field string) (pulse/encoding.SetMask, bool)
 pulse/extend: type Record imethod StringValue(field string) (string, bool)
+pulse/extend: type Record imethod Uint64Value(field string) (uint64, bool)
 pulse/extend: type Record imethod VectorValue(field string) ([]float64, bool)
 pulse/extend: type Record imethod Weight() (float64, bool)
 pulse/extend: type RichAggregator interface
@@ -3163,6 +3160,12 @@ pulse/io: type LabelWarning underlying struct
 pulse/io: type LabelWarning field Code string "json:\"code\""
 pulse/io: type LabelWarning field Details map[string]any "json:\"details,omitempty\""
 pulse/io: type LabelWarning field Message string "json:\"message\""
+pulse/io: type LateKeyRefuser = pulse/internal/iocore.LateKeyRefuser
+pulse/io: type LateKeyRefuser underlying interface
+pulse/io: type LateKeyRefuser imethod Close() error
+pulse/io: type LateKeyRefuser imethod ReadHeader() ([]string, error)
+pulse/io: type LateKeyRefuser imethod ReadRows(ctx context.Context, fn func(row []string) error) error
+pulse/io: type LateKeyRefuser imethod RefuseLateKeys(on bool)
 pulse/io: type ListAwareReader = pulse/internal/iocore.ListAwareReader
 pulse/io: type ListAwareReader underlying interface
 pulse/io: type ListAwareReader imethod Close() error
@@ -5642,4 +5645,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 30ea169a8cf8a3fc74daa5120356bdd7f41eda95fd1b3510e9caf030a55ef977
+// golden-hash: 76b00562362f0f7e4088cb67810fc38d389c83fdfa3ceea8c2207edd44d7624d

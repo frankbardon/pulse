@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -161,11 +162,11 @@ func TestValidateChain_OverlayKindUnknown(t *testing.T) {
 			Scope:  types.OverlayScopeCell,
 		}}
 	}
-	env := ValidateChainFromBytes(data, twoStageScalarChainRequest(spec("OVERLAY_NOT_IN_CATALOG")))
+	env := ValidateChainWithOptions(bytes.NewReader(data), twoStageScalarChainRequest(spec("OVERLAY_NOT_IN_CATALOG")), nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_KIND_UNKNOWN) {
 		t.Fatalf("out-of-catalog kind: expected PULSE_OVERLAY_KIND_UNKNOWN; got %+v", env.Errors)
 	}
-	env = ValidateChainFromBytes(data, twoStageScalarChainRequest(spec(types.OverlayKindIndexVsMargin)))
+	env = ValidateChainWithOptions(bytes.NewReader(data), twoStageScalarChainRequest(spec(types.OverlayKindIndexVsMargin)), nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE) || hasErrorCode(env, errors.PULSE_OVERLAY_KIND_UNKNOWN) {
 		t.Fatalf("MATRIX kind on a chain: expected only PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE; got %+v", env.Errors)
 	}
@@ -190,7 +191,7 @@ func TestValidateChain_OverlayStageRefIndexOutOfRange(t *testing.T) {
 			Scope:  types.OverlayScopeTotal,
 		},
 	})
-	env := ValidateChainFromBytes(data, req)
+	env := ValidateChainWithOptions(bytes.NewReader(data), req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_TARGET_UNKNOWN) {
 		t.Fatalf("expected PULSE_OVERLAY_TARGET_UNKNOWN; got %+v", env.Errors)
 	}
@@ -211,7 +212,7 @@ func TestValidateChain_OverlayStageRefByNameUnknown(t *testing.T) {
 			Scope:  types.OverlayScopeTotal,
 		},
 	})
-	env := ValidateChainFromBytes(data, req)
+	env := ValidateChainWithOptions(bytes.NewReader(data), req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REFERENCE_UNKNOWN) {
 		t.Fatalf("expected PULSE_OVERLAY_REFERENCE_UNKNOWN; got %+v", env.Errors)
 	}
@@ -229,7 +230,7 @@ func TestValidateChain_OverlayStageRefXORViolated(t *testing.T) {
 			Scope:  types.OverlayScopeTotal,
 		},
 	})
-	env := ValidateChainFromBytes(data, req)
+	env := ValidateChainWithOptions(bytes.NewReader(data), req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REFERENCE_UNKNOWN) {
 		t.Fatalf("expected PULSE_OVERLAY_REFERENCE_UNKNOWN; got %+v", env.Errors)
 	}
@@ -267,7 +268,7 @@ func TestValidateChain_OverlayShapeDivergent(t *testing.T) {
 			Scope:  types.OverlayScopeTotal,
 		},
 	})
-	env := ValidateChainFromBytes(data, req)
+	env := ValidateChainWithOptions(bytes.NewReader(data), req, nil)
 	assertShapeDivergentWarning(t, env)
 }
 
@@ -284,7 +285,7 @@ func TestValidateChain_OverlayShapeDivergent_SeriesVsScalar(t *testing.T) {
 			Scope:  types.OverlayScopeTotal,
 		},
 	})
-	env := ValidateChainFromBytes(data, req)
+	env := ValidateChainWithOptions(bytes.NewReader(data), req, nil)
 	assertShapeDivergentWarning(t, env)
 }
 
@@ -307,7 +308,7 @@ func TestValidateChain_OverlayShapeMatch_HappyPath(t *testing.T) {
 			Scope:  types.OverlayScopeTotal,
 		},
 	})
-	env := ValidateChainFromBytes(data, req)
+	env := ValidateChainWithOptions(bytes.NewReader(data), req, nil)
 	// The per-stage gate may add SERVICE_VALIDATION (e.g. "x" not in
 	// stage 1's synthesised schema), but no overlay-related code should
 	// appear.
@@ -344,7 +345,7 @@ func TestValidateChain_OverlaysSchemaDivergencePopulated(t *testing.T) {
 			Scope:  types.OverlayScopeTotal,
 		},
 	})
-	env := ValidateChainFromBytes(data, req)
+	env := ValidateChainWithOptions(bytes.NewReader(data), req, nil)
 	res, ok := env.Data.(*ChainValidationResult)
 	if !ok || res == nil {
 		t.Fatalf("expected ChainValidationResult; got %T", env.Data)
@@ -387,7 +388,7 @@ func TestValidateChain_OverlayTargetDefaultsToLatestStage(t *testing.T) {
 			Scope:  types.OverlayScopeTotal,
 		},
 	})
-	env := ValidateChainFromBytes(data, req)
+	env := ValidateChainWithOptions(bytes.NewReader(data), req, nil)
 	// No overlay error should fire (shapes match — both scalar).
 	for _, code := range []errors.Code{
 		errors.PULSE_OVERLAY_TARGET_UNKNOWN,
@@ -411,7 +412,7 @@ func TestValidateOverlay_ChainStageShapeDivergent(t *testing.T) {
 			Scope:  types.OverlayScopeTotal,
 		},
 	})
-	env := ValidateChainFromBytes(data, req)
+	env := ValidateChainWithOptions(bytes.NewReader(data), req, nil)
 	assertShapeDivergentWarning(t, env)
 	// FR-I3 echo: divergence pair must also surface on the structured
 	// result so LLM planners can budget reshapes without re-parsing
@@ -444,7 +445,7 @@ func TestValidateChain_OverlayRefMustBeExplicit(t *testing.T) {
 			Scope:  types.OverlayScopeTotal,
 		},
 	})
-	env := ValidateChainFromBytes(data, req)
+	env := ValidateChainWithOptions(bytes.NewReader(data), req, nil)
 	if !hasErrorCode(env, errors.PULSE_OVERLAY_REFERENCE_UNKNOWN) {
 		t.Fatalf("expected PULSE_OVERLAY_REFERENCE_UNKNOWN; got %+v", env.Errors)
 	}

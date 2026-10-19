@@ -43,6 +43,10 @@ type shardIter struct {
 	// per-shard reader state.
 	shardIdx int
 	reader   *encx.RecordReader
+	// exact carries the exact u64 words of the projection-without-plan
+	// map decode (nil when the schema has no u64 field); shared by every
+	// shard's reader, all built over it.schema.
+	exact *encx.ExactU64Words
 	// shardRec is the in-shard record index of the next row Next hands
 	// out; with shardIdx and starts[shardIdx] it is the row's
 	// merge-block position (the key a processing.BlockMerger folds the
@@ -171,6 +175,10 @@ func (it *shardIter) openShard(idx int) error {
 	// Schema cohesion is validated at insert time; on the read
 	// path the canonical schema is authoritative.
 	it.reader = encx.NewRecordReader(r, it.schema)
+	if it.exact == nil {
+		it.exact = encx.NewExactU64Words(it.schema)
+	}
+	it.reader.CaptureExactU64(it.exact)
 	it.shardRec = 0
 	return nil
 }
@@ -265,6 +273,7 @@ func (it *shardIter) next() bool {
 			err = it.reader.ReadRecordWithWideProjected(values, nulls, wide, it.project)
 			if err == nil {
 				rec = processing.NewRecordWithWide(it.schema, values, nulls, wide)
+				it.exact.ApplyTo(rec)
 			}
 		default:
 			if it.binding == nil {

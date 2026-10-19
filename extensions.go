@@ -85,14 +85,13 @@ type FieldInputsFunc func(raw json.RawMessage) []string
 // namespace from the built-in registries (no collision risk) and the
 // runtime treats them identically to built-ins.
 type Extensions struct {
-	Aggregators        []AggregatorRegistration
-	Attributes         []AttributeRegistration
-	Filterers          []FiltererRegistration
-	Groupers           []GrouperRegistration
-	Windows            []WindowRegistration
-	Features           []FeatureRegistration
-	Tests              []TestRegistration
-	SynthDistributions []DistributionRegistration
+	Aggregators []AggregatorRegistration
+	Attributes  []AttributeRegistration
+	Filterers   []FiltererRegistration
+	Groupers    []GrouperRegistration
+	Windows     []WindowRegistration
+	Features    []FeatureRegistration
+	Tests       []TestRegistration
 	// MatrixOps installs embedder MAT_* matrix operators for
 	// Request.Matrices (see MatrixOpRegistration).
 	MatrixOps []MatrixOpRegistration
@@ -348,8 +347,28 @@ type AggregatorRegistration struct {
 	// Undeclared, an overlay scores the code as a magnitude. Projected
 	// as the manifest's emits_input_value.
 	EmitsInputValue bool
-	Accepts         []encoding.FieldType
-	Params          []ParamMeta
+	// CountSemantic declares that the operator's finished value is a
+	// count carried as a float64 (the extension half of the built-in
+	// count classification — AGG_COUNT, AGG_DISTINCT_COUNT, …). Under
+	// Request.Return precision the slot's data column, a count crosstab
+	// cell's matrix figures (normalize none; a multi-measure matrix only
+	// when every measure counts) and a count margin aggregation's figures
+	// are then written exact instead of rounded. Refused on a
+	// VectorInput or ArrayValued registration (PULSE_EXTENSION_PARAM_INVALID,
+	// reason count_semantic_vector_input): a member-set value is not one
+	// count. Undeclared, the column rounds like any measure. Projected as
+	// the manifest's count_semantic.
+	CountSemantic bool
+	// ValueState declares that the operator's state grows with the
+	// distinct values it sees (a map entry per value, like AGG_MODE or
+	// AGG_DISTINCT_COUNT) rather than staying a fixed-size accumulator.
+	// The MaxEstimatedMemory estimate then charges the slot the same
+	// per-distinct-value term a built-in value-state aggregator pays.
+	// Undeclared, the slot is priced as a fixed accumulator. Projected
+	// as the manifest's value_state.
+	ValueState bool
+	Accepts    []encoding.FieldType
+	Params     []ParamMeta
 	// FieldInputs is the optional buffered-projection introspection
 	// hook. See FieldInputsFunc. Omit to keep the operator opaque to
 	// projection (runtime widens the field set when this operator
@@ -360,10 +379,12 @@ type AggregatorRegistration struct {
 	// Leaving the schema empty (zero-value Keys plus
 	// empty Mergeability) makes the operator floor-only — the
 	// orchestrator emits the universal floor ({"n", "n_null"}) and no
-	// extra keys. When ComponentSchema.Keys is non-empty, the
-	// ComponentsFunc emitter MUST be supplied and its returned map
-	// keys MUST be a subset of the declared key set; probe-validation
-	// enforces both at pulse.New time.
+	// extra keys. When ComponentSchema.Keys is non-empty an emitter
+	// MUST exist — ComponentsFunc, or the value's own Components()
+	// method — and its returned map keys MUST be a subset of the
+	// declared key set; an emitter in turn MUST declare Keys.
+	// Probe-validation enforces all three at pulse.New time, for either
+	// emitter.
 	ComponentSchema descriptor.ComponentSchema
 	// ComponentsFunc is the optional sibling-interface emitter. When
 	// set, the orchestrator routes the returned map onto
@@ -446,9 +467,11 @@ type AttributeRegistration struct {
 	// ComponentSchema declares the per-operator components contract
 	// surfaced through the slot's Response.Components.Attributes entry
 	// (Operator). Empty (zero Keys and Mergeability) emits no entry.
-	// When Keys is non-empty ComponentsFunc MUST be supplied and its
-	// returned keys MUST be a subset of the declared set; probe-
-	// validation enforces both at pulse.New time.
+	// When Keys is non-empty an emitter MUST exist — ComponentsFunc,
+	// or the value's own Components() method (adopted when no
+	// ComponentsFunc is set) — and its returned keys MUST be a subset of
+	// the declared set; an emitter MUST declare Keys. Probe-validation
+	// enforces all three at pulse.New time, for either emitter.
 	ComponentSchema descriptor.ComponentSchema
 	// ComponentsFunc is the optional emitter (see
 	// AttributeComponentsFunc). Nil emits no entry.
@@ -493,9 +516,10 @@ type FiltererRegistration struct {
 	// surfaced through Response.Components.Filterers[i].Operator.
 	// v1 ships every built-in filterer as floor-only
 	// (uniform {n_in, n_out, n_null_input}); extensions may opt in by
-	// declaring a non-empty ComponentSchema alongside a ComponentsFunc.
-	// Mismatch between declared schema and emitted keys is rejected at
-	// pulse.New time.
+	// declaring a non-empty ComponentSchema alongside a ComponentsFunc
+	// or a builder with its own Components() method. Mismatch between
+	// declared schema and emitted keys (either emitter) is rejected at
+	// pulse.New time, as is an emitter with no declared Keys.
 	ComponentSchema descriptor.ComponentSchema
 	// ComponentsFunc is the optional sibling-interface emitter. When
 	// set, the orchestrator routes the returned map onto
@@ -581,8 +605,10 @@ type GrouperRegistration struct {
 	// Leaving the schema empty makes the operator
 	// floor-only — the orchestrator emits the universal floor
 	// ({total_n, n_null}) without operator-specific extras. When
-	// ComponentSchema.Keys is non-empty, the ComponentsFunc emitter
-	// MUST be supplied and its keys MUST match the declared schema.
+	// ComponentSchema.Keys is non-empty an emitter MUST exist —
+	// ComponentsFunc, or the value's own Components() method — and its
+	// keys MUST match the declared schema; an emitter MUST declare
+	// Keys. Probe-validation enforces both at pulse.New time.
 	ComponentSchema descriptor.ComponentSchema
 	// ComponentsFunc is the optional sibling-interface emitter. When
 	// set, the orchestrator routes the returned map onto
@@ -805,30 +831,6 @@ type MatrixOpRegistration struct {
 	// (n, n_null, n_listwise_dropped, min_pair_n, max_pair_n,
 	// sum_weights, n_eff, n_weight_invalid).
 	ComponentSchema descriptor.ComponentSchema
-}
-
-// DistributionRegistration installs a custom synthetic-data
-// distribution kind. The factory shape is finalised alongside the
-// synth wiring in a later phase; for now this registration is
-// validated for naming + duplicates only and the Factory field is
-// held opaque.
-type DistributionRegistration struct {
-	Name        string
-	Description string
-	// Purpose is the optional plain-language guidance for the
-	// operator — what it is for, the intents it answers, when to use
-	// something else. It is validated at pulse.New with the same rules
-	// as the built-in tier (NotFor.Use resolves against built-ins, the
-	// other registered extensions and the feature table); a broken rule
-	// fails with PULSE_EXTENSION_PURPOSE_INVALID. Only its intent IDs
-	// reach the manifest entry's intents list; nil declares no intents.
-	Purpose *descriptor.Purpose
-	// Factory is the sampler-construction callback. Its concrete
-	// signature is finalised when the synth distribution overlay
-	// lands; until then this field is held opaque to keep the API
-	// shape stable.
-	Factory any
-	Params  []ParamMeta
 }
 
 // ExprFunction describes a function callable from runtime expressions

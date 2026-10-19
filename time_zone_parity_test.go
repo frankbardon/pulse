@@ -191,7 +191,7 @@ func TestTimeZone_DisableDefaultsSameErrorBothSides(t *testing.T) {
 	}
 }
 
-// TestTimeZone_ValidatorsMatchRuntime: ValidateCompose, ValidateChain
+// TestTimeZone_ValidatorsMatchRuntime: ValidateCompose, ValidateChainWithOptions
 // and ValidateFacet run the runtime's zone resolution, so each rejects
 // a non-UTC zone on a derived (absent-from-schema) field with the code,
 // message and details (location included) the runtime returns, and

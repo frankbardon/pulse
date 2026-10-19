@@ -1043,7 +1043,6 @@
       "windows": [],
       "features": [],
       "tests": [],
-      "synth_distributions": [],
       "matrix_ops": [],
       "expr_functions": [],
       "lookup_tables": [],
@@ -1345,4 +1344,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 37270e30510a76f1b53d24d94ead159ce3e79788aa97c60a3ddcb60e1b11d887
+// golden-hash: d8189614dc8d8975da9da8fce4b00c2127be730f1ba4273670bc26248b21f8f4

@@ -349,6 +349,14 @@ func parallelDecodeMmap(
 			segBytes := pctx.mmapBytes[startByte:endByte]
 			r := bytes.NewReader(segBytes)
 			rr := encx.NewRecordReader(r, pctx.schema)
+			// The projection-without-plan map decode loses a u64 word
+			// above 2^53 to the float64 echo: capture it (nil, and free,
+			// when the schema has no u64 field) and hand it to the record.
+			var exact *encx.ExactU64Words
+			if pctx.plan == nil && pctx.keep != nil {
+				exact = encx.NewExactU64Words(pctx.schema)
+				rr.CaptureExactU64(exact)
+			}
 			cb := factory(idx, seg.startRec, segmentCount)
 
 			for recIdx := 0; recIdx < segmentCount; recIdx++ {
@@ -378,6 +386,7 @@ func parallelDecodeMmap(
 					derr = rr.ReadRecordWithWideProjected(values, nulls, wide, pctx.keep)
 					if derr == nil {
 						rec = processing.NewRecordWithWide(pctx.schema, values, nulls, wide)
+						exact.ApplyTo(rec)
 					}
 				default:
 					rec = pctx.binding.NewRecord()

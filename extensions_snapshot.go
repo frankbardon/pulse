@@ -70,6 +70,8 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			ArrayValued:        r.ArrayValued,
 			NonScalar:          r.NonScalar,
 			EmitsInputValue:    r.EmitsInputValue,
+			CountSemantic:      r.CountSemantic,
+			ValueState:         r.ValueState,
 			WeightAware:        r.WeightAware,
 			Accepts:            fieldTypeStrings(r.Accepts),
 			Params:             paramMetaSnapshot(r.Params),
@@ -161,14 +163,6 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			WeightAware: r.WeightAware,
 			Accepts:     fieldTypeStrings(r.Accepts),
 			Tier:        tier,
-			Params:      paramMetaSnapshot(r.Params),
-		})
-	}
-	for _, r := range ext.SynthDistributions {
-		snap.SynthDistributions = append(snap.SynthDistributions, descriptor.OperatorMeta{
-			Name:        r.Name,
-			Namespace:   parseNamespace(r.Name),
-			Description: r.Description,
 			Params:      paramMetaSnapshot(r.Params),
 		})
 	}

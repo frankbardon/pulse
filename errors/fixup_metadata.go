@@ -1649,11 +1649,15 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_STREAMABLE_MISMATCH: {
-		Message: "A registration declared streaming capability but its factory did not return the required streaming interface.",
+		Message: "A registration's streaming declaration disagrees with the interface its factory returns: it declared streaming capability without the required streaming interface, or (features, checked both ways) declared Streamable=false for a value that implements extend.StreamingFeatureComputer.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Either implement the streaming interface (OnlineAggregator / RowLocalAttribute / TwoPassAttribute) on the returned type, or flip Streamable=false / Mode=buffered to use the buffered path.",
+				Hint:   "Either implement the streaming interface (OnlineAggregator / RowLocalAttribute / TwoPassAttribute / StreamingGrouper / StreamingFeatureComputer) on the returned type, or flip Streamable=false / Mode=buffered to use the buffered path.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "For a feature (details category \"feature\"), make Streamable equal whether the returned value implements extend.StreamingFeatureComputer: the runtime streams on the value while predict reads the declaration, so set Streamable=true for a streaming value, or drop PrePass/Finalize/EmitRow from a buffered one.",
 			},
 		},
 	},
@@ -1757,22 +1761,27 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_PARAM_INVALID: {
-		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default, or an ExactlyOneOf group with one member or a Required / defaulted member).",
+		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default, or an ExactlyOneOf group with one member or a Required / defaulted member), or a registration declares a contradictory flag (details.reason names it, e.g. count_semantic_vector_input).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Hint:     "Set Name, set JSONType to one of {string, number, boolean, array, object}, and drop Default when Required=true. An ExactlyOneOf group needs two or more members, each Required=false with no Default.",
 				Examples: []any{"string", "number", "boolean", "array", "object"},
 			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Extensions", "Aggregators", "*", "CountSemantic"},
+				Hint:   "reason count_semantic_vector_input: CountSemantic declares one count per slot, which a VectorInput / ArrayValued aggregator (one figure per member) never finishes as — drop CountSemantic, or register a single-field aggregator.",
+			},
 		},
 	},
 	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH: {
-		Message: "An extension operator's ComponentsFunc emitted keys that are not declared in the registration's ComponentSchema. The probe rejects the registration so the runtime never sees a half-declared components contract.",
+		Message: "An extension operator's components emitter (its ComponentsFunc, or the operator value's own Components() method — details.emitter names which) emitted keys that are not declared in the registration's ComponentSchema. The probe rejects the registration so the runtime never sees a half-declared components contract.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Extensions", "*", "ComponentSchema", "Keys"},
-				Hint:   "Add the undeclared emitted keys to ComponentSchema.Keys (with the matching JSONType + Mergeability), or remove them from the ComponentsFunc emission. See docs/src/internals/extension-points.md for the per-category contract.",
+				Hint:   "Add the undeclared emitted keys to ComponentSchema.Keys (with the matching JSONType + Mergeability), or remove them from the ComponentsFunc (or Components() method) emission. See docs/src/internals/extension-points.md for the per-category contract.",
 			},
 			{
 				Action: FixupRemoveParam,
@@ -1782,12 +1791,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA: {
-		Message: "An extension operator declared a ComponentsFunc without a matching ComponentSchema (or a non-empty ComponentSchema without a ComponentsFunc). Both halves of the contract must be present together; the floor-only path keeps both empty.",
+		Message: "An extension operator has a components emitter — a ComponentsFunc, or an operator value with its own Components() method (details.reason self_emitter_without_schema_keys) — but declares no ComponentSchema.Keys (or declares Mergeability without Keys). Both halves of the contract must be present together; the floor-only path keeps both empty.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Extensions", "*", "ComponentSchema"},
-				Hint:   "Add a ComponentSchema with the keys + Mergeability that the ComponentsFunc emits, or drop the ComponentsFunc to fall back to the floor-only path. See docs/src/internals/extension-points.md for examples.",
+				Hint:   "Add a ComponentSchema with the keys + Mergeability that the ComponentsFunc (or the value's Components() method) emits, or drop the emitter to fall back to the floor-only path. See docs/src/internals/extension-points.md for examples.",
 			},
 		},
 	},

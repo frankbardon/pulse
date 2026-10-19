@@ -3,6 +3,7 @@ package pulse
 import (
 	stderrors "errors"
 	"fmt"
+	"math"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -52,6 +53,31 @@ var _ extend.Record = extRecord{}
 // NumericValue is the engine row's, plus native element members.
 func (r extRecord) NumericValue(field string) (float64, bool) {
 	return r.Record.MemberValue(field)
+}
+
+// Uint64Value is the engine row's exact read (a u64 field's stored
+// word on every decode path), plus native element members, which read
+// their element's float through echoToUint64 — so it is (0, false)
+// exactly when NumericValue is.
+func (r extRecord) Uint64Value(field string) (uint64, bool) {
+	if u, ok := r.Record.Uint64Value(field); ok {
+		return u, true
+	}
+	v, ok := r.Record.MemberValue(field)
+	if !ok {
+		return 0, false
+	}
+	return echoToUint64(v), true
+}
+
+// echoToUint64 converts a float64 echo to uint64 as
+// processing.Record.Uint64Value's fallback does: uint64(v), except that
+// an echo at or above 2^64 saturates to math.MaxUint64.
+func echoToUint64(v float64) uint64 {
+	if v >= 1<<64 {
+		return math.MaxUint64
+	}
+	return uint64(v)
 }
 
 // IsNull is the engine row's, except that a native element member
@@ -985,7 +1011,7 @@ func (a attrMeta) Components() (map[string]any, error) { return a.emit(a.inner) 
 // One wrapper per capability tier: buffered, (R)ow-local, (T)wo-pass.
 // TwoPassAttribute embeds RowLocalAttribute, so the tiers nest and
 // there is no fourth combination. The M variants add MetaAttribute
-// (a registration with a ComponentsFunc).
+// (a registration with a ComponentsFunc, or a self-emitting value).
 type (
 	attrAdapted  struct{ attrCore }
 	attrAdaptedR struct {
@@ -1017,9 +1043,17 @@ type (
 // adaptAttribute wraps an extend.AttributeComputer so the engine's
 // RowLocalAttribute / TwoPassAttribute assertions succeed iff the
 // embedder value implements the matching extend sibling, and
-// MetaAttribute iff emit is non-nil. ExtensionAware is engine-only and
-// never forwarded.
+// MetaAttribute iff emit is non-nil — or, with no ComponentsFunc, the
+// value carries its own Components() method, adopted as the emitter
+// exactly as adaptAggregator / adaptGrouper / adaptFilterer adopt it
+// (pulse.New probe-validates it against the declared ComponentSchema).
+// ExtensionAware is engine-only and never forwarded.
 func adaptAttribute(inner extend.AttributeComputer, wt *slotWeighting, emit AttributeComponentsFunc) processing.AttributeComputer {
+	if emit == nil {
+		if self, ok := inner.(componentsEmitter); ok {
+			emit = func(extend.AttributeComputer) (map[string]any, error) { return self.Components() }
+		}
+	}
 	core := attrCore{inner: inner, wt: wt}
 	var view *rowView
 	if wt != nil {
@@ -1176,6 +1210,19 @@ func (v featureRecordView) IsNull(field string) bool {
 
 func (v featureRecordView) NumericValue(field string) (float64, bool) {
 	return v.r.NumericValue(field)
+}
+
+// Uint64Value is the source's exact read when it has one, else its
+// float echo through echoToUint64.
+func (v featureRecordView) Uint64Value(field string) (uint64, bool) {
+	if x, ok := v.r.(interface{ Uint64Value(string) (uint64, bool) }); ok {
+		return x.Uint64Value(field)
+	}
+	f, ok := v.r.NumericValue(field)
+	if !ok {
+		return 0, false
+	}
+	return echoToUint64(f), true
 }
 
 func (v featureRecordView) StringValue(field string) (string, bool) {

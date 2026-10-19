@@ -26,7 +26,10 @@ type FeatureComputer interface {
 // StreamingFeatureComputer is the optional streaming sibling of
 // FeatureComputer. The engine type-asserts it on the value the factory
 // returns: present, a stream-eligible request keeps streaming; absent,
-// the request falls back to the buffered path.
+// the request falls back to the buffered path. The registration's
+// Streamable flag must equal whether the value implements this
+// interface; pulse.New probes the factory and refuses a mismatch in
+// either direction with PULSE_EXTENSION_STREAMABLE_MISMATCH.
 //
 // Lifecycle: PrePass once per row on the first pass, Finalize once,
 // then EmitRow once per row on the second pass. EmitRow returns

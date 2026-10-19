@@ -248,7 +248,7 @@ func zepEntries() []zepEntry {
 			}
 			return res.RowCount
 		}},
-		{name: "FilterToFileWithRequest filterers", exprOnly: true, run: func(t *testing.T, p *pulse.Pulse, fsys afero.Fs, pr zepPredicate) int64 {
+		{name: "FilterToFileWithRequest filterers", run: func(t *testing.T, p *pulse.Pulse, fsys afero.Fs, pr zepPredicate) int64 {
 			res, err := p.FilterToFileWithRequest(ctx, &pulse.FilterToFileRequest{SourcePath: calfCohort, Filterers: pr.filterers, OutputDir: "zep_out_filt"})
 			if err != nil {
 				t.Fatal(err)
@@ -310,29 +310,41 @@ func TestTimeZone_DefaultZoneReachesEveryEntryPoint(t *testing.T) {
 	}
 }
 
-// TestTimeZone_FilterToFileDateRangesRefused: the filter-to-file request
-// cannot carry FILTER_DATE_RANGES (it translates to an expression), so
-// it is refused rather than computed in some zone.
-func TestTimeZone_FilterToFileDateRangesRefused(t *testing.T) {
+// TestTimeZone_FilterToFileDateRanges: the filter-to-file request
+// runs FILTER_DATE_RANGES in the zone Process resolves (here the
+// instance default — TestTimeZone_DefaultZoneReachesEveryEntryPoint
+// covers the kept rows), and that zone keys the deterministic output
+// name: the same request on a UTC instance writes a different output
+// rather than reusing the New York one. Before U34 E3-S5 the type was
+// refused (reason zone_capable). A never-registered type keeps its
+// coded refusal.
+func TestTimeZone_FilterToFileDateRanges(t *testing.T) {
 	fsys := zepFS(t)
-	p := zepPulse(t, fsys, zepZone)
+	ny, utc := zepPulse(t, fsys, zepZone), zepPulse(t, fsys, "")
 	for _, pr := range zepPredicates(t) {
 		if pr.expr != "" {
 			continue
 		}
-		_, err := p.FilterToFileWithRequest(context.Background(), &pulse.FilterToFileRequest{SourcePath: calfCohort, Filterers: pr.filterers, OutputDir: "zep_out"})
-		if err == nil || !strings.Contains(err.Error(), "unsupported filter type") {
-			t.Fatalf("%s: err = %v, want the unsupported-type refusal", pr.name, err)
+		req := func() *pulse.FilterToFileRequest {
+			return &pulse.FilterToFileRequest{SourcePath: calfCohort, Filterers: pr.filterers, OutputDir: "zep_out"}
 		}
-		// The refusal is coded (#468), so the CLI / MCP envelope carries
-		// PROCESSING_CONFIG, never the uncoded placeholder.
-		ce := requireCode(t, err, errors.PROCESSING_CONFIG)
-		if ce.Details["operator"] != string(types.FILTER_DATE_RANGES) {
-			t.Errorf("%s: details = %v, want operator %s", pr.name, ce.Details, types.FILTER_DATE_RANGES)
+		a, err := ny.FilterToFileWithRequest(context.Background(), req())
+		if err != nil {
+			t.Fatalf("%s: %v", pr.name, err)
+		}
+		if a.RowCount != zepWant(t, pr, zepZone) {
+			t.Fatalf("%s: kept %d rows, want %d", pr.name, a.RowCount, zepWant(t, pr, zepZone))
+		}
+		b, err := utc.FilterToFileWithRequest(context.Background(), req())
+		if err != nil {
+			t.Fatalf("%s: %v", pr.name, err)
+		}
+		if b.Reused || b.OutputPath == a.OutputPath || b.RowCount != zepWant(t, pr, "") {
+			t.Fatalf("%s: UTC run path %s rows %d reused=%v; the New York output is %s", pr.name, b.OutputPath, b.RowCount, b.Reused, a.OutputPath)
 		}
 	}
-	// A never-registered type takes the same coded refusal.
-	_, err := p.FilterToFileWithRequest(context.Background(), &pulse.FilterToFileRequest{SourcePath: calfCohort, Filterers: []*types.Filterer{{Type: "FILTER_NOPE", Field: "x"}}, OutputDir: "zep_out"})
+	// A never-registered type takes the coded refusal.
+	_, err := ny.FilterToFileWithRequest(context.Background(), &pulse.FilterToFileRequest{SourcePath: calfCohort, Filterers: []*types.Filterer{{Type: "FILTER_NOPE", Field: "x"}}, OutputDir: "zep_out"})
 	if ce := requireCode(t, err, errors.PROCESSING_CONFIG); ce.Details["operator"] != "FILTER_NOPE" {
 		t.Errorf("unknown type: details = %v", ce.Details)
 	}

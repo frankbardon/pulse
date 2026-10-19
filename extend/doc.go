@@ -38,8 +38,9 @@
 //     label; StringValue resolves the label.
 //   - date is epoch DAYS; datetime is epoch SECONDS. Both arrive through
 //     NumericValue and are never interchangeable.
-//   - u64 values travel as a float64 echo, so values above 2^53 lose
-//     precision through NumericValue.
+//   - NumericValue on a u64 field is a float64 echo, so values above
+//     2^53 lose precision through it; Uint64Value returns the exact
+//     stored word on every decode path (null is (0, false)).
 //   - decimal128 values need DecimalValue for exact precision;
 //     NumericValue returns only a rounded float echo.
 //   - A vector field (vec_f32 / vec_f64) is false through NumericValue

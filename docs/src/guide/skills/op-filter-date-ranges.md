@@ -50,7 +50,7 @@ Floor only — `{n_in, n_out, n_null_input}`. Mergeable (additive).
 - Overlap/dup → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL`; bad literal, start>end → `_INVALID`.
 - `start: 2026-03-01`, `tz: Europe/Berlin` keeps `2026-02-28T23:30Z`.
 - Zone on `date` / derived field → `PROCESSING_CONFIG`.
-- Untranslatable (any slot zone too) under `FilterToFileWithRequest` → `PROCESSING_CONFIG` `{operator}`; use an expression filter over `to_day(ts)` + the request `TimeZone`.
+- Runs under `FilterToFileWithRequest` as under `Process` (slot `tz` / `tz_field`, request `TimeZone`); the applied zone keys the dedup hash.
 - Row-local streamable.
 
 ## See

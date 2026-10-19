@@ -124,7 +124,12 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 				}
 				r.TwoPassAttributes[reg.Name] = true
 			}
-			if reg.ComponentsFunc != nil {
+			// An emitting attribute (ComponentsFunc, or a self-emitting
+			// value) must declare Keys — pulse.New's probe refuses
+			// either emitter without them — so declared Keys mark it,
+			// the same fact predict reads off the snapshot's
+			// ComponentSchemas.
+			if reg.ComponentsFunc != nil || len(reg.ComponentSchema.Keys) > 0 {
 				if r.ComponentAttributes == nil {
 					r.ComponentAttributes = make(map[types.AttributeType]bool)
 				}
@@ -205,11 +210,6 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 
 	addRuntimeMatrixOps(r, ext.MatrixOps)
 
-	// Synth distributions are wired into the runtime in a later phase
-	// alongside the synth-overlay work. The registry surface stays
-	// stable so embedders can declare them today.
-	_ = ext.SynthDistributions
-
 	return r
 }
 
@@ -224,7 +224,6 @@ func hasAnyRegistrations(ext Extensions) bool {
 		len(ext.Windows) > 0 ||
 		len(ext.Features) > 0 ||
 		len(ext.Tests) > 0 ||
-		len(ext.SynthDistributions) > 0 ||
 		len(ext.MatrixOps) > 0 ||
 		len(ext.ExprFunctions) > 0 ||
 		len(ext.LookupTables) > 0 ||

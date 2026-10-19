@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/frankbardon/pulse/types"
@@ -8,7 +9,7 @@ import (
 
 func TestValidateChain_Valid(t *testing.T) {
 	data := buildSimplePulseBytes(t)
-	env := ValidateChainFromBytes(data, &types.ChainRequest{
+	env := ValidateChainWithOptions(bytes.NewReader(data), &types.ChainRequest{
 		Cohort: &types.Cohort{Filename: "x.pulse"},
 		Stages: []*types.ChainStage{
 			{
@@ -28,7 +29,7 @@ func TestValidateChain_Valid(t *testing.T) {
 				},
 			},
 		},
-	})
+	}, nil)
 	if len(env.Errors) > 0 {
 		t.Fatalf("expected no errors; got %+v", env.Errors)
 	}
@@ -46,7 +47,7 @@ func TestValidateChain_Valid(t *testing.T) {
 
 func TestValidateChain_RejectsWindowStage(t *testing.T) {
 	data := buildSimplePulseBytes(t)
-	env := ValidateChainFromBytes(data, &types.ChainRequest{
+	env := ValidateChainWithOptions(bytes.NewReader(data), &types.ChainRequest{
 		Cohort: &types.Cohort{Filename: "x.pulse"},
 		Stages: []*types.ChainStage{
 			{
@@ -61,7 +62,7 @@ func TestValidateChain_RejectsWindowStage(t *testing.T) {
 				},
 			},
 		},
-	})
+	}, nil)
 	if len(env.Errors) == 0 {
 		t.Fatal("expected PULSE_CHAIN_NOT_MERGEABLE for windowed stage")
 	}
@@ -72,7 +73,7 @@ func TestValidateChain_RejectsWindowStage(t *testing.T) {
 
 func TestValidateChain_UnknownFieldInStage2(t *testing.T) {
 	data := buildSimplePulseBytes(t)
-	env := ValidateChainFromBytes(data, &types.ChainRequest{
+	env := ValidateChainWithOptions(bytes.NewReader(data), &types.ChainRequest{
 		Cohort: &types.Cohort{Filename: "x.pulse"},
 		Stages: []*types.ChainStage{
 			{
@@ -91,7 +92,7 @@ func TestValidateChain_UnknownFieldInStage2(t *testing.T) {
 				},
 			},
 		},
-	})
+	}, nil)
 	if len(env.Errors) == 0 {
 		t.Fatal("expected SERVICE_VALIDATION for unknown field in stage 2")
 	}
@@ -102,10 +103,10 @@ func TestValidateChain_UnknownFieldInStage2(t *testing.T) {
 
 func TestValidateChain_Empty(t *testing.T) {
 	data := buildSimplePulseBytes(t)
-	env := ValidateChainFromBytes(data, &types.ChainRequest{
+	env := ValidateChainWithOptions(bytes.NewReader(data), &types.ChainRequest{
 		Cohort: &types.Cohort{Filename: "x.pulse"},
 		Stages: nil,
-	})
+	}, nil)
 	if len(env.Errors) == 0 || env.Errors[0].Code != "PULSE_CHAIN_EMPTY" {
 		t.Fatalf("expected PULSE_CHAIN_EMPTY, got %+v", env.Errors)
 	}

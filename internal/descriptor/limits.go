@@ -291,7 +291,7 @@ func estimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceS
 	}
 	mi.Aggregations = int64(len(aggs))
 	for _, a := range aggs {
-		if a != nil && valueStateAggregation[a.Type] {
+		if a != nil && (valueStateAggregation[a.Type] || inst.Extensions().AggregatorValueState(a.Type)) {
 			mi.ValueStateAggregations++
 		}
 	}
@@ -544,7 +544,9 @@ func archiveTerms(mi *limits.MemoryInputs, schema *encoding.Schema, in LimitInpu
 
 // valueStateAggregation lists the built-in aggregators whose state
 // grows with the distinct values they see (a map entry per value)
-// rather than staying a fixed-size accumulator.
+// rather than staying a fixed-size accumulator. An extension
+// aggregator joins them when its registration declared ValueState
+// (ExtensionsSnapshot.AggregatorValueState).
 var valueStateAggregation = map[types.AggregationType]bool{
 	types.AGG_DISTINCT_COUNT: true,
 	types.AGG_DISTINCT_SUM:   true,

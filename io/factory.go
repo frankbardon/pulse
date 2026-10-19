@@ -211,7 +211,8 @@ func spssValueLabels(in []SPSSValueLabels) []spss.ValueLabels {
 // NewReader builds a Reader for format f reading path on fs. The returned
 // value is the format adapter itself, unwrapped, so every optional
 // interface it implements (ResetReader, SchemaAwareReader, NullAwareReader,
-// SourceWarningEmitter, SidecarEmitter) is reachable by type assertion.
+// LateKeyRefuser, SourceWarningEmitter, SidecarEmitter) is reachable by
+// type assertion.
 // Every readable format's reader implements ResetReader.
 //
 // FormatPulse, the empty Format and unknown identifiers fail with

@@ -99,15 +99,14 @@ func extensionLists(ext *descx.ExtensionsSnapshot) map[string][]descriptor.Opera
 		return nil
 	}
 	return map[string][]descriptor.OperatorMeta{
-		"aggregator":         ext.Aggregators,
-		"attribute":          ext.Attributes,
-		"filterer":           ext.Filterers,
-		"grouper":            ext.Groupers,
-		"window":             ext.Windows,
-		"feature":            ext.Features,
-		"test":               ext.Tests,
-		"synth_distribution": ext.SynthDistributions,
-		"overlay":            ext.OverlayKinds,
+		"aggregator": ext.Aggregators,
+		"attribute":  ext.Attributes,
+		"filterer":   ext.Filterers,
+		"grouper":    ext.Groupers,
+		"window":     ext.Windows,
+		"feature":    ext.Features,
+		"test":       ext.Tests,
+		"overlay":    ext.OverlayKinds,
 	}
 }
 

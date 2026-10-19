@@ -113,7 +113,7 @@ func emptyParams(raw json.RawMessage) bool {
 // process request and a Compose slot only. Code
 // PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE, Details {index, kind,
 // host: "chain", stage}. nil for any other route. Predict
-// (ValidateChain) and the chain runtime share it.
+// (ValidateChainWithOptions) and the chain runtime share it.
 func StageRefusal(kind, route types.OverlayKind, stage, index int) *errors.CodedError {
 	if !RunsOnMatrixResult(route) {
 		return nil

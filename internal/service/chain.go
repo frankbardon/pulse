@@ -59,13 +59,13 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 		return nil, err
 	}
 	// A whole-chain overlay over a stage carrying an array-valued
-	// (vector) aggregation, before any stage runs (ValidateChain's
+	// (vector) aggregation, before any stage runs (ValidateChainWithOptions's
 	// rule).
 	if err := descx.ChainOverlayArrayValuedRefusal(req, s.instance, nil); err != nil {
 		return nil, err
 	}
 	// Then every stage's item for_each expands in place (the expansion
-	// ValidateChain runs), before the cohort opens.
+	// ValidateChainWithOptions runs), before the cohort opens.
 	for i, st := range req.Stages {
 		if err := s.expandItems(st.Request); err != nil {
 			return nil, locate(markLocated(err), "stage", i)
@@ -86,13 +86,13 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 		stageSets[i] = set
 	}
 	// A MATRIX_RESULT overlay on a stage's own Request.Overlays is
-	// refused before any stage runs (ValidateChain's rule, same point).
+	// refused before any stage runs (ValidateChainWithOptions's rule, same point).
 	if err := descx.ChainStageOverlayRefusal(req.Stages, s.instance); err != nil {
 		return nil, err
 	}
 	// Every stage's multiplicity blocks resolve before the cohort opens
 	// — each stage a standalone Request with its own `request` family,
-	// the order ValidateChain reports in. plans is index-aligned with
+	// the order ValidateChainWithOptions reports in. plans is index-aligned with
 	// req.Stages: stage 0 re-resolves and folds inside Process
 	// (identically), so plans[0] is never folded here; every later
 	// stage folds its own plan in runChainStage. No family spans
@@ -106,7 +106,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 		}
 		plans[i] = plan
 		// The stage's `return` block resolves beside it (the pass
-		// ValidateChain runs per stage). It is APPLIED by the facade
+		// ValidateChainWithOptions runs per stage). It is APPLIED by the facade
 		// only after the whole chain finished, so a later stage always
 		// reads the unshaped rows; stage 0 re-resolves inside Process.
 		ret, err := descx.ResolveReturn(st.Request, s.instance)
@@ -230,7 +230,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	// schema decides, so it is judged here, once every stage ran with
 	// its defaults resolved: stage 0 against gateSchema, a later stage
 	// against the schema synthesised from the stage before it). The
-	// same call ValidateChain makes.
+	// same call ValidateChainWithOptions makes.
 	if err := descx.ChainOverlayArrayValuedRefusal(req, s.instance, gateSchema); err != nil {
 		return nil, err
 	}
@@ -326,7 +326,7 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 	}
 	// The stage's overlays judge a forwarded code column (an upstream
 	// code-emitting aggregation's output, f64 in synthSchema) as the
-	// code it is — the code columns ValidateChain threads, from the one
+	// code it is — the code columns ValidateChainWithOptions threads, from the one
 	// shared rule over this side's ChainOutputSchema.
 	codes := s.extensions.AggregationKinds().ChainCodeColumns(chainStageRequests(req), i, stage0Schema, s.chainOutputSchemaOrNil)
 	if err := s.checkChainStageFieldRefs(ctx, stage, synthSchema, codes); err != nil {

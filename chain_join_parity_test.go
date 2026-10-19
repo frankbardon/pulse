@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-// TestChainDefaults_ValidatorMatchesRuntime: ValidateChain judges each
+// TestChainDefaults_ValidatorMatchesRuntime: ValidateChainWithOptions judges each
 // stage after the same smart-defaults pass the runtime applies (unless
 // DisableDefaults), so a stage relying on a defaulted Type is accepted
 // or refused by both sides alike — including the next stage's view of
@@ -67,7 +67,7 @@ func TestChainDefaults_ValidatorMatchesRuntime(t *testing.T) {
 		if _, err := on.ProcessChain(ctx, mergeable()); err != nil {
 			t.Fatalf("runtime: %v", err)
 		}
-		env := descx.ValidateChain(bytes.NewReader(data), mergeable())
+		env := descx.ValidateChainWithOptions(bytes.NewReader(data), mergeable(), nil)
 		if len(env.Errors) != 0 {
 			t.Fatalf("validator refused what runtime accepts: %+v", env.Errors)
 		}
@@ -79,7 +79,7 @@ func TestChainDefaults_ValidatorMatchesRuntime(t *testing.T) {
 	t.Run("non-mergeable after default", func(t *testing.T) {
 		_, rerr := on.ProcessChain(ctx, nonMergeable())
 		requireCode(t, rerr, errors.PULSE_CHAIN_NOT_MERGEABLE)
-		sameEntry(t, descx.ValidateChain(bytes.NewReader(data), nonMergeable()), rerr)
+		sameEntry(t, descx.ValidateChainWithOptions(bytes.NewReader(data), nonMergeable(), nil), rerr)
 	})
 	t.Run("defaults disabled", func(t *testing.T) {
 		_, rerr := off.ProcessChain(ctx, mergeable())

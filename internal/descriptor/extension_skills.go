@@ -23,7 +23,7 @@ import (
 //   - atomic `op-<category>-<kebab>.md` (`kind: operator`) documenting
 //     ONE registered extension operator: stem = OperatorStem(operator),
 //     `category:` = the operator's prefix (AGG, ATTR, FILTER, GROUP, WIN,
-//     FEAT, TEST, SYNTH), the family's required `##` sections;
+//     FEAT, TEST, MAT), the family's required `##` sections;
 //   - topical `ext-<kebab>.md` (`kind: design`), optionally `requires:`.
 //
 // LoadExtensionSkills validates them HARD at pulse.New, against the
@@ -52,8 +52,7 @@ import (
 //     `<kind>:<name>` feature, feature-owned `pulse_*` tool, registered
 //     extension operator) sits in a fence naming it, unless the skill is
 //     pruned with it (its own operator + that operator's DependsOn,
-//     transitively; capability:synth for a synth distribution; a
-//     topical skill's requires); the description holds none unguarded;
+//     transitively; a topical skill's requires); the description holds none unguarded;
 //  10. see — every backticked kebab span in `## See` is a skill the
 //     extended graph carries (built-in, virtual or embedder).
 //

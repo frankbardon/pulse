@@ -128,8 +128,8 @@ Open items found while delivering this unit, filed as TODOs under their owner un
 |---|---|
 | #456 `ATTR_SCALE_SCORE` / `ATTR_PROFILE_SIMILARITY` merge admission needs a tally-merge hook on the shard + parallel-decode reducers (perf; serial path correct) | [U51](U51-archive-scale.md) |
 | #457 no dedicated synth-writer test that a non-nullable field's bitmap bit stays 0 | [U52](U52-synth-realism.md) |
-| #458 join `ON` key for `u64` > 2^53 still matches on its float echo (`encoding/join_keys.go`) | [U34](U34-extension-validation.md) |
-| #459 map-decoder fallback `Record`s carry no exact `u64` word | [U34](U34-extension-validation.md) |
+| #458 join `ON` key for `u64` > 2^53 still matches on its float echo (`encoding/join_keys.go`) | [U51](U51-archive-scale.md) (re-homed from U34) |
+| #459 map-decoder fallback `Record`s carry no exact `u64` word | [U34](U34-extension-validation.md) (done: `extend.Record.Uint64Value`) |
 | #460 `Options.AutoLabels` not applied on chain stages >= 1 | [U44](U44-strict-input.md) |
 | #461 `PredictCompose` archive slots read the whole archive (not header-only); resolves with #455 | [U51](U51-archive-scale.md) |
 | #462 facet runtime warnings carry no details (`FacetResult.Warnings` is `[]string`) | [U44](U44-strict-input.md) |

@@ -382,7 +382,6 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 	m.Extensions.MatrixOps = extensionMatrixMetas(snap, on(featWeighting))
 	if !on(featSynth) {
 		m.SynthDistributions = []descriptor.DistributionMeta{}
-		m.Extensions.SynthDistributions = []descriptor.OperatorMeta{}
 	}
 	// A named table rides its capability: with capability:labels /
 	// capability:range_tables hidden the instance lists no such table,

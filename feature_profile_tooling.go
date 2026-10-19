@@ -44,8 +44,8 @@ type FeatureProfileCheckOptions struct {
 
 	// Offline checks a profile without the embedder's extensions in
 	// hand (the `pulse features check` CLI). A listed name that is not
-	// registered but follows the extension naming policy — a
-	// non-SYNTH operator category, a non-reserved namespace — is
+	// registered but follows the extension naming policy — an
+	// operator category prefix, a non-reserved namespace — is
 	// reported as a warning ("unverified extension name, check
 	// in-process") instead of PULSE_FEATURE_PROFILE_UNKNOWN; every other
 	// unknown name stays an error. For the dependency class such a name
@@ -399,11 +399,10 @@ func (u featureUniverse) withUnverified(names []string) featureUniverse {
 }
 
 // looksLikeExtensionName reports whether name follows the extension
-// operator naming policy with a non-reserved namespace. SYNTH names are
-// not features, so they never qualify.
+// operator naming policy with a non-reserved namespace.
 func looksLikeExtensionName(name string) bool {
 	g := extensionNameRegex.FindStringSubmatch(name)
-	if g == nil || g[1] == "SYNTH" {
+	if g == nil {
 		return false
 	}
 	_, reserved := reservedExtensionNamespaces[g[2]]
@@ -439,7 +438,6 @@ func mergeExtensions(ext []Extensions) Extensions {
 		out.Windows = append(out.Windows, e.Windows...)
 		out.Features = append(out.Features, e.Features...)
 		out.Tests = append(out.Tests, e.Tests...)
-		out.SynthDistributions = append(out.SynthDistributions, e.SynthDistributions...)
 		out.MatrixOps = append(out.MatrixOps, e.MatrixOps...)
 		out.ExprFunctions = append(out.ExprFunctions, e.ExprFunctions...)
 		out.LookupTables = mergeTables(out.LookupTables, e.LookupTables)

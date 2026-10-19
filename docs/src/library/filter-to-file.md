@@ -12,7 +12,9 @@ applies a predicate, and writes the surviving records to a new
 2. **Atomic write** — the engine never leaves a partially-written
    `.pulse` file at the target path.
 3. **Pre-existence dedup** — if the deterministic output already
-   exists, the engine returns it without re-running the filter.
+   exists, the engine returns it without re-running the filter
+   (never for a predicate running embedder code — see
+   [Registered tables and embedder code](#registered-tables-and-embedder-code)).
 
 ## Shape
 
@@ -24,7 +26,7 @@ type FilterToFileRequest struct {
     OutputDir  string             // Where to write the result
     OutputName string             // Optional override; default: {srcHash}_{predHash}.pulse
     Models     []types.ModelRef   // Saved models the predicate's coef() reads
-    TimeZone   string             // IANA zone a to_day() in the predicate reads
+    TimeZone   string             // IANA zone to_day() and FILTER_DATE_RANGES read
 }
 
 type FilterToFileResult struct {
@@ -72,8 +74,8 @@ Expression: "age >= 18 && (region == \"NA\" || region == \"EU\")",
 
 ### Filterers
 
-A slice of structured `types.Filterer` entries translated into the
-equivalent expression and AND-combined. Useful when the predicate is
+A slice of structured `types.Filterer` entries, AND-combined: a row
+is written only when every entry passes. Useful when the predicate is
 built programmatically:
 
 ```go
@@ -84,19 +86,36 @@ Filterers: []*types.Filterer{
 },
 ```
 
-Supported types: `FILTER_EXPRESSION` (pass-through), `FILTER_INCLUDE`,
-`FILTER_EXCLUDE`, `FILTER_RANGE`, `FILTER_NULL`. Any other type —
-`FILTER_DATE_RANGES`, an extension filterer, a type the instance's
-feature profile hides, a never-registered name — is refused
-`PROCESSING_CONFIG` `filter_to_file: unsupported filter type "<T>"`
-with details `{operator}`; express a date window as a
-`FILTER_EXPRESSION` over `to_day(ts)` instead. A filterer `tz` is
-refused `PROCESSING_CONFIG` too (none of the translatable types is
-zone-capable); set the request `TimeZone`.
+`FILTER_EXPRESSION` (pass-through), `FILTER_INCLUDE`,
+`FILTER_EXCLUDE`, `FILTER_RANGE` and `FILTER_NULL` are translated into
+the equivalent expression. Every other filterer the instance has
+registered — an extension filterer (`Options.Extensions`),
+`FILTER_TRUE` / `FILTER_FALSE`, the `FILTER_SET_*` family,
+`FILTER_DATE_RANGES` — is built through the engine's filterer
+registry exactly as `Process` builds it,
+so it keeps the same rows `Process` keeps (an extension filterer reads
+a `u64` field's exact word through `extend.Record.Uint64Value`, and
+its `FieldInputs` hook drives the decode projection).
+
+A type the instance's feature profile hides, or a never-registered
+name, is refused `PROCESSING_CONFIG` `filter_to_file: unsupported
+filter type "<T>"` with details `{operator}`.
+
+Zones resolve exactly as `Process` resolves them, over the request's
+`Filterers` against the cohort schema, before any output is reused or
+written: a zone-capable filterer (`FILTER_DATE_RANGES`) reads its own
+`tz`, else its `tz_field` (a per-row zone field), else the request
+`TimeZone`, else `Options.DefaultTimeZone`, else UTC — an inherited
+zone is not applied to a `date` field. Every zone refusal is
+`Process`'s own code, message and details (slot `filterers[i]`): a
+`tz` / `tz_field` on an operator that is not zone-capable (a
+translated built-in, `FILTER_TRUE`, an extension filterer — no
+extension operator is zone-capable), a `tz` on a `date` field, `tz`
+and `tz_field` together, an unknown zone (`PULSE_TIMEZONE_UNKNOWN`).
 
 Each filterer's `Field` is judged by the same field rule `Process` and
 predict use, against the cohort schema (a shard archive's canonical
-schema) and before the translated expression compiles: an unknown or
+schema) and before any filterer builds: an unknown or
 empty `Field` is `SERVICE_VALIDATION` `filter references unknown field:
 <f>` with details `{field, filter}`, exactly as `Process` refuses it.
 
@@ -127,10 +146,11 @@ instance whose feature profile hides it refuses a set `Models` as
 ### Time zone
 
 `TimeZone` (`time_zone`) is the request-level IANA zone a `to_day()`
-call in the predicate reads, by the `Request.TimeZone` rule: it wins
-over `Options.DefaultTimeZone`, which wins over UTC. An unknown name
-is `PULSE_TIMEZONE_UNKNOWN`, refused before the source is read whether
-or not the predicate calls `to_day`:
+call in the predicate — and a `FILTER_DATE_RANGES` filterer without
+its own `tz` / `tz_field` — reads, by the `Request.TimeZone` rule: it
+wins over `Options.DefaultTimeZone`, which wins over UTC. An unknown
+name is `PULSE_TIMEZONE_UNKNOWN`, refused before the source is read
+whether or not the predicate reads it:
 
 ```go
 res, err := p.FilterToFileWithRequest(ctx, &pulse.FilterToFileRequest{
@@ -165,8 +185,47 @@ When `OutputName` is empty, the basename is computed as:
   `TimeZone`, else the instance's `Options.DefaultTimeZone`, else UTC;
   a non-UTC zone joins the payload too, so two runs in different zones
   never share an output, while the same resolved zone named by either
-  knob lands on the same one. A predicate that reads no zone, or reads
-  UTC, hashes as it always has.
+  knob lands on the same one. Likewise every zone a structured
+  filterer applies — a non-UTC zone on a `FILTER_DATE_RANGES` over a
+  `datetime` field (from its `tz`, `TimeZone` or the instance
+  default), or its per-row `tz_field` — joins the payload with its
+  slot, so a request differing only in resolved zone never reuses
+  another's output. A predicate that reads no zone, or reads UTC, or
+  reads a `date` field (no zone applies), hashes as it always has.
+- Every registered table the predicate references joins the payload
+  as a content digest — see below.
+
+### Registered tables and embedder code
+
+A table registered on the instance is read by name, but two instances
+may register the same name with different content. So the predicate
+hash keys on the **content** of every table the predicate references:
+
+- a `RangeTables` entry named by a `FILTER_DATE_RANGES` `params.table`;
+- a `LookupTables` entry named by a `lookup("name", ...)` call;
+- a `ReferenceVectors` entry named by a `ref("name", ...)` call.
+
+Each joins as `{kind, name, sha256}`, the SHA-256 of a canonical
+encoding of its rows (sorted keys, exact float bits — map order never
+moves it). Two instances with a same-named table of different content
+land on different outputs; identical content still reuses. Only
+referenced tables join, so registering another table never moves the
+hash, and a predicate that references no table hashes as it always
+has. A `lookup()` / `ref()` whose table argument is not a string
+literal may read any table of its kind, so every registered one of
+that kind joins.
+
+A predicate that runs **embedder code** has no identity a hash can
+name — the same name can carry different code on another instance —
+so its output is **never reused**: it re-runs on every call and
+atomically replaces the file at the deterministic path (`Reused` is
+always `false`). That is a predicate with an extension filterer
+(`Extensions.Filterers`), a call of a registered
+`Extensions.ExprFunctions` function, or a `lookup()` reaching a
+function-driven table (`LookupTable.Lookup`). Use a `Rows` table
+instead of a `Lookup` function when you want reuse.
+
+`LabelTables` are output-time only and never read by a predicate.
 
 Independent consumers building the same request reach the same path
 without coordination. Combined with a `Watch` on `OutputDir`, this is

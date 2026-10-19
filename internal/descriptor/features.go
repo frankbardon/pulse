@@ -704,9 +704,10 @@ var overlayHostKinds = map[string][]string{
 //   - ATTR_REG_* fit an OLS model through the regression engine.
 //   - OVERLAY_YOY refuses any series host whose first grouper is not
 //     GROUP_DATE (it reads the date grouper's frequency).
-//   - capability:filter_to_file compiles every filterer of the request
-//     into one engine-internal FILTER_EXPRESSION, so hiding
-//     FILTER_EXPRESSION would break FilterToFile for any request.
+//   - capability:filter_to_file compiles an Expression predicate and
+//     every translatable filterer of the request into one
+//     engine-internal FILTER_EXPRESSION, so hiding FILTER_EXPRESSION
+//     would break FilterToFile for nearly any request.
 //   - every MAT_* operator rides the Request.Matrices slot, which
 //     capability:matrices gates.
 //   - capability:model_save writes a fitted regression or a vector

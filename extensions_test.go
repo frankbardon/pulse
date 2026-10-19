@@ -1,7 +1,10 @@
 package pulse_test
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -435,28 +438,33 @@ func TestExtensions_LabelTableEmptyName(t *testing.T) {
 	assertCodedError(t, err, perr.PULSE_EXTENSION_PARAM_INVALID)
 }
 
-func TestExtensions_SynthDistributionCollidesWithBuiltin(t *testing.T) {
-	// "uniform" is in synth.AllDistributions; registering it as an
-	// extension must collide.
-	ext := pulse.Extensions{
-		SynthDistributions: []pulse.DistributionRegistration{
-			{Name: "uniform"},
-		},
+// TestExtensions_SynthDistributionSlotRetired pins the v1 decision
+// that synthetic-data distributions are not an extension category: the
+// registration slot is gone from pulse.Extensions, and the manifest's
+// extensions block carries no synth_distributions list. Built-in
+// distributions stay in the top-level synth_distributions section.
+func TestExtensions_SynthDistributionSlotRetired(t *testing.T) {
+	if _, ok := reflect.TypeOf(pulse.Extensions{}).FieldByName("SynthDistributions"); ok {
+		t.Error("pulse.Extensions still declares SynthDistributions")
 	}
-	_, err := pulse.New(newTestOptions(ext))
-	// "uniform" fails the regex first (no underscores, lowercase) so
-	// the name-validation error fires before collision detection.
-	// Either coded error proves the slot is wired; we accept the
-	// stricter check.
-	if err == nil {
-		t.Fatalf("expected error for synth distribution name collision/invalid, got nil")
+	p, err := pulse.New(newTestOptions(pulse.Extensions{}))
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
 	}
-	var ce *perr.CodedError
-	if !errors.As(err, &ce) {
-		t.Fatalf("expected *errors.CodedError, got %T", err)
+	m := p.Manifest(context.Background())
+	if len(m.SynthDistributions) == 0 {
+		t.Fatal("built-in synth_distributions vanished from the manifest")
 	}
-	if ce.Code != perr.PULSE_EXTENSION_NAME_INVALID && ce.Code != perr.PULSE_EXTENSION_NAME_COLLISION {
-		t.Fatalf("expected name_invalid or collision, got %s", ce.Code)
+	raw, err := json.Marshal(m.Extensions)
+	if err != nil {
+		t.Fatalf("marshal extensions: %v", err)
+	}
+	var block map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &block); err != nil {
+		t.Fatalf("unmarshal extensions: %v", err)
+	}
+	if _, ok := block["synth_distributions"]; ok {
+		t.Errorf("manifest extensions block still carries synth_distributions: %s", raw)
 	}
 }
 

@@ -76,7 +76,7 @@ func TestPredictBytes_ExtensionOperatorIsKnown(t *testing.T) {
 
 	p := newBytesFacadePulse(t, pulse.Options{Extensions: pulse.Extensions{
 		Features: []pulse.FeatureRegistration{{
-			Name: "FEAT_ACME_DOUBLE", Factory: stubFeatureFactory, Streamable: true,
+			Name: "FEAT_ACME_DOUBLE", Factory: stubFeatureFactory,
 		}},
 	}})
 	env, err := p.PredictBytes(context.Background(), data, req)

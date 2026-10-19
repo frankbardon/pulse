@@ -23,6 +23,11 @@ type RecordReader struct {
 	// 2^53, datetime beyond 2^53 seconds, a categorical's dictionary ID).
 	// Set only by ReadRecordAtRaw; nil on every engine path.
 	raw map[string]uint64
+	// exact, when non-nil, receives the exact word of every retained,
+	// non-null u64 field the map decoders read (CaptureExactU64); nil —
+	// capture off — on every path that never converts to an engine
+	// record.
+	exact *ExactU64Words
 	// gd decodes a grouped cohort's PHYSICAL rows straight into a reuse
 	// record (group_decode.go): the reuse paths never expand a row. nil
 	// for an ungrouped schema.
@@ -185,6 +190,9 @@ func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]b
 	for k := range rr.raw {
 		delete(rr.raw, k)
 	}
+	if rr.exact != nil {
+		rr.exact.reset()
+	}
 
 	for fi := range rr.schema.Fields {
 		field := &rr.schema.Fields[fi]
@@ -287,6 +295,9 @@ func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]b
 			if rr.raw != nil {
 				rr.raw[field.Name] = raw
 			}
+			if rr.exact != nil && field.Type == encoding.FieldTypeU64 {
+				rr.exact.put(fi, raw)
+			}
 			// Set types: expose the full uint64 mask via the wide map so
 			// operators that need bit-level precision (everything beyond
 			// the 2^53 float64 limit, plus set_u64 generally) can read
@@ -324,6 +335,9 @@ func (rr *RecordReader) readRecord(values map[string]float64, nulls map[string]b
 				delete(wide, field.Name)
 			}
 			delete(rr.raw, field.Name)
+			if rr.exact != nil {
+				rr.exact.drop(i)
+			}
 		}
 	}
 

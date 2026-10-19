@@ -21,7 +21,9 @@ import (
 // TestCountSemanticAggregations_Classified requires every registered
 // aggregation type to be classified, so a new count aggregator cannot
 // silently get its column rounded. An extension aggregator is never
-// listed: its column rounds like any measure.
+// listed here: it is count-semantic when its registration declared
+// CountSemantic (isCountSemantic consults the instance snapshot), else
+// its column rounds like any measure.
 var countSemanticAggregations = map[types.AggregationType]bool{
 	types.AGG_COUNT:               true,
 	types.AGG_DISTINCT_COUNT:      true,
@@ -31,6 +33,13 @@ var countSemanticAggregations = map[types.AggregationType]bool{
 	types.AGG_SET_FREQUENCY:       true,
 	types.AGG_SET_CARDINALITY_SUM: true,
 	types.AGG_SET_DISTINCT_VALUES: true,
+}
+
+// isCountSemantic reports whether aggregation t finishes as a count on
+// inst: a built-in in countSemanticAggregations, or an extension
+// aggregator that declared CountSemantic. nil inst knows built-ins only.
+func isCountSemantic(t types.AggregationType, inst *InstanceSnapshot) bool {
+	return countSemanticAggregations[t] || inst.Extensions().AggregatorCountSemantic(t)
 }
 
 func returnKeyPath(names ...string) returnplan.Path {
@@ -52,20 +61,22 @@ func returnKeyPath(names ...string) returnplan.Path {
 // long-form `data[*].<label>` column; and each count auxiliary margin
 // aggregation's figures under `components.crosstab`. It reads the
 // DEFAULTS-RESOLVED request (the facade's request after the engine ran),
-// so a defaulted count aggregator is recognised.
-func returnExactPaths(req *types.Request) []returnplan.Path {
+// so a defaulted count aggregator is recognised. inst supplies the
+// extension aggregators' CountSemantic declarations (nil: built-ins
+// only).
+func returnExactPaths(req *types.Request, inst *InstanceSnapshot) []returnplan.Path {
 	if req == nil {
 		return nil
 	}
 	var out []returnplan.Path
 	for _, agg := range req.Aggregations {
-		if agg != nil && countSemanticAggregations[agg.Type] {
+		if agg != nil && isCountSemantic(agg.Type, inst) {
 			out = append(out, returnKeyPath("data", "[*]", types.AggregationLabelOf(agg)))
 		}
 	}
 	if ct := req.Crosstab; ct != nil {
 		raw := ct.Normalize == "" || ct.Normalize == types.CrosstabNormalizeNone
-		if ct.Cell != nil && !ct.HasMeasures() && countSemanticAggregations[ct.Cell.Type] && raw {
+		if ct.Cell != nil && !ct.HasMeasures() && isCountSemantic(ct.Cell.Type, inst) && raw {
 			out = append(out,
 				returnKeyPath("data", "[*]", types.AggregationLabelOf(ct.Cell)),
 				returnKeyPath("crosstab", "matrix", "cells", "[*]", "[*]", "value"),
@@ -81,7 +92,7 @@ func returnExactPaths(req *types.Request) []returnplan.Path {
 		if ct.HasMeasures() && raw {
 			allCount := true
 			for _, c := range ct.Cells {
-				if c == nil || !countSemanticAggregations[c.Type] {
+				if c == nil || !isCountSemantic(c.Type, inst) {
 					allCount = false
 					continue
 				}
@@ -97,7 +108,7 @@ func returnExactPaths(req *types.Request) []returnplan.Path {
 			}
 		}
 		for _, m := range ct.MarginAggregations {
-			if m == nil || !countSemanticAggregations[m.Type] {
+			if m == nil || !isCountSemantic(m.Type, inst) {
 				continue
 			}
 			label := types.AggregationLabelOf(m)

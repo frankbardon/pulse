@@ -3,10 +3,15 @@ package pulse_test
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
+	"fmt"
 	"testing"
+
+	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
@@ -33,6 +38,8 @@ const (
 	streamAttrBF types.AttributeType   = "ATTR_ACME_SM_BUF"
 	streamTestOn types.TestType        = "TEST_ACME_SM_SUM_ON"
 	streamTestNo types.TestType        = "TEST_ACME_SM_SUM_OFF"
+	streamFeatOn types.FeatureType     = "FEAT_ACME_SM_DBL_ON"
+	streamFeatNo types.FeatureType     = "FEAT_ACME_SM_DBL_OFF"
 )
 
 // streamabilityExtensions registers one operator per (category,
@@ -81,6 +88,18 @@ func streamabilityExtensions(probe *parityProbe, grp *r6GrouperCalls, calls *e2e
 			{Name: streamTestOn, Tier: pulse.TestTierRow, RowFactory: rowTest, Streamable: true},
 			{Name: streamTestNo, Tier: pulse.TestTierRow, RowFactory: rowTest, Streamable: false},
 		},
+		// A feature's declaration must MATCH its value (probeFeatures
+		// refuses a mismatch at pulse.New), so the streamable feature
+		// carries extend.StreamingFeatureComputer and the buffered one
+		// does not.
+		Features: []pulse.FeatureRegistration{
+			{Name: streamFeatOn, Streamable: true, Factory: func(*types.Feature, *encoding.Schema) (extend.FeatureComputer, error) {
+				return e2eFeatStreaming{e2eFeat{calls}}, nil
+			}},
+			{Name: streamFeatNo, Streamable: false, Factory: func(*types.Feature, *encoding.Schema) (extend.FeatureComputer, error) {
+				return e2eFeat{calls}, nil
+			}},
+		},
 	}
 }
 
@@ -101,6 +120,9 @@ func streamabilityRows() []streamabilityRow {
 	}
 	tests := func(tt types.TestType) []*types.Test {
 		return []*types.Test{{Type: tt, Field: "score", Label: "sum"}}
+	}
+	feats := func(f types.FeatureType) []*types.Feature {
+		return []*types.Feature{{Type: f, Field: "score", Label: "fdbl"}}
 	}
 	return []streamabilityRow{
 		{name: "aggregator_declared_streamable", req: &types.Request{Aggregations: sumOn}, stream: true},
@@ -169,6 +191,22 @@ func streamabilityRows() []streamabilityRow {
 			},
 		},
 		{name: "row_test_declared_buffered", req: &types.Request{Aggregations: sumOn, Tests: tests(streamTestNo)}, stream: false},
+		{
+			name: "feature_declared_streamable", req: &types.Request{Aggregations: sumOn, Features: feats(streamFeatOn)}, stream: true,
+			check: func(t *testing.T, _ *r6GrouperCalls, c *e2eCalls) {
+				if c.emit.Load() == 0 || c.compute.Load() != 0 {
+					t.Errorf("feature: EmitRow=%d Compute=%d, want EmitRow only", c.emit.Load(), c.compute.Load())
+				}
+			},
+		},
+		{
+			name: "feature_declared_buffered", req: &types.Request{Aggregations: sumOn, Features: feats(streamFeatNo)}, stream: false,
+			check: func(t *testing.T, _ *r6GrouperCalls, c *e2eCalls) {
+				if c.compute.Load() == 0 || c.emit.Load() != 0 {
+					t.Errorf("feature: EmitRow=%d Compute=%d, want Compute only", c.emit.Load(), c.compute.Load())
+				}
+			},
+		},
 	}
 }
 
@@ -271,5 +309,62 @@ func TestStreamability_TwoPassCombinationPredictMatchesRuntime(t *testing.T) {
 	}
 	if pr.Streamable != runtime {
 		t.Errorf("PredictResult.Streamable = %v (reasons %v), runtime = %v", pr.Streamable, pr.StreamableReasons, runtime)
+	}
+}
+
+// TestExtensions_FeatureStreamableMismatchRefused pins the two-way
+// feature probe: predict reads FeatureRegistration.Streamable while the
+// runtime adapter follows whether the value implements
+// extend.StreamingFeatureComputer, so a registration whose declaration
+// disagrees with its value is refused at pulse.New in either direction
+// — and a factory that panics, errors or returns nil is a coded
+// refusal, never a crash. The matching pair is the streamability matrix
+// above (feature_declared_streamable / feature_declared_buffered).
+func TestExtensions_FeatureStreamableMismatchRefused(t *testing.T) {
+	calls := &e2eCalls{}
+	streaming := func(*types.Feature, *encoding.Schema) (extend.FeatureComputer, error) {
+		return e2eFeatStreaming{e2eFeat{calls}}, nil
+	}
+	buffered := func(*types.Feature, *encoding.Schema) (extend.FeatureComputer, error) {
+		return e2eFeat{calls}, nil
+	}
+	cases := []struct {
+		name       string
+		reg        pulse.FeatureRegistration
+		code       errors.Code
+		streamable any
+	}{
+		{name: "declared_streamable_buffered_value", reg: pulse.FeatureRegistration{Streamable: true, Factory: buffered},
+			code: errors.PULSE_EXTENSION_STREAMABLE_MISMATCH, streamable: true},
+		{name: "declared_buffered_streaming_value", reg: pulse.FeatureRegistration{Streamable: false, Factory: streaming},
+			code: errors.PULSE_EXTENSION_STREAMABLE_MISMATCH, streamable: false},
+		{name: "factory_panics", reg: pulse.FeatureRegistration{Streamable: true,
+			Factory: func(*types.Feature, *encoding.Schema) (extend.FeatureComputer, error) { panic("boom") }},
+			code: errors.PULSE_EXTENSION_FACTORY_PANIC},
+		{name: "factory_errors", reg: pulse.FeatureRegistration{
+			Factory: func(*types.Feature, *encoding.Schema) (extend.FeatureComputer, error) { return nil, fmt.Errorf("nope") }},
+			code: errors.PULSE_EXTENSION_FACTORY_PANIC},
+		{name: "factory_returns_nil", reg: pulse.FeatureRegistration{
+			Factory: func(*types.Feature, *encoding.Schema) (extend.FeatureComputer, error) { return nil, nil }},
+			code: errors.PULSE_EXTENSION_FACTORY_PANIC},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reg := tc.reg
+			reg.Name = "FEAT_ACME_SM_MISMATCH"
+			_, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: pulse.Extensions{
+				Features: []pulse.FeatureRegistration{reg},
+			}})
+			var ce *errors.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != tc.code {
+				t.Fatalf("pulse.New err = %v, want %s", err, tc.code)
+			}
+			if ce.Details["category"] != "feature" || ce.Details["name"] != "FEAT_ACME_SM_MISMATCH" {
+				t.Errorf("details = %v, want category feature + the registration name", ce.Details)
+			}
+			if tc.streamable != nil && ce.Details["streamable"] != tc.streamable {
+				t.Errorf("details[streamable] = %v, want %v", ce.Details["streamable"], tc.streamable)
+			}
+		})
 	}
 }

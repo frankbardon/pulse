@@ -18,10 +18,9 @@ import (
 // BaseOntology() by pointer.
 //
 // Extension nodes: every visible extension operator (any category,
-// synth distributions and the reserved overlay-kind slot included) is
-// an operator node carrying its Purpose edges (serves_intent, not_for,
-// uses_term); an extension synth distribution also requires
-// capability:synth. Every named table is a table node — Name
+// the reserved overlay-kind slot included) is an operator node carrying
+// its Purpose edges (serves_intent, not_for, uses_term); an extension
+// MAT_* operator also requires capability:matrices. Every named table is a table node — Name
 // `<table kind>/<table name>` (`label/region`, `range/fiscal`,
 // `lookup/rates`), so ID `table:label/region` — the kind prefix keeps a
 // label table and a range table of the same name apart. A label table
@@ -85,7 +84,7 @@ func instanceOntology(ext *ExtensionsSnapshot, inst *InstanceSnapshot) *Ontology
 func extensionOperatorLists(ext *ExtensionsSnapshot) [][]descriptor.OperatorMeta {
 	return [][]descriptor.OperatorMeta{
 		ext.Aggregators, ext.Attributes, ext.Filterers, ext.Groupers, ext.Windows,
-		ext.Features, ext.Tests, ext.SynthDistributions, ext.OverlayKinds, ext.MatrixOps,
+		ext.Features, ext.Tests, ext.OverlayKinds, ext.MatrixOps,
 	}
 }
 
@@ -132,9 +131,6 @@ func extendOntology(base *OntologyGraph, ext *ExtensionsSnapshot) *OntologyGraph
 	// capability.
 	for _, op := range ext.MatrixOps {
 		b.edge(OntologyID(descriptor.OntologyNodeOperator, op.Name), b.featureNode(featMatrices, "extension matrix operator "+op.Name), descriptor.OntologyEdgeRequiresCapability, "extension matrix operator")
-	}
-	for _, d := range ext.SynthDistributions {
-		b.edge(OntologyID(descriptor.OntologyNodeOperator, d.Name), b.featureNode(featSynth, "extension synth distribution "+d.Name), descriptor.OntologyEdgeRequiresCapability, "extension synth distribution")
 	}
 	b.addPurposeEdges(ontologySources{purposes: ext.Purposes})
 	for _, t := range ext.LabelTables {

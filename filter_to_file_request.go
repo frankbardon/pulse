@@ -22,7 +22,12 @@ import (
 // deterministic filter-to-file operation. It deduplicates by
 // `{source-hash}_{predicate-hash}.pulse` so two callers issuing the
 // same filter against the same source land on the same output file
-// and the engine skips redundant work.
+// and the engine skips redundant work. Every registered table the
+// predicate references (a FILTER_DATE_RANGES params.table, a lookup() or
+// ref() table) keys the hash by content, so a same-named table of other
+// content never shares an output; a predicate running embedder code (an
+// extension filterer, an ExprFunction call, a lookup() reaching a
+// function-driven table) is never reused — it re-runs every call.
 //
 // Exactly one of Expression / Filterers must be set. Both empty is an
 // error; both set is rejected so the predicate hash is unambiguous.
@@ -37,9 +42,18 @@ type FilterToFileRequest struct {
 	Expression string `json:"expression,omitempty"`
 
 	// Filterers is the structured-predicate alternative. When set,
-	// the request is translated into the equivalent expression and
-	// passed to the existing FilterToFile engine. Mutually exclusive
-	// with Expression.
+	// FILTER_EXPRESSION / _INCLUDE / _EXCLUDE / _RANGE / _NULL are
+	// translated into the equivalent expression and every other
+	// registered filterer (an extension filterer, FILTER_TRUE /
+	// _FALSE, FILTER_SET_*, FILTER_DATE_RANGES) runs through the engine
+	// registry exactly as Process runs it; a row is kept only when all
+	// of them pass. Zones resolve as Process resolves them — a
+	// zone-capable filterer's `tz`, then its `tz_field`, then TimeZone,
+	// then Options.DefaultTimeZone, then UTC — and the applied zones key
+	// the dedup predicate hash; a `tz` / `tz_field` on an operator that
+	// is not zone-capable (an extension filterer included) is refused
+	// with Process's PROCESSING_CONFIG. Mutually exclusive with
+	// Expression.
 	Filterers []*types.Filterer `json:"filterers,omitempty"`
 
 	// OutputDir is the directory the result file lands in. Required.
@@ -62,13 +76,15 @@ type FilterToFileRequest struct {
 	Models []types.ModelRef `json:"models,omitempty"`
 
 	// TimeZone is the request-level IANA zone (`"UTC"` or an
-	// `Area/Location` name) a to_day() call in the predicate reads —
-	// the Request.TimeZone rule: it wins over Options.DefaultTimeZone,
-	// which wins over UTC. An unknown name is PULSE_TIMEZONE_UNKNOWN,
-	// refused before any read whether or not the predicate calls
-	// to_day. The zone the predicate reads keys the dedup predicate
-	// hash (so the default output name) only when it is non-UTC and the
-	// predicate calls to_day; empty runs and hashes exactly as before.
+	// `Area/Location` name) a to_day() call in the predicate and a
+	// FILTER_DATE_RANGES without its own `tz` / `tz_field` read — the
+	// Request.TimeZone rule: it wins over Options.DefaultTimeZone, which
+	// wins over UTC. An unknown name is PULSE_TIMEZONE_UNKNOWN, refused
+	// before any read whether or not the predicate reads it. The zone
+	// the predicate reads keys the dedup predicate hash (so the default
+	// output name) only when it is non-UTC and the predicate calls
+	// to_day or a FILTER_DATE_RANGES applies it to a `datetime` field;
+	// empty runs and hashes exactly as before.
 	TimeZone string `json:"time_zone,omitempty"`
 }
 
@@ -121,7 +137,7 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 		// refusal Request and FacetRequest give it.
 		return nil, descx.UnknownFieldError([]string{"models"}, filterToFileVisibleKeys(req))
 	}
-	expr, err := req.canonicalExpression(inst)
+	expr, direct, err := req.canonicalPredicate(inst, p.registeredFilterer)
 	if err != nil {
 		return nil, err
 	}
@@ -130,6 +146,16 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 	// when the predicate never reads it.
 	if req.TimeZone != "" {
 		if _, err := p.svc.ZoneLoader()(req.TimeZone); err != nil {
+			return nil, err
+		}
+	}
+	// Structured filterers resolve their zones as Process does, before
+	// any hashing or reuse, so a zone refusal is Process's own; the
+	// applied zones key the output name.
+	var zones []descx.AppliedZone
+	if len(req.Filterers) > 0 {
+		zones, err = p.svc.FilterToFileZones(ctx, req.SourcePath, req.Filterers, req.TimeZone)
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -150,19 +176,29 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 		return nil, fmt.Errorf("filter_to_file: hashing source: %w", err)
 	}
 	// The zone the predicate's to_day() reads (req.TimeZone, else
-	// Options.DefaultTimeZone, else UTC) keys the output too, so a run
-	// in another zone never reuses it.
+	// Options.DefaultTimeZone, else UTC) keys the output too, as do the
+	// zones the filterers apply, so a run in another zone never reuses
+	// it.
 	zone := descx.ExpressionZone(expr, req.TimeZone, p.svc.DefaultTimeZone(), p.svc.ZoneLoader())
-	predHash := req.predicateHash(modelIDs, zone)
+	// Every registered table the predicate references keys the output
+	// by content, so a same-named table registered differently on
+	// another instance never reuses it; a predicate running embedder
+	// code (opaque) is never reused at all.
+	tables, opaque := predicateDependencies(p.svc.Extensions(), expr, direct)
+	predHash := req.predicateHash(modelIDs, zone, zones, tables)
 	outName := req.OutputName
 	if outName == "" {
 		outName = srcHash[:16] + "_" + predHash[:16] + ".pulse"
 	}
 	outPath := filepath.Join(req.OutputDir, outName)
 
-	// Dedup: if the deterministic output exists, return it.
-	if existing, ok := p.tryReuseOutput(outPath); ok {
-		return existing, nil
+	// Dedup: if the deterministic output exists, return it — unless
+	// the predicate runs embedder code, whose identity no hash names:
+	// that run always re-filters and replaces the output atomically.
+	if !opaque {
+		if existing, ok := p.tryReuseOutput(outPath); ok {
+			return existing, nil
+		}
 	}
 
 	// Stage the actual write to a temp path under OutputDir so the
@@ -173,9 +209,11 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 	start := time.Now()
 	var rows int64
 	// A structured predicate is judged by the shared field rule before
-	// its translated expression compiles; req.TimeZone is the zone the
-	// expression's to_day() reads.
-	rows, err = p.svc.FilterToFileFilterers(ctx, req.SourcePath, tempPath, req.Filterers, expr, req.TimeZone)
+	// its translated expression compiles; the filterers it could not
+	// translate (direct) build through the engine's filterer registry,
+	// as Process builds them. req.TimeZone is the zone the expression's
+	// to_day() reads.
+	rows, err = p.svc.FilterToFileFilterers(ctx, req.SourcePath, tempPath, req.Filterers, expr, direct, req.TimeZone)
 	if err != nil {
 		_ = p.fsys.Remove(tempPath)
 		return nil, err
@@ -198,87 +236,103 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 	}, nil
 }
 
-// canonicalExpression returns the FILTER_EXPRESSION-equivalent string
-// for the request. Filterers are translated by joining each entry's
-// equivalent expression with " && " so the structured-predicate path
-// produces the same hash that an explicit Expression with the same
-// semantics would.
+// canonicalPredicate splits the request predicate into the
+// FILTER_EXPRESSION-equivalent string and the filterers that run
+// direct. Translatable filterers (see filtererToExpression) are joined
+// with " && " so the structured-predicate path produces the same
+// expression an explicit Expression with the same semantics would.
+// Every other filterer the instance has registered — an extension
+// filterer, FILTER_TRUE / FILTER_FALSE, the FILTER_SET_* family — is
+// returned in direct, in request order, and builds through the engine
+// filterer registry exactly as Process builds it (FILTER_DATE_RANGES
+// included, zoned as Process zones it); the run keeps a row only when
+// the expression (if any) and every direct filterer pass. No `tz` /
+// `tz_field` is judged here: Service.FilterToFileZones runs Process's
+// zone resolution over the request filterers right after.
 //
 // inst is the instance feature set: a filterer type it hides is
-// translated exactly as an unknown type is (see filtererToExpression).
-func (r *FilterToFileRequest) canonicalExpression(inst *descx.InstanceSnapshot) (string, error) {
+// refused exactly as an unknown type is (see filtererToExpression).
+// registered reports whether the instance can build a filterer type
+// (its hidden types excluded).
+func (r *FilterToFileRequest) canonicalPredicate(inst *descx.InstanceSnapshot, registered func(types.FiltererType) bool) (string, []*types.Filterer, error) {
 	hasExpr := r.Expression != ""
 	hasFilts := len(r.Filterers) > 0
 	if hasExpr && hasFilts {
-		return "", errors.New("filter_to_file: Expression and Filterers are mutually exclusive")
+		return "", nil, errors.New("filter_to_file: Expression and Filterers are mutually exclusive")
 	}
 	if !hasExpr && !hasFilts {
-		return "", errors.New("filter_to_file: predicate required (Expression or Filterers)")
+		return "", nil, errors.New("filter_to_file: predicate required (Expression or Filterers)")
 	}
 	if hasExpr {
-		return r.Expression, nil
+		return r.Expression, nil, nil
 	}
 	parts := make([]string, 0, len(r.Filterers))
+	var direct []*types.Filterer
 	for _, f := range r.Filterers {
-		s, err := filtererToExpression(f, inst)
+		s, isDirect, err := filtererToExpression(f, inst, registered)
 		if err != nil {
-			return "", err
+			return "", nil, err
+		}
+		if isDirect {
+			direct = append(direct, f)
+			continue
 		}
 		parts = append(parts, s)
 	}
-	if len(parts) == 1 {
-		return parts[0], nil
+	switch len(parts) {
+	case 0:
+		return "", direct, nil
+	case 1:
+		return parts[0], direct, nil
 	}
 	out := "(" + parts[0] + ")"
 	for _, p := range parts[1:] {
 		out += " && (" + p + ")"
 	}
-	return out, nil
+	return out, direct, nil
+}
+
+// registeredFilterer reports whether the instance builds filterer type
+// t: a built-in or an extension filterer its feature profile does not
+// hide (the registry lookup Process uses).
+func (p *Pulse) registeredFilterer(t types.FiltererType) bool {
+	_, ok := p.svc.Extensions().LookupFilterer(t)
+	return ok
 }
 
 // filtererToExpression translates a single Filterer into the equivalent
 // expr-lang predicate string. Covers FILTER_EXPRESSION (pass-through),
 // FILTER_INCLUDE / FILTER_EXCLUDE (in / not in list), FILTER_RANGE
-// (closed interval), and FILTER_NULL (is_null / is_not_null). A type
-// inst hides falls through to the unsupported-type refusal, the same
-// one a never-registered type gets, after the same `tz` / `tz_field`
-// checks.
-func filtererToExpression(f *types.Filterer, inst *descx.InstanceSnapshot) (string, error) {
+// (closed interval), and FILTER_NULL (is_null / is_not_null). Any other
+// type registered reports (an extension filterer, FILTER_TRUE /
+// FILTER_FALSE, FILTER_SET_*, FILTER_DATE_RANGES) is not translated:
+// direct is true and the filterer runs through the engine registry. A
+// type inst hides, or one never registered, falls through to the
+// unsupported-type refusal. A `tz` / `tz_field` is not judged here —
+// the zone resolver refuses it on every type but a zone-capable one,
+// with Process's code, message and details (Service.FilterToFileZones).
+func filtererToExpression(f *types.Filterer, inst *descx.InstanceSnapshot, registered func(types.FiltererType) bool) (expr string, direct bool, err error) {
 	if f == nil {
-		return "", errors.New("filter_to_file: nil filterer")
-	}
-	if f.TimeZone != "" {
-		// None of the translatable filterers is zone-capable, so a `tz`
-		// here would be silently dropped — refuse it like the request
-		// resolver refuses `tz` on a non-zone-capable operator.
-		return "", perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG,
-			fmt.Sprintf("filter_to_file: operator %s does not accept `tz`", f.Type),
-			map[string]any{"operator": string(f.Type), perr.DetailTimeZone: f.TimeZone})
-	}
-	if f.TimeZoneField != "" {
-		// Likewise a per-row zone field.
-		return "", perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG,
-			fmt.Sprintf("filter_to_file: operator %s does not accept `tz_field`", f.Type),
-			map[string]any{"operator": string(f.Type), "tz_field": f.TimeZoneField})
+		return "", false, errors.New("filter_to_file: nil filterer")
 	}
 	if inst.Hidden(string(f.Type)) {
-		return "", unsupportedFilterType(f.Type)
+		return "", false, unsupportedFilterType(f.Type)
 	}
 	switch f.Type {
 	case types.FILTER_EXPRESSION:
 		if f.Expression == "" {
-			return "", errors.New("filter_to_file: FILTER_EXPRESSION requires Expression")
+			return "", false, errors.New("filter_to_file: FILTER_EXPRESSION requires Expression")
 		}
-		return f.Expression, nil
+		return f.Expression, false, nil
 	case types.FILTER_INCLUDE:
-		return inListExpr(f.Field, f.Values, false), nil
+		return inListExpr(f.Field, f.Values, false), false, nil
 	case types.FILTER_EXCLUDE:
-		return inListExpr(f.Field, f.Values, true), nil
+		return inListExpr(f.Field, f.Values, true), false, nil
 	case types.FILTER_RANGE:
 		if len(f.Values) != 2 {
-			return "", errors.New("filter_to_file: FILTER_RANGE requires exactly two Values")
+			return "", false, errors.New("filter_to_file: FILTER_RANGE requires exactly two Values")
 		}
-		return fmt.Sprintf("%s >= %s && %s <= %s", f.Field, f.Values[0], f.Field, f.Values[1]), nil
+		return fmt.Sprintf("%s >= %s && %s <= %s", f.Field, f.Values[0], f.Field, f.Values[1]), false, nil
 	case types.FILTER_NULL:
 		mode := "is_null"
 		if len(f.Values) > 0 {
@@ -286,22 +340,24 @@ func filtererToExpression(f *types.Filterer, inst *descx.InstanceSnapshot) (stri
 		}
 		switch mode {
 		case "is_null":
-			return f.Field + " == nil", nil
+			return f.Field + " == nil", false, nil
 		case "is_not_null":
-			return f.Field + " != nil", nil
+			return f.Field + " != nil", false, nil
 		default:
-			return "", fmt.Errorf("filter_to_file: FILTER_NULL mode %q not supported (expected is_null / is_not_null)", mode)
+			return "", false, fmt.Errorf("filter_to_file: FILTER_NULL mode %q not supported (expected is_null / is_not_null)", mode)
 		}
 	}
-	return "", unsupportedFilterType(f.Type)
+	if !registered(f.Type) {
+		return "", false, unsupportedFilterType(f.Type)
+	}
+	return "", true, nil
 }
 
-// unsupportedFilterType is the one refusal filtererToExpression gives a
-// type it cannot translate — never-registered, hidden, and registered
-// but untranslatable (FILTER_DATE_RANGES, an extension filterer) alike:
+// unsupportedFilterType is the refusal filtererToExpression gives a
+// type the instance cannot build — never-registered and hidden alike:
 // PROCESSING_CONFIG naming the operator, so an envelope carries the
 // code rather than an uncoded placeholder. The message lists no
-// translatable types: a hidden one must read as never-registered.
+// supported types: a hidden one must read as never-registered.
 func unsupportedFilterType(t types.FiltererType) error {
 	return perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG,
 		fmt.Sprintf("filter_to_file: unsupported filter type %q", t),
@@ -374,18 +430,29 @@ func filterToFileVisibleKeys(req *FilterToFileRequest) []string {
 // a model-free request hashes exactly as it always has, and a changed
 // model file changes the hash. zone (descx.ExpressionZone: the non-UTC
 // zone the predicate's to_day() reads, else "") joins the same way, so
-// a predicate that reads no zone hashes as it always has.
-func (r *FilterToFileRequest) predicateHash(models []modelIdentity, zone string) string {
+// a predicate that reads no zone hashes as it always has; so does zones
+// (descx.AppliedZones: the zones the filterers apply — a non-UTC name
+// or a per-row zone field on a `datetime` field), which Filterers alone
+// would not cover, since an inherited zone is not spelled there. tables
+// (predicateDependencies: the content digests of the registered tables
+// the predicate references) join the same way, so a predicate naming no
+// table hashes as it always has and a same-named table of other content
+// never shares an output.
+func (r *FilterToFileRequest) predicateHash(models []modelIdentity, zone string, zones []descx.AppliedZone, tables []tableIdentity) string {
 	payload := struct {
-		Expression string            `json:"expression,omitempty"`
-		Filterers  []*types.Filterer `json:"filterers,omitempty"`
-		Models     []modelIdentity   `json:"models,omitempty"`
-		Zone       string            `json:"zone,omitempty"`
+		Expression string              `json:"expression,omitempty"`
+		Filterers  []*types.Filterer   `json:"filterers,omitempty"`
+		Models     []modelIdentity     `json:"models,omitempty"`
+		Zone       string              `json:"zone,omitempty"`
+		Zones      []descx.AppliedZone `json:"zones,omitempty"`
+		Tables     []tableIdentity     `json:"tables,omitempty"`
 	}{
 		Expression: r.Expression,
 		Filterers:  r.Filterers,
 		Models:     models,
 		Zone:       zone,
+		Zones:      zones,
+		Tables:     tables,
 	}
 	return types.CanonicalHash("filter_predicate", payload)
 }

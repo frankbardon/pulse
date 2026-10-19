@@ -44,9 +44,8 @@ func TestExtensions_Predict_AcceptsCustomFeatureType(t *testing.T) {
 		FS: fs,
 		Extensions: pulse.Extensions{
 			Features: []pulse.FeatureRegistration{{
-				Name:       "FEAT_ACME_DOUBLE",
-				Factory:    stubFeatureFactory,
-				Streamable: true,
+				Name:    "FEAT_ACME_DOUBLE",
+				Factory: stubFeatureFactory,
 			}},
 		},
 	})

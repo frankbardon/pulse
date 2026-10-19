@@ -32,7 +32,7 @@ func validateOverlayMatrixResult(env *descriptor.Envelope, req *types.Request, s
 
 // ChainStageOverlayRefusal refuses the first ProcessChain stage whose
 // own Request.Overlays carries a spec its stage cannot run, located by
-// details.stage. Predict (ValidateChain) and the chain runtime
+// details.stage. Predict (ValidateChainWithOptions) and the chain runtime
 // (service.processChain) both run it after the stages' models, before
 // the cohort opens, so both refuse with one code, message and details
 // (predict-chain used to judge none of a stage's own overlays). Per

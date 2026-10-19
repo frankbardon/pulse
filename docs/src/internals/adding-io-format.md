@@ -166,12 +166,19 @@ a row the next `ReadRows` would emit, and the header names must
 correspond position-for-position to the cells of every row.
 
 A keyed format whose column set is the first record's keys (NDJSON,
-JSON array) should also implement the optional `iocore.LateKeyRefuser`
-(`RefuseLateKeys(on bool)`, kept across `Reset`): the resolver arms it
-when extra columns are not ignored, and the reader then fails `ReadRows`
-with `PULSE_IMPORT_SCHEMA_KEY_LATE` (`column`, `row`, `columns`) at the
-first record carrying a key the header lacks, instead of dropping it.
-`jsonshared.LateKeys` holds the shared state and refusal.
+JSON array) should also implement the optional `io.LateKeyRefuser`
+(public alias of `iocore.LateKeyRefuser`; `RefuseLateKeys(on bool)`,
+kept across `Reset`). The explicit-schema resolver — `ImportJob` and
+`ConvertJob`, `Run` and `Predict` alike — calls `RefuseLateKeys(true)`
+when extra columns are not ignored and `RefuseLateKeys(false)` under
+`IgnoreExtra`; an inferred import never calls it. Armed, the reader
+fails `ReadRows` with a `*errors.CodedError` of code
+`PULSE_IMPORT_SCHEMA_KEY_LATE` (details `column`, `row` 1-based,
+`columns` = the header) at the first record carrying a key the header
+lacks, instead of dropping it. Built-in adapters share
+`jsonshared.LateKeys` for the state and the refusal; a reader outside the
+library implements the interface against the public `io` and `errors`
+packages (`io/late_key_refuser_test.go` is a worked example).
 
 A format whose cells can hold NATIVE lists (Arrow, Parquet, JSON) should
 implement the optional `iocore.ListAwareReader`

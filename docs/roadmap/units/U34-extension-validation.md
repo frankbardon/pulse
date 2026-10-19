@@ -3,12 +3,12 @@ id: U34
 slug: extension-validation
 title: "Extension registrations are validated as strictly as built-ins, and chain predict knows them"
 track: API & release
-size: S
-status: not-started
+size: M
+status: done
 depends_on: [U02b]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [194, 195, 196, 197, 216, 231, 374, 409, 451, 458, 459]
+todo_items: [194, 195, 196, 197, 216, 230, 374, 409, 451, 459]
 branch: extension-validation
 ---
 
@@ -20,125 +20,62 @@ branch: extension-validation
 
 ## Summary
 
-[U02b](U02b-extension-contract.md) landed the `extend` contract with four deliberate gaps, each recorded in its Landed deviations. None changes a result today, but each lets an embedder mistake surface late or not at all. This unit closes them: chain predict gets a production entry point that sees extensions, an operator's own `Components()` keys are checked against its `ComponentSchema` at `pulse.New`, `FeatureRegistration.Streamable` is probe-validated like the other categories, and the synth-distribution registration gets a real `extend` factory shape or is explicitly retired as an extension category.
+[U02b](U02b-extension-contract.md) landed the `extend` contract with deliberate gaps, each recorded in its Landed deviations. This unit closed them so an embedder mistake surfaces at `pulse.New` instead of late or never: an operator's own `Components()` keys and a feature's `Streamable` are probe-validated, extension aggregators declare `CountSemantic` and `ValueState`, chain predict is proven equal to runtime admission, `io.LateKeyRefuser` is public, `extend.Record` reads exact `u64` words, and the never-functional synth-distribution slot is retired. The remaining gaps are stated as deliberate v1 decisions in one place.
 
 Numbering note: the unit is U34 because U33 (v1-release) was already allocated; it is appended rather than renumbered, and [U32](U32-docs-audit.md) lists it as a dependency so the docs audit covers the final extension surface.
 
 ## References
 
-**Theme documents (read before starting):**
-- [U02b extension-contract](U02b-extension-contract.md) — Landed deviations (Limits, `Components()` self-emission, streamability)
-- [api-and-release 00 — Public Go surface](../v1.0.0-api-and-release/00-public-surface.md) — Deliverables, landed deviations
-- `docs/src/internals/extension-points.md` — Limits of extension operators
-- `.claude/reference/synthetic-data.md` — load before touching any `synth/` surface (item #197)
+- [U02b extension-contract](U02b-extension-contract.md) (Landed deviations, struck where closed)
+- [api-and-release 03 — Changes from U34](../v1.0.0-api-and-release/03-embedder-migration.md#changes-from-u34-extension-validation) (every break and addition; the release-note source)
+- `docs/src/internals/extension-points.md` ("Deliberate v1 gaps")
 
-**TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
+**TODO items delivered** (all ticked in [`TODO.md`](../TODO.md)): **#194** (chain predict sees extensions), **#195** (self-emitted `Components()` keys), **#196** (feature `Streamable`), **#197** (synth-distribution slot retired), **#216** (`CountSemantic`), **#230** (`ValueState`), **#374** (`io.LateKeyRefuser`), **#409** and **#451** (done earlier in U25 / U29), **#459** (exact `u64`).
 
-- [ ] **#194** (1. API surface & release pipeline › Public Go surface › Extension hardening) Chain predict has a production caller that passes the `ExtensionsSnapshot`: `internal/descriptor.ValidateChain` / `ValidateChainWithExtensions` (which admit Mergeable extension aggregators and groupers and `row_local` extension attributes) are reachable from a facade, CLI or MCP chain-predict entry point, not only from tests
-- [ ] **#195** (1. API surface & release pipeline › Public Go surface › Extension hardening) An operator's own `Components()` keys are probe-validated against its `ComponentSchema` at `pulse.New` when no `ComponentsFunc` is registered (the `ComponentsFunc` path already fails `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH`); the self-emission behaviour itself is kept
-- [ ] **#196** (1. API surface & release pipeline › Public Go surface › Extension hardening) `FeatureRegistration.Streamable` is probe-validated at `pulse.New` against whether the factory's value implements `extend.StreamingFeatureComputer`, matching the other categories' `PULSE_EXTENSION_STREAMABLE_MISMATCH`
-- [ ] **#216** (1. API surface & release pipeline › Public Go surface › Extension hardening) Extension aggregators declare whether their output is a count, so `return.precision` can write it exact
-- [ ] **#197** (1. API surface & release pipeline › Public Go surface › Extension hardening) Synth-distribution extension contract: an `extend` factory shape for authoring a distribution (today the registration only reserves the namespace), or a documented decision that distributions are not an extension category
+## Shipped
 
-## Scope
+Planned epics:
 
-**In scope**
-- A chain-predict entry point (facade method; CLI and MCP reach it through the facade) that threads the `ExtensionsSnapshot` into `ValidateChainWithExtensions`; a parity test against runtime `ProcessChain` admission for extension operators
-- Probe validation of self-emitted `Components()` keys and of feature `Streamable`, with `codeMetadata` for any new code
-- Synth-distribution extension shape (#197): the design decision first, then either the factory shape with probe validation and a profile/spec round trip, or retirement of the slot
+- **E1 — An embedder's mistake is refused at `pulse.New`.** S1 probe-validates self-emitted `Components()` keys (#195); S2 probes feature `Streamable` two-way (#196); S3 adds `AggregatorRegistration.CountSemantic` (#216) and `ValueState` (#230).
+- **E2 — Chain predict, io and Record say exactly what the runtime does.** S1: `PredictChain` ≡ `ProcessChain` parity test for every extension operator, and the test-only `ValidateChain*` wrappers deleted (#194); S2: public `io.LateKeyRefuser` (#374); S3: `extend.Record.Uint64Value`, the exact word carried on every decode path (#459).
+- **E3 — The contract is final and the roadmap is closed out.** S1 retires the synth-distribution slot (#197); S2 is the contract pass (a "Deliberate v1 gaps" section in `extension-points.md`); S3 is this roadmap upkeep.
 
-**Out of scope**
-- New extension categories other than the synth-distribution decision
-- Removing `Components()` self-emission (kept deliberately)
-- Per-group aggregator Components (owned by [U17](U17-response-shaping-core.md))
+In-effort scope additions (owner decision, 2026-10-19), recorded here because they were not in the original plan:
 
-## Epics & stories
+- In-group fix `a2e9589b`: a nil operator `Factory` is refused uniformly at validation (`PULSE_EXTENSION_PARAM_INVALID`, reason `missing_factory`).
+- E3-S4 `ed1f25bb`: `FilterToFile` runs extension filterers and `FILTER_TRUE` / `FILTER_FALSE` / `FILTER_SET_*`.
+- E3-S5 `b255c083`: `FilterToFile` runs `FILTER_DATE_RANGES` zoned exactly as `Process` does.
+- E3-S6 `f31dda67`: the `FilterToFile` dedup hash keys on the content of every referenced table and never reuses an output for a predicate that carries embedder code.
 
-Each epic is a vertical slice. Commit with `feat|fix|perf|test|docs(extension-validation/E<n>-S<m>): …`; close each epic with `milestone(extension-validation/E<n>): vertical slice complete — <epic title>`.
+## Decisions
 
-### E1 — Registrations are validated as strictly as built-ins
-- S1: probe-validate self-emitted `Components()` keys; probe-validate feature `Streamable`
-- S2: chain-predict entry point passing the extension snapshot, with a runtime parity test
-
-### E2 — Synth distributions are authorable
-- S1: decide the contract (load `synthetic-data.md` first); implement the `extend` factory shape or retire the slot
-- S2: skills, `extension-points.md`, manifest `extensions` block
+- **#197: retired, not built.** The slot's `Factory` was never read; `Extensions.SynthDistributions`, `pulse.DistributionRegistration`, `descriptor.ExtensionsManifest.SynthDistributions` and the manifest key `extensions.synth_distributions` are removed and `SYNTH` is no longer an extension category. `format_version` stays `"1.1"` (owner decision: the key always listed `[]`). A distribution authoring contract may arrive additively in v1.x.
+- **#459: built.** The exact `u64` word rides every decode path rather than documenting the float64 echo as final.
+- **New checks are hard refusals** at `pulse.New` and `CheckFeatureProfile`; there is no warn-first tier.
+- **Deliberate v1 gaps** (documented in `extension-points.md`): named tables (`LookupTables`, `ReferenceVectors`, `LabelTables`, `RangeTables`) are not features, so no profile hides them and they sit outside `feature_set_digest`; an extension test's `Interpretation` is checked for structure only; extension operators are not zone-capable and `extend.Zone` is not public; `CountSemantic` has no numeric probe; `ValueState` is a flag, not a byte figure; `BlockMerger` is not reachable through `extend`.
+- **Split out of this unit:** #231 (operation panic recovery) became [U56](U56-operation-panic-recovery.md); #458 (exact `u64` join `ON` key) moved to [U51](U51-archive-scale.md).
 
 ## Acceptance criteria
 
-- [ ] No `ValidateChain*` function is reachable only from tests
-- [ ] Chain predict and runtime `ProcessChain` agree on every extension operator admitted or refused
-- [ ] A `Components()` key outside the registration's `ComponentSchema` fails at `pulse.New`
-- [ ] A feature registration whose `Streamable` disagrees with its factory's value fails at `pulse.New`
-- [ ] The synth-distribution slot either authors a distribution end to end or is documented as not an extension category
-- [ ] `format_version` stays `"1.1"`
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
-
-## Gates & tests
-
-- `TestExtensions_*` suite extended to the new probes
-- Chain-predict vs runtime parity test
-- `TestSkillsCoverAllSynthDistributions` if #197 adds a distribution surface
-
-## Update Demand companions
-
-- `docs/src/internals/extension-points.md`; the `adding-*` recipes affected
-- CLAUDE.md "Extension Points" (probe-validation bullet)
-- `errors/fixup_metadata.go` for any new code; `skills/synthetic-data.md`, `skills/synth-models.md` and `.claude/reference/synthetic-data.md` if #197 changes `synth/`
-- [U02b](U02b-extension-contract.md) Landed deviations: strike the items this unit closes
-
-## Handed on from U25
-
-| Item | Source |
-|---|---|
-| ~~Extension-test vector validation~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #409 |
+- [x] No `ValidateChain*` function is reachable only from tests (the wrappers are deleted; `PredictChain` is the production caller)
+- [x] Chain predict and runtime `ProcessChain` agree on every extension operator admitted or refused
+- [x] A `Components()` key outside the registration's `ComponentSchema` fails at `pulse.New`
+- [x] A feature registration whose `Streamable` disagrees with its factory's value fails at `pulse.New`
+- [x] The synth-distribution slot is documented as not an extension category
+- [x] `format_version` stays `"1.1"`
+- [x] Unit Definition of Done met
 
 ## Human inputs & decisions
 
-- **Open:** whether synth distributions become an extension category (#197) or the slot is retired. Decide in E2-S1.
-- **Open:** whether a feature profile can hide `LookupTables` (inherited from U05, below) and `ReferenceVectors` (the named-table kind U27 added; like `LookupTables` it always resolves today, even with `capability:matrices` hidden, and is not part of `feature_set_digest`).
+- **Decided:** synth distributions are not an extension category (#197 retired).
+- **Decided:** a feature profile cannot hide `LookupTables` or `ReferenceVectors` in v1 (deliberate gap, not a TODO item).
+- **Decided:** extension test `Interpretation` stays structure-checked only; extension operators stay not zone-capable.
 
-## Inherited from U05
+## Handed on
 
-- **`LookupTables` have no gating capability** (decision, not a TODO item). They always resolve, even when `capability:labels` and `capability:range_tables` are hidden. Decide whether a profile can hide them (`.claude/reference/feature-profiles.md`, load first). They are expression-function data registered through `Options.Extensions`, not a named-table capability today.
-
-## Inherited from U07
-
-- **Extension test `Interpretation` is checked for structure only.** `pulse.New` validates it with the built-in validators, but nothing probes the declared output keys, while built-ins get two-way runtime probes (`TestInterpretationFieldsHoldAtRuntime`). Decide in E1-S1 whether to probe them the way #195 probes `Components()` keys. If not, record that the gap is deliberate in `docs/src/internals/extension-points.md` (Purpose and Interpretation).
-
-## Inherited from U14
-
-- **Extension zone capability.** Extension operators are never zone-capable (`internal/descriptor/capabilities_zone.go`; an explicit `tz` on one is `PROCESSING_CONFIG`). Decide whether registrations gain a zone declaration (`zone: capable|following`) and which `internal/temporal` helpers (`LoadZone`, `LocalDay`, `LocalParts`, `LocalMidnightUTC`, `Zone.Fork`) become a public, frozen surface in `extend` — `Zone` is still internal.
-- `convert --tz`, SPSS local wall-clock export and `--json` local-offset labels are not extension work; they are tracked in [time-zones 00](../v1.0.0-time-zones/00-design.md) (Follow-ups after U14).
-
-## Inherited from U17
-
-- **Extension count semantics** (#216). `return.precision` writes a built-in count aggregation's `data` column and count crosstab cells exact (`countSemanticAggregations`, `internal/descriptor/return_precision.go`), but an extension aggregator is never count-semantic: its figures round like measures. Add an optional declaration on the aggregator registration (and its `extend` factory), probe-validated at `pulse.New` like the other declared flags, and have `countSemanticAggregations` read it. Companions: `docs/src/internals/extension-points.md`, `.claude/reference/update-demand.md` (`Request.Return` row).
-
-## Inherited from U19
-
-- **Extension aggregator state in the memory model** (#230). U19's `MaxEstimatedMemory` estimate prices built-in aggregator state per arm; an `extend` aggregator with unbounded state (distinct sets, sketches) is not modelled, so an opted-in ceiling can under-estimate it. Add an optional per-registration state-size declaration (probe-validated at `pulse.New` like the other declared flags) and have the estimator read it. Companions: `docs/src/internals/extension-points.md`, the Tuning limits page.
-
-## Inherited from U20
-
-- **Operation panic recovery** (#231). U20's hooks are panic-safe (a panicking hook is recovered and counted in `pulse_hook_panics_total`), but a panic raised INSIDE an operation, most plausibly a faulty `extend` operator or expr function, still unwinds through the facade and crashes the host. Recover at the instrumented facade boundary (`observeOn`), turn it into a coded error (a new `PROCESSING_*` or `SERVICE_*` code with `codeMetadata` + owner), end the observed operation with that code so logs, hooks and metrics report it, and keep the off path allocation-identical. Decide first whether the engine's own panics (not just extensions') are recovered or left to crash. Companions: `.claude/reference/observability.md`, `docs/src/library/observability.md`, `docs/src/internals/extension-points.md`, the error-code row in the Update Demand table.
-
-## Inherited from U41
-
-Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
-
-- [ ] **#374** — `LateKeyRefuser` on the public `io` facade, so an embedder's keyed reader can arm the late-key refusal (`PULSE_IMPORT_SCHEMA_KEY_LATE`) like the built-in NDJSON and JSON-array readers. Found in U41 (E1-S1).
-- [x] **#409** (10. Vector & matrix — operators › Follow-ups from U25) Extension statistical tests that take a vector (`vector` / `fields`) are not validated: `ResolveTests` skips non-built-in types, so a bad member list reaches the runtime. Validate extension test vectors as built-ins'
-
-## Inherited from U29
-
-Filed from [U29 handed on](U29-vector-field-types.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
-
-- [x] **#451** — Expose the per-output-column export plan (`iocore.ExportColumn` / `ColumnAwareWriter`) on the public `io` facade, so an embedder's export writer learns which field types each output column. Today it receives the source schema and must type by column name (`docs/src/internals/adding-io-format.md`). Found in U29 (E3-G2). Done in U29 before release: `io.ColumnAwareWriter`, `io.ExportColumn`, `io.ExportColumnKind` + its four constants and `io.ColumnFields` (contract: `adding-io-format.md`, "Typing columns on export").
-
-## Handed on from U35
-
-Filed from [U35](U35-predict-runtime-parity.md); tick in [`TODO.md`](../TODO.md) when done.
-
-- [ ] **#458** A join `ON` key over a `u64` field above 2^53 still matches on its float64 echo (`encoding/join_keys.go` documents it): two distinct large keys can collide. Give the join key an exact `u64` path, or refuse such a key. #427 fixed the attribute keys only. Found in U35 (E1-S2)
-- [ ] **#459** The map-decoder fallback `Record`s (stream, `shard_iter`, parallel-decode projection without a plan, lookup, `filter_to_file`) carry no exact `u64` word, so a `u64` above 2^53 reaches an extension through its float64 echo (the keyed attribute paths of #427 are unaffected). Decide: carry the word, or document the `extend.Record` float64 contract as final. Found in U35 (E1-S2)
+| Item | To | Why |
+|---|---|---|
+| #231 Operation panic recovery at the facade | [U56](U56-operation-panic-recovery.md) | not extension validation; blocks U32 |
+| #458 join `ON` key over `u64` > 2^53 matches on its float64 echo | [U51](U51-archive-scale.md) | join-key and archive-scale work, not extension validation |
+| Extension `weight_kinds`, `BlockMerger` through `extend`, a public `extend.Zone` | v1.x backlog (no unit) | additive, on demand |
+| Distribution authoring contract for synth | v1.x backlog (no unit) | additive; slot retired in v1 |
