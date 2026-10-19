@@ -22,7 +22,12 @@ import (
 // deterministic filter-to-file operation. It deduplicates by
 // `{source-hash}_{predicate-hash}.pulse` so two callers issuing the
 // same filter against the same source land on the same output file
-// and the engine skips redundant work.
+// and the engine skips redundant work. Every registered table the
+// predicate references (a FILTER_DATE_RANGES params.table, a lookup() or
+// ref() table) keys the hash by content, so a same-named table of other
+// content never shares an output; a predicate running embedder code (an
+// extension filterer, an ExprFunction call, a lookup() reaching a
+// function-driven table) is never reused — it re-runs every call.
 //
 // Exactly one of Expression / Filterers must be set. Both empty is an
 // error; both set is rejected so the predicate hash is unambiguous.
@@ -175,16 +180,25 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 	// zones the filterers apply, so a run in another zone never reuses
 	// it.
 	zone := descx.ExpressionZone(expr, req.TimeZone, p.svc.DefaultTimeZone(), p.svc.ZoneLoader())
-	predHash := req.predicateHash(modelIDs, zone, zones)
+	// Every registered table the predicate references keys the output
+	// by content, so a same-named table registered differently on
+	// another instance never reuses it; a predicate running embedder
+	// code (opaque) is never reused at all.
+	tables, opaque := predicateDependencies(p.svc.Extensions(), expr, direct)
+	predHash := req.predicateHash(modelIDs, zone, zones, tables)
 	outName := req.OutputName
 	if outName == "" {
 		outName = srcHash[:16] + "_" + predHash[:16] + ".pulse"
 	}
 	outPath := filepath.Join(req.OutputDir, outName)
 
-	// Dedup: if the deterministic output exists, return it.
-	if existing, ok := p.tryReuseOutput(outPath); ok {
-		return existing, nil
+	// Dedup: if the deterministic output exists, return it — unless
+	// the predicate runs embedder code, whose identity no hash names:
+	// that run always re-filters and replaces the output atomically.
+	if !opaque {
+		if existing, ok := p.tryReuseOutput(outPath); ok {
+			return existing, nil
+		}
 	}
 
 	// Stage the actual write to a temp path under OutputDir so the
@@ -419,20 +433,26 @@ func filterToFileVisibleKeys(req *FilterToFileRequest) []string {
 // a predicate that reads no zone hashes as it always has; so does zones
 // (descx.AppliedZones: the zones the filterers apply — a non-UTC name
 // or a per-row zone field on a `datetime` field), which Filterers alone
-// would not cover, since an inherited zone is not spelled there.
-func (r *FilterToFileRequest) predicateHash(models []modelIdentity, zone string, zones []descx.AppliedZone) string {
+// would not cover, since an inherited zone is not spelled there. tables
+// (predicateDependencies: the content digests of the registered tables
+// the predicate references) join the same way, so a predicate naming no
+// table hashes as it always has and a same-named table of other content
+// never shares an output.
+func (r *FilterToFileRequest) predicateHash(models []modelIdentity, zone string, zones []descx.AppliedZone, tables []tableIdentity) string {
 	payload := struct {
 		Expression string              `json:"expression,omitempty"`
 		Filterers  []*types.Filterer   `json:"filterers,omitempty"`
 		Models     []modelIdentity     `json:"models,omitempty"`
 		Zone       string              `json:"zone,omitempty"`
 		Zones      []descx.AppliedZone `json:"zones,omitempty"`
+		Tables     []tableIdentity     `json:"tables,omitempty"`
 	}{
 		Expression: r.Expression,
 		Filterers:  r.Filterers,
 		Models:     models,
 		Zone:       zone,
 		Zones:      zones,
+		Tables:     tables,
 	}
 	return types.CanonicalHash("filter_predicate", payload)
 }

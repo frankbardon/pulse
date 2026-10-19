@@ -12,7 +12,9 @@ applies a predicate, and writes the surviving records to a new
 2. **Atomic write** — the engine never leaves a partially-written
    `.pulse` file at the target path.
 3. **Pre-existence dedup** — if the deterministic output already
-   exists, the engine returns it without re-running the filter.
+   exists, the engine returns it without re-running the filter
+   (never for a predicate running embedder code — see
+   [Registered tables and embedder code](#registered-tables-and-embedder-code)).
 
 ## Shape
 
@@ -190,6 +192,40 @@ When `OutputName` is empty, the basename is computed as:
   slot, so a request differing only in resolved zone never reuses
   another's output. A predicate that reads no zone, or reads UTC, or
   reads a `date` field (no zone applies), hashes as it always has.
+- Every registered table the predicate references joins the payload
+  as a content digest — see below.
+
+### Registered tables and embedder code
+
+A table registered on the instance is read by name, but two instances
+may register the same name with different content. So the predicate
+hash keys on the **content** of every table the predicate references:
+
+- a `RangeTables` entry named by a `FILTER_DATE_RANGES` `params.table`;
+- a `LookupTables` entry named by a `lookup("name", ...)` call;
+- a `ReferenceVectors` entry named by a `ref("name", ...)` call.
+
+Each joins as `{kind, name, sha256}`, the SHA-256 of a canonical
+encoding of its rows (sorted keys, exact float bits — map order never
+moves it). Two instances with a same-named table of different content
+land on different outputs; identical content still reuses. Only
+referenced tables join, so registering another table never moves the
+hash, and a predicate that references no table hashes as it always
+has. A `lookup()` / `ref()` whose table argument is not a string
+literal may read any table of its kind, so every registered one of
+that kind joins.
+
+A predicate that runs **embedder code** has no identity a hash can
+name — the same name can carry different code on another instance —
+so its output is **never reused**: it re-runs on every call and
+atomically replaces the file at the deterministic path (`Reused` is
+always `false`). That is a predicate with an extension filterer
+(`Extensions.Filterers`), a call of a registered
+`Extensions.ExprFunctions` function, or a `lookup()` reaching a
+function-driven table (`LookupTable.Lookup`). Use a `Rows` table
+instead of a `Lookup` function when you want reuse.
+
+`LabelTables` are output-time only and never read by a predicate.
 
 Independent consumers building the same request reach the same path
 without coordination. Combined with a `Watch` on `OutputDir`, this is

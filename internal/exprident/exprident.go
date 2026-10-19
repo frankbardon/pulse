@@ -175,3 +175,44 @@ func (v *callVisitor) Visit(node *exprast.Node) {
 	}
 	v.calls = append(v.calls, call)
 }
+
+// StringArgs returns, for every call of the function name in src (in
+// walk order, repeats kept), its argument at index i when that argument
+// is a string literal; dynamic reports a call whose argument i is absent
+// or anything but a string literal (an identifier, a conditional, a
+// nested call), whose value no parse can know. parsed=false when src
+// does not parse. The filter-to-file dedup hash reads the table names a
+// predicate's lookup() / ref() calls name with it.
+func StringArgs(src, name string, i int) (lits []string, dynamic, parsed bool) {
+	tree, err := exprparser.Parse(src)
+	if err != nil {
+		return nil, false, false
+	}
+	v := &stringArgVisitor{name: name, i: i}
+	exprast.Walk(&tree.Node, v)
+	return v.lits, v.dynamic, true
+}
+
+type stringArgVisitor struct {
+	name    string
+	i       int
+	lits    []string
+	dynamic bool
+}
+
+func (v *stringArgVisitor) Visit(node *exprast.Node) {
+	c, ok := (*node).(*exprast.CallNode)
+	if !ok {
+		return
+	}
+	if id, ok := c.Callee.(*exprast.IdentifierNode); !ok || id.Value != v.name {
+		return
+	}
+	if v.i < len(c.Arguments) {
+		if s, ok := c.Arguments[v.i].(*exprast.StringNode); ok {
+			v.lits = append(v.lits, s.Value)
+			return
+		}
+	}
+	v.dynamic = true
+}

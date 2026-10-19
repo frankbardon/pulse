@@ -59,11 +59,11 @@ for chunk := range res.Chunks {
 <-res.Done; finalise(terminal)
 ```
 
-`ctx` cancel closes both channels with `StreamCancelled + ctx.Err()`. Mid-stream errors deliver `StreamErrored`.
+`ctx` cancel closes both channels (`StreamCancelled` + `ctx.Err()`); a mid-stream error is `StreamErrored`.
 
 ### Two-pass attributes
 
-Attributes needing a whole-cohort statistic first (z-score, regression fit, declared two-pass extension) stream in two passes in declared order; each dependent layer adds a scan.
+Attributes needing a whole-cohort statistic (z-score, regression fit, two-pass extension) stream in two passes in declared order; each dependent layer adds a scan.
 
 ## `Watch` / `WatchDir`
 
@@ -78,7 +78,7 @@ for ev := range ch { handle(ev.Kind, ev.Path, ev.Hash) }
 
 No pre-seed — pre-existing files surface as `ChangeCreated` on the first tick.
 
-`WatchOptions`: `PollInterval` (250 ms), `CoalesceWindow` (100 ms; `0` disables), `HashPrefixBytes` (64 KiB; `< 0` = whole file), `Recursive`, `Suffix` (`.pulse` for `WatchDir`). Network filesystems: raise `PollInterval` to ~30 s.
+`WatchOptions`: `PollInterval` (250 ms), `CoalesceWindow` (100 ms; `0` disables), `HashPrefixBytes` (64 KiB; `< 0` = whole file), `Recursive`, `Suffix` (`.pulse` for `WatchDir`). Network FS: `PollInterval` ~30s.
 
 Atomic-write coalescing: `Removed(temp) + Created(target)` folds into `ChangeRenamed(target)` when both share a directory, the temp has an editor/atomic-write name, and both fall inside `CoalesceWindow`.
 
@@ -94,9 +94,9 @@ res, err := p.FilterToFileWithRequest(ctx, &pulse.FilterToFileRequest{
 
 Guarantees: deterministic name `{source-hash[:16]}_{predicate-hash[:16]}.pulse` when `OutputName` empty; atomic write (`.<name>.partial` + rename); dedup by pre-existence (`Reused: true`).
 
-Predicates: `Expression` ([`expression-language`](expression-language.md)) or structured `Filterers` (AND, as in `Process`) — exactly one. `TimeZone` is the zone `to_day()` and a zone-capable filterer read (over the instance default); applied zones join the hash.
+Predicates: `Expression` ([`expression-language`](expression-language.md)) or structured `Filterers` (AND, as in `Process`) — exactly one. `TimeZone` is the zone `to_day()` and a zone-capable filterer read (over the instance default); applied zones join the hash, as does each referenced range / lookup table's content. Embedder code (extension filterer, expr fn, `Lookup` table) never reuses.
 
-`Models` (`[{name, path}]`) loads saved models for `coef()`; their content hashes join the predicate hash, so a rewritten model never reuses a stale output.
+`Models` (`[{name, path}]`) loads saved models for `coef()`; their content hashes join the predicate hash.
 
 ## Manifest `CommandAnnotations`
 
@@ -113,7 +113,7 @@ Every `Manifest.Commands` (CLI leaves) and `Manifest.Operations` (library-only: 
 
 `streamable` — has a `*Stream` variant. `deterministic` — same inputs ⇒ byte-identical output; cache keyed by `req.Hash()` + source hash. Non-deterministic entries MUST NOT be cached as stable. `expensive` — hint.
 
-A buffered overlay downgrades a streamable Process to buffered — price it as buffered.
+A buffered overlay makes a streamable Process buffered — price it so.
 
 ## Compose streaming vs. overlays
 

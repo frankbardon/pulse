@@ -81,3 +81,25 @@ func TestCalls(t *testing.T) {
 		}
 	}
 }
+
+func TestStringArgs(t *testing.T) {
+	cases := []struct {
+		src     string
+		lits    []string
+		dynamic bool
+		parsed  bool
+	}{
+		{`lookup("a", k) > lookup("b", k) + lookup("a", j)`, []string{"a", "b", "a"}, false, true},
+		{`lookup(t, k) > 0`, nil, true, true},
+		{`lookup("a", k) > lookup(c ? "a" : "b", k)`, []string{"a"}, true, true},
+		{`lookup() > 0`, nil, true, true},
+		{`x + ref2("a")`, nil, false, true},
+		{`lookup(`, nil, false, false},
+	}
+	for _, c := range cases {
+		lits, dyn, ok := StringArgs(c.src, "lookup", 0)
+		if ok != c.parsed || dyn != c.dynamic || !reflect.DeepEqual(lits, c.lits) {
+			t.Errorf("StringArgs(%q) = %v, %v, %v; want %v, %v, %v", c.src, lits, dyn, ok, c.lits, c.dynamic, c.parsed)
+		}
+	}
+}
