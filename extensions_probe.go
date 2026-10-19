@@ -15,7 +15,8 @@ import (
 // instance satisfies the streaming interface declared on the
 // registration. Panics during the probe surface as
 // PULSE_EXTENSION_FACTORY_PANIC; type-mismatch surfaces as
-// PULSE_EXTENSION_STREAMABLE_MISMATCH, and an aggregator or grouper
+// PULSE_EXTENSION_STREAMABLE_MISMATCH (two-way for features:
+// probeFeatures), and an aggregator or grouper
 // Mergeable declaration it cannot honour as
 // PULSE_EXTENSION_MERGEABLE_MISMATCH, and an aggregator
 // MarginReducibility declaration it cannot honour as
@@ -44,6 +45,9 @@ func probeExtensions(ext Extensions) error {
 		return err
 	}
 	if err := probeFilterers(ext.Filterers); err != nil {
+		return err
+	}
+	if err := probeFeatures(ext.Features); err != nil {
 		return err
 	}
 	if err := probeMatrixOps(ext.MatrixOps); err != nil {
@@ -612,6 +616,74 @@ func safeBuildTest(reg TestRegistration, schema *encoding.Schema, weighted bool)
 		return fail("returned a nil instance", nil)
 	}
 	return nil
+}
+
+// probeFeatures validates every registered feature operator. Predict
+// reads the DECLARED FeatureRegistration.Streamable while the runtime
+// adapter (adaptFeature) follows whether the value implements
+// extend.StreamingFeatureComputer, so the two are compared in BOTH
+// directions — unlike aggregators and groupers, where the runtime
+// follows the declaration and a streaming-capable value declared
+// buffered just runs buffered. A disagreement either way raises
+// PULSE_EXTENSION_STREAMABLE_MISMATCH; a factory panic, error or nil
+// instance raises PULSE_EXTENSION_FACTORY_PANIC (safeBuildFeature).
+func probeFeatures(regs []FeatureRegistration) error {
+	probeSchema := &encoding.Schema{}
+	for _, reg := range regs {
+		instance, err := safeBuildFeature(reg, probeSchema)
+		if err != nil {
+			return err
+		}
+		_, streaming := instance.(extend.StreamingFeatureComputer)
+		if reg.Streamable != streaming {
+			msg := fmt.Sprintf("feature %q declares Streamable=true but factory does not return extend.StreamingFeatureComputer", reg.Name)
+			if !reg.Streamable {
+				msg = fmt.Sprintf("feature %q declares Streamable=false but factory returns extend.StreamingFeatureComputer (the runtime would stream it while predict reports buffered)", reg.Name)
+			}
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_STREAMABLE_MISMATCH,
+				msg,
+				map[string]any{
+					"category":   "feature",
+					"name":       string(reg.Name),
+					"streamable": reg.Streamable,
+					"required":   "extend.StreamingFeatureComputer iff Streamable",
+				},
+			)
+		}
+	}
+	return nil
+}
+
+// safeBuildFeature invokes a feature factory under a deferred recover
+// with the same contract as safeBuildAggregator.
+func safeBuildFeature(reg FeatureRegistration, schema *encoding.Schema) (instance extend.FeatureComputer, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_FACTORY_PANIC,
+				fmt.Sprintf("feature factory %q panicked during probe-validation: %v", reg.Name, r),
+				map[string]any{"category": "feature", "name": string(reg.Name), "panic": fmt.Sprintf("%v", r)},
+			)
+		}
+	}()
+	spec := &types.Feature{Type: reg.Name}
+	instance, err = reg.Factory(spec, schema)
+	if err != nil {
+		return nil, errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_FACTORY_PANIC,
+			fmt.Sprintf("feature factory %q returned error during probe-validation: %v", reg.Name, err),
+			map[string]any{"category": "feature", "name": string(reg.Name), "factory_error": err.Error()},
+		)
+	}
+	if instance == nil {
+		return nil, errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_FACTORY_PANIC,
+			fmt.Sprintf("feature factory %q returned a nil instance during probe-validation", reg.Name),
+			map[string]any{"category": "feature", "name": string(reg.Name)},
+		)
+	}
+	return instance, nil
 }
 
 // safeBuildGrouper invokes a grouper factory under a deferred recover

@@ -501,7 +501,15 @@ returns single-row outputs from `EmitRow`; any other shape is a
 writes the derived columns. Feature streamability is decided on the
 returned value (the adapter exposes the streaming sibling iff the
 embedder's value implements it), so a streaming extension feature does
-stream on `Process`.
+stream on `Process` — while predict reads the declared `Streamable`.
+`pulse.New` therefore probes each feature factory once (empty schema,
+a spec carrying only the `Name`) and refuses a declaration that
+disagrees with the value IN EITHER DIRECTION with
+`PULSE_EXTENSION_STREAMABLE_MISMATCH` (details `category: "feature"`,
+`streamable` = the declaration): `Streamable: true` needs a value
+implementing `extend.StreamingFeatureComputer`, and `Streamable: false`
+needs one that does not. A factory that panics, errors or returns nil
+under the probe is `PULSE_EXTENSION_FACTORY_PANIC`.
 
 ### Test (tier-1 / tier-2)
 
@@ -1563,7 +1571,9 @@ before running. Probe-validation guarantees every streamable declaration is
 backed by the interface in the table below
 (`PULSE_EXTENSION_STREAMABLE_MISMATCH`); for a tier-1 test the flag
 alone decides, since every `extend.RowTest` folds per row. Feature
-streamability is the exception: it is decided on the returned value.
+streamability is the exception: it is decided on the returned value,
+so the probe checks features both ways — the declaration must equal
+whether the value implements `extend.StreamingFeatureComputer`.
 
 | Category | Streamable means | Required interface |
 |---|---|---|

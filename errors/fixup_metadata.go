@@ -1649,11 +1649,15 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_STREAMABLE_MISMATCH: {
-		Message: "A registration declared streaming capability but its factory did not return the required streaming interface.",
+		Message: "A registration's streaming declaration disagrees with the interface its factory returns: it declared streaming capability without the required streaming interface, or (features, checked both ways) declared Streamable=false for a value that implements extend.StreamingFeatureComputer.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Either implement the streaming interface (OnlineAggregator / RowLocalAttribute / TwoPassAttribute) on the returned type, or flip Streamable=false / Mode=buffered to use the buffered path.",
+				Hint:   "Either implement the streaming interface (OnlineAggregator / RowLocalAttribute / TwoPassAttribute / StreamingGrouper / StreamingFeatureComputer) on the returned type, or flip Streamable=false / Mode=buffered to use the buffered path.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "For a feature (details category \"feature\"), make Streamable equal whether the returned value implements extend.StreamingFeatureComputer: the runtime streams on the value while predict reads the declaration, so set Streamable=true for a streaming value, or drop PrePass/Finalize/EmitRow from a buffered one.",
 			},
 		},
 	},
