@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"slices"
 
+	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/temporal"
@@ -125,6 +127,47 @@ func ExpressionZone(src, requestZone, defaultZone string, load ZoneLoader) strin
 		return ""
 	}
 	return inheritedExprZone(requestZone, defaultZone, load)
+}
+
+// AppliedZone is one zone-capable slot's resolved zone as a result key
+// (AppliedZones): the slot path and what reaches its field — a zone
+// name that is not UTC-equivalent, or the per-row zone field.
+type AppliedZone struct {
+	Slot    string `json:"slot"`
+	TZ      string `json:"tz,omitempty"`
+	TZField string `json:"tz_field,omitempty"`
+}
+
+// AppliedZones keys a result on the zones ResolveZones resolved: one
+// entry per slot whose resolved zone changes what it computes — a
+// per-row zone field, or a zone name that is not UTC-equivalent — in
+// slot order. A null TZ (an inherited zone on a calendar date, never
+// applied, as is an inherited zone field there) and a UTC-equivalent
+// one are no entry, so a request whose zones change nothing keys as one
+// with no zone-capable slot; nil when no entry remains. A name load refuses (ResolveZones refused it
+// already) is kept as written. The filter-to-file dedup hash keys on
+// it, so two requests differing only in resolved zone never share an
+// output.
+func AppliedZones(zones []descriptor.ResolvedZone, load ZoneLoader) []AppliedZone {
+	if load == nil {
+		load = temporal.LoadZone
+	}
+	var out []AppliedZone
+	for _, rz := range zones {
+		switch {
+		case rz.TZField != "" && rz.TZ == nil:
+			if rz.FieldType != "" && rz.FieldType != encoding.FieldTypeDateTime.String() {
+				continue // an inherited zone field on a calendar date: not applied
+			}
+			out = append(out, AppliedZone{Slot: rz.Slot, TZField: rz.TZField})
+		case rz.TZ != nil:
+			if z, err := load(*rz.TZ); err == nil && z.IsUTC() {
+				continue
+			}
+			out = append(out, AppliedZone{Slot: rz.Slot, TZ: *rz.TZ})
+		}
+	}
+	return out
 }
 
 // inheritedExprZone is the inherited zone's name — requestZone, else

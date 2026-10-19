@@ -24,7 +24,7 @@ type FilterToFileRequest struct {
     OutputDir  string             // Where to write the result
     OutputName string             // Optional override; default: {srcHash}_{predHash}.pulse
     Models     []types.ModelRef   // Saved models the predicate's coef() reads
-    TimeZone   string             // IANA zone a to_day() in the predicate reads
+    TimeZone   string             // IANA zone to_day() and FILTER_DATE_RANGES read
 }
 
 type FilterToFileResult struct {
@@ -88,27 +88,28 @@ Filterers: []*types.Filterer{
 `FILTER_EXCLUDE`, `FILTER_RANGE` and `FILTER_NULL` are translated into
 the equivalent expression. Every other filterer the instance has
 registered — an extension filterer (`Options.Extensions`),
-`FILTER_TRUE` / `FILTER_FALSE`, the `FILTER_SET_*` family — is built
-through the engine's filterer registry exactly as `Process` builds it,
+`FILTER_TRUE` / `FILTER_FALSE`, the `FILTER_SET_*` family,
+`FILTER_DATE_RANGES` — is built through the engine's filterer
+registry exactly as `Process` builds it,
 so it keeps the same rows `Process` keeps (an extension filterer reads
 a `u64` field's exact word through `extend.Record.Uint64Value`, and
 its `FieldInputs` hook drives the decode projection).
 
-Two refusals remain, both `PROCESSING_CONFIG` with details
-`{operator}`:
+A type the instance's feature profile hides, or a never-registered
+name, is refused `PROCESSING_CONFIG` `filter_to_file: unsupported
+filter type "<T>"` with details `{operator}`.
 
-- a zone-capable filterer (`FILTER_DATE_RANGES`) — details `reason:
-  "zone_capable"`, message `filter_to_file: zone-capable filter type
-  "<T>" is not supported; ...`: the zone it would resolve does not key
-  the deterministic output name. Express a date window as a
-  `FILTER_EXPRESSION` over `to_day(ts)` with the request `TimeZone`
-  instead (that zone does key the name);
-- a type the instance's feature profile hides, or a never-registered
-  name — `filter_to_file: unsupported filter type "<T>"`.
-
-A filterer `tz` (or `tz_field`) is refused `PROCESSING_CONFIG` too
-(none of the types filter-to-file runs is zone-capable); set the
-request `TimeZone`.
+Zones resolve exactly as `Process` resolves them, over the request's
+`Filterers` against the cohort schema, before any output is reused or
+written: a zone-capable filterer (`FILTER_DATE_RANGES`) reads its own
+`tz`, else its `tz_field` (a per-row zone field), else the request
+`TimeZone`, else `Options.DefaultTimeZone`, else UTC — an inherited
+zone is not applied to a `date` field. Every zone refusal is
+`Process`'s own code, message and details (slot `filterers[i]`): a
+`tz` / `tz_field` on an operator that is not zone-capable (a
+translated built-in, `FILTER_TRUE`, an extension filterer — no
+extension operator is zone-capable), a `tz` on a `date` field, `tz`
+and `tz_field` together, an unknown zone (`PULSE_TIMEZONE_UNKNOWN`).
 
 Each filterer's `Field` is judged by the same field rule `Process` and
 predict use, against the cohort schema (a shard archive's canonical
@@ -143,10 +144,11 @@ instance whose feature profile hides it refuses a set `Models` as
 ### Time zone
 
 `TimeZone` (`time_zone`) is the request-level IANA zone a `to_day()`
-call in the predicate reads, by the `Request.TimeZone` rule: it wins
-over `Options.DefaultTimeZone`, which wins over UTC. An unknown name
-is `PULSE_TIMEZONE_UNKNOWN`, refused before the source is read whether
-or not the predicate calls `to_day`:
+call in the predicate — and a `FILTER_DATE_RANGES` filterer without
+its own `tz` / `tz_field` — reads, by the `Request.TimeZone` rule: it
+wins over `Options.DefaultTimeZone`, which wins over UTC. An unknown
+name is `PULSE_TIMEZONE_UNKNOWN`, refused before the source is read
+whether or not the predicate reads it:
 
 ```go
 res, err := p.FilterToFileWithRequest(ctx, &pulse.FilterToFileRequest{
@@ -181,8 +183,13 @@ When `OutputName` is empty, the basename is computed as:
   `TimeZone`, else the instance's `Options.DefaultTimeZone`, else UTC;
   a non-UTC zone joins the payload too, so two runs in different zones
   never share an output, while the same resolved zone named by either
-  knob lands on the same one. A predicate that reads no zone, or reads
-  UTC, hashes as it always has.
+  knob lands on the same one. Likewise every zone a structured
+  filterer applies — a non-UTC zone on a `FILTER_DATE_RANGES` over a
+  `datetime` field (from its `tz`, `TimeZone` or the instance
+  default), or its per-row `tz_field` — joins the payload with its
+  slot, so a request differing only in resolved zone never reuses
+  another's output. A predicate that reads no zone, or reads UTC, or
+  reads a `date` field (no zone applies), hashes as it always has.
 
 Independent consumers building the same request reach the same path
 without coordination. Combined with a `Watch` on `OutputDir`, this is

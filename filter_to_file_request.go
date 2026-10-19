@@ -40,10 +40,15 @@ type FilterToFileRequest struct {
 	// FILTER_EXPRESSION / _INCLUDE / _EXCLUDE / _RANGE / _NULL are
 	// translated into the equivalent expression and every other
 	// registered filterer (an extension filterer, FILTER_TRUE /
-	// _FALSE, FILTER_SET_*) runs through the engine registry exactly
-	// as Process runs it; a row is kept only when all of them pass. A
-	// zone-capable type (FILTER_DATE_RANGES) is refused. Mutually
-	// exclusive with Expression.
+	// _FALSE, FILTER_SET_*, FILTER_DATE_RANGES) runs through the engine
+	// registry exactly as Process runs it; a row is kept only when all
+	// of them pass. Zones resolve as Process resolves them — a
+	// zone-capable filterer's `tz`, then its `tz_field`, then TimeZone,
+	// then Options.DefaultTimeZone, then UTC — and the applied zones key
+	// the dedup predicate hash; a `tz` / `tz_field` on an operator that
+	// is not zone-capable (an extension filterer included) is refused
+	// with Process's PROCESSING_CONFIG. Mutually exclusive with
+	// Expression.
 	Filterers []*types.Filterer `json:"filterers,omitempty"`
 
 	// OutputDir is the directory the result file lands in. Required.
@@ -66,13 +71,15 @@ type FilterToFileRequest struct {
 	Models []types.ModelRef `json:"models,omitempty"`
 
 	// TimeZone is the request-level IANA zone (`"UTC"` or an
-	// `Area/Location` name) a to_day() call in the predicate reads —
-	// the Request.TimeZone rule: it wins over Options.DefaultTimeZone,
-	// which wins over UTC. An unknown name is PULSE_TIMEZONE_UNKNOWN,
-	// refused before any read whether or not the predicate calls
-	// to_day. The zone the predicate reads keys the dedup predicate
-	// hash (so the default output name) only when it is non-UTC and the
-	// predicate calls to_day; empty runs and hashes exactly as before.
+	// `Area/Location` name) a to_day() call in the predicate and a
+	// FILTER_DATE_RANGES without its own `tz` / `tz_field` read — the
+	// Request.TimeZone rule: it wins over Options.DefaultTimeZone, which
+	// wins over UTC. An unknown name is PULSE_TIMEZONE_UNKNOWN, refused
+	// before any read whether or not the predicate reads it. The zone
+	// the predicate reads keys the dedup predicate hash (so the default
+	// output name) only when it is non-UTC and the predicate calls
+	// to_day or a FILTER_DATE_RANGES applies it to a `datetime` field;
+	// empty runs and hashes exactly as before.
 	TimeZone string `json:"time_zone,omitempty"`
 }
 
@@ -137,6 +144,16 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 			return nil, err
 		}
 	}
+	// Structured filterers resolve their zones as Process does, before
+	// any hashing or reuse, so a zone refusal is Process's own; the
+	// applied zones key the output name.
+	var zones []descx.AppliedZone
+	if len(req.Filterers) > 0 {
+		zones, err = p.svc.FilterToFileZones(ctx, req.SourcePath, req.Filterers, req.TimeZone)
+		if err != nil {
+			return nil, err
+		}
+	}
 	// The request's models load (every file read and decoded) before
 	// any hashing or record read; their content identities key the
 	// dedup hash.
@@ -154,10 +171,11 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 		return nil, fmt.Errorf("filter_to_file: hashing source: %w", err)
 	}
 	// The zone the predicate's to_day() reads (req.TimeZone, else
-	// Options.DefaultTimeZone, else UTC) keys the output too, so a run
-	// in another zone never reuses it.
+	// Options.DefaultTimeZone, else UTC) keys the output too, as do the
+	// zones the filterers apply, so a run in another zone never reuses
+	// it.
 	zone := descx.ExpressionZone(expr, req.TimeZone, p.svc.DefaultTimeZone(), p.svc.ZoneLoader())
-	predHash := req.predicateHash(modelIDs, zone)
+	predHash := req.predicateHash(modelIDs, zone, zones)
 	outName := req.OutputName
 	if outName == "" {
 		outName = srcHash[:16] + "_" + predHash[:16] + ".pulse"
@@ -212,8 +230,11 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 // Every other filterer the instance has registered — an extension
 // filterer, FILTER_TRUE / FILTER_FALSE, the FILTER_SET_* family — is
 // returned in direct, in request order, and builds through the engine
-// filterer registry exactly as Process builds it; the run keeps a row
-// only when the expression (if any) and every direct filterer pass.
+// filterer registry exactly as Process builds it (FILTER_DATE_RANGES
+// included, zoned as Process zones it); the run keeps a row only when
+// the expression (if any) and every direct filterer pass. No `tz` /
+// `tz_field` is judged here: Service.FilterToFileZones runs Process's
+// zone resolution over the request filterers right after.
 //
 // inst is the instance feature set: a filterer type it hides is
 // refused exactly as an unknown type is (see filtererToExpression).
@@ -270,29 +291,15 @@ func (p *Pulse) registeredFilterer(t types.FiltererType) bool {
 // FILTER_INCLUDE / FILTER_EXCLUDE (in / not in list), FILTER_RANGE
 // (closed interval), and FILTER_NULL (is_null / is_not_null). Any other
 // type registered reports (an extension filterer, FILTER_TRUE /
-// FILTER_FALSE, FILTER_SET_*) is not translated: direct is true and the
-// filterer runs through the engine registry. A zone-capable type
-// (FILTER_DATE_RANGES) is refused by zoneCapableFilterType — its zone
-// would not key the deterministic output name. A type inst hides, or
-// one never registered, falls through to the unsupported-type refusal,
-// after the same `tz` / `tz_field` checks.
+// FILTER_FALSE, FILTER_SET_*, FILTER_DATE_RANGES) is not translated:
+// direct is true and the filterer runs through the engine registry. A
+// type inst hides, or one never registered, falls through to the
+// unsupported-type refusal. A `tz` / `tz_field` is not judged here —
+// the zone resolver refuses it on every type but a zone-capable one,
+// with Process's code, message and details (Service.FilterToFileZones).
 func filtererToExpression(f *types.Filterer, inst *descx.InstanceSnapshot, registered func(types.FiltererType) bool) (expr string, direct bool, err error) {
 	if f == nil {
 		return "", false, errors.New("filter_to_file: nil filterer")
-	}
-	if f.TimeZone != "" {
-		// None of the types filter-to-file runs is zone-capable, so a
-		// `tz` here would be silently dropped — refuse it like the
-		// request resolver refuses `tz` on a non-zone-capable operator.
-		return "", false, perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG,
-			fmt.Sprintf("filter_to_file: operator %s does not accept `tz`", f.Type),
-			map[string]any{"operator": string(f.Type), perr.DetailTimeZone: f.TimeZone})
-	}
-	if f.TimeZoneField != "" {
-		// Likewise a per-row zone field.
-		return "", false, perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG,
-			fmt.Sprintf("filter_to_file: operator %s does not accept `tz_field`", f.Type),
-			map[string]any{"operator": string(f.Type), "tz_field": f.TimeZoneField})
 	}
 	if inst.Hidden(string(f.Type)) {
 		return "", false, unsupportedFilterType(f.Type)
@@ -329,22 +336,7 @@ func filtererToExpression(f *types.Filterer, inst *descx.InstanceSnapshot, regis
 	if !registered(f.Type) {
 		return "", false, unsupportedFilterType(f.Type)
 	}
-	if descx.IsZoneCapable(string(f.Type)) {
-		return "", false, zoneCapableFilterType(f.Type)
-	}
 	return "", true, nil
-}
-
-// zoneCapableFilterType refuses a registered zone-capable filterer
-// (FILTER_DATE_RANGES): the zone it resolves would not key the
-// deterministic output name, so two runs in different zones could share
-// an output. PROCESSING_CONFIG, details {operator, reason:
-// "zone_capable"}; the fix is a FILTER_EXPRESSION over to_day(ts) with
-// the request TimeZone, whose zone does key the name.
-func zoneCapableFilterType(t types.FiltererType) error {
-	return perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG,
-		fmt.Sprintf("filter_to_file: zone-capable filter type %q is not supported; use a FILTER_EXPRESSION over to_day() with the request time_zone", t),
-		map[string]any{"operator": string(t), "reason": "zone_capable"})
 }
 
 // unsupportedFilterType is the refusal filtererToExpression gives a
@@ -424,18 +416,23 @@ func filterToFileVisibleKeys(req *FilterToFileRequest) []string {
 // a model-free request hashes exactly as it always has, and a changed
 // model file changes the hash. zone (descx.ExpressionZone: the non-UTC
 // zone the predicate's to_day() reads, else "") joins the same way, so
-// a predicate that reads no zone hashes as it always has.
-func (r *FilterToFileRequest) predicateHash(models []modelIdentity, zone string) string {
+// a predicate that reads no zone hashes as it always has; so does zones
+// (descx.AppliedZones: the zones the filterers apply — a non-UTC name
+// or a per-row zone field on a `datetime` field), which Filterers alone
+// would not cover, since an inherited zone is not spelled there.
+func (r *FilterToFileRequest) predicateHash(models []modelIdentity, zone string, zones []descx.AppliedZone) string {
 	payload := struct {
-		Expression string            `json:"expression,omitempty"`
-		Filterers  []*types.Filterer `json:"filterers,omitempty"`
-		Models     []modelIdentity   `json:"models,omitempty"`
-		Zone       string            `json:"zone,omitempty"`
+		Expression string              `json:"expression,omitempty"`
+		Filterers  []*types.Filterer   `json:"filterers,omitempty"`
+		Models     []modelIdentity     `json:"models,omitempty"`
+		Zone       string              `json:"zone,omitempty"`
+		Zones      []descx.AppliedZone `json:"zones,omitempty"`
 	}{
 		Expression: r.Expression,
 		Filterers:  r.Filterers,
 		Models:     models,
 		Zone:       zone,
+		Zones:      zones,
 	}
 	return types.CanonicalHash("filter_predicate", payload)
 }

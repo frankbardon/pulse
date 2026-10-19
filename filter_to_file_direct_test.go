@@ -18,9 +18,9 @@ import (
 // — an extension filterer, FILTER_TRUE / FILTER_FALSE, FILTER_SET_* —
 // through the engine filterer registry, exactly as Process builds it,
 // so the kept rows match Process with the same filterers. Before, each
-// was refused PROCESSING_CONFIG "unsupported filter type". The one
-// remaining refusal (a zone-capable FILTER_DATE_RANGES) is coded with
-// reason "zone_capable".
+// was refused PROCESSING_CONFIG "unsupported filter type". The
+// zone-capable FILTER_DATE_RANGES runs too since E3-S5
+// (filter_to_file_zone_test.go).
 
 // u64ExactPosB keeps the exact-hit keys (2^53+1, MaxUint64-1) whose b
 // is positive. b is not its Field: it reaches the filter only through
@@ -181,11 +181,10 @@ func processCountX(t *testing.T, p *pulse.Pulse, cohort string, filterers []*typ
 }
 
 // TestFilterToFile_DirectRefusals: what filter-to-file still refuses,
-// each coded. A zone-capable filterer is PROCESSING_CONFIG reason
-// zone_capable (its zone would not key the output name); a
-// never-registered type keeps the unsupported-type refusal; an
-// extension filterer carrying `tz` is refused like any
-// non-zone-capable operator.
+// each coded. A never-registered type keeps the unsupported-type
+// refusal; an extension filterer carrying `tz` is refused like any
+// non-zone-capable operator (TestFilterToFile_ZoneRefusalsMatchProcess
+// pins it equal to Process's refusal).
 func TestFilterToFile_DirectRefusals(t *testing.T) {
 	ctx := context.Background()
 	m := u64KeyModes(t, filterToFileDirectExtensions())["streaming"]
@@ -195,7 +194,6 @@ func TestFilterToFile_DirectRefusals(t *testing.T) {
 		reason  string
 		message string
 	}{
-		{"zone_capable", &types.Filterer{Type: types.FILTER_DATE_RANGES, Field: "k", Params: json.RawMessage(`{"ranges":[{"label":"h1","start":"2024-01-01","end":"2024-06-30"}]}`)}, "zone_capable", "zone-capable filter type"},
 		{"never_registered", &types.Filterer{Type: "FILTER_U64X_NOPE", Field: "k"}, "", "unsupported filter type"},
 		{"extension_tz", &types.Filterer{Type: u64ExactFilter, Field: "k", TimeZone: "UTC"}, "", "does not accept `tz`"},
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
@@ -101,7 +102,8 @@ func (s *Service) FilterToFileBySetAndExpr(ctx context.Context, src, dst, includ
 // Expression, or the expression its translatable structured filterers
 // translate to — FilterToFileRequest.canonicalPredicate) and direct the
 // structured filterers it does not translate (an extension filterer,
-// FILTER_TRUE / FILTER_FALSE, FILTER_SET_*), built through the engine
+// FILTER_TRUE / FILTER_FALSE, FILTER_SET_*, the zone-capable
+// FILTER_DATE_RANGES), built through the engine
 // filterer registry exactly as Process builds them; a row is kept only
 // when filterExpr (if non-empty) and every direct filterer pass. At
 // least one of the two must be supplied. Non-empty filterers are
@@ -121,6 +123,41 @@ func (s *Service) FilterToFileFilterers(ctx context.Context, src, dst string, fi
 	return s.filterToFile(ctx, src, dst, filterPlan{filterExpr: filterExpr, filterers: filterers, direct: direct, timeZone: timeZone})
 }
 
+// FilterToFileZones resolves the zones a FilterToFileRequest's
+// structured filterers read — the one zone-resolution pass Process runs
+// (resolveZones), over a Request{Filterers, TimeZone} against src's
+// canonical schema (an anchored shard's own) — and returns the applied
+// ones as the dedup-hash key (internal/descriptor.AppliedZones). The
+// facade calls it before hashing or any reuse, so a zone refusal is
+// Process's own code, message and details with the request's slot
+// indices: an explicit `tz` / `tz_field` on an operator that is not
+// zone-capable (an extension filterer included), a `tz` on a `date`
+// field, an unknown zone. With no zone-capable filterer and no `tz` /
+// `tz_field`, nothing can resolve: src is not read and the result is
+// nil. The run re-resolves the same zones per schema
+// (buildPredicateFilter), so the key and the kept rows agree.
+func (s *Service) FilterToFileZones(ctx context.Context, src string, filterers []*types.Filterer, timeZone string) ([]descx.AppliedZone, error) {
+	needs := false
+	for _, f := range filterers {
+		if f != nil && (f.TimeZone != "" || f.TimeZoneField != "" || descx.IsZoneCapable(string(f.Type))) {
+			needs = true
+			break
+		}
+	}
+	if !needs {
+		return nil, nil
+	}
+	schema, err := s.ResolveCanonicalSchema(ctx, src)
+	if err != nil {
+		return nil, err
+	}
+	zones, err := s.resolveZones(&types.Request{Filterers: filterers, TimeZone: timeZone}, schema)
+	if err != nil {
+		return nil, err
+	}
+	return descx.AppliedZones(zones, s.ZoneLoader()), nil
+}
+
 // filterPlan captures the per-call predicate inputs so the input-shape
 // dispatch (single-file, shard archive, anchor) doesn't have to take a
 // growing list of optional arguments.
@@ -133,7 +170,8 @@ type filterPlan struct {
 	filterers []*types.Filterer
 	// direct is the subset of filterers built through the engine
 	// filterer registry rather than translated into filterExpr (an
-	// extension filterer, FILTER_TRUE / FILTER_FALSE, FILTER_SET_*).
+	// extension filterer, FILTER_TRUE / FILTER_FALSE, FILTER_SET_*,
+	// FILTER_DATE_RANGES).
 	direct []*types.Filterer
 	// models is the bound-model set the expression's coef() reads
 	// (nil binds nothing).
@@ -550,9 +588,10 @@ func (p filterPlan) predicateFilterers() []*types.Filterer {
 //
 // The predicate runs zoned exactly as a Process filterer does: it is
 // resolved (resolveZones) and handed through the one zone choke point
-// (zoned), so a to_day() call reads the inherited zone: timeZone (the
-// FilterToFileRequest's `time_zone`, in Request.TimeZone's place), else
-// Options.DefaultTimeZone, else UTC.
+// (zoned), so a to_day() call and a zone-capable filterer
+// (FILTER_DATE_RANGES) without its own `tz` / `tz_field` read the
+// inherited zone: timeZone (the FilterToFileRequest's `time_zone`, in
+// Request.TimeZone's place), else Options.DefaultTimeZone, else UTC.
 func (s *Service) buildPredicateFilter(schema *encoding.Schema, plan filterPlan) (processing.FilterFunc, error) {
 	filterers := plan.predicateFilterers()
 	if len(filterers) == 0 {

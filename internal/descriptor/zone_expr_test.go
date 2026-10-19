@@ -2,8 +2,10 @@ package descriptor
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -166,5 +168,43 @@ func TestZonedExpressions_TargetEncodeFitOn(t *testing.T) {
 	}
 	if got.Features[1] != req.Features[1] {
 		t.Error("an untouched feature was copied")
+	}
+}
+
+// TestAppliedZones: only a zone that changes what a slot computes keys
+// a result — a non-UTC name or a per-row zone field on a datetime — in
+// slot order; a null tz, a UTC-equivalent name and a zone field on a
+// calendar date are no entry, and none left is nil.
+func TestAppliedZones(t *testing.T) {
+	name := func(s string) *string { return &s }
+	cases := []struct {
+		name  string
+		zones []descriptor.ResolvedZone
+		want  []AppliedZone
+	}{
+		{"none", []descriptor.ResolvedZone{}, nil},
+		{"utc_equivalent", []descriptor.ResolvedZone{
+			{Slot: "filterers[0]", FieldType: "datetime", TZ: name("UTC")},
+			{Slot: "filterers[1]", FieldType: "datetime", TZ: name("Etc/UTC")},
+		}, nil},
+		{"null_on_date", []descriptor.ResolvedZone{{Slot: "filterers[0]", FieldType: "date"}}, nil},
+		{"zone_field_on_date", []descriptor.ResolvedZone{{Slot: "filterers[0]", FieldType: "date", TZField: "zone"}}, nil},
+		{"applied", []descriptor.ResolvedZone{
+			{Slot: "filterers[0]", FieldType: "datetime", TZ: name("UTC")},
+			{Slot: "filterers[1]", FieldType: "datetime", TZ: name("America/New_York")},
+			{Slot: "filterers[2]", FieldType: "datetime", TZField: "zone"},
+			{Slot: "filterers[3]", TZ: name("Asia/Tokyo")},
+		}, []AppliedZone{
+			{Slot: "filterers[1]", TZ: "America/New_York"},
+			{Slot: "filterers[2]", TZField: "zone"},
+			{Slot: "filterers[3]", TZ: "Asia/Tokyo"},
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := AppliedZones(c.zones, nil); !reflect.DeepEqual(got, c.want) {
+				t.Fatalf("AppliedZones = %+v, want %+v", got, c.want)
+			}
+		})
 	}
 }

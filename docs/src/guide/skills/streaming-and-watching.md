@@ -94,7 +94,7 @@ res, err := p.FilterToFileWithRequest(ctx, &pulse.FilterToFileRequest{
 
 Guarantees: deterministic name `{source-hash[:16]}_{predicate-hash[:16]}.pulse` when `OutputName` empty; atomic write (`.<name>.partial` + rename); dedup by pre-existence (`Reused: true`).
 
-Predicates: `Expression` ([`expression-language`](expression-language.md)) or structured `Filterers` (AND, as in `Process`) — exactly one; a zone-capable one → `PROCESSING_CONFIG` (`zone_capable`). `TimeZone` is the zone `to_day()` reads (over the instance default; joins the hash).
+Predicates: `Expression` ([`expression-language`](expression-language.md)) or structured `Filterers` (AND, as in `Process`) — exactly one. `TimeZone` is the zone `to_day()` and a zone-capable filterer read (over the instance default); applied zones join the hash.
 
 `Models` (`[{name, path}]`) loads saved models for `coef()`; their content hashes join the predicate hash, so a rewritten model never reuses a stale output.
 

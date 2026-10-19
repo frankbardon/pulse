@@ -171,7 +171,7 @@ func TestFilterToFileWithRequest_NoModelsHashUnchanged(t *testing.T) {
 		Expression string            `json:"expression,omitempty"`
 		Filterers  []*types.Filterer `json:"filterers,omitempty"`
 	}{Expression: req.Expression})
-	if got := req.predicateHash(nil, ""); got != legacy {
+	if got := req.predicateHash(nil, "", nil); got != legacy {
 		t.Errorf("model-free predicate hash moved: %s vs %s", got, legacy)
 	}
 }
