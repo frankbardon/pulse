@@ -1177,13 +1177,15 @@ the aggregator's declared crosstab margin class (predict's normalize
 advisory reads it through
 `ExtensionsSnapshot.AggregatorMarginReducibility`). The
 predict-side chain gate reads it:
-`internal/descriptor.ValidateChainWithExtensions` admits an extension
+`internal/descriptor.ValidateChainWithOptions` — handed the instance's
+snapshot as `PredictOptions.Extensions` by `(*Pulse).PredictChain` —
+admits an extension
 aggregator or grouper on its declared `Mergeable` flag and a
 `row_local` extension attribute as row-local and an extension filterer
 on its `Streamable` flag — the same `internal/mergegate.ChainRefusal`
 call the runtime gate makes over the `ExtensionRegistry`, so the answers
-cannot drift — while `ValidateChain` (the nil-snapshot case) knows
-built-ins only.
+cannot drift (`TestPredictChain_ExtensionOperatorsMatchProcessChain`)
+— while a nil snapshot knows built-ins only.
 
 `descriptor.OperatorMeta` carries `FansOut bool`
 (`json:"fans_out,omitempty"`) alongside `Streamable`, and

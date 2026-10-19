@@ -8,15 +8,15 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// TestValidateChainWithExtensions_MergeableOperators pins the predict
-// half of the chain gate against an ExtensionsSnapshot: an extension
+// TestValidateChainWithOptions_MergeableOperators pins the predict
+// half of the chain gate against PredictOptions.Extensions: an extension
 // aggregator or grouper is admitted on its DECLARED Mergeable flag, a
 // row_local extension attribute as a row-local operator — the same
 // answers the runtime gate (processing.CanChainRequestWithExtensions)
 // gives — while an undeclared one, a two_pass attribute, and every
 // extension name under a nil snapshot stay refused with
 // PULSE_CHAIN_NOT_MERGEABLE.
-func TestValidateChainWithExtensions_MergeableOperators(t *testing.T) {
+func TestValidateChainWithOptions_MergeableOperators(t *testing.T) {
 	snap := &ExtensionsSnapshot{
 		Aggregators: []descriptor.OperatorMeta{
 			{Name: "AGG_ACME_SUM", Streamable: true, Mergeable: true},
@@ -68,19 +68,19 @@ func TestValidateChainWithExtensions_MergeableOperators(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			env := ValidateChainWithExtensions(bytes.NewReader(data), c.req, snap)
+			env := ValidateChainWithOptions(bytes.NewReader(data), c.req, &PredictOptions{Extensions: snap})
 			if got := !notMergeable(env); got != c.want {
 				t.Errorf("with snapshot: admitted = %v, want %v (errors %+v)", got, c.want, env.Errors)
 			}
-			// Without a snapshot only built-in names pass: the nil
-			// case is exactly ValidateChain.
-			nilEnv := ValidateChainWithExtensions(bytes.NewReader(data), c.req, nil)
-			plain := ValidateChain(bytes.NewReader(data), c.req)
-			if notMergeable(nilEnv) != notMergeable(plain) {
-				t.Errorf("nil snapshot disagrees with ValidateChain: %+v vs %+v", nilEnv.Errors, plain.Errors)
+			// Without a snapshot only built-in names pass: a nil
+			// Extensions and a nil opts are the same built-in-only gate.
+			nilSnap := ValidateChainWithOptions(bytes.NewReader(data), c.req, &PredictOptions{})
+			plain := ValidateChainWithOptions(bytes.NewReader(data), c.req, nil)
+			if notMergeable(nilSnap) != notMergeable(plain) {
+				t.Errorf("nil snapshot disagrees with nil opts: %+v vs %+v", nilSnap.Errors, plain.Errors)
 			}
 			if c.name != "builtin" && !notMergeable(plain) {
-				t.Errorf("ValidateChain (no snapshot) admitted an extension operator")
+				t.Errorf("no snapshot admitted an extension operator")
 			}
 		})
 	}

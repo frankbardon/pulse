@@ -34,7 +34,7 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#189** `extension-points.md` and the `adding-*` recipes rewritten against `extend` · [U02b](units/U02b-extension-contract.md)
 
 #### Extension hardening
-- [ ] **#194** Chain predict has a production caller that passes the `ExtensionsSnapshot` (`ValidateChain` / `ValidateChainWithExtensions` reachable outside tests) · [U34](units/U34-extension-validation.md)
+- [x] **#194** Chain predict has a production caller that passes the `ExtensionsSnapshot` (`PredictChain` → `ValidateChainWithOptions`; the test-only `ValidateChain` / `ValidateChainWithExtensions` / `ValidateChainFromBytes` wrappers deleted; PredictChain ≡ ProcessChain parity test) · [U34](units/U34-extension-validation.md)
 - [ ] **#195** An operator's own `Components()` keys probe-validated against its `ComponentSchema` at `pulse.New` · [U34](units/U34-extension-validation.md)
 - [ ] **#196** `FeatureRegistration.Streamable` probe-validated at `pulse.New` · [U34](units/U34-extension-validation.md)
 - [ ] **#197** Synth-distribution extension contract: an `extend` factory shape, or a documented decision that distributions are not an extension category · [U34](units/U34-extension-validation.md)

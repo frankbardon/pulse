@@ -51,7 +51,7 @@ import (
 //     judgement.
 //
 // All are PROCESSING_CONFIG. Predict (ValidateCompose /
-// ValidateChain) and the runtime (Service.applyComposeOverlays /
+// ValidateChainWithOptions) and the runtime (Service.applyComposeOverlays /
 // Service.processChain) call the same functions; the Process-host half
 // rides the field-reference walk, which predict and the runtime
 // (Service.checkFieldRefs) share.

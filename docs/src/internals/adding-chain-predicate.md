@@ -89,7 +89,7 @@ and `TestChainCanonicalHash_OverlaysIncluded`.
 
 Whole-chain handler dispatch lives in `internal/processing/overlay_chain_dispatch.go`.
 Predict-time validation lives in `internal/descriptor/chain_overlay.go` —
-`ValidateChain` walks `ChainRequest.Overlays` after the per-stage
+`ValidateChainWithOptions` walks `ChainRequest.Overlays` after the per-stage
 gate and emits:
 
 - `PULSE_OVERLAY_KIND_UNKNOWN` — anything outside

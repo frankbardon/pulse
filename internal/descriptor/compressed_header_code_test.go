@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -14,12 +15,12 @@ import (
 // matching Inspect and Predict (headerErrorCode), not ENCODING_INVALID.
 func TestValidateChainAndFacet_CompressedCohortCode(t *testing.T) {
 	data := append(encoding.ZstdMagic[:], []byte("synthetic-not-a-real-frame")...)
-	chain := ValidateChainFromBytes(data, &types.ChainRequest{
+	chain := ValidateChainWithOptions(bytes.NewReader(data), &types.ChainRequest{
 		Cohort: &types.Cohort{Filename: "x.pulse"},
 		Stages: []*types.ChainStage{{Request: &types.Request{
 			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x"}},
 		}}},
-	})
+	}, nil)
 	facet := ValidateFacetFromBytes(data, &types.FacetRequest{
 		Cohort: &types.Cohort{Filename: "x.pulse"}, Fields: []string{"x"},
 	})

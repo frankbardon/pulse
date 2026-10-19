@@ -258,7 +258,7 @@ func TestMatrices_ComposeAndChainStageZero(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if env := descx.ValidateChain(bytes.NewReader(data), req); len(env.Errors) != 0 {
+				if env := descx.ValidateChainWithOptions(bytes.NewReader(data), req, nil); len(env.Errors) != 0 {
 					t.Fatalf("chain validator refused a stage-0 matrix: %+v", env.Errors)
 				}
 				resp, err := p.ProcessChain(ctx, req)

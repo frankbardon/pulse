@@ -16,7 +16,7 @@ import (
 )
 
 // TestChainGate_ValidatorMatchesRuntime: ProcessChain and
-// ValidateChain run the one shared chain gate (internal/mergegate), so
+// ValidateChainWithOptions run the one shared chain gate (internal/mergegate), so
 // every stage either side refuses is refused by the other with the
 // same code, message and details — including the two checks the
 // validator used to skip (a non-streamable filterer and a built-in
@@ -159,7 +159,7 @@ func TestChainStageJoin_RefusedBothSides(t *testing.T) {
 			if ce.Details["stage"] != 1 || ce.Details["stage_name"] != "s1" || ce.Details["count"] != 1 {
 				t.Fatalf("runtime details = %v, want stage 1 / s1 / count 1", ce.Details)
 			}
-			sameEntry(t, descx.ValidateChain(bytes.NewReader(data), req()), rerr)
+			sameEntry(t, descx.ValidateChainWithOptions(bytes.NewReader(data), req(), nil), rerr)
 		})
 	}
 }

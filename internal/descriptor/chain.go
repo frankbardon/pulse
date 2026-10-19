@@ -1,7 +1,6 @@
 package descriptor
 
 import (
-	"bytes"
 	"io"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -15,7 +14,7 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// ChainValidationResult is the structured output of ValidateChain.
+// ChainValidationResult is the structured output of ValidateChainWithOptions.
 // Mirrors FacetValidationResult: the resolved request echoes back so
 // callers can forward it after inspection, and per-stage schemas
 // expose the inferred lineage for debugging.
@@ -36,7 +35,7 @@ type ChainValidationResult struct {
 	StageSchemas [][]string `json:"stage_schemas,omitempty"`
 
 	// OverlaysSchemaDivergence lists every shape-divergent (Ref, Target)
-	// chain-overlay pair from the ValidateChain overlay walk per
+	// chain-overlay pair from the ValidateChainWithOptions overlay walk per
 	// kind-catalog-v1 PRD §I-FR-I3. Populated alongside the matching
 	// PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT envelope WARNING (the
 	// runtime answers that pair with an empty layer) so LLM
@@ -58,7 +57,7 @@ type ChainValidationResult struct {
 }
 
 // ChainOverlaySchemaDivergence carries one shape-divergent (Ref,
-// Target) chain-overlay pair from ValidateChain's overlay walk. Mirrors
+// Target) chain-overlay pair from ValidateChainWithOptions' overlay walk. Mirrors
 // the per-spec envelope-warning Details shape so wire consumers can read the
 // list directly instead of stitching envelope entries together.
 type ChainOverlaySchemaDivergence struct {
@@ -86,39 +85,21 @@ type ChainOverlaySchemaDivergence struct {
 	TargetShape types.OverlayShape `json:"target_shape"`
 }
 
-// ValidateChain validates a ChainRequest against a .pulse cohort
-// header + schema. It never reads record data — the no-execute
-// contract holds. Errors land in the envelope as SERVICE_VALIDATION
-// or PULSE_CHAIN_NOT_MERGEABLE / PULSE_CHAIN_EMPTY; each stage's
-// inferred output schema is propagated forward so the next stage's
-// field references can be checked.
+// ValidateChainWithOptions validates a ChainRequest against a .pulse
+// cohort header + schema. It never reads record data — the no-execute
+// contract holds (TestPredictNoExecutionImports). Errors land in the
+// envelope as SERVICE_VALIDATION or PULSE_CHAIN_NOT_MERGEABLE /
+// PULSE_CHAIN_EMPTY; each stage's inferred output schema is propagated
+// forward so the next stage's field references can be checked.
 //
-// The validator does not import internal/service or processing — predict's
-// structural ban applies to the broader descriptor surface in spirit.
-//
-// ValidateChain knows built-in operators only: it is
-// ValidateChainWithExtensions with a nil snapshot, so every
-// embedder-registered name fails the chain gate.
-func ValidateChain(fileData io.ReadSeeker, req *types.ChainRequest) *descriptor.Envelope {
-	return ValidateChainWithExtensions(fileData, req, nil)
-}
-
-// ValidateChainWithExtensions is ValidateChain against an
-// ExtensionsSnapshot, the predict-side twin of the runtime gate
-// processing.CanChainRequestWithExtensions: an extension aggregator or
-// grouper passes the chain gate on its DECLARED Mergeable flag
+// opts.Extensions is the chain-gate snapshot — the predict-side twin of
+// the runtime gate processing.CanChainRequestWithExtensions: an
+// extension aggregator or grouper passes on its DECLARED Mergeable flag
 // (OperatorMeta.Mergeable), a row_local extension attribute as a
-// row-local operator. The snapshot carries the declarations, so the
-// no-execute ban holds (TestPredictNoExecutionImports). A nil snap is
-// exactly ValidateChain.
-func ValidateChainWithExtensions(fileData io.ReadSeeker, req *types.ChainRequest, snap *ExtensionsSnapshot) *descriptor.Envelope {
-	return ValidateChainWithOptions(fileData, req, &PredictOptions{Extensions: snap})
-}
-
-// ValidateChainWithOptions is ValidateChain with the predict options in
-// reach: opts.Extensions is the chain-gate snapshot, and
-// opts.DefaultTimeZone / ZoneLoader / DisableDefaults / SchemaLoader
-// drive the per-stage zone resolution — the runtime's order: defaults,
+// row-local operator; a nil snapshot knows built-in operators only, so
+// every embedder-registered name fails the gate. (*Pulse).PredictChain
+// hands it the instance's snapshot. opts.DefaultTimeZone / ZoneLoader /
+// DisableDefaults / SchemaLoader drive the per-stage zone resolution — the runtime's order: defaults,
 // zones, the chain gate, then the field-reference rule
 // (FieldRefRefusals), weights, then the Process-predict request body
 // (validateRequestBodyAt — operators, accepted types, the stage's own
@@ -127,7 +108,7 @@ func ValidateChainWithExtensions(fileData io.ReadSeeker, req *types.ChainRequest
 // join-key rule, zones, then field references against the joined
 // schema). The gate,
 // the field checks and stage-schema propagation run on the defaulted
-// stage, as the runtime does. A nil opts is ValidateChain.
+// stage, as the runtime does. A nil opts is an empty PredictOptions.
 //
 // opts.Strict promotes every warning the chain collected (stage 0's
 // PULSE_VECTOR_METRIC_UNSUITED, a whole-chain overlay's
@@ -518,12 +499,6 @@ func loadChainModels(stages []*types.ChainStage, opts *PredictOptions) ([]model.
 	return out, nil
 }
 
-// ValidateChainFromBytes is a convenience wrapper that creates a
-// reader from bytes.
-func ValidateChainFromBytes(data []byte, req *types.ChainRequest) *descriptor.Envelope {
-	return ValidateChain(bytes.NewReader(data), req)
-}
-
 // chainStageDefaulted is the stage the runtime gates and executes: a
 // clone with the shared smart-defaults pass (ResolveDefaults — the
 // one the runtime's applyDefaults calls) run against the stage's input
@@ -581,7 +556,7 @@ func chainPredictedOutputFields(req *types.Request, in *encoding.Schema, kinds v
 // key columns, one f64 per aggregation output column, an expanding
 // vector aggregation's element columns included). A column collision
 // is reported by chainStageColumnRefusal; here the column is listed
-// once. Empty dictionaries — ValidateChain never reads records.
+// once. Empty dictionaries — ValidateChainWithOptions never reads records.
 func synthChainSchema(req *types.Request, in *encoding.Schema, kinds vectors.AggregationKinds) *encoding.Schema {
 	schema, _ := vectors.ChainStageSchema(req, in, kinds)
 	return schema

@@ -265,11 +265,11 @@ func TestChainValidationResult_CarriesNoAdvisories(t *testing.T) {
 	if want := []string{"valid", "request", "schema_info", "stage_schemas", "overlays_schema_divergence", "limit_findings"}; !reflect.DeepEqual(keys, want) {
 		t.Errorf("ChainValidationResult keys = %v, want %v", keys, want)
 	}
-	env := ValidateChain(bytes.NewReader(advisoryCohort(t)), &types.ChainRequest{
+	env := ValidateChainWithOptions(bytes.NewReader(advisoryCohort(t)), &types.ChainRequest{
 		Cohort: &types.Cohort{Filename: "a.pulse"},
 		Stages: []*types.ChainStage{{Request: &types.Request{Tests: append(oneSampleTests(descriptor.MultiplicityTriggerThreshold),
 			&types.Test{Type: types.TEST_T, Field: "x", SplitBy: "g"})}}},
-	})
+	}, nil)
 	b, err := json.Marshal(env)
 	if err != nil {
 		t.Fatal(err)

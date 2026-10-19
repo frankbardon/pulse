@@ -268,7 +268,7 @@ func decodeArr2(t *testing.T, b json.RawMessage) []json.RawMessage {
 // TestReturn_ComposeAndChainRefusalsMatchPredict: a bad path in a slot,
 // a stage or the Compose-level block is refused by the runtime with the
 // slot / stage index in details, exactly as ValidateCompose /
-// ValidateChain report first.
+// ValidateChainWithOptions report first.
 func TestReturn_ComposeAndChainRefusalsMatchPredict(t *testing.T) {
 	_, fs, cohort := acceptanceCohort(t)
 	p := newReturnInstance(t, fs, pulse.Options{})
