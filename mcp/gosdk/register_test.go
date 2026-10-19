@@ -423,7 +423,9 @@ func enumAt(schema map[string]any, arrayKey, innerKey string) []string {
 // sets per classification on the right JSON paths. After a pulse_inspect of a
 // numeric+categorical+date cohort the bound pulse_process must constrain
 // aggregations[].field / filterers[].field to all fields, attributes[].field to
-// numeric-only (no categorical), and pulse_facet's field to all fields.
+// the union its attribute types accept (narrowed per type by an allOf of
+// if / then branches — ATTR_ZSCORE numeric-only, ATTR_PREVIOUS_STATE a
+// categorical state), and pulse_facet's field to all fields.
 func TestRegister_BindOnInspect_EnumPayload(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	writeRichCohort(t, fs, "rich.pulse")
@@ -458,15 +460,20 @@ func TestRegister_BindOnInspect_EnumPayload(t *testing.T) {
 		}
 	}
 
-	// attributes[].field: numeric-for-analytics only — the categorical must be
-	// excluded. (Date IS numeric-for-analytics per
-	// encoding.FieldType.IsNumericForAnalytics, so it is intentionally present.)
+	// attributes[].field: the per-type union carries the numeric 'score'
+	// (ATTR_ZSCORE) and the categorical 'category' (ATTR_PREVIOUS_STATE /
+	// ATTR_CODE_IN); the categorical is narrowed away from ATTR_ZSCORE by
+	// a per-type allOf branch that names ATTR_ZSCORE and lists no
+	// categorical.
 	attrFields := enumAt(proc, "attributes", "field")
-	if !slices.Contains(attrFields, "score") {
-		t.Errorf("bound attributes.field enum missing numeric 'score': %v", attrFields)
+	if !slices.Contains(attrFields, "score") || !slices.Contains(attrFields, "category") {
+		t.Errorf("bound attributes.field enum = %v, want the per-type union with 'score' and 'category'", attrFields)
 	}
-	if slices.Contains(attrFields, "category") {
-		t.Errorf("bound attributes.field enum must exclude categorical 'category': %v", attrFields)
+	pprops, _ := proc["properties"].(map[string]any)
+	attrArr, _ := pprops["attributes"].(map[string]any)
+	attrItems, _ := attrArr["items"].(map[string]any)
+	if branches, _ := attrItems["allOf"].([]any); len(branches) == 0 {
+		t.Errorf("bound pulse_process attributes item lacks the per-type field branches")
 	}
 
 	// filterers[].field: every cohort field name, exactly.

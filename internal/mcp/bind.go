@@ -53,6 +53,12 @@ type fieldClassification struct {
 	// right_field is unconstrained.
 	JoinLeft  []string
 	JoinRight []string
+
+	// Types maps every name in AllFields to its field type (a joined
+	// name to its right field's type), so a per-operator accepted-types
+	// rule (attributeFieldBranches) can bind exactly the fields it
+	// admits.
+	Types map[string]encoding.FieldType
 }
 
 // classifyFields sorts schema fields into per-type-category buckets. Order
@@ -64,8 +70,12 @@ func classifyFields(schema *encoding.Schema) fieldClassification {
 	if schema == nil {
 		return c
 	}
+	c.Types = make(map[string]encoding.FieldType, len(schema.Fields))
 	for _, f := range schema.Fields {
 		c.AllFields = append(c.AllFields, f.Name)
+		if _, dup := c.Types[f.Name]; !dup {
+			c.Types[f.Name] = f.Type
+		}
 		if descx.IsWeightFieldType(f.Type) {
 			c.Weight = append(c.Weight, f.Name)
 		}
@@ -110,8 +120,17 @@ func withJoinTargets(c fieldClassification, joins []JoinTarget, inst *descx.Inst
 			for _, b := range out.buckets() {
 				*b = slices.Clone(*b)
 			}
+			out.Types = maps.Clone(c.Types)
+			if out.Types == nil {
+				out.Types = map[string]encoding.FieldType{}
+			}
 		}
 		r := classifyFields(j.Schema)
+		for _, name := range r.AllFields {
+			if n := j.As + name; !slices.Contains(out.AllFields, n) {
+				out.Types[n] = r.Types[name]
+			}
+		}
 		out.JoinRight = appendUnique(out.JoinRight, r.AllFields, "")
 		rb := r.buckets()
 		for i, b := range out.buckets() {
@@ -577,7 +596,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 					"type": "object",
 					"properties": map[string]any{
 						"type":       enumStringField(attrTypes, ""),
-						"field":      enumStringField(c.Numeric, "Source field (numeric, including decimal)."),
+						"field":      enumStringField(c.Numeric, attributeFieldDescription),
 						"label":      map[string]any{"type": "string"},
 						"expression": map[string]any{"type": "string"},
 						"params":     map[string]any{},
@@ -687,6 +706,7 @@ func buildRequestSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 	reqProps["multiplicity"] = multiplicitySchema(
 		"Request-level multiple-comparison correction, inherited by every test, post-test and overlay that sets no `multiplicity` of its own (each field on its own: slot, then request, then the ComposedRequest, then the instance default). Raw p-values never move; corrected p_adjusted / significant_adjusted ride beside them. {\"method\":\"none\"} opts out. Family `compose` is valid only on a pulse_compose slot.",
 		types.AllMultiplicityFamilies(), true)
+	bindAttributeFieldTypes(reqProps, c, attrTypes, inst)
 	dropHiddenSlots(requestObject, &types.Request{}, inst)
 	if ct, ok := reqProps["crosstab"].(map[string]any); ok {
 		dropHiddenSlots(ct, &types.CrosstabSpec{}, inst)
@@ -736,6 +756,24 @@ func relaxForEachItems(props map[string]any) {
 			if mirror != nil {
 				forbid[k] = mirror
 			}
+		}
+		// A per-type branch (attributeFieldBranches) narrows the same
+		// strings: relax its `then` alike, so an item carrying for_each
+		// keeps the placeholder form there too. The base `else` above
+		// already forbids the placeholder without for_each.
+		if branches, ok := item["allOf"].([]any); ok {
+			nb := make([]any, len(branches))
+			for i, b := range branches {
+				bm, _ := b.(map[string]any)
+				if then, ok := bm["then"]; ok {
+					cp := maps.Clone(bm)
+					cp["then"], _ = relaxEnumStrings(then)
+					nb[i] = cp
+					continue
+				}
+				nb[i] = b
+			}
+			item["allOf"] = nb
 		}
 		if len(forbid) == 0 {
 			continue
