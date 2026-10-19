@@ -43,7 +43,7 @@ overlay the engine consults).
 ## The `extend` contract: `Record`, `Rows` and reuse
 
 `extend.Record` exposes `Schema`, `IsNull`, `NumericValue`,
-`StringValue`, `SetMaskValue`, `DecimalValue`, `VectorValue` and
+`Uint64Value`, `StringValue`, `SetMaskValue`, `DecimalValue`, `VectorValue` and
 `Weight`; `extend.Rows` exposes `Len` and `At(i)`. Accessors never
 return an error — every "no value" answer is a false second return. The
 silent cases: `NumericValue` is false for a null, projected-out or
@@ -53,8 +53,12 @@ missing field AND for every `set_*` field (read those with
 NaN elements verbatim) — though a native vector's element member
 `f[k]` (below) reads through `NumericValue`; a categorical field's
 `NumericValue` is its dictionary INDEX; `date` is epoch days and
-`datetime` epoch seconds; `u64` above 2^53 loses precision through the
-float echo; `decimal128` needs `DecimalValue` for exactness.
+`datetime` epoch seconds; `NumericValue` on a `u64` above 2^53 is only
+the float echo (2^53 and 2^53+1 read alike) — `Uint64Value` returns the
+exact stored word on every decode path (streaming, buffered, parallel,
+shard archive, point lookup, filter-to-file), up to `math.MaxUint64`,
+and is `(0, false)` exactly when `NumericValue` is false; `decimal128`
+needs `DecimalValue` for exactness.
 
 **Reuse contract.** The engine decodes into reusable buffers, so a
 `Record` or `Rows` is valid ONLY for the call that received it. Never

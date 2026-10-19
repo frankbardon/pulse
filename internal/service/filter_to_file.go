@@ -429,6 +429,10 @@ func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *byte
 	nulls := make(map[string]bool, mapSize)
 	wide := make(map[string]any, mapSize)
 	rr := encx.NewRecordReader(br, schema)
+	// The map decode echoes a u64 above 2^53 lossily; capture its exact
+	// word for the record the filter reads (nil when no u64 field).
+	exact := encx.NewExactU64Words(schema)
+	rr.CaptureExactU64(exact)
 	// A grouped (0x02) schema: hand each record its row's parent-group
 	// entry indices so a filter over one group's members takes the
 	// per-entry precompute instead of evaluating per row. Only when the
@@ -456,6 +460,7 @@ func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *byte
 		posEnd := int64(len(data)) - int64(br.Len())
 
 		rec := processing.NewRecordWithWide(schema, values, nulls, wide)
+		exact.ApplyTo(rec)
 		if groupIdx != nil && readGroupIndices(rr, groupIdx) {
 			rec.SetGroupIndices(schema, groupIdx)
 		}

@@ -37,6 +37,23 @@ func ReadRecordAt(loc *encoding.RecordLocator,
 	keep FieldFilter,
 	plan *DecodePlan,
 ) error {
+	return ReadRecordAtExact(loc, r, i, values, nulls, wide, keep, plan, nil)
+}
+
+// ReadRecordAtExact is ReadRecordAt that also captures the exact word of
+// every retained, non-null u64 field into exact (see ExactU64Words), for
+// a caller that converts the maps into an engine record and must keep
+// u64 values above 2^53 exact. A nil exact is ReadRecordAt.
+func ReadRecordAtExact(loc *encoding.RecordLocator,
+	r io.ReadSeeker,
+	i uint64,
+	values map[string]float64,
+	nulls map[string]bool,
+	wide map[string]any,
+	keep FieldFilter,
+	plan *DecodePlan,
+	exact *ExactU64Words,
+) error {
 	if r == nil {
 		return errors.NewCodedError(errors.ENCODING_INVALID,
 			"record locator: nil reader")
@@ -53,6 +70,7 @@ func ReadRecordAt(loc *encoding.RecordLocator,
 	}
 
 	rr := NewRecordReader(r, loc.Schema)
+	rr.exact = exact
 	if plan != nil {
 		return rr.ReadRecordWithWidePlan(values, nulls, wide, keep, plan)
 	}

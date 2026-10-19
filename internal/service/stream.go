@@ -22,7 +22,11 @@ type streamingIterator struct {
 	schema *encoding.Schema
 
 	// Underlying reader state.
-	reader    *encx.RecordReader
+	reader *encx.RecordReader
+	// exact carries the exact u64 words the projection-without-plan map
+	// decode reads (nil when the schema has no u64 field), applied to
+	// the record it builds so Uint64Value stays exact on that path too.
+	exact     *encx.ExactU64Words
 	closer    io.Closer // non-nil when reading from afero.File
 	rawReader io.Reader // may be *bytes.Reader for Reset support
 
@@ -159,6 +163,10 @@ func (it *streamingIterator) initFromReader(r io.Reader) {
 	}
 	it.rawReader = r
 	it.reader = encx.NewRecordReader(r, it.schema)
+	if it.exact == nil {
+		it.exact = encx.NewExactU64Words(it.schema)
+	}
+	it.reader.CaptureExactU64(it.exact)
 }
 
 // Next advances to the next record. Returns false when exhausted or on
@@ -270,7 +278,9 @@ func (it *streamingIterator) next() bool {
 		return false
 	}
 
-	it.current = processing.NewRecordWithWide(it.schema, values, nulls, wide)
+	rec := processing.NewRecordWithWide(it.schema, values, nulls, wide)
+	it.exact.ApplyTo(rec)
+	it.current = rec
 	return true
 }
 

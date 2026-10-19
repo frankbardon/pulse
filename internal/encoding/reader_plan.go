@@ -59,6 +59,9 @@ func (rr *RecordReader) ReadRecordWithWidePlan(
 	for k := range wide {
 		delete(wide, k)
 	}
+	if rr.exact != nil {
+		rr.exact.reset()
+	}
 
 	// The trailing bitmap segment, if present, is always the LAST
 	// segment in the plan (BuildDecodePlan appends it after every
@@ -223,6 +226,9 @@ func (rr *RecordReader) decodeFieldGroup(
 				continue
 			}
 			values[field.Name] = rawToFloat64(field.Type, raw)
+			if rr.exact != nil && field.Type == encoding.FieldTypeU64 {
+				rr.exact.put(indices[gi], raw)
+			}
 			if field.Type.IsSet() && wide != nil {
 				wide[field.Name] = raw
 			}
@@ -265,6 +271,9 @@ func (rr *RecordReader) decodeBitmap(
 		values[field.Name] = 0
 		if wide != nil {
 			delete(wide, field.Name)
+		}
+		if rr.exact != nil {
+			rr.exact.drop(i)
 		}
 	}
 	return nil

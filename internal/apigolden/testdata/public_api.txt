@@ -2860,6 +2860,7 @@ pulse/extend: type Record imethod NumericValue(field string) (float64, bool)
 pulse/extend: type Record imethod Schema() *pulse/encoding.Schema
 pulse/extend: type Record imethod SetMaskValue(field string) (pulse/encoding.SetMask, bool)
 pulse/extend: type Record imethod StringValue(field string) (string, bool)
+pulse/extend: type Record imethod Uint64Value(field string) (uint64, bool)
 pulse/extend: type Record imethod VectorValue(field string) ([]float64, bool)
 pulse/extend: type Record imethod Weight() (float64, bool)
 pulse/extend: type RichAggregator interface
@@ -5652,4 +5653,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7444c758b912a9938664b04258bc199443a3f43c9668b4bc0fbc29e692e93f2d
+// golden-hash: 0540f9531fbc73637c3ee29abe43ca4b1db000d7c7f75ec70ca6a989849c51c7
