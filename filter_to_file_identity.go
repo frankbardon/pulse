@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
-	"encoding/json"
 	"hash"
 	"math"
 	"slices"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/exprident"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -68,7 +68,7 @@ func predicateDependencies(reg *processing.ExtensionRegistry, expr string, direc
 			var params struct {
 				Table string `json:"table"`
 			}
-			if json.Unmarshal(f.Params, &params) == nil && params.Table != "" {
+			if paramread.Probe(f.Params, &params) == nil && params.Table != "" {
 				if t, ok := reg.RangeTables[params.Table]; ok {
 					tables = append(tables, tableIdentity{Kind: tableKindRange, Name: params.Table, SHA256: rangeTableDigest(t)})
 				}
