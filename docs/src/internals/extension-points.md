@@ -729,12 +729,6 @@ finalizer:
   profile that omits it hides it everywhere; listing it needs
   `capability:matrices`.
 
-### Synth distribution
-
-Reserved for embedders shipping bespoke samplers. There is no `extend`
-factory shape for it yet; the registration validates name + duplicates
-and reserves the namespace.
-
 ### Expression functions
 
 Custom Go functions become callable from `ATTR_FORMULA` and
@@ -910,7 +904,6 @@ this section covers only the extension-side wiring.
 | Feature | No | Pre-filter; no components surface. |
 | Test | No | Test results carry their own typed shape. |
 | Matrix | Optional | Matrix floor `{n, n_null, n_listwise_dropped}` (+ pairwise and weighted floor keys) filled by the engine; the operator's own keys ride `MatrixOutput.Components` (no `ComponentsFunc`). See "Matrix operator (`MatrixOps`)". |
-| Synth | No | Generators, not aggregations. |
 
 A registration in a category that does not declare a `ComponentSchema`
 silently ignores the field if you set it.
@@ -1061,13 +1054,17 @@ pulse.AggregatorRegistration{
 
 The probe at `pulse.New` (see `extensions_probe.go`) exercises each
 factory once against a minimal synthetic schema, then asserts the
-components contract for AGG / GROUP / FILTER registrations:
+components contract for AGG / GROUP / FILTER / ATTR registrations. A
+registration is an emitter through its `ComponentsFunc` or through its
+value's own `Components()` method; both are held to the same table:
 
 | Condition | Error code |
 |---|---|
 | `ComponentsFunc` set (or the value's own `Components()` method adopted) but `ComponentSchema.Keys` empty | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` |
 | `ComponentsFunc` returns a key NOT present in `ComponentSchema.Keys` (after the floor-tolerance carve-out), or order diverges from the declared order | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` |
 | `ComponentsFunc` returns a universal-floor key the orchestrator owns | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` |
+| a `Components()` method emits a key outside `Keys` + floor (`details.emitter` `"Components()"`) | `PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH` |
+| `Components()` (or `ComponentsFunc`) panics or errors on the probe instance | `PULSE_EXTENSION_FACTORY_PANIC` |
 
 Fetch the Message + Fixup template via `pulse errors lookup <CODE>`
 (CLI) or call `pulse_errors_lookup` from an MCP session.
@@ -1076,7 +1073,7 @@ Fetch the Message + Fixup template via `pulse errors lookup <CODE>`
 
 The probe (`extensions_probe.go`) runs after schema + name validation
 and before `pulse.New` returns. For every aggregator, attribute,
-grouper, and filterer registration it constructs the factory once
+grouper, filterer and feature registration it constructs the factory once
 against a minimal synthetic schema and asserts the chart's left branch;
 a matrix operator takes the right branch (`extensions_probe_matrix.go`),
 the one probe that runs the operator over data:
@@ -1086,6 +1083,7 @@ flowchart TD
     A[pulse.New] --> B[validate names + reserved namespaces]
     B --> C[probe each factory]
     C -->|panic / nil return| F1[PULSE_EXTENSION_FACTORY_PANIC]
+    C -->|Feature: declaration vs StreamingFeatureComputer, either way| F2
     C --> D{Streamable declared?}
     D -->|yes, interface missing| F2[PULSE_EXTENSION_STREAMABLE_MISMATCH]
     D -->|no, or interface satisfied| D2{Grouper FansOut matches MultiKeyStreamingGrouper?}
@@ -1274,14 +1272,11 @@ operator — and that is checked at **every** `pulse.New`, with or
 without a profile, so a typo fails at construction with
 `PULSE_FEATURE_PROFILE_UNKNOWN` (each entry carries `extension` and
 `category`). Extension operators carry no `Since` and are listed in a
-profile by their registered name. Synth-distribution registrations have
-no `DependsOn`: distributions are not features (`capability:synth`
-gates them all).
+profile by their registered name.
 
 ## Purpose and Interpretation (guidance metadata)
 
-Every registration — all seven operator categories plus synth
-distributions — accepts an optional `Purpose *descriptor.Purpose`: the
+Every registration — all eight operator categories — accepts an optional `Purpose *descriptor.Purpose`: the
 same plain-language guidance built-ins declare (what the operator is
 for, the intents it answers, when to reach for something else, its
 assumptions). A `TestRegistration` additionally accepts
@@ -1719,6 +1714,42 @@ State these plainly to users rather than discovering them at run time:
   not reach it. Only the built-in date-family operators declared in
   `internal/descriptor/capabilities_zone.go` resolve a zone.
 
+## Deliberate v1 gaps
+
+These are decisions, not omissions; each may gain an additive contract in
+a v1.x release.
+
+- **Named tables are not features.** `LookupTables`, `ReferenceVectors`,
+  `LabelTables` and `RangeTables` are listed in no feature profile, so a
+  profile cannot hide a `lookup()` or `ref()` table, and they sit outside
+  `feature_set_digest`: two instances differing only in registered tables
+  share a digest. (The `capability:labels` / `capability:range_tables`
+  capabilities gate how a table is *resolved*, not whether it exists.)
+  Validity of an expression never depends on the profile.
+- **Extension test `Interpretation` is structure-only.** An extension
+  declares no output keys, so `pulse.New` checks path syntax, `Means` /
+  `Shared`, `Bands` and `Sign` shape but cannot check that a path names
+  a real output (the built-in `TestInterpretationCoversOutputs` has no
+  extension twin).
+- **Extensions are not zone-capable.** See the zone bullet above; an
+  explicit `tz` is `PROCESSING_CONFIG`.
+- **Synthetic-data distributions are not an extension category.** See
+  "The `Extensions` struct".
+- **Exact `u64` reaches extension operators only.** The two sites that
+  build engine records without the exact word — chain stage rows (the
+  synthesised stage schema holds only `categorical_u32` and `f64`, so no
+  `u64` field exists there) and the synth fidelity iterator (built-in
+  statistics only, no extension operator runs) — have nothing to read
+  exactly. A new map-decode site that feeds extensions must install the
+  exact words.
+- **`EstimateFacetMemory` prices facet fields only**; an extension
+  aggregator's `ValueState` is charged by `Process` / predict limits,
+  not by the facet estimate.
+- **`FilterToFileWithRequest` never reuses an output whose predicate runs
+  embedder code** (an extension filterer, an `ExprFunction`, a
+  `Lookup`-func table); it re-runs and atomically replaces it. Register a
+  `Rows` table where reuse matters.
+
 ## Migration recipe — pre-processing → registration
 
 Before extensions, the canonical pattern was for an embedder to
@@ -1784,7 +1815,7 @@ ext := pulse.Extensions{
 
 | Stem | Frontmatter | Documents |
 |---|---|---|
-| `op-<category>-<kebab>.md` | `kind: operator`, `category:` = the operator's prefix (`AGG`, `ATTR`, `FILTER`, `GROUP`, `WIN`, `FEAT`, `TEST`, `SYNTH`), `operator:` = the registered name | ONE extension operator registered in the same `Extensions`; the stem is `op-` plus the name lowercased with `_` → `-` (`AGG_ACME_TRIM` → `op-agg-acme-trim`) |
+| `op-<category>-<kebab>.md` | `kind: operator`, `category:` = the operator's prefix (`AGG`, `ATTR`, `FILTER`, `GROUP`, `WIN`, `FEAT`, `TEST`, `MAT`), `operator:` = the registered name | ONE extension operator registered in the same `Extensions`; the stem is `op-` plus the name lowercased with `_` → `-` (`AGG_ACME_TRIM` → `op-agg-acme-trim`) |
 | `ext-<kebab>.md` | `kind: design`, no `operator:` / `category:`, optional `requires:` | a topic — how your operators fit a workflow |
 
 The frontmatter keys and the required `##` sections are the built-in
