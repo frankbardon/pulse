@@ -255,7 +255,14 @@ SEs lag one IRLS update, ~5e-9); `gen_glm_gamma.R` writes
 `glm_gamma.json` the same way — gamma under `summary.glm`'s estimated
 dispersion (Pearson χ² / df.residual), t p-values, t intervals at 0.95
 and 0.90 and `vcov(glm)`, the dispersion self-checked against the
-Pearson residuals (`TestReferenceOracle_GLMGammaMatchesR`); and
+Pearson residuals (`TestReferenceOracle_GLMGammaMatchesR`);
+`gen_glm_gamma_selection.R` writes `glm_gamma_selection.json` — R's
+`AIC(glm)` / `BIC(glm)` on every subset of three predictors (plain, the
+`rep()` expansion, `glm(weights = w*)` with BIC on log n_eff) and
+`step()`'s forward / backward / both final models on a fixture where the
+fixed-dispersion score diverges, self-checked against an exact-AIC
+greedy search (`TestReferenceOracle_GLMGammaAICMatchesR`,
+`TestReferenceOracle_GLMGammaSelectionMatchesStep`); and
 `gen_glm_penalty.R` / `gen_ols_penalty.R` run glmnet at `thresh` 1e-20 /
 1e-24, so `TestReferenceOracle_RegOLSMatchesLM`,
 `TestRegGLM_IRLSMatchesR`, `TestRegGLM_PenaltyMatchesGlmnet` and

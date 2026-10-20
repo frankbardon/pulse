@@ -195,6 +195,7 @@ How far the fitted predictions sit from the observed outcomes, as twice the log-
 - On a penalized fit it is the unpenalized deviance at the shrunken coefficients, so it sits above the unpenalized fit's.
 - It has no fixed scale: compare it only with null_deviance or with another model fitted to the same rows and outcome.
 - For a 0/1 outcome the deviance alone does not show whether the model fits.
+- Under selection, binomial and Poisson candidates are scored by deviance plus the parameter penalty; a gamma candidate by R's AIC / BIC (its likelihood at dispersion deviance / n, the dispersion counted as a parameter), so a gamma deviance gap weighs 1 / dispersion times more.
 
 #### `null_deviance`
 

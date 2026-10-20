@@ -22,6 +22,12 @@ type refitResult struct {
 	N         int       // observations used after listwise null deletion
 	RSS       float64   // OLS only
 	Deviance  float64   // GLM only
+	// Y, Mu and Prior are a GLM fit's response, fitted means and prior
+	// weights (Prior nil = every weight 1), row for row — what a family
+	// whose dispersion is estimated (gamma) needs to score the candidate
+	// by its log-likelihood (aicBICFromGamma). They alias the refit's own
+	// slices; nothing copies them.
+	Y, Mu, Prior []float64
 	// Mean-y so selection can fall back to the intercept-only RSS without
 	// instantiating an engine when activePredictors is empty.
 	MeanY float64
@@ -231,12 +237,17 @@ func glmRefit(records []Record, target string, activePredictors []string, fam gl
 			nullDev += fam.Deviance(yVec[i], mu0)
 		}
 		nullDev *= 2
+		muRows := make([]float64, n)
+		for i := range muRows {
+			muRows[i] = mu0
+		}
 		return &refitResult{
 			Intercept: fam.LinkFunc(mu0),
 			Slopes:    nil,
 			N:         n,
 			Deviance:  nullDev,
 			MeanY:     yBar,
+			Y:         yVec, Mu: muRows, Prior: prior,
 		}, nil
 	}
 
@@ -273,6 +284,7 @@ func glmRefit(records []Record, target string, activePredictors []string, fam gl
 		N:         n,
 		Deviance:  deviance,
 		MeanY:     yBar,
+		Y:         yVec, Mu: sol.Mu, Prior: prior,
 	}, nil
 }
 

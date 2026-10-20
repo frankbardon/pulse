@@ -51,7 +51,7 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 - Binomial separation (a predictor splits the outcome, e.g. an empty 2×2 cell) → `PROCESSING_REGRESSION_SEPARATION`, `details.predictors` named, no coefficients (the MLE is infinite); the slot fails alone (`error`). Add `penalty: l2` (finite fit), or drop / merge it; check it is not recorded after the outcome. A strong but unseparated predictor converges.
 - Other non-convergence → `PROCESSING_REGRESSION_NO_CONVERGE` (`details.reason`): raise `max_iters`, rescale.
 - Unsupported link → `PROCESSING_REGRESSION_INVALID_LINK`.
-- Dispersion fixed at 1 for binomial / poisson — overdispersed counts get too-small SEs; gamma estimates it (weighted too). `covariance` `hc0`–`hc3` is dispersion-free.
+- Dispersion fixed at 1 for binomial / poisson — overdispersed counts get too-small SEs; gamma estimates it (weighted too). `covariance` `hc0`–`hc3` is dispersion-free. Gamma `selection` scores R's `AIC(glm)` / `BIC(glm)` (φ = D/n counted), not D + 2k.
 - Robust `covariance` beside `resample` / `selection`, < 2 clusters or a repeated `order_by` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. A null `cluster` / `order_by` drops the row.
 - Collinear or constant predictor → `PROCESSING_REGRESSION_RANK_DEFICIENT` from the up-front rank check, `details.columns` naming it; drop it.
 

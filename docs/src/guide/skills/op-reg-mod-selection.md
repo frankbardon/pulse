@@ -40,6 +40,7 @@ Inherits `target` / `predictors` from the host `RegressionSpec`. No additional f
 
 - Any non-empty `selection` forces buffered — `RegressionSpec.Streamable()` → false. Predict reports the downgrade.
 - `criterion` missing when `selection` set → `SERVICE_VALIDATION`. `bic` penalizes complexity harder than `aic`.
+- Scores = R's `AIC()` / `BIC()`: OLS Gaussian likelihood; binomial / poisson deviance + 2k (+ log(n)·k); gamma its likelihood at φ = deviance / n, φ counted (k + 1), so it walks R `step()`'s path where φ = 1 would not. `step()` ranks moves by deviance / φ̂ of the current fit, then refits — rare ties can part.
 - Worst-case `O(p²)` fits (`stepwise`); on wide tables prefer `forward`.
 - Composes with `resample` — the resample wraps the selected-feature fit.
 - Selection inflates type-I error on retained predictors; treat the model as exploratory.

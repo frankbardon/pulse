@@ -466,3 +466,11 @@ source(file.path(script_dir, "gen_glm_gamma.R"), local = FALSE)
 # frequency-weighted on the rep() expansion); base stats + jsonlite.
 # Deterministic rows, no RNG.
 source(file.path(script_dir, "gen_bayes_linear.R"), local = FALSE)
+
+# The REG_GLM gamma selection golden (glm_gamma_selection.json: AIC(fit) /
+# BIC(fit) per candidate model on the gamma log-likelihood at dispersion
+# deviance / n, plain, frequency (the rep() expansion) and probability
+# (w*, BIC on n_eff); step()'s forward / backward / both paths, the
+# fixed-dispersion score's diverging ones); base stats + jsonlite. Draws
+# its own seeded rows last.
+source(file.path(script_dir, "gen_glm_gamma_selection.R"), local = FALSE)
