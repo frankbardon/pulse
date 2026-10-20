@@ -225,6 +225,11 @@ missing / misshapen `Vcov` or a finite `PValue` without `PValues` is
   none, and a `multiplicity` block with any method but `none` is refused
   with `PULSE_MULTIPLICITY_INVALID` at predict and at runtime alike.
 
+A regression cannot read a window label computed in the same request:
+windows run after regression inputs are bound. For a two-step pipeline (an
+adstock window, then a fit over it) `Materialize` the window into a derived
+cohort first and run the regression against that.
+
 ## 9. Test it
 
 Mirror the in-repo suites, which import only public packages:

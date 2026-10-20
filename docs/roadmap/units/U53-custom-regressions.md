@@ -127,6 +127,7 @@ Filed as TODO items in [`TODO.md`](../TODO.md) (ids are TODO ids, not GitHub iss
 |---|---|
 | #487 Lasso / elastic-net `unpenalized` (per-predictor penalty factors) | U53 E3-S1 |
 | ~~#488 `ParamMeta.Example`, so an enum / range / numeric-array `Required` param passes the probe~~ — **delivered in U53** (owner decision; probe value, `pulse.New` type check, manifest `example`) | U53 E4-S1 |
+| #490 Evaluate same-request window predictors for regressions (a regression reading a window label computed in the same request, so `Materialize` is not the only route) | U53 (decision 10) |
 | #489 The post-fit extension slot (the implementation of #385's v1.x decision) | U53 (#385) |
 | #401, #454 → U57 (the parallel effort; its unit doc lands with it) | [U36](U36-reference-oracles.md) |
 
@@ -134,5 +135,18 @@ Filed as TODO items in [`TODO.md`](../TODO.md) (ids are TODO ids, not GitHub iss
 
 - **Decided (2026-10-10):** custom regressions ship in v1; no R in core; model packs and an R bridge are separate modules built on this contract; the casebook is a separate repository created after the example-converting units land.
 - **Decided (U53):** the post-fit slot ships in v1.x (#385, implementation #489); Weibull adstock is a new window `WIN_ADSTOCK` (#387); the outputs map is free-form under a declared `OutputSchema` (#382).
-- **Open for the owner** (listed in the effort PR body): the extension multiplicity family and `p_values` count basis, `conf_level` refused on a custom model, the `WIN_ADSTOCK` parameter choices, `gonum/optimize` versus the in-test Levenberg–Marquardt, a regression reading a same-request window label.
+- **Decisions (resolved 2026-10-20, owner, delegated to the orchestrator; rule: accept what is consistent and honest, close any gap an embedder would hit in this PR):**
+  1. Extension multiplicity family: default family kept (coefficients with a defined p, intercept excluded); closed with `RegressionRegistration.PValues` (false: no p-values, a non-`none` multiplicity block refused, predict counts 0; true: one per non-intercept predictor, `lower_bound`; a p-value from a `PValues=false` model is `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH`). Commits 414c355e, 93df088b.
+  2. Absent figures written NaN (`null`, key kept): accepted as built (the undefined-figures contract).
+  3. `conf_level` closed: accepted on every extension model, Wald intervals from the reported (or replicate) SE, t on `Fit.DF` else normal, null where SE is NaN. Commit 414c355e / 93df088b.
+  4. Custom `selection` AIC / BIC from `Fit.Deviance`, k = coefficient count, `missing_deviance` refused at `pulse.New`: accepted (matches REG_OLS, parity-tested).
+  5. `weight` on `params.fit` FITTED / RESIDUAL closed: skipped like `ATTR_REG_PREDICT` (refit path unchanged). Commit 9e8a34cd. Namespace (Compose `fits` / `models` only) and manifest `Required`: accepted.
+  6. `coef(fit, <model-named param>)` closed: reads any coefficient a custom fit reports; unknown name stays `PULSE_MODEL_TERM_UNKNOWN`. Commit 792cc0fc. Hill `k` / `s` are Outputs, not coefficients, by design.
+  7. `WIN_ADSTOCK` choices (required `kernel`, survival-weighted `weibull_cdf`, `weibull_pdf` at l+1): accepted (Robyn conventions, no silent default).
+  8. `unpenalized` as a flat `RegressionSpec` key, not echoed: accepted (penalty is a string; scoring a ridge model does not need it).
+  9. Reference Hill model keeps its own Levenberg-Marquardt, not `gonum/optimize`: accepted (no `go.mod` bump for a test-only model); noted in #388.
+  10. A regression cannot read a same-request window label: intended for v1 (windows are row-ordered and run after regression inputs are bound); `Materialize` is the supported two-step route, documented in the recipe and `regression-model-options`; evaluating same-request window predictors filed as #490.
+  11. `ParamMeta.Example` (#488) closed: optional field, the probe uses it, `pulse.New` validates it against `JSONType`. Commit b8c39bf2.
+  12. `Default` not injected (the factory owns defaults, documented): accepted; `ExactlyOneOf` closed: enforced at the request check in all nine categories, `PULSE_REQUEST_PARAM_INVALID` `exactly_one_of`. Commit 54cdbf9b.
+- **Not done (non-goal here):** `Recommend` drafts (`internal/guide/catalog.go`) could use `ParamMeta.Example`; left as is.
 - **Decided (owner, U53):** `ParamMeta.Example` ships in U53 (#488) rather than v1.x.
