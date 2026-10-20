@@ -24,7 +24,7 @@ Top-level keys, not `params` — except `params.fit`; `field` unread.
 | `penalty` | enum | `""`, `l1`, `l2`, `elasticnet`. |
 | `alpha` | float | Regularization strength. |
 | `l1_ratio` | float | Elasticnet mix. |
-| `weight` | slot weight | `null` opts out; REG_OLS's kinds: WLS refit; residual raw y − ŷ. |
+| `weight` | slot weight | `null` opts out; REG_OLS's kinds: WLS refit; residual raw y − ŷ. With `params.fit` skipped (the fit's own weight applied when it ran). |
 | `params.fit` | string | Score a bound fit (`fits` / `models` entry) instead of refitting: `y − score`, y the fit's target<!-- feature: REG_GLM -->; a REG_GLM's response residual<!-- /feature -->. No `target` / `predictors` / `penalty` / `alpha` / `l1_ratio` beside it. |
 
 ## Inputs

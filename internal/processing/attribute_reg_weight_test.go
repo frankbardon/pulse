@@ -2,6 +2,7 @@ package processing
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"testing"
 
@@ -178,4 +179,31 @@ func closeRel(a, b, tol float64) bool {
 		return true
 	}
 	return math.Abs(a-b) <= tol*math.Max(math.Abs(a), math.Abs(b))
+}
+
+// TestStampWeights_FitReferenceSkipped (custom-regressions decision #5):
+// an ATTR_REG_FITTED / ATTR_REG_RESIDUAL naming params.fit scores a
+// bound fit, so the stamp nulls its slot weight and leaves a request
+// weight unstamped on it (skipped, the ATTR_REG_PREDICT rule) — what
+// the resolver reports — while the refit slot carries the weight.
+func TestStampWeights_FitReferenceSkipped(t *testing.T) {
+	w := types.WeightSpec{Field: "w", Kind: types.WeightKindProbability}
+	req := &types.Request{
+		Weight: &w,
+		Attributes: []*types.Attribute{
+			{Type: types.ATTR_REG_FITTED, Label: "f", Params: json.RawMessage(`{"fit":"m"}`), Weight: types.SlotWeightOf(w)},
+			{Type: types.ATTR_REG_RESIDUAL, Label: "r", Params: json.RawMessage(`{"fit":"m"}`)},
+			{Type: types.ATTR_REG_FITTED, Label: "o", Target: "y", Predictors: []string{"x"}},
+		},
+	}
+	got := StampWeights(req, nil)
+	if !got.Attributes[0].Weight.IsNull() {
+		t.Errorf("params.fit slot weight = %+v, want null (skipped)", got.Attributes[0].Weight)
+	}
+	if got.Attributes[1].Weight.Spec() != nil {
+		t.Errorf("params.fit slot inherited %+v, want no applied weight", got.Attributes[1].Weight.Spec())
+	}
+	if s := got.Attributes[2].Weight.Spec(); s == nil || *s != w {
+		t.Errorf("refit slot weight = %v, want %v applied", s, w)
+	}
 }

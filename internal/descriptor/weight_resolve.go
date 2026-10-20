@@ -91,6 +91,10 @@ type weightSlot struct {
 	// params.method that set it, echoed in the refusal.
 	specClass  weighting.Class
 	specMethod string
+	// specSet marks a specClass override in force — one that may be
+	// ClassNone itself (an ATTR_REG_FITTED / ATTR_REG_RESIDUAL naming
+	// params.fit scores a bound fit: skipped, weighting.AttributeClassOf).
+	specSet bool
 	// specBetween names a MAT_DISTANCE params.between grouper that set
 	// specClass (GROUP_KMEANS: frequency-only), echoed in the refusal.
 	specBetween string
@@ -463,11 +467,13 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 		if a != nil {
 			add(fmt.Sprintf("attributes[%d]", i), string(a.Type), a.Weight)
 			ext(extCategoryAttribute)
-			// A total-bearing ATTR_FORMULA is frequency-only
-			// (weighting.AttributeClassOf).
+			// A total-bearing ATTR_FORMULA is frequency-only; a
+			// params.fit ATTR_REG_FITTED / RESIDUAL scores a bound fit
+			// and is skipped (weighting.AttributeClassOf).
 			if c := weighting.AttributeClassOf(a); c != weighting.ClassOf(string(a.Type)) {
 				s := &slots[len(slots)-1]
-				s.specClass, s.specTotal = c, true
+				s.specClass, s.specSet = c, true
+				s.specTotal = a.Type == types.ATTR_FORMULA
 			}
 		}
 	}
@@ -499,14 +505,14 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 		// A rank method is frequency-only (weighting.MatrixClassOf).
 		if c := weighting.MatrixClassOf(m.Type, vectors.IsRankMethod(vectors.SpecMethod(m))); c != weighting.ClassOf(string(m.Type)) {
 			s := &slots[len(slots)-1]
-			s.specClass, s.specMethod = c, vectors.SpecMethod(m)
+			s.specClass, s.specMethod, s.specSet = c, vectors.SpecMethod(m), true
 		}
 		// A GROUP_KMEANS between is frequency-only
 		// (weighting.DistanceClassOf).
 		if g, ok := vectors.SpecBetween(m); ok {
 			if c := weighting.DistanceClassOf(opRoute(inst, g.Type)); c != weighting.ClassOf(string(m.Type)) {
 				s := &slots[len(slots)-1]
-				s.specClass, s.specBetween = c, string(g.Type)
+				s.specClass, s.specBetween, s.specSet = c, string(g.Type), true
 			}
 		}
 	}
@@ -701,7 +707,7 @@ func ResolveWeights(req *types.Request, schema *encoding.Schema, defaultWeight *
 			// Classed below: a non-aware extension aggregator is
 			// skipped under the default, every other refusal is
 			// PULSE_EXTENSION_NOT_WEIGHT_AWARE.
-		case s.specClass != weighting.ClassNone:
+		case s.specSet:
 			class = s.specClass
 		default:
 			class = weighting.ClassOf(s.operator)
