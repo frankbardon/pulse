@@ -3,8 +3,8 @@
 #
 # Cross-compiles the pulse CLI for the six release targets
 # (linux/darwin/windows x amd64/arm64), packages each binary with
-# LICENSE and README.md, and writes SHA-256 sums of every archive to
-# OUTDIR/checksums.txt.
+# LICENSE, THIRD_PARTY_NOTICES.md and README.md, and writes SHA-256 sums
+# of every archive to OUTDIR/checksums.txt.
 #
 #   pulse_<version>_<os>_<arch>.tar.gz   (linux, darwin)
 #   pulse_<version>_windows_<arch>.zip   (binary named pulse.exe)
@@ -29,7 +29,7 @@ TARGETS="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-for f in LICENSE README.md; do
+for f in LICENSE THIRD_PARTY_NOTICES.md README.md; do
 	if [ ! -f "$f" ]; then
 		echo "release-dist: missing $f at repo root" >&2
 		exit 1
@@ -58,12 +58,12 @@ for target in $TARGETS; do
 	echo "release-dist: building $goos/$goarch"
 	CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
 		"$GO" build -trimpath -ldflags "$LDFLAGS" -o "$stage/$bin" ./cmd/pulse
-	cp LICENSE README.md "$stage/"
+	cp LICENSE THIRD_PARTY_NOTICES.md README.md "$stage/"
 
 	if [ "$goos" = "windows" ]; then
-		(cd "$stage" && zip -q "$OUTDIR_ABS/$name.zip" "$bin" LICENSE README.md)
+		(cd "$stage" && zip -q "$OUTDIR_ABS/$name.zip" "$bin" LICENSE THIRD_PARTY_NOTICES.md README.md)
 	else
-		tar -czf "$OUTDIR_ABS/$name.tar.gz" -C "$stage" "$bin" LICENSE README.md
+		tar -czf "$OUTDIR_ABS/$name.tar.gz" -C "$stage" "$bin" LICENSE THIRD_PARTY_NOTICES.md README.md
 	fi
 done
 

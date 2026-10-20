@@ -106,3 +106,27 @@ two takes is host noise.
 aggregation over 1-numeric and 5-numeric + 2-categorical shapes at 10K /
 100K / 1M rows. `scan-bench-baseline.txt` is the reference that file's
 header cites.
+
+## Reproducible summation benchmarks
+
+`internal/reprosum/bench_test.go` and
+`internal/processing/reprosum_proxy_bench_test.go` price the binned
+reproducible sum (`internal/reprosum.Sum`, ReproBLAS fold 3) against naive
+`+=`, before any aggregator uses it (archive-scale E2-S1). Same host,
+go1.27.2, `b3c8a3f3` + E2-S1, 2026-10-20, `-count=3`, median:
+
+| Benchmark | naive | binned | ratio |
+|---|---|---|---|
+| `ReproSum_Add` in-cache, sum in a register | 1.04 ns/add | 3.84 ns/add | 3.7× |
+| `ReproSum_Add` in-cache, through a non-inlined pointer call (`*_state`) | 3.82 ns/add | 4.01 ns/add | 1.05× |
+| `ReproSum_RawScan`, 128 MiB of 64-byte rows | 1.47 ns/row | 4.38 ns/row | 3.0× |
+| `ReproSum_RawScanGrouped`, 800k groups, random keys | 3.88 ns/row | 22.4 ns/row | 5.8× |
+| `ReproSum_EngineProxy`, `UpdateRow` over 2^20 records | 13.7 ns/row | 17.0 ns/row | 1.24× |
+| `ReproSum_Merge` | — | 16.7 ns/op | — |
+
+The register-resident naive arm is a floor no engine aggregator reaches
+(they accumulate through a pointer per record); the engine proxy is the
+end-to-end figure. The grouped raw scan prices the 56-byte state against
+an 8-byte float64 (45 MB versus 6.4 MB of accumulators at 800k groups).
+
+Command: `go test -run='^$' -bench=ReproSum -count=3 ./internal/reprosum/ ./internal/processing/`
