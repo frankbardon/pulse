@@ -15,6 +15,8 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 ## Params
 
+Every param is a top-level key of the regression entry (manifest `slot: true`); a `params` key is refused `PULSE_REQUEST_UNKNOWN_FIELD`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `target` | field | required | Response variable (numeric). |
@@ -28,6 +30,10 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 | `weight` | slot weight | inherited | `null` opts out; frequency only (= the expanded rows: X'WX, X'Wy, Σw in the posterior). Adds `SumWeights`; `NObs` raw rows. |
 | `vcov` | bool | `false` | Adds the POSTERIOR covariance b_n/(a_n−1)·Λ_n⁻¹ (null if a_n ≤ 1) + `Correlation`; diag = `StdErrors`²·a_n/(a_n−1). |
 | `covariance` | object | absent | `{type, cluster, order_by, lags}` as `op-reg-ols`. Keeps the posterior-mean βs but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹MΛ_n⁻¹): `StdErrors`, `CredibleIntervals`, CIs (normal, no `DF`) and `Vcov` (√diag = `StdErrors`) follow it. |
+| `name` | string | synthesized | Result alias; the saved model's name (default: the `save` file's stem). |
+<!-- feature: capability:model_save -->
+| `save` | string | absent | Writes the finished fit as a model file (`.pulse-model.json`, `compose-fits`). |
+<!-- /feature -->
 
 ## Inputs
 

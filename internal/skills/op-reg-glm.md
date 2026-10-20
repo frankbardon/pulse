@@ -15,6 +15,8 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 ## Params
 
+Every param is a top-level key of the regression entry (manifest `slot: true`); a `params` key is refused `PULSE_REQUEST_UNKNOWN_FIELD`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `target` | field | required | Response variable (numeric). |
@@ -30,6 +32,10 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 | `covariance` | object | absent | `{type, cluster, order_by, lags}` as `op-reg-ols`: `hc0`–`hc3`, `cluster` (CR1), `hac` (Newey–West). Sandwich over the IRLS scores at the converged weights (R `sandwich` on `glm`) behind `StdErrors`, `PValues`, CIs, `Vcov`; dispersion-free, still Wald z (no `DF`; cluster, gamma too). Weighted: w* rule. |
 <!-- feature: capability:multiplicity -->
 | `multiplicity` | object | absent | `{method, family, alpha, coefficients}` as `op-reg-ols`: the member coefficients' p-values join a `request` / `compose` family; adds `PAdjusted` / `SignificantAdjusted` + echo beside `PValues`. |
+<!-- /feature -->
+| `name` | string | synthesized | Result alias; the saved model's name (default: the `save` file's stem). |
+<!-- feature: capability:model_save -->
+| `save` | string | absent | Writes the finished fit as a model file (`.pulse-model.json`, `compose-fits`). |
 <!-- /feature -->
 
 `resample` / `selection` are top-level modifiers — see `op-reg-mod-resample`, `op-reg-mod-selection`.

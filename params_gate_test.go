@@ -34,6 +34,7 @@ var paramsSlotTypes = map[paramread.Category]reflect.Type{
 	paramread.PostTest:   reflect.TypeFor[types.Test](),
 	paramread.Matrix:     reflect.TypeFor[types.MatrixSpec](),
 	paramread.Overlay:    reflect.TypeFor[types.OverlaySpec](),
+	paramread.Regression: reflect.TypeFor[types.RegressionSpec](),
 }
 
 // TestParamsDeclaredMatchRead is the declared-vs-read gate behind

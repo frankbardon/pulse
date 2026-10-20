@@ -28,14 +28,14 @@ The question is: **what does one observation mean here?**
 | `n_source` | Leg |
 |---|---|
 | `cell_n_unweighted` (= the omitted default only under `normalize: none`) | `CellCounts[r][c]` |
-| `cell_value_weighted` | the cell VALUE, truncated |
-| `cell_weight_sum` | `CellComponents[r][c]["sum_weights"]` |
+| `cell_value_weighted` | the cell VALUE, ROUNDED half up |
+| `cell_weight_sum` | `CellComponents[r][c]["sum_weights"]`, ROUNDED likewise |
 | `row_margin_n` / `column_margin_n` | `RowMarginCounts[r]` / `ColumnMarginCounts[c]` (weighted: that margin's floor N*) |
 | `n_within` | the SLAB: `CellCounts` summed across the pair axis, first `n_within_depth`+1 dims held fixed |
 | `n_within_distinct` | that slab, in distinct KEYS |
 | `row_margin_distinct` / `column_margin_distinct` | `RowMarginComponents[r]` / `ColumnMarginComponents[c]`, in distinct KEYS |
 
-`n_within_depth` applies to the two within modes only (margin modes ignore it); a depth `>=` the pair-axis dim count is refused. The moment-based kinds (two-means z, Welch t, weighted two-means z) read n and both moments off their cell aggregator, so they REFUSE `n_source` and `p_source` outright — a selector there would be a silent no-op; the weighted kind instead REQUIRES `n_basis` (`weights` | `kish`). Refusals are `PULSE_OVERLAY_PARAM_MISSING`.
+`n_within_depth` applies to the two within modes only; a depth `>=` the pair-axis dim count is refused. The moment-based kinds (two-means z, Welch t, weighted two-means z) read n and both moments off their cell aggregator, so they REFUSE `n_source` and `p_source` outright — a selector there would be a silent no-op; the weighted kind instead REQUIRES `n_basis` (`weights` | `kish`). Refusals are `PULSE_OVERLAY_PARAM_MISSING`.
 
 ## Distinct keys versus records
 

@@ -15,6 +15,8 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 ## Params
 
+Every param is a top-level key of the regression entry (manifest `slot: true`); a `params` key is refused `PULSE_REQUEST_UNKNOWN_FIELD`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `target` | field | required | Response variable (numeric). |
@@ -31,6 +33,10 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 | `covariance` | object | absent | `{type, cluster, order_by, lags}`: `classical` (= absent), `hc0`–`hc3`, `cluster` (CR1), `hac` (Newey–West; `lags` int or `"auto"`). See `regression-inference`. |
 <!-- feature: capability:multiplicity -->
 | `multiplicity` | object | absent | `{method, family, alpha, coefficients}`: coefficient `PValues` join a correction family; adds `PAdjusted` / `SignificantAdjusted` beside the raw `PValues` (`multiplicity-correction`). |
+<!-- /feature -->
+| `name` | string | synthesized | Result alias; the saved model's name (default: the `save` file's stem). |
+<!-- feature: capability:model_save -->
+| `save` | string | absent | Writes the finished fit as a model file (`.pulse-model.json`, `compose-fits`). |
 <!-- /feature -->
 
 `resample` / `selection` are top-level modifiers — see `op-reg-mod-resample`, `op-reg-mod-selection`.
