@@ -18,8 +18,8 @@ Every mode reads `Response.Components.Crosstab`; a components-disabled host fire
 | `n_source` | Leg |
 |---|---|
 | `cell_n_unweighted` (default; empty means this) | `CellCounts[r][c]` |
-| `cell_value_weighted` | the cell VALUE, truncated |
-| `cell_weight_sum` | `CellComponents[r][c]["sum_weights"]` |
+| `cell_value_weighted` | the cell VALUE, ROUNDED to the nearest integer (half away from zero), never truncated |
+| `cell_weight_sum` | `CellComponents[r][c]["sum_weights"]`, ROUNDED to the nearest integer (half away from zero), never truncated — Σw 219.99999963 is n 220 |
 | `row_margin_n` / `column_margin_n` | `RowMarginCounts[r]` / `ColumnMarginCounts[c]` |
 | `n_within` | the SLAB: sum `CellCounts` across the pair axis, first `n_within_depth`+1 dims held fixed |
 | `n_within_distinct` | that slab, in distinct KEYS |
