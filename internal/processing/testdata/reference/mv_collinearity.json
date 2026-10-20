@@ -13,7 +13,7 @@
   },
   "primitive": "collinearity diagnostics",
   "r_function": "car::vif(lm(response ~ predictors[, weights])) (asserted) == diag(solve(R_w)); perturb::colldiag(X, scale = TRUE, center = FALSE, add.intercept = TRUE) and (center = TRUE, add.intercept = FALSE)",
-  "note": "Weighted colldiag runs on sqrt(w)-scaled rows (uncentered with a sqrt(w) intercept column; centered on the weighted mean), equivalent to W(Sigma + mu mu^T) after column scaling. condition_indices are ascending as perturb returns them; variance_decomposition rows follow them, columns follow 'columns'. Response is used only for car::vif's lm and does not enter the diagnostics. The one pairwise case (unweighted, response null) is built from the moments as Pulse builds it: R = cor(use = 'pairwise.complete.obs'), VIF = diag(solve(R)) (no car::vif: lm needs complete rows); colldiag on chol(B), B = [[1, mu'], [mu, D R D + mu mu']] with each member's own-row mean and population sd (uncentered) and on chol(R) (centered) — the moment route is asserted equal to the data route on every unweighted listwise case.",
+  "note": "Weighted colldiag runs on sqrt(w)-scaled rows (uncentered with a sqrt(w) intercept column; centered on the weighted mean), equivalent to W(Sigma + mu mu^T) after column scaling. condition_indices are ascending as perturb returns them; variance_decomposition rows follow them, columns follow 'columns'. Response is used only for car::vif's lm and does not enter the diagnostics. The pairwise cases (nulls, response null) are built from the moments as Pulse builds them: R = cor(use = 'pairwise.complete.obs'), VIF = diag(solve(R)) (no car::vif: lm needs complete rows); colldiag on chol(B), B = [[1, mu'], [mu, D R D + mu mu']] with each member's own-row mean and population sd (uncentered) and on chol(R) (centered) — the moment route is asserted equal to the data route on every unweighted listwise case. Weighted pairwise (frequency, probability): every R entry is the one-rule weighted correlation over that pair's own rows, each member's mean and population sd sum(w (x - mu)^2) / sum(w) over its own rows; scale-free, so both kinds agree, and under frequency each is asserted equal to the unweighted pairwise construction on the rep() expansion. pair_n stays the raw row count.",
   "cases": [
     {
       "fixture": "attitude",
@@ -1324,7 +1324,263 @@
           ]
         ]
       }
+    },
+    {
+      "fixture": "nulls",
+      "response": null,
+      "predictors": ["x1", "x2", "x3", "x4"],
+      "weight": "frequency",
+      "missing": "pairwise",
+      "n_rows": 48,
+      "pair_n": [
+        [
+          42,
+          37,
+          37,
+          36
+        ],
+        [
+          37,
+          42,
+          38,
+          37
+        ],
+        [
+          37,
+          38,
+          42,
+          36
+        ],
+        [
+          36,
+          37,
+          36,
+          42
+        ]
+      ],
+      "vif": [
+        1.532665673481566,
+        1.5299296514897003,
+        1.3150501572957398,
+        1.0611946502515994
+      ],
+      "tolerance": [
+        0.65245801305670559,
+        0.65362482453117687,
+        0.76042726922020465,
+        0.94233418889070841
+      ],
+      "uncentered": {
+        "columns": ["intercept", "x1", "x2", "x3", "x4"],
+        "condition_indices": [
+          1,
+          1.6103346250466977,
+          1.984773895235318,
+          15.376989476658625,
+          16.84455782332763
+        ],
+        "variance_decomposition": [
+          [
+            0.0017744687598619815,
+            0.0020427028870214957,
+            0.0017791031570324491,
+            0.0048479621619591457,
+            0.0041746127642504358
+          ],
+          [
+            0.0002809898171464044,
+            0.00012570621441025816,
+            0.00010657523775437012,
+            0.30085198336001689,
+            0.39551852645013996
+          ],
+          [
+            3.2868104531660669e-05,
+            2.496708084934624e-06,
+            2.8065653003745991e-07,
+            0.49647659165201313,
+            0.59188887396745571
+          ],
+          [
+            0.21639501498411812,
+            0.99782104192664456,
+            0.21516819473426629,
+            0.062286672078382968,
+            0.00065853524633949245
+          ],
+          [
+            0.78151665833434181,
+            8.052263838774789e-06,
+            0.78294584621441687,
+            0.13553679074762784,
+            0.0077594515718143412
+          ]
+        ]
+      },
+      "centered": {
+        "columns": ["x1", "x2", "x3", "x4"],
+        "condition_indices": [
+          1,
+          1.461802990660912,
+          1.8043700665185931,
+          2.1211644992687435
+        ],
+        "variance_decomposition": [
+          [
+            0.10363921475542792,
+            0.10649246126727648,
+            0.10534672382268412,
+            0.036786936917046348
+          ],
+          [
+            0.066420801032190224,
+            0.027071258099264753,
+            0.0021284258708934435,
+            0.86790527039985232
+          ],
+          [
+            0.077987836233751801,
+            0.17260598342063371,
+            0.88350827415698574,
+            0.075650359209653073
+          ],
+          [
+            0.75195214797863008,
+            0.69383029721282496,
+            0.0090165761494367964,
+            0.019657433473448279
+          ]
+        ]
+      }
+    },
+    {
+      "fixture": "nulls",
+      "response": null,
+      "predictors": ["x1", "x2", "x3", "x4"],
+      "weight": "probability",
+      "missing": "pairwise",
+      "n_rows": 48,
+      "pair_n": [
+        [
+          42,
+          37,
+          37,
+          36
+        ],
+        [
+          37,
+          42,
+          38,
+          37
+        ],
+        [
+          37,
+          38,
+          42,
+          36
+        ],
+        [
+          36,
+          37,
+          36,
+          42
+        ]
+      ],
+      "vif": [
+        1.4496436860557691,
+        1.5655337488561165,
+        1.3853733684014689,
+        1.216226831416463
+      ],
+      "tolerance": [
+        0.68982468562383614,
+        0.63875978447009962,
+        0.72182707045528316,
+        0.82221504588528338
+      ],
+      "uncentered": {
+        "columns": ["intercept", "x1", "x2", "x3", "x4"],
+        "condition_indices": [
+          1,
+          1.4911748220936658,
+          2.2572478928919124,
+          14.120007819286837,
+          17.031181524975441
+        ],
+        "variance_decomposition": [
+          [
+            0.0019069402820528528,
+            0.0023993913645001664,
+            0.0017459501783259716,
+            0.0051109693049890695,
+            0.0021038956648644618
+          ],
+          [
+            0.00021515207764513232,
+            0.00012087805378416045,
+            6.4486266419771693e-05,
+            0.24337576956673504,
+            0.30588517913008112
+          ],
+          [
+            7.542173654443156e-05,
+            9.2973121115708755e-07,
+            1.4038404461878013e-05,
+            0.61486629105142887,
+            0.67101046194814506
+          ],
+          [
+            0.31460445963408701,
+            0.96095431261200615,
+            0.088003872169481537,
+            0.050726164491799175,
+            0.0024435607540677072
+          ],
+          [
+            0.68319802626967063,
+            0.036524488238498354,
+            0.91017165298131086,
+            0.085920805585047874,
+            0.018556902502841761
+          ]
+        ]
+      },
+      "centered": {
+        "columns": ["x1", "x2", "x3", "x4"],
+        "condition_indices": [
+          1,
+          1.4752130394643892,
+          1.9322169790589745,
+          2.158597019364056
+        ],
+        "variance_decomposition": [
+          [
+            0.083930229917504415,
+            0.096628690472111867,
+            0.096816264965083124,
+            0.064478568843748807
+          ],
+          [
+            0.21810553320820666,
+            0.060931285374452103,
+            0.061237026940584659,
+            0.46056495615814219
+          ],
+          [
+            0.018047712914345725,
+            0.088038333675644814,
+            0.84142765820600773,
+            0.3970341792577442
+          ],
+          [
+            0.67991652395994329,
+            0.75440169047779126,
+            0.00051904988832446655,
+            0.077922295740364758
+          ]
+        ]
+      }
     }
   ]
 }
-// golden-hash: 254bb9d540ac5fd57f98ee356649dbad4acc48f1bb0cc3932cc4abece58e22a5
+// golden-hash: 17a24335ce8081cba43cfd005b647bfd1645795d19cf09b5e716432e67f67a21

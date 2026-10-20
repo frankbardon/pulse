@@ -262,6 +262,19 @@ Pearson residuals (`TestReferenceOracle_GLMGammaMatchesR`); and
 `TestRegOLS_PenaltyMatchesGlmnet` (`internal/processing/regression`)
 hold every figure at relative `1e-10`.
 
+`scripts/reference/gen_bayes_linear.R` writes `bayes_linear.json`:
+`REG_BAYES_LINEAR`'s Normal-Inverse-Gamma conjugate posterior written
+out as R matrix algebra (no stock package fits its scalar-precision
+prior) — the posterior mean, the marginal t scale, the credible interval
+and the CI at their levels on t(2aₙ), the df, √(bₙ/aₙ), R², adjusted R²
+and the posterior covariance bₙ/(aₙ − 1)·Λₙ⁻¹ — under default and
+informative priors, plain and frequency-weighted (the `rep()`
+expansion). Every case is self-checked against a second route,
+`lm.fit` (QR) on the augmented design [X; √ε·I], [y; √ε·μ₀], whose
+residual sum of squares is 2(bₙ − b₀).
+`TestReferenceOracle_RegBayesLinearMatchesR` holds every figure at
+relative `1e-10`.
+
 ### The R toolchain
 
 `make reference` refuses any R but 4.6.1 (2026-06-24) and any package

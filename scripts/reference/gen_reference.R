@@ -459,3 +459,10 @@ source(file.path(script_dir, "gen_post_tests.R"), local = FALSE)
 # or inline designs, dispersion self-checked against the Pearson
 # chi-square); base stats + jsonlite. Draws its own seeded rows last.
 source(file.path(script_dir, "gen_glm_gamma.R"), local = FALSE)
+
+# The REG_BAYES_LINEAR golden (bayes_linear.json: the Normal-Inverse-Gamma
+# conjugate posterior by R matrix algebra, self-checked against lm.fit on
+# the augmented design; default and informative priors, plain and
+# frequency-weighted on the rep() expansion); base stats + jsonlite.
+# Deterministic rows, no RNG.
+source(file.path(script_dir, "gen_bayes_linear.R"), local = FALSE)
