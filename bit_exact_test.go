@@ -71,6 +71,9 @@ func bitExactHash(row, col uint64) uint64 {
 // bitExactUnit maps a hash to [0, 1).
 func bitExactUnit(h uint64) float64 { return float64(h>>11) / (1 << 53) }
 
+// bitExactStride is the fixed-width part of a row (the null bitmap follows).
+const bitExactStride = 39
+
 var bitExactScales = [...]float64{1e-3, 1e-2, 0.1, 1, 10, 100, 1e3, 1e4, 1e5, 1e6}
 
 func bitExactSchema() *encoding.Schema {
@@ -80,19 +83,28 @@ func bitExactSchema() *encoding.Schema {
 			panic(err)
 		}
 	}
+	tags := encoding.NewDictionary()
+	for _, v := range []string{"a", "b", "c", "d", "e", "f"} {
+		if _, err := tags.Add(v); err != nil {
+			panic(err)
+		}
+	}
 	return &encoding.Schema{Fields: []encoding.Field{
 		{Name: "region", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 0, CsvColumnIdx: 0, Dictionary: dict},
 		{Name: "x", Type: encoding.FieldTypeF64, ByteOffset: 1, CsvColumnIdx: 1, Nullable: true},
 		{Name: "y", Type: encoding.FieldTypeF64, ByteOffset: 9, CsvColumnIdx: 2},
 		{Name: "pw", Type: encoding.FieldTypeF64, ByteOffset: 17, CsvColumnIdx: 3},
 		{Name: "fw", Type: encoding.FieldTypeU8, ByteOffset: 25, CsvColumnIdx: 4},
+		{Name: "tags", Type: encoding.FieldTypeSetU8, ByteOffset: 26, CsvColumnIdx: 5, Dictionary: tags},
+		{Name: "rid", Type: encoding.FieldTypeU32, ByteOffset: 27, CsvColumnIdx: 6},
+		{Name: "rv", Type: encoding.FieldTypeF64, ByteOffset: 31, CsvColumnIdx: 7},
 	}}
 }
 
 // bitExactRow encodes row r. Every product is an explicit float64
 // barrier, so arm64 FMA fusion cannot move the inputs.
 func bitExactRow(buf []byte, r uint64) {
-	clear(buf[26:])
+	clear(buf[bitExactStride:])
 	buf[0] = byte(r % 5)
 	h := bitExactHash(r, 1)
 	x := float64((2*bitExactUnit(h) - 1) * bitExactScales[h%uint64(len(bitExactScales))])
@@ -100,8 +112,14 @@ func bitExactRow(buf []byte, r uint64) {
 	putF64(buf[9:], 1+float64(bitExactUnit(bitExactHash(r, 2))*97.3))
 	putF64(buf[17:], 0.05+float64(bitExactUnit(bitExactHash(r, 3))*2.7))
 	buf[25] = byte(1 + r%4)
+	buf[26] = byte(bitExactHash(r, 4) & 0x3f) // a set_u8 mask over six members
+	// rid: a respondent spans three consecutive rows and carries ONE
+	// non-dyadic value rv on all of them (AGG_DISTINCT_SUM's key).
+	rid := r / 3
+	buf[27], buf[28], buf[29], buf[30] = byte(rid), byte(rid>>8), byte(rid>>16), byte(rid>>24)
+	putF64(buf[31:], float64(bitExactUnit(bitExactHash(rid, 5))*bitExactScales[rid%uint64(len(bitExactScales))]))
 	if r%11 == 5 {
-		encoding.BitmapSetNull(buf[26:], 1)
+		encoding.BitmapSetNull(buf[bitExactStride:], 1)
 	}
 }
 
@@ -127,7 +145,7 @@ func writeBitExactFile(t *testing.T, path string, schema *encoding.Schema, keep 
 	if err := encoding.WriteSchema(w, schema); err != nil {
 		t.Fatal(err)
 	}
-	row := make([]byte, 26+schema.BitmapByteSize())
+	row := make([]byte, bitExactStride+schema.BitmapByteSize())
 	n := 0
 	for r := uint64(0); r < bitExactRows; r++ {
 		if !keep(r) {
@@ -492,6 +510,42 @@ func TestBitExact_FormulaTotal(t *testing.T) {
 			})
 			if tot, _ := resps[0].Data[0]["max"].(float64); tot == 0 || tot == math.Trunc(tot) {
 				t.Fatalf("total %v is zero or integral: the fixture is not mixed-magnitude", tot)
+			}
+			bitExactCompare(t, arms, resps)
+		})
+	}
+}
+
+// TestBitExact_CountsAndDistinctSums: the weighted counting aggregators
+// (AGG_FREQUENCY's Σw match_count / share, AGG_SET_FREQUENCY's Σw per
+// member, AGG_SET_CARDINALITY_SUM / _AVG's Σw·card and Σw) and
+// AGG_DISTINCT_SUM (each respondent's one value summed once) answer
+// identical bits, ungrouped and grouped, on every worker count and
+// shard split — their sums are binned too.
+func TestBitExact_CountsAndDistinctSums(t *testing.T) {
+	dir := bitExactCohorts(t)
+	arms := bitExactArms(true)
+	freq, _ := json.Marshal(map[string]string{"value": "east"})
+	distinct, _ := json.Marshal(map[string]string{"distinct_by": "rid"})
+	for _, grouped := range []bool{false, true} {
+		t.Run(fmt.Sprintf("grouped=%v", grouped), func(t *testing.T) {
+			resps := bitExactRun(t, dir, arms, func(cohort string) *types.Request {
+				req := &types.Request{Cohort: &types.Cohort{Filename: cohort}, Aggregations: []*types.Aggregation{
+					{Type: types.AGG_FREQUENCY, Field: "region", Label: "f", Params: freq, Weight: bitExactPW()},
+					{Type: types.AGG_SET_FREQUENCY, Field: "tags", Label: "sf", Weight: bitExactPW()},
+					{Type: types.AGG_SET_CARDINALITY_SUM, Field: "tags", Label: "cs", Weight: bitExactPW()},
+					{Type: types.AGG_SET_CARDINALITY_AVG, Field: "tags", Label: "ca", Weight: bitExactPW()},
+					{Type: types.AGG_DISTINCT_SUM, Field: "rv", Label: "ds", Params: distinct},
+				}}
+				if grouped {
+					req.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}
+				}
+				return req
+			})
+			for _, k := range []string{"cs", "ds"} {
+				if v, _ := resps[0].Data[0][k].(float64); v == 0 || v == math.Trunc(v) {
+					t.Fatalf("%s = %v is zero or integral: the fixture is not mixed-magnitude", k, v)
+				}
 			}
 			bitExactCompare(t, arms, resps)
 		})

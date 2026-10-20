@@ -47,6 +47,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 - Missing `value` → `PROCESSING_CONFIG` (runtime and predict).
 - A value no row holds counts 0, not an error.
 - Nulls: not counted, not in `share`'s base.
+- Weighted Σw figures are binned sums: the same bits on every worker count and shard split.
 - `set_*` rejected with `PULSE_FIELD_TYPE_UNSUPPORTED`.
 
 ## See

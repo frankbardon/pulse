@@ -54,6 +54,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 
 - Counts label selections, not rows — `sum_cardinality ≥ n` for any non-empty masks.
 - Empty masks contribute 0 (and count toward `n`).
+- Weighted Σw figures are binned sums: the same bits on every worker count and shard split.
 
 ## See
 

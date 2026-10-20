@@ -45,6 +45,7 @@ Universal floor `{n, n_null}` plus operator-specific:
 - "Typical selections per respondent" — survey-friendly summary.
 - Empty masks count toward `n` (lowering the average); pre-filter if you want only non-empty rows.
 - No non-null mask (or Σw = 0) → `null` (NaN), never 0.
+- Weighted Σw figures are binned sums: the same bits on every worker count and shard split.
 
 ## See
 

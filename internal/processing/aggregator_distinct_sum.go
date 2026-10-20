@@ -4,6 +4,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -30,9 +31,12 @@ import (
 // IS first-wins across the whole input.
 //
 // Insertion order is retained (`order`) rather than derived from the map
-// so the scalar sum and the merge fold are both deterministic — a float64
-// sum accumulated in Go map iteration order would vary in the last ULP
-// between runs of an identical request.
+// so the first-wins merge fold is deterministic. The sum itself is a
+// binned reproducible sum (internal/reprosum) over the kept values, so
+// it does not depend on that order at all: serial, every worker count
+// and every shard split give the same bits whenever each key carries one
+// value (a key with conflicting values keeps the first one its arm
+// sees, which no summation can make order-free).
 //
 // Components() emits {sum, distinct_count}: the same scalar the value
 // channel carries, plus the number of distinct keys that contributed. One
@@ -128,14 +132,14 @@ func (a *distinctSumAggregator) Finalize() (float64, error) {
 // freeze stamps the components mirrors from the live per-key state.
 // Called from both Aggregate and Finalize so Components() returns the
 // same map on either path even after the streaming Finalize-reset drops
-// the live map. The sum is accumulated by walking `order`, not the map,
-// so an identical request produces an identical float64 every run.
+// the live map. The sum is binned (order-free), so neither map
+// iteration order nor the arm's record order reaches its bits.
 func (a *distinctSumAggregator) freeze() {
-	sum := 0.0
+	var sum reprosum.Sum
 	for _, k := range a.order {
-		sum += a.firstValue[k]
+		sum.Add(a.firstValue[k])
 	}
-	a.frozenSum = sum
+	a.frozenSum = sum.Float64()
 	a.frozenDistinctCount = len(a.order)
 	a.frozenFinalized = true
 }
