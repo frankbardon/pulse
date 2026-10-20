@@ -788,7 +788,7 @@ fatal; a panic is `PROCESSING_PANIC`).
 | `WeightAware` | the model reads row weights; undeclared, any weight in force is `PULSE_EXTENSION_NOT_WEIGHT_AWARE` |
 | `Vcov` | `vcov: true` is honoured (result `vcov` + `correlation`); undeclared it is `PROCESSING_CONFIG` `{regression, slot: "vcov"}` at predict and runtime |
 | `Penalty` | the model reads the shared `penalty` / `alpha` / `l1_ratio` slots itself (their values are the model's to judge); undeclared, any of them is `PROCESSING_CONFIG` `{regression, slot: "penalty"}` (`key` names a companion) |
-| `SupportsSelection` | the model can be refit over a predictor subset, so the selection driver may wrap it; `selection` / `criterion` stay refused (`slot: "selection"`) until that driver is wired to extension models |
+| `SupportsSelection` | the model can be refit over a predictor subset, so the engine's selection driver (`forward` / `backward` / `stepwise`) may wrap it; each candidate fit must report `Fit.Deviance` (−2·log-likelihood up to a constant every candidate shares), scored AIC = deviance + 2k or BIC = deviance + ln(n)·k with k its coefficient count and n its `n_obs` — a fit without one is `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` reason `missing_deviance` (at `pulse.New` on the probe fit, and on any candidate). Undeclared, `selection` / `criterion` are `PROCESSING_CONFIG` `{regression, slot: "selection"}` at predict and runtime |
 | `CovarianceTypes` | `[]types.CovarianceType` the model computes itself from `spec.Covariance`: a block whose type (absent = `classical`) is listed reaches the model after the shared shape rule (`cluster` needs `cluster`, `hac` needs `order_by`; a robust type beside `penalty` is `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`); any other type is `PROCESSING_CONFIG` `{regression, slot: "covariance"}`. An unknown or repeated entry fails `pulse.New` (`PULSE_EXTENSION_PARAM_INVALID`, reason `invalid_covariance_type`). A robust type forces the buffered path |
 | `Params` | `[]pulse.ParamMeta` — the keys of the slot's own `params` object (`RegressionSpec.Params`, which the factory reads off the spec); declared, any other key is `PULSE_REQUEST_UNKNOWN_FIELD` at `regressions[i].params.<key>`, and a wrong-typed value or a missing `Required` param is `PULSE_REQUEST_PARAM_INVALID`, at predict and runtime alike; undeclared, params pass through (predict advises `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED`). A built-in `REG_*` declares none, so any `params` key on one is refused |
 | `OutputSchema` | `[]pulse.RegressionOutputMeta{Key, JSONType, Description}` — the `Outputs` keys the model may fill (`invalid_output_key` on an empty, repeated or untyped key). `Outputs` survives `disable_components` and every `return` preset |
@@ -808,15 +808,41 @@ runtime adapter alike:
 | Slot (keys) | Rule |
 |---|---|
 | `penalty` (`alpha`, `l1_ratio`) | `Penalty` |
-| `selection` (`criterion`) | `SupportsSelection` + the driver (not yet wired) |
+| `selection` (`criterion`) | `SupportsSelection` |
 | `vcov` | `Vcov` |
 | `covariance` | the type is in `CovarianceTypes` |
-| `resample` (`jackknife_groups`, `jackknife_by`, `bootstrap_iters`, `rng_seed`) | refused until the resample driver is wired to extension models |
+| `resample` (`jackknife_groups`, `jackknife_by`, `bootstrap_iters`, `rng_seed`) | always honoured — see **Modifiers** |
 | `save` | `Scorer` |
 | `conf_level` | refused: the engine computes no intervals for a model |
 | `family`, `link`, `max_iters`, `tol`, `prior` (`prior_mu`, `prior_precision`, `prior_shape`, `prior_rate`, `credible_level`) | refused: built-in knobs — carry the model's own configuration in `params` |
 | `weight` | `WeightAware` (`PULSE_EXTENSION_NOT_WEIGHT_AWARE` otherwise) |
 | `params`, `multiplicity` | always honoured |
+
+**Modifiers.** `resample` and `selection` run the built-in drivers
+around the model, every refit a fresh model from the factory (its spec
+carrying the active predictors and no modifier keys) over a row subset
+(resample) or a predictor subset (selection, `SupportsSelection` only),
+always on the buffered path. Selection runs first; resample then
+refits the selected model. The jackknife (leave-one-out,
+`jackknife_groups`, `jackknife_by`; weighted JK1 on a weighted slot)
+and the bootstrap (`bootstrap_iters`, `rng_seed`; 0 derives the seed
+from the request and the rows) draw exactly the rows and groups
+`REG_OLS` draws, so results are bit-identical run to run and across
+`DecodeWorkers` / `ShardWorkers`. Every coefficient's `std_errors`
+entry becomes the replicate SE, `statistics` the Wald z, `p_values` the
+Wald-z p (jackknife) or the percentile p (bootstrap), and a requested
+`vcov` the replicate covariance. A replicate reporting other
+coefficients than the full fit is
+`PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` reason
+`replicate_coefficients`; a replicate's data-dependent refusal is
+skipped by the bootstrap and fails the jackknife (and only drops a
+selection candidate); any other error fails the run. The request
+deadline (`Options.Limits.RequestTimeout`) is read before every refit,
+so it bounds the replicate count of a slow model. The modifier rules
+predict applies to every regression run in the adapter too
+(`regresample.Check`, a selection's `criterion`), and a weighted
+bootstrap or selection is refused by the weight resolver as for a
+built-in.
 
 **Scoring.** With a `Scorer`, `ATTR_REG_PREDICT` scores the model's
 fits — a Compose `fits` entry, or a saved model reloaded through

@@ -288,13 +288,16 @@ func TestExtensions_RegressionStreamingModelRoutedBuffered(t *testing.T) {
 
 // TestExtensions_RegressionStreamabilityFollowsDeclaration: the
 // declared form decides the path, predict agrees with the runtime gate,
-// and a declared robust covariance downgrades a streaming model to
-// buffered on both sides (types.RegressionSpec.StreamableAs).
+// and a declared robust covariance or a resample modifier downgrades a
+// streaming model to buffered on both sides
+// (types.RegressionSpec.StreamableAs).
 func TestExtensions_RegressionStreamabilityFollowsDeclaration(t *testing.T) {
 	calls := &regCalls{}
 	p, cohort := openE2E(t, regressionExtensions(calls))
 	robust := slopeSpec(regVcovName)
 	robust.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC1}
+	resampled := slopeSpec(regStreamName)
+	resampled.Resample = "jackknife"
 	for _, tc := range []struct {
 		name   string
 		spec   *types.RegressionSpec
@@ -303,6 +306,7 @@ func TestExtensions_RegressionStreamabilityFollowsDeclaration(t *testing.T) {
 		{"streaming", slopeSpec(regStreamName), true},
 		{"buffered", slopeSpec(regBufferedName), false},
 		{"streaming_robust_covariance", robust, false},
+		{"streaming_resampled", resampled, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := regressionRequest(cohort, tc.spec)

@@ -814,7 +814,18 @@ machinery: neither `disable_components` / `--no-components` nor any
 `return` preset strips it (it is in `minimal` and `standard`). The Go
 `RegressionResult.ReportedFigures` (the fit statistics the model
 reported, so a reported exact 0 ranks in a compose `sweep`) is
-`json:"-"` and never reaches the wire.
+`json:"-"` and never reaches the wire. A sweep `rank` reads an
+extension fit like a built-in: `regressions.<name>.outputs.<key>` ranks
+on a declared output (an exact 0 included), a fit statistic the model
+reported ranks, and one it did not report is missing — refused
+`PULSE_SWEEP_RANK_PATH` (reason `missing`) when no slot reports it.
+
+Under `resample` (always accepted on an extension model) the result
+echoes `resample` (and `bootstrap_requested` / `bootstrap_succeeded`,
+`jackknife_groups`) as a built-in's does, and every coefficient's
+`std_errors`, `statistics` (the Wald z) and `p_values` carry the
+replicate figures; under `selection` (a `SupportsSelection` model) it
+echoes `selection`, `criterion` and `selected_features`.
 
 On the request side `RegressionSpec` takes an additive `params` object
 (`omitempty`; absent is byte-identical), the model's own configuration.

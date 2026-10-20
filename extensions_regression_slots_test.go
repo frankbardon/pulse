@@ -148,7 +148,7 @@ func TestExtensions_RegressionDeclaredSlotsReachModel(t *testing.T) {
 	var seen *types.RegressionSpec
 	ext := pulse.Extensions{Regressions: []pulse.RegressionRegistration{{
 		Name: regDeclaredName, Description: "declares penalty and covariance", Factory: specRecorder(&seen),
-		Streamable: true, Penalty: true, SupportsSelection: true,
+		Streamable: true, Penalty: true,
 		CovarianceTypes: []types.CovarianceType{types.CovarianceClassical, types.CovarianceHC1, types.CovarianceCluster},
 		OutputSchema:    slopeOutputs,
 	}}}
@@ -185,7 +185,7 @@ func TestExtensions_RegressionDeclaredSlotsReachModel(t *testing.T) {
 		{"declared_robust_with_penalty", func(s *types.RegressionSpec) {
 			s.Penalty, s.Covariance = "l2", &types.RegressionCovariance{Type: types.CovarianceHC1}
 		}, perr.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ""},
-		{"selection_not_wired", func(s *types.RegressionSpec) { s.Selection, s.Criterion = "forward", "aic" }, perr.PROCESSING_CONFIG, "selection"},
+		{"selection_undeclared", func(s *types.RegressionSpec) { s.Selection, s.Criterion = "forward", "aic" }, perr.PROCESSING_CONFIG, "selection"},
 	}
 	for _, rc := range refusals {
 		t.Run(rc.name, func(t *testing.T) {
@@ -226,7 +226,7 @@ func TestExtensions_RegressionDeclaredSlotsReachModel(t *testing.T) {
 			}
 		}
 	}
-	if want := []string{"target", "predictors", "penalty", "alpha", "l1_ratio", "covariance"}; !reflect.DeepEqual(slots, want) {
+	if want := []string{"target", "predictors", "penalty", "alpha", "l1_ratio", "resample", "covariance"}; !reflect.DeepEqual(slots, want) {
 		t.Errorf("manifest slot params = %v, want %v", slots, want)
 	}
 }

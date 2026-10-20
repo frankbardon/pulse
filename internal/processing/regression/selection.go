@@ -1,6 +1,7 @@
 package regression
 
 import (
+	"context"
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
@@ -34,6 +35,40 @@ func runSelection(
 	fitter func([]Record, []string) (*refitResult, error),
 	finalizeFn func([]Record, []string) (*types.RegressionResult, error),
 ) (*types.RegressionResult, error) {
+	return runSelectionCtx(context.Background(), spec, records, predictors, critFn, fitter, finalizeFn, nil)
+}
+
+// runSelectionCtx is runSelection under ctx: every candidate refit first
+// reads ctx.Err(), and a ctx error — or a refit error fatal reports
+// (nil: none; an extension model's contract fault) — stops the search
+// and is returned, where any other candidate error only drops that
+// candidate.
+func runSelectionCtx(
+	ctx context.Context,
+	spec *types.RegressionSpec,
+	records []Record,
+	predictors []string,
+	critFn func(fit *refitResult, k0 int) float64,
+	fitter func([]Record, []string) (*refitResult, error),
+	finalizeFn func([]Record, []string) (*types.RegressionResult, error),
+	fatal func(error) bool,
+) (*types.RegressionResult, error) {
+	var abort error
+	inner := fitter
+	fitter = func(recs []Record, active []string) (*refitResult, error) {
+		if abort != nil {
+			return nil, abort
+		}
+		if err := ctxErr(ctx); err != nil {
+			abort = err
+			return nil, err
+		}
+		fit, err := inner(recs, active)
+		if err != nil && fatal != nil && fatal(err) {
+			abort = err
+		}
+		return fit, err
+	}
 	if spec.Criterion != "aic" && spec.Criterion != "bic" {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_CONFIG,
@@ -58,6 +93,9 @@ func runSelection(
 		)
 	}
 
+	if abort != nil {
+		return nil, abort
+	}
 	// Refit once at the selected active set; finalizeFn returns the
 	// SE / p-values / R² / etc on this final model.
 	out, err := finalizeFn(records, active)

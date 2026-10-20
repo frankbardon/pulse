@@ -128,12 +128,8 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		}
 
 		// Selection requires Criterion when set.
-		if reg.Selection != "" && reg.Criterion == "" {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"regression Selection requires a Criterion (aic | bic)",
-				map[string]any{"selection": reg.Selection},
-			)
+		if cerr := RegressionSelectionCriterionRefusal(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 
 		// conf_level, when set, must lie in (0, 1) — the runtime's

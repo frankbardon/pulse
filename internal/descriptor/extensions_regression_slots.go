@@ -34,8 +34,9 @@ const (
 	// name, target, predictors) — read by every model.
 	RegressionFieldIdentity RegressionFieldClass = "identity"
 	// RegressionFieldAccepted: honoured on every extension model by a
-	// path of its own — params (the declared-keys allowlist) and
-	// multiplicity (the result's p-valued coefficients).
+	// path of its own — params (the declared-keys allowlist),
+	// multiplicity (the result's p-valued coefficients) and resample
+	// with its knobs (the engine's refit driver).
 	RegressionFieldAccepted RegressionFieldClass = "accepted"
 	// RegressionFieldWeightClass: weight — the registration's declared
 	// weight class (WeightAware) decides; undeclared, a weight in force
@@ -65,16 +66,6 @@ type regressionSlotRule struct {
 	// <TYPE> ") naming the declaration and the fix.
 	refusal func(spec *types.RegressionSpec) string
 }
-
-// The modifier drivers (resample: refit over a row subset; selection:
-// refit over a predictor subset) are not yet wired to extension models,
-// so both slots are refused even where the registration declares them
-// (SupportsSelection). Wiring a driver flips its constant; the rule and
-// its manifest row follow.
-const (
-	extensionResampleWired  = false
-	extensionSelectionWired = false
-)
 
 // setKeys returns the keys whose present() is true, in order.
 func setKeys(pairs ...any) []string {
@@ -138,26 +129,15 @@ var regressionSlotRules = []regressionSlotRule{
 		},
 	},
 	{
-		slot: "resample", keys: []string{"resample", "jackknife_groups", "jackknife_by", "bootstrap_iters", "rng_seed"},
-		set: func(s *types.RegressionSpec) []string {
-			return setKeys("resample", s.Resample != "", "jackknife_groups", s.JackknifeGroups != 0, "jackknife_by", s.JackknifeBy != "",
-				"bootstrap_iters", s.BootstrapIters != 0, "rng_seed", s.RNGSeed != 0)
-		},
-		declared: func(ExtensionRegression, *types.RegressionSpec) bool { return extensionResampleWired },
-		refusal: func(*types.RegressionSpec) string {
-			return "cannot be resampled yet (the jackknife / bootstrap driver is not wired to extension models); drop resample and its knobs"
-		},
-	},
-	{
 		slot: "selection", keys: []string{"selection", "criterion"},
 		set: func(s *types.RegressionSpec) []string {
 			return setKeys("selection", s.Selection != "", "criterion", s.Criterion != "")
 		},
 		declared: func(d ExtensionRegression, _ *types.RegressionSpec) bool {
-			return extensionSelectionWired && d.SupportsSelection
+			return d.SupportsSelection
 		},
 		refusal: func(*types.RegressionSpec) string {
-			return "does not support subset selection (its registration's SupportsSelection is false, or the selection driver is not wired to extension models); drop selection / criterion"
+			return "does not support subset selection (its registration's SupportsSelection is false: the model cannot be refit over a predictor subset); drop selection / criterion, or use resample, which every model accepts"
 		},
 	},
 	{
@@ -208,7 +188,15 @@ var regressionFieldClasses = map[string]RegressionFieldClass{
 	"predictors":   RegressionFieldIdentity,
 	"params":       RegressionFieldAccepted,
 	"multiplicity": RegressionFieldAccepted,
-	"weight":       RegressionFieldWeightClass,
+	// resample and its knobs: the engine's jackknife / bootstrap driver
+	// refits any model over row subsets, so every extension model
+	// accepts them (internal/processing/regression.RunExtensionModifiers).
+	"resample":         RegressionFieldAccepted,
+	"jackknife_groups": RegressionFieldAccepted,
+	"jackknife_by":     RegressionFieldAccepted,
+	"bootstrap_iters":  RegressionFieldAccepted,
+	"rng_seed":         RegressionFieldAccepted,
+	"weight":           RegressionFieldWeightClass,
 }
 
 // RegressionFieldClassOf classifies the types.RegressionSpec JSON key:
@@ -284,9 +272,8 @@ func regressionSlotParamsFor(decl ExtensionRegression) []descriptor.Param {
 			descriptor.Param{Name: "l1_ratio", Type: "float", Description: "The model's l1 / l2 mixing parameter, read by the model itself; a top-level key of the regression entry.", Slot: true},
 		)
 	}
-	if accepts("resample", probe) {
-		out = append(out, descriptor.Param{Name: "resample", Type: "enum", EnumValues: []string{"", "bootstrap", "jackknife"}, Description: "Resampling layer: the engine refits the model over row subsets; a top-level key of the regression entry.", Slot: true})
-	}
+	// resample: every extension model accepts it (an accepted field).
+	out = append(out, descriptor.Param{Name: "resample", Type: "enum", EnumValues: []string{"", "bootstrap", "jackknife"}, Description: "Resampling layer: the engine refits the model over row subsets (jackknife_groups, jackknife_by, bootstrap_iters and rng_seed tune it); a top-level key of the regression entry.", Slot: true})
 	if accepts("selection", probe) {
 		out = append(out,
 			descriptor.Param{Name: "selection", Type: "enum", EnumValues: []string{"", "backward", "forward", "stepwise"}, Description: "Subset-selection wrapper: the engine refits the model over predictor subsets; a top-level key of the regression entry.", Slot: true},
@@ -309,4 +296,18 @@ func regressionSlotParamsFor(decl ExtensionRegression) []descriptor.Param {
 		out = append(out, descriptor.Param{Name: "save", Type: "string", Description: "Write the finished fit as a model file (.pulse-model.json); a top-level key of the regression entry.", Slot: true})
 	}
 	return out
+}
+
+// RegressionSelectionCriterionRefusal is the rule that a selection
+// names its criterion — SERVICE_VALIDATION, details {selection}, when
+// spec sets selection without criterion. Predict applies it to every
+// regression; the extension adapter applies the same call before an
+// extension model's selection driver runs.
+func RegressionSelectionCriterionRefusal(spec *types.RegressionSpec) *errors.CodedError {
+	if spec == nil || spec.Selection == "" || spec.Criterion != "" {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+		"regression Selection requires a Criterion (aic | bic)",
+		map[string]any{"selection": spec.Selection})
 }

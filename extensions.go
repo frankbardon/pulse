@@ -934,10 +934,17 @@ type RegressionRegistration struct {
 	// "penalty"} (key names a companion), at predict and at runtime.
 	Penalty bool
 	// SupportsSelection declares that the model can be refit over a
-	// predictor subset, so the engine's selection driver may wrap it.
-	// Selection / criterion are refused (PROCESSING_CONFIG {regression,
-	// slot: "selection"}) without it — and, until the driver is wired
-	// to extension models, with it too.
+	// predictor subset, so the engine's selection driver (forward /
+	// backward / stepwise) may wrap it: every candidate is a fresh model
+	// whose spec carries the candidate predictors, scored by AIC =
+	// deviance + 2k or BIC = deviance + ln(n)·k on its fit's reported
+	// RegressionFit.Deviance (−2·log-likelihood up to a constant the
+	// candidates share; k its coefficient count, n its n_obs). A fit
+	// that reports no deviance is
+	// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH (reason
+	// missing_deviance), at pulse.New's probe and on any candidate.
+	// Undeclared, selection / criterion are refused (PROCESSING_CONFIG
+	// {regression, slot: "selection"}) at predict and at runtime alike.
 	SupportsSelection bool
 	// CovarianceTypes declares the covariance.type values the model
 	// computes itself (it reads spec.Covariance): a covariance block
@@ -947,12 +954,22 @@ type RegressionRegistration struct {
 	// known type listed once (PULSE_EXTENSION_PARAM_INVALID, reason
 	// invalid_covariance_type).
 	//
-	// Every other shared slot is fixed: resample and its knobs (not yet
-	// wired to extension models), conf_level (the engine computes no
-	// intervals for a model) and the built-ins' own knobs (family, link,
-	// max_iters, tol, prior*, credible_level) are refused with
+	// Every other shared slot is fixed: conf_level (the engine computes
+	// no intervals for a model) and the built-ins' own knobs (family,
+	// link, max_iters, tol, prior*, credible_level) are refused with
 	// PROCESSING_CONFIG {regression, slot}; save follows Scorer; weight
-	// follows WeightAware; params and multiplicity are always honoured.
+	// follows WeightAware; params, multiplicity and resample (with
+	// jackknife_groups, jackknife_by, bootstrap_iters, rng_seed) are
+	// always honoured. Resample runs the engine's jackknife / bootstrap
+	// driver around the model — every replicate a fresh model refit
+	// over a row subset, drawn exactly as for REG_OLS — and replaces
+	// each coefficient's standard error with the replicate one, its
+	// statistic with the Wald z and its p-value with the Wald-z
+	// (jackknife) or percentile (bootstrap) p; a replicate reporting
+	// other coefficients than the full fit is
+	// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH (reason
+	// replicate_coefficients). Limits.RequestTimeout is read before
+	// every refit.
 	CovarianceTypes []types.CovarianceType
 	// Params declares the keys of the slot's own params object
 	// (types.RegressionSpec.Params), which the factory reads off the

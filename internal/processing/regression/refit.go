@@ -28,6 +28,10 @@ type refitResult struct {
 	// by its log-likelihood (aicBICFromGamma). They alias the refit's own
 	// slices; nothing copies them.
 	Y, Mu, Prior []float64
+	// Params is an extension model's coefficient count — the k its
+	// selection criterion charges (RunExtensionModifiers); 0 for the
+	// built-ins, whose criteria count k0 themselves.
+	Params int
 	// Mean-y so selection can fall back to the intercept-only RSS without
 	// instantiating an engine when activePredictors is empty.
 	MeanY float64

@@ -226,7 +226,7 @@ func TestExtensions_RegressionManifestCarriesParamsAndOutputSchema(t *testing.T)
 			own = append(own, prm.Name+":"+prm.Type)
 		}
 	}
-	if !slices.Equal(slot, []string{"target", "predictors"}) || !slices.Equal(own, []string{"scale:float", "label:string"}) {
+	if !slices.Equal(slot, []string{"target", "predictors", "resample"}) || !slices.Equal(own, []string{"scale:float", "label:string"}) {
 		t.Fatalf("params slot=%v own=%v", slot, own)
 	}
 	if len(row.OutputSchema) != 2 || row.OutputSchema[0].Key != "scale" || row.OutputSchema[0].JSONType != "number" ||

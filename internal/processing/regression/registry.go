@@ -1,6 +1,7 @@
 package regression
 
 import (
+	"context"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
@@ -49,6 +50,16 @@ func RegisteredTypes() []types.RegressionType {
 type BufferedEngine interface {
 	Engine
 	FitBuffered(records []Record) (*types.RegressionResult, error)
+}
+
+// ContextBufferedEngine is a BufferedEngine whose fit can run long — a
+// Resample / Selection modifier refitting the model many times — and
+// so reads the request ctx between refits: a request deadline
+// (Options.Limits.RequestTimeout) or a cancel stops it with the ctx's
+// own error. FitEachBufferedWithContext prefers it over FitBuffered.
+type ContextBufferedEngine interface {
+	BufferedEngine
+	FitBufferedContext(ctx context.Context, records []Record) (*types.RegressionResult, error)
 }
 
 // StreamingEngine is the Phase 1 entry point for single-pass orchestrator
@@ -198,6 +209,13 @@ func FitBufferedWith(specs []*types.RegressionSpec, schema *encoding.Schema, rec
 // processor turns a data-dependent fit error into that slot's
 // per-slot failure (internal/slotfail) and returns any other as fatal.
 func FitEachBufferedWith(specs []*types.RegressionSpec, schema *encoding.Schema, records []Record, resolve Resolver) (results []*types.RegressionResult, fitErrs []error, err error) {
+	return FitEachBufferedWithContext(context.Background(), specs, schema, records, resolve)
+}
+
+// FitEachBufferedWithContext is FitEachBufferedWith under ctx: an
+// engine implementing ContextBufferedEngine fits through
+// FitBufferedContext, so its refit loop honours ctx.
+func FitEachBufferedWithContext(ctx context.Context, specs []*types.RegressionSpec, schema *encoding.Schema, records []Record, resolve Resolver) (results []*types.RegressionResult, fitErrs []error, err error) {
 	engines, err := BuildWith(specs, schema, resolve)
 	if err != nil {
 		return nil, nil, err
@@ -208,6 +226,10 @@ func FitEachBufferedWith(specs []*types.RegressionSpec, schema *encoding.Schema,
 	results = make([]*types.RegressionResult, len(engines))
 	fitErrs = make([]error, len(engines))
 	for i, eng := range engines {
+		if ce, ok := eng.(ContextBufferedEngine); ok {
+			results[i], fitErrs[i] = ce.FitBufferedContext(ctx, records)
+			continue
+		}
 		if be, ok := eng.(BufferedEngine); ok {
 			results[i], fitErrs[i] = be.FitBuffered(records)
 			continue

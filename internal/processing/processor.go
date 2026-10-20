@@ -1916,7 +1916,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	var regressionResults []*types.RegressionResult
 	if p.compute.Regressions && len(req.Regressions) > 0 {
 		workRegressionFits.Add(int64(len(req.Regressions)))
-		fits, fitErrs, err := regression.FitEachBufferedWith(req.Regressions, p.schema, recordsAsRegressionRecords(filtered), p.exts.LookupRegression)
+		fits, fitErrs, err := regression.FitEachBufferedWithContext(ctx, req.Regressions, p.schema, recordsAsRegressionRecords(filtered), p.exts.LookupRegression)
 		if err != nil {
 			return nil, err
 		}

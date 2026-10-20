@@ -1,6 +1,7 @@
 package pulse
 
 import (
+	"context"
 	stderrors "errors"
 	"fmt"
 	"maps"
@@ -15,6 +16,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/regression"
+	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -519,6 +521,19 @@ func adaptRegressionFactory(reg RegressionRegistration) regression.Factory {
 		if cerr := descx.ExtensionRegressionFieldTypeRefusal(spec, decl, schema); cerr != nil {
 			return nil, cerr
 		}
+		// The modifier rules predict applies to every regression: a
+		// selection names its criterion, the jackknife knobs are
+		// coherent — then a modifier-bearing slot refits the model
+		// through the engine's drivers (regressionModifierEngine).
+		if cerr := descx.RegressionSelectionCriterionRefusal(spec); cerr != nil {
+			return nil, cerr
+		}
+		if cerr := regresample.Check(spec); cerr != nil {
+			return nil, cerr
+		}
+		if spec.Resample != "" || spec.Selection != "" {
+			return &regressionModifierEngine{reg: reg, spec: spec, schema: schema}, nil
+		}
 		model, err := reg.Factory(spec, schema)
 		if err != nil {
 			return nil, err
@@ -537,6 +552,90 @@ func adaptRegressionFactory(reg RegressionRegistration) regression.Factory {
 		}
 		return &eng, nil
 	}
+}
+
+// regressionModifierEngine is the engine's view of an extension model
+// under a Resample or Selection modifier: every refit the drivers ask
+// for (regression.RunExtensionModifiers) is a fresh model from the
+// registration's factory, built from the slot's spec with the active
+// predictors substituted and the modifier keys cleared, and fitted
+// over the subset through the same driver as an unmodified slot.
+type regressionModifierEngine struct {
+	reg    RegressionRegistration
+	spec   *types.RegressionSpec
+	schema *encoding.Schema
+}
+
+// Fit fits over no rows (the engine's record-less entry point).
+func (e *regressionModifierEngine) Fit() (*types.RegressionResult, error) {
+	return e.FitBufferedContext(context.Background(), nil)
+}
+
+func (e *regressionModifierEngine) FitBuffered(records []regression.Record) (*types.RegressionResult, error) {
+	return e.FitBufferedContext(context.Background(), records)
+}
+
+// FitBufferedContext runs the modifiers under ctx
+// (regression.ContextBufferedEngine): a request deadline stops the
+// refit loop between two fits.
+func (e *regressionModifierEngine) FitBufferedContext(ctx context.Context, records []regression.Record) (*types.RegressionResult, error) {
+	return regression.RunExtensionModifiers(ctx, e.spec, records, e.refit,
+		func() error { return regressionSelectionDevianceMismatch(e.reg, false) },
+		func(base, got []string) error {
+			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH,
+				fmt.Sprintf("regression %q returned the coefficients %v on a resample replicate, not the full fit's %v (every refit reports the same coefficients)", e.reg.Name, got, base),
+				map[string]any{"category": string(categoryRegression), "name": string(e.reg.Name), "reason": "replicate_coefficients",
+					"coefficients": append([]string{}, base...), "replicate": append([]string{}, got...)})
+		})
+}
+
+// refit is one fresh fit of the model over recs with predictors active.
+func (e *regressionModifierEngine) refit(recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
+	inner := *e.spec
+	inner.Predictors = slices.Clone(predictors)
+	inner.Resample, inner.JackknifeGroups, inner.JackknifeBy, inner.BootstrapIters, inner.RNGSeed = "", 0, "", 0, 0
+	inner.Selection, inner.Criterion = "", ""
+	model, err := e.reg.Factory(&inner, e.schema)
+	if err != nil {
+		return nil, nil, err
+	}
+	if model == nil {
+		return nil, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			fmt.Sprintf("extension regression %q factory returned a nil model", e.reg.Name),
+			map[string]any{"type": string(e.reg.Name)})
+	}
+	if err := checkRegressionForm(e.reg, model, false); err != nil {
+		return nil, nil, err
+	}
+	views := make([]extend.Record, len(recs))
+	for i, rec := range recs {
+		if views[i], err = regressionRecordView(rec); err != nil {
+			return nil, nil, err
+		}
+	}
+	d := newRegressionDriver(e.reg, &inner, model)
+	out, err := d.fitOutput(views)
+	if err != nil {
+		return nil, nil, err
+	}
+	res, err := d.result(out)
+	if err != nil {
+		return nil, nil, err
+	}
+	keys := make([]string, len(out.Coefficients))
+	for i, c := range out.Coefficients {
+		keys[i] = c.Name
+	}
+	return res, keys, nil
+}
+
+// regressionSelectionDevianceMismatch is the refusal of a
+// SupportsSelection model whose fit reports no deviance — the figure
+// selection's information criterion reads.
+func regressionSelectionDevianceMismatch(reg RegressionRegistration, weighted bool) error {
+	return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH,
+		fmt.Sprintf("regression %q declares SupportsSelection but its fit reports no deviance (RegressionFit.Deviance), which selection's AIC / BIC reads", reg.Name),
+		probeDetails(map[string]any{"category": string(categoryRegression), "name": string(reg.Name), "reason": "missing_deviance"}, weighted))
 }
 
 // addRuntimeRegressions records ext.Regressions on the runtime
@@ -716,6 +815,9 @@ func probeRegression(reg RegressionRegistration, schema *encoding.Schema, recs [
 	}
 	if err := verifyRegressionOutput(reg, spec, out, weighted); err != nil {
 		return err
+	}
+	if reg.SupportsSelection && out.Fit.Deviance == nil {
+		return regressionSelectionDevianceMismatch(reg, weighted)
 	}
 	if reg.Scorer == nil || weighted {
 		return nil
