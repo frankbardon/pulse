@@ -152,10 +152,12 @@ func precisionFixture() []Record {
 }
 
 // TestRegBayes_ScalarPrecisionEqualsUniformVector: the scalar ε and the
-// vector [ε, ε, ε] are one prior. With μ₀ = 0 the two fits are bit
-// identical (every Λ₀ term enters the same way); with an informative μ₀
-// only μ₀ᵀΛ₀μ₀'s evaluation order differs (ε·Σμ² vs Σε·μ²), so the
-// figures agree within a few ulps.
+// vector [ε, ε, ε] are one prior. The posterior mean is bit identical
+// (every Λ₀ term enters Λ_n and its right-hand side the same way); b_n is
+// not: the scalar path keeps the historical quadratic form, the vector
+// path the cancellation-free residual form b₀ + ½(RSS + ΔᵀΛ₀Δ), so the
+// scale figures (standard errors, intervals, residual SE, vcov) agree
+// within a few ulps.
 func TestRegBayes_ScalarPrecisionEqualsUniformVector(t *testing.T) {
 	recs := precisionFixture()
 	for _, mu := range [][]float64{nil, {0.5, 1.1, -0.7}} {
@@ -171,14 +173,15 @@ func TestRegBayes_ScalarPrecisionEqualsUniformVector(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if mu == nil {
-			if !reflect.DeepEqual(a, b) {
-				t.Errorf("μ₀ = 0: scalar %+v\nvector %+v", a, b)
-			}
-			continue
+		if mu == nil && !reflect.DeepEqual(a.Coefficients, b.Coefficients) {
+			t.Errorf("μ₀ = 0: scalar β %v, vector β %v", a.Coefficients, b.Coefficients)
+		}
+		if !refRelClose(a.ResidualStdErr, b.ResidualStdErr, 1e-12) {
+			t.Errorf("residual SE: scalar %v vector %v", a.ResidualStdErr, b.ResidualStdErr)
 		}
 		for _, key := range coefficientKeys(scalar.Predictors) {
-			if !refRelClose(a.Coefficients[key], b.Coefficients[key], 1e-14) || !refRelClose(a.StdErrors[key], b.StdErrors[key], 1e-12) {
+			if !refRelClose(a.Coefficients[key], b.Coefficients[key], 1e-14) || !refRelClose(a.StdErrors[key], b.StdErrors[key], 1e-12) ||
+				!refRelClose(a.CILower[key], b.CILower[key], 1e-12) {
 				t.Errorf("%s: scalar (%v, %v) vector (%v, %v)", key, a.Coefficients[key], a.StdErrors[key], b.Coefficients[key], b.StdErrors[key])
 			}
 		}

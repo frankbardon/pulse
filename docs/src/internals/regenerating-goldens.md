@@ -284,8 +284,10 @@ relative `1e-10`.
 `scripts/reference/gen_bayes_precision.R` writes `bayes_precision.json`:
 the same posterior under a per-coefficient `prior_precision`, Λ₀ =
 diag(v) — flat (0) entries, an experiment-centred strong entry, a
-pinning one (kept at 1e5: Pulse's quadratic-form bₙ cancels μ₀ᵀΛ₀μ₀
-against μₙᵀΛₙμₙ, so its error grows with the precision), plain and
+pinning one at 1e5 and at 1e10 (a vector prior's bₙ is the residual form
+b₀ + ½(RSS + ΔᵀΛ₀Δ); the quadratic form cancels μ₀ᵀΛ₀μ₀ against
+μₙᵀΛₙμₙ, ~1e-7 off at 1e10; at 1e10 the augmented Householder QR is the
+reference, since `solve()` loses digits there), plain and
 frequency-weighted — self-checked against `lm.fit` on [X; diag(√v)]
 (`TestReferenceOracle_RegBayesPrecisionVectorMatchesR`, `1e-10`). The
 `ridge_unpenalized_*` cases of `ols_penalty.json` fit glmnet with

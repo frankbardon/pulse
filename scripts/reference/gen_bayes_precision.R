@@ -21,8 +21,10 @@
 # (then append the `// golden-hash:` footer). CI never runs R. Base stats
 # + jsonlite only; no stock R package fits this prior.
 #
-# Self-checks, every case: b_n's residual form equals Pulse's quadratic
-# form b0 + (y'y + mu0'L0 mu0 - mu_n'L_n mu_n)/2 at 1e-12; mu_n, b_n and
+# Self-checks, every case: b_n's residual form equals the quadratic
+# form b0 + (y'y + mu0'L0 mu0 - mu_n'L_n mu_n)/2 at 1e-12 (precisions
+# below 1e6 only — the quadratic form cancels under a pinning entry);
+# mu_n, b_n and
 # Lambda_n^-1 equal least squares on the AUGMENTED data
 # [X; diag(sqrt(v))], [y; sqrt(v) mu0] (lm.fit, Householder QR — a flat
 # entry adds a zero row) at 1e-10; frequency-weighted cases equal the
@@ -94,15 +96,31 @@ bp_case <- function(name, X, y, v, mu0 = NULL, w = rep(1, length(y))) {
   bn <- b0 + (sum(res^2) + as.numeric(t(dm) %*% L0 %*% dm)) / 2
   bn_alt <- b0 + (sum(ye^2) + as.numeric(t(mu0) %*% L0 %*% mu0) -
     as.numeric(t(mun) %*% Ln %*% mun)) / 2
-  bp_near(bn, bn_alt, 1e-12, paste(name, "b_n residual vs quadratic form"))
+  # The quadratic form cancels mu0'L0 mu0 against mu_n'L_n mu_n, so it is
+  # itself inaccurate under a pinning entry; it is checked only below 1e6.
+  if (max(v) < 1e6) bp_near(bn, bn_alt, 1e-12, paste(name, "b_n residual vs quadratic form"))
 
   Xa <- rbind(Xd, diag(sqrt(v), q))
   ya <- c(ye, sqrt(v) * mu0)
   fa <- lm.fit(Xa, ya)
-  bp_near(mun, fa$coefficients, 1e-10, paste(name, "mu_n vs augmented QR"))
-  bp_near(bn - b0, sum(fa$residuals^2) / 2, 1e-10, paste(name, "b_n vs augmented RSS"))
   stopifnot(all(fa$qr$pivot == seq_len(q)))
-  bp_near(Lninv, chol2inv(qr.R(fa$qr)), 1e-10, paste(name, "Lambda_n^-1 vs QR"))
+  if (max(v) < 1e6) {
+    bp_near(mun, fa$coefficients, 1e-10, paste(name, "mu_n vs augmented QR"))
+    bp_near(bn - b0, sum(fa$residuals^2) / 2, 1e-10, paste(name, "b_n vs augmented RSS"))
+    bp_near(Lninv, chol2inv(qr.R(fa$qr)), 1e-10, paste(name, "Lambda_n^-1 vs QR"))
+  } else {
+    # A pinning entry makes Lambda_n ill-conditioned (cond ~ the entry):
+    # solve() then loses digits the augmented Householder QR keeps, so
+    # the QR route IS the reference, cross-checked against solve() at
+    # 1e-6, and b_n is the augmented RSS (the residual form, exactly).
+    bp_near(mun, fa$coefficients, 1e-6, paste(name, "mu_n vs augmented QR"))
+    mun <- as.numeric(fa$coefficients)
+    Lninv <- chol2inv(qr.R(fa$qr))
+    res <- ye - as.numeric(Xd %*% mun)
+    bn <- b0 + sum(fa$residuals^2) / 2
+    dm <- mun - mu0
+    bp_near(bn, b0 + (sum(res^2) + sum(v * dm^2)) / 2, 1e-10, paste(name, "b_n augmented RSS vs residual form"))
+  }
 
   if (any(w != 1)) {
     Xw <- cbind(1, X)
@@ -146,12 +164,15 @@ bp_case("experiment_centred_x1_flat_intercept", X2, y2,
 # Every entry flat: the posterior mean is the least-squares fit.
 bp_case("all_flat", X2, y2, v = c(0, 0, 0))
 
-# A strong precision on x2 pins it near its prior mean (-1). Pulse
-# evaluates b_n by the quadratic form, which cancels mu0'L0 mu0 against
-# mu_n'L_n mu_n: its relative error grows with the precision (~5e-12 at
-# 1e6), so the case stays at 1e5, inside the 1e-12 self-check; the
-# precision -> infinity limit itself is a Go property test.
+# A strong precision on x2 pins it near its prior mean (-1). A vector
+# prior's b_n is the residual form b0 + (RSS + (mu_n - mu0)'L0 (mu_n -
+# mu0))/2 in Pulse too (custom-regressions E3-S2): the quadratic form
+# b0 + (y'y + mu0'L0 mu0 - mu_n'L_n mu_n)/2 cancels two huge, nearly
+# equal terms (rel err ~1e-7 at 1e10). pinned_x2_1e10 pins it at 1e10,
+# where only the residual form holds 1e-10; the precision -> infinity
+# limit itself is a Go property test.
 bp_case("pinned_x2", X2, y2, v = c(1e-3, 1e-3, 1e5), mu0 = c(0, 0, -1))
+bp_case("pinned_x2_1e10", X2, y2, v = c(1e-3, 1e-3, 1e10), mu0 = c(0, 0, -1))
 
 # Three predictors, mixed precisions, default (zero) prior mean.
 i <- 0:59

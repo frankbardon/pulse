@@ -36,6 +36,11 @@ import (
 //	μ_n = Λ_n⁻¹ · (Λ₀ μ₀ + Xᵀy)
 //	a_n = a₀ + n/2
 //	b_n = b₀ + ½ (yᵀy + μ₀ᵀΛ₀μ₀ − μ_nᵀΛ_nμ_n)
+//	    = b₀ + ½ (RSS + (μ_n − μ₀)ᵀΛ₀(μ_n − μ₀))
+//
+// A scalar prior evaluates the first form (bit-for-bit historical); a
+// per-coefficient vector the second, which a pinning entry cannot
+// cancel away.
 //
 // All four (XᵀX, Xᵀy, yᵀy, n) are derivable at finalize time from the
 // centered Welford moments and the running means — see buildGramFromWelford
@@ -382,6 +387,16 @@ func (e *bayesLinearEngine) finalizeFromAccumulator(records []Record) (*types.Re
 	}
 
 	bN := e.priorRate + 0.5*(ytY+mu0Quad-muNQuad)
+	if !e.precisionScalar {
+		// Per-coefficient precision: the residual form
+		//   b_n = b₀ + ½ (RSS + (μ_n − μ₀)ᵀΛ₀(μ_n − μ₀)),
+		// algebraically the quadratic form above but free of its
+		// cancellation — a large Λ₀ entry makes μ₀ᵀΛ₀μ₀ and μ_nᵀΛ_nμ_n
+		// huge and nearly equal. RSS reads the centred moments:
+		// M2_yy − 2βᵀM2_xy + βᵀM2_xxβ + Σw·(μ_y − β₀ − βᵀμ_x)². The scalar
+		// path keeps the historical form bit for bit.
+		bN = e.priorRate + 0.5*(e.residualSS(muNSlice)+e.priorDeviation(muNSlice))
+	}
 	if bN < 0 {
 		// Should not happen under a well-formed prior; clamp tiny negatives
 		// from cancellation. If genuinely negative, surface RANK_DEFICIENT
@@ -586,6 +601,42 @@ func buildGramFromWelford(a *olsAccumulator) (gram, xtY []float64, ytY float64) 
 	// yᵀy.
 	ytY = a.m2YY + n*a.meanY*a.meanY
 	return gram, xtY, ytY
+}
+
+// residualSS is Σw·(y − β₀ − xᵀβ)² at the coefficients mu (intercept
+// first), from the centred moments: M2_yy − 2βᵀM2_xy + βᵀM2_xxβ plus
+// Σw·r̄², r̄ = μ_y − β₀ − βᵀμ_x the residual mean. Clamped at 0 (rounding
+// on a near-perfect fit).
+func (e *bayesLinearEngine) residualSS(mu []float64) float64 {
+	a := e.acc
+	p := a.p
+	rbar := a.meanY - mu[0]
+	rss := a.m2YY
+	for i := 0; i < p; i++ {
+		bi := mu[i+1]
+		rbar -= float64(bi * a.meanX[i])
+		rss -= 2 * float64(bi*a.m2XY[i])
+		row := 0.0
+		for j := 0; j < p; j++ {
+			row += float64(a.m2XX[i*p+j] * mu[j+1])
+		}
+		rss += float64(bi * row)
+	}
+	rss += a.sumW * float64(rbar*rbar)
+	if rss < 0 {
+		return 0
+	}
+	return rss
+}
+
+// priorDeviation is (μ − μ₀)ᵀΛ₀(μ − μ₀) for the diagonal prior.
+func (e *bayesLinearEngine) priorDeviation(mu []float64) float64 {
+	q := 0.0
+	for j, m0 := range e.priorMu {
+		d := mu[j] - m0
+		q += e.priorPrecision[j] * float64(d*d)
+	}
+	return q
 }
 
 // precisionDetail is the prior precision as a refusal reports it: the
