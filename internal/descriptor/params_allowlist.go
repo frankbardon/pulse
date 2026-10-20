@@ -176,11 +176,12 @@ var builtinParamsAllowlist = sync.OnceValue(func() map[paramread.Key]ParamsDecl 
 		out[paramread.Key{Category: paramread.Overlay, Op: string(o.Kind)}] = paramsDeclOf(o.Params)
 	}
 	// A built-in regression takes every knob as a typed RegressionSpec
-	// field (its manifest Param list names those slot fields) and reads
-	// no params object: the allowlist is empty, so any params key on
-	// REG_OLS / REG_GLM / REG_BAYES_LINEAR is refused.
-	for _, t := range types.AllRegressionTypes() {
-		out[paramread.Key{Category: paramread.Regression, Op: string(t)}] = ParamsDecl{Declared: true, Keys: []string{}}
+	// field (its manifest Param list names those slot fields, each
+	// marked Slot) and reads no params object: the allowlist has no
+	// params key, so any params key on REG_OLS / REG_GLM /
+	// REG_BAYES_LINEAR is refused.
+	for _, r := range regressionCapabilities() {
+		out[paramread.Key{Category: paramread.Regression, Op: r.Name}] = paramsDeclOf(r.Params)
 	}
 	for k, d := range out {
 		d.OwnRefusal = paramsOwnRefusals(k)

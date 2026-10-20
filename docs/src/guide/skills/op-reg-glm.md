@@ -26,6 +26,8 @@ Use something else:
 
 ## Params
 
+Every param is a top-level key of the regression entry (manifest `slot: true`); a `params` key is refused `PULSE_REQUEST_UNKNOWN_FIELD`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `target` | field | required | Response variable (numeric). |
