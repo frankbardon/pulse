@@ -469,7 +469,10 @@ func pairwiseSampleSize(host *CrosstabHostView, params types.PairwiseOverlayPara
 		if !ok {
 			return 0, false
 		}
-		return int(f), true
+		// Round to the NEAREST integer (half away from zero), never
+		// truncate: a weight sum carrying floating-point noise just below
+		// an integer (219.99999963) must read as 220, not 219.
+		return int(math.Round(f)), true
 	case types.PairwiseNSourceNWithin:
 		prefix := params.NWithinDepth + 1
 		if rowScope {

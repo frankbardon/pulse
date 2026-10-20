@@ -2029,7 +2029,8 @@ const (
 	//     Row/ColumnMarginComponents — exact by construction),
 	//     "n_within" (CellCounts slab over n_within_depth),
 	//     "n_within_distinct" (the same slab in distinct keys),
-	//     "cell_weight_sum" (CellComponents["sum_weights"]).
+	//     "cell_weight_sum" (CellComponents["sum_weights"], rounded to
+	//     the nearest integer, half away from zero — never truncated).
 	//   - n_within_depth (int): with n_source=n_within, fixes the first
 	//     depth+1 pair-axis dims in the denominator (mirrors
 	//     CrosstabSpec.NormalizeWithin).
