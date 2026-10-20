@@ -442,6 +442,23 @@ func pairwiseProportion(host *CrosstabHostView, params types.PairwiseOverlayPara
 	return v / 100.0, true
 }
 
+// weightSumEpsilon absorbs float accumulation noise in a weight base. A
+// sum of weights that is integral in exact arithmetic can land a hair
+// below it (219.9999996 for 220) once its terms are added in float64.
+// 1e-6 sits far above that error for survey-sized sums and far below any
+// real fractional part a weight base carries.
+//
+// Known limit: the epsilon is absolute, not relative. A very large Σw
+// (many records, or large weights) can carry accumulation error above
+// 1e-6, and such a base that should be integral then truncates one low.
+const weightSumEpsilon = 1e-6
+
+// weightSumN turns a float weight base into the pairwise sample-size n:
+// ⌊f + weightSumEpsilon⌋. It never rounds — 49.55 is a base under 50
+// (n = 49, so it never clears a min_n of 50) and 210.6 is n = 210. Only
+// noise within the epsilon below an integer reads as that integer.
+func weightSumN(f float64) int { return int(math.Floor(f + weightSumEpsilon)) }
+
 // pairwiseSampleSize reads the n leg per the n_source mode. rowScope names
 // the pair axis so n_within sums CellCounts along it.
 func pairwiseSampleSize(host *CrosstabHostView, params types.PairwiseOverlayParams, rowScope bool, r, c int) (int, bool) {
@@ -451,10 +468,11 @@ func pairwiseSampleSize(host *CrosstabHostView, params types.PairwiseOverlayPara
 		if !ok {
 			return 0, false
 		}
-		// A weighted-count cell is a float n: round to the NEAREST
-		// integer (half away from zero), never truncate — the same rule
-		// as cell_weight_sum, so 219.99999963 reads as 220, not 219.
-		return int(math.Round(v)), true
+		// A weighted-count cell is a float n: the true weight base,
+		// truncated after absorbing float noise (weightSumN) — the same
+		// rule as cell_weight_sum. 219.99999963 reads as 220, while a
+		// real fraction truncates (49.55 is 49), never rounded.
+		return weightSumN(v), true
 	case types.PairwiseNSourceRowMarginN:
 		return host.RowMarginN(r)
 	case types.PairwiseNSourceColumnMarginN:
@@ -472,10 +490,10 @@ func pairwiseSampleSize(host *CrosstabHostView, params types.PairwiseOverlayPara
 		if !ok {
 			return 0, false
 		}
-		// Round to the NEAREST integer (half away from zero), never
-		// truncate: a weight sum carrying floating-point noise just below
-		// an integer (219.99999963) must read as 220, not 219.
-		return int(math.Round(f)), true
+		// The true weight base, truncated after absorbing float noise
+		// (weightSumN), never rounded: a sum carrying noise just below an
+		// integer (219.99999963) reads as 220, while 210.6 is n = 210.
+		return weightSumN(f), true
 	case types.PairwiseNSourceNWithin:
 		prefix := params.NWithinDepth + 1
 		if rowScope {
