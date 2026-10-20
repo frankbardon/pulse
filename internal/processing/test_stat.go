@@ -256,37 +256,3 @@ func gammaContinuedFraction(a, x float64) float64 {
 	}
 	return h * gammaPrefactor(a, x)
 }
-
-// kolmogorovSurvival approximates Q_KS(λ) = 2 Σ (-1)^(j-1) exp(-2 j² λ²),
-// the survival function of the Kolmogorov distribution. Used to convert
-// the Kolmogorov-Smirnov D statistic into a two-sided p-value:
-//
-//	p = Q_KS((√en + 0.12 + 0.11/√en) * D)
-//
-// where en = n1*n2/(n1+n2). The first few terms of the series converge
-// quickly; the loop bails once a term drops below 10⁻¹². Returns 1 for
-// λ ≤ 0.
-func kolmogorovSurvival(lambda float64) float64 {
-	if lambda <= 0 {
-		return 1
-	}
-	const (
-		eps1    = 1e-6
-		eps2    = 1e-16
-		maxIter = 100
-	)
-	a2 := -2 * lambda * lambda
-	fac := 2.0
-	sum := 0.0
-	termPrev := 0.0
-	for j := 1; j <= maxIter; j++ {
-		term := fac * math.Exp(a2*float64(j*j))
-		sum += term
-		if math.Abs(term) <= eps1*termPrev || math.Abs(term) <= eps2*sum {
-			return sum
-		}
-		fac = -fac
-		termPrev = math.Abs(term)
-	}
-	return 1
-}

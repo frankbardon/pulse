@@ -5,7 +5,7 @@
     "stats": "4.6.1",
     "jsonlite": "2.0.0"
   },
-  "primitive": "kolmogorovSurvival",
+  "primitive": "kolmogorovTwoLimitUpper",
   "r_function": "stats:::C_pkolmogorov_two_limit(lambda, lower.tail = FALSE, tol = 1e-300)",
   "note": "Q_KS(lambda) = 2 * sum_{j>=1} (-1)^(j-1) exp(-2 j^2 lambda^2), the limiting Kolmogorov survival.",
   "cases": [
@@ -115,4 +115,4 @@
     }
   ]
 }
-// golden-hash: c6eecc54f455b07da9081b9be24a4af866e414928bb11d08d9e708410c18cfbd
+// golden-hash: b4ebb7fffe6f59ade5f830bdd4ad716e9a03ce4ab293e119e11d0a1fbd5a0c9c

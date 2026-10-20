@@ -742,9 +742,9 @@ func TestOverlay_FacetKsVsPop_NormalVsShiftedNormal(t *testing.T) {
 	if math.Abs(*layer.Payload.Scalar-wantD) > 1e-12 {
 		t.Errorf("Payload.Scalar = %v, want %v", *layer.Payload.Scalar, wantD)
 	}
-	// p-value: R's limiting Kolmogorov survival at Stephens' corrected
-	// lambda (overlay_ks_vs_pop.json), never the kolmogorovSurvival
-	// helper the overlay calls.
+	// p-value: ks.test's p on the bucketised samples as R computes it
+	// (overlay_ks_vs_pop.json "disjoint_halves"), never the helper the
+	// overlay calls.
 	wantPV := ksVsPopOracleCase(t, "disjoint_halves").PValue
 	if layer.Summary == nil || layer.Summary.PValue == nil ||
 		!chiSqVsPopRelClose(*layer.Summary.PValue, wantPV, oracleRelTol) {

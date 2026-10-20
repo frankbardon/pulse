@@ -11,7 +11,7 @@ import (
 // from a golden scripts/reference/gen_overlays.R wrote (`make
 // reference`): R computed it from the overlay's inputs, so no test here
 // derives its expectation from the helper the overlay calls
-// (chiSquareSurvival, kolmogorovSurvival, fisherExactTwoSided,
+// (chiSquareSurvival, ksTwoSampleP, fisherExactTwoSided,
 // statdist.StudentTTwoSidedP, ...). Relative 1e-10 throughout
 // (oracleRelTol), the far-tail floor only at the representable edge.
 
@@ -199,9 +199,11 @@ type ksVsPopOracle struct {
 	NPop               int64              `json:"n_pop"`
 	Statistic          float64            `json:"statistic"`
 	PValue             float64            `json:"p_value"`
+	Exact              bool               `json:"exact"`
 	RKSTestP           *float64           `json:"r_ks_test_p"`
 	RKSTestMethod      string             `json:"r_ks_test_method"`
 	RKSTestPAsymptotic *float64           `json:"r_ks_test_p_asymptotic"`
+	RStephensP         *float64           `json:"r_stephens_p"`
 }
 
 // ksVsPopOracleLayer runs OVERLAY_KS_VS_POP on one golden case.
@@ -242,16 +244,31 @@ func ksVsPopOracleCase(t *testing.T, name string) ksVsPopOracle {
 // TestReferenceOracle_OverlayKSVsPop: D against R — the bucket-edge gap
 // (= ks.test's statistic on the bucketised samples) on the histogram
 // path, the approx(rule = 2) gap on the percentile path — and the p
-// against R's limiting Kolmogorov survival at Stephens' corrected
-// lambda, the overlay's documented approximation. It is NOT ks.test's
-// p (kept in the golden as r_ks_test_*): with no raw population values
-// the overlay cannot reproduce ks.test's exact conditional branch.
+// against ks.test (U36 E3-S4): ks.test(x, y)$p.value on the bucketised
+// samples (exact, conditional on the bucket ties, when m·n < 10000 —
+// the branch must match the one ks.test ran), and ks.test's
+// asymptotic psmirnov(D, c(m, n), exact = FALSE) on the percentile
+// path. disjoint_halves pins psmirnov at D = 1, the generator's written
+// reason (ks.test's own D rounds an ulp past 1 and reports 0). The
+// golden's r_stephens_p is the pre-U36 figure, history only.
 func TestReferenceOracle_OverlayKSVsPop(t *testing.T) {
 	doc := loadReference[ksVsPopOracle](t, "overlay_ks_vs_pop")
 	c := overlayOracleCheck(t, "OVERLAY_KS_VS_POP")
 	paths := map[string]int{}
+	exact := map[bool]int{}
 	for _, k := range doc.Cases {
 		paths[k.Path]++
+		if k.Path == "histogram" {
+			exact[k.Exact]++
+			var m, n float64
+			for i := range k.HostBins {
+				m += float64(k.HostBins[i])
+				n += float64(k.PopBins[i])
+			}
+			if got := ksUsesExact(m, n); got != k.Exact {
+				t.Errorf("%s: exact branch = %v, ks.test ran exact = %v", k.Name, got, k.Exact)
+			}
+		}
 		layer := ksVsPopOracleLayer(t, k)
 		s := layer.Summary
 		if s == nil || s.Statistic == nil || s.PValue == nil || layer.Payload.Scalar == nil {
@@ -259,7 +276,7 @@ func TestReferenceOracle_OverlayKSVsPop(t *testing.T) {
 		}
 		c.check(*s.Statistic, k.Statistic, "%s D", k.Name)
 		c.check(*layer.Payload.Scalar, k.Statistic, "%s scalar", k.Name)
-		c.check(*s.PValue, k.PValue, "%s p (Stephens)", k.Name)
+		c.check(*s.PValue, k.PValue, "%s p (ks.test)", k.Name)
 		if s.Parameters["n_subset"] != float64(k.NSubset) || s.Parameters["n_pop"] != float64(k.NPop) {
 			t.Errorf("%s: parameters %v, want n_subset %d n_pop %d", k.Name, s.Parameters, k.NSubset, k.NPop)
 		}
@@ -267,7 +284,49 @@ func TestReferenceOracle_OverlayKSVsPop(t *testing.T) {
 	if paths["histogram"] == 0 || paths["percentile"] == 0 {
 		t.Fatalf("golden covers paths %v, want both", paths)
 	}
+	if exact[true] == 0 || exact[false] == 0 {
+		t.Fatalf("golden's histogram cases cover exact branches %v, want both", exact)
+	}
 	c.done(len(doc.Cases))
+}
+
+// TestOverlayKSVsPop_HistogramPIsTestKS: the histogram-path overlay and
+// TEST_KS share one port (ksTwoSampleP) — run on the bucketised samples
+// expanded into rows (bucket index i repeated bins[i] times per arm),
+// TEST_KS reports the overlay's D and p, bit for bit, on both the exact
+// and the limiting branch.
+func TestOverlayKSVsPop_HistogramPIsTestKS(t *testing.T) {
+	for _, name := range []string{"shifted_small", "moderate", "shifted_large", "disjoint_halves"} {
+		k := ksVsPopOracleCase(t, name)
+		layer := ksVsPopOracleLayer(t, k)
+		schema := twoSampleFixtureSchema()
+		rt, err := newKSRow(&types.Test{Type: types.TEST_KS, Field: "revenue", SplitBy: "treatment"}, schema)
+		if err != nil {
+			t.Fatalf("%s: newKSRow: %v", name, err)
+		}
+		for _, side := range []struct {
+			label string
+			bins  []int64
+		}{{"a", k.HostBins}, {"b", k.PopBins}} {
+			for i, c := range side.bins {
+				for r := int64(0); r < c; r++ {
+					if err := rt.UpdateRow(newTestRecord(t, schema, map[string]float64{"revenue": float64(i)}, "treatment", side.label)); err != nil {
+						t.Fatalf("%s: UpdateRow: %v", name, err)
+					}
+				}
+			}
+		}
+		res, err := rt.Finalize()
+		if err != nil {
+			t.Fatalf("%s: Finalize: %v", name, err)
+		}
+		if *layer.Summary.Statistic != res.Statistic {
+			t.Errorf("%s: overlay D %v, TEST_KS D %v", name, *layer.Summary.Statistic, res.Statistic)
+		}
+		if *layer.Summary.PValue != res.PValue {
+			t.Errorf("%s: overlay p %v, TEST_KS p %v", name, *layer.Summary.PValue, res.PValue)
+		}
+	}
 }
 
 // ------------------------------------------ OVERLAY_PAIRWISE_PROBIT_T

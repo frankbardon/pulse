@@ -1048,19 +1048,21 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// populated; descriptor.validateOverlayKSVsPop gates the shape
 			// at predict time.
 			RefKinds: []string{"Population"},
-			Description: "Single scalar Kolmogorov-Smirnov distance D = sup_x |F_subset(x) - F_pop(x)| plus an asymptotic p-value " +
+			Description: "Single scalar Kolmogorov-Smirnov distance D = sup_x |F_subset(x) - F_pop(x)| plus a p-value " +
 				"comparing the host Facet subset NUMERIC distribution against the resolved population NUMERIC distribution. " +
 				"GROUP scope over a FACET (FacetSchema) host with SCALAR payload — the layer carries the KS statistic plus the " +
-				"asymptotic p-value via OverlaySummary{Statistic, PValue, Parameters{\"n_subset\", \"n_pop\"}}. Fourth and final " +
+				"p-value via OverlaySummary{Statistic, PValue, Parameters{\"n_subset\", \"n_pop\"}}. Fourth and final " +
 				"FACET-host overlay in the catalog (siblings: OVERLAY_INDEX_VS_POP descriptive, " +
 				"OVERLAY_ZSCORE_VS_POP descriptive, OVERLAY_CHISQ_VS_POP inferential discrete-arm only). KS is the " +
 				"canonical NUMERIC-arm distributional-shift indicator — it pairs with CHISQ_VS_POP as the two inferential FACET-host " +
 				"kinds, partitioning the inferential FACET surface by host arm (CHISQ for categorical, KS for numeric). The viz " +
 				"developer renders the SCALAR statistic as a distributional-shift indicator near the facet header. Math: " +
 				"D = sup_x |F_subset(x) - F_pop(x)|; en = sqrt(n_subset * n_pop / (n_subset + n_pop)); " +
-				"p_value = kolmogorovSurvival((en + 0.12 + 0.11/en) * D) — Stephens' corrected asymptotic; TEST_KS instead reports " +
-				"R ks.test's p (exact when n1*n2 < 10000), which needs raw values the population view does not keep, so the two " +
-				"surfaces differ for the same D + N. " +
+				"p_value = R ks.test's two-sided p through TEST_KS's port: on the HISTOGRAM path ks.test on the bucketised " +
+				"samples (each record at its bucket index, sizes = the bin totals), exact conditional on the bucket ties when " +
+				"m*n < 10000, else the limiting form — TEST_KS's selection rule, so TEST_KS on the expanded bucket indices reports " +
+				"the same p; on the PERCENTILE path (no tie pattern) the uncorrected limiting Kolmogorov form at en * D, " +
+				"ks.test(exact = FALSE). " +
 				"NUMERIC ARM ONLY: KS is undefined on categorical distributions (no continuous CDF to compare). A categorical host " +
 				"(no numeric payload) fires PULSE_OVERLAY_SCOPE_UNSUPPORTED at runtime; the per-kind validator " +
 				"rejects categorical hosts at predict time so the runtime arm is belt-and-braces. Distinct from CHISQ_VS_POP which " +

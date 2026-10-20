@@ -251,7 +251,7 @@ for (l in ks_lambda) {
   ks_cases[[length(ks_cases) + 1]] <- list(lambda = num(l), p = num(p))
 }
 write_golden("kolmogorov_survival", c(meta(
-  "kolmogorovSurvival",
+  "kolmogorovTwoLimitUpper",
   "stats:::C_pkolmogorov_two_limit(lambda, lower.tail = FALSE, tol = 1e-300)",
   "Q_KS(lambda) = 2 * sum_{j>=1} (-1)^(j-1) exp(-2 j^2 lambda^2), the limiting Kolmogorov survival."
 ), list(cases = ks_cases)))

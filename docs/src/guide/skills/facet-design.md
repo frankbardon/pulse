@@ -57,7 +57,7 @@ A filterer naming an unknown field — or, outside an expression filter, none �
 | `OVERLAY_INDEX_VS_POP` | per-value series | yes | discrete or numeric | `(subset_freq / pop_freq) * 100` per value/bin |
 | `OVERLAY_ZSCORE_VS_POP` | per-value series | yes | discrete or numeric | `(subset_freq - pop_mean) / pop_sd` |
 | `OVERLAY_CHISQ_VS_POP` | scalar | buffered | discrete only | χ² goodness-of-fit + df + p-value |
-| `OVERLAY_KS_VS_POP` | scalar | buffered | numeric only | KS D-statistic + asymptotic p-value |
+| `OVERLAY_KS_VS_POP` | scalar | buffered | numeric only | KS D-statistic + `ks.test` p-value |
 
 Common contract: `Ref.Population` REQUIRED (`Cohort` names the comparison `.pulse`); any other family ⇒ `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Scope = group` only; `Level = 0`, `Within = 0` (non-zero ⇒ `_LEVEL_OUT_OF_RANGE`). A set `weight` ⇒ `PULSE_WEIGHT_UNSUPPORTED` (facets are never weighted). Host-field via `OverlaySpec.Params["field"]`; omit only when FacetRequest has one Field. Unknown field ⇒ `_REF_INCOMPATIBLE_WITH_SHAPE` with `{field, available_fields}`. A discrete-only kind on a numeric field ⇒ `_REF_INCOMPATIBLE_WITH_SHAPE`; a numeric-only kind on a categorical field ⇒ `_SCOPE_UNSUPPORTED`. Runtime recurses `FacetSchema` against the population, forwarding `NumericPercentiles`/`IncludeHistogram`.
 

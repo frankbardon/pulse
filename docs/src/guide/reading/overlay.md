@@ -287,18 +287,18 @@ The same D as scalar.
 
 - With few rows the test has low power and misses real differences; with very many rows even trivial differences in shape give small p-values.
 - It compares two observed distributions. It is not valid for testing against a named distribution with parameters estimated from the data, which needs the Lilliefors correction.
-- It is a two-sided large-sample approximation built from the full row counts in summary.parameters, while D comes from the binned curves.
-- The approximation is Stephens' corrected formula, not the exact small-sample p of the two-sample Kolmogorov-Smirnov test (TEST_KS, which needs raw values): below about 10,000 for n_subset x n_pop the two can differ by a factor of two or more, so run TEST_KS on the rows when the exact p matters.
+- With matching histograms it is R's ks.test p on the binned rows, each row placed at its bin: exact given the ties when the two binned row counts multiply to under 10,000, the large-sample form above that. Rows outside the histogram range are in neither sample.
+- From percentiles alone no tie pattern survives, so it is the two-sided large-sample form at the full row counts in summary.parameters, even for small groups; TEST_KS on the raw rows gives the exact p.
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
 #### `summary.parameters.n_subset`
 
-The number of rows behind the subset's numeric facet; one of the two counts the p-value's large-sample formula uses.
+The number of rows behind the subset's numeric facet; the percentile path's p-value uses it, the histogram path counts the rows in the bins.
 
 #### `summary.parameters.n_pop`
 
-The number of rows behind the population's numeric summary; the other count the p-value uses.
+The number of rows behind the population's numeric summary; the other count the percentile path's p-value uses.
 
 **Caveats:**
 

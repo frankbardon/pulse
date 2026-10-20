@@ -23,19 +23,23 @@
 #     (NaN for a zero target cell, Inf for a positive one), so the cells
 #     outside C are left out and the target is renormalised over C —
 #     OVERLAY_CHISQ_VS_POP's rule.
-#   * overlay_ks_vs_pop.json — OVERLAY_KS_VS_POP. The histogram path's D
-#     is ks.test(x, y)$statistic on the bucketised samples (each record
-#     replaced by its bucket index, which is all the histograms keep);
-#     the percentile path's D is the largest gap between the two
-#     approx(rule = 2) interpolants over the union of the anchors. The
-#     p-value is the overlay's documented approximation, Stephens' (en +
-#     0.12 + 0.11 / en) correction over the limiting Kolmogorov survival:
-#     C_pkolmogorov_two_limit(lambda, lower.tail = FALSE, tol = 1e-300)
-#     at lambda = (en + 0.12 + 0.11 / en) D, en = sqrt(m n / (m + n)).
-#     ks.test's own p on the bucketised samples (exact conditional on
-#     the ties when m n < 10000, else the uncorrected limiting form) is
-#     kept beside it (r_ks_test_p, r_ks_test_method,
-#     r_ks_test_p_asymptotic) — it is NOT the overlay's figure.
+#   * overlay_ks_vs_pop.json — OVERLAY_KS_VS_POP (U36 E3-S4: ks.test's p,
+#     no longer Stephens'). The histogram path's D is ks.test(x, y)$
+#     statistic on the bucketised samples (each record replaced by its
+#     bucket index, which is all the histograms keep) and its p is
+#     ks.test(x, y)$p.value on them: exact, conditional on the bucket tie
+#     pattern, when m n < 10000, else the limiting form at tol 1e-6. The
+#     percentile path keeps no tie pattern, so its D is the largest gap
+#     between the two approx(rule = 2) interpolants over the union of the
+#     anchors and its p is ks.test's asymptotic, psmirnov(D, c(m, n),
+#     exact = FALSE, lower.tail = FALSE). Refinement (the E1-S6 pattern):
+#     ks.test's D accumulates +-1/m, 1/n steps, so at full separation it
+#     lands an ulp above 1, where psmirnov returns 0 before any branch
+#     runs; the true D is 1, so the pinned p is psmirnov at D = 1 and
+#     ks.test's own value stays beside as r_ks_test_p. Every case keeps
+#     the pre-U36 figure, Stephens' (en + 0.12 + 0.11 / en) correction
+#     over the limiting Kolmogorov survival, as r_stephens_p (history
+#     only, not the overlay's figure).
 #   * overlay_pairwise_probit_t.json — OVERLAY_PAIRWISE_PROBIT_T, the
 #     design formula as documented (a market-research convention, no
 #     stock R test): p_i clipped to [1e-10, 1 - 1e-10], t = (qnorm(p_1)
@@ -167,13 +171,24 @@ ksh_case <- function(name, lo, hi, host_bins, pop_bins, note) {
   # 1/m - 1/n steps (a few ulps off), so it is the cross-check.
   D <- max(abs(cumsum(host_bins) / m - cumsum(pop_bins) / n))
   ov_near(D, unname(kt$statistic), paste(name, "ks.test D"))
+  # ks.test's p, recomputed at the exact D on the same tie pattern: it
+  # must agree with ks.test's own figure unless ks.test's D rounded past
+  # 1 (the refinement below).
+  p_at_D <- stats:::psmirnov(D, sizes = c(m, n), z = c(x, y), exact = kt$exact, lower.tail = FALSE)
+  p <- kt$p.value
+  if (unname(kt$statistic) > 1) {
+    p <- p_at_D
+  } else {
+    ov_near(p_at_D, p, paste(name, "psmirnov at the exact D"))
+  }
   list(
     name = name, note = note, path = "histogram",
     min = num(lo), max = num(hi), host_bins = ov_vec(host_bins), pop_bins = ov_vec(pop_bins),
     n_subset = num(m), n_pop = num(n),
-    statistic = num(D), p_value = num(stephens_p(D, m, n)),
+    statistic = num(D), p_value = num(p), exact = kt$exact,
     r_ks_test_p = num(kt$p.value), r_ks_test_method = kt$method,
-    r_ks_test_p_asymptotic = num(ka$p.value)
+    r_ks_test_p_asymptotic = num(ka$p.value),
+    r_stephens_p = num(stephens_p(D, m, n))
   )
 }
 ksp_case <- function(name, host_pct, pop_pct, m, n, note) {
@@ -190,19 +205,22 @@ ksp_case <- function(name, host_pct, pop_pct, m, n, note) {
     name = name, note = note, path = "percentile",
     host_percentiles = lapply(as.list(host_pct), num), pop_percentiles = lapply(as.list(pop_pct), num),
     n_subset = num(m), n_pop = num(n),
-    statistic = num(D), p_value = num(stephens_p(D, m, n))
+    statistic = num(D),
+    p_value = num(stats:::psmirnov(D, sizes = c(m, n), exact = FALSE, lower.tail = FALSE)),
+    exact = FALSE,
+    r_stephens_p = num(stephens_p(D, m, n))
   )
 }
 ks_ov_cases <- list(
   ksh_case("disjoint_halves", 0, 10, c(20, 20, 20, 20, 20, 0, 0, 0, 0, 0), c(0, 0, 0, 0, 0, 20, 20, 20, 20, 20),
-           "D = 1: no overlap; the Stephens p is near 1e-45 (ks.test underflows to 0)"),
+           "D = 1: no overlap; m n = 10000, the limiting form; ks.test's D rounds an ulp past 1 and reports 0 (r_ks_test_p), so p is psmirnov at D = 1"),
   ksh_case("shifted_small", 0, 10, c(5, 8, 12, 10, 7, 4, 2, 1, 1, 0), c(3, 6, 10, 14, 12, 9, 6, 4, 3, 2),
-           "m n = 3450 < 10000: ks.test's p is the exact conditional one, far from Stephens'"),
+           "m n = 3450 < 10000: the exact p, conditional on the bucket ties, far from Stephens'"),
   ksh_case("shifted_large", 0, 10, c(50, 80, 120, 100, 70, 40, 20, 10, 10, 0),
            c(300, 600, 1000, 1400, 1200, 900, 600, 400, 300, 200),
-           "the same shapes at 10x / 100x: the far tail"),
+           "the same shapes at 10x / 100x: the far tail, limiting form"),
   ksh_case("moderate", -3, 3, c(10, 14, 20, 16, 8, 5), c(6, 12, 18, 20, 14, 10),
-           "a middling p")
+           "a middling p, exact (m n = 5840)")
 )
 ks_ov_cases <- c(ks_ov_cases, list(
   ksp_case("percentile_shifted", c(p25 = 10, p50 = 20, p75 = 30), c(p25 = 15, p50 = 25, p75 = 35), 100, 100,
@@ -213,8 +231,8 @@ ks_ov_cases <- c(ks_ov_cases, list(
 ))
 write_golden("overlay_ks_vs_pop", c(ov_meta(
   "OVERLAY_KS_VS_POP",
-  "D: max |cumsum(host) / m - cumsum(pop) / n| = ks.test(bucketised x, bucketised y)$statistic (histogram) or the approx(rule = 2) gap (percentile); p: C_pkolmogorov_two_limit((en + 0.12 + 0.11/en) D, FALSE, 1e-300)",
-  "p_value is Stephens' corrected asymptotic, the overlay's documented approximation; r_ks_test_* is ks.test's own p on the bucketised samples, kept for comparison only."
+  "D: max |cumsum(host) / m - cumsum(pop) / n| = ks.test(bucketised x, bucketised y)$statistic (histogram) or the approx(rule = 2) gap (percentile); p: ks.test(bucketised x, bucketised y)$p.value (histogram) or psmirnov(D, c(m, n), exact = FALSE, lower.tail = FALSE) (percentile)",
+  "p_value is ks.test's p (psmirnov at D = 1 where ks.test's D rounds past 1; its own value is r_ks_test_p); r_stephens_p is the pre-U36 Stephens figure, history only."
 ), list(cases = ks_ov_cases)))
 
 # ----------------------------------------------- OVERLAY_PAIRWISE_PROBIT_T

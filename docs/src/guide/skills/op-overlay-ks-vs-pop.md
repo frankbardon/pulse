@@ -33,7 +33,7 @@ Use something else:
 
 ## Host shape
 
-FACET — numeric arm only. Categorical host → `PULSE_OVERLAY_SCOPE_UNSUPPORTED` (the χ²-vs-population sibling covers the discrete arm). p is Stephens' corrected asymptotic `K((en + 0.12 + 0.11/en)·D)`, `en = sqrt(n_subset·n_pop/(n_subset + n_pop))`, not the two-sample KS test's exact `ks.test` p (no raw population values): below `n_subset·n_pop` ≈ 10000 the two differ by a factor of two or more — run the row KS test ([`op-test-ks`](op-test-ks.md)) for the exact p. D and p are pinned to R at 1e-10.
+FACET — numeric arm only. Categorical host → `PULSE_OVERLAY_SCOPE_UNSUPPORTED` (the χ²-vs-population sibling covers the discrete arm). p is `ks.test`'s two-sided p through the row KS test's port ([`op-test-ks`](op-test-ks.md)). Histogram path: `ks.test` on the bucketised samples (each record at its bucket index, sizes = bin totals), exact conditional on the bucket ties when m·n < 10000, else the limiting form. Percentile path (no tie pattern): the limiting form at `sqrt(n_subset·n_pop/(n_subset + n_pop))·D`. D and p are pinned to R at 1e-10.
 
 ## Output
 
@@ -44,7 +44,7 @@ SCALAR — `Payload.Scalar` carries KS `D`; `OverlaySummary{Statistic, PValue, P
 - `scalar`: D, also in summary.statistic: the largest vertical gap between the subset's and the population's cumulative distributions, from 0 (the same curve) to 1 (no overlap at all).
 - `summary.statistic`: The same D as scalar.
 - `summary.p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
-- `summary.parameters.n_subset`: The number of rows behind the subset's numeric facet; one of the two counts the p-value's large-sample formula uses.
+- `summary.parameters.n_pop`: The number of rows behind the population's numeric summary; the other count the percentile path's p-value uses.
 
 ## Gotchas
 

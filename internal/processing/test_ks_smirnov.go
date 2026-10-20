@@ -49,13 +49,28 @@ func ksTwoSampleP(a, wa, b, wb []float64, D float64) float64 {
 		return 0
 	}
 	md, nd := float64(m), float64(n)
-	var p float64
-	if ksUsesExact(md, nd) {
-		p = psmirnovExactUpper(D, m, n, ksTieBoundaries(a, wa, b, wb, m+n))
-	} else {
-		p = kolmogorovTwoLimitUpper(math.Sqrt(md*nd/(md+nd))*D, ksAsymptoticTol)
+	if !ksUsesExact(md, nd) {
+		return ksAsymptoticP(md, nd, D)
 	}
+	p := psmirnovExactUpper(D, m, n, ksTieBoundaries(a, wa, b, wb, m+n))
 	// ks.test: PVAL <- min(1, max(0, PVAL)).
+	return math.Min(1, math.Max(0, p))
+}
+
+// ksAsymptoticP is ks.test's limiting two-sided p for sizes m, n —
+// psmirnov(D, c(m, n), exact = FALSE, lower.tail = FALSE): 1 at D ≤ 0,
+// 0 past 1, else the limiting Kolmogorov survival at √(mn/(m+n))·D
+// truncated at ks.test's tol, clamped to [0, 1]. ksTwoSampleP's
+// asymptotic arm, and OVERLAY_KS_VS_POP's percentile path, which keeps
+// no tie pattern.
+func ksAsymptoticP(m, n, D float64) float64 {
+	if D <= 0 {
+		return 1
+	}
+	if D > 1 {
+		return 0
+	}
+	p := kolmogorovTwoLimitUpper(math.Sqrt(m*n/(m+n))*D, ksAsymptoticTol)
 	return math.Min(1, math.Max(0, p))
 }
 
@@ -163,8 +178,9 @@ func psmirnovExactUpper(q float64, m, n int, z []bool) float64 {
 // limiting Kolmogorov survival 1 − Σ_k (−1)^k exp(−2k²x²), summed until
 // successive partial sums move by at most tol (x ≥ 1), or 1 minus
 // Durbin's alternative series √(2π)/x Σ_{k odd} exp(−k²π²/(8x²)) over
-// k < ⌊√(2 − log tol)⌋ (x < 1). kolmogorovSurvival is the same limit
-// summed to convergence; this one reproduces ks.test's truncation.
+// k < ⌊√(2 − log tol)⌋ (x < 1). At ks.test's tol it reproduces
+// ks.test's truncation; TestReferenceOracle_KolmogorovSurvival pins it
+// untruncated (tol 1e-300) against R.
 func kolmogorovTwoLimitUpper(x, tol float64) float64 {
 	if x <= 0 {
 		return 1

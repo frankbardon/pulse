@@ -244,14 +244,19 @@ func TestReferenceOracle_StandardNormalPPF(t *testing.T) {
 	c.done(len(doc.Cases))
 }
 
+// TestReferenceOracle_KolmogorovSurvival: the limiting Kolmogorov
+// survival kernel of the ks.test port (kolmogorovTwoLimitUpper, which
+// TEST_KS and OVERLAY_KS_VS_POP run at ks.test's tol 1e-6) against R's
+// C_pkolmogorov_two_limit at the same essentially-zero tolerance, so
+// the series is pinned untruncated.
 func TestReferenceOracle_KolmogorovSurvival(t *testing.T) {
 	doc := loadReference[struct {
 		Lambda float64 `json:"lambda"`
 		P      float64 `json:"p"`
 	}](t, "kolmogorov_survival")
-	c := newOracleCheck(t, "kolmogorovSurvival", oracleRelTol, oracleProbAbsFloor)
+	c := newOracleCheck(t, "kolmogorovTwoLimitUpper", oracleRelTol, oracleProbAbsFloor)
 	for _, k := range doc.Cases {
-		c.check(kolmogorovSurvival(k.Lambda), k.P, "lambda=%g", k.Lambda)
+		c.check(kolmogorovTwoLimitUpper(k.Lambda, 1e-300), k.P, "lambda=%g", k.Lambda)
 	}
 	c.done(len(doc.Cases))
 }

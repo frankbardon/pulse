@@ -1227,14 +1227,13 @@ const (
 	//	D       = sup_x |F_subset(x) - F_pop(x)|      // KS distance
 	//	n_subset = host.Numeric.Count
 	//	n_pop    = pop.Numeric.Count
-	//	en      = sqrt(n_subset * n_pop / (n_subset + n_pop))
-	//	p_value = kolmogorovSurvival((en + 0.12 + 0.11/en) * D)
+	//	p_value = R ks.test's two-sided p (TEST_KS's port)
 	//
-	// The p is Stephens' corrected asymptotic over the limiting Kolmogorov
-	// survival (kolmogorovSurvival in internal/processing/test_stat.go).
-	// TEST_KS reports R ks.test's p instead (exact when n1*n2 < 10000) —
-	// the population view keeps no raw values to run that distribution on,
-	// so the two surfaces differ for the same D + N.
+	// Histogram path: ks.test on the bucketised samples (each record at
+	// its bucket index, sizes = the bin totals) — exact conditional on the
+	// bucket ties when m*n < 10000, else the limiting form, TEST_KS's own
+	// rule. Percentile path (no tie pattern): the uncorrected limiting
+	// Kolmogorov form at sqrt(n_subset*n_pop/(n_subset+n_pop)) * D.
 	// The empirical-CDF distance reuses the same `ksTwoSampleD` helper
 	// pattern (internal/processing/test_ks.go) — for KS_VS_POP the handler hand-
 	// rolls a histogram-edge or percentile-anchor sup-CDF walk because the

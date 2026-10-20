@@ -6,12 +6,12 @@
     "jsonlite": "2.0.0"
   },
   "primitive": "OVERLAY_KS_VS_POP",
-  "r_function": "D: max |cumsum(host) / m - cumsum(pop) / n| = ks.test(bucketised x, bucketised y)$statistic (histogram) or the approx(rule = 2) gap (percentile); p: C_pkolmogorov_two_limit((en + 0.12 + 0.11/en) D, FALSE, 1e-300)",
-  "note": "p_value is Stephens' corrected asymptotic, the overlay's documented approximation; r_ks_test_* is ks.test's own p on the bucketised samples, kept for comparison only.",
+  "r_function": "D: max |cumsum(host) / m - cumsum(pop) / n| = ks.test(bucketised x, bucketised y)$statistic (histogram) or the approx(rule = 2) gap (percentile); p: ks.test(bucketised x, bucketised y)$p.value (histogram) or psmirnov(D, c(m, n), exact = FALSE, lower.tail = FALSE) (percentile)",
+  "note": "p_value is ks.test's p (psmirnov at D = 1 where ks.test's D rounds past 1; its own value is r_ks_test_p); r_stephens_p is the pre-U36 Stephens figure, history only.",
   "cases": [
     {
       "name": "disjoint_halves",
-      "note": "D = 1: no overlap; the Stephens p is near 1e-45 (ks.test underflows to 0)",
+      "note": "D = 1: no overlap; m n = 10000, the limiting form; ks.test's D rounds an ulp past 1 and reports 0 (r_ks_test_p), so p is psmirnov at D = 1",
       "path": "histogram",
       "min": 0,
       "max": 10,
@@ -42,14 +42,16 @@
       "n_subset": 100,
       "n_pop": 100,
       "statistic": 1,
-      "p_value": 1.5505547466854487e-45,
+      "p_value": 7.4401519520415657e-44,
+      "exact": false,
       "r_ks_test_p": 0,
       "r_ks_test_method": "Asymptotic two-sample Kolmogorov-Smirnov test",
-      "r_ks_test_p_asymptotic": 0
+      "r_ks_test_p_asymptotic": 0,
+      "r_stephens_p": 1.5505547466854487e-45
     },
     {
       "name": "shifted_small",
-      "note": "m n = 3450 < 10000: ks.test's p is the exact conditional one, far from Stephens'",
+      "note": "m n = 3450 < 10000: the exact p, conditional on the bucket ties, far from Stephens'",
       "path": "histogram",
       "min": 0,
       "max": 10,
@@ -80,14 +82,16 @@
       "n_subset": 50,
       "n_pop": 69,
       "statistic": 0.22463768115942029,
-      "p_value": 0.091857592381948031,
+      "p_value": 0.032580897140338509,
+      "exact": true,
       "r_ks_test_p": 0.032580897140338509,
       "r_ks_test_method": "Exact two-sample Kolmogorov-Smirnov test",
-      "r_ks_test_p_asymptotic": 0.10721062420988617
+      "r_ks_test_p_asymptotic": 0.10721062420988617,
+      "r_stephens_p": 0.091857592381948031
     },
     {
       "name": "shifted_large",
-      "note": "the same shapes at 10x / 100x: the far tail",
+      "note": "the same shapes at 10x / 100x: the far tail, limiting form",
       "path": "histogram",
       "min": 0,
       "max": 10,
@@ -118,14 +122,16 @@
       "n_subset": 500,
       "n_pop": 6900,
       "statistic": 0.22463768115942029,
-      "p_value": 4.2553034923622992e-21,
+      "p_value": 7.3518123684014598e-21,
+      "exact": false,
       "r_ks_test_p": 7.3518123684014598e-21,
       "r_ks_test_method": "Asymptotic two-sample Kolmogorov-Smirnov test",
-      "r_ks_test_p_asymptotic": 7.3518123684014598e-21
+      "r_ks_test_p_asymptotic": 7.3518123684014598e-21,
+      "r_stephens_p": 4.2553034923622992e-21
     },
     {
       "name": "moderate",
-      "note": "a middling p",
+      "note": "a middling p, exact (m n = 5840)",
       "path": "histogram",
       "min": -3,
       "max": 3,
@@ -148,10 +154,12 @@
       "n_subset": 73,
       "n_pop": 80,
       "statistic": 0.15273972602739722,
-      "p_value": 0.30977233485916456,
+      "p_value": 0.12030457571991431,
+      "exact": true,
       "r_ks_test_p": 0.12030457571991431,
       "r_ks_test_method": "Exact two-sample Kolmogorov-Smirnov test",
-      "r_ks_test_p_asymptotic": 0.33535005227534109
+      "r_ks_test_p_asymptotic": 0.33535005227534109,
+      "r_stephens_p": 0.30977233485916456
     },
     {
       "name": "percentile_shifted",
@@ -170,7 +178,9 @@
       "n_subset": 100,
       "n_pop": 100,
       "statistic": 0.125,
-      "p_value": 0.39158845348124183
+      "p_value": 0.41536533552386656,
+      "exact": false,
+      "r_stephens_p": 0.39158845348124183
     },
     {
       "name": "percentile_deciles",
@@ -193,8 +203,10 @@
       "n_subset": 80,
       "n_pop": 500,
       "statistic": 0.10227272727272724,
-      "p_value": 0.44585234417430897
+      "p_value": 0.46634012762888399,
+      "exact": false,
+      "r_stephens_p": 0.44585234417430897
     }
   ]
 }
-// golden-hash: 3e440dd73d5a484ce60cadb9053ab581417e9cc2a14b2182f0292be54bdf4247
+// golden-hash: 7374ea9061f6d0d8e80ae03230cf86645d8c9da2acd4f88b360e4f7564c448ee

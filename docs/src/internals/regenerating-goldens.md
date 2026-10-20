@@ -289,10 +289,12 @@ calls — `chisq.test(..., rescale.p = TRUE)` for `OVERLAY_CHISQ_VS_POP` /
 `_VS_REF`, `fisher.test` per cell, the probit t's design formula, the
 Welch / two-means z / `prop.test` kernels, the weighted-host unit
 fixtures and an `AGG_WELFORD` series cohort for `OVERLAY_T_VS_REF` /
-`_Z_VS_REF`. `OVERLAY_KS_VS_POP`'s p is its documented approximation
-(Stephens' corrected asymptotic, evaluated with R's limiting Kolmogorov
-survival); `ks.test`'s own p on the bucketised samples is recorded
-beside it (`r_ks_test_*`) for comparison only.
+`_Z_VS_REF`. `OVERLAY_KS_VS_POP`'s p is `ks.test`'s: on the bucketised
+samples (histogram path) or `psmirnov(D, c(m, n), exact = FALSE)`
+(percentile path); where `ks.test`'s own D rounds past 1 the pin is
+`psmirnov` at D = 1 and `ks.test`'s value stays beside as
+`r_ks_test_p`. The pre-U36 Stephens figure is kept as `r_stephens_p`,
+history only.
 `TestReferenceOracle_Overlay*` (`internal/processing`) and
 `TestReferenceOracle_ComposeWelfordSeriesVsRef` (root) hold every
 figure at relative `1e-10`.
