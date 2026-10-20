@@ -29,7 +29,7 @@ Start from the question: `pulse_skills_get intents` → `drivers` (which predict
 
 Target / predictor types follow `encoding.FieldType.IsNumericForAnalytics` (integer / float / decimal plus `u4`, `packed_bool`, `date`); a null drops the row from the observation count.
 
-Streaming: the OLS and Bayesian linear fits share one Welford-Pébaÿ accumulator (`n, μ_x, μ_y, M2_xx, M2_xy, M2_yy`) and stream; the GLM's iteratively reweighted fit buffers. Either modifier forces buffered execution.
+Streaming: the OLS and Bayesian linear fits share one Welford-Pébaÿ accumulator and stream; the GLM's iteratively reweighted fit buffers. Either modifier buffers.
 
 ## Modifiers
 
@@ -43,7 +43,7 @@ Both compose with the OLS and GLM fits; the Bayesian fit rejects both — credib
 | `"jackknife"` | LOO, or `jackknife_groups` / `jackknife_by` groups; SE = √((g−1)/g·Σ(β₍ₖ₎−β̄)²) |
 | `"bootstrap"` | non-parametric (`bootstrap_iters` as given, `<= 0` → 1000; `rng_seed`); SE = sample std of replicates; percentile-method p; echoes `bootstrap_requested` / `bootstrap_succeeded` |
 
-Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. For `l1` / `elasticnet` (null SE / p otherwise), `Resample` supplies replicate SEs and silences `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`.
+Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. For `l1` / `elasticnet` or a binding `bounds` (null SE / p), `bootstrap` supplies replicate SEs and silences the inference advisory.
 
 ### `Selection` (stepwise)
 
@@ -66,6 +66,7 @@ Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. F
 | Ridge | `REG_OLS{Penalty:"l2", Alpha:λ}` |
 | Lasso | `REG_OLS{Penalty:"l1", Alpha:λ}` |
 | Elastic Net | `REG_OLS{Penalty:"elasticnet", Alpha, L1Ratio}` |
+| Non-negative (NNLS) | `REG_OLS{Bounds:{nonnegative:[…]}}` |
 | Logistic (ridge / lasso) | `REG_GLM{Family:"binomial", Link:"logit"}` (+ `Penalty`, `Alpha`) |
 | Polynomial | `FEAT_POLY` upstream → `REG_OLS` |
 | Bayesian Linear | `REG_BAYES_LINEAR{Prior:"nig"}` |

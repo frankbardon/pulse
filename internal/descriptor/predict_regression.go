@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/regbayes"
+	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
@@ -151,6 +152,13 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 		if cerr := regpenalty.VcovRefusal(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+		// bounds.nonnegative: REG_OLS only, no penalty / selection, each
+		// name a predictor once — the runtime's rule itself
+		// (internal/regbounds, shared). An extension model's slot was
+		// judged by the shared-slot table above (Check passes it).
+		if cerr := regbounds.Check(reg); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 		// REG_BAYES_LINEAR's knobs — the refused resample / selection

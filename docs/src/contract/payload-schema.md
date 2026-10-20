@@ -880,6 +880,18 @@ predict and at runtime. `RegressionSpec.unpenalized` is an additive
 type refuses it `PROCESSING_CONFIG`, predict and runtime alike.
 `format_version` stays `"1.1"`; neither is echoed on the result.
 
+`RegressionSpec.bounds` (`REG_OLS`) is an additive `omitempty` object
+`#/$defs/RegressionBounds` `{nonnegative: [predictor names]}`: those
+slopes are constrained ≥ 0. A fit no bound binds is plain OLS byte for
+byte; a binding fit keeps its coefficients (a held one exactly `0`) and
+R² and reports `std_errors`, `p_values`, `ci_lower` / `ci_upper` and
+every `vcov` / `correlation` entry `null` (keys kept), with
+`PULSE_ADVISORY_CONSTRAINT_ACTIVE` on `advisories` (result-only).
+Refused `PROCESSING_CONFIG` with a penalty or selection, on another
+type or for an unknown / repeated name; a robust `covariance` is
+`PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (`details.reason` `bounds`).
+`format_version` stays `"1.1"`; the bounds are not echoed.
+
 ## Regression coefficient intervals
 
 `RegressionSpec` takes an additive `conf_level` float (`0 < c < 1`,

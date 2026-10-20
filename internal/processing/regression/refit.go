@@ -1,6 +1,7 @@
 package regression
 
 import (
+	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"math"
 
@@ -136,7 +137,14 @@ func olsFitter(records []Record, target string, activePredictors []string, spec 
 	var err error
 	switch spec.Penalty {
 	case "":
-		solve, err = solveOLS(acc)
+		// A bounded spec refits the bounded model (each resample
+		// replicate); selection never reaches here with bounds
+		// (regbounds.Check refuses the pair).
+		if mask := regbounds.Mask(spec, activePredictors); mask != nil {
+			solve, _, err = solveNNLS(acc, mask)
+		} else {
+			solve, err = solveOLS(acc)
+		}
 	case "l2":
 		solve, err = solveRidge(acc, spec.Alpha, regpenalty.UnpenalizedMask(spec, activePredictors))
 	case "l1":

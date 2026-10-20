@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/types"
 )
@@ -20,23 +21,41 @@ import (
 // (InstanceSnapshot.AdvisorySuppressed) is never attached. Never a
 // warning: Strict never sees it. resp.Regressions is index-aligned with
 // req.Regressions (the slotfail / multiplicity contract).
+//
+// PULSE_ADVISORY_CONSTRAINT_ACTIVE rides a REG_OLS bounds fit without
+// Resample whose bound bound (RegressionResult.ActiveBounds, set by the
+// engine): result-only, since whether a bound binds depends on the data
+// (internal/regbounds holds its predicate and wording).
 func attachRegressionAdvisories(req *types.Request, resp *types.Response, inst *descx.InstanceSnapshot) {
-	if req == nil || resp == nil || inst.AdvisorySuppressed(string(regpenalty.InferenceAdvisoryCode)) {
+	if req == nil || resp == nil {
 		return
 	}
+	penalized := !inst.AdvisorySuppressed(string(regpenalty.InferenceAdvisoryCode))
+	bounded := !inst.AdvisorySuppressed(string(regbounds.AdvisoryCode))
 	for i, res := range resp.Regressions {
 		if res == nil || res.Error != nil || i >= len(req.Regressions) {
 			continue
 		}
 		spec := req.Regressions[i]
-		if spec == nil || !regpenalty.InferenceUndefined(spec) {
+		if spec == nil {
 			continue
 		}
-		msg, details := regpenalty.InferenceAdvisory(spec, "regressions["+strconv.Itoa(i)+"]")
-		res.Advisories = append(res.Advisories, types.Advisory{
-			Code:    string(regpenalty.InferenceAdvisoryCode),
-			Message: msg,
-			Details: details,
-		})
+		slot := "regressions[" + strconv.Itoa(i) + "]"
+		if penalized && regpenalty.InferenceUndefined(spec) {
+			msg, details := regpenalty.InferenceAdvisory(spec, slot)
+			res.Advisories = append(res.Advisories, types.Advisory{
+				Code:    string(regpenalty.InferenceAdvisoryCode),
+				Message: msg,
+				Details: details,
+			})
+		}
+		if bounded && regbounds.InferenceUndefined(spec, res.ActiveBounds) {
+			msg, details := regbounds.Advisory(spec, slot, res.ActiveBounds)
+			res.Advisories = append(res.Advisories, types.Advisory{
+				Code:    string(regbounds.AdvisoryCode),
+				Message: msg,
+				Details: details,
+			})
+		}
 	}
 }

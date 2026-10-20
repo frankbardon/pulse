@@ -210,7 +210,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"Regressions", "*", "Covariance"},
-				Hint:   "A robust covariance (details.covariance_type): drop the covariance block, or the penalty / resample / selection it names (reason penalty, resample, selection); reason type: fit REG_OLS, REG_GLM or REG_BAYES_LINEAR; reason clusters: cluster on a field with at least two levels in the filtered rows; reason order_by_ties: order_by a field unique per row (one series).",
+				Hint:   "A robust covariance (details.covariance_type): drop the covariance block, or the penalty / resample / selection / bounds it names (reason penalty, resample, selection, bounds); reason type: fit REG_OLS, REG_GLM or REG_BAYES_LINEAR; reason clusters: cluster on a field with at least two levels in the filtered rows; reason order_by_ties: order_by a field unique per row (one series).",
 			},
 		},
 	},
@@ -1117,6 +1117,17 @@ var codeMetadata = map[Code]Metadata{
 				Action:   FixupReplaceField,
 				Path:     []string{"Regressions", "*", "resample"},
 				Hint:     "Set resample to bootstrap or jackknife (details.suggested): the replicate standard errors, p-values and intervals of the penalised estimator replace the nulls. Or fit penalty l2 (closed-form ridge covariance) or no penalty for analytical inference.",
+				Examples: []any{map[string]any{"resample": "bootstrap"}},
+			},
+		},
+	},
+	PULSE_ADVISORY_CONSTRAINT_ACTIVE: {
+		Message: "A REG_OLS fit's bounds.nonnegative constraint bound (a coefficient is held at 0), so the estimator is constrained and its classical standard errors, p-values, confidence intervals and covariance are not valid and are reported null; the point estimates and R² stand. This is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Regressions", "*", "resample"},
+				Hint:     "Set resample to bootstrap (details.suggested): each replicate refits the bounded model, and the replicate standard errors, p-values and intervals replace the nulls. Or drop the bound on the predictors in details.active for the unconstrained fit's classical inference.",
 				Examples: []any{map[string]any{"resample": "bootstrap"}},
 			},
 		},

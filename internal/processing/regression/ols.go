@@ -3,6 +3,7 @@ package regression
 import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/types"
 )
@@ -48,6 +49,9 @@ type olsEngine struct {
 	// every key); the service attaches
 	// PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED to the result.
 	approximateSE bool
+	// activeBounds are the RegressionSpec.Bounds slope indices a bounded
+	// fit held at 0 (empty: no bound binds, the fit is plain OLS).
+	activeBounds []int
 }
 
 // newOLSEngine validates the spec and constructs an empty accumulator
@@ -302,12 +306,23 @@ func (e *olsEngine) finalizeFromAccumulator(records []Record) (*types.Regression
 	// on every key (their standard errors are).
 	// A cluster fit reads G − 1 df instead.
 	attachIntervals(res, resolvedConfLevel(e.spec), infDF, true)
+	if len(e.activeBounds) != 0 {
+		// A binding bound (RegressionSpec.Bounds): the standard errors,
+		// p-values and intervals above are NaN on every key; the service
+		// attaches PULSE_ADVISORY_CONSTRAINT_ACTIVE from ActiveBounds.
+		res.ActiveBounds = make([]string, len(e.activeBounds))
+		for i, j := range e.activeBounds {
+			res.ActiveBounds[i] = predictors[j]
+		}
+	}
 	switch {
 	case robust != nil:
 		res.Covariance = robust.fit.info
 		if e.spec.Vcov {
 			attachVcov(res, predictors, robust.fit.v)
 		}
+	case e.spec.Vcov && len(e.activeBounds) != 0:
+		attachVcov(res, predictors, boundedVcov(len(predictors)))
 	case e.spec.Vcov:
 		attachVcov(res, predictors, olsVcov(solve, e.acc.meanX))
 	}
@@ -322,6 +337,11 @@ func (e *olsEngine) finalizeFromAccumulator(records []Record) (*types.Regression
 func (e *olsEngine) dispatchSolve() (*olsSolveResult, int, bool, error) {
 	switch e.spec.Penalty {
 	case "":
+		if mask := regbounds.Mask(e.spec, e.spec.Predictors); mask != nil {
+			res, active, err := solveNNLS(e.acc, mask)
+			e.activeBounds = active
+			return res, 0, false, err
+		}
 		res, err := solveOLS(e.acc)
 		return res, 0, false, err
 	case "l2":

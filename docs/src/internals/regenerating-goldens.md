@@ -293,6 +293,14 @@ frequency-weighted — self-checked against `lm.fit` on [X; diag(√v)]
 (undoing glmnet's rescaling of the factors to sum to p), cross-checked
 against the closed form G + N*·α·diag(pf)
 (`TestReferenceOracle_RidgeUnpenalizedMatchesGlmnet`, `1e-10`).
+`scripts/reference/gen_ols_nnls.R` writes `ols_nnls.json`: `REG_OLS`
+`bounds.nonnegative` — least squares with the named slopes ≥ 0 — by
+`nnls::nnls` on the centred, √w-scaled design (the intercept profiled
+out; a free slope as two columns x / −x), every case self-checked
+against the KKT conditions and against `lm.fit` on the final passive
+set, and a no-binding case against `lm()`. Cases: no binding, one and
+two binding, a free negative slope, near-collinear (corr ≈ 0.999) and
+frequency-weighted (`TestReferenceOracle_OLSNonnegative`, `1e-10`).
 
 `scripts/reference/gen_overlays.R` (sourced last) writes the
 `overlay_*.json` goldens: every figure an overlay test expects, computed
@@ -334,6 +342,7 @@ is the whole list in one place.
 | `lmtest` | 0.9-40 | robust covariance tests |
 | `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |
 | `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`; thresh / maxit through `control`) |
+| `nnls` | 1.6 | `REG_OLS` `bounds.nonnegative` (`gen_ols_nnls.R`); compiles Fortran, so install it with the workaround below |
 | `nortest` | 1.0-4 | Shapiro-Francia (`nortest::sf.test`), the `TEST_SHAPIRO_WILK` oracle (`gen_test_outputs.R`, `gen_post_tests.R`) |
 | `Kendall` | 2.2.2 | Mann-Kendall cross-check for `TEST_TREND` (`gen_test_outputs.R`); it computes in single precision, so the 1e-10 oracle is base R |
 | `pwr` | 1.3-0 | no generator uses it yet; `internal/processing/test_effect_size_test.go` cites `pwr::ES.h` in a comment only, so it is installed for cross-checks, not for `make reference` |

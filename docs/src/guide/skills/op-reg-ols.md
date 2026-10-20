@@ -34,6 +34,7 @@ Use something else:
 | `alpha` | float | `0` | Strength; >0 when `penalty` set. |
 | `l1_ratio` | float | `0` | Elastic-net mix, `0<r<1` (`elasticnet` only). |
 | `unpenalized` | []field | absent | `l2` only: predictors the ridge term skips (glmnet `penalty.factor` 0) — e.g. controls or dummies kept unshrunk; each a listed predictor, once. SEs: the same sandwich, A = G + N*·α·diag(pf). |
+| `bounds` | object | absent | `{nonnegative: [predictors]}`: those slopes ≥ 0 (Lawson–Hanson NNLS on the centred Gram; intercept + other slopes free; R `nnls`-pinned); each a listed predictor, once. No bound binds → plain OLS bit for bit. Binds → coefficients (held ones exactly 0), `R2`, `AdjR2`, `ResidualStdErr` stand; `StdErrors` / `PValues` / CIs / `Vcov` entries null + `Advisories` `[PULSE_ADVISORY_CONSTRAINT_ACTIVE]` (result-only). Intervals: `resample: bootstrap` (refits bounded). Weighted OK. |
 | `max_iters` / `tol` | int / float | engine | Coordinate-descent caps for regularized fits. |
 | `weight` | slot weight | inherited | `null` opts out; both kinds. WLS β (penalty × Σw: kind-free); SE, df = N*−p−1 (fractional), `AdjR2` on N* = Σw (frequency) / Kish n_eff (probability). |
 | `conf_level` | float | `0.95` | `CILower` / `CIUpper` coverage, `0<c<1`. |
@@ -62,6 +63,7 @@ Use something else:
 - Weighted: `resample: bootstrap` / `selection` → `PULSE_WEIGHT_UNSUPPORTED` (a jackknife is weighted); n_eff ≤ p+1 → `PULSE_WEIGHT_LOW_NEFF`; residual df ≤ 0 makes SEs, p, `CILower`/`CIUpper`, `DF`, `AdjR2`, `ResidualStdErr` null.
 - `l1` / `elasticnet` have no analytical inference (the data pick the predictors): SE / p / CI null, advisory not warning, never Strict-escalated. Want uncertainty → [`op-reg-mod-resample`](op-reg-mod-resample.md); want p-values → `l2` or no penalty.
 - `unpenalized` with `l1` / `elasticnet` or no `penalty`, an unknown or repeated name → `PROCESSING_CONFIG` (predict too); lasso / elastic-net penalty factors are not offered.
+- `bounds` with any `penalty` or `selection`, on another regression type, an unknown or repeated name → `PROCESSING_CONFIG`; with a robust `covariance` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (`reason: bounds`). Predict cannot know whether a bound binds, so its p-value count is an upper bound.
 - The penalty reads raw units: a predictor on a large scale is barely shrunk. To penalize all alike, divide each predictor by its SD upstream (a derived column).
 - Robust `covariance` forces the buffered path (second pass for residuals / leverage); beside `penalty` / `resample` / `selection`, < 2 clusters or a repeated `order_by` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. A null `cluster` / `order_by` drops the row.
 - Collinearity → `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`; drop a predictor or add `l2`.

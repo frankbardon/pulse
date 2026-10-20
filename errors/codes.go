@@ -686,6 +686,17 @@ const (
 	// {"resample": "bootstrap"}.
 	PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED Code = "PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED"
 
+	// PULSE_ADVISORY_CONSTRAINT_ACTIVE is an advisory on a REG_OLS fit
+	// whose bounds.nonnegative constraint bound (a coefficient held at 0)
+	// without a Resample modifier: the estimator is constrained, so the
+	// classical standard errors, p-values, confidence intervals and
+	// covariance are not valid and are reported null on every
+	// coefficient (point estimates and R² stay). Result-only — whether a
+	// bound binds depends on the data, so predict cannot raise it.
+	// details carry the slot, the operator, the active predictors and
+	// the patch {"resample": "bootstrap"}.
+	PULSE_ADVISORY_CONSTRAINT_ACTIVE Code = "PULSE_ADVISORY_CONSTRAINT_ACTIVE"
+
 	// PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT is a Compose predict
 	// advisory: two or more slots emit p-values, they join two or more
 	// distinct correction families other than the batch-wide `compose`
@@ -4104,6 +4115,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
 	PULSE_ADVISORY_JACKKNIFE_COST,
 	PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED,
+	PULSE_ADVISORY_CONSTRAINT_ACTIVE,
 	PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT,
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN,
 	PULSE_RECOMMEND_INTENT_UNKNOWN,

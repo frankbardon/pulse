@@ -40,7 +40,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 			Name:           string(types.REG_OLS),
 			Description:    "Ordinary least squares with optional l1/l2/elasticnet regularization; covers simple, multiple, ridge, lasso, and elastic-net regression.",
 			AcceptsTypes:   acceptsTypes(types.REG_OLS),
-			EmitsTypeNote:  "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error; l2: the closed-form ridge sandwich SEs; l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]; a robust covariance adds its covariance echo.",
+			EmitsTypeNote:  "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error; l2: the closed-form ridge sandwich SEs; l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]; bounds whose constraint binds without resample: the same nulls (vcov entries too) plus advisories [PULSE_ADVISORY_CONSTRAINT_ACTIVE]; a robust covariance adds its covariance echo.",
 			Streamable:     types.REG_OLS.Streamable(),
 			StreamableHint: commonModifierHint + " A robust covariance (any type but classical) forces it too.",
 			Params: []descriptor.Param{
@@ -50,6 +50,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 				{Name: "alpha", Type: "float", Required: false, Description: "Regularization strength (>0 when penalty is set; glmnet's lambda)."},
 				{Name: "l1_ratio", Type: "float", Required: false, Description: "Elastic-net mixing parameter, 0 < l1_ratio < 1; only read when penalty == elasticnet (glmnet's alpha)."},
 				{Name: "unpenalized", Type: "list", Required: false, Description: "penalty l2 only: predictors the ridge penalty skips (no alpha term on their Gram diagonal; glmnet's penalty.factor 0), each a listed predictor, once; the ridge sandwich SEs read the same system. l1 / elasticnet (and no penalty) refuse it (PROCESSING_CONFIG)."},
+				{Name: "bounds", Type: "object", Required: false, Description: "{nonnegative: [predictors]}: those slopes are constrained >= 0 (Lawson-Hanson non-negative least squares on the centred Gram; intercept and other slopes free), each a listed predictor, once. No bound binding = plain OLS bit for bit; a binding bound keeps the coefficients and R² but nulls every std error, p-value, interval and vcov entry, with advisories [PULSE_ADVISORY_CONSTRAINT_ACTIVE] — resample bootstrap refits the bounded model for replicate inference. A penalty, selection or robust covariance refuses it."},
 				{Name: "max_iters", Type: "int", Required: false, Description: "Coordinate-descent iteration cap for regularized fits."},
 				{Name: "tol", Type: "float", Required: false, Description: "Relative convergence tolerance for regularized fits."},
 				{Name: "resample", Type: "enum", Required: false, EnumValues: []string{"", "bootstrap", "jackknife"}, Description: "Orthogonal resampling layer; downgrades streaming."},

@@ -8266,7 +8266,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error; l2: the closed-form ridge sandwich SEs; l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]; a robust covariance adds its covariance echo.",
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error; l2: the closed-form ridge sandwich SEs; l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]; bounds whose constraint binds without resample: the same nulls (vcov entries too) plus advisories [PULSE_ADVISORY_CONSTRAINT_ACTIVE]; a robust covariance adds its covariance echo.",
         "streamable": true,
         "streamable_hint": "Streamable in isolation; setting Resample or Selection on the request forces the buffered path. A robust covariance (any type but classical) forces it too.",
         "params": [
@@ -8313,6 +8313,12 @@
             "type": "list",
             "required": false,
             "description": "penalty l2 only: predictors the ridge penalty skips (no alpha term on their Gram diagonal; glmnet's penalty.factor 0), each a listed predictor, once; the ridge sandwich SEs read the same system. l1 / elasticnet (and no penalty) refuse it (PROCESSING_CONFIG)."
+          },
+          {
+            "name": "bounds",
+            "type": "object",
+            "required": false,
+            "description": "{nonnegative: [predictors]}: those slopes are constrained \u003e= 0 (Lawson-Hanson non-negative least squares on the centred Gram; intercept and other slopes free), each a listed predictor, once. No bound binding = plain OLS bit for bit; a binding bound keeps the coefficients and R² but nulls every std error, p-value, interval and vcov entry, with advisories [PULSE_ADVISORY_CONSTRAINT_ACTIVE] — resample bootstrap refits the bounded model for replicate inference. A penalty, selection or robust covariance refuses it."
           },
           {
             "name": "max_iters",
@@ -10219,7 +10225,7 @@
         ]
       }
     ],
-    "error_codes_count": 399,
+    "error_codes_count": 400,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10261,6 +10267,7 @@
       "PROCESSING_VECTOR_LENGTH_MISMATCH",
       "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC",
       "PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT",
+      "PULSE_ADVISORY_CONSTRAINT_ACTIVE",
       "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED",
       "PULSE_ADVISORY_EXTRA_PASS",
       "PULSE_ADVISORY_JACKKNIFE_COST",
@@ -19301,4 +19308,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 42aadfb5c6cd71896f75e762ff0fcb2c189e231ebd1e75e7b648c5a7e05acf92
+// golden-hash: 604bf6443343dbcae51951fa846da054c475e694b7adeb30db6374f97f67e63f

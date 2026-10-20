@@ -2445,6 +2445,7 @@ pulse/errors: const PROCESSING_STATE pulse/errors.Code = "PROCESSING_STATE"
 pulse/errors: const PROCESSING_VECTOR_LENGTH_MISMATCH pulse/errors.Code = "PROCESSING_VECTOR_LENGTH_MISMATCH"
 pulse/errors: const PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC pulse/errors.Code = "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC"
 pulse/errors: const PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT pulse/errors.Code = "PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT"
+pulse/errors: const PULSE_ADVISORY_CONSTRAINT_ACTIVE pulse/errors.Code = "PULSE_ADVISORY_CONSTRAINT_ACTIVE"
 pulse/errors: const PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED pulse/errors.Code = "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED"
 pulse/errors: const PULSE_ADVISORY_EXTRA_PASS pulse/errors.Code = "PULSE_ADVISORY_EXTRA_PASS"
 pulse/errors: const PULSE_ADVISORY_JACKKNIFE_COST pulse/errors.Code = "PULSE_ADVISORY_JACKKNIFE_COST"
@@ -4880,6 +4881,7 @@ pulse/types: const FitKindRegression pulse/types.FitKind = "regression"
 pulse/types: const FitKindVector pulse/types.FitKind = "vector"
 pulse/types: type FitResult struct
 pulse/types: type FitResult embed *pulse/types.RegressionResult
+pulse/types: type FitResult field RegressionResult.ActiveBounds []string "json:\"-\""
 pulse/types: type FitResult field RegressionResult.AdjR2 float64 "json:\"adj_r2,omitempty\""
 pulse/types: type FitResult field RegressionResult.Advisories []pulse/types.Advisory "json:\"advisories,omitempty\""
 pulse/types: type FitResult field RegressionResult.Alpha float64 "json:\"alpha,omitempty\""
@@ -5388,6 +5390,9 @@ pulse/types: type ReferenceVectorTable struct
 pulse/types: type ReferenceVectorTable field Description string
 pulse/types: type ReferenceVectorTable field Labels []string
 pulse/types: type ReferenceVectorTable field Profiles map[string][]float64
+pulse/types: type RegressionBounds struct
+pulse/types: type RegressionBounds field Nonnegative []string "json:\"nonnegative,omitempty\""
+pulse/types: type RegressionBounds method (*RegressionBounds) Active() bool
 pulse/types: type RegressionCovariance struct
 pulse/types: type RegressionCovariance field Cluster string "json:\"cluster,omitempty\""
 pulse/types: type RegressionCovariance field Lags pulse/types.CovarianceLags "json:\"lags,omitzero\""
@@ -5408,6 +5413,7 @@ pulse/types: type RegressionMultiplicity field Family pulse/types.MultiplicityFa
 pulse/types: type RegressionMultiplicity field Method pulse/types.MultiplicityMethod "json:\"method,omitempty\""
 pulse/types: type RegressionMultiplicity method (*RegressionMultiplicity) Block() *pulse/types.Multiplicity
 pulse/types: type RegressionResult struct
+pulse/types: type RegressionResult field ActiveBounds []string "json:\"-\""
 pulse/types: type RegressionResult field AdjR2 float64 "json:\"adj_r2,omitempty\""
 pulse/types: type RegressionResult field Advisories []pulse/types.Advisory "json:\"advisories,omitempty\""
 pulse/types: type RegressionResult field Alpha float64 "json:\"alpha,omitempty\""
@@ -5456,6 +5462,7 @@ pulse/types: type RegressionResult method (RegressionResult) MarshalJSON() ([]by
 pulse/types: type RegressionSpec struct
 pulse/types: type RegressionSpec field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type RegressionSpec field BootstrapIters int "json:\"bootstrap_iters,omitempty\""
+pulse/types: type RegressionSpec field Bounds *pulse/types.RegressionBounds "json:\"bounds,omitempty\""
 pulse/types: type RegressionSpec field ConfLevel float64 "json:\"conf_level,omitempty\""
 pulse/types: type RegressionSpec field Covariance *pulse/types.RegressionCovariance "json:\"covariance,omitempty\""
 pulse/types: type RegressionSpec field CredibleLevel float64 "json:\"credible_level,omitempty\""
@@ -5748,4 +5755,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: b12da821ef945ca1e0a07f8d17f3b8408f5a322498ccdb7c7769c7d44d1c8edc
+// golden-hash: 35b974868b3b1ab70c2a5416c87555b04350df0e3eb0d72f01d6f7cb0e9cd3cf

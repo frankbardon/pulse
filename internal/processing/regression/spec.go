@@ -3,6 +3,7 @@ package regression
 import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/regbayes"
+	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
@@ -45,6 +46,12 @@ func ValidateRegression(spec *types.RegressionSpec) error {
 	}
 	if err := validateVcov(spec); err != nil {
 		return err
+	}
+	// bounds.nonnegative (REG_OLS only; no penalty, no selection, each
+	// name a predictor once) — the one rule predict applies too
+	// (internal/regbounds).
+	if cerr := regbounds.Check(spec); cerr != nil {
+		return cerr
 	}
 	// The covariance block: shape, then the robust-type refusals
 	// (penalty, resample, selection, a type without the estimators) —

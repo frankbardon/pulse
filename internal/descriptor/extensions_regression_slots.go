@@ -98,6 +98,13 @@ var regressionSlotRules = []regressionSlotRule{
 		},
 	},
 	{
+		slot: "bounds", keys: []string{"bounds"},
+		set: func(s *types.RegressionSpec) []string { return setKeys("bounds", s.Bounds != nil) },
+		refusal: func(*types.RegressionSpec) string {
+			return "takes no bounds (a REG_OLS knob); pass the model's own coefficient constraints through params"
+		},
+	},
+	{
 		slot: "family", keys: []string{"family"},
 		set: func(s *types.RegressionSpec) []string { return setKeys("family", s.Family != "") },
 		refusal: func(*types.RegressionSpec) string {

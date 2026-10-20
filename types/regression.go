@@ -100,6 +100,19 @@ type RegressionSpec struct {
 	// refuse it (PROCESSING_CONFIG).
 	Unpenalized []string `json:"unpenalized,omitempty"`
 
+	// Bounds constrains named REG_OLS coefficients (see
+	// RegressionBounds): Nonnegative lists predictors whose slope must be
+	// ≥ 0, solved by Lawson–Hanson on the centred Gram. When the
+	// unconstrained fit already satisfies every bound the result is
+	// plain OLS bit for bit; when one binds (a coefficient held at 0) the
+	// standard errors, p-values, intervals and Vcov entries are null on
+	// every coefficient and the result carries
+	// PULSE_ADVISORY_CONSTRAINT_ACTIVE. REG_GLM, REG_BAYES_LINEAR, a
+	// Penalty, a Selection and a robust Covariance refuse it; Resample
+	// refits the bounded model per replicate. Absent (or an empty list)
+	// is byte-identical.
+	Bounds *RegressionBounds `json:"bounds,omitempty"`
+
 	// Family is the GLM error family. One of "binomial" (logistic),
 	// "poisson", or "gamma". Required for REG_GLM.
 	Family string `json:"family,omitempty"`
@@ -260,6 +273,20 @@ type RegressionSpec struct {
 	// params, so any params key on REG_OLS / REG_GLM / REG_BAYES_LINEAR
 	// is refused. Absent is byte-identical.
 	Params json.RawMessage `json:"params,omitempty"`
+}
+
+// RegressionBounds is RegressionSpec.Bounds: per-coefficient
+// constraints on a REG_OLS fit. Nonnegative names predictors (each once,
+// each one of Predictors) whose coefficient must be ≥ 0; the intercept
+// and every other predictor stay free.
+type RegressionBounds struct {
+	Nonnegative []string `json:"nonnegative,omitempty"`
+}
+
+// Active reports whether b constrains any coefficient (a nil b or an
+// empty Nonnegative list constrains none).
+func (b *RegressionBounds) Active() bool {
+	return b != nil && len(b.Nonnegative) != 0
 }
 
 // RegressionMultiplicity is a regression's own multiple-comparison
@@ -500,6 +527,13 @@ type RegressionResult struct {
 	// type. Never serialised.
 	ReportedFigures []string `json:"-"`
 
+	// ActiveBounds names the RegressionSpec.Bounds predictors the fit
+	// held at their bound (coefficient exactly 0), in Predictors order:
+	// set only when a constraint binds and the analytical inference is
+	// therefore null. The service reads it to attach
+	// PULSE_ADVISORY_CONSTRAINT_ACTIVE. Never serialised.
+	ActiveBounds []string `json:"-"`
+
 	// PAdjusted maps each family-member coefficient (keyed like PValues)
 	// to its multiplicity-adjusted p-value, present only when the spec's
 	// own multiplicity block resolved to a method other than none. It
@@ -524,7 +558,10 @@ type RegressionResult struct {
 	// predict raises for the same spec): today
 	// PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED on an l1 / elasticnet
 	// fit without Resample, whose StdErrors, PValues, CILower and
-	// CIUpper are null on every coefficient. Never a warning, never
+	// CIUpper are null on every coefficient, and
+	// PULSE_ADVISORY_CONSTRAINT_ACTIVE on a Bounds fit without Resample
+	// whose constraint bound (result-only: whether a bound binds is
+	// data-dependent, so predict cannot raise it). Never a warning, never
 	// escalated by Strict; a code in Options.SuppressAdvisories is
 	// dropped. Absent when none applies.
 	Advisories []Advisory `json:"advisories,omitempty"`

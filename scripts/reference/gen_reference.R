@@ -467,6 +467,14 @@ source(file.path(script_dir, "gen_glm_gamma.R"), local = FALSE)
 # Deterministic rows, no RNG.
 source(file.path(script_dir, "gen_bayes_linear.R"), local = FALSE)
 
+# The REG_OLS bounds.nonnegative golden (ols_nnls.json: non-negative
+# least squares on named slopes, the intercept and other slopes free —
+# nnls::nnls on the centred, sqrt(w)-scaled design, self-checked against
+# the KKT conditions and lm.fit on the passive set; no-binding, binding,
+# mixed free, two-binding, near-collinear and frequency-weighted cases);
+# nnls 1.6 + jsonlite. Draws its own seeded rows.
+source(file.path(script_dir, "gen_ols_nnls.R"), local = FALSE)
+
 # The REG_BAYES_LINEAR per-coefficient prior golden (bayes_precision.json:
 # prior_precision as a vector, Lambda0 = diag(v) with flat (0) and strong
 # entries, plain and frequency-weighted; the same conjugate closed form,

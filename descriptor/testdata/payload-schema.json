@@ -3709,6 +3709,21 @@
       ],
       "type": "object"
     },
+    "RegressionBounds": {
+      "additionalProperties": false,
+      "properties": {
+        "nonnegative": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
     "RegressionCovariance": {
       "additionalProperties": false,
       "properties": {
@@ -4030,6 +4045,9 @@
         },
         "bootstrap_iters": {
           "type": "integer"
+        },
+        "bounds": {
+          "$ref": "#/$defs/RegressionBounds"
         },
         "conf_level": {
           "type": "number"
@@ -5370,4 +5388,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 270a3c649799357c4ffe8756118c7167b34f89c3d85c0b3719209262f467ee5d
+// golden-hash: 8e533936edd5b990c458a658035f45bce56bb474c8677a8e0c444a834bad4864
