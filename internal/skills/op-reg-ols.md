@@ -19,29 +19,29 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 |---|---|---|---|
 | `target` | field | required | Response variable (numeric). |
 | `predictors` | []field | required | ≥1 numeric predictor. |
-| `penalty` | enum | `""` | `""`, `l1`, `l2`, `elasticnet`. Minimizes (1/2N*)Σw·r² + `alpha`·[(1−`l1_ratio`)/2‖β‖² + `l1_ratio`‖β‖₁] — glmnet `standardize=FALSE`, the GLM's α too: raw predictor units, intercept unpenalized. |
+| `penalty` | enum | `""` | `""`, `l1`, `l2`, `elasticnet`; glmnet `standardize=FALSE` objective (raw units, intercept free). |
 | `alpha` | float | `0` | Strength; >0 when `penalty` set. |
 | `l1_ratio` | float | `0` | Elastic-net mix, `0<r<1` (`elasticnet` only). |
-| `unpenalized` | []field | absent | `l2` only: predictors the ridge term skips (glmnet `penalty.factor` 0) — e.g. controls or dummies kept unshrunk; each a listed predictor, once. SEs: the same sandwich, A = G + N*·α·diag(pf). |
-| `bounds` | object | absent | `{nonnegative: [predictors]}`: those slopes ≥ 0 (Lawson–Hanson NNLS on the centred Gram; intercept + other slopes free; R `nnls`-pinned); each a listed predictor, once. No bound binds → plain OLS bit for bit. Binds → coefficients (held ones exactly 0), `R2`, `AdjR2`, `ResidualStdErr` stand; `StdErrors` / `PValues` / CIs / `Vcov` entries null + `Advisories` `[PULSE_ADVISORY_CONSTRAINT_ACTIVE]` (result-only). Intervals: `resample: bootstrap` (refits bounded). Weighted OK. |
+| `unpenalized` | []field | absent | `l2` only: listed predictors the ridge term skips (glmnet `penalty.factor` 0). |
+| `bounds` | object | absent | `{nonnegative: [predictors]}`: those slopes ≥ 0 (NNLS). A binding bound nulls `StdErrors` / `PValues` / CIs / `Vcov` + `PULSE_ADVISORY_CONSTRAINT_ACTIVE`; use `resample: bootstrap`. |
 | `max_iters` / `tol` | int / float | engine | Coordinate-descent caps for regularized fits. |
-| `weight` | slot weight | inherited | `null` opts out; both kinds. WLS β (penalty × Σw: kind-free); SE, df = N*−p−1 (fractional), `AdjR2` on N* = Σw (frequency) / Kish n_eff (probability). |
+| `weight` | slot weight | inherited | `null` opts out; both kinds; WLS β, df = N*−p−1, N* = Σw (frequency) / Kish n_eff (probability). |
 | `conf_level` | float | `0.95` | `CILower` / `CIUpper` coverage, `0<c<1`. |
-| `vcov` | bool | `false` | Adds `Vcov` + `Correlation` (`MatrixValues`, keys `(intercept)` + predictors); √diag = `StdErrors`. Unpenalized σ̂²(XᵀX)⁻¹ / ridge sandwich, N* basis. Resample: replicate covariance; selection: final refit's. `l1` / `elasticnet` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. |
-| `covariance` | object | absent | `{type, cluster, order_by, lags}` — the estimator behind `StdErrors`, `PValues`, CIs, `Vcov`. `classical` (= absent); `hc0`–`hc3`; `cluster` (CR1 on `cluster`, categorical / unsigned int, `DF` = G−1); `hac` (Newey–West, `order_by` date / datetime / numeric, `lags` int or `"auto"` = ⌊4(n/100)^(2/9)⌋). Weighted: w* rule. |
+| `vcov` | bool | `false` | Adds `Vcov` + `Correlation`; √diag = `StdErrors`. `l1` / `elasticnet` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. |
+| `covariance` | object | absent | `{type, cluster, order_by, lags}`: `classical` (= absent), `hc0`–`hc3`, `cluster` (CR1), `hac` (Newey–West; `lags` int or `"auto"`). See `regression-inference`. |
 <!-- feature: capability:multiplicity -->
-| `multiplicity` | object | absent | `{method, family, alpha, coefficients}`: the member coefficients' `PValues` (default every predictor; `(intercept)` only if listed; unknown name refused) join a correction family — `request` (default, pooled with the tests) or `compose`. Adds `PAdjusted` / `SignificantAdjusted` (vs `alpha`, 0.05) + a `Multiplicity` echo beside the raw `PValues`. Only the regression's own block opts it in (`multiplicity-correction`). |
+| `multiplicity` | object | absent | `{method, family, alpha, coefficients}`: coefficient `PValues` join a correction family; adds `PAdjusted` / `SignificantAdjusted` beside the raw `PValues` (`multiplicity-correction`). |
 <!-- /feature -->
 
 `resample` / `selection` are top-level modifiers — see `op-reg-mod-resample`, `op-reg-mod-selection`.
 
 ## Inputs
 
-`target` / `predictors` — numeric analytics set: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date`, `datetime`, `packed_bool`, plus nullable variants. A categorical or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED`. Nullable rows drop from `n_obs` via the per-record bitmap.
+`target` / `predictors` — the numeric analytics set (integers, `f32`/`f64`, `decimal128`, `date`, `datetime`, `packed_bool`, nullable too). A categorical or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED`; null rows drop from `n_obs`.
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `CILower` / `CIUpper` = β ∓ t(`DF`)·SE wherever an SE is (resample: z on its SE, no `DF`), `DF`, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs` (raw rows); weighted adds `SumWeights` (+ `NEff`, probability). `l2`: SEs are the closed-form ridge sandwich σ̂²A⁻¹GA⁻¹ (A = G + N*·α·I; R-pinned). `l1` / `elasticnet` without `resample`: `StdErrors`, `PValues`, `CILower` / `CIUpper` null on EVERY key (intercept, kept and zeroed βs) + `Advisories` `[PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]` (predict raises it too). A robust `covariance` adds the `Covariance` echo (`type`, `clusters`, resolved `lags`). Streams Welford-Pébaÿ sufficient stats; the regularized solve runs once at finalize over the p×p Gram.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `CILower` / `CIUpper`, `DF`, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs`; weighted adds `SumWeights` (+ `NEff`, probability). `l2` SEs are the ridge sandwich. `l1` / `elasticnet` without `resample`: SE / p / CI null on EVERY key + `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`. A robust `covariance` adds the `Covariance` echo. Streams sufficient stats; the penalized solve runs once at finalize.
 
 <!-- generated: reading-the-output -->
 
@@ -49,10 +49,9 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 - Weighted: `resample: bootstrap` / `selection` → `PULSE_WEIGHT_UNSUPPORTED` (a jackknife is weighted); n_eff ≤ p+1 → `PULSE_WEIGHT_LOW_NEFF`; residual df ≤ 0 makes SEs, p, `CILower`/`CIUpper`, `DF`, `AdjR2`, `ResidualStdErr` null.
 - `l1` / `elasticnet` have no analytical inference (the data pick the predictors): SE / p / CI null, advisory not warning, never Strict-escalated. Want uncertainty → `op-reg-mod-resample`; want p-values → `l2` or no penalty.
-- `unpenalized` with `l1` / `elasticnet` or no `penalty`, an unknown or repeated name → `PROCESSING_CONFIG` (predict too); lasso / elastic-net penalty factors are not offered.
-- `bounds` with any `penalty` or `selection`, on another regression type, an unknown or repeated name → `PROCESSING_CONFIG`; with a robust `covariance` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (`reason: bounds`). Predict cannot know whether a bound binds, so its p-value count is an upper bound.
-- The penalty reads raw units: a predictor on a large scale is barely shrunk. To penalize all alike, divide each predictor by its SD upstream (a derived column).
-- Robust `covariance` forces the buffered path (second pass for residuals / leverage); beside `penalty` / `resample` / `selection`, < 2 clusters or a repeated `order_by` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. A null `cluster` / `order_by` drops the row.
+- `unpenalized` (`l2` only; lasso / elastic-net penalty factors are not offered) and `bounds` (no `penalty` / `selection`; robust `covariance` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` `reason: bounds`): misuse, an unknown or repeated name → `PROCESSING_CONFIG`, predict too. Detail: `regression-model-options`.
+- The penalty reads raw units: divide each predictor by its SD upstream to penalize all alike.
+- Robust `covariance` forces the buffered path; beside `penalty` / `resample` / `selection`, < 2 clusters or a repeated `order_by` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`.
 - Collinearity → `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`; drop a predictor or add `l2`.
 - `penalty != ""` + `selection != ""` → `PROCESSING_REGRESSION_REGULARIZED_SELECTION`.
 - Polynomial: stage<!-- feature: FEAT_POLY --> `FEAT_POLY`<!-- /feature --> polynomial columns upstream; degree gate `[2,10]`; standardize first.
@@ -61,4 +60,4 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 ## See
 
 - `pulse_examples_search tags=[ols]`
-- Skills: `regression-modeling`, `op-reg-mod-resample`, `op-reg-mod-selection`, `op-reg-glm`, `op-reg-bayes-linear`
+- Skills: `regression-modeling`, `regression-model-options`, `op-reg-mod-resample`, `op-reg-mod-selection`, `op-reg-glm`, `op-reg-bayes-linear`

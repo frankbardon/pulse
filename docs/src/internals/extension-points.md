@@ -5,6 +5,8 @@
 operators or expression-runtime extensions. If you are adding a new
 built-in operator to Pulse itself, see [Adding an
 Aggregator](adding-aggregator.md) (and its sibling recipes) instead.
+To register your own regression model, follow [Adding a Regression
+Model (Embedders)](adding-regression.md).
 
 The extension surface is Go-native. There is no plugin loader, no `.so`
 files, no hot reload. Registration happens once when the embedding
@@ -750,6 +752,9 @@ finalizer:
   `capability:matrices`.
 
 ### Regression model (`Regressions`)
+
+> Step-by-step recipe with a streaming and a buffered example:
+> [Adding a Regression Model (Embedders)](adding-regression.md).
 
 `Extensions.Regressions []pulse.RegressionRegistration` registers
 `REG_<NAMESPACE>_<NAME>` models for `Request.Regressions`, authored
@@ -2244,6 +2249,9 @@ CLAUDE.md Update Demand table in the same PR.
 
 ## Related pages
 
+- [Adding a Regression Model (Embedders)](adding-regression.md) — the
+  embedder recipe: streaming and buffered forms, declared params and
+  outputs, the declare-or-refuse table, the scorer and the probe.
 - [Adding an Aggregator](adding-aggregator.md) — the in-tree recipe
   for built-in operators; mirrors the same `ComponentSchema` +
   mergeability contract described here.

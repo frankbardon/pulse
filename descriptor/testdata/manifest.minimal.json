@@ -857,6 +857,10 @@
         "description": "Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
+        "name": "regression-model-options",
+        "description": "Model options beyond the textbook fit — ridge over a predictor subset (unpenalized), non-negative coefficients (NNLS), per-coefficient prior precision for an experiment-centred prior, the media-mix recipe, and a regression an embedder registered (params, outputs, what it declines). Topical design; per-model params in atomic op-reg-* skills."
+      },
+      {
         "name": "regression-modeling",
         "description": "Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills."
       },
@@ -1353,4 +1357,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f49087e7c03fcf7687d8e550907e119ff45bbc9f997cf0ed3bfac4e5e067425f
+// golden-hash: c002a5240dabb02cc25e06dcbbf5e532fc2ac33b25631545ec307ea0f84140f1

@@ -90,7 +90,7 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U50 | [local-time](U50-local-time.md): Every row is read in its own local time, and calendar parts sort and filter the way a calendar does | Time zones | M | — (U46 soft) | 348, 349, 350, 351, 352, 353, 467, 468, 470 |
 | U51 | [archive-scale](U51-archive-scale.md): A 50-million-row shard archive runs on a 16 GB machine: header-only operations read headers, and appending costs only the new shard | Embedder operations | L | — (U19 soft) | 354, 355, 356, 357, 358, 359, 360, 361, 373, 390, 399, 455, 456, 461 |
 | U52 | [synth-realism](U52-synth-realism.md): Pulse can synthesize time series, outcomes drawn from a model, and privacy-checked twins without outside tooling | API & release | L | — (U50 soft) | 362, 363, 364, 365, 366, 367, 368, 369, 370, 450, 457 |
-| U53 | [custom-regressions](U53-custom-regressions.md): Embedders register their own regression models, treated exactly like built-ins, and the core gains the model options media-mix work needs | API & release | L | — (U34, U36, U42 soft) | 381, 382, 383, 384, 385, 386, 387, 388, 389, 293, 401, 454 |
+| U53 | [custom-regressions](U53-custom-regressions.md): Embedders register their own regression models, treated exactly like built-ins, and the core gains the model options media-mix work needs | API & release | L | — (U34, U36, U42 soft) | 381, 382, 383, 384, 385, 386, 387, 388, 389, 293 |
 | U54 | [multi-grouper](U54-multi-grouper.md): Two or more groupers give one row per key combination, in every execution path | API & release | M | — (U27 soft) | 200, 318, 421, 422 |
 | U55 | [previous-state](U55-previous-state.md): A long panel feeds a from-state × to-state crosstab: a per-subject previous-state attribute | Time zones | M | U50 | 452 |
 | U56 | [operation-panic-recovery](U56-operation-panic-recovery.md): A panic raised inside an operation becomes a coded error at the facade instead of crashing the host | Embedder operations | S | U20 (U34 soft) | 231 |
@@ -279,7 +279,7 @@ graph TD
 - **U35 predict-runtime-parity:** multi-entry `Groups` — execute every group or refuse (#200)
 - **U36 reference-oracles:** Shapiro–Francia at n < 5 (refuse or exact method); how an infinite statistic is encoded
 - **U37 shell-completion:** whether completion respects a feature profile; library helper vs internal CLI glue; where field-taking flags find their cohort
-- **U53 custom-regressions:** whether the post-fit slot ships in v1 or v1.x (#385); Weibull adstock as a `WIN_EWMA` option or a new window (#387); the shape of the regression outputs map (#382)
+- **U53 custom-regressions:** done. Decided in the unit: the post-fit slot ships in v1.x (#385 → #489), Weibull adstock is the new window `WIN_ADSTOCK` (#387), the outputs map is free-form under a declared schema (#382). Open for the owner in the effort PR: the extension multiplicity family and `p_values` basis, `conf_level` refused on a custom model, the `WIN_ADSTOCK` parameter choices, the in-test Levenberg–Marquardt versus `gonum/optimize`, `ParamMeta.Example`
 - **U33 v1-release:** Maintainer runs the downstream validation and tags the release; **a named statistics reviewer signs off the U08 review record (#206, release-blocking)** and lands the statistical-review CODEOWNERS entries
 
 Sizes: **S** ≈ one focused session; **M** ≈ 2–3 sessions; **L** ≈ 3–5 sessions. These are relative and meant for Flow's planning, not commitments.

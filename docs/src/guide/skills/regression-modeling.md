@@ -4,12 +4,12 @@ description: Choosing and composing a regression — outcome type, priors, penal
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [REG, REG_OLS, REG_GLM, REG_BAYES_LINEAR, Resample, Selection, FEAT_POLY, regressions, modifiers]
+covers: [REG, REG_OLS, REG_GLM, REG_BAYES_LINEAR, Resample, Selection, FEAT_POLY, regressions, modifiers, custom regression]
 ```
 
 # Regression modeling
 
-Model operators, two spec-level modifiers and an upstream feature transform cover the textbook regression names. Per-model params, outputs, inference and errors: atomic `op-reg-*` skills.
+Model operators, two spec-level modifiers and an upstream feature transform cover the textbook regression names. Per-model detail: atomic `op-reg-*` skills.
 
 No `Response.Components`; fits ride `Response.Regressions[i]`.
 
@@ -26,10 +26,11 @@ Start from the question: `pulse_skills_get intents` → `drivers` (which predict
 | Distrust the analytical SE? | the `Resample` modifier |
 | Unsure which predictors belong? | the `Selection` modifier — or a penalty, never both |
 | A curved relationship? | polynomial columns built upstream, then a linear fit |
+| Slopes that cannot be negative, an experiment-centred prior, a ridge that spares some predictors, or a model an embedder registered? | [`regression-model-options`](regression-model-options.md) |
 
 Target / predictor types follow `encoding.FieldType.IsNumericForAnalytics` (integer / float / decimal plus `u4`, `packed_bool`, `date`); a null drops the row from the observation count.
 
-Streaming: the OLS and Bayesian linear fits share one Welford-Pébaÿ accumulator and stream; the GLM's iteratively reweighted fit buffers. Either modifier buffers.
+Streaming: the OLS and Bayesian linear fits stream; the GLM buffers, as does either modifier.
 
 ## Modifiers
 
@@ -43,7 +44,7 @@ Both compose with the OLS and GLM fits; the Bayesian fit rejects both — credib
 | `"jackknife"` | LOO, or `jackknife_groups` / `jackknife_by` groups; SE = √((g−1)/g·Σ(β₍ₖ₎−β̄)²) |
 | `"bootstrap"` | non-parametric (`bootstrap_iters` as given, `<= 0` → 1000; `rng_seed`); SE = sample std of replicates; percentile-method p; echoes `bootstrap_requested` / `bootstrap_succeeded` |
 
-Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. For `l1` / `elasticnet` or a binding `bounds` (null SE / p), `bootstrap` supplies replicate SEs and silences the inference advisory.
+Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. For `l1` / `elasticnet` or a binding `bounds`, `bootstrap` supplies the missing SEs.
 
 ### `Selection` (stepwise)
 
@@ -56,7 +57,7 @@ Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. F
 
 `Criterion ∈ {aic, bic}` required. BIC rejects noise predictors better at moderate `n`. `SelectedFeatures` lists chosen predictors; non-selected ones are DROPPED from `Coefficients` — absent ≠ zero.
 
-`Selection` + `Resample` is sane. `Penalty != ""` + `Selection != ""` emits `PROCESSING_REGRESSION_REGULARIZED_SELECTION` — regularization already shrinks / selects.
+`Selection` + `Resample` is fine. `Penalty != ""` + `Selection != ""` emits `PROCESSING_REGRESSION_REGULARIZED_SELECTION` — regularization already shrinks / selects.
 
 ## Textbook names → spec
 
@@ -78,27 +79,28 @@ Runnable JSON: `internal/examples/regression/`.
 
 ## Polynomial terms
 
-Built in `features`, before the fit: `Degree − 1` derived columns (`<label>_2 … <label>_<Degree>`) beside the original, degree `[2, 10]`. Standardize first — `x^10` overflows `f64` past `|x|` ≈ a few hundred. Table: [`feature-engineering`](feature-engineering.md).
+Built in `features`, before the fit: `Degree − 1` derived columns (`<label>_2 … <label>_<Degree>`), degree `[2, 10]`. Standardize first — `x^10` overflows `f64`. Table: [`feature-engineering`](feature-engineering.md).
 
 ## Ecological caveat
 
-A significant group-level slope does NOT imply individual-level association (Robinson 1950, Simpson). Use them only for group-level questions; Pulse cannot enforce this.
+A significant group-level slope does NOT imply an individual-level association (Robinson 1950); use it only for group-level questions.
 
 ## Inference
 
-Per model (atomic skill): Student-t p for unpenalized / `l2` OLS, null SE / p / CI for `l1` / `elasticnet` (advisory `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` unless `Resample`), Wald-z p for the GLM (penalized: a sandwich), credible intervals and no `p_values` for the Bayesian fit. Every SE gets `ci_lower` / `ci_upper` at `conf_level` (0.95). A spec's own `multiplicity` block joins its coefficients' p-values to a correction family ([`multiplicity-correction`](multiplicity-correction.md)).
+Per model (atomic skill): Student-t p for unpenalized / `l2` OLS, null SE / p / CI for `l1` / `elasticnet` (advisory `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` unless `Resample`), Wald-z p for the GLM, credible intervals and no `p_values` for the Bayesian fit. Every SE gets `ci_lower` / `ci_upper` at `conf_level` (0.95). A spec's own `multiplicity` block joins its coefficients' p-values to a correction family ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Gotchas
 
 - `n_obs` < record count: nulls drop rows.
 - A fit failing on data fails ALONE: `{name, type, error}` + `PULSE_SLOT_FAILED` ([`cohort-null-states`](cohort-null-states.md)). Codes: `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM` (collinear; GLM names them) — drop one or regularize; `_SEPARATION` (binomial GLM: a predictor splits the outcome) — add `penalty: l2`, or drop or merge it; `_NO_CONVERGE` — raise `MaxIters` / `Tol` or cut `Alpha`.
-- Knobs belong to their engine: a gamma GLM penalty, or `Penalty` / `Family` / `Link` on the Bayesian fit, is `PROCESSING_CONFIG`.
+- Knobs belong to their engine: a gamma GLM penalty, or `Penalty` / `Family` / `Link` on the Bayesian fit: `PROCESSING_CONFIG`.
 
 ## See
 
-- Recipes: `pulse_examples_search tags=["regression"]` plus atomic `op-reg-<name>`.
+- Recipes: `pulse_examples_search tags=["regression"]`, atomic `op-reg-<name>`.
 - [`feature-engineering`](feature-engineering.md) — polynomial parameter table + column naming.
 - [`statistical-testing`](statistical-testing.md) — Wald-z vs Student-t.
 - [`request-envelope`](request-envelope.md) — slot keys, streamability.
 - [`regression-inference`](regression-inference.md) — vcov
+- [`regression-model-options`](regression-model-options.md) — ridge subset, NNLS, per-coefficient prior, registered regressions
 - `pulse_errors_lookup` — `PROCESSING_REGRESSION_*` recovery.
