@@ -935,13 +935,18 @@ pulse: type RegressionOutputMeta field Description string "json:\"description,om
 pulse: type RegressionOutputMeta field JSONType string "json:\"json_type\""
 pulse: type RegressionOutputMeta field Key string "json:\"key\""
 pulse: type RegressionRegistration struct
+pulse: type RegressionRegistration field Accepts []pulse/encoding.FieldType
 pulse: type RegressionRegistration field CovarianceTypes []pulse/types.CovarianceType
+pulse: type RegressionRegistration field DependsOn []string
 pulse: type RegressionRegistration field Description string
 pulse: type RegressionRegistration field Factory pulse/extend.RegressionFactory
+pulse: type RegressionRegistration field FieldInputs pulse.FieldInputsFunc
+pulse: type RegressionRegistration field Interpretation []pulse/descriptor.Interpretation
 pulse: type RegressionRegistration field Name pulse/types.RegressionType
 pulse: type RegressionRegistration field OutputSchema []pulse.RegressionOutputMeta
 pulse: type RegressionRegistration field Params []pulse.ParamMeta
 pulse: type RegressionRegistration field Penalty bool
+pulse: type RegressionRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type RegressionRegistration field Streamable bool
 pulse: type RegressionRegistration field SupportsSelection bool
 pulse: type RegressionRegistration field Vcov bool
@@ -4894,6 +4899,7 @@ pulse/types: type FitResult field RegressionResult.Penalty string "json:\"penalt
 pulse/types: type FitResult field RegressionResult.Prior string "json:\"prior,omitempty\""
 pulse/types: type FitResult field RegressionResult.PseudoR2 float64 "json:\"pseudo_r2,omitempty\""
 pulse/types: type FitResult field RegressionResult.R2 float64 "json:\"r2,omitempty\""
+pulse/types: type FitResult field RegressionResult.ReportedFigures []string "json:\"-\""
 pulse/types: type FitResult field RegressionResult.Resample string "json:\"resample,omitempty\""
 pulse/types: type FitResult field RegressionResult.ResidualStdErr float64 "json:\"residual_std_err,omitempty\""
 pulse/types: type FitResult field RegressionResult.SelectedFeatures []string "json:\"selected_features,omitempty\""
@@ -5412,6 +5418,7 @@ pulse/types: type RegressionResult field Penalty string "json:\"penalty,omitempt
 pulse/types: type RegressionResult field Prior string "json:\"prior,omitempty\""
 pulse/types: type RegressionResult field PseudoR2 float64 "json:\"pseudo_r2,omitempty\""
 pulse/types: type RegressionResult field R2 float64 "json:\"r2,omitempty\""
+pulse/types: type RegressionResult field ReportedFigures []string "json:\"-\""
 pulse/types: type RegressionResult field Resample string "json:\"resample,omitempty\""
 pulse/types: type RegressionResult field ResidualStdErr float64 "json:\"residual_std_err,omitempty\""
 pulse/types: type RegressionResult field SelectedFeatures []string "json:\"selected_features,omitempty\""
@@ -5717,4 +5724,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: b4e94451d5a1d17d74583058a2fa5aad0a477265171c327c9f4f949ac06b3b74
+// golden-hash: 7a313566896a3af9a9ff47aba9978d319494ead0c45a11b426ded479a0120875

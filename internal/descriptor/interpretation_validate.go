@@ -3,6 +3,7 @@ package descriptor
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 
@@ -360,10 +361,46 @@ func testOutputResolver(field string) (FieldCheck, string) {
 	return FieldStatic, ""
 }
 
+// extensionRegressionOutputs are the RegressionResult JSON keys an
+// extension REG_* model can fill (extend.RegressionOutput: the
+// coefficient table and the fixed fit statistics) plus the engine's
+// n_obs — what an extension registration's Interpretation may name
+// beside outputs.<key>.
+var extensionRegressionOutputs = []string{
+	"adj_r2", "coefficients", "converged_iters", "deviance", "df", "n_obs", "null_deviance",
+	"p_values", "pseudo_r2", "r2", "residual_std_err", "statistics", "std_errors",
+}
+
+// ExtensionRegressionOutputResolver is the OutputResolver of an
+// extension REG_* model named name whose OutputSchema declares
+// outputKeys: a figure the model can report
+// (extensionRegressionOutputs, a per-coefficient map read as
+// "<key>.*") or outputs.<key> for a declared key. Every other path is
+// FieldUnknown.
+func ExtensionRegressionOutputResolver(name string, outputKeys []string) OutputResolver {
+	figures := regressionResultResolver(name, extensionRegressionOutputs)
+	return func(field string) (FieldCheck, string) {
+		if k, ok := strings.CutPrefix(field, "outputs."); ok {
+			if slices.Contains(outputKeys, k) {
+				return FieldStatic, ""
+			}
+			return FieldUnknown, fmt.Sprintf("%s declares no output key %q (OutputSchema: %s)", name, k, strings.Join(outputKeys, ", "))
+		}
+		return figures(field)
+	}
+}
+
 func regressionOutputResolver(name string) OutputResolver {
+	return regressionResultResolver(name, regressionOutputs[name])
+}
+
+// regressionResultResolver resolves a path against the RegressionResult
+// keys listed in keys: a scalar figure by its key, a per-coefficient map
+// by "<key>.*".
+func regressionResultResolver(name string, keys []string) OutputResolver {
 	tags := jsonTags(reflect.TypeOf(types.RegressionResult{}))
 	applicable := map[string]bool{}
-	for _, k := range regressionOutputs[name] {
+	for _, k := range keys {
 		applicable[k] = true
 	}
 	return func(field string) (FieldCheck, string) {

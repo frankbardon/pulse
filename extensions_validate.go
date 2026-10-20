@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/daterange"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
@@ -1158,7 +1159,9 @@ func builtinRegressionNames() map[string]struct{} {
 // ParamMeta set — else PULSE_EXTENSION_PARAM_INVALID, details.reason
 // invalid_output_key (details.key, .json_type); every CovarianceTypes
 // entry is a known covariance type listed once — else reason
-// invalid_covariance_type (details.covariance_type).
+// invalid_covariance_type (details.covariance_type); every Accepts
+// entry is a known, non-vector field type listed once — else reason
+// invalid_accepts (details.field_type).
 func validateRegressionRegistrations(regs []RegressionRegistration) error {
 	for i, r := range regs {
 		seenCov := make(map[types.CovarianceType]bool, len(r.CovarianceTypes))
@@ -1171,6 +1174,17 @@ func validateRegressionRegistrations(regs []RegressionRegistration) error {
 				fmt.Sprintf("extension regression %q CovarianceTypes entry %q is not a covariance type (classical, hc0, hc1, hc2, hc3, cluster, hac) or is listed twice", r.Name, ct),
 				map[string]any{"category": string(categoryRegression), "name": string(r.Name), "index": i,
 					"reason": "invalid_covariance_type", "covariance_type": string(ct)})
+		}
+		seenAcc := make(map[encoding.FieldType]bool, len(r.Accepts))
+		for _, ft := range r.Accepts {
+			if ft.IsKnown() && !ft.IsVector() && !seenAcc[ft] {
+				seenAcc[ft] = true
+				continue
+			}
+			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("extension regression %q Accepts entry %q is not a known scalar field type or is listed twice", r.Name, ft.String()),
+				map[string]any{"category": string(categoryRegression), "name": string(r.Name), "index": i,
+					"reason": "invalid_accepts", "field_type": ft.String()})
 		}
 		seen := make(map[string]bool, len(r.OutputSchema))
 		for _, o := range r.OutputSchema {

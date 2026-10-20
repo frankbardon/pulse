@@ -472,7 +472,10 @@ const (
 	PValueBasisDictionary = "dictionary"
 	// PValueBasisLowerBound: at least one overlay's extent could not be
 	// derived from the schema (a numeric or multi-field axis); it
-	// counted as one p-value, so Total and Uncorrected are floors.
+	// counted as one p-value, so Total and Uncorrected are floors. An
+	// extension REG_* model without an explicit coefficient list also
+	// sets it: it names its own coefficients, so it counts one per
+	// non-intercept predictor.
 	PValueBasisLowerBound = "lower_bound"
 )
 

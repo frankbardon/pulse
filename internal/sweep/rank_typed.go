@@ -2,6 +2,7 @@ package sweep
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/frankbardon/pulse/types"
@@ -15,7 +16,9 @@ import (
 // enclosing result computes it, the slot ranks with 0. Everything else
 // that is absent on the wire — a nil pointer or entry, an absent map
 // key, a figure the operator does not compute, or a figure with no
-// applicability rule — stays missing. The wire keeps `omitempty`
+// applicability rule — stays missing. An extension REG_* model's result
+// carries its own rule: the figures it reported
+// (RegressionResult.ReportedFigures). The wire keeps `omitempty`
 // unchanged; only the rank's reading of a vanished zero moves.
 
 // computedZeroFigures lists, per result struct type, the `omitempty`
@@ -95,8 +98,15 @@ func typedZero(resp *types.Response, segs []string) bool {
 }
 
 // figureComputed applies the figure's applicability rule; an unlisted
-// figure is never treated as computed.
+// figure is never treated as computed. A regression result that names
+// the figure among its ReportedFigures (an extension model reported
+// it) computed it, whatever its type.
 func figureComputed(parent reflect.Value, key string) bool {
+	if parent.Type() == reflect.TypeFor[types.RegressionResult]() {
+		if reported, _ := parent.FieldByName("ReportedFigures").Interface().([]string); slices.Contains(reported, key) {
+			return true
+		}
+	}
 	rule, ok := computedZeroFigures[parent.Type()][key]
 	return ok && rule(parent)
 }

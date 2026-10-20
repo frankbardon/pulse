@@ -224,6 +224,7 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 			{reflect.TypeFor[types.FeatureType](), snap.Features},
 			{reflect.TypeFor[types.TestType](), snap.Tests},
 			{reflect.TypeFor[types.MatrixType](), snap.MatrixOps},
+			{reflect.TypeFor[types.RegressionType](), snap.Regressions},
 		} {
 			if len(c.ops) == 0 {
 				continue

@@ -792,6 +792,9 @@ fatal; a panic is `PROCESSING_PANIC`).
 | `CovarianceTypes` | `[]types.CovarianceType` the model computes itself from `spec.Covariance`: a block whose type (absent = `classical`) is listed reaches the model after the shared shape rule (`cluster` needs `cluster`, `hac` needs `order_by`; a robust type beside `penalty` is `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`); any other type is `PROCESSING_CONFIG` `{regression, slot: "covariance"}`. An unknown or repeated entry fails `pulse.New` (`PULSE_EXTENSION_PARAM_INVALID`, reason `invalid_covariance_type`). A robust type forces the buffered path |
 | `Params` | `[]pulse.ParamMeta` — the keys of the slot's own `params` object (`RegressionSpec.Params`, which the factory reads off the spec); declared, any other key is `PULSE_REQUEST_UNKNOWN_FIELD` at `regressions[i].params.<key>`, and a wrong-typed value or a missing `Required` param is `PULSE_REQUEST_PARAM_INVALID`, at predict and runtime alike; undeclared, params pass through (predict advises `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED`). A built-in `REG_*` declares none, so any `params` key on one is refused |
 | `OutputSchema` | `[]pulse.RegressionOutputMeta{Key, JSONType, Description}` — the `Outputs` keys the model may fill (`invalid_output_key` on an empty, repeated or untyped key). `Outputs` survives `disable_components` and every `return` preset |
+| `Accepts` | `[]encoding.FieldType` the target and predictors accept; empty means the built-in regressions' set (analytics-numeric). Any other field type is `PULSE_FIELD_TYPE_UNSUPPORTED` at predict and runtime alike (the same message), and the manifest's `accepts_types` lists the set. A vector, unknown or repeated entry fails `pulse.New` (`PULSE_EXTENSION_PARAM_INVALID`, reason `invalid_accepts`) |
+| `FieldInputs` | the fields the model reads beyond target, predictors and weight (one named in its `params`, say) — see [FieldInputs hook](#fieldinputs-hook-buffered-projection-introspection); without one a buffered request carrying the model decodes every field |
+| `Purpose`, `Interpretation`, `DependsOn` | guidance and feature-profile edges, as for every category — see [Purpose and Interpretation](#purpose-and-interpretation-guidance-metadata) and [DependsOn](#dependson-feature-profile-dependencies) |
 
 **Declare or refuse.** Every shared `RegressionSpec` slot is either
 honoured or refused — never silently ignored. Undeclared slots, and
@@ -824,7 +827,17 @@ built-in `RegressionMeta` shape: the shared slot keys (`target`,
 / `alpha` / `l1_ratio`, `vcov`, `covariance` naming its declared types;
 each marked `slot`), then the
 declared `Params`, the declared form (`streamable`), `weight_kinds` for
-a `WeightAware` model, its `intents` and the `output_schema`.
+a `WeightAware` model, its `intents` and the `output_schema`. The
+instance payload schema (`pulse schema`) and the MCP tools'
+`regressions[].type` enum list it beside the built-ins; a feature
+profile that leaves it out removes it from all three, and a request
+naming it is then refused exactly as a never-registered name.
+Predict's `p_values` counts its p-values off the request: an explicit
+`multiplicity.coefficients` list exactly, else one per non-intercept
+predictor on the `lower_bound` basis (the model names its own
+coefficients). The fit statistics it reports are listed on
+`RegressionResult.ReportedFigures` (never serialised), so a reported
+exact 0 ranks in a compose `sweep` rank.
 
 **Probe.** `pulse.New` builds the factory against a synthetic schema
 (`probe_y` ~ `probe_x1` + `probe_x2`, plus a weight column), with
@@ -1401,12 +1414,12 @@ profile by their registered name.
 
 ## Purpose and Interpretation (guidance metadata)
 
-Every registration — all eight operator categories — accepts an optional `Purpose *descriptor.Purpose`: the
+Every registration — all nine operator categories — accepts an optional `Purpose *descriptor.Purpose`: the
 same plain-language guidance built-ins declare (what the operator is
 for, the intents it answers, when to reach for something else, its
-assumptions). A `TestRegistration` additionally accepts
-`Interpretation []descriptor.Interpretation`, saying how to read each
-output field.
+assumptions). A `TestRegistration` and a `RegressionRegistration`
+additionally accept `Interpretation []descriptor.Interpretation`,
+saying how to read each output field.
 
 ```go
 pulse.AggregatorRegistration{
@@ -1446,8 +1459,14 @@ compared case-insensitively with whitespace collapsed — not already
 declared by a built-in or an earlier extension. An
 `Interpretation` is checked for **structure only** — path syntax,
 `Means` or a known `Shared` rule set, `Bands` with a `Convention`,
-`Sign` keys `+` / `-` — since an extension declares no output keys to
-probe. The first registration that breaks a rule (category order, then
+`Sign` keys `+` / `-` — since a test declares no output keys to
+probe. A regression's `Interpretation` is also held to what the model
+can report: a coefficient-keyed figure as `<key>.*` (`coefficients`,
+`std_errors`, `statistics`, `p_values`), a fit statistic (`r2`,
+`adj_r2`, `residual_std_err`, `df`, `deviance`, `null_deviance`,
+`pseudo_r2`, `converged_iters`, `n_obs`) or `outputs.<key>` for a key
+its `OutputSchema` declares; any other path is refused
+(`field_unknown`). The first registration that breaks a rule (category order, then
 slice index; `Purpose` before `Interpretation`) fails with
 `PULSE_EXTENSION_PURPOSE_INVALID`; details carry `category`, `name`,
 `index`, `part` (`purpose` / `interpretation`), the first failing

@@ -42,6 +42,7 @@ func regressionDeclaration(reg RegressionRegistration) descx.ExtensionRegression
 		Penalty:           reg.Penalty,
 		SupportsSelection: reg.SupportsSelection,
 		CovarianceTypes:   slices.Clone(reg.CovarianceTypes),
+		Accepts:           slices.Clone(reg.Accepts),
 		OutputKeys:        keys,
 		Params:            matrixParamSnapshot(reg.Params),
 		OutputSchema:      slices.Clone(reg.OutputSchema),
@@ -225,14 +226,17 @@ func (d *regressionDriver) result(out extend.RegressionOutput) (*types.Regressio
 	}
 	f := out.Fit
 	for _, s := range []struct {
+		key string
 		dst *float64
 		src *float64
 	}{
-		{&res.R2, f.R2}, {&res.AdjR2, f.AdjR2}, {&res.ResidualStdErr, f.ResidualStdErr}, {&res.DF, f.DF},
-		{&res.Deviance, f.Deviance}, {&res.NullDeviance, f.NullDeviance}, {&res.PseudoR2, f.PseudoR2},
+		{"r2", &res.R2, f.R2}, {"adj_r2", &res.AdjR2, f.AdjR2}, {"residual_std_err", &res.ResidualStdErr, f.ResidualStdErr},
+		{"df", &res.DF, f.DF}, {"deviance", &res.Deviance, f.Deviance}, {"null_deviance", &res.NullDeviance, f.NullDeviance},
+		{"pseudo_r2", &res.PseudoR2, f.PseudoR2},
 	} {
 		if s.src != nil {
 			*s.dst = *s.src
+			res.ReportedFigures = append(res.ReportedFigures, s.key)
 		}
 	}
 	res.ConvergedIters = f.Iterations
@@ -416,12 +420,18 @@ func regressionRecordView(rec regression.Record) (extend.Record, error) {
 
 // adaptRegressionFactory wraps the registration's extend factory as the
 // engine's regression.Factory: the shared declare-or-refuse rule first
-// (descx.ExtensionRegressionSlotRefusal, predict's own call), then the
+// (descx.ExtensionRegressionSlotRefusal), then the target / predictor
+// field types (descx.ExtensionRegressionFieldTypeRefusal — the built-in
+// regressions' rule or the declared Accepts) — each predict's own call,
+// in predict's order — then the
 // model, held to its declared form.
 func adaptRegressionFactory(reg RegressionRegistration) regression.Factory {
 	decl := regressionDeclaration(reg)
 	return func(spec *types.RegressionSpec, schema *encoding.Schema) (regression.Engine, error) {
 		if cerr := descx.ExtensionRegressionSlotRefusal(spec, decl); cerr != nil {
+			return nil, cerr
+		}
+		if cerr := descx.ExtensionRegressionFieldTypeRefusal(spec, decl, schema); cerr != nil {
 			return nil, cerr
 		}
 		model, err := reg.Factory(spec, schema)
@@ -446,7 +456,8 @@ func adaptRegressionFactory(reg RegressionRegistration) regression.Factory {
 
 // addRuntimeRegressions records ext.Regressions on the runtime
 // registry: the adapted factory, the declared form under
-// "regression|<name>" and the WeightAware declaration.
+// "regression|<name>", the WeightAware declaration and the FieldInputs
+// hook.
 func addRuntimeRegressions(r *processing.ExtensionRegistry, regs []RegressionRegistration) {
 	if len(regs) == 0 {
 		return
@@ -457,6 +468,9 @@ func addRuntimeRegressions(r *processing.ExtensionRegistry, regs []RegressionReg
 		r.Regressions[reg.Name] = adaptRegressionFactory(reg)
 		r.Streamable[key] = reg.Streamable
 		r.WeightAware[key] = reg.WeightAware
+		if reg.FieldInputs != nil {
+			r.FieldInputs[key] = processing.FieldInputsFunc(reg.FieldInputs)
+		}
 	}
 }
 
@@ -475,6 +489,7 @@ func addSnapshotRegressions(snap *descx.ExtensionsSnapshot, regs []RegressionReg
 			Description: r.Description,
 			Streamable:  r.Streamable,
 			WeightAware: r.WeightAware,
+			Accepts:     fieldTypeStrings(r.Accepts),
 			Params:      paramMetaSnapshot(r.Params),
 		})
 		snap.RegressionDetails[string(r.Name)] = regressionDeclaration(r)

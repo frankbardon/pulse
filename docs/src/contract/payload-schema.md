@@ -31,7 +31,8 @@ feature profile or extensions it is the published file byte for byte.
 Every extension operator the instance registers (and its profile keeps)
 joins its category's operator-type enum beside the built-ins —
 `AggregationType`, `AttributeType`, `FiltererType`, `GroupType`,
-`WindowType`, `FeatureType`, `TestType` and `MatrixType` — so a request
+`WindowType`, `FeatureType`, `TestType`, `MatrixType` and
+`RegressionType` — so a request
 naming one validates against the instance's own schema. An instance
 built with a feature profile gets a narrower document:
 
@@ -810,7 +811,10 @@ joins a multiplicity family. A non-finite float in `outputs` is `null`.
 `n_obs`, `sum_weights` / `n_eff`, `p_adjusted`, `multiplicity` and
 `error` stay engine-owned. `outputs` is not on the `components`
 machinery: neither `disable_components` / `--no-components` nor any
-`return` preset strips it (it is in `minimal` and `standard`).
+`return` preset strips it (it is in `minimal` and `standard`). The Go
+`RegressionResult.ReportedFigures` (the fit statistics the model
+reported, so a reported exact 0 ranks in a compose `sweep`) is
+`json:"-"` and never reaches the wire.
 
 On the request side `RegressionSpec` takes an additive `params` object
 (`omitempty`; absent is byte-identical), the model's own configuration.

@@ -481,6 +481,14 @@ type RegressionResult struct {
 	// null. The built-ins leave it absent.
 	Outputs map[string]any `json:"outputs,omitempty"`
 
+	// ReportedFigures names the omitempty whole-fit figures (r2,
+	// adj_r2, residual_std_err, df, deviance, null_deviance, pseudo_r2)
+	// an extension regression's model reported, so an exact 0 among
+	// them reads as computed rather than absent (a compose sweep ranking
+	// by one ranks it). Nil for a built-in, whose figures follow its
+	// type. Never serialised.
+	ReportedFigures []string `json:"-"`
+
 	// PAdjusted maps each family-member coefficient (keyed like PValues)
 	// to its multiplicity-adjusted p-value, present only when the spec's
 	// own multiplicity block resolved to a method other than none. It

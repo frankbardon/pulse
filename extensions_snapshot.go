@@ -51,6 +51,9 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			addInputs("test", string(r.Name), r.FieldInputs)
 		}
 	}
+	for _, r := range ext.Regressions {
+		addInputs("regression", string(r.Name), r.FieldInputs)
+	}
 	// ComponentSchemas projects per-extension ComponentSchema declarations
 	// so manifest + predict can surface extension operators on the same
 	// shape as built-ins. Empty / floor-only registrations stay absent

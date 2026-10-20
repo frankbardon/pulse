@@ -76,6 +76,9 @@ func newFeatureUniverse(ext Extensions, version string) featureUniverse {
 	for _, r := range ext.MatrixOps {
 		add(categoryMatrix, string(r.Name), r.DependsOn)
 	}
+	for _, r := range ext.Regressions {
+		add(categoryRegression, string(r.Name), r.DependsOn)
+	}
 	// Synth distributions are not features (capability:synth gates
 	// them), so an extension SYNTH_* name never resolves.
 	return u

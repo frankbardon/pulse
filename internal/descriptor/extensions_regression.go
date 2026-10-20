@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
@@ -27,6 +28,9 @@ type ExtensionRegression struct {
 	// CovarianceTypes are the covariance.type values the model computes
 	// itself; a covariance block naming another type is refused.
 	CovarianceTypes []types.CovarianceType
+	// Accepts are the declared target / predictor field types (empty:
+	// the built-in regressions' set; fieldaccept.ExtensionRegressionAccepts).
+	Accepts []encoding.FieldType
 	// Scorer reports that the registration supplies a row scorer, so a
 	// fit may be saved as a model file. No registration field sets it
 	// yet: save is refused on every extension model.
@@ -107,19 +111,25 @@ func extensionRegressionSlotParams(decl ExtensionRegression) []descriptor.Param 
 	return append(out, regressionSlotParamsFor(decl)...)
 }
 
-// extensionRegressionAcceptsTypes is the scalar field types an
-// extension model's target and predictors accept (the accepted-types
-// table's rule for an operator it does not table), sorted.
-func extensionRegressionAcceptsTypes(name string) []string {
-	var out []string
-	for b := 0; b < 256; b++ {
-		ft := encoding.FieldType(b)
-		if ft.IsKnown() && !ft.IsVector() && fieldaccept.Accepts(name, fieldaccept.SlotPredictor, ft) {
-			out = append(out, ft.String())
+// ExtensionRegressionFieldTypeRefusal is the accepted-types refusal of
+// an extension REG_* model's target and predictors: the built-in
+// regressions' rule, or exactly the declared Accepts
+// (fieldaccept.CheckExtensionRegression) — nil when every schema field
+// is accepted. Predict and the runtime adapter raise the same error.
+func ExtensionRegressionFieldTypeRefusal(spec *types.RegressionSpec, decl ExtensionRegression, schema *encoding.Schema) *errors.CodedError {
+	if spec == nil {
+		return nil
+	}
+	op := string(spec.Type)
+	if cerr := fieldaccept.CheckExtensionRegression(op, decl.Accepts, fieldaccept.SlotTarget, spec.Target, schema); cerr != nil {
+		return cerr
+	}
+	for _, p := range spec.Predictors {
+		if cerr := fieldaccept.CheckExtensionRegression(op, decl.Accepts, fieldaccept.SlotPredictor, p, schema); cerr != nil {
+			return cerr
 		}
 	}
-	sort.Strings(out)
-	return out
+	return nil
 }
 
 // extensionRegressionMetas projects the snapshot's extension REG_*
@@ -145,7 +155,7 @@ func extensionRegressionMetas(s *ExtensionsSnapshot, weighting bool) []descripto
 		meta := descriptor.RegressionMeta{
 			Name:           m.Name,
 			Description:    m.Description,
-			AcceptsTypes:   extensionRegressionAcceptsTypes(m.Name),
+			AcceptsTypes:   fieldaccept.ExtensionRegressionTypeNames(d.Accepts),
 			EmitsTypeNote:  "RegressionResult in the built-in shape: coefficients with std_errors / statistics / p_values (null where the model reports none, key kept), the fit statistics it reports, and outputs keyed by output_schema.",
 			Streamable:     m.Streamable,
 			StreamableHint: hint,

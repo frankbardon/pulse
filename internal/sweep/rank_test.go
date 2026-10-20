@@ -247,3 +247,31 @@ func TestRank_UncomputedZeroStaysMissing(t *testing.T) {
 		})
 	}
 }
+
+// TestRank_ExtensionReportedZeroRanks (U53): an extension REG_* model's
+// result names the fit figures it reported (ReportedFigures), so a
+// reported exact 0 ranks; the same zero NOT reported (an extension
+// model that does not compute r2) stays missing, as does a reported
+// figure's absent sibling.
+func TestRank_ExtensionReportedZeroRanks(t *testing.T) {
+	ext := func(reported ...string) *types.Response {
+		return &types.Response{Regressions: []*types.RegressionResult{{Name: "fit", Type: "REG_ACME_HILL", ReportedFigures: reported}}}
+	}
+	ranked := &types.Response{Regressions: []*types.RegressionResult{{Name: "fit", Type: "REG_ACME_HILL", ResidualStdErr: 1, ReportedFigures: []string{"residual_std_err"}}}}
+	got, err := Rank(&types.SweepRank{By: "regressions.fit.residual_std_err"}, []string{"a", "b"}, []*types.Response{ranked, ext("residual_std_err", "df")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []types.RankEntry{{Label: "b", Value: 0, Rank: 1}, {Label: "a", Value: 1, Rank: 2}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("reported zero: got %+v want %+v", got, want)
+	}
+	for _, missing := range []*types.Response{ext(), ext("df")} {
+		got, err := Rank(&types.SweepRank{By: "regressions.fit.residual_std_err"}, []string{"a", "b"}, []*types.Response{ranked, missing})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 || got[0].Label != "a" {
+			t.Fatalf("unreported zero ranked: %+v", got)
+		}
+	}
+}

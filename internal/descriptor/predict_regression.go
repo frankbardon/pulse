@@ -87,7 +87,7 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			// (FieldRefRefusals); only a schema field is type-checked.
 			// The accepted-types table's refusal, the runtime's
 			// (regression.BuildWith) word for word.
-			if cerr := fieldaccept.Check(string(reg.Type), fieldaccept.SlotTarget, reg.Target, schema); cerr != nil {
+			if cerr := regressionSlotFieldCheck(reg, decl, extension, fieldaccept.SlotTarget, reg.Target, schema); cerr != nil {
 				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
 		}
@@ -102,7 +102,7 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		// Unknown: FieldRefRefusals; derived: untyped; vector:
 		// vectorScalarRefusals — fieldaccept.Check judges none of them.
 		for _, p := range reg.Predictors {
-			if cerr := fieldaccept.Check(string(reg.Type), fieldaccept.SlotPredictor, p, schema); cerr != nil {
+			if cerr := regressionSlotFieldCheck(reg, decl, extension, fieldaccept.SlotPredictor, p, schema); cerr != nil {
 				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
 		}
@@ -213,6 +213,18 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 func regressionAcceptsType(rt types.RegressionType, t encoding.FieldType) bool {
 	_ = rt
 	return t.IsNumericForAnalytics()
+}
+
+// regressionSlotFieldCheck is the accepted-types refusal of one target
+// or predictor field: the table's row for a built-in, the extension
+// rule (the built-in regressions' set or the declared Accepts) for a
+// registered model — the runtime's own calls (regression.BuildWith,
+// the extension adapter's ExtensionRegressionFieldTypeRefusal).
+func regressionSlotFieldCheck(reg *types.RegressionSpec, decl ExtensionRegression, extension bool, slot fieldaccept.Slot, field string, schema *encoding.Schema) *errors.CodedError {
+	if extension {
+		return fieldaccept.CheckExtensionRegression(string(reg.Type), decl.Accepts, slot, field, schema)
+	}
+	return fieldaccept.Check(string(reg.Type), slot, field, schema)
 }
 
 // routedRegression returns reg, or a copy whose Type is the route ("")

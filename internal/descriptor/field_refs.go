@@ -482,6 +482,7 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 					map[string]any{"field": f, "type": string(reg.Type)})
 			})
 		}
+		w.checkInputs("regression", string(reg.Type), reg.Params, "type")
 	}
 	for _, grp := range req.Groups {
 		if grp == nil {

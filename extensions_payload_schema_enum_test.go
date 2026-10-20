@@ -40,7 +40,7 @@ func payloadEnumWith(t *testing.T, p *pulse.Pulse, anchor string) []string {
 // payload schema (Pulse.PayloadSchema, `pulse schema`) lists every
 // registered extension operator in its category's operator-type enum
 // beside the built-ins — aggregators, attributes, filterers, groupers,
-// windows, features and tests as well as matrix operators — so a
+// windows, features, tests and regressions as well as matrix operators — so a
 // request naming one validates against the instance's own schema. A
 // feature profile that leaves an extension out drops it from the enum.
 func TestExtensions_PayloadSchemaEnumsCarryExtensions(t *testing.T) {
@@ -84,7 +84,24 @@ func TestExtensions_PayloadSchemaEnumsCarryExtensions(t *testing.T) {
 					t.Errorf("enum beside %s is not sorted: %v", c.anchor, enum)
 				}
 			}
+			// Extension REG_* models ride the manifest in the built-in
+			// RegressionMeta shape.
+			if regs := m.Extensions.Regressions; len(regs) > 0 {
+				enum := payloadEnumWith(t, p, "REG_OLS")
+				for _, r := range regs {
+					if !slices.Contains(enum, r.Name) {
+						t.Errorf("payload-schema enum beside REG_OLS lacks extension %s", r.Name)
+					}
+					covered["REG_OLS"] = true
+				}
+				if !slices.IsSorted(enum) {
+					t.Errorf("enum beside REG_OLS is not sorted: %v", enum)
+				}
+			}
 		})
+	}
+	if !covered["REG_OLS"] {
+		t.Error("no parity suite registers an extension regression — the check is vacuous for it")
 	}
 	for _, c := range categories {
 		if !covered[c.anchor] {

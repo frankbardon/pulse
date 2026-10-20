@@ -867,6 +867,38 @@ type MatrixOpRegistration struct {
 type RegressionRegistration struct {
 	Name        types.RegressionType
 	Description string
+	// Purpose is the optional plain-language guidance for the model —
+	// what it is for, the intents it answers, when to use something
+	// else. It is validated at pulse.New with the same rules as the
+	// built-in tier; a broken rule fails with
+	// PULSE_EXTENSION_PURPOSE_INVALID. Only its intent IDs reach the
+	// manifest entry's intents list; nil declares no intents.
+	Purpose *descriptor.Purpose
+	// Interpretation optionally says how to read the model's outputs,
+	// one entry per normalised output path: a figure the model can
+	// report (coefficients.* / std_errors.* / statistics.* / p_values.*,
+	// r2, adj_r2, residual_std_err, df, deviance, null_deviance,
+	// pseudo_r2, converged_iters, n_obs) or outputs.<key> for a key its
+	// OutputSchema declares. Any other path, or a broken rule (path
+	// syntax, Means or Shared, Bands with a Convention), fails with
+	// PULSE_EXTENSION_PURPOSE_INVALID at pulse.New.
+	Interpretation []descriptor.Interpretation
+	// DependsOn names the features this model needs, each an AND edge;
+	// see AggregatorRegistration.DependsOn. Optional; extensions carry
+	// no Since.
+	DependsOn []string
+	// Accepts lists the field types the model's target and predictors
+	// accept; empty means the built-in regressions' set (the
+	// analytics-numeric types). A field of any other type is refused
+	// with PULSE_FIELD_TYPE_UNSUPPORTED at predict and at runtime alike.
+	// Each entry a known, non-vector type listed once
+	// (PULSE_EXTENSION_PARAM_INVALID, reason invalid_accepts).
+	Accepts []encoding.FieldType
+	// FieldInputs is the optional buffered-projection introspection
+	// hook: the fields the model reads beyond its target, predictors and
+	// weight (named in its params, say). See FieldInputsFunc; without
+	// one a buffered request carrying the model decodes every field.
+	FieldInputs FieldInputsFunc
 	// Factory builds the model per regression slot. Required
 	// (PULSE_EXTENSION_PARAM_INVALID, reason missing_factory).
 	Factory extend.RegressionFactory
