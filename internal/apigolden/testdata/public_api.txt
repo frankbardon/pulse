@@ -944,6 +944,7 @@ pulse: type RegressionRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type RegressionRegistration field Interpretation []pulse/descriptor.Interpretation
 pulse: type RegressionRegistration field Name pulse/types.RegressionType
 pulse: type RegressionRegistration field OutputSchema []pulse.RegressionOutputMeta
+pulse: type RegressionRegistration field PValues bool
 pulse: type RegressionRegistration field Params []pulse.ParamMeta
 pulse: type RegressionRegistration field Penalty bool
 pulse: type RegressionRegistration field Purpose *pulse/descriptor.Purpose
@@ -5755,4 +5756,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 35b974868b3b1ab70c2a5416c87555b04350df0e3eb0d72f01d6f7cb0e9cd3cf
+// golden-hash: 0e37b4d45bbf787e930d6dcd3c70aba3b664866cad96a6300f33c6b3bbb1f8aa

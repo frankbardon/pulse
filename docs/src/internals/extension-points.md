@@ -783,8 +783,8 @@ builds one), optional `Fit` statistics from the fixed set (`R2`,
 `PseudoR2`, `Iterations`), a `Vcov` (square over the coefficients, in
 their order) and `Outputs`. The adapter maps it onto
 `types.RegressionResult` and owns the rest: name and type, `n_obs`,
-`sum_weights` / `n_eff`, the multiplicity fold (only coefficients with
-a defined p-value join a default family; an explicit
+`sum_weights` / `n_eff`, the multiplicity fold (a `PValues` model's
+coefficients with a defined p-value join a default family; an explicit
 `multiplicity.coefficients` list names the model's own coefficients)
 and per-slot failure (a model error coded
 `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `_RANK_DEFICIENT`,
@@ -796,6 +796,7 @@ fatal; a panic is `PROCESSING_PANIC`).
 | `Streamable` | the form; decides the path at runtime and in predict |
 | `WeightAware` | the model reads row weights; undeclared, any weight in force is `PULSE_EXTENSION_NOT_WEIGHT_AWARE` |
 | `Vcov` | `vcov: true` is honoured (result `vcov` + `correlation`); undeclared it is `PROCESSING_CONFIG` `{regression, slot: "vcov"}` at predict and runtime |
+| `PValues` | the model emits coefficient p-values, so its slot takes a `multiplicity` block (family: the coefficients with a defined p, the intercept excluded) and predict counts them. Undeclared, the model emits none: `p_values` is null on every coefficient (under `resample` too), predict counts none, a block resolving to any method but `none` is `PULSE_MULTIPLICITY_INVALID` (`key: "method"`, `valid: ["none"]`) at predict and runtime alike, and a fit reporting a finite p-value is `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` reason `undeclared_p_value` (at `pulse.New` on the probe fit, and on every run) |
 | `Penalty` | the model reads the shared `penalty` / `alpha` / `l1_ratio` slots itself (their values are the model's to judge); undeclared, any of them is `PROCESSING_CONFIG` `{regression, slot: "penalty"}` (`key` names a companion) |
 | `SupportsSelection` | the model can be refit over a predictor subset, so the engine's selection driver (`forward` / `backward` / `stepwise`) may wrap it; each candidate fit must report `Fit.Deviance` (−2·log-likelihood up to a constant every candidate shares), scored AIC = deviance + 2k or BIC = deviance + ln(n)·k with k its coefficient count and n its `n_obs` — a fit without one is `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` reason `missing_deviance` (at `pulse.New` on the probe fit, and on any candidate). Undeclared, `selection` / `criterion` are `PROCESSING_CONFIG` `{regression, slot: "selection"}` at predict and runtime |
 | `CovarianceTypes` | `[]types.CovarianceType` the model computes itself from `spec.Covariance`: a block whose type (absent = `classical`) is listed reaches the model after the shared shape rule (`cluster` needs `cluster`, `hac` needs `order_by`; a robust type beside `penalty` is `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`); any other type is `PROCESSING_CONFIG` `{regression, slot: "covariance"}`. An unknown or repeated entry fails `pulse.New` (`PULSE_EXTENSION_PARAM_INVALID`, reason `invalid_covariance_type`). A robust type forces the buffered path |
@@ -825,7 +826,8 @@ runtime adapter alike:
 | `conf_level` | refused: the engine computes no intervals for a model |
 | `family`, `link`, `max_iters`, `tol`, `prior` (`prior_mu`, `prior_precision`, `prior_shape`, `prior_rate`, `credible_level`) | refused: built-in knobs — carry the model's own configuration in `params` |
 | `weight` | `WeightAware` (`PULSE_EXTENSION_NOT_WEIGHT_AWARE` otherwise) |
-| `params`, `multiplicity` | always honoured |
+| `params` | always honoured |
+| `multiplicity` | method `none` always; any other method needs `PValues` (`PULSE_MULTIPLICITY_INVALID` otherwise, from the shared multiplicity resolver) |
 
 **Modifiers.** `resample` and `selection` run the built-in drivers
 around the model, every refit a fresh model from the factory (its spec
@@ -839,7 +841,8 @@ from the request and the rows) draw exactly the rows and groups
 `REG_OLS` draws, so results are bit-identical run to run and across
 `DecodeWorkers` / `ShardWorkers`. Every coefficient's `std_errors`
 entry becomes the replicate SE, `statistics` the Wald z, `p_values` the
-Wald-z p (jackknife) or the percentile p (bootstrap), and a requested
+Wald-z p (jackknife) or the percentile p (bootstrap) — null on every key
+for a model that does not declare `PValues` — and a requested
 `vcov` the replicate covariance. A replicate reporting other
 coefficients than the full fit is
 `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` reason
@@ -884,18 +887,19 @@ shared slot cannot reach an extension model unclassified.
 The manifest lists the model under `extensions.regressions` in the
 built-in `RegressionMeta` shape: the shared slot keys (`target`,
 `predictors`, then every shared slot the declaration accepts — `penalty`
-/ `alpha` / `l1_ratio`, `vcov`, `covariance` naming its declared types;
-each marked `slot`), then the
+/ `alpha` / `l1_ratio`, `resample`, `multiplicity` for a `PValues`
+model, `vcov`, `covariance` naming its declared types; each marked
+`slot`; `emits_type_note` says whether `p_values` can carry figures), then the
 declared `Params`, the declared form (`streamable`), `weight_kinds` for
 a `WeightAware` model, its `intents` and the `output_schema`. The
 instance payload schema (`pulse schema`) and the MCP tools'
 `regressions[].type` enum list it beside the built-ins; a feature
 profile that leaves it out removes it from all three, and a request
 naming it is then refused exactly as a never-registered name.
-Predict's `p_values` counts its p-values off the request: an explicit
-`multiplicity.coefficients` list exactly, else one per non-intercept
-predictor on the `lower_bound` basis (the model names its own
-coefficients). The fit statistics it reports are listed on
+Predict's `p_values` counts a `PValues` model's p-values off the
+request: an explicit `multiplicity.coefficients` list exactly, else one
+per non-intercept predictor on the `lower_bound` basis (the model names
+its own coefficients); a model without `PValues` counts none. The fit statistics it reports are listed on
 `RegressionResult.ReportedFigures` (never serialised), so a reported
 exact 0 ranks in a compose `sweep` rank.
 

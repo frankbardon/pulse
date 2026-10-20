@@ -806,7 +806,9 @@ per-coefficient test statistic (keyed like `coefficients`), and
 registration's `OutputSchema` keys). On an extension fit `std_errors`,
 `statistics` and `p_values` each carry EVERY coefficient key; a figure
 the model did not compute is `null` (key kept), so the coefficient
-table stays rectangular. Only a coefficient whose p-value is defined
+table stays rectangular. A model whose registration does not declare
+`PValues` emits none: its `p_values` is `null` on every coefficient,
+under `resample` too. Only a coefficient whose p-value is defined
 joins a multiplicity family. A non-finite float in `outputs` is `null`.
 `n_obs`, `sum_weights` / `n_eff`, `p_adjusted`, `multiplicity` and
 `error` stay engine-owned. `outputs` is not on the `components`

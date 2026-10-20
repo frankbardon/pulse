@@ -83,6 +83,9 @@ func testMMMHillRegistration() pulse.RegressionRegistration {
 		},
 		Factory: testMMMHillFactory,
 		Scorer:  testMMMHillScorer,
+		// The model reports no p-value itself; under resample the engine
+		// writes the replicate ones, which the bootstrap test reads.
+		PValues: true,
 	}
 }
 

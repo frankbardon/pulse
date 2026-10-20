@@ -288,6 +288,11 @@ func regressionSlotParamsFor(decl ExtensionRegression) []descriptor.Param {
 	}
 	// resample: every extension model accepts it (an accepted field).
 	out = append(out, descriptor.Param{Name: "resample", Type: "enum", EnumValues: []string{"", "bootstrap", "jackknife"}, Description: "Resampling layer: the engine refits the model over row subsets (jackknife_groups, jackknife_by, bootstrap_iters and rng_seed tune it); a top-level key of the regression entry.", Slot: true})
+	// multiplicity: an accepted field, listed when the model declares
+	// PValues (without them only method none is accepted).
+	if decl.PValues {
+		out = append(out, descriptor.Param{Name: "multiplicity", Type: "object", Description: "{method, alpha, coefficients}: multiple-comparison correction over the coefficients carrying a p-value (the intercept excluded unless coefficients names it); a top-level key of the regression entry.", Slot: true})
+	}
 	if accepts("selection", probe) {
 		out = append(out,
 			descriptor.Param{Name: "selection", Type: "enum", EnumValues: []string{"", "backward", "forward", "stepwise"}, Description: "Subset-selection wrapper: the engine refits the model over predictor subsets; a top-level key of the regression entry.", Slot: true},

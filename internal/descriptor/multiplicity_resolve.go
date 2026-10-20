@@ -193,6 +193,7 @@ const (
 	multReasonMatrixSpec     = "a matrix spec corrects its cells as one matrix (matrix) or pooled with the request (request); layer, row and column belong to overlay layers and compose is not offered on a matrix spec"
 	multReasonMatrixType     = "emits no p-values; a multiplicity block applies only to the matrix operators that take params.inference"
 	multReasonBayes          = "REG_BAYES_LINEAR emits no p-values (its credible intervals replace them); a regression multiplicity block applies to REG_OLS and REG_GLM"
+	multReasonNoPValues      = "emits no p-values (its registration does not declare PValues); a regression multiplicity block applies to REG_OLS, REG_GLM and the registered models declaring PValues"
 	multReasonCoefficient    = "names no coefficient of this regression; list predictors or (intercept)"
 	multReasonCoefficientDup = "repeats a coefficient; list each once"
 )
@@ -460,8 +461,9 @@ const regressionInterceptKey = "(intercept)"
 // family only through its OWN block: an inherited request-level or
 // instance block never reaches it (its fields still fall through to the
 // own block's empty ones). The block's coefficients must each name a
-// predictor or "(intercept)", once. REG_BAYES_LINEAR emits no p-values,
-// so a block resolving to any method but none is refused; a hidden or
+// predictor or "(intercept)", once. REG_BAYES_LINEAR and an extension
+// model not declaring PValues emit no p-values, so a block resolving to
+// any method but none is refused; a hidden or
 // unknown type is the regression validators' refusal and joins no
 // family here.
 func (r multResolver) regression(slot string, spec *types.RegressionSpec, chain multChain) (ResolvedMultiplicity, error) {
@@ -480,7 +482,7 @@ func (r multResolver) regression(slot string, spec *types.RegressionSpec, chain 
 	}
 	// An extension model names its own coefficients, so its block's
 	// list is held to uniqueness only.
-	_, _, extension := regressionExtensionFor(r.inst, nil, spec.Type)
+	_, decl, extension := regressionExtensionFor(r.inst, nil, spec.Type)
 	known := map[string]bool{regressionInterceptKey: true}
 	for _, p := range spec.Predictors {
 		known[p] = true
@@ -509,6 +511,10 @@ func (r multResolver) regression(slot string, spec *types.RegressionSpec, chain 
 	routed := opRoute(r.inst, spec.Type)
 	if routed == types.REG_BAYES_LINEAR && method != types.MultiplicityMethodNone {
 		return rm, multInvalid(where, "method", string(method), multReasonBayes, []string{string(types.MultiplicityMethodNone)})
+	}
+	// An extension model declaring no PValues emits none: the Bayes rule.
+	if extension && !decl.PValues && method != types.MultiplicityMethodNone {
+		return rm, multInvalid(where, "method", string(method), string(spec.Type)+" "+multReasonNoPValues, []string{string(types.MultiplicityMethodNone)})
 	}
 	if _, ok := knownRegressionTypes[routed]; !ok && !extension {
 		return rm, nil

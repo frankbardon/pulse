@@ -69,6 +69,7 @@ func scaledExtensions() pulse.Extensions {
 		Name:        regParamsName,
 		Description: "slope scaled by params.scale",
 		Factory:     factory,
+		PValues:     true,
 		Params: []pulse.ParamMeta{
 			{Name: "scale", JSONType: "number", Description: "Coefficient multiplier.", Default: 1.0},
 			{Name: "label", JSONType: "string", Description: "Echoed in outputs."},
@@ -226,7 +227,7 @@ func TestExtensions_RegressionManifestCarriesParamsAndOutputSchema(t *testing.T)
 			own = append(own, prm.Name+":"+prm.Type)
 		}
 	}
-	if !slices.Equal(slot, []string{"target", "predictors", "resample"}) || !slices.Equal(own, []string{"scale:float", "label:string"}) {
+	if !slices.Equal(slot, []string{"target", "predictors", "resample", "multiplicity"}) || !slices.Equal(own, []string{"scale:float", "label:string"}) {
 		t.Fatalf("params slot=%v own=%v", slot, own)
 	}
 	if len(row.OutputSchema) != 2 || row.OutputSchema[0].Key != "scale" || row.OutputSchema[0].JSONType != "number" ||

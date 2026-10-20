@@ -168,7 +168,8 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 	// (regpenalty.InferenceUndefined, the engines' own predicate): its
 	// p-values are null, which the runtime fold leaves out of every
 	// family's m (reference-oracles E2-S3). An extension REG_* model is
-	// counted per its member list or its predictors (below).
+	// counted per its member list or its predictors (below) when it
+	// declares PValues, else not at all.
 	var regressions []ResolvedMultiplicity
 	if plan != nil {
 		regressions = plan.Regressions
@@ -178,12 +179,16 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 			continue
 		}
 		member := i < len(regressions) && regressions[i].Member
-		if isRegisteredRegression(inst, nil, r.Type) {
+		if _, decl, ok := regressionExtensionFor(inst, nil, r.Type); ok {
 			// An extension model names its own coefficients, so its
 			// count is read off the request: a member's explicit list
 			// exactly, otherwise one per non-intercept predictor on the
 			// lower_bound basis (the model may report more — a
-			// nonlinear parameter — or fewer).
+			// nonlinear parameter — or fewer). A model not declaring
+			// PValues emits none.
+			if !decl.PValues {
+				continue
+			}
 			if member && regressions[i].ExplicitCoefficients {
 				addAt(len(regressions[i].Coefficients), descriptor.PValueBasisExact, regressions, i)
 				continue

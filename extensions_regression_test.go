@@ -159,10 +159,10 @@ func regressionExtensions(calls *regCalls) pulse.Extensions {
 		return &bufferedSlope{acc: newSlopeAcc(spec), calls: calls}, nil
 	}
 	return pulse.Extensions{Regressions: []pulse.RegressionRegistration{
-		{Name: regStreamName, Description: "streaming slope", Factory: stream, Streamable: true, OutputSchema: slopeOutputs},
-		{Name: regBufferedName, Description: "buffered slope", Factory: buffered, OutputSchema: slopeOutputs},
-		{Name: regAwareName, Description: "weighted slope", Factory: stream, Streamable: true, WeightAware: true, OutputSchema: slopeOutputs},
-		{Name: regVcovName, Description: "slope with vcov", Factory: stream, Streamable: true, Vcov: true, CovarianceTypes: []types.CovarianceType{types.CovarianceHC1}, OutputSchema: slopeOutputs},
+		{Name: regStreamName, Description: "streaming slope", Factory: stream, Streamable: true, PValues: true, OutputSchema: slopeOutputs},
+		{Name: regBufferedName, Description: "buffered slope", Factory: buffered, PValues: true, OutputSchema: slopeOutputs},
+		{Name: regAwareName, Description: "weighted slope", Factory: stream, Streamable: true, WeightAware: true, PValues: true, OutputSchema: slopeOutputs},
+		{Name: regVcovName, Description: "slope with vcov", Factory: stream, Streamable: true, Vcov: true, PValues: true, CovarianceTypes: []types.CovarianceType{types.CovarianceHC1}, OutputSchema: slopeOutputs},
 	}}
 }
 

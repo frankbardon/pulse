@@ -42,6 +42,7 @@ func regressionDeclaration(reg RegressionRegistration) descx.ExtensionRegression
 	}
 	return descx.ExtensionRegression{
 		Vcov:              reg.Vcov,
+		PValues:           reg.PValues,
 		Penalty:           reg.Penalty,
 		SupportsSelection: reg.SupportsSelection,
 		CovarianceTypes:   slices.Clone(reg.CovarianceTypes),
@@ -273,7 +274,8 @@ func figureOrNaN(v *float64) float64 {
 // verifyRegressionOutput holds a model's output to its registration —
 // PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH, details.reason:
 // missing_coefficients (none), invalid_coefficient (an empty or
-// repeated name), undeclared_output_key (an Outputs key OutputSchema
+// repeated name), undeclared_p_value (a finite p-value from a model
+// not declaring PValues), undeclared_output_key (an Outputs key OutputSchema
 // does not declare), and — when the spec sets vcov and the
 // registration declares Vcov — missing_vcov / vcov_shape (not square
 // over the coefficients). The probe and every run apply it.
@@ -295,6 +297,15 @@ func verifyRegressionOutput(reg RegressionRegistration, spec *types.RegressionSp
 				map[string]any{"coefficient": c.Name})
 		}
 		seen[c.Name] = true
+	}
+	if !reg.PValues {
+		for _, c := range out.Coefficients {
+			if c.PValue != nil && !math.IsNaN(*c.PValue) {
+				return mismatch("undeclared_p_value",
+					fmt.Sprintf("returned a p-value for coefficient %q although the registration does not declare PValues (set PValues: true, or report no p-value)", c.Name),
+					map[string]any{"coefficient": c.Name})
+			}
+		}
 	}
 	declared := regressionDeclaration(reg).OutputKeys
 	if extras := undeclaredKeys(sortedKeys(out.Outputs), declared); len(extras) > 0 {
@@ -579,7 +590,7 @@ func (e *regressionModifierEngine) FitBuffered(records []regression.Record) (*ty
 // (regression.ContextBufferedEngine): a request deadline stops the
 // refit loop between two fits.
 func (e *regressionModifierEngine) FitBufferedContext(ctx context.Context, records []regression.Record) (*types.RegressionResult, error) {
-	return regression.RunExtensionModifiers(ctx, e.spec, records, e.refit,
+	return regression.RunExtensionModifiers(ctx, e.spec, e.reg.PValues, records, e.refit,
 		func() error { return regressionSelectionDevianceMismatch(e.reg, false) },
 		func(base, got []string) error {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH,

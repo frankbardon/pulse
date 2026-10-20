@@ -116,6 +116,7 @@ convergence flag, a pooled variance.
 | `Accepts []encoding.FieldType` | field types for target and predictors; empty = the built-in analytics-numeric set | `PULSE_FIELD_TYPE_UNSUPPORTED` |
 | `WeightAware` | the model reads `Record.Weight()` | any weight in force is `PULSE_EXTENSION_NOT_WEIGHT_AWARE` |
 | `Vcov` | honours `vcov: true`; `Vcov` in the output is then required | `PROCESSING_CONFIG` `{regression, slot: "vcov"}` |
+| `PValues` | the model reports coefficient p-values, so `multiplicity` can correct them and predict counts them | `p_values` is null on every coefficient (under `resample` too); a non-`none` `multiplicity` method is `PULSE_MULTIPLICITY_INVALID`; a finite `PValue` in the output is `_OUTPUT_MISMATCH` `undeclared_p_value` |
 | `Penalty` | reads `penalty` / `alpha` / `l1_ratio` itself | `PROCESSING_CONFIG` `{slot: "penalty"}` |
 | `CovarianceTypes` | the robust types it computes itself (`cluster`, `hac`, …) | `PROCESSING_CONFIG` `{slot: "covariance"}` |
 | `SupportsSelection` | a refit over a predictor subset is meaningful; every fit reports `Fit.Deviance` | `PROCESSING_CONFIG` `{slot: "selection"}`; a fit without a deviance is `_OUTPUT_MISMATCH` `missing_deviance` |
@@ -161,7 +162,8 @@ it on an instance that does not register (or a profile hides) the type is
 
 Nothing to write: `resample` (jackknife, bootstrap) refits a fresh model from
 your factory per replicate with the built-in drivers and replaces
-`std_errors`, `statistics` and `p_values` with the replicate figures, so
+`std_errors`, `statistics` and `p_values` with the replicate figures
+(`p_values` only when you declare `PValues`), so
 **the factory must be re-entrant** and report the same coefficient names on
 every fit (`_OUTPUT_MISMATCH` `replicate_coefficients`). `selection` needs
 `SupportsSelection` and a `Fit.Deviance`. Both read the request deadline
@@ -177,8 +179,9 @@ it over eight synthetic rows and checks the output. A factory may refuse an
 absent `Required` param; one that refuses the placeholder fails
 `pulse.New` with `PULSE_EXTENSION_FACTORY_PANIC` and `details.probe_params`.
 A data-dependent refusal (`PROCESSING_REGRESSION_*`) on the eight rows is
-tolerated. Output with no coefficients, an empty or repeated name or a
-missing / misshapen `Vcov` is `_OUTPUT_MISMATCH`, checked again on every run.
+tolerated. Output with no coefficients, an empty or repeated name, a
+missing / misshapen `Vcov` or a finite `PValue` without `PValues` is
+`_OUTPUT_MISMATCH`, checked again on every run.
 
 ## 8. Feature profiles, guidance and multiplicity
 
@@ -190,9 +193,13 @@ missing / misshapen `Vcov` is `_OUTPUT_MISMATCH`, checked again on every run.
 - A custom-only profile meets the REG_* dependency edges of
   `ATTR_REG_PREDICT`, `capability:model_save` and `capability:compose_fits`
   (a `Scorer` for the first two).
-- Only a coefficient carrying a `PValue` joins a default multiplicity
-  family; an explicit `multiplicity.coefficients` list names the model's own
-  coefficients.
+- Declare `PValues: true` when the model reports p-values. Then only a
+  coefficient carrying a `PValue` joins a default multiplicity family (an
+  explicit `multiplicity.coefficients` list names the model's own
+  coefficients), and predict counts one p-value per non-intercept predictor
+  (basis `lower_bound`). Without it the model emits none: predict counts
+  none, and a `multiplicity` block with any method but `none` is refused
+  with `PULSE_MULTIPLICITY_INVALID` at predict and at runtime alike.
 
 ## 9. Test it
 

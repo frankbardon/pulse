@@ -44,13 +44,16 @@ type ExtensionFit func(recs []Record, predictors []string) (res *types.Regressio
 // jackknife_by) and the bootstrap with the same seed rule. Each
 // coefficient's standard error becomes the replicate SE, its statistic
 // the Wald z (estimate / SE) and its p-value the Wald-z two-sided p
-// (jackknife) or the percentile p (bootstrap); a spec-requested vcov
+// (jackknife) or the percentile p (bootstrap) — NaN on every key when
+// pValues is false (the registration declares no p-values, so predict
+// counts none and no multiplicity family reads them); a spec-requested vcov
 // becomes the replicate covariance. A replicate whose coefficient names
 // differ from the base fit's is PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH
 // (reason replicate_coefficients) via mismatch.
 func RunExtensionModifiers(
 	ctx context.Context,
 	spec *types.RegressionSpec,
+	pValues bool,
 	records []Record,
 	fit ExtensionFit,
 	missingDeviance func() error,
@@ -86,7 +89,7 @@ func RunExtensionModifiers(
 	if spec.Resample == "" {
 		return base, nil
 	}
-	return extensionResample(ctx, spec, records, active, base, keys, fit, mismatch)
+	return extensionResample(ctx, spec, pValues, records, active, base, keys, fit, mismatch)
 }
 
 // extensionFatal reports whether a refit error must stop a modifier
@@ -132,7 +135,7 @@ func extensionSelection(ctx context.Context, spec *types.RegressionSpec, records
 
 // extensionResample replaces base's uncertainty figures with the
 // replicate ones.
-func extensionResample(ctx context.Context, spec *types.RegressionSpec, records []Record, active []string, base *types.RegressionResult, keys []string, fit ExtensionFit, mismatch func(base, got []string) error) (*types.RegressionResult, error) {
+func extensionResample(ctx context.Context, spec *types.RegressionSpec, pValues bool, records []Record, active []string, base *types.RegressionResult, keys []string, fit ExtensionFit, mismatch func(base, got []string) error) (*types.RegressionResult, error) {
 	q := len(keys)
 	rep := func(recs []Record) ([]float64, error) {
 		res, got, err := fit(recs, active)
@@ -183,9 +186,12 @@ func extensionResample(ctx context.Context, spec *types.RegressionSpec, records 
 		est := base.Coefficients[k]
 		out.StdErrors[k] = se[j]
 		out.Statistics[k] = waldZ(est, se[j])
-		if bootP != nil {
+		switch {
+		case !pValues:
+			out.PValues[k] = math.NaN()
+		case bootP != nil:
 			out.PValues[k] = bootP[j]
-		} else {
+		default:
 			out.PValues[k] = waldZTwoSidedP(est, se[j])
 		}
 	}

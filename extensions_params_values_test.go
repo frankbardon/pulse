@@ -65,7 +65,7 @@ func strictExtensions() pulse.Extensions {
 			Params: strictParams}},
 		MatrixOps: []pulse.MatrixOpRegistration{mat},
 		Regressions: []pulse.RegressionRegistration{{Name: "REG_ACME_STRICT", Description: "strict params",
-			Factory: reg, OutputSchema: slopeOutputs, Params: strictParams}},
+			Factory: reg, PValues: true, OutputSchema: slopeOutputs, Params: strictParams}},
 	}
 }
 

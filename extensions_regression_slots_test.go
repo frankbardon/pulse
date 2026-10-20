@@ -153,7 +153,7 @@ func TestExtensions_RegressionDeclaredSlotsReachModel(t *testing.T) {
 	var seen *types.RegressionSpec
 	ext := pulse.Extensions{Regressions: []pulse.RegressionRegistration{{
 		Name: regDeclaredName, Description: "declares penalty and covariance", Factory: specRecorder(&seen),
-		Streamable: true, Penalty: true,
+		Streamable: true, Penalty: true, PValues: true,
 		CovarianceTypes: []types.CovarianceType{types.CovarianceClassical, types.CovarianceHC1, types.CovarianceCluster},
 		OutputSchema:    slopeOutputs,
 	}}}
@@ -231,7 +231,7 @@ func TestExtensions_RegressionDeclaredSlotsReachModel(t *testing.T) {
 			}
 		}
 	}
-	if want := []string{"target", "predictors", "penalty", "alpha", "l1_ratio", "resample", "covariance"}; !reflect.DeepEqual(slots, want) {
+	if want := []string{"target", "predictors", "penalty", "alpha", "l1_ratio", "resample", "multiplicity", "covariance"}; !reflect.DeepEqual(slots, want) {
 		t.Errorf("manifest slot params = %v, want %v", slots, want)
 	}
 }

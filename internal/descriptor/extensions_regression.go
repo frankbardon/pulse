@@ -19,6 +19,12 @@ type ExtensionRegression struct {
 	// Vcov reports that the model returns its coefficient covariance,
 	// so a spec's vcov: true is honoured rather than refused.
 	Vcov bool
+	// PValues reports that the model emits coefficient p-values
+	// (RegressionRegistration.PValues): its slot takes a multiplicity
+	// block and predict counts its p-values. Undeclared, a block
+	// resolving to any method but none is refused and predict counts
+	// none.
+	PValues bool
 	// Penalty reports that the model reads the shared penalty / alpha /
 	// l1_ratio slots itself, so setting them is honoured, not refused.
 	Penalty bool
@@ -133,6 +139,17 @@ func ExtensionRegressionFieldTypeRefusal(spec *types.RegressionSpec, decl Extens
 	return nil
 }
 
+// extensionRegressionEmitsNote is the manifest row's emits note: the
+// built-in shape, with p_values null on every coefficient for a model
+// that declares no PValues.
+func extensionRegressionEmitsNote(pValues bool) string {
+	p := "p_values (null on every coefficient: the model declares no PValues, so a multiplicity block takes only method none)"
+	if pValues {
+		p = "p_values (null where the model reports none, key kept; a multiplicity block corrects the p-valued ones)"
+	}
+	return "RegressionResult in the built-in shape: coefficients with std_errors / statistics / " + p + ", the fit statistics it reports, and outputs keyed by output_schema."
+}
+
 // extensionRegressionMetas projects the snapshot's extension REG_*
 // models onto the manifest's RegressionMeta shape — the built-ins' —
 // sorted by name: the declared description, the accepted field types,
@@ -157,7 +174,7 @@ func extensionRegressionMetas(s *ExtensionsSnapshot, weighting bool) []descripto
 			Name:           m.Name,
 			Description:    m.Description,
 			AcceptsTypes:   fieldaccept.ExtensionRegressionTypeNames(d.Accepts),
-			EmitsTypeNote:  "RegressionResult in the built-in shape: coefficients with std_errors / statistics / p_values (null where the model reports none, key kept), the fit statistics it reports, and outputs keyed by output_schema.",
+			EmitsTypeNote:  extensionRegressionEmitsNote(d.PValues),
 			Streamable:     m.Streamable,
 			StreamableHint: hint,
 			Params:         append(extensionRegressionSlotParams(d), d.Params...),

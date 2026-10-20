@@ -49,6 +49,7 @@ An embedder may register `REG_<NS>_<NAME>`. It appears in `pulse_manifest` under
 - `outputs`: the model's own figures beside `coefficients` (a Hill `k`, a convergence flag), keyed by the manifest's `output_schema`, kept under every `return` preset and `--no-components`. Read them at `regressions[i].outputs.<key>`; a sweep can `rank` on one.
 - A shared slot the model did not declare (`penalty`, `selection`, `vcov`, `covariance`, `save`, `conf_level`, `family`, `prior`, ..) is `PROCESSING_CONFIG` `{regression, slot}` — never silently ignored. Check `pulse_predict` first; it refuses exactly as a run does.
 - `resample` always works (replicate SE, Wald z, p; `conf_level` stays refused: no interval). `selection` needs the model to declare it.
+- p-values only where the manifest row's `emits_type_note` says so: otherwise `p_values` is `null` throughout<!-- feature: capability:multiplicity --> and a `multiplicity` method other than `none` is `PULSE_MULTIPLICITY_INVALID`<!-- /feature -->.
 <!-- feature: ATTR_REG_PREDICT -->
 - Scoring (`ATTR_REG_PREDICT`) and `save` need the model to carry a scorer; without one, `PULSE_MODEL_SCORE_INVALID` reason `no_scorer`. A saved model reloaded where its type is not registered is `PULSE_MODEL_REGRESSION_UNREGISTERED`.
 <!-- /feature -->

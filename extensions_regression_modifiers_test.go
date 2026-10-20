@@ -54,7 +54,7 @@ func modifierRegistrations() []pulse.RegressionRegistration {
 	regs := regressionParityRegistrations()
 	return append(regs, pulse.RegressionRegistration{
 		Name: regParitySelect, Description: "Test-only streaming REG_OLS clone reporting a deviance, selectable.",
-		Streamable: true, SupportsSelection: true,
+		Streamable: true, SupportsSelection: true, PValues: true,
 		Factory: func(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression, error) {
 			return &devianceOLS{streamOLS{m: newOLSMoments(spec, false)}}, nil
 		},
@@ -309,7 +309,7 @@ func (s slowModel) Fit(rows extend.Rows) (extend.RegressionOutput, error) {
 func TestExtensions_RegressionModifierContract(t *testing.T) {
 	t.Run("replicate_coefficients", func(t *testing.T) {
 		first := 0
-		reg := pulse.RegressionRegistration{Name: "REG_PARITY_RENAMED", Description: "renames on replicates",
+		reg := pulse.RegressionRegistration{Name: "REG_PARITY_RENAMED", Description: "renames on replicates", PValues: true,
 			Factory: func(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression, error) {
 				return renamedModel{bufferedOLS: bufferedOLS{spec: spec}, first: &first}, nil
 			}}
@@ -348,7 +348,7 @@ func TestExtensions_RegressionModifierContract(t *testing.T) {
 		}
 	})
 	t.Run("request_timeout", func(t *testing.T) {
-		reg := pulse.RegressionRegistration{Name: "REG_PARITY_SLOW", Description: "sleeps per fit",
+		reg := pulse.RegressionRegistration{Name: "REG_PARITY_SLOW", Description: "sleeps per fit", PValues: true,
 			Factory: func(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression, error) {
 				return slowModel{bufferedOLS{spec: spec}}, nil
 			}}

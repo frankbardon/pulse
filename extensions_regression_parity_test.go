@@ -245,14 +245,14 @@ func regressionParityRegistrations() []pulse.RegressionRegistration {
 	return []pulse.RegressionRegistration{
 		{
 			Name: regParityOLS, Description: "Test-only streaming extend reimplementation of REG_OLS.",
-			Streamable: true, WeightAware: true,
+			Streamable: true, WeightAware: true, PValues: true,
 			Factory: func(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression, error) {
 				return &streamOLS{m: newOLSMoments(spec, spec.Weight.Spec() != nil), kind: olsWeightKind(spec)}, nil
 			},
 		},
 		{
 			Name: regParityOLSBuf, Description: "Test-only buffered extend reimplementation of REG_OLS.",
-			WeightAware: true,
+			WeightAware: true, PValues: true,
 			Factory: func(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression, error) {
 				return bufferedOLS{spec: spec, kind: olsWeightKind(spec)}, nil
 			},

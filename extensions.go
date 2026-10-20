@@ -849,8 +849,8 @@ type MatrixOpRegistration struct {
 // vcov and its declared Outputs — and the engine maps it onto
 // types.RegressionResult, owning every engine figure: the name and
 // type, n_obs, the weighted floor (sum_weights, n_eff), the
-// multiplicity-adjusted p-values (only coefficients carrying a p-value
-// join a family), advisories and a per-slot failure (a model error
+// multiplicity-adjusted p-values (a PValues model's coefficients
+// carrying a p-value join a family), advisories and a per-slot failure (a model error
 // coded PROCESSING_REGRESSION_INSUFFICIENT_DATA, _RANK_DEFICIENT,
 // _NO_CONVERGE or _SEPARATION fails its slot alone; any other error
 // fails the run). Admission is the engine's too: the model sees only
@@ -927,6 +927,21 @@ type RegressionRegistration struct {
 	// Undeclared, vcov: true is refused with PROCESSING_CONFIG, details
 	// {regression, slot: "vcov"}, at predict and at runtime alike.
 	Vcov bool
+	// PValues declares that the model emits coefficient p-values
+	// (extend.RegressionCoefficient.PValue), so its slot takes a
+	// multiplicity block: the family is every coefficient carrying a
+	// defined p (the intercept excluded unless the block names it), and
+	// predict counts one p-value per non-intercept predictor in
+	// p_values (basis lower_bound — the model may report more or
+	// fewer). Under resample the engine writes the replicate p-values.
+	// Undeclared (false), the model emits none: p_values is null on
+	// every coefficient (under resample too), predict counts none, a
+	// multiplicity block resolving to any method but none is refused
+	// with PULSE_MULTIPLICITY_INVALID (details.key "method") at predict
+	// and at runtime alike, and a fit that reports a finite p-value
+	// anyway is PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH (reason
+	// undeclared_p_value) at pulse.New's probe and on every run.
+	PValues bool
 	// Penalty declares that the model reads the shared penalty /
 	// alpha / l1_ratio slots of types.RegressionSpec itself (their
 	// values and meaning are the model's). Undeclared, any of them set

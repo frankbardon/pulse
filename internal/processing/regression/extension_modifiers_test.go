@@ -48,7 +48,7 @@ func TestRunExtensionModifiers_SelectionCriterion(t *testing.T) {
 	for _, sel := range []string{"forward", "backward", "stepwise"} {
 		for crit, want := range map[string][]string{"aic": {"a", "b"}, "bic": {"b"}} {
 			spec := &types.RegressionSpec{Target: "y", Predictors: []string{"a", "b"}, Selection: sel, Criterion: crit}
-			res, err := RunExtensionModifiers(context.Background(), spec, recs, tableFit(dev, true), nil, nil)
+			res, err := RunExtensionModifiers(context.Background(), spec, true, recs, tableFit(dev, true), nil, nil)
 			if err != nil {
 				t.Fatalf("%s/%s: %v", sel, crit, err)
 			}
@@ -62,20 +62,20 @@ func TestRunExtensionModifiers_SelectionCriterion(t *testing.T) {
 
 	missing := errors.NewCodedError(errors.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH, "no deviance")
 	spec := &types.RegressionSpec{Target: "y", Predictors: []string{"a", "b"}, Selection: "forward", Criterion: "aic"}
-	_, err := RunExtensionModifiers(context.Background(), spec, recs, tableFit(dev, false), func() error { return missing }, nil)
+	_, err := RunExtensionModifiers(context.Background(), spec, true, recs, tableFit(dev, false), func() error { return missing }, nil)
 	if err != missing {
 		t.Errorf("a fit without deviance: err = %v, want the missing-deviance refusal", err)
 	}
 
 	sparse := map[string]float64{"": 100, "b": 90, "a,b": 87.9} // {a} alone refuses
-	res, err := RunExtensionModifiers(context.Background(), spec, recs, tableFit(sparse, true), nil, nil)
+	res, err := RunExtensionModifiers(context.Background(), spec, true, recs, tableFit(sparse, true), nil, nil)
 	if err != nil || len(res.SelectedFeatures) != 2 {
 		t.Errorf("a data-dependent candidate refusal stopped the search: %v %+v", err, res)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := RunExtensionModifiers(ctx, spec, recs, tableFit(dev, true), nil, nil); err != context.Canceled {
+	if _, err := RunExtensionModifiers(ctx, spec, true, recs, tableFit(dev, true), nil, nil); err != context.Canceled {
 		t.Errorf("a cancelled ctx: err = %v, want context.Canceled", err)
 	}
 }
