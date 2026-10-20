@@ -112,6 +112,7 @@ func TestOverlaySubset(t *testing.T) {
 		{"exp", true, false},
 		{"pow", true, false},
 		{"log1p", true, false},
+		{"hill", false, true},
 		{"weekday", false, true},
 		{"to_day", false, true},
 		{"vmean", false, true},

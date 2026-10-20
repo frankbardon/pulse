@@ -11,6 +11,7 @@ package weighting
 import (
 	"math"
 
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
 )
@@ -302,8 +303,16 @@ func DistanceClassOf(between types.GroupType) Class {
 // arbitrary, would make the total (and every share read off it) move
 // with the weight scale, so it is refused rather than given that
 // figure. A row-local formula stays ClassNone (the weight is skipped).
+// An ATTR_REG_FITTED / ATTR_REG_RESIDUAL naming params.fit
+// (model.FitReferenced; custom-regressions D2) scores a bound fit
+// whose own weight applied when the fit ran — ClassNone, skipped, the
+// ATTR_REG_PREDICT rule; without params.fit it is the weighted OLS
+// refit (ClassAware).
 func AttributeClassOf(a *types.Attribute) Class {
 	if a == nil {
+		return ClassNone
+	}
+	if model.FitReferenced(a.Type, a) {
 		return ClassNone
 	}
 	if a.Type == types.ATTR_FORMULA && totalcall.Contains(a.Expression) {

@@ -51,6 +51,9 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			addInputs("test", string(r.Name), r.FieldInputs)
 		}
 	}
+	for _, r := range ext.Regressions {
+		addInputs("regression", string(r.Name), r.FieldInputs)
+	}
 	// ComponentSchemas projects per-extension ComponentSchema declarations
 	// so manifest + predict can surface extension operators on the same
 	// shape as built-ins. Empty / floor-only registrations stay absent
@@ -167,6 +170,7 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 		})
 	}
 	addSnapshotMatrixOps(snap, ext.MatrixOps)
+	addSnapshotRegressions(snap, ext.Regressions)
 	snap.Purposes, snap.Interpretations = extensionGuidance(ext)
 	for _, fn := range ext.ExprFunctions {
 		snap.ExprFunctions = append(snap.ExprFunctions, descriptor.ExprFunctionMeta{
@@ -267,6 +271,7 @@ func paramMetaSnapshot(in []ParamMeta) []descriptor.OperatorParamMeta {
 			Required:     p.Required,
 			Default:      p.Default,
 			ExactlyOneOf: p.ExactlyOneOf,
+			Example:      p.Example,
 		}
 	}
 	return out

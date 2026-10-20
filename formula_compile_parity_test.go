@@ -234,6 +234,8 @@ var calendarFormulaCompileCases = []struct {
 	{"nullable date coalesced", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"month_index(dn ?? d) - month_index(d)"}]}`, false},
 	{"nullable date bare", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"weekday(dn)"}]}`, false},
 	{"log1p", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"log1p(x) + log1p(y)"}]}`, false},
+	{"hill", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"hill(x, 2, 1.5) + hill(y ?? 0, x, 2)"}]}`, false},
+	{"hill in a filter", `{"filterers":[{"type":"FILTER_EXPRESSION","expression":"hill(x, 2, 1.5) > 0.5"}]}`, false},
 	{"datetime arithmetic is not guarded", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"weekday(ts / 86400)"}]}`, false},
 	{"to_day in a total argument", `{"attributes":[{"type":"ATTR_FORMULA","label":"f","expression":"x / total(to_day(ts) - d + 1)"}]}`, false},
 	{"to_day in a fit_on filter", `{"attributes":[{"type":"ATTR_MAHALANOBIS","label":"m","fields":["x","y"],"params":{"fit_on":[{"type":"FILTER_EXPRESSION","expression":"weekday(to_day(ts)) < 6"}]}}]}`, false},

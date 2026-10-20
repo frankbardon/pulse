@@ -207,7 +207,7 @@ func TestRegressionVcov_RidgeAndBayes(t *testing.T) {
 	cfg := fixtureFS(t, dir)
 	preds := []string{"wt", "hp", "qsec"}
 	ridge := &types.RegressionSpec{Name: "ridge", Type: types.REG_OLS, Target: "mpg", Predictors: preds, Penalty: "l2", Alpha: 0.05, Vcov: true}
-	bayes := &types.RegressionSpec{Name: "bayes", Type: types.REG_BAYES_LINEAR, Target: "mpg", Predictors: preds, Prior: "nig", PriorPrecision: 0.01, PriorShape: 2, PriorRate: 3, Vcov: true}
+	bayes := &types.RegressionSpec{Name: "bayes", Type: types.REG_BAYES_LINEAR, Target: "mpg", Predictors: preds, Prior: "nig", PriorPrecision: types.PrecisionScalar(0.01), PriorShape: 2, PriorRate: 3, Vcov: true}
 	resp, err := New(cfg).Process(context.Background(), &types.Request{
 		Cohort:      &types.Cohort{Filename: filepath.Join(dir, "mtcars.pulse")},
 		Regressions: []*types.RegressionSpec{ridge, bayes},

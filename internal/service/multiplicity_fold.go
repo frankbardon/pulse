@@ -2,6 +2,7 @@ package service
 
 import (
 	"math"
+	"slices"
 	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
@@ -9,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/internal/groupedtests"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/multiplicity"
+	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -145,7 +147,11 @@ func collectRegressionSites(fams *multFamilies, scope string, slots []descx.Reso
 		rm := slots[i]
 		method, family, alpha := rm.Method, rm.Family, rm.Alpha
 		echo := &types.AppliedMultiplicity{Method: method, Family: family, Alpha: alpha}
-		for _, name := range rm.Coefficients {
+		names := rm.Coefficients
+		if rm.ResultCoefficients {
+			names = pValuedCoefficients(r)
+		}
+		for _, name := range names {
 			p, ok := r.PValues[name]
 			if !ok {
 				if !rm.ExplicitCoefficients {
@@ -161,6 +167,22 @@ func collectRegressionSites(fams *multFamilies, scope string, slots []descx.Reso
 			})
 		}
 	}
+}
+
+// pValuedCoefficients is the default family of an extension REG_* model
+// (descx.ResolvedMultiplicity.ResultCoefficients): every coefficient of
+// r whose p-value is defined, "(intercept)" excluded, in name order — a
+// coefficient the model reports no p-value for (null on the wire) does
+// not join.
+func pValuedCoefficients(r *types.RegressionResult) []string {
+	out := make([]string, 0, len(r.PValues))
+	for name, p := range r.PValues {
+		if name != regression.InterceptKey && !math.IsNaN(p) {
+			out = append(out, name)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // writeRegressionAdjusted records one member coefficient's adjusted p

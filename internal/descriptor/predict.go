@@ -733,7 +733,7 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		if reg == nil {
 			continue
 		}
-		if !routedRegression(reg, opts.instance()).Streamable() {
+		if !regressionSpecStreamable(opts, reg) {
 			if reg.Covariance.Robust() {
 				reasons = append(reasons, "regression "+string(reg.Type)+" covariance "+string(reg.Covariance.Type)+" requires the buffered path (a second pass for residuals and leverage)")
 			} else {
@@ -1055,6 +1055,11 @@ func validateRequestFields(env *descriptor.Envelope, req *types.Request, schema 
 		// those references here; the factory rechecks numeric-type
 		// compatibility at construction time.
 		if rt := opRoute(opts.Instance, attr.Type); rt == types.ATTR_REG_FITTED || rt == types.ATTR_REG_RESIDUAL || rt == types.ATTR_REG_LEVERAGE {
+			if model.FitReferenced(rt, attr) {
+				// params.fit: the bound fit supplies target and
+				// predictors (the field-reference pass judges it).
+				continue
+			}
 			if attr.Target == "" {
 				env.AddError(
 					string(errors.SERVICE_VALIDATION),
@@ -1103,8 +1108,11 @@ func attributeDefaultLabel(attr *types.Attribute, inst *InstanceSnapshot) string
 	if label, ok := vectors.VectorAttributeLabel(opRoute(inst, attr.Type), attr); ok {
 		return label
 	}
-	switch opRoute(inst, attr.Type) {
+	switch route := opRoute(inst, attr.Type); route {
 	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
+		if model.FitReferenced(route, attr) {
+			return model.DefaultFitLabel(attr)
+		}
 		return string(attr.Type) + "_" + attr.Target
 	case types.ATTR_REG_PREDICT:
 		return model.DefaultScoreLabel(attr)

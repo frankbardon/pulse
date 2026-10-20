@@ -969,6 +969,37 @@
       ],
       "type": "object"
     },
+    "PriorPrecision": {
+      "description": "Prior precision of the coefficients (the Bayesian linear fit): a number eps (Lambda0 = eps*I; absent or 0 = the default 1e-3), or one entry per coefficient, intercept first then the predictors in order (Lambda0 = diag; 0 = a flat prior on that coefficient).",
+      "oneOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "items": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "RegressionBounds": {
+      "additionalProperties": false,
+      "properties": {
+        "nonnegative": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
     "RegressionCovariance": {
       "additionalProperties": false,
       "properties": {
@@ -1152,6 +1183,10 @@
             "null"
           ]
         },
+        "outputs": {
+          "additionalProperties": true,
+          "type": "object"
+        },
         "p_values": {
           "additionalProperties": {
             "type": [
@@ -1200,6 +1235,15 @@
         "selection": {
           "type": "string"
         },
+        "statistics": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
         "std_errors": {
           "additionalProperties": {
             "type": [
@@ -1236,6 +1280,9 @@
         "bootstrap_iters": {
           "type": "integer"
         },
+        "bounds": {
+          "$ref": "#/$defs/RegressionBounds"
+        },
         "conf_level": {
           "type": "number"
         },
@@ -1269,6 +1316,9 @@
         "name": {
           "type": "string"
         },
+        "params": {
+          "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
+        },
         "penalty": {
           "type": "string"
         },
@@ -1294,7 +1344,7 @@
           ]
         },
         "prior_precision": {
-          "type": "number"
+          "$ref": "#/$defs/PriorPrecision"
         },
         "prior_rate": {
           "type": "number"
@@ -1319,6 +1369,15 @@
         },
         "type": {
           "$ref": "#/$defs/RegressionType"
+        },
+        "unpenalized": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "vcov": {
           "type": "boolean"
@@ -1949,4 +2008,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: d5ddf46e5368b2f3a8dead9dd9040d03e2d22ae9c64d38b6e40dd478ffc411dd
+// golden-hash: d8eb572440206195c42ee4844030b372e983f59396f830425c81514f8995ef3f

@@ -210,7 +210,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"Regressions", "*", "Covariance"},
-				Hint:   "A robust covariance (details.covariance_type): drop the covariance block, or the penalty / resample / selection it names (reason penalty, resample, selection); reason type: fit REG_OLS, REG_GLM or REG_BAYES_LINEAR; reason clusters: cluster on a field with at least two levels in the filtered rows; reason order_by_ties: order_by a field unique per row (one series).",
+				Hint:   "A robust covariance (details.covariance_type): drop the covariance block, or the penalty / resample / selection / bounds it names (reason penalty, resample, selection, bounds); reason type: fit REG_OLS, REG_GLM or REG_BAYES_LINEAR; reason clusters: cluster on a field with at least two levels in the filtered rows; reason order_by_ties: order_by a field unique per row (one series).",
 			},
 		},
 	},
@@ -1121,6 +1121,17 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ADVISORY_CONSTRAINT_ACTIVE: {
+		Message: "A REG_OLS fit's bounds.nonnegative constraint bound (a coefficient is held at 0), so the estimator is constrained and its classical standard errors, p-values, confidence intervals and covariance are not valid and are reported null; the point estimates and R² stand. This is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Regressions", "*", "resample"},
+				Hint:     "Set resample to bootstrap (details.suggested): each replicate refits the bounded model, and the replicate standard errors, p-values and intervals replace the nulls. Or drop the bound on the predictors in details.active for the unconstrained fit's classical inference.",
+				Examples: []any{map[string]any{"resample": "bootstrap"}},
+			},
+		},
+	},
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE: {
 		Message: "A series overlay that reads its rows in order (a prior, rolling, baseline or sibling overlay) runs over two or more groupers with no params.partition_by, so it partitions by every key but the last and runs its series down the last grouper, which is not a date grouper; this is an advisory, not an error.",
 		Fixups: []Fixup{
@@ -1143,7 +1154,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Params"},
-				Hint:   "Embedder: declare the operator's params (ParamMeta) on its Extensions registration; every params key is then checked and an unknown one is refused PULSE_REQUEST_UNKNOWN_FIELD with a suggestion. Caller: check details.keys against the operator's documentation.",
+				Hint:   "Embedder: declare the operator's params (ParamMeta) on its Extensions registration; every params key is then checked and an unknown one is refused PULSE_REQUEST_UNKNOWN_FIELD with a suggestion, and every declared value is checked against its JSONType and Required flag (PULSE_REQUEST_PARAM_INVALID). Caller: check details.keys against the operator's documentation.",
 			},
 		},
 	},
@@ -1641,8 +1652,8 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Hint:     "Rename the registration so it matches ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH|MAT)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$ with the prefix of its registration slot (MatrixOps: MAT_), e.g. AGG_ACME_BRAND_SCORE.",
-				Examples: []any{"AGG_ACME_BRAND_SCORE", "ATTR_ACME_ADJUSTMENT", "MAT_ACME_SCATTER"},
+				Hint:     "Rename the registration so it matches ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$ with the prefix of its registration slot (MatrixOps: MAT_, Regressions: REG_), e.g. AGG_ACME_BRAND_SCORE.",
+				Examples: []any{"AGG_ACME_BRAND_SCORE", "ATTR_ACME_ADJUSTMENT", "MAT_ACME_SCATTER", "REG_ACME_HILL"},
 			},
 		},
 	},
@@ -1678,7 +1689,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_STREAMABLE_MISMATCH: {
-		Message: "A registration's streaming declaration disagrees with the interface its factory returns: it declared streaming capability without the required streaming interface, or (features, checked both ways) declared Streamable=false for a value that implements extend.StreamingFeatureComputer.",
+		Message: "A registration's streaming declaration disagrees with the interface its factory returns: it declared streaming capability without the required streaming interface, or (features, checked both ways) declared Streamable=false for a value that implements extend.StreamingFeatureComputer, or (regressions, checked both ways) declared Streamable=true for a value that is not an extend.StreamingRegression (Merge included) or Streamable=false for one that is not an extend.BufferedRegression.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1687,6 +1698,10 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Hint:   "For a feature (details category \"feature\"), make Streamable equal whether the returned value implements extend.StreamingFeatureComputer: the runtime streams on the value while predict reads the declaration, so set Streamable=true for a streaming value, or drop PrePass/Finalize/EmitRow from a buffered one.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "For a regression (details category \"regression\"), a Streamable=true model must implement extend.StreamingRegression — UpdateRow, Merge and Finalize (details.reason missing_merge names a model without Merge) — and a Streamable=false one extend.BufferedRegression (Fit); flip Streamable or add the missing methods.",
 			},
 		},
 	},
@@ -1780,6 +1795,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH: {
+		Message: "A regression registration's model — fitted at pulse.New over a small synthetic row set, or on any run — returned no coefficient, an empty or repeated coefficient name, an Outputs key its OutputSchema does not declare, or (when the spec set vcov) no Vcov or one that is not square over the coefficients.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Return at least one RegressionCoefficient, each with a unique non-empty Name; declare every Outputs key the model can fill in the registration's OutputSchema (a declared key left unfilled is fine) or stop filling the undeclared key named in details.undeclared; and when the registration declares Vcov, return a Vcov square over Coefficients, in their order, whenever spec.Vcov is set.",
+			},
+		},
+	},
 	PULSE_EXTENSION_FACTORY_PANIC: {
 		Message: "An embedder factory panicked during probe-validation at registration time.",
 		Fixups: []Fixup{
@@ -1790,11 +1814,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_PARAM_INVALID: {
-		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default, or an ExactlyOneOf group with one member or a Required / defaulted member), or a registration declares a contradictory flag (details.reason names it, e.g. count_semantic_vector_input).",
+		Message: "A ParamMeta entry has missing or contradictory fields (empty Name, unknown JSONType, Required=true with a non-nil Default, an ExactlyOneOf group with one member or a Required / defaulted member, or an Example that is not a JSON value of its JSONType — reason example_type_mismatch), or a registration declares a contradictory flag (details.reason names it, e.g. count_semantic_vector_input).",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Hint:     "Set Name, set JSONType to one of {string, number, boolean, array, object}, and drop Default when Required=true. An ExactlyOneOf group needs two or more members, each Required=false with no Default.",
+				Hint:     "Set Name, set JSONType to one of {string, number, boolean, array, object}, and drop Default when Required=true. An ExactlyOneOf group needs two or more members, each Required=false with no Default. An Example must marshal to a JSON value of the param's JSONType (details.expected / got).",
 				Examples: []any{"string", "number", "boolean", "array", "object"},
 			},
 			{
@@ -2129,7 +2153,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_SCORE_INVALID: {
-		Message: "An ATTR_REG_PREDICT slot's scoring parameters do not fit, so nothing runs — predict refuses it identically. Params are an object `{fit, terms?, scale?, bound?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear fit only (`scale_not_glm`). The slot takes no `field`, `target`, `predictors` or `penalty` (`slot_fields`) — the bound model supplies them. Only a least-squares, generalized-linear or Bayesian-linear fit scores (`type_unsupported`; the regression type is under `type`). `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. Any other params shape is `params_invalid`. The rule is under `reason`, the fit under `fit`.",
+		Message: "A scoring slot's parameters do not fit, so nothing runs — predict refuses it identically. A per-row model score takes params `{fit, terms?, scale?, bound?}`: `fit` names a bound model (required, reason `fit_missing`); `terms` is a non-empty list of distinct model terms (`terms_empty`, `term_duplicate`); `scale` is `response` (default) or `link` (`scale_unknown`) and applies to a generalized-linear fit only (`scale_not_glm`); `bound` is `point` (default), `lower` or `upper` (`bound_unknown`), and a `lower` / `upper` bound needs `terms` to list exactly one predictor (`bound_terms`) — it is that term's coefficient-interval contribution, not a prediction interval. A fitted-value or residual attribute's `params.fit` takes `{fit}` alone. Either way the slot takes no `field`, `target`, `predictors` or `penalty` (nor, with `params.fit`, `alpha` / `l1_ratio`) — the bound model supplies them (`slot_fields`). Only a least-squares, generalized-linear or Bayesian-linear fit scores (`type_unsupported`; the regression type is under `type`), and an extension regression's fit only when its registration supplies a Scorer (`no_scorer`). Any other params shape is `params_invalid`. The rule is under `reason`, the slot's operator under `attribute`, the fit under `fit`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2305,6 +2329,15 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRequiresReschema,
 				Hint:   "Re-save the model or population with this build (rerun the fit with `save`), or load it with the Pulse version that wrote it.",
+			},
+		},
+	},
+	PULSE_MODEL_REGRESSION_UNREGISTERED: {
+		Message: "A `models` entry loads a model file saved from an extension regression's fit (its type under `type`) that this instance does not register, or registers but hides under its feature profile — without the registration nothing can score the model, so nothing runs; predict refuses it identically. The entry's index is under `model`, its name under `name`, the file under `path`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Load the model on an instance that registers its regression type (pulse.Options.Extensions.Regressions, with a Scorer) and whose feature profile enables it, or drop the `models` entry.",
 			},
 		},
 	},
@@ -2807,6 +2840,21 @@ var codeMetadata = map[Code]Metadata{
 				Action:   FixupReplaceField,
 				Hint:     "Rename the offending key to its canonical request slot: the error details carry the nearest valid key under suggestions and every slot this instance accepts under valid_keys. The manifest's \"groupers\"/\"aggregators\" name the available OPERATORS; the request slots that hold them are \"groups\"/\"aggregations\".",
 				Examples: []any{"groupers -> groups", "aggregators -> aggregations", "correlations[0].correlation -> rho (synth spec)"},
+			},
+		},
+	},
+	PULSE_REQUEST_PARAM_INVALID: {
+		Message: "A slot's params object on an embedder extension operator that declares its params carried a value of the wrong JSON type, omitted a param the registration marks Required, or carried none or more than one member of a declared ExactlyOneOf group. Every extension category (aggregator, attribute, filterer, grouper, window, feature, test, matrix, regression) checks a declared operator's params against its manifest entry before any operator code runs, so predict refuses exactly what execution would. `details.path` locates the param (\"aggregations[0].params.scale\"), `details.reason` is \"wrong_type\" (with `expected` and `got` JSON types; a null value is the wrong type), \"missing_required\" or \"exactly_one_of\" (path `<slot>.params`, with `group`, its `members` and the members `present`), checked in that order after unknown keys, and `details.operator` / `param` name it. A declared Default is never filled in: the factory applies it.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Hint:     "Caller: supply the param at details.path as a JSON value of the type in details.expected (the operator's manifest entry, extensions.<category>[].params, lists every param with its json_type and required flag). Embedder: if the value is legitimately of another type, widen the registration's ParamMeta.JSONType.",
+				Examples: []any{map[string]any{"params": map[string]any{"scale": 2}}},
+			},
+			{
+				Action:   FixupReplaceField,
+				Hint:     "reason exactly_one_of: supply exactly one of details.members in the params object — drop all but one of details.present, or add one when it is empty (the manifest marks each member with exactly_one_of).",
+				Examples: []any{map[string]any{"params": map[string]any{"span": 7}}},
 			},
 		},
 	},

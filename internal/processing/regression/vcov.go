@@ -95,7 +95,14 @@ func attachVcov(res *types.RegressionResult, predictors []string, v [][]float64)
 	if v == nil {
 		return
 	}
-	keys := coefficientKeys(predictors)
+	AttachVcovKeys(res, coefficientKeys(predictors), v)
+}
+
+// AttachVcovKeys sets res.Vcov and res.Correlation from v, square over
+// keys in their order — attachVcov's assembly for a caller that names
+// its own coefficients (an extension REG_* model, whose covariance rows
+// follow its reported coefficient order). v must be len(keys) square.
+func AttachVcovKeys(res *types.RegressionResult, keys []string, v [][]float64) {
 	q := len(keys)
 	is := make([]float64, q)
 	for i := 0; i < q; i++ {

@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:f9c82a3572375114addfe09629d1bb9399dfc0fd242076ffece101bee8a500df",
+  "$comment": "feature_set_digest: fs1:64bfafee2a0434df9b260e4b510149331825dae09ec1acc1b59174c8d805c144",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -3495,6 +3495,22 @@
       ],
       "type": "object"
     },
+    "PriorPrecision": {
+      "description": "Prior precision of the coefficients (the Bayesian linear fit): a number eps (Lambda0 = eps*I; absent or 0 = the default 1e-3), or one entry per coefficient, intercept first then the predictors in order (Lambda0 = diag; 0 = a flat prior on that coefficient).",
+      "oneOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "items": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "type": "array"
+        }
+      ]
+    },
     "RankEntry": {
       "additionalProperties": false,
       "properties": {
@@ -3691,6 +3707,21 @@
         "request",
         "why"
       ],
+      "type": "object"
+    },
+    "RegressionBounds": {
+      "additionalProperties": false,
+      "properties": {
+        "nonnegative": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
       "type": "object"
     },
     "RegressionCovariance": {
@@ -3903,6 +3934,10 @@
             "null"
           ]
         },
+        "outputs": {
+          "additionalProperties": true,
+          "type": "object"
+        },
         "p_adjusted": {
           "additionalProperties": {
             "type": [
@@ -3966,6 +4001,15 @@
           },
           "type": "object"
         },
+        "statistics": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
         "std_errors": {
           "additionalProperties": {
             "type": [
@@ -4001,6 +4045,9 @@
         },
         "bootstrap_iters": {
           "type": "integer"
+        },
+        "bounds": {
+          "$ref": "#/$defs/RegressionBounds"
         },
         "conf_level": {
           "type": "number"
@@ -4038,6 +4085,9 @@
         "name": {
           "type": "string"
         },
+        "params": {
+          "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
+        },
         "penalty": {
           "type": "string"
         },
@@ -4063,7 +4113,7 @@
           ]
         },
         "prior_precision": {
-          "type": "number"
+          "$ref": "#/$defs/PriorPrecision"
         },
         "prior_rate": {
           "type": "number"
@@ -4091,6 +4141,15 @@
         },
         "type": {
           "$ref": "#/$defs/RegressionType"
+        },
+        "unpenalized": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "vcov": {
           "type": "boolean"
@@ -5253,6 +5312,7 @@
     },
     "WindowType": {
       "enum": [
+        "WIN_ADSTOCK",
         "WIN_DELTA",
         "WIN_DENSE_RANK",
         "WIN_EWMA",
@@ -5328,4 +5388,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 686a2393445c24d3479c2408aa75d4bc4715c85e3cf4ce225020ecd953fdb279
+// golden-hash: 8e533936edd5b990c458a658035f45bce56bb474c8677a8e0c444a834bad4864

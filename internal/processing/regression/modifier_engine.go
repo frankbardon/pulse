@@ -1,6 +1,7 @@
 package regression
 
 import (
+	"context"
 	"math"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -90,6 +91,14 @@ func (e *modifierEngine) Fit() (*types.RegressionResult, error) {
 //  3. If neither modifier is set we wouldn't be in this engine, but
 //     defensively run the unmodified inner fit.
 func (e *modifierEngine) FitBuffered(records []Record) (*types.RegressionResult, error) {
+	return e.FitBufferedContext(context.Background(), records)
+}
+
+// FitBufferedContext is FitBuffered under ctx (ContextBufferedEngine):
+// every selection candidate and resample replicate reads ctx.Err()
+// before its refit, so a request deadline stops the modifier between
+// two refits.
+func (e *modifierEngine) FitBufferedContext(ctx context.Context, records []Record) (*types.RegressionResult, error) {
 	if e.finalized {
 		return nil, errors.NewCodedError(
 			errors.PROCESSING_INTERNAL,
@@ -120,7 +129,7 @@ func (e *modifierEngine) FitBuffered(records []Record) (*types.RegressionResult,
 		critFn := e.makeCriterionFn()
 		fitter := e.makeRefitFitter()
 		finalizeFn := e.makeFinalizeFn()
-		out, err := runSelection(e.spec, records, predictors, critFn, fitter, finalizeFn)
+		out, err := runSelectionCtx(ctx, e.spec, records, predictors, critFn, fitter, finalizeFn, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -131,7 +140,7 @@ func (e *modifierEngine) FitBuffered(records []Record) (*types.RegressionResult,
 		// Resample reuses the selected predictor subset.
 		activePredictors = out.SelectedFeatures
 		// Pre-populate baseResult for the resample driver.
-		return e.runResampleWith(records, activePredictors, out)
+		return e.runResampleWith(ctx, records, activePredictors, out)
 	}
 
 	// No selection: just resample around the inner fit.
@@ -140,7 +149,7 @@ func (e *modifierEngine) FitBuffered(records []Record) (*types.RegressionResult,
 		if err != nil {
 			return nil, err
 		}
-		return e.runResampleWith(records, activePredictors, baseResult)
+		return e.runResampleWith(ctx, records, activePredictors, baseResult)
 	}
 
 	// No modifier; finalize as the unmodified inner engine would.
@@ -152,12 +161,13 @@ func (e *modifierEngine) FitBuffered(records []Record) (*types.RegressionResult,
 // (post-selection or original spec). baseResult carries the point
 // estimate (β); the resample replaces only StdErrors / PValues.
 func (e *modifierEngine) runResampleWith(
+	ctx context.Context,
 	records []Record,
 	activePredictors []string,
 	baseResult *types.RegressionResult,
 ) (*types.RegressionResult, error) {
 	innerFitter, pValueFn := e.makeResampleFitter(activePredictors)
-	out, err := runResample(e.spec, records, activePredictors, baseResult, innerFitter, e.makeWarmFitter(activePredictors), pValueFn)
+	out, err := runResampleCtx(ctx, e.spec, records, activePredictors, baseResult, innerFitter, e.makeWarmFitter(activePredictors), pValueFn)
 	if err != nil {
 		return nil, err
 	}

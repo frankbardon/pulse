@@ -17,6 +17,10 @@ type guidanceEntry struct {
 	index          int
 	purpose        *descriptor.Purpose
 	interpretation []descriptor.Interpretation
+	// outputs resolves an Interpretation path against the outputs the
+	// registration declares; nil is structure-only (a test, whose
+	// outputs are not declared).
+	outputs descx.OutputResolver
 }
 
 // guidanceEntries lists every registration in validation order:
@@ -24,28 +28,32 @@ type guidanceEntry struct {
 func guidanceEntries(ext Extensions) []guidanceEntry {
 	var out []guidanceEntry
 	for i, r := range ext.Aggregators {
-		out = append(out, guidanceEntry{categoryAggregator, string(r.Name), i, r.Purpose, nil})
+		out = append(out, guidanceEntry{category: categoryAggregator, name: string(r.Name), index: i, purpose: r.Purpose})
 	}
 	for i, r := range ext.Attributes {
-		out = append(out, guidanceEntry{categoryAttribute, string(r.Name), i, r.Purpose, nil})
+		out = append(out, guidanceEntry{category: categoryAttribute, name: string(r.Name), index: i, purpose: r.Purpose})
 	}
 	for i, r := range ext.Filterers {
-		out = append(out, guidanceEntry{categoryFilterer, string(r.Name), i, r.Purpose, nil})
+		out = append(out, guidanceEntry{category: categoryFilterer, name: string(r.Name), index: i, purpose: r.Purpose})
 	}
 	for i, r := range ext.Groupers {
-		out = append(out, guidanceEntry{categoryGrouper, string(r.Name), i, r.Purpose, nil})
+		out = append(out, guidanceEntry{category: categoryGrouper, name: string(r.Name), index: i, purpose: r.Purpose})
 	}
 	for i, r := range ext.Windows {
-		out = append(out, guidanceEntry{categoryWindow, string(r.Name), i, r.Purpose, nil})
+		out = append(out, guidanceEntry{category: categoryWindow, name: string(r.Name), index: i, purpose: r.Purpose})
 	}
 	for i, r := range ext.Features {
-		out = append(out, guidanceEntry{categoryFeature, string(r.Name), i, r.Purpose, nil})
+		out = append(out, guidanceEntry{category: categoryFeature, name: string(r.Name), index: i, purpose: r.Purpose})
 	}
 	for i, r := range ext.Tests {
-		out = append(out, guidanceEntry{categoryTest, string(r.Name), i, r.Purpose, r.Interpretation})
+		out = append(out, guidanceEntry{category: categoryTest, name: string(r.Name), index: i, purpose: r.Purpose, interpretation: r.Interpretation})
 	}
 	for i, r := range ext.MatrixOps {
-		out = append(out, guidanceEntry{categoryMatrix, string(r.Name), i, r.Purpose, nil})
+		out = append(out, guidanceEntry{category: categoryMatrix, name: string(r.Name), index: i, purpose: r.Purpose})
+	}
+	for i, r := range ext.Regressions {
+		out = append(out, guidanceEntry{category: categoryRegression, name: string(r.Name), index: i, purpose: r.Purpose,
+			interpretation: r.Interpretation, outputs: regressionInterpretationOutputs(r)})
 	}
 	return out
 }
@@ -68,9 +76,11 @@ func extensionPurposeResolver(ext Extensions) descx.PurposeResolver {
 // validateExtensionGuidance checks every registration's optional
 // Purpose with the built-in tier's rules (descx.ValidatePurpose) plus
 // alias uniqueness (a KnownAs alias no built-in or earlier extension
-// declares — extensionKnownAsCollisions), and a test registration's Interpretation for structure only
-// (descx.ValidateInterpretations with a nil resolver: output keys are
-// not probed). The first registration with a violation — validation
+// declares — extensionKnownAsCollisions), a test registration's
+// Interpretation for structure only (descx.ValidateInterpretations
+// with a nil resolver: output keys are not probed) and a regression
+// registration's against the figures a model can report plus its
+// declared OutputSchema keys (regressionInterpretationOutputs). The first registration with a violation — validation
 // order, Purpose before Interpretation — fails with
 // PULSE_EXTENSION_PURPOSE_INVALID naming it, the first failing rule and
 // every violation. It runs at every pulse.New, after DependsOn.
@@ -92,7 +102,7 @@ func validateExtensionGuidance(ext Extensions) error {
 			}
 		}
 		if len(e.interpretation) > 0 {
-			if vs := descx.ValidateInterpretations(e.name, e.interpretation, nil); len(vs) > 0 {
+			if vs := descx.ValidateInterpretations(e.name, e.interpretation, e.outputs); len(vs) > 0 {
 				lines := make([]string, len(vs))
 				rules := make([]string, len(vs))
 				for i, v := range vs {
@@ -164,4 +174,11 @@ func extensionGuidance(ext Extensions) (map[string]descriptor.Purpose, map[strin
 		}
 	}
 	return purposes, interps
+}
+
+// regressionInterpretationOutputs is the Interpretation resolver of a
+// regression registration: the figures an extend.RegressionOutput can
+// carry and outputs.<key> for each declared OutputSchema key.
+func regressionInterpretationOutputs(r RegressionRegistration) descx.OutputResolver {
+	return descx.ExtensionRegressionOutputResolver(string(r.Name), regressionDeclaration(r).OutputKeys)
 }

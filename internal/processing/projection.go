@@ -225,6 +225,16 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 				}
 			}
 		}
+		// An ATTR_REG_FITTED / RESIDUAL params.fit reads its bound
+		// model's predictors and — a residual — its target.
+		if name, ok := model.FitReference(a.Type, a); ok {
+			if b, lerr := models.Lookup(name); lerr == nil {
+				addAllKnown(b.Predictors)
+				if a.Type == types.ATTR_REG_RESIDUAL {
+					addKnown(b.Target)
+				}
+			}
+		}
 		if a.Type == types.ATTR_FORMULA && a.Expression != "" {
 			if !appendExprIdents(out, a.Expression, known, vecMembers) {
 				out.Widen()
@@ -488,6 +498,22 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 			}
 			if _, custom := ext.Groupers[g.Type]; custom {
 				inputs, ok := ext.FieldInputsFor("grouper", string(g.Type), g.Params)
+				if !ok {
+					out.Widen()
+					return out
+				}
+				addAllKnown(inputs)
+			}
+		}
+		// An extension REG_* model reads its target and predictors
+		// (collected above) plus whatever its FieldInputs hook declares;
+		// without one it is opaque, so the decode widens.
+		for _, r := range req.Regressions {
+			if r == nil {
+				continue
+			}
+			if _, custom := ext.Regressions[r.Type]; custom {
+				inputs, ok := ext.FieldInputsFor("regression", string(r.Type), r.Params)
 				if !ok {
 					out.Widen()
 					return out

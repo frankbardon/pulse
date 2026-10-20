@@ -30,6 +30,22 @@ import (
 // operator whose registration declares no params is not validated (its
 // params pass through to the embedder's factory, as before); predict
 // says so with PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED.
+//
+// An extension operator that declares params also has each declared
+// value checked against its ParamMeta (U53 E1-S3), in every one of the
+// nine extension categories: a value whose JSON type is not the
+// declared JSONType, or a Required key the params object omits, is
+// refused PULSE_REQUEST_PARAM_INVALID (details.reason wrong_type /
+// missing_required, details.path `<slot>.params.<key>`), and so is a
+// params object carrying none, or more than one, of the members of a
+// declared ExactlyOneOf group (U53 decision #12; details.reason
+// exactly_one_of, details.path `<slot>.params`, details.group /
+// members / present). The faults are ordered: an unknown key first
+// (PULSE_REQUEST_UNKNOWN_FIELD), then a wrong type, then a missing
+// Required param, then an ExactlyOneOf group. The check is declarative
+// — no operator code runs — so predict and runtime refuse identically.
+// A Default is never filled in here: it stays the factory's to apply.
+// Built-ins keep their own decode path.
 
 // ParamsDecl is one operator's params allowlist.
 type ParamsDecl struct {
@@ -46,6 +62,24 @@ type ParamsDecl struct {
 	// Declared is false for an extension operator whose registration
 	// declares no params: its params object is not checked.
 	Declared bool
+	// Types maps each extension param key to its declared JSON type
+	// (ParamMeta.JSONType: string, number, boolean, array, object); a
+	// present value of another type is refused. Nil for a built-in.
+	Types map[string]string
+	// Required are the extension param keys a request must supply,
+	// sorted. Nil for a built-in.
+	Required []string
+	// OneOf are the extension operator's ExactlyOneOf groups, in the
+	// order each group is first declared: a request supplies exactly
+	// one member of each. Nil for a built-in.
+	OneOf []OneOfGroup
+}
+
+// OneOfGroup is one declared ExactlyOneOf group: its name and its
+// members in declaration order.
+type OneOfGroup struct {
+	Name    string
+	Members []string
 }
 
 // paramsOwnRefusals are the keys a built-in reads only to refuse it
@@ -141,6 +175,13 @@ var builtinParamsAllowlist = sync.OnceValue(func() map[paramread.Key]ParamsDecl 
 	for _, o := range OverlayCapabilities() {
 		out[paramread.Key{Category: paramread.Overlay, Op: string(o.Kind)}] = paramsDeclOf(o.Params)
 	}
+	// A built-in regression takes every knob as a typed RegressionSpec
+	// field (its manifest Param list names those slot fields) and reads
+	// no params object: the allowlist is empty, so any params key on
+	// REG_OLS / REG_GLM / REG_BAYES_LINEAR is refused.
+	for _, t := range types.AllRegressionTypes() {
+		out[paramread.Key{Category: paramread.Regression, Op: string(t)}] = ParamsDecl{Declared: true, Keys: []string{}}
+	}
 	for k, d := range out {
 		d.OwnRefusal = paramsOwnRefusals(k)
 		out[k] = d
@@ -169,6 +210,7 @@ func ParamsAllowlist(inst *InstanceSnapshot) map[paramread.Key]ParamsDecl {
 			d := ParamsDecl{Declared: len(m.Params) > 0, Keys: []string{}}
 			for _, p := range m.Params {
 				d.Keys = append(d.Keys, p.Name)
+				d.declareValue(p.Name, p.JSONType, p.Required, p.ExactlyOneOf)
 			}
 			if d.Declared && cat == paramread.Aggregator && m.VectorInput {
 				d.Keys = append(d.Keys, extensionVecAggEngineParams...)
@@ -185,11 +227,137 @@ func ParamsAllowlist(inst *InstanceSnapshot) map[paramread.Key]ParamsDecl {
 	ext(paramread.Window, snap.Windows)
 	ext(paramread.Feature, snap.Features)
 	ext(paramread.Test, snap.Tests)
+	ext(paramread.Regression, snap.Regressions)
 	for _, m := range snap.MatrixOps {
 		facts := snap.MatrixDetails[m.Name]
 		d := paramsDeclOf(extensionMatrixParams(m.Streamable, facts.Params))
 		d.Declared = len(facts.Params) > 0
+		// Only the operator's own params carry a registration
+		// declaration; the engine-owned member / fit params decode in
+		// the engine. facts.Params are in the manifest Param
+		// vocabulary, mapped back to the declared JSON type.
+		for _, p := range facts.Params {
+			d.declareValue(p.Name, paramTypeJSON[p.Type], p.Required, p.ExactlyOneOf)
+		}
 		out[paramread.Key{Category: paramread.Matrix, Op: m.Name}] = d
+	}
+	return out
+}
+
+// paramTypeJSON maps the manifest Param type vocabulary an extension
+// matrix operator's own params are projected into back onto the
+// registration's JSONType (the inverse of the root package's
+// matrixParamSnapshot mapping).
+var paramTypeJSON = map[string]string{"float": "number", "bool": "boolean", "list": "array", "string": "string", "object": "object"}
+
+// declareValue records key's declared JSON type, required flag and
+// ExactlyOneOf group (empty = ungrouped).
+func (d *ParamsDecl) declareValue(key, jsonType string, required bool, group string) {
+	if group != "" {
+		i := slices.IndexFunc(d.OneOf, func(g OneOfGroup) bool { return g.Name == group })
+		if i < 0 {
+			d.OneOf = append(d.OneOf, OneOfGroup{Name: group})
+			i = len(d.OneOf) - 1
+		}
+		d.OneOf[i].Members = append(d.OneOf[i].Members, key)
+	}
+	if jsonType != "" {
+		if d.Types == nil {
+			d.Types = map[string]string{}
+		}
+		d.Types[key] = jsonType
+	}
+	if required {
+		d.Required = append(d.Required, key)
+		sort.Strings(d.Required)
+	}
+}
+
+// JSONValueType is the JSON type of one raw value: string, number,
+// boolean, array, object or null. It is the one value checker the
+// request params check and the registration-time ParamMeta.Example
+// check (pulse.New) share.
+func JSONValueType(raw json.RawMessage) string {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 {
+		return "null"
+	}
+	switch raw[0] {
+	case '"':
+		return "string"
+	case '{':
+		return "object"
+	case '[':
+		return "array"
+	case 't', 'f':
+		return "boolean"
+	case 'n':
+		return "null"
+	}
+	return "number"
+}
+
+// valueRefusal checks the declared values of an extension operator's
+// params object m (nil when the slot carries none): the first key, in
+// sorted order, whose value is not its declared JSON type, else the
+// first Required key m omits, else the first ExactlyOneOf group (in
+// declaration order) of which m carries no member or more than one. A
+// null value is not of any declared type. Nil when every value
+// conforms.
+func valueRefusal(path, op string, decl ParamsDecl, m map[string]json.RawMessage) *errors.CodedError {
+	if len(decl.Types) == 0 && len(decl.Required) == 0 && len(decl.OneOf) == 0 {
+		return nil
+	}
+	for _, k := range paramKeys(m) {
+		want, ok := decl.Types[k]
+		if !ok {
+			continue
+		}
+		if got := JSONValueType(m[k]); got != want {
+			return errors.NewCodedErrorWithDetails(errors.PULSE_REQUEST_PARAM_INVALID,
+				"operator "+op+" param "+strconv.Quote(k)+" at "+path+".params."+k+" must be a JSON "+want+", got "+got,
+				map[string]any{"path": path + ".params." + k, "operator": op, "param": k,
+					"reason": "wrong_type", "expected": want, "got": got})
+		}
+	}
+	for _, k := range decl.Required {
+		if _, ok := m[k]; !ok {
+			return errors.NewCodedErrorWithDetails(errors.PULSE_REQUEST_PARAM_INVALID,
+				"operator "+op+" requires param "+strconv.Quote(k)+" at "+path+".params."+k+", which the params object omits",
+				map[string]any{"path": path + ".params." + k, "operator": op, "param": k,
+					"reason": "missing_required", "expected": decl.Types[k]})
+		}
+	}
+	for _, g := range decl.OneOf {
+		present := []string{}
+		for _, k := range g.Members {
+			if _, ok := m[k]; ok {
+				present = append(present, k)
+			}
+		}
+		if len(present) == 1 {
+			continue
+		}
+		carries := "none of them"
+		if len(present) > 0 {
+			carries = quotedList(present)
+		}
+		return errors.NewCodedErrorWithDetails(errors.PULSE_REQUEST_PARAM_INVALID,
+			"operator "+op+" takes exactly one of params "+quotedList(g.Members)+" (group "+strconv.Quote(g.Name)+") at "+path+".params, which carries "+carries,
+			map[string]any{"path": path + ".params", "operator": op, "reason": "exactly_one_of",
+				"group": g.Name, "members": append([]string(nil), g.Members...), "present": present})
+	}
+	return nil
+}
+
+// quotedList is names quoted and comma-separated.
+func quotedList(names []string) string {
+	out := ""
+	for i, n := range names {
+		if i > 0 {
+			out += ", "
+		}
+		out += strconv.Quote(n)
 	}
 	return out
 }
@@ -231,21 +399,39 @@ func slotPath(prefix string, i int) string {
 
 // check refuses raw (the params object of slot prefix[i], e.g.
 // groups[0]; i < 0 for an unindexed slot) when it carries a key op does
-// not declare. A slot whose operator is unknown, hidden or undeclared,
-// or whose params are absent or not an object, is left to the
+// not declare, or — on an extension operator that declares params — a
+// value of the wrong JSON type, no value for a Required key (absent
+// params included), or not exactly one member of an ExactlyOneOf
+// group. A slot whose operator is unknown, hidden or
+// undeclared, or whose params are not an object, is left to the
 // operator's own validation.
 func (c *paramsChecker) check(prefix string, i int, cat paramread.Category, op string, raw []byte) *errors.CodedError {
-	if len(raw) == 0 || op == "" {
+	if op == "" {
 		return nil
 	}
-	keys, ok := objectKeys(raw)
-	if !ok || len(keys) == 0 || c.inst.Hidden(op) {
+	var m map[string]json.RawMessage
+	if len(bytes.TrimSpace(raw)) > 0 {
+		var ok bool
+		if m, ok = objectMap(raw); !ok {
+			return nil
+		}
+	}
+	k := paramread.Key{Category: cat, Op: op}
+	if len(m) == 0 {
+		// A params-free slot: only an extension operator's Required
+		// params can refuse it. Built-ins (and instances without
+		// extensions) return before any allocation.
+		if _, builtin := builtinParamsAllowlist()[k]; builtin || c.undeclared != nil || c.inst.Extensions() == nil {
+			return nil
+		}
+	}
+	if c.inst.Hidden(op) {
 		return nil
 	}
-	decl, known := c.lookup(paramread.Key{Category: cat, Op: op})
+	decl, known := c.lookup(k)
 	if c.undeclared != nil {
 		if known && !decl.Declared {
-			c.undeclared(slotPath(prefix, i), op, keys)
+			c.undeclared(slotPath(prefix, i), op, paramKeys(m))
 		}
 		return nil
 	}
@@ -253,13 +439,13 @@ func (c *paramsChecker) check(prefix string, i int, cat paramread.Category, op s
 		return nil
 	}
 	var unknown []string
-	for _, k := range keys {
+	for _, k := range paramKeys(m) {
 		if !slices.Contains(decl.Keys, k) && !slices.Contains(decl.OwnRefusal, k) {
 			unknown = append(unknown, k)
 		}
 	}
 	if len(unknown) == 0 {
-		return nil
+		return valueRefusal(slotPath(prefix, i), op, decl, m)
 	}
 	// params.covariate on a test that does not read it is the pointed
 	// refusal naming the tests that do (the covariate adjustment would
@@ -267,7 +453,7 @@ func (c *paramsChecker) check(prefix string, i int, cat paramread.Category, op s
 	if (cat == paramread.Test || cat == paramread.PostTest) && slices.Contains(unknown, fieldaccept.CovariateKey) {
 		return fieldaccept.CovariateUnsupportedRefusal(slotPath(prefix, i), op)
 	}
-	return strictjson.UnknownFieldErrorAliased(slotPath(prefix, i)+".params", unknown, decl.Keys, paramsAliases[paramread.Key{Category: cat, Op: op}])
+	return strictjson.UnknownFieldErrorAliased(slotPath(prefix, i)+".params", unknown, decl.Keys, paramsAliases[k])
 }
 
 // checkMap is check over a map-valued params object (Compose / chain
@@ -283,10 +469,10 @@ func (c *paramsChecker) checkMap(prefix string, i int, cat paramread.Category, o
 	return c.check(prefix, i, cat, op, raw)
 }
 
-// objectKeys returns raw's top-level keys when raw is a JSON object;
-// false for absent, null or any non-object (the operator's own decode
-// refuses those).
-func objectKeys(raw []byte) ([]string, bool) {
+// objectMap returns raw's top-level members when raw is a JSON object;
+// false for null or any non-object (the operator's own decode refuses
+// those).
+func objectMap(raw []byte) (map[string]json.RawMessage, bool) {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || raw[0] != '{' {
 		return nil, false
@@ -295,12 +481,17 @@ func objectKeys(raw []byte) ([]string, bool) {
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return nil, false
 	}
+	return m, true
+}
+
+// paramKeys returns m's keys, sorted.
+func paramKeys(m map[string]json.RawMessage) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	return keys, true
+	return keys
 }
 
 // request walks one Request's slots in declaration order.
@@ -355,6 +546,13 @@ func (c *paramsChecker) request(req *types.Request) *errors.CodedError {
 	for i := range req.Matrices {
 		if ce := c.matrix(i, &req.Matrices[i]); ce != nil {
 			return ce
+		}
+	}
+	for i, r := range req.Regressions {
+		if r != nil {
+			if ce := c.check("regressions", i, paramread.Regression, string(r.Type), r.Params); ce != nil {
+				return ce
+			}
 		}
 	}
 	if ct := req.Crosstab; ct != nil {

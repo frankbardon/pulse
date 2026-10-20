@@ -544,11 +544,13 @@ const (
 	WIN_DELTA       WindowType = "WIN_DELTA"
 	WIN_SHARE       WindowType = "WIN_SHARE"
 	WIN_LIFT        WindowType = "WIN_LIFT"
+	WIN_ADSTOCK     WindowType = "WIN_ADSTOCK"
 )
 
 // AllWindowTypes returns all defined window types in alphabetical order.
 func AllWindowTypes() []WindowType {
 	return []WindowType{
+		WIN_ADSTOCK,
 		WIN_DELTA,
 		WIN_DENSE_RANK,
 		WIN_EWMA,

@@ -59,8 +59,9 @@ One `float64` per row written to `Label` (default `WIN_EWMA_<field>`). Recurrenc
 - Null values emit `null` but state survives through to the next non-null row.
 - Result rows are NOT reordered — use `Request.Sort`.
 - Forces buffered execution (`Streamable=false`).
+- For media adstock use `WIN_ADSTOCK`: carry-over starts from zero, with geometric or Weibull lag kernels.
 
 ## See
 
 - `pulse_examples_search tags=[time-series]`
-- Skills: [`window-design`](window-design.md), [`op-win-moving-avg`](op-win-moving-avg.md), [`op-win-running-avg`](op-win-running-avg.md)
+- Skills: [`window-design`](window-design.md), [`op-win-moving-avg`](op-win-moving-avg.md), [`op-win-running-avg`](op-win-running-avg.md), [`op-win-adstock`](op-win-adstock.md)

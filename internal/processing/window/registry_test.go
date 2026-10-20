@@ -72,9 +72,10 @@ func TestWindowLabel(t *testing.T) {
 // whatever the caller skipped.
 func TestFactories_RefuseSlotConfigAtConstruction(t *testing.T) {
 	params := map[types.WindowType]json.RawMessage{
-		types.WIN_EWMA:  json.RawMessage(`{"alpha": 0.5}`),
-		types.WIN_SHARE: json.RawMessage(`{"cumulative": true}`),
-		types.WIN_LIFT:  json.RawMessage(`{"base": "y", "cumulative": true}`),
+		types.WIN_EWMA:    json.RawMessage(`{"alpha": 0.5}`),
+		types.WIN_ADSTOCK: json.RawMessage(`{"kernel": "geometric", "decay": 0.5, "max_lag": 3}`),
+		types.WIN_SHARE:   json.RawMessage(`{"cumulative": true}`),
+		types.WIN_LIFT:    json.RawMessage(`{"base": "y", "cumulative": true}`),
 	}
 	one, zero := 1, 0
 	frame := func() *types.FrameSpec { return &types.FrameSpec{Mode: "rows", Preceding: &one, Following: &zero} }

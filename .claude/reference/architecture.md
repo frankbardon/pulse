@@ -10,6 +10,7 @@ CLAUDE.md keeps only the always-load half of the architecture (the public packag
 |---|---|
 | `architecture/packages.md` | Public vs internal; How the narrowed packages are built; Reading package-qualified names; Root aliases; The `io` import boundary; Surface guards; The `linalg` guards; `linalg` two-backend split; CLI; MCP layer split; MCP `return` default (U18 E5-S1) |
 | `architecture/extension-surface.md` | Extension surface |
+| `architecture/extension-models.md` | Extension models (matrix operators, regression models) |
 | `architecture/history.md` (not loaded by default) | The CLAUDE.md Extension Points bullets, pre-compression (relocated verbatim at weighting-descriptive E1-S1) |
 
 ## Payload schema and manifest payload

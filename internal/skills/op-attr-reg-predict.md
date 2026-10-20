@@ -41,6 +41,7 @@ One `f64` per record; null when a column the score reads is null, and on EVERY r
 - A coefficient bound is not a prediction interval. A term with no bound scores null.
 - Row-local: streams, merges, materializes. Row weight ignored (the fit's own applied).
 - Under selection a dropped feature scores 0.
+- An embedder-registered regression's fit scores through its registration's scorer, whole model only (no `terms`, no `lower`/`upper` `bound`); with none it is `PULSE_MODEL_SCORE_INVALID` reason `no_scorer`. Its saved model loads only where that regression is registered and enabled, else `PULSE_MODEL_REGRESSION_UNREGISTERED`.
 - Save, then load: `save: "models/m.pulse-model.json"` on the fit; a later request declares `models: [{name: "m", path: "models/m.pulse-model.json"}]` and scores `fit: "m"` — bit-equal to the in-compose fit, any cohort with the same predictor columns.
 
 ## See

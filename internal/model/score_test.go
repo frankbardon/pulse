@@ -49,7 +49,7 @@ func TestCheckScore(t *testing.T) {
 		{"field on the slot", &types.Attribute{Type: types.ATTR_REG_PREDICT, Field: "x1", Params: json.RawMessage(`{"fit":"ols"}`)}, errors.PULSE_MODEL_SCORE_INVALID, ReasonSlotFields},
 		{"predictors on the slot", &types.Attribute{Type: types.ATTR_REG_PREDICT, Predictors: []string{"x1"}, Params: json.RawMessage(`{"fit":"ols"}`)}, errors.PULSE_MODEL_SCORE_INVALID, ReasonSlotFields},
 		{"unknown fit", scoreAttr(`{"fit":"nope"}`), errors.PULSE_MODEL_UNKNOWN, ""},
-		{"unscorable type", scoreAttr(`{"fit":"ext"}`), errors.PULSE_MODEL_SCORE_INVALID, ReasonTypeUnsupported},
+		{"extension type without a scorer", scoreAttr(`{"fit":"ext"}`), errors.PULSE_MODEL_SCORE_INVALID, ReasonNoScorer},
 		{"empty terms", scoreAttr(`{"fit":"ols","terms":[]}`), errors.PULSE_MODEL_SCORE_INVALID, ReasonTermsEmpty},
 		{"duplicate term", scoreAttr(`{"fit":"ols","terms":["x1","x1"]}`), errors.PULSE_MODEL_SCORE_INVALID, ReasonTermDuplicate},
 		{"term not a predictor", scoreAttr(`{"fit":"ols","terms":["x3"]}`), errors.PULSE_MODEL_TERM_UNKNOWN, ""},

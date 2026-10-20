@@ -240,6 +240,7 @@ var walkedUnmarshalers = map[reflect.Type]bool{
 // check: the type's own UnmarshalJSON refuses an object outright.
 var opaqueUnmarshalers = map[reflect.Type]bool{
 	reflect.TypeFor[types.CovarianceLags](): true, // "auto" | integer | null
+	reflect.TypeFor[types.PriorPrecision](): true, // number | array of numbers | null
 }
 
 // locatedFields are the struct fields holding a nested Request: the

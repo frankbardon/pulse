@@ -49,6 +49,13 @@ func TestCheck(t *testing.T) {
 		{"ridge", with(ols(hc1()), func(s *types.RegressionSpec) { s.Penalty = "l2" }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonPenalty},
 		{"resample", with(ols(hc1()), func(s *types.RegressionSpec) { s.Resample = "bootstrap" }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonResample},
 		{"selection", with(ols(hc1()), func(s *types.RegressionSpec) { s.Selection = "forward" }), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonSelection},
+		{"bounds", with(ols(hc1()), func(s *types.RegressionSpec) {
+			s.Bounds = &types.RegressionBounds{Nonnegative: []string{"x"}}
+		}), errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED, ReasonBounds},
+		{"bounds empty list", with(ols(hc1()), func(s *types.RegressionSpec) { s.Bounds = &types.RegressionBounds{} }), "", ""},
+		{"bounds classical", with(ols(&types.RegressionCovariance{Type: types.CovarianceClassical}), func(s *types.RegressionSpec) {
+			s.Bounds = &types.RegressionBounds{Nonnegative: []string{"x"}}
+		}), "", ""},
 	}
 	for _, c := range cases {
 		got := Check(c.spec)

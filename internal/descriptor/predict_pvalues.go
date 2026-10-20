@@ -41,7 +41,9 @@ var pvalueBasisRank = map[string]int{
 // when grouped). A REG_OLS / REG_GLM regression contributes one per
 // non-intercept predictor, corrected for the coefficients its own
 // multiplicity block claims — none on an l1 / elasticnet fit without
-// resample, whose p-values are null. A test type, overlay kind or regression
+// resample, whose p-values are null. An extension REG_* model
+// contributes its explicit multiplicity coefficient list (exact) or one
+// per non-intercept predictor (lower_bound). A test type, overlay kind or regression
 // type the instance does not offer (hidden or never registered) is not
 // counted. Nil when the
 // request emits no p-value.
@@ -165,7 +167,9 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 	// and neither does an l1 / elasticnet fit without resample
 	// (regpenalty.InferenceUndefined, the engines' own predicate): its
 	// p-values are null, which the runtime fold leaves out of every
-	// family's m (reference-oracles E2-S3).
+	// family's m (reference-oracles E2-S3). An extension REG_* model is
+	// counted per its member list or its predictors (below) when it
+	// declares PValues, else not at all.
 	var regressions []ResolvedMultiplicity
 	if plan != nil {
 		regressions = plan.Regressions
@@ -174,12 +178,35 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 		if r == nil {
 			continue
 		}
+		member := i < len(regressions) && regressions[i].Member
+		if _, decl, ok := regressionExtensionFor(inst, nil, r.Type); ok {
+			// An extension model names its own coefficients, so its
+			// count is read off the request: a member's explicit list
+			// exactly, otherwise one per non-intercept predictor on the
+			// lower_bound basis (the model may report more — a
+			// nonlinear parameter — or fewer). A model not declaring
+			// PValues emits none.
+			if !decl.PValues {
+				continue
+			}
+			if member && regressions[i].ExplicitCoefficients {
+				addAt(len(regressions[i].Coefficients), descriptor.PValueBasisExact, regressions, i)
+				continue
+			}
+			n := 0
+			for _, p := range r.Predictors {
+				if p != regressionInterceptKey {
+					n++
+				}
+			}
+			addAt(n, descriptor.PValueBasisLowerBound, regressions, i)
+			continue
+		}
 		routed := opRoute(inst, r.Type)
 		if _, ok := knownRegressionTypes[routed]; !ok || routed == types.REG_BAYES_LINEAR || regpenalty.InferenceUndefined(r) {
 			continue
 		}
 		var corrected []string
-		member := i < len(regressions) && regressions[i].Member
 		if member {
 			corrected = regressions[i].Coefficients
 		}

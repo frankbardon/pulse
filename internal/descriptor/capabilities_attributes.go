@@ -142,7 +142,7 @@ func attributeCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.ATTR_REG_FITTED),
 			Category:      "attribute",
-			Description:   "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own RegressionSpec-shaped fields (Target, Predictors, Penalty, Alpha, L1Ratio); each ATTR_REG_* attribute refits independently (Option A). Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet).",
+			Description:   "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own RegressionSpec-shaped fields (Target, Predictors, Penalty, Alpha, L1Ratio); each ATTR_REG_* attribute refits independently (Option A). Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet). With params.fit it scores that bound fit instead (any scorable type; a REG_GLM's fitted mean) and refits nothing.",
 			Params:        regAttributeParams(true),
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_REG_FITTED), fieldaccept.SlotPredictor),
 			EmitsType:     "f64",
@@ -152,7 +152,7 @@ func attributeCapabilities() []descriptor.Operator {
 		{
 			Name:          string(types.ATTR_REG_RESIDUAL),
 			Category:      "attribute",
-			Description:   "Per-row residual yᵢ − ŷᵢ from a regression refit during the attribute prepass. Sums to ≈ 0 when the fit includes an intercept (always true for OLS). Accepts any OLS penalty; reuses the same fit machinery as ATTR_REG_FITTED.",
+			Description:   "Per-row residual yᵢ − ŷᵢ from a regression refit during the attribute prepass. Sums to ≈ 0 when the fit includes an intercept (always true for OLS). Accepts any OLS penalty; reuses the same fit machinery as ATTR_REG_FITTED. With params.fit it is the bound fit's target minus its score (any scorable type; a REG_GLM's response residual) and refits nothing.",
 			Params:        regAttributeParams(true),
 			AcceptsTypes:  fieldaccept.TypeNames(string(types.ATTR_REG_RESIDUAL), fieldaccept.SlotPredictor),
 			EmitsType:     "f64",
@@ -569,18 +569,23 @@ func otherForm(f metric.Form) metric.Form {
 // Target / Predictors / Penalty / Alpha / L1Ratio — the RegressionSpec
 // shape), not members of its params object; the slot's own field is
 // unread. penalized adds the OLS penalty knobs (leverage refuses any
-// penalty).
+// penalty) and params.fit — ATTR_REG_FITTED / RESIDUAL score a bound
+// fit instead of the refit (internal/model.CheckFitReference), and then
+// take none of the refit's fields: target and predictors stay Required
+// (the refit is the default form a draft writes) and say so.
 func regAttributeParams(penalized bool) []descriptor.Param {
-	ps := []descriptor.Param{
-		{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Response variable field name; a top-level key of the attribute entry.", Slot: true},
-		{Name: "predictors", Type: "list", Required: true, Description: "Predictor field names, at least one; a top-level key of the attribute entry.", Slot: true},
+	if !penalized {
+		return []descriptor.Param{
+			{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Response variable field name; a top-level key of the attribute entry.", Slot: true},
+			{Name: "predictors", Type: "list", Required: true, Description: "Predictor field names, at least one; a top-level key of the attribute entry.", Slot: true},
+		}
 	}
-	if penalized {
-		ps = append(ps,
-			descriptor.Param{Name: "penalty", Type: "enum", Required: false, Default: "", EnumValues: []string{"", "elasticnet", "l1", "l2"}, Description: "Regularization scheme; empty for OLS. Top-level.", Slot: true},
-			descriptor.Param{Name: "alpha", Type: "float", Required: false, Description: "Regularization strength (>0 when penalty is set). Top-level.", Slot: true},
-			descriptor.Param{Name: "l1_ratio", Type: "float", Required: false, Description: "Elastic-net mixing parameter in (0,1); only read when penalty == elasticnet. Top-level.", Slot: true},
-		)
+	return []descriptor.Param{
+		{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Response variable field name; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.", Slot: true},
+		{Name: "predictors", Type: "list", Required: true, Description: "Predictor field names, at least one; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.", Slot: true},
+		{Name: "penalty", Type: "enum", Required: false, Default: "", EnumValues: []string{"", "elasticnet", "l1", "l2"}, Description: "Regularization scheme; empty for OLS. Top-level.", Slot: true},
+		{Name: "alpha", Type: "float", Required: false, Description: "Regularization strength (>0 when penalty is set). Top-level.", Slot: true},
+		{Name: "l1_ratio", Type: "float", Required: false, Description: "Elastic-net mixing parameter in (0,1); only read when penalty == elasticnet. Top-level.", Slot: true},
+		{Name: "fit", Type: "string", Required: false, Description: "Score through a bound fit instead of refitting OLS: a `fits` entry of the enclosing compose request or a loaded `models` entry, any scorable type (a REG_GLM on its response scale; an extension regression whose registration supplies a Scorer). The slot then takes no target, predictors, penalty, alpha or l1_ratio; its default label is <TYPE>_<fit>; row-local once bound. Absent, the slot refits OLS."},
 	}
-	return ps
 }

@@ -41,10 +41,11 @@ A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is
 | `vsum` `vmean` `vmin` `vmax` `norm` (L2) | float |
 | `vcount` | int count of valid elements |
 | `vsd` | sample SD (ddof 1); < 2 valid → NaN |
-| `dot` `dist` `cosine` (vector pair) | pairwise-complete; `dist` (euclidean) rescales by p/p_observed; `cosine` is the similarity, zero norm → NaN; unequal lengths → `PROCESSING_VECTOR_LENGTH_MISMATCH` (lists / named: build + predict) |
+| `dot` `dist` `cosine` (vector pair) | pairwise-complete; `dist` (euclidean) rescales by p/p_observed; `cosine` is the similarity, zero norm → NaN; unequal lengths → `PROCESSING_VECTOR_LENGTH_MISMATCH` (build + predict) |
 | `argmax` `argmin` | 0-based int index; none valid → NaN |
 | `vcenter` `vzscore` `vnormalize` (mode `"l1"` / `"l2"`, case-sensitive) | a vector, only inside a call: `vmax(vzscore([q1, q2, q3]))`; top-level, a wrong arity or a literal bad mode → `PROCESSING_CONFIG` (build + predict) |
-| `sqrt` `log` (natural) `log1p` `exp` `pow(score, 2)` | IEEE scalar (`sqrt(-1)` NaN); the only built-ins an overlay formula admits |
+| `sqrt` `log` (natural) `log1p` `exp` `pow(score, 2)` | IEEE scalar (`sqrt(-1)` NaN); all an overlay formula admits |
+| `hill(score, 40, 2)` (x, k, s) | `x^s / (x^s + k^s)`; null → null; `x < 0`, `k`/`s <= 0` → NaN |
 | `jaccard` `dice` `overlap` `hamming` (two sets: field or `["a", "b"]`, matched by label; a dictionary-less set pairs only with another) | float, `hamming` int; null set → NaN; two empty → NaN, `hamming` 0 |
 | `ref` (table, key) | a reference profile, aligned by label ([`vector-metrics`](vector-metrics.md)) |
 
@@ -52,7 +53,7 @@ A non-finite result is `null` on the wire. Reserved names: an embedder `ExprFunc
 
 ## Null handling
 
-A null field binds `nil`. Guard with `x ?? 0` or `x == nil ? a : b`. What an unguarded `nil` does depends on the host:
+A null field binds `nil`. Guard with `x ?? 0` or `x == nil ? a : b`. An unguarded `nil`, by host:
 
 - **Formula** — arithmetic on `nil` raises `PROCESSING_RUNTIME`; a `nil` result is a null value.
 - **Filter** — `==` is false, `!=` true; `>` / `+` / `len` on `nil` make the predicate UNKNOWN and the row is dropped.
@@ -61,11 +62,11 @@ Compiled once, predict included: bad syntax, an unknown name or a type error is 
 
 ## Embedder extensions
 
-`pulse.Options.Extensions.ExprFunctions` merges custom functions into the environment; `LookupTables` is reachable as `lookup(table, keys...)` — an unknown table is `PULSE_LOOKUP_TABLE_UNKNOWN`, a missing key `PULSE_LOOKUP_MISS`; `ReferenceVectors` as `ref`.
+`pulse.Options.Extensions.ExprFunctions` adds functions; `LookupTables` is reachable as `lookup(table, keys...)` — an unknown table is `PULSE_LOOKUP_TABLE_UNKNOWN`, a missing key `PULSE_LOOKUP_MISS`; `ReferenceVectors` as `ref`.
 
 ## Bound models
 
-`coef(fit, term[, stat])` reads a compose fit's figure at full precision: `term` is a predictor or `"(intercept)"`; `stat` is `point` (default), `lower` / `upper` (interval at the fit's `conf_level`) or `se`. Marginal: `coef("m", "tv") * tv / (1 + tv)`. Codes: `PULSE_MODEL_UNKNOWN`, `_TERM_UNKNOWN`, `_STAT_UNKNOWN` (literal arguments: predict too), `_INTERVALS_UNAVAILABLE` (no standard errors). A missing figure is NaN; a failed fit nulls a formula (`PULSE_FIT_UNAVAILABLE`), refuses a filter. An embedder `coef` shadows it.
+`coef(fit, term[, stat])` reads a fit's figure, full precision: `term` a predictor, `"(intercept)"` or a registered model's own coefficient; `stat` `point` (default), `lower` / `upper` (at `conf_level`) or `se`. E.g. `coef("m", "tv") * tv`. Codes: `PULSE_MODEL_UNKNOWN`, `_TERM_UNKNOWN`, `_STAT_UNKNOWN` (literal args: predict too; a registered model's `fits` term: run only), `_INTERVALS_UNAVAILABLE` (no SEs). Missing: NaN; a failed fit nulls a formula (`PULSE_FIT_UNAVAILABLE`), refuses a filter. An embedder `coef` shadows it.
 
 ## Patterns
 
@@ -77,8 +78,8 @@ A formula's result is coerced to a scalar (`bool` → `1.0` / `0.0`); a filter's
 
 ## Gotchas
 
-- A formula sees source fields, feature output and EARLIER attribute labels, never a later one.
-- `total(expr)` — cohort-wide sum of a row-level expression over post-filter rows; ONLY in the formula attribute (`PULSE_FORMULA_TOTAL_SITE` in a filter or overlay formula). One argument, no nesting; nulls skipped; frequency-weighted, probability refused. Two-pass (one extra scan). Not overridable by `ExprFunctions`.
+- A formula sees source fields, feature output and EARLIER attribute labels, only.
+- `total(expr)` — cohort-wide sum of a row-level expression over post-filter rows; ONLY in the formula attribute (`PULSE_FORMULA_TOTAL_SITE` in a filter or overlay formula). One argument, no nesting; nulls skipped; frequency-weighted, probability refused. One extra scan. Not overridable by `ExprFunctions`.
 - Filters run before attributes, so a filter expression cannot read a derived column — restate it over source fields.
 
 ## See

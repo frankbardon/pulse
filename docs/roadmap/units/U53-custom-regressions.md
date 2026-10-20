@@ -4,11 +4,11 @@ slug: custom-regressions
 title: "Embedders register their own regression models, treated exactly like built-ins, and the core gains the model options media-mix work needs"
 track: API & release
 size: L
-status: not-started
+status: done
 depends_on: []
 soft_depends_on: [U34, U36, U42]
 blocks: [U32]
-todo_items: [381, 382, 383, 384, 385, 386, 387, 388, 389, 293, 401, 454]
+todo_items: [381, 382, 383, 384, 385, 386, 387, 388, 389, 293, 488]
 branch: custom-regressions
 ---
 
@@ -20,7 +20,9 @@ branch: custom-regressions
 
 ## Summary
 
-`Options.Extensions` has eight registration categories (seven operator kinds plus synth distributions), expression functions and tables, but none for regressions: the three built-ins (`REG_OLS`, `REG_GLM`, `REG_BAYES_LINEAR`) are the whole set, and `types.RegressionSpec` is a fixed struct with no place for an operator's own parameters. A media-mix model needs fits the built-ins do not cover (saturation parameters estimated jointly, partial pooling across regions), and the owner decided a custom regression is a v1 requirement because the public surface freezes at v1.0.0.
+`Options.Extensions` had eight operator categories (seven operator kinds plus matrix operators), expression functions and tables, but none for regressions: the three built-ins (`REG_OLS`, `REG_GLM`, `REG_BAYES_LINEAR`) are the whole set, and `types.RegressionSpec` is a fixed struct with no place for an operator's own parameters. A media-mix model needs fits the built-ins do not cover (saturation parameters estimated jointly, partial pooling across regions), and the owner decided a custom regression is a v1 requirement because the public surface freezes at v1.0.0.
+
+Regressions become the ninth operator category.
 
 Internally the regression registry already separates a streaming engine (update a row, finalize) from a buffered one (fit over all records). This unit exposes that split through the public `extend` package, adds an operator-owned params block and outputs map to the wire (additive), and wires custom regressions through every surface a built-in reaches. It also adds the small model options the MMM review found missing in the core: per-coefficient prior strength, non-negative coefficients, Weibull adstock and a Hill function.
 
@@ -38,15 +40,15 @@ Numbering note: appended after U52, not renumbered. **Release intent:** v1.0.0 (
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#381** (Custom regressions) `Extensions.Regressions` and public `extend` regression interfaces: a streaming form (row update, merge, finalize) and a buffered form (fit over all rows, may iterate), declared at registration the way `Streamable()` is; names are `REG_<NAMESPACE>_<NAME>`, and reserved namespaces and built-in collisions are refused at `pulse.New`
-- [ ] **#382** (Custom regressions) Wire: `RegressionSpec.Params` (raw JSON, decoded strictly against the registration's declared params schema) and an operator outputs map on `RegressionResult` keyed by a declared schema in the manifest; payload-schema golden regenerated; additive, `format_version` stays `"1.1"`
-- [ ] **#383** (Custom regressions) Parity: custom regressions reach predict (params validation, streamability), manifest, payload schema, MCP, feature profiles (`Since`, dependency edges), guided analysis (`Purpose` / `Interpretation` hook), weighting (weight-aware or a coded refusal) and multiplicity (p-values join a family); the `TestExtensions_*` parity suites cover the new category
-- [ ] **#384** (Custom regressions) Composition: a registration may supply a row scorer so `ATTR_REG_FITTED`, `ATTR_REG_RESIDUAL`, `ATTR_REG_PREDICT` (U42) and compose-sweep ranking work on custom fits; the `resample` and `selection` modifiers work with buffered custom regressions that can refit, and are refused with a coded error otherwise
-- [ ] **#385** (Custom regressions) A post-fit extension slot for computations over fitted results (response-curve evaluation, budget allocation under constraints), or a recorded decision to ship it in v1.x (it is additive either way)
-- [ ] **#386** (Custom regressions) `REG_BAYES_LINEAR` `prior_precision` accepts a per-coefficient vector (intercept first, as `prior_mu`), the scalar form unchanged; `REG_OLS` takes non-negativity bounds on a named predictor subset; oracle cases against R for both
-- [ ] **#387** (Custom regressions) Media-response primitives: Weibull adstock (CDF and PDF kernels, normalised, beside the existing geometric `WIN_EWMA`) as a window option or `WIN_ADSTOCK`, and a `hill(x, half_saturation, shape)` expression function; null handling matches the other windows
-- [ ] **#388** (Custom regressions) Recipe and reference extension: `docs/src/internals/adding-regression.md`, and a test-only buffered extension (a Hill nonlinear least-squares fit through `gonum/optimize`) proving iterative fits work through the public contract
-- [ ] **#389** (Custom regressions) Acceptance: the MMM fixture fits Hill saturation through a registered custom regression, with non-negative media coefficients and an experiment-centred prior on one channel, and every step stays pure Pulse plus that registration
+- [x] **#381** (Custom regressions) `Extensions.Regressions` and public `extend` regression interfaces: a streaming form (row update, merge, finalize) and a buffered form (fit over all rows, may iterate), declared at registration the way `Streamable()` is; names are `REG_<NAMESPACE>_<NAME>`, and reserved namespaces and built-in collisions are refused at `pulse.New`
+- [x] **#382** (Custom regressions) Wire: `RegressionSpec.Params` (raw JSON, decoded strictly against the registration's declared params schema) and an operator outputs map on `RegressionResult` keyed by a declared schema in the manifest; payload-schema golden regenerated; additive, `format_version` stays `"1.1"`
+- [x] **#383** (Custom regressions) Parity: custom regressions reach predict (params validation, streamability), manifest, payload schema, MCP, feature profiles (the registration's `DependsOn` edges; an extension carries no `Since`), guided analysis (`Purpose` / `Interpretation` hook), weighting (weight-aware or a coded refusal) and multiplicity (p-values join a family); the `TestExtensions_*` parity suites cover the new category
+- [x] **#384** (Custom regressions) Composition: a registration may supply a row scorer so `ATTR_REG_FITTED`, `ATTR_REG_RESIDUAL`, `ATTR_REG_PREDICT` (U42) and compose-sweep ranking work on custom fits; the `resample` and `selection` modifiers work with buffered custom regressions that can refit, and are refused with a coded error otherwise
+- [x] **#385** (Custom regressions) A post-fit extension slot for computations over fitted results (response-curve evaluation, budget allocation under constraints), or a recorded decision to ship it in v1.x (it is additive either way)
+- [x] **#386** (Custom regressions) `REG_BAYES_LINEAR` `prior_precision` accepts a per-coefficient vector (intercept first, as `prior_mu`), the scalar form unchanged; `REG_OLS` takes non-negativity bounds on a named predictor subset; oracle cases against R for both
+- [x] **#387** (Custom regressions) Media-response primitives: Weibull adstock (CDF and PDF kernels, normalised, beside the existing geometric `WIN_EWMA`) as a window option or `WIN_ADSTOCK`, and a `hill(x, half_saturation, shape)` expression function; null handling matches the other windows
+- [x] **#388** (Custom regressions) Recipe and reference extension: `docs/src/internals/adding-regression.md`, and a test-only buffered extension (a Hill nonlinear least-squares fit through `gonum/optimize`) proving iterative fits work through the public contract
+- [x] **#389** (Custom regressions) Acceptance: the MMM fixture fits Hill saturation through a registered custom regression, with non-negative media coefficients and an experiment-centred prior on one channel, and every step stays pure Pulse plus that registration
 
 ## Scope
 
@@ -57,7 +59,7 @@ Numbering note: appended after U52, not renumbered. **Release intent:** v1.0.0 (
 - Per-coefficient prior precision, non-negative OLS coefficients
 - Weibull adstock and a Hill expression function
 - The recipe and a reference extension
-- The three model-surface items U36 handed on (see "Handed on from U36"): ridge over a predictor subset (#293), panel-robust covariance (#401) and the exact McNemar test (#454), each with its R oracle case
+- The model-surface item U36 handed on (see "Handed on from U36"): ridge over a predictor subset (#293), with its R oracle case. Panel-robust covariance (#401) and the exact McNemar test (#454) moved to U57
 
 **Out of scope** (see [api-and-release 04](../v1.0.0-api-and-release/04-model-extensions.md), "After v1.0.0")
 - Shipped model packs (MMM pack: Hill NLS, partial pooling, budget allocator)
@@ -114,12 +116,37 @@ Filed as TODO items (ids are TODO ids, not GitHub issues); U36 closed without th
 | Item | Source |
 |---|---|
 | #293 `REG_OLS` `penalty` with an `unpenalized: [..]` predictor list (ridge leaves a subset, e.g. categorical dummies, unshrunk); add an oracle case against `glmnet`'s `penalty.factor` | [U36](U36-reference-oracles.md), originally [U40](U40-compose-sweep.md) |
-| #401 Panel-robust `REG_OLS` / `REG_GLM` / `REG_BAYES_LINEAR` covariance: HAC across a panel (per-entity Newey–West or Driscoll–Kraay) and two-way clustering; `covariance.type: hac` refuses a repeated `order_by` (`order_by_ties`) | [U36](U36-reference-oracles.md), originally [U25](U25-multivariate-tests-segmentation.md) |
-| #454 `OVERLAY_SYMMETRY` exact binomial McNemar (`params.exact`, 2 × 2) and the discordant odds ratio as an effect size, both pinned to R (`binom.test`) | [U36](U36-reference-oracles.md), originally [U30](U30-matrix-extensions-hardening.md) (owner decision 2026-10-14) |
+| ~~#401 Panel-robust `REG_OLS` / `REG_GLM` / `REG_BAYES_LINEAR` covariance~~ — **→ U57** (the parallel effort; not delivered here) | [U36](U36-reference-oracles.md), originally [U25](U25-multivariate-tests-segmentation.md) |
+| ~~#454 `OVERLAY_SYMMETRY` exact binomial McNemar~~ — **→ U57** (the parallel effort; not delivered here) | [U36](U36-reference-oracles.md), originally [U30](U30-matrix-extensions-hardening.md) (owner decision 2026-10-14) |
+
+## Handed on to later work
+
+Filed as TODO items in [`TODO.md`](../TODO.md) (ids are TODO ids, not GitHub issues), v1.x, no unit:
+
+| Item | Source |
+|---|---|
+| #487 Lasso / elastic-net `unpenalized` (per-predictor penalty factors) | U53 E3-S1 |
+| ~~#488 `ParamMeta.Example`, so an enum / range / numeric-array `Required` param passes the probe~~ — **delivered in U53** (owner decision; probe value, `pulse.New` type check, manifest `example`) | U53 E4-S1 |
+| #490 Evaluate same-request window predictors for regressions (a regression reading a window label computed in the same request, so `Materialize` is not the only route) | U53 (decision 10) |
+| #489 The post-fit extension slot (the implementation of #385's v1.x decision) | U53 (#385) |
+| #401, #454 → U57 (the parallel effort; its unit doc lands with it) | [U36](U36-reference-oracles.md) |
 
 ## Human inputs & decisions
 
 - **Decided (2026-10-10):** custom regressions ship in v1; no R in core; model packs and an R bridge are separate modules built on this contract; the casebook is a separate repository created after the example-converting units land.
-- **Open:** the post-fit slot ships in v1 or v1.x (#385).
-- **Open:** Weibull adstock as a `WIN_EWMA`-family option or a new `WIN_ADSTOCK` operator (#387).
-- **Open:** the outputs map is free-form under a declared schema, or reuses the Components `Operator` map convention (#382).
+- **Decided (U53):** the post-fit slot ships in v1.x (#385, implementation #489); Weibull adstock is a new window `WIN_ADSTOCK` (#387); the outputs map is free-form under a declared `OutputSchema` (#382).
+- **Decisions (resolved 2026-10-20, owner, delegated to the orchestrator; rule: accept what is consistent and honest, close any gap an embedder would hit in this PR):**
+  1. Extension multiplicity family: default family kept (coefficients with a defined p, intercept excluded); closed with `RegressionRegistration.PValues` (false: no p-values, a non-`none` multiplicity block refused, predict counts 0; true: one per non-intercept predictor, `lower_bound`; a p-value from a `PValues=false` model is `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH`). Commits 414c355e, 93df088b.
+  2. Absent figures written NaN (`null`, key kept): accepted as built (the undefined-figures contract).
+  3. `conf_level` closed: accepted on every extension model, Wald intervals from the reported (or replicate) SE, t on `Fit.DF` else normal, null where SE is NaN. Commit 414c355e / 93df088b.
+  4. Custom `selection` AIC / BIC from `Fit.Deviance`, k = coefficient count, `missing_deviance` refused at `pulse.New`: accepted (matches REG_OLS, parity-tested).
+  5. `weight` on `params.fit` FITTED / RESIDUAL closed: skipped like `ATTR_REG_PREDICT` (refit path unchanged). Commit 9e8a34cd. Namespace (Compose `fits` / `models` only) and manifest `Required`: accepted.
+  6. `coef(fit, <model-named param>)` closed: reads any coefficient a custom fit reports; unknown name stays `PULSE_MODEL_TERM_UNKNOWN`. Commit 792cc0fc. Hill `k` / `s` are Outputs, not coefficients, by design.
+  7. `WIN_ADSTOCK` choices (required `kernel`, survival-weighted `weibull_cdf`, `weibull_pdf` at l+1): accepted (Robyn conventions, no silent default).
+  8. `unpenalized` as a flat `RegressionSpec` key, not echoed: accepted (penalty is a string; scoring a ridge model does not need it).
+  9. Reference Hill model keeps its own Levenberg-Marquardt, not `gonum/optimize`: accepted (no `go.mod` bump for a test-only model); noted in #388.
+  10. A regression cannot read a same-request window label: intended for v1 (windows are row-ordered and run after regression inputs are bound); `Materialize` is the supported two-step route, documented in the recipe and `regression-model-options`; evaluating same-request window predictors filed as #490.
+  11. `ParamMeta.Example` (#488) closed: optional field, the probe uses it, `pulse.New` validates it against `JSONType`. Commit b8c39bf2.
+  12. `Default` not injected (the factory owns defaults, documented): accepted; `ExactlyOneOf` closed: enforced at the request check in all nine categories, `PULSE_REQUEST_PARAM_INVALID` `exactly_one_of`. Commit 54cdbf9b.
+- **Not done (non-goal here):** `Recommend` drafts (`internal/guide/catalog.go`) could use `ParamMeta.Example`; left as is.
+- **Decided (owner, U53):** `ParamMeta.Example` ships in U53 (#488) rather than v1.x.

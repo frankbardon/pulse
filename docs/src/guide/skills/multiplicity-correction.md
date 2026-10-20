@@ -9,15 +9,15 @@ requires: [capability:multiplicity]
 ```
 # Multiple-comparison correction
 
-Many tests in one answer make a lucky significant hit likely. Name a `multiplicity` block and Pulse adds corrected p-values BESIDE the raw ones; raw `p_value` / `reject_null` never change. No block (or `{"method": "none"}`) is byte-identical to before.
+Many tests in one answer make a lucky hit likely. Name a `multiplicity` block and Pulse adds corrected p-values BESIDE the raw ones; raw `p_value` / `reject_null` never change. No block (or `{"method": "none"}`) is byte-identical to before.
 
 ## The block
 
 `multiplicity: {method, family, alpha}`, every key optional:
 
-- `method` — `none`, `bonferroni`, `holm` (both family-wise error), `bh`, `by` (false discovery rate; `by` is valid under any dependence). Same results as R `p.adjust`.
+- `method` — `none`, `bonferroni`, `holm` (both family-wise error), `bh`, `by` (false discovery rate; `by` is valid under any dependence). Matches R `p.adjust`.
 - `family` — which p-values are corrected together (below).
-- `alpha` — overlay significance level in (0, 1), default `0.05`. A test reads its own `alpha`, so `alpha` on a test's block is refused.
+- `alpha` — overlay significance level in (0, 1), default `0.05`. A test reads its own `alpha`, so a test's block refuses `alpha`.
 
 It rides on `Request`, each `tests[]` / `post_tests[]` entry, each `overlays[]` spec, each correlation `matrices[]` spec (implies `params.inference`), each `regressions[]` spec, the Compose `ComposedRequest` and its overlay specs, and engine-wide as `Options.DefaultMultiplicity`. Each key falls through on its own: slot → request → `ComposedRequest` → engine default → none.
 
@@ -31,19 +31,17 @@ It rides on `Request`, each `tests[]` / `post_tests[]` entry, each `overlays[]` 
 | `compose` | every `compose` member over all slots and Compose-host layers | inside Compose only |
 | `matrix` | one matrix result's distinct pairs (upper triangle, m = k(k − 1)/2), per bucket | matrix specs (default) |
 
-Refused `PULSE_MULTIPLICITY_INVALID`: `row` / `column` on a non-matrix kind, `compose` outside Compose, `request` on a Compose-host overlay, anything but `layer` / `row` / `column` on a facet overlay, `alpha` on a test, `matrix` off a matrix spec, anything but `matrix` / `request` on one, a block on a matrix operator without p-values, an unknown or repeated regression `coefficients` name, a non-`none` method on `REG_BAYES_LINEAR` (no p-values). An INHERITED family a surface does not offer falls back to that surface's default; only an explicit one is refused. Members of one `request` / `compose` family resolving to different methods are `PULSE_MULTIPLICITY_CONFLICT`. An explicit block on a descriptive overlay is accepted and inert.
-
-Predict applies the same rules.
+Refused `PULSE_MULTIPLICITY_INVALID` (predict too): `row` / `column` on a non-matrix kind, `compose` outside Compose, `request` on a Compose-host overlay, anything but `layer` / `row` / `column` on a facet overlay, `alpha` on a test, `matrix` off a matrix spec, anything but `matrix` / `request` on one, a block on a matrix operator without p-values, an unknown or repeated regression `coefficients` name, a non-`none` method on a p-value-free regression (`REG_BAYES_LINEAR`, a custom one lacking a `multiplicity` slot). An INHERITED family a surface does not offer falls back to that surface's default; only an explicit one is refused. Members of one `request` / `compose` family resolving to different methods are `PULSE_MULTIPLICITY_CONFLICT`. An explicit block on a descriptive overlay is accepted and inert.
 
 ## Outputs (all additive)
 
-- Test result: `p_adjusted`, `significant_adjusted` (against the test's own `alpha`) and `multiplicity {method, family, alpha, m, excluded}`; `m` counts the defined p-values corrected together.
+- Test result: `p_adjusted`, `significant_adjusted` (against the test's own `alpha`) and `multiplicity {method, family, alpha, m, excluded}`; `m` counts the defined p-values corrected.
 - Overlay summary: `p_adjusted` / `significant_adjusted` beside `p_value`.
 - Overlay matrix payload: parallel `payload.p_adjusted` / `payload.significant_adjusted` grids on the same coordinates; a panel cell maps element for element.
 - Pairwise `params.letters`: `above` follows `significant_adjusted` (an explicit `letters.alpha` compares `p_adjusted` instead).
 - Overlay layer: a `multiplicity` echo.
 - Matrix result: `auxiliary.p_adjusted` / `significant_adjusted` (1 / 0) beside `auxiliary.p`, mirrored, diagonal null, plus a `multiplicity` echo. An inherited block reaches only a spec under `params.inference`.
-- Regression result: `p_adjusted` / `significant_adjusted` maps beside `p_values` over its member `coefficients` (default every predictor) + echo; `alpha` as overlays. ONLY its own block opts it in, never an inherited one.
+- Regression result: `p_adjusted` / `significant_adjusted` maps beside `p_values` over its member `coefficients` (default every predictor) + echo; `alpha` as overlays. ONLY its own block opts it in, never inherited.
 - An undefined p (NaN) gives `p_adjusted: null`, no `significant_adjusted`, and is left out of `m`, counted in `excluded` (absent when 0).
 
 ## Row and column geometry

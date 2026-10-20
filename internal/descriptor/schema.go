@@ -224,6 +224,7 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 			{reflect.TypeFor[types.FeatureType](), snap.Features},
 			{reflect.TypeFor[types.TestType](), snap.Tests},
 			{reflect.TypeFor[types.MatrixType](), snap.MatrixOps},
+			{reflect.TypeFor[types.RegressionType](), snap.Regressions},
 		} {
 			if len(c.ops) == 0 {
 				continue
@@ -386,6 +387,8 @@ func (b *schemaBuilder) defFor(t reflect.Type) any {
 		return b.slotWeightDef()
 	case reflect.TypeFor[types.CovarianceLags]():
 		return covarianceLagsDef()
+	case reflect.TypeFor[types.PriorPrecision]():
+		return priorPrecisionDef()
 	case reflect.TypeFor[types.FitResult]():
 		return b.fitResultDef()
 	}
@@ -757,6 +760,20 @@ func covarianceLagsDef() any {
 		"oneOf": []any{
 			map[string]any{"type": "integer", "minimum": 0},
 			map[string]any{"const": "auto"},
+		},
+	}
+}
+
+// priorPrecisionDef is RegressionSpec.prior_precision.
+// types.PriorPrecision has no exported fields (its states are behind
+// constructors), so reflection would describe an empty object; on the
+// wire it is a non-negative number or an array of them.
+func priorPrecisionDef() any {
+	return map[string]any{
+		"description": "Prior precision of the coefficients (the Bayesian linear fit): a number eps (Lambda0 = eps*I; absent or 0 = the default 1e-3), or one entry per coefficient, intercept first then the predictors in order (Lambda0 = diag; 0 = a flat prior on that coefficient).",
+		"oneOf": []any{
+			map[string]any{"type": "number", "minimum": 0},
+			map[string]any{"type": "array", "items": map[string]any{"type": "number", "minimum": 0}},
 		},
 	}
 }

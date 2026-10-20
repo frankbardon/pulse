@@ -209,6 +209,7 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 	}
 
 	addRuntimeMatrixOps(r, ext.MatrixOps)
+	addRuntimeRegressions(r, ext.Regressions)
 
 	return r
 }
@@ -225,6 +226,7 @@ func hasAnyRegistrations(ext Extensions) bool {
 		len(ext.Features) > 0 ||
 		len(ext.Tests) > 0 ||
 		len(ext.MatrixOps) > 0 ||
+		len(ext.Regressions) > 0 ||
 		len(ext.ExprFunctions) > 0 ||
 		len(ext.LookupTables) > 0 ||
 		len(ext.ReferenceVectors) > 0 ||

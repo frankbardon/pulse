@@ -70,15 +70,18 @@ Ordinary least squares with optional regularization.
 | `jackknife_groups` / `jackknife_by` | no | Delete-a-group jackknife (see `Resample` below); exclusive. |
 | `selection`   | no       | `"forward"`, `"backward"`, or `"stepwise"`. Requires `criterion`. Downgrades streaming. |
 | `conf_level`  | no       | Coverage of `ci_lower` / `ci_upper`, `0 < c < 1`. Default 0.95. Student t on the residual df. |
+| `bounds`      | no       | `{nonnegative: [predictors]}`: those slopes are constrained `>= 0` (non-negative least squares); see "Non-negative slopes" below. |
 | `covariance`  | no       | `{type, cluster, order_by, lags}`: `classical` (default), `hc0`–`hc3`, `cluster` (CR1 on `cluster`'s levels, df = clusters − 1) or `hac` (Newey–West over `order_by`, `lags` an integer or `"auto"`). Drives `std_errors`, `p_values`, the intervals and `vcov`; refused beside a penalty, `resample` or `selection` (`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`). Downgrades streaming. |
 
 Modifier compatibility: `Resample` and `Selection` may be combined; `Selection` runs first, `Resample` re-fits the selected subset.
 
 Unpenalized, `coefficients`, `std_errors`, `p_values`, `ci_lower` / `ci_upper`, `r2`, `adj_r2`, `residual_std_err` and `df` are R `lm()`'s (`summary`, `confint`) to relative `1e-10`; under frequency weights they are `lm()` on the rows repeated `w` times. Oracle: `scripts/reference/gen_ols_lm.R`.
 
-Every penalty minimizes one objective, glmnet's with `standardize = FALSE` and the same one `REG_GLM` uses: `(1/2N*)·Σw·(y − β₀ − Xβ)² + alpha·[(1 − l1_ratio)/2·‖β‖² + l1_ratio·‖β‖₁]` (`l2` is `l1_ratio = 0`, `l1` is `1`), `N*` the sum of the weights, the intercept unpenalized and the predictors on their own units — so `l2` at `alpha` is the elastic net's limit at `l1_ratio → 0` at the same `alpha`, and a predictor on a large scale is barely shrunk (divide it by its SD upstream to penalize all alike). `l2` is solved in closed form, `l1` / `elasticnet` by coordinate descent on the centred Gram. `l2` standard errors are the closed-form ridge sandwich σ̂²·A⁻¹·G·A⁻¹ (`A = G + N*·alpha·I`, `G` the centred Gram, σ̂² = RSS / (N* − p − 1)) with Student-t p-values on N* − p − 1 df; `l1` / `elasticnet` report `std_errors`, `p_values` and intervals `null` on every coefficient (the data pick the predictors, so no analytical inference is valid) with the advisory `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`. Oracle: R `glmnet` for the coefficients and R matrix algebra for the ridge covariance (`scripts/reference/gen_ols_penalty.R`).
+Every penalty minimizes one objective, glmnet's with `standardize = FALSE` and the same one `REG_GLM` uses: `(1/2N*)·Σw·(y − β₀ − Xβ)² + alpha·[(1 − l1_ratio)/2·‖β‖² + l1_ratio·‖β‖₁]` (`l2` is `l1_ratio = 0`, `l1` is `1`), `N*` the sum of the weights, the intercept unpenalized and the predictors on their own units — so `l2` at `alpha` is the elastic net's limit at `l1_ratio → 0` at the same `alpha`, and a predictor on a large scale is barely shrunk (divide it by its SD upstream to penalize all alike). `l2` is solved in closed form, `l1` / `elasticnet` by coordinate descent on the centred Gram. `l2` standard errors are the closed-form ridge sandwich σ̂²·A⁻¹·G·A⁻¹ (`A = G + N*·alpha·I`, `G` the centred Gram, σ̂² = RSS / (N* − p − 1)) with Student-t p-values on N* − p − 1 df; `l1` / `elasticnet` report `std_errors`, `p_values` and intervals `null` on every coefficient (the data pick the predictors, so no analytical inference is valid) with the advisory `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`. `unpenalized` (`l2` only) lists predictors the ridge term skips — glmnet's `penalty.factor` 0, `A = G + N*·alpha·diag(pf)` in the sandwich — for controls or dummies that should stay unshrunk; `l1` / `elasticnet` (and no penalty) refuse it with `PROCESSING_CONFIG`. Oracle: R `glmnet` for the coefficients (with `penalty.factor` for `unpenalized`) and R matrix algebra for the ridge covariance (`scripts/reference/gen_ols_penalty.R`).
 
-Error codes: `PROCESSING_REGRESSION_RANK_DEFICIENT`, `PROCESSING_REGRESSION_SINGULAR_GRAM`, `PROCESSING_REGRESSION_NO_CONVERGE`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` (advisory, l1/elasticnet without resample: null SEs / p-values), `PROCESSING_REGRESSION_REGULARIZED_SELECTION` (warning, penalty + selection), `PROCESSING_CONFIG`.
+**Non-negative slopes.** `bounds.nonnegative` lists predictors whose coefficient must be `>= 0`; the intercept and every other slope stay free. Pulse solves the bounded least-squares problem by Lawson–Hanson's active-set method on the centred Gram (so it streams and takes weights). When the unconstrained fit already satisfies every bound, the result is that fit byte for byte. When a bound binds — a coefficient is held at exactly `0` — the estimator is constrained and its classical inference is not valid: `coefficients`, `r2`, `adj_r2` and `residual_std_err` stand, while `std_errors`, `p_values`, `ci_lower` / `ci_upper` and every `vcov` entry are `null`, and the result carries the advisory `PULSE_ADVISORY_CONSTRAINT_ACTIVE` (`details.active` names the held predictors). It is result-only: predict cannot know whether a bound will bind. For intervals of the bounded fit set `resample: bootstrap` — each replicate refits the bounded model. `bounds` is refused `PROCESSING_CONFIG` with any `penalty` or `selection`, on `REG_GLM` / `REG_BAYES_LINEAR`, or for an unknown or repeated name; a robust `covariance` is `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (`reason: bounds`). Oracle: R `nnls` (`scripts/reference/gen_ols_nnls.R`), including a near-collinear case.
+
+Error codes: `PROCESSING_REGRESSION_RANK_DEFICIENT`, `PROCESSING_REGRESSION_SINGULAR_GRAM`, `PROCESSING_REGRESSION_NO_CONVERGE`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` (advisory, l1/elasticnet without resample: null SEs / p-values), `PULSE_ADVISORY_CONSTRAINT_ACTIVE` (advisory, a binding `bounds` without resample: null SEs / p-values), `PROCESSING_REGRESSION_REGULARIZED_SELECTION` (warning, penalty + selection), `PROCESSING_CONFIG`.
 
 ### `REG_GLM`
 
@@ -120,7 +123,7 @@ Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior.
 | `predictors`      | yes      | One or more numeric predictor fields.                                              |
 | `prior`           | no       | Only `"nig"` accepted in v1. Default `"nig"`.                                      |
 | `prior_mu`        | no       | Length `p+1` mean vector (intercept first); defaults to zero.                      |
-| `prior_precision` | no       | Scalar `ε ≥ 0` on the precision matrix `ε·I`. Default `1e-3`.                      |
+| `prior_precision` | no       | Scalar `ε ≥ 0` on the precision matrix `ε·I` (default `1e-3`), or a list of `p+1` entries, intercept first like `prior_mu`, for `Λ₀ = diag(v)`: `0` is a flat prior on that coefficient, a large entry pins it to its `prior_mu`. A wrong length or a negative entry is `PROCESSING_CONFIG` (predict too); flat entries the data cannot identify leave the posterior improper (`PROCESSING_REGRESSION_RANK_DEFICIENT`). Oracle: `scripts/reference/gen_bayes_precision.R`. |
 | `prior_shape`     | no       | Inverse-gamma shape `a₀`. Default `1e-3`.                                          |
 | `prior_rate`      | no       | Inverse-gamma rate `b₀`. Default `1e-3`.                                           |
 | `credible_level`  | no       | Posterior interval mass. Default 0.95.                                             |
@@ -129,9 +132,9 @@ Bayesian linear regression with a conjugate Normal-Inverse-Gamma prior.
 
 Every fit with standard errors reports `ci_lower` / `ci_upper` (keyed like `coefficients`), `conf_level` and, for a t interval, `df`: OLS t on the residual df (N* − p − 1 on a weighted fit), GLM Wald normal (R's `confint.default`) for binomial / poisson and t on the residual df for gamma, Bayes the posterior t on 2·a_n, and any fit under `resample` normal on the resampled standard errors. An interval exists exactly where a standard error does; an undefined bound is `null`.
 
-Modifier compatibility: `Resample` and `Selection` are **rejected** for `REG_BAYES_LINEAR` at spec validation — the posterior already conveys uncertainty via credible intervals, and stepwise feature selection on a Bayesian model is a posterior-based question the conjugate-NIG engine doesn't support.
+Modifier compatibility: `Resample` and `Selection` are **rejected** for `REG_BAYES_LINEAR` at spec validation, by predict and the runtime alike (`internal/regbayes`) — the posterior already conveys uncertainty via credible intervals, and stepwise feature selection on a Bayesian model is a posterior-based question the conjugate-NIG engine doesn't support.
 
-Setting `penalty` / `alpha` / `l1_ratio` / `family` / `link` on a Bayes spec is rejected with `PROCESSING_CONFIG`.
+Setting `penalty` / `alpha` / `l1_ratio` / `unpenalized` / `family` / `link` on a Bayes spec is rejected with `PROCESSING_CONFIG`.
 
 Error codes: `PROCESSING_REGRESSION_RANK_DEFICIENT`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PROCESSING_CONFIG`.
 
@@ -209,7 +212,7 @@ Three attribute operators emit per-record diagnostics from a fitted regression o
 | `ATTR_REG_RESIDUAL`   | `y_i − ŷ_i` — the per-row residual.                                         |
 | `ATTR_REG_LEVERAGE`   | `h_ii = Xᵢ (XᵀX)⁻¹ Xᵢᵀ` — the i-th diagonal of the hat matrix.              |
 
-Each attribute references a sibling regression spec by `regression_name`. See `skills/attribute-composition.md` for the parameter table.
+Each attribute carries its own `target` / `predictors` (plus `penalty` / `alpha` / `l1_ratio`) and refits OLS in its prepass. `ATTR_REG_FITTED` and `ATTR_REG_RESIDUAL` take `params.fit` instead: they name a bound fit — a compose `fits` entry or a loaded `models` entry — and score through it, so a `REG_GLM` residual is `y − μ̂` on the response scale and an extension regression's fit scores through its registration's Scorer. The slot is then row-local and its default label is `<TYPE>_<fit>`. See `skills/op-attr-reg-fitted.md` and `skills/op-attr-reg-residual.md` for the parameter tables.
 
 ## Error codes
 
@@ -235,6 +238,7 @@ See [Payload JSON Schema](contract/payload-schema.md) (Failed slots).
 | `PROCESSING_REGRESSION_INVALID_LINK`          | Link incompatible with the chosen Family.                                     |
 | `PROCESSING_REGRESSION_INSUFFICIENT_DATA`     | Filtered set has fewer rows than predictors + 1, or below resample minimum.   |
 | `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` | Advisory: l1 / elasticnet SEs, p-values and intervals are `null` (no valid analytical form); set `resample` for replicate ones. |
+| `PULSE_ADVISORY_CONSTRAINT_ACTIVE` | Advisory: a `REG_OLS` `bounds` constraint binds, so SEs, p-values, intervals and `vcov` are `null`; set `resample: bootstrap` for replicate ones. |
 | `PROCESSING_REGRESSION_REGULARIZED_SELECTION` | Warning: `penalty != ""` plus `selection != ""` is unusual.                   |
 | `PROCESSING_CONFIG`                           | Invalid spec combination (e.g. Bayes + Resample, gamma GLM + Penalty).        |
 

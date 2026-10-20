@@ -77,6 +77,11 @@ func TestMergeRefusal(t *testing.T) {
 		{"fit-bound pc score", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PC_SCORE, Params: []byte(`{"fit":"pop","component":1}`)}}}, nil, ""},
 		{"fit-bound factor score", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_FACTOR_SCORE, Params: []byte(`{"fit":"pop","factor":1}`)}}}, nil, ""},
 		{"fit_on mahalanobis", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_MAHALANOBIS, Params: []byte(`{"fit_on":"filtered"}`)}}}, nil, "attribute ATTR_MAHALANOBIS is not row-local"},
+		// U53 E2-S3: a regression attribute naming a bound fit is a pure
+		// per-row score; its OLS refit twin folds per partition.
+		{"fit-bound reg residual", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_REG_RESIDUAL, Params: []byte(`{"fit":"m"}`)}}}, nil, ""},
+		{"fit-bound reg fitted", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_REG_FITTED, Params: []byte(`{"fit":"m"}`)}}}, nil, ""},
+		{"refit reg residual", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_REG_RESIDUAL, Target: "n", Predictors: []string{"m"}}}}, nil, "attribute ATTR_REG_RESIDUAL is not row-local"},
 		{"unbound pc score", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PC_SCORE}}}, nil, "attribute ATTR_PC_SCORE is not row-local"},
 		{"fit-bound vec distance", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Params: []byte(`{"fit":"pop","metric":"mahalanobis"}`)}}}, nil, "attribute ATTR_VEC_DISTANCE is not row-local"},
 		// Row-local single pass, no per-run state (#391).

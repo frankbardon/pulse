@@ -219,13 +219,20 @@ func CatalogWithModels(outer Catalog, refs []types.ModelRef, files []*File) FitC
 		if j >= len(files) || files[j] == nil {
 			continue
 		}
-		out[r.Name] = Signature{
+		sig := Signature{
 			Name:   r.Name,
 			Type:   files[j].Type,
+			Target: files[j].Target,
 			Terms:  append([]string(nil), files[j].Terms...),
 			Source: ModelSource(j, r.Path),
 			Kind:   types.FitKindRegression,
 		}
+		if !BuiltinRegression(files[j].Type) {
+			// The file names the fit's coefficients, so predict judges a
+			// coef() term exactly as the bound model does.
+			sig.Coefficients, sig.CoefficientsKnown = sortedKeys(files[j].Coefficients), true
+		}
+		out[r.Name] = sig
 	}
 	return out
 }
@@ -234,4 +241,38 @@ func refInvalid(j int, r types.ModelRef, reason, what string) *errors.CodedError
 	return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_REF_INVALID,
 		fmt.Sprintf("models[%d]: model entry %s", j, what),
 		map[string]any{"model": j, "name": r.Name, "path": r.Path, "reason": reason})
+}
+
+// RegisteredFunc reports whether this instance registers the extension
+// regression t and its feature profile does not hide it.
+type RegisteredFunc func(t types.RegressionType) bool
+
+// CheckModelTypes refuses a loaded model file (LoadModelFiles' result,
+// index-aligned with refs) whose type is an extension regression this
+// instance does not register — or registers but hides under its feature
+// profile (registered reports false for both; nil registers none):
+// PULSE_MODEL_REGRESSION_UNREGISTERED with details.model, name, path
+// and type. Without the registration nothing can score the model. A
+// built-in type always passes. The first fault wins; the runtime and
+// predict run it right after the load.
+func CheckModelTypes(refs []types.ModelRef, files []*File, registered RegisteredFunc) *errors.CodedError {
+	for j, f := range files {
+		if f == nil || BuiltinRegression(f.Type) || (registered != nil && registered(f.Type)) {
+			continue
+		}
+		r := refs[j]
+		return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_REGRESSION_UNREGISTERED,
+			fmt.Sprintf("models[%d]: model file %s holds a %s fit, a regression this instance does not register (or its feature profile hides), so nothing can score it", j, r.Path, f.Type),
+			map[string]any{"model": j, "name": r.Name, "path": r.Path, "type": string(f.Type)})
+	}
+	return nil
+}
+
+// CheckLoadedTypes is CheckModelTypes over a request's loaded files
+// (LoadFiles' result; nil loads nothing).
+func CheckLoadedTypes(refs Refs, l *Loaded, registered RegisteredFunc) *errors.CodedError {
+	if l == nil {
+		return nil
+	}
+	return CheckModelTypes(refs.Models, l.Models, registered)
 }

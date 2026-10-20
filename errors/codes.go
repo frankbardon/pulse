@@ -686,6 +686,17 @@ const (
 	// {"resample": "bootstrap"}.
 	PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED Code = "PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED"
 
+	// PULSE_ADVISORY_CONSTRAINT_ACTIVE is an advisory on a REG_OLS fit
+	// whose bounds.nonnegative constraint bound (a coefficient held at 0)
+	// without a Resample modifier: the estimator is constrained, so the
+	// classical standard errors, p-values, confidence intervals and
+	// covariance are not valid and are reported null on every
+	// coefficient (point estimates and R² stay). Result-only — whether a
+	// bound binds depends on the data, so predict cannot raise it.
+	// details carry the slot, the operator, the active predictors and
+	// the patch {"resample": "bootstrap"}.
+	PULSE_ADVISORY_CONSTRAINT_ACTIVE Code = "PULSE_ADVISORY_CONSTRAINT_ACTIVE"
+
 	// PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT is a Compose predict
 	// advisory: two or more slots emit p-values, they join two or more
 	// distinct correction families other than the batch-wide `compose`
@@ -1144,6 +1155,20 @@ const (
 	// declared ones. Wired into extensions_probe.probeMatrixOps.
 	PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH Code = "PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH"
 
+	// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH indicates a regression
+	// registration's model — fitted at pulse.New over a small synthetic
+	// row set, or on any run — returned a RegressionOutput its
+	// registration does not allow: no coefficient, an empty or repeated
+	// coefficient name, an Outputs key OutputSchema does not declare, or
+	// (when the spec asked for vcov) a missing or misshapen Vcov.
+	// Details carry the category, name, a reason discriminator
+	// (missing_coefficients, invalid_coefficient, undeclared_output_key,
+	// missing_vcov, vcov_shape) and the offending keys. The regression
+	// sibling of PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH. Wired into
+	// extensions_probe_regression.probeRegressions and the regression
+	// adapter.
+	PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH Code = "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH"
+
 	// PULSE_EXTENSION_FACTORY_PANIC indicates an embedder factory
 	// panicked during probe-validation at registration time.
 	PULSE_EXTENSION_FACTORY_PANIC Code = "PULSE_EXTENSION_FACTORY_PANIC"
@@ -1151,7 +1176,8 @@ const (
 	// PULSE_EXTENSION_PARAM_INVALID indicates a ParamMeta entry on a
 	// registration has missing or contradictory fields (empty name,
 	// unknown JSONType, Required=true with a non-nil Default, an
-	// ExactlyOneOf group with one member or a Required / defaulted member).
+	// ExactlyOneOf group with one member or a Required / defaulted member,
+	// an Example not of its JSONType).
 	PULSE_EXTENSION_PARAM_INVALID Code = "PULSE_EXTENSION_PARAM_INVALID"
 
 	// PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH indicates an extension
@@ -1395,7 +1421,8 @@ const (
 	// "expected" (the kind the reference reads).
 	PULSE_MODEL_KIND_MISMATCH Code = "PULSE_MODEL_KIND_MISMATCH"
 
-	// PULSE_MODEL_SCORE_INVALID indicates an ATTR_REG_PREDICT slot whose
+	// PULSE_MODEL_SCORE_INVALID indicates an ATTR_REG_PREDICT slot (or an
+	// ATTR_REG_FITTED / ATTR_REG_RESIDUAL slot's params.fit) whose
 	// scoring parameters do not fit: params that are not an object of
 	// {fit, terms, scale, bound} (reason "params_invalid"), no params.fit
 	// ("fit_missing"), a field / target / predictors / penalty set on the
@@ -1512,6 +1539,13 @@ const (
 	// model_format_version this build does not read. Details carry
 	// "path", "version" and "supported".
 	PULSE_MODEL_VERSION_UNSUPPORTED Code = "PULSE_MODEL_VERSION_UNSUPPORTED"
+
+	// PULSE_MODEL_REGRESSION_UNREGISTERED indicates a `models` entry
+	// whose model file holds an extension regression's fit that this
+	// instance does not register, or registers but hides under its
+	// feature profile, so nothing can score it. Details carry "model",
+	// "name", "path" and "type".
+	PULSE_MODEL_REGRESSION_UNREGISTERED Code = "PULSE_MODEL_REGRESSION_UNREGISTERED"
 
 	// PULSE_MODEL_REF_INVALID indicates a Request `models` entry that
 	// cannot name a model file: no name (reason "name_empty") or a path
@@ -1856,6 +1890,19 @@ const (
 	// valid key, the object's valid keys and, below the root, the path
 	// of the first offending key.
 	PULSE_REQUEST_UNKNOWN_FIELD Code = "PULSE_REQUEST_UNKNOWN_FIELD"
+
+	// PULSE_REQUEST_PARAM_INVALID indicates a slot's params object on an
+	// embedder extension operator that declares its params (ParamMeta)
+	// carried a value whose JSON type is not the declared JSONType
+	// (details.reason "wrong_type", with expected / got) or omitted a
+	// Required param (details.reason "missing_required"), or carried
+	// none or more than one member of a declared ExactlyOneOf group
+	// (details.reason "exactly_one_of", path `<slot>.params`, group /
+	// members / present). details.path locates the param
+	// (`aggregations[0].params.scale`); details operator / param name
+	// it. Checked declaratively, so predict and runtime refuse
+	// identically, in every extension category.
+	PULSE_REQUEST_PARAM_INVALID Code = "PULSE_REQUEST_PARAM_INVALID"
 
 	// PULSE_OVERLAY_KIND_UNKNOWN indicates a Request.Overlays entry
 	// referenced an OverlayKind not present in
@@ -4072,6 +4119,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
 	PULSE_ADVISORY_JACKKNIFE_COST,
 	PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED,
+	PULSE_ADVISORY_CONSTRAINT_ACTIVE,
 	PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT,
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN,
 	PULSE_RECOMMEND_INTENT_UNKNOWN,
@@ -4131,6 +4179,7 @@ var allCodes = []Code{
 	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH,
 	PULSE_EXTENSION_ARRAY_VALUED_MISMATCH,
 	PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH,
+	PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH,
 	PULSE_EXTENSION_FACTORY_PANIC,
 	PULSE_EXTENSION_PARAM_INVALID,
 	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH,
@@ -4177,6 +4226,7 @@ var allCodes = []Code{
 	PULSE_MODEL_OVERWRITTEN,
 	PULSE_MODEL_FILE_INVALID,
 	PULSE_MODEL_VERSION_UNSUPPORTED,
+	PULSE_MODEL_REGRESSION_UNREGISTERED,
 	PULSE_MODEL_REF_INVALID,
 	PULSE_MODEL_FILE_UNREADABLE,
 	PULSE_FOR_EACH_INVALID,
@@ -4222,6 +4272,7 @@ var allCodes = []Code{
 	PULSE_CROSSTAB_CELLS_INVALID,
 	PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL,
 	PULSE_REQUEST_UNKNOWN_FIELD,
+	PULSE_REQUEST_PARAM_INVALID,
 	PULSE_OVERLAY_KIND_UNKNOWN,
 	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 	PULSE_OVERLAY_COMPONENTS_REQUIRED,

@@ -58,7 +58,7 @@ func manifestDigest(inst *InstanceSnapshot) string {
 	if ext := inst.Extensions(); ext != nil {
 		for _, metas := range [][]descriptor.OperatorMeta{
 			ext.Aggregators, ext.Attributes, ext.Filterers, ext.Groupers,
-			ext.Windows, ext.Features, ext.Tests, ext.MatrixOps,
+			ext.Windows, ext.Features, ext.Tests, ext.MatrixOps, ext.Regressions,
 		} {
 			for _, m := range metas {
 				names = append(names, m.Name)

@@ -12,6 +12,8 @@
 package regpenalty
 
 import (
+	"slices"
+
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -30,6 +32,8 @@ var Families = []string{"binomial", "poisson"}
 //   - REG_GLM: a penalty on a family outside Families (gamma) is
 //     refused, judged after the knobs themselves (an unknown family is
 //     the family check's refusal, never this one).
+//   - Unpenalized (checkUnpenalized): REG_OLS with Penalty "l2" only,
+//     each name a predictor, once.
 func Check(spec *types.RegressionSpec) *errors.CodedError {
 	if spec == nil || (spec.Type != types.REG_OLS && spec.Type != types.REG_GLM) {
 		return nil
@@ -51,7 +55,7 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 				map[string]any{"l1_ratio": spec.L1Ratio, "penalty": spec.Penalty},
 			)
 		}
-		return nil
+		return checkUnpenalized(spec)
 	case "l1", "l2":
 		if spec.Alpha <= 0 {
 			return errors.NewCodedErrorWithDetails(
@@ -103,7 +107,73 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 			map[string]any{"penalty": spec.Penalty, "family": spec.Family, "allowed_families": Families, "type": t},
 		)
 	}
+	return checkUnpenalized(spec)
+}
+
+// checkUnpenalized is the Unpenalized rule (REG_OLS ridge only): absent
+// passes; on REG_GLM, or on a REG_OLS fit whose Penalty is not "l2", it
+// is refused; every name must be one of Predictors, listed once. The
+// lasso / elastic-net per-coefficient penalty factor is not offered.
+func checkUnpenalized(spec *types.RegressionSpec) *errors.CodedError {
+	if len(spec.Unpenalized) == 0 {
+		return nil
+	}
+	t := string(spec.Type)
+	if spec.Type != types.REG_OLS {
+		return errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_CONFIG,
+			t+" does not accept Unpenalized; it is a REG_OLS ridge (penalty l2) knob",
+			map[string]any{"unpenalized": spec.Unpenalized, "type": t},
+		)
+	}
+	if spec.Penalty != "l2" {
+		msg := "REG_OLS Unpenalized requires Penalty=l2 (ridge); "
+		if spec.Penalty == "" {
+			msg += "an unpenalized fit already leaves every coefficient unshrunk"
+		} else {
+			msg += "lasso and elastic net take no per-predictor penalty factor"
+		}
+		return errors.NewCodedErrorWithDetails(
+			errors.PROCESSING_CONFIG,
+			msg,
+			map[string]any{"unpenalized": spec.Unpenalized, "penalty": spec.Penalty, "type": t},
+		)
+	}
+	seen := make(map[string]bool, len(spec.Unpenalized))
+	for _, name := range spec.Unpenalized {
+		if !slices.Contains(spec.Predictors, name) {
+			return errors.NewCodedErrorWithDetails(
+				errors.PROCESSING_CONFIG,
+				"REG_OLS Unpenalized names "+name+", which is not one of Predictors",
+				map[string]any{"unpenalized": spec.Unpenalized, "field": name, "predictors": spec.Predictors},
+			)
+		}
+		if seen[name] {
+			return errors.NewCodedErrorWithDetails(
+				errors.PROCESSING_CONFIG,
+				"REG_OLS Unpenalized lists "+name+" twice",
+				map[string]any{"unpenalized": spec.Unpenalized, "field": name},
+			)
+		}
+		seen[name] = true
+	}
 	return nil
+}
+
+// UnpenalizedMask returns, for the design's predictor columns, which the
+// ridge penalty skips (true = unpenalized): spec.Unpenalized matched by
+// name, so a refit over a predictor subset (selection) keeps each name's
+// own rule. Nil when spec lists none — every column penalised, the
+// historical ridge.
+func UnpenalizedMask(spec *types.RegressionSpec, predictors []string) []bool {
+	if spec == nil || len(spec.Unpenalized) == 0 {
+		return nil
+	}
+	mask := make([]bool, len(predictors))
+	for j, name := range predictors {
+		mask[j] = slices.Contains(spec.Unpenalized, name)
+	}
+	return mask
 }
 
 // ApproximateSE reports whether spec selects its predictors from the

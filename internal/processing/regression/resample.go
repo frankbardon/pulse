@@ -1,6 +1,7 @@
 package regression
 
 import (
+	"context"
 	"encoding/binary"
 	stderrors "errors"
 	"hash/fnv"
@@ -30,7 +31,7 @@ const defaultBootstrapIters = 1000
 //
 //   - "jackknife" : leave-one-out refit, jackknife SE formula; with
 //     jackknife_groups / jackknife_by the delete-a-group form
-//     (runGroupedJackknife).
+//     (runGroupedJackknifeCtx).
 //   - "bootstrap" : B = BootstrapIters (defaultBootstrapIters when
 //     <= 0) replicates with replacement; SE is the sample std
 //     of the replicate coefficient set, p-values from the
@@ -60,21 +61,42 @@ func runResample(
 	warm func([]Record, []float64) (*refitResult, error),
 	pValueFn func(coef, se float64) float64,
 ) (*types.RegressionResult, error) {
+	return runResampleCtx(context.Background(), spec, records, predictors, baseResult, fitter, warm, pValueFn)
+}
+
+// runResampleCtx is runResample under ctx: every replicate loop reads
+// ctx.Err() before each refit (resample_core.go).
+func runResampleCtx(
+	ctx context.Context,
+	spec *types.RegressionSpec,
+	records []Record,
+	predictors []string,
+	baseResult *types.RegressionResult,
+	fitter func([]Record) (*refitResult, error),
+	warm func([]Record, []float64) (*refitResult, error),
+	pValueFn func(coef, se float64) float64,
+) (*types.RegressionResult, error) {
 	switch spec.Resample {
 	case "jackknife":
 		if regresample.Grouped(spec) {
-			return runGroupedJackknife(spec, records, predictors, baseResult, fitter, warm, pValueFn)
+			return runGroupedJackknifeCtx(ctx, spec, records, predictors, baseResult, fitter, warm, pValueFn)
 		}
-		return runJackknife(spec, records, predictors, baseResult, fitter, pValueFn)
+		return runJackknifeCtx(ctx, spec, records, predictors, baseResult, fitter, pValueFn)
 	case "bootstrap":
-		return runBootstrap(spec, records, predictors, baseResult, fitter, pValueFn)
+		return runBootstrapCtx(ctx, spec, records, predictors, baseResult, fitter, pValueFn)
 	default:
-		return nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"unknown Resample value: "+spec.Resample+" (expected jackknife | bootstrap)",
-			map[string]any{"resample": spec.Resample},
-		)
+		return nil, unknownResample(spec)
 	}
+}
+
+// unknownResample is the refusal of a Resample value outside
+// {jackknife, bootstrap}.
+func unknownResample(spec *types.RegressionSpec) error {
+	return errors.NewCodedErrorWithDetails(
+		errors.PROCESSING_CONFIG,
+		"unknown Resample value: "+spec.Resample+" (expected jackknife | bootstrap)",
+		map[string]any{"resample": spec.Resample},
+	)
 }
 
 // runJackknife implements leave-one-out resampling. For each i ∈ [0, n)
@@ -105,69 +127,27 @@ func runJackknife(
 	fitter func([]Record) (*refitResult, error),
 	pValueFn func(coef, se float64) float64,
 ) (*types.RegressionResult, error) {
-	records = jackknifeRows(spec, records, predictors)
-	n := len(records)
-	if n < 3 {
-		return nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
-			"jackknife resampling requires at least 3 observations",
-			map[string]any{"n": n},
-		)
-	}
-	p := len(predictors)
-	// Replicate β matrix: rows are the n leave-one-out fits, columns are
-	// (intercept, slope_1, …, slope_p).
-	replicates := make([][]float64, 0, n)
-	leaveOneOut := make([]Record, 0, n-1)
-	for i := 0; i < n; i++ {
-		leaveOneOut = leaveOneOut[:0]
-		leaveOneOut = append(leaveOneOut, records[:i]...)
-		leaveOneOut = append(leaveOneOut, records[i+1:]...)
-		fit, err := fitter(leaveOneOut)
-		if err != nil {
-			return nil, err
-		}
-		row := make([]float64, p+1)
-		row[0] = fit.Intercept
-		for j := 0; j < p; j++ {
-			if j < len(fit.Slopes) {
-				row[j+1] = fit.Slopes[j]
-			}
-		}
-		replicates = append(replicates, row)
-	}
-	if len(replicates) < 2 {
-		return nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
-			"jackknife produced fewer than 2 replicates after listwise null deletion",
-			map[string]any{"n": n, "replicates": len(replicates)},
-		)
-	}
+	return runJackknifeCtx(context.Background(), spec, records, predictors, baseResult, fitter, pValueFn)
+}
 
-	// Mean of replicates.
-	mean := make([]float64, p+1)
-	for _, r := range replicates {
-		for j := 0; j < p+1; j++ {
-			mean[j] += r[j]
-		}
+func runJackknifeCtx(
+	ctx context.Context,
+	spec *types.RegressionSpec,
+	records []Record,
+	predictors []string,
+	baseResult *types.RegressionResult,
+	fitter func([]Record) (*refitResult, error),
+	pValueFn func(coef, se float64) float64,
+) (*types.RegressionResult, error) {
+	rows := jackknifeRows(spec, records, predictors)
+	se, cov, err := jackknifeCore(ctx, spec, rows, len(predictors)+1, refitReplicate(len(predictors), fitter))
+	if err != nil {
+		return nil, err
 	}
-	for j := 0; j < p+1; j++ {
-		mean[j] /= float64(len(replicates))
-	}
-	// Jackknife covariance (n − 1)/n · Σᵢ (β_(i) − β̄)(β_(i) − β̄)ᵀ; the
-	// SE is the square root of its diagonal, so √diag(Vcov) == SE
-	// exactly. The off-diagonal is only formed when Vcov is asked for.
-	scale := float64(len(replicates)-1) / float64(len(replicates))
-	cov := replicateCov(replicates, mean, spec.Vcov, func(s float64) float64 { return scale * s })
-	se := make([]float64, p+1)
-	for j := 0; j < p+1; j++ {
-		se[j] = math.Sqrt(cov[j][j])
-	}
-
 	return packageResampleResult(spec, baseResult, predictors, se, cov, pValueFn, nil), nil
 }
 
-// runGroupedJackknife is the delete-a-group jackknife (JK1): the
+// runGroupedJackknifeCtx is the delete-a-group jackknife (JK1): the
 // fitted rows — complete on the target and every active predictor,
 // carrying a valid non-zero weight on a weighted slot, and (jackknife_by)
 // a non-null cluster value — are split into g delete groups, and
@@ -196,7 +176,8 @@ func runJackknife(
 // 0-based; jackknife_by adds the group's value). g above the fitted row
 // count, or jackknife_by with fewer than 2 distinct values, is
 // PROCESSING_REGRESSION_INSUFFICIENT_DATA.
-func runGroupedJackknife(
+func runGroupedJackknifeCtx(
+	ctx context.Context,
 	spec *types.RegressionSpec,
 	records []Record,
 	predictors []string,
@@ -205,87 +186,20 @@ func runGroupedJackknife(
 	warm func([]Record, []float64) (*refitResult, error),
 	pValueFn func(coef, se float64) float64,
 ) (*types.RegressionResult, error) {
-	rows := jackknifeRows(spec, records, predictors)
-	m := len(rows)
-	var groupOf []int
-	var labels []string
-	g := 0
-	if spec.JackknifeBy != "" {
-		groupOf, labels = clusterAssignment(spec.JackknifeBy, rows)
-		g = len(labels)
-		if g < 2 {
-			return nil, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
-				"jackknife_by needs at least 2 distinct values among the fitted rows to form delete groups",
-				map[string]any{"jackknife_by": spec.JackknifeBy, "groups": g, "n": m},
-			)
-		}
-	} else {
-		g = spec.JackknifeGroups
-		if g > m {
-			return nil, errors.NewCodedErrorWithDetails(
-				errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
-				"jackknife_groups exceeds the fitted row count: every delete group needs at least one row",
-				map[string]any{"jackknife_groups": g, "n": m},
-			)
-		}
-		seed := spec.RNGSeed
-		if seed == 0 {
-			seed = deriveBootstrapSeed(spec, records, predictors)
-		}
-		groupOf = jackknifeAssignment(m, g, seed)
-	}
-
 	p := len(predictors)
-	start := make([]float64, p+1)
-	start[0] = baseResult.Coefficients[InterceptKey]
-	for j, name := range predictors {
-		start[j+1] = baseResult.Coefficients[name]
+	rep := refitReplicate(p, fitter)
+	if warm != nil {
+		start := make([]float64, p+1)
+		start[0] = baseResult.Coefficients[InterceptKey]
+		for j, name := range predictors {
+			start[j+1] = baseResult.Coefficients[name]
+		}
+		rep = refitReplicate(p, func(subset []Record) (*refitResult, error) { return warm(subset, start) })
 	}
-
-	replicates := make([][]float64, 0, g)
-	subset := make([]Record, 0, m)
-	for k := 0; k < g; k++ {
-		subset = subset[:0]
-		for i, rec := range rows {
-			if groupOf[i] != k {
-				subset = append(subset, rec)
-			}
-		}
-		var fit *refitResult
-		var err error
-		if warm != nil {
-			fit, err = warm(subset, start)
-		} else {
-			fit, err = fitter(subset)
-		}
-		if err != nil {
-			return nil, jackknifeReplicateError(err, spec, k, labels)
-		}
-		row := make([]float64, p+1)
-		row[0] = fit.Intercept
-		for j := 0; j < p; j++ {
-			if j < len(fit.Slopes) {
-				row[j+1] = fit.Slopes[j]
-			}
-		}
-		replicates = append(replicates, row)
-	}
-
-	mean := make([]float64, p+1)
-	for _, r := range replicates {
-		for j := 0; j < p+1; j++ {
-			mean[j] += r[j]
-		}
-	}
-	for j := 0; j < p+1; j++ {
-		mean[j] /= float64(g)
-	}
-	scale := float64(g-1) / float64(g)
-	cov := replicateCov(replicates, mean, spec.Vcov, func(s float64) float64 { return scale * s })
-	se := make([]float64, p+1)
-	for j := 0; j < p+1; j++ {
-		se[j] = math.Sqrt(cov[j][j])
+	rows := jackknifeRows(spec, records, predictors)
+	se, cov, g, err := groupedJackknifeCore(ctx, spec, records, predictors, rows, p+1, rep)
+	if err != nil {
+		return nil, err
 	}
 	out := packageResampleResult(spec, baseResult, predictors, se, cov, pValueFn, nil)
 	out.JackknifeGroups = g
@@ -465,114 +379,26 @@ func runBootstrap(
 	fitter func([]Record) (*refitResult, error),
 	pValueFn func(coef, se float64) float64,
 ) (*types.RegressionResult, error) {
-	records = jackknifeRows(spec, records, predictors)
-	n := len(records)
-	if n < 3 {
-		return nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
-			"bootstrap resampling requires at least 3 observations",
-			map[string]any{"n": n},
-		)
-	}
-	B := spec.BootstrapIters
-	if B <= 0 {
-		B = defaultBootstrapIters
-	}
-	seed := spec.RNGSeed
-	if seed == 0 {
-		seed = deriveBootstrapSeed(spec, records, predictors)
-	}
-	rng := rand.New(rand.NewPCG(uint64(seed), uint64(seed)^0x9E3779B97F4A7C15))
+	return runBootstrapCtx(context.Background(), spec, records, predictors, baseResult, fitter, pValueFn)
+}
 
-	p := len(predictors)
-	replicates := make([][]float64, 0, B)
-	sample := make([]Record, n)
-	for b := 0; b < B; b++ {
-		for i := 0; i < n; i++ {
-			sample[i] = records[rng.IntN(n)]
-		}
-		fit, err := fitter(sample)
-		if err != nil {
-			// A single failed replicate (e.g. rank deficiency on an
-			// unlucky resample) shouldn't kill the whole bootstrap. Skip
-			// and continue; we cap the consecutive-failure rate below to
-			// surface pathological cases.
-			if len(replicates) == 0 && b > 50 {
-				// 50 consecutive failures at the start: almost certainly a
-				// systematic problem. Surface the underlying error.
-				return nil, err
-			}
-			continue
-		}
-		row := make([]float64, p+1)
-		row[0] = fit.Intercept
-		for j := 0; j < p; j++ {
-			if j < len(fit.Slopes) {
-				row[j+1] = fit.Slopes[j]
-			}
-		}
-		replicates = append(replicates, row)
+func runBootstrapCtx(
+	ctx context.Context,
+	spec *types.RegressionSpec,
+	records []Record,
+	predictors []string,
+	baseResult *types.RegressionResult,
+	fitter func([]Record) (*refitResult, error),
+	pValueFn func(coef, se float64) float64,
+) (*types.RegressionResult, error) {
+	rows := jackknifeRows(spec, records, predictors)
+	run, err := bootstrapCore(ctx, spec, rows, predictors, len(predictors)+1, refitReplicate(len(predictors), fitter), nil)
+	if err != nil {
+		return nil, err
 	}
-	if len(replicates) < 10 {
-		return nil, errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_REGRESSION_NO_CONVERGE,
-			"bootstrap produced fewer than 10 successful replicates; underlying refit is unstable on this data",
-			map[string]any{"successful": len(replicates), "requested": B},
-		)
-	}
-
-	// Sample mean.
-	bm := make([]float64, p+1)
-	for _, r := range replicates {
-		for j := 0; j < p+1; j++ {
-			bm[j] += r[j]
-		}
-	}
-	for j := 0; j < p+1; j++ {
-		bm[j] /= float64(len(replicates))
-	}
-	// Sample covariance (unbiased, B − 1 divisor) of the successful
-	// replicates; the SE is the square root of its diagonal (the sample
-	// SD), so √diag(Vcov) == SE exactly.
-	div := float64(len(replicates) - 1)
-	cov := replicateCov(replicates, bm, spec.Vcov, func(s float64) float64 { return s / div })
-	se := make([]float64, p+1)
-	for j := 0; j < p+1; j++ {
-		se[j] = math.Sqrt(cov[j][j])
-	}
-
-	// Percentile p-values: fraction crossing zero (relative to the
-	// base point estimate's sign). Indexed by [intercept, slope_1, …,
-	// slope_p].
-	baseCoefs := make([]float64, p+1)
-	baseCoefs[0] = baseResult.Coefficients[InterceptKey]
-	for j := 0; j < p; j++ {
-		baseCoefs[j+1] = baseResult.Coefficients[predictors[j]]
-	}
-	bootP := make([]float64, p+1)
-	for j := 0; j < p+1; j++ {
-		below := 0
-		for _, r := range replicates {
-			if r[j] < 0 {
-				below++
-			}
-		}
-		pHat := float64(below) / float64(len(replicates))
-		// Two-sided percentile p-value.
-		pTwoSided := 2 * math.Min(pHat, 1-pHat)
-		// If the base estimate is non-zero but the bootstrap mass straddles
-		// zero, pTwoSided is finite. Apply a small floor so a p ≈ 0 result
-		// (every replicate on the same side of zero) becomes 1 / B rather
-		// than literal zero, mirroring the standard percentile-CI convention.
-		if pTwoSided == 0 {
-			pTwoSided = 1.0 / float64(len(replicates))
-		}
-		bootP[j] = pTwoSided
-	}
-
-	out := packageResampleResult(spec, baseResult, predictors, se, cov, pValueFn, bootP)
-	out.BootstrapRequested = B
-	out.BootstrapSucceeded = len(replicates)
+	out := packageResampleResult(spec, baseResult, predictors, run.se, run.cov, pValueFn, run.p)
+	out.BootstrapRequested = run.requested
+	out.BootstrapSucceeded = run.succeeded
 	return out, nil
 }
 

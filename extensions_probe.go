@@ -30,7 +30,9 @@ import (
 // times; a failure carries details "weighted": true. Tests are probed
 // only when they declare WeightAware. Matrix operators are the one
 // category the probe feeds data: probeMatrixOps finalizes each over a
-// synthetic three-member co-moment (extensions_probe_matrix.go).
+// synthetic three-member co-moment (extensions_probe_matrix.go), and
+// probeRegressions fits every regression model over a few synthetic
+// rows (extensions_regression.go).
 func probeExtensions(ext Extensions) error {
 	if err := probeAggregators(ext.Aggregators); err != nil {
 		return err
@@ -51,6 +53,9 @@ func probeExtensions(ext Extensions) error {
 		return err
 	}
 	if err := probeMatrixOps(ext.MatrixOps); err != nil {
+		return err
+	}
+	if err := probeRegressions(ext.Regressions); err != nil {
 		return err
 	}
 	return nil
@@ -444,8 +449,8 @@ func safeInvokeAttributeComponents(reg AttributeRegistration, instance extend.At
 }
 
 // probeTests constructs every WeightAware test factory (tier 1 or tier
-// 2) without and with a weight on a name-only spec over an empty
-// schema; a panic, an error or a nil instance is
+// 2) without and with a weight on a name-only spec (plus probeParams)
+// over an empty schema; a panic, an error or a nil instance is
 // PULSE_EXTENSION_FACTORY_PANIC. A test that does not declare
 // WeightAware is not probed (tests predate probe-validation; probing
 // them now would refuse registrations that worked).
@@ -516,7 +521,7 @@ func safeBuildAggregator(reg AggregatorRegistration, schema *encoding.Schema, we
 			)
 		}
 	}()
-	spec := &types.Aggregation{Type: reg.Name}
+	spec := &types.Aggregation{Type: reg.Name, Params: probeParams(reg.Params, nil)}
 	if weighted {
 		spec.Weight = probeWeight
 	}
@@ -525,7 +530,7 @@ func safeBuildAggregator(reg AggregatorRegistration, schema *encoding.Schema, we
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_EXTENSION_FACTORY_PANIC,
 			fmt.Sprintf("aggregator factory %q returned error during probe-validation: %v", reg.Name, err),
-			probeDetails(map[string]any{"category": "aggregator", "name": string(reg.Name), "factory_error": err.Error()}, weighted),
+			probeDetails(withProbeParams(map[string]any{"category": "aggregator", "name": string(reg.Name), "factory_error": err.Error()}, spec.Params), weighted),
 		)
 	}
 	if instance == nil {
@@ -550,7 +555,7 @@ func safeBuildAttribute(reg AttributeRegistration, schema *encoding.Schema, weig
 			)
 		}
 	}()
-	spec := &types.Attribute{Type: reg.Name}
+	spec := &types.Attribute{Type: reg.Name, Params: probeParams(reg.Params, nil)}
 	if weighted {
 		spec.Weight = probeWeight
 	}
@@ -559,7 +564,7 @@ func safeBuildAttribute(reg AttributeRegistration, schema *encoding.Schema, weig
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_EXTENSION_FACTORY_PANIC,
 			fmt.Sprintf("attribute factory %q returned error during probe-validation: %v", reg.Name, err),
-			probeDetails(map[string]any{"category": "attribute", "name": string(reg.Name), "factory_error": err.Error()}, weighted),
+			probeDetails(withProbeParams(map[string]any{"category": "attribute", "name": string(reg.Name), "factory_error": err.Error()}, spec.Params), weighted),
 		)
 	}
 	if instance == nil {
@@ -592,7 +597,7 @@ func safeBuildTest(reg TestRegistration, schema *encoding.Schema, weighted bool)
 			err = fail(fmt.Sprintf("panicked: %v", r), map[string]any{"panic": fmt.Sprintf("%v", r)})
 		}
 	}()
-	spec := &types.Test{Type: reg.Name}
+	spec := &types.Test{Type: reg.Name, Params: probeParams(reg.Params, nil)}
 	if weighted {
 		spec.Weight = probeWeight
 	}
@@ -610,7 +615,7 @@ func safeBuildTest(reg TestRegistration, schema *encoding.Schema, weighted bool)
 		return nil // the registration validator owns a missing factory
 	}
 	if err != nil {
-		return fail(fmt.Sprintf("returned error: %v", err), map[string]any{"factory_error": err.Error()})
+		return fail(fmt.Sprintf("returned error: %v", err), withProbeParams(map[string]any{"factory_error": err.Error()}, spec.Params))
 	}
 	if isNil {
 		return fail("returned a nil instance", nil)
@@ -667,13 +672,13 @@ func safeBuildFeature(reg FeatureRegistration, schema *encoding.Schema) (instanc
 			)
 		}
 	}()
-	spec := &types.Feature{Type: reg.Name}
+	spec := &types.Feature{Type: reg.Name, Params: probeParams(reg.Params, nil)}
 	instance, err = reg.Factory(spec, schema)
 	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_EXTENSION_FACTORY_PANIC,
 			fmt.Sprintf("feature factory %q returned error during probe-validation: %v", reg.Name, err),
-			map[string]any{"category": "feature", "name": string(reg.Name), "factory_error": err.Error()},
+			withProbeParams(map[string]any{"category": "feature", "name": string(reg.Name), "factory_error": err.Error()}, spec.Params),
 		)
 	}
 	if instance == nil {
@@ -698,13 +703,13 @@ func safeBuildGrouper(reg GrouperRegistration, schema *encoding.Schema) (instanc
 			)
 		}
 	}()
-	spec := &types.Group{Type: reg.Name}
+	spec := &types.Group{Type: reg.Name, Params: probeParams(reg.Params, nil)}
 	instance, err = reg.Factory(spec, schema)
 	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PULSE_EXTENSION_FACTORY_PANIC,
 			fmt.Sprintf("grouper factory %q returned error during probe-validation: %v", reg.Name, err),
-			map[string]any{"category": "grouper", "name": string(reg.Name), "factory_error": err.Error()},
+			withProbeParams(map[string]any{"category": "grouper", "name": string(reg.Name), "factory_error": err.Error()}, spec.Params),
 		)
 	}
 	if instance == nil {

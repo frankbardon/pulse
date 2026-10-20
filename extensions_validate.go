@@ -1,6 +1,7 @@
 package pulse
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"regexp"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/daterange"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
@@ -21,7 +23,7 @@ import (
 
 // extensionNameRegex captures the embedder-registration naming policy:
 //
-//	^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT)_<NAMESPACE>_<NAME>$
+//	^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG)_<NAMESPACE>_<NAME>$
 //
 // with NAMESPACE and NAME drawn from uppercase ASCII (digits and
 // underscores allowed after the first letter). The Pulse-shipped
@@ -31,7 +33,7 @@ import (
 // fit the pattern (MAT_PARTIAL_CORRELATION) is still reserved by the
 // built-in collision check, which runs first.
 var extensionNameRegex = regexp.MustCompile(
-	`^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT)_([A-Z][A-Z0-9]+)_([A-Z](?:[A-Z0-9_]*[A-Z0-9])?)$`,
+	`^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG)_([A-Z][A-Z0-9]+)_([A-Z](?:[A-Z0-9_]*[A-Z0-9])?)$`,
 )
 
 // extensionCategory tags every registration slot for validation
@@ -48,6 +50,7 @@ const (
 	categoryFeature    extensionCategory = "feature"
 	categoryTest       extensionCategory = "test"
 	categoryMatrix     extensionCategory = "matrix"
+	categoryRegression extensionCategory = "regression"
 )
 
 // expectedPrefix is the category-token half of the registration name
@@ -70,6 +73,8 @@ func (c extensionCategory) expectedPrefix() string {
 		return "TEST"
 	case categoryMatrix:
 		return "MAT"
+	case categoryRegression:
+		return "REG"
 	}
 	return ""
 }
@@ -88,8 +93,8 @@ var validJSONTypes = map[string]struct{}{
 // then by slice index; ExprFunctions / LookupTables come after the
 // operator slices.
 //
-// A nil Factory on an aggregator, attribute, filterer, grouper, window
-// or feature registration is refused here (validateOperatorSlice,
+// A nil Factory on an aggregator, attribute, filterer, grouper, window,
+// feature or regression registration is refused here (validateOperatorSlice,
 // PULSE_EXTENSION_PARAM_INVALID reason missing_factory), before the
 // probe could only report it as a recovered FACTORY_PANIC; matrix ops
 // (validateMatrixOps) and tests (validateTestTiers) refuse theirs in
@@ -150,6 +155,14 @@ func validateExtensions(ext Extensions) error {
 		return err
 	}
 	if err := validateMatrixOps(ext.MatrixOps); err != nil {
+		return err
+	}
+	if err := validateOperatorSlice(ext.Regressions, categoryRegression, builtinRegressionNames(), func(r RegressionRegistration) (string, []ParamMeta) {
+		return string(r.Name), r.Params
+	}, func(r RegressionRegistration) bool { return r.Factory != nil }); err != nil {
+		return err
+	}
+	if err := validateRegressionRegistrations(ext.Regressions); err != nil {
 		return err
 	}
 	if err := validateExprFunctions(ext.ExprFunctions); err != nil {
@@ -682,8 +695,42 @@ func validateParams(params []ParamMeta, cat extensionCategory, regName string) e
 				},
 			)
 		}
+		if err := validateParamExample(p, i, cat, regName); err != nil {
+			return err
+		}
 	}
 	return validateExactlyOneOfGroups(params, cat, regName)
+}
+
+// validateParamExample refuses a ParamMeta.Example that does not
+// marshal to JSON or whose JSON type is not the declared JSONType — the
+// same value checker the request params check applies
+// (descx.JSONValueType), so an Example is exactly a value a request may
+// carry. A nil Example is none.
+func validateParamExample(p ParamMeta, i int, cat extensionCategory, regName string) error {
+	if p.Example == nil {
+		return nil
+	}
+	got := "unmarshalable"
+	if raw, err := json.Marshal(p.Example); err == nil {
+		got = descx.JSONValueType(raw)
+	}
+	if got == p.JSONType {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(
+		errors.PULSE_EXTENSION_PARAM_INVALID,
+		fmt.Sprintf("extension %s %q param[%d] (%q) has an Example of JSON type %s; it must be a JSON %s (its JSONType)", cat, regName, i, p.Name, got, p.JSONType),
+		map[string]any{
+			"category":    string(cat),
+			"name":        regName,
+			"param_index": i,
+			"param_name":  p.Name,
+			"reason":      "example_type_mismatch",
+			"expected":    p.JSONType,
+			"got":         got,
+		},
+	)
 }
 
 // validateExactlyOneOfGroups refuses an ExactlyOneOf group with a
@@ -1131,6 +1178,63 @@ func builtinMatrixNames() map[string]struct{} {
 		out[string(t)] = struct{}{}
 	}
 	return out
+}
+
+func builtinRegressionNames() map[string]struct{} {
+	out := make(map[string]struct{}, 4)
+	for _, t := range types.AllRegressionTypes() {
+		out[string(t)] = struct{}{}
+	}
+	return out
+}
+
+// validateRegressionRegistrations enforces the RegressionRegistration
+// shape beyond the shared naming / factory pass: every OutputSchema
+// entry has a non-empty Key listed once and a JSONType from the
+// ParamMeta set — else PULSE_EXTENSION_PARAM_INVALID, details.reason
+// invalid_output_key (details.key, .json_type); every CovarianceTypes
+// entry is a known covariance type listed once — else reason
+// invalid_covariance_type (details.covariance_type); every Accepts
+// entry is a known, non-vector field type listed once — else reason
+// invalid_accepts (details.field_type).
+func validateRegressionRegistrations(regs []RegressionRegistration) error {
+	for i, r := range regs {
+		seenCov := make(map[types.CovarianceType]bool, len(r.CovarianceTypes))
+		for _, ct := range r.CovarianceTypes {
+			if slices.Contains(types.AllCovarianceTypes(), ct) && !seenCov[ct] {
+				seenCov[ct] = true
+				continue
+			}
+			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("extension regression %q CovarianceTypes entry %q is not a covariance type (classical, hc0, hc1, hc2, hc3, cluster, hac) or is listed twice", r.Name, ct),
+				map[string]any{"category": string(categoryRegression), "name": string(r.Name), "index": i,
+					"reason": "invalid_covariance_type", "covariance_type": string(ct)})
+		}
+		seenAcc := make(map[encoding.FieldType]bool, len(r.Accepts))
+		for _, ft := range r.Accepts {
+			if ft.IsKnown() && !ft.IsVector() && !seenAcc[ft] {
+				seenAcc[ft] = true
+				continue
+			}
+			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("extension regression %q Accepts entry %q is not a known scalar field type or is listed twice", r.Name, ft.String()),
+				map[string]any{"category": string(categoryRegression), "name": string(r.Name), "index": i,
+					"reason": "invalid_accepts", "field_type": ft.String()})
+		}
+		seen := make(map[string]bool, len(r.OutputSchema))
+		for _, o := range r.OutputSchema {
+			_, typed := validJSONTypes[o.JSONType]
+			if strings.TrimSpace(o.Key) != "" && !seen[o.Key] && typed {
+				seen[o.Key] = true
+				continue
+			}
+			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("extension regression %q OutputSchema key %q is empty, listed twice or has an unknown JSONType %q", r.Name, o.Key, o.JSONType),
+				map[string]any{"category": string(categoryRegression), "name": string(r.Name), "index": i,
+					"reason": "invalid_output_key", "key": o.Key, "json_type": o.JSONType})
+		}
+	}
+	return nil
 }
 
 // sortedReservedNamespaces returns the reserved set as a stable

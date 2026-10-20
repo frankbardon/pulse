@@ -99,8 +99,11 @@ type Bound struct {
 }
 
 // Bind builds the Bound for a finished fit: spec is the regression as
-// the fit ran it, res its result. A coefficient the result lacks for a
-// fitted predictor is an engine invariant violation (PROCESSING_INTERNAL).
+// the fit ran it, res its result. A coefficient a built-in's result
+// lacks for the intercept or a fitted predictor is an engine invariant
+// violation (PROCESSING_INTERNAL); an extension regression's (a type
+// outside types.AllRegressionTypes) is NaN, its own scorer reading
+// Result.Coefficients by its own names.
 func Bind(name string, spec *types.RegressionSpec, res *types.RegressionResult) (*Bound, error) {
 	if spec == nil || res == nil {
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
@@ -112,9 +115,18 @@ func Bind(name string, spec *types.RegressionSpec, res *types.RegressionResult) 
 		predictors = res.SelectedFeatures
 	}
 	predictors = append([]string(nil), predictors...)
+	// An extension regression names its own coefficients (a nonlinear
+	// parameter is one): it need not have an intercept or one
+	// coefficient per predictor — its Scorer reads Result.Coefficients
+	// itself. A missing figure is NaN; a built-in's is an invariant
+	// violation.
+	extension := !BuiltinRegression(res.Type)
 	intercept, ok := res.Coefficients[InterceptKey]
 	if !ok {
-		return nil, missingCoefficient(name, InterceptKey)
+		if !extension {
+			return nil, missingCoefficient(name, InterceptKey)
+		}
+		intercept = math.NaN()
 	}
 	b := &Bound{
 		Name:             name,
@@ -139,7 +151,10 @@ func Bind(name string, spec *types.RegressionSpec, res *types.RegressionResult) 
 	for i, p := range predictors {
 		c, ok := res.Coefficients[p]
 		if !ok {
-			return nil, missingCoefficient(name, p)
+			if !extension {
+				return nil, missingCoefficient(name, p)
+			}
+			c = math.NaN()
 		}
 		b.Coefficients[i] = c
 		b.StdErrors[i] = stdErr(res, p)

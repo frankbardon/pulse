@@ -155,7 +155,7 @@ func vectorScalarRefusals(req *types.Request, schema *encoding.Schema, snap *Ext
 	}
 
 	for i, reg := range req.Regressions {
-		if reg == nil || !slices.Contains(types.AllRegressionTypes(), opRoute(inst, reg.Type)) {
+		if reg == nil || !slices.Contains(types.AllRegressionTypes(), opRoute(inst, reg.Type)) && !isRegisteredRegression(inst, snap, reg.Type) {
 			continue
 		}
 		slot := at("regressions", i, string(reg.Type))

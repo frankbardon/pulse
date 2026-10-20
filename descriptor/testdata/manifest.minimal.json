@@ -368,7 +368,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 102,
+    "error_codes_count": 104,
     "error_domains": [
       "CLI",
       "DATA",
@@ -423,6 +423,7 @@
       "PULSE_EXTENSION_NAME_RESERVED",
       "PULSE_EXTENSION_PARAM_INVALID",
       "PULSE_EXTENSION_PURPOSE_INVALID",
+      "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_SKILL_COLLISION",
       "PULSE_EXTENSION_SKILL_INVALID",
       "PULSE_EXTENSION_STREAMABLE_MISMATCH",
@@ -465,6 +466,7 @@
       "PULSE_RAKE_UNKNOWN_CATEGORY",
       "PULSE_RAKE_UNTARGETED_CATEGORY",
       "PULSE_RECOMMEND_INTENT_UNKNOWN",
+      "PULSE_REQUEST_PARAM_INVALID",
       "PULSE_REQUEST_UNKNOWN_FIELD",
       "PULSE_RETURN_INVALID",
       "PULSE_RETURN_PATH_UNKNOWN",
@@ -855,6 +857,10 @@
         "description": "Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
+        "name": "regression-model-options",
+        "description": "Model options beyond the textbook fit — ridge over a predictor subset (unpenalized), non-negative coefficients (NNLS), per-coefficient prior precision for an experiment-centred prior, the media-mix recipe, and a regression an embedder registered (params, outputs, what it declines). Topical design; per-model params in atomic op-reg-* skills."
+      },
+      {
         "name": "regression-modeling",
         "description": "Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills."
       },
@@ -1045,6 +1051,7 @@
       "features": [],
       "tests": [],
       "matrix_ops": [],
+      "regressions": [],
       "expr_functions": [],
       "lookup_tables": [],
       "reference_vectors": [],
@@ -1256,7 +1263,9 @@
           "regressions[*].vcov",
           "regressions[*].correlation",
           "regressions[*].covariance",
-          "regressions[*].advisories"
+          "regressions[*].advisories",
+          "regressions[*].statistics",
+          "regressions[*].outputs"
         ]
       },
       {
@@ -1283,7 +1292,8 @@
           "regressions[*].type",
           "regressions[*].coefficients",
           "regressions[*].p_values",
-          "regressions[*].advisories"
+          "regressions[*].advisories",
+          "regressions[*].outputs"
         ]
       }
     ],
@@ -1347,4 +1357,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a5fca085ae3d341c2cdc4acd306e7fcb35628af0f009e5c005174f9f6352c030
+// golden-hash: c002a5240dabb02cc25e06dcbbf5e532fc2ac33b25631545ec307ea0f84140f1

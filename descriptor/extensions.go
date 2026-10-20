@@ -22,7 +22,13 @@ type ExtensionsManifest struct {
 	// engine-owned params then the operator's own, OutputKeys, the
 	// declared tier and the matrix floor plus the operator's component
 	// keys. A request names one in Request.Matrices like a built-in.
-	MatrixOps     []MatrixMeta       `json:"matrix_ops"`
+	MatrixOps []MatrixMeta `json:"matrix_ops"`
+	// Regressions lists the embedder-registered REG_* models in the
+	// built-in Regressions shape (RegressionMeta): the shared slot keys
+	// (marked slot) then the model's own params-object keys, the
+	// declared form, and the OutputSchema its outputs object follows. A
+	// request names one in Request.Regressions like a built-in.
+	Regressions   []RegressionMeta   `json:"regressions"`
 	ExprFunctions []ExprFunctionMeta `json:"expr_functions"`
 	LookupTables  []LookupTableMeta  `json:"lookup_tables"`
 	// ReferenceVectors lists the registered reference-vector tables
@@ -138,6 +144,9 @@ type OperatorParamMeta struct {
 	// ExactlyOneOf is the mutually-exclusive group name, mirroring
 	// Param.ExactlyOneOf: a request supplies exactly one member.
 	ExactlyOneOf string `json:"exactly_one_of,omitempty"`
+	// Example is the registration's example value of the param
+	// (pulse.ParamMeta.Example), of its JSONType. Omitted when none.
+	Example any `json:"example,omitempty"`
 }
 
 // ExprFunctionMeta is the manifest projection of an embedder-

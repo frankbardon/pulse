@@ -350,6 +350,7 @@ func paritySuites() []paritySuite {
 		featureParitySuite(),
 		windowParitySuite(),
 		testParitySuite(),
+		regressionParitySuite(),
 	}
 }
 
@@ -546,6 +547,10 @@ func aggregatorParitySuite() paritySuite {
 type parityOutcome struct {
 	data, components, metadata, tests string
 	chunks                            []string
+	// regressions are compared within tolerance
+	// (assertRegressionParity): an extension model reimplements a
+	// built-in fit by different arithmetic.
+	regressions []*types.RegressionResult
 }
 
 // normalize applies the suite's rename rules to one arm.
@@ -590,10 +595,11 @@ func runParityArm(t *testing.T, p *pulse.Pulse, path string, req *types.Request)
 		t.Fatal("Process returned no rows; parity over an empty payload proves nothing")
 	}
 	out := parityOutcome{
-		data:       mustJSON(t, resp.Data),
-		components: mustJSON(t, resp.Components),
-		metadata:   mustJSON(t, resp.Metadata),
-		tests:      mustJSON(t, []any{resp.Tests, resp.PostTests}),
+		data:        mustJSON(t, resp.Data),
+		components:  mustJSON(t, resp.Components),
+		metadata:    mustJSON(t, resp.Metadata),
+		tests:       mustJSON(t, []any{resp.Tests, resp.PostTests}),
+		regressions: resp.Regressions,
 	}
 	sr, err := p.ProcessStreamResult(ctx, &r)
 	if err != nil {
@@ -621,6 +627,9 @@ func assertParity(t *testing.T, builtin, ext parityOutcome) {
 	}
 	if builtin.metadata != ext.metadata {
 		t.Errorf("Response.Metadata differs\nbuiltin:   %s\nextension: %s", builtin.metadata, ext.metadata)
+	}
+	if len(builtin.regressions) > 0 || len(ext.regressions) > 0 {
+		assertRegressionParity(t, builtin.regressions, ext.regressions)
 	}
 	if len(builtin.chunks) != len(ext.chunks) {
 		t.Fatalf("stream chunk count: builtin %d, extension %d", len(builtin.chunks), len(ext.chunks))

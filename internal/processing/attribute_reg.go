@@ -25,6 +25,9 @@ func defaultAttributeLabel(attr *types.Attribute) string {
 	}
 	switch attr.Type {
 	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
+		if model.FitReferenced(attr.Type, attr) {
+			return model.DefaultFitLabel(attr)
+		}
 		return string(attr.Type) + "_" + attr.Target
 	case types.ATTR_REG_PREDICT:
 		return model.DefaultScoreLabel(attr)
@@ -178,6 +181,16 @@ func newRegressionAttribute(attr *types.Attribute, schema *encoding.Schema, kind
 	if attr == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
 			"regression attribute requires a non-nil spec")
+	}
+	if kind != regAttrLeverage {
+		// params.fit scores a bound fit instead of the OLS refit
+		// (attribute_reg_fit.go); absent, params must still decode.
+		if model.FitReferenced(attr.Type, attr) {
+			return newRegFitScoreAttribute(attr, schema, kind), nil
+		}
+		if _, err := model.DecodeFitParams(attr.Type, attr.Params); err != nil {
+			return nil, err
+		}
 	}
 	if attr.Target == "" {
 		return nil, errors.NewCodedErrorWithDetails(

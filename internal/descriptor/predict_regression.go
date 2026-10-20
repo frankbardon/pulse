@@ -6,6 +6,8 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/regbayes"
+	"github.com/frankbardon/pulse/internal/regbounds"
 	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
@@ -34,8 +36,15 @@ var knownRegressionTypes = func() map[types.RegressionType]struct{} {
 // Deeper runtime checks (n ≥ p + 1, link compatibility, regularization
 // parameter bounds) live with the engines in Phases 1–4. predict
 // cannot import internal/processing/regression, so registry membership is
-// checked against types.AllRegressionTypes() instead. A type inst hides
-// is refused exactly as a type outside that set.
+// checked against types.AllRegressionTypes() plus the instance's
+// extension REG_* models (the snapshot) instead. A type inst hides is
+// refused exactly as a type outside that set.
+//
+// An extension model passes the type-independent checks (target,
+// predictors, the accepted-types table) and the declare-or-refuse rule
+// for the shared slots (ExtensionRegressionSlotRefusal, the runtime
+// adapter's own call: an undeclared slot is PROCESSING_CONFIG {regression,
+// slot}; a declared covariance is shape-checked by regcov.CheckDeclared).
 func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool, inst *InstanceSnapshot) {
 	// Every `save` path and their uniqueness — the runtime's
 	// model.CheckRequestSaves, the one rule (first fault,
@@ -47,13 +56,26 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		if reg == nil {
 			continue
 		}
-		if _, ok := knownRegressionTypes[opRoute(inst, reg.Type)]; !ok {
+		_, builtin := knownRegressionTypes[opRoute(inst, reg.Type)]
+		_, decl, extension := regressionExtensionFor(inst, nil, reg.Type)
+		if !builtin && !extension {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"regression references unknown type: "+string(reg.Type),
 				map[string]any{"type": string(reg.Type)},
 			)
 			continue
+		}
+		// An extension model's shared slots: the declare-or-refuse table,
+		// then a declared covariance's shape (regcov.CheckDeclared) — the
+		// runtime adapter's own call. covRefused keeps the built-in
+		// covariance rule below from judging the block twice.
+		covRefused := false
+		if extension {
+			if cerr := ExtensionRegressionSlotRefusal(reg, decl); cerr != nil {
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+				covRefused = reg.Covariance != nil
+			}
 		}
 
 		if reg.Target == "" {
@@ -67,7 +89,7 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			// (FieldRefRefusals); only a schema field is type-checked.
 			// The accepted-types table's refusal, the runtime's
 			// (regression.BuildWith) word for word.
-			if cerr := fieldaccept.Check(string(reg.Type), fieldaccept.SlotTarget, reg.Target, schema); cerr != nil {
+			if cerr := regressionSlotFieldCheck(reg, decl, extension, fieldaccept.SlotTarget, reg.Target, schema); cerr != nil {
 				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
 		}
@@ -82,7 +104,7 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		// Unknown: FieldRefRefusals; derived: untyped; vector:
 		// vectorScalarRefusals — fieldaccept.Check judges none of them.
 		for _, p := range reg.Predictors {
-			if cerr := fieldaccept.Check(string(reg.Type), fieldaccept.SlotPredictor, p, schema); cerr != nil {
+			if cerr := regressionSlotFieldCheck(reg, decl, extension, fieldaccept.SlotPredictor, p, schema); cerr != nil {
 				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			}
 		}
@@ -108,12 +130,8 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		}
 
 		// Selection requires Criterion when set.
-		if reg.Selection != "" && reg.Criterion == "" {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"regression Selection requires a Criterion (aic | bic)",
-				map[string]any{"selection": reg.Selection},
-			)
+		if cerr := RegressionSelectionCriterionRefusal(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 
 		// conf_level, when set, must lie in (0, 1) — the runtime's
@@ -136,15 +154,39 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		if cerr := regpenalty.VcovRefusal(reg); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
+		// bounds.nonnegative: REG_OLS only, no penalty / selection, each
+		// name a predictor once — the runtime's rule itself
+		// (internal/regbounds, shared). An extension model's slot was
+		// judged by the shared-slot table above (Check passes it).
+		if cerr := regbounds.Check(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+		// REG_BAYES_LINEAR's knobs — the refused resample / selection
+		// modifiers, the prior (a per-coefficient prior_precision
+		// included), the other engines' knobs — the runtime's rule itself
+		// (internal/regbayes, shared). Its remedy clauses name only what
+		// the instance offers, as the runtime's ScopeRefusal renders them.
+		if cerr := regbayes.Check(reg, func(name string) bool { return !inst.Hidden(name) }); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
 
 		// covariance: the block's shape and the robust-type refusals —
 		// the runtime's rule itself (internal/regcov.Check, shared) — then
 		// the cluster / order_by field types, which only predict checks
 		// (the engine reads values, never types).
-		if cerr := regcov.Check(reg); cerr != nil {
-			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
-		} else if reg.Covariance.Robust() {
-			checkCovarianceFields(env, reg, schema)
+		// An extension model's block was judged above (declared types,
+		// regcov.CheckDeclared); its field types still are here.
+		switch {
+		case extension:
+			if !covRefused && reg.Covariance.Robust() {
+				checkCovarianceFields(env, reg, schema)
+			}
+		default:
+			if cerr := regcov.Check(reg); cerr != nil {
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			} else if reg.Covariance.Robust() {
+				checkCovarianceFields(env, reg, schema)
+			}
 		}
 		// jackknife_groups / jackknife_by — the runtime's rule itself
 		// (internal/regresample.Check, shared).
@@ -184,6 +226,18 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 func regressionAcceptsType(rt types.RegressionType, t encoding.FieldType) bool {
 	_ = rt
 	return t.IsNumericForAnalytics()
+}
+
+// regressionSlotFieldCheck is the accepted-types refusal of one target
+// or predictor field: the table's row for a built-in, the extension
+// rule (the built-in regressions' set or the declared Accepts) for a
+// registered model — the runtime's own calls (regression.BuildWith,
+// the extension adapter's ExtensionRegressionFieldTypeRefusal).
+func regressionSlotFieldCheck(reg *types.RegressionSpec, decl ExtensionRegression, extension bool, slot fieldaccept.Slot, field string, schema *encoding.Schema) *errors.CodedError {
+	if extension {
+		return fieldaccept.CheckExtensionRegression(string(reg.Type), decl.Accepts, slot, field, schema)
+	}
+	return fieldaccept.Check(string(reg.Type), slot, field, schema)
 }
 
 // routedRegression returns reg, or a copy whose Type is the route ("")

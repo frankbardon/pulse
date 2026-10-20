@@ -95,6 +95,9 @@ type Extensions struct {
 	// MatrixOps installs embedder MAT_* matrix operators for
 	// Request.Matrices (see MatrixOpRegistration).
 	MatrixOps []MatrixOpRegistration
+	// Regressions installs embedder REG_* regression models for
+	// Request.Regressions (see RegressionRegistration).
+	Regressions []RegressionRegistration
 
 	// ExprFunctions are merged into the runtime expression environment
 	// used by ATTR_FORMULA and FILTER_EXPRESSION (plus any future
@@ -206,10 +209,22 @@ type ParamMeta struct {
 	// ExactlyOneOf names a group of mutually exclusive params: of the
 	// params sharing a group name, a request supplies exactly one. A
 	// group needs at least two members, none Required and none with a
-	// Default (PULSE_EXTENSION_PARAM_INVALID otherwise). The factory
-	// still enforces the rule; the declaration lets the manifest say it
-	// and lets Recommend draft the first member. Empty = ungrouped.
+	// Default (PULSE_EXTENSION_PARAM_INVALID otherwise). A request
+	// carrying none, or more than one, of a group's members is refused
+	// PULSE_REQUEST_PARAM_INVALID reason exactly_one_of at predict and
+	// runtime alike; the manifest says it and Recommend drafts the
+	// first member. Empty = ungrouped.
 	ExactlyOneOf string `json:"exactly_one_of,omitempty"`
+	// Example is an optional example value of the param, of its
+	// JSONType (pulse.New refuses one that is not, or that does not
+	// marshal: PULSE_EXTENSION_PARAM_INVALID, details.reason
+	// example_type_mismatch). The registration probe hands it to the
+	// factory in place of the generic JSONType placeholder for a
+	// Required param or the first member of an ExactlyOneOf group, so a
+	// factory that accepts only certain values (an enum-like string)
+	// passes the probe. On any other param it is documentation only.
+	// Projected into the manifest as example. Nil = none.
+	Example any `json:"example,omitempty"`
 }
 
 // AggregatorRegistration installs a custom AGG_* operator. The factory
@@ -832,6 +847,202 @@ type MatrixOpRegistration struct {
 	// sum_weights, n_eff, n_weight_invalid).
 	ComponentSchema descriptor.ComponentSchema
 }
+
+// RegressionRegistration installs a custom REG_* regression model for
+// Request.Regressions, authored against extend.Regression: a streaming
+// model (extend.StreamingRegression — UpdateRow, Merge, Finalize) or a
+// buffered one (extend.BufferedRegression — Fit over every row, free to
+// iterate). The name follows the extension policy
+// (REG_<NAMESPACE>_<NAME>; a built-in such as REG_OLS collides).
+//
+// The model returns a narrow extend.RegressionOutput — coefficients
+// (each an estimate plus an optional standard error, statistic and
+// p-value), optional fit statistics from the fixed set, an optional
+// vcov and its declared Outputs — and the engine maps it onto
+// types.RegressionResult, owning every engine figure: the name and
+// type, n_obs, the weighted floor (sum_weights, n_eff), the
+// multiplicity-adjusted p-values (a PValues model's coefficients
+// carrying a p-value join a family), advisories and a per-slot failure (a model error
+// coded PROCESSING_REGRESSION_INSUFFICIENT_DATA, _RANK_DEFICIENT,
+// _NO_CONVERGE or _SEPARATION fails its slot alone; any other error
+// fails the run). Admission is the engine's too: the model sees only
+// rows whose target and every predictor are present (and, weighted,
+// whose weight is valid and positive).
+//
+// pulse.New probes the factory against a small synthetic schema and
+// fits it over a few synthetic rows (weighted too, for a WeightAware
+// registration): a model that does not implement the declared form is
+// PULSE_EXTENSION_STREAMABLE_MISMATCH, an output the registration does
+// not allow PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH, a factory or
+// fit panic or error PULSE_EXTENSION_FACTORY_PANIC (a data-dependent
+// regression refusal on the synthetic rows is tolerated).
+type RegressionRegistration struct {
+	Name        types.RegressionType
+	Description string
+	// Purpose is the optional plain-language guidance for the model —
+	// what it is for, the intents it answers, when to use something
+	// else. It is validated at pulse.New with the same rules as the
+	// built-in tier; a broken rule fails with
+	// PULSE_EXTENSION_PURPOSE_INVALID. Only its intent IDs reach the
+	// manifest entry's intents list; nil declares no intents.
+	Purpose *descriptor.Purpose
+	// Interpretation optionally says how to read the model's outputs,
+	// one entry per normalised output path: a figure the model can
+	// report (coefficients.* / std_errors.* / statistics.* / p_values.*,
+	// r2, adj_r2, residual_std_err, df, deviance, null_deviance,
+	// pseudo_r2, converged_iters, n_obs) or outputs.<key> for a key its
+	// OutputSchema declares. Any other path, or a broken rule (path
+	// syntax, Means or Shared, Bands with a Convention), fails with
+	// PULSE_EXTENSION_PURPOSE_INVALID at pulse.New.
+	Interpretation []descriptor.Interpretation
+	// DependsOn names the features this model needs, each an AND edge;
+	// see AggregatorRegistration.DependsOn. Optional; extensions carry
+	// no Since.
+	DependsOn []string
+	// Accepts lists the field types the model's target and predictors
+	// accept; empty means the built-in regressions' set (the
+	// analytics-numeric types). A field of any other type is refused
+	// with PULSE_FIELD_TYPE_UNSUPPORTED at predict and at runtime alike.
+	// Each entry a known, non-vector type listed once
+	// (PULSE_EXTENSION_PARAM_INVALID, reason invalid_accepts).
+	Accepts []encoding.FieldType
+	// FieldInputs is the optional buffered-projection introspection
+	// hook: the fields the model reads beyond its target, predictors and
+	// weight (named in its params, say). See FieldInputsFunc; without
+	// one a buffered request carrying the model decodes every field.
+	FieldInputs FieldInputsFunc
+	// Factory builds the model per regression slot. Required
+	// (PULSE_EXTENSION_PARAM_INVALID, reason missing_factory).
+	Factory extend.RegressionFactory
+	// Streamable declares the form: true for an
+	// extend.StreamingRegression, which streams wherever a built-in
+	// regression would (no grouper, feature or two-pass attribute on the
+	// request; no Resample, Selection or robust covariance on the slot)
+	// and is otherwise fed the buffered rows one at a time; false for an
+	// extend.BufferedRegression, which always runs buffered. The
+	// declaration decides the path at runtime and in predict.
+	Streamable bool
+	// WeightAware declares that the model computes a weighted fit: on a
+	// slot where a row weight is in force (slot, request or
+	// pulse.Options.DefaultWeight) the factory sees it on spec.Weight
+	// and every admitted row reports its valid, positive weight through
+	// extend.Record.Weight(); rows with an invalid or zero weight never
+	// reach the model, and the engine writes sum_weights / n_eff.
+	// Undeclared, any weight in force on the slot — the instance default
+	// included — is PULSE_EXTENSION_NOT_WEIGHT_AWARE; `weight: null` on
+	// the slot opts out. A WeightAware registration is probed weighted
+	// too.
+	WeightAware bool
+	// Vcov declares that the model can return its coefficient
+	// covariance (extend.RegressionOutput.Vcov): a spec setting vcov:
+	// true then gets it (and its correlation) on the result.
+	// Undeclared, vcov: true is refused with PROCESSING_CONFIG, details
+	// {regression, slot: "vcov"}, at predict and at runtime alike.
+	Vcov bool
+	// PValues declares that the model emits coefficient p-values
+	// (extend.RegressionCoefficient.PValue), so its slot takes a
+	// multiplicity block: the family is every coefficient carrying a
+	// defined p (the intercept excluded unless the block names it), and
+	// predict counts one p-value per non-intercept predictor in
+	// p_values (basis lower_bound — the model may report more or
+	// fewer). Under resample the engine writes the replicate p-values.
+	// Undeclared (false), the model emits none: p_values is null on
+	// every coefficient (under resample too), predict counts none, a
+	// multiplicity block resolving to any method but none is refused
+	// with PULSE_MULTIPLICITY_INVALID (details.key "method") at predict
+	// and at runtime alike, and a fit that reports a finite p-value
+	// anyway is PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH (reason
+	// undeclared_p_value) at pulse.New's probe and on every run.
+	PValues bool
+	// Penalty declares that the model reads the shared penalty /
+	// alpha / l1_ratio slots of types.RegressionSpec itself (their
+	// values and meaning are the model's). Undeclared, any of them set
+	// is refused with PROCESSING_CONFIG, details {regression, slot:
+	// "penalty"} (key names a companion), at predict and at runtime.
+	Penalty bool
+	// SupportsSelection declares that the model can be refit over a
+	// predictor subset, so the engine's selection driver (forward /
+	// backward / stepwise) may wrap it: every candidate is a fresh model
+	// whose spec carries the candidate predictors, scored by AIC =
+	// deviance + 2k or BIC = deviance + ln(n)·k on its fit's reported
+	// RegressionFit.Deviance (−2·log-likelihood up to a constant the
+	// candidates share; k its coefficient count, n its n_obs). A fit
+	// that reports no deviance is
+	// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH (reason
+	// missing_deviance), at pulse.New's probe and on any candidate.
+	// Undeclared, selection / criterion are refused (PROCESSING_CONFIG
+	// {regression, slot: "selection"}) at predict and at runtime alike.
+	SupportsSelection bool
+	// CovarianceTypes declares the covariance.type values the model
+	// computes itself (it reads spec.Covariance): a covariance block
+	// whose type (absent = classical) is listed reaches the model after
+	// the shared shape rule; any other is refused with
+	// PROCESSING_CONFIG {regression, slot: "covariance"}. Each entry a
+	// known type listed once (PULSE_EXTENSION_PARAM_INVALID, reason
+	// invalid_covariance_type).
+	//
+	// Every other shared slot is fixed: the built-ins' own knobs
+	// (family, link, max_iters, tol, prior*, credible_level) are refused
+	// with PROCESSING_CONFIG {regression, slot}; save follows Scorer;
+	// weight follows WeightAware; multiplicity follows PValues; params,
+	// conf_level and resample (with jackknife_groups, jackknife_by,
+	// bootstrap_iters, rng_seed) are always honoured. conf_level (0 < c
+	// < 1, 0.95 unset) sets the engine's Wald intervals ci_lower /
+	// ci_upper = estimate ∓ q·SE on every coefficient with a standard
+	// error (null where it is null): q the Student-t quantile on the
+	// fit's reported RegressionFit.DF — REG_OLS's rule, so an OLS-shaped
+	// model reporting its residual df matches REG_OLS — else the
+	// standard normal (REG_GLM's Wald rule), and the normal on the
+	// replicate SE under resample, as every built-in. Resample runs the engine's jackknife / bootstrap
+	// driver around the model — every replicate a fresh model refit
+	// over a row subset, drawn exactly as for REG_OLS — and replaces
+	// each coefficient's standard error with the replicate one, its
+	// statistic with the Wald z, its p-value with the Wald-z
+	// (jackknife) or percentile (bootstrap) p (PValues only) and its
+	// interval with the normal one on the replicate SE (the result's df
+	// then absent, as on a built-in); a replicate reporting
+	// other coefficients than the full fit is
+	// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH (reason
+	// replicate_coefficients). Limits.RequestTimeout is read before
+	// every refit.
+	CovarianceTypes []types.CovarianceType
+	// Params declares the keys of the slot's own params object
+	// (types.RegressionSpec.Params), which the factory reads off the
+	// spec. Declared, a params key outside the list is refused
+	// PULSE_REQUEST_UNKNOWN_FIELD at regressions[i].params.<key>, at
+	// predict and at runtime alike; undeclared (nil), params pass
+	// through unchecked and predict notes it
+	// (PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED). Validated like every
+	// category's ParamMeta (PULSE_EXTENSION_PARAM_INVALID).
+	Params []ParamMeta
+	// OutputSchema declares the keys the model may fill in
+	// extend.RegressionOutput.Outputs (types.RegressionResult.Outputs):
+	// each a unique non-empty Key with a JSONType from the ParamMeta set
+	// (PULSE_EXTENSION_PARAM_INVALID, reason invalid_output_key,
+	// otherwise). A filled key it does not declare is
+	// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH at pulse.New and on
+	// every run; a declared key left unfilled is fine.
+	OutputSchema []RegressionOutputMeta
+	// Scorer optionally builds a fitted model's row scorer from the fit
+	// alone (extend.FittedRegression: its coefficients and Outputs), so
+	// ATTR_REG_PREDICT scores the model's fits — a Compose `fits` entry,
+	// or a saved model file reloaded through `models` — and `save` may
+	// write one (model_format_version 3, carrying the Outputs). The
+	// scorer scores the whole model: params.terms and a lower / upper
+	// params.bound are refused on it. Nil: the fits run, but scoring one
+	// is refused with PULSE_MODEL_SCORE_INVALID (reason no_scorer) and
+	// save with PROCESSING_CONFIG {regression, slot: "save"}, at predict
+	// and at runtime alike. pulse.New probes it over the probe fit; a
+	// panic or error is PULSE_EXTENSION_FACTORY_PANIC (stage scorer).
+	Scorer extend.RegressionScorerFactory
+}
+
+// RegressionOutputMeta declares one key of a regression model's
+// Outputs: its name, the JSON type of its value (string, number,
+// boolean, array or object) and a description. It is the manifest's
+// shape (descriptor.RegressionOutputMeta, the extension regression
+// row's output_schema).
+type RegressionOutputMeta = descriptor.RegressionOutputMeta
 
 // ExprFunction describes a function callable from runtime expressions
 // (ATTR_FORMULA / FILTER_EXPRESSION). At pulse.New time the Fn value

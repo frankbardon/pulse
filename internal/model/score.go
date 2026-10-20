@@ -32,6 +32,14 @@ const (
 	ReasonTypeUnsupported = "type_unsupported"
 	ReasonBoundUnknown    = "bound_unknown"
 	ReasonBoundTerms      = "bound_terms"
+	// ReasonNoScorer refuses scoring an extension regression's fit whose
+	// registration supplies no Scorer.
+	ReasonNoScorer = "no_scorer"
+	// ReasonTermsUnsupported / ReasonBoundUnsupported refuse params.terms
+	// and a lower / upper params.bound on an extension regression's fit:
+	// its scorer scores the whole model only.
+	ReasonTermsUnsupported = "terms_unsupported"
+	ReasonBoundUnsupported = "bound_unsupported"
 )
 
 // Bound values of ATTR_REG_PREDICT's params.bound: which coefficient
@@ -74,6 +82,9 @@ type Signature struct {
 	Name string
 	// Type is the regression operator that produces the fit.
 	Type types.RegressionType
+	// Target is a regression fit's response field: the column an
+	// ATTR_REG_RESIDUAL slot's params.fit subtracts its score from.
+	Target string
 	// Terms are the predictor columns the fit was offered, in spec
 	// order: the names `terms` may list and the columns a scoring frame
 	// must hold. Under Selection it is the candidate set, a superset of
@@ -88,6 +99,15 @@ type Signature struct {
 	// namespace holds both; a reference of the other kind is
 	// PULSE_MODEL_KIND_MISMATCH.
 	Kind types.FitKind
+
+	// Coefficients are the coefficient names an extension regression's
+	// fit reports (sorted), when known (CoefficientsKnown): the
+	// runtime's Set and a loaded model file know them; predict's static
+	// FitCatalog of a `fits` entry does not — the model names them when
+	// it runs. Nil on a built-in regression, whose coefficients are
+	// always the intercept and Terms.
+	Coefficients      []string
+	CoefficientsKnown bool
 
 	// Members are a vector fit's member labels in axis order — the
 	// names a consuming slot aligns to — when known: the runtime's Set
@@ -137,7 +157,45 @@ func (v *VectorFit) Signature() Signature {
 
 // Signature is b's static face.
 func (b *Bound) Signature() Signature {
-	return Signature{Name: b.Name, Type: b.Type, Terms: append([]string(nil), b.Terms...), Source: b.Source, Kind: types.FitKindRegression}
+	sig := Signature{Name: b.Name, Type: b.Type, Target: b.Target, Terms: append([]string(nil), b.Terms...), Source: b.Source, Kind: types.FitKindRegression}
+	if !BuiltinRegression(b.Type) && b.Result != nil {
+		sig.Coefficients, sig.CoefficientsKnown = sortedKeys(b.Result.Coefficients), true
+	}
+	return sig
+}
+
+// sortedKeys are m's keys in ascending order (non-nil).
+func sortedKeys[V any](m map[string]V) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// NamesCoefficient reports whether term is a coefficient the fit
+// names itself beyond the intercept and its Terms — an extension
+// regression's own parameter. With the names unknown (predict over a
+// `fits` entry) any term may be one: the runtime, which knows them,
+// judges it.
+func (s Signature) NamesCoefficient(term string) bool {
+	if BuiltinRegression(s.Type) {
+		return false
+	}
+	return !s.CoefficientsKnown || slices.Contains(s.Coefficients, term)
+}
+
+// coefTerms are the names coef() may read beyond the intercept: Terms,
+// then the fit's own coefficient names that are neither (sorted).
+func (s Signature) coefTerms() []string {
+	out := append([]string(nil), s.Terms...)
+	for _, c := range s.Coefficients {
+		if c != InterceptKey && !slices.Contains(s.Terms, c) {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // FitCatalog is the static Catalog of a ComposedRequest `fits` list —
@@ -157,7 +215,7 @@ func CatalogFromFits(fits []types.FitSpec) FitCatalog {
 		switch FitKindOf(f.Request) {
 		case types.FitKindRegression:
 			reg := f.Request.Regressions[0]
-			out[f.Name] = Signature{Name: f.Name, Type: reg.Type, Terms: append([]string(nil), reg.Predictors...), Source: FitSource(i), Kind: types.FitKindRegression}
+			out[f.Name] = Signature{Name: f.Name, Type: reg.Type, Target: reg.Target, Terms: append([]string(nil), reg.Predictors...), Source: FitSource(i), Kind: types.FitKindRegression}
 		case types.FitKindVector:
 			out[f.Name] = Signature{Name: f.Name, Source: FitSource(i), Kind: types.FitKindVector}
 		}
@@ -181,15 +239,34 @@ func (c FitCatalog) Names() []string {
 	return out
 }
 
-// ScorableType reports whether a fit of type t can be scored: the
-// linear-predictor regressions (REG_OLS — penalties and selection
-// included — REG_GLM, REG_BAYES_LINEAR at its posterior mean).
+// scorableBuiltins are the built-in regression types with a RowScorer
+// (scorer.go): REG_OLS — penalties and selection included — REG_GLM,
+// REG_BAYES_LINEAR at its posterior mean. It is the static face of the
+// engine's built-in ScorerSource (regression.BuiltinScorer), which
+// predict cannot import; TestBuiltinScorer_MatchesScorableType keeps
+// the two one set.
+var scorableBuiltins = []types.RegressionType{types.REG_OLS, types.REG_GLM, types.REG_BAYES_LINEAR}
+
+// ScorableType reports whether a fit of type t can be scored: a type
+// with a RowScorer (scorableBuiltins). It is the built-in view; an
+// instance's view (ScorableFunc) adds its extension regressions that
+// supply a scorer.
 func ScorableType(t types.RegressionType) bool {
-	switch t {
-	case types.REG_OLS, types.REG_GLM, types.REG_BAYES_LINEAR:
-		return true
-	}
-	return false
+	return slices.Contains(scorableBuiltins, t)
+}
+
+// ScorableFunc is an instance's view of the scorable regression types:
+// ScorableType plus every registered, visible extension regression
+// whose registration supplies a Scorer. The runtime reads it off the
+// engine's extension registry, predict off the extensions snapshot, so
+// both judge one reference the same way.
+type ScorableFunc func(t types.RegressionType) bool
+
+// BuiltinRegression reports whether t is a built-in regression type
+// (types.AllRegressionTypes) — any other bound type is an extension
+// regression's.
+func BuiltinRegression(t types.RegressionType) bool {
+	return slices.Contains(types.AllRegressionTypes(), t)
 }
 
 // CheckScore is the one rule over a scoring reference (an
@@ -202,7 +279,22 @@ func ScorableType(t types.RegressionType) bool {
 // exactly one predictor term. The first fault wins. It does not judge the scoring
 // frame's columns — the caller's field-reference walk does, with
 // PredictorMissing / PredictorNotNumeric over Signature.Terms.
+//
+// CheckScore judges scorability by the built-ins alone (ScorableType);
+// CheckScoreFor takes the instance's view.
 func CheckScore(attr *types.Attribute, cat Catalog) (ScoreParams, Signature, *errors.CodedError) {
+	return CheckScoreFor(attr, cat, ScorableType)
+}
+
+// CheckScoreFor is CheckScore over the instance's scorable types (nil:
+// ScorableType). An extension regression's fit is scorable only when
+// its registration supplies a Scorer (else reason no_scorer), and its
+// scorer scores the whole model: params.terms (terms_unsupported) and a
+// lower / upper params.bound (bound_unsupported) are refused on it.
+func CheckScoreFor(attr *types.Attribute, cat Catalog, scorable ScorableFunc) (ScoreParams, Signature, *errors.CodedError) {
+	if scorable == nil {
+		scorable = ScorableType
+	}
 	p, err := DecodeScoreParams(attr.Params)
 	if err != nil {
 		return p, Signature{}, err
@@ -225,10 +317,24 @@ func CheckScore(attr *types.Attribute, cat Catalog) (ScoreParams, Signature, *er
 	if sig.EffectiveKind() != types.FitKindRegression {
 		return p, sig, KindMismatch(p.Fit, types.FitKindRegression, sig.EffectiveKind())
 	}
-	if !ScorableType(sig.Type) {
-		return p, sig, scoreInvalid(p.Fit, ReasonTypeUnsupported,
-			fmt.Sprintf("cannot score a %s fit; it scores least-squares, generalized-linear and Bayesian-linear fits", sig.Type),
-			map[string]any{"type": string(sig.Type)})
+	extension := !BuiltinRegression(sig.Type)
+	if !scorable(sig.Type) {
+		if extension {
+			return p, sig, noScorer(p.Fit, sig.Type)
+		}
+		return p, sig, typeUnsupported(p.Fit, sig.Type)
+	}
+	if extension {
+		if p.Terms != nil {
+			return p, sig, scoreInvalid(p.Fit, ReasonTermsUnsupported,
+				fmt.Sprintf("params.terms does not apply to %q, a %s fit: an extension regression's scorer scores the whole model; drop params.terms", p.Fit, sig.Type),
+				map[string]any{"type": string(sig.Type)})
+		}
+		if p.Bound == BoundLower || p.Bound == BoundUpper {
+			return p, sig, scoreInvalid(p.Fit, ReasonBoundUnsupported,
+				fmt.Sprintf("params.bound %q does not apply to %q, a %s fit: an extension regression's scorer scores the whole model at its point estimates; drop params.bound", p.Bound, p.Fit, sig.Type),
+				map[string]any{"type": string(sig.Type), "bound": p.Bound})
+		}
 	}
 	if p.Terms != nil {
 		if len(p.Terms) == 0 {
@@ -296,7 +402,14 @@ func DecodeScoreParams(raw json.RawMessage) (ScoreParams, *errors.CodedError) {
 }
 
 func scoreInvalid(fit, reason, what string, extra map[string]any) *errors.CodedError {
-	details := map[string]any{"attribute": string(types.ATTR_REG_PREDICT), "reason": reason}
+	return scoreInvalidFor(types.ATTR_REG_PREDICT, fit, reason, what, extra)
+}
+
+// scoreInvalidFor is scoreInvalid for the scoring slot of type attr
+// (ATTR_REG_PREDICT, or an ATTR_REG_FITTED / ATTR_REG_RESIDUAL slot's
+// params.fit).
+func scoreInvalidFor(attr types.AttributeType, fit, reason, what string, extra map[string]any) *errors.CodedError {
+	details := map[string]any{"attribute": string(attr), "reason": reason}
 	if fit != "" {
 		details["fit"] = fit
 	}
@@ -304,7 +417,7 @@ func scoreInvalid(fit, reason, what string, extra map[string]any) *errors.CodedE
 		details[k] = v
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_SCORE_INVALID,
-		string(types.ATTR_REG_PREDICT)+" "+what, details)
+		string(attr)+" "+what, details)
 }
 
 // TermUnknown is the PULSE_MODEL_TERM_UNKNOWN refusal: term is neither
@@ -321,18 +434,30 @@ func TermUnknown(fit, term string, terms []string) *errors.CodedError {
 // scoring frame (schema, feature outputs and earlier attribute labels)
 // has no column for one of fit's predictors.
 func PredictorMissing(fit, column string) *errors.CodedError {
+	return PredictorMissingFor(types.ATTR_REG_PREDICT, fit, column)
+}
+
+// PredictorMissingFor is PredictorMissing for the scoring slot of type
+// attr.
+func PredictorMissingFor(attr types.AttributeType, fit, column string) *errors.CodedError {
 	return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_PREDICTOR_MISSING,
-		fmt.Sprintf("%s: predictor %q of model %q is not a column of the scoring frame", types.ATTR_REG_PREDICT, column, fit),
-		map[string]any{"attribute": string(types.ATTR_REG_PREDICT), "fit": fit, "field": column})
+		fmt.Sprintf("%s: predictor %q of model %q is not a column of the scoring frame", attr, column, fit),
+		map[string]any{"attribute": string(attr), "fit": fit, "field": column})
 }
 
 // PredictorNotNumeric is the PULSE_MODEL_PREDICTOR_NOT_NUMERIC refusal:
 // a predictor column of fit is a schema field of a type a regression
 // cannot read (fieldType is its type name).
 func PredictorNotNumeric(fit, column, fieldType string) *errors.CodedError {
+	return PredictorNotNumericFor(types.ATTR_REG_PREDICT, fit, column, fieldType)
+}
+
+// PredictorNotNumericFor is PredictorNotNumeric for the scoring slot of
+// type attr.
+func PredictorNotNumericFor(attr types.AttributeType, fit, column, fieldType string) *errors.CodedError {
 	return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC,
-		fmt.Sprintf("%s: predictor %q of model %q is %s, not a numeric column", types.ATTR_REG_PREDICT, column, fit, fieldType),
-		map[string]any{"attribute": string(types.ATTR_REG_PREDICT), "fit": fit, "field": column, "field_type": fieldType})
+		fmt.Sprintf("%s: predictor %q of model %q is %s, not a numeric column", attr, column, fit, fieldType),
+		map[string]any{"attribute": string(attr), "fit": fit, "field": column, "field_type": fieldType})
 }
 
 // DefaultScoreLabel is ATTR_REG_PREDICT's output label when the slot

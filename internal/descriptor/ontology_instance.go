@@ -84,7 +84,7 @@ func instanceOntology(ext *ExtensionsSnapshot, inst *InstanceSnapshot) *Ontology
 func extensionOperatorLists(ext *ExtensionsSnapshot) [][]descriptor.OperatorMeta {
 	return [][]descriptor.OperatorMeta{
 		ext.Aggregators, ext.Attributes, ext.Filterers, ext.Groupers, ext.Windows,
-		ext.Features, ext.Tests, ext.OverlayKinds, ext.MatrixOps,
+		ext.Features, ext.Tests, ext.OverlayKinds, ext.MatrixOps, ext.Regressions,
 	}
 }
 
@@ -263,7 +263,12 @@ func pruneOntology(g *OntologyGraph, inst *InstanceSnapshot) *OntologyGraph {
 			hidden[n.ID] = struct{}{}
 		}
 	}
+	// A visible extension REG_* model keeps the regression family alive
+	// (the snapshot is already profile-filtered).
 	allRegressionsHidden := true
+	if ext := inst.Extensions(); ext != nil && len(ext.Regressions) > 0 {
+		allRegressionsHidden = false
+	}
 	for _, r := range regressionCapabilities() {
 		if !inst.Hidden(r.Name) {
 			allRegressionsHidden = false

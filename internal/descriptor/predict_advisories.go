@@ -39,6 +39,10 @@ var advisoryCodes = []errors.Code{
 	errors.PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
 	errors.PULSE_ADVISORY_JACKKNIFE_COST,
 	errors.PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED,
+	// Result-only (RegressionResult.Advisories): whether a bound binds is
+	// data-dependent, so no predict rule raises it; registered here so
+	// Options.SuppressAdvisories accepts it.
+	errors.PULSE_ADVISORY_CONSTRAINT_ACTIVE,
 	errors.PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT,
 }
 

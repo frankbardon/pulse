@@ -177,7 +177,7 @@ one name in every group must be enabled:
 | `OVERLAY_YOY` | `GROUP_DATE` |
 | `capability:filter_to_file` | `FILTER_EXPRESSION` (filter-to-file compiles every filterer into one filter expression) |
 | `capability:model_save` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_OLS`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE` or `capability:matrices` (any one; a `save` writes a fitted regression as a model file or a vector fit as a population file) |
-| `capability:models` | `ATTR_REG_PREDICT`, `ATTR_FORMULA`, `FILTER_EXPRESSION`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`, `ATTR_VEC_DISTANCE` or `capability:matrices` (any one; a loaded model is read only by a scoring reference, a loaded population — the `populations` key, which this capability also gates — only by a `params.fit`) |
+| `capability:models` | `ATTR_REG_PREDICT`, `ATTR_REG_FITTED`, `ATTR_REG_RESIDUAL`, `ATTR_FORMULA`, `FILTER_EXPRESSION`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`, `ATTR_VEC_DISTANCE` or `capability:matrices` (any one; a loaded model is read only by a scoring reference, a loaded population — the `populations` key, which this capability also gates — only by a `params.fit`) |
 
 `TEST_TUKEY_HSD` does not require `TEST_ANOVA_F`.
 
@@ -199,6 +199,16 @@ Every `DependsOn` entry must name a feature this build knows: a built-in,
 or another registered extension operator. This is checked at every
 `pulse.New`, with or without a profile, so a typo fails at construction.
 An enabled extension operator also needs a request host, like a built-in.
+
+An enabled extension regression also counts as a regression for the
+built-in features that need one. `ATTR_REG_PREDICT` and
+`capability:model_save` normally need one of `REG_BAYES_LINEAR`,
+`REG_GLM` or `REG_OLS`; an enabled extension regression whose
+registration supplies a `Scorer` meets that need too.
+`capability:compose_fits` accepts any enabled extension regression. So
+a profile that enables only your own model can still fit, score and
+save it. `ATTR_REG_FITTED` and `ATTR_REG_RESIDUAL` still need `REG_OLS`,
+because without `params.fit` they refit OLS themselves.
 
 ## Using a profile from Go
 

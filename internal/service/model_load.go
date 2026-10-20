@@ -73,7 +73,7 @@ func (s *Service) loadModels(outer *model.Set, refs model.Refs) (*model.Set, err
 	if cerr := model.CheckRefs(refs, outer); cerr != nil {
 		return nil, cerr
 	}
-	loaded, cerr := model.LoadFiles(refs, s.ReadModelFile)
+	loaded, cerr := s.loadFiles(refs)
 	if cerr != nil {
 		return nil, cerr
 	}
@@ -83,8 +83,22 @@ func (s *Service) loadModels(outer *model.Set, refs model.Refs) (*model.Set, err
 // loadModelFiles is the read half alone, for a pre-pass whose static
 // rule already ran (model.CheckComposeBatch / CheckChainSaves).
 func (s *Service) loadModelFiles(refs model.Refs) (*model.Loaded, error) {
+	loaded, cerr := s.loadFiles(refs)
+	if cerr != nil {
+		return nil, cerr
+	}
+	return loaded, nil
+}
+
+// loadFiles is model.LoadFiles through the instance afero.Fs, then
+// model.CheckLoadedTypes against the instance's registered, visible
+// extension regressions — predict's loadModelFiles runs the same two.
+func (s *Service) loadFiles(refs model.Refs) (*model.Loaded, error) {
 	loaded, cerr := model.LoadFiles(refs, s.ReadModelFile)
 	if cerr != nil {
+		return nil, cerr
+	}
+	if cerr := model.CheckLoadedTypes(refs, loaded, s.extensions.RegressionRegistered); cerr != nil {
 		return nil, cerr
 	}
 	return loaded, nil

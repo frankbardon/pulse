@@ -31,7 +31,8 @@ feature profile or extensions it is the published file byte for byte.
 Every extension operator the instance registers (and its profile keeps)
 joins its category's operator-type enum beside the built-ins —
 `AggregationType`, `AttributeType`, `FiltererType`, `GroupType`,
-`WindowType`, `FeatureType`, `TestType` and `MatrixType` — so a request
+`WindowType`, `FeatureType`, `TestType`, `MatrixType` and
+`RegressionType` — so a request
 naming one validates against the instance's own schema. An instance
 built with a feature profile gets a narrower document:
 
@@ -794,6 +795,62 @@ without a modifier, with `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`
 (`details.reason` `penalty`) in predict and at runtime alike. Both slots are in the `standard` preset (not
 `minimal`) and every float in them is rounded by `return.precision`.
 
+## Extension regression results
+
+An embedder-registered `REG_<NS>_<NAME>` model (`pulse.Options.Extensions.Regressions`)
+returns its result in the built-in `RegressionResult` shape, plus two
+additive `omitempty` slots the built-ins never fill (`format_version`
+stays `"1.1"`; a built-in fit is byte-identical): `statistics`, the
+per-coefficient test statistic (keyed like `coefficients`), and
+`outputs`, an object of the model's declared extras (its
+registration's `OutputSchema` keys). On an extension fit `std_errors`,
+`statistics` and `p_values` each carry EVERY coefficient key; a figure
+the model did not compute is `null` (key kept), so the coefficient
+table stays rectangular. A model whose registration does not declare
+`PValues` emits none: its `p_values` is `null` on every coefficient,
+under `resample` too. Only a coefficient whose p-value is defined
+joins a multiplicity family. `ci_lower` / `ci_upper` / `conf_level`
+are the engine's (below, Regression coefficient intervals): β ∓ q·SE
+on every coefficient key, `null` where the standard error is, q the
+Student-t on the model's reported `df`, else (and under `resample`)
+the normal; `df` is the reported one only on a t interval. A
+non-finite float in `outputs` is `null`.
+`n_obs`, `sum_weights` / `n_eff`, `p_adjusted`, `multiplicity` and
+`error` stay engine-owned. `outputs` is not on the `components`
+machinery: neither `disable_components` / `--no-components` nor any
+`return` preset strips it (it is in `minimal` and `standard`). The Go
+`RegressionResult.ReportedFigures` (the fit statistics the model
+reported, so a reported exact 0 ranks in a compose `sweep`) is
+`json:"-"` and never reaches the wire. A sweep `rank` reads an
+extension fit like a built-in: `regressions.<name>.outputs.<key>` ranks
+on a declared output (an exact 0 included), a fit statistic the model
+reported ranks, and one it did not report is missing — refused
+`PULSE_SWEEP_RANK_PATH` (reason `missing`) when no slot reports it.
+
+Under `resample` (always accepted on an extension model) the result
+echoes `resample` (and `bootstrap_requested` / `bootstrap_succeeded`,
+`jackknife_groups`) as a built-in's does, and every coefficient's
+`std_errors`, `statistics` (the Wald z) and `p_values` carry the
+replicate figures; under `selection` (a `SupportsSelection` model) it
+echoes `selection`, `criterion` and `selected_features`.
+
+On the request side `RegressionSpec` takes an additive `params` object
+(`omitempty`; absent is byte-identical), the model's own configuration.
+Its keys are the registration's declared `Params` — the manifest's
+`extensions.regressions[].params` entries not marked `slot` — and any
+other key is refused `PULSE_REQUEST_UNKNOWN_FIELD` with `details.path`
+`regressions[i].params.<key>`, identically at predict and at runtime; a
+value not of its declared `json_type`, or a missing `required` param, is
+`PULSE_REQUEST_PARAM_INVALID` at the same path (every extension
+category's `params` is checked this way). A
+registration declaring no params leaves the object unchecked (predict
+notes it `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED`). The built-ins
+(`REG_OLS`, `REG_GLM`, `REG_BAYES_LINEAR`) take every knob as a typed
+field and declare no params, so any `params` key on one is refused. The
+manifest row lists the model's `output_schema` (`key`, `json_type`,
+`description`), the keys `outputs` may carry. Recipe:
+`docs/src/internals/extension-points.md` (Regression model).
+
 ## Regression robust covariance
 
 `RegressionSpec` takes an additive `covariance` object `{type, cluster,
@@ -816,6 +873,32 @@ regression type, is
 `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (`details.reason`), in predict
 and at runtime alike. The echo is in the `standard` preset.
 
+## Regression shrinkage controls
+
+`RegressionSpec.prior_precision` (`REG_BAYES_LINEAR`) is
+`#/$defs/PriorPrecision`, a `oneOf` of a non-negative number (the
+scalar ε, Λ₀ = ε·I; byte-identical to the former float field, absent or
+0 = the default 1e-3) and an array of non-negative numbers (one per
+coefficient, intercept first like `prior_mu`: Λ₀ = diag; 0 is a flat
+prior). A wrong length or a negative entry is `PROCESSING_CONFIG` in
+predict and at runtime. `RegressionSpec.unpenalized` is an additive
+`omitempty` array of predictor names the `REG_OLS` ridge (`penalty`
+`l2`) penalty skips (glmnet `penalty.factor` 0); every other penalty or
+type refuses it `PROCESSING_CONFIG`, predict and runtime alike.
+`format_version` stays `"1.1"`; neither is echoed on the result.
+
+`RegressionSpec.bounds` (`REG_OLS`) is an additive `omitempty` object
+`#/$defs/RegressionBounds` `{nonnegative: [predictor names]}`: those
+slopes are constrained ≥ 0. A fit no bound binds is plain OLS byte for
+byte; a binding fit keeps its coefficients (a held one exactly `0`) and
+R² and reports `std_errors`, `p_values`, `ci_lower` / `ci_upper` and
+every `vcov` / `correlation` entry `null` (keys kept), with
+`PULSE_ADVISORY_CONSTRAINT_ACTIVE` on `advisories` (result-only).
+Refused `PROCESSING_CONFIG` with a penalty or selection, on another
+type or for an unknown / repeated name; a robust `covariance` is
+`PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (`details.reason` `bounds`).
+`format_version` stays `"1.1"`; the bounds are not echoed.
+
 ## Regression coefficient intervals
 
 `RegressionSpec` takes an additive `conf_level` float (`0 < c < 1`,
@@ -828,7 +911,8 @@ Student-t q on `df` = the residual N* − p − 1 (fractional under
 probability weights), `REG_GLM` a Wald normal q (no `df`),
 `REG_BAYES_LINEAR` the posterior t on `df` = 2·a_n — equal to
 `credible_intervals` when `conf_level` is unset, since it then falls
-back to `credible_level` — and any fit under `resample` a normal q on
+back to `credible_level` —, a registered model a t q on the `df` it
+reports (else a normal q, no `df`), and any fit under `resample` a normal q on
 the resampled standard errors (no `df`). An undefined bound or `df`
 (residual df ≤ 0) is `null`. All four are in the `standard` preset (not
 `minimal`) and rounded by `return.precision`.
@@ -962,7 +1046,7 @@ covering the path removes it; excluding `<key>` drops it too. Every listed path 
 | `crosstab` | `shape`, `matrix` | whole |
 | `matrices[*]` | `name`, `type`, `group_key`, `primary` | all but `auxiliary`, except the inference figures a spec asked for: `auxiliary.p` / `ci_lower` / `ci_upper` (`params.inference`), `p_adjusted` / `significant_adjusted` (a multiplicity family), and the pairwise `auxiliary.n` beside a kept `p` (a companion). They exist only on that spec's result, so a spec without inference keeps no auxiliary |
 | `tests[*]` / `post_tests[*]` | `label`, `type`, `group_key`, `statistic`, `p_value`, `reject_null`, `p_adjusted`, `significant_adjusted` | minimal's keys + `variant`, `df`, `alpha`, `multiplicity`, `details.effect_size` (no other `details` key) |
-| `regressions[*]` | `name`, `type`, `coefficients`, `p_values` | all but `credible_intervals` and `selection` (so `ci_lower` / `ci_upper` / `df` / `conf_level`, and `vcov` / `correlation` / `covariance` when asked for) |
+| `regressions[*]` | `name`, `type`, `coefficients`, `p_values`, an extension model's `outputs` | all but `credible_intervals` and `selection` (so `ci_lower` / `ci_upper` / `df` / `conf_level`, and `vcov` / `correlation` / `covariance` when asked for; an extension model's `statistics` and `outputs`) |
 | `overlays[*]` | `name`, `kind`, `ref`, `summary` (no `payload`) | whole |
 | `components` | no | no |
 
@@ -1098,7 +1182,9 @@ result (not payload-reachable).
 relative to the instance filesystem root, where the finished fit is
 written as a model file (`model_format_version` 1, or 2 — adding the
 `covariance` echo — when a robust covariance produced the fit's standard
-errors; `.pulse-model.json`;
+errors, or 3 — adding the fit's `outputs`, its coefficients named by the
+model — for an extension regression whose registration supplies a
+scorer; `.pulse-model.json`;
 the format is in `.claude/reference/byte-layout.md`, "Model file"). The
 path must end `.pulse-model.json` and stay under the root
 (`PULSE_MODEL_SAVE_INVALID` with `details.reason` and `details.regression`

@@ -1762,6 +1762,37 @@
       "properties": {},
       "type": "object"
     },
+    "PriorPrecision": {
+      "description": "Prior precision of the coefficients (the Bayesian linear fit): a number eps (Lambda0 = eps*I; absent or 0 = the default 1e-3), or one entry per coefficient, intercept first then the predictors in order (Lambda0 = diag; 0 = a flat prior on that coefficient).",
+      "oneOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "items": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "RegressionBounds": {
+      "additionalProperties": false,
+      "properties": {
+        "nonnegative": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
     "RegressionCovariance": {
       "additionalProperties": false,
       "properties": {
@@ -1945,6 +1976,10 @@
             "null"
           ]
         },
+        "outputs": {
+          "additionalProperties": true,
+          "type": "object"
+        },
         "p_values": {
           "additionalProperties": {
             "type": [
@@ -1993,6 +2028,15 @@
         "selection": {
           "type": "string"
         },
+        "statistics": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": "object"
+        },
         "std_errors": {
           "additionalProperties": {
             "type": [
@@ -2029,6 +2073,9 @@
         "bootstrap_iters": {
           "type": "integer"
         },
+        "bounds": {
+          "$ref": "#/$defs/RegressionBounds"
+        },
         "conf_level": {
           "type": "number"
         },
@@ -2062,6 +2109,9 @@
         "name": {
           "type": "string"
         },
+        "params": {
+          "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
+        },
         "penalty": {
           "type": "string"
         },
@@ -2087,7 +2137,7 @@
           ]
         },
         "prior_precision": {
-          "type": "number"
+          "$ref": "#/$defs/PriorPrecision"
         },
         "prior_rate": {
           "type": "number"
@@ -2112,6 +2162,15 @@
         },
         "type": {
           "$ref": "#/$defs/RegressionType"
+        },
+        "unpenalized": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "vcov": {
           "type": "boolean"
@@ -2823,4 +2882,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: f4ad3437d887d3cee5f70eebd73a8d929c4ae27ff2aad18afc3b39b7de8092c5
+// golden-hash: dcb0d389bdc366ae7047f2c87000087c045e336d44a68cc1ef8cf7ae4f7162c6

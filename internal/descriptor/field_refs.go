@@ -371,6 +371,30 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 					map[string]any{"field": ref.Name, "attribute": string(attr.Type), "slot": string(ref.Slot)}))
 			}
 		case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
+			if model.FitReferenced(attrRoute, attr) {
+				// params.fit scores a bound fit (internal/model.
+				// CheckFitReference — the rule the attribute's bind
+				// re-runs), then every column the score reads: the
+				// fit's terms and, for a residual, its target.
+				p, sig, cerr := model.CheckFitReference(attr, models, scorableRegression(w.inst, w.snap))
+				if cerr != nil {
+					w.out = append(w.out, cerr)
+					break
+				}
+				for _, col := range sig.Terms {
+					w.check(col, func() *errors.CodedError { return model.PredictorMissingFor(attr.Type, p.Fit, col) })
+					if f := schema.Field(col); f != nil && !regressionAcceptsType(sig.Type, f.Type) {
+						w.out = append(w.out, model.PredictorNotNumericFor(attr.Type, p.Fit, col, f.Type.String()))
+					}
+				}
+				if attrRoute == types.ATTR_REG_RESIDUAL && sig.Target != "" {
+					w.check(sig.Target, func() *errors.CodedError { return model.TargetMissing(attr.Type, p.Fit, sig.Target) })
+					if f := schema.Field(sig.Target); f != nil && !regressionAcceptsType(sig.Type, f.Type) {
+						w.out = append(w.out, model.TargetNotNumeric(attr.Type, p.Fit, sig.Target, f.Type.String()))
+					}
+				}
+				break
+			}
 			if attr.Target != "" {
 				w.check(attr.Target, func() *errors.CodedError {
 					return refusal(string(attr.Type)+" Target references unknown field: "+attr.Target,
@@ -388,7 +412,7 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 			// attribute's bind re-runs), then every column the bound
 			// model may read: present on the frame, numeric when it is a
 			// schema field.
-			p, sig, cerr := model.CheckScore(attr, models)
+			p, sig, cerr := model.CheckScoreFor(attr, models, scorableRegression(w.inst, w.snap))
 			if cerr != nil {
 				w.out = append(w.out, cerr)
 				break
@@ -482,6 +506,7 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 					map[string]any{"field": f, "type": string(reg.Type)})
 			})
 		}
+		w.checkInputs("regression", string(reg.Type), reg.Params, "type")
 	}
 	for _, grp := range req.Groups {
 		if grp == nil {

@@ -30,7 +30,14 @@ type ExtensionsSnapshot struct {
 	// Accepts and Params, so every per-category walk (MCP enums, the
 	// ontology, the merge gate, the weight resolver) reads them like any
 	// other category. MatrixDetails carries the matrix-only facts.
-	MatrixOps        []descriptor.OperatorMeta
+	MatrixOps []descriptor.OperatorMeta
+	// Regressions are the extension REG_* models
+	// (pulse.RegressionRegistration): Name, Namespace, Description,
+	// Streamable (the declared form) and WeightAware, so the weight
+	// resolver, predict's streamability and the is-known checks read
+	// them like any other category. RegressionDetails carries the
+	// regression-only facts.
+	Regressions      []descriptor.OperatorMeta
 	ExprFunctions    []descriptor.ExprFunctionMeta
 	LookupTables     []descriptor.LookupTableMeta
 	ReferenceVectors []descriptor.ReferenceVectorMeta
@@ -68,6 +75,11 @@ type ExtensionsSnapshot struct {
 	// params), keyed by name; its own ComponentSchema keys ride
 	// ComponentSchemas. Never serialised.
 	MatrixDetails map[string]ExtensionMatrixOp `json:"-"`
+
+	// RegressionDetails carries each extension REG_* model's
+	// regression-only facts (declared shared slots, output keys), keyed
+	// by name. Never serialised.
+	RegressionDetails map[string]ExtensionRegression `json:"-"`
 
 	// OverlayKinds is the forward-compat reservation slot for
 	// embedder-registered overlay catalog entries. The runtime
@@ -174,6 +186,7 @@ func emptyExtensionsManifest() descriptor.ExtensionsManifest {
 		Features:         []descriptor.OperatorMeta{},
 		Tests:            []descriptor.OperatorMeta{},
 		MatrixOps:        []descriptor.MatrixMeta{},
+		Regressions:      []descriptor.RegressionMeta{},
 		ExprFunctions:    []descriptor.ExprFunctionMeta{},
 		LookupTables:     []descriptor.LookupTableMeta{},
 		ReferenceVectors: []descriptor.ReferenceVectorMeta{},
@@ -229,6 +242,7 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 	// The weighting-aware projection is stamped by assembleManifest,
 	// which knows whether the instance offers capability:weighting.
 	out.MatrixOps = extensionMatrixMetas(snap, true)
+	out.Regressions = extensionRegressionMetas(snap, true)
 	if out.ExprFunctions == nil {
 		out.ExprFunctions = []descriptor.ExprFunctionMeta{}
 	}
@@ -422,7 +436,7 @@ const (
 
 // WeightAwareness reports whether name is an embedder-registered
 // operator of category ("aggregator", "attribute", "test" — tier-1
-// and tier-2 tests alike — or "matrix") and, if so, whether its registration declared
+// and tier-2 tests alike — "matrix" or "regression") and, if so, whether its registration declared
 // WeightAware. Nil-safe: a nil snapshot registers nothing.
 func (s *ExtensionsSnapshot) WeightAwareness(category, name string) (registered, aware bool) {
 	if s == nil {
@@ -438,6 +452,8 @@ func (s *ExtensionsSnapshot) WeightAwareness(category, name string) (registered,
 		metas = s.Tests
 	case extCategoryMatrix:
 		metas = s.MatrixOps
+	case extCategoryRegression:
+		metas = s.Regressions
 	}
 	for _, m := range metas {
 		if m.Name == name {

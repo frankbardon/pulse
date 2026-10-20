@@ -54,7 +54,7 @@ func TestRegBayes_DiffusePriorMatchesOLS(t *testing.T) {
 		olsSpec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}}
 		bayesSpec := &types.RegressionSpec{
 			Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"},
-			PriorPrecision: 1e-12,
+			PriorPrecision: types.PrecisionScalar(1e-12),
 		}
 
 		olsRes, err := newOLS(t, olsSpec).FitBuffered(records)
@@ -175,7 +175,7 @@ func TestRegBayes_StrongPriorShrinks(t *testing.T) {
 		Type:           types.REG_BAYES_LINEAR,
 		Target:         "y",
 		Predictors:     predictors,
-		PriorPrecision: 1e6,
+		PriorPrecision: types.PrecisionScalar(1e6),
 	}
 	bayesRes, err := newBayes(t, bayesSpec).FitBuffered(records)
 	if err != nil {
@@ -286,7 +286,7 @@ func TestRegBayes_PriorValidation(t *testing.T) {
 			name: "positive precision/shape/rate passes",
 			spec: &types.RegressionSpec{
 				Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"},
-				PriorPrecision: 1e-2, PriorShape: 2.0, PriorRate: 0.5,
+				PriorPrecision: types.PrecisionScalar(1e-2), PriorShape: 2.0, PriorRate: 0.5,
 			},
 			ok: true,
 		},
@@ -313,7 +313,7 @@ func TestRegBayes_PriorValidation(t *testing.T) {
 		},
 		{
 			name: "negative PriorPrecision rejected",
-			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, PriorPrecision: -1},
+			spec: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x"}, PriorPrecision: types.PrecisionScalar(-1)},
 			ok:   false,
 		},
 		{

@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:f9c82a3572375114addfe09629d1bb9399dfc0fd242076ffece101bee8a500df",
+    "feature_set_digest": "fs1:64bfafee2a0434df9b260e4b510149331825dae09ec1acc1b59174c8d805c144",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -3943,13 +3943,13 @@
         {
           "name": "ATTR_REG_FITTED",
           "category": "attribute",
-          "description": "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own RegressionSpec-shaped fields (Target, Predictors, Penalty, Alpha, L1Ratio); each ATTR_REG_* attribute refits independently (Option A). Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet).",
+          "description": "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own RegressionSpec-shaped fields (Target, Predictors, Penalty, Alpha, L1Ratio); each ATTR_REG_* attribute refits independently (Option A). Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet). With params.fit it scores that bound fit instead (any scorable type; a REG_GLM's fitted mean) and refits nothing.",
           "params": [
             {
               "name": "target",
               "type": "field",
               "required": true,
-              "description": "Response variable field name; a top-level key of the attribute entry.",
+              "description": "Response variable field name; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
               "field_filter": "numeric",
               "slot": true
             },
@@ -3957,7 +3957,7 @@
               "name": "predictors",
               "type": "list",
               "required": true,
-              "description": "Predictor field names, at least one; a top-level key of the attribute entry.",
+              "description": "Predictor field names, at least one; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
               "slot": true
             },
             {
@@ -3987,6 +3987,12 @@
               "required": false,
               "description": "Elastic-net mixing parameter in (0,1); only read when penalty == elasticnet. Top-level.",
               "slot": true
+            },
+            {
+              "name": "fit",
+              "type": "string",
+              "required": false,
+              "description": "Score through a bound fit instead of refitting OLS: a `fits` entry of the enclosing compose request or a loaded `models` entry, any scorable type (a REG_GLM on its response scale; an extension regression whose registration supplies a Scorer). The slot then takes no target, predictors, penalty, alpha or l1_ratio; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound. Absent, the slot refits OLS."
             }
           ],
           "accepts_types": [
@@ -4134,13 +4140,13 @@
         {
           "name": "ATTR_REG_RESIDUAL",
           "category": "attribute",
-          "description": "Per-row residual yᵢ − ŷᵢ from a regression refit during the attribute prepass. Sums to ≈ 0 when the fit includes an intercept (always true for OLS). Accepts any OLS penalty; reuses the same fit machinery as ATTR_REG_FITTED.",
+          "description": "Per-row residual yᵢ − ŷᵢ from a regression refit during the attribute prepass. Sums to ≈ 0 when the fit includes an intercept (always true for OLS). Accepts any OLS penalty; reuses the same fit machinery as ATTR_REG_FITTED. With params.fit it is the bound fit's target minus its score (any scorable type; a REG_GLM's response residual) and refits nothing.",
           "params": [
             {
               "name": "target",
               "type": "field",
               "required": true,
-              "description": "Response variable field name; a top-level key of the attribute entry.",
+              "description": "Response variable field name; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
               "field_filter": "numeric",
               "slot": true
             },
@@ -4148,7 +4154,7 @@
               "name": "predictors",
               "type": "list",
               "required": true,
-              "description": "Predictor field names, at least one; a top-level key of the attribute entry.",
+              "description": "Predictor field names, at least one; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
               "slot": true
             },
             {
@@ -4178,6 +4184,12 @@
               "required": false,
               "description": "Elastic-net mixing parameter in (0,1); only read when penalty == elasticnet. Top-level.",
               "slot": true
+            },
+            {
+              "name": "fit",
+              "type": "string",
+              "required": false,
+              "description": "Score through a bound fit instead of refitting OLS: a `fits` entry of the enclosing compose request or a loaded `models` entry, any scorable type (a REG_GLM on its response scale; an extension regression whose registration supplies a Scorer). The slot then takes no target, predictors, penalty, alpha or l1_ratio; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound. Absent, the slot refits OLS."
             }
           ],
           "accepts_types": [
@@ -5914,6 +5926,74 @@
         }
       ],
       "windows": [
+        {
+          "name": "WIN_ADSTOCK",
+          "category": "window",
+          "description": "Media adstock: a finite lag kernel over the ordered partition, value_i = Σ w_l · x_{i−l} for l = 0..max_lag. Kernels: geometric (w_l = decay^l), weibull_cdf (Weibull survival 1 − F(l)), weibull_pdf (Weibull density f(l + 1)); normalised to sum 1 by default.",
+          "params": [
+            {
+              "name": "kernel",
+              "type": "enum",
+              "required": true,
+              "description": "Lag-weight shape: geometric reads decay; weibull_cdf and weibull_pdf read shape and scale.",
+              "enum_values": [
+                "geometric",
+                "weibull_cdf",
+                "weibull_pdf"
+              ]
+            },
+            {
+              "name": "max_lag",
+              "type": "int",
+              "required": true,
+              "description": "Last lag the kernel reaches, an integer in [1, 10000]; the kernel has max_lag + 1 weights (lag 0 is the current row)."
+            },
+            {
+              "name": "decay",
+              "type": "float",
+              "required": false,
+              "description": "geometric only: carry-over share in [0, 1); w_l = decay^l. Refused on a Weibull kernel."
+            },
+            {
+              "name": "shape",
+              "type": "float",
+              "required": false,
+              "description": "weibull_cdf / weibull_pdf only: Weibull shape \u003e 0. Refused on geometric."
+            },
+            {
+              "name": "scale",
+              "type": "float",
+              "required": false,
+              "description": "weibull_cdf / weibull_pdf only: Weibull scale \u003e 0, in rows. Refused on geometric."
+            },
+            {
+              "name": "normalize",
+              "type": "bool",
+              "required": false,
+              "default": true,
+              "description": "Divide the weights by their sum so the kernel sums to 1 and the column keeps the input's scale."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one float per row; null where the row's own value is null",
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          },
+          "intents": [
+            "prepare"
+          ]
+        },
         {
           "name": "WIN_DELTA",
           "category": "window",
@@ -7910,13 +7990,14 @@
             "name": "prior_mu",
             "type": "list",
             "required": false,
-            "description": "Prior mean vector for coefficients."
+            "description": "Prior mean vector for coefficients, intercept first then one per predictor (length predictors + 1)."
           },
           {
             "name": "prior_precision",
-            "type": "float",
+            "type": "any",
             "required": false,
-            "description": "Prior precision scalar."
+            "default": 0.001,
+            "description": "Prior precision: a number eps (Lambda0 = eps·I; 0 = the default) or a list of predictors + 1 entries, intercept first like prior_mu (Lambda0 = diag): 0 is a flat prior on that coefficient (refused as RANK_DEFICIENT when the data then leave the posterior improper), a large entry pins it to its prior_mu entry. A wrong length or a negative entry is PROCESSING_CONFIG."
           },
           {
             "name": "prior_shape",
@@ -8185,7 +8266,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error; l2: the closed-form ridge sandwich SEs; l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]; a robust covariance adds its covariance echo.",
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error; l2: the closed-form ridge sandwich SEs; l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]; bounds whose constraint binds without resample: the same nulls (vcov entries too) plus advisories [PULSE_ADVISORY_CONSTRAINT_ACTIVE]; a robust covariance adds its covariance echo.",
         "streamable": true,
         "streamable_hint": "Streamable in isolation; setting Resample or Selection on the request forces the buffered path. A robust covariance (any type but classical) forces it too.",
         "params": [
@@ -8226,6 +8307,18 @@
             "type": "float",
             "required": false,
             "description": "Elastic-net mixing parameter, 0 \u003c l1_ratio \u003c 1; only read when penalty == elasticnet (glmnet's alpha)."
+          },
+          {
+            "name": "unpenalized",
+            "type": "list",
+            "required": false,
+            "description": "penalty l2 only: predictors the ridge penalty skips (no alpha term on their Gram diagonal; glmnet's penalty.factor 0), each a listed predictor, once; the ridge sandwich SEs read the same system. l1 / elasticnet (and no penalty) refuse it (PROCESSING_CONFIG)."
+          },
+          {
+            "name": "bounds",
+            "type": "object",
+            "required": false,
+            "description": "{nonnegative: [predictors]}: those slopes are constrained \u003e= 0 (Lawson-Hanson non-negative least squares on the centred Gram; intercept and other slopes free), each a listed predictor, once. No bound binding = plain OLS bit for bit; a binding bound keeps the coefficients and R² but nulls every std error, p-value, interval and vcov entry, with advisories [PULSE_ADVISORY_CONSTRAINT_ACTIVE] — resample bootstrap refits the bounded model for replicate inference. A penalty, selection or robust covariance refuses it."
           },
           {
             "name": "max_iters",
@@ -10132,7 +10225,7 @@
         ]
       }
     ],
-    "error_codes_count": 396,
+    "error_codes_count": 400,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10174,6 +10267,7 @@
       "PROCESSING_VECTOR_LENGTH_MISMATCH",
       "PULSE_ADVISORY_CATEGORICAL_AS_NUMERIC",
       "PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT",
+      "PULSE_ADVISORY_CONSTRAINT_ACTIVE",
       "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED",
       "PULSE_ADVISORY_EXTRA_PASS",
       "PULSE_ADVISORY_JACKKNIFE_COST",
@@ -10239,6 +10333,7 @@
       "PULSE_EXTENSION_NOT_WEIGHT_AWARE",
       "PULSE_EXTENSION_PARAM_INVALID",
       "PULSE_EXTENSION_PURPOSE_INVALID",
+      "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_SKILL_COLLISION",
       "PULSE_EXTENSION_SKILL_INVALID",
       "PULSE_EXTENSION_STREAMABLE_MISMATCH",
@@ -10343,6 +10438,7 @@
       "PULSE_MODEL_PREDICTOR_MISSING",
       "PULSE_MODEL_PREDICTOR_NOT_NUMERIC",
       "PULSE_MODEL_REF_INVALID",
+      "PULSE_MODEL_REGRESSION_UNREGISTERED",
       "PULSE_MODEL_SAVE_INVALID",
       "PULSE_MODEL_SCORE_INVALID",
       "PULSE_MODEL_STAT_UNKNOWN",
@@ -10403,6 +10499,7 @@
       "PULSE_RANGE_TABLE_KIND_MISMATCH",
       "PULSE_RANGE_TABLE_UNKNOWN",
       "PULSE_RECOMMEND_INTENT_UNKNOWN",
+      "PULSE_REQUEST_PARAM_INVALID",
       "PULSE_REQUEST_UNKNOWN_FIELD",
       "PULSE_RETURN_INVALID",
       "PULSE_RETURN_PATH_UNKNOWN",
@@ -10719,6 +10816,7 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
+          "WIN_ADSTOCK",
           "WIN_DELTA",
           "WIN_EWMA",
           "WIN_LAG",
@@ -10811,6 +10909,7 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
+          "WIN_ADSTOCK",
           "WIN_DELTA",
           "WIN_EWMA",
           "WIN_LAG",
@@ -10903,6 +11002,7 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
+          "WIN_ADSTOCK",
           "WIN_DELTA",
           "WIN_EWMA",
           "WIN_LAG",
@@ -10995,6 +11095,7 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
+          "WIN_ADSTOCK",
           "WIN_DELTA",
           "WIN_EWMA",
           "WIN_LAG",
@@ -11086,6 +11187,7 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
+          "WIN_ADSTOCK",
           "WIN_DELTA",
           "WIN_EWMA",
           "WIN_LAG",
@@ -11177,6 +11279,7 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
+          "WIN_ADSTOCK",
           "WIN_DELTA",
           "WIN_EWMA",
           "WIN_LAG",
@@ -11268,6 +11371,7 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
+          "WIN_ADSTOCK",
           "WIN_DELTA",
           "WIN_EWMA",
           "WIN_LAG",
@@ -11357,6 +11461,7 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
+          "WIN_ADSTOCK",
           "WIN_DELTA",
           "WIN_EWMA",
           "WIN_LAG",
@@ -12850,6 +12955,10 @@
         "description": "Two-sample z-test on Field means across two SplitBy groups; identical SE to Welch's t-test but p-value via standard normal Φ."
       },
       {
+        "name": "op-win-adstock",
+        "description": "Media adstock; a finite lag kernel (geometric, Weibull CDF or Weibull PDF) convolved over the ordered partition."
+      },
+      {
         "name": "op-win-delta",
         "description": "Point difference against the row `periods` positions earlier in the ordered partition — the subtraction counterpart of a percent change."
       },
@@ -12920,6 +13029,10 @@
       {
         "name": "regression-inference",
         "description": "Coefficient confidence intervals (ci_lower / ci_upper at conf_level) and the coefficient covariance and correlation on a regression — the per-family critical value, the opt-in vcov flag, where each engine's and modifier's matrix comes from, how it relates to the standard errors, weighted fits, the refusals, and what R's vcov does differently. Topical design; per-model params in atomic op-reg-* skills."
+      },
+      {
+        "name": "regression-model-options",
+        "description": "Model options beyond the textbook fit — ridge over a predictor subset (unpenalized), non-negative coefficients (NNLS), per-coefficient prior precision for an experiment-centred prior, the media-mix recipe, and a regression an embedder registered (params, outputs, what it declines). Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "regression-modeling",
@@ -13302,7 +13415,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 246,
+    "examples_count": 247,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -13396,6 +13509,7 @@
       "features": [],
       "tests": [],
       "matrix_ops": [],
+      "regressions": [],
       "expr_functions": [],
       "lookup_tables": [],
       "reference_vectors": [],
@@ -19089,6 +19203,8 @@
           "regressions[*].correlation",
           "regressions[*].covariance",
           "regressions[*].advisories",
+          "regressions[*].statistics",
+          "regressions[*].outputs",
           "overlays"
         ],
         "companions": [
@@ -19128,6 +19244,7 @@
           "regressions[*].coefficients",
           "regressions[*].p_values",
           "regressions[*].advisories",
+          "regressions[*].outputs",
           "overlays[*].name",
           "overlays[*].kind",
           "overlays[*].ref",
@@ -19195,4 +19312,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4fbbfcba74e9dfc41a3870014d335dfdd402f0eb67c27606d140df355251b95a
+// golden-hash: 679e06fb71ad3b19b589aa8efbb10b5383a9aa04c6dbb048c1ed9a0b7970b2d4

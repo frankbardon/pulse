@@ -29,6 +29,9 @@ const (
 	// ReasonSelection: Selection's final refit is conditional on a
 	// data-dependent predictor set.
 	ReasonSelection = "selection"
+	// ReasonBounds: a bounds-constrained fit's estimator sits on the
+	// boundary when a bound binds, where no sandwich is valid.
+	ReasonBounds = "bounds"
 	// ReasonClusters: fewer than two clusters reached the fit.
 	ReasonClusters = "clusters"
 	// ReasonOrderTies: two fitted rows share an order_by value, so the
@@ -49,12 +52,29 @@ var robustTypes = []types.RegressionType{types.REG_OLS, types.REG_GLM, types.REG
 //     type), hac without order_by (or order_by / lags on another type),
 //     a negative lags;
 //   - PROCESSING_REGRESSION_VCOV_UNSUPPORTED for a robust type the fit
-//     cannot honour: details.reason type, penalty, resample or
-//     selection.
+//     cannot honour: details.reason type, penalty, resample, selection
+//     or bounds.
 func Check(spec *types.RegressionSpec) *errors.CodedError {
 	if spec == nil || spec.Covariance == nil {
 		return nil
 	}
+	return check(spec, slices.Contains(robustTypes, spec.Type))
+}
+
+// CheckDeclared is Check for an extension regression model whose
+// registration declares the covariance type itself (the model computes
+// it): the type is judged by the declaration, never by robustTypes, so
+// only the block's shape and the penalty / resample / selection
+// refusals apply.
+func CheckDeclared(spec *types.RegressionSpec) *errors.CodedError {
+	if spec == nil || spec.Covariance == nil {
+		return nil
+	}
+	return check(spec, true)
+}
+
+// check is Check with the type's robust support decided by the caller.
+func check(spec *types.RegressionSpec, robustType bool) *errors.CodedError {
 	c := spec.Covariance
 	if !slices.Contains(types.AllCovarianceTypes(), c.Type) {
 		return errors.NewCodedErrorWithDetails(
@@ -70,7 +90,7 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 		return nil
 	}
 	switch {
-	case !slices.Contains(robustTypes, spec.Type):
+	case !robustType:
 		return unsupported(spec, ReasonType, string(spec.Type))
 	case spec.Penalty != "":
 		return unsupported(spec, ReasonPenalty, spec.Penalty)
@@ -78,6 +98,9 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 		return unsupported(spec, ReasonResample, spec.Resample)
 	case spec.Selection != "":
 		return unsupported(spec, ReasonSelection, spec.Selection)
+	case spec.Type == types.REG_OLS && spec.Bounds.Active():
+		return Unsupported(spec, ReasonBounds, map[string]any{"bounds": map[string]any{"nonnegative": spec.Bounds.Nonnegative}},
+			"covariance "+string(spec.Covariance.Type)+" is not available with bounds (a binding bound puts the estimator on the boundary, where no sandwich is valid); drop covariance — resample bootstrap gives replicate standard errors of the bounded fit")
 	}
 	return nil
 }

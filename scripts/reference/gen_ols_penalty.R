@@ -17,7 +17,10 @@
 # Pinned packages: glmnet 5.1, jsonlite.
 #
 # Ridge (l2) cases also pin the closed-form ridge covariance
-# (ridge_inference below, reference-oracles E2-S2); lasso / elastic net
+# (ridge_inference below, reference-oracles E2-S2). The ridge_unpenalized_*
+# cases pin `unpenalized` (custom-regressions E3-S1, FR-32): the listed
+# predictors carry glmnet penalty.factor 0, so the objective's ridge term
+# runs over the others only; lasso / elastic net
 # carry none — selection makes their sampling distribution non-standard,
 # so Pulse reports their standard errors and p-values as null.
 #
@@ -78,14 +81,17 @@ op_cases <- list()
 #
 # and Student-t p-values on N* - p - 1 df. beta is cross-checked against
 # glmnet's at relative 1e-10 before anything is written.
-ridge_inference <- function(X, y, w, alpha) {
+#
+# With unpenalized predictors the penalty is alpha * diag(pf), pf_j = 0 for
+# the listed ones (1 otherwise): A = G + N* * alpha * diag(pf).
+ridge_inference <- function(X, y, w, alpha, pf = rep(1, ncol(X))) {
   nstar <- sum(w)
   mu <- colSums(w * X) / nstar
   ybar <- sum(w * y) / nstar
   Xc <- sweep(X, 2, mu)
   yc <- y - ybar
   G <- crossprod(Xc, w * Xc)
-  Ainv <- solve(G + nstar * alpha * diag(ncol(X)))
+  Ainv <- solve(G + nstar * alpha * diag(pf, ncol(X)))
   beta <- drop(Ainv %*% crossprod(Xc, w * yc))
   b0 <- ybar - sum(mu * beta)
   rss <- sum(w * (yc - drop(Xc %*% beta))^2)
@@ -98,15 +104,28 @@ ridge_inference <- function(X, y, w, alpha) {
   list(b = bb, se = se, p = 2 * pt(-abs(bb / se), df), df = df)
 }
 
-op_case <- function(name, X, y, w, penalty, alpha, l1_ratio = 0) {
+# unpenalized names predictors with glmnet penalty.factor 0 (ridge only in
+# Pulse). glmnet rescales penalty.factor to sum to nvars, which scales the
+# effective lambda by nvars / sum(pf); lambda' * sum(pf) / nvars undoes it,
+# so the penalised predictors see exactly Pulse's alpha.
+op_case <- function(name, X, y, w, penalty, alpha, l1_ratio = 0, unpenalized = character()) {
   r <- switch(penalty, l2 = 0, l1 = 1, elasticnet = l1_ratio)
+  stopifnot(all(unpenalized %in% colnames(X)), length(unpenalized) == 0 || penalty == "l2")
+  pf <- ifelse(colnames(X) %in% unpenalized, 0, 1)
   wn <- w / sum(w)
   s <- sqrt(sum(wn * (y - sum(wn * y))^2))
   lam <- alpha * (1 - r) + alpha * r / s
   mix <- (alpha * r / s) / lam
-  fit <- glmnet(X, y / s, family = "gaussian", weights = w, alpha = mix, lambda = lam,
-                standardize = FALSE, intercept = TRUE,
-                control = list(thresh = 1e-24, maxit = 1e8))
+  fit <- if (length(unpenalized) == 0) {
+    glmnet(X, y / s, family = "gaussian", weights = w, alpha = mix, lambda = lam,
+           standardize = FALSE, intercept = TRUE,
+           control = list(thresh = 1e-24, maxit = 1e8))
+  } else {
+    glmnet(X, y / s, family = "gaussian", weights = w, alpha = mix,
+           lambda = lam * sum(pf) / ncol(X), penalty.factor = pf,
+           standardize = FALSE, intercept = TRUE,
+           control = list(thresh = 1e-24, maxit = 1e8))
+  }
   b <- s * as.numeric(as.matrix(coef(fit)))
   Xd <- cbind(1, X)
   res <- y - as.numeric(Xd %*% b)
@@ -115,9 +134,9 @@ op_case <- function(name, X, y, w, penalty, alpha, l1_ratio = 0) {
   if (abs(score[1]) > 1e-10 * scale) stop(name, ": intercept score ", score[1])
   for (j in seq_along(b)[-1]) {
     if (b[j] != 0) {
-      k <- score[j] - alpha * (1 - r) * b[j] - alpha * r * sign(b[j])
+      k <- score[j] - alpha * (1 - r) * pf[j - 1] * b[j] - alpha * r * pf[j - 1] * sign(b[j])
       if (abs(k) > 1e-10 * scale) stop(name, ": KKT active ", j, " residual ", k)
-    } else if (abs(score[j]) > alpha * r * (1 + 1e-10) + 1e-14) {
+    } else if (abs(score[j]) > alpha * r * pf[j - 1] * (1 + 1e-10) + 1e-14) {
       stop(name, ": KKT inactive ", j)
     }
   }
@@ -127,8 +146,9 @@ op_case <- function(name, X, y, w, penalty, alpha, l1_ratio = 0) {
     predictors = I(colnames(X)), weighted = any(w != 1),
     rows = lapply(seq_len(nrow(X)), function(i) op_vec(c(X[i, ], y[i], w[i]))),
     coefficients = op_vec(b), zero = I(colnames(X)[b[-1] == 0]))
+  if (length(unpenalized) > 0) doc$unpenalized <- I(unpenalized)
   if (penalty == "l2") {
-    inf <- ridge_inference(X, y, w, alpha)
+    inf <- ridge_inference(X, y, w, alpha, pf)
     rel <- max(abs(inf$b - b) / pmax(abs(b), 1e-300))
     if (rel > 1e-10) stop(name, ": closed-form ridge beta differs from glmnet by ", rel)
     doc$std_errors <- op_vec(inf$se)
@@ -155,6 +175,12 @@ op_case("elasticnet_weighted", X, y, w, "elasticnet", 0.1, 0.3)
 op_case("lasso_weighted", X, y, w, "l1", 0.1)
 op_case("ridge_weighted", X, y, w, "l2", 0.3)
 op_case("ridge_0.05", X, y, ones, "l2", 0.05)
+# Ridge with unpenalized predictors (glmnet penalty.factor 0). glmnet's
+# coordinate descent runs to thresh 1e-24 / maxit 1e8, converged far past
+# the 1e-10 the closed form (ridge_inference) is held to above, so the
+# documented tolerance stays relative 1e-10.
+op_case("ridge_unpenalized_x0", X, y, ones, "l2", 0.5, unpenalized = "x0")
+op_case("ridge_unpenalized_weighted", X, y, w, "l2", 0.3, unpenalized = c("x0", "x2"))
 
 op_doc <- list(
   generator = "scripts/reference/gen_ols_penalty.R (via gen_reference.R)",
@@ -168,6 +194,7 @@ op_doc <- list(
     "rows are [predictors..., y, w]; N* = sum(w).",
     "Every case is self-checked against the KKT conditions of the stated objective at relative 1e-10.",
     "l2 cases add std_errors / p_values / df: the closed-form ridge covariance sigma2 * A^-1 G A^-1 (A = G + N* alpha I, G the weighted centred Gram, sigma2 = RSS/(N* - p - 1)), Var(b0) = sigma2/N* + mu' V mu, Student-t p on N* - p - 1 df, computed by R matrix algebra (ridge_inference).",
-    "l1 / elasticnet cases carry no inference: their standard errors and p-values are undefined (null in Pulse)."),
+    "l1 / elasticnet cases carry no inference: their standard errors and p-values are undefined (null in Pulse).",
+    "A case listing unpenalized fits glmnet with penalty.factor 0 on those predictors and lambda' * sum(pf) / nvars (undoing glmnet's penalty.factor rescaling); its ridge covariance uses A = G + N* alpha diag(pf)."),
   cases = op_cases)
 write_golden("ols_penalty", op_doc)

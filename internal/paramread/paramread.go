@@ -47,6 +47,9 @@ const (
 	PostTest   Category = "post_test"
 	Matrix     Category = "matrix"
 	Overlay    Category = "overlay"
+	// Regression is a regressions[i] slot's params object: read only by
+	// an extension REG_* model (the built-ins declare no params keys).
+	Regression Category = "regression"
 )
 
 // Key identifies one operator.

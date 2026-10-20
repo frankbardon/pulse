@@ -27,23 +27,24 @@ Use something else:
 
 ## Params
 
-Top-level keys, not `params`; `field` unread.
+Top-level keys, not `params` — except `params.fit`; `field` unread.
 
 | Name | Type | Description |
 |---|---|---|
-| `target` | field | Dependent field (required). |
-| `predictors` | list | Independent fields (required). |
+| `target` | field | Dependent field (required without `params.fit`). |
+| `predictors` | list | Independent fields (required without `params.fit`). |
 | `penalty` | enum | `""`, `l1`, `l2`, `elasticnet`. |
 | `alpha` | float | Regularization strength. |
 | `l1_ratio` | float | Elasticnet mix. |
-| `weight` | slot weight | `null` opts out; REG_OLS's kinds: WLS refit; residual raw y − ŷ. |
+| `weight` | slot weight | `null` opts out; REG_OLS's kinds: WLS refit; residual raw y − ŷ. With `params.fit` skipped (the fit's own weight applied when it ran). |
+| `params.fit` | string | Score a bound fit (`fits` / `models` entry) instead of refitting: the fit's score — a REG_GLM's fitted mean; an extension regression's through its Scorer. No `target` / `predictors` / `penalty` / `alpha` / `l1_ratio` beside it. |
 
 ## Inputs
 
 | Param | Accepted field types |
 |---|---|
 | `target` / `predictors` | numeric analytics set: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
-| `Label` | required — new column name |
+| `Label` | new column name; default `<TYPE>_<target>`, with `params.fit` `<TYPE>_<fit>` |
 
 ## Output
 
@@ -56,7 +57,7 @@ One `float64` per record — the model's prediction ŷᵢ. **Null (never 0) when
 
 ## Gotchas
 
-- Two-pass: prepass refits independently per ATTR_REG_* slot (Option A — no fit sharing).
+- Two-pass: prepass refits independently per ATTR_REG_* slot (Option A — no fit sharing). With `params.fit` it is row-local and equals the bound model's score bit for bit (ATTR_REG_PREDICT's); refusals: unknown name `PULSE_MODEL_UNKNOWN`, Scorer-less extension fit `no_scorer`, refit field beside it `slot_fields`; a failed fit nulls every row (`PULSE_FIT_UNAVAILABLE`).
 - `Mergeable` per-shard; predict reports streamability.
 - Penalized fits (`l1`/`l2`/`elasticnet`) reuse the same machinery; mis-tuned `alpha`/`l1_ratio` shrinks coefficients toward zero.
 

@@ -1,5 +1,7 @@
 package types
 
+import "encoding/json"
+
 // RegressionType identifies a specific regression-modeling operator.
 //
 // Pulse exposes three top-level regression operators that cover the
@@ -55,7 +57,10 @@ func AllRegressionTypes() []RegressionType {
 //
 // The wire shape is shared across the three operator families so a
 // request parser only needs to dispatch on Type. Unused branches stay
-// at their zero values.
+// at their zero values. An extension REG_* model honours or refuses
+// every field (declare or refuse): a new field needs its row in
+// internal/descriptor/extensions_regression_slots.go, or
+// TestExtensions_RegressionSharedSlotsRefused fails.
 type RegressionSpec struct {
 	// Type names the regression operator (REG_OLS, REG_GLM,
 	// REG_BAYES_LINEAR).
@@ -88,6 +93,26 @@ type RegressionSpec struct {
 	// l2, 1 is pure l1. Only read when Penalty == "elasticnet".
 	L1Ratio float64 `json:"l1_ratio,omitempty"`
 
+	// Unpenalized lists predictors the ridge penalty skips (REG_OLS,
+	// Penalty "l2" only): their diagonal entries of the penalised Gram
+	// get no α term — glmnet's penalty.factor 0. Each must name a
+	// predictor, once. Lasso / elastic net, REG_GLM and REG_BAYES_LINEAR
+	// refuse it (PROCESSING_CONFIG).
+	Unpenalized []string `json:"unpenalized,omitempty"`
+
+	// Bounds constrains named REG_OLS coefficients (see
+	// RegressionBounds): Nonnegative lists predictors whose slope must be
+	// ≥ 0, solved by Lawson–Hanson on the centred Gram. When the
+	// unconstrained fit already satisfies every bound the result is
+	// plain OLS bit for bit; when one binds (a coefficient held at 0) the
+	// standard errors, p-values, intervals and Vcov entries are null on
+	// every coefficient and the result carries
+	// PULSE_ADVISORY_CONSTRAINT_ACTIVE. REG_GLM, REG_BAYES_LINEAR, a
+	// Penalty, a Selection and a robust Covariance refuse it; Resample
+	// refits the bounded model per replicate. Absent (or an empty list)
+	// is byte-identical.
+	Bounds *RegressionBounds `json:"bounds,omitempty"`
+
 	// Family is the GLM error family. One of "binomial" (logistic),
 	// "poisson", or "gamma". Required for REG_GLM.
 	Family string `json:"family,omitempty"`
@@ -115,8 +140,12 @@ type RegressionSpec struct {
 	// order; zero vector when nil.
 	PriorMu []float64 `json:"prior_mu,omitempty"`
 
-	// PriorPrecision is the prior precision scalar (REG_BAYES_LINEAR).
-	PriorPrecision float64 `json:"prior_precision,omitempty"`
+	// PriorPrecision is the prior precision of the coefficients
+	// (REG_BAYES_LINEAR): absent (default 1e-3 on every coefficient), a
+	// scalar ε (Λ₀ = ε·I) or a per-coefficient vector diag(v) of length
+	// len(Predictors)+1, intercept first like PriorMu; an entry 0 is a
+	// flat prior on that coefficient. A JSON number or array.
+	PriorPrecision PriorPrecision `json:"prior_precision,omitzero"`
 
 	// PriorShape and PriorRate parameterize the inverse-gamma prior on
 	// the residual variance (REG_BAYES_LINEAR).
@@ -205,8 +234,11 @@ type RegressionSpec struct {
 	// residual degrees of freedom (N* − p − 1 on a weighted fit), REG_GLM
 	// a Wald normal one, REG_BAYES_LINEAR the posterior Student-t
 	// (credible_level is the fallback when this is unset, so the
-	// intervals then equal CredibleIntervals). Under Resample the
-	// intervals are Wald normal on the resampled standard errors.
+	// intervals then equal CredibleIntervals); a registered model
+	// (pulse.RegressionRegistration) gets the engine's interval on its
+	// reported standard errors, Student-t on its reported df, else Wald
+	// normal. Under Resample the intervals are Wald normal on the
+	// resampled standard errors.
 	ConfLevel float64 `json:"conf_level,omitempty"`
 
 	// Save writes the finished fit as a model file (model_format_version
@@ -234,6 +266,30 @@ type RegressionSpec struct {
 	// block of its own — so a request without one is byte-identical.
 	// Gated by capability:multiplicity.
 	Multiplicity *RegressionMultiplicity `json:"multiplicity,omitempty"`
+
+	// Params is the model's own configuration object, read by an
+	// extension regression (pulse.RegressionRegistration.Params declares
+	// its keys; the factory sees it on the spec). A key the registration
+	// does not declare is refused PULSE_REQUEST_UNKNOWN_FIELD at
+	// regressions[i].params.<key>, at predict and at runtime alike. The
+	// built-ins take every knob as a typed field above and declare no
+	// params, so any params key on REG_OLS / REG_GLM / REG_BAYES_LINEAR
+	// is refused. Absent is byte-identical.
+	Params json.RawMessage `json:"params,omitempty"`
+}
+
+// RegressionBounds is RegressionSpec.Bounds: per-coefficient
+// constraints on a REG_OLS fit. Nonnegative names predictors (each once,
+// each one of Predictors) whose coefficient must be ≥ 0; the intercept
+// and every other predictor stay free.
+type RegressionBounds struct {
+	Nonnegative []string `json:"nonnegative,omitempty"`
+}
+
+// Active reports whether b constrains any coefficient (a nil b or an
+// empty Nonnegative list constrains none).
+func (b *RegressionBounds) Active() bool {
+	return b != nil && len(b.Nonnegative) != 0
 }
 
 // RegressionMultiplicity is a regression's own multiple-comparison
@@ -357,15 +413,23 @@ type RegressionResult struct {
 	// null β = 0; null on every key exactly where StdErrors is.
 	PValues map[string]float64 `json:"p_values,omitempty"`
 
+	// Statistics maps coefficient name to its test statistic. Only an
+	// extension regression (pulse.RegressionRegistration) reports it —
+	// the built-ins leave it absent. On an extension fit StdErrors,
+	// Statistics and PValues each carry every coefficient key, a figure
+	// the model did not compute null (the table stays rectangular).
+	Statistics map[string]float64 `json:"statistics,omitempty"`
+
 	// CILower and CIUpper map predictor name (keyed like Coefficients) to
 	// the lower / upper bound of the coefficient's two-sided confidence
 	// interval at ConfLevel: coefficient ∓ q·StdErrors, q the Student-t
 	// critical value on DF (REG_OLS; REG_GLM gamma, whose dispersion is
 	// estimated; REG_BAYES_LINEAR's posterior t, where the bounds equal
-	// CredibleIntervals at the same level) or the standard normal one
-	// when DF is absent (REG_GLM binomial / poisson Wald; REG_GLM and
-	// REG_BAYES_LINEAR under a robust covariance; any fit under
-	// Resample). A key is present exactly when StdErrors carries it, so
+	// CredibleIntervals at the same level; a registered model reporting
+	// its df) or the standard normal one when DF is absent (REG_GLM
+	// binomial / poisson Wald; REG_GLM and REG_BAYES_LINEAR under a
+	// robust covariance; a registered model reporting no df; any fit
+	// under Resample). A key is present exactly when StdErrors carries it, so
 	// a fit without standard errors carries no intervals. An undefined
 	// bound (DF ≤ 0) is null.
 	CILower map[string]float64 `json:"ci_lower,omitempty"`
@@ -376,7 +440,8 @@ type RegressionResult struct {
 	// unweighted; Σw or Kish n_eff in place of n on a weighted fit, so
 	// fractional under kind probability) on REG_OLS and on a REG_GLM gamma
 	// fit (the df its estimated dispersion Pearson χ²/DF and its Student-t
-	// p-values read), 2·a_n on REG_BAYES_LINEAR. Absent when the
+	// p-values read), 2·a_n on REG_BAYES_LINEAR, the reported df
+	// (RegressionFit.DF) on a registered model. Absent when the
 	// intervals are Wald normal; null when undefined.
 	DF float64 `json:"df,omitempty"`
 
@@ -454,6 +519,26 @@ type RegressionResult struct {
 	// "auto" lags resolved; absent on a classical fit.
 	Covariance *RegressionCovarianceResult `json:"covariance,omitempty"`
 
+	// Outputs holds an extension regression's own named extras, each key
+	// declared in its registration's OutputSchema; a non-finite float is
+	// null. The built-ins leave it absent.
+	Outputs map[string]any `json:"outputs,omitempty"`
+
+	// ReportedFigures names the omitempty whole-fit figures (r2,
+	// adj_r2, residual_std_err, df, deviance, null_deviance, pseudo_r2)
+	// an extension regression's model reported, so an exact 0 among
+	// them reads as computed rather than absent (a compose sweep ranking
+	// by one ranks it). Nil for a built-in, whose figures follow its
+	// type. Never serialised.
+	ReportedFigures []string `json:"-"`
+
+	// ActiveBounds names the RegressionSpec.Bounds predictors the fit
+	// held at their bound (coefficient exactly 0), in Predictors order:
+	// set only when a constraint binds and the analytical inference is
+	// therefore null. The service reads it to attach
+	// PULSE_ADVISORY_CONSTRAINT_ACTIVE. Never serialised.
+	ActiveBounds []string `json:"-"`
+
 	// PAdjusted maps each family-member coefficient (keyed like PValues)
 	// to its multiplicity-adjusted p-value, present only when the spec's
 	// own multiplicity block resolved to a method other than none. It
@@ -478,7 +563,10 @@ type RegressionResult struct {
 	// predict raises for the same spec): today
 	// PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED on an l1 / elasticnet
 	// fit without Resample, whose StdErrors, PValues, CILower and
-	// CIUpper are null on every coefficient. Never a warning, never
+	// CIUpper are null on every coefficient, and
+	// PULSE_ADVISORY_CONSTRAINT_ACTIVE on a Bounds fit without Resample
+	// whose constraint bound (result-only: whether a bound binds is
+	// data-dependent, so predict cannot raise it). Never a warning, never
 	// escalated by Strict; a code in Options.SuppressAdvisories is
 	// dropped. Absent when none applies.
 	Advisories []Advisory `json:"advisories,omitempty"`
@@ -527,32 +615,29 @@ func (t RegressionType) Streamable() bool {
 // rows. REG_BAYES_LINEAR (Phase 4) streams the same Welford sufficient
 // stats and applies the conjugate Normal-Inverse-Gamma posterior at
 // finalize.
+//
+// REG_OLS penalized fits (Phase 2) share the unpenalized fit's
+// streaming sufficient statistics — the regularized iteration happens at
+// finalize over the Gram, not over rows — and REG_BAYES_LINEAR's
+// conjugate-NIG posterior consumes the same statistics plus a
+// finalize-time prior update, so both stream whatever their penalty or
+// prior.
 func (s RegressionSpec) Streamable() bool {
-	if !s.Type.Streamable() {
+	return s.StreamableAs(s.Type.Streamable())
+}
+
+// StreamableAs is Streamable for a spec whose type streams exactly when
+// typeStreamable says so — an extension regression's declared form,
+// which RegressionType.Streamable cannot know. The modifier downgrade is
+// the same: any non-empty Resample or Selection, or a robust Covariance
+// (a second pass for every fitted row's residual), forces the buffered
+// path.
+func (s RegressionSpec) StreamableAs(typeStreamable bool) bool {
+	if !typeStreamable {
 		return false
 	}
-	if s.Resample != "" {
+	if s.Resample != "" || s.Selection != "" {
 		return false
 	}
-	if s.Selection != "" {
-		return false
-	}
-	// A robust covariance needs every fitted row's residual: a second
-	// pass over the buffered rows.
-	if s.Covariance.Robust() {
-		return false
-	}
-	switch s.Type {
-	case REG_OLS:
-		// Penalized fits (Phase 2) share the unpenalized fit's streaming
-		// sufficient statistics — the regularized iteration happens at
-		// finalize over the Gram, not over rows. Both branches stream.
-		return true
-	case REG_BAYES_LINEAR:
-		// Phase 4: conjugate-NIG posterior consumes the same streaming
-		// sufficient statistics as REG_OLS plus a finalize-time prior
-		// update. No iteration over rows.
-		return true
-	}
-	return false
+	return !s.Covariance.Robust()
 }

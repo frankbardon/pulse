@@ -468,6 +468,8 @@ func extensionNames(snap *descx.ExtensionsSnapshot, category string) []string {
 		metas = snap.Tests
 	case "matrix":
 		metas = snap.MatrixOps
+	case "regression":
+		metas = snap.Regressions
 	case "overlay":
 		metas = snap.OverlayKinds
 	default:
@@ -1049,20 +1051,32 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 		"items": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"type":             enumStringField(mergeEnumNames(stringSlice(types.AllRegressionTypes()), inst, "regression"), ""),
-				"name":             map[string]any{"type": "string", "description": "Result name; defaults from type and target."},
-				"target":           enumStringField(c.Numeric, "Response variable."),
-				"predictors":       map[string]any{"type": "array", "description": "Predictor fields; at least one.", "items": enumStringField(c.Numeric, "")},
-				"penalty":          enumStringField([]string{"l1", "l2", "elasticnet"}, "REG_OLS / REG_GLM (binomial, poisson) regularization; omit for none."),
-				"alpha":            num("Penalty strength (> 0) when penalty is set."),
-				"l1_ratio":         num("Elastic-net mixing in (0, 1); elasticnet only."),
-				"family":           enumStringField([]string{"binomial", "poisson", "gamma"}, "REG_GLM error family (required for REG_GLM)."),
-				"link":             map[string]any{"type": "string", "description": "REG_GLM link; defaults per family (logit, log, inverse)."},
-				"max_iters":        integer("Iteration cap for iterative fits; 0 uses the operator default."),
-				"tol":              num("Relative convergence tolerance; 0 uses the operator default."),
-				"prior":            map[string]any{"type": "string", "description": "REG_BAYES_LINEAR prior family: nig."},
-				"prior_mu":         map[string]any{"type": "array", "description": "REG_BAYES_LINEAR prior mean, intercept first then one per predictor.", "items": map[string]any{"type": "number"}},
-				"prior_precision":  num("REG_BAYES_LINEAR prior precision."),
+				"type":        enumStringField(mergeEnumNames(stringSlice(types.AllRegressionTypes()), inst, "regression"), ""),
+				"name":        map[string]any{"type": "string", "description": "Result name; defaults from type and target."},
+				"target":      enumStringField(c.Numeric, "Response variable."),
+				"predictors":  map[string]any{"type": "array", "description": "Predictor fields; at least one.", "items": enumStringField(c.Numeric, "")},
+				"penalty":     enumStringField([]string{"l1", "l2", "elasticnet"}, "REG_OLS / REG_GLM (binomial, poisson) regularization; omit for none."),
+				"alpha":       num("Penalty strength (> 0) when penalty is set."),
+				"l1_ratio":    num("Elastic-net mixing in (0, 1); elasticnet only."),
+				"unpenalized": map[string]any{"type": "array", "description": "REG_OLS ridge (penalty l2) only: predictors the penalty skips (glmnet penalty.factor 0); lasso / elasticnet refuse it.", "items": enumStringField(c.Numeric, "")},
+				"bounds": map[string]any{
+					"type":        "object",
+					"description": "REG_OLS only: {nonnegative: [predictors]} constrains those slopes >= 0; a binding bound nulls the inference (resample bootstrap for replicate SEs). Refused with a penalty, selection or robust covariance.",
+					"properties": map[string]any{
+						"nonnegative": map[string]any{"type": "array", "description": "Predictors whose coefficient must be >= 0.", "items": enumStringField(c.Numeric, "")},
+					},
+					"additionalProperties": false,
+				},
+				"family":    enumStringField([]string{"binomial", "poisson", "gamma"}, "REG_GLM error family (required for REG_GLM)."),
+				"link":      map[string]any{"type": "string", "description": "REG_GLM link; defaults per family (logit, log, inverse)."},
+				"max_iters": integer("Iteration cap for iterative fits; 0 uses the operator default."),
+				"tol":       num("Relative convergence tolerance; 0 uses the operator default."),
+				"prior":     map[string]any{"type": "string", "description": "REG_BAYES_LINEAR prior family: nig."},
+				"prior_mu":  map[string]any{"type": "array", "description": "REG_BAYES_LINEAR prior mean, intercept first then one per predictor.", "items": map[string]any{"type": "number"}},
+				"prior_precision": map[string]any{
+					"description": "REG_BAYES_LINEAR prior precision: a number (every coefficient; 0 = default 1e-3) or one entry per coefficient, intercept first then predictors (0 = flat prior).",
+					"oneOf":       []any{map[string]any{"type": "number", "minimum": 0}, map[string]any{"type": "array", "items": map[string]any{"type": "number", "minimum": 0}}},
+				},
 				"prior_shape":      num("REG_BAYES_LINEAR inverse-gamma shape."),
 				"prior_rate":       num("REG_BAYES_LINEAR inverse-gamma rate."),
 				"credible_level":   num("REG_BAYES_LINEAR credible-interval mass; 0 means 0.95."),
@@ -1092,6 +1106,10 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				},
 				"weight":       slotWeightSchema(c),
 				"multiplicity": regressionMultiplicitySchema(),
+				"params": map[string]any{
+					"type":        "object",
+					"description": "An extension REG_* model's own configuration: only the keys its manifest entry (extensions.regressions[].params, those not marked slot) declares; any other key is PULSE_REQUEST_UNKNOWN_FIELD, and a value not of its declared json_type or a missing required param is PULSE_REQUEST_PARAM_INVALID. The built-ins (REG_OLS / REG_GLM / REG_BAYES_LINEAR) take no params.",
+				},
 			},
 			"required":             []string{"type", "target"},
 			"additionalProperties": true,

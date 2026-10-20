@@ -5,6 +5,8 @@
 operators or expression-runtime extensions. If you are adding a new
 built-in operator to Pulse itself, see [Adding an
 Aggregator](adding-aggregator.md) (and its sibling recipes) instead.
+To register your own regression model, follow [Adding a Regression
+Model (Embedders)](adding-regression.md).
 
 The extension surface is Go-native. There is no plugin loader, no `.so`
 files, no hot reload. Registration happens once when the embedding
@@ -196,7 +198,7 @@ Embedder registrations MUST use a three-segment namespaced form:
 The regex enforced by `extensions_validate.go` is:
 
 ```
-^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$
+^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$
 ```
 
 | Example | Category | Namespace | Name |
@@ -206,21 +208,23 @@ The regex enforced by `extensions_validate.go` is:
 | `FILTER_ACME_GEO_FENCE` | filterer | ACME | GEO_FENCE |
 | `TEST_FINANCE_VAR` | test | FINANCE | VAR |
 | `MAT_ACME_SCATTER` | matrix | ACME | SCATTER |
+| `REG_ACME_HILL` | regression | ACME | HILL |
 
 Failure modes raised at registration time:
 
 - Name fails the regex → `PULSE_EXTENSION_NAME_INVALID`.
 - Namespace is one of the reserved values `BUILTIN`, `STANDARD`,
   `CORE`, `PULSE` → `PULSE_EXTENSION_NAME_RESERVED`.
-- Name collides with a built-in (e.g. registering `AGG_COUNT`, or
-  `MAT_PARTIAL_CORRELATION`, a built-in that happens to fit the
-  pattern) → `PULSE_EXTENSION_NAME_COLLISION`.
+- Name collides with a built-in (e.g. registering `AGG_COUNT`,
+  `REG_OLS`, or `MAT_PARTIAL_CORRELATION`, a built-in that happens to
+  fit the pattern) → `PULSE_EXTENSION_NAME_COLLISION`.
 - The category prefix does not match the registration slot (a
-  `MAT_*` name under `Aggregators`) → `PULSE_EXTENSION_NAME_INVALID`.
+  `MAT_*` name under `Aggregators`, a `REG_*` name anywhere but
+  `Regressions`) → `PULSE_EXTENSION_NAME_INVALID`.
 - The same name appears twice in one `pulse.New` call →
   `PULSE_EXTENSION_DUPLICATE`.
-- An aggregator, attribute, filterer, grouper, window or feature
-  registration with a nil `Factory` → `PULSE_EXTENSION_PARAM_INVALID`,
+- An aggregator, attribute, filterer, grouper, window, feature or
+  regression registration with a nil `Factory` → `PULSE_EXTENSION_PARAM_INVALID`,
   `details.reason` `missing_factory` (with `category`, `name`,
   `index`), refused before any probe runs. A matrix operator refuses a
   nil `Factory` the same way in its own pass (table below); a test
@@ -230,7 +234,7 @@ Two embedders in the same process must use disjoint namespaces.
 
 ## Per-category registration shapes
 
-The eight operator categories plus expression functions and lookup
+The nine operator categories plus expression functions and lookup
 tables cover everything `pulse.Options.Extensions` accepts. Field-input
 introspection and component-schema emission attach to operator
 registrations as additional optional fields — see the dedicated
@@ -267,13 +271,54 @@ reach the factory untouched, and predict adds the advisory
 `operator`, `keys`) so the caller knows a misspelled key would pass.
 Declare every key the factory reads.
 
+**Declared values are typed and required-checked.** For a registration
+that declares params, every declared value is also checked against its
+`ParamMeta`, in all nine categories and before any operator code runs:
+a value whose JSON type is not the declared `JSONType` (a JSON `null`
+included), or a `Required` param the slot omits (an absent `params`
+object included), is refused `PULSE_REQUEST_PARAM_INVALID` —
+`details.path` (`aggregations[0].params.scale`), `details.reason`
+(`wrong_type`, with `expected` / `got`, or `missing_required`),
+`operator`, `param` — identically by predict and every runtime arm.
+So is a params object carrying none, or more than one, of the members
+of an `ExactlyOneOf` group (`details.reason` `exactly_one_of`,
+`details.path` `aggregations[0].params`, `group`, `members`, and the
+members `present`). The faults are checked in order — an unknown key
+first, then a wrong type, then a missing `Required` param, then an
+`ExactlyOneOf` group — and the first one found is the refusal.
+`Default` is never filled in: the factory still applies it, exactly as
+on a request that omits the param. A JSON
+`number` covers integers and decimals alike; a factory that needs an
+integer still checks that itself. Because a request can now only reach
+the factory with every `Required` param present and exactly one member
+of each `ExactlyOneOf` group, the `pulse.New` probe
+hands the factory a params object that satisfies the same declaration
+— see [Probe validation](#probe-validation-full-surface) — so a factory
+may refuse an absent `Required` param itself.
+
 **One-of-several params.** When the factory takes exactly one of
 several params (an EWMA's `span` or `halflife`), tag each with the same
 `ParamMeta.ExactlyOneOf` group name. The manifest shows it as
 `exactly_one_of`, and Recommend drafts the group's first member as a
 need, naming the others as alternatives. A group needs two or more
 members, none `Required` and none with a `Default`; anything else is
-`PULSE_EXTENSION_PARAM_INVALID`. The factory still enforces the rule.
+`PULSE_EXTENSION_PARAM_INVALID`. A request naming none or several of a
+group's members is refused before the factory runs (above), so the
+factory sees exactly one.
+
+**Example values.** `ParamMeta.Example` (optional, any JSON value) is an
+example of the param's value. `pulse.New` checks it with the same value
+checker a request's params go through: it must marshal to a JSON value
+of the declared `JSONType`, else `PULSE_EXTENSION_PARAM_INVALID`
+(`details.reason` `example_type_mismatch`, `expected` / `got`, `got`
+`unmarshalable` when it does not marshal). The manifest shows it as
+`example` on the param row (`extensions.<category>[].params[]`, and in
+the built-in `Param` shape of an extension `MAT_*` / `REG_*`). On a
+`Required` param or the first member of an `ExactlyOneOf` group, the
+registration probe hands the factory the `Example` instead of the
+generic placeholder (see [Probe validation](#probe-validation-full-surface)),
+so a factory that accepts only certain values — an enum-like string —
+declares one it accepts. On any other param it is documentation only.
 
 When `Streamable=true`, the probe at `pulse.New` time asserts that the
 factory's returned value implements `extend.OnlineAggregator`.
@@ -729,6 +774,208 @@ finalizer:
   profile that omits it hides it everywhere; listing it needs
   `capability:matrices`.
 
+### Regression model (`Regressions`)
+
+> Step-by-step recipe with a streaming and a buffered example:
+> [Adding a Regression Model (Embedders)](adding-regression.md).
+
+`Extensions.Regressions []pulse.RegressionRegistration` registers
+`REG_<NAMESPACE>_<NAME>` models for `Request.Regressions`, authored
+against `extend.Regression`. The factory (`extend.RegressionFactory`,
+built per slot from the spec and schema) returns one of two forms,
+matching the registration's `Streamable` declaration:
+
+- **Streaming** (`Streamable: true`) — `extend.StreamingRegression`:
+  `UpdateRow(rec)`, `Merge(other)` (required; regressions run serially
+  today, so the engine does not call it yet) and `Finalize()`. It
+  streams wherever a built-in regression would (no grouper, feature or
+  two-pass attribute; no `resample`, `selection` or robust
+  `covariance`); otherwise the engine feeds it the buffered rows through
+  `UpdateRow`, in record order — never `Fit`.
+- **Buffered** (`Streamable: false`) — `extend.BufferedRegression`:
+  `Fit(rows)` over every admitted row, free to iterate.
+
+The engine admits rows (listwise on `target` and every predictor; on a
+weighted `WeightAware` slot, only rows whose weight is valid and
+positive, each reporting it through `Record.Weight()`) and the model
+returns a narrow `extend.RegressionOutput`: `Coefficients` (each a
+`Name`, an `Estimate` and optional `StdErr` / `Statistic` / `PValue` —
+nil is absent, `null` on the wire with the key kept; `extend.Figure(v)`
+builds one), optional `Fit` statistics from the fixed set (`R2`,
+`AdjR2`, `ResidualStdErr`, `DF`, `Deviance`, `NullDeviance`,
+`PseudoR2`, `Iterations`), a `Vcov` (square over the coefficients, in
+their order) and `Outputs`. The adapter maps it onto
+`types.RegressionResult` and owns the rest: name and type, `n_obs`,
+`sum_weights` / `n_eff`, the confidence intervals (see **Intervals**),
+the multiplicity fold (a `PValues` model's
+coefficients with a defined p-value join a default family; an explicit
+`multiplicity.coefficients` list names the model's own coefficients)
+and per-slot failure (a model error coded
+`PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `_RANK_DEFICIENT`,
+`_NO_CONVERGE` or `_SEPARATION` fails its slot alone; any other is
+fatal; a panic is `PROCESSING_PANIC`).
+
+| Registration field | Meaning |
+|---|---|
+| `Streamable` | the form; decides the path at runtime and in predict |
+| `WeightAware` | the model reads row weights; undeclared, any weight in force is `PULSE_EXTENSION_NOT_WEIGHT_AWARE` |
+| `Vcov` | `vcov: true` is honoured (result `vcov` + `correlation`); undeclared it is `PROCESSING_CONFIG` `{regression, slot: "vcov"}` at predict and runtime |
+| `PValues` | the model emits coefficient p-values, so its slot takes a `multiplicity` block (family: the coefficients with a defined p, the intercept excluded) and predict counts them. Undeclared, the model emits none: `p_values` is null on every coefficient (under `resample` too), predict counts none, a block resolving to any method but `none` is `PULSE_MULTIPLICITY_INVALID` (`key: "method"`, `valid: ["none"]`) at predict and runtime alike, and a fit reporting a finite p-value is `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` reason `undeclared_p_value` (at `pulse.New` on the probe fit, and on every run) |
+| `Penalty` | the model reads the shared `penalty` / `alpha` / `l1_ratio` slots itself (their values are the model's to judge); undeclared, any of them is `PROCESSING_CONFIG` `{regression, slot: "penalty"}` (`key` names a companion) |
+| `SupportsSelection` | the model can be refit over a predictor subset, so the engine's selection driver (`forward` / `backward` / `stepwise`) may wrap it; each candidate fit must report `Fit.Deviance` (−2·log-likelihood up to a constant every candidate shares), scored AIC = deviance + 2k or BIC = deviance + ln(n)·k with k its coefficient count and n its `n_obs` — a fit without one is `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` reason `missing_deviance` (at `pulse.New` on the probe fit, and on any candidate). Undeclared, `selection` / `criterion` are `PROCESSING_CONFIG` `{regression, slot: "selection"}` at predict and runtime |
+| `CovarianceTypes` | `[]types.CovarianceType` the model computes itself from `spec.Covariance`: a block whose type (absent = `classical`) is listed reaches the model after the shared shape rule (`cluster` needs `cluster`, `hac` needs `order_by`; a robust type beside `penalty` is `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`); any other type is `PROCESSING_CONFIG` `{regression, slot: "covariance"}`. An unknown or repeated entry fails `pulse.New` (`PULSE_EXTENSION_PARAM_INVALID`, reason `invalid_covariance_type`). A robust type forces the buffered path |
+| `Params` | `[]pulse.ParamMeta` — the keys of the slot's own `params` object (`RegressionSpec.Params`, which the factory reads off the spec); declared, any other key is `PULSE_REQUEST_UNKNOWN_FIELD` at `regressions[i].params.<key>`, and a wrong-typed value, a missing `Required` param or not exactly one member of an `ExactlyOneOf` group is `PULSE_REQUEST_PARAM_INVALID`, at predict and runtime alike; undeclared, params pass through (predict advises `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED`). A built-in `REG_*` declares none, so any `params` key on one is refused |
+| `OutputSchema` | `[]pulse.RegressionOutputMeta{Key, JSONType, Description}` — the `Outputs` keys the model may fill (`invalid_output_key` on an empty, repeated or untyped key). `Outputs` survives `disable_components` and every `return` preset |
+| `Accepts` | `[]encoding.FieldType` the target and predictors accept; empty means the built-in regressions' set (analytics-numeric). Any other field type is `PULSE_FIELD_TYPE_UNSUPPORTED` at predict and runtime alike (the same message), and the manifest's `accepts_types` lists the set. A vector, unknown or repeated entry fails `pulse.New` (`PULSE_EXTENSION_PARAM_INVALID`, reason `invalid_accepts`) |
+| `FieldInputs` | the fields the model reads beyond target, predictors and weight (one named in its `params`, say) — see [FieldInputs hook](#fieldinputs-hook-buffered-projection-introspection); without one a buffered request carrying the model decodes every field |
+| `Scorer` | `extend.RegressionScorerFactory` — builds a fitted model's `extend.RowScorer` (`Columns()`, `Score(extend.ScoreRow)`) from the fit alone (`extend.FittedRegression`: type, target, predictors, coefficients, `Outputs`); see **Scoring** below. Nil: the fits run but cannot be scored or saved |
+| `Purpose`, `Interpretation`, `DependsOn` | guidance and feature-profile edges, as for every category — see [Purpose and Interpretation](#purpose-and-interpretation-guidance-metadata) and [DependsOn](#dependson-feature-profile-dependencies) |
+
+**Declare or refuse.** Every shared `RegressionSpec` slot is either
+honoured or refused — never silently ignored. Undeclared slots, and
+the slots no model can honour yet, are `PROCESSING_CONFIG` with
+details `{regression, slot}` (plus `name`, and `key` when a companion
+key such as `alpha` or `bootstrap_iters` was set), raised by ONE
+function (`descx.ExtensionRegressionSlotRefusal`) at predict and in the
+runtime adapter alike:
+
+| Slot (keys) | Rule |
+|---|---|
+| `penalty` (`alpha`, `l1_ratio`) | `Penalty` |
+| `selection` (`criterion`) | `SupportsSelection` |
+| `vcov` | `Vcov` |
+| `covariance` | the type is in `CovarianceTypes` |
+| `resample` (`jackknife_groups`, `jackknife_by`, `bootstrap_iters`, `rng_seed`) | always honoured — see **Modifiers** |
+| `save` | `Scorer` |
+| `conf_level` | always honoured — the engine's intervals (see **Intervals**) |
+| `family`, `link`, `max_iters`, `tol`, `prior` (`prior_mu`, `prior_precision`, `prior_shape`, `prior_rate`, `credible_level`) | refused: built-in knobs — carry the model's own configuration in `params` |
+| `weight` | `WeightAware` (`PULSE_EXTENSION_NOT_WEIGHT_AWARE` otherwise) |
+| `params` | always honoured |
+| `multiplicity` | method `none` always; any other method needs `PValues` (`PULSE_MULTIPLICITY_INVALID` otherwise, from the shared multiplicity resolver) |
+
+**Modifiers.** `resample` and `selection` run the built-in drivers
+around the model, every refit a fresh model from the factory (its spec
+carrying the active predictors and no modifier keys) over a row subset
+(resample) or a predictor subset (selection, `SupportsSelection` only),
+always on the buffered path. Selection runs first; resample then
+refits the selected model. The jackknife (leave-one-out,
+`jackknife_groups`, `jackknife_by`; weighted JK1 on a weighted slot)
+and the bootstrap (`bootstrap_iters`, `rng_seed`; 0 derives the seed
+from the request and the rows) draw exactly the rows and groups
+`REG_OLS` draws, so results are bit-identical run to run and across
+`DecodeWorkers` / `ShardWorkers`. Every coefficient's `std_errors`
+entry becomes the replicate SE, `statistics` the Wald z, `p_values` the
+Wald-z p (jackknife) or the percentile p (bootstrap) — null on every key
+for a model that does not declare `PValues` —, `ci_lower` / `ci_upper`
+the normal interval on the replicate SE (`df` absent), and a requested
+`vcov` the replicate covariance. A replicate reporting other
+coefficients than the full fit is
+`PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` reason
+`replicate_coefficients`; a replicate's data-dependent refusal is
+skipped by the bootstrap and fails the jackknife (and only drops a
+selection candidate); any other error fails the run. The request
+deadline (`Options.Limits.RequestTimeout`) is read before every refit,
+so it bounds the replicate count of a slow model. The modifier rules
+predict applies to every regression run in the adapter too
+(`regresample.Check`, a selection's `criterion`), and a weighted
+bootstrap or selection is refused by the weight resolver as for a
+built-in.
+
+**Intervals.** The engine writes every model's `ci_lower` / `ci_upper`
+at `conf_level` (0 < c < 1, 0.95 unset; out of range is
+`PROCESSING_CONFIG` at predict and runtime, the built-ins' rule) as
+estimate ∓ q·SE on each coefficient — `null` where its standard error
+is null, the point interval where it is 0. One rule, the built-ins'
+for the matching case: q is the Student-t quantile on the fit's
+reported `Fit.DF` (`REG_OLS`'s rule, so a model reporting its residual
+df N* − p − 1 matches `REG_OLS`'s intervals — the parity suite pins
+it unweighted, frequency- and probability-weighted), the standard
+normal when it reports no df (`REG_GLM`'s Wald rule), and the normal
+on the replicate SE under `resample` (every built-in's). `df` is the
+reported df on a t interval (`null`, with null bounds, when ≤ 0) and
+absent on a normal one.
+
+**Scoring.** With a `Scorer`, `ATTR_REG_PREDICT` scores the model's
+fits — a Compose `fits` entry, or a saved model reloaded through
+`models` — through the registration's scorer, one scorer shared by
+every worker (immutable, safe for concurrent use). The scorer reads
+only `extend.FittedRegression`, built identically for the in-request
+fit and its reloaded file (`Outputs` in their JSON form — a number a
+`float64`, an array `[]any`, a non-finite float `nil`), so a reloaded
+model predicts exactly what the fit did; a figure scoring needs beyond
+the coefficients (a `params` value) belongs in `Outputs`. Its
+`Columns()` must be among the fit's predictors (else
+`PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH`, reason `scorer_columns`;
+a nil scorer is reason `nil_scorer`); a null column scores null. It
+scores the whole model: `params.terms` and a `lower` / `upper`
+`params.bound` are `PULSE_MODEL_SCORE_INVALID` (reasons
+`terms_unsupported` / `bound_unsupported`), and `params.scale`
+`scale_not_glm`. Without a `Scorer`, scoring a fit is
+`PULSE_MODEL_SCORE_INVALID` reason `no_scorer` and `save` is refused
+(`slot: "save"`), at predict and at runtime alike; the fit itself runs.
+A saved fit is a `model_format_version` 3 file carrying `outputs`
+(`.claude/reference/byte-layout.md`, Model file); loading one on an
+instance that does not register its type, or hides it under a feature
+profile, is `PULSE_MODEL_REGRESSION_UNREGISTERED` at predict and
+runtime alike.
+
+`TestExtensions_RegressionSharedSlotsRefused` reflects over
+`RegressionSpec` and fails on a field no rule classifies, so a new
+shared slot cannot reach an extension model unclassified.
+
+The manifest lists the model under `extensions.regressions` in the
+built-in `RegressionMeta` shape: the shared slot keys (`target`,
+`predictors`, then every shared slot the declaration accepts — `penalty`
+/ `alpha` / `l1_ratio`, `resample`, `conf_level`, `multiplicity` for a `PValues`
+model, `vcov`, `covariance` naming its declared types; each marked
+`slot`; `emits_type_note` says whether `p_values` can carry figures), then the
+declared `Params`, the declared form (`streamable`), `weight_kinds` for
+a `WeightAware` model, its `intents` and the `output_schema`. The
+instance payload schema (`pulse schema`) and the MCP tools'
+`regressions[].type` enum list it beside the built-ins; a feature
+profile that leaves it out removes it from all three, and a request
+naming it is then refused exactly as a never-registered name.
+Predict's `p_values` counts a `PValues` model's p-values off the
+request: an explicit `multiplicity.coefficients` list exactly, else one
+per non-intercept predictor on the `lower_bound` basis (the model names
+its own coefficients); a model without `PValues` counts none. The fit statistics it reports are listed on
+`RegressionResult.ReportedFigures` (never serialised), so a reported
+exact 0 ranks in a compose `sweep` rank.
+
+**Probe.** `pulse.New` builds the factory against a synthetic schema
+(`probe_y` ~ `probe_x1` + `probe_x2`, plus a weight column), with
+`vcov` set when the registration declares it, the probe params
+(see [Probe params](#probe-validation-full-surface): a `Required` array
+gets `["probe_x1", "probe_x2"]`), and fits it over eight
+synthetic rows through the run-time driver (again weighted for a
+`WeightAware` one, `details.weighted`). A model that is not the
+declared form is `PULSE_EXTENSION_STREAMABLE_MISMATCH`
+(`details.reason` `not_streaming`, `missing_merge`, `not_buffered`);
+an output with no coefficient, an empty or repeated coefficient name,
+an undeclared `Outputs` key, or a missing / misshapen `Vcov` is
+`PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` (`missing_coefficients`,
+`invalid_coefficient`, `undeclared_output_key`, `missing_vcov`,
+`vcov_shape`) — checked again on every run; a factory or fit panic or
+error is `PULSE_EXTENSION_FACTORY_PANIC`, except a data-dependent
+regression refusal on the synthetic rows, which is tolerated. A
+`Scorer` is built over the probe fit (bound as a Compose fit would be)
+and scores the probe rows: a `Scorer` error or a panic in it or in
+`Score` is `PULSE_EXTENSION_FACTORY_PANIC` (`details.stage` `scorer`),
+a nil scorer or one reading a column outside the predictors
+`PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` (`nil_scorer`,
+`scorer_columns`, `details.stage` `scorer`).
+
+```go
+pulse.RegressionRegistration{
+    Name:         "REG_ACME_SLOPE",
+    Factory:      func(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression, error) { return newSlope(spec), nil },
+    Streamable:   true, // newSlope implements UpdateRow, Merge, Finalize
+    WeightAware:  true,
+    Params:       []pulse.ParamMeta{{Name: "scale", JSONType: "number"}}, // spec.Params
+    OutputSchema: []pulse.RegressionOutputMeta{{Key: "sxx", JSONType: "number"}},
+}
+```
+
 ### Expression functions
 
 Custom Go functions become callable from `ATTR_FORMULA` and
@@ -1105,7 +1352,40 @@ flowchart TD
 
 Factory contract for the probe (documented in `extensions_probe.go`):
 embedder factories MUST tolerate a nil/empty `Schema` and a spec
-carrying only the operator `Name`. The probe never feeds real records;
+carrying only the operator `Name` plus the probe params below.
+
+**Probe params.** Every constructed factory — aggregator, attribute,
+grouper, feature, a `WeightAware` test, a matrix operator (its spec and
+`MatrixInput.Params`) and a regression model — gets a `params` object
+that satisfies its registration's own `Params` declaration
+(`extensions_probe_params.go`), the same guarantee a request gives it:
+
+| Declared | Probe value |
+|---|---|
+| `Required: true` | its `Example` when declared, else a placeholder of its `JSONType` (below) |
+| first member of an `ExactlyOneOf` group | its `Example` when declared, else a placeholder of its `JSONType` |
+| anything else (optional, with or without a `Default`) | absent — the factory applies its default, as on a request that omits it |
+
+| `JSONType` | Placeholder |
+|---|---|
+| `number` | `1` |
+| `boolean` | `false` |
+| `object` | `{}` |
+| `string` | the probe's first named field — a regression's `probe_x1`, a matrix operator's `probe_m1` — else `""` |
+| `array` | every named field — `["probe_x1", "probe_x2"]` / `["probe_m1", "probe_m2", "probe_m3"]` — else `[]` |
+
+A registration with no `Required` param and no `ExactlyOneOf` group is
+probed with absent params. Every `JSONType` is in the closed set
+`pulse.New` admits, so a placeholder always exists and no probe check is
+skipped. A factory that refuses its placeholder (an enum string, a
+numeric array, a value that must lie in some range) fails `pulse.New`
+with `PULSE_EXTENSION_FACTORY_PANIC`, `details.probe_params` carrying
+the object it was handed: declare a `ParamMeta.Example` the factory
+accepts (the probe then hands it that value), accept the placeholder as
+a valid build-time value, or validate that param in `Finalize` / `Fit`
+instead. Filterers
+(a no-argument factory) and windows are never constructed by the
+probe, so their params are not synthesized. The probe never feeds real records;
 the matrix probe alone feeds SYNTHETIC ones — a six-row, well-conditioned
 listwise co-moment over three `f64` members (rows attached only on the
 `Streamable: false` tier), run once unweighted and, for a `WeightAware`
@@ -1120,7 +1400,9 @@ A `WeightAware` aggregator, attribute or test factory is constructed a
 second time with a row weight on its spec (a field the empty schema
 does not carry) and must pass the same checks; a failure of that
 construction reports the same code with `details.weighted: true`.
-Tests are probed only when they declare `WeightAware`.
+Tests are probed only when they declare `WeightAware`. A regression
+model is fitted over eight synthetic rows ("Regression model
+(`Regressions`)" above).
 
 Factory panics or nil returns surface as
 `PULSE_EXTENSION_FACTORY_PANIC`. Streamability declarations that do
@@ -1276,12 +1558,12 @@ profile by their registered name.
 
 ## Purpose and Interpretation (guidance metadata)
 
-Every registration — all eight operator categories — accepts an optional `Purpose *descriptor.Purpose`: the
+Every registration — all nine operator categories — accepts an optional `Purpose *descriptor.Purpose`: the
 same plain-language guidance built-ins declare (what the operator is
 for, the intents it answers, when to reach for something else, its
-assumptions). A `TestRegistration` additionally accepts
-`Interpretation []descriptor.Interpretation`, saying how to read each
-output field.
+assumptions). A `TestRegistration` and a `RegressionRegistration`
+additionally accept `Interpretation []descriptor.Interpretation`,
+saying how to read each output field.
 
 ```go
 pulse.AggregatorRegistration{
@@ -1321,8 +1603,14 @@ compared case-insensitively with whitespace collapsed — not already
 declared by a built-in or an earlier extension. An
 `Interpretation` is checked for **structure only** — path syntax,
 `Means` or a known `Shared` rule set, `Bands` with a `Convention`,
-`Sign` keys `+` / `-` — since an extension declares no output keys to
-probe. The first registration that breaks a rule (category order, then
+`Sign` keys `+` / `-` — since a test declares no output keys to
+probe. A regression's `Interpretation` is also held to what the model
+can report: a coefficient-keyed figure as `<key>.*` (`coefficients`,
+`std_errors`, `statistics`, `p_values`), a fit statistic (`r2`,
+`adj_r2`, `residual_std_err`, `df`, `deviance`, `null_deviance`,
+`pseudo_r2`, `converged_iters`, `n_obs`) or `outputs.<key>` for a key
+its `OutputSchema` declares; any other path is refused
+(`field_unknown`). The first registration that breaks a rule (category order, then
 slice index; `Purpose` before `Interpretation`) fails with
 `PULSE_EXTENSION_PURPOSE_INVALID`; details carry `category`, `name`,
 `index`, `part` (`purpose` / `interpretation`), the first failing
@@ -1982,6 +2270,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_MERGEABLE_MISMATCH` | aggregator / grouper `Mergeable` without `Streamable`, value lacks `extend.MergeableAggregator` (or, for a grouper that emits components, `extend.MergeableGrouper`), or `ComponentSchema` keys classified `None` |
 | `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH` | aggregator `MarginReducibility` is not a known class, or is a fusable class (summable / mean_reducible / independent) without `Mergeable` |
 | `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | a matrix operator, finalized over the probe's synthetic co-moment, returned no `Primary` or an output key its `OutputKeys` does not declare |
+| `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` | a regression model, fitted over the probe's synthetic rows or on any run, returned no coefficient, an empty / repeated coefficient name, an `Outputs` key its `OutputSchema` does not declare, or (under `vcov`) a missing or misshapen `Vcov` |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe |
 | `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, `ComponentSchema.Keys` with no emitter (`schema_without_emitter`), lookup table with neither `Rows` nor `Lookup`, a malformed reference-vector table, etc. |
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (`ComponentsFunc`, or the value's own `Components()` method) but `ComponentSchema.Keys` empty |
@@ -1991,7 +2280,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_EXAMPLE_INVALID` | an `Extensions.Examples` file breaks a rule in "Embedder examples" — `details.reason` names which |
 | `PULSE_EXTENSION_EXAMPLE_COLLISION` | an `Extensions.Examples` name is a built-in example or is shipped twice |
 | `PULSE_FEATURE_PROFILE_UNKNOWN` | a `DependsOn` entry names no built-in feature or registered extension operator |
-| `PULSE_EXTENSION_NOT_WEIGHT_AWARE` | a row weight reached a registration without `WeightAware` — explicit on an aggregator, or any weight in force on an attribute or test |
+| `PULSE_EXTENSION_NOT_WEIGHT_AWARE` | a row weight reached a registration without `WeightAware` — explicit on an aggregator, or any weight in force on an attribute, test, matrix operator or regression |
 | `PULSE_LOOKUP_TABLE_UNKNOWN` | expression referenced an unregistered table |
 | `PULSE_LOOKUP_MISS` | lookup key not present |
 | `PULSE_VECTOR_REFERENCE_UNKNOWN` | `ref()` names an unregistered table or key, or a non-literal table |
@@ -2005,6 +2294,9 @@ CLAUDE.md Update Demand table in the same PR.
 
 ## Related pages
 
+- [Adding a Regression Model (Embedders)](adding-regression.md) — the
+  embedder recipe: streaming and buffered forms, declared params and
+  outputs, the declare-or-refuse table, the scorer and the probe.
 - [Adding an Aggregator](adding-aggregator.md) — the in-tree recipe
   for built-in operators; mirrors the same `ComponentSchema` +
   mergeability contract described here.

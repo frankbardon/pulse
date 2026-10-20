@@ -380,6 +380,7 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 	// weight kinds only where capability:weighting is offered, as the
 	// built-ins do (withMatrixWeightKeys / stampWeightKinds).
 	m.Extensions.MatrixOps = extensionMatrixMetas(snap, on(featWeighting))
+	m.Extensions.Regressions = extensionRegressionMetas(snap, on(featWeighting))
 	if !on(featSynth) {
 		m.SynthDistributions = []descriptor.DistributionMeta{}
 	}

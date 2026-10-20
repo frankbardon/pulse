@@ -231,11 +231,14 @@ var errorOwners = map[errors.Code][]string{
 	// Fires only on a regression that accepts resample jackknife.
 	errors.PULSE_ADVISORY_JACKKNIFE_COST:                own("REG_OLS", "REG_GLM"),
 	errors.PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED: own("REG_OLS", "REG_GLM"),
+	// Fires only on a REG_OLS bounds fit (result-only).
+	errors.PULSE_ADVISORY_CONSTRAINT_ACTIVE: own("REG_OLS"),
 	// Fires only on the ordered series overlays (seriespartition.Ordered).
 	errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE: own(advisoryOrderedOverlayNames()...),
 	// Fires on an embedder extension operator, which any instance may
 	// register.
 	errors.PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED: shared,
+	errors.PULSE_REQUEST_PARAM_INVALID:                shared,
 	errors.PULSE_SUPPRESS_ADVISORY_UNKNOWN:            shared,
 	// Raised by recommend AND by the core examples search's intent
 	// filter, which every instance carries.
@@ -303,6 +306,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH: shared,
 	errors.PULSE_EXTENSION_ARRAY_VALUED_MISMATCH:        shared,
 	errors.PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH:       shared,
+	errors.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH:   shared,
 	errors.PULSE_EXTENSION_FACTORY_PANIC:                shared,
 	errors.PULSE_EXTENSION_PARAM_INVALID:                shared,
 	errors.PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH:    shared,
@@ -339,33 +343,35 @@ var errorOwners = map[errors.Code][]string{
 	// The one model namespace: Compose fits and loaded models bind it.
 	errors.PULSE_FIT_INVALID:          own(featComposeFits),
 	errors.PULSE_MODEL_NAME_COLLISION: own(featComposeFits, featModels),
-	errors.PULSE_MODEL_UNKNOWN:        own(featComposeFits, featModels, "ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
+	errors.PULSE_MODEL_UNKNOWN:        own(featComposeFits, featModels, "ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_FORMULA", "FILTER_EXPRESSION"),
 	errors.PULSE_MODEL_KIND_MISMATCH:  own(featComposeFits, featModels),
-	// ATTR_REG_PREDICT's scoring rule (internal/model.CheckScore) and
+	// ATTR_REG_PREDICT's scoring rule (internal/model.CheckScore), an
+	// ATTR_REG_FITTED / RESIDUAL params.fit (CheckFitReference) and
 	// the coef() expression function (internal/model.CheckCoef), which
 	// ATTR_FORMULA and FILTER_EXPRESSION evaluate.
-	errors.PULSE_MODEL_SCORE_INVALID:         own("ATTR_REG_PREDICT"),
+	errors.PULSE_MODEL_SCORE_INVALID:         own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
 	errors.PULSE_MODEL_TERM_UNKNOWN:          own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
 	errors.PULSE_MODEL_STAT_UNKNOWN:          own("ATTR_FORMULA", "FILTER_EXPRESSION"),
 	errors.PULSE_MODEL_INTERVALS_UNAVAILABLE: own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
-	errors.PULSE_MODEL_PREDICTOR_MISSING:     own("ATTR_REG_PREDICT"),
+	errors.PULSE_MODEL_PREDICTOR_MISSING:     own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
 	// ATTR_FORMULA's total(expr) cohort-total term (internal/totalcall):
 	// the site refusal fires from the other two expression operators.
 	errors.PULSE_FORMULA_TOTAL_SITE:          own("FILTER_EXPRESSION", "OVERLAY_FORMULA"),
 	errors.PULSE_FORMULA_TOTAL_NESTED:        own("ATTR_FORMULA"),
 	errors.PULSE_FORMULA_TOTAL_ARITY:         own("ATTR_FORMULA"),
 	errors.PULSE_FORMULA_COMPILE_ERROR:       own("ATTR_FORMULA", "FILTER_EXPRESSION"),
-	errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC: own("ATTR_REG_PREDICT"),
+	errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC: own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
 	// The model file: a `save` writes it (capability:model_save), a
 	// `models` entry loads it (capability:models) — the parse codes are
 	// the load's.
-	errors.PULSE_MODEL_SAVE_INVALID:        own(featModelSave),
-	errors.PULSE_MODEL_WRITE_FAILED:        own(featModelSave),
-	errors.PULSE_MODEL_OVERWRITTEN:         own(featModelSave),
-	errors.PULSE_MODEL_FILE_INVALID:        own(featModels),
-	errors.PULSE_MODEL_VERSION_UNSUPPORTED: own(featModels),
-	errors.PULSE_MODEL_REF_INVALID:         own(featModels),
-	errors.PULSE_MODEL_FILE_UNREADABLE:     own(featModels),
+	errors.PULSE_MODEL_SAVE_INVALID:            own(featModelSave),
+	errors.PULSE_MODEL_WRITE_FAILED:            own(featModelSave),
+	errors.PULSE_MODEL_OVERWRITTEN:             own(featModelSave),
+	errors.PULSE_MODEL_FILE_INVALID:            own(featModels),
+	errors.PULSE_MODEL_VERSION_UNSUPPORTED:     own(featModels),
+	errors.PULSE_MODEL_REGRESSION_UNREGISTERED: own(featModels),
+	errors.PULSE_MODEL_REF_INVALID:             own(featModels),
+	errors.PULSE_MODEL_FILE_UNREADABLE:         own(featModels),
 	// nested_in_sweep is raised by a sweep body, so either surface lists it.
 	errors.PULSE_FOR_EACH_INVALID: own(featForEach, featComposeSweep),
 

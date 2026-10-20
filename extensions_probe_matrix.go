@@ -71,6 +71,7 @@ func probeMatrixInput(reg MatrixOpRegistration, weighted, withRows bool) *extend
 	}
 	in := &extend.MatrixInput{
 		Name:          string(reg.Name),
+		Params:        probeParams(reg.Params, probeMatrixMembers),
 		CoMoment:      cm,
 		Members:       append([]string(nil), probeMatrixMembers...),
 		Encoding:      types.MatrixEncodingFull,
@@ -184,13 +185,13 @@ func safeBuildMatrixOp(reg MatrixOpRegistration, schema *encoding.Schema, weight
 			op, err = nil, fail(fmt.Sprintf("panicked: %v", r), map[string]any{"panic": fmt.Sprintf("%v", r)})
 		}
 	}()
-	spec := &types.MatrixSpec{Type: reg.Name, Fields: append([]string(nil), probeMatrixMembers...)}
+	spec := &types.MatrixSpec{Type: reg.Name, Fields: append([]string(nil), probeMatrixMembers...), Params: probeParams(reg.Params, probeMatrixMembers)}
 	if weighted {
 		spec.Weight = probeWeight
 	}
 	op, err = reg.Factory(spec, schema)
 	if err != nil {
-		return nil, fail(fmt.Sprintf("returned error: %v", err), map[string]any{"factory_error": err.Error()})
+		return nil, fail(fmt.Sprintf("returned error: %v", err), withProbeParams(map[string]any{"factory_error": err.Error()}, spec.Params))
 	}
 	if op == nil {
 		return nil, fail("returned a nil instance", nil)

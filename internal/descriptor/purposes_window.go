@@ -21,6 +21,7 @@ import "github.com/frankbardon/pulse/descriptor"
 // directions. The pinning tests are in
 // internal/processing/window/reading_semantics_test.go.
 var windowPurposes = map[string]descriptor.Purpose{
+	"WIN_ADSTOCK":     purposeWinAdstock,
 	"WIN_DELTA":       purposeWinDelta,
 	"WIN_DENSE_RANK":  purposeWinDenseRank,
 	"WIN_EWMA":        purposeWinEWMA,
@@ -296,6 +297,35 @@ var (
 		},
 		Level:    descriptor.LevelIntermediate,
 		Glossary: []string{"mean", "missing-value"},
+	}
+
+	purposeWinAdstock = descriptor.Purpose{
+		Plain:   "Adds a carry-over series: each row sums the current and earlier values, weighted by a decaying curve, so spend keeps acting later.",
+		KnownAs: []string{"adstock", "carry-over effect", "lagged media effect"},
+		Intents: []string{IntentPrepare},
+		Questions: []string{
+			"How much of last month's advertising is still working this week, as a column a model can use?",
+			"What does each channel's spend look like once its lingering effect is spread over later weeks?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Carried-over campaign exposure beside each tracking wave, for a model of brand awareness.",
+			descriptor.DomainOps:     "Weekly media spend per channel turned into its lingering effect before a sales model.",
+			descriptor.DomainScience: "A dose given over time turned into its fading cumulative exposure at each reading.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you want a smoothed level of the series itself, seeded from its first value", Use: "WIN_EWMA"},
+			{When: "you want every row in a fixed window to count equally", Use: "WIN_MOVING_AVG"},
+		},
+		Assumptions: []string{
+			winOnResultRows,
+			winPerPartition,
+			winRowsNotTime,
+			"The curve is set by params.kernel: geometric (each lag back keeps a fixed share, params.decay) or a Weibull curve (params.shape and params.scale), cut off after params.max_lag rows.",
+			"By default the weights sum to 1, so the column stays on the field's scale; with params.normalize false the raw weights apply.",
+			"A missing value reads null and adds nothing to later rows; rows before the partition starts add nothing either, so the carry-over starts from zero.",
+		},
+		Level:    descriptor.LevelIntermediate,
+		Glossary: []string{"missing-value"},
 	}
 )
 
