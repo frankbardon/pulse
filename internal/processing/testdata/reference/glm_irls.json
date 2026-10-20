@@ -6,8 +6,8 @@
     "jsonlite": "2.0.0"
   },
   "primitive": "REG_GLM IRLS: convergence on strong predictors, the separation refusal",
-  "r_function": "glm(y ~ x, family, control = glm.control(epsilon = 1e-14, maxit = 100)); summary(glm, dispersion = 1)",
-  "note": "Two-level x: the MLE has a closed form (binomial logits, poisson log means, gamma inverse means) the glm fit is asserted against at relative 1e-10. epoch_seconds_poisson (x = epoch seconds of 2024 timestamps) has none: glm alone. std_errors are summary(dispersion = 1). cells {x, y, n} expand to n rows each. separated = glm warned 'fitted probabilities numerically 0 or 1 occurred'; Pulse refuses those with PROCESSING_REGRESSION_SEPARATION naming the predictor, so they carry no coefficients.",
+  "r_function": "g <- glm(y ~ x, family, control = glm.control(epsilon = 1e-14, maxit = 100)); g <- glm(..., start = coef(g)); summary(g, dispersion = 1)",
+  "note": "Two-level x: the MLE has a closed form (binomial logits, poisson log means, gamma inverse means) the glm fit is asserted against at relative 1e-10. epoch_seconds_poisson (x = epoch seconds of 2024 timestamps) has none: glm alone. std_errors are summary(dispersion = 1) of a refit warm-started at the converged coefficients (evaluated at the MLE). cells {x, y, n} expand to n rows each. separated = glm warned 'fitted probabilities numerically 0 or 1 occurred'; Pulse refuses those with PROCESSING_REGRESSION_SEPARATION naming the predictor, so they carry no coefficients.",
   "cases": [
     {
       "name": "collections_2x2",
@@ -42,22 +42,22 @@
       "r_warnings": [],
       "separated": false,
       "coefficients": [
-        -3.8759325032561063,
-        6.3518293451877685
+        -3.8759325032560463,
+        6.351829345187709
       ],
       "closed_form_coefficients": [
         -3.8759325032560921,
         6.3518293451877428
       ],
       "std_errors": [
-        0.030671967318331512,
-        0.055337795589051317
+        0.030671967318332039,
+        0.055337795589051345
       ],
       "closed_form_std_errors": [
         0.030671967318331831,
         0.055337795589051018
       ],
-      "deviance": 14197.296242850754,
+      "deviance": 14197.296242850756,
       "null_deviance": 43879.346008950408
     },
     {
@@ -93,22 +93,22 @@
       "r_warnings": [],
       "separated": false,
       "coefficients": [
-        -7.1946870700435781,
-        8.7110345594116509
+        -7.1946870700435044,
+        8.7110345594115923
       ],
       "closed_form_coefficients": [
         -7.194687070043214,
         8.7110345594113028
       ],
       "std_errors": [
-        0.57756689740149969,
-        0.58049207991955598
+        0.57756689740167522,
+        0.58049207991973173
       ],
       "closed_form_std_errors": [
         0.57756689740155975,
         0.5804920799196166
       ],
-      "deviance": 1934.7443207861234,
+      "deviance": 1934.7443207861311,
       "null_deviance": 7044.4127230647318
     },
     {
@@ -184,22 +184,22 @@
       "r_warnings": [],
       "separated": false,
       "coefficients": [
-        -1.3862943611198904,
-        4.8202815656050371
+        -1.386294361119893,
+        4.8202815656050406
       ],
       "closed_form_coefficients": [
         -1.3862943611198906,
         4.8202815656050371
       ],
       "std_errors": [
-        0.31622776454977447,
-        0.32128773011704087
+        0.31622776601683783,
+        0.3212877315609996
       ],
       "closed_form_std_errors": [
         0.31622776601683794,
         0.32128773156099955
       ],
-      "deviance": 29.6653549848834,
+      "deviance": 29.665354984883432,
       "null_deviance": 942.9808207092758
     },
     {
@@ -260,18 +260,18 @@
       "r_warnings": [],
       "separated": false,
       "coefficients": [
-        0.71428571428571397,
-        -0.49923195084485389
+        0.71428571428571419,
+        -0.499231950844854
       ],
       "closed_form_coefficients": [
         0.7142857142857143,
         -0.49923195084485411
       ],
       "std_errors": [
-        0.31943828249726003,
-        0.3370502137921273
+        0.31943828249996964,
+        0.3370502137946953
       ],
-      "deviance": 1.5560110494893749,
+      "deviance": 1.5560110494893742,
       "null_deviance": 4.7129708611704784
     },
     {
@@ -527,14 +527,14 @@
       "r_warnings": ["non-integer x = 0.500000", "non-integer x = 13.500000", "non-integer x = 9.500000", "non-integer x = 5.500000", "non-integer x = 1.500000", "non-integer x = 14.500000", "non-integer x = 10.500000", "non-integer x = 6.500000", "non-integer x = 2.500000", "non-integer x = 15.500000", "non-integer x = 11.500000", "non-integer x = 7.500000", "non-integer x = 3.500000", "non-integer x = 16.500000", "non-integer x = 12.500000", "non-integer x = 8.500000", "non-integer x = 4.500000", "non-integer x = 0.500000", "non-integer x = 13.500000", "non-integer x = 9.500000", "non-integer x = 5.500000", "non-integer x = 1.500000", "non-integer x = 14.500000", "non-integer x = 10.500000", "non-integer x = 6.500000", "non-integer x = 2.500000", "non-integer x = 15.500000", "non-integer x = 11.500000", "non-integer x = 7.500000", "non-integer x = 3.500000", "non-integer x = 16.500000", "non-integer x = 12.500000", "non-integer x = 8.500000", "non-integer x = 4.500000", "non-integer x = 0.500000", "non-integer x = 13.500000", "non-integer x = 9.500000", "non-integer x = 5.500000", "non-integer x = 1.500000", "non-integer x = 14.500000", "non-integer x = 10.500000", "non-integer x = 6.500000", "non-integer x = 2.500000", "non-integer x = 15.500000", "non-integer x = 11.500000", "non-integer x = 7.500000", "non-integer x = 3.500000", "non-integer x = 16.500000"],
       "separated": false,
       "coefficients": [
-        -9.9763982689349167,
-        7.0443947980334072e-09
+        -9.9763982689339077,
+        7.0443947980328216e-09
       ],
       "std_errors": [
-        9.3040920559954596,
-        5.408302869218104e-09
+        9.3040921246388812,
+        5.4083029088466538e-09
       ],
-      "deviance": 160.56066769121495,
+      "deviance": 160.56066769121497,
       "null_deviance": 162.2596372367808
     },
     {
@@ -855,14 +855,14 @@
       "r_warnings": [],
       "separated": false,
       "coefficients": [
-        -0.45824838326466183,
-        0.91649676652799472
+        -0.458248383264661,
+        0.91649676652799439
       ],
       "std_errors": [
-        0.98741915535374536,
-        0.4837345839283852
+        0.98741915538844627,
+        0.48373458397391322
       ],
-      "deviance": 7.1792247111578869,
+      "deviance": 7.1792247111578886,
       "null_deviance": 84.547561851335601
     },
     {
@@ -1108,4 +1108,4 @@
     }
   ]
 }
-// golden-hash: a358786303b9e107c85d9f57d89a3a177d27cdf01b16d5e72f076fd637d273ae
+// golden-hash: b12b83b5dade450619c21302369e1d0f196f380b512cbcada5ce2be74416dc4c

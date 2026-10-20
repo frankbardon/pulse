@@ -63,7 +63,7 @@ func (c olsPenaltyCase) records() []Record {
 // TestRegOLS_PenaltyMatchesGlmnet: every REG_OLS penalty — lasso,
 // elastic net, ridge, weighted — minimizes glmnet's standardize = FALSE
 // objective (the α meaning REG_GLM's penalties share): coefficients
-// within 1e-9 of the KKT-checked oracle, the oracle's zeros exactly 0
+// within relative 1e-10 of the KKT-checked oracle (worst seen 4e-15), the oracle's zeros exactly 0
 // with no std error or p-value.
 func TestRegOLS_PenaltyMatchesGlmnet(t *testing.T) {
 	seen := map[string]bool{}
@@ -85,7 +85,7 @@ func TestRegOLS_PenaltyMatchesGlmnet(t *testing.T) {
 				t.Fatalf("FitBuffered: %v", err)
 			}
 			for j, key := range coefficientKeys(c.Predictors) {
-				if got := res.Coefficients[key]; !oracleClose(got, c.Coefficients[j], 1e-9) {
+				if got := res.Coefficients[key]; !oracleClose(got, c.Coefficients[j], 1e-10) {
 					t.Errorf("β[%s] = %.17g, oracle %.17g", key, got, c.Coefficients[j])
 				}
 			}

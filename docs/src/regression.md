@@ -74,6 +74,8 @@ Ordinary least squares with optional regularization.
 
 Modifier compatibility: `Resample` and `Selection` may be combined; `Selection` runs first, `Resample` re-fits the selected subset.
 
+Unpenalized, `coefficients`, `std_errors`, `p_values`, `ci_lower` / `ci_upper`, `r2`, `adj_r2`, `residual_std_err` and `df` are R `lm()`'s (`summary`, `confint`) to relative `1e-10`; under frequency weights they are `lm()` on the rows repeated `w` times. Oracle: `scripts/reference/gen_ols_lm.R`.
+
 Every penalty minimizes one objective, glmnet's with `standardize = FALSE` and the same one `REG_GLM` uses: `(1/2N*)·Σw·(y − β₀ − Xβ)² + alpha·[(1 − l1_ratio)/2·‖β‖² + l1_ratio·‖β‖₁]` (`l2` is `l1_ratio = 0`, `l1` is `1`), `N*` the sum of the weights, the intercept unpenalized and the predictors on their own units — so `l2` at `alpha` is the elastic net's limit at `l1_ratio → 0` at the same `alpha`, and a predictor on a large scale is barely shrunk (divide it by its SD upstream to penalize all alike). `l2` is solved in closed form, `l1` / `elasticnet` by coordinate descent on the centred Gram; a coefficient shrunk to 0 has no `std_errors` / `p_values` entry. Oracle: R `glmnet` (`scripts/reference/gen_ols_penalty.R`).
 
 Error codes: `PROCESSING_REGRESSION_RANK_DEFICIENT`, `PROCESSING_REGRESSION_SINGULAR_GRAM`, `PROCESSING_REGRESSION_NO_CONVERGE`, `PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `PROCESSING_REGRESSION_APPROXIMATE_SE` (warning, l1/elasticnet without resample), `PROCESSING_REGRESSION_REGULARIZED_SELECTION` (warning, penalty + selection), `PROCESSING_CONFIG`.

@@ -416,6 +416,12 @@ source(file.path(script_dir, "gen_glm_penalty.R"), local = FALSE)
 # response, KKT-self-checked); glmnet + jsonlite.
 source(file.path(script_dir, "gen_ols_penalty.R"), local = FALSE)
 
+# The unpenalised REG_OLS golden (ols_lm.json: lm() coefficients, SE, t,
+# p, confint, R², adjusted R², sigma and df, plain and frequency-weighted
+# on the rep() expansion, normal-equation self-checked; a large-offset
+# predictor fitted on its exact shift); base stats + jsonlite.
+source(file.path(script_dir, "gen_ols_lm.R"), local = FALSE)
+
 # The AGG_AUC golden (auc.json: pROC rank-sum AUC with ties half and its
 # DeLong se / 95% interval, plus weighted cases computed as the weighted
 # Mann-Whitney double sum); pROC + jsonlite.

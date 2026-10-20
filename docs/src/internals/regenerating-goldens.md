@@ -239,6 +239,24 @@ post-test, and `TestPostTwins_MatchRowVariant` holds each post twin
 equal to its row variant on the same data, both at relative `1e-10`
 (`internal/processing/test_post_oracle_test.go`).
 
+### Regression outputs
+
+`scripts/reference/gen_ols_lm.R` writes `ols_lm.json`: unpenalised
+`REG_OLS` against `lm()` (coefficients, SE, t, p, `confint()`, R²,
+adjusted R², σ̂, df), plain and frequency-weighted (`lm()` on the
+`rep()` expansion), each case self-checked against the centered normal
+equations. One case puts the predictor on a 1e6 offset; stock `lm()`'s
+QR on the raw column misses `1e-10` there (adjusted R² off 1.1e-9), so
+that case is fitted on the exact shift `x − 1e6` and mapped back, with
+`lm()`'s raw figures kept as `r_*`. `gen_glm_irls.R` reads its
+dispersion-1 SEs off a refit warm-started at the converged
+coefficients (glm's own SEs lag one IRLS update, ~5e-9), and
+`gen_glm_penalty.R` / `gen_ols_penalty.R` run glmnet at `thresh` 1e-20 /
+1e-24, so `TestReferenceOracle_RegOLSMatchesLM`,
+`TestRegGLM_IRLSMatchesR`, `TestRegGLM_PenaltyMatchesGlmnet` and
+`TestRegOLS_PenaltyMatchesGlmnet` (`internal/processing/regression`)
+hold every figure at relative `1e-10`.
+
 ### The R toolchain
 
 `make reference` refuses any R but 4.6.1 (2026-06-24) and any package

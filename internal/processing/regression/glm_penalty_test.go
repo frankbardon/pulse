@@ -15,7 +15,7 @@ import (
 
 // glmPenaltyCase is one glm_penalty.json case
 // (scripts/reference/gen_glm_penalty.R): glmnet(standardize = FALSE,
-// thresh = 1e-14) on rows [predictors..., y, w].
+// thresh = 1e-20) on rows [predictors..., y, w].
 type glmPenaltyCase struct {
 	Name         string      `json:"name"`
 	Family       string      `json:"family"`
@@ -86,7 +86,8 @@ func (c glmPenaltyCase) spec() *types.RegressionSpec {
 // whose MLE does not exist — reaches glmnet(standardize = FALSE)'s
 // coefficients (a predictor glmnet zeroes is exactly 0), the penalised-
 // Fisher sandwich standard errors (absent for a zeroed predictor) and
-// the unpenalised deviance at the estimate.
+// the unpenalised deviance at the estimate, every figure within relative
+// 1e-10 (worst seen 2e-12).
 func TestRegGLM_PenaltyMatchesGlmnet(t *testing.T) {
 	cases := loadGLMPenaltyReference(t)
 	seen := map[string]bool{}
@@ -105,7 +106,7 @@ func TestRegGLM_PenaltyMatchesGlmnet(t *testing.T) {
 			}
 			for j, key := range coefficientKeys(c.Predictors) {
 				got := res.Coefficients[key]
-				if !oracleClose(got, c.Coefficients[j], 1e-9) {
+				if !oracleClose(got, c.Coefficients[j], 1e-10) {
 					t.Errorf("β[%s] = %.17g, glmnet %.17g", key, got, c.Coefficients[j])
 				}
 				se, has := res.StdErrors[key]
@@ -119,11 +120,11 @@ func TestRegGLM_PenaltyMatchesGlmnet(t *testing.T) {
 					}
 					continue
 				}
-				if !has || !oracleClose(se, *c.StdErrors[j], 1e-8) {
+				if !has || !oracleClose(se, *c.StdErrors[j], 1e-10) {
 					t.Errorf("SE[%s] = %.17g (present %v), sandwich %.17g", key, se, has, *c.StdErrors[j])
 				}
 			}
-			if !oracleClose(res.Deviance, c.Deviance, 1e-9) {
+			if !oracleClose(res.Deviance, c.Deviance, 1e-10) {
 				t.Errorf("deviance = %.17g, oracle %.17g", res.Deviance, c.Deviance)
 			}
 		})
