@@ -793,7 +793,9 @@ func probeRegressions(regs []RegressionRegistration) error {
 }
 
 func probeRegression(reg RegressionRegistration, schema *encoding.Schema, recs []extend.Record, weighted bool) error {
-	spec := &types.RegressionSpec{Type: reg.Name, Target: probeRegTarget, Predictors: []string{probeRegX1, probeRegX2}, Vcov: reg.Vcov}
+	predictors := []string{probeRegX1, probeRegX2}
+	spec := &types.RegressionSpec{Type: reg.Name, Target: probeRegTarget, Predictors: predictors, Vcov: reg.Vcov,
+		Params: probeParams(reg.Params, predictors)}
 	if weighted {
 		spec.Weight = probeWeight
 	}
@@ -897,7 +899,7 @@ func safeBuildRegression(reg RegressionRegistration, spec *types.RegressionSpec,
 	}()
 	model, err = reg.Factory(spec, schema)
 	if err != nil {
-		return nil, fail(fmt.Sprintf("returned error: %v", err), map[string]any{"factory_error": err.Error()})
+		return nil, fail(fmt.Sprintf("returned error: %v", err), withProbeParams(map[string]any{"factory_error": err.Error()}, spec.Params))
 	}
 	if model == nil {
 		return nil, fail("returned a nil model", nil)

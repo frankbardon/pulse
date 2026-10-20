@@ -60,8 +60,8 @@ type hillPrior struct {
 
 // hillParams is the model's params object.
 type hillParams struct {
-	// Channels are the predictors entering through the Hill curve;
-	// absent, every predictor is a channel.
+	// Channels are the predictors entering through the Hill curve (at
+	// least one, each a predictor); the rest are linear controls.
 	Channels    []string   `json:"channels"`
 	Nonnegative bool       `json:"nonnegative"`
 	Prior       *hillPrior `json:"prior"`
@@ -73,7 +73,7 @@ func testMMMHillRegistration() pulse.RegressionRegistration {
 		Name:        regTestMMMHill,
 		Description: "Test-only media-mix model: joint nonlinear least squares over Hill-saturated channels plus linear controls.",
 		Params: []pulse.ParamMeta{
-			{Name: "channels", JSONType: "array", Description: "Predictors entering through the Hill curve; absent, every predictor is a channel."},
+			{Name: "channels", JSONType: "array", Required: true, Description: "Predictors entering through the Hill curve (at least one); the rest are linear controls."},
 			{Name: "nonnegative", JSONType: "boolean", Description: "Constrain every channel β to be non-negative (β = exp θ)."},
 			{Name: "prior", JSONType: "object", Description: "Gaussian MAP prior {channel, mean, precision} on one channel's β."},
 		},
@@ -94,6 +94,9 @@ func testMMMHillFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.
 		}
 	}
 	m := &hillModel{target: spec.Target, nonneg: p.Nonnegative, prior: p.Prior}
+	if len(p.Channels) == 0 {
+		return nil, fmt.Errorf("params.channels: at least one channel is required")
+	}
 	isChannel := map[string]bool{}
 	for _, c := range p.Channels {
 		if !slices.Contains(spec.Predictors, c) {
@@ -102,7 +105,7 @@ func testMMMHillFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.
 		isChannel[c] = true
 	}
 	for _, x := range spec.Predictors {
-		if len(p.Channels) == 0 || isChannel[x] {
+		if isChannel[x] {
 			m.channels = append(m.channels, x)
 		} else {
 			m.controls = append(m.controls, x)

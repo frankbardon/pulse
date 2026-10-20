@@ -281,7 +281,11 @@ object included), is refused `PULSE_REQUEST_PARAM_INVALID` —
 `Default` is not filled in (the factory still applies it) and an
 `ExactlyOneOf` group is still the factory's to enforce. A JSON
 `number` covers integers and decimals alike; a factory that needs an
-integer still checks that itself.
+integer still checks that itself. Because a request can now only reach
+the factory with every `Required` param present, the `pulse.New` probe
+hands the factory a params object that satisfies the same declaration
+— see [Probe validation](#probe-validation-full-surface) — so a factory
+may refuse an absent `Required` param itself.
 
 **One-of-several params.** When the factory takes exactly one of
 several params (an EWMA's `span` or `halflife`), tag each with the same
@@ -892,7 +896,9 @@ exact 0 ranks in a compose `sweep` rank.
 
 **Probe.** `pulse.New` builds the factory against a synthetic schema
 (`probe_y` ~ `probe_x1` + `probe_x2`, plus a weight column), with
-`vcov` set when the registration declares it, and fits it over eight
+`vcov` set when the registration declares it, the probe params
+(see [Probe params](#probe-validation-full-surface): a `Required` array
+gets `["probe_x1", "probe_x2"]`), and fits it over eight
 synthetic rows through the run-time driver (again weighted for a
 `WeightAware` one, `details.weighted`). A model that is not the
 declared form is `PULSE_EXTENSION_STREAMABLE_MISMATCH`
@@ -1298,7 +1304,38 @@ flowchart TD
 
 Factory contract for the probe (documented in `extensions_probe.go`):
 embedder factories MUST tolerate a nil/empty `Schema` and a spec
-carrying only the operator `Name`. The probe never feeds real records;
+carrying only the operator `Name` plus the probe params below.
+
+**Probe params.** Every constructed factory — aggregator, attribute,
+grouper, feature, a `WeightAware` test, a matrix operator (its spec and
+`MatrixInput.Params`) and a regression model — gets a `params` object
+that satisfies its registration's own `Params` declaration
+(`extensions_probe_params.go`), the same guarantee a request gives it:
+
+| Declared | Probe value |
+|---|---|
+| `Required: true` | a placeholder of its `JSONType` (below) |
+| first member of an `ExactlyOneOf` group | a placeholder of its `JSONType` |
+| anything else (optional, with or without a `Default`) | absent — the factory applies its default, as on a request that omits it |
+
+| `JSONType` | Placeholder |
+|---|---|
+| `number` | `1` |
+| `boolean` | `false` |
+| `object` | `{}` |
+| `string` | the probe's first named field — a regression's `probe_x1`, a matrix operator's `probe_m1` — else `""` |
+| `array` | every named field — `["probe_x1", "probe_x2"]` / `["probe_m1", "probe_m2", "probe_m3"]` — else `[]` |
+
+A registration with no `Required` param and no `ExactlyOneOf` group is
+probed with absent params. Every `JSONType` is in the closed set
+`pulse.New` admits, so a placeholder always exists and no probe check is
+skipped. A factory that refuses its placeholder (an enum string, a
+numeric array, a value that must lie in some range) fails `pulse.New`
+with `PULSE_EXTENSION_FACTORY_PANIC`, `details.probe_params` carrying
+the object it was handed: accept the placeholder as a valid build-time
+value, or validate that param in `Finalize` / `Fit` instead. Filterers
+(a no-argument factory) and windows are never constructed by the
+probe, so their params are not synthesized. The probe never feeds real records;
 the matrix probe alone feeds SYNTHETIC ones — a six-row, well-conditioned
 listwise co-moment over three `f64` members (rows attached only on the
 `Streamable: false` tier), run once unweighted and, for a `WeightAware`
