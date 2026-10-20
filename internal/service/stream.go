@@ -135,9 +135,22 @@ func (it *streamingIterator) initFromFile() error {
 			it.initFromReader(bytes.NewReader(data))
 			return nil
 		}
-		// Fall through to ReadFile on mmap failure (e.g. empty file,
-		// EACCES on a special file, or errMmapUnsupported on non-unix
-		// builds).
+		// Fall through on mmap failure (e.g. empty file, EACCES on a
+		// special file, or errMmapUnsupported on non-unix builds).
+	}
+	// An anchor-opened shard (`archive.pulse#shard.pulse`) streams its
+	// section of the archive through the shard scan's bounded window
+	// (sectionScanner) — the per-shard reducer's read — rather than
+	// ReadFile copying the whole shard resident (U51 E2-S2). Reset
+	// closes the handle and the next pass reopens it.
+	if size, ok := anchorSectionSize(it.fs, it.path); ok {
+		f, err := it.fs.Open(it.path)
+		if err != nil {
+			return errors.WrapCodedError(err, errors.SERVICE_RESOURCE, "opening cohort file")
+		}
+		it.closer = f
+		it.initFromReader(newSectionScanner(io.NewSectionReader(f, 0, size)))
+		return nil
 	}
 	data, err := afero.ReadFile(it.fs, it.path)
 	if err != nil {

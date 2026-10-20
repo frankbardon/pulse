@@ -13,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -47,6 +48,15 @@ type LimitInputs struct {
 	// shard count and the merge gate it decides whether an archive run
 	// takes the per-shard parallel arm (ShardFanOut).
 	ShardWorkers int
+	// DecodeWorkers is the instance's parallel-decode worker cap
+	// (Options.DecodeWorkers: 0 = runtime.NumCPU, 1 = serial) and
+	// Mappable whether the runtime can memory-map the single file the
+	// request scans (a real on-disk path: never an archive, an anchored
+	// shard, an in-memory or RealPath-less fs) — with the record count
+	// and the merge gate they decide whether a single-file run takes the
+	// parallel-decode reducer (DecodeFanOut).
+	DecodeWorkers int
+	Mappable      bool
 	// Join reports a request carrying its one JoinSpec; JoinRightRows
 	// is that build side's header count (-1 unknown: no memory
 	// finding). A join never runs the fused crosstab.
@@ -192,6 +202,39 @@ func ShardFanOut(req *types.Request, schema *encoding.Schema, inst *InstanceSnap
 	return mergegate.MergeRefusal(req, schema, in.Extensions.mergeFacts(inst)) == ""
 }
 
+// DecodeFanOut reports whether req runs on the parallel-decode reducer
+// over the single file `in` describes — the predict twin of the
+// runtime's processSingleFileParallelMaybe gate (canParallelDecode +
+// shouldFanOutDecode; parity: internal/service
+// TestDecodeFanOut_PredictMatchesRuntime): a mappable single file (no
+// shards), at least limits.ParallelDecodeRecordThreshold records, a
+// worker cap that resolves to two or more (0 = runtime.NumCPU, clamped
+// by the record count), no crosstab or join, and a request the shared
+// merge gate admits. A crosstab's parallel segment decode materialises
+// the records as the buffered arm does, so it adds no partials and is
+// not counted here.
+func DecodeFanOut(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs) bool {
+	return decodeWorkers(req, schema, inst, in) >= 2
+}
+
+// decodeWorkers is the resolved parallel-decode worker count for req
+// (0 when the run stays serial; see DecodeFanOut).
+func decodeWorkers(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs) int64 {
+	if req == nil || req.Crosstab != nil || in.Join || !in.Mappable || in.DecodeWorkers == 1 ||
+		len(in.ShardRecords) > 0 || in.Records < limits.ParallelDecodeRecordThreshold {
+		return 0
+	}
+	workers := int64(in.DecodeWorkers)
+	if workers <= 0 {
+		workers = int64(runtime.NumCPU())
+	}
+	workers = min(workers, in.Records)
+	if workers < 2 || mergegate.MergeRefusal(req, schema, in.Extensions.mergeFacts(inst)) != "" {
+		return 0
+	}
+	return workers
+}
+
 // EstimateMemory is the upper bound, in bytes, of the resident state
 // req builds over schema — limits.EstimateMemory on the arm MemoryArm
 // picks, with the record counts from in and the request-shaped figures
@@ -223,6 +266,9 @@ func ShardFanOut(req *types.Request, schema *encoding.Schema, inst *InstanceSnap
 //     every shard's partial holds its own buckets — EstimateGroups
 //     clamped by that shard's records, or its records for an unknown
 //     grouper, 1 ungrouped — and per-value state over its records.
+//     The parallel-decode reducer (DecodeFanOut) is charged the same
+//     way per worker partition, each bounded by its block-aligned
+//     segment (at most ceil(blocks / workers) merge blocks).
 //
 // False when the record count (or a join's right count) is unknown.
 // The model never sees filter selectivity or field projection, so the
@@ -271,6 +317,23 @@ func estimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceS
 			}
 			mi.PartitionBuckets = addSaturating(mi.PartitionBuckets, b)
 		}
+	} else if workers := decodeWorkers(req, schema, inst, in); workers >= 2 {
+		// One partial per worker, live until the merge; a worker's
+		// segment is whole merge blocks (the runtime's
+		// blockAlignedSegments), at most ceil(blocks / workers) of them.
+		const block = int64(linalg.MergeBlockSize)
+		blocks := (records + block - 1) / block
+		seg := min(records, (blocks+workers-1)/workers*block)
+		b := int64(1)
+		if len(req.Groups) > 0 {
+			if g, ok := EstimateGroups(req.Groups, schema, inst, seg); ok {
+				b = g
+			} else {
+				b = seg
+			}
+		}
+		mi.PartitionRecords = records
+		mi.PartitionBuckets = mulSaturating(b, workers)
 	}
 	if in.Join {
 		mi.JoinRightRows = in.JoinRightRows
@@ -963,9 +1026,18 @@ func requestFindings(req *types.Request, schema *encoding.Schema, opts *PredictO
 		ShardRecords:   counts.ShardRecords,
 		DirectoryBytes: counts.DirectoryBytes,
 		ShardWorkers:   opts.ShardWorkers,
+		DecodeWorkers:  opts.DecodeWorkers,
 		JoinRightRows:  -1,
 		Extensions:     opts.Extensions,
 		FusionDisabled: opts.DisableCrosstabFusion,
+	}
+	// The mmap probe runs only when it can change the answer: a memory
+	// limit set, a single file at or past the threshold, decode not
+	// forced serial — so an unbounded predict never touches the fs.
+	if opts.DecodeMappable != nil && req != nil && req.Cohort != nil && len(counts.ShardRecords) == 0 &&
+		counts.Records >= limits.ParallelDecodeRecordThreshold && opts.DecodeWorkers != 1 &&
+		!limits.IsUnlimited(limits.Value(l, limits.MaxEstimatedMemory)) {
+		in.Mappable = opts.DecodeMappable(cohortPathFor(req.Cohort))
 	}
 	if req != nil && len(req.Joins) == 1 && req.Joins[0] != nil {
 		in.Join, in.JoinSpec = true, req.Joins[0]

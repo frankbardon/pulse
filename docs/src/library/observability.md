@@ -40,7 +40,7 @@ A Compose slot or ProcessChain stage is a **child** operation (`Scope` child, it
 
 ## Logs
 
-Attribute keys are stable; message text is not. Records: `op`, `cohort`, `request_hash`, `duration_ms`, `rows_scanned` (when positive), `code`. At Debug, an extra plan record adds `arm`, `workers`, `shards`, `projected_fields`.
+Attribute keys are stable; message text is not. Records: `op`, `cohort`, `request_hash`, `duration_ms`, `rows_scanned` (when positive), `code`. At Debug, an extra plan record adds `arm`, `workers`, `shards`, `projected_fields` (the number of fields the run decodes, `0` for every field; every arm that scans a cohort projects, the per-shard parallel arm included).
 
 - **Error**: an operation failed (code only). **Warn**: one record per result warning (code only) and one per resource-limit trip (`limit`, `configured`, `observed`). **Info**: `pulse.New` ready; index build/drop and shard create/add/remove/compact completed; imports sweeps and template reloads.
 - **Privacy**: logs never carry an error message, expression, filter value, dictionary entry or record. Warnings that exist only as free text are skipped for the same reason.

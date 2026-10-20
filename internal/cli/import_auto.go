@@ -65,7 +65,7 @@ func importAutoCmd() *cli.Command {
 				return err
 			}
 
-			p, err := pulse.New(withLogger(ctx, pulse.Options{DataDir: os.Getenv("PULSE_DATA_DIR")}))
+			p, err := pulse.New(withGlobals(ctx, pulse.Options{DataDir: os.Getenv("PULSE_DATA_DIR")}))
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
@@ -199,7 +199,7 @@ func importsListCmd() *cli.Command {
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			jsonOut := cmd.Bool("json")
-			p, err := pulse.New(withLogger(ctx, pulse.Options{DataDir: os.Getenv("PULSE_DATA_DIR")}))
+			p, err := pulse.New(withGlobals(ctx, pulse.Options{DataDir: os.Getenv("PULSE_DATA_DIR")}))
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)
@@ -245,7 +245,7 @@ func importDropCmd() *cli.Command {
 			handle := args.First()
 			jsonOut := cmd.Bool("json")
 
-			p, err := pulse.New(withLogger(ctx, pulse.Options{DataDir: os.Getenv("PULSE_DATA_DIR")}))
+			p, err := pulse.New(withGlobals(ctx, pulse.Options{DataDir: os.Getenv("PULSE_DATA_DIR")}))
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_ERROR", err)

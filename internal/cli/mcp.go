@@ -80,13 +80,12 @@ func MCPCommand(version string) *cli.Command {
 				return fmt.Errorf("data directory required: set PULSE_DATA_DIR or pass --data-dir")
 			}
 
-			opts, err := mcpPulseOptions(dataDir, cmd.StringSlice("limit"))
+			opts, err := mcpPulseOptions(ctx, dataDir, cmd.StringSlice("limit"))
 			if err != nil {
 				return err
 			}
 			// Logs go to stderr only (stdout is the JSON-RPC transport);
 			// metrics are recorded only when an exporter is asked for.
-			opts.Logger = loggerFrom(ctx)
 			metricsAddr := cmd.String("metrics-addr")
 			var reg *obsprom.Registry
 			if metricsAddr != "" {
@@ -209,13 +208,15 @@ func tunedLimits(effective []descriptor.LimitMeta) string {
 }
 
 // mcpPulseOptions builds the pulse.Options `pulse mcp` constructs its
-// instance from: the data directory and the --limit layer.
-func mcpPulseOptions(dataDir string, limitSpecs []string) (pulse.Options, error) {
+// instance from: the data directory, the --limit layer and the root
+// persistent flags in ctx (withGlobals: the stderr logger and the
+// --shard-workers / --decode-workers caps).
+func mcpPulseOptions(ctx context.Context, dataDir string, limitSpecs []string) (pulse.Options, error) {
 	lims, err := parseLimitFlags(limitSpecs)
 	if err != nil {
 		return pulse.Options{}, err
 	}
-	return pulse.Options{DataDir: dataDir, Limits: lims}, nil
+	return withGlobals(ctx, pulse.Options{DataDir: dataDir, Limits: lims}), nil
 }
 
 // parseLimitFlags turns repeated `--limit name=value` flags into the

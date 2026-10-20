@@ -230,8 +230,47 @@ until the merge, and the estimate counts them too. Predict reads the
 instance's `ShardWorkers` to pick the arm, as the run does. Measured on
 archives, the estimate lands at roughly 1.2x to 2.4x the peak heap.
 
+On a single file the parallel-decode arm (`DecodeWorkers` other than 1,
+at least 100,000 records, a file the engine can memory-map, a mergeable
+request) likewise holds one partial per worker until the merge, and the
+estimate counts those partials too. Predict reads the instance's
+`DecodeWorkers` and asks the engine whether it could map the cohort, so
+it charges that arm exactly when the run takes it.
+
 An unknown record count produces no estimate and no finding. With the
 default (`Unlimited`) no count is read at all.
+
+## Worker counts
+
+`Options.ShardWorkers` (per-shard parallel arm over a shard archive) and
+`Options.DecodeWorkers` (segment-parallel decode of one large `.pulse`
+file) cap the worker pools: `0` means one worker per CPU, `1` forces the
+serial arm, a negative value is refused at `pulse.New`. The CLI exposes
+both as global flags on every leaf, `pulse mcp` included:
+`--shard-workers N` and `--decode-workers N` (a negative value is a usage
+error, exit 2; there is no environment-variable form). The two knobs are
+independent: an archive never decodes in segments and a single file
+never fans out by shard. Both parallel arms decode only the fields the
+request reads, as the serial arm does.
+
+Measured on an Apple M1 Max (10 cores), 1M rows × 50 `f64` members,
+grouped `AGG_SUM` + `AGG_AVERAGE` over two members
+(`BenchmarkArchiveWorkerScaling`):
+
+| Workers | 8-shard archive: wall | peak heap | single file: wall | peak heap |
+|---|---|---|---|---|
+| 1 | 423 ms | 1.9 MB | 411 ms | 0.04 MB |
+| 2 | 268 ms | 3.2 MB | 267 ms | 2.3 MB |
+| 4 | 157 ms | 4.5 MB | 177 ms | 2.5 MB |
+| 8 | 107 ms | 15.3 MB | 125 ms | 12.3 MB |
+
+A request that reads every member (a 50 × 50 pairwise covariance) scales
+almost linearly: 6.1 s at 1 worker, 3.3 s at 2, 1.7 s at 4, 1.1 s at 8 on
+the archive, with the peak heap 48–69 MB. Each extra worker adds one
+partial (its group buckets) and one read window to the peak, so a
+high-cardinality grouping costs more memory per worker than these
+four-bucket runs. Beyond the number of shards, extra shard workers sit
+idle. Detail: `docs/internals/BENCHMARKS_BASELINE.md`.
 
 ## `RequestTimeout` and the caller's context
 

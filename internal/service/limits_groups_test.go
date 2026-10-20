@@ -87,11 +87,11 @@ func TestMaxGroups_ParallelShardPartition(t *testing.T) {
 	shard := cohort.Shards()[0].Filename
 
 	svc.SetLimits(withMaxGroups(3))
-	if p, err := svc.processOneShard(ctx, req, cohort.Schema(), arch, 0, 0, shard); err != nil || len(p.groups) != 3 {
+	if p, err := svc.processOneShard(ctx, req, cohort.Schema(), svc.shardDecodeFor(ctx, req, cohort.Schema()), arch, 0, 0, shard); err != nil || len(p.groups) != 3 {
 		t.Fatalf("at the limit: partial %v, %v", p, err)
 	}
 	svc.SetLimits(withMaxGroups(2))
-	p, err := svc.processOneShard(ctx, req, cohort.Schema(), arch, 0, 0, shard)
+	p, err := svc.processOneShard(ctx, req, cohort.Schema(), svc.shardDecodeFor(ctx, req, cohort.Schema()), arch, 0, 0, shard)
 	if p != nil {
 		t.Fatalf("a tripped partition returned its partial: %+v", p)
 	}

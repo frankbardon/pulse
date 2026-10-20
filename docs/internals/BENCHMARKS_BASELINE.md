@@ -29,7 +29,7 @@ the same bits on amd64; their timings do not carry across architectures.
 
 | File | Benchmarks | Command |
 |---|---|---|
-| `matrix-bench-baseline.txt` | `BenchmarkMatrixScale*` (`internal/service/matrix_scale_bench_test.go`), default tier 1M rows × p = 50, one run each; `BenchmarkCoMomentAdd` / `BenchmarkCoMomentMerge` (`linalg/comoment_bench_test.go`), p = 8 / 50 / 256, `-count=6` | `go test -run='^$' -bench=MatrixScale -benchmem -count=1 -timeout=0 ./internal/service/` and `go test -run='^$' -bench=CoMoment -benchmem -count=6 ./linalg/` |
+| `matrix-bench-baseline.txt` | `BenchmarkMatrixScale*` and `BenchmarkArchiveWorkerScaling` (`internal/service/matrix_scale_bench_test.go`), default tier 1M rows × p = 50, one run each (the `Workers` and `ArchiveWorkerScaling` rows re-taken in U51 E2-S2); `BenchmarkCoMomentAdd` / `BenchmarkCoMomentMerge` (`linalg/comoment_bench_test.go`), p = 8 / 50 / 256, `-count=6` | `go test -run='^$' -bench='MatrixScale|ArchiveWorkerScaling' -benchmem -count=1 -timeout=0 ./internal/service/` and `go test -run='^$' -bench=CoMoment -benchmem -count=6 ./linalg/` |
 | `scan-bench-baseline.txt` | `BenchmarkScan_*`, `BenchmarkProcess_StreamingSum*`, `BenchmarkProcess_GroupedByCategorical`, `BenchmarkProcess_StreamingMulti` (`internal/service/scan_bench_test.go`), 10K / 100K / 1M rows | `go test -run='^$' -bench='^(BenchmarkScan_\|BenchmarkProcess_StreamingSum\|BenchmarkProcess_GroupedByCategorical\|BenchmarkProcess_StreamingMulti)' -benchmem -count=1 -timeout=0 ./internal/service/` |
 
 The opt-in tiers (1M × p = 256, 10M × p = 50, 10M × p = 256 —
@@ -58,23 +58,46 @@ What the default-tier numbers show:
   ~152 MB peak. The rest of the peak is decode buffers and transient
   garbage the estimate does not model. `TestMatrixScale_EstimatedBytesRatio`
   pins the ratio in a loose band on a ~100K-row cohort.
-- **`DecodeWorkers` sweep** (single file): 6.0 s at 1 worker, 1.1 s at
-  8, with the peak heap 35–61 MB.
-- **`ShardWorkers` sweep** (8-shard archive of the same rows; re-taken
-  after matrix-extensions-hardening E8-S3..E8-S5): 6.5 s at 1 worker,
-  1.2 s at 8. The peak heap is 463 MB at 1 worker and 778 MB at 2 or
-  more, against the single file's 35–61 MB. A shard archive is read into
-  memory whole (`Service.Open`, by design today), and the per-shard
-  parallel arm holds a partial bucket set per worker on top of that. The
-  per-shard reducer now decodes into a fresh positional record, about
-  3M allocations a run like parallel decode (58M before E8-S3), and the
-  scan reads each shard's schema layout-only (E8-S5). Predict's
-  `estimated_bytes` and `MaxEstimatedMemory` charge the archive: its
-  byte length, one schema decode (the canonical entry) and, when
-  `ShardWorkers` fans out, the per-shard partial buckets
-  (`TestArchiveMemory_EstimatedBytesRatio` pins peak / estimate in
-  `[0.15, 1.2]` on an archive). Streaming the archive open instead of
-  reading it whole is a roadmap item (TODO #455, U51).
+- **`DecodeWorkers` sweep** (single file; re-taken in U51 E2-S2):
+  6.4 s at 1 worker, 3.2 s at 2, 1.6 s at 4, 1.0 s at 8, with the peak
+  heap 35–45 MB.
+- **`ShardWorkers` sweep** (8-shard archive of the same rows; re-taken in
+  U51 E2-S2, after the archive stopped being read whole — #455): 6.1 s at
+  1 worker, 3.3 s at 2, 1.7 s at 4, 1.1 s at 8, with the peak heap 48 MB
+  at 1 worker and 61–69 MB at 2 or more (463 MB and 778 MB before U51,
+  when `Service.Open` read the archive into memory). The archive is
+  opened by its central directory and each shard streams through a
+  bounded read window, so the peak is the merge-block state plus one
+  shard's window per worker and the per-shard partials. Predict's
+  `estimated_bytes` and `MaxEstimatedMemory` charge the largest shard's
+  payload, the directory, one schema decode (the canonical entry) and,
+  when `ShardWorkers` fans out, the per-shard partial buckets
+  (`TestArchiveMemory_EstimatedBytesRatio`).
+
+## Archive worker scaling (U51 E2-S2)
+
+`BenchmarkArchiveWorkerScaling` (`internal/service/matrix_scale_bench_test.go`,
+same cached cohorts) runs a projected scalar request — `AGG_SUM` and
+`AGG_AVERAGE` over two of the 50 members, grouped by `seg` — so the run
+decodes three of the 51 fields. Command:
+`go test -run='^$' -bench=ArchiveWorkerScaling -benchmem -count=1 -timeout=0 ./internal/service/`.
+Apple M1 Max (10 cores), 1M rows × p = 50, one run each:
+
+| Workers | Archive (8 shards): wall | peak heap | Single file: wall | peak heap |
+|---|---|---|---|---|
+| 1 | 423 ms | 1.9 MB | 411 ms | 0.04 MB |
+| 2 | 268 ms | 3.2 MB | 267 ms | 2.3 MB |
+| 4 | 157 ms | 4.5 MB | 177 ms | 2.5 MB |
+| 8 | 107 ms | 15.3 MB | 125 ms | 12.3 MB |
+
+At 1 worker both run the serial arm. The per-shard parallel arm now
+decodes through the request's projection (#356) — the same plan the
+serial arm and parallel decode install. Before it, the same archive
+sweep took 638 / 429 / 283 / 196 ms at 1 / 2 / 4 / 8 workers with
+546 MB allocated per run against 154 MB now. Scaling flattens past 4
+workers on this cohort as the per-worker partials and the merge take a
+larger share of a sub-200 ms run; the peak heap at 8 workers is the
+per-shard partials and read windows, not the cohort.
 
 ## CoMoment benchmarks
 

@@ -14,6 +14,7 @@ import (
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
+	"github.com/spf13/afero"
 )
 
 // logRecord is one captured slog record, attrs flattened by key.
@@ -329,3 +330,60 @@ type levelGate struct {
 }
 
 func (g levelGate) Enabled(_ context.Context, l slog.Level) bool { return l >= g.min }
+
+// TestLogPlanDecisionDebug_ShardParallelProjected (U51 E2-S2): the
+// per-shard parallel arm decodes through the request's projection, and
+// its Debug plan record says so — projected_fields is the retained-field
+// count (one: the summed column of a three-column schema), not the 0 the
+// arm stamped while it decoded every field; full decode
+// (DisableProjection) stamps 0.
+//
+// Falsified by passing 0 for the projected count in
+// processShardArchiveParallel's setPlan.
+func TestLogPlanDecisionDebug_ShardParallelProjected(t *testing.T) {
+	ctx := context.Background()
+	fsys := afero.NewMemMapFs()
+	shards := []string{"s0.pulse", "s1.pulse", "s2.pulse"}
+	for i, path := range shards {
+		createTestPulseFile(t, fsys, path, []string{"id", "region", "amount"}, [][]string{
+			{"1", "north", "10.5"}, {"2", "south", "20.25"}, {string(rune('3' + i)), "north", "7"},
+		})
+	}
+	builder, err := New(Options{FS: fsys})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := builder.CreateShardArchive(ctx, "archive.pulse", shards); err != nil {
+		t.Fatal(err)
+	}
+	req := &Request{
+		Cohort:       &types.Cohort{Filename: "archive.pulse"},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "amount", Label: "s"}},
+	}
+	for _, c := range []struct {
+		name      string
+		disable   bool
+		projected int64
+	}{{"projected", false, 1}, {"full_decode", true, 0}} {
+		t.Run(c.name, func(t *testing.T) {
+			h := &captureHandler{}
+			p, err := New(Options{FS: fsys, ShardWorkers: 3, DisableProjection: c.disable, Logger: h.logger()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			h.take()
+			if _, err := p.Process(ctx, req); err != nil {
+				t.Fatal(err)
+			}
+			plans := only(h.take(), logMsgPlan)
+			if len(plans) != 1 {
+				t.Fatalf("want 1 plan record, got %d", len(plans))
+			}
+			a := plans[0].attrs
+			if a[logKeyArm] != string(observe.ArmShardParallel) || a[logKeyWorkers] != int64(3) ||
+				a[logKeyShards] != int64(3) || a[logKeyProjectedFields] != c.projected {
+				t.Errorf("plan record attrs = %+v, want arm=shard_parallel workers=3 shards=3 projected_fields=%d", a, c.projected)
+			}
+		})
+	}
+}

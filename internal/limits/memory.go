@@ -131,6 +131,13 @@ const (
 	testValueBytes = 32
 )
 
+// ParallelDecodeRecordThreshold is the smallest single-file record
+// count the parallel-decode reducer fans out over (Options.
+// DecodeWorkers): below it the engine stays serial whatever the worker
+// cap. The runtime gate (internal/service) and predict's twin
+// (descriptor DecodeFanOut) both read it.
+const ParallelDecodeRecordThreshold = 100_000
+
 // MemoryInputs are the figures EstimateMemory reads. Counts are
 // non-negative; a figure the caller cannot know makes the estimate
 // unknowable, and the caller reports no finding instead of guessing.

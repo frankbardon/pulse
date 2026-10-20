@@ -54,18 +54,18 @@ Scripts can trust the CLI exit status (all but `pulse mcp`): `0` ok, warnings al
 
 Roots auto-loaded at `pulse.New`:
 
-- `PULSE_LABEL_TABLES_DIR` — output-time label tables. **Use its own dir:** every `*.json` must parse as one (else `pulse.New` fails); only Pulse's sidecars are skipped.
+- `PULSE_LABEL_TABLES_DIR` — output-time label tables. **Use its own dir:** every `*.json` must parse (else `pulse.New` fails); Pulse's sidecars are skipped.
 - `PULSE_RANGE_TABLES_DIR` — named `{label,start,end}` sets for range operators. Same rule.
 - `PULSE_POPULATIONS_DIR` — `*.pulse-population.json` files, bound in every request by stem.
-- `PULSE_TEMPLATES_DIR` — parameterised request templates; `os.PathListSeparator`-separated roots in precedence order, first root wins. Render via `RenderTemplate` / `RenderTemplateRequest`, then predict the rendered request.<!-- feature: capability:templates --> See `request-templating`.<!-- /feature -->
+- `PULSE_TEMPLATES_DIR` — parameterised request templates; `os.PathListSeparator`-separated roots in precedence order, first root wins. Render (`RenderTemplate` / `RenderTemplateRequest`), then predict.<!-- feature: capability:templates --> See `request-templating`.<!-- /feature -->
 
 A name on disk and in code: `PULSE_EXTENSION_DUPLICATE`. `PULSE_BENCH_DIR` is benchmark-only.
 
 Managed imports (`PULSE_IMPORTS_DIR`) persist each handle's read settings in a sidecar (`format`, `source_path`, `ttl_seconds`, `column_type_overrides`, `source_tz`, `column_source_tz`, `source_tz_field`, `dst_policy`, `--vector` folds); a handle is never reused across zones — re-import with `overwrite: true`. See `time-zones`.
 
-Server-side (`pulse mcp` / an embedder's `mcpserve`): `PULSE_MCP_NO_COHORT_SCAN` (flag `--no-cohort-scan`) skips enumerating `pulse://<path>` resources at startup. **There an empty `resources/list` is not evidence of no cohorts** — `resources/read pulse://<path>` and `pulse_inspect` still resolve; ask for the path. Tool responses default to the `standard` preset (no `components`; host flag `--return`); send `"return": {"preset": "full"}` for everything — see `response-shaping`. The host caps resources (flag `--limit name=value`); plan within `manifest.limits` (`-1` = none), re-fetch the manifest on a new `limits_digest`; a breach is `PULSE_LIMIT_EXCEEDED`. Host diagnostics (`--log-level`, `--metrics-addr`) never reach tool responses.
+Server-side (`pulse mcp` / an embedder's `mcpserve`): `PULSE_MCP_NO_COHORT_SCAN` (flag `--no-cohort-scan`) skips enumerating `pulse://<path>` resources at startup. **There an empty `resources/list` is not evidence of no cohorts** — `resources/read pulse://<path>` and `pulse_inspect` still resolve; ask for the path. Tool responses default to the `standard` preset (no `components`; host flag `--return`); send `"return": {"preset": "full"}` for everything — see `response-shaping`. The host caps resources (flag `--limit name=value`); plan within `manifest.limits` (`-1` = none), re-fetch the manifest on a new `limits_digest`; a breach is `PULSE_LIMIT_EXCEEDED`. Host diagnostics (`--log-level`, `--metrics-addr`) and worker caps (`--shard-workers`, `--decode-workers`) never reach tool responses.
 
-Both table kinds surface under `manifest.extensions.{label_tables,range_tables}` — check there first. Templates are NOT manifest-projected; enumerate with `ListTemplates` (`Summary.Broken`: a since-malformed file).
+Both table kinds surface under `manifest.extensions.{label_tables,range_tables}`. Templates are NOT manifest-projected; enumerate with `ListTemplates` (`Summary.Broken`: a since-malformed file).
 
 ## Cross-links
 

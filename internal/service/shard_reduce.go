@@ -85,6 +85,10 @@ func (s *Service) shouldFanOut(req *types.Request, cohort *Cohort) (int, bool) {
 // order; a final pass merges them in that order so Welford drift is
 // deterministic across runs.
 func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Request, cohort *Cohort, path string, workers int) (*types.Response, error) {
+	// The projected decode, built once from the request as the caller
+	// handed it — the serial arm's applyProjection reads the same — and
+	// shared read-only by every worker: one plan, one record binding.
+	dec := s.shardDecodeFor(ctx, req, cohort.Schema())
 	// Every worker builds its aggregators off the stamped spec, so each
 	// slot carries its resolved weight (processing.StampWeightsWith).
 	req = processing.StampWeightsWith(req, s.defaultWeight, s.extensions)
@@ -115,7 +119,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	defer arch.Close()
 	ei := execInfoFrom(ctx)
 	if ei != nil {
-		ei.setPlan(observe.ArmShardParallel, workers, len(shards), 0)
+		ei.setPlan(observe.ArmShardParallel, workers, len(shards), dec.projected)
 	}
 	// Parsing the central directory is the archive's open.
 	ei.Lap(observe.PhaseOpen)
@@ -145,7 +149,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 		// under DisablePanicRecovery must not release wg.Wait before the
 		// crash.
 		go joinOnReturn(&wg, func() {
-			if err := s.shardWorker(cctx, req, schema, arch, jobs, starts, shards, partials); err != nil {
+			if err := s.shardWorker(cctx, req, schema, dec, arch, jobs, starts, shards, partials); err != nil {
 				errOnce.Do(func() { firstErr = err; cancel() })
 			}
 		})
@@ -192,13 +196,13 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 // Operator code runs per row on its goroutine, so it recovers a panic
 // into PROCESSING_PANIC (recoverInto) returned like any shard error —
 // the caller records the first and cancels the siblings.
-func (s *Service) shardWorker(ctx context.Context, req *types.Request, schema *encoding.Schema, arch *archiveFile, jobs <-chan int, starts []int, shards []ShardEntry, partials []*shardPartial) (err error) {
+func (s *Service) shardWorker(ctx context.Context, req *types.Request, schema *encoding.Schema, dec *shardDecode, arch *archiveFile, jobs <-chan int, starts []int, shards []ShardEntry, partials []*shardPartial) (err error) {
 	defer recoverInto(panicOpShardParallel, s.disablePanicRecovery, &err)
 	for idx := range jobs {
 		if ctx.Err() != nil {
 			return nil
 		}
-		p, err := s.processOneShard(ctx, req, schema, arch, idx, starts[idx], shards[idx].Filename)
+		p, err := s.processOneShard(ctx, req, schema, dec, arch, idx, starts[idx], shards[idx].Filename)
 		if err != nil {
 			return err
 		}
@@ -331,6 +335,101 @@ type shardPartial struct {
 	keyOrder []string
 }
 
+// shardDecode is the per-shard parallel reducer's decode shape, built
+// once per run (shardDecodeFor) and read by every worker: the
+// projection's keep filter and DecodePlan (both nil: full decode), the
+// retained-field count stamped as the plan's projected_fields, and the
+// binding each row's fresh Record is minted from — projected to keep
+// when the plan drives the decode, exactly as the parallel-decode
+// reducer binds (parallel_decode.go) and the serial shardIter binds.
+type shardDecode struct {
+	keep      encx.FieldFilter
+	plan      *encx.DecodePlan
+	projected int
+	binding   *processing.RecordBinding
+}
+
+// shardDecodeFor builds the shard reducer's decode shape for req over
+// the canonical schema (decodeProjection — the serial scan's plan).
+func (s *Service) shardDecodeFor(ctx context.Context, req *types.Request, schema *encoding.Schema) *shardDecode {
+	keep, plan, projected := s.decodeProjection(ctx, req, schema)
+	return &shardDecode{keep: keep, plan: plan, projected: projected, binding: recordBindingFor(schema, plan, keep)}
+}
+
+// shardRows reads one shard's rows in the run's decode shape.
+type shardRows struct {
+	rr     *encx.RecordReader
+	dec    *shardDecode
+	schema *encoding.Schema
+	// exact carries the u64 words the projection-without-plan map decode
+	// would lose to the float64 echo (nil otherwise).
+	exact *encx.ExactU64Words
+}
+
+// openRows positions a RecordReader over the canonical schema at the
+// first record of the archive's shard name. A deflated entry is refused
+// (storedShard), never decoded as raw compressed bytes — the serial
+// shardIter's rule — and the shard's schema block is read layout-only,
+// as shardIter.openShard reads it: the canonical schema decodes the
+// rows, so the shard's dictionaries are read past, never allocated.
+func (d *shardDecode) openRows(arch *archiveFile, name string, schema *encoding.Schema) (*shardRows, error) {
+	r, err := arch.shardReader(name)
+	if err != nil {
+		return nil, err
+	}
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
+			fmt.Sprintf("reading shard %q header", name))
+	}
+	if _, err := encx.ReadSchemaLayout(r, pulseVersion); err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
+			fmt.Sprintf("reading shard %q schema", name))
+	}
+	rows := &shardRows{rr: encx.NewRecordReader(r, schema), dec: d, schema: schema}
+	// The projection-without-plan map decode loses a u64 word above 2^53
+	// to the float64 echo: capture it and hand it to the record, as
+	// shardIter.openShard does (nil, and free, when the schema has no
+	// u64 field; the reuse decoders write the word themselves).
+	if d.plan == nil && d.keep != nil {
+		rows.exact = encx.NewExactU64Words(schema)
+		rows.rr.CaptureExactU64(rows.exact)
+	}
+	return rows, nil
+}
+
+// next decodes the shard's next row into a FRESH positional Record,
+// written by schema position — the parallel-decode reducer's decode
+// (parallel_decode.go). The old map decode built three maps and a
+// converted Record per row (~58 allocations a row at p = 50, E8-S1);
+// the values a consumer reads are the same, so the partial's bits are
+// too (TestShardWorkers_* / TestMatrixCovariance_WorkerInvariant).
+// Under a projection the plan seeks past the unretained fields and the
+// record holds only the retained ones (U51 E2-S2); the projection-
+// without-plan case (defensive) keeps the map decode, converted on
+// construction. io.EOF ends the shard.
+func (sr *shardRows) next() (*processing.Record, error) {
+	d := sr.dec
+	switch {
+	case d.plan != nil:
+		rec := d.binding.NewRecord()
+		return rec, sr.rr.ReadRecordReusedWithPlan(rec, d.keep, d.plan)
+	case d.keep != nil:
+		values := make(map[string]float64, d.projected)
+		nulls := make(map[string]bool)
+		wide := make(map[string]any)
+		if err := sr.rr.ReadRecordWithWideProjected(values, nulls, wide, d.keep); err != nil {
+			return nil, err
+		}
+		rec := processing.NewRecordWithWide(sr.schema, values, nulls, wide)
+		sr.exact.ApplyTo(rec)
+		return rec, nil
+	default:
+		rec := d.binding.NewRecord()
+		return rec, sr.rr.ReadRecordReused(rec)
+	}
+}
+
 // processOneShard streams one shard's records through fresh per-shard
 // OnlineAggregator instances (and per-group buckets when req.Groups is
 // non-empty). Returns a partial state ready for merging. shardIdx is
@@ -338,26 +437,12 @@ type shardPartial struct {
 // ordinal (shardStarts): with the in-shard record index they are each
 // row's merge-block position, stamped exactly as the serial shardIter
 // stamps it.
-func (s *Service) processOneShard(ctx context.Context, req *types.Request, schema *encoding.Schema, arch *archiveFile, shardIdx, shardStart int, shardName string) (*shardPartial, error) {
-	// A deflated entry is refused (storedShard), never decoded as raw
-	// compressed bytes — the serial shardIter's rule.
-	r, err := arch.shardReader(shardName)
+func (s *Service) processOneShard(ctx context.Context, req *types.Request, schema *encoding.Schema, dec *shardDecode, arch *archiveFile, shardIdx, shardStart int, shardName string) (*shardPartial, error) {
+	rows, err := dec.openRows(arch, shardName, schema)
 	if err != nil {
 		return nil, err
 	}
-	pulseVersion, err := encoding.ReadHeader(r)
-	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
-			fmt.Sprintf("reading shard %q header", shardName))
-	}
-	// Layout-only, as shardIter.openShard: the canonical schema decodes
-	// the rows, so the shard's dictionaries are read past, never
-	// allocated.
-	if _, err := encx.ReadSchemaLayout(r, pulseVersion); err != nil {
-		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,
-			fmt.Sprintf("reading shard %q schema", shardName))
-	}
-	rr := encx.NewRecordReader(r, schema)
+	rr := rows.rr
 
 	// Pre-build per-shard operators. Each shard worker gets its own
 	// instance set so there's no shared mutable state across workers.
@@ -401,19 +486,11 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 		groupIdx = make([]uint32, len(schema.Groups))
 	}
 
-	// A FRESH positional Record per row, decoded by schema position —
-	// the parallel-decode reducer's decode (parallel_decode.go). The
-	// old map decode built three maps and a converted Record per row
-	// (~58 allocations a row at p = 50, E8-S1); the values a consumer
-	// reads are the same, so the partial's bits are too
-	// (TestShardWorkers_* / TestMatrixCovariance_WorkerInvariant).
-	binding := recordBindingFor(schema, nil, nil)
 	for {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		rec := binding.NewRecord()
-		err := rr.ReadRecordReused(rec)
+		rec, err := rows.next()
 		if err == io.EOF {
 			break
 		}

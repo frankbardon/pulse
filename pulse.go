@@ -345,6 +345,8 @@ type Options struct {
 	// mode) produce byte-equal results vs the serial path; Welford
 	// mean / variance / stddev drift within ULP on well-conditioned
 	// inputs (parallel formula, see processing.MergeOnline docstrings).
+	// The arm decodes only the fields the request reads, as the serial
+	// arm does. CLI: the global --shard-workers flag.
 	ShardWorkers int
 
 	// DecodeWorkers caps the per-cohort parallel decode worker pool the
@@ -360,7 +362,9 @@ type Options struct {
 	// dominates savings on small inputs. Sharded cohorts continue to
 	// route through ShardWorkers; the two knobs are orthogonal (one
 	// fans out across shards, the other fans out across record
-	// segments within a single file or shard payload).
+	// segments within a single file or shard payload). Predict reads it
+	// to pick the arm its memory estimate charges. CLI: the global
+	// --decode-workers flag.
 	DecodeWorkers int
 
 	// DefaultTimeZone is the engine-wide IANA zone ("UTC" or an
@@ -1740,6 +1744,8 @@ func (p *Pulse) predictBytes(ctx context.Context, data []byte, req *Request) (*d
 		ModelLoader:           p.svc,
 		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
 		ShardWorkers:          p.svc.ShardWorkers(),
+		DecodeWorkers:         p.svc.DecodeWorkers(),
+		DecodeMappable:        p.predictDecodeMappable(ctx),
 	}), nil
 }
 
@@ -1777,11 +1783,26 @@ func (p *Pulse) predictOptions(ctx context.Context, sidecar sidecarFacts) descx.
 		ModelLoader:           p.svc,
 		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
 		ShardWorkers:          p.svc.ShardWorkers(),
+		DecodeWorkers:         p.svc.DecodeWorkers(),
+		DecodeMappable:        p.predictDecodeMappable(ctx),
 		// Echoed (never applied) when no weight resolves; measure levels
 		// feed the measure-level advisories only.
 		SuggestedWeightVariable: sidecar.weightVariable,
 		SidecarMeasureLevels:    sidecar.measures,
 	}
+}
+
+// predictDecodeMappable is PredictOptions.DecodeMappable over the
+// runtime's own probe (Service.DecodeMappable): whether the parallel-
+// decode reducer could map the cohort, so predict's memory estimate
+// picks the arm the run picks under Options.DecodeWorkers. Nil when no
+// memory limit is set — predict never asks then — so an unbounded
+// predict allocates no closure (TestObservabilityOffNoAllocs).
+func (p *Pulse) predictDecodeMappable(ctx context.Context) func(string) bool {
+	if !p.svc.MemoryBounded() {
+		return nil
+	}
+	return func(path string) bool { return p.svc.DecodeMappable(ctx, path) }
 }
 
 // predictRecordCounter counts a cohort's records through the runtime's

@@ -287,8 +287,9 @@ func (s *Service) ShardWorkers() int {
 // serial regardless of decodeWorkers. Chosen to match the in-tree
 // BenchmarkBufferedProcessWideCohort row count (100K) where the
 // parallel decode win first becomes measurable on the canonical
-// reference cohort.
-const parallelDecodeRecordThreshold = 100_000
+// reference cohort. Predict reads the same figure
+// (limits.ParallelDecodeRecordThreshold, descriptor DecodeFanOut).
+const parallelDecodeRecordThreshold = limits.ParallelDecodeRecordThreshold
 
 // SetDecodeWorkers configures the per-cohort parallel decode worker
 // pool cap used by the buffered Process path. Zero falls back to
@@ -1019,24 +1020,10 @@ func (s *Service) processSingleFileParallelMaybe(
 	// workers walk the same plan the serial streamingIterator would
 	// have installed. Mirrors installProjection in service.go and the
 	// streamingIterator.installPlan path in stream.go.
-	var (
-		keep           encx.FieldFilter
-		plan           *encx.DecodePlan
-		projectMapHint = len(schema.Fields)
-	)
-	if s.projectBuffered {
-		needed := s.neededFields(ctx, req, schema)
-		if !needed.IsWide() {
-			size := needed.Len()
-			if size > 0 && size < len(schema.Fields) {
-				keep = func(name string) bool { return needed.Has(name) }
-				projectMapHint = size
-				retained := retainedFromFilter(schema, keep)
-				if p, perr := encx.BuildDecodePlan(schema, retained); perr == nil {
-					plan = p
-				}
-			}
-		}
+	keep, plan, projected := s.decodeProjection(ctx, req, schema)
+	projectMapHint := len(schema.Fields)
+	if keep != nil {
+		projectMapHint = projected
 	}
 
 	pctx, cleanup, available, err := buildParallelDecodeContext(
@@ -1070,10 +1057,6 @@ func (s *Service) processSingleFileParallelMaybe(
 		}
 	}()
 	if ei := execInfoFrom(ctx); ei != nil {
-		projected := 0
-		if keep != nil {
-			projected = projectMapHint
-		}
 		ei.setPlan(observe.ArmParallelDecode, resolvedWorkers, 0, projected)
 		ei.addBytes(int64(len(pctx.mmapBytes)))
 		// Mapping the cohort for the workers is its open.
@@ -1092,6 +1075,35 @@ func (s *Service) processSingleFileParallelMaybe(
 		return nil, false, err
 	}
 	return resp, true, nil
+}
+
+// decodeProjection is the projected decode a parallel reducer installs
+// for req over schema — the plan the serial scan iterator would install
+// through applyProjection (installProjection + SetProjection), built
+// ONCE per run and shared read-only by every worker: keep is the
+// retained-field filter, plan its DecodePlan and projected the retained
+// count. (nil, nil, 0) is full decode — projection disabled, a wide
+// needed set, or one that retains every field. A BuildDecodePlan error
+// keeps keep with a nil plan: the defensive map decode, as the serial
+// iterators fall back.
+func (s *Service) decodeProjection(ctx context.Context, req *types.Request, schema *encoding.Schema) (encx.FieldFilter, *encx.DecodePlan, int) {
+	if !s.projectBuffered || req == nil || schema == nil {
+		return nil, nil, 0
+	}
+	needed := s.neededFields(ctx, req, schema)
+	if needed.IsWide() {
+		return nil, nil, 0
+	}
+	size := needed.Len()
+	if size == 0 || size >= len(schema.Fields) {
+		return nil, nil, 0
+	}
+	keep := encx.FieldFilter(func(name string) bool { return needed.Has(name) })
+	plan, err := encx.BuildDecodePlan(schema, retainedFromFilter(schema, keep))
+	if err != nil {
+		plan = nil
+	}
+	return keep, plan, size
 }
 
 // scanIterator is the internal interface satisfied by both the

@@ -46,6 +46,21 @@ func newAnchorSectionOverlay(base afero.Fs, virtualPath, archivePath string, off
 	return &anchorOverlay{Fs: base, virtualPath: virtualPath, archivePath: archivePath, offset: offset, size: size}
 }
 
+// anchorSectionSize reports the shard size when path is the virtual
+// path of an anchor overlay — seen through the observability byte
+// counter (execCountingFs) too, so counting never changes the read —
+// and false for any other fs or path.
+func anchorSectionSize(fsys afero.Fs, path string) (int64, bool) {
+	if c, ok := fsys.(*execCountingFs); ok {
+		fsys = c.Fs
+	}
+	a, ok := fsys.(*anchorOverlay)
+	if !ok || path != a.virtualPath {
+		return 0, false
+	}
+	return a.size, true
+}
+
 // openVirtual opens the shard payload behind the virtual path.
 func (a *anchorOverlay) openVirtual(name string) (afero.File, error) {
 	if a.payload != nil || a.archivePath == "" {

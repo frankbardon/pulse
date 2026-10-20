@@ -373,6 +373,49 @@ func BenchmarkMatrixScaleWorkers(b *testing.B) {
 	}
 }
 
+// BenchmarkArchiveWorkerScaling (U51 E2-S2, FR-22): a projected scalar
+// request — AGG_SUM and AGG_AVERAGE over two of the p members, grouped
+// by seg — swept over ShardWorkers 1/2/4/8 on the 8-shard archive and
+// DecodeWorkers 1/2/4/8 on the single file of the same rows. Unlike the
+// pairwise covariance above (every member), it decodes three of the
+// p + 1 fields, so it measures the per-shard arm's projected decode and
+// worker scaling rather than the co-moment fold. Reports ns/op and
+// peak-heap-MB; figures in docs/internals/BENCHMARKS_BASELINE.md and
+// docs/src/library/tuning-limits.md.
+func BenchmarkArchiveWorkerScaling(b *testing.B) {
+	dir := matrixScaleDir(b)
+	cfg := matrixScaleOSConfig(b, dir)
+	for _, tier := range matrixScaleTiers() {
+		single := matrixScaleCohort(b, dir, tier.rows, tier.p, 0)
+		archive := matrixScaleCohort(b, dir, tier.rows, tier.p, matrixScaleShards)
+		members := matrixScaleMembers(tier.p)
+		mk := func(path string) func() *types.Request {
+			return func() *types.Request {
+				return &types.Request{Cohort: &types.Cohort{Filename: path},
+					Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "seg"}},
+					Aggregations: []*types.Aggregation{
+						{Type: types.AGG_SUM, Field: members[0], Label: "s"},
+						{Type: types.AGG_AVERAGE, Field: members[1], Label: "a"},
+					}}
+			}
+		}
+		for _, workers := range []int{1, 2, 4, 8} {
+			b.Run(fmt.Sprintf("%s/shards=%d", tier, workers), func(b *testing.B) {
+				svc := New(cfg)
+				svc.SetProjectBufferedFields(true)
+				svc.SetShardWorkers(workers)
+				runMatrixScale(b, svc, false, mk(archive))
+			})
+			b.Run(fmt.Sprintf("%s/decode=%d", tier, workers), func(b *testing.B) {
+				svc := New(cfg)
+				svc.SetProjectBufferedFields(true)
+				svc.SetDecodeWorkers(workers)
+				runMatrixScale(b, svc, true, mk(single))
+			})
+		}
+	}
+}
+
 // TestMatrixScaleCohort_MatchesReferenceWriter: the streaming generator
 // lays rows down exactly as the reference writer (writeNullablePulse)
 // does, and its archive holds the same rows — so the benchmarks read

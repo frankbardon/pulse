@@ -159,6 +159,21 @@ type PredictOptions struct {
 	// estimate counts the per-shard parallel arm's partials
 	// (ShardFanOut), as the engine's dispatch decides the arm.
 	ShardWorkers int
+
+	// DecodeWorkers is pulse.Options.DecodeWorkers (0 = runtime.NumCPU,
+	// 1 = serial). Over a single file it decides, with DecodeMappable,
+	// whether the memory estimate counts the parallel-decode reducer's
+	// per-worker partials (DecodeFanOut), as the engine's dispatch
+	// decides the arm.
+	DecodeWorkers int
+
+	// DecodeMappable reports whether the runtime can memory-map the
+	// single-file cohort at path — the parallel-decode reducer's
+	// precondition (a real on-disk path). The facade passes the
+	// runtime's own probe; nil answers false (no parallel decode is
+	// predicted). Called only when a memory limit is set and the other
+	// fan-out conditions hold.
+	DecodeMappable func(path string) bool
 }
 
 // CrosstabFusionDisabledReason is the PredictResult.CrosstabFusionReasons

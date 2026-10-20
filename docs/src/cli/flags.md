@@ -31,12 +31,14 @@ Persistent on **every** leaf (accepted before or after the leaf name):
 |---|---|
 | `--log-level off\|debug\|info\|warn\|error` | Structured log records on **stderr** at or above the level (default `off`: nothing). `debug` adds the per-operation plan record (execution arm, workers, shards, projection) |
 | `--log-format text\|json` | Log record encoding (default `text`); ignored while `--log-level` is `off` |
+| `--shard-workers N` | Per-shard parallel workers over a shard archive (`Options.ShardWorkers`): `0` (default) one per CPU, `1` serial |
+| `--decode-workers N` | Parallel decode workers over one large `.pulse` file (`Options.DecodeWorkers`): `0` (default) one per CPU, `1` serial |
 
 Logs never reach stdout, so `--json` output and the `pulse mcp`
 JSON-RPC transport stay byte-identical with or without them. Records
 carry identifiers, counts, timings, enums and error codes only — never
 row data, filter values or error messages. An unknown value is
-`CLI_INPUT`. There are no environment-variable forms. Leaves that never build a Pulse instance (`import`, `convert`, `skills`, `errors`, `version`, `features`) accept the flags but emit nothing. `pulse mcp --metrics-addr` is documented under [pulse mcp](mcp.md); see also [Observability](../library/observability.md).
+`CLI_INPUT`. There are no environment-variable forms. Leaves that never build a Pulse instance (`import`, `convert`, `skills`, `errors`, `version`, `features`) accept the flags but emit nothing. The worker flags reach every instance a leaf builds, `pulse mcp` included, and trade speed against peak memory (figures: [Tuning Limits](../library/tuning-limits.md#worker-counts)); a negative count is a usage error. `pulse mcp --metrics-addr` is documented under [pulse mcp](mcp.md); see also [Observability](../library/observability.md).
 
 ## Environment variables
 
@@ -92,7 +94,7 @@ codes; branch on `errors[0].code` for the reason.
 |---|---|
 | 0 | Success. Warnings and advisories are allowed: they ride the envelope's `warnings` (stderr lines in text mode) and never move the status |
 | 1 | A fatal error. Under `--json` the envelope's `errors` carries it (a warning `--strict` escalated included) and stdout is that envelope alone, with nothing added to stderr; in text mode it is printed to stderr as `error: ...` |
-| 2 | A usage error refused before any library call: an unknown flag, a malformed flag value, a missing required flag or argument, or an unknown `--log-level` / `--log-format`. The usage text goes to the terminal; no envelope is written |
+| 2 | A usage error refused before any library call: an unknown flag, a malformed flag value, a missing required flag or argument, an unknown `--log-level` / `--log-format`, or a negative `--shard-workers` / `--decode-workers`. The usage text goes to the terminal; no envelope is written |
 
 The rule follows the envelope: an envelope with a non-empty `errors`
 always exits 1, one with only `warnings` exits 0. A leaf's own argument

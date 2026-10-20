@@ -7,14 +7,22 @@ BenchmarkMatrixScale/rows=1M/p=50/pairwise-10         	       1	1077557125 ns/op
 BenchmarkMatrixScale/rows=1M/p=50/AGG_VEC_MEAN-10     	       3	 361692986 ns/op	        33.00 peak-heap-MB	536918824 B/op	 3005100 allocs/op
 BenchmarkMatrixScale/rows=1M/p=50/AGG_VEC_SD-10       	       3	 342233681 ns/op	        19.65 peak-heap-MB	537376194 B/op	 3006176 allocs/op
 BenchmarkMatrixScaleGrouped/rows=1M/p=50/pairwise_by_seg-10         	       1	1063280708 ns/op	       152.1 peak-heap-MB	        85.83 pred-state-MB	686089576 B/op	 3008222 allocs/op
-BenchmarkMatrixScaleWorkers/rows=1M/p=50/decode=1-10         	       1	5972702375 ns/op	        34.72 peak-heap-MB	        21.46 pred-state-MB	36654016 B/op	    2579 allocs/op
-BenchmarkMatrixScaleWorkers/rows=1M/p=50/shards=1-10         	       1	6471836042 ns/op	       463.0 peak-heap-MB	893815096 B/op	    9958 allocs/op
-BenchmarkMatrixScaleWorkers/rows=1M/p=50/decode=2-10         	       1	4159243667 ns/op	        45.33 peak-heap-MB	        21.46 pred-state-MB	572738352 B/op	 3003108 allocs/op
-BenchmarkMatrixScaleWorkers/rows=1M/p=50/shards=2-10         	       1	3363191333 ns/op	       778.3 peak-heap-MB	1430652904 B/op	 3010735 allocs/op
-BenchmarkMatrixScaleWorkers/rows=1M/p=50/decode=4-10         	       1	1732928166 ns/op	        45.52 peak-heap-MB	        21.46 pred-state-MB	572981056 B/op	 3003335 allocs/op
-BenchmarkMatrixScaleWorkers/rows=1M/p=50/shards=4-10         	       1	1828107000 ns/op	       778.4 peak-heap-MB	1430655544 B/op	 3010734 allocs/op
-BenchmarkMatrixScaleWorkers/rows=1M/p=50/decode=8-10         	       2	1068603708 ns/op	        60.93 peak-heap-MB	        21.46 pred-state-MB	573466748 B/op	 3003795 allocs/op
-BenchmarkMatrixScaleWorkers/rows=1M/p=50/shards=8-10         	       1	1170765542 ns/op	       778.4 peak-heap-MB	1430679824 B/op	 3010766 allocs/op
+BenchmarkMatrixScaleWorkers/rows=1M/p=50/decode=1-10         	       1	6433682917 ns/op	        34.74 peak-heap-MB	        21.46 pred-state-MB	37106560 B/op	    3963 allocs/op
+BenchmarkMatrixScaleWorkers/rows=1M/p=50/shards=1-10         	       1	6149768875 ns/op	        48.43 peak-heap-MB	79886472 B/op	    9984 allocs/op
+BenchmarkMatrixScaleWorkers/rows=1M/p=50/decode=2-10         	       1	3191431292 ns/op	        45.13 peak-heap-MB	        21.46 pred-state-MB	580743152 B/op	 3003115 allocs/op
+BenchmarkMatrixScaleWorkers/rows=1M/p=50/shards=2-10         	       1	3283213750 ns/op	        60.55 peak-heap-MB	624744688 B/op	 3010787 allocs/op
+BenchmarkMatrixScaleWorkers/rows=1M/p=50/decode=4-10         	       1	1592292750 ns/op	        44.10 peak-heap-MB	        21.46 pred-state-MB	580985320 B/op	 3003342 allocs/op
+BenchmarkMatrixScaleWorkers/rows=1M/p=50/shards=4-10         	       1	1678230875 ns/op	        62.13 peak-heap-MB	624741344 B/op	 3010790 allocs/op
+BenchmarkMatrixScaleWorkers/rows=1M/p=50/decode=8-10         	       1	1045282125 ns/op	        45.43 peak-heap-MB	        21.46 pred-state-MB	581474488 B/op	 3003828 allocs/op
+BenchmarkMatrixScaleWorkers/rows=1M/p=50/shards=8-10         	       1	1053504458 ns/op	        69.26 peak-heap-MB	624738224 B/op	 3010798 allocs/op
+BenchmarkArchiveWorkerScaling/rows=1M/p=50/shards=1-10       	       3	 423453778 ns/op	         1.940 peak-heap-MB	 2315744 B/op	    8480 allocs/op
+BenchmarkArchiveWorkerScaling/rows=1M/p=50/decode=1-10       	       3	 411005250 ns/op	         0.04052 peak-heap-MB	   41421 B/op	    1219 allocs/op
+BenchmarkArchiveWorkerScaling/rows=1M/p=50/shards=2-10       	       4	 267596823 ns/op	         3.231 peak-heap-MB	154339828 B/op	 3008816 allocs/op
+BenchmarkArchiveWorkerScaling/rows=1M/p=50/decode=2-10       	       4	 266781729 ns/op	         2.292 peak-heap-MB	152056544 B/op	 3001789 allocs/op
+BenchmarkArchiveWorkerScaling/rows=1M/p=50/shards=4-10       	       7	 156877161 ns/op	         4.495 peak-heap-MB	154341521 B/op	 3008830 allocs/op
+BenchmarkArchiveWorkerScaling/rows=1M/p=50/decode=4-10       	       6	 176517521 ns/op	         2.515 peak-heap-MB	152065429 B/op	 3001899 allocs/op
+BenchmarkArchiveWorkerScaling/rows=1M/p=50/shards=8-10       	      10	 107301708 ns/op	        15.31 peak-heap-MB	154342496 B/op	 3008831 allocs/op
+BenchmarkArchiveWorkerScaling/rows=1M/p=50/decode=8-10       	       8	 125043146 ns/op	        12.26 peak-heap-MB	152083275 B/op	 3002114 allocs/op
 goos: darwin
 goarch: arm64
 pkg: github.com/frankbardon/pulse/linalg

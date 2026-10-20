@@ -26,7 +26,7 @@ Generated from `observe.AllOperationKinds()` / `AllPhases()` / `AllArms()` / `Al
 
 ## Logs
 
-Stable **attribute keys** (the message text is NOT covered by the stability promise): `op`, `cohort` (when the operation addresses one), `request_hash` (when it takes a request), `duration_ms` (float64), `rows_scanned` (only when > 0), `code`; Debug plan record adds `arm`, `workers`, `shards`, `projected_fields`; `pulse.New` logs op `new` + `template_dirs`.
+Stable **attribute keys** (the message text is NOT covered by the stability promise): `op`, `cohort` (when the operation addresses one), `request_hash` (when it takes a request), `duration_ms` (float64), `rows_scanned` (only when > 0), `code`; Debug plan record adds `arm`, `workers`, `shards`, `projected_fields` (the decode's retained-field count, `0` = full decode; `OperationResult.Projected` is `> 0`) — the streaming, buffered, crosstab, parallel-decode and, since U51 E2-S2, shard-parallel arms all project; join stamps `0`; `pulse.New` logs op `new` + `template_dirs`.
 
 | Level | Record | When |
 |---|---|---|

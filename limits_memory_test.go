@@ -394,3 +394,50 @@ func TestPredict_MatrixEstimatedBytes_ArchiveBlocks(t *testing.T) {
 		t.Fatalf("estimated_bytes = %d, want 3 fragments x %d + 5 buffered rows x 24 = %d", *m.EstimatedBytes, m.AccumulatorBytes, want)
 	}
 }
+
+// TestLimits_MaxEstimatedMemory_DecodeWorkersPredictMatchesRuntime
+// (U51 E2-S2, FR-39): predict reads Options.DecodeWorkers, so over a
+// mappable single file past the parallel-decode threshold its memory
+// estimate counts the per-worker partials exactly when the run takes the
+// parallel-decode reducer — the figure predict reports is the one the
+// runtime pre-flight refuses with, at DecodeWorkers 1 (serial) and 4
+// (fanned out), and the fanned-out estimate is the larger.
+//
+// Falsified by dropping DecodeWorkers from the facade's predictOptions
+// (predict then charges the serial arm at 4 workers too).
+func TestLimits_MaxEstimatedMemory_DecodeWorkersPredictMatchesRuntime(t *testing.T) {
+	ctx := context.Background()
+	dir := parityLargeCohort(t.TempDir())(t)
+	req := func() *types.Request {
+		return &types.Request{Cohort: &types.Cohort{Filename: "large.pulse"},
+			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score", Label: "s"}}}
+	}
+	estimate := map[int]int64{}
+	for _, workers := range []int{1, 4} {
+		open := func(max int64) *pulse.Pulse {
+			p, err := pulse.New(pulse.Options{DataDir: dir, DecodeWorkers: workers, Limits: pulse.Limits{MaxEstimatedMemory: max}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return p
+		}
+		probe, err := open(1).Predict(ctx, req())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(probe.LimitFindings) != 1 {
+			t.Fatalf("DecodeWorkers %d: probe findings = %+v", workers, probe.LimitFindings)
+		}
+		est := probe.LimitFindings[0].Estimated
+		estimate[workers] = est
+		_, perr := open(est-1).Process(ctx, req())
+		d := requireLimitExceeded(t, perr, "max_estimated_memory", est-1, "Options.Limits.MaxEstimatedMemory")
+		if d["observed"] != est {
+			t.Fatalf("DecodeWorkers %d: runtime observed %v, predict estimated %d", workers, d["observed"], est)
+		}
+	}
+	if estimate[4] <= estimate[1] {
+		t.Fatalf("estimate at DecodeWorkers 4 = %d, at 1 = %d: want the per-worker partials counted", estimate[4], estimate[1])
+	}
+}
