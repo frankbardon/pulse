@@ -30,7 +30,7 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 
 ## Output
 
-`Statistic` = D (sup |F₁(x) − F₂(x)|); `PValue` two-sided via Smirnov asymptotic distribution. `Details.groups` + per-arm `Details.n`.
+`Statistic` = D (sup |F₁(x) − F₂(x)|); `PValue` two-sided via the Smirnov asymptotic distribution with Stephens' small-sample correction (never R `ks.test`'s exact p). `Details.groups` + per-arm `Details.n`.
 
 <!-- generated: reading-the-output -->
 

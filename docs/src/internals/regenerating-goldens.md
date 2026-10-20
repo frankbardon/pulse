@@ -199,6 +199,21 @@ GPL-package data. `mv_fixtures.json` records each fixture's source,
 citation, seed and CSV md5; the `internal/tools/refcohorts` tests fail
 when a CSV drifts from that record or a `.pulse` drifts from its CSV.
 
+### Assembled test outputs
+
+`make reference` also sources `scripts/reference/gen_test_outputs.R`,
+which pins whole `TEST_*` outputs rather than primitives:
+`test_anova_rm.json` (`aov` with an `Error(subj / cond)` stratum),
+`test_tukey_hsd.json` (`TukeyHSD`, with `p_adj` and `q_critical`
+refined on the studentized-range quadrature and R's own values kept as
+`r_*`), `test_trend.json` (Mann-Kendall from `cor.test` /
+`cor(method = "kendall")`, `Kendall::MannKendall` beside it),
+`test_ks.json`, `test_kendall_tau.json` (ties) and
+`test_pearson_r.json` (the Fisher-z interval). Each case carries its
+inputs, so the `TestReferenceOracle_*` tests in
+`internal/processing/test_output_oracle_test.go` replay R's exact
+doubles through the operator at relative `1e-10`.
+
 ### The R toolchain
 
 `make reference` refuses any R but 4.6.1 (2026-06-24) and any package
@@ -223,7 +238,7 @@ is the whole list in one place.
 | `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |
 | `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`; thresh / maxit through `control`) |
 | `nortest` | 1.0-4 | Shapiro-Francia (`nortest::sf.test`), the `TEST_SHAPIRO_WILK` small-n oracle |
-| `Kendall` | 2.2.2 | Mann-Kendall trend test, the `TEST_TREND` oracle |
+| `Kendall` | 2.2.2 | Mann-Kendall cross-check for `TEST_TREND` (`gen_test_outputs.R`); it computes in single precision, so the 1e-10 oracle is base R |
 | `pwr` | 1.3-0 | power / effect-size cross-checks |
 | `Hmisc` | 5.3-0 | probability-weight quantiles (`internal/service/testdata/weight_reference/hmisc_quantile.R`); compiles Fortran, so install it with the workaround below |
 

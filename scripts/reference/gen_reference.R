@@ -433,3 +433,10 @@ source(file.path(script_dir, "gen_jackknife.R"), local = FALSE)
 # REG_GLM with a delete-a-vintage jackknife, holdout AUC (pROC DeLong)
 # and the holdout decile gains table; glmnet + pROC + jsonlite.
 source(file.path(script_dir, "gen_credit_workbench.R"), local = FALSE)
+
+# The assembled TEST_* output goldens (test_anova_rm / test_tukey_hsd /
+# test_trend / test_ks / test_kendall_tau / test_pearson_r.json): stock
+# stats on inline seeded inputs, the Tukey figures refined on
+# tukey_surv() above, Kendall::MannKendall as a single-precision
+# cross-check; base stats + Kendall + jsonlite.
+source(file.path(script_dir, "gen_test_outputs.R"), local = FALSE)

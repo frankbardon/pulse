@@ -30,7 +30,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Output
 
-`Statistic` = Mann-Kendall Z (S over its SE, continuity-corrected); `PValue` two-sided normal approx. `Details`: `s`, `tau`, `var_s` (tie-adjusted), `n`.
+`Statistic` = Mann-Kendall Z (S over its SE, continuity-corrected); `PValue` two-sided normal approx. `Details`: `s`, `tau` (tau-b, S / √(n₀(n₀ − n₂)) — tied value pairs n₂ leave the denominator, as R's `Kendall::MannKendall`; `null` when every value ties), `var_s` (tie-adjusted), `n`.
 
 <!-- generated: reading-the-output -->
 

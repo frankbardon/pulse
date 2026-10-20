@@ -793,13 +793,13 @@ var (
 		},
 		{
 			Field: "details.tau",
-			Means: "S as a share of all pairs of points, from -1 (always falling) to +1 (always rising): how consistent the trend is, not how steep.",
+			Means: "S as a share of the pairs of points, from -1 (always falling) to +1 (always rising), with tied values taken out of the count of pairs: how consistent the trend is, not how steep.",
 			Sign: map[string]string{
 				"+": "a rising trend",
 				"-": "a falling trend",
 			},
 			Caveats: []string{
-				"Tied points count as neither rising nor falling, so many ties pull tau toward 0.",
+				"Tied points count as neither rising nor falling; when every point ties, tau is undefined and reported as null.",
 			},
 		},
 	}

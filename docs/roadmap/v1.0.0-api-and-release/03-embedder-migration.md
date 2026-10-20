@@ -894,6 +894,14 @@ Ships in the next alpha with U34. `format_version` stays `"1.1"`; the one wire a
 
 Not recovered, by design: the `watch.go` stat poller, the `internal/obsprom` HTTP server and the `context.AfterFunc` in the stream observer; a panicking expression function was already recovered by the expression engine (`PROCESSING_RUNTIME`, unchanged); extension probe-time panics stay `PULSE_EXTENSION_FACTORY_PANIC` at `New`.
 
+## Changes from U36 (reference oracles)
+
+Ships in the next alpha. `format_version` stays `"1.1"`; no wire shape changes, only figures that disagreed with R.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| `TEST_TREND` `details.tau` was S / (n(n−1)/2) (tau-a), so tied values pulled it toward 0 and it disagreed with R whenever the series tied (0.5238 where R's `Kendall::MannKendall` and `cor(seq_along(y), y, method = "kendall")` give 0.5450 on a 15-point series with ties); a fully tied series reported 0 | tau-b, S / √(n₀(n₀ − n₂)) with n₂ the tied value pairs, matching R to 1e-10; `null` (undefined) when every value ties. S, Var(S), Z and p are unchanged; untied series are unchanged | behaviour change (figure) | none; a consumer that recomputed S / (n(n−1)/2) or read a flat-series `tau` as 0 reads null instead | U36 |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

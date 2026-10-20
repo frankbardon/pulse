@@ -251,7 +251,7 @@ func (tr *trendPost) Run(rows []map[string]any) (*types.TestResult, error) {
 		}
 		values = append(values, v)
 	}
-	S, varS := mannKendall(values)
+	S, varS, tiedPairs := mannKendall(values)
 	var Z float64
 	switch {
 	case S > 0:
@@ -262,11 +262,14 @@ func (tr *trendPost) Run(rows []map[string]any) (*types.TestResult, error) {
 		Z = 0
 	}
 	p := normalTwoSidedP(Z)
-	tau := 0.0
+	// tau is Kendall's tau-b of the series against its order (the
+	// order positions never tie): S / √(n₀ (n₀ − n₂)), n₀ = n(n−1)/2,
+	// n₂ the tied value pairs — Kendall::MannKendall's S / D and R's
+	// cor(seq_along(y), y, method = "kendall"). Undefined (NaN, null on
+	// the wire) when every value ties.
 	n := float64(len(values))
-	if n > 1 {
-		tau = S / (0.5 * n * (n - 1))
-	}
+	n0 := 0.5 * n * (n - 1)
+	tau := S / math.Sqrt(n0*(n0-tiedPairs))
 	var warnings []string
 	if len(values) < 8 {
 		warnings = append(warnings,
@@ -290,9 +293,9 @@ func (tr *trendPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	}, nil
 }
 
-// mannKendall returns (S, Var(S)) with the standard tied-group
-// correction for Var(S).
-func mannKendall(x []float64) (float64, float64) {
+// mannKendall returns (S, Var(S), n₂) with the standard tied-group
+// correction for Var(S); n₂ = Σ t(t−1)/2 counts the tied value pairs.
+func mannKendall(x []float64) (float64, float64, float64) {
 	n := len(x)
 	S := 0
 	for i := 0; i < n-1; i++ {
@@ -312,16 +315,18 @@ func mannKendall(x []float64) (float64, float64) {
 	}
 	N := float64(n)
 	varS := N * (N - 1) * (2*N + 5) / 18.0
+	tiedPairs := 0.0
 	for _, t := range counts {
 		if t > 1 {
 			tf := float64(t)
 			varS -= tf * (tf - 1) * (2*tf + 5) / 18.0
+			tiedPairs += tf * (tf - 1) / 2
 		}
 	}
 	if varS < 0 {
 		varS = 0
 	}
-	return float64(S), varS
+	return float64(S), varS, tiedPairs
 }
 
 // compareRows returns negative / 0 / positive for ordering by keys.

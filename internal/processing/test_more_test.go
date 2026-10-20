@@ -306,6 +306,11 @@ func TestTrendPost_FlatSeries(t *testing.T) {
 	if res.Details["s"].(float64) != 0 {
 		t.Errorf("S = %g, want 0", res.Details["s"])
 	}
+	// Every value ties: tau-b is 0/0, undefined (null on the wire), as
+	// R's cor(seq_along(y), y, method = "kendall") is NA.
+	if tau := res.Details["tau"].(float64); !math.IsNaN(tau) {
+		t.Errorf("tau = %g on a flat series, want NaN (undefined)", tau)
+	}
 	if res.RejectNull {
 		t.Error("reject_null = true on flat series; want false")
 	}
