@@ -1895,10 +1895,13 @@ const (
 	// embedder extension operator that declares its params (ParamMeta)
 	// carried a value whose JSON type is not the declared JSONType
 	// (details.reason "wrong_type", with expected / got) or omitted a
-	// Required param (details.reason "missing_required"). details.path
-	// locates the param (`aggregations[0].params.scale`); details
-	// operator / param name it. Checked declaratively, so predict and
-	// runtime refuse identically, in every extension category.
+	// Required param (details.reason "missing_required"), or carried
+	// none or more than one member of a declared ExactlyOneOf group
+	// (details.reason "exactly_one_of", path `<slot>.params`, group /
+	// members / present). details.path locates the param
+	// (`aggregations[0].params.scale`); details operator / param name
+	// it. Checked declaratively, so predict and runtime refuse
+	// identically, in every extension category.
 	PULSE_REQUEST_PARAM_INVALID Code = "PULSE_REQUEST_PARAM_INVALID"
 
 	// PULSE_OVERLAY_KIND_UNKNOWN indicates a Request.Overlays entry

@@ -36,11 +36,16 @@ import (
 // nine extension categories: a value whose JSON type is not the
 // declared JSONType, or a Required key the params object omits, is
 // refused PULSE_REQUEST_PARAM_INVALID (details.reason wrong_type /
-// missing_required, details.path `<slot>.params.<key>`). The check is
-// declarative — no operator code runs — so predict and runtime refuse
-// identically. Default and ExactlyOneOf are not applied here: a default
-// stays the factory's to fill, and the one-of rule stays the factory's
-// to enforce. Built-ins keep their own decode path.
+// missing_required, details.path `<slot>.params.<key>`), and so is a
+// params object carrying none, or more than one, of the members of a
+// declared ExactlyOneOf group (U53 decision #12; details.reason
+// exactly_one_of, details.path `<slot>.params`, details.group /
+// members / present). The faults are ordered: an unknown key first
+// (PULSE_REQUEST_UNKNOWN_FIELD), then a wrong type, then a missing
+// Required param, then an ExactlyOneOf group. The check is declarative
+// — no operator code runs — so predict and runtime refuse identically.
+// A Default is never filled in here: it stays the factory's to apply.
+// Built-ins keep their own decode path.
 
 // ParamsDecl is one operator's params allowlist.
 type ParamsDecl struct {
@@ -64,6 +69,17 @@ type ParamsDecl struct {
 	// Required are the extension param keys a request must supply,
 	// sorted. Nil for a built-in.
 	Required []string
+	// OneOf are the extension operator's ExactlyOneOf groups, in the
+	// order each group is first declared: a request supplies exactly
+	// one member of each. Nil for a built-in.
+	OneOf []OneOfGroup
+}
+
+// OneOfGroup is one declared ExactlyOneOf group: its name and its
+// members in declaration order.
+type OneOfGroup struct {
+	Name    string
+	Members []string
 }
 
 // paramsOwnRefusals are the keys a built-in reads only to refuse it
@@ -194,7 +210,7 @@ func ParamsAllowlist(inst *InstanceSnapshot) map[paramread.Key]ParamsDecl {
 			d := ParamsDecl{Declared: len(m.Params) > 0, Keys: []string{}}
 			for _, p := range m.Params {
 				d.Keys = append(d.Keys, p.Name)
-				d.declareValue(p.Name, p.JSONType, p.Required)
+				d.declareValue(p.Name, p.JSONType, p.Required, p.ExactlyOneOf)
 			}
 			if d.Declared && cat == paramread.Aggregator && m.VectorInput {
 				d.Keys = append(d.Keys, extensionVecAggEngineParams...)
@@ -221,7 +237,7 @@ func ParamsAllowlist(inst *InstanceSnapshot) map[paramread.Key]ParamsDecl {
 		// the engine. facts.Params are in the manifest Param
 		// vocabulary, mapped back to the declared JSON type.
 		for _, p := range facts.Params {
-			d.declareValue(p.Name, paramTypeJSON[p.Type], p.Required)
+			d.declareValue(p.Name, paramTypeJSON[p.Type], p.Required, p.ExactlyOneOf)
 		}
 		out[paramread.Key{Category: paramread.Matrix, Op: m.Name}] = d
 	}
@@ -234,8 +250,17 @@ func ParamsAllowlist(inst *InstanceSnapshot) map[paramread.Key]ParamsDecl {
 // matrixParamSnapshot mapping).
 var paramTypeJSON = map[string]string{"float": "number", "bool": "boolean", "list": "array", "string": "string", "object": "object"}
 
-// declareValue records key's declared JSON type and required flag.
-func (d *ParamsDecl) declareValue(key, jsonType string, required bool) {
+// declareValue records key's declared JSON type, required flag and
+// ExactlyOneOf group (empty = ungrouped).
+func (d *ParamsDecl) declareValue(key, jsonType string, required bool, group string) {
+	if group != "" {
+		i := slices.IndexFunc(d.OneOf, func(g OneOfGroup) bool { return g.Name == group })
+		if i < 0 {
+			d.OneOf = append(d.OneOf, OneOfGroup{Name: group})
+			i = len(d.OneOf) - 1
+		}
+		d.OneOf[i].Members = append(d.OneOf[i].Members, key)
+	}
 	if jsonType != "" {
 		if d.Types == nil {
 			d.Types = map[string]string{}
@@ -275,10 +300,12 @@ func JSONValueType(raw json.RawMessage) string {
 // valueRefusal checks the declared values of an extension operator's
 // params object m (nil when the slot carries none): the first key, in
 // sorted order, whose value is not its declared JSON type, else the
-// first Required key m omits. A null value is not of any declared
-// type. Nil when every value conforms.
+// first Required key m omits, else the first ExactlyOneOf group (in
+// declaration order) of which m carries no member or more than one. A
+// null value is not of any declared type. Nil when every value
+// conforms.
 func valueRefusal(path, op string, decl ParamsDecl, m map[string]json.RawMessage) *errors.CodedError {
-	if len(decl.Types) == 0 && len(decl.Required) == 0 {
+	if len(decl.Types) == 0 && len(decl.Required) == 0 && len(decl.OneOf) == 0 {
 		return nil
 	}
 	for _, k := range paramKeys(m) {
@@ -301,7 +328,38 @@ func valueRefusal(path, op string, decl ParamsDecl, m map[string]json.RawMessage
 					"reason": "missing_required", "expected": decl.Types[k]})
 		}
 	}
+	for _, g := range decl.OneOf {
+		present := []string{}
+		for _, k := range g.Members {
+			if _, ok := m[k]; ok {
+				present = append(present, k)
+			}
+		}
+		if len(present) == 1 {
+			continue
+		}
+		carries := "none of them"
+		if len(present) > 0 {
+			carries = quotedList(present)
+		}
+		return errors.NewCodedErrorWithDetails(errors.PULSE_REQUEST_PARAM_INVALID,
+			"operator "+op+" takes exactly one of params "+quotedList(g.Members)+" (group "+strconv.Quote(g.Name)+") at "+path+".params, which carries "+carries,
+			map[string]any{"path": path + ".params", "operator": op, "reason": "exactly_one_of",
+				"group": g.Name, "members": append([]string(nil), g.Members...), "present": present})
+	}
 	return nil
+}
+
+// quotedList is names quoted and comma-separated.
+func quotedList(names []string) string {
+	out := ""
+	for i, n := range names {
+		if i > 0 {
+			out += ", "
+		}
+		out += strconv.Quote(n)
+	}
+	return out
 }
 
 // paramsChecker walks one request root's slots against an allowlist.
@@ -342,8 +400,9 @@ func slotPath(prefix string, i int) string {
 // check refuses raw (the params object of slot prefix[i], e.g.
 // groups[0]; i < 0 for an unindexed slot) when it carries a key op does
 // not declare, or — on an extension operator that declares params — a
-// value of the wrong JSON type or no value for a Required key (absent
-// params included). A slot whose operator is unknown, hidden or
+// value of the wrong JSON type, no value for a Required key (absent
+// params included), or not exactly one member of an ExactlyOneOf
+// group. A slot whose operator is unknown, hidden or
 // undeclared, or whose params are not an object, is left to the
 // operator's own validation.
 func (c *paramsChecker) check(prefix string, i int, cat paramread.Category, op string, raw []byte) *errors.CodedError {

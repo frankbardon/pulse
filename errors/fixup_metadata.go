@@ -2844,12 +2844,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_REQUEST_PARAM_INVALID: {
-		Message: "A slot's params object on an embedder extension operator that declares its params carried a value of the wrong JSON type, or omitted a param the registration marks Required. Every extension category (aggregator, attribute, filterer, grouper, window, feature, test, matrix, regression) checks a declared operator's params against its manifest entry before any operator code runs, so predict refuses exactly what execution would. `details.path` locates the param (\"aggregations[0].params.scale\"), `details.reason` is \"wrong_type\" (with `expected` and `got` JSON types; a null value is the wrong type) or \"missing_required\", and `details.operator` / `param` name it.",
+		Message: "A slot's params object on an embedder extension operator that declares its params carried a value of the wrong JSON type, omitted a param the registration marks Required, or carried none or more than one member of a declared ExactlyOneOf group. Every extension category (aggregator, attribute, filterer, grouper, window, feature, test, matrix, regression) checks a declared operator's params against its manifest entry before any operator code runs, so predict refuses exactly what execution would. `details.path` locates the param (\"aggregations[0].params.scale\"), `details.reason` is \"wrong_type\" (with `expected` and `got` JSON types; a null value is the wrong type), \"missing_required\" or \"exactly_one_of\" (path `<slot>.params`, with `group`, its `members` and the members `present`), checked in that order after unknown keys, and `details.operator` / `param` name it. A declared Default is never filled in: the factory applies it.",
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
 				Hint:     "Caller: supply the param at details.path as a JSON value of the type in details.expected (the operator's manifest entry, extensions.<category>[].params, lists every param with its json_type and required flag). Embedder: if the value is legitimately of another type, widen the registration's ParamMeta.JSONType.",
 				Examples: []any{map[string]any{"params": map[string]any{"scale": 2}}},
+			},
+			{
+				Action:   FixupReplaceField,
+				Hint:     "reason exactly_one_of: supply exactly one of details.members in the params object — drop all but one of details.present, or add one when it is empty (the manifest marks each member with exactly_one_of).",
+				Examples: []any{map[string]any{"params": map[string]any{"span": 7}}},
 			},
 		},
 	},

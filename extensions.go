@@ -209,9 +209,11 @@ type ParamMeta struct {
 	// ExactlyOneOf names a group of mutually exclusive params: of the
 	// params sharing a group name, a request supplies exactly one. A
 	// group needs at least two members, none Required and none with a
-	// Default (PULSE_EXTENSION_PARAM_INVALID otherwise). The factory
-	// still enforces the rule; the declaration lets the manifest say it
-	// and lets Recommend draft the first member. Empty = ungrouped.
+	// Default (PULSE_EXTENSION_PARAM_INVALID otherwise). A request
+	// carrying none, or more than one, of a group's members is refused
+	// PULSE_REQUEST_PARAM_INVALID reason exactly_one_of at predict and
+	// runtime alike; the manifest says it and Recommend drafts the
+	// first member. Empty = ungrouped.
 	ExactlyOneOf string `json:"exactly_one_of,omitempty"`
 	// Example is an optional example value of the param, of its
 	// JSONType (pulse.New refuses one that is not, or that does not

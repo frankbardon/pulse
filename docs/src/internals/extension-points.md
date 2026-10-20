@@ -280,11 +280,18 @@ object included), is refused `PULSE_REQUEST_PARAM_INVALID` —
 `details.path` (`aggregations[0].params.scale`), `details.reason`
 (`wrong_type`, with `expected` / `got`, or `missing_required`),
 `operator`, `param` — identically by predict and every runtime arm.
-`Default` is not filled in (the factory still applies it) and an
-`ExactlyOneOf` group is still the factory's to enforce. A JSON
+So is a params object carrying none, or more than one, of the members
+of an `ExactlyOneOf` group (`details.reason` `exactly_one_of`,
+`details.path` `aggregations[0].params`, `group`, `members`, and the
+members `present`). The faults are checked in order — an unknown key
+first, then a wrong type, then a missing `Required` param, then an
+`ExactlyOneOf` group — and the first one found is the refusal.
+`Default` is never filled in: the factory still applies it, exactly as
+on a request that omits the param. A JSON
 `number` covers integers and decimals alike; a factory that needs an
 integer still checks that itself. Because a request can now only reach
-the factory with every `Required` param present, the `pulse.New` probe
+the factory with every `Required` param present and exactly one member
+of each `ExactlyOneOf` group, the `pulse.New` probe
 hands the factory a params object that satisfies the same declaration
 — see [Probe validation](#probe-validation-full-surface) — so a factory
 may refuse an absent `Required` param itself.
@@ -295,7 +302,9 @@ several params (an EWMA's `span` or `halflife`), tag each with the same
 `exactly_one_of`, and Recommend drafts the group's first member as a
 need, naming the others as alternatives. A group needs two or more
 members, none `Required` and none with a `Default`; anything else is
-`PULSE_EXTENSION_PARAM_INVALID`. The factory still enforces the rule.
+`PULSE_EXTENSION_PARAM_INVALID`. A request naming none or several of a
+group's members is refused before the factory runs (above), so the
+factory sees exactly one.
 
 **Example values.** `ParamMeta.Example` (optional, any JSON value) is an
 example of the param's value. `pulse.New` checks it with the same value
@@ -815,7 +824,7 @@ fatal; a panic is `PROCESSING_PANIC`).
 | `Penalty` | the model reads the shared `penalty` / `alpha` / `l1_ratio` slots itself (their values are the model's to judge); undeclared, any of them is `PROCESSING_CONFIG` `{regression, slot: "penalty"}` (`key` names a companion) |
 | `SupportsSelection` | the model can be refit over a predictor subset, so the engine's selection driver (`forward` / `backward` / `stepwise`) may wrap it; each candidate fit must report `Fit.Deviance` (−2·log-likelihood up to a constant every candidate shares), scored AIC = deviance + 2k or BIC = deviance + ln(n)·k with k its coefficient count and n its `n_obs` — a fit without one is `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` reason `missing_deviance` (at `pulse.New` on the probe fit, and on any candidate). Undeclared, `selection` / `criterion` are `PROCESSING_CONFIG` `{regression, slot: "selection"}` at predict and runtime |
 | `CovarianceTypes` | `[]types.CovarianceType` the model computes itself from `spec.Covariance`: a block whose type (absent = `classical`) is listed reaches the model after the shared shape rule (`cluster` needs `cluster`, `hac` needs `order_by`; a robust type beside `penalty` is `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`); any other type is `PROCESSING_CONFIG` `{regression, slot: "covariance"}`. An unknown or repeated entry fails `pulse.New` (`PULSE_EXTENSION_PARAM_INVALID`, reason `invalid_covariance_type`). A robust type forces the buffered path |
-| `Params` | `[]pulse.ParamMeta` — the keys of the slot's own `params` object (`RegressionSpec.Params`, which the factory reads off the spec); declared, any other key is `PULSE_REQUEST_UNKNOWN_FIELD` at `regressions[i].params.<key>`, and a wrong-typed value or a missing `Required` param is `PULSE_REQUEST_PARAM_INVALID`, at predict and runtime alike; undeclared, params pass through (predict advises `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED`). A built-in `REG_*` declares none, so any `params` key on one is refused |
+| `Params` | `[]pulse.ParamMeta` — the keys of the slot's own `params` object (`RegressionSpec.Params`, which the factory reads off the spec); declared, any other key is `PULSE_REQUEST_UNKNOWN_FIELD` at `regressions[i].params.<key>`, and a wrong-typed value, a missing `Required` param or not exactly one member of an `ExactlyOneOf` group is `PULSE_REQUEST_PARAM_INVALID`, at predict and runtime alike; undeclared, params pass through (predict advises `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED`). A built-in `REG_*` declares none, so any `params` key on one is refused |
 | `OutputSchema` | `[]pulse.RegressionOutputMeta{Key, JSONType, Description}` — the `Outputs` keys the model may fill (`invalid_output_key` on an empty, repeated or untyped key). `Outputs` survives `disable_components` and every `return` preset |
 | `Accepts` | `[]encoding.FieldType` the target and predictors accept; empty means the built-in regressions' set (analytics-numeric). Any other field type is `PULSE_FIELD_TYPE_UNSUPPORTED` at predict and runtime alike (the same message), and the manifest's `accepts_types` lists the set. A vector, unknown or repeated entry fails `pulse.New` (`PULSE_EXTENSION_PARAM_INVALID`, reason `invalid_accepts`) |
 | `FieldInputs` | the fields the model reads beyond target, predictors and weight (one named in its `params`, say) — see [FieldInputs hook](#fieldinputs-hook-buffered-projection-introspection); without one a buffered request carrying the model decodes every field |
