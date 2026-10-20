@@ -111,7 +111,7 @@ func (k *kruskalWallisRow) Finalize() (*types.TestResult, error) {
 	}
 	combined, spans := concatRankSamples(samples)
 	N := combined.n()
-	if N < len(keys)*2 {
+	if k.basis.FloorN(int64(N), combined.sumW) < float64(len(keys)*2) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_KRUSKAL_WALLIS requires ≥ 2 observations per group, got total %d across %d groups", N, len(keys)),
 			map[string]any{"n_total": N, "groups": len(keys), "min_per_group": 2})

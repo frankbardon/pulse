@@ -119,7 +119,7 @@ func (b *bartlettSphericityRow) Finalize() (*types.TestResult, error) {
 		return nil, err
 	}
 	n := cm.N()
-	if n < 2 {
+	if levelFloorN(b.basis, cm) < 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_BARTLETT_SPHERICITY requires n ≥ 2 complete rows, got %d", n),
 			map[string]any{"n": n, "min_required": 2, "p": p})

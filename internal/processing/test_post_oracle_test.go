@@ -174,27 +174,53 @@ func TestReferenceOracle_PostTestNulls(t *testing.T) {
 // TestPostTests_NonNumericNonNullStillRefused: the listwise drop is for
 // nulls only — a present non-numeric value still refuses with
 // PULSE_TEST_FIELD_NOT_NUMERIC, a missing column with SERVICE_VALIDATION.
+// TEST_TUKEY_HSD (U36 E1-S7) refuses like every other post family — on
+// its mean column and on its n column — where it used to skip such a row
+// silently; its null rows still drop.
 func TestPostTests_NonNumericNonNullStillRefused(t *testing.T) {
+	tukey := &types.Test{Type: types.TEST_TUKEY_HSD, Field: "mean", SplitBy: "group",
+		Params: json.RawMessage(`{"ms_within": 2.5, "df_within": 20}`)}
+	tukeyRows := func(last map[string]any) []map[string]any {
+		return []map[string]any{
+			{"group": "a", "mean": nil, "n": int64(5)}, {"group": "b", "mean": 4.0, "n": nil},
+			{"group": "c", "mean": 1.0, "n": int64(5)}, {"group": "d", "mean": 2.5, "n": int64(6)}, {"group": "e", "mean": 4.0, "n": int64(5)},
+			last,
+		}
+	}
 	for _, c := range []struct {
 		name string
-		row  map[string]any
+		spec *types.Test
+		rows []map[string]any
 		code errors.Code
 	}{
-		{"string value", map[string]any{"x": "seven", "y": 1.0}, errors.PULSE_TEST_FIELD_NOT_NUMERIC},
-		{"missing column", map[string]any{"y": 1.0}, errors.SERVICE_VALIDATION},
+		{"pearson string value", &types.Test{Type: types.TEST_PEARSON_R, Field: "x", Field2: "y"}, pearsonRows(map[string]any{"x": "seven", "y": 1.0}), errors.PULSE_TEST_FIELD_NOT_NUMERIC},
+		{"pearson missing column", &types.Test{Type: types.TEST_PEARSON_R, Field: "x", Field2: "y"}, pearsonRows(map[string]any{"y": 1.0}), errors.SERVICE_VALIDATION},
+		{"tukey string mean", tukey, tukeyRows(map[string]any{"group": "f", "mean": "seven", "n": int64(5)}), errors.PULSE_TEST_FIELD_NOT_NUMERIC},
+		{"tukey string n", tukey, tukeyRows(map[string]any{"group": "f", "mean": 3.0, "n": "five"}), errors.PULSE_TEST_FIELD_NOT_NUMERIC},
+		{"tukey missing mean", tukey, tukeyRows(map[string]any{"group": "f", "n": int64(5)}), errors.SERVICE_VALIDATION},
 	} {
-		rows := []map[string]any{
-			{"x": nil, "y": 2.0}, {"x": 1.0, "y": 2.5}, {"x": 2.0, "y": 2.0}, {"x": 3.0, "y": 4.0}, c.row,
-		}
-		pt, err := newPearsonRPost(&types.Test{Type: types.TEST_PEARSON_R, Field: "x", Field2: "y"}, nil)
+		pt, err := postTestRegistry[c.spec.Type](c.spec, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = pt.Run(rows)
+		_, err = pt.Run(c.rows)
 		var ce *errors.CodedError
 		if !asCoded(err, &ce) || ce.Code != c.code {
 			t.Errorf("%s: err = %v, want %s", c.name, err, c.code)
 		}
+	}
+	// The null rows (a, b) still drop: c, d, e and a numeric f compare.
+	pt, _ := postTestRegistry[types.TEST_TUKEY_HSD](tukey, nil)
+	res, err := pt.Run(tukeyRows(map[string]any{"group": "f", "mean": 3.0, "n": int64(5)}))
+	if err != nil || res.Details["k_groups"] != 4 {
+		t.Fatalf("tukey with null rows: err %v, k_groups %v, want 4", err, res.Details["k_groups"])
+	}
+}
+
+// pearsonRows is a Pearson post fixture with a null row and last.
+func pearsonRows(last map[string]any) []map[string]any {
+	return []map[string]any{
+		{"x": nil, "y": 2.0}, {"x": 1.0, "y": 2.5}, {"x": 2.0, "y": 2.0}, {"x": 3.0, "y": 4.0}, last,
 	}
 }
 

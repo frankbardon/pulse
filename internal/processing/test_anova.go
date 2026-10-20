@@ -106,7 +106,8 @@ func (a *anovaRow) Finalize() (*types.TestResult, error) {
 			map[string]any{"groups": a.order, "min_required": 2})
 	}
 	stats := summariseWeightedANOVA(a.order, a.groups, a.basis)
-	if stats.N < int64(k+1) {
+	// Σw (= N*) under frequency, the raw N otherwise (Basis.FloorN).
+	if a.basis.FloorN(stats.N, stats.NStar) < float64(k+1) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_ANOVA_F requires N ≥ k+1 (k=%d, N=%d)", k, stats.N),
 			map[string]any{"k": k, "n": stats.N})

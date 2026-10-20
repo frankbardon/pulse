@@ -110,7 +110,7 @@ func (k *ksRow) Finalize() (*types.TestResult, error) {
 			map[string]any{"groups": keys, "max_allowed": 2})
 	}
 	sa, sb := k.values[keys[0]], k.values[keys[1]]
-	if sa.n() < 2 || sb.n() < 2 {
+	if k.basis.FloorN(int64(sa.n()), sa.sumW) < 2 || k.basis.FloorN(int64(sb.n()), sb.sumW) < 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_KS requires n ≥ 2 per group, got %d / %d", sa.n(), sb.n()),
 			map[string]any{"n": []int{sa.n(), sb.n()}, "min_required": 2})

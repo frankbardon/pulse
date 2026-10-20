@@ -35,7 +35,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 - <!-- feature: capability:multiplicity -->Already family-wise: never joins a `multiplicity` family; an explicit non-`none` block is refused, an inherited one skipped.<!-- /feature -->
 - Never weighted (it reads aggregated result rows, which carry no row weights): any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; set `"weight": null` on the slot to run it unweighted.
-- Runs against materialized per-group result rows; a group row with a null drops (listwise). Buffered (`Streamable=false`).
+- Runs against materialized per-group result rows; a group row with a null drops (listwise); a non-numeric mean or `n_column` value is `PULSE_TEST_FIELD_NOT_NUMERIC`, a missing column `SERVICE_VALIDATION`. Buffered (`Streamable=false`).
 - Consumes tier-1 one-way ANOVA outputs: run as a follow-up Request, or compose inside a ProcessChain that exposes them.
 - Assumes equal variances (as ANOVA); Games-Howell for unequal is not yet shipped.
 - Headline tracks the worst pair — inspect `Details.comparisons` for every pair.

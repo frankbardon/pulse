@@ -181,6 +181,15 @@ func (h *hotellingRow) Finalize() (*types.TestResult, error) {
 // nStar is a level's N* under the test's basis.
 func (h *hotellingRow) nStar(c *linalg.CoMoment) float64 { return levelNStar(h.basis, c) }
 
+// levelFloorN is one co-moment level's minimum-n guard size: Σw under
+// frequency, the raw complete-row count otherwise (Basis.FloorN). Below
+// p + 1 distinct rows the covariance is singular however the rows are
+// weighted, and the singular rule — not a raw-row refusal — answers, as
+// it does on the rep()-expanded rows.
+func levelFloorN(basis weighting.Basis, c *linalg.CoMoment) float64 {
+	return basis.FloorN(c.N(), c.W())
+}
+
 // scaledM2 is a level's co-moment matrix on w* (levelScaledM2).
 func (h *hotellingRow) scaledM2(c *linalg.CoMoment) [][]float64 { return levelScaledM2(h.basis, c) }
 
@@ -261,14 +270,16 @@ func (h *hotellingRow) finalizeOneSample() (*types.TestResult, error) {
 	p := len(h.members)
 	c, ok := h.groups[""]
 	var n int64
+	var floorN float64
 	if ok {
 		n = c.N()
+		floorN = levelFloorN(h.basis, c)
 	}
 	form := "one_sample"
 	if h.paired {
 		form = "paired"
 	}
-	if n < int64(p)+1 {
+	if floorN < float64(p)+1 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_HOTELLING_T2 %s on %d members requires n ≥ %d complete rows, got %d", form, p, p+1, n),
 			map[string]any{"n": n, "min_required": p + 1, "p": p})
@@ -350,7 +361,7 @@ func (h *hotellingRow) finalizeTwoSample() (*types.TestResult, error) {
 	a, b := h.groups[keys[0]], h.groups[keys[1]]
 	na, nb := h.nStar(a), h.nStar(b)
 	nTot := na + nb
-	if n := a.N() + b.N(); n < int64(p)+2 || !(nTot-float64(p)-1 > 0) {
+	if n := a.N() + b.N(); levelFloorN(h.basis, a)+levelFloorN(h.basis, b) < float64(p)+2 || !(nTot-float64(p)-1 > 0) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_HOTELLING_T2 two-sample on %d members requires n₁ + n₂ ≥ %d complete rows (and N* > p + 1), got %d", p, p+2, n),
 			map[string]any{"n": []int64{a.N(), b.N()}, "min_required": p + 2, "p": p})
@@ -419,7 +430,7 @@ func (h *hotellingRow) finalizeTwoSampleUnequal() (*types.TestResult, error) {
 	levels := []*linalg.CoMoment{a, b}
 	ns := []float64{h.nStar(a), h.nStar(b)}
 	for i, c := range levels {
-		if c.N() < int64(p)+1 || !(ns[i] > float64(p)) {
+		if levelFloorN(h.basis, c) < float64(p)+1 || !(ns[i] > float64(p)) {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 				fmt.Sprintf("TEST_HOTELLING_T2 two-sample unequal on %d members requires n > p (and N* > p) in each level; level %q has n = %d, N* = %.4g", p, keys[i], c.N(), ns[i]),
 				map[string]any{"n": []int64{a.N(), b.N()}, "n_star": ns, "min_required": p + 1, "p": p, "group": keys[i]})

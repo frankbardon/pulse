@@ -395,13 +395,8 @@ func floatFromRow(row map[string]any, field string, idx int) (float64, error) {
 			fmt.Sprintf("post-test row %d missing field %q", idx, field),
 			map[string]any{"row": idx, "field": field})
 	}
-	switch x := v.(type) {
-	case float64:
+	if x, ok := floatValue(v); ok {
 		return x, nil
-	case int64:
-		return float64(x), nil
-	case int:
-		return float64(x), nil
 	}
 	return 0, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_FIELD_NOT_NUMERIC,
 		fmt.Sprintf("post-test row %d field %q has non-numeric value", idx, field),

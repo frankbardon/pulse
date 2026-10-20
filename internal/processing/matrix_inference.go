@@ -94,7 +94,12 @@ func (in *matrixFinalizeInput) inferenceAux(r func(a, b int) float64, g int, siz
 	if ciNeed == "" {
 		ciNeed = "4 + g rows and N* − 3 − g > 0 for the interval"
 	}
-	probability := weighting.BasisOf(in.slot.weight) == weighting.Probability
+	basis := weighting.BasisOf(in.slot.weight)
+	probability := basis == weighting.Probability
+	// rows is a cell's row-floor size: its massed rows, or Σw (= N*)
+	// under frequency — the expansion's count (Basis.FloorN), as
+	// TEST_PEARSON_R's floors read.
+	rows := func(s pairInference) float64 { return basis.FloorN(s.n, s.nStar) }
 
 	type cell struct{ p, lo, hi float64 }
 	cells := make([][]cell, k)
@@ -121,7 +126,7 @@ func (in *matrixFinalizeInput) inferenceAux(r func(a, b int) float64, g int, siz
 				}
 			}
 			df := s.nStar - 2 - gf
-			if s.n < minRows || !(df > 0) {
+			if rows(s) < float64(minRows) || !(df > 0) {
 				if pairScoped {
 					thin = append(thin, map[string]any{"row": members[a], "col": members[b], "n": s.n, "n_star": s.nStar, "outputs": inferenceOutputs})
 				} else if thinAll == nil {
@@ -133,7 +138,7 @@ func (in *matrixFinalizeInput) inferenceAux(r func(a, b int) float64, g int, siz
 			if rule.zDF != nil {
 				zDF = rule.zDF(rv, s.nStar)
 			}
-			ciOK := s.n >= minRows+ciRows && zDF > 0
+			ciOK := rows(s) >= float64(minRows+ciRows) && zDF > 0
 			inf := correlationInference(rv, df, zDF, ciOK, alpha)
 			if rule.p != nil {
 				inf.P = rule.p(a, b)
@@ -157,7 +162,7 @@ func (in *matrixFinalizeInput) inferenceAux(r func(a, b int) float64, g int, siz
 	}
 	if thinAll != nil {
 		outputs := inferenceOutputs
-		if thinAll.n >= minRows && thinAll.nStar-2-gf > 0 {
+		if rows(*thinAll) >= float64(minRows) && thinAll.nStar-2-gf > 0 {
 			outputs = inferenceOutputs[1:]
 		}
 		warns = append(warns, matrixWarning(errors.PULSE_MATRIX_INSUFFICIENT_N,

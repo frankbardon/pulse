@@ -99,6 +99,62 @@ func TestShapiroFrancia_RefusesBelowFive(t *testing.T) {
 	}
 }
 
+// TestShapiroFrancia_ZeroVarianceRefuses (U36 E1-S7): a constant group
+// has no W' (cor(x, m) is 0 / 0; nortest::sf.test answers NA), so the
+// row and post arms refuse it with PULSE_TEST_VARIANCE_ZERO — a
+// data-dependent refusal the engine turns into a per-slot failure —
+// in place of the old W' = 1, p = 1 and its warning. The check is exact
+// (min = max), so a constant whose float mean is inexact (0.1 × 6)
+// refuses too, and one constant group refuses a split slot.
+func TestShapiroFrancia_ZeroVarianceRefuses(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		values []float64
+		groups []string
+		group  string
+	}{
+		{"constant", []float64{0.1, 0.1, 0.1, 0.1, 0.1, 0.1}, nil, ""},
+		{"one_constant_group", []float64{1, 2.5, 3.1, 4, 6.2, 7, 7, 7, 7, 7}, []string{"a", "a", "a", "a", "a", "b", "b", "b", "b", "b"}, "b"},
+	} {
+		spec := &types.Test{Type: types.TEST_SHAPIRO_WILK, Field: "x"}
+		schema := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF64}}}
+		if c.groups != nil {
+			spec.SplitBy = "g"
+			schema.Fields = append(schema.Fields, encoding.Field{Name: "g", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()})
+		}
+		rt, err := newShapiroWilkRow(spec, schema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows := make([]map[string]any, len(c.values))
+		for i, v := range c.values {
+			vals := map[string]float64{"x": v}
+			rows[i] = map[string]any{"x": v}
+			if c.groups != nil {
+				vals["g"] = float64(dictIDOrAdd(schema, "g", c.groups[i]))
+				rows[i]["g"] = c.groups[i]
+			}
+			_ = rt.UpdateRow(NewRecord(schema, vals))
+		}
+		_, rowErr := rt.Finalize()
+		pt, _ := newShapiroWilkPost(spec, nil)
+		_, postErr := pt.Run(rows)
+		for arm, err := range map[string]error{"row": rowErr, "post": postErr} {
+			var ce *errors.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_TEST_VARIANCE_ZERO || ce.Details["group"] != c.group || ce.Details["n"] != 5+boolInt(c.groups == nil) {
+				t.Errorf("%s %s: err %v, want PULSE_TEST_VARIANCE_ZERO {group: %q}", c.name, arm, err, c.group)
+			}
+		}
+	}
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
 // bfOracleCase is one test_brown_forsythe.json case. A nil Statistic /
 // PValue carries its undefined form in the *_class key ("inf", "nan").
 type bfOracleCase struct {

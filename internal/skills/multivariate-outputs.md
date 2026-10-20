@@ -55,7 +55,7 @@ All scores null with a warning: a singular fit (`PULSE_MATRIX_SINGULAR`), N* ≤
 <!-- feature: TEST_MANOVA -->
 ## MANOVA
 
-`Statistic` = Pillai's V, `DF` its df1, `PValue` its p. `Details`: `f`, `df1`, `df2`, `members`, `groups` (sorted), `n`, `n_dropped`, `means`, `df_hypothesis` (k − 1), `df_residual` (N* − k), `eigenvalues` (of E⁻¹H) and `pillai` / `wilks` / `hotelling_lawley` / `roy`, each `{statistic, f, df1, df2, p_value}`. `roy.upper_bound` is true: Roy's p is a lower bound. A null `p_value` means R would print NA. Needs n ≥ p + k complete rows. Weighted: N*_g = Σw or n_eff, and `Details` add per-level `sum_weights` (+ `n_eff`).
+`Statistic` = Pillai's V, `DF` its df1, `PValue` its p. `Details`: `f`, `df1`, `df2`, `members`, `groups` (sorted), `n`, `n_dropped`, `means`, `df_hypothesis` (k − 1), `df_residual` (N* − k), `eigenvalues` (of E⁻¹H) and `pillai` / `wilks` / `hotelling_lawley` / `roy`, each `{statistic, f, df1, df2, p_value}`. `roy.upper_bound` is true: Roy's p is a lower bound. A null `p_value` means R would print NA. Needs n ≥ p + k complete rows (Σw under `frequency`). Weighted: N*_g = Σw or n_eff, and `Details` add per-level `sum_weights` (+ `n_eff`).
 <!-- /feature -->
 
 ## See

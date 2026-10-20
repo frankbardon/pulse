@@ -61,6 +61,20 @@ func (b Basis) NStar(sumW, sumWSq float64) float64 {
 	return sumW
 }
 
+// FloorN is the sample size a minimum-n guard compares against: Σw
+// under Frequency — a row of weight w stands for w identical rows, so
+// the guard reads the expanded rows' count and a frequency-weighted
+// test refuses exactly when its expansion would (frequency ≡ expansion,
+// U36 E1-S7) — and the raw row count otherwise: Unweighted, where Σw =
+// n, and Probability, whose arbitrary-scale Σw counts nothing (a low
+// Kish n_eff there warns PULSE_WEIGHT_LOW_NEFF instead).
+func (b Basis) FloorN(raw int64, sumW float64) float64 {
+	if b == Frequency {
+		return sumW
+	}
+	return float64(raw)
+}
+
 // Scale is the factor c = N*/Σw that maps the weights w onto w*. It is
 // exactly 1 under Unweighted and Frequency (no multiply happens, so the
 // unweighted operation order is untouched); 0 for an empty sample.
@@ -105,6 +119,9 @@ func (b *Welford) Add(x, w float64) {
 
 // NStar is the bucket's N* under basis.
 func (b *Welford) NStar(basis Basis) float64 { return basis.NStar(b.SumW, b.SumWSq) }
+
+// FloorN is the bucket's minimum-n guard size under basis (Basis.FloorN).
+func (b *Welford) FloorN(basis Basis) float64 { return basis.FloorN(b.N, b.SumW) }
 
 // NEff is the bucket's Kish n_eff (reported under kind probability).
 func (b *Welford) NEff() float64 { return KishNEff(b.SumW, b.SumWSq) }

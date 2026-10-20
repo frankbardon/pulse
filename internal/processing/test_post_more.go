@@ -748,6 +748,9 @@ func (s *shapiroWilkPost) Run(rows []map[string]any) (*types.TestResult, error) 
 			return nil, cerr
 		}
 		sort.Float64s(vs)
+		if cerr := shapiroFranciaZeroVarianceRefusal("TEST_SHAPIRO_WILK (post)", key, vs); cerr != nil {
+			return nil, cerr
+		}
 		W, z, p, warn := shapiroFranciaStat(vs)
 		entry := map[string]any{
 			"n":       n,

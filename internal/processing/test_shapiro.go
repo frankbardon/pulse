@@ -26,7 +26,9 @@ import (
 //
 // Royston's transform is calibrated for 5 ≤ n ≤ 5000: n < 5 is refused
 // (PULSE_TEST_INSUFFICIENT_N, a per-slot failure), n > 5000 runs with an
-// advisory warning. It carries the TEST_SHAPIRO_WILK name because it
+// advisory warning. A constant group has no W' (cor(x, m) is 0 / 0;
+// sf.test answers NA) and is refused too (PULSE_TEST_VARIANCE_ZERO, a
+// per-slot failure; U36 E1-S7 — it used to report W' = 1, p = 1). It carries the TEST_SHAPIRO_WILK name because it
 // lands in the normality-test slot; R's shapiro.test (Royston 1995, AS
 // R94 weights) is a different statistic, and the result's Variant
 // reports "shapiro_francia".
@@ -110,6 +112,9 @@ func (s *shapiroWilkRow) Finalize() (*types.TestResult, error) {
 			return nil, cerr
 		}
 		sort.Float64s(vs)
+		if cerr := shapiroFranciaZeroVarianceRefusal("TEST_SHAPIRO_WILK", key, vs); cerr != nil {
+			return nil, cerr
+		}
 		W, z, p, warn := shapiroFranciaStat(vs)
 		entry := map[string]any{
 			"n":       n,
@@ -170,10 +175,23 @@ func shapiroFranciaMinNRefusal(op, group string, n int) *errors.CodedError {
 		map[string]any{"group": group, "n": n, "min_required": shapiroFranciaMinN})
 }
 
-// shapiroFranciaStat computes W', z, p for a *sorted* sample of
-// n ≥ shapiroFranciaMinN rows (the callers refuse smaller ones) — the
-// arithmetic of nortest::sf.test. Returns the optional warning string
-// for n above 5000 or a degenerate sample.
+// shapiroFranciaZeroVarianceRefusal refuses a constant *sorted* group:
+// PULSE_TEST_VARIANCE_ZERO, a data-dependent per-slot failure. The test
+// is exact — first = last — so a constant whose float mean is inexact
+// (a run of 0.1) never leaks a rounding-residue W'.
+func shapiroFranciaZeroVarianceRefusal(op, group string, sorted []float64) *errors.CodedError {
+	if len(sorted) == 0 || sorted[0] != sorted[len(sorted)-1] {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_TEST_VARIANCE_ZERO,
+		fmt.Sprintf("%s: group %q is constant (zero variance), so W' is undefined", op, group),
+		map[string]any{"group": group, "n": len(sorted), "value": sorted[0]})
+}
+
+// shapiroFranciaStat computes W', z, p for a *sorted*, non-constant
+// sample of n ≥ shapiroFranciaMinN rows (the callers refuse smaller and
+// constant ones) — the arithmetic of nortest::sf.test. Returns the
+// optional warning string for n above 5000 or a degenerate sample.
 //
 // Blom expected order statistics: m_i = Φ⁻¹((i − 3/8) / (n + 1/4)).
 // W' = cor(x, m)² = (Σ (x_i − x̄)(m_i − m̄))² / (Σ (x_i − x̄)² Σ (m_i − m̄)²).
@@ -211,9 +229,6 @@ func shapiroFranciaStat(sorted []float64) (W, z, p float64, warn string) {
 	}
 	if ssM == 0 {
 		return 0, 0, 1, "degenerate Blom coefficients"
-	}
-	if ssX == 0 {
-		return 1, 0, 1, "sample variance is zero"
 	}
 	W = num * num / (ssM * ssX)
 	if W > 1 {

@@ -141,9 +141,12 @@ n_eff = (Σw)²/Σw², under `kind: probability`. Means and r are the same
 under either kind; standard errors and degrees of freedom (which may be
 fractional) read that effective size. The result's `details.n` stays
 the raw row count; `sum_weights` and, for probability weights, `n_eff`
-appear beside it in the same shape. A group whose n_eff falls below
-the test's minimum warns `PULSE_WEIGHT_LOW_NEFF` (an error under
-strict mode). A probability-weighted Pearson correlation test whose
+appear beside it in the same shape. A test's (or regression's)
+minimum sample size reads Σw under `kind: frequency` — a single row of
+weight 3 is three rows, so the slot runs or refuses exactly as its
+duplicated rows would — and the raw row count under
+`kind: probability`, where a group whose n_eff falls below the
+minimum warns `PULSE_WEIGHT_LOW_NEFF` (an error under strict mode). A probability-weighted Pearson correlation test whose
 n_eff is 2 or less has no degrees of freedom left and is refused with
 `PULSE_TEST_INSUFFICIENT_N`, its details naming `n_eff`. This is not design-based (strata / cluster) variance.
 

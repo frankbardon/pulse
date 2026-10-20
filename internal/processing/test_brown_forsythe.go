@@ -120,7 +120,9 @@ func (b *brownForsytheRow) Finalize() (*types.TestResult, error) {
 	buckets := make([]*weighting.Welford, 0, k)
 	for i, key := range keys {
 		s := b.values[key]
-		if s.n() < 2 {
+		// Σw under frequency (Basis.FloorN): a one-row group of
+		// weight ≥ 2 is that many identical rows, and its expansion runs.
+		if b.basis.FloorN(int64(s.n()), s.sumW) < 2 {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 				fmt.Sprintf("TEST_BROWN_FORSYTHE requires n ≥ 2 per group; %q has %d", key, s.n()),
 				map[string]any{"group": key, "n": s.n(), "min_required": 2})

@@ -32,7 +32,7 @@ Members: `u4`…`u64`, `f32`/`f64`.
 
 ## Gotchas
 
-- Streamable. Levels need n ≥ 2; n ≤ p in a level is singular.
+- Streamable. Levels need n ≥ 2 (Σw under `frequency`); n ≤ p in a level is singular.
 - Singular covariance: null figures + `PULSE_MATRIX_SINGULAR` warning.
 - Very sensitive to non-normality; many read only p < 0.001.
 

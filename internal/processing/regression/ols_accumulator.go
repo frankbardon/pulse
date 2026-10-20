@@ -131,6 +131,12 @@ func (a *olsAccumulator) UpdateRowWeighted(x []float64, y, w float64) {
 // frequency) or Kish n_eff under probability.
 func (a *olsAccumulator) nStar() float64 { return a.basis.NStar(a.sumW, a.sumWSq) }
 
+// floorN is the size the n ≥ p + 1 guard compares: Σw under frequency
+// (the expanded rows' count, so a frequency-weighted fit refuses exactly
+// when its expansion does — U36 E1-S7), the raw n otherwise
+// (weighting.Basis.FloorN).
+func (a *olsAccumulator) floorN() float64 { return a.basis.FloorN(int64(a.n), a.sumW) }
+
 // scale is c = N*/Σw, mapping w onto w* (exactly 1 unless the basis is
 // probability).
 func (a *olsAccumulator) scale() float64 { return a.basis.Scale(a.sumW, a.sumWSq) }

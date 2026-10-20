@@ -614,7 +614,7 @@ Lower end of the confidence interval for r at the 1 - alpha level (95% by defaul
 
 **Caveats:**
 
-- With fewer than four pairs, or a perfect r, no interval can be computed and both ends are set to r: this is not a precise estimate. Treat r as highly uncertain and do not report the interval.
+- With fewer than four pairs (total weight, under frequency weights), or a perfect r, no interval can be computed and both ends are set to r: this is not a precise estimate. Treat r as highly uncertain and do not report the interval.
 
 #### `details.ci_high`
 
@@ -757,7 +757,7 @@ Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
 #### `details.per_group`
 
-One entry per group (or one overall without SplitBy) with n, w, z and p_value, plus a warning when the p-value is advisory (more than 5000 rows, or a degenerate sample). Fewer than 5 rows in any group fails the test (PULSE_TEST_INSUFFICIENT_N) rather than report an uncalibrated p-value.
+One entry per group (or one overall without SplitBy) with n, w, z and p_value, plus a warning when the p-value is advisory (more than 5000 rows). Fewer than 5 rows in any group fails the test (PULSE_TEST_INSUFFICIENT_N) rather than report an uncalibrated p-value, and a constant group fails it too (PULSE_TEST_VARIANCE_ZERO): W' is undefined there, not 1.
 
 <a id="op-test_spearman_r"></a>
 

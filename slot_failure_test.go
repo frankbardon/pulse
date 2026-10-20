@@ -857,3 +857,93 @@ func TestSlotFailure_ShapiroBelowFiveFailsAlone(t *testing.T) {
 		t.Fatalf("strict: %v, want PULSE_TEST_INSUFFICIENT_N on the tests slot", err)
 	}
 }
+
+// TestSlotFailure_ShapiroZeroVarianceFailsAlone (U36 E1-S7): a
+// TEST_SHAPIRO_WILK over a constant column — no W' exists (0 / 0;
+// nortest::sf.test answers NA) — fails its slot alone with
+// PULSE_TEST_VARIANCE_ZERO on the row arm (tests) and the post arm
+// (post_tests): identity + error, no figures, one PULSE_SLOT_FAILED
+// warning, the other slots intact; Strict fails the run with the code.
+// It used to report W' = 1, p = 1 with a warning. Predict reads no
+// record, so it accepts the request without naming the refusal.
+func TestSlotFailure_ShapiroZeroVarianceFailsAlone(t *testing.T) {
+	// x < 10 keeps ten rows on which y is 0: constant.
+	base := func(cohort string) *types.Request {
+		return &types.Request{
+			Cohort:       &types.Cohort{Filename: cohort},
+			Filterers:    []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "x < 10"}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "y", Label: "m"}},
+		}
+	}
+	for _, c := range []struct {
+		kind string
+		req  func(string) *types.Request
+		slot func(*types.Response) []*types.TestResult
+	}{
+		{"tests", func(cohort string) *types.Request {
+			r := base(cohort)
+			r.Tests = []*types.Test{
+				{Type: types.TEST_SHAPIRO_WILK, Field: "y", Label: "sw"},
+				{Type: types.TEST_PEARSON_R, Field: "x", Field2: "z", Label: "r"},
+			}
+			return r
+		}, func(r *types.Response) []*types.TestResult { return r.Tests }},
+		// One result row per x (ten rows), each m = 0: a constant column.
+		{"post_tests", func(cohort string) *types.Request {
+			r := base(cohort)
+			r.Groups = []*types.Group{{Type: types.GROUP_ROUNDED, Field: "x", Interval: 1}}
+			r.PostTests = []*types.Test{{Type: types.TEST_SHAPIRO_WILK, Field: "m", Label: "sw"}}
+			return r
+		}, func(r *types.Response) []*types.TestResult { return r.PostTests }},
+	} {
+		t.Run(c.kind, func(t *testing.T) {
+			p, _, cohort := slotCohort(t, pulse.Options{})
+			pred, err := p.Predict(context.Background(), c.req(cohort))
+			if err != nil {
+				t.Fatalf("predict: %v", err)
+			}
+			if b, _ := json.Marshal(pred); strings.Contains(string(b), string(perr.PULSE_TEST_VARIANCE_ZERO)) {
+				t.Errorf("predict reports the data-dependent refusal: %s", b)
+			}
+			resp, b := processJSON(t, p, c.req(cohort))
+			results := c.slot(resp)
+			sw := results[0]
+			if sw == nil || sw.Error == nil || sw.Error.Code != string(perr.PULSE_TEST_VARIANCE_ZERO) ||
+				sw.Label != "sw" || sw.Type != types.TEST_SHAPIRO_WILK {
+				t.Fatalf("shapiro slot %+v", sw)
+			}
+			if len(sw.Warnings) != 0 {
+				t.Errorf("failed slot keeps the old warning: %v", sw.Warnings)
+			}
+			if c.kind == "tests" && resp.Tests[1].Error != nil {
+				t.Errorf("surviving test failed: %+v", resp.Tests[1])
+			}
+			if len(resp.Data) == 0 {
+				t.Errorf("aggregation rows lost")
+			}
+			var top map[string]json.RawMessage
+			var wire []map[string]json.RawMessage
+			if err := json.Unmarshal(b, &top); err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(top[c.kind], &wire); err != nil {
+				t.Fatal(err)
+			}
+			if keys := mapKeys(wire[0]); !reflect.DeepEqual(keys, []string{"error", "label", "type"}) {
+				t.Errorf("failed %s wire keys %v, want label / type / error only", c.kind, keys)
+			}
+			ws := slotWarnings(resp)
+			want := map[string]any{"slot_kind": c.kind, "index": 0, "label": "sw", "code": string(perr.PULSE_TEST_VARIANCE_ZERO)}
+			if len(ws) != 1 || !reflect.DeepEqual(ws[0].Details, want) {
+				t.Errorf("slot warnings %+v, want one with %v", ws, want)
+			}
+
+			strict, _, cohort := slotCohort(t, pulse.Options{Strict: true})
+			_, err = strict.Process(context.Background(), c.req(cohort))
+			var ce *perr.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_TEST_VARIANCE_ZERO || ce.Details["slot_kind"] != c.kind {
+				t.Fatalf("strict: %v, want PULSE_TEST_VARIANCE_ZERO on the %s slot", err, c.kind)
+			}
+		})
+	}
+}

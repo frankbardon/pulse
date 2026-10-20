@@ -191,7 +191,7 @@ func (m *boxMRow) Finalize() (*types.TestResult, error) {
 		nu[i] = levelNStar(m.basis, levels[i]) - 1
 	}
 	for i := range levels {
-		if ns[i] < 2 || !(nu[i] > 0) {
+		if levelFloorN(m.basis, levels[i]) < 2 || !(nu[i] > 0) {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 				fmt.Sprintf("TEST_BOX_M needs n ≥ 2 complete rows (and N* > 1) in every level; level %q has n = %d, N* = %.4g", keys[i], ns[i], nu[i]+1),
 				map[string]any{"n": ns, "min_required": 2, "p": p, "group": keys[i], "groups": keys})

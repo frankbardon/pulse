@@ -320,9 +320,10 @@ func TestMatrixInference_SizeNulls(t *testing.T) {
 		// n = 3: df = 1 (p defined); the interval needs n ≥ 4.
 		{name: "pearson_n3", rows: rows, typ: types.MAT_CORRELATION, params: `{"inference": true}`,
 			ciNull: true, scope: "matrix", outputs: []any{"ci_lower", "ci_upper"}},
-		// Frequency weight 2 on 3 rows: N* = 6 would carry an interval,
-		// but the row floor (n ≥ 4, TEST_PEARSON_R's) nulls it.
-		{name: "pearson_freq_n3", rows: [][5]float64{{1, 2, 4, 2, 1}, {2, 1, 5, 2, 1}, {3, 5, 3, 2, 1}}, typ: types.MAT_CORRELATION,
+		// Frequency weight 1 on 3 rows: Σw = 3 is below the interval's
+		// floor of 4 (TEST_PEARSON_R's; under frequency it reads Σw, so
+		// weight 2 — Σw = 6 — would carry one, as its expansion does).
+		{name: "pearson_freq_n3", rows: [][5]float64{{1, 2, 4, 1, 1}, {2, 1, 5, 1, 1}, {3, 5, 3, 1, 1}}, typ: types.MAT_CORRELATION,
 			params: `{"inference": true}`, weight: "f", ciNull: true, scope: "matrix", outputs: []any{"ci_lower", "ci_upper"}},
 		// Partial over 3 members (g = 1) on 4 rows: df = 4 − 2 − 1 = 1
 		// (p defined); the interval needs 4 + g rows and N* − 3 − g > 0.
@@ -339,9 +340,9 @@ func TestMatrixInference_SizeNulls(t *testing.T) {
 			ciNull: true, scope: "matrix", outputs: []any{"ci_lower", "ci_upper"}},
 		{name: "kendall_n4", rows: append(append([][5]float64(nil), rows...), [5]float64{4, 4, 1, 1, 1}), typ: types.MAT_CORRELATION,
 			params: `{"inference": true, "method": "kendall"}`, ciNull: true, scope: "matrix", outputs: []any{"ci_lower", "ci_upper"}},
-		// Frequency weight 2 on 4 rows: n = 8 would carry Fieller's
-		// interval, but the 5-row floor nulls it.
-		{name: "kendall_freq_n4", rows: [][5]float64{{1, 2, 4, 2, 1}, {2, 1, 5, 2, 1}, {3, 5, 3, 2, 1}, {4, 4, 1, 2, 1}}, typ: types.MAT_CORRELATION,
+		// Frequency weight 1 on 4 rows: Σw = 4 is below Fieller's
+		// 5-row floor (weight 2 — Σw = 8 — would carry it).
+		{name: "kendall_freq_n4", rows: [][5]float64{{1, 2, 4, 1, 1}, {2, 1, 5, 1, 1}, {3, 5, 3, 1, 1}, {4, 4, 1, 1, 1}}, typ: types.MAT_CORRELATION,
 			params: `{"inference": true, "method": "kendall"}`, weight: "f", ciNull: true, scope: "matrix", outputs: []any{"ci_lower", "ci_upper"}},
 		{name: "kendall_pairwise", rows: pairwiseRows, typ: types.MAT_CORRELATION, params: `{"inference": true, "missing": "pairwise", "method": "kendall"}`,
 			ciNull: true, scope: "pairs", outputs: []any{"ci_lower", "ci_upper"}, pairwise: true},
@@ -548,10 +549,11 @@ func TestMatrixInference_RankWeightRules(t *testing.T) {
 // in the matrix's components n but never in inference's row floors —
 // the cell's p and interval rest on the rows carrying mass, as
 // TEST_PEARSON_R (and the rank tests) skip a weight-0 row from their raw
-// n. On the same pair and weights the cell is null exactly where the
-// test refuses (p: fewer than 3 massed rows) or collapses its interval
-// (fewer than 4), and equals the test's figure elsewhere; the matrix's
-// own n still counts the weight-0 rows.
+// n. Under a frequency weight the floors read Σw (U36 E1-S7, frequency
+// ≡ expansion), to which a weight-0 row adds nothing. On the same pair
+// and weights the cell is null exactly where the test refuses (p: below
+// 3) or collapses its interval (below 4), and equals the test's figure
+// elsewhere; the matrix's own n still counts the weight-0 rows.
 func TestMatrixInference_ZeroWeightRowsFloorLikeTest(t *testing.T) {
 	cases := []struct {
 		name           string
@@ -563,15 +565,21 @@ func TestMatrixInference_ZeroWeightRowsFloorLikeTest(t *testing.T) {
 		testRefused    bool
 		testCICollapse bool
 	}{
-		// Two massed rows (Σw = 10, so N* − 2 = 8 > 0) and a weight-0
-		// row: n counted 3 admitted p before; the test refuses n = 2.
+		// Two unit rows (Σw = 2) and a weight-0 row: the raw count 3
+		// would admit p; Σw does not, and the test refuses.
 		{name: "freq_p_floor", weight: "f",
-			rows:  [][5]float64{{1, 2, 4, 5, 1}, {2, 5, 5, 5, 1}, {3, 1, 3, 0, 1}},
+			rows:  [][5]float64{{1, 2, 4, 1, 1}, {2, 5, 5, 1, 1}, {3, 1, 3, 0, 1}},
 			pNull: true, ciNull: true, componentsN: 3, testRefused: true},
-		// Three massed rows (Σw = 6) and a weight-0 row: the interval
-		// needs 4 massed rows; the test collapses it to r.
+		// Two massed rows of Σw = 10 and a weight-0 row: the expansion
+		// is ten rows on two points, so r = 1 with p = 0 and the
+		// degenerate interval [r, r] — defined, and the test's.
+		{name: "freq_p_sigma_w", weight: "f",
+			rows:        [][5]float64{{1, 2, 4, 5, 1}, {2, 5, 5, 5, 1}, {3, 1, 3, 0, 1}},
+			componentsN: 3},
+		// Three unit rows (Σw = 3) and a weight-0 row: the interval
+		// needs 4; the test collapses it to r.
 		{name: "freq_ci_floor", weight: "f",
-			rows:   [][5]float64{{1, 2, 4, 2, 1}, {2, 1, 5, 2, 1}, {3, 5, 3, 2, 1}, {4, 4, 1, 0, 1}},
+			rows:   [][5]float64{{1, 2, 4, 1, 1}, {2, 1, 5, 1, 1}, {3, 5, 3, 1, 1}, {4, 4, 1, 0, 1}},
 			ciNull: true, componentsN: 4, testCICollapse: true},
 		// Probability weights: Kish n_eff never exceeds the massed rows,
 		// so N* already bounds the floor; parity with weight-0 rows.
@@ -582,14 +590,13 @@ func TestMatrixInference_ZeroWeightRowsFloorLikeTest(t *testing.T) {
 		{name: "freq_defined", weight: "f",
 			rows:        [][5]float64{{1, 2, 4, 2, 1}, {2, 1, 5, 1, 1}, {3, 5, 3, 3, 1}, {4, 4, 1, 1, 1}, {5, 9, 9, 0, 1}, {6, 0, 2, 0, 1}},
 			componentsN: 6},
-		// Rank methods share the floor (Σw is large, so only the massed
-		// rows can refuse): Spearman's interval needs 4 massed rows,
-		// Kendall's p 3.
+		// Rank methods share the floor: Spearman's interval needs
+		// Σw ≥ 4, Kendall's p Σw ≥ 3; a weight-0 row adds nothing.
 		{name: "spearman_ci_floor", weight: "f", method: "spearman",
-			rows:   [][5]float64{{1, 2, 4, 2, 1}, {2, 1, 5, 2, 1}, {3, 5, 3, 2, 1}, {4, 4, 1, 0, 1}},
+			rows:   [][5]float64{{1, 2, 4, 1, 1}, {2, 1, 5, 1, 1}, {3, 5, 3, 1, 1}, {4, 4, 1, 0, 1}},
 			ciNull: true, componentsN: 4},
 		{name: "kendall_p_floor", weight: "f", method: "kendall",
-			rows:  [][5]float64{{1, 2, 4, 5, 1}, {2, 5, 5, 5, 1}, {3, 1, 3, 0, 1}},
+			rows:  [][5]float64{{1, 2, 4, 1, 1}, {2, 5, 5, 1, 1}, {3, 1, 3, 0, 1}},
 			pNull: true, ciNull: true, componentsN: 3},
 	}
 	for _, c := range cases {
@@ -723,5 +730,55 @@ func TestMatrixInference_RankTestParity(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestMatrixInference_FrequencyFloorIsExpansion (U36 E1-S7): under a
+// frequency weight the inference row floors read Σw, so a cell over
+// fewer raw rows than a floor whose Σw reaches it carries the p and
+// interval of the unweighted run on the rep()-expanded rows — the
+// fixtures the raw-row floor used to null.
+func TestMatrixInference_FrequencyFloorIsExpansion(t *testing.T) {
+	for _, c := range []struct {
+		name, params string
+		rows         [][5]float64
+	}{
+		// Three raw rows, Σw = 6: the Pearson interval needs 4.
+		{"pearson_ci", `{"inference": true}`, [][5]float64{{1, 2, 4, 2, 1}, {2, 1, 5, 2, 1}, {3, 5, 3, 2, 1}}},
+		// Two raw rows, Σw = 4: p needs 3 (r = ±1 on two points).
+		{"pearson_p", `{"inference": true}`, [][5]float64{{1, 2, 4, 2, 1}, {2, 5, 5, 2, 1}}},
+		// Four raw rows, Σw = 8: Fieller's Kendall interval needs 5.
+		{"kendall_ci", `{"inference": true, "method": "kendall"}`, [][5]float64{{1, 2, 4, 2, 1}, {2, 1, 5, 2, 1}, {3, 5, 3, 2, 1}, {4, 4, 1, 2, 1}}},
+		// Three raw rows, Σw = 6: the Spearman interval needs 4.
+		{"spearman_ci", `{"inference": true, "method": "spearman"}`, [][5]float64{{1, 2, 4, 2, 1}, {2, 1, 5, 2, 1}, {3, 5, 3, 2, 1}}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var expanded [][5]float64
+			for _, r := range c.rows {
+				for range int(r[3]) {
+					e := r
+					e[3] = 1
+					expanded = append(expanded, e)
+				}
+			}
+			got := runOneMatrix(t, c.rows, missingSpec(types.MAT_CORRELATION, []string{"x1", "x2", "x3"}, "f", c.params))
+			want := runOneMatrix(t, expanded, missingSpec(types.MAT_CORRELATION, []string{"x1", "x2", "x3"}, "", c.params))
+			for _, k := range []string{"p", "ci_lower", "ci_upper"} {
+				for i := 0; i < 3; i++ {
+					for j := 0; j < 3; j++ {
+						if i == j {
+							continue
+						}
+						g, w := got.Auxiliary[k].Values[i][j], want.Auxiliary[k].Values[i][j]
+						if math.IsNaN(w) {
+							t.Fatalf("fixture: expansion %s[%d][%d] is null", k, i, j)
+						}
+						if !(math.Abs(g-w) <= 1e-10*math.Abs(w)) && g != w {
+							t.Errorf("%s[%d][%d] = %.17g, expansion = %.17g", k, i, j, g, w)
+						}
+					}
+				}
+			}
+		})
 	}
 }

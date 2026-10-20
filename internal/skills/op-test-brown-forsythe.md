@@ -16,7 +16,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
-- `weight` — slot weight (`null` opts out), kind `frequency` only (a probability weight is `PULSE_WEIGHT_UNSUPPORTED` naming the kind): weighted group medians, ANOVA on Σw — equals the expanded rows. `Details` add `sum_weights` beside `n` (raw rows).
+- `weight` — slot weight (`null` opts out), kind `frequency` only (a probability weight is `PULSE_WEIGHT_UNSUPPORTED` naming the kind): weighted group medians, ANOVA on Σw — equals the expanded rows, the `n ≥ 2` per-group floor on Σw too (one row of weight 2 runs). `Details` add `sum_weights` beside `n` (raw rows).
 
 Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, ≥ 2 groups).
 

@@ -161,7 +161,10 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	// row's cluster / order_by key: a null one drops the row listwise.
 	xRows, yVec, prior, keys, sumW, sumWSq := buildWeightedDesign(records, e.spec.Predictors, e.spec.Target, rw, robustKeyReader(e.spec))
 	n := len(yVec)
-	if n < p+1 {
+	// Σw under frequency (weighting.Basis.FloorN): the expansion's
+	// count; the rank check below answers a design of too few distinct
+	// rows, as it does on the expanded rows.
+	if rw.basis.FloorN(int64(n), sumW) < float64(p+1) {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 			"REG_GLM requires n ≥ p + 1 observations after listwise null deletion",

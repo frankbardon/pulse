@@ -130,7 +130,7 @@ func (m *mannWhitneyRow) Finalize() (*types.TestResult, error) {
 	a := m.values[keys[0]]
 	b := m.values[keys[1]]
 	nA, nB := a.n(), b.n()
-	if nA < 2 || nB < 2 {
+	if m.basis.FloorN(int64(nA), a.sumW) < 2 || m.basis.FloorN(int64(nB), b.sumW) < 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_MANN_WHITNEY_U requires n ≥ 2 per group, got %d / %d", nA, nB),
 			map[string]any{"n": []int{nA, nB}, "min_required": 2})

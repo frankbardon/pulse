@@ -81,7 +81,7 @@ func solveLasso(a *olsAccumulator, alpha float64, maxIters int, tol float64) (*o
 // and any error.
 func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, tol float64) (*olsSolveResult, int, error) {
 	p := a.p
-	if a.n < p+1 {
+	if a.floorN() < float64(p+1) {
 		return nil, 0, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 			"regression requires n ≥ p + 1 observations after filtering",

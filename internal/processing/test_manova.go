@@ -295,15 +295,16 @@ func (m *manovaRow) Finalize() (*types.TestResult, error) {
 	levels := make([]*linalg.CoMoment, k)
 	ns := make([]int64, k)
 	var n int64
-	nStar := 0.0
+	nStar, floorN := 0.0, 0.0
 	for i, key := range keys {
 		levels[i] = m.groups[key]
 		ns[i] = levels[i].N()
 		n += ns[i]
 		nStar += levelNStar(m.basis, levels[i])
+		floorN += levelFloorN(m.basis, levels[i])
 	}
 	dfr := nStar - float64(k)
-	if n < int64(p+k) || !(dfr > 0) {
+	if floorN < float64(p+k) || !(dfr > 0) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_MANOVA on %d members and %d levels requires n ≥ p + k = %d complete rows (and N* > k), got %d", p, k, p+k, n),
 			map[string]any{"n": ns, "n_star": nStar, "min_required": p + k, "p": p, "groups": keys})
