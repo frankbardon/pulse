@@ -33,6 +33,10 @@ Every param is a top-level key of the regression entry (manifest `slot: true`); 
 <!-- feature: capability:multiplicity -->
 | `multiplicity` | object | absent | `{method, family, alpha, coefficients}` as `op-reg-ols`: the member coefficients' p-values join a `request` / `compose` family; adds `PAdjusted` / `SignificantAdjusted` + echo beside `PValues`. |
 <!-- /feature -->
+| `name` | string | synthesized | Result alias; the saved model's name (default: the `save` file's stem). |
+<!-- feature: capability:model_save -->
+| `save` | string | absent | Writes the finished fit as a model file (`.pulse-model.json`, `compose-fits`). |
+<!-- /feature -->
 
 `resample` / `selection` are top-level modifiers — see `op-reg-mod-resample`, `op-reg-mod-selection`.
 

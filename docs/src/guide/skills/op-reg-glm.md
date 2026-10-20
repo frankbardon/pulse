@@ -42,6 +42,8 @@ Every param is a top-level key of the regression entry (manifest `slot: true`); 
 | `vcov` | bool | `false` | Adds `Vcov` = φ·(XᵀWX)⁻¹ at the converged weights (φ = 1; gamma φ̂; `l2`: sandwich H⁻¹XᵀWXH⁻¹) + `Correlation`; √diag = `StdErrors`. Resample: replicate covariance; selection: final refit's. |
 | `covariance` | object | absent | `{type, cluster, order_by, lags}` as [`op-reg-ols`](op-reg-ols.md): `hc0`–`hc3`, `cluster` (CR1), `hac` (Newey–West). Sandwich over the IRLS scores at the converged weights (R `sandwich` on `glm`) behind `StdErrors`, `PValues`, CIs, `Vcov`; dispersion-free, still Wald z (no `DF`; cluster, gamma too). Weighted: w* rule. |
 | `multiplicity` | object | absent | `{method, family, alpha, coefficients}` as [`op-reg-ols`](op-reg-ols.md): the member coefficients' p-values join a `request` / `compose` family; adds `PAdjusted` / `SignificantAdjusted` + echo beside `PValues`. |
+| `name` | string | synthesized | Result alias; the saved model's name (default: the `save` file's stem). |
+| `save` | string | absent | Writes the finished fit as a model file (`.pulse-model.json`, [`compose-fits`](compose-fits.md)). |
 
 `resample` / `selection` are top-level modifiers — see [`op-reg-mod-resample`](op-reg-mod-resample.md), [`op-reg-mod-selection`](op-reg-mod-selection.md).
 

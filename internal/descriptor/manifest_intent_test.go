@@ -38,6 +38,13 @@ var scopedManifestExceptions = map[string]float64{
 	// owner-accepted feature growth): measured 15.20% (51,793 of 340,644
 	// bytes).
 	IntentCompareGroups: 0.153,
+	// drivers is served by every REG_* regression, whose entries the
+	// slim manifest keeps whole (SlimManifest blanks no regression
+	// prose). It sat at 14.83% (52,967 of 357,195 bytes) before #371
+	// declared the shared RegressionSpec slots (weight, multiplicity,
+	// save, name) on the three built-ins: measured 15.30% (54,948 of
+	// 359,176 bytes) there — no other content of the scope moved.
+	IntentDrivers: 0.154,
 }
 
 func compactJSON(t *testing.T, v any) []byte {

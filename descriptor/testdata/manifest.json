@@ -8048,6 +8048,27 @@
             "required": false,
             "description": "{type, cluster, order_by, lags}: keeps the posterior-mean coefficients but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹·M·Λ_n⁻¹) behind std_errors, credible_intervals, ci_lower / ci_upper (normal, no df) and vcov. type classical (absent: the NIG posterior), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row; lags an integer or \"auto\"). Forces the buffered path; echoes as covariance.",
             "slot": true
+          },
+          {
+            "name": "weight",
+            "type": "object",
+            "required": false,
+            "description": "{field, kind}: frequency row weight only (a probability one is PULSE_WEIGHT_UNSUPPORTED); absent inherits the request's, null opts out.",
+            "slot": true
+          },
+          {
+            "name": "save",
+            "type": "string",
+            "required": false,
+            "description": "Write the finished fit as a model file (.pulse-model.json).",
+            "slot": true
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "description": "Result alias; also the saved model's name (default: the save file's stem).",
+            "slot": true
           }
         ],
         "intents": [
@@ -8249,6 +8270,34 @@
             "type": "object",
             "required": false,
             "description": "{type, cluster, order_by, lags}: the estimator behind std_errors, the Wald p_values, ci_lower / ci_upper and vcov — the sandwich over the IRLS scores at the converged weights (R sandwich on glm). type classical (absent: unchanged), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row; lags an integer or \"auto\"). Dispersion-free (gamma's estimate cancels, as in R sandwich); inference stays Wald z, cluster and gamma included. Echoes as covariance; resample / selection refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
+            "slot": true
+          },
+          {
+            "name": "weight",
+            "type": "object",
+            "required": false,
+            "description": "{field, kind}: frequency or probability row weight (IRLS prior weights; bootstrap / selection refuse one, PULSE_WEIGHT_UNSUPPORTED); absent inherits the request's, null opts out.",
+            "slot": true
+          },
+          {
+            "name": "multiplicity",
+            "type": "object",
+            "required": false,
+            "description": "{method, family, alpha, coefficients}: corrects the coefficient p_values; adds p_adjusted / significant_adjusted.",
+            "slot": true
+          },
+          {
+            "name": "save",
+            "type": "string",
+            "required": false,
+            "description": "Write the finished fit as a model file (.pulse-model.json).",
+            "slot": true
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "description": "Result alias; also the saved model's name (default: the save file's stem).",
             "slot": true
           }
         ],
@@ -8457,6 +8506,34 @@
             "type": "object",
             "required": false,
             "description": "{type, cluster, order_by, lags}: the estimator behind std_errors, p_values, ci_lower / ci_upper and vcov. type classical (absent: unchanged), hc0 / hc1 / hc2 / hc3 (heteroskedasticity-robust), cluster (CR1 over cluster's levels — categorical or unsigned-integer field, ≥2 levels — on df G − 1), hac (Newey–West over the rows ordered by order_by — date, datetime or numeric, unique per row — truncated at lags, an integer or \"auto\" = ⌊4(n/100)^(2/9)⌋). Robust types force the buffered path and echo as covariance; penalty / resample / selection refuse them (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
+            "slot": true
+          },
+          {
+            "name": "weight",
+            "type": "object",
+            "required": false,
+            "description": "{field, kind}: frequency or probability row weight (WLS; bootstrap / selection refuse one, PULSE_WEIGHT_UNSUPPORTED); absent inherits the request's, null opts out.",
+            "slot": true
+          },
+          {
+            "name": "multiplicity",
+            "type": "object",
+            "required": false,
+            "description": "{method, family, alpha, coefficients}: corrects the coefficient p_values; adds p_adjusted / significant_adjusted.",
+            "slot": true
+          },
+          {
+            "name": "save",
+            "type": "string",
+            "required": false,
+            "description": "Write the finished fit as a model file (.pulse-model.json).",
+            "slot": true
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "description": "Result alias; also the saved model's name (default: the save file's stem).",
             "slot": true
           }
         ],
@@ -19361,4 +19438,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: cabf7f5436b46374e8c8d2b6d38ada9aee100c4b9bc2932bd579713bad2fc90f
+// golden-hash: cba7e66ba23f3de2a71e938074b3699f8ada03ab85874688311e4bd6cf5c4f15

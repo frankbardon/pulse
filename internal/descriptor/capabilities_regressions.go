@@ -35,6 +35,27 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 
 	commonModifierHint := "Streamable in isolation; setting Resample or Selection on the request forces the buffered path."
 
+	// sharedSlotParams are the top-level RegressionSpec keys every
+	// built-in reads beside its own knobs: the slot weight, the
+	// multiplicity block (only an engine that emits p-values — the
+	// REG_BAYES_LINEAR posterior has none, and its block is refused
+	// PULSE_MULTIPLICITY_INVALID), the model-file save (every built-in
+	// is scorable) and the result name. On a scoped instance a key whose
+	// capability is hidden drops from the list (assembleManifest), as
+	// the payload schema drops it.
+	sharedSlotParams := func(weight string, pValues bool) []descriptor.Param {
+		out := []descriptor.Param{
+			{Name: "weight", Type: "object", Required: false, Description: weight + "; absent inherits the request's, null opts out.", Slot: true},
+		}
+		if pValues {
+			out = append(out, descriptor.Param{Name: "multiplicity", Type: "object", Required: false, Description: "{method, family, alpha, coefficients}: corrects the coefficient p_values; adds p_adjusted / significant_adjusted.", Slot: true})
+		}
+		return append(out,
+			descriptor.Param{Name: "save", Type: "string", Required: false, Description: "Write the finished fit as a model file (.pulse-model.json).", Slot: true},
+			descriptor.Param{Name: "name", Type: "string", Required: false, Description: "Result alias; also the saved model's name (default: the save file's stem).", Slot: true},
+		)
+	}
+
 	return []descriptor.RegressionMeta{
 		{
 			Name:           string(types.REG_OLS),
@@ -43,7 +64,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 			EmitsTypeNote:  "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error; l2: the closed-form ridge sandwich SEs; l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]; bounds whose constraint binds without resample: the same nulls (vcov entries too) plus advisories [PULSE_ADVISORY_CONSTRAINT_ACTIVE]; a robust covariance adds its covariance echo.",
 			Streamable:     types.REG_OLS.Streamable(),
 			StreamableHint: commonModifierHint + " A robust covariance (any type but classical) forces it too.",
-			Params: []descriptor.Param{
+			Params: append([]descriptor.Param{
 				{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Response variable field name.", Slot: true},
 				{Name: "predictors", Type: "list", Required: true, Description: "Predictor field names (numeric only in v1).", Slot: true},
 				{Name: "penalty", Type: "enum", Required: false, Default: "", EnumValues: []string{"", "elasticnet", "l1", "l2"}, Description: "Regularization scheme; empty for OLS. Minimizes (1/2N*)·Σw·r² + alpha·[(1-l1_ratio)/2·||b||² + l1_ratio·||b||₁] (glmnet, standardize = FALSE; the same alpha meaning as REG_GLM): predictors unstandardized, intercept unpenalized, N* = Σw.", Slot: true},
@@ -63,7 +84,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 				{Name: "conf_level", Type: "float", Required: false, Default: 0.95, Description: "Coverage of ci_lower / ci_upper, 0 < conf_level < 1: coefficient ∓ t·SE on the residual df (N* − p − 1 weighted); Wald normal under resample; intervals only where a std error is reported.", Slot: true},
 				{Name: "vcov", Type: "bool", Required: false, Default: false, Description: "Emit the coefficient covariance (vcov) and its correlation as square matrices keyed (intercept) then predictors; √diag = std_errors. Unpenalized σ̂²(XᵀX)⁻¹ or the ridge sandwich; resample gives the replicate covariance, selection the final refit's; lasso / elasticnet refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).", Slot: true},
 				{Name: "covariance", Type: "object", Required: false, Description: "{type, cluster, order_by, lags}: the estimator behind std_errors, p_values, ci_lower / ci_upper and vcov. type classical (absent: unchanged), hc0 / hc1 / hc2 / hc3 (heteroskedasticity-robust), cluster (CR1 over cluster's levels — categorical or unsigned-integer field, ≥2 levels — on df G − 1), hac (Newey–West over the rows ordered by order_by — date, datetime or numeric, unique per row — truncated at lags, an integer or \"auto\" = ⌊4(n/100)^(2/9)⌋). Robust types force the buffered path and echo as covariance; penalty / resample / selection refuse them (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).", Slot: true},
-			},
+			}, sharedSlotParams("{field, kind}: frequency or probability row weight (WLS; bootstrap / selection refuse one, PULSE_WEIGHT_UNSUPPORTED)", true)...),
 			Modifiers: []descriptor.RegressionModifier{resampleModifier, selectionModifier},
 		},
 		{
@@ -73,7 +94,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 			EmitsTypeNote:  "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R² (binomial / poisson: Wald z at dispersion 1; gamma: dispersion estimated as Pearson χ²/df, SEs scaled by it, t p-values and intervals on df, which it emits); a penalty echoes penalty / alpha / l1_ratio (l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]); a robust covariance adds its covariance echo.",
 			Streamable:     types.REG_GLM.Streamable(),
 			StreamableHint: "Always buffered; IRLS requires multiple passes over the data.",
-			Params: []descriptor.Param{
+			Params: append([]descriptor.Param{
 				{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Response variable field name.", Slot: true},
 				{Name: "predictors", Type: "list", Required: true, Description: "Predictor field names (numeric only in v1).", Slot: true},
 				{Name: "family", Type: "enum", Required: true, EnumValues: []string{"binomial", "gamma", "poisson"}, Description: "GLM error family.", Slot: true},
@@ -93,7 +114,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 				{Name: "conf_level", Type: "float", Required: false, Default: 0.95, Description: "Coverage of ci_lower / ci_upper, 0 < conf_level < 1: Wald normal coefficient ∓ z·SE (binomial / poisson, dispersion 1; any robust covariance or resample); gamma ∓ t·SE on df = N* − p − 1.", Slot: true},
 				{Name: "vcov", Type: "bool", Required: false, Default: false, Description: "Emit the coefficient covariance (vcov, (XᵀWX)⁻¹ at the converged weights, dispersion 1 — gamma: φ̂·(XᵀWX)⁻¹, φ̂ the Pearson χ²/(N* − p − 1); l2: the penalized sandwich H⁻¹XᵀWXH⁻¹, H = XᵀWX + N*·alpha·D) and its correlation, keyed (intercept) then predictors; √diag = std_errors. Resample gives the replicate covariance, selection the final refit's; l1 / elasticnet refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).", Slot: true},
 				{Name: "covariance", Type: "object", Required: false, Description: "{type, cluster, order_by, lags}: the estimator behind std_errors, the Wald p_values, ci_lower / ci_upper and vcov — the sandwich over the IRLS scores at the converged weights (R sandwich on glm). type classical (absent: unchanged), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row; lags an integer or \"auto\"). Dispersion-free (gamma's estimate cancels, as in R sandwich); inference stays Wald z, cluster and gamma included. Echoes as covariance; resample / selection refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).", Slot: true},
-			},
+			}, sharedSlotParams("{field, kind}: frequency or probability row weight (IRLS prior weights; bootstrap / selection refuse one, PULSE_WEIGHT_UNSUPPORTED)", true)...),
 			Modifiers: []descriptor.RegressionModifier{resampleModifier, selectionModifier},
 		},
 		{
@@ -103,7 +124,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 			EmitsTypeNote:  "RegressionResult with coefficients (posterior means), std errors, R², adjusted R², residual std error, credible_intervals, ci_lower / ci_upper (posterior t on df), df, conf_level; a robust covariance swaps in the sandwich posterior (normal intervals, no df) and adds its covariance echo.",
 			Streamable:     types.REG_BAYES_LINEAR.Streamable(),
 			StreamableHint: "Streamable; Resample and Selection are refused (PROCESSING_CONFIG). A robust covariance (any type but classical) forces the buffered path.",
-			Params: []descriptor.Param{
+			Params: append([]descriptor.Param{
 				{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Response variable field name.", Slot: true},
 				{Name: "predictors", Type: "list", Required: true, Description: "Predictor field names (numeric only in v1).", Slot: true},
 				{Name: "prior", Type: "enum", Required: false, Default: "nig", EnumValues: []string{"nig"}, Description: "Prior family; only the conjugate Normal-Inverse-Gamma is shipped in v1.", Slot: true},
@@ -115,7 +136,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 				{Name: "conf_level", Type: "float", Required: false, Default: 0.95, Description: "Coverage of ci_lower / ci_upper, the posterior Student-t interval on df = 2·a_n; falls back to credible_level when unset, so the bounds then equal credible_intervals.", Slot: true},
 				{Name: "vcov", Type: "bool", Required: false, Default: false, Description: "Emit the POSTERIOR covariance of the coefficients, b_n/(a_n−1)·Λ_n⁻¹ (null when a_n ≤ 1), and its correlation, keyed (intercept) then predictors. Its diagonal is not std_errors² (those are the marginal-t scales). Under a robust covariance it is the sandwich posterior's instead, √diag = std_errors.", Slot: true},
 				{Name: "covariance", Type: "object", Required: false, Description: "{type, cluster, order_by, lags}: keeps the posterior-mean coefficients but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹·M·Λ_n⁻¹) behind std_errors, credible_intervals, ci_lower / ci_upper (normal, no df) and vcov. type classical (absent: the NIG posterior), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row; lags an integer or \"auto\"). Forces the buffered path; echoes as covariance.", Slot: true},
-			},
+			}, sharedSlotParams("{field, kind}: frequency row weight only (a probability one is PULSE_WEIGHT_UNSUPPORTED)", false)...),
 			// No resample / selection modifiers: validateBayesLinearSpec
 			// refuses both with PROCESSING_CONFIG (the posterior already
 			// carries the uncertainty), so advertising them would invite

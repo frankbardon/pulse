@@ -381,6 +381,7 @@ func assembleManifest(inst *InstanceSnapshot, on func(string) bool) *descriptor.
 	// built-ins do (withMatrixWeightKeys / stampWeightKinds).
 	m.Extensions.MatrixOps = extensionMatrixMetas(snap, on(featWeighting))
 	m.Extensions.Regressions = extensionRegressionMetas(snap, on(featWeighting))
+	hideRegressionSlotParams(m, inst)
 	if !on(featSynth) {
 		m.SynthDistributions = []descriptor.DistributionMeta{}
 	}
