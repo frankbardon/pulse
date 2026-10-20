@@ -52,6 +52,9 @@ func newPairedTPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
 func (p *pairedTPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	b := &welfordBucket{}
 	for i, row := range rows {
+		if postRowHasNull(row, p.field, p.field2) {
+			continue
+		}
 		a, err := floatFromRow(row, p.field, i)
 		if err != nil {
 			return nil, err
@@ -131,6 +134,9 @@ func (s *spearmanRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	xs := make([]float64, 0, len(rows))
 	ys := make([]float64, 0, len(rows))
 	for i, row := range rows {
+		if postRowHasNull(row, s.field, s.field2) {
+			continue
+		}
 		x, err := floatFromRow(row, s.field, i)
 		if err != nil {
 			return nil, err
@@ -226,6 +232,9 @@ func (k *kendallTauPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	xs := make([]float64, 0, len(rows))
 	ys := make([]float64, 0, len(rows))
 	for i, row := range rows {
+		if postRowHasNull(row, k.field, k.field2) {
+			continue
+		}
 		x, err := floatFromRow(row, k.field, i)
 		if err != nil {
 			return nil, err
@@ -338,6 +347,9 @@ func (w *wilcoxonSRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	var diffs []float64
 	var dropped int
 	for i, row := range rows {
+		if postRowHasNull(row, w.field, w.field2) {
+			continue
+		}
 		x, err := floatFromRow(row, w.field, i)
 		if err != nil {
 			return nil, err
@@ -468,16 +480,14 @@ func newAnovaWelchPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
 }
 
 func (a *anovaWelchPost) Run(rows []map[string]any) (*types.TestResult, error) {
-	if len(rows) < 2 {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SPLIT_GROUPS_LT_2,
-			fmt.Sprintf("TEST_ANOVA_WELCH (post): need ≥ 2 group rows, got %d", len(rows)),
-			map[string]any{"rows": len(rows)})
-	}
 	order := make([]string, 0, len(rows))
 	means := make([]float64, 0, len(rows))
 	ns := make([]int64, 0, len(rows))
 	vars_ := make([]float64, 0, len(rows))
 	for i, row := range rows {
+		if postRowHasNull(row, a.splitBy, a.field, a.nCol, a.varCol) {
+			continue
+		}
 		key, err := stringFromRow(row, a.splitBy, i)
 		if err != nil {
 			return nil, err
@@ -508,6 +518,11 @@ func (a *anovaWelchPost) Run(rows []map[string]any) (*types.TestResult, error) {
 		means = append(means, mean)
 		ns = append(ns, n)
 		vars_ = append(vars_, variance)
+	}
+	if len(order) < 2 {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SPLIT_GROUPS_LT_2,
+			fmt.Sprintf("TEST_ANOVA_WELCH (post): need ≥ 2 group rows without a null, got %d", len(order)),
+			map[string]any{"rows": len(order)})
 	}
 	k := len(order)
 	weights := make([]float64, k)
@@ -592,6 +607,9 @@ func (b *brownForsythePost) Run(rows []map[string]any) (*types.TestResult, error
 	values := make(map[string][]float64)
 	var order []string
 	for i, row := range rows {
+		if postRowHasNull(row, b.field, b.splitBy) {
+			continue
+		}
 		v, err := floatFromRow(row, b.field, i)
 		if err != nil {
 			return nil, err
@@ -693,6 +711,9 @@ func (s *shapiroWilkPost) Run(rows []map[string]any) (*types.TestResult, error) 
 	groups := make(map[string][]float64)
 	var order []string
 	for i, row := range rows {
+		if postRowHasNull(row, s.field, s.splitBy) {
+			continue
+		}
 		v, err := floatFromRow(row, s.field, i)
 		if err != nil {
 			return nil, err
@@ -792,6 +813,9 @@ func (k *ksPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	values := make(map[string][]float64)
 	var order []string
 	for i, row := range rows {
+		if postRowHasNull(row, k.field, k.splitBy) {
+			continue
+		}
 		v, err := floatFromRow(row, k.field, i)
 		if err != nil {
 			return nil, err

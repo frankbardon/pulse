@@ -37,7 +37,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 - Matches R `nortest::sf.test` (not `shapiro.test`, a different W). p calibrated for 5..5000 rows: above 5000 `per_group[].warning` marks it advisory.
 - Not a gate: few rows miss real departures, many flag trivial ones.
 - Any group with `n < 5` → `PULSE_TEST_INSUFFICIENT_N`: the slot fails alone (`error`, `PULSE_SLOT_FAILED`; fatal under Strict).
-- Tier-2 variant `TEST_SHAPIRO_WILK/shapiro_francia_post` runs on a result column.
+- Tier-2 variant `TEST_SHAPIRO_WILK/shapiro_francia_post` runs on a result column. A row with a null in a used column drops listwise (R's NA default); each `per_group[].n` is the n used.
 
 ## See
 

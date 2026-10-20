@@ -38,7 +38,7 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 
 - Buffered — mid-ranks each column under tie correction before running Pearson on the ranks.
 - Detects monotonic association; robust to outliers (rank transform).
-- Tier-2 variant `TEST_SPEARMAN_R/rank_pearson_post` runs over result columns.
+- Tier-2 variant `TEST_SPEARMAN_R/rank_pearson_post` runs over result columns. A row with a null in a used column drops listwise (R's NA default); `details.n` is the n used.
 <!-- feature: MAT_CORRELATION -->
 - Same p as a `MAT_CORRELATION` spearman cell on the same rows.
 <!-- /feature -->

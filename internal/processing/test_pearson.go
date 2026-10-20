@@ -171,6 +171,9 @@ func newPearsonRPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
 func (p *pearsonRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	var m pearsonMoments
 	for i, row := range rows {
+		if postRowHasNull(row, p.field, p.field2) {
+			continue
+		}
 		x, err := floatFromRow(row, p.field, i)
 		if err != nil {
 			return nil, err

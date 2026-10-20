@@ -38,7 +38,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 - Rejects globally, not per pair<!-- feature: TEST_TUKEY_HSD --> — follow with tier-2 `TEST_TUKEY_HSD` via `ms_within` / `df_within`<!-- /feature -->.
 - Assumes equal spread; a large p from a spread test is not evidence of it.
 - Normality: a normality test describes shape; it is not a gate.
-- Tier-2 `one_way_from_summary` reads group summaries; same keys.
+- Tier-2 `one_way_from_summary` reads group summaries; same keys. A group row with a null in a used column drops (listwise, R's NA default).
 
 ## See
 

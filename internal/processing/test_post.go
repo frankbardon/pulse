@@ -78,14 +78,12 @@ func newAnovaPost(spec *types.Test, schema *encoding.Schema) (PostTest, error) {
 }
 
 func (a *anovaPost) Run(rows []map[string]any) (*types.TestResult, error) {
-	if len(rows) < 2 {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SPLIT_GROUPS_LT_2,
-			fmt.Sprintf("TEST_ANOVA_F (post): need ≥ 2 group rows, got %d", len(rows)),
-			map[string]any{"rows": len(rows)})
-	}
 	order := make([]string, 0, len(rows))
 	groups := make(map[string]*welfordBucket, len(rows))
 	for i, row := range rows {
+		if postRowHasNull(row, a.splitBy, a.field, a.nCol, a.varCol) {
+			continue
+		}
 		key, err := stringFromRow(row, a.splitBy, i)
 		if err != nil {
 			return nil, err
@@ -112,6 +110,11 @@ func (a *anovaPost) Run(rows []map[string]any) (*types.TestResult, error) {
 		m2 := float64(n-1) * variance
 		groups[key] = &welfordBucket{n: n, mean: mean, m2: m2}
 		order = append(order, key)
+	}
+	if len(order) < 2 {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SPLIT_GROUPS_LT_2,
+			fmt.Sprintf("TEST_ANOVA_F (post): need ≥ 2 group rows without a null, got %d", len(order)),
+			map[string]any{"rows": len(order)})
 	}
 	stats := summariseANOVA(order, groups)
 	k := len(order)
@@ -225,14 +228,26 @@ func newTrendPost(spec *types.Test, schema *encoding.Schema) (PostTest, error) {
 }
 
 func (tr *trendPost) Run(rows []map[string]any) (*types.TestResult, error) {
-	if len(rows) < 3 {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
-			fmt.Sprintf("TEST_TREND (mann_kendall) requires n ≥ 3, got %d", len(rows)),
-			map[string]any{"n": len(rows), "min_required": 3})
+	// Listwise: a row with a null value or a null order_by key leaves the
+	// series (R's complete.cases on (index, y)); copy so we don't mutate
+	// the caller's data.
+	used := make([]string, 0, 1+len(tr.orderBy))
+	used = append(used, tr.field)
+	for _, k := range tr.orderBy {
+		used = append(used, k.Field)
 	}
-	// Order rows by OrderBy if provided; copy the slice so we don't
-	// mutate the caller's data.
-	ordered := append([]map[string]any(nil), rows...)
+	ordered := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		if !postRowHasNull(row, used...) {
+			ordered = append(ordered, row)
+		}
+	}
+	if len(ordered) < 3 {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
+			fmt.Sprintf("TEST_TREND (mann_kendall) requires n ≥ 3 rows without a null, got %d", len(ordered)),
+			map[string]any{"n": len(ordered), "min_required": 3})
+	}
+	// Order rows by OrderBy if provided.
 	if len(tr.orderBy) > 0 {
 		sort.SliceStable(ordered, func(i, j int) bool {
 			// A grouper key column sorts by its grouper's key order —
@@ -349,6 +364,28 @@ func toFloat64(v any) float64 {
 		return float64(x)
 	}
 	return math.NaN()
+}
+
+// postRowHasNull reports whether row holds a null — a present nil — in
+// any of fields: the post-test listwise drop, R's complete.cases (its
+// default na.action) on the columns the test reads. Every post-test
+// skips such a row and reports the n it actually used, as its row
+// variant skips a null record. A missing key is not a null (floatFromRow
+// still refuses it, SERVICE_VALIDATION), a present non-numeric value
+// still refuses (PULSE_TEST_FIELD_NOT_NUMERIC), and an undefined figure
+// (NaN, an aggregate over no value) is not a null either: it stays in and
+// the statistic is NaN. An empty name (an unset optional split_by) is
+// skipped.
+func postRowHasNull(row map[string]any, fields ...string) bool {
+	for _, f := range fields {
+		if f == "" {
+			continue
+		}
+		if v, ok := row[f]; ok && v == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func floatFromRow(row map[string]any, field string, idx int) (float64, error) {

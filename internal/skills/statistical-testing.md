@@ -15,7 +15,7 @@ Two test slots; this file teaches choosing and chaining; per-test detail: `op-te
 
 1. `pulse_skills_get intents` — pick the question kind: `compare_groups` (do averages / rates / mixes differ), `relationship` (do two fields move together), `distribution_shape` (is it normal, do two shapes differ), `change_over_time` (is an ordered series trending), `benchmark` (one group against a fixed target).
 2. In `pulse_manifest`, keep the `tests[]` entries whose `intents` carry that ID. Each entry also states its `tier` and `streamable`.
-3. Read the chosen `op-test-<name>` skill; narrow by data shape (below), not by catalogue.
+3. Read the chosen `op-test-<name>` skill; narrow by data shape (below).
 
 ## Two tiers, one shape
 
@@ -24,11 +24,11 @@ Two test slots; this file teaches choosing and chaining; per-test detail: `op-te
 | `tests` (tier 1) | during row scan | raw records | near-zero reusing Welford state |
 | `post_tests` (tier 2) | after `windows` | materialized result rows | one pass over `Response.Data` |
 
-Same `Test` shape and `TestResult`. A post-test over a `null` cell gives `null` `statistic` / `p_value`; filter the group out first.
+Same `Test` shape and `TestResult`. A post-test drops rows with a null in a used column (listwise; `details.n` = rows used); a NaN cell stays and nulls the result.
 
 ## Picking the tier
 
-Tier 1 — raw distribution questions (A/B revenue, churn × region independence, normality). Tier 2 — per-group summaries / windowed columns (do per-region averages differ, trend on `moving_avg`).
+Tier 1 — raw distribution questions (A/B revenue, churn × region, normality). Tier 2 — per-group summaries / windowed columns (per-region averages, trend on `moving_avg`).
 
 Raw-row and per-group correlations can disagree (Simpson's paradox); `Variant` (`pearson` / `pearson_post`) says which.
 

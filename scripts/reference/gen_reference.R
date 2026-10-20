@@ -442,3 +442,8 @@ source(file.path(script_dir, "gen_credit_workbench.R"), local = FALSE)
 # nortest::sf.test for Shapiro-Francia; base stats + Kendall + nortest +
 # jsonlite.
 source(file.path(script_dir, "gen_test_outputs.R"), local = FALSE)
+
+# The post-test twins over rows holding nulls (test_post_nulls.json): one
+# case per post family at R's default NA handling (listwise), reusing the
+# helpers of gen_test_outputs.R above; base stats + nortest + jsonlite.
+source(file.path(script_dir, "gen_post_tests.R"), local = FALSE)

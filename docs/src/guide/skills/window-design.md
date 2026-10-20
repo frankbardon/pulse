@@ -70,23 +70,27 @@ Every window op:
 3. For each row in scan order, read the framed slice and emit one value into `label`.
 4. Result rows are NOT reordered — `order_by` is scan order, not response order; use `Request.Sort`.
 
-Windows sharing a `(partition_by, order_by)` tuple share the sort — O(n log n) per distinct tuple.
+Windows sharing a `(partition_by, order_by)` tuple share one sort.
 
 ## Difference vs. ratio
 
-The delta and pct-change ops share every slot — same `periods`, no frame, same null rules — and answer different questions. The delta subtracts, so it reads in the FIELD'S OWN UNITS; the pct-change divides, so it reads as a ratio of the prior.
+Delta and pct-change share every slot (`periods`, no frame, same null rules). The delta reads in the FIELD'S OWN UNITS; the pct-change as a ratio of the prior.
 
 For a percentage metric, 97.9 vs 90.0 is 7.9 points (delta) or 8.8% (pct-change). Points are honest when the metric IS a percentage; the ratio when the base moves. A zero prior is a real delta and a null pct-change (never a panic).
 
 ## Streamability per window
 
-Any non-empty `windows` slate forces the BUFFERED path — a window needs a sort over the row set — and predict marks the request `Streamable=false`. `WindowType.Streamable()` (`types/streamability.go`) is `false` for every window.
+Any `windows` entry forces the BUFFERED path (a sort over the row set); predict marks the request `Streamable=false` (`WindowType.Streamable()` is `false` for every window).
 
 ## Components
 
 **Windows emit row-level values, not `Response.Components`.**
 
 Windowed-Process overlays (index vs prior, year-over-year, …) DO produce typed payloads keyed to host coordinates — [`overlay-system`](overlay-system.md).
+
+## Lag autocorrelation
+
+`WIN_LAG` (no `default`) into post-test `TEST_PEARSON_R` (`field` lag, `field2` value): the leading `null` drops listwise; `default: 0` biases r.
 
 ## Gotchas
 

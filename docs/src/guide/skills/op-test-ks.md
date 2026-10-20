@@ -52,7 +52,7 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 - Buffered — both ECDFs must materialize and sort before comparison.
 - Sensitive to distribution shape, not just mean.
 - Small-n approximation drifts; only n < 2 per group is refused (`PULSE_TEST_INSUFFICIENT_N`).
-- Tier-2 variant `TEST_KS/two_sample_post` runs between two output columns of the result set.
+- Tier-2 variant `TEST_KS/two_sample_post` runs between two output columns of the result set. A row with a null in a used column drops listwise (R's NA default); `details.n` counts the rows used.
 
 ## See
 

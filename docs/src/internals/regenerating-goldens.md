@@ -225,6 +225,16 @@ inputs, so the `TestReferenceOracle_*` tests in
 `test_undefined_oracle_test.go` and `test_fisher_oracle_test.go` replay R's exact doubles through the
 operator at relative `1e-10`.
 
+`scripts/reference/gen_post_tests.R` (sourced after it, reusing its
+helpers) writes `test_post_nulls.json`: one case per post-test family
+whose rows hold nulls (`null` where R reads `NA`), the R figures at R's
+default NA handling (listwise), and an `expect` map from a result path
+(`statistic`, `details.comparisons.0.p_adj`, …) to R's value.
+`TestReferenceOracle_PostTestNulls` replays every family through its
+post-test, and `TestPostTwins_MatchRowVariant` holds each post twin
+equal to its row variant on the same data, both at relative `1e-10`
+(`internal/processing/test_post_oracle_test.go`).
+
 ### The R toolchain
 
 `make reference` refuses any R but 4.6.1 (2026-06-24) and any package
@@ -248,7 +258,7 @@ is the whole list in one place.
 | `lmtest` | 0.9-40 | robust covariance tests |
 | `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |
 | `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`; thresh / maxit through `control`) |
-| `nortest` | 1.0-4 | Shapiro-Francia (`nortest::sf.test`), the `TEST_SHAPIRO_WILK` oracle (`gen_test_outputs.R`) |
+| `nortest` | 1.0-4 | Shapiro-Francia (`nortest::sf.test`), the `TEST_SHAPIRO_WILK` oracle (`gen_test_outputs.R`, `gen_post_tests.R`) |
 | `Kendall` | 2.2.2 | Mann-Kendall cross-check for `TEST_TREND` (`gen_test_outputs.R`); it computes in single precision, so the 1e-10 oracle is base R |
 | `pwr` | 1.3-0 | power / effect-size cross-checks |
 | `Hmisc` | 5.3-0 | probability-weight quantiles (`internal/service/testdata/weight_reference/hmisc_quantile.R`); compiles Fortran, so install it with the workaround below |

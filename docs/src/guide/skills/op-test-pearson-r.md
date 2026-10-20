@@ -51,7 +51,7 @@ Use something else:
 
 - Streamable — extended Welford recurrence tracks the running cross-product alongside per-field moments.
 - Linear-only sensitivity.
-- Tier-1 (raw rows) vs tier-2 (`TEST_PEARSON_R/pearson_post` over result columns) can disagree under Simpson's paradox — pick the variant deliberately.
+- Tier-1 (raw rows) vs tier-2 (`TEST_PEARSON_R/pearson_post` over result columns) can disagree under Simpson's paradox — pick the variant deliberately. A row with a null in a used column drops listwise (R's NA default); `details.n` is the n used. A `WIN_LAG` column's leading null needs no `default` ([`window-design`](window-design.md)).
 - Constant Field or Field2 → `PULSE_TEST_VARIANCE_ZERO`.
 - Outliers dominate r; pre-clip them or switch to a rank-based correlation.
 
