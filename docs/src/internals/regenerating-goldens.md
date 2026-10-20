@@ -324,7 +324,7 @@ is the whole list in one place.
 | `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`; thresh / maxit through `control`) |
 | `nortest` | 1.0-4 | Shapiro-Francia (`nortest::sf.test`), the `TEST_SHAPIRO_WILK` oracle (`gen_test_outputs.R`, `gen_post_tests.R`) |
 | `Kendall` | 2.2.2 | Mann-Kendall cross-check for `TEST_TREND` (`gen_test_outputs.R`); it computes in single precision, so the 1e-10 oracle is base R |
-| `pwr` | 1.3-0 | power / effect-size cross-checks |
+| `pwr` | 1.3-0 | no generator uses it yet; `internal/processing/test_effect_size_test.go` cites `pwr::ES.h` in a comment only, so it is installed for cross-checks, not for `make reference` |
 | `Hmisc` | 5.3-0 | probability-weight quantiles (`internal/service/testdata/weight_reference/hmisc_quantile.R`); compiles Fortran, so install it with the workaround below |
 
 `ICSNP`, `MVTests` and `MVN` do NOT build on R 4.6.1; nothing needs

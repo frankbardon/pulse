@@ -3,12 +3,12 @@ id: U36
 slug: reference-oracles
 title: "Every inferential output is pinned to an external reference, and none answers with a wrong or unencodable number"
 track: Statistical integrity
-size: M
-status: not-started
+size: L
+status: done
 depends_on: [U08]
 soft_depends_on: []
 blocks: []
-todo_items: [202, 203, 204, 205, 266, 271, 293, 294, 401, 405, 410, 414, 454, 477]
+todo_items: [202, 203, 204, 205, 266, 271, 294, 405, 410, 414, 477]
 branch: reference-oracles
 ---
 
@@ -16,11 +16,13 @@ branch: reference-oracles
 
 **Outcome:** Every inferential output is pinned to an external reference, and none answers with a wrong or unencodable number.
 
-**Track:** Statistical integrity · **Size:** M · **Depends on:** [U08](U08-guidance-backfill-inferential.md) · **Unblocks:** none (U09 holds it as a soft dependency)
+**Track:** Statistical integrity · **Size:** L · **Depends on:** [U08](U08-guidance-backfill-inferential.md) · **Unblocks:** none (U09 holds it as a soft dependency)
 
 ## Summary
 
 U08 built the R oracle (`scripts/reference/gen_reference.R`, `make reference`, goldens under `internal/processing/testdata/reference/`) and used it to pin the shared distribution PRIMITIVES (Student t, chi-square, F, normal, Kolmogorov, studentized range) to a relative `1e-10`. It did not pin each operator's ASSEMBLED output: many `TEST_*`, `REG_*` and overlay values are still checked by hand-pasted literals at `1e-2`..`5e-3`, by values the engine produced itself, or by comparing an overlay to the same helper it calls (circular). This unit extends the oracle to every inferential output, and fixes the runtime bugs the U08 statistics review found but did not own (three remain: U12 fixed the CI critical z). It also covers the WEIGHTED variants U12 shipped: the per-output oracles gain weighted rows, at this unit's tolerances.
+
+**Delivered (17 stories, branch `reference-oracles`).** Twelve planned stories plus five the owner added during implementation: E1-S6 (`TEST_KS` p is `ks.test`'s, from a port of R's exact Smirnov distribution), E1-S7 (frequency-weight minimum-n floors read Σw everywhere, `weighting.Basis.FloorN`; Shapiro zero variance refuses `PULSE_TEST_VARIANCE_ZERO`; the Tukey post refuses non-numeric values), E1-S8 (Fisher exact `ci_low` / `ci_high` from `alpha`, R's relErr 1 + 1e-7 tie rule), E2-S5 (gamma selection AIC / BIC matches R's `AIC()` / `step()`) and E3-S4 (`OVERLAY_KS_VS_POP` p is `ks.test`'s, Stephens deleted). E2-S2 widened to `REG_GLM` l1 / elastic net and added the advisory `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` plus the additive `RegressionResult.Advisories` slot. Every behaviour change is a row in the embedder migration doc, "Changes from U36".
 
 Numbering note: appended as U36 after U35 rather than renumbered.
 
@@ -34,15 +36,15 @@ Numbering note: appended as U36 after U35 rather than renumbered.
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#202** (4. Statistical integrity › Reference oracles) Per-output R oracle for every `TEST_*` family at tight relative tolerance: Shapiro–Wilk (Shapiro–Francia W′ + p), Brown–Forsythe, Tukey q / `p_adj`, KS p, Kendall τ-b with ties, Mann–Kendall (`TEST_TREND`) p, Pearson CI, and every family's p-value (row and post twins)
-- [ ] **#203** (4. Statistical integrity › Reference oracles) `REG_OLS` (incl. ridge / lasso / elastic net) and `REG_GLM` (binomial, poisson, gamma) coefficients, SEs and p-values, and the `REG_BAYES_LINEAR` posterior, pinned to an external reference (`lm` / `glm` / glmnet / closed-form conjugate posterior)
-- [ ] **#204** (4. Statistical integrity › Reference oracles) De-circularised overlay oracles: `OVERLAY_CHISQ_VS_POP`, `OVERLAY_CHISQ_VS_REF`, `OVERLAY_KS_VS_POP` and `OVERLAY_PAIRWISE_PROBIT_T` checked against an independent R computation, never the helper they call
-- [ ] **#205** (4. Statistical integrity › Reference oracles) Runtime bugs found in U08: infinite `TEST_FISHER_EXACT` OR and Pearson / Spearman `details.t` break `--json`; `TEST_BROWN_FORSYTHE` reports F = 0, p = 0 at zero within-group spread; the Shapiro–Francia p for n < 5 is uncalibrated. ~~The Winitzki inverse-erf CI critical z is ~4.7e-4 too small~~ — **fixed by [U12](U12-weighting-inferential.md) E5-S1** (`normalCriticalTwoSided` = −`standardNormalPPF`(α/2), R `qnorm` to a few ulp, for the `TEST_Z_TWO_SAMPLE` / `TEST_PROP_Z` Wald and `TEST_PEARSON_R` Fisher-z intervals and `AGG_CI_*`; pinned against R in the weighted reference rows), so it leaves this unit's scope
+- [x] **#202** (4. Statistical integrity › Reference oracles) Per-output R oracle for every `TEST_*` family at tight relative tolerance: Shapiro–Wilk (Shapiro–Francia W′ + p), Brown–Forsythe, Tukey q / `p_adj`, KS p, Kendall τ-b with ties, Mann–Kendall (`TEST_TREND`) p, Pearson CI, and every family's p-value (row and post twins)
+- [x] **#203** (4. Statistical integrity › Reference oracles) `REG_OLS` (incl. ridge / lasso / elastic net) and `REG_GLM` (binomial, poisson, gamma) coefficients, SEs and p-values, and the `REG_BAYES_LINEAR` posterior, pinned to an external reference (`lm` / `glm` / glmnet / closed-form conjugate posterior)
+- [x] **#204** (4. Statistical integrity › Reference oracles) De-circularised overlay oracles: `OVERLAY_CHISQ_VS_POP`, `OVERLAY_CHISQ_VS_REF`, `OVERLAY_KS_VS_POP` and `OVERLAY_PAIRWISE_PROBIT_T` checked against an independent R computation, never the helper they call
+- [x] **#205** (4. Statistical integrity › Reference oracles) Runtime bugs found in U08: infinite `TEST_FISHER_EXACT` OR and Pearson / Spearman `details.t` break `--json`; `TEST_BROWN_FORSYTHE` reports F = 0, p = 0 at zero within-group spread; the Shapiro–Francia p for n < 5 is uncalibrated. ~~The Winitzki inverse-erf CI critical z is ~4.7e-4 too small~~ — **fixed by [U12](U12-weighting-inferential.md) E5-S1** (`normalCriticalTwoSided` = −`standardNormalPPF`(α/2), R `qnorm` to a few ulp, for the `TEST_Z_TWO_SAMPLE` / `TEST_PROP_Z` Wald and `TEST_PEARSON_R` Fisher-z intervals and `AGG_CI_*`; pinned against R in the weighted reference rows), so it leaves this unit's scope
 - [x] **#266** (10. Vector & matrix — operators › Follow-ups from U24) Matrix oracle gaps: add weighted pairwise PCA, collinearity and reliability `item_sd` cases (the unweighted pairwise PCA and collinearity cases landed in U24)
-- [ ] **#271** (10. Vector & matrix — operators › Follow-ups from U24) `REG_GLM` gamma: Pulse fixes dispersion at 1 for standard errors and `vcov`; R estimates it. Decide, align, and add a gamma oracle case
-- [ ] **#293** (Follow-ups from U40) `REG_OLS` `penalty` with an `unpenalized: [..]` predictor list, so ridge can leave a predictor subset (for example categorical dummies) unshrunk; add an oracle case
-- [ ] **#294** (Follow-ups from U40) Window lag default `null` and post-tests that honour null: a `WIN_LAG` `default: 0` fills the first rows and biases lag-1 autocorrelation (the reported figure includes the zero-filled rows)
-- [ ] **#401** (10. Vector & matrix — operators › Follow-ups from U25) Panel-robust `REG_OLS` / `REG_GLM` / `REG_BAYES_LINEAR` covariance: HAC across a panel (per-entity Newey–West or Driscoll–Kraay) and two-way clustering. `covariance.type: hac` reads one series and refuses a repeated `order_by` (`order_by_ties`), so the MMM example clusters on the week
+- [x] **#271** (10. Vector & matrix — operators › Follow-ups from U24) `REG_GLM` gamma: Pulse fixes dispersion at 1 for standard errors and `vcov`; R estimates it. Decide, align, and add a gamma oracle case
+- ~~**#293** (Follow-ups from U40) `REG_OLS` `penalty` with an `unpenalized: [..]` predictor list~~ — **moved to [U53](U53-custom-regressions.md)** (model-surface work, not an oracle)
+- [x] **#294** (Follow-ups from U40) Window lag default `null` and post-tests that honour null: a `WIN_LAG` `default: 0` fills the first rows and biases lag-1 autocorrelation (the reported figure includes the zero-filled rows)
+- ~~**#401** (Follow-ups from U25) Panel-robust `REG_OLS` / `REG_GLM` / `REG_BAYES_LINEAR` covariance~~ — **moved to [U53](U53-custom-regressions.md)**
 - [x] **#405** (10. Vector & matrix — operators › Follow-ups from U25) `MAT_FACTOR` `ml`: RMSEA confidence interval (`psych::fa` `RMSEA` lower / upper) and its oracle; E2 ships the point RMSEA, TLI, BIC and the likelihood χ²
 - [x] **#410** (10. Vector & matrix — operators › Follow-ups from U25) A non-Heywood weighted fixture for the `ATTR_FACTOR_SCORE` Bartlett path: most weighted oracle fixtures are Heywood cases, which null every Bartlett score, so weighted Bartlett scoring is thinly pinned to `psych`
 - [x] **#414** (10. Vector & matrix — operators › Follow-ups from U25) Weight-reference regeneration: rerunning `gen_weight_reference.py` shifts the `REG_*` rows by ulps (only the Hotelling rows were committed), and the R oracle needs Hotelling 1.0.8 plus Hmisc with FLIBS in `Makevars` (ICSNP and MVTests fail to build on R 4.6.1); pin and document the regeneration, or commit the shifted rows
@@ -63,6 +65,7 @@ Numbering note: appended as U36 after U35 rather than renumbered.
 **Out of scope**
 - New weighted forms: U12 owns which operators are weighted and how (`.claude/reference/weighting.md`); this unit only pins them
 - Multiplicity-adjusted p-values (U13)
+- Model-surface work the oracles surfaced: `unpenalized` ridge predictors (#293), panel-robust covariance (#401) and the exact McNemar overlay (#454) moved to [U53](U53-custom-regressions.md)
 - New statistical features
 
 ## Epics & stories
@@ -70,20 +73,35 @@ Numbering note: appended as U36 after U35 rather than renumbered.
 Each epic is a vertical slice. Commit with `feat|fix|test(reference-oracles/E<n>-S<m>): …`; close each epic with `milestone(reference-oracles/E<n>): vertical slice complete — <epic title>`.
 
 ### E1 — Tests match R
-- S1: oracle cases for every `TEST_*` row + post twin (#202); fix each failure
-- S2: the three remaining runtime bugs (#205) — finite-or-omitted infinities (or a coded refusal) so `--json` always encodes, a Brown–Forsythe refusal or undefined F, and a decision on Shapiro–Francia at n < 5 (refuse, or an exact method); the CI critical z shipped in U12
+- S1: R toolchain ready (Hmisc, pwr, Kendall, nortest pinned); #477 weighted values regenerate cleanly
+- S2: remaining `TEST_*` gaps pinned (ANOVA_RM, TUKEY_HSD, TREND, KS, Kendall, Pearson CI); Mann-Kendall τ-b
+- S3: #205 undefined figures — Shapiro n < 5 refusal, Brown–Forsythe zero spread, infinities `null`
+- S4: Fisher exact odds ratio is the conditional MLE
+- S5: post-tests drop nulls listwise (#294); every post twin anchored to R
+- S6: `TEST_KS` p matches `ks.test` (Smirnov port) — added by the owner
+- S7: frequency weights count Σw for minimum-n; Shapiro zero variance refuses — added by the owner
+- S8: Fisher exact CI and `fisher.test`'s tie rule — added by the owner
 
-### E2 — Models and overlays match R
-- S1: `REG_*` oracles (#203), incl. the GLM gamma path (dispersion currently fixed at 1, weighted and unweighted) and penalised-OLS plug-in p-values (documented as approximate, with a stated reference)
-- S2: de-circularised overlay oracles (#204), the `T_VS_REF` / `Z_VS_REF` engine-series empty layer, and the stale helper-name prose
+### E2 — Models match R
+- S1: plain `REG_OLS` pinned to `lm`; regression tolerances tightened
+- S2: penalised inference honest (ridge closed form; l1 / elastic net `null` + advisory)
+- S3: gamma GLM estimates its dispersion, weighted and unweighted
+- S4: `REG_BAYES_LINEAR` independent posterior; weighted pairwise collinearity (#266)
+- S5: gamma selection scores R's AIC / BIC — added by the owner
+
+### E3 — Overlays match R, plus closeout
+- S1: overlay oracles de-circularised; engine-series `T_VS_REF` / `Z_VS_REF` empty layer fixed
+- S2: stale helper-name prose fixed
+- S4: `OVERLAY_KS_VS_POP` reports `ks.test`'s p — added by the owner
+- S3: reference docs, migration doc and roadmap closed out
 
 ## Acceptance criteria
 
-- [ ] No inferential output's numeric test compares against a value the engine computed itself or against the helper it calls
-- [ ] Every #205 bug has a failing-before test and is fixed; `pulse api process --json` encodes every fixture
-- [ ] Every behaviour change has a before → after row, citing the R value, in the PR body
-- [ ] `format_version` stays `"1.1"`; goldens regenerated, never hand-edited
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] No inferential output's numeric test compares against a value the engine computed itself or against the helper it calls
+- [x] Every #205 bug has a failing-before test and is fixed; `pulse api process --json` encodes every fixture
+- [x] Every behaviour change has a before → after row, citing the R value, in the PR body
+- [x] `format_version` stays `"1.1"`; goldens regenerated, never hand-edited
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
@@ -101,7 +119,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test(reference-oracles/E<n>
 
 | Item | Source |
 |---|---|
-| Panel HAC and two-way clustering | [U25](U25-multivariate-tests-segmentation.md) #401 |
+| ~~Panel HAC and two-way clustering~~ — moved to [U53](U53-custom-regressions.md) | [U25](U25-multivariate-tests-segmentation.md) #401 |
 | ~~RMSEA confidence interval~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #405 |
 | ~~Weighted Bartlett factor-score oracle~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #410 |
 | ~~Oracle regeneration~~ — resolved in U25 | [U25](U25-multivariate-tests-segmentation.md) #414 |
@@ -111,13 +129,14 @@ Each epic is a vertical slice. Commit with `feat|fix|test(reference-oracles/E<n>
 
 | Item | Source |
 |---|---|
-| `OVERLAY_SYMMETRY` exact binomial McNemar (`params.exact`, 2 × 2) and the discordant odds ratio as an effect size, both pinned to R | [U30](U30-matrix-extensions-hardening.md) #454 (owner decision 2026-10-14; [U30 flows review](../reviews/U30-flows-review.md) open item 2) |
-| Weighted pairwise oracle cases: PCA and reliability landed in U30 E5-S2; the collinearity case remains | [U30](U30-matrix-extensions-hardening.md) note on #266 |
+| ~~`OVERLAY_SYMMETRY` exact binomial McNemar (`params.exact`, 2 × 2) and the discordant odds ratio as an effect size, both pinned to R~~ — moved to [U53](U53-custom-regressions.md) | [U30](U30-matrix-extensions-hardening.md) #454 (owner decision 2026-10-14; [U30 flows review](../reviews/U30-flows-review.md) open item 2) |
+| ~~Weighted pairwise oracle cases~~ — PCA and reliability landed in U30 E5-S2; the collinearity case landed in U36 E2-S4 (#266) | [U30](U30-matrix-extensions-hardening.md) note on #266 |
 
 ## Human inputs & decisions
 
-- **Open:** Shapiro–Francia at n < 5 — refuse, or switch to an exact method (E1-S2)
-- **Open:** infinite statistics — omit the key, emit a coded refusal, or encode a sentinel; must keep `format_version` `"1.1"` (E1-S2)
+- **Decided (E1-S3):** Shapiro–Francia at n < 5 refuses (`PULSE_TEST_INSUFFICIENT_N`, as `nortest::sf.test` does)
+- **Decided (E1-S3):** infinite statistics encode as JSON `null`, key kept (`types.MarshalFinite`); `format_version` stays `"1.1"`
+- **Decided (owner):** every figure follows R, including where R is approximate (gamma dispersion, `ks.test`'s p, `fisher.test`'s tie rule); the Fisher odds ratio and its interval refine past `uniroot`'s tolerance with R's own value beside the golden
 
 ## Inherited from U08
 
@@ -130,4 +149,4 @@ Each epic is a vertical slice. Commit with `feat|fix|test(reference-oracles/E<n>
 
 Filed from [U47](U47-survey-tables.md#handed-on); tick in [`TODO.md`](../TODO.md) when done.
 
-- [ ] **#477** `weight_reference_values_test.go` was hand-edited in U47 (E4-S6) because Hmisc was absent; re-run `uv run --no-project gen_weight_reference.py --check` with Hmisc 5.3.0 and commit any regenerated values. Found in U47 (E4-S5)
+- [x] **#477** `weight_reference_values_test.go` was hand-edited in U47 (E4-S6) because Hmisc was absent; re-run `uv run --no-project gen_weight_reference.py --check` with Hmisc 5.3.0 and commit any regenerated values. Found in U47 (E4-S5)

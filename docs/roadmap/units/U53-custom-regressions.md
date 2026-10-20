@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U34, U36, U42]
 blocks: [U32]
-todo_items: [381, 382, 383, 384, 385, 386, 387, 388, 389]
+todo_items: [381, 382, 383, 384, 385, 386, 387, 388, 389, 293, 401, 454]
 branch: custom-regressions
 ---
 
@@ -57,6 +57,7 @@ Numbering note: appended after U52, not renumbered. **Release intent:** v1.0.0 (
 - Per-coefficient prior precision, non-negative OLS coefficients
 - Weibull adstock and a Hill expression function
 - The recipe and a reference extension
+- The three model-surface items U36 handed on (see "Handed on from U36"): ridge over a predictor subset (#293), panel-robust covariance (#401) and the exact McNemar test (#454), each with its R oracle case
 
 **Out of scope** (see [api-and-release 04](../v1.0.0-api-and-release/04-model-extensions.md), "After v1.0.0")
 - Shipped model packs (MMM pack: Hill NLS, partial pooling, budget allocator)
@@ -105,6 +106,16 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(custom-regression
 - `.claude/reference/architecture.md` (Extension surface), `docs/src/internals/extension-points.md`, new `docs/src/internals/adding-regression.md`
 - `skills/regression-modeling.md`, `skills/op-reg-bayes-linear.md`, `skills/op-reg-ols.md`, an atomic skill for any new window, `capabilities_*.go`, example tags, `Purpose` / `Interpretation`, `features.go`, weight class in `weighting.md`, `make docs`
 - `docs/src/contract/payload-schema.md` and the payload-schema golden for the wire additions
+
+## Handed on from U36
+
+Filed as TODO items (ids are TODO ids, not GitHub issues); U36 closed without them, none is a defect in its oracles.
+
+| Item | Source |
+|---|---|
+| #293 `REG_OLS` `penalty` with an `unpenalized: [..]` predictor list (ridge leaves a subset, e.g. categorical dummies, unshrunk); add an oracle case against `glmnet`'s `penalty.factor` | [U36](U36-reference-oracles.md), originally [U40](U40-compose-sweep.md) |
+| #401 Panel-robust `REG_OLS` / `REG_GLM` / `REG_BAYES_LINEAR` covariance: HAC across a panel (per-entity Newey–West or Driscoll–Kraay) and two-way clustering; `covariance.type: hac` refuses a repeated `order_by` (`order_by_ties`) | [U36](U36-reference-oracles.md), originally [U25](U25-multivariate-tests-segmentation.md) |
+| #454 `OVERLAY_SYMMETRY` exact binomial McNemar (`params.exact`, 2 × 2) and the discordant odds ratio as an effect size, both pinned to R (`binom.test`) | [U36](U36-reference-oracles.md), originally [U30](U30-matrix-extensions-hardening.md) (owner decision 2026-10-14) |
 
 ## Human inputs & decisions
 
