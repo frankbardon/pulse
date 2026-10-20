@@ -82,6 +82,9 @@ type Signature struct {
 	Name string
 	// Type is the regression operator that produces the fit.
 	Type types.RegressionType
+	// Target is a regression fit's response field: the column an
+	// ATTR_REG_RESIDUAL slot's params.fit subtracts its score from.
+	Target string
 	// Terms are the predictor columns the fit was offered, in spec
 	// order: the names `terms` may list and the columns a scoring frame
 	// must hold. Under Selection it is the candidate set, a superset of
@@ -145,7 +148,7 @@ func (v *VectorFit) Signature() Signature {
 
 // Signature is b's static face.
 func (b *Bound) Signature() Signature {
-	return Signature{Name: b.Name, Type: b.Type, Terms: append([]string(nil), b.Terms...), Source: b.Source, Kind: types.FitKindRegression}
+	return Signature{Name: b.Name, Type: b.Type, Target: b.Target, Terms: append([]string(nil), b.Terms...), Source: b.Source, Kind: types.FitKindRegression}
 }
 
 // FitCatalog is the static Catalog of a ComposedRequest `fits` list —
@@ -165,7 +168,7 @@ func CatalogFromFits(fits []types.FitSpec) FitCatalog {
 		switch FitKindOf(f.Request) {
 		case types.FitKindRegression:
 			reg := f.Request.Regressions[0]
-			out[f.Name] = Signature{Name: f.Name, Type: reg.Type, Terms: append([]string(nil), reg.Predictors...), Source: FitSource(i), Kind: types.FitKindRegression}
+			out[f.Name] = Signature{Name: f.Name, Type: reg.Type, Target: reg.Target, Terms: append([]string(nil), reg.Predictors...), Source: FitSource(i), Kind: types.FitKindRegression}
 		case types.FitKindVector:
 			out[f.Name] = Signature{Name: f.Name, Source: FitSource(i), Kind: types.FitKindVector}
 		}
@@ -352,7 +355,14 @@ func DecodeScoreParams(raw json.RawMessage) (ScoreParams, *errors.CodedError) {
 }
 
 func scoreInvalid(fit, reason, what string, extra map[string]any) *errors.CodedError {
-	details := map[string]any{"attribute": string(types.ATTR_REG_PREDICT), "reason": reason}
+	return scoreInvalidFor(types.ATTR_REG_PREDICT, fit, reason, what, extra)
+}
+
+// scoreInvalidFor is scoreInvalid for the scoring slot of type attr
+// (ATTR_REG_PREDICT, or an ATTR_REG_FITTED / ATTR_REG_RESIDUAL slot's
+// params.fit).
+func scoreInvalidFor(attr types.AttributeType, fit, reason, what string, extra map[string]any) *errors.CodedError {
+	details := map[string]any{"attribute": string(attr), "reason": reason}
 	if fit != "" {
 		details["fit"] = fit
 	}
@@ -360,7 +370,7 @@ func scoreInvalid(fit, reason, what string, extra map[string]any) *errors.CodedE
 		details[k] = v
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_SCORE_INVALID,
-		string(types.ATTR_REG_PREDICT)+" "+what, details)
+		string(attr)+" "+what, details)
 }
 
 // TermUnknown is the PULSE_MODEL_TERM_UNKNOWN refusal: term is neither
@@ -377,18 +387,30 @@ func TermUnknown(fit, term string, terms []string) *errors.CodedError {
 // scoring frame (schema, feature outputs and earlier attribute labels)
 // has no column for one of fit's predictors.
 func PredictorMissing(fit, column string) *errors.CodedError {
+	return PredictorMissingFor(types.ATTR_REG_PREDICT, fit, column)
+}
+
+// PredictorMissingFor is PredictorMissing for the scoring slot of type
+// attr.
+func PredictorMissingFor(attr types.AttributeType, fit, column string) *errors.CodedError {
 	return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_PREDICTOR_MISSING,
-		fmt.Sprintf("%s: predictor %q of model %q is not a column of the scoring frame", types.ATTR_REG_PREDICT, column, fit),
-		map[string]any{"attribute": string(types.ATTR_REG_PREDICT), "fit": fit, "field": column})
+		fmt.Sprintf("%s: predictor %q of model %q is not a column of the scoring frame", attr, column, fit),
+		map[string]any{"attribute": string(attr), "fit": fit, "field": column})
 }
 
 // PredictorNotNumeric is the PULSE_MODEL_PREDICTOR_NOT_NUMERIC refusal:
 // a predictor column of fit is a schema field of a type a regression
 // cannot read (fieldType is its type name).
 func PredictorNotNumeric(fit, column, fieldType string) *errors.CodedError {
+	return PredictorNotNumericFor(types.ATTR_REG_PREDICT, fit, column, fieldType)
+}
+
+// PredictorNotNumericFor is PredictorNotNumeric for the scoring slot of
+// type attr.
+func PredictorNotNumericFor(attr types.AttributeType, fit, column, fieldType string) *errors.CodedError {
 	return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC,
-		fmt.Sprintf("%s: predictor %q of model %q is %s, not a numeric column", types.ATTR_REG_PREDICT, column, fit, fieldType),
-		map[string]any{"attribute": string(types.ATTR_REG_PREDICT), "fit": fit, "field": column, "field_type": fieldType})
+		fmt.Sprintf("%s: predictor %q of model %q is %s, not a numeric column", attr, column, fit, fieldType),
+		map[string]any{"attribute": string(attr), "fit": fit, "field": column, "field_type": fieldType})
 }
 
 // DefaultScoreLabel is ATTR_REG_PREDICT's output label when the slot

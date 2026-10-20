@@ -67,7 +67,13 @@ func (b *Bound) Scorer(src ScorerSource, p ScoreParams) (RowScorer, error) {
 // typeUnsupported is the PULSE_MODEL_SCORE_INVALID refusal of a fit
 // whose type has no scorer.
 func typeUnsupported(fit string, t types.RegressionType) *errors.CodedError {
-	return scoreInvalid(fit, ReasonTypeUnsupported,
+	return typeUnsupportedFor(types.ATTR_REG_PREDICT, fit, t)
+}
+
+// typeUnsupportedFor is typeUnsupported for the scoring slot of type
+// attr.
+func typeUnsupportedFor(attr types.AttributeType, fit string, t types.RegressionType) *errors.CodedError {
+	return scoreInvalidFor(attr, fit, ReasonTypeUnsupported,
 		fmt.Sprintf("cannot score a %s fit; it scores least-squares, generalized-linear and Bayesian-linear fits", t),
 		map[string]any{"type": string(t)})
 }
@@ -76,7 +82,12 @@ func typeUnsupported(fit string, t types.RegressionType) *errors.CodedError {
 // of an extension regression's fit whose registration supplies no
 // Scorer: the fit runs, but nothing can score it.
 func noScorer(fit string, t types.RegressionType) *errors.CodedError {
-	return scoreInvalid(fit, ReasonNoScorer,
+	return noScorerFor(types.ATTR_REG_PREDICT, fit, t)
+}
+
+// noScorerFor is noScorer for the scoring slot of type attr.
+func noScorerFor(attr types.AttributeType, fit string, t types.RegressionType) *errors.CodedError {
+	return scoreInvalidFor(attr, fit, ReasonNoScorer,
 		fmt.Sprintf("cannot score %q: it is a %s fit, and that regression's registration supplies no Scorer (RegressionRegistration.Scorer)", fit, t),
 		map[string]any{"type": string(t)})
 }

@@ -3943,13 +3943,13 @@
         {
           "name": "ATTR_REG_FITTED",
           "category": "attribute",
-          "description": "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own RegressionSpec-shaped fields (Target, Predictors, Penalty, Alpha, L1Ratio); each ATTR_REG_* attribute refits independently (Option A). Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet).",
+          "description": "Per-row fitted value ŷᵢ = Xᵢ · β + β₀ from a regression refit during the attribute prepass. Carries its own RegressionSpec-shaped fields (Target, Predictors, Penalty, Alpha, L1Ratio); each ATTR_REG_* attribute refits independently (Option A). Accepts any OLS penalty (unpenalized, ridge, lasso, elasticnet). With params.fit it scores that bound fit instead (any scorable type; a REG_GLM's fitted mean) and refits nothing.",
           "params": [
             {
               "name": "target",
               "type": "field",
               "required": true,
-              "description": "Response variable field name; a top-level key of the attribute entry.",
+              "description": "Response variable field name; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
               "field_filter": "numeric",
               "slot": true
             },
@@ -3957,7 +3957,7 @@
               "name": "predictors",
               "type": "list",
               "required": true,
-              "description": "Predictor field names, at least one; a top-level key of the attribute entry.",
+              "description": "Predictor field names, at least one; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
               "slot": true
             },
             {
@@ -3987,6 +3987,12 @@
               "required": false,
               "description": "Elastic-net mixing parameter in (0,1); only read when penalty == elasticnet. Top-level.",
               "slot": true
+            },
+            {
+              "name": "fit",
+              "type": "string",
+              "required": false,
+              "description": "Score through a bound fit instead of refitting OLS: a `fits` entry of the enclosing compose request or a loaded `models` entry, any scorable type (a REG_GLM on its response scale; an extension regression whose registration supplies a Scorer). The slot then takes no target, predictors, penalty, alpha or l1_ratio; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound. Absent, the slot refits OLS."
             }
           ],
           "accepts_types": [
@@ -4134,13 +4140,13 @@
         {
           "name": "ATTR_REG_RESIDUAL",
           "category": "attribute",
-          "description": "Per-row residual yᵢ − ŷᵢ from a regression refit during the attribute prepass. Sums to ≈ 0 when the fit includes an intercept (always true for OLS). Accepts any OLS penalty; reuses the same fit machinery as ATTR_REG_FITTED.",
+          "description": "Per-row residual yᵢ − ŷᵢ from a regression refit during the attribute prepass. Sums to ≈ 0 when the fit includes an intercept (always true for OLS). Accepts any OLS penalty; reuses the same fit machinery as ATTR_REG_FITTED. With params.fit it is the bound fit's target minus its score (any scorable type; a REG_GLM's response residual) and refits nothing.",
           "params": [
             {
               "name": "target",
               "type": "field",
               "required": true,
-              "description": "Response variable field name; a top-level key of the attribute entry.",
+              "description": "Response variable field name; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
               "field_filter": "numeric",
               "slot": true
             },
@@ -4148,7 +4154,7 @@
               "name": "predictors",
               "type": "list",
               "required": true,
-              "description": "Predictor field names, at least one; a top-level key of the attribute entry.",
+              "description": "Predictor field names, at least one; a top-level key of the attribute entry. Required unless params.fit is set, which refuses it.",
               "slot": true
             },
             {
@@ -4178,6 +4184,12 @@
               "required": false,
               "description": "Elastic-net mixing parameter in (0,1); only read when penalty == elasticnet. Top-level.",
               "slot": true
+            },
+            {
+              "name": "fit",
+              "type": "string",
+              "required": false,
+              "description": "Score through a bound fit instead of refitting OLS: a `fits` entry of the enclosing compose request or a loaded `models` entry, any scorable type (a REG_GLM on its response scale; an extension regression whose registration supplies a Scorer). The slot then takes no target, predictors, penalty, alpha or l1_ratio; its default label is \u003cTYPE\u003e_\u003cfit\u003e; row-local once bound. Absent, the slot refits OLS."
             }
           ],
           "accepts_types": [
@@ -19282,4 +19294,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0efb0b30c1996ae832bc8152b502cbddc25eaee4a5f6f97a00c5ca88ac5dff96
+// golden-hash: 89fd51fe10c9fff65d0f25469ff17eabf63d30044470e66049683d4143f0cc6a

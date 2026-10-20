@@ -222,6 +222,7 @@ func CatalogWithModels(outer Catalog, refs []types.ModelRef, files []*File) FitC
 		out[r.Name] = Signature{
 			Name:   r.Name,
 			Type:   files[j].Type,
+			Target: files[j].Target,
 			Terms:  append([]string(nil), files[j].Terms...),
 			Source: ModelSource(j, r.Path),
 			Kind:   types.FitKindRegression,

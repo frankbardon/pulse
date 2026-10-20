@@ -1409,7 +1409,8 @@ const (
 	// "expected" (the kind the reference reads).
 	PULSE_MODEL_KIND_MISMATCH Code = "PULSE_MODEL_KIND_MISMATCH"
 
-	// PULSE_MODEL_SCORE_INVALID indicates an ATTR_REG_PREDICT slot whose
+	// PULSE_MODEL_SCORE_INVALID indicates an ATTR_REG_PREDICT slot (or an
+	// ATTR_REG_FITTED / ATTR_REG_RESIDUAL slot's params.fit) whose
 	// scoring parameters do not fit: params that are not an object of
 	// {fit, terms, scale, bound} (reason "params_invalid"), no params.fit
 	// ("fit_missing"), a field / target / predictors / penalty set on the

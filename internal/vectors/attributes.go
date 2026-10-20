@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
@@ -875,7 +876,13 @@ func AttributeFit(typ types.AttributeType, a *types.Attribute) string {
 // routing site reads (processing attrRequiresTwoPassIn, predict's
 // attrTwoPass, the fused-crosstab facts, mergegate). A comparison slot
 // whose reference is a centroid is never bound: its pre-pass remains.
+// An ATTR_REG_FITTED / ATTR_REG_RESIDUAL slot naming a bound regression
+// fit (params.fit — model.FitReferenced) is bound the same way: it
+// scores that fit instead of refitting OLS in a pre-pass.
 func FitBound(typ types.AttributeType, a *types.Attribute) bool {
+	if model.FitReferenced(typ, a) {
+		return true
+	}
 	if !IsFittedAttribute(typ) && typ != types.ATTR_VEC_DISTANCE {
 		return false
 	}

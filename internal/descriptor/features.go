@@ -715,7 +715,8 @@ var overlayHostKinds = map[string][]string{
 //     fit, so it needs any-of the REG_* operators, the fitted vector
 //     attributes and capability:matrices.
 //   - capability:models loads a model only a scoring reference reads
-//     (ATTR_REG_PREDICT, or coef() in ATTR_FORMULA / FILTER_EXPRESSION)
+//     (ATTR_REG_PREDICT, an ATTR_REG_FITTED / RESIDUAL params.fit, or
+//     coef() in ATTR_FORMULA / FILTER_EXPRESSION)
 //     and a population only a params.fit reads (the fitted vector
 //     attributes, ATTR_VEC_DISTANCE, capability:matrices).
 //
@@ -764,9 +765,9 @@ var hardEdges = map[string][]string{
 		string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS), featMatrices},
 	// A loaded model or population is read only by a reference: a
 	// scoring reference (ATTR_REG_PREDICT, coef()) or a params.fit (a
-	// fitted vector attribute, a MAT_* slot).
+	// fitted vector attribute, ATTR_REG_FITTED / RESIDUAL, a MAT_* slot).
 	featModels: {string(types.ATTR_FACTOR_SCORE), "ATTR_FORMULA", string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
-		"ATTR_REG_PREDICT", string(types.ATTR_VEC_DISTANCE), "FILTER_EXPRESSION", featMatrices},
+		"ATTR_REG_FITTED", "ATTR_REG_PREDICT", "ATTR_REG_RESIDUAL", string(types.ATTR_VEC_DISTANCE), "FILTER_EXPRESSION", featMatrices},
 }
 
 // groupEdges are the dependencies needing MORE than one any-of group

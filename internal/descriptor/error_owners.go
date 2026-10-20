@@ -341,23 +341,24 @@ var errorOwners = map[errors.Code][]string{
 	// The one model namespace: Compose fits and loaded models bind it.
 	errors.PULSE_FIT_INVALID:          own(featComposeFits),
 	errors.PULSE_MODEL_NAME_COLLISION: own(featComposeFits, featModels),
-	errors.PULSE_MODEL_UNKNOWN:        own(featComposeFits, featModels, "ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
+	errors.PULSE_MODEL_UNKNOWN:        own(featComposeFits, featModels, "ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_FORMULA", "FILTER_EXPRESSION"),
 	errors.PULSE_MODEL_KIND_MISMATCH:  own(featComposeFits, featModels),
-	// ATTR_REG_PREDICT's scoring rule (internal/model.CheckScore) and
+	// ATTR_REG_PREDICT's scoring rule (internal/model.CheckScore), an
+	// ATTR_REG_FITTED / RESIDUAL params.fit (CheckFitReference) and
 	// the coef() expression function (internal/model.CheckCoef), which
 	// ATTR_FORMULA and FILTER_EXPRESSION evaluate.
-	errors.PULSE_MODEL_SCORE_INVALID:         own("ATTR_REG_PREDICT"),
+	errors.PULSE_MODEL_SCORE_INVALID:         own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
 	errors.PULSE_MODEL_TERM_UNKNOWN:          own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
 	errors.PULSE_MODEL_STAT_UNKNOWN:          own("ATTR_FORMULA", "FILTER_EXPRESSION"),
 	errors.PULSE_MODEL_INTERVALS_UNAVAILABLE: own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
-	errors.PULSE_MODEL_PREDICTOR_MISSING:     own("ATTR_REG_PREDICT"),
+	errors.PULSE_MODEL_PREDICTOR_MISSING:     own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
 	// ATTR_FORMULA's total(expr) cohort-total term (internal/totalcall):
 	// the site refusal fires from the other two expression operators.
 	errors.PULSE_FORMULA_TOTAL_SITE:          own("FILTER_EXPRESSION", "OVERLAY_FORMULA"),
 	errors.PULSE_FORMULA_TOTAL_NESTED:        own("ATTR_FORMULA"),
 	errors.PULSE_FORMULA_TOTAL_ARITY:         own("ATTR_FORMULA"),
 	errors.PULSE_FORMULA_COMPILE_ERROR:       own("ATTR_FORMULA", "FILTER_EXPRESSION"),
-	errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC: own("ATTR_REG_PREDICT"),
+	errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC: own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
 	// The model file: a `save` writes it (capability:model_save), a
 	// `models` entry loads it (capability:models) — the parse codes are
 	// the load's.

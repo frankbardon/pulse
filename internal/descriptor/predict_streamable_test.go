@@ -518,6 +518,22 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		}
 		return r
 	}
+	// regScored builds an ATTR_REG_FITTED / RESIDUAL slot: params.fit
+	// alone, or (params empty) the OLS refit of b on a.
+	regScored := func(typ types.AttributeType, params string, mutate func(*types.Request)) *types.Request {
+		attr := &types.Attribute{Type: typ, Label: "d", Params: json.RawMessage(params)}
+		if params == "" {
+			attr.Target, attr.Predictors = "b", []string{"a"}
+		}
+		r := &types.Request{
+			Attributes:   []*types.Attribute{attr},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "d", Label: "s"}},
+		}
+		if mutate != nil {
+			mutate(r)
+		}
+		return r
+	}
 	cases := []struct {
 		name   string
 		req    *types.Request
@@ -542,6 +558,12 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		{"fit-bound mahalanobis beside a tier-1 test streams", fitted(types.ATTR_MAHALANOBIS, `{"fit":"pop"}`, func(r *types.Request) {
 			r.Tests = []*types.Test{{Type: types.TEST_T, Field: "a"}}
 		}), vecSchema},
+		// U53 E2-S3: an ATTR_REG_FITTED / RESIDUAL slot naming a bound
+		// fit (params.fit) is row-local and streams beside a grouper;
+		// the same slot refitting OLS takes the two-pass drive.
+		{"fit-bound reg residual with a grouper streams", regScored(types.ATTR_REG_RESIDUAL, `{"fit":"m"}`, grouped), vecSchema},
+		{"fit-bound reg fitted with a grouper streams", regScored(types.ATTR_REG_FITTED, `{"fit":"m"}`, grouped), vecSchema},
+		{"refit reg residual with a grouper buffers", regScored(types.ATTR_REG_RESIDUAL, ``, grouped), vecSchema},
 		{"online aggregations on numeric", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}}}, numericSchema},
 		{"median on numeric", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "score"}}}, numericSchema},
 		// model-workbench E2-S1: AGG_AUC sorts every scored row — buffered,

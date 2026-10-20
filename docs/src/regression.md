@@ -209,7 +209,7 @@ Three attribute operators emit per-record diagnostics from a fitted regression o
 | `ATTR_REG_RESIDUAL`   | `y_i − ŷ_i` — the per-row residual.                                         |
 | `ATTR_REG_LEVERAGE`   | `h_ii = Xᵢ (XᵀX)⁻¹ Xᵢᵀ` — the i-th diagonal of the hat matrix.              |
 
-Each attribute references a sibling regression spec by `regression_name`. See `skills/attribute-composition.md` for the parameter table.
+Each attribute carries its own `target` / `predictors` (plus `penalty` / `alpha` / `l1_ratio`) and refits OLS in its prepass. `ATTR_REG_FITTED` and `ATTR_REG_RESIDUAL` take `params.fit` instead: they name a bound fit — a compose `fits` entry or a loaded `models` entry — and score through it, so a `REG_GLM` residual is `y − μ̂` on the response scale and an extension regression's fit scores through its registration's Scorer. The slot is then row-local and its default label is `<TYPE>_<fit>`. See `skills/op-attr-reg-fitted.md` and `skills/op-attr-reg-residual.md` for the parameter tables.
 
 ## Error codes
 
