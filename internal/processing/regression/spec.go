@@ -2,6 +2,7 @@ package regression
 
 import (
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/regbayes"
 	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
@@ -240,124 +241,14 @@ func validateGLMSpec(spec *types.RegressionSpec) error {
 }
 
 // validateBayesLinearSpec enforces REG_BAYES_LINEAR-specific spec
-// invariants. Phase 4 rules:
-//
-//   - Prior must be one of "" (defaults to "nig") or "nig". Any other
-//     value surfaces PROCESSING_CONFIG. Future expansion (ridge-conjugate,
-//     horseshoe-vb, etc.) extends this enum.
-//   - PriorPrecision / PriorShape / PriorRate, when provided (non-zero),
-//     must be strictly positive. Zero means "use the engine default"
-//     (PriorPrecision = 1e-3, PriorShape = 1e-3, PriorRate = 1e-3).
-//   - CredibleLevel, when provided (non-zero), must satisfy
-//     0 < CredibleLevel < 1. Zero means "use the engine default of 0.95".
-//   - PriorMu, when provided, must have length len(Predictors) + 1 (one
-//     entry for the intercept followed by one per predictor).
-//   - GLM / OLS knobs (Penalty, Alpha, L1Ratio, Family, Link) must be
-//     empty / zero on a REG_BAYES_LINEAR spec — silent acceptance would
-//     hide caller confusion about the per-operator config surface.
+// invariants: the rule predict applies too (internal/regbayes.Check —
+// the modifiers, the prior knobs incl. a per-coefficient PriorPrecision,
+// the other engines' knobs). Its remedy clauses render the default
+// (nil) form; ExtensionRegistry.ScopeRefusal scopes them to the
+// instance.
 func validateBayesLinearSpec(spec *types.RegressionSpec) error {
-	if spec.Resample != "" {
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Resample: the posterior already conveys uncertainty (credible intervals via the Student-t marginal)"+remedyBayesResample(nil),
-			map[string]any{"resample": spec.Resample, "type": string(spec.Type)},
-		)
+	if cerr := regbayes.Check(spec, nil); cerr != nil {
+		return cerr
 	}
-	if spec.Selection != "" {
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Selection: Bayesian feature selection is a posterior-based question (e.g., spike-and-slab); the conjugate-NIG engine doesn't support it"+remedyBayesSelection(nil),
-			map[string]any{"selection": spec.Selection, "type": string(spec.Type)},
-		)
-	}
-	switch spec.Prior {
-	case "", "nig":
-		// ok — empty defaults to "nig"
-	default:
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR Prior must be one of \"\", \"nig\"; got "+spec.Prior,
-			map[string]any{"prior": spec.Prior, "allowed": []string{"", "nig"}},
-		)
-	}
-
-	if spec.PriorPrecision < 0 {
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR PriorPrecision must be > 0 (zero selects the engine default of 1e-3)",
-			map[string]any{"prior_precision": spec.PriorPrecision},
-		)
-	}
-	if spec.PriorShape < 0 {
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR PriorShape must be > 0 (zero selects the engine default of 1e-3)",
-			map[string]any{"prior_shape": spec.PriorShape},
-		)
-	}
-	if spec.PriorRate < 0 {
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR PriorRate must be > 0 (zero selects the engine default of 1e-3)",
-			map[string]any{"prior_rate": spec.PriorRate},
-		)
-	}
-	if spec.CredibleLevel != 0 && (spec.CredibleLevel <= 0 || spec.CredibleLevel >= 1) {
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR CredibleLevel must satisfy 0 < CredibleLevel < 1 (zero selects the default of 0.95)",
-			map[string]any{"credible_level": spec.CredibleLevel},
-		)
-	}
-	if len(spec.PriorMu) != 0 && len(spec.PriorMu) != len(spec.Predictors)+1 {
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR PriorMu length must equal len(Predictors)+1 (one intercept + one per predictor)",
-			map[string]any{
-				"prior_mu_len":    len(spec.PriorMu),
-				"predictors_len":  len(spec.Predictors),
-				"expected_length": len(spec.Predictors) + 1,
-			},
-		)
-	}
-
-	// Reject knobs that belong to other engines. Silently ignoring them
-	// would hide caller confusion about which operator they're talking to.
-	if spec.Penalty != "" {
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Penalty; remove it"+remedyBayesPenalty(nil),
-			map[string]any{"penalty": spec.Penalty, "type": string(spec.Type)},
-		)
-	}
-	if spec.Alpha != 0 {
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Alpha; the Inverse-Gamma prior on σ² is parameterized by PriorShape / PriorRate",
-			map[string]any{"alpha": spec.Alpha, "type": string(spec.Type)},
-		)
-	}
-	if spec.L1Ratio != 0 {
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept L1Ratio",
-			map[string]any{"l1_ratio": spec.L1Ratio, "type": string(spec.Type)},
-		)
-	}
-	if spec.Family != "" {
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Family"+remedyBayesFamily(nil),
-			map[string]any{"family": spec.Family, "type": string(spec.Type)},
-		)
-	}
-	if spec.Link != "" {
-		return errors.NewCodedErrorWithDetails(
-			errors.PROCESSING_CONFIG,
-			"REG_BAYES_LINEAR does not accept Link"+remedyBayesLink(nil),
-			map[string]any{"link": spec.Link, "type": string(spec.Type)},
-		)
-	}
-
 	return nil
 }

@@ -5368,6 +5368,15 @@ pulse/types: type PanelSlabPartitionViolation method (PanelSlabPartitionViolatio
 pulse/types: type PopulationRef struct
 pulse/types: type PopulationRef field Name string "json:\"name\""
 pulse/types: type PopulationRef field Path string "json:\"path\""
+pulse/types: func PrecisionScalar(eps float64) pulse/types.PriorPrecision
+pulse/types: func PrecisionVector(v []float64) pulse/types.PriorPrecision
+pulse/types: type PriorPrecision struct
+pulse/types: type PriorPrecision method (*PriorPrecision) UnmarshalJSON(b []byte) error
+pulse/types: type PriorPrecision method (PriorPrecision) IsVector() bool
+pulse/types: type PriorPrecision method (PriorPrecision) IsZero() bool
+pulse/types: type PriorPrecision method (PriorPrecision) MarshalJSON() ([]byte, error)
+pulse/types: type PriorPrecision method (PriorPrecision) Scalar() float64
+pulse/types: type PriorPrecision method (PriorPrecision) Vector() []float64
 pulse/types: const REG_BAYES_LINEAR pulse/types.RegressionType = "REG_BAYES_LINEAR"
 pulse/types: const REG_GLM pulse/types.RegressionType = "REG_GLM"
 pulse/types: const REG_OLS pulse/types.RegressionType = "REG_OLS"
@@ -5464,7 +5473,7 @@ pulse/types: type RegressionSpec field Penalty string "json:\"penalty,omitempty\
 pulse/types: type RegressionSpec field Predictors []string "json:\"predictors,omitempty\""
 pulse/types: type RegressionSpec field Prior string "json:\"prior,omitempty\""
 pulse/types: type RegressionSpec field PriorMu []float64 "json:\"prior_mu,omitempty\""
-pulse/types: type RegressionSpec field PriorPrecision float64 "json:\"prior_precision,omitempty\""
+pulse/types: type RegressionSpec field PriorPrecision pulse/types.PriorPrecision "json:\"prior_precision,omitzero\""
 pulse/types: type RegressionSpec field PriorRate float64 "json:\"prior_rate,omitempty\""
 pulse/types: type RegressionSpec field PriorShape float64 "json:\"prior_shape,omitempty\""
 pulse/types: type RegressionSpec field RNGSeed int64 "json:\"rng_seed,omitempty\""
@@ -5474,6 +5483,7 @@ pulse/types: type RegressionSpec field Selection string "json:\"selection,omitem
 pulse/types: type RegressionSpec field Target string "json:\"target\""
 pulse/types: type RegressionSpec field Tol float64 "json:\"tol,omitempty\""
 pulse/types: type RegressionSpec field Type pulse/types.RegressionType "json:\"type\""
+pulse/types: type RegressionSpec field Unpenalized []string "json:\"unpenalized,omitempty\""
 pulse/types: type RegressionSpec field Vcov bool "json:\"vcov,omitempty\""
 pulse/types: type RegressionSpec field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type RegressionSpec method (RegressionSpec) Streamable() bool
@@ -5738,4 +5748,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 570b43ff6537ab2dfd66528e7ec6d2a412c1f820f1cd454dc5c2192477d02cd2
+// golden-hash: b12da821ef945ca1e0a07f8d17f3b8408f5a322498ccdb7c7769c7d44d1c8edc

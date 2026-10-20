@@ -281,6 +281,18 @@ expansion). Every case is self-checked against a second route,
 residual sum of squares is 2(bₙ − b₀).
 `TestReferenceOracle_RegBayesLinearMatchesR` holds every figure at
 relative `1e-10`.
+`scripts/reference/gen_bayes_precision.R` writes `bayes_precision.json`:
+the same posterior under a per-coefficient `prior_precision`, Λ₀ =
+diag(v) — flat (0) entries, an experiment-centred strong entry, a
+pinning one (kept at 1e5: Pulse's quadratic-form bₙ cancels μ₀ᵀΛ₀μ₀
+against μₙᵀΛₙμₙ, so its error grows with the precision), plain and
+frequency-weighted — self-checked against `lm.fit` on [X; diag(√v)]
+(`TestReferenceOracle_RegBayesPrecisionVectorMatchesR`, `1e-10`). The
+`ridge_unpenalized_*` cases of `ols_penalty.json` fit glmnet with
+`penalty.factor` 0 on the `unpenalized` predictors and λ′·Σpf / p
+(undoing glmnet's rescaling of the factors to sum to p), cross-checked
+against the closed form G + N*·α·diag(pf)
+(`TestReferenceOracle_RidgeUnpenalizedMatchesGlmnet`, `1e-10`).
 
 `scripts/reference/gen_overlays.R` (sourced last) writes the
 `overlay_*.json` goldens: every figure an overlay test expects, computed

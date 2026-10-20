@@ -93,6 +93,13 @@ type RegressionSpec struct {
 	// l2, 1 is pure l1. Only read when Penalty == "elasticnet".
 	L1Ratio float64 `json:"l1_ratio,omitempty"`
 
+	// Unpenalized lists predictors the ridge penalty skips (REG_OLS,
+	// Penalty "l2" only): their diagonal entries of the penalised Gram
+	// get no α term — glmnet's penalty.factor 0. Each must name a
+	// predictor, once. Lasso / elastic net, REG_GLM and REG_BAYES_LINEAR
+	// refuse it (PROCESSING_CONFIG).
+	Unpenalized []string `json:"unpenalized,omitempty"`
+
 	// Family is the GLM error family. One of "binomial" (logistic),
 	// "poisson", or "gamma". Required for REG_GLM.
 	Family string `json:"family,omitempty"`
@@ -120,8 +127,12 @@ type RegressionSpec struct {
 	// order; zero vector when nil.
 	PriorMu []float64 `json:"prior_mu,omitempty"`
 
-	// PriorPrecision is the prior precision scalar (REG_BAYES_LINEAR).
-	PriorPrecision float64 `json:"prior_precision,omitempty"`
+	// PriorPrecision is the prior precision of the coefficients
+	// (REG_BAYES_LINEAR): absent (default 1e-3 on every coefficient), a
+	// scalar ε (Λ₀ = ε·I) or a per-coefficient vector diag(v) of length
+	// len(Predictors)+1, intercept first like PriorMu; an entry 0 is a
+	// flat prior on that coefficient. A JSON number or array.
+	PriorPrecision PriorPrecision `json:"prior_precision,omitzero"`
 
 	// PriorShape and PriorRate parameterize the inverse-gamma prior on
 	// the residual variance (REG_BAYES_LINEAR).

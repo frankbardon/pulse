@@ -37,7 +37,11 @@ import (
 // identical inputs produces the same β to machine precision (fixture in
 // ols_ridge_test.go), and R glmnet(alpha = 0, standardize = FALSE) on a
 // unit-SD response agrees (ols_penalty_reference_test.go).
-func solveRidge(a *olsAccumulator, alpha float64) (*olsSolveResult, error) {
+//
+// unpenalized (regpenalty.UnpenalizedMask; nil = none) marks predictor
+// columns the penalty skips: their diagonal gets no n·λ term — glmnet's
+// penalty.factor 0 — and the sandwich reads the same augmented inverse.
+func solveRidge(a *olsAccumulator, alpha float64, unpenalized []bool) (*olsSolveResult, error) {
 	p := a.p
 	if a.floorN() < float64(p+1) {
 		return nil, errors.NewCodedErrorWithDetails(
@@ -57,6 +61,9 @@ func solveRidge(a *olsAccumulator, alpha float64) (*olsSolveResult, error) {
 	// rows (glmnet's (1/2Σw)·Σw·r² objective).
 	scaled := a.sumW * alpha
 	for i := 0; i < p; i++ {
+		if unpenalized != nil && unpenalized[i] {
+			continue
+		}
 		augmented[i*p+i] += scaled
 	}
 

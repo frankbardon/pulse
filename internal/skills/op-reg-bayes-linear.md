@@ -21,7 +21,7 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 | `predictors` | []field | required | ≥1 numeric predictor. |
 | `prior` | enum | `nig` | Only `"nig"` (conjugate Normal-Inverse-Gamma) in v1. |
 | `prior_mu` | []float | zero | Prior mean vector, length predictors + 1, intercept FIRST. |
-| `prior_precision` | float | 0.001 | Scalar ε, Λ₀ = ε·I, relative to σ²: prior SD = σ/√ε. |
+| `prior_precision` | float or []float | 0.001 | Scalar ε: Λ₀ = ε·I, relative to σ² (prior SD = σ/√ε). Or one entry per coefficient, length predictors + 1, intercept FIRST like `prior_mu`: Λ₀ = diag. `0` = flat on that coefficient; a large entry pins it to its `prior_mu` (an experiment-centred prior). |
 | `prior_shape` / `prior_rate` | float | engine | Inverse-gamma α₀ / β₀ on residual variance. |
 | `credible_level` | float | `0.95` | Posterior credible-interval mass. |
 | `conf_level` | float | `credible_level` | `CILower` / `CIUpper` mass, `0<c<1`. |
@@ -42,9 +42,10 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 ## Gotchas
 
 - A probability weight in force (request, slot or `Options.DefaultWeight`) → `PULSE_WEIGHT_UNSUPPORTED` naming the kind; `"weight": null` runs it unweighted.
-- `penalty` / `alpha` / `l1_ratio` / `family` / `link` rejected — other engines' knobs.
-- `resample` / `selection` → `PROCESSING_CONFIG` (not advertised) — credible intervals already convey uncertainty.
-- `prior_mu` length ≠ predictors + 1 → `PROCESSING_CONFIG`.
+- `penalty` / `alpha` / `l1_ratio` / `unpenalized` / `family` / `link` rejected — other engines' knobs.
+- `resample` / `selection` → `PROCESSING_CONFIG` (not advertised; predict refuses them too) — credible intervals already convey uncertainty.
+- `prior_mu` or a `prior_precision` list of length ≠ predictors + 1, or a negative entry → `PROCESSING_CONFIG` at predict and runtime.
+- Flat (`0`) entries need the data to identify those coefficients: an improper posterior (e.g. collinear predictors, both flat) → `PROCESSING_REGRESSION_RANK_DEFICIENT` at fit time.
 <!-- feature: capability:multiplicity -->
 - A `multiplicity` block resolving to any method but `none` → `PULSE_MULTIPLICITY_INVALID` (no p-values to correct); predict refuses it identically.
 <!-- /feature -->

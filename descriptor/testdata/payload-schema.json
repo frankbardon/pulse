@@ -3495,6 +3495,22 @@
       ],
       "type": "object"
     },
+    "PriorPrecision": {
+      "description": "Prior precision of the coefficients (the Bayesian linear fit): a number eps (Lambda0 = eps*I; absent or 0 = the default 1e-3), or one entry per coefficient, intercept first then the predictors in order (Lambda0 = diag; 0 = a flat prior on that coefficient).",
+      "oneOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "items": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "type": "array"
+        }
+      ]
+    },
     "RankEntry": {
       "additionalProperties": false,
       "properties": {
@@ -4079,7 +4095,7 @@
           ]
         },
         "prior_precision": {
-          "type": "number"
+          "$ref": "#/$defs/PriorPrecision"
         },
         "prior_rate": {
           "type": "number"
@@ -4107,6 +4123,15 @@
         },
         "type": {
           "$ref": "#/$defs/RegressionType"
+        },
+        "unpenalized": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "vcov": {
           "type": "boolean"
@@ -5345,4 +5370,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 458931aef9b16605a4adf4a2bef05fa8b5b1820776cb78f124a56f0832caad00
+// golden-hash: 270a3c649799357c4ffe8756118c7167b34f89c3d85c0b3719209262f467ee5d

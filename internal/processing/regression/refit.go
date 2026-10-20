@@ -1,6 +1,7 @@
 package regression
 
 import (
+	"github.com/frankbardon/pulse/internal/regpenalty"
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
@@ -137,7 +138,7 @@ func olsFitter(records []Record, target string, activePredictors []string, spec 
 	case "":
 		solve, err = solveOLS(acc)
 	case "l2":
-		solve, err = solveRidge(acc, spec.Alpha)
+		solve, err = solveRidge(acc, spec.Alpha, regpenalty.UnpenalizedMask(spec, activePredictors))
 	case "l1":
 		solve, _, err = solveLasso(acc, spec.Alpha, spec.MaxIters, spec.Tol)
 	case "elasticnet":

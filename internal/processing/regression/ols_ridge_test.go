@@ -133,7 +133,7 @@ func TestRegOLS_Ridge_AlphaZeroReducesToOLS(t *testing.T) {
 	for i := range y {
 		acc.UpdateRow(X[i], y[i])
 	}
-	ridge, err := solveRidge(acc, 0)
+	ridge, err := solveRidge(acc, 0, nil)
 	if err != nil {
 		t.Fatalf("solveRidge(alpha=0): %v", err)
 	}

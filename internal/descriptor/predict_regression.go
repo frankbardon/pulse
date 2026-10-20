@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/regbayes"
 	"github.com/frankbardon/pulse/internal/regcov"
 	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
@@ -150,6 +151,14 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 		if cerr := regpenalty.VcovRefusal(reg); cerr != nil {
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+		}
+		// REG_BAYES_LINEAR's knobs — the refused resample / selection
+		// modifiers, the prior (a per-coefficient prior_precision
+		// included), the other engines' knobs — the runtime's rule itself
+		// (internal/regbayes, shared). Its remedy clauses name only what
+		// the instance offers, as the runtime's ScopeRefusal renders them.
+		if cerr := regbayes.Check(reg, func(name string) bool { return !inst.Hidden(name) }); cerr != nil {
 			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 		}
 

@@ -3,6 +3,7 @@ package regression
 import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -324,7 +325,7 @@ func (e *olsEngine) dispatchSolve() (*olsSolveResult, int, bool, error) {
 		res, err := solveOLS(e.acc)
 		return res, 0, false, err
 	case "l2":
-		res, err := solveRidge(e.acc, e.spec.Alpha)
+		res, err := solveRidge(e.acc, e.spec.Alpha, regpenalty.UnpenalizedMask(e.spec, e.spec.Predictors))
 		return res, 0, false, err
 	case "l1":
 		res, iters, err := solveLasso(e.acc, e.spec.Alpha, e.spec.MaxIters, e.spec.Tol)

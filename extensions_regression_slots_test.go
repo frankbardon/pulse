@@ -41,6 +41,10 @@ func regSlotValue(t *testing.T, key string, ft reflect.Type) reflect.Value {
 		"multiplicity": &types.RegressionMultiplicity{Method: types.MultiplicityMethodHolm},
 		"params":       json.RawMessage(`{"k":1}`),
 		"prior_mu":     []float64{0, 0},
+		// prior_precision: the per-coefficient vector form (the scalar
+		// form governs the same slot).
+		"prior_precision": types.PrecisionVector([]float64{0, 1}),
+		"unpenalized":     []string{"x"},
 	}
 	if v, ok := overrides[key]; ok {
 		return reflect.ValueOf(v)

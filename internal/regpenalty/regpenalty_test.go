@@ -47,6 +47,26 @@ func TestCheck(t *testing.T) {
 			"REG_OLS Penalty=elasticnet requires L1Ratio < 1 (use Penalty=l1 for pure lasso)"},
 		{"ols unknown", ols(func(s *types.RegressionSpec) { s.Penalty = "l3" }), "REG_OLS Penalty must be one of \"\", \"l1\", \"l2\", \"elasticnet\"; got l3"},
 		{"bayes passes", &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Penalty: "l2"}, ""},
+		{"ols ridge unpenalized", ols(func(s *types.RegressionSpec) {
+			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a", "b"}, "l2", 0.1, []string{"b"}
+		}), ""},
+		{"ols unpenalized without penalty", ols(func(s *types.RegressionSpec) { s.Predictors, s.Unpenalized = []string{"a"}, []string{"a"} }),
+			"REG_OLS Unpenalized requires Penalty=l2 (ridge); an unpenalized fit already leaves every coefficient unshrunk"},
+		{"ols lasso unpenalized", ols(func(s *types.RegressionSpec) {
+			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a"}, "l1", 0.1, []string{"a"}
+		}), "REG_OLS Unpenalized requires Penalty=l2 (ridge); lasso and elastic net take no per-predictor penalty factor"},
+		{"ols elasticnet unpenalized", ols(func(s *types.RegressionSpec) {
+			s.Predictors, s.Penalty, s.Alpha, s.L1Ratio, s.Unpenalized = []string{"a"}, "elasticnet", 0.1, 0.5, []string{"a"}
+		}), "REG_OLS Unpenalized requires Penalty=l2 (ridge); lasso and elastic net take no per-predictor penalty factor"},
+		{"ols unpenalized unknown", ols(func(s *types.RegressionSpec) {
+			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a"}, "l2", 0.1, []string{"z"}
+		}), "REG_OLS Unpenalized names z, which is not one of Predictors"},
+		{"ols unpenalized duplicate", ols(func(s *types.RegressionSpec) {
+			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a"}, "l2", 0.1, []string{"a", "a"}
+		}), "REG_OLS Unpenalized lists a twice"},
+		{"glm unpenalized", glm(func(s *types.RegressionSpec) {
+			s.Predictors, s.Penalty, s.Alpha, s.Unpenalized = []string{"a"}, "l2", 0.1, []string{"a"}
+		}), "REG_GLM does not accept Unpenalized; it is a REG_OLS ridge (penalty l2) knob"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -116,5 +136,18 @@ func TestInferenceUndefined(t *testing.T) {
 	}
 	if InferenceAdvisoryCode != errors.PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED {
 		t.Errorf("code %s", InferenceAdvisoryCode)
+	}
+}
+
+// TestUnpenalizedMask: the mask follows the given predictor order by
+// name and is nil without a list.
+func TestUnpenalizedMask(t *testing.T) {
+	spec := &types.RegressionSpec{Type: types.REG_OLS, Unpenalized: []string{"b"}}
+	got := UnpenalizedMask(spec, []string{"c", "b", "a"})
+	if len(got) != 3 || got[0] || !got[1] || got[2] {
+		t.Errorf("mask %v", got)
+	}
+	if UnpenalizedMask(&types.RegressionSpec{}, []string{"a"}) != nil || UnpenalizedMask(nil, nil) != nil {
+		t.Error("mask without a list is not nil")
 	}
 }

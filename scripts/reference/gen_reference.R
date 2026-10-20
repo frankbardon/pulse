@@ -467,6 +467,13 @@ source(file.path(script_dir, "gen_glm_gamma.R"), local = FALSE)
 # Deterministic rows, no RNG.
 source(file.path(script_dir, "gen_bayes_linear.R"), local = FALSE)
 
+# The REG_BAYES_LINEAR per-coefficient prior golden (bayes_precision.json:
+# prior_precision as a vector, Lambda0 = diag(v) with flat (0) and strong
+# entries, plain and frequency-weighted; the same conjugate closed form,
+# self-checked against lm.fit on the augmented design); base stats +
+# jsonlite. Deterministic rows, no RNG.
+source(file.path(script_dir, "gen_bayes_precision.R"), local = FALSE)
+
 # The REG_GLM gamma selection golden (glm_gamma_selection.json: AIC(fit) /
 # BIC(fit) per candidate model on the gamma log-likelihood at dispersion
 # deviance / n, plain, frequency (the rep() expansion) and probability

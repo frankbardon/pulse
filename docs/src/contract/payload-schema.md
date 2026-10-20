@@ -866,6 +866,20 @@ regression type, is
 `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` (`details.reason`), in predict
 and at runtime alike. The echo is in the `standard` preset.
 
+## Regression shrinkage controls
+
+`RegressionSpec.prior_precision` (`REG_BAYES_LINEAR`) is
+`#/$defs/PriorPrecision`, a `oneOf` of a non-negative number (the
+scalar ε, Λ₀ = ε·I; byte-identical to the former float field, absent or
+0 = the default 1e-3) and an array of non-negative numbers (one per
+coefficient, intercept first like `prior_mu`: Λ₀ = diag; 0 is a flat
+prior). A wrong length or a negative entry is `PROCESSING_CONFIG` in
+predict and at runtime. `RegressionSpec.unpenalized` is an additive
+`omitempty` array of predictor names the `REG_OLS` ridge (`penalty`
+`l2`) penalty skips (glmnet `penalty.factor` 0); every other penalty or
+type refuses it `PROCESSING_CONFIG`, predict and runtime alike.
+`format_version` stays `"1.1"`; neither is echoed on the result.
+
 ## Regression coefficient intervals
 
 `RegressionSpec` takes an additive `conf_level` float (`0 < c < 1`,

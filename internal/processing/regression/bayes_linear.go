@@ -20,10 +20,12 @@ import (
 //	σ²    ~ InverseGamma(a₀, b₀)
 //	β | σ² ~ Normal(μ₀, σ² · Λ₀⁻¹)
 //
-// where Λ₀ is the prior precision matrix. This engine accepts only a
-// scalar prior precision: Λ₀ = ε · I with ε = PriorPrecision (default
-// 1e-3). Per-coefficient precision matrices are intentionally out of
-// scope; callers who need them request the extension via Phase 9.
+// where Λ₀ is the prior precision matrix, diagonal: a scalar
+// PriorPrecision ε gives Λ₀ = ε · I (default 1e-3), a per-coefficient
+// vector v (intercept first, PriorMu's order) Λ₀ = diag(v). An entry 0
+// is a flat prior on that coefficient, fine while Λ₀ + XᵀX stays
+// positive-definite (else PROCESSING_REGRESSION_RANK_DEFICIENT). A full
+// (non-diagonal) Λ₀ is not offered.
 //
 // Posterior after observing X (n × (p+1) with intercept column) and y
 // (length n) — weighted (kind frequency only), X'WX, X'Wy, y'Wy and Σw
@@ -58,11 +60,16 @@ type bayesLinearEngine struct {
 	weights rowWeights
 
 	// Resolved prior parameters (defaults filled in by newBayesLinearEngine).
-	priorMu        []float64 // length p+1; first entry is intercept
-	priorPrecision float64
-	priorShape     float64
-	priorRate      float64
-	credibleLevel  float64
+	priorMu []float64 // length p+1; first entry is intercept
+	// priorPrecision is diag(Λ₀), length p+1, intercept first: the
+	// scalar (or its default) broadcast, or the per-coefficient vector.
+	// precisionScalar marks the scalar form, whose μ₀ᵀΛ₀μ₀ keeps the
+	// historical ε·Σμ₀² evaluation order (byte-identical).
+	priorPrecision  []float64
+	precisionScalar bool
+	priorShape      float64
+	priorRate       float64
+	credibleLevel   float64
 
 	// robust is set when spec.Covariance selects a non-classical
 	// estimator: rows then also need their cluster / order_by values, and
@@ -127,9 +134,19 @@ func newBayesLinearEngine(spec *types.RegressionSpec, schema *encoding.Schema) (
 		// ValidateRegression already enforced len(PriorMu) == p+1.
 		copy(mu, spec.PriorMu)
 	}
-	precision := spec.PriorPrecision
-	if precision == 0 {
-		precision = defaultBayesPriorPrecision
+	precision := make([]float64, p+1)
+	scalarForm := !spec.PriorPrecision.IsVector()
+	if scalarForm {
+		eps := spec.PriorPrecision.Scalar()
+		if eps == 0 {
+			eps = defaultBayesPriorPrecision
+		}
+		for i := range precision {
+			precision[i] = eps
+		}
+	} else {
+		// ValidateRegression already enforced len == p+1, entries ≥ 0.
+		copy(precision, spec.PriorPrecision.Vector())
 	}
 	shape := spec.PriorShape
 	if shape == 0 {
@@ -148,16 +165,17 @@ func newBayesLinearEngine(spec *types.RegressionSpec, schema *encoding.Schema) (
 	acc := newOLSAccumulator(p)
 	acc.basis = weights.basis
 	return &bayesLinearEngine{
-		spec:           spec,
-		schema:         schema,
-		acc:            acc,
-		weights:        weights,
-		priorMu:        mu,
-		priorPrecision: precision,
-		priorShape:     shape,
-		priorRate:      rate,
-		credibleLevel:  level,
-		robust:         spec.Covariance.Robust(),
+		spec:            spec,
+		schema:          schema,
+		acc:             acc,
+		weights:         weights,
+		priorMu:         mu,
+		priorPrecision:  precision,
+		precisionScalar: scalarForm,
+		priorShape:      shape,
+		priorRate:       rate,
+		credibleLevel:   level,
+		robust:          spec.Covariance.Robust(),
 	}, nil
 }
 
@@ -291,8 +309,9 @@ func (e *bayesLinearEngine) finalizeFromAccumulator(records []Record) (*types.Re
 	// prior update unchanged.
 	gram, xtY, ytY := buildGramFromWelford(e.acc)
 
-	// Prior precision matrix Λ₀ = priorPrecision · I (scalar prior).
-	// Plus Λ_n = Λ₀ + XᵀX written into a fresh symmetric dense.
+	// Prior precision matrix Λ₀ = diag(priorPrecision) (ε · I for a
+	// scalar prior). Plus Λ_n = Λ₀ + XᵀX written into a fresh symmetric
+	// dense.
 	lambdaN, err := linalg.NewSym(q, nil)
 	if err != nil {
 		return nil, err
@@ -301,7 +320,7 @@ func (e *bayesLinearEngine) finalizeFromAccumulator(records []Record) (*types.Re
 		for j := i; j < q; j++ {
 			val := gram[i*q+j]
 			if i == j {
-				val += e.priorPrecision
+				val += e.priorPrecision[i]
 			}
 			lambdaN.Set(i, j, val)
 		}
@@ -314,17 +333,19 @@ func (e *bayesLinearEngine) finalizeFromAccumulator(records []Record) (*types.Re
 		// does, the augmented system is too ill-conditioned for the
 		// numerical Cholesky and we surface RANK_DEFICIENT (consumers
 		// can route through more regularization or drop a predictor).
+		// A flat (0) entry on a coefficient the data do not identify
+		// makes the posterior improper and lands here too.
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_RANK_DEFICIENT,
 			"posterior precision Λ_n = Λ₀ + XᵀX is not positive-definite (predictors near-collinear and prior precision too weak to compensate)",
-			map[string]any{"n": n, "p": p, "prior_precision": e.priorPrecision},
+			map[string]any{"n": n, "p": p, "prior_precision": e.precisionDetail()},
 		)
 	}
 
 	// μ_n = Λ_n⁻¹ · (Λ₀ μ₀ + Xᵀy).
 	rhs := make([]float64, q)
 	for i := 0; i < q; i++ {
-		rhs[i] = e.priorPrecision*e.priorMu[i] + xtY[i]
+		rhs[i] = e.priorPrecision[i]*e.priorMu[i] + xtY[i]
 	}
 	muNSlice, err := solveSPD(chol, rhs)
 	if err != nil {
@@ -339,12 +360,19 @@ func (e *bayesLinearEngine) finalizeFromAccumulator(records []Record) (*types.Re
 	//   a_n = a₀ + n/2   (Σw/2 weighted: n is Σw, exactly n unweighted)
 	//   b_n = b₀ + ½ (yᵀy + μ₀ᵀΛ₀μ₀ − μ_nᵀΛ_nμ_n)
 	aN := e.priorShape + e.acc.sumW/2.0
-	// μ₀ᵀΛ₀μ₀ for scalar Λ₀ = ε·I: just ε · Σ μ₀_j².
+	// μ₀ᵀΛ₀μ₀: ε · Σ μ₀_j² for a scalar Λ₀ = ε·I (the historical
+	// order), Σ λ_j · μ₀_j² for a diagonal one.
 	mu0Quad := 0.0
-	for _, v := range e.priorMu {
-		mu0Quad += v * v
+	if e.precisionScalar {
+		for _, v := range e.priorMu {
+			mu0Quad += v * v
+		}
+		mu0Quad *= e.priorPrecision[0]
+	} else {
+		for j, v := range e.priorMu {
+			mu0Quad += e.priorPrecision[j] * float64(v*v)
+		}
 	}
-	mu0Quad *= e.priorPrecision
 
 	// μ_nᵀΛ_nμ_n via Λ_n · μ_n = (Λ₀ μ₀ + Xᵀy), so
 	// μ_nᵀ Λ_n μ_n = μ_nᵀ · (Λ₀ μ₀ + Xᵀy) — exact, no extra solve.
@@ -558,4 +586,13 @@ func buildGramFromWelford(a *olsAccumulator) (gram, xtY []float64, ytY float64) 
 	// yᵀy.
 	ytY = a.m2YY + n*a.meanY*a.meanY
 	return gram, xtY, ytY
+}
+
+// precisionDetail is the prior precision as a refusal reports it: the
+// scalar ε (the historical float), or the per-coefficient vector.
+func (e *bayesLinearEngine) precisionDetail() any {
+	if e.precisionScalar {
+		return e.priorPrecision[0]
+	}
+	return append([]float64{}, e.priorPrecision...)
 }

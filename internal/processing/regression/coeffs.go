@@ -2,6 +2,7 @@ package regression
 
 import (
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 )
@@ -162,7 +163,7 @@ func FitForAttribute(
 		coeffs = res.Coefficients
 		intercept = res.Intercept
 	case "l2":
-		res, err := solveRidge(acc, spec.Alpha)
+		res, err := solveRidge(acc, spec.Alpha, regpenalty.UnpenalizedMask(spec, spec.Predictors))
 		if err != nil {
 			return nil, err
 		}

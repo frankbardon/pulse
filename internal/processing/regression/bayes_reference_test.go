@@ -97,7 +97,7 @@ func (c bayesRefCase) spec() *types.RegressionSpec {
 		s.PriorMu = c.Prior.Mu0
 	}
 	if c.PriorSet.Precision {
-		s.PriorPrecision = c.Prior.Precision
+		s.PriorPrecision = types.PrecisionScalar(c.Prior.Precision)
 	}
 	if c.PriorSet.Shape {
 		s.PriorShape = c.Prior.Shape

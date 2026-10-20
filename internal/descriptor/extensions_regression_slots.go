@@ -91,6 +91,13 @@ var regressionSlotRules = []regressionSlotRule{
 		},
 	},
 	{
+		slot: "unpenalized", keys: []string{"unpenalized"},
+		set: func(s *types.RegressionSpec) []string { return setKeys("unpenalized", len(s.Unpenalized) != 0) },
+		refusal: func(*types.RegressionSpec) string {
+			return "takes no unpenalized (a REG_OLS ridge knob); pass the model's own per-predictor penalty through params"
+		},
+	},
+	{
 		slot: "family", keys: []string{"family"},
 		set: func(s *types.RegressionSpec) []string { return setKeys("family", s.Family != "") },
 		refusal: func(*types.RegressionSpec) string {
@@ -121,7 +128,7 @@ var regressionSlotRules = []regressionSlotRule{
 	{
 		slot: "prior", keys: []string{"prior", "prior_mu", "prior_precision", "prior_shape", "prior_rate", "credible_level"},
 		set: func(s *types.RegressionSpec) []string {
-			return setKeys("prior", s.Prior != "", "prior_mu", s.PriorMu != nil, "prior_precision", s.PriorPrecision != 0,
+			return setKeys("prior", s.Prior != "", "prior_mu", s.PriorMu != nil, "prior_precision", !s.PriorPrecision.IsZero(),
 				"prior_shape", s.PriorShape != 0, "prior_rate", s.PriorRate != 0, "credible_level", s.CredibleLevel != 0)
 		},
 		refusal: func(*types.RegressionSpec) string {
