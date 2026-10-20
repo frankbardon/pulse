@@ -103,6 +103,7 @@ func strictAcceptanceRows(c string) []strictRow {
 		{family: "request.post_tests", body: req(`"post_tests":[{"type":"TEST_TUKEY_HSD","field":"n","split_by":"cat","alpah":0.05}]`), path: "post_tests[0].alpah", unknown: "alpah"},
 		{family: "request.post_tests.params", body: req(`"post_tests":[{"type":"TEST_TUKEY_HSD","field":"n","split_by":"cat","params":{"n_colum":"x"}}]`), path: "post_tests[0].params.n_colum", unknown: "n_colum"},
 		{family: "request.regressions", body: req(`"regressions":[{"type":"REG_OLS","target":"n","predictor":["n"]}]`), path: "regressions[0].predictor", unknown: "predictor"},
+		{family: "request.regressions.params", body: req(`"regressions":[{"type":"REG_OLS","target":"n","predictors":["n2"],"params":{"lamda":1}}]`), path: "regressions[0].params.lamda", unknown: "lamda"},
 		{family: "request.vectors", body: req(agg + `,"vectors":[{"name":"v","feilds":["n"]}]`), path: "vectors[0].feilds", unknown: "feilds"},
 		{family: "request.matrices", body: req(`"matrices":[{"name":"m","type":"MAT_CORRELATION","feilds":["n"]}]`), path: "matrices[0].feilds", unknown: "feilds"},
 		{family: "request.matrices.params", body: req(`"matrices":[{"name":"m","type":"MAT_COVARIANCE","fields":["n","n2"],"params":{"ddoff":1}}]`), path: "matrices[0].params.ddoff", unknown: "ddoff"},
