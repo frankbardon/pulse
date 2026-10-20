@@ -714,6 +714,7 @@ pulse: type ParamMeta struct
 pulse: type ParamMeta field Default any "json:\"default,omitempty\""
 pulse: type ParamMeta field Description string "json:\"description,omitempty\""
 pulse: type ParamMeta field ExactlyOneOf string "json:\"exactly_one_of,omitempty\""
+pulse: type ParamMeta field Example any "json:\"example,omitempty\""
 pulse: type ParamMeta field JSONType string "json:\"json_type\""
 pulse: type ParamMeta field Name string "json:\"name\""
 pulse: type ParamMeta field Required bool "json:\"required,omitempty\""
@@ -1813,6 +1814,7 @@ pulse/descriptor: type OperatorParamMeta struct
 pulse/descriptor: type OperatorParamMeta field Default any "json:\"default,omitempty\""
 pulse/descriptor: type OperatorParamMeta field Description string "json:\"description,omitempty\""
 pulse/descriptor: type OperatorParamMeta field ExactlyOneOf string "json:\"exactly_one_of,omitempty\""
+pulse/descriptor: type OperatorParamMeta field Example any "json:\"example,omitempty\""
 pulse/descriptor: type OperatorParamMeta field JSONType string "json:\"json_type\""
 pulse/descriptor: type OperatorParamMeta field Name string "json:\"name\""
 pulse/descriptor: type OperatorParamMeta field Required bool "json:\"required,omitempty\""
@@ -1860,6 +1862,7 @@ pulse/descriptor: type Param field Default any "json:\"default,omitempty\""
 pulse/descriptor: type Param field Description string "json:\"description\""
 pulse/descriptor: type Param field EnumValues []string "json:\"enum_values,omitempty\""
 pulse/descriptor: type Param field ExactlyOneOf string "json:\"exactly_one_of,omitempty\""
+pulse/descriptor: type Param field Example any "json:\"example,omitempty\""
 pulse/descriptor: type Param field FieldFilter string "json:\"field_filter,omitempty\""
 pulse/descriptor: type Param field Name string "json:\"name\""
 pulse/descriptor: type Param field Required bool "json:\"required\""
@@ -5756,4 +5759,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0e37b4d45bbf787e930d6dcd3c70aba3b664866cad96a6300f33c6b3bbb1f8aa
+// golden-hash: 15d2c3fc0878c14fb07874002b1adcc23b686bb6d6cb2f7e8ff4e03c4d2b1f6a

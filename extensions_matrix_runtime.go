@@ -154,6 +154,7 @@ func matrixParamSnapshot(in []ParamMeta) []descriptor.Param {
 			Default:      p.Default,
 			Description:  p.Description,
 			ExactlyOneOf: p.ExactlyOneOf,
+			Example:      p.Example,
 		}
 	}
 	return out

@@ -213,6 +213,16 @@ type ParamMeta struct {
 	// still enforces the rule; the declaration lets the manifest say it
 	// and lets Recommend draft the first member. Empty = ungrouped.
 	ExactlyOneOf string `json:"exactly_one_of,omitempty"`
+	// Example is an optional example value of the param, of its
+	// JSONType (pulse.New refuses one that is not, or that does not
+	// marshal: PULSE_EXTENSION_PARAM_INVALID, details.reason
+	// example_type_mismatch). The registration probe hands it to the
+	// factory in place of the generic JSONType placeholder for a
+	// Required param or the first member of an ExactlyOneOf group, so a
+	// factory that accepts only certain values (an enum-like string)
+	// passes the probe. On any other param it is documentation only.
+	// Projected into the manifest as example. Nil = none.
+	Example any `json:"example,omitempty"`
 }
 
 // AggregatorRegistration installs a custom AGG_* operator. The factory

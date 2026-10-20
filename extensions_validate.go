@@ -1,6 +1,7 @@
 package pulse
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"regexp"
@@ -694,8 +695,42 @@ func validateParams(params []ParamMeta, cat extensionCategory, regName string) e
 				},
 			)
 		}
+		if err := validateParamExample(p, i, cat, regName); err != nil {
+			return err
+		}
 	}
 	return validateExactlyOneOfGroups(params, cat, regName)
+}
+
+// validateParamExample refuses a ParamMeta.Example that does not
+// marshal to JSON or whose JSON type is not the declared JSONType — the
+// same value checker the request params check applies
+// (descx.JSONValueType), so an Example is exactly a value a request may
+// carry. A nil Example is none.
+func validateParamExample(p ParamMeta, i int, cat extensionCategory, regName string) error {
+	if p.Example == nil {
+		return nil
+	}
+	got := "unmarshalable"
+	if raw, err := json.Marshal(p.Example); err == nil {
+		got = descx.JSONValueType(raw)
+	}
+	if got == p.JSONType {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(
+		errors.PULSE_EXTENSION_PARAM_INVALID,
+		fmt.Sprintf("extension %s %q param[%d] (%q) has an Example of JSON type %s; it must be a JSON %s (its JSONType)", cat, regName, i, p.Name, got, p.JSONType),
+		map[string]any{
+			"category":    string(cat),
+			"name":        regName,
+			"param_index": i,
+			"param_name":  p.Name,
+			"reason":      "example_type_mismatch",
+			"expected":    p.JSONType,
+			"got":         got,
+		},
+	)
 }
 
 // validateExactlyOneOfGroups refuses an ExactlyOneOf group with a

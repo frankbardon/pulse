@@ -248,9 +248,11 @@ func (d *ParamsDecl) declareValue(key, jsonType string, required bool) {
 	}
 }
 
-// jsonValueType is the JSON type of one raw value: string, number,
-// boolean, array, object or null.
-func jsonValueType(raw json.RawMessage) string {
+// JSONValueType is the JSON type of one raw value: string, number,
+// boolean, array, object or null. It is the one value checker the
+// request params check and the registration-time ParamMeta.Example
+// check (pulse.New) share.
+func JSONValueType(raw json.RawMessage) string {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 {
 		return "null"
@@ -284,7 +286,7 @@ func valueRefusal(path, op string, decl ParamsDecl, m map[string]json.RawMessage
 		if !ok {
 			continue
 		}
-		if got := jsonValueType(m[k]); got != want {
+		if got := JSONValueType(m[k]); got != want {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_REQUEST_PARAM_INVALID,
 				"operator "+op+" param "+strconv.Quote(k)+" at "+path+".params."+k+" must be a JSON "+want+", got "+got,
 				map[string]any{"path": path + ".params." + k, "operator": op, "param": k,

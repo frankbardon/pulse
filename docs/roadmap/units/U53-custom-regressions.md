@@ -8,7 +8,7 @@ status: done
 depends_on: []
 soft_depends_on: [U34, U36, U42]
 blocks: [U32]
-todo_items: [381, 382, 383, 384, 385, 386, 387, 388, 389, 293]
+todo_items: [381, 382, 383, 384, 385, 386, 387, 388, 389, 293, 488]
 branch: custom-regressions
 ---
 
@@ -126,7 +126,7 @@ Filed as TODO items in [`TODO.md`](../TODO.md) (ids are TODO ids, not GitHub iss
 | Item | Source |
 |---|---|
 | #487 Lasso / elastic-net `unpenalized` (per-predictor penalty factors) | U53 E3-S1 |
-| #488 `ParamMeta.Example`, so an enum / range / numeric-array `Required` param passes the probe | U53 E4-S1 |
+| ~~#488 `ParamMeta.Example`, so an enum / range / numeric-array `Required` param passes the probe~~ — **delivered in U53** (owner decision; probe value, `pulse.New` type check, manifest `example`) | U53 E4-S1 |
 | #489 The post-fit extension slot (the implementation of #385's v1.x decision) | U53 (#385) |
 | #401, #454 → U57 (the parallel effort; its unit doc lands with it) | [U36](U36-reference-oracles.md) |
 
@@ -134,4 +134,5 @@ Filed as TODO items in [`TODO.md`](../TODO.md) (ids are TODO ids, not GitHub iss
 
 - **Decided (2026-10-10):** custom regressions ship in v1; no R in core; model packs and an R bridge are separate modules built on this contract; the casebook is a separate repository created after the example-converting units land.
 - **Decided (U53):** the post-fit slot ships in v1.x (#385, implementation #489); Weibull adstock is a new window `WIN_ADSTOCK` (#387); the outputs map is free-form under a declared `OutputSchema` (#382).
-- **Open for the owner** (listed in the effort PR body): the extension multiplicity family and `p_values` count basis, `conf_level` refused on a custom model, the `WIN_ADSTOCK` parameter choices, `gonum/optimize` versus the in-test Levenberg–Marquardt, a regression reading a same-request window label, `ParamMeta.Example`.
+- **Open for the owner** (listed in the effort PR body): the extension multiplicity family and `p_values` count basis, `conf_level` refused on a custom model, the `WIN_ADSTOCK` parameter choices, `gonum/optimize` versus the in-test Levenberg–Marquardt, a regression reading a same-request window label.
+- **Decided (owner, U53):** `ParamMeta.Example` ships in U53 (#488) rather than v1.x.

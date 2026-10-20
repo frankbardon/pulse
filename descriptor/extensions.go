@@ -144,6 +144,9 @@ type OperatorParamMeta struct {
 	// ExactlyOneOf is the mutually-exclusive group name, mirroring
 	// Param.ExactlyOneOf: a request supplies exactly one member.
 	ExactlyOneOf string `json:"exactly_one_of,omitempty"`
+	// Example is the registration's example value of the param
+	// (pulse.ParamMeta.Example), of its JSONType. Omitted when none.
+	Example any `json:"example,omitempty"`
 }
 
 // ExprFunctionMeta is the manifest projection of an embedder-

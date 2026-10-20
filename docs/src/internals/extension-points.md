@@ -297,6 +297,20 @@ need, naming the others as alternatives. A group needs two or more
 members, none `Required` and none with a `Default`; anything else is
 `PULSE_EXTENSION_PARAM_INVALID`. The factory still enforces the rule.
 
+**Example values.** `ParamMeta.Example` (optional, any JSON value) is an
+example of the param's value. `pulse.New` checks it with the same value
+checker a request's params go through: it must marshal to a JSON value
+of the declared `JSONType`, else `PULSE_EXTENSION_PARAM_INVALID`
+(`details.reason` `example_type_mismatch`, `expected` / `got`, `got`
+`unmarshalable` when it does not marshal). The manifest shows it as
+`example` on the param row (`extensions.<category>[].params[]`, and in
+the built-in `Param` shape of an extension `MAT_*` / `REG_*`). On a
+`Required` param or the first member of an `ExactlyOneOf` group, the
+registration probe hands the factory the `Example` instead of the
+generic placeholder (see [Probe validation](#probe-validation-full-surface)),
+so a factory that accepts only certain values — an enum-like string —
+declares one it accepts. On any other param it is documentation only.
+
 When `Streamable=true`, the probe at `pulse.New` time asserts that the
 factory's returned value implements `extend.OnlineAggregator`.
 Mismatch surfaces as `PULSE_EXTENSION_STREAMABLE_MISMATCH`. The
@@ -1339,8 +1353,8 @@ that satisfies its registration's own `Params` declaration
 
 | Declared | Probe value |
 |---|---|
-| `Required: true` | a placeholder of its `JSONType` (below) |
-| first member of an `ExactlyOneOf` group | a placeholder of its `JSONType` |
+| `Required: true` | its `Example` when declared, else a placeholder of its `JSONType` (below) |
+| first member of an `ExactlyOneOf` group | its `Example` when declared, else a placeholder of its `JSONType` |
 | anything else (optional, with or without a `Default`) | absent — the factory applies its default, as on a request that omits it |
 
 | `JSONType` | Placeholder |
@@ -1357,8 +1371,10 @@ probed with absent params. Every `JSONType` is in the closed set
 skipped. A factory that refuses its placeholder (an enum string, a
 numeric array, a value that must lie in some range) fails `pulse.New`
 with `PULSE_EXTENSION_FACTORY_PANIC`, `details.probe_params` carrying
-the object it was handed: accept the placeholder as a valid build-time
-value, or validate that param in `Finalize` / `Fit` instead. Filterers
+the object it was handed: declare a `ParamMeta.Example` the factory
+accepts (the probe then hands it that value), accept the placeholder as
+a valid build-time value, or validate that param in `Finalize` / `Fit`
+instead. Filterers
 (a no-argument factory) and windows are never constructed by the
 probe, so their params are not synthesized. The probe never feeds real records;
 the matrix probe alone feeds SYNTHETIC ones — a six-row, well-conditioned

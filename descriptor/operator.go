@@ -188,6 +188,12 @@ type Param struct {
 	// one a drafted request names. Omitted for an ungrouped param.
 	ExactlyOneOf string `json:"exactly_one_of,omitempty"`
 
+	// Example is an example value of the param, projected from an
+	// extension registration's pulse.ParamMeta.Example (an extension
+	// MAT_* or REG_* operator's params). Omitted when none; no built-in
+	// sets it.
+	Example any `json:"example,omitempty"`
+
 	// Slot is true when the key is a field of the slot object itself
 	// (Group.Interval, Test.Alpha, every RegressionSpec knob), listed
 	// here for discovery, and NOT a key of its params object. A params

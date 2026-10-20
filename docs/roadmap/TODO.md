@@ -508,7 +508,7 @@ Theme documents: see the [roadmap index](README.md).
 
 #### v1.x backlog from U53 (additive; no unit)
 - [ ] **#487** Lasso / elastic-net `unpenalized`: per-predictor penalty factors for `l1` / `elasticnet` (glmnet `penalty.factor` with a coordinate-descent step per factor), beside the ridge form U53 shipped. Found in U53 (E3-S1) · no unit
-- [ ] **#488** `ParamMeta.Example`: a registration-supplied probe placeholder, so an enum, range or numeric-array `Required` param no longer needs the probe's `JSONType` placeholder (today such a param is refused at the `pulse.New` probe). Public API addition. Found in U53 (E4-S1) · no unit
+- [x] **#488** `ParamMeta.Example`: a registration-supplied probe placeholder, so an enum, range or numeric-array `Required` param no longer needs the probe's `JSONType` placeholder (today such a param is refused at the `pulse.New` probe). Public API addition. Found in U53 (E4-S1) · [U53](units/U53-custom-regressions.md). Delivered by U53 (owner decision, pulled forward from v1.x): optional `ParamMeta.Example`, handed to the factory by the probe for a `Required` param or an `ExactlyOneOf` group's first member, checked against `JSONType` at `pulse.New` (`PULSE_EXTENSION_PARAM_INVALID` reason `example_type_mismatch`), surfaced as manifest `example`.
 - [ ] **#489** The post-fit extension slot of #385: computations over fitted results (response-curve evaluation, budget allocation under constraints) registered by an embedder, so a model pack needs no side channel. Additive; decided to ship in v1.x · no unit
 
 ### Owner-unit backlog from the worked example (filed under existing units)

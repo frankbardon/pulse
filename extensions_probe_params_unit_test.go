@@ -34,6 +34,13 @@ func TestProbeParams_Placeholders(t *testing.T) {
 			{Name: "mode", JSONType: "string", ExactlyOneOf: "how"},
 			{Name: "fn", JSONType: "object", ExactlyOneOf: "how"},
 		}, fields, `{"mode":"probe_x1","span":1}`},
+		{"an Example replaces the placeholder", []ParamMeta{
+			{Name: "kind", JSONType: "string", Required: true, Example: "b"},
+			{Name: "span", JSONType: "number", ExactlyOneOf: "rate", Example: 7},
+			{Name: "halflife", JSONType: "number", ExactlyOneOf: "rate", Example: 9},
+			{Name: "opt", JSONType: "number", Example: 3},
+			{Name: "n", JSONType: "number", Required: true},
+		}, fields, `{"kind":"b","n":1,"span":7}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

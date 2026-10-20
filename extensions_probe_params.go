@@ -13,7 +13,9 @@ import (
 // hands the factory an object that satisfies the same declaration:
 //
 //   - every Required param, and the first-declared member of every
-//     ExactlyOneOf group, gets a placeholder of its JSONType;
+//     ExactlyOneOf group, gets its ParamMeta.Example when the
+//     registration declares one (pulse.New has already checked it is a
+//     value of the JSONType), else a placeholder of its JSONType;
 //   - every other param stays absent (a Default is the factory's to
 //     apply, exactly as on a request that omits it).
 //
@@ -22,9 +24,11 @@ import (
 // predictors, a matrix operator's synthetic members; fields) — string
 // the first of them and array all of them, else "" and []. Every
 // ParamMeta.JSONType is in the closed set validateParams admits, so a
-// placeholder can always be built; a factory that refuses its
-// placeholder is PULSE_EXTENSION_FACTORY_PANIC like any other probe
-// factory error, with the object it was handed on details.probe_params.
+// placeholder can always be built; a factory that accepts only certain
+// values declares an Example the probe hands it instead. A factory
+// that refuses its placeholder (or Example) is
+// PULSE_EXTENSION_FACTORY_PANIC like any other probe factory error,
+// with the object it was handed on details.probe_params.
 //
 // Nil when no param needs a value: a registration with no Required
 // param and no ExactlyOneOf group is probed with absent params, byte for
@@ -42,6 +46,10 @@ func probeParams(params []ParamMeta, fields []string) json.RawMessage {
 		if obj == nil {
 			obj = map[string]any{}
 		}
+		if p.Example != nil {
+			obj[p.Name] = p.Example
+			continue
+		}
 		obj[p.Name] = probeParamValue(p.JSONType, fields)
 	}
 	if obj == nil {
@@ -49,7 +57,7 @@ func probeParams(params []ParamMeta, fields []string) json.RawMessage {
 	}
 	raw, err := json.Marshal(obj)
 	if err != nil {
-		panic(err) // unreachable: placeholders are plain JSON values
+		panic(err) // unreachable: placeholders are plain JSON values, and validateParams refused an Example that does not marshal
 	}
 	return raw
 }

@@ -193,11 +193,15 @@ before every refit.
 
 `pulse.New` builds the factory against a synthetic schema (`probe_y` ~
 `probe_x1` + `probe_x2`, plus a weight column), hands it params satisfying
-your declaration (every `Required` param gets a placeholder of its
-`JSONType`; a `Required` array gets the probe's two predictor names), fits
-it over eight synthetic rows and checks the output. A factory may refuse an
-absent `Required` param; one that refuses the placeholder fails
-`pulse.New` with `PULSE_EXTENSION_FACTORY_PANIC` and `details.probe_params`.
+your declaration (every `Required` param, and the first member of each
+`ExactlyOneOf` group, gets its `ParamMeta.Example` when you declare one,
+else a placeholder of its `JSONType`; a `Required` array gets the probe's
+two predictor names), fits it over eight synthetic rows and checks the
+output. A factory may refuse an absent `Required` param; one that refuses
+the value it was handed fails `pulse.New` with
+`PULSE_EXTENSION_FACTORY_PANIC` and `details.probe_params` — declare an
+`Example` it accepts (an `Example` not of its `JSONType` is
+`PULSE_EXTENSION_PARAM_INVALID`, reason `example_type_mismatch`).
 A data-dependent refusal (`PROCESSING_REGRESSION_*`) on the eight rows is
 tolerated. Output with no coefficients, an empty or repeated name, a
 missing / misshapen `Vcov` or a finite `PValue` without `PValues` is
