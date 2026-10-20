@@ -56,6 +56,9 @@ func (b *Bound) Scorer(src ScorerSource, p ScoreParams) (RowScorer, error) {
 		f, ok = src(b.Type)
 	}
 	if !ok || f == nil {
+		if !BuiltinRegression(b.Type) {
+			return nil, noScorer(b.Name, b.Type)
+		}
 		return nil, typeUnsupported(b.Name, b.Type)
 	}
 	return f(b, p)
@@ -66,5 +69,14 @@ func (b *Bound) Scorer(src ScorerSource, p ScoreParams) (RowScorer, error) {
 func typeUnsupported(fit string, t types.RegressionType) *errors.CodedError {
 	return scoreInvalid(fit, ReasonTypeUnsupported,
 		fmt.Sprintf("cannot score a %s fit; it scores least-squares, generalized-linear and Bayesian-linear fits", t),
+		map[string]any{"type": string(t)})
+}
+
+// noScorer is the PULSE_MODEL_SCORE_INVALID refusal (reason no_scorer)
+// of an extension regression's fit whose registration supplies no
+// Scorer: the fit runs, but nothing can score it.
+func noScorer(fit string, t types.RegressionType) *errors.CodedError {
+	return scoreInvalid(fit, ReasonNoScorer,
+		fmt.Sprintf("cannot score %q: it is a %s fit, and that regression's registration supplies no Scorer (RegressionRegistration.Scorer)", fit, t),
 		map[string]any{"type": string(t)})
 }

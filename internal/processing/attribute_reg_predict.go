@@ -6,7 +6,6 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
-	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -39,6 +38,9 @@ import (
 type regPredictAttribute struct {
 	attr   *types.Attribute
 	schema *encoding.Schema
+	// exts is the instance's extension registry (ExtensionAware): its
+	// scorable types and scorer factories, built-ins included.
+	exts   *ExtensionRegistry
 	scorer model.RowScorer
 	// unavailable is the PULSE_FIT_UNAVAILABLE warning of a slot whose
 	// fit failed on its data (nil otherwise): no scorer, every row null.
@@ -50,7 +52,13 @@ var (
 	_ NullEmitter       = (*regPredictAttribute)(nil)
 	_ modelBinder       = (*regPredictAttribute)(nil)
 	_ attributeWarner   = (*regPredictAttribute)(nil)
+	_ ExtensionAware    = (*regPredictAttribute)(nil)
 )
+
+// SetExtensions satisfies ExtensionAware: bindAttributeWith injects the
+// registry before bindModels, so an extension regression's fit scores
+// through its registration's Scorer.
+func (a *regPredictAttribute) SetExtensions(r *ExtensionRegistry) { a.exts = r }
 
 // newRegPredictAttribute judges the params shape only (no model is in
 // reach of a factory); bindModels does the rest. A registry probe (nil
@@ -71,7 +79,7 @@ func newRegPredictAttribute(attr *types.Attribute, schema *encoding.Schema) (Att
 // schema field must be numeric (PULSE_MODEL_PREDICTOR_NOT_NUMERIC) — the
 // field-reference pass's order.
 func (a *regPredictAttribute) bindModels(models *model.Set) error {
-	p, sig, cerr := model.CheckScore(a.attr, models)
+	p, sig, cerr := model.CheckScoreFor(a.attr, models, a.exts.ScorableRegression)
 	if cerr != nil {
 		return cerr
 	}
@@ -90,7 +98,7 @@ func (a *regPredictAttribute) bindModels(models *model.Set) error {
 	if err != nil {
 		return err
 	}
-	scorer, err := b.Scorer(regression.BuiltinScorer, p)
+	scorer, err := b.Scorer(a.exts.RegressionScorer, p)
 	if err != nil {
 		return err
 	}

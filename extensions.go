@@ -949,10 +949,10 @@ type RegressionRegistration struct {
 	//
 	// Every other shared slot is fixed: resample and its knobs (not yet
 	// wired to extension models), conf_level (the engine computes no
-	// intervals for a model), save (no scorer), and the built-ins' own
-	// knobs (family, link, max_iters, tol, prior*, credible_level) are
-	// refused with PROCESSING_CONFIG {regression, slot}; weight follows
-	// WeightAware; params and multiplicity are always honoured.
+	// intervals for a model) and the built-ins' own knobs (family, link,
+	// max_iters, tol, prior*, credible_level) are refused with
+	// PROCESSING_CONFIG {regression, slot}; save follows Scorer; weight
+	// follows WeightAware; params and multiplicity are always honoured.
 	CovarianceTypes []types.CovarianceType
 	// Params declares the keys of the slot's own params object
 	// (types.RegressionSpec.Params), which the factory reads off the
@@ -971,6 +971,18 @@ type RegressionRegistration struct {
 	// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH at pulse.New and on
 	// every run; a declared key left unfilled is fine.
 	OutputSchema []RegressionOutputMeta
+	// Scorer optionally builds a fitted model's row scorer from the fit
+	// alone (extend.FittedRegression: its coefficients and Outputs), so
+	// ATTR_REG_PREDICT scores the model's fits — a Compose `fits` entry,
+	// or a saved model file reloaded through `models` — and `save` may
+	// write one (model_format_version 3, carrying the Outputs). The
+	// scorer scores the whole model: params.terms and a lower / upper
+	// params.bound are refused on it. Nil: the fits run, but scoring one
+	// is refused with PULSE_MODEL_SCORE_INVALID (reason no_scorer) and
+	// save with PROCESSING_CONFIG {regression, slot: "save"}, at predict
+	// and at runtime alike. pulse.New probes it over the probe fit; a
+	// panic or error is PULSE_EXTENSION_FACTORY_PANIC (stage scorer).
+	Scorer extend.RegressionScorerFactory
 }
 
 // RegressionOutputMeta declares one key of a regression model's

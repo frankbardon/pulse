@@ -2321,6 +2321,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MODEL_REGRESSION_UNREGISTERED: {
+		Message: "A `models` entry loads a model file saved from an extension regression's fit (its type under `type`) that this instance does not register, or registers but hides under its feature profile — without the registration nothing can score the model, so nothing runs; predict refuses it identically. The entry's index is under `model`, its name under `name`, the file under `path`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "Load the model on an instance that registers its regression type (pulse.Options.Extensions.Regressions, with a Scorer) and whose feature profile enables it, or drop the `models` entry.",
+			},
+		},
+	},
 	PULSE_MODEL_REF_INVALID: {
 		Message: "A `models` or `populations` entry cannot name its file, so nothing runs — predict refuses it identically. An entry needs a `name` (the name its references use) and a `path` under the instance filesystem root ending in `.pulse-model.json` (a `models` entry) or `.pulse-population.json` (a `populations` entry), with a file name before the suffix and no `..` above the root. The entry's index is under `model` or `population`, the rule under `reason` (`name_empty`, `path_empty`, `suffix`, `name_missing`, `escapes_root`). A blank Options.Extensions.Populations key is refused at pulse.New the same way (reason `name_empty`, under `registered`).",
 		Fixups: []Fixup{

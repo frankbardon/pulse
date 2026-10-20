@@ -1527,6 +1527,13 @@ const (
 	// "path", "version" and "supported".
 	PULSE_MODEL_VERSION_UNSUPPORTED Code = "PULSE_MODEL_VERSION_UNSUPPORTED"
 
+	// PULSE_MODEL_REGRESSION_UNREGISTERED indicates a `models` entry
+	// whose model file holds an extension regression's fit that this
+	// instance does not register, or registers but hides under its
+	// feature profile, so nothing can score it. Details carry "model",
+	// "name", "path" and "type".
+	PULSE_MODEL_REGRESSION_UNREGISTERED Code = "PULSE_MODEL_REGRESSION_UNREGISTERED"
+
 	// PULSE_MODEL_REF_INVALID indicates a Request `models` entry that
 	// cannot name a model file: no name (reason "name_empty") or a path
 	// the save-path rule refuses ("path_empty", "suffix",
@@ -4202,6 +4209,7 @@ var allCodes = []Code{
 	PULSE_MODEL_OVERWRITTEN,
 	PULSE_MODEL_FILE_INVALID,
 	PULSE_MODEL_VERSION_UNSUPPORTED,
+	PULSE_MODEL_REGRESSION_UNREGISTERED,
 	PULSE_MODEL_REF_INVALID,
 	PULSE_MODEL_FILE_UNREADABLE,
 	PULSE_FOR_EACH_INVALID,

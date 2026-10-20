@@ -10200,7 +10200,7 @@
         ]
       }
     ],
-    "error_codes_count": 398,
+    "error_codes_count": 399,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10412,6 +10412,7 @@
       "PULSE_MODEL_PREDICTOR_MISSING",
       "PULSE_MODEL_PREDICTOR_NOT_NUMERIC",
       "PULSE_MODEL_REF_INVALID",
+      "PULSE_MODEL_REGRESSION_UNREGISTERED",
       "PULSE_MODEL_SAVE_INVALID",
       "PULSE_MODEL_SCORE_INVALID",
       "PULSE_MODEL_STAT_UNKNOWN",
@@ -19281,4 +19282,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: eaf9dbf0ee4189b1ecef662572ad1ec978e6e08ea8e6ccfc1fe0249682ec1ea0
+// golden-hash: 0efb0b30c1996ae832bc8152b502cbddc25eaee4a5f6f97a00c5ca88ac5dff96

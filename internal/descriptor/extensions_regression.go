@@ -31,9 +31,10 @@ type ExtensionRegression struct {
 	// Accepts are the declared target / predictor field types (empty:
 	// the built-in regressions' set; fieldaccept.ExtensionRegressionAccepts).
 	Accepts []encoding.FieldType
-	// Scorer reports that the registration supplies a row scorer, so a
-	// fit may be saved as a model file. No registration field sets it
-	// yet: save is refused on every extension model.
+	// Scorer reports that the registration supplies a row scorer
+	// (RegressionRegistration.Scorer): its fits score (ATTR_REG_PREDICT;
+	// without one, reason no_scorer) and may be saved as a model file
+	// (without one, save is refused).
 	Scorer bool
 	// OutputKeys are the declared OutputSchema keys, in order.
 	OutputKeys []string

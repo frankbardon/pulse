@@ -794,6 +794,7 @@ fatal; a panic is `PROCESSING_PANIC`).
 | `OutputSchema` | `[]pulse.RegressionOutputMeta{Key, JSONType, Description}` — the `Outputs` keys the model may fill (`invalid_output_key` on an empty, repeated or untyped key). `Outputs` survives `disable_components` and every `return` preset |
 | `Accepts` | `[]encoding.FieldType` the target and predictors accept; empty means the built-in regressions' set (analytics-numeric). Any other field type is `PULSE_FIELD_TYPE_UNSUPPORTED` at predict and runtime alike (the same message), and the manifest's `accepts_types` lists the set. A vector, unknown or repeated entry fails `pulse.New` (`PULSE_EXTENSION_PARAM_INVALID`, reason `invalid_accepts`) |
 | `FieldInputs` | the fields the model reads beyond target, predictors and weight (one named in its `params`, say) — see [FieldInputs hook](#fieldinputs-hook-buffered-projection-introspection); without one a buffered request carrying the model decodes every field |
+| `Scorer` | `extend.RegressionScorerFactory` — builds a fitted model's `extend.RowScorer` (`Columns()`, `Score(extend.ScoreRow)`) from the fit alone (`extend.FittedRegression`: type, target, predictors, coefficients, `Outputs`); see **Scoring** below. Nil: the fits run but cannot be scored or saved |
 | `Purpose`, `Interpretation`, `DependsOn` | guidance and feature-profile edges, as for every category — see [Purpose and Interpretation](#purpose-and-interpretation-guidance-metadata) and [DependsOn](#dependson-feature-profile-dependencies) |
 
 **Declare or refuse.** Every shared `RegressionSpec` slot is either
@@ -811,11 +812,35 @@ runtime adapter alike:
 | `vcov` | `Vcov` |
 | `covariance` | the type is in `CovarianceTypes` |
 | `resample` (`jackknife_groups`, `jackknife_by`, `bootstrap_iters`, `rng_seed`) | refused until the resample driver is wired to extension models |
-| `save` | refused until a registration can supply a scorer |
+| `save` | `Scorer` |
 | `conf_level` | refused: the engine computes no intervals for a model |
 | `family`, `link`, `max_iters`, `tol`, `prior` (`prior_mu`, `prior_precision`, `prior_shape`, `prior_rate`, `credible_level`) | refused: built-in knobs — carry the model's own configuration in `params` |
 | `weight` | `WeightAware` (`PULSE_EXTENSION_NOT_WEIGHT_AWARE` otherwise) |
 | `params`, `multiplicity` | always honoured |
+
+**Scoring.** With a `Scorer`, `ATTR_REG_PREDICT` scores the model's
+fits — a Compose `fits` entry, or a saved model reloaded through
+`models` — through the registration's scorer, one scorer shared by
+every worker (immutable, safe for concurrent use). The scorer reads
+only `extend.FittedRegression`, built identically for the in-request
+fit and its reloaded file (`Outputs` in their JSON form — a number a
+`float64`, an array `[]any`, a non-finite float `nil`), so a reloaded
+model predicts exactly what the fit did; a figure scoring needs beyond
+the coefficients (a `params` value) belongs in `Outputs`. Its
+`Columns()` must be among the fit's predictors (else
+`PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH`, reason `scorer_columns`;
+a nil scorer is reason `nil_scorer`); a null column scores null. It
+scores the whole model: `params.terms` and a `lower` / `upper`
+`params.bound` are `PULSE_MODEL_SCORE_INVALID` (reasons
+`terms_unsupported` / `bound_unsupported`), and `params.scale`
+`scale_not_glm`. Without a `Scorer`, scoring a fit is
+`PULSE_MODEL_SCORE_INVALID` reason `no_scorer` and `save` is refused
+(`slot: "save"`), at predict and at runtime alike; the fit itself runs.
+A saved fit is a `model_format_version` 3 file carrying `outputs`
+(`.claude/reference/byte-layout.md`, Model file); loading one on an
+instance that does not register its type, or hides it under a feature
+profile, is `PULSE_MODEL_REGRESSION_UNREGISTERED` at predict and
+runtime alike.
 
 `TestExtensions_RegressionSharedSlotsRefused` reflects over
 `RegressionSpec` and fails on a field no rule classifies, so a new
@@ -852,7 +877,13 @@ an undeclared `Outputs` key, or a missing / misshapen `Vcov` is
 `invalid_coefficient`, `undeclared_output_key`, `missing_vcov`,
 `vcov_shape`) — checked again on every run; a factory or fit panic or
 error is `PULSE_EXTENSION_FACTORY_PANIC`, except a data-dependent
-regression refusal on the synthetic rows, which is tolerated.
+regression refusal on the synthetic rows, which is tolerated. A
+`Scorer` is built over the probe fit (bound as a Compose fit would be)
+and scores the probe rows: a `Scorer` error or a panic in it or in
+`Score` is `PULSE_EXTENSION_FACTORY_PANIC` (`details.stage` `scorer`),
+a nil scorer or one reading a column outside the predictors
+`PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` (`nil_scorer`,
+`scorer_columns`, `details.stage` `scorer`).
 
 ```go
 pulse.RegressionRegistration{

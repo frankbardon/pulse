@@ -388,7 +388,7 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 			// attribute's bind re-runs), then every column the bound
 			// model may read: present on the frame, numeric when it is a
 			// schema field.
-			p, sig, cerr := model.CheckScore(attr, models)
+			p, sig, cerr := model.CheckScoreFor(attr, models, scorableRegression(w.inst, w.snap))
 			if cerr != nil {
 				w.out = append(w.out, cerr)
 				break

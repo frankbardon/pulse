@@ -1137,7 +1137,9 @@ result (not payload-reachable).
 relative to the instance filesystem root, where the finished fit is
 written as a model file (`model_format_version` 1, or 2 — adding the
 `covariance` echo — when a robust covariance produced the fit's standard
-errors; `.pulse-model.json`;
+errors, or 3 — adding the fit's `outputs`, its coefficients named by the
+model — for an extension regression whose registration supplies a
+scorer; `.pulse-model.json`;
 the format is in `.claude/reference/byte-layout.md`, "Model file"). The
 path must end `.pulse-model.json` and stay under the root
 (`PULSE_MODEL_SAVE_INVALID` with `details.reason` and `details.regression`

@@ -36,7 +36,7 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 22. Projected buffered decode
 23. Transport-only compression — `.pulse.zst` (`pulse export transfer` / `pulse import transfer`)
 24. Table-directory sidecar exclusion — `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR`
-25. Model file — `.pulse-model.json` (`model_format_version` 1 or 2)
+25. Model file — `.pulse-model.json` (`model_format_version` 1, 2 or 3)
 26. Population file — `.pulse-population.json` (`population_format_version` 1)
 27. CLAUDE.md's sidecar contract sentence, pre-compression
 28. The always-load half, long form — header, schema block, bitmap, field types, shard archive variant (relocated at U18 E1-S1)
@@ -49,5 +49,5 @@ Paragraph order below is the file's order; each entry is that paragraph's bold l
 | `byte-layout/writers-and-field-words.md` | Row-at-a-time builder — `Pulse.NewCohortBuilder`; Materialized derived columns — `Pulse.Materialize`; Wide-set word order — `set_u128` / `set_u256`; Vector fields — `vec_f32` / `vec_f64` and the VECTORS section; Temporal word sign — `date` int32 / `datetime` int64; Import datetime literals — instant vs wall clock (SPSS, Arrow, Parquet) |
 | `byte-layout/shards-and-index.md` | Shard set-width auto-widen; Shard archives with parent groups — `0x02` shards; Sidecar point-lookup index; Sidecar index MANIFEST — `cohort.pulse.indexes.json` (`internal/encoding.IndexManifestS… |
 | `byte-layout/spss-export-and-decode.md` | SPSS metadata sidecar; SPSS derived columns; SPSS export; SPSS convert carries the source through; Export predict is target-aware; Projected buffered decode; Transport-only compression — `.pulse.zst` (`pulse export transfer` / `pulse import tran…; Table-directory sidecar exclusion — `PULSE_LABEL_TABLES_DIR` / `PULSE_RANGE_TABLES_DIR`… |
-| `byte-layout/long-form-and-model-files.md` | The always-load half, long form — header, schema block, bitmap, field types, shard arch…; Model file — `.pulse-model.json` (`model_format_version` 1 or 2); Population file — `.pulse-population.json` (`population_format_version` 1) |
+| `byte-layout/long-form-and-model-files.md` | The always-load half, long form — header, schema block, bitmap, field types, shard arch…; Model file — `.pulse-model.json` (`model_format_version` 1, 2 or 3); Population file — `.pulse-population.json` (`population_format_version` 1) |
 | `byte-layout/history.md` (not loaded by default) | CLAUDE.md's sidecar contract sentence, pre-compression (relocated verbatim at weighting…; Contract: `.claude/reference/byte-layout.md` — load it before touching any of these. No… |

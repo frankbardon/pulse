@@ -34,18 +34,25 @@ const FileSuffix = ".pulse-model.json"
 
 // FileFormatVersion is the newest model_format_version this build
 // writes. The version is a function of the content, never a flag (the
-// .pulse header's rule): a fit whose standard errors came from a robust
+// .pulse header's rule): an extension regression's fit (a type outside
+// types.AllRegressionTypes) writes 3 — version 2 plus the `outputs` of
+// the fit, its coefficients named by the model rather than intercept +
+// predictors; a built-in fit whose standard errors came from a robust
 // RegressionSpec.Covariance writes 2 — version 1 plus the `covariance`
 // echo — and every other fit writes 1, byte-identical to the files
-// earlier builds wrote. Both stay readable (FileFormatVersions).
-const FileFormatVersion = 2
+// earlier builds wrote. All stay readable (FileFormatVersions).
+const FileFormatVersion = 3
 
-// fileFormatV1 is the version a fit without a robust covariance writes.
-const fileFormatV1 = 1
+// fileFormatV1 is the version a built-in fit without a robust
+// covariance writes; fileFormatV2 a built-in fit with one.
+const (
+	fileFormatV1 = 1
+	fileFormatV2 = 2
+)
 
 // FileFormatVersions are the model_format_version values this build
 // reads, oldest first.
-func FileFormatVersions() []int { return []int{fileFormatV1, FileFormatVersion} }
+func FileFormatVersions() []int { return []int{fileFormatV1, fileFormatV2, FileFormatVersion} }
 
 // The PULSE_MODEL_SAVE_INVALID reasons.
 const (
@@ -62,12 +69,13 @@ const (
 	ReasonFileSchema         = "schema"
 )
 
-// File is one model file document (model_format_version 1 or 2): the
+// File is one model file document (model_format_version 1, 2 or 3): the
 // fitted regression's scoring figures at full float64 precision plus
 // informational provenance. Maps are keyed like RegressionResult's
 // (InterceptKey included); a term absent from a map has no figure.
 type File struct {
-	// ModelFormatVersion is 2 when Covariance is set, else 1.
+	// ModelFormatVersion is 3 for an extension regression's fit, else 2
+	// when Covariance is set, else 1.
 	ModelFormatVersion int `json:"model_format_version"`
 	// Name is the name the model was saved under (informational: a load
 	// binds the name the loading request gives it).
@@ -102,12 +110,18 @@ type File struct {
 	ConfLevel Float `json:"conf_level,omitempty"`
 	// Vcov is the coefficient covariance when the fit computed one.
 	Vcov *FileMatrix `json:"vcov,omitempty"`
-	// Covariance (version 2 only, and required there) names the robust
+	// Covariance (required on version 2, optional on version 3, absent
+	// on version 1) names the robust
 	// estimator the standard errors, intervals, df and vcov came from —
 	// RegressionResult.Covariance: type, and the cluster field and its
 	// level count or the order_by field and resolved lag. Absent: the
 	// fit's classical covariance.
 	Covariance *types.RegressionCovarianceResult `json:"covariance,omitempty"`
+	// Outputs (version 3 only) are an extension regression's
+	// RegressionResult.Outputs, each value in its wire JSON form (a
+	// non-finite float null): what the registration's Scorer reads
+	// beside the coefficients.
+	Outputs map[string]json.RawMessage `json:"outputs,omitempty"`
 	// NObs, SumWeights and NEff are the fit's sample sizes (the last
 	// two present on a weighted fit only).
 	NObs       int   `json:"n_obs"`
@@ -242,7 +256,15 @@ func NewFile(name string, spec *types.RegressionSpec, res *types.RegressionResul
 			c.Lags = &lags
 		}
 		f.Covariance = &c
+		f.ModelFormatVersion = fileFormatV2
+	}
+	if !BuiltinRegression(res.Type) {
 		f.ModelFormatVersion = FileFormatVersion
+		outs, err := encodeOutputs(res.Outputs)
+		if err != nil {
+			return nil, err
+		}
+		f.Outputs = outs
 	}
 	return f, nil
 }
@@ -308,8 +330,14 @@ func (f *File) check() string {
 		return "has no coefficients"
 	case f.ModelFormatVersion == fileFormatV1 && f.Covariance != nil:
 		return "carries a covariance, which model_format_version 1 does not have"
-	case f.ModelFormatVersion == FileFormatVersion && f.Covariance == nil:
+	case f.ModelFormatVersion == fileFormatV2 && f.Covariance == nil:
 		return "is model_format_version 2 without a covariance"
+	case f.ModelFormatVersion != FileFormatVersion && f.Outputs != nil:
+		return fmt.Sprintf("carries outputs, which model_format_version %d does not have", f.ModelFormatVersion)
+	case f.ModelFormatVersion == FileFormatVersion && BuiltinRegression(f.Type):
+		return fmt.Sprintf("is model_format_version 3, which only an extension regression's fit writes, but its type is the built-in %s", f.Type)
+	case f.ModelFormatVersion != FileFormatVersion && !BuiltinRegression(f.Type):
+		return fmt.Sprintf("has type %s, which is no built-in regression; only model_format_version 3 carries an extension regression's fit", f.Type)
 	}
 	if c := f.Covariance; c != nil {
 		robust := &types.RegressionCovariance{Type: c.Type}
@@ -317,14 +345,20 @@ func (f *File) check() string {
 			return fmt.Sprintf("covariance type %q is not a robust estimator", c.Type)
 		}
 	}
-	if _, ok := f.Coefficients[InterceptKey]; !ok {
+	// An extension regression's coefficients are named by its model
+	// (version 3): no intercept, nor one per predictor, is required.
+	builtin := f.ModelFormatVersion != FileFormatVersion
+	if _, ok := f.Coefficients[InterceptKey]; !ok && builtin {
 		return fmt.Sprintf("has no %q coefficient", InterceptKey)
+	}
+	if !builtin && len(f.Coefficients) == 0 {
+		return "has no coefficient (every fit reports at least one)"
 	}
 	for i, p := range f.Predictors {
 		if slices.Contains(f.Predictors[:i], p) {
 			return fmt.Sprintf("lists predictor %q twice", p)
 		}
-		if _, ok := f.Coefficients[p]; !ok {
+		if _, ok := f.Coefficients[p]; !ok && builtin {
 			return fmt.Sprintf("has no coefficient for predictor %q", p)
 		}
 		if !slices.Contains(f.Terms, p) {
@@ -398,6 +432,7 @@ func (f *File) Result() *types.RegressionResult {
 		}
 		res.Covariance = &c
 	}
+	res.Outputs = decodeOutputs(f.Outputs)
 	return res
 }
 
@@ -549,4 +584,50 @@ func fromFileMatrix(m *FileMatrix) *types.MatrixValues {
 		}
 	}
 	return out
+}
+
+// encodeOutputs is an extension regression's Outputs as the model file
+// keeps them: each value in its wire JSON form (types.MarshalFinite — a
+// non-finite float null). Nil for none.
+func encodeOutputs(outs map[string]any) (map[string]json.RawMessage, error) {
+	if len(outs) == 0 {
+		return nil, nil
+	}
+	out := make(map[string]json.RawMessage, len(outs))
+	for k, v := range outs {
+		b, err := types.MarshalFinite(v)
+		if err != nil {
+			return nil, errors.WrapCodedError(err, errors.PROCESSING_INTERNAL, "encoding model output "+k)
+		}
+		out[k] = json.RawMessage(b)
+	}
+	return out, nil
+}
+
+// decodeOutputs reads encodeOutputs' form back into plain JSON values
+// (float64, string, bool, []any, map[string]any, nil). Nil for none;
+// the file decode already proved each value valid JSON.
+func decodeOutputs(raw map[string]json.RawMessage) map[string]any {
+	if len(raw) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(raw))
+	for k, b := range raw {
+		var v any
+		_ = json.Unmarshal(b, &v)
+		out[k] = v
+	}
+	return out
+}
+
+// NormalizeOutputs is outs in the form a model file reads back
+// (encodeOutputs then decodeOutputs): what an extension regression's
+// Scorer sees, for a fit in the request and the same fit reloaded from
+// its file alike, so the two score identically.
+func NormalizeOutputs(outs map[string]any) (map[string]any, error) {
+	raw, err := encodeOutputs(outs)
+	if err != nil {
+		return nil, err
+	}
+	return decodeOutputs(raw), nil
 }

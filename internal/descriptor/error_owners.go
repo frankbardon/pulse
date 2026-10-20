@@ -361,13 +361,14 @@ var errorOwners = map[errors.Code][]string{
 	// The model file: a `save` writes it (capability:model_save), a
 	// `models` entry loads it (capability:models) — the parse codes are
 	// the load's.
-	errors.PULSE_MODEL_SAVE_INVALID:        own(featModelSave),
-	errors.PULSE_MODEL_WRITE_FAILED:        own(featModelSave),
-	errors.PULSE_MODEL_OVERWRITTEN:         own(featModelSave),
-	errors.PULSE_MODEL_FILE_INVALID:        own(featModels),
-	errors.PULSE_MODEL_VERSION_UNSUPPORTED: own(featModels),
-	errors.PULSE_MODEL_REF_INVALID:         own(featModels),
-	errors.PULSE_MODEL_FILE_UNREADABLE:     own(featModels),
+	errors.PULSE_MODEL_SAVE_INVALID:            own(featModelSave),
+	errors.PULSE_MODEL_WRITE_FAILED:            own(featModelSave),
+	errors.PULSE_MODEL_OVERWRITTEN:             own(featModelSave),
+	errors.PULSE_MODEL_FILE_INVALID:            own(featModels),
+	errors.PULSE_MODEL_VERSION_UNSUPPORTED:     own(featModels),
+	errors.PULSE_MODEL_REGRESSION_UNREGISTERED: own(featModels),
+	errors.PULSE_MODEL_REF_INVALID:             own(featModels),
+	errors.PULSE_MODEL_FILE_UNREADABLE:         own(featModels),
 	// nested_in_sweep is raised by a sweep body, so either surface lists it.
 	errors.PULSE_FOR_EACH_INVALID: own(featForEach, featComposeSweep),
 

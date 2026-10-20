@@ -125,3 +125,54 @@ type RegressionFit struct {
 // Figure returns a pointer to v, for the optional figures of
 // RegressionCoefficient and RegressionFit.
 func Figure(v float64) *float64 { return &v }
+
+// ScoreRow is the row a RowScorer reads: one numeric column by name,
+// ok false when the column is null or absent on the row.
+type ScoreRow interface {
+	NumericValue(name string) (float64, bool)
+}
+
+// RowScorer scores rows against one fitted regression model — what
+// ATTR_REG_PREDICT evaluates per row. It must be immutable once built
+// and safe for concurrent use: one scorer serves every worker.
+type RowScorer interface {
+	// Columns returns the columns Score reads, each one of the fit's
+	// predictors (a scorer reading any other column is refused with
+	// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH, reason
+	// scorer_columns), so predict checks the scoring frame exactly as
+	// the runtime reads it.
+	Columns() []string
+	// Score is row's score; ok=false is a null score (a column it reads
+	// is null or absent on row, or the model has no figure for it).
+	Score(row ScoreRow) (float64, bool)
+}
+
+// FittedRegression is what a RegressionScorerFactory builds a scorer
+// from: the fitted model as a saved model file keeps it, so a fit and
+// the same fit reloaded from its file hand the factory equal values and
+// score identically.
+type FittedRegression struct {
+	// Type is the regression model's registered name.
+	Type types.RegressionType
+	// Target is the fit's response field.
+	Target string
+	// Predictors are the fit's predictor columns, in spec order.
+	Predictors []string
+	// Coefficients are the fitted estimates, keyed by the coefficient
+	// names RegressionOutput.Coefficients carried.
+	Coefficients map[string]float64
+	// Outputs are the fit's RegressionOutput.Outputs in their JSON form
+	// — a number is a float64, an array []any, an object
+	// map[string]any, a non-finite float nil — the form a saved model
+	// file reads back. Nil when the fit filled none. A figure the
+	// scorer needs beyond the coefficients (a slot param it read, say)
+	// belongs here: params are not part of a saved model.
+	Outputs map[string]any
+}
+
+// RegressionScorerFactory builds a fitted model's RowScorer
+// (RegressionRegistration.Scorer). It reads only fit — never the
+// request or the cohort — so a saved model scores on a later request
+// from its file alone. A returned error fails the scoring slot's
+// request.
+type RegressionScorerFactory func(fit FittedRegression) (RowScorer, error)

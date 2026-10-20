@@ -3,6 +3,7 @@ package descriptor
 import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/types"
 )
 
 // predict_models.go is predict's half of a `models` / `populations`
@@ -41,7 +42,35 @@ func (o *PredictOptions) loadModelFiles(refs model.Refs) (*model.Loaded, *errors
 	if o != nil && o.ModelLoader != nil {
 		read = o.ModelLoader.ReadModelFile
 	}
-	return model.LoadFiles(refs, read)
+	loaded, cerr := model.LoadFiles(refs, read)
+	if cerr != nil {
+		return nil, cerr
+	}
+	if cerr := model.CheckLoadedTypes(refs, loaded, o.regressionRegistered); cerr != nil {
+		return nil, cerr
+	}
+	return loaded, nil
+}
+
+// regressionRegistered is the instance's model.RegisteredFunc — the
+// runtime registry's RegressionRegistered twin: t is an extension
+// regression the snapshot registers and the instance does not hide.
+func (o *PredictOptions) regressionRegistered(t types.RegressionType) bool {
+	_, _, ok := regressionExtensionFor(o.instance(), extensionsFromOpts(o), t)
+	return ok
+}
+
+// scorableRegression is the instance's model.ScorableFunc — the runtime
+// registry's ScorableRegression twin: a built-in with a scorer, or a
+// registered, visible extension regression declaring one.
+func scorableRegression(inst *InstanceSnapshot, snap *ExtensionsSnapshot) model.ScorableFunc {
+	return func(t types.RegressionType) bool {
+		if model.BuiltinRegression(t) {
+			return model.ScorableType(t)
+		}
+		_, decl, ok := regressionExtensionFor(inst, snap, t)
+		return ok && decl.Scorer
+	}
 }
 
 // predictModels loads refs against outer (the names already bound — the

@@ -947,6 +947,7 @@ pulse: type RegressionRegistration field OutputSchema []pulse.RegressionOutputMe
 pulse: type RegressionRegistration field Params []pulse.ParamMeta
 pulse: type RegressionRegistration field Penalty bool
 pulse: type RegressionRegistration field Purpose *pulse/descriptor.Purpose
+pulse: type RegressionRegistration field Scorer pulse/extend.RegressionScorerFactory
 pulse: type RegressionRegistration field Streamable bool
 pulse: type RegressionRegistration field SupportsSelection bool
 pulse: type RegressionRegistration field Vcov bool
@@ -2614,6 +2615,7 @@ pulse/errors: const PULSE_MODEL_OVERWRITTEN pulse/errors.Code = "PULSE_MODEL_OVE
 pulse/errors: const PULSE_MODEL_PREDICTOR_MISSING pulse/errors.Code = "PULSE_MODEL_PREDICTOR_MISSING"
 pulse/errors: const PULSE_MODEL_PREDICTOR_NOT_NUMERIC pulse/errors.Code = "PULSE_MODEL_PREDICTOR_NOT_NUMERIC"
 pulse/errors: const PULSE_MODEL_REF_INVALID pulse/errors.Code = "PULSE_MODEL_REF_INVALID"
+pulse/errors: const PULSE_MODEL_REGRESSION_UNREGISTERED pulse/errors.Code = "PULSE_MODEL_REGRESSION_UNREGISTERED"
 pulse/errors: const PULSE_MODEL_SAVE_INVALID pulse/errors.Code = "PULSE_MODEL_SAVE_INVALID"
 pulse/errors: const PULSE_MODEL_SCORE_INVALID pulse/errors.Code = "PULSE_MODEL_SCORE_INVALID"
 pulse/errors: const PULSE_MODEL_STAT_UNKNOWN pulse/errors.Code = "PULSE_MODEL_STAT_UNKNOWN"
@@ -2835,6 +2837,12 @@ pulse/extend: type FilterFunc func(rec pulse/extend.Record) (bool, error)
 pulse/extend: type FiltererBuilder interface
 pulse/extend: type FiltererBuilder imethod Build(spec *pulse/types.Filterer, schema *pulse/encoding.Schema) (pulse/extend.FilterFunc, error)
 pulse/extend: type FiltererFactory func() pulse/extend.FiltererBuilder
+pulse/extend: type FittedRegression struct
+pulse/extend: type FittedRegression field Coefficients map[string]float64
+pulse/extend: type FittedRegression field Outputs map[string]any
+pulse/extend: type FittedRegression field Predictors []string
+pulse/extend: type FittedRegression field Target string
+pulse/extend: type FittedRegression field Type pulse/types.RegressionType
 pulse/extend: type Grouper interface
 pulse/extend: type Grouper imethod Group(rows pulse/extend.Rows, field string) (map[string][]int, error)
 pulse/extend: type GrouperFactory func(spec *pulse/types.Group, schema *pulse/encoding.Schema) (pulse/extend.Grouper, error)
@@ -2915,10 +2923,14 @@ pulse/extend: type RegressionOutput field Coefficients []pulse/extend.Regression
 pulse/extend: type RegressionOutput field Fit pulse/extend.RegressionFit
 pulse/extend: type RegressionOutput field Outputs map[string]any
 pulse/extend: type RegressionOutput field Vcov [][]float64
+pulse/extend: type RegressionScorerFactory func(fit pulse/extend.FittedRegression) (pulse/extend.RowScorer, error)
 pulse/extend: type RichAggregator interface
 pulse/extend: type RichAggregator imethod Rich() (any, error)
 pulse/extend: type RowLocalAttribute interface
 pulse/extend: type RowLocalAttribute imethod Row(rec pulse/extend.Record, field string) (float64, error)
+pulse/extend: type RowScorer interface
+pulse/extend: type RowScorer imethod Columns() []string
+pulse/extend: type RowScorer imethod Score(row pulse/extend.ScoreRow) (float64, bool)
 pulse/extend: type RowTest interface
 pulse/extend: type RowTest imethod Finalize() (*pulse/types.TestResult, error)
 pulse/extend: type RowTest imethod UpdateRow(rec pulse/extend.Record) error
@@ -2926,6 +2938,8 @@ pulse/extend: type RowTestFactory func(spec *pulse/types.Test, schema *pulse/enc
 pulse/extend: type Rows interface
 pulse/extend: type Rows imethod At(i int) pulse/extend.Record
 pulse/extend: type Rows imethod Len() int
+pulse/extend: type ScoreRow interface
+pulse/extend: type ScoreRow imethod NumericValue(name string) (float64, bool)
 pulse/extend: type StreamingFeatureComputer interface
 pulse/extend: type StreamingFeatureComputer imethod EmitRow(rec pulse/extend.Record, field string) (map[string]pulse/extend.FeatureOutput, error)
 pulse/extend: type StreamingFeatureComputer imethod Finalize() error
@@ -5724,4 +5738,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7a313566896a3af9a9ff47aba9978d319494ead0c45a11b426ded479a0120875
+// golden-hash: 570b43ff6537ab2dfd66528e7ec6d2a412c1f820f1cd454dc5c2192477d02cd2

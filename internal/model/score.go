@@ -32,6 +32,14 @@ const (
 	ReasonTypeUnsupported = "type_unsupported"
 	ReasonBoundUnknown    = "bound_unknown"
 	ReasonBoundTerms      = "bound_terms"
+	// ReasonNoScorer refuses scoring an extension regression's fit whose
+	// registration supplies no Scorer.
+	ReasonNoScorer = "no_scorer"
+	// ReasonTermsUnsupported / ReasonBoundUnsupported refuse params.terms
+	// and a lower / upper params.bound on an extension regression's fit:
+	// its scorer scores the whole model only.
+	ReasonTermsUnsupported = "terms_unsupported"
+	ReasonBoundUnsupported = "bound_unsupported"
 )
 
 // Bound values of ATTR_REG_PREDICT's params.bound: which coefficient
@@ -190,9 +198,25 @@ func (c FitCatalog) Names() []string {
 var scorableBuiltins = []types.RegressionType{types.REG_OLS, types.REG_GLM, types.REG_BAYES_LINEAR}
 
 // ScorableType reports whether a fit of type t can be scored: a type
-// with a RowScorer (scorableBuiltins).
+// with a RowScorer (scorableBuiltins). It is the built-in view; an
+// instance's view (ScorableFunc) adds its extension regressions that
+// supply a scorer.
 func ScorableType(t types.RegressionType) bool {
 	return slices.Contains(scorableBuiltins, t)
+}
+
+// ScorableFunc is an instance's view of the scorable regression types:
+// ScorableType plus every registered, visible extension regression
+// whose registration supplies a Scorer. The runtime reads it off the
+// engine's extension registry, predict off the extensions snapshot, so
+// both judge one reference the same way.
+type ScorableFunc func(t types.RegressionType) bool
+
+// BuiltinRegression reports whether t is a built-in regression type
+// (types.AllRegressionTypes) — any other bound type is an extension
+// regression's.
+func BuiltinRegression(t types.RegressionType) bool {
+	return slices.Contains(types.AllRegressionTypes(), t)
 }
 
 // CheckScore is the one rule over a scoring reference (an
@@ -205,7 +229,22 @@ func ScorableType(t types.RegressionType) bool {
 // exactly one predictor term. The first fault wins. It does not judge the scoring
 // frame's columns — the caller's field-reference walk does, with
 // PredictorMissing / PredictorNotNumeric over Signature.Terms.
+//
+// CheckScore judges scorability by the built-ins alone (ScorableType);
+// CheckScoreFor takes the instance's view.
 func CheckScore(attr *types.Attribute, cat Catalog) (ScoreParams, Signature, *errors.CodedError) {
+	return CheckScoreFor(attr, cat, ScorableType)
+}
+
+// CheckScoreFor is CheckScore over the instance's scorable types (nil:
+// ScorableType). An extension regression's fit is scorable only when
+// its registration supplies a Scorer (else reason no_scorer), and its
+// scorer scores the whole model: params.terms (terms_unsupported) and a
+// lower / upper params.bound (bound_unsupported) are refused on it.
+func CheckScoreFor(attr *types.Attribute, cat Catalog, scorable ScorableFunc) (ScoreParams, Signature, *errors.CodedError) {
+	if scorable == nil {
+		scorable = ScorableType
+	}
 	p, err := DecodeScoreParams(attr.Params)
 	if err != nil {
 		return p, Signature{}, err
@@ -228,8 +267,24 @@ func CheckScore(attr *types.Attribute, cat Catalog) (ScoreParams, Signature, *er
 	if sig.EffectiveKind() != types.FitKindRegression {
 		return p, sig, KindMismatch(p.Fit, types.FitKindRegression, sig.EffectiveKind())
 	}
-	if !ScorableType(sig.Type) {
+	extension := !BuiltinRegression(sig.Type)
+	if !scorable(sig.Type) {
+		if extension {
+			return p, sig, noScorer(p.Fit, sig.Type)
+		}
 		return p, sig, typeUnsupported(p.Fit, sig.Type)
+	}
+	if extension {
+		if p.Terms != nil {
+			return p, sig, scoreInvalid(p.Fit, ReasonTermsUnsupported,
+				fmt.Sprintf("params.terms does not apply to %q, a %s fit: an extension regression's scorer scores the whole model; drop params.terms", p.Fit, sig.Type),
+				map[string]any{"type": string(sig.Type)})
+		}
+		if p.Bound == BoundLower || p.Bound == BoundUpper {
+			return p, sig, scoreInvalid(p.Fit, ReasonBoundUnsupported,
+				fmt.Sprintf("params.bound %q does not apply to %q, a %s fit: an extension regression's scorer scores the whole model at its point estimates; drop params.bound", p.Bound, p.Fit, sig.Type),
+				map[string]any{"type": string(sig.Type), "bound": p.Bound})
+		}
 	}
 	if p.Terms != nil {
 		if len(p.Terms) == 0 {

@@ -184,7 +184,7 @@ func TestBind(t *testing.T) {
 	if ce := coded(t, ignoreBound(Bind("q", missing, res))); ce.Code != errors.PROCESSING_INTERNAL {
 		t.Fatalf("code = %s", ce.Code)
 	}
-	noIntercept := &types.RegressionResult{Coefficients: map[string]float64{"x": 1}}
+	noIntercept := &types.RegressionResult{Type: types.REG_OLS, Coefficients: map[string]float64{"x": 1}}
 	if ce := coded(t, ignoreBound(Bind("q", spec, noIntercept))); ce.Code != errors.PROCESSING_INTERNAL {
 		t.Fatalf("code = %s", ce.Code)
 	}

@@ -372,7 +372,15 @@ func TestDecodeFile_Refusals(t *testing.T) {
 		{"no version", edit(func(m map[string]any) { delete(m, "model_format_version") }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileVersionMissing},
 		{"null version", edit(func(m map[string]any) { m["model_format_version"] = nil }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileVersionMissing},
 		{"string version", edit(func(m map[string]any) { m["model_format_version"] = "1" }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"future version", edit(func(m map[string]any) { m["model_format_version"] = 3 }), errors.PULSE_MODEL_VERSION_UNSUPPORTED, ""},
+		{"future version", edit(func(m map[string]any) { m["model_format_version"] = 4 }), errors.PULSE_MODEL_VERSION_UNSUPPORTED, ""},
+		{"v3 with a built-in type", edit(func(m map[string]any) { m["model_format_version"] = 3 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"v1 with an extension type", edit(func(m map[string]any) { m["type"] = "REG_X_CUSTOM" }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"v1 with outputs", edit(func(m map[string]any) { m["outputs"] = map[string]any{"k": 1} }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"v3 with no coefficient", edit(func(m map[string]any) {
+			m["model_format_version"] = 3
+			m["type"] = "REG_X_CUSTOM"
+			m["coefficients"] = map[string]any{}
+		}), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"v2 without covariance", edit(func(m map[string]any) { m["model_format_version"] = 2 }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"v1 with covariance", edit(func(m map[string]any) { m["covariance"] = map[string]any{"type": "hc3"} }), errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"classical covariance", edit(func(m map[string]any) {
@@ -418,7 +426,7 @@ func TestDecodeFile_Refusals(t *testing.T) {
 		t.Fatalf("the unedited file must decode: %v", err)
 	}
 	_, err := DecodeFile("p", []byte(edit(func(m map[string]any) { m["model_format_version"] = 7 })))
-	if ce := coded(t, err); !reflect.DeepEqual(ce.Details["supported"], []int{1, 2}) || ce.Details["version"] != 7 {
+	if ce := coded(t, err); !reflect.DeepEqual(ce.Details["supported"], []int{1, 2, 3}) || ce.Details["version"] != 7 {
 		t.Fatalf("version details = %v", ce.Details)
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/weighting"
@@ -42,6 +43,7 @@ func regressionDeclaration(reg RegressionRegistration) descx.ExtensionRegression
 		Penalty:           reg.Penalty,
 		SupportsSelection: reg.SupportsSelection,
 		CovarianceTypes:   slices.Clone(reg.CovarianceTypes),
+		Scorer:            reg.Scorer != nil,
 		Accepts:           slices.Clone(reg.Accepts),
 		OutputKeys:        keys,
 		Params:            matrixParamSnapshot(reg.Params),
@@ -365,6 +367,89 @@ func checkRegressionForm(reg RegressionRegistration, model extend.Regression, we
 	return nil
 }
 
+// ---- scorer adapter ----------------------------------------------------
+
+// fittedRegression is the extend view of a bound fit — the one input
+// RegressionRegistration.Scorer reads, built the same way for a fit in
+// the request and for the same fit reloaded from its model file: the
+// coefficients the result carries and its Outputs in their model-file
+// JSON form (model.NormalizeOutputs), so the two score identically.
+func fittedRegression(b *model.Bound) (extend.FittedRegression, error) {
+	fit := extend.FittedRegression{
+		Type:       b.Type,
+		Target:     b.Target,
+		Predictors: slices.Clone(b.Predictors),
+	}
+	if b.Result != nil {
+		fit.Coefficients = maps.Clone(b.Result.Coefficients)
+		outs, err := model.NormalizeOutputs(b.Result.Outputs)
+		if err != nil {
+			return extend.FittedRegression{}, err
+		}
+		fit.Outputs = outs
+	}
+	if fit.Coefficients == nil {
+		fit.Coefficients = map[string]float64{}
+	}
+	return fit, nil
+}
+
+// adaptRegressionScorer wraps the registration's Scorer as the engine's
+// model.ScorerFactory. model.CheckScoreFor already refused params.terms
+// and a lower / upper bound on the fit, so p carries only the fit name.
+func adaptRegressionScorer(reg RegressionRegistration) model.ScorerFactory {
+	return func(b *model.Bound, _ model.ScoreParams) (model.RowScorer, error) {
+		fit, err := fittedRegression(b)
+		if err != nil {
+			return nil, err
+		}
+		return buildRegressionScorer(reg, fit, false)
+	}
+}
+
+// buildRegressionScorer calls the registration's Scorer over fit and
+// holds the result to the contract: non-nil, reading only the fit's
+// predictors (PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH, reason
+// nil_scorer / scorer_columns). A Scorer error is returned as is.
+func buildRegressionScorer(reg RegressionRegistration, fit extend.FittedRegression, probe bool) (model.RowScorer, error) {
+	rs, err := reg.Scorer(fit)
+	if err != nil {
+		return nil, err
+	}
+	mismatch := func(reason, msg string, extra map[string]any) error {
+		details := map[string]any{"category": string(categoryRegression), "name": string(reg.Name), "reason": reason}
+		maps.Copy(details, extra)
+		if probe {
+			details["stage"] = "scorer"
+		}
+		return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH,
+			fmt.Sprintf("regression %q Scorer %s", reg.Name, msg), details)
+	}
+	if rs == nil {
+		return nil, mismatch("nil_scorer", "returned a nil RowScorer", nil)
+	}
+	cols := slices.Clone(rs.Columns())
+	for _, c := range cols {
+		if !slices.Contains(fit.Predictors, c) {
+			return nil, mismatch("scorer_columns",
+				fmt.Sprintf("reads column %q, which is not one of the fit's predictors %v", c, fit.Predictors),
+				map[string]any{"column": c, "predictors": append([]string{}, fit.Predictors...)})
+		}
+	}
+	return regressionRowScorer{rs: rs, cols: cols}, nil
+}
+
+// regressionRowScorer is the engine's view of an extension RowScorer;
+// the engine row (model.Row) is an extend.ScoreRow as is.
+type regressionRowScorer struct {
+	rs   extend.RowScorer
+	cols []string
+}
+
+func (s regressionRowScorer) Columns() []string { return slices.Clone(s.cols) }
+
+func (s regressionRowScorer) Score(row model.Row) (float64, bool) { return s.rs.Score(row) }
+
 // ---- engine adapter ----------------------------------------------------
 
 // regressionEngine is the engine's buffered view of an extension model
@@ -466,6 +551,12 @@ func addRuntimeRegressions(r *processing.ExtensionRegistry, regs []RegressionReg
 	for _, reg := range regs {
 		key := processing.StreamabilityKey(string(categoryRegression), string(reg.Name))
 		r.Regressions[reg.Name] = adaptRegressionFactory(reg)
+		if reg.Scorer != nil {
+			if r.RegressionScorers == nil {
+				r.RegressionScorers = make(map[types.RegressionType]model.ScorerFactory, len(regs))
+			}
+			r.RegressionScorers[reg.Name] = adaptRegressionScorer(reg)
+		}
 		r.Streamable[key] = reg.Streamable
 		r.WeightAware[key] = reg.WeightAware
 		if reg.FieldInputs != nil {
@@ -623,7 +714,57 @@ func probeRegression(reg RegressionRegistration, schema *encoding.Schema, recs [
 		}
 		return err
 	}
-	return verifyRegressionOutput(reg, spec, out, weighted)
+	if err := verifyRegressionOutput(reg, spec, out, weighted); err != nil {
+		return err
+	}
+	if reg.Scorer == nil || weighted {
+		return nil
+	}
+	return probeRegressionScorer(reg, d, out, recs)
+}
+
+// probeRegressionScorer builds the registration's scorer over the probe
+// fit (bound like a Compose fit) and scores the probe rows, under
+// recover(): a Scorer or Score panic, or a Scorer error, is
+// PULSE_EXTENSION_FACTORY_PANIC (details.stage scorer); a nil scorer or
+// one reading a column outside the predictors is
+// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH (buildRegressionScorer).
+func probeRegressionScorer(reg RegressionRegistration, d *regressionDriver, out extend.RegressionOutput, recs []extend.Record) (err error) {
+	fail := func(what string, extra map[string]any) error {
+		details := map[string]any{"category": string(categoryRegression), "name": string(reg.Name), "stage": "scorer"}
+		maps.Copy(details, extra)
+		return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_FACTORY_PANIC,
+			fmt.Sprintf("regression %q Scorer %s during probe-validation", reg.Name, what), details)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fail(fmt.Sprintf("panicked: %v", r), map[string]any{"panic": fmt.Sprintf("%v", r)})
+		}
+	}()
+	res, err := d.result(out)
+	if err != nil {
+		return err
+	}
+	b, err := model.Bind("probe", d.spec, res)
+	if err != nil {
+		return err
+	}
+	fit, err := fittedRegression(b)
+	if err != nil {
+		return err
+	}
+	rs, err := buildRegressionScorer(reg, fit, true)
+	if err != nil {
+		var coded *errors.CodedError
+		if stderrors.As(err, &coded) && coded.Code == errors.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH {
+			return err
+		}
+		return fail(fmt.Sprintf("returned error: %v", err), map[string]any{"scorer_error": err.Error()})
+	}
+	for _, rec := range recs {
+		rs.Score(rec)
+	}
+	return nil
 }
 
 // regressionDataRefusal reports a data-dependent regression refusal —
