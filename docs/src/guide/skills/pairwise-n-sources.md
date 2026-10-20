@@ -28,8 +28,8 @@ The question is: **what does one observation mean here?**
 | `n_source` | Leg |
 |---|---|
 | `cell_n_unweighted` (= the omitted default only under `normalize: none`) | `CellCounts[r][c]` |
-| `cell_value_weighted` | the cell VALUE, ROUNDED half up |
-| `cell_weight_sum` | `CellComponents[r][c]["sum_weights"]`, ROUNDED likewise |
+| `cell_value_weighted` | cell VALUE, `⌊x + 1e-6⌋`, never rounded |
+| `cell_weight_sum` | `CellComponents[r][c]["sum_weights"]`, likewise |
 | `row_margin_n` / `column_margin_n` | `RowMarginCounts[r]` / `ColumnMarginCounts[c]` (weighted: that margin's floor N*) |
 | `n_within` | the SLAB: `CellCounts` summed across the pair axis, first `n_within_depth`+1 dims held fixed |
 | `n_within_distinct` | that slab, in distinct KEYS |

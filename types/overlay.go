@@ -2176,16 +2176,18 @@ const (
 	//     every other.
 	//   - n_source (string): where the sample-size leg is read —
 	//     "cell_n_unweighted" (default; CellComponents["n"]),
-	//     "cell_value_weighted" (cell value as count, rounded to the
-	//     nearest integer, half away from zero — never truncated),
+	//     "cell_value_weighted" (cell value as count, the true weight
+	//     base truncated after absorbing float noise (⌊x + 1e-6⌋), never
+	//     rounded),
 	//     "row_margin_n" / "column_margin_n" (margin record counts),
 	//     "row_margin_distinct" / "column_margin_distinct" (the same
 	//     margin leg as a DISTINCT-KEY cardinality off
 	//     Row/ColumnMarginComponents — exact by construction),
 	//     "n_within" (CellCounts slab over n_within_depth),
 	//     "n_within_distinct" (the same slab in distinct keys),
-	//     "cell_weight_sum" (CellComponents["sum_weights"], rounded to
-	//     the nearest integer, half away from zero — never truncated).
+	//     "cell_weight_sum" (CellComponents["sum_weights"], the true
+	//     weight base truncated after absorbing float noise
+	//     (⌊x + 1e-6⌋), never rounded).
 	//   - n_within_depth (int): with n_source=n_within, fixes the first
 	//     depth+1 pair-axis dims in the denominator (mirrors
 	//     CrosstabSpec.NormalizeWithin).
