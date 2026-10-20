@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/reprosum"
 )
 
 // This file holds OnlineAggregator implementations attached to the
@@ -36,21 +37,21 @@ func (a *countAggregator) Finalize() (float64, error) {
 
 func (a *sumAggregator) UpdateRow(r *Record, field string) error {
 	if v, ok := r.NumericValue(field); ok {
-		a.sum += v
+		a.sum.Add(v)
 	}
 	return nil
 }
 
 func (a *sumAggregator) Finalize() (float64, error) {
-	out := a.sum
+	out := a.sum.Float64()
 	a.frozenSum = out
-	a.sum = 0
+	a.sum = reprosum.Sum{}
 	return out, nil
 }
 
 func (a *averageAggregator) UpdateRow(r *Record, field string) error {
 	if v, ok := r.NumericValue(field); ok {
-		a.sum += v
+		a.sum.Add(v)
 		a.n++
 	}
 	return nil
@@ -60,12 +61,13 @@ func (a *averageAggregator) Finalize() (float64, error) {
 	if a.n == 0 {
 		// The mean of no value is undefined: NaN (JSON null), never 0.
 		a.frozenSum = 0
-		a.sum = 0
+		a.sum = reprosum.Sum{}
 		return math.NaN(), nil
 	}
-	a.frozenSum = a.sum
-	out := a.sum / float64(a.n)
-	a.sum, a.n = 0, 0
+	sum := a.sum.Float64()
+	a.frozenSum = sum
+	out := sum / float64(a.n)
+	a.sum, a.n = reprosum.Sum{}, 0
 	return out, nil
 }
 
@@ -459,7 +461,7 @@ func (a *sumAggregator) MergeOnline(other OnlineAggregator) error {
 	if !ok {
 		return mergeTypeMismatch("AGG_SUM")
 	}
-	a.sum += b.sum
+	a.sum.Merge(&b.sum)
 	return nil
 }
 
@@ -468,7 +470,7 @@ func (a *averageAggregator) MergeOnline(other OnlineAggregator) error {
 	if !ok {
 		return mergeTypeMismatch("AGG_AVERAGE")
 	}
-	a.sum += b.sum
+	a.sum.Merge(&b.sum)
 	a.n += b.n
 	return nil
 }

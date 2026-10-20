@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -208,12 +209,15 @@ func (a *countAggregator) Aggregate(records []*Record, field string) (float64, e
 }
 
 // sumAggregator sums non-null values. The sum field is the running
-// accumulator on the streaming path; the buffered path stamps it via
-// aggregateValues so Components() can read it post-Aggregate. The
-// frozenSum mirror survives Finalize's reset so the orchestrator's
-// post-Finalize Components() call sees the final value.
+// binned reproducible accumulator (internal/reprosum) on the streaming
+// path, so the figure is a function of the multiset of values only —
+// bit-identical on every arm, worker count and shard split; the
+// buffered path stamps frozenSum via aggregateValues so Components()
+// can read it post-Aggregate. The frozenSum mirror survives Finalize's
+// reset so the orchestrator's post-Finalize Components() call sees the
+// final value.
 type sumAggregator struct {
-	sum       float64
+	sum       reprosum.Sum
 	frozenSum float64
 }
 
@@ -230,19 +234,28 @@ func (a *sumAggregator) Aggregate(records []*Record, field string) (float64, err
 }
 
 func (a *sumAggregator) aggregateValues(vals []float64) (float64, error) {
-	sum := 0.0
-	for _, v := range vals {
-		sum += v
-	}
+	sum := binnedSum(vals)
 	a.frozenSum = sum
 	return sum, nil
 }
 
-// averageAggregator tracks running sum and count for streaming mean.
-// frozenSum mirrors the final sum so Components() survives Finalize's
-// reset; the buffered path stamps it via aggregateValues.
+// binnedSum is the reproducible sum of vals (internal/reprosum): the
+// same bits as folding them one by one into a reprosum.Sum on any arm.
+func binnedSum(vals []float64) float64 {
+	var s reprosum.Sum
+	for _, v := range vals {
+		s.Add(v)
+	}
+	return s.Float64()
+}
+
+// averageAggregator tracks running sum and count for streaming mean:
+// the binned reproducible sum (internal/reprosum) over the exact integer
+// n, so the mean is bit-identical on every arm, worker count and shard
+// split. frozenSum mirrors the final sum so Components() survives
+// Finalize's reset; the buffered path stamps it via aggregateValues.
 type averageAggregator struct {
-	sum       float64
+	sum       reprosum.Sum
 	n         int64
 	frozenSum float64
 }
@@ -260,10 +273,7 @@ func (a *averageAggregator) Aggregate(records []*Record, field string) (float64,
 }
 
 func (a *averageAggregator) aggregateValues(vals []float64) (float64, error) {
-	sum := 0.0
-	for _, v := range vals {
-		sum += v
-	}
+	sum := binnedSum(vals)
 	a.frozenSum = sum
 	if len(vals) == 0 {
 		// The mean of no value is undefined: NaN (JSON null), never 0.

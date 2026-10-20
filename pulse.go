@@ -340,11 +340,15 @@ type Options struct {
 	// point spawning more workers than shards.
 	//
 	// Order semantics: partials merge in shard insertion order (zip
-	// central-directory order). Associative+commutative aggregators
-	// (count, sum, min, max, null_count, frequency, distinct_count,
-	// mode) produce byte-equal results vs the serial path; Welford
-	// mean / variance / stddev drift within ULP on well-conditioned
-	// inputs (parallel formula, see processing.MergeOnline docstrings).
+	// central-directory order). Integer and sentinel aggregators (count,
+	// min, max, null_count, frequency, distinct_count, mode) and the
+	// binned reproducible sums — AGG_SUM, AGG_AVERAGE (that sum over an
+	// exact integer n), AGG_RATIO, the weighted sums and AGG_COUNT, the
+	// sum_weights / n_eff floor and ATTR_FORMULA total() — are
+	// bit-identical to the serial path under any worker count or shard
+	// split. Welford mean / variance / stddev (AGG_WELFORD, AGG_VARIANCE,
+	// AGG_STDDEV, the shape moments) merge by Chan-Welford and agree
+	// within ULP on well-conditioned inputs, not bit for bit.
 	// The arm decodes only the fields the request reads, as the serial
 	// arm does. CLI: the global --shard-workers flag.
 	ShardWorkers int

@@ -62,9 +62,9 @@ func fourShardScoreCohort(t *testing.T) (*fs.Config, *encoding.Schema, [][]uint6
 // reduction across 4 shards with 2/4 workers produces:
 //
 //   - byte-equal results vs serial for COUNT/SUM/MIN/MAX/NULL_COUNT/
-//     FREQUENCY (associative+commutative aggregators).
-//   - within-tolerance (~1 ULP) for AGG_AVERAGE (Welford parallel
-//     merge introduces float drift on the order of float64 epsilon).
+//     FREQUENCY/AVERAGE (order-free: integer counts, sentinel scans,
+//     and the binned reproducible sum — AVERAGE is that sum over an
+//     exact integer n).
 func TestShardArchiveProcessParallel(t *testing.T) {
 	cfg, _, _ := fourShardScoreCohort(t)
 
@@ -72,15 +72,14 @@ func TestShardArchiveProcessParallel(t *testing.T) {
 		label string
 		agg   *types.Aggregation
 		want  float64
-		ulp   bool
 	}{
-		{"count", &types.Aggregation{Type: types.AGG_COUNT, Field: "score", Label: "v"}, 16, false},
-		{"sum", &types.Aggregation{Type: types.AGG_SUM, Field: "score", Label: "v"}, 1360, false},
-		{"min", &types.Aggregation{Type: types.AGG_MIN, Field: "score", Label: "v"}, 10, false},
-		{"max", &types.Aggregation{Type: types.AGG_MAX, Field: "score", Label: "v"}, 160, false},
-		{"null_count", &types.Aggregation{Type: types.AGG_NULL_COUNT, Field: "score", Label: "v"}, 0, false},
-		{"frequency", &types.Aggregation{Type: types.AGG_MODE_COUNT, Field: "score", Label: "v"}, 1, false},
-		{"average", &types.Aggregation{Type: types.AGG_AVERAGE, Field: "score", Label: "v"}, 85, true},
+		{"count", &types.Aggregation{Type: types.AGG_COUNT, Field: "score", Label: "v"}, 16},
+		{"sum", &types.Aggregation{Type: types.AGG_SUM, Field: "score", Label: "v"}, 1360},
+		{"min", &types.Aggregation{Type: types.AGG_MIN, Field: "score", Label: "v"}, 10},
+		{"max", &types.Aggregation{Type: types.AGG_MAX, Field: "score", Label: "v"}, 160},
+		{"null_count", &types.Aggregation{Type: types.AGG_NULL_COUNT, Field: "score", Label: "v"}, 0},
+		{"frequency", &types.Aggregation{Type: types.AGG_MODE_COUNT, Field: "score", Label: "v"}, 1},
+		{"average", &types.Aggregation{Type: types.AGG_AVERAGE, Field: "score", Label: "v"}, 85},
 	}
 
 	for _, c := range cases {
@@ -118,26 +117,14 @@ func TestShardArchiveProcessParallel(t *testing.T) {
 			p2, _ := resp2.Data[0]["v"].(float64)
 			p4, _ := resp4.Data[0]["v"].(float64)
 
-			if c.ulp {
-				if math.Abs(s-c.want) > 1e-9 {
-					t.Errorf("serial=%v expected=%v", s, c.want)
-				}
-				if math.Abs(p2-s) > 1e-9 {
-					t.Errorf("parallel(2) drift > 1 ULP: serial=%v parallel=%v", s, p2)
-				}
-				if math.Abs(p4-s) > 1e-9 {
-					t.Errorf("parallel(4) drift > 1 ULP: serial=%v parallel=%v", s, p4)
-				}
-			} else {
-				if s != c.want {
-					t.Errorf("serial=%v expected=%v", s, c.want)
-				}
-				if p2 != s {
-					t.Errorf("parallel(2) NOT byte-equal: serial=%v parallel=%v", s, p2)
-				}
-				if p4 != s {
-					t.Errorf("parallel(4) NOT byte-equal: serial=%v parallel=%v", s, p4)
-				}
+			if s != c.want {
+				t.Errorf("serial=%v expected=%v", s, c.want)
+			}
+			if p2 != s {
+				t.Errorf("parallel(2) NOT byte-equal: serial=%v parallel=%v", s, p2)
+			}
+			if p4 != s {
+				t.Errorf("parallel(4) NOT byte-equal: serial=%v parallel=%v", s, p4)
 			}
 			// Metadata.TotalRows must aggregate identically across paths.
 			if respSerial.Metadata.TotalRows != 16 {
@@ -256,10 +243,12 @@ func TestShardArchiveProcessParallel_TwoPassZScore(t *testing.T) {
 	if math.Abs(sA) > 1e-9 {
 		t.Errorf("sum_z (archive) = %v, want ~0", sA)
 	}
-	if math.Abs(sA-sB) > 1e-9 {
+	// The binned sums are order-free: archive and concat agree bit
+	// for bit once the per-row z values do.
+	if math.Float64bits(sA) != math.Float64bits(sB) {
 		t.Errorf("sum_z: archive=%v concat=%v", sA, sB)
 	}
-	if math.Abs(aA-aB) > 1e-9 {
+	if math.Float64bits(aA) != math.Float64bits(aB) {
 		t.Errorf("avg_z: archive=%v concat=%v", aA, aB)
 	}
 }

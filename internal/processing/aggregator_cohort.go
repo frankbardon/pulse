@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -77,7 +78,9 @@ type ratioParams struct {
 }
 
 // ratioAggregator emits sum(num) / sum(den) at finalize. Both sums are
-// independent + associative, so MergeOnline is trivial. Null on either
+// binned reproducible accumulators (internal/reprosum) — the same sums
+// AGG_SUM reports, bit for bit, on every arm, worker count and shard
+// split — so MergeOnline merges them exactly. Null on either
 // field skips that row's contribution to BOTH sums to keep the ratio
 // honest. Denominator-zero at finalize emits NaN (consistent with
 // IEEE-754 0/0); callers can detect via math.IsNaN. On the JSON wire the
@@ -98,7 +101,7 @@ type ratioParams struct {
 // to match the scalar return path byte-for-byte.
 type ratioAggregator struct {
 	numField, denField string
-	num, den           float64
+	num, den           reprosum.Sum
 	// weight is the applied slot weight; nil on an unweighted slot.
 	weight *types.WeightSpec
 
@@ -137,37 +140,36 @@ func newRatioAggregator(agg *types.Aggregation, schema *encoding.Schema) (Aggreg
 	return a, nil
 }
 
-// pair returns the row's (numerator, denominator) contribution: both
+// add folds the row's (numerator, denominator) contribution: both
 // fields present (a null on either skips the row), times the row's
-// weight on a weighted slot (an invalid or zero weight skips it).
-func (a *ratioAggregator) pair(r *Record) (n, d float64, ok bool) {
+// weight on a weighted slot (an invalid or zero weight skips it; the
+// product is rounded before the deposit, reprosum's FMA barrier).
+func (a *ratioAggregator) add(r *Record) {
 	n, okN := r.NumericValue(a.numField)
 	if !okN {
-		return 0, 0, false
+		return
 	}
 	d, okD := r.NumericValue(a.denField)
 	if !okD {
-		return 0, 0, false
+		return
 	}
 	if a.weight != nil {
 		w, ok := validRowWeight(r, a.weight)
 		if !ok {
-			return 0, 0, false
+			return
 		}
-		return w * n, w * d, true
+		a.num.AddWeighted(w, n)
+		a.den.AddWeighted(w, d)
+		return
 	}
-	return n, d, true
+	a.num.Add(n)
+	a.den.Add(d)
 }
 
 func (a *ratioAggregator) Aggregate(records []*Record, field string) (float64, error) {
-	a.num, a.den = 0, 0
+	a.num, a.den = reprosum.Sum{}, reprosum.Sum{}
 	for _, r := range records {
-		n, d, ok := a.pair(r)
-		if !ok {
-			continue
-		}
-		a.num += n
-		a.den += d
+		a.add(r)
 	}
 	out, err := a.divide()
 	a.freeze(out)
@@ -175,27 +177,23 @@ func (a *ratioAggregator) Aggregate(records []*Record, field string) (float64, e
 }
 
 func (a *ratioAggregator) UpdateRow(r *Record, field string) error {
-	n, d, ok := a.pair(r)
-	if !ok {
-		return nil
-	}
-	a.num += n
-	a.den += d
+	a.add(r)
 	return nil
 }
 
 func (a *ratioAggregator) Finalize() (float64, error) {
 	out, err := a.divide()
 	a.freeze(out)
-	a.num, a.den = 0, 0
+	a.num, a.den = reprosum.Sum{}, reprosum.Sum{}
 	return out, err
 }
 
 func (a *ratioAggregator) divide() (float64, error) {
-	if a.den == 0 {
+	den := a.den.Float64()
+	if den == 0 {
 		return math.NaN(), nil
 	}
-	return a.num / a.den, nil
+	return a.num.Float64() / den, nil
 }
 
 // freeze stamps the components mirrors from the live (num, den) state
@@ -207,8 +205,8 @@ func (a *ratioAggregator) divide() (float64, error) {
 // re-running the division.
 func (a *ratioAggregator) freeze(scalar float64) {
 	a.frozenHasResult = true
-	a.frozenNum = a.num
-	a.frozenDen = a.den
+	a.frozenNum = a.num.Float64()
+	a.frozenDen = a.den.Float64()
 	a.frozenRatio = scalar
 }
 
@@ -250,8 +248,8 @@ func (a *ratioAggregator) MergeOnline(other OnlineAggregator) error {
 	if !ok {
 		return mergeTypeMismatch("AGG_RATIO")
 	}
-	a.num += b.num
-	a.den += b.den
+	a.num.Merge(&b.num)
+	a.den.Merge(&b.den)
 	return nil
 }
 

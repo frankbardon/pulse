@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -18,18 +19,18 @@ import (
 // (extensions_parity_test.go): score = r%50 + 0.5, null when r%7 == 3;
 // qty = r%13; region = r%4.
 
-// ftScoreSum is the sequential float64 Σ op(score) over fixture rows
-// [0, n) that keep(qty), null scores skipped — the reference a
-// total() must equal bit for bit.
+// ftScoreSum is the binned reproducible Σ op(score) (internal/reprosum)
+// over fixture rows [0, n) that keep(qty), null scores skipped — the
+// reference a total() must equal bit for bit on every arm.
 func ftScoreSum(n int, keep func(qty int) bool, op func(float64) float64) float64 {
-	var s float64
+	var s reprosum.Sum
 	for r := 0; r < n; r++ {
 		if r%7 == 3 || !keep(r%13) {
 			continue
 		}
-		s += op(float64(r%50) + 0.5)
+		s.Add(op(float64(r%50) + 0.5))
 	}
-	return s
+	return s.Float64()
 }
 
 func ftKeep(q int) bool { return q >= 2 }
@@ -53,7 +54,7 @@ func ftBits(t *testing.T, what string, got any, want float64) {
 	}
 }
 
-// TestFormulaTotal_Arms: total(score / 3) equals the sequential sum over
+// TestFormulaTotal_Arms: total(score / 3) equals the binned sum over
 // the post-filter rows on every arm — streaming two-pass, buffered, the
 // shard archive (sequential: not mergeable) and the >threshold single
 // file (parallel decode would fold partition-local totals; the merge

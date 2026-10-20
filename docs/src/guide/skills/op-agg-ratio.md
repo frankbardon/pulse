@@ -54,6 +54,7 @@ Attribute `contrib` per row; `params {"numerator_field":"contrib","denominator_f
 ## Gotchas
 
 - A row null on either column skips both sums; `n` counts the rest.
+- Both sums are binned reproducible sums: the same bits on every worker count and shard split, equal to `AGG_SUM`'s.
 - `weight` must name a cohort field, not a label.
 
 ## See

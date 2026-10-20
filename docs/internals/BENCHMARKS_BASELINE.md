@@ -99,6 +99,12 @@ workers on this cohort as the per-worker partials and the merge take a
 larger share of a sub-200 ms run; the peak heap at 8 workers is the
 per-shard partials and read windows, not the cohort.
 
+After the binned-sum switch (U51 E2-S3; two alternating runs of the
+pre-switch and post-switch binaries, `-benchtime=5x`): archive 417 → 447
+ms at 1 worker and 108–110 → 114–116 ms at 8 (~1.06×); single file 399–400
+→ 425–426 ms at 1 worker and 121–123 → 121–147 ms at 8. Peak heap
+unchanged.
+
 ## CoMoment benchmarks
 
 `BenchmarkCoMomentAdd` folds a fixed weighted sample (about a fifth of
@@ -153,3 +159,30 @@ end-to-end figure. The grouped raw scan prices the 56-byte state against
 an 8-byte float64 (45 MB versus 6.4 MB of accumulators at 800k groups).
 
 Command: `go test -run='^$' -bench=ReproSum -count=3 ./internal/reprosum/ ./internal/processing/`
+
+Since U51 E2-S3 `AGG_SUM` itself is binned: the proxy's `naive` arm is a
+local copy of the pre-switch `+=` aggregator and `binned` the real
+`sumAggregator` (14.0 vs 16.8 ns/row, `-benchtime=20x`, 1.2×).
+
+### Grouped engine path (U51 E2-S3)
+
+`BenchmarkGroupedSumScale` (`internal/service/grouped_sum_bench_test.go`)
+is the stop-rule measurement for switching GROUPED sums: `AGG_SUM` +
+`AGG_AVERAGE` grouped by `GROUP_ROUNDED` (interval 1) over a u32 key with
+100k or 800k distinct values, 4M rows, non-dyadic mixed-magnitude
+measures, through the real serial streaming-grouped path
+(`processStreamingGrouped`; this request does not fan out, so the
+`decode=8` rows run the same arm). Three alternating runs of the
+pre-switch and post-switch test binaries, `-benchtime=3x`, Apple M1 Max:
+
+| Groups | naive (pre-switch) | binned | ratio (medians) | peak heap |
+|---|---|---|---|---|
+| 100k | 2.70 / 2.75 / 3.20 s | 3.38 / 3.96 / 4.93 s | 1.44× | 204–220 → 230 MB |
+| 800k | 9.26 / 10.11 / 10.20 s | 9.83 / 9.88 / 10.59 s | 1.04× | 1560–1754 → 1832 MB |
+
+Allocated bytes per run rise 278 → 289 MB (100k) and 2071 → 2154 MB
+(800k): two 56-byte states per group in place of two float64s. The
+engine's per-row cost (record decode, map-keyed field lookups, the
+group map) dominates; under the owner's 2× stop rule the switch
+proceeds. Command:
+`PULSE_BENCH_DIR=<dir> go test -run='^$' -bench=GroupedSumScale -benchmem -count=3 -benchtime=3x -timeout=0 ./internal/service/`.

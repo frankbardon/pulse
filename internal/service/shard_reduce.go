@@ -27,10 +27,11 @@ import (
 // The orchestrator opens the archive once, fans out per-shard
 // processing across a bounded worker pool, then merges partial states
 // in shard insertion order (zip central-directory order). Order
-// preservation matters for two reasons: associative+commutative
-// aggregators (count, sum, min, max, null_count, frequency,
-// distinct_count, mode) produce byte-equal results vs the serial path
-// when partials are folded in any order, but the Welford-mean parallel
+// preservation matters for two reasons: order-free aggregators (count,
+// min, max, null_count, frequency, distinct_count, mode, and the binned
+// reproducible sums — AGG_SUM, AGG_AVERAGE, AGG_RATIO, the weighted
+// sums, the sum_weights floor) produce byte-equal results vs the serial
+// path when partials are folded in any order, but the Welford parallel
 // merge introduces ULP drift that is sensitive to merge order;
 // shard insertion order is the documented, reproducible choice.
 //
@@ -167,8 +168,9 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	ei.Lap(observe.PhaseScan)
 
 	// Merge partials in shard insertion order. The order matters for
-	// Welford-mean ULP determinism; for purely associative+commutative
-	// aggregators the answer is identical regardless of merge order.
+	// Welford ULP determinism; for order-free aggregators (counts,
+	// sentinels, binned sums) the answer is identical regardless of
+	// merge order.
 	merged, err := mergeShardPartials(req, schema, partials)
 	if err != nil {
 		return nil, err

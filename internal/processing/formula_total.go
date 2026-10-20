@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprenv"
+	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
@@ -18,7 +19,8 @@ import (
 // ATTR_ZSCORE two-pass scheme: the formula is a TwoPassAttribute whose
 // PrePass evaluates each DISTINCT total() argument (keyed by its
 // canonical printed form, totalcall.Args) against the record and folds
-// it into a plain sequential float64 sum, Finalize publishes the sums,
+// it into a binned reproducible sum (internal/reprosum: bit-identical
+// under any row order or partition), Finalize publishes the sums,
 // and Row evaluates the formula with every total() call patched to read
 // its published sum.
 //
@@ -35,7 +37,7 @@ import (
 //     scored. A probability weight is refused PULSE_WEIGHT_UNSUPPORTED
 //     by the resolver (predict and runtime alike): a total that scales
 //     with arbitrary weights is a trap. An unweighted slot folds the
-//     plain sequential sum, byte-identical to before; a row-local
+//     plain binned sum of the argument; a row-local
 //     formula (no total()) reads no weight and is reported skipped;
 //   - a row whose argument is null is skipped: the argument evaluates
 //     to nil, or raises only because a referenced field is null;
@@ -55,7 +57,7 @@ type formulaTotals struct {
 	keys   []string       // distinct argument keys, walk order
 	index  map[string]int // key -> position in keys
 	args   []*exprProgram // per key: the argument's row-level program
-	sums   []float64
+	sums   []reprosum.Sum
 	counts []int
 	// Locked at Finalize: per key, the sum, or NaN with no row.
 	values    []float64
@@ -83,7 +85,7 @@ func (a *formulaAttribute) prepareTotals() (*exprProgram, error) {
 	t.keys = totalcall.Args(a.expression)
 	t.index = totalcall.Index(t.keys)
 	t.args = make([]*exprProgram, len(t.keys))
-	t.sums = make([]float64, len(t.keys))
+	t.sums = make([]reprosum.Sum, len(t.keys))
 	t.counts = make([]int, len(t.keys))
 	argOpts := a.exts.exprOptionsWithModels(a.models, a.zone)
 	for i, key := range t.keys {
@@ -144,7 +146,7 @@ func (a *formulaTotalAttribute) PrePass(r *Record, _ string) error {
 			}
 			v = float64(w * v) // FMA barrier: identical on every arch
 		}
-		t.sums[i] += v
+		t.sums[i].Add(v)
 		t.counts[i]++
 	}
 	return nil
@@ -158,12 +160,12 @@ func (a *formulaTotalAttribute) Finalize() error {
 	}
 	t := a.totals
 	t.values = make([]float64, len(t.sums))
-	for i, s := range t.sums {
+	for i := range t.sums {
 		if t.counts[i] == 0 {
 			t.values[i] = math.NaN()
 			continue
 		}
-		t.values[i] = s
+		t.values[i] = t.sums[i].Float64()
 	}
 	t.finalized = true
 	return nil

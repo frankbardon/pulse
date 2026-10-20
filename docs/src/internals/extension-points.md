@@ -367,8 +367,15 @@ partials in a deterministic order with
 `Rich` and `ComponentsFunc` once, on the merged receiver. `other` is
 the embedder's own value built by the same factory from the same spec,
 so `other.(*myAgg)` succeeds. Merge must be associative; how the
-cohort is partitioned depends on the worker count, so a floating-point
-fold may differ from the serial answer in the last ULP. The
+cohort is partitioned depends on the worker count, so an extension's
+floating-point `+=` fold may differ from the serial answer in the last
+ULP. (The built-in float sums do not: `AGG_SUM`, `AGG_AVERAGE`,
+`AGG_RATIO`, the weighted sums, the `sum_weights` floor and `total()`
+accumulate in a binned reproducible sum, bit-identical under every
+worker count and shard split; the Welford moments stay within ULP. The
+kernel is internal — an extension that needs the same guarantee keeps
+an order-free state, such as exact integers or per-block partials
+merged in a fixed order.) The
 declaration, not the method set, routes the request: an aggregator
 that implements `Merge` but omits `Mergeable` runs serially (and a
 chain refuses it). Probe-validation refuses `Mergeable` with

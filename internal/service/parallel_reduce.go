@@ -25,10 +25,10 @@ import (
 // parallelDecodeMmap's worker group boundary completes, the orchestrator
 // folds the partials in worker-index order via mergeShardPartials and
 // finalises through finalizeMergedPartial — both reused verbatim from
-// shard_reduce.go, so byte-equal vs serial holds for every
-// associative+commutative aggregator and ULP-bounded equivalence holds
-// for the Welford-Pébaÿ merge (the same guarantee shard_reduce already
-// ships).
+// shard_reduce.go, so byte-equal vs serial holds for every order-free
+// aggregator (integer counts, sentinel scans, the binned reproducible
+// sums of internal/reprosum) and ULP-bounded equivalence holds for the
+// Welford-Pébaÿ merge (the same guarantee shard_reduce already ships).
 
 // reduceParallelBuffered is the per-segment partial-state + merge
 // orchestrator. The caller guarantees:
@@ -48,8 +48,8 @@ import (
 // contiguous record ranges per worker), then finalizeMergedPartial
 // emits the Response.
 //
-// Worker-index iteration order matters for the Welford-Pébaÿ AGG_MEAN /
-// AGG_STDDEV / AGG_VARIANCE merge: Chan-Welford is associative but not
+// Worker-index iteration order matters for the Welford-Pébaÿ AGG_WELFORD /
+// AGG_STDDEV / AGG_VARIANCE merge (the binned sums are order-free): Chan-Welford is associative but not
 // strictly commutative when partition sizes differ, so floating-point
 // rounding can drift by 1 ULP if merge order varies between runs. We
 // pin the order to worker index (== cohort byte order) so the same
