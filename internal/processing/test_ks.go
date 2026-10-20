@@ -21,10 +21,11 @@ import (
 // simply collects values per group during UpdateRow.
 //
 // Frequency-weighted (ClassFrequencyOnly), each row stands for w
-// identical rows: the ECDFs step by Σw (ksTwoSampleDW) and the
-// asymptotic p reads the expanded sizes n₁ = Σw₁, n₂ = Σw₂ — exactly
-// the unweighted test on the expanded rows. Details keep the raw `n`
-// and add `sum_weights` shaped like it.
+// identical rows: the ECDFs step by Σw (ksTwoSampleDW) and the p
+// (ksTwoSampleP, R's ks.test) reads the expanded sizes n₁ = Σw₁,
+// n₂ = Σw₂ and the expansion's tie runs — exactly the unweighted test
+// on the expanded rows, exact when Σw₁·Σw₂ < 10000. Details keep the
+// raw `n` and add `sum_weights` shaped like it.
 type ksRow struct {
 	spec    *types.Test
 	schema  *encoding.Schema
@@ -117,11 +118,7 @@ func (k *ksRow) Finalize() (*types.TestResult, error) {
 	a, wa := sortedWeighted(sa)
 	b, wb := sortedWeighted(sb)
 	D := ksTwoSampleDW(a, wa, b, wb)
-	// Σw per group (the row counts unweighted).
-	n1 := sa.sumW
-	n2 := sb.sumW
-	en := math.Sqrt(n1 * n2 / (n1 + n2))
-	p := kolmogorovSurvival((en + 0.12 + 0.11/en) * D)
+	p := ksTwoSampleP(a, wa, b, wb, D)
 	res := &types.TestResult{
 		Label:      testLabel(k.spec),
 		Type:       types.TEST_KS,

@@ -1057,8 +1057,9 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"kinds, partitioning the inferential FACET surface by host arm (CHISQ for categorical, KS for numeric). The viz " +
 				"developer renders the SCALAR statistic as a distributional-shift indicator near the facet header. Math: " +
 				"D = sup_x |F_subset(x) - F_pop(x)|; en = sqrt(n_subset * n_pop / (n_subset + n_pop)); " +
-				"p_value = kolmogorovSurvival((en + 0.12 + 0.11/en) * D) — the same Kolmogorov-survival helper backing TEST_KS " +
-				"(processing/test_stat.go), so the overlay and the row-test surface produce identical p-values for the same D + N. " +
+				"p_value = kolmogorovSurvival((en + 0.12 + 0.11/en) * D) — Stephens' corrected asymptotic; TEST_KS instead reports " +
+				"R ks.test's p (exact when n1*n2 < 10000), which needs raw values the population view does not keep, so the two " +
+				"surfaces differ for the same D + N. " +
 				"NUMERIC ARM ONLY: KS is undefined on categorical distributions (no continuous CDF to compare). A categorical host " +
 				"(no numeric payload) fires PULSE_OVERLAY_SCOPE_UNSUPPORTED at runtime; the per-kind validator " +
 				"rejects categorical hosts at predict time so the runtime arm is belt-and-braces. Distinct from CHISQ_VS_POP which " +

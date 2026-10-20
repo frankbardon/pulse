@@ -198,7 +198,6 @@ from fractions import Fraction
 
 import numpy as np
 import scipy
-import scipy.special
 import scipy.stats
 import sklearn
 import sklearn.linear_model
@@ -1139,11 +1138,11 @@ def exact_closed_form(case, rows, xr):
       "conditional") on the table in sorted row / column order, as Pulse
       reports it and as R's fisher.test estimates it (U36 E1-S4; R's
       refined value replaces it, test_reference.R).
-    - ks: scipy ks_2samp's D (ties handled at value boundaries, as R);
-      Pulse's p is the Stephens-corrected Kolmogorov asymptotic,
-      Q_KS((√en + 0.12 + 0.11/√en)·D) with en = n₁n₂/(n₁+n₂) on the
-      expanded sizes — scipy.special.kolmogorov — not R's uncorrected
-      asymptotic, so R pins D only.
+    - ks: scipy ks_2samp's D (ties handled at value boundaries, as R).
+      The p is ks.test's (U36 E1-S6): exact and conditional on the
+      expansion's tie pattern (Σw₁·Σw₂ < 10000), which scipy's exact
+      method — the untied distribution — does not compute, so the p is
+      R-only (test_reference.R).
     - brown_forsythe: scipy levene(center="median") on the expansion =
       one-way ANOVA on |x − group median|."""
     out = {}
@@ -1175,8 +1174,8 @@ def exact_closed_form(case, rows, xr):
             out[f"sum_weights[{g}]"] = float(gw.sum())
             sizes.append(float(gw.sum()))
         D = float(scipy.stats.ks_2samp(groups[0], groups[1], method="asymp").statistic)
-        en = math.sqrt(sizes[0] * sizes[1] / (sizes[0] + sizes[1]))
-        out.update(statistic=D, p_value=float(scipy.special.kolmogorov((en + 0.12 + 0.11 / en) * D)))
+        assert sizes[0] * sizes[1] < 10000, "fixture must stay on ks.test's exact branch"
+        out.update(statistic=D)
         return out
     if case == "brown_forsythe":
         groups, meds, devs = [], [], []
@@ -1276,11 +1275,12 @@ R_FIGURES.update({
     # p cross-checks it; z is R's only.
     "kendall": ("kendall", {"tau": "statistic", "z": "z", "p_value": "p_value"}),
     # R pins Fisher's p and its conditional MLE odds ratio (refined past
-    # fisher.test's uniroot tolerance, test_reference.R); ks.test's p is
-    # the uncorrected asymptotic, so R pins KS's D only; Brown-Forsythe
-    # is car::leveneTest's own anova(lm(|x − median| ~ k)) in base R.
+    # fisher.test's uniroot tolerance, test_reference.R); KS's D is
+    # cross-checked by scipy, its p (ks.test's exact distribution
+    # conditional on ties, U36 E1-S6) is R-only; Brown-Forsythe is
+    # car::leveneTest's own anova(lm(|x − median| ~ k)) in base R.
     "fisher": ("fisher", {"p_value": "p_value", "estimate": "statistic"}),
-    "ks": ("ks", {"statistic": "statistic"}),
+    "ks": ("ks", {"statistic": "statistic", "p_value": "p_value"}),
     "brown_forsythe": ("brown_forsythe", {"statistic": "statistic", "df_between": "df",
                                           "df_within": "df_within", "p_value": "p_value",
                                           "ss_between": "ss_between", "ss_within": "ss_within",
@@ -1375,7 +1375,8 @@ def test_cases():
                     if fname in figs:
                         assert close(figs[fname], rv, 1e-9), (case, fname, figs[fname], rv)
                     else:
-                        assert case == "kendall", (case, fname)  # R-only z
+                        # R-only: Kendall's z; KS's tie-conditional exact p.
+                        assert (case, fname) in (("kendall", "z"), ("ks", "p_value")), (case, fname)
                     figs[fname] = rv
                 if case == "fisher":
                     figs["odds_ratio"] = figs["statistic"]  # details.odds_ratio echoes it

@@ -397,6 +397,10 @@ D is the largest vertical gap between the two groups' cumulative distributions, 
 
 #### `p_value`
 
+**Caveats:**
+
+- This is R's ks.test p: exact when the two group sizes multiply to under 10000 (exact given the tied values, if any), otherwise the large-sample Kolmogorov approximation, which runs high (conservative) when values tie.
+
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
 <a id="op-test_mann_whitney_u"></a>

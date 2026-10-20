@@ -33,13 +33,16 @@
 #     cor(seq_along(y), y, method = "kendall") for tau (tau-b, which is
 #     Kendall::MannKendall's S / D), S as the pair-sign sum and var_s
 #     as the tie-adjusted n(n-1)(2n+5)/18 formula.
-#   * test_ks.json — TEST_KS: D = ks.test(a, b)$statistic. Pulse's p is
-#     Stephens' small-sample correction of the limiting distribution
-#     (Stephens 1970; Numerical Recipes 14.3), not ks.test's exact or
-#     raw-asymptotic p, so the oracle p is base R's limiting Kolmogorov
-#     survival C_pkolmogorov_two_limit at lambda = (en + 0.12 + 0.11 /
-#     en) * D, en = sqrt(n1 n2 / (n1 + n2)). ks.test's exact and
-#     asymptotic p are kept beside it (r_p_exact, r_p_asymptotic).
+#   * test_ks.json — TEST_KS: D = ks.test(a, b)$statistic and p =
+#     ks.test(a, b)$p.value at its defaults (U36 E1-S6): exact when
+#     n1 * n2 < 10000 (psmirnov's exact distribution, conditional on the
+#     ties when there are any, R >= 4.3), otherwise the limiting
+#     Kolmogorov distribution C_pkolmogorov_two_limit(sqrt(n1 n2 / (n1 +
+#     n2)) * D, tol = 1e-6). `exact` records which branch ran;
+#     r_p_exact / r_p_asymptotic keep both forced branches beside it.
+#     The asymptotic branch is pinned to R's own computation, tol = 1e-6
+#     truncation included (for sqrt(en) * D < 1 the alternative series
+#     keeps one term), which Pulse ports verbatim — so 1e-10 holds.
 #   * test_kendall_tau.json — TEST_KENDALL_TAU: cor.test(x, y, method =
 #     "kendall") at its defaults (exact when untied and n < 50, else the
 #     uncorrected normal approximation); tau-b, z and p. Most cases tie.
@@ -255,18 +258,31 @@ write_golden("test_trend", c(to_meta(
 ), list(cases = tr_cases)))
 
 # ------------------------------------------------------------------ TEST_KS
-kolm_limit <- function(l) .Call(stats:::C_pkolmogorov_two_limit, l, FALSE, 1e-300)
 ks_case <- function(name, a, b) {
-  d <- unname(suppressWarnings(ks.test(a, b))$statistic)
-  n1 <- length(a); n2 <- length(b)
-  en <- sqrt(n1 * n2 / (n1 + n2))
-  list(
+  kt <- suppressWarnings(ks.test(a, b))
+  d <- unname(kt$statistic)
+  ties <- length(unique(c(a, b))) < length(a) + length(b)
+  out <- list(
     name = name, a = to_vec(a), b = to_vec(b),
     statistic = num(d),
-    p_value = num(kolm_limit((en + 0.12 + 0.11 / en) * d)),
+    p_value = num(kt$p.value),
+    exact = kt$exact,
+    ties = ties,
     r_p_exact = num(suppressWarnings(ks.test(a, b, exact = TRUE))$p.value),
     r_p_asymptotic = num(suppressWarnings(ks.test(a, b, exact = FALSE))$p.value)
   )
+  # Refinement (the U08 pattern): ks.test's D is a cumsum of +-1/n terms,
+  # so at full separation it can land one ulp above 1, where psmirnov
+  # returns P(D >= q) = 0 for q > 1 before the exact recursion runs. The
+  # true D is 1 (Pulse computes it exactly), so the pinned p is psmirnov
+  # at D = 1 (2 / choose(n1 + n2, n1) when n1 = n2); ks.test's own value
+  # is kept beside as r_p_value.
+  if (d > 1) {
+    out$p_value <- num(stats:::psmirnov(1, sizes = c(length(a), length(b)), z = if (ties) c(a, b),
+                                        exact = kt$exact, lower.tail = FALSE))
+    out$r_p_value <- num(kt$p.value)
+  }
+  out
 }
 set.seed(36204)
 ks_cases <- list(
@@ -276,10 +292,34 @@ ks_cases <- list(
   ks_case("small_unequal", c(1, 2, 2, 3, 5), c(2, 2, 4, 4, 6, 7)),
   ks_case("similar_samples", round(runif(60), 3), round(runif(55), 3))
 )
+# U36 E1-S6: one case per regime of ks.test's p.
+set.seed(36206)
+ks_cases <- c(ks_cases, list(
+  ks_case("small_untied_4x5", c(0.1, 0.5, 0.9, 1.3), c(0.7, 1.1, 1.5, 1.9, 2.3)),
+  ks_case("small_heavy_ties_6x7", c(1, 1, 2, 2, 2, 3), c(2, 3, 3, 3, 4, 4, 4)),
+  ks_case("separated_20x20_tiny_p", round(rnorm(20, 0, 1), 3) - 10, round(rnorm(20, 0, 1), 3) + 10),
+  ks_case("unequal_8x60_ties", round(rnorm(8, 0.5, 1), 1), round(rnorm(60, 0, 1), 1)),
+  # n1 * n2 = 9999 < 10000: the last exact size.
+  ks_case("threshold_exact_99x101", round(rnorm(99, 0, 1), 2), round(rnorm(101, 0.3, 1), 2)),
+  # n1 * n2 = 10000: the first asymptotic size.
+  ks_case("threshold_asymptotic_100x100", round(rnorm(100, 0, 1), 2), round(rnorm(100, 0.3, 1), 2)),
+  # asymptotic, sqrt(en) * D >= 1 (the standard series)
+  ks_case("large_shifted_150x130", round(rnorm(150, 0, 1), 3), round(rnorm(130, 0.5, 1), 3)),
+  # asymptotic, sqrt(en) * D < 1 (the alternative series, one term at tol 1e-6)
+  ks_case("large_similar_160x140_ties", round(rnorm(160, 0, 1), 1), round(rnorm(140, 0, 1), 1))
+))
+# asymptotic, sqrt(en) * D = 0.987: just below 1, where ks.test's tol 1e-6
+# truncation shows — its p sits 1.0e-4 relative above the untruncated
+# limit (0.2840439...). Pulse ports the truncation, so 1e-10 holds
+# against ks.test's own figure.
+set.seed(36207)
+ks_cases <- c(ks_cases, list(
+  ks_case("large_tol_truncated_120x110", round(rnorm(120, 0, 1), 2), round(rnorm(110, 0.1, 1), 2))
+))
 write_golden("test_ks", c(to_meta(
   "TEST_KS",
-  "ks.test(a, b)$statistic; C_pkolmogorov_two_limit at Stephens' corrected lambda",
-  "p_value is the Stephens-corrected asymptotic Pulse documents; r_p_exact / r_p_asymptotic are ks.test's own."
+  "ks.test(a, b) at its defaults: statistic and p.value",
+  "p_value is ks.test's: exact (conditional on ties) when n1 * n2 < 10000, else the limiting distribution at tol 1e-6; r_p_exact / r_p_asymptotic force each branch."
 ), list(cases = ks_cases)))
 
 # --------------------------------------------------------- TEST_KENDALL_TAU

@@ -204,10 +204,12 @@ stopifnot(abs(1 / fest - 1 / ft$estimate) <= 2 * .Machine$double.eps^0.25 ||
             abs(fest - ft$estimate) <= 2 * .Machine$double.eps^0.25)
 out("fisher", "estimate", fest)
 
-# TEST_KS: x by h; D only (Pulse's p is the Stephens-corrected
-# asymptotic, not ks.test's).
-ks <- suppressWarnings(ks.test(xs$x[xs$h == "a"], xs$x[xs$h == "b"], exact = FALSE))
+# TEST_KS: x by h; D and p at ks.test's defaults (U36 E1-S6): exact,
+# conditional on the expansion's ties, since Σw_a·Σw_b < 10000.
+ks <- suppressWarnings(ks.test(xs$x[xs$h == "a"], xs$x[xs$h == "b"]))
+stopifnot(isTRUE(ks$exact))
 out("ks", "statistic", ks$statistic)
+out("ks", "p_value", ks$p.value)
 
 # TEST_BROWN_FORSYTHE: x by k — car::leveneTest(center = median)'s own
 # computation, anova(lm(|x − group median| ~ group)), in base R (no car

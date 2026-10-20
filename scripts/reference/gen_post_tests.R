@@ -11,7 +11,7 @@
 # ("statistic", "p_value", "df", "details.<key>[.<index>.<key>]") to the
 # value. Sourced at the end of gen_reference.R after gen_test_outputs.R
 # (`make reference`), reusing out_dir, write_golden(), num(), to_meta(),
-# tk_case(), bf_case() and kolm_limit(); it cannot run on its own.
+# tk_case() and bf_case(); it cannot run on its own.
 #
 # Golden written: test_post_nulls.json. Per family:
 #   * TEST_PEARSON_R — cor.test(x, y) on a lag-1 autocorrelation: x is
@@ -38,14 +38,14 @@
 #   * TEST_BROWN_FORSYTHE — bf_case() on the complete rows (NA values
 #     and one NA group label dropped first: tapply(median) would read NA).
 #   * TEST_SHAPIRO_WILK — nortest::sf.test(x), which drops NA itself.
-#   * TEST_KS — ks.test(a, b) (drops NA itself) for D; the Stephens-
-#     corrected limiting p as in test_ks.json.
+#   * TEST_KS — ks.test(a, b) (drops NA itself) for D and p, as in
+#     test_ks.json.
 #   * TEST_TREND — cor.test(period, y, method = "kendall", exact = FALSE,
 #     continuity = TRUE) with NA in y and one NA period (complete.cases
 #     drops both), cor(..., use = "complete.obs") for tau-b, S and the
 #     tie-adjusted Var(S) on the complete series.
 
-stopifnot(exists("to_meta"), exists("tk_case"), exists("bf_case"), exists("kolm_limit"))
+stopifnot(exists("to_meta"), exists("tk_case"), exists("bf_case"))
 
 pn_null <- structure("null", class = "json")
 pn_cell <- function(v) {
@@ -239,13 +239,12 @@ local({
   b <- round(rnorm(24, 0.8, 1.2), 3)
   a[c(4, 13)] <- NA
   b[7] <- NA
-  d <- unname(ks.test(a, b)$statistic)
+  kt <- ks.test(a, b)
   n1 <- sum(!is.na(a)); n2 <- sum(!is.na(b))
-  en <- sqrt(n1 * n2 / (n1 + n2))
   pn_cases[[length(pn_cases) + 1]] <<- pn_case("TEST_KS", "two_samples_with_nulls",
     list(field = "value", split_by = "group"),
     pn_rows(value = c(a, b), group = rep(c("a", "b"), c(length(a), length(b)))), n1 + n2,
-    pn_expect(statistic = d, p_value = kolm_limit((en + 0.12 + 0.11 / en) * d),
+    pn_expect(statistic = unname(kt$statistic), p_value = kt$p.value,
               details.n.0 = n1, details.n.1 = n2))
 })
 

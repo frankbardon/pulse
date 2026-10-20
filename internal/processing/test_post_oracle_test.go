@@ -464,7 +464,9 @@ func TestPostTwins_MatchRowVariant(t *testing.T) {
 		}
 		splitLeg(types.TEST_KS, k.Name, values, groups)
 		splitLeg(types.TEST_BROWN_FORSYTHE, k.Name, values, groups)
-		splitLeg(types.TEST_SHAPIRO_WILK, k.Name, values, groups)
+		if len(k.A) >= 5 && len(k.B) >= 5 { // Shapiro-Francia refuses n < 5 per group
+			splitLeg(types.TEST_SHAPIRO_WILK, k.Name, values, groups)
+		}
 		summaryLeg(types.TEST_ANOVA_F, k.Name, values, groups)
 		summaryLeg(types.TEST_ANOVA_WELCH, k.Name, values, groups)
 	}

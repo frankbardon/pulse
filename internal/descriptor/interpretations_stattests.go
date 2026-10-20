@@ -503,7 +503,14 @@ var (
 				"D shows that the shapes differ, not how: plot both distributions to see whether it is the centre, the spread or the tails.",
 			},
 		},
-		interpPValue,
+		{
+			Field:  "p_value",
+			Shared: SharedPValue,
+			Caveats: []string{
+				"This is R's ks.test p: exact when the two group sizes multiply to under 10000 (exact given the tied values, if any), " +
+					"otherwise the large-sample Kolmogorov approximation, which runs high (conservative) when values tie.",
+			},
+		},
 	}
 
 	interpTestShapiroWilk = []descriptor.Interpretation{

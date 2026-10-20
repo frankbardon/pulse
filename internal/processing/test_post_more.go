@@ -851,10 +851,7 @@ func (k *ksPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	sort.Float64s(a)
 	sort.Float64s(b)
 	D := ksTwoSampleD(a, b)
-	n1 := float64(len(a))
-	n2 := float64(len(b))
-	en := math.Sqrt(n1 * n2 / (n1 + n2))
-	p := kolmogorovSurvival((en + 0.12 + 0.11/en) * D)
+	p := ksTwoSampleP(a, nil, b, nil, D)
 	return &types.TestResult{
 		Label:      testLabel(k.spec),
 		Type:       types.TEST_KS,

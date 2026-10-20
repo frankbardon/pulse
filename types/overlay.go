@@ -1230,9 +1230,11 @@ const (
 	//	en      = sqrt(n_subset * n_pop / (n_subset + n_pop))
 	//	p_value = kolmogorovSurvival((en + 0.12 + 0.11/en) * D)
 	//
-	// Reuses the same Kolmogorov-survival helper backing TEST_KS
-	// (kolmogorovSurvival in internal/processing/test_stat.go) so the overlay and
-	// the row-test surface produce identical p-values for the same D + N.
+	// The p is Stephens' corrected asymptotic over the limiting Kolmogorov
+	// survival (kolmogorovSurvival in internal/processing/test_stat.go).
+	// TEST_KS reports R ks.test's p instead (exact when n1*n2 < 10000) —
+	// the population view keeps no raw values to run that distribution on,
+	// so the two surfaces differ for the same D + N.
 	// The empirical-CDF distance reuses the same `ksTwoSampleD` helper
 	// pattern (internal/processing/test_ks.go) — for KS_VS_POP the handler hand-
 	// rolls a histogram-edge or percentile-anchor sup-CDF walk because the

@@ -262,10 +262,14 @@ func TestReferenceOracle_Trend(t *testing.T) {
 	singleP.done(len(doc.Cases))
 }
 
-// TestReferenceOracle_KS: TEST_KS D against ks.test and p against base
-// R's limiting Kolmogorov survival at Stephens' corrected lambda — the
-// published approximation Pulse documents (ks.test's own exact and
-// asymptotic p ride beside in the golden as r_p_*).
+// TestReferenceOracle_KS: TEST_KS D and p against ks.test(a, b) at its
+// defaults (U36 E1-S6) — exact, conditional on ties, when n₁·n₂ < 10000
+// (the 99×101 case is the last exact size, 100×100 the first
+// asymptotic one), else the limiting distribution at R's tol 1e-6.
+// Each case also records which branch ks.test ran, and Pulse must pick
+// the same. separated_20x20_tiny_p pins psmirnov at D = 1: ks.test's
+// own D rounds one ulp above 1 there and reports 0 (r_p_value), the
+// generator's written reason.
 func TestReferenceOracle_KS(t *testing.T) {
 	doc := loadReference[struct {
 		Name      string    `json:"name"`
@@ -273,9 +277,13 @@ func TestReferenceOracle_KS(t *testing.T) {
 		B         []float64 `json:"b"`
 		Statistic float64   `json:"statistic"`
 		PValue    float64   `json:"p_value"`
+		Exact     bool      `json:"exact"`
 	}](t, "test_ks")
 	c := newOracleCheck(t, "TEST_KS", oracleRelTol, oracleFigureAbsFloor)
 	for _, k := range doc.Cases {
+		if got := ksUsesExact(float64(len(k.A)), float64(len(k.B))); got != k.Exact {
+			t.Errorf("%s: exact branch = %v, ks.test ran exact = %v", k.Name, got, k.Exact)
+		}
 		schema := twoSampleFixtureSchema()
 		rt, err := newKSRow(&types.Test{Type: types.TEST_KS, Field: "revenue", SplitBy: "treatment"}, schema)
 		if err != nil {

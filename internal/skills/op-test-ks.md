@@ -30,7 +30,7 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 
 ## Output
 
-`Statistic` = D (sup |F₁(x) − F₂(x)|); `PValue` two-sided via the Smirnov asymptotic distribution with Stephens' small-sample correction (never R `ks.test`'s exact p). `Details.groups` + per-arm `Details.n`.
+`Statistic` = D (sup |F₁(x) − F₂(x)|); `PValue` two-sided = R `ks.test(x, y)$p.value`: exact when n₁·n₂ < 10000 (Σw under weights; conditional on ties), else the limiting Kolmogorov distribution. `Details.groups` + per-arm `Details.n`.
 
 <!-- generated: reading-the-output -->
 
@@ -38,7 +38,7 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 
 - Buffered — both ECDFs must materialize and sort before comparison.
 - Sensitive to distribution shape, not just mean.
-- Small-n approximation drifts; only n < 2 per group is refused (`PULSE_TEST_INSUFFICIENT_N`).
+- Only n < 2 per group is refused (`PULSE_TEST_INSUFFICIENT_N`); the large-sample (asymptotic) p is approximate with ties.
 - Tier-2 variant `TEST_KS/two_sample_post` runs between two output columns of the result set. A row with a null in a used column drops listwise (R's NA default); `details.n` counts the rows used.
 
 ## See

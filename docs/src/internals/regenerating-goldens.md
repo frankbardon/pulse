@@ -208,7 +208,11 @@ which pins whole `TEST_*` outputs rather than primitives:
 refined on the studentized-range quadrature and R's own values kept as
 `r_*`), `test_trend.json` (Mann-Kendall from `cor.test` /
 `cor(method = "kendall")`, `Kendall::MannKendall` beside it),
-`test_ks.json`, `test_kendall_tau.json` (ties),
+`test_ks.json` (`ks.test`'s own p in each regime — exact, exact
+with ties, asymptotic, both sides of the n₁·n₂ = 10000 switch; at full
+separation, where `ks.test`'s D rounds one ulp above 1 and it reports
+0, `psmirnov` at D = 1 with R's value kept as `r_p_value`),
+`test_kendall_tau.json` (ties),
 `test_pearson_r.json` (the Fisher-z interval),
 `test_shapiro_wilk.json` (`nortest::sf.test`, n ≥ 5),
 `test_brown_forsythe.json` (`anova(lm(|x − median| ~ g))`; at zero

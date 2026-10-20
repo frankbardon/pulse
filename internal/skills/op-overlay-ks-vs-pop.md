@@ -23,7 +23,7 @@ Rides on `FacetRequest.Overlays`. Overlays decorate the host; no `Response.Compo
 
 ## Host shape
 
-FACET — numeric arm only. Categorical host → `PULSE_OVERLAY_SCOPE_UNSUPPORTED` (the χ²-vs-population sibling covers the discrete arm). Reuses `kolmogorovSurvival`, the KS test's survival helper.
+FACET — numeric arm only. Categorical host → `PULSE_OVERLAY_SCOPE_UNSUPPORTED` (the χ²-vs-population sibling covers the discrete arm). p is Stephens' corrected asymptotic, not the two-sample KS test's exact `ks.test` p (no raw population values).
 
 ## Output
 

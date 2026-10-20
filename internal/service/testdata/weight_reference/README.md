@@ -98,8 +98,9 @@ pinned by `TestWeightReferenceValues/tests`) come from the same run:
   Fisher / KS / Brown-Forsythe (E2-S2) likewise: `fisher.test` p and
   its conditional MLE odds ratio (U36 E1-S4; refined past `uniroot()`'s
   default tolerance in `test_reference.R`, cross-checked against scipy's
-  `odds_ratio(kind="conditional")`), `ks.test` D (Pulse's p is the Stephens-corrected
-  asymptotic, pinned via `scipy.special.kolmogorov`), and
+  `odds_ratio(kind="conditional")`), `ks.test` D and p (U36 E1-S6: the exact distribution
+  conditional on the expansion's ties, R-only — scipy's exact method
+  ignores ties; D is cross-checked against scipy), and
   `anova(lm(|x − group median| ~ k))` — what `car::leveneTest(center =
   median)` computes, in base R, so no package pin;
   `TEST_HOTELLING_T2` (U25 E1-S1) reads `anova(lm(cbind(x, y) ~ 1 | h),

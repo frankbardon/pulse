@@ -1177,7 +1177,7 @@
       "n_used": 41,
       "expect": {
         "statistic": 0.48550724637681175,
-        "p_value": 0.010655139134103632,
+        "p_value": 0.010636587442616391,
         "details.n.0": 18,
         "details.n.1": 23
       }
@@ -1307,4 +1307,4 @@
     }
   ]
 }
-// golden-hash: 4d961e8464f2c74bd43ef192c9deb12371922db1a20c48fa9a8df6d2a5489697
+// golden-hash: 8fd6283a9b441e8c69abe5076d9397f4d0527ff485434dc7e45e1124ba79338c
