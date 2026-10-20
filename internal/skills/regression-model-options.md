@@ -39,7 +39,7 @@ Constrains the listed slopes ≥ 0 (Lawson–Hanson, R `nnls`; the intercept and
 
 ## Media-mix recipe
 
-Adstock each channel upstream (a window that carries the lagged spend), saturate with `hill(x, half_saturation, shape)` in an attribute, then fit OLS with `bounds.nonnegative` on the channels — or a registered nonlinear model when the Hill parameters must be estimated jointly. A regression cannot read a window label from its own request: materialize the adstock first (`derived-cohorts`).
+Adstock each channel upstream (a window that carries the lagged spend), saturate with `hill(x, half_saturation, shape)` in an attribute, then fit OLS with `bounds.nonnegative` on the channels — or a registered nonlinear model when the Hill parameters must be estimated jointly. A regression cannot read a window label from its own request: materialize the adstock first<!-- feature: capability:materialize --> (`derived-cohorts`)<!-- /feature -->.
 
 ## A registered regression
 
@@ -56,4 +56,4 @@ An embedder may register `REG_<NS>_<NAME>`. It appears in `pulse_manifest` under
 
 ## See
 
-- `regression-modeling`, `regression-inference`, `op-reg-ols`, `op-reg-bayes-linear`, `multiplicity-correction`
+- `regression-modeling`, `regression-inference`<!-- feature: REG_OLS -->, `op-reg-ols`<!-- /feature --><!-- feature: REG_BAYES_LINEAR -->, `op-reg-bayes-linear`<!-- /feature --><!-- feature: capability:multiplicity -->, `multiplicity-correction`<!-- /feature -->
