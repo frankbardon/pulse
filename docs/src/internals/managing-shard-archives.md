@@ -20,6 +20,15 @@ skill](https://github.com/frankbardon/pulse/blob/main/internal/skills/cohort-sch
 
 The first include seeds the canonical schema; remaining includes are
 validated against it via structural cohesion + the dict prefix rule.
+Cohesion compares the type-derived layout (names, types, field widths,
+bit positions), never a shard's stored byte offsets, so cohorts written
+with all-zero offsets or a pre-canonical bit-packed layout join without
+a re-import. Create runs in two passes: a plan read from each include's
+header and schema (an include with parent groups is read whole, one at a
+time — its group dictionaries come from its rows), then each include
+streamed once into the staged archive, so memory is one include plus
+the plan, never the sum. An archive holds at most 65535 shards; more is
+`PULSE_SHARD_COUNT_LIMIT`, refused before anything is written.
 Atomic temp + rename:
 
 ```bash
@@ -253,6 +262,7 @@ For maintainers extending the sharding internals, the surface lives in:
 | `internal/service/shard_iter.go` | Multi-shard row iterator |
 | `internal/service/shard_reduce.go` | Parallel reducer for mergeable ops |
 | `internal/service/shard_admin.go` | `create` / `add` / `remove` / `list` / `extract`; both `create` and `add` plan set-rung reconciliation before strict cohesion |
+| `internal/service/shard_create.go` | streaming `create`: the header-only plan, then each source replayed once into the stage; the `PULSE_SHARD_COUNT_LIMIT` check |
 | `internal/service/shard_widen.go` | Set-width auto-widen on `create` + `add` + the mandatory warning |
 | `internal/service/shard_groups.go` | The shared `create` / `add` merge (`mergeShard`), grouped-shard reconciliation + `PULSE_SHARD_GROUPS_REWRITTEN` |
 | `internal/encoding/shard_groups.go` | `FlattenCohortBytes`, `ValidateGroupCohesion`, group prefix rule, `GroupIndexHeadroomFor` |

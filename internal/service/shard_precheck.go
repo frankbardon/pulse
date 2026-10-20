@@ -71,7 +71,7 @@ func logicalShardCohesion(canonical *encoding.Schema, incoming []byte, archivePa
 		incoming, incSchema = flat, logical
 		canon = cloneSchemaForArchive(canonical.Logical())
 	}
-	canon, _, incSchema, err = reconcileFlat(&shardMerge{}, canon, nil, incoming, incSchema, archivePath)
+	canon, _, incSchema, err = reconcileFlat(&shardMerge{inRecords: -1}, canon, nil, incoming, incSchema, archivePath)
 	if err != nil {
 		return err
 	}

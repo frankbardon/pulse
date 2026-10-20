@@ -1324,6 +1324,13 @@ const (
 	// within an archive.
 	PULSE_SHARD_NAME_COLLISION Code = "PULSE_SHARD_NAME_COLLISION"
 
+	// PULSE_SHARD_COUNT_LIMIT indicates a shard create, add or
+	// filter-to-file archive write would produce an archive of more than
+	// 65535 shards — the most the `_schema.pulse` SHRD trailer's u16
+	// shard_count holds. Refused before anything is written, never
+	// stored truncated. details: archive, shard_count, limit.
+	PULSE_SHARD_COUNT_LIMIT Code = "PULSE_SHARD_COUNT_LIMIT"
+
 	// PULSE_CHAIN_NOT_MERGEABLE indicates a stage inside a
 	// ProcessChain request fails the chain gate. The gate accepts
 	// mergeable requests (internal/mergegate.MergeRefusal, the rule
@@ -4200,6 +4207,7 @@ var allCodes = []Code{
 	PULSE_SHARD_GROUPS_REWRITTEN,
 	PULSE_SHARD_RESERVED_NAME,
 	PULSE_SHARD_NAME_COLLISION,
+	PULSE_SHARD_COUNT_LIMIT,
 	PULSE_CHAIN_NOT_MERGEABLE,
 	PULSE_CHAIN_EMPTY,
 	PULSE_CHAIN_STAGE_JOIN,

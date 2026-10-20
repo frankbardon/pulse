@@ -29,6 +29,12 @@ var SchemaDocMagic = [4]byte{'S', 'H', 'R', 'D'}
 // each shard's header. AggregateRecordCount is exposed so cheap
 // `pulse inspect` calls can report an approximate total without
 // opening every shard.
+// MaxArchiveShards is the most shards one archive may hold: the SHRD
+// trailer's shard_count is a u16. Every archive writer refuses a larger
+// count before writing (PULSE_SHARD_COUNT_LIMIT) rather than storing a
+// truncated one.
+const MaxArchiveShards = 1<<16 - 1
+
 type SchemaDoc struct {
 	Schema               *encoding.Schema
 	AggregateRecordCount uint64

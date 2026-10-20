@@ -3,7 +3,6 @@ package service
 import (
 	"archive/zip"
 	"bufio"
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -45,17 +44,6 @@ type storedShards interface {
 	shardRecords(i int) (int64, error)
 }
 
-// memShards is storedShards over payloads already in memory
-// (CreateShardArchive's seed list).
-type memShards []shardPayload
-
-func (m memShards) shardCount() int                 { return len(m) }
-func (m memShards) shardName(i int) string          { return m[i].name }
-func (m memShards) loadShard(i int) ([]byte, error) { return m[i].payload, nil }
-func (m memShards) shardRecords(i int) (int64, error) {
-	return payloadRecordCount(m[i].payload, m[i].name)
-}
-
 // archiveShards is storedShards over an open archive: payloads are read
 // one at a time (decoded through the zip reader, so CRC-verified), and
 // counts come from the header-only PeekShardRecordCount.
@@ -77,28 +65,6 @@ func (s *archiveShards) shardRecords(i int) (int64, error) {
 // rewritten archive stores for it. mergeShard returns one when the
 // archive itself moves; nil means every stored shard is copied as-is.
 type storedRewrite func(name string, payload []byte) ([]byte, error)
-
-// payloadRecordCount is the record count of a single-file payload under
-// its OWN layout (header + layout-only schema, records never decoded),
-// flooring a truncated tail exactly as PeekShardRecordCount does.
-func payloadRecordCount(payload []byte, name string) (int64, error) {
-	r := bytes.NewReader(payload)
-	v, err := encoding.ReadHeader(r)
-	if err != nil {
-		return 0, shardErr(errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
-			"reading shard header"), name)
-	}
-	layout, err := encx.ReadSchemaLayout(r, v)
-	if err != nil {
-		return 0, shardErr(errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
-			"reading shard schema"), name)
-	}
-	n, _, ok := layout.RecordCountForPayload(int64(r.Len()))
-	if !ok {
-		return 0, nil
-	}
-	return n, nil
-}
 
 // sumStoredRecords is the header-only aggregate of every stored shard.
 func sumStoredRecords(stored storedShards) (uint64, error) {
@@ -211,7 +177,7 @@ func (w *archiveWriter) wrap(err error, what string) error {
 
 // writeSchemaDoc writes the reserved `_schema.pulse` entry.
 func (w *archiveWriter) writeSchemaDoc(schema *encoding.Schema, aggregate uint64, shardCount int) error {
-	payload, err := buildSchemaDocPayload(schema, aggregate, uint16(shardCount))
+	payload, err := buildSchemaDocPayload(schema, aggregate, shardCount, w.dst)
 	if err != nil {
 		return err
 	}

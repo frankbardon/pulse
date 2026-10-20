@@ -24,13 +24,13 @@ type CohesionWarning struct {
 }
 
 // ValidateStructuralCohesion verifies that incoming's structural
-// schema is byte-equal to canonical's. The check is field-count
-// strict and per-field strict on:
+// schema decodes exactly as canonical's: the same type-derived record
+// layout, never the stored ByteOffset cache (#373). The check is
+// field-count strict and per-field strict on:
 //
 //   - Name
 //   - Type byte
-//   - ByteOffset
-//   - BitPosition
+//   - BitPosition (decoders read a bit-packed field's bit from it)
 //   - Categorical-width identity (a categorical_u8 cannot become a
 //     categorical_u16 across shards — the width is fixed at folder
 //     creation)
@@ -119,16 +119,22 @@ func ValidateStructuralCohesion(canonical, incoming *encoding.Schema) ([]Cohesio
 			}
 			warnings = append(warnings, vectorMetadataWarnings(cf.Name, cv, nv)...)
 		}
-		if cf.ByteOffset != nf.ByteOffset {
-			return warnings, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
-				fmt.Sprintf("field %q byte offset differs: canonical=%d, incoming=%d",
-					cf.Name, cf.ByteOffset, nf.ByteOffset),
-				map[string]any{
-					"field":            cf.Name,
-					"canonical_offset": cf.ByteOffset,
-					"incoming_offset":  nf.ByteOffset,
-				})
-		}
+		// The stored ByteOffset is NOT compared (#373). It is a cache of
+		// the type-derived layout (LayoutFields): every writer places a
+		// field, and every reader finds it, by a running cursor over
+		// Schema.FieldWidth. Two shards whose names, types and vector dims
+		// agree up to here therefore share the record layout field for
+		// field, whatever offsets they stored — and comparing the cache
+		// refused legacy cohorts that decode identically (an explicit
+		// schema stored with all-zero offsets, a schema file with a
+		// bit-packed field laid out before the canonical routine). The
+		// canonical `_schema.pulse` keeps whatever its seed stored.
+		//
+		// BitPosition IS compared: it is not a cache. Every decoder reads
+		// a packed_bool's bit, and a u4's nibble, from the stored
+		// BitPosition, and every shard is decoded under the CANONICAL
+		// schema — so a shard whose bit-packed field sits at another bit
+		// would decode a plausible, wrong value.
 		if cf.BitPosition != nf.BitPosition {
 			return warnings, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
 				fmt.Sprintf("field %q bit position differs: canonical=%d, incoming=%d",

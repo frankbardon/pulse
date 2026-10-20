@@ -5,6 +5,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -77,6 +78,44 @@ type shardMerge struct {
 	// (an archive-level widen or a constant-group promotion); nil means
 	// every stored shard is kept byte-for-byte.
 	rewrite storedRewrite
+	// arrival is every transform the merge applied to the arriving
+	// shard's bytes, in order: applying them to the arriving bytes
+	// reproduces incoming. CreateShardArchive folds ZERO-ROW preambles
+	// and replays arrival on each source's full bytes as it streams the
+	// shard into the archive, so the fold never holds a source's rows.
+	arrival []storedRewrite
+	// inRecords is the arriving shard's record count when its bytes are
+	// a zero-row stand-in (create's header-only fold); -1 means count
+	// the bytes themselves.
+	inRecords int64
+}
+
+// apply runs op on the arriving bytes and records it on m.arrival, so
+// the transform that produced incoming is the one a replay runs.
+func (m *shardMerge) apply(name string, b []byte, op storedRewrite) ([]byte, error) {
+	m.arrival = append(m.arrival, op)
+	return op(name, b)
+}
+
+// remapOp is the dictionary-union rewrite of an arriving shard against
+// target as a replayable transform. keepNulls selects
+// RewriteShardCategoricalsKeepNulls (the grouped path's logical form).
+func remapOp(target *encoding.Schema, remap map[int]encx.DictRemap, keepNulls bool) storedRewrite {
+	return func(_ string, b []byte) ([]byte, error) {
+		if keepNulls {
+			return encx.RewriteShardCategoricalsKeepNulls(b, target, remap)
+		}
+		return encx.RewriteShardCategoricals(b, target, remap)
+	}
+}
+
+// flattenOp is FlattenCohortBytes as a replayable transform.
+func flattenOp(name string, b []byte) ([]byte, error) {
+	flat, _, err := encx.FlattenCohortBytes(b)
+	if err != nil {
+		return nil, shardErr(err, name)
+	}
+	return flat, nil
 }
 
 // mergeShard folds one arriving shard into an archive whose canonical
@@ -89,16 +128,21 @@ type shardMerge struct {
 // widen of the archive, or a constant-group promotion) the merge returns
 // m.rewrite, which the caller applies to every stored shard — AddShard
 // one shard at a time as it streams the rewritten archive, create to
-// its in-memory seed list. An ordinary merge reads no stored payload.
-func mergeShard(canonical *encoding.Schema, stored storedShards, incoming []byte, name, archivePath string) (*shardMerge, error) {
+// each earlier source's replay list. An ordinary merge reads no stored
+// payload.
+//
+// inRecords is the arriving shard's record count when incoming is a
+// zero-row stand-in for it (create's header-only fold of an ungrouped
+// merge, which no row decides); -1 counts incoming itself.
+func mergeShard(canonical *encoding.Schema, stored storedShards, incoming []byte, inRecords int64, name, archivePath string) (*shardMerge, error) {
 	incSchema, err := readSinglePulseSchema(incoming)
 	if err != nil {
 		return nil, err
 	}
 	if canonical.HasGroups() || incSchema.HasGroups() {
-		return mergeGroupedShard(canonical, incSchema, stored, incoming, name, archivePath)
+		return mergeGroupedShard(canonical, incSchema, stored, incoming, inRecords, name, archivePath)
 	}
-	m := &shardMerge{}
+	m := &shardMerge{inRecords: inRecords}
 	canon, incoming, incSchema, err := reconcileFlat(m, canonical, stored, incoming, incSchema, archivePath)
 	if err != nil {
 		return nil, err
@@ -112,7 +156,7 @@ func mergeShard(canonical *encoding.Schema, stored storedShards, incoming []byte
 		return nil, err
 	}
 	if len(remap) > 0 {
-		if incoming, err = encx.RewriteShardCategoricals(incoming, canon, remap); err != nil {
+		if incoming, err = m.apply(name, incoming, remapOp(canon, remap, false)); err != nil {
 			return nil, err
 		}
 	}
@@ -151,11 +195,23 @@ func reconcileFlat(m *shardMerge, canonical *encoding.Schema, stored storedShard
 		return nil, nil, nil, err
 	}
 	if len(plans) > 0 {
-		widened, widenedIncoming, widenings, archivePlans, werr := applySetWidening(plans, canonical, stored, incoming)
+		widened, widenedIncoming, widenings, archivePlans, incomingPlans, werr := applySetWidening(plans, canonical, stored, incoming, m.inRecords)
 		if werr != nil {
 			return nil, nil, nil, werr
 		}
 		canonical, incoming = widened, widenedIncoming
+		if len(incomingPlans) > 0 {
+			m.arrival = append(m.arrival, func(_ string, b []byte) ([]byte, error) {
+				for _, p := range incomingPlans {
+					out, _, err := widenIncomingBytes(b, p)
+					if err != nil {
+						return nil, err
+					}
+					b = out
+				}
+				return b, nil
+			})
+		}
 		m.widenStored = append(m.widenStored, archivePlans...)
 		m.widened = append(m.widened, widenings...)
 		for _, w := range widenings {
@@ -213,12 +269,13 @@ func reconcileFlat(m *shardMerge, canonical *encoding.Schema, stored storedShard
 // A set-rung widen of a grouped archive re-encodes every shard too
 // (entry widths move with a member's rung, the physical stride with a
 // row field's); PULSE_SHARD_SET_WIDENED reports it.
-func mergeGroupedShard(canonical, incSchema *encoding.Schema, stored storedShards, incoming []byte, name, archivePath string) (*shardMerge, error) {
-	m := &shardMerge{}
+func mergeGroupedShard(canonical, incSchema *encoding.Schema, stored storedShards, incoming []byte, inRecords int64, name, archivePath string) (*shardMerge, error) {
+	m := &shardMerge{inRecords: inRecords}
 	flatInc, incLogical, err := encx.FlattenCohortBytes(incoming)
 	if err != nil {
 		return nil, shardErr(err, name)
 	}
+	m.arrival = append(m.arrival, flattenOp)
 	canonFlat := cloneSchemaForArchive(canonical.Logical())
 
 	// An archive-side set widen re-lays-out every stored shard; whether
@@ -248,7 +305,7 @@ func mergeGroupedShard(canonical, incSchema *encoding.Schema, stored storedShard
 		// ordinary categorical rewrite applies unchanged. The stored
 		// shards ARE logical: an archive widen is a plain re-stride.
 		if len(remap) > 0 {
-			if flatInc, err = encx.RewriteShardCategoricals(flatInc, canonFlat, remap); err != nil {
+			if flatInc, err = m.apply(name, flatInc, remapOp(canonFlat, remap, false)); err != nil {
 				return nil, err
 			}
 		}
@@ -271,7 +328,7 @@ func mergeGroupedShard(canonical, incSchema *encoding.Schema, stored storedShard
 	if len(remap) > 0 {
 		// Null placeholders keep their bytes: they are part of a group
 		// entry's identity (see RewriteShardCategoricalsKeepNulls).
-		if flatInc, err = encx.RewriteShardCategoricalsKeepNulls(flatInc, canonFlat, remap); err != nil {
+		if flatInc, err = m.apply(name, flatInc, remapOp(canonFlat, remap, true)); err != nil {
 			return nil, err
 		}
 	}
@@ -379,6 +436,14 @@ func mergeGroupedShard(canonical, incSchema *encoding.Schema, stored storedShard
 		m.rewrite = regroupStoredRewrite(canonFlat, specs, out, logicalStored)
 		break
 	}
+
+	// The arrival's encode as a replayable transform: its logical bytes
+	// re-encoded against the FINAL grouped schema this merge produced.
+	// An encoder seeded with m.canonical returns, for every tuple, the
+	// index this merge assigned it (the merged dictionary holds the
+	// arrival's tuples already), so the replay writes m.incoming's bytes.
+	identity := func(_ string, b []byte) ([]byte, error) { return b, nil }
+	m.arrival = append(m.arrival, regroupStoredRewrite(canonFlat, slices.Clone(specs), m.canonical, identity))
 
 	// Rule 5: strict cohesion over the reconciled grouped schemas. The
 	// arrival was encoded against the canonical layout, so this can only

@@ -15,140 +15,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-// CreateShardArchive builds a fresh Pulse shard archive at archivePath
-// from the constituent shardPaths. The first shard seeds the canonical
-// schema; every other shard is validated via
-// encoding.ValidateStructuralCohesion + encoding.ValidateDictPrefixRule.
-// Dictionary growth across shards accumulates into the canonical
-// schema. The archive is written to a temp path on the same filesystem
-// and Rename'd over the destination — partial writes never appear at
-// archivePath (atomic temp+rename, §7.1).
-//
-// Set-width AUTO-WIDEN applies here exactly as it does on AddShard: a
-// set column whose merged dictionary outgrows its declared bitmask, or
-// whose rung differs between two of the shards being seeded, is promoted
-// to the narrowest rung that holds every member, across the canonical
-// schema and every shard accumulated so far. Refusing at create while
-// auto-widening at add was an asymmetry with no defence — the same two
-// files produce an archive or an error depending only on whether they
-// arrived together or one after the other.
-//
-// Widening emits a MANDATORY PULSE_SHARD_SET_WIDENED warning on the
-// result, which is why this returns a *CreateShardArchiveResult rather
-// than a bare error. A silent whole-archive rewrite is exactly the
-// failure class the byte-layout contract exists to prevent: the shards
-// stored in the archive are no longer byte-identical to the `.pulse`
-// files the caller named, and nothing else would say so.
-//
-// A union above the widest rung has nowhere to go and stays fatal
-// (PULSE_SHARD_DICT_WIDTH_OVERFLOW).
-//
-// Errors:
-//   - PULSE_SHARD_RESERVED_NAME — any shardPath has basename `_schema.pulse`.
-//   - PULSE_SHARD_NAME_COLLISION — two shardPaths share a basename.
-//   - PULSE_SHARD_SCHEMA_MISMATCH / PULSE_SHARD_DICT_DIVERGENCE — propagated from cohesion validators.
-//   - PULSE_SHARD_DICT_WIDTH_OVERFLOW — a set union past the widest rung.
-//   - SERVICE_VALIDATION — empty shardPaths.
-//   - SERVICE_RESOURCE — I/O failure on any input/output.
-func (s *Service) CreateShardArchive(ctx context.Context, archivePath string, shardPaths []string) (*CreateShardArchiveResult, error) {
-	if len(shardPaths) == 0 {
-		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
-			"CreateShardArchive requires at least one shard path")
-	}
-
-	fsys := s.fs.Fs()
-
-	// Reserved-name + basename-collision precheck. Both errors are
-	// caller-fixable; surface them before any I/O.
-	if err := validateBasenames(shardPaths); err != nil {
-		return nil, err
-	}
-
-	result := &CreateShardArchiveResult{Archive: archivePath,
-		Warnings: []encx.CohesionWarning{}}
-
-	// Read all shard payloads + reconcile set rungs + validate cohesion
-	// + accumulate canonical schema. `shards` holds every shard already
-	// folded in; a widen triggered by shard N re-lays-out all of them,
-	// which is why they are carried as a slice rather than streamed
-	// straight into the zip.
-	shards := make([]shardPayload, 0, len(shardPaths))
-
-	var canonical *encoding.Schema
-	for i, p := range shardPaths {
-		data, err := afero.ReadFile(fsys, p)
-		if err != nil {
-			return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-				fmt.Sprintf("CreateShardArchive: reading shard source %s", p))
-		}
-		schema, err := readSinglePulseSchema(data)
-		if err != nil {
-			return nil, err
-		}
-		base := filepath.Base(p)
-		if i == 0 {
-			canonical = cloneSchemaForArchive(schema)
-			shards = append(shards, shardPayload{name: base, payload: data})
-			continue
-		}
-
-		// One merge rule for create and add (mergeShard): set-rung
-		// reconciliation BEFORE strict cohesion, dictionary union, and —
-		// for grouped shards — the parent-group reconciliation. `shards`
-		// is mutated in place when the archive itself moves.
-		m, merr := mergeShard(canonical, memShards(shards), data, base, archivePath)
-		if merr != nil {
-			return nil, merr
-		}
-		// The archive moved (an archive-level widen or a constant-group
-		// promotion): every shard folded so far is re-laid-out now, so
-		// the next merge sees the archive as it stands.
-		if m.rewrite != nil {
-			for j := range shards {
-				out, rerr := m.rewrite(shards[j].name, shards[j].payload)
-				if rerr != nil {
-					return nil, rerr
-				}
-				shards[j].payload = out
-			}
-		}
-		canonical = m.canonical
-		data = m.incoming
-		result.Widened = append(result.Widened, m.widened...)
-		result.Regrouped = append(result.Regrouped, m.regrouped...)
-		result.Warnings = append(result.Warnings, m.warnings...)
-		shards = append(shards, shardPayload{name: base, payload: data})
-	}
-
-	var aggregate uint64
-	for _, sh := range shards {
-		n, err := recordCountFromBytes(sh.payload, canonical)
-		if err != nil {
-			return nil, err
-		}
-		aggregate += uint64(n)
-	}
-
-	w, err := newArchiveWriter(fsys, archivePath)
-	if err != nil {
-		return nil, err
-	}
-	defer w.abort()
-	if err := w.writeSchemaDoc(canonical, aggregate, len(shards)); err != nil {
-		return nil, err
-	}
-	for _, sh := range shards {
-		if err := w.writeEntry(sh.name, sh.payload); err != nil {
-			return nil, err
-		}
-	}
-	if err := w.commit(); err != nil {
-		return nil, err
-	}
-	result.ShardCount = len(shards)
-	return result, nil
-}
-
 // AddShard appends shardPath to the archive at archivePath. The
 // incoming shard is validated against the archive's canonical schema
 // via ValidateStructuralCohesion + MergeDictUnion. If the union-merge
@@ -232,6 +98,11 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 		}
 		stored.names = append(stored.names, e.Name)
 	}
+	// The SHRD trailer's shard_count is a u16: refuse an add past it
+	// before any shard is merged or written.
+	if err := checkArchiveShardCount(stored.shardCount()+1, archivePath); err != nil {
+		return nil, err
+	}
 
 	// The one merge rule create shares (mergeShard): set-rung
 	// reconciliation PLANNED before strict cohesion — that order is the
@@ -240,7 +111,7 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 	// over the RECONCILED schemas, the dictionary union, and for grouped
 	// shards the parent-group reconciliation. m.rewrite is non-nil only
 	// when the archive itself moves.
-	m, err := mergeShard(canonicalDoc.Schema, stored, incomingBytes, base, archivePath)
+	m, err := mergeShard(canonicalDoc.Schema, stored, incomingBytes, -1, base, archivePath)
 	if err != nil {
 		return nil, err
 	}
@@ -622,10 +493,15 @@ func readEntryBytes(arch *encx.Archive, name string) ([]byte, error) {
 
 // buildSchemaDocPayload serialises a canonical schema + sharding
 // metadata extension into a byte slice suitable for storage under
-// encoding.ReservedSchemaName.
-func buildSchemaDocPayload(schema *encoding.Schema, agg uint64, shardCount uint16) ([]byte, error) {
+// encoding.ReservedSchemaName. A shard count past the u16 trailer field
+// is refused (PULSE_SHARD_COUNT_LIMIT), never truncated — the last line
+// of defence behind each writer's own up-front check.
+func buildSchemaDocPayload(schema *encoding.Schema, agg uint64, shardCount int, archivePath string) ([]byte, error) {
+	if err := checkArchiveShardCount(shardCount, archivePath); err != nil {
+		return nil, err
+	}
 	var buf bytes.Buffer
-	if err := encx.WriteSchemaDoc(&buf, schema, agg, shardCount); err != nil {
+	if err := encx.WriteSchemaDoc(&buf, schema, agg, uint16(shardCount)); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil

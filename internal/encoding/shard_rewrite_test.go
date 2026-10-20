@@ -551,3 +551,55 @@ func TestSchema_RecordByteSize_MixedPackedAndAligned(t *testing.T) {
 		t.Fatalf("RecordByteSize: got %d, want 21 (8+2+1+1+1+8)", got)
 	}
 }
+
+// TestRewriteShardCategoricals_ComparesLayoutNotStoredOffsets (#373):
+// the rewrite's structural key is the type-derived layout, never the
+// stored ByteOffset cache — a shard stored with all-zero offsets
+// rewrites against a canonical-offset target (and keeps its records,
+// remapped), while a BitPosition divergence, which decoders read, is
+// still refused.
+func TestRewriteShardCategoricals_ComparesLayoutNotStoredOffsets(t *testing.T) {
+	shard, _ := buildShard(t, []string{"US", "MX"}, [][2]uint32{{7, 1}, {8, 0}})
+	// Re-stamp the shard's stored offsets to all zero (a legacy
+	// explicit-schema cohort); the records stay where the cursor puts
+	// them.
+	r := bytes.NewReader(shard)
+	v, err := encoding.ReadHeader(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := encoding.ReadSchema(r, v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := shard[len(shard)-r.Len():]
+	legacy.Fields[1].ByteOffset = 0
+	var lb bytes.Buffer
+	if err := encoding.WriteHeader(&lb); err != nil {
+		t.Fatal(err)
+	}
+	if err := encoding.WriteSchema(&lb, legacy); err != nil {
+		t.Fatal(err)
+	}
+	lb.Write(rows)
+
+	target := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0},
+		{Name: "country", Type: encoding.FieldTypeCategoricalU8, ByteOffset: 4,
+			Dictionary: dictOf(t, "US", "CA", "MX")},
+	}}
+	out, err := encx.RewriteShardCategoricals(lb.Bytes(), target, map[int]encx.DictRemap{1: {1: 2}})
+	if err != nil {
+		t.Fatalf("legacy-offset shard refused: %v", err)
+	}
+	_, recs := decodeShardRecords(t, out)
+	if want := [][2]uint32{{7, 2}, {8, 0}}; len(recs) != 2 || recs[0] != want[0] || recs[1] != want[1] {
+		t.Fatalf("rewritten records = %v, want %v", recs, want)
+	}
+
+	bitTarget := &encoding.Schema{Fields: append([]encoding.Field(nil), target.Fields...)}
+	bitTarget.Fields[0].BitPosition = 3
+	if _, err := encx.RewriteShardCategoricals(lb.Bytes(), bitTarget, map[int]encx.DictRemap{1: {1: 2}}); !errors.HasCode(err, errors.PULSE_SHARD_SCHEMA_MISMATCH) {
+		t.Fatalf("bit-position divergence: err = %v, want PULSE_SHARD_SCHEMA_MISMATCH", err)
+	}
+}

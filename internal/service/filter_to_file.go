@@ -420,6 +420,17 @@ func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, d
 		written int64
 	}
 	entries := arch.Entries()
+	// One output shard per input shard: refuse a count the SHRD
+	// trailer's u16 shard_count cannot hold before filtering anything.
+	shardCount := 0
+	for _, e := range entries {
+		if e.Name != encx.ReservedSchemaName {
+			shardCount++
+		}
+	}
+	if err := checkArchiveShardCount(shardCount, dst); err != nil {
+		return 0, err
+	}
 	out := make([]filteredShard, 0, len(entries))
 	var totalWritten int64
 	for _, e := range entries {
@@ -458,7 +469,7 @@ func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, d
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 
-	schemaPayload, err := buildSchemaDocPayload(canonicalSchema, uint64(totalWritten), uint16(len(out)))
+	schemaPayload, err := buildSchemaDocPayload(canonicalSchema, uint64(totalWritten), len(out), dst)
 	if err != nil {
 		return 0, err
 	}

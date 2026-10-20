@@ -443,13 +443,14 @@ func writeOffsetSkewedShard(t *testing.T, ft encoding.FieldType, values []string
 	return buf.Bytes()
 }
 
-// The post-reconciliation strict pass is load-bearing on its own. With
-// the rungs MATCHING there is no widen plan, so nothing upstream has
-// normalised the layout, and a stored byte offset that disagrees with
-// the field widths is a divergence only ValidateStructuralCohesion sees
-// — the dictionary union-merge does not compare offsets. A shard
-// admitted here would decode every field after it at the wrong address.
-func TestAddShard_DivergentByteOffsetIsRefusedByTheStrictPass(t *testing.T) {
+// #373: with the rungs MATCHING there is no widen plan, so nothing
+// upstream normalises the layout, and the stored byte offset that
+// disagrees with the field widths reaches the strict pass as it was
+// written. It is a cache of the type-derived layout — every reader walks
+// a cursor over the field widths — so the strict pass admits it, and the
+// stored shard decodes under the canonical schema exactly as written.
+// (It used to be refused: a legacy cohort could not join an archive.)
+func TestAddShard_DivergentStoredByteOffsetIsAdmitted(t *testing.T) {
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
 	svc := New(cfg)
@@ -467,8 +468,17 @@ func TestAddShard_DivergentByteOffsetIsRefusedByTheStrictPass(t *testing.T) {
 		t.Fatalf("WriteFile add: %v", err)
 	}
 
-	_, err := svc.AddShard(ctx, "arch.pulse", "add.pulse")
-	if !errors.HasCode(err, errors.PULSE_SHARD_SCHEMA_MISMATCH) {
-		t.Fatalf("error = %v, want PULSE_SHARD_SCHEMA_MISMATCH", err)
+	if _, err := svc.AddShard(ctx, "arch.pulse", "add.pulse"); err != nil {
+		t.Fatalf("AddShard of a stored-offset-skewed shard: %v", err)
+	}
+	if got, err := svc.CountRecords(ctx, "arch.pulse"); err != nil || got != 2 {
+		t.Fatalf("record count = %d (%v), want 2", got, err)
+	}
+	vr, err := svc.VerifyShardArchive(ctx, "arch.pulse")
+	if err != nil {
+		t.Fatalf("VerifyShardArchive: %v", err)
+	}
+	if len(vr.Errors) != 0 {
+		t.Fatalf("archive does not verify: %+v", vr.Errors)
 	}
 }

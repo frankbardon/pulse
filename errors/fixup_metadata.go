@@ -2007,6 +2007,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SHARD_COUNT_LIMIT: {
+		Message: "The archive would hold more than 65535 shards, the most the `_schema.pulse` shard_count (a u16) records; the write was refused before anything was written.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Shard", "Paths"},
+				Hint:   "Concatenate small shards into fewer, larger `.pulse` files before archiving them, or split the data across more than one archive. `details.shard_count` is the count the write would have produced and `details.limit` the ceiling.",
+			},
+		},
+	},
 	PULSE_CHAIN_NOT_MERGEABLE: {
 		Message: "A ProcessChain stage uses an operator that the v1 chain gate does not yet support (windows, features, tests, regressions, two-pass attributes, or a non-mergeable grouper/aggregator), or carries a crosstab (a crosstab answers a matrix, not the rows the next stage reads).",
 		Fixups: []Fixup{
