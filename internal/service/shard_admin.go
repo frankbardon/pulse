@@ -2,6 +2,7 @@ package service
 
 import (
 	"archive/zip"
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -409,27 +410,42 @@ func (s *Service) ListShards(ctx context.Context, archivePath string) ([]ShardEn
 // ExtractShard returns an io.ReadCloser over the named shard's
 // standalone single-file `.pulse` bytes. The closer releases the
 // archive resources; callers must invoke Close after draining.
+//
+// The archive is read by random access: the reader streams the one
+// entry (CRC-checked at EOF) off an open archive handle, which Close
+// releases — no other entry, and no whole-archive copy, is read.
 func (s *Service) ExtractShard(ctx context.Context, archivePath, shardBasename string) (io.ReadCloser, error) {
-	fsys := s.fs.Fs()
-	archiveBytes, err := afero.ReadFile(fsys, archivePath)
-	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("ExtractShard: reading archive %s", archivePath))
-	}
-	arch, err := encx.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	a, err := openArchiveFile(s.fs.Fs(), archivePath)
 	if err != nil {
 		return nil, err
 	}
 	if shardBasename == encx.ReservedSchemaName {
+		_ = a.Close()
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
 			"cannot extract the reserved canonical schema entry as a shard",
 			map[string]any{"basename": shardBasename})
 	}
-	rc, err := arch.Open(shardBasename)
+	rc, err := a.arch.Open(shardBasename)
 	if err != nil {
+		_ = a.Close()
 		return nil, err
 	}
-	return rc, nil
+	return &archiveEntryCloser{ReadCloser: rc, archive: a}, nil
+}
+
+// archiveEntryCloser is an entry reader that also releases its
+// archive handle on Close.
+type archiveEntryCloser struct {
+	io.ReadCloser
+	archive *archiveFile
+}
+
+func (c *archiveEntryCloser) Close() error {
+	err := c.ReadCloser.Close()
+	if aerr := c.archive.Close(); err == nil {
+		err = aerr
+	}
+	return err
 }
 
 // validateBasenames runs the reserved-name and uniqueness checks over
@@ -561,6 +577,36 @@ func readSchemaDocEntry(arch *encx.Archive) (*encx.SchemaDoc, error) {
 			"reading archive canonical schema")
 	}
 	return doc, nil
+}
+
+// readEntrySchemaVerified parses the named entry's header + schema off
+// its entry stream, then drains the rest into io.Discard so the zip
+// reader verifies the entry's CRC — what reading it whole did, without
+// holding the payload. A short or malformed prefix is
+// PULSE_SHARD_HEADER_INVALID; a failed drain (a CRC mismatch, a
+// truncated entry) is ENCODING_IO.
+func readEntrySchemaVerified(arch *encx.Archive, name string) (*encoding.Schema, error) {
+	rc, err := arch.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	r := bufio.NewReader(rc)
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
+			"reading shard header")
+	}
+	schema, err := encoding.ReadSchema(r, pulseVersion)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
+			"reading shard schema")
+	}
+	if _, err := io.Copy(io.Discard, r); err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_IO,
+			fmt.Sprintf("reading archive entry %q", name))
+	}
+	return schema, nil
 }
 
 // readEntryBytes drains the named entry into a byte slice.

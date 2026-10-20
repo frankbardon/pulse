@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"time"
 
@@ -10,7 +11,10 @@ import (
 
 // anchorOverlay is an afero.Fs that intercepts reads of one specific
 // virtual path (the anchor form `archive.pulse#shard.pulse`) and
-// serves the in-memory bytes of the corresponding shard payload.
+// serves the corresponding shard payload: for a stored entry
+// (newAnchorSectionOverlay) a SectionReader at the entry's data offset
+// over a fresh handle on the archive, so no shard byte is resident; for
+// a deflated third-party entry (newAnchorOverlay) its inflated bytes.
 // Every other path falls through to the wrapped base filesystem so
 // path normalisation (DataDir, etc.) keeps working unchanged.
 //
@@ -20,20 +24,46 @@ import (
 type anchorOverlay struct {
 	afero.Fs
 	virtualPath string
-	payload     []byte
+	// payload is the inflated shard (newAnchorOverlay); nil for a
+	// section overlay.
+	payload []byte
+	// archivePath / offset / size locate a stored shard inside its
+	// archive on Fs (newAnchorSectionOverlay).
+	archivePath  string
+	offset, size int64
 }
 
 // newAnchorOverlay returns an overlay that serves payload for reads
 // of virtualPath, delegating every other operation to base.
 func newAnchorOverlay(base afero.Fs, virtualPath string, payload []byte) afero.Fs {
-	return &anchorOverlay{Fs: base, virtualPath: virtualPath, payload: payload}
+	return &anchorOverlay{Fs: base, virtualPath: virtualPath, payload: payload, size: int64(len(payload))}
+}
+
+// newAnchorSectionOverlay returns an overlay that serves the size
+// bytes at offset of archivePath (on base) for reads of virtualPath:
+// each open is a fresh archive handle and a SectionReader over it.
+func newAnchorSectionOverlay(base afero.Fs, virtualPath, archivePath string, offset, size int64) afero.Fs {
+	return &anchorOverlay{Fs: base, virtualPath: virtualPath, archivePath: archivePath, offset: offset, size: size}
+}
+
+// openVirtual opens the shard payload behind the virtual path.
+func (a *anchorOverlay) openVirtual(name string) (afero.File, error) {
+	if a.payload != nil || a.archivePath == "" {
+		return &anchorFile{name: name, r: bytes.NewReader(a.payload), size: a.size}, nil
+	}
+	f, err := a.Fs.Open(a.archivePath)
+	if err != nil {
+		return nil, err
+	}
+	sr := io.NewSectionReader(concurrentReaderAt(f), a.offset, a.size)
+	return &anchorFile{name: name, r: sr, size: a.size, closer: f}, nil
 }
 
 // Open returns the shard payload for the virtual path; otherwise
 // falls through. The returned afero.File is read-only.
 func (a *anchorOverlay) Open(name string) (afero.File, error) {
 	if name == a.virtualPath {
-		return &anchorFile{name: name, r: bytes.NewReader(a.payload), size: int64(len(a.payload))}, nil
+		return a.openVirtual(name)
 	}
 	return a.Fs.Open(name)
 }
@@ -42,7 +72,7 @@ func (a *anchorOverlay) Open(name string) (afero.File, error) {
 // (the only mode the streaming iterator and ReadFile use).
 func (a *anchorOverlay) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
 	if name == a.virtualPath && (flag&os.O_WRONLY == 0) && (flag&os.O_RDWR == 0) {
-		return &anchorFile{name: name, r: bytes.NewReader(a.payload), size: int64(len(a.payload))}, nil
+		return a.openVirtual(name)
 	}
 	return a.Fs.OpenFile(name, flag, perm)
 }
@@ -51,7 +81,7 @@ func (a *anchorOverlay) OpenFile(name string, flag int, perm os.FileMode) (afero
 // afero.ReadFile and friends can size the payload before reading.
 func (a *anchorOverlay) Stat(name string) (os.FileInfo, error) {
 	if name == a.virtualPath {
-		return &anchorFileInfo{name: name, size: int64(len(a.payload))}, nil
+		return &anchorFileInfo{name: name, size: a.size}, nil
 	}
 	return a.Fs.Stat(name)
 }
@@ -61,11 +91,24 @@ func (a *anchorOverlay) Name() string { return "anchorOverlay(" + a.Fs.Name() + 
 
 type anchorFile struct {
 	name string
-	r    *bytes.Reader
+	r    interface {
+		io.Reader
+		io.ReaderAt
+		io.Seeker
+	}
 	size int64
+	// closer releases the archive handle behind a section-backed file.
+	closer io.Closer
 }
 
-func (f *anchorFile) Close() error                                 { return nil }
+func (f *anchorFile) Close() error {
+	if f.closer == nil {
+		return nil
+	}
+	err := f.closer.Close()
+	f.closer = nil
+	return err
+}
 func (f *anchorFile) Name() string                                 { return f.name }
 func (f *anchorFile) Read(p []byte) (int, error)                   { return f.r.Read(p) }
 func (f *anchorFile) ReadAt(p []byte, off int64) (int, error)      { return f.r.ReadAt(p, off) }

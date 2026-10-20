@@ -2,6 +2,7 @@ package service
 
 import (
 	"archive/zip"
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -208,37 +209,56 @@ func (s *Service) ResolveCanonicalSchema(_ context.Context, src string) (*encodi
 	}
 	fsys := s.fs.Fs()
 
+	// Header + schema only, on every arm: an anchored shard's entry
+	// stream, an archive's central directory + canonical entry (random
+	// access), a single file's prefix — never a record payload.
 	if archivePath, anchor, ok := splitAnchorPath(src); ok {
-		payload, err := s.readAnchoredShardBytes(archivePath, anchor)
+		if anchor == encx.ReservedSchemaName {
+			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
+				"cannot filter the reserved canonical schema entry",
+				map[string]any{"entry": anchor})
+		}
+		a, err := openArchiveFile(fsys, archivePath)
 		if err != nil {
 			return nil, err
 		}
-		return readSchemaFromBytes(payload)
+		defer a.Close()
+		rc, err := a.arch.Open(anchor)
+		if err != nil {
+			return nil, err
+		}
+		defer rc.Close()
+		return readSchemaFromReader(bufio.NewReader(rc))
 	}
 
-	data, err := afero.ReadFile(fsys, src)
+	isArchive, err := s.pathIsShardArchive(src)
 	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("opening cohort file: %s", src))
+		return nil, err
 	}
-
-	if isShardArchiveMagic(data) {
-		arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	if isArchive {
+		a, err := openArchiveFile(fsys, src)
 		if err != nil {
 			return nil, err
 		}
-		doc, err := readSchemaDocEntry(arch)
+		defer a.Close()
+		doc, err := readSchemaDocEntry(a.arch)
 		if err != nil {
 			return nil, err
 		}
 		return doc.Schema, nil
 	}
 
-	return readSchemaFromBytes(data)
+	f, err := fsys.Open(src)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+			fmt.Sprintf("opening cohort file: %s", src))
+	}
+	defer f.Close()
+	return readSchemaFromReader(bufio.NewReader(f))
 }
 
-func readSchemaFromBytes(data []byte) (*encoding.Schema, error) {
-	br := bytes.NewReader(data)
+// readSchemaFromReader reads a single-file header + schema block off r.
+func readSchemaFromReader(br io.Reader) (*encoding.Schema, error) {
 	pulseVersion, err := encoding.ReadHeader(br)
 	if errors.HasCode(err, errors.PULSE_COHORT_COMPRESSED) {
 		return nil, err // the one refusal that names its fix
@@ -286,16 +306,26 @@ func (s *Service) filterToFile(ctx context.Context, src, dst string, plan filter
 		return s.filterSingleFileBytesToFile(ctx, fsys, payload, dst, plan)
 	}
 
+	// An archive is read by random access, one shard at a time
+	// (filterShardArchiveToFile); a single file is read whole.
+	isArchive, err := s.pathIsShardArchive(src)
+	if err != nil {
+		return 0, err
+	}
+	if isArchive {
+		a, err := openArchiveFile(fsys, src)
+		if err != nil {
+			return 0, err
+		}
+		defer a.Close()
+		return s.filterShardArchiveToFile(ctx, fsys, dst, plan, a)
+	}
+
 	data, err := afero.ReadFile(fsys, src)
 	if err != nil {
 		return 0, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("opening cohort file: %s", src))
 	}
-
-	if isShardArchiveMagic(data) {
-		return s.filterShardArchiveToFile(ctx, fsys, dst, plan, data)
-	}
-
 	return s.filterSingleFileBytesToFile(ctx, fsys, data, dst, plan)
 }
 
@@ -364,11 +394,12 @@ func skipShardPreamble(br *bytes.Reader, name string) error {
 // → one output shard, basename preserved, central-directory order
 // preserved. Empty shards (zero surviving records) are kept so the
 // shard_count metadata stays stable across the filter.
-func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, dst string, plan filterPlan, data []byte) (int64, error) {
-	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
-	if err != nil {
-		return 0, err
-	}
+//
+// The source archive a is read by random access: its canonical entry,
+// then each shard's payload in turn — one input shard resident at a
+// time, never the whole source archive.
+func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, dst string, plan filterPlan, a *archiveFile) (int64, error) {
+	arch := a.arch
 
 	canonicalDoc, err := readSchemaDocEntry(arch)
 	if err != nil {
@@ -671,7 +702,8 @@ func (s *Service) buildCombinedFilter(schema *encoding.Schema, plan filterPlan) 
 }
 
 // readAnchoredShardBytes resolves an anchor (archivePath, entry) to the
-// shard's standalone single-file `.pulse` payload bytes. Used by
+// shard's standalone single-file `.pulse` payload bytes (that one
+// entry, read off the archive by random access). Used by
 // FilterToFile to support `archive.pulse#shard.pulse` syntax with the
 // same semantics as service.OpenAnchor.
 func (s *Service) readAnchoredShardBytes(archivePath, entry string) ([]byte, error) {
@@ -680,16 +712,14 @@ func (s *Service) readAnchoredShardBytes(archivePath, entry string) ([]byte, err
 			"cannot filter the reserved canonical schema entry",
 			map[string]any{"entry": entry})
 	}
-	data, err := afero.ReadFile(s.fs.Fs(), archivePath)
-	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("opening cohort file for anchor: %s", archivePath))
-	}
-	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	// Random access: the central directory, then this one entry — the
+	// shard's bytes, never the whole archive's.
+	a, err := openArchiveFile(s.fs.Fs(), archivePath)
 	if err != nil {
 		return nil, err
 	}
-	rc, err := arch.Open(entry)
+	defer a.Close()
+	rc, err := a.arch.Open(entry)
 	if err != nil {
 		return nil, err
 	}

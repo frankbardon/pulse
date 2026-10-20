@@ -204,8 +204,12 @@ is), so the extra rows are judged twice:
 With the limit Unlimited (the default) nothing is counted and the join
 runs unchanged.
 
-**Shard archives.** Opening an archive reads it whole onto the heap and
-the run reads it again. Neither decodes a shard's dictionaries: the open
+**Shard archives.** An archive is read by random access: opening it
+reads only the zip central directory and the headers, and the run reads
+each shard through its own buffered window, so the archive is never
+resident. The estimate still charges the archive's byte length the
+earlier whole-archive read needed (an over-count, never an under-count).
+Neither the open nor the run decodes a shard's dictionaries: the open
 counts each shard's records and the scan skips each shard's schema block,
 both reading the schema without its dictionaries, because the canonical
 schema decodes every row. The estimate therefore charges the archive's
@@ -214,12 +218,12 @@ decode of the canonical schema (whatever the shard count): an archive
 whose shards each carry a large dictionary still estimates far above its
 records, because those dictionaries are archive bytes. A shard opened through the anchor form
 (`archive.pulse#shard.pulse`) is charged its whole archive's byte length
-too, because opening it reads the archive; predict charges the same. On the per-shard
+too; predict charges the same. On the per-shard
 parallel arm (`ShardWorkers` other than 1, two or more shards, a
 mergeable request) every shard's partial keeps its own group buckets
 until the merge, and the estimate counts them too. Predict reads the
 instance's `ShardWorkers` to pick the arm, as the run does. Measured on
-archives, the estimate lands at roughly 1.3x to 1.9x the peak heap.
+archives, the estimate lands at roughly 1.3x to 7x the peak heap.
 
 An unknown record count produces no estimate and no finding. With the
 default (`Unlimited`) no count is read at all.

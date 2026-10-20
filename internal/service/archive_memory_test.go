@@ -255,8 +255,18 @@ func TestArchiveMemory_EstimatedBytesRatio(t *testing.T) {
 // remaining schema decode it measures 0.69-0.76 (the leaf and descriptor
 // pins catch that drop exactly); the floor fails a term that
 // over-counts by a whole factor.
+//
+// U51 E1-S1 made every archive read header-only (Open reads the central
+// directory, the scan reads each shard through a section — no
+// whole-archive copy), while the estimate still charges the archive
+// bytes x fileCopyFactor the slurp needed: the peak fell and the
+// estimate did not, so the matrix scale archive measures 0.14 serially
+// (0.23 at 4 workers), the dictionary archive 0.17-0.36 (darwin/arm64).
+// The floor is lowered to 0.08 for that interim over-count (the safe
+// direction: the estimate still bounds the peak); E1-S2 re-pins the
+// archive term and this band together.
 const (
-	archiveRatioMin = 0.15
+	archiveRatioMin = 0.08
 	archiveRatioMax = 1.2
 )
 

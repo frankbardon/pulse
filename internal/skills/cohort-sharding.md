@@ -37,11 +37,11 @@ Anchor against single-file → `PULSE_ARCHIVE_MAGIC_INVALID`. Missing anchor →
 
 ## Memory shape
 
-Materializing ops (percentile / median aggs, the percentile attribute, quantile and date groupers, windows, decimal paths, tier-1 tests + groupers/features/two-pass attrs, tier-2 post tests) materialize across the **union** of shards. Median-of-medians is not the median. Memory scales with shard count. An archive run also reads the whole archive onto the heap, shard dictionaries included (never decoded): big ones cost far more than their records (`max_estimated_memory` counts it). An anchor run reads its whole archive too.
+Materializing ops (percentile / median aggs, the percentile attribute, quantile and date groupers, windows, decimal paths, tier-1 tests + groupers/features/two-pass attrs, tier-2 post tests) materialize across the **union** of shards. Median-of-medians is not the median. Memory scales with shard count. Archives are read by random access, never whole: open / inspect / count read only the zip directory and headers, a scan one buffered window per shard. Deflated entries: `PULSE_ARCHIVE_CORRUPT`.
 
 ## Concurrency
 
-No concurrent-writer protection: two writers race, last wins. Readers snapshot at open. Caller owns single-writer architecture or an advisory lock.
+No concurrent-writer protection: two writers race, last wins. No read snapshot: replace an archive between calls. Caller owns single-writer architecture or an advisory lock.
 
 ## Moving a cohort (transport-only compression)
 

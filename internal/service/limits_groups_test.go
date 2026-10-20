@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	stderrors "errors"
 	"testing"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/processing"
@@ -80,14 +78,11 @@ func TestMaxGroups_ParallelShardPartition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := afero.ReadFile(svc.fs.Fs(), path)
+	arch, err := openArchiveFile(svc.fs.Fs(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	defer arch.Close()
 	req := countryCount(path)
 	shard := cohort.Shards()[0].Filename
 

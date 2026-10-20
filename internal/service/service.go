@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -442,11 +443,10 @@ func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
 	// The single-file branch then advances through the 9-byte header +
 	// schema block without ever materializing the record payload — on
 	// large cohorts (hundreds of MB) this turns an O(file size) alloc
-	// into an O(header + schema) read. The shard archive branch keeps
-	// the full slurp because encoding.OpenArchive needs the central
-	// directory at the file's tail and the EOCD requires random access
-	// across the whole zip; switching that to a streaming open is a
-	// separate scope (see story Notes).
+	// into an O(header + schema) read. The shard archive branch reads
+	// the zip central directory at the file's tail by random access on
+	// the same handle (archiveFromFile), then the canonical entry and
+	// each shard's header — never a shard payload.
 	f, err := s.fs.Fs().Open(path)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
@@ -461,16 +461,13 @@ func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
 			fmt.Sprintf("reading magic prefix from cohort file: %s", path))
 	}
 	if n >= 4 && magic[0] == 'P' && magic[1] == 'K' && magic[2] == 0x03 && magic[3] == 0x04 {
-		// Shard archive: slurp via afero so encoding.OpenArchive can
-		// scan the EOCD at the file tail. afero.ReadFile opens its own
-		// handle; the deferred Close above releases the streaming one.
-		// This is intentionally not optimised here — see comment above.
-		data, rerr := afero.ReadFile(s.fs.Fs(), path)
-		if rerr != nil {
-			return nil, errors.WrapCodedError(rerr, errors.SERVICE_RESOURCE,
-				fmt.Sprintf("opening cohort file: %s", path))
+		// Shard archive: random access over this handle. The deferred
+		// Close above releases it once the directory and headers are read.
+		a, aerr := archiveFromFile(f, path)
+		if aerr != nil {
+			return nil, aerr
 		}
-		return s.openArchive(path, data)
+		return s.openArchive(path, a)
 	}
 
 	// Single-file branch: feed the already-consumed magic bytes back to
@@ -523,33 +520,28 @@ func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Coh
 			"cannot anchor-open the reserved canonical schema entry",
 			map[string]any{"entry": entry})
 	}
-	data, err := afero.ReadFile(s.fs.Fs(), archivePath)
-	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("opening cohort file for anchor: %s", archivePath))
-	}
-	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	a, err := openArchiveFile(s.fs.Fs(), archivePath)
 	if err != nil {
 		return nil, err
 	}
-	// Read the entry payload into memory so the returned Cohort owns
-	// its byte buffer — the section reader's lifetime is tied to the
-	// archive (and therefore to `data`), but a Cohort just stores the
-	// path. We synthesise a backing afero.Fs that serves the path
-	// "<archive>#<entry>" returning the shard bytes, so downstream
-	// readers (streamingIterator) round-trip cleanly.
-	rc, err := arch.Open(entry)
-	if err != nil {
-		return nil, err
-	}
-	defer rc.Close()
-	payload, err := io.ReadAll(rc)
-	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.ENCODING_IO,
-			fmt.Sprintf("reading anchored shard %q from %s", entry, archivePath))
-	}
+	defer a.Close()
 
-	r := bytes.NewReader(payload)
+	// The anchored cohort serves the shard by path (streamingIterator
+	// re-opens it), so a backing afero.Fs answers "<archive>#<entry>":
+	// for a stored entry, a SectionReader at its data offset over a
+	// fresh archive handle per open (no shard byte is read here); a
+	// deflated third-party entry is inflated into memory, its only form.
+	anchorPath := archivePath + "#" + entry
+	overlay, err := s.anchorOverlayFor(a, anchorPath, entry)
+	if err != nil {
+		return nil, err
+	}
+	sf, err := overlay.Open(anchorPath)
+	if err != nil {
+		return nil, err
+	}
+	defer sf.Close()
+	r := bufio.NewReader(sf)
 	pulseVersion, err := encoding.ReadHeader(r)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
@@ -561,25 +553,52 @@ func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Coh
 			fmt.Sprintf("reading shard schema for anchor: %s#%s", archivePath, entry))
 	}
 
-	// Surface the shard via an in-memory overlay so streamingIterator
-	// can re-open by path. Path is the literal anchor form so error
-	// messages stay informative.
-	anchorPath := archivePath + "#" + entry
-	overlay := newAnchorOverlay(s.fs.Fs(), anchorPath, payload)
 	return &Cohort{
 		path:          anchorPath,
 		schema:        schema,
 		fs:            overlay,
 		anchorArchive: archivePath,
 		anchorEntry:   entry,
-		// The whole archive was read to reach the shard: the memory
-		// estimate charges its bytes (limitInputs), as predict does
-		// through PredictOptions.AnchorArchiveBytes.
-		archiveBytes: int64(len(data)),
+		// The memory estimate charges the archive's byte length
+		// (limitInputs), as predict does through
+		// PredictOptions.AnchorArchiveBytes.
+		archiveBytes: a.size,
 	}, nil
 }
 
-// openArchive parses a Pulse shard archive from data and constructs a
+// anchorOverlayFor builds the anchored cohort's backing fs: the stored
+// entry as a section of the archive (a fresh handle per open, so the
+// cohort holds no file handle between scans), or — for a deflated
+// third-party entry — its inflated bytes.
+func (s *Service) anchorOverlayFor(a *archiveFile, anchorPath, entry string) (afero.Fs, error) {
+	if _, err := a.arch.OpenAt(entry); err != nil {
+		return nil, err // PULSE_SHARD_MISSING
+	}
+	if a.arch.IsStored(entry) {
+		var off, size int64
+		for _, e := range a.arch.Entries() {
+			if e.Name == entry {
+				off, size = e.Offset, e.Size
+				break
+			}
+		}
+		return newAnchorSectionOverlay(s.fs.Fs(), anchorPath, a.path, off, size), nil
+	}
+	rc, err := a.arch.Open(entry)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	payload, err := io.ReadAll(rc)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_IO,
+			fmt.Sprintf("reading anchored shard %q from %s", entry, a.path))
+	}
+	return newAnchorOverlay(s.fs.Fs(), anchorPath, payload), nil
+}
+
+// openArchive reads an opened Pulse shard archive (its central
+// directory already parsed, archiveFile) and constructs a
 // Cohort whose Schema reads from the archive's reserved
 // `_schema.pulse` entry and whose Shards slice enumerates every
 // non-reserved entry in central-directory order.
@@ -589,12 +608,8 @@ func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Coh
 // design contract (§3 of the sharding placeholder). The
 // `_schema.pulse` extension's AggregateRecordCount is a cached
 // sanity check; the per-shard headers win.
-func (s *Service) openArchive(path string, data []byte) (*Cohort, error) {
-	reader := bytes.NewReader(data)
-	arch, err := encx.OpenArchive(reader, int64(len(data)))
-	if err != nil {
-		return nil, err
-	}
+func (s *Service) openArchive(path string, a *archiveFile) (*Cohort, error) {
+	arch := a.arch
 
 	// Read canonical schema + sharding metadata from the reserved
 	// _schema.pulse entry via ReadSchemaDoc.
@@ -635,7 +650,7 @@ func (s *Service) openArchive(path string, data []byte) (*Cohort, error) {
 		schema:       doc.Schema,
 		fs:           s.fs.Fs(),
 		shards:       shards,
-		archiveBytes: int64(len(data)),
+		archiveBytes: a.size,
 	}, nil
 }
 

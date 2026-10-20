@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -17,7 +16,6 @@ import (
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
-	"github.com/spf13/afero"
 )
 
 // shard_reduce.go implements per-shard parallel execution for the
@@ -79,9 +77,10 @@ func (s *Service) shouldFanOut(req *types.Request, cohort *Cohort) (int, bool) {
 }
 
 // processShardArchiveParallel runs the per-shard parallel reducer.
-// Caller guarantees shouldFanOut returned true. The archive is read
-// once via afero, then each worker carves a SectionReader for its
-// assigned shards and folds rows through fresh per-worker operator
+// Caller guarantees shouldFanOut returned true. The archive is opened
+// once for random access (central directory only, no payload read),
+// then each worker carves a buffered SectionReader for its assigned
+// shards over the shared concurrency-safe ReaderAt and folds rows through fresh per-worker operator
 // instances. Partials accumulate in a slice indexed by shard insertion
 // order; a final pass merges them in that order so Welford drift is
 // deterministic across runs.
@@ -99,24 +98,26 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	// members, default label and written-out labels.
 	req = processing.ResolveAttributeInputs(req, schema, s.extensions)
 
-	// Read the archive once. Each worker re-wraps the byte buffer in a
-	// bytes.Reader (which is an io.ReaderAt under the hood) so worker
-	// reads never contend on a shared file handle.
-	data, err := afero.ReadFile(s.fs.Fs(), path)
-	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("opening shard archive for parallel reduce: %s", path))
+	// Open the archive once. Every worker reads its shards through its
+	// own SectionReader over one concurrency-safe ReaderAt (a pread on
+	// an OS file, a mutex on the in-memory one), so no shard is read
+	// before a worker scans it and none stays resident after. The
+	// cohort's fs counts the bytes read when the request carries
+	// ExecInfo (countReads).
+	fsys := cohort.fs
+	if fsys == nil {
+		fsys = s.fs.Fs()
 	}
-	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	arch, err := openArchiveFile(fsys, path)
 	if err != nil {
 		return nil, err
 	}
+	defer arch.Close()
 	ei := execInfoFrom(ctx)
 	if ei != nil {
 		ei.setPlan(observe.ArmShardParallel, workers, len(shards), 0)
-		ei.addBytes(int64(len(data)))
 	}
-	// Reading the archive into memory is its open.
+	// Parsing the central directory is the archive's open.
 	ei.Lap(observe.PhaseOpen)
 
 	// A fitted attribute bound to a prebuilt fit closes at bind: build
@@ -191,7 +192,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 // Operator code runs per row on its goroutine, so it recovers a panic
 // into PROCESSING_PANIC (recoverInto) returned like any shard error —
 // the caller records the first and cancels the siblings.
-func (s *Service) shardWorker(ctx context.Context, req *types.Request, schema *encoding.Schema, arch *encx.Archive, jobs <-chan int, starts []int, shards []ShardEntry, partials []*shardPartial) (err error) {
+func (s *Service) shardWorker(ctx context.Context, req *types.Request, schema *encoding.Schema, arch *archiveFile, jobs <-chan int, starts []int, shards []ShardEntry, partials []*shardPartial) (err error) {
 	defer recoverInto(panicOpShardParallel, s.disablePanicRecovery, &err)
 	for idx := range jobs {
 		if ctx.Err() != nil {
@@ -337,12 +338,13 @@ type shardPartial struct {
 // ordinal (shardStarts): with the in-shard record index they are each
 // row's merge-block position, stamped exactly as the serial shardIter
 // stamps it.
-func (s *Service) processOneShard(ctx context.Context, req *types.Request, schema *encoding.Schema, arch *encx.Archive, shardIdx, shardStart int, shardName string) (*shardPartial, error) {
-	sect, err := arch.OpenAt(shardName)
+func (s *Service) processOneShard(ctx context.Context, req *types.Request, schema *encoding.Schema, arch *archiveFile, shardIdx, shardStart int, shardName string) (*shardPartial, error) {
+	// A deflated entry is refused (storedShard), never decoded as raw
+	// compressed bytes — the serial shardIter's rule.
+	r, err := arch.shardReader(shardName)
 	if err != nil {
 		return nil, err
 	}
-	r := &sect
 	pulseVersion, err := encoding.ReadHeader(r)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.ENCODING_INVALID,

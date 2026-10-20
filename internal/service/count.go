@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -9,7 +8,6 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
-	"github.com/spf13/afero"
 )
 
 // CountRecords returns the total record count for the cohort at path
@@ -20,19 +18,17 @@ import (
 //     Bytes read is bounded by header + schema size — O(1) in the
 //     record count.
 //   - Shard archive (zip magic): read the archive's central directory
-//   - the reserved `_schema.pulse` entry. The SHRD trailer's
-//     AggregateRecordCount is the cached sum of every shard's record
-//     count; cohesive archives keep it in lockstep with the
-//     per-shard headers. Cost is O(N shards) for the directory walk,
-//     not O(total records).
+//     by random access plus the reserved `_schema.pulse` entry. The
+//     SHRD trailer's AggregateRecordCount is the cached sum of every
+//     shard's record count; cohesive archives keep it in lockstep with
+//     the per-shard headers. Cost is O(N shards) for the directory
+//     walk, not O(total records) and not O(archive bytes).
 //   - Anchor path `archive#shard`: opens the archive's central
-//     directory and uses the named shard's header to derive count.
-//     Cost is O(shard payload size) today; the v1 contract is
-//     "no full-archive decode," not "header-only" for anchors.
+//     directory and derives the named shard's count from its header
+//     and its central-directory size — no payload byte is read.
 //
-// Embedders that want strict O(1) for anchors can call
-// pulse.Inspect(archive) and read the per-shard counts from the
-// returned Shards slice.
+// Every arm floors a truncated tail SILENTLY (never an error);
+// Inspect is the surface that warns.
 func (s *Service) CountRecords(ctx context.Context, path string) (uint64, error) {
 	if archivePath, anchor, ok := splitAnchorPath(path); ok {
 		return s.countShardAnchor(archivePath, anchor)
@@ -60,7 +56,11 @@ func (s *Service) CountRecords(ctx context.Context, path string) (uint64, error)
 				fmt.Sprintf("reading magic bytes from %s", path))
 		}
 		if magic[0] == 'P' && magic[1] == 'K' && magic[2] == 0x03 && magic[3] == 0x04 {
-			return s.countArchive(fsys, path)
+			a, aerr := archiveFromFile(f, path)
+			if aerr != nil {
+				return 0, aerr
+			}
+			return countArchive(a)
 		}
 	}
 
@@ -105,21 +105,14 @@ func (s *Service) CountRecords(ctx context.Context, path string) (uint64, error)
 	return uint64(count), nil
 }
 
-// countArchive reads the zip central directory + the reserved
-// `_schema.pulse` entry's SHRD trailer to derive the aggregate
-// record count. Falls back to per-shard PeekShardRecordCount when
-// the trailer is absent (older archives written without sharding
-// metadata).
-func (s *Service) countArchive(fsys afero.Fs, path string) (uint64, error) {
-	data, err := afero.ReadFile(fsys, path)
-	if err != nil {
-		return 0, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("reading archive %s", path))
-	}
-	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
-	if err != nil {
-		return 0, err
-	}
+// countArchive reads the reserved `_schema.pulse` entry's SHRD trailer
+// of an archive opened for random access (central directory parsed,
+// no shard payload read) to derive the aggregate record count. Falls
+// back to per-shard PeekShardRecordCount — header plus central-directory
+// size, flooring a truncated tail — when the trailer is absent (older
+// archives written without sharding metadata).
+func countArchive(a *archiveFile) (uint64, error) {
+	arch := a.arch
 	// SHRD trailer in _schema.pulse is the cheap path. When absent we
 	// sum per-shard counts (still bounded by central-directory walk).
 	rc, err := arch.Open(encx.ReservedSchemaName)
@@ -145,24 +138,20 @@ func (s *Service) countArchive(fsys afero.Fs, path string) (uint64, error) {
 }
 
 // countShardAnchor resolves a single shard inside an archive by name
-// and returns just that shard's record count.
+// and returns just that shard's record count: its header plus its
+// central-directory size (PeekShardRecordCount), never its payload.
 func (s *Service) countShardAnchor(archivePath, anchor string) (uint64, error) {
 	if anchor == encx.ReservedSchemaName {
 		return 0, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
 			"cannot count records of the reserved canonical schema entry",
 			map[string]any{"entry": anchor})
 	}
-	fsys := s.fs.Fs()
-	data, err := afero.ReadFile(fsys, archivePath)
-	if err != nil {
-		return 0, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("opening archive: %s", archivePath))
-	}
-	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	a, err := openArchiveFile(s.fs.Fs(), archivePath)
 	if err != nil {
 		return 0, err
 	}
-	count, err := arch.PeekShardRecordCount(anchor)
+	defer a.Close()
+	count, err := a.arch.PeekShardRecordCount(anchor)
 	if err != nil {
 		return 0, err
 	}

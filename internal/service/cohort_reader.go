@@ -383,8 +383,14 @@ func missingExact(f *encoding.Field) error {
 // over f. An *os.File's ReadAt is a positional pread and already safe
 // (a BasePathFs file — the DataDir configuration — is unwrapped to it);
 // other afero files (the in-memory MemMapFs file implements ReadAt by
-// swapping its shared cursor) are serialised behind a mutex.
+// swapping its shared cursor) are serialised behind a mutex. A
+// request-local byte-counting file (execCountingFile) keeps counting:
+// its inner file is unwrapped the same way and the reads are counted
+// around it, so a counted OS file stays lock-free.
 func concurrentReaderAt(f afero.File) io.ReaderAt {
+	if cf, ok := f.(*execCountingFile); ok {
+		return &countingReaderAt{ra: concurrentReaderAt(cf.File), ei: cf.ei}
+	}
 	if bp, ok := f.(*afero.BasePathFile); ok {
 		f = bp.File
 	}
@@ -394,6 +400,14 @@ func concurrentReaderAt(f afero.File) io.ReaderAt {
 	return &lockedReaderAt{f: f}
 }
 
+// lockedReaderAt serialises ReadAt on a file whose ReadAt is not
+// concurrency-safe, and restores the io.ReaderAt contract the afero
+// in-memory file breaks: mem.File.ReadAt answers a read that straddles
+// end-of-file with n < len(p) and a NIL error. Here a short read is
+// retried for the rest, and a read that makes no progress reports
+// io.EOF, so a caller probing past the end (a zip EOCD search, a
+// section read of a truncated entry) sees io.EOF exactly as on an OS
+// file.
 type lockedReaderAt struct {
 	mu sync.Mutex
 	f  io.ReaderAt
@@ -402,5 +416,29 @@ type lockedReaderAt struct {
 func (l *lockedReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.f.ReadAt(p, off)
+	n := 0
+	for n < len(p) {
+		m, err := l.f.ReadAt(p[n:], off+int64(n))
+		n += m
+		if err != nil {
+			return n, err
+		}
+		if m == 0 {
+			return n, io.EOF
+		}
+	}
+	return n, nil
+}
+
+// countingReaderAt adds the bytes each ReadAt returns to the request's
+// ExecInfo, the ReaderAt twin of execCountingFile.ReadAt.
+type countingReaderAt struct {
+	ra io.ReaderAt
+	ei *ExecInfo
+}
+
+func (c *countingReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	n, err := c.ra.ReadAt(p, off)
+	c.ei.addBytes(int64(n))
+	return n, err
 }
