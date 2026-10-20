@@ -1094,7 +1094,7 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				"multiplicity": regressionMultiplicitySchema(),
 				"params": map[string]any{
 					"type":        "object",
-					"description": "An extension REG_* model's own configuration: only the keys its manifest entry (extensions.regressions[].params, those not marked slot) declares; any other key is PULSE_REQUEST_UNKNOWN_FIELD. The built-ins (REG_OLS / REG_GLM / REG_BAYES_LINEAR) take no params.",
+					"description": "An extension REG_* model's own configuration: only the keys its manifest entry (extensions.regressions[].params, those not marked slot) declares; any other key is PULSE_REQUEST_UNKNOWN_FIELD, and a value not of its declared json_type or a missing required param is PULSE_REQUEST_PARAM_INVALID. The built-ins (REG_OLS / REG_GLM / REG_BAYES_LINEAR) take no params.",
 				},
 			},
 			"required":             []string{"type", "target"},

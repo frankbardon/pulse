@@ -269,6 +269,20 @@ reach the factory untouched, and predict adds the advisory
 `operator`, `keys`) so the caller knows a misspelled key would pass.
 Declare every key the factory reads.
 
+**Declared values are typed and required-checked.** For a registration
+that declares params, every declared value is also checked against its
+`ParamMeta`, in all nine categories and before any operator code runs:
+a value whose JSON type is not the declared `JSONType` (a JSON `null`
+included), or a `Required` param the slot omits (an absent `params`
+object included), is refused `PULSE_REQUEST_PARAM_INVALID` —
+`details.path` (`aggregations[0].params.scale`), `details.reason`
+(`wrong_type`, with `expected` / `got`, or `missing_required`),
+`operator`, `param` — identically by predict and every runtime arm.
+`Default` is not filled in (the factory still applies it) and an
+`ExactlyOneOf` group is still the factory's to enforce. A JSON
+`number` covers integers and decimals alike; a factory that needs an
+integer still checks that itself.
+
 **One-of-several params.** When the factory takes exactly one of
 several params (an EWMA's `span` or `halflife`), tag each with the same
 `ParamMeta.ExactlyOneOf` group name. The manifest shows it as
@@ -773,7 +787,7 @@ fatal; a panic is `PROCESSING_PANIC`).
 | `Streamable` | the form; decides the path at runtime and in predict |
 | `WeightAware` | the model reads row weights; undeclared, any weight in force is `PULSE_EXTENSION_NOT_WEIGHT_AWARE` |
 | `Vcov` | `vcov: true` is honoured (result `vcov` + `correlation`); undeclared it is `PROCESSING_CONFIG` `{regression, slot: "vcov"}` at predict and runtime |
-| `Params` | `[]pulse.ParamMeta` — the keys of the slot's own `params` object (`RegressionSpec.Params`, which the factory reads off the spec); declared, any other key is `PULSE_REQUEST_UNKNOWN_FIELD` at `regressions[i].params.<key>` at predict and runtime alike; undeclared, params pass through (predict advises `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED`). A built-in `REG_*` declares none, so any `params` key on one is refused |
+| `Params` | `[]pulse.ParamMeta` — the keys of the slot's own `params` object (`RegressionSpec.Params`, which the factory reads off the spec); declared, any other key is `PULSE_REQUEST_UNKNOWN_FIELD` at `regressions[i].params.<key>`, and a wrong-typed value or a missing `Required` param is `PULSE_REQUEST_PARAM_INVALID`, at predict and runtime alike; undeclared, params pass through (predict advises `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED`). A built-in `REG_*` declares none, so any `params` key on one is refused |
 | `OutputSchema` | `[]pulse.RegressionOutputMeta{Key, JSONType, Description}` — the `Outputs` keys the model may fill (`invalid_output_key` on an empty, repeated or untyped key). `Outputs` survives `disable_components` and every `return` preset |
 
 The manifest lists the model under `extensions.regressions` in the

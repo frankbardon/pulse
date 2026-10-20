@@ -236,6 +236,7 @@ var errorOwners = map[errors.Code][]string{
 	// Fires on an embedder extension operator, which any instance may
 	// register.
 	errors.PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED: shared,
+	errors.PULSE_REQUEST_PARAM_INVALID:                shared,
 	errors.PULSE_SUPPRESS_ADVISORY_UNKNOWN:            shared,
 	// Raised by recommend AND by the core examples search's intent
 	// filter, which every instance carries.

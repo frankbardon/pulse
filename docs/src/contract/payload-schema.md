@@ -817,7 +817,10 @@ On the request side `RegressionSpec` takes an additive `params` object
 Its keys are the registration's declared `Params` — the manifest's
 `extensions.regressions[].params` entries not marked `slot` — and any
 other key is refused `PULSE_REQUEST_UNKNOWN_FIELD` with `details.path`
-`regressions[i].params.<key>`, identically at predict and at runtime. A
+`regressions[i].params.<key>`, identically at predict and at runtime; a
+value not of its declared `json_type`, or a missing `required` param, is
+`PULSE_REQUEST_PARAM_INVALID` at the same path (every extension
+category's `params` is checked this way). A
 registration declaring no params leaves the object unchecked (predict
 notes it `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED`). The built-ins
 (`REG_OLS`, `REG_GLM`, `REG_BAYES_LINEAR`) take every knob as a typed

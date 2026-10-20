@@ -1143,7 +1143,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Params"},
-				Hint:   "Embedder: declare the operator's params (ParamMeta) on its Extensions registration; every params key is then checked and an unknown one is refused PULSE_REQUEST_UNKNOWN_FIELD with a suggestion. Caller: check details.keys against the operator's documentation.",
+				Hint:   "Embedder: declare the operator's params (ParamMeta) on its Extensions registration; every params key is then checked and an unknown one is refused PULSE_REQUEST_UNKNOWN_FIELD with a suggestion, and every declared value is checked against its JSONType and Required flag (PULSE_REQUEST_PARAM_INVALID). Caller: check details.keys against the operator's documentation.",
 			},
 		},
 	},
@@ -2820,6 +2820,16 @@ var codeMetadata = map[Code]Metadata{
 				Action:   FixupReplaceField,
 				Hint:     "Rename the offending key to its canonical request slot: the error details carry the nearest valid key under suggestions and every slot this instance accepts under valid_keys. The manifest's \"groupers\"/\"aggregators\" name the available OPERATORS; the request slots that hold them are \"groups\"/\"aggregations\".",
 				Examples: []any{"groupers -> groups", "aggregators -> aggregations", "correlations[0].correlation -> rho (synth spec)"},
+			},
+		},
+	},
+	PULSE_REQUEST_PARAM_INVALID: {
+		Message: "A slot's params object on an embedder extension operator that declares its params carried a value of the wrong JSON type, or omitted a param the registration marks Required. Every extension category (aggregator, attribute, filterer, grouper, window, feature, test, matrix, regression) checks a declared operator's params against its manifest entry before any operator code runs, so predict refuses exactly what execution would. `details.path` locates the param (\"aggregations[0].params.scale\"), `details.reason` is \"wrong_type\" (with `expected` and `got` JSON types; a null value is the wrong type) or \"missing_required\", and `details.operator` / `param` name it.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Hint:     "Caller: supply the param at details.path as a JSON value of the type in details.expected (the operator's manifest entry, extensions.<category>[].params, lists every param with its json_type and required flag). Embedder: if the value is legitimately of another type, widen the registration's ParamMeta.JSONType.",
+				Examples: []any{map[string]any{"params": map[string]any{"scale": 2}}},
 			},
 		},
 	},

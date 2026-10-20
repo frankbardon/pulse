@@ -1871,6 +1871,16 @@ const (
 	// of the first offending key.
 	PULSE_REQUEST_UNKNOWN_FIELD Code = "PULSE_REQUEST_UNKNOWN_FIELD"
 
+	// PULSE_REQUEST_PARAM_INVALID indicates a slot's params object on an
+	// embedder extension operator that declares its params (ParamMeta)
+	// carried a value whose JSON type is not the declared JSONType
+	// (details.reason "wrong_type", with expected / got) or omitted a
+	// Required param (details.reason "missing_required"). details.path
+	// locates the param (`aggregations[0].params.scale`); details
+	// operator / param name it. Checked declaratively, so predict and
+	// runtime refuse identically, in every extension category.
+	PULSE_REQUEST_PARAM_INVALID Code = "PULSE_REQUEST_PARAM_INVALID"
+
 	// PULSE_OVERLAY_KIND_UNKNOWN indicates a Request.Overlays entry
 	// referenced an OverlayKind not present in
 	// types.AllOverlayKinds(). Surfaced by internal/descriptor.ValidateOverlays
@@ -4237,6 +4247,7 @@ var allCodes = []Code{
 	PULSE_CROSSTAB_CELLS_INVALID,
 	PULSE_CROSSTAB_CELLS_DUPLICATE_LABEL,
 	PULSE_REQUEST_UNKNOWN_FIELD,
+	PULSE_REQUEST_PARAM_INVALID,
 	PULSE_OVERLAY_KIND_UNKNOWN,
 	PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE,
 	PULSE_OVERLAY_COMPONENTS_REQUIRED,
