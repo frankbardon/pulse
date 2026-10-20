@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/buildinfo"
+	"github.com/frankbardon/pulse/types"
 )
 
 // BuildManifestForInstance constructs the Manifest of ONE instance: only
@@ -109,6 +110,26 @@ func filterMatrices(in []descriptor.MatrixMeta, on func(string) bool) []descript
 
 func filterRegressions(in []descriptor.RegressionMeta, on func(string) bool) []descriptor.RegressionMeta {
 	return filterSlice(in, func(r descriptor.RegressionMeta) bool { return on(r.Name) })
+}
+
+// hideRegressionSlotParams drops, from every built-in and extension
+// regression entry, the Params naming a RegressionSpec key inst hides
+// (weight, save, multiplicity — gatedSlots), exactly as the payload
+// schema drops the key: a hidden slot is never offered. No-op on a nil
+// / unscoped instance. The Param slices are fresh per build (the
+// capability tables construct them per call), and filterSlice copies.
+func hideRegressionSlotParams(m *descriptor.Manifest, inst *InstanceSnapshot) {
+	hidden := HiddenSlotKeys(types.RegressionSpec{}, inst)
+	if len(hidden) == 0 {
+		return
+	}
+	for _, rs := range [][]descriptor.RegressionMeta{m.Regressions, m.Extensions.Regressions} {
+		for i := range rs {
+			rs[i].Params = filterSlice(rs[i].Params, func(p descriptor.Param) bool {
+				return !slices.Contains(hidden, p.Name)
+			})
+		}
+	}
 }
 
 func filterOverlays(in []descriptor.OverlayCapability, on func(string) bool) []descriptor.OverlayCapability {

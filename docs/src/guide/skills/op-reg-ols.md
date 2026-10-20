@@ -26,6 +26,8 @@ Use something else:
 
 ## Params
 
+Every param is a top-level key of the regression entry (manifest `slot: true`); a `params` key is refused `PULSE_REQUEST_UNKNOWN_FIELD`.
+
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `target` | field | required | Response variable (numeric). |
@@ -41,6 +43,8 @@ Use something else:
 | `vcov` | bool | `false` | Adds `Vcov` + `Correlation`; √diag = `StdErrors`. `l1` / `elasticnet` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. |
 | `covariance` | object | absent | `{type, cluster, order_by, lags}`: `classical` (= absent), `hc0`–`hc3`, `cluster` (CR1), `hac` (Newey–West; `lags` int or `"auto"`). See [`regression-inference`](regression-inference.md). |
 | `multiplicity` | object | absent | `{method, family, alpha, coefficients}`: coefficient `PValues` join a correction family; adds `PAdjusted` / `SignificantAdjusted` beside the raw `PValues` ([`multiplicity-correction`](multiplicity-correction.md)). |
+| `name` | string | synthesized | Result alias; the saved model's name (default: the `save` file's stem). |
+| `save` | string | absent | Writes the finished fit as a model file (`.pulse-model.json`, [`compose-fits`](compose-fits.md)). |
 
 `resample` / `selection` are top-level modifiers — see [`op-reg-mod-resample`](op-reg-mod-resample.md), [`op-reg-mod-selection`](op-reg-mod-selection.md).
 

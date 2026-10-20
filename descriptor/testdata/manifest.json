@@ -7968,13 +7968,15 @@
             "type": "field",
             "required": true,
             "description": "Response variable field name.",
-            "field_filter": "numeric"
+            "field_filter": "numeric",
+            "slot": true
           },
           {
             "name": "predictors",
             "type": "list",
             "required": true,
-            "description": "Predictor field names (numeric only in v1)."
+            "description": "Predictor field names (numeric only in v1).",
+            "slot": true
           },
           {
             "name": "prior",
@@ -7984,59 +7986,89 @@
             "description": "Prior family; only the conjugate Normal-Inverse-Gamma is shipped in v1.",
             "enum_values": [
               "nig"
-            ]
+            ],
+            "slot": true
           },
           {
             "name": "prior_mu",
             "type": "list",
             "required": false,
-            "description": "Prior mean vector for coefficients, intercept first then one per predictor (length predictors + 1)."
+            "description": "Prior mean vector for coefficients, intercept first then one per predictor (length predictors + 1).",
+            "slot": true
           },
           {
             "name": "prior_precision",
             "type": "any",
             "required": false,
             "default": 0.001,
-            "description": "Prior precision: a number eps (Lambda0 = eps·I; 0 = the default) or a list of predictors + 1 entries, intercept first like prior_mu (Lambda0 = diag): 0 is a flat prior on that coefficient (refused as RANK_DEFICIENT when the data then leave the posterior improper), a large entry pins it to its prior_mu entry. A wrong length or a negative entry is PROCESSING_CONFIG."
+            "description": "Prior precision: a number eps (Lambda0 = eps·I; 0 = the default) or a list of predictors + 1 entries, intercept first like prior_mu (Lambda0 = diag): 0 is a flat prior on that coefficient (refused as RANK_DEFICIENT when the data then leave the posterior improper), a large entry pins it to its prior_mu entry. A wrong length or a negative entry is PROCESSING_CONFIG.",
+            "slot": true
           },
           {
             "name": "prior_shape",
             "type": "float",
             "required": false,
-            "description": "Inverse-gamma shape parameter for residual variance."
+            "description": "Inverse-gamma shape parameter for residual variance.",
+            "slot": true
           },
           {
             "name": "prior_rate",
             "type": "float",
             "required": false,
-            "description": "Inverse-gamma rate parameter for residual variance."
+            "description": "Inverse-gamma rate parameter for residual variance.",
+            "slot": true
           },
           {
             "name": "credible_level",
             "type": "float",
             "required": false,
             "default": 0.95,
-            "description": "Posterior credible-interval mass."
+            "description": "Posterior credible-interval mass.",
+            "slot": true
           },
           {
             "name": "conf_level",
             "type": "float",
             "required": false,
             "default": 0.95,
-            "description": "Coverage of ci_lower / ci_upper, the posterior Student-t interval on df = 2·a_n; falls back to credible_level when unset, so the bounds then equal credible_intervals."
+            "description": "Coverage of ci_lower / ci_upper, the posterior Student-t interval on df = 2·a_n; falls back to credible_level when unset, so the bounds then equal credible_intervals.",
+            "slot": true
           },
           {
             "name": "vcov",
             "type": "bool",
             "required": false,
             "default": false,
-            "description": "Emit the POSTERIOR covariance of the coefficients, b_n/(a_n−1)·Λ_n⁻¹ (null when a_n ≤ 1), and its correlation, keyed (intercept) then predictors. Its diagonal is not std_errors² (those are the marginal-t scales). Under a robust covariance it is the sandwich posterior's instead, √diag = std_errors."
+            "description": "Emit the POSTERIOR covariance of the coefficients, b_n/(a_n−1)·Λ_n⁻¹ (null when a_n ≤ 1), and its correlation, keyed (intercept) then predictors. Its diagonal is not std_errors² (those are the marginal-t scales). Under a robust covariance it is the sandwich posterior's instead, √diag = std_errors.",
+            "slot": true
           },
           {
             "name": "covariance",
             "type": "object",
             "required": false,
-            "description": "{type, cluster, order_by, lags}: keeps the posterior-mean coefficients but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹·M·Λ_n⁻¹) behind std_errors, credible_intervals, ci_lower / ci_upper (normal, no df) and vcov. type classical (absent: the NIG posterior), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row; lags an integer or \"auto\"). Forces the buffered path; echoes as covariance."
+            "description": "{type, cluster, order_by, lags}: keeps the posterior-mean coefficients but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹·M·Λ_n⁻¹) behind std_errors, credible_intervals, ci_lower / ci_upper (normal, no df) and vcov. type classical (absent: the NIG posterior), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row; lags an integer or \"auto\"). Forces the buffered path; echoes as covariance.",
+            "slot": true
+          },
+          {
+            "name": "weight",
+            "type": "object",
+            "required": false,
+            "description": "{field, kind}: frequency row weight only (a probability one is PULSE_WEIGHT_UNSUPPORTED); absent inherits the request's, null opts out.",
+            "slot": true
+          },
+          {
+            "name": "save",
+            "type": "string",
+            "required": false,
+            "description": "Write the finished fit as a model file (.pulse-model.json).",
+            "slot": true
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "description": "Result alias; also the saved model's name (default: the save file's stem).",
+            "slot": true
           }
         ],
         "intents": [
@@ -8072,13 +8104,15 @@
             "type": "field",
             "required": true,
             "description": "Response variable field name.",
-            "field_filter": "numeric"
+            "field_filter": "numeric",
+            "slot": true
           },
           {
             "name": "predictors",
             "type": "list",
             "required": true,
-            "description": "Predictor field names (numeric only in v1)."
+            "description": "Predictor field names (numeric only in v1).",
+            "slot": true
           },
           {
             "name": "family",
@@ -8089,7 +8123,8 @@
               "binomial",
               "gamma",
               "poisson"
-            ]
+            ],
+            "slot": true
           },
           {
             "name": "link",
@@ -8104,7 +8139,8 @@
               "logit",
               "probit",
               "sqrt"
-            ]
+            ],
+            "slot": true
           },
           {
             "name": "penalty",
@@ -8117,31 +8153,36 @@
               "elasticnet",
               "l1",
               "l2"
-            ]
+            ],
+            "slot": true
           },
           {
             "name": "alpha",
             "type": "float",
             "required": false,
-            "description": "Regularization strength (\u003e0 when penalty is set; glmnet's lambda)."
+            "description": "Regularization strength (\u003e0 when penalty is set; glmnet's lambda).",
+            "slot": true
           },
           {
             "name": "l1_ratio",
             "type": "float",
             "required": false,
-            "description": "Elastic-net mixing parameter, 0 \u003c l1_ratio \u003c 1; only read when penalty == elasticnet (glmnet's alpha)."
+            "description": "Elastic-net mixing parameter, 0 \u003c l1_ratio \u003c 1; only read when penalty == elasticnet (glmnet's alpha).",
+            "slot": true
           },
           {
             "name": "max_iters",
             "type": "int",
             "required": false,
-            "description": "IRLS iteration cap."
+            "description": "IRLS iteration cap.",
+            "slot": true
           },
           {
             "name": "tol",
             "type": "float",
             "required": false,
-            "description": "Relative convergence tolerance."
+            "description": "Relative convergence tolerance.",
+            "slot": true
           },
           {
             "name": "resample",
@@ -8152,32 +8193,37 @@
               "",
               "bootstrap",
               "jackknife"
-            ]
+            ],
+            "slot": true
           },
           {
             "name": "bootstrap_iters",
             "type": "int",
             "required": false,
             "default": 1000,
-            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded)."
+            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded).",
+            "slot": true
           },
           {
             "name": "jackknife_groups",
             "type": "int",
             "required": false,
-            "description": "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row; SE √((g−1)/g·Σ(β₍ₖ₎−β̄)²), echoed as jackknife_groups. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out over the fitted rows (a row the fit drops is no replicate)."
+            "description": "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row; SE √((g−1)/g·Σ(β₍ₖ₎−β̄)²), echoed as jackknife_groups. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out over the fitted rows (a row the fit drops is no replicate).",
+            "slot": true
           },
           {
             "name": "jackknife_by",
             "type": "field",
             "required": false,
-            "description": "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups."
+            "description": "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups.",
+            "slot": true
           },
           {
             "name": "rng_seed",
             "type": "int",
             "required": false,
-            "description": "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows."
+            "description": "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows.",
+            "slot": true
           },
           {
             "name": "selection",
@@ -8189,7 +8235,8 @@
               "backward",
               "forward",
               "stepwise"
-            ]
+            ],
+            "slot": true
           },
           {
             "name": "criterion",
@@ -8199,27 +8246,59 @@
             "enum_values": [
               "aic",
               "bic"
-            ]
+            ],
+            "slot": true
           },
           {
             "name": "conf_level",
             "type": "float",
             "required": false,
             "default": 0.95,
-            "description": "Coverage of ci_lower / ci_upper, 0 \u003c conf_level \u003c 1: Wald normal coefficient ∓ z·SE (binomial / poisson, dispersion 1; any robust covariance or resample); gamma ∓ t·SE on df = N* − p − 1."
+            "description": "Coverage of ci_lower / ci_upper, 0 \u003c conf_level \u003c 1: Wald normal coefficient ∓ z·SE (binomial / poisson, dispersion 1; any robust covariance or resample); gamma ∓ t·SE on df = N* − p − 1.",
+            "slot": true
           },
           {
             "name": "vcov",
             "type": "bool",
             "required": false,
             "default": false,
-            "description": "Emit the coefficient covariance (vcov, (XᵀWX)⁻¹ at the converged weights, dispersion 1 — gamma: φ̂·(XᵀWX)⁻¹, φ̂ the Pearson χ²/(N* − p − 1); l2: the penalized sandwich H⁻¹XᵀWXH⁻¹, H = XᵀWX + N*·alpha·D) and its correlation, keyed (intercept) then predictors; √diag = std_errors. Resample gives the replicate covariance, selection the final refit's; l1 / elasticnet refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED)."
+            "description": "Emit the coefficient covariance (vcov, (XᵀWX)⁻¹ at the converged weights, dispersion 1 — gamma: φ̂·(XᵀWX)⁻¹, φ̂ the Pearson χ²/(N* − p − 1); l2: the penalized sandwich H⁻¹XᵀWXH⁻¹, H = XᵀWX + N*·alpha·D) and its correlation, keyed (intercept) then predictors; √diag = std_errors. Resample gives the replicate covariance, selection the final refit's; l1 / elasticnet refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
+            "slot": true
           },
           {
             "name": "covariance",
             "type": "object",
             "required": false,
-            "description": "{type, cluster, order_by, lags}: the estimator behind std_errors, the Wald p_values, ci_lower / ci_upper and vcov — the sandwich over the IRLS scores at the converged weights (R sandwich on glm). type classical (absent: unchanged), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row; lags an integer or \"auto\"). Dispersion-free (gamma's estimate cancels, as in R sandwich); inference stays Wald z, cluster and gamma included. Echoes as covariance; resample / selection refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED)."
+            "description": "{type, cluster, order_by, lags}: the estimator behind std_errors, the Wald p_values, ci_lower / ci_upper and vcov — the sandwich over the IRLS scores at the converged weights (R sandwich on glm). type classical (absent: unchanged), hc0–hc3, cluster (CR1 over cluster's levels, ≥2), hac (Newey–West over order_by, unique per row; lags an integer or \"auto\"). Dispersion-free (gamma's estimate cancels, as in R sandwich); inference stays Wald z, cluster and gamma included. Echoes as covariance; resample / selection refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
+            "slot": true
+          },
+          {
+            "name": "weight",
+            "type": "object",
+            "required": false,
+            "description": "{field, kind}: frequency or probability row weight (IRLS prior weights; bootstrap / selection refuse one, PULSE_WEIGHT_UNSUPPORTED); absent inherits the request's, null opts out.",
+            "slot": true
+          },
+          {
+            "name": "multiplicity",
+            "type": "object",
+            "required": false,
+            "description": "{method, family, alpha, coefficients}: corrects the coefficient p_values; adds p_adjusted / significant_adjusted.",
+            "slot": true
+          },
+          {
+            "name": "save",
+            "type": "string",
+            "required": false,
+            "description": "Write the finished fit as a model file (.pulse-model.json).",
+            "slot": true
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "description": "Result alias; also the saved model's name (default: the save file's stem).",
+            "slot": true
           }
         ],
         "modifiers": [
@@ -8275,13 +8354,15 @@
             "type": "field",
             "required": true,
             "description": "Response variable field name.",
-            "field_filter": "numeric"
+            "field_filter": "numeric",
+            "slot": true
           },
           {
             "name": "predictors",
             "type": "list",
             "required": true,
-            "description": "Predictor field names (numeric only in v1)."
+            "description": "Predictor field names (numeric only in v1).",
+            "slot": true
           },
           {
             "name": "penalty",
@@ -8294,43 +8375,50 @@
               "elasticnet",
               "l1",
               "l2"
-            ]
+            ],
+            "slot": true
           },
           {
             "name": "alpha",
             "type": "float",
             "required": false,
-            "description": "Regularization strength (\u003e0 when penalty is set; glmnet's lambda)."
+            "description": "Regularization strength (\u003e0 when penalty is set; glmnet's lambda).",
+            "slot": true
           },
           {
             "name": "l1_ratio",
             "type": "float",
             "required": false,
-            "description": "Elastic-net mixing parameter, 0 \u003c l1_ratio \u003c 1; only read when penalty == elasticnet (glmnet's alpha)."
+            "description": "Elastic-net mixing parameter, 0 \u003c l1_ratio \u003c 1; only read when penalty == elasticnet (glmnet's alpha).",
+            "slot": true
           },
           {
             "name": "unpenalized",
             "type": "list",
             "required": false,
-            "description": "penalty l2 only: predictors the ridge penalty skips (no alpha term on their Gram diagonal; glmnet's penalty.factor 0), each a listed predictor, once; the ridge sandwich SEs read the same system. l1 / elasticnet (and no penalty) refuse it (PROCESSING_CONFIG)."
+            "description": "penalty l2 only: predictors the ridge penalty skips (no alpha term on their Gram diagonal; glmnet's penalty.factor 0), each a listed predictor, once; the ridge sandwich SEs read the same system. l1 / elasticnet (and no penalty) refuse it (PROCESSING_CONFIG).",
+            "slot": true
           },
           {
             "name": "bounds",
             "type": "object",
             "required": false,
-            "description": "{nonnegative: [predictors]}: those slopes are constrained \u003e= 0 (Lawson-Hanson non-negative least squares on the centred Gram; intercept and other slopes free), each a listed predictor, once. No bound binding = plain OLS bit for bit; a binding bound keeps the coefficients and R² but nulls every std error, p-value, interval and vcov entry, with advisories [PULSE_ADVISORY_CONSTRAINT_ACTIVE] — resample bootstrap refits the bounded model for replicate inference. A penalty, selection or robust covariance refuses it."
+            "description": "{nonnegative: [predictors]}: those slopes are constrained \u003e= 0 (Lawson-Hanson non-negative least squares on the centred Gram; intercept and other slopes free), each a listed predictor, once. No bound binding = plain OLS bit for bit; a binding bound keeps the coefficients and R² but nulls every std error, p-value, interval and vcov entry, with advisories [PULSE_ADVISORY_CONSTRAINT_ACTIVE] — resample bootstrap refits the bounded model for replicate inference. A penalty, selection or robust covariance refuses it.",
+            "slot": true
           },
           {
             "name": "max_iters",
             "type": "int",
             "required": false,
-            "description": "Coordinate-descent iteration cap for regularized fits."
+            "description": "Coordinate-descent iteration cap for regularized fits.",
+            "slot": true
           },
           {
             "name": "tol",
             "type": "float",
             "required": false,
-            "description": "Relative convergence tolerance for regularized fits."
+            "description": "Relative convergence tolerance for regularized fits.",
+            "slot": true
           },
           {
             "name": "resample",
@@ -8341,32 +8429,37 @@
               "",
               "bootstrap",
               "jackknife"
-            ]
+            ],
+            "slot": true
           },
           {
             "name": "bootstrap_iters",
             "type": "int",
             "required": false,
             "default": 1000,
-            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded)."
+            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded).",
+            "slot": true
           },
           {
             "name": "jackknife_groups",
             "type": "int",
             "required": false,
-            "description": "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row; SE √((g−1)/g·Σ(β₍ₖ₎−β̄)²), echoed as jackknife_groups. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out over the fitted rows (a row the fit drops is no replicate)."
+            "description": "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row; SE √((g−1)/g·Σ(β₍ₖ₎−β̄)²), echoed as jackknife_groups. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out over the fitted rows (a row the fit drops is no replicate).",
+            "slot": true
           },
           {
             "name": "jackknife_by",
             "type": "field",
             "required": false,
-            "description": "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups."
+            "description": "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups.",
+            "slot": true
           },
           {
             "name": "rng_seed",
             "type": "int",
             "required": false,
-            "description": "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows."
+            "description": "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows.",
+            "slot": true
           },
           {
             "name": "selection",
@@ -8378,7 +8471,8 @@
               "backward",
               "forward",
               "stepwise"
-            ]
+            ],
+            "slot": true
           },
           {
             "name": "criterion",
@@ -8388,27 +8482,59 @@
             "enum_values": [
               "aic",
               "bic"
-            ]
+            ],
+            "slot": true
           },
           {
             "name": "conf_level",
             "type": "float",
             "required": false,
             "default": 0.95,
-            "description": "Coverage of ci_lower / ci_upper, 0 \u003c conf_level \u003c 1: coefficient ∓ t·SE on the residual df (N* − p − 1 weighted); Wald normal under resample; intervals only where a std error is reported."
+            "description": "Coverage of ci_lower / ci_upper, 0 \u003c conf_level \u003c 1: coefficient ∓ t·SE on the residual df (N* − p − 1 weighted); Wald normal under resample; intervals only where a std error is reported.",
+            "slot": true
           },
           {
             "name": "vcov",
             "type": "bool",
             "required": false,
             "default": false,
-            "description": "Emit the coefficient covariance (vcov) and its correlation as square matrices keyed (intercept) then predictors; √diag = std_errors. Unpenalized σ̂²(XᵀX)⁻¹ or the ridge sandwich; resample gives the replicate covariance, selection the final refit's; lasso / elasticnet refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED)."
+            "description": "Emit the coefficient covariance (vcov) and its correlation as square matrices keyed (intercept) then predictors; √diag = std_errors. Unpenalized σ̂²(XᵀX)⁻¹ or the ridge sandwich; resample gives the replicate covariance, selection the final refit's; lasso / elasticnet refuse it (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
+            "slot": true
           },
           {
             "name": "covariance",
             "type": "object",
             "required": false,
-            "description": "{type, cluster, order_by, lags}: the estimator behind std_errors, p_values, ci_lower / ci_upper and vcov. type classical (absent: unchanged), hc0 / hc1 / hc2 / hc3 (heteroskedasticity-robust), cluster (CR1 over cluster's levels — categorical or unsigned-integer field, ≥2 levels — on df G − 1), hac (Newey–West over the rows ordered by order_by — date, datetime or numeric, unique per row — truncated at lags, an integer or \"auto\" = ⌊4(n/100)^(2/9)⌋). Robust types force the buffered path and echo as covariance; penalty / resample / selection refuse them (PROCESSING_REGRESSION_VCOV_UNSUPPORTED)."
+            "description": "{type, cluster, order_by, lags}: the estimator behind std_errors, p_values, ci_lower / ci_upper and vcov. type classical (absent: unchanged), hc0 / hc1 / hc2 / hc3 (heteroskedasticity-robust), cluster (CR1 over cluster's levels — categorical or unsigned-integer field, ≥2 levels — on df G − 1), hac (Newey–West over the rows ordered by order_by — date, datetime or numeric, unique per row — truncated at lags, an integer or \"auto\" = ⌊4(n/100)^(2/9)⌋). Robust types force the buffered path and echo as covariance; penalty / resample / selection refuse them (PROCESSING_REGRESSION_VCOV_UNSUPPORTED).",
+            "slot": true
+          },
+          {
+            "name": "weight",
+            "type": "object",
+            "required": false,
+            "description": "{field, kind}: frequency or probability row weight (WLS; bootstrap / selection refuse one, PULSE_WEIGHT_UNSUPPORTED); absent inherits the request's, null opts out.",
+            "slot": true
+          },
+          {
+            "name": "multiplicity",
+            "type": "object",
+            "required": false,
+            "description": "{method, family, alpha, coefficients}: corrects the coefficient p_values; adds p_adjusted / significant_adjusted.",
+            "slot": true
+          },
+          {
+            "name": "save",
+            "type": "string",
+            "required": false,
+            "description": "Write the finished fit as a model file (.pulse-model.json).",
+            "slot": true
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "description": "Result alias; also the saved model's name (default: the save file's stem).",
+            "slot": true
           }
         ],
         "modifiers": [
@@ -19312,4 +19438,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 679e06fb71ad3b19b589aa8efbb10b5383a9aa04c6dbb048c1ed9a0b7970b2d4
+// golden-hash: cba7e66ba23f3de2a71e938074b3699f8ada03ab85874688311e4bd6cf5c4f15

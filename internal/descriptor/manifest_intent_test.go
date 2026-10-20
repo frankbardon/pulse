@@ -25,7 +25,11 @@ var scopedManifestExceptions = map[string]float64{
 	// describe is served by 27 aggregators — every summary statistic —
 	// so its operator list alone is about a quarter of the catalog.
 	// Measured 25.3% (51,218 of 202,559 bytes) at guidance-mcp E3-S1.
-	IntentDescribe: 0.26,
+	// #371 made SlimManifest blank every Description (regressions,
+	// matrices, component_schema keys, components_schemas, ...), which
+	// shrank the full slim far more than any scope: measured 20.63%
+	// (48,105 of 233,153 bytes) there.
+	IntentDescribe: 0.207,
 	// compare_groups is served by every two-sample test and the whole
 	// OVERLAY_PAIRWISE_* family; it sat at about 14.94% before significance
 	// letters gave each of the five pairwise kinds a `letters` param and
@@ -36,8 +40,14 @@ var scopedManifestExceptions = map[string]float64{
 	// 15.14% (51,509 of 340,329 bytes), up from 15.05%. U48 E2-S3 gave
 	// TEST_PROP_Z a `covariate` param (CUPED on the success indicator,
 	// owner-accepted feature growth): measured 15.20% (51,793 of 340,644
-	// bytes).
-	IntentCompareGroups: 0.153,
+	// bytes). #371 made SlimManifest keep its every-Description promise
+	// (regression and matrix prose, component_schema keys, the
+	// components_schemas duplicate and the capability blocks were never
+	// blanked): the scope itself shrank 53,065 -> 43,699 bytes, but the
+	// full slim shrank further (359,176 -> 233,153), because most of the
+	// blanked prose lives in sections a compare_groups scope never
+	// carries. Measured 18.74% (43,699 of 233,153 bytes) there.
+	IntentCompareGroups: 0.188,
 }
 
 func compactJSON(t *testing.T, v any) []byte {

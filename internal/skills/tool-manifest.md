@@ -21,7 +21,7 @@ Optional `intent` (an intent-taxonomy ID, e.g. `compare_groups`): the manifest s
 
 ## Gotchas
 
-- MCP always serves the slim payload (no prose). Fetch per-operator prose via `pulse_skills_get` and per-error prose via `pulse_errors_lookup` on demand.
+- MCP serves the slim payload: every `description` blank (`component_schema` keys too). Fetch operator prose via `pulse_skills_get`, error prose via `pulse_errors_lookup` on demand.
 - Operator names in `components.aggregators[]` / `components.groupers[]` are the manifest catalog, NOT the request slot keys — request bodies use `"aggregations"` / `"groups"`<!-- feature: capability:process --> (see `tool-process` Gotchas)<!-- /feature -->.
 - Each operator entry carries its `component_schema`; the unscoped manifest also keys them by name under `components_schemas`.
 
