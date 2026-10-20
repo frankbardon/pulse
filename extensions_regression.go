@@ -38,10 +38,13 @@ func regressionDeclaration(reg RegressionRegistration) descx.ExtensionRegression
 		keys = append(keys, o.Key)
 	}
 	return descx.ExtensionRegression{
-		Vcov:         reg.Vcov,
-		OutputKeys:   keys,
-		Params:       matrixParamSnapshot(reg.Params),
-		OutputSchema: slices.Clone(reg.OutputSchema),
+		Vcov:              reg.Vcov,
+		Penalty:           reg.Penalty,
+		SupportsSelection: reg.SupportsSelection,
+		CovarianceTypes:   slices.Clone(reg.CovarianceTypes),
+		OutputKeys:        keys,
+		Params:            matrixParamSnapshot(reg.Params),
+		OutputSchema:      slices.Clone(reg.OutputSchema),
 	}
 }
 

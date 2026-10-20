@@ -162,7 +162,7 @@ func regressionExtensions(calls *regCalls) pulse.Extensions {
 		{Name: regStreamName, Description: "streaming slope", Factory: stream, Streamable: true, OutputSchema: slopeOutputs},
 		{Name: regBufferedName, Description: "buffered slope", Factory: buffered, OutputSchema: slopeOutputs},
 		{Name: regAwareName, Description: "weighted slope", Factory: stream, Streamable: true, WeightAware: true, OutputSchema: slopeOutputs},
-		{Name: regVcovName, Description: "slope with vcov", Factory: stream, Streamable: true, Vcov: true, OutputSchema: slopeOutputs},
+		{Name: regVcovName, Description: "slope with vcov", Factory: stream, Streamable: true, Vcov: true, CovarianceTypes: []types.CovarianceType{types.CovarianceHC1}, OutputSchema: slopeOutputs},
 	}}
 }
 
@@ -288,13 +288,13 @@ func TestExtensions_RegressionStreamingModelRoutedBuffered(t *testing.T) {
 
 // TestExtensions_RegressionStreamabilityFollowsDeclaration: the
 // declared form decides the path, predict agrees with the runtime gate,
-// and a modifier (resample) downgrades a streaming model to buffered on
-// both sides.
+// and a declared robust covariance downgrades a streaming model to
+// buffered on both sides (types.RegressionSpec.StreamableAs).
 func TestExtensions_RegressionStreamabilityFollowsDeclaration(t *testing.T) {
 	calls := &regCalls{}
 	p, cohort := openE2E(t, regressionExtensions(calls))
-	resampled := slopeSpec(regStreamName)
-	resampled.Resample = "jackknife"
+	robust := slopeSpec(regVcovName)
+	robust.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC1}
 	for _, tc := range []struct {
 		name   string
 		spec   *types.RegressionSpec
@@ -302,7 +302,7 @@ func TestExtensions_RegressionStreamabilityFollowsDeclaration(t *testing.T) {
 	}{
 		{"streaming", slopeSpec(regStreamName), true},
 		{"buffered", slopeSpec(regBufferedName), false},
-		{"streaming_resampled", resampled, false},
+		{"streaming_robust_covariance", robust, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := regressionRequest(cohort, tc.spec)

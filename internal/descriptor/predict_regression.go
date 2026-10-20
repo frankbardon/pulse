@@ -39,10 +39,10 @@ var knownRegressionTypes = func() map[types.RegressionType]struct{} {
 // refused exactly as a type outside that set.
 //
 // An extension model passes the type-independent checks (target,
-// predictors, the accepted-types table, conf_level, covariance,
-// resample) and the declare-or-refuse rule for the shared slots it
-// does not honour (ExtensionRegressionSlotRefusal, the runtime
-// adapter's own call).
+// predictors, the accepted-types table) and the declare-or-refuse rule
+// for the shared slots (ExtensionRegressionSlotRefusal, the runtime
+// adapter's own call: an undeclared slot is PROCESSING_CONFIG {regression,
+// slot}; a declared covariance is shape-checked by regcov.CheckDeclared).
 func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool, inst *InstanceSnapshot) {
 	// Every `save` path and their uniqueness — the runtime's
 	// model.CheckRequestSaves, the one rule (first fault,
@@ -64,9 +64,15 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 			)
 			continue
 		}
+		// An extension model's shared slots: the declare-or-refuse table,
+		// then a declared covariance's shape (regcov.CheckDeclared) — the
+		// runtime adapter's own call. covRefused keeps the built-in
+		// covariance rule below from judging the block twice.
+		covRefused := false
 		if extension {
 			if cerr := ExtensionRegressionSlotRefusal(reg, decl); cerr != nil {
 				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+				covRefused = reg.Covariance != nil
 			}
 		}
 
@@ -155,10 +161,19 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		// the runtime's rule itself (internal/regcov.Check, shared) — then
 		// the cluster / order_by field types, which only predict checks
 		// (the engine reads values, never types).
-		if cerr := regcov.Check(reg); cerr != nil {
-			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
-		} else if reg.Covariance.Robust() {
-			checkCovarianceFields(env, reg, schema)
+		// An extension model's block was judged above (declared types,
+		// regcov.CheckDeclared); its field types still are here.
+		switch {
+		case extension:
+			if !covRefused && reg.Covariance.Robust() {
+				checkCovarianceFields(env, reg, schema)
+			}
+		default:
+			if cerr := regcov.Check(reg); cerr != nil {
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			} else if reg.Covariance.Robust() {
+				checkCovarianceFields(env, reg, schema)
+			}
 		}
 		// jackknife_groups / jackknife_by — the runtime's rule itself
 		// (internal/regresample.Check, shared).

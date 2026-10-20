@@ -1156,9 +1156,22 @@ func builtinRegressionNames() map[string]struct{} {
 // shape beyond the shared naming / factory pass: every OutputSchema
 // entry has a non-empty Key listed once and a JSONType from the
 // ParamMeta set — else PULSE_EXTENSION_PARAM_INVALID, details.reason
-// invalid_output_key (details.key, .json_type).
+// invalid_output_key (details.key, .json_type); every CovarianceTypes
+// entry is a known covariance type listed once — else reason
+// invalid_covariance_type (details.covariance_type).
 func validateRegressionRegistrations(regs []RegressionRegistration) error {
 	for i, r := range regs {
+		seenCov := make(map[types.CovarianceType]bool, len(r.CovarianceTypes))
+		for _, ct := range r.CovarianceTypes {
+			if slices.Contains(types.AllCovarianceTypes(), ct) && !seenCov[ct] {
+				seenCov[ct] = true
+				continue
+			}
+			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("extension regression %q CovarianceTypes entry %q is not a covariance type (classical, hc0, hc1, hc2, hc3, cluster, hac) or is listed twice", r.Name, ct),
+				map[string]any{"category": string(categoryRegression), "name": string(r.Name), "index": i,
+					"reason": "invalid_covariance_type", "covariance_type": string(ct)})
+		}
 		seen := make(map[string]bool, len(r.OutputSchema))
 		for _, o := range r.OutputSchema {
 			_, typed := validJSONTypes[o.JSONType]

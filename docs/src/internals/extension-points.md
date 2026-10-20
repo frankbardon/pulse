@@ -787,12 +787,42 @@ fatal; a panic is `PROCESSING_PANIC`).
 | `Streamable` | the form; decides the path at runtime and in predict |
 | `WeightAware` | the model reads row weights; undeclared, any weight in force is `PULSE_EXTENSION_NOT_WEIGHT_AWARE` |
 | `Vcov` | `vcov: true` is honoured (result `vcov` + `correlation`); undeclared it is `PROCESSING_CONFIG` `{regression, slot: "vcov"}` at predict and runtime |
+| `Penalty` | the model reads the shared `penalty` / `alpha` / `l1_ratio` slots itself (their values are the model's to judge); undeclared, any of them is `PROCESSING_CONFIG` `{regression, slot: "penalty"}` (`key` names a companion) |
+| `SupportsSelection` | the model can be refit over a predictor subset, so the selection driver may wrap it; `selection` / `criterion` stay refused (`slot: "selection"`) until that driver is wired to extension models |
+| `CovarianceTypes` | `[]types.CovarianceType` the model computes itself from `spec.Covariance`: a block whose type (absent = `classical`) is listed reaches the model after the shared shape rule (`cluster` needs `cluster`, `hac` needs `order_by`; a robust type beside `penalty` is `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`); any other type is `PROCESSING_CONFIG` `{regression, slot: "covariance"}`. An unknown or repeated entry fails `pulse.New` (`PULSE_EXTENSION_PARAM_INVALID`, reason `invalid_covariance_type`). A robust type forces the buffered path |
 | `Params` | `[]pulse.ParamMeta` — the keys of the slot's own `params` object (`RegressionSpec.Params`, which the factory reads off the spec); declared, any other key is `PULSE_REQUEST_UNKNOWN_FIELD` at `regressions[i].params.<key>`, and a wrong-typed value or a missing `Required` param is `PULSE_REQUEST_PARAM_INVALID`, at predict and runtime alike; undeclared, params pass through (predict advises `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED`). A built-in `REG_*` declares none, so any `params` key on one is refused |
 | `OutputSchema` | `[]pulse.RegressionOutputMeta{Key, JSONType, Description}` — the `Outputs` keys the model may fill (`invalid_output_key` on an empty, repeated or untyped key). `Outputs` survives `disable_components` and every `return` preset |
 
+**Declare or refuse.** Every shared `RegressionSpec` slot is either
+honoured or refused — never silently ignored. Undeclared slots, and
+the slots no model can honour yet, are `PROCESSING_CONFIG` with
+details `{regression, slot}` (plus `name`, and `key` when a companion
+key such as `alpha` or `bootstrap_iters` was set), raised by ONE
+function (`descx.ExtensionRegressionSlotRefusal`) at predict and in the
+runtime adapter alike:
+
+| Slot (keys) | Rule |
+|---|---|
+| `penalty` (`alpha`, `l1_ratio`) | `Penalty` |
+| `selection` (`criterion`) | `SupportsSelection` + the driver (not yet wired) |
+| `vcov` | `Vcov` |
+| `covariance` | the type is in `CovarianceTypes` |
+| `resample` (`jackknife_groups`, `jackknife_by`, `bootstrap_iters`, `rng_seed`) | refused until the resample driver is wired to extension models |
+| `save` | refused until a registration can supply a scorer |
+| `conf_level` | refused: the engine computes no intervals for a model |
+| `family`, `link`, `max_iters`, `tol`, `prior` (`prior_mu`, `prior_precision`, `prior_shape`, `prior_rate`, `credible_level`) | refused: built-in knobs — carry the model's own configuration in `params` |
+| `weight` | `WeightAware` (`PULSE_EXTENSION_NOT_WEIGHT_AWARE` otherwise) |
+| `params`, `multiplicity` | always honoured |
+
+`TestExtensions_RegressionSharedSlotsRefused` reflects over
+`RegressionSpec` and fails on a field no rule classifies, so a new
+shared slot cannot reach an extension model unclassified.
+
 The manifest lists the model under `extensions.regressions` in the
 built-in `RegressionMeta` shape: the shared slot keys (`target`,
-`predictors`, and `vcov` when declared — each marked `slot`), then the
+`predictors`, then every shared slot the declaration accepts — `penalty`
+/ `alpha` / `l1_ratio`, `vcov`, `covariance` naming its declared types;
+each marked `slot`), then the
 declared `Params`, the declared form (`streamable`), `weight_kinds` for
 a `WeightAware` model, its `intents` and the `output_schema`.
 

@@ -935,12 +935,15 @@ pulse: type RegressionOutputMeta field Description string "json:\"description,om
 pulse: type RegressionOutputMeta field JSONType string "json:\"json_type\""
 pulse: type RegressionOutputMeta field Key string "json:\"key\""
 pulse: type RegressionRegistration struct
+pulse: type RegressionRegistration field CovarianceTypes []pulse/types.CovarianceType
 pulse: type RegressionRegistration field Description string
 pulse: type RegressionRegistration field Factory pulse/extend.RegressionFactory
 pulse: type RegressionRegistration field Name pulse/types.RegressionType
 pulse: type RegressionRegistration field OutputSchema []pulse.RegressionOutputMeta
 pulse: type RegressionRegistration field Params []pulse.ParamMeta
+pulse: type RegressionRegistration field Penalty bool
 pulse: type RegressionRegistration field Streamable bool
+pulse: type RegressionRegistration field SupportsSelection bool
 pulse: type RegressionRegistration field Vcov bool
 pulse: type RegressionRegistration field WeightAware bool
 pulse: type RenderedTemplate = pulse/internal/template.Rendered
@@ -5714,4 +5717,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: a45cbcea940ec7a8d5bcc879dd1de296044facd0b14de1eb6730f45fd64d9fb4
+// golden-hash: b4e94451d5a1d17d74583058a2fa5aad0a477265171c327c9f4f949ac06b3b74

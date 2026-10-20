@@ -57,7 +57,10 @@ func AllRegressionTypes() []RegressionType {
 //
 // The wire shape is shared across the three operator families so a
 // request parser only needs to dispatch on Type. Unused branches stay
-// at their zero values.
+// at their zero values. An extension REG_* model honours or refuses
+// every field (declare or refuse): a new field needs its row in
+// internal/descriptor/extensions_regression_slots.go, or
+// TestExtensions_RegressionSharedSlotsRefused fails.
 type RegressionSpec struct {
 	// Type names the regression operator (REG_OLS, REG_GLM,
 	// REG_BAYES_LINEAR).

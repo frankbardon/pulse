@@ -55,6 +55,23 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 	if spec == nil || spec.Covariance == nil {
 		return nil
 	}
+	return check(spec, slices.Contains(robustTypes, spec.Type))
+}
+
+// CheckDeclared is Check for an extension regression model whose
+// registration declares the covariance type itself (the model computes
+// it): the type is judged by the declaration, never by robustTypes, so
+// only the block's shape and the penalty / resample / selection
+// refusals apply.
+func CheckDeclared(spec *types.RegressionSpec) *errors.CodedError {
+	if spec == nil || spec.Covariance == nil {
+		return nil
+	}
+	return check(spec, true)
+}
+
+// check is Check with the type's robust support decided by the caller.
+func check(spec *types.RegressionSpec, robustType bool) *errors.CodedError {
 	c := spec.Covariance
 	if !slices.Contains(types.AllCovarianceTypes(), c.Type) {
 		return errors.NewCodedErrorWithDetails(
@@ -70,7 +87,7 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 		return nil
 	}
 	switch {
-	case !slices.Contains(robustTypes, spec.Type):
+	case !robustType:
 		return unsupported(spec, ReasonType, string(spec.Type))
 	case spec.Penalty != "":
 		return unsupported(spec, ReasonPenalty, spec.Penalty)

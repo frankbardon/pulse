@@ -1,12 +1,10 @@
 package descriptor
 
 import (
-	"fmt"
 	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
@@ -20,6 +18,19 @@ type ExtensionRegression struct {
 	// Vcov reports that the model returns its coefficient covariance,
 	// so a spec's vcov: true is honoured rather than refused.
 	Vcov bool
+	// Penalty reports that the model reads the shared penalty / alpha /
+	// l1_ratio slots itself, so setting them is honoured, not refused.
+	Penalty bool
+	// SupportsSelection reports that the model can be refit over a
+	// predictor subset, so the selection driver may wrap it.
+	SupportsSelection bool
+	// CovarianceTypes are the covariance.type values the model computes
+	// itself; a covariance block naming another type is refused.
+	CovarianceTypes []types.CovarianceType
+	// Scorer reports that the registration supplies a row scorer, so a
+	// fit may be saved as a model file. No registration field sets it
+	// yet: save is refused on every extension model.
+	Scorer bool
 	// OutputKeys are the declared OutputSchema keys, in order.
 	OutputKeys []string
 	// Params are the model's own params-object keys in the manifest's
@@ -83,43 +94,17 @@ func regressionSpecStreamable(opts *PredictOptions, reg *types.RegressionSpec) b
 	return routedRegression(reg, inst).Streamable()
 }
 
-// ExtensionRegressionSlotRefusal is the declare-or-refuse rule for an
-// extension REG_* model's shared RegressionSpec slots — ONE function
-// predict (validateRegressions) and the runtime adapter both call, so
-// the two refuse identically. A slot the registration does not declare
-// it honours is PROCESSING_CONFIG with details {regression, slot}
-// (regression = the spec's type, plus name when the spec carries one):
-// today vcov: true without a declared Vcov. Nil when every set slot is
-// declared.
-func ExtensionRegressionSlotRefusal(spec *types.RegressionSpec, decl ExtensionRegression) *errors.CodedError {
-	if spec == nil {
-		return nil
-	}
-	if spec.Vcov && !decl.Vcov {
-		details := map[string]any{"regression": string(spec.Type), "slot": "vcov"}
-		if spec.Name != "" {
-			details["name"] = spec.Name
-		}
-		return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			fmt.Sprintf("regression %s does not declare a coefficient covariance (its registration's Vcov is false); drop vcov: true", spec.Type),
-			details)
-	}
-	return nil
-}
-
 // extensionRegressionSlotParams are the shared RegressionSpec fields an
 // extension model reads off every slot, listed (marked Slot) ahead of
-// its own params keys; vcov joins them when the registration declares
-// it honours the covariance.
-func extensionRegressionSlotParams(vcov bool) []descriptor.Param {
+// its own params keys; the shared slots the registration declares it
+// honours (regressionSlotParamsFor, the declare-or-refuse table's
+// accepted set) follow target and predictors.
+func extensionRegressionSlotParams(decl ExtensionRegression) []descriptor.Param {
 	out := []descriptor.Param{
 		{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Response variable field name; a top-level key of the regression entry.", Slot: true},
 		{Name: "predictors", Type: "list", Required: true, Description: "Predictor field names; a top-level key of the regression entry.", Slot: true},
 	}
-	if vcov {
-		out = append(out, descriptor.Param{Name: "vcov", Type: "bool", Default: false, Description: "Emit the model's coefficient covariance (vcov) and its correlation; a top-level key of the regression entry.", Slot: true})
-	}
-	return out
+	return append(out, regressionSlotParamsFor(decl)...)
 }
 
 // extensionRegressionAcceptsTypes is the scalar field types an
@@ -164,7 +149,7 @@ func extensionRegressionMetas(s *ExtensionsSnapshot, weighting bool) []descripto
 			EmitsTypeNote:  "RegressionResult in the built-in shape: coefficients with std_errors / statistics / p_values (null where the model reports none, key kept), the fit statistics it reports, and outputs keyed by output_schema.",
 			Streamable:     m.Streamable,
 			StreamableHint: hint,
-			Params:         append(extensionRegressionSlotParams(d.Vcov), d.Params...),
+			Params:         append(extensionRegressionSlotParams(d), d.Params...),
 			OutputSchema:   append([]descriptor.RegressionOutputMeta(nil), d.OutputSchema...),
 		}
 		if p, ok := s.PurposeOf(m.Name); ok && len(p.Intents) > 0 {

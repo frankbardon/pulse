@@ -895,6 +895,33 @@ type RegressionRegistration struct {
 	// Undeclared, vcov: true is refused with PROCESSING_CONFIG, details
 	// {regression, slot: "vcov"}, at predict and at runtime alike.
 	Vcov bool
+	// Penalty declares that the model reads the shared penalty /
+	// alpha / l1_ratio slots of types.RegressionSpec itself (their
+	// values and meaning are the model's). Undeclared, any of them set
+	// is refused with PROCESSING_CONFIG, details {regression, slot:
+	// "penalty"} (key names a companion), at predict and at runtime.
+	Penalty bool
+	// SupportsSelection declares that the model can be refit over a
+	// predictor subset, so the engine's selection driver may wrap it.
+	// Selection / criterion are refused (PROCESSING_CONFIG {regression,
+	// slot: "selection"}) without it — and, until the driver is wired
+	// to extension models, with it too.
+	SupportsSelection bool
+	// CovarianceTypes declares the covariance.type values the model
+	// computes itself (it reads spec.Covariance): a covariance block
+	// whose type (absent = classical) is listed reaches the model after
+	// the shared shape rule; any other is refused with
+	// PROCESSING_CONFIG {regression, slot: "covariance"}. Each entry a
+	// known type listed once (PULSE_EXTENSION_PARAM_INVALID, reason
+	// invalid_covariance_type).
+	//
+	// Every other shared slot is fixed: resample and its knobs (not yet
+	// wired to extension models), conf_level (the engine computes no
+	// intervals for a model), save (no scorer), and the built-ins' own
+	// knobs (family, link, max_iters, tol, prior*, credible_level) are
+	// refused with PROCESSING_CONFIG {regression, slot}; weight follows
+	// WeightAware; params and multiplicity are always honoured.
+	CovarianceTypes []types.CovarianceType
 	// Params declares the keys of the slot's own params object
 	// (types.RegressionSpec.Params), which the factory reads off the
 	// spec. Declared, a params key outside the list is refused
