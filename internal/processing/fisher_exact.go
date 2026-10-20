@@ -84,3 +84,121 @@ func fisherExactTwoSided(a, b, c, d int) float64 {
 	}
 	return sum
 }
+
+// fisherConditionalOddsRatio returns the conditional maximum-likelihood
+// estimate of the odds ratio of the 2×2 table (a, b, c, d) — the
+// estimate R's fisher.test reports — not the sample cross-product
+// ratio ad/bc. With every margin held fixed, cell a follows Fisher's
+// noncentral hypergeometric distribution with odds ratio ψ; the
+// estimate solves E[a; ψ] = a (Cornfield 1956).
+//
+// Boundary cases follow fisher.test's mle() in its order: a at the
+// bottom of its support [max(0, R₁−C₂), min(R₁, C₁)] gives 0 — checked
+// first, so a one-point support (an empty row or column margin) is 0,
+// never 0/0 — a at the top gives +Inf, and a equal to the central mean
+// E[a; 1] gives exactly 1.
+//
+// The root is found in θ = log ψ, where E[a; e^θ] is strictly
+// increasing with derivative Var[a; e^θ]: a bracket by doubling steps,
+// then Newton steps safeguarded by bisection, to |Δθ| ≤ 4ε·max(1, |θ|).
+// R's own uniroot() stops at a ~1.2e-4 tolerance on ψ (or 1/ψ), so the
+// R oracle (scripts/reference/gen_test_outputs.R) refines the root
+// before pinning it at 1e-10 and keeps fisher.test's value beside.
+//
+// Inputs must be non-negative.
+func fisherConditionalOddsRatio(a, b, c, d int) float64 {
+	row1 := a + b
+	col1 := a + c
+	col2 := b + d
+	n := a + b + c + d
+	lo := 0
+	if row1-col2 > 0 {
+		lo = row1 - col2
+	}
+	hi := min(row1, col1)
+	switch {
+	case a == lo:
+		return 0
+	case a == hi:
+		return math.Inf(1)
+	}
+	logdc := make([]float64, hi-lo+1)
+	for s := range logdc {
+		logdc[s] = logHypergeometric(lo+s, row1, col1, n)
+	}
+	// moments returns E[a] − a and Var[a] at θ, via a max-shifted
+	// exponent so no weight overflows.
+	moments := func(theta float64) (float64, float64) {
+		maxD := math.Inf(-1)
+		for s, l := range logdc {
+			maxD = math.Max(maxD, l+float64(theta*float64(lo+s)))
+		}
+		var w0, w1, w2 float64
+		for s, l := range logdc {
+			w := math.Exp(l + float64(theta*float64(lo+s)) - maxD)
+			v := float64(s) // centred on lo: a smaller second moment
+			w0 += w
+			w1 += float64(w * v)
+			w2 += float64(float64(w*v) * v)
+		}
+		mean := w1 / w0
+		return mean + float64(lo) - float64(a), w2/w0 - mean*mean
+	}
+	f0, _ := moments(0)
+	if f0 == 0 {
+		return 1
+	}
+	// Bracket the root: f(θlo) < 0 < f(θhi).
+	thetaLo, thetaHi := 0.0, 0.0
+	step := 1.0
+	if f0 < 0 {
+		for {
+			thetaHi += step
+			if f, _ := moments(thetaHi); f >= 0 {
+				if f == 0 {
+					return math.Exp(thetaHi)
+				}
+				break
+			}
+			thetaLo = thetaHi
+			step *= 2
+		}
+	} else {
+		for {
+			thetaLo -= step
+			if f, _ := moments(thetaLo); f <= 0 {
+				if f == 0 {
+					return math.Exp(thetaLo)
+				}
+				break
+			}
+			thetaHi = thetaLo
+			step *= 2
+		}
+	}
+	theta := (thetaLo + thetaHi) / 2
+	for range 200 {
+		f, v := moments(theta)
+		if f == 0 {
+			break
+		}
+		if f < 0 {
+			thetaLo = theta
+		} else {
+			thetaHi = theta
+		}
+		next := theta - f/v
+		if !(next > thetaLo && next < thetaHi) || v <= 0 {
+			next = (thetaLo + thetaHi) / 2
+		}
+		done := math.Abs(next-theta) <= 4*epsilon64*math.Max(1, math.Abs(theta))
+		theta = next
+		if done || thetaHi-thetaLo <= 4*epsilon64*math.Max(1, math.Abs(theta)) {
+			break
+		}
+	}
+	return math.Exp(theta)
+}
+
+// epsilon64 is the float64 machine epsilon, 2⁻⁵².
+const epsilon64 = 0x1p-52

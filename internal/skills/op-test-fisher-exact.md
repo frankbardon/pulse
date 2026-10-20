@@ -27,7 +27,7 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Output
 
-`Statistic` = odds ratio; `PValue` = exact two-sided via hypergeometric tail (sum of tables with probability ≤ observed). `Details.contingency` = `[[a, b], [c, d]]` with rows / columns sorted byte-wise (`row_labels` / `col_labels`); `odds_ratio` = ad/bc, no Haldane fix: zero b or c -> +Inf, zero a or d -> 0.
+`Statistic` = odds ratio; `PValue` = exact two-sided via hypergeometric tail (sum of tables with probability ≤ observed). `Details.contingency` = `[[a, b], [c, d]]` with rows / columns sorted byte-wise (`row_labels` / `col_labels`); `odds_ratio` (= `Statistic`) is the conditional MLE R's `fisher.test` reports, not ad/bc: zero a or d -> 0, else zero b or c -> +Inf (`null` on the wire).
 
 <!-- generated: reading-the-output -->
 

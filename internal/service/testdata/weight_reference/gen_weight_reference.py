@@ -1134,9 +1134,11 @@ def exact_closed_form(case, rows, xr):
     agree (test_cases).
 
     - fisher: scipy fisher_exact's two-sided p (tables no more likely
-      than observed) on the Σw table; the statistic is the SAMPLE odds
-      ratio ad/bc in first-seen row / column order, as Pulse reports it
-      (R's estimate is the conditional MLE, so only R's p is compared).
+      than observed) on the Σw table; the statistic is the CONDITIONAL
+      MLE odds ratio (scipy.stats.contingency.odds_ratio, kind
+      "conditional") on the table in sorted row / column order, as Pulse
+      reports it and as R's fisher.test estimates it (U36 E1-S4; R's
+      refined value replaces it, test_reference.R).
     - ks: scipy ks_2samp's D (ties handled at value boundaries, as R);
       Pulse's p is the Stephens-corrected Kolmogorov asymptotic,
       Q_KS((√en + 0.12 + 0.11/√en)·D) with en = n₁n₂/(n₁+n₂) on the
@@ -1157,8 +1159,9 @@ def exact_closed_form(case, rows, xr):
         assert len(rord) == 2 and len(cord) == 2, (rord, cord)
         (a, b), (c, d) = [[cells.get((ri, ci), 0) for ci in cord] for ri in rord]
         assert b > 0 and c > 0 and a > 0 and d > 0, "fixture must avoid a zero cell (U36 #205 OR)"
+        assert rord == sorted(rord) and cord == sorted(cord), (rord, cord)
         res = scipy.stats.fisher_exact([[a, b], [c, d]], alternative="two-sided")
-        orr = a * d / (b * c)
+        orr = float(scipy.stats.contingency.odds_ratio([[a, b], [c, d]], kind="conditional").statistic)
         out.update(statistic=orr, odds_ratio=orr, p_value=float(res.pvalue),
                    n=len(fr), sum_weights=float(a + b + c + d))
         return out
@@ -1272,11 +1275,11 @@ R_FIGURES.update({
     # cor.test's default (no continuity correction): scipy's asymptotic
     # p cross-checks it; z is R's only.
     "kendall": ("kendall", {"tau": "statistic", "z": "z", "p_value": "p_value"}),
-    # R's fisher.test estimate is the conditional MLE (not Pulse's
-    # sample OR) and its ks.test p is the uncorrected asymptotic: R pins
-    # Fisher's p and KS's D; Brown-Forsythe is car::leveneTest's own
-    # anova(lm(|x − median| ~ k)) in base R.
-    "fisher": ("fisher", {"p_value": "p_value"}),
+    # R pins Fisher's p and its conditional MLE odds ratio (refined past
+    # fisher.test's uniroot tolerance, test_reference.R); ks.test's p is
+    # the uncorrected asymptotic, so R pins KS's D only; Brown-Forsythe
+    # is car::leveneTest's own anova(lm(|x − median| ~ k)) in base R.
+    "fisher": ("fisher", {"p_value": "p_value", "estimate": "statistic"}),
     "ks": ("ks", {"statistic": "statistic"}),
     "brown_forsythe": ("brown_forsythe", {"statistic": "statistic", "df_between": "df",
                                           "df_within": "df_within", "p_value": "p_value",
@@ -1374,6 +1377,8 @@ def test_cases():
                     else:
                         assert case == "kendall", (case, fname)  # R-only z
                     figs[fname] = rv
+                if case == "fisher":
+                    figs["odds_ratio"] = figs["statistic"]  # details.odds_ratio echoes it
                 src = f"{RTEST[0]} stats on rep()-expanded rows (test_reference.R)"
             out.append(dict(weight=wname, kind=kind, name=case, spec=spec, figs=figs, src=src))
     return out

@@ -281,7 +281,7 @@ Exact test of whether two yes/no fields are associated, built for small 2x2 tabl
 
 #### `statistic`
 
-The sample odds ratio (a*d)/(b*c) of the 2x2 table in details.contingency, also in details.odds_ratio: 1 means the odds of the first column are the same in both rows, above 1 higher in the first row, below 1 lower.
+The conditional maximum-likelihood odds ratio of the 2x2 table in details.contingency (the estimate R's fisher.test reports), also in details.odds_ratio: 1 means the odds of the first column are the same in both rows, above 1 higher in the first row, below 1 lower.
 
 **Bands** (convention: Cohen (1988) d benchmarks converted via d = ln(OR)*sqrt(3)/pi (Chinn 2000); a labelled convention, not a rule):
 
@@ -296,8 +296,8 @@ The sample odds ratio (a*d)/(b*c) of the 2x2 table in details.contingency, also 
 
 - Bands apply to max(OR, 1/OR), so an odds ratio of 0.25 reads like one of 4.
 - Rows and columns are sorted alphabetically (details.row_labels / col_labels), so the ratio can come out inverted from what you expect: check the labels.
-- A zero in b or c gives an infinite ratio and a zero in a or d gives 0; with zero cells read the p-value and the table, not the ratio.
-- This is the plain cross-product ratio, not the conditional estimate R's fisher.test reports, so the two differ slightly.
+- A zero in a or d gives 0, and otherwise a zero in b or c gives an infinite ratio (null in JSON); with zero cells read the p-value and the table, not the ratio.
+- It is not the plain cross-product ratio (a*d)/(b*c): it sits closer to 1, most visibly in small tables.
 
 #### `p_value`
 

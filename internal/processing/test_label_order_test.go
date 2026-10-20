@@ -124,9 +124,11 @@ func TestFisherExact_LabelsSorted(t *testing.T) {
 	if got := d["contingency"]; !reflect.DeepEqual(got, [][]int{{6, 4}, {3, 7}}) {
 		t.Errorf("contingency = %v, want [[6 4] [3 7]]", got)
 	}
-	// (6·7)/(4·3) = 3.5 on the sorted table.
-	if got := d["odds_ratio"]; got != 3.5 {
-		t.Errorf("odds_ratio = %v, want 3.5", got)
+	// The conditional MLE of the sorted table [[6 4] [3 7]] is above 1
+	// (R fisher.test, refined: 3.2742486015053243, pinned by
+	// TestReferenceOracle_FisherExact); first-seen order would invert it.
+	if got := d["odds_ratio"].(float64); got <= 1 || got != fisherConditionalOddsRatio(6, 4, 3, 7) {
+		t.Errorf("odds_ratio = %v, want the sorted table's conditional MLE (≈ 3.2742)", got)
 	}
 }
 

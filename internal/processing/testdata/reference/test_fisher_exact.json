@@ -1,0 +1,171 @@
+{
+  "generator": "scripts/reference/gen_test_outputs.R",
+  "r_version": "R version 4.6.1 (2026-06-24)",
+  "packages": {
+    "stats": "4.6.1",
+    "jsonlite": "2.0.0"
+  },
+  "primitive": "TEST_FISHER_EXACT",
+  "r_function": "fisher.test(matrix(c(a, b, c, d), 2, byrow = TRUE)); the conditional MLE refined by uniroot(tol = 1e-15) in log(psi)",
+  "note": "estimate is the conditional MLE odds ratio (estimate_class inf when infinite); r_estimate is fisher.test's own uniroot-tolerance estimate; empty_margin tables pin the helper only.",
+  "cases": [
+    {
+      "name": "small_symmetric",
+      "table": [3, 1, 1, 3],
+      "empty_margin": false,
+      "p_value": 0.4857142857142856,
+      "estimate": 6.408319658199674,
+      "r_estimate": 6.4083088670057924
+    },
+    {
+      "name": "label_order_table",
+      "table": [6, 4, 3, 7],
+      "empty_margin": false,
+      "p_value": 0.36984996427720901,
+      "estimate": 3.2742486015053243,
+      "r_estimate": 3.274232944461974
+    },
+    {
+      "name": "classic_inverse",
+      "table": [1, 9, 11, 3],
+      "empty_margin": false,
+      "p_value": 0.002759456185220084,
+      "estimate": 0.037209084832381223,
+      "r_estimate": 0.037233117250979178
+    },
+    {
+      "name": "moderate",
+      "table": [12, 5, 7, 30],
+      "empty_margin": false,
+      "p_value": 0.00047492273163819086,
+      "estimate": 9.7241970730921494,
+      "r_estimate": 9.7236671230217286
+    },
+    {
+      "name": "large_counts",
+      "table": [150, 80, 95, 160],
+      "empty_margin": false,
+      "p_value": 8.8476387957504234e-10,
+      "estimate": 3.1500050799025008,
+      "r_estimate": 3.1499745491430993
+    },
+    {
+      "name": "large_unbalanced",
+      "table": [3, 200, 1, 500],
+      "empty_margin": false,
+      "p_value": 0.074588511553561471,
+      "estimate": 7.4758106599130993,
+      "r_estimate": 7.4754708900150426
+    },
+    {
+      "name": "strong_inverse",
+      "table": [1, 40, 30, 2],
+      "empty_margin": false,
+      "p_value": 5.2641666490370958e-17,
+      "estimate": 0.0022781794139553639,
+      "r_estimate": 0.0022738712743524416
+    },
+    {
+      "name": "near_one",
+      "table": [10, 11, 9, 10],
+      "empty_margin": false,
+      "p_value": 1,
+      "estimate": 1.0098472478417011,
+      "r_estimate": 1.0098486274614717
+    },
+    {
+      "name": "central_mean_exact_one",
+      "table": [2, 2, 2, 2],
+      "empty_margin": false,
+      "p_value": 1,
+      "estimate": 0.99999999999999944,
+      "r_estimate": 1
+    },
+    {
+      "name": "zero_a",
+      "table": [0, 3, 2, 5],
+      "empty_margin": false,
+      "p_value": 1,
+      "estimate": 0,
+      "r_estimate": 0
+    },
+    {
+      "name": "zero_d",
+      "table": [4, 2, 3, 0],
+      "empty_margin": false,
+      "p_value": 0.50000000000000011,
+      "estimate": 0,
+      "r_estimate": 0
+    },
+    {
+      "name": "zero_b",
+      "table": [4, 0, 1, 3],
+      "empty_margin": false,
+      "p_value": 0.14285714285714288,
+      "estimate_class": "inf"
+    },
+    {
+      "name": "zero_c",
+      "table": [3, 5, 0, 4],
+      "empty_margin": false,
+      "p_value": 0.49090909090909113,
+      "estimate_class": "inf"
+    },
+    {
+      "name": "zero_b_and_c",
+      "table": [3, 0, 0, 4],
+      "empty_margin": false,
+      "p_value": 0.028571428571428564,
+      "estimate_class": "inf"
+    },
+    {
+      "name": "zero_a_and_d",
+      "table": [0, 3, 4, 0],
+      "empty_margin": false,
+      "p_value": 0.028571428571428564,
+      "estimate": 0,
+      "r_estimate": 0
+    },
+    {
+      "name": "empty_row1",
+      "table": [0, 0, 3, 2],
+      "empty_margin": true,
+      "p_value": 1,
+      "estimate": 0,
+      "r_estimate": 0
+    },
+    {
+      "name": "empty_col1",
+      "table": [0, 3, 0, 2],
+      "empty_margin": true,
+      "p_value": 1,
+      "estimate": 0,
+      "r_estimate": 0
+    },
+    {
+      "name": "empty_row2",
+      "table": [3, 2, 0, 0],
+      "empty_margin": true,
+      "p_value": 1,
+      "estimate": 0,
+      "r_estimate": 0
+    },
+    {
+      "name": "empty_col2",
+      "table": [2, 0, 3, 0],
+      "empty_margin": true,
+      "p_value": 1,
+      "estimate": 0,
+      "r_estimate": 0
+    },
+    {
+      "name": "single_cell",
+      "table": [0, 0, 0, 5],
+      "empty_margin": true,
+      "p_value": 1,
+      "estimate": 0,
+      "r_estimate": 0
+    }
+  ]
+}
+// golden-hash: 57d14a1c9a4b825835d7377fb96ba05f65379b5aafe9e63a3e02abb45c67ed73

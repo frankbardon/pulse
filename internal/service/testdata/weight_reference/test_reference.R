@@ -173,10 +173,36 @@ out("kendall", "p_value", kt$p.value)
 # Exact / distribution / spread tests (weighting-inferential E2-S2;
 # frequency-only), each on the expanded rows.
 # TEST_FISHER_EXACT: h × o with o = "maybe" filtered out; the two-sided
-# p (R's estimate is the conditional MLE, not Pulse's sample odds ratio).
+# p and the conditional MLE odds ratio (U36 E1-S4). fisher.test's mle()
+# stops uniroot() at its default tol (~1.2e-4 on psi or 1/psi), so the
+# estimate is the same equation E[a; psi] = a, same support and
+# dhyper() log-density, solved by uniroot() in log(psi) at tol 1e-15 —
+# the refinement scripts/reference/gen_test_outputs.R pins — after a
+# check that it sits within fisher.test's own tolerance of ft$estimate.
 fe <- e[e$o != "maybe", ]
-ft <- fisher.test(table(fe$h, factor(fe$o)))
+ftab <- table(fe$h, factor(fe$o))
+ft <- fisher.test(ftab)
 out("fisher", "p_value", ft$p.value)
+fe_cmle <- function(tab) {
+  m <- sum(tab[, 1L]); n <- sum(tab[, 2L]); k <- sum(tab[1L, ]); x <- tab[1L, 1L]
+  lo <- max(0L, k - n); hi <- min(k, m)
+  if (x == lo || x == hi) stop("fisher fixture must keep a inside its support")
+  support <- lo:hi
+  logdc <- dhyper(support, m, n, k, log = TRUE)
+  mn <- function(theta) {
+    d <- logdc + theta * support
+    d <- exp(d - max(d))
+    sum(support * d) / sum(d)
+  }
+  f <- function(theta) mn(theta) - x
+  b <- 1
+  while (f(-b) >= 0 || f(b) <= 0) b <- 2 * b
+  exp(uniroot(f, c(-b, b), tol = 1e-15, maxiter = 100000)$root)
+}
+fest <- fe_cmle(unclass(ftab))
+stopifnot(abs(1 / fest - 1 / ft$estimate) <= 2 * .Machine$double.eps^0.25 ||
+            abs(fest - ft$estimate) <= 2 * .Machine$double.eps^0.25)
+out("fisher", "estimate", fest)
 
 # TEST_KS: x by h; D only (Pulse's p is the Stephens-corrected
 # asymptotic, not ks.test's).

@@ -36,11 +36,11 @@ Use something else:
 
 ## Output
 
-`Statistic` = odds ratio; `PValue` = exact two-sided via hypergeometric tail (sum of tables with probability ≤ observed). `Details.contingency` = `[[a, b], [c, d]]` with rows / columns sorted byte-wise (`row_labels` / `col_labels`); `odds_ratio` = ad/bc, no Haldane fix: zero b or c -> +Inf, zero a or d -> 0.
+`Statistic` = odds ratio; `PValue` = exact two-sided via hypergeometric tail (sum of tables with probability ≤ observed). `Details.contingency` = `[[a, b], [c, d]]` with rows / columns sorted byte-wise (`row_labels` / `col_labels`); `odds_ratio` (= `Statistic`) is the conditional MLE R's `fisher.test` reports, not ad/bc: zero a or d -> 0, else zero b or c -> +Inf (`null` on the wire).
 
 ## Reading the output
 
-- `statistic`: The sample odds ratio (a*d)/(b*c) of the 2x2 table in details.contingency, also in details.odds_ratio: 1 means the odds of the first column are the same in both rows, above 1 higher in the first row, below 1 lower.
+- `statistic`: The conditional maximum-likelihood odds ratio of the 2x2 table in details.contingency (the estimate R's fisher.test reports), also in details.odds_ratio: 1 means the odds of the first column are the same in both rows, above 1 higher in the first row, below 1 lower.
   - Caveat: Bands apply to max(OR, 1/OR), so an odds ratio of 0.25 reads like one of 4.
 - `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 

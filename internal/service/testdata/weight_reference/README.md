@@ -95,9 +95,10 @@ pinned by `TestWeightReferenceValues/tests`) come from the same run:
   `continuity = FALSE`, the p every Pulse rank test and matrix rank cell
   shares) have only this row, cross-checked against scipy on the same
   expansion (Kendall: tau and p; z is R-only).
-  Fisher / KS / Brown-Forsythe (E2-S2) likewise: `fisher.test` p (its
-  estimate is the conditional MLE, so the sample odds ratio is
-  scipy-only), `ks.test` D (Pulse's p is the Stephens-corrected
+  Fisher / KS / Brown-Forsythe (E2-S2) likewise: `fisher.test` p and
+  its conditional MLE odds ratio (U36 E1-S4; refined past `uniroot()`'s
+  default tolerance in `test_reference.R`, cross-checked against scipy's
+  `odds_ratio(kind="conditional")`), `ks.test` D (Pulse's p is the Stephens-corrected
   asymptotic, pinned via `scipy.special.kolmogorov`), and
   `anova(lm(|x − group median| ~ k))` — what `car::leveneTest(center =
   median)` computes, in base R, so no package pin;

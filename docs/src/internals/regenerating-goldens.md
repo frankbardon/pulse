@@ -210,14 +210,19 @@ refined on the studentized-range quadrature and R's own values kept as
 `cor(method = "kendall")`, `Kendall::MannKendall` beside it),
 `test_ks.json`, `test_kendall_tau.json` (ties),
 `test_pearson_r.json` (the Fisher-z interval),
-`test_shapiro_wilk.json` (`nortest::sf.test`, n ≥ 5) and
+`test_shapiro_wilk.json` (`nortest::sf.test`, n ≥ 5),
 `test_brown_forsythe.json` (`anova(lm(|x − median| ~ g))`; at zero
 within-group spread, where `lm`'s residuals are rounding noise, the
 exact closed form as `statistic_class` / `p_value_class` = `inf` /
-`nan`, `anova`'s own values kept as `r_*`). Each case carries its
+`nan`, `anova`'s own values kept as `r_*`) and
+`test_fisher_exact.json` (`fisher.test`'s p and conditional MLE odds
+ratio; `fisher.test` stops `uniroot()` at ~1.2e-4, so the estimate is
+re-solved in log(ψ) at `tol = 1e-15` with its own value kept as
+`r_estimate`; `estimate_class` `inf` at the top of the support, and
+empty-margin tables pin the helper only). Each case carries its
 inputs, so the `TestReferenceOracle_*` tests in
-`internal/processing/test_output_oracle_test.go` and
-`test_undefined_oracle_test.go` replay R's exact doubles through the
+`internal/processing/test_output_oracle_test.go`,
+`test_undefined_oracle_test.go` and `test_fisher_oracle_test.go` replay R's exact doubles through the
 operator at relative `1e-10`.
 
 ### The R toolchain

@@ -50,6 +50,20 @@
 #   * test_brown_forsythe.json — TEST_BROWN_FORSYTHE: anova(lm(|x -
 #     median_g| ~ g)), plus the exact closed form (F = Inf / NaN) at zero
 #     within-group spread (U36 E1-S3).
+#   * test_fisher_exact.json — TEST_FISHER_EXACT (U36 E1-S4): the
+#     conditional MLE odds ratio and the two-sided p of fisher.test on
+#     each 2x2 table. fisher.test's mle() solves E[a; psi] = a with
+#     uniroot() at its default tol (~1.2e-4 on psi, or on 1/psi above 1),
+#     so the estimate follows the U08 refinement pattern: the same
+#     equation, the same boundary order (a at the bottom of its support
+#     -> 0, at the top -> Inf, at the central mean -> 1), solved by
+#     uniroot() in theta = log(psi) at tol 1e-15; fisher.test's own
+#     estimate is kept beside as r_estimate. An infinite estimate is
+#     estimate_class "inf". Tables with an empty margin (empty_margin)
+#     cannot reach the operator (it needs two levels per axis) and pin
+#     the helper only: fisher.test reports 0 there, never 0/0. Pulse emits
+#     no odds-ratio interval (the operator has no CI slot), so conf.int
+#     is not pinned.
 #
 # Data are seeded and rounded to a few decimals (ties where wanted);
 # every input is written at %.17g so nothing depends on the RNG in Go.
@@ -440,3 +454,88 @@ write_golden("test_brown_forsythe", c(to_meta(
   "anova(lm(abs(x - median_g) ~ g)); the exact closed form at zero within-group spread",
   "statistic_class / p_value_class mark an undefined figure (inf, nan) where SS_within is exactly 0; r_statistic / r_p_value are anova's own rounding-noise values there."
 ), list(cases = bf_cases)))
+
+# --------------------------------------------------------- TEST_FISHER_EXACT
+# Refined conditional MLE (header). Same support, same log-density
+# dhyper(support, m, n, k, log = TRUE) as stats:::fisher.test.
+fe_cmle <- function(tab) {
+  m <- sum(tab[, 1L]); n <- sum(tab[, 2L]); k <- sum(tab[1L, ]); x <- tab[1L, 1L]
+  lo <- max(0L, k - n); hi <- min(k, m)
+  support <- lo:hi
+  logdc <- dhyper(support, m, n, k, log = TRUE)
+  mn <- function(theta) {
+    d <- logdc + theta * support
+    d <- exp(d - max(d))
+    sum(support * d) / sum(d)
+  }
+  if (x == lo) return(0)
+  if (x == hi) return(Inf)
+  if (mn(0) == x) return(1)
+  f <- function(theta) mn(theta) - x
+  b <- 1
+  while (f(-b) >= 0 || f(b) <= 0) b <- 2 * b
+  r <- uniroot(f, c(-b, b), tol = 1e-15, maxiter = 100000)
+  # uniroot() stops early when f(root) is exactly 0, reporting the
+  # bracket width as estim.prec, so convergence is judged by the Newton
+  # step |f| / Var[a] at the root (the first-order theta error) or by
+  # estim.prec: either within 1e-11 in theta (1e-11 relative in psi, ten
+  # times inside the 1e-10 the Go test holds Pulse to).
+  dd <- logdc + r$root * support
+  dd <- exp(dd - max(dd))
+  dd <- dd / sum(dd)
+  v <- sum(support^2 * dd) - sum(support * dd)^2
+  if (abs(f(r$root)) / v > 1e-11 && r$estim.prec > 1e-11) {
+    stop("fisher cmle: uniroot did not converge, estim.prec ", r$estim.prec)
+  }
+  exp(r$root)
+}
+fe_case <- function(name, a, b, c, d) {
+  tab <- matrix(c(a, b, c, d), 2, byrow = TRUE)
+  ft <- fisher.test(tab)
+  est <- fe_cmle(tab)
+  # The refinement agrees with fisher.test's mle() at its own tolerance.
+  r_est <- unname(ft$estimate)
+  if (is.finite(est) && est > 0 && est != 1) {
+    gap <- if (est <= 1) abs(r_est - est) else abs(1 / r_est - 1 / est)
+    if (gap > 2 * .Machine$double.eps^0.25) stop("fisher ", name, ": refined ", est, " vs fisher.test ", r_est)
+  } else if (!identical(est, r_est)) {
+    stop("fisher ", name, ": boundary ", est, " vs fisher.test ", r_est)
+  }
+  out <- list(
+    name = name, table = c(a, b, c, d),
+    empty_margin = any(c(a + b, c + d, a + c, b + d) == 0),
+    p_value = num(ft$p.value)
+  )
+  if (is.infinite(est)) out$estimate_class <- "inf" else out$estimate <- num(est)
+  if (is.finite(r_est)) out$r_estimate <- num(r_est)
+  out
+}
+fe_cases <- list(
+  fe_case("small_symmetric", 3, 1, 1, 3),
+  fe_case("label_order_table", 6, 4, 3, 7),
+  fe_case("classic_inverse", 1, 9, 11, 3),
+  fe_case("moderate", 12, 5, 7, 30),
+  fe_case("large_counts", 150, 80, 95, 160),
+  fe_case("large_unbalanced", 3, 200, 1, 500),
+  fe_case("strong_inverse", 1, 40, 30, 2),
+  fe_case("near_one", 10, 11, 9, 10),
+  fe_case("central_mean_exact_one", 2, 2, 2, 2),
+  # Zero cells: a at the bottom of its support -> 0, at the top -> Inf.
+  fe_case("zero_a", 0, 3, 2, 5),
+  fe_case("zero_d", 4, 2, 3, 0),
+  fe_case("zero_b", 4, 0, 1, 3),
+  fe_case("zero_c", 3, 5, 0, 4),
+  fe_case("zero_b_and_c", 3, 0, 0, 4),
+  fe_case("zero_a_and_d", 0, 3, 4, 0),
+  # Empty margins (helper only): the one-point support reports 0.
+  fe_case("empty_row1", 0, 0, 3, 2),
+  fe_case("empty_col1", 0, 3, 0, 2),
+  fe_case("empty_row2", 3, 2, 0, 0),
+  fe_case("empty_col2", 2, 0, 3, 0),
+  fe_case("single_cell", 0, 0, 0, 5)
+)
+write_golden("test_fisher_exact", c(to_meta(
+  "TEST_FISHER_EXACT",
+  "fisher.test(matrix(c(a, b, c, d), 2, byrow = TRUE)); the conditional MLE refined by uniroot(tol = 1e-15) in log(psi)",
+  "estimate is the conditional MLE odds ratio (estimate_class inf when infinite); r_estimate is fisher.test's own uniroot-tolerance estimate; empty_margin tables pin the helper only."
+), list(cases = fe_cases)))

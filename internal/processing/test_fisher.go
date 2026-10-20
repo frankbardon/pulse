@@ -176,18 +176,12 @@ func (f *fisherExactRow) Finalize() (*types.TestResult, error) {
 	if sum > 1 {
 		sum = 1
 	}
-	// Sample odds ratio (a·d)/(b·c), informational. No continuity
-	// correction: a zero b or c cell yields +Inf, otherwise a zero a or
-	// d cell yields 0.
-	var oddsRatio float64
-	switch {
-	case b == 0 || c == 0:
-		oddsRatio = math.Inf(1)
-	case a == 0 || d == 0:
-		oddsRatio = 0
-	default:
-		oddsRatio = float64(a*d) / float64(b*c)
-	}
+	// Conditional MLE of the odds ratio, as R's fisher.test reports it
+	// (never the sample ad/bc): 0 when a sits at the bottom of its
+	// support (a zero a or d cell, or an empty margin), +Inf at the top
+	// (a zero b or c cell with a and d positive). +Inf is null on the
+	// wire.
+	oddsRatio := fisherConditionalOddsRatio(a, b, c, d)
 	details := map[string]any{
 		"row_labels":  f.rowOrd,
 		"col_labels":  f.colOrd,

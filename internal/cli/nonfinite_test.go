@@ -82,8 +82,9 @@ func TestAPI_UndefinedFiguresAreNullOnTheWire(t *testing.T) {
 }
 
 // TestAPI_InfiniteTestStatisticsAreNull (U36 E1-S3): an infinite test
-// figure — TEST_FISHER_EXACT's sample odds ratio over a zero off-diagonal
-// cell, TEST_PEARSON_R / TEST_SPEARMAN_R details.t at |r| = 1,
+// figure — TEST_FISHER_EXACT's conditional MLE odds ratio over a zero
+// off-diagonal cell (a at the top of its support; R fisher.test: Inf,
+// U36 E1-S4), TEST_PEARSON_R / TEST_SPEARMAN_R details.t at |r| = 1,
 // TEST_BROWN_FORSYTHE's F at zero within-group spread — is +Inf in Go and
 // `null` (key kept) through `pulse api process --json`, while its p-value
 // stays a number: Fisher's exact p, 0 at |r| = 1 and at the infinite F.
