@@ -27,7 +27,7 @@ command's `--json` output.)
 | Flag | Type | Default | Purpose |
 |---|---|---|---|
 | `--json` | bool | false | Emit the manifest as a JSON envelope |
-| `--slim` | bool | false | Drop prose descriptions from the manifest payload (smaller for size-sensitive clients) |
+| `--slim` | bool | false | Blank every prose `description` in the manifest payload, at every depth — operators, params, `component_schema` keys, `components_schemas`, capability blocks — plus `streamable_hint` / `emits_type_note` (smaller for size-sensitive clients; the MCP payload) |
 | `--intent` | string | "" | Scope the manifest to one intent-taxonomy ID (see below) |
 
 ## Manifest shape
@@ -78,7 +78,8 @@ phrasings, data shapes). Versions, digests, `intents` and
 
 A scoped slim manifest is gated at no more than 15% of the full slim
 manifest for every analytic intent; `describe` (served by every summary
-aggregator) is the one named exception, with a measured ceiling. The
+aggregator) and `compare_groups` (every two-sample test and pairwise
+overlay) are the named exceptions, each with a measured ceiling. The
 unscoped manifest is unchanged.
 
 ## Determinism gates
