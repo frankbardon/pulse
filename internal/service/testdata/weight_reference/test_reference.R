@@ -173,7 +173,7 @@ out("kendall", "p_value", kt$p.value)
 # Exact / distribution / spread tests (weighting-inferential E2-S2;
 # frequency-only), each on the expanded rows.
 # TEST_FISHER_EXACT: h × o with o = "maybe" filtered out; the two-sided
-# p and the conditional MLE odds ratio (U36 E1-S4). fisher.test's mle()
+# p, the conditional MLE odds ratio (U36 E1-S4) and the conf.int. fisher.test's mle()
 # stops uniroot() at its default tol (~1.2e-4 on psi or 1/psi), so the
 # estimate is the same equation E[a; psi] = a, same support and
 # dhyper() log-density, solved by uniroot() in log(psi) at tol 1e-15 —
@@ -203,6 +203,34 @@ fest <- fe_cmle(unclass(ftab))
 stopifnot(abs(1 / fest - 1 / ft$estimate) <= 2 * .Machine$double.eps^0.25 ||
             abs(fest - ft$estimate) <= 2 * .Machine$double.eps^0.25)
 out("fisher", "estimate", fest)
+# fisher.test's conf.int at the operator's default 1 - alpha = 0.95 (U36
+# E1-S8): ncp.L / ncp.U's equations P(A >= a; psi) = 0.025 and
+# P(A <= a; psi) = 0.025, refined the same way (uniroot in log(psi) at
+# tol 1e-15) after a check against fisher.test's own uniroot-tolerance
+# bounds — the refinement scripts/reference/gen_test_outputs.R pins.
+fe_ci_bound <- function(tab, alpha, upper) {
+  m <- sum(tab[, 1L]); n <- sum(tab[, 2L]); k <- sum(tab[1L, ]); x <- tab[1L, 1L]
+  lo <- max(0L, k - n); hi <- min(k, m)
+  support <- lo:hi
+  logdc <- dhyper(support, m, n, k, log = TRUE)
+  tailp <- function(theta) {
+    d <- logdc + theta * support
+    d <- exp(d - max(d))
+    d <- d / sum(d)
+    if (upper) sum(d[support <= x]) else sum(d[support >= x])
+  }
+  f <- function(theta) if (upper) alpha - tailp(theta) else tailp(theta) - alpha
+  b <- 1
+  while (f(-b) >= 0 || f(b) <= 0) b <- 2 * b
+  exp(uniroot(f, c(-b, b), tol = 1e-15, maxiter = 100000)$root)
+}
+fci <- c(fe_ci_bound(unclass(ftab), 0.025, FALSE), fe_ci_bound(unclass(ftab), 0.025, TRUE))
+for (i in 1:2) {
+  stopifnot(abs(1 / fci[i] - 1 / ft$conf.int[i]) <= 2 * .Machine$double.eps^0.25 ||
+              abs(fci[i] - ft$conf.int[i]) <= 2 * .Machine$double.eps^0.25)
+}
+out("fisher", "ci_low", fci[1])
+out("fisher", "ci_high", fci[2])
 
 # TEST_KS: x by h; D and p at ks.test's defaults (U36 E1-S6): exact,
 # conditional on the expansion's ties, since Σw_a·Σw_b < 10000.

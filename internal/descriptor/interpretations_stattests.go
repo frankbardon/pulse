@@ -689,6 +689,21 @@ var (
 			},
 		}),
 		interpPValue,
+		{
+			Field: "details.ci_low",
+			Means: "Lower end of the exact conditional confidence interval for the odds ratio at the 1 - alpha level (95% by default), the interval R's fisher.test reports.",
+			Caveats: []string{
+				"It is exactly 0 when a zero in a or d puts the table at the bottom of its range; the upper end is then still finite.",
+				"The interval is exact, so its coverage is at least the nominal level and it can be wide in small tables.",
+			},
+		},
+		{
+			Field: "details.ci_high",
+			Means: "Upper end of the exact conditional confidence interval for the odds ratio.",
+			Caveats: []string{
+				"It is infinite (null in JSON) when a zero in b or c puts the table at the top of its range: the data set no upper limit on the ratio.",
+			},
+		},
 	}
 
 	interpTestPropZ = append([]descriptor.Interpretation{

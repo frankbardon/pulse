@@ -307,11 +307,11 @@ const (
 	//
 	// Math: Fisher's exact two-sided p-value sums hypergeometric
 	// probabilities P(X = x | row_margin, col_margin, grand_total) for
-	// every feasible x in the marginal-constrained range whose log-
-	// probability is at most logPObs (the observed table's log-prob).
-	// Reuses logHypergeometric (internal/processing/test_fisher.go) so the overlay
-	// surface produces identical p-values to TEST_FISHER_EXACT for the
-	// same 2×2.
+	// every feasible x in the marginal-constrained range whose
+	// probability is at most the observed table's times 1 + 1e-7 (R
+	// fisher.test's relErr tie rule). Shares fisherExactTwoSided
+	// (internal/processing/fisher_exact.go) so the overlay surface
+	// produces identical p-values to TEST_FISHER_EXACT for the same 2×2.
 	//
 	// Output shape: MATRIX payload mirroring the host's RowKeys /
 	// ColumnKeys / headers so renderers can lay the overlay on top of

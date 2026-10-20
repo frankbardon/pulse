@@ -84,7 +84,7 @@ func TestAPI_UndefinedFiguresAreNullOnTheWire(t *testing.T) {
 // TestAPI_InfiniteTestStatisticsAreNull (U36 E1-S3): an infinite test
 // figure — TEST_FISHER_EXACT's conditional MLE odds ratio over a zero
 // off-diagonal cell (a at the top of its support; R fisher.test: Inf,
-// U36 E1-S4), TEST_PEARSON_R / TEST_SPEARMAN_R details.t at |r| = 1,
+// U36 E1-S4) and the upper end of its conf.int there (Inf, U36 E1-S8), TEST_PEARSON_R / TEST_SPEARMAN_R details.t at |r| = 1,
 // TEST_BROWN_FORSYTHE's F at zero within-group spread — is +Inf in Go and
 // `null` (key kept) through `pulse api process --json`, while its p-value
 // stays a number: Fisher's exact p, 0 at |r| = 1 and at the infinite F.
@@ -154,6 +154,7 @@ func TestAPI_InfiniteTestStatisticsAreNull(t *testing.T) {
 	}{
 		{"fisher statistic", fisher["statistic"]},
 		{"fisher details.odds_ratio", detail(fisher, "odds_ratio")},
+		{"fisher details.ci_high", detail(fisher, "ci_high")},
 		{"pearson details.t", detail(pearson, "t")},
 		{"spearman details.t", detail(spearman, "t")},
 		{"bf statistic", bf["statistic"]},
@@ -164,6 +165,13 @@ func TestAPI_InfiniteTestStatisticsAreNull(t *testing.T) {
 	}
 	if p := number(fisher["p_value"]); !(p > 0 && p <= 1) {
 		t.Errorf("fisher p_value %v, want Fisher's exact p in (0, 1]", p)
+	}
+	// The table is [[4, 0], [1, 3]]: the interval's lower end stays a
+	// number (R: fisher.test(matrix(c(4, 0, 1, 3), 2, byrow = TRUE))
+	// $conf.int[1], refined past uniroot's tolerance, U36 E1-S8 —
+	// test_fisher_exact.json zero_b).
+	if lo := number(detail(fisher, "ci_low")); math.Abs(lo-0.5328644553110231)/0.5328644553110231 > 1e-10 {
+		t.Errorf("fisher details.ci_low %v, want fisher.test's 0.5328644553110231", lo)
 	}
 	if r, p := number(pearson["statistic"]), number(pearson["p_value"]); r != 1 || p != 0 {
 		t.Errorf("pearson: r %v p %v, want r = 1 and p = 0", r, p)

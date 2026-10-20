@@ -22,8 +22,15 @@ type labelOrderRow struct {
 
 func runContingency(t *testing.T, typ types.TestType, rows []labelOrderRow, kind types.WeightKind) *types.TestResult {
 	t.Helper()
+	return runContingencyAlpha(t, typ, rows, kind, 0)
+}
+
+// runContingencyAlpha is runContingency at spec.Alpha = alpha (0 keeps
+// the default).
+func runContingencyAlpha(t *testing.T, typ types.TestType, rows []labelOrderRow, kind types.WeightKind, alpha float64) *types.TestResult {
+	t.Helper()
 	schema := armSchema()
-	spec := types.Test{Type: typ, Rows: "arm", Cols: "o"}
+	spec := types.Test{Type: typ, Rows: "arm", Cols: "o", Alpha: alpha}
 	if kind != "" {
 		spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: kind})
 	}

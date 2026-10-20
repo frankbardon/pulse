@@ -64,6 +64,7 @@ var interpretationProbes = map[string][]string{
 	"TEST_ANOVA_RM":            {"details.dropped_subjects", "details.effect_size.partial_eta_squared"},
 	"TEST_ANOVA_WELCH":         {"details.effect_size.omega_squared"},
 	"TEST_CHISQ":               {"details.effect_size.cramers_v", "details.effect_size.phi", "details.expected", "details.expected_min"},
+	"TEST_FISHER_EXACT":        {"details.ci_high", "details.ci_low"},
 	"TEST_HOTELLING_T2":        {"details.f"},
 	"TEST_KRUSKAL_WALLIS":      {"details.effect_size.epsilon_squared"},
 	"TEST_MANN_WHITNEY_U":      {"details.effect_size.rank_biserial", "details.reference", "details.z"},

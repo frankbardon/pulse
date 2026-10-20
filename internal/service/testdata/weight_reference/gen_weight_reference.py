@@ -1137,7 +1137,10 @@ def exact_closed_form(case, rows, xr):
       MLE odds ratio (scipy.stats.contingency.odds_ratio, kind
       "conditional") on the table in sorted row / column order, as Pulse
       reports it and as R's fisher.test estimates it (U36 E1-S4; R's
-      refined value replaces it, test_reference.R).
+      refined value replaces it, test_reference.R); ci_low / ci_high are
+      scipy's exact conditional interval at 0.95 (Pulse's default
+      1 − alpha), cross-checking fisher.test's refined conf.int (U36
+      E1-S8), which replaces them.
     - ks: scipy ks_2samp's D (ties handled at value boundaries, as R).
       The p is ks.test's (U36 E1-S6): exact and conditional on the
       expansion's tie pattern (Σw₁·Σw₂ < 10000), which scipy's exact
@@ -1160,8 +1163,11 @@ def exact_closed_form(case, rows, xr):
         assert b > 0 and c > 0 and a > 0 and d > 0, "fixture must avoid a zero cell (U36 #205 OR)"
         assert rord == sorted(rord) and cord == sorted(cord), (rord, cord)
         res = scipy.stats.fisher_exact([[a, b], [c, d]], alternative="two-sided")
-        orr = float(scipy.stats.contingency.odds_ratio([[a, b], [c, d]], kind="conditional").statistic)
+        ores = scipy.stats.contingency.odds_ratio([[a, b], [c, d]], kind="conditional")
+        orr = float(ores.statistic)
+        oci = ores.confidence_interval(confidence_level=0.95)
         out.update(statistic=orr, odds_ratio=orr, p_value=float(res.pvalue),
+                   ci_low=float(oci.low), ci_high=float(oci.high),
                    n=len(fr), sum_weights=float(a + b + c + d))
         return out
     if case == "ks":
@@ -1274,12 +1280,14 @@ R_FIGURES.update({
     # cor.test's default (no continuity correction): scipy's asymptotic
     # p cross-checks it; z is R's only.
     "kendall": ("kendall", {"tau": "statistic", "z": "z", "p_value": "p_value"}),
-    # R pins Fisher's p and its conditional MLE odds ratio (refined past
-    # fisher.test's uniroot tolerance, test_reference.R); KS's D is
+    # R pins Fisher's p, its conditional MLE odds ratio and its conf.int
+    # (both refined past fisher.test's uniroot tolerance,
+    # test_reference.R); KS's D is
     # cross-checked by scipy, its p (ks.test's exact distribution
     # conditional on ties, U36 E1-S6) is R-only; Brown-Forsythe is
     # car::leveneTest's own anova(lm(|x − median| ~ k)) in base R.
-    "fisher": ("fisher", {"p_value": "p_value", "estimate": "statistic"}),
+    "fisher": ("fisher", {"p_value": "p_value", "estimate": "statistic",
+                          "ci_low": "ci_low", "ci_high": "ci_high"}),
     "ks": ("ks", {"statistic": "statistic", "p_value": "p_value"}),
     "brown_forsythe": ("brown_forsythe", {"statistic": "statistic", "df_between": "df",
                                           "df_within": "df_within", "p_value": "p_value",

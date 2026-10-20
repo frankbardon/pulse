@@ -303,6 +303,23 @@ The conditional maximum-likelihood odds ratio of the 2x2 table in details.contin
 
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
+#### `details.ci_low`
+
+Lower end of the exact conditional confidence interval for the odds ratio at the 1 - alpha level (95% by default), the interval R's fisher.test reports.
+
+**Caveats:**
+
+- It is exactly 0 when a zero in a or d puts the table at the bottom of its range; the upper end is then still finite.
+- The interval is exact, so its coverage is at least the nominal level and it can be wide in small tables.
+
+#### `details.ci_high`
+
+Upper end of the exact conditional confidence interval for the odds ratio.
+
+**Caveats:**
+
+- It is infinite (null in JSON) when a zero in b or c puts the table at the top of its range: the data set no upper limit on the ratio.
+
 <a id="op-test_hotelling_t2"></a>
 
 ### `TEST_HOTELLING_T2`

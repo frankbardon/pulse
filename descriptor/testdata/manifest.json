@@ -6844,7 +6844,7 @@
         "name": "TEST_FISHER_EXACT",
         "family": "TEST_FISHER_EXACT",
         "tier": 1,
-        "description": "Exact two-sided p-value for a 2×2 Rows×Cols contingency table; small-sample CHISQ alternative.",
+        "description": "Exact two-sided p-value for a 2×2 Rows×Cols contingency table (R fisher.test's tie rule); small-sample CHISQ alternative. Statistic is the conditional MLE odds ratio; details.ci_low / ci_high its exact conditional interval at 1 − alpha.",
         "streamable": false,
         "params": [
           {
@@ -19192,4 +19192,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: eef6fc3cf4235d8e7c4e36492021192b67702f2239b195966bef8d017dc0e032
+// golden-hash: 74550ea387a6b18af8c80bf341b4d2524dfa6b17628a3a726b86333b90088f78

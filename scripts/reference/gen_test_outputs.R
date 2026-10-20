@@ -64,9 +64,18 @@
 #     estimate is kept beside as r_estimate. An infinite estimate is
 #     estimate_class "inf". Tables with an empty margin (empty_margin)
 #     cannot reach the operator (it needs two levels per axis) and pin
-#     the helper only: fisher.test reports 0 there, never 0/0. Pulse emits
-#     no odds-ratio interval (the operator has no CI slot), so conf.int
-#     is not pinned.
+#     the helper only: fisher.test reports 0 there, never 0/0. Each case
+#     also carries `ci`, fisher.test(x, conf.level = c)$conf.int at c =
+#     0.95 and 0.90 (U36 E1-S8): the same equations as ncp.L / ncp.U —
+#     P(A >= a; psi) = (1 - c)/2 for the lower bound, P(A <= a; psi) =
+#     (1 - c)/2 for the upper, same boundary order (a at the bottom ->
+#     lower 0, at the top -> upper Inf, ci_high_class "inf"; a tail of
+#     exactly (1 - c)/2 at psi = 1 -> 1) — refined by uniroot() in theta
+#     = log(psi) at tol 1e-15, fisher.test's own bounds kept beside as
+#     r_ci_low / r_ci_high. near_tie_relerr is a table with a second
+#     table whose probability is 8.4e-8 relative above the observed one:
+#     fisher.test's relErr (1 + 1e-7) counts it as a tie, a 1e-12 slack
+#     would not, so its p pins the tie rule.
 #
 # Data are seeded and rounded to a few decimals (ties where wanted);
 # every input is written at %.17g so nothing depends on the RNG in Go.
@@ -529,6 +538,64 @@ fe_cmle <- function(tab) {
   }
   exp(r$root)
 }
+# Refined conditional CI bound (header): upper = FALSE solves the lower
+# bound, P(A >= x; psi) = alpha; upper = TRUE the upper bound,
+# P(A <= x; psi) = alpha. Same support and density as fisher.test's
+# pnhyper().
+fe_ci_bound <- function(tab, alpha, upper) {
+  m <- sum(tab[, 1L]); n <- sum(tab[, 2L]); k <- sum(tab[1L, ]); x <- tab[1L, 1L]
+  lo <- max(0L, k - n); hi <- min(k, m)
+  if (!upper && x == lo) return(0)
+  if (upper && x == hi) return(Inf)
+  support <- lo:hi
+  logdc <- dhyper(support, m, n, k, log = TRUE)
+  tailp <- function(theta) {
+    d <- logdc + theta * support
+    d <- exp(d - max(d))
+    d <- d / sum(d)
+    if (upper) sum(d[support <= x]) else sum(d[support >= x])
+  }
+  # Increasing in theta: the upper tail directly, the lower negated.
+  f <- function(theta) if (upper) alpha - tailp(theta) else tailp(theta) - alpha
+  if (f(0) == 0) return(1)
+  b <- 1
+  while (f(-b) >= 0 || f(b) <= 0) b <- 2 * b
+  r <- uniroot(f, c(-b, b), tol = 1e-15, maxiter = 100000)
+  # Converged when the Newton step |f| / |f'| (f' = Cov(1{tail}, A)) or
+  # estim.prec is within 1e-11 in theta, as fe_cmle.
+  d <- logdc + r$root * support
+  d <- exp(d - max(d))
+  d <- d / sum(d)
+  inT <- if (upper) support <= x else support >= x
+  dv <- abs(sum((support * d)[inT]) - sum(d[inT]) * sum(support * d))
+  if (abs(f(r$root)) / dv > 1e-11 && r$estim.prec > 1e-11) {
+    stop("fisher ci: uniroot did not converge, estim.prec ", r$estim.prec)
+  }
+  exp(r$root)
+}
+fe_ci <- function(name, tab, conf) {
+  alpha <- (1 - conf) / 2
+  lower <- fe_ci_bound(tab, alpha, FALSE)
+  upper <- fe_ci_bound(tab, alpha, TRUE)
+  r_ci <- unname(fisher.test(tab, conf.level = conf)$conf.int)
+  # The refinement agrees with fisher.test's ncp.L / ncp.U at its own
+  # uniroot tolerance (on psi below 1, on 1/psi above).
+  for (i in 1:2) {
+    v <- c(lower, upper)[i]; rv <- r_ci[i]
+    if (is.finite(v) && v > 0 && v != 1) {
+      gap <- if (v <= 1) abs(rv - v) else abs(1 / rv - 1 / v)
+      if (gap > 2 * .Machine$double.eps^0.25) stop("fisher ", name, " ci: refined ", v, " vs fisher.test ", rv)
+    } else if (!identical(v, rv)) {
+      stop("fisher ", name, " ci: boundary ", v, " vs fisher.test ", rv)
+    }
+  }
+  out <- list(conf_level = num(conf), ci_low = num(lower), r_ci_low = num(r_ci[1]))
+  if (is.infinite(upper)) out$ci_high_class <- "inf" else {
+    out$ci_high <- num(upper)
+    out$r_ci_high <- num(r_ci[2])
+  }
+  out
+}
 fe_case <- function(name, a, b, c, d) {
   tab <- matrix(c(a, b, c, d), 2, byrow = TRUE)
   ft <- fisher.test(tab)
@@ -548,6 +615,7 @@ fe_case <- function(name, a, b, c, d) {
   )
   if (is.infinite(est)) out$estimate_class <- "inf" else out$estimate <- num(est)
   if (is.finite(r_est)) out$r_estimate <- num(r_est)
+  out$ci <- list(fe_ci(name, tab, 0.95), fe_ci(name, tab, 0.90))
   out
 }
 fe_cases <- list(
@@ -560,6 +628,9 @@ fe_cases <- list(
   fe_case("strong_inverse", 1, 40, 30, 2),
   fe_case("near_one", 10, 11, 9, 10),
   fe_case("central_mean_exact_one", 2, 2, 2, 2),
+  # A near tie: x = 38 has probability 8.4e-8 relative above the
+  # observed x = 20, inside fisher.test's relErr (1 + 1e-7).
+  fe_case("near_tie_relerr", 20, 38, 40, 106),
   # Zero cells: a at the bottom of its support -> 0, at the top -> Inf.
   fe_case("zero_a", 0, 3, 2, 5),
   fe_case("zero_d", 4, 2, 3, 0),
@@ -576,6 +647,6 @@ fe_cases <- list(
 )
 write_golden("test_fisher_exact", c(to_meta(
   "TEST_FISHER_EXACT",
-  "fisher.test(matrix(c(a, b, c, d), 2, byrow = TRUE)); the conditional MLE refined by uniroot(tol = 1e-15) in log(psi)",
-  "estimate is the conditional MLE odds ratio (estimate_class inf when infinite); r_estimate is fisher.test's own uniroot-tolerance estimate; empty_margin tables pin the helper only."
+  "fisher.test(matrix(c(a, b, c, d), 2, byrow = TRUE), conf.level = c); the conditional MLE and conf.int bounds refined by uniroot(tol = 1e-15) in log(psi)",
+  "estimate is the conditional MLE odds ratio (estimate_class inf when infinite); r_estimate is fisher.test's own uniroot-tolerance estimate; ci holds conf.int at conf_level 0.95 and 0.90, refined the same way (ci_high_class inf when the upper bound is infinite; r_ci_low / r_ci_high are fisher.test's own); empty_margin tables pin the helper only."
 ), list(cases = fe_cases)))
