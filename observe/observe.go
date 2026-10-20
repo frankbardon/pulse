@@ -103,9 +103,12 @@ const (
 	// PhaseDecode covers materializing records; buffered arm only.
 	PhaseDecode Phase = "decode"
 	// PhaseScan covers filtering and aggregation (buffered), or decode,
-	// filter and aggregate fused per row (every other arm).
+	// filter and aggregate fused per row (every other arm). On the
+	// per-shard parallel arm it includes the partial merges, which run
+	// incrementally while later shards still scan.
 	PhaseScan Phase = "scan"
-	// PhaseReduce covers the shard or parallel-decode merge.
+	// PhaseReduce covers the parallel-decode merge and both parallel
+	// arms' finalize of the merged state.
 	PhaseReduce Phase = "reduce"
 	// PhasePost covers components, matrices, tests and regressions.
 	PhasePost Phase = "post"

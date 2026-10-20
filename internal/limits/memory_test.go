@@ -126,7 +126,10 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 		rec     = 400
 	)
 	payload := int64(runBaseBytes + records*fileCopyFactor*stride)
-	bucket := func(aggs int64) int64 { return bucketBaseBytes + aggs*aggStateBytes }
+	// bucket is a merged bucket's state + finalize output; state is a
+	// parallel partition's bucket (no output).
+	state := func(aggs int64) int64 { return bucketBaseBytes + aggs*aggStateBytes }
+	bucket := func(aggs int64) int64 { return state(aggs) + bucketOutputBytes + aggs*aggOutputBytes }
 	cases := []struct {
 		name string
 		in   MemoryInputs
@@ -161,10 +164,18 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 		// payload term reads the largest shard.
 		{"archive buffered", MemoryInputs{Arm: ArmBuffered, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, MaxShardRecords: 400, DirectoryBytes: 900},
 			runBaseBytes + fileCopyFactor*400*stride + directoryCopyFactor*900 + records*(rec+bufferedValueBytes) + bucket(1)},
-		// The per-shard parallel arm: every partial's buckets and
-		// per-value state beside the merged ones.
+		// The parallel arms: the live partials' bucket STATE and
+		// per-value state beside the merged buckets (state + output).
 		{"shard partitions", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 4, Aggregations: 1, ValueStateAggregations: 1, PartitionBuckets: 9, PartitionRecords: records},
-			payload + 2*records*valueEntryBytes + 13*bucket(1)},
+			payload + 2*records*valueEntryBytes + 4*bucket(1) + 9*state(1)},
+		// Weighted slots (U51 E2-S4): the weighted accumulator and floor
+		// in place of the unweighted state; the output is the same.
+		{"weighted grouped", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 16, Aggregations: 3, WeightedAggregations: 2, PartitionBuckets: 5},
+			payload + 16*(bucket(3)+2*(weightedAggStateBytes-aggStateBytes)) + 5*(state(3)+2*(weightedAggStateBytes-aggStateBytes))},
+		// AGG_SET_FREQUENCY: a counter and an output label per member of
+		// the counted set, per bucket.
+		{"set members", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 16, Aggregations: 1, SetMembers: 200, PartitionBuckets: 5},
+			payload + 16*(bucket(1)+200*(setMemberStateBytes+setMemberOutputBytes)) + 5*(state(1)+200*setMemberStateBytes)},
 		// A fan-out grouper (U35 #267): a record reaches up to FanOut
 		// buckets, so the distinct (bucket, value) pairs reach records x
 		// FanOut; the buffered arm adds a partition slot per extra bucket.

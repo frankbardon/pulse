@@ -396,7 +396,10 @@ func TestMaxEstimatedMemory_RefusesArchiveOverCap(t *testing.T) {
 			svc.SetLimits(limits.Defaults())
 			want := dirTerm
 			if workers > 1 {
-				want += 4 * (512 + 256) // four more ungrouped shard partials
+				// Four more ungrouped shard partials (8 shards, all inside
+				// the 4-worker merge window of 8), each a bucket's state:
+				// 256 + 256 (U51 E2-S4).
+				want += 4 * (256 + 256)
 			}
 			if d := archiveMemoryEstimate(t, svc, dictArchiveRequest("dict8.pulse", false)) - est; d != want {
 				t.Fatalf("8 shards (%d bytes) estimate %d above 4 shards (%d bytes), want %d — the directory term only", large, d, small, want)

@@ -48,6 +48,7 @@ func (s *Service) limitInputs(ctx context.Context, cohort *Cohort, path string) 
 		FusionDisabled: s.disableCrosstabFusion,
 		ShardWorkers:   s.shardWorkers,
 		DecodeWorkers:  s.decodeWorkers,
+		DefaultWeight:  s.defaultWeight,
 	}
 	if !s.memoryBounded() {
 		return in, nil

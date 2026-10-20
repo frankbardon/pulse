@@ -337,6 +337,7 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 		JoinRightRows:  -1,
 		Extensions:     s.ExtensionsSnapshot(),
 		FusionDisabled: s.disableCrosstabFusion,
+		DefaultWeight:  s.defaultWeight,
 	}); err != nil {
 		return nil, nil, locate(err, "stage", i)
 	}

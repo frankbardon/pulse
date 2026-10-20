@@ -160,6 +160,24 @@ roughly 1.3x to 4.9x the peak depending on the arm. Not modelled: a
 opt-in and independent of the Go runtime's own limit. Set it
 a little under the memory you can spare.
 
+**Grouped runs.** Each group bucket is charged in two parts. Its
+STATE is what it holds while records fold: about 256 bytes for the key,
+its map slot and the grouper's tally, plus 256 bytes per aggregation
+(512 for a weighted one, which keeps three reproducible sums and a
+weighted floor). Its OUTPUT is what the run writes for it at the end:
+the `data` row and the per-group `components` entries, charged 1,024
+bytes plus 512 per aggregation. An `AGG_SET_FREQUENCY` slot adds a
+counter and an output label per member of its set field (192 bytes a
+member) to every bucket. The figures are rounded up from measurements
+at 800,000 one-row groups: the state of an `AGG_COUNT` + `AGG_SUM` +
+`AGG_AVERAGE` bucket measures about 420 bytes, and the whole run peaks
+at about 2,600 bytes a group with components on. The output share
+assumes components on; with `DisableComponents` a grouped run peaks
+nearer 750 bytes a group, so its estimate is higher than it needs to be.
+A slot counts as weighted when a weight is in force on it (its own, the
+request's, or `Options.DefaultWeight`), whether or not the operator
+reads weights.
+
 **Extension aggregators.** An extension aggregator is priced as a
 fixed-size accumulator, like `AGG_SUM`, unless its registration declares
 `ValueState: true`. Declared, it is charged the per-distinct-value term
@@ -225,15 +243,22 @@ run reads only that shard. Predict charges the same. Per-row state
 (buffered records, per-value state, buckets) still counts every record
 of the archive. On the per-shard
 parallel arm (`ShardWorkers` other than 1, two or more shards, a
-mergeable request) every shard's partial keeps its own group buckets
-until the merge, and the estimate counts them too. Predict reads the
-instance's `ShardWorkers` to pick the arm, as the run does. Measured on
-archives, the estimate lands at roughly 1.2x to 2.4x the peak heap.
+mergeable request) each shard's partial keeps its own group buckets
+until it is merged. The merge is incremental: shard i is merged as
+soon as shards 0 to i are done, in shard order, and is then released.
+No shard is handed to a worker until it is within twice the worker
+count of the first unmerged shard. So at most 2 x `ShardWorkers`
+partials are alive beside the merged result, however many shards the
+archive has. The estimate charges that window: the bucket state of the
+2 x workers shards with the largest bucket bounds, and the per-value
+state of the 2 x workers largest shards. Predict reads the instance's
+`ShardWorkers` to pick the arm, as the run does. Measured on archives,
+the estimate lands at roughly 1.2x to 2.4x the peak heap.
 
 On a single file the parallel-decode arm (`DecodeWorkers` other than 1,
 at least 100,000 records, a file the engine can memory-map, a mergeable
-request) likewise holds one partial per worker until the merge, and the
-estimate counts those partials too. Predict reads the instance's
+request) holds one partial per worker until the merge, and the
+estimate counts those partials' bucket state too. Predict reads the instance's
 `DecodeWorkers` and asks the engine whether it could map the cohort, so
 it charges that arm exactly when the run takes it.
 
@@ -267,9 +292,10 @@ grouped `AGG_SUM` + `AGG_AVERAGE` over two members
 A request that reads every member (a 50 × 50 pairwise covariance) scales
 almost linearly: 6.1 s at 1 worker, 3.3 s at 2, 1.7 s at 4, 1.1 s at 8 on
 the archive, with the peak heap 48–69 MB. Each extra worker adds one
-partial (its group buckets) and one read window to the peak, so a
-high-cardinality grouping costs more memory per worker than these
-four-bucket runs. Beyond the number of shards, extra shard workers sit
+read window and up to two unmerged partials (their group buckets) to
+the peak, so a high-cardinality grouping costs more memory per worker
+than these four-bucket runs. The shard count does not: merged partials
+are released. Beyond the number of shards, extra shard workers sit
 idle. Detail: `docs/internals/BENCHMARKS_BASELINE.md`.
 
 ## `RequestTimeout` and the caller's context

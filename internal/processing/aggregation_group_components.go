@@ -27,11 +27,17 @@ import (
 // cohort-wide totals, the streaming-grouped path (cohort-wide and per
 // bucket) and the shard / parallel-decode partials — so a slot's floor
 // has one implementation whatever the worker count.
+//
+// The weighted floor is held by pointer and is nil on an unweighted
+// slot: a grouped run keeps one SlotFloor per slot PER BUCKET, and the
+// inline WeightFloor (two binned sums, 128 B) was most of a bucket's
+// resident bytes on the common unweighted request (U51 E2-S4, #358;
+// gate TestGroupMemory_PartitionBytesPerGroup).
 type SlotFloor struct {
 	agg    *types.Aggregation
 	n      int
 	nNull  int
-	weight WeightFloor
+	weight *WeightFloor
 }
 
 // NewSlotFloors returns one empty tally per aggregation slot, in
@@ -42,7 +48,30 @@ func NewSlotFloors(aggs []*types.Aggregation) []SlotFloor {
 	}
 	out := make([]SlotFloor, len(aggs))
 	for i, agg := range aggs {
-		out[i] = SlotFloor{agg: agg, weight: NewWeightFloor(agg)}
+		out[i] = SlotFloor{agg: agg}
+		if slotWeight(agg) != nil {
+			w := NewWeightFloor(agg)
+			out[i].weight = &w
+		}
+	}
+	return out
+}
+
+// NewSlotFloorsLike returns one empty tally per slot of tmpl — the same
+// slots, sharing tmpl's resolved weight specs (the per-slot spec is
+// resolved once per run, never once per bucket). A grouped run mints
+// every bucket's floors through it off its cohort-wide floors. Nil for
+// an empty tmpl.
+func NewSlotFloorsLike(tmpl []SlotFloor) []SlotFloor {
+	if len(tmpl) == 0 {
+		return nil
+	}
+	out := make([]SlotFloor, len(tmpl))
+	for i := range tmpl {
+		out[i].agg = tmpl[i].agg
+		if tmpl[i].weight != nil {
+			out[i].weight = &WeightFloor{spec: tmpl[i].weight.spec}
+		}
 	}
 	return out
 }
@@ -60,7 +89,7 @@ func ObserveSlotFloors(floors []SlotFloor, r *Record) {
 		} else {
 			f.nNull++
 		}
-		if f.weight.spec != nil {
+		if f.weight != nil {
 			f.weight.observePresent(r, present)
 		}
 	}
@@ -74,7 +103,9 @@ func MergeSlotFloors(dst, src []SlotFloor) {
 		}
 		dst[i].n += src[i].n
 		dst[i].nNull += src[i].nNull
-		dst[i].weight.Merge(src[i].weight)
+		if dst[i].weight != nil && src[i].weight != nil {
+			dst[i].weight.Merge(*src[i].weight)
+		}
 	}
 }
 
@@ -86,7 +117,11 @@ func (f SlotFloor) NNull() int { return f.nNull }
 
 // Stamp writes the weighted floor keys onto e; no-op on an unweighted
 // slot.
-func (f SlotFloor) Stamp(e *types.AggregationComponents) { f.weight.Stamp(e) }
+func (f SlotFloor) Stamp(e *types.AggregationComponents) {
+	if f.weight != nil {
+		f.weight.Stamp(e)
+	}
+}
 
 // slotFloorTotals renders cohort-wide slot-level entries from finished
 // tallies: Label, {n, n_null} and the weighted floor keys; Operator
@@ -128,7 +163,7 @@ func slotTotalComponents(aggs []*types.Aggregation, records []*Record) []types.A
 // so it equals the buffered arm's entry for that bucket. set is the
 // multi-grouper run's observed composite keys (each groups[] GroupKey
 // then carries the full tuple); nil for one grouper.
-func streamedGroupedAggregationComponents(aggs []*types.Aggregation, totals []SlotFloor, buckets map[string][]OnlineAggregator, floors map[string][]SlotFloor, keys []string, set *CompositeKeySet) ([]types.AggregationComponents, error) {
+func streamedGroupedAggregationComponents(aggs []*types.Aggregation, totals []SlotFloor, buckets map[string]*GroupBucket, keys []string, set *CompositeKeySet) ([]types.AggregationComponents, error) {
 	if len(totals) != len(aggs) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 			"grouped components: cohort-wide slot floors missing",
@@ -136,7 +171,8 @@ func streamedGroupedAggregationComponents(aggs []*types.Aggregation, totals []Sl
 	}
 	entries := make(map[string][]types.AggregationComponents, len(keys))
 	for _, key := range keys {
-		bucket, fl := buckets[key], floors[key]
+		b := buckets[key]
+		bucket, fl := b.Aggs, b.Floors
 		if len(bucket) != len(aggs) || len(fl) != len(aggs) {
 			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 				"grouped components: a bucket has no per-slot floor tally",

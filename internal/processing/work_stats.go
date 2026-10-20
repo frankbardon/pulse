@@ -153,12 +153,13 @@ func (s WorkStatsSnapshot) Sub(o WorkStatsSnapshot) WorkStatsSnapshot {
 	}
 }
 
-// NewGroupFloors allocates a grouped run's per-bucket floor table (the
-// components.aggregations[*].groups tally), counting the allocation.
-// Every grouped arm — the serial streaming scan and both parallel
-// reducers — allocates through it, and only when the plan computes
-// Groups.
-func NewGroupFloors() map[string][]SlotFloor {
+// GroupFloorsOn records that a grouped run tallies per-bucket floors
+// (the components.aggregations[*].groups tally) and returns true. Every
+// grouped arm — the serial streaming scan and both parallel reducers —
+// switches its floors on through it, and only when the plan computes
+// Groups; each bucket then carries its floors in GroupBucket.Floors
+// (minted by NewGroupBucket), not in a second per-key table.
+func GroupFloorsOn() bool {
 	workGroupFloorBuilds.Add(1)
-	return make(map[string][]SlotFloor)
+	return true
 }

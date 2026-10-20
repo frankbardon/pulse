@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"cmp"
 	"encoding/json"
 	"math"
 	"runtime"
@@ -73,6 +74,11 @@ type LimitInputs struct {
 	// and the engine's dispatch read them.
 	Extensions     *ExtensionsSnapshot
 	FusionDisabled bool
+	// DefaultWeight is the instance default weight
+	// (Options.DefaultWeight, nil = none): a slot with no weight of its
+	// own on a request with none runs weighted under it, and a weighted
+	// slot's bucket state is charged as such (EstimateMemory).
+	DefaultWeight *types.WeightSpec
 }
 
 // RequestLimitFindings is the one predict-time limit rule for a single
@@ -189,17 +195,49 @@ func MemoryArm(req *types.Request, schema *encoding.Schema, inst *InstanceSnapsh
 // (mergegate.MergeRefusal over the declared extension facts) admits. A
 // crosstab or a join never reaches that dispatch.
 func ShardFanOut(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs) bool {
+	return shardWorkers(req, schema, inst, in) >= 2
+}
+
+// shardWorkers is the resolved per-shard worker count for req (the
+// runtime's: the cap, 0 = runtime.NumCPU, clamped by the shard count),
+// 0 when the run stays serial (see ShardFanOut).
+func shardWorkers(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs) int {
 	if req == nil || req.Crosstab != nil || in.Join || in.ShardWorkers == 1 || len(in.ShardRecords) < 2 {
-		return false
+		return 0
 	}
 	workers := in.ShardWorkers
 	if workers <= 0 {
 		workers = runtime.NumCPU()
 	}
-	if min(workers, len(in.ShardRecords)) < 2 {
-		return false
+	workers = min(workers, len(in.ShardRecords))
+	if workers < 2 || mergegate.MergeRefusal(req, schema, in.Extensions.mergeFacts(inst)) != "" {
+		return 0
 	}
-	return mergegate.MergeRefusal(req, schema, in.Extensions.mergeFacts(inst)) == ""
+	return workers
+}
+
+// shardWindowPartitions is the per-shard arm's live partitions: at most
+// limits.ShardMergeWindow(workers) shards' partials are alive beside the
+// merged state at once (the incremental merge releases every merged
+// shard and dispatches none past the window), charged as the window's
+// worst case — the largest bucket bounds (bound: a shard's bucket bound
+// from its record count) and, independently, the largest record counts
+// (the per-value state). Returns the summed buckets and records.
+func shardWindowPartitions(shardRecords []int64, workers int, bound func(n int64) int64) (buckets, records int64) {
+	window := min(limits.ShardMergeWindow(workers), len(shardRecords))
+	bounds := make([]int64, len(shardRecords))
+	for i, n := range shardRecords {
+		bounds[i] = bound(n)
+	}
+	recs := slices.Clone(shardRecords)
+	desc := func(a, b int64) int { return cmp.Compare(b, a) }
+	slices.SortFunc(bounds, desc)
+	slices.SortFunc(recs, desc)
+	for i := range window {
+		buckets = addSaturating(buckets, bounds[i])
+		records = addSaturating(records, recs[i])
+	}
+	return buckets, records
 }
 
 // DecodeFanOut reports whether req runs on the parallel-decode reducer
@@ -262,13 +300,22 @@ func decodeWorkers(req *types.Request, schema *encoding.Schema, inst *InstanceSn
 //   - a shard archive charges its byte length in place of records x
 //     stride when larger, and one schema decode, the canonical entry's
 //     (archiveTerms; an anchor-opened shard its archive's byte length
-//     alone); on the per-shard parallel arm (ShardFanOut)
-//     every shard's partial holds its own buckets — EstimateGroups
-//     clamped by that shard's records, or its records for an unknown
-//     grouper, 1 ungrouped — and per-value state over its records.
-//     The parallel-decode reducer (DecodeFanOut) is charged the same
-//     way per worker partition, each bounded by its block-aligned
-//     segment (at most ceil(blocks / workers) merge blocks).
+//     alone); on the per-shard parallel arm (ShardFanOut) the partials
+//     alive beside the merged state are at most the merge window's
+//     (limits.ShardMergeWindow: the incremental merge releases each
+//     merged shard), charged as the window's largest shard bucket
+//     bounds — EstimateGroups clamped by that shard's records, or its
+//     records for an unknown grouper, 1 ungrouped — and largest shard
+//     record counts (per-value state) (shardWindowPartitions).
+//     The parallel-decode reducer (DecodeFanOut) is charged per worker
+//     partition, each bounded by its block-aligned segment (at most
+//     ceil(blocks / workers) merge blocks). A partition's bucket costs
+//     its state only (limits.BucketBytes); a merged bucket adds its
+//     finalize output.
+//   - aggregations: weighted ones (a weight in force: the slot's own,
+//     else the request's, else in.DefaultWeight) cost the weighted
+//     accumulator; an AGG_SET_FREQUENCY slot adds its set field's
+//     member count (setMembers) per bucket.
 //
 // False when the record count (or a join's right count) is unknown.
 // The model never sees filter selectivity or field projection, so the
@@ -304,19 +351,19 @@ func estimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceS
 		matrixIn.Records, matrixIn.ShardRecords = rows, nil
 		records = rows
 	}
-	if ShardFanOut(req, schema, inst, in) {
-		mi.PartitionRecords = records
-		for _, n := range in.ShardRecords {
-			b := int64(1)
-			if len(req.Groups) > 0 {
-				if g, ok := EstimateGroups(req.Groups, schema, inst, n); ok {
-					b = g
-				} else {
-					b = n
-				}
+	if workers := shardWorkers(req, schema, inst, in); workers >= 2 {
+		// The live partials: at most the merge window's shards beside
+		// the merged state (limits.ShardMergeWindow, the runtime's
+		// scanAndMergeShards), charged as the window's largest.
+		mi.PartitionBuckets, mi.PartitionRecords = shardWindowPartitions(in.ShardRecords, workers, func(n int64) int64 {
+			if len(req.Groups) == 0 {
+				return 1
 			}
-			mi.PartitionBuckets = addSaturating(mi.PartitionBuckets, b)
-		}
+			if g, ok := EstimateGroups(req.Groups, schema, inst, n); ok {
+				return g
+			}
+			return n
+		})
 	} else if workers := decodeWorkers(req, schema, inst, in); workers >= 2 {
 		// One partial per worker, live until the merge; a worker's
 		// segment is whole merge blocks (the runtime's
@@ -357,9 +404,16 @@ func estimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceS
 	}
 	mi.Aggregations = int64(len(aggs))
 	for _, a := range aggs {
-		if a != nil && (valueStateAggregation[a.Type] || inst.Extensions().AggregatorValueState(a.Type)) {
+		if a == nil {
+			continue
+		}
+		if valueStateAggregation[a.Type] || inst.Extensions().AggregatorValueState(a.Type) {
 			mi.ValueStateAggregations++
 		}
+		if weightInForce(req, a, in.DefaultWeight) {
+			mi.WeightedAggregations++
+		}
+		mi.SetMembers = addSaturating(mi.SetMembers, setMembers(a, schema))
 	}
 	mi.DerivedColumns = int64(len(req.Attributes) + len(req.Features) + len(req.Windows))
 	mi.FanOut = requestFanOut(req, schema)
@@ -611,6 +665,41 @@ func archiveTerms(mi *limits.MemoryInputs, schema *encoding.Schema, in LimitInpu
 	mi.SchemaBytes = limits.SchemaDecodeBytes(schema)
 }
 
+// weightInForce reports whether aggregation slot a runs weighted under
+// req and the instance default: its own weight when set (`null` opts
+// out), else the request's, else def — processing.StampWeightsWith's
+// precedence. The slot's weight awareness is not read, so the figure is
+// an upper bound (an unaware slot runs unweighted).
+func weightInForce(req *types.Request, a *types.Aggregation, def *types.WeightSpec) bool {
+	switch {
+	case a.Weight.IsNull():
+		return false
+	case !a.Weight.IsZero():
+		return true
+	}
+	return req.Weight != nil || def != nil
+}
+
+// setMembers is the member count an AGG_SET_FREQUENCY slot keeps a
+// counter for per bucket — its set field's dictionary size, capped at
+// the set address space (encoding.SetMaskBits), the width
+// processing.newSetFrequencyAggregator pre-sizes — 0 for any other slot
+// or a field the schema does not carry as a set.
+func setMembers(a *types.Aggregation, schema *encoding.Schema) int64 {
+	if a.Type != types.AGG_SET_FREQUENCY || schema == nil {
+		return 0
+	}
+	f := schema.Field(a.Field)
+	if f == nil || !f.Type.IsSet() {
+		return 0
+	}
+	n := int(f.Type.MaxSetEntries())
+	if f.Dictionary != nil {
+		n = f.Dictionary.Count()
+	}
+	return int64(min(n, encoding.SetMaskBits))
+}
+
 // valueStateAggregation lists the built-in aggregators whose state
 // grows with the distinct values they see (a map entry per value)
 // rather than staying a fixed-size accumulator. An extension
@@ -622,6 +711,8 @@ var valueStateAggregation = map[types.AggregationType]bool{
 	types.AGG_MODE:           true,
 	types.AGG_MODE_COUNT:     true,
 	types.AGG_FREQUENCY:      true,
+	// One map entry per distinct set mask (U51 E2-S4: was uncharged).
+	types.AGG_SET_DISTINCT_VALUES: true,
 }
 
 // mergeBlocks is the merge-fragment count a run over in's records
@@ -1030,6 +1121,7 @@ func requestFindings(req *types.Request, schema *encoding.Schema, opts *PredictO
 		JoinRightRows:  -1,
 		Extensions:     opts.Extensions,
 		FusionDisabled: opts.DisableCrosstabFusion,
+		DefaultWeight:  opts.DefaultWeight,
 	}
 	// The mmap probe runs only when it can change the answer: a memory
 	// limit set, a single file at or past the threshold, decode not

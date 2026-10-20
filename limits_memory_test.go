@@ -52,6 +52,39 @@ func memoryArchive(t *testing.T, fs afero.Fs) string {
 	return "arch.pulse"
 }
 
+// wideMemoryArchive packs seven small numeric cohorts (uneven: 3 to 40
+// records) into one shard archive — more shards than the per-shard
+// reducer's merge window under 2 workers.
+func wideMemoryArchive(t *testing.T, fs afero.Fs) string {
+	t.Helper()
+	p, err := pulse.New(pulse.Options{FS: fs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	var paths []string
+	for i, n := range []int{12, 40, 3, 25, 9, 31, 6} {
+		var b strings.Builder
+		b.WriteString("a,b\n")
+		for r := range n {
+			fmt.Fprintf(&b, "%d,%d\n", (i*41+r*13)%97, 20+(r*7)%13)
+		}
+		name := fmt.Sprintf("w%d.csv", i)
+		if err := afero.WriteFile(fs, name, []byte(b.String()), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		res, err := p.ImportFile(ctx, pulse.ImportSpec{SourcePath: name})
+		if err != nil {
+			t.Fatalf("ImportFile: %v", err)
+		}
+		paths = append(paths, res.Path)
+	}
+	if _, err := p.CreateShardArchive(ctx, "wide.pulse", paths); err != nil {
+		t.Fatalf("CreateShardArchive: %v", err)
+	}
+	return "wide.pulse"
+}
+
 // TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses: on
 // every arm — streaming, buffered, fused and buffered crosstab, a
 // matrix over a single file and over a shard archive, the joined
@@ -71,6 +104,7 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 	afs := afero.NewMemMapFs()
 	arch := memoryArchive(t, afs)
 	anchor := memoryArchiveAnchor(t, afs, arch, 1)
+	wideArch := wideMemoryArchive(t, afs)
 
 	crosstab := func(c string) *types.Request {
 		return &types.Request{Cohort: &types.Cohort{Filename: c}, Crosstab: &types.CrosstabSpec{
@@ -98,6 +132,10 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 		// build-side backstop refuses the run on the measured
 		// multiplicity; both clear at the possible estimate.
 		joinFanOut bool
+		// defaultWeight is Options.DefaultWeight: a slot with no weight
+		// of its own runs weighted, and both sides charge it so (U51
+		// E2-S4: LimitInputs.DefaultWeight).
+		defaultWeight *types.WeightSpec
 	}{
 		{name: "streaming", fs: fs, path: cohort, req: func() *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "a", Label: "s"}}}
@@ -122,6 +160,13 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 		}},
 		{name: "archive serial", fs: afs, path: arch, shardWorkers: 1, req: func() *types.Request { return archiveRanged(arch) }},
 		{name: "archive per-shard", fs: afs, path: arch, shardWorkers: 2, req: func() *types.Request { return archiveRanged(arch) }},
+		// U51 E2-S4: more shards than the merge window (2 workers: 4) —
+		// both sides charge only the window's largest shards' partials.
+		{name: "archive per-shard window", fs: afs, path: wideArch, shardWorkers: 2, req: func() *types.Request { return archiveRanged(wideArch) }},
+		{name: "weighted by instance default", fs: fs, path: cohort, defaultWeight: &types.WeightSpec{Field: "c"}, req: func() *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "a", Label: "s"}, {Type: types.AGG_AVERAGE, Field: "b", Label: "m"}}}
+		}},
 		{name: "anchored shard", fs: afs, path: anchor, anchor: true, req: func() *types.Request { return archiveRanged(anchor) }},
 		{name: "join process", fs: jfs, path: left, req: func() *types.Request { return joinedSum(left, right) }},
 		{name: "join crosstab", fs: jfs, path: left, req: func() *types.Request { return joinedCrosstab(left, right) }, joinFanOut: true},
@@ -129,7 +174,7 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			open := func(max int64) *pulse.Pulse {
-				p, err := pulse.New(pulse.Options{FS: c.fs, DisableCrosstabFusion: c.noFusion, ShardWorkers: c.shardWorkers, Limits: pulse.Limits{MaxEstimatedMemory: max}})
+				p, err := pulse.New(pulse.Options{FS: c.fs, DisableCrosstabFusion: c.noFusion, ShardWorkers: c.shardWorkers, DefaultWeight: c.defaultWeight, Limits: pulse.Limits{MaxEstimatedMemory: max}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -363,8 +408,10 @@ func TestLimits_MaxEstimatedMemory_ArchiveShardWorkers(t *testing.T) {
 		return res.LimitFindings[0].Estimated
 	}
 	serial, fanned := estimate(1), estimate(2)
-	// 4,097 + 5 partial buckets of one aggregation (512 + 256 each).
-	if d, want := fanned-serial, int64((linalg.MergeBlockSize+1+5)*(512+256)); d != want {
+	// 4,097 + 5 partial buckets of one aggregation — a partition
+	// bucket's STATE, 256 + 256 each (U51 E2-S4: a partition never
+	// finalizes, so it carries no output share).
+	if d, want := fanned-serial, int64((linalg.MergeBlockSize+1+5)*(256+256)); d != want {
 		t.Fatalf("the per-shard arm adds %d bytes, want %d (one bucket per shard record)", d, want)
 	}
 }

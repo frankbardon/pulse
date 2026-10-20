@@ -190,7 +190,9 @@ in `AggregationType.Mergeable()` (`types/streamability.go`) so it
 composes correctly under parallel decode
 (`internal/service/parallel_reduce.go`) and shard reduce (`internal/service/shard_reduce.go`).
 Both surfaces fold per-worker / per-shard partials in deterministic
-index order via `mergeShardPartials` + `finalizeMergedPartial`.
+index order through `partialMerger` (the shard arm incrementally, as
+each prefix of shards completes; the decode arm via
+`mergeShardPartials`), then `finalizeMergedPartial`.
 
 An aggregator registered but not `Mergeable()` silently forces the request
 down the serial `scanIter` / `shardIter` path; both parallel paths gate on

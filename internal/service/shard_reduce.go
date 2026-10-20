@@ -82,9 +82,11 @@ func (s *Service) shouldFanOut(req *types.Request, cohort *Cohort) (int, bool) {
 // once for random access (central directory only, no payload read),
 // then each worker carves a buffered SectionReader for its assigned
 // shards over the shared concurrency-safe ReaderAt and folds rows through fresh per-worker operator
-// instances. Partials accumulate in a slice indexed by shard insertion
-// order; a final pass merges them in that order so Welford drift is
-// deterministic across runs.
+// instances. Partials merge incrementally in shard insertion order as
+// each prefix of shards completes, and are released once merged
+// (scanAndMergeShards), so Welford drift is deterministic across runs
+// and worker counts and the live partials stay within the dispatch
+// window.
 func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Request, cohort *Cohort, path string, workers int) (*types.Response, error) {
 	// The projected decode, built once from the request as the caller
 	// handed it — the serial arm's applyProjection reads the same — and
@@ -133,48 +135,12 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 		return nil, err
 	}
 
-	partials := make([]*shardPartial, len(shards))
-	starts := shardStarts(shards)
-	jobs := make(chan int, len(shards))
-	var (
-		wg       sync.WaitGroup
-		errOnce  sync.Once
-		firstErr error
-	)
-	cctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	for w := 0; w < workers; w++ {
-		wg.Add(1)
-		// joinOnReturn, never a deferred wg.Done: a worker re-panicking
-		// under DisablePanicRecovery must not release wg.Wait before the
-		// crash.
-		go joinOnReturn(&wg, func() {
-			if err := s.shardWorker(cctx, req, schema, dec, arch, jobs, starts, shards, partials); err != nil {
-				errOnce.Do(func() { firstErr = err; cancel() })
-			}
-		})
-	}
-
-	for i := range shards {
-		jobs <- i
-	}
-	close(jobs)
-	wg.Wait()
-
-	if firstErr != nil {
-		return nil, firstErr
-	}
-	ei.Lap(observe.PhaseScan)
-
-	// Merge partials in shard insertion order. The order matters for
-	// Welford ULP determinism; for order-free aggregators (counts,
-	// sentinels, binned sums) the answer is identical regardless of
-	// merge order.
-	merged, err := mergeShardPartials(req, schema, partials)
+	merged, err := s.scanAndMergeShards(ctx, req, schema, dec, arch, shards, workers)
 	if err != nil {
 		return nil, err
 	}
+	ei.Lap(observe.PhaseScan)
+
 	resp, err := finalizeMergedPartial(req, schema, merged, len(shards), s.computePlanFor(ctx, req), s.extensions, model.SetFrom(ctx))
 	if err != nil {
 		return nil, err
@@ -193,24 +159,130 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	return resp, nil
 }
 
-// shardWorker is one parallel-shard worker: it scans the shards it
-// takes from jobs until jobs closes, ctx is done or a shard fails.
-// Operator code runs per row on its goroutine, so it recovers a panic
-// into PROCESSING_PANIC (recoverInto) returned like any shard error —
-// the caller records the first and cancels the siblings.
-func (s *Service) shardWorker(ctx context.Context, req *types.Request, schema *encoding.Schema, dec *shardDecode, arch *archiveFile, jobs <-chan int, starts []int, shards []ShardEntry, partials []*shardPartial) (err error) {
-	defer recoverInto(panicOpShardParallel, s.disablePanicRecovery, &err)
-	for idx := range jobs {
-		if ctx.Err() != nil {
-			return nil
-		}
-		p, err := s.processOneShard(ctx, req, schema, dec, arch, idx, starts[idx], shards[idx].Filename)
-		if err != nil {
-			return err
-		}
-		partials[idx] = p
+// shardMergeHook, when set (tests only — never in production), is
+// called on the merging goroutine with each shard's index and partial
+// just before the partial folds into the merged state.
+var shardMergeHook func(idx int, p *shardPartial)
+
+// shardResult is one scanned shard handed back to the merging
+// goroutine: its archive index and partial, or the scan's error.
+type shardResult struct {
+	idx int
+	p   *shardPartial
+	err error
+}
+
+// scanAndMergeShards scans every shard on workers goroutines and folds
+// the partials into one through a partialMerger, INCREMENTALLY and in
+// shard insertion order: partial i merges as soon as partials 0..i are
+// done, and is then dropped, so it can be collected while later shards
+// still scan (U51 E2-S4, #358). The merge order is the one the
+// one-shot merge used — the answer is byte-identical — and row order
+// never came from it (the shared grouped tail orders the rows).
+//
+// The live partials are bounded by the dispatch window
+// (limits.ShardMergeWindow(workers)): shard j is handed to a worker
+// only once j < next + window, where next is the first shard not yet
+// merged, so at most window partials (scanning, or done and waiting
+// for an earlier shard) exist beside the merged state — whatever the
+// shard count. Predict charges the same window (descriptor
+// EstimateMemory's per-shard partition term).
+//
+// The first error (a shard's scan, a recovered worker panic, a merged
+// MaxGroups trip) cancels the siblings and is returned once every
+// dispatched shard has reported.
+func (s *Service) scanAndMergeShards(ctx context.Context, req *types.Request, schema *encoding.Schema, dec *shardDecode, arch *archiveFile, shards []ShardEntry, workers int) (*shardPartial, error) {
+	starts := shardStarts(shards)
+	window := limits.ShardMergeWindow(workers)
+	// Neither channel ever blocks its sender: at most window shards
+	// are dispatched and not yet reported.
+	jobs := make(chan int, window)
+	results := make(chan shardResult, window)
+	cctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		// joinOnReturn, never a deferred wg.Done: a worker re-panicking
+		// under DisablePanicRecovery must not release wg.Wait before the
+		// crash.
+		go joinOnReturn(&wg, func() {
+			s.shardWorker(cctx, req, schema, dec, arch, jobs, starts, shards, results)
+		})
 	}
-	return nil
+
+	merger := partialMerger{req: req}
+	pending := make(map[int]*shardPartial, window)
+	var (
+		firstErr                    error
+		next, dispatched, reporting int
+	)
+	fail := func(err error) {
+		if firstErr == nil {
+			firstErr = err
+			cancel()
+		}
+	}
+	for {
+		for firstErr == nil && dispatched < len(shards) && dispatched < next+window {
+			jobs <- dispatched
+			dispatched++
+			reporting++
+		}
+		if reporting == 0 {
+			break
+		}
+		r := <-results
+		reporting--
+		if r.err != nil {
+			fail(r.err)
+		}
+		if firstErr != nil {
+			continue
+		}
+		pending[r.idx] = r.p
+		for p, ok := pending[next]; ok; p, ok = pending[next] {
+			delete(pending, next)
+			if shardMergeHook != nil {
+				shardMergeHook(next, p)
+			}
+			next++
+			if err := merger.add(p); err != nil {
+				fail(err)
+				break
+			}
+		}
+	}
+	close(jobs)
+	wg.Wait()
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	return merger.result(), nil
+}
+
+// shardWorker is one parallel-shard worker: it scans the shards it
+// takes from jobs until jobs closes, reporting exactly one result per
+// shard (scanShard) so the merging goroutine can account for every
+// dispatched shard.
+func (s *Service) shardWorker(ctx context.Context, req *types.Request, schema *encoding.Schema, dec *shardDecode, arch *archiveFile, jobs <-chan int, starts []int, shards []ShardEntry, results chan<- shardResult) {
+	for idx := range jobs {
+		p, err := s.scanShard(ctx, req, schema, dec, arch, idx, starts[idx], shards[idx].Filename)
+		results <- shardResult{idx: idx, p: p, err: err}
+	}
+}
+
+// scanShard scans one shard into its partial. Operator code runs per
+// row on the worker's goroutine, so it recovers a panic into
+// PROCESSING_PANIC (recoverInto), reported like any shard error — the
+// merging goroutine records the first and cancels the siblings. A
+// cancelled run reports ctx's error unchanged.
+func (s *Service) scanShard(ctx context.Context, req *types.Request, schema *encoding.Schema, dec *shardDecode, arch *archiveFile, idx, start int, name string) (p *shardPartial, err error) {
+	defer recoverInto(panicOpShardParallel, s.disablePanicRecovery, &err)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return s.processOneShard(ctx, req, schema, dec, arch, idx, start, name)
 }
 
 // shardPartial holds a single shard's per-aggregator (and per-group
@@ -223,8 +295,10 @@ func (s *Service) shardWorker(ctx context.Context, req *types.Request, schema *e
 //   - ungrouped: aggs is a slice indexed by req.Aggregations position;
 //     groups is nil.
 //   - grouped: aggs is nil; groups holds one bucket per distinct key
-//     observed in this shard, plus keyOrder so the merger can rebuild
-//     insertion order when constructing the final response row set.
+//     observed in this shard. Row order is never the partition's: the
+//     shared grouped tail (processing.FinalizeGroupedStream) orders the
+//     merged buckets, so a partition keeps no key-order list (U51
+//     E2-S4 dropped it — 16-32 B a group).
 type shardPartial struct {
 	totalRows    int64
 	filteredRows int64
@@ -257,11 +331,12 @@ type shardPartial struct {
 	// respondent in a set column into n_null.
 	aggFloor []processing.SlotFloor
 
-	// groupFloors is a grouped partial's per-bucket aggFloor, minted
-	// with each bucket in foldGroupedRow and merged key by key like the
-	// buckets — the floors behind Components.Aggregations' groups[].
-	// Nil when components are disabled or the request is ungrouped.
-	groupFloors map[string][]processing.SlotFloor
+	// groupFloorTmpl shapes a grouped partial's per-bucket floors
+	// (processing.GroupBucket.Floors, minted with each bucket in route
+	// and merged key by key like the buckets — the floors behind
+	// Components.Aggregations' groups[]): the cohort-wide aggFloor when
+	// the plan computes Groups, nil (no bucket floors) otherwise.
+	groupFloorTmpl []processing.SlotFloor
 
 	// weights is the per-weight-field invalid-row tally behind the
 	// PULSE_WEIGHT_INVALID_ROWS warning (nil when nothing is weighted),
@@ -278,7 +353,7 @@ type shardPartial struct {
 	filterCounters []processing.FilterPassCounters
 
 	aggs   []processing.OnlineAggregator
-	groups map[string][]processing.OnlineAggregator
+	groups map[string]*processing.GroupBucket
 	// mats is the partition's Request.Matrices state (nil without
 	// matrices) — the matrix-slot analogue of aggs. It folds every
 	// filter-passing row and merges by absorbing the other partition's
@@ -327,14 +402,12 @@ type shardPartial struct {
 	keySets [][]string
 	cur     *processing.Record
 	emit    func(key string) error
-	// specs and schema mint a new bucket's aggregators.
+	// specs and schema mint a new bucket's aggregators, through mint
+	// (built once by initGrouped, so a bucket mint allocates nothing
+	// beyond the bucket itself).
 	specs  []aggSpec
 	schema *encoding.Schema
-	// keyOrder preserves the order distinct group keys were first seen
-	// in this shard. The merger's stable sort by key ensures the
-	// final response row order is deterministic across worker
-	// scheduling perturbations.
-	keyOrder []string
+	mint   func(i int) (processing.OnlineAggregator, error)
 }
 
 // shardDecode is the per-shard parallel reducer's decode shape, built
@@ -695,12 +768,25 @@ func newPartitionGroupers(groups []*types.Group, factories []processing.GrouperF
 // or more groupers — the composite key set. Shared by both parallel
 // reducers.
 func (sp *shardPartial) initGrouped(groups []*types.Group, groupers []processing.Grouper, specs []aggSpec, schema *encoding.Schema, withFloors bool) error {
-	sp.groups = make(map[string][]processing.OnlineAggregator)
-	if withFloors {
-		sp.groupFloors = processing.NewGroupFloors()
+	sp.groups = make(map[string]*processing.GroupBucket)
+	if withFloors && processing.GroupFloorsOn() {
+		sp.groupFloorTmpl = sp.aggFloor
 	}
 	sp.groupSpecs, sp.groupers = groups, groupers
 	sp.specs, sp.schema = specs, schema
+	sp.mint = func(i int) (processing.OnlineAggregator, error) {
+		spec := sp.specs[i]
+		inst, err := spec.factory(spec.agg, sp.schema)
+		if err != nil {
+			return nil, err
+		}
+		online, ok := inst.(processing.OnlineAggregator)
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+				fmt.Sprintf("aggregator %s does not implement OnlineAggregator", spec.agg.Type))
+		}
+		return online, nil
+	}
 	sp.keyers = make([]*processing.GroupKeyer, len(groupers))
 	for i, g := range groupers {
 		k, err := processing.NewGroupKeyer(g)
@@ -772,41 +858,19 @@ func (sp *shardPartial) route(key string, rec *processing.Record) error {
 		if err := limits.Check(sp.limits, limits.MaxGroups, int64(len(sp.groups))+1); err != nil {
 			return err
 		}
-		bucket = make([]processing.OnlineAggregator, len(sp.specs))
-		for i, spec := range sp.specs {
-			inst, err := spec.factory(spec.agg, sp.schema)
-			if err != nil {
-				return err
-			}
-			online, ok := inst.(processing.OnlineAggregator)
-			if !ok {
-				return errors.NewCodedError(errors.PROCESSING_INTERNAL,
-					fmt.Sprintf("aggregator %s does not implement OnlineAggregator", spec.agg.Type))
-			}
-			bucket[i] = online
+		var err error
+		if bucket, err = processing.NewGroupBucket(len(sp.specs), sp.mint, sp.groupFloorTmpl); err != nil {
+			return err
 		}
 		sp.groups[key] = bucket
-		sp.keyOrder = append(sp.keyOrder, key)
-		if sp.groupFloors != nil {
-			sp.groupFloors[key] = processing.NewSlotFloors(sp.slotAggs(sp.specs))
-		}
 	}
-	for i, oa := range bucket {
+	for i, oa := range bucket.Aggs {
 		if err := oa.UpdateRow(rec, sp.specs[i].agg.Field); err != nil {
 			return err
 		}
 	}
-	processing.ObserveSlotFloors(sp.groupFloors[key], rec)
+	processing.ObserveSlotFloors(bucket.Floors, rec)
 	return sp.groupedMats.UpdateRow(key, rec)
-}
-
-// slotAggs returns the slot declarations behind specs, in order.
-func (sp *shardPartial) slotAggs(specs []aggSpec) []*types.Aggregation {
-	aggs := make([]*types.Aggregation, len(specs))
-	for i := range specs {
-		aggs[i] = specs[i].agg
-	}
-	return aggs
 }
 
 // primaryNullFieldFor resolves the field whose per-record null tally
@@ -939,148 +1003,170 @@ func prependWarnings(warns, first []*types.ResponseWarning) []*types.ResponseWar
 	return append(append([]*types.ResponseWarning(nil), first...), warns...)
 }
 
-// mergeShardPartials folds the per-shard partial states into a single
-// aggregated state. Walks partials in shard insertion order — the
-// caller (processShardArchiveParallel) pre-sorts the slice so order is
-// the central-directory enumeration, NOT the worker completion order.
+// mergeShardPartials folds the partition states into a single
+// aggregated state, in slice order (partialMerger.add per entry, nil
+// entries skipped). The parallel-decode reducer hands it its per-worker
+// partials (segment order); the per-shard reducer merges incrementally
+// through the same partialMerger instead, in shard insertion order as
+// each prefix completes (processShardArchiveParallel).
+func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []*shardPartial) (*shardPartial, error) {
+	_ = schema
+	m := partialMerger{req: req}
+	for _, p := range partials {
+		if err := m.add(p); err != nil {
+			return nil, err
+		}
+	}
+	return m.result(), nil
+}
+
+// partialMerger folds partition states into one, one partition at a
+// time, in the order add is called — the caller's index order (shard
+// insertion order, the central-directory enumeration, never worker
+// completion order). The first non-nil partition becomes the merged
+// state; every later one folds into it and is no longer referenced, so
+// a caller that drops its own reference releases it (U51 E2-S4, #358:
+// the per-shard reducer used to hold every shard's partial until one
+// final merge).
 //
 // A processing.BlockMerger slot (ungrouped or per bucket) absorbs the
 // other partition's per-block partials instead of MergeOnline: blocks
 // are keyed by absolute (shard, block) position and combined only at
 // Finalize through the one fixed tree, so for those slots the partition
 // order here cannot reach the bits. Every other slot folds through
-// MergeableAggregator.MergeOnline exactly as before.
+// MergeableAggregator.MergeOnline in add order — which is why the order
+// is fixed: Welford's Chan merge is order-sensitive in the last ULP,
+// while counts, sentinels and the binned sums are not.
 //
-// For ungrouped requests we merge each aggregator slot's running state
-// across all shards. For grouped requests we union per-key buckets:
-// merging by key preserves the per-key associativity, then a stable
-// sort produces deterministic row order.
-func mergeShardPartials(req *types.Request, schema *encoding.Schema, partials []*shardPartial) (*shardPartial, error) {
-	if len(partials) == 0 {
-		return &shardPartial{}, nil
-	}
-	// Find the first non-nil partial to seed; with len(partials) >= 1
-	// and shouldFanOut requiring N >= 2, every entry must be non-nil
-	// post-worker-success. Defensive guard for the empty/skipped case.
-	var head int
-	for head < len(partials) && partials[head] == nil {
-		head++
-	}
-	if head >= len(partials) {
-		return &shardPartial{}, nil
-	}
-	merged := partials[head]
-	for i := head + 1; i < len(partials); i++ {
-		p := partials[i]
-		if p == nil {
-			continue
-		}
-		merged.totalRows += p.totalRows
-		merged.filteredRows += p.filteredRows
-		merged.nullRecords += p.nullRecords
+// For ungrouped requests each aggregator slot's running state merges.
+// For grouped requests per-key buckets union: a key the merged state
+// lacks moves in whole (bucket, floors), a key both hold merges slot by
+// slot; row order comes from the shared grouped tail, never from here.
+type partialMerger struct {
+	req    *types.Request
+	merged *shardPartial
+}
 
-		// Universal-floor and filter counters are plain tallies: the
-		// fold is a slot-wise sum, associative and commutative, so no
-		// ordering guarantee is needed here (unlike the Welford merge
-		// below, which is why this function walks partials in shard
-		// insertion order regardless).
-		processing.MergeSlotFloors(merged.aggFloor, p.aggFloor)
-		merged.weights.Merge(p.weights)
-		processing.MergeFilterPassCounters(merged.filterCounters, p.filterCounters)
-		if err := merged.mats.Merge(p.mats); err != nil {
-			return nil, err
-		}
-		if err := merged.groupedMats.Merge(p.groupedMats); err != nil {
-			return nil, err
-		}
+// result is the merged state: an empty partial when no partition was
+// added (finalizeMergedPartial seeds it).
+func (m *partialMerger) result() *shardPartial {
+	if m.merged == nil {
+		return &shardPartial{}
+	}
+	return m.merged
+}
 
-		if merged.aggs != nil {
-			if len(p.aggs) != len(merged.aggs) {
-				return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-					"shard partial aggregator count mismatch during merge")
+// add folds p into the merged state (p == nil is a no-op).
+func (m *partialMerger) add(p *shardPartial) error {
+	if p == nil {
+		return nil
+	}
+	if m.merged == nil {
+		m.merged = p
+		return nil
+	}
+	merged, req := m.merged, m.req
+	merged.totalRows += p.totalRows
+	merged.filteredRows += p.filteredRows
+	merged.nullRecords += p.nullRecords
+
+	// Universal-floor and filter counters are plain tallies: the
+	// fold is a slot-wise sum, associative and commutative, so no
+	// ordering guarantee is needed here (unlike the Welford merge
+	// below, which is why add is called in index order regardless).
+	processing.MergeSlotFloors(merged.aggFloor, p.aggFloor)
+	merged.weights.Merge(p.weights)
+	processing.MergeFilterPassCounters(merged.filterCounters, p.filterCounters)
+	if err := merged.mats.Merge(p.mats); err != nil {
+		return err
+	}
+	if err := merged.groupedMats.Merge(p.groupedMats); err != nil {
+		return err
+	}
+
+	if merged.aggs != nil {
+		if len(p.aggs) != len(merged.aggs) {
+			return errors.NewCodedError(errors.PROCESSING_INTERNAL,
+				"shard partial aggregator count mismatch during merge")
+		}
+		for slot, oa := range merged.aggs {
+			if bm, ok := oa.(processing.BlockMerger); ok {
+				if err := processing.MergeBlockMerger(bm, p.aggs[slot]); err != nil {
+					return err
+				}
+				continue
 			}
-			for slot, oa := range merged.aggs {
+			m, ok := oa.(processing.MergeableAggregator)
+			if !ok {
+				return errors.NewCodedError(errors.PROCESSING_INTERNAL,
+					fmt.Sprintf("aggregator %s does not implement MergeableAggregator", req.Aggregations[slot].Type))
+			}
+			if err := m.MergeOnline(p.aggs[slot]); err != nil {
+				return err
+			}
+		}
+	}
+
+	if merged.groups != nil {
+		// Per grouper slot: its live components state and its
+		// assignment count, folded in partition order.
+		if len(p.groupers) != len(merged.groupers) || len(p.assignments) != len(merged.assignments) {
+			return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+				"shard partial grouper count mismatch during merge",
+				map[string]any{"merged": len(merged.groupers), "partial": len(p.groupers)})
+		}
+		for gi, g := range merged.groupers {
+			m, ok := g.(processing.MergeableGrouper)
+			if !ok {
+				return errors.NewCodedError(errors.PROCESSING_INTERNAL,
+					fmt.Sprintf("grouper %s does not implement MergeableGrouper", req.Groups[gi].Type))
+			}
+			if err := m.MergeGrouperState(p.groupers[gi]); err != nil {
+				return err
+			}
+			merged.assignments[gi] += p.assignments[gi]
+		}
+		// The composite keys' tuples: a union (a key's tuple is a
+		// function of the key, so which partition minted it is
+		// immaterial).
+		merged.keySet.Merge(p.keySet)
+		// Key by key, in map order: each key's buckets still fold
+		// in partition order (that order is the caller's), and no
+		// figure depends on which key folds first — the grouped
+		// tail orders the rows, and the MaxGroups trip below fires
+		// at the same merged count whichever key crosses it.
+		for key, bucket := range p.groups {
+			existing, exists := merged.groups[key]
+			if !exists {
+				// MaxGroups on the MERGED count: every partition
+				// can sit under the limit while their union does
+				// not.
+				if err := limits.Check(merged.limits, limits.MaxGroups, int64(len(merged.groups))+1); err != nil {
+					return err
+				}
+				merged.groups[key] = bucket
+				continue
+			}
+			processing.MergeSlotFloors(existing.Floors, bucket.Floors)
+			for slot, oa := range existing.Aggs {
 				if bm, ok := oa.(processing.BlockMerger); ok {
-					if err := processing.MergeBlockMerger(bm, p.aggs[slot]); err != nil {
-						return nil, err
+					if err := processing.MergeBlockMerger(bm, bucket.Aggs[slot]); err != nil {
+						return err
 					}
 					continue
 				}
 				m, ok := oa.(processing.MergeableAggregator)
 				if !ok {
-					return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+					return errors.NewCodedError(errors.PROCESSING_INTERNAL,
 						fmt.Sprintf("aggregator %s does not implement MergeableAggregator", req.Aggregations[slot].Type))
 				}
-				if err := m.MergeOnline(p.aggs[slot]); err != nil {
-					return nil, err
-				}
-			}
-		}
-
-		if merged.groups != nil {
-			// Per grouper slot: its live components state and its
-			// assignment count, folded in partition order.
-			if len(p.groupers) != len(merged.groupers) || len(p.assignments) != len(merged.assignments) {
-				return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
-					"shard partial grouper count mismatch during merge",
-					map[string]any{"merged": len(merged.groupers), "partial": len(p.groupers)})
-			}
-			for gi, g := range merged.groupers {
-				m, ok := g.(processing.MergeableGrouper)
-				if !ok {
-					return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-						fmt.Sprintf("grouper %s does not implement MergeableGrouper", req.Groups[gi].Type))
-				}
-				if err := m.MergeGrouperState(p.groupers[gi]); err != nil {
-					return nil, err
-				}
-				merged.assignments[gi] += p.assignments[gi]
-			}
-			// The composite keys' tuples: a union (a key's tuple is a
-			// function of the key, so which partition minted it is
-			// immaterial).
-			merged.keySet.Merge(p.keySet)
-			for _, key := range p.keyOrder {
-				bucket := p.groups[key]
-				existing, exists := merged.groups[key]
-				if !exists {
-					// MaxGroups on the MERGED count: every partition
-					// can sit under the limit while their union does
-					// not.
-					if err := limits.Check(merged.limits, limits.MaxGroups, int64(len(merged.groups))+1); err != nil {
-						return nil, err
-					}
-					merged.groups[key] = bucket
-					merged.keyOrder = append(merged.keyOrder, key)
-					if merged.groupFloors != nil {
-						merged.groupFloors[key] = p.groupFloors[key]
-					}
-					continue
-				}
-				if merged.groupFloors != nil {
-					processing.MergeSlotFloors(merged.groupFloors[key], p.groupFloors[key])
-				}
-				for slot, oa := range existing {
-					if bm, ok := oa.(processing.BlockMerger); ok {
-						if err := processing.MergeBlockMerger(bm, bucket[slot]); err != nil {
-							return nil, err
-						}
-						continue
-					}
-					m, ok := oa.(processing.MergeableAggregator)
-					if !ok {
-						return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-							fmt.Sprintf("aggregator %s does not implement MergeableAggregator", req.Aggregations[slot].Type))
-					}
-					if err := m.MergeOnline(bucket[slot]); err != nil {
-						return nil, err
-					}
+				if err := m.MergeOnline(bucket.Aggs[slot]); err != nil {
+					return err
 				}
 			}
 		}
 	}
-	_ = schema
-	return merged, nil
+	return nil
 }
 
 // finalizeMergedPartial calls Finalize on each merged aggregator and
@@ -1195,7 +1281,7 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 		// request answering differently under a worker count. The
 		// per-group aggregation Components ride the same tail off the
 		// merged buckets and the merged floors (cohort-wide aggFloor,
-		// per-bucket groupFloors), as do the per-bucket matrices,
+		// each bucket's GroupBucket.Floors), as do the per-bucket matrices,
 		// rendered over the same ordered keys as the rows.
 		// Every grouper slot rides the tail: two or more key the buckets
 		// by composite key, whose merged tuples (KeySet) write every key
@@ -1217,9 +1303,6 @@ func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *
 		}
 		if compute.Aggs {
 			tail.SlotTotals = merged.aggFloor
-		}
-		if compute.Groups {
-			tail.BucketFloors = merged.groupFloors
 		}
 		return processing.FinalizeGroupedStream(req, tail)
 	}

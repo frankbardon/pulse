@@ -24,7 +24,7 @@ Part of the `.pulse` schema surface; entry skill `cohort-schema-design` (Sharded
 - **Only ever wider.** A NARROWER arriving shard never narrows the archive (that would silently drop every selection above the ceiling); it is promoted to the archive's rung, the only shard rewritten.
 - **Create widens too**, on the same conditions as `shard add`; `CreateShardArchive` returns a `*CreateShardArchiveResult` so the warning cannot be dropped.
 - The whole-archive rewrite is atomic (see Concurrency) and emits a mandatory `PULSE_SHARD_SET_WIDENED` warning naming field, old rung, new rung, the rung the arriving shard declared and the shards rewritten — read it: an archive-wide re-stride costs far more than an append. `details.archive_widened` tells the two directions apart (`from != to` ⇒ the archive moved; equal ⇒ only the arriving shard did). Past `set_u256` there is nowhere to widen to and `PULSE_SHARD_DICT_WIDTH_OVERFLOW` stands. Categorical widths are unaffected; they stay fixed at folder creation.
-- `pulse shard verify` reports **set-width headroom** per set field (entries used, capacity, headroom, next rung) so an impending widen is foreseeable.
+- `pulse shard verify` reports **set-width headroom** per set field (entries used, capacity, headroom, next rung).
 - **Grouped (`0x02`) shards.** An archive has ONE parent-group layout — part of strict cohesion, so `shard verify` refuses a `0x01` shard in a `0x02` archive. On create/add the ARCHIVE's layout wins: a grouped arrival into an ungrouped archive is stored flattened; an arrival with other groups (or none) is re-encoded into the archive's. Group dictionaries union-merge canonical-first (stored shards untouched, only the arrival renumbered); past the u32 index space → `PULSE_SHARD_DICT_WIDTH_OVERFLOW`. An arrival that disagrees with a CONSTANT group promotes it to indexed across every shard; one that violates a declared key is refused (`PULSE_GROUP_MEMBER_NOT_CONSTANT`). Layout changes emit the mandatory `PULSE_SHARD_GROUPS_REWRITTEN` (`details.reason`, `archive_rewritten`); `shard verify` adds `group_index_headroom` (a constant group always shows 0). To keep appends cheap, import every period with the same `--group` flags and don't elide a column that varies between periods. `pulse dedup` refuses archives — dedup each shard, then `shard create`.
 
 ## Anchor syntax
@@ -38,7 +38,7 @@ Anchor against single-file → `PULSE_ARCHIVE_MAGIC_INVALID`. Missing anchor →
 
 ## Memory shape
 
-Materializing ops (percentile / median aggs and attribute, quantile and date groupers, windows, decimal paths, tier-1 tests + groupers/features/two-pass attrs, tier-2 post tests) materialize across the **union** of shards. Median-of-medians is not the median. Memory scales with shard count. Archives are read by random access, never whole: open / inspect / count read only the zip directory and headers, a scan one buffered window per shard. Deflated entries: `PULSE_ARCHIVE_CORRUPT`.
+Materializing ops (percentile / median aggs and attribute, quantile and date groupers, windows, decimal paths, tier-1 tests + groupers/features/two-pass attrs, tier-2 post tests) materialize across the **union** of shards. Median-of-medians is not the median. Memory scales with shard count, except on a mergeable `ShardWorkers` run (partials merge in order, then free; <=2x workers live). Archives are read by random access, never whole: open / inspect / count read the zip directory and headers, a scan one window per shard. Deflated entries: `PULSE_ARCHIVE_CORRUPT`.
 
 ## Concurrency
 

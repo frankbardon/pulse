@@ -1017,17 +1017,18 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		return nil, err
 	}
 
-	// Per-group aggregator buckets; FinalizeGroupedStream orders them.
-	buckets := make(map[string][]OnlineAggregator)
+	// Per-group buckets (aggregators + floors); FinalizeGroupedStream
+	// orders them.
+	buckets := make(map[string]*GroupBucket)
 	// Per-group aggregation Components' floors: cohort-wide per slot
 	// and per bucket, tallied only when components are on (built
-	// behind the gate, not discarded).
-	var slotTotals []SlotFloor
-	var bucketFloors map[string][]SlotFloor
+	// behind the gate, not discarded). bucketFloorTmpl shapes each
+	// bucket's floors (nil: the bucket carries none).
+	var slotTotals, bucketFloorTmpl []SlotFloor
 	if p.compute.Aggs && len(req.Aggregations) > 0 {
 		slotTotals = NewSlotFloors(req.Aggregations)
-		if p.compute.Groups {
-			bucketFloors = NewGroupFloors()
+		if p.compute.Groups && GroupFloorsOn() {
+			bucketFloorTmpl = slotTotals
 		}
 	}
 	// Per-bucket matrix slots, minted with the bucket (nil without
@@ -1054,6 +1055,20 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	var primaryNullRecords int64
 	weights := NewWeightRowTally(req)
 
+	// mint builds slot i's fresh aggregator for a new bucket.
+	mint := func(i int) (OnlineAggregator, error) {
+		s := specs[i]
+		inst, err := s.factory(s.agg, p.schema)
+		if err != nil {
+			return nil, err
+		}
+		oa, ok := inst.(OnlineAggregator)
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+				fmt.Sprintf("aggregator %s does not implement OnlineAggregator", s.agg.Type))
+		}
+		return oa, nil
+	}
 	// route folds r into key's bucket, minting the bucket (and its
 	// floors and matrix slots) on the key's first record.
 	route := func(key string, r *Record) error {
@@ -1064,31 +1079,18 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 			if err := limits.Check(p.limits, limits.MaxGroups, int64(len(buckets))+1); err != nil {
 				return err
 			}
-			online := make([]OnlineAggregator, len(specs))
-			for i, s := range specs {
-				inst, err := s.factory(s.agg, p.schema)
-				if err != nil {
-					return err
-				}
-				oa, ok := inst.(OnlineAggregator)
-				if !ok {
-					return errors.NewCodedError(errors.PROCESSING_INTERNAL,
-						fmt.Sprintf("aggregator %s does not implement OnlineAggregator", s.agg.Type))
-				}
-				online[i] = oa
+			var err error
+			if b, err = NewGroupBucket(len(specs), mint, bucketFloorTmpl); err != nil {
+				return err
 			}
-			b = online
 			buckets[key] = b
-			if bucketFloors != nil {
-				bucketFloors[key] = NewSlotFloors(req.Aggregations)
-			}
 		}
-		for i, oa := range b {
+		for i, oa := range b.Aggs {
 			if err := oa.UpdateRow(r, specs[i].agg.Field); err != nil {
 				return err
 			}
 		}
-		ObserveSlotFloors(bucketFloors[key], r)
+		ObserveSlotFloors(b.Floors, r)
 		return matrices.UpdateRow(key, r)
 	}
 	// The composite arm's Expand callback: routes the current record.
@@ -1200,7 +1202,6 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		KeySet:         keySet,
 		Buckets:        buckets,
 		SlotTotals:     slotTotals,
-		BucketFloors:   bucketFloors,
 		TotalRows:      totalRows,
 		FilteredRows:   filteredRows,
 		NullRecords:    primaryNullRecords,
