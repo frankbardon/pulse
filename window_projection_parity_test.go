@@ -94,6 +94,8 @@ func wpWindow(wt types.WindowType) *types.Window {
 		w.Params = json.RawMessage(`{"alpha":0.5}`)
 	case types.WIN_PCT_CHANGE, types.WIN_DELTA:
 		w.Params = json.RawMessage(`{"periods":1}`)
+	case types.WIN_ADSTOCK:
+		w.Params = json.RawMessage(`{"kernel":"weibull_pdf","shape":2,"scale":2,"max_lag":4}`)
 	case types.WIN_LAG, types.WIN_LEAD:
 		w.Params = json.RawMessage(`{"offset":1}`)
 	case types.WIN_SHARE:

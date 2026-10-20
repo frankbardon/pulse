@@ -43,6 +43,7 @@ var vectorBuiltinCases = map[string]struct {
 	"exp":        {`exp(0)`, 1},
 	"pow":        {`pow(y, 3)`, 8},
 	"log1p":      {`log1p(x)`, math.Ln2},
+	"hill":       {`hill(z, 3, 2) + hill(0, y, 1)`, 0.5},
 	// Calendar helpers over epoch days: day 1 is 1970-01-02, a Friday.
 	"weekday":     {`weekday(x)`, 5},
 	"month_index": {`month_index(z) - 1970 * 12`, 0},
@@ -339,6 +340,7 @@ func TestVectorBuiltins_StaticRefusalsAtBuild(t *testing.T) {
 		{`vsum(vnormalize([x, y], "L1"))`, perr.PROCESSING_CONFIG},
 		{`vzscore([x, y])`, perr.PROCESSING_CONFIG},
 		{`pow(x)`, perr.PROCESSING_CONFIG},
+		{`hill(x, 2)`, perr.PROCESSING_CONFIG},
 		{`vsum([x], [y])`, perr.PROCESSING_CONFIG},
 	} {
 		_, err := newExprProgram(tc.src, "formula", vectorTestSchema(), nil, nil, exprenv.Options())

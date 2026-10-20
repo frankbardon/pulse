@@ -20,6 +20,7 @@ import "github.com/frankbardon/pulse/descriptor"
 // null on a frame with none; the rank pair ties rows equal on every
 // order_by key and puts missing keys last, sharing the last rank.
 var windowInterpretations = map[string][]descriptor.Interpretation{
+	"WIN_ADSTOCK":     interpWinAdstock,
 	"WIN_DELTA":       interpWinDelta,
 	"WIN_DENSE_RANK":  interpWinDenseRank,
 	"WIN_EWMA":        interpWinEWMA,
@@ -149,6 +150,21 @@ var (
 		},
 	}
 )
+
+var interpWinAdstock = []descriptor.Interpretation{
+	{
+		Field: "value",
+		Means: "The field's carried-over level: the current value plus earlier values, each weighted by the kernel at its distance back, up to max_lag rows. " +
+			"With the default normalisation the weights sum to 1, so the value is a weighted average of recent values on the field's own scale.",
+		Caveats: []string{
+			"The first rows of each partition have fewer earlier rows to draw on, so they read lower than a long series would at the same spend; read them with care.",
+			"A missing value reads null and counts as nothing in later rows: unlike WIN_EWMA, the carry-over still fades across the gap.",
+			"With normalize false a geometric kernel gives the classic adstock sum (current + decay x previous + ...), which can sit well above any single value.",
+			"The kernel is fixed by its params, not fitted: compare several decays or Weibull shapes before reading one column as the true carry-over.",
+			winRowsNotTimeCaveat,
+		},
+	},
+}
 
 // --- Ranks -------------------------------------------------------------------
 

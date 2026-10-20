@@ -328,6 +328,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("GROUP_SET_PER_ELEMENT"),
 	op("GROUP_SET_VALUE"),
 	// Windows — types.AllWindowTypes().
+	op("WIN_ADSTOCK"),
 	op("WIN_DELTA"),
 	op("WIN_DENSE_RANK"),
 	op("WIN_EWMA"),

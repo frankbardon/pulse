@@ -40,7 +40,7 @@ import (
 // a reserved name absent here takes exactly one.
 var BuiltinArity = map[string][2]int{
 	"dot": {2, 2}, "dist": {2, 2}, "cosine": {2, 2},
-	"vnormalize": {2, 2}, "pow": {2, 2},
+	"vnormalize": {2, 2}, "pow": {2, 2}, "hill": {3, 3},
 	"jaccard": {2, 2}, "dice": {2, 2}, "hamming": {2, 2}, "overlap": {2, 2},
 	"ref": {2, 2}, "date_trunc": {2, 2},
 }

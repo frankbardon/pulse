@@ -251,6 +251,7 @@
     - [op-test-welch](skills/op-test-welch.md)
     - [op-test-wilcoxon-sr](skills/op-test-wilcoxon-sr.md)
     - [op-test-z-two-sample](skills/op-test-z-two-sample.md)
+    - [op-win-adstock](skills/op-win-adstock.md)
     - [op-win-delta](skills/op-win-delta.md)
     - [op-win-dense-rank](skills/op-win-dense-rank.md)
     - [op-win-ewma](skills/op-win-ewma.md)

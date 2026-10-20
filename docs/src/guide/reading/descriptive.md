@@ -523,6 +523,24 @@ How many standard deviations the row's value sits from the mean: (value - mean) 
 
 ## Window operators
 
+<a id="op-win_adstock"></a>
+
+### `WIN_ADSTOCK`
+
+Adds a carry-over series: each row sums the current and earlier values, weighted by a decaying curve, so spend keeps acting later. See its [catalog entry](../catalog/window.md#op-win_adstock).
+
+#### `value`
+
+The field's carried-over level: the current value plus earlier values, each weighted by the kernel at its distance back, up to max_lag rows. With the default normalisation the weights sum to 1, so the value is a weighted average of recent values on the field's own scale.
+
+**Caveats:**
+
+- The first rows of each partition have fewer earlier rows to draw on, so they read lower than a long series would at the same spend; read them with care.
+- A missing value reads null and counts as nothing in later rows: unlike WIN_EWMA, the carry-over still fades across the gap.
+- With normalize false a geometric kernel gives the classic adstock sum (current + decay x previous + ...), which can sit well above any single value.
+- The kernel is fixed by its params, not fitted: compare several decays or Weibull shapes before reading one column as the true carry-over.
+- A step is one row of the result in order_by order, not a calendar period: when a period has no row (a month with no sales), the comparison silently spans the gap, so check the series has a row for every period.
+
 <a id="op-win_delta"></a>
 
 ### `WIN_DELTA`

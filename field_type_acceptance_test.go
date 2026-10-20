@@ -297,6 +297,7 @@ var acceptanceTemplates = map[string]string{
 	"WIN_DELTA":       `{"windows":[{"type":"WIN_DELTA","field":"$F","order_by":[{"field":"x"}],"params":{"periods":1}}]}`,
 	"WIN_SHARE":       `{"windows":[{"type":"WIN_SHARE","field":"$F","order_by":[{"field":"x"}],"params":{"cumulative":true}}]}`,
 	"WIN_LIFT":        `{"windows":[{"type":"WIN_LIFT","field":"$F","order_by":[{"field":"x"}],"params":{"base":"x","cumulative":true}}]}`,
+	"WIN_ADSTOCK":     `{"windows":[{"type":"WIN_ADSTOCK","field":"$F","order_by":[{"field":"x"}],"params":{"kernel":"geometric","decay":0.5,"max_lag":4}}]}`,
 
 	// Filterers.
 	"FILTER_INCLUDE":           `{"filterers":[{"type":"FILTER_INCLUDE","field":"$F","values":["$V"]}],"aggregations":[{"type":"AGG_COUNT","field":"x"}]}`,

@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:f9c82a3572375114addfe09629d1bb9399dfc0fd242076ffece101bee8a500df",
+  "$comment": "feature_set_digest: fs1:64bfafee2a0434df9b260e4b510149331825dae09ec1acc1b59174c8d805c144",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -5269,6 +5269,7 @@
     },
     "WindowType": {
       "enum": [
+        "WIN_ADSTOCK",
         "WIN_DELTA",
         "WIN_DENSE_RANK",
         "WIN_EWMA",
@@ -5344,4 +5345,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 2efefd3efbc87365fc6df3c6d04ea3b327e935f35e211122c4e1d40286b55a36
+// golden-hash: 458931aef9b16605a4adf4a2bef05fa8b5b1820776cb78f124a56f0832caad00

@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"github.com/frankbardon/pulse/internal/adstockparams"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 
@@ -124,6 +125,23 @@ func windowCapabilities() []descriptor.Operator {
 			// is never read.
 			IgnoresFrame: true,
 			Streamable:   false,
+		},
+		{
+			Name:        string(types.WIN_ADSTOCK),
+			Category:    "window",
+			Description: "Media adstock: a finite lag kernel over the ordered partition, value_i = Σ w_l · x_{i−l} for l = 0..max_lag. Kernels: geometric (w_l = decay^l), weibull_cdf (Weibull survival 1 − F(l)), weibull_pdf (Weibull density f(l + 1)); normalised to sum 1 by default.",
+			Params: []descriptor.Param{
+				{Name: "kernel", Type: "enum", Required: true, EnumValues: adstockparams.Kernels(), Description: "Lag-weight shape: geometric reads decay; weibull_cdf and weibull_pdf read shape and scale."},
+				{Name: "max_lag", Type: "int", Required: true, Description: "Last lag the kernel reaches, an integer in [1, 10000]; the kernel has max_lag + 1 weights (lag 0 is the current row)."},
+				{Name: "decay", Type: "float", Required: false, Description: "geometric only: carry-over share in [0, 1); w_l = decay^l. Refused on a Weibull kernel."},
+				{Name: "shape", Type: "float", Required: false, Description: "weibull_cdf / weibull_pdf only: Weibull shape > 0. Refused on geometric."},
+				{Name: "scale", Type: "float", Required: false, Description: "weibull_cdf / weibull_pdf only: Weibull scale > 0, in rows. Refused on geometric."},
+				{Name: "normalize", Type: "bool", Required: false, Default: true, Description: "Divide the weights by their sum so the kernel sums to 1 and the column keeps the input's scale."},
+			},
+			AcceptsTypes:  tableAcceptsTypes(types.WIN_ADSTOCK),
+			EmitsType:     "f64",
+			EmitsTypeNote: "one float per row; null where the row's own value is null",
+			Streamable:    false,
 		},
 		{
 			Name:        string(types.WIN_PCT_CHANGE),

@@ -6,6 +6,7 @@
 //     helpers, with their implementations (vector.go, setsim.go, set.go)
 //     and ref() (ref.go);
 //   - the `%` patcher (mod.go);
+//   - the Hill saturation curve (hill.go);
 //   - the calendar helpers and log1p (calendar.go): weekday,
 //     month_index and date_trunc over epoch days through
 //     internal/temporal, to_day in the request zone ([Bound.Zone]),
@@ -70,6 +71,8 @@ var reserved = []string{
 	"vcenter", "vzscore", "vnormalize",
 	// Scalar maths.
 	"sqrt", "log", "exp", "pow", "log1p",
+	// Media saturation (hill.go): hill(x, half_saturation, shape).
+	"hill",
 	// Calendar over epoch days (calendar.go); to_day converts a datetime.
 	"weekday", "month_index", "date_trunc", "to_day",
 	// Set similarity over two label sets.

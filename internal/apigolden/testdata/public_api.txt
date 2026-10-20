@@ -5680,6 +5680,7 @@ pulse/types: type VersionResponse struct
 pulse/types: type VersionResponse field BuildDate string "json:\"build_date,omitempty\""
 pulse/types: type VersionResponse field GoVersion string "json:\"go_version,omitempty\""
 pulse/types: type VersionResponse field Version string "json:\"version\""
+pulse/types: const WIN_ADSTOCK pulse/types.WindowType = "WIN_ADSTOCK"
 pulse/types: const WIN_DELTA pulse/types.WindowType = "WIN_DELTA"
 pulse/types: const WIN_DENSE_RANK pulse/types.WindowType = "WIN_DENSE_RANK"
 pulse/types: const WIN_EWMA pulse/types.WindowType = "WIN_EWMA"
@@ -5712,4 +5713,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 83b610dab3c72e5eaec2af71bc1b0881880d98ee445759ae0065fe3478e28f14
+// golden-hash: bc269e6893dd01187cd92bd26c58400c6fe6994603e2bc61df620383bbb6066e

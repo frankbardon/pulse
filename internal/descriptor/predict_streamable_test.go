@@ -552,6 +552,10 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 			{Type: types.AGG_AUC, Field: "score", Params: json.RawMessage(`{"outcome":"score"}`)}}}, numericSchema},
 		{"sum on decimal", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "amount"}}}, decimalSchema},
 		{"empty request", &types.Request{}, numericSchema},
+		{"adstock window buffers", &types.Request{Windows: []*types.Window{{
+			Type: types.WIN_ADSTOCK, Field: "score", Label: "ad", OrderBy: []types.OrderKey{{Field: "score"}},
+			Params: json.RawMessage(`{"kernel":"weibull_cdf","shape":1.5,"scale":2,"max_lag":3}`),
+		}}}, numericSchema},
 		// U46 E3-S1: a grouped request runs every tier-1 test once per
 		// group on the buffered path; the same tests ungrouped stream.
 		{"ungrouped one-sample TEST_T streams", &types.Request{

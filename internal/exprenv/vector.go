@@ -60,6 +60,7 @@ var builtinImpls = map[string]exprBuiltinFunc{
 	"exp":         scalarUnary("exp", vecmath.Exp),
 	"pow":         scalarPowBuiltin,
 	"log1p":       log1pBuiltin,
+	"hill":        hillBuiltin,
 	"weekday":     calendarUnary(FuncWeekday, temporal.ISOWeekday),
 	"month_index": calendarUnary(FuncMonthIndex, temporal.MonthIndex),
 	"date_trunc":  dateTruncBuiltin,
