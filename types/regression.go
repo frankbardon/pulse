@@ -1,5 +1,7 @@
 package types
 
+import "encoding/json"
+
 // RegressionType identifies a specific regression-modeling operator.
 //
 // Pulse exposes three top-level regression operators that cover the
@@ -234,6 +236,16 @@ type RegressionSpec struct {
 	// block of its own — so a request without one is byte-identical.
 	// Gated by capability:multiplicity.
 	Multiplicity *RegressionMultiplicity `json:"multiplicity,omitempty"`
+
+	// Params is the model's own configuration object, read by an
+	// extension regression (pulse.RegressionRegistration.Params declares
+	// its keys; the factory sees it on the spec). A key the registration
+	// does not declare is refused PULSE_REQUEST_UNKNOWN_FIELD at
+	// regressions[i].params.<key>, at predict and at runtime alike. The
+	// built-ins take every knob as a typed field above and declare no
+	// params, so any params key on REG_OLS / REG_GLM / REG_BAYES_LINEAR
+	// is refused. Absent is byte-identical.
+	Params json.RawMessage `json:"params,omitempty"`
 }
 
 // RegressionMultiplicity is a regression's own multiple-comparison

@@ -581,3 +581,28 @@ func TestMCPSchemaBinding_CrosstabColumnsOptional(t *testing.T) {
 		t.Errorf("crosstab.required = %v, want rows only (cell or cells)", required)
 	}
 }
+
+// TestMCPSchemaBinding_RegressionParams verifies the bound process schema
+// exposes regressions[].params as an object — an extension REG_* model's
+// own configuration (U53).
+func TestMCPSchemaBinding_RegressionParams(t *testing.T) {
+	schemas, err := Bind(makeBindSchema())
+	if err != nil {
+		t.Fatalf("Bind: %v", err)
+	}
+	req := decodeBoundRequest(t, schemas[toolmeta.ToolProcess])
+	props, _ := req["properties"].(map[string]any)
+	regs, _ := props["regressions"].(map[string]any)
+	items, _ := regs["items"].(map[string]any)
+	itemProps, _ := items["properties"].(map[string]any)
+	params, _ := itemProps["params"].(map[string]any)
+	if params == nil {
+		t.Fatal("regressions.items.properties.params missing")
+	}
+	if typ, _ := params["type"].(string); typ != "object" {
+		t.Errorf("params.type = %q, want object", typ)
+	}
+	if desc, _ := params["description"].(string); desc == "" {
+		t.Error("params.description should be non-empty")
+	}
+}

@@ -773,7 +773,14 @@ fatal; a panic is `PROCESSING_PANIC`).
 | `Streamable` | the form; decides the path at runtime and in predict |
 | `WeightAware` | the model reads row weights; undeclared, any weight in force is `PULSE_EXTENSION_NOT_WEIGHT_AWARE` |
 | `Vcov` | `vcov: true` is honoured (result `vcov` + `correlation`); undeclared it is `PROCESSING_CONFIG` `{regression, slot: "vcov"}` at predict and runtime |
-| `OutputSchema` | `[]pulse.RegressionOutputMeta{Key, JSONType, Description}` — the `Outputs` keys the model may fill (`invalid_output_key` on an empty, repeated or untyped key) |
+| `Params` | `[]pulse.ParamMeta` — the keys of the slot's own `params` object (`RegressionSpec.Params`, which the factory reads off the spec); declared, any other key is `PULSE_REQUEST_UNKNOWN_FIELD` at `regressions[i].params.<key>` at predict and runtime alike; undeclared, params pass through (predict advises `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED`). A built-in `REG_*` declares none, so any `params` key on one is refused |
+| `OutputSchema` | `[]pulse.RegressionOutputMeta{Key, JSONType, Description}` — the `Outputs` keys the model may fill (`invalid_output_key` on an empty, repeated or untyped key). `Outputs` survives `disable_components` and every `return` preset |
+
+The manifest lists the model under `extensions.regressions` in the
+built-in `RegressionMeta` shape: the shared slot keys (`target`,
+`predictors`, and `vcov` when declared — each marked `slot`), then the
+declared `Params`, the declared form (`streamable`), `weight_kinds` for
+a `WeightAware` model, its `intents` and the `output_schema`.
 
 **Probe.** `pulse.New` builds the factory against a synthetic schema
 (`probe_y` ~ `probe_x1` + `probe_x2`, plus a weight column), with
@@ -796,6 +803,7 @@ pulse.RegressionRegistration{
     Factory:      func(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression, error) { return newSlope(spec), nil },
     Streamable:   true, // newSlope implements UpdateRow, Merge, Finalize
     WeightAware:  true,
+    Params:       []pulse.ParamMeta{{Name: "scale", JSONType: "number"}}, // spec.Params
     OutputSchema: []pulse.RegressionOutputMeta{{Key: "sxx", JSONType: "number"}},
 }
 ```

@@ -84,7 +84,7 @@ func instanceOntology(ext *ExtensionsSnapshot, inst *InstanceSnapshot) *Ontology
 func extensionOperatorLists(ext *ExtensionsSnapshot) [][]descriptor.OperatorMeta {
 	return [][]descriptor.OperatorMeta{
 		ext.Aggregators, ext.Attributes, ext.Filterers, ext.Groupers, ext.Windows,
-		ext.Features, ext.Tests, ext.OverlayKinds, ext.MatrixOps,
+		ext.Features, ext.Tests, ext.OverlayKinds, ext.MatrixOps, ext.Regressions,
 	}
 }
 

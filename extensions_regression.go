@@ -37,7 +37,12 @@ func regressionDeclaration(reg RegressionRegistration) descx.ExtensionRegression
 	for _, o := range reg.OutputSchema {
 		keys = append(keys, o.Key)
 	}
-	return descx.ExtensionRegression{Vcov: reg.Vcov, OutputKeys: keys}
+	return descx.ExtensionRegression{
+		Vcov:         reg.Vcov,
+		OutputKeys:   keys,
+		Params:       matrixParamSnapshot(reg.Params),
+		OutputSchema: slices.Clone(reg.OutputSchema),
+	}
 }
 
 // ---- admission and mapping ---------------------------------------------
@@ -467,6 +472,7 @@ func addSnapshotRegressions(snap *descx.ExtensionsSnapshot, regs []RegressionReg
 			Description: r.Description,
 			Streamable:  r.Streamable,
 			WeightAware: r.WeightAware,
+			Params:      paramMetaSnapshot(r.Params),
 		})
 		snap.RegressionDetails[string(r.Name)] = regressionDeclaration(r)
 	}

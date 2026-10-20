@@ -156,7 +156,7 @@ func validateExtensions(ext Extensions) error {
 		return err
 	}
 	if err := validateOperatorSlice(ext.Regressions, categoryRegression, builtinRegressionNames(), func(r RegressionRegistration) (string, []ParamMeta) {
-		return string(r.Name), nil
+		return string(r.Name), r.Params
 	}, func(r RegressionRegistration) bool { return r.Factory != nil }); err != nil {
 		return err
 	}

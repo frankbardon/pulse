@@ -1092,6 +1092,10 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 				},
 				"weight":       slotWeightSchema(c),
 				"multiplicity": regressionMultiplicitySchema(),
+				"params": map[string]any{
+					"type":        "object",
+					"description": "An extension REG_* model's own configuration: only the keys its manifest entry (extensions.regressions[].params, those not marked slot) declares; any other key is PULSE_REQUEST_UNKNOWN_FIELD. The built-ins (REG_OLS / REG_GLM / REG_BAYES_LINEAR) take no params.",
+				},
 			},
 			"required":             []string{"type", "target"},
 			"additionalProperties": true,

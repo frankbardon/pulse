@@ -599,6 +599,21 @@ type RegressionMeta struct {
 	// omitted when it honours no weight and on an instance that hides
 	// capability:weighting. See Operator.WeightKinds.
 	WeightKinds []types.WeightKind `json:"weight_kinds,omitempty"`
+
+	// OutputSchema lists the keys an extension regression may fill in
+	// its result's outputs object (RegressionResult.Outputs): each key's
+	// JSON type and description, in registration order. Omitted on the
+	// built-ins, which fill none.
+	OutputSchema []RegressionOutputMeta `json:"output_schema,omitempty"`
+}
+
+// RegressionOutputMeta declares one key of an extension regression's
+// outputs object: its name, the JSON type of its value (string, number,
+// boolean, array or object) and a description.
+type RegressionOutputMeta struct {
+	Key         string `json:"key"`
+	JSONType    string `json:"json_type"`
+	Description string `json:"description,omitempty"`
 }
 
 // RegressionModifier describes a spec-level wrapper (Resample,

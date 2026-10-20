@@ -503,7 +503,7 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 				continue
 			}
 			if _, custom := ext.Regressions[r.Type]; custom {
-				inputs, ok := ext.FieldInputsFor("regression", string(r.Type), nil)
+				inputs, ok := ext.FieldInputsFor("regression", string(r.Type), r.Params)
 				if !ok {
 					out.Widen()
 					return out

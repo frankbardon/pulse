@@ -137,9 +137,9 @@ func addSnapshotMatrixOps(snap *descx.ExtensionsSnapshot, regs []MatrixOpRegistr
 	}
 }
 
-// matrixParamSnapshot converts a matrix registration's ParamMeta into
-// the manifest's Param shape (the built-in matrix operators' params):
-// JSON Schema types map onto the Param type vocabulary.
+// matrixParamSnapshot converts a matrix (or regression) registration's
+// ParamMeta into the manifest's Param shape (the built-in operators'
+// params): JSON Schema types map onto the Param type vocabulary.
 func matrixParamSnapshot(in []ParamMeta) []descriptor.Param {
 	if len(in) == 0 {
 		return nil

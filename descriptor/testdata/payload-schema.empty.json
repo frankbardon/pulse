@@ -1276,6 +1276,9 @@
         "name": {
           "type": "string"
         },
+        "params": {
+          "description": "Operator-specific configuration as raw JSON. The per-operator param schema lives alongside the operator's processor; see the manifest."
+        },
         "penalty": {
           "type": "string"
         },
@@ -1956,4 +1959,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 562c5c615125b40a0deede8f9988a4c70eabea46eeacebdaac2ee0b3a6596909
+// golden-hash: 007c6f77bdb93e44df76cec26e50a693ba85c7e430702b62713930fb7e54956a

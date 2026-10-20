@@ -2,9 +2,12 @@ package descriptor
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -19,6 +22,12 @@ type ExtensionRegression struct {
 	Vcov bool
 	// OutputKeys are the declared OutputSchema keys, in order.
 	OutputKeys []string
+	// Params are the model's own params-object keys in the manifest's
+	// Param shape (the snapshot's OperatorMeta.Params carries the same
+	// declaration as the allowlist reads it).
+	Params []descriptor.Param
+	// OutputSchema is the declared OutputSchema, in order.
+	OutputSchema []descriptor.RegressionOutputMeta
 }
 
 // extCategoryRegression is the regression extension category, as
@@ -96,4 +105,76 @@ func ExtensionRegressionSlotRefusal(spec *types.RegressionSpec, decl ExtensionRe
 			details)
 	}
 	return nil
+}
+
+// extensionRegressionSlotParams are the shared RegressionSpec fields an
+// extension model reads off every slot, listed (marked Slot) ahead of
+// its own params keys; vcov joins them when the registration declares
+// it honours the covariance.
+func extensionRegressionSlotParams(vcov bool) []descriptor.Param {
+	out := []descriptor.Param{
+		{Name: "target", Type: "field", Required: true, FieldFilter: "numeric", Description: "Response variable field name; a top-level key of the regression entry.", Slot: true},
+		{Name: "predictors", Type: "list", Required: true, Description: "Predictor field names; a top-level key of the regression entry.", Slot: true},
+	}
+	if vcov {
+		out = append(out, descriptor.Param{Name: "vcov", Type: "bool", Default: false, Description: "Emit the model's coefficient covariance (vcov) and its correlation; a top-level key of the regression entry.", Slot: true})
+	}
+	return out
+}
+
+// extensionRegressionAcceptsTypes is the scalar field types an
+// extension model's target and predictors accept (the accepted-types
+// table's rule for an operator it does not table), sorted.
+func extensionRegressionAcceptsTypes(name string) []string {
+	var out []string
+	for b := 0; b < 256; b++ {
+		ft := encoding.FieldType(b)
+		if ft.IsKnown() && !ft.IsVector() && fieldaccept.Accepts(name, fieldaccept.SlotPredictor, ft) {
+			out = append(out, ft.String())
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// extensionRegressionMetas projects the snapshot's extension REG_*
+// models onto the manifest's RegressionMeta shape — the built-ins' —
+// sorted by name: the declared description, the accepted field types,
+// the shared slot keys then the model's own params keys, the declared
+// form (streamable; a Resample, Selection or robust covariance on the
+// slot still forces the buffered path), the OutputSchema and the
+// intents its Purpose declares. weighting reports an instance offering
+// capability:weighting: a WeightAware model then carries both weight
+// kinds.
+func extensionRegressionMetas(s *ExtensionsSnapshot, weighting bool) []descriptor.RegressionMeta {
+	if s == nil || len(s.Regressions) == 0 {
+		return []descriptor.RegressionMeta{}
+	}
+	out := make([]descriptor.RegressionMeta, 0, len(s.Regressions))
+	for _, m := range sortOperatorMeta(s.Regressions) {
+		d := s.RegressionDetails[m.Name]
+		hint := "Always buffered: the model fits over every admitted row (extend.BufferedRegression)."
+		if m.Streamable {
+			hint = "Streams row by row (extend.StreamingRegression); a Resample, Selection or robust covariance on the slot forces the buffered path, where the model is fed the buffered rows one at a time."
+		}
+		meta := descriptor.RegressionMeta{
+			Name:           m.Name,
+			Description:    m.Description,
+			AcceptsTypes:   extensionRegressionAcceptsTypes(m.Name),
+			EmitsTypeNote:  "RegressionResult in the built-in shape: coefficients with std_errors / statistics / p_values (null where the model reports none, key kept), the fit statistics it reports, and outputs keyed by output_schema.",
+			Streamable:     m.Streamable,
+			StreamableHint: hint,
+			Params:         append(extensionRegressionSlotParams(d.Vcov), d.Params...),
+			OutputSchema:   append([]descriptor.RegressionOutputMeta(nil), d.OutputSchema...),
+		}
+		if p, ok := s.PurposeOf(m.Name); ok && len(p.Intents) > 0 {
+			meta.Intents = append([]string(nil), p.Intents...)
+			sort.Strings(meta.Intents)
+		}
+		if weighting && m.WeightAware {
+			meta.WeightKinds = []types.WeightKind{types.WeightKindFrequency, types.WeightKindProbability}
+		}
+		out = append(out, meta)
+	}
+	return out
 }

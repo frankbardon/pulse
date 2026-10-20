@@ -141,6 +141,13 @@ var builtinParamsAllowlist = sync.OnceValue(func() map[paramread.Key]ParamsDecl 
 	for _, o := range OverlayCapabilities() {
 		out[paramread.Key{Category: paramread.Overlay, Op: string(o.Kind)}] = paramsDeclOf(o.Params)
 	}
+	// A built-in regression takes every knob as a typed RegressionSpec
+	// field (its manifest Param list names those slot fields) and reads
+	// no params object: the allowlist is empty, so any params key on
+	// REG_OLS / REG_GLM / REG_BAYES_LINEAR is refused.
+	for _, t := range types.AllRegressionTypes() {
+		out[paramread.Key{Category: paramread.Regression, Op: string(t)}] = ParamsDecl{Declared: true, Keys: []string{}}
+	}
 	for k, d := range out {
 		d.OwnRefusal = paramsOwnRefusals(k)
 		out[k] = d
@@ -185,6 +192,7 @@ func ParamsAllowlist(inst *InstanceSnapshot) map[paramread.Key]ParamsDecl {
 	ext(paramread.Window, snap.Windows)
 	ext(paramread.Feature, snap.Features)
 	ext(paramread.Test, snap.Tests)
+	ext(paramread.Regression, snap.Regressions)
 	for _, m := range snap.MatrixOps {
 		facts := snap.MatrixDetails[m.Name]
 		d := paramsDeclOf(extensionMatrixParams(m.Streamable, facts.Params))
@@ -355,6 +363,13 @@ func (c *paramsChecker) request(req *types.Request) *errors.CodedError {
 	for i := range req.Matrices {
 		if ce := c.matrix(i, &req.Matrices[i]); ce != nil {
 			return ce
+		}
+	}
+	for i, r := range req.Regressions {
+		if r != nil {
+			if ce := c.check("regressions", i, paramread.Regression, string(r.Type), r.Params); ce != nil {
+				return ce
+			}
 		}
 	}
 	if ct := req.Crosstab; ct != nil {

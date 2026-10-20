@@ -186,6 +186,7 @@ func emptyExtensionsManifest() descriptor.ExtensionsManifest {
 		Features:         []descriptor.OperatorMeta{},
 		Tests:            []descriptor.OperatorMeta{},
 		MatrixOps:        []descriptor.MatrixMeta{},
+		Regressions:      []descriptor.RegressionMeta{},
 		ExprFunctions:    []descriptor.ExprFunctionMeta{},
 		LookupTables:     []descriptor.LookupTableMeta{},
 		ReferenceVectors: []descriptor.ReferenceVectorMeta{},
@@ -241,6 +242,7 @@ func extensionsManifestFromSnapshot(snap *ExtensionsSnapshot) descriptor.Extensi
 	// The weighting-aware projection is stamped by assembleManifest,
 	// which knows whether the instance offers capability:weighting.
 	out.MatrixOps = extensionMatrixMetas(snap, true)
+	out.Regressions = extensionRegressionMetas(snap, true)
 	if out.ExprFunctions == nil {
 		out.ExprFunctions = []descriptor.ExprFunctionMeta{}
 	}

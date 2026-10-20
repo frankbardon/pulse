@@ -895,6 +895,15 @@ type RegressionRegistration struct {
 	// Undeclared, vcov: true is refused with PROCESSING_CONFIG, details
 	// {regression, slot: "vcov"}, at predict and at runtime alike.
 	Vcov bool
+	// Params declares the keys of the slot's own params object
+	// (types.RegressionSpec.Params), which the factory reads off the
+	// spec. Declared, a params key outside the list is refused
+	// PULSE_REQUEST_UNKNOWN_FIELD at regressions[i].params.<key>, at
+	// predict and at runtime alike; undeclared (nil), params pass
+	// through unchecked and predict notes it
+	// (PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED). Validated like every
+	// category's ParamMeta (PULSE_EXTENSION_PARAM_INVALID).
+	Params []ParamMeta
 	// OutputSchema declares the keys the model may fill in
 	// extend.RegressionOutput.Outputs (types.RegressionResult.Outputs):
 	// each a unique non-empty Key with a JSONType from the ParamMeta set
@@ -907,12 +916,10 @@ type RegressionRegistration struct {
 
 // RegressionOutputMeta declares one key of a regression model's
 // Outputs: its name, the JSON type of its value (string, number,
-// boolean, array or object) and a description.
-type RegressionOutputMeta struct {
-	Key         string `json:"key"`
-	JSONType    string `json:"json_type"`
-	Description string `json:"description,omitempty"`
-}
+// boolean, array or object) and a description. It is the manifest's
+// shape (descriptor.RegressionOutputMeta, the extension regression
+// row's output_schema).
+type RegressionOutputMeta = descriptor.RegressionOutputMeta
 
 // ExprFunction describes a function callable from runtime expressions
 // (ATTR_FORMULA / FILTER_EXPRESSION). At pulse.New time the Fn value

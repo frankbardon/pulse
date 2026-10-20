@@ -929,7 +929,8 @@ pulse: type RangeTableInfo field NumericRanges []pulse.NumericRangeSpec "json:\"
 pulse: type RangeTableInfo field RangeCount int "json:\"range_count\""
 pulse: type RangeTableInfo field Ranges []pulse.DateRangeSpec "json:\"ranges,omitempty\""
 pulse: type Record = map[string]any
-pulse: type RegressionOutputMeta struct
+pulse: type RegressionOutputMeta = pulse/descriptor.RegressionOutputMeta
+pulse: type RegressionOutputMeta underlying struct
 pulse: type RegressionOutputMeta field Description string "json:\"description,omitempty\""
 pulse: type RegressionOutputMeta field JSONType string "json:\"json_type\""
 pulse: type RegressionOutputMeta field Key string "json:\"key\""
@@ -938,6 +939,7 @@ pulse: type RegressionRegistration field Description string
 pulse: type RegressionRegistration field Factory pulse/extend.RegressionFactory
 pulse: type RegressionRegistration field Name pulse/types.RegressionType
 pulse: type RegressionRegistration field OutputSchema []pulse.RegressionOutputMeta
+pulse: type RegressionRegistration field Params []pulse.ParamMeta
 pulse: type RegressionRegistration field Streamable bool
 pulse: type RegressionRegistration field Vcov bool
 pulse: type RegressionRegistration field WeightAware bool
@@ -1466,6 +1468,7 @@ pulse/descriptor: type ExtensionsManifest field MatrixOps []pulse/descriptor.Mat
 pulse/descriptor: type ExtensionsManifest field Populations []pulse/descriptor.PopulationMeta "json:\"populations\""
 pulse/descriptor: type ExtensionsManifest field RangeTables []pulse/descriptor.RangeTableMeta "json:\"range_tables\""
 pulse/descriptor: type ExtensionsManifest field ReferenceVectors []pulse/descriptor.ReferenceVectorMeta "json:\"reference_vectors\""
+pulse/descriptor: type ExtensionsManifest field Regressions []pulse/descriptor.RegressionMeta "json:\"regressions\""
 pulse/descriptor: type ExtensionsManifest field Tests []pulse/descriptor.OperatorMeta "json:\"tests\""
 pulse/descriptor: type ExtensionsManifest field Windows []pulse/descriptor.OperatorMeta "json:\"windows\""
 pulse/descriptor: type FacetCapability struct
@@ -1960,6 +1963,7 @@ pulse/descriptor: type RegressionMeta field EmitsTypeNote string "json:\"emits_t
 pulse/descriptor: type RegressionMeta field Intents []string "json:\"intents,omitempty\""
 pulse/descriptor: type RegressionMeta field Modifiers []pulse/descriptor.RegressionModifier "json:\"modifiers,omitempty\""
 pulse/descriptor: type RegressionMeta field Name string "json:\"name\""
+pulse/descriptor: type RegressionMeta field OutputSchema []pulse/descriptor.RegressionOutputMeta "json:\"output_schema,omitempty\""
 pulse/descriptor: type RegressionMeta field Params []pulse/descriptor.Param "json:\"params\""
 pulse/descriptor: type RegressionMeta field Streamable bool "json:\"streamable\""
 pulse/descriptor: type RegressionMeta field StreamableHint string "json:\"streamable_hint,omitempty\""
@@ -1968,6 +1972,10 @@ pulse/descriptor: type RegressionModifier struct
 pulse/descriptor: type RegressionModifier field Description string "json:\"description\""
 pulse/descriptor: type RegressionModifier field EnumValues []string "json:\"enum_values\""
 pulse/descriptor: type RegressionModifier field Name string "json:\"name\""
+pulse/descriptor: type RegressionOutputMeta struct
+pulse/descriptor: type RegressionOutputMeta field Description string "json:\"description,omitempty\""
+pulse/descriptor: type RegressionOutputMeta field JSONType string "json:\"json_type\""
+pulse/descriptor: type RegressionOutputMeta field Key string "json:\"key\""
 pulse/descriptor: type ResolvedWeight struct
 pulse/descriptor: type ResolvedWeight field Field string "json:\"field,omitempty\""
 pulse/descriptor: type ResolvedWeight field Kind string "json:\"kind,omitempty\""
@@ -5426,6 +5434,7 @@ pulse/types: type RegressionSpec field Link string "json:\"link,omitempty\""
 pulse/types: type RegressionSpec field MaxIters int "json:\"max_iters,omitempty\""
 pulse/types: type RegressionSpec field Multiplicity *pulse/types.RegressionMultiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type RegressionSpec field Name string "json:\"name,omitempty\""
+pulse/types: type RegressionSpec field Params encoding/json.RawMessage "json:\"params,omitempty\""
 pulse/types: type RegressionSpec field Penalty string "json:\"penalty,omitempty\""
 pulse/types: type RegressionSpec field Predictors []string "json:\"predictors,omitempty\""
 pulse/types: type RegressionSpec field Prior string "json:\"prior,omitempty\""
@@ -5703,4 +5712,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: db3b6c04720d303fbf2d75d3d9daa661da1123a396d29974ef64ee744263c25a
+// golden-hash: 83b610dab3c72e5eaec2af71bc1b0881880d98ee445759ae0065fe3478e28f14

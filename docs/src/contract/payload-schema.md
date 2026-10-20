@@ -808,8 +808,23 @@ the model did not compute is `null` (key kept), so the coefficient
 table stays rectangular. Only a coefficient whose p-value is defined
 joins a multiplicity family. A non-finite float in `outputs` is `null`.
 `n_obs`, `sum_weights` / `n_eff`, `p_adjusted`, `multiplicity` and
-`error` stay engine-owned. Recipe: `docs/src/internals/extension-points.md`
-(Regression model).
+`error` stay engine-owned. `outputs` is not on the `components`
+machinery: neither `disable_components` / `--no-components` nor any
+`return` preset strips it (it is in `minimal` and `standard`).
+
+On the request side `RegressionSpec` takes an additive `params` object
+(`omitempty`; absent is byte-identical), the model's own configuration.
+Its keys are the registration's declared `Params` — the manifest's
+`extensions.regressions[].params` entries not marked `slot` — and any
+other key is refused `PULSE_REQUEST_UNKNOWN_FIELD` with `details.path`
+`regressions[i].params.<key>`, identically at predict and at runtime. A
+registration declaring no params leaves the object unchecked (predict
+notes it `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED`). The built-ins
+(`REG_OLS`, `REG_GLM`, `REG_BAYES_LINEAR`) take every knob as a typed
+field and declare no params, so any `params` key on one is refused. The
+manifest row lists the model's `output_schema` (`key`, `json_type`,
+`description`), the keys `outputs` may carry. Recipe:
+`docs/src/internals/extension-points.md` (Regression model).
 
 ## Regression robust covariance
 

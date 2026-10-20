@@ -1774,6 +1774,7 @@
       "features": [],
       "tests": [],
       "matrix_ops": [],
+      "regressions": [],
       "expr_functions": [],
       "lookup_tables": [],
       "reference_vectors": [],
@@ -2388,4 +2389,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d84f882822f0ad45f7b36da3610f1edbc41d8c343253224c43d755385d093490
+// golden-hash: 2b210b91214013f874f6d94d3c426f6227379487930fe3788fbb85ca11c9498a
