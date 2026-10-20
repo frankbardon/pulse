@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -768,6 +769,34 @@ var hardEdges = map[string][]string{
 	// fitted vector attribute, ATTR_REG_FITTED / RESIDUAL, a MAT_* slot).
 	featModels: {string(types.ATTR_FACTOR_SCORE), "ATTR_FORMULA", string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
 		"ATTR_REG_FITTED", "ATTR_REG_PREDICT", "ATTR_REG_RESIDUAL", string(types.ATTR_VEC_DISTANCE), "FILTER_EXPRESSION", featMatrices},
+}
+
+// extensionRegressionEdges are the built-in features whose REG_* any-of
+// group a registered extension regression (Extensions.Regressions) also
+// satisfies, each with whether that regression must carry a Scorer: a
+// profile enabling only a custom model can score its fits
+// (ATTR_REG_PREDICT) and save them (capability:model_save — a save needs
+// the scorer) or fit them in Compose (capability:compose_fits — any
+// model). The static groups keep naming the built-ins: an extension is
+// not a feature row, so the profile resolver consults this table.
+// ATTR_REG_FITTED / RESIDUAL keep their REG_OLS edge — without a
+// params.fit they refit OLS themselves.
+var extensionRegressionEdges = map[string]bool{
+	"ATTR_REG_PREDICT": true,
+	featModelSave:      true,
+	featComposeFits:    false,
+}
+
+// ExtensionRegressionMeetsGroup reports whether a registered extension
+// regression can satisfy feature's dependency group (an any-of naming
+// the built-in REG_* operators) and, when it can, whether the
+// regression must carry a Scorer.
+func ExtensionRegressionMeetsGroup(feature string, group []string) (ok, needsScorer bool) {
+	needsScorer, listed := extensionRegressionEdges[feature]
+	if !listed || !slices.Contains(group, string(types.REG_OLS)) {
+		return false, false
+	}
+	return true, needsScorer
 }
 
 // groupEdges are the dependencies needing MORE than one any-of group

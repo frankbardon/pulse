@@ -200,6 +200,16 @@ or another registered extension operator. This is checked at every
 `pulse.New`, with or without a profile, so a typo fails at construction.
 An enabled extension operator also needs a request host, like a built-in.
 
+An enabled extension regression also counts as a regression for the
+built-in features that need one. `ATTR_REG_PREDICT` and
+`capability:model_save` normally need one of `REG_BAYES_LINEAR`,
+`REG_GLM` or `REG_OLS`; an enabled extension regression whose
+registration supplies a `Scorer` meets that need too.
+`capability:compose_fits` accepts any enabled extension regression. So
+a profile that enables only your own model can still fit, score and
+save it. `ATTR_REG_FITTED` and `ATTR_REG_RESIDUAL` still need `REG_OLS`,
+because without `params.fit` they refit OLS themselves.
+
 ## Using a profile from Go
 
 As a value:

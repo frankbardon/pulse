@@ -31,6 +31,9 @@ type featureUniverse struct {
 	version   string
 	extDeps   map[string][]string // extension operator name -> DependsOn
 	extOrigin map[string]string   // extension operator name -> category
+	// extScorer marks the extension regressions whose registration
+	// supplies a Scorer (descx.ExtensionRegressionMeetsGroup).
+	extScorer map[string]bool
 	// unverified marks names an offline CheckFeatureProfile accepted as
 	// extension operators without a registration (withUnverified).
 	unverified map[string]bool
@@ -47,6 +50,7 @@ func newFeatureUniverse(ext Extensions, version string) featureUniverse {
 		version:   version,
 		extDeps:   map[string][]string{},
 		extOrigin: map[string]string{},
+		extScorer: map[string]bool{},
 	}
 	add := func(cat extensionCategory, name string, deps []string) {
 		u.extDeps[name] = deps
@@ -78,6 +82,7 @@ func newFeatureUniverse(ext Extensions, version string) featureUniverse {
 	}
 	for _, r := range ext.Regressions {
 		add(categoryRegression, string(r.Name), r.DependsOn)
+		u.extScorer[string(r.Name)] = r.Scorer != nil
 	}
 	// Synth distributions are not features (capability:synth gates
 	// them), so an extension SYNTH_* name never resolves.
@@ -197,6 +202,9 @@ func validateFeatureProfileDependencies(fp *FeatureProfile, u featureUniverse, p
 					break
 				}
 			}
+			if !met {
+				met = u.extensionRegressionMeets(name, g, enabled)
+			}
 			if met {
 				continue
 			}
@@ -224,6 +232,27 @@ func validateFeatureProfileDependencies(fp *FeatureProfile, u featureUniverse, p
 	return errors.NewCodedErrorWithDetails(errors.PULSE_FEATURE_PROFILE_DEPENDENCY,
 		"feature profile: unmet dependencies: "+strings.Join(lines, "; "),
 		details)
+}
+
+// extensionRegressionMeets reports whether an enabled extension
+// regression satisfies feature's built-in REG_* any-of group g
+// (descx.ExtensionRegressionMeetsGroup: ATTR_REG_PREDICT and
+// capability:model_save need one with a Scorer, capability:compose_fits
+// any).
+func (u featureUniverse) extensionRegressionMeets(feature string, g []string, enabled map[string]bool) bool {
+	ok, needsScorer := descx.ExtensionRegressionMeetsGroup(feature, g)
+	if !ok {
+		return false
+	}
+	for name := range enabled {
+		if u.extOrigin[name] != string(categoryRegression) {
+			continue
+		}
+		if !needsScorer || u.extScorer[name] {
+			return true
+		}
+	}
+	return false
 }
 
 // validateExtensionDependsOn checks every extension registration's
