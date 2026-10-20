@@ -896,11 +896,14 @@ Not recovered, by design: the `watch.go` stat poller, the `internal/obsprom` HTT
 
 ## Changes from U36 (reference oracles)
 
-Ships in the next alpha. `format_version` stays `"1.1"`; no wire shape changes, only figures that disagreed with R.
+Ships in the next alpha. `format_version` stays `"1.1"`; no wire shape changes: figures that disagreed with R, and one data-dependent refusal on the existing per-slot failure shape.
 
 | Old | New | Kind | How to adapt | Unit |
 |---|---|---|---|---|
 | `TEST_TREND` `details.tau` was S / (n(n−1)/2) (tau-a), so tied values pulled it toward 0 and it disagreed with R whenever the series tied (0.5238 where R's `Kendall::MannKendall` and `cor(seq_along(y), y, method = "kendall")` give 0.5450 on a 15-point series with ties); a fully tied series reported 0 | tau-b, S / √(n₀(n₀ − n₂)) with n₂ the tied value pairs, matching R to 1e-10; `null` (undefined) when every value ties. S, Var(S), Z and p are unchanged; untied series are unchanged | behaviour change (figure) | none; a consumer that recomputed S / (n(n−1)/2) or read a flat-series `tau` as 0 reads null instead | U36 |
+| `TEST_SHAPIRO_WILK` (row and post) ran at n = 3 or 4 per group and returned W', z and p from Royston's transform outside its calibrated range with an advisory `warning` | any group with n < 5 fails the slot alone with `PULSE_TEST_INSUFFICIENT_N` (`details.min_required` = 5): the result keeps `label` / `type` / `error`, figures absent, one `PULSE_SLOT_FAILED` warning; Strict fails the run with that code. R's `nortest::sf.test` refuses below 5 too | behaviour change (refusal) | read the slot's `error`; gather at least 5 rows per group, or use a QQ plot for smaller samples | U36 |
+| `TEST_SHAPIRO_WILK` W' and p drifted from R at ~1e-9 relative (Blom scores from a Beasley-Springer-Moro quantile; p 0.27599133439 where `nortest::sf.test` gives 0.27599133486 on a 20-row sample) | W' = cor(x, m)² on qnorm-exact Blom scores, matching `nortest::sf.test` to 1e-10 | behaviour change (figure) | none; figures move in the 9th–10th significant digit | U36 |
+| `TEST_BROWN_FORSYTHE` (row, post and frequency-weighted) reported F = 0, p = 0 and `reject_null` true when every group's absolute deviations from its median were constant (`ss_within` = 0) | F = +Inf (`null` on the wire), p = 0 when the groups' deviations differ; F and p NaN (`null`) with `reject_null` false when every deviation is equal — the exact limit of R's `anova(lm(abs(x − median) ~ g))` | behaviour change (figure) | treat a `null` statistic as "infinite or undefined", not 0; a consumer that read p = 0 as a rejection on an all-equal input no longer gets one | U36 |
 
 ## Third-party dependency
 

@@ -8,32 +8,28 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
 // shapiroWilkRow implements TEST_SHAPIRO_WILK as a tier-1 buffered
-// row test for normality.
-//
-// Algorithm (Royston 1992, AS R94, with Shapiro-Francia fallback for
-// small n where the Royston coefficients are tabulated identically):
+// row test for normality: the Shapiro-Francia W' with Royston's (1993)
+// z-transform — exactly nortest::sf.test, which pins it
+// (TestReferenceOracle_ShapiroWilk, relative 1e-10).
 //
 //  1. Sort the sample x_(1) ≤ … ≤ x_(n).
-//  2. Approximate the expected normal order statistics via Blom (1958):
-//     m_i = Φ⁻¹((i − 3/8) / (n + 1/4)).
-//  3. Royston's polynomial-tuned coefficients a_i replace the
-//     Shapiro-Wilk weight matrix that is tabulated for n ≤ 50 in
-//     AS R94. The pure Shapiro-Francia simplification a_i = m_i / √Σm²
-//     is used here for portability; this is the well-known
-//     Shapiro-Francia variant W'. For n ≥ 5 the two statistics differ
-//     by < 2 % and have nearly identical power.
-//  4. W' = (Σ a_i x_(i))² / Σ (x_i − x̄)².
-//  5. Transform W' to a z-score via Royston's polynomial coefficients
-//     (different polynomials for n ≤ 11 vs n ≥ 12); p = Φ(−z).
+//  2. Blom (1958) expected normal order statistics
+//     m_i = Φ⁻¹((i − 3/8) / (n + 1/4)) (R's qnorm(ppoints(n, 3/8))).
+//  3. W' = cor(x, m)² — the Shapiro-Francia simplification
+//     a_i ∝ m_i of the Shapiro-Wilk weights.
+//  4. Royston's transform to z; p = Φ(−z) (shapiroFranciaStat).
 //
-// Caveat: the variant shipped is Shapiro-Francia (uses Blom approximate
-// expected order statistics with a_i ∝ m_i). It carries the
-// TEST_SHAPIRO_WILK name because it lands in the normality-test slot;
-// the result Variant field reports "shapiro_francia".
+// Royston's transform is calibrated for 5 ≤ n ≤ 5000: n < 5 is refused
+// (PULSE_TEST_INSUFFICIENT_N, a per-slot failure), n > 5000 runs with an
+// advisory warning. It carries the TEST_SHAPIRO_WILK name because it
+// lands in the normality-test slot; R's shapiro.test (Royston 1995, AS
+// R94 weights) is a different statistic, and the result's Variant
+// reports "shapiro_francia".
 type shapiroWilkRow struct {
 	spec    *types.Test
 	schema  *encoding.Schema
@@ -110,10 +106,8 @@ func (s *shapiroWilkRow) Finalize() (*types.TestResult, error) {
 	for _, key := range keys {
 		vs := append([]float64(nil), s.groups[key]...)
 		n := len(vs)
-		if n < 3 {
-			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
-				fmt.Sprintf("TEST_SHAPIRO_WILK requires n ≥ 3 per group; %q has %d", key, n),
-				map[string]any{"group": key, "n": n, "min_required": 3})
+		if cerr := shapiroFranciaMinNRefusal("TEST_SHAPIRO_WILK", key, n); cerr != nil {
+			return nil, cerr
 		}
 		sort.Float64s(vs)
 		W, z, p, warn := shapiroFranciaStat(vs)
@@ -159,16 +153,32 @@ func (s *shapiroWilkRow) reset() {
 	s.order = nil
 }
 
-// shapiroFranciaStat computes W', z, p for a *sorted* sample. Returns
-// the optional warning string for n-bound (outside 5..5000) or
-// low-variance.
+// shapiroFranciaMinN is the smallest sample Royston's Shapiro-Francia
+// transform is calibrated for (nortest::sf.test refuses below it too).
+const shapiroFranciaMinN = 5
+
+// shapiroFranciaMinNRefusal refuses a group of n < shapiroFranciaMinN
+// rows: PULSE_TEST_INSUFFICIENT_N, a data-dependent per-slot failure.
+// op names the operator (and arm) in the message.
+func shapiroFranciaMinNRefusal(op, group string, n int) *errors.CodedError {
+	if n >= shapiroFranciaMinN {
+		return nil
+	}
+	return errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
+		fmt.Sprintf("%s requires n ≥ %d per group (Royston's Shapiro-Francia p is uncalibrated below it); %q has %d",
+			op, shapiroFranciaMinN, group, n),
+		map[string]any{"group": group, "n": n, "min_required": shapiroFranciaMinN})
+}
+
+// shapiroFranciaStat computes W', z, p for a *sorted* sample of
+// n ≥ shapiroFranciaMinN rows (the callers refuse smaller ones) — the
+// arithmetic of nortest::sf.test. Returns the optional warning string
+// for n above 5000 or a degenerate sample.
 //
 // Blom expected order statistics: m_i = Φ⁻¹((i − 3/8) / (n + 1/4)).
-// a_i = m_i / √Σm_i².
-// W' = (Σ a_i x_(i))² / Σ (x_i − x̄)².
+// W' = cor(x, m)² = (Σ (x_i − x̄)(m_i − m̄))² / (Σ (x_i − x̄)² Σ (m_i − m̄)²).
 //
-// p-value: under H₀ (normal), W' ≈ 1 with small variance. Royston's
-// transformation for Shapiro-Francia (n ≥ 5):
+// Royston's transformation for Shapiro-Francia (Royston 1993):
 //
 //	u = log(n)
 //	μ_z   = −1.2725 + 1.0521(log(u) − u)
@@ -178,44 +188,37 @@ func (s *shapiroWilkRow) reset() {
 //	p     = Φ(−z)
 func shapiroFranciaStat(sorted []float64) (W, z, p float64, warn string) {
 	n := len(sorted)
-	switch {
-	case n > 5000:
+	if n > 5000 {
 		warn = "n above the 5000-row support bound; treat the p-value as advisory and consider asymptotic alternatives"
-	case n < 5:
-		// Royston's transform below is calibrated for 5 ≤ n ≤ 5000.
-		warn = "n below 5: Royston's Shapiro-Francia p-value is uncalibrated here; treat it as advisory"
 	}
-	// Expected normal order statistics.
+	// Expected normal order statistics (R: qnorm(ppoints(n, a = 3/8))).
 	m := make([]float64, n)
-	var mSqSum float64
+	var meanM, meanX float64
 	for i := range n {
 		frac := (float64(i+1) - 0.375) / (float64(n) + 0.25)
-		m[i] = inverseNormalCDF(frac)
-		mSqSum += m[i] * m[i]
+		m[i] = statdist.NormalQuantile(frac)
+		meanM += m[i]
+		meanX += sorted[i]
 	}
-	if mSqSum == 0 {
+	meanM /= float64(n)
+	meanX /= float64(n)
+	var ssX, ssM, num float64
+	for i, v := range sorted {
+		dx, dm := v-meanX, m[i]-meanM
+		ssX += dx * dx
+		ssM += dm * dm
+		num += dx * dm
+	}
+	if ssM == 0 {
 		return 0, 0, 1, "degenerate Blom coefficients"
 	}
-	// W' numerator and SS denominator.
-	var meanX float64
-	for _, v := range sorted {
-		meanX += v
-	}
-	meanX /= float64(n)
-	var ss, num float64
-	for i, v := range sorted {
-		d := v - meanX
-		ss += d * d
-		num += m[i] * v
-	}
-	if ss == 0 {
+	if ssX == 0 {
 		return 1, 0, 1, "sample variance is zero"
 	}
-	W = num * num / (mSqSum * ss)
+	W = num * num / (ssM * ssX)
 	if W > 1 {
 		W = 1
 	}
-	// Royston transform for Shapiro-Francia (Royston 1993).
 	u := math.Log(float64(n))
 	muZ := -1.2725 + 1.0521*(math.Log(u)-u)
 	sigmaZ := 1.0308 - 0.26758*(math.Log(u)+2/u)
@@ -226,39 +229,4 @@ func shapiroFranciaStat(sorted []float64) (W, z, p float64, warn string) {
 	z = (logOne - muZ) / sigmaZ
 	p = normalUpperTailP(z)
 	return W, z, p, warn
-}
-
-// inverseNormalCDF returns Φ⁻¹(p) via the Beasley-Springer-Moro approximation
-// (Moro 1995): three rational sub-domains, ≤ 1e-9 accuracy.
-func inverseNormalCDF(p float64) float64 {
-	if p <= 0 {
-		return math.Inf(-1)
-	}
-	if p >= 1 {
-		return math.Inf(1)
-	}
-	// Beasley-Springer central region.
-	if p > 0.08 && p < 0.92 {
-		y := p - 0.5
-		r := y * y
-		num := (((-25.44106049637*r+41.39119773534)*r-18.61500062529)*r + 2.50662823884) * y
-		den := (((3.13082909833*r-21.06224101826)*r+23.08336743743)*r-8.47351093090)*r + 1
-		return num / den
-	}
-	// Moro tails.
-	var r float64
-	if p < 0.5 {
-		r = p
-	} else {
-		r = 1 - p
-	}
-	r = math.Log(-math.Log(r))
-	const c0, c1, c2, c3, c4, c5, c6, c7, c8 = 0.3374754822726147, 0.9761690190917186, 0.1607979714918209,
-		0.0276438810333863, 0.0038405729373609, 0.0003951896511919, 0.0000321767881768,
-		0.0000002888167364, 0.0000003960315187
-	x := c0 + r*(c1+r*(c2+r*(c3+r*(c4+r*(c5+r*(c6+r*(c7+r*c8)))))))
-	if p < 0.5 {
-		return -x
-	}
-	return x
 }

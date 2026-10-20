@@ -640,16 +640,7 @@ func (b *brownForsythePost) Run(rows []map[string]any) (*types.TestResult, error
 			"TEST_BROWN_FORSYTHE (post): zero within-group degrees of freedom",
 			map[string]any{"k": k, "n": stats.N})
 	}
-	msB := stats.SSB / dfB
-	msW := stats.SSW / dfW
-	var F, p float64
-	if msW == 0 {
-		F = 0
-		p = 0
-	} else {
-		F = msB / msW
-		p = fSurvival(F, dfB, dfW)
-	}
+	F, p := brownForsytheF(stats.SSB/dfB, stats.SSW/dfW, dfB, dfW)
 	return &types.TestResult{
 		Label:      testLabel(b.spec),
 		Type:       types.TEST_BROWN_FORSYTHE,
@@ -732,10 +723,8 @@ func (s *shapiroWilkPost) Run(rows []map[string]any) (*types.TestResult, error) 
 	for _, key := range keys {
 		vs := append([]float64(nil), groups[key]...)
 		n := len(vs)
-		if n < 3 {
-			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
-				fmt.Sprintf("TEST_SHAPIRO_WILK (post) requires n ≥ 3 per group; %q has %d", key, n),
-				map[string]any{"group": key, "n": n, "min_required": 3})
+		if cerr := shapiroFranciaMinNRefusal("TEST_SHAPIRO_WILK (post)", key, n); cerr != nil {
+			return nil, cerr
 		}
 		sort.Float64s(vs)
 		W, z, p, warn := shapiroFranciaStat(vs)

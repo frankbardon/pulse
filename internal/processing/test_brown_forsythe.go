@@ -144,16 +144,7 @@ func (b *brownForsytheRow) Finalize() (*types.TestResult, error) {
 			"TEST_BROWN_FORSYTHE: zero within-group degrees of freedom",
 			map[string]any{"k": k, "n": stats.N})
 	}
-	msB := stats.SSB / dfB
-	msW := stats.SSW / dfW
-	var F, p float64
-	if msW == 0 {
-		F = 0
-		p = 0
-	} else {
-		F = msB / msW
-		p = fSurvival(F, dfB, dfW)
-	}
+	F, p := brownForsytheF(stats.SSB/dfB, stats.SSW/dfW, dfB, dfW)
 	res := &types.TestResult{
 		Label:      testLabel(b.spec),
 		Type:       types.TEST_BROWN_FORSYTHE,
@@ -176,6 +167,24 @@ func (b *brownForsytheRow) Finalize() (*types.TestResult, error) {
 	}
 	b.noteGroups(res.Details, buckets)
 	return res, nil
+}
+
+// brownForsytheF is the ANOVA F and its p on the absolute deviations,
+// shared by the row and post arms (and so by the weighted frequency
+// arm). Zero within-group spread (msW = 0: every group's deviations are
+// constant) is the exact limit of anova(lm(|x − median| ~ g)): F = +Inf
+// with p = 0 when the groups' deviations differ (msB > 0), F and p
+// undefined (NaN, JSON null; reject_null false) when they are all equal
+// too — never a confident F = 0 / p = 0.
+func brownForsytheF(msB, msW, dfB, dfW float64) (F, p float64) {
+	switch {
+	case msW > 0:
+		F = msB / msW
+		return F, fSurvival(F, dfB, dfW)
+	case msB > 0:
+		return math.Inf(1), 0
+	}
+	return math.NaN(), math.NaN()
 }
 
 func (b *brownForsytheRow) reset() {

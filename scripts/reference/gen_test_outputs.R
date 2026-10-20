@@ -45,13 +45,18 @@
 #     uncorrected normal approximation); tau-b, z and p. Most cases tie.
 #   * test_pearson_r.json — TEST_PEARSON_R: cor.test(x, y, conf.level =
 #     1 - alpha): r, t, df, p and the Fisher-z interval.
+#   * test_shapiro_wilk.json — TEST_SHAPIRO_WILK (Shapiro-Francia W'):
+#     nortest::sf.test, W' and p, n >= 5 (U36 E1-S3).
+#   * test_brown_forsythe.json — TEST_BROWN_FORSYTHE: anova(lm(|x -
+#     median_g| ~ g)), plus the exact closed form (F = Inf / NaN) at zero
+#     within-group spread (U36 E1-S3).
 #
 # Data are seeded and rounded to a few decimals (ties where wanted);
 # every input is written at %.17g so nothing depends on the RNG in Go.
 
 stopifnot(exists("out_dir"), exists("write_golden"), exists("num"), exists("tukey_surv"))
 
-to_pinned <- c(Kendall = "2.2.2")
+to_pinned <- c(Kendall = "2.2.2", nortest = "1.0.4")
 for (p in names(to_pinned)) {
   have <- tryCatch(as.character(packageVersion(p)), error = function(e) "missing")
   if (have != to_pinned[[p]]) {
@@ -60,6 +65,7 @@ for (p in names(to_pinned)) {
 }
 if (R.version.string != "R version 4.6.1 (2026-06-24)") stop("the oracle is pinned to R 4.6.1, got ", R.version.string)
 suppressPackageStartupMessages(library(Kendall))
+suppressPackageStartupMessages(library(nortest))
 
 to_meta <- function(operator, r_fn, note, extra = list()) {
   list(
@@ -322,3 +328,115 @@ write_golden("test_pearson_r", c(to_meta(
   "cor.test(x, y, conf.level = 1 - alpha)",
   "ci_low / ci_high are cor.test's Fisher-z interval."
 ), list(cases = pr_cases)))
+
+# --------------------------------------------------------- TEST_SHAPIRO_WILK
+# Pulse's TEST_SHAPIRO_WILK is the Shapiro-Francia W' with Royston's
+# (1993) z-transform, which is exactly nortest::sf.test: W' = cor(x, m)^2
+# with m = qnorm(ppoints(n, a = 3/8)) (Blom scores) and p =
+# pnorm((log(1 - W') - mu) / sigma, lower.tail = FALSE). sf.test
+# refuses outside 5 <= n <= 5000, as Pulse refuses n < 5. The p-value
+# is Royston's published approximation, but the oracle compares Pulse's
+# arithmetic to sf.test's on the same formula, so the shared 1e-10
+# applies. shapiro.test (Royston 1995, AS R94 weights) is a different
+# statistic; its W and p ride beside as r_shapiro_* for reference only.
+sw_case <- function(name, x) {
+  sf <- nortest::sf.test(x)
+  out <- list(
+    name = name, n = length(x), value = to_vec(x),
+    statistic = num(unname(sf$statistic)), p_value = num(sf$p.value)
+  )
+  if (length(x) <= 5000) {
+    st <- shapiro.test(x)
+    out$r_shapiro_w <- num(unname(st$statistic))
+    out$r_shapiro_p <- num(st$p.value)
+  }
+  out
+}
+set.seed(36207)
+sw_cases <- list(
+  sw_case("smallest_calibrated_n5", c(1.0, 2.5, 3.1, 4.0, 6.2)),
+  sw_case("normal_n20", round(rnorm(20, 10, 2), 3)),
+  sw_case("skewed_exponential_n12", round(rexp(12, 0.5), 3)),
+  sw_case("rounded_with_ties_n50", round(rnorm(50, 0, 1), 1)),
+  sw_case("large_offset_n30", round(1e4 + rnorm(30, 0, 0.5), 4)),
+  sw_case("heavy_tailed_n400", round(rt(400, 3), 4)),
+  # Far upper tail: z ~ 13.8, p ~ 1e-43 (the U08 tiny-p case).
+  sw_case("far_tail_exp_n1000", exp((1:1000) / 50))
+)
+write_golden("test_shapiro_wilk", c(to_meta(
+  "TEST_SHAPIRO_WILK",
+  "nortest::sf.test(x)",
+  "statistic is the Shapiro-Francia W' and p_value sf.test's Royston (1993) p; r_shapiro_w / r_shapiro_p are shapiro.test's (a different statistic, not compared).",
+  list(nortest = as.character(packageVersion("nortest")))
+), list(cases = sw_cases)))
+
+# ------------------------------------------------------- TEST_BROWN_FORSYTHE
+# anova(lm(|x - median_g| ~ g)): F, df and p. When every group's
+# absolute deviations are constant (zero within-group spread) lm's QR
+# residuals are rounding noise, so anova reports a huge finite F (or
+# NaN when the deviations are constant overall too) with "essentially
+# perfect fit". Those cases carry the exact closed form instead —
+# SS_within = sum((d - ave(d, g))^2) is exactly 0 there, F = MS_B / 0
+# = Inf with pf(Inf, ...) = 0, or 0 / 0 = NaN with a NaN p — as
+# statistic_class / p_value_class ("inf", "nan"), anova's own
+# noise-driven values kept beside as r_statistic / r_p_value.
+bf_case <- function(name, x, g) {
+  g <- factor(g, levels = sort(unique(g)))
+  med <- tapply(x, g, median)
+  d <- abs(x - med[as.integer(g)])
+  a <- suppressWarnings(anova(lm(d ~ g)))
+  k <- nlevels(g)
+  df_b <- k - 1
+  df_w <- length(x) - k
+  m <- ave(d, g)
+  ss_w <- sum((d - m)^2)
+  ss_b <- sum((m - mean(d))^2)
+  out <- list(
+    name = name, value = to_vec(x), group = as.character(g),
+    df = num(df_b), df_within = num(df_w),
+    group_medians = to_vec(med)
+  )
+  if (ss_w == 0) {
+    f <- (ss_b / df_b) / (ss_w / df_w)
+    p <- pf(f, df_b, df_w, lower.tail = FALSE)
+    cls <- function(v) if (is.nan(v)) "nan" else if (is.infinite(v)) (if (v > 0) "inf" else "-inf") else stop("finite")
+    out$statistic_class <- cls(f)
+    if (is.finite(p)) out$p_value <- num(p) else out$p_value_class <- cls(p)
+    out$ss_between <- num(ss_b)
+    out$ss_within <- num(ss_w)
+    if (is.finite(a[1, "F value"])) {
+      out$r_statistic <- num(a[1, "F value"])
+      out$r_p_value <- num(a[1, "Pr(>F)"])
+    }
+  } else {
+    out$statistic <- num(a[1, "F value"])
+    out$p_value <- num(a[1, "Pr(>F)"])
+    out$ss_between <- num(a[1, "Sum Sq"])
+    out$ss_within <- num(a[2, "Sum Sq"])
+  }
+  out
+}
+set.seed(36208)
+bf_cases <- list()
+local({
+  g <- rep(c("a", "b", "c"), times = c(9, 12, 10))
+  x <- round(rnorm(length(g), 5, c(a = 1, b = 2.5, c = 1.2)[g]), 2)
+  bf_cases[[1]] <<- bf_case("unequal_spread_three_groups", x, g)
+  g <- rep(c("ctl", "trt"), times = c(15, 15))
+  x <- round(rnorm(30, 20, 3), 1)
+  bf_cases[[2]] <<- bf_case("equal_spread_two_groups_ties", x, g)
+  g <- rep(c("g1", "g2", "g3", "g4"), times = c(5, 6, 7, 8))
+  x <- round(rexp(length(g), c(g1 = 1, g2 = 0.5, g3 = 0.8, g4 = 0.3)[g]), 3)
+  bf_cases[[3]] <<- bf_case("skewed_four_groups", x, g)
+  # Zero within-group spread of |x - median|, spread between groups.
+  bf_cases[[4]] <<- bf_case("zero_within_spread_two_groups", c(0, 2, 5, 5), c("a", "a", "b", "b"))
+  bf_cases[[5]] <<- bf_case("zero_within_spread_three_groups",
+                            c(0, 2, 5, 5, 1, 7), c("a", "a", "b", "b", "c", "c"))
+  # Every deviation equal: 0 / 0.
+  bf_cases[[6]] <<- bf_case("zero_spread_everywhere", c(1, 1, 1, 2, 2, 2), c("a", "a", "a", "b", "b", "b"))
+})
+write_golden("test_brown_forsythe", c(to_meta(
+  "TEST_BROWN_FORSYTHE",
+  "anova(lm(abs(x - median_g) ~ g)); the exact closed form at zero within-group spread",
+  "statistic_class / p_value_class mark an undefined figure (inf, nan) where SS_within is exactly 0; r_statistic / r_p_value are anova's own rounding-noise values there."
+), list(cases = bf_cases)))

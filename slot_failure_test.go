@@ -796,3 +796,64 @@ func TestSlotFailure_SaveSkipsAFailedFit(t *testing.T) {
 		t.Error("no slot warning for the failed fit")
 	}
 }
+
+// TestSlotFailure_ShapiroBelowFiveFailsAlone (U36 E1-S3): a
+// TEST_SHAPIRO_WILK over fewer than 5 rows — where Royston's
+// Shapiro-Francia p is uncalibrated and nortest::sf.test refuses — fails
+// its slot alone with PULSE_TEST_INSUFFICIENT_N (identity + error, no
+// figures on the wire, one PULSE_SLOT_FAILED warning) beside a surviving
+// aggregation and test; Strict fails the run with that code. Predict
+// reads no record, so the refusal is not foreseeable: it accepts the
+// same request with no error and lists the test (predict ≡ runtime on
+// everything the schema decides).
+func TestSlotFailure_ShapiroBelowFiveFailsAlone(t *testing.T) {
+	req := func(cohort string) *types.Request {
+		return &types.Request{
+			Cohort:       &types.Cohort{Filename: cohort},
+			Filterers:    []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "x < 4"}},
+			Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x", Label: "n"}},
+			Tests: []*types.Test{
+				{Type: types.TEST_SHAPIRO_WILK, Field: "z", Label: "sw"},
+				{Type: types.TEST_PEARSON_R, Field: "x", Field2: "z", Label: "r"},
+			},
+		}
+	}
+	p, _, cohort := slotCohort(t, pulse.Options{})
+	pred, err := p.Predict(context.Background(), req(cohort))
+	if err != nil {
+		t.Fatalf("predict: %v", err)
+	}
+	if b, _ := json.Marshal(pred); strings.Contains(string(b), string(perr.PULSE_TEST_INSUFFICIENT_N)) {
+		t.Errorf("predict reports the data-dependent refusal: %s", b)
+	}
+	resp, b := processJSON(t, p, req(cohort))
+	sw := resp.Tests[0]
+	if sw == nil || sw.Error == nil || sw.Error.Code != string(perr.PULSE_TEST_INSUFFICIENT_N) ||
+		sw.Label != "sw" || sw.Type != types.TEST_SHAPIRO_WILK || sw.Error.Details["min_required"] != 5 {
+		t.Fatalf("shapiro slot %+v (error %+v)", sw, sw.Error)
+	}
+	if resp.Tests[1].Error != nil || len(resp.Data) != 1 {
+		t.Errorf("surviving slots: test %+v data %v", resp.Tests[1], resp.Data)
+	}
+	var wire struct {
+		Tests []map[string]json.RawMessage `json:"tests"`
+	}
+	if err := json.Unmarshal(b, &wire); err != nil {
+		t.Fatal(err)
+	}
+	if keys := mapKeys(wire.Tests[0]); !reflect.DeepEqual(keys, []string{"error", "label", "type"}) {
+		t.Errorf("failed test wire keys %v, want label / type / error only", keys)
+	}
+	ws := slotWarnings(resp)
+	want := map[string]any{"slot_kind": "tests", "index": 0, "label": "sw", "code": string(perr.PULSE_TEST_INSUFFICIENT_N)}
+	if len(ws) != 1 || !reflect.DeepEqual(ws[0].Details, want) {
+		t.Errorf("slot warnings %+v, want one with %v", ws, want)
+	}
+
+	strict, _, cohort := slotCohort(t, pulse.Options{Strict: true})
+	_, err = strict.Process(context.Background(), req(cohort))
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_TEST_INSUFFICIENT_N || ce.Details["slot_kind"] != "tests" {
+		t.Fatalf("strict: %v, want PULSE_TEST_INSUFFICIENT_N on the tests slot", err)
+	}
+}

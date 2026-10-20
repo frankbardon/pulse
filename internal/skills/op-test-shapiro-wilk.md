@@ -1,6 +1,6 @@
 ---
 name: op-test-shapiro-wilk
-description: Shapiro-Francia (W′) normality test on Field; runs per-group when SplitBy is set; p advisory outside 5..5000.
+description: Shapiro-Francia (W′) normality test on Field (= nortest::sf.test); runs per-group when SplitBy is set; needs n ≥ 5.
 kind: operator
 category: TEST
 operator: TEST_SHAPIRO_WILK
@@ -34,9 +34,9 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 - Never weighted (no standard weighted form exists): any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; set `"weight": null` on the slot to run it unweighted.
 - Buffered — requires the ordered values.
-- p calibrated for 5..5000 rows; outside, it still runs and `per_group[].warning` marks p advisory. Check a QQ plot.
+- Matches R `nortest::sf.test` (not `shapiro.test`, a different W). p calibrated for 5..5000 rows: above 5000 `per_group[].warning` marks it advisory.
 - Not a gate: few rows miss real departures, many flag trivial ones.
-- Tiny groups (`n < 3`) → `PULSE_TEST_INSUFFICIENT_N`.
+- Any group with `n < 5` → `PULSE_TEST_INSUFFICIENT_N`: the slot fails alone (`error`, `PULSE_SLOT_FAILED`; fatal under Strict).
 - Tier-2 variant `TEST_SHAPIRO_WILK/shapiro_francia_post` runs on a result column.
 
 ## See

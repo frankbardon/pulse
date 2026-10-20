@@ -488,6 +488,7 @@ var (
 				"the p-value says whether this F is large enough to be surprising.",
 			Caveats: []string{
 				"It tests spread only, not averages.",
+				"When every group's distances from its median are constant, F is infinite (null on the wire) with p-value 0 if the groups' distances differ, and both are undefined (null, no rejection) if every distance is equal.",
 			},
 		},
 		interpPValue,
@@ -524,7 +525,7 @@ var (
 		},
 		{
 			Field: "details.per_group",
-			Means: "One entry per group (or one overall without SplitBy) with n, w, z and p_value, plus a warning when the p-value is advisory (fewer than 5 or more than 5000 rows, or a degenerate sample).",
+			Means: "One entry per group (or one overall without SplitBy) with n, w, z and p_value, plus a warning when the p-value is advisory (more than 5000 rows, or a degenerate sample). Fewer than 5 rows in any group fails the test (PULSE_TEST_INSUFFICIENT_N) rather than report an uncalibrated p-value.",
 		},
 	}
 )

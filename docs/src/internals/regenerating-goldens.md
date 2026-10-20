@@ -208,11 +208,17 @@ which pins whole `TEST_*` outputs rather than primitives:
 refined on the studentized-range quadrature and R's own values kept as
 `r_*`), `test_trend.json` (Mann-Kendall from `cor.test` /
 `cor(method = "kendall")`, `Kendall::MannKendall` beside it),
-`test_ks.json`, `test_kendall_tau.json` (ties) and
-`test_pearson_r.json` (the Fisher-z interval). Each case carries its
+`test_ks.json`, `test_kendall_tau.json` (ties),
+`test_pearson_r.json` (the Fisher-z interval),
+`test_shapiro_wilk.json` (`nortest::sf.test`, n ≥ 5) and
+`test_brown_forsythe.json` (`anova(lm(|x − median| ~ g))`; at zero
+within-group spread, where `lm`'s residuals are rounding noise, the
+exact closed form as `statistic_class` / `p_value_class` = `inf` /
+`nan`, `anova`'s own values kept as `r_*`). Each case carries its
 inputs, so the `TestReferenceOracle_*` tests in
-`internal/processing/test_output_oracle_test.go` replay R's exact
-doubles through the operator at relative `1e-10`.
+`internal/processing/test_output_oracle_test.go` and
+`test_undefined_oracle_test.go` replay R's exact doubles through the
+operator at relative `1e-10`.
 
 ### The R toolchain
 
@@ -237,7 +243,7 @@ is the whole list in one place.
 | `lmtest` | 0.9-40 | robust covariance tests |
 | `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |
 | `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`; thresh / maxit through `control`) |
-| `nortest` | 1.0-4 | Shapiro-Francia (`nortest::sf.test`), the `TEST_SHAPIRO_WILK` small-n oracle |
+| `nortest` | 1.0-4 | Shapiro-Francia (`nortest::sf.test`), the `TEST_SHAPIRO_WILK` oracle (`gen_test_outputs.R`) |
 | `Kendall` | 2.2.2 | Mann-Kendall cross-check for `TEST_TREND` (`gen_test_outputs.R`); it computes in single precision, so the 1e-10 oracle is base R |
 | `pwr` | 1.3-0 | power / effect-size cross-checks |
 | `Hmisc` | 5.3-0 | probability-weight quantiles (`internal/service/testdata/weight_reference/hmisc_quantile.R`); compiles Fortran, so install it with the workaround below |

@@ -435,8 +435,10 @@ source(file.path(script_dir, "gen_jackknife.R"), local = FALSE)
 source(file.path(script_dir, "gen_credit_workbench.R"), local = FALSE)
 
 # The assembled TEST_* output goldens (test_anova_rm / test_tukey_hsd /
-# test_trend / test_ks / test_kendall_tau / test_pearson_r.json): stock
-# stats on inline seeded inputs, the Tukey figures refined on
-# tukey_surv() above, Kendall::MannKendall as a single-precision
-# cross-check; base stats + Kendall + jsonlite.
+# test_trend / test_ks / test_kendall_tau / test_pearson_r /
+# test_shapiro_wilk / test_brown_forsythe.json): stock stats on inline
+# seeded inputs, the Tukey figures refined on tukey_surv() above,
+# Kendall::MannKendall as a single-precision cross-check,
+# nortest::sf.test for Shapiro-Francia; base stats + Kendall + nortest +
+# jsonlite.
 source(file.path(script_dir, "gen_test_outputs.R"), local = FALSE)

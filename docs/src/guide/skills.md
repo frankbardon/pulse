@@ -223,7 +223,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-test-paired-t`](skills/op-test-paired-t.md): Paired-sample t-test on the per-row difference d = Field − Field2; streamable via Welford on d.
 - [`op-test-pearson-r`](skills/op-test-pearson-r.md): Parametric Pearson correlation test between two numeric fields; streamable via online cross-product.
 - [`op-test-prop-z`](skills/op-test-prop-z.md): Two-proportion z-test on the success rate of Field across two SplitBy groups, or one-proportion against params.p0; streamable via success / total counts.
-- [`op-test-shapiro-wilk`](skills/op-test-shapiro-wilk.md): Shapiro-Francia (W′) normality test on Field; runs per-group when SplitBy is set; p advisory outside 5..5000.
+- [`op-test-shapiro-wilk`](skills/op-test-shapiro-wilk.md): Shapiro-Francia (W′) normality test on Field (= nortest::sf.test); runs per-group when SplitBy is set; needs n ≥ 5.
 - [`op-test-spearman-r`](skills/op-test-spearman-r.md): Rank-based correlation between Field and Field2 (monotonic association); buffered mid-ranks then Pearson.
 - [`op-test-t`](skills/op-test-t.md): One-sample or two-sample Welch t-test on a numeric field; SplitBy switches to the two-sample variant.
 - [`op-test-trend`](skills/op-test-trend.md): Mann-Kendall trend test over an ordered numeric series; tier-2 over windowed result rows.

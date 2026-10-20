@@ -41,6 +41,7 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, ≥ 
 - More robust than Levene (mean-based) under non-normality — that's the whole point.
 - Tier-2 variant `TEST_BROWN_FORSYTHE/median_post` runs over result columns.
 - Tiny groups destabilize the median; `n_i < 2` or N ≤ k → `PULSE_TEST_INSUFFICIENT_N`.
+- Zero within-group spread (each group's `|x − median|` constant, `ss_within` = 0): F = +Inf (`null` on the wire), p = 0 when groups differ; F and p `null` (no rejection) when all deviations are equal — R `anova(lm(...))`'s exact limit.
 
 ## See
 

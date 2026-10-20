@@ -12818,7 +12818,7 @@
       },
       {
         "name": "op-test-shapiro-wilk",
-        "description": "Shapiro-Francia (W′) normality test on Field; runs per-group when SplitBy is set; p advisory outside 5..5000."
+        "description": "Shapiro-Francia (W′) normality test on Field (= nortest::sf.test); runs per-group when SplitBy is set; needs n ≥ 5."
       },
       {
         "name": "op-test-spearman-r",
@@ -19192,4 +19192,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 075d75c77a71a54732635f8ca67e230db65d409c90df0a62b26cf6425614a03b
+// golden-hash: 4bedd86fc64e8c754f1356831e8a533ff2591eef1c70dbbd9bc0e3ba5f3b18f2
