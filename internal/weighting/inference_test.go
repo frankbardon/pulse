@@ -256,3 +256,25 @@ func TestHiddenFloorRefusal(t *testing.T) {
 		t.Errorf("details %v", d)
 	}
 }
+
+// TestBasisFloorN (U36 E1-S7): a minimum-n guard reads Σw under
+// frequency (the expansion's count) and the raw row count unweighted and
+// under probability, where Σw is no count.
+func TestBasisFloorN(t *testing.T) {
+	for _, c := range []struct {
+		basis Basis
+		want  float64
+	}{{Unweighted, 1}, {Frequency, 3}, {Probability, 1}} {
+		if got := c.basis.FloorN(1, 3); got != c.want {
+			t.Errorf("basis %d: FloorN(1, 3) = %v, want %v", c.basis, got, c.want)
+		}
+	}
+	b := &Welford{}
+	b.Add(2.5, 4)
+	if got := b.FloorN(Frequency); got != 4 {
+		t.Errorf("Welford.FloorN(Frequency) = %v, want Σw 4", got)
+	}
+	if got := b.FloorN(Probability); got != 1 {
+		t.Errorf("Welford.FloorN(Probability) = %v, want raw n 1", got)
+	}
+}

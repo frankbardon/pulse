@@ -251,7 +251,7 @@ for (l in ks_lambda) {
   ks_cases[[length(ks_cases) + 1]] <- list(lambda = num(l), p = num(p))
 }
 write_golden("kolmogorov_survival", c(meta(
-  "kolmogorovSurvival",
+  "kolmogorovTwoLimitUpper",
   "stats:::C_pkolmogorov_two_limit(lambda, lower.tail = FALSE, tol = 1e-300)",
   "Q_KS(lambda) = 2 * sum_{j>=1} (-1)^(j-1) exp(-2 j^2 lambda^2), the limiting Kolmogorov survival."
 ), list(cases = ks_cases)))
@@ -416,6 +416,12 @@ source(file.path(script_dir, "gen_glm_penalty.R"), local = FALSE)
 # response, KKT-self-checked); glmnet + jsonlite.
 source(file.path(script_dir, "gen_ols_penalty.R"), local = FALSE)
 
+# The unpenalised REG_OLS golden (ols_lm.json: lm() coefficients, SE, t,
+# p, confint, R², adjusted R², sigma and df, plain and frequency-weighted
+# on the rep() expansion, normal-equation self-checked; a large-offset
+# predictor fitted on its exact shift); base stats + jsonlite.
+source(file.path(script_dir, "gen_ols_lm.R"), local = FALSE)
+
 # The AGG_AUC golden (auc.json: pROC rank-sum AUC with ties half and its
 # DeLong se / 95% interval, plus weighted cases computed as the weighted
 # Mann-Whitney double sum); pROC + jsonlite.
@@ -433,3 +439,46 @@ source(file.path(script_dir, "gen_jackknife.R"), local = FALSE)
 # REG_GLM with a delete-a-vintage jackknife, holdout AUC (pROC DeLong)
 # and the holdout decile gains table; glmnet + pROC + jsonlite.
 source(file.path(script_dir, "gen_credit_workbench.R"), local = FALSE)
+
+# The assembled TEST_* output goldens (test_anova_rm / test_tukey_hsd /
+# test_trend / test_ks / test_kendall_tau / test_pearson_r /
+# test_shapiro_wilk / test_brown_forsythe.json): stock stats on inline
+# seeded inputs, the Tukey figures refined on tukey_surv() above,
+# Kendall::MannKendall as a single-precision cross-check,
+# nortest::sf.test for Shapiro-Francia; base stats + Kendall + nortest +
+# jsonlite.
+source(file.path(script_dir, "gen_test_outputs.R"), local = FALSE)
+
+# The post-test twins over rows holding nulls (test_post_nulls.json): one
+# case per post family at R's default NA handling (listwise), reusing the
+# helpers of gen_test_outputs.R above; base stats + nortest + jsonlite.
+source(file.path(script_dir, "gen_post_tests.R"), local = FALSE)
+
+# The REG_GLM gamma golden (glm_gamma.json: summary.glm's estimated
+# dispersion, t-based p-values and intervals, vcov(glm) on three seeded
+# or inline designs, dispersion self-checked against the Pearson
+# chi-square); base stats + jsonlite. Draws its own seeded rows last.
+source(file.path(script_dir, "gen_glm_gamma.R"), local = FALSE)
+
+# The REG_BAYES_LINEAR golden (bayes_linear.json: the Normal-Inverse-Gamma
+# conjugate posterior by R matrix algebra, self-checked against lm.fit on
+# the augmented design; default and informative priors, plain and
+# frequency-weighted on the rep() expansion); base stats + jsonlite.
+# Deterministic rows, no RNG.
+source(file.path(script_dir, "gen_bayes_linear.R"), local = FALSE)
+
+# The REG_GLM gamma selection golden (glm_gamma_selection.json: AIC(fit) /
+# BIC(fit) per candidate model on the gamma log-likelihood at dispersion
+# deviance / n, plain, frequency (the rep() expansion) and probability
+# (w*, BIC on n_eff); step()'s forward / backward / both paths, the
+# fixed-dispersion score's diverging ones); base stats + jsonlite. Draws
+# its own seeded rows last.
+source(file.path(script_dir, "gen_glm_gamma_selection.R"), local = FALSE)
+
+# The inferential overlay goldens (overlay_chisq_vs_pop / _chisq_vs_ref /
+# _ks_vs_pop / _pairwise_probit_t / _fisher_exact_cell / _two_sample /
+# _weighted_unit / _mean_vs_ref.json): every expected overlay figure
+# computed by R from the overlay's inputs, never by the helper the
+# overlay calls (U36 E3-S1); base stats + jsonlite. Draws its own seeded
+# rows last.
+source(file.path(script_dir, "gen_overlays.R"), local = FALSE)

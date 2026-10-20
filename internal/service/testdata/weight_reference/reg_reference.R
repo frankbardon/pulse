@@ -6,10 +6,13 @@
 # Base R only (stats): every figure is the STOCK R function run on the
 # rep()-expanded rows, the definition of a frequency weight — lm() for
 # REG_OLS and the ATTR_REG_* fitted values / residuals / leverages, and
-# glm(control = glm.control(epsilon = 1e-14, maxit = 100)) with
-# summary(dispersion = 1) for REG_GLM (the engine fixes the dispersion
-# at 1, the gamma caveat included; gamma uses its default inverse link),
-# refit once from its own converged coefficients (see below).
+# glm(control = glm.control(epsilon = 1e-14, maxit = 100)) for REG_GLM
+# — summary(dispersion = 1) for binomial / poisson (the family fixes it)
+# and the DEFAULT summary() for gamma (default inverse link): the
+# dispersion estimated as Pearson chi-square / df.residual, t p-values on
+# df.residual, which is also printed as the gamma case's df
+# (reference-oracles E2-S3) — refit once from its own converged
+# coefficients (see below).
 # Pinned: R 4.6.1 (refuses any other version).
 #
 # Usage: Rscript reg_reference.R <csv>
@@ -65,7 +68,8 @@ for (r in d$row) {
   out("attr_leverage", id, lv)
 }
 
-# REG_GLM: glm on the expansion, dispersion fixed at 1.
+# REG_GLM: glm on the expansion; dispersion 1 for binomial / poisson,
+# estimated for gamma.
 fams <- list(glm_binomial = list(binomial(), "yb"),
              glm_poisson = list(poisson(), "yp"),
              glm_gamma = list(Gamma(), "yg"))
@@ -81,12 +85,14 @@ for (nm in names(fams)) {
   g <- glm(target ~ x1 + x2, family = fams[[nm]][[1]], data = e, start = coef(g),
            control = glm.control(epsilon = 1e-14, maxit = 100))
   if (!g$converged) stop(sprintf("%s refit did not converge", nm))
-  gs <- summary(g, dispersion = 1)
+  gamma <- nm == "glm_gamma"
+  gs <- if (gamma) summary(g) else summary(g, dispersion = 1)
   for (i in 1:3) {
     out(nm, sprintf("coefficients.%s", terms[i]), gs$coefficients[i, 1])
     out(nm, sprintf("std_errors.%s", terms[i]), gs$coefficients[i, 2])
     out(nm, sprintf("p_values.%s", terms[i]), gs$coefficients[i, 4])
   }
+  if (gamma) out(nm, "df", g$df.residual)
   out(nm, "deviance", deviance(g))
   out(nm, "null_deviance", g$null.deviance)
 }

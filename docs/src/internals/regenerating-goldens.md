@@ -199,6 +199,106 @@ GPL-package data. `mv_fixtures.json` records each fixture's source,
 citation, seed and CSV md5; the `internal/tools/refcohorts` tests fail
 when a CSV drifts from that record or a `.pulse` drifts from its CSV.
 
+### Assembled test outputs
+
+`make reference` also sources `scripts/reference/gen_test_outputs.R`,
+which pins whole `TEST_*` outputs rather than primitives:
+`test_anova_rm.json` (`aov` with an `Error(subj / cond)` stratum),
+`test_tukey_hsd.json` (`TukeyHSD`, with `p_adj` and `q_critical`
+refined on the studentized-range quadrature and R's own values kept as
+`r_*`), `test_trend.json` (Mann-Kendall from `cor.test` /
+`cor(method = "kendall")`, `Kendall::MannKendall` beside it),
+`test_ks.json` (`ks.test`'s own p in each regime — exact, exact
+with ties, asymptotic, both sides of the n₁·n₂ = 10000 switch; at full
+separation, where `ks.test`'s D rounds one ulp above 1 and it reports
+0, `psmirnov` at D = 1 with R's value kept as `r_p_value`),
+`test_kendall_tau.json` (ties),
+`test_pearson_r.json` (the Fisher-z interval),
+`test_shapiro_wilk.json` (`nortest::sf.test`, n ≥ 5),
+`test_brown_forsythe.json` (`anova(lm(|x − median| ~ g))`; at zero
+within-group spread, where `lm`'s residuals are rounding noise, the
+exact closed form as `statistic_class` / `p_value_class` = `inf` /
+`nan`, `anova`'s own values kept as `r_*`) and
+`test_fisher_exact.json` (`fisher.test`'s p and conditional MLE odds
+ratio; `fisher.test` stops `uniroot()` at ~1.2e-4, so the estimate is
+re-solved in log(ψ) at `tol = 1e-15` with its own value kept as
+`r_estimate`; `estimate_class` `inf` at the top of the support, and
+empty-margin tables pin the helper only). Each case carries its
+inputs, so the `TestReferenceOracle_*` tests in
+`internal/processing/test_output_oracle_test.go`,
+`test_undefined_oracle_test.go` and `test_fisher_oracle_test.go` replay R's exact doubles through the
+operator at relative `1e-10`.
+
+`scripts/reference/gen_post_tests.R` (sourced after it, reusing its
+helpers) writes `test_post_nulls.json`: one case per post-test family
+whose rows hold nulls (`null` where R reads `NA`), the R figures at R's
+default NA handling (listwise), and an `expect` map from a result path
+(`statistic`, `details.comparisons.0.p_adj`, …) to R's value.
+`TestReferenceOracle_PostTestNulls` replays every family through its
+post-test, and `TestPostTwins_MatchRowVariant` holds each post twin
+equal to its row variant on the same data, both at relative `1e-10`
+(`internal/processing/test_post_oracle_test.go`).
+
+### Regression outputs
+
+`scripts/reference/gen_ols_lm.R` writes `ols_lm.json`: unpenalised
+`REG_OLS` against `lm()` (coefficients, SE, t, p, `confint()`, R²,
+adjusted R², σ̂, df), plain and frequency-weighted (`lm()` on the
+`rep()` expansion), each case self-checked against the centered normal
+equations. One case puts the predictor on a 1e6 offset; stock `lm()`'s
+QR on the raw column misses `1e-10` there (adjusted R² off 1.1e-9), so
+that case is fitted on the exact shift `x − 1e6` and mapped back, with
+`lm()`'s raw figures kept as `r_*`. `gen_glm_irls.R` reads its SEs
+(dispersion 1 for binomial / poisson, the estimated dispersion for
+gamma) off a refit warm-started at the converged coefficients (glm's own
+SEs lag one IRLS update, ~5e-9); `gen_glm_gamma.R` writes
+`glm_gamma.json` the same way — gamma under `summary.glm`'s estimated
+dispersion (Pearson χ² / df.residual), t p-values, t intervals at 0.95
+and 0.90 and `vcov(glm)`, the dispersion self-checked against the
+Pearson residuals (`TestReferenceOracle_GLMGammaMatchesR`);
+`gen_glm_gamma_selection.R` writes `glm_gamma_selection.json` — R's
+`AIC(glm)` / `BIC(glm)` on every subset of three predictors (plain, the
+`rep()` expansion, `glm(weights = w*)` with BIC on log n_eff) and
+`step()`'s forward / backward / both final models on a fixture where the
+fixed-dispersion score diverges, self-checked against an exact-AIC
+greedy search (`TestReferenceOracle_GLMGammaAICMatchesR`,
+`TestReferenceOracle_GLMGammaSelectionMatchesStep`); and
+`gen_glm_penalty.R` / `gen_ols_penalty.R` run glmnet at `thresh` 1e-20 /
+1e-24, so `TestReferenceOracle_RegOLSMatchesLM`,
+`TestRegGLM_IRLSMatchesR`, `TestRegGLM_PenaltyMatchesGlmnet` and
+`TestRegOLS_PenaltyMatchesGlmnet` (`internal/processing/regression`)
+hold every figure at relative `1e-10`.
+
+`scripts/reference/gen_bayes_linear.R` writes `bayes_linear.json`:
+`REG_BAYES_LINEAR`'s Normal-Inverse-Gamma conjugate posterior written
+out as R matrix algebra (no stock package fits its scalar-precision
+prior) — the posterior mean, the marginal t scale, the credible interval
+and the CI at their levels on t(2aₙ), the df, √(bₙ/aₙ), R², adjusted R²
+and the posterior covariance bₙ/(aₙ − 1)·Λₙ⁻¹ — under default and
+informative priors, plain and frequency-weighted (the `rep()`
+expansion). Every case is self-checked against a second route,
+`lm.fit` (QR) on the augmented design [X; √ε·I], [y; √ε·μ₀], whose
+residual sum of squares is 2(bₙ − b₀).
+`TestReferenceOracle_RegBayesLinearMatchesR` holds every figure at
+relative `1e-10`.
+
+`scripts/reference/gen_overlays.R` (sourced last) writes the
+`overlay_*.json` goldens: every figure an overlay test expects, computed
+by R from the overlay's inputs rather than by the helper the overlay
+calls — `chisq.test(..., rescale.p = TRUE)` for `OVERLAY_CHISQ_VS_POP` /
+`_VS_REF`, `fisher.test` per cell, the probit t's design formula, the
+Welch / two-means z / `prop.test` kernels, the weighted-host unit
+fixtures and an `AGG_WELFORD` series cohort for `OVERLAY_T_VS_REF` /
+`_Z_VS_REF`. `OVERLAY_KS_VS_POP`'s p is `ks.test`'s: on the bucketised
+samples (histogram path) or `psmirnov(D, c(m, n), exact = FALSE)`
+(percentile path); where `ks.test`'s own D rounds past 1 the pin is
+`psmirnov` at D = 1 and `ks.test`'s value stays beside as
+`r_ks_test_p`. The pre-U36 Stephens figure is kept as `r_stephens_p`,
+history only.
+`TestReferenceOracle_Overlay*` (`internal/processing`) and
+`TestReferenceOracle_ComposeWelfordSeriesVsRef` (root) hold every
+figure at relative `1e-10`.
+
 ### The R toolchain
 
 `make reference` refuses any R but 4.6.1 (2026-06-24) and any package
@@ -222,14 +322,18 @@ is the whole list in one place.
 | `lmtest` | 0.9-40 | robust covariance tests |
 | `pROC` | 1.19.1 | `AGG_AUC` rank-sum AUC and DeLong interval (`gen_auc.R`) |
 | `glmnet` | 5.1 | penalised `REG_GLM` / `REG_OLS` (`gen_glm_penalty.R`, `gen_ols_penalty.R`; thresh / maxit through `control`) |
+| `nortest` | 1.0-4 | Shapiro-Francia (`nortest::sf.test`), the `TEST_SHAPIRO_WILK` oracle (`gen_test_outputs.R`, `gen_post_tests.R`) |
+| `Kendall` | 2.2.2 | Mann-Kendall cross-check for `TEST_TREND` (`gen_test_outputs.R`); it computes in single precision, so the 1e-10 oracle is base R |
+| `pwr` | 1.3-0 | no generator uses it yet; `internal/processing/test_effect_size_test.go` cites `pwr::ES.h` in a comment only, so it is installed for cross-checks, not for `make reference` |
+| `Hmisc` | 5.3-0 | probability-weight quantiles (`internal/service/testdata/weight_reference/hmisc_quantile.R`); compiles Fortran, so install it with the workaround below |
 
 `ICSNP`, `MVTests` and `MVN` do NOT build on R 4.6.1; nothing needs
 them. The scripts compute what they would (the unequal-covariance
 Hotelling test, Mardia's statistics) as closed forms in base R, each
 cross-checked as its comment says. The weighted-reference generator
 (`internal/service/testdata/weight_reference/`) needs only base R plus
-Hmisc 5.3.0, installed into a private library; its README covers it,
-along with its Python pins and the `--check` mode.
+Hmisc 5.3.0 from this list, installed into the same user library; its
+README covers it, along with its Python pins and the `--check` mode.
 
 Install the pins into the user library (`remotes::install_version`
 fetches the exact version even after CRAN moves on):
@@ -241,7 +345,8 @@ Rscript -e 'r <- "https://cloud.r-project.org"; l <- Sys.getenv("R_LIBS_USER");
   pins <- c(psych = "2.6.9", car = "3.1-5", ppcor = "1.1", corpcor = "1.6.10",
             gdata = "3.0.1", Hotelling = "1.0-8", biotools = "4.3",
             GPArotation = "2026.8-2", sandwich = "3.1-3", lmtest = "0.9-40", pROC = "1.19.1",
-            glmnet = "5.1")
+            glmnet = "5.1", nortest = "1.0-4", Kendall = "2.2.2", pwr = "1.3-0",
+            Hmisc = "5.3-0")
   for (p in names(pins)) remotes::install_version(p, pins[[p]], lib = l, repos = r, upgrade = "never")
   install.packages(paste0(r, "/src/contrib/Archive/perturb/perturb_2.10.tar.gz"),
                    lib = l, repos = NULL, type = "source")'

@@ -576,8 +576,8 @@ func TestOverlay_FacetChisqVsPop_KnownAnswerFourCategory(t *testing.T) {
 	if layer.Summary == nil || layer.Summary.PValue == nil {
 		t.Fatal("Summary.PValue is nil")
 	}
-	wantPV := chiSquareSurvival(wantChisq, 3.0)
-	if math.Abs(*layer.Summary.PValue-wantPV) > 1e-12 {
+	wantPV := chiSqVsPopOracleCase(t, "four_category").PValue // R chisq.test
+	if !chiSqVsPopRelClose(*layer.Summary.PValue, wantPV, oracleRelTol) {
 		t.Errorf("Summary.PValue = %v, want %v", *layer.Summary.PValue, wantPV)
 	}
 	if df, ok := layer.Summary.Parameters["df"]; !ok || df != 3.0 {
@@ -742,12 +742,12 @@ func TestOverlay_FacetKsVsPop_NormalVsShiftedNormal(t *testing.T) {
 	if math.Abs(*layer.Payload.Scalar-wantD) > 1e-12 {
 		t.Errorf("Payload.Scalar = %v, want %v", *layer.Payload.Scalar, wantD)
 	}
-	// p-value via the canonical Kolmogorov-survival helper (TEST_KS
-	// surface reuse — overlay + row-test produce identical p-values).
-	en := math.Sqrt(float64(100*100) / float64(200))
-	wantPV := kolmogorovSurvival((en + 0.12 + 0.11/en) * wantD)
+	// p-value: ks.test's p on the bucketised samples as R computes it
+	// (overlay_ks_vs_pop.json "disjoint_halves"), never the helper the
+	// overlay calls.
+	wantPV := ksVsPopOracleCase(t, "disjoint_halves").PValue
 	if layer.Summary == nil || layer.Summary.PValue == nil ||
-		math.Abs(*layer.Summary.PValue-wantPV) > 1e-12 {
+		!chiSqVsPopRelClose(*layer.Summary.PValue, wantPV, oracleRelTol) {
 		t.Errorf("Summary.PValue = %v, want %v", layer.Summary.PValue, wantPV)
 	}
 }

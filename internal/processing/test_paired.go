@@ -86,7 +86,7 @@ func (p *pairedTRow) UpdateRow(record *Record) error {
 func (p *pairedTRow) Finalize() (*types.TestResult, error) {
 	defer p.reset()
 	b := p.diffs
-	if b.N < 2 {
+	if b.FloorN(p.basis) < 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_PAIRED_T requires n ≥ 2 complete pairs, got %d", b.N),
 			map[string]any{"n": b.N, "min_required": 2})

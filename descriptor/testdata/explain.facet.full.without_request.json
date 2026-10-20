@@ -87,7 +87,7 @@
       "OVERLAY_KS_VS_POP: It treats subset and population as two independent samples. When the subset is part of the population they overlap: D shrinks by the subset's share of the population, so the p-value is too large (conservative), badly so when the subset is a big part of the population. Compare against the rest of the population instead when you can.",
       "OVERLAY_KS_VS_POP: It compares two observed distributions; it is not a test against a named distribution with parameters estimated from the data, which would need the Lilliefors correction.",
       "OVERLAY_KS_VS_POP: With few rows it has low power; with very large groups even trivial differences in shape give small p-values.",
-      "OVERLAY_KS_VS_POP: The null hypothesis is that both share one distribution; the p-value is a two-sided large-sample approximation.",
+      "OVERLAY_KS_VS_POP: The null hypothesis is that both share one distribution; the p-value is two-sided, the one R's ks.test gives: exact for small groups with matching histograms, a large-sample approximation otherwise.",
       "OVERLAY_CHISQ_VS_POP: The subset's figures are counts of independent rows.",
       "OVERLAY_CHISQ_VS_POP: The null hypothesis is that the subset's mix matches the population's. The population mix is treated as known and fixed; when the subset is a large part of the population the two overlap and the p-value is only approximate.",
       "OVERLAY_CHISQ_VS_POP: Only categories both sides show are compared, and the population's shares are rescaled over them, so population nulls and categories cut from a top-K listing do not distort the expected counts.",
@@ -98,4 +98,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e4b3b6d26a76bcfe399d93e91c73f1f04ac2ddc4d2b34a2b5832c92731bb74af
+// golden-hash: 00b27329bbedb79661bc2620403dd83a4874652fdd1ebd8d7c1562aa2e9728f5

@@ -77,7 +77,7 @@ const (
 //
 // E2-S3 (guidance-backfill-inferential): the hand value used to be
 // p ≈ 0.1573 at a 0.005 tolerance. That figure was wrong — it is
-// 2·(1 − Φ(1.4142)), i.e. z taken as 0.1/√(0.5·0.5·0.02) (the SE at
+// erfc(1.4142/√2), i.e. z taken as 0.1/√(0.5·0.5·0.02) (the SE at
 // p = 0.5, not the pooled 0.55) — and the tolerance hid it. The code
 // was always the pooled formula (unpooled would give 0.1531).
 //

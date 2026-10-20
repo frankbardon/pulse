@@ -1,0 +1,229 @@
+{
+  "generator": "scripts/reference/gen_overlays.R",
+  "r_version": "R version 4.6.1 (2026-06-24)",
+  "packages": {
+    "stats": "4.6.1",
+    "jsonlite": "2.0.0"
+  },
+  "primitive": "OVERLAY_CHISQ_VS_REF",
+  "r_function": "chisq.test(target[C], p = ref[C], rescale.p = TRUE), cells read row by row",
+  "note": "C = the cells whose reference count is positive.",
+  "cases": [
+    {
+      "name": "known_answer",
+      "note": "X-squared = 120 on 8 df",
+      "target": [
+        [
+          10,
+          20,
+          30
+        ],
+        [
+          40,
+          50,
+          60
+        ],
+        [
+          70,
+          80,
+          90
+        ]
+      ],
+      "ref": [
+        [
+          20,
+          20,
+          20
+        ],
+        [
+          20,
+          20,
+          20
+        ],
+        [
+          20,
+          20,
+          20
+        ]
+      ],
+      "statistic": 120,
+      "df": 8,
+      "p_value": 3.3153025398645302e-22,
+      "expected_min": 50,
+      "excluded_cells": 0
+    },
+    {
+      "name": "mixed",
+      "note": "an uneven reference distribution",
+      "target": [
+        [
+          12,
+          7,
+          30
+        ],
+        [
+          25,
+          18,
+          9
+        ],
+        [
+          4,
+          22,
+          15
+        ]
+      ],
+      "ref": [
+        [
+          30,
+          10,
+          40
+        ],
+        [
+          20,
+          25,
+          15
+        ],
+        [
+          10,
+          30,
+          20
+        ]
+      ],
+      "statistic": 14.046948356807512,
+      "df": 8,
+      "p_value": 0.080549902286749991,
+      "expected_min": 7.1000000000000005,
+      "excluded_cells": 0
+    },
+    {
+      "name": "close_fit",
+      "note": "a target close to the reference: p near 1",
+      "target": [
+        [
+          31,
+          9,
+          42
+        ],
+        [
+          19,
+          27,
+          14
+        ],
+        [
+          11,
+          28,
+          21
+        ]
+      ],
+      "ref": [
+        [
+          30,
+          10,
+          40
+        ],
+        [
+          20,
+          25,
+          15
+        ],
+        [
+          10,
+          30,
+          20
+        ]
+      ],
+      "statistic": 0.76567656765676495,
+      "df": 8,
+      "p_value": 0.99933975364846472,
+      "expected_min": 10.100000000000001,
+      "excluded_cells": 0
+    },
+    {
+      "name": "zero_ref_cell_target_zero",
+      "note": "a zero reference cell the target is also empty in: left out of the statistic and df",
+      "target": [
+        [
+          12,
+          7,
+          30
+        ],
+        [
+          25,
+          0,
+          9
+        ],
+        [
+          4,
+          22,
+          15
+        ]
+      ],
+      "ref": [
+        [
+          30,
+          10,
+          40
+        ],
+        [
+          20,
+          0,
+          15
+        ],
+        [
+          10,
+          30,
+          20
+        ]
+      ],
+      "statistic": 14.071236559139784,
+      "df": 7,
+      "p_value": 0.049928751195866386,
+      "expected_min": 7.0857142857142854,
+      "excluded_cells": 1
+    },
+    {
+      "name": "zero_ref_cell_target_positive",
+      "note": "a zero reference cell holding 6 target counts: outside C, the target renormalised over C (stock chisq.test is Inf here)",
+      "target": [
+        [
+          12,
+          7,
+          30
+        ],
+        [
+          25,
+          6,
+          9
+        ],
+        [
+          4,
+          22,
+          15
+        ]
+      ],
+      "ref": [
+        [
+          30,
+          10,
+          40
+        ],
+        [
+          20,
+          0,
+          15
+        ],
+        [
+          10,
+          30,
+          20
+        ]
+      ],
+      "statistic": 14.071236559139784,
+      "df": 7,
+      "p_value": 0.049928751195866386,
+      "expected_min": 7.0857142857142854,
+      "excluded_cells": 1
+    }
+  ]
+}
+// golden-hash: e9bcdab55cc2417fc7935c8f93e52fe233c7949fa7b941362a577e3815c81dac

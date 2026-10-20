@@ -54,7 +54,7 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pr
 - Zero-diff pairs are dropped (Wilcoxon convention); reported in `Details.zero_diffs`.
 - Nonparametric alternative to a paired t-test when d is non-normal.
 - Asymptotic only; < 6 non-zero pairs is `PULSE_TEST_INSUFFICIENT_N`.
-- Tier-2 variant `asymptotic_post` runs over two result-row columns.
+- Tier-2 variant `asymptotic_post` runs over two result-row columns. A row with a null in a used column drops listwise (R's NA default); `details.n` is the n used.
 - Pairing is per row: both values sit on one record.
 
 ## See

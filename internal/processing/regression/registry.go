@@ -267,9 +267,9 @@ func init() {
 	// Phase 1: unpenalized OLS lights up. The factory closure routes
 	// penalized / modifier specs back to the not-implemented stub.
 	regressionRegistry[types.REG_OLS] = newOLSEngine
-	// Phase 3: REG_GLM lights up via buffered IRLS. Implementations for
-	// binomial+logit and poisson+log are numerically validated;
-	// gamma+inverse is wired but tests are deferred.
+	// Phase 3: REG_GLM lights up via buffered IRLS: binomial+logit,
+	// poisson+log and gamma+inverse (its dispersion estimated), each
+	// pinned to R glm.
 	regressionRegistry[types.REG_GLM] = newGLMEngine
 	// Phase 4: REG_BAYES_LINEAR lights up via streaming sufficient stats
 	// and a conjugate Normal-Inverse-Gamma posterior at finalize. The

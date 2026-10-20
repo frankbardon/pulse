@@ -95,18 +95,26 @@ func (t *tukeyHSDPost) Run(rows []map[string]any) (*types.TestResult, error) {
 		n     float64
 	}
 	groups := make([]group, 0, len(rows))
-	for _, row := range rows {
-		label, ok := stringValue(row[t.splitBy])
-		if !ok {
+	for i, row := range rows {
+		// A null in a used column drops the row listwise (R's NA
+		// default); a present non-numeric mean or n refuses with
+		// PULSE_TEST_FIELD_NOT_NUMERIC and a missing column with
+		// SERVICE_VALIDATION, as every post family (U36 E1-S7 — the
+		// row used to be skipped silently).
+		if postRowHasNull(row, t.splitBy, t.field, t.nCol) {
 			continue
 		}
-		mean, ok := floatValue(row[t.field])
-		if !ok {
-			continue
+		label, err := stringFromRow(row, t.splitBy, i)
+		if err != nil {
+			return nil, err
 		}
-		n, ok := floatValue(row[t.nCol])
-		if !ok {
-			continue
+		mean, err := floatFromRow(row, t.field, i)
+		if err != nil {
+			return nil, err
+		}
+		n, err := floatFromRow(row, t.nCol, i)
+		if err != nil {
+			return nil, err
 		}
 		groups = append(groups, group{label, mean, n})
 	}
@@ -170,7 +178,8 @@ func (t *tukeyHSDPost) Run(rows []map[string]any) (*types.TestResult, error) {
 }
 
 // floatValue normalizes the post-pipeline row's any-typed slot into a
-// float64. Aggregator/window outputs land here as float64 or int64.
+// float64 (floatFromRow's numeric set). Aggregator/window outputs land
+// here as float64 or int64.
 func floatValue(v any) (float64, bool) {
 	switch x := v.(type) {
 	case float64:
@@ -191,14 +200,4 @@ func floatValue(v any) (float64, bool) {
 		return float64(x), true
 	}
 	return 0, false
-}
-
-// stringValue normalizes the post-pipeline row's any-typed slot into a
-// string. Grouper output keys are strings; categorical aggregator
-// summaries may report []string for FREQUENCY.
-func stringValue(v any) (string, bool) {
-	if s, ok := v.(string); ok {
-		return s, true
-	}
-	return "", false
 }

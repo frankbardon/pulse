@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -70,15 +69,21 @@ func legClosedForm(s wSample, basis weighting.Basis) legRef {
 	return legRef{mean: mean, variance: ss / (nStar - 1), nStar: nStar, sumW: sw, sumWSq: sww}
 }
 
-// welchRef is the Welch t (or z) two-sided p on two closed-form legs.
-func welchRef(a, b legRef, z bool) float64 {
-	va, vb := a.variance/a.nStar, b.variance/b.nStar
-	stat := (a.mean - b.mean) / math.Sqrt(va+vb)
+// welchRef is R's Welch t (or two-means z) two-sided p on legA
+// (target) against legB (reference) under basis — t.test on the rep()
+// expansion (frequency), the w* closed form on N* = n_eff
+// (probability); overlay_weighted_unit.json, never the overlay's own
+// helpers.
+func welchRef(t *testing.T, basis weighting.Basis, z bool) float64 {
+	t.Helper()
+	name, kind := "legs_welch_t", "frequency"
 	if z {
-		return normalTwoSidedP(stat)
+		name = "legs_welch_z"
 	}
-	df := (va + vb) * (va + vb) / (va*va/(a.nStar-1) + vb*vb/(b.nStar-1))
-	return statdist.StudentTTwoSidedP(stat, df)
+	if basis == weighting.Probability {
+		kind = "probability"
+	}
+	return weightedUnitOracleCase(t, name, kind).PValue
 }
 
 // rawNP is the pre-E3-S1 answer: the triple's emitted (frequency-form)
@@ -213,7 +218,7 @@ func TestMeanOverlays_WeightedHost(t *testing.T) {
 				t.Fatalf("%s: %v", where, err)
 			}
 			got := tc.stat(layer)
-			relClose(t, where+" p", got, welchRef(ca, cb, tc.z), 1e-9)
+			oracleRelClose(t, where+" p", got, welchRef(t, basis, tc.z))
 			if !tc.z && math.Abs(got-raw) < 1e-6 {
 				t.Errorf("%s: p %.12g equals the raw-n answer — N* never reached the test", where, got)
 			}
@@ -252,10 +257,8 @@ func TestMeanOverlays_UnweightedHostReportsNoWeights(t *testing.T) {
 	if layer.Summary.Parameters != nil {
 		t.Fatalf("unweighted host Parameters = %v, want none", layer.Summary.Parameters)
 	}
-	p, _ := welchTTest(10, 4, 50, 12, 9, 60)
-	if got := cellAt(t, layer, 0, 0); got != p {
-		t.Fatalf("unweighted p = %.17g, want %.17g bit for bit", got, p)
-	}
+	// R's Welch p on (10, 4, 50) vs (12, 9, 60) (overlay_two_sample.json).
+	oracleRelClose(t, "unweighted p", cellAt(t, layer, 0, 0), twoSampleOracleCase(t, "pairwise_welch").WelchP)
 }
 
 // TestPairwiseWelchT_WeightedHostNSource: the weighted-host n_source rule

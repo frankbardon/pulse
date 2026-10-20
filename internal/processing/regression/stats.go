@@ -21,12 +21,13 @@ import (
 //     signals a singular fit caught
 //     upstream)
 //   - se == 0 with zero coef        : returns NaN (statistic undefined)
-//   - coef NaN                      : returns NaN
+//   - coef or se NaN                : returns NaN (an l1 / elasticnet
+//     fit's undefined SE)
 func pValueForCoefficient(coef, se, df float64) float64 {
 	if df <= 0 {
 		return math.NaN()
 	}
-	if math.IsNaN(coef) {
+	if math.IsNaN(coef) || math.IsNaN(se) {
 		return math.NaN()
 	}
 	if se == 0 {
@@ -41,19 +42,21 @@ func pValueForCoefficient(coef, se, df float64) float64 {
 
 // waldZTwoSidedP returns the two-sided Wald-z p-value 2·(1 − Φ(|β/SE|))
 // under the null β = 0, where Φ is the standard normal CDF. REG_GLM
-// uses this instead of the Student's t form because the binomial /
-// poisson dispersion is fixed at 1 by the family assumption — there is
-// no residual variance estimate that introduces extra degrees-of-
-// freedom uncertainty into the test statistic. Gamma is wired but not
-// numerically validated this phase; its Wald-z values are emitted on a
-// dispersion=1 assumption that gamma callers should treat skeptically.
+// binomial / poisson use this instead of the Student's t form because
+// their dispersion is fixed at 1 by the family assumption — there is no
+// residual variance estimate that introduces extra degrees-of-freedom
+// uncertainty into the test statistic. Gamma estimates its dispersion,
+// so its classical p-values are pValueForCoefficient on N* − k
+// (glmEngine.estimatedDispersion); a robust covariance keeps Wald z for
+// every family.
 //
 // Degenerate inputs:
 //   - se == 0 with non-zero coef → returns 0 (perfectly significant).
 //   - se == 0 with zero coef     → returns NaN (statistic undefined).
-//   - coef NaN                   → returns NaN.
+//   - coef or se NaN             → returns NaN (an l1 / elasticnet fit's
+//     undefined SE).
 func waldZTwoSidedP(coef, se float64) float64 {
-	if math.IsNaN(coef) {
+	if math.IsNaN(coef) || math.IsNaN(se) {
 		return math.NaN()
 	}
 	if se == 0 {

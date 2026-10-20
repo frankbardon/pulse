@@ -522,6 +522,7 @@ func (s *Service) runChainStage(ctx context.Context, req *types.Request, plan *d
 		return nil, err
 	}
 	execInfoFrom(ctx).setPlan(pathArm(proc.LastPath() == processing.PathStreaming), 1, 0, 0)
+	attachRegressionAdvisories(req, resp, s.instance)
 	if err := foldRequestMultiplicity(plan, resp); err != nil {
 		return nil, err
 	}

@@ -98,7 +98,7 @@ func (w *wilcoxonSRRow) UpdateRow(record *Record) error {
 func (w *wilcoxonSRRow) Finalize() (*types.TestResult, error) {
 	defer w.reset()
 	n := w.diffs.n()
-	if n < 6 {
+	if w.basis.FloorN(int64(n), w.diffs.sumW) < 6 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_WILCOXON_SR requires n ≥ 6 non-zero pairs, got %d", n),
 			map[string]any{"n": n, "min_required": 6})

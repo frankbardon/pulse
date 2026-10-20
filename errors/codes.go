@@ -674,6 +674,18 @@ const (
 	// {"jackknife_groups": 50}.
 	PULSE_ADVISORY_JACKKNIFE_COST Code = "PULSE_ADVISORY_JACKKNIFE_COST"
 
+	// PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED is an advisory on a
+	// REG_OLS / REG_GLM slot fitting penalty l1 or elasticnet without a
+	// Resample modifier: the penalty selects the predictors from the
+	// data, so the coefficients' standard errors, p-values and
+	// confidence intervals have no valid analytical form and are
+	// reported null (key kept, intercept included). Raised by predict
+	// AND carried on the fit's RegressionResult.Advisories, from one
+	// predicate (internal/regpenalty.InferenceUndefined). details carry
+	// the slot, the operator, the penalty and the patch
+	// {"resample": "bootstrap"}.
+	PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED Code = "PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED"
+
 	// PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT is a Compose predict
 	// advisory: two or more slots emit p-values, they join two or more
 	// distinct correction families other than the batch-wide `compose`
@@ -4059,6 +4071,7 @@ var allCodes = []Code{
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
 	PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
 	PULSE_ADVISORY_JACKKNIFE_COST,
+	PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED,
 	PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT,
 	PULSE_SUPPRESS_ADVISORY_UNKNOWN,
 	PULSE_RECOMMEND_INTENT_UNKNOWN,

@@ -39,7 +39,7 @@ import (
 // unit-SD response agrees (ols_penalty_reference_test.go).
 func solveRidge(a *olsAccumulator, alpha float64) (*olsSolveResult, error) {
 	p := a.p
-	if a.n < p+1 {
+	if a.floorN() < float64(p+1) {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 			"regression requires n ≥ p + 1 observations after filtering",

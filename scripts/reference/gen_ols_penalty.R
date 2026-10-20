@@ -16,6 +16,11 @@
 #
 # Pinned packages: glmnet 5.1, jsonlite.
 #
+# Ridge (l2) cases also pin the closed-form ridge covariance
+# (ridge_inference below, reference-oracles E2-S2); lasso / elastic net
+# carry none — selection makes their sampling distribution non-standard,
+# so Pulse reports their standard errors and p-values as null.
+#
 # glmnet's gaussian family standardises y internally (by its weighted
 # population SD s), which rescales its ridge term: on the raw y it does
 # NOT minimise the objective above for l1_ratio < 1. The oracle
@@ -61,6 +66,38 @@ op_vec <- function(v) lapply(unname(as.numeric(v)), op_num)
 
 op_cases <- list()
 
+# ridge_inference is the closed-form ridge fit and its covariance in R
+# matrix algebra, on Pulse's scaling (frequency weights w, N* = sum(w)):
+# with the weighted centred design Xc and Gram G = Xc' W Xc,
+#
+#   A      = G + N* * alpha * I          (glmnet standardize = FALSE)
+#   beta   = A^-1 Xc' W yc,              b0 = ybar - mu' beta
+#   sigma2 = RSS / (N* - p - 1)
+#   V      = sigma2 * A^-1 G A^-1        (the ridge sandwich)
+#   Var(b0) = sigma2 / N* + mu' V mu
+#
+# and Student-t p-values on N* - p - 1 df. beta is cross-checked against
+# glmnet's at relative 1e-10 before anything is written.
+ridge_inference <- function(X, y, w, alpha) {
+  nstar <- sum(w)
+  mu <- colSums(w * X) / nstar
+  ybar <- sum(w * y) / nstar
+  Xc <- sweep(X, 2, mu)
+  yc <- y - ybar
+  G <- crossprod(Xc, w * Xc)
+  Ainv <- solve(G + nstar * alpha * diag(ncol(X)))
+  beta <- drop(Ainv %*% crossprod(Xc, w * yc))
+  b0 <- ybar - sum(mu * beta)
+  rss <- sum(w * (yc - drop(Xc %*% beta))^2)
+  df <- nstar - ncol(X) - 1
+  sigma2 <- rss / df
+  S <- Ainv %*% G %*% Ainv
+  v0 <- sigma2 / nstar + sigma2 * drop(t(mu) %*% S %*% mu)
+  se <- sqrt(c(v0, sigma2 * diag(S)))
+  bb <- c(b0, beta)
+  list(b = bb, se = se, p = 2 * pt(-abs(bb / se), df), df = df)
+}
+
 op_case <- function(name, X, y, w, penalty, alpha, l1_ratio = 0) {
   r <- switch(penalty, l2 = 0, l1 = 1, elasticnet = l1_ratio)
   wn <- w / sum(w)
@@ -84,12 +121,21 @@ op_case <- function(name, X, y, w, penalty, alpha, l1_ratio = 0) {
       stop(name, ": KKT inactive ", j)
     }
   }
-  op_cases[[length(op_cases) + 1]] <<- list(
+  doc <- list(
     name = name, penalty = penalty, alpha = op_num(alpha),
     l1_ratio = op_num(if (penalty == "elasticnet") l1_ratio else 0),
     predictors = I(colnames(X)), weighted = any(w != 1),
     rows = lapply(seq_len(nrow(X)), function(i) op_vec(c(X[i, ], y[i], w[i]))),
     coefficients = op_vec(b), zero = I(colnames(X)[b[-1] == 0]))
+  if (penalty == "l2") {
+    inf <- ridge_inference(X, y, w, alpha)
+    rel <- max(abs(inf$b - b) / pmax(abs(b), 1e-300))
+    if (rel > 1e-10) stop(name, ": closed-form ridge beta differs from glmnet by ", rel)
+    doc$std_errors <- op_vec(inf$se)
+    doc$p_values <- op_vec(inf$p)
+    doc$df <- op_num(inf$df)
+  }
+  op_cases[[length(op_cases) + 1]] <<- doc
 }
 
 i <- 0:49
@@ -107,6 +153,8 @@ op_case("elasticnet_0.1_0.5", X, y, ones, "elasticnet", 0.1, 0.5)
 op_case("ridge_0.5", X, y, ones, "l2", 0.5)
 op_case("elasticnet_weighted", X, y, w, "elasticnet", 0.1, 0.3)
 op_case("lasso_weighted", X, y, w, "l1", 0.1)
+op_case("ridge_weighted", X, y, w, "l2", 0.3)
+op_case("ridge_0.05", X, y, ones, "l2", 0.05)
 
 op_doc <- list(
   generator = "scripts/reference/gen_ols_penalty.R (via gen_reference.R)",
@@ -118,6 +166,8 @@ op_doc <- list(
   note = paste(
     "Pulse alpha / l1_ratio map to glmnet lambda' / alpha' on the unit-SD response y/s (s the weighted population SD): lambda' = alpha*(1 - r) + alpha*r/s, alpha' = (alpha*r/s)/lambda'.",
     "rows are [predictors..., y, w]; N* = sum(w).",
-    "Every case is self-checked against the KKT conditions of the stated objective at relative 1e-10."),
+    "Every case is self-checked against the KKT conditions of the stated objective at relative 1e-10.",
+    "l2 cases add std_errors / p_values / df: the closed-form ridge covariance sigma2 * A^-1 G A^-1 (A = G + N* alpha I, G the weighted centred Gram, sigma2 = RSS/(N* - p - 1)), Var(b0) = sigma2/N* + mu' V mu, Student-t p on N* - p - 1 df, computed by R matrix algebra (ridge_inference).",
+    "l1 / elasticnet cases carry no inference: their standard errors and p-values are undefined (null in Pulse)."),
   cases = op_cases)
 write_golden("ols_penalty", op_doc)

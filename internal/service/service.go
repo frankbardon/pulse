@@ -746,6 +746,9 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if err := slotfail.Apply(req, resp, s.strict); err != nil {
 		return nil, err
 	}
+	// The advisories a fitted regression carries beside its undefined
+	// figures (never warnings; Options.SuppressAdvisories drops them).
+	attachRegressionAdvisories(req, resp, s.instance)
 	// Observability row counters (no-op off): read off Metadata, which
 	// every arm builds, so they never depend on Components.
 	execInfoFrom(ctx).addRows(resp)

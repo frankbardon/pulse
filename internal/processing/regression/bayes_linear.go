@@ -275,7 +275,7 @@ func (e *bayesLinearEngine) finalizeFromAccumulator(records []Record) (*types.Re
 	p := e.acc.p
 	q := p + 1 // design-matrix column count, including intercept
 
-	if n < q {
+	if e.acc.floorN() < float64(q) {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 			"REG_BAYES_LINEAR requires n ≥ p + 1 observations after filtering",

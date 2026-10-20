@@ -9,7 +9,7 @@ requires: [capability:weighting]
 ```
 # Row weighting
 
-Survey and sampled cohorts carry a per-row weight column; a weight-aware figure counts each row as `w` rows.
+A per-row weight column makes each row count as `w` rows in a weight-aware figure.
 
 ## Surface
 
@@ -55,9 +55,9 @@ Quantiles (and buckets) follow Hmisc `wtd.quantile`, probability weights rescale
 
 Tests, regressions, CI bounds and inferential overlays use ONE rule: the unweighted formula with sample size N* = Σw (`frequency`) or Kish n_eff = (Σw)²/Σw² (`probability`). Point estimates (means, r, β, proportions) match across kinds; SEs, fractional df and p-values read N*.
 
-- Results keep raw `n` / `n_obs` and add `sum_weights` + `n_eff` (test `details`, regressions, overlay `summary.parameters`): the sample size, never `n`.
-- Probability n_eff below the test's minimum (regressions: predictors + 1) warns `PULSE_WEIGHT_LOW_NEFF` (strict: error).
-- Frequency-only operators (rank, exact and distribution tests) equal the duplicated rows; probability is refused, naming the kind.
+- Results keep raw `n` / `n_obs` and add `sum_weights` + `n_eff` (test `details`, regressions, overlays): the sample size, never `n`.
+- Floors read Σw (`frequency`) or raw n (`probability`: n_eff under the minimum — regressions p + 1 — warns `PULSE_WEIGHT_LOW_NEFF`, strict errors).
+- Frequency-only operators (rank, exact, distribution tests) equal the duplicated rows; probability is refused, naming the kind.
 - Test `covariate` (CUPED), either kind: θ, x̄ on the raw weights, then y − θ(x − x̄) on each group's N* (the weighted two-step).
 - Unequal weighting only (weights assumed unrelated to the outcome): no strata, clusters or FPC. Probability χ² is a first-order Kish approximation, not Rao-Scott.
 - Overlays read each host cell's N* from its floor keys, even when only the cell's own weight set it. Omitted, `n_source` is the N* of the cell's base (normalise denominator); raw-count and distinct-key modes are `PROCESSING_CONFIG`. A probability host with components off refuses the χ² and proportion overlays.

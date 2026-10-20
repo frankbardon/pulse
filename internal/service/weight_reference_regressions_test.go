@@ -25,7 +25,9 @@ import (
 //   - kind frequency — stock R 4.6.1 on the rep()-expanded rows
 //     (testdata/weight_reference/reg_reference.R): lm for REG_OLS and the
 //     attributes (predict(); leverage = f × one copy's hatvalues()), glm
-//     with summary(dispersion = 1) for REG_GLM; scikit-learn on the
+//     with summary(dispersion = 1) for REG_GLM binomial / poisson and the
+//     default summary() for gamma (estimated dispersion, t p-values on
+//     df.residual, df pinned too); scikit-learn on the
 //     expansion for the penalised β; REG_BAYES_LINEAR (frequency-only)
 //     against its conjugate posterior in closed form on the expansion —
 //     no stock package fits that prior;
@@ -45,15 +47,18 @@ import (
 // the order statistic opening the bucket, from R on the expansion
 // (frequency) or Hmisc wtd.quantile(normwt = TRUE) (probability).
 //
-// Tolerances (relative; absolute below 1e-12), weightRefRegTol: Pulse
-// folds Welford moments where R solves a QR and numpy an explicit
+// Tolerances (relative only; a zero reference absolute), weightRefRegTol:
+// Pulse folds Welford moments where R solves a QR and numpy an explicit
 // inverse — 1e-11 for the closed-form figures (worst seen on arm64:
-// 8e-14, an attribute's fitted value), 1e-10 for p-values and credible
-// bounds (incomplete-beta series vs scipy; worst 7e-12); IRLS figures
-// 1e-9 and coordinate-descent β 1e-8 (two iterative solvers meet only at
-// their convergence tolerance; worst seen 2e-15 / exact). All leave room
-// for amd64 FMA contraction and stay far below any weighting mistake (w
-// vs w* moves a standard error by tens of percent).
+// 1.8e-13, an attribute's fitted value), 1e-10 for everything else:
+// p-values and credible bounds (incomplete-beta series vs scipy; worst
+// 7.4e-12), the IRLS figures and the coordinate-descent β (both sides
+// iterate to 1e-14 / 1e-15: R glm refit at the MLE, scikit-learn tol
+// 1e-15; worst seen 2e-15). Until reference-oracles E2-S1 IRLS sat at
+// 1e-9, coordinate descent at 1e-8 and every figure carried a 1e-12
+// absolute floor. All leave room for amd64 FMA contraction and stay far
+// below any weighting mistake (w vs w* moves a standard error by tens of
+// percent).
 
 type weightRefRegRow struct {
 	id            string
@@ -153,10 +158,8 @@ func regFigure(wire map[string]any, path string) (any, error) {
 // weightRefRegTol is a figure's relative tolerance (file comment).
 func weightRefRegTol(name, path string) float64 {
 	switch {
-	case name == "lasso" || name == "elasticnet":
-		return 1e-8
-	case strings.HasPrefix(name, "glm_"):
-		return 1e-9
+	case name == "lasso" || name == "elasticnet" || strings.HasPrefix(name, "glm_"):
+		return 1e-10
 	case strings.Contains(path, ".p_values.") || strings.Contains(path, ".credible_intervals."):
 		return 1e-10
 	}
@@ -258,7 +261,7 @@ func testWeightRefRegs(t *testing.T) {
 					}
 					g, ok := got.(float64)
 					tol := weightRefRegTol(c.name, path)
-					if !ok || !(relClose(g, want, tol) || math.Abs(g-want) <= 1e-12) {
+					if !ok || !relClose(g, want, tol) {
 						t.Errorf("%s %s = %v, reference %.17g (rel %.3g, tol %g)", arm, path, got, want,
 							math.Abs(g-want)/math.Abs(want), tol)
 					}
@@ -348,7 +351,14 @@ func testWeightRefRegsKindsAgree(t *testing.T) {
 			if s == weightSurfaceRegressions {
 				fs, _ := wirePath(fw, "regressions[0].std_errors.x1")
 				ps, _ := wirePath(pw, "regressions[0].std_errors.x1")
-				if fs == nil || fs == ps {
+				switch {
+				case fc.name == "lasso" || fc.name == "elasticnet":
+					// No inference on an l1 / elasticnet fit under either
+					// kind: null (reference-oracles E2-S2).
+					if fs != nil || ps != nil {
+						t.Errorf("std_errors.x1 %v / %v: want null under both kinds", fs, ps)
+					}
+				case fs == nil || fs == ps:
 					t.Errorf("std_errors.x1 %v / %v: N* is not kind-dependent", fs, ps)
 				}
 			}

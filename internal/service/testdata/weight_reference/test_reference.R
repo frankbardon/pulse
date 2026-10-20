@@ -173,15 +173,71 @@ out("kendall", "p_value", kt$p.value)
 # Exact / distribution / spread tests (weighting-inferential E2-S2;
 # frequency-only), each on the expanded rows.
 # TEST_FISHER_EXACT: h × o with o = "maybe" filtered out; the two-sided
-# p (R's estimate is the conditional MLE, not Pulse's sample odds ratio).
+# p, the conditional MLE odds ratio (U36 E1-S4) and the conf.int. fisher.test's mle()
+# stops uniroot() at its default tol (~1.2e-4 on psi or 1/psi), so the
+# estimate is the same equation E[a; psi] = a, same support and
+# dhyper() log-density, solved by uniroot() in log(psi) at tol 1e-15 —
+# the refinement scripts/reference/gen_test_outputs.R pins — after a
+# check that it sits within fisher.test's own tolerance of ft$estimate.
 fe <- e[e$o != "maybe", ]
-ft <- fisher.test(table(fe$h, factor(fe$o)))
+ftab <- table(fe$h, factor(fe$o))
+ft <- fisher.test(ftab)
 out("fisher", "p_value", ft$p.value)
+fe_cmle <- function(tab) {
+  m <- sum(tab[, 1L]); n <- sum(tab[, 2L]); k <- sum(tab[1L, ]); x <- tab[1L, 1L]
+  lo <- max(0L, k - n); hi <- min(k, m)
+  if (x == lo || x == hi) stop("fisher fixture must keep a inside its support")
+  support <- lo:hi
+  logdc <- dhyper(support, m, n, k, log = TRUE)
+  mn <- function(theta) {
+    d <- logdc + theta * support
+    d <- exp(d - max(d))
+    sum(support * d) / sum(d)
+  }
+  f <- function(theta) mn(theta) - x
+  b <- 1
+  while (f(-b) >= 0 || f(b) <= 0) b <- 2 * b
+  exp(uniroot(f, c(-b, b), tol = 1e-15, maxiter = 100000)$root)
+}
+fest <- fe_cmle(unclass(ftab))
+stopifnot(abs(1 / fest - 1 / ft$estimate) <= 2 * .Machine$double.eps^0.25 ||
+            abs(fest - ft$estimate) <= 2 * .Machine$double.eps^0.25)
+out("fisher", "estimate", fest)
+# fisher.test's conf.int at the operator's default 1 - alpha = 0.95 (U36
+# E1-S8): ncp.L / ncp.U's equations P(A >= a; psi) = 0.025 and
+# P(A <= a; psi) = 0.025, refined the same way (uniroot in log(psi) at
+# tol 1e-15) after a check against fisher.test's own uniroot-tolerance
+# bounds — the refinement scripts/reference/gen_test_outputs.R pins.
+fe_ci_bound <- function(tab, alpha, upper) {
+  m <- sum(tab[, 1L]); n <- sum(tab[, 2L]); k <- sum(tab[1L, ]); x <- tab[1L, 1L]
+  lo <- max(0L, k - n); hi <- min(k, m)
+  support <- lo:hi
+  logdc <- dhyper(support, m, n, k, log = TRUE)
+  tailp <- function(theta) {
+    d <- logdc + theta * support
+    d <- exp(d - max(d))
+    d <- d / sum(d)
+    if (upper) sum(d[support <= x]) else sum(d[support >= x])
+  }
+  f <- function(theta) if (upper) alpha - tailp(theta) else tailp(theta) - alpha
+  b <- 1
+  while (f(-b) >= 0 || f(b) <= 0) b <- 2 * b
+  exp(uniroot(f, c(-b, b), tol = 1e-15, maxiter = 100000)$root)
+}
+fci <- c(fe_ci_bound(unclass(ftab), 0.025, FALSE), fe_ci_bound(unclass(ftab), 0.025, TRUE))
+for (i in 1:2) {
+  stopifnot(abs(1 / fci[i] - 1 / ft$conf.int[i]) <= 2 * .Machine$double.eps^0.25 ||
+              abs(fci[i] - ft$conf.int[i]) <= 2 * .Machine$double.eps^0.25)
+}
+out("fisher", "ci_low", fci[1])
+out("fisher", "ci_high", fci[2])
 
-# TEST_KS: x by h; D only (Pulse's p is the Stephens-corrected
-# asymptotic, not ks.test's).
-ks <- suppressWarnings(ks.test(xs$x[xs$h == "a"], xs$x[xs$h == "b"], exact = FALSE))
+# TEST_KS: x by h; D and p at ks.test's defaults (U36 E1-S6): exact,
+# conditional on the expansion's ties, since Σw_a·Σw_b < 10000.
+ks <- suppressWarnings(ks.test(xs$x[xs$h == "a"], xs$x[xs$h == "b"]))
+stopifnot(isTRUE(ks$exact))
 out("ks", "statistic", ks$statistic)
+out("ks", "p_value", ks$p.value)
 
 # TEST_BROWN_FORSYTHE: x by k — car::leveneTest(center = median)'s own
 # computation, anova(lm(|x − group median| ~ group)), in base R (no car
@@ -385,6 +441,18 @@ for (r in lk) {
   df <- (vt / nt + vr / nr)^2 / ((vt / nt)^2 / (nt - 1) + (vr / nr)^2 / (nr - 1))
   out("ov_compose_series", sprintf("0/entry[k=%s].summary.statistic", r), 2 * pt(-abs(d / se), df))
   out("ov_compose_series", sprintf("1/entry[k=%s].summary.statistic", r), 2 * pnorm(-abs(d / se)))
+}
+
+# OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF on an engine AGG_WELFORD series
+# (U36 E3-S1): x by k per slot, each leg's mean, variance and n read
+# from the slot's per-group components — t.test, and the normal tail on
+# the Welch standard error.
+for (r in lk) {
+  a <- xsub$x[xsub$k == r]
+  b <- xs$x[xs$k == r]
+  out("ov_compose_series_welford", sprintf("0/entry[k=%s].summary.statistic", r), t.test(a, b)$p.value)
+  z <- (mean(a) - mean(b)) / sqrt(var(a) / length(a) + var(b) / length(b))
+  out("ov_compose_series_welford", sprintf("1/entry[k=%s].summary.statistic", r), 2 * pnorm(-abs(z)))
 }
 
 # OVERLAY_T_VS_PRIOR / OVERLAY_Z_VS_PRIOR / OVERLAY_PROP_Z_VS_PRIOR (U47

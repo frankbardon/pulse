@@ -21,9 +21,15 @@
 #   * poisson / log: b0 = log(m0), b1 = log(m1 / m0), SE(b0)^2 = 1/S0,
 #     SE(b1)^2 = 1/S0 + 1/S1 over the per-level sums S
 #   * gamma / inverse: b0 = 1/m0, b1 = 1/m1 - 1/m0 (coefficients only;
-#     std_errors are summary(dispersion = 1), Pulse's fixed dispersion)
-# std_errors are summary(glm, dispersion = 1) — Pulse fixes the
-# dispersion at 1 — and deviance / null_deviance are glm's.
+#     the gamma std_errors read the estimated dispersion, below)
+# std_errors are summary(glm, dispersion = 1) for binomial / poisson
+# (their dispersion is 1 by the family) and the DEFAULT summary(glm) for
+# gamma — the dispersion estimated as Pearson chi-square / df.residual,
+# recorded with the t-based p_values and df_residual (reference-oracles
+# E2-S3; glm_gamma.json holds the multi-predictor gamma cases) — of a
+# refit warm-started at the converged coefficients (so the SEs are
+# evaluated at the MLE, not the last iteration's start), and deviance /
+# null_deviance are glm's.
 #
 # The rows are `cells` {x, y, n}: n copies of (x, y). collections_2x2 is
 # the credit-risk showcase's default x collections_flag table (default
@@ -59,10 +65,12 @@ gi_num <- function(x) {
   structure(sprintf("%.17g", x), class = "json")
 }
 gi_vec <- function(v) lapply(unname(as.numeric(v)), gi_num)
+# gi_near is RELATIVE (no absolute floor): a standard error of 0.03 is
+# held to 1e-10 of itself, not of 1.
 gi_near <- function(a, b, tol, what) {
   a <- as.numeric(a); b <- as.numeric(b)
-  if (!all(abs(a - b) <= tol * pmax(1, abs(a), abs(b)))) {
-    stop("self-check failed: ", what, " max diff ", max(abs(a - b)))
+  if (!all(abs(a - b) <= tol * pmax(abs(a), abs(b)))) {
+    stop("self-check failed: ", what, " max rel diff ", max(abs(a - b) / pmax(abs(a), abs(b))))
   }
 }
 
@@ -81,6 +89,20 @@ gi_case <- function(name, family, cells, target = "y", predictor = "x") {
       invokeRestart("muffleWarning")
     })
   separated <- any(grepl("fitted probabilities numerically 0 or 1", warns, fixed = TRUE))
+  if (!separated) {
+    # glm's standard errors use the IRLS weights at the LAST iteration's
+    # starting point, ~1e-8 relative from the converged fit's even at
+    # epsilon 1e-14 (poisson_two_level 4.6e-9, epoch_seconds_poisson
+    # 7.4e-9): one warm-started refit from the converged coefficients
+    # evaluates them at the MLE itself, so the SEs pin at 1e-10 (the
+    # reg_reference.R recipe). The refit's warnings repeat the first
+    # fit's (epoch_seconds_poisson's non-integer counts, already in
+    # r_warnings), so they are muffled rather than recorded twice.
+    if (!g$converged) stop(name, ": glm did not converge")
+    g <- suppressWarnings(glm(y ~ x, family = fam, data = d, start = coef(g),
+                              control = glm.control(epsilon = 1e-14, maxit = 100)))
+    if (!g$converged) stop(name, ": warm-started refit did not converge")
+  }
   cell_list <- lapply(seq_len(nrow(cells)), function(i) list(
     x = gi_num(cells$x[i]), y = gi_num(cells$y[i]), n = gi_num(cells$n[i])))
   out <- list(name = name, family = family, link = fam$link,
@@ -89,8 +111,16 @@ gi_case <- function(name, family, cells, target = "y", predictor = "x") {
               n_rows = gi_num(nrow(d)), cells = cell_list,
               r_warnings = I(warns), separated = separated)
   two_level <- all(d$x %in% c(0, 1))
+  # Gamma reads summary.glm's estimated dispersion; the others theirs of 1.
+  gi_summary <- function(g) if (family == "gamma") summary(g) else summary(g, dispersion = 1)
+  if (!separated && family == "gamma") {
+    gs <- summary(g)
+    out$dispersion <- gi_num(gs$dispersion)
+    out$df_residual <- gi_num(g$df.residual)
+    out$p_values <- gi_vec(gs$coefficients[, 4])
+  }
   if (!separated && !two_level) {
-    se1 <- summary(g, dispersion = 1)$coefficients[, 2]
+    se1 <- gi_summary(g)$coefficients[, 2]
     out$coefficients <- gi_vec(coef(g))
     out$std_errors <- gi_vec(se1)
     out$deviance <- gi_num(deviance(g))
@@ -112,8 +142,8 @@ gi_case <- function(name, family, cells, target = "y", predictor = "x") {
       },
       gamma = list(coef = c(1 / mean(y0), 1 / mean(y1) - 1 / mean(y0)), se = NULL))
     gi_near(coef(g), cf$coef, 1e-10, paste(name, "glm vs closed-form coefficients"))
-    se1 <- summary(g, dispersion = 1)$coefficients[, 2]
-    if (!is.null(cf$se)) gi_near(se1, cf$se, 1e-8, paste(name, "glm vs closed-form std errors"))
+    se1 <- gi_summary(g)$coefficients[, 2]
+    if (!is.null(cf$se)) gi_near(se1, cf$se, 1e-10, paste(name, "glm vs closed-form std errors"))
     out$coefficients <- gi_vec(coef(g))
     out$closed_form_coefficients <- gi_vec(cf$coef)
     out$std_errors <- gi_vec(se1)
@@ -182,10 +212,10 @@ gi_doc <- list(
   packages = list(stats = as.character(packageVersion("stats")),
                   jsonlite = as.character(packageVersion("jsonlite"))),
   primitive = "REG_GLM IRLS: convergence on strong predictors, the separation refusal",
-  r_function = "glm(y ~ x, family, control = glm.control(epsilon = 1e-14, maxit = 100)); summary(glm, dispersion = 1)",
+  r_function = "g <- glm(y ~ x, family, control = glm.control(epsilon = 1e-14, maxit = 100)); g <- glm(..., start = coef(g)); summary(g, dispersion = 1) (binomial, poisson) / summary(g) (gamma)",
   note = paste(
     "Two-level x: the MLE has a closed form (binomial logits, poisson log means, gamma inverse means) the glm fit is asserted against at relative 1e-10. epoch_seconds_poisson (x = epoch seconds of 2024 timestamps) has none: glm alone.",
-    "std_errors are summary(dispersion = 1). cells {x, y, n} expand to n rows each.",
+    "std_errors are summary(dispersion = 1) for binomial / poisson and summary() for gamma (dispersion = Pearson chi-square / df.residual, with its t-based p_values), of a refit warm-started at the converged coefficients (evaluated at the MLE). cells {x, y, n} expand to n rows each.",
     "separated = glm warned 'fitted probabilities numerically 0 or 1 occurred'; Pulse refuses those with PROCESSING_REGRESSION_SEPARATION naming the predictor, so they carry no coefficients."),
   cases = gi_cases)
 write_golden("glm_irls", gi_doc)

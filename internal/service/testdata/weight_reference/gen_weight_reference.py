@@ -198,7 +198,6 @@ from fractions import Fraction
 
 import numpy as np
 import scipy
-import scipy.special
 import scipy.stats
 import sklearn
 import sklearn.linear_model
@@ -1134,14 +1133,19 @@ def exact_closed_form(case, rows, xr):
     agree (test_cases).
 
     - fisher: scipy fisher_exact's two-sided p (tables no more likely
-      than observed) on the Σw table; the statistic is the SAMPLE odds
-      ratio ad/bc in first-seen row / column order, as Pulse reports it
-      (R's estimate is the conditional MLE, so only R's p is compared).
-    - ks: scipy ks_2samp's D (ties handled at value boundaries, as R);
-      Pulse's p is the Stephens-corrected Kolmogorov asymptotic,
-      Q_KS((√en + 0.12 + 0.11/√en)·D) with en = n₁n₂/(n₁+n₂) on the
-      expanded sizes — scipy.special.kolmogorov — not R's uncorrected
-      asymptotic, so R pins D only.
+      than observed) on the Σw table; the statistic is the CONDITIONAL
+      MLE odds ratio (scipy.stats.contingency.odds_ratio, kind
+      "conditional") on the table in sorted row / column order, as Pulse
+      reports it and as R's fisher.test estimates it (U36 E1-S4; R's
+      refined value replaces it, test_reference.R); ci_low / ci_high are
+      scipy's exact conditional interval at 0.95 (Pulse's default
+      1 − alpha), cross-checking fisher.test's refined conf.int (U36
+      E1-S8), which replaces them.
+    - ks: scipy ks_2samp's D (ties handled at value boundaries, as R).
+      The p is ks.test's (U36 E1-S6): exact and conditional on the
+      expansion's tie pattern (Σw₁·Σw₂ < 10000), which scipy's exact
+      method — the untied distribution — does not compute, so the p is
+      R-only (test_reference.R).
     - brown_forsythe: scipy levene(center="median") on the expansion =
       one-way ANOVA on |x − group median|."""
     out = {}
@@ -1157,9 +1161,13 @@ def exact_closed_form(case, rows, xr):
         assert len(rord) == 2 and len(cord) == 2, (rord, cord)
         (a, b), (c, d) = [[cells.get((ri, ci), 0) for ci in cord] for ri in rord]
         assert b > 0 and c > 0 and a > 0 and d > 0, "fixture must avoid a zero cell (U36 #205 OR)"
+        assert rord == sorted(rord) and cord == sorted(cord), (rord, cord)
         res = scipy.stats.fisher_exact([[a, b], [c, d]], alternative="two-sided")
-        orr = a * d / (b * c)
+        ores = scipy.stats.contingency.odds_ratio([[a, b], [c, d]], kind="conditional")
+        orr = float(ores.statistic)
+        oci = ores.confidence_interval(confidence_level=0.95)
         out.update(statistic=orr, odds_ratio=orr, p_value=float(res.pvalue),
+                   ci_low=float(oci.low), ci_high=float(oci.high),
                    n=len(fr), sum_weights=float(a + b + c + d))
         return out
     if case == "ks":
@@ -1172,8 +1180,8 @@ def exact_closed_form(case, rows, xr):
             out[f"sum_weights[{g}]"] = float(gw.sum())
             sizes.append(float(gw.sum()))
         D = float(scipy.stats.ks_2samp(groups[0], groups[1], method="asymp").statistic)
-        en = math.sqrt(sizes[0] * sizes[1] / (sizes[0] + sizes[1]))
-        out.update(statistic=D, p_value=float(scipy.special.kolmogorov((en + 0.12 + 0.11 / en) * D)))
+        assert sizes[0] * sizes[1] < 10000, "fixture must stay on ks.test's exact branch"
+        out.update(statistic=D)
         return out
     if case == "brown_forsythe":
         groups, meds, devs = [], [], []
@@ -1272,12 +1280,15 @@ R_FIGURES.update({
     # cor.test's default (no continuity correction): scipy's asymptotic
     # p cross-checks it; z is R's only.
     "kendall": ("kendall", {"tau": "statistic", "z": "z", "p_value": "p_value"}),
-    # R's fisher.test estimate is the conditional MLE (not Pulse's
-    # sample OR) and its ks.test p is the uncorrected asymptotic: R pins
-    # Fisher's p and KS's D; Brown-Forsythe is car::leveneTest's own
-    # anova(lm(|x − median| ~ k)) in base R.
-    "fisher": ("fisher", {"p_value": "p_value"}),
-    "ks": ("ks", {"statistic": "statistic"}),
+    # R pins Fisher's p, its conditional MLE odds ratio and its conf.int
+    # (both refined past fisher.test's uniroot tolerance,
+    # test_reference.R); KS's D is
+    # cross-checked by scipy, its p (ks.test's exact distribution
+    # conditional on ties, U36 E1-S6) is R-only; Brown-Forsythe is
+    # car::leveneTest's own anova(lm(|x − median| ~ k)) in base R.
+    "fisher": ("fisher", {"p_value": "p_value", "estimate": "statistic",
+                          "ci_low": "ci_low", "ci_high": "ci_high"}),
+    "ks": ("ks", {"statistic": "statistic", "p_value": "p_value"}),
     "brown_forsythe": ("brown_forsythe", {"statistic": "statistic", "df_between": "df",
                                           "df_within": "df_within", "p_value": "p_value",
                                           "ss_between": "ss_between", "ss_within": "ss_within",
@@ -1372,8 +1383,11 @@ def test_cases():
                     if fname in figs:
                         assert close(figs[fname], rv, 1e-9), (case, fname, figs[fname], rv)
                     else:
-                        assert case == "kendall", (case, fname)  # R-only z
+                        # R-only: Kendall's z; KS's tie-conditional exact p.
+                        assert (case, fname) in (("kendall", "z"), ("ks", "p_value")), (case, fname)
                     figs[fname] = rv
+                if case == "fisher":
+                    figs["odds_ratio"] = figs["statistic"]  # details.odds_ratio echoes it
                 src = f"{RTEST[0]} stats on rep()-expanded rows (test_reference.R)"
             out.append(dict(weight=wname, kind=kind, name=case, spec=spec, figs=figs, src=src))
     return out
@@ -1475,6 +1489,15 @@ def ov_request(case, kind):
              "targets": ["sub"], "params": OV_SERIES_PARAMS},
             {"name": "z", "kind": "OVERLAY_Z_VS_REF", "scope": "group", "reference": "total",
              "targets": ["sub"], "params": OV_SERIES_PARAMS}]}
+    if case == "ov_compose_series_welford":
+        # An ENGINE AGG_WELFORD series (U36 E3-S1): each row's leg is read
+        # from the slot's per-group components (mean, variance / m2, n
+        # and the weighted floor), never from params.
+        body = {"groups": [{"type": "GROUP_CATEGORY", "field": "k"}],
+                "aggregations": [{"type": "AGG_WELFORD", "field": "x", "label": "cell"}]}
+        return {"requests": [ov_slot("total", None, body), ov_slot("sub", OV_SUB, body)], "overlays": [
+            {"name": "t", "kind": "OVERLAY_T_VS_REF", "scope": "group", "reference": "total", "targets": ["sub"]},
+            {"name": "z", "kind": "OVERLAY_Z_VS_REF", "scope": "group", "reference": "total", "targets": ["sub"]}]}
     if case == "ov_compose_props":
         body = {"crosstab": ov_xt("h", "o", OV_COUNT)}
         return {"requests": [ov_slot("total", None, body), ov_slot("sub", OV_SUB, body),
@@ -1509,7 +1532,8 @@ def ov_request(case, kind):
 
 
 OV_CASES = ["ov_chisq", "ov_std_residual", "ov_symmetry", "ov_fisher", "ov_pairwise_welch", "ov_pairwise_prop",
-            "ov_pairwise_weighted_z", "ov_compose_means", "ov_compose_series", "ov_compose_props",
+            "ov_pairwise_weighted_z", "ov_compose_means", "ov_compose_series", "ov_compose_series_welford",
+            "ov_compose_props",
             "ov_prior", "ov_prior_xt_means", "ov_prior_xt_prop"]
 OV_FREQUENCY_ONLY = {"ov_fisher"}
 
@@ -1743,6 +1767,27 @@ def ov_closed_form(case, rows, prob):
             out[f"0/entry[k={k}].summary.statistic"] = t_two_sided(t, df)
             out[f"1/entry[k={k}].summary.statistic"] = float(2 * scipy.stats.norm.sf(abs(t)))
         return out, warn
+    if case == "ov_compose_series_welford":
+        # Each group's legs (sub = target, total = reference) are
+        # Sample(w*): N* = Σw (frequency) or Kish n_eff (probability),
+        # the variance c·M2/(N* − 1) — the weighted-host rule the
+        # handler reads off the components. The layer's sum_weights is
+        # Σw over every leg it read (n_eff: the Kish size of that union).
+        sub = ov_filter(rows, OV_SUB)
+        sw = sww = 0.0
+        for k in K_LEVELS:
+            a = ov_cell_sample(sub, "x", prob, k=k)
+            b = ov_cell_sample(rows, "x", prob, k=k)
+            out[f"0/entry[k={k}].summary.statistic"] = welch_p(a, b)
+            out[f"1/entry[k={k}].summary.statistic"] = welch_p(a, b, normal=True)
+            for leg in (a, b):
+                sw += leg.sw
+                sww += float(np.square(leg.w).sum())
+        for li in (0, 1):
+            out[f"{li}/summary.parameters.sum_weights"] = sw
+            if prob:
+                out[f"{li}/summary.parameters.n_eff"] = sw * sw / sww
+        return out, warn
     if case in ("ov_prior", "ov_prior_xt_means", "ov_prior_xt_prop"):
         layers = {"ov_prior": [("t", 0), ("z", 1), ("p", 2)], "ov_prior_xt_means": [("t", 0), ("z", 1)],
                   "ov_prior_xt_prop": [("p", 0)]}[case]
@@ -1844,10 +1889,14 @@ def overlay_cases():
 #     Frequency on the np.repeat expansion, unweighted; probability with
 #     sample_weight = w (β is kind-free: the penalty scales by Σw). The
 #     ridge β is also checked against its closed form.
-#   * REG_GLM (binomial / poisson / gamma, dispersion fixed at 1) —
-#     frequency: R glm on the expansion; probability: IRLS on w* in
-#     numpy, cross-checked against statsmodels GLM(freq_weights = w*,
-#     scale = 1). The same IRLS on f must equal R (1e-9).
+#   * REG_GLM (binomial / poisson at dispersion 1; gamma's dispersion
+#     estimated, reference-oracles E2-S3) — frequency: R glm on the
+#     expansion; probability: IRLS on w* in numpy, cross-checked against
+#     statsmodels GLM(freq_weights = w*; scale = 1 for binomial /
+#     poisson, the default Pearson scale for gamma). Gamma: φ̂ = Σw*(y −
+#     μ)²/V(μ) / (Σw* − q), SE·√φ̂, t p-values on df = Σw* − q (n_eff − q
+#     under probability, REG_OLS's residual df; statsmodels' df_resid).
+#     The same IRLS on f must equal R (1e-9).
 #   * REG_BAYES_LINEAR — frequency-only. No stock package fits Pulse's
 #     scalar-precision Normal-Inverse-Gamma prior, so the reference is
 #     that conjugate posterior in closed form evaluated on the expanded
@@ -2028,7 +2077,7 @@ def penalised_beta(case, ws, kind):
 
 
 def glm_irls(X, y, w, family):
-    """Dispersion-1 IRLS fit: (β, SE, deviance, null deviance)."""
+    """IRLS fit: (β, dispersion-1 SE, deviance, null deviance, Pearson χ²)."""
     if family == "binomial":
         inv = lambda eta: 1 / (1 + np.exp(-eta))
         dmu = lambda eta, mu: mu * (1 - mu)
@@ -2076,7 +2125,8 @@ def glm_irls(X, y, w, family):
     ww = w * g * g / var(mu)
     se = np.sqrt(np.diag(np.linalg.inv(X.T @ (ww[:, None] * X))))
     ybar = float(np.sum(w * y) / w.sum())
-    return beta, se, dev(inv(eta)), dev(np.full_like(y, ybar))
+    pearson = float(np.sum(w * (y - mu) ** 2 / var(mu)))
+    return beta, se, dev(inv(eta)), dev(np.full_like(y, ybar)), pearson
 
 
 def glm_closed_form(case, ws, kind):
@@ -2088,22 +2138,36 @@ def glm_closed_form(case, ws, kind):
     w = np.array([ws[i] for i in idx])
     sw = float(w.sum())
     wstar = w * ((kish(w) if prob else sw) / sw)
-    beta, se, dev, null_dev = glm_irls(X, y, wstar, family)
+    beta, se, dev, null_dev, pearson = glm_irls(X, y, wstar, family)
+    gamma = family == "gamma"
+    df = None
+    if gamma:
+        # The estimated dispersion on N* − q residual df, N* = Σw*.
+        df = float(wstar.sum()) - X.shape[1]
+        se = se * math.sqrt(pearson / df)
     sm_fam = {"binomial": sm_families.Binomial(),
               "poisson": sm_families.Poisson(),
               "gamma": sm_families.Gamma(sm_families.links.InversePower())}[family]
     with warnings.catch_warnings():
         # Gamma's inverse link is R's default too; the fit stays in-domain.
         warnings.simplefilter("ignore", DomainWarning)
-        sm = SmGLM(y, X, family=sm_fam, freq_weights=wstar).fit(scale=1.0, tol=1e-14, maxiter=200)
+        sm = SmGLM(y, X, family=sm_fam, freq_weights=wstar).fit(
+            scale=None if gamma else 1.0, tol=1e-14, maxiter=200)
     assert np.allclose(sm.params, beta, rtol=1e-8) and np.allclose(sm.bse, se, rtol=1e-8), (case, kind)
+    if gamma:
+        assert close(sm.df_resid, df, 1e-12) and close(sm.scale, pearson / df, 1e-8), (case, kind, sm.df_resid, df)
     assert close(sm.deviance, dev, 1e-8) and close(sm.null_deviance, null_dev, 1e-8), (case, kind)
     out = {}
     for j, t in enumerate(REG_TERMS):
         out[f"coefficients.{t}"] = float(beta[j])
         out[f"std_errors.{t}"] = float(se[j])
-        out[f"p_values.{t}"] = float(2 * scipy.stats.norm.sf(abs(beta[j] / se[j])))
+        if gamma:
+            out[f"p_values.{t}"] = t_two_sided(beta[j] / se[j], df)
+        else:
+            out[f"p_values.{t}"] = float(2 * scipy.stats.norm.sf(abs(beta[j] / se[j])))
     out.update(deviance=dev, null_deviance=null_dev, pseudo_r2=1 - dev / null_dev)
+    if gamma:
+        out["df"] = df
     out.update(reg_floor(ws, idx, prob))
     return out
 
@@ -2483,11 +2547,15 @@ def regression_cases():
             elif case in REG_GLM_TARGETS:
                 figs = glm_closed_form(case, ws, kind)
                 if prob:
-                    src = ("IRLS on w* = w·n_eff/Σw, dispersion 1, cross-checked with statsmodels " +
-                           statsmodels.__version__ + " GLM(freq_weights = w*, scale = 1)")
+                    disp = ("dispersion Pearson χ²/(n_eff − q), t on n_eff − q, cross-checked with statsmodels " +
+                            statsmodels.__version__ + " GLM(freq_weights = w*)") if case == "glm_gamma" else (
+                        "dispersion 1, cross-checked with statsmodels " + statsmodels.__version__ +
+                        " GLM(freq_weights = w*, scale = 1)")
+                    src = "IRLS on w* = w·n_eff/Σw, " + disp
                 else:
                     adopt_r(case, figs, rfigs[case])
-                    src = f"{RREG[0]} glm on rep()-expanded rows, summary(dispersion = 1) (reg_reference.R)"
+                    how = "summary() (estimated dispersion)" if case == "glm_gamma" else "summary(dispersion = 1)"
+                    src = f"{RREG[0]} glm on rep()-expanded rows, {how} (reg_reference.R)"
             else:
                 figs = bayes_closed_form(ws)
                 src = ("NIG conjugate posterior (default prior) in closed form on the np.repeat "

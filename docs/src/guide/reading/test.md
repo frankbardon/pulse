@@ -206,6 +206,7 @@ F on each row's distance from its group median: larger values are stronger evide
 **Caveats:**
 
 - It tests spread only, not averages.
+- When every group's distances from its median are constant, F is infinite (null on the wire) with p-value 0 if the groups' distances differ, and both are undefined (null, no rejection) if every distance is equal.
 
 #### `p_value`
 
@@ -280,7 +281,7 @@ Exact test of whether two yes/no fields are associated, built for small 2x2 tabl
 
 #### `statistic`
 
-The sample odds ratio (a*d)/(b*c) of the 2x2 table in details.contingency, also in details.odds_ratio: 1 means the odds of the first column are the same in both rows, above 1 higher in the first row, below 1 lower.
+The conditional maximum-likelihood odds ratio of the 2x2 table in details.contingency (the estimate R's fisher.test reports), also in details.odds_ratio: 1 means the odds of the first column are the same in both rows, above 1 higher in the first row, below 1 lower.
 
 **Bands** (convention: Cohen (1988) d benchmarks converted via d = ln(OR)*sqrt(3)/pi (Chinn 2000); a labelled convention, not a rule):
 
@@ -295,12 +296,29 @@ The sample odds ratio (a*d)/(b*c) of the 2x2 table in details.contingency, also 
 
 - Bands apply to max(OR, 1/OR), so an odds ratio of 0.25 reads like one of 4.
 - Rows and columns are sorted alphabetically (details.row_labels / col_labels), so the ratio can come out inverted from what you expect: check the labels.
-- A zero in b or c gives an infinite ratio and a zero in a or d gives 0; with zero cells read the p-value and the table, not the ratio.
-- This is the plain cross-product ratio, not the conditional estimate R's fisher.test reports, so the two differ slightly.
+- A zero in a or d gives 0, and otherwise a zero in b or c gives an infinite ratio (null in JSON); with zero cells read the p-value and the table, not the ratio.
+- It is not the plain cross-product ratio (a*d)/(b*c): it sits closer to 1, most visibly in small tables.
 
 #### `p_value`
 
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
+
+#### `details.ci_low`
+
+Lower end of the exact conditional confidence interval for the odds ratio at the 1 - alpha level (95% by default), the interval R's fisher.test reports.
+
+**Caveats:**
+
+- It is exactly 0 when a zero in a or d puts the table at the bottom of its range; the upper end is then still finite.
+- The interval is exact, so its coverage is at least the nominal level and it can be wide in small tables.
+
+#### `details.ci_high`
+
+Upper end of the exact conditional confidence interval for the odds ratio.
+
+**Caveats:**
+
+- It is infinite (null in JSON) when a zero in b or c puts the table at the top of its range: the data set no upper limit on the ratio.
 
 <a id="op-test_hotelling_t2"></a>
 
@@ -395,6 +413,10 @@ D is the largest vertical gap between the two groups' cumulative distributions, 
 - D shows that the shapes differ, not how: plot both distributions to see whether it is the centre, the spread or the tails.
 
 #### `p_value`
+
+**Caveats:**
+
+- This is R's ks.test p: exact when the two group sizes multiply to under 10000 (exact given the tied values, if any), otherwise the large-sample Kolmogorov approximation, which runs high (conservative) when values tie.
 
 Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
@@ -609,7 +631,7 @@ Lower end of the confidence interval for r at the 1 - alpha level (95% by defaul
 
 **Caveats:**
 
-- With fewer than four pairs, or a perfect r, no interval can be computed and both ends are set to r: this is not a precise estimate. Treat r as highly uncertain and do not report the interval.
+- With fewer than four pairs (total weight, under frequency weights), or a perfect r, no interval can be computed and both ends are set to r: this is not a precise estimate. Treat r as highly uncertain and do not report the interval.
 
 #### `details.ci_high`
 
@@ -752,7 +774,7 @@ Follows the shared reading: see [Reading a p-value](#shared-p-value).
 
 #### `details.per_group`
 
-One entry per group (or one overall without SplitBy) with n, w, z and p_value, plus a warning when the p-value is advisory (fewer than 5 or more than 5000 rows, or a degenerate sample).
+One entry per group (or one overall without SplitBy) with n, w, z and p_value, plus a warning when the p-value is advisory (more than 5000 rows). Fewer than 5 rows in any group fails the test (PULSE_TEST_INSUFFICIENT_N) rather than report an uncalibrated p-value, and a constant group fails it too (PULSE_TEST_VARIANCE_ZERO): W' is undefined there, not 1.
 
 <a id="op-test_spearman_r"></a>
 
@@ -917,7 +939,7 @@ S counts every pair of points: +1 when the later point is higher, -1 when it is 
 
 #### `details.tau`
 
-S as a share of all pairs of points, from -1 (always falling) to +1 (always rising): how consistent the trend is, not how steep.
+S as a share of the pairs of points, from -1 (always falling) to +1 (always rising), with tied values taken out of the count of pairs: how consistent the trend is, not how steep.
 
 **Sign:**
 
@@ -926,7 +948,7 @@ S as a share of all pairs of points, from -1 (always falling) to +1 (always risi
 
 **Caveats:**
 
-- Tied points count as neither rising nor falling, so many ties pull tau toward 0.
+- Tied points count as neither rising nor falling; when every point ties, tau is undefined and reported as null.
 
 <a id="op-test_tukey_hsd"></a>
 

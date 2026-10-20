@@ -95,7 +95,7 @@ func (s *spearmanRRow) UpdateRow(record *Record) error {
 func (s *spearmanRRow) Finalize() (*types.TestResult, error) {
 	defer s.reset()
 	n := s.xs.n()
-	if n < 3 {
+	if s.basis.FloorN(int64(n), s.xs.sumW) < 3 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_SPEARMAN_R requires n ≥ 3, got %d", n),
 			map[string]any{"n": n, "min_required": 3})

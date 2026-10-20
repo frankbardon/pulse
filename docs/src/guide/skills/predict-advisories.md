@@ -1,6 +1,6 @@
 ```yaml
 name: predict-advisories
-description: Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families, a leave-one-out jackknife over a large cohort); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one.
+description: Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families, a leave-one-out jackknife over a large cohort, a lasso fit with no valid standard errors); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one.
 kind: design
 type: guide
 applies_to: predict
@@ -13,7 +13,7 @@ Predict answers "will this run" (errors, warnings). An **advisory** answers a di
 
 - **Not a warning.** Advisories ride their own slot, never the envelope `warnings`. `--strict` never turns one into an error and `valid` never changes.
 - **Never changes execution.** The request runs exactly as written; acting on an advisory is the caller's choice.
-- **Authoritative metadata only.** A rule reads the request, the schema and its dictionaries, and figures predict already computed. No field-name or value-shape guessing, so a rule that cannot see the data stays silent.
+- **Authoritative metadata only.** A rule reads the request, the schema and its dictionaries, and figures predict already computed. No field-name or value-shape guessing.
 - **`details.suggested`** is a replacement operator name or a request patch to merge — never a rewritten request — and only ever names something this instance offers. `pulse_errors_lookup CODE` returns the fixup text.
 
 ## Codes
@@ -28,14 +28,15 @@ Predict answers "will this run" (errors, warnings). An **advisory** answers a di
 | `PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED` | predict echoes `suggested_weight` (an SPSS weight variable, no slot resolving a weight) | `field`, `source`, `suggested: {"weight": {"field": F}}` |
 | `PULSE_ADVISORY_EXTRA_PASS` | an `ATTR_FORMULA` calls `total(expr)`, so the run adds a pre-pass over the filtered rows (one per such formula) | `slot`, `operator`, `label`, `totals` (distinct arguments), `added_scans` (1; formulas in one pre-pass layer share it) |
 | `PULSE_ADVISORY_SERIES_AXIS_NOT_DATE` | a series overlay that reads rows in order (prior, rolling, baseline, sibling) runs over two or more groupers with no `params.partition_by`, and the last grouper — the series axis — is not a date grouper | `slot`, `operator`, `series_axis`, `grouper`, `groups`, `date_axis` (a leading date grouper to move last; absent when none) |
-| `PULSE_ADVISORY_JACKKNIFE_COST` | a regression runs the leave-one-out jackknife (`resample: jackknife`, no `jackknife_groups` / `jackknife_by`) over a cohort of at least `threshold` (10,000) records: one refit per row, cost growing with n²; Compose: per slot and per fit | `slot`, `operator`, `records`, `threshold`, `suggested: {"jackknife_groups": 50}` |
-| `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED` | a slot names an embedder extension operator whose registration declares no params, and carries a non-empty `params` object: its keys pass to the operator unchecked, so a misspelled key is not refused (a declaring extension, like every built-in, refuses it `PULSE_REQUEST_UNKNOWN_FIELD`) | `slot`, `operator`, `keys` |
+| `PULSE_ADVISORY_JACKKNIFE_COST` | a regression runs the leave-one-out jackknife (`resample: jackknife`, no `jackknife_groups` / `jackknife_by`) over ≥ `threshold` (10,000) records: one refit per row, cost ∝ n² | `slot`, `operator`, `records`, `threshold`, `suggested: {"jackknife_groups": 50}` |
+| `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` | an `l1` / `elasticnet` regression without `resample`: its SEs, p-values and intervals are null. Also on the result's `advisories` | `slot`, `operator`, `penalty`, `suggested: {"resample": "bootstrap"}` |
+| `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED` | a slot names an embedder extension operator whose registration declares no params, and carries a non-empty `params` object: its keys pass to the operator unchecked, so a misspelled key is not refused | `slot`, `operator`, `keys` |
 
 The many-tests message says "at least N" when `p_values.basis` is `lower_bound` and "an estimated N" when it is `dictionary`; any `multiplicity` block — `method: none` included — silences it.
 
-The two-group rule reads the dictionary, not the data: it fires even when a filter leaves only two groups.
+The two-group rule reads the dictionary, not the data, so it fires even when a filter leaves two groups.
 
-The three SPSS rules need the cohort's SPSS metadata sidecar: a cohort imported from any other format, or one whose sidecar is missing or stale, never fires them, and a labelled SPSS numeric (imported as categorical) is not a numeric field.
+The three SPSS rules need a current SPSS metadata sidecar; a labelled SPSS numeric (imported as categorical) is not a numeric field.
 
 ## Roots
 
@@ -43,7 +44,7 @@ Request predict runs every rule. Facet predict runs them too, but a facet reques
 
 ## Suppression
 
-Embedders set `Options.SuppressAdvisories` (a list of codes) for questions their product answers itself. `pulse.New` refuses an unknown code with `PULSE_SUPPRESS_ADVISORY_UNKNOWN`. There is no per-request or CLI knob.
+Embedders set `Options.SuppressAdvisories` (a list of codes) for questions their product answers itself; it drops a code from predict and a result's `advisories` alike. `pulse.New` refuses an unknown code with `PULSE_SUPPRESS_ADVISORY_UNKNOWN`. There is no per-request or CLI knob.
 
 ## See
 

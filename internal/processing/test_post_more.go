@@ -52,6 +52,9 @@ func newPairedTPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
 func (p *pairedTPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	b := &welfordBucket{}
 	for i, row := range rows {
+		if postRowHasNull(row, p.field, p.field2) {
+			continue
+		}
 		a, err := floatFromRow(row, p.field, i)
 		if err != nil {
 			return nil, err
@@ -131,6 +134,9 @@ func (s *spearmanRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	xs := make([]float64, 0, len(rows))
 	ys := make([]float64, 0, len(rows))
 	for i, row := range rows {
+		if postRowHasNull(row, s.field, s.field2) {
+			continue
+		}
 		x, err := floatFromRow(row, s.field, i)
 		if err != nil {
 			return nil, err
@@ -226,6 +232,9 @@ func (k *kendallTauPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	xs := make([]float64, 0, len(rows))
 	ys := make([]float64, 0, len(rows))
 	for i, row := range rows {
+		if postRowHasNull(row, k.field, k.field2) {
+			continue
+		}
 		x, err := floatFromRow(row, k.field, i)
 		if err != nil {
 			return nil, err
@@ -338,6 +347,9 @@ func (w *wilcoxonSRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	var diffs []float64
 	var dropped int
 	for i, row := range rows {
+		if postRowHasNull(row, w.field, w.field2) {
+			continue
+		}
 		x, err := floatFromRow(row, w.field, i)
 		if err != nil {
 			return nil, err
@@ -468,16 +480,14 @@ func newAnovaWelchPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
 }
 
 func (a *anovaWelchPost) Run(rows []map[string]any) (*types.TestResult, error) {
-	if len(rows) < 2 {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SPLIT_GROUPS_LT_2,
-			fmt.Sprintf("TEST_ANOVA_WELCH (post): need ≥ 2 group rows, got %d", len(rows)),
-			map[string]any{"rows": len(rows)})
-	}
 	order := make([]string, 0, len(rows))
 	means := make([]float64, 0, len(rows))
 	ns := make([]int64, 0, len(rows))
 	vars_ := make([]float64, 0, len(rows))
 	for i, row := range rows {
+		if postRowHasNull(row, a.splitBy, a.field, a.nCol, a.varCol) {
+			continue
+		}
 		key, err := stringFromRow(row, a.splitBy, i)
 		if err != nil {
 			return nil, err
@@ -508,6 +518,11 @@ func (a *anovaWelchPost) Run(rows []map[string]any) (*types.TestResult, error) {
 		means = append(means, mean)
 		ns = append(ns, n)
 		vars_ = append(vars_, variance)
+	}
+	if len(order) < 2 {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SPLIT_GROUPS_LT_2,
+			fmt.Sprintf("TEST_ANOVA_WELCH (post): need ≥ 2 group rows without a null, got %d", len(order)),
+			map[string]any{"rows": len(order)})
 	}
 	k := len(order)
 	weights := make([]float64, k)
@@ -592,6 +607,9 @@ func (b *brownForsythePost) Run(rows []map[string]any) (*types.TestResult, error
 	values := make(map[string][]float64)
 	var order []string
 	for i, row := range rows {
+		if postRowHasNull(row, b.field, b.splitBy) {
+			continue
+		}
 		v, err := floatFromRow(row, b.field, i)
 		if err != nil {
 			return nil, err
@@ -640,16 +658,7 @@ func (b *brownForsythePost) Run(rows []map[string]any) (*types.TestResult, error
 			"TEST_BROWN_FORSYTHE (post): zero within-group degrees of freedom",
 			map[string]any{"k": k, "n": stats.N})
 	}
-	msB := stats.SSB / dfB
-	msW := stats.SSW / dfW
-	var F, p float64
-	if msW == 0 {
-		F = 0
-		p = 0
-	} else {
-		F = msB / msW
-		p = fSurvival(F, dfB, dfW)
-	}
+	F, p := brownForsytheF(stats.SSB/dfB, stats.SSW/dfW, dfB, dfW)
 	return &types.TestResult{
 		Label:      testLabel(b.spec),
 		Type:       types.TEST_BROWN_FORSYTHE,
@@ -702,6 +711,9 @@ func (s *shapiroWilkPost) Run(rows []map[string]any) (*types.TestResult, error) 
 	groups := make(map[string][]float64)
 	var order []string
 	for i, row := range rows {
+		if postRowHasNull(row, s.field, s.splitBy) {
+			continue
+		}
 		v, err := floatFromRow(row, s.field, i)
 		if err != nil {
 			return nil, err
@@ -732,12 +744,13 @@ func (s *shapiroWilkPost) Run(rows []map[string]any) (*types.TestResult, error) 
 	for _, key := range keys {
 		vs := append([]float64(nil), groups[key]...)
 		n := len(vs)
-		if n < 3 {
-			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
-				fmt.Sprintf("TEST_SHAPIRO_WILK (post) requires n ≥ 3 per group; %q has %d", key, n),
-				map[string]any{"group": key, "n": n, "min_required": 3})
+		if cerr := shapiroFranciaMinNRefusal("TEST_SHAPIRO_WILK (post)", key, n); cerr != nil {
+			return nil, cerr
 		}
 		sort.Float64s(vs)
+		if cerr := shapiroFranciaZeroVarianceRefusal("TEST_SHAPIRO_WILK (post)", key, vs); cerr != nil {
+			return nil, cerr
+		}
 		W, z, p, warn := shapiroFranciaStat(vs)
 		entry := map[string]any{
 			"n":       n,
@@ -803,6 +816,9 @@ func (k *ksPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	values := make(map[string][]float64)
 	var order []string
 	for i, row := range rows {
+		if postRowHasNull(row, k.field, k.splitBy) {
+			continue
+		}
 		v, err := floatFromRow(row, k.field, i)
 		if err != nil {
 			return nil, err
@@ -838,10 +854,7 @@ func (k *ksPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	sort.Float64s(a)
 	sort.Float64s(b)
 	D := ksTwoSampleD(a, b)
-	n1 := float64(len(a))
-	n2 := float64(len(b))
-	en := math.Sqrt(n1 * n2 / (n1 + n2))
-	p := kolmogorovSurvival((en + 0.12 + 0.11/en) * D)
+	p := ksTwoSampleP(a, nil, b, nil, D)
 	return &types.TestResult{
 		Label:      testLabel(k.spec),
 		Type:       types.TEST_KS,

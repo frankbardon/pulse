@@ -38,7 +38,7 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pr
 - Pairing is **per-row**: Field and Field2 must already encode the (post, pre) pair on the same record. If pairing is across rows, build a paired column upstream first.
 - Streamable — Welford runs on d = Field − Field2 in a single pass.
 - A null in Field or Field2 drops the pair; `n` counts complete pairs.
-- Tier-2 variant `TEST_PAIRED_T/paired_two_sided_post` runs over two output columns of the result set.
+- Tier-2 variant `TEST_PAIRED_T/paired_two_sided_post` runs over two output columns of the result set. A row with a null in a used column drops listwise (R's NA default); `details.n` is the n used.
 
 ## See
 

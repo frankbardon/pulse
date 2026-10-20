@@ -474,13 +474,23 @@ func TestHotellingT2_InsufficientN(t *testing.T) {
 			t.Fatalf("split=%q n=%d: err = %v", c.split, c.n, err)
 		}
 	}
-	// The raw row floor binds even when frequency weights lift Σw past
-	// p: three distinct rows span at most a plane in three members.
+	// Under frequency weights the floor reads Σw (U36 E1-S7, frequency ≡
+	// expansion): three distinct rows of Σw > p are their expansion,
+	// whose covariance spans at most a plane in three members — the
+	// singular result (null T², PULSE_MATRIX_SINGULAR warning), not a
+	// raw-row refusal. Probability weights keep the raw floor.
 	schema := hotellingSchema()
 	req := hotellingReq(nil)()
 	req.Weight = &types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency}
+	resp, err := NewProcessor(schema).Process(context.Background(), req, NewSliceIterator(hotellingRows(schema, 3, []string{"a"}, nil)))
+	if err != nil || resp.Tests[0].Error != nil || !math.IsNaN(resp.Tests[0].Statistic) || len(resp.Tests[0].Warnings) != 1 {
+		t.Fatalf("n = p under frequency weights (Σw > p): err %v, result %+v, want the singular result", err, resp.Tests[0])
+	}
+	schema = hotellingSchema()
+	req = hotellingReq(nil)()
+	req.Weight = &types.WeightSpec{Field: "w", Kind: types.WeightKindProbability}
 	if err := processErr(t, schema, hotellingRows(schema, 3, []string{"a"}, nil), req); hotCode(err) != errors.PULSE_TEST_INSUFFICIENT_N {
-		t.Fatalf("n = p under frequency weights (Σw > p): err = %v", err)
+		t.Fatalf("n = p under probability weights: err = %v", err)
 	}
 	schema = hotellingSchema()
 	if _, err := NewProcessor(schema).Process(context.Background(), hotellingReq(nil)(), NewSliceIterator(hotellingRows(schema, 4, []string{"a"}, nil))); err != nil {

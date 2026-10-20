@@ -13,8 +13,8 @@ import (
 //   - frequency: integer weights equal the physically expanded rows.
 //
 // The external pins — stock R glm on the expanded rows (frequency), IRLS
-// on w* cross-checked with statsmodels (probability), dispersion fixed
-// at 1 — are generated with every other weighted regression's into
+// on w* cross-checked with statsmodels (probability), dispersion 1 for
+// binomial / poisson and estimated for gamma — are generated with every other weighted regression's into
 // internal/service/weight_reference_values_test.go by
 // testdata/weight_reference/gen_weight_reference.py
 // (TestWeightReferenceValues/regressions).

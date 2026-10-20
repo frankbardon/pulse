@@ -43,7 +43,7 @@ Both compose with the OLS and GLM fits; the Bayesian fit rejects both — credib
 | `"jackknife"` | LOO, or `jackknife_groups` / `jackknife_by` groups; SE = √((g−1)/g·Σ(β₍ₖ₎−β̄)²) |
 | `"bootstrap"` | non-parametric (`bootstrap_iters` as given, `<= 0` → 1000; `rng_seed`); SE = sample std of replicates; percentile-method p; echoes `bootstrap_requested` / `bootstrap_succeeded` |
 
-Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. For `l1` / `elasticnet`, `Resample` is the rigorous SE answer and suppresses `PROCESSING_REGRESSION_APPROXIMATE_SE`.
+Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. For `l1` / `elasticnet` (null SE / p otherwise), `Resample` supplies replicate SEs and silences `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`.
 
 ### `Selection` (stepwise)
 
@@ -85,7 +85,7 @@ A significant group-level slope does NOT imply individual-level association (Rob
 
 ## Inference
 
-Per model (atomic skill): Student-t p for unpenalized / `l2` OLS, plug-in SE over the active set for `l1` / `elasticnet` (`PROCESSING_REGRESSION_APPROXIMATE_SE` unless `Resample`), Wald-z p for the GLM (penalized: a sandwich), credible intervals and no `p_values` for the Bayesian fit. Every SE gets `ci_lower` / `ci_upper` at `conf_level` (0.95). A spec's own `multiplicity` block joins its coefficients' p-values to a correction family ([`multiplicity-correction`](multiplicity-correction.md)).
+Per model (atomic skill): Student-t p for unpenalized / `l2` OLS, null SE / p / CI for `l1` / `elasticnet` (advisory `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` unless `Resample`), Wald-z p for the GLM (penalized: a sandwich), credible intervals and no `p_values` for the Bayesian fit. Every SE gets `ci_lower` / `ci_upper` at `conf_level` (0.95). A spec's own `multiplicity` block joins its coefficients' p-values to a correction family ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Gotchas
 

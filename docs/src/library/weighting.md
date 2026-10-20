@@ -141,9 +141,12 @@ n_eff = (Σw)²/Σw², under `kind: probability`. Means and r are the same
 under either kind; standard errors and degrees of freedom (which may be
 fractional) read that effective size. The result's `details.n` stays
 the raw row count; `sum_weights` and, for probability weights, `n_eff`
-appear beside it in the same shape. A group whose n_eff falls below
-the test's minimum warns `PULSE_WEIGHT_LOW_NEFF` (an error under
-strict mode). A probability-weighted Pearson correlation test whose
+appear beside it in the same shape. A test's (or regression's)
+minimum sample size reads Σw under `kind: frequency` — a single row of
+weight 3 is three rows, so the slot runs or refuses exactly as its
+duplicated rows would — and the raw row count under
+`kind: probability`, where a group whose n_eff falls below the
+minimum warns `PULSE_WEIGHT_LOW_NEFF` (an error under strict mode). A probability-weighted Pearson correlation test whose
 n_eff is 2 or less has no degrees of freedom left and is refused with
 `PULSE_TEST_INSUFFICIENT_N`, its details naming `n_eff`. This is not design-based (strata / cluster) variance.
 
@@ -207,8 +210,9 @@ counts the rows, not Σw or n_eff, for its residual degrees of freedom,
 so its standard errors differ. Ridge, lasso and elastic net scale the
 penalty by Σw, so their coefficients do not change when every weight is
 multiplied by the same constant, and they match `glmnet(weights = w)`
-under frequency weights. Their standard errors stay plug-in
-approximations, now on N*. Bayesian linear regression takes frequency
+under frequency weights. Ridge standard errors are the closed-form
+ridge sandwich on N*; lasso and elastic net report none (null, with
+`PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`). Bayesian linear regression takes frequency
 weights only: X'WX, X'Wy and Σw enter the conjugate posterior, which
 equals the posterior on the expanded rows. `n_obs` stays the raw row
 count. A weighted result adds `sum_weights` and, for probability
@@ -227,9 +231,11 @@ as prior weights on w* = w·N*/Σw, so its fit is R's
 `glm(weights = w*)`: the coefficients are the same under either kind,
 the standard errors come from (XᵀW*X)⁻¹ and the deviance and null
 deviance sum w*·d. Under frequency weights that is `glm(weights = w)`
-and equals the fit on the expanded rows. The dispersion stays fixed at
-1 for every family, gamma included, so treat gamma standard errors with
-the same caution as unweighted ones. The regression attributes refit
+and equals the fit on the expanded rows. The dispersion is fixed at 1
+for binomial and Poisson; gamma estimates it as the w*-weighted Pearson
+chi-square over the residual df N* − p − 1 (Σw under frequency, as on
+the expanded rows; n_eff under probability), and its p-values and
+intervals read a Student t on that df. The regression attributes refit
 ordinary least squares with the slot's weight and accept both kinds:
 the fitted value comes from the weighted coefficients, the residual is
 the raw y − ŷ, and the leverage is R's `hatvalues()` on the weighted

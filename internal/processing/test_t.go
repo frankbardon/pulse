@@ -242,7 +242,9 @@ func (tt *tTestRow) reset() {
 
 func (tt *tTestRow) finalizeOneSample() (*types.TestResult, error) {
 	b, ok := tt.groups[""]
-	if !ok || b.N < 2 {
+	// Minimum-n guards read Σw under frequency (Basis.FloorN): the
+	// expansion's count.
+	if !ok || b.FloorN(tt.basis) < 2 {
 		var n int64
 		if ok {
 			n = b.N
@@ -320,7 +322,7 @@ func (tt *tTestRow) finalizeTwoSample() (*types.TestResult, error) {
 		adjA, adjB, f := tt.cuped.adjust(tt.cuped.groups[keys[0]], tt.cuped.groups[keys[1]])
 		a, b, cf = &adjA, &adjB, &f
 	}
-	if a.N < 2 || b.N < 2 {
+	if a.FloorN(tt.basis) < 2 || b.FloorN(tt.basis) < 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_T two-sample requires n ≥ 2 per group, got %d / %d", a.N, b.N),
 			map[string]any{"n": []int64{a.N, b.N}, "min_required": 2})

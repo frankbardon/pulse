@@ -22,6 +22,12 @@ type refitResult struct {
 	N         int       // observations used after listwise null deletion
 	RSS       float64   // OLS only
 	Deviance  float64   // GLM only
+	// Y, Mu and Prior are a GLM fit's response, fitted means and prior
+	// weights (Prior nil = every weight 1), row for row — what a family
+	// whose dispersion is estimated (gamma) needs to score the candidate
+	// by its log-likelihood (aicBICFromGamma). They alias the refit's own
+	// slices; nothing copies them.
+	Y, Mu, Prior []float64
 	// Mean-y so selection can fall back to the intercept-only RSS without
 	// instantiating an engine when activePredictors is empty.
 	MeanY float64
@@ -111,7 +117,8 @@ func olsFitter(records []Record, target string, activePredictors []string, spec 
 		}
 		acc.UpdateRowWeighted(xBuf, y, w)
 	}
-	if acc.n < p+1 {
+	// Σw under frequency, as the full fit's guard (olsAccumulator.floorN).
+	if acc.floorN() < float64(p+1) {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 			"regression refit requires n ≥ p + 1 observations after listwise null deletion",
@@ -198,13 +205,15 @@ func glmRefit(records []Record, target string, activePredictors []string, fam gl
 		rw = newRowWeights(knobs)
 	}
 	var xRows, yVec, prior []float64
+	var sumW float64
 	if rw.weighted() {
-		xRows, yVec, prior, _, _, _ = buildWeightedDesign(records, activePredictors, target, rw, nil)
+		xRows, yVec, prior, _, sumW, _ = buildWeightedDesign(records, activePredictors, target, rw, nil)
 	} else {
 		xRows, yVec = buildDesign(records, activePredictors, target)
 	}
 	n := len(yVec)
-	if n < p+1 {
+	// Σw under frequency, as the full fit's guard (weighting.Basis.FloorN).
+	if rw.basis.FloorN(int64(n), sumW) < float64(p+1) {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 			"REG_GLM refit requires n ≥ p + 1 observations after listwise null deletion",
@@ -228,12 +237,17 @@ func glmRefit(records []Record, target string, activePredictors []string, fam gl
 			nullDev += fam.Deviance(yVec[i], mu0)
 		}
 		nullDev *= 2
+		muRows := make([]float64, n)
+		for i := range muRows {
+			muRows[i] = mu0
+		}
 		return &refitResult{
 			Intercept: fam.LinkFunc(mu0),
 			Slopes:    nil,
 			N:         n,
 			Deviance:  nullDev,
 			MeanY:     yBar,
+			Y:         yVec, Mu: muRows, Prior: prior,
 		}, nil
 	}
 
@@ -270,6 +284,7 @@ func glmRefit(records []Record, target string, activePredictors []string, fam gl
 		N:         n,
 		Deviance:  deviance,
 		MeanY:     yBar,
+		Y:         yVec, Mu: sol.Mu, Prior: prior,
 	}, nil
 }
 

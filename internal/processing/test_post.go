@@ -78,14 +78,12 @@ func newAnovaPost(spec *types.Test, schema *encoding.Schema) (PostTest, error) {
 }
 
 func (a *anovaPost) Run(rows []map[string]any) (*types.TestResult, error) {
-	if len(rows) < 2 {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SPLIT_GROUPS_LT_2,
-			fmt.Sprintf("TEST_ANOVA_F (post): need ≥ 2 group rows, got %d", len(rows)),
-			map[string]any{"rows": len(rows)})
-	}
 	order := make([]string, 0, len(rows))
 	groups := make(map[string]*welfordBucket, len(rows))
 	for i, row := range rows {
+		if postRowHasNull(row, a.splitBy, a.field, a.nCol, a.varCol) {
+			continue
+		}
 		key, err := stringFromRow(row, a.splitBy, i)
 		if err != nil {
 			return nil, err
@@ -112,6 +110,11 @@ func (a *anovaPost) Run(rows []map[string]any) (*types.TestResult, error) {
 		m2 := float64(n-1) * variance
 		groups[key] = &welfordBucket{n: n, mean: mean, m2: m2}
 		order = append(order, key)
+	}
+	if len(order) < 2 {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_SPLIT_GROUPS_LT_2,
+			fmt.Sprintf("TEST_ANOVA_F (post): need ≥ 2 group rows without a null, got %d", len(order)),
+			map[string]any{"rows": len(order)})
 	}
 	stats := summariseANOVA(order, groups)
 	k := len(order)
@@ -225,14 +228,26 @@ func newTrendPost(spec *types.Test, schema *encoding.Schema) (PostTest, error) {
 }
 
 func (tr *trendPost) Run(rows []map[string]any) (*types.TestResult, error) {
-	if len(rows) < 3 {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
-			fmt.Sprintf("TEST_TREND (mann_kendall) requires n ≥ 3, got %d", len(rows)),
-			map[string]any{"n": len(rows), "min_required": 3})
+	// Listwise: a row with a null value or a null order_by key leaves the
+	// series (R's complete.cases on (index, y)); copy so we don't mutate
+	// the caller's data.
+	used := make([]string, 0, 1+len(tr.orderBy))
+	used = append(used, tr.field)
+	for _, k := range tr.orderBy {
+		used = append(used, k.Field)
 	}
-	// Order rows by OrderBy if provided; copy the slice so we don't
-	// mutate the caller's data.
-	ordered := append([]map[string]any(nil), rows...)
+	ordered := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		if !postRowHasNull(row, used...) {
+			ordered = append(ordered, row)
+		}
+	}
+	if len(ordered) < 3 {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
+			fmt.Sprintf("TEST_TREND (mann_kendall) requires n ≥ 3 rows without a null, got %d", len(ordered)),
+			map[string]any{"n": len(ordered), "min_required": 3})
+	}
+	// Order rows by OrderBy if provided.
 	if len(tr.orderBy) > 0 {
 		sort.SliceStable(ordered, func(i, j int) bool {
 			// A grouper key column sorts by its grouper's key order —
@@ -251,7 +266,7 @@ func (tr *trendPost) Run(rows []map[string]any) (*types.TestResult, error) {
 		}
 		values = append(values, v)
 	}
-	S, varS := mannKendall(values)
+	S, varS, tiedPairs := mannKendall(values)
 	var Z float64
 	switch {
 	case S > 0:
@@ -262,11 +277,14 @@ func (tr *trendPost) Run(rows []map[string]any) (*types.TestResult, error) {
 		Z = 0
 	}
 	p := normalTwoSidedP(Z)
-	tau := 0.0
+	// tau is Kendall's tau-b of the series against its order (the
+	// order positions never tie): S / √(n₀ (n₀ − n₂)), n₀ = n(n−1)/2,
+	// n₂ the tied value pairs — Kendall::MannKendall's S / D and R's
+	// cor(seq_along(y), y, method = "kendall"). Undefined (NaN, null on
+	// the wire) when every value ties.
 	n := float64(len(values))
-	if n > 1 {
-		tau = S / (0.5 * n * (n - 1))
-	}
+	n0 := 0.5 * n * (n - 1)
+	tau := S / math.Sqrt(n0*(n0-tiedPairs))
 	var warnings []string
 	if len(values) < 8 {
 		warnings = append(warnings,
@@ -290,9 +308,9 @@ func (tr *trendPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	}, nil
 }
 
-// mannKendall returns (S, Var(S)) with the standard tied-group
-// correction for Var(S).
-func mannKendall(x []float64) (float64, float64) {
+// mannKendall returns (S, Var(S), n₂) with the standard tied-group
+// correction for Var(S); n₂ = Σ t(t−1)/2 counts the tied value pairs.
+func mannKendall(x []float64) (float64, float64, float64) {
 	n := len(x)
 	S := 0
 	for i := 0; i < n-1; i++ {
@@ -312,16 +330,18 @@ func mannKendall(x []float64) (float64, float64) {
 	}
 	N := float64(n)
 	varS := N * (N - 1) * (2*N + 5) / 18.0
+	tiedPairs := 0.0
 	for _, t := range counts {
 		if t > 1 {
 			tf := float64(t)
 			varS -= tf * (tf - 1) * (2*tf + 5) / 18.0
+			tiedPairs += tf * (tf - 1) / 2
 		}
 	}
 	if varS < 0 {
 		varS = 0
 	}
-	return float64(S), varS
+	return float64(S), varS, tiedPairs
 }
 
 // compareRows returns negative / 0 / positive for ordering by keys.
@@ -346,6 +366,28 @@ func toFloat64(v any) float64 {
 	return math.NaN()
 }
 
+// postRowHasNull reports whether row holds a null — a present nil — in
+// any of fields: the post-test listwise drop, R's complete.cases (its
+// default na.action) on the columns the test reads. Every post-test
+// skips such a row and reports the n it actually used, as its row
+// variant skips a null record. A missing key is not a null (floatFromRow
+// still refuses it, SERVICE_VALIDATION), a present non-numeric value
+// still refuses (PULSE_TEST_FIELD_NOT_NUMERIC), and an undefined figure
+// (NaN, an aggregate over no value) is not a null either: it stays in and
+// the statistic is NaN. An empty name (an unset optional split_by) is
+// skipped.
+func postRowHasNull(row map[string]any, fields ...string) bool {
+	for _, f := range fields {
+		if f == "" {
+			continue
+		}
+		if v, ok := row[f]; ok && v == nil {
+			return true
+		}
+	}
+	return false
+}
+
 func floatFromRow(row map[string]any, field string, idx int) (float64, error) {
 	v, ok := row[field]
 	if !ok {
@@ -353,13 +395,8 @@ func floatFromRow(row map[string]any, field string, idx int) (float64, error) {
 			fmt.Sprintf("post-test row %d missing field %q", idx, field),
 			map[string]any{"row": idx, "field": field})
 	}
-	switch x := v.(type) {
-	case float64:
+	if x, ok := floatValue(v); ok {
 		return x, nil
-	case int64:
-		return float64(x), nil
-	case int:
-		return float64(x), nil
 	}
 	return 0, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_FIELD_NOT_NUMERIC,
 		fmt.Sprintf("post-test row %d field %q has non-numeric value", idx, field),

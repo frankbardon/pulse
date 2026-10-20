@@ -79,8 +79,8 @@ func newGLMPenalty(spec *types.RegressionSpec, nStar float64) *glmPenalty {
 func (p *glmPenalty) lambda2() float64 { return p.nStar * p.alpha * (1 - p.l1Ratio) }
 func (p *glmPenalty) lambda1() float64 { return p.nStar * p.alpha * p.l1Ratio }
 
-// approximateSE reports whether the fit's standard errors are a plug-in
-// over a data-dependent active set (l1 / elasticnet).
+// approximateSE reports whether the fit selects its predictors from the
+// data (l1 / elasticnet), so its standard errors are undefined (NaN).
 func (p *glmPenalty) approximateSE() bool { return p != nil && p.l1Ratio > 0 }
 
 // value is the penalty on the deviance scale: λ₂·‖β‖² + 2·λ₁·‖β‖₁ over
@@ -228,9 +228,11 @@ func sign(x float64) float64 {
 // covariance is the penalised-Fisher sandwich H⁻¹·A·H⁻¹, H = A + λ₂·D,
 // at the converged working Gram a (k × k, row-major) — over the whole
 // design for l2, over the intercept and the nonzero predictors for l1 /
-// elasticnet (the plug-in that treats the active set as fixed). It
-// returns the active columns and their covariance (len(active) square),
-// or ok = false when H cannot be inverted.
+// elasticnet. It returns the active columns and their covariance
+// (len(active) square), or ok = false when H cannot be inverted. Only
+// l2 reports it: an l1 / elasticnet fit's standard errors are NaN
+// (penalizedResult), and the active-set form survives only as the
+// positive-definiteness check behind its NO_CONVERGE refusal.
 func (p *glmPenalty) covariance(k int, a, beta []float64) (active []int, cov [][]float64, ok bool) {
 	active = []int{0}
 	for j := 1; j < k; j++ {

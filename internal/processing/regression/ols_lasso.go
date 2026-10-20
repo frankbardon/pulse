@@ -33,10 +33,11 @@ const (
 // comes from the streaming Gram — coordinate descent never re-reads the
 // data — and the intercept is ȳ − Σ β_j·x̄_j.
 //
-// Standard errors are emitted only for the non-zero active set using a
-// naive plug-in σ² estimate so callers see a usable approximate SE;
-// predict warns PROCESSING_REGRESSION_APPROXIMATE_SE. Resample gives
-// the rigorous one.
+// Standard errors (and so p-values and intervals) are undefined: the
+// active set is chosen by the data, so every entry is NaN (null on the
+// wire, key kept) and the fit carries
+// PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED (predict raises the same
+// advisory). Resample gives replicate standard errors instead.
 //
 // Returns:
 //   - PROCESSING_REGRESSION_INSUFFICIENT_DATA: n < p + 1.
@@ -81,7 +82,7 @@ func solveLasso(a *olsAccumulator, alpha float64, maxIters int, tol float64) (*o
 // and any error.
 func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, tol float64) (*olsSolveResult, int, error) {
 	p := a.p
-	if a.n < p+1 {
+	if a.floorN() < float64(p+1) {
 		return nil, 0, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 			"regression requires n ≥ p + 1 observations after filtering",
@@ -191,9 +192,9 @@ func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, 
 	}
 
 	df := a.residualDF()
-	// NaN when df ≤ 0 (residualVariances): no clamp, so the standard
-	// errors below stay NaN rather than claiming perfect precision.
-	sigma2Gram, sigma2 := a.residualVariances(rss)
+	// NaN when df ≤ 0 (residualVariances): the residual standard error
+	// stays null rather than claiming perfect precision.
+	_, sigma2 := a.residualVariances(rss)
 	tss := a.m2YY
 	var r2, adjR2 float64
 	if tss > 0 {
@@ -201,40 +202,16 @@ func coordinateDescent(a *olsAccumulator, alpha, l1Ratio float64, maxIters int, 
 		adjR2 = a.adjustedR2(r2, df)
 	}
 
-	// Naive plug-in SE for the active set. The SE of a coordinate that
-	// was shrunk to zero is undefined; emit zeros (the engine layer
-	// populates the SE map only for the active set so consumers see the
-	// gap explicitly).
+	// No standard errors: the penalty selects the active set from the
+	// data, so no analytical sampling distribution exists for the
+	// coefficients (nor the intercept, which depends on them). Every
+	// entry is NaN — null on the wire — and the fit carries
+	// PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED. Resample replaces
+	// them with replicate standard errors.
 	stdErrors := make([]float64, p+1)
-	for j := 0; j < p; j++ {
-		if coeffs[j] == 0 {
-			stdErrors[j+1] = 0
-			continue
-		}
-		// Plug-in: SE_j ≈ √(σ² / (n · M2_xx[j,j]/n)) = √(σ² / M2_xx[j,j])
-		// — the diagonal of (M2_xx)⁻¹ falls back to this approximation
-		// when off-diagonal terms are ignored. This is a coarse plug-in
-		// only valid for an orthogonal active set; documented in the
-		// skill doc + envelope warning.
-		if a.m2XX[j*p+j] <= 0 {
-			stdErrors[j+1] = 0
-			continue
-		}
-		stdErrors[j+1] = sqrt(sigma2Gram / a.m2XX[j*p+j])
+	for j := range stdErrors {
+		stdErrors[j] = math.NaN()
 	}
-	// Intercept SE: σ²/n + plug-in quad term over the active set.
-	quad := 0.0
-	for j := 0; j < p; j++ {
-		if coeffs[j] == 0 || a.m2XX[j*p+j] <= 0 {
-			continue
-		}
-		quad += sigma2Gram * a.meanX[j] * a.meanX[j] / a.m2XX[j*p+j]
-	}
-	seInt := sigma2Gram/a.sumW + quad
-	if seInt < 0 {
-		seInt = 0
-	}
-	stdErrors[0] = sqrt(seInt)
 
 	return &olsSolveResult{
 		Coefficients:   coeffs,

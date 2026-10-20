@@ -874,7 +874,7 @@ var (
 			"It treats subset and population as two independent samples. When the subset is part of the population they overlap: D shrinks by the subset's share of the population, so the p-value is too large (conservative), badly so when the subset is a big part of the population. Compare against the rest of the population instead when you can.",
 			"It compares two observed distributions; it is not a test against a named distribution with parameters estimated from the data, which would need the Lilliefors correction.",
 			"With few rows it has low power; with very large groups even trivial differences in shape give small p-values.",
-			"The null hypothesis is that both share one distribution; the p-value is a two-sided large-sample approximation.",
+			"The null hypothesis is that both share one distribution; the p-value is two-sided, the one R's ks.test gives: exact for small groups with matching histograms, a large-sample approximation otherwise.",
 		},
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{

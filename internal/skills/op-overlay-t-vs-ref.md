@@ -34,8 +34,9 @@ SERIES — one `SeriesEntry` per host group key carrying the p-value on `Summary
 ## Gotchas
 
 - Series host: an undefined value (NaN — a mean over a group with no value, an unanswered element) on either side is a MISSING point, as on the request host — the entry keeps its key with NO `statistic` (absent, not `null`), no warning, out of `summary.count`.
+- An engine `AGG_WELFORD` series is pinned to R `t.test` per group at 1e-10, unweighted and under both weight kinds.
 - Weighted (both kinds): a row triple carrying `sum_weights` reads N* = `sum_weights` (frequency) or `n_eff` (probability), never the raw `n`, and its variance from `m2` on w*. `Summary.Parameters` adds `sum_weights` (+ `n_eff`) over the legs read.
-- **Byte-equal** to Welch's t-test on the same inputs — shares `studentTTwoSidedP` + the df recurrence with it and the cell t overlay.
+- **Byte-equal** to Welch's t-test on the same inputs — shares `statdist.StudentTTwoSidedP` + the df recurrence with it and the cell t overlay.
 - Missing reference row, or degenerate inputs (`se == 0`, `n < 2`) → `PULSE_OVERLAY_REF_ZERO` with `ref_missing=true`, entry NaN.
 - Unlike the streamable SERIES arm of INDEX/DELTA_VS_REF: inferential, buffered by policy.
 

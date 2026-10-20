@@ -54,7 +54,7 @@ Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 - Suits small samples and heavy ties (tau-b corrects for ties in either column).
 - ≥ 50% tied → warning `PULSE_TEST_TIES_DOMINATE`: the test then mostly compares the share of tied values, not their order; the asymptotic p is unreliable.
 - Distribution-free; no normality assumption.
-- Tier-2 variant `TEST_KENDALL_TAU/tau_b_post` runs over result columns.
+- Tier-2 variant `TEST_KENDALL_TAU/tau_b_post` runs over result columns. A row with a null in a used column drops listwise (R's NA default); `details.n` is the n used.
 - Same p as a `MAT_CORRELATION` kendall cell on the same rows.
 - For high-cardinality numeric fields the O(n²) cost dominates.
 

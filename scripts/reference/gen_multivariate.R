@@ -655,10 +655,35 @@ add_coll <- function(fx, df, response, preds, kind, missing = "listwise") {
     # on Pulse's pairwise moments: each member's own-row mean and
     # population sd around R.
     X <- as.matrix(df[, preds])
-    R <- cor(X, use = "pairwise.complete.obs")
+    if (kind == "none") {
+      R <- cor(X, use = "pairwise.complete.obs")
+      mu <- colMeans(X, na.rm = TRUE)
+      sdp <- sqrt(colSums(sweep(X, 2, mu)^2, na.rm = TRUE) / colSums(!is.na(X)))
+    } else {
+      # Weighted pairwise (TODO #266): every correlation entry is the
+      # one-rule weighted fit over that pair's own rows (pw_cor), each
+      # member's mean and population sd (sum w (x - mu)^2 / sum w) over
+      # the rows where it is present. All three are scale-free ratios of
+      # the weighted moments, so both kinds give the same figures; under
+      # frequency they are asserted equal to the unweighted pairwise
+      # construction on the rep() expansion.
+      w <- wvec(df, kind)
+      R <- pw_cor(X, w, kind)
+      mu <- pw_mean(X, w)
+      sdp <- sapply(seq_len(ncol(X)), function(i) {
+        ok <- !is.na(X[, i])
+        sqrt(sum(w[ok] * (X[ok, i] - mu[i])^2) / sum(w[ok]))
+      })
+      if (kind == "frequency") {
+        Xe <- X[rep(seq_len(nrow(X)), w), , drop = FALSE]
+        me <- colMeans(Xe, na.rm = TRUE)
+        near(R, cor(Xe, use = "pairwise.complete.obs"), 1e-12, paste("weighted pairwise R vs rep()", fx))
+        near(mu, me, 1e-12, paste("weighted pairwise mean vs rep()", fx))
+        near(sdp, sqrt(colSums(sweep(Xe, 2, me)^2, na.rm = TRUE) / colSums(!is.na(Xe))), 1e-12,
+          paste("weighted pairwise sd vs rep()", fx))
+      }
+    }
     vif <- diag(solve(R))
-    mu <- colMeans(X, na.rm = TRUE)
-    sdp <- sqrt(colSums(sweep(X, 2, mu)^2, na.rm = TRUE) / colSums(!is.na(X)))
     un <- colldiag_moments(uncentered_b(R, mu, sdp), c("intercept", preds))
     ce <- colldiag_moments(R, preds)
     col_cases[[length(col_cases) + 1]] <<- list(
@@ -715,9 +740,12 @@ for (kind in w_kinds) {
   add_coll("weighted", wd, "y", paste0("x", 1:4), kind)
 }
 add_coll("nulls", nl, NULL, paste0("x", 1:4), "none", "pairwise")
+# Weighted pairwise (TODO #266): per-pair weighted correlation, per-member
+# weighted mean and population sd; kind-free (scale-free ratios).
+for (kind in c("frequency", "probability")) add_coll("nulls", nl, NULL, paste0("x", 1:4), kind, "pairwise")
 col_doc <- c(mv_meta("collinearity diagnostics",
   "car::vif(lm(response ~ predictors[, weights])) (asserted) == diag(solve(R_w)); perturb::colldiag(X, scale = TRUE, center = FALSE, add.intercept = TRUE) and (center = TRUE, add.intercept = FALSE)",
-  "Weighted colldiag runs on sqrt(w)-scaled rows (uncentered with a sqrt(w) intercept column; centered on the weighted mean), equivalent to W(Sigma + mu mu^T) after column scaling. condition_indices are ascending as perturb returns them; variance_decomposition rows follow them, columns follow 'columns'. Response is used only for car::vif's lm and does not enter the diagnostics. The one pairwise case (unweighted, response null) is built from the moments as Pulse builds it: R = cor(use = 'pairwise.complete.obs'), VIF = diag(solve(R)) (no car::vif: lm needs complete rows); colldiag on chol(B), B = [[1, mu'], [mu, D R D + mu mu']] with each member's own-row mean and population sd (uncentered) and on chol(R) (centered) — the moment route is asserted equal to the data route on every unweighted listwise case."),
+  "Weighted colldiag runs on sqrt(w)-scaled rows (uncentered with a sqrt(w) intercept column; centered on the weighted mean), equivalent to W(Sigma + mu mu^T) after column scaling. condition_indices are ascending as perturb returns them; variance_decomposition rows follow them, columns follow 'columns'. Response is used only for car::vif's lm and does not enter the diagnostics. The pairwise cases (nulls, response null) are built from the moments as Pulse builds them: R = cor(use = 'pairwise.complete.obs'), VIF = diag(solve(R)) (no car::vif: lm needs complete rows); colldiag on chol(B), B = [[1, mu'], [mu, D R D + mu mu']] with each member's own-row mean and population sd (uncentered) and on chol(R) (centered) — the moment route is asserted equal to the data route on every unweighted listwise case. Weighted pairwise (frequency, probability): every R entry is the one-rule weighted correlation over that pair's own rows, each member's mean and population sd sum(w (x - mu)^2) / sum(w) over its own rows; scale-free, so both kinds agree, and under frequency each is asserted equal to the unweighted pairwise construction on the rep() expansion. pair_n stays the raw row count."),
   list(cases = col_cases))
 
 # ------------------------------------------------------------ vcov(lm/glm)

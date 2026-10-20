@@ -130,7 +130,7 @@ func (m *mardiaRow) Finalize() (*types.TestResult, error) {
 	}()
 	n := m.cm.N()
 	bigN := m.cm.W()
-	if n < mardiaMinN || bigN < mardiaMinN {
+	if levelFloorN(m.basis, m.cm) < mardiaMinN || bigN < mardiaMinN {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_MARDIA requires n ≥ %d complete rows, got %d", mardiaMinN, n),
 			map[string]any{"n": n, "min_required": mardiaMinN, "p": p})

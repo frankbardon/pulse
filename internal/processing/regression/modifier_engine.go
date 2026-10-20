@@ -171,9 +171,24 @@ func (e *modifierEngine) runResampleWith(
 
 // makeCriterionFn returns the (refit, k0) → criterion closure used by
 // selection. Reads spec.Criterion ("aic" | "bic") and routes to the
-// appropriate aicBIC helper for the engine family.
+// appropriate aicBIC helper for the engine family: OLS's Gaussian
+// likelihood, a fixed-dispersion GLM's deviance (binomial, poisson), or
+// the gamma likelihood at φ = deviance / N* for a family that estimates
+// its dispersion (glmFamily.EstimatesDispersion).
 func (e *modifierEngine) makeCriterionFn() func(*refitResult, int) float64 {
 	wantBIC := e.spec.Criterion == "bic"
+	if e.family == "GLM" && e.glmFam.EstimatesDispersion {
+		// The family hook: an estimated dispersion (gamma) scores by the
+		// full log-likelihood with φ counted, R's AIC(glm) / BIC(glm)
+		// (reference-oracles E2-S5); deviance + 2k assumes φ = 1.
+		return func(fit *refitResult, k0 int) float64 {
+			aic, bic, _ := aicBICFromGamma(fit.Y, fit.Mu, fit.Prior, fit.Deviance, k0)
+			if wantBIC {
+				return bic
+			}
+			return aic
+		}
+	}
 	if e.family == "GLM" {
 		return func(fit *refitResult, k0 int) float64 {
 			aic, bic, _ := aicBICFromGLM(fit.Deviance, fit.N, k0)

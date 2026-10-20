@@ -42,13 +42,12 @@ SCALAR — `Payload.Scalar` carries the p-value (= `Summary.PValue`), NOT χ²; 
 
 - `scalar`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 - `summary.p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
-- `summary.parameters.df`: Degrees of freedom: the number of cells present in both requests with a positive expected count, minus 1.
+- `summary.parameters.df`: Degrees of freedom: the number of cells present in both requests with a positive reference count, minus 1.
 
 ## Gotchas
 
 - Weighted slots (both kinds): cells are Σw; under probability the target table is scaled to its Kish `n_eff` (the reference is the fixed distribution; expected-low on the scaled table) — first-order Kish, not Rao-Scott. `Summary.Parameters` adds the target's `sum_weights` (+ `n_eff`). A probability TARGET with components disabled ⇒ `PROCESSING_CONFIG` (predict AND runtime).
-- Reference scaled to target N: `expected = ref_cell × (target_N / ref_N)`. Reuses `chiSquareSurvival` — byte-equal to the χ² test on the same contingency.
-- `df = (target cells with expected > 0) - 1`.
+- Compared cells C = reference count > 0; reference scaled to the target's total over C: `expected = ref_cell × (target_N / ref_N)`, `df = |C| - 1` — R `chisq.test(target[C], p = ref[C], rescale.p = TRUE)`, pinned at 1e-10. A target count in a zero-reference cell is dropped from χ², N and `df` + one `PULSE_OVERLAY_REF_ZERO` per cell (the vs-population rule).
 - Any `expected < 5` → ONE `PULSE_OVERLAY_EXPECTED_LOW` per layer (canonical χ² low-count rule).
 - `target_N == 0`, `ref_N == 0`, or every `expected == 0` → NaN + `PULSE_OVERLAY_REF_ZERO`.
 - Dict-prefix drift between slots → `PULSE_OVERLAY_COMPOSE_DICT_DIVERGENCE` (under `DictPrefixFast`).

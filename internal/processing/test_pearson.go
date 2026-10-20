@@ -171,6 +171,9 @@ func newPearsonRPost(spec *types.Test, _ *encoding.Schema) (PostTest, error) {
 func (p *pearsonRPost) Run(rows []map[string]any) (*types.TestResult, error) {
 	var m pearsonMoments
 	for i, row := range rows {
+		if postRowHasNull(row, p.field, p.field2) {
+			continue
+		}
 		x, err := floatFromRow(row, p.field, i)
 		if err != nil {
 			return nil, err
@@ -203,7 +206,7 @@ func finalizePearsonR(spec *types.Test, variant string, m pearsonMoments, alpha 
 		}
 		return basis.Scale(m.sumW, m.sumWSq) * x
 	}
-	if n < 3 {
+	if basis.FloorN(int64(n), m.sumW) < 3 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_PEARSON_R requires n ≥ 3, got %d", n),
 			map[string]any{"n": n, "min_required": 3})
@@ -230,7 +233,8 @@ func finalizePearsonR(spec *types.Test, variant string, m pearsonMoments, alpha 
 		r = -1
 	}
 	df := nStar - 2
-	inf := correlationInference(r, df, nStar-3, n >= 4 && nStar > 3, alpha)
+	// The interval's row floor reads Σw under frequency (Basis.FloorN).
+	inf := correlationInference(r, df, nStar-3, basis.FloorN(int64(n), m.sumW) >= 4 && nStar > 3, alpha)
 	t, pvalue := inf.T, inf.P
 	ciLow, ciHigh := inf.Lo, inf.Hi
 	if !inf.CI {

@@ -450,7 +450,7 @@
       },
       {
         "name": "predict-advisories",
-        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families, a leave-one-out jackknife over a large cohort); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
+        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families, a leave-one-out jackknife over a large cohort, a lasso fit with no valid standard errors); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
       },
       {
         "name": "regression-inference",
@@ -722,7 +722,8 @@
           "regressions[*].selected_features",
           "regressions[*].vcov",
           "regressions[*].correlation",
-          "regressions[*].covariance"
+          "regressions[*].covariance",
+          "regressions[*].advisories"
         ]
       },
       {
@@ -748,7 +749,8 @@
           "regressions[*].name",
           "regressions[*].type",
           "regressions[*].coefficients",
-          "regressions[*].p_values"
+          "regressions[*].p_values",
+          "regressions[*].advisories"
         ]
       }
     ],
@@ -812,4 +814,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c5e675ecd4dbfef7bc7280e052d1cde300a9d0ee1f8e27e1de6c425dfcb771ad
+// golden-hash: 3befce9f8febc12ac8f5fba231920101be77f8527c322b8085517fdeceef2ade

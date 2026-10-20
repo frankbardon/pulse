@@ -347,18 +347,24 @@ type RegressionResult struct {
 	Coefficients map[string]float64 `json:"coefficients,omitempty"`
 
 	// StdErrors maps predictor name to its asymptotic standard error.
+	// On an l1 / elasticnet fit without Resample every entry (the
+	// intercept included) is NaN — null on the wire, key kept: the
+	// penalty selects the predictors from the data, so no analytical
+	// standard error is valid (Advisories says so).
 	StdErrors map[string]float64 `json:"std_errors,omitempty"`
 
 	// PValues maps predictor name to its two-sided p-value under the
-	// null β = 0.
+	// null β = 0; null on every key exactly where StdErrors is.
 	PValues map[string]float64 `json:"p_values,omitempty"`
 
 	// CILower and CIUpper map predictor name (keyed like Coefficients) to
 	// the lower / upper bound of the coefficient's two-sided confidence
 	// interval at ConfLevel: coefficient ∓ q·StdErrors, q the Student-t
-	// critical value on DF (REG_OLS; REG_BAYES_LINEAR's posterior t,
-	// where the bounds equal CredibleIntervals at the same level) or the
-	// standard normal one when DF is absent (REG_GLM Wald; any fit under
+	// critical value on DF (REG_OLS; REG_GLM gamma, whose dispersion is
+	// estimated; REG_BAYES_LINEAR's posterior t, where the bounds equal
+	// CredibleIntervals at the same level) or the standard normal one
+	// when DF is absent (REG_GLM binomial / poisson Wald; REG_GLM and
+	// REG_BAYES_LINEAR under a robust covariance; any fit under
 	// Resample). A key is present exactly when StdErrors carries it, so
 	// a fit without standard errors carries no intervals. An undefined
 	// bound (DF ≤ 0) is null.
@@ -368,8 +374,10 @@ type RegressionResult struct {
 	// DF is the degrees of freedom of the Student-t critical value the
 	// intervals read: the residual df N* − p − 1 on REG_OLS (n − p − 1
 	// unweighted; Σw or Kish n_eff in place of n on a weighted fit, so
-	// fractional under kind probability), 2·a_n on REG_BAYES_LINEAR.
-	// Absent when the intervals are Wald normal; null when undefined.
+	// fractional under kind probability) on REG_OLS and on a REG_GLM gamma
+	// fit (the df its estimated dispersion Pearson χ²/DF and its Student-t
+	// p-values read), 2·a_n on REG_BAYES_LINEAR. Absent when the
+	// intervals are Wald normal; null when undefined.
 	DF float64 `json:"df,omitempty"`
 
 	// ConfLevel is the resolved interval coverage (RegressionSpec
@@ -464,6 +472,16 @@ type RegressionResult struct {
 	// coefficients: method, family, alpha, the family size m and the
 	// excluded (undefined-p) member count. Absent when none ran.
 	Multiplicity *AppliedMultiplicity `json:"multiplicity,omitempty"`
+
+	// Advisories lists the coded, non-blocking notes the analysis
+	// choice raises on this fit (PULSE_ADVISORY_* codes, the ones
+	// predict raises for the same spec): today
+	// PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED on an l1 / elasticnet
+	// fit without Resample, whose StdErrors, PValues, CILower and
+	// CIUpper are null on every coefficient. Never a warning, never
+	// escalated by Strict; a code in Options.SuppressAdvisories is
+	// dropped. Absent when none applies.
+	Advisories []Advisory `json:"advisories,omitempty"`
 
 	// Error is the data-dependent refusal that failed this fit alone
 	// (PROCESSING_REGRESSION_SEPARATION, _NO_CONVERGE, _RANK_DEFICIENT,

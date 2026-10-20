@@ -10,11 +10,13 @@ Python or R; the generated Go file is the oracle. Never hand-edit it.
 
 ```sh
 cd internal/service/testdata/weight_reference
-# once: Hmisc 5.3.0 in a private library (never commit it); see
-# "R toolchain" below for the Homebrew Fortran workaround
-R_LIBS=/tmp/rlib Rscript -e 'install.packages("remotes", lib = "/tmp/rlib", repos = "https://cloud.r-project.org")' \
-  -e 'remotes::install_version("Hmisc", "5.3.0", lib = "/tmp/rlib", repos = "https://cloud.r-project.org", upgrade = "never")'
-R_LIBS=/tmp/rlib uv run --no-project gen_weight_reference.py   # Python versions pinned in the PEP 723 header
+# once: Hmisc 5.3.0 in the user R library (R_LIBS_USER, the same one
+# `make reference` uses); see "R toolchain" below for the Homebrew
+# Fortran workaround
+Rscript -e 'l <- Sys.getenv("R_LIBS_USER"); r <- "https://cloud.r-project.org"' \
+  -e 'install.packages("remotes", lib = l, repos = r)' \
+  -e 'remotes::install_version("Hmisc", "5.3.0", lib = l, repos = r, upgrade = "never")'
+uv run --no-project gen_weight_reference.py   # Python versions pinned in the PEP 723 header
 gofmt -w ../../weight_reference_values_test.go
 go test ../.. -run TestWeightReference
 ```
@@ -29,7 +31,7 @@ reported, not compared. It needs the same toolchain; once uv's cache
 holds the pinned wheels it runs without network (`--offline`):
 
 ```sh
-R_LIBS=/tmp/rlib uv run --offline --no-project gen_weight_reference.py --check
+uv run --offline --no-project gen_weight_reference.py --check
 ```
 
 ### Pinned toolchain and the last ulps
@@ -73,7 +75,7 @@ TRIPLE=$(ls "$GCC/gcc")                     # e.g. aarch64-apple-darwin23
 VER=$(ls "$GCC/gcc/$TRIPLE")                # e.g. 16
 printf 'FLIBS = -L%s/gcc/%s/%s -L%s/gcc -L%s -lemutls_w -lheapt_w -lgfortran -lquadmath\n' \
   "$GCC" "$TRIPLE" "$VER" "$GCC" "$GCC" > /tmp/Makevars.pulse
-R_MAKEVARS_USER=/tmp/Makevars.pulse R_LIBS=/tmp/rlib Rscript -e '...install line above...'
+R_MAKEVARS_USER=/tmp/Makevars.pulse Rscript -e '...install line above...'
 ```
 
 The multivariate R oracle (`make reference`) has its own pinned package
@@ -93,10 +95,12 @@ pinned by `TestWeightReferenceValues/tests`) come from the same run:
   `continuity = FALSE`, the p every Pulse rank test and matrix rank cell
   shares) have only this row, cross-checked against scipy on the same
   expansion (Kendall: tau and p; z is R-only).
-  Fisher / KS / Brown-Forsythe (E2-S2) likewise: `fisher.test` p (its
-  estimate is the conditional MLE, so the sample odds ratio is
-  scipy-only), `ks.test` D (Pulse's p is the Stephens-corrected
-  asymptotic, pinned via `scipy.special.kolmogorov`), and
+  Fisher / KS / Brown-Forsythe (E2-S2) likewise: `fisher.test` p and
+  its conditional MLE odds ratio (U36 E1-S4; refined past `uniroot()`'s
+  default tolerance in `test_reference.R`, cross-checked against scipy's
+  `odds_ratio(kind="conditional")`), `ks.test` D and p (U36 E1-S6: the exact distribution
+  conditional on the expansion's ties, R-only — scipy's exact method
+  ignores ties; D is cross-checked against scipy), and
   `anova(lm(|x − group median| ~ k))` — what `car::leveneTest(center =
   median)` computes, in base R, so no package pin;
   `TEST_HOTELLING_T2` (U25 E1-S1) reads `anova(lm(cbind(x, y) ~ 1 | h),
@@ -184,14 +188,18 @@ positive target; the `w` / `f` / `p` weight columns):
   `reg_reference.R` (base R `stats` only; refuses any R but 4.6.1): `lm`
   for `REG_OLS` and the `ATTR_REG_*` rows (`predict()`; leverage = f ×
   one copy's `hatvalues()`), `glm(control = glm.control(epsilon = 1e-14,
-  maxit = 100))` with `summary(dispersion = 1)` for `REG_GLM`, refit once
+  maxit = 100))` with `summary(dispersion = 1)` for `REG_GLM` binomial /
+  poisson and the default `summary()` for gamma (estimated dispersion, t
+  p-values on `df.residual`, which is pinned as `df`), refit once
   from its own converged coefficients so the standard errors are
   evaluated at the MLE (glm's otherwise use the last iteration's
   starting weights, ~1e-8 away);
 - kind `probability` — the closed form on w* = w·n_eff/Σw: OLS with df
   n_eff − q (never `lm(weights =)`, whose df is the row count), its SEs
   cross-checked with statsmodels `GLM(freq_weights = w*)` (df_resid =
-  Σw* − q); GLM by IRLS on w*, cross-checked the same way with scale 1;
+  Σw* − q); GLM by IRLS on w*, cross-checked the same way with scale 1
+  (gamma: the estimated dispersion on Σw* − q, statsmodels' default
+  Pearson scale);
   the attributes' scale-free closed form, leverage cross-checked with
   statsmodels OLS influence on the √w-whitened design. Each closed form
   must equal R on the frequency configuration (1e-9) first;

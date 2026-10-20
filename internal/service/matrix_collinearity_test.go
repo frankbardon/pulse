@@ -98,14 +98,21 @@ func collNear(t *testing.T, where string, got, want float64) {
 // Belsley on B = [[1, μᵀ], [μ, D·R·D + μμᵀ]] with each member's own-row
 // mean and population sd (colldiag on chol(B) in R; the moment route is
 // asserted equal to the data route on the listwise cases), plus
-// auxiliary.n = the oracle's pair counts.
+// auxiliary.n = the oracle's pair counts. The weighted pairwise cases
+// (frequency and probability, #266) read each pair's weighted
+// correlation over its own rows and each member's weighted mean and
+// population sd over its own rows — scale-free, so both kinds agree;
+// auxiliary.n stays the raw row count.
 func TestMatrixCollinearity_MatchesROracle(t *testing.T) {
 	cases, dir := loadCollinearityOracle(t)
 	cfg := fixtureFS(t, dir)
-	pairwise := 0
+	pairwise, weightedPairwise := 0, 0
 	for _, c := range cases {
 		if c.Missing == vectors.MissingPairwise {
 			pairwise++
+			if c.Weight != "none" {
+				weightedPairwise++
+			}
 		}
 		t.Run(fmt.Sprintf("%s/%s/%s", c.Fixture, c.Missing, c.Weight), func(t *testing.T) {
 			resp := processMatrices(t, cfg, &types.Request{
@@ -166,8 +173,8 @@ func TestMatrixCollinearity_MatchesROracle(t *testing.T) {
 			}
 		})
 	}
-	if pairwise == 0 {
-		t.Fatal("oracle has no pairwise case")
+	if pairwise == 0 || weightedPairwise == 0 {
+		t.Fatalf("oracle needs unweighted and weighted pairwise cases (pairwise %d, weighted %d)", pairwise, weightedPairwise)
 	}
 }
 

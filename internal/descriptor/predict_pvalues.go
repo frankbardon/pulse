@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/internal/groupedtests"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/prevstate"
+	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -39,7 +40,8 @@ var pvalueBasisRank = map[string]int{
 // under params.inference contributes one per output pair (per bucket
 // when grouped). A REG_OLS / REG_GLM regression contributes one per
 // non-intercept predictor, corrected for the coefficients its own
-// multiplicity block claims. A test type, overlay kind or regression
+// multiplicity block claims — none on an l1 / elasticnet fit without
+// resample, whose p-values are null. A test type, overlay kind or regression
 // type the instance does not offer (hidden or never registered) is not
 // counted. Nil when the
 // request emits no p-value.
@@ -159,7 +161,11 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 	// intercept's is not counted. A member regression's resolved
 	// coefficients are corrected (its own list may name the intercept)
 	// and every other predictor's p-value stays uncorrected. A Selection
-	// fit counts its candidate predictors. REG_BAYES_LINEAR emits none.
+	// fit counts its candidate predictors. REG_BAYES_LINEAR emits none,
+	// and neither does an l1 / elasticnet fit without resample
+	// (regpenalty.InferenceUndefined, the engines' own predicate): its
+	// p-values are null, which the runtime fold leaves out of every
+	// family's m (reference-oracles E2-S3).
 	var regressions []ResolvedMultiplicity
 	if plan != nil {
 		regressions = plan.Regressions
@@ -169,7 +175,7 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 			continue
 		}
 		routed := opRoute(inst, r.Type)
-		if _, ok := knownRegressionTypes[routed]; !ok || routed == types.REG_BAYES_LINEAR {
+		if _, ok := knownRegressionTypes[routed]; !ok || routed == types.REG_BAYES_LINEAR || regpenalty.InferenceUndefined(r) {
 			continue
 		}
 		var corrected []string

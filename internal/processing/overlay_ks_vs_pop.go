@@ -9,27 +9,34 @@ import (
 )
 
 // OVERLAY_KS_VS_POP — single scalar Kolmogorov-Smirnov distance +
-// asymptotic p-value comparing the host Facet subset numeric
-// distribution against the resolved population numeric distribution.
-// Inferential FACET-host kind paired with OVERLAY_CHISQ_VS_POP — KS is
-// numeric-arm only (continuous CDF), CHISQ is discrete-arm only
-// (categorical buckets).
+// p-value comparing the host Facet subset numeric distribution against
+// the resolved population numeric distribution. Inferential FACET-host
+// kind paired with OVERLAY_CHISQ_VS_POP — KS is numeric-arm only
+// (continuous CDF), CHISQ is discrete-arm only (categorical buckets).
 //
 // Math:
 //
-//	D       = sup_x |F_subset(x) - F_pop(x)|       // KS distance
-//	n_subset = host.Numeric.Count
-//	n_pop    = pop.NumericSummary().Count
-//	en      = sqrt(n_subset * n_pop / (n_subset + n_pop))
-//	p_value = kolmogorovSurvival((en + 0.12 + 0.11/en) * D)
+//	D = sup_x |F_subset(x) - F_pop(x)|       // KS distance
 //
-// Reuses the same Kolmogorov-survival helper backing TEST_KS
-// (kolmogorovSurvival in internal/processing/test_stat.go) so the overlay and the
-// row-test surface produce identical p-values for the same D + N. The KS
-// distance itself is hand-rolled from the available CDF reconstruction
-// (histogram or percentiles) — the existing ksTwoSampleD helper in
-// internal/processing/test_ks.go requires raw sorted values which the population
-// view does not retain.
+// The p is R ks.test's two-sided p, through the same port TEST_KS uses
+// (test_ks_smirnov.go; U36 E3-S4 — before it the overlay reported
+// Stephens' corrected asymptotic):
+//
+//   - HISTOGRAM PATH: the bucketised samples — every record replaced by
+//     its bucket index, which is all a histogram keeps — have a fully
+//     known tie pattern, so the p is ks.test(x, y)$p.value on them
+//     (ksTwoSampleP with the bin counts as frequency weights): exact,
+//     conditional on the ties, when m·n < 10000, else the limiting form
+//     — TEST_KS's own selection rule. m and n are the histograms' totals
+//     (a record outside the histogram range is in neither sample).
+//   - PERCENTILE PATH: no tie pattern survives, so the p is ks.test's
+//     uncorrected limiting form at √(n_subset·n_pop/(n_subset+n_pop))·D
+//     (ksAsymptoticP, kolmogorovTwoLimitUpper at ks.test's tol 1e-6).
+//
+// The KS distance itself is hand-rolled from the available CDF
+// reconstruction (histogram or percentiles) — ksTwoSampleD in
+// internal/processing/test_ks.go requires raw sorted values which the
+// population view does not retain.
 //
 // Population-sample availability (KEY DESIGN NOTE): the population
 // resolver exposes only summary state for numeric fields — Welford
@@ -171,9 +178,15 @@ func applyKSVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPop
 	//   2. Percentile (both arms with non-empty maps) — fallback.
 	//   3. Welford-only — degenerate, emit NaN + PULSE_OVERLAY_REF_ZERO.
 
+	var pValue float64
 	D, pathOK := ksDistanceHistogram(host.Numeric.Histogram, popNum.Histogram)
-	if !pathOK {
+	if pathOK {
+		pValue = ksHistogramP(host.Numeric.Histogram.Bins, popNum.Histogram.Bins, D)
+	} else {
 		D, pathOK = ksDistancePercentiles(host.Numeric.Percentiles, popNum.Percentiles)
+		if pathOK {
+			pValue = ksAsymptoticP(float64(nSubset), float64(nPop), D)
+		}
 	}
 	if !pathOK {
 		// Welford-only degenerate: caller did not request a histogram or
@@ -201,14 +214,30 @@ func applyKSVsPop(spec *types.OverlaySpec, host *types.FacetField, pop *FacetPop
 		return layer, warnings, nil
 	}
 
-	// Asymptotic p-value via the Kolmogorov-survival helper that backs
-	// TEST_KS — overlay and row-test surfaces produce identical p-values
-	// for the same D + N.
-	en := math.Sqrt(float64(nSubset*nPop) / float64(nSubset+nPop))
-	pValue := kolmogorovSurvival((en + 0.12 + 0.11/en) * D)
-
 	layer := buildKSVsPopLayer(spec, D, &D, &pValue, nSubset, nPop)
 	return layer, nil, nil
+}
+
+// ksHistogramP is ks.test's two-sided p on the bucketised samples the
+// two histograms describe: each arm is its non-empty bucket indices
+// weighted by their counts, so ksTwoSampleP (TEST_KS's port) sees the
+// expansion — sizes Σbins and the bucket tie runs — and picks the exact
+// conditional distribution or the limiting form by TEST_KS's rule.
+// Empty buckets are left out: they hold no order statistic. The caller
+// has checked the two histograms align (ksDistanceHistogram).
+func ksHistogramP(hostBins, popBins []int64, D float64) float64 {
+	arm := func(bins []int64) (xs, ws []float64) {
+		for i, c := range bins {
+			if c > 0 {
+				xs = append(xs, float64(i))
+				ws = append(ws, float64(c))
+			}
+		}
+		return xs, ws
+	}
+	a, wa := arm(hostBins)
+	b, wb := arm(popBins)
+	return ksTwoSampleP(a, wa, b, wb, D)
 }
 
 // ksDistanceHistogram computes the KS sup-CDF-difference over aligned

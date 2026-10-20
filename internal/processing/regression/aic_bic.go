@@ -75,6 +75,12 @@ func aicBICFromOLS(rss float64, n int, k0 int) (aic, bic, logL float64) {
 // No σ² term since the family fixes the dispersion. AIC = Deviance +
 // 2·k; BIC = Deviance + log(n)·k. The returned logL is -Deviance/2 so
 // the function shape (logL, AIC, BIC) parallels the OLS helper.
+//
+// Fixed-dispersion families only: a family that estimates its
+// dispersion (gamma, glmFamily.EstimatesDispersion) scores by its full
+// log-likelihood instead — aicBICFromGamma — because deviance + 2·k
+// reads the deviance at φ = 1 and so mis-weights it against the
+// parameter penalty by a factor 1/φ.
 func aicBICFromGLM(deviance float64, n int, k0 int) (aic, bic, logL float64) {
 	if n <= 0 {
 		return math.NaN(), math.NaN(), math.NaN()
@@ -90,4 +96,63 @@ func aicBICFromGLM(deviance float64, n int, k0 int) (aic, bic, logL float64) {
 	aic = -2*logL + 2*k
 	bic = -2*logL + math.Log(nf)*k
 	return aic, bic, logL
+}
+
+// aicBICFromGamma returns (AIC, BIC, logL) for a gamma REG_GLM fit, as R
+// computes them for a Gamma glm (reference-oracles E2-S5):
+//
+//	N*   = Σ prior (n unweighted)
+//	φ    = Deviance / N*                     (Gamma()$aic's dispersion)
+//	logL = Σ wᵢ · log dgamma(yᵢ; shape 1/φ, scale μᵢ·φ)
+//	k    = k0 (slopes) + 1 (intercept) + 1 (φ)
+//	AIC  = -2·logL + 2·k                     (= AIC(glm))
+//	BIC  = -2·logL + log(N*)·k
+//
+// y, mu and prior are the fit's rows (prior nil = every weight 1; the
+// refit's w*, so a probability fit's Σw* = n_eff). Frequency weights are
+// the rep() expansion exactly: φ and logL already are R's glm(weights =
+// f), and BIC reads log Σf — the expansion's row count — where R's
+// BIC(glm(weights = f)) would read the raw row count. Probability: the
+// one weighting rule (`.claude/reference/weighting.md`, Weighted
+// inference), the frequency formula on w*, so BIC reads log n_eff.
+//
+// A zero deviance (every row fitted exactly) drives logL to +∞; as in
+// aicBICFromOLS the scores are then a bounded dominant value.
+func aicBICFromGamma(y, mu, prior []float64, deviance float64, k0 int) (aic, bic, logL float64) {
+	n := len(y)
+	if n == 0 {
+		return math.NaN(), math.NaN(), math.NaN()
+	}
+	nStar := float64(n)
+	if prior != nil {
+		nStar = sum(prior)
+	}
+	if !(nStar > 0) {
+		return math.NaN(), math.NaN(), math.NaN()
+	}
+	if deviance <= 0 {
+		const veryGoodCrit = -math.MaxFloat64 / 4
+		return veryGoodCrit, veryGoodCrit, math.MaxFloat64 / 4
+	}
+	disp := deviance / nStar
+	for i := 0; i < n; i++ {
+		w := 1.0
+		if prior != nil {
+			w = prior[i]
+		}
+		logL += w * gammaLogDensity(y[i], mu[i], disp)
+	}
+	k := float64(k0 + 2) // slopes + intercept + φ
+	aic = -2*logL + 2*k
+	bic = -2*logL + math.Log(nStar)*k
+	return aic, bic, logL
+}
+
+// gammaLogDensity is log dgamma(y; shape 1/φ, scale μ·φ) =
+// −lgamma(a) − a·log(s) + (a − 1)·log(y) − y/s with a = 1/φ, s = μ·φ.
+func gammaLogDensity(y, mu, disp float64) float64 {
+	a := 1 / disp
+	s := mu * disp
+	lg, _ := math.Lgamma(a)
+	return -lg - a*math.Log(s) + (a-1)*math.Log(y) - y/s
 }

@@ -232,7 +232,7 @@ func testCapabilities() []descriptor.TestMeta {
 			Name:        string(types.TEST_FISHER_EXACT),
 			Family:      string(types.TEST_FISHER_EXACT),
 			Tier:        1,
-			Description: "Exact two-sided p-value for a 2×2 Rows×Cols contingency table; small-sample CHISQ alternative.",
+			Description: "Exact two-sided p-value for a 2×2 Rows×Cols contingency table (R fisher.test's tie rule); small-sample CHISQ alternative. Statistic is the conditional MLE odds ratio; details.ci_low / ci_high its exact conditional interval at 1 − alpha.",
 			Streamable:  types.TEST_FISHER_EXACT.Streamable(),
 			Params:      []descriptor.Param{alphaParam},
 			Requires:    []string{"Rows", "Cols"},

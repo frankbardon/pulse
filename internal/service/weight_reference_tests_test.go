@@ -58,8 +58,10 @@ import (
 // amplifies the statistic's error by |t·d ln p/dt|, and a CI bound near
 // zero is a difference of two O(1) terms (worst seen: 1.1e-13). Both
 // leave room for amd64 FMA contraction. The z / prop-z Wald and Pearson
-// Fisher-z CI bounds are not pinned yet: they still use an approximate
-// inverse-erf.
+// Fisher-z CI bounds are pinned too (the `ci_` rule, 1e-10): their
+// critical value is normalCriticalTwoSided, R's qnorm(1 − α/2); the
+// unweighted Fisher-z interval is also held to cor.test by
+// TestReferenceOracle_PearsonR (internal/processing).
 
 type weightRefTestRow struct {
 	x, y    float64

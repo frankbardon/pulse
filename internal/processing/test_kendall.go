@@ -107,7 +107,7 @@ func (k *kendallTauRow) UpdateRow(record *Record) error {
 func (k *kendallTauRow) Finalize() (*types.TestResult, error) {
 	defer k.reset()
 	n := k.xs.n()
-	if n < 3 {
+	if k.basis.FloorN(int64(n), k.xs.sumW) < 3 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_KENDALL_TAU requires n ≥ 3, got %d", n),
 			map[string]any{"n": n, "min_required": 3})

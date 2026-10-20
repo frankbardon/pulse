@@ -38,7 +38,7 @@ MATRIX crosstab whose **cell aggregator is `AGG_WELFORD`** + `Response.Component
 
 ## Output
 
-MATRIX — pair × opposite-axis grid of two-sided p-values (layout as [`op-overlay-pairwise-prop-z`](op-overlay-pairwise-prop-z.md)). Per pair: `a = v_i/n_i`, `b = v_j/n_j`, `se = sqrt(a + b)`, `t = (m_i - m_j) / se`, `df = (a+b)² / (a²/(n_i-1) + b²/(n_j-1))` (Welch–Satterthwaite), two-sided via the `studentTTwoSidedP` helper the t-tests use.
+MATRIX — pair × opposite-axis grid of two-sided p-values (layout as [`op-overlay-pairwise-prop-z`](op-overlay-pairwise-prop-z.md)). Per pair: `a = v_i/n_i`, `b = v_j/n_j`, `se = sqrt(a + b)`, `t = (m_i - m_j) / se`, `df = (a+b)² / (a²/(n_i-1) + b²/(n_j-1))` (Welch–Satterthwaite), two-sided via the `statdist.StudentTTwoSidedP` helper the t-tests use.
 
 `payload.parts.letters` (with `params.letters`): per host cell of a compared index `{letter, group, higher, above}` — its letter (restarting per `pair_along_dim` group), the letters its mean beats (sign of `t`) and the significant subset (raw p < `0.05` or `alpha`; `significant_adjusted` under a correction). The implicit Total column gets none.
 

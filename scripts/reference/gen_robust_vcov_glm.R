@@ -16,7 +16,12 @@
 # (log, overdispersed) and y (linear, heteroskedastic) -- plus two
 # weight columns. Predictors x1, x2 (k = 3 with the intercept).
 #
-# REG_GLM (binomial / logit, poisson / log). b is the MLE on prior
+# REG_GLM (binomial / logit, poisson / log, gamma / inverse — the gamma
+# cases appended last by reference-oracles E2-S3). The sandwich is
+# dispersion-free: sandwich's bread.glm and estfun.glm scale by the same
+# dispersion, which cancels, so a gamma fit's robust covariance does not
+# read the estimated dispersion its classical SEs do, and stays Wald z.
+# b is the MLE on prior
 # weights w* = w * N*/sum(w) (N* = sum(w) frequency, Kish n_eff
 # probability), Newton-polished from glm.fit to a fixed point (R's
 # glm keeps the working weights one step behind its coefficients).
@@ -65,6 +70,10 @@ gb <- data.frame(week = 1:n_gb, region = gb_regions[gb_rid], x1 = gx1, x2 = gx2,
                  stringsAsFactors = FALSE)
 gb <- gb[sample(n_gb), ]
 rownames(gb) <- NULL
+# y_gamma (reference-oracles E2-S3): a positive response for the gamma /
+# inverse family, drawn AFTER the shuffle so every earlier column and
+# case is unchanged. Shape 3, mu = 1 / (0.6 + 0.1 x1 + 0.1 x2).
+gb$y_gamma <- round(rgamma(n_gb, shape = 3, rate = 3 * (0.6 + 0.1 * gb$x1 + 0.1 * gb$x2)), 4)
 fml_gb <- ~ x1 + x2
 
 # robust_meat is the sandwich meat and adjustment over unit scores G
@@ -137,12 +146,12 @@ bayes_post <- function(X, y, ws, eps) {
 gb_cases <- list()
 gb_case <- function(family, kind, type, lags = NULL) {
   d <- gb
-  target <- switch(family, binomial = "y_bin", poisson = "y_count", bayes = "y")
+  target <- switch(family, binomial = "y_bin", poisson = "y_count", gamma = "y_gamma", bayes = "y")
   w <- switch(kind, none = rep(1, nrow(d)), frequency = d$w_freq, probability = d$w_prob)
   ns <- n_star(w, if (kind == "none") "frequency" else kind)
   ws <- w * ns / sum(w)
   X <- model.matrix(fml_gb, d); yv <- d[[target]]; k <- ncol(X)
-  fam <- switch(family, binomial = binomial(), poisson = poisson(), bayes = NULL)
+  fam <- switch(family, binomial = binomial(), poisson = poisson(), gamma = Gamma(), bayes = NULL)
   f <- if (is.null(fam)) bayes_post(X, yv, ws, 1e-3) else glm_mle(X, yv, ws, fam)
   rm_ <- robust_meat(type, f$G, ws, f$h, d, ns, k, lags)
   V <- f$B %*% rm_$M %*% f$B * rm_$adj
@@ -200,7 +209,7 @@ gb_case <- function(family, kind, type, lags = NULL) {
     vcov = numm(V)
   ))
 }
-for (family in c("binomial", "poisson", "bayes")) {
+for (family in c("binomial", "poisson", "bayes", "gamma")) {
   kinds <- if (family == "bayes") c("none", "frequency") else c("none", "frequency", "probability")
   for (kind in kinds) {
     for (type in c("hc0", "hc1", "hc2", "hc3", "cluster")) gb_case(family, kind, type)
@@ -213,10 +222,11 @@ gb_rows <- lapply(seq_len(nrow(gb)), function(i) list(
   week = num(gb$week[i]), region = gb$region[i],
   x1 = num(gb$x1[i]), x2 = num(gb$x2[i]),
   y_bin = num(gb$y_bin[i]), y_count = num(gb$y_count[i]), y = num(gb$y[i]),
+  y_gamma = num(gb$y_gamma[i]),
   w_freq = num(gb$w_freq[i]), w_prob = num(gb$w_prob[i])))
 
 gb_doc <- c(rv_meta("robust GLM and Bayes linear coefficient covariance",
   "sandwich::vcovHC(glm, type = HC0..HC3), vcovCL(glm, cluster, type = 'HC1'), NeweyWest(glm, lag, order.by, prewhite = FALSE, adjust = TRUE); lmtest::coeftest(glm, vcov); Bayes: the Muller (2013) sandwich posterior in closed form",
-  "family binomial (y_bin ~ x1 + x2, logit), poisson (y_count, log) or bayes (y, REG_BAYES_LINEAR under the default prior: mu0 = 0, precision 1e-3). Rows shuffled; week orders the series, region the six clusters. Weights follow the one rule (w* = w * N*/sum(w)); GLM w* are prior weights; Bayes is frequency-only. GLM: the sandwich over IRLS scores at the converged weights, Wald z (p_values = 2 pnorm(-|b/se|)). Bayes: coefficients the posterior mean, vcov the sandwich with bread Lambda_n^-1, no p-values. ci at 0.95 on qnorm(0.975). lags: the request, lags_used the resolved floor(4 (n/100)^(2/9))."),
+  "family binomial (y_bin ~ x1 + x2, logit), poisson (y_count, log), gamma (y_gamma, inverse; dispersion-free sandwich) or bayes (y, REG_BAYES_LINEAR under the default prior: mu0 = 0, precision 1e-3). Rows shuffled; week orders the series, region the six clusters. Weights follow the one rule (w* = w * N*/sum(w)); GLM w* are prior weights; Bayes is frequency-only. GLM: the sandwich over IRLS scores at the converged weights, Wald z (p_values = 2 pnorm(-|b/se|)). Bayes: coefficients the posterior mean, vcov the sandwich with bread Lambda_n^-1, no p-values. ci at 0.95 on qnorm(0.975). lags: the request, lags_used the resolved floor(4 (n/100)^(2/9))."),
   list(rows = gb_rows, cases = gb_cases))
 write_golden("mv_robust_vcov_glm", gb_doc)

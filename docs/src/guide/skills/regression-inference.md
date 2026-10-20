@@ -20,7 +20,7 @@ Every fit with standard errors carries `ci_lower` / `ci_upper` (keyed like `coef
 | Bayesian linear | posterior t, = `credible_intervals` at one level | 2a_N |
 | Resample | normal on the resampled SE | absent |
 
-Present exactly where `std_errors` is: lasso / elastic net only on kept predictors (plug-in, approximate), selection keyed by `selected_features`. An undefined bound (df ≤ 0) is `null`. t on df, so it differs from a pasted ±1.96·SE in about the third digit on small samples.
+Present exactly where `std_errors` is: lasso / elastic net null on every key (no analytical inference; advisory `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`), selection keyed by `selected_features`. An undefined bound (df ≤ 0) is `null`. t on df, so it differs from a pasted ±1.96·SE in about the third digit on small samples.
 
 ## Covariance
 
@@ -40,7 +40,7 @@ Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) to
 |---|---|
 | OLS | σ̂²(XᵀX)⁻¹, intercept cross terms included (−μᵀCov) |
 | Ridge (`l2`) | the sandwich estimator |
-| GLM | (XᵀWX)⁻¹ at the converged IRLS weights, dispersion fixed at 1 |
+| GLM | φ·(XᵀWX)⁻¹ at the converged IRLS weights: φ = 1 (binomial, poisson), gamma's Pearson χ²/df estimate |
 | Bayesian linear | the posterior covariance b_N/(a_N−1)·Λ⁻¹; `null` when a_N ≤ 1 |
 
 | Resample `jackknife` | (g−1)/g·Σ(β₋ₖ−β̄)(β₋ₖ−β̄)ᵀ over its g delete-group refits (g = n leave-one-out) |
@@ -67,7 +67,7 @@ Predict and runtime apply the same rule, so predict reports it before any fit. `
 
 - `vcov(lm)` and `vcov(ridge)` agree to rounding.
 - `vcov(glm)` uses weights one IRLS iteration behind its coefficients; Pulse inverts at the converged fixed point, matching R refined to that point to 1e-11 (raw `vcov(glm)` only to about 1e-6).
-- Gamma GLM: Pulse fixes dispersion at 1, R estimates it, so the covariances differ by that factor. No oracle case covers gamma.
+- Gamma GLM: dispersion estimated as R does (Pearson χ²/df), so `vcov`, SEs, t p-values and `df` match `summary.glm` / `vcov(glm)` (oracle `glm_gamma.json`); gamma `selection` scores R's `AIC(glm)` / `BIC(glm)` (oracle `glm_gamma_selection.json`).
 
 ## Response shaping
 

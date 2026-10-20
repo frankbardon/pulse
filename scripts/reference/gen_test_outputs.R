@@ -1,0 +1,652 @@
+# gen_test_outputs.R — R oracle for assembled TEST_* outputs (U36 E1-S2).
+#
+# The primitives goldens (gen_reference.R) pin the distribution
+# functions; this script pins whole operator outputs — statistic, df,
+# p-value and the per-family extras — on unweighted inputs that each
+# case carries verbatim, so the Go test replays the very doubles R read.
+# Sourced at the end of gen_reference.R (`make reference`), reusing its
+# out_dir, write_golden(), num() and the studentized-range oracle
+# tukey_surv(); it cannot run on its own.
+#
+# Goldens written:
+#   * test_anova_rm.json — TEST_ANOVA_RM: summary(aov(y ~ cond +
+#     Error(subj / cond))) on the complete subjects: F, df, p, the sums
+#     of squares of both strata, condition means, partial eta squared.
+#     Incomplete subjects are dropped before the fit, as Pulse does.
+#   * test_tukey_hsd.json — TEST_TUKEY_HSD: TukeyHSD(aov(y ~ g)). Pulse
+#     reads the group means, counts, MS_within and df_within, which the
+#     case records from the same fit. Per pair (a < b alphabetically)
+#     diff = mean_a - mean_b (the negated R diff), se, q = |diff| / se.
+#     p_adj and the interval follow the U08 refinement pattern: stock
+#     ptukey() is accurate to ~1e-8 and qtukey() to ~1e-4, so p_adj is
+#     gen_reference.R's nested-quadrature survival tukey_surv(q, k, df)
+#     and q_critical a uniroot() on it; R's own TukeyHSD p adj, lwr and
+#     upr are kept beside them (r_p_adj, r_lwr, r_upr).
+#   * test_trend.json — TEST_TREND (Mann-Kendall over the series order).
+#     Kendall::MannKendall computes in SINGLE precision (its Fortran
+#     tauk2 takes as.single inputs), so it cannot be a 1e-10 oracle; it is
+#     recorded beside (r_kendall_*) and the Go test holds Pulse to it at
+#     single precision. The double-precision oracle is base R:
+#     cor.test(seq_along(y), y, method = "kendall", exact = FALSE,
+#     continuity = TRUE) for z and p (S with the continuity correction
+#     over the tie-adjusted variance — Mann-Kendall's own form),
+#     cor(seq_along(y), y, method = "kendall") for tau (tau-b, which is
+#     Kendall::MannKendall's S / D), S as the pair-sign sum and var_s
+#     as the tie-adjusted n(n-1)(2n+5)/18 formula.
+#   * test_ks.json — TEST_KS: D = ks.test(a, b)$statistic and p =
+#     ks.test(a, b)$p.value at its defaults (U36 E1-S6): exact when
+#     n1 * n2 < 10000 (psmirnov's exact distribution, conditional on the
+#     ties when there are any, R >= 4.3), otherwise the limiting
+#     Kolmogorov distribution C_pkolmogorov_two_limit(sqrt(n1 n2 / (n1 +
+#     n2)) * D, tol = 1e-6). `exact` records which branch ran;
+#     r_p_exact / r_p_asymptotic keep both forced branches beside it.
+#     The asymptotic branch is pinned to R's own computation, tol = 1e-6
+#     truncation included (for sqrt(en) * D < 1 the alternative series
+#     keeps one term), which Pulse ports verbatim — so 1e-10 holds.
+#   * test_kendall_tau.json — TEST_KENDALL_TAU: cor.test(x, y, method =
+#     "kendall") at its defaults (exact when untied and n < 50, else the
+#     uncorrected normal approximation); tau-b, z and p. Most cases tie.
+#   * test_pearson_r.json — TEST_PEARSON_R: cor.test(x, y, conf.level =
+#     1 - alpha): r, t, df, p and the Fisher-z interval.
+#   * test_shapiro_wilk.json — TEST_SHAPIRO_WILK (Shapiro-Francia W'):
+#     nortest::sf.test, W' and p, n >= 5 (U36 E1-S3).
+#   * test_brown_forsythe.json — TEST_BROWN_FORSYTHE: anova(lm(|x -
+#     median_g| ~ g)), plus the exact closed form (F = Inf / NaN) at zero
+#     within-group spread (U36 E1-S3).
+#   * test_fisher_exact.json — TEST_FISHER_EXACT (U36 E1-S4): the
+#     conditional MLE odds ratio and the two-sided p of fisher.test on
+#     each 2x2 table. fisher.test's mle() solves E[a; psi] = a with
+#     uniroot() at its default tol (~1.2e-4 on psi, or on 1/psi above 1),
+#     so the estimate follows the U08 refinement pattern: the same
+#     equation, the same boundary order (a at the bottom of its support
+#     -> 0, at the top -> Inf, at the central mean -> 1), solved by
+#     uniroot() in theta = log(psi) at tol 1e-15; fisher.test's own
+#     estimate is kept beside as r_estimate. An infinite estimate is
+#     estimate_class "inf". Tables with an empty margin (empty_margin)
+#     cannot reach the operator (it needs two levels per axis) and pin
+#     the helper only: fisher.test reports 0 there, never 0/0. Each case
+#     also carries `ci`, fisher.test(x, conf.level = c)$conf.int at c =
+#     0.95 and 0.90 (U36 E1-S8): the same equations as ncp.L / ncp.U —
+#     P(A >= a; psi) = (1 - c)/2 for the lower bound, P(A <= a; psi) =
+#     (1 - c)/2 for the upper, same boundary order (a at the bottom ->
+#     lower 0, at the top -> upper Inf, ci_high_class "inf"; a tail of
+#     exactly (1 - c)/2 at psi = 1 -> 1) — refined by uniroot() in theta
+#     = log(psi) at tol 1e-15, fisher.test's own bounds kept beside as
+#     r_ci_low / r_ci_high. near_tie_relerr is a table with a second
+#     table whose probability is 8.4e-8 relative above the observed one:
+#     fisher.test's relErr (1 + 1e-7) counts it as a tie, a 1e-12 slack
+#     would not, so its p pins the tie rule.
+#
+# Data are seeded and rounded to a few decimals (ties where wanted);
+# every input is written at %.17g so nothing depends on the RNG in Go.
+
+stopifnot(exists("out_dir"), exists("write_golden"), exists("num"), exists("tukey_surv"))
+
+to_pinned <- c(Kendall = "2.2.2", nortest = "1.0.4")
+for (p in names(to_pinned)) {
+  have <- tryCatch(as.character(packageVersion(p)), error = function(e) "missing")
+  if (have != to_pinned[[p]]) {
+    stop(sprintf("package %s is %s, the oracle is pinned to %s (see the header)", p, have, to_pinned[[p]]))
+  }
+}
+if (R.version.string != "R version 4.6.1 (2026-06-24)") stop("the oracle is pinned to R 4.6.1, got ", R.version.string)
+suppressPackageStartupMessages(library(Kendall))
+suppressPackageStartupMessages(library(nortest))
+
+to_meta <- function(operator, r_fn, note, extra = list()) {
+  list(
+    generator = "scripts/reference/gen_test_outputs.R",
+    r_version = R.version.string,
+    packages = c(list(
+      stats = as.character(packageVersion("stats")),
+      jsonlite = as.character(packageVersion("jsonlite"))
+    ), extra),
+    primitive = operator,
+    r_function = r_fn,
+    note = note
+  )
+}
+to_vec <- function(v) lapply(as.numeric(v), num)
+
+# ------------------------------------------------------------ TEST_ANOVA_RM
+rm_case <- function(name, subj, cond, y) {
+  d <- data.frame(subj = subj, cond = cond, y = y, stringsAsFactors = FALSE)
+  conds <- sort(unique(d$cond))
+  complete <- names(which(tapply(d$cond, d$subj, function(cc) all(conds %in% cc))))
+  dc <- d[d$subj %in% complete, ]
+  dc$subj <- factor(dc$subj)
+  dc$cond <- factor(dc$cond, levels = conds)
+  fit <- summary(aov(y ~ cond + Error(subj / cond), data = dc))
+  within <- fit[["Error: subj:cond"]][[1]]
+  between <- fit[["Error: subj"]][[1]]
+  ss_cond <- within["cond", "Sum Sq"]
+  ss_err <- within["Residuals", "Sum Sq"]
+  list(
+    name = name,
+    subject = d$subj, condition = d$cond, value = to_vec(d$y),
+    conditions = conds,
+    complete_subjects = length(complete),
+    dropped_subjects = length(unique(d$subj)) - length(complete),
+    statistic = num(within["cond", "F value"]),
+    df_treatment = num(within["cond", "Df"]),
+    df_error = num(within["Residuals", "Df"]),
+    p_value = num(within["cond", "Pr(>F)"]),
+    ss_treatment = num(ss_cond),
+    ss_error = num(ss_err),
+    ss_between_subjects = num(between["Residuals", "Sum Sq"]),
+    grand_mean = num(mean(dc$y)),
+    condition_means = to_vec(tapply(dc$y, dc$cond, mean)[conds]),
+    partial_eta_squared = num(ss_cond / (ss_cond + ss_err))
+  )
+}
+set.seed(36201)
+rm_cases <- list()
+local({
+  s <- sprintf("s%02d", 1:6)
+  base <- round(rnorm(6, 50, 6), 2)
+  eff <- c(base = 0, drug_a = 1.5, drug_b = 3.2)
+  g <- expand.grid(subj = s, cond = names(eff), stringsAsFactors = FALSE)
+  y <- base[match(g$subj, s)] + eff[g$cond] + round(rnorm(nrow(g), 0, 1.4), 2)
+  rm_cases[[1]] <<- rm_case("six_subjects_three_conditions", g$subj, g$cond, y)
+
+  s <- sprintf("p%02d", 1:9)
+  base <- round(rnorm(9, 20, 3), 1)
+  eff <- c(t1 = 0, t2 = 0.4, t3 = -0.3, t4 = 0.9)
+  g <- expand.grid(subj = s, cond = names(eff), stringsAsFactors = FALSE)
+  y <- base[match(g$subj, s)] + eff[g$cond] + round(rnorm(nrow(g), 0, 0.8), 1)
+  # p09 misses t3: Pulse drops the subject; the fit uses the other 8.
+  drop <- g$subj == "p09" & g$cond == "t3"
+  rm_cases[[2]] <<- rm_case("nine_subjects_one_incomplete", g$subj[!drop], g$cond[!drop], y[!drop])
+
+  s <- sprintf("u%d", 1:5)
+  base <- round(runif(5, 100, 140))
+  g <- expand.grid(subj = s, cond = c("after", "before"), stringsAsFactors = FALSE)
+  y <- base[match(g$subj, s)] + ifelse(g$cond == "after", -4, 0) + round(rnorm(nrow(g), 0, 3))
+  rm_cases[[3]] <<- rm_case("two_conditions_integer_scores", g$subj, g$cond, y)
+})
+write_golden("test_anova_rm", c(to_meta(
+  "TEST_ANOVA_RM",
+  "summary(aov(y ~ cond + Error(subj / cond))) on the complete subjects",
+  "statistic / df / p from the subj:cond stratum; ss_between_subjects is the subj stratum's residual SS."
+), list(cases = rm_cases)))
+
+# ----------------------------------------------------------- TEST_TUKEY_HSD
+tk_case <- function(name, g, y, alpha = 0.05) {
+  g <- factor(g, levels = sort(unique(g)))
+  fit <- aov(y ~ g)
+  df_w <- fit$df.residual
+  ms_w <- sum(fit$residuals^2) / df_w
+  means <- tapply(y, g, mean)
+  ns <- tapply(y, g, length)
+  k <- nlevels(g)
+  hsd <- TukeyHSD(fit, conf.level = 1 - alpha)$g
+  r_q <- qtukey(alpha, k, df_w, lower.tail = FALSE)
+  fn <- function(q) log(tukey_surv(q, k, df_w)) - log(alpha)
+  q_crit <- uniroot(fn, c(r_q * 0.9, r_q * 1.1), extendInt = "downX",
+                    tol = 1e-14 * r_q, maxiter = 200)$root
+  levs <- levels(g)
+  pairs <- list()
+  for (i in 1:(k - 1)) for (j in (i + 1):k) {
+    a <- levs[i]; b <- levs[j]
+    row <- hsd[paste0(b, "-", a), ]
+    diff <- means[[a]] - means[[b]]
+    se <- sqrt(ms_w * (1 / ns[[a]] + 1 / ns[[b]]) / 2)
+    q <- abs(diff) / se
+    pairs[[length(pairs) + 1]] <- list(
+      a = a, b = b,
+      diff = num(diff), se = num(se), q = num(q),
+      p_adj = num(tukey_surv(q, k, df_w)),
+      ci_low = num(diff - q_crit * se), ci_high = num(diff + q_crit * se),
+      r_diff = num(row[["diff"]]), r_lwr = num(row[["lwr"]]), r_upr = num(row[["upr"]]),
+      r_p_adj = num(row[["p adj"]])
+    )
+  }
+  list(
+    name = name, alpha = num(alpha),
+    groups = levs, means = to_vec(means), n = to_vec(ns),
+    ms_within = num(ms_w), df_within = num(df_w),
+    q_critical = num(q_crit), r_qtukey = num(r_q),
+    comparisons = pairs
+  )
+}
+set.seed(36202)
+tk_cases <- list()
+local({
+  g <- rep(c("a", "b", "c"), times = c(8, 8, 8))
+  y <- round(rnorm(24, rep(c(10, 11.2, 12.9), each = 8), 1.6), 2)
+  tk_cases[[1]] <<- tk_case("three_groups_balanced", g, y)
+
+  g <- rep(c("east", "north", "south", "west"), times = c(6, 11, 9, 7))
+  y <- round(rnorm(length(g), c(east = 5, north = 5.4, south = 6.8, west = 5.1)[g], 1.1), 2)
+  tk_cases[[2]] <<- tk_case("four_groups_unbalanced", g, y)
+
+  g <- rep(c("g1", "g2", "g3", "g4", "g5"), times = c(4, 5, 4, 6, 5))
+  y <- round(rnorm(length(g), c(g1 = 3, g2 = 3.1, g3 = 3.3, g4 = 4.2, g5 = 2.6)[g], 0.7), 2)
+  tk_cases[[3]] <<- tk_case("five_groups_alpha_01", g, y, alpha = 0.01)
+})
+write_golden("test_tukey_hsd", c(to_meta(
+  "TEST_TUKEY_HSD",
+  "TukeyHSD(aov(y ~ g)); p_adj / q_critical refined on tukey_surv() (gen_reference.R)",
+  "diff = mean_a - mean_b for a < b (the negated R diff); r_p_adj / r_lwr / r_upr are stock TukeyHSD (ptukey ~1e-8, qtukey ~1e-4)."
+), list(cases = tk_cases)))
+
+# ---------------------------------------------------------------- TEST_TREND
+tr_case <- function(name, y) {
+  n <- length(y)
+  idx <- seq_along(y)
+  ct <- cor.test(idx, y, method = "kendall", exact = FALSE, continuity = TRUE)
+  s <- 0
+  for (i in 1:(n - 1)) s <- s + sum(sign(y[(i + 1):n] - y[i]))
+  tt <- table(y)
+  tt <- tt[tt > 1]
+  var_s <- (n * (n - 1) * (2 * n + 5) - sum(tt * (tt - 1) * (2 * tt + 5))) / 18
+  mk <- MannKendall(y)
+  list(
+    name = name, value = to_vec(y),
+    statistic = num(unname(ct$statistic)), p_value = num(ct$p.value),
+    tau = num(cor(idx, y, method = "kendall")),
+    s = num(s), var_s = num(var_s), n = n,
+    r_kendall_tau = num(as.numeric(mk$tau)), r_kendall_sl = num(as.numeric(mk$sl)),
+    r_kendall_s = num(as.numeric(mk$S)), r_kendall_var_s = num(as.numeric(mk$varS)),
+    r_kendall_d = num(as.numeric(mk$D))
+  )
+}
+set.seed(36203)
+tr_cases <- list(
+  tr_case("rising_with_ties_n15", c(3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9, 7, 9)),
+  tr_case("rising_untied_n10", c(1.2, 2.3, 2.1, 3.5, 4.1, 3.9, 5.2, 6.0, 5.8, 7.1)),
+  tr_case("noisy_rounded_n30", round(0.04 * (1:30) + rnorm(30, 0, 0.6), 1)),
+  tr_case("falling_heavy_ties_n14", c(9, 9, 8, 9, 7, 7, 7, 6, 8, 5, 5, 6, 4, 5)),
+  tr_case("no_trend_n12", c(4, 6, 5, 3, 7, 5, 4, 6, 5, 3, 6, 4))
+)
+write_golden("test_trend", c(to_meta(
+  "TEST_TREND",
+  "cor.test(seq_along(y), y, method = \"kendall\", exact = FALSE, continuity = TRUE); cor(..., method = \"kendall\"); Kendall::MannKendall as a single-precision cross-check",
+  "tau is tau-b (= Kendall::MannKendall's S / D); r_kendall_* are single precision.",
+  list(Kendall = as.character(packageVersion("Kendall")))
+), list(cases = tr_cases)))
+
+# ------------------------------------------------------------------ TEST_KS
+ks_case <- function(name, a, b) {
+  kt <- suppressWarnings(ks.test(a, b))
+  d <- unname(kt$statistic)
+  ties <- length(unique(c(a, b))) < length(a) + length(b)
+  out <- list(
+    name = name, a = to_vec(a), b = to_vec(b),
+    statistic = num(d),
+    p_value = num(kt$p.value),
+    exact = kt$exact,
+    ties = ties,
+    r_p_exact = num(suppressWarnings(ks.test(a, b, exact = TRUE))$p.value),
+    r_p_asymptotic = num(suppressWarnings(ks.test(a, b, exact = FALSE))$p.value)
+  )
+  # Refinement (the U08 pattern): ks.test's D is a cumsum of +-1/n terms,
+  # so at full separation it can land one ulp above 1, where psmirnov
+  # returns P(D >= q) = 0 for q > 1 before the exact recursion runs. The
+  # true D is 1 (Pulse computes it exactly), so the pinned p is psmirnov
+  # at D = 1 (2 / choose(n1 + n2, n1) when n1 = n2); ks.test's own value
+  # is kept beside as r_p_value.
+  if (d > 1) {
+    out$p_value <- num(stats:::psmirnov(1, sizes = c(length(a), length(b)), z = if (ties) c(a, b),
+                                        exact = kt$exact, lower.tail = FALSE))
+    out$r_p_value <- num(kt$p.value)
+  }
+  out
+}
+set.seed(36204)
+ks_cases <- list(
+  ks_case("shifted_normals_untied", round(rnorm(25, 0, 1), 4), round(rnorm(30, 0.7, 1), 4)),
+  ks_case("rounded_with_ties", round(rnorm(40, 10, 2)), round(rnorm(35, 11, 2))),
+  ks_case("scale_difference", round(rnorm(50, 0, 1), 3), round(rnorm(45, 0, 2.2), 3)),
+  ks_case("small_unequal", c(1, 2, 2, 3, 5), c(2, 2, 4, 4, 6, 7)),
+  ks_case("similar_samples", round(runif(60), 3), round(runif(55), 3))
+)
+# U36 E1-S6: one case per regime of ks.test's p.
+set.seed(36206)
+ks_cases <- c(ks_cases, list(
+  ks_case("small_untied_4x5", c(0.1, 0.5, 0.9, 1.3), c(0.7, 1.1, 1.5, 1.9, 2.3)),
+  ks_case("small_heavy_ties_6x7", c(1, 1, 2, 2, 2, 3), c(2, 3, 3, 3, 4, 4, 4)),
+  ks_case("separated_20x20_tiny_p", round(rnorm(20, 0, 1), 3) - 10, round(rnorm(20, 0, 1), 3) + 10),
+  ks_case("unequal_8x60_ties", round(rnorm(8, 0.5, 1), 1), round(rnorm(60, 0, 1), 1)),
+  # n1 * n2 = 9999 < 10000: the last exact size.
+  ks_case("threshold_exact_99x101", round(rnorm(99, 0, 1), 2), round(rnorm(101, 0.3, 1), 2)),
+  # n1 * n2 = 10000: the first asymptotic size.
+  ks_case("threshold_asymptotic_100x100", round(rnorm(100, 0, 1), 2), round(rnorm(100, 0.3, 1), 2)),
+  # asymptotic, sqrt(en) * D >= 1 (the standard series)
+  ks_case("large_shifted_150x130", round(rnorm(150, 0, 1), 3), round(rnorm(130, 0.5, 1), 3)),
+  # asymptotic, sqrt(en) * D < 1 (the alternative series, one term at tol 1e-6)
+  ks_case("large_similar_160x140_ties", round(rnorm(160, 0, 1), 1), round(rnorm(140, 0, 1), 1))
+))
+# asymptotic, sqrt(en) * D = 0.987: just below 1, where ks.test's tol 1e-6
+# truncation shows — its p sits 1.0e-4 relative above the untruncated
+# limit (0.2840439...). Pulse ports the truncation, so 1e-10 holds
+# against ks.test's own figure.
+set.seed(36207)
+ks_cases <- c(ks_cases, list(
+  ks_case("large_tol_truncated_120x110", round(rnorm(120, 0, 1), 2), round(rnorm(110, 0.1, 1), 2))
+))
+write_golden("test_ks", c(to_meta(
+  "TEST_KS",
+  "ks.test(a, b) at its defaults: statistic and p.value",
+  "p_value is ks.test's: exact (conditional on ties) when n1 * n2 < 10000, else the limiting distribution at tol 1e-6; r_p_exact / r_p_asymptotic force each branch."
+), list(cases = ks_cases)))
+
+# --------------------------------------------------------- TEST_KENDALL_TAU
+kt_case <- function(name, x, y) {
+  ct <- suppressWarnings(cor.test(x, y, method = "kendall"))
+  out <- list(
+    name = name, x = to_vec(x), y = to_vec(y),
+    ties = any(duplicated(x)) || any(duplicated(y)),
+    statistic = num(unname(ct$estimate)), p_value = num(ct$p.value)
+  )
+  if (names(ct$statistic) == "z") out$z <- num(unname(ct$statistic))
+  out
+}
+set.seed(36205)
+kt_cases <- list()
+local({
+  x <- round(rnorm(30, 0, 1), 1); y <- round(0.5 * x + rnorm(30, 0, 1), 1)
+  kt_cases[[1]] <<- kt_case("ties_both_columns_n30", x, y)
+  x <- sample(1:5, 40, replace = TRUE); y <- pmin(5, pmax(1, x + sample(-2:2, 40, replace = TRUE)))
+  kt_cases[[2]] <<- kt_case("likert_heavy_ties_n40", x, y)
+  x <- round(runif(25, 0, 100)); y <- sample(c(0, 1, 2), 25, replace = TRUE)
+  kt_cases[[3]] <<- kt_case("ties_in_y_only_n25", x, y)
+  x <- round(rnorm(80), 3); y <- round(-0.3 * x + rnorm(80), 3)
+  kt_cases[[4]] <<- kt_case("untied_large_n80", x, y)
+  x <- c(2.1, 3.4, 1.9, 5.6, 4.4, 6.2, 3.8, 7.1, 5.0, 8.3, 6.6, 9.0)
+  y <- c(1.0, 2.2, 1.5, 3.9, 3.1, 4.8, 2.4, 5.5, 4.1, 6.0, 5.2, 7.7)
+  kt_cases[[5]] <<- kt_case("untied_exact_n12", x, y)
+})
+write_golden("test_kendall_tau", c(to_meta(
+  "TEST_KENDALL_TAU",
+  "cor.test(x, y, method = \"kendall\") at its defaults",
+  "statistic is tau-b; z is present only on the normal-approximation path (ties or n >= 50)."
+), list(cases = kt_cases)))
+
+# ----------------------------------------------------------- TEST_PEARSON_R
+pr_case <- function(name, x, y, alpha = 0.05) {
+  ct <- cor.test(x, y, conf.level = 1 - alpha)
+  list(
+    name = name, alpha = num(alpha), x = to_vec(x), y = to_vec(y),
+    statistic = num(unname(ct$estimate)), t = num(unname(ct$statistic)),
+    df = num(unname(ct$parameter)), p_value = num(ct$p.value),
+    ci_low = num(ct$conf.int[1]), ci_high = num(ct$conf.int[2])
+  )
+}
+set.seed(36206)
+pr_cases <- list()
+local({
+  x <- round(rnorm(40, 50, 10), 2); y <- round(0.6 * x + rnorm(40, 0, 8), 2)
+  pr_cases[[1]] <<- pr_case("positive_n40", x, y)
+  x <- round(rnorm(25), 3); y <- round(-0.8 * x + rnorm(25, 0, 0.5), 3)
+  pr_cases[[2]] <<- pr_case("negative_n25_alpha_01", x, y, alpha = 0.01)
+  x <- round(runif(15, 0, 10), 2); y <- round(runif(15, 0, 10), 2)
+  pr_cases[[3]] <<- pr_case("weak_n15_alpha_10", x, y, alpha = 0.10)
+  pr_cases[[4]] <<- pr_case("smallest_interval_n4", c(1.5, 2.0, 3.7, 4.1), c(2.2, 1.9, 4.0, 5.3))
+  x <- round(rnorm(200, 0, 1), 4); y <- round(0.95 * x + rnorm(200, 0, 0.3), 4)
+  pr_cases[[5]] <<- pr_case("strong_n200", x, y)
+})
+write_golden("test_pearson_r", c(to_meta(
+  "TEST_PEARSON_R",
+  "cor.test(x, y, conf.level = 1 - alpha)",
+  "ci_low / ci_high are cor.test's Fisher-z interval."
+), list(cases = pr_cases)))
+
+# --------------------------------------------------------- TEST_SHAPIRO_WILK
+# Pulse's TEST_SHAPIRO_WILK is the Shapiro-Francia W' with Royston's
+# (1993) z-transform, which is exactly nortest::sf.test: W' = cor(x, m)^2
+# with m = qnorm(ppoints(n, a = 3/8)) (Blom scores) and p =
+# pnorm((log(1 - W') - mu) / sigma, lower.tail = FALSE). sf.test
+# refuses outside 5 <= n <= 5000, as Pulse refuses n < 5. The p-value
+# is Royston's published approximation, but the oracle compares Pulse's
+# arithmetic to sf.test's on the same formula, so the shared 1e-10
+# applies. shapiro.test (Royston 1995, AS R94 weights) is a different
+# statistic; its W and p ride beside as r_shapiro_* for reference only.
+sw_case <- function(name, x) {
+  sf <- nortest::sf.test(x)
+  out <- list(
+    name = name, n = length(x), value = to_vec(x),
+    statistic = num(unname(sf$statistic)), p_value = num(sf$p.value)
+  )
+  if (length(x) <= 5000) {
+    st <- shapiro.test(x)
+    out$r_shapiro_w <- num(unname(st$statistic))
+    out$r_shapiro_p <- num(st$p.value)
+  }
+  out
+}
+set.seed(36207)
+sw_cases <- list(
+  sw_case("smallest_calibrated_n5", c(1.0, 2.5, 3.1, 4.0, 6.2)),
+  sw_case("normal_n20", round(rnorm(20, 10, 2), 3)),
+  sw_case("skewed_exponential_n12", round(rexp(12, 0.5), 3)),
+  sw_case("rounded_with_ties_n50", round(rnorm(50, 0, 1), 1)),
+  sw_case("large_offset_n30", round(1e4 + rnorm(30, 0, 0.5), 4)),
+  sw_case("heavy_tailed_n400", round(rt(400, 3), 4)),
+  # Far upper tail: z ~ 13.8, p ~ 1e-43 (the U08 tiny-p case).
+  sw_case("far_tail_exp_n1000", exp((1:1000) / 50))
+)
+write_golden("test_shapiro_wilk", c(to_meta(
+  "TEST_SHAPIRO_WILK",
+  "nortest::sf.test(x)",
+  "statistic is the Shapiro-Francia W' and p_value sf.test's Royston (1993) p; r_shapiro_w / r_shapiro_p are shapiro.test's (a different statistic, not compared).",
+  list(nortest = as.character(packageVersion("nortest")))
+), list(cases = sw_cases)))
+
+# ------------------------------------------------------- TEST_BROWN_FORSYTHE
+# anova(lm(|x - median_g| ~ g)): F, df and p. When every group's
+# absolute deviations are constant (zero within-group spread) lm's QR
+# residuals are rounding noise, so anova reports a huge finite F (or
+# NaN when the deviations are constant overall too) with "essentially
+# perfect fit". Those cases carry the exact closed form instead —
+# SS_within = sum((d - ave(d, g))^2) is exactly 0 there, F = MS_B / 0
+# = Inf with pf(Inf, ...) = 0, or 0 / 0 = NaN with a NaN p — as
+# statistic_class / p_value_class ("inf", "nan"), anova's own
+# noise-driven values kept beside as r_statistic / r_p_value.
+bf_case <- function(name, x, g) {
+  g <- factor(g, levels = sort(unique(g)))
+  med <- tapply(x, g, median)
+  d <- abs(x - med[as.integer(g)])
+  a <- suppressWarnings(anova(lm(d ~ g)))
+  k <- nlevels(g)
+  df_b <- k - 1
+  df_w <- length(x) - k
+  m <- ave(d, g)
+  ss_w <- sum((d - m)^2)
+  ss_b <- sum((m - mean(d))^2)
+  out <- list(
+    name = name, value = to_vec(x), group = as.character(g),
+    df = num(df_b), df_within = num(df_w),
+    group_medians = to_vec(med)
+  )
+  if (ss_w == 0) {
+    f <- (ss_b / df_b) / (ss_w / df_w)
+    p <- pf(f, df_b, df_w, lower.tail = FALSE)
+    cls <- function(v) if (is.nan(v)) "nan" else if (is.infinite(v)) (if (v > 0) "inf" else "-inf") else stop("finite")
+    out$statistic_class <- cls(f)
+    if (is.finite(p)) out$p_value <- num(p) else out$p_value_class <- cls(p)
+    out$ss_between <- num(ss_b)
+    out$ss_within <- num(ss_w)
+    if (is.finite(a[1, "F value"])) {
+      out$r_statistic <- num(a[1, "F value"])
+      out$r_p_value <- num(a[1, "Pr(>F)"])
+    }
+  } else {
+    out$statistic <- num(a[1, "F value"])
+    out$p_value <- num(a[1, "Pr(>F)"])
+    out$ss_between <- num(a[1, "Sum Sq"])
+    out$ss_within <- num(a[2, "Sum Sq"])
+  }
+  out
+}
+set.seed(36208)
+bf_cases <- list()
+local({
+  g <- rep(c("a", "b", "c"), times = c(9, 12, 10))
+  x <- round(rnorm(length(g), 5, c(a = 1, b = 2.5, c = 1.2)[g]), 2)
+  bf_cases[[1]] <<- bf_case("unequal_spread_three_groups", x, g)
+  g <- rep(c("ctl", "trt"), times = c(15, 15))
+  x <- round(rnorm(30, 20, 3), 1)
+  bf_cases[[2]] <<- bf_case("equal_spread_two_groups_ties", x, g)
+  g <- rep(c("g1", "g2", "g3", "g4"), times = c(5, 6, 7, 8))
+  x <- round(rexp(length(g), c(g1 = 1, g2 = 0.5, g3 = 0.8, g4 = 0.3)[g]), 3)
+  bf_cases[[3]] <<- bf_case("skewed_four_groups", x, g)
+  # Zero within-group spread of |x - median|, spread between groups.
+  bf_cases[[4]] <<- bf_case("zero_within_spread_two_groups", c(0, 2, 5, 5), c("a", "a", "b", "b"))
+  bf_cases[[5]] <<- bf_case("zero_within_spread_three_groups",
+                            c(0, 2, 5, 5, 1, 7), c("a", "a", "b", "b", "c", "c"))
+  # Every deviation equal: 0 / 0.
+  bf_cases[[6]] <<- bf_case("zero_spread_everywhere", c(1, 1, 1, 2, 2, 2), c("a", "a", "a", "b", "b", "b"))
+})
+write_golden("test_brown_forsythe", c(to_meta(
+  "TEST_BROWN_FORSYTHE",
+  "anova(lm(abs(x - median_g) ~ g)); the exact closed form at zero within-group spread",
+  "statistic_class / p_value_class mark an undefined figure (inf, nan) where SS_within is exactly 0; r_statistic / r_p_value are anova's own rounding-noise values there."
+), list(cases = bf_cases)))
+
+# --------------------------------------------------------- TEST_FISHER_EXACT
+# Refined conditional MLE (header). Same support, same log-density
+# dhyper(support, m, n, k, log = TRUE) as stats:::fisher.test.
+fe_cmle <- function(tab) {
+  m <- sum(tab[, 1L]); n <- sum(tab[, 2L]); k <- sum(tab[1L, ]); x <- tab[1L, 1L]
+  lo <- max(0L, k - n); hi <- min(k, m)
+  support <- lo:hi
+  logdc <- dhyper(support, m, n, k, log = TRUE)
+  mn <- function(theta) {
+    d <- logdc + theta * support
+    d <- exp(d - max(d))
+    sum(support * d) / sum(d)
+  }
+  if (x == lo) return(0)
+  if (x == hi) return(Inf)
+  if (mn(0) == x) return(1)
+  f <- function(theta) mn(theta) - x
+  b <- 1
+  while (f(-b) >= 0 || f(b) <= 0) b <- 2 * b
+  r <- uniroot(f, c(-b, b), tol = 1e-15, maxiter = 100000)
+  # uniroot() stops early when f(root) is exactly 0, reporting the
+  # bracket width as estim.prec, so convergence is judged by the Newton
+  # step |f| / Var[a] at the root (the first-order theta error) or by
+  # estim.prec: either within 1e-11 in theta (1e-11 relative in psi, ten
+  # times inside the 1e-10 the Go test holds Pulse to).
+  dd <- logdc + r$root * support
+  dd <- exp(dd - max(dd))
+  dd <- dd / sum(dd)
+  v <- sum(support^2 * dd) - sum(support * dd)^2
+  if (abs(f(r$root)) / v > 1e-11 && r$estim.prec > 1e-11) {
+    stop("fisher cmle: uniroot did not converge, estim.prec ", r$estim.prec)
+  }
+  exp(r$root)
+}
+# Refined conditional CI bound (header): upper = FALSE solves the lower
+# bound, P(A >= x; psi) = alpha; upper = TRUE the upper bound,
+# P(A <= x; psi) = alpha. Same support and density as fisher.test's
+# pnhyper().
+fe_ci_bound <- function(tab, alpha, upper) {
+  m <- sum(tab[, 1L]); n <- sum(tab[, 2L]); k <- sum(tab[1L, ]); x <- tab[1L, 1L]
+  lo <- max(0L, k - n); hi <- min(k, m)
+  if (!upper && x == lo) return(0)
+  if (upper && x == hi) return(Inf)
+  support <- lo:hi
+  logdc <- dhyper(support, m, n, k, log = TRUE)
+  tailp <- function(theta) {
+    d <- logdc + theta * support
+    d <- exp(d - max(d))
+    d <- d / sum(d)
+    if (upper) sum(d[support <= x]) else sum(d[support >= x])
+  }
+  # Increasing in theta: the upper tail directly, the lower negated.
+  f <- function(theta) if (upper) alpha - tailp(theta) else tailp(theta) - alpha
+  if (f(0) == 0) return(1)
+  b <- 1
+  while (f(-b) >= 0 || f(b) <= 0) b <- 2 * b
+  r <- uniroot(f, c(-b, b), tol = 1e-15, maxiter = 100000)
+  # Converged when the Newton step |f| / |f'| (f' = Cov(1{tail}, A)) or
+  # estim.prec is within 1e-11 in theta, as fe_cmle.
+  d <- logdc + r$root * support
+  d <- exp(d - max(d))
+  d <- d / sum(d)
+  inT <- if (upper) support <= x else support >= x
+  dv <- abs(sum((support * d)[inT]) - sum(d[inT]) * sum(support * d))
+  if (abs(f(r$root)) / dv > 1e-11 && r$estim.prec > 1e-11) {
+    stop("fisher ci: uniroot did not converge, estim.prec ", r$estim.prec)
+  }
+  exp(r$root)
+}
+fe_ci <- function(name, tab, conf) {
+  alpha <- (1 - conf) / 2
+  lower <- fe_ci_bound(tab, alpha, FALSE)
+  upper <- fe_ci_bound(tab, alpha, TRUE)
+  r_ci <- unname(fisher.test(tab, conf.level = conf)$conf.int)
+  # The refinement agrees with fisher.test's ncp.L / ncp.U at its own
+  # uniroot tolerance (on psi below 1, on 1/psi above).
+  for (i in 1:2) {
+    v <- c(lower, upper)[i]; rv <- r_ci[i]
+    if (is.finite(v) && v > 0 && v != 1) {
+      gap <- if (v <= 1) abs(rv - v) else abs(1 / rv - 1 / v)
+      if (gap > 2 * .Machine$double.eps^0.25) stop("fisher ", name, " ci: refined ", v, " vs fisher.test ", rv)
+    } else if (!identical(v, rv)) {
+      stop("fisher ", name, " ci: boundary ", v, " vs fisher.test ", rv)
+    }
+  }
+  out <- list(conf_level = num(conf), ci_low = num(lower), r_ci_low = num(r_ci[1]))
+  if (is.infinite(upper)) out$ci_high_class <- "inf" else {
+    out$ci_high <- num(upper)
+    out$r_ci_high <- num(r_ci[2])
+  }
+  out
+}
+fe_case <- function(name, a, b, c, d) {
+  tab <- matrix(c(a, b, c, d), 2, byrow = TRUE)
+  ft <- fisher.test(tab)
+  est <- fe_cmle(tab)
+  # The refinement agrees with fisher.test's mle() at its own tolerance.
+  r_est <- unname(ft$estimate)
+  if (is.finite(est) && est > 0 && est != 1) {
+    gap <- if (est <= 1) abs(r_est - est) else abs(1 / r_est - 1 / est)
+    if (gap > 2 * .Machine$double.eps^0.25) stop("fisher ", name, ": refined ", est, " vs fisher.test ", r_est)
+  } else if (!identical(est, r_est)) {
+    stop("fisher ", name, ": boundary ", est, " vs fisher.test ", r_est)
+  }
+  out <- list(
+    name = name, table = c(a, b, c, d),
+    empty_margin = any(c(a + b, c + d, a + c, b + d) == 0),
+    p_value = num(ft$p.value)
+  )
+  if (is.infinite(est)) out$estimate_class <- "inf" else out$estimate <- num(est)
+  if (is.finite(r_est)) out$r_estimate <- num(r_est)
+  out$ci <- list(fe_ci(name, tab, 0.95), fe_ci(name, tab, 0.90))
+  out
+}
+fe_cases <- list(
+  fe_case("small_symmetric", 3, 1, 1, 3),
+  fe_case("label_order_table", 6, 4, 3, 7),
+  fe_case("classic_inverse", 1, 9, 11, 3),
+  fe_case("moderate", 12, 5, 7, 30),
+  fe_case("large_counts", 150, 80, 95, 160),
+  fe_case("large_unbalanced", 3, 200, 1, 500),
+  fe_case("strong_inverse", 1, 40, 30, 2),
+  fe_case("near_one", 10, 11, 9, 10),
+  fe_case("central_mean_exact_one", 2, 2, 2, 2),
+  # A near tie: x = 38 has probability 8.4e-8 relative above the
+  # observed x = 20, inside fisher.test's relErr (1 + 1e-7).
+  fe_case("near_tie_relerr", 20, 38, 40, 106),
+  # Zero cells: a at the bottom of its support -> 0, at the top -> Inf.
+  fe_case("zero_a", 0, 3, 2, 5),
+  fe_case("zero_d", 4, 2, 3, 0),
+  fe_case("zero_b", 4, 0, 1, 3),
+  fe_case("zero_c", 3, 5, 0, 4),
+  fe_case("zero_b_and_c", 3, 0, 0, 4),
+  fe_case("zero_a_and_d", 0, 3, 4, 0),
+  # Empty margins (helper only): the one-point support reports 0.
+  fe_case("empty_row1", 0, 0, 3, 2),
+  fe_case("empty_col1", 0, 3, 0, 2),
+  fe_case("empty_row2", 3, 2, 0, 0),
+  fe_case("empty_col2", 2, 0, 3, 0),
+  fe_case("single_cell", 0, 0, 0, 5)
+)
+write_golden("test_fisher_exact", c(to_meta(
+  "TEST_FISHER_EXACT",
+  "fisher.test(matrix(c(a, b, c, d), 2, byrow = TRUE), conf.level = c); the conditional MLE and conf.int bounds refined by uniroot(tol = 1e-15) in log(psi)",
+  "estimate is the conditional MLE odds ratio (estimate_class inf when infinite); r_estimate is fisher.test's own uniroot-tolerance estimate; ci holds conf.int at conf_level 0.95 and 0.90, refined the same way (ci_high_class inf when the upper bound is infinite; r_ci_low / r_ci_high are fisher.test's own); empty_margin tables pin the helper only."
+), list(cases = fe_cases)))

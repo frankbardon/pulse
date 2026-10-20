@@ -43,8 +43,17 @@ type regParityOp struct {
 	// flat reads a score attribute back ungrouped, so the request takes
 	// the streaming two-pass arms (a grouped two-pass attribute buffers).
 	flat bool
-	// tol is the relative tolerance of the expansion / scale arms.
+	// tol is the relative tolerance of the expansion / scale arms: 1e-10
+	// on every row, the R-oracle policy (U36 E2-S1). Measured worst gap
+	// on this fixture: 1.2e-11 (ATTR_TSCORE flat); IRLS 6.6e-12 (binomial),
+	// coordinate descent 8.2e-14 — both run to Tol 1e-14 / 1e-13, so
+	// neither stops early enough to matter.
 	tol float64
+	// zeroFloor is an absolute floor for a figure that is zero by
+	// construction — the mean of standardized scores read back flat —
+	// where rounding leaves ~1e-15 of noise with no relative scale
+	// (measured: 2e-15). Zero on every other row: no absolute slack.
+	zeroFloor float64
 }
 
 var regParityPredictors = []string{"x", "g"}
@@ -64,14 +73,14 @@ func regParityGLM(family, target string, predictors ...string) *types.Regression
 var regParityOps = []regParityOp{
 	{name: "ols", reg: regParityOLS(nil), tol: 1e-10},
 	{name: "ridge", reg: regParityOLS(func(s *types.RegressionSpec) { s.Penalty, s.Alpha = "l2", 0.3 }), tol: 1e-10},
-	// Coordinate descent stops at its tolerance on both sides.
-	{name: "lasso", reg: regParityOLS(func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Tol, s.MaxIters = "l1", 0.05, 1e-13, 100000 }), tol: 1e-8},
+	// Coordinate descent runs to Tol 1e-13 on both sides.
+	{name: "lasso", reg: regParityOLS(func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Tol, s.MaxIters = "l1", 0.05, 1e-13, 100000 }), tol: 1e-10},
 	{name: "elasticnet", reg: regParityOLS(func(s *types.RegressionSpec) {
 		s.Penalty, s.Alpha, s.L1Ratio, s.Tol, s.MaxIters = "elasticnet", 0.05, 0.5, 1e-13, 100000
-	}), tol: 1e-8},
-	{name: "glm_binomial", reg: regParityGLM("binomial", "b", "x", "y"), tol: 1e-9},
-	{name: "glm_poisson", reg: regParityGLM("poisson", "g", "x", "y"), tol: 1e-9},
-	{name: "glm_gamma", reg: regParityGLM("gamma", "y", "x", "g"), tol: 1e-9},
+	}), tol: 1e-10},
+	{name: "glm_binomial", reg: regParityGLM("binomial", "b", "x", "y"), tol: 1e-10},
+	{name: "glm_poisson", reg: regParityGLM("poisson", "g", "x", "y"), tol: 1e-10},
+	{name: "glm_gamma", reg: regParityGLM("gamma", "y", "x", "g"), tol: 1e-10},
 	{name: "bayes", reg: &types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: regParityPredictors}, tol: 1e-10},
 	{name: "attr_fitted", attr: types.ATTR_REG_FITTED, tol: 1e-10},
 	{name: "attr_residual", attr: types.ATTR_REG_RESIDUAL, tol: 1e-10},
@@ -83,7 +92,7 @@ var regParityOps = []regParityOp{
 	{name: "attr_tscore", attr: types.ATTR_TSCORE, tol: 1e-10},
 	// Ungrouped: the weight-following mean / sd / skewness of the scores
 	// (0 / 1 / skew(y) for z) — any weight the attribute missed moves them.
-	{name: "attr_zscore_flat", attr: types.ATTR_ZSCORE, flat: true, tol: 1e-10},
+	{name: "attr_zscore_flat", attr: types.ATTR_ZSCORE, flat: true, tol: 1e-10, zeroFloor: 1e-12},
 	{name: "attr_tscore_flat", attr: types.ATTR_TSCORE, flat: true, tol: 1e-10},
 	// The fitted vector attribute (U25 E3-S1) on (x, y): the fit's mean
 	// and M2*/(N* − 1) covariance on w*. Frequency: integer weights equal
@@ -96,12 +105,12 @@ var regParityOps = []regParityOp{
 	// correlation, standardized by the w* ddof = 1 spread: the same fit
 	// rules, grouped and flat.
 	{name: "attr_pc_score", attr: types.ATTR_PC_SCORE, tol: 1e-10},
-	{name: "attr_pc_score_flat", attr: types.ATTR_PC_SCORE, flat: true, tol: 1e-10},
+	{name: "attr_pc_score_flat", attr: types.ATTR_PC_SCORE, flat: true, tol: 1e-10, zeroFloor: 1e-12},
 	// ATTR_FACTOR_SCORE (U25 E3-S3) on (x, y, g), factor 1 of a one-factor
 	// minres fit of the w* correlation, regression scores on the w*
 	// standardized members: the same fit rules, grouped and flat.
-	{name: "attr_factor_score", attr: types.ATTR_FACTOR_SCORE, tol: 1e-9},
-	{name: "attr_factor_score_flat", attr: types.ATTR_FACTOR_SCORE, flat: true, tol: 1e-9},
+	{name: "attr_factor_score", attr: types.ATTR_FACTOR_SCORE, tol: 1e-10},
+	{name: "attr_factor_score_flat", attr: types.ATTR_FACTOR_SCORE, flat: true, tol: 1e-10, zeroFloor: 1e-12},
 	// ATTR_VEC_DISTANCE (U27 E3-S2) over std_euclidean on (x, y): the
 	// fitted per-member sds of ATTR_MAHALANOBIS's fit, grouped and flat.
 	{name: "attr_vec_distance", attr: types.ATTR_VEC_DISTANCE, tol: 1e-10},
@@ -345,7 +354,7 @@ func assertRegsExpanded(t *testing.T, row regParityOp, got, want *types.Response
 				t.Errorf("result %d: n_eff under kind frequency", i)
 			}
 		}
-		compareRegWire(t, fmt.Sprintf("result %d", i), g[i], w[i], 1, row.tol, skip)
+		compareRegWire(t, fmt.Sprintf("result %d", i), g[i], w[i], 1, row.tol, row.zeroFloor, skip)
 	}
 }
 
@@ -368,16 +377,16 @@ func assertRegsScaled(t *testing.T, row regParityOp, got, want *types.Response) 
 				t.Errorf("result %d: sum_weights %v, want %v × %v", i, gs, ws, testScaleC)
 			}
 		}
-		compareRegWire(t, fmt.Sprintf("result %d", i), g[i], w[i], 1, row.tol,
+		compareRegWire(t, fmt.Sprintf("result %d", i), g[i], w[i], 1, row.tol, row.zeroFloor,
 			map[string]bool{"sum_weights": true, "converged_iters": true})
 	}
 }
 
-// compareRegWire walks two wire values: numbers within tol of want ×
-// factor (absolute below 1e-12 — a coordinate-descent zero, a residual
-// mean), everything else exactly; skipped keys aside, the key sets must
-// match.
-func compareRegWire(t *testing.T, where string, got, want any, factor, tol float64, skip map[string]bool) {
+// compareRegWire walks two wire values: numbers within relative tol of
+// want × factor (or within the absolute floor, a zero-by-construction
+// figure's slack; 0 for none), everything else exactly; skipped keys
+// aside, the key sets must match.
+func compareRegWire(t *testing.T, where string, got, want any, factor, tol, floor float64, skip map[string]bool) {
 	t.Helper()
 	switch w := want.(type) {
 	case map[string]any:
@@ -395,7 +404,7 @@ func compareRegWire(t *testing.T, where string, got, want any, factor, tol float
 		}
 		for _, k := range sortedNames(keys) {
 			if !skip[k] {
-				compareRegWire(t, where+"."+k, g[k], w[k], factor, tol, skip)
+				compareRegWire(t, where+"."+k, g[k], w[k], factor, tol, floor, skip)
 			}
 		}
 	case []any:
@@ -405,7 +414,7 @@ func compareRegWire(t *testing.T, where string, got, want any, factor, tol float
 			return
 		}
 		for i := range w {
-			compareRegWire(t, fmt.Sprintf("%s[%d]", where, i), g[i], w[i], factor, tol, skip)
+			compareRegWire(t, fmt.Sprintf("%s[%d]", where, i), g[i], w[i], factor, tol, floor, skip)
 		}
 	case float64:
 		g, ok := got.(float64)
@@ -413,7 +422,7 @@ func compareRegWire(t *testing.T, where string, got, want any, factor, tol float
 			t.Errorf("%s = %v (%T), want %v", where, got, got, want)
 			return
 		}
-		if !relClose(g, w*factor, tol) && math.Abs(g-w*factor) > 1e-12 {
+		if !relClose(g, w*factor, tol) && !(math.Abs(g-w*factor) <= floor) {
 			t.Errorf("%s = %.17g, want %.17g (rel %.3g)", where, g, w*factor, math.Abs(g-w*factor)/math.Abs(w*factor))
 		}
 	default:

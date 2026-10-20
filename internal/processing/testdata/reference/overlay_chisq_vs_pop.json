@@ -1,0 +1,120 @@
+{
+  "generator": "scripts/reference/gen_overlays.R",
+  "r_version": "R version 4.6.1 (2026-06-24)",
+  "packages": {
+    "stats": "4.6.1",
+    "jsonlite": "2.0.0"
+  },
+  "primitive": "OVERLAY_CHISQ_VS_POP",
+  "r_function": "chisq.test(x[C], p = pop[C], rescale.p = TRUE)",
+  "note": "C = the subset values whose population count is positive.",
+  "cases": [
+    {
+      "name": "four_category",
+      "note": "the canonical known answer: X-squared = 7.5 on 3 df",
+      "subset_values": ["a", "b", "c", "d"],
+      "subset_counts": [
+        30,
+        30,
+        30,
+        10
+      ],
+      "pop_values": ["a", "b", "c", "d"],
+      "pop_counts": [
+        40,
+        30,
+        20,
+        10
+      ],
+      "compared": ["a", "b", "c", "d"],
+      "statistic": 7.5,
+      "df": 3,
+      "p_value": 0.057558451972636406,
+      "expected_min": 10
+    },
+    {
+      "name": "subset_value_absent",
+      "note": "z is outside C (the population never shows it); shares renormalise over a, b, c",
+      "subset_values": ["a", "b", "c", "z"],
+      "subset_counts": [
+        30,
+        20,
+        10,
+        5
+      ],
+      "pop_values": ["a", "b", "c"],
+      "pop_counts": [
+        60,
+        50,
+        30
+      ],
+      "compared": ["a", "b", "c"],
+      "statistic": 1.4444444444444451,
+      "df": 2,
+      "p_value": 0.48567178524771221,
+      "expected_min": 12.857142857142856
+    },
+    {
+      "name": "low_expected",
+      "note": "an expected count below 5 (4): the statistic still stands beside the warning",
+      "subset_values": ["a", "b", "c"],
+      "subset_counts": [
+        50,
+        47,
+        3
+      ],
+      "pop_values": ["a", "b", "c"],
+      "pop_counts": [
+        60,
+        36,
+        4
+      ],
+      "compared": ["a", "b", "c"],
+      "statistic": 5.2777777777777777,
+      "df": 2,
+      "p_value": 0.071440603922378956,
+      "expected_min": 4
+    },
+    {
+      "name": "two_category",
+      "note": "one df",
+      "subset_values": ["a", "b"],
+      "subset_counts": [
+        7,
+        13
+      ],
+      "pop_values": ["a", "b"],
+      "pop_counts": [
+        55,
+        45
+      ],
+      "compared": ["a", "b"],
+      "statistic": 3.2323232323232323,
+      "df": 1,
+      "p_value": 0.072198197701657751,
+      "expected_min": 9
+    },
+    {
+      "name": "far_tail",
+      "note": "X-squared = 490 on 2 df: p near 1e-107, the survival tail",
+      "subset_values": ["a", "b", "c"],
+      "subset_counts": [
+        400,
+        50,
+        50
+      ],
+      "pop_values": ["a", "b", "c"],
+      "pop_counts": [
+        100,
+        100,
+        100
+      ],
+      "compared": ["a", "b", "c"],
+      "statistic": 490,
+      "df": 2,
+      "p_value": 3.961429521341682e-107,
+      "expected_min": 166.66666666666666
+    }
+  ]
+}
+// golden-hash: a1fdd50480fc9d367cda8cacb0069725adab03a36f018f7fc3ff71f87e9a1887

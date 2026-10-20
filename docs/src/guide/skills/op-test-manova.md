@@ -47,7 +47,7 @@ Members: `u4`…`u64`, `f32`/`f64`.
 
 ## Gotchas
 
-- Streamable. Needs n ≥ p + k rows; 1 level is `PULSE_TEST_SPLIT_GROUPS_LT_2`.
+- Streamable. Needs n ≥ p + k rows (Σw under `frequency`); 1 level is `PULSE_TEST_SPLIT_GROUPS_LT_2`.
 - Singular within SSCP: null figures + `PULSE_MATRIX_SINGULAR`.
 - Roy's p is a lower bound; a null `p_value` means R prints NA.
 - 2 levels: all four share one F (= pooled `TEST_HOTELLING_T2`).

@@ -26,7 +26,7 @@ Use something else:
 
 ## Params
 
-- `alpha` — float, default `0.05`, in `(0, 1)`.
+- `alpha` — float, default `0.05`, in `(0, 1)` (else `PULSE_TEST_INVALID_ALPHA`); also sets the interval's coverage, `1 − alpha`.
 - `weight` — slot weight (`null` opts out), kind `frequency` only (a probability weight is `PULSE_WEIGHT_UNSUPPORTED` naming the kind): the exact test on the Σw table — equals the expanded rows. `contingency` becomes the Σw table; `n` stays raw rows, `sum_weights` beside it.
 - `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p ([`multiplicity-correction`](multiplicity-correction.md)).
 
@@ -36,20 +36,20 @@ Use something else:
 
 ## Output
 
-`Statistic` = odds ratio; `PValue` = exact two-sided via hypergeometric tail (sum of tables with probability ≤ observed). `Details.contingency` = `[[a, b], [c, d]]` with rows / columns sorted byte-wise (`row_labels` / `col_labels`); `odds_ratio` = ad/bc, no Haldane fix: zero b or c -> +Inf, zero a or d -> 0.
+`Statistic` = odds ratio; `PValue` = exact two-sided via hypergeometric tail (sum of tables with probability ≤ observed × (1 + 1e-7), `fisher.test`'s tie rule). `Details.contingency` = `[[a, b], [c, d]]` with rows / columns sorted byte-wise (`row_labels` / `col_labels`); `odds_ratio` (= `Statistic`) is the conditional MLE R's `fisher.test` reports, not ad/bc: zero a or d -> 0, else zero b or c -> +Inf (`null` on the wire). `ci_low` / `ci_high` = `fisher.test`'s exact conditional interval on it at `1 − alpha`: lower exactly 0 with a zero a or d, upper +Inf (`null`, key kept) with a zero b or c.
 
 ## Reading the output
 
-- `statistic`: The sample odds ratio (a*d)/(b*c) of the 2x2 table in details.contingency, also in details.odds_ratio: 1 means the odds of the first column are the same in both rows, above 1 higher in the first row, below 1 lower.
-  - Caveat: Bands apply to max(OR, 1/OR), so an odds ratio of 0.25 reads like one of 4.
+- `statistic`: The conditional maximum-likelihood odds ratio of the 2x2 table in details.contingency (the estimate R's fisher.test reports), also in details.odds_ratio: 1 means the odds of the first column are the same in both rows, above 1 higher in the first row, below 1 lower.
 - `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
+- `details.ci_high`: Upper end of the exact conditional confidence interval for the odds ratio.
 
 ## Gotchas
 
 - Strictly 2×2 — other shapes → `PULSE_TEST_CONTINGENCY_DEGENERATE`.
 - The canonical small-sample choice when any expected cell `< 5`.
 - Buffered — needs the full contingency table.
-- Two-sided p sums every table no more likely than observed; tools doubling one tail disagree slightly.
+- Two-sided p sums every table no more likely than observed (ties within 1e-7 relative count, as R); tools doubling one tail disagree slightly.
 - Effect size = odds ratio (not Cramér's V); take log for symmetry around 0.
 
 ## See

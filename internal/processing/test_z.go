@@ -145,7 +145,7 @@ func (zt *zTestRow) Finalize() (*types.TestResult, error) {
 		adjA, adjB, f := zt.cuped.adjust(zt.cuped.groups[keys[0]], zt.cuped.groups[keys[1]])
 		a, b, cf = &adjA, &adjB, &f
 	}
-	if a.N < 2 || b.N < 2 {
+	if a.FloorN(zt.basis) < 2 || b.FloorN(zt.basis) < 2 {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 			fmt.Sprintf("TEST_Z_TWO_SAMPLE requires n ≥ 2 per group, got %d / %d", a.N, b.N),
 			map[string]any{"n": []int64{a.N, b.N}, "min_required": 2})

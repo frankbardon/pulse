@@ -117,7 +117,7 @@ func (a *anovaWelchRow) Finalize() (*types.TestResult, error) {
 	buckets := make([]*weighting.Welford, k)
 	for i, key := range keys {
 		b := a.groups[key]
-		if b.N < 2 {
+		if b.FloorN(a.basis) < 2 {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_INSUFFICIENT_N,
 				fmt.Sprintf("TEST_ANOVA_WELCH requires n ≥ 2 per group; %q has %d", key, b.N),
 				map[string]any{"group": key, "n": b.N, "min_required": 2})

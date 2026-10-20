@@ -49,7 +49,7 @@ Use something else:
 
 - Streamable — same per-group Welford as classic one-way ANOVA; only the statistic + denominator change.
 - Use when group spreads may differ.
-- Tier-2 `welch_one_way_post` reads per-group `{mean, variance, n}`; same keys.
+- Tier-2 `welch_one_way_post` reads per-group `{mean, variance, n}`; same keys. A group row with a null in a used column drops (listwise, R's NA default).
 - Post-hoc: Tukey HSD assumes equal variance; for unequal fall back to pairwise `TEST_WELCH` with a `multiplicity` block.
 - Constant Field within a group → `PULSE_TEST_VARIANCE_ZERO`.
 

@@ -101,7 +101,7 @@ func TestPairedT_NullPairDropped(t *testing.T) {
 //	pooled:   320/400 = 0.80
 //	SE_pool = √(0.80·0.20·(1/200+1/200)) ≈ 0.040
 //	z       = (0.75 − 0.85) / 0.040 = -2.5
-//	p       = 2(1 − Φ(2.5)) ≈ 0.01242
+//	p       = erfc(2.5/√2) ≈ 0.01242
 func TestPropZ_KnownStatistic(t *testing.T) {
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "treatment", Type: encoding.FieldTypeCategoricalU8, Dictionary: encoding.NewDictionary()},

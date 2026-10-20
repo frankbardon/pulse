@@ -373,9 +373,10 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			RefKinds: []string{},
 			Description: "COMPOSE-host whole-matrix χ² test against the reference slot's matrix. The two matrices are " +
 				"treated as two independent contingency tables and the test answers \"do the target and reference distributions " +
-				"differ?\" by scaling the reference distribution to the target's grand total: expected[i,j] = ref_cell * " +
-				"(target_N / ref_N); chisq = Σ (target_cell - expected)² / expected; df = (cells with expected > 0) - 1; " +
-				"p_value = chiSquareSurvival(chisq, df). SCALAR payload — the layer carries the p-value on " +
+				"differ?\" by scaling the reference distribution to the target's total over C, the cells the reference shows " +
+				"(ref_cell > 0): expected[i,j] = ref_cell * (target_N / ref_N), both totals over C; chisq = Σ_C (target_cell - " +
+				"expected)² / expected; df = |C| - 1; p_value = chiSquareSurvival(chisq, df) — R's chisq.test(target[C], p = " +
+				"ref[C], rescale.p = TRUE). A target count in a cell outside C warns PULSE_OVERLAY_REF_ZERO once per cell. SCALAR payload — the layer carries the p-value on " +
 				"OverlayPayload.Scalar plus OverlaySummary{Statistic, PValue, Parameters{\"df\"}}. Reuses the chiSquareSurvival " +
 				"helper backing TEST_CHISQ and the MATRIX-host CHISQ family so the overlay surface produces identical p-values " +
 				"for the same contingency. Degenerate inputs (target_N == 0, ref_N == 0, every expected = 0) emit NaN + NaN " +
@@ -1047,18 +1048,21 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			// populated; descriptor.validateOverlayKSVsPop gates the shape
 			// at predict time.
 			RefKinds: []string{"Population"},
-			Description: "Single scalar Kolmogorov-Smirnov distance D = sup_x |F_subset(x) - F_pop(x)| plus an asymptotic p-value " +
+			Description: "Single scalar Kolmogorov-Smirnov distance D = sup_x |F_subset(x) - F_pop(x)| plus a p-value " +
 				"comparing the host Facet subset NUMERIC distribution against the resolved population NUMERIC distribution. " +
 				"GROUP scope over a FACET (FacetSchema) host with SCALAR payload — the layer carries the KS statistic plus the " +
-				"asymptotic p-value via OverlaySummary{Statistic, PValue, Parameters{\"n_subset\", \"n_pop\"}}. Fourth and final " +
+				"p-value via OverlaySummary{Statistic, PValue, Parameters{\"n_subset\", \"n_pop\"}}. Fourth and final " +
 				"FACET-host overlay in the catalog (siblings: OVERLAY_INDEX_VS_POP descriptive, " +
 				"OVERLAY_ZSCORE_VS_POP descriptive, OVERLAY_CHISQ_VS_POP inferential discrete-arm only). KS is the " +
 				"canonical NUMERIC-arm distributional-shift indicator — it pairs with CHISQ_VS_POP as the two inferential FACET-host " +
 				"kinds, partitioning the inferential FACET surface by host arm (CHISQ for categorical, KS for numeric). The viz " +
 				"developer renders the SCALAR statistic as a distributional-shift indicator near the facet header. Math: " +
 				"D = sup_x |F_subset(x) - F_pop(x)|; en = sqrt(n_subset * n_pop / (n_subset + n_pop)); " +
-				"p_value = kolmogorovSurvival((en + 0.12 + 0.11/en) * D) — the same Kolmogorov-survival helper backing TEST_KS " +
-				"(processing/test_stat.go), so the overlay and the row-test surface produce identical p-values for the same D + N. " +
+				"p_value = R ks.test's two-sided p through TEST_KS's port: on the HISTOGRAM path ks.test on the bucketised " +
+				"samples (each record at its bucket index, sizes = the bin totals), exact conditional on the bucket ties when " +
+				"m*n < 10000, else the limiting form — TEST_KS's selection rule, so TEST_KS on the expanded bucket indices reports " +
+				"the same p; on the PERCENTILE path (no tie pattern) the uncorrected limiting Kolmogorov form at en * D, " +
+				"ks.test(exact = FALSE). " +
 				"NUMERIC ARM ONLY: KS is undefined on categorical distributions (no continuous CDF to compare). A categorical host " +
 				"(no numeric payload) fires PULSE_OVERLAY_SCOPE_UNSUPPORTED at runtime; the per-kind validator " +
 				"rejects categorical hosts at predict time so the runtime arm is belt-and-braces. Distinct from CHISQ_VS_POP which " +
@@ -1152,8 +1156,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"float64. Cells are treated as success counts; each cell's matching row margin is treated as its sample size " +
 				"(target_n on the target side, ref_n on the reference side). Math: p_target = target_cell / target_row_margin; " +
 				"p_ref = ref_cell / ref_row_margin; pooled = (target_cell + ref_cell) / (target_row_margin + ref_row_margin); " +
-				"se = sqrt(pooled * (1 - pooled) * (1/n_target + 1/n_ref)); z = (p_target - p_ref) / se; p_value = 2 * (1 - " +
-				"Φ(|z|)). Reuses the standardNormalCDF helper backing TEST_PROP_Z so the overlay and the row-test surface " +
+				"se = sqrt(pooled * (1 - pooled) * (1/n_target + 1/n_ref)); z = (p_target - p_ref) / se; p_value = erfc(|z|/√2). Reuses the normalTwoSidedP helper (tail-accurate erfc form) backing TEST_PROP_Z so the overlay and the row-test surface " +
 				"produce identical p-values for the same (success, n) pair. Degenerate inputs (pooled ∈ {0, 1}, or a missing or " +
 				"zero row margin on EITHER side — the cell value is never borrowed as n) produce NaN p-values with one " +
 				"PULSE_OVERLAY_REF_ZERO warning per affected cell (margin_missing: true for the margin case). Inherently " +
@@ -1182,7 +1185,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"targets[N-1]}. Output shape — row-major upper triangle, NO diagonal: [(0,1), (0,2), ..., (0,M-1), (1,2), ..., " +
 				"(M-2,M-1)] for M = N + 1 slots. Slice length is M*(M-1)/2. The diagonal is implicit (every diagonal entry " +
 				"is 1.0) and the lower triangular is implicit (p[j,i] == p[i,j] — symmetric matrix). Math per pair: reuses " +
-				"the same pooled-SE two-proportion z-test formula and standardNormalCDF helper backing OVERLAY_PROP_Z_CELL " +
+				"the same pooled-SE two-proportion z-test formula and normalTwoSidedP helper backing OVERLAY_PROP_Z_CELL " +
 				"and TEST_PROP_Z, so every pairwise p-value matches its corresponding single-pair output byte-for-byte. " +
 				"Cap enforcement: ComposeOverlaySpec.Options.MaxPanelTargets defaults to 16 — len(spec.Targets) > cap " +
 				"fires PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP at handler entry with {observed, cap} Details. Per the interview " +
@@ -1541,7 +1544,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				twoSampleCellInputs + " Math reuses the same Welch-Satterthwaite degrees-of-freedom recurrence that backs " +
 				"TEST_T two-sample: se = sqrt(var_target/n_target + var_ref/n_ref); t = (target_cell - ref_cell) / se; " +
 				"df = (var_target/n_target + var_ref/n_ref)² / ((var_target/n_target)²/(n_target-1) + " +
-				"(var_ref/n_ref)²/(n_ref-1)); p_value = studentTTwoSidedP(t, df). Reuses the studentTTwoSidedP helper backing " +
+				"(var_ref/n_ref)²/(n_ref-1)); p_value = statdist.StudentTTwoSidedP(t, df). Reuses the statdist.StudentTTwoSidedP helper backing " +
 				"TEST_T so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) " +
 				"triple. Inherently buffered — inferential overlays as a " +
 				"family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals).",
@@ -1569,7 +1572,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"reuses the Welch-Satterthwaite recurrence backing TEST_T (and OVERLAY_T_CELL): se = " +
 				"sqrt(var_target/n_target + var_ref/n_ref); t = (target - ref) / se; df = (var_target/n_target + " +
 				"var_ref/n_ref)² / ((var_target/n_target)²/(n_target-1) + (var_ref/n_ref)²/(n_ref-1)); p_value = " +
-				"studentTTwoSidedP(t, df). Reuses studentTTwoSidedP so the overlay and the row-test surface produce identical " +
+				"statdist.StudentTTwoSidedP(t, df). Reuses statdist.StudentTTwoSidedP so the overlay and the row-test surface produce identical " +
 				"p-values for the same (mean, variance, n) triple. Missing reference rows (target row key not present in the " +
 				"reference series) emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag; the affected entry's " +
 				"Statistic is NaN. Degenerate inputs (se == 0, n < 2) produce NaN p-values with the same warning. Inherently " +
@@ -1821,7 +1824,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"two-sided p-value as a float64. " + twoSampleCellInputs + " Math reuses the same Welch-style " +
 				"standard-error recurrence that backs OVERLAY_T_CELL and finalises against the standard normal " +
 				"survival helper that backs TEST_Z_TWO_SAMPLE: se = sqrt(var_target/n_target + var_ref/n_ref); " +
-				"z = (target_cell - ref_cell) / se; p_value = 2 * (1 - Φ(|z|)). Reuses the standardNormalCDF helper " +
+				"z = (target_cell - ref_cell) / se; p_value = erfc(|z|/√2). Reuses the normalTwoSidedP helper (tail-accurate erfc form) " +
 				"backing TEST_Z_TWO_SAMPLE so the overlay and the row-test surface produce identical p-values for " +
 				"the same (mean, variance, n) triple. Inherently buffered — inferential overlays as a family stay buffered until a " +
 				"streamable-test path is plumbed (PRD §2 Non-Goals).",
@@ -1849,7 +1852,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"mean. " + twoSampleSeriesInputs + " Math " +
 				"reuses the Welch-style standard-error recurrence backing OVERLAY_Z_CELL and finalises against the " +
 				"standard normal survival helper backing TEST_Z_TWO_SAMPLE: se = sqrt(var_target/n_target + var_ref/n_ref); " +
-				"z = (target - ref) / se; p_value = 2 * (1 - Φ(|z|)). Reuses standardNormalCDF so the overlay and the " +
+				"z = (target - ref) / se; p_value = erfc(|z|/√2). Reuses normalTwoSidedP so the overlay and the " +
 				"row-test surface produce identical p-values for the same (mean, variance, n) triple. Missing reference " +
 				"rows (target row key not present in the reference series) emit PULSE_OVERLAY_REF_ZERO with a " +
 				"ref_missing=true Detail flag; the affected entry's Statistic is NaN. Degenerate inputs (se == 0, n < 2) " +

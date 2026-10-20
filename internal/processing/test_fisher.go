@@ -20,8 +20,11 @@ import (
 //     [max(0, R₁−C₂), min(R₁, C₁)] and sum hypergeometric
 //     probabilities for tables at least as extreme as the observed.
 //
-// "At least as extreme" uses the two-sided rule: sum probabilities of
-// every table whose hypergeometric probability is ≤ the observed.
+// "At least as extreme" uses fisher.test's two-sided rule: sum the
+// probabilities of every table whose hypergeometric probability is at
+// most the observed one's times 1 + 10⁻⁷ (R's relErr). details.ci_low /
+// ci_high are fisher.test's exact conditional interval on the odds
+// ratio at 1 − alpha.
 //
 // Use case: chi-square small-sample backstop. When any expected count
 // is below 5 the chi-square approximation is unreliable;
@@ -151,48 +154,27 @@ func (f *fisherExactRow) Finalize() (*types.TestResult, error) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_TEST_CONTINGENCY_DEGENERATE,
 			"TEST_FISHER_EXACT: contingency table is empty", nil)
 	}
-	row1 := a + b
-	col1 := a + c
-	col2 := b + d
-	// Range of feasible cell[0][0] holding marginals fixed.
-	lo := 0
-	if row1-col2 > 0 {
-		lo = row1 - col2
-	}
-	hi := row1
-	if col1 < hi {
-		hi = col1
-	}
-	// log-probability of the observed table.
-	logPObs := logHypergeometric(a, row1, col1, n)
-	// Sum probabilities of every table with prob ≤ observed (two-sided).
-	var sum float64
-	for x := lo; x <= hi; x++ {
-		logP := logHypergeometric(x, row1, col1, n)
-		if logP <= logPObs+1e-12 {
-			sum += math.Exp(logP)
-		}
-	}
-	if sum > 1 {
-		sum = 1
-	}
-	// Sample odds ratio (a·d)/(b·c), informational. No continuity
-	// correction: a zero b or c cell yields +Inf, otherwise a zero a or
-	// d cell yields 0.
-	var oddsRatio float64
-	switch {
-	case b == 0 || c == 0:
-		oddsRatio = math.Inf(1)
-	case a == 0 || d == 0:
-		oddsRatio = 0
-	default:
-		oddsRatio = float64(a*d) / float64(b*c)
-	}
+	// Two-sided p by fisher.test's rule: every table whose probability
+	// is at most the observed one's times 1 + 10⁻⁷ (shared with the
+	// OVERLAY_FISHER_EXACT_CELL handler).
+	sum := fisherExactTwoSided(a, b, c, d)
+	// Conditional MLE of the odds ratio, as R's fisher.test reports it
+	// (never the sample ad/bc): 0 when a sits at the bottom of its
+	// support (a zero a or d cell, or an empty margin), +Inf at the top
+	// (a zero b or c cell with a and d positive). +Inf is null on the
+	// wire.
+	oddsRatio := fisherConditionalOddsRatio(a, b, c, d)
+	// fisher.test's exact conditional interval on the odds ratio at
+	// 1 − alpha (every test's confidence knob): lower 0 when a sits at
+	// the bottom of its support, upper +Inf (null on the wire) at the top.
+	ciLow, ciHigh := fisherConditionalCI(a, b, c, d, 1-f.alpha)
 	details := map[string]any{
 		"row_labels":  f.rowOrd,
 		"col_labels":  f.colOrd,
 		"contingency": [][]int{{a, b}, {c, d}},
 		"odds_ratio":  oddsRatio,
+		"ci_low":      ciLow,
+		"ci_high":     ciHigh,
 		"n":           rawN,
 	}
 	if f.basis.Weighted() {

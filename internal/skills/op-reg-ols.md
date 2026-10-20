@@ -39,14 +39,14 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. F
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `CILower` / `CIUpper` = β ∓ t(`DF`)·SE wherever an SE is (resample: z on its SE, no `DF`), `DF`, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs` (raw rows); weighted adds `SumWeights` (+ `NEff`, probability). Penalized shrunk-to-zero βs drop from `StdErrors` and `PValues`. A robust `covariance` adds the `Covariance` echo (`type`, `clusters`, resolved `lags`). Streams Welford-Pébaÿ sufficient stats; the regularized solve runs once at finalize over the p×p Gram.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `CILower` / `CIUpper` = β ∓ t(`DF`)·SE wherever an SE is (resample: z on its SE, no `DF`), `DF`, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs` (raw rows); weighted adds `SumWeights` (+ `NEff`, probability). `l2`: SEs are the closed-form ridge sandwich σ̂²A⁻¹GA⁻¹ (A = G + N*·α·I; R-pinned). `l1` / `elasticnet` without `resample`: `StdErrors`, `PValues`, `CILower` / `CIUpper` null on EVERY key (intercept, kept and zeroed βs) + `Advisories` `[PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]` (predict raises it too). A robust `covariance` adds the `Covariance` echo (`type`, `clusters`, resolved `lags`). Streams Welford-Pébaÿ sufficient stats; the regularized solve runs once at finalize over the p×p Gram.
 
 <!-- generated: reading-the-output -->
 
 ## Gotchas
 
 - Weighted: `resample: bootstrap` / `selection` → `PULSE_WEIGHT_UNSUPPORTED` (a jackknife is weighted); n_eff ≤ p+1 → `PULSE_WEIGHT_LOW_NEFF`; residual df ≤ 0 makes SEs, p, `CILower`/`CIUpper`, `DF`, `AdjR2`, `ResidualStdErr` null.
-- `l1` / `elasticnet` SE is plug-in over the active set — pair with `op-reg-mod-resample`; otherwise `PROCESSING_REGRESSION_APPROXIMATE_SE` warns.
+- `l1` / `elasticnet` have no analytical inference (the data pick the predictors): SE / p / CI null, advisory not warning, never Strict-escalated. Want uncertainty → `op-reg-mod-resample`; want p-values → `l2` or no penalty.
 - The penalty reads raw units: a predictor on a large scale is barely shrunk. To penalize all alike, divide each predictor by its SD upstream (a derived column).
 - Robust `covariance` forces the buffered path (second pass for residuals / leverage); beside `penalty` / `resample` / `selection`, < 2 clusters or a repeated `order_by` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. A null `cluster` / `order_by` drops the row.
 - Collinearity → `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`; drop a predictor or add `l2`.

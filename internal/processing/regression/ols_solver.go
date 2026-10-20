@@ -65,7 +65,7 @@ type olsSolveResult struct {
 // Returns PROCESSING_REGRESSION_INSUFFICIENT_DATA when n < p + 1.
 func solveOLS(a *olsAccumulator) (*olsSolveResult, error) {
 	p := a.p
-	if a.n < p+1 {
+	if a.floorN() < float64(p+1) {
 		return nil, errors.NewCodedErrorWithDetails(
 			errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 			"regression requires n ≥ p + 1 observations after filtering",

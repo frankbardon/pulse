@@ -271,11 +271,11 @@ func TestTrend_TinyP(t *testing.T) {
 // R replicates the Royston transform: m <- qnorm(((1:n)-0.375)/(n+0.25));
 // W <- sum(m*x)^2/(sum(m^2)*sum((x-mean(x))^2)); then pnorm(-z).
 //
-// The tolerance here is looser than normalTailRelTol: the Blom scores
-// come from inverseNormalCDF (Beasley-Springer-Moro, ~1e-9), so W — and
-// through it z — carries that error, amplified by |z| in log p. The
-// assertion that matters is that p is non-zero (it was 0) and within
-// that propagated error of R.
+// The assertion that matters is that p is non-zero (it was 0). The
+// Blom scores are statdist.NormalQuantile (qnorm-exact since U36 E1-S3)
+// and the full figure is pinned to nortest::sf.test at relative 1e-10 by
+// TestReferenceOracle_ShapiroWilk (case far_tail_exp_n1000); this
+// literal predates that golden and keeps its looser bound.
 func TestShapiroFrancia_TinyP(t *testing.T) {
 	x := make([]float64, 1000)
 	for i := range x {

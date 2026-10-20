@@ -57,6 +57,17 @@ type glmFamily struct {
 	// range (R's family valideta / validmu); a step landing outside it
 	// is halved. nil = every finite η is valid.
 	ValidEta func(eta float64) bool
+
+	// EstimatesDispersion reports that the family's dispersion φ is a
+	// free parameter (gamma): the classical standard errors, vcov,
+	// p-values and intervals read φ̂ = Pearson χ² / (N* − k) and a
+	// Student t on N* − k, as R's summary.glm does. false (binomial,
+	// poisson) fixes φ = 1 by the family assumption: Wald z. It is also
+	// selection's family hook: a candidate is scored by the gamma
+	// log-likelihood at φ = deviance / N* with φ counted as a parameter
+	// (aicBICFromGamma, R's AIC(glm)), not deviance + 2k. A new family
+	// that sets it must give aicBICFromGamma's place its own density.
+	EstimatesDispersion bool
 }
 
 // log1mMu is log(1 − μ) for a probability μ: log1p(−μ) where that is
@@ -196,11 +207,13 @@ var poissonLog = glmFamily{
 }
 
 // gammaInverse is the Family("gamma"), Link("inverse") combination —
-// the canonical link for the gamma family. μ > 0. Wired for completeness;
-// numerical tests are deferred to a later phase per the locked plan.
+// the canonical link for the gamma family. μ > 0. Its dispersion is
+// estimated (EstimatesDispersion); pinned to R glm(family = Gamma()) by
+// glm_irls.json / glm_gamma.json.
 var gammaInverse = glmFamily{
-	Name: "gamma",
-	Link: "inverse",
+	Name:                "gamma",
+	Link:                "inverse",
+	EstimatesDispersion: true,
 	LinkFunc: func(mu float64) float64 {
 		if mu < gammaEps {
 			mu = gammaEps
