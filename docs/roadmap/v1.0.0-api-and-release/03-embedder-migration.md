@@ -119,13 +119,13 @@ Landed with the `weighted-variance-z` effort: shipped on `release/v0.39` as `v0.
 | (none) | `n_basis` overlay param, accepted only on `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` | added | none | weighted-variance-z |
 | `n_basis` on `OVERLAY_PAIRWISE_PROP_Z` / `_PROBIT_T` / `_WELCH_T` / `_TWO_MEANS_Z` | predict refuses with `PULSE_OVERLAY_PARAM_MISSING` (`details.param = "n_basis"`); the runtime ignores it | behaviour change (predict only) | the param did not exist before, so no previously valid request changes; drop `n_basis` from non-weighted pairwise kinds | weighted-variance-z |
 
-## Changes from the v0.39.2 pairwise-n line
+## Changes from the v0.39.2 / v0.39.3 pairwise-n line
 
-Shipped on `release/v0.39` as `v0.39.2` and forward-ported to `main`; ships in the next alpha. An embedder coming from `v0.39.2` has **no migration action**. `format_version` stays `"1.1"` — a figure moves, no shape does.
+Shipped on `release/v0.39` as `v0.39.2` and then `v0.39.3`, forward-ported to `main`; ships in the next alpha. An embedder coming from `v0.39.3` has **no migration action**. `format_version` stays `"1.1"` — a figure moves, no shape does.
 
 | Old | New | Kind | How to adapt | Unit |
 |---|---|---|---|---|
-| pairwise overlay `n_source: "cell_weight_sum"` and `"cell_value_weighted"` TRUNCATED the float weight sum / weighted-count cell value to the integer n (`int(x)`), so floating-point noise just below an integer lost a unit (Σw 219.99999963 → n 219, which moved a p-value across α and dropped a significance marker) | n is the NEAREST integer, half away from zero (`math.Round`): 219.99999963 → 220, 219.5 → 220, 219.4 → 219. An absent `sum_weights` still skips the pair. Every other `n_source` (all integer counts) is unchanged | behaviour change (figure) | none; a consumer that recomputed the pair's n by truncation reads the rounded n instead | v0.39.2 port |
+| pairwise overlay `n_source: "cell_weight_sum"` and `"cell_value_weighted"` TRUNCATED the float weight sum / weighted-count cell value to the integer n (`int(x)`), so floating-point noise just below an integer lost a unit (Σw 219.99999963 → n 219, which moved a p-value across α and dropped a significance marker) | n is the true weight base, truncated after absorbing float noise: `⌊x + 1e-6⌋`. 219.99999963 → 220, 49.55 → 49, 210.6 → 210, 49.999 → 49. Rounding to the nearest integer (briefly on `main` via the `v0.39.2` port) is NOT the rule: it over-stated a fractional base and could lift a base under `min_n` over it. An absent `sum_weights` still skips the pair. Every other `n_source` (all integer counts) is unchanged | behaviour change (figure) | a consumer computing its own min-n off the same Σw uses `⌊Σw + 1e-6⌋` | v0.39.2 / v0.39.3 port |
 
 ## Additions from U04 (feature profiles)
 
