@@ -95,6 +95,9 @@ type Extensions struct {
 	// MatrixOps installs embedder MAT_* matrix operators for
 	// Request.Matrices (see MatrixOpRegistration).
 	MatrixOps []MatrixOpRegistration
+	// Regressions installs embedder REG_* regression models for
+	// Request.Regressions (see RegressionRegistration).
+	Regressions []RegressionRegistration
 
 	// ExprFunctions are merged into the runtime expression environment
 	// used by ATTR_FORMULA and FILTER_EXPRESSION (plus any future
@@ -831,6 +834,84 @@ type MatrixOpRegistration struct {
 	// (n, n_null, n_listwise_dropped, min_pair_n, max_pair_n,
 	// sum_weights, n_eff, n_weight_invalid).
 	ComponentSchema descriptor.ComponentSchema
+}
+
+// RegressionRegistration installs a custom REG_* regression model for
+// Request.Regressions, authored against extend.Regression: a streaming
+// model (extend.StreamingRegression — UpdateRow, Merge, Finalize) or a
+// buffered one (extend.BufferedRegression — Fit over every row, free to
+// iterate). The name follows the extension policy
+// (REG_<NAMESPACE>_<NAME>; a built-in such as REG_OLS collides).
+//
+// The model returns a narrow extend.RegressionOutput — coefficients
+// (each an estimate plus an optional standard error, statistic and
+// p-value), optional fit statistics from the fixed set, an optional
+// vcov and its declared Outputs — and the engine maps it onto
+// types.RegressionResult, owning every engine figure: the name and
+// type, n_obs, the weighted floor (sum_weights, n_eff), the
+// multiplicity-adjusted p-values (only coefficients carrying a p-value
+// join a family), advisories and a per-slot failure (a model error
+// coded PROCESSING_REGRESSION_INSUFFICIENT_DATA, _RANK_DEFICIENT,
+// _NO_CONVERGE or _SEPARATION fails its slot alone; any other error
+// fails the run). Admission is the engine's too: the model sees only
+// rows whose target and every predictor are present (and, weighted,
+// whose weight is valid and positive).
+//
+// pulse.New probes the factory against a small synthetic schema and
+// fits it over a few synthetic rows (weighted too, for a WeightAware
+// registration): a model that does not implement the declared form is
+// PULSE_EXTENSION_STREAMABLE_MISMATCH, an output the registration does
+// not allow PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH, a factory or
+// fit panic or error PULSE_EXTENSION_FACTORY_PANIC (a data-dependent
+// regression refusal on the synthetic rows is tolerated).
+type RegressionRegistration struct {
+	Name        types.RegressionType
+	Description string
+	// Factory builds the model per regression slot. Required
+	// (PULSE_EXTENSION_PARAM_INVALID, reason missing_factory).
+	Factory extend.RegressionFactory
+	// Streamable declares the form: true for an
+	// extend.StreamingRegression, which streams wherever a built-in
+	// regression would (no grouper, feature or two-pass attribute on the
+	// request; no Resample, Selection or robust covariance on the slot)
+	// and is otherwise fed the buffered rows one at a time; false for an
+	// extend.BufferedRegression, which always runs buffered. The
+	// declaration decides the path at runtime and in predict.
+	Streamable bool
+	// WeightAware declares that the model computes a weighted fit: on a
+	// slot where a row weight is in force (slot, request or
+	// pulse.Options.DefaultWeight) the factory sees it on spec.Weight
+	// and every admitted row reports its valid, positive weight through
+	// extend.Record.Weight(); rows with an invalid or zero weight never
+	// reach the model, and the engine writes sum_weights / n_eff.
+	// Undeclared, any weight in force on the slot — the instance default
+	// included — is PULSE_EXTENSION_NOT_WEIGHT_AWARE; `weight: null` on
+	// the slot opts out. A WeightAware registration is probed weighted
+	// too.
+	WeightAware bool
+	// Vcov declares that the model can return its coefficient
+	// covariance (extend.RegressionOutput.Vcov): a spec setting vcov:
+	// true then gets it (and its correlation) on the result.
+	// Undeclared, vcov: true is refused with PROCESSING_CONFIG, details
+	// {regression, slot: "vcov"}, at predict and at runtime alike.
+	Vcov bool
+	// OutputSchema declares the keys the model may fill in
+	// extend.RegressionOutput.Outputs (types.RegressionResult.Outputs):
+	// each a unique non-empty Key with a JSONType from the ParamMeta set
+	// (PULSE_EXTENSION_PARAM_INVALID, reason invalid_output_key,
+	// otherwise). A filled key it does not declare is
+	// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH at pulse.New and on
+	// every run; a declared key left unfilled is fine.
+	OutputSchema []RegressionOutputMeta
+}
+
+// RegressionOutputMeta declares one key of a regression model's
+// Outputs: its name, the JSON type of its value (string, number,
+// boolean, array or object) and a description.
+type RegressionOutputMeta struct {
+	Key         string `json:"key"`
+	JSONType    string `json:"json_type"`
+	Description string `json:"description,omitempty"`
 }
 
 // ExprFunction describes a function callable from runtime expressions

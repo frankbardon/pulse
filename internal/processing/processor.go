@@ -436,7 +436,9 @@ func (p *Processor) canStream(req *types.Request) bool {
 	}
 	// Regression slots stream only when every spec opts in via
 	// RegressionSpec.Streamable() (REG_OLS / REG_BAYES_LINEAR without
-	// Resample / Selection modifiers or a robust covariance). The
+	// Resample / Selection modifiers or a robust covariance) — for an
+	// extension REG_* model its declared form under the same downgrade
+	// (ExtensionRegistry.RegressionSpecStreamable). The
 	// streaming path does not compose regressions with groupers,
 	// features or two-pass attributes — those combinations route
 	// buffered. Tier-1 row tests beside a regression stream (U48): the
@@ -450,7 +452,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 			// A hidden type is never streamable, like a type nothing
 			// registered: both route buffered and fail at the same
 			// "unknown regression type" site.
-			if !reg.Streamable() || p.exts.isHidden(string(reg.Type)) {
+			if !p.exts.RegressionSpecStreamable(*reg) {
 				return false
 			}
 		}

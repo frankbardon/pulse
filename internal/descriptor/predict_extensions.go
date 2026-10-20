@@ -147,6 +147,8 @@ func extensionStreamable(opts *PredictOptions, category, name string) (bool, boo
 		metas = snap.Tests
 	case "matrix":
 		metas = snap.MatrixOps
+	case extCategoryRegression:
+		metas = snap.Regressions
 	default:
 		return false, false
 	}

@@ -733,7 +733,7 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		if reg == nil {
 			continue
 		}
-		if !routedRegression(reg, opts.instance()).Streamable() {
+		if !regressionSpecStreamable(opts, reg) {
 			if reg.Covariance.Robust() {
 				reasons = append(reasons, "regression "+string(reg.Type)+" covariance "+string(reg.Covariance.Type)+" requires the buffered path (a second pass for residuals and leverage)")
 			} else {

@@ -291,6 +291,7 @@ pulse: type Extensions field MatrixOps []pulse.MatrixOpRegistration
 pulse: type Extensions field Populations map[string]pulse.Population
 pulse: type Extensions field RangeTables map[string]pulse.RangeTable
 pulse: type Extensions field ReferenceVectors map[string]pulse/types.ReferenceVectorTable
+pulse: type Extensions field Regressions []pulse.RegressionRegistration
 pulse: type Extensions field Skills io/fs.FS
 pulse: type Extensions field Tests []pulse.TestRegistration
 pulse: type Extensions field Windows []pulse.WindowRegistration
@@ -928,6 +929,18 @@ pulse: type RangeTableInfo field NumericRanges []pulse.NumericRangeSpec "json:\"
 pulse: type RangeTableInfo field RangeCount int "json:\"range_count\""
 pulse: type RangeTableInfo field Ranges []pulse.DateRangeSpec "json:\"ranges,omitempty\""
 pulse: type Record = map[string]any
+pulse: type RegressionOutputMeta struct
+pulse: type RegressionOutputMeta field Description string "json:\"description,omitempty\""
+pulse: type RegressionOutputMeta field JSONType string "json:\"json_type\""
+pulse: type RegressionOutputMeta field Key string "json:\"key\""
+pulse: type RegressionRegistration struct
+pulse: type RegressionRegistration field Description string
+pulse: type RegressionRegistration field Factory pulse/extend.RegressionFactory
+pulse: type RegressionRegistration field Name pulse/types.RegressionType
+pulse: type RegressionRegistration field OutputSchema []pulse.RegressionOutputMeta
+pulse: type RegressionRegistration field Streamable bool
+pulse: type RegressionRegistration field Vcov bool
+pulse: type RegressionRegistration field WeightAware bool
 pulse: type RenderedTemplate = pulse/internal/template.Rendered
 pulse: type RenderedTemplate underlying struct
 pulse: type RenderedTemplate field Chain *pulse/types.ChainRequest
@@ -2480,6 +2493,7 @@ pulse/errors: const PULSE_EXTENSION_NAME_RESERVED pulse/errors.Code = "PULSE_EXT
 pulse/errors: const PULSE_EXTENSION_NOT_WEIGHT_AWARE pulse/errors.Code = "PULSE_EXTENSION_NOT_WEIGHT_AWARE"
 pulse/errors: const PULSE_EXTENSION_PARAM_INVALID pulse/errors.Code = "PULSE_EXTENSION_PARAM_INVALID"
 pulse/errors: const PULSE_EXTENSION_PURPOSE_INVALID pulse/errors.Code = "PULSE_EXTENSION_PURPOSE_INVALID"
+pulse/errors: const PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH"
 pulse/errors: const PULSE_EXTENSION_SKILL_COLLISION pulse/errors.Code = "PULSE_EXTENSION_SKILL_COLLISION"
 pulse/errors: const PULSE_EXTENSION_SKILL_INVALID pulse/errors.Code = "PULSE_EXTENSION_SKILL_INVALID"
 pulse/errors: const PULSE_EXTENSION_STREAMABLE_MISMATCH pulse/errors.Code = "PULSE_EXTENSION_STREAMABLE_MISMATCH"
@@ -2790,6 +2804,8 @@ pulse/extend: type AggregatorFactory func(spec *pulse/types.Aggregation, schema 
 pulse/extend: type AttributeComputer interface
 pulse/extend: type AttributeComputer imethod Compute(rows pulse/extend.Rows, field string) ([]float64, error)
 pulse/extend: type AttributeFactory func(spec *pulse/types.Attribute, schema *pulse/encoding.Schema) (pulse/extend.AttributeComputer, error)
+pulse/extend: type BufferedRegression interface
+pulse/extend: type BufferedRegression imethod Fit(rows pulse/extend.Rows) (pulse/extend.RegressionOutput, error)
 pulse/extend: var ErrGrouperKeyNull error
 pulse/extend: type FeatureComputer interface
 pulse/extend: type FeatureComputer imethod Compute(rows pulse/extend.Rows, field string) (map[string]pulse/extend.FeatureOutput, error)
@@ -2797,6 +2813,7 @@ pulse/extend: type FeatureFactory func(spec *pulse/types.Feature, schema *pulse/
 pulse/extend: type FeatureOutput struct
 pulse/extend: type FeatureOutput field Nulls []bool
 pulse/extend: type FeatureOutput field Values []float64
+pulse/extend: func Figure(v float64) *float64
 pulse/extend: type FilterFunc func(rec pulse/extend.Record) (bool, error)
 pulse/extend: type FiltererBuilder interface
 pulse/extend: type FiltererBuilder imethod Build(spec *pulse/types.Filterer, schema *pulse/encoding.Schema) (pulse/extend.FilterFunc, error)
@@ -2859,6 +2876,28 @@ pulse/extend: type Record imethod StringValue(field string) (string, bool)
 pulse/extend: type Record imethod Uint64Value(field string) (uint64, bool)
 pulse/extend: type Record imethod VectorValue(field string) ([]float64, bool)
 pulse/extend: type Record imethod Weight() (float64, bool)
+pulse/extend: type Regression interface
+pulse/extend: type RegressionCoefficient struct
+pulse/extend: type RegressionCoefficient field Estimate float64
+pulse/extend: type RegressionCoefficient field Name string
+pulse/extend: type RegressionCoefficient field PValue *float64
+pulse/extend: type RegressionCoefficient field Statistic *float64
+pulse/extend: type RegressionCoefficient field StdErr *float64
+pulse/extend: type RegressionFactory func(spec *pulse/types.RegressionSpec, schema *pulse/encoding.Schema) (pulse/extend.Regression, error)
+pulse/extend: type RegressionFit struct
+pulse/extend: type RegressionFit field AdjR2 *float64
+pulse/extend: type RegressionFit field DF *float64
+pulse/extend: type RegressionFit field Deviance *float64
+pulse/extend: type RegressionFit field Iterations int
+pulse/extend: type RegressionFit field NullDeviance *float64
+pulse/extend: type RegressionFit field PseudoR2 *float64
+pulse/extend: type RegressionFit field R2 *float64
+pulse/extend: type RegressionFit field ResidualStdErr *float64
+pulse/extend: type RegressionOutput struct
+pulse/extend: type RegressionOutput field Coefficients []pulse/extend.RegressionCoefficient
+pulse/extend: type RegressionOutput field Fit pulse/extend.RegressionFit
+pulse/extend: type RegressionOutput field Outputs map[string]any
+pulse/extend: type RegressionOutput field Vcov [][]float64
 pulse/extend: type RichAggregator interface
 pulse/extend: type RichAggregator imethod Rich() (any, error)
 pulse/extend: type RowLocalAttribute interface
@@ -2876,6 +2915,10 @@ pulse/extend: type StreamingFeatureComputer imethod Finalize() error
 pulse/extend: type StreamingFeatureComputer imethod PrePass(rec pulse/extend.Record, field string) error
 pulse/extend: type StreamingGrouper interface
 pulse/extend: type StreamingGrouper imethod KeyForRow(rec pulse/extend.Record, field string) (key string, ok bool, err error)
+pulse/extend: type StreamingRegression interface
+pulse/extend: type StreamingRegression imethod Finalize() (pulse/extend.RegressionOutput, error)
+pulse/extend: type StreamingRegression imethod Merge(other pulse/extend.StreamingRegression) error
+pulse/extend: type StreamingRegression imethod UpdateRow(rec pulse/extend.Record) error
 pulse/extend: type TwoPassAttribute interface
 pulse/extend: type TwoPassAttribute imethod Finalize() error
 pulse/extend: type TwoPassAttribute imethod PrePass(rec pulse/extend.Record, field string) error
@@ -4832,6 +4875,7 @@ pulse/types: type FitResult field RegressionResult.NEff float64 "json:\"n_eff,om
 pulse/types: type FitResult field RegressionResult.NObs int "json:\"n_obs,omitempty\""
 pulse/types: type FitResult field RegressionResult.Name string "json:\"name,omitempty\""
 pulse/types: type FitResult field RegressionResult.NullDeviance float64 "json:\"null_deviance,omitempty\""
+pulse/types: type FitResult field RegressionResult.Outputs map[string]any "json:\"outputs,omitempty\""
 pulse/types: type FitResult field RegressionResult.PAdjusted map[string]float64 "json:\"p_adjusted,omitempty\""
 pulse/types: type FitResult field RegressionResult.PValues map[string]float64 "json:\"p_values,omitempty\""
 pulse/types: type FitResult field RegressionResult.Penalty string "json:\"penalty,omitempty\""
@@ -4843,6 +4887,7 @@ pulse/types: type FitResult field RegressionResult.ResidualStdErr float64 "json:
 pulse/types: type FitResult field RegressionResult.SelectedFeatures []string "json:\"selected_features,omitempty\""
 pulse/types: type FitResult field RegressionResult.Selection string "json:\"selection,omitempty\""
 pulse/types: type FitResult field RegressionResult.SignificantAdjusted map[string]bool "json:\"significant_adjusted,omitempty\""
+pulse/types: type FitResult field RegressionResult.Statistics map[string]float64 "json:\"statistics,omitempty\""
 pulse/types: type FitResult field RegressionResult.StdErrors map[string]float64 "json:\"std_errors,omitempty\""
 pulse/types: type FitResult field RegressionResult.SumWeights float64 "json:\"sum_weights,omitempty\""
 pulse/types: type FitResult field RegressionResult.Type pulse/types.RegressionType "json:\"type\""
@@ -5348,6 +5393,7 @@ pulse/types: type RegressionResult field NEff float64 "json:\"n_eff,omitempty\""
 pulse/types: type RegressionResult field NObs int "json:\"n_obs,omitempty\""
 pulse/types: type RegressionResult field Name string "json:\"name,omitempty\""
 pulse/types: type RegressionResult field NullDeviance float64 "json:\"null_deviance,omitempty\""
+pulse/types: type RegressionResult field Outputs map[string]any "json:\"outputs,omitempty\""
 pulse/types: type RegressionResult field PAdjusted map[string]float64 "json:\"p_adjusted,omitempty\""
 pulse/types: type RegressionResult field PValues map[string]float64 "json:\"p_values,omitempty\""
 pulse/types: type RegressionResult field Penalty string "json:\"penalty,omitempty\""
@@ -5359,6 +5405,7 @@ pulse/types: type RegressionResult field ResidualStdErr float64 "json:\"residual
 pulse/types: type RegressionResult field SelectedFeatures []string "json:\"selected_features,omitempty\""
 pulse/types: type RegressionResult field Selection string "json:\"selection,omitempty\""
 pulse/types: type RegressionResult field SignificantAdjusted map[string]bool "json:\"significant_adjusted,omitempty\""
+pulse/types: type RegressionResult field Statistics map[string]float64 "json:\"statistics,omitempty\""
 pulse/types: type RegressionResult field StdErrors map[string]float64 "json:\"std_errors,omitempty\""
 pulse/types: type RegressionResult field SumWeights float64 "json:\"sum_weights,omitempty\""
 pulse/types: type RegressionResult field Type pulse/types.RegressionType "json:\"type\""
@@ -5396,6 +5443,7 @@ pulse/types: type RegressionSpec field Type pulse/types.RegressionType "json:\"t
 pulse/types: type RegressionSpec field Vcov bool "json:\"vcov,omitempty\""
 pulse/types: type RegressionSpec field Weight pulse/types.SlotWeight "json:\"weight,omitzero\""
 pulse/types: type RegressionSpec method (RegressionSpec) Streamable() bool
+pulse/types: type RegressionSpec method (RegressionSpec) StreamableAs(typeStreamable bool) bool
 pulse/types: type RegressionType string
 pulse/types: type RegressionType method (RegressionType) Streamable() bool
 pulse/types: type Request struct
@@ -5655,4 +5703,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: f95a27236b45c19c81cdf6c86f9bbf100099e7467ca9a8a01e9f3e96ad4624dd
+// golden-hash: db3b6c04720d303fbf2d75d3d9daa661da1123a396d29974ef64ee744263c25a

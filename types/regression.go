@@ -357,6 +357,13 @@ type RegressionResult struct {
 	// null β = 0; null on every key exactly where StdErrors is.
 	PValues map[string]float64 `json:"p_values,omitempty"`
 
+	// Statistics maps coefficient name to its test statistic. Only an
+	// extension regression (pulse.RegressionRegistration) reports it —
+	// the built-ins leave it absent. On an extension fit StdErrors,
+	// Statistics and PValues each carry every coefficient key, a figure
+	// the model did not compute null (the table stays rectangular).
+	Statistics map[string]float64 `json:"statistics,omitempty"`
+
 	// CILower and CIUpper map predictor name (keyed like Coefficients) to
 	// the lower / upper bound of the coefficient's two-sided confidence
 	// interval at ConfLevel: coefficient ∓ q·StdErrors, q the Student-t
@@ -454,6 +461,11 @@ type RegressionResult struct {
 	// "auto" lags resolved; absent on a classical fit.
 	Covariance *RegressionCovarianceResult `json:"covariance,omitempty"`
 
+	// Outputs holds an extension regression's own named extras, each key
+	// declared in its registration's OutputSchema; a non-finite float is
+	// null. The built-ins leave it absent.
+	Outputs map[string]any `json:"outputs,omitempty"`
+
 	// PAdjusted maps each family-member coefficient (keyed like PValues)
 	// to its multiplicity-adjusted p-value, present only when the spec's
 	// own multiplicity block resolved to a method other than none. It
@@ -527,32 +539,29 @@ func (t RegressionType) Streamable() bool {
 // rows. REG_BAYES_LINEAR (Phase 4) streams the same Welford sufficient
 // stats and applies the conjugate Normal-Inverse-Gamma posterior at
 // finalize.
+//
+// REG_OLS penalized fits (Phase 2) share the unpenalized fit's
+// streaming sufficient statistics — the regularized iteration happens at
+// finalize over the Gram, not over rows — and REG_BAYES_LINEAR's
+// conjugate-NIG posterior consumes the same statistics plus a
+// finalize-time prior update, so both stream whatever their penalty or
+// prior.
 func (s RegressionSpec) Streamable() bool {
-	if !s.Type.Streamable() {
+	return s.StreamableAs(s.Type.Streamable())
+}
+
+// StreamableAs is Streamable for a spec whose type streams exactly when
+// typeStreamable says so — an extension regression's declared form,
+// which RegressionType.Streamable cannot know. The modifier downgrade is
+// the same: any non-empty Resample or Selection, or a robust Covariance
+// (a second pass for every fitted row's residual), forces the buffered
+// path.
+func (s RegressionSpec) StreamableAs(typeStreamable bool) bool {
+	if !typeStreamable {
 		return false
 	}
-	if s.Resample != "" {
+	if s.Resample != "" || s.Selection != "" {
 		return false
 	}
-	if s.Selection != "" {
-		return false
-	}
-	// A robust covariance needs every fitted row's residual: a second
-	// pass over the buffered rows.
-	if s.Covariance.Robust() {
-		return false
-	}
-	switch s.Type {
-	case REG_OLS:
-		// Penalized fits (Phase 2) share the unpenalized fit's streaming
-		// sufficient statistics — the regularized iteration happens at
-		// finalize over the Gram, not over rows. Both branches stream.
-		return true
-	case REG_BAYES_LINEAR:
-		// Phase 4: conjugate-NIG posterior consumes the same streaming
-		// sufficient statistics as REG_OLS plus a finalize-time prior
-		// update. No iteration over rows.
-		return true
-	}
-	return false
+	return !s.Covariance.Robust()
 }

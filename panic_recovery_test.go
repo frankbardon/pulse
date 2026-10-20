@@ -459,3 +459,44 @@ func TestPanicRecovery_TestOverrideCrashes(t *testing.T) {
 	_, err := panicFixture(t, Options{}).Process(ctx, panicAggRequest())
 	assertPanicError(t, err, observe.OpProcess)
 }
+
+// panicRegression panics on real rows only: the registration probe
+// fits it over the synthetic target probe_y.
+type panicRegression struct{ target string }
+
+func (m panicRegression) boom() {
+	if m.target != probeRegTarget {
+		panic(panicSecret)
+	}
+}
+
+func (m panicRegression) Fit(extend.Rows) (extend.RegressionOutput, error) {
+	m.boom()
+	return extend.RegressionOutput{Coefficients: []extend.RegressionCoefficient{{Name: "b"}}}, nil
+}
+
+func (m panicRegression) UpdateRow(extend.Record) error          { m.boom(); return nil }
+func (m panicRegression) Merge(extend.StreamingRegression) error { return nil }
+func (m panicRegression) Finalize() (extend.RegressionOutput, error) {
+	return extend.RegressionOutput{Coefficients: []extend.RegressionCoefficient{{Name: "b"}}}, nil
+}
+
+// TestPanicRecovery_ExtensionRegression (U53 E1-S1): a panicking
+// extension regression model — buffered Fit or streaming UpdateRow —
+// returns PROCESSING_PANIC from Process like any extension operator,
+// and the adapter adds no recover of its own.
+func TestPanicRecovery_ExtensionRegression(t *testing.T) {
+	factory := func(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression, error) {
+		return panicRegression{target: spec.Target}, nil
+	}
+	for _, streamable := range []bool{false, true} {
+		p := recoveringFixture(t, Options{ShardWorkers: 1, DecodeWorkers: 1, Extensions: Extensions{
+			Regressions: []RegressionRegistration{{Name: "REG_ACME_BOOM", Factory: factory, Streamable: streamable}},
+		}})
+		_, err := p.Process(context.Background(), &Request{
+			Cohort:      &types.Cohort{Filename: obsCohort},
+			Regressions: []*types.RegressionSpec{{Type: "REG_ACME_BOOM", Target: "amount", Predictors: []string{"id"}}},
+		})
+		assertPanicError(t, err, observe.OpProcess)
+	}
+}

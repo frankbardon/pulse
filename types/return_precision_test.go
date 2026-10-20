@@ -80,7 +80,7 @@ var precisionClass = map[string]string{
 	"post_tests[*].statistic": "round", "post_tests[*].df": "round", "post_tests[*].p_value": "round",
 	"post_tests[*].alpha": "round", "post_tests[*].p_adjusted": "round", "post_tests[*].multiplicity.alpha": "round",
 	"regressions[*].alpha": "round", "regressions[*].l1_ratio": "round",
-	"regressions[*].coefficients.*": "round", "regressions[*].std_errors.*": "round",
+	"regressions[*].coefficients.*": "round", "regressions[*].std_errors.*": "round", "regressions[*].statistics.*": "round",
 	"regressions[*].p_values.*": "round", "regressions[*].ci_lower.*": "round", "regressions[*].ci_upper.*": "round",
 	"regressions[*].p_adjusted.*": "round", "regressions[*].multiplicity.alpha": "round",
 	"regressions[*].df": "round", "regressions[*].conf_level": "round", "regressions[*].r2": "round", "regressions[*].adj_r2": "round",

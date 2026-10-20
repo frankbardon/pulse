@@ -495,6 +495,22 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 				addAllKnown(inputs)
 			}
 		}
+		// An extension REG_* model reads its target and predictors
+		// (collected above) plus whatever its FieldInputs hook declares;
+		// without one it is opaque, so the decode widens.
+		for _, r := range req.Regressions {
+			if r == nil {
+				continue
+			}
+			if _, custom := ext.Regressions[r.Type]; custom {
+				inputs, ok := ext.FieldInputsFor("regression", string(r.Type), nil)
+				if !ok {
+					out.Widen()
+					return out
+				}
+				addAllKnown(inputs)
+			}
+		}
 		// An extension MAT_* operator reads only its members (it
 		// finalizes over the engine's co-moment); a FieldInputs hook
 		// adds what it declares beyond them.

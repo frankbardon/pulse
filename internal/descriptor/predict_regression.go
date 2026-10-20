@@ -34,8 +34,15 @@ var knownRegressionTypes = func() map[types.RegressionType]struct{} {
 // Deeper runtime checks (n ≥ p + 1, link compatibility, regularization
 // parameter bounds) live with the engines in Phases 1–4. predict
 // cannot import internal/processing/regression, so registry membership is
-// checked against types.AllRegressionTypes() instead. A type inst hides
-// is refused exactly as a type outside that set.
+// checked against types.AllRegressionTypes() plus the instance's
+// extension REG_* models (the snapshot) instead. A type inst hides is
+// refused exactly as a type outside that set.
+//
+// An extension model passes the type-independent checks (target,
+// predictors, the accepted-types table, conf_level, covariance,
+// resample) and the declare-or-refuse rule for the shared slots it
+// does not honour (ExtensionRegressionSlotRefusal, the runtime
+// adapter's own call).
 func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, projected map[string]bool, inst *InstanceSnapshot) {
 	// Every `save` path and their uniqueness — the runtime's
 	// model.CheckRequestSaves, the one rule (first fault,
@@ -47,13 +54,20 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		if reg == nil {
 			continue
 		}
-		if _, ok := knownRegressionTypes[opRoute(inst, reg.Type)]; !ok {
+		_, builtin := knownRegressionTypes[opRoute(inst, reg.Type)]
+		_, decl, extension := regressionExtensionFor(inst, nil, reg.Type)
+		if !builtin && !extension {
 			env.AddError(
 				string(errors.SERVICE_VALIDATION),
 				"regression references unknown type: "+string(reg.Type),
 				map[string]any{"type": string(reg.Type)},
 			)
 			continue
+		}
+		if extension {
+			if cerr := ExtensionRegressionSlotRefusal(reg, decl); cerr != nil {
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			}
 		}
 
 		if reg.Target == "" {

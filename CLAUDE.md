@@ -198,7 +198,7 @@ Hermetic tests: `fs.NewMemMap()` (`internal/fs`).
 
 ## Extension Points
 
-`pulse.Options.Extensions` registers embedder operators (eight categories, `MAT` included, authored against `extend`), expr functions and named tables at `pulse.New()`; predict, manifest, MCP and runtime treat them as built-ins, and `internal/processing` stays unreachable (`TestExtendImportBoundary`, `TestRootSurfaceNamesNoProcessing`). Names are `<CATEGORY>_<NAMESPACE>_<NAME>`; reserved namespaces and built-in collisions are rejected. **Recipe: `docs/src/internals/extension-points.md`; contract: `.claude/reference/architecture.md` (Extension surface).**
+`pulse.Options.Extensions` registers embedder operators (nine categories incl. `MAT` / `REG`, authored against `extend`), expr functions and named tables at `pulse.New()`; predict, manifest, MCP and runtime treat them as built-ins, and `internal/processing` stays unreachable (`TestExtendImportBoundary`, `TestRootSurfaceNamesNoProcessing`). Names are `<CATEGORY>_<NAMESPACE>_<NAME>`; reserved namespaces and built-in collisions are rejected. **Recipe: `docs/src/internals/extension-points.md`; contract: `.claude/reference/architecture.md` (Extension surface).**
 
 ## Feature profiles
 

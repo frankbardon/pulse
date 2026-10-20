@@ -30,7 +30,9 @@ import (
 // times; a failure carries details "weighted": true. Tests are probed
 // only when they declare WeightAware. Matrix operators are the one
 // category the probe feeds data: probeMatrixOps finalizes each over a
-// synthetic three-member co-moment (extensions_probe_matrix.go).
+// synthetic three-member co-moment (extensions_probe_matrix.go), and
+// probeRegressions fits every regression model over a few synthetic
+// rows (extensions_regression.go).
 func probeExtensions(ext Extensions) error {
 	if err := probeAggregators(ext.Aggregators); err != nil {
 		return err
@@ -51,6 +53,9 @@ func probeExtensions(ext Extensions) error {
 		return err
 	}
 	if err := probeMatrixOps(ext.MatrixOps); err != nil {
+		return err
+	}
+	if err := probeRegressions(ext.Regressions); err != nil {
 		return err
 	}
 	return nil

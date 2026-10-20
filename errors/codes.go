@@ -1144,6 +1144,20 @@ const (
 	// declared ones. Wired into extensions_probe.probeMatrixOps.
 	PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH Code = "PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH"
 
+	// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH indicates a regression
+	// registration's model — fitted at pulse.New over a small synthetic
+	// row set, or on any run — returned a RegressionOutput its
+	// registration does not allow: no coefficient, an empty or repeated
+	// coefficient name, an Outputs key OutputSchema does not declare, or
+	// (when the spec asked for vcov) a missing or misshapen Vcov.
+	// Details carry the category, name, a reason discriminator
+	// (missing_coefficients, invalid_coefficient, undeclared_output_key,
+	// missing_vcov, vcov_shape) and the offending keys. The regression
+	// sibling of PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH. Wired into
+	// extensions_probe_regression.probeRegressions and the regression
+	// adapter.
+	PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH Code = "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH"
+
 	// PULSE_EXTENSION_FACTORY_PANIC indicates an embedder factory
 	// panicked during probe-validation at registration time.
 	PULSE_EXTENSION_FACTORY_PANIC Code = "PULSE_EXTENSION_FACTORY_PANIC"
@@ -4131,6 +4145,7 @@ var allCodes = []Code{
 	PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH,
 	PULSE_EXTENSION_ARRAY_VALUED_MISMATCH,
 	PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH,
+	PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH,
 	PULSE_EXTENSION_FACTORY_PANIC,
 	PULSE_EXTENSION_PARAM_INVALID,
 	PULSE_EXTENSION_COMPONENT_SCHEMA_MISMATCH,

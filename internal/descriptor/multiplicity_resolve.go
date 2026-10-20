@@ -69,6 +69,12 @@ type ResolvedMultiplicity struct {
 	// list: a listed name the fit reports no p-value for stays a member
 	// with an undefined p (excluded from m, p_adjusted null).
 	ExplicitCoefficients bool
+	// ResultCoefficients reports a member extension REG_* model without
+	// its own coefficient list: its coefficients are named by the model,
+	// so the family is read off the result — every coefficient carrying
+	// a defined p-value, "(intercept)" excluded, in name order. A
+	// coefficient without one (absent, or undefined) does not join.
+	ResultCoefficients bool
 }
 
 // MultiplicityPlan is the resolved correction of one Request, each
@@ -472,6 +478,9 @@ func (r multResolver) regression(slot string, spec *types.RegressionSpec, chain 
 	if err := ValidateMultiplicitySpec(own, where); err != nil {
 		return rm, err
 	}
+	// An extension model names its own coefficients, so its block's
+	// list is held to uniqueness only.
+	_, _, extension := regressionExtensionFor(r.inst, nil, spec.Type)
 	known := map[string]bool{regressionInterceptKey: true}
 	for _, p := range spec.Predictors {
 		known[p] = true
@@ -480,7 +489,7 @@ func (r multResolver) regression(slot string, spec *types.RegressionSpec, chain 
 	for _, c := range spec.Multiplicity.Coefficients {
 		reason := ""
 		switch {
-		case !known[c]:
+		case !known[c] && !extension:
 			reason = multReasonCoefficient
 		case seen[c]:
 			reason = multReasonCoefficientDup
@@ -501,7 +510,7 @@ func (r multResolver) regression(slot string, spec *types.RegressionSpec, chain 
 	if routed == types.REG_BAYES_LINEAR && method != types.MultiplicityMethodNone {
 		return rm, multInvalid(where, "method", string(method), multReasonBayes, []string{string(types.MultiplicityMethodNone)})
 	}
-	if _, ok := knownRegressionTypes[routed]; !ok {
+	if _, ok := knownRegressionTypes[routed]; !ok && !extension {
 		return rm, nil
 	}
 	rm.Method = method
@@ -513,6 +522,8 @@ func (r multResolver) regression(slot string, spec *types.RegressionSpec, chain 
 	if len(spec.Multiplicity.Coefficients) > 0 {
 		rm.Coefficients = slices.Clone(spec.Multiplicity.Coefficients)
 		rm.ExplicitCoefficients = true
+	} else if extension {
+		rm.ResultCoefficients = true
 	} else {
 		for _, p := range spec.Predictors {
 			if p != regressionInterceptKey && !slices.Contains(rm.Coefficients, p) {

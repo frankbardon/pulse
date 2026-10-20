@@ -21,7 +21,7 @@ import (
 
 // extensionNameRegex captures the embedder-registration naming policy:
 //
-//	^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT)_<NAMESPACE>_<NAME>$
+//	^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG)_<NAMESPACE>_<NAME>$
 //
 // with NAMESPACE and NAME drawn from uppercase ASCII (digits and
 // underscores allowed after the first letter). The Pulse-shipped
@@ -31,7 +31,7 @@ import (
 // fit the pattern (MAT_PARTIAL_CORRELATION) is still reserved by the
 // built-in collision check, which runs first.
 var extensionNameRegex = regexp.MustCompile(
-	`^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT)_([A-Z][A-Z0-9]+)_([A-Z](?:[A-Z0-9_]*[A-Z0-9])?)$`,
+	`^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG)_([A-Z][A-Z0-9]+)_([A-Z](?:[A-Z0-9_]*[A-Z0-9])?)$`,
 )
 
 // extensionCategory tags every registration slot for validation
@@ -48,6 +48,7 @@ const (
 	categoryFeature    extensionCategory = "feature"
 	categoryTest       extensionCategory = "test"
 	categoryMatrix     extensionCategory = "matrix"
+	categoryRegression extensionCategory = "regression"
 )
 
 // expectedPrefix is the category-token half of the registration name
@@ -70,6 +71,8 @@ func (c extensionCategory) expectedPrefix() string {
 		return "TEST"
 	case categoryMatrix:
 		return "MAT"
+	case categoryRegression:
+		return "REG"
 	}
 	return ""
 }
@@ -88,8 +91,8 @@ var validJSONTypes = map[string]struct{}{
 // then by slice index; ExprFunctions / LookupTables come after the
 // operator slices.
 //
-// A nil Factory on an aggregator, attribute, filterer, grouper, window
-// or feature registration is refused here (validateOperatorSlice,
+// A nil Factory on an aggregator, attribute, filterer, grouper, window,
+// feature or regression registration is refused here (validateOperatorSlice,
 // PULSE_EXTENSION_PARAM_INVALID reason missing_factory), before the
 // probe could only report it as a recovered FACTORY_PANIC; matrix ops
 // (validateMatrixOps) and tests (validateTestTiers) refuse theirs in
@@ -150,6 +153,14 @@ func validateExtensions(ext Extensions) error {
 		return err
 	}
 	if err := validateMatrixOps(ext.MatrixOps); err != nil {
+		return err
+	}
+	if err := validateOperatorSlice(ext.Regressions, categoryRegression, builtinRegressionNames(), func(r RegressionRegistration) (string, []ParamMeta) {
+		return string(r.Name), nil
+	}, func(r RegressionRegistration) bool { return r.Factory != nil }); err != nil {
+		return err
+	}
+	if err := validateRegressionRegistrations(ext.Regressions); err != nil {
 		return err
 	}
 	if err := validateExprFunctions(ext.ExprFunctions); err != nil {
@@ -1131,6 +1142,37 @@ func builtinMatrixNames() map[string]struct{} {
 		out[string(t)] = struct{}{}
 	}
 	return out
+}
+
+func builtinRegressionNames() map[string]struct{} {
+	out := make(map[string]struct{}, 4)
+	for _, t := range types.AllRegressionTypes() {
+		out[string(t)] = struct{}{}
+	}
+	return out
+}
+
+// validateRegressionRegistrations enforces the RegressionRegistration
+// shape beyond the shared naming / factory pass: every OutputSchema
+// entry has a non-empty Key listed once and a JSONType from the
+// ParamMeta set — else PULSE_EXTENSION_PARAM_INVALID, details.reason
+// invalid_output_key (details.key, .json_type).
+func validateRegressionRegistrations(regs []RegressionRegistration) error {
+	for i, r := range regs {
+		seen := make(map[string]bool, len(r.OutputSchema))
+		for _, o := range r.OutputSchema {
+			_, typed := validJSONTypes[o.JSONType]
+			if strings.TrimSpace(o.Key) != "" && !seen[o.Key] && typed {
+				seen[o.Key] = true
+				continue
+			}
+			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_PARAM_INVALID,
+				fmt.Sprintf("extension regression %q OutputSchema key %q is empty, listed twice or has an unknown JSONType %q", r.Name, o.Key, o.JSONType),
+				map[string]any{"category": string(categoryRegression), "name": string(r.Name), "index": i,
+					"reason": "invalid_output_key", "key": o.Key, "json_type": o.JSONType})
+		}
+	}
+	return nil
 }
 
 // sortedReservedNamespaces returns the reserved set as a stable

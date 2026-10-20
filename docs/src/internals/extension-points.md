@@ -196,7 +196,7 @@ Embedder registrations MUST use a three-segment namespaced form:
 The regex enforced by `extensions_validate.go` is:
 
 ```
-^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$
+^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$
 ```
 
 | Example | Category | Namespace | Name |
@@ -206,21 +206,23 @@ The regex enforced by `extensions_validate.go` is:
 | `FILTER_ACME_GEO_FENCE` | filterer | ACME | GEO_FENCE |
 | `TEST_FINANCE_VAR` | test | FINANCE | VAR |
 | `MAT_ACME_SCATTER` | matrix | ACME | SCATTER |
+| `REG_ACME_HILL` | regression | ACME | HILL |
 
 Failure modes raised at registration time:
 
 - Name fails the regex → `PULSE_EXTENSION_NAME_INVALID`.
 - Namespace is one of the reserved values `BUILTIN`, `STANDARD`,
   `CORE`, `PULSE` → `PULSE_EXTENSION_NAME_RESERVED`.
-- Name collides with a built-in (e.g. registering `AGG_COUNT`, or
-  `MAT_PARTIAL_CORRELATION`, a built-in that happens to fit the
-  pattern) → `PULSE_EXTENSION_NAME_COLLISION`.
+- Name collides with a built-in (e.g. registering `AGG_COUNT`,
+  `REG_OLS`, or `MAT_PARTIAL_CORRELATION`, a built-in that happens to
+  fit the pattern) → `PULSE_EXTENSION_NAME_COLLISION`.
 - The category prefix does not match the registration slot (a
-  `MAT_*` name under `Aggregators`) → `PULSE_EXTENSION_NAME_INVALID`.
+  `MAT_*` name under `Aggregators`, a `REG_*` name anywhere but
+  `Regressions`) → `PULSE_EXTENSION_NAME_INVALID`.
 - The same name appears twice in one `pulse.New` call →
   `PULSE_EXTENSION_DUPLICATE`.
-- An aggregator, attribute, filterer, grouper, window or feature
-  registration with a nil `Factory` → `PULSE_EXTENSION_PARAM_INVALID`,
+- An aggregator, attribute, filterer, grouper, window, feature or
+  regression registration with a nil `Factory` → `PULSE_EXTENSION_PARAM_INVALID`,
   `details.reason` `missing_factory` (with `category`, `name`,
   `index`), refused before any probe runs. A matrix operator refuses a
   nil `Factory` the same way in its own pass (table below); a test
@@ -230,7 +232,7 @@ Two embedders in the same process must use disjoint namespaces.
 
 ## Per-category registration shapes
 
-The eight operator categories plus expression functions and lookup
+The nine operator categories plus expression functions and lookup
 tables cover everything `pulse.Options.Extensions` accepts. Field-input
 introspection and component-schema emission attach to operator
 registrations as additional optional fields — see the dedicated
@@ -729,6 +731,75 @@ finalizer:
   profile that omits it hides it everywhere; listing it needs
   `capability:matrices`.
 
+### Regression model (`Regressions`)
+
+`Extensions.Regressions []pulse.RegressionRegistration` registers
+`REG_<NAMESPACE>_<NAME>` models for `Request.Regressions`, authored
+against `extend.Regression`. The factory (`extend.RegressionFactory`,
+built per slot from the spec and schema) returns one of two forms,
+matching the registration's `Streamable` declaration:
+
+- **Streaming** (`Streamable: true`) — `extend.StreamingRegression`:
+  `UpdateRow(rec)`, `Merge(other)` (required; regressions run serially
+  today, so the engine does not call it yet) and `Finalize()`. It
+  streams wherever a built-in regression would (no grouper, feature or
+  two-pass attribute; no `resample`, `selection` or robust
+  `covariance`); otherwise the engine feeds it the buffered rows through
+  `UpdateRow`, in record order — never `Fit`.
+- **Buffered** (`Streamable: false`) — `extend.BufferedRegression`:
+  `Fit(rows)` over every admitted row, free to iterate.
+
+The engine admits rows (listwise on `target` and every predictor; on a
+weighted `WeightAware` slot, only rows whose weight is valid and
+positive, each reporting it through `Record.Weight()`) and the model
+returns a narrow `extend.RegressionOutput`: `Coefficients` (each a
+`Name`, an `Estimate` and optional `StdErr` / `Statistic` / `PValue` —
+nil is absent, `null` on the wire with the key kept; `extend.Figure(v)`
+builds one), optional `Fit` statistics from the fixed set (`R2`,
+`AdjR2`, `ResidualStdErr`, `DF`, `Deviance`, `NullDeviance`,
+`PseudoR2`, `Iterations`), a `Vcov` (square over the coefficients, in
+their order) and `Outputs`. The adapter maps it onto
+`types.RegressionResult` and owns the rest: name and type, `n_obs`,
+`sum_weights` / `n_eff`, the multiplicity fold (only coefficients with
+a defined p-value join a default family; an explicit
+`multiplicity.coefficients` list names the model's own coefficients)
+and per-slot failure (a model error coded
+`PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `_RANK_DEFICIENT`,
+`_NO_CONVERGE` or `_SEPARATION` fails its slot alone; any other is
+fatal; a panic is `PROCESSING_PANIC`).
+
+| Registration field | Meaning |
+|---|---|
+| `Streamable` | the form; decides the path at runtime and in predict |
+| `WeightAware` | the model reads row weights; undeclared, any weight in force is `PULSE_EXTENSION_NOT_WEIGHT_AWARE` |
+| `Vcov` | `vcov: true` is honoured (result `vcov` + `correlation`); undeclared it is `PROCESSING_CONFIG` `{regression, slot: "vcov"}` at predict and runtime |
+| `OutputSchema` | `[]pulse.RegressionOutputMeta{Key, JSONType, Description}` — the `Outputs` keys the model may fill (`invalid_output_key` on an empty, repeated or untyped key) |
+
+**Probe.** `pulse.New` builds the factory against a synthetic schema
+(`probe_y` ~ `probe_x1` + `probe_x2`, plus a weight column), with
+`vcov` set when the registration declares it, and fits it over eight
+synthetic rows through the run-time driver (again weighted for a
+`WeightAware` one, `details.weighted`). A model that is not the
+declared form is `PULSE_EXTENSION_STREAMABLE_MISMATCH`
+(`details.reason` `not_streaming`, `missing_merge`, `not_buffered`);
+an output with no coefficient, an empty or repeated coefficient name,
+an undeclared `Outputs` key, or a missing / misshapen `Vcov` is
+`PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` (`missing_coefficients`,
+`invalid_coefficient`, `undeclared_output_key`, `missing_vcov`,
+`vcov_shape`) — checked again on every run; a factory or fit panic or
+error is `PULSE_EXTENSION_FACTORY_PANIC`, except a data-dependent
+regression refusal on the synthetic rows, which is tolerated.
+
+```go
+pulse.RegressionRegistration{
+    Name:         "REG_ACME_SLOPE",
+    Factory:      func(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression, error) { return newSlope(spec), nil },
+    Streamable:   true, // newSlope implements UpdateRow, Merge, Finalize
+    WeightAware:  true,
+    OutputSchema: []pulse.RegressionOutputMeta{{Key: "sxx", JSONType: "number"}},
+}
+```
+
 ### Expression functions
 
 Custom Go functions become callable from `ATTR_FORMULA` and
@@ -1120,7 +1191,9 @@ A `WeightAware` aggregator, attribute or test factory is constructed a
 second time with a row weight on its spec (a field the empty schema
 does not carry) and must pass the same checks; a failure of that
 construction reports the same code with `details.weighted: true`.
-Tests are probed only when they declare `WeightAware`.
+Tests are probed only when they declare `WeightAware`. A regression
+model is fitted over eight synthetic rows ("Regression model
+(`Regressions`)" above).
 
 Factory panics or nil returns surface as
 `PULSE_EXTENSION_FACTORY_PANIC`. Streamability declarations that do
@@ -1982,6 +2055,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_MERGEABLE_MISMATCH` | aggregator / grouper `Mergeable` without `Streamable`, value lacks `extend.MergeableAggregator` (or, for a grouper that emits components, `extend.MergeableGrouper`), or `ComponentSchema` keys classified `None` |
 | `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH` | aggregator `MarginReducibility` is not a known class, or is a fusable class (summable / mean_reducible / independent) without `Mergeable` |
 | `PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH` | a matrix operator, finalized over the probe's synthetic co-moment, returned no `Primary` or an output key its `OutputKeys` does not declare |
+| `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` | a regression model, fitted over the probe's synthetic rows or on any run, returned no coefficient, an empty / repeated coefficient name, an `Outputs` key its `OutputSchema` does not declare, or (under `vcov`) a missing or misshapen `Vcov` |
 | `PULSE_EXTENSION_FACTORY_PANIC` | factory panicked or returned nil during probe |
 | `PULSE_EXTENSION_PARAM_INVALID` | bad `ParamMeta`, missing `Mode`/`Tier`, `ComponentSchema.Keys` with no emitter (`schema_without_emitter`), lookup table with neither `Rows` nor `Lookup`, a malformed reference-vector table, etc. |
 | `PULSE_EXTENSION_MISSING_COMPONENT_SCHEMA` | emitter wired (`ComponentsFunc`, or the value's own `Components()` method) but `ComponentSchema.Keys` empty |
@@ -1991,7 +2065,7 @@ Fetch the Message + Fixup template for any of these via
 | `PULSE_EXTENSION_EXAMPLE_INVALID` | an `Extensions.Examples` file breaks a rule in "Embedder examples" — `details.reason` names which |
 | `PULSE_EXTENSION_EXAMPLE_COLLISION` | an `Extensions.Examples` name is a built-in example or is shipped twice |
 | `PULSE_FEATURE_PROFILE_UNKNOWN` | a `DependsOn` entry names no built-in feature or registered extension operator |
-| `PULSE_EXTENSION_NOT_WEIGHT_AWARE` | a row weight reached a registration without `WeightAware` — explicit on an aggregator, or any weight in force on an attribute or test |
+| `PULSE_EXTENSION_NOT_WEIGHT_AWARE` | a row weight reached a registration without `WeightAware` — explicit on an aggregator, or any weight in force on an attribute, test, matrix operator or regression |
 | `PULSE_LOOKUP_TABLE_UNKNOWN` | expression referenced an unregistered table |
 | `PULSE_LOOKUP_MISS` | lookup key not present |
 | `PULSE_VECTOR_REFERENCE_UNKNOWN` | `ref()` names an unregistered table or key, or a non-literal table |

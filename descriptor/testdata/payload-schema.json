@@ -3903,6 +3903,10 @@
             "null"
           ]
         },
+        "outputs": {
+          "additionalProperties": true,
+          "type": "object"
+        },
         "p_adjusted": {
           "additionalProperties": {
             "type": [
@@ -3963,6 +3967,15 @@
         "significant_adjusted": {
           "additionalProperties": {
             "type": "boolean"
+          },
+          "type": "object"
+        },
+        "statistics": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "type": "object"
         },
@@ -5328,4 +5341,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 686a2393445c24d3479c2408aa75d4bc4715c85e3cf4ce225020ecd953fdb279
+// golden-hash: d546c2274456ddb5341b8e925a79be42c6895b39d1fcb70a1913e9d1a56c9449

@@ -45,6 +45,13 @@ type ExtensionRegistry struct {
 	// LookupMatrixOp: a finalizer the built-in matrix slot runs in
 	// place of a matrixFinalizers entry.
 	MatrixOps map[types.MatrixType]MatrixOp
+	// Regressions are the extension REG_* models
+	// (pulse.RegressionRegistration), adapted onto the engine's
+	// regression.Factory and read through LookupRegression ahead of the
+	// built-in registry. Their declared form rides Streamable under
+	// "regression|<name>" (RegressionSpecStreamable) and their
+	// WeightAware declaration WeightAware.
+	Regressions map[types.RegressionType]regression.Factory
 
 	// Streamable is the per-(category, name) override consulted by
 	// IsStreamable. Built-in entries are not stored here; the
@@ -480,15 +487,39 @@ func (r *ExtensionRegistry) LookupWindow(t types.WindowType) (window.WindowFacto
 	return window.Lookup(t)
 }
 
-// LookupRegression returns the factory for a regression type. Only
-// built-ins register regressions; a type the instance feature set hides
-// misses exactly like one nothing registered, so regression.BuildWith
-// raises its own "unknown regression type" error.
+// LookupRegression returns the factory for a regression type: an
+// extension REG_* model's adapted factory, else the built-in registry.
+// A type the instance feature set hides misses exactly like one nothing
+// registered, so regression.BuildWith raises its own "unknown
+// regression type" error.
 func (r *ExtensionRegistry) LookupRegression(t types.RegressionType) (regression.Factory, bool) {
 	if r.isHidden(string(t)) {
 		return nil, false
 	}
+	if r != nil {
+		if f, ok := r.Regressions[t]; ok {
+			return f, true
+		}
+	}
 	return regression.Lookup(t)
+}
+
+// RegressionSpecStreamable is the instance's spec-level streamability of
+// a regression spec: an extension model's DECLARED form folded with the
+// spec's modifier downgrade (types.RegressionSpec.StreamableAs), else
+// the built-in types.RegressionSpec.Streamable. A hidden type is not
+// streamable. Predict's twin is internal/descriptor's
+// regressionSpecStreamable. Nil-receiver-safe.
+func (r *ExtensionRegistry) RegressionSpecStreamable(spec types.RegressionSpec) bool {
+	if r.isHidden(string(spec.Type)) {
+		return false
+	}
+	if r != nil {
+		if _, ok := r.Regressions[spec.Type]; ok {
+			return spec.StreamableAs(r.Streamable[StreamabilityKey("regression", string(spec.Type))])
+		}
+	}
+	return spec.Streamable()
 }
 
 // hiddenOverlayRoute is the kind a hidden overlay kind is ROUTED as: a

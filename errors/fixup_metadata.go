@@ -1641,8 +1641,8 @@ var codeMetadata = map[Code]Metadata{
 		Fixups: []Fixup{
 			{
 				Action:   FixupReplaceField,
-				Hint:     "Rename the registration so it matches ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|SYNTH|MAT)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$ with the prefix of its registration slot (MatrixOps: MAT_), e.g. AGG_ACME_BRAND_SCORE.",
-				Examples: []any{"AGG_ACME_BRAND_SCORE", "ATTR_ACME_ADJUSTMENT", "MAT_ACME_SCATTER"},
+				Hint:     "Rename the registration so it matches ^(AGG|ATTR|FILTER|GROUP|WIN|FEAT|TEST|MAT|REG)_[A-Z][A-Z0-9]+_[A-Z](?:[A-Z0-9_]*[A-Z0-9])?$ with the prefix of its registration slot (MatrixOps: MAT_, Regressions: REG_), e.g. AGG_ACME_BRAND_SCORE.",
+				Examples: []any{"AGG_ACME_BRAND_SCORE", "ATTR_ACME_ADJUSTMENT", "MAT_ACME_SCATTER", "REG_ACME_HILL"},
 			},
 		},
 	},
@@ -1678,7 +1678,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_STREAMABLE_MISMATCH: {
-		Message: "A registration's streaming declaration disagrees with the interface its factory returns: it declared streaming capability without the required streaming interface, or (features, checked both ways) declared Streamable=false for a value that implements extend.StreamingFeatureComputer.",
+		Message: "A registration's streaming declaration disagrees with the interface its factory returns: it declared streaming capability without the required streaming interface, or (features, checked both ways) declared Streamable=false for a value that implements extend.StreamingFeatureComputer, or (regressions, checked both ways) declared Streamable=true for a value that is not an extend.StreamingRegression (Merge included) or Streamable=false for one that is not an extend.BufferedRegression.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -1687,6 +1687,10 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Hint:   "For a feature (details category \"feature\"), make Streamable equal whether the returned value implements extend.StreamingFeatureComputer: the runtime streams on the value while predict reads the declaration, so set Streamable=true for a streaming value, or drop PrePass/Finalize/EmitRow from a buffered one.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "For a regression (details category \"regression\"), a Streamable=true model must implement extend.StreamingRegression — UpdateRow, Merge and Finalize (details.reason missing_merge names a model without Merge) — and a Streamable=false one extend.BufferedRegression (Fit); flip Streamable or add the missing methods.",
 			},
 		},
 	},
@@ -1777,6 +1781,15 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Always return MatrixOutput.Primary, and list every Auxiliary, Vectors and Scalars key Finalize can fill in the registration's OutputKeys (a declared key the operator leaves unfilled on some input is fine) — or stop filling the undeclared key named in details.undeclared.",
+			},
+		},
+	},
+	PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH: {
+		Message: "A regression registration's model — fitted at pulse.New over a small synthetic row set, or on any run — returned no coefficient, an empty or repeated coefficient name, an Outputs key its OutputSchema does not declare, or (when the spec set vcov) no Vcov or one that is not square over the coefficients.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Return at least one RegressionCoefficient, each with a unique non-empty Name; declare every Outputs key the model can fill in the registration's OutputSchema (a declared key left unfilled is fine) or stop filling the undeclared key named in details.undeclared; and when the registration declares Vcov, return a Vcov square over Coefficients, in their order, whenever spec.Vcov is set.",
 			},
 		},
 	},

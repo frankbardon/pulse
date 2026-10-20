@@ -80,7 +80,7 @@ type weightSlot struct {
 	// refusal prose says so.
 	noSlotWeight bool
 	// extCategory is the weight-bearing extension category
-	// ("aggregator", "attribute", "test", "matrix") when operator is an
+	// ("aggregator", "attribute", "test", "matrix", "regression") when operator is an
 	// embedder-registered operator of the slot's family, "" otherwise;
 	// extAware is its registration's WeightAware declaration.
 	extCategory string
@@ -447,6 +447,7 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 	for i, r := range req.Regressions {
 		if r != nil {
 			add(fmt.Sprintf("regressions[%d]", i), string(r.Type), r.Weight)
+			ext(extCategoryRegression)
 			switch {
 			case r.Resample != "" && r.Resample != "jackknife":
 				// The jackknife is weighted (JK1: each replicate refits

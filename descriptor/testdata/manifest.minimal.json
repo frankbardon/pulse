@@ -368,7 +368,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 102,
+    "error_codes_count": 103,
     "error_domains": [
       "CLI",
       "DATA",
@@ -423,6 +423,7 @@
       "PULSE_EXTENSION_NAME_RESERVED",
       "PULSE_EXTENSION_PARAM_INVALID",
       "PULSE_EXTENSION_PURPOSE_INVALID",
+      "PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH",
       "PULSE_EXTENSION_SKILL_COLLISION",
       "PULSE_EXTENSION_SKILL_INVALID",
       "PULSE_EXTENSION_STREAMABLE_MISMATCH",
@@ -1256,7 +1257,9 @@
           "regressions[*].vcov",
           "regressions[*].correlation",
           "regressions[*].covariance",
-          "regressions[*].advisories"
+          "regressions[*].advisories",
+          "regressions[*].statistics",
+          "regressions[*].outputs"
         ]
       },
       {
@@ -1283,7 +1286,8 @@
           "regressions[*].type",
           "regressions[*].coefficients",
           "regressions[*].p_values",
-          "regressions[*].advisories"
+          "regressions[*].advisories",
+          "regressions[*].outputs"
         ]
       }
     ],
@@ -1347,4 +1351,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a5fca085ae3d341c2cdc4acd306e7fcb35628af0f009e5c005174f9f6352c030
+// golden-hash: 9cf768e0c75d6f5e3dfffb011adf7e285bdd98b4fe604e9e133637c2bfe2d0a8

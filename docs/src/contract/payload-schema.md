@@ -794,6 +794,23 @@ without a modifier, with `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`
 (`details.reason` `penalty`) in predict and at runtime alike. Both slots are in the `standard` preset (not
 `minimal`) and every float in them is rounded by `return.precision`.
 
+## Extension regression results
+
+An embedder-registered `REG_<NS>_<NAME>` model (`pulse.Options.Extensions.Regressions`)
+returns its result in the built-in `RegressionResult` shape, plus two
+additive `omitempty` slots the built-ins never fill (`format_version`
+stays `"1.1"`; a built-in fit is byte-identical): `statistics`, the
+per-coefficient test statistic (keyed like `coefficients`), and
+`outputs`, an object of the model's declared extras (its
+registration's `OutputSchema` keys). On an extension fit `std_errors`,
+`statistics` and `p_values` each carry EVERY coefficient key; a figure
+the model did not compute is `null` (key kept), so the coefficient
+table stays rectangular. Only a coefficient whose p-value is defined
+joins a multiplicity family. A non-finite float in `outputs` is `null`.
+`n_obs`, `sum_weights` / `n_eff`, `p_adjusted`, `multiplicity` and
+`error` stay engine-owned. Recipe: `docs/src/internals/extension-points.md`
+(Regression model).
+
 ## Regression robust covariance
 
 `RegressionSpec` takes an additive `covariance` object `{type, cluster,
@@ -962,7 +979,7 @@ covering the path removes it; excluding `<key>` drops it too. Every listed path 
 | `crosstab` | `shape`, `matrix` | whole |
 | `matrices[*]` | `name`, `type`, `group_key`, `primary` | all but `auxiliary`, except the inference figures a spec asked for: `auxiliary.p` / `ci_lower` / `ci_upper` (`params.inference`), `p_adjusted` / `significant_adjusted` (a multiplicity family), and the pairwise `auxiliary.n` beside a kept `p` (a companion). They exist only on that spec's result, so a spec without inference keeps no auxiliary |
 | `tests[*]` / `post_tests[*]` | `label`, `type`, `group_key`, `statistic`, `p_value`, `reject_null`, `p_adjusted`, `significant_adjusted` | minimal's keys + `variant`, `df`, `alpha`, `multiplicity`, `details.effect_size` (no other `details` key) |
-| `regressions[*]` | `name`, `type`, `coefficients`, `p_values` | all but `credible_intervals` and `selection` (so `ci_lower` / `ci_upper` / `df` / `conf_level`, and `vcov` / `correlation` / `covariance` when asked for) |
+| `regressions[*]` | `name`, `type`, `coefficients`, `p_values`, an extension model's `outputs` | all but `credible_intervals` and `selection` (so `ci_lower` / `ci_upper` / `df` / `conf_level`, and `vcov` / `correlation` / `covariance` when asked for; an extension model's `statistics` and `outputs`) |
 | `overlays[*]` | `name`, `kind`, `ref`, `summary` (no `payload`) | whole |
 | `components` | no | no |
 

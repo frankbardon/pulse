@@ -177,8 +177,8 @@ func StampWeightsWith(req *types.Request, def *types.WeightSpec, exts *Extension
 	c.PostTests = stampTests(req.PostTests, req.Weight, def, func(op string) bool {
 		return exts.IsExtensionWeightAware("test", op)
 	})
-	// A built-in regression reads the weight when its class has a kind
-	// (there is no extension REG_* category); the resolver has already
+	// A built-in regression reads the weight when its class has a kind,
+	// an extension REG_* model when it declared WeightAware; the resolver has already
 	// refused a weight in force on a pending regression, on one carrying
 	// a bootstrap resample or a selection modifier, and a probability
 	// weight on a frequency-only one.
@@ -193,7 +193,8 @@ func StampWeightsWith(req *types.Request, def *types.WeightSpec, exts *Extension
 			// no weighted form: such a slot is never stamped (the resolver
 			// refuses any weight in force on it). A jackknife is weighted
 			// (JK1): every replicate refits with the remaining weights.
-			aware := weighting.IsAware(string(r.Type)) && (r.Resample == "" || r.Resample == "jackknife") && r.Selection == ""
+			aware := (weighting.IsAware(string(r.Type)) || exts.IsExtensionWeightAware("regression", string(r.Type))) &&
+				(r.Resample == "" || r.Resample == "jackknife") && r.Selection == ""
 			if w, ok := stampSlotWeight(r.Weight, aware, req.Weight, def); ok {
 				cp := *r
 				cp.Weight = w

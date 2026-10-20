@@ -79,6 +79,7 @@ func withoutHiddenExtensions(ext Extensions, set descx.FeatureSet) Extensions {
 	out.Features = keepVisible(ext.Features, hidden, func(r FeatureRegistration) string { return string(r.Name) })
 	out.Tests = keepVisible(ext.Tests, hidden, func(r TestRegistration) string { return string(r.Name) })
 	out.MatrixOps = keepVisible(ext.MatrixOps, hidden, func(r MatrixOpRegistration) string { return string(r.Name) })
+	out.Regressions = keepVisible(ext.Regressions, hidden, func(r RegressionRegistration) string { return string(r.Name) })
 	// Registered populations are bound fits: a profile hiding
 	// capability:models (the `populations` slot's gate) registers none.
 	if _, h := hidden[descx.FeatureModels]; h {
