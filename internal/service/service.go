@@ -559,10 +559,9 @@ func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Coh
 		fs:            overlay,
 		anchorArchive: archivePath,
 		anchorEntry:   entry,
-		// The memory estimate charges the archive's byte length
-		// (limitInputs), as predict does through
-		// PredictOptions.AnchorArchiveBytes.
-		archiveBytes: a.size,
+		// No archive terms: the anchored run reads only its shard, so
+		// the memory estimate charges it as a single file (predict
+		// does the same over the extracted shard's bytes).
 	}, nil
 }
 
@@ -646,11 +645,11 @@ func (s *Service) openArchive(path string, a *archiveFile) (*Cohort, error) {
 	}
 
 	return &Cohort{
-		path:         path,
-		schema:       doc.Schema,
-		fs:           s.fs.Fs(),
-		shards:       shards,
-		archiveBytes: a.size,
+		path:           path,
+		schema:         doc.Schema,
+		fs:             s.fs.Fs(),
+		shards:         shards,
+		directoryBytes: a.arch.DirectoryBytes(),
 	}, nil
 }
 

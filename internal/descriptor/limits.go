@@ -32,13 +32,16 @@ type LimitInputs struct {
 	// restart per shard); nil for a single file, whose blocks derive
 	// from Records.
 	ShardRecords []int64
-	// ArchiveBytes is a shard archive's byte length (predict: the bytes
-	// it was handed; the runtime: what Open read), 0 for a single file.
-	// Open and the scan read every byte onto the heap. An anchor-opened
-	// shard (`archive.pulse#shard.pulse`) carries its archive's length
-	// too, with no ShardRecords: Open reads the whole archive to extract
-	// the one shard (predict: PredictOptions.AnchorArchiveBytes).
-	ArchiveBytes int64
+	// DirectoryBytes is a shard archive's central-directory bytes
+	// (encoding Archive.DirectoryBytes, read the same way by predict and
+	// by the runtime's Open), 0 for a single file. Since U51 an archive
+	// is never read whole — Open reads the directory and each shard's
+	// header, the scan streams one shard at a time — so the memory
+	// estimate charges the directory and the largest shard's payload,
+	// never the archive's bytes (archiveTerms). An anchor-opened shard
+	// (`archive.pulse#shard.pulse`) carries none: its run reads only its
+	// own shard, as a single file's does.
+	DirectoryBytes int64
 	// ShardWorkers is the instance's per-shard worker cap
 	// (Options.ShardWorkers: 0 = runtime.NumCPU, 1 = serial) — with the
 	// shard count and the merge gate it decides whether an archive run
@@ -521,25 +524,28 @@ func EstimateFacetMemory(req *types.FacetRequest, schema *encoding.Schema, in Li
 	return limits.EstimateMemory(mi), true
 }
 
-// archiveTerms sets the shard-archive inputs of the memory model: the
-// archive's byte length (Open and the scan read it whole) and the one
-// schema block the run decodes with its dictionaries — the canonical
-// entry, whatever the shard count. Open's record-count peek
-// (Archive.PeekShardRecordCount, E8-S4) and the scan (shardIter /
-// processOneShard, E8-S5) read every shard's schema layout-only and
-// allocate no dictionary, so neither is charged. An anchor-opened shard (ArchiveBytes
-// set, no ShardRecords) decodes only its own schema, as a single file
-// does: its archive's bytes alone are charged. A single file
-// (ArchiveBytes 0) sets nothing.
+// archiveTerms sets the shard-archive inputs of the memory model (U51
+// E1-S2): the central directory the scan holds parsed
+// (DirectoryBytes), the largest shard's record count — the archive
+// streams one shard at a time through a bounded window, so the payload
+// term charges that shard's records x stride, never the archive's bytes
+// (MaxShardRecords) — and the one schema block the run decodes with its
+// dictionaries: the canonical entry, whatever the shard count. Open's
+// record-count peek (Archive.PeekShardRecordCount, E8-S4) and the scan
+// (shardIter / processOneShard, E8-S5) read every shard's schema
+// layout-only and allocate no dictionary, so neither is charged. A
+// single file and an anchor-opened shard (no ShardRecords — its run
+// reads only its own shard) set nothing.
 func archiveTerms(mi *limits.MemoryInputs, schema *encoding.Schema, in LimitInputs) {
-	if in.ArchiveBytes <= 0 {
+	if len(in.ShardRecords) == 0 {
 		return
 	}
-	mi.ArchiveBytes = in.ArchiveBytes
-	if len(in.ShardRecords) > 0 {
-		mi.SchemaDecodes = 1
-		mi.SchemaBytes = limits.SchemaDecodeBytes(schema)
+	mi.DirectoryBytes = max(in.DirectoryBytes, 0)
+	for _, n := range in.ShardRecords {
+		mi.MaxShardRecords = max(mi.MaxShardRecords, n)
 	}
+	mi.SchemaDecodes = 1
+	mi.SchemaBytes = limits.SchemaDecodeBytes(schema)
 }
 
 // valueStateAggregation lists the built-in aggregators whose state
@@ -903,16 +909,16 @@ func joinBuildLimitFinding(req *types.Request, l limits.Limits, rightRows func(p
 }
 
 // CohortCounts are the header facts of one cohort the limit rules read
-// (LimitInputs.Records / ShardRecords / ArchiveBytes): the record
-// count (-1 unknown), an archive's per-shard counts and its byte
-// length, an anchor-opened shard's archive length. PredictOptions.
+// (LimitInputs.Records / ShardRecords / DirectoryBytes): the record
+// count (-1 unknown), an archive's per-shard counts and its
+// central-directory bytes. PredictOptions.
 // CohortCounter returns them for a Compose slot's (or fit's) cohort —
 // the facade passes the runtime pre-flight's own reader, so a slot's
 // certain finding carries the figure the slot's Process refuses with.
 type CohortCounts struct {
-	Records      int64
-	ShardRecords []int64
-	ArchiveBytes int64
+	Records        int64
+	ShardRecords   []int64
+	DirectoryBytes int64
 }
 
 // unknownCounts is CohortCounts with no record count — a chain stage
@@ -955,7 +961,7 @@ func requestFindings(req *types.Request, schema *encoding.Schema, opts *PredictO
 	in := LimitInputs{
 		Records:        counts.Records,
 		ShardRecords:   counts.ShardRecords,
-		ArchiveBytes:   counts.ArchiveBytes,
+		DirectoryBytes: counts.DirectoryBytes,
 		ShardWorkers:   opts.ShardWorkers,
 		JoinRightRows:  -1,
 		Extensions:     opts.Extensions,
@@ -1032,10 +1038,10 @@ func limitRefusalFinding(err error) (descriptor.LimitFinding, bool) {
 //
 // records is the cohort's header record count (-1 when unknown),
 // shardRecords an archive's per-shard counts (nil for a single file)
-// and archiveBytes its byte length (0 for a single file); they clamp
-// the group-bucket estimate and drive the memory estimate.
-func predictLimits(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, opts *PredictOptions, records int64, shardRecords []int64, archiveBytes int64) {
-	fs := requestFindings(req, schema, opts, CohortCounts{Records: records, ShardRecords: shardRecords, ArchiveBytes: archiveBytes})
+// and directoryBytes its central-directory bytes (0 for a single file);
+// they clamp the group-bucket estimate and drive the memory estimate.
+func predictLimits(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, opts *PredictOptions, records int64, shardRecords []int64, directoryBytes int64) {
+	fs := requestFindings(req, schema, opts, CohortCounts{Records: records, ShardRecords: shardRecords, DirectoryBytes: directoryBytes})
 	result.LimitFindings = limitFindingsDescriptor(fs)
 	for _, f := range fs {
 		if f.Grade == limits.Certain {

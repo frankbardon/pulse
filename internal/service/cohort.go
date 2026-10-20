@@ -37,12 +37,12 @@ type Cohort struct {
 	// against a Pulse shard archive (first four bytes = PK\x03\x04).
 	// Sorted by central-directory order.
 	shards []ShardEntry
-	// archiveBytes is a shard archive's byte length (its Stat size —
-	// Open reads only the central directory and headers, so the bytes
-	// are never resident); the memory estimate's archive term
-	// (limitInputs), matched by predict. An anchor-opened shard carries
-	// its archive's length. 0 for a single file.
-	archiveBytes int64
+	// directoryBytes is a shard archive's central-directory bytes
+	// (encx Archive.DirectoryBytes — Open reads only the directory and
+	// each shard's header, so the archive's bytes are never resident);
+	// the memory estimate's directory term (limitInputs), matched by
+	// predict. 0 for a single file and an anchor-opened shard.
+	directoryBytes int64
 
 	// anchorArchive / anchorEntry are set when the cohort was opened
 	// through the `archive.pulse#shard.pulse` anchor: the archive path

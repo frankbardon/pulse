@@ -629,3 +629,46 @@ func TestShardArchiveBackwardsCompat(t *testing.T) {
 		t.Errorf("legacy single-file bytes mutated by Open dispatch")
 	}
 }
+
+// TestArchive_DirectoryBytes (U51 E1-S2): DirectoryBytes is the tail
+// past the last entry's data — the central directory and EOCD that
+// OpenArchive parses (plus at most the last entry's data descriptor) —
+// read off the EOCD's directory offset, and it grows with the entry
+// count, never the payload (the memory estimate's archive directory
+// term).
+func TestArchive_DirectoryBytes(t *testing.T) {
+	schema := buildSinglePulse(t)
+	build := func(shards, payload int) []byte {
+		entries := map[string][]byte{}
+		var order []string
+		for i := range shards {
+			name := string(rune('a'+i)) + ".pulse"
+			entries[name] = append(append([]byte(nil), schema...), make([]byte, payload)...)
+			order = append(order, name)
+		}
+		return buildArchive(t, schema, entries, order)
+	}
+	dir := func(data []byte) int64 {
+		t.Helper()
+		arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return arch.DirectoryBytes()
+	}
+	small := build(2, 16)
+	// The EOCD (22 bytes, no comment) carries the directory's offset at
+	// bytes 16..20.
+	eocd := small[len(small)-22:]
+	cdOffset := int64(eocd[16]) | int64(eocd[17])<<8 | int64(eocd[18])<<16 | int64(eocd[19])<<24
+	tail := int64(len(small)) - cdOffset
+	if got := dir(small); got < tail || got > tail+24 {
+		t.Fatalf("DirectoryBytes = %d, want the %d-byte directory + EOCD (+ at most a 24-byte data descriptor)", got, tail)
+	}
+	if a, b := dir(small), dir(build(2, 1<<16)); a != b {
+		t.Fatalf("DirectoryBytes moved with the payload: %d vs %d", a, b)
+	}
+	if a, b := dir(small), dir(build(6, 16)); b <= a {
+		t.Fatalf("DirectoryBytes did not grow with the entry count: 2 shards %d, 6 shards %d", a, b)
+	}
+}

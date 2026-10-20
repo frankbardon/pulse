@@ -584,10 +584,19 @@ func TestHookPanicRecovered(t *testing.T) {
 // d5edbefd + the change, go1.27, arm64): predict 265 → 272 is the same
 // capability-table rebuild growing by the AGG_AUC row (265 exactly with
 // that row removed).
+//
+// Re-pinned by archive-scale E1-S2 (branch archive-scale, on 9a7f9217 +
+// the change, go1.27, arm64): predict 272 → 150. The built-in aggregator
+// schema map is now built ONCE per weighting variant
+// (builtinAggregatorSchemaIndex, #390) instead of rebuilding the whole
+// capability table, its weight stamping and the name map on every
+// predict that carries an aggregation — so the pin no longer grows with
+// each registered aggregator (a slot pays one Keys clone for its
+// result).
 var obsOffAllocBaseline = map[string]float64{
 	"process":       161,
 	"count_records": 45,
-	"predict":       272,
+	"predict":       150,
 	"inspect":       65,
 }
 

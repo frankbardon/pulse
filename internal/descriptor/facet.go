@@ -166,7 +166,7 @@ func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 	// length-derived record count, or a shard archive's canonical schema
 	// and per-shard header counts: the figures the pre-flight reads off
 	// the cohort Open returns (Service.cohortCounts). Never a record.
-	schema, counts, fault := readCohortHead(fileData, opts.AnchorArchiveBytes)
+	schema, counts, fault := readCohortHead(fileData)
 	if fault != nil {
 		env.AddError(string(fault.code), fault.message, fault.details)
 		result.Valid = false
@@ -277,13 +277,13 @@ func validateFacetWithOptions(fileData io.ReadSeeker, req *types.FacetRequest, o
 
 	// Instance resource limits — the rule FacetSchema's pre-flight
 	// refuses with (FacetLimitRefusal), right after its field
-	// references, on the same header count (an anchor-opened shard
-	// charges its archive's bytes, as Open reads them).
+	// references, on the same header count (an archive's directory and
+	// largest shard, as the run reads them).
 	fs := FacetLimitFindings(req, schema, opts.instance().Limits(), LimitInputs{
-		Records:       counts.Records,
-		ShardRecords:  counts.ShardRecords,
-		ArchiveBytes:  counts.ArchiveBytes,
-		JoinRightRows: -1,
+		Records:        counts.Records,
+		ShardRecords:   counts.ShardRecords,
+		DirectoryBytes: counts.DirectoryBytes,
+		JoinRightRows:  -1,
 	})
 	result.LimitFindings = limitFindingsDescriptor(fs)
 	for _, f := range fs {

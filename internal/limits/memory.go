@@ -44,13 +44,24 @@ const (
 	// garbage collector's overshoot past its heap goal.
 	runBaseBytes = 16 << 20
 	// fileCopyFactor x stride per record: the cohort payload and the
-	// collector's headroom over it. A filesystem the decoder cannot mmap
-	// is read whole onto the heap (afero.ReadFile), and the per-record
-	// garbage a scan produces (a joined record per row, decode scratch)
-	// lets the heap run to the collector's goal — twice the live heap
-	// under the default GOGC=100 — and past it while a concurrent mark
-	// is in flight: measured up to 2.9x the payload (a joined stream).
+	// collector's headroom over it. A single file on a filesystem the
+	// decoder cannot mmap is read whole onto the heap (afero.ReadFile),
+	// and the per-record garbage a scan produces (a joined record per
+	// row, decode scratch) lets the heap run to the collector's goal —
+	// twice the live heap under the default GOGC=100 — and past it
+	// while a concurrent mark is in flight: measured up to 2.9x the
+	// payload (a joined stream). A shard archive is never read whole
+	// (U51): its shards stream through a bounded window one at a time,
+	// so the factor applies to its LARGEST shard's payload
+	// (MaxShardRecords), never to the archive's bytes.
 	fileCopyFactor = 3
+	// directoryCopyFactor x a shard archive's central-directory bytes:
+	// the parsed directory a scan holds (a zip.File per entry with its
+	// name, the entry table and the by-name map) plus the cohort's shard
+	// list — measured ~6x the raw directory bytes (short shard names,
+	// the fixed per-entry cost dominating), rounded up
+	// (TestArchiveMemory_DirectoryTermBoundsOpen, internal/service).
+	directoryCopyFactor = 8
 	// buildCopyFactor x record bytes per join build-side row: the
 	// materialised right record plus the per-row copy garbage its build
 	// churns (the value maps it is copied out of).
@@ -158,13 +169,19 @@ type MemoryInputs struct {
 	// GrouperBytes is a buffered vector grouper's point store
 	// (KMeansBufferBytes, GROUP_KMEANS) — 0 without one.
 	GrouperBytes int64
-	// ArchiveBytes is a shard archive's byte length — every byte Open
-	// and the scan read onto the heap (afero.ReadFile, once each),
-	// whatever the filesystem; 0 for a single file. It replaces records
-	// x stride in the payload term when larger: every shard's header,
-	// schema block and dictionaries, the canonical _schema.pulse entry
-	// and the zip directory ride with the payload.
-	ArchiveBytes int64
+	// MaxShardRecords is a shard archive's largest per-shard record
+	// count; 0 for a single file or an anchor-opened shard. Open reads
+	// only the central directory and each shard's header, and the scan
+	// streams one shard at a time through a bounded read window (U51
+	// E1-S1) — the archive is never resident — so the payload term
+	// charges this one shard's records x stride in place of Records:
+	// the per-shard working set and the collector's headroom over it.
+	MaxShardRecords int64
+	// DirectoryBytes is a shard archive's central-directory bytes
+	// (encoding Archive.DirectoryBytes: the tail past the last entry's
+	// data); 0 for a single file or an anchor-opened shard. The scan
+	// holds the parsed directory, charged directoryCopyFactor a byte.
+	DirectoryBytes int64
 	// SchemaDecodes is how many schema blocks the run decodes, with
 	// their dictionaries, beyond the cohort's own (an archive: 1, the
 	// canonical entry — Open's record-count peek and the scan read
@@ -217,9 +234,11 @@ type MemoryInputs struct {
 // bytes, per arm, where rows is JoinedRows when set (a fan-out join),
 // else records:
 //
-//	every arm  base + 3 x max(records x stride, archive bytes)
-//	             (the payload + GC headroom; an archive's every byte)
-//	           + schema decodes x schema bytes, on an archive
+//	every arm  base + 3 x payload records x stride
+//	             (the payload + GC headroom; payload records are the
+//	             largest shard's on an archive, else records)
+//	           + 8 x directory bytes + schema decodes x schema bytes,
+//	             on an archive
 //	           + join right rows x (3 x stride + 2 x record bytes)
 //	           + matrix merge-block state + vector-grouper point store
 //	           + partition buckets x (512 + 256 x aggs), per-shard arm
@@ -237,7 +256,12 @@ type MemoryInputs struct {
 func EstimateMemory(in MemoryInputs) int64 {
 	total := int64(runBaseBytes)
 	add := func(a, b int64) { total = addSat(total, mulSat(a, b)) }
-	add(max(mulSat(in.Records, in.Stride), in.ArchiveBytes), fileCopyFactor)
+	payloadRecords := in.Records
+	if in.MaxShardRecords > 0 {
+		payloadRecords = in.MaxShardRecords
+	}
+	add(mulSat(payloadRecords, in.Stride), fileCopyFactor)
+	add(in.DirectoryBytes, directoryCopyFactor)
 	add(in.SchemaDecodes, in.SchemaBytes)
 	add(in.JoinRightRows, addSat(fileCopyFactor*in.Stride, buildCopyFactor*in.RecordBytes))
 	total = addSat(total, in.MatrixBytes)

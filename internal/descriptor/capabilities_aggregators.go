@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
@@ -226,9 +227,50 @@ func aggSchema(merge descriptor.ComponentsMergeability, extra ...descriptor.Comp
 // aggregatorCapabilities is the static metadata table for every
 // registered aggregator. Order is irrelevant; manifest assembly sorts by
 // Name. The TestManifestOperatorsComplete gate enforces that every entry
-// in types.AllAggregationTypes() has a row here.
+// in types.AllAggregationTypes() has a row here. A fresh table per call:
+// the manifest paths filter, sort and stamp what it returns. A
+// read-only per-request lookup reads builtinAggregatorSchemaIndex.
 func aggregatorCapabilities() []descriptor.Operator {
 	return withWeightAware(aggregatorCapabilityTable())
+}
+
+// builtinAggregatorSchemaIndexes are the built-in {operator name →
+// ComponentSchema} maps, built ONCE (#390, U51 E1-S2): [0] over the
+// unstamped table (capability:weighting hidden — no weighted floor
+// keys), [1] over aggregatorCapabilities (the weighted floor keys
+// spliced in). Both inputs are static (the literal table and the
+// internal/weighting class table), so the maps never change after the
+// first build.
+var builtinAggregatorSchemaIndexes = [2]func() map[string]descriptor.ComponentSchema{
+	sync.OnceValue(func() map[string]descriptor.ComponentSchema {
+		return componentSchemaIndexOf(aggregatorCapabilityTable())
+	}),
+	sync.OnceValue(func() map[string]descriptor.ComponentSchema {
+		return componentSchemaIndexOf(aggregatorCapabilities())
+	}),
+}
+
+// builtinAggregatorSchemaIndex returns the cached built-in aggregator
+// schema map for an instance with capability:weighting enabled
+// (weighted) or hidden. The map and every ComponentSchema.Keys slice in
+// it are SHARED: callers read them and never write — a caller that
+// hands a schema to a result its consumer can mutate clones Keys first
+// (populateAggregationPredicts), and one that needs its own map copies
+// it (aggregatorComponentSchemaIndex with extension schemas).
+func builtinAggregatorSchemaIndex(weighted bool) map[string]descriptor.ComponentSchema {
+	if weighted {
+		return builtinAggregatorSchemaIndexes[1]()
+	}
+	return builtinAggregatorSchemaIndexes[0]()
+}
+
+// componentSchemaIndexOf maps each operator's name to its schema.
+func componentSchemaIndexOf(ops []descriptor.Operator) map[string]descriptor.ComponentSchema {
+	out := make(map[string]descriptor.ComponentSchema, len(ops))
+	for _, op := range ops {
+		out[op.Name] = op.ComponentSchema
+	}
+	return out
 }
 
 // aggregatorCapabilityTable is the literal declaration table;

@@ -150,17 +150,17 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 		{"matrix state", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, MatrixBytes: 12345},
 			payload + 12345 + bucket(1)},
 		{"no records", MemoryInputs{Arm: ArmBuffered, Buckets: 1}, runBaseBytes + bucket(0)},
-		// An archive: its byte length replaces records x stride in the
-		// payload term, plus every schema block decoded with its
-		// dictionaries (the canonical entry; the shards' are read
-		// layout-only).
-		{"archive", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, ArchiveBytes: 90_000, SchemaDecodes: 1, SchemaBytes: 7000},
-			runBaseBytes + fileCopyFactor*90_000 + 7000 + bucket(1)},
-		// An anchor-opened shard: the archive's bytes, no extra decode.
-		{"anchor", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, ArchiveBytes: 90_000},
-			runBaseBytes + fileCopyFactor*90_000 + bucket(1)},
-		{"archive under the payload", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, ArchiveBytes: 10},
-			payload + bucket(1)},
+		// An archive (U51 E1-S2): streamed one shard at a time, so the
+		// payload term charges the LARGEST shard's records x stride, not
+		// the archive's; plus its central directory and the one schema
+		// block decoded with its dictionaries (the canonical entry; the
+		// shards' are read layout-only).
+		{"archive", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, MaxShardRecords: 400, DirectoryBytes: 900, SchemaDecodes: 1, SchemaBytes: 7000},
+			runBaseBytes + fileCopyFactor*400*stride + directoryCopyFactor*900 + 7000 + bucket(1)},
+		// Per-row terms keep the archive's whole record count: only the
+		// payload term reads the largest shard.
+		{"archive buffered", MemoryInputs{Arm: ArmBuffered, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, MaxShardRecords: 400, DirectoryBytes: 900},
+			runBaseBytes + fileCopyFactor*400*stride + directoryCopyFactor*900 + records*(rec+bufferedValueBytes) + bucket(1)},
 		// The per-shard parallel arm: every partial's buckets and
 		// per-value state beside the merged ones.
 		{"shard partitions", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 4, Aggregations: 1, ValueStateAggregations: 1, PartitionBuckets: 9, PartitionRecords: records},

@@ -207,23 +207,28 @@ runs unchanged.
 **Shard archives.** An archive is read by random access: opening it
 reads only the zip central directory and the headers, and the run reads
 each shard through its own buffered window, so the archive is never
-resident. The estimate still charges the archive's byte length the
-earlier whole-archive read needed (an over-count, never an under-count).
-Neither the open nor the run decodes a shard's dictionaries: the open
-counts each shard's records and the scan skips each shard's schema block,
-both reading the schema without its dictionaries, because the canonical
-schema decodes every row. The estimate therefore charges the archive's
-byte length where a single file charges records x stride, plus one
-decode of the canonical schema (whatever the shard count): an archive
-whose shards each carry a large dictionary still estimates far above its
-records, because those dictionaries are archive bytes. A shard opened through the anchor form
-(`archive.pulse#shard.pulse`) is charged its whole archive's byte length
-too; predict charges the same. On the per-shard
+resident. The estimate charges what the run holds instead of the
+archive's bytes. Where a single file charges 3 x records x stride (its
+payload plus the collector's headroom), an archive charges 3 x the
+LARGEST shard's records x stride, since one shard streams at a time.
+It adds 8 x the central directory's bytes (the directory a scan holds
+parsed: a few hundred bytes per shard). It also adds one decode of the
+canonical schema with its dictionaries, whatever the shard count.
+Neither the open nor the run decodes a shard's own dictionaries: the
+open counts each shard's records and the scan skips each shard's schema
+block, both reading the schema without its dictionaries, because the
+canonical schema decodes every row. So an archive whose shards each
+carry a large dictionary is charged that dictionary once, not once per
+shard. A shard opened through the anchor form
+(`archive.pulse#shard.pulse`) is charged as the single file it is: the
+run reads only that shard. Predict charges the same. Per-row state
+(buffered records, per-value state, buckets) still counts every record
+of the archive. On the per-shard
 parallel arm (`ShardWorkers` other than 1, two or more shards, a
 mergeable request) every shard's partial keeps its own group buckets
 until the merge, and the estimate counts them too. Predict reads the
 instance's `ShardWorkers` to pick the arm, as the run does. Measured on
-archives, the estimate lands at roughly 1.3x to 7x the peak heap.
+archives, the estimate lands at roughly 1.2x to 2.4x the peak heap.
 
 An unknown record count produces no estimate and no finding. With the
 default (`Unlimited`) no count is read at all.

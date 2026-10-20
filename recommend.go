@@ -76,7 +76,6 @@ func (p *Pulse) Recommend(ctx context.Context, req descriptor.RecommendRequest) 
 	defer src.close()
 	facts := p.sidecarFacts(path)
 	opts := p.predictOptions(ctx, facts)
-	opts.AnchorArchiveBytes = src.anchorArchiveBytes
 	// The cohort's suggested weight — what Inspect reports as
 	// suggested_weight — is the weight a weight-only operator
 	// (AGG_WEIGHTED_MEAN) binds.
@@ -104,9 +103,6 @@ type guideCohort struct {
 	rs     io.ReadSeeker
 	schema *encoding.Schema
 	close  func()
-	// anchorArchiveBytes is the archive's byte length when rs is one
-	// anchor-addressed shard (PredictOptions.AnchorArchiveBytes), else 0.
-	anchorArchiveBytes int64
 }
 
 // cohortSource is a stored cohort opened for a no-execute read: rs is
@@ -117,10 +113,9 @@ type guideCohort struct {
 // section of the open archive when the entry is stored; only that
 // entry is read). close releases the file.
 type cohortSource struct {
-	rs                 io.ReadSeeker
-	anchored           bool
-	anchorArchiveBytes int64
-	close              func()
+	rs       io.ReadSeeker
+	anchored bool
+	close    func()
 }
 
 // anchorFault is an anchor that does not resolve: the file is not a
@@ -140,9 +135,8 @@ func asAnchorFault(err error) (*anchorFault, bool) {
 // openCohortSource opens the cohort at path through the instance Fs for
 // a no-execute read (Predict, Inspect, the guidance surfaces). A
 // returned *anchorFault is an unresolvable anchor; any other error is
-// the open itself. The memory estimate still charges an anchored
-// shard its archive's length (anchorArchiveBytes) — the bytes the
-// runtime Open reads to reach it.
+// the open itself. An anchored shard is predicted as the single file it
+// is: its run reads only that shard (U51), so no archive term applies.
 func (p *Pulse) openCohortSource(path string) (*cohortSource, error) {
 	readPath, entry := path, ""
 	if archivePath, e, ok := service.SplitAnchorPath(path); ok {
@@ -166,7 +160,7 @@ func (p *Pulse) openCohortSource(path string) (*cohortSource, error) {
 		closeFile()
 		return nil, &anchorFault{err: err}
 	}
-	return &cohortSource{rs: rs, anchored: true, anchorArchiveBytes: size, close: closeFile}, nil
+	return &cohortSource{rs: rs, anchored: true, close: closeFile}, nil
 }
 
 // archiveEntryReader returns the named entry of the shard archive r
@@ -229,7 +223,7 @@ func (p *Pulse) openGuideCohort(path, op string) (*guideCohort, error) {
 			rs = io.NewSectionReader(&readCache{r: ra}, 0, size)
 		}
 	}
-	return &guideCohort{rs: rs, schema: schema, close: src.close, anchorArchiveBytes: src.anchorArchiveBytes}, nil
+	return &guideCohort{rs: rs, schema: schema, close: src.close}, nil
 }
 
 // readCache is an io.ReaderAt that keeps every span it reads, so a

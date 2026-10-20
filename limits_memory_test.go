@@ -235,14 +235,14 @@ func memoryArchiveAnchor(t *testing.T, fs afero.Fs, arch string, i int) string {
 	return arch + "#" + shards[i].Filename
 }
 
-// TestLimits_MaxEstimatedMemory_AnchorChargesArchive (E8-S4): a run over
-// an anchor-opened shard reads the WHOLE archive to reach the shard, so
-// predict and the run both charge the archive's byte length in place of
-// the shard's records x stride — the anchor's estimate is exactly
-// 3 x (archive bytes - shard payload) above the same shard's as a
-// standalone file — and report the same figure on Predict and on the
-// pre-flight refusal; Explain's request check grades the same estimate.
-func TestLimits_MaxEstimatedMemory_AnchorChargesArchive(t *testing.T) {
+// TestLimits_MaxEstimatedMemory_AnchorChargesShard (E8-S4, re-pinned
+// U51 E1-S2): a run over an anchor-opened shard reads only that shard
+// (OpenAnchor serves it as a section of the archive), so predict and the
+// run both charge it exactly as the same shard extracted to a standalone
+// file — no archive byte, no directory — and report the same figure on
+// Predict and on the pre-flight refusal; Explain's request check grades
+// the same estimate.
+func TestLimits_MaxEstimatedMemory_AnchorChargesShard(t *testing.T) {
 	ctx := context.Background()
 	fs := afero.NewMemMapFs()
 	arch := memoryArchive(t, fs)
@@ -294,20 +294,13 @@ func TestLimits_MaxEstimatedMemory_AnchorChargesArchive(t *testing.T) {
 		}
 		return res.LimitFindings[0].Estimated
 	}
-	// The shard's payload is its bytes past the preamble: 5 records.
-	cohort, err := p.Open(ctx, "standalone.pulse")
-	if err != nil {
-		t.Fatal(err)
-	}
-	payload := int64(cohort.Schema().RecordByteSize()) * 5
 	anchored, standalone := estimate(anchor), estimate("standalone.pulse")
-	if d, want := anchored-standalone, 3*(int64(len(whole))-payload); d != want {
-		t.Fatalf("the anchor adds %d bytes over its standalone shard, want 3 x (%d archive bytes - %d payload) = %d", d, len(whole), payload, want)
+	if anchored != standalone {
+		t.Fatalf("the anchored shard's estimate %d differs from its standalone twin's %d (archive %d bytes): an anchor charges its shard only", anchored, standalone, len(whole))
 	}
 
 	// Explain's request check predicts the anchor the same way: invalid
-	// one byte under the anchored estimate (the standalone shard's
-	// estimate would fit), valid at it.
+	// one byte under the anchored estimate, valid at it.
 	for _, c := range []struct {
 		max   int64
 		valid bool

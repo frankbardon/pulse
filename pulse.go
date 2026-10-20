@@ -1648,12 +1648,8 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		return nil, fmt.Errorf("pulse: reading file for predict: %w", err)
 	}
 	defer src.close()
-	// The runtime's OpenAnchor reads the whole archive to reach the
-	// shard; the memory estimate charges it the same.
-	anchorArchiveBytes := src.anchorArchiveBytes
 
 	opts := p.predictOptions(ctx, p.sidecarFacts(path))
-	opts.AnchorArchiveBytes = anchorArchiveBytes
 	env := descx.Predict(src.rs, req, &opts)
 	if result, ok := env.Data.(*descriptor.PredictResult); ok {
 		result.Errors, result.Warnings = env.Errors, env.Warnings

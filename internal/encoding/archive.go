@@ -70,6 +70,9 @@ type Archive struct {
 	zr      *zip.Reader
 	entries []ArchiveEntry
 	byName  map[string]*zip.File
+	// dirBytes is the archive's tail past the last entry's data: the
+	// central directory, the zip64 records and the EOCD (DirectoryBytes).
+	dirBytes int64
 }
 
 // OpenArchive parses the zip central directory at the tail of r and
@@ -103,12 +106,14 @@ func OpenArchive(r io.ReaderAt, size int64) (*Archive, error) {
 
 	entries := make([]ArchiveEntry, 0, len(zr.File))
 	byName := make(map[string]*zip.File, len(zr.File))
+	var dataEnd int64
 	for _, f := range zr.File {
 		off, derr := f.DataOffset()
 		if derr != nil {
 			return nil, errors.WrapCodedError(derr, errors.PULSE_ARCHIVE_CORRUPT,
 				fmt.Sprintf("locating data offset for entry %q", f.Name))
 		}
+		dataEnd = max(dataEnd, off+int64(f.CompressedSize64))
 		entries = append(entries, ArchiveEntry{
 			Name:   f.Name,
 			Size:   int64(f.UncompressedSize64),
@@ -118,12 +123,25 @@ func OpenArchive(r io.ReaderAt, size int64) (*Archive, error) {
 	}
 
 	return &Archive{
-		r:       r,
-		size:    size,
-		zr:      zr,
-		entries: entries,
-		byName:  byName,
+		r:        r,
+		size:     size,
+		zr:       zr,
+		entries:  entries,
+		byName:   byName,
+		dirBytes: max(size-dataEnd, 0),
 	}, nil
+}
+
+// DirectoryBytes is the archive's byte length past the end of its last
+// entry's data: the zip central directory with the zip64 records and
+// the end-of-central-directory record (plus the last entry's data
+// descriptor, when it carries one). It is what OpenArchive parses, and
+// the figure the memory estimate charges an archive for its directory
+// (internal/limits MemoryInputs.DirectoryBytes) — O(shards), never
+// O(archive bytes). Predict and the runtime both read it here, so the
+// two charge the same figure.
+func (a *Archive) DirectoryBytes() int64 {
+	return a.dirBytes
 }
 
 // Entries returns every entry in central-directory order (equals shard

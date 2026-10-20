@@ -184,7 +184,8 @@ func TestShardFanOut_PredictMatchesRuntime(t *testing.T) {
 // carry a 100,000-entry dictionary, so its bytes and schema decodes
 // dwarf records x stride (without the archive terms the estimate was
 // ~1/5 of its peak), and the matrix scale archive (~100K rows x p = 50, 8
-// shards), where the payload dominates. The peak is the minimum of
+// shards), where the payload dominates — streamed (a pairwise
+// covariance) and buffered (an AGG_MEDIAN). The peak is the minimum of
 // three sampled passes (measurePeakHeap); the band is loose — the
 // estimate is an allocation upper bound, so GC timing moves only how
 // far below it the peak lands — and catches a dropped term, not a few
@@ -211,6 +212,12 @@ func TestArchiveMemory_EstimatedBytesRatio(t *testing.T) {
 		{"dictionary archive", memCfg, func() *types.Request { return dictArchiveRequest("dict.pulse", false) }},
 		{"dictionary archive grouped", memCfg, func() *types.Request { return dictArchiveRequest("dict.pulse", true) }},
 		{"matrix scale archive", osCfg, func() *types.Request { return matrixScaleRequest(scale, p, "pairwise", false) }},
+		// The buffered arm (an order statistic): every record is
+		// materialised, so the payload term's headroom over the largest
+		// shard alone must still bound the peak.
+		{"matrix scale archive buffered", osCfg, func() *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: scale}, Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "x001", Label: "m"}}}
+		}},
 	}
 	for _, c := range cases {
 		for _, workers := range []int{1, 4} {
@@ -258,59 +265,145 @@ func TestArchiveMemory_EstimatedBytesRatio(t *testing.T) {
 //
 // U51 E1-S1 made every archive read header-only (Open reads the central
 // directory, the scan reads each shard through a section — no
-// whole-archive copy), while the estimate still charges the archive
-// bytes x fileCopyFactor the slurp needed: the peak fell and the
-// estimate did not, so the matrix scale archive measures 0.14 serially
-// (0.23 at 4 workers), the dictionary archive 0.17-0.36 (darwin/arm64).
-// The floor is lowered to 0.08 for that interim over-count (the safe
-// direction: the estimate still bounds the peak); E1-S2 re-pins the
-// archive term and this band together.
+// whole-archive copy), while the estimate still charged the archive
+// bytes x fileCopyFactor the slurp needed: the matrix scale archive
+// measured 0.14 serially (0.23 at 4 workers), the dictionary archive
+// 0.17-0.36 — the floor that run lowered to 0.08. U51 E1-S2 re-pinned
+// the archive term to the central directory (x 8) plus the LARGEST
+// shard's payload x fileCopyFactor (archiveTerms) and added the buffered
+// arm (an AGG_MEDIAN over the matrix scale archive): darwin/arm64
+// (go1.26, min of 3) 0.42-0.45 dictionary, 0.71-0.80 dictionary
+// grouped, 0.50 / 0.82 matrix scale serial / 4 workers, 0.58 buffered.
+// Restoring the whole-archive term fails the floor (0.14 matrix scale
+// serial).
 const (
-	archiveRatioMin = 0.08
+	archiveRatioMin = 0.3
 	archiveRatioMax = 1.2
 )
 
-// TestMaxEstimatedMemory_RefusesArchiveOverCap (E8-S3): a run over a
-// shard archive reads the archive onto the heap twice (Open, then the
-// scan), so a MaxEstimatedMemory of twice its byte length can never be
-// honoured — and the pre-flight refuses it, on the serial and the
-// per-shard parallel arm, with the estimate as observed. At the
-// estimate the run proceeds.
-func TestMaxEstimatedMemory_RefusesArchiveOverCap(t *testing.T) {
-	mem := afero.NewMemMapFs()
-	size := writeDictArchive(t, mem, "dict.pulse", 4, 512, 20_000)
-	cfg, err := fs.New(fs.WithFs(mem))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, workers := range []int{1, 4} {
-		t.Run(fmt.Sprintf("shards=%d", workers), func(t *testing.T) {
+// TestArchiveMemory_DirectoryTermBoundsOpen (U51 E1-S2): the memory
+// estimate's directory term bounds what a run over a shard archive
+// holds for its central directory — the opened cohort's shard list plus
+// the parsed directory the scan keeps (openArchiveFile) — measured as
+// the live heap after a GC, on archives of 500 and 4,000 one-record
+// shards (the directory dominates; the canonical schema is tiny). The
+// ratio band pins directoryCopyFactor: the floor fails a factor
+// inflated by 2x, the ceiling one that no longer covers the
+// directory.
+func TestArchiveMemory_DirectoryTermBoundsOpen(t *testing.T) {
+	for _, shards := range []int{500, 4000} {
+		t.Run(fmt.Sprintf("shards=%d", shards), func(t *testing.T) {
+			mem := afero.NewMemMapFs()
+			writeDictArchive(t, mem, "wide.pulse", shards, 1, 2)
+			cfg, err := fs.New(fs.WithFs(mem))
+			if err != nil {
+				t.Fatal(err)
+			}
 			svc := New(cfg)
-			svc.SetShardWorkers(workers)
-			l := limits.Defaults()
-			l.MaxEstimatedMemory = 2*size + runBaseBytesForTest
-			svc.SetLimits(l)
-			_, err := svc.Process(context.Background(), dictArchiveRequest("dict.pulse", false))
-			var ce *errors.CodedError
-			if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_LIMIT_EXCEEDED {
-				t.Fatalf("cap %d over a %d-byte archive: err = %v, want PULSE_LIMIT_EXCEEDED", l.MaxEstimatedMemory, size, err)
+			ctx := context.Background()
+			// Two collections each side: a sync.Pool's victim cache
+			// (an earlier test's buffers) survives one.
+			var before, after runtime.MemStats
+			runtime.GC()
+			runtime.GC()
+			runtime.ReadMemStats(&before)
+			cohort, err := svc.Open(ctx, "wide.pulse")
+			if err != nil {
+				t.Fatal(err)
 			}
-			if ce.Details["limit"] != "max_estimated_memory" || ce.Details["configured"] != l.MaxEstimatedMemory {
-				t.Fatalf("details = %v", ce.Details)
+			a, err := openArchiveFile(mem, "wide.pulse")
+			if err != nil {
+				t.Fatal(err)
 			}
-			est := ce.Details["observed"].(int64)
-			l.MaxEstimatedMemory = est
-			svc.SetLimits(l)
-			if _, err := svc.Process(context.Background(), dictArchiveRequest("dict.pulse", false)); err != nil {
-				t.Fatalf("at the estimate (%d): %v", est, err)
+			runtime.GC()
+			runtime.GC()
+			runtime.ReadMemStats(&after)
+			resident := float64(int64(after.HeapAlloc) - int64(before.HeapAlloc))
+			runtime.KeepAlive(cohort)
+			_ = a.Close()
+			if cohort.directoryBytes != a.arch.DirectoryBytes() || cohort.directoryBytes <= 0 {
+				t.Fatalf("cohort directory bytes %d, archive %d", cohort.directoryBytes, a.arch.DirectoryBytes())
+			}
+			charged := float64(limits.EstimateMemory(limits.MemoryInputs{DirectoryBytes: cohort.directoryBytes}) - limits.EstimateMemory(limits.MemoryInputs{}))
+			ratio := resident / charged
+			t.Logf("%d shards: directory %d bytes, resident %.0f, charged %.0f, ratio %.2f", shards, cohort.directoryBytes, resident, charged, ratio)
+			if ratio < directoryRatioMin || ratio > directoryRatioMax {
+				t.Errorf("resident / charged = %.2f, want within [%.2f, %.2f]", ratio, directoryRatioMin, directoryRatioMax)
 			}
 		})
 	}
 }
 
-// runBaseBytesForTest is limits' per-run fixed cost (16 MiB), added to
-// the cap so the refusal above is the archive's doing, not the base's.
-const runBaseBytesForTest = 16 << 20
+// The directory band. Measured on darwin/arm64 (go1.26): 0.79 at 500
+// shards, 0.76 at 4,000 (~6.1 resident bytes per directory byte: a
+// zip.File per entry with its name, the entry table, the by-name map
+// and the cohort's shard list). The ceiling is the bound itself; the
+// floor fails a directoryCopyFactor doubled (~0.38).
+const (
+	directoryRatioMin = 0.45
+	directoryRatioMax = 1.0
+)
+
+// TestMaxEstimatedMemory_RefusesArchiveOverCap (E8-S3, re-pinned U51
+// E1-S2): over a shard archive the pre-flight refuses a
+// MaxEstimatedMemory one byte under the estimate — on the serial and
+// the per-shard parallel arm, with the estimate as observed — and the
+// run proceeds at it. The estimate no longer scales with the archive's
+// bytes (the archive streams one shard at a time): doubling the shard
+// count — every shard carrying its own 20,000-entry dictionary, so the
+// archive nearly doubles — moves it only by the larger central
+// directory (8 x its extra bytes) plus, on the parallel arm, the extra
+// shard partials' buckets.
+func TestMaxEstimatedMemory_RefusesArchiveOverCap(t *testing.T) {
+	mem := afero.NewMemMapFs()
+	small := writeDictArchive(t, mem, "dict.pulse", 4, 512, 20_000)
+	large := writeDictArchive(t, mem, "dict8.pulse", 8, 512, 20_000)
+	cfg, err := fs.New(fs.WithFs(mem))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dirBytes := func(name string) int64 {
+		a, err := openArchiveFile(mem, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer a.Close()
+		return a.arch.DirectoryBytes()
+	}
+	dirTerm := limits.EstimateMemory(limits.MemoryInputs{DirectoryBytes: dirBytes("dict8.pulse") - dirBytes("dict.pulse")}) - limits.EstimateMemory(limits.MemoryInputs{})
+	for _, workers := range []int{1, 4} {
+		t.Run(fmt.Sprintf("shards=%d", workers), func(t *testing.T) {
+			svc := New(cfg)
+			svc.SetShardWorkers(workers)
+			est := archiveMemoryEstimate(t, svc, dictArchiveRequest("dict.pulse", false))
+			l := limits.Defaults()
+			l.MaxEstimatedMemory = est - 1
+			svc.SetLimits(l)
+			_, err := svc.Process(context.Background(), dictArchiveRequest("dict.pulse", false))
+			var ce *errors.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_LIMIT_EXCEEDED {
+				t.Fatalf("cap %d under the estimate: err = %v, want PULSE_LIMIT_EXCEEDED", l.MaxEstimatedMemory, err)
+			}
+			if ce.Details["limit"] != "max_estimated_memory" || ce.Details["configured"] != l.MaxEstimatedMemory || ce.Details["observed"] != est {
+				t.Fatalf("details = %v", ce.Details)
+			}
+			l.MaxEstimatedMemory = est
+			svc.SetLimits(l)
+			if _, err := svc.Process(context.Background(), dictArchiveRequest("dict.pulse", false)); err != nil {
+				t.Fatalf("at the estimate (%d): %v", est, err)
+			}
+
+			svc.SetLimits(limits.Defaults())
+			want := dirTerm
+			if workers > 1 {
+				want += 4 * (512 + 256) // four more ungrouped shard partials
+			}
+			if d := archiveMemoryEstimate(t, svc, dictArchiveRequest("dict8.pulse", false)) - est; d != want {
+				t.Fatalf("8 shards (%d bytes) estimate %d above 4 shards (%d bytes), want %d — the directory term only", large, d, small, want)
+			}
+		})
+	}
+}
 
 // TestShardParallel_DecodeAllocsPerRow (E8-S3): the per-shard parallel
 // reducer decodes each row into one fresh positional Record (the

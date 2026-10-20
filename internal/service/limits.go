@@ -50,15 +50,15 @@ func (s *Service) limitInputs(ctx context.Context, cohort *Cohort, path string) 
 	if err != nil {
 		return in, err
 	}
-	in.Records, in.ShardRecords, in.ArchiveBytes = c.Records, c.ShardRecords, c.ArchiveBytes
+	in.Records, in.ShardRecords, in.DirectoryBytes = c.Records, c.ShardRecords, c.DirectoryBytes
 	return in, nil
 }
 
 // cohortCounts are the header facts of cohort (opened from path) the
 // limit rules read: an archive's per-shard counts from its manifest and
-// its byte length (what Open read), a single file's header-only count
-// (CountRecords, never Cohort.RecordCount) — plus, for an
-// anchor-opened shard, its archive's byte length.
+// its central-directory bytes (what Open parsed), a single file's — or
+// an anchor-opened shard's — header-only count (CountRecords, never
+// Cohort.RecordCount).
 func (s *Service) cohortCounts(ctx context.Context, cohort *Cohort, path string) (descx.CohortCounts, error) {
 	var c descx.CohortCounts
 	if shards := cohort.Shards(); len(shards) > 0 {
@@ -66,7 +66,7 @@ func (s *Service) cohortCounts(ctx context.Context, cohort *Cohort, path string)
 			c.ShardRecords = append(c.ShardRecords, sh.RecordCount)
 			c.Records += sh.RecordCount
 		}
-		c.ArchiveBytes = cohort.archiveBytes
+		c.DirectoryBytes = cohort.directoryBytes
 		return c, nil
 	}
 	n, err := s.CountRecords(ctx, path)
@@ -74,8 +74,6 @@ func (s *Service) cohortCounts(ctx context.Context, cohort *Cohort, path string)
 		return descx.CohortCounts{Records: -1}, err
 	}
 	c.Records = int64(n)
-	// An anchor-opened shard: its archive's bytes, no shard counts.
-	c.ArchiveBytes = cohort.archiveBytes
 	return c, nil
 }
 
