@@ -326,7 +326,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	OverlayKindPairwiseWeightedTwoMeansZ: false,
 	// OVERLAY_PROP_Z_CELL is inherently buffered — COMPOSE-only kind,
 	// per-cell two-proportion z-test against the reference slot's
-	// matching cell. Reuses the standardNormalCDF helper backing
+	// matching cell. Reuses the normalTwoSidedP helper backing
 	// TEST_PROP_Z. Inferential kind — per PRD §2 Non-Goals every
 	// inferential overlay stays buffered regardless of host streamability.
 	OverlayKindPropZCell: false,
@@ -335,7 +335,7 @@ var OverlayStreamability = map[OverlayKind]bool{
 	// across the panel's reference + N target slots. Emits a per-cell
 	// flattened upper-triangular slice of pairwise p-values via
 	// MatrixCell.Value carrying a []float64. Reuses the same
-	// twoProportionZ + standardNormalCDF helpers backing OVERLAY_PROP_Z_CELL
+	// twoProportionZ + normalTwoSidedP helpers backing OVERLAY_PROP_Z_CELL
 	// and TEST_PROP_Z so every pairwise p-value matches the
 	// corresponding single-pair output byte-for-byte. Per PRD §2
 	// Non-Goals every inferential overlay stays buffered regardless of
@@ -363,14 +363,14 @@ var OverlayStreamability = map[OverlayKind]bool{
 	OverlayKindShareOfTotal: true,
 	// OVERLAY_T_CELL is inherently buffered — COMPOSE-only kind,
 	// per-cell Welch t-test against the reference slot's matching cell.
-	// Reuses the studentTTwoSidedP helper backing TEST_T. Inferential
+	// Reuses the statdist.StudentTTwoSidedP helper backing TEST_T. Inferential
 	// kind — per PRD §2 Non-Goals every inferential overlay stays
 	// buffered regardless of host streamability.
 	OverlayKindTCell: false,
 	// OVERLAY_T_VS_REF is inherently buffered — COMPOSE-only kind,
 	// per-group Welch t-test against the reference slot's
 	// matching group, against a SERIES host. Series-shape sibling of
-	// OVERLAY_T_CELL; reuses the same studentTTwoSidedP helper backing
+	// OVERLAY_T_CELL; reuses the same statdist.StudentTTwoSidedP helper backing
 	// TEST_T. Inferential kind — per PRD §2 Non-Goals every inferential
 	// overlay stays buffered regardless of host streamability. Distinct
 	// from the streamable SERIES-arm of OVERLAY_INDEX_VS_REF /
@@ -444,14 +444,14 @@ var OverlayStreamability = map[OverlayKind]bool{
 	OverlayKindZScoreVsTotal: true,
 	// OVERLAY_Z_CELL is inherently buffered — COMPOSE-only kind,
 	// per-cell two-sample z-test on the means against the reference slot's
-	// matching cell. Reuses the standardNormalCDF helper backing
+	// matching cell. Reuses the normalTwoSidedP helper backing
 	// TEST_Z_TWO_SAMPLE. Inferential kind — per PRD §2 Non-Goals every
 	// inferential overlay stays buffered regardless of host streamability.
 	OverlayKindZCell: false,
 	// OVERLAY_Z_VS_REF is inherently buffered — COMPOSE-only kind,
 	// per-group two-sample z-test on the means against the
 	// reference slot's matching group, against a SERIES host. Series-
-	// shape sibling of OVERLAY_Z_CELL; reuses the same standardNormalCDF
+	// shape sibling of OVERLAY_Z_CELL; reuses the same normalTwoSidedP
 	// helper backing TEST_Z_TWO_SAMPLE. Inferential kind — per PRD §2
 	// Non-Goals every inferential overlay stays buffered regardless of
 	// host streamability. Distinct from the streamable SERIES-arm of

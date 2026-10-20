@@ -1154,8 +1154,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"float64. Cells are treated as success counts; each cell's matching row margin is treated as its sample size " +
 				"(target_n on the target side, ref_n on the reference side). Math: p_target = target_cell / target_row_margin; " +
 				"p_ref = ref_cell / ref_row_margin; pooled = (target_cell + ref_cell) / (target_row_margin + ref_row_margin); " +
-				"se = sqrt(pooled * (1 - pooled) * (1/n_target + 1/n_ref)); z = (p_target - p_ref) / se; p_value = 2 * (1 - " +
-				"Φ(|z|)). Reuses the standardNormalCDF helper backing TEST_PROP_Z so the overlay and the row-test surface " +
+				"se = sqrt(pooled * (1 - pooled) * (1/n_target + 1/n_ref)); z = (p_target - p_ref) / se; p_value = erfc(|z|/√2). Reuses the normalTwoSidedP helper (tail-accurate erfc form) backing TEST_PROP_Z so the overlay and the row-test surface " +
 				"produce identical p-values for the same (success, n) pair. Degenerate inputs (pooled ∈ {0, 1}, or a missing or " +
 				"zero row margin on EITHER side — the cell value is never borrowed as n) produce NaN p-values with one " +
 				"PULSE_OVERLAY_REF_ZERO warning per affected cell (margin_missing: true for the margin case). Inherently " +
@@ -1184,7 +1183,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"targets[N-1]}. Output shape — row-major upper triangle, NO diagonal: [(0,1), (0,2), ..., (0,M-1), (1,2), ..., " +
 				"(M-2,M-1)] for M = N + 1 slots. Slice length is M*(M-1)/2. The diagonal is implicit (every diagonal entry " +
 				"is 1.0) and the lower triangular is implicit (p[j,i] == p[i,j] — symmetric matrix). Math per pair: reuses " +
-				"the same pooled-SE two-proportion z-test formula and standardNormalCDF helper backing OVERLAY_PROP_Z_CELL " +
+				"the same pooled-SE two-proportion z-test formula and normalTwoSidedP helper backing OVERLAY_PROP_Z_CELL " +
 				"and TEST_PROP_Z, so every pairwise p-value matches its corresponding single-pair output byte-for-byte. " +
 				"Cap enforcement: ComposeOverlaySpec.Options.MaxPanelTargets defaults to 16 — len(spec.Targets) > cap " +
 				"fires PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP at handler entry with {observed, cap} Details. Per the interview " +
@@ -1543,7 +1542,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				twoSampleCellInputs + " Math reuses the same Welch-Satterthwaite degrees-of-freedom recurrence that backs " +
 				"TEST_T two-sample: se = sqrt(var_target/n_target + var_ref/n_ref); t = (target_cell - ref_cell) / se; " +
 				"df = (var_target/n_target + var_ref/n_ref)² / ((var_target/n_target)²/(n_target-1) + " +
-				"(var_ref/n_ref)²/(n_ref-1)); p_value = studentTTwoSidedP(t, df). Reuses the studentTTwoSidedP helper backing " +
+				"(var_ref/n_ref)²/(n_ref-1)); p_value = statdist.StudentTTwoSidedP(t, df). Reuses the statdist.StudentTTwoSidedP helper backing " +
 				"TEST_T so the overlay and the row-test surface produce identical p-values for the same (mean, variance, n) " +
 				"triple. Inherently buffered — inferential overlays as a " +
 				"family stay buffered until a streamable-test path is plumbed (PRD §2 Non-Goals).",
@@ -1571,7 +1570,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"reuses the Welch-Satterthwaite recurrence backing TEST_T (and OVERLAY_T_CELL): se = " +
 				"sqrt(var_target/n_target + var_ref/n_ref); t = (target - ref) / se; df = (var_target/n_target + " +
 				"var_ref/n_ref)² / ((var_target/n_target)²/(n_target-1) + (var_ref/n_ref)²/(n_ref-1)); p_value = " +
-				"studentTTwoSidedP(t, df). Reuses studentTTwoSidedP so the overlay and the row-test surface produce identical " +
+				"statdist.StudentTTwoSidedP(t, df). Reuses statdist.StudentTTwoSidedP so the overlay and the row-test surface produce identical " +
 				"p-values for the same (mean, variance, n) triple. Missing reference rows (target row key not present in the " +
 				"reference series) emit PULSE_OVERLAY_REF_ZERO with a ref_missing=true Detail flag; the affected entry's " +
 				"Statistic is NaN. Degenerate inputs (se == 0, n < 2) produce NaN p-values with the same warning. Inherently " +
@@ -1823,7 +1822,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"two-sided p-value as a float64. " + twoSampleCellInputs + " Math reuses the same Welch-style " +
 				"standard-error recurrence that backs OVERLAY_T_CELL and finalises against the standard normal " +
 				"survival helper that backs TEST_Z_TWO_SAMPLE: se = sqrt(var_target/n_target + var_ref/n_ref); " +
-				"z = (target_cell - ref_cell) / se; p_value = 2 * (1 - Φ(|z|)). Reuses the standardNormalCDF helper " +
+				"z = (target_cell - ref_cell) / se; p_value = erfc(|z|/√2). Reuses the normalTwoSidedP helper (tail-accurate erfc form) " +
 				"backing TEST_Z_TWO_SAMPLE so the overlay and the row-test surface produce identical p-values for " +
 				"the same (mean, variance, n) triple. Inherently buffered — inferential overlays as a family stay buffered until a " +
 				"streamable-test path is plumbed (PRD §2 Non-Goals).",
@@ -1851,7 +1850,7 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 				"mean. " + twoSampleSeriesInputs + " Math " +
 				"reuses the Welch-style standard-error recurrence backing OVERLAY_Z_CELL and finalises against the " +
 				"standard normal survival helper backing TEST_Z_TWO_SAMPLE: se = sqrt(var_target/n_target + var_ref/n_ref); " +
-				"z = (target - ref) / se; p_value = 2 * (1 - Φ(|z|)). Reuses standardNormalCDF so the overlay and the " +
+				"z = (target - ref) / se; p_value = erfc(|z|/√2). Reuses normalTwoSidedP so the overlay and the " +
 				"row-test surface produce identical p-values for the same (mean, variance, n) triple. Missing reference " +
 				"rows (target row key not present in the reference series) emit PULSE_OVERLAY_REF_ZERO with a " +
 				"ref_missing=true Detail flag; the affected entry's Statistic is NaN. Degenerate inputs (se == 0, n < 2) " +

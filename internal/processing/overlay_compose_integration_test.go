@@ -819,7 +819,7 @@ func TestComposeOverlayDispatch_ZKinds_RouteToHandlers(t *testing.T) {
 					t.Fatal("layer.Payload.Matrix is nil — stub fallback would leave matrix zero-shaped")
 				}
 				// z = (10 - 9) / sqrt(1/2 + 1/2) = 1.0
-				// p = 2 * (1 - Φ(1.0)) ≈ 0.3173
+				// p = erfc(1/√2) ≈ 0.3173
 				approxEqual(t, "z_cell p (0,0)", cellAt(t, layer, 0, 0), 0.3173, 0.005)
 				if len(warnings) != 0 {
 					t.Errorf("warnings = %+v, want none", warnings)

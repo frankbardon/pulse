@@ -15,7 +15,7 @@ import (
 //	variant: [11, 13, 19, 22, 25]   n=5, mean=18, s²=35
 //	se = √(10/5 + 35/5) = 3
 //	z  = (14 - 18) / 3 = -1.3333
-//	p  = 2·(1 − Φ(|z|)) ≈ 0.1824
+//	p  = erfc(|z|/√2) ≈ 0.1824
 //
 // Same statistic as TEST_WELCH; the p-value differs because TEST_WELCH
 // uses T_df (df ≈ 6.113 → p ≈ 0.230) while TEST_Z_TWO_SAMPLE uses Φ.

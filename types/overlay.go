@@ -2058,9 +2058,9 @@ const (
 	//	pooled   = (target_cell + ref_cell) / (target_row_margin + ref_row_margin)
 	//	se       = sqrt(pooled * (1 - pooled) * (1/n_target + 1/n_ref))
 	//	z        = (p_target - p_ref) / se
-	//	p_value  = 2 * (1 - Φ(|z|))
+	//	p_value  = erfc(|z|/√2)
 	//
-	// Reuses the `standardNormalCDF` helper backing `TEST_PROP_Z` so the
+	// Reuses the `normalTwoSidedP` helper (tail-accurate erfc form) backing `TEST_PROP_Z` so the
 	// overlay and the row-test surface produce identical p-values for
 	// the same (success, n) pair.
 	//
@@ -2114,7 +2114,7 @@ const (
 	// `twoProportionZ` helper. Each slot's matching row margin is its
 	// sample size; the helper accepts `(success_i, n_i, success_j, n_j)`
 	// and returns the two-sided p-value. Reuses the same
-	// `standardNormalCDF` helper backing `TEST_PROP_Z` so every pairwise
+	// `normalTwoSidedP` helper backing `TEST_PROP_Z` so every pairwise
 	// p-value matches the corresponding `OVERLAY_PROP_Z_CELL` output
 	// byte-for-byte.
 	//
@@ -2228,7 +2228,7 @@ const (
 	// opposite-axis position it tests mean_i vs mean_j using the Welford
 	// triple {mean, variance, n} on CellComponents with a normal-CDF tail
 	// (no df adjustment): z = (m_i - m_j) / sqrt(v_i/n_i + v_j/n_j). Reuses
-	// standardNormalCDF. A non-Welford host fails fast with
+	// normalTwoSidedP. A non-Welford host fails fast with
 	// PULSE_OVERLAY_SHAPE_MISMATCH. See the OVERLAY_PAIRWISE_* family note.
 	OverlayKindPairwiseTwoMeansZ OverlayKind = "OVERLAY_PAIRWISE_TWO_MEANS_Z"
 
@@ -2345,9 +2345,9 @@ const (
 	//	df      = (var_target/n_target + var_ref/n_ref)^2 /
 	//	          ( (var_target/n_target)^2 / (n_target-1)
 	//	          + (var_ref/n_ref)^2     / (n_ref-1)     )
-	//	p_value = studentTTwoSidedP(t, df)
+	//	p_value = statdist.StudentTTwoSidedP(t, df)
 	//
-	// Reuses the `studentTTwoSidedP` helper backing `TEST_T` so the
+	// Reuses the `statdist.StudentTTwoSidedP` helper backing `TEST_T` so the
 	// overlay and the row-test surface produce identical p-values for
 	// the same (mean, variance, n) triple.
 	//
@@ -2375,9 +2375,9 @@ const (
 	//
 	//	se      = sqrt(var_target/n_target + var_ref/n_ref)
 	//	z       = (target_cell - ref_cell) / se
-	//	p_value = 2 * (1 - Φ(|z|))
+	//	p_value = erfc(|z|/√2)
 	//
-	// Reuses the `standardNormalCDF` helper backing `TEST_Z_TWO_SAMPLE` so
+	// Reuses the `normalTwoSidedP` helper (tail-accurate erfc form) backing `TEST_Z_TWO_SAMPLE` so
 	// the overlay and the row-test surface produce identical p-values for
 	// the same (mean, variance, n) triple.
 	//
@@ -2456,9 +2456,9 @@ const (
 	//	df         = (var_target/n_target + var_ref/n_ref)^2 /
 	//	             ((var_target/n_target)^2/(n_target-1) +
 	//	              (var_ref/n_ref)^2/(n_ref-1))
-	//	p_value    = studentTTwoSidedP(t, df)
+	//	p_value    = statdist.StudentTTwoSidedP(t, df)
 	//
-	// Reuses the `studentTTwoSidedP` helper backing `TEST_T` so the
+	// Reuses the `statdist.StudentTTwoSidedP` helper backing `TEST_T` so the
 	// overlay and the row-test surface produce identical p-values for
 	// the same (mean, variance, n) triple. Mirrors `OVERLAY_T_CELL`'s
 	// inputs rule: an AGG_WELFORD group reads its slot's per-group
@@ -2502,9 +2502,9 @@ const (
 	//	n_ref      = Params["sample_size_ref"]    (required on a scalar side)
 	//	se         = sqrt(var_target/n_target + var_ref/n_ref)
 	//	z          = (target_val - ref_val) / se
-	//	p_value    = 2 * (1 - Φ(|z|))
+	//	p_value    = erfc(|z|/√2)
 	//
-	// Reuses the `standardNormalCDF` helper backing `TEST_Z_TWO_SAMPLE` so
+	// Reuses the `normalTwoSidedP` helper (tail-accurate erfc form) backing `TEST_Z_TWO_SAMPLE` so
 	// the overlay and the row-test surface produce identical p-values for
 	// the same (mean, variance, n) triple. Mirrors `OVERLAY_Z_CELL`'s
 	// inputs rule: an AGG_WELFORD group reads its slot's per-group
@@ -3347,7 +3347,7 @@ type OverlaySummary struct {
 	// expose distribution / model parameters without per-kind struct
 	// churn. Examples:
 	//   OVERLAY_CHISQ_MATRIX  → {"df": 4.0}
-	//   OVERLAY_FISHER_MATRIX → {"odds_ratio": 1.42}
+	//   OVERLAY_CHISQ_VS_POP  → {"df": 4.0}
 	//   OVERLAY_KS_*          → {"d": 0.18}
 	// Keys are SCREAMING_SNAKE-free lowercase strings; values are
 	// float64. Empty / nil when the kind has no extra parameters to

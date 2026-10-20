@@ -35,7 +35,7 @@ func TestApplyZCell_ScalarKnownAnswer(t *testing.T) {
 		t.Errorf("layer.Kind = %q, want %q", layer.Kind, types.OverlayKindZCell)
 	}
 	// se = sqrt(1/2 + 1/2) = 1; z = 1
-	// p_value (two-sided) for z=1 is 2*(1 - Φ(1)) ≈ 0.31731
+	// p_value (two-sided) for z=1 is erfc(1/√2) ≈ 0.31731
 	got := cellAt(t, layer, 0, 0)
 	approxEqual(t, "p-value", got, 0.31731, 1e-4)
 }
@@ -47,7 +47,7 @@ func TestApplyZCell_ScalarKnownAnswer(t *testing.T) {
 //	ref    = {mean:  9, var: 4, n: 10}
 //	se     = sqrt(4/10 + 4/10) = sqrt(0.8) ≈ 0.8944
 //	z      = 1 / 0.8944 ≈ 1.118
-//	p      = 2*(1 - Φ(1.118)) ≈ 0.2636
+//	p      = erfc(1.118/√2) ≈ 0.2636
 //
 // Params are left unset — when a triple is present the handler reads
 // no params at all, so the test pins that a components side needs none.
