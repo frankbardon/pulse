@@ -219,7 +219,7 @@ func CatalogWithModels(outer Catalog, refs []types.ModelRef, files []*File) FitC
 		if j >= len(files) || files[j] == nil {
 			continue
 		}
-		out[r.Name] = Signature{
+		sig := Signature{
 			Name:   r.Name,
 			Type:   files[j].Type,
 			Target: files[j].Target,
@@ -227,6 +227,12 @@ func CatalogWithModels(outer Catalog, refs []types.ModelRef, files []*File) FitC
 			Source: ModelSource(j, r.Path),
 			Kind:   types.FitKindRegression,
 		}
+		if !BuiltinRegression(files[j].Type) {
+			// The file names the fit's coefficients, so predict judges a
+			// coef() term exactly as the bound model does.
+			sig.Coefficients, sig.CoefficientsKnown = sortedKeys(files[j].Coefficients), true
+		}
+		out[r.Name] = sig
 	}
 	return out
 }

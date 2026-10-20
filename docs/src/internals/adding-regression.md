@@ -107,6 +107,18 @@ A nonlinear parameter is a coefficient too, named by the model. `Outputs`
 carries what has no coefficient slot: per-channel `k` and `s` objects, a
 convergence flag, a pooled variance.
 
+Every coefficient name the fit reports is readable in an expression:
+`coef("<fit>", "<name>")`, with `"lower"` / `"upper"` (the engine's
+`conf_level` interval) and `"se"`, NaN where the fit reports no figure.
+`Outputs` are not coefficients, so `coef()` cannot read them — give a
+scalar a downstream expression needs a coefficient of its own. An
+unknown name is `PULSE_MODEL_TERM_UNKNOWN`. Predict judges it exactly as
+the run does against a loaded model file, which names the fit's
+coefficients; against a Compose `fits` entry the names exist only once
+the model runs, so predict accepts any term on an extension fit and the
+run refuses an unknown one (a built-in fit is judged at predict either
+way).
+
 ## 4. Declare params, outputs and what the model accepts
 
 | Registration field | What it is for | Refused when undeclared |

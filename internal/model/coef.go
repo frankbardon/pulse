@@ -33,7 +33,10 @@ func CoefStats() []string { return []string{StatPoint, StatLower, StatUpper, Sta
 // what can be judged from the names alone, so the runtime (every call)
 // and predict (every all-literal call) refuse the same call the same
 // way. In order: fit resolves in cat (PULSE_MODEL_UNKNOWN), term is
-// InterceptKey or one of the fit's terms (PULSE_MODEL_TERM_UNKNOWN),
+// InterceptKey, one of the fit's terms or — on an extension regression
+// — a coefficient the fit names itself (Signature.NamesCoefficient;
+// predict over a `fits` entry cannot know those names, so it accepts
+// any such term and the runtime judges it) (PULSE_MODEL_TERM_UNKNOWN),
 // stat is one of CoefStats (PULSE_MODEL_STAT_UNKNOWN). The first fault
 // wins. Whether the fit reports the stat is the runtime's call (Coef):
 // predict cannot see a fit's numbers.
@@ -49,8 +52,8 @@ func CheckCoef(cat Catalog, fit, term, stat string) *errors.CodedError {
 	if sig.EffectiveKind() != types.FitKindRegression {
 		return KindMismatch(fit, types.FitKindRegression, sig.EffectiveKind())
 	}
-	if term != InterceptKey && !slices.Contains(sig.Terms, term) {
-		return TermUnknown(fit, term, sig.Terms)
+	if term != InterceptKey && !slices.Contains(sig.Terms, term) && !sig.NamesCoefficient(term) {
+		return TermUnknown(fit, term, sig.coefTerms())
 	}
 	if !slices.Contains(CoefStats(), stat) {
 		return StatUnknown(fit, stat)
@@ -97,6 +100,12 @@ func Coef(set *Set, fit, term, stat string) (float64, *errors.CodedError) {
 		return b.Intercept, nil
 	}
 	i := slices.Index(b.Predictors, term)
+	if i < 0 && !BuiltinRegression(b.Type) && !slices.Contains(b.Terms, term) {
+		// A coefficient an extension model names itself (CheckCoef
+		// admitted it): its figures are read off the result by name,
+		// NaN where the fit reports none.
+		return modelNamedCoef(b.Result, term, stat), nil
+	}
 	if i < 0 {
 		// A candidate the selection dropped: no figure but a zero
 		// coefficient.
@@ -116,6 +125,22 @@ func Coef(set *Set, fit, term, stat string) (float64, *errors.CodedError) {
 	return b.Coefficients[i], nil
 }
 
+// modelNamedCoef is stat of an extension fit's own coefficient term.
+func modelNamedCoef(res *types.RegressionResult, term, stat string) float64 {
+	if res == nil {
+		return math.NaN()
+	}
+	switch stat {
+	case StatLower:
+		return lookupOrNaN(res.CILower, term)
+	case StatUpper:
+		return lookupOrNaN(res.CIUpper, term)
+	case StatSE:
+		return lookupOrNaN(res.StdErrors, term)
+	}
+	return lookupOrNaN(res.Coefficients, term)
+}
+
 // ReportsIntervals reports whether the fit carries coefficient
 // confidence intervals (RegressionResult.ConfLevel set). A fit without
 // standard errors — a degenerate intercept-only GLM — has none.
@@ -129,6 +154,15 @@ func (b *Bound) ReportsStdErrors() bool {
 	for _, se := range b.StdErrors {
 		if !math.IsNaN(se) {
 			return true
+		}
+	}
+	if !BuiltinRegression(b.Type) && b.Result != nil {
+		// An extension model may report errors only on coefficients it
+		// names itself.
+		for _, se := range b.Result.StdErrors {
+			if !math.IsNaN(se) {
+				return true
+			}
 		}
 	}
 	return false

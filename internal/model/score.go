@@ -100,6 +100,15 @@ type Signature struct {
 	// PULSE_MODEL_KIND_MISMATCH.
 	Kind types.FitKind
 
+	// Coefficients are the coefficient names an extension regression's
+	// fit reports (sorted), when known (CoefficientsKnown): the
+	// runtime's Set and a loaded model file know them; predict's static
+	// FitCatalog of a `fits` entry does not — the model names them when
+	// it runs. Nil on a built-in regression, whose coefficients are
+	// always the intercept and Terms.
+	Coefficients      []string
+	CoefficientsKnown bool
+
 	// Members are a vector fit's member labels in axis order — the
 	// names a consuming slot aligns to — when known: the runtime's Set
 	// always knows them; predict's static FitCatalog never resolves a
@@ -148,7 +157,45 @@ func (v *VectorFit) Signature() Signature {
 
 // Signature is b's static face.
 func (b *Bound) Signature() Signature {
-	return Signature{Name: b.Name, Type: b.Type, Target: b.Target, Terms: append([]string(nil), b.Terms...), Source: b.Source, Kind: types.FitKindRegression}
+	sig := Signature{Name: b.Name, Type: b.Type, Target: b.Target, Terms: append([]string(nil), b.Terms...), Source: b.Source, Kind: types.FitKindRegression}
+	if !BuiltinRegression(b.Type) && b.Result != nil {
+		sig.Coefficients, sig.CoefficientsKnown = sortedKeys(b.Result.Coefficients), true
+	}
+	return sig
+}
+
+// sortedKeys are m's keys in ascending order (non-nil).
+func sortedKeys[V any](m map[string]V) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// NamesCoefficient reports whether term is a coefficient the fit
+// names itself beyond the intercept and its Terms — an extension
+// regression's own parameter. With the names unknown (predict over a
+// `fits` entry) any term may be one: the runtime, which knows them,
+// judges it.
+func (s Signature) NamesCoefficient(term string) bool {
+	if BuiltinRegression(s.Type) {
+		return false
+	}
+	return !s.CoefficientsKnown || slices.Contains(s.Coefficients, term)
+}
+
+// coefTerms are the names coef() may read beyond the intercept: Terms,
+// then the fit's own coefficient names that are neither (sorted).
+func (s Signature) coefTerms() []string {
+	out := append([]string(nil), s.Terms...)
+	for _, c := range s.Coefficients {
+		if c != InterceptKey && !slices.Contains(s.Terms, c) {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // FitCatalog is the static Catalog of a ComposedRequest `fits` list —
