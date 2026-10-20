@@ -349,7 +349,14 @@ func testWeightRefRegsKindsAgree(t *testing.T) {
 			if s == weightSurfaceRegressions {
 				fs, _ := wirePath(fw, "regressions[0].std_errors.x1")
 				ps, _ := wirePath(pw, "regressions[0].std_errors.x1")
-				if fs == nil || fs == ps {
+				switch {
+				case fc.name == "lasso" || fc.name == "elasticnet":
+					// No inference on an l1 / elasticnet fit under either
+					// kind: null (reference-oracles E2-S2).
+					if fs != nil || ps != nil {
+						t.Errorf("std_errors.x1 %v / %v: want null under both kinds", fs, ps)
+					}
+				case fs == nil || fs == ps:
 					t.Errorf("std_errors.x1 %v / %v: N* is not kind-dependent", fs, ps)
 				}
 			}

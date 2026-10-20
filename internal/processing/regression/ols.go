@@ -42,10 +42,10 @@ type olsEngine struct {
 	// the regularized solvers. Zero for the closed-form paths (unpenalized
 	// and ridge).
 	convergedIters int
-	// approximateSE flags the L1-penalized fits whose standard errors
-	// are emitted only for the active set under a naive plug-in. The
-	// engine attaches a warning to the response in that case; Phase 5
-	// will replace this with bootstrap / jackknife uncertainty.
+	// approximateSE flags the L1-penalized fits (l1 / elasticnet) whose
+	// standard errors, p-values and intervals are undefined (NaN on
+	// every key); the service attaches
+	// PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED to the result.
 	approximateSE bool
 }
 
@@ -223,8 +223,8 @@ func (e *olsEngine) Fit() (*types.RegressionResult, error) {
 //
 //	""           → solveOLS    (Phase 1, closed-form, full SE)
 //	"l2"         → solveRidge  (closed-form on augmented Gram, full SE)
-//	"l1"         → solveLasso  (coordinate descent, approximate SE)
-//	"elasticnet" → solveElasticNet (coordinate descent, approximate SE)
+//	"l1"         → solveLasso  (coordinate descent, SE undefined: NaN)
+//	"elasticnet" → solveElasticNet (coordinate descent, SE undefined: NaN)
 //
 // All four solvers consume the same streaming Welford accumulator;
 // regularized variants iterate at finalize, not over rows.
@@ -272,24 +272,12 @@ func (e *olsEngine) finalizeFromAccumulator(records []Record) (*types.Regression
 
 	for i, name := range predictors {
 		coefMap[name] = solve.Coefficients[i]
-		// For L1-penalized fits, only the active set (non-zero coefs)
-		// gets a (naive) SE and p-value; the zeroed coordinates have
-		// neither, so both map entries are omitted (as REG_GLM does) —
-		// never a p-value of 0, which would read as maximally
-		// significant.
-		if e.approximateSE && solve.Coefficients[i] == 0 {
-			continue
-		}
+		// An l1 / elasticnet solve reports NaN standard errors on every
+		// coefficient (dropped or kept) and the intercept, so every key
+		// is present with a NaN p-value — null on the wire, never a p of
+		// 0 that would read as maximally significant.
 		seMap[name] = solve.StdErrors[i+1]
 		pMap[name] = pValueForCoefficient(solve.Coefficients[i], solve.StdErrors[i+1], infDF)
-	}
-	if e.approximateSE {
-		// Drop intercept SE/p-value too: under L1 penalization the
-		// active set is data-dependent, so even the intercept's
-		// classical SE doesn't apply rigorously. Phase 5 will replace
-		// this with bootstrap / jackknife uncertainty.
-		delete(seMap, InterceptKey)
-		delete(pMap, InterceptKey)
 	}
 
 	res := &types.RegressionResult{
@@ -309,8 +297,8 @@ func (e *olsEngine) finalizeFromAccumulator(records []Record) (*types.Regression
 	}
 	e.weights.note(res, e.acc.sumW, e.acc.sumWSq)
 	// t on the residual df N* − p − 1 (the N* rule, weighting.md): the
-	// same df the p-values read. Lasso / elastic net get intervals only
-	// where they report a (plug-in) standard error.
+	// same df the p-values read. Lasso / elastic net intervals are NaN
+	// on every key (their standard errors are).
 	// A cluster fit reads G − 1 df instead.
 	attachIntervals(res, resolvedConfLevel(e.spec), infDF, true)
 	switch {
@@ -328,8 +316,8 @@ func (e *olsEngine) finalizeFromAccumulator(records []Record) (*types.Regression
 // dispatchSolve routes to the per-Penalty solver. Returns
 // (solve, iterations, approximateSE, err). iterations is non-zero only
 // for the coordinate-descent solvers (lasso / elasticnet).
-// approximateSE is true when the SE map should be treated as a plug-in
-// estimate (L1-penalized fits today).
+// approximateSE is true for the L1-penalized fits, whose standard
+// errors are undefined (NaN).
 func (e *olsEngine) dispatchSolve() (*olsSolveResult, int, bool, error) {
 	switch e.spec.Penalty {
 	case "":
@@ -357,10 +345,8 @@ func (e *olsEngine) dispatchSolve() (*olsSolveResult, int, bool, error) {
 }
 
 // HasApproximateStdErrors reports whether the engine produced a fit
-// whose StdErrors / PValues are plug-in approximations rather than
-// asymptotic estimates. Today this is exactly the L1-penalized fits
-// (Penalty=="l1" or "elasticnet"). The orchestrator consults this hook
-// to attach a descriptor.Envelope warning to the response.
+// whose StdErrors / PValues are undefined (NaN on every key): exactly
+// the L1-penalized fits (Penalty=="l1" or "elasticnet").
 func (e *olsEngine) HasApproximateStdErrors() bool {
 	return e.approximateSE
 }

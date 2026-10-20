@@ -90,7 +90,14 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   (absent on a standalone `Response`).
 - **Advisory** — `#/$defs/Advisory`, one entry of a predict result's
   `advisories` (`{code, message, details}`): a coded, non-blocking note
-  that the analysis may not fit the data. Never a warning.
+  that the analysis may not fit the data. Never a warning. The same shape
+  rides `RegressionResult.advisories` (additive `omitempty`, in the
+  `standard` and `minimal` presets): an `l1` / `elasticnet` fit without
+  `resample` carries `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED` beside
+  its `std_errors`, `p_values`, `ci_lower` and `ci_upper`, which are
+  `null` on every key (the data pick the predictors, so no analytical
+  inference is valid); predict raises the identical advisory and
+  `Options.SuppressAdvisories` drops it from both.
   Predict's `limit_findings` (`{limit, configured, estimated, grade,
   details}` — on Process, Compose, chain and facet predict; `details`
   locates a Compose slot as `request` or a chain stage as `stage`) is a

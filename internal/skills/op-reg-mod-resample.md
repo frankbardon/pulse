@@ -46,7 +46,7 @@ Inherits `target` / `predictors` from the host `RegressionSpec`. No additional f
 - `StdErrors[name]` — jackknife `√((g−1)/g · Σ(β₍ₖ₎ − β̄)²)` over its `g` replicates (leave-one-out: `g` = the fitted rows; a row the fit drops is no replicate); bootstrap sample std of replicates.
 - A delete-a-group jackknife echoes `jackknife_groups` (`g`; the distinct `jackknife_by` values); leave-one-out omits it.
 - `PValues[name]` — jackknife pivotal; bootstrap percentile-method two-sided.
-- `Resample` echoes back; `Coefficients` unchanged. For `l1` / `elasticnet` (OLS or GLM), a resample suppresses `PROCESSING_REGRESSION_APPROXIMATE_SE`; a penalty refits every replicate penalized.
+- `Resample` echoes back; `Coefficients` unchanged. For `l1` / `elasticnet` (OLS or GLM), a resample replaces the null SE / p with replicate ones and silences `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`; a penalty refits every replicate penalized.
 - Bootstrap echoes `bootstrap_requested` (replicates run) and `bootstrap_succeeded` (refits that succeeded; SE / p / vcov use only these). A failed refit is skipped, so `succeeded < requested` flags an unstable fit; under 10 successes is `PROCESSING_REGRESSION_NO_CONVERGE`.
 
 ## Gotchas

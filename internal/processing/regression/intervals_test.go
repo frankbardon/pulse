@@ -202,7 +202,7 @@ func TestRegressionCI_PresentExactlyWhereStdErrors(t *testing.T) {
 		}
 		q := -1.0
 		for k, se := range r.StdErrors {
-			if se == 0 {
+			if se == 0 || (name == "lasso" && math.IsNaN(se)) {
 				continue
 			}
 			qk := (r.CIUpper[k] - r.CILower[k]) / (2 * se)
@@ -217,12 +217,8 @@ func TestRegressionCI_PresentExactlyWhereStdErrors(t *testing.T) {
 		}
 		switch name {
 		case "lasso":
-			if _, ok := r.CILower[InterceptKey]; ok {
-				t.Errorf("lasso carries an intercept interval with no intercept std error")
-			}
-			if len(r.CILower) == len(mmmLikePredictors)+1 {
-				t.Errorf("lasso: alpha 3 should drop at least one predictor; got intervals for all %d", len(r.CILower))
-			}
+			// No inference on an l1 fit: every key's interval is NaN.
+			assertInferenceNull(t, r, coefficientKeys(mmmLikePredictors))
 		case "selection":
 			if len(r.CILower) != len(r.SelectedFeatures)+1 {
 				t.Errorf("selection: %d intervals for %d selected + intercept", len(r.CILower), len(r.SelectedFeatures))

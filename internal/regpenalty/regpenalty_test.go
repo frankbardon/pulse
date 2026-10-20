@@ -86,3 +86,35 @@ func TestVcovRefusal(t *testing.T) {
 		}
 	}
 }
+
+// TestInferenceUndefined: l1 / elasticnet REG_OLS / REG_GLM without
+// Resample — and nothing else — has undefined inference, and its
+// advisory names the slot, operator and penalty.
+func TestInferenceUndefined(t *testing.T) {
+	for _, c := range []struct {
+		spec types.RegressionSpec
+		want bool
+	}{
+		{types.RegressionSpec{Type: types.REG_OLS, Penalty: "l1"}, true},
+		{types.RegressionSpec{Type: types.REG_GLM, Penalty: "elasticnet", Selection: "forward"}, true},
+		{types.RegressionSpec{Type: types.REG_OLS, Penalty: "l1", Resample: "bootstrap"}, false},
+		{types.RegressionSpec{Type: types.REG_GLM, Penalty: "l1", Resample: "jackknife"}, false},
+		{types.RegressionSpec{Type: types.REG_OLS, Penalty: "l2"}, false},
+		{types.RegressionSpec{Type: types.REG_OLS}, false},
+		{types.RegressionSpec{Type: types.REG_BAYES_LINEAR, Penalty: "l1"}, false},
+	} {
+		if got := InferenceUndefined(&c.spec); got != c.want {
+			t.Errorf("%+v: %v, want %v", c.spec, got, c.want)
+		}
+	}
+	if InferenceUndefined(nil) {
+		t.Error("nil spec")
+	}
+	msg, d := InferenceAdvisory(&types.RegressionSpec{Type: types.REG_GLM, Penalty: "l1"}, "regressions[2]")
+	if d["slot"] != "regressions[2]" || d["operator"] != "REG_GLM" || d["penalty"] != "l1" || msg == "" {
+		t.Errorf("advisory %q %v", msg, d)
+	}
+	if InferenceAdvisoryCode != errors.PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED {
+		t.Errorf("code %s", InferenceAdvisoryCode)
+	}
+}

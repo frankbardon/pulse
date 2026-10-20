@@ -84,10 +84,11 @@ func (c glmPenaltyCase) spec() *types.RegressionSpec {
 // TestRegGLM_PenaltyMatchesGlmnet: every penalised binomial / poisson
 // case — l2, l1, elasticnet, weighted, and a completely separated design
 // whose MLE does not exist — reaches glmnet(standardize = FALSE)'s
-// coefficients (a predictor glmnet zeroes is exactly 0), the penalised-
-// Fisher sandwich standard errors (absent for a zeroed predictor) and
-// the unpenalised deviance at the estimate, every figure within relative
-// 1e-10 (worst seen 2e-12).
+// coefficients (a predictor glmnet zeroes is exactly 0), the l2
+// penalised-Fisher sandwich standard errors (l1 / elasticnet: std error,
+// p-value and interval NaN on every coefficient — no valid inference
+// after data-driven selection) and the unpenalised deviance at the
+// estimate, every figure within relative 1e-10 (worst seen 2e-12).
 func TestRegGLM_PenaltyMatchesGlmnet(t *testing.T) {
 	cases := loadGLMPenaltyReference(t)
 	seen := map[string]bool{}
@@ -109,20 +110,26 @@ func TestRegGLM_PenaltyMatchesGlmnet(t *testing.T) {
 				if !oracleClose(got, c.Coefficients[j], 1e-10) {
 					t.Errorf("β[%s] = %.17g, glmnet %.17g", key, got, c.Coefficients[j])
 				}
-				se, has := res.StdErrors[key]
-				_, hasP := res.PValues[key]
-				if c.StdErrors[j] == nil {
-					if got != 0 {
-						t.Errorf("β[%s] = %v, glmnet zeroed it", key, got)
-					}
-					if has || hasP {
-						t.Errorf("zeroed %s carries a std error / p-value (%v / %v)", key, has, hasP)
+				if c.Penalty != "l2" {
+					// l1 / elasticnet: no inference (every SE null in
+					// the oracle; assertInferenceNull below).
+					if c.StdErrors[j] != nil {
+						t.Errorf("golden %s carries SE[%s] %v; l1 / elasticnet carry none", c.Name, key, *c.StdErrors[j])
 					}
 					continue
 				}
-				if !has || !oracleClose(se, *c.StdErrors[j], 1e-10) {
-					t.Errorf("SE[%s] = %.17g (present %v), sandwich %.17g", key, se, has, *c.StdErrors[j])
+				se, has := res.StdErrors[key]
+				if c.StdErrors[j] == nil || !has || !oracleClose(se, *c.StdErrors[j], 1e-10) {
+					t.Errorf("SE[%s] = %.17g (present %v), sandwich %v", key, se, has, c.StdErrors[j])
 				}
+			}
+			for _, name := range c.Zero {
+				if res.Coefficients[name] != 0 {
+					t.Errorf("β[%s] = %v, glmnet zeroed it", name, res.Coefficients[name])
+				}
+			}
+			if c.Penalty != "l2" {
+				assertInferenceNull(t, res, coefficientKeys(c.Predictors))
 			}
 			if !oracleClose(res.Deviance, c.Deviance, 1e-10) {
 				t.Errorf("deviance = %.17g, oracle %.17g", res.Deviance, c.Deviance)

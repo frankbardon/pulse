@@ -7,7 +7,7 @@
   },
   "primitive": "REG_GLM penalty l2 / l1 / elasticnet: glmnet's objective, unstandardised, intercept unpenalised",
   "r_function": "glmnet(x, y, family, weights, alpha = l1_ratio, lambda = alpha, standardize = FALSE, control = list(thresh = 1e-20, maxit = 1e7))",
-  "note": "Pulse alpha = glmnet lambda; Pulse l1_ratio = glmnet alpha (l2 0, l1 1). rows are [predictors..., y, w]; N* = sum(w). std_errors: the penalised-Fisher sandwich H^-1 A H^-1 at glmnet's solution (null for a dropped predictor). deviance: the unpenalised deviance at the penalised estimate. Every case is self-checked against the KKT conditions of the stated objective at relative 1e-10.",
+  "note": "Pulse alpha = glmnet lambda; Pulse l1_ratio = glmnet alpha (l2 0, l1 1). rows are [predictors..., y, w]; N* = sum(w). std_errors: l2 the penalised-Fisher sandwich H^-1 A H^-1 at glmnet's solution; l1 / elasticnet null on every coefficient (no valid inference after data-driven selection). deviance: the unpenalised deviance at the penalised estimate. Every case is self-checked against the KKT conditions of the stated objective at relative 1e-10.",
   "cases": [
     {
       "name": "binomial_l2",
@@ -3413,9 +3413,9 @@
         0
       ],
       "std_errors": [
-        0.3902787782121353,
-        0.14924917557345263,
-        0.076351452278705059,
+        null,
+        null,
+        null,
         null
       ],
       "zero": ["x3"],
@@ -5119,9 +5119,9 @@
         0
       ],
       "std_errors": [
-        0.34564477401876931,
-        0.096217672431392773,
-        0.065496924463101777,
+        null,
+        null,
+        null,
         null
       ],
       "zero": ["x3"],
@@ -8531,10 +8531,10 @@
         0.03627960008864603
       ],
       "std_errors": [
-        0.37954987266167128,
-        0.12264167755479279,
-        0.066481217488671654,
-        0.041584587207742274
+        null,
+        null,
+        null,
+        null
       ],
       "zero": [],
       "deviance": 398.5512842618985
@@ -11103,9 +11103,9 @@
         0
       ],
       "std_errors": [
-        0.099669539079912953,
-        0.044453965402107082,
-        0.040265383689481231,
+        null,
+        null,
+        null,
         null
       ],
       "zero": ["z3"],
@@ -12389,10 +12389,10 @@
         0.0051953158852185554
       ],
       "std_errors": [
-        0.10115746536033847,
-        0.04414329161856357,
-        0.040151310576860499,
-        0.014085451280180978
+        null,
+        null,
+        null,
+        null
       ],
       "zero": [],
       "deviance": 199.27203345973234
@@ -12663,4 +12663,4 @@
     }
   ]
 }
-// golden-hash: 001d13ef1cd5d8d9cbfd9741997f8dd32cf959f0b5245c9f4468af7905d68c43
+// golden-hash: bbee3261da262f286dde935ef7cb8c00ab834d0c5ac03492688334b6f8eb7fff

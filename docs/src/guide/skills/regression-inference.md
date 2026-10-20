@@ -20,7 +20,7 @@ Every fit with standard errors carries `ci_lower` / `ci_upper` (keyed like `coef
 | Bayesian linear | posterior t, = `credible_intervals` at one level | 2a_N |
 | Resample | normal on the resampled SE | absent |
 
-Present exactly where `std_errors` is: lasso / elastic net only on kept predictors (plug-in, approximate), selection keyed by `selected_features`. An undefined bound (df ≤ 0) is `null`. t on df, so it differs from a pasted ±1.96·SE in about the third digit on small samples.
+Present exactly where `std_errors` is: lasso / elastic net null on every key (no analytical inference; advisory `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`), selection keyed by `selected_features`. An undefined bound (df ≤ 0) is `null`. t on df, so it differs from a pasted ±1.96·SE in about the third digit on small samples.
 
 ## Covariance
 

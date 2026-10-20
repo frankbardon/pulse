@@ -68,7 +68,7 @@ var (
 			regAssociationOnly,
 			regCollinearity,
 			"Penalized fits (l1, l2, elasticnet) shrink coefficients toward 0 by design, so their p-values lose the usual reading; " +
-				"l1 and elasticnet standard errors are approximate and Pulse warns.",
+				"l1 and elasticnet fits report no standard errors or p-values (null) because the data pick the predictors.",
 			regNumericOnly,
 			regNullsDropped,
 		},

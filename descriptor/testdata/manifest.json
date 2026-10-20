@@ -7982,7 +7982,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, Wald ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R²; a penalty echoes penalty / alpha / l1_ratio (l1 / elasticnet: std errors only for the kept predictors); a robust covariance adds its covariance echo.",
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, Wald ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R²; a penalty echoes penalty / alpha / l1_ratio (l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]); a robust covariance adds its covariance echo.",
         "streamable": false,
         "streamable_hint": "Always buffered; IRLS requires multiple passes over the data.",
         "params": [
@@ -8185,7 +8185,7 @@
           "u64",
           "u8"
         ],
-        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error; a robust covariance adds its covariance echo.",
+        "emits_type_note": "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error; l2: the closed-form ridge sandwich SEs; l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]; a robust covariance adds its covariance echo.",
         "streamable": true,
         "streamable_hint": "Streamable in isolation; setting Resample or Selection on the request forces the buffered path. A robust covariance (any type but classical) forces it too.",
         "params": [
@@ -10132,7 +10132,7 @@
         ]
       }
     ],
-    "error_codes_count": 395,
+    "error_codes_count": 396,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10179,6 +10179,7 @@
       "PULSE_ADVISORY_JACKKNIFE_COST",
       "PULSE_ADVISORY_MANY_TESTS",
       "PULSE_ADVISORY_ORDINAL_PARAMETRIC",
+      "PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED",
       "PULSE_ADVISORY_SERIES_AXIS_NOT_DATE",
       "PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS",
       "PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED",
@@ -12910,7 +12911,7 @@
       },
       {
         "name": "predict-advisories",
-        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families, a leave-one-out jackknife over a large cohort); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
+        "description": "Predict advisories — coded, non-blocking notes in a predict result that the chosen analysis may not fit the data (a two-group test over many groups, many uncorrected p-values, an SPSS nominal or ordinal field treated as a quantity, an unused SPSS weight, Compose p-values split across families, a leave-one-out jackknife over a large cohort, a lasso fit with no valid standard errors); how they differ from warnings, what each code means, what it suggests, and how an embedder suppresses one."
       },
       {
         "name": "process-chain",
@@ -19087,6 +19088,7 @@
           "regressions[*].vcov",
           "regressions[*].correlation",
           "regressions[*].covariance",
+          "regressions[*].advisories",
           "overlays"
         ],
         "companions": [
@@ -19125,6 +19127,7 @@
           "regressions[*].type",
           "regressions[*].coefficients",
           "regressions[*].p_values",
+          "regressions[*].advisories",
           "overlays[*].name",
           "overlays[*].kind",
           "overlays[*].ref",
@@ -19192,4 +19195,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 74550ea387a6b18af8c80bf341b4d2524dfa6b17628a3a726b86333b90088f78
+// golden-hash: dbb38cdaeba546be2d003c5013c48ca931b3b41cd4839f04f0cc4aaa620d5afd

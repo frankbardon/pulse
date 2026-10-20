@@ -106,12 +106,48 @@ func Check(spec *types.RegressionSpec) *errors.CodedError {
 	return nil
 }
 
-// ApproximateSE reports whether spec's analytical standard errors are a
-// plug-in over a data-dependent active set: an l1 / elasticnet REG_OLS
-// or REG_GLM fit.
+// ApproximateSE reports whether spec selects its predictors from the
+// data: an l1 / elasticnet REG_OLS or REG_GLM fit. Such a fit has no
+// analytical sampling distribution — the active set is itself a random
+// outcome — so it has no coefficient covariance (VcovRefusal) and, unless
+// a Resample modifier replaces them, its standard errors and p-values are
+// undefined (InferenceUndefined).
 func ApproximateSE(spec *types.RegressionSpec) bool {
 	return spec != nil && (spec.Type == types.REG_OLS || spec.Type == types.REG_GLM) &&
 		(spec.Penalty == "l1" || spec.Penalty == "elasticnet")
+}
+
+// InferenceUndefined reports whether spec's standard errors, p-values
+// and confidence intervals are undefined: an l1 / elasticnet fit
+// (ApproximateSE) without a Resample modifier. The engines report every
+// one of them null (key kept, intercept included) and the fit carries
+// the PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED advisory; predict
+// raises the same advisory from the same predicate. Under Resample the
+// replicate standard errors replace them and nothing fires.
+func InferenceUndefined(spec *types.RegressionSpec) bool {
+	return ApproximateSE(spec) && spec.Resample == ""
+}
+
+// InferenceAdvisoryCode is the advisory an InferenceUndefined fit
+// carries.
+const InferenceAdvisoryCode = errors.PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED
+
+// InferenceAdvisory is the message and details of the
+// PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED advisory for spec at the
+// slot path slot ("regressions[0]", "requests[1].regressions[0]", …) —
+// the one wording predict and the runtime result share. Details:
+// {slot, operator, penalty, suggested: {"resample": "bootstrap"}}.
+// Call it only when InferenceUndefined(spec).
+func InferenceAdvisory(spec *types.RegressionSpec, slot string) (string, map[string]any) {
+	msg := string(spec.Type) + " at " + slot + " fits penalty " + spec.Penalty +
+		", which selects its predictors from the data, so its standard errors, p-values and confidence intervals have no valid analytical form and are null; " +
+		"set resample to bootstrap or jackknife for replicate standard errors, or fit penalty l2 or no penalty for analytical inference."
+	return msg, map[string]any{
+		"slot":      slot,
+		"operator":  string(spec.Type),
+		"penalty":   spec.Penalty,
+		"suggested": map[string]any{"resample": "bootstrap"},
+	}
 }
 
 // VcovRefusal returns the PROCESSING_REGRESSION_VCOV_UNSUPPORTED refusal

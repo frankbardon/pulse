@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/regpenalty"
 	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/internal/seriespartition"
 	"github.com/frankbardon/pulse/internal/totalcall"
@@ -37,6 +38,7 @@ var advisoryCodes = []errors.Code{
 	errors.PULSE_ADVISORY_SERIES_AXIS_NOT_DATE,
 	errors.PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED,
 	errors.PULSE_ADVISORY_JACKKNIFE_COST,
+	errors.PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED,
 	errors.PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT,
 }
 
@@ -140,6 +142,33 @@ func computeAdvisories(in advisoryInput) []descriptor.Advisory {
 	add(extensionParamsAdvisories(in.req, in.prefix, in.inst)...)
 	if in.recordsKnown {
 		add(jackknifeCostAdvisories(in.req, in.records, in.prefix, in.inst)...)
+	}
+	add(penalizedInferenceAdvisories(in.req, in.prefix, in.inst)...)
+	return out
+}
+
+// penalizedInferenceAdvisories: one
+// PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED per REG_OLS / REG_GLM
+// slot the instance offers whose standard errors and p-values the
+// runtime reports null — penalty l1 / elasticnet without a Resample
+// modifier (regpenalty.InferenceUndefined, the engines' own predicate).
+// The wording is regpenalty.InferenceAdvisory's, shared with the
+// advisory the fit's RegressionResult carries.
+func penalizedInferenceAdvisories(req *types.Request, prefix string, inst *InstanceSnapshot) []descriptor.Advisory {
+	var out []descriptor.Advisory
+	for i, reg := range req.Regressions {
+		if reg == nil || !regpenalty.InferenceUndefined(reg) {
+			continue
+		}
+		if op := opRoute(inst, reg.Type); op != types.REG_OLS && op != types.REG_GLM {
+			continue
+		}
+		msg, details := regpenalty.InferenceAdvisory(reg, prefix+"regressions["+strconv.Itoa(i)+"]")
+		out = append(out, descriptor.Advisory{
+			Code:    string(regpenalty.InferenceAdvisoryCode),
+			Message: msg,
+			Details: details,
+		})
 	}
 	return out
 }

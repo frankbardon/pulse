@@ -128,22 +128,10 @@ func TestRegOLS_Lasso_SparseRecovery(t *testing.T) {
 			if res.ConvergedIters <= 0 {
 				t.Errorf("ConvergedIters = %d, want > 0", res.ConvergedIters)
 			}
-			// SE / p-value entries present only for the active set
-			// (signal predictors); zeroed predictors have no SE entry.
-			for _, name := range []string{"x1", "x3", "x4"} {
-				if _, ok := res.StdErrors[name]; ok {
-					t.Errorf("StdErrors[%q] present for zeroed predictor; lasso emits SE for active set only", name)
-				}
-			}
-			for _, name := range []string{"x0", "x2"} {
-				if _, ok := res.StdErrors[name]; !ok {
-					t.Errorf("StdErrors[%q] missing for active predictor", name)
-				}
-			}
-			// Intercept SE/p-value omitted for L1 fits (approximate-SE warning).
-			if _, ok := res.StdErrors[InterceptKey]; ok {
-				t.Errorf("StdErrors[%q] populated under L1; rigorous SE deferred to Phase 5", InterceptKey)
-			}
+			// No inference: std error, p-value and interval are NaN
+			// (null on the wire) on every coefficient — the dropped
+			// predictors, the kept ones and the intercept alike.
+			assertInferenceNull(t, res, coefficientKeys(predictors))
 		})
 	}
 }

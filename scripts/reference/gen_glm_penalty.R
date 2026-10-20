@@ -34,10 +34,11 @@
 #
 # std_errors is the penalised-Fisher sandwich H^-1 A H^-1 at glmnet's
 # solution, A = X'diag(w.V(mu))X, H = A + N*.alpha.(1 - l1_ratio).D
-# (D = diag(0, 1, ..., 1)), computed here by hand — over every
-# coefficient for l2, over the intercept and the nonzero predictors for
-# l1 / elasticnet (the plug-in Pulse reports with an APPROXIMATE_SE
-# warning); a dropped predictor has none (JSON null).
+# (D = diag(0, 1, ..., 1)), computed here by hand over every coefficient
+# for l2. l1 / elasticnet carry none (every entry JSON null): the active
+# set is chosen by the data, so a sandwich that treats it as fixed has no
+# valid sampling distribution — Pulse reports those standard errors and
+# p-values as null (reference-oracles E2-S2).
 
 suppressPackageStartupMessages({
   library(jsonlite)
@@ -95,16 +96,14 @@ gp_case <- function(name, family, X, y, w, penalty, alpha, l1_ratio = 0) {
       stop(name, ": KKT inactive ", j, " |score| ", abs(score[j]), " > ", l1)
     }
   }
-  # Penalised-Fisher sandwich over the active set.
-  active <- c(1, which(b[-1] != 0) + 1)
-  if (penalty == "l2") active <- seq_along(b)
-  A <- t(Xd) %*% (Xd * (w * v))
-  As <- A[active, active, drop = FALSE]
-  H <- As + diag(ifelse(active == 1, 0, nstar * l2), length(active))
-  Hi <- solve(H)
-  V <- Hi %*% As %*% Hi
+  # Penalised-Fisher sandwich (l2 only; l1 / elasticnet: no inference).
   se <- rep(NA_real_, length(b))
-  se[active] <- sqrt(diag(V))
+  if (penalty == "l2") {
+    A <- t(Xd) %*% (Xd * (w * v))
+    H <- A + diag(c(0, rep(nstar * l2, length(b) - 1)), length(b))
+    Hi <- solve(H)
+    se <- sqrt(diag(Hi %*% A %*% Hi))
+  }
   dev <- 2 * sum(w * switch(family,
     binomial = ifelse(y == 1, -log(mu), -log(1 - mu)),
     poisson = ifelse(y > 0, y * log(y / mu), 0) - (y - mu)))
@@ -165,7 +164,7 @@ gp_doc <- list(
   note = paste(
     "Pulse alpha = glmnet lambda; Pulse l1_ratio = glmnet alpha (l2 0, l1 1).",
     "rows are [predictors..., y, w]; N* = sum(w).",
-    "std_errors: the penalised-Fisher sandwich H^-1 A H^-1 at glmnet's solution (null for a dropped predictor).",
+    "std_errors: l2 the penalised-Fisher sandwich H^-1 A H^-1 at glmnet's solution; l1 / elasticnet null on every coefficient (no valid inference after data-driven selection).",
     "deviance: the unpenalised deviance at the penalised estimate.",
     "Every case is self-checked against the KKT conditions of the stated objective at relative 1e-10."),
   cases = gp_cases)

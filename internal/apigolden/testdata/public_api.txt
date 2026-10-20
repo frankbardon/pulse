@@ -1239,7 +1239,8 @@ pulse: type WindowRegistration field Name pulse/types.WindowType
 pulse: type WindowRegistration field Params []pulse.ParamMeta
 pulse: type WindowRegistration field Purpose *pulse/descriptor.Purpose
 pulse/descriptor: package descriptor
-pulse/descriptor: type Advisory struct
+pulse/descriptor: type Advisory = pulse/types.Advisory
+pulse/descriptor: type Advisory underlying struct
 pulse/descriptor: type Advisory field Code string "json:\"code\""
 pulse/descriptor: type Advisory field Details map[string]any "json:\"details,omitempty\""
 pulse/descriptor: type Advisory field Message string "json:\"message\""
@@ -2419,6 +2420,7 @@ pulse/errors: const PULSE_ADVISORY_EXTRA_PASS pulse/errors.Code = "PULSE_ADVISOR
 pulse/errors: const PULSE_ADVISORY_JACKKNIFE_COST pulse/errors.Code = "PULSE_ADVISORY_JACKKNIFE_COST"
 pulse/errors: const PULSE_ADVISORY_MANY_TESTS pulse/errors.Code = "PULSE_ADVISORY_MANY_TESTS"
 pulse/errors: const PULSE_ADVISORY_ORDINAL_PARAMETRIC pulse/errors.Code = "PULSE_ADVISORY_ORDINAL_PARAMETRIC"
+pulse/errors: const PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED pulse/errors.Code = "PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED"
 pulse/errors: const PULSE_ADVISORY_SERIES_AXIS_NOT_DATE pulse/errors.Code = "PULSE_ADVISORY_SERIES_AXIS_NOT_DATE"
 pulse/errors: const PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS pulse/errors.Code = "PULSE_ADVISORY_TWO_GROUP_TEST_MANY_GROUPS"
 pulse/errors: const PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED pulse/errors.Code = "PULSE_ADVISORY_WEIGHT_AVAILABLE_UNUSED"
@@ -4367,6 +4369,10 @@ pulse/types: const ATTR_SET_POPCOUNT pulse/types.AttributeType = "ATTR_SET_POPCO
 pulse/types: const ATTR_TSCORE pulse/types.AttributeType = "ATTR_TSCORE"
 pulse/types: const ATTR_VEC_DISTANCE pulse/types.AttributeType = "ATTR_VEC_DISTANCE"
 pulse/types: const ATTR_ZSCORE pulse/types.AttributeType = "ATTR_ZSCORE"
+pulse/types: type Advisory struct
+pulse/types: type Advisory field Code string "json:\"code\""
+pulse/types: type Advisory field Details map[string]any "json:\"details,omitempty\""
+pulse/types: type Advisory field Message string "json:\"message\""
 pulse/types: type Aggregation struct
 pulse/types: type Aggregation field Field string "json:\"field\""
 pulse/types: type Aggregation field Fields []string "json:\"fields,omitempty\""
@@ -4801,6 +4807,7 @@ pulse/types: const FitKindVector pulse/types.FitKind = "vector"
 pulse/types: type FitResult struct
 pulse/types: type FitResult embed *pulse/types.RegressionResult
 pulse/types: type FitResult field RegressionResult.AdjR2 float64 "json:\"adj_r2,omitempty\""
+pulse/types: type FitResult field RegressionResult.Advisories []pulse/types.Advisory "json:\"advisories,omitempty\""
 pulse/types: type FitResult field RegressionResult.Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type FitResult field RegressionResult.BootstrapRequested int "json:\"bootstrap_requested,omitempty\""
 pulse/types: type FitResult field RegressionResult.BootstrapSucceeded int "json:\"bootstrap_succeeded,omitempty\""
@@ -5316,6 +5323,7 @@ pulse/types: type RegressionMultiplicity field Method pulse/types.MultiplicityMe
 pulse/types: type RegressionMultiplicity method (*RegressionMultiplicity) Block() *pulse/types.Multiplicity
 pulse/types: type RegressionResult struct
 pulse/types: type RegressionResult field AdjR2 float64 "json:\"adj_r2,omitempty\""
+pulse/types: type RegressionResult field Advisories []pulse/types.Advisory "json:\"advisories,omitempty\""
 pulse/types: type RegressionResult field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type RegressionResult field BootstrapRequested int "json:\"bootstrap_requested,omitempty\""
 pulse/types: type RegressionResult field BootstrapSucceeded int "json:\"bootstrap_succeeded,omitempty\""
@@ -5647,4 +5655,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: e251d8b46119467402f2d6d79bff28d903dc6dda704c32d765bdd8e86092ca36
+// golden-hash: f95a27236b45c19c81cdf6c86f9bbf100099e7467ca9a8a01e9f3e96ad4624dd

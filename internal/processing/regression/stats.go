@@ -21,12 +21,13 @@ import (
 //     signals a singular fit caught
 //     upstream)
 //   - se == 0 with zero coef        : returns NaN (statistic undefined)
-//   - coef NaN                      : returns NaN
+//   - coef or se NaN                : returns NaN (an l1 / elasticnet
+//     fit's undefined SE)
 func pValueForCoefficient(coef, se, df float64) float64 {
 	if df <= 0 {
 		return math.NaN()
 	}
-	if math.IsNaN(coef) {
+	if math.IsNaN(coef) || math.IsNaN(se) {
 		return math.NaN()
 	}
 	if se == 0 {
@@ -51,9 +52,10 @@ func pValueForCoefficient(coef, se, df float64) float64 {
 // Degenerate inputs:
 //   - se == 0 with non-zero coef → returns 0 (perfectly significant).
 //   - se == 0 with zero coef     → returns NaN (statistic undefined).
-//   - coef NaN                   → returns NaN.
+//   - coef or se NaN             → returns NaN (an l1 / elasticnet fit's
+//     undefined SE).
 func waldZTwoSidedP(coef, se float64) float64 {
-	if math.IsNaN(coef) {
+	if math.IsNaN(coef) || math.IsNaN(se) {
 		return math.NaN()
 	}
 	if se == 0 {

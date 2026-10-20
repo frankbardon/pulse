@@ -116,10 +116,27 @@ func kindsFor(spec types.RegressionSpec) []types.WeightKind {
 }
 
 func relClose(a, b, tol float64) bool {
-	if a == b {
+	if a == b || (math.IsNaN(a) && math.IsNaN(b)) {
 		return true
 	}
 	return math.Abs(a-b) <= tol*math.Max(math.Abs(a), math.Abs(b))
+}
+
+// sameFit reports whether two results are identical: every float bit
+// for bit (the wire form round-trips each one exactly), an undefined
+// (NaN) figure equal to another undefined one — reflect.DeepEqual
+// would call an l1 fit's NaN standard errors unequal to themselves.
+func sameFit(t *testing.T, a, b *types.RegressionResult) bool {
+	t.Helper()
+	ja, err := json.Marshal(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jb, err := json.Marshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(ja) == string(jb)
 }
 
 func mapsClose(t *testing.T, what string, got, want map[string]float64, tol float64) {
@@ -154,7 +171,7 @@ func TestWeightedRegression_UnityBitIdentical(t *testing.T) {
 				t.Fatalf("%s/%s: n_eff %v", name, kind, got.NEff)
 			}
 			got.SumWeights, got.NEff = 0, 0
-			if !reflect.DeepEqual(got, base) {
+			if !sameFit(t, got, base) {
 				t.Fatalf("%s/%s: unity differs from unweighted:\n%+v\n%+v", name, kind, got, base)
 			}
 		}
@@ -376,7 +393,7 @@ func TestWeightedRegression_ExcludesInvalidAndZero(t *testing.T) {
 				t.Fatal(err)
 			}
 			want := fitWeighted(t, spec, rows, kind)
-			if !reflect.DeepEqual(got, want) {
+			if !sameFit(t, got, want) {
 				t.Fatalf("%s/%s: invalid rows leaked:\n%+v\n%+v", name, kind, got, want)
 			}
 		}
@@ -415,7 +432,7 @@ func TestWeightedRegression_StreamingMatchesBuffered(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if want := fitWeighted(t, spec, rows, kind); !reflect.DeepEqual(got, want) {
+			if want := fitWeighted(t, spec, rows, kind); !sameFit(t, got, want) {
 				t.Fatalf("%s/%s: streaming differs:\n%+v\n%+v", name, kind, got, want)
 			}
 		}

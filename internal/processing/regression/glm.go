@@ -313,11 +313,12 @@ func (e *glmEngine) nullDeviance(yVec, prior []float64, deviance float64) (float
 // penalizedResult packages a penalised fit (glm_penalty.go). The
 // coefficients are the penalised estimate; the standard errors, Wald-z
 // p-values and intervals read the penalised-Fisher sandwich
-// H⁻¹·XᵀWX·H⁻¹, H = XᵀWX + λ₂·D, at the converged working weights — over
-// every coefficient for l2 (vcov allowed), over the intercept and the
-// nonzero predictors for l1 / elasticnet (a plug-in that treats the
-// active set as fixed: a dropped predictor has no std error, p-value or
-// interval, and vcov is refused up front). Deviance, null deviance and
+// H⁻¹·XᵀWX·H⁻¹, H = XᵀWX + λ₂·D, at the converged working weights for
+// l2 (vcov allowed); for l1 / elasticnet they are NaN on every
+// coefficient (null on the wire, key kept — the data-chosen active set
+// has no analytical sampling distribution; vcov is refused up front),
+// though the sandwich is still formed so a collapsed information matrix
+// refuses exactly as before. Deviance, null deviance and
 // pseudo-R² are the unpenalised figures at the penalised estimate.
 func (e *glmEngine) penalizedResult(pen *glmPenalty, sol *irlsSolution, yVec, prior []float64, sumW, sumWSq float64, rw rowWeights) (*types.RegressionResult, error) {
 	predictors := e.spec.Predictors
@@ -339,16 +340,26 @@ func (e *glmEngine) penalizedResult(pen *glmPenalty, sol *irlsSolution, yVec, pr
 	for j, key := range keys {
 		coefMap[key] = sol.Beta[j]
 	}
-	seMap := make(map[string]float64, len(active))
-	pMap := make(map[string]float64, len(active))
-	for u, j := range active {
-		v := cov[u][u]
-		if v < 0 {
-			v = 0
+	seMap := make(map[string]float64, k)
+	pMap := make(map[string]float64, k)
+	if pen.approximateSE() {
+		// l1 / elasticnet: the active set is chosen by the data, so no
+		// analytical standard error is valid — NaN (null, key kept) on
+		// every coefficient, the intercept included; the service attaches
+		// PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED.
+		for _, key := range keys {
+			seMap[key], pMap[key] = math.NaN(), math.NaN()
 		}
-		se := math.Sqrt(v)
-		seMap[keys[j]] = se
-		pMap[keys[j]] = waldZTwoSidedP(sol.Beta[j], se)
+	} else {
+		for u, j := range active {
+			v := cov[u][u]
+			if v < 0 {
+				v = 0
+			}
+			se := math.Sqrt(v)
+			seMap[keys[j]] = se
+			pMap[keys[j]] = waldZTwoSidedP(sol.Beta[j], se)
+		}
 	}
 	nullDeviance, pseudoR2 := e.nullDeviance(yVec, prior, sol.Deviance)
 	res := &types.RegressionResult{

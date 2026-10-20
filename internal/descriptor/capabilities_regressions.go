@@ -40,7 +40,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 			Name:           string(types.REG_OLS),
 			Description:    "Ordinary least squares with optional l1/l2/elasticnet regularization; covers simple, multiple, ridge, lasso, and elastic-net regression.",
 			AcceptsTypes:   acceptsTypes(types.REG_OLS),
-			EmitsTypeNote:  "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error; a robust covariance adds its covariance echo.",
+			EmitsTypeNote:  "RegressionResult with coefficients, std errors, p-values, ci_lower / ci_upper (t on df), df, conf_level, R², adjusted R², residual std error; l2: the closed-form ridge sandwich SEs; l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]; a robust covariance adds its covariance echo.",
 			Streamable:     types.REG_OLS.Streamable(),
 			StreamableHint: commonModifierHint + " A robust covariance (any type but classical) forces it too.",
 			Params: []descriptor.Param{
@@ -68,7 +68,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 			Name:           string(types.REG_GLM),
 			Description:    "Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-appropriate links, and l1/l2/elasticnet regularization on binomial and poisson.",
 			AcceptsTypes:   acceptsTypes(types.REG_GLM),
-			EmitsTypeNote:  "RegressionResult with coefficients, std errors, p-values, Wald ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R²; a penalty echoes penalty / alpha / l1_ratio (l1 / elasticnet: std errors only for the kept predictors); a robust covariance adds its covariance echo.",
+			EmitsTypeNote:  "RegressionResult with coefficients, std errors, p-values, Wald ci_lower / ci_upper, conf_level, deviance, null deviance, McFadden pseudo-R²; a penalty echoes penalty / alpha / l1_ratio (l1 / elasticnet without resample: std errors, p-values and intervals null on every coefficient plus advisories [PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]); a robust covariance adds its covariance echo.",
 			Streamable:     types.REG_GLM.Streamable(),
 			StreamableHint: "Always buffered; IRLS requires multiple passes over the data.",
 			Params: []descriptor.Param{

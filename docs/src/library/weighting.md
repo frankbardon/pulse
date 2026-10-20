@@ -210,8 +210,9 @@ counts the rows, not Σw or n_eff, for its residual degrees of freedom,
 so its standard errors differ. Ridge, lasso and elastic net scale the
 penalty by Σw, so their coefficients do not change when every weight is
 multiplied by the same constant, and they match `glmnet(weights = w)`
-under frequency weights. Their standard errors stay plug-in
-approximations, now on N*. Bayesian linear regression takes frequency
+under frequency weights. Ridge standard errors are the closed-form
+ridge sandwich on N*; lasso and elastic net report none (null, with
+`PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`). Bayesian linear regression takes frequency
 weights only: X'WX, X'Wy and Σw enter the conjugate posterior, which
 equals the posterior on the expanded rows. `n_obs` stays the raw row
 count. A weighted result adds `sum_weights` and, for probability

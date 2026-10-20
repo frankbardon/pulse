@@ -1110,6 +1110,17 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED: {
+		Message: "A regression fits penalty l1 or elasticnet, which selects its predictors from the data, so its standard errors, p-values and confidence intervals have no valid analytical form and are reported null; this is an advisory, not an error.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"Regressions", "*", "resample"},
+				Hint:     "Set resample to bootstrap or jackknife (details.suggested): the replicate standard errors, p-values and intervals of the penalised estimator replace the nulls. Or fit penalty l2 (closed-form ridge covariance) or no penalty for analytical inference.",
+				Examples: []any{map[string]any{"resample": "bootstrap"}},
+			},
+		},
+	},
 	PULSE_ADVISORY_SERIES_AXIS_NOT_DATE: {
 		Message: "A series overlay that reads its rows in order (a prior, rolling, baseline or sibling overlay) runs over two or more groupers with no params.partition_by, so it partitions by every key but the last and runs its series down the last grouper, which is not a date grouper; this is an advisory, not an error.",
 		Fixups: []Fixup{

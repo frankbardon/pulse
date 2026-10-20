@@ -18,8 +18,11 @@ import (
 // rule internal/regpenalty — the coupling, gamma + penalty, vcov on
 // lasso / elastic net) is raised by Process and by Predict with the same
 // code, message and details, on REG_GLM and REG_OLS alike; a well-formed
-// penalised GLM runs, and predict's APPROXIMATE_SE /
-// REGULARIZED_SELECTION warnings cover REG_GLM as they cover REG_OLS.
+// penalised GLM runs, predict's REGULARIZED_SELECTION warning covers
+// REG_GLM as it covers REG_OLS, and the
+// PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED advisory (l1 /
+// elasticnet without resample) is raised identically by predict and on
+// the fitted result, never as a warning.
 
 func TestRegPenalty_PredictRuntimeParity(t *testing.T) {
 	var golden struct {
@@ -92,9 +95,9 @@ func TestRegPenalty_GLMRunsAndWarns(t *testing.T) {
 		return false
 	}
 	cases := []struct {
-		name               string
-		mut                func(*types.RegressionSpec)
-		approxSE, regSelct bool
+		name                    string
+		mut                     func(*types.RegressionSpec)
+		inferenceNull, regSelct bool
 	}{
 		{"l2", func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Vcov = "l2", 0.05, true }, false, false},
 		{"l1", func(s *types.RegressionSpec) { s.Penalty, s.Alpha = "l1", 0.01 }, true, false},
@@ -122,8 +125,11 @@ func TestRegPenalty_GLMRunsAndWarns(t *testing.T) {
 			if len(pred.Errors) != 0 {
 				t.Fatalf("predict errors %+v", pred.Errors)
 			}
-			if got := hasWarning(pred.Warnings, "PROCESSING_REGRESSION_APPROXIMATE_SE"); got != c.approxSE {
-				t.Errorf("APPROXIMATE_SE warning %v, want %v", got, c.approxSE)
+			if hasWarning(pred.Warnings, "PROCESSING_REGRESSION_APPROXIMATE_SE") {
+				t.Errorf("the retired APPROXIMATE_SE warning fired")
+			}
+			if got := len(r.Advisories) == 1; got != c.inferenceNull {
+				t.Errorf("result advisories %+v, want inference-undefined %v", r.Advisories, c.inferenceNull)
 			}
 			if got := hasWarning(pred.Warnings, "PROCESSING_REGRESSION_REGULARIZED_SELECTION"); got != c.regSelct {
 				t.Errorf("REGULARIZED_SELECTION warning %v, want %v", got, c.regSelct)

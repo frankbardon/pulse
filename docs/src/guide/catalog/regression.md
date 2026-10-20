@@ -126,7 +126,7 @@ Fits a straight-line model that predicts a numeric outcome from one or more nume
 - Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors, on a t distribution with n - p - 1 degrees of freedom (p predictors).
 - A coefficient describes association with the outcome, holding the other predictors fixed; it shows a causal effect only when the design supports one (for example random assignment), never from the fit alone, and a predictor left out of the model can drive both.
 - Strongly related predictors (multicollinearity) make coefficients unstable and their uncertainty large; Pulse refuses an exactly collinear set.
-- Penalized fits (l1, l2, elasticnet) shrink coefficients toward 0 by design, so their p-values lose the usual reading; l1 and elasticnet standard errors are approximate and Pulse warns.
+- Penalized fits (l1, l2, elasticnet) shrink coefficients toward 0 by design, so their p-values lose the usual reading; l1 and elasticnet fits report no standard errors or p-values (null) because the data pick the predictors.
 - Predictors must be numeric: encode a category as 0/1 columns first (FEAT_ONE_HOT) and leave one level out, or the columns are collinear with the intercept.
 - Rows with a null target or predictor are dropped before fitting (listwise deletion); n_obs counts the rows used.
 

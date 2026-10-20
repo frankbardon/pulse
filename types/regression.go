@@ -347,10 +347,14 @@ type RegressionResult struct {
 	Coefficients map[string]float64 `json:"coefficients,omitempty"`
 
 	// StdErrors maps predictor name to its asymptotic standard error.
+	// On an l1 / elasticnet fit without Resample every entry (the
+	// intercept included) is NaN — null on the wire, key kept: the
+	// penalty selects the predictors from the data, so no analytical
+	// standard error is valid (Advisories says so).
 	StdErrors map[string]float64 `json:"std_errors,omitempty"`
 
 	// PValues maps predictor name to its two-sided p-value under the
-	// null β = 0.
+	// null β = 0; null on every key exactly where StdErrors is.
 	PValues map[string]float64 `json:"p_values,omitempty"`
 
 	// CILower and CIUpper map predictor name (keyed like Coefficients) to
@@ -464,6 +468,16 @@ type RegressionResult struct {
 	// coefficients: method, family, alpha, the family size m and the
 	// excluded (undefined-p) member count. Absent when none ran.
 	Multiplicity *AppliedMultiplicity `json:"multiplicity,omitempty"`
+
+	// Advisories lists the coded, non-blocking notes the analysis
+	// choice raises on this fit (PULSE_ADVISORY_* codes, the ones
+	// predict raises for the same spec): today
+	// PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED on an l1 / elasticnet
+	// fit without Resample, whose StdErrors, PValues, CILower and
+	// CIUpper are null on every coefficient. Never a warning, never
+	// escalated by Strict; a code in Options.SuppressAdvisories is
+	// dropped. Absent when none applies.
+	Advisories []Advisory `json:"advisories,omitempty"`
 
 	// Error is the data-dependent refusal that failed this fit alone
 	// (PROCESSING_REGRESSION_SEPARATION, _NO_CONVERGE, _RANK_DEFICIENT,

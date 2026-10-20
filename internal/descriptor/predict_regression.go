@@ -153,18 +153,9 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 		}
 
 		// L1-penalized OLS / GLM fits (Penalty=="l1" or "elasticnet")
-		// produce analytical standard errors only as a plug-in over the
-		// data-dependent active set. Warn callers so they treat the
-		// reported SE / p-value entries as approximate. Suppressed when
-		// a Resample modifier is set — bootstrap / jackknife is the
-		// rigorous answer and replaces the analytical SE entirely.
-		if regpenalty.ApproximateSE(reg) && reg.Resample == "" {
-			env.AddWarning(
-				"PROCESSING_REGRESSION_APPROXIMATE_SE",
-				string(reg.Type)+" with Penalty="+reg.Penalty+" emits std errors / p-values for the active set only, as a naive plug-in estimate; for rigorous uncertainty quantification set Resample to \"bootstrap\" or \"jackknife\"",
-				map[string]any{"penalty": reg.Penalty, "type": string(reg.Type)},
-			)
-		}
+		// without Resample report null standard errors and p-values;
+		// that is PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED
+		// (predict_advisories.go), never a warning.
 
 		// Regularized OLS / GLM + Selection: regularization already
 		// does feature selection (lasso zeroes coefficients) or shrinks

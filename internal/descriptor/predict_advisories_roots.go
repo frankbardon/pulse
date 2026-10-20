@@ -195,23 +195,29 @@ func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan
 	return out, slots
 }
 
-// fitJackknifeCostAdvisories is PULSE_ADVISORY_JACKKNIFE_COST over the
-// batch's regression fits: a fit's request is a Request like a slot's,
-// so its leave-one-out jackknife over a large cohort draws the advisory
-// Process predict gives the same request, attributed to the fit
-// (details.fit = i, the slot path prefixed "fits[i].request."). A fit
-// reaches no p-site and no other advisory rule reads it.
+// fitJackknifeCostAdvisories is PULSE_ADVISORY_JACKKNIFE_COST and
+// PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED over the batch's
+// regression fits: a fit's request is a Request like a slot's, so its
+// leave-one-out jackknife over a large cohort, or its l1 / elasticnet
+// penalty without resample, draws the advisory Process predict gives the
+// same request, attributed to the fit (details.fit = i, the slot path
+// prefixed "fits[i].request."). A fit reaches no p-site and no other
+// advisory rule reads it.
 func fitJackknifeCostAdvisories(req *types.ComposedRequest, opts *PredictOptions, inst *InstanceSnapshot) []descriptor.Advisory {
 	var out []descriptor.Advisory
 	for i, f := range req.Fits {
 		if f.Request == nil || len(f.Request.Regressions) == 0 {
 			continue
 		}
-		counts := opts.cohortCounts(f.Request.Cohort)
-		if counts.Records < 0 {
-			continue
+		prefix := "fits[" + strconv.Itoa(i) + "].request."
+		var fired []descriptor.Advisory
+		if counts := opts.cohortCounts(f.Request.Cohort); counts.Records >= 0 {
+			fired = jackknifeCostAdvisories(f.Request, counts.Records, prefix, inst)
 		}
-		for _, a := range jackknifeCostAdvisories(f.Request, counts.Records, "fits["+strconv.Itoa(i)+"].request.", inst) {
+		// The fit's null standard errors read off the spec alone: no
+		// record count needed.
+		fired = append(fired, penalizedInferenceAdvisories(f.Request, prefix, inst)...)
+		for _, a := range fired {
 			if inst.AdvisorySuppressed(a.Code) {
 				continue
 			}

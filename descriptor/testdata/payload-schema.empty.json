@@ -1017,6 +1017,15 @@
             "null"
           ]
         },
+        "advisories": {
+          "items": {
+            "$ref": "#/$defs/Advisory"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "alpha": {
           "type": [
             "number",
@@ -1934,4 +1943,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 6d6347e3c4b5452b5728257d8e3605884f2fe348ab8842299612d9174b3cc979
+// golden-hash: 5cadd3ebebc5f65f85121b111f3f7ecd0d75fb29ee28035ab37f21f8b5c5266f

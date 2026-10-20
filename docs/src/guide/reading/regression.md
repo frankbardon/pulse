@@ -138,14 +138,14 @@ How much the coefficient would vary from sample to sample, from the inverse of t
 - With overdispersion (counts varying more than their mean) the Poisson standard errors are too small.
 - Gamma data rarely have dispersion 1, so gamma standard errors are unreliable.
 - Unless the request's covariance names a robust one: hc0-hc3 (sandwich over the fit's scores, which also absorbs overdispersion), cluster (rows grouped by a field) or hac (a series in time); p_values, the intervals and vcov follow it, still Wald z.
-- On a penalized fit it is the penalized sandwich, which treats the shrinkage as fixed; for l1 and elasticnet it covers the kept predictors only and is approximate (Pulse warns); request resample for an empirical one.
+- On an l2 fit it is the penalized sandwich, which treats the shrinkage as fixed; on an l1 or elasticnet fit it is null on every coefficient (the data pick the predictors, so no analytical standard error is valid); request resample for replicate ones.
 
 #### `p_values.*`
 
 **Caveats:**
 
 - Wald z at dispersion fixed to 1: with overdispersed counts the Poisson p-values come out too small, and gamma p-values are unreliable.
-- The request's alpha param is the penalty strength, not a significance level; on a penalized fit the coefficients are shrunk on purpose, so these p-values do not have the usual reading.
+- The request's alpha param is the penalty strength, not a significance level; on an l2 fit the coefficients are shrunk on purpose, so these p-values do not have the usual reading, and on an l1 or elasticnet fit they are null.
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
@@ -159,7 +159,7 @@ Lower bound of the coefficient's two-sided confidence interval at conf_level: th
 - Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
 - Wald at dispersion fixed to 1: too narrow with overdispersed counts, unreliable for gamma, and poor near separation in a logistic model.
 - Raised to the power e, the bounds of a binomial or Poisson coefficient bound its odds ratio or rate ratio.
-- On a penalized fit the interval is centred on a shrunken coefficient, so it does not have the usual coverage; l1 and elasticnet ones exist only for the kept predictors.
+- On an l2 fit the interval is centred on a shrunken coefficient, so it does not have the usual coverage; on an l1 or elasticnet fit both bounds are null.
 
 #### `ci_upper.*`
 
@@ -171,7 +171,7 @@ Upper bound of the coefficient's two-sided confidence interval at conf_level: th
 - Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
 - Wald at dispersion fixed to 1: too narrow with overdispersed counts, unreliable for gamma, and poor near separation in a logistic model.
 - Raised to the power e, the bounds of a binomial or Poisson coefficient bound its odds ratio or rate ratio.
-- On a penalized fit the interval is centred on a shrunken coefficient, so it does not have the usual coverage; l1 and elasticnet ones exist only for the kept predictors.
+- On an l2 fit the interval is centred on a shrunken coefficient, so it does not have the usual coverage; on an l1 or elasticnet fit both bounds are null.
 
 #### `conf_level`
 
@@ -247,14 +247,14 @@ How much the coefficient would vary from sample to sample; smaller means a more 
 **Caveats:**
 
 - Classic: with heteroscedasticity (residual spread that changes) it can be too small or too large, and with dependent rows it is usually too small; covariance hc3 guards the first, cluster (rows grouped by a field) or hac (a series in time) the second, and p_values, the intervals and vcov follow it.
-- For l1 and elasticnet fits it is a plug-in approximation over the kept predictors (Pulse warns); request resample for an empirical one.
+- Null on every coefficient of an l1 or elasticnet fit: the penalty picks the predictors from the data, so no analytical standard error is valid (advisory PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED); request resample for replicate ones. An l2 fit's is the closed-form ridge sandwich.
 
 #### `p_values.*`
 
 **Caveats:**
 
 - The request's alpha param is the penalty strength for l1 / l2 / elasticnet fits, not a significance level; Pulse applies no significance threshold to these p-values.
-- On a penalized fit (l1, l2, elasticnet) the coefficients are shrunk on purpose, so these p-values do not have the usual reading; l1 and elasticnet ones are approximate.
+- On an l2 fit the coefficients are shrunk on purpose, so these p-values do not have the usual reading; on an l1 or elasticnet fit they are null (no valid analytical form).
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
@@ -267,7 +267,7 @@ Lower bound of the coefficient's two-sided confidence interval at conf_level: th
 - It is a statement about the method, not this one range: intervals built this way cover the true coefficient in about conf_level of repeated samples, if the model's assumptions hold.
 - Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
 - Under resample the critical value is the normal one and the standard error the resampled one; df is then absent.
-- On a penalized fit the interval is centred on a shrunken coefficient, so it does not have the usual coverage; l1 and elasticnet ones exist only for the kept predictors and are approximate.
+- On an l2 fit the interval is centred on a shrunken coefficient, so it does not have the usual coverage; on an l1 or elasticnet fit both bounds are null.
 
 #### `ci_upper.*`
 
@@ -278,7 +278,7 @@ Upper bound of the coefficient's two-sided confidence interval at conf_level: th
 - It is a statement about the method, not this one range: intervals built this way cover the true coefficient in about conf_level of repeated samples, if the model's assumptions hold.
 - Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
 - Under resample the critical value is the normal one and the standard error the resampled one; df is then absent.
-- On a penalized fit the interval is centred on a shrunken coefficient, so it does not have the usual coverage; l1 and elasticnet ones exist only for the kept predictors and are approximate.
+- On an l2 fit the interval is centred on a shrunken coefficient, so it does not have the usual coverage; on an l1 or elasticnet fit both bounds are null.
 
 #### `conf_level`
 
