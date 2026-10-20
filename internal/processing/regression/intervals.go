@@ -2,6 +2,7 @@ package regression
 
 import (
 	"math"
+	"slices"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/statdist"
@@ -90,4 +91,43 @@ func attachIntervals(res *types.RegressionResult, level, df float64, studentT bo
 		lower[key], upper[key] = coef-half, coef+half
 	}
 	res.CILower, res.CIUpper, res.ConfLevel = lower, upper, level
+}
+
+// CheckConfLevel is validateConfLevel for a spec no built-in engine
+// validates — an extension (registered) REG_* model's: PROCESSING_CONFIG
+// on a conf_level outside (0, 1), the message and details predict
+// raises.
+func CheckConfLevel(spec *types.RegressionSpec) error {
+	if spec == nil {
+		return nil
+	}
+	return validateConfLevel(spec)
+}
+
+// AttachExtensionIntervals writes an extension (registered) REG_*
+// model's coefficient confidence intervals at the spec's conf_level
+// (0.95 unset) from the result's standard errors — the built-ins'
+// attachIntervals, with the quantile rule of the matching built-in case:
+//
+//   - resampled (res.Resample set): the standard normal on the replicate
+//     SE, as every built-in resample re-attaches;
+//   - else, when the model reported its residual df (Fit.DF, "df" on
+//     ReportedFigures): the Student-t quantile on that df, REG_OLS's
+//     rule (and REG_GLM gamma's) — so an OLS-shaped model reporting
+//     N* − p − 1 matches REG_OLS's intervals;
+//   - else the standard normal (Wald), REG_GLM's binomial / poisson rule.
+//
+// A coefficient whose SE is NaN gets a NaN (null) interval, key kept;
+// a zero SE the point interval. DF then follows the built-in contract
+// (the df of the t the intervals read): the reported df on a t
+// interval (NaN — null — and NaN bounds when it is ≤ 0), absent on a
+// normal one, so a resampled fit drops a reported df from DF and from
+// ReportedFigures exactly as a built-in resample clears it.
+func AttachExtensionIntervals(res *types.RegressionResult, spec *types.RegressionSpec) {
+	studentT := res.Resample == "" && slices.Contains(res.ReportedFigures, "df")
+	attachIntervals(res, resolvedConfLevel(spec), res.DF, studentT)
+	if !studentT && slices.Contains(res.ReportedFigures, "df") {
+		// A copy: a resampled result shares the base fit's slice.
+		res.ReportedFigures = slices.DeleteFunc(slices.Clone(res.ReportedFigures), func(k string) bool { return k == "df" })
+	}
 }

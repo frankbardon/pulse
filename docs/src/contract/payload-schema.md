@@ -809,7 +809,12 @@ the model did not compute is `null` (key kept), so the coefficient
 table stays rectangular. A model whose registration does not declare
 `PValues` emits none: its `p_values` is `null` on every coefficient,
 under `resample` too. Only a coefficient whose p-value is defined
-joins a multiplicity family. A non-finite float in `outputs` is `null`.
+joins a multiplicity family. `ci_lower` / `ci_upper` / `conf_level`
+are the engine's (below, Regression coefficient intervals): β ∓ q·SE
+on every coefficient key, `null` where the standard error is, q the
+Student-t on the model's reported `df`, else (and under `resample`)
+the normal; `df` is the reported one only on a t interval. A
+non-finite float in `outputs` is `null`.
 `n_obs`, `sum_weights` / `n_eff`, `p_adjusted`, `multiplicity` and
 `error` stay engine-owned. `outputs` is not on the `components`
 machinery: neither `disable_components` / `--no-components` nor any
@@ -906,7 +911,8 @@ Student-t q on `df` = the residual N* − p − 1 (fractional under
 probability weights), `REG_GLM` a Wald normal q (no `df`),
 `REG_BAYES_LINEAR` the posterior t on `df` = 2·a_n — equal to
 `credible_intervals` when `conf_level` is unset, since it then falls
-back to `credible_level` — and any fit under `resample` a normal q on
+back to `credible_level` —, a registered model a t q on the `df` it
+reports (else a normal q, no `df`), and any fit under `resample` a normal q on
 the resampled standard errors (no `df`). An undefined bound or `df`
 (residual df ≤ 0) is `null`. All four are in the `standard` preset (not
 `minimal`) and rounded by `return.precision`.

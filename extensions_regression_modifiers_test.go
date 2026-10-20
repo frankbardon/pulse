@@ -81,7 +81,7 @@ func fitOne(t *testing.T, p *pulse.Pulse, cohort *types.Cohort, spec *types.Regr
 
 // assertModifierParity holds a custom fit's modifier figures to
 // REG_OLS's: the coefficients, the replicate standard errors and
-// p-values, the echoes (resample, bootstrap counts, jackknife groups,
+// p-values, the confidence intervals at conf_level, the echoes (resample, bootstrap counts, jackknife groups,
 // selection), n_obs.
 func assertModifierParity(t *testing.T, b, e *types.RegressionResult) {
 	t.Helper()
@@ -92,10 +92,14 @@ func assertModifierParity(t *testing.T, b, e *types.RegressionResult) {
 			b.NObs, b.Resample, b.BootstrapRequested, b.BootstrapSucceeded, b.JackknifeGroups, b.Selection, b.Criterion, b.SelectedFeatures,
 			e.NObs, e.Resample, e.BootstrapRequested, e.BootstrapSucceeded, e.JackknifeGroups, e.Selection, e.Criterion, e.SelectedFeatures)
 	}
+	if b.ConfLevel != e.ConfLevel || len(b.CILower) == 0 {
+		t.Errorf("conf_level: builtin %v (%d intervals) extension %v", b.ConfLevel, len(b.CILower), e.ConfLevel)
+	}
 	for _, m := range []struct {
 		name string
 		b, e map[string]float64
-	}{{"coefficients", b.Coefficients, e.Coefficients}, {"std_errors", b.StdErrors, e.StdErrors}, {"p_values", b.PValues, e.PValues}} {
+	}{{"coefficients", b.Coefficients, e.Coefficients}, {"std_errors", b.StdErrors, e.StdErrors}, {"p_values", b.PValues, e.PValues},
+		{"ci_lower", b.CILower, e.CILower}, {"ci_upper", b.CIUpper, e.CIUpper}} {
 		if len(m.b) != len(m.e) {
 			t.Errorf("%s keys: builtin %v extension %v", m.name, m.b, m.e)
 		}
@@ -128,6 +132,11 @@ func TestExtensions_RegressionResampleMatchesBuiltin(t *testing.T) {
 		{"jackknife_by", func(s *types.RegressionSpec) { s.Resample, s.JackknifeBy = "jackknife", "region" }},
 		{"jackknife_weighted", func(s *types.RegressionSpec) { s.Resample, s.Weight, s.Predictors = "jackknife", freq, []string{"day"} }},
 		{"bootstrap", func(s *types.RegressionSpec) { s.Resample, s.BootstrapIters, s.RNGSeed = "bootstrap", 200, 11 }},
+		// conf_level: the normal interval on the replicate SE, as REG_OLS.
+		{"jackknife_conf80", func(s *types.RegressionSpec) { s.Resample, s.ConfLevel = "jackknife", 0.8 }},
+		{"bootstrap_conf90", func(s *types.RegressionSpec) {
+			s.Resample, s.BootstrapIters, s.RNGSeed, s.ConfLevel = "bootstrap", 200, 11, 0.9
+		}},
 	}
 	for _, ext := range []types.RegressionType{regParityOLS, regParityOLSBuf} {
 		for _, tc := range cases {

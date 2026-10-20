@@ -46,7 +46,9 @@ type ExtensionFit func(recs []Record, predictors []string) (res *types.Regressio
 // the Wald z (estimate / SE) and its p-value the Wald-z two-sided p
 // (jackknife) or the percentile p (bootstrap) — NaN on every key when
 // pValues is false (the registration declares no p-values, so predict
-// counts none and no multiplicity family reads them); a spec-requested vcov
+// counts none and no multiplicity family reads them); ci_lower /
+// ci_upper the normal interval at conf_level on the replicate SE
+// (AttachExtensionIntervals); a spec-requested vcov
 // becomes the replicate covariance. A replicate whose coefficient names
 // differ from the base fit's is PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH
 // (reason replicate_coefficients) via mismatch.
@@ -196,6 +198,9 @@ func extensionResample(ctx context.Context, spec *types.RegressionSpec, pValues 
 		}
 	}
 	out.Resample = spec.Resample
+	// Wald normal intervals on the replicate SE, as the built-ins'
+	// resample re-attaches over the base fit's.
+	AttachExtensionIntervals(&out, spec)
 	out.Vcov, out.Correlation = nil, nil
 	if spec.Vcov && base.Vcov != nil {
 		AttachVcovKeys(&out, keys, cov)

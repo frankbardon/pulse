@@ -231,7 +231,7 @@ func TestExtensions_RegressionDeclaredSlotsReachModel(t *testing.T) {
 			}
 		}
 	}
-	if want := []string{"target", "predictors", "penalty", "alpha", "l1_ratio", "resample", "multiplicity", "covariance"}; !reflect.DeepEqual(slots, want) {
+	if want := []string{"target", "predictors", "penalty", "alpha", "l1_ratio", "resample", "conf_level", "multiplicity", "covariance"}; !reflect.DeepEqual(slots, want) {
 		t.Errorf("manifest slot params = %v, want %v", slots, want)
 	}
 }

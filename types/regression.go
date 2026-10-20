@@ -234,8 +234,11 @@ type RegressionSpec struct {
 	// residual degrees of freedom (N* − p − 1 on a weighted fit), REG_GLM
 	// a Wald normal one, REG_BAYES_LINEAR the posterior Student-t
 	// (credible_level is the fallback when this is unset, so the
-	// intervals then equal CredibleIntervals). Under Resample the
-	// intervals are Wald normal on the resampled standard errors.
+	// intervals then equal CredibleIntervals); a registered model
+	// (pulse.RegressionRegistration) gets the engine's interval on its
+	// reported standard errors, Student-t on its reported df, else Wald
+	// normal. Under Resample the intervals are Wald normal on the
+	// resampled standard errors.
 	ConfLevel float64 `json:"conf_level,omitempty"`
 
 	// Save writes the finished fit as a model file (model_format_version
@@ -422,10 +425,11 @@ type RegressionResult struct {
 	// interval at ConfLevel: coefficient ∓ q·StdErrors, q the Student-t
 	// critical value on DF (REG_OLS; REG_GLM gamma, whose dispersion is
 	// estimated; REG_BAYES_LINEAR's posterior t, where the bounds equal
-	// CredibleIntervals at the same level) or the standard normal one
-	// when DF is absent (REG_GLM binomial / poisson Wald; REG_GLM and
-	// REG_BAYES_LINEAR under a robust covariance; any fit under
-	// Resample). A key is present exactly when StdErrors carries it, so
+	// CredibleIntervals at the same level; a registered model reporting
+	// its df) or the standard normal one when DF is absent (REG_GLM
+	// binomial / poisson Wald; REG_GLM and REG_BAYES_LINEAR under a
+	// robust covariance; a registered model reporting no df; any fit
+	// under Resample). A key is present exactly when StdErrors carries it, so
 	// a fit without standard errors carries no intervals. An undefined
 	// bound (DF ≤ 0) is null.
 	CILower map[string]float64 `json:"ci_lower,omitempty"`
@@ -436,7 +440,8 @@ type RegressionResult struct {
 	// unweighted; Σw or Kish n_eff in place of n on a weighted fit, so
 	// fractional under kind probability) on REG_OLS and on a REG_GLM gamma
 	// fit (the df its estimated dispersion Pearson χ²/DF and its Student-t
-	// p-values read), 2·a_n on REG_BAYES_LINEAR. Absent when the
+	// p-values read), 2·a_n on REG_BAYES_LINEAR, the reported df
+	// (RegressionFit.DF) on a registered model. Absent when the
 	// intervals are Wald normal; null when undefined.
 	DF float64 `json:"df,omitempty"`
 

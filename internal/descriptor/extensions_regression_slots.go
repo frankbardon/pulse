@@ -35,8 +35,10 @@ const (
 	RegressionFieldIdentity RegressionFieldClass = "identity"
 	// RegressionFieldAccepted: honoured on every extension model by a
 	// path of its own — params (the declared-keys allowlist),
-	// multiplicity (the result's p-valued coefficients) and resample
-	// with its knobs (the engine's refit driver).
+	// multiplicity (the result's p-valued coefficients; a non-none
+	// method needs PValues, the multiplicity resolver's rule), resample
+	// with its knobs (the engine's refit driver) and conf_level (the
+	// engine's Wald intervals).
 	RegressionFieldAccepted RegressionFieldClass = "accepted"
 	// RegressionFieldWeightClass: weight — the registration's declared
 	// weight class (WeightAware) decides; undeclared, a weight in force
@@ -175,13 +177,6 @@ var regressionSlotRules = []regressionSlotRule{
 		},
 	},
 	{
-		slot: "conf_level", keys: []string{"conf_level"},
-		set: func(s *types.RegressionSpec) []string { return setKeys("conf_level", s.ConfLevel != 0) },
-		refusal: func(*types.RegressionSpec) string {
-			return "reports no confidence intervals, so conf_level has nothing to set; drop it"
-		},
-	},
-	{
 		slot: "save", keys: []string{"save"},
 		set: func(s *types.RegressionSpec) []string { return setKeys("save", s.Save != "") },
 		declared: func(d ExtensionRegression, _ *types.RegressionSpec) bool {
@@ -210,7 +205,11 @@ var regressionFieldClasses = map[string]RegressionFieldClass{
 	"jackknife_by":     RegressionFieldAccepted,
 	"bootstrap_iters":  RegressionFieldAccepted,
 	"rng_seed":         RegressionFieldAccepted,
-	"weight":           RegressionFieldWeightClass,
+	// conf_level: the engine builds every model's Wald intervals from
+	// the reported (or replicate) standard errors
+	// (regression.AttachExtensionIntervals), so every model accepts it.
+	"conf_level": RegressionFieldAccepted,
+	"weight":     RegressionFieldWeightClass,
 }
 
 // RegressionFieldClassOf classifies the types.RegressionSpec JSON key:
@@ -288,6 +287,8 @@ func regressionSlotParamsFor(decl ExtensionRegression) []descriptor.Param {
 	}
 	// resample: every extension model accepts it (an accepted field).
 	out = append(out, descriptor.Param{Name: "resample", Type: "enum", EnumValues: []string{"", "bootstrap", "jackknife"}, Description: "Resampling layer: the engine refits the model over row subsets (jackknife_groups, jackknife_by, bootstrap_iters and rng_seed tune it); a top-level key of the regression entry.", Slot: true})
+	// conf_level: every extension model accepts it (an accepted field).
+	out = append(out, descriptor.Param{Name: "conf_level", Type: "float", Default: 0.95, Description: "Coverage of ci_lower / ci_upper, 0 < conf_level < 1: the engine's Wald interval coefficient ∓ q·SE on the model's reported standard error — q the Student-t quantile on the fit's reported df, else the standard normal; the normal on the replicate SE under resample; null where the SE is. A top-level key of the regression entry.", Slot: true})
 	// multiplicity: an accepted field, listed when the model declares
 	// PValues (without them only method none is accepted).
 	if decl.PValues {

@@ -783,7 +783,8 @@ builds one), optional `Fit` statistics from the fixed set (`R2`,
 `PseudoR2`, `Iterations`), a `Vcov` (square over the coefficients, in
 their order) and `Outputs`. The adapter maps it onto
 `types.RegressionResult` and owns the rest: name and type, `n_obs`,
-`sum_weights` / `n_eff`, the multiplicity fold (a `PValues` model's
+`sum_weights` / `n_eff`, the confidence intervals (see **Intervals**),
+the multiplicity fold (a `PValues` model's
 coefficients with a defined p-value join a default family; an explicit
 `multiplicity.coefficients` list names the model's own coefficients)
 and per-slot failure (a model error coded
@@ -823,7 +824,7 @@ runtime adapter alike:
 | `covariance` | the type is in `CovarianceTypes` |
 | `resample` (`jackknife_groups`, `jackknife_by`, `bootstrap_iters`, `rng_seed`) | always honoured — see **Modifiers** |
 | `save` | `Scorer` |
-| `conf_level` | refused: the engine computes no intervals for a model |
+| `conf_level` | always honoured — the engine's intervals (see **Intervals**) |
 | `family`, `link`, `max_iters`, `tol`, `prior` (`prior_mu`, `prior_precision`, `prior_shape`, `prior_rate`, `credible_level`) | refused: built-in knobs — carry the model's own configuration in `params` |
 | `weight` | `WeightAware` (`PULSE_EXTENSION_NOT_WEIGHT_AWARE` otherwise) |
 | `params` | always honoured |
@@ -842,7 +843,8 @@ from the request and the rows) draw exactly the rows and groups
 `DecodeWorkers` / `ShardWorkers`. Every coefficient's `std_errors`
 entry becomes the replicate SE, `statistics` the Wald z, `p_values` the
 Wald-z p (jackknife) or the percentile p (bootstrap) — null on every key
-for a model that does not declare `PValues` — and a requested
+for a model that does not declare `PValues` —, `ci_lower` / `ci_upper`
+the normal interval on the replicate SE (`df` absent), and a requested
 `vcov` the replicate covariance. A replicate reporting other
 coefficients than the full fit is
 `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` reason
@@ -855,6 +857,20 @@ predict applies to every regression run in the adapter too
 (`regresample.Check`, a selection's `criterion`), and a weighted
 bootstrap or selection is refused by the weight resolver as for a
 built-in.
+
+**Intervals.** The engine writes every model's `ci_lower` / `ci_upper`
+at `conf_level` (0 < c < 1, 0.95 unset; out of range is
+`PROCESSING_CONFIG` at predict and runtime, the built-ins' rule) as
+estimate ∓ q·SE on each coefficient — `null` where its standard error
+is null, the point interval where it is 0. One rule, the built-ins'
+for the matching case: q is the Student-t quantile on the fit's
+reported `Fit.DF` (`REG_OLS`'s rule, so a model reporting its residual
+df N* − p − 1 matches `REG_OLS`'s intervals — the parity suite pins
+it unweighted, frequency- and probability-weighted), the standard
+normal when it reports no df (`REG_GLM`'s Wald rule), and the normal
+on the replicate SE under `resample` (every built-in's). `df` is the
+reported df on a t interval (`null`, with null bounds, when ≤ 0) and
+absent on a normal one.
 
 **Scoring.** With a `Scorer`, `ATTR_REG_PREDICT` scores the model's
 fits — a Compose `fits` entry, or a saved model reloaded through
@@ -887,7 +903,7 @@ shared slot cannot reach an extension model unclassified.
 The manifest lists the model under `extensions.regressions` in the
 built-in `RegressionMeta` shape: the shared slot keys (`target`,
 `predictors`, then every shared slot the declaration accepts — `penalty`
-/ `alpha` / `l1_ratio`, `resample`, `multiplicity` for a `PValues`
+/ `alpha` / `l1_ratio`, `resample`, `conf_level`, `multiplicity` for a `PValues`
 model, `vcov`, `covariance` naming its declared types; each marked
 `slot`; `emits_type_note` says whether `p_values` can carry figures), then the
 declared `Params`, the declared form (`streamable`), `weight_kinds` for

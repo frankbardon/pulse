@@ -265,9 +265,9 @@ func regressionParityRegistrations() []pulse.RegressionRegistration {
 // buffered clone's row carries a non-streamable attribute so the
 // built-in runs buffered too.
 func regressionParitySuite() paritySuite {
-	row := func(name string, ext types.RegressionType, predictors []string, weight *types.WeightSpec, mult *types.RegressionMultiplicity) parityRow {
+	rowConf := func(name string, ext types.RegressionType, predictors []string, weight *types.WeightSpec, mult *types.RegressionMultiplicity, conf float64) parityRow {
 		req := func(t types.RegressionType) *types.Request {
-			spec := &types.RegressionSpec{Type: t, Name: "fit", Target: "score", Predictors: predictors, Multiplicity: mult}
+			spec := &types.RegressionSpec{Type: t, Name: "fit", Target: "score", Predictors: predictors, Multiplicity: mult, ConfLevel: conf}
 			if weight != nil {
 				spec.Weight = types.SlotWeightOf(*weight)
 			}
@@ -282,6 +282,9 @@ func regressionParitySuite() paritySuite {
 		}
 		return parityRow{name: name, builtin: req(types.REG_OLS), extension: req(ext),
 			bufferedOnly: ext == regParityOLSBuf, serialOnly: true}
+	}
+	row := func(name string, ext types.RegressionType, predictors []string, weight *types.WeightSpec, mult *types.RegressionMultiplicity) parityRow {
+		return rowConf(name, ext, predictors, weight, mult, 0)
 	}
 	freq := &types.WeightSpec{Field: "qty", Kind: types.WeightKindFrequency}
 	prob := &types.WeightSpec{Field: "qty", Kind: types.WeightKindProbability}
@@ -303,6 +306,12 @@ func regressionParitySuite() paritySuite {
 			row("buffered", regParityOLSBuf, two, nil, holm),
 			row("buffered_frequency", regParityOLSBuf, one, freq, nil),
 			row("buffered_probability", regParityOLSBuf, one, prob, holm),
+			// conf_level (owner decision #3): the engine's t interval on
+			// the clone's reported residual df is REG_OLS's.
+			rowConf("streaming_conf90", regParityOLS, two, nil, nil, 0.9),
+			rowConf("streaming_frequency_conf80", regParityOLS, one, freq, nil, 0.8),
+			rowConf("buffered_probability_conf99", regParityOLSBuf, one, prob, holm, 0.99),
+			rowConf("buffered_conf90", regParityOLSBuf, two, nil, nil, 0.9),
 		},
 	}
 }
@@ -322,8 +331,9 @@ func closeRel(a, b float64) bool {
 
 // assertRegressionParity holds every figure REG_OLS reports to the
 // clone's within regressionParityTol: n_obs, the weighted floor, the
-// coefficient table (estimate, standard error, p-value), the fit
-// statistics and the multiplicity-adjusted p-values with their echo.
+// coefficient table (estimate, standard error, p-value, the confidence
+// interval at conf_level), the fit statistics and the
+// multiplicity-adjusted p-values with their echo.
 // The clone may report more (statistics), never less.
 func assertRegressionParity(t *testing.T, builtin, ext []*types.RegressionResult) {
 	t.Helper()
@@ -344,6 +354,7 @@ func assertRegressionParity(t *testing.T, builtin, ext []*types.RegressionResult
 		}{
 			{"r2", b.R2, e.R2}, {"adj_r2", b.AdjR2, e.AdjR2}, {"residual_std_err", b.ResidualStdErr, e.ResidualStdErr},
 			{"df", b.DF, e.DF}, {"sum_weights", b.SumWeights, e.SumWeights}, {"n_eff", b.NEff, e.NEff},
+			{"conf_level", b.ConfLevel, e.ConfLevel},
 		} {
 			if !closeRel(f.b, f.e) {
 				t.Errorf("regressions[%d].%s: builtin %v extension %v", i, f.name, f.b, f.e)
@@ -355,6 +366,7 @@ func assertRegressionParity(t *testing.T, builtin, ext []*types.RegressionResult
 		}{
 			{"coefficients", b.Coefficients, e.Coefficients}, {"std_errors", b.StdErrors, e.StdErrors},
 			{"p_values", b.PValues, e.PValues}, {"p_adjusted", b.PAdjusted, e.PAdjusted},
+			{"ci_lower", b.CILower, e.CILower}, {"ci_upper", b.CIUpper, e.CIUpper},
 		} {
 			keys := make([]string, 0, len(m.b))
 			for k := range m.b {

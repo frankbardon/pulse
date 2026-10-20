@@ -125,9 +125,16 @@ convergence flag, a pooled variance.
 
 **Declare or refuse.** Every shared `RegressionSpec` slot is either honoured
 or refused with `PROCESSING_CONFIG` `{regression, slot}` — never silently
-ignored. `resample` is always honoured; `conf_level`, `family`, `link`,
-`max_iters`, `tol` and `prior` are always refused (carry the model's own
-settings in `params`). The complete slot table is in
+ignored. `resample` and `conf_level` are always honoured; `family`,
+`link`, `max_iters`, `tol` and `prior` are always refused (carry the
+model's own settings in `params`).
+
+**Intervals are the engine's.** Report each coefficient's `StdErr` and
+the fit's residual `Fit.DF` where they exist: the engine writes
+`ci_lower` / `ci_upper` at `conf_level` as estimate ∓ q·SE, q the
+Student-t quantile on the reported df (REG_OLS's rule) or the standard
+normal when no df is reported (REG_GLM's Wald rule); a coefficient
+without a standard error gets a `null` interval. The complete slot table is in
 [Extension Points](extension-points.md#regression-model-regressions).
 
 ## 5. The scorer
@@ -163,7 +170,8 @@ it on an instance that does not register (or a profile hides) the type is
 Nothing to write: `resample` (jackknife, bootstrap) refits a fresh model from
 your factory per replicate with the built-in drivers and replaces
 `std_errors`, `statistics` and `p_values` with the replicate figures
-(`p_values` only when you declare `PValues`), so
+(`p_values` only when you declare `PValues`) and re-attaches the
+intervals as the normal ones on the replicate SE, so
 **the factory must be re-entrant** and report the same coefficient names on
 every fit (`_OUTPUT_MISMATCH` `replicate_coefficients`). `selection` needs
 `SupportsSelection` and a `Fit.Deviance`. Both read the request deadline

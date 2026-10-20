@@ -206,7 +206,9 @@ func (d *regressionDriver) finalize(s extend.StreamingRegression) (*types.Regres
 // result: the engine's name, type, n_obs and weighted floor; the
 // coefficient table with every figure keyed by every coefficient (an
 // absent one NaN — null on the wire); the reported fit statistics; the
-// vcov when the spec asked for it; the declared outputs.
+// engine's confidence intervals at conf_level
+// (regression.AttachExtensionIntervals); the vcov when the spec asked
+// for it; the declared outputs.
 func (d *regressionDriver) result(out extend.RegressionOutput) (*types.RegressionResult, error) {
 	if err := verifyRegressionOutput(d.reg, d.spec, out, false); err != nil {
 		return nil, err
@@ -245,6 +247,10 @@ func (d *regressionDriver) result(out extend.RegressionOutput) (*types.Regressio
 		}
 	}
 	res.ConvergedIters = f.Iterations
+	// The engine's Wald intervals at conf_level on the reported SE (t on
+	// a reported df, else normal); a modifier re-attaches on the
+	// replicate SE.
+	regression.AttachExtensionIntervals(res, d.spec)
 	if d.weight != nil {
 		res.SumWeights = d.sumW
 		if weighting.BasisOf(d.weight) == weighting.Probability {
@@ -531,6 +537,11 @@ func adaptRegressionFactory(reg RegressionRegistration) regression.Factory {
 		}
 		if cerr := descx.ExtensionRegressionFieldTypeRefusal(spec, decl, schema); cerr != nil {
 			return nil, cerr
+		}
+		// conf_level in (0, 1) — predict's rule, the built-ins' own
+		// (regression.validateConfLevel).
+		if err := regression.CheckConfLevel(spec); err != nil {
+			return nil, err
 		}
 		// The modifier rules predict applies to every regression: a
 		// selection names its criterion, the jackknife knobs are

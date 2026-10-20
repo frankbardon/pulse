@@ -969,18 +969,26 @@ type RegressionRegistration struct {
 	// known type listed once (PULSE_EXTENSION_PARAM_INVALID, reason
 	// invalid_covariance_type).
 	//
-	// Every other shared slot is fixed: conf_level (the engine computes
-	// no intervals for a model) and the built-ins' own knobs (family,
-	// link, max_iters, tol, prior*, credible_level) are refused with
-	// PROCESSING_CONFIG {regression, slot}; save follows Scorer; weight
-	// follows WeightAware; params, multiplicity and resample (with
-	// jackknife_groups, jackknife_by, bootstrap_iters, rng_seed) are
-	// always honoured. Resample runs the engine's jackknife / bootstrap
+	// Every other shared slot is fixed: the built-ins' own knobs
+	// (family, link, max_iters, tol, prior*, credible_level) are refused
+	// with PROCESSING_CONFIG {regression, slot}; save follows Scorer;
+	// weight follows WeightAware; multiplicity follows PValues; params,
+	// conf_level and resample (with jackknife_groups, jackknife_by,
+	// bootstrap_iters, rng_seed) are always honoured. conf_level (0 < c
+	// < 1, 0.95 unset) sets the engine's Wald intervals ci_lower /
+	// ci_upper = estimate ∓ q·SE on every coefficient with a standard
+	// error (null where it is null): q the Student-t quantile on the
+	// fit's reported RegressionFit.DF — REG_OLS's rule, so an OLS-shaped
+	// model reporting its residual df matches REG_OLS — else the
+	// standard normal (REG_GLM's Wald rule), and the normal on the
+	// replicate SE under resample, as every built-in. Resample runs the engine's jackknife / bootstrap
 	// driver around the model — every replicate a fresh model refit
 	// over a row subset, drawn exactly as for REG_OLS — and replaces
 	// each coefficient's standard error with the replicate one, its
-	// statistic with the Wald z and its p-value with the Wald-z
-	// (jackknife) or percentile (bootstrap) p; a replicate reporting
+	// statistic with the Wald z, its p-value with the Wald-z
+	// (jackknife) or percentile (bootstrap) p (PValues only) and its
+	// interval with the normal one on the replicate SE (the result's df
+	// then absent, as on a built-in); a replicate reporting
 	// other coefficients than the full fit is
 	// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH (reason
 	// replicate_coefficients). Limits.RequestTimeout is read before
