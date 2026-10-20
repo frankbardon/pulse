@@ -2022,7 +2022,8 @@ const (
 	//     every other.
 	//   - n_source (string): where the sample-size leg is read —
 	//     "cell_n_unweighted" (default; CellComponents["n"]),
-	//     "cell_value_weighted" (cell value as count),
+	//     "cell_value_weighted" (cell value as count, rounded to the
+	//     nearest integer, half away from zero — never truncated),
 	//     "row_margin_n" / "column_margin_n" (margin record counts),
 	//     "row_margin_distinct" / "column_margin_distinct" (the same
 	//     margin leg as a DISTINCT-KEY cardinality off

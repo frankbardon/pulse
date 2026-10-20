@@ -451,7 +451,10 @@ func pairwiseSampleSize(host *CrosstabHostView, params types.PairwiseOverlayPara
 		if !ok {
 			return 0, false
 		}
-		return int(v), true
+		// A weighted-count cell is a float n: round to the NEAREST
+		// integer (half away from zero), never truncate — the same rule
+		// as cell_weight_sum, so 219.99999963 reads as 220, not 219.
+		return int(math.Round(v)), true
 	case types.PairwiseNSourceRowMarginN:
 		return host.RowMarginN(r)
 	case types.PairwiseNSourceColumnMarginN:

@@ -112,3 +112,38 @@ func TestOverlayPairwise_PropZ_CellWeightSumNoiseMatchesInteger(t *testing.T) {
 		t.Errorf("sum_weights 220: p = %v, want %v", got, want)
 	}
 }
+
+// TestPairwiseSampleSize_CellValueWeightedRoundsToNearest pins n_source
+// "cell_value_weighted": a weighted-count cell value is a float n, and it
+// rounds to the NEAREST integer (half away from zero), never truncates —
+// the same rule as cell_weight_sum. A value of 219.99999963 used to
+// become n=219.
+func TestPairwiseSampleSize_CellValueWeightedRoundsToNearest(t *testing.T) {
+	params := types.PairwiseOverlayParams{NSource: types.PairwiseNSourceCellValueWeight}
+	for _, tc := range []struct {
+		value float64
+		want  int
+	}{
+		{219.99999963, 220},
+		{219.4, 219},
+		{219.5, 220},
+		{219.0, 219},
+		{0.4, 0},
+		{0.5, 1},
+	} {
+		mx := &types.MatrixPayload{
+			RowHeader:    types.AxisHeader{Fields: []string{"brand"}, Types: []string{"GROUP_CATEGORY"}},
+			ColumnHeader: types.AxisHeader{Fields: []string{"aud"}, Types: []string{"GROUP_CATEGORY"}},
+			RowKeys:      []types.AxisKey{{"A"}},
+			ColumnKeys:   []types.AxisKey{{"x"}},
+			Cells:        [][]types.MatrixCell{{{Value: tc.value, Present: true}}},
+		}
+		got, ok := pairwiseSampleSize(NewCrosstabHostViewWithComponents(mx, nil), params, true, 0, 0)
+		if !ok {
+			t.Fatalf("cell value=%v: ok=false, want true", tc.value)
+		}
+		if got != tc.want {
+			t.Errorf("cell value=%v: n = %d, want %d (round to nearest)", tc.value, got, tc.want)
+		}
+	}
+}
