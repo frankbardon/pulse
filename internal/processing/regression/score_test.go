@@ -1,9 +1,11 @@
 package regression
 
 import (
+	stderrors "errors"
 	"math"
 	"testing"
 
+	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
@@ -45,7 +47,7 @@ func mustBind(t *testing.T, spec *types.RegressionSpec, res *types.RegressionRes
 	return b
 }
 
-func mustScorer(t *testing.T, b *model.Bound, terms []string, scale string) *Scorer {
+func mustScorer(t *testing.T, b *model.Bound, terms []string, scale string) model.RowScorer {
 	t.Helper()
 	s, err := NewScorer(b, model.ScoreParams{Terms: terms, Scale: scale})
 	if err != nil {
@@ -195,5 +197,63 @@ func TestScorer_SelectionDroppedTermScoresZero(t *testing.T) {
 	}
 	if v, ok := s.Score(mockRecord{values: map[string]float64{}}); !ok || v != 0 {
 		t.Fatalf("dropped term scored %v (ok=%v), want 0", v, ok)
+	}
+}
+
+// TestBuiltinScorer_MatchesScorableType: the engine's built-in scorer
+// table and model.ScorableType (its static face, which predict reads)
+// are one set over every registered regression type — a type predict
+// admits always builds a RowScorer, and one it refuses has none.
+func TestBuiltinScorer_MatchesScorableType(t *testing.T) {
+	for _, rt := range types.AllRegressionTypes() {
+		f, ok := BuiltinScorer(rt)
+		if ok != model.ScorableType(rt) || ok != (f != nil) {
+			t.Errorf("%s: BuiltinScorer ok=%v (factory nil %v), model.ScorableType %v", rt, ok, f == nil, model.ScorableType(rt))
+		}
+	}
+}
+
+// constScorer is a stub RowScorer: every row scores v.
+type constScorer struct{ v float64 }
+
+func (c constScorer) Columns() []string               { return nil }
+func (c constScorer) Score(model.Row) (float64, bool) { return c.v, true }
+
+// TestBound_ScorerDelegatesToSource: Bound.Scorer builds through the
+// source's factory for the fit's type, handing it the bound model and
+// the reference's params; BuiltinScorer scores an OLS bound as its
+// linear predictor; a type the source does not resolve is CheckScore's
+// PULSE_MODEL_SCORE_INVALID type_unsupported.
+func TestBound_ScorerDelegatesToSource(t *testing.T) {
+	b := &model.Bound{Name: "m", Type: types.REG_OLS, Predictors: []string{"x"}, Coefficients: []float64{2}, Intercept: 1}
+	params := model.ScoreParams{Fit: "m", Terms: []string{"x"}}
+	stub := func(rt types.RegressionType) (model.ScorerFactory, bool) {
+		return func(got *model.Bound, p model.ScoreParams) (model.RowScorer, error) {
+			if got != b || p.Fit != params.Fit || len(p.Terms) != 1 {
+				t.Fatalf("factory got %p %+v, want %p %+v", got, p, b, params)
+			}
+			return constScorer{v: 42}, nil
+		}, rt == types.REG_OLS
+	}
+	s, err := b.Scorer(stub, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := s.Score(mockRecord{}); !ok || v != 42 {
+		t.Fatalf("stub score %v %v, want 42", v, ok)
+	}
+	s, err = b.Scorer(BuiltinScorer, model.ScoreParams{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := s.Score(mockRecord{values: map[string]float64{"x": 3}}); !ok || v != 7 {
+		t.Fatalf("OLS score %v %v, want 1 + 2·3 = 7", v, ok)
+	}
+	for _, src := range []model.ScorerSource{nil, func(types.RegressionType) (model.ScorerFactory, bool) { return nil, false }} {
+		_, err := b.Scorer(src, model.ScoreParams{})
+		var ce *perr.CodedError
+		if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_MODEL_SCORE_INVALID || ce.Details["reason"] != model.ReasonTypeUnsupported {
+			t.Fatalf("unresolved type: %v, want PULSE_MODEL_SCORE_INVALID type_unsupported", err)
+		}
 	}
 }

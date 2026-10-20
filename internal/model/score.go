@@ -181,15 +181,18 @@ func (c FitCatalog) Names() []string {
 	return out
 }
 
-// ScorableType reports whether a fit of type t can be scored: the
-// linear-predictor regressions (REG_OLS — penalties and selection
-// included — REG_GLM, REG_BAYES_LINEAR at its posterior mean).
+// scorableBuiltins are the built-in regression types with a RowScorer
+// (scorer.go): REG_OLS — penalties and selection included — REG_GLM,
+// REG_BAYES_LINEAR at its posterior mean. It is the static face of the
+// engine's built-in ScorerSource (regression.BuiltinScorer), which
+// predict cannot import; TestBuiltinScorer_MatchesScorableType keeps
+// the two one set.
+var scorableBuiltins = []types.RegressionType{types.REG_OLS, types.REG_GLM, types.REG_BAYES_LINEAR}
+
+// ScorableType reports whether a fit of type t can be scored: a type
+// with a RowScorer (scorableBuiltins).
 func ScorableType(t types.RegressionType) bool {
-	switch t {
-	case types.REG_OLS, types.REG_GLM, types.REG_BAYES_LINEAR:
-		return true
-	}
-	return false
+	return slices.Contains(scorableBuiltins, t)
 }
 
 // CheckScore is the one rule over a scoring reference (an
@@ -226,9 +229,7 @@ func CheckScore(attr *types.Attribute, cat Catalog) (ScoreParams, Signature, *er
 		return p, sig, KindMismatch(p.Fit, types.FitKindRegression, sig.EffectiveKind())
 	}
 	if !ScorableType(sig.Type) {
-		return p, sig, scoreInvalid(p.Fit, ReasonTypeUnsupported,
-			fmt.Sprintf("cannot score a %s fit; it scores least-squares, generalized-linear and Bayesian-linear fits", sig.Type),
-			map[string]any{"type": string(sig.Type)})
+		return p, sig, typeUnsupported(p.Fit, sig.Type)
 	}
 	if p.Terms != nil {
 		if len(p.Terms) == 0 {

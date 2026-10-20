@@ -16,7 +16,8 @@ import (
 // processor binds its attributes (bindAttribute → bindModels), before
 // any record is read; from then on the attribute is row-local: Row reads
 // the model's predictor columns off the record and evaluates the shared
-// scoring kernel (regression.Scorer → regression.LinearPredictor, the
+// scoring path (model.RowScorer — regression.BuiltinScorer for the
+// built-ins, over regression.LinearPredictor, the
 // expression ATTR_REG_FITTED and the GLM engine's own η use), so a
 // training row's score equals the fit's own fitted value bit for bit.
 //
@@ -38,7 +39,7 @@ import (
 type regPredictAttribute struct {
 	attr   *types.Attribute
 	schema *encoding.Schema
-	scorer *regression.Scorer
+	scorer model.RowScorer
 	// unavailable is the PULSE_FIT_UNAVAILABLE warning of a slot whose
 	// fit failed on its data (nil otherwise): no scorer, every row null.
 	unavailable *types.ResponseWarning
@@ -89,7 +90,7 @@ func (a *regPredictAttribute) bindModels(models *model.Set) error {
 	if err != nil {
 		return err
 	}
-	scorer, err := regression.NewScorer(b, p)
+	scorer, err := b.Scorer(regression.BuiltinScorer, p)
 	if err != nil {
 		return err
 	}
