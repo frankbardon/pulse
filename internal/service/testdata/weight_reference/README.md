@@ -188,14 +188,18 @@ positive target; the `w` / `f` / `p` weight columns):
   `reg_reference.R` (base R `stats` only; refuses any R but 4.6.1): `lm`
   for `REG_OLS` and the `ATTR_REG_*` rows (`predict()`; leverage = f ×
   one copy's `hatvalues()`), `glm(control = glm.control(epsilon = 1e-14,
-  maxit = 100))` with `summary(dispersion = 1)` for `REG_GLM`, refit once
+  maxit = 100))` with `summary(dispersion = 1)` for `REG_GLM` binomial /
+  poisson and the default `summary()` for gamma (estimated dispersion, t
+  p-values on `df.residual`, which is pinned as `df`), refit once
   from its own converged coefficients so the standard errors are
   evaluated at the MLE (glm's otherwise use the last iteration's
   starting weights, ~1e-8 away);
 - kind `probability` — the closed form on w* = w·n_eff/Σw: OLS with df
   n_eff − q (never `lm(weights =)`, whose df is the row count), its SEs
   cross-checked with statsmodels `GLM(freq_weights = w*)` (df_resid =
-  Σw* − q); GLM by IRLS on w*, cross-checked the same way with scale 1;
+  Σw* − q); GLM by IRLS on w*, cross-checked the same way with scale 1
+  (gamma: the estimated dispersion on Σw* − q, statsmodels' default
+  Pearson scale);
   the attributes' scale-free closed form, leverage cross-checked with
   statsmodels OLS influence on the √w-whitened design. Each closed form
   must equal R on the frequency configuration (1e-9) first;

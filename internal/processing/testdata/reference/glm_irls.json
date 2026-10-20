@@ -6,8 +6,8 @@
     "jsonlite": "2.0.0"
   },
   "primitive": "REG_GLM IRLS: convergence on strong predictors, the separation refusal",
-  "r_function": "g <- glm(y ~ x, family, control = glm.control(epsilon = 1e-14, maxit = 100)); g <- glm(..., start = coef(g)); summary(g, dispersion = 1)",
-  "note": "Two-level x: the MLE has a closed form (binomial logits, poisson log means, gamma inverse means) the glm fit is asserted against at relative 1e-10. epoch_seconds_poisson (x = epoch seconds of 2024 timestamps) has none: glm alone. std_errors are summary(dispersion = 1) of a refit warm-started at the converged coefficients (evaluated at the MLE). cells {x, y, n} expand to n rows each. separated = glm warned 'fitted probabilities numerically 0 or 1 occurred'; Pulse refuses those with PROCESSING_REGRESSION_SEPARATION naming the predictor, so they carry no coefficients.",
+  "r_function": "g <- glm(y ~ x, family, control = glm.control(epsilon = 1e-14, maxit = 100)); g <- glm(..., start = coef(g)); summary(g, dispersion = 1) (binomial, poisson) / summary(g) (gamma)",
+  "note": "Two-level x: the MLE has a closed form (binomial logits, poisson log means, gamma inverse means) the glm fit is asserted against at relative 1e-10. epoch_seconds_poisson (x = epoch seconds of 2024 timestamps) has none: glm alone. std_errors are summary(dispersion = 1) for binomial / poisson and summary() for gamma (dispersion = Pearson chi-square / df.residual, with its t-based p_values), of a refit warm-started at the converged coefficients (evaluated at the MLE). cells {x, y, n} expand to n rows each. separated = glm warned 'fitted probabilities numerically 0 or 1 occurred'; Pulse refuses those with PROCESSING_REGRESSION_SEPARATION naming the predictor, so they carry no coefficients.",
   "cases": [
     {
       "name": "collections_2x2",
@@ -259,6 +259,12 @@
       ],
       "r_warnings": [],
       "separated": false,
+      "dispersion": 0.21029495986492328,
+      "df_residual": 7,
+      "p_values": [
+        0.0018016839051805155,
+        0.014453115352759584
+      ],
       "coefficients": [
         0.71428571428571419,
         -0.499231950844854
@@ -268,8 +274,8 @@
         -0.49923195084485411
       ],
       "std_errors": [
-        0.31943828249996964,
-        0.3370502137946953
+        0.14648777892360754,
+        0.15456424576949906
       ],
       "deviance": 1.5560110494893742,
       "null_deviance": 4.7129708611704784
@@ -1108,4 +1114,4 @@
     }
   ]
 }
-// golden-hash: b12b83b5dade450619c21302369e1d0f196f380b512cbcada5ce2be74416dc4c
+// golden-hash: d69f6483ed9eb7cbd353f5baafed7765d0aabab7ea2b12bc5aaf6d21d87c86dd

@@ -31,6 +31,8 @@ var regressionProbes = map[types.RegressionType][]types.RegressionSpec{
 	},
 	types.REG_GLM: {
 		{Type: types.REG_GLM, Target: "b", Predictors: []string{"x1", "x2"}, Family: "binomial"},
+		// gamma estimates its dispersion: df (its t reference) is emitted.
+		{Type: types.REG_GLM, Target: "g", Predictors: []string{"x1", "x2"}, Family: "gamma"},
 	},
 	types.REG_BAYES_LINEAR: {
 		{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x1", "x2"}},
@@ -39,7 +41,8 @@ var regressionProbes = map[types.RegressionType][]types.RegressionSpec{
 
 // probeRows is a deterministic noisy fixture: a numeric target with
 // non-zero residuals (so r2, p-values and the residual SE are all
-// defined and non-zero) and a 0/1 target that is not separable.
+// defined and non-zero), a 0/1 target that is not separable and a
+// positive target g for the gamma family.
 func probeRows() []regression.Record {
 	const n = 80
 	out := make([]regression.Record, n)
@@ -51,7 +54,8 @@ func probeRows() []regression.Record {
 		if -0.5+1.2*x1+0.8*x2+noise > 0 {
 			b = 1
 		}
-		out[i] = probeRecord{"x1": x1, "x2": x2, "y": 3 + 2*x1 - x2 + noise, "b": b}
+		out[i] = probeRecord{"x1": x1, "x2": x2, "y": 3 + 2*x1 - x2 + noise, "b": b,
+			"g": 1 / (0.8 + 0.05*x1 + 0.1*x2) * (1 + 0.3*noise)}
 	}
 	return out
 }
@@ -73,6 +77,7 @@ func TestRegressionOutputsHoldAtRuntime(t *testing.T) {
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "y", Type: encoding.FieldTypeF64}, {Name: "b", Type: encoding.FieldTypeF64},
 		{Name: "x1", Type: encoding.FieldTypeF64}, {Name: "x2", Type: encoding.FieldTypeF64},
+		{Name: "g", Type: encoding.FieldTypeF64},
 	}}
 	rows := probeRows()
 	for _, r := range types.AllRegressionTypes() {

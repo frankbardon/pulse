@@ -776,7 +776,8 @@ between grouper placed in no bucket). Contract:
 Both are `square_symmetric`, `full`, with `row_keys` = `column_keys` =
 `(intercept)` then the predictors in spec order. `vcov` is the
 coefficient covariance — `REG_OLS` σ̂²·(XᵀX)⁻¹ (ridge: the sandwich),
-`REG_GLM` (XᵀWX)⁻¹ at the converged working weights (dispersion 1),
+`REG_GLM` φ·(XᵀWX)⁻¹ at the converged working weights (φ = 1 for
+binomial / poisson; gamma's estimate, the Pearson χ² over its `df`),
 whose square-rooted diagonal is exactly `std_errors`; `REG_BAYES_LINEAR`
 the POSTERIOR covariance b_n/(a_n−1)·Λ_n⁻¹ (`null` cells when
 a_n ≤ 1), whose diagonal is `std_errors`²·a_n/(a_n−1). A weighted fit

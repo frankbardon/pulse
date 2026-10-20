@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -134,6 +135,114 @@ func TestRegPenalty_InferenceAdvisoryPredictRuntimeParity(t *testing.T) {
 	for _, a := range env.Data.(*descriptor.PredictResult).Advisories {
 		if a.Code == code {
 			t.Errorf("suppressed: predict carries %+v", a)
+		}
+	}
+}
+
+// TestRegPenalty_PValueCountPredictRuntimeParity (reference-oracles
+// E2-S3): predict's PredictResult.PValues counts exactly the regression
+// p-values the runtime reports DEFINED. An l1 / elasticnet REG_OLS or
+// REG_GLM fit without resample reports every p-value null, so predict
+// counts none of its predictors — neither uncorrected (the
+// PULSE_ADVISORY_MANY_TESTS input) nor, under the fit's own multiplicity
+// block, corrected: the runtime fold leaves a null p out of m (it is
+// counted in excluded instead). Ridge, unpenalized and resampled l1 fits
+// keep one defined p-value per predictor in both places.
+func TestRegPenalty_PValueCountPredictRuntimeParity(t *testing.T) {
+	var golden struct {
+		Cases []vcovOracle `json:"cases"`
+	}
+	dir := loadMV(t, "mv_vcov.json", &golden)
+	cfg := fixtureFS(t, dir)
+	cohort := filepath.Join(dir, "mtcars.pulse")
+	data, err := os.ReadFile(cohort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ols := func(mut func(*types.RegressionSpec)) *types.RegressionSpec {
+		s := &types.RegressionSpec{Name: "ols", Type: types.REG_OLS, Target: "mpg", Predictors: []string{"wt", "hp", "qsec"}}
+		mut(s)
+		return s
+	}
+	glm := func(mut func(*types.RegressionSpec)) *types.RegressionSpec {
+		s := &types.RegressionSpec{Name: "glm", Type: types.REG_GLM, Family: "binomial", Target: "am", Predictors: []string{"wt", "hp"}}
+		mut(s)
+		return s
+	}
+	block := func(s *types.RegressionSpec) {
+		s.Multiplicity = &types.RegressionMultiplicity{Method: types.MultiplicityMethodHolm}
+	}
+	cases := []struct {
+		name string
+		regs []*types.RegressionSpec
+	}{
+		{"ols l1", []*types.RegressionSpec{ols(func(s *types.RegressionSpec) { s.Penalty, s.Alpha = "l1", 0.5 })}},
+		{"glm elasticnet", []*types.RegressionSpec{glm(func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.L1Ratio = "elasticnet", 0.01, 0.5 })}},
+		{"glm l1 under selection", []*types.RegressionSpec{glm(func(s *types.RegressionSpec) {
+			s.Penalty, s.Alpha, s.Selection, s.Criterion = "l1", 0.01, "backward", "aic"
+		})}},
+		{"ols ridge", []*types.RegressionSpec{ols(func(s *types.RegressionSpec) { s.Penalty, s.Alpha = "l2", 0.5 })}},
+		// alpha 0.05 keeps every coefficient off 0, so every replicate
+		// p-value is defined (a coefficient the penalty zeroes everywhere
+		// has a data-dependent NaN p that predict cannot see).
+		{"ols l1 under jackknife", []*types.RegressionSpec{ols(func(s *types.RegressionSpec) { s.Penalty, s.Alpha, s.Resample = "l1", 0.05, "jackknife" })}},
+		{"unpenalized glm", []*types.RegressionSpec{glm(func(*types.RegressionSpec) {})}},
+		{"l1 beside unpenalized", []*types.RegressionSpec{
+			ols(func(s *types.RegressionSpec) { s.Penalty, s.Alpha = "l1", 0.5 }),
+			glm(func(*types.RegressionSpec) {}),
+		}},
+	}
+	for _, withBlock := range []bool{false, true} {
+		for _, c := range cases {
+			t.Run(fmt.Sprintf("%s/block=%v", c.name, withBlock), func(t *testing.T) {
+				regs := make([]*types.RegressionSpec, len(c.regs))
+				for i, r := range c.regs {
+					cp := *r
+					if withBlock {
+						block(&cp)
+					}
+					regs[i] = &cp
+				}
+				req := &types.Request{Cohort: &types.Cohort{Filename: cohort}, Regressions: regs}
+				resp, err := New(cfg).Process(context.Background(), req)
+				if err != nil {
+					t.Fatalf("Process: %v", err)
+				}
+				defined, m := 0, 0
+				for i, r := range resp.Regressions {
+					if r.Error != nil {
+						t.Fatalf("slot %d failed: %+v", i, r.Error)
+					}
+					for key, p := range r.PValues {
+						if key != "(intercept)" && !math.IsNaN(p) {
+							defined++
+						}
+					}
+					// Every block here pools into the one request family,
+					// so each member echoes the same family size m.
+					if r.Multiplicity != nil {
+						m = r.Multiplicity.M
+					}
+				}
+				env := descx.Predict(bytes.NewReader(data), req, &descx.PredictOptions{})
+				if len(env.Errors) > 0 {
+					t.Fatalf("predict errors: %+v", env.Errors)
+				}
+				total, uncorrected := 0, 0
+				if pv := env.Data.(*descriptor.PredictResult).PValues; pv != nil {
+					total, uncorrected = pv.Total, pv.Uncorrected
+				}
+				if total != defined {
+					t.Errorf("predict counts %d p-values, runtime reports %d defined", total, defined)
+				}
+				if withBlock {
+					if uncorrected != 0 || total-uncorrected != m {
+						t.Errorf("predict corrected %d / uncorrected %d, runtime family m %d", total-uncorrected, uncorrected, m)
+					}
+				} else if uncorrected != defined {
+					t.Errorf("predict uncorrected %d, runtime defined %d", uncorrected, defined)
+				}
+			})
 		}
 	}
 }

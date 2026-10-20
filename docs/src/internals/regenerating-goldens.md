@@ -248,9 +248,14 @@ adjusted R², σ̂, df), plain and frequency-weighted (`lm()` on the
 equations. One case puts the predictor on a 1e6 offset; stock `lm()`'s
 QR on the raw column misses `1e-10` there (adjusted R² off 1.1e-9), so
 that case is fitted on the exact shift `x − 1e6` and mapped back, with
-`lm()`'s raw figures kept as `r_*`. `gen_glm_irls.R` reads its
-dispersion-1 SEs off a refit warm-started at the converged
-coefficients (glm's own SEs lag one IRLS update, ~5e-9), and
+`lm()`'s raw figures kept as `r_*`. `gen_glm_irls.R` reads its SEs
+(dispersion 1 for binomial / poisson, the estimated dispersion for
+gamma) off a refit warm-started at the converged coefficients (glm's own
+SEs lag one IRLS update, ~5e-9); `gen_glm_gamma.R` writes
+`glm_gamma.json` the same way — gamma under `summary.glm`'s estimated
+dispersion (Pearson χ² / df.residual), t p-values, t intervals at 0.95
+and 0.90 and `vcov(glm)`, the dispersion self-checked against the
+Pearson residuals (`TestReferenceOracle_GLMGammaMatchesR`); and
 `gen_glm_penalty.R` / `gen_ols_penalty.R` run glmnet at `thresh` 1e-20 /
 1e-24, so `TestReferenceOracle_RegOLSMatchesLM`,
 `TestRegGLM_IRLSMatchesR`, `TestRegGLM_PenaltyMatchesGlmnet` and

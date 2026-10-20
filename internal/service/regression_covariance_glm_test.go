@@ -15,11 +15,13 @@ import (
 )
 
 // regression_covariance_glm_test.go pins RegressionSpec.Covariance on
-// REG_GLM (binomial / logit, poisson / log) and REG_BAYES_LINEAR
-// against mv_robust_vcov_glm.json (scripts/reference/
+// REG_GLM (binomial / logit, poisson / log, gamma / inverse) and
+// REG_BAYES_LINEAR against mv_robust_vcov_glm.json (scripts/reference/
 // gen_robust_vcov_glm.R): the GLM sandwich over IRLS scores against
 // sandwich::vcovHC / vcovCL / NeweyWest on glm and lmtest::coeftest's
-// Wald p-values; the Bayes sandwich posterior against its closed form
+// Wald p-values — dispersion-free, so a gamma fit's robust covariance
+// never reads the estimated dispersion its classical SEs do (Wald z, no
+// df); the Bayes sandwich posterior against its closed form
 // (which R checks equals the lm sandwich at prior precision 0).
 
 // glmRobustRow is one mv_robust_vcov_glm.json row.
@@ -31,6 +33,7 @@ type glmRobustRow struct {
 	YBin   float64 `json:"y_bin"`
 	YCount float64 `json:"y_count"`
 	Y      float64 `json:"y"`
+	YGamma float64 `json:"y_gamma"`
 	WFreq  float64 `json:"w_freq"`
 	WProb  float64 `json:"w_prob"`
 }
@@ -60,8 +63,8 @@ func loadGLMRobust(t *testing.T) glmRobustGolden {
 	t.Helper()
 	var g glmRobustGolden
 	loadMV(t, "mv_robust_vcov_glm.json", &g)
-	if len(g.Rows) != 60 || len(g.Cases) != 56 {
-		t.Fatalf("golden has %d rows / %d cases, want 60 / 56", len(g.Rows), len(g.Cases))
+	if len(g.Rows) != 60 || len(g.Cases) != 77 {
+		t.Fatalf("golden has %d rows / %d cases, want 60 / 77", len(g.Rows), len(g.Cases))
 	}
 	return g
 }
@@ -86,7 +89,7 @@ func glmRobustCohort(t *testing.T, rows []glmRobustRow) *Service {
 		{Name: "week", Type: encoding.FieldTypeU16},
 		{Name: "region", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict},
 	}
-	for _, n := range []string{"x1", "x2", "y_bin", "y_count", "y", "w_freq", "w_prob"} {
+	for _, n := range []string{"x1", "x2", "y_bin", "y_count", "y", "y_gamma", "w_freq", "w_prob"} {
 		fields = append(fields, encoding.Field{Name: n, Type: encoding.FieldTypeF64})
 	}
 	off := 0
@@ -103,7 +106,7 @@ func glmRobustCohort(t *testing.T, rows []glmRobustRow) *Service {
 	}
 	for _, r := range rows {
 		vals := []uint64{uint64(r.Week), ids[r.Region]}
-		for _, f := range []float64{r.X1, r.X2, r.YBin, r.YCount, r.Y, r.WFreq, r.WProb} {
+		for _, f := range []float64{r.X1, r.X2, r.YBin, r.YCount, r.Y, r.YGamma, r.WFreq, r.WProb} {
 			vals = append(vals, math.Float64bits(f))
 		}
 		for j, v := range vals {
@@ -257,7 +260,7 @@ func testRobustGLMBayesOracle(t *testing.T) {
 func TestRegressionCovariance_GLMBayesClassicalByteIdentical(t *testing.T) {
 	g := loadGLMRobust(t)
 	svc := glmRobustCohort(t, g.Rows)
-	for _, fam := range []glmRobustCase{{Family: "binomial", Target: "y_bin"}, {Family: "poisson", Target: "y_count"}, {Family: "bayes", Target: "y"}} {
+	for _, fam := range []glmRobustCase{{Family: "binomial", Target: "y_bin"}, {Family: "poisson", Target: "y_count"}, {Family: "gamma", Target: "y_gamma"}, {Family: "bayes", Target: "y"}} {
 		for _, vcov := range []bool{false, true} {
 			plain := glmRobustSpec(t, fam, nil)
 			plain.Vcov = vcov

@@ -246,3 +246,39 @@ func TestWeightedRegressions_GLMLowNEff(t *testing.T) {
 		}
 	}
 }
+
+// TestWeightedRegressions_GammaLowNEffAtFloor (reference-oracles E2-S3):
+// a gamma REG_GLM estimates its dispersion on the residual df N* − p − 1,
+// so at n_eff EXACTLY p + 1 (weights 1, 1, 1, 3 → 3) its df is 0, DF and
+// every standard error are NaN and it warns like OLS (n_eff ≤ p + 1),
+// naming the undefined dispersion; a poisson fit on the same rows keeps
+// dispersion 1 and stays silent at the floor.
+func TestWeightedRegressions_GammaLowNEffAtFloor(t *testing.T) {
+	schema := regWeightSchema()
+	recs := regWeightRecords(schema, []float64{1, 1, 1, 3})
+	req := &types.Request{
+		Weight: &types.WeightSpec{Field: "w", Kind: types.WeightKindProbability},
+		Regressions: []*types.RegressionSpec{
+			{Type: types.REG_GLM, Family: "gamma", Name: "gamma", Target: "y", Predictors: []string{"x1", "x2"}},
+			{Type: types.REG_GLM, Family: "poisson", Name: "poisson", Target: "y", Predictors: []string{"x1", "x2"}},
+		},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "x1", Weight: types.NullSlotWeight()}},
+	}
+	resp, err := NewProcessor(schema).Process(context.Background(), req, NewSliceIterator(recs))
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := resp.Regressions[0]
+	if g.Error != nil || g.NEff != 3 || !math.IsNaN(g.DF) || !math.IsNaN(g.StdErrors["x1"]) {
+		t.Fatalf("gamma: error %v n_eff %v df %v se %v, want 3 / NaN / NaN", g.Error, g.NEff, g.DF, g.StdErrors["x1"])
+	}
+	var low []*types.ResponseWarning
+	for _, w := range resp.Warnings {
+		if w.Code == string(errors.PULSE_WEIGHT_LOW_NEFF) {
+			low = append(low, w)
+		}
+	}
+	if len(low) != 1 || low[0].Details["regression"] != "gamma" || !strings.Contains(low[0].Message, "dispersion") {
+		t.Fatalf("low-n_eff warnings = %+v, want one, on the gamma fit, naming the dispersion", low)
+	}
+}

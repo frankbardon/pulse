@@ -231,9 +231,11 @@ as prior weights on w* = w·N*/Σw, so its fit is R's
 `glm(weights = w*)`: the coefficients are the same under either kind,
 the standard errors come from (XᵀW*X)⁻¹ and the deviance and null
 deviance sum w*·d. Under frequency weights that is `glm(weights = w)`
-and equals the fit on the expanded rows. The dispersion stays fixed at
-1 for every family, gamma included, so treat gamma standard errors with
-the same caution as unweighted ones. The regression attributes refit
+and equals the fit on the expanded rows. The dispersion is fixed at 1
+for binomial and Poisson; gamma estimates it as the w*-weighted Pearson
+chi-square over the residual df N* − p − 1 (Σw under frequency, as on
+the expanded rows; n_eff under probability), and its p-values and
+intervals read a Student t on that df. The regression attributes refit
 ordinary least squares with the slot's weight and accept both kinds:
 the fitted value comes from the weighted coefficients, the residual is
 the raw y − ŷ, and the leverage is R's `hatvalues()` on the weighted

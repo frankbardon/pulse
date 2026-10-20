@@ -360,9 +360,11 @@ type RegressionResult struct {
 	// CILower and CIUpper map predictor name (keyed like Coefficients) to
 	// the lower / upper bound of the coefficient's two-sided confidence
 	// interval at ConfLevel: coefficient ∓ q·StdErrors, q the Student-t
-	// critical value on DF (REG_OLS; REG_BAYES_LINEAR's posterior t,
-	// where the bounds equal CredibleIntervals at the same level) or the
-	// standard normal one when DF is absent (REG_GLM Wald; any fit under
+	// critical value on DF (REG_OLS; REG_GLM gamma, whose dispersion is
+	// estimated; REG_BAYES_LINEAR's posterior t, where the bounds equal
+	// CredibleIntervals at the same level) or the standard normal one
+	// when DF is absent (REG_GLM binomial / poisson Wald; REG_GLM and
+	// REG_BAYES_LINEAR under a robust covariance; any fit under
 	// Resample). A key is present exactly when StdErrors carries it, so
 	// a fit without standard errors carries no intervals. An undefined
 	// bound (DF ≤ 0) is null.
@@ -372,8 +374,10 @@ type RegressionResult struct {
 	// DF is the degrees of freedom of the Student-t critical value the
 	// intervals read: the residual df N* − p − 1 on REG_OLS (n − p − 1
 	// unweighted; Σw or Kish n_eff in place of n on a weighted fit, so
-	// fractional under kind probability), 2·a_n on REG_BAYES_LINEAR.
-	// Absent when the intervals are Wald normal; null when undefined.
+	// fractional under kind probability) on REG_OLS and on a REG_GLM gamma
+	// fit (the df its estimated dispersion Pearson χ²/DF and its Student-t
+	// p-values read), 2·a_n on REG_BAYES_LINEAR. Absent when the
+	// intervals are Wald normal; null when undefined.
 	DF float64 `json:"df,omitempty"`
 
 	// ConfLevel is the resolved interval coverage (RegressionSpec

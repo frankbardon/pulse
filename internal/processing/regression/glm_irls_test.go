@@ -35,6 +35,11 @@ type glmIRLSCase struct {
 	ClosedFormStdErrors []float64 `json:"closed_form_std_errors"`
 	Deviance            float64   `json:"deviance"`
 	NullDeviance        float64   `json:"null_deviance"`
+	// Gamma only: summary.glm's estimated dispersion, its residual df
+	// and t-based p-values (std_errors read the same dispersion).
+	Dispersion float64   `json:"dispersion"`
+	DFResidual float64   `json:"df_residual"`
+	PValues    []float64 `json:"p_values"`
 }
 
 // loadGLMIRLSReference reads the R oracle golden, footer stripped.
@@ -86,8 +91,10 @@ func oracleClose(got, want, tol float64) bool {
 // TestRegGLM_IRLSMatchesR: every non-separated case — the credit-risk
 // showcase's default × collections_flag table (2% vs 92% default; the
 // fit that used to diverge and blame collinearity) among them —
-// converges to R glm's coefficients, dispersion-1 standard errors and
-// deviances AND to the closed-form logits / log means / inverse means,
+// converges to R glm's coefficients, standard errors (dispersion 1 for
+// binomial / poisson, gamma's estimated dispersion with its t-based
+// p-values and df) and deviances AND to the closed-form logits / log
+// means / inverse means,
 // every figure within relative 1e-10 (the golden's SEs are evaluated at
 // the MLE by a warm-started refit, gen_glm_irls.R);
 // every case R itself flags "fitted probabilities numerically 0 or 1"
@@ -133,11 +140,21 @@ func TestRegGLM_IRLSMatchesR(t *testing.T) {
 					t.Errorf("β[%s] = %.17g, closed form %.17g", term, got, c.ClosedFormCoefs[i])
 				}
 				if se := res.StdErrors[term]; !oracleClose(se, c.StdErrors[i], 1e-10) {
-					t.Errorf("SE[%s] = %.17g, R summary(dispersion = 1) %.17g", term, se, c.StdErrors[i])
+					t.Errorf("SE[%s] = %.17g, R summary %.17g", term, se, c.StdErrors[i])
+				}
+				if c.PValues != nil && !oracleClose(res.PValues[term], c.PValues[i], 1e-10) {
+					t.Errorf("p[%s] = %.17g, R summary %.17g", term, res.PValues[term], c.PValues[i])
 				}
 				if c.ClosedFormStdErrors != nil && !oracleClose(res.StdErrors[term], c.ClosedFormStdErrors[i], 1e-10) {
 					t.Errorf("SE[%s] = %.17g, closed form %.17g", term, res.StdErrors[term], c.ClosedFormStdErrors[i])
 				}
+			}
+			if c.Family == "gamma" {
+				if c.PValues == nil || res.DF != c.DFResidual {
+					t.Errorf("gamma df = %v, R df.residual %v (p-values in golden: %v)", res.DF, c.DFResidual, c.PValues != nil)
+				}
+			} else if res.DF != 0 {
+				t.Errorf("df = %v, want none (Wald z at dispersion 1)", res.DF)
 			}
 			if !oracleClose(res.Deviance, c.Deviance, 1e-10) {
 				t.Errorf("deviance = %.17g, R %.17g", res.Deviance, c.Deviance)

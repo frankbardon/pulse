@@ -1858,10 +1858,14 @@ def overlay_cases():
 #     Frequency on the np.repeat expansion, unweighted; probability with
 #     sample_weight = w (β is kind-free: the penalty scales by Σw). The
 #     ridge β is also checked against its closed form.
-#   * REG_GLM (binomial / poisson / gamma, dispersion fixed at 1) —
-#     frequency: R glm on the expansion; probability: IRLS on w* in
-#     numpy, cross-checked against statsmodels GLM(freq_weights = w*,
-#     scale = 1). The same IRLS on f must equal R (1e-9).
+#   * REG_GLM (binomial / poisson at dispersion 1; gamma's dispersion
+#     estimated, reference-oracles E2-S3) — frequency: R glm on the
+#     expansion; probability: IRLS on w* in numpy, cross-checked against
+#     statsmodels GLM(freq_weights = w*; scale = 1 for binomial /
+#     poisson, the default Pearson scale for gamma). Gamma: φ̂ = Σw*(y −
+#     μ)²/V(μ) / (Σw* − q), SE·√φ̂, t p-values on df = Σw* − q (n_eff − q
+#     under probability, REG_OLS's residual df; statsmodels' df_resid).
+#     The same IRLS on f must equal R (1e-9).
 #   * REG_BAYES_LINEAR — frequency-only. No stock package fits Pulse's
 #     scalar-precision Normal-Inverse-Gamma prior, so the reference is
 #     that conjugate posterior in closed form evaluated on the expanded
@@ -2042,7 +2046,7 @@ def penalised_beta(case, ws, kind):
 
 
 def glm_irls(X, y, w, family):
-    """Dispersion-1 IRLS fit: (β, SE, deviance, null deviance)."""
+    """IRLS fit: (β, dispersion-1 SE, deviance, null deviance, Pearson χ²)."""
     if family == "binomial":
         inv = lambda eta: 1 / (1 + np.exp(-eta))
         dmu = lambda eta, mu: mu * (1 - mu)
@@ -2090,7 +2094,8 @@ def glm_irls(X, y, w, family):
     ww = w * g * g / var(mu)
     se = np.sqrt(np.diag(np.linalg.inv(X.T @ (ww[:, None] * X))))
     ybar = float(np.sum(w * y) / w.sum())
-    return beta, se, dev(inv(eta)), dev(np.full_like(y, ybar))
+    pearson = float(np.sum(w * (y - mu) ** 2 / var(mu)))
+    return beta, se, dev(inv(eta)), dev(np.full_like(y, ybar)), pearson
 
 
 def glm_closed_form(case, ws, kind):
@@ -2102,22 +2107,36 @@ def glm_closed_form(case, ws, kind):
     w = np.array([ws[i] for i in idx])
     sw = float(w.sum())
     wstar = w * ((kish(w) if prob else sw) / sw)
-    beta, se, dev, null_dev = glm_irls(X, y, wstar, family)
+    beta, se, dev, null_dev, pearson = glm_irls(X, y, wstar, family)
+    gamma = family == "gamma"
+    df = None
+    if gamma:
+        # The estimated dispersion on N* − q residual df, N* = Σw*.
+        df = float(wstar.sum()) - X.shape[1]
+        se = se * math.sqrt(pearson / df)
     sm_fam = {"binomial": sm_families.Binomial(),
               "poisson": sm_families.Poisson(),
               "gamma": sm_families.Gamma(sm_families.links.InversePower())}[family]
     with warnings.catch_warnings():
         # Gamma's inverse link is R's default too; the fit stays in-domain.
         warnings.simplefilter("ignore", DomainWarning)
-        sm = SmGLM(y, X, family=sm_fam, freq_weights=wstar).fit(scale=1.0, tol=1e-14, maxiter=200)
+        sm = SmGLM(y, X, family=sm_fam, freq_weights=wstar).fit(
+            scale=None if gamma else 1.0, tol=1e-14, maxiter=200)
     assert np.allclose(sm.params, beta, rtol=1e-8) and np.allclose(sm.bse, se, rtol=1e-8), (case, kind)
+    if gamma:
+        assert close(sm.df_resid, df, 1e-12) and close(sm.scale, pearson / df, 1e-8), (case, kind, sm.df_resid, df)
     assert close(sm.deviance, dev, 1e-8) and close(sm.null_deviance, null_dev, 1e-8), (case, kind)
     out = {}
     for j, t in enumerate(REG_TERMS):
         out[f"coefficients.{t}"] = float(beta[j])
         out[f"std_errors.{t}"] = float(se[j])
-        out[f"p_values.{t}"] = float(2 * scipy.stats.norm.sf(abs(beta[j] / se[j])))
+        if gamma:
+            out[f"p_values.{t}"] = t_two_sided(beta[j] / se[j], df)
+        else:
+            out[f"p_values.{t}"] = float(2 * scipy.stats.norm.sf(abs(beta[j] / se[j])))
     out.update(deviance=dev, null_deviance=null_dev, pseudo_r2=1 - dev / null_dev)
+    if gamma:
+        out["df"] = df
     out.update(reg_floor(ws, idx, prob))
     return out
 
@@ -2497,11 +2516,15 @@ def regression_cases():
             elif case in REG_GLM_TARGETS:
                 figs = glm_closed_form(case, ws, kind)
                 if prob:
-                    src = ("IRLS on w* = w·n_eff/Σw, dispersion 1, cross-checked with statsmodels " +
-                           statsmodels.__version__ + " GLM(freq_weights = w*, scale = 1)")
+                    disp = ("dispersion Pearson χ²/(n_eff − q), t on n_eff − q, cross-checked with statsmodels " +
+                            statsmodels.__version__ + " GLM(freq_weights = w*)") if case == "glm_gamma" else (
+                        "dispersion 1, cross-checked with statsmodels " + statsmodels.__version__ +
+                        " GLM(freq_weights = w*, scale = 1)")
+                    src = "IRLS on w* = w·n_eff/Σw, " + disp
                 else:
                     adopt_r(case, figs, rfigs[case])
-                    src = f"{RREG[0]} glm on rep()-expanded rows, summary(dispersion = 1) (reg_reference.R)"
+                    how = "summary() (estimated dispersion)" if case == "glm_gamma" else "summary(dispersion = 1)"
+                    src = f"{RREG[0]} glm on rep()-expanded rows, {how} (reg_reference.R)"
             else:
                 figs = bayes_closed_form(ws)
                 src = ("NIG conjugate posterior (default prior) in closed form on the np.repeat "

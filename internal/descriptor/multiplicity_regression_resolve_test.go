@@ -238,6 +238,13 @@ func TestPredict_RegressionPValues(t *testing.T) {
 		}
 		return s
 	}
+	pen := func(s *types.RegressionSpec, penalty, resample string) *types.RegressionSpec {
+		s.Penalty, s.Alpha, s.Resample = penalty, 0.1, resample
+		if penalty == "elasticnet" {
+			s.L1Ratio = 0.5
+		}
+		return s
+	}
 	run := func(req *types.Request) (bool, *descriptor.PValueCount) {
 		t.Helper()
 		env := predictFromBytes(cohort, req, &PredictOptions{})
@@ -263,6 +270,13 @@ func TestPredict_RegressionPValues(t *testing.T) {
 		{"member OLS", &types.Request{Regressions: []*types.RegressionSpec{reg(types.REG_OLS, regm(mHolm, "", 0))}}, false, 10, 0},
 		{"member subset", &types.Request{Regressions: []*types.RegressionSpec{reg(types.REG_OLS, regm(mHolm, "", 0, "a", "(intercept)"))}}, false, 11, 9},
 		{"Bayes", &types.Request{Regressions: []*types.RegressionSpec{reg(types.REG_BAYES_LINEAR, nil)}}, false, 0, 0},
+		// reference-oracles E2-S3: an l1 / elasticnet fit without resample
+		// reports every p-value null (regpenalty.InferenceUndefined), so
+		// none is counted, corrected or not; under resample they count.
+		{"OLS l1", &types.Request{Regressions: []*types.RegressionSpec{pen(reg(types.REG_OLS, nil), "l1", "")}}, false, 0, 0},
+		{"GLM elasticnet member", &types.Request{Regressions: []*types.RegressionSpec{pen(reg(types.REG_GLM, regm(mHolm, "", 0)), "elasticnet", "")}}, false, 0, 0},
+		{"OLS l1 under bootstrap", &types.Request{Regressions: []*types.RegressionSpec{pen(reg(types.REG_OLS, nil), "l1", "bootstrap")}}, true, 10, 10},
+		{"OLS l2", &types.Request{Regressions: []*types.RegressionSpec{pen(reg(types.REG_OLS, nil), "l2", "")}}, true, 10, 10},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

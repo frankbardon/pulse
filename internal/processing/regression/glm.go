@@ -31,7 +31,9 @@ import (
 // evaluated at the final weights. The dispersion parameter is fixed at
 // 1 for binomial / poisson (the family assumption), so the Wald
 // statistic is β/SE compared to a standard normal — not a Student's t.
-// Gamma path is wired but not numerically validated this phase.
+// Gamma estimates it (glmFamily.EstimatesDispersion, reference-oracles
+// E2-S3): φ̂ = Pearson χ² / (N* − k), Cov(β) = φ̂·(XᵀWX)⁻¹ and β/SE on a
+// Student t with N* − k df — R's summary.glm on a Gamma glm.
 //
 // Weighted (U12 E4-S2, .claude/reference/weighting.md): the slot's row
 // weights enter as R glm prior weights on w* = w·N*/Σw — the working
@@ -206,13 +208,31 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	convergedIters := sol.Iters
 	lastInvXtWX := sol.Inverse
 
-	// Standard errors: diag of Cov(β) = (XᵀWX)⁻¹ at converged W.
+	// The dispersion the classical covariance reads: 1 (binomial,
+	// poisson), or gamma's estimate φ̂ = Pearson χ² / (N* − k) with the
+	// Student-t df N* − k (estimatedDispersion). A robust covariance is
+	// dispersion-free — φ cancels between bread and meat, as in R's
+	// sandwich — and stays Wald z, so it never reads φ̂.
+	phi, df, studentT := 1.0, 0.0, false
+	if e.family.EstimatesDispersion && !e.spec.Covariance.Robust() {
+		phi, df = e.estimatedDispersion(yVec, mu, prior, rw.basis.NStar(sumW, sumWSq))
+		studentT = true
+	}
+
+	// Standard errors: diag of Cov(β) = φ·(XᵀWX)⁻¹ at converged W.
+	// variances keeps the clamped, scaled diagonal so Vcov's diagonal is
+	// exactly StdErrors².
 	stdErrors := make([]float64, p+1)
+	variances := make([]float64, p+1)
 	for a := 0; a < p+1; a++ {
 		v := lastInvXtWX.At(a, a)
 		if v < 0 {
 			v = 0
 		}
+		if studentT {
+			v *= phi
+		}
+		variances[a] = v
 		stdErrors[a] = math.Sqrt(v)
 	}
 
@@ -238,9 +258,16 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 	nullDeviance, pseudoR2 := e.nullDeviance(yVec, prior, deviance)
 
 	// Package result. Coefficients[0] is the intercept; remaining
-	// entries map to spec.Predictors in order. We use Wald-z p-values
-	// (dispersion = 1 for binomial/poisson; gamma path is wired but
-	// not validated this phase).
+	// entries map to spec.Predictors in order. Wald-z p-values at
+	// dispersion 1 (binomial / poisson, and every robust fit); gamma's
+	// read a Student t on N* − k, R's summary.glm for an estimated
+	// dispersion.
+	pValue := func(coef, se float64) float64 {
+		if studentT {
+			return pValueForCoefficient(coef, se, df)
+		}
+		return waldZTwoSidedP(coef, se)
+	}
 	predictors := e.spec.Predictors
 	coefMap := make(map[string]float64, p+1)
 	seMap := make(map[string]float64, p+1)
@@ -248,12 +275,12 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 
 	coefMap[InterceptKey] = beta[0]
 	seMap[InterceptKey] = stdErrors[0]
-	pMap[InterceptKey] = waldZTwoSidedP(beta[0], stdErrors[0])
+	pMap[InterceptKey] = pValue(beta[0], stdErrors[0])
 
 	for i, name := range predictors {
 		coefMap[name] = beta[i+1]
 		seMap[name] = stdErrors[i+1]
-		pMap[name] = waldZTwoSidedP(beta[i+1], stdErrors[i+1])
+		pMap[name] = pValue(beta[i+1], stdErrors[i+1])
 	}
 
 	res := &types.RegressionResult{
@@ -271,25 +298,43 @@ func (e *glmEngine) FitBuffered(records []Record) (*types.RegressionResult, erro
 		ConvergedIters: convergedIters,
 	}
 	rw.note(res, sumW, sumWSq)
-	// Wald normal intervals, on the same basis as the Wald-z p-values.
-	attachIntervals(res, resolvedConfLevel(e.spec), 0, false)
+	// Intervals on the p-values' basis: Wald normal, or gamma's Student
+	// t on N* − k (DF set, null when N* − k ≤ 0).
+	attachIntervals(res, resolvedConfLevel(e.spec), df, studentT)
 	if robust != nil {
 		res.Covariance = robust.fit.info
 		if e.spec.Vcov {
 			attachVcov(res, predictors, robust.fit.v)
 		}
 	} else if e.spec.Vcov {
-		// Cov(β) = (XᵀWX)⁻¹ at the converged weights (dispersion 1), its
-		// diagonal the clamped variances the standard errors read.
-		diag := make([]float64, p+1)
-		for a := range diag {
-			if v := lastInvXtWX.At(a, a); v >= 0 || math.IsNaN(v) {
-				diag[a] = v
-			}
-		}
-		attachVcov(res, predictors, symVcov(p+1, lastInvXtWX.At, 1, diag))
+		// Cov(β) = φ·(XᵀWX)⁻¹ at the converged weights (φ = 1 but for
+		// gamma), its diagonal the clamped variances the standard errors
+		// read.
+		attachVcov(res, predictors, symVcov(p+1, lastInvXtWX.At, phi, variances))
 	}
 	return res, nil
+}
+
+// estimatedDispersion is the gamma dispersion estimate R's summary.glm
+// reads: the Pearson χ² Σ w*ᵢ·(yᵢ − μᵢ)²/V(μᵢ) over the fitted rows
+// divided by the residual df N* − k (k = p + 1 coefficients). N* is Σw*
+// — n unweighted, Σw under kind frequency (so the figure is the
+// rep()-expanded glm's), Kish n_eff under kind probability (the residual
+// df REG_OLS reads there; statsmodels GLM(freq_weights = w*)'s df_resid).
+// Both are NaN when N* − k ≤ 0 (R's NaN dispersion on zero residual df),
+// which makes every standard error, p-value and bound NaN — null on the
+// wire.
+func (e *glmEngine) estimatedDispersion(y, mu, prior []float64, nStar float64) (phi, df float64) {
+	df = nStar - float64(len(e.spec.Predictors)+1)
+	if !(df > 0) {
+		return math.NaN(), math.NaN()
+	}
+	chi2 := 0.0
+	for i := range y {
+		r := y[i] - mu[i]
+		chi2 += prior[i] * r * r / e.family.Variance(mu[i])
+	}
+	return chi2 / df, df
 }
 
 // nullDeviance returns the intercept-only model's deviance — μᵢ = ȳ

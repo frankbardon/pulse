@@ -25,7 +25,9 @@ import (
 //   - kind frequency — stock R 4.6.1 on the rep()-expanded rows
 //     (testdata/weight_reference/reg_reference.R): lm for REG_OLS and the
 //     attributes (predict(); leverage = f × one copy's hatvalues()), glm
-//     with summary(dispersion = 1) for REG_GLM; scikit-learn on the
+//     with summary(dispersion = 1) for REG_GLM binomial / poisson and the
+//     default summary() for gamma (estimated dispersion, t p-values on
+//     df.residual, df pinned too); scikit-learn on the
 //     expansion for the penalised β; REG_BAYES_LINEAR (frequency-only)
 //     against its conjugate posterior in closed form on the expansion —
 //     no stock package fits that prior;

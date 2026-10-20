@@ -129,8 +129,9 @@ All additive, present only when a correction ran:
 `pulse predict` applies the same rules to a request without running it
 and reports `p_values {total, uncorrected, basis, threshold}`: how many
 inferential p-values the request emits (a `REG_OLS` / `REG_GLM`
-regression counts one per non-intercept predictor) and how many no block
-reaches.
+regression counts one per non-intercept predictor, none on an `l1` /
+`elasticnet` fit without `resample`, whose p-values are `null`) and how
+many no block reaches.
 `threshold` is 10 (`descriptor.MultiplicityTriggerThreshold`); an
 `uncorrected` count at or above it is the cue to add a block. `basis` is
 `exact`, `dictionary` (assumes every dictionary entry of a category axis

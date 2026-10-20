@@ -453,3 +453,9 @@ source(file.path(script_dir, "gen_test_outputs.R"), local = FALSE)
 # case per post family at R's default NA handling (listwise), reusing the
 # helpers of gen_test_outputs.R above; base stats + nortest + jsonlite.
 source(file.path(script_dir, "gen_post_tests.R"), local = FALSE)
+
+# The REG_GLM gamma golden (glm_gamma.json: summary.glm's estimated
+# dispersion, t-based p-values and intervals, vcov(glm) on three seeded
+# or inline designs, dispersion self-checked against the Pearson
+# chi-square); base stats + jsonlite. Draws its own seeded rows last.
+source(file.path(script_dir, "gen_glm_gamma.R"), local = FALSE)

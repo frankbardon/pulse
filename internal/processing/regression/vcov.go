@@ -16,7 +16,8 @@ import (
 //     with the centred slopes) and Var(β₀) exactly as the SE uses it.
 //   - REG_OLS ridge: the same assembly over the sandwich
 //     σ̂²·(M2_xx + Σw·λ·I)⁻¹·M2_xx·(M2_xx + Σw·λ·I)⁻¹.
-//   - REG_GLM: (XᵀWX)⁻¹ at the converged working weights (dispersion 1).
+//   - REG_GLM: φ·(XᵀWX)⁻¹ at the converged working weights — φ = 1 for
+//     binomial / poisson, gamma's Pearson χ²/(N* − k) estimate.
 //   - REG_BAYES_LINEAR: the posterior covariance b_n/(a_n−1)·Λ_n⁻¹.
 //
 // On REG_OLS / REG_GLM the diagonal is the exact pre-square-root

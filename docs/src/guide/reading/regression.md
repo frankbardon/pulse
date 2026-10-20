@@ -131,12 +131,12 @@ The change in the linear predictor, on the link scale, for a one-unit increase i
 
 #### `std_errors.*`
 
-How much the coefficient would vary from sample to sample, from the inverse of the fitted information matrix, with the dispersion fixed at 1.
+How much the coefficient would vary from sample to sample, from the inverse of the fitted information matrix: with the dispersion fixed at 1 for binomial and Poisson, and scaled by the estimated dispersion for gamma.
 
 **Caveats:**
 
 - With overdispersion (counts varying more than their mean) the Poisson standard errors are too small.
-- Gamma data rarely have dispersion 1, so gamma standard errors are unreliable.
+- The gamma dispersion is estimated as the Pearson chi-square over the residual df, as R's summary.glm does, so gamma standard errors need no dispersion assumption; with no residual df (as many rows as coefficients) they are null.
 - Unless the request's covariance names a robust one: hc0-hc3 (sandwich over the fit's scores, which also absorbs overdispersion), cluster (rows grouped by a field) or hac (a series in time); p_values, the intervals and vcov follow it, still Wald z.
 - On an l2 fit it is the penalized sandwich, which treats the shrinkage as fixed; on an l1 or elasticnet fit it is null on every coefficient (the data pick the predictors, so no analytical standard error is valid); request resample for replicate ones.
 
@@ -144,38 +144,47 @@ How much the coefficient would vary from sample to sample, from the inverse of t
 
 **Caveats:**
 
-- Wald z at dispersion fixed to 1: with overdispersed counts the Poisson p-values come out too small, and gamma p-values are unreliable.
+- Binomial and Poisson: Wald z at dispersion fixed to 1, so with overdispersed counts the Poisson p-values come out too small. Gamma: a Student t on df, because its dispersion is estimated (R's summary.glm); a robust covariance makes it Wald z again.
 - The request's alpha param is the penalty strength, not a significance level; on an l2 fit the coefficients are shrunk on purpose, so these p-values do not have the usual reading, and on an l1 or elasticnet fit they are null.
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
 #### `ci_lower.*`
 
-Lower bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) a standard normal critical value times its standard error (a Wald interval), on the link scale.
+Lower bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) a critical value times its standard error, on the link scale: standard normal (a Wald interval) for binomial and Poisson, Student t on df for gamma.
 
 **Caveats:**
 
 - It is a statement about the method, not this one range: intervals built this way cover the true coefficient in about conf_level of repeated samples, if the model's assumptions hold.
 - Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
-- Wald at dispersion fixed to 1: too narrow with overdispersed counts, unreliable for gamma, and poor near separation in a logistic model.
+- Binomial and Poisson read dispersion fixed to 1: too narrow with overdispersed counts, and poor near separation in a logistic model.
 - Raised to the power e, the bounds of a binomial or Poisson coefficient bound its odds ratio or rate ratio.
 - On an l2 fit the interval is centred on a shrunken coefficient, so it does not have the usual coverage; on an l1 or elasticnet fit both bounds are null.
 
 #### `ci_upper.*`
 
-Upper bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) a standard normal critical value times its standard error (a Wald interval), on the link scale.
+Upper bound of the coefficient's two-sided confidence interval at conf_level: the coefficient minus (lower) or plus (upper) a critical value times its standard error, on the link scale: standard normal (a Wald interval) for binomial and Poisson, Student t on df for gamma.
 
 **Caveats:**
 
 - It is a statement about the method, not this one range: intervals built this way cover the true coefficient in about conf_level of repeated samples, if the model's assumptions hold.
 - Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
-- Wald at dispersion fixed to 1: too narrow with overdispersed counts, unreliable for gamma, and poor near separation in a logistic model.
+- Binomial and Poisson read dispersion fixed to 1: too narrow with overdispersed counts, and poor near separation in a logistic model.
 - Raised to the power e, the bounds of a binomial or Poisson coefficient bound its odds ratio or rate ratio.
 - On an l2 fit the interval is centred on a shrunken coefficient, so it does not have the usual coverage; on an l1 or elasticnet fit both bounds are null.
 
 #### `conf_level`
 
 The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95 by default).
+
+#### `df`
+
+Gamma only: the residual degrees of freedom n - p - 1 (sum_weights or n_eff in place of n on a weighted fit, so it can be fractional) that the estimated dispersion divides by and the p-values' and intervals' Student t reads.
+
+**Caveats:**
+
+- Absent on binomial and Poisson fits, whose dispersion is fixed at 1, and on any fit under a robust covariance or resample, which use the normal.
+- Null when it is 0 or below: no residual df to estimate the dispersion from, so the standard errors, p-values and bounds are null too.
 
 #### `deviance`
 

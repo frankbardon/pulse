@@ -9,7 +9,8 @@ import "github.com/frankbardon/pulse/descriptor"
 // internal/processing/regression): classic (not robust) OLS standard
 // errors with Student-t p-values on n - p - 1 degrees of freedom; GLM
 // on the canonical link only, with Wald-z p-values at a dispersion
-// fixed to 1; a conjugate Normal-Inverse-Gamma Bayesian fit with one
+// fixed to 1 (binomial / poisson) or Student-t p-values on the residual
+// df under gamma's estimated dispersion; a conjugate Normal-Inverse-Gamma Bayesian fit with one
 // scalar prior precision on every coefficient, intercept included, and
 // equal-tailed Student-t credible intervals. Every Purpose says that a
 // coefficient describes association holding the other predictors fixed,
@@ -104,10 +105,9 @@ var (
 			"The family must match the outcome: binomial needs a 0/1 (or packed_bool) target, Poisson non-negative counts, gamma positive values.",
 			"Only the canonical link runs for each family (logit for binomial, log for Poisson, inverse for gamma); " +
 				"the predictors act linearly on that link scale.",
-			"Each p-value is a Wald z test of the null hypothesis that its coefficient is 0 given the other predictors, " +
-				"with the dispersion fixed at 1. Overdispersed counts (variance above the mean) make Poisson p-values too small; " +
-				"gamma data rarely have dispersion 1, so gamma standard errors and p-values are unreliable, and the gamma path " +
-				"is not yet checked against a reference implementation.",
+			"Each p-value tests the null hypothesis that its coefficient is 0 given the other predictors: a Wald z with the dispersion " +
+				"fixed at 1 for binomial and Poisson, where overdispersed counts (variance above the mean) make Poisson p-values too small; " +
+				"a Student t on the residual df for gamma, whose dispersion is estimated from the data as R's glm does.",
 			"If a predictor separates the 0s from the 1s perfectly in a logistic model, the fit cannot converge and Pulse refuses it.",
 			regAssociationOnly,
 			regCollinearity,
