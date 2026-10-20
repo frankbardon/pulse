@@ -117,15 +117,24 @@ type CreateShardArchiveResult struct {
 	Warnings []encx.CohesionWarning `json:"warnings"`
 }
 
-// shardPayload is one archive entry held in memory during a rebuild.
+// shardPayload is one archive entry held in memory (CreateShardArchive's
+// seed list; see memShards).
 type shardPayload struct {
 	name    string
 	payload []byte
 }
 
 // applySetWidening executes a SetWidenPlan set against the canonical
-// schema, every existing shard payload and the incoming shard payload,
-// returning the widened canonical schema and one SetWidening per plan.
+// schema and the incoming shard payload, and PLANS it for every stored
+// shard: it returns the widened canonical schema, the widened incoming
+// bytes, one SetWidening per plan, and the plans that move the ARCHIVE
+// (From != To) — which the caller turns into a storedRewrite
+// (widenStoredRewrite) applied to each stored shard as it streams into
+// the rewritten archive. No stored payload is read here: the
+// SetWidening record counts come header-only from stored.shardRecords,
+// which is exact because a widen re-lays-out every record and refuses a
+// payload that ends mid-record (so a floored count is never reported
+// for a rewrite that succeeds).
 //
 // The canonical schema and the shard payloads go through the SAME
 // encoding helper pair (WidenSchemaSetField / WidenSetFieldBytes, which
@@ -144,16 +153,15 @@ type shardPayload struct {
 // incoming shard rising to meet the archive — and both are reachable
 // from an ordinary re-import.
 //
-// existing and incoming are mutated in place (their payload slices are
-// replaced, never edited), so the caller's slices carry the widened
-// bytes on return.
+// stored may be nil (the cohesion precheck has no stored shards).
 func applySetWidening(
 	plans []encx.SetWidenPlan,
 	canonical *encoding.Schema,
-	existing []shardPayload,
+	stored storedShards,
 	incoming []byte,
-) (*encoding.Schema, []byte, []SetWidening, error) {
+) (*encoding.Schema, []byte, []SetWidening, []encx.SetWidenPlan, error) {
 	widenings := make([]SetWidening, 0, len(plans))
+	var archivePlans []encx.SetWidenPlan
 	for _, plan := range plans {
 		var records int64
 		shards := 0
@@ -163,19 +171,20 @@ func applySetWidening(
 		if plan.From != plan.To {
 			next, err := encx.WidenSchemaSetField(canonical, plan.Field, plan.To)
 			if err != nil {
-				return nil, nil, nil, err
+				return nil, nil, nil, nil, err
 			}
 			canonical = next
+			archivePlans = append(archivePlans, plan)
 
-			for i := range existing {
-				out, rep, werr := encx.WidenSetFieldBytes(existing[i].payload, plan.Field, plan.To)
-				if werr != nil {
-					return nil, nil, nil, errors.WrapCodedError(werr, errors.PULSE_SHARD_SCHEMA_MISMATCH,
-						fmt.Sprintf("widening set field %q in shard %q", plan.Field, existing[i].name))
+			if stored != nil {
+				for i := range stored.shardCount() {
+					n, err := stored.shardRecords(i)
+					if err != nil {
+						return nil, nil, nil, nil, err
+					}
+					records += n
+					shards++
 				}
-				existing[i].payload = out
-				records += rep.Records
-				shards++
 			}
 		}
 
@@ -185,7 +194,7 @@ func applySetWidening(
 		if plan.IncomingFrom != plan.To {
 			out, rep, werr := encx.WidenSetFieldBytes(incoming, plan.Field, plan.To)
 			if werr != nil {
-				return nil, nil, nil, errors.WrapCodedError(werr, errors.PULSE_SHARD_SCHEMA_MISMATCH,
+				return nil, nil, nil, nil, errors.WrapCodedError(werr, errors.PULSE_SHARD_SCHEMA_MISMATCH,
 					fmt.Sprintf("widening set field %q in the incoming shard", plan.Field))
 			}
 			incoming = out
@@ -203,7 +212,34 @@ func applySetWidening(
 			RecordsRewritten: records,
 		})
 	}
-	return canonical, incoming, widenings, nil
+	return canonical, incoming, widenings, archivePlans, nil
+}
+
+// widenPayload applies the archive-level plans to one stored shard's
+// payload, in plan order — the order applySetWidening widened the
+// canonical schema in, so the shard's schema block and the canonical
+// one agree by construction.
+func widenPayload(plans []encx.SetWidenPlan, name string, payload []byte) ([]byte, error) {
+	for _, plan := range plans {
+		out, _, err := encx.WidenSetFieldBytes(payload, plan.Field, plan.To)
+		if err != nil {
+			return nil, errors.WrapCodedError(err, errors.PULSE_SHARD_SCHEMA_MISMATCH,
+				fmt.Sprintf("widening set field %q in shard %q", plan.Field, name))
+		}
+		payload = out
+	}
+	return payload, nil
+}
+
+// widenStoredRewrite is the storedRewrite for an archive-level widen of
+// an ungrouped archive; nil when no plan moves the archive.
+func widenStoredRewrite(plans []encx.SetWidenPlan) storedRewrite {
+	if len(plans) == 0 {
+		return nil
+	}
+	return func(name string, payload []byte) ([]byte, error) {
+		return widenPayload(plans, name, payload)
+	}
 }
 
 // setWidenedWarning renders the mandatory PULSE_SHARD_SET_WIDENED

@@ -1,23 +1,21 @@
 package service
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
-	"fmt"
 
-	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
-	"github.com/spf13/afero"
 )
 
 // CompactShardArchive rewrites the archive at archivePath to eliminate
 // orphaned bytes from prior in-place mutations and refresh the canonical
 // schema-doc metadata (aggregate_record_count + shard_count). The
-// rewrite reads every shard payload (excluding the reserved
+// rewrite copies every shard payload (excluding the reserved
 // `_schema.pulse` entry) in central-directory order, re-emits the
-// canonical schema with the recomputed metadata, and writes the result
-// via the standard atomic temp+rename pattern (§7.1).
+// canonical schema with the recomputed metadata, and streams the result
+// into a staged archive published by one rename (archiveWriter): each
+// shard is copied raw (zip CreateRaw from a SectionReader), so memory
+// is one copy buffer and a Pulse-written archive whose metadata is
+// already current re-emits byte-identically.
 //
 // v1 note: AddShard / RemoveShard already use temp+rename for the
 // whole-archive rewrite, so v1 archives never accumulate orphan bytes
@@ -38,81 +36,31 @@ import (
 func (s *Service) CompactShardArchive(ctx context.Context, archivePath string) error {
 	fsys := s.fs.Fs()
 
-	archiveBytes, err := afero.ReadFile(fsys, archivePath)
-	if err != nil {
-		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("CompactShardArchive: reading archive %s", archivePath))
-	}
-	arch, err := encx.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	a, err := openArchiveFile(fsys, archivePath)
 	if err != nil {
 		return err
 	}
+	defer a.Close()
 
 	// Read canonical schema. Compact never grows the schema — it only
 	// updates the metadata extension (aggregate + count) from the live
 	// shards.
-	canonicalDoc, err := readSchemaDocEntry(arch)
+	canonicalDoc, err := readSchemaDocEntry(a.arch)
 	if err != nil {
 		return err
 	}
 
-	// Enumerate every real shard in central-directory order, draining
-	// its bytes for re-emission. Reserved schema entry is excluded.
-	type entry struct {
-		name    string
-		payload []byte
-	}
-	kept := make([]entry, 0, len(arch.Entries()))
-	for _, e := range arch.Entries() {
+	// Every real shard in central-directory order; the reserved schema
+	// entry is excluded and re-emitted refreshed. The aggregate is the
+	// shards' own headers summed (PeekShardRecordCount) — the
+	// refresh-canonical-metadata step that justifies Compact's
+	// existence — and each shard is copied raw, never decoded.
+	kept := &archiveShards{a: a}
+	for _, e := range a.arch.Entries() {
 		if e.Name == encx.ReservedSchemaName {
 			continue
 		}
-		payload, perr := readEntryBytes(arch, e.Name)
-		if perr != nil {
-			return perr
-		}
-		kept = append(kept, entry{name: e.Name, payload: payload})
+		kept.names = append(kept.names, e.Name)
 	}
-
-	// Recompute aggregate record count from the live shards' payloads
-	// against the canonical schema. This is the refresh-canonical-
-	// metadata step that justifies Compact's existence in v1.
-	var aggregate uint64
-	for _, e := range kept {
-		n, perr := recordCountFromBytes(e.payload, canonicalDoc.Schema)
-		if perr != nil {
-			return perr
-		}
-		aggregate += uint64(n)
-	}
-
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-
-	schemaPayload, err := buildSchemaDocPayload(canonicalDoc.Schema, aggregate, uint16(len(kept)))
-	if err != nil {
-		return err
-	}
-	if err := writeArchiveEntry(zw, encx.ReservedSchemaName, schemaPayload); err != nil {
-		return err
-	}
-	for _, e := range kept {
-		if err := writeArchiveEntry(zw, e.name, e.payload); err != nil {
-			return err
-		}
-	}
-	if err := zw.Close(); err != nil {
-		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			"CompactShardArchive: finalising zip writer")
-	}
-
-	return atomicWriteCompact(fsys, archivePath, buf.Bytes())
-}
-
-// atomicWriteCompact is a thin pass-through to the shared atomicWrite
-// helper. Kept as a named wrapper so future Compact-specific telemetry
-// (rename-fsync, durability hooks) lands cleanly without surgery on
-// the broader admin path.
-func atomicWriteCompact(fsys afero.Fs, dst string, data []byte) error {
-	return atomicWrite(fsys, dst, data)
+	return rewriteKeptShards(fsys, a, archivePath, canonicalDoc.Schema, kept)
 }

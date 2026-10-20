@@ -2795,9 +2795,11 @@ type CreateShardArchiveResult = service.CreateShardArchiveResult
 // archive's canonical schema and appends it. Dict growth that the
 // incoming shard introduces is reflected in the rewritten
 // `_schema.pulse` payload before the new shard payload is appended.
-// v1 reads the whole archive into memory and writes it back via
-// temp+fsync+rename — semantically equivalent to true in-place append
-// and crash-safe at the canonical-path level.
+// The new archive is streamed into a staged file beside the original
+// (stored shards copied raw, never decoded; memory O(the new shard)) and
+// published by fsync + rename + directory fsync, so the original stays
+// byte-identical until the rename and a crashed stage is swept by the
+// next mutation.
 //
 // A merged dictionary that outgrows a set_* field's bitmask WIDENS the
 // field across the canonical schema and every shard payload instead of

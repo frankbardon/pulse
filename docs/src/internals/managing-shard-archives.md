@@ -31,9 +31,11 @@ pulse shard create q1_2019.pulse \
 
 ## 2. Append a shard
 
-Validates cohesion + dict prefix, grows the canonical dict if needed
-(rewriting `_schema.pulse` before placing the new shard), then in-place
-appends the payload:
+Validates cohesion + dict prefix, grows the canonical dict if needed,
+then streams a new archive into a staged file beside the original — a
+refreshed `_schema.pulse`, every stored shard copied raw, the new shard
+last — and renames it over the original (see
+[The rewrite contract](#the-rewrite-contract)):
 
 ```bash
 pulse shard add q1_2019.pulse 20190122.pulse
@@ -114,9 +116,9 @@ fed together. `Pulse.CreateShardArchive` therefore returns a
 `AddShard` returns a result — so the mandatory warning has nowhere to be
 dropped.
 
-The rewrite is atomic (temp file + fsync + rename), so a failure
-mid-rewrite leaves the original archive byte-identical and openable at
-its old rung. It is also **never silent**: every widen emits a
+The rewrite is atomic ([The rewrite contract](#the-rewrite-contract)),
+so a failure or crash mid-rewrite leaves the original archive
+byte-identical and openable at its old rung. It is also **never silent**: every widen emits a
 mandatory `PULSE_SHARD_SET_WIDENED` warning naming the field, the old
 rung, the new rung and the number of shards rewritten, on the `--json`
 envelope's `warnings` array and on the text output.
@@ -185,11 +187,45 @@ pulse shard verify q1_2019.pulse
 ## 5. Compact
 
 Reclaims orphan bytes (e.g. after `pulse shard remove`) and refreshes
-canonical metadata (`aggregate_record_count`, `shard_count`):
+canonical metadata (`aggregate_record_count`, `shard_count`). Compacting
+an archive whose metadata is already current reproduces it byte for
+byte:
 
 ```bash
 pulse shard compact q1_2019.pulse
 ```
+
+## The rewrite contract
+
+`create`, `add`, `remove` and `compact` (and `cohort filter` writing an
+archive) never edit an archive in place, and never build it in memory:
+
+- **Streamed into a stage.** The new archive is written to
+  `<archive>.pulse.tmp-staged` in the same directory: the refreshed
+  `_schema.pulse` first (its aggregate summed from each shard's own
+  header, never a decode), then each stored shard copied **raw** —
+  `zip.Writer.CreateRaw` from a section of the old file, source CRC and
+  sizes verbatim, no decode — then the new shard. Memory is the arriving
+  shard plus fixed copy buffers, whatever the archive's size; I/O is the
+  archive's size. A deflated entry (a third-party zip tool's) is inflated
+  and re-stored instead.
+- **When the archive itself moves** (an archive-level set widen, a
+  constant-group promotion), each stored shard is read one at a time and
+  re-encoded on its way into the stage; a promotion first runs a
+  discovery pass over every shard to fix the final group dictionaries.
+  The mandatory warning's `shards_rewritten` / `records_rewritten` are
+  exact.
+- **Published by one rename.** The stage is flushed and fsynced, renamed
+  over the archive, and the directory fsynced. Until that rename the
+  original is byte-identical; a crash before it leaves the original
+  openable and the stage behind, and the next mutation of that archive
+  sweeps every `<archive>.pulse.tmp-*` (other archives' stages are left
+  alone).
+- **Not verified on the way through.** A raw copy does not re-check a
+  stored shard's CRC; `pulse shard verify` is the diagnostic arm.
+
+In-place tail append is not done: it would give up the "original
+byte-identical until the rename" guarantee the widen path relies on.
 
 ## 6. Anchor syntax
 
@@ -222,6 +258,7 @@ For maintainers extending the sharding internals, the surface lives in:
 | `internal/encoding/shard_groups.go` | `FlattenCohortBytes`, `ValidateGroupCohesion`, group prefix rule, `GroupIndexHeadroomFor` |
 | `internal/encoding/widen.go` | The re-stride engine (`WidenSetFieldBytes` / `WidenSchemaSetField`) |
 | `internal/service/shard_compact.go` | `compact` |
+| `internal/service/shard_stream.go` | The streaming archive writer (staged file, raw copy, sweep, fsync + rename + directory fsync) shared by every mutation |
 | `internal/service/shard_verify.go` | `verify` |
 | `internal/service/anchor_overlay.go` | Anchor-syntax overlay |
 | `internal/cli/shard.go` | CLI thin adapter |

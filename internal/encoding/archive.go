@@ -235,3 +235,92 @@ func (a *Archive) PeekShardHeader(name string) error {
 	}
 	return nil
 }
+
+// zip64ExtraID is the zip64 extended-information extra-field tag.
+const zip64ExtraID = 0x0001
+
+// CopyStoredEntry copies the named store-only entry into zw RAW: the
+// entry's stored bytes are read through a SectionReader at its data
+// offset and handed to zip.Writer.CreateRaw under a copy of the source
+// header, so nothing is decoded, re-hashed or held — the copy costs
+// one buf of memory however large the entry is. buf is the copy
+// buffer (nil allocates io.Copy's default).
+//
+// CreateRaw trusts the header it is given: the CRC-32 and sizes are the
+// source central directory's, written verbatim, and the stored bytes
+// are NOT re-verified against that CRC (a reader verifies it on every
+// full read; `pulse shard verify` is the diagnostic arm). The header is
+// the source's own, so a Pulse-written entry re-emits byte-identically
+// (TestShardStream_CompactIsByteIdentity) — except its zip64 extra
+// field, which is stripped: zip.Writer.Close appends a fresh one sized
+// to the entry's NEW offset, and a copied one would sit beside it as a
+// duplicate.
+//
+// A deflated entry is refused with PULSE_ARCHIVE_CORRUPT: its section
+// holds compressed bytes, and a raw copy would carry them into an
+// archive whose every record path refuses them. Callers re-store a
+// deflated entry by streaming it through Open instead. An unknown name
+// is PULSE_SHARD_MISSING.
+func (a *Archive) CopyStoredEntry(zw *zip.Writer, name string, buf []byte) error {
+	f, ok := a.byName[name]
+	if !ok {
+		return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_MISSING,
+			fmt.Sprintf("shard %q not present in archive central directory", name),
+			map[string]any{"entry": name})
+	}
+	if f.Method != zip.Store {
+		return errors.NewCodedErrorWithDetails(errors.PULSE_ARCHIVE_CORRUPT,
+			"archive entry is not store-only, so it cannot be copied raw",
+			map[string]any{"entry": name})
+	}
+	sect, err := a.OpenAt(name)
+	if err != nil {
+		return err
+	}
+	fh := f.FileHeader
+	fh.Extra = StripZip64Extra(fh.Extra)
+	w, err := zw.CreateRaw(&fh)
+	if err != nil {
+		return errors.WrapCodedError(err, errors.ENCODING_IO,
+			fmt.Sprintf("creating raw archive entry %q", name))
+	}
+	n, err := io.CopyBuffer(w, &sect, buf)
+	if err != nil {
+		return errors.WrapCodedError(err, errors.ENCODING_IO,
+			fmt.Sprintf("copying archive entry %q", name))
+	}
+	if n != int64(f.CompressedSize64) {
+		return errors.NewCodedErrorWithDetails(errors.PULSE_ARCHIVE_CORRUPT,
+			fmt.Sprintf("archive entry %q is shorter than its central-directory size", name),
+			map[string]any{"entry": name, "bytes": n, "size": f.CompressedSize64})
+	}
+	return nil
+}
+
+// StripZip64Extra returns extra with every zip64 extended-information
+// block removed, keeping every other block in order. A malformed tail
+// (a block header that overruns the field) is kept verbatim. The input
+// is never modified.
+func StripZip64Extra(extra []byte) []byte {
+	if len(extra) == 0 {
+		return extra
+	}
+	out := make([]byte, 0, len(extra))
+	rest := extra
+	for len(rest) >= 4 {
+		tag := uint16(rest[0]) | uint16(rest[1])<<8
+		size := int(uint16(rest[2]) | uint16(rest[3])<<8)
+		if 4+size > len(rest) {
+			break
+		}
+		if tag != zip64ExtraID {
+			out = append(out, rest[:4+size]...)
+		}
+		rest = rest[4+size:]
+	}
+	out = append(out, rest...)
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
