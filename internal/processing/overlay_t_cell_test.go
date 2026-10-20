@@ -2,10 +2,9 @@ package processing
 
 import (
 	"encoding/json"
-	"math"
+	"fmt"
 	"testing"
 
-	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -50,8 +49,11 @@ func captureLayerTVsRef(t *testing.T, spec types.ComposeOverlaySpec, ref, target
 	return layer, warnings
 }
 
-func expectedMatrixPValueScalar() float64 {
-	return statdist.StudentTTwoSidedP(1.0, 2.0)
+// expectedMatrixPValueScalar is R's Welch p for t = 1 on 2 df
+// (overlay_two_sample.json "unit_t1_df2", 1 - 1/sqrt(3)) — never the
+// statdist helper the overlay calls.
+func expectedMatrixPValueScalar(t *testing.T) float64 {
+	return twoSampleOracleCase(t, "unit_t1_df2").WelchP
 }
 
 func TestOverlayTCell_NonRegression_ScalarParamsByteIdentical(t *testing.T) {
@@ -87,29 +89,25 @@ func TestOverlayTCell_NonRegression_ScalarParamsByteIdentical(t *testing.T) {
 	// Build the expected JSON from the same byte-stable primitives
 	// the handler produces. We assert byte-identity of the wire bytes
 	// — any reorder of MatrixPayload fields or Summary fields would
-	// surface here. The expected value is constructed inline (no
-	// hand-transcribed decimals) so the canonical math the handler
-	// reuses is the same source of truth.
-	want := buildExpectedTCellMatrixJSON(t, expectedMatrixPValueScalar(), 0.99)
+	// surface here. The shape is built around the handler's own p; the
+	// p itself is held to R below.
+	mx := layer.Payload.Matrix
+	gotP := mx.Cells[0][0].Value.(float64)
+	want := buildExpectedTCellMatrixJSON(t, gotP, 0.99)
 
 	if string(got) != string(want) {
 		t.Errorf("byte-identity violated for scalar+Params path:\n got: %s\nwant: %s",
 			string(got), string(want))
 	}
 
-	mx := layer.Payload.Matrix
-	gotP := mx.Cells[0][0].Value.(float64)
-	wantP := expectedMatrixPValueScalar()
-	if math.Float64bits(gotP) != math.Float64bits(wantP) {
-		t.Errorf("p-value bit drift vs statdist.StudentTTwoSidedP(1,2): got=%v want=%v", gotP, wantP)
-	}
+	oracleRelClose(t, "T_CELL p (t = 1, df = 2)", gotP, expectedMatrixPValueScalar(t))
 }
 
 // expectedSeriesPValueScalar mirrors expectedMatrixPValueScalar for
 // the SERIES-host snapshot. Same Welch math (target_val=10, ref_val=9,
 // variance=1, n=2 defaults).
-func expectedSeriesPValueScalar() float64 {
-	return statdist.StudentTTwoSidedP(1.0, 2.0)
+func expectedSeriesPValueScalar(t *testing.T) float64 {
+	return twoSampleOracleCase(t, "unit_t1_df2").WelchP
 }
 
 func TestOverlayTVsRef_NonRegression_ScalarParamsByteIdentical(t *testing.T) {
@@ -135,23 +133,21 @@ func TestOverlayTVsRef_NonRegression_ScalarParamsByteIdentical(t *testing.T) {
 	}
 	got := snapshotJSON(t, layer)
 
-	want := buildExpectedTVsRefSeriesJSON(t, expectedSeriesPValueScalar(), keys)
+	gotP := *layer.Payload.Series.Entries[0].Summary.Statistic
+	want := buildExpectedTVsRefSeriesJSON(t, gotP, keys)
 
 	if string(got) != string(want) {
 		t.Errorf("byte-identity violated for scalar+Params series path:\n got: %s\nwant: %s",
 			string(got), string(want))
 	}
 
-	// Bit-equal p-value sanity guard.
+	// Every entry's p against R.
 	series := layer.Payload.Series
 	for i, entry := range series.Entries {
 		if entry.Summary.Statistic == nil {
 			t.Fatalf("entry %d Statistic unset", i)
 		}
-		if math.Float64bits(*entry.Summary.Statistic) != math.Float64bits(expectedSeriesPValueScalar()) {
-			t.Errorf("entry %d p-value bit drift: got=%v want=%v",
-				i, *entry.Summary.Statistic, expectedSeriesPValueScalar())
-		}
+		oracleRelClose(t, fmt.Sprintf("entry %d p", i), *entry.Summary.Statistic, expectedSeriesPValueScalar(t))
 	}
 }
 

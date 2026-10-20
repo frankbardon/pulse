@@ -284,13 +284,13 @@ var (
 				"0 means the two tables have the same mix; read the p-value rather than the raw value.",
 			Caveats: []string{
 				overlayChiSqScale,
-				"Cells the reference never shows (reference count 0) are left out of the statistic and df, even when the target has counts there; those counts still set the scale. " +
-					"A shift into new cells is not detected, so check them directly (OVERLAY_DELTA_VS_REF).",
+				"Cells the reference never shows (reference count 0) are left out of the statistic, the target's total and df, so the target is compared over the cells both share. " +
+					"Target counts in such a cell are impossible under the reference mix: Pulse warns (PULSE_OVERLAY_REF_ZERO) once per cell. Read those warnings as departures in their own right.",
 			},
 		},
 		{
 			Field: "summary.parameters.df",
-			Means: "Degrees of freedom: the number of cells present in both requests with a positive expected count, minus 1.",
+			Means: "Degrees of freedom: the number of cells present in both requests with a positive reference count, minus 1.",
 			Caveats: []string{
 				"Because the reference shares are taken as fixed, df is cells - 1, not the (rows - 1) x (columns - 1) of a test that treats both tables as samples (TEST_CHISQ on stacked rows).",
 			},
@@ -558,6 +558,7 @@ var (
 			Caveats: []string{
 				"Each cell holds the two-sided p-value for one pair, from a t curve on n_i + n_j - 2 degrees of freedom after a probit transform of each share; it is absent when a leg is unreadable or the test is degenerate.",
 				"The probit simplification differs from the textbook two-proportion test (OVERLAY_PAIRWISE_PROP_Z), so the two give different p-values for the same cells.",
+				"Its standard error is the convention sqrt(1/n_i + 1/n_j), not the spread a probit-scale share actually has, so the p-value is a market-research convention rather than a calibrated test; Pulse reproduces that formula exactly, and no standard statistics package offers it as a test.",
 				overlayPairMultiComp,
 				overlayPairNoEffect,
 			},
@@ -681,6 +682,7 @@ var (
 				"With few rows the test has low power and misses real differences; with very many rows even trivial differences in shape give small p-values.",
 				"It compares two observed distributions. It is not valid for testing against a named distribution with parameters estimated from the data, which needs the Lilliefors correction.",
 				"It is a two-sided large-sample approximation built from the full row counts in summary.parameters, while D comes from the binned curves.",
+				"The approximation is Stephens' corrected formula, not the exact small-sample p of the two-sample Kolmogorov-Smirnov test (TEST_KS, which needs raw values): below about 10,000 for n_subset x n_pop the two can differ by a factor of two or more, so run TEST_KS on the rows when the exact p matters.",
 			},
 		},
 		{

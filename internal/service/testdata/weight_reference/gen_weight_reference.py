@@ -1489,6 +1489,15 @@ def ov_request(case, kind):
              "targets": ["sub"], "params": OV_SERIES_PARAMS},
             {"name": "z", "kind": "OVERLAY_Z_VS_REF", "scope": "group", "reference": "total",
              "targets": ["sub"], "params": OV_SERIES_PARAMS}]}
+    if case == "ov_compose_series_welford":
+        # An ENGINE AGG_WELFORD series (U36 E3-S1): each row's leg is read
+        # from the slot's per-group components (mean, variance / m2, n
+        # and the weighted floor), never from params.
+        body = {"groups": [{"type": "GROUP_CATEGORY", "field": "k"}],
+                "aggregations": [{"type": "AGG_WELFORD", "field": "x", "label": "cell"}]}
+        return {"requests": [ov_slot("total", None, body), ov_slot("sub", OV_SUB, body)], "overlays": [
+            {"name": "t", "kind": "OVERLAY_T_VS_REF", "scope": "group", "reference": "total", "targets": ["sub"]},
+            {"name": "z", "kind": "OVERLAY_Z_VS_REF", "scope": "group", "reference": "total", "targets": ["sub"]}]}
     if case == "ov_compose_props":
         body = {"crosstab": ov_xt("h", "o", OV_COUNT)}
         return {"requests": [ov_slot("total", None, body), ov_slot("sub", OV_SUB, body),
@@ -1523,7 +1532,8 @@ def ov_request(case, kind):
 
 
 OV_CASES = ["ov_chisq", "ov_std_residual", "ov_symmetry", "ov_fisher", "ov_pairwise_welch", "ov_pairwise_prop",
-            "ov_pairwise_weighted_z", "ov_compose_means", "ov_compose_series", "ov_compose_props",
+            "ov_pairwise_weighted_z", "ov_compose_means", "ov_compose_series", "ov_compose_series_welford",
+            "ov_compose_props",
             "ov_prior", "ov_prior_xt_means", "ov_prior_xt_prop"]
 OV_FREQUENCY_ONLY = {"ov_fisher"}
 
@@ -1756,6 +1766,27 @@ def ov_closed_form(case, rows, prob):
             t = d / math.sqrt(vt + vr)
             out[f"0/entry[k={k}].summary.statistic"] = t_two_sided(t, df)
             out[f"1/entry[k={k}].summary.statistic"] = float(2 * scipy.stats.norm.sf(abs(t)))
+        return out, warn
+    if case == "ov_compose_series_welford":
+        # Each group's legs (sub = target, total = reference) are
+        # Sample(w*): N* = Σw (frequency) or Kish n_eff (probability),
+        # the variance c·M2/(N* − 1) — the weighted-host rule the
+        # handler reads off the components. The layer's sum_weights is
+        # Σw over every leg it read (n_eff: the Kish size of that union).
+        sub = ov_filter(rows, OV_SUB)
+        sw = sww = 0.0
+        for k in K_LEVELS:
+            a = ov_cell_sample(sub, "x", prob, k=k)
+            b = ov_cell_sample(rows, "x", prob, k=k)
+            out[f"0/entry[k={k}].summary.statistic"] = welch_p(a, b)
+            out[f"1/entry[k={k}].summary.statistic"] = welch_p(a, b, normal=True)
+            for leg in (a, b):
+                sw += leg.sw
+                sww += float(np.square(leg.w).sum())
+        for li in (0, 1):
+            out[f"{li}/summary.parameters.sum_weights"] = sw
+            if prob:
+                out[f"{li}/summary.parameters.n_eff"] = sw * sw / sww
         return out, warn
     if case in ("ov_prior", "ov_prior_xt_means", "ov_prior_xt_prop"):
         layers = {"ov_prior": [("t", 0), ("z", 1), ("p", 2)], "ov_prior_xt_means": [("t", 0), ("z", 1)],

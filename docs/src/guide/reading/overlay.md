@@ -164,11 +164,11 @@ The chi-square statistic: the target's cell counts against the counts the refere
 **Caveats:**
 
 - Chi-square grows with the counts and with the number of cells, so it does not measure how strongly the categories are associated; read the p-value for the test and the cell values (or TEST_CHISQ's Cramer's V on raw rows) for strength.
-- Cells the reference never shows (reference count 0) are left out of the statistic and df, even when the target has counts there; those counts still set the scale. A shift into new cells is not detected, so check them directly (OVERLAY_DELTA_VS_REF).
+- Cells the reference never shows (reference count 0) are left out of the statistic, the target's total and df, so the target is compared over the cells both share. Target counts in such a cell are impossible under the reference mix: Pulse warns (PULSE_OVERLAY_REF_ZERO) once per cell. Read those warnings as departures in their own right.
 
 #### `summary.parameters.df`
 
-Degrees of freedom: the number of cells present in both requests with a positive expected count, minus 1.
+Degrees of freedom: the number of cells present in both requests with a positive reference count, minus 1.
 
 **Caveats:**
 
@@ -288,6 +288,7 @@ The same D as scalar.
 - With few rows the test has low power and misses real differences; with very many rows even trivial differences in shape give small p-values.
 - It compares two observed distributions. It is not valid for testing against a named distribution with parameters estimated from the data, which needs the Lilliefors correction.
 - It is a two-sided large-sample approximation built from the full row counts in summary.parameters, while D comes from the binned curves.
+- The approximation is Stephens' corrected formula, not the exact small-sample p of the two-sample Kolmogorov-Smirnov test (TEST_KS, which needs raw values): below about 10,000 for n_subset x n_pop the two can differ by a factor of two or more, so run TEST_KS on the rows when the exact p matters.
 
 Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
@@ -371,6 +372,7 @@ Pairwise t-tests on probit-transformed shares between rows (or columns) of one c
 
 - Each cell holds the two-sided p-value for one pair, from a t curve on n_i + n_j - 2 degrees of freedom after a probit transform of each share; it is absent when a leg is unreadable or the test is degenerate.
 - The probit simplification differs from the textbook two-proportion test (OVERLAY_PAIRWISE_PROP_Z), so the two give different p-values for the same cells.
+- Its standard error is the convention sqrt(1/n_i + 1/n_j), not the spread a probit-scale share actually has, so the p-value is a market-research convention rather than a calibrated test; Pulse reproduces that formula exactly, and no standard statistics package offers it as a test.
 - Every cell is one pair at one level of the other axis, and Pulse reports the p-values raw: with many pairs some small ones turn up by luck, so before flagging pairs adjust for multiple comparisons: set multiplicity on the overlay and read payload.p_adjusted.
 - The layer does not report an effect size: read the two cell values for how big each gap is.
 

@@ -474,3 +474,11 @@ source(file.path(script_dir, "gen_bayes_linear.R"), local = FALSE)
 # fixed-dispersion score's diverging ones); base stats + jsonlite. Draws
 # its own seeded rows last.
 source(file.path(script_dir, "gen_glm_gamma_selection.R"), local = FALSE)
+
+# The inferential overlay goldens (overlay_chisq_vs_pop / _chisq_vs_ref /
+# _ks_vs_pop / _pairwise_probit_t / _fisher_exact_cell / _two_sample /
+# _weighted_unit / _mean_vs_ref.json): every expected overlay figure
+# computed by R from the overlay's inputs, never by the helper the
+# overlay calls (U36 E3-S1); base stats + jsonlite. Draws its own seeded
+# rows last.
+source(file.path(script_dir, "gen_overlays.R"), local = FALSE)

@@ -113,31 +113,12 @@ func TestOverlay_FisherExactCell_TwoByTwo(t *testing.T) {
 			t.Fatalf("Cells shape = %d×%d, want 2×2", len(mp.Cells), len(mp.Cells[0]))
 		}
 
-		// Cross-check via the helper directly — the cell value the
-		// handler emitted must equal fisherExactTwoSided on the same
-		// 2×2.
-		const (
-			a = 1
-			b = 9
-			c = 11
-			d = 3
-		)
-		want := fisherExactTwoSided(a, b, c, d)
-		if want <= 0 || want >= 1 {
-			t.Fatalf("reference p = %v is not in (0, 1); fixture is broken", want)
-		}
-		// Reference p for {1, 9, 11, 3} from this implementation is
-		// ≈ 0.00276 — the two-sided hypergeometric tail at marginals
-		// (10, 14, 12, 12) with observed cell[0][0] = 1. Far from
-		// expected (10*12/24 = 5), so the p is strongly significant.
-		// The exact value comes from the lgamma-backed hypergeometric
-		// implementation factored into fisherExactTwoSided.
-		const refP = 0.00276
-		const refEps = 5e-4
-		if math.Abs(want-refP) > refEps {
-			t.Fatalf("helper reference p = %v, expected ≈ %v ± %v (fixture cross-check)",
-				want, refP, refEps)
-		}
+		// R's fisher.test on the 2×2 {1, 9; 11, 3}
+		// (overlay_fisher_exact_cell.json), never fisherExactTwoSided,
+		// the helper the overlay calls: ≈ 0.00276, the two-sided
+		// hypergeometric tail at marginals (10, 14, 12, 12) with
+		// observed cell[0][0] = 1, far from the expected 5.
+		want := fisherCellOracleCase(t, "small_textbook_2x2").P[0][0]
 
 		cell := mp.Cells[0][0]
 		if !cell.Present {
@@ -147,10 +128,7 @@ func TestOverlay_FisherExactCell_TwoByTwo(t *testing.T) {
 		if !ok {
 			t.Fatalf("cell (0,0).Value type = %T, want float64", cell.Value)
 		}
-		if math.Abs(got-want) > 1e-9 {
-			t.Errorf("cell (0,0).Value = %v, want %v ± 1e-9 (helper byte-equal)",
-				got, want)
-		}
+		oracleRelClose(t, "cell (0,0)", got, want)
 
 		// Layer metadata: kind / scope / synthesised default name.
 		if layer.Kind != types.OverlayKindFisherExactCell {
@@ -232,12 +210,8 @@ func TestOverlay_FisherExactCell_TwoByTwo(t *testing.T) {
 		if !ok {
 			t.Fatalf("cell (0,0).Value type = %T, want float64", cell.Value)
 		}
-		// Cross-check via helper. 2×2 = {0, 10, 12, 2}.
-		want := fisherExactTwoSided(0, 10, 12, 2)
-		if math.Abs(got-want) > 1e-9 {
-			t.Errorf("cell (0,0).Value = %v, want %v ± 1e-9 (helper byte-equal on zero-count 2×2)",
-				got, want)
-		}
+		// R's fisher.test on the 2×2 {0, 10; 12, 2}.
+		oracleRelClose(t, "zero-count cell (0,0)", got, fisherCellOracleCase(t, "zero_cell_2x2").P[0][0])
 		if math.IsNaN(got) || math.IsInf(got, 0) {
 			t.Errorf("cell (0,0).Value = %v on zero-count 2×2; want finite p in [0, 1]", got)
 		}
@@ -370,6 +344,8 @@ func TestOverlay_FisherExactCell_AbsentCellsStayAbsent(t *testing.T) {
 }
 
 func TestOverlay_FisherExactCell_HelperMatchesRowTest(t *testing.T) {
+	// The first two expectations are R's fisher.test
+	// (overlay_fisher_exact_cell.json), at relative 1e-10.
 	cases := []struct {
 		name       string
 		a, b, c, d int
@@ -377,10 +353,12 @@ func TestOverlay_FisherExactCell_HelperMatchesRowTest(t *testing.T) {
 		eps        float64
 	}{
 		// {1, 9, 11, 3}: small-margin 2×2; p ≈ 0.00276.
-		{name: "small_textbook", a: 1, b: 9, c: 11, d: 3, wantP: 0.00276, eps: 5e-4},
+		{name: "small_textbook", a: 1, b: 9, c: 11, d: 3,
+			wantP: fisherCellOracleCase(t, "small_textbook_2x2").P[0][0], eps: 1e-10 * 0.00276},
 		// {0, 10, 12, 2}: zero-cell 2×2; p ≈ 6.73e-05 — strongly
 		// significant because the observed has zero of an expected 5.
-		{name: "symmetric_zero", a: 0, b: 10, c: 12, d: 2, wantP: 6.73e-05, eps: 1e-5},
+		{name: "symmetric_zero", a: 0, b: 10, c: 12, d: 2,
+			wantP: fisherCellOracleCase(t, "zero_cell_2x2").P[0][0], eps: 1e-10 * 6.73e-05},
 		// Fully-degenerate 2×2 (n = 0) returns 1.0 by contract.
 		{name: "degenerate", a: 0, b: 0, c: 0, d: 0, wantP: 1.0, eps: 1e-12},
 		// Perfectly-balanced 2×2 (observed exactly matches expected)

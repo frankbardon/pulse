@@ -245,25 +245,15 @@ func TestApplyZCell_NonMatrixSlotRejected(t *testing.T) {
 	}
 }
 
-// TestWelchZTest_MatchesTestZTwoSample asserts the parity contract:
-// for the same (mean, variance, n) triple, the overlay's welchZTest
-// produces a p-value byte-equal to TEST_Z_TWO_SAMPLE's helper math
-// in internal/processing/test_z.go.
+// TestWelchZTest_MatchesTestZTwoSample: for the (mean, variance, n)
+// triples (10, 4, 10) vs (9, 4, 10) the overlay's welchZTest gives R's
+// two-means z p, 2 * pnorm(-|z|) with se = sqrt(va/na + vb/nb)
+// (overlay_two_sample.json "z_cell") — the figure TEST_Z_TWO_SAMPLE
+// reports on the same legs.
 func TestWelchZTest_MatchesTestZTwoSample(t *testing.T) {
-	// Mirror the test_z.go finalize line:
-	//   p = 2 * (1 - standardNormalCDF(|z|))
-	// with se = sqrt(va/na + vb/nb).
-	va, na := 4.0, 10.0
-	vb, nb := 4.0, 10.0
-	se := math.Sqrt(va/na + vb/nb)
-	z := (10.0 - 9.0) / se
-	wantP := 2 * (1 - standardNormalCDF(math.Abs(z)))
-
-	gotP, ok := welchZTest(10.0, va, na, 9.0, vb, nb)
+	gotP, ok := welchZTest(10.0, 4.0, 10.0, 9.0, 4.0, 10.0)
 	if !ok {
 		t.Fatal("welchZTest reported degenerate where TEST_Z parity expects a real p-value")
 	}
-	if gotP != wantP {
-		t.Errorf("welchZTest p = %v, want %v (byte-equal parity with TEST_Z helper math)", gotP, wantP)
-	}
+	oracleRelClose(t, "welchZTest p", gotP, twoSampleOracleCase(t, "z_cell").ZP)
 }

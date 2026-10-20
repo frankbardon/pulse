@@ -282,6 +282,21 @@ residual sum of squares is 2(bₙ − b₀).
 `TestReferenceOracle_RegBayesLinearMatchesR` holds every figure at
 relative `1e-10`.
 
+`scripts/reference/gen_overlays.R` (sourced last) writes the
+`overlay_*.json` goldens: every figure an overlay test expects, computed
+by R from the overlay's inputs rather than by the helper the overlay
+calls — `chisq.test(..., rescale.p = TRUE)` for `OVERLAY_CHISQ_VS_POP` /
+`_VS_REF`, `fisher.test` per cell, the probit t's design formula, the
+Welch / two-means z / `prop.test` kernels, the weighted-host unit
+fixtures and an `AGG_WELFORD` series cohort for `OVERLAY_T_VS_REF` /
+`_Z_VS_REF`. `OVERLAY_KS_VS_POP`'s p is its documented approximation
+(Stephens' corrected asymptotic, evaluated with R's limiting Kolmogorov
+survival); `ks.test`'s own p on the bucketised samples is recorded
+beside it (`r_ks_test_*`) for comparison only.
+`TestReferenceOracle_Overlay*` (`internal/processing`) and
+`TestReferenceOracle_ComposeWelfordSeriesVsRef` (root) hold every
+figure at relative `1e-10`.
+
 ### The R toolchain
 
 `make reference` refuses any R but 4.6.1 (2026-06-24) and any package

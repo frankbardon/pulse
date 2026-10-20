@@ -373,9 +373,10 @@ func overlayCapabilityFor(kind types.OverlayKind) descriptor.OverlayCapability {
 			RefKinds: []string{},
 			Description: "COMPOSE-host whole-matrix χ² test against the reference slot's matrix. The two matrices are " +
 				"treated as two independent contingency tables and the test answers \"do the target and reference distributions " +
-				"differ?\" by scaling the reference distribution to the target's grand total: expected[i,j] = ref_cell * " +
-				"(target_N / ref_N); chisq = Σ (target_cell - expected)² / expected; df = (cells with expected > 0) - 1; " +
-				"p_value = chiSquareSurvival(chisq, df). SCALAR payload — the layer carries the p-value on " +
+				"differ?\" by scaling the reference distribution to the target's total over C, the cells the reference shows " +
+				"(ref_cell > 0): expected[i,j] = ref_cell * (target_N / ref_N), both totals over C; chisq = Σ_C (target_cell - " +
+				"expected)² / expected; df = |C| - 1; p_value = chiSquareSurvival(chisq, df) — R's chisq.test(target[C], p = " +
+				"ref[C], rescale.p = TRUE). A target count in a cell outside C warns PULSE_OVERLAY_REF_ZERO once per cell. SCALAR payload — the layer carries the p-value on " +
 				"OverlayPayload.Scalar plus OverlaySummary{Statistic, PValue, Parameters{\"df\"}}. Reuses the chiSquareSurvival " +
 				"helper backing TEST_CHISQ and the MATRIX-host CHISQ family so the overlay surface produces identical p-values " +
 				"for the same contingency. Degenerate inputs (target_N == 0, ref_N == 0, every expected = 0) emit NaN + NaN " +

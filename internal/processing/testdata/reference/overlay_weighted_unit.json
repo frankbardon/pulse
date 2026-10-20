@@ -1,0 +1,54 @@
+{
+  "generator": "scripts/reference/gen_overlays.R",
+  "r_version": "R version 4.6.1 (2026-06-24)",
+  "packages": {
+    "stats": "4.6.1",
+    "jsonlite": "2.0.0"
+  },
+  "primitive": "weighted overlay unit fixtures",
+  "r_function": "frequency: t.test / chisq.test on the rep() expansion; probability: Welch on N* = n_eff with the w* variance, chisq.test on the table scaled by n_eff / sum w",
+  "note": "legA / legB: overlay_weighted_host_test.go; ctFixture: overlay_weighted_contingency_test.go. legs_welch_* is legA (target) against legB (reference).",
+  "cases": [
+    {
+      "name": "legs_welch_t",
+      "kind": "frequency",
+      "statistic": -2.189271723409981,
+      "df": 22.636128164143489,
+      "p_value": 0.039158628129788861
+    },
+    {
+      "name": "legs_welch_z",
+      "kind": "frequency",
+      "statistic": -2.189271723409981,
+      "p_value": 0.028577096299400105
+    },
+    {
+      "name": "legs_welch_t",
+      "kind": "probability",
+      "statistic": -1.3480837128425527,
+      "df": 8.6302628383875906,
+      "p_value": 0.2119452640025839
+    },
+    {
+      "name": "legs_welch_z",
+      "kind": "probability",
+      "statistic": -1.3480837128425527,
+      "p_value": 0.17763145929095908
+    },
+    {
+      "name": "ct_chisq_matrix",
+      "kind": "frequency",
+      "statistic": 10.97142857142857,
+      "df": 2,
+      "p_value": 0.0041455728979887417
+    },
+    {
+      "name": "ct_chisq_matrix",
+      "kind": "probability",
+      "statistic": 1.841358641358642,
+      "df": 2,
+      "p_value": 0.39824841079158702
+    }
+  ]
+}
+// golden-hash: 7370fd4632ecfff3dc3d1c50dc8ea5a60bed38c15ed4bf8aba288bfa69cd33b6

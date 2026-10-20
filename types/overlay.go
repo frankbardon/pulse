@@ -2404,12 +2404,18 @@ const (
 	//
 	// Math:
 	//
-	//	target_N  = sum(target_cells)
-	//	ref_N     = sum(ref_cells)
+	//	C         = cells present on both slots with ref_cell > 0
+	//	target_N  = Σ_C target_cells
+	//	ref_N     = Σ_C ref_cells
 	//	expected  = ref_cell * (target_N / ref_N)  // ref distribution scaled to target N
-	//	chisq     = Σ (target_cell - expected)² / expected
-	//	df        = (target cells with expected > 0) - 1
+	//	chisq     = Σ_C (target_cell - expected)² / expected
+	//	df        = |C| - 1
 	//	p_value   = chiSquareSurvival(chisq, df)
+	//
+	// R's chisq.test(target[C], p = ref[C], rescale.p = TRUE). A target
+	// count in a cell outside C (the reference never shows it) is left
+	// out of the statistic, target_N and df, with one
+	// `PULSE_OVERLAY_REF_ZERO` warning per such cell (U36 E3-S1).
 	//
 	// Reuses the `chiSquareSurvival` helper backing `TEST_CHISQ` and the
 	// MATRIX-host CHISQ family so the overlay and the row-test surface

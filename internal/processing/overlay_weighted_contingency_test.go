@@ -206,7 +206,10 @@ func TestChiSqMatrix_WeightedHost(t *testing.T) {
 
 	freq, fws := run(weighting.Frequency)
 	relClose(t, "frequency χ²", *freq.Summary.Statistic, rawStat, 1e-12)
-	relClose(t, "frequency p", *freq.Summary.PValue, chiSquareSurvival(rawStat, 2), 1e-12)
+	// The statistic and p against R's chisq.test (overlay_weighted_unit.json).
+	freqR := weightedUnitOracleCase(t, "ct_chisq_matrix", "frequency")
+	oracleRelClose(t, "frequency χ² (R)", *freq.Summary.Statistic, freqR.Statistic)
+	oracleRelClose(t, "frequency p (R)", *freq.Summary.PValue, freqR.PValue)
 	// The Σw table's expected counts clear 5; the scaled table's do not
 	// — the warning reads the SCALED expected.
 	if rawMin < 5 || kishMin >= 5 || len(fws) != 0 {
@@ -216,7 +219,10 @@ func TestChiSqMatrix_WeightedHost(t *testing.T) {
 
 	prob, pws := run(weighting.Probability)
 	relClose(t, "probability χ²", *prob.Summary.Statistic, kishStat, 1e-12)
-	relClose(t, "probability p", *prob.Summary.PValue, chiSquareSurvival(kishStat, 2), 1e-12)
+	// The statistic and p against R's chisq.test (overlay_weighted_unit.json).
+	probR := weightedUnitOracleCase(t, "ct_chisq_matrix", "probability")
+	oracleRelClose(t, "probability χ² (R)", *prob.Summary.Statistic, probR.Statistic)
+	oracleRelClose(t, "probability p (R)", *prob.Summary.PValue, probR.PValue)
 	relClose(t, "probability expected_min (scaled)", lowExpectedMin(t, pws), kishMin, 1e-12)
 	assertParams(t, "probability", prob.Summary, map[string]float64{"df": 2, "sum_weights": ct.table.sw, "n_eff": nEff})
 	// Min / Max describe the observed Σw table, unscaled.

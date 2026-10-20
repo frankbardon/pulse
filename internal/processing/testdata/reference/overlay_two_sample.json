@@ -1,0 +1,141 @@
+{
+  "generator": "scripts/reference/gen_overlays.R",
+  "r_version": "R version 4.6.1 (2026-06-24)",
+  "packages": {
+    "stats": "4.6.1",
+    "jsonlite": "2.0.0"
+  },
+  "primitive": "two-sample overlay legs",
+  "r_function": "Welch: 2 * pt(-|t|, df) and 2 * pnorm(-|t|) on summary legs; proportions: prop.test(x, n, correct = FALSE)$p.value",
+  "note": "kind means: (mean, variance, n) legs, t = (mean_a - mean_b) / sqrt(var_a/n_a + var_b/n_b); kind proportions: x successes of n.",
+  "cases": [
+    {
+      "name": "unit_t1_df2",
+      "note": "t = 1 on 2 df: p = 1 - 1/sqrt(3)",
+      "kind": "means",
+      "mean_a": 10,
+      "var_a": 1,
+      "n_a": 2,
+      "mean_b": 9,
+      "var_b": 1,
+      "n_b": 2,
+      "t": 1,
+      "df": 2,
+      "welch_p": 0.42264973081037427,
+      "z_p": 0.31731050786291409
+    },
+    {
+      "name": "pairwise_welch",
+      "note": "the pairwise Welch leg pair",
+      "kind": "means",
+      "mean_a": 10,
+      "var_a": 4,
+      "n_a": 50,
+      "mean_b": 12,
+      "var_b": 9,
+      "n_b": 60,
+      "t": -4.1702882811414952,
+      "df": 103.32673468008916,
+      "welch_p": 6.3440587762021985e-05,
+      "z_p": 3.0421456547338799e-05
+    },
+    {
+      "name": "z_cell",
+      "note": "the Z_CELL parity legs",
+      "kind": "means",
+      "mean_a": 10,
+      "var_a": 4,
+      "n_a": 10,
+      "mean_b": 9,
+      "var_b": 4,
+      "n_b": 10,
+      "t": 1.1180339887498949,
+      "df": 18,
+      "welch_p": 0.27825275488825896,
+      "z_p": 0.26355247728297271
+    },
+    {
+      "name": "raw_samples",
+      "note": "A = {1, 2, 4}, B = {3, 5, 6, 10}: cross-checked against t.test",
+      "kind": "means",
+      "mean_a": 2.3333333333333335,
+      "var_a": 2.3333333333333335,
+      "n_a": 3,
+      "mean_b": 6,
+      "var_b": 8.6666666666666661,
+      "n_b": 4,
+      "t": -2.1368288971859815,
+      "df": 4.6429752066115695,
+      "welch_p": 0.089900976636452981,
+      "z_p": 0.032611910853705316,
+      "a": [
+        1,
+        2,
+        4
+      ],
+      "b": [
+        3,
+        5,
+        6,
+        10
+      ]
+    },
+    {
+      "name": "prop_50_30",
+      "note": "p1 = 0.50, p2 = 0.30, n = 100 each",
+      "kind": "proportions",
+      "x": [
+        50,
+        30
+      ],
+      "n": [
+        100,
+        100
+      ],
+      "prop_p": 0.0038924171227786306
+    },
+    {
+      "name": "prop_50_100_60_80",
+      "note": "unequal bases",
+      "kind": "proportions",
+      "x": [
+        50,
+        60
+      ],
+      "n": [
+        100,
+        80
+      ],
+      "prop_p": 0.00062893942065460589
+    },
+    {
+      "name": "prop_40_80_30_50",
+      "note": "unequal bases",
+      "kind": "proportions",
+      "x": [
+        40,
+        30
+      ],
+      "n": [
+        80,
+        50
+      ],
+      "prop_p": 0.26583846390326565
+    },
+    {
+      "name": "prop_25_160_20_120",
+      "note": "small shares, near-equal",
+      "kind": "proportions",
+      "x": [
+        25,
+        20
+      ],
+      "n": [
+        160,
+        120
+      ],
+      "prop_p": 0.81431355488663737
+    }
+  ]
+}
+// golden-hash: d19d59f79ddee865b66f1863d2e7740c0a3093518c4048c66366cd9194f5c1af

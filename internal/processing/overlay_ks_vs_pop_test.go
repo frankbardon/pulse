@@ -106,13 +106,13 @@ func TestApplyKSVsPop_HistogramPathKnownAnswer(t *testing.T) {
 	if layer.Summary.PValue == nil {
 		t.Fatal("Summary.PValue is nil")
 	}
-	// p-value via the canonical Kolmogorov-survival helper. For D=1.0
-	// with n1=n2=100, en = sqrt(100*100/200) = sqrt(50) ≈ 7.071,
-	// λ = (en + 0.12 + 0.11/en) * D ≈ 7.207. Survival ≈ 0 (highly
-	// significant — distributions don't overlap at all).
-	en := math.Sqrt(float64(100*100) / float64(200))
-	wantPV := kolmogorovSurvival((en + 0.12 + 0.11/en) * wantD)
-	if math.Abs(*layer.Summary.PValue-wantPV) > 1e-12 {
+	// p-value: for D=1.0 with n1=n2=100, en = sqrt(100*100/200) =
+	// sqrt(50) ≈ 7.071, λ = (en + 0.12 + 0.11/en) * D ≈ 7.207, survival
+	// ≈ 1.6e-45 (the distributions don't overlap at all). R computes it
+	// (overlay_ks_vs_pop.json "disjoint_halves"), never the
+	// kolmogorovSurvival helper the overlay calls.
+	wantPV := ksVsPopOracleCase(t, "disjoint_halves").PValue
+	if !chiSqVsPopRelClose(*layer.Summary.PValue, wantPV, oracleRelTol) {
 		t.Errorf("Summary.PValue = %v, want %v", *layer.Summary.PValue, wantPV)
 	}
 

@@ -443,6 +443,18 @@ for (r in lk) {
   out("ov_compose_series", sprintf("1/entry[k=%s].summary.statistic", r), 2 * pnorm(-abs(d / se)))
 }
 
+# OVERLAY_T_VS_REF / OVERLAY_Z_VS_REF on an engine AGG_WELFORD series
+# (U36 E3-S1): x by k per slot, each leg's mean, variance and n read
+# from the slot's per-group components — t.test, and the normal tail on
+# the Welch standard error.
+for (r in lk) {
+  a <- xsub$x[xsub$k == r]
+  b <- xs$x[xs$k == r]
+  out("ov_compose_series_welford", sprintf("0/entry[k=%s].summary.statistic", r), t.test(a, b)$p.value)
+  z <- (mean(a) - mean(b)) / sqrt(var(a) / length(a) + var(b) / length(b))
+  out("ov_compose_series_welford", sprintf("1/entry[k=%s].summary.statistic", r), 2 * pnorm(-abs(z)))
+}
+
 # OVERLAY_T_VS_PRIOR / OVERLAY_Z_VS_PRIOR / OVERLAY_PROP_Z_VS_PRIOR (U47
 # #328): periods k = p, q, r, each tested against the one before it
 # (current minus prior) — t.test, the normal tail on R's mean / var, and

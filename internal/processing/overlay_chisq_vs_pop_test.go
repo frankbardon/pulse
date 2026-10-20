@@ -34,13 +34,11 @@ func chiSqVsPopSpec() *types.OverlaySpec {
 //	      = 2.5 + 0 + 5.0 + 0
 //	      = 7.5
 //	df    = 4 - 1 = 3
-//	p     = chiSquareSurvival(7.5, 3)  // ≈ 0.0577
+//	p     ≈ 0.0577
 //
 // The test asserts the statistic to 1e-12 ULP and verifies df = 3 in
-// Parameters{"df"}. p-value is computed via the same chiSquareSurvival
-// helper (TEST_CHISQ surface reuse — no separate reference value
-// computation; both surfaces must produce the same number for the
-// same statistic).
+// Parameters{"df"}. The p-value is R's chisq.test figure
+// (overlay_chisq_vs_pop.json, U36 E3-S1), held at relative 1e-10.
 func TestApplyChiSqVsPop_FourCategoryKnownAnswer(t *testing.T) {
 	// Population: 100 records, frequencies {0.4, 0.3, 0.2, 0.1} for
 	// categories {a, b, c, d}.
@@ -100,9 +98,11 @@ func TestApplyChiSqVsPop_FourCategoryKnownAnswer(t *testing.T) {
 	if layer.Summary.PValue == nil {
 		t.Fatal("Summary.PValue is nil")
 	}
-	wantPV := chiSquareSurvival(wantChisq, 3.0)
-	if math.Abs(*layer.Summary.PValue-wantPV) > 1e-12 {
-		t.Errorf("Summary.PValue = %v, want %v (delta %v)", *layer.Summary.PValue, wantPV, *layer.Summary.PValue-wantPV)
+	// R's chisq.test p (overlay_chisq_vs_pop.json), never the
+	// chiSquareSurvival helper the overlay calls.
+	wantPV := chiSqVsPopOracleCase(t, "four_category").PValue
+	if !chiSqVsPopRelClose(*layer.Summary.PValue, wantPV, oracleRelTol) {
+		t.Errorf("Summary.PValue = %v, R %v (delta %v)", *layer.Summary.PValue, wantPV, *layer.Summary.PValue-wantPV)
 	}
 	if layer.Summary.Parameters == nil {
 		t.Fatal("Summary.Parameters is nil")

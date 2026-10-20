@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/statdist"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -63,20 +62,15 @@ func TestOverlayPairwise_PropZ_RowScope(t *testing.T) {
 	if len(mx.ColumnKeys) != 2 {
 		t.Fatalf("expected 2 opposite columns, got %d", len(mx.ColumnKeys))
 	}
-	// Pair (A,B) at column x: p1=0.50 n1=100, p2=0.30 n2=100. Parity:
-	// the cell p-value must equal the shared twoProportionZ helper.
-	wantP, ok := twoProportionZ(0.50*100, 100, 0.30*100, 100)
-	if !ok {
-		t.Fatalf("twoProportionZ unexpectedly undefined")
-	}
+	// Pair (A,B) at column x: p1=0.50 n1=100, p2=0.30 n2=100 — R's
+	// prop.test(c(50, 30), c(100, 100), correct = FALSE)
+	// (overlay_two_sample.json), never the twoProportionZ helper.
 	got := mx.Cells[0][0]
 	if !got.Present {
 		t.Fatalf("pair (A,B) col x cell absent")
 	}
 	gv, _ := got.Value.(float64)
-	if math.Abs(gv-wantP) > 1e-12 {
-		t.Fatalf("pair (A,B) col x p = %v, want %v", gv, wantP)
-	}
+	oracleRelClose(t, "pair (A,B) col x p", gv, twoSampleOracleCase(t, "prop_50_30").PropP)
 }
 
 func TestOverlayPairwise_ColumnScope(t *testing.T) {
@@ -166,17 +160,10 @@ func TestOverlayPairwise_WelchT_Welford(t *testing.T) {
 	if !cell.Present {
 		t.Fatalf("welch pair cell absent")
 	}
-	// Closed-form Welch: a=4/50, b=9/60; se=sqrt(a+b); t=(10-12)/se;
-	// df via Satterthwaite; p = statdist.StudentTTwoSidedP(t, df).
-	a, b := 4.0/50, 9.0/60
-	se := math.Sqrt(a + b)
-	tStat := (10.0 - 12.0) / se
-	df := (a + b) * (a + b) / ((a*a)/49 + (b*b)/59)
-	want := statdist.StudentTTwoSidedP(tStat, df)
+	// Welch on (10, 4, 50) vs (12, 9, 60): R's 2 * pt(-|t|, df)
+	// (overlay_two_sample.json "pairwise_welch").
 	gv, _ := cell.Value.(float64)
-	if math.Abs(gv-want) > 1e-12 {
-		t.Fatalf("welch p = %v, want %v", gv, want)
-	}
+	oracleRelClose(t, "welch p", gv, twoSampleOracleCase(t, "pairwise_welch").WelchP)
 }
 
 func TestOverlayPairwise_ComponentsRequired(t *testing.T) {
@@ -275,10 +262,9 @@ func TestOverlayPairwise_WelchT_PopulationVarianceCell(t *testing.T) {
 			{{"mean": 8.0, "m2": 0.0, "variance": 0.0, "n": 1, "n_null": 0}},
 		},
 	}
-	a, b := (m2A/2)/3, (m2B/3)/4
-	tStat := (mA - mB) / math.Sqrt(a+b)
-	df := (a + b) * (a + b) / ((a*a)/2 + (b*b)/3)
-	want := statdist.StudentTTwoSidedP(tStat, df)
+	// R's t.test(c(1, 2, 4), c(3, 5, 6, 10))$p.value
+	// (overlay_two_sample.json "raw_samples").
+	want := twoSampleOracleCase(t, "raw_samples").WelchP
 	run := func(cellType types.AggregationType) [][]types.MatrixCell {
 		host := newCrosstabHostViewWithComponents(mx, comps)
 		host.cellType = cellType
@@ -292,7 +278,7 @@ func TestOverlayPairwise_WelchT_PopulationVarianceCell(t *testing.T) {
 	for _, ct := range []types.AggregationType{types.AGG_VARIANCE, types.AGG_STDDEV} {
 		cells := run(ct)
 		gv, _ := cells[0][0].Value.(float64)
-		if !cells[0][0].Present || math.Abs(gv-want) > 1e-12 {
+		if !cells[0][0].Present || math.Abs(gv-want) > oracleRelTol*want {
 			t.Errorf("%s: A vs B p = %v (present %v), want %v", ct, gv, cells[0][0].Present, want)
 		}
 		if cells[1][0].Present || cells[2][0].Present {

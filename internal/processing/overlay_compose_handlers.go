@@ -1043,13 +1043,18 @@ func applyTCellWith(spec *types.ComposeOverlaySpec, reference *types.Response, t
 //
 // Math:
 //
-//	target_N  = Σ target_cells
-//	ref_N     = Σ ref_cells
+//	C         = cells present on both sides with ref_cell > 0
+//	target_N  = Σ_C target_cells
+//	ref_N     = Σ_C ref_cells
 //	scale     = target_N / ref_N
 //	expected[i,j] = ref_cell[i,j] * scale
-//	chisq     = Σ (target - expected)² / expected   (only where expected > 0)
-//	df        = (cells with expected > 0) - 1
+//	chisq     = Σ_C (target - expected)² / expected
+//	df        = |C| - 1
 //	p_value   = chiSquareSurvival(chisq, df)
+//
+// Equals R's chisq.test(target[C], p = ref[C], rescale.p = TRUE)
+// (overlay_chisq_vs_ref.json, U36 E3-S1). A target count in a cell
+// outside C warns PULSE_OVERLAY_REF_ZERO.
 //
 // SCALAR payload — the layer carries the p-value on
 // `OverlayPayload.Scalar` plus `OverlaySummary{Statistic, PValue,
@@ -1113,6 +1118,30 @@ func applyChiSqVsRef(spec *types.ComposeOverlaySpec, reference *types.Response, 
 			colKeyStr := axisKeyToString(targetMx.ColumnKeys[j])
 			rv, refPresent := refLookup[matrixCellLookupKey{row: rowKeyStr, col: colKeyStr}]
 			if !refPresent {
+				continue
+			}
+			// A cell the reference never shows (U36 E3-S1) is outside the
+			// comparison: left out of the statistic, df AND the target
+			// total, so the target renormalises over the compared cells —
+			// R's chisq.test(target[C], p = ref[C], rescale.p = TRUE),
+			// OVERLAY_CHISQ_VS_POP's rule (U08 OS-02). Target counts
+			// stranded there are impossible under the reference: one
+			// PULSE_OVERLAY_REF_ZERO warning per cell makes them visible.
+			if rv <= 0 {
+				if tv > 0 {
+					warnings = append(warnings, types.OverlayWarning{
+						Code: string(errors.PULSE_OVERLAY_REF_ZERO),
+						Message: "overlay " + string(spec.Kind) + " target cell (" + rowKeyStr + ", " + colKeyStr +
+							") has no reference counts; it is left out of the χ² comparison and df",
+						Details: map[string]any{
+							"kind":         string(spec.Kind),
+							"reference":    spec.Reference,
+							"row_key":      rowKeyStr,
+							"col_key":      colKeyStr,
+							"target_value": tv,
+						},
+					})
+				}
 				continue
 			}
 			targetN += tv

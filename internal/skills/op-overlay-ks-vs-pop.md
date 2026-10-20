@@ -23,7 +23,7 @@ Rides on `FacetRequest.Overlays`. Overlays decorate the host; no `Response.Compo
 
 ## Host shape
 
-FACET — numeric arm only. Categorical host → `PULSE_OVERLAY_SCOPE_UNSUPPORTED` (the χ²-vs-population sibling covers the discrete arm). p is Stephens' corrected asymptotic, not the two-sample KS test's exact `ks.test` p (no raw population values).
+FACET — numeric arm only. Categorical host → `PULSE_OVERLAY_SCOPE_UNSUPPORTED` (the χ²-vs-population sibling covers the discrete arm). p is Stephens' corrected asymptotic `K((en + 0.12 + 0.11/en)·D)`, `en = sqrt(n_subset·n_pop/(n_subset + n_pop))`, not the two-sample KS test's exact `ks.test` p (no raw population values): below `n_subset·n_pop` ≈ 10000 the two differ by a factor of two or more — run the row KS test (`op-test-ks`) for the exact p. D and p are pinned to R at 1e-10.
 
 ## Output
 

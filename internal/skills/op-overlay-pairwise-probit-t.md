@@ -27,7 +27,7 @@ MATRIX crosstab + `Response.Components.Crosstab`. Components-disabled host (opti
 
 ## Output
 
-MATRIX — pair × opposite-axis grid of two-sided p-values, layout identical to `op-overlay-pairwise-prop-z`. Per pair: `t = (Φ⁻¹(p_i) - Φ⁻¹(p_j)) / sqrt(1/n_i + 1/n_j)` against Student-t with `df = n_i + n_j - 2`, two-sided; proportions clipped to `[1e-10, 1-1e-10]` before Φ⁻¹. Reuses the Student-t survival helper the t-tests use. `payload.parts.letters` (with `params.letters`): per host cell `{letter, group, higher, above}` — `higher` from the sign of `t`, `above` its significant subset — as `op-overlay-pairwise-prop-z` describes.
+MATRIX — pair × opposite-axis grid of two-sided p-values, layout identical to `op-overlay-pairwise-prop-z`. Per pair: `t = (Φ⁻¹(p_i) - Φ⁻¹(p_j)) / sqrt(1/n_i + 1/n_j)` against Student-t with `df = n_i + n_j - 2`, two-sided; proportions clipped to `[1e-10, 1-1e-10]` before Φ⁻¹. A design formula (market-research convention), pinned as is to R computing it at 1e-10: the `sqrt(1/n_i + 1/n_j)` standard error is not a probit share's real spread and no stock test computes it, so read the p as a convention, not a calibrated test. `payload.parts.letters` (with `params.letters`): per host cell `{letter, group, higher, above}` — `higher` from the sign of `t`, `above` its significant subset — as `op-overlay-pairwise-prop-z` describes.
 
 <!-- generated: reading-the-output -->
 
