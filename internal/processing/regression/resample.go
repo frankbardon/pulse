@@ -31,7 +31,7 @@ const defaultBootstrapIters = 1000
 //
 //   - "jackknife" : leave-one-out refit, jackknife SE formula; with
 //     jackknife_groups / jackknife_by the delete-a-group form
-//     (runGroupedJackknife).
+//     (runGroupedJackknifeCtx).
 //   - "bootstrap" : B = BootstrapIters (defaultBootstrapIters when
 //     <= 0) replicates with replacement; SE is the sample std
 //     of the replicate coefficient set, p-values from the
@@ -147,7 +147,7 @@ func runJackknifeCtx(
 	return packageResampleResult(spec, baseResult, predictors, se, cov, pValueFn, nil), nil
 }
 
-// runGroupedJackknife is the delete-a-group jackknife (JK1): the
+// runGroupedJackknifeCtx is the delete-a-group jackknife (JK1): the
 // fitted rows — complete on the target and every active predictor,
 // carrying a valid non-zero weight on a weighted slot, and (jackknife_by)
 // a non-null cluster value — are split into g delete groups, and
@@ -176,18 +176,6 @@ func runJackknifeCtx(
 // 0-based; jackknife_by adds the group's value). g above the fitted row
 // count, or jackknife_by with fewer than 2 distinct values, is
 // PROCESSING_REGRESSION_INSUFFICIENT_DATA.
-func runGroupedJackknife(
-	spec *types.RegressionSpec,
-	records []Record,
-	predictors []string,
-	baseResult *types.RegressionResult,
-	fitter func([]Record) (*refitResult, error),
-	warm func([]Record, []float64) (*refitResult, error),
-	pValueFn func(coef, se float64) float64,
-) (*types.RegressionResult, error) {
-	return runGroupedJackknifeCtx(context.Background(), spec, records, predictors, baseResult, fitter, warm, pValueFn)
-}
-
 func runGroupedJackknifeCtx(
 	ctx context.Context,
 	spec *types.RegressionSpec,

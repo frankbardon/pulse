@@ -8,7 +8,7 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// runSelection drives the Selection modifier. The caller supplies:
+// runSelectionCtx drives the Selection modifier. The caller supplies:
 //
 //   - spec        : the full regression spec (Selection / Criterion read
 //     here; everything else funneled into the inner fit).
@@ -27,22 +27,11 @@ import (
 //
 // Returns the final RegressionResult with SelectedFeatures populated
 // and Selection / Criterion echoed.
-func runSelection(
-	spec *types.RegressionSpec,
-	records []Record,
-	predictors []string,
-	critFn func(fit *refitResult, k0 int) float64,
-	fitter func([]Record, []string) (*refitResult, error),
-	finalizeFn func([]Record, []string) (*types.RegressionResult, error),
-) (*types.RegressionResult, error) {
-	return runSelectionCtx(context.Background(), spec, records, predictors, critFn, fitter, finalizeFn, nil)
-}
-
-// runSelectionCtx is runSelection under ctx: every candidate refit first
-// reads ctx.Err(), and a ctx error — or a refit error fatal reports
-// (nil: none; an extension model's contract fault) — stops the search
-// and is returned, where any other candidate error only drops that
-// candidate.
+//
+// runSelectionCtx runs under ctx: every candidate refit first reads
+// ctx.Err(), and a ctx error — or a refit error fatal reports (nil:
+// none; an extension model's contract fault) — stops the search and is
+// returned, where any other candidate error only drops that candidate.
 func runSelectionCtx(
 	ctx context.Context,
 	spec *types.RegressionSpec,

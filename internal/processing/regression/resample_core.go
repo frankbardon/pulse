@@ -125,7 +125,7 @@ func jackknifeCore(ctx context.Context, spec *types.RegressionSpec, rows []Recor
 }
 
 // groupedJackknifeCore is the delete-a-group jackknife (JK1) over the
-// fitted rows (runGroupedJackknife documents the groups and the failure
+// fitted rows (runGroupedJackknifeCtx documents the groups and the failure
 // policy): g refits, each without one group. records and predictors are
 // the slot's record set and active predictors, read only by the seed of
 // a jackknife_groups assignment at rng_seed 0 (deriveBootstrapSeed).
