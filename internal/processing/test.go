@@ -143,9 +143,55 @@ func (p *Processor) mintRowTests(plans []rowTestPlan, groupKey types.AxisKey) ([
 			}
 		}
 		workRowTestFolds.Add(1)
-		out = append(out, rowTestEntry{spec: pl.spec, test: inst, label: pl.label, idx: pl.idx, groupKey: groupKey})
+		out = append(out, rowTestEntry{spec: pl.spec, test: &faultLatchedTest{RowTest: inst}, label: pl.label, idx: pl.idx, groupKey: groupKey})
 	}
 	return out, nil
+}
+
+// faultLatchedTest is every minted RowTest's driver view. A row whose
+// level read the test refused as corrupt record data
+// (slotfail.CorruptRecordData — a split_by, contingency axis or outcome
+// code no dictionary entry has, or an extension test's StringValue on
+// one, U51 E5-S10) is LATCHED instead of failing the run: no later row
+// is folded and Finalize returns the fault, so the slot fails alone
+// (finalizeRowTests; a grouped run's bucket gets the sparse-group
+// result) on every arm that drives UpdateRow. Every other UpdateRow
+// error passes through, fatal as before.
+type faultLatchedTest struct {
+	RowTest
+	fault error
+}
+
+func (t *faultLatchedTest) UpdateRow(record *Record) error {
+	if t.fault != nil {
+		return nil
+	}
+	err := t.RowTest.UpdateRow(record)
+	if err == nil {
+		return nil
+	}
+	var coded *errors.CodedError
+	if stderrors.As(err, &coded) && slotfail.CorruptRecordData(coded) {
+		t.fault = err
+		return nil
+	}
+	return err
+}
+
+func (t *faultLatchedTest) Finalize() (*types.TestResult, error) {
+	if t.fault != nil {
+		return nil, t.fault
+	}
+	return t.RowTest.Finalize()
+}
+
+// unlatched is the minted test itself, for the optional-sibling
+// assertions (lowNEffReporter) the latch view would hide.
+func unlatched(t RowTest) RowTest {
+	if l, ok := t.(*faultLatchedTest); ok {
+		return l.RowTest
+	}
+	return t
 }
 
 // postTestEntry pairs a Test spec with its constructed PostTest instance

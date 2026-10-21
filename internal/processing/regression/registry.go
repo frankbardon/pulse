@@ -226,12 +226,24 @@ func FitEachBufferedWithContext(ctx context.Context, specs []*types.RegressionSp
 	results = make([]*types.RegressionResult, len(engines))
 	fitErrs = make([]error, len(engines))
 	for i, eng := range engines {
+		// A corrupt categorical code in a field the fit keys rows by
+		// fails this slot alone, before any engine reads a row.
+		if fault := LevelFault(specs[i], records...); fault != nil {
+			fitErrs[i] = fault
+			continue
+		}
 		if ce, ok := eng.(ContextBufferedEngine); ok {
 			results[i], fitErrs[i] = ce.FitBufferedContext(ctx, records)
+			if fault := takeReadFaults(records); fault != nil {
+				results[i], fitErrs[i] = nil, fault
+			}
 			continue
 		}
 		if be, ok := eng.(BufferedEngine); ok {
 			results[i], fitErrs[i] = be.FitBuffered(records)
+			if fault := takeReadFaults(records); fault != nil {
+				results[i], fitErrs[i] = nil, fault
+			}
 			continue
 		}
 		// Not-implemented stubs ignore the records and surface the
@@ -272,9 +284,68 @@ func BuildStreamingWith(specs []*types.RegressionSpec, schema *encoding.Schema, 
 				map[string]any{"type": string(specs[i].Type), "name": specs[i].Name},
 			)
 		}
-		out = append(out, se)
+		out = append(out, &levelGuardedEngine{StreamingEngine: se, spec: specs[i]})
 	}
 	return out, nil
+}
+
+// levelGuardedEngine is every streaming engine's driver view: the first
+// corrupt categorical code it meets — in a field the spec keys rows by
+// (LevelFault), or one an extension model's StringValue read and the
+// record latched (takeReadFaults) — is held, no later row is folded,
+// and Finalize returns the fault, so the slot fails alone exactly as on
+// the buffered path.
+type levelGuardedEngine struct {
+	StreamingEngine
+	spec  *types.RegressionSpec
+	fault error
+}
+
+func (g *levelGuardedEngine) UpdateRow(rec Record) error {
+	if g.fault != nil {
+		return nil
+	}
+	if g.fault = LevelFault(g.spec, rec); g.fault != nil {
+		return nil
+	}
+	err := g.StreamingEngine.UpdateRow(rec)
+	if g.fault = takeReadFault(rec); g.fault != nil {
+		return nil
+	}
+	return err
+}
+
+// readFaultTaker is the engine record's latch of a corrupt code an
+// extension's unchecked StringValue met (processing.Record
+// TakeReadFault); the extend Record contract cannot return the error.
+type readFaultTaker interface{ TakeReadFault() error }
+
+// takeReadFault takes (clears) rec's latched read fault (nil when none
+// or rec has no latch).
+func takeReadFault(rec Record) error {
+	if t, ok := rec.(readFaultTaker); ok {
+		return t.TakeReadFault()
+	}
+	return nil
+}
+
+// takeReadFaults takes (clears) every record's latched read fault and
+// returns the first, or nil.
+func takeReadFaults(records []Record) error {
+	var first error
+	for _, rec := range records {
+		if err := takeReadFault(rec); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
+}
+
+func (g *levelGuardedEngine) Finalize() (*types.RegressionResult, error) {
+	if g.fault != nil {
+		return nil, g.fault
+	}
+	return g.StreamingEngine.Finalize()
 }
 
 // init wires every registered RegressionType to its Phase 0 stub, then

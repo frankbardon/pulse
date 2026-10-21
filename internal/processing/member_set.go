@@ -336,9 +336,9 @@ func BuildMemberSetPredicate(set MemberSet, schema *encoding.Schema, fieldName s
 		field := fieldName
 		if f.Type.IsCategorical() {
 			return func(rec *Record) (bool, error) {
-				sv, ok := rec.StringValue(field)
-				if !ok {
-					return false, nil
+				sv, ok, err := rec.StringValueChecked(field)
+				if err != nil || !ok {
+					return false, err
 				}
 				return s.Contains(sv), nil
 			}, nil

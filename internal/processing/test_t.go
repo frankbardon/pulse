@@ -188,7 +188,10 @@ func (tt *tTestRow) UpdateRow(record *Record) error {
 	if tt.one {
 		key = ""
 	} else {
-		s, ok := record.LevelValue(tt.splitBy)
+		s, ok, err := record.LevelValueChecked(tt.splitBy)
+		if err != nil {
+			return err
+		}
 		if !ok {
 			return nil
 		}

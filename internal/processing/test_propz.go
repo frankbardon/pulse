@@ -170,13 +170,19 @@ func newPropZRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 }
 
 func (p *propZRow) UpdateRow(record *Record) error {
-	outcome, oOk := record.LevelValue(p.field)
+	outcome, oOk, err := record.LevelValueChecked(p.field)
+	if err != nil {
+		return err
+	}
 	if !oOk {
 		return nil
 	}
 	var key string
 	if !p.one {
-		k, kOk := record.LevelValue(p.splitBy)
+		k, kOk, err := record.LevelValueChecked(p.splitBy)
+		if err != nil {
+			return err
+		}
 		if !kOk {
 			return nil
 		}

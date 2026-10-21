@@ -91,7 +91,10 @@ func (m *mannWhitneyRow) UpdateRow(record *Record) error {
 	if !ok {
 		return nil
 	}
-	key, ok := record.LevelValue(m.splitBy)
+	key, ok, err := record.LevelValueChecked(m.splitBy)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return nil
 	}

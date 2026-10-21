@@ -33,17 +33,18 @@ func (r *fakeRecord) NumericValue(name string) (float64, bool) {
 	return v, ok
 }
 
-func (r *fakeRecord) StringValue(name string) (string, bool) {
+func (r *fakeRecord) StringValueChecked(name string) (string, bool, error) {
 	if r.nulls[name] {
-		return "", false
+		return "", false, nil
 	}
 	v, ok := r.str[name]
-	return v, ok
+	return v, ok, nil
 }
 
-// LevelValue is StringValue: the fake carries no packed_bool.
-func (r *fakeRecord) LevelValue(name string) (string, bool) {
-	return r.StringValue(name)
+// LevelValueChecked is StringValueChecked: the fake carries no
+// packed_bool and no dictionary to be corrupt against.
+func (r *fakeRecord) LevelValueChecked(name string) (string, bool, error) {
+	return r.StringValueChecked(name)
 }
 
 func (r *fakeRecord) Set(name string, value float64) {

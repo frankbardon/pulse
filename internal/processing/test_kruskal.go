@@ -76,7 +76,10 @@ func (k *kruskalWallisRow) UpdateRow(record *Record) error {
 	if !ok {
 		return nil
 	}
-	key, ok := record.LevelValue(k.splitBy)
+	key, ok, err := record.LevelValueChecked(k.splitBy)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return nil
 	}

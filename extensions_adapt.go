@@ -80,6 +80,49 @@ func echoToUint64(v float64) uint64 {
 	return uint64(v)
 }
 
+// StringValue is the engine row's CHECKED label read under the extend
+// signature, which has no error: a categorical code its dictionary has
+// no entry for (corrupt record data) reads ("", false) to the embedder
+// AND is latched on the row (processing.Record.NoteReadFault). The
+// adapter that handed the row over takes it when the extension call
+// returns (readFault / readFaultRows) and returns the ENCODING_INVALID
+// refusal in place of the call's own result — so a corrupt code is never
+// a silent null, on any extension category (U51 E5-S10).
+func (r extRecord) StringValue(field string) (string, bool) {
+	s, ok, err := r.Record.StringValueChecked(field)
+	if err != nil {
+		r.Record.NoteReadFault(err)
+		return "", false
+	}
+	return s, ok
+}
+
+// readFault is the result error of an extension call over rec: the
+// fault its StringValue latched on rec (taken, so a reused row never
+// carries it on), else err. The fault wins — an embedder that answered
+// the ("", false) with its own error was answering the corrupt code.
+func readFault(rec *processing.Record, err error) error {
+	if f := rec.TakeReadFault(); f != nil {
+		return f
+	}
+	return err
+}
+
+// readFaultRows is readFault over a buffered call's rows: every row's
+// latch is taken, the first fault wins.
+func readFaultRows(records []*processing.Record, err error) error {
+	var first error
+	for _, rec := range records {
+		if f := rec.TakeReadFault(); f != nil && first == nil {
+			first = f
+		}
+	}
+	if first != nil {
+		return first
+	}
+	return err
+}
+
 // IsNull is the engine row's, except that a native element member
 // holding a value is not null.
 func (r extRecord) IsNull(field string) bool {
@@ -265,10 +308,17 @@ func (a aggCore) ExpandedElements() ([]string, []float64, bool, error) {
 var _ processing.ElementExpander = aggCore{}
 
 func (a aggCore) Aggregate(records []*processing.Record, field string) (float64, error) {
+	var v float64
+	var err error
 	if a.wt != nil {
-		return a.inner.Aggregate(a.wt.validWeightRows(records), field)
+		v, err = a.inner.Aggregate(a.wt.validWeightRows(records), field)
+	} else {
+		v, err = a.inner.Aggregate(recordRows(records), field)
 	}
-	return a.inner.Aggregate(recordRows(records), field)
+	if err = readFaultRows(records, err); err != nil {
+		return 0, err
+	}
+	return v, nil
 }
 
 // extendInner exposes the embedder's own value. Every aggregator
@@ -295,9 +345,9 @@ func (a aggOnline) UpdateRow(rec *processing.Record, field string) error {
 		if !ok {
 			return nil
 		}
-		return a.online.UpdateRow(v, field)
+		return readFault(rec, a.online.UpdateRow(v, field))
 	}
-	return a.online.UpdateRow(extRecord{rec}, field)
+	return readFault(rec, a.online.UpdateRow(extRecord{rec}, field))
 }
 
 func (a aggOnline) Finalize() (float64, error) { return a.online.Finalize() }
@@ -564,7 +614,7 @@ type grpCore struct {
 
 func (g grpCore) Group(records []*processing.Record, field string) (map[string][]*processing.Record, error) {
 	idx, err := g.inner.Group(recordRows(records), field)
-	if err != nil {
+	if err = readFaultRows(records, err); err != nil {
 		return nil, err
 	}
 	if idx == nil {
@@ -607,7 +657,7 @@ func (g grpStreaming) KeyForRow(rec *processing.Record, field string) (string, b
 		field = g.field
 	}
 	key, ok, err := g.streaming.KeyForRow(extRecord{rec}, field)
-	if err != nil {
+	if err = readFault(rec, err); err != nil {
 		if stderrors.Is(err, extend.ErrGrouperKeyNull) {
 			return "", false, nil
 		}
@@ -638,7 +688,7 @@ type grpMulti struct {
 
 func (g grpMulti) KeysForRow(rec *processing.Record, field string) ([]string, bool, error) {
 	keys, ok, err := g.multi.KeysForRow(extRecord{rec}, field)
-	if err != nil {
+	if err = readFault(rec, err); err != nil {
 		if stderrors.Is(err, extend.ErrGrouperKeyNull) {
 			return nil, false, nil
 		}
@@ -888,7 +938,13 @@ func (f fltCore) Build(spec *types.Filterer, schema *encoding.Schema) (processin
 	if err != nil || fn == nil {
 		return nil, err
 	}
-	return func(rec *processing.Record) (bool, error) { return fn(extRecord{rec}) }, nil
+	return func(rec *processing.Record) (bool, error) {
+		ok, err := fn(extRecord{rec})
+		if err = readFault(rec, err); err != nil {
+			return false, err
+		}
+		return ok, nil
+	}, nil
 }
 
 // fltMeta synthesizes processing.MetaFilterer from the registration's
@@ -948,10 +1004,17 @@ type attrCore struct {
 }
 
 func (a attrCore) Compute(records []*processing.Record, field string) ([]float64, error) {
+	var out []float64
+	var err error
 	if a.wt != nil {
-		return a.inner.Compute(a.wt.allRows(records), field)
+		out, err = a.inner.Compute(a.wt.allRows(records), field)
+	} else {
+		out, err = a.inner.Compute(recordRows(records), field)
 	}
-	return a.inner.Compute(recordRows(records), field)
+	if err = readFaultRows(records, err); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // EmitsNull satisfies processing.NullEmitter on every adapted tier:
@@ -992,7 +1055,11 @@ type attrRow struct {
 }
 
 func (a attrRow) Row(rec *processing.Record, field string) (float64, error) {
-	return a.row.Row(attrView(a.view, rec), field)
+	v, err := a.row.Row(attrView(a.view, rec), field)
+	if err = readFault(rec, err); err != nil {
+		return 0, err
+	}
+	return v, nil
 }
 
 // attrTwoPass forwards the two extra extend.TwoPassAttribute methods;
@@ -1003,7 +1070,7 @@ type attrTwoPass struct {
 }
 
 func (a attrTwoPass) PrePass(rec *processing.Record, field string) error {
-	return a.two.PrePass(attrView(a.view, rec), field)
+	return readFault(rec, a.two.PrePass(attrView(a.view, rec), field))
 }
 
 func (a attrTwoPass) Finalize() error { return a.two.Finalize() }
@@ -1172,9 +1239,9 @@ func (t *rowTestAdapted) UpdateRow(rec *processing.Record) error {
 		if !ok {
 			return nil
 		}
-		return t.inner.UpdateRow(v)
+		return readFault(rec, t.inner.UpdateRow(v))
 	}
-	return t.inner.UpdateRow(extRecord{rec})
+	return readFault(rec, t.inner.UpdateRow(extRecord{rec}))
 }
 
 func (t *rowTestAdapted) Finalize() (*types.TestResult, error) { return t.inner.Finalize() }
@@ -1261,7 +1328,7 @@ func (v featureRecordView) IsNull(field string) bool {
 	if _, ok := v.r.NumericValue(field); ok {
 		return false
 	}
-	_, ok := v.r.StringValue(field)
+	_, ok, _ := v.r.StringValueChecked(field)
 	return !ok
 }
 
@@ -1282,8 +1349,36 @@ func (v featureRecordView) Uint64Value(field string) (uint64, bool) {
 	return echoToUint64(f), true
 }
 
+// StringValue is the source's checked read: a corrupt code reads
+// ("", false) and is latched on the source when it has a latch
+// (readFaultNoter), exactly as extRecord does; featureReadFault takes it.
 func (v featureRecordView) StringValue(field string) (string, bool) {
-	return v.r.StringValue(field)
+	s, ok, err := v.r.StringValueChecked(field)
+	if err != nil {
+		if n, has := v.r.(readFaultNoter); has {
+			n.NoteReadFault(err)
+		}
+		return "", false
+	}
+	return s, ok
+}
+
+// readFaultNoter / readFaultTaker are a feature record's read-fault
+// latch (processing.Record carries both).
+type (
+	readFaultNoter interface{ NoteReadFault(error) }
+	readFaultTaker interface{ TakeReadFault() error }
+)
+
+// featureReadFault is readFault for a feature record: the fault its
+// extension view latched (taken), else err.
+func featureReadFault(rec feature.Record, err error) error {
+	if t, ok := rec.(readFaultTaker); ok {
+		if f := t.TakeReadFault(); f != nil {
+			return f
+		}
+	}
+	return err
 }
 
 func (v featureRecordView) SetMaskValue(string) (encoding.SetMask, bool) {
@@ -1325,6 +1420,15 @@ type featCore struct{ inner extend.FeatureComputer }
 
 func (f featCore) Compute(records []feature.Record, field string) (map[string]feature.Output, error) {
 	out, err := f.inner.Compute(featureRows(records), field)
+	var first error
+	for _, rec := range records {
+		if fe := featureReadFault(rec, nil); fe != nil && first == nil {
+			first = fe
+		}
+	}
+	if first != nil {
+		err = first
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -1341,14 +1445,14 @@ type featStreaming struct {
 }
 
 func (f featStreaming) PrePass(rec feature.Record, field string) error {
-	return f.streaming.PrePass(featureRecord(rec), field)
+	return featureReadFault(rec, f.streaming.PrePass(featureRecord(rec), field))
 }
 
 func (f featStreaming) Finalize() error { return f.streaming.Finalize() }
 
 func (f featStreaming) EmitRow(rec feature.Record, field string) (map[string]feature.Output, error) {
 	out, err := f.streaming.EmitRow(featureRecord(rec), field)
-	if err != nil {
+	if err = featureReadFault(rec, err); err != nil {
 		return nil, err
 	}
 	for label, o := range out {

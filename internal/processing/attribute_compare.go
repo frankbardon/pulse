@@ -344,7 +344,10 @@ func (c *comparisonCore) reference(rec *Record) ([]float64, bool, error) {
 		c.noteUnmatched(string(c.keyBuf))
 		return nil, false, nil
 	}
-	key, ok := rec.LevelValue(field)
+	key, ok, err := rec.LevelValueChecked(field)
+	if err != nil {
+		return nil, false, err
+	}
 	if !ok && rec.IsNull(field) {
 		c.nKeyNull++
 		return nil, false, nil
@@ -590,7 +593,10 @@ func (f *centroidFold) prePass(rec *Record, fill memberFill, typ types.Attribute
 		}
 		b = f.all
 	} else {
-		key, ok := f.key(rec)
+		key, ok, err := f.key(rec)
+		if err != nil {
+			return err
+		}
 		if !ok {
 			return nil
 		}
@@ -610,21 +616,18 @@ func (f *centroidFold) prePass(rec *Record, fill memberFill, typ types.Attribute
 	return nil
 }
 
-// key reads rec's by value (false for a null).
-func (f *centroidFold) key(rec *Record) (string, bool) {
+// key reads rec's by value (false for a null; a corrupt categorical
+// code is ENCODING_INVALID).
+func (f *centroidFold) key(rec *Record) (string, bool, error) {
 	if f.keyInt {
 		n, ok := rec.Uint64Value(f.by)
 		if !ok {
-			return "", false
+			return "", false, nil
 		}
 		f.keyBuf = strconv.AppendUint(f.keyBuf[:0], n, 10)
-		return string(f.keyBuf), true
+		return string(f.keyBuf), true, nil
 	}
-	key, ok := rec.LevelValue(f.by)
-	if !ok {
-		return "", false
-	}
-	return key, true
+	return rec.LevelValueChecked(f.by)
 }
 
 // centroidMean is b's per-element mean Σw·x_i / Σw (NaN for an element

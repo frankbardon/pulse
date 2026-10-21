@@ -146,6 +146,14 @@ type recordAux struct {
 	// allValuesCache met; read only while that cache is non-nil, and
 	// rewritten by every build.
 	allValuesFault error
+
+	// readFault is the first dictionary-index fault an UNCHECKED level
+	// read on an extension's view met (Record.NoteReadFault): the extend
+	// Record contract's StringValue cannot return an error, so the view
+	// latches it here and the adapter that handed the row over takes it
+	// (TakeReadFault) as soon as the extension call returns. ClearForRow
+	// and BeginRunRow drop it with the row.
+	readFault error
 }
 
 const (
@@ -1008,38 +1016,76 @@ func (r *Record) SetLabels(name string) ([]string, bool) {
 
 // StringValue returns the resolved string value for categorical fields.
 // For non-categorical fields, returns the empty string and false.
+//
+// UNCHECKED: a code that addresses no dictionary entry (corrupt record
+// data) also reads ("", false), indistinguishable from a null. No engine
+// consumer reads through it — every level read goes through
+// StringValueChecked / LevelValueChecked (TestLevelReaders_Checked
+// pins this); it remains for the extend Record view, whose adapter
+// latches the fault (NoteReadFault), and for tests.
 func (r *Record) StringValue(name string) (string, bool) {
+	s, ok, _ := r.StringValueChecked(name)
+	return s, ok
+}
+
+// StringValueChecked is StringValue plus the refusal of corrupt record
+// data: a non-null categorical cell whose code addresses no entry of its
+// field's dictionary is ENCODING_INVALID (details.reason
+// categorical_index_out_of_range, field, index, dictionary_size — the
+// internal/encoding.CategoricalIndexFault shape every E5-S8 arm raises)
+// instead of reading as absent. A null, absent or non-categorical field
+// reads ("", false, nil) and is never judged; an in-range entry whose
+// label is "" keeps reading ("", false, nil) as before (U51 E5-S10).
+func (r *Record) StringValueChecked(name string) (string, bool, error) {
 	i := r.pos(name)
 	if i < 0 {
 		return r.stringValueOverflow(name)
 	}
 	if r.test(planeNull, i) {
-		return "", false
+		return "", false, nil
 	}
 	f := r.fieldAt(i)
 	if !f.Type.IsCategorical() || f.Dictionary == nil {
-		return "", false
+		return "", false, nil
 	}
 	if !r.test(planeHas, i) {
-		return "", false
+		return "", false, nil
 	}
-	resolved := f.Dictionary.Resolve(uint32(r.vals[i]))
-	if resolved == "" {
-		return "", false
-	}
-	return resolved, true
+	return resolveLevel(f, r.vals[i])
 }
 
-// LevelValue is the one shared level read: the category a row sits in
-// for every slot of the categoricalValue acceptance class (split_by, a
-// contingency axis, TEST_PROP_Z's outcome, the encoders). A categorical
-// reads its dictionary label (StringValue, unchanged); a packed_bool
-// reads "0" / "1" (fieldaccept.PackedBoolFalse / PackedBoolTrue,
-// GROUP_CATEGORY's keys); a null, absent or other-typed field reads
-// ("", false). Every level consumer reads through here, never through
-// StringValue, which knows no packed_bool and would drop its rows
-// silently.
+// resolveLevel resolves categorical code v of f: its label and true, the
+// ENCODING_INVALID dictionary-index fault for a code no entry has, or
+// ("", false, nil) for an in-range entry labelled "".
+func resolveLevel(f *encoding.Field, v float64) (string, bool, error) {
+	if err := encx.CategoricalIndexFault(f, v); err != nil {
+		return "", false, err
+	}
+	resolved := f.Dictionary.Resolve(uint32(v))
+	if resolved == "" {
+		return "", false, nil
+	}
+	return resolved, true, nil
+}
+
+// LevelValue is LevelValueChecked without the error: UNCHECKED, like
+// StringValue, and read by no engine consumer (tests only).
 func (r *Record) LevelValue(name string) (string, bool) {
+	s, ok, _ := r.LevelValueChecked(name)
+	return s, ok
+}
+
+// LevelValueChecked is the one shared level read: the category a row
+// sits in for every slot of the categoricalValue acceptance class
+// (split_by, a contingency axis, TEST_PROP_Z's outcome, the encoders, a
+// stratify key, a comparison key). A categorical reads its dictionary
+// label (StringValueChecked, so a corrupt code is ENCODING_INVALID); a
+// packed_bool reads "0" / "1" (fieldaccept.PackedBoolFalse /
+// PackedBoolTrue, GROUP_CATEGORY's keys); a null, absent or other-typed
+// field reads ("", false, nil). Every level consumer reads through
+// here, never through StringValue, which knows no packed_bool and would
+// drop its rows silently.
+func (r *Record) LevelValueChecked(name string) (string, bool, error) {
 	var f *encoding.Field
 	if i := r.pos(name); i >= 0 {
 		f = r.fieldAt(i)
@@ -1047,38 +1093,59 @@ func (r *Record) LevelValue(name string) (string, bool) {
 		f = r.schema.Field(name)
 	}
 	if f == nil || f.Type != encoding.FieldTypePackedBool {
-		return r.StringValue(name)
+		return r.StringValueChecked(name)
 	}
 	v, ok := r.NumericValue(name)
 	if !ok {
-		return "", false
+		return "", false, nil
 	}
 	if v != 0 {
-		return fieldaccept.PackedBoolTrue, true
+		return fieldaccept.PackedBoolTrue, true, nil
 	}
-	return fieldaccept.PackedBoolFalse, true
+	return fieldaccept.PackedBoolFalse, true, nil
+}
+
+// NoteReadFault latches err (the first one wins) as the record's
+// pending read fault: an extend view whose StringValue met a corrupt
+// code reports ("", false) to the embedder — the public signature has
+// no error — and the adapter that handed the row over returns the fault
+// via TakeReadFault once the extension call returns. Nil is a no-op.
+func (r *Record) NoteReadFault(err error) {
+	if err == nil {
+		return
+	}
+	if aux := r.auxOrNew(); aux.readFault == nil {
+		aux.readFault = err
+	}
+}
+
+// TakeReadFault returns and clears the record's pending read fault
+// (nil when none).
+func (r *Record) TakeReadFault() error {
+	if r.aux == nil || r.aux.readFault == nil {
+		return nil
+	}
+	err := r.aux.readFault
+	r.aux.readFault = nil
+	return err
 }
 
 // stringValueOverflow is StringValue for a name with no slot. Such a
 // name can still be a schema field (one outside a projection written by
 // name), so the schema is consulted exactly as the map-backed form did.
-func (r *Record) stringValueOverflow(name string) (string, bool) {
+func (r *Record) stringValueOverflow(name string) (string, bool, error) {
 	if r.aux == nil || r.aux.ovNulls[name] || r.schema == nil {
-		return "", false
+		return "", false, nil
 	}
 	f := r.schema.Field(name)
 	if f == nil || !f.Type.IsCategorical() || f.Dictionary == nil {
-		return "", false
+		return "", false, nil
 	}
 	v, ok := r.aux.ovVals[name]
 	if !ok {
-		return "", false
+		return "", false, nil
 	}
-	resolved := f.Dictionary.Resolve(uint32(v))
-	if resolved == "" {
-		return "", false
-	}
-	return resolved, true
+	return resolveLevel(f, v)
 }
 
 // Schema returns the record's schema.
@@ -1567,6 +1634,7 @@ func (r *Record) ClearForRow() {
 		if len(r.aux.ovWide) > 0 {
 			clear(r.aux.ovWide)
 		}
+		r.aux.readFault = nil
 	}
 	r.allValuesCache = nil
 }
@@ -1591,6 +1659,7 @@ func (r *Record) BeginRunRow(token uint64, keep bool) bool {
 			if len(r.aux.ovWide) > 0 {
 				clear(r.aux.ovWide)
 			}
+			r.aux.readFault = nil
 		}
 		r.allValuesCache = nil
 		return true

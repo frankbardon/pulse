@@ -52,7 +52,11 @@ func (c *frequencyEncode) PrePass(r Record, field string) error {
 	if c.counts == nil {
 		c.counts = make(map[string]int, 16)
 	}
-	if s, ok := r.LevelValue(field); ok {
+	s, ok, err := r.LevelValueChecked(field)
+	if err != nil {
+		return err
+	}
+	if ok {
 		c.counts[s]++
 		c.total++
 	}
@@ -77,7 +81,10 @@ func (c *frequencyEncode) EmitRow(r Record, field string) (map[string]Output, er
 	if c.empty {
 		return map[string]Output{c.label: {Values: []float64{0}, Nulls: []bool{true}}}, nil
 	}
-	s, ok := r.LevelValue(field)
+	s, ok, err := r.LevelValueChecked(field)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return map[string]Output{c.label: {Values: []float64{0}, Nulls: []bool{true}}}, nil
 	}
@@ -92,7 +99,10 @@ func (c *frequencyEncode) Compute(records []Record, field string) (map[string]Ou
 	counts := make(map[string]int, 16)
 	total := 0
 	for _, r := range records {
-		s, ok := r.LevelValue(field)
+		s, ok, err := r.LevelValueChecked(field)
+		if err != nil {
+			return nil, err
+		}
 		if !ok {
 			continue
 		}
@@ -111,7 +121,10 @@ func (c *frequencyEncode) Compute(records []Record, field string) (map[string]Ou
 
 	denom := float64(total)
 	for i, r := range records {
-		s, ok := r.LevelValue(field)
+		s, ok, err := r.LevelValueChecked(field)
+		if err != nil {
+			return nil, err
+		}
 		if !ok {
 			nulls[i] = true
 			continue

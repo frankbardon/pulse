@@ -93,11 +93,17 @@ func newFisherExactRow(spec *types.Test, schema *encoding.Schema) (RowTest, erro
 }
 
 func (f *fisherExactRow) UpdateRow(record *Record) error {
-	rk, ok := record.LevelValue(f.rowsField)
+	rk, ok, err := record.LevelValueChecked(f.rowsField)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return nil
 	}
-	ck, ok := record.LevelValue(f.colsField)
+	ck, ok, err := record.LevelValueChecked(f.colsField)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return nil
 	}

@@ -389,10 +389,14 @@ type minimalFeatureRecord struct{}
 func (minimalFeatureRecord) NumericValue(name string) (float64, bool) {
 	return 5, name == "x"
 }
-func (minimalFeatureRecord) StringValue(name string) (string, bool) { return "lbl", name == "c" }
-func (minimalFeatureRecord) LevelValue(name string) (string, bool)  { return "lbl", name == "c" }
-func (minimalFeatureRecord) Set(string, float64)                    {}
-func (minimalFeatureRecord) SetNull(string)                         {}
+func (minimalFeatureRecord) StringValueChecked(name string) (string, bool, error) {
+	return "lbl", name == "c", nil
+}
+func (minimalFeatureRecord) LevelValueChecked(name string) (string, bool, error) {
+	return "lbl", name == "c", nil
+}
+func (minimalFeatureRecord) Set(string, float64) {}
+func (minimalFeatureRecord) SetNull(string)      {}
 
 // TestFeatureRecord_EngineRecordPassesThroughAndMinimalDegrades pins
 // the read view: the engine's *processing.Record reaches the embedder

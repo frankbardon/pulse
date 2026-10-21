@@ -87,7 +87,10 @@ func (zt *zTestRow) UpdateRow(record *Record) error {
 	if !ok {
 		return nil
 	}
-	key, kOk := record.LevelValue(zt.splitBy)
+	key, kOk, err := record.LevelValueChecked(zt.splitBy)
+	if err != nil {
+		return err
+	}
 	if !kOk {
 		return nil
 	}

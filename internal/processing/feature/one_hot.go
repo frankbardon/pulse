@@ -69,7 +69,10 @@ func (c *oneHot) Compute(records []Record, field string) (map[string]Output, err
 	}
 
 	for i, r := range records {
-		s, ok := r.LevelValue(field)
+		s, ok, err := r.LevelValueChecked(field)
+		if err != nil {
+			return nil, err
+		}
 		if !ok {
 			continue
 		}
@@ -95,7 +98,10 @@ func (c *oneHot) EmitRow(r Record, field string) (map[string]Output, error) {
 	for _, cat := range c.categories {
 		out[c.columnName(cat)] = Output{Values: []float64{0}}
 	}
-	s, ok := r.LevelValue(field)
+	s, ok, err := r.LevelValueChecked(field)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return out, nil
 	}

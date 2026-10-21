@@ -138,7 +138,7 @@ func applyLowNEff(resp *types.Response, entries []rowTestEntry, strict bool) err
 		return nil
 	}
 	for _, e := range entries {
-		rep, ok := e.test.(lowNEffReporter)
+		rep, ok := unlatched(e.test).(lowNEffReporter)
 		if !ok {
 			continue
 		}

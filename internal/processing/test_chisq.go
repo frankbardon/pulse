@@ -92,11 +92,17 @@ func newChiSqRow(spec *types.Test, schema *encoding.Schema) (RowTest, error) {
 }
 
 func (c *chiSqRow) UpdateRow(record *Record) error {
-	rowVal, rOk := record.LevelValue(c.rowsField)
+	rowVal, rOk, err := record.LevelValueChecked(c.rowsField)
+	if err != nil {
+		return err
+	}
 	if !rOk {
 		return nil
 	}
-	colVal, cOk := record.LevelValue(c.colsField)
+	colVal, cOk, err := record.LevelValueChecked(c.colsField)
+	if err != nil {
+		return err
+	}
 	if !cOk {
 		return nil
 	}

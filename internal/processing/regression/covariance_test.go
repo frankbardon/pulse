@@ -10,16 +10,17 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// labeledRecord is a mockRecord that also answers StringValue — the
-// LabeledRecord extension a categorical cluster field is read through.
+// labeledRecord is a mockRecord that also answers StringValueChecked —
+// the LabeledRecord extension a categorical cluster field is read
+// through.
 type labeledRecord struct {
 	mockRecord
 	labels map[string]string
 }
 
-func (r labeledRecord) StringValue(name string) (string, bool) {
+func (r labeledRecord) StringValueChecked(name string) (string, bool, error) {
 	s, ok := r.labels[name]
-	return s, ok
+	return s, ok, nil
 }
 
 // covRecords is a small heteroskedastic series: t orders it, g holds

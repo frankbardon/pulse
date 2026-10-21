@@ -99,7 +99,10 @@ func newChiSqGOFRow(spec *types.Test, schema *encoding.Schema, expected map[stri
 }
 
 func (g *chiSqGOFRow) UpdateRow(record *Record) error {
-	level, ok := record.LevelValue(g.rowsField)
+	level, ok, err := record.LevelValueChecked(g.rowsField)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return nil
 	}
