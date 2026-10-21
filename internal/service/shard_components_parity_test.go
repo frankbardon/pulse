@@ -88,6 +88,17 @@ func parityRequests(path string) map[string]*types.Request {
 			Overlays: []types.OverlaySpec{{Name: "vs_north", Kind: types.OverlayKindIndexVsSibling, Scope: types.OverlayScopeGroup,
 				Ref: types.OverlayRef{Sibling: &types.OverlaySiblingRef{Field: "region", Value: "north"}}}},
 		},
+		// A tally attribute (U51 E3-S2): each shard scores its rows on
+		// its own instance; the merged out-of-range counts, the
+		// attribute's Components.Attributes entry and its warning equal
+		// the serial run's.
+		"scale_score_category": {
+			Cohort: &types.Cohort{Filename: path},
+			Attributes: []*types.Attribute{{Type: types.ATTR_SCALE_SCORE, Fields: []string{"weight", "amount"}, Label: "sc",
+				Params: json.RawMessage(`{"scale_min":0,"scale_max":30}`)}},
+			Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+			Aggregations: append(aggs(), &types.Aggregation{Type: types.AGG_SUM, Field: "sc", Label: "sum_sc"}),
+		},
 		"filtered_category": {
 			Cohort:       &types.Cohort{Filename: path},
 			Filterers:    []*types.Filterer{{Type: types.FILTER_RANGE, Field: "weight", Values: []string{"12", "100"}}},
@@ -145,7 +156,8 @@ func TestShardWorkers_ComponentsParity_GroupedAndFlatArchives(t *testing.T) {
 						Data       any
 						Components any
 						Overlays   any
-					}{resp.Data, resp.Components, resp.Overlays})
+						Warnings   any
+					}{resp.Data, resp.Components, resp.Overlays, resp.Warnings})
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -158,6 +170,12 @@ func TestShardWorkers_ComponentsParity_GroupedAndFlatArchives(t *testing.T) {
 				if serial.Components.Run.ShardCount != len(shards) {
 					t.Errorf("serial run.shard_count = %d, want %d (the cohort resolved to a %d-shard archive)",
 						serial.Components.Run.ShardCount, len(shards), len(shards))
+				}
+				if len(req.Attributes) > 0 {
+					ac := serial.Components.Attributes
+					if len(ac) != 1 || ac[0].N == 0 || ac[0].Operator["n_out_of_range"] == 0 || len(serial.Warnings) == 0 {
+						t.Fatalf("serial arm emitted a degenerate attribute tally %+v (warnings %d); parity against it proves nothing", ac, len(serial.Warnings))
+					}
 				}
 				if len(req.Overlays) > 0 && len(serial.Overlays) == 0 {
 					t.Fatal("serial arm emitted no overlay layer; parity against it proves nothing")
@@ -226,6 +244,12 @@ func TestDecodeWorkers_GroupedAnswersParity(t *testing.T) {
 			Sort:   []types.OrderKey{{Field: "n", Desc: true}}},
 		"set_value":       {Cohort: &types.Cohort{Filename: path}, Aggregations: aggs, Groups: []*types.Group{{Type: types.GROUP_SET_VALUE, Field: "picks"}}},
 		"set_per_element": {Cohort: &types.Cohort{Filename: path}, Aggregations: aggs, Groups: []*types.Group{{Type: types.GROUP_SET_PER_ELEMENT, Field: "picks"}}},
+		// A tally attribute's per-worker counts fold (U51 E3-S2).
+		"scale_score_set_value": {Cohort: &types.Cohort{Filename: path},
+			Attributes: []*types.Attribute{{Type: types.ATTR_SCALE_SCORE, Fields: []string{"score", "id"}, Label: "sc",
+				Params: json.RawMessage(`{"scale_min":0,"scale_max":90000}`)}},
+			Aggregations: append(append([]*types.Aggregation(nil), aggs...), &types.Aggregation{Type: types.AGG_SUM, Field: "sc", Label: "sum_sc"}),
+			Groups:       []*types.Group{{Type: types.GROUP_SET_VALUE, Field: "picks"}}},
 	}
 	answer := func(t *testing.T, workers int, req *types.Request) string {
 		t.Helper()
@@ -241,10 +265,16 @@ func TestDecodeWorkers_GroupedAnswersParity(t *testing.T) {
 		if ac := resp.Components.Aggregations; len(ac) != len(req.Aggregations) || len(ac[0].Groups) != len(resp.Data) {
 			t.Fatalf("DecodeWorkers=%d emitted no per-group aggregation components", workers)
 		}
+		if len(req.Attributes) > 0 {
+			if ac := resp.Components.Attributes; len(ac) != 1 || ac[0].Operator["n_out_of_range"] == 0 || len(resp.Warnings) == 0 {
+				t.Fatalf("DecodeWorkers=%d emitted a degenerate attribute tally %+v", workers, ac)
+			}
+		}
 		b, _ := json.Marshal(struct {
 			Data       any
 			Components any
-		}{resp.Data, resp.Components})
+			Warnings   any
+		}{resp.Data, resp.Components, resp.Warnings})
 		return string(b)
 	}
 	if _, ok := shouldFanOutDecode(4, rowCount); !ok {

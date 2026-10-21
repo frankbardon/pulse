@@ -612,7 +612,8 @@ func (f snapshotMergeFacts) Attribute(name string) (bool, bool) {
 	}
 	m, ok := findMeta(f.s.Attributes, name)
 	// An attribute emitting Components entries (a declared
-	// ComponentSchema) runs serial: per-worker figures do not merge.
+	// ComponentSchema) runs serial unless it declares Mergeable: its
+	// per-worker tallies then fold (extend.MergeableAttribute).
 	_, emits := f.s.ComponentSchemas[name]
-	return m.Mode == "row_local" && !emits, ok
+	return m.Mode == "row_local" && (!emits || m.Mergeable), ok
 }

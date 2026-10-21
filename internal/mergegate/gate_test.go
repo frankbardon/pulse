@@ -88,10 +88,17 @@ func TestMergeRefusal(t *testing.T) {
 		{"code-in attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_CODE_IN}}}, nil, ""},
 		{"set-has attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_SET_HAS}}}, nil, ""},
 		{"set-popcount attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_SET_POPCOUNT}}}, nil, ""},
-		// Row-local per row but tallying per run (Components.Attributes
-		// counters + a Response warning) the merged route does not fold.
-		{"scale-score attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_SCALE_SCORE}}}, nil, "attribute ATTR_SCALE_SCORE is not row-local"},
-		{"profile-similarity attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY}}}, nil, "attribute ATTR_PROFILE_SIMILARITY is not row-local"},
+		// Row-local per row, tallying per run (Components.Attributes
+		// counters + a Response warning) the reducers fold
+		// (MergeableAttributeTally, U51 E3-S2): admitted. A centroid
+		// reference is a cohort-wide pre-pass and stays out.
+		{"scale-score attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_SCALE_SCORE}}}, nil, ""},
+		{"profile-similarity attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY}}}, nil, ""},
+		{"profile-similarity table key_field", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY, Params: []byte(`{"metric":"cosine","reference":{"table":"t","key_field":"n"}}`)}}}, nil, ""},
+		{"profile-similarity literal", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY, Params: []byte(`{"metric":"cosine","reference":[1,2]}`)}}}, nil, ""},
+		{"profile-similarity centroid", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY, Params: []byte(`{"metric":"cosine","reference":{"centroid":{}}}`)}}}, nil, "attribute ATTR_PROFILE_SIMILARITY is not row-local"},
+		{"profile-similarity centroid by", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY, Params: []byte(`{"metric":"cosine","reference":{"centroid":{"by":"n"}}}`)}}}, nil, "attribute ATTR_PROFILE_SIMILARITY is not row-local"},
+		{"row-local vec distance", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Params: []byte(`{"metric":"euclidean","reference":[1,2]}`)}}}, nil, "attribute ATTR_VEC_DISTANCE is not row-local"},
 		{"refit attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_REG_FITTED}}}, nil, "attribute ATTR_REG_FITTED is not row-local"},
 		// A subject's records may sit in any partition or shard: a
 		// partition-local previous state would be wrong (U55). Never

@@ -1110,18 +1110,20 @@ const (
 	// "duplicate").
 	PULSE_EXTENSION_EXAMPLE_COLLISION Code = "PULSE_EXTENSION_EXAMPLE_COLLISION"
 
-	// PULSE_EXTENSION_MERGEABLE_MISMATCH indicates an aggregator or
-	// grouper registration declared Mergeable=true but cannot honour it:
-	// the registration is not also Streamable (merge folds ONLINE state,
-	// so mergeable is a strict subset of streamable), the factory's
+	// PULSE_EXTENSION_MERGEABLE_MISMATCH indicates an aggregator,
+	// grouper or attribute registration declared Mergeable=true but
+	// cannot honour it: the registration is not also Streamable (merge
+	// folds ONLINE state, so mergeable is a strict subset of
+	// streamable; an attribute must be Mode row_local), the factory's
 	// value does not implement extend.MergeableAggregator (or, for a
-	// grouper that emits components, extend.MergeableGrouper), or its
-	// ComponentSchema declares keys with Mergeability "none" (the
+	// grouper that emits components, extend.MergeableGrouper; for an
+	// attribute that emits components, extend.MergeableAttribute), or
+	// its ComponentSchema declares keys with Mergeability "none" (the
 	// parallel reducers read Components() off the MERGED instance, so a
 	// non-mergeable figure would be silently wrong under ShardWorkers /
 	// DecodeWorkers). Details carry the category, name and a reason
-	// discriminator. Wired into extensions_probe.probeAggregators and
-	// probeGroupers.
+	// discriminator. Wired into extensions_probe.probeAggregators,
+	// probeGroupers and probeAttributes.
 	PULSE_EXTENSION_MERGEABLE_MISMATCH Code = "PULSE_EXTENSION_MERGEABLE_MISMATCH"
 
 	// PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH indicates an

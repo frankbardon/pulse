@@ -965,6 +965,15 @@ func (a attrCore) EmitsNull() bool {
 
 var _ processing.NullEmitter = attrCore{}
 
+// extendInner exposes the embedder's own value. Every attribute wrapper
+// embeds attrCore, so attrMerge can unwrap its merge partner.
+func (a attrCore) extendInner() extend.AttributeComputer { return a.inner }
+
+// extendAttributeWrapper is satisfied by every adapted attribute.
+type extendAttributeWrapper interface {
+	extendInner() extend.AttributeComputer
+}
+
 // attrView hands a weighted slot's per-row view (any row, see attrCore)
 // or the record as-is when view is nil.
 func attrView(view *rowView, rec *processing.Record) extend.Record {
@@ -1008,10 +1017,38 @@ type attrMeta struct {
 
 func (a attrMeta) Components() (map[string]any, error) { return a.emit(a.inner) }
 
+// attrMerge forwards extend.MergeableAttribute as
+// processing.MergeableAttributeTally. The engine hands MergeTally
+// another ADAPTED instance; MergeTally receives the embedder's own
+// value behind it, so the embedder's type assertion to its concrete
+// type succeeds. A partner the adapter did not build is a programming
+// error, reported as PROCESSING_INTERNAL like the built-ins'
+// type-mismatch merge.
+type attrMerge struct {
+	merge extend.MergeableAttribute
+}
+
+func (a attrMerge) MergeTally(other processing.RowLocalAttribute) error {
+	w, ok := other.(extendAttributeWrapper)
+	var partner extend.RowLocalAttribute
+	if ok {
+		partner, ok = w.extendInner().(extend.RowLocalAttribute)
+	}
+	if !ok {
+		return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			fmt.Sprintf("extension attribute %T: MergeTally partner %T is not an adapted extension attribute", a.merge, other),
+			map[string]any{"partner": fmt.Sprintf("%T", other)})
+	}
+	return a.merge.MergeTally(partner)
+}
+
 // One wrapper per capability tier: buffered, (R)ow-local, (T)wo-pass.
 // TwoPassAttribute embeds RowLocalAttribute, so the tiers nest and
 // there is no fourth combination. The M variants add MetaAttribute
-// (a registration with a ComponentsFunc, or a self-emitting value).
+// (a registration with a ComponentsFunc, or a self-emitting value);
+// the G variants add MergeableAttributeTally (a row-local value
+// implementing extend.MergeableAttribute — the reducers fold its
+// per-run tally; mergegate admits it only on a Mergeable declaration).
 type (
 	attrAdapted  struct{ attrCore }
 	attrAdaptedR struct {
@@ -1032,6 +1069,17 @@ type (
 		attrRow
 		attrMeta
 	}
+	attrAdaptedRG struct {
+		attrCore
+		attrRow
+		attrMerge
+	}
+	attrAdaptedRMG struct {
+		attrCore
+		attrRow
+		attrMeta
+		attrMerge
+	}
 	attrAdaptedTM struct {
 		attrCore
 		attrRow
@@ -1042,8 +1090,10 @@ type (
 
 // adaptAttribute wraps an extend.AttributeComputer so the engine's
 // RowLocalAttribute / TwoPassAttribute assertions succeed iff the
-// embedder value implements the matching extend sibling, and
-// MetaAttribute iff emit is non-nil — or, with no ComponentsFunc, the
+// embedder value implements the matching extend sibling,
+// MergeableAttributeTally iff a row-local (not two-pass) value
+// implements extend.MergeableAttribute, and MetaAttribute iff emit is
+// non-nil — or, with no ComponentsFunc, the
 // value carries its own Components() method, adopted as the emitter
 // exactly as adaptAggregator / adaptGrouper / adaptFilterer adopt it
 // (pulse.New probe-validates it against the declared ComponentSchema).
@@ -1067,10 +1117,17 @@ func adaptAttribute(inner extend.AttributeComputer, wt *slotWeighting, emit Attr
 		return &attrAdaptedT{core, attrRow{row: two, view: view}, attrTwoPass{two: two, view: view}}
 	}
 	if row, ok := inner.(extend.RowLocalAttribute); ok {
-		if emit != nil {
-			return &attrAdaptedRM{core, attrRow{row: row, view: view}, meta}
+		r := attrRow{row: row, view: view}
+		if merge, isMerge := inner.(extend.MergeableAttribute); isMerge {
+			if emit != nil {
+				return &attrAdaptedRMG{core, r, meta, attrMerge{merge: merge}}
+			}
+			return &attrAdaptedRG{core, r, attrMerge{merge: merge}}
 		}
-		return &attrAdaptedR{core, attrRow{row: row, view: view}}
+		if emit != nil {
+			return &attrAdaptedRM{core, r, meta}
+		}
+		return &attrAdaptedR{core, r}
 	}
 	if emit != nil {
 		return &attrAdaptedM{core, meta}

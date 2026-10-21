@@ -38,8 +38,11 @@ type Extensions interface {
 	Grouper(name string) (mergeable, ok bool)
 	// Filterer reports an extension filterer's streamability.
 	Filterer(name string) (streamable, ok bool)
-	// Attribute reports whether an extension attribute is row-local
-	// (streamable and not two-pass).
+	// Attribute reports whether an extension attribute merges as a
+	// row-local operator: declared row_local (streamable, not
+	// two-pass) and — when it emits Components.Attributes figures —
+	// declared Mergeable (its per-run tally folds through
+	// extend.MergeableAttribute.MergeTally).
 	Attribute(name string) (rowLocal, ok bool)
 	// Matrix reports whether an extension MAT_* operator merges: its
 	// declared co-moment tier (Streamable) merges through the blocked
@@ -65,10 +68,13 @@ func (None) Matrix(string) (bool, bool)     { return false, false }
 // tree, bit-identical to serial; a grouped request's per-bucket
 // matrices merge bucket by bucket the same way); only row-local
 // attributes (ATTR_FORMULA without a total(expr) call — or with one
-// that ParallelTotals admits —, ATTR_DATE_PART, ATTR_REG_PREDICT, an ATTR_MAHALANOBIS /
+// that ParallelTotals admits —, ATTR_DATE_PART, ATTR_REG_PREDICT,
+// ATTR_SCALE_SCORE, a non-centroid ATTR_PROFILE_SIMILARITY — both fold
+// their per-run tallies across partitions —, an ATTR_MAHALANOBIS /
 // ATTR_PC_SCORE / ATTR_FACTOR_SCORE / ATTR_REG_FITTED /
 // ATTR_REG_RESIDUAL bound to a prebuilt fit by params.fit —
-// vectors.FitBound —, row_local extensions); only mergeable groupers
+// vectors.FitBound —, row_local extensions, a component-emitting one
+// only when declared Mergeable); only mergeable groupers
 // (built-in Mergeable() or a declared extension); only streamable
 // filterers; and only mergeable aggregators, none of them a built-in
 // one over a decimal128 field (the built-in decimal fold is
@@ -151,22 +157,31 @@ func mergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, a
 				// no per-run state (#391).
 				types.ATTR_CODE_IN, types.ATTR_SET_HAS, types.ATTR_SET_POPCOUNT,
 				// Bound before the row pass: a pure per-row score.
-				types.ATTR_REG_PREDICT:
-				// ATTR_SCALE_SCORE and ATTR_PROFILE_SIMILARITY score
-				// per row too but stay off: each tallies per run (its
+				types.ATTR_REG_PREDICT,
+				// Row-local with a per-run tally (its
 				// Components.Attributes counters and its Response
-				// warning — out-of-range members, missing references),
-				// which per-partition instances would split and the
-				// merged route does not fold back.
+				// warning — out-of-range members) the reducers fold
+				// across partitions (processing.MergeableAttributeTally,
+				// U51 E3-S2, #456).
+				types.ATTR_SCALE_SCORE:
 				rowLocal = true
+			case types.ATTR_PROFILE_SIMILARITY:
+				// The reference form tallies per run (missing
+				// references, domain misses) and folds like
+				// ATTR_SCALE_SCORE; a centroid reference is a
+				// cohort-wide pre-pass (two-pass), which a partition
+				// cannot fold.
+				rowLocal = !vectors.ComparisonCentroid(attr.Type, attr)
 			case types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE, types.ATTR_FACTOR_SCORE,
 				types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL:
 				// Row-local only when bound to a prebuilt fit
 				// (params.fit): a fit_on fold — or an ATTR_REG_FITTED /
 				// RESIDUAL OLS refit — over one partition's rows would
 				// be partition-local. ATTR_VEC_DISTANCE stays
-				// off the list either way, like its row-local metrics
-				// (its per-row tallies would need a merge).
+				// off the list either way, its row-local metrics
+				// included (their tally folds like
+				// ATTR_PROFILE_SIMILARITY's, but the gate does not
+				// admit them yet).
 				rowLocal = vectors.FitBound(attr.Type, attr)
 			}
 		}

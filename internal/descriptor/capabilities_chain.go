@@ -23,13 +23,21 @@ func processChainCapability() descriptor.ProcessChainCapability {
 		MergeableGroupers: []string{
 			"GROUP_CATEGORY", "GROUP_RANGE",
 		},
+		// Every built-in attribute the shared merge gate
+		// (internal/mergegate) admits on its own spec, sorted
+		// (TestProcessChainCapability_RowLocalAttributesMatchGate);
+		// ATTR_FORMULA and ATTR_PROFILE_SIMILARITY carry the rejection
+		// rules below.
 		RowLocalAttributes: []string{
-			"ATTR_DATE_PART", "ATTR_FORMULA",
+			"ATTR_CODE_IN", "ATTR_DATE_PART", "ATTR_FORMULA", "ATTR_PROFILE_SIMILARITY",
+			"ATTR_REG_PREDICT", "ATTR_SCALE_SCORE", "ATTR_SET_HAS", "ATTR_SET_POPCOUNT",
 		},
 		RejectionRules: []string{
 			"chain rejects windows, features, tier-1 row tests, tier-2 post tests, regressions",
 			"chain rejects two-pass attributes (ZSCORE / TSCORE / NORMALIZED / REG_*)",
 			"chain rejects an ATTR_FORMULA whose expression calls total(expr) (a cohort-total pre-pass, not row-local)",
+			"chain rejects an ATTR_PROFILE_SIMILARITY over a centroid reference (a cohort-wide pre-pass, not row-local)",
+			"chain rejects extension attributes not declared row_local, and component-emitting ones not declared Mergeable",
 			"chain rejects AGG_MEDIAN / AGG_PERCENTILE / AGG_ZSCORE / AGG_SKEWNESS / AGG_KURTOSIS (non-mergeable)",
 			"chain rejects GROUP_ROUNDED / GROUP_QUANTILE / GROUP_DATE (non-mergeable)",
 			"chain rejects built-in aggregators over decimal128 targets",

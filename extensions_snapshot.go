@@ -89,6 +89,7 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Namespace:   parseNamespace(string(r.Name)),
 			Description: r.Description,
 			Streamable:  r.Mode != AttributeModeBuffered,
+			Mergeable:   r.Mergeable,
 			WeightAware: r.WeightAware,
 			Accepts:     fieldTypeStrings(r.Accepts),
 			Emits:       string(r.Emits),

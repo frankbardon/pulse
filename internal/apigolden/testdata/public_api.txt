@@ -47,6 +47,7 @@ pulse: type AttributeRegistration field Description string
 pulse: type AttributeRegistration field Emits pulse.AttributeEmitType
 pulse: type AttributeRegistration field Factory pulse/extend.AttributeFactory
 pulse: type AttributeRegistration field FieldInputs pulse.FieldInputsFunc
+pulse: type AttributeRegistration field Mergeable bool
 pulse: type AttributeRegistration field Mode pulse.AttributeMode
 pulse: type AttributeRegistration field Name pulse/types.AttributeType
 pulse: type AttributeRegistration field Params []pulse.ParamMeta
@@ -2884,6 +2885,9 @@ pulse/extend: type MergeableAggregator interface
 pulse/extend: type MergeableAggregator imethod Finalize() (float64, error)
 pulse/extend: type MergeableAggregator imethod Merge(other pulse/extend.OnlineAggregator) error
 pulse/extend: type MergeableAggregator imethod UpdateRow(rec pulse/extend.Record, field string) error
+pulse/extend: type MergeableAttribute interface
+pulse/extend: type MergeableAttribute imethod MergeTally(other pulse/extend.RowLocalAttribute) error
+pulse/extend: type MergeableAttribute imethod Row(rec pulse/extend.Record, field string) (float64, error)
 pulse/extend: type MergeableGrouper interface
 pulse/extend: type MergeableGrouper imethod Group(rows pulse/extend.Rows, field string) (map[string][]int, error)
 pulse/extend: type MergeableGrouper imethod MergeState(other pulse/extend.Grouper) error
@@ -5760,4 +5764,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 106e876c42662836319849c77c143efa73f343b6c1fccd8f67c3d515b41e7537
+// golden-hash: 757d56391d817b84a318148d714808fbf5dbe2e75738299eb8f86994e07a18d1

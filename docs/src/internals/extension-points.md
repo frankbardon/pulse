@@ -29,8 +29,9 @@ Engine-only capabilities — `MetaWindow`, `ExtensionAware`, `KeyFor`
 and the engine's merge hooks (`MergeOnline`, `MergeGrouperState`) —
 are deliberately absent from `extend`
 (`TestExtendOmitsEngineOnlyCapabilities`); merging is public through
-`extend.MergeableAggregator` / `extend.MergeableGrouper`, behind an
-explicit `Mergeable` declaration.
+`extend.MergeableAggregator` / `extend.MergeableGrouper` /
+`extend.MergeableAttribute`, behind an explicit `Mergeable`
+declaration.
 
 The implementation lives in the repository root: `extensions.go`
 (public registration types), `extensions_adapt.go` (the adapters that
@@ -453,12 +454,41 @@ built-ins' null-in, null-out rule: a null source cell scores null, not
 called once after the attribute scored every filter-passing row): its
 slot then carries one `Response.Components.Attributes` entry — the
 attribute floor `{n, n_null}` (rows whose output is present / null,
-filled by the orchestrator) plus the emitter's keys as `operator`. Only
-the registration-level `ComponentsFunc` emits; a value's own
-`Components()` method is not consulted for attributes. Such an
-attribute is never admitted to the parallel reducers or
-`ProcessChain`, whatever its `Mode` — one instance per worker would
-leave figures no merge folds — so a request carrying it runs serial.
+filled by the orchestrator) plus the emitter's keys as `operator`. With
+no `ComponentsFunc`, a value's own `Components()` method is adopted as
+the emitter, exactly as for the other categories.
+
+**Mergeable attributes.** A component-emitting attribute keeps a
+per-run tally, which one instance per worker would split. By default
+such an attribute is therefore never admitted to the parallel reducers
+or `ProcessChain`, whatever its `Mode`, and a request carrying it runs
+serially. A `row_local` attribute can opt in, exactly as the built-in
+`ATTR_SCALE_SCORE` and reference-form `ATTR_PROFILE_SIMILARITY` do:
+declare `Mergeable: true` and return a value implementing
+`extend.MergeableAttribute`:
+
+```go
+// MergeTally folds another partition's tally into the receiver; other
+// is the embedder's own value from the same factory and spec.
+func (a *highAttr) MergeTally(other extend.RowLocalAttribute) error {
+    a.high += other.(*highAttr).high
+    return nil
+}
+```
+
+The parallel reducers (`ShardWorkers`, `DecodeWorkers`) then score
+each partition on a fresh instance, fold the partitions through
+`MergeTally` and read the emitter once, off the merged instance, so the
+entry equals the serial run's; the same declaration admits the
+attribute to `ProcessChain` stages. Keep the tally associative —
+integer counts are exact in any order. Probe-validation refuses
+`Mergeable` with `PULSE_EXTENSION_MERGEABLE_MISMATCH` when the `Mode`
+is not `row_local` (`mergeable_without_row_local`), when the value
+emits components without implementing `extend.MergeableAttribute`
+(`missing_merge_interface`), or when the `ComponentSchema` is
+classified `None` (`components_not_mergeable`). A `row_local`
+attribute that emits nothing merges either way and needs no method.
+The flag reaches the manifest as `extensions.attributes[].mergeable`.
 `Mode` also picks the run-time drive on `Process`: `row_local` streams
 through `Row`, `two_pass` takes the streaming `PrePass` → `Finalize` →
 `Row` drive, `buffered` runs `Compute` over the materialised rows. Like
@@ -1153,7 +1183,7 @@ this section covers only the extension-side wiring.
 | Aggregator | Yes | Universal floor `{n, n_null}` filled by orchestrator. |
 | Grouper | Yes | Universal floor `{total_n, n_null}` filled by orchestrator. |
 | Filterer | Yes (floor-only valid) | Universal floor `{n_in, n_out, n_null_input}` filled by orchestrator; in v1 no built-in filterer adds operator-specific keys. |
-| Attribute | Optional | Only a registration with a `ComponentsFunc` emits a `Response.Components.Attributes` entry; attribute floor `{n, n_null}` (present / null outputs) filled by orchestrator; no weighted floor keys. Built-in example: `ATTR_SCALE_SCORE` (`n_out_of_range`, `n_rows_out_of_range`). |
+| Attribute | Optional | Only a registration with an emitter (`ComponentsFunc`, or the value's own `Components()`) emits a `Response.Components.Attributes` entry; it folds across workers only with `Mergeable` (`extend.MergeableAttribute`); attribute floor `{n, n_null}` (present / null outputs) filled by orchestrator; no weighted floor keys. Built-in example: `ATTR_SCALE_SCORE` (`n_out_of_range`, `n_rows_out_of_range`). |
 | Window | No | Window outputs land in `Response.Data` rows. |
 | Feature | No | Pre-filter; no components surface. |
 | Test | No | Test results carry their own typed shape. |
@@ -1475,7 +1505,7 @@ omits an extension drops it from the enum as from the manifest.
 ### The snapshot carries `fans_out` and `mergeable`
 
 `OperatorMeta.Mergeable` (`json:"mergeable,omitempty"`) projects the
-aggregator / grouper `Mergeable` declaration the same way, and
+aggregator / grouper / attribute `Mergeable` declaration the same way, and
 `OperatorMeta.MarginReducibility` (`json:"margin_reducibility,omitempty"`)
 the aggregator's declared crosstab margin class (predict's normalize
 advisory reads it through
@@ -1484,8 +1514,9 @@ predict-side chain gate reads it:
 `internal/descriptor.ValidateChainWithOptions` — handed the instance's
 snapshot as `PredictOptions.Extensions` by `(*Pulse).PredictChain` —
 admits an extension
-aggregator or grouper on its declared `Mergeable` flag and a
-`row_local` extension attribute as row-local and an extension filterer
+aggregator or grouper on its declared `Mergeable` flag, a
+`row_local` extension attribute as row-local (a component-emitting one
+only on its declared `Mergeable` flag) and an extension filterer
 on its `Streamable` flag — the same `internal/mergegate.ChainRefusal`
 call the runtime gate makes over the `ExtensionRegistry`, so the answers
 cannot drift (`TestPredictChain_ExtensionOperatorsMatchProcessChain`)
@@ -1975,7 +2006,9 @@ State these plainly to users rather than discovering them at run time:
 - **Merging is opt-in.** An extension aggregator or grouper merges
   only when its registration declares `Mergeable` (see Aggregator and
   Grouper above); extension filterers and `row_local` attributes merge
-  as row-local operators; `two_pass` / `buffered` attributes,
+  as row-local operators — a component-emitting `row_local` attribute
+  only when it declares `Mergeable` (see Attribute above); `two_pass` /
+  `buffered` attributes,
   features, windows and tests never merge (as for built-ins), so a
   request naming one runs the parallel shard and parallel buffered
   `Process` arms serially. Declaring `Mergeable` in a `ComponentSchema`

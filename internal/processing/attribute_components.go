@@ -1,6 +1,9 @@
 package processing
 
 import (
+	"fmt"
+
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -31,6 +34,55 @@ type MetaAttribute interface {
 	Components() (map[string]any, error)
 }
 
+// MergeableAttributeTally is the optional sibling of RowLocalAttribute
+// for a row-local attribute that keeps a per-run tally — its
+// Components.Attributes counters and the Response warnings they back
+// (ATTR_SCALE_SCORE's out-of-range counts, a reference-form
+// ATTR_PROFILE_SIMILARITY's missing-reference and domain counts, an
+// extension attribute declaring Mergeable through
+// extend.MergeableAttribute). The parallel reducers (ShardWorkers,
+// DecodeWorkers) score each partition on its own instance and fold the
+// partitions with MergeTally, so the one merged instance's Components()
+// and warnings describe the whole cohort exactly as the serial
+// instance's do. The tallies are integers (and bounded key sets), so
+// the fold is exact and order-free (U51 E3-S2, #456).
+//
+// other is an instance the SAME factory built from the SAME spec (a
+// type mismatch is PROCESSING_INTERNAL); it is not reused afterwards.
+// Only the tally folds — the binding (tables, fits, members) is the
+// same on every partition. A two-pass attribute (a centroid reference,
+// a fit_on fold) never implements it: its pre-pass is cohort-wide.
+type MergeableAttributeTally interface {
+	RowLocalAttribute
+	MergeTally(other RowLocalAttribute) error
+}
+
+// MergeAttributeTally folds src's per-run tally into dst, two
+// partitions' instances of one attribute slot: MergeTally when dst
+// keeps one; nothing for an attribute with no per-run tally. A slot
+// emitting Components.Attributes figures (MetaAttribute) without a
+// tally fold is PROCESSING_INTERNAL — mergegate admits no such slot to
+// the reducers, whose merged figures would describe one partition.
+func MergeAttributeTally(dst, src RowLocalAttribute) error {
+	if m, ok := dst.(MergeableAttributeTally); ok {
+		return m.MergeTally(src)
+	}
+	if _, ok := dst.(MetaAttribute); ok {
+		return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			fmt.Sprintf("attribute %T emits components but has no tally merge; it is not eligible for the parallel reducers", dst),
+			map[string]any{"computer": fmt.Sprintf("%T", dst)})
+	}
+	return nil
+}
+
+// tallyPartnerMismatch is the PROCESSING_INTERNAL a MergeTally raises
+// for a partner of another type.
+func tallyPartnerMismatch(t types.AttributeType, other RowLocalAttribute) error {
+	return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+		fmt.Sprintf("%s: MergeTally partner %T is not the same attribute", t, other),
+		map[string]any{"attribute": string(t), "partner": fmt.Sprintf("%T", other)})
+}
+
 // attributeTallyResetter is implemented by an attribute whose own
 // counters (its components keys, its Response warning) accumulate in
 // Row: the two-pass streaming arm evaluates a row-local stage once per
@@ -41,14 +93,16 @@ type attributeTallyResetter interface {
 	resetTally()
 }
 
-// attributeFloor tallies one componented attribute slot's floor.
-type attributeFloor struct {
+// AttributeFloor tallies one componented attribute slot's floor. The
+// parallel reducers hold one per partition (AttributeFloorFor) and fold
+// them with Merge: plain counts, so the fold is order-free and exact.
+type AttributeFloor struct {
 	n, nNull int
 }
 
-// observe counts one written output v (nullable: the computer's
+// Observe counts one written output v (nullable: the computer's
 // EmitsNull). A nil floor (the slot emits no entry) is a no-op.
-func (f *attributeFloor) observe(v float64, nullable bool) {
+func (f *AttributeFloor) Observe(v float64, nullable bool) {
 	if f == nil {
 		return
 	}
@@ -59,21 +113,50 @@ func (f *attributeFloor) observe(v float64, nullable bool) {
 	}
 }
 
+// Merge adds other partition's floor into f. Either nil is a no-op
+// (both partitions of one slot hold a floor, or neither does).
+func (f *AttributeFloor) Merge(other *AttributeFloor) {
+	if f == nil || other == nil {
+		return
+	}
+	f.n += other.n
+	f.nNull += other.nNull
+}
+
+// AttributeFloorFor is attributeFloorFor for the parallel reducers
+// (internal/service), which build their attributes outside a Processor.
+func AttributeFloorFor(computer any, compute ComputePlan) *AttributeFloor {
+	return attributeFloorFor(computer, compute)
+}
+
+// AttributeComponentsEntry is attributeComponents for the parallel
+// reducers: the slot's entry off its (merged) floor and computer; ok is
+// false when the slot emits none (nil floor).
+func AttributeComponentsEntry(attr *types.Attribute, label string, computer any, f *AttributeFloor) (types.AttributeComponents, bool, error) {
+	return attributeComponents(attr, label, computer, f)
+}
+
+// AttachAttributeComponents is attachAttributeComponents for the
+// parallel reducers.
+func AttachAttributeComponents(resp *types.Response, entries []types.AttributeComponents) {
+	attachAttributeComponents(resp, entries)
+}
+
 // attributeFloorFor returns a fresh floor when computer emits a
 // Components entry under compute, else nil.
-func attributeFloorFor(computer any, compute ComputePlan) *attributeFloor {
+func attributeFloorFor(computer any, compute ComputePlan) *AttributeFloor {
 	if !compute.Attributes {
 		return nil
 	}
 	if _, ok := computer.(MetaAttribute); !ok {
 		return nil
 	}
-	return &attributeFloor{}
+	return &AttributeFloor{}
 }
 
 // attributeComponents builds the slot's entry from its floor and the
 // operator's Components(). A nil floor builds none (ok false).
-func attributeComponents(attr *types.Attribute, label string, computer any, f *attributeFloor) (types.AttributeComponents, bool, error) {
+func attributeComponents(attr *types.Attribute, label string, computer any, f *AttributeFloor) (types.AttributeComponents, bool, error) {
 	if f == nil {
 		return types.AttributeComponents{}, false, nil
 	}

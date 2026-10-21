@@ -109,7 +109,11 @@ func (f registryMergeFacts) Matrix(name string) (bool, bool) {
 	return op.Streamable, true
 }
 
-// Attribute answers only for EXTENSION attributes (and hidden names);
+// Attribute answers only for EXTENSION attributes (and hidden names):
+// row-local when declared row_local and — for one emitting
+// Components.Attributes figures (ComponentAttributes) — declared
+// Mergeable, its per-run tally folding through
+// extend.MergeableAttribute (processing.MergeableAttributeTally);
 // a built-in answers (false, false) so mergegate.MergeRefusal decides
 // it per attribute — ATTR_FORMULA is row-local only without a
 // total(expr) call (totalcall.Contains), or with one the reducers' two-
@@ -126,7 +130,8 @@ func (f registryMergeFacts) Attribute(name string) (bool, bool) {
 	if !f.r.isExtensionAttribute(t) {
 		return false, false
 	}
-	return f.r.IsStreamable("attribute", name) && !f.r.attributeRequiresTwoPass(t) && !f.r.ComponentAttributes[t], true
+	emitsUnmerged := f.r.ComponentAttributes[t] && !f.r.IsMergeable("attribute", name)
+	return f.r.IsStreamable("attribute", name) && !f.r.attributeRequiresTwoPass(t) && !emitsUnmerged, true
 }
 
 // AggregationLabel returns the output column name for an aggregation,

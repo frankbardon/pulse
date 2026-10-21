@@ -129,8 +129,11 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 
 	// A fitted attribute bound to a prebuilt fit closes at bind: build
 	// the row-local attributes once here for their fit warnings and
-	// capture offer, so N shard builds never repeat them.
-	attrWarns, err := boundAttributeWarnings(req, schema, s.extensions, model.SetFrom(ctx))
+	// capture offer, so N shard builds never repeat them. The same
+	// build is where the shards' per-run attribute tallies fold
+	// (finalizeMergedPartial).
+	compute := s.computePlanFor(ctx, req)
+	bound, err := boundAttributes(req, schema, s.extensions, model.SetFrom(ctx), compute)
 	if err != nil {
 		return nil, err
 	}
@@ -154,11 +157,10 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	}
 	ei.Lap(observe.PhaseScan)
 
-	resp, err := finalizeMergedPartial(req, schema, merged, len(shards), s.computePlanFor(ctx, req), s.extensions, model.SetFrom(ctx))
+	resp, err := finalizeMergedPartial(req, schema, merged, len(shards), compute, s.extensions, model.SetFrom(ctx), bound)
 	if err != nil {
 		return nil, err
 	}
-	resp.Warnings = prependWarnings(resp.Warnings, attrWarns)
 	if err := merged.weights.Apply(resp, s.strict); err != nil {
 		return nil, err
 	}
@@ -365,6 +367,17 @@ type shardPartial struct {
 	// have exactly one implementation.
 	filterCounters []processing.FilterPassCounters
 
+	// attrs is this partition's row-local attribute set, one entry per
+	// req.Attributes slot (nil without attributes): each slot's
+	// instance — whose per-run tally (processing.MergeableAttributeTally:
+	// ATTR_SCALE_SCORE, a reference-form ATTR_PROFILE_SIMILARITY, a
+	// Mergeable extension) scored only this partition's rows — and its
+	// Components.Attributes floor. The merge folds them slot by slot
+	// (mergePartitionAttributes) and finalizeMergedPartial folds the
+	// result into the run's one bound build, which emits the entries and
+	// warnings once, cohort-wide (U51 E3-S2, #456).
+	attrs []rowLocalAttrSpec
+
 	aggs   []processing.OnlineAggregator
 	groups map[string]*processing.GroupBucket
 	// mats is the partition's Request.Matrices state (nil without
@@ -543,7 +556,8 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 	if err != nil {
 		return nil, err
 	}
-	rowLocalAttrs, err := buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, partitionModels(ctx), vecs, dec.totals)
+	compute := s.computePlanFor(ctx, req)
+	rowLocalAttrs, err := buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, partitionModels(ctx), vecs, dec.totals, compute)
 	if err != nil {
 		return nil, err
 	}
@@ -562,10 +576,11 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 	// counter (see primaryNullFieldFor).
 	primaryNullField := primaryNullFieldFor(req)
 
-	out, err := newPartitionPartial(req, schema, s.extensions, specs, grouperFactories, s.computePlanFor(ctx, req), model.SetFrom(ctx), s.Limits())
+	out, err := newPartitionPartial(req, schema, s.extensions, specs, grouperFactories, compute, model.SetFrom(ctx), s.Limits())
 	if err != nil {
 		return nil, err
 	}
+	out.attrs = rowLocalAttrs
 	aggsUngrouped := out.aggs
 
 	// A grouped archive: the reader and the record share the CANONICAL
@@ -610,6 +625,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 				return nil, err
 			}
 			processing.SetAttributeOutput(rec, ra.label, val, ra.nullable)
+			ra.floor.Observe(val, ra.nullable)
 		}
 
 		// Run.NullRecords' primary-field tally, AFTER row-local
@@ -936,6 +952,9 @@ type rowLocalAttrSpec struct {
 	label    string
 	// nullable: the computer writes NaN as a null (processing.EmitsNull).
 	nullable bool
+	// floor tallies the slot's Components.Attributes floor {n, n_null};
+	// nil when the slot emits no entry (processing.AttributeFloorFor).
+	floor *processing.AttributeFloor
 }
 
 // buildRowLocalAttrSpecs builds one worker's row-local attributes, bound
@@ -945,8 +964,9 @@ type rowLocalAttrSpec struct {
 // formula (admitted by mergegate.ParallelTotals) is row-local once its
 // totals are published: totals.Bind installs the run's two-phase
 // pre-pass values on it (nil totals binds none — a build that never
-// evaluates a row, boundAttributeWarnings).
-func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, exts *processing.ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, totals *processing.PublishedTotals) ([]rowLocalAttrSpec, error) {
+// evaluates a row, boundAttributes). compute is the run's plan: a slot
+// emitting a Components.Attributes entry gets a floor under it.
+func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, exts *processing.ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, totals *processing.PublishedTotals, compute processing.ComputePlan) ([]rowLocalAttrSpec, error) {
 	if len(attrs) == 0 {
 		return nil, nil
 	}
@@ -976,34 +996,79 @@ func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, e
 		if label == "" {
 			label = processing.DefaultAttributeLabel(attr)
 		}
-		out = append(out, rowLocalAttrSpec{attr: attr, computer: rl, label: label, nullable: processing.EmitsNull(computer)})
+		out = append(out, rowLocalAttrSpec{attr: attr, computer: rl, label: label, nullable: processing.EmitsNull(computer),
+			floor: processing.AttributeFloorFor(computer, compute)})
 	}
 	return out, nil
 }
 
-// boundAttributeWarnings is a reducer's ONE orchestrator-level build of
+// boundAttributes is a reducer's ONE orchestrator-level build of
 // req's row-local attributes against the run's bound models: a fitted
 // attribute bound to a prebuilt fit (vectors.FitBound — admitted by
 // mergegate) closes at bind, raising its fit warnings and, on a
 // Compose vector-fit request, its capture offer. The serial arms raise
 // both once; the reducers build per partition, so the partitions bind
 // with the capture stripped (partitionModels) and the run's warnings
-// come from this build, prepended in declared order exactly where the
-// serial arms put them (prependRowLocalWarnings). Nil without
-// attributes.
-func boundAttributeWarnings(req *types.Request, schema *encoding.Schema, exts *processing.ExtensionRegistry, models *model.Set) ([]*types.ResponseWarning, error) {
+// come from this build. It scores no row: finalizeMergedPartial folds
+// the merged partitions' per-run tallies and floors into it
+// (absorbPartitionAttributes), then emits its Components.Attributes
+// entries and its warnings once, cohort-wide, in declared order exactly
+// where the serial arms put them (prependRowLocalWarnings). A zero-row
+// run (no partition published) thus reports the zero tallies the serial
+// arms do. Nil without attributes.
+func boundAttributes(req *types.Request, schema *encoding.Schema, exts *processing.ExtensionRegistry, models *model.Set, compute processing.ComputePlan) ([]rowLocalAttrSpec, error) {
 	if len(req.Attributes) == 0 {
 		return nil, nil
 	}
-	specs, err := buildRowLocalAttrSpecs(req.Attributes, schema, exts, models, processing.ExprVectors(req, schema), nil)
-	if err != nil {
-		return nil, err
+	return buildRowLocalAttrSpecs(req.Attributes, schema, exts, models, processing.ExprVectors(req, schema), nil, compute)
+}
+
+// mergePartitionAttributes folds src's attribute slots into dst's, slot
+// by slot: the floors add and each instance's per-run tally folds
+// (processing.MergeAttributeTally). Integer tallies, so the fold is
+// exact in any order. An empty src (no attributes, or a partition that
+// built none) is a no-op.
+func mergePartitionAttributes(dst, src []rowLocalAttrSpec) error {
+	if len(src) == 0 {
+		return nil
 	}
-	var out []*types.ResponseWarning
-	for _, sp := range specs {
-		out = append(out, processing.AttributeWarnings(sp.computer)...)
+	if len(dst) != len(src) {
+		return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			"partition attribute count mismatch during merge",
+			map[string]any{"merged": len(dst), "partial": len(src)})
 	}
-	return out, nil
+	for i := range dst {
+		dst[i].floor.Merge(src[i].floor)
+		if err := processing.MergeAttributeTally(dst[i].computer, src[i].computer); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// emitBoundAttributes writes the run's attribute figures from bound
+// (the merged partitions already folded in): one Components.Attributes
+// entry per slot holding a floor, in declared order, and the slots'
+// Response warnings — fit warnings, the folded tallies' warnings —
+// prepended in declared order. Each slot emits once.
+func emitBoundAttributes(resp *types.Response, bound []rowLocalAttrSpec) error {
+	var (
+		entries []types.AttributeComponents
+		warns   []*types.ResponseWarning
+	)
+	for _, sp := range bound {
+		entry, ok, err := processing.AttributeComponentsEntry(sp.attr, sp.label, sp.computer, sp.floor)
+		if err != nil {
+			return err
+		}
+		if ok {
+			entries = append(entries, entry)
+		}
+		warns = append(warns, processing.AttributeWarnings(sp.computer)...)
+	}
+	processing.AttachAttributeComponents(resp, entries)
+	resp.Warnings = prependWarnings(resp.Warnings, warns)
+	return nil
 }
 
 // partitionModels is the run's bound models for one reducer partition's
@@ -1101,6 +1166,9 @@ func (m *partialMerger) add(p *shardPartial) error {
 	processing.MergeSlotFloors(merged.aggFloor, p.aggFloor)
 	merged.weights.Merge(p.weights)
 	processing.MergeFilterPassCounters(merged.filterCounters, p.filterCounters)
+	if err := mergePartitionAttributes(merged.attrs, p.attrs); err != nil {
+		return err
+	}
 	if err := merged.mats.Merge(p.mats); err != nil {
 		return err
 	}
@@ -1210,7 +1278,26 @@ func (m *partialMerger) add(p *shardPartial) error {
 // sub-part off (the DisableComponents opt-out) Response.Components stays
 // nil, so the merged-shard wire form is byte-identical to the
 // pre-Components baseline.
-func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *shardPartial, shardCount int, compute processing.ComputePlan, exts *processing.ExtensionRegistry, models *model.Set) (*types.Response, error) {
+func finalizeMergedPartial(req *types.Request, schema *encoding.Schema, merged *shardPartial, shardCount int, compute processing.ComputePlan, exts *processing.ExtensionRegistry, models *model.Set, bound []rowLocalAttrSpec) (*types.Response, error) {
+	// The partitions' attribute tallies fold into the run's one bound
+	// build (boundAttributes), which emits them — entries and warnings —
+	// once, cohort-wide, after the rows (emitBoundAttributes).
+	if err := mergePartitionAttributes(bound, merged.attrs); err != nil {
+		return nil, err
+	}
+	resp, err := finalizeMergedRows(req, schema, merged, shardCount, compute, exts, models)
+	if err != nil {
+		return nil, err
+	}
+	if err := emitBoundAttributes(resp, bound); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// finalizeMergedRows is finalizeMergedPartial before the attribute
+// figures: the rows and every other Components sub-part.
+func finalizeMergedRows(req *types.Request, schema *encoding.Schema, merged *shardPartial, shardCount int, compute processing.ComputePlan, exts *processing.ExtensionRegistry, models *model.Set) (*types.Response, error) {
 	// An EMPTY merge — no partition published a partial (every decode
 	// segment held zero records) — carries no aggregator, grouper or
 	// matrix state. Seed it, in place so the caller's weights.Apply reads

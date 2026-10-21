@@ -62,15 +62,19 @@ type OperatorMeta struct {
 	// meaningless) for every other operator category; absent reads as
 	// false, which is also the registration default.
 	FansOut bool `json:"fans_out,omitempty"`
-	// Mergeable is the aggregator / grouper projection of
-	// pulse.AggregatorRegistration.Mergeable and
-	// pulse.GrouperRegistration.Mergeable — the embedder-side sibling
+	// Mergeable is the aggregator / grouper / attribute projection of
+	// pulse.AggregatorRegistration.Mergeable,
+	// pulse.GrouperRegistration.Mergeable and
+	// pulse.AttributeRegistration.Mergeable — the embedder-side sibling
 	// of types.AggregationType.Mergeable() / types.GroupType.Mergeable().
 	// True means partial states fold (extend.MergeableAggregator.Merge,
-	// extend.MergeableGrouper.MergeState), so the parallel reducers
-	// (ShardWorkers / DecodeWorkers) and ProcessChain accept the
-	// operator. Omitted for every other category; absent reads as
-	// false, which is also the registration default.
+	// extend.MergeableGrouper.MergeState, an attribute's per-run tally
+	// through extend.MergeableAttribute.MergeTally), so the parallel
+	// reducers (ShardWorkers / DecodeWorkers) and ProcessChain accept
+	// the operator — for an attribute, a component-emitting row_local
+	// one (a row_local attribute emitting nothing merges either way).
+	// Omitted for every other category; absent reads as false, which is
+	// also the registration default.
 	Mergeable bool `json:"mergeable,omitempty"`
 	// MarginReducibility is the aggregator-only projection of
 	// pulse.AggregatorRegistration.MarginReducibility — the

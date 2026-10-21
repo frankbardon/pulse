@@ -737,7 +737,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 				return nil, err
 			}
 			SetAttributeOutput(r, ra.label, val, ra.nullable)
-			ra.floor.observe(val, ra.nullable)
+			ra.floor.Observe(val, ra.nullable)
 		}
 
 		weights.Observe(r)
@@ -1138,7 +1138,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 				return nil, err
 			}
 			SetAttributeOutput(r, ra.label, val, ra.nullable)
-			ra.floor.observe(val, ra.nullable)
+			ra.floor.Observe(val, ra.nullable)
 		}
 
 		// Tallied AFTER row-local attributes land: the primary field
@@ -1242,7 +1242,7 @@ type twoPassStage struct {
 	nullable bool
 	// floor tallies the slot's Components.Attributes floor on the
 	// emission scan only; nil when the slot emits no entry.
-	floor *attributeFloor
+	floor *AttributeFloor
 }
 
 // buildTwoPassStages constructs every attribute in declared order and
@@ -1374,7 +1374,7 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		}
 		SetAttributeOutput(r, st.label, val, st.nullable)
 		if emit {
-			st.floor.observe(val, st.nullable)
+			st.floor.Observe(val, st.nullable)
 		}
 		return nil
 	}
@@ -1591,7 +1591,7 @@ type rowLocalAttrEntry struct {
 	nullable bool
 	// floor tallies the slot's Components.Attributes floor; nil when
 	// the slot emits no entry (attributeFloorFor).
-	floor *attributeFloor
+	floor *AttributeFloor
 }
 
 // attachRowLocalAttributeComponents attaches the row-local slots'
@@ -2324,7 +2324,7 @@ func (p *Processor) applyAttribute(attr *types.Attribute, records []*Record) ([]
 	floor := attributeFloorFor(computer, p.compute)
 	for i, r := range records {
 		if i < len(values) {
-			floor.observe(values[i], nullable)
+			floor.Observe(values[i], nullable)
 			if attributeOutputNull(values[i], nullable) {
 				// A null output (AttributeNull, or a NullEmitter's
 				// NaN): the row has no value under the label, so

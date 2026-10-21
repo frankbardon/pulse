@@ -433,6 +433,27 @@ func (c *comparisonCore) resetTally() {
 	c.nRefMissing, c.nKeyNull, c.unmatched, c.nDomain, c.domainReasons = 0, 0, nil, 0, nil
 }
 
+// mergeTally folds o's per-run tally into c: the counts add, the
+// domain reasons union and the unmatched key list keeps the
+// comparisonUnmatchedKeys smallest distinct keys of both (the smallest
+// of a union are among each side's smallest) — so the fold is exact and
+// order-free. The binding (unavailable, static, profiles) is the same
+// on every partition and is not touched.
+func (c *comparisonCore) mergeTally(o *comparisonCore) {
+	c.nRefMissing += o.nRefMissing
+	c.nKeyNull += o.nKeyNull
+	c.nDomain += o.nDomain
+	for _, k := range o.unmatched {
+		c.noteUnmatched(k)
+	}
+	for r := range o.domainReasons {
+		if c.domainReasons == nil {
+			c.domainReasons = map[string]bool{}
+		}
+		c.domainReasons[r] = true
+	}
+}
+
 // warnings are the slot's Response warnings: its PULSE_FIT_UNAVAILABLE
 // (a {population} over a failed fit), then one
 // PULSE_VECTOR_REFERENCE_MISSING when any row had no profile, one
@@ -661,6 +682,8 @@ var (
 	_ attributeWarner        = (*comparisonAttribute)(nil)
 	_ modelBinder            = (*comparisonAttribute)(nil)
 
+	_ MergeableAttributeTally = (*comparisonAttribute)(nil)
+
 	_ TwoPassAttribute       = (*centroidComparisonAttribute)(nil)
 	_ NullEmitter            = (*centroidComparisonAttribute)(nil)
 	_ MetaAttribute          = (*centroidComparisonAttribute)(nil)
@@ -743,6 +766,19 @@ func (a *comparisonAttribute) Components() (map[string]any, error) { return a.co
 
 // attributeWarnings satisfies attributeWarner.
 func (a *comparisonAttribute) attributeWarnings() []*types.ResponseWarning { return a.warnings() }
+
+// MergeTally satisfies MergeableAttributeTally: the row-local form (any
+// reference but a centroid) folds another partition's tallies, so the
+// parallel reducers report its counters and warnings cohort-wide. The
+// centroid and fitted forms are two-pass and never reach them.
+func (a *comparisonAttribute) MergeTally(other RowLocalAttribute) error {
+	o, ok := other.(*comparisonAttribute)
+	if !ok || o.typ != a.typ {
+		return tallyPartnerMismatch(a.typ, other)
+	}
+	a.mergeTally(&o.comparisonCore)
+	return nil
+}
 
 // centroidComparisonAttribute is a row-local metric over a centroid
 // reference: the centroid pre-pass, then every filtered row scored

@@ -118,6 +118,10 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 			r.Attributes[reg.Name] = adaptAttributeFactory(reg)
 			r.Streamable[processing.StreamabilityKey("attribute", string(reg.Name))] = reg.Mode != AttributeModeBuffered
 			r.WeightAware[processing.StreamabilityKey("attribute", string(reg.Name))] = reg.WeightAware
+			// The declared tally fold (extend.MergeableAttribute):
+			// admits a component-emitting row_local attribute to the
+			// reducers and chain stages (registryMergeFacts.Attribute).
+			r.Mergeable[processing.StreamabilityKey("attribute", string(reg.Name))] = reg.Mergeable
 			if reg.Mode == AttributeModeTwoPass {
 				if r.TwoPassAttributes == nil {
 					r.TwoPassAttributes = make(map[types.AttributeType]bool)

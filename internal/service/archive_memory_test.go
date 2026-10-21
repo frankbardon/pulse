@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	stderrors "errors"
 	"fmt"
 	"math"
@@ -165,6 +166,19 @@ func TestShardFanOut_PredictMatchesRuntime(t *testing.T) {
 		},
 		"grouped total": func(p string) *types.Request {
 			return totalArchiveRequest(p, true, "x0 / total(x0)")
+		},
+		// U51 E3-S2: a tally attribute fans out (its counts fold); a
+		// centroid reference stays serial (two-pass).
+		"scale score": func(p string) *types.Request {
+			req := dictArchiveRequest(p, false)
+			req.Attributes = []*types.Attribute{{Type: types.ATTR_SCALE_SCORE, Fields: []string{"x0", "x1"}, Label: "sc"}}
+			return req
+		},
+		"centroid similarity": func(p string) *types.Request {
+			req := dictArchiveRequest(p, false)
+			req.Attributes = []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY, Fields: []string{"x0", "x1"}, Label: "ps",
+				Params: json.RawMessage(`{"metric":"cosine","reference":{"centroid":{}}}`)}}
+			return req
 		},
 		"multi-layer total": func(p string) *types.Request {
 			req := totalArchiveRequest(p, false, "total(x0)")

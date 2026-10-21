@@ -1760,11 +1760,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_MERGEABLE_MISMATCH: {
-		Message: "An aggregator or grouper registration declared Mergeable=true but cannot merge: it is not Streamable, its factory does not return the merge interface (extend.MergeableAggregator; extend.MergeableGrouper for a grouper that emits components), or its ComponentSchema declares keys with Mergeability \"none\".",
+		Message: "An aggregator, grouper or attribute registration declared Mergeable=true but cannot merge: it is not Streamable (an attribute: not Mode row_local), its factory does not return the merge interface (extend.MergeableAggregator; extend.MergeableGrouper for a grouper that emits components; extend.MergeableAttribute for an attribute that emits components), or its ComponentSchema declares keys with Mergeability \"none\".",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Declare Mergeable=true only alongside Streamable=true, implement Merge(other extend.OnlineAggregator) error on an aggregator (or MergeState(other extend.Grouper) error on a grouper that emits components) to fold other's state into the receiver, and classify ComponentSchema.Mergeability as \"mergeable\" or \"partial\" — or set Mergeable=false and the parallel reducers run the operator serially.",
+				Hint:   "Declare Mergeable=true only alongside Streamable=true (an attribute: Mode row_local), implement Merge(other extend.OnlineAggregator) error on an aggregator (MergeState(other extend.Grouper) error on a grouper that emits components, MergeTally(other extend.RowLocalAttribute) error on an attribute that emits components) to fold other's state into the receiver, and classify ComponentSchema.Mergeability as \"mergeable\" or \"partial\" — or set Mergeable=false and the parallel reducers run the operator serially.",
 			},
 		},
 	},
