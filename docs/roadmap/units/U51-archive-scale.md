@@ -42,7 +42,7 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 - [x] **#358** (Archive scale) High-cardinality grouping memory: a per-group overhead budget, and shard workers merge into one group map instead of each holding a full copy
 - [x] **#359** (Archive scale) Point lookup over archives (per-shard sidecars or an archive-level index) and a `cohort filter` option that flattens an archive into one single-file cohort
 - [x] **#360** (Archive scale) CLI and predict parity: `--shard-workers` / `--decode-workers` flags; `predict-chain` over archives (already accepted since U35 #248 — a regression test, `TestPredictRoots_ChainAcceptsArchive`, pins it); the streaming skill states that grouped output arrives at the end
-- [x] **#361** (Archive scale) Acceptance: the retail example runs at 50M rows on 4 vCPU / 16 GB without `GOMEMLIMIT`; archive header operations finish in under a second; customer lookups work on the archive; the customer chains run on every customer, not a 1-in-10 panel; the bench program is replaced by CLI flags
+- [ ] **#361** (Archive scale) Acceptance: the retail example runs at 50M rows on 4 vCPU / 16 GB without `GOMEMLIMIT`; archive header operations finish in under a second; customer lookups work on the archive; the customer chains run on every customer, not a 1-in-10 panel; the bench program is replaced by CLI flags — open after the E5-S2 50M run: `pulse api predict` on the archive peaks at 2.6 GB (the CLI leaf reads the whole cohort), and the casebook conversion waits on it
 
 ## Scope
 
@@ -94,10 +94,10 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(archive-scale/E<n
 
 ## Acceptance criteria
 
-- [x] `pulse cohort inspect` on a 2.5 GB archive returns in under a second with peak RSS under 100 MB (header-only reads; measured in E5-S2)
+- [x] `pulse cohort inspect` on a 2.5 GB archive returns in under a second with peak RSS under 100 MB (header-only reads; measured in E5-S2: 0.12 s and 51 MB peak RSS on a 2.71 GB, 51.1M-row archive)
 - [x] `shard add` peak memory is bounded by the new shard, not the archive
 - [x] Serial and parallel sums are byte-equal on the retail data
-- [x] Showcase examples simplified where this unit allows (retail at scale (memory workarounds, the 1-in-10 panel, monthly-file lookups, the Go bench program)): requests converted, README and REPRODUCE.md expected numbers refreshed, every step still pure Pulse
+- [ ] Showcase examples simplified where this unit allows (retail at scale (memory workarounds, the 1-in-10 panel, monthly-file lookups, the Go bench program)): requests converted, README and REPRODUCE.md expected numbers refreshed, every step still pure Pulse
 - [x] `format_version` stays `"1.1"`; every change is additive (or the unit's decision records the one deliberate bump)
 - [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
