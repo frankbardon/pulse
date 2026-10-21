@@ -1819,6 +1819,10 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	var groupedTests *groupedRowTests
 
 	recordRows := false
+	// A record-row run's exact u64 words (recordsToRows), rendered over
+	// the float64 echo by finalizeRowCells; nil when the schema has no
+	// u64 field.
+	var rowWords *u64RowWords
 	if len(req.Groups) > 0 {
 		if groupedMatrices, err = BuildGroupedMatrices(req, p.schema, p.exts, p.compute, p.limits); err != nil {
 			return nil, err
@@ -1844,7 +1848,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	} else if len(req.Windows) > 0 {
 		// No group, no aggregation, but we have windows. Materialize one row
 		// per filtered record so windows can compute over the full set.
-		data = recordsToRows(filtered)
+		data, rowWords = recordsToRows(filtered, p.schema)
 		recordRows = true
 	}
 
@@ -1905,7 +1909,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	}
 	attrWarnings = append(attrWarnings, postWarnings...)
 	if recordRows {
-		finalizeRowCells(data, p.schema, req.Windows)
+		finalizeRowCells(data, p.schema, req.Windows, rowWords)
 	}
 
 	// Regression fits run after aggregation / windows so engines can
@@ -2121,13 +2125,18 @@ func recordsAsRegressionRecords(records []*Record) []regression.Record {
 // used by the window pipeline stage. Each record contributes one row
 // containing every non-null value (categorical fields resolve to strings,
 // decimal128 to a scale-carrying decimalCell that finalizeRowCells
-// renders as its decimal string — see row_cells.go).
+// renders as its decimal string — see row_cells.go). A u64 cell stays
+// its float64 echo — what windows, Request.Sort, post-tests and an
+// extension window read — and the record's exact word is kept beside
+// the row (u64RowWords, nil when schema has no u64 field) for
+// finalizeRowCells to render.
 //
 // AllValues returns a cached map owned by the Record; window operators
 // mutate rows in place to write their output column, so we clone here to
 // avoid leaking window outputs back into the Record's cache.
-func recordsToRows(records []*Record) []map[string]any {
+func recordsToRows(records []*Record, schema *encoding.Schema) ([]map[string]any, *u64RowWords) {
 	rows := make([]map[string]any, len(records))
+	words := newU64RowWords(schema, len(records))
 	for i, r := range records {
 		src := r.AllValues()
 		clone := make(map[string]any, len(src)+2)
@@ -2138,8 +2147,9 @@ func recordsToRows(records []*Record) []map[string]any {
 			clone[k] = v
 		}
 		rows[i] = clone
+		words.capture(clone, r)
 	}
-	return rows
+	return rows, words
 }
 
 // applyFiltersWithCounters is the buffered-path companion to

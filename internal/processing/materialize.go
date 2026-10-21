@@ -86,7 +86,8 @@ func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter 
 	p.deriveWarnings = warns
 	var rows []map[string]any
 	if len(req.Windows) > 0 {
-		rows = recordsToRows(filtered)
+		// Only window outputs leave this row set; no u64 render needed.
+		rows, _ = recordsToRows(filtered, nil)
 		if err := p.applyWindows(ctx, rows, req.Windows, nil); err != nil {
 			return err
 		}
