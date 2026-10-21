@@ -420,27 +420,42 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 	if len(req.Groups) > 0 {
 		mi.Buckets = memoryGroupBound(req.Groups, schema, inst, records)
 	}
-	aggs := req.Aggregations
-	if req.Crosstab != nil {
-		if n, ok := EstimateCrosstabCells(req.Crosstab, schema, inst, records); ok {
-			mi.Cells = n
-		} else {
-			mi.Cells = records
-		}
-		aggs = append(append([]*types.Aggregation(nil), aggs...), req.Crosstab.CellAggregations()...)
-		aggs = append(append([]*types.Aggregation(nil), aggs...), req.Crosstab.MarginAggregations...)
-	}
-	mi.Aggregations = int64(len(aggs))
 	mi.ComponentsOff = EffectiveDisableComponents(req, in.DisableComponents)
 	mi.ExtraGroupers = int64(max(len(req.Groups)-1, 0))
 	mi.FanOut = requestFanOut(req, schema)
+	// A slot's merge-block fragments: every fragment holds at least one
+	// row, and an accumulator holds at most one per merge block — slots
+	// accumulators (buckets; a crosstab's cells or margin slots), fed
+	// feeds of them per row (fragmentBound).
+	fragmentBound := func(slots, feeds int64) int64 {
+		return min(mulSaturating(mergeBlocks(in), slots), mulSaturating(mulSaturating(records, max(mi.FanOut, 1)), feeds))
+	}
+	aggs := req.Aggregations
+	slotsOf := func(*types.Aggregation) (slots, feeds, copies int64) { return mi.Buckets, 1, 1 }
+	elementOf := func(*types.Aggregation) bool { return false }
+	if req.Crosstab != nil {
+		ct := crosstabMemory(req, schema, inst, in, records, mi.ComponentsOff)
+		mi.Cells, mi.CellBytes = ct.cells, ct.cellBytes
+		mi.AxisKeys, mi.AxisKeyBytes = ct.axisKeys, ct.axisKeyBytes
+		mi.MarginSlots, mi.MarginSlotBytes = ct.marginSlots, ct.marginSlotBytes
+		mi.AuxSlots, mi.AuxSlotBytes = ct.auxSlots, ct.auxSlotBytes
+		mi.CrosstabMeasures = int64(len(req.Crosstab.CellAggregations()))
+		aggs = append(append([]*types.Aggregation(nil), aggs...), req.Crosstab.CellAggregations()...)
+		aggs = append(append([]*types.Aggregation(nil), aggs...), req.Crosstab.MarginAggregations...)
+		slotsOf, elementOf = ct.slotsOf, ct.element
+	}
+	mi.Aggregations = int64(len(aggs))
 	var vecInputs map[*types.Aggregation]vectors.AggregationInput
 	for _, a := range aggs {
 		if a == nil {
 			continue
 		}
+		// A crosstab slot's accumulators — a cell's and each margin's
+		// a row feeds, once per measure for a margin_aggregations entry
+		// — each keep their own per-value state and fragments.
+		slots, feeds, copies := slotsOf(a)
 		if valueStateAggregation[a.Type] || inst.Extensions().AggregatorValueState(a.Type) {
-			mi.ValueStateAggregations++
+			mi.ValueStateAggregations = addSaturating(mi.ValueStateAggregations, mulSaturating(feeds, copies))
 		}
 		var members int64
 		if vectors.IsVectorAggregation(a.Type) {
@@ -448,11 +463,12 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 				vecInputs, _ = vectors.ResolveAggregations(req, schema, aggregationKinds(inst, nil))
 			}
 			members = vectorAggregationMembers(a, vecInputs, schema)
-			// Every fragment holds at least one row, and a bucket (or
-			// crosstab cell) holds at most one per merge block.
-			fragments := min(mulSaturating(mergeBlocks(in), max(mi.Buckets, mi.Cells)), mulSaturating(records, max(mi.FanOut, 1)))
+			if elementOf(a) {
+				// A crosstab element slot reads its one member.
+				members = 1
+			}
 			buffered := mulSaturating(limits.MergeBufferedRows(in.ShardRecords...), max(mi.FanOut, 1))
-			mi.VectorBytes = addSaturating(mi.VectorBytes, limits.VectorAggregationBytes(a.Type, members, fragments, buffered))
+			mi.VectorBytes = addSaturating(mi.VectorBytes, mulSaturating(copies, limits.VectorAggregationBytes(a.Type, members, fragmentBound(slots, feeds), buffered)))
 		}
 		mi.AggStateBytes = addSaturating(mi.AggStateBytes, limits.AggregationStateBytes(a.Type, weightInForce(req, a, in.DefaultWeight), members))
 		mi.AggOutputOffBytes = addSaturating(mi.AggOutputOffBytes, limits.AggregationOutputOffBytes(a.Type, members))
@@ -465,6 +481,119 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 		mi.GrouperBytes = addSaturating(mi.GrouperBytes, b)
 	}
 	return limits.EstimateMemory(mi), true
+}
+
+// crosstabCharge is a crosstab's grid, axis-key and margin figures for
+// the memory model (U51 E5-S9), and the per-slot accumulator counts its
+// vector fragments are bounded by.
+type crosstabCharge struct {
+	cells, cellBytes             int64
+	axisKeys, axisKeyBytes       int64
+	marginSlots, marginSlotBytes int64
+	auxSlots, auxSlotBytes       int64
+	// measureSlots / auxFeeds: the accumulators one measure's (one
+	// auxiliary's) slot holds — cells + margin slots (margin slots) —
+	// and how many of them one row feeds; auxCopies: an auxiliary is
+	// held once per measure (never with components off).
+	measureSlots, measureFeeds int64
+	auxFeeds, auxCopies        int64
+	auxSet, elementSet         map[*types.Aggregation]bool
+}
+
+// slotsOf is a crosstab aggregation's accumulator count, per-row feed
+// count (its per-value state and fragment bound's inputs) and copies
+// (an auxiliary's: one per measure, none with components off).
+func (c crosstabCharge) slotsOf(a *types.Aggregation) (slots, feeds, copies int64) {
+	if c.auxSet[a] {
+		return c.auxSlots, c.auxFeeds, c.auxCopies
+	}
+	return c.measureSlots, c.measureFeeds, 1
+}
+
+// element reports whether a is a crosstab element-selecting vector slot.
+func (c crosstabCharge) element(a *types.Aggregation) bool { return c.elementSet[a] }
+
+// crosstabMemory is req.Crosstab's charge on either crosstab arm. Per
+// measure (crosstab.cell, or each crosstab.cells entry — each runs its
+// own grid, interners and margins over the same records):
+//
+//   - every grid cell (EstimateCrosstabCells; the record count when an
+//     axis is unknown) and every margin slot costs
+//     limits.CrosstabSlotBytes — the measure's per-aggregator state and
+//     finalize output, weighted when a weight is in force on the slot,
+//     components on or off;
+//   - every axis key (each axis's memoryGroupBound: its
+//     crosstabAxisEstimate, else its fields' value width, else the
+//     record count x its fan-out) costs limits.CrosstabAxisKeyBytes;
+//   - the margin slots are a slot per row key with row margins, per
+//     column key with column margins, one grand slot, plus the
+//     normalize denominators — the cells under normalize_within, the
+//     axis keys under normalize_level;
+//   - each margin_aggregations entry costs limits.CrosstabAuxSlotBytes
+//     in each emitted row / column / grand slot.
+//
+// A vector element slot reads one member.
+func crosstabMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs, records int64, off bool) crosstabCharge {
+	spec := req.Crosstab
+	rows, cols := memoryGroupBound(spec.Rows, schema, inst, records), memoryGroupBound(spec.Columns, schema, inst, records)
+	c := crosstabCharge{cells: records, axisKeys: addSaturating(rows, cols)}
+	if n, ok := EstimateCrosstabCells(spec, schema, inst, records); ok {
+		c.cells = n
+	}
+	var feeds int64 = 1
+	if spec.NeedsRowMargin() {
+		c.auxSlots = addSaturating(c.auxSlots, rows)
+		c.auxFeeds++
+	}
+	if spec.NeedsColumnMargin() {
+		c.auxSlots = addSaturating(c.auxSlots, cols)
+		c.auxFeeds++
+	}
+	if spec.NeedsGrandMargin() {
+		c.auxSlots = addSaturating(c.auxSlots, 1)
+		c.auxFeeds++
+	}
+	feeds += c.auxFeeds
+	c.marginSlots = c.auxSlots
+	if spec.NormalizeWithin != nil {
+		c.marginSlots = addSaturating(c.marginSlots, c.cells)
+		feeds++
+	}
+	if spec.NormalizeLevel != nil {
+		c.marginSlots = addSaturating(c.marginSlots, c.axisKeys)
+		feeds++
+	}
+	c.measureSlots, c.measureFeeds = addSaturating(c.cells, c.marginSlots), feeds
+	kinds := aggregationKinds(inst, nil)
+	c.auxSet, c.elementSet = map[*types.Aggregation]bool{}, map[*types.Aggregation]bool{}
+	members := func(a *types.Aggregation) int64 {
+		if vectors.SelectsElement(a, kinds) {
+			c.elementSet[a] = true
+			return 1
+		}
+		return 0 // scalar; an array-valued vector slot is refused
+	}
+	for _, m := range spec.CellAggregations() {
+		if m == nil {
+			continue
+		}
+		slot := limits.CrosstabSlotBytes(m.Type, weightInForce(req, m, in.DefaultWeight), off, members(m), setMembers(m, schema))
+		if !off {
+			// Components off: neither arm accumulates an auxiliary.
+			c.auxCopies++
+		}
+		c.cellBytes = addSaturating(c.cellBytes, slot)
+		c.marginSlotBytes = addSaturating(c.marginSlotBytes, slot)
+		c.axisKeyBytes = addSaturating(c.axisKeyBytes, limits.CrosstabAxisKeyBytes(off))
+		for _, a := range spec.MarginAggregations {
+			if a == nil {
+				continue
+			}
+			c.auxSet[a] = true
+			c.auxSlotBytes = addSaturating(c.auxSlotBytes, limits.CrosstabAuxSlotBytes(a.Type, weightInForce(req, a, in.DefaultWeight), off, members(a), setMembers(a, schema)))
+		}
+	}
+	return c
 }
 
 // JoinRowsBound is the joined-row bound a join's memory estimate is

@@ -711,3 +711,115 @@ func TestEstimateMemory_VectorAggregationTerms(t *testing.T) {
 		t.Errorf("archive vector slot adds %d bytes, want %d (%d fragments, %d buffered rows)", d, want, blocks, 4096-100)
 	}
 }
+
+// TestEstimateMemory_CrosstabCharges (U51 E5-S9): a crosstab is charged
+// per measure from the per-aggregator table — each grid cell and margin
+// slot limits.CrosstabSlotBytes (weighted when a weight is in force,
+// components on or off), each axis key limits.CrosstabAxisKeyBytes,
+// each margin_aggregations entry limits.CrosstabAuxSlotBytes in every
+// emitted margin slot (nothing with components off) — never a flat
+// 512 B a cell. A vector element slot reads one member and holds a
+// fragment per merge block in each cell and margin slot; a value-state
+// measure keeps a value per row in its cell and in each margin the row
+// feeds; the buffered arm adds its records and partitions.
+func TestEstimateMemory_CrosstabCharges(t *testing.T) {
+	dict := func(n int) *encoding.Dictionary {
+		d := encoding.NewDictionary()
+		for i := range n {
+			if _, err := d.Add(string(rune('a' + i))); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return d
+	}
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "r", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict(3)},
+		{Name: "c", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict(4)},
+		{Name: "x", Type: encoding.FieldTypeF64},
+		{Name: "v1", Type: encoding.FieldTypeF64},
+		{Name: "v2", Type: encoding.FieldTypeF64},
+		{Name: "w", Type: encoding.FieldTypeF64},
+	}}
+	off := 0
+	for i := range schema.Fields {
+		schema.Fields[i].ByteOffset = off
+		off += schema.Fields[i].Type.ByteSize()
+	}
+	const n = 10_000 // 3 merge blocks
+	const cells, keys, marginSlots = 12, 7, 3 + 4 + 1
+	sum := &types.Aggregation{Type: types.AGG_SUM, Field: "x", Label: "s"}
+	vec := &types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"v1", "v2"}, Label: "v", Params: []byte(`{"element":"v2"}`)}
+	distinct := &types.Aggregation{Type: types.AGG_DISTINCT_COUNT, Field: "x", Label: "d"}
+	avg := &types.Aggregation{Type: types.AGG_AVERAGE, Field: "x", Label: "m"}
+	xt := func(margins bool, aux []*types.Aggregation, measures ...*types.Aggregation) *types.Request {
+		spec := &types.CrosstabSpec{Rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "r"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "c"}}, MarginAggregations: aux}
+		if len(measures) == 1 {
+			spec.Cell = measures[0]
+		} else {
+			spec.Cells = measures
+		}
+		if margins {
+			spec.Margins = types.CrosstabMargins{Rows: true, Columns: true, Grand: true}
+		}
+		return &types.Request{Crosstab: spec}
+	}
+	// charge is the estimate less the run base and the payload.
+	charge := func(req *types.Request, in LimitInputs) int64 {
+		t.Helper()
+		in.Records, in.JoinRightRows = n, -1
+		est, ok := EstimateMemory(req, schema, nil, in)
+		if !ok {
+			t.Fatal("no estimate")
+		}
+		return est - limits.EstimateMemory(limits.MemoryInputs{Arm: limits.ArmStreaming, Records: n, Stride: int64(schema.RecordByteSize())})
+	}
+	slot := func(t types.AggregationType, w, off bool, members int64) int64 {
+		return limits.CrosstabSlotBytes(t, w, off, members, 0)
+	}
+	for _, off := range []bool{false, true} {
+		in := LimitInputs{DisableComponents: off}
+		axis := limits.CrosstabAxisKeyBytes(off)
+		if got, want := charge(xt(false, nil, sum), in), cells*slot(types.AGG_SUM, false, off, 0)+keys*axis; got != want {
+			t.Errorf("off=%v: one SUM measure charged %d, want %d", off, got, want)
+		}
+		if got, want := charge(xt(true, nil, sum), in), (cells+marginSlots)*slot(types.AGG_SUM, false, off, 0)+keys*axis; got != want {
+			t.Errorf("off=%v: SUM with margins charged %d, want %d", off, got, want)
+		}
+		aux := marginSlots * limits.CrosstabAuxSlotBytes(types.AGG_AVERAGE, false, off, 0, 0)
+		if off != (aux == 0) {
+			t.Errorf("off=%v: auxiliary slot charge %d", off, aux)
+		}
+		if got, want := charge(xt(true, []*types.Aggregation{avg}, sum), in), (cells+marginSlots)*slot(types.AGG_SUM, false, off, 0)+keys*axis+aux; got != want {
+			t.Errorf("off=%v: SUM with margins and an auxiliary charged %d, want %d", off, got, want)
+		}
+		// Two measures, one a weighted element of a 2-member vector: a
+		// cell and margin slot per measure, axis keys per measure, and
+		// the element slot's fragments — one per merge block in each of
+		// its 20 accumulators, at most rows x the 4 each row feeds.
+		weighted := xt(true, nil, sum, vec)
+		weighted.Weight = &types.WeightSpec{Field: "w"}
+		perSlot := slot(types.AGG_SUM, true, off, 0) + slot(types.AGG_VEC_MEAN, true, off, 1)
+		frags := limits.VectorAggregationBytes(types.AGG_VEC_MEAN, 1, 3*(cells+marginSlots), 0)
+		if got, want := charge(weighted, in), (cells+marginSlots)*perSlot+2*keys*axis+frags; got != want {
+			t.Errorf("off=%v: weighted two-measure crosstab charged %d, want %d", off, got, want)
+		}
+		// A value-state measure keeps a value per row in its cell and
+		// in each of the three margins a row feeds.
+		if got, want := charge(xt(true, nil, distinct), in), (cells+marginSlots)*slot(types.AGG_DISTINCT_COUNT, false, off, 0)+keys*axis+4*n*limits.ValueEntryBytes; got != want {
+			t.Errorf("off=%v: value-state measure charged %d, want %d", off, got, want)
+		}
+	}
+	// The buffered arm adds its records, its one bucket and the
+	// partitions: a row's, and per measure a cell's and an axis key's.
+	in := LimitInputs{FusionDisabled: true}
+	two := xt(false, nil, sum, sum)
+	two.Crosstab.Cells[1] = &types.Aggregation{Type: types.AGG_SUM, Field: "x", Label: "s2"}
+	fused := charge(two, LimitInputs{})
+	_, final := limits.BucketBytes(limits.MemoryInputs{Aggregations: 2, AggStateBytes: 2 * limits.AggregationStateBytes(types.AGG_SUM, false, 0)})
+	rows := int64(n) * (limits.RecordBytes(schema) + 2*16)
+	partitions := int64(n)*128 + 2*(cells*448+keys*416)
+	if got, want := charge(two, in), fused+rows+final+partitions; got != want {
+		t.Errorf("buffered two-measure crosstab charged %d, want %d (fused %d + rows %d + bucket %d + partitions %d)", got, want, fused, rows, final, partitions)
+	}
+}

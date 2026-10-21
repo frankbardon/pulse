@@ -146,9 +146,6 @@ const (
 	// (bucket, value) pairs of one aggregation never exceed the record
 	// count, so the term is records x valueEntryBytes per such slot.
 	valueEntryBytes = 96
-	// cellBytes per crosstab cell: the cell accumulator, both axis-key
-	// interner entries and the margin share.
-	cellBytes = 512
 	// dictEntryDecodeBytes per dictionary entry a schema decode
 	// allocates beyond its label: the []string slot and the presized
 	// lookup-map entry with its slack (measured ~100 a entry).
@@ -283,6 +280,30 @@ type MemoryInputs struct {
 	DerivedColumns int64
 	// Cells is the crosstab grid bound (0 without a crosstab).
 	Cells int64
+	// CellBytes is one crosstab cell's charge, summed over the measures
+	// (CrosstabSlotBytes: each measure's state and finalize output) —
+	// U51 E5-S9; it replaced a flat 512 B a cell.
+	CellBytes int64
+	// AxisKeys is the crosstab's axis-key bound, rows + columns; each
+	// costs AxisKeyBytes (CrosstabAxisKeyBytes a measure).
+	AxisKeys     int64
+	AxisKeyBytes int64
+	// MarginSlots is the crosstab's margin slots — a row slot per row
+	// key with row margins, a column slot per column key with column
+	// margins, one grand slot — plus the normalize denominators (cells
+	// under normalize_within, rows + columns under normalize_level);
+	// each costs MarginSlotBytes (the measures' CrosstabSlotBytes).
+	MarginSlots     int64
+	MarginSlotBytes int64
+	// CrosstabMeasures is the crosstab's measure count (crosstab.cell
+	// is one, else len(crosstab.cells)): the buffered arm lays out its
+	// cell and axis partitions once per measure.
+	CrosstabMeasures int64
+	// AuxSlots is the margin slots the margin_aggregations entries fill
+	// (row, column and grand, as emitted); each costs AuxSlotBytes (the
+	// entries' CrosstabAuxSlotBytes, once per measure).
+	AuxSlots     int64
+	AuxSlotBytes int64
 	// JoinRightRows is a join build side's record count (0 without a
 	// join); each is a materialised record of RecordBytes plus its
 	// payload.
@@ -376,11 +397,16 @@ type MemoryInputs struct {
 //	           + buffered-test values x 32
 //	buffered   + rows x (record bytes + 16 x aggs + 128 x derived)
 //	           + rows x (fan-out - 1) x 24
-//	           + buckets x (state + output) + cells x 512
+//	           + buckets x (state + output) + crosstab
+//	           + rows x fan-out x 128 + measures x (cells x 448 +
+//	             axis keys x 416), with a crosstab (its partitions)
 //	streaming  + buckets x (state + output)
-//	fused      + cells x 512
+//	fused      + crosstab
 //
-// where a bucket's state and output are BucketBytes', plus (rows +
+// where a bucket's state and output are BucketBytes', crosstab is
+// cells x cell bytes + axis keys x axis-key bytes + margin slots x
+// margin-slot bytes + auxiliary slots x auxiliary bytes (U51 E5-S9:
+// per measure, from the per-aggregator table), plus (rows +
 // partition records) x fan-out x 96 per value-state aggregation on
 // every arm. Saturates at math.MaxInt64
 // rather than wrapping.
@@ -415,13 +441,31 @@ func EstimateMemory(in MemoryInputs) int64 {
 		add(rows, per)
 		add(mulSat(rows, fanOut-1), fanOutSlotBytes)
 		add(in.Buckets, bucketFinal)
-		add(in.Cells, cellBytes)
+		total = addSat(total, crosstabBytes(in))
+		if in.Cells > 0 {
+			// The buffered crosstab's partitions (U51 E5-S9): the rows'
+			// once, the cells' and axis keys' once per measure.
+			measures := max(in.CrosstabMeasures, 1)
+			add(mulSat(rows, fanOut), crosstabBufferedRecordBytes)
+			add(mulSat(in.Cells, measures), crosstabBufferedCellBytes)
+			add(mulSat(in.AxisKeys, measures), crosstabBufferedAxisKeyBytes)
+		}
 	case ArmStreaming:
 		add(in.Buckets, bucketFinal)
 	case ArmFusedCrosstab:
-		add(in.Cells, cellBytes)
+		total = addSat(total, crosstabBytes(in))
 	}
 	return total
+}
+
+// crosstabBytes is a crosstab's grid, axis-key and margin charge
+// (U51 E5-S9): cells x cell bytes + axis keys x axis-key bytes + margin
+// slots x margin-slot bytes + auxiliary slots x auxiliary bytes.
+func crosstabBytes(in MemoryInputs) int64 {
+	n := mulSat(in.Cells, in.CellBytes)
+	n = addSat(n, mulSat(in.AxisKeys, in.AxisKeyBytes))
+	n = addSat(n, mulSat(in.MarginSlots, in.MarginSlotBytes))
+	return addSat(n, mulSat(in.AuxSlots, in.AuxSlotBytes))
 }
 
 // BucketBytes is one group bucket's charge under in: state is what it

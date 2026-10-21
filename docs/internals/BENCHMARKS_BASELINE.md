@@ -409,3 +409,46 @@ RSS was 4.51–5.04 GB over two runs (`retention-budget` 4.37 GB), spend
 of the retention gap is the bucket bound: 2.52M buckets charged against
 1,053,033 present (2.4×), which no header-only figure can tighten. A
 recorded distinct-count statistic would (TODO #500).
+
+E5-S9: crosstab cells are charged by their measure's measured state and
+output instead of a flat 512 bytes a cell. Per measure, every cell and
+margin slot costs the measure's state plus a per-operator cell entry
+(the matrix value, the cell's components entry and the finalize's
+per-cell maps), every axis key 784 bytes (544 off), and every
+`margin_aggregations` entry a cell-sized slot in each margin; the
+buffered arm adds its partitions (128 bytes a row, and per measure 448
+a cell and 416 an axis key). The flat 512 was below the measured cost
+of every built-in cell with components on (an `AGG_COUNT` cell peaks at
+~910 bytes, an `AGG_VEC_*` element cell at ~1,870, ~2,550 weighted), so
+every crosstab estimate rises. `TestCrosstabMemory_CellChargeTable`
+measures each built-in usable as a cell on both arms (sampled peak live
+heap under GOGC=1, a 60 x 60 grid just past a map growth point); the
+entries sit at least 20% (fused) / 15% (buffered) above the largest
+peak seen over six runs. Per-cell figures from one run (Apple M1 Max,
+go1.27.2), peak against the estimate's charge:
+
+| Cell gate case (60 x 60, one row a cell) | Peak / cell | Charge / cell | Charge / peak |
+|---|---|---|---|
+| `AGG_COUNT` fused, components on | 907 B | 1,098 B | 1.21 |
+| `AGG_COUNT` fused, components off | 431 B | 626 B | 1.45 |
+| `AGG_COUNT` buffered, components on (its record included) | 2,059 B | 2,653 B | 1.29 |
+| `AGG_VEC_MEAN` element fused, on | 1,866 B | 2,474 B | 1.33 |
+| `AGG_VEC_MEAN` element fused, on, weighted | 2,545 B | 3,178 B | 1.25 |
+| `AGG_AUC` buffered, on, weighted | 3,022 B | 3,965 B | 1.31 |
+
+Whole-run calibration (`TestMemoryEstimate_Calibration`, 200,000
+records, estimate / sampled peak heap):
+
+| Fixture | Estimate | Peak heap | Estimate / peak |
+|---|---|---|---|
+| `fused crosstab` (brand x cardFeeling, 128 cells) | 153.8 MB | 88.6 MB | 1.73 |
+| `buffered crosstab` (same grid, records projected) | 438.6 MB | 130.5 MB | 3.36 |
+| `fused crosstab wide grid` (`u16` x brand, every margin; 65,536-key row bound, 200,000-cell grid bound, 65,536 present) | 527.9 MB | 132.8 MB | 3.98 |
+| `buffered crosstab wide grid` (same, records projected) | 929.6 MB | 144.1 MB | 6.45 |
+| `fused crosstab vector element` (`AGG_VEC_MEAN` element over the wide grid) | 1,026.1 MB | 306.5 MB | 3.35 |
+
+The two small-grid rows are unchanged from before (the grid's charge is
+noise beside the payload). The wide-grid rows are loose because the
+header bounds a `u16` axis by its 65,536-key width and the grid by the
+200,000 records, against 4,096 x 16 present; the buffered arm also
+projects its records, which the full-width record charge cannot see.

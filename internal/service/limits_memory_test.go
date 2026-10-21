@@ -350,6 +350,13 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 	median := []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "weight", Label: "m"}}
 	xt := &types.CrosstabSpec{Rows: brand, Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cardFeeling"}},
 		Cell: &types.Aggregation{Type: types.AGG_SUM, Field: "weight", Label: "s"}}
+	wideGrid := func(cell *types.Aggregation) *types.CrosstabSpec {
+		if cell == nil {
+			cell = &types.Aggregation{Type: types.AGG_SUM, Field: "weight", Label: "s"}
+		}
+		return &types.CrosstabSpec{Rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "pad_018"}}, Columns: brand, Cell: cell,
+			Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true}}
+	}
 	lookup := []*types.JoinSpec{{Right: "s.pulse", Kind: "inner", As: "r_", On: []types.OnPair{{LeftField: "brand", RightField: "brand"}}}}
 	// fanout joins a 16-row left to the 200,000-row cohort as the build
 	// side: the join arm's state is the build.
@@ -389,6 +396,18 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 		}, maxFactor: 2.5},
 		{name: "fused crosstab", req: func() *types.Request { return &types.Request{Cohort: co, Crosstab: xt} }, fuse: true, maxFactor: 2.5},
 		{name: "buffered crosstab", req: func() *types.Request { return &types.Request{Cohort: co, Crosstab: xt} }, maxFactor: 4.5},
+		// U51 E5-S9: a grid of 4,096 x 16 populated cells (pad_018, a u16
+		// whose 65,536-key width bounds the rows; the grid itself only by
+		// the 200,000 records) by brand, with every margin — the
+		// per-measure cell, axis-key and margin charges dominate — and a
+		// vector element cell over it. The bounds are loose here (16x the
+		// populated rows' keys, 3x the cells), never under; the buffered
+		// arm also projects its records (as "buffered projected").
+		{name: "fused crosstab wide grid", req: func() *types.Request { return &types.Request{Cohort: co, Crosstab: wideGrid(nil)} }, fuse: true, maxFactor: 5},
+		{name: "buffered crosstab wide grid", req: func() *types.Request { return &types.Request{Cohort: co, Crosstab: wideGrid(nil)} }, maxFactor: 8},
+		{name: "fused crosstab vector element", req: func() *types.Request {
+			return &types.Request{Cohort: co, Crosstab: wideGrid(&types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"weight", "pad_014", "pad_015"}, Label: "v", Params: []byte(`{"element":"pad_015"}`)})}
+		}, fuse: true, maxFactor: 4.5},
 		{name: "matrix", req: func() *types.Request {
 			return &types.Request{Cohort: co, Groups: brand, Aggregations: sum,
 				Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "c", Fields: []string{"weight", "pad_014", "pad_015"}}}}

@@ -189,6 +189,24 @@ A slot counts as weighted when a weight is in force on it (its own, the
 request's, or `Options.DefaultWeight`), whether or not the operator
 reads weights.
 
+**Crosstabs.** A crosstab is charged per measure (`cell`, or each
+`cells` entry), because each measure keeps its own grid. Every cell, and
+every row, column and grand margin slot, is charged the measure's
+per-operator state plus a measured per-cell output: the matrix value,
+the cell's `components` entry and the scratch the finalize lays out per
+cell. For `AGG_COUNT` that is about 1,100 bytes a cell with components
+on and about 600 off; for an `AGG_VEC_*` element cell it is about 2,450
+on (3,150 weighted), its 4,096-record merge-block partials included. Each row and column key adds
+784 bytes (544 off). Each `margin_aggregations` entry costs about a cell
+in every margin slot, once per measure, and nothing with components off.
+`normalize_within` adds a denominator slot per cell, `normalize_level`
+one per axis key. The buffered arm also pays for its partitions: 128
+bytes a row, and per measure 448 a cell and 416 an axis key. An axis
+whose cardinality the schema does not fix is bounded like a grouper
+(below), and the grid by the record count. These figures replaced a flat
+512 bytes a cell, which was below the measured cost of every built-in
+cell with components on, so crosstab estimates rise.
+
 **How many buckets.** The bucket count is an upper bound read from the
 schema alone. A dictionary-backed grouper (`GROUP_CATEGORY` over a
 categorical field), a `packed_bool`, an `include` list, a quantile or a

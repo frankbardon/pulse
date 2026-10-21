@@ -114,6 +114,18 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 			Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "a", Label: "s"},
 		}}
 	}
+	// U51 E5-S9: a weighted two-measure crosstab with margins and a
+	// margin_aggregations entry — cells, axis keys, margin and auxiliary
+	// slots charged per measure from the per-aggregator table.
+	measures := func(c string) *types.Request {
+		return &types.Request{Cohort: &types.Cohort{Filename: c}, Weight: &types.WeightSpec{Field: "c"}, Crosstab: &types.CrosstabSpec{
+			Rows:               []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+			Columns:            []*types.Group{{Type: types.GROUP_CATEGORY, Field: "b"}},
+			Cells:              []*types.Aggregation{{Type: types.AGG_SUM, Field: "a", Label: "s"}, {Type: types.AGG_COUNT, Field: "a", Label: "n"}},
+			MarginAggregations: []*types.Aggregation{{Type: types.AGG_AVERAGE, Field: "c", Label: "avg_c"}},
+			Margins:            types.CrosstabMargins{Rows: true, Columns: true, Grand: true},
+		}}
+	}
 	cases := []struct {
 		name     string
 		fs       afero.Fs
@@ -147,6 +159,8 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 		}},
 		{name: "fused crosstab", fs: fs, path: cohort, req: func() *types.Request { return crosstab(cohort) }},
 		{name: "buffered crosstab", fs: fs, path: cohort, req: func() *types.Request { return crosstab(cohort) }, noFusion: true},
+		{name: "fused crosstab measures", fs: fs, path: cohort, req: func() *types.Request { return measures(cohort) }},
+		{name: "buffered crosstab measures", fs: fs, path: cohort, req: func() *types.Request { return measures(cohort) }, noFusion: true},
 		{name: "matrix", fs: fs, path: cohort, req: func() *types.Request { return matrix3(cohort) }},
 		// U35 #437: grouped tier-1 tests — a moments test and a buffered
 		// rank test, one instance per group.
