@@ -410,6 +410,61 @@ of the retention gap is the bucket bound: 2.52M buckets charged against
 1,053,033 present (2.4×), which no header-only figure can tighten. A
 recorded distinct-count statistic would (TODO #500).
 
+E5-S12 (#499): the grouped tail now releases each merged bucket once its
+`Data` row (and, with components on, its per-group Components entry) is
+written, and a later chain stage reads the previous stage's rows through
+a lazy iterator (`processing.ChainRowIterator`) instead of a record a
+row built up front. Output is byte-identical
+(`TestChainHandOff_OutputUnchanged`, and the CLI's 526 MB retention
+envelope compares equal). Live heap after a forced GC at each phase of
+the retention chain (1/20 scale, 4 shard workers, components off):
+
+| Phase | Before | After |
+|---|---|---|
+| stage 0 merged state, finalize start | 1,086 MB | 1,086 MB |
+| stage 0 rows written (buckets alive before) | 2,258 MB | 1,534 MB |
+| stage 0 response returned | 1,393 MB | 1,393 MB |
+| stage 1 input ready | 1,745 MB | 1,475 MB |
+
+The returned stage-0 rows themselves are ~1.32 GB (1,053,033 maps of 16
+columns, ~1.24 KB each: a 16-entry Go map needs 32 slots, a 1,152-byte
+table). They are the `stages[0].data` echo, so they stay. Whole-process
+figures, `BenchmarkRetentionShape`, same session, two runs each (Apple
+M1 Max, go1.27.2; `before` is a build of `40fce073`). The `-dense` shapes
+use 300k customer ids, so a shard partial holds about half the
+customers, as at 50M (~1.3M of 2.6M a month); the sparse 1/20 shapes
+hold ~18%:
+
+| Shape | Build | ns/op | peak heap | alloc / op | allocs / op | max RSS |
+|---|---|---|---|---|---|---|
+| retention | before | 8.54 / 9.31 s | 2,757 / 2,784 MB | 6.45 GB | 102.5 M | 5.03 / 4.50 GB |
+| retention | after | 7.68 / 7.81 s | 2,722 / 2,672 MB | 5.46 GB | 99.3 M | 3.97 / 3.86 GB |
+| spend | before | 4.26 / 4.62 s | 1,396 / 1,626 MB | 3.13 GB | 39.7 M | 1.92 / 1.89 GB |
+| spend | after | 4.30 / 4.16 s | 1,325 / 1,586 MB | 3.13 GB | 39.7 M | 1.89 / 1.90 GB |
+| retention-dense | before | 5.38 / 5.54 s | 1,693 / 1,672 MB | 3.83 GB | 81.6 M | 2.06 / 1.92 GB |
+| retention-dense | after | 5.27 / 5.18 s | 1,685 / 1,866 MB | 3.55 GB | 80.7 M | 1.95 / 2.09 GB |
+| spend-dense | before | 2.62 / 2.46 s | 1,167 / 1,110 MB | 1.95 GB | 27.1 M | 1.34 / 1.32 GB |
+| spend-dense | after | 2.42 / 2.52 s | 1,035 / 1,099 MB | 1.95 GB | 27.1 M | 1.34 / 1.26 GB |
+
+Sparse retention max RSS falls ~17% (4.50–5.03 → 3.86–3.97 GB), 2.0–2.1×
+spend's, against the 1.5× target: MISSED. The returned rows alone
+(1.32 GB) are 2.3× spend's whole peak live heap (~0.57 GB), so no
+hand-off can reach 1.5× on this shape while `stages[0].data` stays in
+the response. The dense shapes do not move: there the shard partials
+(4 scanning, each about half the customers' state) are the peak, not
+finalize, and retention is already ~1.5× spend.
+
+The CLI adds a phase the bench does not run: `pulse api process-chain
+--json` marshals the whole response (`types.MarshalFinite`, then the
+encoder's compaction and indent copies). On the 1/20 archive with the
+showcase's request files (`--no-components --shard-workers 4`, one run
+each, peak memory footprint): retention 5.65 GB before, 5.59 GB after;
+spend 2.15 GB before, 1.84 GB after. Retention's peak is the JSON
+encoding of 1.05M rows (live heap grows from ~1.95 to ~2.6 GB while it
+runs, the heap to ~4.3 GB), which this change does not touch. A
+prototype that streams the chain's `data` rows one at a time, writing
+byte-identical output, peaked at 4.36 GB.
+
 E5-S9: crosstab cells are charged by their measure's measured state and
 output instead of a flat 512 bytes a cell. Per measure, every cell and
 margin slot costs the measure's state plus a per-operator cell entry
