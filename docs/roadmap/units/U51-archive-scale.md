@@ -8,7 +8,7 @@ status: done
 depends_on: []
 soft_depends_on: [U19]
 blocks: [U32]
-todo_items: [354, 355, 356, 357, 358, 359, 360, 361, 373, 390, 399, 455, 456, 458, 461, 491, 492, 493, 494, 495, 496, 498]
+todo_items: [354, 355, 356, 357, 358, 359, 360, 361, 373, 390, 399, 455, 456, 458, 461, 491, 492, 493, 494, 495, 496, 498, 499]
 branch: archive-scale
 ---
 
@@ -131,6 +131,7 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(archive-scale/E<n
 - **Decided (owner):** grouped fan-out has NO cardinality routing rule. The calibration showed no honest single threshold (only value-keyed groupers such as `GROUP_ROUNDED` lose time, and their cardinality is invisible to predict); the docs state that very high cardinality may not gain.
 - **Decided (owner, fix in effort):** stories added instead of filing follow-ups: E3-S3 (`GROUP_ROUNDED` mergeable), E3-S4 (cardinality sweep, decode-dispatch record count), E4-S4 (exact `u64` in lookup / sample rows), E4-S5 (single-file filter-to-file atomic and streaming), E4-S6 (exact `u64` in `Process` record rows), E4-S7 (exact `u64` in `WIN_LAG` / `WIN_LEAD` copies). Each carries a documented Go type break or behaviour change in the migration doc.
 - **Decided:** `PULSE_INDEX_UNSUPPORTED_SHARDED` is KEPT as "No longer raised" (the frozen-constant precedent of `PULSE_CROSSTAB_EMPTY_COLUMNS`), not removed.
+- **Missed target, accepted (owner, E5-S4):** the retention-shaped chain was to peak at no more than 1.5× the `spend` chain's max RSS. At 1/20 scale it peaks at 4.66 GB against 1.99 GB, 2.3×. The peak is live state, not garbage: the merged buckets (1,171 MB) and `FinalizeGroupedStream`'s per-row `Data` maps (1,327 MB) coexist while the response is built. E5-S4 cut the garbage (attribute slots, pooled expr VM) and E5-S5 made the `MaxGroups` check allocation-free, neither of which moves that peak. The fix is filed as #499 (v1.x). Figures: `docs/internals/BENCHMARKS_BASELINE.md` (Retention-shaped chain).
 
 ## Shipped
 
@@ -149,6 +150,7 @@ Filed in [`TODO.md`](../TODO.md) (ids are TODO ids, not GitHub issues), v1.x:
 | #496 `Service.Open` single-file schema decode is unbuffered | v1.x, owner U51 | two reads per inline dictionary entry; buffering must respect the header-only byte-count gates (E3-S4) |
 | #497 `FilterToFileResult` has no warnings field | [U33](U33-v1-release.md) | a failure to enumerate `InvalidatedSidecars` is dropped silently; adding the field is a public-API call that must precede the freeze (E4-S3) |
 | #498 archive index `DistinctKeys` / `IndexedRecords` are per-shard sums | v1.x, owner U51 | an exact union count would hold every key in memory; documented as a known limit (E4-S1) |
+| #499 compact grouped rows / chain stage hand-off without per-row `Data` maps | v1.x, owner U51 | the retention-shaped chain's RSS is 2.3× `spend`'s against a 1.5× target: merged buckets and the finalized per-row maps are live together (E5-S4; owner accepted the miss) |
 
 ## Inherited from U41
 

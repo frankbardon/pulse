@@ -284,7 +284,7 @@ takes the count from the file length less the header and schema bytes
 600k-entry categorical file that took ~0.45 s off every
 `DecodeWorkers` ≠ 1 Process (`TestOpenedRecordCount_NoSecondSchemaRead`).
 
-## Retention-shaped chain (U51 E5-S4)
+## Retention-shaped chain (U51 E5-S4, E5-S5)
 
 `BenchmarkRetentionShape` (`internal/service/retention_shape_bench_test.go`)
 runs the retail showcase's two `ProcessChain`s at 1/20 scale: a
@@ -310,6 +310,10 @@ ns/op per chain. Apple M1 Max (10 cores), go1.27.2, one run each:
 | + (c) merge window | retention | 7.84 s | 2,799 MB | 6.70 GB | 105.7 M | 16.2 s | 303% | 4.66 GB |
 | + (c) merge window | retention-budget | 11.67 s | 3,589 MB | 6.70 GB | 105.7 M | 24.4 s | 193% | 4.72 GB |
 | + (c) merge window | spend | 3.80 s | 1,627 MB | 3.35 GB | 42.9 M | 7.9 s | 231% | 1.99 GB |
+| `c89ecc9d`, same session (before E5-S5) | retention | 8.67 s | 2,743 MB | 6.70 GB | 105.7 M | 18.2 s | 275% | 4.56 GB |
+| `c89ecc9d`, same session (before E5-S5) | spend | 3.91 s | 1,694 MB | 3.35 GB | 42.9 M | 8.2 s | 221% | 1.94 GB |
+| + E5-S5 allocation-free limit check | retention | 8.17 s | 3,048 MB | 6.45 GB | 102.5 M | 17.0 s | 289% | 4.13 GB |
+| + E5-S5 allocation-free limit check | spend | 4.30 s | 1,591 MB | 3.10 GB | 39.7 M | 8.8 s | 210% | 1.97 GB |
 
 (a) and (b) cut retention's garbage by 29% (allocations a chain 151 M →
 106 M); (c) changes nothing without a budget (the default). Wall time
@@ -327,3 +331,18 @@ run is slower (193% CPU). The predict estimate is far above the
 measured peak for this shape (33.4 GB at one live partial, 39.6 GB at
 the full window): `GROUP_CATEGORY` over a `u32` has no schema-known
 cardinality, so every bucket term is bounded by the record count.
+
+E5-S5: `limits.Value` read a field through a func-table accessor taking
+`*Limits`, so the `Limits` value every limit check is handed escaped to
+the heap, one ~100 B allocation per `MaxGroups` check at each bucket
+mint. With a direct switch the check allocates nothing
+(`TestGroupMemory_MaxGroupsCheckAllocationFree` and the grouped-mint
+siblings). Per chain, retention drops 3.17 M allocations and 254 MB
+(6.70 → 6.45 GB), spend 3.17 M and 254 MB (3.35 → 3.10 GB): the same
+count on both, one check per bucket mint across the shard partials and
+the merge. The "before" rows are a same-session build with only the
+escaping accessor restored, since run-to-run noise on this host is
+large: a repeat retention run measured 4.79 GB (before) and 4.84 GB
+(after) max RSS. Wall time, peak heap and max RSS move within that
+noise; the live-state peak above (#499, `docs/roadmap/TODO.md`) is
+untouched.
