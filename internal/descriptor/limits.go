@@ -425,6 +425,9 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 		aggs = append(append([]*types.Aggregation(nil), aggs...), req.Crosstab.MarginAggregations...)
 	}
 	mi.Aggregations = int64(len(aggs))
+	mi.ExtraGroupers = int64(max(len(req.Groups)-1, 0))
+	mi.FanOut = requestFanOut(req, schema)
+	var vecInputs map[*types.Aggregation]vectors.AggregationInput
 	for _, a := range aggs {
 		if a == nil {
 			continue
@@ -432,13 +435,22 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 		if valueStateAggregation[a.Type] || inst.Extensions().AggregatorValueState(a.Type) {
 			mi.ValueStateAggregations++
 		}
-		if weightInForce(req, a, in.DefaultWeight) {
-			mi.WeightedAggregations++
+		var members int64
+		if vectors.IsVectorAggregation(a.Type) {
+			if vecInputs == nil {
+				vecInputs, _ = vectors.ResolveAggregations(req, schema, aggregationKinds(inst, nil))
+			}
+			members = vectorAggregationMembers(a, vecInputs, schema)
+			// Every fragment holds at least one row, and a bucket (or
+			// crosstab cell) holds at most one per merge block.
+			fragments := min(mulSaturating(mergeBlocks(in), max(mi.Buckets, mi.Cells)), mulSaturating(records, max(mi.FanOut, 1)))
+			buffered := mulSaturating(limits.MergeBufferedRows(in.ShardRecords...), max(mi.FanOut, 1))
+			mi.VectorBytes = addSaturating(mi.VectorBytes, limits.VectorAggregationBytes(a.Type, members, fragments, buffered))
 		}
+		mi.AggStateBytes = addSaturating(mi.AggStateBytes, limits.AggregationStateBytes(a.Type, weightInForce(req, a, in.DefaultWeight), members))
 		mi.SetMembers = addSaturating(mi.SetMembers, setMembers(a, schema))
 	}
 	mi.DerivedColumns = int64(len(req.Attributes) + len(req.Features) + len(req.Windows))
-	mi.FanOut = requestFanOut(req, schema)
 	mi.TestInstances, mi.TestLevels, mi.TestValues = testMemory(req, schema, inst, records, mi.Buckets, mi.FanOut)
 	mi.MatrixBytes = matrixMemory(req, schema, inst, matrixIn)
 	for _, b := range GroupBufferBytes(req, schema, inst, records) {
@@ -720,6 +732,32 @@ func setMembers(a *types.Aggregation, schema *encoding.Schema) int64 {
 		n = f.Dictionary.Count()
 	}
 	return int64(min(n, encoding.SetMaskBits))
+}
+
+// vectorAggregationMembers is a built-in vector aggregator slot's member
+// count p: its resolved input (inputs, vectors.ResolveAggregations),
+// else its inline fields; a slot that did not resolve — refused before
+// it runs — is charged every member the schema can supply (one per
+// column, a vec_* column's dimension).
+func vectorAggregationMembers(a *types.Aggregation, inputs map[*types.Aggregation]vectors.AggregationInput, schema *encoding.Schema) int64 {
+	if in, ok := inputs[a]; ok && in.Has() {
+		return int64(len(in.Members.Members))
+	}
+	if len(a.Fields) > 0 {
+		return int64(len(a.Fields))
+	}
+	var n int64
+	for i := range schema.Fields {
+		n += int64(max(schema.VectorDim(i), 1))
+	}
+	return n
+}
+
+// ValueStateAggregation reports whether the built-in aggregator t keeps
+// per-value state (valueStateAggregation): the memory estimate charges
+// it limits.ValueEntryBytes a record it can see.
+func ValueStateAggregation(t types.AggregationType) bool {
+	return valueStateAggregation[t]
 }
 
 // valueStateAggregation lists the built-in aggregators whose state

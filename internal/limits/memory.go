@@ -100,25 +100,34 @@ const (
 	// the GroupBucket, the key string and the grouper's live components
 	// entry: measured 126-215 B across 300k-1.3M keys.
 	bucketBaseBytes = 256
+	// extraGrouperStateBytes per bucket per grouper past the first: the
+	// composite key's longer string and its per-grouper tuple entry —
+	// measured ~105 B a grouper (three groupers 355 B a bucket against
+	// one grouper's 145 B; U51 E5-S7, TestGroupMemory_FinalizedRowBytes).
+	extraGrouperStateBytes = 128
 	// bucketOutputBytes: a merged bucket's finalize output beside its
 	// aggregations' — the Data row map, its key column, the grouper's
 	// components bucket and the groups[] entry's key: measured 744 B
 	// retained, 1,080 B at the run's peak with no aggregation.
 	bucketOutputBytes = 1024
-	// aggStateBytes per bucket per unweighted aggregation: one
-	// accumulator (the binned sums since U51 E2-S3: AGG_SUM 64 B,
-	// AGG_AVERAGE 80 B; the largest fixed built-in, AGG_CI_*, 160 B), its
-	// slot in the bucket and its floor tally (32 B): at most 208 B.
+	// aggStateBytes per bucket per unweighted aggregation the built-in
+	// table (aggregatorBytesTable) does not hold — an embedder
+	// extension's: one accumulator, its slot in the bucket and its floor
+	// tally. The built-ins measure 80-534 B (the table).
 	aggStateBytes = 256
-	// weightedAggStateBytes per bucket per WEIGHTED aggregation: the
-	// shared weighted accumulator (three binned sums and the Welford
-	// moments, 320 B), its slot, and its floor with the 128-byte
-	// weighted floor tally: 496 B measured.
+	// weightedAggStateBytes per bucket per WEIGHTED aggregation the
+	// table does not hold: the shared weighted accumulator (three binned
+	// sums and the Welford moments, 320 B), its slot, and its floor with
+	// the 128-byte weighted floor tally: 496-518 B measured on the
+	// built-ins.
 	weightedAggStateBytes = 512
-	// aggOutputBytes per merged bucket per aggregation: the row's value
-	// and the groups[] Components entry with its operator map — measured
-	// at most 464 B (AGG_CI_UPPER; AGG_SUM / AGG_AVERAGE ~456 B).
-	aggOutputBytes = 512
+	// aggOutputBytes per merged bucket per aggregation with components
+	// on: the row's value and the groups[] Components entry with its
+	// operator map — measured 539 B a column just past the row map's
+	// growth points (28, 56, 112 AGG_MAX columns), at most 464 B a
+	// column below them. U51 E5-S7 raised it from 512, which those
+	// widths exceeded (the over-charged state had hidden it).
+	aggOutputBytes = 576
 	// setMemberStateBytes / setMemberOutputBytes per bucket per member
 	// of the set field an AGG_SET_FREQUENCY slot counts: a per-member
 	// counter (8 B; weighted a binned Σw, 56 B) and, at finalize, the
@@ -166,6 +175,11 @@ const (
 	// Finalize sorts.
 	testValueBytes = 32
 )
+
+// ValueEntryBytes is the per-value-state charge a value-state
+// aggregation pays per record it can see (valueEntryBytes): the
+// per-aggregator gates add it to a value-state slot's bucket figures.
+const ValueEntryBytes = valueEntryBytes
 
 // ShardMergeWindow is how many shards the per-shard parallel reducer
 // keeps dispatched but not yet merged on workers goroutines: shard j is
@@ -231,12 +245,18 @@ type MemoryInputs struct {
 	// Aggregations is the number of aggregator slots (the crosstab
 	// cell counts as one).
 	Aggregations int64
-	// WeightedAggregations is how many of them run weighted (a weight in
-	// force on the slot: its own, else the request's, else the
-	// instance default — an upper bound, the slot's weight awareness
-	// unread): each is charged weightedAggStateBytes in place of
-	// aggStateBytes.
-	WeightedAggregations int64
+	// AggStateBytes is, summed over those slots, each slot's per-bucket
+	// state (AggregationStateBytes: a built-in's measured entry, its
+	// weighted one when a weight is in force on the slot — its own, else
+	// the request's, else the instance default; an extension's ceiling).
+	AggStateBytes int64
+	// ExtraGroupers is the groupers past the first (a composite key):
+	// each adds extraGrouperStateBytes to a bucket's state.
+	ExtraGroupers int64
+	// VectorBytes is the vector aggregators' merge-block fragments and
+	// buffered rows (VectorAggregationBytes, summed over the slots),
+	// charged once on every arm.
+	VectorBytes int64
 	// SetMembers is, summed over the AGG_SET_FREQUENCY slots, the member
 	// count of the set field each counts (its dictionary size, capped at
 	// the set address space): per bucket, a counter and an output label
@@ -337,6 +357,7 @@ type MemoryInputs struct {
 //	             on an archive
 //	           + join right rows x (3 x stride + 2 x record bytes)
 //	           + matrix merge-block state + vector-grouper point store
+//	           + vector aggregators' merge-block fragments
 //	           + partition buckets x state, parallel arms
 //	           + test instances x 1024 + test levels x 256
 //	           + buffered-test values x 32
@@ -346,10 +367,9 @@ type MemoryInputs struct {
 //	streaming  + buckets x (state + output)
 //	fused      + cells x 512
 //
-// where a bucket's state is 256 + 256 x unweighted aggs + 512 x
-// weighted aggs + 64 x set members and its output 1024 + 512 x aggs +
-// 128 x set members, plus (rows + partition records) x fan-out x 96 per
-// value-state aggregation on every arm. Saturates at math.MaxInt64
+// where a bucket's state and output are BucketBytes', plus (rows +
+// partition records) x fan-out x 96 per value-state aggregation on
+// every arm. Saturates at math.MaxInt64
 // rather than wrapping.
 func EstimateMemory(in MemoryInputs) int64 {
 	total := int64(runBaseBytes)
@@ -364,6 +384,7 @@ func EstimateMemory(in MemoryInputs) int64 {
 	add(in.JoinRightRows, addSat(fileCopyFactor*in.Stride, buildCopyFactor*in.RecordBytes))
 	total = addSat(total, in.MatrixBytes)
 	total = addSat(total, in.GrouperBytes)
+	total = addSat(total, in.VectorBytes)
 	rows := in.Records
 	if in.JoinedRows > 0 {
 		rows = in.JoinedRows
@@ -393,12 +414,12 @@ func EstimateMemory(in MemoryInputs) int64 {
 // BucketBytes is one group bucket's charge under in: state is what it
 // holds while records fold (a parallel partition's bucket costs only
 // this), final adds what finalize writes for a merged bucket (EstimateMemory's
-// bucket terms). Unweighted slots are in.Aggregations minus
-// in.WeightedAggregations.
+// bucket terms): state = 256 + 128 x extra groupers + the slots'
+// AggStateBytes + 64 x set members; the output adds 1024 + 576 x aggs
+// + 128 x set members.
 func BucketBytes(in MemoryInputs) (state, final int64) {
-	weighted := min(max(in.WeightedAggregations, 0), in.Aggregations)
-	state = addSat(bucketBaseBytes, mulSat(in.Aggregations-weighted, aggStateBytes))
-	state = addSat(state, mulSat(weighted, weightedAggStateBytes))
+	state = addSat(bucketBaseBytes, mulSat(max(in.ExtraGroupers, 0), extraGrouperStateBytes))
+	state = addSat(state, max(in.AggStateBytes, 0))
 	state = addSat(state, mulSat(in.SetMembers, setMemberStateBytes))
 	final = addSat(state, bucketOutputBytes)
 	final = addSat(final, mulSat(in.Aggregations, aggOutputBytes))

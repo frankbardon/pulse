@@ -48,18 +48,36 @@ func TestMemoryArm(t *testing.T) {
 	}
 }
 
-// The recalibrated bucket charges (U51 E2-S4, limits.BucketBytes) for
-// one unweighted aggregation: a merged bucket's state + finalize
-// output, and a parallel partition's state alone.
-const (
-	finalBucket1     = 256 + 256 + 1024 + 512
-	partitionBucket1 = 256 + 256
+// The bucket charges (limits.BucketBytes; U51 E2-S4, per-aggregator
+// state since E5-S7) for one unweighted AGG_SUM: a merged bucket's
+// state + finalize output (components on), and a parallel partition's
+// state alone.
+var (
+	partitionBucket1, finalBucket1 = limits.BucketBytes(limits.MemoryInputs{
+		Aggregations: 1, AggStateBytes: limits.AggregationStateBytes(types.AGG_SUM, false, 0)})
+	// partitionBucketOf / finalBucketOf are those charges for one
+	// unweighted slot of type at.
+	partitionBucketOf = func(at types.AggregationType) int64 {
+		p, _ := limits.BucketBytes(limits.MemoryInputs{Aggregations: 1, AggStateBytes: limits.AggregationStateBytes(at, false, 0)})
+		return p
+	}
+	finalBucketOf = func(at types.AggregationType) int64 {
+		_, f := limits.BucketBytes(limits.MemoryInputs{Aggregations: 1, AggStateBytes: limits.AggregationStateBytes(at, false, 0)})
+		return f
+	}
+	// extraGrouperBytes is what each grouper past the first adds to a
+	// bucket's state.
+	extraGrouperBytes = func() int64 {
+		a, _ := limits.BucketBytes(limits.MemoryInputs{ExtraGroupers: 1})
+		b, _ := limits.BucketBytes(limits.MemoryInputs{})
+		return a - b
+	}()
 )
 
 // TestEstimateMemory_WeightAndSetTerms (U51 E2-S4): a weighted slot —
 // its own weight, the request's, or the instance default reaching it
 // through LimitInputs.DefaultWeight; never one opted out with `null` —
-// costs the weighted accumulator (512 B of state, not 256), and an
+// costs its weighted table entry (AGG_SUM: 576 B of state, not 160), and an
 // AGG_SET_FREQUENCY slot adds a counter and an output label per member
 // of its set field (3 here: 64 + 128 B each) to every bucket.
 func TestEstimateMemory_WeightAndSetTerms(t *testing.T) {
@@ -77,7 +95,7 @@ func TestEstimateMemory_WeightAndSetTerms(t *testing.T) {
 		return []*types.Aggregation{{Type: types.AGG_SUM, Field: "num", Label: "s", Weight: w}}
 	}
 	unweighted := est(&types.Request{Groups: byCat, Aggregations: sum(types.SlotWeight{})}, memIn(1000))
-	const extra = 5 * (512 - 256)
+	extra := 5 * (limits.AggregationStateBytes(types.AGG_SUM, true, 0) - limits.AggregationStateBytes(types.AGG_SUM, false, 0))
 	cases := []struct {
 		name string
 		req  *types.Request
@@ -98,7 +116,9 @@ func TestEstimateMemory_WeightAndSetTerms(t *testing.T) {
 	}
 	setFreq := &types.Request{Groups: byCat, Aggregations: []*types.Aggregation{{Type: types.AGG_SET_FREQUENCY, Field: "tags", Label: "f"}}}
 	setCard := &types.Request{Groups: byCat, Aggregations: []*types.Aggregation{{Type: types.AGG_SET_CARDINALITY_SUM, Field: "tags", Label: "f"}}}
-	if d := est(setFreq, memIn(1000)) - est(setCard, memIn(1000)); d != 5*3*(64+128) {
+	// Beside the two slots' own state entries.
+	slots := 5 * (limits.AggregationStateBytes(types.AGG_SET_FREQUENCY, false, 0) - limits.AggregationStateBytes(types.AGG_SET_CARDINALITY_SUM, false, 0))
+	if d := est(setFreq, memIn(1000)) - est(setCard, memIn(1000)) - slots; d != 5*3*(64+128) {
 		t.Errorf("AGG_SET_FREQUENCY over a 3-member set adds %d bytes, want 5 buckets x 3 members x 192 (%d)", d, 5*3*(64+128))
 	}
 }
@@ -143,7 +163,8 @@ func TestEstimateMemory_Terms(t *testing.T) {
 	}
 	// Buffered: every record resident.
 	median := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "num", Label: "m"}}}
-	if d := est(median, memIn(1000)) - base; d != 1000*(rec+16) {
+	// (beside the median slot's bucket state in place of the sum's)
+	if d := est(median, memIn(1000)) - base - (finalBucketOf(types.AGG_MEDIAN) - finalBucket1); d != 1000*(rec+16) {
 		t.Errorf("the buffered arm adds %d bytes, want %d", d, 1000*(rec+16))
 	}
 	// Matrix: merge fragments x buckets x accumulator bytes (2 numeric
@@ -188,8 +209,8 @@ func TestEstimateMemory_Terms(t *testing.T) {
 	if arm := MemoryArm(&types.Request{Groups: tags, Aggregations: distinct}, schema, nil, memIn(1000)); arm != limits.ArmStreaming {
 		t.Fatalf("set-per-element distinct count runs %q", arm)
 	}
-	if d := est(&types.Request{Groups: tags, Aggregations: distinct}, memIn(1000)) - est(&types.Request{Aggregations: distinct}, memIn(1000)); d != 2*finalBucket1+2*1000*96 {
-		t.Errorf("fan-out value state adds %d bytes, want 2 more buckets and 2 x 1,000 more value entries (%d)", d, 2*finalBucket1+2*1000*96)
+	if d := est(&types.Request{Groups: tags, Aggregations: distinct}, memIn(1000)) - est(&types.Request{Aggregations: distinct}, memIn(1000)); d != 2*finalBucketOf(types.AGG_DISTINCT_COUNT)+2*1000*96 {
+		t.Errorf("fan-out value state adds %d bytes, want 2 more buckets and 2 x 1,000 more value entries (%d)", d, 2*finalBucketOf(types.AGG_DISTINCT_COUNT)+2*1000*96)
 	}
 	// Tier-1 tests (U35 #437): an instance per test per bucket (5
 	// categories), its split levels (packed_bool: 2 per bucket), and a
@@ -318,7 +339,7 @@ func TestEstimateMemory_ArchiveTerms(t *testing.T) {
 	}
 	// ... and per-value state over every record once more.
 	distinct := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_DISTINCT_COUNT, Field: "num", Label: "d"}}}
-	if d := est(distinct, arch(dirBytes, 2)) - est(distinct, arch(dirBytes, 1)); d != 2*partitionBucket1+1000*96 {
+	if d := est(distinct, arch(dirBytes, 2)) - est(distinct, arch(dirBytes, 1)); d != 2*partitionBucketOf(types.AGG_DISTINCT_COUNT)+1000*96 {
 		t.Errorf("value-state fan-out adds %d bytes, want 2 buckets + 1,000 x 96", d)
 	}
 	// U51 E2-S4: the incremental merge holds at most the merge window's
@@ -332,7 +353,7 @@ func TestEstimateMemory_ArchiveTerms(t *testing.T) {
 	if d, want := est(ranged, wide)-est(ranged, wideSerial), int64((300+200+90+80)*partitionBucket1); d != want {
 		t.Errorf("12 shards under 2 workers add %d bytes, want the window's 4 largest shards' buckets (%d)", d, want)
 	}
-	if d, want := est(distinct, wide)-est(distinct, wideSerial), int64(4*partitionBucket1+(300+200+90+80)*96); d != want {
+	if d, want := est(distinct, wide)-est(distinct, wideSerial), 4*partitionBucketOf(types.AGG_DISTINCT_COUNT)+(300+200+90+80)*96; d != want {
 		t.Errorf("12-shard value state adds %d bytes, want 4 partial buckets + the 4 largest shards' records x 96 (%d)", d, want)
 	}
 	// A request the merge gate refuses stays serial at any cap.
@@ -558,11 +579,14 @@ func TestEstimateMemory_ValueWidthBound(t *testing.T) {
 		if !ok {
 			t.Fatal("no estimate")
 		}
-		d := n - base
-		if d%finalBucket1 != 0 {
+		// base holds one ungrouped bucket; each grouped bucket also
+		// carries the composite key's extra groupers.
+		final := finalBucket1 + int64(len(groups)-1)*extraGrouperBytes
+		d := n - base + finalBucket1
+		if d%final != 0 {
 			t.Fatalf("%v: grouped delta %d is not whole buckets (arm %s)", groups[0].Type, d, MemoryArm(&types.Request{Groups: groups, Aggregations: sum}, schema, nil, memIn(records)))
 		}
-		return d/finalBucket1 + 1
+		return d / final
 	}
 	g := func(typ types.GroupType, field string) *types.Group {
 		return &types.Group{Type: typ, Field: field, Interval: 10}
@@ -597,5 +621,41 @@ func TestEstimateMemory_ValueWidthBound(t *testing.T) {
 		if got := buckets(c.records, c.groups...); got != c.want {
 			t.Errorf("%s: charged %d buckets, want %d", c.name, got, c.want)
 		}
+	}
+}
+
+// TestEstimateMemory_VectorAggregationTerms (U51 E5-S7): a vector
+// aggregator slot is charged its fixed state per bucket (its table entry
+// plus a member slope) and, once per run, a fragment per merge block it
+// can hold — min(merge blocks x buckets, rows) — plus the rows a shard
+// starting inside a block buffers.
+func TestEstimateMemory_VectorAggregationTerms(t *testing.T) {
+	schema := groupsSchema(t)
+	schema.Fields = append(schema.Fields, encoding.Field{Name: "num2", Type: encoding.FieldTypeF64})
+	vec := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_VEC_MEAN, Fields: []string{"num", "num2"}, Label: "v"}}}
+	sum := &types.Request{Aggregations: sumOf("num")}
+	est := func(r *types.Request, in LimitInputs) int64 {
+		t.Helper()
+		n, ok := EstimateMemory(r, schema, nil, in)
+		if !ok {
+			t.Fatal("no estimate")
+		}
+		return n
+	}
+	state := limits.AggregationStateBytes(types.AGG_VEC_MEAN, false, 2) - limits.AggregationStateBytes(types.AGG_SUM, false, 0)
+	// 10,000 records: 3 merge blocks, one bucket.
+	if d, want := est(vec, memIn(10_000))-est(sum, memIn(10_000)), state+limits.VectorAggregationBytes(types.AGG_VEC_MEAN, 2, 3, 0); d != want {
+		t.Errorf("ungrouped vector slot adds %d bytes, want %d", d, want)
+	}
+	// Two records: never more fragments than rows.
+	if d, want := est(vec, memIn(2))-est(sum, memIn(2)), state+limits.VectorAggregationBytes(types.AGG_VEC_MEAN, 2, 1, 0); d != want {
+		t.Errorf("a one-block run adds %d bytes, want %d", d, want)
+	}
+	// An archive whose second shard starts inside a block buffers that
+	// block's rows (4,096 - 100) and holds one more fragment.
+	arch := LimitInputs{Records: 4200, ShardRecords: []int64{100, 4100}, ShardWorkers: 1, JoinRightRows: -1}
+	blocks := limits.MergeBlocks(arch.ShardRecords...)
+	if d, want := est(vec, arch)-est(sum, arch), state+limits.VectorAggregationBytes(types.AGG_VEC_MEAN, 2, blocks, 4096-100); d != want {
+		t.Errorf("archive vector slot adds %d bytes, want %d (%d fragments, %d buffered rows)", d, want, blocks, 4096-100)
 	}
 }

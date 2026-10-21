@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -201,12 +202,16 @@ func TestExtensions_CountSemanticValueStateInManifest(t *testing.T) {
 	}
 }
 
-// TestExtensions_ValueStateMemoryEstimate: a ValueState extension
-// aggregator's MaxEstimatedMemory estimate equals a built-in
-// value-state aggregator's (AGG_MODE) on the streaming and the buffered
-// arm, an undeclared one equals a fixed accumulator's (AGG_SUM), and
-// predict and the runtime agree: a limit between the two refuses the
-// ValueState slot on both and admits the undeclared one.
+// TestExtensions_ValueStateMemoryEstimate: declaring ValueState adds to
+// an extension aggregator's MaxEstimatedMemory estimate exactly the
+// per-value charge a built-in value-state aggregator (AGG_MODE) pays —
+// limits.ValueEntryBytes a record — on the streaming and the buffered
+// arm, and predict and the runtime agree: a limit between the two
+// refuses the ValueState slot on both and admits the undeclared one.
+// (Since U51 E5-S7 a built-in slot's bucket state is its measured
+// per-aggregator entry and an extension's the 256 B ceiling, so the
+// estimates themselves differ by the bucket state; the value-state
+// share is compared.)
 func TestExtensions_ValueStateMemoryEstimate(t *testing.T) {
 	ctx := context.Background()
 	arms := map[string]func(cohort string, at types.AggregationType) *types.Request{
@@ -234,13 +239,13 @@ func TestExtensions_ValueStateMemoryEstimate(t *testing.T) {
 				}
 				return res.LimitFindings[0].Estimated
 			}
-			mode, value := estimate(types.AGG_MODE), estimate(aggCvValue)
-			sum, plain := estimate(types.AGG_SUM), estimate(aggCvPlain)
-			if value != mode {
-				t.Errorf("ValueState extension estimate %d, built-in AGG_MODE %d", value, mode)
+			value, plain := estimate(aggCvValue), estimate(aggCvPlain)
+			records, err := probe.CountRecords(ctx, cohort)
+			if err != nil {
+				t.Fatal(err)
 			}
-			if plain != sum {
-				t.Errorf("undeclared extension estimate %d, built-in AGG_SUM %d", plain, sum)
+			if d, want := value-plain, int64(records)*limits.ValueEntryBytes; d != want {
+				t.Errorf("ValueState adds %d bytes to the extension's estimate, want a built-in value-state slot's %d (records x %d)", d, want, limits.ValueEntryBytes)
 			}
 			if value <= plain {
 				t.Fatalf("ValueState estimate %d not above undeclared %d", value, plain)

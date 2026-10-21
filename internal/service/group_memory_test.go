@@ -266,7 +266,7 @@ func TestGroupMemory_ManyShardsWorkerInvariant(t *testing.T) {
 // the measured peak heap of the whole Process (accumulation AND the
 // finalize output: Data rows and per-group Components), unweighted and
 // weighted (the instance default reaching every slot), and stays
-// within maxFactor of it. Before the recalibration the bucket term
+// within the case's maxFactor of it. Before the recalibration the bucket term
 // (512 + 256 x aggs) was half the measured peak here: an under-estimate
 // a MaxEstimatedMemory cap could not trust.
 func TestGroupMemory_EstimateBoundsPeak(t *testing.T) {
@@ -301,14 +301,22 @@ func TestGroupMemory_EstimateBoundsPeak(t *testing.T) {
 		r.Cohort = &types.Cohort{Filename: "g.pulse"}
 		return r
 	}
-	const maxFactor = 2.5
+	// maxFactor re-pinned at U51 E5-S7 (per-aggregator state):
+	// components on measures 1.46 unweighted and 1.32 weighted (AGG_SUM /
+	// AGG_AVERAGE weighted entries are 576 B, the old flat 512 under
+	// them), so 2.0.
 	for _, c := range []struct {
-		name   string
-		weight *types.WeightSpec
-	}{{"unweighted", nil}, {"weighted", &types.WeightSpec{Field: "y"}}} {
+		name      string
+		weight    *types.WeightSpec
+		off       bool
+		maxFactor float64
+	}{
+		{"unweighted", nil, false, 2.0}, {"weighted", &types.WeightSpec{Field: "y"}, false, 2.0},
+	} {
 		t.Run(c.name, func(t *testing.T) {
 			svc := New(cfg)
 			svc.SetDefaultWeight(c.weight)
+			svc.SetDisableComponents(c.off)
 			estimate := float64(archiveMemoryEstimate(t, svc, req()))
 			peak := -1.0
 			for range 3 {
@@ -325,8 +333,8 @@ func TestGroupMemory_EstimateBoundsPeak(t *testing.T) {
 			if estimate < peak {
 				t.Errorf("estimate %.0f under the measured peak %.0f", estimate, peak)
 			}
-			if estimate > maxFactor*peak {
-				t.Errorf("estimate %.0f over %.1fx the measured peak %.0f", estimate, maxFactor, peak)
+			if estimate > c.maxFactor*peak {
+				t.Errorf("estimate %.0f over %.1fx the measured peak %.0f", estimate, c.maxFactor, peak)
 			}
 		})
 	}

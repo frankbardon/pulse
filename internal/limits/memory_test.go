@@ -170,8 +170,15 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 			payload + 2*records*valueEntryBytes + 4*bucket(1) + 9*state(1)},
 		// Weighted slots (U51 E2-S4): the weighted accumulator and floor
 		// in place of the unweighted state; the output is the same.
-		{"weighted grouped", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 16, Aggregations: 3, WeightedAggregations: 2, PartitionBuckets: 5},
+		{"weighted grouped", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 16, Aggregations: 3, AggStateBytes: aggStateBytes + 2*weightedAggStateBytes, PartitionBuckets: 5},
 			payload + 16*(bucket(3)+2*(weightedAggStateBytes-aggStateBytes)) + 5*(state(3)+2*(weightedAggStateBytes-aggStateBytes))},
+		// Two more groupers: a composite key's longer string and tuple
+		// in every bucket's state.
+		{"extra groupers", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 16, Aggregations: 1, ExtraGroupers: 2, PartitionBuckets: 5},
+			payload + 16*(bucket(1)+2*extraGrouperStateBytes) + 5*(state(1)+2*extraGrouperStateBytes)},
+		// Vector aggregators' merge-block fragments, once on every arm.
+		{"vector fragments", MemoryInputs{Arm: ArmFusedCrosstab, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, VectorBytes: 4321},
+			payload + 4321},
 		// AGG_SET_FREQUENCY: a counter and an output label per member of
 		// the counted set, per bucket.
 		{"set members", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 16, Aggregations: 1, SetMembers: 200, PartitionBuckets: 5},
@@ -189,6 +196,10 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 			payload + records*(rec+bufferedValueBytes) + 4*bucket(1) + 8*testStateBytes + 16*testLevelBytes + 2*records*testValueBytes},
 	}
 	for _, c := range cases {
+		if c.in.AggStateBytes == 0 {
+			// Every slot an unmeasured (extension) type: the ceiling.
+			c.in.AggStateBytes = c.in.Aggregations * aggStateBytes
+		}
 		if got := EstimateMemory(c.in); got != c.want {
 			t.Errorf("%s: EstimateMemory = %d, want %d", c.name, got, c.want)
 		}

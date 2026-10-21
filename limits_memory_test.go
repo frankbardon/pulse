@@ -302,8 +302,9 @@ func TestLimits_ShardMergeWindowShrinksToBudget(t *testing.T) {
 	}
 	est := probe.LimitFindings[0].Estimated
 	// The estimate charges ONE live partial — the largest shard's 40
-	// buckets (an unknown grouper is bounded by records) at 256 + 256
-	// state each — over the serial arm's; the unshrunk window (4) would
+	// buckets (an unknown grouper is bounded by records) at 256 + 128
+	// state each (AGG_SUM's per-aggregator entry, U51 E5-S7) — over the
+	// serial arm's; the unshrunk window (4) would
 	// charge the four largest shards' 40 + 31 + 25 + 12.
 	sp, err := pulse.New(pulse.Options{FS: afs, ShardWorkers: 1, Limits: pulse.Limits{MaxEstimatedMemory: 1}})
 	if err != nil {
@@ -313,8 +314,8 @@ func TestLimits_ShardMergeWindowShrinksToBudget(t *testing.T) {
 	if err != nil || len(serial.LimitFindings) != 1 {
 		t.Fatalf("serial probe: %v %+v", err, serial.LimitFindings)
 	}
-	if d := est - serial.LimitFindings[0].Estimated; d != 40*(256+256) {
-		t.Fatalf("one-partial window charges %d over serial, want %d", d, 40*(256+256))
+	if d := est - serial.LimitFindings[0].Estimated; d != 40*(256+128) {
+		t.Fatalf("one-partial window charges %d over serial, want %d", d, 40*(256+128))
 	}
 	base, err := open(0).Process(ctx, archiveRanged(wideArch))
 	if err != nil {
@@ -477,14 +478,15 @@ func TestLimits_MaxEstimatedMemory_ArchiveShardWorkers(t *testing.T) {
 	}
 	serial, fanned := estimate(1), estimate(2)
 	// The largest shard's partial buckets of one aggregation — a
-	// partition bucket's STATE, 256 + 256 each (U51 E2-S4: a partition
+	// partition bucket's STATE, 256 + 128 each (AGG_SUM's entry, U51
+	// E5-S7; U51 E2-S4: a partition
 	// never finalizes, so it carries no output share). GROUP_RANGE over
 	// the imported u8 column `a` mints at most 256 keys, below the
 	// shard's 4,097 records (U51 E5-S6, the value-width bound). Only that
 	// shard: a 1-byte budget shrinks the merge window to one live partial
 	// on both sides (U51 E5-S4, limits.ShardMergeWindowWithin), where the
 	// unbudgeted window (4) would charge both shards' 256 + 5.
-	if d, want := fanned-serial, int64(256*(256+256)); d != want {
+	if d, want := fanned-serial, int64(256*(256+128)); d != want {
 		t.Fatalf("the per-shard arm adds %d bytes, want %d (the u8 width bound of the window's shard)", d, want)
 	}
 }
@@ -570,7 +572,8 @@ func TestLimits_MaxEstimatedMemory_DecodeWorkersPredictMatchesRuntime(t *testing
 // over a u16 column with fewer records than 2^16 values the bound
 // stays the record count. Buckets are read off the estimate: the
 // grouped request's figure less the ungrouped one's, in one-aggregation
-// merged buckets (state 256 + 256, output 1,024 + 512), plus the one
+// merged buckets (state 256 + 128 — AGG_SUM's per-aggregator entry —
+// and output 1,024 + 576), plus the one
 // bucket an ungrouped run holds.
 func TestLimits_ValueWidthBoundCoversEveryKey(t *testing.T) {
 	ctx := context.Background()
@@ -614,7 +617,7 @@ func TestLimits_ValueWidthBoundCoversEveryKey(t *testing.T) {
 		}
 		return res.LimitFindings[0].Estimated
 	}
-	const bucket = 256 + 256 + 1024 + 512
+	const bucket = 256 + 128 + 1024 + 576
 	base := estimate(nil)
 	run, err := pulse.New(pulse.Options{FS: fs})
 	if err != nil {
