@@ -537,11 +537,28 @@ func (p *exprProgram) eval(env map[string]any, nullInput bool) (any, error) {
 			prog = untyped
 		}
 	}
-	out, err := expr.Run(prog, env)
+	out, err := runPooled(prog, env)
 	if err != nil {
 		return nil, p.evalError(err)
 	}
 	return out, nil
+}
+
+// exprVMPool recycles expr VMs across evaluations (U51 E5-S4).
+// expr.Run builds a fresh vm.VM — the struct and its stack — on every
+// call, one allocation a row per expression; vm.VM.Run resets the
+// stack, scopes, memory budget and instruction pointer itself before
+// every run, so a VM taken from the pool evaluates exactly as a fresh
+// one does (same program, same env, same result). One VM per goroutine
+// at a time: a pooled VM is never shared by two runs.
+var exprVMPool = sync.Pool{New: func() any { return new(vm.VM) }}
+
+// runPooled is expr.Run on a pooled VM.
+func runPooled(prog *vm.Program, env map[string]any) (any, error) {
+	m := exprVMPool.Get().(*vm.VM)
+	out, err := m.Run(prog, env)
+	exprVMPool.Put(m)
+	return out, err
 }
 
 // exprFreeIdentifiers returns the names an expression reads from its

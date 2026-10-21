@@ -703,3 +703,27 @@ func TestExprProgram_ConcurrentRuns(t *testing.T) {
 		wg.Wait()
 	}
 }
+
+// TestExprProgram_RunReusesVM (U51 E5-S4 (b)): evaluating a compiled
+// expression reuses a pooled expr VM (exprVMPool) instead of building
+// one per call (expr.Run → vm.Run allocated the VM and its stack every
+// row). With an input whose boxing is free (a zero) and a constant
+// result, a warm ATTR_FORMULA row allocates nothing at all.
+func TestExprProgram_RunReusesVM(t *testing.T) {
+	s := exprParitySchema()
+	rec := NewRecordWithWide(s, map[string]float64{"id": 0, "x": 0, "y": 1, "cat": 1, "d": 18262}, nil, nil)
+	comp, err := newFormulaAttribute(&types.Attribute{Type: types.ATTR_FORMULA, Expression: "x >= 20089 && x < 20120 ? 1 : 0", Label: "v"}, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := BindAttribute(comp, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	f := comp.(*formulaAttribute)
+	if v, err := f.Row(rec, ""); err != nil || v != 0 {
+		t.Fatalf("Row = %v, %v; want 0", v, err)
+	}
+	if got := testing.AllocsPerRun(1000, func() { _, _ = f.Row(rec, "") }); got != 0 {
+		t.Fatalf("%.1f allocations a formula row, want 0 (a VM per call?)", got)
+	}
+}
