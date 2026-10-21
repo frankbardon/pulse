@@ -136,7 +136,9 @@ func RequestLimitFindings(req *types.Request, schema *encoding.Schema, inst *Ins
 		}
 	}
 	if !limits.IsUnlimited(limits.Value(l, limits.MaxEstimatedMemory)) {
-		if n, ok := EstimateMemory(req, schema, inst, in); ok {
+		// The per-shard arm runs at the window the budget admits
+		// (ShardMergeWindow), so the estimate judged is that window's.
+		if n, ok := estimateMemoryWindow(req, schema, inst, in, in.Records, ShardMergeWindow(req, schema, inst, l, in)); ok {
 			if f, ok := limits.Evaluate(l, limits.MaxEstimatedMemory, n, limits.Certain); ok {
 				out = append(out, f)
 			} else if f, ok := joinFanOutFinding(req, schema, inst, l, in); ok {
@@ -216,15 +218,33 @@ func shardWorkers(req *types.Request, schema *encoding.Schema, inst *InstanceSna
 	return workers
 }
 
+// ShardMergeWindow is the merge window req's per-shard parallel run
+// keeps — the runtime's scanAndMergeShards reads exactly this, from the
+// pre-flight's own inputs: limits.ShardMergeWindow(workers) (2 x
+// workers), shrunk by limits.ShardMergeWindowWithin while the whole-run
+// estimate at that window exceeds a set MaxEstimatedMemory (U51 E5-S4).
+// 0 when req does not take the per-shard arm (ShardFanOut false). The
+// window changes only how many shards are in flight, never the merge
+// order or an answer.
+func ShardMergeWindow(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, l limits.Limits, in LimitInputs) int {
+	workers := shardWorkers(req, schema, inst, in)
+	if workers < 2 {
+		return 0
+	}
+	return limits.ShardMergeWindowWithin(workers, limits.Value(l, limits.MaxEstimatedMemory), func(w int) (int64, bool) {
+		return estimateMemoryWindow(req, schema, inst, in, in.Records, w)
+	})
+}
+
 // shardWindowPartitions is the per-shard arm's live partitions: at most
-// limits.ShardMergeWindow(workers) shards' partials are alive beside the
+// window shards' partials (ShardMergeWindow) are alive beside the
 // merged state at once (the incremental merge releases every merged
 // shard and dispatches none past the window), charged as the window's
 // worst case — the largest bucket bounds (bound: a shard's bucket bound
 // from its record count) and, independently, the largest record counts
 // (the per-value state). Returns the summed buckets and records.
-func shardWindowPartitions(shardRecords []int64, workers int, bound func(n int64) int64) (buckets, records int64) {
-	window := min(limits.ShardMergeWindow(workers), len(shardRecords))
+func shardWindowPartitions(shardRecords []int64, window int, bound func(n int64) int64) (buckets, records int64) {
+	window = min(window, len(shardRecords))
 	bounds := make([]int64, len(shardRecords))
 	for i, n := range shardRecords {
 		bounds[i] = bound(n)
@@ -303,7 +323,8 @@ func decodeWorkers(req *types.Request, schema *encoding.Schema, inst *InstanceSn
 //     alone); on the per-shard parallel arm (ShardFanOut) the partials
 //     alive beside the merged state are at most the merge window's
 //     (limits.ShardMergeWindow: the incremental merge releases each
-//     merged shard), charged as the window's largest shard bucket
+//     merged shard; RequestLimitFindings judges the window a set
+//     MaxEstimatedMemory shrinks it to, ShardMergeWindow), charged as the window's largest shard bucket
 //     bounds — EstimateGroups clamped by that shard's records, or its
 //     records for an unknown grouper, 1 ungrouped — and largest shard
 //     record counts (per-value state) (shardWindowPartitions).
@@ -333,6 +354,13 @@ func EstimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceS
 // per-value state, buffered records, tests, matrices, point stores —
 // reads rows.
 func estimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs, rows int64) (int64, bool) {
+	return estimateMemoryWindow(req, schema, inst, in, rows, 0)
+}
+
+// estimateMemoryWindow is estimateMemory with the per-shard arm's live
+// partials charged at window shards (ShardMergeWindow); window 0 is the
+// unbudgeted limits.ShardMergeWindow(workers).
+func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs, rows int64, window int) (int64, bool) {
 	if req == nil || schema == nil || in.Records < 0 || (in.Join && in.JoinRightRows < 0) {
 		return 0, false
 	}
@@ -353,9 +381,12 @@ func estimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceS
 	}
 	if workers := shardWorkers(req, schema, inst, in); workers >= 2 {
 		// The live partials: at most the merge window's shards beside
-		// the merged state (limits.ShardMergeWindow, the runtime's
+		// the merged state (ShardMergeWindow, the runtime's
 		// scanAndMergeShards), charged as the window's largest.
-		mi.PartitionBuckets, mi.PartitionRecords = shardWindowPartitions(in.ShardRecords, workers, func(n int64) int64 {
+		if window <= 0 {
+			window = limits.ShardMergeWindow(workers)
+		}
+		mi.PartitionBuckets, mi.PartitionRecords = shardWindowPartitions(in.ShardRecords, window, func(n int64) int64 {
 			if len(req.Groups) == 0 {
 				return 1
 			}

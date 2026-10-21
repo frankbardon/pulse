@@ -403,8 +403,8 @@ const (
 // bytes (the archive streams one shard at a time): doubling the shard
 // count — every shard carrying its own 20,000-entry dictionary, so the
 // archive nearly doubles — moves it only by the larger central
-// directory (8 x its extra bytes) plus, on the parallel arm, the extra
-// shard partials' buckets.
+// directory (8 x its extra bytes) — on the parallel arm too, whose
+// probe (a 1-byte budget) runs a one-partial merge window.
 func TestMaxEstimatedMemory_RefusesArchiveOverCap(t *testing.T) {
 	mem := afero.NewMemMapFs()
 	small := writeDictArchive(t, mem, "dict.pulse", 4, 512, 20_000)
@@ -445,13 +445,10 @@ func TestMaxEstimatedMemory_RefusesArchiveOverCap(t *testing.T) {
 			}
 
 			svc.SetLimits(limits.Defaults())
+			// The probe's 1-byte budget shrinks the per-shard arm's merge
+			// window to one live partial (U51 E5-S4), so the extra shards
+			// add no partial on either arm: the directory term only.
 			want := dirTerm
-			if workers > 1 {
-				// Four more ungrouped shard partials (8 shards, all inside
-				// the 4-worker merge window of 8), each a bucket's state:
-				// 256 + 256 (U51 E2-S4).
-				want += 4 * (256 + 256)
-			}
 			if d := archiveMemoryEstimate(t, svc, dictArchiveRequest("dict8.pulse", false)) - est; d != want {
 				t.Fatalf("8 shards (%d bytes) estimate %d above 4 shards (%d bytes), want %d — the directory term only", large, d, small, want)
 			}

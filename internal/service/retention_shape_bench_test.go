@@ -15,6 +15,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -25,23 +26,33 @@ import (
 // 13 row-local attributes (ATTR_DATE_PART + 12 ATTR_FORMULA month
 // flags) and 15 aggregations (AGG_SUM, AGG_DISTINCT_COUNT, AGG_MIN, 12
 // AGG_MAX) per customer; spend's carries 3 aggregations and no
-// attribute. The archive is cached under $PULSE_BENCH_DIR. Run one
+// attribute; retention-budget is retention under a MaxEstimatedMemory
+// that shrinks the merge window. The archive is cached under
+// $PULSE_BENCH_DIR. Run one
 // shape per process under /usr/bin/time -l for RSS; figures in
 // docs/internals/BENCHMARKS_BASELINE.md. Never run in CI.
 func BenchmarkRetentionShape(b *testing.B) {
 	dir := matrixScaleDir(b)
 	cfg := matrixScaleOSConfig(b, dir)
 	path := retentionShapeArchive(b, dir, 12, 210_000, 1_200_000)
-	for _, shape := range []string{"retention", "spend"} {
+	for _, shape := range []string{"retention", "spend", "retention-budget"} {
 		b.Run(shape, func(b *testing.B) {
 			svc := New(cfg)
 			svc.SetProjectBufferedFields(true)
 			svc.SetShardWorkers(4)
 			svc.SetDecodeWorkers(4)
 			svc.SetDisableComponents(true)
+			if shape == "retention-budget" {
+				// A MaxEstimatedMemory between the one-partial (33.4 GB)
+				// and full-window (39.6 GB) estimates of stage 0: the
+				// merge window shrinks from 8 to 2 (U51 E5-S4 (c)).
+				l := limits.Defaults()
+				l.MaxEstimatedMemory = 35_000_000_000
+				svc.SetLimits(l)
+			}
 			ctx := context.Background()
 			run := func() error {
-				_, err := svc.ProcessChain(ctx, retentionShapeChain(path, shape == "retention"))
+				_, err := svc.ProcessChain(ctx, retentionShapeChain(path, shape != "spend"))
 				return err
 			}
 			b.ReportAllocs()

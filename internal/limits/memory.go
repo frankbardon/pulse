@@ -181,6 +181,30 @@ func ShardMergeWindow(workers int) int {
 	return max(2*workers, 1)
 }
 
+// ShardMergeWindowWithin is ShardMergeWindow(workers) shrunk to fit a
+// memory budget (U51 E5-S4): the largest window w in
+// [1, ShardMergeWindow(workers)] whose run estimate (estimate(w): the
+// whole-run EstimateMemory with w shards' partials alive) is at most
+// budget. The full window when the budget is Unlimited (MaxEstimatedMemory
+// unset), when the estimate is unknown, or when it already fits; 1 when
+// even one live partial does not fit (the pre-flight then refuses with
+// that smallest estimate). The window bounds only how many shards are
+// in flight — the merge order, and so every answer, is the same at any
+// window. predict (descriptor ShardMergeWindow) and the runtime
+// (scanAndMergeShards) both read it through the same estimate.
+func ShardMergeWindowWithin(workers int, budget int64, estimate func(window int) (int64, bool)) int {
+	full := ShardMergeWindow(workers)
+	if IsUnlimited(budget) || estimate == nil {
+		return full
+	}
+	for w := full; w > 1; w-- {
+		if n, ok := estimate(w); !ok || n <= budget {
+			return w
+		}
+	}
+	return 1
+}
+
 // ParallelDecodeRecordThreshold is the smallest single-file record
 // count the parallel-decode reducer fans out over (Options.
 // DecodeWorkers): below it the engine stays serial whatever the worker
@@ -262,7 +286,8 @@ type MemoryInputs struct {
 	// PartitionBuckets is the bucket states the parallel reducers'
 	// partials hold beside the merged state: on the per-shard arm the
 	// sum of the shard bucket bounds (1 per shard ungrouped) over the
-	// limits.ShardMergeWindow LARGEST shards — the merge folds each
+	// merge window's LARGEST shards (ShardMergeWindow, shrunk by
+	// ShardMergeWindowWithin under a set MaxEstimatedMemory) — the merge folds each
 	// shard as soon as every earlier one is done and releases it, and
 	// dispatches no shard past the window (U51 E2-S4) — and on the
 	// parallel-decode arm one partition per worker; 0 off both. Each

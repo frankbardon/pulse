@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -162,6 +163,9 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 		{name: "archive per-shard", fs: afs, path: arch, shardWorkers: 2, req: func() *types.Request { return archiveRanged(arch) }},
 		// U51 E2-S4: more shards than the merge window (2 workers: 4) —
 		// both sides charge only the window's largest shards' partials.
+		// U51 E5-S4: under a budget both shrink the window to fit, so the
+		// probe's estimate is one live partial's and the run at it fans
+		// out at that window (TestLimits_ShardMergeWindowShrinksToBudget).
 		{name: "archive per-shard window", fs: afs, path: wideArch, shardWorkers: 2, req: func() *types.Request { return archiveRanged(wideArch) }},
 		{name: "weighted by instance default", fs: fs, path: cohort, defaultWeight: &types.WeightSpec{Field: "c"}, req: func() *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
@@ -263,6 +267,63 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 				t.Fatalf("at the estimate: %v", err)
 			}
 		})
+	}
+}
+
+// TestLimits_ShardMergeWindowShrinksToBudget (U51 E5-S4): on an
+// archive of more shards than the merge window, a MaxEstimatedMemory
+// at the one-live-partial estimate — below the unshrunk window's — is
+// a valid prediction AND a run: the per-shard reducer shrinks its
+// window to fit (limits.ShardMergeWindowWithin, predict's rule) instead
+// of being refused, and answers exactly as the unbudgeted run does.
+// Window-for-window parity: internal/service
+// TestGroupMemory_MergeWindowFitsBudget.
+func TestLimits_ShardMergeWindowShrinksToBudget(t *testing.T) {
+	ctx := context.Background()
+	afs := afero.NewMemMapFs()
+	wideArch := wideMemoryArchive(t, afs)
+	open := func(max int64) *pulse.Pulse {
+		p, err := pulse.New(pulse.Options{FS: afs, ShardWorkers: 2, Limits: pulse.Limits{MaxEstimatedMemory: max}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	probe, err := open(1).Predict(ctx, archiveRanged(wideArch))
+	if err != nil || len(probe.LimitFindings) != 1 {
+		t.Fatalf("probe: %v %+v", err, probe.LimitFindings)
+	}
+	est := probe.LimitFindings[0].Estimated
+	// The estimate charges ONE live partial — the largest shard's 40
+	// buckets (an unknown grouper is bounded by records) at 256 + 256
+	// state each — over the serial arm's; the unshrunk window (4) would
+	// charge the four largest shards' 40 + 31 + 25 + 12.
+	sp, err := pulse.New(pulse.Options{FS: afs, ShardWorkers: 1, Limits: pulse.Limits{MaxEstimatedMemory: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	serial, err := sp.Predict(ctx, archiveRanged(wideArch))
+	if err != nil || len(serial.LimitFindings) != 1 {
+		t.Fatalf("serial probe: %v %+v", err, serial.LimitFindings)
+	}
+	if d := est - serial.LimitFindings[0].Estimated; d != 40*(256+256) {
+		t.Fatalf("one-partial window charges %d over serial, want %d", d, 40*(256+256))
+	}
+	base, err := open(0).Process(ctx, archiveRanged(wideArch))
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := open(est)
+	res, err := at.Predict(ctx, archiveRanged(wideArch))
+	if err != nil || !res.Valid || res.LimitFindings != nil {
+		t.Fatalf("predict at %d: valid=%v findings=%+v err=%v", est, res.Valid, res.LimitFindings, err)
+	}
+	got, err := at.Process(ctx, archiveRanged(wideArch))
+	if err != nil {
+		t.Fatalf("process at %d: %v", est, err)
+	}
+	if !reflect.DeepEqual(got.Data, base.Data) {
+		t.Fatalf("shrunk-window answer %v, unbudgeted %v", got.Data, base.Data)
 	}
 }
 
@@ -408,11 +469,14 @@ func TestLimits_MaxEstimatedMemory_ArchiveShardWorkers(t *testing.T) {
 		return res.LimitFindings[0].Estimated
 	}
 	serial, fanned := estimate(1), estimate(2)
-	// 4,097 + 5 partial buckets of one aggregation — a partition
-	// bucket's STATE, 256 + 256 each (U51 E2-S4: a partition never
-	// finalizes, so it carries no output share).
-	if d, want := fanned-serial, int64((linalg.MergeBlockSize+1+5)*(256+256)); d != want {
-		t.Fatalf("the per-shard arm adds %d bytes, want %d (one bucket per shard record)", d, want)
+	// The largest shard's 4,097 partial buckets of one aggregation — a
+	// partition bucket's STATE, 256 + 256 each (U51 E2-S4: a partition
+	// never finalizes, so it carries no output share). Only that shard:
+	// a 1-byte budget shrinks the merge window to one live partial on
+	// both sides (U51 E5-S4, limits.ShardMergeWindowWithin), where the
+	// unbudgeted window (4) would charge both shards' 4,097 + 5.
+	if d, want := fanned-serial, int64((linalg.MergeBlockSize+1)*(256+256)); d != want {
+		t.Fatalf("the per-shard arm adds %d bytes, want %d (one bucket per record of the window's shard)", d, want)
 	}
 }
 

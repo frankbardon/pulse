@@ -252,7 +252,19 @@ partials are alive beside the merged result, however many shards the
 archive has. The estimate charges that window: the bucket state of the
 2 x workers shards with the largest bucket bounds, and the per-value
 state of the 2 x workers largest shards. Predict reads the instance's
-`ShardWorkers` to pick the arm, as the run does. Measured on archives,
+`ShardWorkers` to pick the arm, as the run does.
+
+When `MaxEstimatedMemory` is set, the window shrinks to fit it. If the
+whole-run estimate at 2 x workers live partials exceeds the limit, the
+run takes the largest window, down to one partial, whose estimate fits,
+and the limit refuses the request only when even one live partial does
+not fit (the refusal reports that one-partial estimate). A smaller
+window holds fewer shards' group buckets at once but keeps fewer
+workers busy, so it trades speed for memory. It never changes an
+answer: shards still merge in shard order. Predict applies the same
+rule, so a request it reports as fitting runs at the window predict
+assumed. With the default (`Unlimited`) the window is always
+2 x workers. Measured on archives,
 the estimate lands at roughly 1.2x to 2.4x the peak heap.
 
 On a single file the parallel-decode arm (`DecodeWorkers` other than 1,

@@ -87,7 +87,10 @@ func (s *Service) shouldFanOut(req *types.Request, cohort *Cohort) (int, bool) {
 // (scanAndMergeShards), so Welford drift is deterministic across runs
 // and worker counts and the live partials stay within the dispatch
 // window.
-func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Request, cohort *Cohort, path string, workers int) (*types.Response, error) {
+//
+// window is the merge window (descx.ShardMergeWindow, computed with the
+// pre-flight); 0 or less takes limits.ShardMergeWindow(workers).
+func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Request, cohort *Cohort, path string, workers, window int) (*types.Response, error) {
 	// The projected decode, built once from the request as the caller
 	// handed it — the serial arm's applyProjection reads the same — and
 	// shared read-only by every worker: one plan, one record binding.
@@ -151,7 +154,7 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 		dec = &withTotals
 	}
 
-	merged, err := s.scanAndMergeShards(ctx, req, schema, dec, arch, shards, workers)
+	merged, err := s.scanAndMergeShards(ctx, req, schema, dec, arch, shards, workers, window)
 	if err != nil {
 		return nil, err
 	}
@@ -179,6 +182,10 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 // just before the partial folds into the merged state.
 var shardMergeHook func(idx int, p *shardPartial)
 
+// shardWindowHook, when set (tests only — never in production), is
+// called with the merge window scanAndMergeShards runs at.
+var shardWindowHook func(window int)
+
 // shardResult is one scanned shard handed back to the merging
 // goroutine: its archive index and partial, or the scan's error.
 type shardResult struct {
@@ -195,8 +202,10 @@ type shardResult struct {
 // one-shot merge used — the answer is byte-identical — and row order
 // never came from it (the shared grouped tail orders the rows).
 //
-// The live partials are bounded by the dispatch window
-// (limits.ShardMergeWindow(workers)): shard j is handed to a worker
+// The live partials are bounded by the dispatch window (window:
+// descx.ShardMergeWindow — limits.ShardMergeWindow(workers) = 2 x
+// workers, shrunk to fit a set MaxEstimatedMemory; 0 or less is the
+// unshrunk window): shard j is handed to a worker
 // only once j < next + window, where next is the first shard not yet
 // merged, so at most window partials (scanning, or done and waiting
 // for an earlier shard) exist beside the merged state — whatever the
@@ -206,9 +215,14 @@ type shardResult struct {
 // The first error (a shard's scan, a recovered worker panic, a merged
 // MaxGroups trip) cancels the siblings and is returned once every
 // dispatched shard has reported.
-func (s *Service) scanAndMergeShards(ctx context.Context, req *types.Request, schema *encoding.Schema, dec *shardDecode, arch *archiveFile, shards []ShardEntry, workers int) (*shardPartial, error) {
+func (s *Service) scanAndMergeShards(ctx context.Context, req *types.Request, schema *encoding.Schema, dec *shardDecode, arch *archiveFile, shards []ShardEntry, workers, window int) (*shardPartial, error) {
 	starts := shardStarts(shards)
-	window := limits.ShardMergeWindow(workers)
+	if window <= 0 {
+		window = limits.ShardMergeWindow(workers)
+	}
+	if shardWindowHook != nil {
+		shardWindowHook(window)
+	}
 	// Neither channel ever blocks its sender: at most window shards
 	// are dispatched and not yet reported.
 	jobs := make(chan int, window)

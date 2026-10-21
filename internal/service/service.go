@@ -845,6 +845,10 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 	if err := s.limitsPreflight(req, cohort.Schema(), lin); err != nil {
 		return nil, err
 	}
+	// The per-shard arm's merge window, from the pre-flight's own
+	// inputs: 2 x workers, shrunk to fit a set MaxEstimatedMemory
+	// (descx.ShardMergeWindow — predict's rule).
+	window := descx.ShardMergeWindow(req, cohort.Schema(), s.instance, s.Limits(), lin)
 
 	// Inject configured default label bindings (schema-filtered) before
 	// validation so registered tables render display strings without the
@@ -870,7 +874,7 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 	// tests, etc.) fall through to the serial shardIter path below
 	// with byte-for-byte identical semantics.
 	if workers, ok := s.shouldFanOut(req, cohort); ok {
-		return s.processShardArchiveParallel(ctx, req, cohort, path, workers)
+		return s.processShardArchiveParallel(ctx, req, cohort, path, workers, window)
 	}
 
 	// Per-cohort parallel decode fast path (single-file branch). When

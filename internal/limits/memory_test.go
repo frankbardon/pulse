@@ -284,3 +284,34 @@ func TestEstimateMemory_JoinedRows(t *testing.T) {
 		}
 	}
 }
+
+// TestShardMergeWindowWithin (U51 E5-S4): the merge window is
+// ShardMergeWindow(workers) unless a set budget is exceeded at it; then
+// the largest window whose estimate fits, and 1 when none does. An
+// Unlimited budget or an unknown estimate never shrinks it.
+func TestShardMergeWindowWithin(t *testing.T) {
+	// 100 fixed bytes plus 10 a live partial.
+	est := func(w int) (int64, bool) { return 100 + 10*int64(w), true }
+	unknown := func(int) (int64, bool) { return 0, false }
+	for _, c := range []struct {
+		name     string
+		workers  int
+		budget   int64
+		estimate func(int) (int64, bool)
+		want     int
+	}{
+		{"unlimited", 4, Unlimited, est, 8},
+		{"unset", 4, 0, est, 8},
+		{"fits at full", 4, 180, est, 8},
+		{"shrinks to fit", 4, 155, est, 5},
+		{"one partial fits", 4, 110, est, 1},
+		{"none fits", 4, 50, est, 1},
+		{"unknown estimate", 4, 50, unknown, 8},
+		{"nil estimate", 3, 50, nil, 6},
+		{"one worker", 1, 50, est, 1},
+	} {
+		if got := ShardMergeWindowWithin(c.workers, c.budget, c.estimate); got != c.want {
+			t.Errorf("%s: window %d, want %d", c.name, got, c.want)
+		}
+	}
+}

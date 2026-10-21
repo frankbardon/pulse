@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	stderrors "errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -14,6 +15,8 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/processing"
@@ -327,4 +330,103 @@ func TestGroupMemory_EstimateBoundsPeak(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGroupMemory_MergeWindowFitsBudget (U51 E5-S4): under a set
+// MaxEstimatedMemory the per-shard reducer shrinks its merge window to
+// the largest one whose whole-run estimate fits
+// (limits.ShardMergeWindowWithin), and predict's rule
+// (descx.ShardMergeWindow, whose estimate RequestLimitFindings judges)
+// is the window the run takes — at every budget from the unshrunk
+// estimate down to below one live partial. A run under a shrunk window
+// answers byte-identically to the unbudgeted run (same merge order); a
+// budget below one partial is refused on both sides with the same
+// figure.
+func TestGroupMemory_MergeWindowFitsBudget(t *testing.T) {
+	cfg := manyShardArchive(t)
+	const workers = 3
+	full := limits.ShardMergeWindow(workers)
+	ctx := context.Background()
+	open := func(budget int64) *Service {
+		svc := New(cfg)
+		svc.SetShardWorkers(workers)
+		l := limits.Defaults()
+		l.MaxEstimatedMemory = budget
+		svc.SetLimits(l)
+		return svc
+	}
+	run := func(svc *Service) (resp *types.Response, window int, err error) {
+		shardWindowHook = func(w int) { window = w }
+		defer func() { shardWindowHook = nil }()
+		resp, err = svc.Process(ctx, manyShardRequest())
+		return resp, window, err
+	}
+	// The unbudgeted answer and the estimate at every window.
+	base, w0, err := run(open(0))
+	if err != nil || w0 != full {
+		t.Fatalf("unbudgeted run: window %d (want %d), %v", w0, full, err)
+	}
+	probe := open(1)
+	cohort := mustOpen(t, probe, "many.pulse")
+	lin, err := probe.limitInputs(ctx, cohort, "many.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	estFull, ok := descx.EstimateMemory(manyShardRequest(), cohort.Schema(), probe.instance, lin)
+	if !ok {
+		t.Fatal("no estimate")
+	}
+	est1 := archiveMemoryEstimate(t, probe, manyShardRequest()) // refused at window 1
+	if est1 >= estFull {
+		t.Fatalf("one live partial (%d) costs no less than %d (%d)", est1, full, estFull)
+	}
+	mid := (est1 + estFull) / 2
+	for _, c := range []struct {
+		name   string
+		budget int64
+		window int // 0: refused
+	}{
+		{"unshrunk estimate", estFull, full},
+		{"between", mid, -1},
+		{"one partial", est1, 1},
+		{"below one partial", est1 - 1, 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			svc := open(c.budget)
+			l := svc.Limits()
+			predicted := descx.ShardMergeWindow(manyShardRequest(), cohort.Schema(), svc.instance, l, lin)
+			findings := descx.RequestLimitFindings(manyShardRequest(), cohort.Schema(), svc.instance, l, lin)
+			resp, window, err := run(svc)
+			if c.window == 0 {
+				d := requireCodedLimit(t, err)
+				if len(findings) != 1 || d["observed"] != findings[0].Estimated || findings[0].Estimated != est1 {
+					t.Fatalf("refusal observed %v, predict findings %+v, want estimate %d", d["observed"], findings, est1)
+				}
+				return
+			}
+			if err != nil || len(findings) != 0 {
+				t.Fatalf("budget %d: run %v, predict findings %+v", c.budget, err, findings)
+			}
+			if window != predicted {
+				t.Fatalf("budget %d: run window %d, predict window %d", c.budget, window, predicted)
+			}
+			if c.window > 0 && window != c.window || c.window < 0 && (window <= 1 || window >= full) {
+				t.Fatalf("budget %d: window %d (full %d)", c.budget, window, full)
+			}
+			if !reflect.DeepEqual(resp.Data, base.Data) || !reflect.DeepEqual(resp.Components, base.Components) {
+				t.Fatalf("budget %d (window %d): answer differs from the unbudgeted run", c.budget, window)
+			}
+		})
+	}
+}
+
+// requireCodedLimit asserts err is PULSE_LIMIT_EXCEEDED and returns its
+// details.
+func requireCodedLimit(t *testing.T, err error) map[string]any {
+	t.Helper()
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_LIMIT_EXCEEDED {
+		t.Fatalf("err %v, want PULSE_LIMIT_EXCEEDED", err)
+	}
+	return ce.Details
 }
