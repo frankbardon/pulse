@@ -43,8 +43,11 @@ import (
 // the aux overflow maps (ovVals,
 // ovNulls, ovWide), which are allocated only when such a write happens.
 // A record that only ever holds schema fields allocates no map at all.
-// The routing is a pure function of (schema, name), so a given name is
-// always stored on the same side.
+// A binding's extras (BindRecords) give the run's attribute labels
+// positional slots instead, so a row's attribute outputs allocate no
+// map either; an extra reads exactly as its overflow entry would. The
+// routing is a pure function of (layout, name), so a given name is
+// always stored on the same side of a record.
 //
 // Every public accessor keeps the semantics the former
 // map[string]float64 / map[string]bool / map[string]any triple had,
@@ -162,11 +165,66 @@ func newPositionalRecord(schema *encoding.Schema) *Record {
 
 func newRecordWithLayout(schema *encoding.Schema, l *recordLayout) *Record {
 	r := &Record{schema: schema, layout: l}
-	if l.n > 0 || l.nGroups > 0 {
-		r.vals = make([]float64, l.n, l.n+l.nWords+l.nGroups)
-		r.bits = make([]uint64, planeCount*recordWords(l.n))
+	if l.n > 0 || l.nGroups > 0 || l.nExtra > 0 {
+		r.vals = make([]float64, l.n, l.n+l.nWords+l.nGroups+l.nExtra)
+		r.bits = make([]uint64, planeCount*recordWords(l.n)+xplaneCount*recordWords(l.nExtra))
 	}
 	return r
+}
+
+// Extra-slot planes (recordLayout.nExtra): has-value and null, the two
+// questions the overflow side's ovVals / ovNulls answered.
+const (
+	xplaneHas = iota
+	xplaneNull
+	xplaneCount
+)
+
+// extraPos resolves name to its extra slot, or -1 (no extras, or not
+// one of them).
+func (r *Record) extraPos(name string) int {
+	if r.layout == nil || r.layout.nExtra == 0 {
+		return -1
+	}
+	return r.layout.extra(name)
+}
+
+// xbit addresses extra x's bit in plane: the word index into bits and
+// the mask.
+func (r *Record) xbit(plane, x int) (int, uint64) {
+	return planeCount*recordWords(len(r.vals)) + plane*recordWords(r.layout.nExtra) + x>>6, 1 << uint(x&63)
+}
+
+func (r *Record) xtest(plane, x int) bool {
+	w, m := r.xbit(plane, x)
+	return r.bits[w]&m != 0
+}
+
+func (r *Record) xset(plane, x int) {
+	w, m := r.xbit(plane, x)
+	r.bits[w] |= m
+}
+
+func (r *Record) xclear(plane, x int) {
+	w, m := r.xbit(plane, x)
+	r.bits[w] &^= m
+}
+
+// extraSlot is extra x's value cell in the tail of vals, past the
+// set-mask and group-index words.
+func (r *Record) extraSlot(x int) *float64 {
+	return &r.vals[:cap(r.vals)][len(r.vals)+r.layout.nWords+r.layout.nGroups+x]
+}
+
+// clearExtraNulls clears every extra's null mark — the former
+// clear(ovNulls) of ClearForRow / BeginRunRow for these names.
+func (r *Record) clearExtraNulls() {
+	if r.layout == nil || r.layout.nExtra == 0 {
+		return
+	}
+	w := recordWords(r.layout.nExtra)
+	base := planeCount*recordWords(len(r.vals)) + xplaneNull*w
+	clear(r.bits[base : base+w])
 }
 
 // NewRecord creates a record with the given schema and field values.
@@ -482,6 +540,12 @@ func (r *Record) getValue(name string) (float64, bool) {
 		}
 		return 0, false
 	}
+	if x := r.extraPos(name); x >= 0 {
+		if r.xtest(xplaneHas, x) {
+			return *r.extraSlot(x), true
+		}
+		return 0, false
+	}
 	if r.aux == nil {
 		return 0, false
 	}
@@ -496,6 +560,11 @@ func (r *Record) putValue(name string, v float64) {
 		r.vals[i] = v
 		r.setBit(planeHas, i)
 		r.clearBit(planeExact, i)
+		return
+	}
+	if x := r.extraPos(name); x >= 0 {
+		*r.extraSlot(x) = v
+		r.xset(xplaneHas, x)
 		return
 	}
 	a := r.auxOrNew()
@@ -514,6 +583,11 @@ func (r *Record) dropValue(name string) {
 		r.clearBit(planeExact, i)
 		return
 	}
+	if x := r.extraPos(name); x >= 0 {
+		*r.extraSlot(x) = 0
+		r.xclear(xplaneHas, x)
+		return
+	}
 	if r.aux != nil {
 		delete(r.aux.ovVals, name)
 	}
@@ -524,6 +598,9 @@ func (r *Record) nullMarked(name string) bool {
 	if i := r.pos(name); i >= 0 {
 		return r.test(planeNull, i)
 	}
+	if x := r.extraPos(name); x >= 0 {
+		return r.xtest(xplaneNull, x)
+	}
 	return r.aux != nil && r.aux.ovNulls[name]
 }
 
@@ -532,6 +609,10 @@ func (r *Record) markNull(name string) {
 	if i := r.pos(name); i >= 0 {
 		r.resetRun()
 		r.setBit(planeNull, i)
+		return
+	}
+	if x := r.extraPos(name); x >= 0 {
+		r.xset(xplaneNull, x)
 		return
 	}
 	a := r.auxOrNew()
@@ -546,6 +627,10 @@ func (r *Record) unmarkNull(name string) {
 	if i := r.pos(name); i >= 0 {
 		r.resetRun()
 		r.clearBit(planeNull, i)
+		return
+	}
+	if x := r.extraPos(name); x >= 0 {
+		r.xclear(xplaneNull, x)
 		return
 	}
 	if r.aux != nil {
@@ -718,19 +803,26 @@ func (r *Record) NumericValue(name string) (float64, bool) {
 		}
 		return 0, false
 	}
-	if r.aux == nil {
+	x := r.extraPos(name)
+	if x < 0 && r.aux == nil {
 		return 0, false
 	}
-	if r.aux.ovNulls[name] {
+	if r.nullMarked(name) {
 		return 0, false
 	}
-	if wv, present := r.aux.ovWide[name]; present {
-		if _, isSet := setMaskFromWideValue(wv); isSet {
-			return 0, false
+	if r.aux != nil {
+		if wv, present := r.aux.ovWide[name]; present {
+			if _, isSet := setMaskFromWideValue(wv); isSet {
+				return 0, false
+			}
+			if _, isVec := wv.([]float64); isVec {
+				return 0, false
+			}
 		}
-		if _, isVec := wv.([]float64); isVec {
-			return 0, false
-		}
+	}
+	if x >= 0 {
+		// An extra is never a schema field (addExtras), so no vector.
+		return r.getValue(name)
 	}
 	if f := r.fieldNamed(name); f != nil && f.Type.IsVector() {
 		return 0, false
@@ -802,6 +894,19 @@ func (r *Record) IsNull(name string) bool {
 			return false
 		}
 		return !r.hasWideAt(i)
+	}
+	if x := r.extraPos(name); x >= 0 {
+		if r.xtest(xplaneNull, x) {
+			return true
+		}
+		if r.xtest(xplaneHas, x) {
+			return false
+		}
+		if r.aux == nil {
+			return true
+		}
+		_, ok := r.aux.ovWide[name]
+		return !ok
 	}
 	if r.aux == nil {
 		return true
@@ -1003,6 +1108,14 @@ func (r *Record) AllValues() map[string]any {
 			out[f.Name] = v
 		}
 	}
+	if r.layout != nil {
+		// Extras are never schema fields: no dictionary to resolve.
+		for x, name := range r.layout.extraNames {
+			if r.xtest(xplaneHas, x) && !r.xtest(xplaneNull, x) {
+				out[name] = *r.extraSlot(x)
+			}
+		}
+	}
 	if r.aux != nil {
 		for k, v := range r.aux.ovVals {
 			if r.aux.ovNulls[k] {
@@ -1068,7 +1181,11 @@ func (r *Record) exprValue(name string) (any, bool) {
 	if i >= 0 && r.test(planeWide, i) && !r.test(planeNull, i) {
 		return allValuesWide(r.fieldAt(i), r.boxWideAt(i)), true
 	}
-	if r.aux != nil {
+	if x := r.extraPos(name); x >= 0 {
+		if r.xtest(xplaneHas, x) && !r.xtest(xplaneNull, x) {
+			return *r.extraSlot(x), true
+		}
+	} else if r.aux != nil {
 		if v, ok := r.aux.ovVals[name]; ok && !r.aux.ovNulls[name] {
 			var f *encoding.Field
 			if r.schema != nil {
@@ -1112,6 +1229,12 @@ func (r *Record) valueCountHint() int {
 			n += bits.OnesCount64(word)
 		}
 		for _, word := range r.bits[planeWide*w : planeWide*w+w] {
+			n += bits.OnesCount64(word)
+		}
+	}
+	if r.layout != nil && r.layout.nExtra > 0 {
+		w, _ := r.xbit(xplaneHas, 0)
+		for _, word := range r.bits[w : w+recordWords(r.layout.nExtra)] {
 			n += bits.OnesCount64(word)
 		}
 	}
@@ -1335,6 +1458,7 @@ func (r *Record) ClearForRow() {
 		w := recordWords(len(r.vals))
 		clear(r.bits[planeNull*w : planeCount*w])
 	}
+	r.clearExtraNulls()
 	if r.aux != nil {
 		if len(r.aux.ovNulls) > 0 {
 			clear(r.aux.ovNulls)
@@ -1358,6 +1482,7 @@ func (r *Record) ClearForRow() {
 // token.
 func (r *Record) BeginRunRow(token uint64, keep bool) bool {
 	if keep && token != 0 && r.runOwner == token && r.identityLayout() {
+		r.clearExtraNulls()
 		if r.aux != nil {
 			if len(r.aux.ovNulls) > 0 {
 				clear(r.aux.ovNulls)
@@ -1501,6 +1626,16 @@ func (r *Record) copyStateInto(dst *Record, rename func(string) string, offset i
 		if hasW {
 			wv, _ := r.wideAt(i)
 			dst.putWide(name, wv)
+		}
+	}
+	if r.layout != nil {
+		for x, name := range r.layout.extraNames {
+			if r.xtest(xplaneHas, x) {
+				dst.putValue(rename(name), *r.extraSlot(x))
+			}
+			if r.xtest(xplaneNull, x) {
+				dst.markNull(rename(name))
+			}
 		}
 	}
 	if r.aux == nil {

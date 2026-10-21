@@ -458,7 +458,7 @@ type shardDecode struct {
 // the canonical schema (decodeProjection — the serial scan's plan).
 func (s *Service) shardDecodeFor(ctx context.Context, req *types.Request, schema *encoding.Schema) *shardDecode {
 	keep, plan, projected := s.decodeProjection(ctx, req, schema)
-	return &shardDecode{keep: keep, plan: plan, projected: projected, binding: recordBindingFor(schema, plan, keep)}
+	return &shardDecode{keep: keep, plan: plan, projected: projected, binding: recordBindingFor(schema, plan, keep, attributeLabels(req)...)}
 }
 
 // shardRows reads one shard's rows in the run's decode shape.

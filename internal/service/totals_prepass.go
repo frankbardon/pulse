@@ -167,7 +167,7 @@ func (s *Service) decodeTotalsPrepass(ctx context.Context, req *types.Request, s
 	if keep != nil {
 		pre.projectMapHint = projected
 	}
-	pre.binding = recordBindingFor(schema, plan, keep)
+	pre.binding = recordBindingFor(schema, plan, keep, attributeLabels(req)...)
 	states := make([]*prepassWorker, workers)
 	factory := func(workerIdx, _, _ int) DecodeCallback {
 		pw, buildErr := s.newPrepassWorker(ctx, req, schema)

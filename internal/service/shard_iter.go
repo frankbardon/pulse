@@ -68,6 +68,9 @@ type shardIter struct {
 	// binding mints the buffered path's fresh per-row Records (see
 	// streamingIterator.binding).
 	binding *processing.RecordBinding
+	// extras are the attribute labels the binding reserves slots for
+	// (SetExtras).
+	extras []string
 
 	// project / projectSize: optional field-keep filter. Bytes for
 	// excluded fields are still consumed from the reader so byte
@@ -255,7 +258,7 @@ func (it *shardIter) next() bool {
 		switch {
 		case it.plan != nil:
 			if it.binding == nil {
-				it.binding = recordBindingFor(it.schema, it.plan, it.project)
+				it.binding = recordBindingFor(it.schema, it.plan, it.project, it.extras...)
 			}
 			rec = it.binding.NewRecord()
 			err = it.reader.ReadRecordReusedWithPlan(rec, it.project, it.plan)
@@ -272,7 +275,7 @@ func (it *shardIter) next() bool {
 			}
 		default:
 			if it.binding == nil {
-				it.binding = recordBindingFor(it.schema, it.plan, it.project)
+				it.binding = recordBindingFor(it.schema, it.plan, it.project, it.extras...)
 			}
 			rec = it.binding.NewRecord()
 			err = it.reader.ReadRecordReused(rec)
@@ -345,6 +348,12 @@ func (it *shardIter) SetProjection(keep encx.FieldFilter, size int) {
 	}
 	it.plan = plan
 	it.planKey = key
+}
+
+// SetExtras implements scanIterator (see streamingIterator.SetExtras).
+func (it *shardIter) SetExtras(labels []string) {
+	it.extras = labels
+	it.binding = nil
 }
 
 // Err returns any error encountered during iteration.

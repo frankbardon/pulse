@@ -51,6 +51,9 @@ type streamingIterator struct {
 	// the first buffered Next (projection is fixed by then) and dropped
 	// by SetProjection.
 	binding *processing.RecordBinding
+	// extras are the attribute labels the binding reserves slots for
+	// (SetExtras).
+	extras []string
 
 	// mmapBytes is the read-only mmap'd region when the iterator
 	// opened the file via memory-mapping. It is passed to
@@ -251,7 +254,7 @@ func (it *streamingIterator) next() bool {
 	// valid for it.
 	if it.plan != nil || it.project == nil {
 		if it.binding == nil {
-			it.binding = recordBindingFor(it.schema, it.plan, it.project)
+			it.binding = recordBindingFor(it.schema, it.plan, it.project, it.extras...)
 		}
 		rec := it.binding.NewRecord()
 		var err error
@@ -327,6 +330,13 @@ func (it *streamingIterator) SetProjection(keep encx.FieldFilter, size int) {
 		return
 	}
 	it.installPlan(keep)
+}
+
+// SetExtras implements scanIterator: the fresh buffered records reserve
+// a slot per label. MUST be called before the first Next() call.
+func (it *streamingIterator) SetExtras(labels []string) {
+	it.extras = labels
+	it.binding = nil
 }
 
 // installPlan derives the sorted retained set from keep against

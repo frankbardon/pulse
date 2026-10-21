@@ -1051,6 +1051,8 @@ func (s *Service) processSingleFileParallelMaybe(
 		// missed despite canParallelDecode's probe. Fall back to serial.
 		return nil, false, nil
 	}
+	// The workers' fresh records reserve the attribute labels' slots.
+	pctx.binding = recordBindingFor(schema, plan, keep, attributeLabels(req)...)
 	resolvedWorkers, ok := shouldFanOutDecode(workers, pctx.totalRecords)
 	if !ok {
 		// Post-pctx resolved worker count fell below 2 (e.g. cohort
@@ -1128,6 +1130,10 @@ func (s *Service) decodeProjection(ctx context.Context, req *types.Request, sche
 type scanIterator interface {
 	processing.RecordIterator
 	SetProjection(keep encx.FieldFilter, size int)
+	// SetExtras reserves positional slots for the off-schema names
+	// (attribute labels) the run writes onto every fresh buffered
+	// record (processing.BindRecords' extras). Before the first Next().
+	SetExtras(labels []string)
 	SetReuse(reuse bool)
 	Err() error
 	Close() error
@@ -1162,7 +1168,13 @@ func (s *Service) newScanIter(cohort *Cohort, path string) scanIterator {
 // wide set (extraction couldn't introspect) leaves the iterator on
 // the full-decode path. Works uniformly for single-file and multi-
 // shard iterators via the scanIterator interface.
+//
+// It also reserves the request's attribute labels on the iterator's
+// fresh records (SetExtras), projection or not.
 func (s *Service) applyProjection(ctx context.Context, iter scanIterator, req *types.Request, schema *encoding.Schema) int {
+	if iter != nil {
+		iter.SetExtras(attributeLabels(req))
+	}
 	if !s.projectBuffered || iter == nil || req == nil || schema == nil {
 		return 0
 	}
@@ -1178,6 +1190,9 @@ func (s *Service) applyProjection(ctx context.Context, iter scanIterator, req *t
 // full decode silently when the needed-field set widens (extension
 // operator without FieldInputs, malformed expression, etc.).
 func (s *Service) applyCrosstabProjection(ctx context.Context, iter scanIterator, req *types.Request, schema *encoding.Schema) int {
+	if iter != nil {
+		iter.SetExtras(attributeLabels(req))
+	}
 	if iter == nil || req == nil || schema == nil {
 		return 0
 	}

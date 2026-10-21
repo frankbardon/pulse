@@ -256,6 +256,20 @@ func TestRecord_ExprValueMatchesAllValues(t *testing.T) {
 	pr.Set("f_f64", 2.5)
 	pr.Set("f_categorical_u8", 1) // outside the projection: overflow, resolved
 	probe("projected", pr)
+
+	// Extra slots (U51 E5-S4): a label, a null label and a label
+	// carrying a boxed wide value read as their overflow twins.
+	xb := BindRecords(s, nil, "label", "ov", "wide_label")
+	xr := xb.NewRecord()
+	rr = encx.NewRecordReader(bytes.NewReader(raw), s)
+	if err := rr.ReadRecordReused(xr); err != nil {
+		t.Fatal(err)
+	}
+	xr.injectValue("label", 4.5)
+	xr.Set("ov", 1)
+	xr.SetNull("ov")
+	xr.SetWide("wide_label", uint64(5))
+	probe("extras", xr, "label", "ov", "wide_label")
 }
 
 // perRowCompile is the pre-E5-S5 evaluation, the parity oracle: compile

@@ -610,10 +610,42 @@ func buildParallelDecodeContext(
 // recordBindingFor returns the binding a buffered decode mints its fresh
 // per-row Records from: projected to keep when a DecodePlan drives the
 // decode (the plan writes only keep's fields, so the record is sized to
-// them), the shared full-schema binding otherwise.
-func recordBindingFor(schema *encoding.Schema, plan *encx.DecodePlan, keep encx.FieldFilter) *processing.RecordBinding {
+// them), the full schema otherwise. extras are the run's attribute
+// labels (attributeLabels): each gets a positional slot, so the
+// attribute outputs a row carries allocate no overflow map (U51 E5-S4).
+func recordBindingFor(schema *encoding.Schema, plan *encx.DecodePlan, keep encx.FieldFilter, extras ...string) *processing.RecordBinding {
 	if plan == nil {
-		return processing.BindRecords(schema, nil)
+		return processing.BindRecords(schema, nil, extras...)
 	}
-	return processing.BindRecords(schema, keep)
+	return processing.BindRecords(schema, keep, extras...)
+}
+
+// attributeSlotsOff, when set (tests only — never in production),
+// makes attributeLabels reserve nothing: every attribute output takes
+// the overflow side, the pre-E5-S4 storage, for the bit-exactness
+// parity (TestBitExact_RetentionShapeChain).
+var attributeSlotsOff bool
+
+// attributeLabels is the labels req's attributes write onto every
+// record — the declared label, else the processor's default-label rule
+// — in declared order: the extra slots a run's record binding reserves
+// (recordBindingFor). A storage hint only: a label the run never writes
+// costs one slot, and a name it writes that is not listed takes the
+// overflow side, read identically.
+func attributeLabels(req *types.Request) []string {
+	if attributeSlotsOff || req == nil || len(req.Attributes) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(req.Attributes))
+	for _, a := range req.Attributes {
+		if a == nil {
+			continue
+		}
+		label := a.Label
+		if label == "" {
+			label = processing.DefaultAttributeLabel(a)
+		}
+		out = append(out, label)
+	}
+	return out
 }

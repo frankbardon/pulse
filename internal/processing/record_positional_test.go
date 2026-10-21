@@ -34,6 +34,16 @@ func recordMaps(r *Record) (map[string]float64, map[string]bool, map[string]any)
 			w[name] = wv
 		}
 	}
+	if r.layout != nil {
+		for x, name := range r.layout.extraNames {
+			if r.xtest(xplaneHas, x) {
+				v[name] = *r.extraSlot(x)
+			}
+			if r.xtest(xplaneNull, x) {
+				nl[name] = true
+			}
+		}
+	}
 	if r.aux != nil {
 		for k, x := range r.aux.ovVals {
 			v[k] = x
@@ -259,6 +269,11 @@ func TestRecord_PositionalMatchesLegacyMapSemantics(t *testing.T) {
 	}{
 		{"full", BindRecords(schema, nil)},
 		{"projected", BindRecords(schema, keepSome)},
+		// Extra slots (U51 E5-S4): the off-schema names get positional
+		// storage; "cat" (a schema field) and "" are skipped, and "n" —
+		// outside keepSome's projection — keeps its overflow routing.
+		{"full+extras", BindRecords(schema, nil, "attr_label", "feat_out", "cat", "", "attr_label")},
+		{"projected+extras", BindRecords(schema, keepSome, "attr_label", "n", "feat_out")},
 	}
 	for _, bc := range bindings {
 		t.Run(bc.name, func(t *testing.T) { driveAgainstLegacy(t, schema, bc.b, names, wides) })
@@ -644,5 +659,70 @@ func TestApplyAttributes_InjectionInvalidatesAllValuesCache(t *testing.T) {
 		if av := r.AllValues()["x10p1"]; av != x*10+1 {
 			t.Fatalf("record %d: AllValues[x10p1] = %v, want %v", i, av, x*10+1)
 		}
+	}
+}
+
+// TestRecord_ExtraSlotsSkipOverflow pins that a binding's extras (U51
+// E5-S4) give the row-local attribute labels positional storage: the
+// attribute writes a run makes per row — Set, SetNull, injection, a
+// re-Set after ClearForRow — never allocate the overflow side, and the
+// record reads exactly as a record without extras does.
+func TestRecord_ExtraSlotsSkipOverflow(t *testing.T) {
+	schema := positionalTestSchema()
+	labels := []string{"a1", "a2", "a3"}
+	for _, keep := range []encx.FieldFilter{nil, func(n string) bool { return n == "u" }} {
+		x := BindRecords(schema, keep, labels...).NewRecord()
+		plain := BindRecords(schema, keep).NewRecord()
+		for _, r := range []*Record{x, plain} {
+			r.Set("u", 3)
+			r.Set("a1", 1.5)
+			r.SetNull("a2")
+			r.injectValue("a3", -2)
+			r.ClearForRow()
+			r.Set("a2", 7)
+		}
+		if x.aux != nil {
+			t.Fatalf("keep=%v: attribute writes reached the overflow side: %+v", keep != nil, x.aux)
+		}
+		if plain.aux == nil || len(plain.aux.ovVals) != 3 {
+			t.Fatalf("keep=%v: control record kept no overflow values", keep != nil)
+		}
+		gv, gn, gw := recordMaps(x)
+		wv, wn, ww := recordMaps(plain)
+		if !reflect.DeepEqual(gv, wv) || !reflect.DeepEqual(gn, wn) || !reflect.DeepEqual(gw, ww) {
+			t.Fatalf("keep=%v: extras record %v %v %v, overflow record %v %v %v", keep != nil, gv, gn, gw, wv, wn, ww)
+		}
+		if !reflect.DeepEqual(x.AllValues(), plain.AllValues()) {
+			t.Fatalf("keep=%v: AllValues %v vs %v", keep != nil, x.AllValues(), plain.AllValues())
+		}
+	}
+}
+
+// TestRecord_ExtraSlotsRunSkipAndCopy pins the two remaining extra-slot
+// paths: a kept run-skip row (BeginRunRow keep=true) clears an extra's
+// null mark as it clears the overflow null marks, keeping its value; and
+// copyStateInto carries extras onto the destination by name.
+func TestRecord_ExtraSlotsRunSkipAndCopy(t *testing.T) {
+	schema := positionalTestSchema()
+	r := BindRecords(schema, nil, "a1", "a2").NewRecord()
+	if r.BeginRunRow(9, true) {
+		t.Fatal("first row kept")
+	}
+	r.Set("a1", 2)
+	r.SetNull("a2")
+	if !r.BeginRunRow(9, true) {
+		t.Fatal("run-skip refused an extras binding (identity layout expected)")
+	}
+	if r.nullMarked("a2") {
+		t.Fatal("kept row left the extra's null mark")
+	}
+	if v, ok := r.NumericValue("a1"); !ok || v != 2 {
+		t.Fatalf("kept row lost the extra's value: %v,%v", v, ok)
+	}
+	r.SetNull("a2")
+	dst := NewReusableRecord(schema)
+	r.copyStateInto(dst, func(n string) string { return n }, 0, true)
+	if v, ok := dst.NumericValue("a1"); !ok || v != 2 || !dst.IsNull("a2") {
+		t.Fatalf("copy: a1=%v,%v a2 null=%v", v, ok, dst.IsNull("a2"))
 	}
 }

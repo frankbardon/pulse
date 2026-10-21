@@ -78,6 +78,19 @@ type recordLayout struct {
 	// indices (see Record.SetGroupIndices). Zero for an ungrouped schema,
 	// which therefore pays nothing.
 	nGroups int
+	// Extra slots (BindRecords' extras): off-schema names — the labels
+	// of the request's row-local attributes — given positional storage
+	// so writing them costs no overflow map. Extra x's value lives in the
+	// tail of Record.vals past the set-mask and group-index words
+	// (Record.extraSlot), its has-value / null bits in two planes of
+	// recordWords(nExtra) words past the schema slots' planes in
+	// Record.bits. An extra behaves exactly as the overflow side's
+	// ovVals / ovNulls entry for the same name did; a wide value written
+	// to an extra name still rides ovWide. Zero (nil) on every cached
+	// full layout and every binding without extras.
+	nExtra     int
+	extraIndex map[string]int
+	extraNames []string
 }
 
 // emptyLayout serves a nil schema and a zero-value Record: no slots,
@@ -278,11 +291,58 @@ type RecordBinding struct {
 // name — so it is correct for any use; it is only SIZED for the decode
 // the projection describes. Pair it with the reader's DecodePlan for the
 // same keep.
-func BindRecords(schema *encoding.Schema, keep encx.FieldFilter) *RecordBinding {
-	if keep == nil || schema == nil {
+//
+// extras names the off-schema columns the run writes onto every record
+// — the labels of its row-local attributes — and gives each a
+// positional float64 slot, so a row's attribute outputs cost no
+// overflow map (U51 E5-S4). A name that is a schema field, empty or
+// repeated is skipped (a schema field keeps its own routing), and an
+// extra the run never writes costs only its slot: the list is a sizing
+// hint, never a correctness input — every accessor reads an extra
+// exactly as the overflow side's entry for that name.
+func BindRecords(schema *encoding.Schema, keep encx.FieldFilter, extras ...string) *RecordBinding {
+	var l *recordLayout
+	switch {
+	case schema == nil:
 		return &RecordBinding{schema: schema, layout: layoutFor(schema)}
+	case keep != nil:
+		l = buildLayout(schema, keep)
+	case len(extras) == 0:
+		return &RecordBinding{schema: schema, layout: layoutFor(schema)}
+	default:
+		// A private full layout: the cached one is shared by records
+		// bound without these extras.
+		l = buildLayout(schema, nil)
 	}
-	return &RecordBinding{schema: schema, layout: buildLayout(schema, keep)}
+	l.addExtras(schema, extras)
+	return &RecordBinding{schema: schema, layout: l}
+}
+
+// addExtras installs extras as l's extra slots (see recordLayout.nExtra
+// and BindRecords for the skip rules).
+func (l *recordLayout) addExtras(schema *encoding.Schema, extras []string) {
+	for _, name := range extras {
+		if name == "" || schema.Field(name) != nil {
+			continue
+		}
+		if _, dup := l.extraIndex[name]; dup {
+			continue
+		}
+		if l.extraIndex == nil {
+			l.extraIndex = make(map[string]int, len(extras))
+		}
+		l.extraIndex[name] = len(l.extraNames)
+		l.extraNames = append(l.extraNames, name)
+	}
+	l.nExtra = len(l.extraNames)
+}
+
+// extra resolves name to its extra slot, or -1.
+func (l *recordLayout) extra(name string) int {
+	if x, ok := l.extraIndex[name]; ok {
+		return x
+	}
+	return -1
 }
 
 // NewRecord returns a fresh, empty Record under the binding: every field
