@@ -204,26 +204,35 @@ func mulSaturating(a, b int64) int64 {
 }
 
 // estimateGrouperBuckets is one grouper's schema-only bucket bound and
-// basis (EstimateBuckets' per-position rule).
+// basis (EstimateBuckets' per-position rule). It reads a dictionary's
+// size and membership, never a copy of its values: predict and the
+// limit pre-flight call it per grouper, over dictionaries of any size.
 func estimateGrouperBuckets(g *types.Group, schema *encoding.Schema) (buckets int64, basis string, known bool) {
 	var field *encoding.Field
 	if schema != nil {
 		field = schema.Field(g.Field)
 	}
-	// possible is the key universe when the schema fixes it.
-	var possible []string
+	// size is the key universe's size and member its membership when
+	// the schema fixes it (basis != BucketBasisUnknown).
+	var size int64
+	var member func(string) bool
 	basis = BucketBasisUnknown
 	switch g.Type {
 	case types.GROUP_CATEGORY:
 		switch {
 		case field != nil && field.Type.IsCategorical() && field.Dictionary != nil:
-			possible, basis = field.Dictionary.Values(), BucketBasisDictionary
+			dict := field.Dictionary
+			size, basis = int64(dict.Count()), BucketBasisDictionary
+			member = func(k string) bool { _, ok := dict.IDFor(k); return ok }
 		case field != nil && field.Type == encoding.FieldTypePackedBool:
-			possible, basis = []string{"0", "1"}, BucketBasisBoolean
+			size, basis = 2, BucketBasisBoolean
+			member = func(k string) bool { return k == "0" || k == "1" }
 		}
 	case types.GROUP_SET_PER_ELEMENT:
 		if field != nil && field.Type.IsSet() && field.Dictionary != nil {
-			possible, basis = field.Dictionary.Values(), BucketBasisDictionary
+			dict := field.Dictionary
+			size, basis = int64(dict.Count()), BucketBasisDictionary
+			member = func(k string) bool { _, ok := dict.IDFor(k); return ok }
 		}
 	case types.GROUP_QUANTILE:
 		bins := int64(g.Interval)
@@ -240,16 +249,9 @@ func estimateGrouperBuckets(g *types.Group, schema *encoding.Schema) (buckets in
 	includable := g.Type == types.GROUP_CATEGORY || g.Type == types.GROUP_SET_VALUE || g.Type == types.GROUP_SET_PER_ELEMENT ||
 		g.Type == types.GROUP_DATE || g.Type == types.GROUP_DATE_RANGES
 	if includable && len(g.Include) > 0 {
-		var universe map[string]bool
-		if basis != BucketBasisUnknown {
-			universe = make(map[string]bool, len(possible))
-			for _, k := range possible {
-				universe[k] = true
-			}
-		}
 		seen := make(map[string]bool, len(g.Include))
 		for _, k := range g.Include {
-			if universe == nil || universe[k] {
+			if member == nil || member(k) {
 				seen[k] = true
 			}
 		}
@@ -258,5 +260,5 @@ func estimateGrouperBuckets(g *types.Group, schema *encoding.Schema) (buckets in
 	if basis == BucketBasisUnknown {
 		return 0, basis, false
 	}
-	return int64(len(possible)), basis, true
+	return size, basis, true
 }

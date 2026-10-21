@@ -497,10 +497,21 @@ func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
 			fmt.Sprintf("reading schema from: %s", path))
 	}
 
+	// Nothing above reads ahead, so the handle sits where the payload
+	// starts: recorded so the parallel-decode dispatch counts records
+	// from the file length without decoding the schema — and every
+	// inline dictionary — a second time (openedRecordCount). A handle
+	// that cannot report its offset records 0 (the dispatch then falls
+	// back to CountRecords).
+	payloadOffset, err := f.Seek(0, io.SeekCurrent)
+	if err != nil {
+		payloadOffset = 0
+	}
 	return &Cohort{
-		path:   path,
-		schema: schema,
-		fs:     s.fs.Fs(),
+		path:          path,
+		schema:        schema,
+		fs:            s.fs.Fs(),
+		payloadOffset: payloadOffset,
 	}, nil
 }
 
@@ -1008,7 +1019,7 @@ func (s *Service) processSingleFileParallelMaybe(
 	// is unusual (we already opened the cohort upstream) but if it does
 	// occur we fall back to serial; the serial path will surface the
 	// same error if it is a real cohort-integrity issue.
-	count, err := s.CountRecords(ctx, path)
+	count, err := s.openedRecordCount(ctx, cohort, path)
 	if err != nil {
 		return nil, false, nil
 	}

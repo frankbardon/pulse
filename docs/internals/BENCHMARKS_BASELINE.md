@@ -220,3 +220,66 @@ scan: 8 workers land within ±5% of serial and allocate ~2× the bytes.
 Peak heap stays bounded by the incremental merge window (E2-S4).
 Command:
 `PULSE_BENCH_DIR=<dir> go test -run='^$' -bench=GroupedSumScale -benchmem -count=3 -benchtime=3x -timeout=0 ./internal/service/`.
+
+### Grouped fan-out by cardinality (U51 E3-S4)
+
+Where does the grouped fan-out stop paying? `BenchmarkGroupedSumScale`
+sweeps the key count over the same 4M rows. The x-axis is the **share**:
+the keys a worker partition is expected to create divided by its rows
+(uniform keys: `G·(1 − (1 − 1/G)^n) / n`, n = rows per partition). Cells
+are the fan-out's speedup over the serial run (`DecodeWorkers` 8 vs 1,
+mean of two runs of `-benchtime=3x`), Apple M1 Max (10 cores). Mixes:
+SUM + AVERAGE / `AGG_COUNT` alone / five slots (SUM, AVERAGE, MIN, MAX,
+VARIANCE).
+
+Value-keyed (`GROUP_ROUNDED`, interval 1, u32 key):
+
+| Keys | Share | SUM+AVG | COUNT | 5 slots | 8-shard archive, `ShardWorkers` 8 |
+|---|---|---|---|---|---|
+| 100k | 0.20 | 1.97× | 1.88× | 2.03× | 1.82× |
+| 200k | 0.37 | 1.42× | 1.47× | 1.55× | 1.46× |
+| 300k | 0.49 | 1.21× | 1.31× | 1.26× | 1.23× |
+| 400k | 0.57 | 1.10× | 1.21× | 1.17× | 1.12× |
+| 600k | 0.68 | 1.07× | 1.07× | 1.10× | 0.99× |
+| 800k | 0.74 | 1.01× | 1.05× | 0.96× | 1.01× |
+
+Fewer workers gain less at a given cardinality: SUM + AVERAGE on
+`DecodeWorkers` 2 runs 1.38× (100k) down to 1.07× (800k), on 4 workers
+1.88× down to 1.06×.
+
+Dictionary-keyed (`GROUP_CATEGORY` over a `categorical_u32` holding
+every key):
+
+| Keys | Share | SUM+AVG | COUNT | 5 slots |
+|---|---|---|---|---|
+| 100k | 0.20 | 1.86× | 1.99× | 2.17× |
+| 200k | 0.37 | 1.56× | 1.75× | 1.75× |
+| 300k | 0.49 | 1.40× | 1.63× | 1.48× |
+| 400k | 0.57 | 1.29× | 1.52× | 1.38× |
+| 600k | 0.68 | 1.20× | 1.42× | 1.22× |
+| 800k | 0.74 | 1.15× | 1.34× | 1.18× |
+| 1.6M | 0.86 | 1.06× | 1.18× | 1.11× |
+| 3.2M | 0.92 | 1.05× | 1.04× | 1.04× |
+
+Allocation: past share 0.57 the fanned-out run allocates 2–2.8× the
+serial run's bytes (value-keyed SUM + AVERAGE at 800k: 3.94 GB vs
+2.01 GB), falling to 1.35× at share 0.92 (categorical 3.2M: 8.88 vs
+6.59 GB); peak heap is within ~20%.
+
+So the fan-out stays on whatever the cardinality. The value-keyed
+groupers stop gaining at a share of about 0.7, but predict cannot see
+their key count up front (it depends on the values). The groupers whose
+count the schema states (dictionaries) still gain at a share of 0.92. A
+cardinality rule that kept such requests serial was measured and
+dropped. The categorical rows were measured without the dispatch's
+second schema read (the fix below; re-checked at 400k and 800k keys
+against the final code, within 3%); before it, each fanned-out
+categorical run paid ~0.45 s more at 600k entries.
+
+**Record count on the parallel-decode dispatch.** The dispatch used to
+count a single file's records with `CountRecords`, which decodes the
+schema again — two unbuffered reads per inline dictionary entry. It now
+takes the count from the file length less the header and schema bytes
+`Open` read (`openedRecordCount`, same floor division). On a
+600k-entry categorical file that took ~0.45 s off every
+`DecodeWorkers` ≠ 1 Process (`TestOpenedRecordCount_NoSecondSchemaRead`).

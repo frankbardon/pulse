@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"math"
 	"os"
 	"testing"
@@ -236,5 +237,70 @@ func TestCountRecords_TruncatedTailAgreesWithInspect(t *testing.T) {
 	}
 	if !warned {
 		t.Error("inspect raised no ENCODING_INVALID warning for a truncated tail")
+	}
+}
+
+// TestOpenedRecordCount_NoSecondSchemaRead (U51 E3-S4): the
+// parallel-decode dispatch counts an opened single file's records from
+// its length less the header + schema bytes Open consumed — the
+// CountRecords figure (floored on a truncated tail too), with no second
+// open and so no second decode of a large inline dictionary. An
+// archive and a cohort Open never built fall back to CountRecords.
+//
+// Falsified by dropping payloadOffset from Open's Cohort (the helper
+// then falls back and opens the file again).
+func TestOpenedRecordCount_NoSecondSchemaRead(t *testing.T) {
+	ctx := context.Background()
+	dict := encoding.NewDictionary()
+	for i := range 50_000 {
+		if _, err := dict.Add(fmt.Sprintf("entry-%06d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "c", Type: encoding.FieldTypeCategoricalU32, ByteOffset: 0, Dictionary: dict},
+		{Name: "x", Type: encoding.FieldTypeF64, ByteOffset: 4},
+	}}
+	recs := make([][]uint64, 1000)
+	for i := range recs {
+		recs[i] = []uint64{uint64(i), math.Float64bits(float64(i))}
+	}
+	whole := writePulseFile(t, schema, recs)
+	mem := afero.NewMemMapFs()
+	for name, b := range map[string][]byte{"whole.pulse": whole, "tail.pulse": append(append([]byte{}, whole...), 1, 2, 3)} {
+		if err := afero.WriteFile(mem, name, b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfs := newCountingFs(mem)
+	cfg, err := fs.New(fs.WithFs(cfs))
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := New(cfg)
+	for _, path := range []string{"whole.pulse", "tail.pulse"} {
+		cohort, err := svc.Open(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opens := cfs.snapshot().Open
+		got, err := svc.openedRecordCount(ctx, cohort, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n := cfs.snapshot().Open - opens; n != 0 {
+			t.Errorf("%s: openedRecordCount opened the file %d time(s), want 0", path, n)
+		}
+		want, err := svc.CountRecords(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != want || got != uint64(len(recs)) {
+			t.Errorf("%s: openedRecordCount %d, CountRecords %d, want %d", path, got, want, len(recs))
+		}
+	}
+	// A cohort Open did not build (no offset) falls back to CountRecords.
+	if got, err := svc.openedRecordCount(ctx, &Cohort{path: "whole.pulse", schema: schema, fs: cfs}, "whole.pulse"); err != nil || got != uint64(len(recs)) {
+		t.Errorf("fallback: %d, %v", got, err)
 	}
 }

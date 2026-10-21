@@ -50,6 +50,11 @@ type Cohort struct {
 	// decode the shard against the archive's canonical schema.
 	anchorArchive string
 	anchorEntry   string
+
+	// payloadOffset is a single file's header + schema byte length as
+	// Open read it (where the records start); 0 for an archive, an
+	// anchor-opened shard, or a cohort not built by Open.
+	payloadOffset int64
 }
 
 // Shards returns the shard manifest for an archive-backed cohort. Returns

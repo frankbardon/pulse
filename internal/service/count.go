@@ -105,6 +105,35 @@ func (s *Service) CountRecords(ctx context.Context, path string) (uint64, error)
 	return uint64(count), nil
 }
 
+// openedRecordCount is CountRecords for a single-file cohort Open
+// already read: the same floor division (RecordCountForPayload) over
+// the file length less the header + schema bytes Open consumed, with
+// one Stat and no second schema decode. Re-reading the schema cost two
+// unbuffered reads per inline dictionary entry — ~0.45 s per Process at
+// 600k entries on the parallel-decode dispatch (U51 E3-S4,
+// BenchmarkGroupedSumScale "cat"). Anything else (an archive, an
+// anchor, an unknown offset, a failed Stat, a file shorter than its
+// schema) falls back to CountRecords, which also owns the error.
+func (s *Service) openedRecordCount(ctx context.Context, cohort *Cohort, path string) (uint64, error) {
+	if cohort == nil || cohort.payloadOffset <= 0 || cohort.path != path || cohort.fs == nil ||
+		len(cohort.shards) > 0 || cohort.anchorArchive != "" {
+		return s.CountRecords(ctx, path)
+	}
+	info, err := cohort.fs.Stat(path)
+	if err != nil {
+		return s.CountRecords(ctx, path)
+	}
+	remaining := info.Size() - cohort.payloadOffset
+	if remaining < 0 {
+		return s.CountRecords(ctx, path)
+	}
+	count, _, ok := cohort.schema.RecordCountForPayload(remaining)
+	if !ok {
+		return 0, nil
+	}
+	return uint64(count), nil
+}
+
 // countArchive reads the reserved `_schema.pulse` entry's SHRD trailer
 // of an archive opened for random access (central directory parsed,
 // no shard payload read) to derive the aggregate record count. Falls

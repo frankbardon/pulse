@@ -276,7 +276,11 @@ both as global flags on every leaf, `pulse mcp` included:
 error, exit 2; there is no environment-variable form). The two knobs are
 independent: an archive never decodes in segments and a single file
 never fans out by shard. Both parallel arms decode only the fields the
-request reads, as the serial arm does.
+request reads, as the serial arm does. A grouped request fans out
+whatever its key count. With a value-keyed grouper (`GROUP_ROUNDED`,
+`GROUP_RANGE`) whose keys approach the rows each worker reads, the
+fan-out gains nothing and allocates about twice the memory; set the
+worker count to `1` for such a run. Predict cannot see that key count.
 
 Measured on an Apple M1 Max (10 cores), 1M rows × 50 `f64` members,
 grouped `AGG_SUM` + `AGG_AVERAGE` over two members
