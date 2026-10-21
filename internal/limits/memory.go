@@ -295,6 +295,13 @@ type MemoryInputs struct {
 	// each costs MarginSlotBytes (the measures' CrosstabSlotBytes).
 	MarginSlots     int64
 	MarginSlotBytes int64
+	// GridPositions is the crosstab's dense-grid positions past the
+	// populated-cell bound (U51 E5-S11): rows bound x cols bound, capped
+	// by MaxCrosstabCells, less Cells — the empty positions both arms'
+	// rows x cols matrices hold; each costs GridPositionBytes (the
+	// measures' CrosstabGridPositionBytes on the run's arm).
+	GridPositions     int64
+	GridPositionBytes int64
 	// CrosstabMeasures is the crosstab's measure count (crosstab.cell
 	// is one, else len(crosstab.cells)): the buffered arm lays out its
 	// cell and axis partitions once per measure.
@@ -404,7 +411,8 @@ type MemoryInputs struct {
 //	fused      + crosstab
 //
 // where a bucket's state and output are BucketBytes', crosstab is
-// cells x cell bytes + axis keys x axis-key bytes + margin slots x
+// cells x cell bytes + empty grid positions x position bytes (U51
+// E5-S11) + axis keys x axis-key bytes + margin slots x
 // margin-slot bytes + auxiliary slots x auxiliary bytes (U51 E5-S9:
 // per measure, from the per-aggregator table), plus (rows +
 // partition records) x fan-out x 96 per value-state aggregation on
@@ -459,10 +467,12 @@ func EstimateMemory(in MemoryInputs) int64 {
 }
 
 // crosstabBytes is a crosstab's grid, axis-key and margin charge
-// (U51 E5-S9): cells x cell bytes + axis keys x axis-key bytes + margin
-// slots x margin-slot bytes + auxiliary slots x auxiliary bytes.
+// (U51 E5-S9): cells x cell bytes + empty grid positions x position
+// bytes (U51 E5-S11) + axis keys x axis-key bytes + margin slots x
+// margin-slot bytes + auxiliary slots x auxiliary bytes.
 func crosstabBytes(in MemoryInputs) int64 {
 	n := mulSat(in.Cells, in.CellBytes)
+	n = addSat(n, mulSat(in.GridPositions, in.GridPositionBytes))
 	n = addSat(n, mulSat(in.AxisKeys, in.AxisKeyBytes))
 	n = addSat(n, mulSat(in.MarginSlots, in.MarginSlotBytes))
 	return addSat(n, mulSat(in.AuxSlots, in.AuxSlotBytes))

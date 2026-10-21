@@ -742,3 +742,67 @@ func TestLimits_MaxEstimatedMemory_ComponentsPredictMatchesRuntime(t *testing.T)
 		t.Errorf("components-off estimate %v not below the components-on %v", estimates[true], estimates[false])
 	}
 }
+
+// TestLimits_MaxEstimatedMemory_CrosstabGridPredictMatchesRuntime (U51
+// E5-S11): a crosstab over two unbounded axes charges its dense grid —
+// rows x cols, capped by MaxCrosstabCells — on both arms, and predict
+// and the pre-flight judge the same cap (both through
+// RequestLimitFindings): on every cap and arm predict's estimate is the
+// figure the run is refused with, and a smaller cap charges less.
+func TestLimits_MaxEstimatedMemory_CrosstabGridPredictMatchesRuntime(t *testing.T) {
+	ctx := context.Background()
+	fs := afero.NewMemMapFs()
+	var b strings.Builder
+	b.WriteString("g,h,x\n")
+	for r := range 2_000 {
+		fmt.Fprintf(&b, "%d,%d,%d.5\n", r, r, r%11)
+	}
+	if err := afero.WriteFile(fs, "c.csv", []byte(b.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	importer, err := pulse.New(pulse.Options{FS: fs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	imp, err := importer.ImportFile(ctx, pulse.ImportSpec{SourcePath: "c.csv"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := &types.Request{Cohort: &types.Cohort{Filename: imp.Path}, Crosstab: &types.CrosstabSpec{
+		Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+		Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "h"}},
+		Cell:    &types.Aggregation{Type: types.AGG_SUM, Field: "x", Label: "s"},
+	}}
+	for _, buffered := range []bool{false, true} {
+		var prev int64
+		for _, cellCap := range []int64{pulse.Unlimited, 1_000_000, 100_000} {
+			p, err := pulse.New(pulse.Options{FS: fs, DisableCrosstabFusion: buffered,
+				Limits: pulse.Limits{MaxEstimatedMemory: 1, MaxCrosstabCells: cellCap}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := p.Predict(ctx, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var est int64 = -1
+			for _, f := range res.LimitFindings {
+				if f.Limit == "max_estimated_memory" {
+					est = f.Estimated
+				}
+			}
+			if est < 0 {
+				t.Fatalf("buffered=%v cap=%d: no memory finding in %+v", buffered, cellCap, res.LimitFindings)
+			}
+			_, perr := p.Process(ctx, req)
+			d := requireLimitExceeded(t, perr, "max_estimated_memory", 1, "Options.Limits.MaxEstimatedMemory")
+			if d["observed"] != est {
+				t.Fatalf("buffered=%v cap=%d: runtime observed %v, predict estimated %d", buffered, cellCap, d["observed"], est)
+			}
+			if prev != 0 && est >= prev {
+				t.Errorf("buffered=%v cap=%d: estimate %d not below the looser cap's %d", buffered, cellCap, est, prev)
+			}
+			prev = est
+		}
+	}
+}

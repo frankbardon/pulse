@@ -452,3 +452,48 @@ noise beside the payload). The wide-grid rows are loose because the
 header bounds a `u16` axis by its 65,536-key width and the grid by the
 200,000 records, against 4,096 x 16 present; the buffered arm also
 projects its records, which the full-width record charge cannot see.
+
+E5-S11: the crosstab's dense grid is charged. Both arms emit a
+rows x cols matrix per measure and the fused arm folds into a dense
+grid, so every empty position costs memory. Before, the estimate
+charged only the cells (the record count when an axis was not
+schema-fixed), so a sparse grid was under-charged. The same story
+stopped both arms' finalize pre-sizing three per-cell maps to rows x
+cols (~300 bytes an empty position) and made the fused weight floor
+lazy (~190 bytes an empty position). A sparse grid's run now holds
+~65-95 bytes an empty position on the fused arm and ~27-45 on the
+buffered arm, where it held ~380-500 and ~340-460. The estimate charges
+each position past the populated-cell bound
+`limits.CrosstabGridPositionBytes` per measure: the layout (MatrixCell,
+a CellCounts int and a CellComponents pointer with components on, and
+on the fused arm the fold's slots at twice their size for append growth),
+set 25% over. That is 130 bytes fused with components on, 110 off and
+20 more weighted, and 50 / 30 buffered. The grid is capped by
+`MaxCrosstabCells`. `TestCrosstabMemory_CellChargeTable` adds sparse
+cases: n records on the diagonal of an n x n grid over unbounded `u32`
+axes. One run (Apple M1 Max, go1.27.2), alone:
+
+| Sparse gate case | Peak / position | Charge / position | Charge / peak |
+|---|---|---|---|
+| fused 300 x 300, components on | 100.3 B | 138.4 B | 1.38 |
+| fused 1,000 x 1,000, components on | 81.1 B | 132.5 B | 1.63 |
+| fused 1,000 x 1,000, on, weighted | 91.2 B | 153.1 B | 1.68 |
+| fused 500 x 500, two measures, margins | 183.0 B | 287.8 B | 1.57 |
+| buffered 300 x 300, components on | 56.9 B | 66.6 B | 1.17 |
+| buffered 1,000 x 1,000, components off | 26.9 B | 34.0 B | 1.26 |
+
+Under a concurrent `go test ./...` the sampled peak inflates (the
+GOGC=1 collector lags), so the gate re-measures a case over its charge
+up to three times and judges the lowest; that noise is one-sided.
+Whole-run calibration after E5-S11 (only the wide-grid rows moved;
+their axes are not schema-fixed past the `u16` width):
+
+| Fixture | Estimate | Peak heap | Estimate / peak |
+|---|---|---|---|
+| `fused crosstab` | 153.8 MB | 88.8 MB | 1.73 |
+| `buffered crosstab` | 438.6 MB | 130.6 MB | 3.36 |
+| `fused crosstab wide grid` (848,576 empty positions charged) | 638.2 MB | 109.4 MB | 5.83 |
+| `buffered crosstab wide grid` | 972.0 MB | 134.6 MB | 7.22 |
+| `fused crosstab vector element` | 1,136.4 MB | 258.4 MB | 4.40 |
+
+The calibration bounds for those three rows moved to 7.5 / 9.5 / 6.

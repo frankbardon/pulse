@@ -823,3 +823,113 @@ func TestEstimateMemory_CrosstabCharges(t *testing.T) {
 		t.Errorf("buffered two-measure crosstab charged %d, want %d (fused %d + rows %d + bucket %d + partitions %d)", got, want, fused, rows, final, partitions)
 	}
 }
+
+// TestEstimateMemory_CrosstabGrid (U51 E5-S11): the crosstab's dense
+// grid is rows x cols over each axis's memoryGroupBound, capped by the
+// effective MaxCrosstabCells; the populated cells are the
+// schema-fixed grid, else at most records x the axes' fan-out; every
+// position past them costs CrosstabGridPositionBytes on the run's arm,
+// once per measure (weighted per its own weight). A grid every axis of
+// which the schema fixes, no larger than the records, charges no
+// position beyond its cells.
+func TestEstimateMemory_CrosstabGrid(t *testing.T) {
+	d := encoding.NewDictionary()
+	for _, v := range []string{"a", "b", "c"} {
+		if _, err := d.Add(v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "r", Type: encoding.FieldTypeU32},
+		{Name: "c", Type: encoding.FieldTypeU32},
+		{Name: "b", Type: encoding.FieldTypeU8},
+		{Name: "k", Type: encoding.FieldTypeCategoricalU8, Dictionary: d},
+		{Name: "tags", Type: encoding.FieldTypeSetU8, Dictionary: d},
+		{Name: "x", Type: encoding.FieldTypeF64},
+		{Name: "w", Type: encoding.FieldTypeF64},
+	}}
+	off := 0
+	for i := range schema.Fields {
+		schema.Fields[i].ByteOffset = off
+		off += schema.Fields[i].Type.ByteSize()
+	}
+	const n = 1_000
+	grp := func(gt types.GroupType, f string) []*types.Group { return []*types.Group{{Type: gt, Field: f}} }
+	cat := func(f string) []*types.Group { return grp(types.GROUP_CATEGORY, f) }
+	sum := func(l string) *types.Aggregation {
+		return &types.Aggregation{Type: types.AGG_SUM, Field: "x", Label: l}
+	}
+	xt := func(rows, cols []*types.Group, measures ...*types.Aggregation) *types.Request {
+		spec := &types.CrosstabSpec{Rows: rows, Columns: cols}
+		if len(measures) == 1 {
+			spec.Cell = measures[0]
+		} else {
+			spec.Cells = measures
+		}
+		return &types.Request{Crosstab: spec}
+	}
+	pos := limits.CrosstabGridPositionBytes
+	weighted := sum("w")
+	weighted.Weight = types.SlotWeightField("w")
+	for _, c := range []struct {
+		name             string
+		req              *types.Request
+		cap              int64
+		fused, off       bool
+		cells, positions int64
+		positionBytes    int64
+	}{
+		{"unbounded axes", xt(cat("r"), cat("c"), sum("s")), 0, true, false, n, n*n - n, pos(true, false, false)},
+		{"unbounded axes, components off", xt(cat("r"), cat("c"), sum("s")), 0, true, true, n, n*n - n, pos(true, false, true)},
+		{"unbounded axes, buffered", xt(cat("r"), cat("c"), sum("s")), 0, false, false, n, n*n - n, pos(false, false, false)},
+		{"capped by MaxCrosstabCells", xt(cat("r"), cat("c"), sum("s")), 5_000, true, false, n, 5_000 - n, pos(true, false, false)},
+		{"cap under the records", xt(cat("r"), cat("c"), sum("s")), 400, true, false, 400, 0, pos(true, false, false)},
+		{"u8 width x unbounded", xt(cat("b"), cat("c"), sum("s")), 0, true, false, n, 256*n - n, pos(true, false, false)},
+		{"set fan-out x unbounded", xt(grp(types.GROUP_SET_PER_ELEMENT, "tags"), cat("c"), sum("s")), 0, true, false, 3 * n, 0, pos(true, false, false)},
+		{"two measures, one weighted", xt(cat("r"), cat("c"), sum("s"), weighted), 0, true, false, n, n*n - n, pos(true, false, false) + pos(true, true, false)},
+		{"schema-fixed grid", xt(cat("k"), cat("k"), sum("s")), 0, true, false, 9, 0, pos(true, false, false)},
+	} {
+		in := memIn(n)
+		in.crosstabCellCap = c.cap
+		ct := crosstabMemory(c.req, schema, nil, in, n, c.off, c.fused)
+		if ct.cells != c.cells || ct.gridPositions != c.positions || ct.gridPositionBytes != c.positionBytes {
+			t.Errorf("%s: cells %d, positions %d x %d B; want %d, %d x %d B", c.name,
+				ct.cells, ct.gridPositions, ct.gridPositionBytes, c.cells, c.positions, c.positionBytes)
+		}
+	}
+	// The figures the position charge carries (layout pinned by
+	// internal/service TestCrosstabMemory_GridPositionBytes).
+	for _, c := range []struct {
+		fused, weighted, off bool
+		want                 int64
+	}{
+		{true, false, false, 130}, {true, false, true, 110}, {true, true, false, 150}, {true, true, true, 130},
+		{false, false, false, 50}, {false, false, true, 30}, {false, true, false, 50}, {false, true, true, 30},
+	} {
+		if got := pos(c.fused, c.weighted, c.off); got != c.want {
+			t.Errorf("CrosstabGridPositionBytes(fused=%v, weighted=%v, off=%v) = %d, want %d", c.fused, c.weighted, c.off, got, c.want)
+		}
+	}
+	// RequestLimitFindings judges the estimate under the limits' own
+	// MaxCrosstabCells (predict and the pre-flight both call it): the
+	// figure is EstimateMemory's with the grid capped there.
+	req := xt(cat("r"), cat("c"), sum("s"))
+	l := limits.Defaults()
+	l.MaxEstimatedMemory, l.MaxCrosstabCells = 1, 5_000
+	var got int64
+	for _, f := range RequestLimitFindings(req, schema, nil, l, memIn(n)) {
+		if f.Limit == limits.MaxEstimatedMemory {
+			got = f.Estimated
+		}
+	}
+	in := memIn(n)
+	in.crosstabCellCap = 5_000
+	want, _ := EstimateMemory(req, schema, nil, in)
+	uncapped, _ := EstimateMemory(req, schema, nil, memIn(n))
+	if got != want || want >= uncapped {
+		t.Errorf("finding estimates %d, want the capped %d (< uncapped %d)", got, want, uncapped)
+	}
+	if diff, wantDiff := uncapped-want, (n*n-5_000)*pos(true, false, false); diff != wantDiff {
+		t.Errorf("cap lowers the estimate by %d, want %d", diff, wantDiff)
+	}
+}

@@ -85,6 +85,13 @@ type LimitInputs struct {
 	// components gate — a run with components off is charged the
 	// components-off finalize output (U51 E5-S7).
 	DisableComponents bool
+	// crosstabCellCap is the effective MaxCrosstabCells (<= 0:
+	// unlimited) the crosstab's dense-grid charge is capped at — both
+	// arms refuse a grid past it before it grows (U51 E5-S11).
+	// RequestLimitFindings fills it from the limits it judges, so
+	// predict and the pre-flight cap identically; a direct
+	// EstimateMemory call leaves the grid uncapped (an upper bound).
+	crosstabCellCap int64
 }
 
 // RequestLimitFindings is the one predict-time limit rule for a single
@@ -123,6 +130,7 @@ func RequestLimitFindings(req *types.Request, schema *encoding.Schema, inst *Ins
 		return nil
 	}
 	records := in.Records
+	in.crosstabCellCap = limits.Value(l, limits.MaxCrosstabCells)
 	var out []limits.Finding
 	if n, ok := EstimateGroups(req.Groups, schema, inst, records); ok {
 		// Every tier-1 test runs once per group, so tests x groups
@@ -308,8 +316,10 @@ func decodeWorkers(req *types.Request, schema *encoding.Schema, inst *InstanceSn
 //     records); a grouper of unknown cardinality by its field's value
 //     width (valueKeyBound: 2^bits of an integer or set word), else
 //     the record count (x the fan-out multiplicity); 1 ungrouped.
-//   - cells: EstimateCrosstabCells, else rows x cols bounded by the
-//     record count when an axis is unknown.
+//   - cells: EstimateCrosstabCells, else the record count x the axes'
+//     fan-out, never past the dense grid — rows x cols over each axis's
+//     memoryGroupBound, capped by MaxCrosstabCells — whose empty
+//     positions are charged apart (crosstabMemory).
 //   - matrices: MatrixStateBytes over the merge blocks (per shard) and
 //     the matrix bucket bound — EstimatedBytes in PredictResult.Matrices
 //     — or records x accumulator bytes when the buckets are unknown
@@ -434,8 +444,9 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 	slotsOf := func(*types.Aggregation) (slots, feeds, copies int64) { return mi.Buckets, 1, 1 }
 	elementOf := func(*types.Aggregation) bool { return false }
 	if req.Crosstab != nil {
-		ct := crosstabMemory(req, schema, inst, in, records, mi.ComponentsOff)
+		ct := crosstabMemory(req, schema, inst, in, records, mi.ComponentsOff, mi.Arm == limits.ArmFusedCrosstab)
 		mi.Cells, mi.CellBytes = ct.cells, ct.cellBytes
+		mi.GridPositions, mi.GridPositionBytes = ct.gridPositions, ct.gridPositionBytes
 		mi.AxisKeys, mi.AxisKeyBytes = ct.axisKeys, ct.axisKeyBytes
 		mi.MarginSlots, mi.MarginSlotBytes = ct.marginSlots, ct.marginSlotBytes
 		mi.AuxSlots, mi.AuxSlotBytes = ct.auxSlots, ct.auxSlotBytes
@@ -488,6 +499,8 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 // vector fragments are bounded by.
 type crosstabCharge struct {
 	cells, cellBytes             int64
+	gridPositions                int64
+	gridPositionBytes            int64
 	axisKeys, axisKeyBytes       int64
 	marginSlots, marginSlotBytes int64
 	auxSlots, auxSlotBytes       int64
@@ -517,11 +530,20 @@ func (c crosstabCharge) element(a *types.Aggregation) bool { return c.elementSet
 // measure (crosstab.cell, or each crosstab.cells entry — each runs its
 // own grid, interners and margins over the same records):
 //
-//   - every grid cell (EstimateCrosstabCells; the record count when an
-//     axis is unknown) and every margin slot costs
+//   - the dense grid (U51 E5-S11) is rows x cols over each axis's
+//     memoryGroupBound (its schema-fixed cardinality, else its fields'
+//     value width, clamped by the record count x its fan-out), capped
+//     by the effective MaxCrosstabCells (in.crosstabCellCap — both arms
+//     refuse a grid past it before it grows);
+//   - every populated cell — the grid (EstimateCrosstabCells when every
+//     axis is schema-fixed), else at most the record count x both
+//     axes' fan-out, never past the grid — and every margin slot costs
 //     limits.CrosstabSlotBytes — the measure's per-aggregator state and
 //     finalize output, weighted when a weight is in force on the slot,
 //     components on or off;
+//   - every grid position past the populated cells costs
+//     limits.CrosstabGridPositionBytes on the run's arm (fused: the
+//     fold's dense slots and the emitted matrix; buffered: the matrix);
 //   - every axis key (each axis's memoryGroupBound: its
 //     crosstabAxisEstimate, else its fields' value width, else the
 //     record count x its fan-out) costs limits.CrosstabAxisKeyBytes;
@@ -533,13 +555,19 @@ func (c crosstabCharge) element(a *types.Aggregation) bool { return c.elementSet
 //     in each emitted row / column / grand slot.
 //
 // A vector element slot reads one member.
-func crosstabMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs, records int64, off bool) crosstabCharge {
+func crosstabMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs, records int64, off, fused bool) crosstabCharge {
 	spec := req.Crosstab
 	rows, cols := memoryGroupBound(spec.Rows, schema, inst, records), memoryGroupBound(spec.Columns, schema, inst, records)
-	c := crosstabCharge{cells: records, axisKeys: addSaturating(rows, cols)}
-	if n, ok := EstimateCrosstabCells(spec, schema, inst, records); ok {
-		c.cells = n
+	grid := mulSaturating(rows, cols)
+	if limit := in.crosstabCellCap; limit > 0 {
+		grid = min(grid, limit)
 	}
+	fanOut := mulSaturating(FanOutMultiplicity(spec.Rows, schema), FanOutMultiplicity(spec.Columns, schema))
+	c := crosstabCharge{cells: min(mulSaturating(records, fanOut), grid), axisKeys: addSaturating(rows, cols)}
+	if n, ok := EstimateCrosstabCells(spec, schema, inst, records); ok {
+		c.cells = min(n, grid)
+	}
+	c.gridPositions = grid - c.cells
 	var feeds int64 = 1
 	if spec.NeedsRowMargin() {
 		c.auxSlots = addSaturating(c.auxSlots, rows)
@@ -583,6 +611,7 @@ func crosstabMemory(req *types.Request, schema *encoding.Schema, inst *InstanceS
 			c.auxCopies++
 		}
 		c.cellBytes = addSaturating(c.cellBytes, slot)
+		c.gridPositionBytes = addSaturating(c.gridPositionBytes, limits.CrosstabGridPositionBytes(fused, weightInForce(req, m, in.DefaultWeight), off))
 		c.marginSlotBytes = addSaturating(c.marginSlotBytes, slot)
 		c.axisKeyBytes = addSaturating(c.axisKeyBytes, limits.CrosstabAxisKeyBytes(off))
 		for _, a := range spec.MarginAggregations {

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"unsafe"
 
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
@@ -40,9 +41,20 @@ type cellMemoryCase struct {
 	// normalize_level 0 within column prefix 0: the partial-depth and
 	// cross-axis denominators.
 	nested bool
+	// diagonal keeps the axes unbounded — g and h stay aggMemorySchema's
+	// u32 words, no dictionary, so each axis bound is the record count —
+	// and lands record i in cell (i, i) of a rows x rows grid: rows
+	// records over rows^2 dense positions, all but rows of them empty
+	// (U51 E5-S11, the fused arm's dense grid).
+	diagonal bool
 }
 
-func (c cellMemoryCase) records() int { return c.rows * c.cols * c.perCell }
+func (c cellMemoryCase) records() int {
+	if c.diagonal {
+		return c.rows
+	}
+	return c.rows * c.cols * c.perCell
+}
 
 // schema is aggMemorySchema with the axis fields made dictionary
 // categoricals of exactly the case's cardinalities — rows labels on g,
@@ -62,6 +74,9 @@ func (c cellMemoryCase) schema() *encoding.Schema {
 	}
 	for i := range s.Fields {
 		f := &s.Fields[i]
+		if c.diagonal && (f.Name == "g" || f.Name == "h") {
+			continue
+		}
 		switch f.Name {
 		case "g":
 			f.Type, f.Dictionary = encoding.FieldTypeCategoricalU16, dict("row", max(c.rows, 1))
@@ -142,8 +157,11 @@ func cellSlot(at types.AggregationType, label string, members int) *types.Aggreg
 // row-major order, a distinct x per record, its merge position under
 // the case's shard split.
 func setCellRecord(c cellMemoryCase, rec *processing.Record, i int) {
-	cell := i / c.perCell
-	row, col := cell/c.cols, cell%c.cols
+	cell := i / max(c.perCell, 1)
+	row, col := cell/max(c.cols, 1), cell%max(c.cols, 1)
+	if c.diagonal {
+		row, col = i, i
+	}
 	rec.Set("g", float64(row))
 	rec.Set("h", float64(col))
 	rec.Set("x", float64(i%97)+float64(i)*0.25)
@@ -302,12 +320,26 @@ func cellMemoryCharge(t *testing.T, c cellMemoryCase) float64 {
 	return float64(est - limits.EstimateMemory(bare))
 }
 
-// crosstabMemoryCheck measures c and fails when the peak exceeds the
-// charge.
+// crosstabMemoryAttempts bounds the re-measures of a case whose peak
+// exceeds its charge. The sampled peak's noise is one-sided — garbage
+// the GOGC=1 collector has not yet reclaimed only inflates it, never
+// deflates it — and grows when the run shares the CPU (go test ./...
+// runs packages concurrently: dense cases measured 0.75x there, 1.16x
+// alone), so the lowest of a few measures is the honest figure. A
+// charge that misses a term misses on every attempt.
+const crosstabMemoryAttempts = 3
+
+// crosstabMemoryCheck measures c and fails when its peak — the lowest
+// of up to crosstabMemoryAttempts measures — exceeds the charge.
 func crosstabMemoryCheck(t *testing.T, name string, c cellMemoryCase) {
 	t.Helper()
 	f := measureCellMemory(t, c)
 	charge := cellMemoryCharge(t, c)
+	for i := 1; i < crosstabMemoryAttempts && f.peak > charge; i++ {
+		if g := measureCellMemory(t, c); g.peak < f.peak {
+			f = g
+		}
+	}
 	cells := float64(c.rows * c.cols)
 	t.Logf("%-44s buffered=%-5v off=%-5v weighted=%-5v %dx%dx%d: folded %7.1f peak %7.1f charge %7.1f B a cell (%.2f)",
 		name, c.buffered, c.off, c.weighted, c.rows, c.cols, c.perCell, f.folded/cells, f.peak/cells, charge/cells, charge/f.peak)
@@ -330,7 +362,10 @@ func crosstabMemoryCheck(t *testing.T, name string, c cellMemoryCase) {
 // keys), margins, several measures, margin_aggregations, the
 // normalize denominators, a value-state measure at several records a
 // cell, and a vector element cell over two shards — the blocked merge's
-// fragments and the rows a shard starting mid-block buffers.
+// fragments and the rows a shard starting mid-block buffers — and
+// sparse grids over unbounded axes, records on the diagonal of an
+// n x n grid (U51 E5-S11): the dense grid's empty positions, charged
+// by limits.CrosstabGridPositionBytes.
 func TestCrosstabMemory_CellChargeTable(t *testing.T) {
 	if testing.Short() {
 		t.Skip("peak-heap sweep over every crosstab cell measure")
@@ -395,6 +430,58 @@ func TestCrosstabMemory_CellChargeTable(t *testing.T) {
 				c = base
 				c.measures, c.rows, c.cols, c.perCell, c.shards, c.margins = []*types.Aggregation{vec}, 60, 60, 3, 2, true
 				shape("vector element over two shards", c)
+				// Sparse grids over unbounded axes (U51 E5-S11): n
+				// records on the diagonal of an n x n grid, every other
+				// position empty — the dense grid's charge
+				// (CrosstabGridPositionBytes), not the cells', carries
+				// them. 300 rows sit just past a slice growth point.
+				for _, side := range []int{300, 1_000} {
+					c = base
+					c.measures, c.diagonal, c.rows, c.cols = []*types.Aggregation{count}, true, side, side
+					shape(fmt.Sprintf("sparse diagonal %d", side), c)
+				}
+				c = base
+				c.measures, c.diagonal, c.rows, c.cols, c.margins = []*types.Aggregation{sum, vec}, true, 500, 500, true
+				shape("sparse diagonal, 2 measures, margins", c)
+			}
+		}
+	}
+}
+
+// TestCrosstabMemory_GridPositionBytes (U51 E5-S11) pins
+// limits.CrosstabGridPositionBytes to the Go layout it charges: per
+// empty position the emitted types.MatrixCell, with components on a
+// CellCounts int and a CellComponents map pointer, and on the fused arm
+// the fold's dense slots — a processing.OnlineAggregator interface, its
+// count and null count ints, and weighted a *processing.WeightFloor —
+// at twice their size (append growth), all set 25% over (rounded up).
+// A layout change moves the expected figure and fails here; the heap
+// gate is TestCrosstabMemory_CellChargeTable's sparse cases.
+func TestCrosstabMemory_GridPositionBytes(t *testing.T) {
+	var (
+		cell   types.MatrixCell
+		count  int
+		comps  map[string]any
+		agg    processing.OnlineAggregator
+		weight *processing.WeightFloor
+	)
+	for _, fused := range []bool{false, true} {
+		for _, weighted := range []bool{false, true} {
+			for _, off := range []bool{false, true} {
+				layout := int64(unsafe.Sizeof(cell))
+				if !off {
+					layout += int64(unsafe.Sizeof(count) + unsafe.Sizeof(comps))
+				}
+				if fused {
+					fold := int64(unsafe.Sizeof(agg) + 2*unsafe.Sizeof(count))
+					if weighted {
+						fold += int64(unsafe.Sizeof(weight))
+					}
+					layout += 2 * fold
+				}
+				if got, want := limits.CrosstabGridPositionBytes(fused, weighted, off), (layout*5+3)/4; got != want {
+					t.Errorf("fused=%v weighted=%v off=%v: charged %d B a position, layout %d B wants %d", fused, weighted, off, got, layout, want)
+				}
 			}
 		}
 	}

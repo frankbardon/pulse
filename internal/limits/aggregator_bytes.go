@@ -285,3 +285,59 @@ func CrosstabAxisKeyBytes(componentsOff bool) int64 {
 	}
 	return crosstabAxisKeyBytes
 }
+
+// The crosstab's dense grid (U51 E5-S11). Both arms emit a
+// rows x cols matrix per measure — every position, empty or not, holds
+// a MatrixCell and, components on, a CellCounts int and a
+// CellComponents map pointer — and the fused arm also folds into a
+// dense grid: per position a cell-accumulator interface, its count and
+// null count, and (weighted) its weight-floor pointer, each row grown
+// by append. A populated cell's position is inside its CrosstabSlotBytes
+// (measured on fully populated grids), so the grid term charges only
+// the positions past the populated-cell bound. Pinned against the Go
+// layout by internal/service TestCrosstabMemory_GridPositionBytes and
+// against the heap by TestCrosstabMemory_CellChargeTable's sparse cases.
+const (
+	// crosstabGridMatrixCellBytes: types.MatrixCell (an interface value
+	// and a bool, padded).
+	crosstabGridMatrixCellBytes = 24
+	// crosstabGridComponentsBytes: a CellCounts int and a CellComponents
+	// map pointer, components on.
+	crosstabGridComponentsBytes = 16
+	// crosstabGridFoldBytes: the fused fold's per-position slots — the
+	// cell accumulator interface (16), its count (8) and null count (8);
+	// crosstabGridWeightBytes adds the weight-floor pointer when a
+	// weight is in force on the cell.
+	crosstabGridFoldBytes   = 32
+	crosstabGridWeightBytes = 8
+	// crosstabGridGrowth bounds the fused rows' append slack: a row
+	// grown one column at a time holds at most twice its length.
+	crosstabGridGrowth = 2
+	// crosstabGridHeadroomNum / Den: the figure is set 25% over the
+	// layout — allocator size-class rounding (up to 12.5%) and the
+	// sampled-peak gate's run-to-run variance.
+	crosstabGridHeadroomNum = 5
+	crosstabGridHeadroomDen = 4
+)
+
+// CrosstabGridPositionBytes is one empty dense-grid position's charge
+// per measure (U51 E5-S11): the emitted matrix's MatrixCell, plus a
+// CellCounts / CellComponents entry with components on, plus on the
+// fused arm the fold's slots at their append-growth bound (with the
+// weight-floor pointer when weighted) — set crosstabGridHeadroom over
+// the layout. Fused: 130 B on, 110 B off (150 / 130 weighted);
+// buffered: 50 B on, 30 B off.
+func CrosstabGridPositionBytes(fused, weighted, componentsOff bool) int64 {
+	n := int64(crosstabGridMatrixCellBytes)
+	if !componentsOff {
+		n += crosstabGridComponentsBytes
+	}
+	if fused {
+		fold := int64(crosstabGridFoldBytes)
+		if weighted {
+			fold += crosstabGridWeightBytes
+		}
+		n += crosstabGridGrowth * fold
+	}
+	return (n*crosstabGridHeadroomNum + crosstabGridHeadroomDen - 1) / crosstabGridHeadroomDen
+}

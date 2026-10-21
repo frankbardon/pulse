@@ -83,8 +83,18 @@ func (p *Processor) runCrosstabMeasure(spec *types.CrosstabSpec, in crosstabMeas
 	// below rejects spec.Normalize != none paired with a MapValued()
 	// aggregator (see types.AggregationType.MapValued), so partial /
 	// margin paths that need a float64 denominator stay scalar.
-	cellValues := make(map[crosstabCellKey]any, len(rowPart.Keys)*len(colPart.Keys))
-	cellPresent := make(map[crosstabCellKey]bool, len(rowPart.Keys)*len(colPart.Keys))
+	//
+	// Every per-cell map is sized by the populated cells — each row
+	// partition's column keys — never the dense rows x cols grid, whose
+	// empty positions would each cost a map slot (U51 E5-S11).
+	populated := 0
+	for _, innerCol := range in.innerCols {
+		if innerCol != nil {
+			populated += len(innerCol.Keys)
+		}
+	}
+	cellValues := make(map[crosstabCellKey]any, populated)
+	cellPresent := make(map[crosstabCellKey]bool, populated)
 
 	// Per-cell record count tracked alongside the aggregator update
 	// so Response.Components.Crosstab.CellCounts can be populated without
@@ -95,7 +105,7 @@ func (p *Processor) runCrosstabMeasure(spec *types.CrosstabSpec, in crosstabMeas
 	// that landed in at least one cell (both axis keys non-null);
 	// ExcludedRecords on Components.Crosstab is then
 	// filteredRows - includedRecords.
-	cellCounts := make(map[crosstabCellKey]int, len(rowPart.Keys)*len(colPart.Keys))
+	cellCounts := make(map[crosstabCellKey]int, populated)
 	var includedRecords int
 
 	// Per-cell components map indexed by the same composite-key
@@ -117,7 +127,7 @@ func (p *Processor) runCrosstabMeasure(spec *types.CrosstabSpec, in crosstabMeas
 	buildComps := p.compute.Crosstab
 	var cellComponents map[crosstabCellKey]map[string]any
 	if buildComps {
-		cellComponents = make(map[crosstabCellKey]map[string]any, len(rowPart.Keys)*len(colPart.Keys))
+		cellComponents = make(map[crosstabCellKey]map[string]any, populated)
 	}
 
 	for ri, rkey := range rowPart.Keys {

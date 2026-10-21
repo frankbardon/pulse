@@ -402,12 +402,17 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 		// per-measure cell, axis-key and margin charges dominate — and a
 		// vector element cell over it. The bounds are loose here (16x the
 		// populated rows' keys, 3x the cells), never under; the buffered
-		// arm also projects its records (as "buffered projected").
-		{name: "fused crosstab wide grid", req: func() *types.Request { return &types.Request{Cohort: co, Crosstab: wideGrid(nil)} }, fuse: true, maxFactor: 5},
-		{name: "buffered crosstab wide grid", req: func() *types.Request { return &types.Request{Cohort: co, Crosstab: wideGrid(nil)} }, maxFactor: 8},
+		// arm also projects its records (as "buffered projected"). U51
+		// E5-S11 adds the dense grid's empty positions — 65,536 x 16
+		// charged, 1,048,576 positions less the 200,000-cell bound, at
+		// CrosstabGridPositionBytes (~110 MB fused, ~42 MB buffered) —
+		// while the run's peak fell (the finalize maps no longer
+		// pre-size to the grid), so these factors rose (5.9 / 7.2 / 4.4).
+		{name: "fused crosstab wide grid", req: func() *types.Request { return &types.Request{Cohort: co, Crosstab: wideGrid(nil)} }, fuse: true, maxFactor: 7.5},
+		{name: "buffered crosstab wide grid", req: func() *types.Request { return &types.Request{Cohort: co, Crosstab: wideGrid(nil)} }, maxFactor: 9.5},
 		{name: "fused crosstab vector element", req: func() *types.Request {
 			return &types.Request{Cohort: co, Crosstab: wideGrid(&types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"weight", "pad_014", "pad_015"}, Label: "v", Params: []byte(`{"element":"pad_015"}`)})}
-		}, fuse: true, maxFactor: 4.5},
+		}, fuse: true, maxFactor: 6},
 		{name: "matrix", req: func() *types.Request {
 			return &types.Request{Cohort: co, Groups: brand, Aggregations: sum,
 				Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "c", Fields: []string{"weight", "pad_014", "pad_015"}}}}

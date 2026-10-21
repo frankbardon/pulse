@@ -203,9 +203,26 @@ in every margin slot, once per measure, and nothing with components off.
 one per axis key. The buffered arm also pays for its partitions: 128
 bytes a row, and per measure 448 a cell and 416 an axis key. An axis
 whose cardinality the schema does not fix is bounded like a grouper
-(below), and the grid by the record count. These figures replaced a flat
+(below). These figures replaced a flat
 512 bytes a cell, which was below the measured cost of every built-in
 cell with components on, so crosstab estimates rise.
+
+The matrix a crosstab emits is dense: it has a position for every row
+key and column key pair, and the fused arm also folds into a dense
+grid. So the estimate also charges the grid itself, rows times columns,
+where each axis is bounded like a grouper and the product is capped by
+`MaxCrosstabCells` (both arms refuse a larger grid). Only cells a record
+can reach are charged as cells: the whole grid when the schema fixes
+both axes, otherwise at most one per record (times any set fan-out).
+Every other position costs a fixed amount per measure: 130 bytes on the
+fused arm with components on, 110 off, 20 more weighted; 50 and 30 on
+the buffered arm. A grid whose axes the schema fixes, no larger than
+the record count, has no such positions, so its estimate is unchanged.
+A sparse grid over axes the schema does not fix, such as two
+high-cardinality integer fields, is charged far more than before. With
+the default `MaxCrosstabCells` of 10 million, the worst case is about
+1.3 GB per measure on the fused arm. Lower `MaxCrosstabCells` to bound
+it.
 
 **How many buckets.** The bucket count is an upper bound read from the
 schema alone. A dictionary-backed grouper (`GROUP_CATEGORY` over a
