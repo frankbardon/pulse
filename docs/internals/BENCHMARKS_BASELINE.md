@@ -283,3 +283,47 @@ takes the count from the file length less the header and schema bytes
 `Open` read (`openedRecordCount`, same floor division). On a
 600k-entry categorical file that took ~0.45 s off every
 `DecodeWorkers` ≠ 1 Process (`TestOpenedRecordCount_NoSecondSchemaRead`).
+
+## Retention-shaped chain (U51 E5-S4)
+
+`BenchmarkRetentionShape` (`internal/service/retention_shape_bench_test.go`)
+runs the retail showcase's two `ProcessChain`s at 1/20 scale: a
+12-shard archive of 2.52M order lines (one shard a month, 33-byte rows)
+over 1.2M customer ids (1,053,033 present), `ShardWorkers` 4,
+components off. `retention` stage 0 carries 13 row-local attributes
+(`ATTR_DATE_PART` + 12 `ATTR_FORMULA` month flags) and 15 aggregations
+per customer; `spend` carries 3 aggregations and no attribute.
+`retention-budget` is `retention` under `MaxEstimatedMemory` 35 GB,
+which shrinks the merge window from 8 to 2. One shape per process
+(generate the cached archive with a first run, then measure):
+`/usr/bin/time -l ./service.test -test.run '^$' -test.bench 'BenchmarkRetentionShape/retention$' -test.benchtime 1x`
+with `PULSE_BENCH_DIR` set. Each process runs the chain twice (the
+timed loop and the peak-heap sample), so wall and CPU are per process,
+ns/op per chain. Apple M1 Max (10 cores), go1.27.2, one run each:
+
+| Commit | Shape | ns/op | peak heap | alloc / op | allocs / op | wall | CPU | max RSS |
+|---|---|---|---|---|---|---|---|---|
+| `632292f6` (before) | retention | 9.03 s | 3,534 MB | 9.38 GB | 151.0 M | 18.6 s | 332% | 4.87 GB |
+| `632292f6` (before) | spend | 3.99 s | 1,668 MB | 3.39 GB | 44.0 M | 8.6 s | 219% | 1.89 GB |
+| + (a) attribute slots | retention | 9.29 s | 3,538 MB | 7.67 GB | 135.9 M | 20.6 s | 287% | 5.03 GB |
+| + (b) pooled expr VM | retention | 8.78 s | 2,998 MB | 6.70 GB | 105.7 M | 19.4 s | 266% | 4.97 GB |
+| + (c) merge window | retention | 7.84 s | 2,799 MB | 6.70 GB | 105.7 M | 16.2 s | 303% | 4.66 GB |
+| + (c) merge window | retention-budget | 11.67 s | 3,589 MB | 6.70 GB | 105.7 M | 24.4 s | 193% | 4.72 GB |
+| + (c) merge window | spend | 3.80 s | 1,627 MB | 3.35 GB | 42.9 M | 7.9 s | 231% | 1.99 GB |
+
+(a) and (b) cut retention's garbage by 29% (allocations a chain 151 M →
+106 M); (c) changes nothing without a budget (the default). Wall time
+and peak heap move within run-to-run noise on this host. Max RSS stays
+~2.3× spend's (4.66 vs 1.99 GB), against a target of 1.5×: the peak is
+LIVE state, not garbage. Stage 0 alone at 4 workers (live heap after a
+GC, components off): at the last shard merge the merged buckets hold
+1,171 MB for retention vs 602 MB for spend (1.9×), and the finalized
+response holds 1,327 MB vs 395 MB (3.4×; ~1.26 KB a customer row,
+almost all of it `FinalizeGroupedStream`'s per-row `Data` maps of 18
+columns). Both are alive together while the response is built, and
+the chain's next stage reads that response. Shrinking the merge
+window does not reach either: at window 2 max RSS is unchanged and the
+run is slower (193% CPU). The predict estimate is far above the
+measured peak for this shape (33.4 GB at one live partial, 39.6 GB at
+the full window): `GROUP_CATEGORY` over a `u32` has no schema-known
+cardinality, so every bucket term is bounded by the record count.
