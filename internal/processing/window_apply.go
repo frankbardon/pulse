@@ -21,8 +21,11 @@ import (
 // error, as predict reports an unknown type before its field. orders is
 // the grouped run's grouper key orders (groupKeyOrders): an order_by on
 // a grouper key column follows its grouper's key order. Nil on a
-// record-row run (no grouper key column), byte-identically.
-func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, windows []*types.Window, orders window.KeyOrders) error {
+// record-row run (no grouper key column), byte-identically. copies,
+// when set, hears every built-in copy window's (WIN_LAG / WIN_LEAD)
+// copied cell (window.ApplyObserved) — the record-row run's
+// u64RowWords.copyObserver; nil observes nothing.
+func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, windows []*types.Window, orders window.KeyOrders, copies window.CopyObserver) error {
 	for _, w := range windows {
 		if w == nil {
 			continue
@@ -51,5 +54,5 @@ func (p *Processor) applyWindows(ctx context.Context, rows []map[string]any, win
 			}
 		}
 	}
-	return window.ApplyKeyed(ctx, rows, windows, p.exts.LookupWindow, orders)
+	return window.ApplyObserved(ctx, rows, windows, p.exts.LookupWindow, orders, copies)
 }

@@ -88,7 +88,7 @@ func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter 
 	if len(req.Windows) > 0 {
 		// Only window outputs leave this row set; no u64 render needed.
 		rows, _ = recordsToRows(filtered, nil)
-		if err := p.applyWindows(ctx, rows, req.Windows, nil); err != nil {
+		if err := p.applyWindows(ctx, rows, req.Windows, nil, nil); err != nil {
 			return err
 		}
 	}

@@ -87,6 +87,16 @@ func ApplyWithExt(ctx context.Context, rows []map[string]any, windows []*types.W
 // keyOrderedComputer (WIN_RANK / WIN_DENSE_RANK) judges ties through the
 // same comparator. Nil orders is ApplyWithExt, byte-identically.
 func ApplyKeyed(ctx context.Context, rows []map[string]any, windows []*types.Window, resolve Resolver, orders KeyOrders) error {
+	return ApplyObserved(ctx, rows, windows, resolve, orders, nil)
+}
+
+// ApplyObserved is ApplyKeyed with a CopyObserver stamped on every
+// built-in copy window (copyingComputer: WIN_LAG / WIN_LEAD), so the
+// caller can follow each copied cell back to its source row. The rows
+// themselves are written exactly as ApplyKeyed writes them; a nil
+// observer is ApplyKeyed, byte-identically. An extension window is
+// never observed.
+func ApplyObserved(ctx context.Context, rows []map[string]any, windows []*types.Window, resolve Resolver, orders KeyOrders, observe CopyObserver) error {
 	_ = ctx
 	if len(windows) == 0 || len(rows) == 0 {
 		return nil
@@ -106,6 +116,9 @@ func ApplyKeyed(ctx context.Context, rows []map[string]any, windows []*types.Win
 		}
 		if ko, ok := computer.(keyOrderedComputer); ok && orders != nil {
 			ko.setKeyOrders(orders)
+		}
+		if cc, ok := computer.(copyingComputer); ok && observe != nil {
+			cc.setCopyObserver(observe)
 		}
 
 		sortedIdx, err := cache.get(w.PartitionBy, w.OrderBy)
@@ -128,6 +141,19 @@ func ApplyKeyed(ctx context.Context, rows []map[string]any, windows []*types.Win
 // on it before Compute, so a tie is exactly a CompareRows tie.
 type keyOrderedComputer interface {
 	setKeyOrders(orders KeyOrders)
+}
+
+// CopyObserver hears every cell a built-in copy window writes: dst's
+// label cell was set to a verbatim copy of src's field cell, or — src
+// nil — to the window's default / null (the source fell outside the
+// partition). Called in row-write order, after the write.
+type CopyObserver func(dst, src map[string]any, label, field string)
+
+// copyingComputer is a built-in window computer whose output cells are
+// verbatim copies of an input cell (WIN_LAG / WIN_LEAD): ApplyObserved
+// stamps the run's CopyObserver on it before Compute.
+type copyingComputer interface {
+	setCopyObserver(observe CopyObserver)
 }
 
 // windowLabel returns the effective output column name for a window. Mirrors

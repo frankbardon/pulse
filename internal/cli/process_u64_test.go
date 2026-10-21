@@ -18,10 +18,13 @@ import (
 // row cell as its exact integer — 2^53+1 and MaxUint64 keep their own
 // digits — on a single file and on a shard archive, in today's
 // (float64-echo) sort order; `--stream` NDJSON carries the same digits.
+// A WIN_LAG copy of the id prints its source's exact digits (E4-S7).
 func TestAPIProcessCLI_U64RecordRowsExact(t *testing.T) {
 	ids := []uint64{1<<53 - 1, 1<<53 + 1, math.MaxUint64, 7}
 	// Sort id desc over the echo: MaxUint64, 2^53+1, 2^53-1, 7.
 	want := []uint64{math.MaxUint64, 1<<53 + 1, 1<<53 - 1, 7}
+	// WIN_LAG over id ascending, per want row ("" = null).
+	wantPrev := []string{"9007199254740993", "9007199254740991", "7", ""}
 	dir := withTempDataDir(t)
 	write := func(name string, ids []uint64) {
 		t.Helper()
@@ -54,9 +57,13 @@ func TestAPIProcessCLI_U64RecordRowsExact(t *testing.T) {
 	}
 	for _, cohort := range []string{"single.pulse", "archive.pulse"} {
 		b, err := json.Marshal(map[string]any{
-			"cohort":  map[string]any{"filename": filepath.Join(dir, cohort)},
-			"windows": []any{map[string]any{"type": "WIN_ROW_NUMBER", "label": "rn", "order_by": []any{map[string]any{"field": "id"}}}},
-			"sort":    []any{map[string]any{"field": "id", "desc": true}},
+			"cohort": map[string]any{"filename": filepath.Join(dir, cohort)},
+			"windows": []any{
+				map[string]any{"type": "WIN_ROW_NUMBER", "label": "rn", "order_by": []any{map[string]any{"field": "id"}}},
+				// E4-S7: a lag copy of the id renders its source's exact word.
+				map[string]any{"type": "WIN_LAG", "field": "id", "label": "prev", "order_by": []any{map[string]any{"field": "id"}}},
+			},
+			"sort": []any{map[string]any{"field": "id", "desc": true}},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -79,6 +86,9 @@ func TestAPIProcessCLI_U64RecordRowsExact(t *testing.T) {
 				t.Errorf("%s --stream lacks exact id %d:\n%s", cohort, id, stream.String())
 			}
 		}
+		if !bytes.Contains(stream.Bytes(), []byte(`"prev":9007199254740993`)) {
+			t.Errorf("%s --stream lacks the exact lag copy:\n%s", cohort, stream.String())
+		}
 		var env struct {
 			Data struct {
 				Data []map[string]json.Number `json:"data"`
@@ -95,6 +105,9 @@ func TestAPIProcessCLI_U64RecordRowsExact(t *testing.T) {
 		for j, id := range want {
 			if got := env.Data.Data[j]["id"].String(); got != strconv.FormatUint(id, 10) {
 				t.Errorf("%s row %d id = %s, want %d\n%s", cohort, j, got, id, buf.String())
+			}
+			if got := env.Data.Data[j]["prev"].String(); got != wantPrev[j] {
+				t.Errorf("%s row %d prev = %q, want %q\n%s", cohort, j, got, wantPrev[j], buf.String())
 			}
 		}
 	}

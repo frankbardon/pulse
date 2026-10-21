@@ -77,7 +77,8 @@ func rowCell(f *encoding.Field, v any) any {
 //     literal: `date` as YYYY-MM-DD, `datetime` as RFC 3339 UTC (`…Z`),
 //     the spelling Sample, Lookup and export use. No request zone
 //     applies: a record row spells the stored value.
-//   - every u64 schema column becomes its record's exact uint64 word
+//   - every u64 schema column, and every WIN_LAG / WIN_LEAD output
+//     copying one, becomes its record's exact uint64 word
 //     (u64RowWords.render).
 func finalizeRowCells(rows []map[string]any, schema *encoding.Schema, windows []*types.Window, words *u64RowWords) {
 	temporalCols := temporalColumns(schema, windows)
@@ -102,9 +103,73 @@ func finalizeRowCells(rows []map[string]any, schema *encoding.Schema, windows []
 // Request.Sort and post-tests — so 2^53 still ties 2^53+1 in an order
 // and a window computes exactly as before. Request.Sort reorders the row
 // slice, never the maps, so the words are keyed by row map identity.
+//
+// A built-in copy window (WIN_LAG / WIN_LEAD) writing a verbatim copy
+// of a u64 cell — a schema column or an earlier copy's output, so a lag
+// of a lag follows — reports the copy (copyObserver), and the source
+// row's exact word is kept for the output column too (copies), so the
+// copy renders as the word it copied, not its echo.
 type u64RowWords struct {
-	cols  []string
-	words map[uintptr][]uint64
+	cols   []string
+	words  map[uintptr][]uint64
+	copies map[uintptr]map[string]uint64
+}
+
+// rowKey is a row map's identity.
+func rowKey(row map[string]any) uintptr { return reflect.ValueOf(row).Pointer() }
+
+// copyObserver returns the window.CopyObserver that keeps copy-window
+// outputs' exact words, or nil (observe nothing) for a nil table.
+func (w *u64RowWords) copyObserver() window.CopyObserver {
+	if w == nil {
+		return nil
+	}
+	return w.observeCopy
+}
+
+// observeCopy keeps dst's label word: src's exact word for field when
+// src holds one (its cell still that word's echo), else none — an
+// out-of-partition default / null, or a non-u64 source.
+func (w *u64RowWords) observeCopy(dst, src map[string]any, label, field string) {
+	k := rowKey(dst)
+	if src != nil {
+		if word, ok := w.wordOf(src, field); ok {
+			if w.copies == nil {
+				w.copies = map[uintptr]map[string]uint64{}
+			}
+			m := w.copies[k]
+			if m == nil {
+				m = map[string]uint64{}
+				w.copies[k] = m
+			}
+			m[label] = word
+			return
+		}
+	}
+	delete(w.copies[k], label)
+}
+
+// wordOf returns row's exact word for col — a u64 schema column or a
+// copy window's output — when the cell is still that word's echo.
+func (w *u64RowWords) wordOf(row map[string]any, col string) (uint64, bool) {
+	f, ok := row[col].(float64)
+	if !ok {
+		return 0, false
+	}
+	k := rowKey(row)
+	for j, c := range w.cols {
+		if c != col {
+			continue
+		}
+		if words, ok := w.words[k]; ok && f == float64(words[j]) {
+			return words[j], true
+		}
+		return 0, false
+	}
+	if word, ok := w.copies[k][col]; ok && f == float64(word) {
+		return word, true
+	}
+	return 0, false
 }
 
 // newU64RowWords returns the side table for schema's u64 fields, or nil
@@ -137,7 +202,7 @@ func (w *u64RowWords) capture(row map[string]any, rec *Record) {
 		}
 		words[j], _ = rec.Uint64Value(c)
 	}
-	w.words[reflect.ValueOf(row).Pointer()] = words
+	w.words[rowKey(row)] = words
 }
 
 // render swaps each u64 column's float64 echo for its exact word. A
@@ -147,7 +212,13 @@ func (w *u64RowWords) render(row map[string]any) {
 	if w == nil {
 		return
 	}
-	words, ok := w.words[reflect.ValueOf(row).Pointer()]
+	k := rowKey(row)
+	for label, word := range w.copies[k] {
+		if f, ok := row[label].(float64); ok && f == float64(word) {
+			row[label] = word
+		}
+	}
+	words, ok := w.words[k]
 	if !ok {
 		return
 	}
