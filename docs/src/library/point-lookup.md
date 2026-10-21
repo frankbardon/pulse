@@ -149,7 +149,9 @@ same file an anchored build of that shard writes — plus an entry in
 and zip CRC32. Nothing is written inside the zip.
 `BuildIndexResult.ShardIndexPaths` names the files; `IndexPath` is
 the index's logical name (no file lives there) and `Index` is nil; the
-counts are per-shard sums.
+counts (`DistinctKeys`, `IndexedRecords`) are per-shard sums, so a key
+held by two shards counts twice: an exact union count would need every
+key in memory, which the streaming build avoids (a known limit).
 
 `Lookup` against the archive resolves the key literal once against the
 archive's canonical dictionary, probes every shard, and returns the
