@@ -110,6 +110,11 @@ const (
 	// components bucket and the groups[] entry's key: measured 744 B
 	// retained, 1,080 B at the run's peak with no aggregation.
 	bucketOutputBytes = 1024
+	// bucketOutputOffBytes: the same with components off (U51 E5-S7) —
+	// the Data row map and its key column alone: measured 344-416 B
+	// retained up to seven columns (the row map's first group), one to
+	// three groupers (TestGroupMemory_FinalizedRowBytes).
+	bucketOutputOffBytes = 512
 	// aggStateBytes per bucket per unweighted aggregation the built-in
 	// table (aggregatorBytesTable) does not hold — an embedder
 	// extension's: one accumulator, its slot in the bucket and its floor
@@ -250,6 +255,14 @@ type MemoryInputs struct {
 	// weighted one when a weight is in force on the slot — its own, else
 	// the request's, else the instance default; an extension's ceiling).
 	AggStateBytes int64
+	// ComponentsOff reports the request runs with components disabled
+	// (the request's disable_components, else Options.DisableComponents):
+	// a merged bucket's finalize output is then bucketOutputOffBytes +
+	// AggOutputOffBytes, never the components-on figure.
+	ComponentsOff bool
+	// AggOutputOffBytes is, summed over the slots, each slot's
+	// components-off output (AggregationOutputOffBytes).
+	AggOutputOffBytes int64
 	// ExtraGroupers is the groupers past the first (a composite key):
 	// each adds extraGrouperStateBytes to a bucket's state.
 	ExtraGroupers int64
@@ -416,13 +429,19 @@ func EstimateMemory(in MemoryInputs) int64 {
 // this), final adds what finalize writes for a merged bucket (EstimateMemory's
 // bucket terms): state = 256 + 128 x extra groupers + the slots'
 // AggStateBytes + 64 x set members; the output adds 1024 + 576 x aggs
-// + 128 x set members.
+// with components on, 512 + the slots' AggOutputOffBytes with them off
+// (U51 E5-S7), and 128 x set members either way.
 func BucketBytes(in MemoryInputs) (state, final int64) {
 	state = addSat(bucketBaseBytes, mulSat(max(in.ExtraGroupers, 0), extraGrouperStateBytes))
 	state = addSat(state, max(in.AggStateBytes, 0))
 	state = addSat(state, mulSat(in.SetMembers, setMemberStateBytes))
-	final = addSat(state, bucketOutputBytes)
-	final = addSat(final, mulSat(in.Aggregations, aggOutputBytes))
+	if in.ComponentsOff {
+		final = addSat(state, bucketOutputOffBytes)
+		final = addSat(final, max(in.AggOutputOffBytes, 0))
+	} else {
+		final = addSat(state, bucketOutputBytes)
+		final = addSat(final, mulSat(in.Aggregations, aggOutputBytes))
+	}
 	final = addSat(final, mulSat(in.SetMembers, setMemberOutputBytes))
 	return state, final
 }

@@ -333,11 +333,12 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 		return nil, nil, locate(err, "stage", i)
 	}
 	if err := s.limitsPreflight(stage, synthSchema, descx.LimitInputs{
-		Records:        int64(len(records)),
-		JoinRightRows:  -1,
-		Extensions:     s.ExtensionsSnapshot(),
-		FusionDisabled: s.disableCrosstabFusion,
-		DefaultWeight:  s.defaultWeight,
+		Records:           int64(len(records)),
+		JoinRightRows:     -1,
+		Extensions:        s.ExtensionsSnapshot(),
+		FusionDisabled:    s.disableCrosstabFusion,
+		DefaultWeight:     s.defaultWeight,
+		DisableComponents: s.DisableComponents(),
 	}); err != nil {
 		return nil, nil, locate(err, "stage", i)
 	}

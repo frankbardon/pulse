@@ -43,11 +43,12 @@ func BenchmarkRetentionShape(b *testing.B) {
 			svc.SetDecodeWorkers(4)
 			svc.SetDisableComponents(true)
 			if shape == "retention-budget" {
-				// A MaxEstimatedMemory between the one-partial (33.4 GB)
-				// and full-window (39.6 GB) estimates of stage 0: the
-				// merge window shrinks from 8 to 2 (U51 E5-S4 (c)).
+				// A MaxEstimatedMemory between the one-partial (10.55 GB)
+				// and full-window (13.56 GB) estimates of stage 0 (U51
+				// E5-S7; 33.4 / 39.6 GB before): the merge window shrinks
+				// from 8 to 2 (U51 E5-S4 (c)).
 				l := limits.Defaults()
-				l.MaxEstimatedMemory = 35_000_000_000
+				l.MaxEstimatedMemory = 11_200_000_000
 				svc.SetLimits(l)
 			}
 			ctx := context.Background()

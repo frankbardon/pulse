@@ -355,13 +355,13 @@ func TestGroupMemory_VectorBufferedRows(t *testing.T) {
 
 // aggMemoryCharge is the memory model's per-key charge for case c over
 // keys keys: one merged bucket's state and finalize output
-// (limits.BucketBytes), the
+// (limits.BucketBytes — the components-off output when c.off), the
 // vector aggregators' fragments and buffered rows spread over the keys,
 // and every value-state slot's limits.ValueEntryBytes a record. The
 // figures descx.EstimateMemory charges a request of this shape per
 // bucket.
 func aggMemoryCharge(c aggMemoryCase, keys int) (state, final float64) {
-	mi := limits.MemoryInputs{Aggregations: int64(len(c.aggs)), ExtraGroupers: int64(max(c.groupers, 1) - 1)}
+	mi := limits.MemoryInputs{Aggregations: int64(len(c.aggs)), ComponentsOff: c.off, ExtraGroupers: int64(max(c.groupers, 1) - 1)}
 	parts := 1
 	if c.merge {
 		parts = 2
@@ -371,6 +371,7 @@ func aggMemoryCharge(c aggMemoryCase, keys int) (state, final float64) {
 	for _, a := range c.aggs {
 		p := int64(len(a.Fields))
 		mi.AggStateBytes += limits.AggregationStateBytes(a.Type, c.weighted, p)
+		mi.AggOutputOffBytes += limits.AggregationOutputOffBytes(a.Type, p)
 		if a.Type == types.AGG_SET_FREQUENCY {
 			mi.SetMembers += 4
 		}
@@ -404,10 +405,11 @@ func retentionStageAggregations() []*types.Aggregation {
 
 // TestGroupMemory_FinalizedRowBytes (U51 E5-S7) is the calibration gate
 // for a merged bucket's whole charge — its state plus the finalize
-// output it adds (limits.BucketBytes). Measured as the live heap a key
-// holds once the merged state is finalized (state and response both
-// alive, as at the run's peak), it must not exceed aggMemoryCharge,
-// components on and off: for every streaming built-in alone (weighted and not), for
+// output it adds, the components-on figure or, with components off, the
+// row alone (limits.BucketBytes). Measured as the live heap a key holds
+// once the merged state is finalized (state and response both alive, as
+// at the run's peak), it must not exceed aggMemoryCharge, components on
+// and off: for every streaming built-in alone (weighted and not), for
 // AGG_MAX columns just below and just past each growth point of the Data
 // row map (8, 14, 28, 56, 112 entries) under one and three groupers, for
 // the retention stage's 15 slots and for every streaming built-in in one

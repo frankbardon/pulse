@@ -261,7 +261,7 @@ func TestGroupMemory_ManyShardsWorkerInvariant(t *testing.T) {
 
 // TestGroupMemory_EstimateBoundsPeak (U51 E2-S4, FR-26): on a
 // high-cardinality grouped run — 50,000 one-row groups, the gated
-// request, components on — MaxEstimatedMemory's estimate (the
+// request, components on and (U51 E5-S7) off — MaxEstimatedMemory's estimate (the
 // pre-flight's own figure, read back as a refusal's observed) bounds
 // the measured peak heap of the whole Process (accumulation AND the
 // finalize output: Data rows and per-group Components), unweighted and
@@ -301,10 +301,12 @@ func TestGroupMemory_EstimateBoundsPeak(t *testing.T) {
 		r.Cohort = &types.Cohort{Filename: "g.pulse"}
 		return r
 	}
-	// maxFactor re-pinned at U51 E5-S7 (per-aggregator state):
-	// components on measures 1.46 unweighted and 1.32 weighted (AGG_SUM /
-	// AGG_AVERAGE weighted entries are 576 B, the old flat 512 under
-	// them), so 2.0.
+	// maxFactor re-pinned at U51 E5-S7 (per-aggregator state, the
+	// components-off output): components on measures 1.46 unweighted and
+	// 1.32 weighted (AGG_SUM / AGG_AVERAGE weighted entries are 576 B, the
+	// old flat 512 under them), so 2.0; components off 2.47 / 2.05 — the
+	// 16 MiB run base is a fifth of a 35 MB peak's estimate (the bucket
+	// terms alone are 2.0x) — so 3.0.
 	for _, c := range []struct {
 		name      string
 		weight    *types.WeightSpec
@@ -312,6 +314,8 @@ func TestGroupMemory_EstimateBoundsPeak(t *testing.T) {
 		maxFactor float64
 	}{
 		{"unweighted", nil, false, 2.0}, {"weighted", &types.WeightSpec{Field: "y"}, false, 2.0},
+		// Components off (U51 E5-S7): the output term is the row alone.
+		{"unweighted components off", nil, true, 3.0}, {"weighted components off", &types.WeightSpec{Field: "y"}, true, 3.0},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			svc := New(cfg)

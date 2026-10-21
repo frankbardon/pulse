@@ -509,3 +509,62 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 		})
 	}
 }
+
+// TestMaxEstimatedMemory_ChainStageComponentsOff (U51 E5-S7): a chain
+// stage after the first is judged under the instance's components
+// default too — with Options.DisableComponents the stage's pre-flight
+// charges the components-off output, exactly descx.EstimateMemory's
+// figure on the stage's input rows.
+func TestMaxEstimatedMemory_ChainStageComponentsOff(t *testing.T) {
+	mem := afero.NewMemMapFs()
+	makeSyntheticCohort(t, mem, "bench.pulse")
+	cfg, err := fs.New(fs.WithFs(mem))
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain := func() *types.ChainRequest {
+		return &types.ChainRequest{Cohort: &types.Cohort{Filename: "bench.pulse"}, Stages: []*types.ChainStage{
+			{Name: "by_cat", Request: &types.Request{Cohort: &types.Cohort{Filename: "bench.pulse"},
+				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat0"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "a", Label: "s"}}}},
+			{Name: "by_range", Request: &types.Request{
+				Groups: []*types.Group{{Type: types.GROUP_RANGE, Field: "s", Interval: 1}},
+				Aggregations: []*types.Aggregation{
+					{Type: types.AGG_SUM, Field: "s", Label: "t"},
+					{Type: types.AGG_MAX, Field: "s", Label: "x"},
+				}}},
+		}}
+	}
+	// stage1Observed is stage 1's refused estimate: a budget just under
+	// it admits stage 0 (16 rows) and refuses stage 1.
+	stage1Observed := func(off bool) int64 {
+		t.Helper()
+		svc := New(cfg)
+		svc.SetDisableComponents(off)
+		var last int64
+		for budget := int64(1); ; {
+			l := limits.Defaults()
+			l.MaxEstimatedMemory = budget
+			svc.SetLimits(l)
+			_, err := svc.ProcessChain(context.Background(), chain())
+			var ce *errors.CodedError
+			if !stderrors.As(err, &ce) {
+				t.Fatalf("off=%v budget %d: %v", off, budget, err)
+			}
+			obs := ce.Details["observed"].(int64)
+			if ce.Details["stage"] == 1 {
+				return obs
+			}
+			if obs == last {
+				t.Fatalf("off=%v: stage 0 refused at its own estimate %d", off, obs)
+			}
+			last, budget = obs, obs
+		}
+	}
+	on, off := stage1Observed(false), stage1Observed(true)
+	// Stage 1 runs over stage 0's 16 rows: 16 buckets of two slots, each
+	// charged 1024 + 2 x 576 on and 512 + 2 x 96 off.
+	if d, want := on-off, int64(16*((1024+2*576)-(512+2*96))); d != want {
+		t.Fatalf("components off lowers stage 1's estimate by %d, want %d (16 buckets' components share)", d, want)
+	}
+}

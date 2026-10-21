@@ -647,3 +647,84 @@ func TestLimits_ValueWidthBoundCoversEveryKey(t *testing.T) {
 		}
 	}
 }
+
+// TestLimits_MaxEstimatedMemory_ComponentsPredictMatchesRuntime (U51
+// E5-S7): the memory estimate charges a components-off run the
+// components-off finalize output, and predict and the pre-flight
+// resolve the flag the same way — the request's disable_components when
+// set, else Options.DisableComponents (the runtime's components gate):
+// on every combination predict's estimate is the figure the run is
+// refused with, and the off figure is below the on one.
+func TestLimits_MaxEstimatedMemory_ComponentsPredictMatchesRuntime(t *testing.T) {
+	ctx := context.Background()
+	fs := afero.NewMemMapFs()
+	var b strings.Builder
+	b.WriteString("g,x\n")
+	for r := range 2_000 {
+		fmt.Fprintf(&b, "%d,%d.5\n", r, r%11)
+	}
+	if err := afero.WriteFile(fs, "c.csv", []byte(b.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	importer, err := pulse.New(pulse.Options{FS: fs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	imp, err := importer.ImportFile(ctx, pulse.ImportSpec{SourcePath: "c.csv"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := func(disable *bool) *types.Request {
+		return &types.Request{Cohort: &types.Cohort{Filename: imp.Path}, DisableComponents: disable,
+			Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "g"}},
+			Aggregations: []*types.Aggregation{
+				{Type: types.AGG_SUM, Field: "x", Label: "s"},
+				{Type: types.AGG_MAX, Field: "x", Label: "m"},
+			}}
+	}
+	yes, no := true, false
+	estimates := map[bool][]int64{}
+	for _, c := range []struct {
+		name      string
+		engineOff bool
+		disable   *bool
+		off       bool
+	}{
+		{"engine on", false, nil, false},
+		{"engine off", true, nil, true},
+		{"request off", false, &yes, true},
+		{"request on over engine off", true, &no, false},
+		{"request off over engine off", true, &yes, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			p, err := pulse.New(pulse.Options{FS: fs, DisableComponents: c.engineOff, Limits: pulse.Limits{MaxEstimatedMemory: 1}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := p.Predict(ctx, req(c.disable))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(res.LimitFindings) != 1 {
+				t.Fatalf("findings = %+v", res.LimitFindings)
+			}
+			est := res.LimitFindings[0].Estimated
+			_, perr := p.Process(ctx, req(c.disable))
+			d := requireLimitExceeded(t, perr, "max_estimated_memory", 1, "Options.Limits.MaxEstimatedMemory")
+			if d["observed"] != est {
+				t.Fatalf("runtime observed %v, predict estimated %d", d["observed"], est)
+			}
+			estimates[c.off] = append(estimates[c.off], est)
+		})
+	}
+	for off, es := range estimates {
+		for _, e := range es[1:] {
+			if e != es[0] {
+				t.Errorf("components off=%v: estimates %v differ", off, es)
+			}
+		}
+	}
+	if len(estimates[true]) == 0 || len(estimates[false]) == 0 || estimates[true][0] >= estimates[false][0] {
+		t.Errorf("components-off estimate %v not below the components-on %v", estimates[true], estimates[false])
+	}
+}

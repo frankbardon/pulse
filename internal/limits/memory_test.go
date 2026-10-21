@@ -172,6 +172,11 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 		// in place of the unweighted state; the output is the same.
 		{"weighted grouped", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 16, Aggregations: 3, AggStateBytes: aggStateBytes + 2*weightedAggStateBytes, PartitionBuckets: 5},
 			payload + 16*(bucket(3)+2*(weightedAggStateBytes-aggStateBytes)) + 5*(state(3)+2*(weightedAggStateBytes-aggStateBytes))},
+		// Components off (U51 E5-S7): a merged bucket's output is the
+		// row alone — 512 + each slot's off column — never 1024 + 576 a
+		// slot; a partition's state is unchanged.
+		{"components off", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 16, Aggregations: 2, ComponentsOff: true, AggOutputOffBytes: 2 * aggOutputOffBytes, PartitionBuckets: 5},
+			payload + 16*(state(2)+bucketOutputOffBytes+2*aggOutputOffBytes) + 5*state(2)},
 		// Two more groupers: a composite key's longer string and tuple
 		// in every bucket's state.
 		{"extra groupers", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 16, Aggregations: 1, ExtraGroupers: 2, PartitionBuckets: 5},

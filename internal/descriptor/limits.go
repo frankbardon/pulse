@@ -79,6 +79,12 @@ type LimitInputs struct {
 	// own on a request with none runs weighted under it, and a weighted
 	// slot's bucket state is charged as such (EstimateMemory).
 	DefaultWeight *types.WeightSpec
+	// DisableComponents is the instance's components default
+	// (Options.DisableComponents): resolved with the request's
+	// disable_components by EffectiveDisableComponents — the runtime's
+	// components gate — a run with components off is charged the
+	// components-off finalize output (U51 E5-S7).
+	DisableComponents bool
 }
 
 // RequestLimitFindings is the one predict-time limit rule for a single
@@ -425,6 +431,7 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 		aggs = append(append([]*types.Aggregation(nil), aggs...), req.Crosstab.MarginAggregations...)
 	}
 	mi.Aggregations = int64(len(aggs))
+	mi.ComponentsOff = EffectiveDisableComponents(req, in.DisableComponents)
 	mi.ExtraGroupers = int64(max(len(req.Groups)-1, 0))
 	mi.FanOut = requestFanOut(req, schema)
 	var vecInputs map[*types.Aggregation]vectors.AggregationInput
@@ -448,6 +455,7 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 			mi.VectorBytes = addSaturating(mi.VectorBytes, limits.VectorAggregationBytes(a.Type, members, fragments, buffered))
 		}
 		mi.AggStateBytes = addSaturating(mi.AggStateBytes, limits.AggregationStateBytes(a.Type, weightInForce(req, a, in.DefaultWeight), members))
+		mi.AggOutputOffBytes = addSaturating(mi.AggOutputOffBytes, limits.AggregationOutputOffBytes(a.Type, members))
 		mi.SetMembers = addSaturating(mi.SetMembers, setMembers(a, schema))
 	}
 	mi.DerivedColumns = int64(len(req.Attributes) + len(req.Features) + len(req.Windows))
@@ -1256,6 +1264,9 @@ func requestFindings(req *types.Request, schema *encoding.Schema, opts *PredictO
 		Extensions:     opts.Extensions,
 		FusionDisabled: opts.DisableCrosstabFusion,
 		DefaultWeight:  opts.DefaultWeight,
+		// pulse.Options.DisableComponents: resolved per request with its
+		// disable_components, as the runtime's components gate is.
+		DisableComponents: opts.DisableComponents,
 	}
 	// The mmap probe runs only when it can change the answer: a memory
 	// limit set, a single file at or past the threshold, decode not

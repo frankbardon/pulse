@@ -624,6 +624,58 @@ func TestEstimateMemory_ValueWidthBound(t *testing.T) {
 	}
 }
 
+// TestEstimateMemory_ComponentsOffOutput (U51 E5-S7): a run with
+// components off is charged the components-off finalize output — the
+// row alone, 512 + each slot's off column — in place of 1024 + 576 a
+// slot, per merged bucket. The flag resolves exactly as the runtime's
+// components gate does (EffectiveDisableComponents): the request's
+// disable_components when set, else the instance default
+// LimitInputs.DisableComponents. A partition's state is unchanged.
+func TestEstimateMemory_ComponentsOffOutput(t *testing.T) {
+	schema := groupsSchema(t)
+	req := func(disable *bool) *types.Request {
+		return &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}}, // 5 buckets
+			Aggregations: sumOf("num"), DisableComponents: disable}
+	}
+	est := func(r *types.Request, engineOff bool) int64 {
+		t.Helper()
+		in := memIn(1000)
+		in.DisableComponents = engineOff
+		n, ok := EstimateMemory(r, schema, nil, in)
+		if !ok {
+			t.Fatal("no estimate")
+		}
+		return n
+	}
+	_, on := limits.BucketBytes(limits.MemoryInputs{Aggregations: 1, AggStateBytes: limits.AggregationStateBytes(types.AGG_SUM, false, 0)})
+	_, off := limits.BucketBytes(limits.MemoryInputs{Aggregations: 1, AggStateBytes: limits.AggregationStateBytes(types.AGG_SUM, false, 0),
+		ComponentsOff: true, AggOutputOffBytes: limits.AggregationOutputOffBytes(types.AGG_SUM, 0)})
+	if on-off != (1024+576)-(512+96) {
+		t.Fatalf("a bucket's components share is %d, want %d", on-off, (1024+576)-(512+96))
+	}
+	yes, no := true, false
+	want := est(req(nil), false) - 5*(on-off)
+	for _, c := range []struct {
+		name      string
+		disable   *bool
+		engineOff bool
+		off       bool
+	}{
+		{"engine on", nil, false, false},
+		{"engine off", nil, true, true},
+		{"request off", &yes, false, true},
+		{"request on over engine off", &no, true, false},
+	} {
+		got := est(req(c.disable), c.engineOff)
+		if c.off && got != want {
+			t.Errorf("%s: estimate %d, want the components-off %d", c.name, got, want)
+		}
+		if !c.off && got != want+5*(on-off) {
+			t.Errorf("%s: estimate %d, want the components-on %d", c.name, got, want+5*(on-off))
+		}
+	}
+}
+
 // TestEstimateMemory_VectorAggregationTerms (U51 E5-S7): a vector
 // aggregator slot is charged its fixed state per bucket (its table entry
 // plus a member slope) and, once per run, a fragment per merge block it

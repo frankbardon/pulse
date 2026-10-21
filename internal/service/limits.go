@@ -49,6 +49,10 @@ func (s *Service) limitInputs(ctx context.Context, cohort *Cohort, path string) 
 		ShardWorkers:   s.shardWorkers,
 		DecodeWorkers:  s.decodeWorkers,
 		DefaultWeight:  s.defaultWeight,
+		// The components gate's engine half: estimateMemory resolves it
+		// with the request's disable_components (componentsGateClosed's
+		// rule), so the pre-flight charges the output the run builds.
+		DisableComponents: s.DisableComponents(),
 	}
 	if !s.memoryBounded() {
 		return in, nil
