@@ -189,8 +189,15 @@ func TestTotalsPrepassRequest(t *testing.T) {
 		Matrices:     []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: []string{"x", "y"}}},
 	}
 	got := TotalsPrepassRequest(req, nil)
-	if len(got.Attributes) != 2 || got.Attributes[0] != attrs[0] || got.Attributes[1] != attrs[1] {
+	if len(got.Attributes) != 2 || got.Attributes[0] != attrs[0] || got.Attributes[1].Label != "share" {
 		t.Fatalf("attributes = %v, want third + share", got.Attributes)
+	}
+	// The total() formula projects as its arguments only.
+	if e := got.Attributes[1].Expression; e != "[third, y * 0.7]" {
+		t.Fatalf("pre-pass share expression = %q, want its total() arguments", e)
+	}
+	if attrs[1].Expression == got.Attributes[1].Expression {
+		t.Fatal("the caller's attribute was mutated")
 	}
 	if got.Aggregations != nil || got.Matrices != nil || got.Groups != nil || len(got.Filterers) != 1 {
 		t.Fatalf("pre-pass request = %+v", got)

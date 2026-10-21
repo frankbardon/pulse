@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/frankbardon/pulse/encoding"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
 	"github.com/frankbardon/pulse/types"
@@ -20,6 +21,11 @@ import (
 // The pre-pass decode is projected to the pre-pass request
 // (processing.TotalsPrepassRequest: the filters and the total()
 // argument fields).
+
+// prepassProjectionHook, when set (tests only — never in production),
+// receives each phase-1 pre-pass's decode shape as the arm installs
+// it: the retained-field filter (nil: full decode) and its count.
+var prepassProjectionHook func(keep encx.FieldFilter, projected int)
 
 // newPrepassWorker builds one pre-pass worker's operators: its
 // accumulator, its filter chain and scratch filter counters (the
@@ -81,6 +87,9 @@ func publishPrepass(workers []*prepassWorker) (*processing.PublishedTotals, erro
 // their own accumulator.
 func (s *Service) shardTotalsPrepass(ctx context.Context, req *types.Request, schema *encoding.Schema, arch *archiveFile, shards []ShardEntry, workers int) (*processing.PublishedTotals, error) {
 	dec := s.shardDecodeFor(ctx, processing.TotalsPrepassRequest(req, s.extensions), schema)
+	if prepassProjectionHook != nil {
+		prepassProjectionHook(dec.keep, dec.projected)
+	}
 	jobs := make(chan int, len(shards))
 	for i := range shards {
 		jobs <- i
@@ -149,6 +158,9 @@ func (s *Service) prepassShard(ctx context.Context, schema *encoding.Schema, dec
 // the pre-pass projection.
 func (s *Service) decodeTotalsPrepass(ctx context.Context, req *types.Request, schema *encoding.Schema, pctx *parallelDecodeContext, workers int) (*processing.PublishedTotals, error) {
 	keep, plan, projected := s.decodeProjection(ctx, processing.TotalsPrepassRequest(req, s.extensions), schema)
+	if prepassProjectionHook != nil {
+		prepassProjectionHook(keep, projected)
+	}
 	pre := *pctx
 	pre.keep, pre.plan = keep, plan
 	pre.projectMapHint = len(schema.Fields)

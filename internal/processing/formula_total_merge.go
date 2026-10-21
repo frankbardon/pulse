@@ -2,11 +2,13 @@ package processing
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/reprosum"
+	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -305,9 +307,12 @@ func (p *PublishedTotals) Bind(i int, computer AttributeComputer) error {
 // TotalsPrepassRequest is req narrowed to what the parallel total()
 // pre-pass reads — its filters, weights, zones and vectors, and only
 // the attributes the pre-pass evaluates (the layer-0 stages a total()
-// argument reads, then the total-bearing formulas; declared order) —
-// so the reducers project the pre-pass decode to the filter and
-// total() argument fields (Service.decodeProjection over it).
+// argument reads, then each total-bearing formula reduced to its
+// total() arguments, totalArgumentsOnly; declared order) — so the
+// reducers project the pre-pass decode to the filter and total()
+// argument fields (Service.decodeProjection over it). The narrowed
+// request is a PROJECTION input only: the pre-pass itself runs the
+// request's own attributes (NewTotalsPrepass).
 // Aggregations, groups and matrices are dropped: phase 1 folds none of
 // them. A plan with other than one layer returns req itself (the full
 // projection: correct, only wider; NewTotalsPrepass refuses it).
@@ -325,7 +330,7 @@ func TotalsPrepassRequest(req *types.Request, exts *ExtensionRegistry) *types.Re
 			continue
 		}
 		if plan.twoPass[i] {
-			attrs = append(attrs, a)
+			attrs = append(attrs, totalArgumentsOnly(a))
 		}
 	}
 	out := *req
@@ -333,5 +338,16 @@ func TotalsPrepassRequest(req *types.Request, exts *ExtensionRegistry) *types.Re
 	out.Aggregations = nil
 	out.Matrices = nil
 	out.Groups = nil
+	return &out
+}
+
+// totalArgumentsOnly is a copy of a total-bearing formula whose
+// expression lists only its distinct total() arguments ("[a1, a2]") —
+// what its PrePass evaluates — so the projection keeps the argument
+// fields (and the slot's weight / zone fields, which the copy keeps)
+// and not the fields only the formula's row expression reads.
+func totalArgumentsOnly(a *types.Attribute) *types.Attribute {
+	out := *a
+	out.Expression = "[" + strings.Join(totalcall.Args(a.Expression), ", ") + "]"
 	return &out
 }
