@@ -302,7 +302,7 @@ func TestExactU64_FilterToFileRecord(t *testing.T) {
 			t.Fatal(err)
 		}
 		var out bytes.Buffer
-		n, err := svc.streamFilterRecords(context.Background(), data, at, schema, filter, keep, &out)
+		n, err := svc.streamFilterRecords(context.Background(), at, schema, filter, keep, &out)
 		if err != nil {
 			t.Fatal(err)
 		}

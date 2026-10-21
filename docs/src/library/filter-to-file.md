@@ -243,6 +243,18 @@ Combined with the `Watch` API's rename coalescing, downstream
 observers see a single `ChangeCreated` or `ChangeRenamed` event for
 the completed file — no spurious intermediate states.
 
+The write itself is atomic on every entry point, including the
+explicit-path `FilterToFile`, `FilterToFileBySetAndExpr` and
+`FilterToFileWithOptions`. A single-file or `archive#shard` source is
+streamed: rows flow from the input through a fixed copy window into a
+stage beside the output, `<dst>.pulse.tmp-staged`, which is fsynced and
+renamed over `dst`. Memory does not grow with the row count. A failed
+run leaves an existing `dst` byte-identical (an absent one stays
+absent) and removes the stage. Opening a stage first sweeps every
+`<dst>.pulse.tmp-*` an earlier crash left. The output is the source's
+header and schema bytes verbatim, then every kept row's bytes in
+source order; a truncated trailing record is dropped.
+
 The only call that replaces an existing output is a re-run of a
 predicate running embedder code. When the replaced output had a
 point-lookup index or an SPSS metadata sidecar, `InvalidatedSidecars`
