@@ -16,7 +16,8 @@ adapter over it.
 
 - **Library-first.** The `pulse.go` facade (`pulse.New`, `pulse.Options` and
   the methods on `*pulse.Pulse` — `Process`, `Compose`, `Import`, `Export`,
-  `Convert`, `Inspect`, `InspectBytes`, `Predict`, `PredictBytes`, `Sample`,
+  `Convert`, `Inspect`, `InspectBytes`, `Predict`, `PredictEnvelope`,
+  `PredictBytes`, `Sample`,
   `Facet`, `CohortArtifacts`, …) is the public API. The CLI calls the
   library; it never contains business logic.
 - **A deliberate public surface.** Only the root package and a small set of

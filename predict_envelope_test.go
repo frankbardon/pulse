@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/afero"
 
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/types"
 )
@@ -328,4 +329,47 @@ func TestPredictEnvelope_ReadFailuresAreErrors(t *testing.T) {
 	if _, err := p.PredictEnvelope(cctx, &types.Request{Cohort: &types.Cohort{Filename: "single.pulse"}}); err == nil {
 		t.Error("cancelled ctx: want an error")
 	}
+}
+
+// TestPredictEnvelope_CarriesSidecarFacts: over an SPSS-imported cohort
+// PredictEnvelope's verdict carries the sidecar-fed advisories (and
+// suggested weight) Predict reports — the path read keeps Predict's
+// sidecar facts, which the byte-level PredictBytes never has.
+func TestPredictEnvelope_CarriesSidecarFacts(t *testing.T) {
+	p := importSav(t, afero.NewMemMapFs(), measuredSavSpec(), Options{})
+	ctx := context.Background()
+	want, err := p.Predict(ctx, measuredRequest(nil))
+	if err != nil {
+		t.Fatalf("Predict: %v", err)
+	}
+	env, err := p.PredictEnvelope(ctx, measuredRequest(nil))
+	if err != nil {
+		t.Fatalf("PredictEnvelope: %v", err)
+	}
+	got, ok := env.Data.(*descriptor.PredictResult)
+	if !ok {
+		t.Fatalf("Data is %T", env.Data)
+	}
+	if !envelopeHasAdvisory(got, advWeight) {
+		t.Fatalf("PredictEnvelope advisories = %+v; want the sidecar weight advisory %s", got.Advisories, advWeight)
+	}
+	gotJSON, _ := json.Marshal(got.Advisories)
+	wantJSON, _ := json.Marshal(want.Advisories)
+	if !bytes.Equal(gotJSON, wantJSON) {
+		t.Errorf("advisories differ from Predict\n got: %s\nwant: %s", gotJSON, wantJSON)
+	}
+	gotW, _ := json.Marshal(got.SuggestedWeight)
+	wantW, _ := json.Marshal(want.SuggestedWeight)
+	if !bytes.Equal(gotW, wantW) {
+		t.Errorf("suggested weight differs from Predict: got %s want %s", gotW, wantW)
+	}
+}
+
+func envelopeHasAdvisory(r *descriptor.PredictResult, code string) bool {
+	for _, a := range r.Advisories {
+		if a.Code == code {
+			return true
+		}
+	}
+	return false
 }
