@@ -122,7 +122,9 @@ func (r *LookupRequest) KeyComponents() []LookupKey {
 type LookupResult struct {
 	// Rows carries the matched row(s), each resolved via
 	// Record.AllValues() and projected down to LookupRequest.ReturnColumns
-	// (or every schema field when ReturnColumns is empty). Exactly one
+	// (or every schema field when ReturnColumns is empty). A u64 cell is
+	// the exact stored value as a Go uint64 (JSON: the exact integer);
+	// other numeric cells are float64. Exactly one
 	// entry under LookupMultiplicityAssertUnique (the default) or
 	// LookupMultiplicityFirst; 1..N entries, ascending row-id order,
 	// under LookupMultiplicityAll.

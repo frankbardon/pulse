@@ -27,7 +27,8 @@ import (
 //     WIN_LEAD); finalizeRowCells turns it into the string at the end,
 //     and spells every date / datetime column as its calendar literal;
 //   - Sample and Lookup, which do not order, render straight through
-//     RenderRecordCells.
+//     RenderRecordCells — which also spells a u64 cell as its exact
+//     uint64 word (record rows still carry the float64 echo).
 
 // decimalCell is a record-row decimal128 cell with its column scale.
 type decimalCell struct {
@@ -119,9 +120,12 @@ func temporalColumns(schema *encoding.Schema, windows []*types.Window) map[strin
 // receives (Sample, Lookup): AllValues with every decimal128 cell
 // rendered as its decimal string at the column scale, every `date`
 // cell as its calendar day (YYYY-MM-DD) and every `datetime` cell as
-// RFC 3339 UTC (`…Z`) — the text export writes. No request zone
-// applies: a raw row spells the stored value. The returned map is the
-// caller's to keep; AllValues' cached map is never mutated.
+// RFC 3339 UTC (`…Z`) — the text export writes — and every `u64` cell
+// as the record's EXACT stored word (Go uint64, Record.Uint64Value), so
+// a value at or above 2^53 prints its own digits instead of its float64
+// echo's; below 2^53 the JSON digits are the ones the echo printed. No
+// request zone applies: a raw row spells the stored value. The returned
+// map is the caller's to keep; AllValues' cached map is never mutated.
 func RenderRecordCells(rec *Record) map[string]any {
 	src := rec.AllValues()
 	out := make(map[string]any, len(src))
@@ -130,7 +134,14 @@ func RenderRecordCells(rec *Record) map[string]any {
 			out[k] = rowCell(rec.fieldNamed(k), d).(decimalCell).String()
 			continue
 		}
-		out[k] = temporalCell(rec.fieldNamed(k), v)
+		f := rec.fieldNamed(k)
+		if f != nil && f.Type == encoding.FieldTypeU64 {
+			if u, ok := rec.Uint64Value(k); ok {
+				out[k] = u
+				continue
+			}
+		}
+		out[k] = temporalCell(f, v)
 	}
 	return out
 }

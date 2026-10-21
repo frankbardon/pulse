@@ -14,6 +14,8 @@ Fixed-width: 8 bytes per record, little-endian. Not bit-packed. Stride contribut
 
 `0..2^64 − 1`. The canonical home for sub-day timestamps stored as microseconds (or nanoseconds) since epoch — Pulse has no native sub-day temporal type, so the convention is `u64` micros. Also fits very wide surrogate keys and hash-derived identifiers.
 
+Exact where identity matters: index keys, join `ON` keys and rendered rows (point-lookup and sample rows: Go `uint64`, JSON the exact integer) use the stored word. Arithmetic reads a `float64` echo, exact only below 2^53.
+
 ## Null
 
 Orthogonal. `Nullable: true` participates in the per-record null bitmap. `0` is the integer zero, never a sentinel. `IsNumeric()` and `IsNumericForAnalytics()` are both `true`; null-skip semantics apply.

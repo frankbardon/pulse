@@ -25,7 +25,7 @@ O(1) row addressing, not a scan — needs a sidecar index already built (`pulse 
 
 ## Output
 
-`types.LookupResult`: `rows` — matched row(s), field→value maps projected per `return_columns`, cells rendered as [`tool-sample`](tool-sample.md)'s (`date` `YYYY-MM-DD`, `datetime` RFC 3339 UTC `…Z`, `decimal128` a string); `warnings` — reserved, empty in v1.
+`types.LookupResult`: `rows` — matched row(s), field→value maps projected per `return_columns`, cells rendered as [`tool-sample`](tool-sample.md)'s (`date` `YYYY-MM-DD`, `datetime` RFC 3339 UTC `…Z`, `decimal128` a string, `u64` the exact integer even above 2^53); `warnings` — reserved, empty in v1.
 
 ## Gotchas
 

@@ -179,7 +179,10 @@ shards unchanged, so their sidecars stay valid.
 
 A `u64` key is exact: ids above 2^53 that share one `float64` are
 distinct keys. An index built by an earlier release over such ids
-merged them — rebuild it.
+merged them — rebuild it. A `u64` cell in `LookupResult.Rows` (and in
+`Sample` rows) is the exact stored value as a Go `uint64`, and JSON
+prints the exact integer — `18446744073709551615`, not its `float64`
+neighbour. Below 2^53 the JSON is unchanged.
 
 ## Index lifecycle
 
