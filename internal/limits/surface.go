@@ -131,7 +131,7 @@ func Digest(l Limits) string {
 	for _, f := range fields {
 		b.WriteString(string(f.name))
 		b.WriteByte('=')
-		b.WriteString(strconv.FormatInt(f.get(&l), 10))
+		b.WriteString(strconv.FormatInt(l.value(f.name), 10))
 		b.WriteByte('\n')
 	}
 	sum := sha256.Sum256([]byte(b.String()))

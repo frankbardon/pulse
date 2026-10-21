@@ -593,10 +593,16 @@ func TestHookPanicRecovered(t *testing.T) {
 // predict that carries an aggregation — so the pin no longer grows with
 // each registered aggregator (a slot pays one Keys clone for its
 // result).
+//
+// Re-pinned by archive-scale E5-S5 (branch archive-scale, on decc2569 +
+// the change, go1.27, arm64): process 161 → 160 and predict 150 → 149.
+// internal/limits reads a limit through a direct switch instead of a
+// func-table accessor, so the Limits value a limit check is handed no
+// longer escapes to the heap (one allocation per check fewer).
 var obsOffAllocBaseline = map[string]float64{
-	"process":       161,
+	"process":       160,
 	"count_records": 45,
-	"predict":       150,
+	"predict":       149,
 	"inspect":       65,
 }
 
