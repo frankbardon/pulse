@@ -10351,7 +10351,7 @@
         ]
       }
     ],
-    "error_codes_count": 401,
+    "error_codes_count": 402,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10636,6 +10636,7 @@
       "PULSE_SHARD_DICT_WIDTH_OVERFLOW",
       "PULSE_SHARD_GROUPS_REWRITTEN",
       "PULSE_SHARD_HEADER_INVALID",
+      "PULSE_SHARD_INDEXES_UPDATED",
       "PULSE_SHARD_MISSING",
       "PULSE_SHARD_NAME_COLLISION",
       "PULSE_SHARD_RESERVED_NAME",
@@ -19454,4 +19455,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1946b475a484756d611d761caf21cefb332716579c6038d0a68128e566190f59
+// golden-hash: a90579c00441b3f19f403ab80f5fefe437b0027afbed23d66e4497adcf51150f

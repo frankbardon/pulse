@@ -1333,6 +1333,17 @@ const (
 	// stored truncated. details: archive, shard_count, limit.
 	PULSE_SHARD_COUNT_LIMIT Code = "PULSE_SHARD_COUNT_LIMIT"
 
+	// PULSE_SHARD_INDEXES_UPDATED is emitted as a WARNING (not an error)
+	// when `pulse shard add` / `shard remove` keeps the archive's
+	// point-lookup indexes in step: an add builds the new shard's sidecar
+	// for every archive index, a remove deletes the removed shard's, and
+	// both update the index manifest's shard coverage. Mandatory for the
+	// reason PULSE_SHARD_SET_WIDENED is: a mutation that rewrites files
+	// beside the archive must never do so silently. details: archive,
+	// shard, action ("added" | "removed"), indexes [{keys, index_path,
+	// shard_index_path}].
+	PULSE_SHARD_INDEXES_UPDATED Code = "PULSE_SHARD_INDEXES_UPDATED"
+
 	// PULSE_CHAIN_NOT_MERGEABLE indicates a stage inside a
 	// ProcessChain request fails the chain gate. The gate accepts
 	// mergeable requests (internal/mergegate.MergeRefusal, the rule
@@ -2372,6 +2383,10 @@ const (
 	// archive's manifest entry, or present with another size or
 	// central-directory CRC32 — and details.shards_uncovered names those
 	// shards in archive order: a lookup never silently skips a shard.
+	// `shard add` / `shard remove` also emit it as a WARNING when
+	// publishing their index upkeep fails after the archive rename
+	// (details.reason index_upkeep_publish_failed): the mutation stands
+	// and the index no longer covers the archive.
 	PULSE_INDEX_STALE Code = "PULSE_INDEX_STALE"
 
 	// PULSE_INDEX_UNSUPPORTED_SHARDED is NO LONGER RAISED. It refused
@@ -4210,6 +4225,7 @@ var allCodes = []Code{
 	PULSE_SHARD_RESERVED_NAME,
 	PULSE_SHARD_NAME_COLLISION,
 	PULSE_SHARD_COUNT_LIMIT,
+	PULSE_SHARD_INDEXES_UPDATED,
 	PULSE_CHAIN_NOT_MERGEABLE,
 	PULSE_CHAIN_EMPTY,
 	PULSE_CHAIN_STAGE_JOIN,

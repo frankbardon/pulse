@@ -119,6 +119,7 @@ var (
 	_ pulse.SetWidening
 	_ pulse.CreateShardArchiveResult
 	_ pulse.AddShardResult
+	_ pulse.RemoveShardResult
 	_ pulse.GroupReconciliation
 	_ pulse.VerifyResult
 	_ pulse.ShardEntry

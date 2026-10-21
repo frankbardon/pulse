@@ -48,6 +48,15 @@ import (
 // would open, and decode every post-widen field at the wrong offset).
 // True in-place tail append is not done: it would give up exactly that
 // guarantee.
+//
+// Point-lookup indexes (index_upkeep.go): an ordinary add builds the new
+// shard's sidecar for every archive index and the updated index
+// manifest BEFORE the archive is published — any failure aborts the
+// whole add with the archive, every sidecar and the manifest untouched
+// — then renames the archive, the sidecars and the manifest, in that
+// order, with the mandatory PULSE_SHARD_INDEXES_UPDATED warning. An add
+// that re-encodes the stored shards keeps nothing and reports the
+// sidecars it invalidated (AddShardResult.InvalidatedSidecars).
 func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (*AddShardResult, error) {
 	fsys := s.fs.Fs()
 
@@ -83,6 +92,14 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 
 	result := &AddShardResult{Archive: archivePath, Added: shardPath,
 		Warnings: []encx.CohesionWarning{}}
+
+	// The archive's point-lookup indexes, read before anything is
+	// written: an unreadable manifest aborts the add (build before
+	// publish — an index the add cannot read, it cannot keep).
+	manifest, indexEntries, err := readArchiveIndexes(fsys, archivePath)
+	if err != nil {
+		return nil, err
+	}
 
 	// Enumerate the stored shards, detecting a name collision before any
 	// payload is read.
@@ -153,8 +170,32 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("AddShard: closing archive %s", archivePath))
 	}
-	if err := w.commit(); err != nil {
+	if err := w.finish(); err != nil {
 		return nil, err
+	}
+	// Index upkeep, BUILT BEFORE PUBLISH: the new shard's sidecars and
+	// the updated manifest are staged from the finished stage archive;
+	// any failure here returns with the archive, every sidecar and the
+	// manifest untouched (w.abort and the upkeep's own abort remove the
+	// stages). A re-encoding add keeps nothing — every stored shard's
+	// CRC32 moves — and reports the sidecars it invalidated instead.
+	var upkeep *indexUpkeep
+	if manifest != nil {
+		if m.rewrite == nil {
+			upkeep, err = stageAddUpkeep(fsys, archivePath, w.stagedPath(), m.canonical, base, manifest, indexEntries)
+			if err != nil {
+				return nil, err
+			}
+			defer upkeep.abort()
+		} else {
+			result.InvalidatedSidecars = staleArchiveSidecars(archivePath, manifest, indexEntries)
+		}
+	}
+	if err := w.publish(); err != nil {
+		return nil, err
+	}
+	if upkeep != nil {
+		result.Warnings = append(result.Warnings, upkeep.publish())
 	}
 	result.ShardCount = shardCount
 	return result, nil
@@ -192,27 +233,34 @@ func writeStoredShards(w *archiveWriter, a *archiveFile, stored storedShards, re
 // entries are retained — canonical only grows). Returns
 // PULSE_SHARD_MISSING when the named shard is not present.
 //
+// Every archive point-lookup index covering the shard is kept in step:
+// the updated index manifest is staged before the archive is touched,
+// then — after the archive rename — published and the removed shard's
+// sidecars deleted, with the mandatory PULSE_SHARD_INDEXES_UPDATED
+// warning. No other sidecar is touched (the kept shards' bytes, sizes
+// and CRC32s are copied raw, so their sidecars stay valid).
+//
 // Streams like AddShard: the kept shards are copied raw into a staged
 // archive, the aggregate is summed header-only, and one rename
 // publishes it — O(one copy buffer) memory, the original byte-identical
 // until the rename.
-func (s *Service) RemoveShard(ctx context.Context, archivePath, shardBasename string) error {
+func (s *Service) RemoveShard(ctx context.Context, archivePath, shardBasename string) (*RemoveShardResult, error) {
 	fsys := s.fs.Fs()
 	if shardBasename == encx.ReservedSchemaName {
-		return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
 			"cannot remove the reserved canonical schema entry",
 			map[string]any{"basename": shardBasename})
 	}
 
 	a, err := openArchiveFile(fsys, archivePath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer a.Close()
 
 	canonicalDoc, err := readSchemaDocEntry(a.arch)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	kept := &archiveShards{a: a}
@@ -228,17 +276,61 @@ func (s *Service) RemoveShard(ctx context.Context, archivePath, shardBasename st
 		kept.names = append(kept.names, e.Name)
 	}
 	if !found {
-		return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_MISSING,
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_MISSING,
 			fmt.Sprintf("shard %q not present in archive", shardBasename),
 			map[string]any{"entry": shardBasename})
 	}
-	return rewriteKeptShards(fsys, a, archivePath, canonicalDoc.Schema, kept)
+
+	// Index upkeep, staged before the archive is touched: the removed
+	// shard's record leaves every index manifest entry that covers it.
+	// An unreadable manifest aborts the remove.
+	result := &RemoveShardResult{Archive: archivePath, Removed: shardBasename,
+		ShardCount: kept.shardCount(), Warnings: []encx.CohesionWarning{}}
+	manifest, indexEntries, err := readArchiveIndexes(fsys, archivePath)
+	if err != nil {
+		return nil, err
+	}
+	var upkeep *indexUpkeep
+	if manifest != nil {
+		if upkeep, err = stageRemoveUpkeep(fsys, archivePath, shardBasename, manifest, indexEntries); err != nil {
+			return nil, err
+		}
+		defer upkeep.abort()
+	}
+	if err := rewriteKeptShards(fsys, a, archivePath, canonicalDoc.Schema, kept); err != nil {
+		return nil, err
+	}
+	if upkeep != nil {
+		result.Warnings = append(result.Warnings, upkeep.publish())
+	}
+	return result, nil
+}
+
+// RemoveShardResult is what RemoveShard reports. Like AddShardResult it
+// is a result rather than a bare error so the mandatory
+// PULSE_SHARD_INDEXES_UPDATED warning (the removed shard's point-lookup
+// sidecars deleted and the index manifest pruned) has a channel.
+type RemoveShardResult struct {
+	// Archive is the archive path that was rewritten.
+	Archive string `json:"archive"`
+	// Removed is the basename of the shard that was removed.
+	Removed string `json:"removed"`
+	// ShardCount is the archive's shard count after the remove.
+	ShardCount int `json:"shard_count"`
+	// Warnings carry every non-fatal diagnostic the remove produced:
+	// PULSE_SHARD_INDEXES_UPDATED when an archive index covered the
+	// shard (or PULSE_INDEX_STALE when publishing that upkeep failed
+	// after the archive was rewritten). Shaped like the descriptor
+	// envelope's warning entries.
+	Warnings []encx.CohesionWarning `json:"warnings"`
 }
 
 // rewriteKeptShards publishes an archive holding canonical and the kept
 // stored shards, copied raw, under a refreshed `_schema.pulse` whose
 // aggregate is summed header-only. RemoveShard and CompactShardArchive
-// share it. It closes a before the rename.
+// share it. It closes a before the rename. Raw copies keep every stored
+// shard's bytes, size and CRC32, so the archive's point-lookup sidecars
+// stay valid for every kept shard.
 func rewriteKeptShards(fsys afero.Fs, a *archiveFile, archivePath string, canonical *encoding.Schema, kept *archiveShards) error {
 	aggregate, err := sumStoredRecords(kept)
 	if err != nil {

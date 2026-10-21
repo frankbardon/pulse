@@ -236,6 +236,31 @@ archive) never edit an archive in place, and never build it in memory:
 In-place tail append is not done: it would give up the "original
 byte-identical until the rename" guarantee the widen path relies on.
 
+### Point-lookup indexes
+
+An archive with point-lookup indexes (`pulse index build archive.pulse`)
+keeps them in step through `add` and `remove`
+(`internal/service/index_upkeep.go`):
+
+- **Add builds before it publishes.** After the stage is finished but
+  before it is renamed, the new shard is scanned once from the stage and
+  its sidecar for every archive index is written to
+  `<sidecar>.pulse.tmp-staged`, with the updated manifest beside it. If
+  any of that fails, the add returns the error and the archive, every
+  sidecar and the manifest are left byte-identical. Otherwise the
+  archive is renamed, then each sidecar, then the manifest.
+- **Remove touches only the removed shard.** The manifest without the
+  shard's record is staged first; after the archive rename it is
+  published and that shard's sidecars are deleted.
+- Both emit the mandatory `PULSE_SHARD_INDEXES_UPDATED` warning. A
+  rename that fails after the archive rename cannot be undone; the
+  result warns `PULSE_INDEX_STALE` and lookups refuse until the index is
+  rebuilt.
+- **A re-encoding add keeps nothing.** When the archive itself moves,
+  every stored shard's CRC32 changes, so the add leaves the index as it
+  was and lists every per-shard sidecar in `invalidated_sidecars`.
+- `compact` copies shards raw, so the sidecars stay valid.
+
 ## 6. Anchor syntax
 
 Anchor syntax `archive.pulse#shard.pulse` opens a single shard inside
@@ -268,6 +293,7 @@ For maintainers extending the sharding internals, the surface lives in:
 | `internal/encoding/shard_groups.go` | `FlattenCohortBytes`, `ValidateGroupCohesion`, group prefix rule, `GroupIndexHeadroomFor` |
 | `internal/encoding/widen.go` | The re-stride engine (`WidenSetFieldBytes` / `WidenSchemaSetField`) |
 | `internal/service/shard_compact.go` | `compact` |
+| `internal/service/index_upkeep.go` | Point-lookup index upkeep on `add` / `remove` (build before publish) |
 | `internal/service/shard_stream.go` | The streaming archive writer (staged file, raw copy, sweep, fsync + rename + directory fsync) shared by every mutation |
 | `internal/service/shard_verify.go` | `verify` |
 | `internal/service/anchor_overlay.go` | Anchor-syntax overlay |

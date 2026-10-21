@@ -56,7 +56,7 @@ func TestShardArchiveCompactReclaimsOrphans(t *testing.T) {
 			t.Fatalf("CreateShardArchive: %v", err)
 		}
 
-		if err := svc.RemoveShard(context.Background(), archive, shardB); err != nil {
+		if _, err := svc.RemoveShard(context.Background(), archive, shardB); err != nil {
 			t.Fatalf("RemoveShard: %v", err)
 		}
 

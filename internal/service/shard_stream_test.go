@@ -104,7 +104,7 @@ func TestShardStream_MutationAllocationBoundedByShard(t *testing.T) {
 			return err
 		}, 3*shardBytes + fixed},
 		{"remove", func(svc *Service, archive, _ string) error {
-			return svc.RemoveShard(ctx, archive, "s00.pulse")
+			return removeShardErr(svc.RemoveShard(ctx, archive, "s00.pulse"))
 		}, fixed},
 		{"compact", func(svc *Service, archive, _ string) error {
 			return svc.CompactShardArchive(ctx, archive)
@@ -156,7 +156,7 @@ func TestShardStream_StoredShardsCopiedRaw(t *testing.T) {
 			_, err := svc.AddShard(ctx, "arch.pulse", "c.pulse")
 			return err
 		},
-		"remove":  func(svc *Service) error { return svc.RemoveShard(ctx, "arch.pulse", "a.pulse") },
+		"remove":  func(svc *Service) error { return removeShardErr(svc.RemoveShard(ctx, "arch.pulse", "a.pulse")) },
 		"compact": func(svc *Service) error { return svc.CompactShardArchive(ctx, "arch.pulse") },
 	}
 	for name, run := range verbs {
@@ -248,7 +248,7 @@ func TestShardStream_CompactIsByteIdentity(t *testing.T) {
 	if !bytes.Equal(before, gReadFile(t, fsys, "arch.pulse")) {
 		t.Fatal("compacting a current archive changed its bytes")
 	}
-	if err := svc.RemoveShard(ctx, "arch.pulse", "c.pulse"); err != nil {
+	if _, err := svc.RemoveShard(ctx, "arch.pulse", "c.pulse"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := svc.AddShard(ctx, "arch.pulse", "c.pulse"); err != nil {
@@ -334,7 +334,7 @@ func TestShardStream_CrashBeforeRenameLeavesOriginalAndIsSwept(t *testing.T) {
 	}{
 		{"add", func(svc *Service) error { _, err := svc.AddShard(ctx, "arch.pulse", "c.pulse"); return err }},
 		{"add_widen", func(svc *Service) error { _, err := svc.AddShard(ctx, "arch.pulse", "wide.pulse"); return err }},
-		{"remove", func(svc *Service) error { return svc.RemoveShard(ctx, "arch.pulse", "a.pulse") }},
+		{"remove", func(svc *Service) error { return removeShardErr(svc.RemoveShard(ctx, "arch.pulse", "a.pulse")) }},
 		{"compact", func(svc *Service) error { return svc.CompactShardArchive(ctx, "arch.pulse") }},
 	}
 	for _, tc := range cases {
@@ -480,7 +480,7 @@ func TestShardStream_DirectorySyncedAfterRename(t *testing.T) {
 			return err
 		}},
 		{"add", func() error { _, err := svc.AddShard(ctx, "d/arch.pulse", "d/b.pulse"); return err }},
-		{"remove", func() error { return svc.RemoveShard(ctx, "d/arch.pulse", "a.pulse") }},
+		{"remove", func() error { return removeShardErr(svc.RemoveShard(ctx, "d/arch.pulse", "a.pulse")) }},
 		{"compact", func() error { return svc.CompactShardArchive(ctx, "d/arch.pulse") }},
 	}
 	for _, st := range steps {

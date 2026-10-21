@@ -2017,6 +2017,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SHARD_INDEXES_UPDATED: {
+		Message: "A `shard add` / `shard remove` kept the archive's point-lookup indexes in step: an add built the new shard's sidecar for every archive index, a remove deleted the removed shard's sidecar, and the index manifest's shard coverage was updated. Every index still answers lookups; the warning exists because files beside the archive were rewritten and that must never be silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "No action needed — details.indexes names each index kept (keys, logical index_path, the shard's shard_index_path). `pulse index list <archive>` shows the coverage and `pulse index verify <archive> --key <field>` re-checks it. An add that re-encodes the stored shards (a set widen or group promotion) keeps nothing and reports invalidated_sidecars instead: rebuild with `pulse index build <archive> --key <field>`.",
+			},
+		},
+	},
 	PULSE_CHAIN_NOT_MERGEABLE: {
 		Message: "A ProcessChain stage uses an operator that the v1 chain gate does not yet support (windows, features, tests, regressions, two-pass attributes, or a non-mergeable grouper/aggregator), or carries a crosstab (a crosstab answers a matrix, not the rows the next stage reads).",
 		Fixups: []Fixup{
@@ -3489,7 +3498,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_INDEX_STALE: {
-		Message: "The sidecar point-lookup index's embedded content-hash fingerprint does not match the current .pulse cohort file — the cohort was mutated (re-imported, re-exported, or otherwise rewritten) after the sidecar was last built. On a shard archive (one sidecar per shard) the same code refuses a shard the index does not cover — added after the build, or replaced (a different size or zip central-directory CRC32 under the same name) — and details.shards_uncovered names those shards: a lookup never silently skips one. Lookup refuses to serve rows against a stale index rather than risk returning silently wrong results; there is no automatic scan-fallback or auto-rebuild. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
+		Message: "The sidecar point-lookup index's embedded content-hash fingerprint does not match the current .pulse cohort file — the cohort was mutated (re-imported, re-exported, or otherwise rewritten) after the sidecar was last built. On a shard archive (one sidecar per shard) the same code refuses a shard the index does not cover — added after the build, or replaced (a different size or zip central-directory CRC32 under the same name) — and details.shards_uncovered names those shards: a lookup never silently skips one. Lookup refuses to serve rows against a stale index rather than risk returning silently wrong results; there is no automatic scan-fallback or auto-rebuild. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`). `shard add` / `shard remove` emit it as a warning (details.reason index_upkeep_publish_failed) when keeping the archive's index in step failed after the archive itself was rewritten.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,

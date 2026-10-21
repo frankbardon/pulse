@@ -253,6 +253,10 @@ func resultWarningCodes(out any) []string {
 		if v != nil {
 			addCohesion(v.Warnings)
 		}
+	case *RemoveShardResult:
+		if v != nil {
+			addCohesion(v.Warnings)
+		}
 	case *VerifyResult:
 		if v != nil {
 			addCohesion(v.Warnings)

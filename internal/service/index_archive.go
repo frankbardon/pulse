@@ -86,21 +86,10 @@ func (s *Service) buildArchiveIndex(fsys afero.Fs, cohort *Cohort, path string, 
 				fmt.Sprintf("shard %q not present in archive central directory", name),
 				map[string]any{"archive": path, "entry": name})
 		}
-		sect, err := a.storedShard(name)
-		if err != nil {
-			return err
-		}
-		fp, err := encx.ComputeFingerprint(sect)
-		if err != nil {
-			return err
-		}
 		buckets := b.buckets()
-		idx := &encx.Index{
-			Fingerprint:   fp,
-			Keys:          keys,
-			Buckets:       buckets,
-			SourceSize:    uint64(e.Size),
-			SourceModTime: anchorShardModTime(),
+		idx, err := shardSidecarIndex(a, e, keys, buckets)
+		if err != nil {
+			return err
 		}
 		shardPath := encx.ArchiveShardIndexPath(path, name, keyFields)
 		if err := encx.WriteIndexFile(fsys, shardPath, idx); err != nil {
@@ -162,6 +151,29 @@ func (s *Service) buildArchiveIndex(fsys afero.Fs, cohort *Cohort, path string, 
 		DistinctKeys:    entry.DistinctKeys,
 		IndexedRecords:  entry.IndexedRecords,
 		ShardIndexPaths: paths,
+	}, nil
+}
+
+// shardSidecarIndex lays one shard's buckets out as its v3 sidecar:
+// the fingerprint covers the shard's STORED payload (read through its
+// section), SourceSize is the entry's size and SourceModTime the
+// anchored shard's zero time — byte-identical to an anchored build's
+// sidecar. BuildIndex and shard-add index upkeep share it.
+func shardSidecarIndex(a *archiveFile, e encx.ArchiveEntry, keys []encx.IndexKeySpec, buckets []encx.IndexBucket) (*encx.Index, error) {
+	sect, err := a.storedShard(e.Name)
+	if err != nil {
+		return nil, err
+	}
+	fp, err := encx.ComputeFingerprint(sect)
+	if err != nil {
+		return nil, err
+	}
+	return &encx.Index{
+		Fingerprint:   fp,
+		Keys:          keys,
+		Buckets:       buckets,
+		SourceSize:    uint64(e.Size),
+		SourceModTime: anchorShardModTime(),
 	}, nil
 }
 

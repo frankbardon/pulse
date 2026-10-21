@@ -164,6 +164,19 @@ reports the same shards (`ShardsUncovered`) and hashes every shard
 against its sidecar (`ShardsMismatched`); `ListIndexes` and
 `DropIndex` work on the archive path.
 
+`AddShard` and `RemoveShard` keep every archive index in step. An add
+builds the new shard's sidecar for each index and the updated manifest
+before the archive is renamed: if any of that fails, the add returns
+the error and the archive, the sidecars and the manifest are left as
+they were. A remove drops the removed shard's sidecar and manifest
+record and touches no other file. Both report a
+`PULSE_SHARD_INDEXES_UPDATED` warning on their result. An add that
+re-encodes the stored shards (a set widen or a group promotion) keeps
+nothing; it lists every per-shard sidecar in
+`AddShardResult.InvalidatedSidecars`, and lookups refuse with
+`PULSE_INDEX_STALE` until you rebuild. `CompactShardArchive` copies
+shards unchanged, so their sidecars stay valid.
+
 A `u64` key is exact: ids above 2^53 that share one `float64` are
 distinct keys. An index built by an earlier release over such ids
 merged them — rebuild it.

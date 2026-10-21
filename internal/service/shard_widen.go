@@ -83,6 +83,16 @@ type AddShardResult struct {
 	// descriptor envelope's warning entries so a caller lifts them
 	// straight onto `warnings` without reshaping.
 	Warnings []encx.CohesionWarning `json:"warnings"`
+	// InvalidatedSidecars names every per-shard point-lookup sidecar an
+	// add that RE-ENCODED the stored shards (an archive-level set widen,
+	// a constant-group promotion) invalidated — their CRC32s moved — with
+	// the command that rebuilds the index; the same list
+	// Pulse.InvalidatedSidecars derives for the archive. Nothing is
+	// rebuilt and the index manifest is left as it was, so lookups refuse
+	// with PULSE_INDEX_STALE (details.shards_uncovered) until the rebuild.
+	// Empty on an ordinary add, which keeps every index in step instead
+	// (PULSE_SHARD_INDEXES_UPDATED).
+	InvalidatedSidecars []StaleSidecar `json:"invalidated_sidecars,omitempty"`
 }
 
 // CreateShardArchiveResult is what CreateShardArchive reports.

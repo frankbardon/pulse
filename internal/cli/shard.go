@@ -135,6 +135,12 @@ func shardAddCmd() *cli.Command {
 				if len(result.Regrouped) > 0 {
 					data["regrouped"] = result.Regrouped
 				}
+				if len(result.InvalidatedSidecars) > 0 {
+					data["invalidated_sidecars"] = result.InvalidatedSidecars
+				}
+				if len(result.InvalidatedSidecars) > 0 {
+					data["invalidated_sidecars"] = result.InvalidatedSidecars
+				}
 				env := descriptor.NewEnvelope(data)
 				for _, w := range result.Warnings {
 					env.AddWarning(w.Code, w.Message, w.Details)
@@ -144,6 +150,12 @@ func shardAddCmd() *cli.Command {
 			writeText(cmd.Writer, "Added %s to %s (now %d shard(s))\n", shard, archive, len(shards))
 			for _, w := range result.Warnings {
 				writeText(cmd.Writer, "  WARN   [%s] %s\n", w.Code, w.Message)
+			}
+			if len(result.InvalidatedSidecars) > 0 {
+				writeText(cmd.Writer, "Invalidated sidecars (the add re-encoded the stored shards):\n")
+				for _, sc := range result.InvalidatedSidecars {
+					writeText(cmd.Writer, "  %s\n    rebuild: %s\n", sc.Path, sc.Rebuild)
+				}
 			}
 			return nil
 		},
@@ -171,7 +183,8 @@ func shardRemoveCmd() *cli.Command {
 			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "CLI_ERROR", err)
 			}
-			if err := p.RemoveShard(ctx, archive, basename); err != nil {
+			result, err := p.RemoveShard(ctx, archive, basename)
+			if err != nil {
 				return cliErrorFrom(cmd, jsonOut, "SHARD_REMOVE_ERROR", err)
 			}
 			shards, err := p.ListShards(ctx, archive)
@@ -179,13 +192,22 @@ func shardRemoveCmd() *cli.Command {
 				return cliErrorFrom(cmd, jsonOut, "SHARD_LIST_ERROR", err)
 			}
 			if jsonOut {
-				return writeEnvelope(cmd.Writer, map[string]any{
+				// The index-upkeep warning rides the envelope's
+				// `warnings` array, as shard add's widen warning does.
+				env := descriptor.NewEnvelope(map[string]any{
 					"archive": archive,
 					"removed": basename,
 					"shards":  shards,
 				})
+				for _, w := range result.Warnings {
+					env.AddWarning(w.Code, w.Message, w.Details)
+				}
+				return writeJSON(cmd.Writer, env)
 			}
 			writeText(cmd.Writer, "Removed %s from %s (now %d shard(s))\n", basename, archive, len(shards))
+			for _, w := range result.Warnings {
+				writeText(cmd.Writer, "  WARN   [%s] %s\n", w.Code, w.Message)
+			}
 			return nil
 		},
 	}

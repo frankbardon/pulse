@@ -307,6 +307,24 @@ func ReadIndexManifest(fsys afero.Fs, cohortPath string) (*IndexManifest, bool, 
 // bytes.
 func WriteIndexManifest(fsys afero.Fs, cohortPath string, m *IndexManifest) error {
 	path := IndexManifestPath(cohortPath)
+	raw, err := MarshalIndexManifest(cohortPath, m)
+	if err != nil {
+		return err
+	}
+	if err := afero.WriteFile(fsys, path, raw, 0644); err != nil {
+		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+			fmt.Sprintf("writing sidecar index manifest: %s", path))
+	}
+	return nil
+}
+
+// MarshalIndexManifest renders m exactly as WriteIndexManifest stores
+// it for cohortPath (kind, format version and cohort stamped, entries
+// sorted, indented, trailing newline) without writing it — for a caller
+// that stages the document and publishes it with a rename (shard add /
+// remove index upkeep).
+func MarshalIndexManifest(cohortPath string, m *IndexManifest) ([]byte, error) {
+	path := IndexManifestPath(cohortPath)
 	m.FormatVersion = IndexManifestFormatVersion
 	m.Kind = IndexManifestKind
 	if m.Cohort == "" {
@@ -319,13 +337,8 @@ func WriteIndexManifest(fsys afero.Fs, cohortPath string, m *IndexManifest) erro
 
 	raw, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
-		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("encoding sidecar index manifest: %s", path))
 	}
-	raw = append(raw, '\n')
-	if err := afero.WriteFile(fsys, path, raw, 0644); err != nil {
-		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("writing sidecar index manifest: %s", path))
-	}
-	return nil
+	return append(raw, '\n'), nil
 }

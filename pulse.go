@@ -2836,6 +2836,15 @@ type CreateShardArchiveResult = service.CreateShardArchiveResult
 // caller must be able to tell which one it paid for. A union above the
 // widest set rung stays fatal (PULSE_SHARD_DICT_WIDTH_OVERFLOW).
 //
+// Every archive point-lookup index is kept in step: the new shard's
+// sidecar for each index and the updated index manifest are built
+// before the archive is published (any failure aborts the add with the
+// archive, sidecars and manifest untouched), then published after it,
+// with a mandatory PULSE_SHARD_INDEXES_UPDATED warning. An add that
+// re-encodes the stored shards (an archive-level widen, a constant-group
+// promotion) keeps nothing and names the per-shard sidecars it
+// invalidated in AddShardResult.InvalidatedSidecars.
+//
 // AddShard returns a result rather than a bare error precisely so that
 // warning has nowhere to be dropped.
 //
@@ -2858,9 +2867,10 @@ func (p *Pulse) addShard(ctx context.Context, archivePath, shardPath string) (*A
 }
 
 // AddShardResult carries the outcome of AddShard: the archive's new
-// shard count, any set-field widenings the add forced, and the
-// non-fatal warnings (PULSE_SHARD_DESCRIPTION_DIVERGENCE,
-// PULSE_SHARD_SET_WIDENED) to lift onto a --json envelope.
+// shard count, any set-field widenings the add forced, the non-fatal
+// warnings (PULSE_SHARD_DESCRIPTION_DIVERGENCE, PULSE_SHARD_SET_WIDENED,
+// PULSE_SHARD_INDEXES_UPDATED) to lift onto a --json envelope, and the
+// point-lookup sidecars a re-encoding add invalidated.
 type AddShardResult = service.AddShardResult
 
 // SetWidening records one set field promoted to a wider rung during a
@@ -2887,15 +2897,26 @@ type CohesionWarning = encx.CohesionWarning
 // canonical schema is preserved (dictionary entries are never
 // shrunk). Returns PULSE_SHARD_MISSING when the named shard is not in
 // the archive.
-func (p *Pulse) RemoveShard(ctx context.Context, archivePath, shardBasename string) error {
-	return p.observe(ctx, opSpec{kind: observe.OpShardRemove, path: archivePath}, func(ctx context.Context) error {
+//
+// Every archive point-lookup index covering the shard is kept in step:
+// the removed shard's sidecars are deleted and its record leaves the
+// index manifest (staged before the archive is touched, published after
+// its rename), reported as a mandatory PULSE_SHARD_INDEXES_UPDATED
+// warning on the result. No other sidecar is touched.
+func (p *Pulse) RemoveShard(ctx context.Context, archivePath, shardBasename string) (*RemoveShardResult, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpShardRemove, path: archivePath}, func(ctx context.Context) (*RemoveShardResult, error) {
 		return p.removeShard(ctx, archivePath, shardBasename)
 	})
 }
 
-func (p *Pulse) removeShard(ctx context.Context, archivePath, shardBasename string) error {
+func (p *Pulse) removeShard(ctx context.Context, archivePath, shardBasename string) (*RemoveShardResult, error) {
 	return p.svc.RemoveShard(ctx, archivePath, shardBasename)
 }
+
+// RemoveShardResult carries the outcome of RemoveShard: the archive's
+// new shard count and the non-fatal warnings (PULSE_SHARD_INDEXES_UPDATED)
+// to lift onto a --json envelope.
+type RemoveShardResult = service.RemoveShardResult
 
 // ListShards returns the archive's shard manifest in central-
 // directory order (which equals shard insertion order). Single-file

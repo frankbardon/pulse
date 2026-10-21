@@ -3,6 +3,7 @@ pulse: type AddShardResult = pulse/internal/service.AddShardResult
 pulse: type AddShardResult underlying struct
 pulse: type AddShardResult field Added string "json:\"added\""
 pulse: type AddShardResult field Archive string "json:\"archive\""
+pulse: type AddShardResult field InvalidatedSidecars []pulse/internal/service.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
 pulse: type AddShardResult field Regrouped []pulse/internal/service.GroupReconciliation "json:\"regrouped,omitempty\""
 pulse: type AddShardResult field ShardCount int "json:\"shard_count\""
 pulse: type AddShardResult field Warnings []pulse/internal/encoding.CohesionWarning "json:\"warnings\""
@@ -824,7 +825,7 @@ pulse: type Pulse method (*Pulse) Rake(ctx context.Context, req pulse.RakeReques
 pulse: type Pulse method (*Pulse) RangeTables() []pulse.RangeTableInfo
 pulse: type Pulse method (*Pulse) Recommend(ctx context.Context, req pulse/descriptor.RecommendRequest) (*pulse/descriptor.RecommendResult, error)
 pulse: type Pulse method (*Pulse) ReloadTemplates() error
-pulse: type Pulse method (*Pulse) RemoveShard(ctx context.Context, archivePath string, shardBasename string) error
+pulse: type Pulse method (*Pulse) RemoveShard(ctx context.Context, archivePath string, shardBasename string) (*pulse.RemoveShardResult, error)
 pulse: type Pulse method (*Pulse) RenderTemplate(name string, vars map[string]any) (*pulse.RenderedTemplate, error)
 pulse: type Pulse method (*Pulse) RenderTemplateRequest(name string, vars map[string]any) (*pulse.Request, error)
 pulse: type Pulse method (*Pulse) ResolveCanonicalSchema(ctx context.Context, src string) (*pulse/encoding.Schema, error)
@@ -959,6 +960,12 @@ pulse: type RegressionRegistration field Streamable bool
 pulse: type RegressionRegistration field SupportsSelection bool
 pulse: type RegressionRegistration field Vcov bool
 pulse: type RegressionRegistration field WeightAware bool
+pulse: type RemoveShardResult = pulse/internal/service.RemoveShardResult
+pulse: type RemoveShardResult underlying struct
+pulse: type RemoveShardResult field Archive string "json:\"archive\""
+pulse: type RemoveShardResult field Removed string "json:\"removed\""
+pulse: type RemoveShardResult field ShardCount int "json:\"shard_count\""
+pulse: type RemoveShardResult field Warnings []pulse/internal/encoding.CohesionWarning "json:\"warnings\""
 pulse: type RenderedTemplate = pulse/internal/template.Rendered
 pulse: type RenderedTemplate underlying struct
 pulse: type RenderedTemplate field Chain *pulse/types.ChainRequest
@@ -1103,7 +1110,8 @@ pulse: type SkillMetadata field Name string "json:\"name\""
 pulse: type SkillMetadata field Operator string "json:\"operator,omitempty\""
 pulse: type SkillMetadata field Requires []string "json:\"requires,omitempty\""
 pulse: type SkillMetadata field Type string "json:\"type\""
-pulse: type StaleSidecar struct
+pulse: type StaleSidecar = pulse/internal/service.StaleSidecar
+pulse: type StaleSidecar underlying struct
 pulse: type StaleSidecar field Keys []string "json:\"keys,omitempty\""
 pulse: type StaleSidecar field Kind string "json:\"kind\""
 pulse: type StaleSidecar field Path string "json:\"path\""
@@ -2699,6 +2707,7 @@ pulse/errors: const PULSE_SHARD_DICT_DIVERGENCE pulse/errors.Code = "PULSE_SHARD
 pulse/errors: const PULSE_SHARD_DICT_WIDTH_OVERFLOW pulse/errors.Code = "PULSE_SHARD_DICT_WIDTH_OVERFLOW"
 pulse/errors: const PULSE_SHARD_GROUPS_REWRITTEN pulse/errors.Code = "PULSE_SHARD_GROUPS_REWRITTEN"
 pulse/errors: const PULSE_SHARD_HEADER_INVALID pulse/errors.Code = "PULSE_SHARD_HEADER_INVALID"
+pulse/errors: const PULSE_SHARD_INDEXES_UPDATED pulse/errors.Code = "PULSE_SHARD_INDEXES_UPDATED"
 pulse/errors: const PULSE_SHARD_MISSING pulse/errors.Code = "PULSE_SHARD_MISSING"
 pulse/errors: const PULSE_SHARD_NAME_COLLISION pulse/errors.Code = "PULSE_SHARD_NAME_COLLISION"
 pulse/errors: const PULSE_SHARD_RESERVED_NAME pulse/errors.Code = "PULSE_SHARD_RESERVED_NAME"
@@ -5770,4 +5779,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 8bb909c1238305ab9b56aaac1f0e3f8b4b05ffbb72bf0280e20b8cced2de85d7
+// golden-hash: 98e8a78a78c9fe747e6107a70fec27ccfad763b3ea3d6966cd3a4e7a71a33294

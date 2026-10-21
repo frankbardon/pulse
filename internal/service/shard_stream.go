@@ -232,6 +232,18 @@ func (w *archiveWriter) copyEntry(src *archiveFile, name string) error {
 // survives a crash. Any failure before the rename removes the stage
 // (abort) and leaves the destination untouched.
 func (w *archiveWriter) commit() error {
+	if err := w.finish(); err != nil {
+		return err
+	}
+	return w.publish()
+}
+
+// finish finalises the zip and makes the stage durable WITHOUT renaming
+// it: the stage at stagedPath is then a complete archive a caller may
+// open and read (index upkeep builds the new shard's sidecars from it)
+// before publish renames it over the destination. abort still removes
+// it until publish succeeds.
+func (w *archiveWriter) finish() error {
 	if err := w.zw.Close(); err != nil {
 		return w.wrap(err, "finalising archive zip writer")
 	}
@@ -252,6 +264,16 @@ func (w *archiveWriter) commit() error {
 	if err := f.Close(); err != nil {
 		return w.wrap(err, "closing staged archive")
 	}
+	return nil
+}
+
+// stagedPath is the stage the writer streams into: after finish, a
+// complete archive not yet published.
+func (w *archiveWriter) stagedPath() string { return w.tmpName }
+
+// publish renames the finished stage over the destination and fsyncs
+// the directory. Call it only after finish.
+func (w *archiveWriter) publish() error {
 	if err := w.fsys.Rename(w.tmpName, w.dst); err != nil {
 		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("renaming staged archive %s to %s", w.tmpName, w.dst))

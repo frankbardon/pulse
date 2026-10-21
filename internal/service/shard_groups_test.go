@@ -354,7 +354,7 @@ func TestShardGroups_CreateUnionMergesGroupDictionaries(t *testing.T) {
 	// archive stays verifiable and equal to the flat archive after the
 	// same operations.
 	for arch, shard := range map[string]string{"arch.pulse": "a.pulse", "flat.pulse": "a.pulse"} {
-		if err := svc.RemoveShard(ctx, arch, shard); err != nil {
+		if _, err := svc.RemoveShard(ctx, arch, shard); err != nil {
 			t.Fatalf("RemoveShard(%s): %v", arch, err)
 		}
 		if err := svc.CompactShardArchive(ctx, arch); err != nil {
