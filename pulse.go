@@ -1680,6 +1680,65 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 	return result, nil
 }
 
+// PredictEnvelope is Predict's envelope-returning sibling, as
+// InspectEnvelope is Inspect's: same path-based no-record read of the
+// cohort req.Cohort names (header + schema; a shard archive's central
+// directory, canonical schema entry and shard headers; an anchor's one
+// entry), same afero.Fs, same SPSS sidecar facts — but it returns the
+// descriptor envelope WHOLE, and, like PredictBytes, takes
+// Options.Strict (warnings promoted to errors) and Options.EchoRequest
+// (envelope.Request carries the normalized request) from the instance.
+//
+// It is the path twin of PredictBytes for a caller that holds a path,
+// not the bytes: `pulse api predict` used to read the whole cohort into
+// memory to hand PredictBytes, which on a multi-gigabyte archive cost
+// the archive's size in resident memory and bypassed the injected
+// filesystem. Over a cohort without an SPSS sidecar the envelope equals
+// PredictBytes' over the same bytes; with one it adds the sidecar's
+// suggested weight and advisories, as Predict does.
+//
+// A returned error is a nil req, a req without a cohort, a cancelled
+// ctx or a READ failure (missing file, unresolvable anchor). Every
+// validation fault comes back as env.Errors with PredictResult.Valid
+// false, so a --json caller can emit the coded envelope verbatim.
+func (p *Pulse) PredictEnvelope(ctx context.Context, req *Request) (*descriptor.Envelope, error) {
+	return observed(p, ctx, requestOp(observe.OpPredict, req), func(ctx context.Context) (*descriptor.Envelope, error) {
+		return p.predictEnvelope(ctx, req)
+	})
+}
+
+func (p *Pulse) predictEnvelope(ctx context.Context, req *Request) (*descriptor.Envelope, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if req == nil {
+		return nil, fmt.Errorf("pulse: predict requires a request")
+	}
+	if req.Cohort == nil {
+		return nil, fmt.Errorf("pulse: predict requires a cohort")
+	}
+	path := resolveCohortPath(req.Cohort)
+	src, err := p.openCohortSource(path)
+	if err != nil {
+		if af, ok := asAnchorFault(err); ok {
+			return nil, fmt.Errorf("pulse: predict anchor: %w", af.err)
+		}
+		return nil, fmt.Errorf("pulse: reading file for predict: %w", err)
+	}
+	defer src.close()
+
+	opts := p.predictOptions(ctx, p.sidecarFacts(path))
+	opts.Strict = p.svc.Strict()
+	opts.EchoRequest = p.svc.EchoRequest()
+	env := descx.Predict(src.rs, req, &opts)
+	if _, ok := env.Data.(*descriptor.PredictResult); ok {
+		// A verdict, valid or not, is a use of the managed import (as
+		// Predict); an unreadable cohort is not.
+		p.touchManaged(ctx, path)
+	}
+	return env, nil
+}
+
 // InspectBytes inspects an in-memory .pulse cohort — a single file or a
 // whole shard archive, detected by its leading magic bytes — and
 // returns the descriptor envelope WHOLE, warnings included (a payload

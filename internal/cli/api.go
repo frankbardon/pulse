@@ -590,21 +590,11 @@ func apiPredictCmd() *cli.Command {
 				return fmt.Errorf("%s", msg)
 			}
 
-			// PredictBytes returns the whole envelope and takes Strict /
-			// EchoRequest (and the extension snapshot) from the instance.
-			cohortPath := req.Cohort.Filename
-			if req.Cohort.DataDir != "" {
-				cohortPath = req.Cohort.DataDir + "/" + req.Cohort.Filename
-			}
-
-			data, err := os.ReadFile(cohortPath)
-			if err != nil {
-				if jsonOut {
-					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)
-				}
-				return err
-			}
-
+			// PredictEnvelope reads only the cohort's header and schema
+			// (an archive's central directory and shard headers) through
+			// the instance filesystem, returns the whole envelope and
+			// takes Strict / EchoRequest (and the extension snapshot)
+			// from the instance.
 			p, err := newPulseOpts(ctx, pulse.Options{Strict: strict, EchoRequest: echoRequest})
 			if err != nil {
 				if jsonOut {
@@ -612,7 +602,7 @@ func apiPredictCmd() *cli.Command {
 				}
 				return err
 			}
-			env, err := p.PredictBytes(ctx, data, req)
+			env, err := p.PredictEnvelope(ctx, req)
 			if err != nil {
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "PREDICT_ERROR", err)

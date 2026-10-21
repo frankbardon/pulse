@@ -157,6 +157,7 @@ func obsCalls() []obsCall {
 		}},
 		{"InspectBytes", observe.OpInspect, func(ctx context.Context, p *Pulse) error { _, err := p.InspectBytes(ctx, []byte("x"), nil); return err }},
 		{"Predict", observe.OpPredict, func(ctx context.Context, p *Pulse) error { _, err := p.Predict(ctx, obsRequest()); return err }},
+		{"PredictEnvelope", observe.OpPredict, func(ctx context.Context, p *Pulse) error { _, err := p.PredictEnvelope(ctx, obsRequest()); return err }},
 		{"PredictBytes", observe.OpPredict, func(ctx context.Context, p *Pulse) error {
 			_, err := p.PredictBytes(ctx, []byte("x"), obsRequest())
 			return err
