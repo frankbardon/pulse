@@ -41,7 +41,7 @@ Numbering note: appended after U43, not renumbered. This unit was not in the ori
 - [ ] **#357** (Archive scale) Serial and shard-parallel results for `AGG_SUM` and the other mergeable aggregators are byte-equal as documented (ordered or compensated reduction), or the documented promise is corrected
 - [ ] **#358** (Archive scale) High-cardinality grouping memory: a per-group overhead budget, and shard workers merge into one group map instead of each holding a full copy
 - [ ] **#359** (Archive scale) Point lookup over archives (per-shard sidecars or an archive-level index) and a `cohort filter` option that flattens an archive into one single-file cohort
-- [ ] **#360** (Archive scale) CLI and predict parity: `--shard-workers` / `--decode-workers` flags; `predict-chain` accepts archives; the streaming skill states that grouped output arrives at the end
+- [ ] **#360** (Archive scale) CLI and predict parity: `--shard-workers` / `--decode-workers` flags; `predict-chain` over archives (already accepted since U35 #248 — a regression test, `TestPredictRoots_ChainAcceptsArchive`, pins it); the streaming skill states that grouped output arrives at the end
 - [ ] **#361** (Archive scale) Acceptance: the retail example runs at 50M rows on 4 vCPU / 16 GB without `GOMEMLIMIT`; archive header operations finish in under a second; customer lookups work on the archive; the customer chains run on every customer, not a 1-in-10 panel; the bench program is replaced by CLI flags
 
 ## Scope

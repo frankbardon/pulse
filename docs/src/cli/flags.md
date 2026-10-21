@@ -709,6 +709,32 @@ pulse cohort filter -i orders.pulse -o ny_same_day.pulse \
   --filter 'to_day(placed_at) == ship_day' --time-zone America/New_York
 ```
 
+### `--flatten` (cohort filter)
+
+Available on: `cohort filter`.
+
+`--flatten` writes a shard archive input as ONE single-file `.pulse`
+instead of a per-shard archive: the surviving rows, shard by shard in
+archive order, under the archive's canonical schema (widened `set_*`
+rungs, union dictionaries and, for a grouped archive, the canonical
+parent-group dictionaries). With it `--filter` / `--include-from` become
+optional — none is a pure flatten, either one keeps exactly the rows
+`process` keeps under the same filter. Memory is one shard; the output
+is streamed into `<output>.pulse.tmp-staged` and renamed into place, so
+`-o` is untouched until the run succeeds. On a single-file or
+`archive#shard` input — already one file — the flag is a no-op: the
+output is what the run without it writes (`--json` `data.flattened`
+false). `--json` adds `data.flattened` only when the flag is given,
+and `data.invalidated_sidecars` whenever `-o` replaced a cohort whose
+point-lookup index or SPSS sidecar is now stale (with or without the
+flag). Library: `Pulse.FilterToFileWithOptions` with
+`FilterToFileOptions.Flatten` ([filter-to-file](../library/filter-to-file.md)).
+
+```bash
+pulse cohort filter -i sales.pulse -o sales_flat.pulse --flatten
+pulse cohort filter -i sales.pulse -o eu_flat.pulse --flatten --filter 'region == "EU"'
+```
+
 ### `--labels` (export)
 
 Available on: every `export <format>` leaf and `export predict`.

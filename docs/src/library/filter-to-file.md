@@ -35,6 +35,7 @@ type FilterToFileResult struct {
     RowCount   int64
     ElapsedMs  int64
     Reused     bool   // true when a pre-existing output was returned
+    InvalidatedSidecars []pulse.StaleSidecar // sidecars a replaced output invalidated
 }
 ```
 
@@ -241,6 +242,75 @@ temp file and never publishes a partial result at the target path.
 Combined with the `Watch` API's rename coalescing, downstream
 observers see a single `ChangeCreated` or `ChangeRenamed` event for
 the completed file — no spurious intermediate states.
+
+The only call that replaces an existing output is a re-run of a
+predicate running embedder code. When the replaced output had a
+point-lookup index or an SPSS metadata sidecar, `InvalidatedSidecars`
+names each one (one entry per shard sidecar for an archive index) with
+the command that rebuilds it, as `Pulse.InvalidatedSidecars` reports
+them. Nothing is rebuilt.
+
+A shard-archive source is filtered one shard at a time. The surviving
+shards are spooled beside the output (`<name>.pulse.tmp-spool`) and
+then streamed into the new archive, because `_schema.pulse` comes first
+and carries the surviving total. The whole output is never held in
+memory.
+
+## Flattening an archive (`FilterToFileWithOptions`)
+
+`Pulse.FilterToFileWithOptions(ctx, src, dst, opts)` is the explicit-
+path form behind `pulse cohort filter`. It writes to `dst` (no dedup
+naming) and returns a `FilterToFileReport`:
+
+```go
+type FilterToFileOptions struct {
+    Expression   string    // FILTER_EXPRESSION predicate; "" for none
+    IncludeField string    // field Set is tested on
+    Set          MemberSet // include-set from LoadMemberSetFromReader
+    Flatten      bool      // write an archive as ONE single-file cohort
+}
+
+type FilterToFileReport struct {
+    Output              string
+    Records             int64
+    Flattened           bool                 // an archive was flattened
+    InvalidatedSidecars []StaleSidecar       // when dst replaced a cohort
+    Warnings            []*errors.CodedError // sidecar enumeration failure
+}
+```
+
+Without `Flatten` at least one predicate is required, and a shard
+archive yields a per-shard archive, as with `FilterToFile`. With
+`Flatten` a shard archive yields ONE single-file cohort:
+
+- **Schema.** The output schema is the archive's canonical
+  `_schema.pulse` schema: widened `set_*` rungs, union dictionaries,
+  and for a grouped (`0x02`) archive the canonical parent-group
+  dictionaries. Every shard's dictionaries are prefixes of the
+  canonical ones, and every shard has the canonical stride, so each
+  surviving row is copied by position with no remap.
+- **Order.** Rows land in global archive order: shards in archive
+  order, rows in shard order.
+- **Predicate.** It is optional. With none, the call is a pure
+  flatten. With one, it keeps exactly the rows `Process` keeps under
+  the same filter.
+- **Memory and atomicity.** Memory is O(one shard). A pure flatten
+  streams each stored shard's records through a fixed copy window.
+  The output is streamed into `<dst>.pulse.tmp-staged` and published
+  by one rename, so `dst` is untouched until the run succeeds.
+
+On a single-file or `archive#shard` input `Flatten` is a **no-op**.
+The input is already one file, so the output is what the same call
+without `Flatten` writes; with no predicate every whole record is
+kept. `Flattened` is then false.
+
+```go
+rep, err := p.FilterToFileWithOptions(ctx, "sales.pulse", "sales_flat.pulse",
+    pulse.FilterToFileOptions{Flatten: true})
+```
+
+A flattened file is an ordinary single-file cohort, so a point-lookup
+index built on it is the single-file case.
 
 ## Deduped (parent-group) sources
 

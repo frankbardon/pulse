@@ -223,6 +223,10 @@ func obsCalls() []obsCall {
 			_, err := p.FilterToFileBySetAndExpr(ctx, obsCohort, "f2.pulse", "", nil, "id > 1")
 			return err
 		}},
+		{"FilterToFileWithOptions", observe.OpFilterToFile, func(ctx context.Context, p *Pulse) error {
+			_, err := p.FilterToFileWithOptions(ctx, obsCohort, "f3.pulse", FilterToFileOptions{Flatten: true})
+			return err
+		}},
 		{"FilterToFileWithRequest", observe.OpFilterToFile, func(ctx context.Context, p *Pulse) error {
 			_, err := p.FilterToFileWithRequest(ctx, &FilterToFileRequest{SourcePath: obsCohort, Expression: "id > 1", OutputDir: "ftf"})
 			return err

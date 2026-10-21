@@ -97,6 +97,14 @@ type FilterToFileResult struct {
 	// Reused is true when the engine returned an existing output file
 	// without re-running the filter (content-hash match).
 	Reused bool `json:"reused"`
+	// InvalidatedSidecars names each sidecar beside OutputPath that
+	// REPLACING an existing output invalidated (a predicate running
+	// embedder code always re-runs and replaces it) — the point-lookup
+	// index (one entry per shard sidecar for an archive index), the
+	// SPSS metadata sidecar — as Pulse.InvalidatedSidecars reports
+	// them. Nothing is rebuilt. Empty when nothing was replaced (or
+	// the advisory enumeration itself failed — the write stands).
+	InvalidatedSidecars []StaleSidecar `json:"invalidated_sidecars,omitempty"`
 }
 
 // FilterToFileWithRequest is the deterministic, dedup-aware variant of
@@ -218,6 +226,7 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 		_ = p.fsys.Remove(tempPath)
 		return nil, err
 	}
+	replacing, _ := afero.Exists(p.fsys, outPath)
 	if err := p.fsys.Rename(tempPath, outPath); err != nil {
 		_ = p.fsys.Remove(tempPath)
 		return nil, fmt.Errorf("filter_to_file: rename to %s: %w", outPath, err)
@@ -227,13 +236,19 @@ func (p *Pulse) filterToFileWithRequest(ctx context.Context, req *FilterToFileRe
 		return nil, fmt.Errorf("filter_to_file: hashing output: %w", err)
 	}
 	p.touchManaged(ctx, req.SourcePath)
-	return &FilterToFileResult{
+	res := &FilterToFileResult{
 		OutputPath: outPath,
 		OutputHash: outHash,
 		RowCount:   rows,
 		ElapsedMs:  time.Since(start).Milliseconds(),
 		Reused:     false,
-	}, nil
+	}
+	if replacing {
+		// Advisory: the write already succeeded, so an enumeration
+		// failure leaves the list empty rather than failing the call.
+		res.InvalidatedSidecars, _ = p.InvalidatedSidecars(ctx, outPath)
+	}
+	return res, nil
 }
 
 // canonicalPredicate splits the request predicate into the

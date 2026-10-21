@@ -443,6 +443,17 @@ pulse: type FeatureRegistration field Params []pulse.ParamMeta
 pulse: type FeatureRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type FeatureRegistration field Streamable bool
 pulse: type FieldInputsFunc func(raw encoding/json.RawMessage) []string
+pulse: type FilterToFileOptions struct
+pulse: type FilterToFileOptions field Expression string
+pulse: type FilterToFileOptions field Flatten bool
+pulse: type FilterToFileOptions field IncludeField string
+pulse: type FilterToFileOptions field Set pulse.MemberSet
+pulse: type FilterToFileReport struct
+pulse: type FilterToFileReport field Flattened bool "json:\"flattened,omitempty\""
+pulse: type FilterToFileReport field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
+pulse: type FilterToFileReport field Output string "json:\"output\""
+pulse: type FilterToFileReport field Records int64 "json:\"records\""
+pulse: type FilterToFileReport field Warnings []*pulse/errors.CodedError "json:\"warnings,omitempty\""
 pulse: type FilterToFileRequest struct
 pulse: type FilterToFileRequest field Expression string "json:\"expression,omitempty\""
 pulse: type FilterToFileRequest field Filterers []*pulse/types.Filterer "json:\"filterers,omitempty\""
@@ -453,6 +464,7 @@ pulse: type FilterToFileRequest field SourcePath string "json:\"source_path\""
 pulse: type FilterToFileRequest field TimeZone string "json:\"time_zone,omitempty\""
 pulse: type FilterToFileResult struct
 pulse: type FilterToFileResult field ElapsedMs int64 "json:\"elapsed_ms\""
+pulse: type FilterToFileResult field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
 pulse: type FilterToFileResult field OutputHash string "json:\"output_hash\""
 pulse: type FilterToFileResult field OutputPath string "json:\"output_path\""
 pulse: type FilterToFileResult field Reused bool "json:\"reused\""
@@ -786,6 +798,7 @@ pulse: type Pulse method (*Pulse) FeatureProfile() (*pulse.FeatureProfile, bool)
 pulse: type Pulse method (*Pulse) FeatureSetDigest() string
 pulse: type Pulse method (*Pulse) FilterToFile(ctx context.Context, src string, dst string, filterExpr string) (int64, error)
 pulse: type Pulse method (*Pulse) FilterToFileBySetAndExpr(ctx context.Context, src string, dst string, includeField string, set pulse.MemberSet, filterExpr string) (int64, error)
+pulse: type Pulse method (*Pulse) FilterToFileWithOptions(ctx context.Context, src string, dst string, opts pulse.FilterToFileOptions) (*pulse.FilterToFileReport, error)
 pulse: type Pulse method (*Pulse) FilterToFileWithRequest(ctx context.Context, req *pulse.FilterToFileRequest) (*pulse.FilterToFileResult, error)
 pulse: type Pulse method (*Pulse) Fs() github.com/spf13/afero.Fs
 pulse: type Pulse method (*Pulse) GetTemplate(name string) (*pulse.Template, error)
@@ -5779,4 +5792,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 98e8a78a78c9fe747e6107a70fec27ccfad763b3ea3d6966cd3a4e7a71a33294
+// golden-hash: 0546de5dca5d319834a3687c21f87dc2281679a0276c923912336e4f30c63949

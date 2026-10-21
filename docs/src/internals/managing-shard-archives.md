@@ -236,6 +236,15 @@ archive) never edit an archive in place, and never build it in memory:
 In-place tail append is not done: it would give up the "original
 byte-identical until the rename" guarantee the widen path relies on.
 
+`cohort filter` over an archive filters one shard at a time. It spools
+the surviving shards to `<output>.pulse.tmp-spool`, because
+`_schema.pulse` comes first and carries the surviving total, and then
+streams them into the stage. `cohort filter --flatten` writes ONE
+single-file cohort instead: the canonical schema, then each shard's
+surviving rows in archive order, streamed into `<output>.pulse.tmp-staged`
+and published by the same rename. Either output that replaces a cohort
+with point-lookup sidecars reports them in `invalidated_sidecars`.
+
 ### Point-lookup indexes
 
 An archive with point-lookup indexes (`pulse index build archive.pulse`)

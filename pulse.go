@@ -1972,6 +1972,92 @@ func (p *Pulse) filterToFileBySetAndExpr(ctx context.Context, src, dst, includeF
 	return n, err
 }
 
+// FilterToFileOptions is FilterToFileWithOptions' input: the
+// predicate — an optional include-set (Set, tested on IncludeField; see
+// FilterToFileBySetAndExpr) and an optional FILTER_EXPRESSION
+// (Expression), AND-combined with the set tested first — and the
+// Flatten mode. Without Flatten at least one predicate is required.
+type FilterToFileOptions struct {
+	// Expression is the FILTER_EXPRESSION predicate; "" for none.
+	Expression string
+	// IncludeField names the field Set is tested on; required with Set.
+	IncludeField string
+	// Set is an include-set from LoadMemberSetFromReader; nil for none.
+	Set MemberSet
+	// Flatten writes a shard archive's surviving rows into ONE
+	// single-file cohort instead of a per-shard archive: the archive's
+	// canonical (widened) schema is the output schema — union
+	// dictionaries, widened set rungs and, for a grouped (0x02)
+	// archive, the canonical parent-group dictionaries every shard's
+	// rows already address — and the rows land in global archive order
+	// (shards in archive order, rows in shard order). With no predicate
+	// it is a pure flatten. Memory is O(one shard); the output is
+	// streamed into a stage beside dst and published by one rename. On
+	// a single-file or `archive#shard` input — already one file — it is
+	// a no-op: the output is what the same call without Flatten writes,
+	// and with no predicate every whole record is kept.
+	Flatten bool
+}
+
+// FilterToFileReport is FilterToFileWithOptions' report.
+type FilterToFileReport struct {
+	// Output is the path written.
+	Output string `json:"output"`
+	// Records is the number of records written.
+	Records int64 `json:"records"`
+	// Flattened is true when a shard archive was flattened into a
+	// single-file cohort.
+	Flattened bool `json:"flattened,omitempty"`
+	// InvalidatedSidecars names each sidecar beside Output that
+	// replacing an existing cohort there invalidated — the point-lookup
+	// index (one entry per shard sidecar for an archive index), the
+	// SPSS metadata sidecar — with the command that rebuilds it, as
+	// Pulse.InvalidatedSidecars reports them. Nothing is rebuilt. Empty
+	// when Output did not exist before the call.
+	InvalidatedSidecars []StaleSidecar `json:"invalidated_sidecars,omitempty"`
+	// Warnings carries a failure to ENUMERATE those sidecars; the write
+	// has already succeeded when it is set.
+	Warnings []*errors.CodedError `json:"warnings,omitempty"`
+}
+
+// FilterToFileWithOptions is FilterToFileBySetAndExpr with the Flatten
+// mode and a report: the records written, whether an archive was
+// flattened, and the sidecars an overwrite of an existing cohort at dst
+// invalidated. It runs the same filter-to-file path as FilterToFile and
+// FilterToFileBySetAndExpr (input-shape dispatch included) and backs
+// `pulse cohort filter`.
+func (p *Pulse) FilterToFileWithOptions(ctx context.Context, src, dst string, opts FilterToFileOptions) (*FilterToFileReport, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpFilterToFile, path: src}, func(ctx context.Context) (*FilterToFileReport, error) {
+		return p.filterToFileWithOptions(ctx, src, dst, opts)
+	})
+}
+
+func (p *Pulse) filterToFileWithOptions(ctx context.Context, src, dst string, opts FilterToFileOptions) (*FilterToFileReport, error) {
+	replacing := dst != ""
+	if replacing {
+		replacing, _ = afero.Exists(p.fsys, dst)
+	}
+	out, err := p.svc.FilterToFileWithOptions(ctx, src, dst, service.FilterToFileOptions{
+		IncludeField: opts.IncludeField,
+		Set:          opts.Set,
+		Expression:   opts.Expression,
+		Flatten:      opts.Flatten,
+	})
+	if err != nil {
+		return nil, err
+	}
+	p.touchManaged(ctx, src)
+	rep := &FilterToFileReport{Output: dst, Records: out.Records, Flattened: out.Flattened}
+	if replacing {
+		sidecars, scanErr := p.InvalidatedSidecars(ctx, dst)
+		rep.InvalidatedSidecars = sidecars
+		if scanErr != nil {
+			rep.Warnings = append(rep.Warnings, sidecarScanWarning(dst, scanErr))
+		}
+	}
+	return rep, nil
+}
+
 // Synth materializes a synthetic .pulse file at output from spec. The
 // generator is deterministic for a given (spec, opts.Seed) pair: same
 // seed produces a byte-identical file.
