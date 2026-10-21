@@ -162,18 +162,29 @@ a little under the memory you can spare.
 
 **Grouped runs.** Each group bucket is charged in two parts. Its
 STATE is what it holds while records fold: about 256 bytes for the key,
-its map slot and the grouper's tally, plus 256 bytes per aggregation
-(512 for a weighted one, which keeps three reproducible sums and a
-weighted floor). Its OUTPUT is what the run writes for it at the end:
-the `data` row and the per-group `components` entries, charged 1,024
-bytes plus 512 per aggregation. An `AGG_SET_FREQUENCY` slot adds a
-counter and an output label per member of its set field (192 bytes a
-member) to every bucket. The figures are rounded up from measurements
-at 800,000 one-row groups: the state of an `AGG_COUNT` + `AGG_SUM` +
-`AGG_AVERAGE` bucket measures about 420 bytes, and the whole run peaks
-at about 2,600 bytes a group with components on. The output share
-assumes components on; with `DisableComponents` a grouped run peaks
-nearer 750 bytes a group, so its estimate is higher than it needs to be.
+its map slot and the grouper's tally (128 more for each grouper past
+the first), plus each aggregation's own measured state. A built-in
+aggregator is charged from a per-operator table: 96 bytes for
+`AGG_MIN` or `AGG_MAX`, 128 for `AGG_SUM` (576 when weighted, since it
+keeps three reproducible sums and a weighted floor), 320 for
+`AGG_DISTINCT_COUNT`, and so on. Each figure is a measured ceiling,
+pinned by a test that measures every built-in. An extension aggregator,
+and the order statistics (`AGG_MEDIAN`, `AGG_PERCENTILE`, `AGG_ZSCORE`,
+`AGG_AUC`), are charged 256 bytes (512 weighted). The vector
+aggregators (`AGG_VEC_*`) also pay for their member count and for one
+block partial per 4,096-record merge block a bucket holds.
+
+Its OUTPUT is what the run writes for it at the end. With components
+on, that is the `data` row and the per-group `components` entries,
+charged 1,024 bytes plus 576 per aggregation. With components off
+(`Options.DisableComponents`, or `disable_components: true` on the
+request; the request's setting wins), it is the `data` row alone,
+charged 512 bytes plus about 96 per aggregation. An `AGG_SET_FREQUENCY`
+slot adds a counter and an output label per member of its set field
+(192 bytes a member) to every bucket. Measured at 50,000 one-row
+groups of `AGG_COUNT` + `AGG_SUM` + `AGG_AVERAGE`, the estimate is
+1.3 to 1.5 times the whole run's peak with components on and 2.1 to
+2.5 times with them off, where the fixed 16 MiB run base weighs more.
 A slot counts as weighted when a weight is in force on it (its own, the
 request's, or `Options.DefaultWeight`), whether or not the operator
 reads weights.
@@ -200,7 +211,8 @@ index records a distinct-key count, but nothing proves the index
 matches the cohort without reading it, so the estimate never uses it.
 
 **Extension aggregators.** An extension aggregator is priced as a
-fixed-size accumulator, like `AGG_SUM`, unless its registration declares
+fixed-size accumulator of 256 bytes (512 weighted, and a 576-byte
+output column even with components off) unless its registration declares
 `ValueState: true`. Declared, it is charged the per-distinct-value term
 a built-in value-state aggregator (`AGG_MODE`, `AGG_DISTINCT_COUNT`,
 `AGG_FREQUENCY`, …) pays — the same estimate on predict and the run.

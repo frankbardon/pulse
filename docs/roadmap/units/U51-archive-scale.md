@@ -8,7 +8,7 @@ status: done
 depends_on: []
 soft_depends_on: [U19]
 blocks: [U32]
-todo_items: [354, 355, 356, 357, 358, 359, 360, 361, 373, 390, 399, 455, 456, 458, 461, 491, 492, 493, 494, 495, 496, 498, 499]
+todo_items: [354, 355, 356, 357, 358, 359, 360, 361, 373, 390, 399, 455, 456, 458, 461, 491, 492, 493, 494, 495, 496, 498, 499, 500]
 branch: archive-scale
 ---
 
@@ -151,6 +151,7 @@ Filed in [`TODO.md`](../TODO.md) (ids are TODO ids, not GitHub issues), v1.x:
 | #497 `FilterToFileResult` has no warnings field | [U33](U33-v1-release.md) | a failure to enumerate `InvalidatedSidecars` is dropped silently; adding the field is a public-API call that must precede the freeze (E4-S3) |
 | #498 archive index `DistinctKeys` / `IndexedRecords` are per-shard sums | v1.x, owner U51 | an exact union count would hold every key in memory; documented as a known limit (E4-S1) |
 | #499 compact grouped rows / chain stage hand-off without per-row `Data` maps | v1.x, owner U51 | the retention-shaped chain's RSS is 2.3× `spend`'s against a 1.5× target: merged buckets and the finalized per-row maps are live together (E5-S4; owner accepted the miss) |
+| #500 recorded per-field distinct-count statistic as a provable bucket bound | v1.x, owner U51 | the memory estimate charges a `u32`-keyed grouper its record count (2.4× the customers present on the retention shape); a fresh, exact statistic needs a byte-layout or sidecar contract change (owner-deferred option D of the E5-S6 stop; E5-S7 took B + C) |
 
 ## Inherited from U41
 

@@ -366,3 +366,46 @@ components off). Estimate / peak on the memory fixtures after the change
 | calibration `streaming grouped` (16-entry dictionary) | 153.6 MB | 80.9 MB | 1.90 |
 | calibration `streaming value-width grouped` (`u16`, 65,536 charged, 4,096 present; 563 MB before) | 287.8 MB | 88.4 MB | 3.26 |
 | retention stage 0 (`u32` customer id) | 33.4 GB | ~3.0 GB | ~11 |
+
+E5-S7: two changes to the per-bucket charge, each a measured ceiling
+pinned by a test that measures it. (C) A built-in aggregator's state is
+its own entry in a per-operator table (`AGG_MIN` / `AGG_MAX` 96 bytes,
+`AGG_SUM` 128, `AGG_DISTINCT_COUNT` 320, …), checked for every
+registered built-in by `TestGroupMemory_AggregatorStateTable`; an
+extension keeps 256 / 512. (B) With components off, a merged bucket's
+output is the row alone, 512 + ~96 bytes a column, in place of
+1,024 + 576 a column (`TestGroupMemory_FinalizedRowBytes`). Measuring
+every built-in also raised three charges the flat 256 bytes had hidden:
+the `AGG_VEC_*` fragments, 128 bytes per extra grouper, and the
+components-on column (512 → 576). Retention stage 0 is now charged
+3,904 bytes a bucket (state 1,952 + output 1,952) against 12,800.
+
+The retention rows below are this build's `BenchmarkRetentionShape`
+runs, components off, `ShardWorkers` 4 (peak heap is the sampled
+`HeapAlloc` high-water mark of the whole chain, max RSS from
+`/usr/bin/time -l`); `retention-budget` now sets 11.2 GB, which still
+shrinks the merge window from 8 to 2. Estimate / peak, Apple M1 Max,
+go1.27.2:
+
+| Fixture | Estimate | Peak heap | Estimate / peak |
+|---|---|---|---|
+| `TestGroupMemory_EstimateBoundsPeak` unweighted | 179.8 MB | 124.1 MB | 1.45 |
+| `TestGroupMemory_EstimateBoundsPeak` weighted | 244.7 MB | 185.3 MB | 1.32 |
+| `TestGroupMemory_EstimateBoundsPeak` unweighted, components off | 86.8 MB | 35.5 MB | 2.45 |
+| `TestGroupMemory_EstimateBoundsPeak` weighted, components off | 151.6 MB | 73.9 MB | 2.05 |
+| calibration `streaming grouped` (16-entry dictionary) | 153.6 MB | 80.8 MB | 1.90 |
+| calibration `streaming value-width grouped` | 283.6 MB | 89.1 MB | 3.18 |
+| calibration `matrix` (grouped) | 153.7 MB | 81.2 MB | 1.89 |
+| calibration `fan-out value state` | 268.8 MB | 87.9 MB | 3.06 |
+| retention stage 0, one live partial | 10.55 GB | 3,431 MB | 3.07 |
+| retention stage 0, full window (8) | 13.56 GB | 3,431 MB | 3.95 |
+| retention-budget stage 0, window 2 | 10.98 GB | 3,594 MB | 3.06 |
+| spend stage 0, one live partial | 4.50 GB | 1,447 MB | 3.11 |
+
+Every other `TestMemoryEstimate_Calibration` case moved by less than
+1% (none of them is high-cardinality) and stays 1.20–4.85. Retention max
+RSS was 4.51–5.04 GB over two runs (`retention-budget` 4.37 GB), spend
+1.69 GB; wall time and allocations are unchanged. Most of what is left
+of the retention gap is the bucket bound: 2.52M buckets charged against
+1,053,033 present (2.4×), which no header-only figure can tighten. A
+recorded distinct-count statistic would (TODO #500).
