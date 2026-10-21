@@ -298,8 +298,10 @@ func decodeWorkers(req *types.Request, schema *encoding.Schema, inst *InstanceSn
 // picks, with the record counts from in and the request-shaped figures
 // from the shared estimators:
 //
-//   - buckets: EstimateGroups (clamped by records); a grouper of
-//     unknown cardinality is bounded by the record count; 1 ungrouped.
+//   - buckets: memoryGroupBound — EstimateGroups (clamped by
+//     records); a grouper of unknown cardinality by its field's value
+//     width (valueKeyBound: 2^bits of an integer or set word), else
+//     the record count (x the fan-out multiplicity); 1 ungrouped.
 //   - cells: EstimateCrosstabCells, else rows x cols bounded by the
 //     record count when an axis is unknown.
 //   - matrices: MatrixStateBytes over the merge blocks (per shard) and
@@ -325,8 +327,8 @@ func decodeWorkers(req *types.Request, schema *encoding.Schema, inst *InstanceSn
 //     (limits.ShardMergeWindow: the incremental merge releases each
 //     merged shard; RequestLimitFindings judges the window a set
 //     MaxEstimatedMemory shrinks it to, ShardMergeWindow), charged as the window's largest shard bucket
-//     bounds — EstimateGroups clamped by that shard's records, or its
-//     records for an unknown grouper, 1 ungrouped — and largest shard
+//     bounds — memoryGroupBound over that shard's records, 1
+//     ungrouped — and largest shard
 //     record counts (per-value state) (shardWindowPartitions).
 //     The parallel-decode reducer (DecodeFanOut) is charged per worker
 //     partition, each bounded by its block-aligned segment (at most
@@ -390,10 +392,7 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 			if len(req.Groups) == 0 {
 				return 1
 			}
-			if g, ok := EstimateGroups(req.Groups, schema, inst, n); ok {
-				return g
-			}
-			return n
+			return memoryGroupBound(req.Groups, schema, inst, n)
 		})
 	} else if workers := decodeWorkers(req, schema, inst, in); workers >= 2 {
 		// One partial per worker, live until the merge; a worker's
@@ -404,11 +403,7 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 		seg := min(records, (blocks+workers-1)/workers*block)
 		b := int64(1)
 		if len(req.Groups) > 0 {
-			if g, ok := EstimateGroups(req.Groups, schema, inst, seg); ok {
-				b = g
-			} else {
-				b = seg
-			}
+			b = memoryGroupBound(req.Groups, schema, inst, seg)
 		}
 		mi.PartitionRecords = records
 		mi.PartitionBuckets = mulSaturating(b, workers)
@@ -417,11 +412,7 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 		mi.JoinRightRows = in.JoinRightRows
 	}
 	if len(req.Groups) > 0 {
-		if n, ok := EstimateGroups(req.Groups, schema, inst, records); ok {
-			mi.Buckets = n
-		} else {
-			mi.Buckets = records
-		}
+		mi.Buckets = memoryGroupBound(req.Groups, schema, inst, records)
 	}
 	aggs := req.Aggregations
 	if req.Crosstab != nil {
@@ -825,6 +816,80 @@ func EstimateGroups(groups []*types.Group, schema *encoding.Schema, inst *Instan
 		return 0, false
 	}
 	return crosstabAxisEstimate(groups, schema, inst, records)
+}
+
+// memoryGroupBound is the group-bucket bound the memory estimate
+// charges over records (the run's, a shard's, a decode segment's):
+// EstimateGroups when every grouper's keys are schema-known; else the
+// product of each grouper's bound — its groupEstimate, else its
+// value-width bound (valueKeyBound), else unbounded — clamped by the
+// records (a run cannot mint more keys than it reads rows). A fan-out
+// position (GROUP_SET_PER_ELEMENT) lands one record in up to
+// FanOutMultiplicity keys, so with one the clamp is records x that
+// multiplicity (U51 E5-S6: it was records, below the composite keys a
+// fan-out run can mint).
+func memoryGroupBound(groups []*types.Group, schema *encoding.Schema, inst *InstanceSnapshot, records int64) int64 {
+	if n, ok := EstimateGroups(groups, schema, inst, records); ok {
+		return n
+	}
+	clamp := mulSaturating(records, FanOutMultiplicity(groups, schema))
+	n := int64(1)
+	for _, g := range groups {
+		b, ok := groupEstimate(g, schema, inst)
+		if !ok {
+			if b, ok = valueKeyBound(g, schema, inst); !ok {
+				return clamp
+			}
+		}
+		n = mulSaturating(n, b)
+	}
+	return min(n, clamp)
+}
+
+// valueKeyBound is a grouper's key-count bound from its field's value
+// width (U51 E5-S6): a built-in grouper whose key is a function of one
+// field's stored value alone — GROUP_CATEGORY, GROUP_ROUNDED and
+// GROUP_RANGE over an integer word, GROUP_SET_VALUE over a set mask —
+// mints at most one key per distinct stored value, and a w-bit word
+// holds at most 2^w (u4 16, u8 and set_u8 256, u16 and set_u16 65,536,
+// u32 and set_u32 2^32; a null row mints no key). False for any other
+// grouper (a float, date or 64-bit word, an extension grouper), or a
+// field the schema does not carry.
+func valueKeyBound(g *types.Group, schema *encoding.Schema, inst *InstanceSnapshot) (int64, bool) {
+	if g == nil || schema == nil {
+		return 0, false
+	}
+	f := schema.Field(g.Field)
+	if f == nil {
+		return 0, false
+	}
+	var bits int
+	switch opRoute(inst, g.Type) {
+	case types.GROUP_CATEGORY, types.GROUP_ROUNDED, types.GROUP_RANGE:
+		switch f.Type {
+		case encoding.FieldTypeU4:
+			bits = 4
+		case encoding.FieldTypeU8, encoding.FieldTypeCategoricalU8:
+			bits = 8
+		case encoding.FieldTypeU16, encoding.FieldTypeCategoricalU16:
+			bits = 16
+		case encoding.FieldTypeU32, encoding.FieldTypeCategoricalU32:
+			bits = 32
+		}
+	case types.GROUP_SET_VALUE:
+		switch f.Type {
+		case encoding.FieldTypeSetU8:
+			bits = 8
+		case encoding.FieldTypeSetU16:
+			bits = 16
+		case encoding.FieldTypeSetU32:
+			bits = 32
+		}
+	}
+	if bits == 0 {
+		return 0, false
+	}
+	return int64(1) << bits, true
 }
 
 // FanOutMultiplicity is the most buckets one record can land in under

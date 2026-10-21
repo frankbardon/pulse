@@ -178,6 +178,27 @@ A slot counts as weighted when a weight is in force on it (its own, the
 request's, or `Options.DefaultWeight`), whether or not the operator
 reads weights.
 
+**How many buckets.** The bucket count is an upper bound read from the
+schema alone. A dictionary-backed grouper (`GROUP_CATEGORY` over a
+categorical field), a `packed_bool`, an `include` list, a quantile or a
+k-means grouper is charged its key count. A grouper whose keys depend on
+the data is charged by the width of the field it keys on, when that
+field is an integer or a set word. `GROUP_CATEGORY`, `GROUP_ROUNDED` and
+`GROUP_RANGE` over a `u4`, `u8`, `u16` or `u32` field, and
+`GROUP_SET_VALUE` over a `set_u8`, `set_u16` or `set_u32` field, mint at
+most one key per stored value: 16 for `u4`, 256 for `u8`, 65,536 for
+`u16`. Two or more groupers multiply their bounds. Anything else (a
+float, a date or a 64-bit field, `GROUP_DATE`, an extension grouper) is
+bounded by the record count, because a run cannot mint more keys than
+it reads rows. When a `GROUP_SET_PER_ELEMENT` grouper fans a record out,
+the record bound is multiplied by the set's size. A shard's or a
+worker's partial uses the same rule over its own records. So grouping
+50 million rows by a `u32` customer id is charged 50 million buckets
+however few customers there are: predict reads no records, so it cannot
+count them, and no sidecar proves a smaller figure. A point-lookup
+index records a distinct-key count, but nothing proves the index
+matches the cohort without reading it, so the estimate never uses it.
+
 **Extension aggregators.** An extension aggregator is priced as a
 fixed-size accumulator, like `AGG_SUM`, unless its registration declares
 `ValueState: true`. Declared, it is charged the per-distinct-value term

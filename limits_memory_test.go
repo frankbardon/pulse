@@ -167,6 +167,13 @@ func TestLimits_MaxEstimatedMemory_PredictCertainAndProcessRefuses(t *testing.T)
 		// probe's estimate is one live partial's and the run at it fans
 		// out at that window (TestLimits_ShardMergeWindowShrinksToBudget).
 		{name: "archive per-shard window", fs: afs, path: wideArch, shardWorkers: 2, req: func() *types.Request { return archiveRanged(wideArch) }},
+		// U51 E5-S6: a grouper of data-dependent cardinality over the
+		// imported u4 column `b` is charged its 16-key width bound, below
+		// the 30 records.
+		{name: "value-width grouper", fs: fs, path: cohort, req: func() *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "b"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "a", Label: "s"}}}
+		}},
 		{name: "weighted by instance default", fs: fs, path: cohort, defaultWeight: &types.WeightSpec{Field: "c"}, req: func() *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
 				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "a", Label: "s"}, {Type: types.AGG_AVERAGE, Field: "b", Label: "m"}}}
@@ -440,8 +447,8 @@ func archiveRanged(arch string) *types.Request {
 
 // TestLimits_MaxEstimatedMemory_ArchiveShardWorkers (E8-S3): over a
 // shard archive the estimate follows Options.ShardWorkers as the
-// dispatch does — the per-shard reducer's partials (4,097 + 5 records,
-// one bucket bound each under an unknown grouper) are charged only when
+// dispatch does — the per-shard reducer's partials (4,097 + 5 records;
+// a u8 range grouper's buckets, at most 256 a shard) are charged only when
 // the run fans out — and predict and the run report the same figure
 // under either cap.
 func TestLimits_MaxEstimatedMemory_ArchiveShardWorkers(t *testing.T) {
@@ -469,14 +476,16 @@ func TestLimits_MaxEstimatedMemory_ArchiveShardWorkers(t *testing.T) {
 		return res.LimitFindings[0].Estimated
 	}
 	serial, fanned := estimate(1), estimate(2)
-	// The largest shard's 4,097 partial buckets of one aggregation — a
+	// The largest shard's partial buckets of one aggregation — a
 	// partition bucket's STATE, 256 + 256 each (U51 E2-S4: a partition
-	// never finalizes, so it carries no output share). Only that shard:
-	// a 1-byte budget shrinks the merge window to one live partial on
-	// both sides (U51 E5-S4, limits.ShardMergeWindowWithin), where the
-	// unbudgeted window (4) would charge both shards' 4,097 + 5.
-	if d, want := fanned-serial, int64((linalg.MergeBlockSize+1)*(256+256)); d != want {
-		t.Fatalf("the per-shard arm adds %d bytes, want %d (one bucket per record of the window's shard)", d, want)
+	// never finalizes, so it carries no output share). GROUP_RANGE over
+	// the imported u8 column `a` mints at most 256 keys, below the
+	// shard's 4,097 records (U51 E5-S6, the value-width bound). Only that
+	// shard: a 1-byte budget shrinks the merge window to one live partial
+	// on both sides (U51 E5-S4, limits.ShardMergeWindowWithin), where the
+	// unbudgeted window (4) would charge both shards' 256 + 5.
+	if d, want := fanned-serial, int64(256*(256+256)); d != want {
+		t.Fatalf("the per-shard arm adds %d bytes, want %d (the u8 width bound of the window's shard)", d, want)
 	}
 }
 
@@ -550,5 +559,88 @@ func TestLimits_MaxEstimatedMemory_DecodeWorkersPredictMatchesRuntime(t *testing
 	}
 	if estimate[4] <= estimate[1] {
 		t.Fatalf("estimate at DecodeWorkers 4 = %d, at 1 = %d: want the per-worker partials counted", estimate[4], estimate[1])
+	}
+}
+
+// TestLimits_ValueWidthBoundCoversEveryKey (U51 E5-S6): the memory
+// estimate's value-width bucket bound is never under the keys a run
+// mints. Over a cohort holding EVERY value of its u4 and u8 columns,
+// the run's group count equals the bound predict charges (16, 256 —
+// the bound is attained, so any smaller bound would under-estimate);
+// over a u16 column with fewer records than 2^16 values the bound
+// stays the record count. Buckets are read off the estimate: the
+// grouped request's figure less the ungrouped one's, in one-aggregation
+// merged buckets (state 256 + 256, output 1,024 + 512), plus the one
+// bucket an ungrouped run holds.
+func TestLimits_ValueWidthBoundCoversEveryKey(t *testing.T) {
+	ctx := context.Background()
+	fs := afero.NewMemMapFs()
+	const records = 3_000
+	var b strings.Builder
+	b.WriteString("n,v8,w,x\n")
+	for r := range records {
+		fmt.Fprintf(&b, "%d,%d,%d,%d.5\n", r%16, (r*7)%256, r, r%11)
+	}
+	if err := afero.WriteFile(fs, "v.csv", []byte(b.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := pulse.New(pulse.Options{FS: fs, Limits: pulse.Limits{MaxEstimatedMemory: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	imp, err := p.ImportFile(ctx, pulse.ImportSpec{SourcePath: "v.csv"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := p.Inspect(ctx, imp.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantTypes := map[string]string{"n": "u4", "v8": "u8", "w": "u16"}
+	for _, f := range info.Fields {
+		if w, ok := wantTypes[f.Name]; ok && string(f.Type) != w {
+			t.Fatalf("column %s imported as %s, want %s", f.Name, f.Type, w)
+		}
+	}
+	sum := []*types.Aggregation{{Type: types.AGG_SUM, Field: "x", Label: "total"}}
+	estimate := func(groups []*types.Group) int64 {
+		t.Helper()
+		res, err := p.Predict(ctx, &types.Request{Cohort: &types.Cohort{Filename: imp.Path}, Groups: groups, Aggregations: sum})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(res.LimitFindings) != 1 {
+			t.Fatalf("findings = %+v", res.LimitFindings)
+		}
+		return res.LimitFindings[0].Estimated
+	}
+	const bucket = 256 + 256 + 1024 + 512
+	base := estimate(nil)
+	run, err := pulse.New(pulse.Options{FS: fs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		group *types.Group
+		want  int64
+	}{
+		{&types.Group{Type: types.GROUP_CATEGORY, Field: "n"}, 16},
+		{&types.Group{Type: types.GROUP_CATEGORY, Field: "v8"}, 256},
+		{&types.Group{Type: types.GROUP_ROUNDED, Field: "v8", Interval: 1}, 256},
+		{&types.Group{Type: types.GROUP_CATEGORY, Field: "w"}, records},
+	} {
+		d := estimate([]*types.Group{c.group}) - base
+		if d%bucket != 0 {
+			t.Fatalf("%s %s: grouped delta %d is not whole buckets", c.group.Type, c.group.Field, d)
+		}
+		charged := d/bucket + 1
+		resp, err := run.Process(ctx, &types.Request{Cohort: &types.Cohort{Filename: imp.Path}, Groups: []*types.Group{c.group}, Aggregations: sum})
+		if err != nil {
+			t.Fatal(err)
+		}
+		minted := int64(len(resp.Data))
+		if charged != c.want || minted != c.want {
+			t.Errorf("%s %s: predict charges %d buckets, the run mints %d; want both %d", c.group.Type, c.group.Field, charged, minted, c.want)
+		}
 	}
 }

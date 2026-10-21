@@ -377,6 +377,13 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 		{name: "streaming", req: func() *types.Request { return &types.Request{Cohort: co, Aggregations: sum} }, maxFactor: 2.5},
 		{name: "streaming grouped", req: func() *types.Request { return &types.Request{Cohort: co, Groups: brand, Aggregations: sum} }, maxFactor: 2.5},
 		{name: "streaming projected", req: func() *types.Request { return &types.Request{Cohort: co, Aggregations: sum} }, project: true, maxFactor: 4.5},
+		// U51 E5-S6: GROUP_CATEGORY over the u16 pad_018 is charged its
+		// 65,536-key width bound (below the 200,000 records it was
+		// charged before); the data holds 4,096 of them, so the bound is
+		// loose here, never under.
+		{name: "streaming value-width grouped", req: func() *types.Request {
+			return &types.Request{Cohort: co, Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "pad_018"}}, Aggregations: sum}
+		}, maxFactor: 4.5},
 		{name: "streaming value state", req: func() *types.Request {
 			return &types.Request{Cohort: co, Aggregations: []*types.Aggregation{{Type: types.AGG_DISTINCT_COUNT, Field: "weight", Label: "d"}}}
 		}, maxFactor: 2.5},

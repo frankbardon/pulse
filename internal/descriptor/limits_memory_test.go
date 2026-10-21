@@ -530,3 +530,72 @@ func TestFacetGroupBound(t *testing.T) {
 		t.Fatalf("findings %+v, want MaxGroups then a certain memory finding", fs)
 	}
 }
+
+// TestEstimateMemory_ValueWidthBound (U51 E5-S6): a grouper of
+// data-dependent cardinality whose key is a function of one integer or
+// set word is charged at most 2^bits buckets (valueKeyBound), never
+// more than the records; a float, date or 64-bit field, and a fan-out
+// run, keep the record bound — times the fan-out multiplicity, the
+// composite keys one record can mint.
+func TestEstimateMemory_ValueWidthBound(t *testing.T) {
+	schema := groupsSchema(t)
+	schema.Fields = append(schema.Fields,
+		encoding.Field{Name: "nib", Type: encoding.FieldTypeU4},
+		encoding.Field{Name: "small", Type: encoding.FieldTypeU8},
+		encoding.Field{Name: "mid", Type: encoding.FieldTypeU16},
+		encoding.Field{Name: "big", Type: encoding.FieldTypeU32},
+		encoding.Field{Name: "huge", Type: encoding.FieldTypeU64},
+		encoding.Field{Name: "mask", Type: encoding.FieldTypeSetU8},
+	)
+	sum := sumOf("num")
+	buckets := func(records int64, groups ...*types.Group) int64 {
+		t.Helper()
+		base, ok := EstimateMemory(&types.Request{Aggregations: sum}, schema, nil, memIn(records))
+		if !ok {
+			t.Fatal("no estimate")
+		}
+		n, ok := EstimateMemory(&types.Request{Groups: groups, Aggregations: sum}, schema, nil, memIn(records))
+		if !ok {
+			t.Fatal("no estimate")
+		}
+		d := n - base
+		if d%finalBucket1 != 0 {
+			t.Fatalf("%v: grouped delta %d is not whole buckets (arm %s)", groups[0].Type, d, MemoryArm(&types.Request{Groups: groups, Aggregations: sum}, schema, nil, memIn(records)))
+		}
+		return d/finalBucket1 + 1
+	}
+	g := func(typ types.GroupType, field string) *types.Group {
+		return &types.Group{Type: typ, Field: field, Interval: 10}
+	}
+	cases := []struct {
+		name    string
+		records int64
+		groups  []*types.Group
+		want    int64
+	}{
+		{"category over u4", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "nib")}, 16},
+		{"category over u8", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "small")}, 256},
+		{"category over u8, fewer records", 100, []*types.Group{g(types.GROUP_CATEGORY, "small")}, 100},
+		{"category over u16", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "mid")}, 65_536},
+		{"category over u32", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "big")}, 100_000},
+		{"category over u64", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "huge")}, 100_000},
+		{"category over f64", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "num")}, 100_000},
+		{"rounded over u8", 100_000, []*types.Group{g(types.GROUP_ROUNDED, "small")}, 256},
+		{"range over u8", 100_000, []*types.Group{g(types.GROUP_RANGE, "small")}, 256},
+		{"category over date", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "day")}, 100_000},
+		{"set value over set_u8", 100_000, []*types.Group{g(types.GROUP_SET_VALUE, "mask")}, 256},
+		// A known dictionary times a width bound: 5 x 256.
+		{"dictionary x u8", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "cat"), g(types.GROUP_CATEGORY, "small")}, 5 * 256},
+		{"u8 x f64", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "small"), g(types.GROUP_RANGE, "num")}, 100_000},
+		// Fan-out: 3 members x 256 values bound it below 3 x records…
+		{"fan-out x u8", 100_000, []*types.Group{g(types.GROUP_SET_PER_ELEMENT, "tags"), g(types.GROUP_CATEGORY, "small")}, 3 * 256},
+		// …and with an unbounded position each record still mints up to
+		// 3 composite keys.
+		{"fan-out x f64", 1_000, []*types.Group{g(types.GROUP_SET_PER_ELEMENT, "tags"), g(types.GROUP_RANGE, "num")}, 3 * 1_000},
+	}
+	for _, c := range cases {
+		if got := buckets(c.records, c.groups...); got != c.want {
+			t.Errorf("%s: charged %d buckets, want %d", c.name, got, c.want)
+		}
+	}
+}

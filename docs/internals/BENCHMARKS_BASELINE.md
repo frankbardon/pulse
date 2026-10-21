@@ -346,3 +346,23 @@ large: a repeat retention run measured 4.79 GB (before) and 4.84 GB
 (after) max RSS. Wall time, peak heap and max RSS move within that
 noise; the live-state peak above (#499, `docs/roadmap/TODO.md`) is
 untouched.
+
+E5-S6: the estimate now bounds a data-dependent grouper by the width of
+the integer or set word it keys on (16 keys for `u4`, 256 for `u8`,
+65,536 for `u16`), not the record count. That bound is attained
+(`TestLimits_ValueWidthBoundCoversEveryKey`), so it can never
+under-estimate. It does not reach this shape: `customer_id` is a `u32`,
+whose 2^32 values exceed the 2.52M records. Header, schema and sidecars
+hold no provable distinct-customer count, so the retention estimate
+stays 33.4 GB at one live partial (2.52M buckets charged against
+1,053,033 present, at 12,800 bytes a bucket against ~2,400 measured with
+components off). Estimate / peak on the memory fixtures after the change
+(Apple M1 Max, go1.27.2):
+
+| Fixture | Estimate | Peak heap | Estimate / peak |
+|---|---|---|---|
+| `TestGroupMemory_EstimateBoundsPeak` unweighted (50,000 `u32` keys) | 189.8 MB | 124.0 MB | 1.53 |
+| `TestGroupMemory_EstimateBoundsPeak` weighted | 226.4 MB | 185.3 MB | 1.22 |
+| calibration `streaming grouped` (16-entry dictionary) | 153.6 MB | 80.9 MB | 1.90 |
+| calibration `streaming value-width grouped` (`u16`, 65,536 charged, 4,096 present; 563 MB before) | 287.8 MB | 88.4 MB | 3.26 |
+| retention stage 0 (`u32` customer id) | 33.4 GB | ~3.0 GB | ~11 |
