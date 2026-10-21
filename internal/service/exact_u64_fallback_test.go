@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"io"
 	"math"
 	"path/filepath"
 	"strconv"
@@ -114,7 +115,10 @@ func TestExactU64_StreamProjectionWithoutPlan(t *testing.T) {
 	}
 }
 
-func TestExactU64_ShardIterProjectionWithoutPlan(t *testing.T) {
+// exactU64Archive opens a two-shard archive of the fixture (rows split
+// in half) on a fresh service.
+func exactU64Archive(t *testing.T) (*Service, *fs.Config, *Cohort) {
+	t.Helper()
 	schema := exactU64Schema()
 	var doc bytes.Buffer
 	if err := encx.WriteSchemaDoc(&doc, schema, uint64(len(exactU64Want)), 2); err != nil {
@@ -152,6 +156,11 @@ func TestExactU64_ShardIterProjectionWithoutPlan(t *testing.T) {
 	if len(cohort.Shards()) != 2 {
 		t.Fatalf("archive shards = %d, want 2", len(cohort.Shards()))
 	}
+	return svc, cfg, cohort
+}
+
+func TestExactU64_ShardIterProjectionWithoutPlan(t *testing.T) {
+	_, cfg, cohort := exactU64Archive(t)
 	it := newShardIter(cfg.Fs(), "arch.pulse", cohort.Schema(), cohort.Shards())
 	defer it.Close()
 	it.SetProjection(keepK, 1)
@@ -159,6 +168,47 @@ func TestExactU64_ShardIterProjectionWithoutPlan(t *testing.T) {
 	drainExact(t, "shard_iter", it)
 	if err := it.Err(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestExactU64_ShardParallelProjectionWithoutPlan (U51 E2-S2): the
+// per-shard parallel reducer now projects, so it carries the serial
+// shard iterator's defensive projection-without-plan map decode — and
+// with it the exact-word capture. Falsified by dropping the
+// exact.ApplyTo call in shardRows.next.
+func TestExactU64_ShardParallelProjectionWithoutPlan(t *testing.T) {
+	_, cfg, cohort := exactU64Archive(t)
+	arch, err := openArchiveFile(cfg.Fs(), "arch.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer arch.Close()
+	schema := cohort.Schema()
+	// The map-decode fallback: a projection whose plan did not build.
+	dec := &shardDecode{keep: keepK, projected: 1, binding: recordBindingFor(schema, nil, keepK)}
+	r := 0
+	for _, sh := range cohort.Shards() {
+		rows, err := dec.openRows(arch, sh.Filename, schema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for {
+			rec, err := rows.next()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if r >= len(exactU64Want) {
+				t.Fatalf("more than %d records", len(exactU64Want))
+			}
+			assertExactU64(t, "shard_parallel", r, rec)
+			r++
+		}
+	}
+	if r != len(exactU64Want) {
+		t.Fatalf("%d records, want %d", r, len(exactU64Want))
 	}
 }
 
@@ -252,7 +302,7 @@ func TestExactU64_FilterToFileRecord(t *testing.T) {
 			t.Fatal(err)
 		}
 		var out bytes.Buffer
-		n, err := svc.streamFilterRecords(context.Background(), data, at, schema, filter, keep, &out)
+		n, err := svc.streamFilterRecords(context.Background(), at, schema, filter, keep, &out)
 		if err != nil {
 			t.Fatal(err)
 		}

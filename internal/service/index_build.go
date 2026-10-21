@@ -27,6 +27,20 @@ type BuildIndexResult struct {
 	// key tuple without knowing the tuple already, which the sidecar's
 	// own hash-derived filename makes impossible.
 	ManifestPath string
+
+	// DistinctKeys / IndexedRecords summarise the built index: distinct
+	// key values and rows indexed (null-key rows are skipped). For a
+	// shard archive they are the per-shard sums — a key present in k
+	// shards counts k times.
+	DistinctKeys   int
+	IndexedRecords int
+
+	// ShardIndexPaths lists, for a shard archive, every per-shard
+	// sidecar the build wrote, in archive order. Nil for a single-file
+	// cohort. An archive index has no single file: IndexPath is then its
+	// logical name (the path SidecarIndexPath derives for the archive,
+	// carrying the key hash) and Index is nil.
+	ShardIndexPaths []string
 }
 
 // BuildIndex scans the single-file cohort at path exactly once,
@@ -56,13 +70,11 @@ type BuildIndexResult struct {
 // null component is unindexable, so the whole row is skipped rather
 // than partially indexed).
 //
-// Shard archive cohorts (detected via the cheap leading-magic-bytes
-// dispatch service.Service.Open already performs — encoding.ZipMagic
-// vs encoding.MagicBytes, no added scan) are rejected with
-// PULSE_INDEX_UNSUPPORTED_SHARDED. Row-id addressing
-// (RecordLocator.Offset) only has meaning for a single contiguous
-// record region, which a multi-shard archive does not present.
-// Sharded point-lookup support is out of scope for v1.
+// A shard archive cohort (detected via the cheap leading-magic-bytes
+// dispatch Service.Open already performs) is indexed ONE SIDECAR PER
+// SHARD plus the archive's manifest entry listing the covered shards
+// (buildArchiveIndex): row ids are in-shard ordinals, so each shard is
+// its own contiguous record region, and the index format is unchanged.
 //
 // Key field types are gated by processing.IsIndexKeyableFieldType — see
 // that predicate's doc comment for the full, settled keyable-type
@@ -83,12 +95,6 @@ func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []strin
 		return nil, err
 	}
 	schema := cohort.Schema()
-
-	if len(cohort.Shards()) > 0 {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_UNSUPPORTED_SHARDED,
-			"point-lookup index build does not support shard archive cohorts",
-			map[string]any{"cohort": path})
-	}
 
 	keys := make([]encx.IndexKeySpec, 0, len(keyFields))
 	fields := make([]*encoding.Field, 0, len(keyFields))
@@ -116,6 +122,10 @@ func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []strin
 	fsys := cohort.fs
 	if fsys == nil {
 		fsys = s.fs.Fs()
+	}
+
+	if len(cohort.Shards()) > 0 {
+		return s.buildArchiveIndex(fsys, cohort, path, keyFields, keys, fields)
 	}
 
 	fp, err := computeCohortFingerprint(fsys, path)
@@ -157,7 +167,9 @@ func (s *Service) BuildIndex(ctx context.Context, path string, keyFields []strin
 		return nil, err
 	}
 
-	return &BuildIndexResult{IndexPath: indexPath, Index: idx, ManifestPath: manifestPath}, nil
+	distinct, records := indexBucketCounts(buckets)
+	return &BuildIndexResult{IndexPath: indexPath, Index: idx, ManifestPath: manifestPath,
+		DistinctKeys: distinct, IndexedRecords: records}, nil
 }
 
 // computeCohortFingerprint reads the whole cohort file at path back
@@ -203,44 +215,17 @@ func statCohortFile(fsys afero.Fs, path string) (size uint64, modTimeUnixNano in
 // concatenation of every key column's on-wire bytes. keyFields with a
 // single element degenerates to the E1 single-key path exactly.
 //
-// Entries are accumulated in an ordered map keyed by the string form
-// of the raw key bytes (fast O(1) "have we seen this key already"
-// lookup) alongside an insertion-order slice — the insertion-order
-// slice is what makes bucket placement below deterministic and
-// therefore rebuild-idempotent: Go map iteration order is NOT
-// deterministic, so the final bucket layout is built by walking the
-// ordered slice, never by ranging the map.
-//
-// Bucket count is sized to the number of DISTINCT keys observed
-// (not the row count) — a multimap build where most rows share a
-// handful of keys would otherwise massively over-allocate empty
-// buckets. Load factor ~1 keeps the average bucket at 0-1 entries,
-// matching IndexBucket's doc comment ("a well-distributed build
-// populates each bucket with zero or one entries on average").
+// Layout (first-seen key order, distinct-key bucket count) is
+// indexBucketBuilder's.
 func scanBuildBuckets(fsys afero.Fs, path string, schema *encoding.Schema, keyFields []*encoding.Field) ([]encx.IndexBucket, error) {
 	iter := newStreamingIterator(fsys, path, schema)
 	defer iter.Close()
 
-	type accumEntry struct {
-		key    []byte
-		rowIDs []uint64
-	}
-	byKey := make(map[string]*accumEntry)
-	order := make([]string, 0)
-
+	var b indexBucketBuilder
 	var rowID uint64
 	for iter.Next() {
-		rec := iter.Record()
-		keyBytes, ok := processing.CompositeKeyFieldOnWireBytes(rec, keyFields)
-		if ok {
-			k := string(keyBytes)
-			e, seen := byKey[k]
-			if !seen {
-				e = &accumEntry{key: keyBytes}
-				byKey[k] = e
-				order = append(order, k)
-			}
-			e.rowIDs = append(e.rowIDs, rowID)
+		if keyBytes, ok := processing.CompositeKeyFieldOnWireBytes(iter.Record(), keyFields); ok {
+			b.add(keyBytes, rowID)
 		}
 		rowID++
 	}
@@ -248,20 +233,80 @@ func scanBuildBuckets(fsys afero.Fs, path string, schema *encoding.Schema, keyFi
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("scanning cohort for index build: %s", path))
 	}
+	return b.buckets(), nil
+}
 
-	bucketCount := uint32(len(order))
-	if bucketCount == 0 {
-		return nil, nil
+// indexBucketBuilder accumulates one index's key -> row-id multimap in
+// first-seen key order and lays it out into hash buckets. It is the one
+// layout rule for a single-file build and every shard of an archive
+// build, which is what makes an archive's per-shard sidecar
+// byte-identical to the one an anchored build of that shard writes.
+//
+// Entries are held in a map keyed by the string form of the raw key
+// bytes (fast "have we seen this key" lookup) alongside an
+// insertion-order slice — the slice is what makes bucket placement
+// deterministic and therefore rebuild-idempotent: Go map iteration
+// order is NOT deterministic, so the bucket layout is built by walking
+// the slice, never by ranging the map.
+//
+// Bucket count is sized to the number of DISTINCT keys observed (not
+// the row count) — a multimap build where most rows share a handful of
+// keys would otherwise massively over-allocate empty buckets. Load
+// factor ~1 keeps the average bucket at 0-1 entries, matching
+// IndexBucket's doc comment.
+type indexBucketBuilder struct {
+	byKey map[string]*indexAccumEntry
+	order []string
+}
+
+type indexAccumEntry struct {
+	key    []byte
+	rowIDs []uint64
+}
+
+// add records rowID under key.
+func (b *indexBucketBuilder) add(key []byte, rowID uint64) {
+	if b.byKey == nil {
+		b.byKey = make(map[string]*indexAccumEntry)
 	}
+	k := string(key)
+	e, seen := b.byKey[k]
+	if !seen {
+		e = &indexAccumEntry{key: key}
+		b.byKey[k] = e
+		b.order = append(b.order, k)
+	}
+	e.rowIDs = append(e.rowIDs, rowID)
+}
 
-	buckets := make([]encx.IndexBucket, bucketCount)
-	for _, k := range order {
-		e := byKey[k]
+// buckets lays the accumulated entries out into hash buckets (nil for
+// no keys) and empties the builder for reuse.
+func (b *indexBucketBuilder) buckets() []encx.IndexBucket {
+	bucketCount := uint32(len(b.order))
+	if bucketCount == 0 {
+		return nil
+	}
+	out := make([]encx.IndexBucket, bucketCount)
+	for _, k := range b.order {
+		e := b.byKey[k]
 		bi := encx.BucketIndex(e.key, bucketCount)
-		buckets[bi].Entries = append(buckets[bi].Entries, encx.IndexEntry{
+		out[bi].Entries = append(out[bi].Entries, encx.IndexEntry{
 			Key:    e.key,
 			RowIDs: e.rowIDs,
 		})
 	}
-	return buckets, nil
+	b.byKey, b.order = nil, nil
+	return out
+}
+
+// indexBucketCounts returns the distinct-key and indexed-record counts
+// of a bucket table.
+func indexBucketCounts(buckets []encx.IndexBucket) (distinct, records int) {
+	for _, bk := range buckets {
+		distinct += len(bk.Entries)
+		for _, e := range bk.Entries {
+			records += len(e.RowIDs)
+		}
+	}
+	return distinct, records
 }

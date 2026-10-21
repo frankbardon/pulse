@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 
@@ -33,12 +32,11 @@ type shardIter struct {
 	schema *encoding.Schema
 	shards []ShardEntry
 
-	// archiveData holds the zip bytes for the lifetime of the iterator.
-	// Each shard reader is built from a SectionReader carved out of
-	// these bytes; rewinding (Reset) re-seeks rather than re-reading
-	// the archive from disk.
-	archiveData []byte
-	archive     *encx.Archive
+	// archive is the archive opened for random access (one handle, the
+	// central directory parsed once per scan). Each shard reader is a
+	// buffered SectionReader at the shard's data offset; rewinding
+	// (Reset) re-carves sections rather than re-opening the archive.
+	archive *archiveFile
 
 	// per-shard reader state.
 	shardIdx int
@@ -70,6 +68,9 @@ type shardIter struct {
 	// binding mints the buffered path's fresh per-row Records (see
 	// streamingIterator.binding).
 	binding *processing.RecordBinding
+	// extras are the attribute labels the binding reserves slots for
+	// (SetExtras).
+	extras []string
 
 	// project / projectSize: optional field-keep filter. Bytes for
 	// excluded fields are still consumed from the reader so byte
@@ -88,9 +89,11 @@ type shardIter struct {
 }
 
 // newShardIter constructs a multi-shard iterator over the cohort's
-// archive. The archive bytes are read once via afero and held for the
-// iterator's lifetime — subsequent shard transitions and Reset() rewinds
-// reuse the same buffer. Returns an iterator in the same "lazy init"
+// archive. The archive is opened once for random access (its central
+// directory parsed, no payload read) and held for the iterator's
+// lifetime — subsequent shard transitions and Reset() rewinds reuse the
+// same handle; only one shard's read-ahead buffer is ever resident.
+// Returns an iterator in the same "lazy init"
 // state as newStreamingIterator: the archive is parsed on the first
 // Next() call.
 //
@@ -124,23 +127,17 @@ func shardStarts(shards []ShardEntry) []int {
 	return out
 }
 
-// initArchive loads the archive bytes once and parses the central
-// directory. Idempotent — Reset uses it to rewind without re-reading.
+// initArchive opens the archive and parses the central directory
+// once. Idempotent — Reset uses it to rewind without re-opening.
 func (it *shardIter) initArchive() error {
 	if it.archive != nil {
 		return nil
 	}
-	data, err := afero.ReadFile(it.fs, it.path)
-	if err != nil {
-		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("opening shard archive: %s", it.path))
-	}
-	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	a, err := openArchiveFile(it.fs, it.path)
 	if err != nil {
 		return err
 	}
-	it.archiveData = data
-	it.archive = arch
+	it.archive = a
 	return nil
 }
 
@@ -153,7 +150,9 @@ func (it *shardIter) openShard(idx int) error {
 		return io.EOF
 	}
 	name := it.shards[idx].Filename
-	sect, err := it.archive.OpenAt(name)
+	// A deflated entry is refused (storedShard), never decoded as raw
+	// compressed bytes.
+	r, err := it.archive.shardReader(name)
 	if err != nil {
 		return err
 	}
@@ -162,7 +161,6 @@ func (it *shardIter) openShard(idx int) error {
 	// The schema is read layout-only: the canonical schema decodes the
 	// rows, so the shard's own dictionaries and group entry tables are
 	// read past, never allocated (TestShardScan_SkipsShardDictionaries).
-	r := &sect
 	pulseVersion, err := encoding.ReadHeader(r)
 	if err != nil {
 		return errors.WrapCodedError(err, errors.ENCODING_INVALID,
@@ -260,7 +258,7 @@ func (it *shardIter) next() bool {
 		switch {
 		case it.plan != nil:
 			if it.binding == nil {
-				it.binding = recordBindingFor(it.schema, it.plan, it.project)
+				it.binding = recordBindingFor(it.schema, it.plan, it.project, it.extras...)
 			}
 			rec = it.binding.NewRecord()
 			err = it.reader.ReadRecordReusedWithPlan(rec, it.project, it.plan)
@@ -277,7 +275,7 @@ func (it *shardIter) next() bool {
 			}
 		default:
 			if it.binding == nil {
-				it.binding = recordBindingFor(it.schema, it.plan, it.project)
+				it.binding = recordBindingFor(it.schema, it.plan, it.project, it.extras...)
 			}
 			rec = it.binding.NewRecord()
 			err = it.reader.ReadRecordReused(rec)
@@ -303,7 +301,7 @@ func (it *shardIter) Record() *processing.Record {
 }
 
 // Reset rewinds the iterator to the first record of the first shard.
-// The archive bytes + central directory cache survive Reset; only the
+// The archive handle + central directory cache survive Reset; only the
 // per-shard reader state is discarded. Preserves the reuse flag and
 // the reusable Record so two-pass orchestrators benefit from the same
 // allocation savings on pass 2.
@@ -352,19 +350,23 @@ func (it *shardIter) SetProjection(keep encx.FieldFilter, size int) {
 	it.planKey = key
 }
 
+// SetExtras implements scanIterator (see streamingIterator.SetExtras).
+func (it *shardIter) SetExtras(labels []string) {
+	it.extras = labels
+	it.binding = nil
+}
+
 // Err returns any error encountered during iteration.
 func (it *shardIter) Err() error {
 	return it.err
 }
 
-// Close releases resources. The archive byte buffer is dropped so the
-// GC can reclaim it. Returns nil — the iterator owns no file handles
-// directly (the underlying SectionReader is GC-managed).
+// Close releases the archive handle and the per-shard reader state.
 func (it *shardIter) Close() error {
+	err := it.archive.Close()
 	it.archive = nil
-	it.archiveData = nil
 	it.reader = nil
 	it.current = nil
 	it.reusedRec = nil
-	return nil
+	return err
 }

@@ -25,10 +25,10 @@ import (
 // parallelDecodeMmap's worker group boundary completes, the orchestrator
 // folds the partials in worker-index order via mergeShardPartials and
 // finalises through finalizeMergedPartial — both reused verbatim from
-// shard_reduce.go, so byte-equal vs serial holds for every
-// associative+commutative aggregator and ULP-bounded equivalence holds
-// for the Welford-Pébaÿ merge (the same guarantee shard_reduce already
-// ships).
+// shard_reduce.go, so byte-equal vs serial holds for every order-free
+// aggregator (integer counts, sentinel scans, the binned reproducible
+// sums of internal/reprosum) and ULP-bounded equivalence holds for the
+// Welford-Pébaÿ merge (the same guarantee shard_reduce already ships).
 
 // reduceParallelBuffered is the per-segment partial-state + merge
 // orchestrator. The caller guarantees:
@@ -48,8 +48,8 @@ import (
 // contiguous record ranges per worker), then finalizeMergedPartial
 // emits the Response.
 //
-// Worker-index iteration order matters for the Welford-Pébaÿ AGG_MEAN /
-// AGG_STDDEV / AGG_VARIANCE merge: Chan-Welford is associative but not
+// Worker-index iteration order matters for the Welford-Pébaÿ AGG_WELFORD /
+// AGG_STDDEV / AGG_VARIANCE merge (the binned sums are order-free): Chan-Welford is associative but not
 // strictly commutative when partition sizes differ, so floating-point
 // rounding can drift by 1 ULP if merge order varies between runs. We
 // pin the order to worker index (== cohort byte order) so the same
@@ -109,10 +109,21 @@ func (s *Service) reduceParallelBuffered(
 
 	// A fitted attribute bound to a prebuilt fit closes at bind: its
 	// fit warnings and capture offer come from one build here, never
-	// from the per-worker builds (boundAttributeWarnings).
-	attrWarns, err := boundAttributeWarnings(req, schema, s.extensions, model.SetFrom(ctx))
+	// from the per-worker builds (boundAttributes) — the build the
+	// workers' per-run attribute tallies fold into at finalize.
+	bound, err := boundAttributes(req, schema, s.extensions, model.SetFrom(ctx), compute)
 	if err != nil {
 		return nil, err
+	}
+
+	// A total() formula (admitted by mergegate.ParallelTotals) runs two
+	// phases: a parallel pre-pass over the same segments publishes the
+	// cohort totals, bound below into every worker's formula.
+	var totals *processing.PublishedTotals
+	if processing.HasFormulaTotals(req.Attributes) {
+		if totals, err = s.decodeTotalsPrepass(ctx, req, schema, pctx, workers); err != nil {
+			return nil, err
+		}
 	}
 
 	// One factory per grouper slot — every slot, not Groups[0] only.
@@ -157,10 +168,13 @@ func (s *Service) reduceParallelBuffered(
 		vecs := processing.ExprVectors(req, schema)
 		filterFns, buildErr = processing.BuildFiltersWithVectors(req.Filterers, schema, s.extensions, model.SetFrom(ctx), vecs)
 		if buildErr == nil {
-			rowLocalAttrs, buildErr = buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, partitionModels(ctx), vecs)
+			rowLocalAttrs, buildErr = buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, partitionModels(ctx), vecs, totals, compute)
 		}
 		if buildErr == nil {
 			out, buildErr = newPartitionPartial(req, schema, s.extensions, specs, grouperFactories, compute, model.SetFrom(ctx), s.Limits())
+		}
+		if out != nil {
+			out.attrs = rowLocalAttrs
 		}
 		var ungroupedAggs []processing.OnlineAggregator
 		if out != nil {
@@ -197,6 +211,7 @@ func (s *Service) reduceParallelBuffered(
 						return err
 					}
 					processing.SetAttributeOutput(rec, ra.label, val, ra.nullable)
+					ra.floor.Observe(val, ra.nullable)
 				}
 
 				// Run.NullRecords' primary-field tally. This worker
@@ -261,11 +276,10 @@ func (s *Service) reduceParallelBuffered(
 		if partials[0] == nil {
 			partials[0] = &shardPartial{}
 		}
-		resp, err := finalizeMergedPartial(req, schema, partials[0], 0, compute, s.extensions, model.SetFrom(ctx))
+		resp, err := finalizeMergedPartial(req, schema, partials[0], 0, compute, s.extensions, model.SetFrom(ctx), bound)
 		if err != nil {
 			return nil, err
 		}
-		resp.Warnings = prependWarnings(resp.Warnings, attrWarns)
 		if err := partials[0].weights.Apply(resp, s.strict); err != nil {
 			return nil, err
 		}
@@ -282,11 +296,10 @@ func (s *Service) reduceParallelBuffered(
 	if err != nil {
 		return nil, err
 	}
-	resp, err := finalizeMergedPartial(req, schema, merged, 0, compute, s.extensions, model.SetFrom(ctx))
+	resp, err := finalizeMergedPartial(req, schema, merged, 0, compute, s.extensions, model.SetFrom(ctx), bound)
 	if err != nil {
 		return nil, err
 	}
-	resp.Warnings = prependWarnings(resp.Warnings, attrWarns)
 	if err := merged.weights.Apply(resp, s.strict); err != nil {
 		return nil, err
 	}

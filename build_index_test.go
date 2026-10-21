@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
 
@@ -71,10 +71,10 @@ func TestBuildIndex_CompositeKey(t *testing.T) {
 	}
 }
 
-// TestBuildIndex_ShardArchiveRejected confirms the facade propagates
-// service.Service.BuildIndex's PULSE_INDEX_UNSUPPORTED_SHARDED
-// rejection verbatim for a shard-archive cohort.
-func TestBuildIndex_ShardArchiveRejected(t *testing.T) {
+// TestBuildIndex_ShardArchiveWritesPerShardSidecars: the facade indexes
+// a shard archive one sidecar per shard (no single Index), with the
+// counts and the per-shard paths on the result.
+func TestBuildIndex_ShardArchiveWritesPerShardSidecars(t *testing.T) {
 	memFs := afero.NewMemMapFs()
 	createTestPulseFile(t, memFs, "shard1.pulse", []string{"id"}, [][]string{{"1"}, {"2"}})
 	createTestPulseFile(t, memFs, "shard2.pulse", []string{"id"}, [][]string{{"3"}, {"4"}})
@@ -88,11 +88,15 @@ func TestBuildIndex_ShardArchiveRejected(t *testing.T) {
 		t.Fatalf("CreateShardArchive: %v", err)
 	}
 
-	_, err = p.BuildIndex(context.Background(), "archive.pulse", []string{"id"})
-	if err == nil {
-		t.Fatal("expected error building an index against a shard archive")
+	res, err := p.BuildIndex(context.Background(), "archive.pulse", []string{"id"})
+	if err != nil {
+		t.Fatalf("BuildIndex(archive): %v", err)
 	}
-	if !errors.HasCode(err, errors.PULSE_INDEX_UNSUPPORTED_SHARDED) {
-		t.Errorf("expected PULSE_INDEX_UNSUPPORTED_SHARDED, got: %v", err)
+	if res.Index != nil || len(res.ShardIndexPaths) != 2 || res.DistinctKeys != 4 || res.IndexedRecords != 4 {
+		t.Errorf("BuildIndex(archive) = %+v, want no single Index, 2 shard sidecars, 4/4", res)
+	}
+	got, err := p.Lookup(context.Background(), &LookupRequest{Cohort: &types.Cohort{Filename: "archive.pulse"}, Field: "id", Value: "3"})
+	if err != nil || len(got.Rows) != 1 {
+		t.Errorf("Lookup(archive, id=3) = %+v, %v; want one row from shard2", got, err)
 	}
 }

@@ -46,7 +46,7 @@
 | windows | amd64, arm64 |
 
 - `CGO_ENABLED=0`, as the Makefile already enforces, so cross-compiling is trivial.
-- Each archive contains the `pulse` binary plus `LICENSE` and `README.md`.
+- Each archive contains the `pulse` binary plus `LICENSE`, `THIRD_PARTY_NOTICES.md` and `README.md`.
 - A `checksums.txt` file (SHA-256) is attached.
 - Optional: SBOM and keyless signing (cosign). Cheap to add, but not required by the decisions above.
 

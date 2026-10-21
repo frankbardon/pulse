@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -286,8 +287,9 @@ func (s *Service) ShardWorkers() int {
 // serial regardless of decodeWorkers. Chosen to match the in-tree
 // BenchmarkBufferedProcessWideCohort row count (100K) where the
 // parallel decode win first becomes measurable on the canonical
-// reference cohort.
-const parallelDecodeRecordThreshold = 100_000
+// reference cohort. Predict reads the same figure
+// (limits.ParallelDecodeRecordThreshold, descriptor DecodeFanOut).
+const parallelDecodeRecordThreshold = limits.ParallelDecodeRecordThreshold
 
 // SetDecodeWorkers configures the per-cohort parallel decode worker
 // pool cap used by the buffered Process path. Zero falls back to
@@ -442,11 +444,10 @@ func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
 	// The single-file branch then advances through the 9-byte header +
 	// schema block without ever materializing the record payload — on
 	// large cohorts (hundreds of MB) this turns an O(file size) alloc
-	// into an O(header + schema) read. The shard archive branch keeps
-	// the full slurp because encoding.OpenArchive needs the central
-	// directory at the file's tail and the EOCD requires random access
-	// across the whole zip; switching that to a streaming open is a
-	// separate scope (see story Notes).
+	// into an O(header + schema) read. The shard archive branch reads
+	// the zip central directory at the file's tail by random access on
+	// the same handle (archiveFromFile), then the canonical entry and
+	// each shard's header — never a shard payload.
 	f, err := s.fs.Fs().Open(path)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
@@ -461,16 +462,13 @@ func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
 			fmt.Sprintf("reading magic prefix from cohort file: %s", path))
 	}
 	if n >= 4 && magic[0] == 'P' && magic[1] == 'K' && magic[2] == 0x03 && magic[3] == 0x04 {
-		// Shard archive: slurp via afero so encoding.OpenArchive can
-		// scan the EOCD at the file tail. afero.ReadFile opens its own
-		// handle; the deferred Close above releases the streaming one.
-		// This is intentionally not optimised here — see comment above.
-		data, rerr := afero.ReadFile(s.fs.Fs(), path)
-		if rerr != nil {
-			return nil, errors.WrapCodedError(rerr, errors.SERVICE_RESOURCE,
-				fmt.Sprintf("opening cohort file: %s", path))
+		// Shard archive: random access over this handle. The deferred
+		// Close above releases it once the directory and headers are read.
+		a, aerr := archiveFromFile(f, path)
+		if aerr != nil {
+			return nil, aerr
 		}
-		return s.openArchive(path, data)
+		return s.openArchive(path, a)
 	}
 
 	// Single-file branch: feed the already-consumed magic bytes back to
@@ -499,10 +497,21 @@ func (s *Service) Open(ctx context.Context, path string) (*Cohort, error) {
 			fmt.Sprintf("reading schema from: %s", path))
 	}
 
+	// Nothing above reads ahead, so the handle sits where the payload
+	// starts: recorded so the parallel-decode dispatch counts records
+	// from the file length without decoding the schema — and every
+	// inline dictionary — a second time (openedRecordCount). A handle
+	// that cannot report its offset records 0 (the dispatch then falls
+	// back to CountRecords).
+	payloadOffset, err := f.Seek(0, io.SeekCurrent)
+	if err != nil {
+		payloadOffset = 0
+	}
 	return &Cohort{
-		path:   path,
-		schema: schema,
-		fs:     s.fs.Fs(),
+		path:          path,
+		schema:        schema,
+		fs:            s.fs.Fs(),
+		payloadOffset: payloadOffset,
 	}, nil
 }
 
@@ -523,33 +532,28 @@ func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Coh
 			"cannot anchor-open the reserved canonical schema entry",
 			map[string]any{"entry": entry})
 	}
-	data, err := afero.ReadFile(s.fs.Fs(), archivePath)
-	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("opening cohort file for anchor: %s", archivePath))
-	}
-	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	a, err := openArchiveFile(s.fs.Fs(), archivePath)
 	if err != nil {
 		return nil, err
 	}
-	// Read the entry payload into memory so the returned Cohort owns
-	// its byte buffer — the section reader's lifetime is tied to the
-	// archive (and therefore to `data`), but a Cohort just stores the
-	// path. We synthesise a backing afero.Fs that serves the path
-	// "<archive>#<entry>" returning the shard bytes, so downstream
-	// readers (streamingIterator) round-trip cleanly.
-	rc, err := arch.Open(entry)
-	if err != nil {
-		return nil, err
-	}
-	defer rc.Close()
-	payload, err := io.ReadAll(rc)
-	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.ENCODING_IO,
-			fmt.Sprintf("reading anchored shard %q from %s", entry, archivePath))
-	}
+	defer a.Close()
 
-	r := bytes.NewReader(payload)
+	// The anchored cohort serves the shard by path (streamingIterator
+	// re-opens it), so a backing afero.Fs answers "<archive>#<entry>":
+	// for a stored entry, a SectionReader at its data offset over a
+	// fresh archive handle per open (no shard byte is read here); a
+	// deflated third-party entry is inflated into memory, its only form.
+	anchorPath := archivePath + "#" + entry
+	overlay, err := s.anchorOverlayFor(a, anchorPath, entry)
+	if err != nil {
+		return nil, err
+	}
+	sf, err := overlay.Open(anchorPath)
+	if err != nil {
+		return nil, err
+	}
+	defer sf.Close()
+	r := bufio.NewReader(sf)
 	pulseVersion, err := encoding.ReadHeader(r)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
@@ -561,25 +565,51 @@ func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Coh
 			fmt.Sprintf("reading shard schema for anchor: %s#%s", archivePath, entry))
 	}
 
-	// Surface the shard via an in-memory overlay so streamingIterator
-	// can re-open by path. Path is the literal anchor form so error
-	// messages stay informative.
-	anchorPath := archivePath + "#" + entry
-	overlay := newAnchorOverlay(s.fs.Fs(), anchorPath, payload)
 	return &Cohort{
 		path:          anchorPath,
 		schema:        schema,
 		fs:            overlay,
 		anchorArchive: archivePath,
 		anchorEntry:   entry,
-		// The whole archive was read to reach the shard: the memory
-		// estimate charges its bytes (limitInputs), as predict does
-		// through PredictOptions.AnchorArchiveBytes.
-		archiveBytes: int64(len(data)),
+		// No archive terms: the anchored run reads only its shard, so
+		// the memory estimate charges it as a single file (predict
+		// does the same over the extracted shard's bytes).
 	}, nil
 }
 
-// openArchive parses a Pulse shard archive from data and constructs a
+// anchorOverlayFor builds the anchored cohort's backing fs: the stored
+// entry as a section of the archive (a fresh handle per open, so the
+// cohort holds no file handle between scans), or — for a deflated
+// third-party entry — its inflated bytes.
+func (s *Service) anchorOverlayFor(a *archiveFile, anchorPath, entry string) (afero.Fs, error) {
+	if _, err := a.arch.OpenAt(entry); err != nil {
+		return nil, err // PULSE_SHARD_MISSING
+	}
+	if a.arch.IsStored(entry) {
+		var off, size int64
+		for _, e := range a.arch.Entries() {
+			if e.Name == entry {
+				off, size = e.Offset, e.Size
+				break
+			}
+		}
+		return newAnchorSectionOverlay(s.fs.Fs(), anchorPath, a.path, off, size), nil
+	}
+	rc, err := a.arch.Open(entry)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	payload, err := io.ReadAll(rc)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_IO,
+			fmt.Sprintf("reading anchored shard %q from %s", entry, a.path))
+	}
+	return newAnchorOverlay(s.fs.Fs(), anchorPath, payload), nil
+}
+
+// openArchive reads an opened Pulse shard archive (its central
+// directory already parsed, archiveFile) and constructs a
 // Cohort whose Schema reads from the archive's reserved
 // `_schema.pulse` entry and whose Shards slice enumerates every
 // non-reserved entry in central-directory order.
@@ -589,12 +619,8 @@ func (s *Service) OpenAnchor(_ context.Context, archivePath, entry string) (*Coh
 // design contract (§3 of the sharding placeholder). The
 // `_schema.pulse` extension's AggregateRecordCount is a cached
 // sanity check; the per-shard headers win.
-func (s *Service) openArchive(path string, data []byte) (*Cohort, error) {
-	reader := bytes.NewReader(data)
-	arch, err := encx.OpenArchive(reader, int64(len(data)))
-	if err != nil {
-		return nil, err
-	}
+func (s *Service) openArchive(path string, a *archiveFile) (*Cohort, error) {
+	arch := a.arch
 
 	// Read canonical schema + sharding metadata from the reserved
 	// _schema.pulse entry via ReadSchemaDoc.
@@ -631,11 +657,11 @@ func (s *Service) openArchive(path string, data []byte) (*Cohort, error) {
 	}
 
 	return &Cohort{
-		path:         path,
-		schema:       doc.Schema,
-		fs:           s.fs.Fs(),
-		shards:       shards,
-		archiveBytes: int64(len(data)),
+		path:           path,
+		schema:         doc.Schema,
+		fs:             s.fs.Fs(),
+		shards:         shards,
+		directoryBytes: a.arch.DirectoryBytes(),
 	}, nil
 }
 
@@ -819,6 +845,10 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 	if err := s.limitsPreflight(req, cohort.Schema(), lin); err != nil {
 		return nil, err
 	}
+	// The per-shard arm's merge window, from the pre-flight's own
+	// inputs: 2 x workers, shrunk to fit a set MaxEstimatedMemory
+	// (descx.ShardMergeWindow — predict's rule).
+	window := descx.ShardMergeWindow(req, cohort.Schema(), s.instance, s.Limits(), lin)
 
 	// Inject configured default label bindings (schema-filtered) before
 	// validation so registered tables render display strings without the
@@ -844,7 +874,7 @@ func (s *Service) processDispatch(ctx context.Context, req *types.Request) (*typ
 	// tests, etc.) fall through to the serial shardIter path below
 	// with byte-for-byte identical semantics.
 	if workers, ok := s.shouldFanOut(req, cohort); ok {
-		return s.processShardArchiveParallel(ctx, req, cohort, path, workers)
+		return s.processShardArchiveParallel(ctx, req, cohort, path, workers, window)
 	}
 
 	// Per-cohort parallel decode fast path (single-file branch). When
@@ -993,7 +1023,7 @@ func (s *Service) processSingleFileParallelMaybe(
 	// is unusual (we already opened the cohort upstream) but if it does
 	// occur we fall back to serial; the serial path will surface the
 	// same error if it is a real cohort-integrity issue.
-	count, err := s.CountRecords(ctx, path)
+	count, err := s.openedRecordCount(ctx, cohort, path)
 	if err != nil {
 		return nil, false, nil
 	}
@@ -1005,24 +1035,10 @@ func (s *Service) processSingleFileParallelMaybe(
 	// workers walk the same plan the serial streamingIterator would
 	// have installed. Mirrors installProjection in service.go and the
 	// streamingIterator.installPlan path in stream.go.
-	var (
-		keep           encx.FieldFilter
-		plan           *encx.DecodePlan
-		projectMapHint = len(schema.Fields)
-	)
-	if s.projectBuffered {
-		needed := s.neededFields(ctx, req, schema)
-		if !needed.IsWide() {
-			size := needed.Len()
-			if size > 0 && size < len(schema.Fields) {
-				keep = func(name string) bool { return needed.Has(name) }
-				projectMapHint = size
-				retained := retainedFromFilter(schema, keep)
-				if p, perr := encx.BuildDecodePlan(schema, retained); perr == nil {
-					plan = p
-				}
-			}
-		}
+	keep, plan, projected := s.decodeProjection(ctx, req, schema)
+	projectMapHint := len(schema.Fields)
+	if keep != nil {
+		projectMapHint = projected
 	}
 
 	pctx, cleanup, available, err := buildParallelDecodeContext(
@@ -1039,6 +1055,8 @@ func (s *Service) processSingleFileParallelMaybe(
 		// missed despite canParallelDecode's probe. Fall back to serial.
 		return nil, false, nil
 	}
+	// The workers' fresh records reserve the attribute labels' slots.
+	pctx.binding = recordBindingFor(schema, plan, keep, attributeLabels(req)...)
 	resolvedWorkers, ok := shouldFanOutDecode(workers, pctx.totalRecords)
 	if !ok {
 		// Post-pctx resolved worker count fell below 2 (e.g. cohort
@@ -1056,10 +1074,6 @@ func (s *Service) processSingleFileParallelMaybe(
 		}
 	}()
 	if ei := execInfoFrom(ctx); ei != nil {
-		projected := 0
-		if keep != nil {
-			projected = projectMapHint
-		}
 		ei.setPlan(observe.ArmParallelDecode, resolvedWorkers, 0, projected)
 		ei.addBytes(int64(len(pctx.mmapBytes)))
 		// Mapping the cohort for the workers is its open.
@@ -1080,6 +1094,35 @@ func (s *Service) processSingleFileParallelMaybe(
 	return resp, true, nil
 }
 
+// decodeProjection is the projected decode a parallel reducer installs
+// for req over schema — the plan the serial scan iterator would install
+// through applyProjection (installProjection + SetProjection), built
+// ONCE per run and shared read-only by every worker: keep is the
+// retained-field filter, plan its DecodePlan and projected the retained
+// count. (nil, nil, 0) is full decode — projection disabled, a wide
+// needed set, or one that retains every field. A BuildDecodePlan error
+// keeps keep with a nil plan: the defensive map decode, as the serial
+// iterators fall back.
+func (s *Service) decodeProjection(ctx context.Context, req *types.Request, schema *encoding.Schema) (encx.FieldFilter, *encx.DecodePlan, int) {
+	if !s.projectBuffered || req == nil || schema == nil {
+		return nil, nil, 0
+	}
+	needed := s.neededFields(ctx, req, schema)
+	if needed.IsWide() {
+		return nil, nil, 0
+	}
+	size := needed.Len()
+	if size == 0 || size >= len(schema.Fields) {
+		return nil, nil, 0
+	}
+	keep := encx.FieldFilter(func(name string) bool { return needed.Has(name) })
+	plan, err := encx.BuildDecodePlan(schema, retainedFromFilter(schema, keep))
+	if err != nil {
+		plan = nil
+	}
+	return keep, plan, size
+}
+
 // scanIterator is the internal interface satisfied by both the
 // single-file streamingIterator and the multi-shard shardIter. It
 // extends processing.RecordIterator with the auxiliary hooks Service
@@ -1091,6 +1134,10 @@ func (s *Service) processSingleFileParallelMaybe(
 type scanIterator interface {
 	processing.RecordIterator
 	SetProjection(keep encx.FieldFilter, size int)
+	// SetExtras reserves positional slots for the off-schema names
+	// (attribute labels) the run writes onto every fresh buffered
+	// record (processing.BindRecords' extras). Before the first Next().
+	SetExtras(labels []string)
 	SetReuse(reuse bool)
 	Err() error
 	Close() error
@@ -1125,7 +1172,13 @@ func (s *Service) newScanIter(cohort *Cohort, path string) scanIterator {
 // wide set (extraction couldn't introspect) leaves the iterator on
 // the full-decode path. Works uniformly for single-file and multi-
 // shard iterators via the scanIterator interface.
+//
+// It also reserves the request's attribute labels on the iterator's
+// fresh records (SetExtras), projection or not.
 func (s *Service) applyProjection(ctx context.Context, iter scanIterator, req *types.Request, schema *encoding.Schema) int {
+	if iter != nil {
+		iter.SetExtras(attributeLabels(req))
+	}
 	if !s.projectBuffered || iter == nil || req == nil || schema == nil {
 		return 0
 	}
@@ -1141,6 +1194,9 @@ func (s *Service) applyProjection(ctx context.Context, iter scanIterator, req *t
 // full decode silently when the needed-field set widens (extension
 // operator without FieldInputs, malformed expression, etc.).
 func (s *Service) applyCrosstabProjection(ctx context.Context, iter scanIterator, req *types.Request, schema *encoding.Schema) int {
+	if iter != nil {
+		iter.SetExtras(attributeLabels(req))
+	}
 	if iter == nil || req == nil || schema == nil {
 		return 0
 	}

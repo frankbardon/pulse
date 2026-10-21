@@ -44,6 +44,7 @@ Floor `{total_n, n_null}` + `n_empty_mask` (int, empty zero-bit selections) and 
 
 - Empty mask is a real bucket — does NOT increment `n_null`. Null rows do.
 - Bucket key is the sorted-label pipe-join; source dict order irrelevant.
+- A mask bit past the dictionary is corrupt data: `ENCODING_INVALID` (`set_member_out_of_range`), never folded into the in-range bucket.
 
 ## See
 

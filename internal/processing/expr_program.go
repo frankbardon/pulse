@@ -469,13 +469,29 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 	if p.typed.Load() == nil || p.wholeEnv || r.allValuesCache != nil {
 		// Deferred compile, $env, or a record whose AllValues map is
 		// already built (a buffered record another expression read).
+		all, ferr := r.AllValuesChecked()
+		if ferr != nil {
+			// A corrupt categorical / set code (U51 E5-S8). A whole-env
+			// read reads every cell; otherwise only the referenced
+			// fields count, exactly as on the per-input path below, so
+			// a buffered record's cached map never refuses a row the
+			// streaming path accepts.
+			if p.wholeEnv {
+				return nil, false, ferr
+			}
+			for _, name := range p.refs {
+				if err := r.fieldDictionaryFault(name); err != nil {
+					return nil, false, err
+				}
+			}
+		}
 		if len(p.vecs) == 0 && !p.decimals && p.derived == nil {
-			return p.run(r.AllValues(), r.nullMarked)
+			return p.run(all, r.nullMarked)
 		}
 		// The AllValues map is the record's shared cache: bind the
 		// vectors and lift the decimals and derived columns in a pooled
 		// copy, never in the cache.
-		env := p.bindEnv(r.AllValues())
+		env := p.bindEnv(all)
 		var f *exprVectorFrame
 		if len(p.vecs) > 0 {
 			f = p.fillVectors(env, r)
@@ -488,7 +504,14 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 	}
 	env := exprEnvPool.Get().(map[string]any)
 	for i, name := range p.inputs {
-		if v, ok := r.exprValue(name); ok {
+		v, ok, ferr := r.exprValue(name)
+		if ferr != nil {
+			// A corrupt categorical / set code (U51 E5-S8).
+			clear(env)
+			exprEnvPool.Put(env)
+			return nil, false, ferr
+		}
+		if ok {
 			if p.inputDecs != nil && p.inputDecs[i] != nil {
 				v = exprenv.Bind(p.inputDecs[i], v)
 			}
@@ -537,11 +560,28 @@ func (p *exprProgram) eval(env map[string]any, nullInput bool) (any, error) {
 			prog = untyped
 		}
 	}
-	out, err := expr.Run(prog, env)
+	out, err := runPooled(prog, env)
 	if err != nil {
 		return nil, p.evalError(err)
 	}
 	return out, nil
+}
+
+// exprVMPool recycles expr VMs across evaluations (U51 E5-S4).
+// expr.Run builds a fresh vm.VM — the struct and its stack — on every
+// call, one allocation a row per expression; vm.VM.Run resets the
+// stack, scopes, memory budget and instruction pointer itself before
+// every run, so a VM taken from the pool evaluates exactly as a fresh
+// one does (same program, same env, same result). One VM per goroutine
+// at a time: a pooled VM is never shared by two runs.
+var exprVMPool = sync.Pool{New: func() any { return new(vm.VM) }}
+
+// runPooled is expr.Run on a pooled VM.
+func runPooled(prog *vm.Program, env map[string]any) (any, error) {
+	m := exprVMPool.Get().(*vm.VM)
+	out, err := m.Run(prog, env)
+	exprVMPool.Put(m)
+	return out, err
 }
 
 // exprFreeIdentifiers returns the names an expression reads from its

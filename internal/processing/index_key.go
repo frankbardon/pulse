@@ -149,6 +149,19 @@ func KeyFieldOnWireBytes(record *Record, field *encoding.Field) ([]byte, bool) {
 		return append([]byte(nil), enc[:]...), true
 	}
 
+	// u64 keys on the EXACT stored word (Record.Uint64Value, #427), never
+	// the float64 echo: two ids above 2^53 that round to one float would
+	// otherwise share key bytes and one would answer for the other. Below
+	// 2^53 the echo is exact, so the bytes are the ones uint64(echo)
+	// always produced — an index over such keys is byte-identical.
+	if field.Type == encoding.FieldTypeU64 {
+		u, ok := record.Uint64Value(field.Name)
+		if !ok {
+			return nil, false
+		}
+		return encodeUintOnWire(u, 8), true
+	}
+
 	v, ok := record.NumericValue(field.Name)
 	if !ok {
 		return nil, false
@@ -324,6 +337,16 @@ func ResolveLookupKeyBytes(field *encoding.Field, literal string) ([]byte, error
 
 	if field.Type == encoding.FieldTypeDecimal128 {
 		return resolveDecimalLookupKeyBytes(field, literal)
+	}
+
+	// A u64 integer literal parses EXACTLY (ParseUint): ParseFloat would
+	// round 9007199254740993 to 9007199254740992 and probe the wrong id.
+	// Any other spelling ParseFloat accepted ("1e3", "12.0") keeps
+	// resolving through the float path below, unchanged.
+	if field.Type == encoding.FieldTypeU64 {
+		if u, err := strconv.ParseUint(literal, 10, 64); err == nil {
+			return encodeUintOnWire(u, 8), nil
+		}
 	}
 
 	v, err := strconv.ParseFloat(literal, 64)

@@ -30,7 +30,7 @@ Window operators emit row-level values; they do not produce `Response.Components
 
 ## Output
 
-One `float64` per row written to `Label` (default `WIN_LEAD_<field>`). When `i + offset >= partition_len` emits `default` if set, else `null`.
+One value per row written to `Label` (default `WIN_LEAD_<field>`): a verbatim copy, so a `u64` id renders its exact word. When `i + offset >= partition_len` emits `default` if set, else `null`.
 
 ## Gotchas
 

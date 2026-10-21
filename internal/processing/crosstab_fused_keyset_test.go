@@ -658,7 +658,7 @@ func TestFusedAxisKeyer_DedupesPositionKeys(t *testing.T) {
 // multi-label set, an empty mask, a null field, and a set that empties
 // after Include filtering.
 func TestFusedAxisKeyer_SetPerElementAxis(t *testing.T) {
-	schema := crosstabFusedGateSchema()
+	schema := setAxisSchema()
 	// Dictionary order is VISA, MC, AMEX, DISC — bit i maps to entry i.
 	const (
 		visa = 1 << 0
@@ -725,7 +725,7 @@ func TestFusedAxisKeyer_SetPerElementAxis(t *testing.T) {
 			mask:   visa | mc,
 			wantOk: true,
 			wantKeys: []string{
-				joinKey("0", "VISA"), joinKey("0", "MC"),
+				joinKey("north", "VISA"), joinKey("north", "MC"),
 			},
 		},
 	}
@@ -763,7 +763,7 @@ func TestFusedAxisKeyer_SetPerElementAxis(t *testing.T) {
 // produces by re-running the grouper over the full filtered set. A
 // product-walk derivation would multiply these counts.
 func TestFusedAxisKeyer_SetPerElementComponentsCountOncePerLabel(t *testing.T) {
-	schema := crosstabFusedGateSchema()
+	schema := setAxisSchema()
 	const (
 		visa = 1 << 0
 		mc   = 1 << 1
@@ -823,8 +823,24 @@ func mustMulti(field string, keys ...string) fusedAxisGrouper {
 	return e
 }
 
+// setAxisSchema is the fused gate schema with a one-entry region
+// dictionary ("north"), so the region code 0 setAxisRecord carries
+// addresses a real entry: an index outside the dictionary is refused,
+// never minted as the key "0" (U51 E5-S8).
+func setAxisSchema() *encoding.Schema {
+	schema := crosstabFusedGateSchema()
+	for i := range schema.Fields {
+		if schema.Fields[i].Name == "region" {
+			d := encoding.NewDictionary()
+			_, _ = d.Add("north")
+			schema.Fields[i].Dictionary = d
+		}
+	}
+	return schema
+}
+
 // setAxisRecord builds a record carrying the "tags" set mask (and a
-// region categorical at index 0) for the fused gate schema.
+// region categorical at index 0) for setAxisSchema.
 func setAxisRecord(schema *encoding.Schema, mask uint64, null bool) *Record {
 	nulls := map[string]bool{}
 	if null {

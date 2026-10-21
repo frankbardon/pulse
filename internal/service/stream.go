@@ -51,6 +51,9 @@ type streamingIterator struct {
 	// the first buffered Next (projection is fixed by then) and dropped
 	// by SetProjection.
 	binding *processing.RecordBinding
+	// extras are the attribute labels the binding reserves slots for
+	// (SetExtras).
+	extras []string
 
 	// mmapBytes is the read-only mmap'd region when the iterator
 	// opened the file via memory-mapping. It is passed to
@@ -135,9 +138,22 @@ func (it *streamingIterator) initFromFile() error {
 			it.initFromReader(bytes.NewReader(data))
 			return nil
 		}
-		// Fall through to ReadFile on mmap failure (e.g. empty file,
-		// EACCES on a special file, or errMmapUnsupported on non-unix
-		// builds).
+		// Fall through on mmap failure (e.g. empty file, EACCES on a
+		// special file, or errMmapUnsupported on non-unix builds).
+	}
+	// An anchor-opened shard (`archive.pulse#shard.pulse`) streams its
+	// section of the archive through the shard scan's bounded window
+	// (sectionScanner) — the per-shard reducer's read — rather than
+	// ReadFile copying the whole shard resident (U51 E2-S2). Reset
+	// closes the handle and the next pass reopens it.
+	if size, ok := anchorSectionSize(it.fs, it.path); ok {
+		f, err := it.fs.Open(it.path)
+		if err != nil {
+			return errors.WrapCodedError(err, errors.SERVICE_RESOURCE, "opening cohort file")
+		}
+		it.closer = f
+		it.initFromReader(newSectionScanner(io.NewSectionReader(f, 0, size)))
+		return nil
 	}
 	data, err := afero.ReadFile(it.fs, it.path)
 	if err != nil {
@@ -238,7 +254,7 @@ func (it *streamingIterator) next() bool {
 	// valid for it.
 	if it.plan != nil || it.project == nil {
 		if it.binding == nil {
-			it.binding = recordBindingFor(it.schema, it.plan, it.project)
+			it.binding = recordBindingFor(it.schema, it.plan, it.project, it.extras...)
 		}
 		rec := it.binding.NewRecord()
 		var err error
@@ -314,6 +330,13 @@ func (it *streamingIterator) SetProjection(keep encx.FieldFilter, size int) {
 		return
 	}
 	it.installPlan(keep)
+}
+
+// SetExtras implements scanIterator: the fresh buffered records reserve
+// a slot per label. MUST be called before the first Next() call.
+func (it *streamingIterator) SetExtras(labels []string) {
+	it.extras = labels
+	it.binding = nil
 }
 
 // installPlan derives the sorted retained set from keep against

@@ -222,3 +222,45 @@ func TestInvalidatedSidecars_SurvivesTheWidenThatInvalidatedThem(t *testing.T) {
 		t.Error("lookup through a post-widen index succeeded; the hint claims it is stale")
 	}
 }
+
+// A shard archive's point-lookup index is one sidecar per shard, and
+// each is reported on its own with the archive-wide rebuild command;
+// an unindexed archive reports nothing (it no longer answers through a
+// swallowed refusal).
+func TestInvalidatedSidecars_NamesEveryShardSidecarOfAnArchiveIndex(t *testing.T) {
+	ctx := context.Background()
+	p, memFs := sidecarHintCohort(t, "s1.pulse")
+	raw, err := afero.ReadFile(memFs, "s1.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := afero.WriteFile(memFs, "s2.pulse", raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.CreateShardArchive(ctx, "arch.pulse", []string{"s1.pulse", "s2.pulse"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := p.InvalidatedSidecars(ctx, "arch.pulse")
+	if err != nil || len(got) != 0 {
+		t.Fatalf("unindexed archive = %+v, %v; want none", got, err)
+	}
+	if _, err := p.BuildIndex(ctx, "arch.pulse", []string{"id"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err = p.InvalidatedSidecars(ctx, "arch.pulse")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		encx.ArchiveShardIndexPath("arch.pulse", "s1.pulse", []string{"id"}),
+		encx.ArchiveShardIndexPath("arch.pulse", "s2.pulse", []string{"id"}),
+	}
+	if len(got) != len(want) {
+		t.Fatalf("InvalidatedSidecars = %+v, want one per shard sidecar %v", got, want)
+	}
+	for i, sc := range got {
+		if sc.Path != want[i] || sc.Kind != SidecarKindPointLookupIndex || sc.Rebuild != "pulse index build arch.pulse --key id" {
+			t.Errorf("[%d] = %+v, want path %s with the archive rebuild", i, sc, want[i])
+		}
+	}
+}

@@ -565,6 +565,11 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		{"fit-bound reg fitted with a grouper streams", regScored(types.ATTR_REG_FITTED, `{"fit":"m"}`, grouped), vecSchema},
 		{"refit reg residual with a grouper buffers", regScored(types.ATTR_REG_RESIDUAL, ``, grouped), vecSchema},
 		{"online aggregations on numeric", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}}}, numericSchema},
+		// U51 E3-S3: a GROUP_ROUNDED grouping streams (and now merges).
+		{"grouped GROUP_ROUNDED sum streams", &types.Request{
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+			Groups:       []*types.Group{{Type: types.GROUP_ROUNDED, Field: "score", Interval: 2.5}},
+		}, numericSchema},
 		{"median on numeric", &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "score"}}}, numericSchema},
 		// model-workbench E2-S1: AGG_AUC sorts every scored row — buffered,
 		// alone and beside a streamable slot.

@@ -108,6 +108,11 @@ func TestJoinKeyTypesCompatible(t *testing.T) {
 		{encoding.FieldTypeVecF64, encoding.FieldTypeVecF64, false},
 		{encoding.FieldTypeVecF32, encoding.FieldTypeVecF32, false},
 		{encoding.FieldTypeVecF32, encoding.FieldTypeF32, false},
+		{encoding.FieldTypeU64, encoding.FieldTypeU64, true},
+		{encoding.FieldTypeU64, encoding.FieldTypeU32, true},
+		{encoding.FieldTypeU64, encoding.FieldTypeF64, false},
+		{encoding.FieldTypeF32, encoding.FieldTypeU64, false},
+		{encoding.FieldTypeU32, encoding.FieldTypeF64, true},
 	}
 	for _, c := range cases {
 		if got := JoinKeyTypesCompatible(c.a, c.b); got != c.want {

@@ -203,7 +203,7 @@ func TestMatrixSpec_DistanceStreamability(t *testing.T) {
 		{"GROUP_CATEGORY", true, true},
 		{"GROUP_RANGE", true, true},
 		{"GROUP_SET_PER_ELEMENT", true, true},
-		{"GROUP_ROUNDED", true, false},
+		{"GROUP_ROUNDED", true, true},
 		{"GROUP_QUANTILE", false, false},
 		{"GROUP_KMEANS", false, false},
 		{"GROUP_DATE", false, false},

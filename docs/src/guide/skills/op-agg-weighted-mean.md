@@ -69,6 +69,7 @@ Floor `{n, n_null}` plus `n_weight_invalid` (rows excluded for an invalid weight
 
 - Invalid/zero-weight rows skip the mean but STILL count in floor `n` (`n`/`n_null` track `Field`); size from `sum_weights`/`n_eff`.
 - Unknown `weight_field` → `SERVICE_VALIDATION` (predict + runtime).
+- Scalar and every Σ key, `weighted_mean`, `n_eff`: binned sums, the same bits on every worker count and shard split; `m2_weighted` / `weighted_variance` are Welford — within ULP.
 - `decimal128` rejected.
 
 ## See

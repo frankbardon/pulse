@@ -491,6 +491,19 @@ type AttributeRegistration struct {
 	// ComponentsFunc is the optional emitter (see
 	// AttributeComponentsFunc). Nil emits no entry.
 	ComponentsFunc AttributeComponentsFunc
+	// Mergeable declares that the attribute's per-run tally — the
+	// state behind its components figures — folds across input
+	// partitions through extend.MergeableAttribute.MergeTally. A
+	// component-emitting row_local attribute then runs under the
+	// parallel reducers (ShardWorkers / DecodeWorkers) and in
+	// ProcessChain stages; undeclared, a request carrying it runs
+	// serially and a chain refuses it. A row_local attribute emitting
+	// no components merges either way (it has no tally). Requires Mode
+	// row_local; an emitting value MUST implement
+	// extend.MergeableAttribute, and the ComponentSchema's Mergeability
+	// must not be "none" — pulse.New refuses either mismatch with
+	// PULSE_EXTENSION_MERGEABLE_MISMATCH.
+	Mergeable bool
 }
 
 // FiltererRegistration installs a custom FILTER_* operator. Filterers

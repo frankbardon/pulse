@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
@@ -77,6 +78,21 @@ type VerifyIndexResult struct {
 	// Always false alongside IndexFreshnessReasonStatMismatch, which is
 	// a size verdict.
 	ModTimeDrift bool
+
+	// ShardsUncovered names, for a shard archive, every shard the
+	// index does not cover — absent from the manifest entry, a
+	// different size or central-directory CRC32 (a replaced shard), or a
+	// sidecar recording another source size — in archive order. Any
+	// entry makes the verdict stale via the size fast-path
+	// (IndexFreshnessReasonStatMismatch, FastPath true, no hash). Nil for
+	// a single-file cohort.
+	ShardsUncovered []string
+
+	// ShardsMismatched names, for a shard archive whose shards are all
+	// covered, every shard whose stored payload no longer hashes to its
+	// sidecar's fingerprint (IndexFreshnessReasonFingerprintMismatch).
+	// Nil for a single-file cohort.
+	ShardsMismatched []string
 }
 
 // VerifyIndex reports whether the sidecar point-lookup index built for
@@ -112,10 +128,11 @@ type VerifyIndexResult struct {
 // `pulse index build`). This method underpins the `pulse index verify`
 // CLI leaf (a later story).
 //
-// Shard archive cohorts (detected via the cheap leading-magic-bytes
-// dispatch Service.Open already performs) are rejected with
-// PULSE_INDEX_UNSUPPORTED_SHARDED — sharded point-lookup is out of
-// scope for v1. See Service.BuildIndex's doc comment for why.
+// A shard archive cohort is verified shard by shard (verifyArchiveIndex):
+// the coverage check (name + size + central-directory CRC32 against the
+// manifest entry) is its size fast-path, and with every shard covered
+// each shard's stored payload is hashed against its sidecar's
+// fingerprint. IndexPath is then the index's logical path.
 func (s *Service) VerifyIndex(ctx context.Context, path string, keyFields []string) (*VerifyIndexResult, error) {
 	if len(keyFields) == 0 {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
@@ -126,15 +143,13 @@ func (s *Service) VerifyIndex(ctx context.Context, path string, keyFields []stri
 	if err != nil {
 		return nil, err
 	}
-	if len(cohort.Shards()) > 0 {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_UNSUPPORTED_SHARDED,
-			"point-lookup index verify does not support shard archive cohorts",
-			map[string]any{"cohort": path})
-	}
 
 	fsys := cohort.fs
 	if fsys == nil {
 		fsys = s.fs.Fs()
+	}
+	if len(cohort.Shards()) > 0 {
+		return verifyArchiveIndex(fsys, cohort, path, keyFields)
 	}
 
 	indexPath := encx.SidecarIndexPath(path, keyFields)
@@ -184,4 +199,71 @@ func (s *Service) VerifyIndex(ctx context.Context, path string, keyFields []stri
 		FastPath:     false,
 		ModTimeDrift: freshness.ModTimeDrift,
 	}, nil
+}
+
+// verifyArchiveIndex is VerifyIndex for a shard archive. Coverage first
+// (no payload read): any uncovered shard is a stale verdict on the
+// fast-path. Otherwise every covered shard's stored payload is hashed
+// and compared with its sidecar's fingerprint — the authoritative check
+// a lookup's identity comparison does not make. A covered shard whose
+// sidecar file is gone is PULSE_INDEX_MANIFEST_STALE.
+func verifyArchiveIndex(fsys afero.Fs, cohort *Cohort, path string, keyFields []string) (*VerifyIndexResult, error) {
+	entry, err := archiveIndexEntry(fsys, path, keyFields)
+	if err != nil {
+		return nil, err
+	}
+	a, err := openArchiveFile(fsys, path)
+	if err != nil {
+		return nil, err
+	}
+	defer a.Close()
+
+	indexPath := encx.SidecarIndexPath(path, keyFields)
+	covered, uncovered := archiveCoverage(cohort.Shards(), archiveShardIdentities(a), entry)
+	dir := filepath.Dir(path)
+	metas := make([]*encx.IndexMeta, len(covered))
+	for k, cov := range covered {
+		sidecar := filepath.Join(dir, cov.IndexPath)
+		exists, err := afero.Exists(fsys, sidecar)
+		if err != nil {
+			return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+				fmt.Sprintf("checking shard sidecar index existence: %s", sidecar))
+		}
+		if !exists {
+			return nil, archiveShardSidecarMissing(path, keyFields, sidecar)
+		}
+		meta, err := encx.ReadIndexMetaFile(fsys, sidecar)
+		if err != nil {
+			return nil, err
+		}
+		if meta.SourceSize != uint64(cov.Size) || len(meta.Keys) != len(keyFields) {
+			uncovered = append(uncovered, cov.Name)
+		}
+		metas[k] = meta
+	}
+	if len(uncovered) > 0 {
+		return &VerifyIndexResult{IndexPath: indexPath, Fresh: false,
+			Reason: IndexFreshnessReasonStatMismatch, FastPath: true, ShardsUncovered: uncovered}, nil
+	}
+
+	var mismatched []string
+	for k, cov := range covered {
+		sect, err := a.storedShard(cov.Name)
+		if err != nil {
+			return nil, err
+		}
+		fp, err := encx.ComputeFingerprint(sect)
+		if err != nil {
+			return nil, err
+		}
+		if fp != metas[k].Fingerprint {
+			mismatched = append(mismatched, cov.Name)
+		}
+	}
+	reason := IndexFreshnessReasonFingerprintMatch
+	if len(mismatched) > 0 {
+		reason = IndexFreshnessReasonFingerprintMismatch
+	}
+	return &VerifyIndexResult{IndexPath: indexPath, Fresh: len(mismatched) == 0,
+		Reason: reason, ShardsMismatched: mismatched}, nil
 }

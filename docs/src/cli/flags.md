@@ -31,12 +31,14 @@ Persistent on **every** leaf (accepted before or after the leaf name):
 |---|---|
 | `--log-level off\|debug\|info\|warn\|error` | Structured log records on **stderr** at or above the level (default `off`: nothing). `debug` adds the per-operation plan record (execution arm, workers, shards, projection) |
 | `--log-format text\|json` | Log record encoding (default `text`); ignored while `--log-level` is `off` |
+| `--shard-workers N` | Per-shard parallel workers over a shard archive (`Options.ShardWorkers`): `0` (default) one per CPU, `1` serial |
+| `--decode-workers N` | Parallel decode workers over one large `.pulse` file (`Options.DecodeWorkers`): `0` (default) one per CPU, `1` serial |
 
 Logs never reach stdout, so `--json` output and the `pulse mcp`
 JSON-RPC transport stay byte-identical with or without them. Records
 carry identifiers, counts, timings, enums and error codes only — never
 row data, filter values or error messages. An unknown value is
-`CLI_INPUT`. There are no environment-variable forms. Leaves that never build a Pulse instance (`import`, `convert`, `skills`, `errors`, `version`, `features`) accept the flags but emit nothing. `pulse mcp --metrics-addr` is documented under [pulse mcp](mcp.md); see also [Observability](../library/observability.md).
+`CLI_INPUT`. There are no environment-variable forms. Leaves that never build a Pulse instance (`import`, `convert`, `skills`, `errors`, `version`, `features`) accept the flags but emit nothing. The worker flags reach every instance a leaf builds, `pulse mcp` included, and trade speed against peak memory (figures: [Tuning Limits](../library/tuning-limits.md#worker-counts)); a negative count is a usage error. `pulse mcp --metrics-addr` is documented under [pulse mcp](mcp.md); see also [Observability](../library/observability.md).
 
 ## Environment variables
 
@@ -92,7 +94,7 @@ codes; branch on `errors[0].code` for the reason.
 |---|---|
 | 0 | Success. Warnings and advisories are allowed: they ride the envelope's `warnings` (stderr lines in text mode) and never move the status |
 | 1 | A fatal error. Under `--json` the envelope's `errors` carries it (a warning `--strict` escalated included) and stdout is that envelope alone, with nothing added to stderr; in text mode it is printed to stderr as `error: ...` |
-| 2 | A usage error refused before any library call: an unknown flag, a malformed flag value, a missing required flag or argument, or an unknown `--log-level` / `--log-format`. The usage text goes to the terminal; no envelope is written |
+| 2 | A usage error refused before any library call: an unknown flag, a malformed flag value, a missing required flag or argument, an unknown `--log-level` / `--log-format`, or a negative `--shard-workers` / `--decode-workers`. The usage text goes to the terminal; no envelope is written |
 
 The rule follows the envelope: an envelope with a non-empty `errors`
 always exits 1, one with only `warnings` exits 0. A leaf's own argument
@@ -705,6 +707,32 @@ is always `-o`; the leaf does no dedup naming (that is
 ```bash
 pulse cohort filter -i orders.pulse -o ny_same_day.pulse \
   --filter 'to_day(placed_at) == ship_day' --time-zone America/New_York
+```
+
+### `--flatten` (cohort filter)
+
+Available on: `cohort filter`.
+
+`--flatten` writes a shard archive input as ONE single-file `.pulse`
+instead of a per-shard archive: the surviving rows, shard by shard in
+archive order, under the archive's canonical schema (widened `set_*`
+rungs, union dictionaries and, for a grouped archive, the canonical
+parent-group dictionaries). With it `--filter` / `--include-from` become
+optional — none is a pure flatten, either one keeps exactly the rows
+`process` keeps under the same filter. Memory is one shard; the output
+is streamed into `<output>.pulse.tmp-staged` and renamed into place, so
+`-o` is untouched until the run succeeds. On a single-file or
+`archive#shard` input — already one file — the flag is a no-op: the
+output is what the run without it writes (`--json` `data.flattened`
+false). `--json` adds `data.flattened` only when the flag is given,
+and `data.invalidated_sidecars` whenever `-o` replaced a cohort whose
+point-lookup index or SPSS sidecar is now stale (with or without the
+flag). Library: `Pulse.FilterToFileWithOptions` with
+`FilterToFileOptions.Flatten` ([filter-to-file](../library/filter-to-file.md)).
+
+```bash
+pulse cohort filter -i sales.pulse -o sales_flat.pulse --flatten
+pulse cohort filter -i sales.pulse -o eu_flat.pulse --flatten --filter 'region == "EU"'
 ```
 
 ### `--labels` (export)

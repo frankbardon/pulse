@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/types"
 )
@@ -40,6 +41,15 @@ func resolveSetGrouperDict(grp *types.Group, schema *encoding.Schema) (*encoding
 			string(grp.Type)+": field "+grp.Field+" is not a set type")
 	}
 	return f.Dictionary, nil
+}
+
+// setGrouperField is the schema field a set grouper binds, nil without
+// a schema (registry tests construct groupers schema-less).
+func setGrouperField(grp *types.Group, schema *encoding.Schema) *encoding.Field {
+	if schema == nil {
+		return nil
+	}
+	return schema.Field(grp.Field)
 }
 
 // rejectSetFieldForNumericGrouper refuses a value-axis grouper bound to
@@ -107,8 +117,11 @@ type setValueBucketStat struct {
 }
 
 type setValueGrouper struct {
-	field   string
-	dict    *encoding.Dictionary
+	field string
+	dict  *encoding.Dictionary
+	// def is the bound schema field (nil without a schema): a mask
+	// selecting a bit past its dictionary is refused through it.
+	def     *encoding.Field
 	include *includeFilter
 
 	// liveBuckets mirrors the post-Group / post-KeyForRow state so
@@ -134,6 +147,7 @@ func newSetValueGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, err
 	return &setValueGrouper{
 		field:   grp.Field,
 		dict:    dict,
+		def:     setGrouperField(grp, schema),
 		include: buildIncludeFilter(grp.Include),
 	}, nil
 }
@@ -166,6 +180,11 @@ func (g *setValueGrouper) KeyFor(r *Record) (string, error) {
 	m, ok := r.SetMaskValue(g.field)
 	if !ok {
 		return "", ErrGrouperKeyNull
+	}
+	// A bit past the dictionary is corrupt record data: refused, never
+	// folded into the bucket of the mask's in-range members (U51 E5-S8).
+	if err := encx.SetMemberFault(g.def, m); err != nil {
+		return "", err
 	}
 	labels := m.Labels(g.dict)
 	sort.Strings(labels)
@@ -304,6 +323,7 @@ type setPerElementBucketStat struct {
 
 type setPerElementGrouper struct {
 	dict    *encoding.Dictionary
+	def     *encoding.Field // see setValueGrouper.def
 	include *includeFilter
 
 	// liveBuckets mirrors the post-Group / post-KeysForRow state per
@@ -326,6 +346,7 @@ func newSetPerElementGrouper(grp *types.Group, schema *encoding.Schema) (Grouper
 	}
 	return &setPerElementGrouper{
 		dict:    dict,
+		def:     setGrouperField(grp, schema),
 		include: buildIncludeFilter(grp.Include),
 	}, nil
 }
@@ -380,6 +401,9 @@ func (g *setPerElementGrouper) KeysForRow(r *Record, field string) ([]string, bo
 	m, ok := r.SetMaskValue(field)
 	if !ok {
 		return nil, false, nil
+	}
+	if err := encx.SetMemberFault(g.def, m); err != nil {
+		return nil, false, err
 	}
 	labels, indices := resolveMaskLabelsWithIndices(m, g.dict)
 	if g.include.active() {

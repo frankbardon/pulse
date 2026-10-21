@@ -1302,9 +1302,11 @@ func mgWriteBitsCohort(t *testing.T, p *pulse.Pulse, path string, from, to int) 
 // (vector sum / mean, covariance) — every float slot weighted by score
 // when weighted. Those merge through processing.BlockMerger's fixed
 // tree, so their bits cannot depend on the partition; a scalar
-// AGG_SUM / AGG_AVERAGE / AGG_STDDEV merges through MergeOnline and is
-// ULP-bounded across worker counts by design, with one grouper as with
-// several (.claude/reference/execution-modes/shards-and-merge.md, Blocked merge).
+// AGG_SUM / AGG_AVERAGE merges binned reproducible state through
+// MergeOnline and is bit-identical too (TestBitExact_*), while
+// AGG_STDDEV's Chan-Welford merge is ULP-bounded across worker counts
+// by design, with one grouper as with several
+// (.claude/reference/execution-modes/shards-and-merge.md, Blocked merge).
 func mgBitsRequest(cohort string, groups []*types.Group, weighted bool) *types.Request {
 	var w types.SlotWeight
 	if weighted {
@@ -1326,14 +1328,13 @@ func mgBitsRequest(cohort string, groups []*types.Group, weighted bool) *types.R
 // bit for bit: rows, per-slot and per-group Components, per-grouper
 // Components and the grouped matrices (Run.shard_count and the cohort
 // path legitimately differ between a file and its archive). The
-// aggregation floor's weighted keys (sum_weights, n_eff) are lifted
-// into Floors: they are plain Σw / Σw² tallies summed across
-// partitions (processing.MergeSlotFloors), so they are equal to a few
-// ulps, not bitwise — with one grouper as with several.
+// aggregation floor's weighted keys (sum_weights, n_eff) ride the
+// bitwise comparison too: Σw / Σw² are binned reproducible sums
+// (processing.WeightFloor, merged by processing.MergeSlotFloors) — with
+// one grouper as with several.
 type mgBits struct {
 	Data     []map[string]any
 	Aggs     []types.AggregationComponents
-	Floors   []float64
 	Groupers []types.GrouperComponents
 	Matrices []types.MatrixResult
 	MatComps []types.MatrixComponents
@@ -1349,20 +1350,6 @@ func mgRunBits(t *testing.T, p *pulse.Pulse, f *mgFixture, req *types.Request) m
 	out := mgBits{Data: resp.Data, Matrices: resp.Matrices, Arm: f.lastArm()}
 	if c := resp.Components; c != nil {
 		out.Aggs, out.Groupers, out.MatComps = c.Aggregations, c.Groupers, c.Matrices
-	}
-	lift := func(ps ...**float64) {
-		for _, p := range ps {
-			if *p != nil {
-				out.Floors = append(out.Floors, **p)
-				*p = nil
-			}
-		}
-	}
-	for i := range out.Aggs {
-		lift(&out.Aggs[i].SumWeights, &out.Aggs[i].NEff)
-		for j := range out.Aggs[i].Groups {
-			lift(&out.Aggs[i].Groups[j].SumWeights, &out.Aggs[i].Groups[j].NEff)
-		}
 	}
 	if len(out.Data) == 0 || len(out.Groupers) != len(req.Groups) {
 		t.Fatalf("degenerate run: %d rows, %d grouper entries", len(out.Data), len(out.Groupers))
@@ -1384,14 +1371,6 @@ func mgSameBits(t *testing.T, label string, got, want mgBits) {
 	} {
 		if !reflect.DeepEqual(part.got, part.want) {
 			t.Errorf("%s: %s differ from the serial single-file run\n got  %v\n want %v", label, part.name, part.got, part.want)
-		}
-	}
-	if len(got.Floors) != len(want.Floors) {
-		t.Fatalf("%s: %d weighted floor keys, want %d", label, len(got.Floors), len(want.Floors))
-	}
-	for i, w := range want.Floors {
-		if math.Abs(got.Floors[i]-w) > 1e-12*math.Abs(w) {
-			t.Errorf("%s: weighted floor key %d = %v, want %v", label, i, got.Floors[i], w)
 		}
 	}
 }
@@ -1445,8 +1424,8 @@ func TestMultiGrouper_BitExactAcrossWorkers(t *testing.T) {
 		for _, weighted := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/weighted=%v", c.name, weighted), func(t *testing.T) {
 				want := mgRunBits(t, serial, f, mgBitsRequest("big.pulse", c.groups, weighted))
-				if weighted != (len(want.Floors) > 0) {
-					t.Fatalf("weighted=%v run carries %d weighted floor keys", weighted, len(want.Floors))
+				if hasW := len(want.Aggs) > 0 && want.Aggs[1].SumWeights != nil; weighted != hasW {
+					t.Fatalf("weighted=%v run carries weighted floor keys: %v", weighted, hasW)
 				}
 				for _, dw := range []int{2, 3, 7} {
 					got := mgRunBits(t, decoders[dw], f, mgBitsRequest("big.pulse", c.groups, weighted))

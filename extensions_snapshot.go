@@ -89,6 +89,7 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 			Namespace:   parseNamespace(string(r.Name)),
 			Description: r.Description,
 			Streamable:  r.Mode != AttributeModeBuffered,
+			Mergeable:   r.Mergeable,
 			WeightAware: r.WeightAware,
 			Accepts:     fieldTypeStrings(r.Accepts),
 			Emits:       string(r.Emits),
@@ -97,6 +98,12 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 		})
 		if len(r.ComponentSchema.Keys) > 0 || r.ComponentSchema.Mergeability != "" {
 			snap.ComponentSchemas[string(r.Name)] = r.ComponentSchema
+		}
+		if attributeEmitsComponents(r) {
+			if snap.ComponentAttributes == nil {
+				snap.ComponentAttributes = map[string]bool{}
+			}
+			snap.ComponentAttributes[string(r.Name)] = true
 		}
 	}
 	for _, r := range ext.Filterers {

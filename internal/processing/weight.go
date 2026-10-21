@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -371,10 +372,14 @@ func readWeight(r *Record, spec *types.WeightSpec) (float64, weighting.Reason) {
 // unweighted slot, so an unweighted Components entry is unchanged.
 // Every execution mode feeds it the same filter-passing rows it feeds
 // {n, n_null}; the parallel reducers fold partitions with Merge.
+//
+// Σw and Σw² are binned reproducible accumulators (internal/reprosum),
+// so sum_weights and n_eff are bit-identical on every arm, worker count
+// and shard split, and equal AGG_WEIGHTED_MEAN's own sum_weights.
 type WeightFloor struct {
 	spec    *types.WeightSpec
-	sumW    float64
-	sumWSq  float64
+	sumW    reprosum.Sum
+	sumWSq  reprosum.Sum
 	invalid int
 }
 
@@ -412,14 +417,14 @@ func (f *WeightFloor) observePresent(r *Record, present bool) {
 		f.invalid++
 		return
 	}
-	f.sumW += w
-	f.sumWSq += w * w
+	f.sumW.Add(w)
+	f.sumWSq.AddWeighted(w, w)
 }
 
 // Merge folds another partition's tally of the same slot.
 func (f *WeightFloor) Merge(o WeightFloor) {
-	f.sumW += o.sumW
-	f.sumWSq += o.sumWSq
+	f.sumW.Merge(&o.sumW)
+	f.sumWSq.Merge(&o.sumWSq)
 	f.invalid += o.invalid
 }
 
@@ -429,11 +434,11 @@ func (f *WeightFloor) Stamp(e *types.AggregationComponents) {
 	if f.spec == nil || e == nil {
 		return
 	}
-	sumW, invalid := f.sumW, f.invalid
+	sumW, invalid := f.sumW.Float64(), f.invalid
 	e.SumWeights = &sumW
 	e.NWeightInvalid = &invalid
 	if f.spec.EffectiveKind() == types.WeightKindProbability {
-		nEff := kishNEff(f.sumW, f.sumWSq)
+		nEff := kishNEff(sumW, f.sumWSq.Float64())
 		e.NEff = &nEff
 	}
 }

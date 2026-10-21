@@ -157,6 +157,7 @@ func obsCalls() []obsCall {
 		}},
 		{"InspectBytes", observe.OpInspect, func(ctx context.Context, p *Pulse) error { _, err := p.InspectBytes(ctx, []byte("x"), nil); return err }},
 		{"Predict", observe.OpPredict, func(ctx context.Context, p *Pulse) error { _, err := p.Predict(ctx, obsRequest()); return err }},
+		{"PredictEnvelope", observe.OpPredict, func(ctx context.Context, p *Pulse) error { _, err := p.PredictEnvelope(ctx, obsRequest()); return err }},
 		{"PredictBytes", observe.OpPredict, func(ctx context.Context, p *Pulse) error {
 			_, err := p.PredictBytes(ctx, []byte("x"), obsRequest())
 			return err
@@ -223,6 +224,10 @@ func obsCalls() []obsCall {
 			_, err := p.FilterToFileBySetAndExpr(ctx, obsCohort, "f2.pulse", "", nil, "id > 1")
 			return err
 		}},
+		{"FilterToFileWithOptions", observe.OpFilterToFile, func(ctx context.Context, p *Pulse) error {
+			_, err := p.FilterToFileWithOptions(ctx, obsCohort, "f3.pulse", FilterToFileOptions{Flatten: true})
+			return err
+		}},
 		{"FilterToFileWithRequest", observe.OpFilterToFile, func(ctx context.Context, p *Pulse) error {
 			_, err := p.FilterToFileWithRequest(ctx, &FilterToFileRequest{SourcePath: obsCohort, Expression: "id > 1", OutputDir: "ftf"})
 			return err
@@ -282,7 +287,10 @@ func obsCalls() []obsCall {
 			_, err := p.AddShard(ctx, "arch.pulse", obsCohort)
 			return err
 		}},
-		{"RemoveShard", observe.OpShardRemove, func(ctx context.Context, p *Pulse) error { return p.RemoveShard(ctx, "arch.pulse", "nope.pulse") }},
+		{"RemoveShard", observe.OpShardRemove, func(ctx context.Context, p *Pulse) error {
+			_, err := p.RemoveShard(ctx, "arch.pulse", "nope.pulse")
+			return err
+		}},
 		{"ListShards", observe.OpShardList, func(ctx context.Context, p *Pulse) error { _, err := p.ListShards(ctx, "arch.pulse"); return err }},
 		{"ExtractShard", observe.OpShardExtract, func(ctx context.Context, p *Pulse) error {
 			rc, err := p.ExtractShard(ctx, "arch.pulse", "nope.pulse")

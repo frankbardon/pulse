@@ -49,7 +49,7 @@ Floor `{n, n_null}` + `n_reference_missing`, `n_domain_invalid`. `Mergeable`.
 - A null or profile-less `key_field` / `by` row is null and warns `PULSE_VECTOR_REFERENCE_MISSING` (`n_key_null`, `n_key_unmatched`); a domain violation `PULSE_VECTOR_METRIC_DOMAIN`. Once per slot; strict does not escalate.
 - Unbound population → `PULSE_VECTOR_REFERENCE_UNKNOWN`; a compose fit that failed on its data → every row null + `PULSE_FIT_UNAVAILABLE`.
 - A record is read by member column (null = missing element); a member its cohort lacks → `PULSE_VECTOR_REFERENCE_MISMATCH` `record_members_absent`; lookup refusals (`PULSE_INDEX_*`, `PULSE_LOOKUP_*`) refuse the run, never at predict.
-- Row-local (streams, fuses, weight ignored) — except a centroid: two-pass, weighted, cohort-wide (grouped runs buffered). Never merged (its tallies are per run): shards / parallel decode run serially, a chain stage is refused.
+- Row-local (streams, fuses, weight ignored) — except a centroid: two-pass, weighted, cohort-wide (grouped runs buffered). Merges (not a centroid): shards / parallel decode fold its per-run tallies (counts and warnings once, cohort-wide); a chain stage admits it. A centroid runs serially; a chain refuses it.
 
 ## See
 

@@ -51,6 +51,7 @@ Universal floor `{n, n_null}` plus:
 ## Gotchas
 
 - FIRST VALUE WINS on a key with conflicting values; a merge keeps the receiver's, so it holds across shards too.
+- The sum is binned: the same bits on every worker count and shard split when each key carries one value (a conflicting key keeps whichever value its arm saw first).
 - Null in EITHER half contributes nothing and registers NO key; a later real row counts.
 - A plain sum of a per-respondent weight multiplies it by row count; this gives the weighted base.
 - Memory grows per key.

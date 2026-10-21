@@ -10351,7 +10351,7 @@
         ]
       }
     ],
-    "error_codes_count": 400,
+    "error_codes_count": 402,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10630,11 +10630,13 @@
       "PULSE_RETURN_INVALID",
       "PULSE_RETURN_PATH_UNKNOWN",
       "PULSE_RETURN_PATH_UNMATCHED",
+      "PULSE_SHARD_COUNT_LIMIT",
       "PULSE_SHARD_DESCRIPTION_DIVERGENCE",
       "PULSE_SHARD_DICT_DIVERGENCE",
       "PULSE_SHARD_DICT_WIDTH_OVERFLOW",
       "PULSE_SHARD_GROUPS_REWRITTEN",
       "PULSE_SHARD_HEADER_INVALID",
+      "PULSE_SHARD_INDEXES_UPDATED",
       "PULSE_SHARD_MISSING",
       "PULSE_SHARD_NAME_COLLISION",
       "PULSE_SHARD_RESERVED_NAME",
@@ -10821,7 +10823,7 @@
       },
       {
         "name": "pulse_lookup",
-        "description": "CALL TO FETCH ROWS BY EXACT KEY FROM A COHORT WITH A PREBUILT INDEX. Resolve a point lookup (single-key or composite) against a cohort's prebuilt sidecar index — O(1) row addressing instead of a full scan. Supply either field+value (single-key convenience) or an ordered keys[] tuple (composite key, order must match the index's build-time key-field order); return_columns projects the output (empty = every schema field). multiplicity controls duplicate-key handling: 'assert_unique' (default; errors with PULSE_LOOKUP_AMBIGUOUS on \u003e1 match), 'first' (deterministic lowest row-id, never errors on multi-match), or 'all' (every matching row, ascending row-id). Requires a sidecar index built via pulse index build (CLI) or Service.BuildIndex; returns PULSE_INDEX_MISSING when none exists for the requested key fields, PULSE_INDEX_STALE when the cohort changed since the index was built, PULSE_INDEX_UNSUPPORTED_SHARDED for shard-archive cohorts, and PULSE_LOOKUP_NOT_FOUND when the index exists but no record matches the key."
+        "description": "CALL TO FETCH ROWS BY EXACT KEY FROM A COHORT WITH A PREBUILT INDEX. Resolve a point lookup (single-key or composite) against a cohort's prebuilt sidecar index — O(1) row addressing instead of a full scan. Supply either field+value (single-key convenience) or an ordered keys[] tuple (composite key, order must match the index's build-time key-field order); return_columns projects the output (empty = every schema field). multiplicity controls duplicate-key handling: 'assert_unique' (default; errors with PULSE_LOOKUP_AMBIGUOUS on \u003e1 match), 'first' (deterministic lowest row-id, never errors on multi-match), or 'all' (every matching row, ascending row-id). Requires a sidecar index built via pulse index build (CLI) or Service.BuildIndex; returns PULSE_INDEX_MISSING when none exists for the requested key fields, PULSE_INDEX_STALE when the cohort changed since the index was built (on a shard archive, also when a shard is not covered by the index — details.shards_uncovered), and PULSE_LOOKUP_NOT_FOUND when the index exists but no record matches the key."
       },
       {
         "name": "pulse_manifest",
@@ -10841,7 +10843,7 @@
       },
       {
         "name": "pulse_process_chain",
-        "description": "CALL WHEN EACH STAGE SHOULD READ THE PREVIOUS STAGE'S OUTPUT ROWS. Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators, mergeable groupers and row-local attributes. The mergeable aggregators are AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_RANGE, AGG_VARIANCE, AGG_STDDEV, AGG_DISTINCT_COUNT, AGG_NULL_COUNT, AGG_FREQUENCY, AGG_MODE_COUNT and AGG_MODE (on a categorical field AGG_MODE chains the dictionary index, not the label). The mergeable groupers are GROUP_CATEGORY and GROUP_RANGE. The row-local attributes are ATTR_FORMULA (unless its expression calls total(expr), a cohort-total pre-pass) and ATTR_DATE_PART. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE. Only stage 0 may carry `matrices` (MAT_COVARIANCE / MAT_CORRELATION, computed over the cohort rows and returned on stage 0's response, never passed to the next stage); a later stage's `matrices` is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE. Fall back to pulse_compose or per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field. A stage's `return` shapes that stage only after the whole chain ran (the next stage still reads its full rows); `final` follows the last stage's."
+        "description": "CALL WHEN EACH STAGE SHOULD READ THE PREVIOUS STAGE'S OUTPUT ROWS. Execute a source-rooted LINEAR CHAIN of processing stages: stage N+1 receives stage N's output rows as its input cohort. Collapses N round-trips into one open + N stage validations. Mergeable-only v1: every stage must use mergeable aggregators, mergeable groupers and row-local attributes. The mergeable aggregators are AGG_COUNT, AGG_SUM, AGG_AVERAGE, AGG_MIN, AGG_MAX, AGG_RANGE, AGG_VARIANCE, AGG_STDDEV, AGG_DISTINCT_COUNT, AGG_NULL_COUNT, AGG_FREQUENCY, AGG_MODE_COUNT and AGG_MODE (on a categorical field AGG_MODE chains the dictionary index, not the label). The mergeable groupers are GROUP_CATEGORY, GROUP_RANGE, GROUP_ROUNDED, GROUP_DATE_RANGES, GROUP_NUMERIC_RANGES, GROUP_SET_VALUE and GROUP_SET_PER_ELEMENT. The row-local attributes are ATTR_FORMULA (unless its expression calls total(expr), a cohort-total pre-pass) and ATTR_DATE_PART. Windows, features, statistical tests, regressions, two-pass attributes and non-mergeable aggregators/groupers are rejected with PULSE_CHAIN_NOT_MERGEABLE. Only stage 0 may carry `matrices` (MAT_COVARIANCE / MAT_CORRELATION, computed over the cohort rows and returned on stage 0's response, never passed to the next stage); a later stage's `matrices` is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE. Fall back to pulse_compose or per-stage pulse_process. The chain's output schema for each stage is synthesised: grouper keys become categorical_u32 columns, aggregator outputs become f64. Stage 0's request supplies the source cohort; later stages ignore their inner cohort field. A stage's `return` shapes that stage only after the whole chain ran (the next stage still reads its full rows); `final` follows the last stage's."
       },
       {
         "name": "pulse_rake",
@@ -12194,7 +12196,7 @@
       },
       {
         "name": "cohort-sidecar-index",
-        "description": "The sidecar point-lookup index beside a cohort — the v3 file format, the O(1) seek path, three-outcome staleness, discovery through the indexes.json manifest, invalidation by a cohort rewrite, keyable types and constraints."
+        "description": "The sidecar point-lookup index beside a cohort — the v3 file format, the O(1) seek path, three-outcome staleness, discovery through the indexes.json manifest, invalidation by a cohort rewrite, keyable types, shard-archive indexes and constraints."
       },
       {
         "name": "cohort-width-overflow",
@@ -13683,18 +13685,33 @@
       ],
       "mergeable_groupers": [
         "GROUP_CATEGORY",
-        "GROUP_RANGE"
+        "GROUP_DATE_RANGES",
+        "GROUP_NUMERIC_RANGES",
+        "GROUP_RANGE",
+        "GROUP_ROUNDED",
+        "GROUP_SET_PER_ELEMENT",
+        "GROUP_SET_VALUE"
       ],
       "row_local_attributes": [
+        "ATTR_CODE_IN",
         "ATTR_DATE_PART",
-        "ATTR_FORMULA"
+        "ATTR_FORMULA",
+        "ATTR_PROFILE_SIMILARITY",
+        "ATTR_REG_PREDICT",
+        "ATTR_SCALE_SCORE",
+        "ATTR_SET_HAS",
+        "ATTR_SET_POPCOUNT",
+        "ATTR_VEC_DISTANCE"
       ],
       "rejection_rules": [
         "chain rejects windows, features, tier-1 row tests, tier-2 post tests, regressions",
         "chain rejects two-pass attributes (ZSCORE / TSCORE / NORMALIZED / REG_*)",
         "chain rejects an ATTR_FORMULA whose expression calls total(expr) (a cohort-total pre-pass, not row-local)",
+        "chain rejects an ATTR_PROFILE_SIMILARITY over a centroid reference (a cohort-wide pre-pass, not row-local)",
+        "chain rejects an ATTR_VEC_DISTANCE over a fitted metric (std_euclidean / mahalanobis), a centroid reference or a metric that does not resolve",
+        "chain rejects extension attributes not declared row_local, and component-emitting ones not declared Mergeable",
         "chain rejects AGG_MEDIAN / AGG_PERCENTILE / AGG_ZSCORE / AGG_SKEWNESS / AGG_KURTOSIS (non-mergeable)",
-        "chain rejects GROUP_ROUNDED / GROUP_QUANTILE / GROUP_DATE (non-mergeable)",
+        "chain rejects GROUP_QUANTILE / GROUP_DATE / GROUP_KMEANS (non-mergeable)",
         "chain rejects built-in aggregators over decimal128 targets",
         "chain rejects extension aggregators and groupers not declared Mergeable",
         "chain rejects non-streamable filterers",
@@ -19438,4 +19455,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: cba7e66ba23f3de2a71e938074b3699f8ada03ab85874688311e4bd6cf5c4f15
+// golden-hash: a90579c00441b3f19f403ab80f5fefe437b0027afbed23d66e4497adcf51150f

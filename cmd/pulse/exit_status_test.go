@@ -428,12 +428,19 @@ func TestExitStatus_RootAndUsage(t *testing.T) {
 	}
 }
 
-// TestExitStatus_PersistentFlagIsUsage: an unknown --log-level is
-// refused before the leaf runs: exit 2, still the CLI_INPUT message.
+// TestExitStatus_PersistentFlagIsUsage: an unknown --log-level and a
+// negative --shard-workers / --decode-workers (U51 E2-S2) are refused
+// before the leaf runs: exit 2, still the CLI_INPUT message.
 func TestExitStatus_PersistentFlagIsUsage(t *testing.T) {
-	s, _, errOut := runExit(t, "version", "--log-level", "loud")
-	if s != pcli.ExitUsage || !strings.Contains(errOut, "--log-level loud") {
-		t.Fatalf("exit %d (want 2), stderr %q", s, errOut)
+	for _, args := range [][]string{
+		{"--log-level", "loud"},
+		{"--shard-workers", "-1"},
+		{"--decode-workers", "-1"},
+	} {
+		s, _, errOut := runExit(t, append([]string{"version"}, args...)...)
+		if s != pcli.ExitUsage || !strings.Contains(errOut, strings.Join(args, " ")) {
+			t.Errorf("%v: exit %d (want 2), stderr %q", args, s, errOut)
+		}
 	}
 }
 

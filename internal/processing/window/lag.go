@@ -11,7 +11,12 @@ type lagComputer struct {
 	hasDef  bool
 	defVal  any
 	forward bool // false = lag (look back), true = lead (look forward)
+	// observe, when set (ApplyObserved), hears each copied cell's
+	// source row (nil for an out-of-partition default / null).
+	observe CopyObserver
 }
+
+func (c *lagComputer) setCopyObserver(observe CopyObserver) { c.observe = observe }
 
 func init() {
 	register(types.WIN_LAG, newLag)
@@ -46,6 +51,7 @@ func (c *lagComputer) Compute(rows []map[string]any, partitions [][]int, label s
 				srcIdx = i - c.offset
 			}
 			var val any
+			var src map[string]any
 			if srcIdx < 0 || srcIdx >= len(part) {
 				if c.hasDef {
 					val = c.defVal
@@ -53,9 +59,13 @@ func (c *lagComputer) Compute(rows []map[string]any, partitions [][]int, label s
 					val = nil
 				}
 			} else {
-				val = rows[part[srcIdx]][c.field]
+				src = rows[part[srcIdx]]
+				val = src[c.field]
 			}
 			rows[rowIdx][label] = val
+			if c.observe != nil {
+				c.observe(rows[rowIdx], src, label, c.field)
+			}
 		}
 	}
 	return nil

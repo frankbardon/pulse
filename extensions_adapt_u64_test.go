@@ -61,10 +61,12 @@ func TestExtRecord_Uint64Value(t *testing.T) {
 type echoOnlyFeatureRecord map[string]float64
 
 func (r echoOnlyFeatureRecord) NumericValue(n string) (float64, bool) { v, ok := r[n]; return v, ok }
-func (echoOnlyFeatureRecord) StringValue(string) (string, bool)       { return "", false }
-func (echoOnlyFeatureRecord) LevelValue(string) (string, bool)        { return "", false }
-func (echoOnlyFeatureRecord) Set(string, float64)                     {}
-func (echoOnlyFeatureRecord) SetNull(string)                          {}
+func (echoOnlyFeatureRecord) StringValueChecked(string) (string, bool, error) {
+	return "", false, nil
+}
+func (echoOnlyFeatureRecord) LevelValueChecked(string) (string, bool, error) { return "", false, nil }
+func (echoOnlyFeatureRecord) Set(string, float64)                            {}
+func (echoOnlyFeatureRecord) SetNull(string)                                 {}
 
 // TestFeatureRecordView_Uint64Value: a non-engine feature record degrades
 // to its float echo (saturating past 2^64), false when absent.

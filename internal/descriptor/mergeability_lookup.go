@@ -22,12 +22,9 @@ import (
 // (aggregatorComponentSchemaIndex). The descriptor package stays
 // no-execute — this helper reads only the static capabilities slice.
 func AggregatorMergeability(name string) descriptor.ComponentsMergeability {
-	for _, op := range aggregatorCapabilities() {
-		if op.Name == name {
-			return op.ComponentSchema.Mergeability
-		}
-	}
-	return ""
+	// The cached built-in index (#390): mergeability is the same in
+	// both weighting variants. An unknown name reads the zero schema.
+	return builtinAggregatorSchemaIndex(true)[name].Mergeability
 }
 
 // AggregationMergeability is the typed convenience that accepts a

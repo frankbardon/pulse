@@ -43,8 +43,11 @@ import (
 // the aux overflow maps (ovVals,
 // ovNulls, ovWide), which are allocated only when such a write happens.
 // A record that only ever holds schema fields allocates no map at all.
-// The routing is a pure function of (schema, name), so a given name is
-// always stored on the same side.
+// A binding's extras (BindRecords) give the run's attribute labels
+// positional slots instead, so a row's attribute outputs allocate no
+// map either; an extra reads exactly as its overflow entry would. The
+// routing is a pure function of (layout, name), so a given name is
+// always stored on the same side of a record.
 //
 // Every public accessor keeps the semantics the former
 // map[string]float64 / map[string]bool / map[string]any triple had,
@@ -137,6 +140,20 @@ type recordAux struct {
 	ovVals  map[string]float64
 	ovNulls map[string]bool
 	ovWide  map[string]any
+
+	// allValuesFault is the dictionary-index fault (see
+	// Record.AllValuesChecked) the build of the record's CURRENT
+	// allValuesCache met; read only while that cache is non-nil, and
+	// rewritten by every build.
+	allValuesFault error
+
+	// readFault is the first dictionary-index fault an UNCHECKED level
+	// read on an extension's view met (Record.NoteReadFault): the extend
+	// Record contract's StringValue cannot return an error, so the view
+	// latches it here and the adapter that handed the row over takes it
+	// (TakeReadFault) as soon as the extension call returns. ClearForRow
+	// and BeginRunRow drop it with the row.
+	readFault error
 }
 
 const (
@@ -162,11 +179,66 @@ func newPositionalRecord(schema *encoding.Schema) *Record {
 
 func newRecordWithLayout(schema *encoding.Schema, l *recordLayout) *Record {
 	r := &Record{schema: schema, layout: l}
-	if l.n > 0 || l.nGroups > 0 {
-		r.vals = make([]float64, l.n, l.n+l.nWords+l.nGroups)
-		r.bits = make([]uint64, planeCount*recordWords(l.n))
+	if l.n > 0 || l.nGroups > 0 || l.nExtra > 0 {
+		r.vals = make([]float64, l.n, l.n+l.nWords+l.nGroups+l.nExtra)
+		r.bits = make([]uint64, planeCount*recordWords(l.n)+xplaneCount*recordWords(l.nExtra))
 	}
 	return r
+}
+
+// Extra-slot planes (recordLayout.nExtra): has-value and null, the two
+// questions the overflow side's ovVals / ovNulls answered.
+const (
+	xplaneHas = iota
+	xplaneNull
+	xplaneCount
+)
+
+// extraPos resolves name to its extra slot, or -1 (no extras, or not
+// one of them).
+func (r *Record) extraPos(name string) int {
+	if r.layout == nil || r.layout.nExtra == 0 {
+		return -1
+	}
+	return r.layout.extra(name)
+}
+
+// xbit addresses extra x's bit in plane: the word index into bits and
+// the mask.
+func (r *Record) xbit(plane, x int) (int, uint64) {
+	return planeCount*recordWords(len(r.vals)) + plane*recordWords(r.layout.nExtra) + x>>6, 1 << uint(x&63)
+}
+
+func (r *Record) xtest(plane, x int) bool {
+	w, m := r.xbit(plane, x)
+	return r.bits[w]&m != 0
+}
+
+func (r *Record) xset(plane, x int) {
+	w, m := r.xbit(plane, x)
+	r.bits[w] |= m
+}
+
+func (r *Record) xclear(plane, x int) {
+	w, m := r.xbit(plane, x)
+	r.bits[w] &^= m
+}
+
+// extraSlot is extra x's value cell in the tail of vals, past the
+// set-mask and group-index words.
+func (r *Record) extraSlot(x int) *float64 {
+	return &r.vals[:cap(r.vals)][len(r.vals)+r.layout.nWords+r.layout.nGroups+x]
+}
+
+// clearExtraNulls clears every extra's null mark — the former
+// clear(ovNulls) of ClearForRow / BeginRunRow for these names.
+func (r *Record) clearExtraNulls() {
+	if r.layout == nil || r.layout.nExtra == 0 {
+		return
+	}
+	w := recordWords(r.layout.nExtra)
+	base := planeCount*recordWords(len(r.vals)) + xplaneNull*w
+	clear(r.bits[base : base+w])
 }
 
 // NewRecord creates a record with the given schema and field values.
@@ -482,6 +554,12 @@ func (r *Record) getValue(name string) (float64, bool) {
 		}
 		return 0, false
 	}
+	if x := r.extraPos(name); x >= 0 {
+		if r.xtest(xplaneHas, x) {
+			return *r.extraSlot(x), true
+		}
+		return 0, false
+	}
 	if r.aux == nil {
 		return 0, false
 	}
@@ -496,6 +574,11 @@ func (r *Record) putValue(name string, v float64) {
 		r.vals[i] = v
 		r.setBit(planeHas, i)
 		r.clearBit(planeExact, i)
+		return
+	}
+	if x := r.extraPos(name); x >= 0 {
+		*r.extraSlot(x) = v
+		r.xset(xplaneHas, x)
 		return
 	}
 	a := r.auxOrNew()
@@ -514,6 +597,11 @@ func (r *Record) dropValue(name string) {
 		r.clearBit(planeExact, i)
 		return
 	}
+	if x := r.extraPos(name); x >= 0 {
+		*r.extraSlot(x) = 0
+		r.xclear(xplaneHas, x)
+		return
+	}
 	if r.aux != nil {
 		delete(r.aux.ovVals, name)
 	}
@@ -524,6 +612,9 @@ func (r *Record) nullMarked(name string) bool {
 	if i := r.pos(name); i >= 0 {
 		return r.test(planeNull, i)
 	}
+	if x := r.extraPos(name); x >= 0 {
+		return r.xtest(xplaneNull, x)
+	}
 	return r.aux != nil && r.aux.ovNulls[name]
 }
 
@@ -532,6 +623,10 @@ func (r *Record) markNull(name string) {
 	if i := r.pos(name); i >= 0 {
 		r.resetRun()
 		r.setBit(planeNull, i)
+		return
+	}
+	if x := r.extraPos(name); x >= 0 {
+		r.xset(xplaneNull, x)
 		return
 	}
 	a := r.auxOrNew()
@@ -546,6 +641,10 @@ func (r *Record) unmarkNull(name string) {
 	if i := r.pos(name); i >= 0 {
 		r.resetRun()
 		r.clearBit(planeNull, i)
+		return
+	}
+	if x := r.extraPos(name); x >= 0 {
+		r.xclear(xplaneNull, x)
 		return
 	}
 	if r.aux != nil {
@@ -718,19 +817,26 @@ func (r *Record) NumericValue(name string) (float64, bool) {
 		}
 		return 0, false
 	}
-	if r.aux == nil {
+	x := r.extraPos(name)
+	if x < 0 && r.aux == nil {
 		return 0, false
 	}
-	if r.aux.ovNulls[name] {
+	if r.nullMarked(name) {
 		return 0, false
 	}
-	if wv, present := r.aux.ovWide[name]; present {
-		if _, isSet := setMaskFromWideValue(wv); isSet {
-			return 0, false
+	if r.aux != nil {
+		if wv, present := r.aux.ovWide[name]; present {
+			if _, isSet := setMaskFromWideValue(wv); isSet {
+				return 0, false
+			}
+			if _, isVec := wv.([]float64); isVec {
+				return 0, false
+			}
 		}
-		if _, isVec := wv.([]float64); isVec {
-			return 0, false
-		}
+	}
+	if x >= 0 {
+		// An extra is never a schema field (addExtras), so no vector.
+		return r.getValue(name)
 	}
 	if f := r.fieldNamed(name); f != nil && f.Type.IsVector() {
 		return 0, false
@@ -802,6 +908,19 @@ func (r *Record) IsNull(name string) bool {
 			return false
 		}
 		return !r.hasWideAt(i)
+	}
+	if x := r.extraPos(name); x >= 0 {
+		if r.xtest(xplaneNull, x) {
+			return true
+		}
+		if r.xtest(xplaneHas, x) {
+			return false
+		}
+		if r.aux == nil {
+			return true
+		}
+		_, ok := r.aux.ovWide[name]
+		return !ok
 	}
 	if r.aux == nil {
 		return true
@@ -897,38 +1016,76 @@ func (r *Record) SetLabels(name string) ([]string, bool) {
 
 // StringValue returns the resolved string value for categorical fields.
 // For non-categorical fields, returns the empty string and false.
+//
+// UNCHECKED: a code that addresses no dictionary entry (corrupt record
+// data) also reads ("", false), indistinguishable from a null. No engine
+// consumer reads through it — every level read goes through
+// StringValueChecked / LevelValueChecked (TestLevelReaders_Checked
+// pins this); it remains for the extend Record view, whose adapter
+// latches the fault (NoteReadFault), and for tests.
 func (r *Record) StringValue(name string) (string, bool) {
+	s, ok, _ := r.StringValueChecked(name)
+	return s, ok
+}
+
+// StringValueChecked is StringValue plus the refusal of corrupt record
+// data: a non-null categorical cell whose code addresses no entry of its
+// field's dictionary is ENCODING_INVALID (details.reason
+// categorical_index_out_of_range, field, index, dictionary_size — the
+// internal/encoding.CategoricalIndexFault shape every E5-S8 arm raises)
+// instead of reading as absent. A null, absent or non-categorical field
+// reads ("", false, nil) and is never judged; an in-range entry whose
+// label is "" keeps reading ("", false, nil) as before (U51 E5-S10).
+func (r *Record) StringValueChecked(name string) (string, bool, error) {
 	i := r.pos(name)
 	if i < 0 {
 		return r.stringValueOverflow(name)
 	}
 	if r.test(planeNull, i) {
-		return "", false
+		return "", false, nil
 	}
 	f := r.fieldAt(i)
 	if !f.Type.IsCategorical() || f.Dictionary == nil {
-		return "", false
+		return "", false, nil
 	}
 	if !r.test(planeHas, i) {
-		return "", false
+		return "", false, nil
 	}
-	resolved := f.Dictionary.Resolve(uint32(r.vals[i]))
-	if resolved == "" {
-		return "", false
-	}
-	return resolved, true
+	return resolveLevel(f, r.vals[i])
 }
 
-// LevelValue is the one shared level read: the category a row sits in
-// for every slot of the categoricalValue acceptance class (split_by, a
-// contingency axis, TEST_PROP_Z's outcome, the encoders). A categorical
-// reads its dictionary label (StringValue, unchanged); a packed_bool
-// reads "0" / "1" (fieldaccept.PackedBoolFalse / PackedBoolTrue,
-// GROUP_CATEGORY's keys); a null, absent or other-typed field reads
-// ("", false). Every level consumer reads through here, never through
-// StringValue, which knows no packed_bool and would drop its rows
-// silently.
+// resolveLevel resolves categorical code v of f: its label and true, the
+// ENCODING_INVALID dictionary-index fault for a code no entry has, or
+// ("", false, nil) for an in-range entry labelled "".
+func resolveLevel(f *encoding.Field, v float64) (string, bool, error) {
+	if err := encx.CategoricalIndexFault(f, v); err != nil {
+		return "", false, err
+	}
+	resolved := f.Dictionary.Resolve(uint32(v))
+	if resolved == "" {
+		return "", false, nil
+	}
+	return resolved, true, nil
+}
+
+// LevelValue is LevelValueChecked without the error: UNCHECKED, like
+// StringValue, and read by no engine consumer (tests only).
 func (r *Record) LevelValue(name string) (string, bool) {
+	s, ok, _ := r.LevelValueChecked(name)
+	return s, ok
+}
+
+// LevelValueChecked is the one shared level read: the category a row
+// sits in for every slot of the categoricalValue acceptance class
+// (split_by, a contingency axis, TEST_PROP_Z's outcome, the encoders, a
+// stratify key, a comparison key). A categorical reads its dictionary
+// label (StringValueChecked, so a corrupt code is ENCODING_INVALID); a
+// packed_bool reads "0" / "1" (fieldaccept.PackedBoolFalse /
+// PackedBoolTrue, GROUP_CATEGORY's keys); a null, absent or other-typed
+// field reads ("", false, nil). Every level consumer reads through
+// here, never through StringValue, which knows no packed_bool and would
+// drop its rows silently.
+func (r *Record) LevelValueChecked(name string) (string, bool, error) {
 	var f *encoding.Field
 	if i := r.pos(name); i >= 0 {
 		f = r.fieldAt(i)
@@ -936,38 +1093,59 @@ func (r *Record) LevelValue(name string) (string, bool) {
 		f = r.schema.Field(name)
 	}
 	if f == nil || f.Type != encoding.FieldTypePackedBool {
-		return r.StringValue(name)
+		return r.StringValueChecked(name)
 	}
 	v, ok := r.NumericValue(name)
 	if !ok {
-		return "", false
+		return "", false, nil
 	}
 	if v != 0 {
-		return fieldaccept.PackedBoolTrue, true
+		return fieldaccept.PackedBoolTrue, true, nil
 	}
-	return fieldaccept.PackedBoolFalse, true
+	return fieldaccept.PackedBoolFalse, true, nil
+}
+
+// NoteReadFault latches err (the first one wins) as the record's
+// pending read fault: an extend view whose StringValue met a corrupt
+// code reports ("", false) to the embedder — the public signature has
+// no error — and the adapter that handed the row over returns the fault
+// via TakeReadFault once the extension call returns. Nil is a no-op.
+func (r *Record) NoteReadFault(err error) {
+	if err == nil {
+		return
+	}
+	if aux := r.auxOrNew(); aux.readFault == nil {
+		aux.readFault = err
+	}
+}
+
+// TakeReadFault returns and clears the record's pending read fault
+// (nil when none).
+func (r *Record) TakeReadFault() error {
+	if r.aux == nil || r.aux.readFault == nil {
+		return nil
+	}
+	err := r.aux.readFault
+	r.aux.readFault = nil
+	return err
 }
 
 // stringValueOverflow is StringValue for a name with no slot. Such a
 // name can still be a schema field (one outside a projection written by
 // name), so the schema is consulted exactly as the map-backed form did.
-func (r *Record) stringValueOverflow(name string) (string, bool) {
+func (r *Record) stringValueOverflow(name string) (string, bool, error) {
 	if r.aux == nil || r.aux.ovNulls[name] || r.schema == nil {
-		return "", false
+		return "", false, nil
 	}
 	f := r.schema.Field(name)
 	if f == nil || !f.Type.IsCategorical() || f.Dictionary == nil {
-		return "", false
+		return "", false, nil
 	}
 	v, ok := r.aux.ovVals[name]
 	if !ok {
-		return "", false
+		return "", false, nil
 	}
-	resolved := f.Dictionary.Resolve(uint32(v))
-	if resolved == "" {
-		return "", false
-	}
-	return resolved, true
+	return resolveLevel(f, v)
 }
 
 // Schema returns the record's schema.
@@ -990,6 +1168,9 @@ func (r *Record) AllValues() map[string]any {
 	if r.allValuesCache != nil {
 		return r.allValuesCache
 	}
+	if r.aux != nil {
+		r.aux.allValuesFault = nil
+	}
 	out := make(map[string]any, r.valueCountHint())
 	for i := range r.vals {
 		if !r.test(planeHas, i) || r.test(planeNull, i) {
@@ -998,9 +1179,18 @@ func (r *Record) AllValues() map[string]any {
 		f := r.fieldAt(i)
 		v := r.vals[i]
 		if f.Type.IsCategorical() && f.Dictionary != nil {
+			r.noteAllValuesFault(encx.CategoricalIndexFault(f, v))
 			out[f.Name] = f.Dictionary.Resolve(uint32(v))
 		} else {
 			out[f.Name] = v
+		}
+	}
+	if r.layout != nil {
+		// Extras are never schema fields: no dictionary to resolve.
+		for x, name := range r.layout.extraNames {
+			if r.xtest(xplaneHas, x) && !r.xtest(xplaneNull, x) {
+				out[name] = *r.extraSlot(x)
+			}
 		}
 	}
 	if r.aux != nil {
@@ -1015,6 +1205,7 @@ func (r *Record) AllValues() map[string]any {
 				f = r.schema.Field(k)
 			}
 			if f != nil && f.Type.IsCategorical() && f.Dictionary != nil {
+				r.noteAllValuesFault(encx.CategoricalIndexFault(f, v))
 				out[k] = f.Dictionary.Resolve(uint32(v))
 			} else {
 				out[k] = v
@@ -1026,7 +1217,9 @@ func (r *Record) AllValues() map[string]any {
 			continue
 		}
 		f := r.fieldAt(i)
-		out[f.Name] = allValuesWide(f, r.boxWideAt(i))
+		wv := r.boxWideAt(i)
+		r.noteAllValuesFault(wideDictionaryFault(f, wv))
+		out[f.Name] = allValuesWide(f, wv)
 	}
 	if r.aux != nil {
 		for k, v := range r.aux.ovWide {
@@ -1037,11 +1230,52 @@ func (r *Record) AllValues() map[string]any {
 			if r.schema != nil {
 				f = r.schema.Field(k)
 			}
+			r.noteAllValuesFault(wideDictionaryFault(f, v))
 			out[k] = allValuesWide(f, v)
 		}
 	}
 	r.allValuesCache = out
 	return out
+}
+
+// AllValuesChecked is AllValues plus the refusal of a categorical or
+// set cell whose code addresses no entry of its field's dictionary —
+// corrupt record data AllValues alone would render as "" (a categorical)
+// or silently drop (a set member). Every consumer that renders or
+// evaluates the map (record rows, Sample, Lookup, expressions) reads
+// through here, so a corrupt cell is an ENCODING_INVALID refusal rather
+// than a minted output (U51 E5-S8). The fault is computed once per
+// build of the cached map.
+func (r *Record) AllValuesChecked() (map[string]any, error) {
+	out := r.AllValues()
+	if r.aux != nil && r.aux.allValuesFault != nil {
+		return out, r.aux.allValuesFault
+	}
+	return out, nil
+}
+
+// noteAllValuesFault keeps the first dictionary fault an AllValues
+// build met.
+func (r *Record) noteAllValuesFault(err error) {
+	if err == nil {
+		return
+	}
+	if aux := r.auxOrNew(); aux.allValuesFault == nil {
+		aux.allValuesFault = err
+	}
+}
+
+// wideDictionaryFault is the set-member fault of a wide value bound to
+// f (nil for any other field or value).
+func wideDictionaryFault(f *encoding.Field, v any) error {
+	if f == nil || !f.Type.IsSet() || f.Dictionary == nil {
+		return nil
+	}
+	m, ok := setMaskFromWideValue(v)
+	if !ok {
+		return nil
+	}
+	return encx.SetMemberFault(f, m)
 }
 
 // exprValue returns AllValues()[name] without building the map — the
@@ -1050,10 +1284,20 @@ func (r *Record) AllValues() map[string]any {
 // pass overwrites an earlier one): overflow wide, typed wide, overflow
 // value, slot value. Pinned to AllValues by
 // TestRecord_ExprValueMatchesAllValues.
-func (r *Record) exprValue(name string) (any, bool) {
+//
+// A categorical or set value whose code addresses no entry of its
+// field's dictionary is refused with AllValuesChecked's error.
+func (r *Record) exprValue(name string) (any, bool, error) {
 	if r.allValuesCache != nil {
 		v, ok := r.allValuesCache[name]
-		return v, ok
+		if ok && r.aux != nil && r.aux.allValuesFault != nil {
+			// The cached build met a fault somewhere in the record;
+			// refuse only when it is this field's.
+			if err := r.fieldDictionaryFault(name); err != nil {
+				return nil, false, err
+			}
+		}
+		return v, ok, nil
 	}
 	i := r.pos(name)
 	if r.aux != nil {
@@ -1062,33 +1306,74 @@ func (r *Record) exprValue(name string) (any, bool) {
 			if r.schema != nil {
 				f = r.schema.Field(name)
 			}
-			return allValuesWide(f, v), true
+			if err := wideDictionaryFault(f, v); err != nil {
+				return nil, false, err
+			}
+			return allValuesWide(f, v), true, nil
 		}
 	}
 	if i >= 0 && r.test(planeWide, i) && !r.test(planeNull, i) {
-		return allValuesWide(r.fieldAt(i), r.boxWideAt(i)), true
+		f, wv := r.fieldAt(i), r.boxWideAt(i)
+		if err := wideDictionaryFault(f, wv); err != nil {
+			return nil, false, err
+		}
+		return allValuesWide(f, wv), true, nil
 	}
-	if r.aux != nil {
+	if x := r.extraPos(name); x >= 0 {
+		if r.xtest(xplaneHas, x) && !r.xtest(xplaneNull, x) {
+			return *r.extraSlot(x), true, nil
+		}
+	} else if r.aux != nil {
 		if v, ok := r.aux.ovVals[name]; ok && !r.aux.ovNulls[name] {
 			var f *encoding.Field
 			if r.schema != nil {
 				f = r.schema.Field(name)
 			}
 			if f != nil && f.Type.IsCategorical() && f.Dictionary != nil {
-				return f.Dictionary.Resolve(uint32(v)), true
+				if err := encx.CategoricalIndexFault(f, v); err != nil {
+					return nil, false, err
+				}
+				return f.Dictionary.Resolve(uint32(v)), true, nil
 			}
-			return v, true
+			return v, true, nil
 		}
 	}
 	if i >= 0 && r.test(planeHas, i) && !r.test(planeNull, i) {
 		f := r.fieldAt(i)
 		v := r.vals[i]
 		if f.Type.IsCategorical() && f.Dictionary != nil {
-			return f.Dictionary.Resolve(uint32(v)), true
+			if err := encx.CategoricalIndexFault(f, v); err != nil {
+				return nil, false, err
+			}
+			return f.Dictionary.Resolve(uint32(v)), true, nil
 		}
-		return v, true
+		return v, true, nil
 	}
-	return nil, false
+	return nil, false, nil
+}
+
+// fieldDictionaryFault is the dictionary-index fault of field name's
+// current value (nil when the field is not categorical / set, null,
+// absent or in range).
+func (r *Record) fieldDictionaryFault(name string) error {
+	if r.schema == nil {
+		return nil
+	}
+	f := r.schema.Field(name)
+	if f == nil || f.Dictionary == nil {
+		return nil
+	}
+	switch {
+	case f.Type.IsCategorical():
+		if v, ok := r.NumericValue(name); ok {
+			return encx.CategoricalIndexFault(f, v)
+		}
+	case f.Type.IsSet():
+		if m, ok := r.SetMaskValue(name); ok {
+			return encx.SetMemberFault(f, m)
+		}
+	}
+	return nil
 }
 
 // allValuesWide renders one wide value for AllValues: a set field with a
@@ -1112,6 +1397,12 @@ func (r *Record) valueCountHint() int {
 			n += bits.OnesCount64(word)
 		}
 		for _, word := range r.bits[planeWide*w : planeWide*w+w] {
+			n += bits.OnesCount64(word)
+		}
+	}
+	if r.layout != nil && r.layout.nExtra > 0 {
+		w, _ := r.xbit(xplaneHas, 0)
+		for _, word := range r.bits[w : w+recordWords(r.layout.nExtra)] {
 			n += bits.OnesCount64(word)
 		}
 	}
@@ -1335,6 +1626,7 @@ func (r *Record) ClearForRow() {
 		w := recordWords(len(r.vals))
 		clear(r.bits[planeNull*w : planeCount*w])
 	}
+	r.clearExtraNulls()
 	if r.aux != nil {
 		if len(r.aux.ovNulls) > 0 {
 			clear(r.aux.ovNulls)
@@ -1342,6 +1634,7 @@ func (r *Record) ClearForRow() {
 		if len(r.aux.ovWide) > 0 {
 			clear(r.aux.ovWide)
 		}
+		r.aux.readFault = nil
 	}
 	r.allValuesCache = nil
 }
@@ -1358,6 +1651,7 @@ func (r *Record) ClearForRow() {
 // token.
 func (r *Record) BeginRunRow(token uint64, keep bool) bool {
 	if keep && token != 0 && r.runOwner == token && r.identityLayout() {
+		r.clearExtraNulls()
 		if r.aux != nil {
 			if len(r.aux.ovNulls) > 0 {
 				clear(r.aux.ovNulls)
@@ -1365,6 +1659,7 @@ func (r *Record) BeginRunRow(token uint64, keep bool) bool {
 			if len(r.aux.ovWide) > 0 {
 				clear(r.aux.ovWide)
 			}
+			r.aux.readFault = nil
 		}
 		r.allValuesCache = nil
 		return true
@@ -1501,6 +1796,16 @@ func (r *Record) copyStateInto(dst *Record, rename func(string) string, offset i
 		if hasW {
 			wv, _ := r.wideAt(i)
 			dst.putWide(name, wv)
+		}
+	}
+	if r.layout != nil {
+		for x, name := range r.layout.extraNames {
+			if r.xtest(xplaneHas, x) {
+				dst.putValue(rename(name), *r.extraSlot(x))
+			}
+			if r.xtest(xplaneNull, x) {
+				dst.markNull(rename(name))
+			}
 		}
 	}
 	if r.aux == nil {

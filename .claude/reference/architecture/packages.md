@@ -52,6 +52,7 @@ internal/examples/         embedded runnable requests
 internal/fs/               afero config (fs.Default, fs.NewMemMap)
 internal/imports/          managed-imports manager (TTL, sidecars)
 internal/statdist/         Student-t family + regularized incomplete beta shared by processing and regression (leaf: stdlib + gonum only; TestStatdistImportBoundary)
+internal/reprosum/         binned reproducible float64 summation (ReproBLAS port, fold 3 / W 40, BSD-3 notice in its header + THIRD_PARTY_NOTICES.md): Sum.Add / AddWeighted / Merge / Float64, bit-identical under any order, partition or merge tree; FMA-free, golden bits pinned across GOARCH by TestReproSum_GoldenBits (leaf: stdlib only)
 internal/daterange/        compiled {label,start,end} model for the date-range operators
 internal/dategroup/        the one GROUP_DATE params reading (component, week_start, fiscal_offset, hour-needs-datetime); factory and predict both call it (leaf: stdlib + errors/encoding + temporal)
 internal/datepart/         the one ATTR_DATE_PART params + field reading (part enum, date/datetime only, hour-needs-datetime); factory and predict both call it (leaf: stdlib + errors/encoding)

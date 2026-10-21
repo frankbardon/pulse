@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 )
@@ -36,19 +37,19 @@ func ratioLabelAgg(label, num, den string) *types.Aggregation {
 	return &types.Aggregation{Type: types.AGG_RATIO, Field: "qty", Label: label, Params: params}
 }
 
-// ratioLabelRef is the sequential Σnum / Σden over fixture rows whose
+// ratioLabelRef is the binned (internal/reprosum) Σnum / Σden over fixture rows whose
 // region passes keepRegion, skipping rows with a null score (the
 // denominator) — the reference the ratio must equal bit for bit.
 func ratioLabelRef(keepRegion func(int) bool, num func(r int) float64) float64 {
-	var n, d float64
+	var n, d reprosum.Sum
 	for r := 0; r < paritySmallRows; r++ {
 		if r%7 == 3 || !keepRegion(r%4) {
 			continue
 		}
-		n += num(r)
-		d += float64(r%50) + 0.5
+		n.Add(num(r))
+		d.Add(float64(r%50) + 0.5)
 	}
-	return n / d
+	return n.Float64() / d.Float64()
 }
 
 // TestAggRatio_DerivedLabelNumerator: a numerator naming an attribute

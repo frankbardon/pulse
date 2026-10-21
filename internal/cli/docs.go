@@ -87,7 +87,7 @@ func docsExport(ctx context.Context, res DocsExportResult) error {
 		}
 		opts.FeatureProfile = fp
 	}
-	p, err := pulse.New(withLogger(ctx, opts))
+	p, err := pulse.New(withGlobals(ctx, opts))
 	if err != nil {
 		return err
 	}

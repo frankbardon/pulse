@@ -108,50 +108,70 @@ const (
 	MaxDerivedColumns  Name = "max_derived_columns"
 )
 
-// field binds a Name to its Go field.
+// field binds a Name to its Go field. Reads go through Limits.value (a
+// direct switch), never a func-table accessor: an indirect call taking
+// *Limits makes every caller's Limits escape to the heap, and the
+// MaxGroups check runs at every bucket mint.
 type field struct {
 	name   Name
 	goName string
-	get    func(*Limits) int64
 	set    func(*Limits, int64)
 	def    int64
 }
 
+// value returns the field n names as an int64 (nanoseconds for
+// RequestTimeout); 0 for an unknown name. A direct call on a pointer
+// receiver: l does not escape.
+func (l *Limits) value(n Name) int64 {
+	switch n {
+	case RequestTimeout:
+		return int64(l.RequestTimeout)
+	case MaxGroups:
+		return l.MaxGroups
+	case MaxCrosstabCells:
+		return l.MaxCrosstabCells
+	case MaxEstimatedMemory:
+		return l.MaxEstimatedMemory
+	case MaxMatrixDim:
+		return l.MaxMatrixDim
+	case MaxComposeSlots:
+		return l.MaxComposeSlots
+	case MaxChainStages:
+		return l.MaxChainStages
+	case MaxJoinBuildRows:
+		return l.MaxJoinBuildRows
+	case MaxDerivedColumns:
+		return l.MaxDerivedColumns
+	}
+	return 0
+}
+
 var fields = []field{
 	{RequestTimeout, "RequestTimeout",
-		func(l *Limits) int64 { return int64(l.RequestTimeout) },
 		func(l *Limits, v int64) { l.RequestTimeout = time.Duration(v) },
 		int64(DefaultRequestTimeout)},
 	{MaxGroups, "MaxGroups",
-		func(l *Limits) int64 { return l.MaxGroups },
 		func(l *Limits, v int64) { l.MaxGroups = v },
 		DefaultMaxGroups},
 	{MaxCrosstabCells, "MaxCrosstabCells",
-		func(l *Limits) int64 { return l.MaxCrosstabCells },
 		func(l *Limits, v int64) { l.MaxCrosstabCells = v },
 		DefaultMaxCrosstabCells},
 	{MaxEstimatedMemory, "MaxEstimatedMemory",
-		func(l *Limits) int64 { return l.MaxEstimatedMemory },
 		func(l *Limits, v int64) { l.MaxEstimatedMemory = v },
 		DefaultMaxEstimatedMemory},
 	{MaxMatrixDim, "MaxMatrixDim",
-		func(l *Limits) int64 { return l.MaxMatrixDim },
 		func(l *Limits, v int64) { l.MaxMatrixDim = v },
 		DefaultMaxMatrixDim},
 	{MaxComposeSlots, "MaxComposeSlots",
-		func(l *Limits) int64 { return l.MaxComposeSlots },
 		func(l *Limits, v int64) { l.MaxComposeSlots = v },
 		DefaultMaxComposeSlots},
 	{MaxChainStages, "MaxChainStages",
-		func(l *Limits) int64 { return l.MaxChainStages },
 		func(l *Limits, v int64) { l.MaxChainStages = v },
 		DefaultMaxChainStages},
 	{MaxJoinBuildRows, "MaxJoinBuildRows",
-		func(l *Limits) int64 { return l.MaxJoinBuildRows },
 		func(l *Limits, v int64) { l.MaxJoinBuildRows = v },
 		DefaultMaxJoinBuildRows},
 	{MaxDerivedColumns, "MaxDerivedColumns",
-		func(l *Limits) int64 { return l.MaxDerivedColumns },
 		func(l *Limits, v int64) { l.MaxDerivedColumns = v },
 		DefaultMaxDerivedColumns},
 }
@@ -187,11 +207,7 @@ func Option(n Name) string {
 // Value returns the limit's field from l as an int64 (nanoseconds for
 // RequestTimeout); 0 for an unknown name.
 func Value(l Limits, n Name) int64 {
-	f, ok := lookup(n)
-	if !ok {
-		return 0
-	}
-	return f.get(&l)
+	return l.value(n)
 }
 
 // Defaults returns the built-in effective limits.
@@ -211,9 +227,9 @@ func Defaults() Limits {
 func Resolve(opts Limits, profile *Limits) Limits {
 	var out Limits
 	for _, f := range fields {
-		v := f.get(&opts)
+		v := opts.value(f.name)
 		if v == 0 && profile != nil {
-			v = f.get(profile)
+			v = profile.value(f.name)
 		}
 		if v == 0 {
 			v = f.def
@@ -227,7 +243,7 @@ func Resolve(opts Limits, profile *Limits) Limits {
 // Unlimited with PULSE_LIMIT_INVALID; nil when every field is valid.
 func Validate(l Limits) error {
 	for _, f := range fields {
-		if v := f.get(&l); v < Unlimited {
+		if v := l.value(f.name); v < Unlimited {
 			return Invalid(f.name, v)
 		}
 	}

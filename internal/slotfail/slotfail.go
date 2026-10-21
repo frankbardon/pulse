@@ -11,7 +11,8 @@
 // matrix). A configuration fault — an unknown type, a bad param, a field
 // of the wrong type — is never in a set below and stays fatal at
 // validation. The sets are closed: a new data-dependent refusal code
-// joins the matching set explicitly.
+// joins the matching set explicitly. One refusal is admitted to every
+// kind beside its set: corrupt record data (CorruptRecordData).
 package slotfail
 
 import (
@@ -20,6 +21,7 @@ import (
 	"maps"
 
 	"github.com/frankbardon/pulse/errors"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -73,6 +75,24 @@ var MatrixCodes = map[errors.Code]bool{
 	errors.PULSE_MATRIX_HEYWOOD:        true,
 }
 
+// CorruptRecordData reports whether coded is the dictionary-index
+// refusal of corrupt record data (internal/encoding.CategoricalIndexFault
+// / SetMemberFault: ENCODING_INVALID with details.reason
+// categorical_index_out_of_range or set_member_out_of_range). It is
+// data-dependent on every kind — no schema foresees a corrupt code — so
+// a slot whose rows carry one fails alone (U51 E5-S10). Any other
+// ENCODING_INVALID stays fatal.
+func CorruptRecordData(coded *errors.CodedError) bool {
+	if coded == nil || coded.Code != errors.ENCODING_INVALID {
+		return false
+	}
+	switch coded.Details["reason"] {
+	case encx.ReasonCategoricalIndexOutOfRange, encx.ReasonSetMemberOutOfRange:
+		return true
+	}
+	return false
+}
+
 // codesOf is kind's closed set.
 func codesOf(kind Kind) map[errors.Code]bool {
 	switch kind {
@@ -92,7 +112,10 @@ func codesOf(kind Kind) map[errors.Code]bool {
 // that kind, so the caller returns it as the fatal error it is.
 func From(kind Kind, err error) (*types.SlotError, bool) {
 	var coded *errors.CodedError
-	if err == nil || !stderrors.As(err, &coded) || !codesOf(kind)[coded.Code] {
+	if err == nil || !stderrors.As(err, &coded) {
+		return nil, false
+	}
+	if !codesOf(kind)[coded.Code] && (codesOf(kind) == nil || !CorruptRecordData(coded)) {
 		return nil, false
 	}
 	se := &types.SlotError{Code: string(coded.Code), Message: coded.Message}

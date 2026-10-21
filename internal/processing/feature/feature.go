@@ -23,14 +23,18 @@ type Record interface {
 	// NumericValue returns the value and true if present and non-null.
 	NumericValue(name string) (float64, bool)
 
-	// StringValue returns the resolved string value for categorical fields.
-	StringValue(name string) (string, bool)
+	// StringValueChecked returns the resolved string value for
+	// categorical fields; a code no dictionary entry has (corrupt
+	// record data) is an ENCODING_INVALID error, never a silent absent.
+	StringValueChecked(name string) (string, bool, error)
 
-	// LevelValue returns the row's level: a categorical's dictionary
-	// label, or "0" / "1" for a packed_bool; ("", false) for a null or
-	// any other type. Every level read (the encoders, a stratify key)
-	// goes through it, never StringValue, which knows no packed_bool.
-	LevelValue(name string) (string, bool)
+	// LevelValueChecked returns the row's level: a categorical's
+	// dictionary label, or "0" / "1" for a packed_bool; ("", false, nil)
+	// for a null or any other type; a corrupt categorical code is an
+	// ENCODING_INVALID error. Every level read (the encoders, a stratify
+	// key) goes through it, never StringValueChecked, which knows no
+	// packed_bool.
+	LevelValueChecked(name string) (string, bool, error)
 
 	// Set writes a derived non-null value. Implementations clear any prior
 	// null marker and invalidate any cached views.

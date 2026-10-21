@@ -324,11 +324,10 @@ func TestProcess_ParallelDecode_ByteEqualToSerial(t *testing.T) {
 	if !reflect.DeepEqual(gotRow["hi"], wantRow["hi"]) {
 		t.Errorf("AGG_MAX differs: got=%v want=%v", gotRow["hi"], wantRow["hi"])
 	}
-	// AGG_SUM on f64 — worker-partition order differs from the serial
-	// left-fold; rounding can shift within 1 ULP (same policy as
-	// parallel_reduce_test).
-	if !floatWithinULP(toFloat(gotRow["total"]), toFloat(wantRow["total"]), 1) {
-		t.Errorf("AGG_SUM beyond 1 ULP: got=%v want=%v", gotRow["total"], wantRow["total"])
+	// AGG_SUM on f64 — the binned reproducible sum is bit-identical
+	// to the serial run under any worker partition.
+	if !reflect.DeepEqual(gotRow["total"], wantRow["total"]) {
+		t.Errorf("AGG_SUM differs: got=%v want=%v", gotRow["total"], wantRow["total"])
 	}
 
 	if serialResp.Metadata == nil || parallelResp.Metadata == nil {

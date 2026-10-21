@@ -108,10 +108,14 @@ type CohortBuildResult struct {
 	Shards []string `json:"shards,omitempty"`
 	// InvalidatedSidecars names each sidecar beside the target that an
 	// Overwrite of an existing cohort invalidated — the point-lookup
-	// index and its manifest, the SPSS metadata sidecar — with the
-	// command that rebuilds it, exactly as Pulse.Dedup reports them.
-	// Nothing is rebuilt: each sidecar self-invalidates through its own
-	// fingerprint. Empty when no cohort was replaced.
+	// index (one entry per shard sidecar for an archive), the SPSS
+	// metadata sidecar — with the command that rebuilds it, exactly as
+	// Pulse.Dedup reports them; for an anchored append, the per-shard
+	// sidecars AddShard reported invalidated because the append
+	// re-encoded the archive's stored shards (an ordinary append keeps
+	// every archive index in step instead). Nothing is rebuilt: each
+	// sidecar self-invalidates through its own fingerprint. Empty when
+	// nothing was invalidated.
 	InvalidatedSidecars []StaleSidecar `json:"invalidated_sidecars,omitempty"`
 }
 
@@ -122,6 +126,9 @@ type CohortBuilder struct {
 	p     *Pulse
 	ctx   context.Context
 	inner *iio.CohortBuild
+	// appendStale carries an anchored append's AddShardResult
+	// InvalidatedSidecars (a re-encoding add) into Close's result.
+	appendStale []StaleSidecar
 }
 
 // NewCohortBuilder starts a single-file cohort at target — ungrouped
@@ -188,8 +195,16 @@ func (p *Pulse) NewCohortBuilder(ctx context.Context, target string, schema enco
 		Groups:         opts.Groups,
 		ElideConstants: opts.ElideConstants,
 		RatioFloor:     opts.RatioFloor,
-		AppendShard:    p.appendShard,
 		CheckAppend:    p.svc.PrecheckShardCohesion,
+	}
+	b := &CohortBuilder{p: p, ctx: ctx}
+	bo.AppendShard = func(ctx context.Context, archive, shardPath string) ([]*errors.CodedError, error) {
+		res, err := p.AddShard(ctx, archive, shardPath)
+		if err != nil {
+			return nil, err
+		}
+		b.appendStale = res.InvalidatedSidecars
+		return cohesionFindings(res.Warnings), nil
 	}
 	if opts.Shards != nil {
 		if opts.Shards.MaxRecords <= 0 {
@@ -204,7 +219,8 @@ func (p *Pulse) NewCohortBuilder(ctx context.Context, target string, schema enco
 	if err != nil {
 		return nil, err
 	}
-	return &CohortBuilder{p: p, ctx: ctx, inner: inner}, nil
+	b.inner = inner
+	return b, nil
 }
 
 // Append adds one row: one value per schema field, in field order,
@@ -266,6 +282,9 @@ func (b *CohortBuilder) Close() (*CohortBuildResult, error) {
 			res.Warnings = append(res.Warnings, sidecarScanWarning(rep.Target, scanErr))
 		}
 	}
+	if len(b.appendStale) > 0 {
+		res.InvalidatedSidecars = append(res.InvalidatedSidecars, b.appendStale...)
+	}
 	return res, nil
 }
 
@@ -273,17 +292,6 @@ func (b *CohortBuilder) Close() (*CohortBuildResult, error) {
 // left untouched. It is idempotent and a no-op after Close.
 func (b *CohortBuilder) Abort() error {
 	return b.inner.Abort()
-}
-
-// appendShard adds an anchored build's staged shard file to its
-// archive through AddShard and lifts the warnings, unchanged, into
-// coded findings.
-func (p *Pulse) appendShard(ctx context.Context, archive, shardPath string) ([]*errors.CodedError, error) {
-	res, err := p.AddShard(ctx, archive, shardPath)
-	if err != nil {
-		return nil, err
-	}
-	return cohesionFindings(res.Warnings), nil
 }
 
 // archiveShards publishes a sharded build's staged shard files through

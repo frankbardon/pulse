@@ -229,6 +229,9 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 	if err := leftIter.Err(); err != nil {
 		return nil, err
 	}
+	if err := join.Err(); err != nil {
+		return nil, err
+	}
 	ei.Lap(observe.PhaseDecode)
 
 	proc := s.newProcessor(ctx, joinedSchema, req)
@@ -297,6 +300,9 @@ func (s *Service) crosstabDecodeReduceMergeable(
 	if !available {
 		return nil, false, nil
 	}
+	// The workers' fresh records reserve the attribute labels' slots,
+	// as the serial iterator's do (applyCrosstabProjection).
+	pctx.binding = recordBindingFor(cohort.Schema(), si.plan, si.project, si.extras...)
 	workers, ok := shouldFanOutDecode(s.decodeWorkers, pctx.totalRecords)
 	if !ok {
 		if cleanup != nil {
@@ -411,6 +417,7 @@ func (s *Service) crosstabDecodeRecords(
 	if !available {
 		return s.crosstabDecodeRecordsSerial(ctx, iter)
 	}
+	pctx.binding = recordBindingFor(cohort.Schema(), si.plan, si.project, si.extras...)
 
 	// Now that the resolved totalRecords is in hand, apply the
 	// threshold + worker-count predicate. Below-threshold cohorts

@@ -202,7 +202,7 @@ func execArmCases(t *testing.T) []armCase {
 				t.Fatalf("CreateShardArchive: %v", err)
 			}
 			return execNew(t, pulse.Options{FS: fsys, ShardWorkers: 3}, rec), execSumReq("archive.pulse")
-		}, observe.ArmShardParallel, 3, 3, false},
+		}, observe.ArmShardParallel, 3, 3, true},
 		{"parallel_decode", func(t *testing.T, rec *execRecorder) (*pulse.Pulse, *types.Request) {
 			return execNew(t, pulse.Options{DataDir: large(t), DecodeWorkers: 4}, rec), execSumReq("large.pulse")
 		}, observe.ArmParallelDecode, 4, 0, true},

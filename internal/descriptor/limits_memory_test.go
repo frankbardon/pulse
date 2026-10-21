@@ -48,6 +48,81 @@ func TestMemoryArm(t *testing.T) {
 	}
 }
 
+// The bucket charges (limits.BucketBytes; U51 E2-S4, per-aggregator
+// state since E5-S7) for one unweighted AGG_SUM: a merged bucket's
+// state + finalize output (components on), and a parallel partition's
+// state alone.
+var (
+	partitionBucket1, finalBucket1 = limits.BucketBytes(limits.MemoryInputs{
+		Aggregations: 1, AggStateBytes: limits.AggregationStateBytes(types.AGG_SUM, false, 0)})
+	// partitionBucketOf / finalBucketOf are those charges for one
+	// unweighted slot of type at.
+	partitionBucketOf = func(at types.AggregationType) int64 {
+		p, _ := limits.BucketBytes(limits.MemoryInputs{Aggregations: 1, AggStateBytes: limits.AggregationStateBytes(at, false, 0)})
+		return p
+	}
+	finalBucketOf = func(at types.AggregationType) int64 {
+		_, f := limits.BucketBytes(limits.MemoryInputs{Aggregations: 1, AggStateBytes: limits.AggregationStateBytes(at, false, 0)})
+		return f
+	}
+	// extraGrouperBytes is what each grouper past the first adds to a
+	// bucket's state.
+	extraGrouperBytes = func() int64 {
+		a, _ := limits.BucketBytes(limits.MemoryInputs{ExtraGroupers: 1})
+		b, _ := limits.BucketBytes(limits.MemoryInputs{})
+		return a - b
+	}()
+)
+
+// TestEstimateMemory_WeightAndSetTerms (U51 E2-S4): a weighted slot —
+// its own weight, the request's, or the instance default reaching it
+// through LimitInputs.DefaultWeight; never one opted out with `null` —
+// costs its weighted table entry (AGG_SUM: 576 B of state, not 160), and an
+// AGG_SET_FREQUENCY slot adds a counter and an output label per member
+// of its set field (3 here: 64 + 128 B each) to every bucket.
+func TestEstimateMemory_WeightAndSetTerms(t *testing.T) {
+	schema := groupsSchema(t)
+	est := func(req *types.Request, in LimitInputs) int64 {
+		t.Helper()
+		n, ok := EstimateMemory(req, schema, nil, in)
+		if !ok {
+			t.Fatalf("no estimate for %+v", in)
+		}
+		return n
+	}
+	byCat := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}} // 5 buckets
+	sum := func(w types.SlotWeight) []*types.Aggregation {
+		return []*types.Aggregation{{Type: types.AGG_SUM, Field: "num", Label: "s", Weight: w}}
+	}
+	unweighted := est(&types.Request{Groups: byCat, Aggregations: sum(types.SlotWeight{})}, memIn(1000))
+	extra := 5 * (limits.AggregationStateBytes(types.AGG_SUM, true, 0) - limits.AggregationStateBytes(types.AGG_SUM, false, 0))
+	cases := []struct {
+		name string
+		req  *types.Request
+		def  *types.WeightSpec
+		want int64
+	}{
+		{"slot weight", &types.Request{Groups: byCat, Aggregations: sum(types.SlotWeightField("num"))}, nil, extra},
+		{"request weight", &types.Request{Groups: byCat, Aggregations: sum(types.SlotWeight{}), Weight: &types.WeightSpec{Field: "num"}}, nil, extra},
+		{"instance default", &types.Request{Groups: byCat, Aggregations: sum(types.SlotWeight{})}, &types.WeightSpec{Field: "num"}, extra},
+		{"null opts out", &types.Request{Groups: byCat, Aggregations: sum(types.NullSlotWeight()), Weight: &types.WeightSpec{Field: "num"}}, nil, 0},
+	}
+	for _, c := range cases {
+		in := memIn(1000)
+		in.DefaultWeight = c.def
+		if d := est(c.req, in) - unweighted; d != c.want {
+			t.Errorf("%s: adds %d bytes, want %d", c.name, d, c.want)
+		}
+	}
+	setFreq := &types.Request{Groups: byCat, Aggregations: []*types.Aggregation{{Type: types.AGG_SET_FREQUENCY, Field: "tags", Label: "f"}}}
+	setCard := &types.Request{Groups: byCat, Aggregations: []*types.Aggregation{{Type: types.AGG_SET_CARDINALITY_SUM, Field: "tags", Label: "f"}}}
+	// Beside the two slots' own state entries.
+	slots := 5 * (limits.AggregationStateBytes(types.AGG_SET_FREQUENCY, false, 0) - limits.AggregationStateBytes(types.AGG_SET_CARDINALITY_SUM, false, 0))
+	if d := est(setFreq, memIn(1000)) - est(setCard, memIn(1000)) - slots; d != 5*3*(64+128) {
+		t.Errorf("AGG_SET_FREQUENCY over a 3-member set adds %d bytes, want 5 buckets x 3 members x 192 (%d)", d, 5*3*(64+128))
+	}
+}
+
 // TestEstimateMemory_Terms: each request-shaped figure reaches the
 // leaf formula — the record-scaled payload, the group bound, a join's
 // build side, the per-shard matrix blocks — and an unknown record
@@ -70,14 +145,15 @@ func TestEstimateMemory_Terms(t *testing.T) {
 		t.Errorf("1,000 more streamed records add %d bytes, want the payload %d", d, 1000*3*stride)
 	}
 	// Grouped by a 5-entry dictionary: four more buckets of one
-	// aggregation each.
+	// aggregation each — a merged bucket's state (256 + 256) plus its
+	// finalize output (1,024 + 512).
 	grouped := &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}}, Aggregations: sumOf("num")}
-	if d := est(grouped, memIn(1000)) - base; d != 4*(512+256) {
-		t.Errorf("grouping adds %d bytes, want 4 buckets (%d)", d, 4*(512+256))
+	if d := est(grouped, memIn(1000)) - base; d != 4*finalBucket1 {
+		t.Errorf("grouping adds %d bytes, want 4 buckets (%d)", d, 4*finalBucket1)
 	}
 	// A grouper of unknown cardinality is bounded by the records.
 	ranged := &types.Request{Groups: []*types.Group{{Type: types.GROUP_RANGE, Field: "num", Interval: 10}}, Aggregations: sumOf("num")}
-	if d := est(ranged, memIn(1000)) - base; d != 999*(512+256) {
+	if d := est(ranged, memIn(1000)) - base; d != 999*finalBucket1 {
 		t.Errorf("unknown grouper adds %d bytes, want 999 buckets", d)
 	}
 	// A join adds its build side.
@@ -87,7 +163,8 @@ func TestEstimateMemory_Terms(t *testing.T) {
 	}
 	// Buffered: every record resident.
 	median := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "num", Label: "m"}}}
-	if d := est(median, memIn(1000)) - base; d != 1000*(rec+16) {
+	// (beside the median slot's bucket state in place of the sum's)
+	if d := est(median, memIn(1000)) - base - (finalBucketOf(types.AGG_MEDIAN) - finalBucket1); d != 1000*(rec+16) {
 		t.Errorf("the buffered arm adds %d bytes, want %d", d, 1000*(rec+16))
 	}
 	// Matrix: merge fragments x buckets x accumulator bytes (2 numeric
@@ -105,10 +182,22 @@ func TestEstimateMemory_Terms(t *testing.T) {
 	single := matEst(memIn(limits.MergeBlockSize + 6))
 	// ShardWorkers 1: the serial archive arm, so no per-shard partials
 	// (TestEstimateMemory_ArchiveTerms covers those).
-	sharded := matEst(LimitInputs{Records: limits.MergeBlockSize + 6, ShardRecords: []int64{limits.MergeBlockSize + 1, 5}, JoinRightRows: -1, ShardWorkers: 1})
+	shardedIn := LimitInputs{Records: limits.MergeBlockSize + 6, ShardRecords: []int64{limits.MergeBlockSize + 1, 5}, JoinRightRows: -1, ShardWorkers: 1}
+	sharded := matEst(shardedIn)
+	// The archive terms (TestEstimateMemory_ArchiveTerms) move the
+	// matrix-free request alike; only the matrix state differs.
+	plainEst := func(in LimitInputs) int64 {
+		t.Helper()
+		n, ok := EstimateMemory(&types.Request{Aggregations: sumOf("x")}, numeric, nil, in)
+		if !ok {
+			t.Fatal("no estimate")
+		}
+		return n
+	}
+	archive := plainEst(shardedIn) - plainEst(memIn(limits.MergeBlockSize+6))
 	// One more fragment (80) plus the 5 rows shard 1 buffers because it
 	// starts inside block 1 (x, y and the weight: 24 bytes each).
-	if d := sharded - single; d != 80+5*24 {
+	if d := sharded - single - archive; d != 80+5*24 {
 		t.Errorf("4,097 + 5 sharded rows hold one more fragment and 5 buffered rows than 4,102 in one file: +%d bytes, want %d", d, 80+5*24)
 	}
 
@@ -120,8 +209,8 @@ func TestEstimateMemory_Terms(t *testing.T) {
 	if arm := MemoryArm(&types.Request{Groups: tags, Aggregations: distinct}, schema, nil, memIn(1000)); arm != limits.ArmStreaming {
 		t.Fatalf("set-per-element distinct count runs %q", arm)
 	}
-	if d := est(&types.Request{Groups: tags, Aggregations: distinct}, memIn(1000)) - est(&types.Request{Aggregations: distinct}, memIn(1000)); d != 2*(512+256)+2*1000*96 {
-		t.Errorf("fan-out value state adds %d bytes, want 2 more buckets and 2 x 1,000 more value entries (%d)", d, 2*(512+256)+2*1000*96)
+	if d := est(&types.Request{Groups: tags, Aggregations: distinct}, memIn(1000)) - est(&types.Request{Aggregations: distinct}, memIn(1000)); d != 2*finalBucketOf(types.AGG_DISTINCT_COUNT)+2*1000*96 {
+		t.Errorf("fan-out value state adds %d bytes, want 2 more buckets and 2 x 1,000 more value entries (%d)", d, 2*finalBucketOf(types.AGG_DISTINCT_COUNT)+2*1000*96)
 	}
 	// Tier-1 tests (U35 #437): an instance per test per bucket (5
 	// categories), its split levels (packed_bool: 2 per bucket), and a
@@ -180,15 +269,17 @@ func TestEstimateMemory_Terms(t *testing.T) {
 	}
 }
 
-// TestEstimateMemory_ArchiveTerms (E8-S3): over a shard archive the
-// estimate charges what the runtime reads beyond a single file — the
-// archive's byte length in place of records x stride in the payload
-// term (Open and the scan read it whole), the one schema block decoded
-// with its dictionaries (the canonical entry, bounded by the canonical
-// schema's decode; Open's record-count peek and the scan read every
-// shard's layout-only, E8-S4 / E8-S5) — and, on the
-// per-shard parallel arm only, each shard's partial buckets and
-// per-value state. ShardWorkers decides that arm as the runtime does.
+// TestEstimateMemory_ArchiveTerms (E8-S3, re-pinned U51 E1-S2): over a
+// shard archive the estimate charges what the runtime holds beyond its
+// per-row state — the LARGEST shard's records x stride in place of the
+// whole cohort's in the payload term (the archive streams one shard at a
+// time, never resident), its central directory (8 x DirectoryBytes),
+// the one schema block decoded with its dictionaries (the canonical
+// entry, bounded by the canonical schema's decode; Open's record-count
+// peek and the scan read every shard's layout-only, E8-S4 / E8-S5) —
+// and, on the per-shard parallel arm only, each shard's partial buckets
+// and per-value state. ShardWorkers decides that arm as the runtime
+// does. An anchor-opened shard is a single file.
 func TestEstimateMemory_ArchiveTerms(t *testing.T) {
 	schema := groupsSchema(t)
 	stride := int64(schema.RecordByteSize())
@@ -202,74 +293,80 @@ func TestEstimateMemory_ArchiveTerms(t *testing.T) {
 		}
 		return n
 	}
-	arch := func(bytes int64, workers int) LimitInputs {
-		return LimitInputs{Records: 1000, ShardRecords: shards, ArchiveBytes: bytes, ShardWorkers: workers, JoinRightRows: -1}
+	arch := func(dir int64, workers int) LimitInputs {
+		return LimitInputs{Records: 1000, ShardRecords: shards, DirectoryBytes: dir, ShardWorkers: workers, JoinRightRows: -1}
 	}
 	plain := &types.Request{Aggregations: sumOf("num")}
 	single := est(plain, memIn(1000))
 
-	// Serial: the archive's bytes replace the payload, plus 1 decode
-	// (the canonical entry; whatever the shard count).
-	const archiveBytes = 1 << 20
-	if d, want := est(plain, arch(archiveBytes, 1))-single, 3*(archiveBytes-1000*stride)+decode; d != want {
-		t.Errorf("serial archive adds %d bytes, want 3 x (archive - payload) + 1 schema decode = %d", d, want)
+	// Serial: the largest shard's payload (600 records) replaces the
+	// cohort's (1,000), plus the directory and 1 decode (the canonical
+	// entry; whatever the shard count).
+	const dirBytes = 4096
+	if d, want := est(plain, arch(dirBytes, 1))-single, -3*(1000-600)*stride+8*dirBytes+decode; d != want {
+		t.Errorf("serial archive adds %d bytes, want 3 x (largest shard - cohort) payload + 8 x directory + 1 schema decode = %d", d, want)
 	}
-	// An archive byte length below the payload never lowers it.
-	if d, want := est(plain, arch(10, 1))-single, decode; d != want {
-		t.Errorf("a short archive length adds %d bytes, want the 1 schema decode %d", d, want)
-	}
-	// The shard count does not move the decode term: no shard schema
-	// is decoded with its dictionaries.
-	many := arch(archiveBytes, 1)
+	// The shard count does not move the decode term, and more shards of
+	// a smaller largest shard lower the payload term.
+	many := arch(dirBytes, 1)
 	many.ShardRecords = []int64{100, 100, 100, 100, 100, 100, 100, 100, 100, 100}
-	if a, b := est(plain, many), est(plain, arch(archiveBytes, 1)); a != b {
-		t.Errorf("10 shards estimate %d, 2 shards %d: the shard count moved the decode term", a, b)
+	if d, want := est(plain, many)-est(plain, arch(dirBytes, 1)), -3*(600-100)*stride; d != want {
+		t.Errorf("10 shards of 100 vs 600 + 400: %d, want %d (the largest shard's payload only)", d, want)
 	}
-	// An anchor-opened shard (archive bytes, no shard counts): the
-	// archive's bytes replace its payload, and no schema decode is
-	// charged — it decodes only its own, as a single file does.
-	anchor := LimitInputs{Records: 1000, ArchiveBytes: archiveBytes, ShardWorkers: 1, JoinRightRows: -1}
-	if d, want := est(plain, anchor)-single, 3*(archiveBytes-1000*stride); d != want {
-		t.Errorf("an anchor-opened shard adds %d bytes, want 3 x (archive - payload) = %d", d, want)
-	}
-	// No archive bytes: a single file whatever ShardRecords says.
-	if d := est(plain, LimitInputs{Records: 1000, ShardRecords: shards, ShardWorkers: 1, JoinRightRows: -1}) - single; d != 0 {
-		t.Errorf("no archive bytes adds %d, want 0", d)
+	// An anchor-opened shard (no shard counts): a single file — no
+	// directory, no extra decode.
+	anchor := LimitInputs{Records: 1000, DirectoryBytes: dirBytes, ShardWorkers: 1, JoinRightRows: -1}
+	if d := est(plain, anchor) - single; d != 0 {
+		t.Errorf("an anchor-opened shard adds %d bytes, want 0", d)
 	}
 
 	// Fan-out (2 workers over 2 shards, a mergeable request): one
 	// bucket per shard partial ungrouped ...
-	serial := est(plain, arch(archiveBytes, 1))
-	if d := est(plain, arch(archiveBytes, 2)) - serial; d != 2*(512+256) {
-		t.Errorf("fan-out adds %d bytes, want 2 partial buckets (%d)", d, 2*(512+256))
+	serial := est(plain, arch(dirBytes, 1))
+	if d := est(plain, arch(dirBytes, 2)) - serial; d != 2*partitionBucket1 {
+		t.Errorf("fan-out adds %d bytes, want 2 partial buckets (%d)", d, 2*partitionBucket1)
 	}
 	// ... each shard's own bound grouped (a 5-entry dictionary: 5 each)
 	// ...
 	grouped := &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}}, Aggregations: sumOf("num")}
-	if d := est(grouped, arch(archiveBytes, 0)) - est(grouped, arch(archiveBytes, 1)); runtime.NumCPU() >= 2 && d != 10*(512+256) {
-		t.Errorf("grouped fan-out adds %d bytes, want 10 partial buckets (%d)", d, 10*(512+256))
+	if d := est(grouped, arch(dirBytes, 0)) - est(grouped, arch(dirBytes, 1)); runtime.NumCPU() >= 2 && d != 10*partitionBucket1 {
+		t.Errorf("grouped fan-out adds %d bytes, want 10 partial buckets (%d)", d, 10*partitionBucket1)
 	}
 	// ... clamped by the shard's records for an unknown grouper ...
 	ranged := &types.Request{Groups: []*types.Group{{Type: types.GROUP_RANGE, Field: "num", Interval: 10}}, Aggregations: sumOf("num")}
-	if d := est(ranged, arch(archiveBytes, 2)) - est(ranged, arch(archiveBytes, 1)); d != 1000*(512+256) {
+	if d := est(ranged, arch(dirBytes, 2)) - est(ranged, arch(dirBytes, 1)); d != 1000*partitionBucket1 {
 		t.Errorf("unknown-grouper fan-out adds %d bytes, want 600 + 400 partial buckets", d)
 	}
 	// ... and per-value state over every record once more.
 	distinct := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_DISTINCT_COUNT, Field: "num", Label: "d"}}}
-	if d := est(distinct, arch(archiveBytes, 2)) - est(distinct, arch(archiveBytes, 1)); d != 2*(512+256)+1000*96 {
+	if d := est(distinct, arch(dirBytes, 2)) - est(distinct, arch(dirBytes, 1)); d != 2*partitionBucketOf(types.AGG_DISTINCT_COUNT)+1000*96 {
 		t.Errorf("value-state fan-out adds %d bytes, want 2 buckets + 1,000 x 96", d)
+	}
+	// U51 E2-S4: the incremental merge holds at most the merge window's
+	// shards (limits.ShardMergeWindow: 2 x workers) beside the merged
+	// state, so on 12 shards under 2 workers only the 4 LARGEST shards'
+	// partials are charged — bucket bounds and per-value records alike
+	// — never all 12.
+	wide := LimitInputs{Records: 1000, ShardRecords: []int64{50, 300, 10, 90, 40, 200, 60, 70, 20, 80, 30, 50}, ShardWorkers: 2, JoinRightRows: -1}
+	wideSerial := wide
+	wideSerial.ShardWorkers = 1
+	if d, want := est(ranged, wide)-est(ranged, wideSerial), int64((300+200+90+80)*partitionBucket1); d != want {
+		t.Errorf("12 shards under 2 workers add %d bytes, want the window's 4 largest shards' buckets (%d)", d, want)
+	}
+	if d, want := est(distinct, wide)-est(distinct, wideSerial), 4*partitionBucketOf(types.AGG_DISTINCT_COUNT)+(300+200+90+80)*96; d != want {
+		t.Errorf("12-shard value state adds %d bytes, want 4 partial buckets + the 4 largest shards' records x 96 (%d)", d, want)
 	}
 	// A request the merge gate refuses stays serial at any cap.
 	median := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "num", Label: "m"}}}
-	if a, b := est(median, arch(archiveBytes, 2)), est(median, arch(archiveBytes, 1)); a != b {
+	if a, b := est(median, arch(dirBytes, 2)), est(median, arch(dirBytes, 1)); a != b {
 		t.Errorf("a non-mergeable request moved with ShardWorkers: %d vs %d", a, b)
 	}
 
 	// The rich facet charges the same archive terms.
 	facet := &types.FacetRequest{Fields: []string{"cat"}}
 	fs, _ := EstimateFacetMemory(facet, schema, memIn(1000))
-	fa, _ := EstimateFacetMemory(facet, schema, arch(archiveBytes, 1))
-	if d, want := fa-fs, 3*(archiveBytes-1000*stride)+decode; d != want {
+	fa, _ := EstimateFacetMemory(facet, schema, arch(dirBytes, 1))
+	if d, want := fa-fs, -3*(1000-600)*stride+8*dirBytes+decode; d != want {
 		t.Errorf("facet over an archive adds %d bytes, want %d", d, want)
 	}
 }
@@ -452,5 +549,387 @@ func TestFacetGroupBound(t *testing.T) {
 	fs = FacetLimitFindings(req, schema, l, memIn(1000))
 	if len(fs) != 2 || fs[1].Limit != limits.MaxEstimatedMemory || fs[1].Grade != limits.Certain {
 		t.Fatalf("findings %+v, want MaxGroups then a certain memory finding", fs)
+	}
+}
+
+// TestEstimateMemory_ValueWidthBound (U51 E5-S6): a grouper of
+// data-dependent cardinality whose key is a function of one integer or
+// set word is charged at most 2^bits buckets (valueKeyBound), never
+// more than the records; a float, date or 64-bit field, and a fan-out
+// run, keep the record bound — times the fan-out multiplicity, the
+// composite keys one record can mint.
+func TestEstimateMemory_ValueWidthBound(t *testing.T) {
+	schema := groupsSchema(t)
+	schema.Fields = append(schema.Fields,
+		encoding.Field{Name: "nib", Type: encoding.FieldTypeU4},
+		encoding.Field{Name: "small", Type: encoding.FieldTypeU8},
+		encoding.Field{Name: "mid", Type: encoding.FieldTypeU16},
+		encoding.Field{Name: "big", Type: encoding.FieldTypeU32},
+		encoding.Field{Name: "huge", Type: encoding.FieldTypeU64},
+		encoding.Field{Name: "mask", Type: encoding.FieldTypeSetU8},
+	)
+	sum := sumOf("num")
+	buckets := func(records int64, groups ...*types.Group) int64 {
+		t.Helper()
+		base, ok := EstimateMemory(&types.Request{Aggregations: sum}, schema, nil, memIn(records))
+		if !ok {
+			t.Fatal("no estimate")
+		}
+		n, ok := EstimateMemory(&types.Request{Groups: groups, Aggregations: sum}, schema, nil, memIn(records))
+		if !ok {
+			t.Fatal("no estimate")
+		}
+		// base holds one ungrouped bucket; each grouped bucket also
+		// carries the composite key's extra groupers.
+		final := finalBucket1 + int64(len(groups)-1)*extraGrouperBytes
+		d := n - base + finalBucket1
+		if d%final != 0 {
+			t.Fatalf("%v: grouped delta %d is not whole buckets (arm %s)", groups[0].Type, d, MemoryArm(&types.Request{Groups: groups, Aggregations: sum}, schema, nil, memIn(records)))
+		}
+		return d / final
+	}
+	g := func(typ types.GroupType, field string) *types.Group {
+		return &types.Group{Type: typ, Field: field, Interval: 10}
+	}
+	cases := []struct {
+		name    string
+		records int64
+		groups  []*types.Group
+		want    int64
+	}{
+		{"category over u4", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "nib")}, 16},
+		{"category over u8", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "small")}, 256},
+		{"category over u8, fewer records", 100, []*types.Group{g(types.GROUP_CATEGORY, "small")}, 100},
+		{"category over u16", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "mid")}, 65_536},
+		{"category over u32", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "big")}, 100_000},
+		{"category over u64", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "huge")}, 100_000},
+		{"category over f64", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "num")}, 100_000},
+		{"rounded over u8", 100_000, []*types.Group{g(types.GROUP_ROUNDED, "small")}, 256},
+		{"range over u8", 100_000, []*types.Group{g(types.GROUP_RANGE, "small")}, 256},
+		{"category over date", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "day")}, 100_000},
+		{"set value over set_u8", 100_000, []*types.Group{g(types.GROUP_SET_VALUE, "mask")}, 256},
+		// A known dictionary times a width bound: 5 x 256.
+		{"dictionary x u8", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "cat"), g(types.GROUP_CATEGORY, "small")}, 5 * 256},
+		{"u8 x f64", 100_000, []*types.Group{g(types.GROUP_CATEGORY, "small"), g(types.GROUP_RANGE, "num")}, 100_000},
+		// Fan-out: 3 members x 256 values bound it below 3 x records…
+		{"fan-out x u8", 100_000, []*types.Group{g(types.GROUP_SET_PER_ELEMENT, "tags"), g(types.GROUP_CATEGORY, "small")}, 3 * 256},
+		// …and with an unbounded position each record still mints up to
+		// 3 composite keys.
+		{"fan-out x f64", 1_000, []*types.Group{g(types.GROUP_SET_PER_ELEMENT, "tags"), g(types.GROUP_RANGE, "num")}, 3 * 1_000},
+	}
+	for _, c := range cases {
+		if got := buckets(c.records, c.groups...); got != c.want {
+			t.Errorf("%s: charged %d buckets, want %d", c.name, got, c.want)
+		}
+	}
+}
+
+// TestEstimateMemory_ComponentsOffOutput (U51 E5-S7): a run with
+// components off is charged the components-off finalize output — the
+// row alone, 512 + each slot's off column — in place of 1024 + 576 a
+// slot, per merged bucket. The flag resolves exactly as the runtime's
+// components gate does (EffectiveDisableComponents): the request's
+// disable_components when set, else the instance default
+// LimitInputs.DisableComponents. A partition's state is unchanged.
+func TestEstimateMemory_ComponentsOffOutput(t *testing.T) {
+	schema := groupsSchema(t)
+	req := func(disable *bool) *types.Request {
+		return &types.Request{Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}}, // 5 buckets
+			Aggregations: sumOf("num"), DisableComponents: disable}
+	}
+	est := func(r *types.Request, engineOff bool) int64 {
+		t.Helper()
+		in := memIn(1000)
+		in.DisableComponents = engineOff
+		n, ok := EstimateMemory(r, schema, nil, in)
+		if !ok {
+			t.Fatal("no estimate")
+		}
+		return n
+	}
+	_, on := limits.BucketBytes(limits.MemoryInputs{Aggregations: 1, AggStateBytes: limits.AggregationStateBytes(types.AGG_SUM, false, 0)})
+	_, off := limits.BucketBytes(limits.MemoryInputs{Aggregations: 1, AggStateBytes: limits.AggregationStateBytes(types.AGG_SUM, false, 0),
+		ComponentsOff: true, AggOutputOffBytes: limits.AggregationOutputOffBytes(types.AGG_SUM, 0)})
+	if on-off != (1024+576)-(512+96) {
+		t.Fatalf("a bucket's components share is %d, want %d", on-off, (1024+576)-(512+96))
+	}
+	yes, no := true, false
+	want := est(req(nil), false) - 5*(on-off)
+	for _, c := range []struct {
+		name      string
+		disable   *bool
+		engineOff bool
+		off       bool
+	}{
+		{"engine on", nil, false, false},
+		{"engine off", nil, true, true},
+		{"request off", &yes, false, true},
+		{"request on over engine off", &no, true, false},
+	} {
+		got := est(req(c.disable), c.engineOff)
+		if c.off && got != want {
+			t.Errorf("%s: estimate %d, want the components-off %d", c.name, got, want)
+		}
+		if !c.off && got != want+5*(on-off) {
+			t.Errorf("%s: estimate %d, want the components-on %d", c.name, got, want+5*(on-off))
+		}
+	}
+}
+
+// TestEstimateMemory_VectorAggregationTerms (U51 E5-S7): a vector
+// aggregator slot is charged its fixed state per bucket (its table entry
+// plus a member slope) and, once per run, a fragment per merge block it
+// can hold — min(merge blocks x buckets, rows) — plus the rows a shard
+// starting inside a block buffers.
+func TestEstimateMemory_VectorAggregationTerms(t *testing.T) {
+	schema := groupsSchema(t)
+	schema.Fields = append(schema.Fields, encoding.Field{Name: "num2", Type: encoding.FieldTypeF64})
+	vec := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_VEC_MEAN, Fields: []string{"num", "num2"}, Label: "v"}}}
+	sum := &types.Request{Aggregations: sumOf("num")}
+	est := func(r *types.Request, in LimitInputs) int64 {
+		t.Helper()
+		n, ok := EstimateMemory(r, schema, nil, in)
+		if !ok {
+			t.Fatal("no estimate")
+		}
+		return n
+	}
+	state := limits.AggregationStateBytes(types.AGG_VEC_MEAN, false, 2) - limits.AggregationStateBytes(types.AGG_SUM, false, 0)
+	// 10,000 records: 3 merge blocks, one bucket.
+	if d, want := est(vec, memIn(10_000))-est(sum, memIn(10_000)), state+limits.VectorAggregationBytes(types.AGG_VEC_MEAN, 2, 3, 0); d != want {
+		t.Errorf("ungrouped vector slot adds %d bytes, want %d", d, want)
+	}
+	// Two records: never more fragments than rows.
+	if d, want := est(vec, memIn(2))-est(sum, memIn(2)), state+limits.VectorAggregationBytes(types.AGG_VEC_MEAN, 2, 1, 0); d != want {
+		t.Errorf("a one-block run adds %d bytes, want %d", d, want)
+	}
+	// An archive whose second shard starts inside a block buffers that
+	// block's rows (4,096 - 100) and holds one more fragment.
+	arch := LimitInputs{Records: 4200, ShardRecords: []int64{100, 4100}, ShardWorkers: 1, JoinRightRows: -1}
+	blocks := limits.MergeBlocks(arch.ShardRecords...)
+	if d, want := est(vec, arch)-est(sum, arch), state+limits.VectorAggregationBytes(types.AGG_VEC_MEAN, 2, blocks, 4096-100); d != want {
+		t.Errorf("archive vector slot adds %d bytes, want %d (%d fragments, %d buffered rows)", d, want, blocks, 4096-100)
+	}
+}
+
+// TestEstimateMemory_CrosstabCharges (U51 E5-S9): a crosstab is charged
+// per measure from the per-aggregator table — each grid cell and margin
+// slot limits.CrosstabSlotBytes (weighted when a weight is in force,
+// components on or off), each axis key limits.CrosstabAxisKeyBytes,
+// each margin_aggregations entry limits.CrosstabAuxSlotBytes in every
+// emitted margin slot (nothing with components off) — never a flat
+// 512 B a cell. A vector element slot reads one member and holds a
+// fragment per merge block in each cell and margin slot; a value-state
+// measure keeps a value per row in its cell and in each margin the row
+// feeds; the buffered arm adds its records and partitions.
+func TestEstimateMemory_CrosstabCharges(t *testing.T) {
+	dict := func(n int) *encoding.Dictionary {
+		d := encoding.NewDictionary()
+		for i := range n {
+			if _, err := d.Add(string(rune('a' + i))); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return d
+	}
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "r", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict(3)},
+		{Name: "c", Type: encoding.FieldTypeCategoricalU8, Dictionary: dict(4)},
+		{Name: "x", Type: encoding.FieldTypeF64},
+		{Name: "v1", Type: encoding.FieldTypeF64},
+		{Name: "v2", Type: encoding.FieldTypeF64},
+		{Name: "w", Type: encoding.FieldTypeF64},
+	}}
+	off := 0
+	for i := range schema.Fields {
+		schema.Fields[i].ByteOffset = off
+		off += schema.Fields[i].Type.ByteSize()
+	}
+	const n = 10_000 // 3 merge blocks
+	const cells, keys, marginSlots = 12, 7, 3 + 4 + 1
+	sum := &types.Aggregation{Type: types.AGG_SUM, Field: "x", Label: "s"}
+	vec := &types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"v1", "v2"}, Label: "v", Params: []byte(`{"element":"v2"}`)}
+	distinct := &types.Aggregation{Type: types.AGG_DISTINCT_COUNT, Field: "x", Label: "d"}
+	avg := &types.Aggregation{Type: types.AGG_AVERAGE, Field: "x", Label: "m"}
+	xt := func(margins bool, aux []*types.Aggregation, measures ...*types.Aggregation) *types.Request {
+		spec := &types.CrosstabSpec{Rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "r"}},
+			Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "c"}}, MarginAggregations: aux}
+		if len(measures) == 1 {
+			spec.Cell = measures[0]
+		} else {
+			spec.Cells = measures
+		}
+		if margins {
+			spec.Margins = types.CrosstabMargins{Rows: true, Columns: true, Grand: true}
+		}
+		return &types.Request{Crosstab: spec}
+	}
+	// charge is the estimate less the run base and the payload.
+	charge := func(req *types.Request, in LimitInputs) int64 {
+		t.Helper()
+		in.Records, in.JoinRightRows = n, -1
+		est, ok := EstimateMemory(req, schema, nil, in)
+		if !ok {
+			t.Fatal("no estimate")
+		}
+		return est - limits.EstimateMemory(limits.MemoryInputs{Arm: limits.ArmStreaming, Records: n, Stride: int64(schema.RecordByteSize())})
+	}
+	slot := func(t types.AggregationType, w, off bool, members int64) int64 {
+		return limits.CrosstabSlotBytes(t, w, off, members, 0)
+	}
+	for _, off := range []bool{false, true} {
+		in := LimitInputs{DisableComponents: off}
+		axis := limits.CrosstabAxisKeyBytes(off)
+		if got, want := charge(xt(false, nil, sum), in), cells*slot(types.AGG_SUM, false, off, 0)+keys*axis; got != want {
+			t.Errorf("off=%v: one SUM measure charged %d, want %d", off, got, want)
+		}
+		if got, want := charge(xt(true, nil, sum), in), (cells+marginSlots)*slot(types.AGG_SUM, false, off, 0)+keys*axis; got != want {
+			t.Errorf("off=%v: SUM with margins charged %d, want %d", off, got, want)
+		}
+		aux := marginSlots * limits.CrosstabAuxSlotBytes(types.AGG_AVERAGE, false, off, 0, 0)
+		if off != (aux == 0) {
+			t.Errorf("off=%v: auxiliary slot charge %d", off, aux)
+		}
+		if got, want := charge(xt(true, []*types.Aggregation{avg}, sum), in), (cells+marginSlots)*slot(types.AGG_SUM, false, off, 0)+keys*axis+aux; got != want {
+			t.Errorf("off=%v: SUM with margins and an auxiliary charged %d, want %d", off, got, want)
+		}
+		// Two measures, one a weighted element of a 2-member vector: a
+		// cell and margin slot per measure, axis keys per measure, and
+		// the element slot's fragments — one per merge block in each of
+		// its 20 accumulators, at most rows x the 4 each row feeds.
+		weighted := xt(true, nil, sum, vec)
+		weighted.Weight = &types.WeightSpec{Field: "w"}
+		perSlot := slot(types.AGG_SUM, true, off, 0) + slot(types.AGG_VEC_MEAN, true, off, 1)
+		frags := limits.VectorAggregationBytes(types.AGG_VEC_MEAN, 1, 3*(cells+marginSlots), 0)
+		if got, want := charge(weighted, in), (cells+marginSlots)*perSlot+2*keys*axis+frags; got != want {
+			t.Errorf("off=%v: weighted two-measure crosstab charged %d, want %d", off, got, want)
+		}
+		// A value-state measure keeps a value per row in its cell and
+		// in each of the three margins a row feeds.
+		if got, want := charge(xt(true, nil, distinct), in), (cells+marginSlots)*slot(types.AGG_DISTINCT_COUNT, false, off, 0)+keys*axis+4*n*limits.ValueEntryBytes; got != want {
+			t.Errorf("off=%v: value-state measure charged %d, want %d", off, got, want)
+		}
+	}
+	// The buffered arm adds its records, its one bucket and the
+	// partitions: a row's, and per measure a cell's and an axis key's.
+	in := LimitInputs{FusionDisabled: true}
+	two := xt(false, nil, sum, sum)
+	two.Crosstab.Cells[1] = &types.Aggregation{Type: types.AGG_SUM, Field: "x", Label: "s2"}
+	fused := charge(two, LimitInputs{})
+	_, final := limits.BucketBytes(limits.MemoryInputs{Aggregations: 2, AggStateBytes: 2 * limits.AggregationStateBytes(types.AGG_SUM, false, 0)})
+	rows := int64(n) * (limits.RecordBytes(schema) + 2*16)
+	partitions := int64(n)*128 + 2*(cells*448+keys*416)
+	if got, want := charge(two, in), fused+rows+final+partitions; got != want {
+		t.Errorf("buffered two-measure crosstab charged %d, want %d (fused %d + rows %d + bucket %d + partitions %d)", got, want, fused, rows, final, partitions)
+	}
+}
+
+// TestEstimateMemory_CrosstabGrid (U51 E5-S11): the crosstab's dense
+// grid is rows x cols over each axis's memoryGroupBound, capped by the
+// effective MaxCrosstabCells; the populated cells are the
+// schema-fixed grid, else at most records x the axes' fan-out; every
+// position past them costs CrosstabGridPositionBytes on the run's arm,
+// once per measure (weighted per its own weight). A grid every axis of
+// which the schema fixes, no larger than the records, charges no
+// position beyond its cells.
+func TestEstimateMemory_CrosstabGrid(t *testing.T) {
+	d := encoding.NewDictionary()
+	for _, v := range []string{"a", "b", "c"} {
+		if _, err := d.Add(v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "r", Type: encoding.FieldTypeU32},
+		{Name: "c", Type: encoding.FieldTypeU32},
+		{Name: "b", Type: encoding.FieldTypeU8},
+		{Name: "k", Type: encoding.FieldTypeCategoricalU8, Dictionary: d},
+		{Name: "tags", Type: encoding.FieldTypeSetU8, Dictionary: d},
+		{Name: "x", Type: encoding.FieldTypeF64},
+		{Name: "w", Type: encoding.FieldTypeF64},
+	}}
+	off := 0
+	for i := range schema.Fields {
+		schema.Fields[i].ByteOffset = off
+		off += schema.Fields[i].Type.ByteSize()
+	}
+	const n = 1_000
+	grp := func(gt types.GroupType, f string) []*types.Group { return []*types.Group{{Type: gt, Field: f}} }
+	cat := func(f string) []*types.Group { return grp(types.GROUP_CATEGORY, f) }
+	sum := func(l string) *types.Aggregation {
+		return &types.Aggregation{Type: types.AGG_SUM, Field: "x", Label: l}
+	}
+	xt := func(rows, cols []*types.Group, measures ...*types.Aggregation) *types.Request {
+		spec := &types.CrosstabSpec{Rows: rows, Columns: cols}
+		if len(measures) == 1 {
+			spec.Cell = measures[0]
+		} else {
+			spec.Cells = measures
+		}
+		return &types.Request{Crosstab: spec}
+	}
+	pos := limits.CrosstabGridPositionBytes
+	weighted := sum("w")
+	weighted.Weight = types.SlotWeightField("w")
+	for _, c := range []struct {
+		name             string
+		req              *types.Request
+		cap              int64
+		fused, off       bool
+		cells, positions int64
+		positionBytes    int64
+	}{
+		{"unbounded axes", xt(cat("r"), cat("c"), sum("s")), 0, true, false, n, n*n - n, pos(true, false, false)},
+		{"unbounded axes, components off", xt(cat("r"), cat("c"), sum("s")), 0, true, true, n, n*n - n, pos(true, false, true)},
+		{"unbounded axes, buffered", xt(cat("r"), cat("c"), sum("s")), 0, false, false, n, n*n - n, pos(false, false, false)},
+		{"capped by MaxCrosstabCells", xt(cat("r"), cat("c"), sum("s")), 5_000, true, false, n, 5_000 - n, pos(true, false, false)},
+		{"cap under the records", xt(cat("r"), cat("c"), sum("s")), 400, true, false, 400, 0, pos(true, false, false)},
+		{"u8 width x unbounded", xt(cat("b"), cat("c"), sum("s")), 0, true, false, n, 256*n - n, pos(true, false, false)},
+		{"set fan-out x unbounded", xt(grp(types.GROUP_SET_PER_ELEMENT, "tags"), cat("c"), sum("s")), 0, true, false, 3 * n, 0, pos(true, false, false)},
+		{"two measures, one weighted", xt(cat("r"), cat("c"), sum("s"), weighted), 0, true, false, n, n*n - n, pos(true, false, false) + pos(true, true, false)},
+		{"schema-fixed grid", xt(cat("k"), cat("k"), sum("s")), 0, true, false, 9, 0, pos(true, false, false)},
+	} {
+		in := memIn(n)
+		in.crosstabCellCap = c.cap
+		ct := crosstabMemory(c.req, schema, nil, in, n, c.off, c.fused)
+		if ct.cells != c.cells || ct.gridPositions != c.positions || ct.gridPositionBytes != c.positionBytes {
+			t.Errorf("%s: cells %d, positions %d x %d B; want %d, %d x %d B", c.name,
+				ct.cells, ct.gridPositions, ct.gridPositionBytes, c.cells, c.positions, c.positionBytes)
+		}
+	}
+	// The figures the position charge carries (layout pinned by
+	// internal/service TestCrosstabMemory_GridPositionBytes).
+	for _, c := range []struct {
+		fused, weighted, off bool
+		want                 int64
+	}{
+		{true, false, false, 130}, {true, false, true, 110}, {true, true, false, 150}, {true, true, true, 130},
+		{false, false, false, 50}, {false, false, true, 30}, {false, true, false, 50}, {false, true, true, 30},
+	} {
+		if got := pos(c.fused, c.weighted, c.off); got != c.want {
+			t.Errorf("CrosstabGridPositionBytes(fused=%v, weighted=%v, off=%v) = %d, want %d", c.fused, c.weighted, c.off, got, c.want)
+		}
+	}
+	// RequestLimitFindings judges the estimate under the limits' own
+	// MaxCrosstabCells (predict and the pre-flight both call it): the
+	// figure is EstimateMemory's with the grid capped there.
+	req := xt(cat("r"), cat("c"), sum("s"))
+	l := limits.Defaults()
+	l.MaxEstimatedMemory, l.MaxCrosstabCells = 1, 5_000
+	var got int64
+	for _, f := range RequestLimitFindings(req, schema, nil, l, memIn(n)) {
+		if f.Limit == limits.MaxEstimatedMemory {
+			got = f.Estimated
+		}
+	}
+	in := memIn(n)
+	in.crosstabCellCap = 5_000
+	want, _ := EstimateMemory(req, schema, nil, in)
+	uncapped, _ := EstimateMemory(req, schema, nil, memIn(n))
+	if got != want || want >= uncapped {
+		t.Errorf("finding estimates %d, want the capped %d (< uncapped %d)", got, want, uncapped)
+	}
+	if diff, wantDiff := uncapped-want, (n*n-5_000)*pos(true, false, false); diff != wantDiff {
+		t.Errorf("cap lowers the estimate by %d, want %d", diff, wantDiff)
 	}
 }

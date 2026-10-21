@@ -73,7 +73,8 @@ func archiveFacet(cohort string) *pulse.FacetRequest {
 // the archive equal its single-file twin's (they used to read the zip
 // bytes as a .pulse header and refuse ENCODING_INVALID). Under a
 // memory limit each root's certain finding over the archive is the
-// error its run refuses with, archive bytes charged.
+// error its run refuses with, the archive terms (central directory,
+// largest shard) charged alike.
 func TestPredictRoots_ArchiveMatchesSingleFile(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	twin := archiveTwin(t, fs, [2]int{40, 25})

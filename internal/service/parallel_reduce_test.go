@@ -112,12 +112,11 @@ func TestParallelDecode_MergeableByteEqualVsSerial(t *testing.T) {
 			if !reflect.DeepEqual(gotRow["hi"], wantRow["hi"]) {
 				t.Errorf("workers=%d: AGG_MAX differs: got=%v want=%v", w, gotRow["hi"], wantRow["hi"])
 			}
-			// AGG_SUM on f64 — associative+commutative as a real-valued
-			// reduction but the worker-partitioned summation order
-			// drifts from the serial path's left-fold; rounding can
-			// shift within 1 ULP. Match the shard_reduce policy.
-			if !floatWithinULP(toFloat(gotRow["total"]), toFloat(wantRow["total"]), 1) {
-				t.Errorf("workers=%d: AGG_SUM beyond 1 ULP: got=%v want=%v",
+			// AGG_SUM on f64 — the binned reproducible sum
+			// (internal/reprosum) is a function of the multiset of
+			// values, so every worker count is bit-identical to serial.
+			if !reflect.DeepEqual(gotRow["total"], wantRow["total"]) {
+				t.Errorf("workers=%d: AGG_SUM differs: got=%v want=%v",
 					w, gotRow["total"], wantRow["total"])
 			}
 			// Metadata: TotalRows and FilteredRows must match exactly.
@@ -227,9 +226,10 @@ func TestParallelDecode_MergeableULPEquivalent(t *testing.T) {
 			// the canonical comparator for shard-reduce Welford drift.
 			// AGG_VARIANCE accumulates squared deltas so its absolute
 			// drift exceeds the mean's; the relative tolerance handles
-			// both shapes uniformly.
-			if !floatRelativelyClose(toFloat(gotRow["mean"]), toFloat(wantRow["mean"])) {
-				t.Errorf("workers=%d: AGG_AVERAGE beyond rel-4-ulp: got=%v want=%v",
+			// both shapes uniformly. AGG_AVERAGE is a binned sum over
+			// an exact integer n: bit-identical, no tolerance.
+			if !reflect.DeepEqual(gotRow["mean"], wantRow["mean"]) {
+				t.Errorf("workers=%d: AGG_AVERAGE differs: got=%v want=%v",
 					w, gotRow["mean"], wantRow["mean"])
 			}
 			if !floatRelativelyClose(toFloat(gotRow["sd"]), toFloat(wantRow["sd"])) {
@@ -332,21 +332,22 @@ func TestParallelDecode_MergeableZeroRecordSegments(t *testing.T) {
 	if math.IsNaN(gotMean) || math.IsInf(gotMean, 0) {
 		t.Fatalf("AGG_AVERAGE became NaN/Inf with small-segment partitions: got=%v", gotRow["mean"])
 	}
-	if !floatRelativelyClose(gotMean, toFloat(wantRow["mean"])) {
-		t.Errorf("AGG_AVERAGE beyond rel-4-ulp: got=%v want=%v", gotRow["mean"], wantRow["mean"])
+	if !reflect.DeepEqual(gotRow["mean"], wantRow["mean"]) {
+		t.Errorf("AGG_AVERAGE differs: got=%v want=%v", gotRow["mean"], wantRow["mean"])
 	}
 }
 
 // floatRelativelyClose is the comparator for Welford-merged
 // aggregators: drift is bounded by 16*1e-15 relative to magnitude (or
-// 1e-12 absolute when the magnitude is zero). The 16x band scales
-// internal/service/shard_parity_test.go's 4x relative bound up by the
+// 1e-12 absolute when the magnitude is zero). The 16x band scales a
+// 4x relative bound up by the
 // squared-delta accumulation in AGG_VARIANCE — variance amplifies
 // per-merge-step rounding by O(value^2), so at 4–8 partition
 // boundaries on a magnitude-20K f64 cohort the relative drift is
 // ~8.8e-15 (empirically measured), well within "still within
-// ULP-bounded equivalence" for the Chan-Welford recurrence. Mean and
-// stddev sit well inside this bound by construction.
+// ULP-bounded equivalence" for the Chan-Welford recurrence. Stddev
+// sits well inside this bound by construction; AGG_AVERAGE needs no
+// tolerance (a binned sum over an exact n).
 func floatRelativelyClose(a, b float64) bool {
 	if a == b {
 		return true
@@ -456,7 +457,7 @@ func TestParallelDecode_MergeableGroupedByteEqualVsSerial(t *testing.T) {
 					w, len(resp.Data), len(serialResp.Data))
 			}
 			// Both paths emit rows in stable-sorted key order; compare
-			// per-row. Counts byte-equal, sums within ULP.
+			// per-row. Counts and binned sums bit-identical.
 			for i, want := range serialResp.Data {
 				got := resp.Data[i]
 				if !reflect.DeepEqual(got["brand"], want["brand"]) {
@@ -467,8 +468,8 @@ func TestParallelDecode_MergeableGroupedByteEqualVsSerial(t *testing.T) {
 					t.Errorf("workers=%d row %d: AGG_COUNT differs: got=%v want=%v",
 						w, i, got["n"], want["n"])
 				}
-				if !floatWithinULP(toFloat(got["total"]), toFloat(want["total"]), 1) {
-					t.Errorf("workers=%d row %d: AGG_SUM beyond 1 ULP: got=%v want=%v",
+				if !reflect.DeepEqual(got["total"], want["total"]) {
+					t.Errorf("workers=%d row %d: AGG_SUM differs: got=%v want=%v",
 						w, i, got["total"], want["total"])
 				}
 			}
@@ -536,38 +537,4 @@ func toFloat(v any) float64 {
 	default:
 		return math.NaN()
 	}
-}
-
-// floatWithinULP reports whether a and b differ by at most ulps units
-// in the last place. Distance is computed on the float64 bit
-// representation. Matches the shard-reduce ULP comparator already in
-// internal/service/shard_parity_test.go shape.
-func floatWithinULP(a, b float64, ulps uint64) bool {
-	if a == b {
-		return true
-	}
-	if math.IsNaN(a) || math.IsNaN(b) {
-		return false
-	}
-	if math.IsInf(a, 0) || math.IsInf(b, 0) {
-		return false
-	}
-	abits := math.Float64bits(a)
-	bbits := math.Float64bits(b)
-	// Bit-distance on signed-magnitude representation: transform
-	// negative-zero halves of the number line so the unsigned
-	// difference matches the natural ordering.
-	if abits&(1<<63) != 0 {
-		abits = ^abits + 1
-	}
-	if bbits&(1<<63) != 0 {
-		bbits = ^bbits + 1
-	}
-	var dist uint64
-	if abits >= bbits {
-		dist = abits - bbits
-	} else {
-		dist = bbits - abits
-	}
-	return dist <= ulps
 }

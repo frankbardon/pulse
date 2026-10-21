@@ -18,7 +18,8 @@ import (
 // same request answering in two shapes depending on a worker count.
 //
 // Implemented by exactly the groupers types.GroupType.Mergeable()
-// admits (CATEGORY, RANGE, DATE_RANGES, SET_VALUE, SET_PER_ELEMENT),
+// admits (CATEGORY, RANGE, ROUNDED, DATE_RANGES, NUMERIC_RANGES, SET_VALUE,
+// SET_PER_ELEMENT),
 // and by every adapted extension grouper whose registration declares
 // Mergeable (the root adapter forwards extend.MergeableGrouper, or
 // folds nothing when the grouper emits no components).
@@ -84,6 +85,28 @@ func (g *rangeGrouper) MergeGrouperState(other Grouper) error {
 	return nil
 }
 
+// MergeGrouperState implements MergeableGrouper: per-bucket counts sum;
+// a bucket's low is the floor-rounded value its key spells, stored by
+// the serial tracker's LAST-write rule (KeyForRow overwrites it per
+// observation), so the later partition's low wins — the one case it
+// could differ is a -0 / +0 pair, which both spell key "0".
+func (g *roundedGrouper) MergeGrouperState(other Grouper) error {
+	o, ok := other.(*roundedGrouper)
+	if !ok {
+		return grouperMergeMismatch("GROUP_ROUNDED", other)
+	}
+	if len(o.liveBuckets) > 0 && g.liveBuckets == nil {
+		g.liveBuckets = make(map[string]roundedBucketStat, len(o.liveBuckets))
+	}
+	for k, os := range o.liveBuckets {
+		s := g.liveBuckets[k]
+		s.low = os.low
+		s.count += os.count
+		g.liveBuckets[k] = s
+	}
+	return nil
+}
+
 // MergeGrouperState implements MergeableGrouper: per-range counts sum.
 func (g *dateRangesGrouper) MergeGrouperState(other Grouper) error {
 	o, ok := other.(*dateRangesGrouper)
@@ -145,6 +168,7 @@ func (g *setPerElementGrouper) MergeGrouperState(other Grouper) error {
 var (
 	_ MergeableGrouper = (*categoryGrouper)(nil)
 	_ MergeableGrouper = (*rangeGrouper)(nil)
+	_ MergeableGrouper = (*roundedGrouper)(nil)
 	_ MergeableGrouper = (*dateRangesGrouper)(nil)
 	_ MergeableGrouper = (*setValueGrouper)(nil)
 	_ MergeableGrouper = (*setPerElementGrouper)(nil)

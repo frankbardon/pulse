@@ -3,6 +3,7 @@ package processing
 import (
 	"math"
 
+	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/types"
 )
@@ -29,6 +30,15 @@ import (
 // Σw over a column of ones is an exact integer in float64, so every
 // division by Σw is the division by n the unweighted type performs.
 //
+// Reproducible sums: Σw, Σw·x and Σw² are binned reproducible
+// accumulators (internal/reprosum; each product rounded to float64
+// first, an FMA barrier), so AGG_COUNT / AGG_SUM / AGG_AVERAGE /
+// AGG_WEIGHTED_MEAN and the sums every component reports are
+// bit-identical on every arm, worker count and shard split. The
+// recurrence's running Σw (runW) and the moments (mean, m2) stay plain
+// Welford state, merged by Chan-Welford: within ULP across arms, not
+// bit-identical.
+//
 // Row handling: a row whose value is absent contributes nothing (as
 // unweighted). A row whose weight is invalid (weighting.Classify) is
 // excluded — never coerced — and counted by the orchestrator's floor
@@ -48,12 +58,29 @@ func slotWeight(agg *types.Aggregation) *types.WeightSpec {
 
 // weightedState is the weighted accumulator's sufficient statistics.
 type weightedState struct {
-	rows   int64   // rows that contributed with w > 0
-	sumW   float64 // Σw
-	sumWX  float64 // Σw·x (unused by AGG_COUNT)
-	sumWSq float64 // Σw²
-	mean   float64 // running (streaming) or two-pass (buffered variance) mean
-	m2     float64 // Σw(x − mean)²
+	rows   int64        // rows that contributed with w > 0
+	sumW   reprosum.Sum // Σw
+	sumWX  reprosum.Sum // Σw·x (unused by AGG_COUNT)
+	sumWSq reprosum.Sum // Σw²
+	runW   float64      // the Welford recurrence's running Σw
+	mean   float64      // running (streaming) or two-pass (buffered variance) mean
+	m2     float64      // Σw(x − mean)²
+}
+
+// weightedFigures is a frozen weightedState: the binned sums resolved
+// to their float64 values (Σw is the reproducible weight total every
+// figure divides by), so the frozen copy Components / Rich read holds
+// six words, not three accumulators.
+type weightedFigures struct {
+	rows                int64
+	sumW, sumWX, sumWSq float64
+	mean, m2            float64
+}
+
+// figures resolves the live state.
+func (st *weightedState) figures() weightedFigures {
+	return weightedFigures{rows: st.rows, sumW: st.sumW.Float64(), sumWX: st.sumWX.Float64(),
+		sumWSq: st.sumWSq.Float64(), mean: st.mean, m2: st.m2}
 }
 
 // weightedAggregator is the shared weighted accumulator. op selects
@@ -66,7 +93,7 @@ type weightedAggregator struct {
 	weight types.WeightSpec
 
 	weightedState
-	frozen weightedState
+	frozen weightedFigures
 }
 
 func newWeightedAggregator(op types.AggregationType, spec *types.WeightSpec) *weightedAggregator {
@@ -97,11 +124,12 @@ func (a *weightedAggregator) reset() {
 // fold is the streaming recurrence over one contributing (x, w) pair.
 func (a *weightedAggregator) fold(x, w float64) {
 	a.rows++
-	a.sumW += w
-	a.sumWX += w * x
-	a.sumWSq += w * w
+	a.sumW.Add(w)
+	a.sumWX.AddWeighted(w, x)
+	a.sumWSq.AddWeighted(w, w)
+	a.runW += w
 	delta := x - a.mean
-	a.mean += (w * delta) / a.sumW
+	a.mean += (w * delta) / a.runW
 	a.m2 += w * delta * (x - a.mean)
 }
 
@@ -115,8 +143,8 @@ func (a *weightedAggregator) UpdateRow(r *Record, field string) error {
 		}
 		if w, ok := a.rowWeight(r); ok {
 			a.rows++
-			a.sumW += w
-			a.sumWSq += w * w
+			a.sumW.Add(w)
+			a.sumWSq.AddWeighted(w, w)
 		}
 		return nil
 	}
@@ -145,8 +173,12 @@ func (a *weightedAggregator) Aggregate(records []*Record, field string) (float64
 		}
 		return a.Finalize()
 	}
+	// The two-pass mean runs its unweighted twin's sequential sums
+	// (seqW, seqWX), so a unit weight reproduces the unweighted variance
+	// bit for bit; the reported sums stay the binned ones.
 	type pair struct{ x, w float64 }
 	pairs := make([]pair, 0, len(records))
+	var seqW, seqWX float64
 	for _, r := range records {
 		x, ok := r.NumericValue(field)
 		if !ok {
@@ -158,14 +190,17 @@ func (a *weightedAggregator) Aggregate(records []*Record, field string) (float64
 		}
 		pairs = append(pairs, pair{x, w})
 		a.rows++
-		a.sumW += w
-		a.sumWX += w * x
-		a.sumWSq += w * w
+		a.sumW.Add(w)
+		a.sumWX.AddWeighted(w, x)
+		a.sumWSq.AddWeighted(w, w)
+		seqW += w
+		seqWX += w * x
 	}
-	if a.sumW == 0 {
+	if seqW == 0 {
 		return a.Finalize()
 	}
-	a.mean = a.sumWX / a.sumW
+	a.runW = seqW
+	a.mean = seqWX / seqW
 	for _, p := range pairs {
 		d := p.x - a.mean
 		a.m2 += p.w * d * d
@@ -176,28 +211,29 @@ func (a *weightedAggregator) Aggregate(records []*Record, field string) (float64
 // Finalize returns the scalar, freezes the state for Components /
 // Rich and resets the live state.
 func (a *weightedAggregator) Finalize() (float64, error) {
-	a.frozen = a.weightedState
+	a.frozen = a.weightedState.figures()
 	a.reset()
 	return a.frozen.scalar(a.op), nil
 }
 
 // scalar is the operator's figure over st.
-func (st *weightedState) scalar(op types.AggregationType) float64 {
+func (st *weightedFigures) scalar(op types.AggregationType) float64 {
+	sumW := st.sumW
 	switch op {
 	case types.AGG_COUNT:
-		return st.sumW
+		return sumW
 	case types.AGG_SUM:
 		return st.sumWX
 	case types.AGG_VARIANCE:
-		if st.sumW == 0 {
+		if sumW == 0 {
 			return math.NaN()
 		}
-		return st.m2 / st.sumW
+		return st.m2 / sumW
 	case types.AGG_STDDEV:
-		if st.sumW == 0 {
+		if sumW == 0 {
 			return math.NaN()
 		}
-		return math.Sqrt(st.m2 / st.sumW)
+		return math.Sqrt(st.m2 / sumW)
 	case types.AGG_WELFORD:
 		if st.rows == 0 {
 			return math.NaN()
@@ -207,30 +243,32 @@ func (st *weightedState) scalar(op types.AggregationType) float64 {
 	// AGG_AVERAGE, AGG_WEIGHTED_MEAN: Σwx/Σw, the exact weighted mean
 	// (not the recurrence's running mean). Σw = 0 is 0/0: undefined,
 	// NaN (JSON null), never 0.
-	if st.sumW == 0 {
+	if sumW == 0 {
 		return math.NaN()
 	}
-	return st.sumWX / st.sumW
+	return st.sumWX / sumW
 }
 
 // sampleVariance is the frequency-weights sample variance
 // m2 / (Σw − 1) — the unweighted n−1 form at w = 1; undefined (NaN,
 // JSON null) when Σw ≤ 1.
-func (st *weightedState) sampleVariance() float64 {
+func (st *weightedFigures) sampleVariance() float64 {
 	return weightedVariance(st.m2, st.sumW)
 }
 
-// MergeOnline folds another partial of the same slot: the sums add and
-// the moments combine through the weighted Chan-Welford merge.
+// MergeOnline folds another partial of the same slot: the binned sums
+// merge exactly (order-free) and the moments combine through the
+// weighted Chan-Welford merge over the running Σw.
 func (a *weightedAggregator) MergeOnline(other OnlineAggregator) error {
 	b, ok := other.(*weightedAggregator)
 	if !ok || b.op != a.op {
 		return mergeTypeMismatch(string(a.op))
 	}
-	mergeWelfordWeighted(&a.sumW, &a.mean, &a.m2, b.sumW, b.mean, b.m2)
+	mergeWelfordWeighted(&a.runW, &a.mean, &a.m2, b.runW, b.mean, b.m2)
 	a.rows += b.rows
-	a.sumWX += b.sumWX
-	a.sumWSq += b.sumWSq
+	a.sumW.Merge(&b.sumW)
+	a.sumWX.Merge(&b.sumWX)
+	a.sumWSq.Merge(&b.sumWSq)
 	return nil
 }
 
@@ -276,14 +314,15 @@ func (a *weightedAggregator) Components() (map[string]any, error) {
 	case types.AGG_SUM:
 		return map[string]any{"sum": st.sumWX}, nil
 	case types.AGG_VARIANCE, types.AGG_STDDEV:
-		if st.sumW == 0 {
+		sumW := st.sumW
+		if sumW == 0 {
 			out := map[string]any{"mean": math.NaN(), "m2": 0.0, "variance": math.NaN()}
 			if a.op == types.AGG_STDDEV {
 				out["stddev"] = math.NaN()
 			}
 			return out, nil
 		}
-		variance := st.m2 / st.sumW
+		variance := st.m2 / sumW
 		out := map[string]any{"mean": st.mean, "m2": st.m2, "variance": variance}
 		if a.op == types.AGG_STDDEV {
 			out["stddev"] = math.Sqrt(variance)
@@ -296,22 +335,23 @@ func (a *weightedAggregator) Components() (map[string]any, error) {
 		variance := st.sampleVariance()
 		return map[string]any{"mean": st.mean, "m2": st.m2, "variance": variance, "stddev": math.Sqrt(variance)}, nil
 	}
+	sumW, sumWX, sumWSq := st.sumW, st.sumWX, st.sumWSq
 	weightedMean := math.NaN()
-	if st.sumW != 0 {
-		weightedMean = st.sumWX / st.sumW
+	if sumW != 0 {
+		weightedMean = sumWX / sumW
 	}
 	out := map[string]any{
-		"sum_weighted":      st.sumWX,
+		"sum_weighted":      sumWX,
 		"weighted_mean":     weightedMean,
 		"m2_weighted":       st.m2,
-		"sum_weights_sq":    st.sumWSq,
+		"sum_weights_sq":    sumWSq,
 		"weighted_variance": st.sampleVariance(),
 	}
 	if a.op == types.AGG_WEIGHTED_MEAN {
-		out["sum_weights"] = st.sumW
-		out["n_eff"] = kishNEff(st.sumW, st.sumWSq)
+		out["sum_weights"] = sumW
+		out["n_eff"] = kishNEff(sumW, sumWSq)
 	} else {
-		out["sum"] = st.sumWX
+		out["sum"] = sumWX
 	}
 	return out, nil
 }

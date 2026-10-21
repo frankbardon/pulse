@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -30,6 +31,11 @@ import (
 // the weights live on the records. Row handling is validRowWeight's:
 // an invalid or zero weight contributes nothing (counted by the
 // orchestrator's WeightFloor / WeightRowTally, never coerced).
+//
+// Every Σ here is a binned reproducible sum (internal/reprosum; a
+// product goes through AddWeighted, its FMA barrier), merged as binned
+// state, so the figures are bit-identical on every arm, worker count
+// and shard split (root TestBitExact_*).
 
 // --- AGG_FREQUENCY ----------------------------------------------------
 
@@ -38,8 +44,8 @@ type weightedFrequencyAggregator struct {
 	matchable bool
 	weight    types.WeightSpec
 
-	sumW   float64 // Σw over value-present contributing rows
-	matchW float64 // Σw over the matching rows
+	sumW   reprosum.Sum // Σw over value-present contributing rows
+	matchW reprosum.Sum // Σw over the matching rows
 
 	frozenFinalized bool
 	frozenSumW      float64
@@ -59,15 +65,15 @@ func (a *weightedFrequencyAggregator) UpdateRow(r *Record, field string) error {
 	if !ok {
 		return nil
 	}
-	a.sumW += w
+	a.sumW.Add(w)
 	if a.matchable && v == a.key {
-		a.matchW += w
+		a.matchW.Add(w)
 	}
 	return nil
 }
 
 func (a *weightedFrequencyAggregator) Aggregate(records []*Record, field string) (float64, error) {
-	a.sumW, a.matchW = 0, 0
+	a.sumW, a.matchW = reprosum.Sum{}, reprosum.Sum{}
 	for _, r := range records {
 		if err := a.UpdateRow(r, field); err != nil {
 			return 0, err
@@ -78,8 +84,8 @@ func (a *weightedFrequencyAggregator) Aggregate(records []*Record, field string)
 
 func (a *weightedFrequencyAggregator) Finalize() (float64, error) {
 	a.frozenFinalized = true
-	a.frozenSumW, a.frozenMatchW = a.sumW, a.matchW
-	a.sumW, a.matchW = 0, 0
+	a.frozenSumW, a.frozenMatchW = a.sumW.Float64(), a.matchW.Float64()
+	a.sumW, a.matchW = reprosum.Sum{}, reprosum.Sum{}
 	return a.frozenMatchW, nil
 }
 
@@ -88,8 +94,8 @@ func (a *weightedFrequencyAggregator) MergeOnline(other OnlineAggregator) error 
 	if !ok {
 		return mergeTypeMismatch(string(types.AGG_FREQUENCY))
 	}
-	a.sumW += b.sumW
-	a.matchW += b.matchW
+	a.sumW.Merge(&b.sumW)
+	a.matchW.Merge(&b.matchW)
 	return nil
 }
 
@@ -109,14 +115,15 @@ func (a *weightedFrequencyAggregator) Components() (map[string]any, error) {
 
 // --- AGG_SET_FREQUENCY ------------------------------------------------
 
-// weightedSetFrequencyAggregator keeps Σw per member bit. Rich is the
+// weightedSetFrequencyAggregator keeps a binned Σw per member bit
+// (56 bytes per member: a set_u256 slot holds 256 of them per group). Rich is the
 // label→Σw map (map[string]float64); the scalar fallback the largest
 // single-member Σw. A member selected only on zero-weight rows has
 // Σw = 0 and is dropped like an unseen member.
 type weightedSetFrequencyAggregator struct {
 	dict   *encoding.Dictionary
 	weight types.WeightSpec
-	sums   []float64
+	sums   []reprosum.Sum
 
 	frozenPerLabel       map[string]float64
 	frozenTotalLabelObs  float64
@@ -125,13 +132,11 @@ type weightedSetFrequencyAggregator struct {
 }
 
 func newWeightedSetFrequencyAggregator(dict *encoding.Dictionary, width int, spec *types.WeightSpec) *weightedSetFrequencyAggregator {
-	return &weightedSetFrequencyAggregator{dict: dict, weight: effectiveWeight(spec), sums: make([]float64, width)}
+	return &weightedSetFrequencyAggregator{dict: dict, weight: effectiveWeight(spec), sums: make([]reprosum.Sum, width)}
 }
 
 func (a *weightedSetFrequencyAggregator) Aggregate(records []*Record, field string) (float64, error) {
-	for i := range a.sums {
-		a.sums[i] = 0
-	}
+	clear(a.sums)
 	for _, r := range records {
 		if err := a.UpdateRow(r, field); err != nil {
 			return 0, err
@@ -153,19 +158,19 @@ func (a *weightedSetFrequencyAggregator) UpdateRow(r *Record, field string) erro
 	}
 	for i, ok := m.NextBit(0); ok; i, ok = m.NextBit(i + 1) {
 		if i >= len(a.sums) {
-			grown := make([]float64, i+1)
+			grown := make([]reprosum.Sum, i+1)
 			copy(grown, a.sums)
 			a.sums = grown
 		}
-		a.sums[i] += w
+		a.sums[i].Add(w)
 	}
 	return nil
 }
 
 func (a *weightedSetFrequencyAggregator) maxSum() float64 {
 	max := 0.0
-	for _, s := range a.sums {
-		if s > max {
+	for i := range a.sums {
+		if s := a.sums[i].Float64(); s > max {
 			max = s
 		}
 	}
@@ -181,19 +186,20 @@ func (a *weightedSetFrequencyAggregator) Finalize() (float64, error) {
 // perLabel resolves the live sums to the label→Σw map — the unweighted
 // Rich's dictionary walk: zero sums and bits past the dictionary tail
 // are dropped. total is Σ over every bit's sum (the tail included, as
-// unweighted).
+// unweighted), itself a binned sum of the per-bit sums.
 func (a *weightedSetFrequencyAggregator) perLabel() (map[string]float64, float64) {
 	out := make(map[string]float64, len(a.sums))
-	total := 0.0
 	if a.dict == nil {
 		return out, 0
 	}
+	var total reprosum.Sum
 	dictLen := a.dict.Count()
-	for i, s := range a.sums {
+	for i := range a.sums {
+		s := a.sums[i].Float64()
 		if s == 0 {
 			continue
 		}
-		total += s
+		total.Add(s)
 		if i >= dictLen {
 			continue
 		}
@@ -201,7 +207,7 @@ func (a *weightedSetFrequencyAggregator) perLabel() (map[string]float64, float64
 			out[label] = s
 		}
 	}
-	return out, total
+	return out, total.Float64()
 }
 
 func (a *weightedSetFrequencyAggregator) freeze() {
@@ -216,12 +222,12 @@ func (a *weightedSetFrequencyAggregator) MergeOnline(other OnlineAggregator) err
 		return mergeTypeMismatch(string(types.AGG_SET_FREQUENCY))
 	}
 	if len(b.sums) > len(a.sums) {
-		grown := make([]float64, len(b.sums))
+		grown := make([]reprosum.Sum, len(b.sums))
 		copy(grown, a.sums)
 		a.sums = grown
 	}
-	for i, s := range b.sums {
-		a.sums[i] += s
+	for i := range b.sums {
+		a.sums[i].Merge(&b.sums[i])
 	}
 	return nil
 }
@@ -263,8 +269,8 @@ func (a *weightedSetFrequencyAggregator) Components() (map[string]any, error) {
 type weightedSetCardinalityAggregator struct {
 	op     types.AggregationType
 	weight types.WeightSpec
-	total  float64 // Σw·card
-	sumW   float64 // Σw
+	total  reprosum.Sum // Σw·card
+	sumW   reprosum.Sum // Σw
 
 	frozenTotal     float64
 	frozenSumW      float64
@@ -276,7 +282,7 @@ func newWeightedSetCardinalityAggregator(op types.AggregationType, spec *types.W
 }
 
 func (a *weightedSetCardinalityAggregator) Aggregate(records []*Record, field string) (float64, error) {
-	a.total, a.sumW = 0, 0
+	a.total, a.sumW = reprosum.Sum{}, reprosum.Sum{}
 	for _, r := range records {
 		if err := a.UpdateRow(r, field); err != nil {
 			return 0, err
@@ -294,14 +300,14 @@ func (a *weightedSetCardinalityAggregator) UpdateRow(r *Record, field string) er
 	if !ok {
 		return nil
 	}
-	a.total += w * float64(m.PopCount())
-	a.sumW += w
+	a.total.AddWeighted(w, float64(m.PopCount()))
+	a.sumW.Add(w)
 	return nil
 }
 
 func (a *weightedSetCardinalityAggregator) Finalize() (float64, error) {
 	a.frozenHasResult = true
-	a.frozenTotal, a.frozenSumW = a.total, a.sumW
+	a.frozenTotal, a.frozenSumW = a.total.Float64(), a.sumW.Float64()
 	return a.scalar(), nil
 }
 
@@ -320,8 +326,8 @@ func (a *weightedSetCardinalityAggregator) MergeOnline(other OnlineAggregator) e
 	if !ok || b.op != a.op {
 		return mergeTypeMismatch(string(a.op))
 	}
-	a.total += b.total
-	a.sumW += b.sumW
+	a.total.Merge(&b.total)
+	a.sumW.Merge(&b.sumW)
 	return nil
 }
 

@@ -10,8 +10,12 @@ import (
 // singleGrouperStreamAllocCeiling is the single-grouper streaming
 // grouped run's allocations per Process call over the fixture below,
 // measured on the pre-U54 path (313). The multi-grouper composite arm
-// must put nothing on the one-grouper fast path.
-const singleGrouperStreamAllocCeiling = 313
+// must put nothing on the one-grouper fast path. U51 E2-S4 re-based it
+// to 317: a bucket's aggregators and floors now ride one *GroupBucket
+// map entry (one more allocation per bucket, four buckets here) in
+// place of a second per-key floor table — fewer bytes a group, one
+// allocation more.
+const singleGrouperStreamAllocCeiling = 317
 
 // TestStreamingGrouped_SingleGrouperAllocCeiling: the one-grouper
 // streaming arm allocates no more than it did before composite keys —

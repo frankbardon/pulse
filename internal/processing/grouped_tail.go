@@ -55,6 +55,35 @@ func (k *GroupKeyer) Keys(r *Record, field string) ([]string, bool, error) {
 	return k.buf[:], true, nil
 }
 
+// GroupBucket is one group key's resident state on the streaming-grouped
+// arms (the serial scan and both parallel reducers): the key's
+// aggregator instances, one per Request.Aggregations slot, and — when
+// the plan computes Groups — its per-slot floor tallies. Both ride ONE
+// map entry, by pointer: a second per-key floor table cost a whole map
+// slot per group, and a map slot is paid at the table's fill (between
+// 7/16 and 7/8 of a slot is live), so the 8-byte pointer slot beats a
+// 48-byte inline value (U51 E2-S4, #358; gate
+// TestGroupMemory_PartitionBytesPerGroup).
+type GroupBucket struct {
+	Aggs   []OnlineAggregator
+	Floors []SlotFloor
+}
+
+// NewGroupBucket mints a key's bucket: one fresh instance per spec
+// through mint, plus floors shaped like floorTmpl (NewSlotFloorsLike —
+// nil when floorTmpl is nil, i.e. the plan does not compute Groups).
+func NewGroupBucket(n int, mint func(i int) (OnlineAggregator, error), floorTmpl []SlotFloor) (*GroupBucket, error) {
+	aggs := make([]OnlineAggregator, n)
+	for i := range aggs {
+		oa, err := mint(i)
+		if err != nil {
+			return nil, err
+		}
+		aggs[i] = oa
+	}
+	return &GroupBucket{Aggs: aggs, Floors: NewSlotFloorsLike(floorTmpl)}, nil
+}
+
 // GroupedTail is everything a streaming grouped run has once the
 // records are consumed: the grouper instances KeyForRow/KeysForRow
 // drove (their live state backs Components.Groupers), the per-key
@@ -71,20 +100,24 @@ type GroupedTail struct {
 	// groupers, with their per-grouper tuples: Buckets is then keyed by
 	// composite key, and every key column is written from the tuple.
 	// Nil for one grouper (Buckets keyed by the plain key).
-	KeySet  *CompositeKeySet
-	Buckets map[string][]OnlineAggregator
+	KeySet *CompositeKeySet
+	// Buckets is the per-key state: each key's aggregators and its
+	// per-slot floor tallies (GroupBucket). FinalizeGroupedStream
+	// CONSUMES it: each key is deleted once its Data row is written
+	// (#499), so the map is empty after a successful call and the
+	// caller must not read it again.
+	Buckets map[string]*GroupBucket
 
 	// SlotTotals is each aggregation slot's COHORT-WIDE floor tally over
-	// every filter-passing record (bucketed or not), and BucketFloors the
-	// per-bucket per-slot tallies minted with each bucket — together the
-	// floors behind Components.Aggregations' slot entries and groups[].
-	// SlotTotals is nil unless the plan computes Aggs, BucketFloors
-	// unless it computes Groups (NewGroupFloors); every caller tallies
-	// them through ObserveSlotFloors (the parallel reducers merge them
-	// with MergeSlotFloors), so the figures match whatever the worker
-	// count.
-	SlotTotals   []SlotFloor
-	BucketFloors map[string][]SlotFloor
+	// every filter-passing record (bucketed or not); each bucket's
+	// GroupBucket.Floors are the per-bucket per-slot tallies minted with
+	// it — together the floors behind Components.Aggregations' slot
+	// entries and groups[]. SlotTotals is nil unless the plan computes
+	// Aggs, the bucket floors unless it computes Groups (GroupFloorsOn);
+	// every caller tallies them through ObserveSlotFloors (the parallel
+	// reducers merge them with MergeSlotFloors), so the figures match
+	// whatever the worker count.
+	SlotTotals []SlotFloor
 
 	TotalRows, FilteredRows, NullRecords int64
 	FilterCounters                       []FilterPassCounters
@@ -165,9 +198,27 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 		keys = orderKeysByInclude(includeFilterOf(t.Groupers[0]), keys)
 	}
 
+	// Each bucket is consumed as its row is written: its per-group
+	// aggregation Components entry (when the plan computes them) is
+	// built from it right after its Finalize, then the bucket leaves
+	// t.Buckets, so a run never holds the whole merged state and the
+	// whole Data slice at once (U51 E5-S12, #499: on a high-cardinality
+	// grouping the two were each ~1 KB a key, alive together until the
+	// response was returned). Nothing past this loop reads a bucket.
+	groupComps := t.Compute.Aggs && t.Compute.Groups && len(req.Aggregations) > 0
+	var entries map[string][]types.AggregationComponents
+	if groupComps {
+		entries = make(map[string][]types.AggregationComponents, len(keys))
+	}
 	data := make([]map[string]any, 0, len(keys))
 	for _, key := range keys {
-		bucket := t.Buckets[key]
+		b := t.Buckets[key]
+		if b == nil {
+			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+				"grouped stream tail: a row key has no bucket",
+				map[string]any{"group_key": key})
+		}
+		bucket := b.Aggs
 		// Room reserved for the group key column(s) written below.
 		row := make(map[string]any, len(bucket)+len(t.Groups))
 		for i, oa := range bucket {
@@ -185,6 +236,14 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 			row[t.Groups[0].Field] = key
 		}
 		data = append(data, row)
+		if groupComps {
+			e, err := bucketAggregationComponents(req.Aggregations, b, key)
+			if err != nil {
+				return nil, err
+			}
+			entries[key] = e
+		}
+		delete(t.Buckets, key)
 	}
 
 	// The sort follows each grouper key column's key order, read off
@@ -227,12 +286,12 @@ func FinalizeGroupedStream(req *types.Request, t GroupedTail) (*types.Response, 
 		// Per-group aggregation Components at TERMINAL flush: the
 		// cohort-wide slot floors plus (when the plan computes Groups) one
 		// groups[] entry per Data row, in the final (sorted) order — the
-		// buffered arm's shape, off the live per-bucket aggregators
-		// (Finalized above) and the floor tallies the caller kept beside
-		// them.
+		// buffered arm's shape, off the per-bucket entries the row loop
+		// built from the live aggregators (Finalized there) and the floor
+		// tallies the caller kept beside them.
 		var grouped []types.AggregationComponents
 		if t.Compute.Groups {
-			grouped, err = streamedGroupedAggregationComponents(req.Aggregations, t.SlotTotals, t.Buckets, t.BucketFloors, keys, t.KeySet)
+			grouped, err = streamedGroupedAggregationComponents(req.Aggregations, t.SlotTotals, entries, keys, t.KeySet)
 			if err != nil {
 				return nil, err
 			}

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	stderrors "errors"
 	"slices"
 	"strings"
@@ -193,7 +194,7 @@ func TestMCPStartupLine_EchoesTunedLimits(t *testing.T) {
 // key still resolves to the default.
 func TestMCPPulseOptions_CarriesLimits(t *testing.T) {
 	t.Setenv("PULSE_FEATURE_PROFILE", "")
-	opts, err := mcpPulseOptions(t.TempDir(), []string{"max_groups=42", "request_timeout=5s"})
+	opts, err := mcpPulseOptions(context.Background(), t.TempDir(), []string{"max_groups=42", "request_timeout=5s"})
 	if err != nil {
 		t.Fatalf("mcpPulseOptions: %v", err)
 	}
@@ -205,7 +206,7 @@ func TestMCPPulseOptions_CarriesLimits(t *testing.T) {
 	if got.MaxGroups != 42 || got.RequestTimeout != 5*time.Second || got.MaxMatrixDim != limits.DefaultMaxMatrixDim {
 		t.Fatalf("effective limits = %+v", got)
 	}
-	if _, err := mcpPulseOptions("/d", []string{"nope=1"}); err == nil {
+	if _, err := mcpPulseOptions(context.Background(), "/d", []string{"nope=1"}); err == nil {
 		t.Fatal("an unknown --limit name built options")
 	}
 }

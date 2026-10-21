@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
@@ -154,7 +155,10 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 		totalRows++
 		r := iter.Record()
 
-		basePass := allPass(baseFilterFns, r)
+		basePass, err := allPass(baseFilterFns, r)
+		if err != nil {
+			return nil, err
+		}
 		if basePass {
 			filteredRows++
 			for _, fa := range fields {
@@ -165,7 +169,10 @@ func (s *Service) facetSchema(ctx context.Context, req *types.FacetRequest) (*ty
 		}
 
 		for _, ae := range additive {
-			scopePass := allPass(additiveFilters[ae.field], r)
+			scopePass, err := allPass(additiveFilters[ae.field], r)
+			if err != nil {
+				return nil, err
+			}
 			if !scopePass {
 				continue
 			}
@@ -411,17 +418,24 @@ func isFacetNumericType(t encoding.FieldType) bool {
 	return false
 }
 
-// allPass returns true when every filter accepts the record. An empty
-// slice trivially passes. Errors propagate up so the caller can surface
-// them as PROCESSING_RUNTIME.
-func allPass(fns []processing.FilterFunc, r *processing.Record) bool {
+// allPass reports whether every filter accepts the record. An empty
+// slice trivially passes. A filter's error (a refused row — a corrupt
+// categorical code a truthy or label filter reads, an expression fault)
+// fails the facet with it, never reads as "rejected": dropping the row
+// would silently shrink filtered_records and every tally (U51 E5-S10).
+// Filters run in order and stop at the first rejection, as the
+// processor's filter stage does.
+func allPass(fns []processing.FilterFunc, r *processing.Record) (bool, error) {
 	for _, fn := range fns {
 		ok, err := fn(r)
-		if err != nil || !ok {
-			return false
+		if err != nil {
+			return false, err
+		}
+		if !ok {
+			return false, nil
 		}
 	}
-	return true
+	return true, nil
 }
 
 type categoricalAccumulator struct {
@@ -441,6 +455,11 @@ func (a *categoricalAccumulator) update(r *processing.Record, field string) erro
 	if !ok {
 		a.nulls++
 		return nil
+	}
+	// An index outside the dictionary is corrupt record data: refused,
+	// never counted as a numeric-string value (U51 E5-S8).
+	if err := encx.CategoricalIndexFault(a.field, v); err != nil {
+		return err
 	}
 	id := uint32(v)
 	if _, seen := a.counts[id]; !seen {

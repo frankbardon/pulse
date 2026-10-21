@@ -128,7 +128,7 @@ force every crosstab onto the buffered path instead. Output is
 identical either way — fusion is a peak-heap optimisation — so this is
 a diagnostic and benchmarking knob, for example to compare fused and
 buffered memory on the same request. It is fixed at `pulse.New` time;
-there is no per-request override. `Predict` / `PredictBytes` honour it:
+there is no per-request override. `Predict` / `PredictEnvelope` / `PredictBytes` honour it:
 `PredictResult.CrosstabFusable` answers `false`, with the knob named in
 `CrosstabFusionReasons`. Without it, those fields report the fusion
 gate's own answer and every reason it declines.

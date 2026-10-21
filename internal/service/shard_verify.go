@@ -1,14 +1,12 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
-	"github.com/spf13/afero"
 )
 
 // VerifyResult carries the structured outcome of VerifyShardArchive.
@@ -77,17 +75,15 @@ type VerifyResult struct {
 // so the caller renders the full diagnosis — partial failures should
 // not mask later shards' issues.
 func (s *Service) VerifyShardArchive(ctx context.Context, archivePath string) (*VerifyResult, error) {
-	fsys := s.fs.Fs()
-
-	archiveBytes, err := afero.ReadFile(fsys, archivePath)
-	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("VerifyShardArchive: reading archive %s", archivePath))
-	}
-	arch, err := encx.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	// Random access: the central directory, then each shard streamed
+	// through its own entry reader — never the whole archive, never a
+	// whole shard resident.
+	a, err := openArchiveFile(s.fs.Fs(), archivePath)
 	if err != nil {
 		return nil, err
 	}
+	defer a.Close()
+	arch := a.arch
 
 	canonicalDoc, err := readSchemaDocEntry(arch)
 	if err != nil {
@@ -113,15 +109,11 @@ func (s *Service) VerifyShardArchive(ctx context.Context, archivePath string) (*
 			continue
 		}
 
-		// (2) Full header + schema parse via the entry payload. Reuse the
-		// existing helper that reports PULSE_SHARD_HEADER_INVALID on
-		// parse failure.
-		payload, perr := readEntryBytes(arch, e.Name)
-		if perr != nil {
-			result.Errors = append(result.Errors, coerceCodedError(perr))
-			continue
-		}
-		shardSchema, perr := readSinglePulseSchema(payload)
+		// (2) Full header + schema parse off the entry stream, then the
+		// rest of the entry drained (the zip reader CRC-checks it at
+		// EOF) — the payload is never held. Reports
+		// PULSE_SHARD_HEADER_INVALID on a parse failure.
+		shardSchema, perr := readEntrySchemaVerified(arch, e.Name)
 		if perr != nil {
 			result.Errors = append(result.Errors, coerceCodedError(perr))
 			continue

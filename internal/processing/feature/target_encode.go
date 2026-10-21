@@ -268,7 +268,10 @@ func (c *targetEncode) prePass(st *targetState, r Record, field string) error {
 	if st.prepDeal != nil {
 		fold = st.prepDeal.next()
 	}
-	s, sOk := r.LevelValue(field)
+	s, sOk, err := r.LevelValueChecked(field)
+	if err != nil {
+		return err
+	}
 	y, yOk := r.NumericValue(c.params.Target)
 	if !sOk || !yOk {
 		return nil
@@ -311,7 +314,10 @@ func (c *targetEncode) emit(st *targetState, r Record, field string) (float64, b
 			tally = st.folds[st.emitDeal.next()]
 		}
 	}
-	s, ok := r.LevelValue(field)
+	s, ok, err := r.LevelValueChecked(field)
+	if err != nil {
+		return 0, false, err
+	}
 	if !ok {
 		return 0, false, nil
 	}

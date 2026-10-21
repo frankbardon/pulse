@@ -344,7 +344,10 @@ func (c *comparisonCore) reference(rec *Record) ([]float64, bool, error) {
 		c.noteUnmatched(string(c.keyBuf))
 		return nil, false, nil
 	}
-	key, ok := rec.LevelValue(field)
+	key, ok, err := rec.LevelValueChecked(field)
+	if err != nil {
+		return nil, false, err
+	}
 	if !ok && rec.IsNull(field) {
 		c.nKeyNull++
 		return nil, false, nil
@@ -431,6 +434,27 @@ func (c *comparisonCore) components() map[string]any {
 
 func (c *comparisonCore) resetTally() {
 	c.nRefMissing, c.nKeyNull, c.unmatched, c.nDomain, c.domainReasons = 0, 0, nil, 0, nil
+}
+
+// mergeTally folds o's per-run tally into c: the counts add, the
+// domain reasons union and the unmatched key list keeps the
+// comparisonUnmatchedKeys smallest distinct keys of both (the smallest
+// of a union are among each side's smallest) — so the fold is exact and
+// order-free. The binding (unavailable, static, profiles) is the same
+// on every partition and is not touched.
+func (c *comparisonCore) mergeTally(o *comparisonCore) {
+	c.nRefMissing += o.nRefMissing
+	c.nKeyNull += o.nKeyNull
+	c.nDomain += o.nDomain
+	for _, k := range o.unmatched {
+		c.noteUnmatched(k)
+	}
+	for r := range o.domainReasons {
+		if c.domainReasons == nil {
+			c.domainReasons = map[string]bool{}
+		}
+		c.domainReasons[r] = true
+	}
 }
 
 // warnings are the slot's Response warnings: its PULSE_FIT_UNAVAILABLE
@@ -569,7 +593,10 @@ func (f *centroidFold) prePass(rec *Record, fill memberFill, typ types.Attribute
 		}
 		b = f.all
 	} else {
-		key, ok := f.key(rec)
+		key, ok, err := f.key(rec)
+		if err != nil {
+			return err
+		}
 		if !ok {
 			return nil
 		}
@@ -589,21 +616,18 @@ func (f *centroidFold) prePass(rec *Record, fill memberFill, typ types.Attribute
 	return nil
 }
 
-// key reads rec's by value (false for a null).
-func (f *centroidFold) key(rec *Record) (string, bool) {
+// key reads rec's by value (false for a null; a corrupt categorical
+// code is ENCODING_INVALID).
+func (f *centroidFold) key(rec *Record) (string, bool, error) {
 	if f.keyInt {
 		n, ok := rec.Uint64Value(f.by)
 		if !ok {
-			return "", false
+			return "", false, nil
 		}
 		f.keyBuf = strconv.AppendUint(f.keyBuf[:0], n, 10)
-		return string(f.keyBuf), true
+		return string(f.keyBuf), true, nil
 	}
-	key, ok := rec.LevelValue(f.by)
-	if !ok {
-		return "", false
-	}
-	return key, true
+	return rec.LevelValueChecked(f.by)
 }
 
 // centroidMean is b's per-element mean Σw·x_i / Σw (NaN for an element
@@ -660,6 +684,8 @@ var (
 	_ attributeTallyResetter = (*comparisonAttribute)(nil)
 	_ attributeWarner        = (*comparisonAttribute)(nil)
 	_ modelBinder            = (*comparisonAttribute)(nil)
+
+	_ MergeableAttributeTally = (*comparisonAttribute)(nil)
 
 	_ TwoPassAttribute       = (*centroidComparisonAttribute)(nil)
 	_ NullEmitter            = (*centroidComparisonAttribute)(nil)
@@ -743,6 +769,19 @@ func (a *comparisonAttribute) Components() (map[string]any, error) { return a.co
 
 // attributeWarnings satisfies attributeWarner.
 func (a *comparisonAttribute) attributeWarnings() []*types.ResponseWarning { return a.warnings() }
+
+// MergeTally satisfies MergeableAttributeTally: the row-local form (any
+// reference but a centroid) folds another partition's tallies, so the
+// parallel reducers report its counters and warnings cohort-wide. The
+// centroid and fitted forms are two-pass and never reach them.
+func (a *comparisonAttribute) MergeTally(other RowLocalAttribute) error {
+	o, ok := other.(*comparisonAttribute)
+	if !ok || o.typ != a.typ {
+		return tallyPartnerMismatch(a.typ, other)
+	}
+	a.mergeTally(&o.comparisonCore)
+	return nil
+}
 
 // centroidComparisonAttribute is a row-local metric over a centroid
 // reference: the centroid pre-pass, then every filtered row scored

@@ -64,13 +64,12 @@ type cohortHeadFault struct {
 // readCohortHead reads the schema and the header counts of the cohort
 // fileData holds, for the predict roots that judge one cohort beside a
 // request (facet, chain stage 0): a single file's header + schema and
-// its length-derived record count (an anchor-extracted shard charges
-// anchorArchiveBytes, its archive's length), or a shard archive's
-// canonical schema with the per-shard header counts and the archive's
-// byte length — the figures the runtime pre-flight reads off the
+// its length-derived record count (an anchor-extracted shard is one),
+// or a shard archive's canonical schema with the per-shard header
+// counts and its central-directory bytes — the figures the runtime pre-flight reads off the
 // cohort Open returns. Never a record. A fault carries the code and
 // message Predict reports for the same bytes.
-func readCohortHead(fileData io.ReadSeeker, anchorArchiveBytes int64) (*encoding.Schema, CohortCounts, *cohortHeadFault) {
+func readCohortHead(fileData io.ReadSeeker) (*encoding.Schema, CohortCounts, *cohortHeadFault) {
 	if src, ok := sniffArchive(fileData); ok {
 		return readArchiveHead(src)
 	}
@@ -82,7 +81,7 @@ func readCohortHead(fileData io.ReadSeeker, anchorArchiveBytes int64) (*encoding
 	if err != nil {
 		return nil, CohortCounts{}, &cohortHeadFault{code: errors.ENCODING_INVALID, message: "invalid pulse schema: " + err.Error()}
 	}
-	counts := CohortCounts{Records: -1, ArchiveBytes: anchorArchiveBytes}
+	counts := CohortCounts{Records: -1}
 	if n, _, ok := deriveSingleFileRecordCount(fileData, schema); ok {
 		counts.Records = n
 	}
@@ -105,7 +104,7 @@ func readArchiveHead(src archiveSource) (*encoding.Schema, CohortCounts, *cohort
 	if err == nil {
 		var schema *encoding.Schema
 		if schema, err = encoding.ReadSchema(rc, pulseVersion); err == nil {
-			counts := CohortCounts{ArchiveBytes: src.size}
+			counts := CohortCounts{DirectoryBytes: arch.DirectoryBytes()}
 			for _, entry := range arch.Entries() {
 				if entry.Name == encx.ReservedSchemaName {
 					continue

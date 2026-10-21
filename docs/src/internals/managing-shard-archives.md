@@ -20,6 +20,15 @@ skill](https://github.com/frankbardon/pulse/blob/main/internal/skills/cohort-sch
 
 The first include seeds the canonical schema; remaining includes are
 validated against it via structural cohesion + the dict prefix rule.
+Cohesion compares the type-derived layout (names, types, field widths,
+bit positions), never a shard's stored byte offsets, so cohorts written
+with all-zero offsets or a pre-canonical bit-packed layout join without
+a re-import. Create runs in two passes: a plan read from each include's
+header and schema (an include with parent groups is read whole, one at a
+time — its group dictionaries come from its rows), then each include
+streamed once into the staged archive, so memory is one include plus
+the plan, never the sum. An archive holds at most 65535 shards; more is
+`PULSE_SHARD_COUNT_LIMIT`, refused before anything is written.
 Atomic temp + rename:
 
 ```bash
@@ -31,9 +40,11 @@ pulse shard create q1_2019.pulse \
 
 ## 2. Append a shard
 
-Validates cohesion + dict prefix, grows the canonical dict if needed
-(rewriting `_schema.pulse` before placing the new shard), then in-place
-appends the payload:
+Validates cohesion + dict prefix, grows the canonical dict if needed,
+then streams a new archive into a staged file beside the original — a
+refreshed `_schema.pulse`, every stored shard copied raw, the new shard
+last — and renames it over the original (see
+[The rewrite contract](#the-rewrite-contract)):
 
 ```bash
 pulse shard add q1_2019.pulse 20190122.pulse
@@ -114,9 +125,9 @@ fed together. `Pulse.CreateShardArchive` therefore returns a
 `AddShard` returns a result — so the mandatory warning has nowhere to be
 dropped.
 
-The rewrite is atomic (temp file + fsync + rename), so a failure
-mid-rewrite leaves the original archive byte-identical and openable at
-its old rung. It is also **never silent**: every widen emits a
+The rewrite is atomic ([The rewrite contract](#the-rewrite-contract)),
+so a failure or crash mid-rewrite leaves the original archive
+byte-identical and openable at its old rung. It is also **never silent**: every widen emits a
 mandatory `PULSE_SHARD_SET_WIDENED` warning naming the field, the old
 rung, the new rung and the number of shards rewritten, on the `--json`
 envelope's `warnings` array and on the text output.
@@ -185,11 +196,79 @@ pulse shard verify q1_2019.pulse
 ## 5. Compact
 
 Reclaims orphan bytes (e.g. after `pulse shard remove`) and refreshes
-canonical metadata (`aggregate_record_count`, `shard_count`):
+canonical metadata (`aggregate_record_count`, `shard_count`). Compacting
+an archive whose metadata is already current reproduces it byte for
+byte:
 
 ```bash
 pulse shard compact q1_2019.pulse
 ```
+
+## The rewrite contract
+
+`create`, `add`, `remove` and `compact` (and `cohort filter` writing an
+archive) never edit an archive in place, and never build it in memory:
+
+- **Streamed into a stage.** The new archive is written to
+  `<archive>.pulse.tmp-staged` in the same directory: the refreshed
+  `_schema.pulse` first (its aggregate summed from each shard's own
+  header, never a decode), then each stored shard copied **raw** —
+  `zip.Writer.CreateRaw` from a section of the old file, source CRC and
+  sizes verbatim, no decode — then the new shard. Memory is the arriving
+  shard plus fixed copy buffers, whatever the archive's size; I/O is the
+  archive's size. A deflated entry (a third-party zip tool's) is inflated
+  and re-stored instead.
+- **When the archive itself moves** (an archive-level set widen, a
+  constant-group promotion), each stored shard is read one at a time and
+  re-encoded on its way into the stage; a promotion first runs a
+  discovery pass over every shard to fix the final group dictionaries.
+  The mandatory warning's `shards_rewritten` / `records_rewritten` are
+  exact.
+- **Published by one rename.** The stage is flushed and fsynced, renamed
+  over the archive, and the directory fsynced. Until that rename the
+  original is byte-identical; a crash before it leaves the original
+  openable and the stage behind, and the next mutation of that archive
+  sweeps every `<archive>.pulse.tmp-*` (other archives' stages are left
+  alone).
+- **Not verified on the way through.** A raw copy does not re-check a
+  stored shard's CRC; `pulse shard verify` is the diagnostic arm.
+
+In-place tail append is not done: it would give up the "original
+byte-identical until the rename" guarantee the widen path relies on.
+
+`cohort filter` over an archive filters one shard at a time. It spools
+the surviving shards to `<output>.pulse.tmp-spool`, because
+`_schema.pulse` comes first and carries the surviving total, and then
+streams them into the stage. `cohort filter --flatten` writes ONE
+single-file cohort instead: the canonical schema, then each shard's
+surviving rows in archive order, streamed into `<output>.pulse.tmp-staged`
+and published by the same rename. Either output that replaces a cohort
+with point-lookup sidecars reports them in `invalidated_sidecars`.
+
+### Point-lookup indexes
+
+An archive with point-lookup indexes (`pulse index build archive.pulse`)
+keeps them in step through `add` and `remove`
+(`internal/service/index_upkeep.go`):
+
+- **Add builds before it publishes.** After the stage is finished but
+  before it is renamed, the new shard is scanned once from the stage and
+  its sidecar for every archive index is written to
+  `<sidecar>.pulse.tmp-staged`, with the updated manifest beside it. If
+  any of that fails, the add returns the error and the archive, every
+  sidecar and the manifest are left byte-identical. Otherwise the
+  archive is renamed, then each sidecar, then the manifest.
+- **Remove touches only the removed shard.** The manifest without the
+  shard's record is staged first; after the archive rename it is
+  published and that shard's sidecars are deleted.
+- Both emit the mandatory `PULSE_SHARD_INDEXES_UPDATED` warning. A
+  rename that fails after the archive rename cannot be undone; the
+  result warns `PULSE_INDEX_STALE` and lookups refuse until the index is
+  rebuilt.
+- **A re-encoding add keeps nothing.** When the archive itself moves,
+  every stored shard's CRC32 changes, so the add leaves the index as it
+  was and lists every per-shard sidecar in `invalidated_sidecars`.
+- `compact` copies shards raw, so the sidecars stay valid.
 
 ## 6. Anchor syntax
 
@@ -217,11 +296,14 @@ For maintainers extending the sharding internals, the surface lives in:
 | `internal/service/shard_iter.go` | Multi-shard row iterator |
 | `internal/service/shard_reduce.go` | Parallel reducer for mergeable ops |
 | `internal/service/shard_admin.go` | `create` / `add` / `remove` / `list` / `extract`; both `create` and `add` plan set-rung reconciliation before strict cohesion |
+| `internal/service/shard_create.go` | streaming `create`: the header-only plan, then each source replayed once into the stage; the `PULSE_SHARD_COUNT_LIMIT` check |
 | `internal/service/shard_widen.go` | Set-width auto-widen on `create` + `add` + the mandatory warning |
 | `internal/service/shard_groups.go` | The shared `create` / `add` merge (`mergeShard`), grouped-shard reconciliation + `PULSE_SHARD_GROUPS_REWRITTEN` |
 | `internal/encoding/shard_groups.go` | `FlattenCohortBytes`, `ValidateGroupCohesion`, group prefix rule, `GroupIndexHeadroomFor` |
 | `internal/encoding/widen.go` | The re-stride engine (`WidenSetFieldBytes` / `WidenSchemaSetField`) |
 | `internal/service/shard_compact.go` | `compact` |
+| `internal/service/index_upkeep.go` | Point-lookup index upkeep on `add` / `remove` (build before publish) |
+| `internal/service/shard_stream.go` | The streaming archive writer (staged file, raw copy, sweep, fsync + rename + directory fsync) shared by every mutation |
 | `internal/service/shard_verify.go` | `verify` |
 | `internal/service/anchor_overlay.go` | Anchor-syntax overlay |
 | `internal/cli/shard.go` | CLI thin adapter |

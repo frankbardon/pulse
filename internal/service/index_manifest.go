@@ -109,26 +109,39 @@ func listIndexesFromManifest(fsys afero.Fs, cohortPath string, manifest *encx.In
 
 	for _, entry := range manifest.Indexes {
 		full := filepath.Join(dir, entry.IndexPath)
-		exists, err := afero.Exists(fsys, full)
-		if err != nil {
-			return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-				fmt.Sprintf("checking manifest-named sidecar index existence: %s", full))
+		// An archive entry names no file of its own: its files are the
+		// per-shard sidecars, each of which must be present.
+		var shardPaths []string
+		for _, sh := range entry.Shards {
+			shardPaths = append(shardPaths, filepath.Join(dir, sh.IndexPath))
 		}
-		if !exists {
-			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_MANIFEST_STALE,
-				"sidecar index manifest names an index file that is not present",
-				map[string]any{
-					"manifest_path": encx.IndexManifestPath(cohortPath),
-					"cohort":        cohortPath,
-					"index_path":    full,
-					"fields":        entry.KeyNames(),
-				})
+		files := []string{full}
+		if len(shardPaths) > 0 {
+			files = shardPaths
+		}
+		for _, f := range files {
+			exists, err := afero.Exists(fsys, f)
+			if err != nil {
+				return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+					fmt.Sprintf("checking manifest-named sidecar index existence: %s", f))
+			}
+			if !exists {
+				return nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_MANIFEST_STALE,
+					"sidecar index manifest names an index file that is not present",
+					map[string]any{
+						"manifest_path": encx.IndexManifestPath(cohortPath),
+						"cohort":        cohortPath,
+						"index_path":    f,
+						"fields":        entry.KeyNames(),
+					})
+			}
 		}
 		out = append(out, IndexInfo{
-			IndexPath:      full,
-			Keys:           entry.KeyNames(),
-			DistinctKeys:   entry.DistinctKeys,
-			IndexedRecords: entry.IndexedRecords,
+			IndexPath:       full,
+			Keys:            entry.KeyNames(),
+			DistinctKeys:    entry.DistinctKeys,
+			IndexedRecords:  entry.IndexedRecords,
+			ShardIndexPaths: shardPaths,
 		})
 	}
 	return out, nil

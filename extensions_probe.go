@@ -412,6 +412,11 @@ func probeAttributes(regs []AttributeRegistration) error {
 			if weighted {
 				continue
 			}
+			if reg.Mergeable {
+				if err := verifyAttributeMergeable(reg, instance); err != nil {
+					return err
+				}
+			}
 			var viaFunc func() (map[string]any, error)
 			if reg.ComponentsFunc != nil {
 				viaFunc = func() (map[string]any, error) { return safeInvokeAttributeComponents(reg, instance) }
@@ -420,6 +425,54 @@ func probeAttributes(regs []AttributeRegistration) error {
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+// verifyAttributeMergeable checks a Mergeable=true attribute
+// registration can honour the declaration, raising
+// PULSE_EXTENSION_MERGEABLE_MISMATCH with the reason discriminators of
+// verifyGrouperMergeable:
+//
+//   - mergeable_without_row_local — only a row_local attribute scores a
+//     partition's rows alone; a two_pass or buffered one reads the
+//     whole population first.
+//   - missing_merge_interface — the attribute EMITS components (a
+//     ComponentsFunc, or its own Components() method the adapter
+//     adopts) but its value does not implement
+//     extend.MergeableAttribute. The reducers read the figures off ONE
+//     merged instance, so without a fold they would describe the first
+//     partition only. An attribute that emits nothing has no tally to
+//     fold and needs no method.
+//   - components_not_mergeable — ComponentSchema declares keys with
+//     Mergeability "none".
+func verifyAttributeMergeable(reg AttributeRegistration, instance extend.AttributeComputer) error {
+	mismatch := func(reason, msg string) error {
+		return errors.NewCodedErrorWithDetails(
+			errors.PULSE_EXTENSION_MERGEABLE_MISMATCH,
+			fmt.Sprintf("attribute %q declares Mergeable=true but %s", reg.Name, msg),
+			map[string]any{
+				"category":  "attribute",
+				"name":      string(reg.Name),
+				"mergeable": true,
+				"reason":    reason,
+			},
+		)
+	}
+	if reg.Mode != AttributeModeRowLocal {
+		return mismatch("mergeable_without_row_local",
+			fmt.Sprintf("Mode is %q (only a row_local attribute scores each partition's rows alone; declare Mode row_local)", reg.Mode))
+	}
+	_, selfEmits := instance.(componentsEmitter)
+	if reg.ComponentsFunc != nil || selfEmits {
+		if _, ok := instance.(extend.MergeableAttribute); !ok {
+			return mismatch("missing_merge_interface",
+				"it emits components and its factory does not return extend.MergeableAttribute")
+		}
+	}
+	if len(reg.ComponentSchema.Keys) > 0 && reg.ComponentSchema.Mergeability == descriptor.None {
+		return mismatch("components_not_mergeable",
+			`ComponentSchema.Mergeability is "none" (merged partials cannot reproduce the declared figures)`)
 	}
 	return nil
 }

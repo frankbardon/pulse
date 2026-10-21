@@ -2,6 +2,7 @@ package processing
 
 import (
 	"encoding/json"
+	"reflect"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/processing/window"
@@ -25,9 +26,12 @@ import (
 //     carry a decimalCell, which keeps ordering by value (SortValuer)
 //     and carries its scale through a window that copies it (WIN_LAG /
 //     WIN_LEAD); finalizeRowCells turns it into the string at the end,
-//     and spells every date / datetime column as its calendar literal;
+//     spells every date / datetime column as its calendar literal, and
+//     swaps every u64 column's float64 echo for the record's exact
+//     uint64 word (u64RowWords);
 //   - Sample and Lookup, which do not order, render straight through
-//     RenderRecordCells.
+//     RenderRecordCells — which also spells a u64 cell as its exact
+//     uint64 word.
 
 // decimalCell is a record-row decimal128 cell with its column scale.
 type decimalCell struct {
@@ -73,9 +77,13 @@ func rowCell(f *encoding.Field, v any) any {
 //     literal: `date` as YYYY-MM-DD, `datetime` as RFC 3339 UTC (`…Z`),
 //     the spelling Sample, Lookup and export use. No request zone
 //     applies: a record row spells the stored value.
-func finalizeRowCells(rows []map[string]any, schema *encoding.Schema, windows []*types.Window) {
+//   - every u64 schema column, and every WIN_LAG / WIN_LEAD output
+//     copying one, becomes its record's exact uint64 word
+//     (u64RowWords.render).
+func finalizeRowCells(rows []map[string]any, schema *encoding.Schema, windows []*types.Window, words *u64RowWords) {
 	temporalCols := temporalColumns(schema, windows)
 	for _, row := range rows {
+		words.render(row)
 		for k, v := range row {
 			if c, ok := v.(decimalCell); ok {
 				row[k] = c.String()
@@ -84,6 +92,139 @@ func finalizeRowCells(rows []map[string]any, schema *encoding.Schema, windows []
 			if ft, ok := temporalCols[k]; ok {
 				row[k] = temporalCell(&encoding.Field{Type: ft}, v)
 			}
+		}
+	}
+}
+
+// u64RowWords keeps each record row's exact u64 words beside the row.
+// The row itself carries the float64 echo through every stage that reads
+// or orders it — window operators (built-in and extension: the extend
+// WindowComputer sees the row map, so its cells keep today's Go types),
+// Request.Sort and post-tests — so 2^53 still ties 2^53+1 in an order
+// and a window computes exactly as before. Request.Sort reorders the row
+// slice, never the maps, so the words are keyed by row map identity.
+//
+// A built-in copy window (WIN_LAG / WIN_LEAD) writing a verbatim copy
+// of a u64 cell — a schema column or an earlier copy's output, so a lag
+// of a lag follows — reports the copy (copyObserver), and the source
+// row's exact word is kept for the output column too (copies), so the
+// copy renders as the word it copied, not its echo.
+type u64RowWords struct {
+	cols   []string
+	words  map[uintptr][]uint64
+	copies map[uintptr]map[string]uint64
+}
+
+// rowKey is a row map's identity.
+func rowKey(row map[string]any) uintptr { return reflect.ValueOf(row).Pointer() }
+
+// copyObserver returns the window.CopyObserver that keeps copy-window
+// outputs' exact words, or nil (observe nothing) for a nil table.
+func (w *u64RowWords) copyObserver() window.CopyObserver {
+	if w == nil {
+		return nil
+	}
+	return w.observeCopy
+}
+
+// observeCopy keeps dst's label word: src's exact word for field when
+// src holds one (its cell still that word's echo), else none — an
+// out-of-partition default / null, or a non-u64 source.
+func (w *u64RowWords) observeCopy(dst, src map[string]any, label, field string) {
+	k := rowKey(dst)
+	if src != nil {
+		if word, ok := w.wordOf(src, field); ok {
+			if w.copies == nil {
+				w.copies = map[uintptr]map[string]uint64{}
+			}
+			m := w.copies[k]
+			if m == nil {
+				m = map[string]uint64{}
+				w.copies[k] = m
+			}
+			m[label] = word
+			return
+		}
+	}
+	delete(w.copies[k], label)
+}
+
+// wordOf returns row's exact word for col — a u64 schema column or a
+// copy window's output — when the cell is still that word's echo.
+func (w *u64RowWords) wordOf(row map[string]any, col string) (uint64, bool) {
+	f, ok := row[col].(float64)
+	if !ok {
+		return 0, false
+	}
+	k := rowKey(row)
+	for j, c := range w.cols {
+		if c != col {
+			continue
+		}
+		if words, ok := w.words[k]; ok && f == float64(words[j]) {
+			return words[j], true
+		}
+		return 0, false
+	}
+	if word, ok := w.copies[k][col]; ok && f == float64(word) {
+		return word, true
+	}
+	return 0, false
+}
+
+// newU64RowWords returns the side table for schema's u64 fields, or nil
+// (every method a no-op) when it has none.
+func newU64RowWords(schema *encoding.Schema, n int) *u64RowWords {
+	if schema == nil {
+		return nil
+	}
+	var cols []string
+	for i := range schema.Fields {
+		if schema.Fields[i].Type == encoding.FieldTypeU64 {
+			cols = append(cols, schema.Fields[i].Name)
+		}
+	}
+	if len(cols) == 0 {
+		return nil
+	}
+	return &u64RowWords{cols: cols, words: make(map[uintptr][]uint64, n)}
+}
+
+// capture records rec's exact word for every u64 column row holds.
+func (w *u64RowWords) capture(row map[string]any, rec *Record) {
+	if w == nil {
+		return
+	}
+	words := make([]uint64, len(w.cols))
+	for j, c := range w.cols {
+		if _, ok := row[c]; !ok {
+			continue
+		}
+		words[j], _ = rec.Uint64Value(c)
+	}
+	w.words[rowKey(row)] = words
+}
+
+// render swaps each u64 column's float64 echo for its exact word. A
+// cell that is no longer that word's echo (absent, null, or rewritten by
+// a stage) is left as it is.
+func (w *u64RowWords) render(row map[string]any) {
+	if w == nil {
+		return
+	}
+	k := rowKey(row)
+	for label, word := range w.copies[k] {
+		if f, ok := row[label].(float64); ok && f == float64(word) {
+			row[label] = word
+		}
+	}
+	words, ok := w.words[k]
+	if !ok {
+		return
+	}
+	for j, c := range w.cols {
+		if f, ok := row[c].(float64); ok && f == float64(words[j]) {
+			row[c] = words[j]
 		}
 	}
 }
@@ -119,20 +260,36 @@ func temporalColumns(schema *encoding.Schema, windows []*types.Window) map[strin
 // receives (Sample, Lookup): AllValues with every decimal128 cell
 // rendered as its decimal string at the column scale, every `date`
 // cell as its calendar day (YYYY-MM-DD) and every `datetime` cell as
-// RFC 3339 UTC (`…Z`) — the text export writes. No request zone
-// applies: a raw row spells the stored value. The returned map is the
-// caller's to keep; AllValues' cached map is never mutated.
-func RenderRecordCells(rec *Record) map[string]any {
-	src := rec.AllValues()
+// RFC 3339 UTC (`…Z`) — the text export writes — and every `u64` cell
+// as the record's EXACT stored word (Go uint64, Record.Uint64Value), so
+// a value at or above 2^53 prints its own digits instead of its float64
+// echo's; below 2^53 the JSON digits are the ones the echo printed. No
+// request zone applies: a raw row spells the stored value. The returned
+// map is the caller's to keep; AllValues' cached map is never mutated.
+// A categorical / set cell whose code addresses no dictionary entry is
+// refused with AllValuesChecked's ENCODING_INVALID (U51 E5-S8), never
+// rendered as "".
+func RenderRecordCells(rec *Record) (map[string]any, error) {
+	src, err := rec.AllValuesChecked()
+	if err != nil {
+		return nil, err
+	}
 	out := make(map[string]any, len(src))
 	for k, v := range src {
 		if d, ok := v.(encoding.Decimal128); ok {
 			out[k] = rowCell(rec.fieldNamed(k), d).(decimalCell).String()
 			continue
 		}
-		out[k] = temporalCell(rec.fieldNamed(k), v)
+		f := rec.fieldNamed(k)
+		if f != nil && f.Type == encoding.FieldTypeU64 {
+			if u, ok := rec.Uint64Value(k); ok {
+				out[k] = u
+				continue
+			}
+		}
+		out[k] = temporalCell(f, v)
 	}
-	return out
+	return out, nil
 }
 
 // temporalCell renders a date / datetime cell (AllValues' signed epoch

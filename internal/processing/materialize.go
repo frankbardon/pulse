@@ -86,8 +86,11 @@ func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter 
 	p.deriveWarnings = warns
 	var rows []map[string]any
 	if len(req.Windows) > 0 {
-		rows = recordsToRows(filtered)
-		if err := p.applyWindows(ctx, rows, req.Windows, nil); err != nil {
+		// Only window outputs leave this row set; no u64 render needed.
+		if rows, _, err = recordsToRows(filtered, nil); err != nil {
+			return err
+		}
+		if err := p.applyWindows(ctx, rows, req.Windows, nil, nil); err != nil {
 			return err
 		}
 	}
@@ -109,7 +112,9 @@ func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter 
 	if len(req.Sort) > 0 {
 		keyRows := rows
 		if keyRows == nil {
-			keyRows = sortKeyRows(filtered, req.Sort)
+			if keyRows, err = sortKeyRows(filtered, req.Sort); err != nil {
+				return err
+			}
 		}
 		order = window.SortOrder(keyRows, req.Sort)
 	}
@@ -148,12 +153,15 @@ func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter 
 // sortKeyRows builds, per record, the cells recordsToRows would hold
 // under each sort key — nothing else — so a run with no window row set
 // sorts on exactly the values Process's row set carries.
-func sortKeyRows(records []*Record, keys []types.OrderKey) []map[string]any {
+func sortKeyRows(records []*Record, keys []types.OrderKey) ([]map[string]any, error) {
 	out := make([]map[string]any, len(records))
 	for i, r := range records {
 		m := make(map[string]any, len(keys))
 		for _, k := range keys {
-			v, ok := r.exprValue(k.Field)
+			v, ok, err := r.exprValue(k.Field)
+			if err != nil {
+				return nil, err
+			}
 			if !ok {
 				continue
 			}
@@ -164,7 +172,7 @@ func sortKeyRows(records []*Record, keys []types.OrderKey) []map[string]any {
 		}
 		out[i] = m
 	}
-	return out
+	return out, nil
 }
 
 // derivedFloat converts one window output cell to the materialized

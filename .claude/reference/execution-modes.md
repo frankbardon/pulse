@@ -33,7 +33,8 @@ Relocated from CLAUDE.md "Execution modes (pointers)" at U16 E1-S2 (CLAUDE.md ke
 |---|---|
 | Streaming Process; Projected buffered decode; Parallel buffered Process; Cooperative cancellation (ctx polling); Request timeout (`Limits.RequestTimeout`) | `execution-modes/streaming-and-decode.md` |
 | Parallel Compose; Compose fits; Compose banner; Item fan-out (`for_each`) | `execution-modes/compose.md` |
-| Parallel shards; Blocked merge (`processing.BlockMerger`); Filter precompute (grouped cohorts); Before-filters attributes (`ATTR_PREVIOUS_STATE`); Compile-once expressions (`FILTER_EXPRESSION`, `ATTR_FORMULA`) | `execution-modes/shards-and-merge.md` |
+| Parallel shards; Blocked merge (`processing.BlockMerger`) | `execution-modes/shards-and-merge.md` |
+| Filter precompute (grouped cohorts); Before-filters attributes (`ATTR_PREVIOUS_STATE`); Compile-once expressions (`FILTER_EXPRESSION`, `ATTR_FORMULA`) | `execution-modes/filters-and-expressions.md` |
 | ProcessChain; Pushdown hash join; Facet endpoints | `execution-modes/chain-join-facet.md` |
 | Crosstab; Fused crosstab | `execution-modes/crosstab.md` |
 | Overlays (hosts, Level / Within, per-host wiring, FORMULA, displaced contributor bullets through "Adding an overlay kind", Weighted hosts, Overlay knobs) | `execution-modes/overlays.md` |

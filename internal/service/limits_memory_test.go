@@ -350,6 +350,13 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 	median := []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "weight", Label: "m"}}
 	xt := &types.CrosstabSpec{Rows: brand, Columns: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cardFeeling"}},
 		Cell: &types.Aggregation{Type: types.AGG_SUM, Field: "weight", Label: "s"}}
+	wideGrid := func(cell *types.Aggregation) *types.CrosstabSpec {
+		if cell == nil {
+			cell = &types.Aggregation{Type: types.AGG_SUM, Field: "weight", Label: "s"}
+		}
+		return &types.CrosstabSpec{Rows: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "pad_018"}}, Columns: brand, Cell: cell,
+			Margins: types.CrosstabMargins{Rows: true, Columns: true, Grand: true}}
+	}
 	lookup := []*types.JoinSpec{{Right: "s.pulse", Kind: "inner", As: "r_", On: []types.OnPair{{LeftField: "brand", RightField: "brand"}}}}
 	// fanout joins a 16-row left to the 200,000-row cohort as the build
 	// side: the join arm's state is the build.
@@ -377,11 +384,35 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 		{name: "streaming", req: func() *types.Request { return &types.Request{Cohort: co, Aggregations: sum} }, maxFactor: 2.5},
 		{name: "streaming grouped", req: func() *types.Request { return &types.Request{Cohort: co, Groups: brand, Aggregations: sum} }, maxFactor: 2.5},
 		{name: "streaming projected", req: func() *types.Request { return &types.Request{Cohort: co, Aggregations: sum} }, project: true, maxFactor: 4.5},
+		// U51 E5-S6: GROUP_CATEGORY over the u16 pad_018 is charged its
+		// 65,536-key width bound (below the 200,000 records it was
+		// charged before); the data holds 4,096 of them, so the bound is
+		// loose here, never under.
+		{name: "streaming value-width grouped", req: func() *types.Request {
+			return &types.Request{Cohort: co, Groups: []*types.Group{{Type: types.GROUP_CATEGORY, Field: "pad_018"}}, Aggregations: sum}
+		}, maxFactor: 4.5},
 		{name: "streaming value state", req: func() *types.Request {
 			return &types.Request{Cohort: co, Aggregations: []*types.Aggregation{{Type: types.AGG_DISTINCT_COUNT, Field: "weight", Label: "d"}}}
 		}, maxFactor: 2.5},
 		{name: "fused crosstab", req: func() *types.Request { return &types.Request{Cohort: co, Crosstab: xt} }, fuse: true, maxFactor: 2.5},
 		{name: "buffered crosstab", req: func() *types.Request { return &types.Request{Cohort: co, Crosstab: xt} }, maxFactor: 4.5},
+		// U51 E5-S9: a grid of 4,096 x 16 populated cells (pad_018, a u16
+		// whose 65,536-key width bounds the rows; the grid itself only by
+		// the 200,000 records) by brand, with every margin — the
+		// per-measure cell, axis-key and margin charges dominate — and a
+		// vector element cell over it. The bounds are loose here (16x the
+		// populated rows' keys, 3x the cells), never under; the buffered
+		// arm also projects its records (as "buffered projected"). U51
+		// E5-S11 adds the dense grid's empty positions — 65,536 x 16
+		// charged, 1,048,576 positions less the 200,000-cell bound, at
+		// CrosstabGridPositionBytes (~110 MB fused, ~42 MB buffered) —
+		// while the run's peak fell (the finalize maps no longer
+		// pre-size to the grid), so these factors rose (5.9 / 7.2 / 4.4).
+		{name: "fused crosstab wide grid", req: func() *types.Request { return &types.Request{Cohort: co, Crosstab: wideGrid(nil)} }, fuse: true, maxFactor: 7.5},
+		{name: "buffered crosstab wide grid", req: func() *types.Request { return &types.Request{Cohort: co, Crosstab: wideGrid(nil)} }, maxFactor: 9.5},
+		{name: "fused crosstab vector element", req: func() *types.Request {
+			return &types.Request{Cohort: co, Crosstab: wideGrid(&types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"weight", "pad_014", "pad_015"}, Label: "v", Params: []byte(`{"element":"pad_015"}`)})}
+		}, fuse: true, maxFactor: 6},
 		{name: "matrix", req: func() *types.Request {
 			return &types.Request{Cohort: co, Groups: brand, Aggregations: sum,
 				Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "c", Fields: []string{"weight", "pad_014", "pad_015"}}}}
@@ -500,5 +531,64 @@ func TestMemoryEstimate_Calibration(t *testing.T) {
 				t.Fatalf("estimate is %.2fx the measured peak heap; documented bound %.1fx", factor, c.maxFactor)
 			}
 		})
+	}
+}
+
+// TestMaxEstimatedMemory_ChainStageComponentsOff (U51 E5-S7): a chain
+// stage after the first is judged under the instance's components
+// default too — with Options.DisableComponents the stage's pre-flight
+// charges the components-off output, exactly descx.EstimateMemory's
+// figure on the stage's input rows.
+func TestMaxEstimatedMemory_ChainStageComponentsOff(t *testing.T) {
+	mem := afero.NewMemMapFs()
+	makeSyntheticCohort(t, mem, "bench.pulse")
+	cfg, err := fs.New(fs.WithFs(mem))
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain := func() *types.ChainRequest {
+		return &types.ChainRequest{Cohort: &types.Cohort{Filename: "bench.pulse"}, Stages: []*types.ChainStage{
+			{Name: "by_cat", Request: &types.Request{Cohort: &types.Cohort{Filename: "bench.pulse"},
+				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat0"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "a", Label: "s"}}}},
+			{Name: "by_range", Request: &types.Request{
+				Groups: []*types.Group{{Type: types.GROUP_RANGE, Field: "s", Interval: 1}},
+				Aggregations: []*types.Aggregation{
+					{Type: types.AGG_SUM, Field: "s", Label: "t"},
+					{Type: types.AGG_MAX, Field: "s", Label: "x"},
+				}}},
+		}}
+	}
+	// stage1Observed is stage 1's refused estimate: a budget just under
+	// it admits stage 0 (16 rows) and refuses stage 1.
+	stage1Observed := func(off bool) int64 {
+		t.Helper()
+		svc := New(cfg)
+		svc.SetDisableComponents(off)
+		var last int64
+		for budget := int64(1); ; {
+			l := limits.Defaults()
+			l.MaxEstimatedMemory = budget
+			svc.SetLimits(l)
+			_, err := svc.ProcessChain(context.Background(), chain())
+			var ce *errors.CodedError
+			if !stderrors.As(err, &ce) {
+				t.Fatalf("off=%v budget %d: %v", off, budget, err)
+			}
+			obs := ce.Details["observed"].(int64)
+			if ce.Details["stage"] == 1 {
+				return obs
+			}
+			if obs == last {
+				t.Fatalf("off=%v: stage 0 refused at its own estimate %d", off, obs)
+			}
+			last, budget = obs, obs
+		}
+	}
+	on, off := stage1Observed(false), stage1Observed(true)
+	// Stage 1 runs over stage 0's 16 rows: 16 buckets of two slots, each
+	// charged 1024 + 2 x 576 on and 512 + 2 x 96 off.
+	if d, want := on-off, int64(16*((1024+2*576)-(512+2*96))); d != want {
+		t.Fatalf("components off lowers stage 1's estimate by %d, want %d (16 buckets' components share)", d, want)
 	}
 }

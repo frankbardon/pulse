@@ -74,16 +74,16 @@ func TestListIndexes_EnumeratesEveryBuiltSidecar(t *testing.T) {
 	}
 }
 
-func TestListIndexes_ShardArchiveRejected(t *testing.T) {
+func TestListIndexes_ShardArchiveWithoutIndexIsEmpty(t *testing.T) {
 	schema, shards, _ := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, [][]uint64{})
 
-	_, err := svc.ListIndexes(context.Background(), "arch.pulse")
-	if err == nil {
-		t.Fatal("expected error listing indexes for a shard archive")
+	got, err := svc.ListIndexes(context.Background(), "arch.pulse")
+	if err != nil {
+		t.Fatalf("ListIndexes(archive): %v", err)
 	}
-	if !errors.HasCode(err, errors.PULSE_INDEX_UNSUPPORTED_SHARDED) {
-		t.Errorf("expected PULSE_INDEX_UNSUPPORTED_SHARDED, got: %v", err)
+	if got == nil || len(got) != 0 {
+		t.Errorf("ListIndexes(archive with no index) = %#v, want an empty non-nil slice", got)
 	}
 }
 
@@ -168,15 +168,12 @@ func TestDropIndex_EmptyKeyFieldsRejected(t *testing.T) {
 	}
 }
 
-func TestDropIndex_ShardArchiveRejected(t *testing.T) {
+func TestDropIndex_ShardArchiveWithoutIndexIsMissing(t *testing.T) {
 	schema, shards, _ := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, [][]uint64{})
 
 	err := svc.DropIndex(context.Background(), "arch.pulse", []string{"id"})
-	if err == nil {
-		t.Fatal("expected error dropping an index against a shard archive")
-	}
-	if !errors.HasCode(err, errors.PULSE_INDEX_UNSUPPORTED_SHARDED) {
-		t.Errorf("expected PULSE_INDEX_UNSUPPORTED_SHARDED, got: %v", err)
+	if !errors.HasCode(err, errors.PULSE_INDEX_MISSING) {
+		t.Errorf("expected PULSE_INDEX_MISSING, got: %v", err)
 	}
 }

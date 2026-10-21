@@ -33,6 +33,7 @@ var (
 	_ func(*pulse.Pulse, context.Context, *pulse.ComposedRequest, pulse.ComposeOptions) (*pulse.ComposedResponse, error) = (*pulse.Pulse).ComposeParallel
 	_ func(*pulse.Pulse, context.Context, []byte, *descriptor.InspectOptions) (*descriptor.Envelope, error)              = (*pulse.Pulse).InspectBytes
 	_ func(*pulse.Pulse, context.Context, []byte, *pulse.Request) (*descriptor.Envelope, error)                          = (*pulse.Pulse).PredictBytes
+	_ func(*pulse.Pulse, context.Context, *pulse.Request) (*descriptor.Envelope, error)                                  = (*pulse.Pulse).PredictEnvelope
 	_ func(*pulse.Pulse, context.Context, *pulse.ComposedRequest) (*descriptor.Envelope, error)                          = (*pulse.Pulse).PredictCompose
 	_ func(*pulse.Pulse, context.Context, *pulse.FacetRequest) (*descriptor.Envelope, error)                             = (*pulse.Pulse).PredictFacet
 	_ func(*pulse.Pulse, context.Context, *pulse.ChainRequest) (*descriptor.Envelope, error)                             = (*pulse.Pulse).PredictChain
@@ -119,6 +120,7 @@ var (
 	_ pulse.SetWidening
 	_ pulse.CreateShardArchiveResult
 	_ pulse.AddShardResult
+	_ pulse.RemoveShardResult
 	_ pulse.GroupReconciliation
 	_ pulse.VerifyResult
 	_ pulse.ShardEntry

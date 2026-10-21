@@ -88,10 +88,27 @@ func TestMergeRefusal(t *testing.T) {
 		{"code-in attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_CODE_IN}}}, nil, ""},
 		{"set-has attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_SET_HAS}}}, nil, ""},
 		{"set-popcount attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_SET_POPCOUNT}}}, nil, ""},
-		// Row-local per row but tallying per run (Components.Attributes
-		// counters + a Response warning) the merged route does not fold.
-		{"scale-score attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_SCALE_SCORE}}}, nil, "attribute ATTR_SCALE_SCORE is not row-local"},
-		{"profile-similarity attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY}}}, nil, "attribute ATTR_PROFILE_SIMILARITY is not row-local"},
+		// Row-local per row, tallying per run (Components.Attributes
+		// counters + a Response warning) the reducers fold
+		// (MergeableAttributeTally, U51 E3-S2): admitted. A centroid
+		// reference is a cohort-wide pre-pass and stays out.
+		{"scale-score attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_SCALE_SCORE}}}, nil, ""},
+		{"profile-similarity attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY}}}, nil, ""},
+		{"profile-similarity table key_field", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY, Params: []byte(`{"metric":"cosine","reference":{"table":"t","key_field":"n"}}`)}}}, nil, ""},
+		{"profile-similarity literal", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY, Params: []byte(`{"metric":"cosine","reference":[1,2]}`)}}}, nil, ""},
+		{"profile-similarity centroid", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY, Params: []byte(`{"metric":"cosine","reference":{"centroid":{}}}`)}}}, nil, "attribute ATTR_PROFILE_SIMILARITY is not row-local"},
+		{"profile-similarity centroid by", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY, Params: []byte(`{"metric":"cosine","reference":{"centroid":{"by":"n"}}}`)}}}, nil, "attribute ATTR_PROFILE_SIMILARITY is not row-local"},
+		// ATTR_VEC_DISTANCE over a row-local metric folds like
+		// profile similarity; a fitted metric, a centroid or a metric
+		// that does not resolve stays out.
+		{"row-local vec distance", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Params: []byte(`{"metric":"euclidean","reference":[1,2]}`)}}}, nil, ""},
+		{"vec distance row-local kind default", &types.Request{Aggregations: sum("n"), Vectors: []types.VectorSpec{{Name: "v", Fields: []string{"n"}, Kind: types.VectorKindBinary}},
+			Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Vector: "v", Params: []byte(`{"reference":[1]}`)}}}, nil, ""},
+		{"vec distance fitted kind default", &types.Request{Aggregations: sum("n"), Vectors: []types.VectorSpec{{Name: "v", Fields: []string{"n"}, Kind: types.VectorKindMeasure}},
+			Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Vector: "v", Params: []byte(`{"reference":[1]}`)}}}, nil, "attribute ATTR_VEC_DISTANCE is not row-local"},
+		{"fit_on vec distance", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Params: []byte(`{"metric":"std_euclidean","reference":[1,2]}`)}}}, nil, "attribute ATTR_VEC_DISTANCE is not row-local"},
+		{"centroid vec distance", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Params: []byte(`{"metric":"euclidean","reference":{"centroid":{}}}`)}}}, nil, "attribute ATTR_VEC_DISTANCE is not row-local"},
+		{"vec distance without metric", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Params: []byte(`{"reference":[1,2]}`)}}}, nil, "attribute ATTR_VEC_DISTANCE is not row-local"},
 		{"refit attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_REG_FITTED}}}, nil, "attribute ATTR_REG_FITTED is not row-local"},
 		// A subject's records may sit in any partition or shard: a
 		// partition-local previous state would be wrong (U55). Never
@@ -425,4 +442,89 @@ func TestChainRefusal_Crosstab(t *testing.T) {
 	if err := ChainRefusal(&types.Request{Aggregations: aggs}, nil, nil, 0, "s0"); err != nil {
 		t.Fatalf("crosstab-free twin refused: %v", err)
 	}
+}
+
+// TestParallelTotals (U51 E3-S1, #399): the reducers' two-phase total()
+// admits an ungrouped total() formula in pre-pass layer 0 — its inputs
+// are source fields or row-local labels — and nothing else; the refused
+// shapes keep the row-local reason, and the chain stage gate refuses
+// every total() formula.
+func TestParallelTotals(t *testing.T) {
+	sum := []*types.Aggregation{{Type: types.AGG_SUM, Field: "n"}}
+	f := func(label, expr string) *types.Attribute {
+		return &types.Attribute{Type: types.ATTR_FORMULA, Expression: expr, Label: label}
+	}
+	region := []*types.Group{{Type: types.GROUP_CATEGORY, Field: "n"}}
+	cases := []struct {
+		name  string
+		req   *types.Request
+		ext   Extensions
+		admit []bool // per attribute: ParallelTotals
+	}{
+		{"one total over a field", &types.Request{Attributes: []*types.Attribute{f("t", "n / total(n)")}}, nil, []bool{true}},
+		{"total over a row-local label", &types.Request{Attributes: []*types.Attribute{f("d", "n * 2"), f("t", "total(d)")}}, nil, []bool{false, true}},
+		{"two independent totals share layer 0", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "n / total(n * 3)")}}, nil, []bool{true, true}},
+		{"a row-local reading a total is fine", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "n / a")}}, nil, []bool{true, false}},
+		{"total reading a total is layer 1", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "total(n - a)")}}, nil, []bool{true, false}},
+		{"total reading a total through a row-local", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("c", "n - a"), f("b", "total(c)")}}, nil, []bool{true, false, false}},
+		{"total reading a total in its row expression", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("b", "a / total(n)")}}, nil, []bool{true, false}},
+		{"default label read", &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Field: "n", Expression: "total(n)"}, f("b", "total(ATTR_FORMULA_n)")}}, nil, []bool{true, false}},
+		{"unknown inputs after a total", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), {Type: types.ATTR_REG_PREDICT, Label: "p"}, f("b", "total(p)")}}, nil, []bool{true, false, false}},
+		{"unknown inputs before any total", &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_REG_PREDICT, Label: "p"}, f("b", "total(p)")}}, nil, []bool{false, true}},
+		{"extension after a total is unknown", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), {Type: "ATTR_X_ROW", Label: "x"}, f("b", "total(x)")}}, fakeExt{}, []bool{true, false, false}},
+		{"unparsable formula after a total", &types.Request{Attributes: []*types.Attribute{f("a", "total(n)"), f("c", "n +"), f("b", "total(c)")}}, nil, []bool{true, false, false}},
+		{"grouped", &types.Request{Groups: region, Attributes: []*types.Attribute{f("t", "total(n)")}}, nil, []bool{false}},
+		{"crosstab", &types.Request{Crosstab: &types.CrosstabSpec{}, Attributes: []*types.Attribute{f("t", "total(n)")}}, nil, []bool{false}},
+		{"nil slot", &types.Request{Attributes: []*types.Attribute{f("t", "total(n)"), nil}}, nil, []bool{false, false}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ParallelTotals(tc.req, tc.ext); !reflect.DeepEqual(got, tc.admit) {
+				t.Fatalf("ParallelTotals = %v, want %v", got, tc.admit)
+			}
+			req := *tc.req
+			req.Aggregations = sum
+			reason := MergeRefusal(&req, nil, tc.ext)
+			chainErr := ChainRefusal(&req, nil, tc.ext, 0, "s0")
+			hasTotal, admitted := false, true
+			for i, a := range req.Attributes {
+				if a != nil && a.Type == types.ATTR_FORMULA && strings.Contains(a.Expression, "total(") {
+					hasTotal = true
+					admitted = admitted && tc.admit[i]
+				}
+			}
+			if !hasTotal {
+				t.Fatal("case has no total() formula")
+			}
+			if req.Crosstab != nil || slicesHasNil(req.Attributes) {
+				if reason == "" {
+					t.Fatal("merge gate admitted a crosstab / nil-slot request")
+				}
+				return
+			}
+			if admitted && reason != "" {
+				t.Fatalf("merge gate refused an admitted shape: %s", reason)
+			}
+			if !admitted && reason != "attribute ATTR_FORMULA is not row-local (two-pass and buffered attributes are excluded)" {
+				t.Fatalf("refused shape reason = %q, want the row-local reason", reason)
+			}
+			var ce *errors.CodedError
+			if !stderrors.As(chainErr, &ce) || ce.Code != errors.PULSE_CHAIN_NOT_MERGEABLE ||
+				ce.Message != "chain stage is not mergeable: attribute ATTR_FORMULA is not row-local (two-pass and buffered attributes are excluded)" {
+				t.Fatalf("chain gate = %v, want PULSE_CHAIN_NOT_MERGEABLE with the row-local reason", chainErr)
+			}
+		})
+	}
+	if ParallelTotals(nil, nil) != nil {
+		t.Fatal("nil request")
+	}
+}
+
+func slicesHasNil(attrs []*types.Attribute) bool {
+	for _, a := range attrs {
+		if a == nil {
+			return true
+		}
+	}
+	return false
 }

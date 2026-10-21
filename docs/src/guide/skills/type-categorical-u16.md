@@ -20,7 +20,7 @@ Orthogonal. `Nullable: true` participates in the per-record null bitmap. Index `
 
 ## Dictionary
 
-Present (`HasDictionary()` = `true`). Inline schema block; `MaxDictEntries()` = `65,536`. Shard cohesion: union-merge — incoming records byte-rewritten with remapped indices when canonical dict diverges.
+Present (`HasDictionary()` = `true`). Inline schema block; `MaxDictEntries()` = `65,536`. Shard cohesion: union-merge — incoming records byte-rewritten with remapped indices when canonical dict diverges. A non-null index at or past the dictionary length is corrupt data — readers that key, label or render it refuse `ENCODING_INVALID` (`categorical_index_out_of_range`).
 
 ## See
 

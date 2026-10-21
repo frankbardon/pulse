@@ -1110,18 +1110,20 @@ const (
 	// "duplicate").
 	PULSE_EXTENSION_EXAMPLE_COLLISION Code = "PULSE_EXTENSION_EXAMPLE_COLLISION"
 
-	// PULSE_EXTENSION_MERGEABLE_MISMATCH indicates an aggregator or
-	// grouper registration declared Mergeable=true but cannot honour it:
-	// the registration is not also Streamable (merge folds ONLINE state,
-	// so mergeable is a strict subset of streamable), the factory's
+	// PULSE_EXTENSION_MERGEABLE_MISMATCH indicates an aggregator,
+	// grouper or attribute registration declared Mergeable=true but
+	// cannot honour it: the registration is not also Streamable (merge
+	// folds ONLINE state, so mergeable is a strict subset of
+	// streamable; an attribute must be Mode row_local), the factory's
 	// value does not implement extend.MergeableAggregator (or, for a
-	// grouper that emits components, extend.MergeableGrouper), or its
-	// ComponentSchema declares keys with Mergeability "none" (the
+	// grouper that emits components, extend.MergeableGrouper; for an
+	// attribute that emits components, extend.MergeableAttribute), or
+	// its ComponentSchema declares keys with Mergeability "none" (the
 	// parallel reducers read Components() off the MERGED instance, so a
 	// non-mergeable figure would be silently wrong under ShardWorkers /
 	// DecodeWorkers). Details carry the category, name and a reason
-	// discriminator. Wired into extensions_probe.probeAggregators and
-	// probeGroupers.
+	// discriminator. Wired into extensions_probe.probeAggregators,
+	// probeGroupers and probeAttributes.
 	PULSE_EXTENSION_MERGEABLE_MISMATCH Code = "PULSE_EXTENSION_MERGEABLE_MISMATCH"
 
 	// PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH indicates an
@@ -1323,6 +1325,24 @@ const (
 	// basename. Zip entry names are flat — basenames must be unique
 	// within an archive.
 	PULSE_SHARD_NAME_COLLISION Code = "PULSE_SHARD_NAME_COLLISION"
+
+	// PULSE_SHARD_COUNT_LIMIT indicates a shard create, add or
+	// filter-to-file archive write would produce an archive of more than
+	// 65535 shards — the most the `_schema.pulse` SHRD trailer's u16
+	// shard_count holds. Refused before anything is written, never
+	// stored truncated. details: archive, shard_count, limit.
+	PULSE_SHARD_COUNT_LIMIT Code = "PULSE_SHARD_COUNT_LIMIT"
+
+	// PULSE_SHARD_INDEXES_UPDATED is emitted as a WARNING (not an error)
+	// when `pulse shard add` / `shard remove` keeps the archive's
+	// point-lookup indexes in step: an add builds the new shard's sidecar
+	// for every archive index, a remove deletes the removed shard's, and
+	// both update the index manifest's shard coverage. Mandatory for the
+	// reason PULSE_SHARD_SET_WIDENED is: a mutation that rewrites files
+	// beside the archive must never do so silently. details: archive,
+	// shard, action ("added" | "removed"), indexes [{keys, index_path,
+	// shard_index_path}].
+	PULSE_SHARD_INDEXES_UPDATED Code = "PULSE_SHARD_INDEXES_UPDATED"
 
 	// PULSE_CHAIN_NOT_MERGEABLE indicates a stage inside a
 	// ProcessChain request fails the chain gate. The gate accepts
@@ -2358,21 +2378,25 @@ const (
 	// PULSE_INDEX_MISSING (no sidecar exists at all) and from
 	// PULSE_LOOKUP_NOT_FOUND (the sidecar is fresh but the key has no
 	// match). Details carry the cohort path, key fields, and the derived
-	// index_path.
+	// index_path. On a shard archive (one sidecar per shard) it also
+	// refuses a shard the index does not cover — absent from the
+	// archive's manifest entry, or present with another size or
+	// central-directory CRC32 — and details.shards_uncovered names those
+	// shards in archive order: a lookup never silently skips a shard.
+	// `shard add` / `shard remove` also emit it as a WARNING when
+	// publishing their index upkeep fails after the archive rename
+	// (details.reason index_upkeep_publish_failed): the mutation stands
+	// and the index no longer covers the archive.
 	PULSE_INDEX_STALE Code = "PULSE_INDEX_STALE"
 
-	// PULSE_INDEX_UNSUPPORTED_SHARDED indicates a point-lookup
-	// operation (Service.BuildIndex, Service.Lookup, or
-	// Service.VerifyIndex) targeted a shard-archive cohort (first four
-	// bytes match internal/encoding.ZipMagic, "PK\x03\x04") rather than a
-	// single-file `.pulse` cohort. Sharded cohorts are out of scope for
-	// point-lookup v1: row-id addressing (encoding.RecordLocator.Offset)
-	// only has meaning for a single contiguous record region, which a
-	// multi-shard archive does not present. Detected cheaply — via the
-	// same leading-magic-bytes dispatch internal/service.Service.Open already
-	// performs to distinguish single-file vs archive cohorts, not an
-	// added scan. Details carry the cohort path. Distinct from
-	// PULSE_INDEX_MISSING (single-file cohort, no sidecar built yet).
+	// PULSE_INDEX_UNSUPPORTED_SHARDED is NO LONGER RAISED. It refused
+	// point-lookup index build / lookup / verify / list / drop against a
+	// shard-archive cohort until U51 indexed archives one sidecar per
+	// shard plus a manifest entry recording the covered shards. The code
+	// is retained rather than retired — the precedent of
+	// PULSE_CROSSTAB_EMPTY_COLUMNS: removing a code breaks the public
+	// constant, the manifest's error list and every embedder lookup of
+	// it, where a code that is merely never raised breaks nothing.
 	PULSE_INDEX_UNSUPPORTED_SHARDED Code = "PULSE_INDEX_UNSUPPORTED_SHARDED"
 
 	// PULSE_INDEX_MANIFEST_INVALID indicates the sidecar index MANIFEST
@@ -4200,6 +4224,8 @@ var allCodes = []Code{
 	PULSE_SHARD_GROUPS_REWRITTEN,
 	PULSE_SHARD_RESERVED_NAME,
 	PULSE_SHARD_NAME_COLLISION,
+	PULSE_SHARD_COUNT_LIMIT,
+	PULSE_SHARD_INDEXES_UPDATED,
 	PULSE_CHAIN_NOT_MERGEABLE,
 	PULSE_CHAIN_EMPTY,
 	PULSE_CHAIN_STAGE_JOIN,

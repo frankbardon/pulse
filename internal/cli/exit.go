@@ -23,7 +23,8 @@ const (
 	// ExitUsage is a command line refused before any library call: the
 	// flag parser's refusals (unknown flag, malformed flag value, missing
 	// required flag or argument, mutually exclusive flags) and a bad
-	// persistent --log-level / --log-format. No envelope is written.
+	// persistent --log-level / --log-format, or a negative
+	// --shard-workers / --decode-workers. No envelope is written.
 	ExitUsage = 2
 )
 

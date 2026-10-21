@@ -299,7 +299,9 @@ func CanStreamRequestWithExtensions(req *types.Request, schema *encoding.Schema,
 // single-file parallel decode reducer consult before fanning out work
 // across a worker pool. Returns true iff every aggregator, grouper,
 // and filterer is mergeable AND the request contains no windows, no
-// features, no regressions, no tests, no two-pass attributes, and no
+// features, no regressions, no tests, no two-pass attributes (save an
+// ungrouped one-layer total() formula, which the reducers run two-phase:
+// mergegate.ParallelTotals, formula_total_merge.go), and no
 // decimal-typed built-in aggregation targets. A nil/empty aggregation
 // list returns false (nothing to merge).
 //
@@ -735,7 +737,7 @@ func (p *Processor) processStreaming(ctx context.Context, req *types.Request, it
 				return nil, err
 			}
 			SetAttributeOutput(r, ra.label, val, ra.nullable)
-			ra.floor.observe(val, ra.nullable)
+			ra.floor.Observe(val, ra.nullable)
 		}
 
 		weights.Observe(r)
@@ -1017,17 +1019,18 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		return nil, err
 	}
 
-	// Per-group aggregator buckets; FinalizeGroupedStream orders them.
-	buckets := make(map[string][]OnlineAggregator)
+	// Per-group buckets (aggregators + floors); FinalizeGroupedStream
+	// orders them.
+	buckets := make(map[string]*GroupBucket)
 	// Per-group aggregation Components' floors: cohort-wide per slot
 	// and per bucket, tallied only when components are on (built
-	// behind the gate, not discarded).
-	var slotTotals []SlotFloor
-	var bucketFloors map[string][]SlotFloor
+	// behind the gate, not discarded). bucketFloorTmpl shapes each
+	// bucket's floors (nil: the bucket carries none).
+	var slotTotals, bucketFloorTmpl []SlotFloor
 	if p.compute.Aggs && len(req.Aggregations) > 0 {
 		slotTotals = NewSlotFloors(req.Aggregations)
-		if p.compute.Groups {
-			bucketFloors = NewGroupFloors()
+		if p.compute.Groups && GroupFloorsOn() {
+			bucketFloorTmpl = slotTotals
 		}
 	}
 	// Per-bucket matrix slots, minted with the bucket (nil without
@@ -1054,6 +1057,20 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	var primaryNullRecords int64
 	weights := NewWeightRowTally(req)
 
+	// mint builds slot i's fresh aggregator for a new bucket.
+	mint := func(i int) (OnlineAggregator, error) {
+		s := specs[i]
+		inst, err := s.factory(s.agg, p.schema)
+		if err != nil {
+			return nil, err
+		}
+		oa, ok := inst.(OnlineAggregator)
+		if !ok {
+			return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+				fmt.Sprintf("aggregator %s does not implement OnlineAggregator", s.agg.Type))
+		}
+		return oa, nil
+	}
 	// route folds r into key's bucket, minting the bucket (and its
 	// floors and matrix slots) on the key's first record.
 	route := func(key string, r *Record) error {
@@ -1064,31 +1081,18 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 			if err := limits.Check(p.limits, limits.MaxGroups, int64(len(buckets))+1); err != nil {
 				return err
 			}
-			online := make([]OnlineAggregator, len(specs))
-			for i, s := range specs {
-				inst, err := s.factory(s.agg, p.schema)
-				if err != nil {
-					return err
-				}
-				oa, ok := inst.(OnlineAggregator)
-				if !ok {
-					return errors.NewCodedError(errors.PROCESSING_INTERNAL,
-						fmt.Sprintf("aggregator %s does not implement OnlineAggregator", s.agg.Type))
-				}
-				online[i] = oa
+			var err error
+			if b, err = NewGroupBucket(len(specs), mint, bucketFloorTmpl); err != nil {
+				return err
 			}
-			b = online
 			buckets[key] = b
-			if bucketFloors != nil {
-				bucketFloors[key] = NewSlotFloors(req.Aggregations)
-			}
 		}
-		for i, oa := range b {
+		for i, oa := range b.Aggs {
 			if err := oa.UpdateRow(r, specs[i].agg.Field); err != nil {
 				return err
 			}
 		}
-		ObserveSlotFloors(bucketFloors[key], r)
+		ObserveSlotFloors(b.Floors, r)
 		return matrices.UpdateRow(key, r)
 	}
 	// The composite arm's Expand callback: routes the current record.
@@ -1134,7 +1138,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 				return nil, err
 			}
 			SetAttributeOutput(r, ra.label, val, ra.nullable)
-			ra.floor.observe(val, ra.nullable)
+			ra.floor.Observe(val, ra.nullable)
 		}
 
 		// Tallied AFTER row-local attributes land: the primary field
@@ -1200,7 +1204,6 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 		KeySet:         keySet,
 		Buckets:        buckets,
 		SlotTotals:     slotTotals,
-		BucketFloors:   bucketFloors,
 		TotalRows:      totalRows,
 		FilteredRows:   filteredRows,
 		NullRecords:    primaryNullRecords,
@@ -1239,7 +1242,7 @@ type twoPassStage struct {
 	nullable bool
 	// floor tallies the slot's Components.Attributes floor on the
 	// emission scan only; nil when the slot emits no entry.
-	floor *attributeFloor
+	floor *AttributeFloor
 }
 
 // buildTwoPassStages constructs every attribute in declared order and
@@ -1371,7 +1374,7 @@ func (p *Processor) processStreamingTwoPass(ctx context.Context, req *types.Requ
 		}
 		SetAttributeOutput(r, st.label, val, st.nullable)
 		if emit {
-			st.floor.observe(val, st.nullable)
+			st.floor.Observe(val, st.nullable)
 		}
 		return nil
 	}
@@ -1588,7 +1591,7 @@ type rowLocalAttrEntry struct {
 	nullable bool
 	// floor tallies the slot's Components.Attributes floor; nil when
 	// the slot emits no entry (attributeFloorFor).
-	floor *attributeFloor
+	floor *AttributeFloor
 }
 
 // attachRowLocalAttributeComponents attaches the row-local slots'
@@ -1816,6 +1819,10 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	var groupedTests *groupedRowTests
 
 	recordRows := false
+	// A record-row run's exact u64 words (recordsToRows), rendered over
+	// the float64 echo by finalizeRowCells; nil when the schema has no
+	// u64 field.
+	var rowWords *u64RowWords
 	if len(req.Groups) > 0 {
 		if groupedMatrices, err = BuildGroupedMatrices(req, p.schema, p.exts, p.compute, p.limits); err != nil {
 			return nil, err
@@ -1841,7 +1848,10 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	} else if len(req.Windows) > 0 {
 		// No group, no aggregation, but we have windows. Materialize one row
 		// per filtered record so windows can compute over the full set.
-		data = recordsToRows(filtered)
+		data, rowWords, err = recordsToRows(filtered, p.schema)
+		if err != nil {
+			return nil, err
+		}
 		recordRows = true
 	}
 
@@ -1853,7 +1863,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	}
 
 	if len(req.Windows) > 0 {
-		if err := p.applyWindows(ctx, data, req.Windows, keyOrders); err != nil {
+		if err := p.applyWindows(ctx, data, req.Windows, keyOrders, rowWords.copyObserver()); err != nil {
 			return nil, err
 		}
 	}
@@ -1902,7 +1912,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	}
 	attrWarnings = append(attrWarnings, postWarnings...)
 	if recordRows {
-		finalizeRowCells(data, p.schema, req.Windows)
+		finalizeRowCells(data, p.schema, req.Windows, rowWords)
 	}
 
 	// Regression fits run after aggregation / windows so engines can
@@ -2118,15 +2128,25 @@ func recordsAsRegressionRecords(records []*Record) []regression.Record {
 // used by the window pipeline stage. Each record contributes one row
 // containing every non-null value (categorical fields resolve to strings,
 // decimal128 to a scale-carrying decimalCell that finalizeRowCells
-// renders as its decimal string — see row_cells.go).
+// renders as its decimal string — see row_cells.go). A u64 cell stays
+// its float64 echo — what windows, Request.Sort, post-tests and an
+// extension window read — and the record's exact word is kept beside
+// the row (u64RowWords, nil when schema has no u64 field) for
+// finalizeRowCells to render.
 //
 // AllValues returns a cached map owned by the Record; window operators
 // mutate rows in place to write their output column, so we clone here to
 // avoid leaking window outputs back into the Record's cache.
-func recordsToRows(records []*Record) []map[string]any {
+func recordsToRows(records []*Record, schema *encoding.Schema) ([]map[string]any, *u64RowWords, error) {
 	rows := make([]map[string]any, len(records))
+	words := newU64RowWords(schema, len(records))
 	for i, r := range records {
-		src := r.AllValues()
+		// A corrupt categorical / set code is refused, never rendered
+		// as "" (U51 E5-S8).
+		src, err := r.AllValuesChecked()
+		if err != nil {
+			return nil, nil, err
+		}
 		clone := make(map[string]any, len(src)+2)
 		for k, v := range src {
 			if _, isDec := v.(encoding.Decimal128); isDec {
@@ -2135,8 +2155,9 @@ func recordsToRows(records []*Record) []map[string]any {
 			clone[k] = v
 		}
 		rows[i] = clone
+		words.capture(clone, r)
 	}
-	return rows
+	return rows, words, nil
 }
 
 // applyFiltersWithCounters is the buffered-path companion to
@@ -2321,7 +2342,7 @@ func (p *Processor) applyAttribute(attr *types.Attribute, records []*Record) ([]
 	floor := attributeFloorFor(computer, p.compute)
 	for i, r := range records {
 		if i < len(values) {
-			floor.observe(values[i], nullable)
+			floor.Observe(values[i], nullable)
 			if attributeOutputNull(values[i], nullable) {
 				// A null output (AttributeNull, or a NullEmitter's
 				// NaN): the row has no value under the label, so

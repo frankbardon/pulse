@@ -29,16 +29,65 @@ import (
 // NumericValue instead, so every Record stays usable.
 type LabeledRecord interface {
 	Record
-	// StringValue returns the field's categorical label and true, or
-	// ("", false) when it is null, absent or not categorical.
-	StringValue(name string) (string, bool)
+	// StringValueChecked returns the field's categorical label and
+	// true, or ("", false, nil) when it is null, absent or not
+	// categorical; a code its dictionary has no entry for (corrupt
+	// record data) is an ENCODING_INVALID error.
+	StringValueChecked(name string) (string, bool, error)
+}
+
+// levelFields are the fields spec keys rows by through clusterKey: the
+// covariance cluster and the jackknife_by delete-group field.
+func levelFields(spec *types.RegressionSpec) []string {
+	var out []string
+	if spec.Covariance != nil && spec.Covariance.Cluster != "" {
+		out = append(out, spec.Covariance.Cluster)
+	}
+	if spec.Resample == "jackknife" && spec.JackknifeBy != "" {
+		out = append(out, spec.JackknifeBy)
+	}
+	return out
+}
+
+// LevelFault is the first corrupt categorical code among the fields
+// spec keys rows by (covariance cluster, jackknife_by) across records —
+// ENCODING_INVALID with the CategoricalIndexFault details — or nil. The
+// drivers run it before a fit reads a row (FitEachBufferedWithContext
+// over the buffered rows, the streaming guard per row), so the fault
+// fails the regression slot alone (slotfail) instead of the row being
+// read as a null cluster and dropped, or keyed by its numeric code
+// (U51 E5-S10).
+func LevelFault(spec *types.RegressionSpec, records ...Record) error {
+	fields := levelFields(spec)
+	if len(fields) == 0 {
+		return nil
+	}
+	for _, rec := range records {
+		lr, ok := rec.(LabeledRecord)
+		if !ok {
+			return nil
+		}
+		for _, f := range fields {
+			if _, _, err := lr.StringValueChecked(f); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // clusterKey is rec's cluster identity under field: its categorical
-// label, else its numeric value; ok=false when the field is null.
+// label, else its numeric value; ok=false when the field is null. A
+// corrupt categorical code reads ok=false — never the numeric echo of
+// the code — but no row carrying one reaches here: the drivers refuse
+// it first (LevelFault).
 func clusterKey(rec Record, field string) (string, bool) {
 	if lr, ok := rec.(LabeledRecord); ok {
-		if s, ok := lr.StringValue(field); ok {
+		s, ok, err := lr.StringValueChecked(field)
+		if err != nil {
+			return "", false
+		}
+		if ok {
 			return "s:" + s, true
 		}
 	}

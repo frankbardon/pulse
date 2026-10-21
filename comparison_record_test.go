@@ -68,7 +68,7 @@ func recordFacadeFS(t *testing.T) (afero.Fs, *Pulse) {
 	for _, ix := range []struct {
 		path string
 		keys []string
-	}{{recordRefCohort, []string{"id"}}, {vecFacadeCohort, []string{"week"}}, {"ref_ab.pulse", []string{"id"}}, {"ref_stale.pulse", []string{"id"}}} {
+	}{{recordRefCohort, []string{"id"}}, {vecFacadeCohort, []string{"week"}}, {"ref_ab.pulse", []string{"id"}}, {"ref_stale.pulse", []string{"id"}}, {"vec_arch.pulse", []string{"week"}}} {
 		if _, err := p.BuildIndex(ctx, ix.path, ix.keys); err != nil {
 			t.Fatal(err)
 		}
@@ -154,6 +154,7 @@ func TestComparisonRecord_ScoresAsLiteral(t *testing.T) {
 			{"cross-cohort fitted distance", vecFacadeCohort, recordRefCohort, "id", "2", types.ATTR_VEC_DISTANCE, "mahalanobis"},
 			{"own cohort", vecFacadeCohort, "", "week", "17", types.ATTR_VEC_DISTANCE, "euclidean"},
 			{"shard archive rows, single-file record", "vec_arch.pulse", recordRefCohort, "id", "4", types.ATTR_VEC_DISTANCE, "euclidean"},
+			{"shard archive record, own cohort", "vec_arch.pulse", "", "week", "50", types.ATTR_VEC_DISTANCE, "euclidean"},
 		} {
 			t.Run(c.name+"/workers="+strconv.Itoa(workers), func(t *testing.T) {
 				lookIn := c.refCohort
@@ -237,7 +238,7 @@ func TestComparisonRecord_LookupRefusals(t *testing.T) {
 		{"no index for these keys", recordReference(recordRefCohort, "region", "n"), perr.PULSE_INDEX_MISSING},
 		{"not found", recordReference(recordRefCohort, "id", "77"), perr.PULSE_LOOKUP_NOT_FOUND},
 		{"ambiguous", recordReference(recordRefCohort, "id", "9"), perr.PULSE_LOOKUP_AMBIGUOUS},
-		{"shard archive cohort", recordReference("vec_arch.pulse", "week", "3"), perr.PULSE_INDEX_UNSUPPORTED_SHARDED},
+		{"shard archive cohort, no index for these keys", recordReference("vec_arch.pulse", "region", "north"), perr.PULSE_INDEX_MISSING},
 		{"stale index", recordReference("ref_stale.pulse", "id", "1"), perr.PULSE_INDEX_STALE},
 		{"member column absent", recordReference("ref_ab.pulse", "id", "1"), perr.PULSE_VECTOR_REFERENCE_MISMATCH},
 	} {

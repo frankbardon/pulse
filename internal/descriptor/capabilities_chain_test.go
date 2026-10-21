@@ -1,10 +1,12 @@
 package descriptor
 
 import (
+	"reflect"
 	"sort"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -176,5 +178,57 @@ func TestProcessChainCapability_OverlaysMirrorsOverlayCatalog(t *testing.T) {
 		if chain.Description != want.Description {
 			t.Errorf("entry %q: Description diverged", chain.Kind)
 		}
+	}
+}
+
+// TestProcessChainCapability_RowLocalAttributesMatchGate: the manifest's
+// process_chain.row_local_attributes is exactly the built-in attributes
+// the shared chain gate (mergegate.ChainRefusal) admits on a bare spec
+// — so the list moves with the gate (U51 E3-S2 admitted
+// ATTR_SCALE_SCORE and the reference-form ATTR_PROFILE_SIMILARITY; the
+// #391 row-local reads were missing) — and is sorted. ATTR_VEC_DISTANCE is judged over a row-local metric.
+func TestProcessChainCapability_RowLocalAttributesMatchGate(t *testing.T) {
+	var want []string
+	for _, at := range types.AllAttributeTypes() {
+		req := &types.Request{
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x"}},
+			Attributes:   []*types.Attribute{{Type: at, Field: "x"}},
+		}
+		if at == types.ATTR_VEC_DISTANCE {
+			// Admitted over a row-local metric (its rejection rule
+			// covers the fitted metrics and a centroid).
+			req.Attributes[0].Params = []byte(`{"metric":"euclidean","reference":[1]}`)
+		}
+		if mergegate.ChainRefusal(req, nil, nil, 0, "s0") == nil {
+			want = append(want, string(at))
+		}
+	}
+	sort.Strings(want)
+	got := processChainCapability().RowLocalAttributes
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("process_chain.row_local_attributes = %v, want the gate's %v", got, want)
+	}
+}
+
+// TestProcessChainCapability_MergeableGroupersMatchGate: the manifest's
+// process_chain.mergeable_groupers is exactly the built-in groupers the
+// shared chain gate (mergegate.ChainRefusal) admits — so the list moves
+// with types.GroupType.Mergeable (U51 E3-S3 admitted GROUP_ROUNDED; the
+// list had stopped at CATEGORY / RANGE) — and is sorted.
+func TestProcessChainCapability_MergeableGroupersMatchGate(t *testing.T) {
+	var want []string
+	for _, gt := range types.AllGroupTypes() {
+		req := &types.Request{
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x"}},
+			Groups:       []*types.Group{{Type: gt, Field: "g"}},
+		}
+		if mergegate.ChainRefusal(req, nil, nil, 0, "s0") == nil {
+			want = append(want, string(gt))
+		}
+	}
+	sort.Strings(want)
+	got := processChainCapability().MergeableGroupers
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("process_chain.mergeable_groupers = %v, want the gate's %v", got, want)
 	}
 }

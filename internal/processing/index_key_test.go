@@ -3,6 +3,7 @@ package processing
 import (
 	"encoding/binary"
 	stderrors "errors"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -493,5 +494,48 @@ func TestResolveCompositeLookupKeyBytes_PropagatesPerFieldError(t *testing.T) {
 	}
 	if !errors.HasCode(err, errors.PROCESSING_CONFIG) {
 		t.Errorf("expected PROCESSING_CONFIG, got: %v", err)
+	}
+}
+
+// TestIndexKeyU64_ExactAboveTwoTo53 pins FR-45: a u64 key builds from
+// the record's EXACT word and a u64 literal probes through ParseUint,
+// so 2^53 and 2^53+1 (one float64 apart: none) key to different bytes
+// and each literal finds its own row. Below 2^53 the bytes are the
+// ones the float path always produced, so an existing index over such
+// keys is byte-identical.
+func TestIndexKeyU64_ExactAboveTwoTo53(t *testing.T) {
+	field := &encoding.Field{Name: "k", Type: encoding.FieldTypeU64}
+	schema := &encoding.Schema{Fields: []encoding.Field{*field}}
+	const lo = uint64(1) << 53
+	for _, v := range []uint64{lo, lo + 1, 1<<64 - 1, 1<<64 - 2, 7} {
+		rec := NewRecord(schema, map[string]float64{"k": float64(v)})
+		rec.SetExactU64("k", v)
+		built, ok := KeyFieldOnWireBytes(rec, field)
+		if !ok {
+			t.Fatalf("KeyFieldOnWireBytes(%d): not ok", v)
+		}
+		if got := binary.LittleEndian.Uint64(built); got != v {
+			t.Errorf("build key for %d = %d, want the exact word", v, got)
+		}
+		probe, err := ResolveLookupKeyBytes(field, strconv.FormatUint(v, 10))
+		if err != nil {
+			t.Fatalf("ResolveLookupKeyBytes(%d): %v", v, err)
+		}
+		if string(probe) != string(built) {
+			t.Errorf("probe bytes % x != build bytes % x for %d", probe, built, v)
+		}
+	}
+	// Byte-identity below 2^53: a record WITHOUT the exact word (the
+	// float echo only) and the float path's own encoding agree.
+	for _, v := range []uint64{0, 7, lo - 1, lo} {
+		rec := NewRecord(schema, map[string]float64{"k": float64(v)})
+		got, _ := KeyFieldOnWireBytes(rec, field)
+		if want := numericOnWireBytes(float64(v), encoding.FieldTypeU64); string(got) != string(want) {
+			t.Errorf("echo-only key for %d = % x, want the float path's % x", v, got, want)
+		}
+	}
+	// A non-integer spelling ParseFloat always accepted keeps resolving.
+	if b, err := ResolveLookupKeyBytes(field, "1e3"); err != nil || binary.LittleEndian.Uint64(b) != 1000 {
+		t.Errorf("ResolveLookupKeyBytes(1e3) = % x, %v; want 1000", b, err)
 	}
 }

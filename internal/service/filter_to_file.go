@@ -1,11 +1,13 @@
 package service
 
 import (
-	"archive/zip"
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -56,6 +58,12 @@ import (
 //   - Anchor syntax `archive.pulse#shard.pulse`: resolves to a single
 //     shard inside an archive; dst is a single-file cohort built from
 //     that shard alone.
+//
+// Every arm writes atomically: the output streams into dst's stage
+// (`<dst>.pulse.tmp-staged`) and is published by one rename, so a failed
+// run leaves dst as it was. The single-file and anchored arms stream
+// rows from the input too (filterSingleFileStream): memory never grows
+// with the row count.
 //
 // Returns the number of records written to dst (sum across shards for
 // archive inputs).
@@ -123,6 +131,58 @@ func (s *Service) FilterToFileFilterers(ctx context.Context, src, dst string, fi
 	return s.filterToFile(ctx, src, dst, filterPlan{filterExpr: filterExpr, filterers: filterers, direct: direct, timeZone: timeZone})
 }
 
+// FilterToFileOptions is the options form of the filter-to-file run
+// (Pulse.FilterToFileWithOptions, `pulse cohort filter`): an optional
+// include-set (Set tested on IncludeField), an optional
+// FILTER_EXPRESSION predicate, and Flatten. Without Flatten at least
+// one predicate is required, exactly as FilterToFileBySetAndExpr
+// requires one.
+type FilterToFileOptions struct {
+	IncludeField string
+	Set          processing.MemberSet
+	Expression   string
+	// Flatten writes a shard archive's surviving rows, shard by shard in
+	// archive order, into ONE single-file cohort under the archive's
+	// canonical (widened) schema instead of a per-shard archive; with
+	// no predicate it is a pure flatten. On a single-file or anchored
+	// input — already one file — it is a no-op: the output is what the
+	// same call without Flatten writes (no predicate keeps every row).
+	Flatten bool
+}
+
+// FilterToFileOutcome is FilterToFileWithOptions' report.
+type FilterToFileOutcome struct {
+	// Records is the number of records written to dst.
+	Records int64
+	// Flattened is true when a shard archive was flattened into a
+	// single-file cohort (Flatten over an archive input).
+	Flattened bool
+}
+
+// FilterToFileWithOptions is the filter-to-file run behind every CLI
+// `cohort filter` call: FilterToFileBySetAndExpr plus the Flatten
+// mode. Input-shape dispatch is FilterToFile's.
+func (s *Service) FilterToFileWithOptions(ctx context.Context, src, dst string, opts FilterToFileOptions) (*FilterToFileOutcome, error) {
+	if opts.Set == nil && opts.Expression == "" && !opts.Flatten {
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
+			"filter_to_file requires at least one of include-set or filter expression (or flatten)")
+	}
+	if opts.Set != nil && opts.IncludeField == "" {
+		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
+			"filter_to_file include-set requires a non-empty include field name")
+	}
+	n, flattened, err := s.filterToFileRun(ctx, src, dst, filterPlan{
+		set:          opts.Set,
+		includeField: opts.IncludeField,
+		filterExpr:   opts.Expression,
+		flatten:      opts.Flatten,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &FilterToFileOutcome{Records: n, Flattened: flattened}, nil
+}
+
 // FilterToFileZones resolves the zones a FilterToFileRequest's
 // structured filterers read — the one zone-resolution pass Process runs
 // (resolveZones), over a Request{Filterers, TimeZone} against src's
@@ -179,6 +239,15 @@ type filterPlan struct {
 	// timeZone is the request zone the expression's to_day() reads
 	// (FilterToFileRequest.TimeZone); "" inherits the instance default.
 	timeZone string
+	// flatten writes an archive input as ONE single-file cohort
+	// (FilterToFileOptions.Flatten); a no-op on a single-file input.
+	flatten bool
+}
+
+// hasPredicate reports whether the plan filters at all: a flatten
+// without one keeps every row.
+func (p filterPlan) hasPredicate() bool {
+	return p.set != nil || p.filterExpr != "" || len(p.direct) > 0
 }
 
 // BindFilterModels returns ctx carrying refs loaded — every file read
@@ -208,37 +277,56 @@ func (s *Service) ResolveCanonicalSchema(_ context.Context, src string) (*encodi
 	}
 	fsys := s.fs.Fs()
 
+	// Header + schema only, on every arm: an anchored shard's entry
+	// stream, an archive's central directory + canonical entry (random
+	// access), a single file's prefix — never a record payload.
 	if archivePath, anchor, ok := splitAnchorPath(src); ok {
-		payload, err := s.readAnchoredShardBytes(archivePath, anchor)
+		if anchor == encx.ReservedSchemaName {
+			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
+				"cannot filter the reserved canonical schema entry",
+				map[string]any{"entry": anchor})
+		}
+		a, err := openArchiveFile(fsys, archivePath)
 		if err != nil {
 			return nil, err
 		}
-		return readSchemaFromBytes(payload)
+		defer a.Close()
+		rc, err := a.arch.Open(anchor)
+		if err != nil {
+			return nil, err
+		}
+		defer rc.Close()
+		return readSchemaFromReader(bufio.NewReader(rc))
 	}
 
-	data, err := afero.ReadFile(fsys, src)
+	isArchive, err := s.pathIsShardArchive(src)
 	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("opening cohort file: %s", src))
+		return nil, err
 	}
-
-	if isShardArchiveMagic(data) {
-		arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
+	if isArchive {
+		a, err := openArchiveFile(fsys, src)
 		if err != nil {
 			return nil, err
 		}
-		doc, err := readSchemaDocEntry(arch)
+		defer a.Close()
+		doc, err := readSchemaDocEntry(a.arch)
 		if err != nil {
 			return nil, err
 		}
 		return doc.Schema, nil
 	}
 
-	return readSchemaFromBytes(data)
+	f, err := fsys.Open(src)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+			fmt.Sprintf("opening cohort file: %s", src))
+	}
+	defer f.Close()
+	return readSchemaFromReader(bufio.NewReader(f))
 }
 
-func readSchemaFromBytes(data []byte) (*encoding.Schema, error) {
-	br := bytes.NewReader(data)
+// readSchemaFromReader reads a single-file header + schema block off r.
+func readSchemaFromReader(br io.Reader) (*encoding.Schema, error) {
 	pulseVersion, err := encoding.ReadHeader(br)
 	if errors.HasCode(err, errors.PULSE_COHORT_COMPRESSED) {
 		return nil, err // the one refusal that names its fix
@@ -256,12 +344,20 @@ func readSchemaFromBytes(data []byte) (*encoding.Schema, error) {
 }
 
 func (s *Service) filterToFile(ctx context.Context, src, dst string, plan filterPlan) (int64, error) {
+	n, _, err := s.filterToFileRun(ctx, src, dst, plan)
+	return n, err
+}
+
+// filterToFileRun is the one filter-to-file run: it dispatches on the
+// input shape and reports, beside the records written, whether an
+// archive was flattened.
+func (s *Service) filterToFileRun(ctx context.Context, src, dst string, plan filterPlan) (int64, bool, error) {
 	if src == "" {
-		return 0, errors.NewCodedError(errors.SERVICE_VALIDATION,
+		return 0, false, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"filter_to_file requires a non-empty input path")
 	}
 	if dst == "" {
-		return 0, errors.NewCodedError(errors.SERVICE_VALIDATION,
+		return 0, false, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"filter_to_file requires a non-empty output path")
 	}
 
@@ -270,42 +366,72 @@ func (s *Service) filterToFile(ctx context.Context, src, dst string, plan filter
 	// instance's registered populations, as Process binds them.
 	ctx, err := s.bindRequestModels(ctx, model.Refs{})
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	plan.models = model.SetFrom(ctx)
 
 	fsys := s.fs.Fs()
 
 	// Anchor syntax: archive#shard → single-shard payload → single-file
-	// output. Reuses service.OpenAnchor's archive resolution path.
+	// output (flatten is a no-op: one shard is already one file). The
+	// shard's entry is streamed off the archive by random access.
 	if archivePath, anchor, ok := splitAnchorPath(src); ok {
-		payload, err := s.readAnchoredShardBytes(archivePath, anchor)
-		if err != nil {
-			return 0, err
-		}
-		return s.filterSingleFileBytesToFile(ctx, fsys, payload, dst, plan)
+		n, err := s.filterAnchoredShardToFile(ctx, fsys, archivePath, anchor, dst, plan)
+		return n, false, err
 	}
 
-	data, err := afero.ReadFile(fsys, src)
+	// An archive is read by random access, one shard at a time
+	// (filterShardArchiveToFile / flattenShardArchiveToFile); a single
+	// file is streamed (filterSingleFileStream).
+	isArchive, err := s.pathIsShardArchive(src)
 	if err != nil {
-		return 0, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+		return 0, false, err
+	}
+	if isArchive {
+		a, err := openArchiveFile(fsys, src)
+		if err != nil {
+			return 0, false, err
+		}
+		defer a.Close()
+		if plan.flatten {
+			n, err := s.flattenShardArchiveToFile(ctx, fsys, dst, plan, a)
+			return n, err == nil, err
+		}
+		n, err := s.filterShardArchiveToFile(ctx, fsys, dst, plan, a)
+		return n, false, err
+	}
+
+	f, err := fsys.Open(src)
+	if err != nil {
+		return 0, false, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("opening cohort file: %s", src))
 	}
-
-	if isShardArchiveMagic(data) {
-		return s.filterShardArchiveToFile(ctx, fsys, dst, plan, data)
-	}
-
-	return s.filterSingleFileBytesToFile(ctx, fsys, data, dst, plan)
+	defer f.Close()
+	n, err := s.filterSingleFileStream(ctx, fsys, f, dst, plan)
+	return n, false, err
 }
 
-// filterSingleFileBytesToFile runs the single-file filter loop over an
-// in-memory byte slice and writes the result to dst. Used both for
-// direct single-file inputs and for anchor-syntax inputs (where the
-// anchored shard's bytes form a complete standalone payload).
-func (s *Service) filterSingleFileBytesToFile(ctx context.Context, fsys afero.Fs, data []byte, dst string, plan filterPlan) (int64, error) {
-	br := bytes.NewReader(data)
-	pulseVersion, err := encoding.ReadHeader(br)
+// filterSingleFileStream runs the single-file filter loop over a
+// standalone `.pulse` payload streamed off src and publishes the result
+// at dst. Used both for direct single-file inputs and for anchor-syntax
+// inputs (the anchored shard's entry is a complete standalone payload).
+//
+// The output is the source's header + schema bytes verbatim, then every
+// kept physical row's bytes in source order (a predicate-free run keeps
+// every WHOLE row; a truncated tail is dropped either way). Rows stream
+// from src through one shardCopyBuffer read window into dst's stage
+// (stagedStream) and are published by one rename: memory is O(the
+// windows + the schema block), never O(input) or O(output), and dst is
+// untouched until the rename — a failed run leaves it as it was and
+// removes the stage.
+func (s *Service) filterSingleFileStream(ctx context.Context, fsys afero.Fs, src io.Reader, dst string, plan filterPlan) (int64, error) {
+	window := bufio.NewReaderSize(src, shardCopyBuffer)
+	// The preamble is captured as it is parsed, so it is copied
+	// byte-for-byte (ReadHeader / ReadSchema consume exactly their own
+	// bytes).
+	var preamble bytes.Buffer
+	tee := io.TeeReader(window, &preamble)
+	pulseVersion, err := encoding.ReadHeader(tee)
 	if errors.HasCode(err, errors.PULSE_COHORT_COMPRESSED) {
 		return 0, err // the one refusal that names its fix
 	}
@@ -313,32 +439,121 @@ func (s *Service) filterSingleFileBytesToFile(ctx context.Context, fsys afero.Fs
 		return 0, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			"invalid pulse file header")
 	}
-	schema, err := encoding.ReadSchema(br, pulseVersion)
+	schema, err := encoding.ReadSchema(tee, pulseVersion)
 	if err != nil {
 		return 0, errors.WrapCodedError(err, errors.ENCODING_INVALID,
 			"reading schema")
 	}
-	headerSchemaEnd := int64(len(data)) - int64(br.Len())
 
-	filterFn, err := s.buildCombinedFilter(schema, plan)
+	// The predicate builds (and any config refusal fires) before the
+	// stage opens.
+	var filterFn processing.FilterFunc
+	var keep encx.FieldFilter
+	if plan.hasPredicate() {
+		if filterFn, err = s.buildCombinedFilter(schema, plan); err != nil {
+			return 0, err
+		}
+		keep = s.fieldFilterForPlan(schema, plan)
+	}
+
+	out, err := newStagedStream(fsys, dst)
 	if err != nil {
 		return 0, err
 	}
-	keep := s.fieldFilterForPlan(schema, plan)
-
-	out := bytes.NewBuffer(make([]byte, 0, len(data)))
-	out.Write(data[:headerSchemaEnd])
-
-	written, err := s.streamFilterRecords(ctx, data, br, schema, filterFn, keep, out)
+	defer out.abort()
+	if _, err := out.Write(preamble.Bytes()); err != nil {
+		return 0, out.wrap(err, "writing filtered cohort")
+	}
+	var written int64
+	if filterFn == nil {
+		written, err = copyWholeRecords(ctx, window, int64(schema.RecordByteSize()), out)
+	} else {
+		written, err = s.streamFilterRecords(ctx, window, schema, filterFn, keep, out)
+	}
 	if err != nil {
 		return 0, err
 	}
-
-	if err := afero.WriteFile(fsys, dst, out.Bytes(), 0644); err != nil {
-		return 0, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("writing filtered cohort to: %s", dst))
+	if err := out.commit(); err != nil {
+		return 0, err
 	}
 	return written, nil
+}
+
+// copyWholeRecords copies every whole stride-sized record from r to w
+// through one window-sized buffer, dropping a truncated tail, and
+// returns the records copied. A non-positive stride copies nothing
+// (Schema.RecordCountForPayload's rule).
+func copyWholeRecords(ctx context.Context, r io.Reader, stride int64, w io.Writer) (int64, error) {
+	if stride <= 0 {
+		return 0, nil
+	}
+	buf := make([]byte, max(shardCopyBuffer/stride, 1)*stride)
+	var n int64
+	for {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		got, err := io.ReadFull(r, buf)
+		whole := int64(got) / stride
+		if whole > 0 {
+			if _, werr := w.Write(buf[:whole*stride]); werr != nil {
+				return 0, errors.WrapCodedError(werr, errors.SERVICE_RESOURCE,
+					"writing filtered records")
+			}
+			n += whole
+		}
+		switch err {
+		case nil:
+		case io.EOF, io.ErrUnexpectedEOF:
+			return n, nil
+		default:
+			if errors.HasCode(err, errors.ENCODING_IO) {
+				return 0, err // an anchored entry's read, already coded
+			}
+			return 0, errors.WrapCodedError(err, errors.ENCODING_IO, "reading cohort records")
+		}
+	}
+}
+
+// filterAnchoredShardToFile streams the anchored entry of archivePath
+// (one entry, read off the archive by random access — never the whole
+// archive, and never the whole entry) through filterSingleFileStream.
+// Same semantics as service.OpenAnchor's resolution.
+func (s *Service) filterAnchoredShardToFile(ctx context.Context, fsys afero.Fs, archivePath, entry, dst string, plan filterPlan) (int64, error) {
+	if entry == encx.ReservedSchemaName {
+		return 0, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
+			"cannot filter the reserved canonical schema entry",
+			map[string]any{"entry": entry})
+	}
+	a, err := openArchiveFile(fsys, archivePath)
+	if err != nil {
+		return 0, err
+	}
+	defer a.Close()
+	rc, err := a.arch.Open(entry)
+	if err != nil {
+		return 0, err
+	}
+	defer rc.Close()
+	return s.filterSingleFileStream(ctx, fsys, &entryReadError{r: rc, entry: entry, archive: archivePath}, dst, plan)
+}
+
+// entryReadError tags a failed read of an anchored entry with the code
+// and message reading it whole always carried (ENCODING_IO), leaving
+// io.EOF / io.ErrUnexpectedEOF — the stream's own boundaries — as they
+// are.
+type entryReadError struct {
+	r              io.Reader
+	entry, archive string
+}
+
+func (e *entryReadError) Read(p []byte) (int, error) {
+	n, err := e.r.Read(p)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		err = errors.WrapCodedError(err, errors.ENCODING_IO,
+			fmt.Sprintf("reading anchored shard %q from %s", e.entry, e.archive))
+	}
+	return n, err
 }
 
 // skipShardPreamble advances br past a shard's header and schema block.
@@ -364,11 +579,12 @@ func skipShardPreamble(br *bytes.Reader, name string) error {
 // → one output shard, basename preserved, central-directory order
 // preserved. Empty shards (zero surviving records) are kept so the
 // shard_count metadata stays stable across the filter.
-func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, dst string, plan filterPlan, data []byte) (int64, error) {
-	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
-	if err != nil {
-		return 0, err
-	}
+//
+// The source archive a is read by random access: its canonical entry,
+// then each shard's payload in turn — one input shard resident at a
+// time, never the whole source archive.
+func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, dst string, plan filterPlan, a *archiveFile) (int64, error) {
+	arch := a.arch
 
 	canonicalDoc, err := readSchemaDocEntry(arch)
 	if err != nil {
@@ -382,14 +598,42 @@ func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, d
 	}
 	keep := s.fieldFilterForPlan(canonicalSchema, plan)
 
-	// Per-shard filter + accumulate output payloads.
-	type filteredShard struct {
-		name    string
-		payload []byte
-		written int64
-	}
 	entries := arch.Entries()
-	out := make([]filteredShard, 0, len(entries))
+	// One output shard per input shard: refuse a count the SHRD
+	// trailer's u16 shard_count cannot hold before filtering anything.
+	shardCount := 0
+	for _, e := range entries {
+		if e.Name != encx.ReservedSchemaName {
+			shardCount++
+		}
+	}
+	if err := checkArchiveShardCount(shardCount, dst); err != nil {
+		return 0, err
+	}
+
+	// `_schema.pulse` leads the archive and carries the surviving
+	// aggregate, which is known only once every shard is filtered, so
+	// the filtered shards are SPOOLED (one file beside dst, one shard
+	// resident at a time) and then streamed into the archive writer.
+	// The writer opens first: its sweep of `<dst>.pulse.tmp-*` would
+	// otherwise remove the spool, which carries the same prefix so a
+	// crashed run's spool is swept with its stage.
+	w, err := newArchiveWriter(fsys, dst)
+	if err != nil {
+		return 0, err
+	}
+	defer w.abort()
+	spool, err := newFilterSpool(fsys, dst)
+	if err != nil {
+		return 0, err
+	}
+	defer spool.discard()
+
+	type spooled struct {
+		name     string
+		off, len int64
+	}
+	out := make([]spooled, 0, shardCount)
 	var totalWritten int64
 	for _, e := range entries {
 		if e.Name == encx.ReservedSchemaName {
@@ -412,54 +656,217 @@ func (s *Service) filterShardArchiveToFile(ctx context.Context, fsys afero.Fs, d
 		}
 		localHeaderSchemaEnd := int64(len(shardBytes)) - int64(br.Len())
 
-		buf := bytes.NewBuffer(make([]byte, 0, len(shardBytes)))
-		buf.Write(shardBytes[:localHeaderSchemaEnd])
-		written, ferr := s.streamFilterRecords(ctx, shardBytes, br, canonicalSchema, filterFn, keep, buf)
+		off := spool.n
+		if _, err := spool.Write(shardBytes[:localHeaderSchemaEnd]); err != nil {
+			return 0, spool.wrap(err)
+		}
+		written, ferr := s.streamFilterRecords(ctx, br, canonicalSchema, filterFn, keep, spool)
 		if ferr != nil {
 			return 0, ferr
 		}
-		out = append(out, filteredShard{name: e.Name, payload: buf.Bytes(), written: written})
+		out = append(out, spooled{name: e.Name, off: off, len: spool.n - off})
 		totalWritten += written
 	}
-
-	// Rebuild the archive: refresh _schema.pulse trailer (aggregate +
-	// shard_count) then emit each filtered shard payload.
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-
-	schemaPayload, err := buildSchemaDocPayload(canonicalSchema, uint64(totalWritten), uint16(len(out)))
-	if err != nil {
-		return 0, err
+	if err := spool.bw.Flush(); err != nil {
+		return 0, spool.wrap(err)
 	}
-	if err := writeArchiveEntry(zw, encx.ReservedSchemaName, schemaPayload); err != nil {
+
+	// Rebuild the archive: refreshed _schema.pulse trailer (aggregate +
+	// shard_count), then each filtered shard streamed off the spool.
+	if err := w.writeSchemaDoc(canonicalSchema, uint64(totalWritten), len(out)); err != nil {
 		return 0, err
 	}
 	for _, sh := range out {
-		if err := writeArchiveEntry(zw, sh.name, sh.payload); err != nil {
+		ew, err := w.createEntry(sh.name)
+		if err != nil {
 			return 0, err
 		}
+		if _, err := io.CopyBuffer(ew, io.NewSectionReader(spool.f, sh.off, sh.len), w.buf); err != nil {
+			return 0, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+				fmt.Sprintf("writing filtered shard %q", sh.name))
+		}
 	}
-	if err := zw.Close(); err != nil {
-		return 0, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			"FilterToFile: finalising shard archive zip writer")
-	}
-
-	if err := atomicWrite(fsys, dst, buf.Bytes()); err != nil {
+	if err := w.commit(); err != nil {
 		return 0, err
 	}
 	return totalWritten, nil
 }
 
-// streamFilterRecords iterates records from br (positioned after
+// filterSpool is the archive arm's scratch file: every filtered shard
+// payload appended in archive order, read back by section once the
+// aggregate is known. It sits beside dst as `<dst>.pulse.tmp-spool`, so
+// the next writer's sweep removes one a crash left behind.
+type filterSpool struct {
+	fsys afero.Fs
+	path string
+	f    afero.File
+	bw   *bufio.Writer
+	n    int64
+}
+
+func newFilterSpool(fsys afero.Fs, dst string) (*filterSpool, error) {
+	path := filepath.Join(filepath.Dir(dst), filepath.Base(dst)+shardAdminTempPattern+"spool")
+	f, err := fsys.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+			fmt.Sprintf("creating filter spool for %s", dst))
+	}
+	return &filterSpool{fsys: fsys, path: path, f: f, bw: bufio.NewWriterSize(f, shardCopyBuffer)}, nil
+}
+
+func (s *filterSpool) Write(p []byte) (int, error) {
+	n, err := s.bw.Write(p)
+	s.n += int64(n)
+	return n, err
+}
+
+func (s *filterSpool) wrap(err error) error {
+	return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+		fmt.Sprintf("writing filter spool %s", s.path))
+}
+
+// discard closes and removes the spool.
+func (s *filterSpool) discard() {
+	_ = s.f.Close()
+	_ = s.fsys.Remove(s.path)
+}
+
+// flattenShardArchiveToFile writes the archive's surviving rows into ONE
+// single-file cohort at dst (FilterToFileOptions.Flatten). The output
+// schema is the archive's CANONICAL `_schema.pulse` schema — the widened
+// set rungs, the union dictionaries and, for a grouped (0x02) archive,
+// the canonical parent-group dictionaries. Every shard's rows already
+// address those (a shard dictionary, categorical, set or group, is a
+// prefix of the canonical one, and every shard shares the canonical
+// physical stride), so each surviving row is copied by position with
+// no remap, and the rows land in global archive order: shards in
+// central-directory order, rows in shard order.
+//
+// Memory is O(one shard): a pure flatten (no predicate) streams each
+// stored shard's records through the copy window; a filtered flatten
+// loads one shard at a time, as the archive arm does. The output is
+// streamed into dst's stage and published by one rename — no
+// whole-output buffer, and dst is untouched until the rename.
+func (s *Service) flattenShardArchiveToFile(ctx context.Context, fsys afero.Fs, dst string, plan filterPlan, a *archiveFile) (int64, error) {
+	canonicalDoc, err := readSchemaDocEntry(a.arch)
+	if err != nil {
+		return 0, err
+	}
+	schema := canonicalDoc.Schema
+
+	var filterFn processing.FilterFunc
+	var keep encx.FieldFilter
+	if plan.hasPredicate() {
+		filterFn, err = s.buildCombinedFilter(schema, plan)
+		if err != nil {
+			return 0, err
+		}
+		keep = s.fieldFilterForPlan(schema, plan)
+	}
+
+	out, err := newStagedStream(fsys, dst)
+	if err != nil {
+		return 0, err
+	}
+	defer out.abort()
+	if err := encx.WritePreamble(out, schema); err != nil {
+		return 0, err
+	}
+	stride := int64(schema.RecordByteSize())
+	if stride <= 0 {
+		return 0, errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
+			"cannot flatten an archive whose canonical schema has no record stride",
+			map[string]any{"archive": a.path})
+	}
+	buf := make([]byte, shardCopyBuffer)
+	window := bufio.NewReaderSize(nil, shardCopyBuffer)
+
+	var total int64
+	for _, e := range a.arch.Entries() {
+		if e.Name == encx.ReservedSchemaName {
+			continue
+		}
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+		if filterFn == nil && a.arch.IsStored(e.Name) {
+			n, err := copyShardRecords(a, e.Name, stride, out, window, buf)
+			if err != nil {
+				return 0, err
+			}
+			total += n
+			continue
+		}
+		shardBytes, err := readEntryBytes(a.arch, e.Name)
+		if err != nil {
+			return 0, err
+		}
+		br := bytes.NewReader(shardBytes)
+		if err := skipShardPreamble(br, e.Name); err != nil {
+			return 0, err
+		}
+		if filterFn == nil {
+			// A deflated shard (a third-party zip tool's), whole
+			// records only.
+			n := int64(br.Len()) / stride
+			start := int64(len(shardBytes)) - int64(br.Len())
+			if _, err := out.Write(shardBytes[start : start+n*stride]); err != nil {
+				return 0, out.wrap(err, "writing flattened cohort")
+			}
+			total += n
+			continue
+		}
+		n, err := s.streamFilterRecords(ctx, br, schema, filterFn, keep, out)
+		if err != nil {
+			return 0, err
+		}
+		total += n
+	}
+	if err := out.commit(); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+// copyShardRecords streams a stored shard's whole records to w through
+// the shared read window and buf: its preamble is read layout-only and
+// skipped, then floor(payload / stride) records are copied — never the
+// shard whole.
+func copyShardRecords(a *archiveFile, name string, stride int64, w io.Writer, window *bufio.Reader, buf []byte) (int64, error) {
+	sect, err := a.storedShard(name)
+	if err != nil {
+		return 0, err
+	}
+	window.Reset(sect)
+	cr := &countingReader{r: window}
+	pulseVersion, err := encoding.ReadHeader(cr)
+	if err != nil {
+		return 0, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
+			fmt.Sprintf("reading shard %q header", name))
+	}
+	if _, err := encx.ReadSchemaLayout(cr, pulseVersion); err != nil {
+		return 0, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
+			fmt.Sprintf("reading shard %q schema", name))
+	}
+	n := max(sect.Size()-cr.n, 0) / stride
+	if _, err := io.CopyBuffer(w, io.LimitReader(cr, n*stride), buf); err != nil {
+		return 0, errors.WrapCodedError(err, errors.ENCODING_IO,
+			fmt.Sprintf("copying shard %q records", name))
+	}
+	return n, nil
+}
+
+// streamFilterRecords iterates records from r (positioned after
 // header+schema), applies filterFn against records decoded with schema,
-// and writes raw record-byte ranges from data into out for kept rows.
-// Returns the number of records written.
+// and writes each kept row's raw bytes — exactly the bytes its decode
+// consumed from r, one physical row — into out. Returns the number of
+// records written. Only the current row is held (rowCapture).
 //
 // keep narrows per-record map population to the fields the predicate
 // actually reads (built once via fieldFilterForPlan). A nil keep falls
 // through to the full-decode path — used when the predicate's field set
 // can't be proven (malformed expression, unknown extension hook).
-func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *bytes.Reader, schema *encoding.Schema, filterFn processing.FilterFunc, keep encx.FieldFilter, out *bytes.Buffer) (int64, error) {
+func (s *Service) streamFilterRecords(ctx context.Context, r io.Reader, schema *encoding.Schema, filterFn processing.FilterFunc, keep encx.FieldFilter, out io.Writer) (int64, error) {
 	mapSize := len(schema.Fields)
 	if keep != nil {
 		mapSize = 0
@@ -475,7 +882,8 @@ func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *byte
 	values := make(map[string]float64, mapSize)
 	nulls := make(map[string]bool, mapSize)
 	wide := make(map[string]any, mapSize)
-	rr := encx.NewRecordReader(br, schema)
+	row := &rowCapture{r: r}
+	rr := encx.NewRecordReader(row, schema)
 	// The map decode echoes a u64 above 2^53 lossily; capture its exact
 	// word for the record the filter reads (nil when no u64 field).
 	exact := encx.NewExactU64Words(schema)
@@ -496,7 +904,7 @@ func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *byte
 		if err := ctx.Err(); err != nil {
 			return 0, err
 		}
-		posStart := int64(len(data)) - int64(br.Len())
+		row.buf = row.buf[:0]
 		err := rr.ReadRecordWithWideProjected(values, nulls, wide, keep)
 		if err == io.EOF {
 			break
@@ -504,7 +912,6 @@ func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *byte
 		if err != nil {
 			return 0, err
 		}
-		posEnd := int64(len(data)) - int64(br.Len())
 
 		rec := processing.NewRecordWithWide(schema, values, nulls, wide)
 		exact.ApplyTo(rec)
@@ -518,10 +925,29 @@ func (s *Service) streamFilterRecords(ctx context.Context, data []byte, br *byte
 		if !keep {
 			continue
 		}
-		out.Write(data[posStart:posEnd])
+		if _, err := out.Write(row.buf); err != nil {
+			return 0, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+				"writing filtered records")
+		}
 		written++
 	}
 	return written, nil
+}
+
+// rowCapture records every byte read through it since the caller last
+// reset buf: the RecordReader over it reads one physical row per record
+// and never ahead (a grouped cohort's logical stream pulls exactly one
+// physical stride per record), so after a decode buf is that row's
+// on-disk bytes.
+type rowCapture struct {
+	r   io.Reader
+	buf []byte
+}
+
+func (c *rowCapture) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.buf = append(c.buf, p[:n]...)
+	return n, err
 }
 
 // readGroupIndices fills idx with the entry index of every parent group
@@ -668,38 +1094,6 @@ func (s *Service) buildCombinedFilter(schema *encoding.Schema, plan filterPlan) 
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
 			"filter_to_file requires at least one of include-set or filter expression")
 	}
-}
-
-// readAnchoredShardBytes resolves an anchor (archivePath, entry) to the
-// shard's standalone single-file `.pulse` payload bytes. Used by
-// FilterToFile to support `archive.pulse#shard.pulse` syntax with the
-// same semantics as service.OpenAnchor.
-func (s *Service) readAnchoredShardBytes(archivePath, entry string) ([]byte, error) {
-	if entry == encx.ReservedSchemaName {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
-			"cannot filter the reserved canonical schema entry",
-			map[string]any{"entry": entry})
-	}
-	data, err := afero.ReadFile(s.fs.Fs(), archivePath)
-	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("opening cohort file for anchor: %s", archivePath))
-	}
-	arch, err := encx.OpenArchive(bytes.NewReader(data), int64(len(data)))
-	if err != nil {
-		return nil, err
-	}
-	rc, err := arch.Open(entry)
-	if err != nil {
-		return nil, err
-	}
-	defer rc.Close()
-	payload, err := io.ReadAll(rc)
-	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.ENCODING_IO,
-			fmt.Sprintf("reading anchored shard %q from %s", entry, archivePath))
-	}
-	return payload, nil
 }
 
 // isShardArchiveMagic reports whether data begins with the zip magic

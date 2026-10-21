@@ -256,9 +256,9 @@ func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 	// Stage 0's limit inputs: the cohort's header counts (never a
 	// record) as Process predict derives them — stage 0 runs Process,
 	// whose pre-flight reads the same counts: a single file's
-	// length-derived count (an anchor-opened shard adds its archive's
-	// bytes), or a shard archive's per-shard header counts and length.
-	schema, stage0Counts, fault := readCohortHead(fileData, opts.AnchorArchiveBytes)
+	// length-derived count (an anchor-opened shard is one), or a shard
+	// archive's per-shard header counts and directory bytes.
+	schema, stage0Counts, fault := readCohortHead(fileData)
 	if fault != nil {
 		env.AddError(string(fault.code), fault.message, fault.details)
 		result.Valid = false

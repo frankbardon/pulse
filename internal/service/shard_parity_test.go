@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"math"
+	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse/internal/fs"
@@ -24,9 +24,9 @@ import (
 // reducer, or anchor overlay when a future change touches one path
 // but not the others.
 //
-// Welford-merged aggregators (AGG_AVERAGE) are compared with a ULP
-// tolerance because the parallel merge introduces float drift within
-// the spec.
+// Every aggregator here (COUNT, MIN, MAX and the binned reproducible
+// AGG_SUM / AGG_AVERAGE) is order-free, so the three shapes are
+// compared bit for bit.
 func TestShardParity_SingleFileVsArchiveVsAnchor(t *testing.T) {
 	schema, shards, concat := canonicalThreeShards()
 
@@ -132,54 +132,14 @@ func TestShardParity_SingleFileVsArchiveVsAnchor(t *testing.T) {
 	}
 }
 
-// assertResponseParity compares two responses row-by-row in index
-// order. Grouped output is sorted by group key at emit time in
+// assertResponseParity compares two responses' Data bit for bit.
+// Grouped output is sorted by group key at emit time in
 // internal/processing/processor.go, so row order is deterministic across
-// runs, codepaths, and worker counts. Float cells use a ULP
-// tolerance (Welford-merged means drift within a few ULP across the
-// parallel reduce path; associative integer ops are byte-equal).
+// runs, codepaths, and worker counts; every cell the cases emit is an
+// order-free reduction (integer counts, sentinel scans, binned sums).
 func assertResponseParity(t *testing.T, label string, a, b *types.Response) {
 	t.Helper()
-	if len(a.Data) != len(b.Data) {
-		t.Fatalf("%s: row count diverges: %d vs %d", label, len(a.Data), len(b.Data))
+	if !reflect.DeepEqual(a.Data, b.Data) {
+		t.Errorf("%s: Data diverges:\n %v\n %v", label, a.Data, b.Data)
 	}
-	for i := range a.Data {
-		left, right := a.Data[i], b.Data[i]
-		if len(left) != len(right) {
-			t.Fatalf("%s row %d: key count diverges: %d vs %d", label, i, len(left), len(right))
-		}
-		for k, lv := range left {
-			rv, ok := right[k]
-			if !ok {
-				t.Errorf("%s row %d: missing key %q on right", label, i, k)
-				continue
-			}
-			if !cellEqual(lv, rv) {
-				t.Errorf("%s row %d key %q: %v != %v", label, i, k, lv, rv)
-			}
-		}
-	}
-}
-
-// cellEqual treats two floats as equal when their absolute difference
-// is within 4 ULPs scaled to magnitude, mirroring the tolerance used
-// by the existing TestShardArchiveProcessSums Welford-mean check. All
-// other types are compared with ==.
-func cellEqual(a, b any) bool {
-	af, aok := a.(float64)
-	bf, bok := b.(float64)
-	if aok && bok {
-		if af == bf {
-			return true
-		}
-		if math.IsNaN(af) && math.IsNaN(bf) {
-			return true
-		}
-		scale := math.Max(math.Abs(af), math.Abs(bf))
-		if scale == 0 {
-			return math.Abs(af-bf) < 1e-12
-		}
-		return math.Abs(af-bf)/scale < 4*1e-15
-	}
-	return a == b
 }

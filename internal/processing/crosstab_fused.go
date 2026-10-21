@@ -126,6 +126,11 @@ type FusedCrosstabState struct {
 	// Update path lazy-constructs the OnlineAggregator the first time
 	// it routes a record into the cell.
 	cells [][]OnlineAggregator
+	// populatedCells counts the non-nil cells — the cells a record
+	// reached. Finalize sizes its per-cell maps by it, never by the
+	// dense rows x cols grid: a sparse grid would otherwise pay a map
+	// slot for every empty position (U51 E5-S11).
+	populatedCells int
 
 	// Per-cell record-count matrix indexed by [rowIdx][colIdx],
 	// kept in lockstep with `cells` above so cellCounts[r][c] mirrors the
@@ -226,9 +231,11 @@ type FusedCrosstabState struct {
 	// above and fed the same records. Allocated only when the cell slot
 	// carries a stamped weight (cellWeighted), so an unweighted crosstab
 	// pays nothing; grandMarginWeight is inert (nil spec) otherwise. The
-	// buffered arm tallies the same rows in runCellAggregation.
+	// buffered arm tallies the same rows in runCellAggregation. A cell's
+	// floor is allocated with its accumulator (Update), so an empty grid
+	// position holds a nil pointer, never a whole floor (U51 E5-S11).
 	cellWeighted      bool
-	cellWeight        [][]WeightFloor
+	cellWeight        [][]*WeightFloor
 	rowMarginWeight   []WeightFloor
 	colMarginWeight   []WeightFloor
 	grandMarginWeight WeightFloor
@@ -789,11 +796,7 @@ func (s *FusedCrosstabState) internRowKey(rowKey string, tuple types.AxisKey) (i
 	// after the row.
 	s.cellNNull = append(s.cellNNull, make([]int, len(s.colKeys)))
 	if s.cellWeighted {
-		row := make([]WeightFloor, len(s.colKeys))
-		for i := range row {
-			row[i] = NewWeightFloor(s.cellAgg)
-		}
-		s.cellWeight = append(s.cellWeight, row)
+		s.cellWeight = append(s.cellWeight, make([]*WeightFloor, len(s.colKeys)))
 	}
 	if s.rowMargins != nil || s.spec.NeedsRowMargin() {
 		// Lazy-init row margins slice on first row to skip the
@@ -856,7 +859,7 @@ func (s *FusedCrosstabState) internColKey(colKey string, tuple types.AxisKey) (i
 		s.cellNNull[i] = append(s.cellNNull[i], 0)
 	}
 	for i := range s.cellWeight {
-		s.cellWeight[i] = append(s.cellWeight[i], NewWeightFloor(s.cellAgg))
+		s.cellWeight[i] = append(s.cellWeight[i], nil)
 	}
 	if s.colMargins != nil || s.spec.NeedsColumnMargin() {
 		if s.colMargins == nil {
@@ -1177,6 +1180,11 @@ func (s *FusedCrosstabState) Update(rec *Record) error {
 						return err
 					}
 					cellRow[colIdx] = cell
+					s.populatedCells++
+					if s.cellWeighted {
+						floor := NewWeightFloor(s.cellAgg)
+						s.cellWeight[rowIdx][colIdx] = &floor
+					}
 				}
 				if err := cell.UpdateRow(rec, s.cellField); err != nil {
 					return err
@@ -2060,7 +2068,7 @@ func (s *FusedCrosstabState) Finalize() (*types.Response, error) {
 	// matrix indexed by the sorted rowKeys / colKeys above so the layout
 	// matches buildMatrixPayload's Cells coordinates byte-for-byte across
 	// buffered and fused paths.
-	cellCountsMap := make(map[crosstabCellKey]int, len(s.rowKeys)*len(s.colKeys))
+	cellCountsMap := make(map[crosstabCellKey]int, s.populatedCells)
 	for rIdx, row := range s.cellCounts {
 		rKey := s.rowKeys[rIdx]
 		for cIdx, n := range row {
@@ -2280,9 +2288,10 @@ func (s *FusedCrosstabState) axisComponents(chain []fusedAxisGrouper) ([]map[str
 // then projects the insertion-order map back into the sorted (r, c)
 // matrix layout, writing nil at coordinates where no record landed.
 func (s *FusedCrosstabState) finalizeCells() (map[crosstabCellKey]any, map[crosstabCellKey]bool, map[crosstabCellKey]map[string]any, error) {
-	// Pre-size to the dense cap, even though sparsely populated cells
-	// will leave headroom — saves rehashes on the dense common case.
-	nCells := len(s.rowKeys) * len(s.colKeys)
+	// Pre-size to the populated cells — the entries these maps take —
+	// never the dense rows x cols grid, whose empty positions would each
+	// cost a map slot (U51 E5-S11).
+	nCells := s.populatedCells
 	values := make(map[crosstabCellKey]any, nCells)
 	present := make(map[crosstabCellKey]bool, nCells)
 	var components map[crosstabCellKey]map[string]any

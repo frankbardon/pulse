@@ -221,7 +221,10 @@ func TestRecord_ExprValueMatchesAllValues(t *testing.T) {
 		var got []any
 		var gotOK []bool
 		for _, n := range names { // before AllValues builds its cache
-			v, ok := r.exprValue(n)
+			v, ok, err := r.exprValue(n)
+			if err != nil {
+				t.Fatalf("%s: exprValue(%q): %v", path, n, err)
+			}
 			got, gotOK = append(got, v), append(gotOK, ok)
 		}
 		all := r.AllValues()
@@ -256,6 +259,20 @@ func TestRecord_ExprValueMatchesAllValues(t *testing.T) {
 	pr.Set("f_f64", 2.5)
 	pr.Set("f_categorical_u8", 1) // outside the projection: overflow, resolved
 	probe("projected", pr)
+
+	// Extra slots (U51 E5-S4): a label, a null label and a label
+	// carrying a boxed wide value read as their overflow twins.
+	xb := BindRecords(s, nil, "label", "ov", "wide_label")
+	xr := xb.NewRecord()
+	rr = encx.NewRecordReader(bytes.NewReader(raw), s)
+	if err := rr.ReadRecordReused(xr); err != nil {
+		t.Fatal(err)
+	}
+	xr.injectValue("label", 4.5)
+	xr.Set("ov", 1)
+	xr.SetNull("ov")
+	xr.SetWide("wide_label", uint64(5))
+	probe("extras", xr, "label", "ov", "wide_label")
 }
 
 // perRowCompile is the pre-E5-S5 evaluation, the parity oracle: compile
@@ -687,5 +704,29 @@ func TestExprProgram_ConcurrentRuns(t *testing.T) {
 			}()
 		}
 		wg.Wait()
+	}
+}
+
+// TestExprProgram_RunReusesVM (U51 E5-S4 (b)): evaluating a compiled
+// expression reuses a pooled expr VM (exprVMPool) instead of building
+// one per call (expr.Run → vm.Run allocated the VM and its stack every
+// row). With an input whose boxing is free (a zero) and a constant
+// result, a warm ATTR_FORMULA row allocates nothing at all.
+func TestExprProgram_RunReusesVM(t *testing.T) {
+	s := exprParitySchema()
+	rec := NewRecordWithWide(s, map[string]float64{"id": 0, "x": 0, "y": 1, "cat": 1, "d": 18262}, nil, nil)
+	comp, err := newFormulaAttribute(&types.Attribute{Type: types.ATTR_FORMULA, Expression: "x >= 20089 && x < 20120 ? 1 : 0", Label: "v"}, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := BindAttribute(comp, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	f := comp.(*formulaAttribute)
+	if v, err := f.Row(rec, ""); err != nil || v != 0 {
+		t.Fatalf("Row = %v, %v; want 0", v, err)
+	}
+	if got := testing.AllocsPerRun(1000, func() { _, _ = f.Row(rec, "") }); got != 0 {
+		t.Fatalf("%.1f allocations a formula row, want 0 (a VM per call?)", got)
 	}
 }

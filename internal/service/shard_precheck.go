@@ -3,12 +3,8 @@ package service
 import (
 	"bytes"
 	"context"
-	"fmt"
-
-	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
 )
 
@@ -39,16 +35,14 @@ func (s *Service) PrecheckShardCohesion(ctx context.Context, archivePath string,
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	archiveBytes, err := afero.ReadFile(s.fs.Fs(), archivePath)
-	if err != nil {
-		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("AddShard: reading archive %s", archivePath))
-	}
-	arch, err := encx.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	// Only the canonical schema is read: the central directory plus the
+	// `_schema.pulse` entry, by random access — never a shard payload.
+	a, err := openArchiveFile(s.fs.Fs(), archivePath)
 	if err != nil {
 		return err
 	}
-	canonicalDoc, err := readSchemaDocEntry(arch)
+	defer a.Close()
+	canonicalDoc, err := readSchemaDocEntry(a.arch)
 	if err != nil {
 		return err
 	}
@@ -77,7 +71,7 @@ func logicalShardCohesion(canonical *encoding.Schema, incoming []byte, archivePa
 		incoming, incSchema = flat, logical
 		canon = cloneSchemaForArchive(canonical.Logical())
 	}
-	canon, _, incSchema, err = reconcileFlat(&shardMerge{}, canon, nil, incoming, incSchema, archivePath)
+	canon, _, incSchema, err = reconcileFlat(&shardMerge{inRecords: -1}, canon, nil, incoming, incSchema, archivePath)
 	if err != nil {
 		return err
 	}

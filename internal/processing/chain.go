@@ -109,13 +109,19 @@ func (f registryMergeFacts) Matrix(name string) (bool, bool) {
 	return op.Streamable, true
 }
 
-// Attribute answers only for EXTENSION attributes (and hidden names);
+// Attribute answers only for EXTENSION attributes (and hidden names):
+// row-local when declared row_local and — for one emitting
+// Components.Attributes figures (ComponentAttributes) — declared
+// Mergeable, its per-run tally folding through
+// extend.MergeableAttribute (processing.MergeableAttributeTally);
 // a built-in answers (false, false) so mergegate.MergeRefusal decides
 // it per attribute — ATTR_FORMULA is row-local only without a
-// total(expr) call (totalcall.Contains). The type-keyed two-pass check
-// below is therefore sufficient: no extension attribute carries an
-// expression-dependent tier. Pinned by TestFormulaTotal_NotMergeable
-// and TestChainGate_ValidatorMatchesRuntime ("total formula").
+// total(expr) call (totalcall.Contains), or with one the reducers' two-
+// phase drive covers (mergegate.ParallelTotals; never on a chain
+// stage). The type-keyed two-pass check below is therefore sufficient:
+// no extension attribute carries an expression-dependent tier. Pinned
+// by TestFormulaTotal_MergeAdmission and
+// TestChainGate_ValidatorMatchesRuntime ("total formula").
 func (f registryMergeFacts) Attribute(name string) (bool, bool) {
 	if f.r.isHidden(name) {
 		return false, true
@@ -124,7 +130,8 @@ func (f registryMergeFacts) Attribute(name string) (bool, bool) {
 	if !f.r.isExtensionAttribute(t) {
 		return false, false
 	}
-	return f.r.IsStreamable("attribute", name) && !f.r.attributeRequiresTwoPass(t) && !f.r.ComponentAttributes[t], true
+	emitsUnmerged := f.r.ComponentAttributes[t] && !f.r.IsMergeable("attribute", name)
+	return f.r.IsStreamable("attribute", name) && !f.r.attributeRequiresTwoPass(t) && !emitsUnmerged, true
 }
 
 // AggregationLabel returns the output column name for an aggregation,
@@ -172,57 +179,173 @@ func ChainOutputSchema(req *types.Request, in *encoding.Schema, kinds vectors.Ag
 }
 
 // RecordsFromChainRows materializes records for the next chain stage
-// from a Response.Data slice + the synthesised schema. Categorical
-// fields land in the dictionary lazily as new keys arrive. Numeric
-// cells are converted to float64; missing / nil cells — and a NaN, the
-// undefined figure the wire writes as null (an expanded vector element
-// no row answered, a ratio over a zero denominator) — become nulls.
+// from a Response.Data slice + the synthesised schema: every record
+// ChainRowIterator yields, at once. Categorical fields land in the
+// dictionary as new keys arrive. Numeric cells are converted to
+// float64; missing / nil cells — and a NaN, the undefined figure the
+// wire writes as null (an expanded vector element no row answered, a
+// ratio over a zero denominator) — become nulls.
 //
 // The returned records share the schema reference; the schema's
-// dictionaries are mutated as new keys are observed.
+// dictionaries are mutated as new keys are observed. The chain runtime
+// reads a stage's rows through ChainRowIterator instead, which holds
+// no record beyond the one it yields.
 func RecordsFromChainRows(rows []map[string]any, schema *encoding.Schema) ([]*Record, error) {
+	it, err := NewChainRowIterator(rows, schema)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*Record, 0, len(rows))
+	for it.Next() {
+		out = append(out, it.Record())
+	}
+	return out, nil
+}
+
+// ChainRowIterator is the next chain stage's input over the previous
+// stage's Response.Data rows (U51 E5-S12, #499). It builds each record
+// when Next reaches its row and keeps none past the current one, so a
+// stage's input costs a few bytes a row beside the rows the chain
+// response returns anyway — materializing every record up front
+// (RecordsFromChainRows) held one Record a row for the whole stage.
+//
+// NewChainRowIterator resolves every categorical cell once, in row
+// order, so the schema's dictionaries are complete — and their entries
+// in first-seen order — before the stage runs, exactly as the eager
+// form left them; a dictionary refusal surfaces there. The records it
+// yields are byte-for-byte RecordsFromChainRows' (same values, same
+// nulls), and Reset replays them.
+type ChainRowIterator struct {
+	rows   []map[string]any
+	schema *encoding.Schema
+	// codes[c][row] is the dictionary index of categorical field
+	// cats[c] in row, or -1 when the cell is null.
+	cats  []int
+	codes [][]int64
+	pos   int
+	cur   *Record
+}
+
+// NewChainRowIterator validates the schema's field types, resolves the
+// categorical cells (populating the dictionaries) and returns the
+// iterator positioned before the first row.
+func NewChainRowIterator(rows []map[string]any, schema *encoding.Schema) (*ChainRowIterator, error) {
 	if schema == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_CONFIG, "chain materialization requires schema")
 	}
-	out := make([]*Record, 0, len(rows))
+	it := &ChainRowIterator{rows: rows, schema: schema, pos: -1}
+	// checked: the fields the pass below visits, in field order — every
+	// categorical one, plus any type the chain schema never carries
+	// (refused at the first row holding a value for it, as the eager
+	// form did).
+	var checked []int
+	for i := range schema.Fields {
+		switch schema.Fields[i].Type {
+		case encoding.FieldTypeF64:
+		case encoding.FieldTypeCategoricalU32:
+			it.cats = append(it.cats, i)
+			checked = append(checked, i)
+		default:
+			checked = append(checked, i)
+		}
+	}
+	it.codes = make([][]int64, len(it.cats))
+	for c := range it.cats {
+		it.codes[c] = make([]int64, len(rows))
+	}
+	// Row-major, field order within a row: the order the eager form
+	// added keys in (each field owns its dictionary, so only the row
+	// order matters) and met a refusal in.
 	for ri, row := range rows {
-		values := make(map[string]float64, len(schema.Fields))
-		nulls := make(map[string]bool)
-		for i := range schema.Fields {
-			f := &schema.Fields[i]
+		c := 0
+		for _, fi := range checked {
+			f := &schema.Fields[fi]
 			raw, present := row[f.Name]
-			if !present || raw == nil {
-				nulls[f.Name] = true
+			if f.Type != encoding.FieldTypeCategoricalU32 {
+				if present && raw != nil {
+					return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
+						fmt.Sprintf("unsupported chain field type %s for %q", f.Type.String(), f.Name))
+				}
 				continue
 			}
-			switch f.Type {
-			case encoding.FieldTypeCategoricalU32:
-				s, ok := stringifyChainKey(raw)
-				if !ok {
-					nulls[f.Name] = true
-					continue
-				}
-				id, err := f.Dictionary.Add(s)
-				if err != nil {
-					return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
-						fmt.Sprintf("row %d field %q: %s", ri, f.Name, err.Error()))
-				}
-				values[f.Name] = float64(id)
-			case encoding.FieldTypeF64:
-				v, ok := coerceFloat(raw)
-				if !ok || math.IsNaN(v) {
-					nulls[f.Name] = true
-					continue
-				}
-				values[f.Name] = v
-			default:
-				return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
-					fmt.Sprintf("unsupported chain field type %s for %q", f.Type.String(), f.Name))
+			it.codes[c][ri] = -1
+			c++
+			if !present || raw == nil {
+				continue
 			}
+			key, ok := stringifyChainKey(raw)
+			if !ok {
+				continue
+			}
+			id, err := f.Dictionary.Add(key)
+			if err != nil {
+				return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
+					fmt.Sprintf("row %d field %q: %s", ri, f.Name, err.Error()))
+			}
+			it.codes[c-1][ri] = int64(id)
 		}
-		out = append(out, NewRecordWithNulls(schema, values, nulls))
 	}
-	return out, nil
+	return it, nil
+}
+
+// Next advances to the next row and builds its record.
+func (it *ChainRowIterator) Next() bool {
+	it.cur = nil
+	if it.pos >= len(it.rows) {
+		return false
+	}
+	it.pos++
+	if it.pos >= len(it.rows) {
+		return false
+	}
+	it.cur = it.build(it.pos)
+	return true
+}
+
+// Record returns the current row's record (valid after Next returns
+// true). Each row's record is a fresh value the caller may keep.
+func (it *ChainRowIterator) Record() *Record { return it.cur }
+
+// Reset rewinds to before the first row.
+func (it *ChainRowIterator) Reset() {
+	it.pos = -1
+	it.cur = nil
+}
+
+// Len is the number of rows the iterator yields.
+func (it *ChainRowIterator) Len() int { return len(it.rows) }
+
+// build is row ri's record: a categorical field its resolved index, an
+// f64 field its numeric cell, and null for a missing, nil,
+// non-numeric or NaN cell.
+func (it *ChainRowIterator) build(ri int) *Record {
+	row := it.rows[ri]
+	r := newPositionalRecord(it.schema)
+	c := 0
+	for i := range it.schema.Fields {
+		f := &it.schema.Fields[i]
+		if c < len(it.cats) && it.cats[c] == i {
+			if id := it.codes[c][ri]; id >= 0 {
+				r.putValue(f.Name, float64(id))
+			} else {
+				r.markNull(f.Name)
+			}
+			c++
+			continue
+		}
+		raw, present := row[f.Name]
+		if !present || raw == nil {
+			r.markNull(f.Name)
+			continue
+		}
+		v, ok := coerceFloat(raw)
+		if !ok || math.IsNaN(v) {
+			r.markNull(f.Name)
+			continue
+		}
+		r.putValue(f.Name, v)
+	}
+	return r
 }
 
 // stringifyChainKey converts any JSON-shaped value to a string for

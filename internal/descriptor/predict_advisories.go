@@ -529,7 +529,9 @@ const extraPassAddedScans = 1
 // (the instance offers) whose expression calls total(expr), in declared
 // order. The predicate is the runtime's (totalcall.Contains, beside the
 // attribute route), so the advisory fires exactly when the formula
-// takes the two-pass drive. details {slot, operator, label, totals,
+// takes the two-pass drive — on the serial arms, and on the parallel
+// reducers' two-phase drive (mergegate.ParallelTotals: one parallel
+// pre-pass, the same one added scan). details {slot, operator, label, totals,
 // added_scans}: totals is the distinct one-argument total() calls the
 // pre-pass sums.
 func extraPassAdvisories(req *types.Request, prefix string, inst *InstanceSnapshot) []descriptor.Advisory {
@@ -552,7 +554,7 @@ func extraPassAdvisories(req *types.Request, prefix string, inst *InstanceSnapsh
 			Code: string(errors.PULSE_ADVISORY_EXTRA_PASS),
 			Message: "ATTR_FORMULA at " + slot + " (" + label + ") calls total() over " + strconv.Itoa(totals) + " " + noun +
 				", so the run adds " + strconv.Itoa(extraPassAddedScans) + " pre-pass over the filtered rows to sum them before any row is evaluated; " +
-				"a two-pass attribute scheduled in the same pass shares it, and with groupers or features the request runs buffered.",
+				"a two-pass attribute scheduled in the same pass shares it, the parallel reducers (ShardWorkers / DecodeWorkers) run it as a parallel pre-pass when the request is ungrouped and no total() argument reads another total, and with groupers or features the request runs buffered.",
 			Details: map[string]any{
 				"slot":        slot,
 				"operator":    string(types.ATTR_FORMULA),

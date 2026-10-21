@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -38,32 +39,38 @@ func TestFormulaTotal_Interface(t *testing.T) {
 	}
 }
 
-// TestFormulaTotal_ExactSequentialSum: total(expr) is the float64 sum
-// of expr over the records, in record order, null rows skipped — bit
-// for bit.
-func TestFormulaTotal_ExactSequentialSum(t *testing.T) {
+// TestFormulaTotal_ExactBinnedSum: total(expr) is the binned
+// reproducible sum (internal/reprosum) of expr over the records, null
+// rows skipped — bit for bit, and the same bits in any row order.
+func TestFormulaTotal_ExactBinnedSum(t *testing.T) {
 	s := exprParitySchema()
 	recs := exprParityRecords(s, 203, true)
-	var want float64
+	var want reprosum.Sum
 	for _, r := range recs {
 		if v, ok := r.NumericValue("x"); ok {
-			want += v / 3
+			want.Add(v / 3)
 		}
 	}
-	got, err := totalFormula(t, s, "total(x / 3) + 0 * y").Compute(recs, "")
-	if err != nil {
-		t.Fatal(err)
+	reversed := make([]*Record, len(recs))
+	for i, r := range recs {
+		reversed[len(recs)-1-i] = r
 	}
-	for i, v := range got {
-		if math.Float64bits(v) != math.Float64bits(want) {
-			t.Fatalf("row %d: %v (%x), want %v (%x)", i, v, math.Float64bits(v), want, math.Float64bits(want))
+	for name, in := range map[string][]*Record{"forward": recs, "reversed": reversed} {
+		got, err := totalFormula(t, s, "total(x / 3) + 0 * y").Compute(in, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i, v := range got {
+			if w := want.Float64(); math.Float64bits(v) != math.Float64bits(w) {
+				t.Fatalf("%s row %d: %v (%x), want %v (%x)", name, i, v, math.Float64bits(v), w, math.Float64bits(w))
+			}
 		}
 	}
 	// A row-level term beside the total: x / total(x) on full rows.
-	var sx float64
+	var sx reprosum.Sum
 	for _, r := range recs {
 		if v, ok := r.NumericValue("x"); ok {
-			sx += v
+			sx.Add(v)
 		}
 	}
 	shares, err := totalFormula(t, s, "(x ?? 0) / total(x)").Compute(recs, "")
@@ -72,8 +79,8 @@ func TestFormulaTotal_ExactSequentialSum(t *testing.T) {
 	}
 	for i, r := range recs {
 		x, _ := r.NumericValue("x")
-		if shares[i] != x/sx {
-			t.Fatalf("row %d: share %v, want %v", i, shares[i], x/sx)
+		if shares[i] != x/sx.Float64() {
+			t.Fatalf("row %d: share %v, want %v", i, shares[i], x/sx.Float64())
 		}
 	}
 }
@@ -261,10 +268,12 @@ func TestFormulaTotal_Routing(t *testing.T) {
 	}
 }
 
-// TestFormulaTotal_NotMergeable: a total() formula is not row-local, so
-// the parallel reducers and ProcessChain refuse to fan it out (each
-// partition's total would be partition-local); a plain formula merges.
-func TestFormulaTotal_NotMergeable(t *testing.T) {
+// TestFormulaTotal_MergeAdmission: a plain formula merges; an
+// ungrouped, one-layer total() formula merges through the reducers'
+// two-phase drive (U51 E3-S1, #399); a grouped one does not (each
+// partition would need per-bucket publication), and no total() formula
+// passes the ProcessChain stage gate, which has no two-phase runtime.
+func TestFormulaTotal_MergeAdmission(t *testing.T) {
 	s := exprParitySchema()
 	req := func(expr string) *types.Request {
 		return &types.Request{
@@ -275,8 +284,16 @@ func TestFormulaTotal_NotMergeable(t *testing.T) {
 	if !CanMergeRequest(req("x * 2"), s) {
 		t.Fatal("plain formula must stay mergeable")
 	}
-	if CanMergeRequest(req("x / total(x)"), s) {
-		t.Fatal("a total() formula must not be mergeable")
+	if !CanMergeRequest(req("x / total(x)"), s) {
+		t.Fatal("an ungrouped one-layer total() formula must merge (two-phase)")
+	}
+	grouped := req("x / total(x)")
+	grouped.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "x"}}
+	if CanMergeRequest(grouped, s) {
+		t.Fatal("a grouped total() formula must not merge")
+	}
+	if CanChainRequest(req("x / total(x)"), s) {
+		t.Fatal("a total() formula must not pass the chain stage gate")
 	}
 }
 

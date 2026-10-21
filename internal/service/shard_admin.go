@@ -2,6 +2,7 @@ package service
 
 import (
 	"archive/zip"
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -13,142 +14,6 @@ import (
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/spf13/afero"
 )
-
-// shardAdminTempPattern is the file-name suffix used for the temp
-// file written during atomic temp+rename mutations. The full
-// convention is `<archive>.tmp-<random>`; afero.TempFile generates the
-// random suffix.
-const shardAdminTempPattern = ".pulse.tmp-"
-
-// CreateShardArchive builds a fresh Pulse shard archive at archivePath
-// from the constituent shardPaths. The first shard seeds the canonical
-// schema; every other shard is validated via
-// encoding.ValidateStructuralCohesion + encoding.ValidateDictPrefixRule.
-// Dictionary growth across shards accumulates into the canonical
-// schema. The archive is written to a temp path on the same filesystem
-// and Rename'd over the destination — partial writes never appear at
-// archivePath (atomic temp+rename, §7.1).
-//
-// Set-width AUTO-WIDEN applies here exactly as it does on AddShard: a
-// set column whose merged dictionary outgrows its declared bitmask, or
-// whose rung differs between two of the shards being seeded, is promoted
-// to the narrowest rung that holds every member, across the canonical
-// schema and every shard accumulated so far. Refusing at create while
-// auto-widening at add was an asymmetry with no defence — the same two
-// files produce an archive or an error depending only on whether they
-// arrived together or one after the other.
-//
-// Widening emits a MANDATORY PULSE_SHARD_SET_WIDENED warning on the
-// result, which is why this returns a *CreateShardArchiveResult rather
-// than a bare error. A silent whole-archive rewrite is exactly the
-// failure class the byte-layout contract exists to prevent: the shards
-// stored in the archive are no longer byte-identical to the `.pulse`
-// files the caller named, and nothing else would say so.
-//
-// A union above the widest rung has nowhere to go and stays fatal
-// (PULSE_SHARD_DICT_WIDTH_OVERFLOW).
-//
-// Errors:
-//   - PULSE_SHARD_RESERVED_NAME — any shardPath has basename `_schema.pulse`.
-//   - PULSE_SHARD_NAME_COLLISION — two shardPaths share a basename.
-//   - PULSE_SHARD_SCHEMA_MISMATCH / PULSE_SHARD_DICT_DIVERGENCE — propagated from cohesion validators.
-//   - PULSE_SHARD_DICT_WIDTH_OVERFLOW — a set union past the widest rung.
-//   - SERVICE_VALIDATION — empty shardPaths.
-//   - SERVICE_RESOURCE — I/O failure on any input/output.
-func (s *Service) CreateShardArchive(ctx context.Context, archivePath string, shardPaths []string) (*CreateShardArchiveResult, error) {
-	if len(shardPaths) == 0 {
-		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION,
-			"CreateShardArchive requires at least one shard path")
-	}
-
-	fsys := s.fs.Fs()
-
-	// Reserved-name + basename-collision precheck. Both errors are
-	// caller-fixable; surface them before any I/O.
-	if err := validateBasenames(shardPaths); err != nil {
-		return nil, err
-	}
-
-	result := &CreateShardArchiveResult{Archive: archivePath,
-		Warnings: []encx.CohesionWarning{}}
-
-	// Read all shard payloads + reconcile set rungs + validate cohesion
-	// + accumulate canonical schema. `shards` holds every shard already
-	// folded in; a widen triggered by shard N re-lays-out all of them,
-	// which is why they are carried as a slice rather than streamed
-	// straight into the zip.
-	shards := make([]shardPayload, 0, len(shardPaths))
-
-	var canonical *encoding.Schema
-	for i, p := range shardPaths {
-		data, err := afero.ReadFile(fsys, p)
-		if err != nil {
-			return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-				fmt.Sprintf("CreateShardArchive: reading shard source %s", p))
-		}
-		schema, err := readSinglePulseSchema(data)
-		if err != nil {
-			return nil, err
-		}
-		base := filepath.Base(p)
-		if i == 0 {
-			canonical = cloneSchemaForArchive(schema)
-			shards = append(shards, shardPayload{name: base, payload: data})
-			continue
-		}
-
-		// One merge rule for create and add (mergeShard): set-rung
-		// reconciliation BEFORE strict cohesion, dictionary union, and —
-		// for grouped shards — the parent-group reconciliation. `shards`
-		// is mutated in place when the archive itself moves.
-		m, merr := mergeShard(canonical, shards, data, base, archivePath)
-		if merr != nil {
-			return nil, merr
-		}
-		canonical = m.canonical
-		data = m.incoming
-		result.Widened = append(result.Widened, m.widened...)
-		result.Regrouped = append(result.Regrouped, m.regrouped...)
-		result.Warnings = append(result.Warnings, m.warnings...)
-		shards = append(shards, shardPayload{name: base, payload: data})
-	}
-
-	var aggregate uint64
-	for _, sh := range shards {
-		n, err := recordCountFromBytes(sh.payload, canonical)
-		if err != nil {
-			return nil, err
-		}
-		aggregate += uint64(n)
-	}
-
-	// Assemble the archive bytes in memory.
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-
-	schemaPayload, err := buildSchemaDocPayload(canonical, aggregate, uint16(len(shards)))
-	if err != nil {
-		return nil, err
-	}
-	if err := writeArchiveEntry(zw, encx.ReservedSchemaName, schemaPayload); err != nil {
-		return nil, err
-	}
-	for _, sh := range shards {
-		if err := writeArchiveEntry(zw, sh.name, sh.payload); err != nil {
-			return nil, err
-		}
-	}
-	if err := zw.Close(); err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			"CreateShardArchive: finalising zip writer")
-	}
-
-	if err := atomicWrite(fsys, archivePath, buf.Bytes()); err != nil {
-		return nil, err
-	}
-	result.ShardCount = len(shards)
-	return result, nil
-}
 
 // AddShard appends shardPath to the archive at archivePath. The
 // incoming shard is validated against the archive's canonical schema
@@ -167,14 +32,31 @@ func (s *Service) CreateShardArchive(ctx context.Context, archivePath string, sh
 // a cheap append. A union above the widest rung has nowhere to go and
 // stays fatal (PULSE_SHARD_DICT_WIDTH_OVERFLOW).
 //
-// v1 strategy: read the full archive into memory, append the new shard
-// entry, rewrite the central directory + EOCD, and write the resulting
-// bytes back via the atomic temp+fsync+rename pattern (§7.1). That
-// atomicity is what makes the widen safe without locking — concurrency
-// is caller-owned by contract, and a mid-rewrite failure leaves the
-// original archive byte-identical and openable rather than half-widened
-// (which would open, and decode every post-widen field at the wrong
-// offset).
+// Streaming rewrite: the archive is opened by random access (central
+// directory + `_schema.pulse`), the aggregate is summed header-only
+// (PeekShardRecordCount), and a new archive is streamed into a staged
+// file beside the original (archiveWriter) — the refreshed
+// `_schema.pulse`, every stored shard copied RAW with zip CreateRaw
+// from a SectionReader (no decode), then the new shard — and renamed
+// over it. Memory is O(the new shard), I/O O(the archive). Only when the
+// archive itself moves (an archive-level set widen, a constant-group
+// promotion) is each stored shard read, one at a time, and re-encoded
+// on its way into the stage. The rename is what makes the widen safe
+// without locking — concurrency is caller-owned by contract, and a
+// failure (or a crash) at any point before it leaves the original
+// archive byte-identical and openable rather than half-widened (which
+// would open, and decode every post-widen field at the wrong offset).
+// True in-place tail append is not done: it would give up exactly that
+// guarantee.
+//
+// Point-lookup indexes (index_upkeep.go): an ordinary add builds the new
+// shard's sidecar for every archive index and the updated index
+// manifest BEFORE the archive is published — any failure aborts the
+// whole add with the archive, every sidecar and the manifest untouched
+// — then renames the archive, the sidecars and the manifest, in that
+// order, with the mandatory PULSE_SHARD_INDEXES_UPDATED warning. An add
+// that re-encodes the stored shards keeps nothing and reports the
+// sidecars it invalidated (AddShardResult.InvalidatedSidecars).
 func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (*AddShardResult, error) {
 	fsys := s.fs.Fs()
 
@@ -185,17 +67,13 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 			map[string]any{"basename": base})
 	}
 
-	archiveBytes, err := afero.ReadFile(fsys, archivePath)
-	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("AddShard: reading archive %s", archivePath))
-	}
-	arch, err := encx.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	a, err := openArchiveFile(fsys, archivePath)
 	if err != nil {
 		return nil, err
 	}
+	defer a.Close()
 
-	// Read incoming shard bytes.
+	// Read incoming shard bytes: the one payload an ordinary add holds.
 	incomingBytes, err := afero.ReadFile(fsys, shardPath)
 	if err != nil {
 		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
@@ -207,8 +85,7 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 		return nil, err
 	}
 
-	// Read canonical schema doc.
-	canonicalDoc, err := readSchemaDocEntry(arch)
+	canonicalDoc, err := readSchemaDocEntry(a.arch)
 	if err != nil {
 		return nil, err
 	}
@@ -216,11 +93,18 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 	result := &AddShardResult{Archive: archivePath, Added: shardPath,
 		Warnings: []encx.CohesionWarning{}}
 
-	// Enumerate existing shard payloads, detecting name collision. This
-	// happens BEFORE the widen so a collision costs nothing, and because
-	// an auto-widen has to rewrite every one of these payloads.
-	existing := make([]shardPayload, 0, len(arch.Entries()))
-	for _, e := range arch.Entries() {
+	// The archive's point-lookup indexes, read before anything is
+	// written: an unreadable manifest aborts the add (build before
+	// publish — an index the add cannot read, it cannot keep).
+	manifest, indexEntries, err := readArchiveIndexes(fsys, archivePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Enumerate the stored shards, detecting a name collision before any
+	// payload is read.
+	stored := &archiveShards{a: a}
+	for _, e := range a.arch.Entries() {
 		if e.Name == encx.ReservedSchemaName {
 			continue
 		}
@@ -229,11 +113,12 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 				fmt.Sprintf("archive already contains a shard named %q", base),
 				map[string]any{"basename": base})
 		}
-		payload, perr := readEntryBytes(arch, e.Name)
-		if perr != nil {
-			return nil, perr
-		}
-		existing = append(existing, shardPayload{name: e.Name, payload: payload})
+		stored.names = append(stored.names, e.Name)
+	}
+	// The SHRD trailer's shard_count is a u16: refuse an add past it
+	// before any shard is merged or written.
+	if err := checkArchiveShardCount(stored.shardCount()+1, archivePath); err != nil {
+		return nil, err
 	}
 
 	// The one merge rule create shares (mergeShard): set-rung
@@ -241,109 +126,146 @@ func (s *Service) AddShard(ctx context.Context, archivePath, shardPath string) (
 	// whole of the relaxation, because a divergent rung fails cohesion on
 	// the type byte and on every offset it shifts — then strict cohesion
 	// over the RECONCILED schemas, the dictionary union, and for grouped
-	// shards the parent-group reconciliation. `existing` is mutated in
-	// place when the archive itself moves (an archive-wide widen or a
-	// constant-group promotion).
-	m, err := mergeShard(canonicalDoc.Schema, existing, incomingBytes, base, archivePath)
+	// shards the parent-group reconciliation. m.rewrite is non-nil only
+	// when the archive itself moves.
+	m, err := mergeShard(canonicalDoc.Schema, stored, incomingBytes, -1, base, archivePath)
 	if err != nil {
 		return nil, err
 	}
-	canonicalSchema := m.canonical
-	incomingBytes = m.incoming
 	result.Widened = m.widened
 	result.Regrouped = m.regrouped
 	result.Warnings = append(result.Warnings, m.warnings...)
 
-	// Aggregate record count: sum across existing shards + the new
-	// shard, computed from per-shard payloads. We re-peek each existing
-	// shard's record count rather than trust _schema.pulse's cached
-	// aggregate (the cached value may lag if the archive was edited
-	// outside Pulse). Post-widen the payloads carry the new stride and
-	// canonicalSchema the new type bytes, so the two agree.
-	newShardCount := uint16(len(existing) + 1)
-	var aggregate uint64
-	for _, e := range existing {
-		n, perr := recordCountFromBytes(e.payload, canonicalSchema)
-		if perr != nil {
-			return nil, perr
-		}
-		aggregate += uint64(n)
-	}
-	{
-		n, perr := recordCountFromBytes(incomingBytes, canonicalSchema)
-		if perr != nil {
-			return nil, perr
-		}
-		aggregate += uint64(n)
-	}
-
-	// Rebuild the archive: canonical schema (possibly extended and/or
-	// widened) + every previously-stored shard + the new shard at the
-	// tail.
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-
-	schemaPayload, err := buildSchemaDocPayload(canonicalSchema, aggregate, newShardCount)
+	// Aggregate record count, header-only: each stored shard's own
+	// header (never the cached `_schema.pulse` aggregate, which may lag an
+	// archive edited outside Pulse) plus the arrival. A widen or regroup
+	// re-lays-out records but never changes how many there are.
+	aggregate, err := sumStoredRecords(stored)
 	if err != nil {
 		return nil, err
 	}
-	if err := writeArchiveEntry(zw, encx.ReservedSchemaName, schemaPayload); err != nil {
+	n, err := recordCountFromBytes(m.incoming, m.canonical)
+	if err != nil {
 		return nil, err
 	}
-	for _, e := range existing {
-		if err := writeArchiveEntry(zw, e.name, e.payload); err != nil {
-			return nil, err
+	aggregate += uint64(n)
+	shardCount := stored.shardCount() + 1
+
+	w, err := newArchiveWriter(fsys, archivePath)
+	if err != nil {
+		return nil, err
+	}
+	defer w.abort()
+	if err := w.writeSchemaDoc(m.canonical, aggregate, shardCount); err != nil {
+		return nil, err
+	}
+	if err := writeStoredShards(w, a, stored, m.rewrite); err != nil {
+		return nil, err
+	}
+	if err := w.writeEntry(base, m.incoming); err != nil {
+		return nil, err
+	}
+	// The source handle is released before the rename replaces its file.
+	if err := a.Close(); err != nil {
+		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+			fmt.Sprintf("AddShard: closing archive %s", archivePath))
+	}
+	if err := w.finish(); err != nil {
+		return nil, err
+	}
+	// Index upkeep, BUILT BEFORE PUBLISH: the new shard's sidecars and
+	// the updated manifest are staged from the finished stage archive;
+	// any failure here returns with the archive, every sidecar and the
+	// manifest untouched (w.abort and the upkeep's own abort remove the
+	// stages). A re-encoding add keeps nothing — every stored shard's
+	// CRC32 moves — and reports the sidecars it invalidated instead.
+	var upkeep *indexUpkeep
+	if manifest != nil {
+		if m.rewrite == nil {
+			upkeep, err = stageAddUpkeep(fsys, archivePath, w.stagedPath(), m.canonical, base, manifest, indexEntries)
+			if err != nil {
+				return nil, err
+			}
+			defer upkeep.abort()
+		} else {
+			result.InvalidatedSidecars = staleArchiveSidecars(archivePath, manifest, indexEntries)
 		}
 	}
-	if err := writeArchiveEntry(zw, base, incomingBytes); err != nil {
+	if err := w.publish(); err != nil {
 		return nil, err
 	}
-	if err := zw.Close(); err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			"AddShard: finalising zip writer")
+	if upkeep != nil {
+		result.Warnings = append(result.Warnings, upkeep.publish())
 	}
-
-	if err := atomicWrite(fsys, archivePath, buf.Bytes()); err != nil {
-		return nil, err
-	}
-	result.ShardCount = int(newShardCount)
+	result.ShardCount = shardCount
 	return result, nil
+}
+
+// writeStoredShards streams every stored shard into w in archive order:
+// copied raw when rewrite is nil, otherwise read one at a time, passed
+// through rewrite and stored — so a rewrite holds one shard, never the
+// archive.
+func writeStoredShards(w *archiveWriter, a *archiveFile, stored storedShards, rewrite storedRewrite) error {
+	for i := range stored.shardCount() {
+		name := stored.shardName(i)
+		if rewrite == nil {
+			if err := w.copyEntry(a, name); err != nil {
+				return err
+			}
+			continue
+		}
+		payload, err := stored.loadShard(i)
+		if err != nil {
+			return err
+		}
+		if payload, err = rewrite(name, payload); err != nil {
+			return err
+		}
+		if err := w.writeEntry(name, payload); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RemoveShard rewrites the archive at archivePath omitting the named
 // shard. The canonical schema is preserved (orphaned dictionary
 // entries are retained — canonical only grows). Returns
 // PULSE_SHARD_MISSING when the named shard is not present.
-func (s *Service) RemoveShard(ctx context.Context, archivePath, shardBasename string) error {
+//
+// Every archive point-lookup index covering the shard is kept in step:
+// the updated index manifest is staged before the archive is touched,
+// then — after the archive rename — published and the removed shard's
+// sidecars deleted, with the mandatory PULSE_SHARD_INDEXES_UPDATED
+// warning. No other sidecar is touched (the kept shards' bytes, sizes
+// and CRC32s are copied raw, so their sidecars stay valid).
+//
+// Streams like AddShard: the kept shards are copied raw into a staged
+// archive, the aggregate is summed header-only, and one rename
+// publishes it — O(one copy buffer) memory, the original byte-identical
+// until the rename.
+func (s *Service) RemoveShard(ctx context.Context, archivePath, shardBasename string) (*RemoveShardResult, error) {
 	fsys := s.fs.Fs()
 	if shardBasename == encx.ReservedSchemaName {
-		return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
 			"cannot remove the reserved canonical schema entry",
 			map[string]any{"basename": shardBasename})
 	}
 
-	archiveBytes, err := afero.ReadFile(fsys, archivePath)
+	a, err := openArchiveFile(fsys, archivePath)
 	if err != nil {
-		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("RemoveShard: reading archive %s", archivePath))
+		return nil, err
 	}
-	arch, err := encx.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	defer a.Close()
+
+	canonicalDoc, err := readSchemaDocEntry(a.arch)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	canonicalDoc, err := readSchemaDocEntry(arch)
-	if err != nil {
-		return err
-	}
-
-	type entry struct {
-		name    string
-		payload []byte
-	}
-	kept := make([]entry, 0)
+	kept := &archiveShards{a: a}
 	found := false
-	for _, e := range arch.Entries() {
+	for _, e := range a.arch.Entries() {
 		if e.Name == encx.ReservedSchemaName {
 			continue
 		}
@@ -351,47 +273,85 @@ func (s *Service) RemoveShard(ctx context.Context, archivePath, shardBasename st
 			found = true
 			continue
 		}
-		payload, perr := readEntryBytes(arch, e.Name)
-		if perr != nil {
-			return perr
-		}
-		kept = append(kept, entry{name: e.Name, payload: payload})
+		kept.names = append(kept.names, e.Name)
 	}
 	if !found {
-		return errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_MISSING,
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_MISSING,
 			fmt.Sprintf("shard %q not present in archive", shardBasename),
 			map[string]any{"entry": shardBasename})
 	}
 
-	// Recompute aggregate record count over the kept shards.
-	var aggregate uint64
-	for _, e := range kept {
-		n, perr := recordCountFromBytes(e.payload, canonicalDoc.Schema)
-		if perr != nil {
-			return perr
-		}
-		aggregate += uint64(n)
+	// Index upkeep, staged before the archive is touched: the removed
+	// shard's record leaves every index manifest entry that covers it.
+	// An unreadable manifest aborts the remove.
+	result := &RemoveShardResult{Archive: archivePath, Removed: shardBasename,
+		ShardCount: kept.shardCount(), Warnings: []encx.CohesionWarning{}}
+	manifest, indexEntries, err := readArchiveIndexes(fsys, archivePath)
+	if err != nil {
+		return nil, err
 	}
+	var upkeep *indexUpkeep
+	if manifest != nil {
+		if upkeep, err = stageRemoveUpkeep(fsys, archivePath, shardBasename, manifest, indexEntries); err != nil {
+			return nil, err
+		}
+		defer upkeep.abort()
+	}
+	if err := rewriteKeptShards(fsys, a, archivePath, canonicalDoc.Schema, kept); err != nil {
+		return nil, err
+	}
+	if upkeep != nil {
+		result.Warnings = append(result.Warnings, upkeep.publish())
+	}
+	return result, nil
+}
 
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-	schemaPayload, err := buildSchemaDocPayload(canonicalDoc.Schema, aggregate, uint16(len(kept)))
+// RemoveShardResult is what RemoveShard reports. Like AddShardResult it
+// is a result rather than a bare error so the mandatory
+// PULSE_SHARD_INDEXES_UPDATED warning (the removed shard's point-lookup
+// sidecars deleted and the index manifest pruned) has a channel.
+type RemoveShardResult struct {
+	// Archive is the archive path that was rewritten.
+	Archive string `json:"archive"`
+	// Removed is the basename of the shard that was removed.
+	Removed string `json:"removed"`
+	// ShardCount is the archive's shard count after the remove.
+	ShardCount int `json:"shard_count"`
+	// Warnings carry every non-fatal diagnostic the remove produced:
+	// PULSE_SHARD_INDEXES_UPDATED when an archive index covered the
+	// shard (or PULSE_INDEX_STALE when publishing that upkeep failed
+	// after the archive was rewritten). Shaped like the descriptor
+	// envelope's warning entries.
+	Warnings []encx.CohesionWarning `json:"warnings"`
+}
+
+// rewriteKeptShards publishes an archive holding canonical and the kept
+// stored shards, copied raw, under a refreshed `_schema.pulse` whose
+// aggregate is summed header-only. RemoveShard and CompactShardArchive
+// share it. It closes a before the rename. Raw copies keep every stored
+// shard's bytes, size and CRC32, so the archive's point-lookup sidecars
+// stay valid for every kept shard.
+func rewriteKeptShards(fsys afero.Fs, a *archiveFile, archivePath string, canonical *encoding.Schema, kept *archiveShards) error {
+	aggregate, err := sumStoredRecords(kept)
 	if err != nil {
 		return err
 	}
-	if err := writeArchiveEntry(zw, encx.ReservedSchemaName, schemaPayload); err != nil {
+	w, err := newArchiveWriter(fsys, archivePath)
+	if err != nil {
 		return err
 	}
-	for _, e := range kept {
-		if err := writeArchiveEntry(zw, e.name, e.payload); err != nil {
-			return err
-		}
+	defer w.abort()
+	if err := w.writeSchemaDoc(canonical, aggregate, kept.shardCount()); err != nil {
+		return err
 	}
-	if err := zw.Close(); err != nil {
+	if err := writeStoredShards(w, a, kept, nil); err != nil {
+		return err
+	}
+	if err := a.Close(); err != nil {
 		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			"RemoveShard: finalising zip writer")
+			fmt.Sprintf("closing archive %s", archivePath))
 	}
-	return atomicWrite(fsys, archivePath, buf.Bytes())
+	return w.commit()
 }
 
 // ListShards opens the archive and returns its ShardEntry slice in
@@ -409,27 +369,42 @@ func (s *Service) ListShards(ctx context.Context, archivePath string) ([]ShardEn
 // ExtractShard returns an io.ReadCloser over the named shard's
 // standalone single-file `.pulse` bytes. The closer releases the
 // archive resources; callers must invoke Close after draining.
+//
+// The archive is read by random access: the reader streams the one
+// entry (CRC-checked at EOF) off an open archive handle, which Close
+// releases — no other entry, and no whole-archive copy, is read.
 func (s *Service) ExtractShard(ctx context.Context, archivePath, shardBasename string) (io.ReadCloser, error) {
-	fsys := s.fs.Fs()
-	archiveBytes, err := afero.ReadFile(fsys, archivePath)
-	if err != nil {
-		return nil, errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("ExtractShard: reading archive %s", archivePath))
-	}
-	arch, err := encx.OpenArchive(bytes.NewReader(archiveBytes), int64(len(archiveBytes)))
+	a, err := openArchiveFile(s.fs.Fs(), archivePath)
 	if err != nil {
 		return nil, err
 	}
 	if shardBasename == encx.ReservedSchemaName {
+		_ = a.Close()
 		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_RESERVED_NAME,
 			"cannot extract the reserved canonical schema entry as a shard",
 			map[string]any{"basename": shardBasename})
 	}
-	rc, err := arch.Open(shardBasename)
+	rc, err := a.arch.Open(shardBasename)
 	if err != nil {
+		_ = a.Close()
 		return nil, err
 	}
-	return rc, nil
+	return &archiveEntryCloser{ReadCloser: rc, archive: a}, nil
+}
+
+// archiveEntryCloser is an entry reader that also releases its
+// archive handle on Close.
+type archiveEntryCloser struct {
+	io.ReadCloser
+	archive *archiveFile
+}
+
+func (c *archiveEntryCloser) Close() error {
+	err := c.ReadCloser.Close()
+	if aerr := c.archive.Close(); err == nil {
+		err = aerr
+	}
+	return err
 }
 
 // validateBasenames runs the reserved-name and uniqueness checks over
@@ -563,6 +538,36 @@ func readSchemaDocEntry(arch *encx.Archive) (*encx.SchemaDoc, error) {
 	return doc, nil
 }
 
+// readEntrySchemaVerified parses the named entry's header + schema off
+// its entry stream, then drains the rest into io.Discard so the zip
+// reader verifies the entry's CRC — what reading it whole did, without
+// holding the payload. A short or malformed prefix is
+// PULSE_SHARD_HEADER_INVALID; a failed drain (a CRC mismatch, a
+// truncated entry) is ENCODING_IO.
+func readEntrySchemaVerified(arch *encx.Archive, name string) (*encoding.Schema, error) {
+	rc, err := arch.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	r := bufio.NewReader(rc)
+	pulseVersion, err := encoding.ReadHeader(r)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
+			"reading shard header")
+	}
+	schema, err := encoding.ReadSchema(r, pulseVersion)
+	if err != nil {
+		return nil, errors.WrapCodedError(err, errors.PULSE_SHARD_HEADER_INVALID,
+			"reading shard schema")
+	}
+	if _, err := io.Copy(io.Discard, r); err != nil {
+		return nil, errors.WrapCodedError(err, errors.ENCODING_IO,
+			fmt.Sprintf("reading archive entry %q", name))
+	}
+	return schema, nil
+}
+
 // readEntryBytes drains the named entry into a byte slice.
 func readEntryBytes(arch *encx.Archive, name string) ([]byte, error) {
 	rc, err := arch.Open(name)
@@ -580,10 +585,15 @@ func readEntryBytes(arch *encx.Archive, name string) ([]byte, error) {
 
 // buildSchemaDocPayload serialises a canonical schema + sharding
 // metadata extension into a byte slice suitable for storage under
-// encoding.ReservedSchemaName.
-func buildSchemaDocPayload(schema *encoding.Schema, agg uint64, shardCount uint16) ([]byte, error) {
+// encoding.ReservedSchemaName. A shard count past the u16 trailer field
+// is refused (PULSE_SHARD_COUNT_LIMIT), never truncated — the last line
+// of defence behind each writer's own up-front check.
+func buildSchemaDocPayload(schema *encoding.Schema, agg uint64, shardCount int, archivePath string) ([]byte, error) {
+	if err := checkArchiveShardCount(shardCount, archivePath); err != nil {
+		return nil, err
+	}
 	var buf bytes.Buffer
-	if err := encx.WriteSchemaDoc(&buf, schema, agg, shardCount); err != nil {
+	if err := encx.WriteSchemaDoc(&buf, schema, agg, uint16(shardCount)); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
@@ -599,57 +609,6 @@ func writeArchiveEntry(zw *zip.Writer, name string, payload []byte) error {
 	if _, err := w.Write(payload); err != nil {
 		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
 			fmt.Sprintf("writing archive entry %q", name))
-	}
-	return nil
-}
-
-// atomicWrite writes data to dst via the temp+fsync+rename pattern. Uses
-// afero.TempFile so MemMapFs and OsFs both honour the contract. On
-// failure the temp file is best-effort cleaned up; the canonical
-// destination is never partially overwritten.
-//
-// Future optimisation: true in-place append for AddShard atop lower-
-// level zip primitives. v1 reads the entire archive into memory and
-// rewrites — semantically equivalent and crash-safe.
-func atomicWrite(fsys afero.Fs, dst string, data []byte) error {
-	// The temp file is staged BESIDE dst — never in "": afero.TempFile
-	// maps an empty dir to os.TempDir(), which under Options{DataDir}
-	// (a BasePathFs) resolves outside the base path and fails for an
-	// archive at the data-dir root. filepath.Dir yields "." there, which
-	// every afero backend resolves against its own root.
-	tmp, err := afero.TempFile(fsys, filepath.Dir(dst), filepath.Base(dst)+shardAdminTempPattern)
-	if err != nil {
-		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("creating temp file for atomic rename of %s", dst))
-	}
-	tmpName := tmp.Name()
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		_ = fsys.Remove(tmpName)
-		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("writing temp file for %s", dst))
-	}
-	// fsync BEFORE the rename: a rename that lands while the temp
-	// file's contents are still only in the page cache publishes a name
-	// pointing at bytes a crash can still lose. That matters most for
-	// the set-widen rewrite, where the alternative to "old archive" is
-	// not "missing archive" but "archive whose schema block promises a
-	// stride its records do not have".
-	if err := tmp.Sync(); err != nil {
-		tmp.Close()
-		_ = fsys.Remove(tmpName)
-		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("syncing temp file for %s", dst))
-	}
-	if err := tmp.Close(); err != nil {
-		_ = fsys.Remove(tmpName)
-		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("closing temp file for %s", dst))
-	}
-	if err := fsys.Rename(tmpName, dst); err != nil {
-		_ = fsys.Remove(tmpName)
-		return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
-			fmt.Sprintf("renaming temp file %s to %s", tmpName, dst))
 	}
 	return nil
 }

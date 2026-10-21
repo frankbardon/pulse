@@ -87,11 +87,17 @@ func (a *anovaRMRow) UpdateRow(record *Record) error {
 	if !ok {
 		return nil
 	}
-	cond, ok := record.LevelValue(a.condition)
+	cond, ok, err := record.LevelValueChecked(a.condition)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return nil
 	}
-	subj, ok := record.LevelValue(a.subject)
+	subj, ok, err := record.LevelValueChecked(a.subject)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return nil
 	}

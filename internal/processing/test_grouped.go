@@ -42,6 +42,13 @@ import (
 // refusal fails the one test slot alone (a result carrying an Error).
 var sparseTestCodes = slotfail.TestCodes
 
+// isSparseTestFault reports whether coded fails one group alone: a
+// sparseTestCodes refusal, or the corrupt-record-data refusal a test's
+// level read latched (slotfail.CorruptRecordData, U51 E5-S10).
+func isSparseTestFault(coded *errors.CodedError) bool {
+	return sparseTestCodes[coded.Code] || slotfail.CorruptRecordData(coded)
+}
+
 // groupedRowTests is a grouped run's tier-1 test state: the mintable
 // plans and one instance set per bucket key. A nil *groupedRowTests is
 // a request without tests (or without groups, or whose ComputePlan
@@ -135,7 +142,7 @@ func (g *groupedRowTests) finalize(keys []string) ([]*types.TestResult, []rowTes
 			res, err := e.test.Finalize()
 			if err != nil {
 				var coded *errors.CodedError
-				if !stderrors.As(err, &coded) || !sparseTestCodes[coded.Code] {
+				if !stderrors.As(err, &coded) || !isSparseTestFault(coded) {
 					return nil, nil, nil, err
 				}
 				res, warn := sparseTestResult(e.spec, e.label, e.idx, e.groupKey, coded, "group")

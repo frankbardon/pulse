@@ -275,17 +275,16 @@ const (
 // Mergeable reports whether this group type's per-key state can be
 // combined across partitions of the input. CATEGORY and RANGE (online)
 // derive their key purely from the row's value so per-shard buckets
-// merge by key-union; QUANTILE/DATE/KMEANS depend on the full set or a
-// finalize-time bucketization that the parallel reducer cannot
-// replicate piecewise. ROUNDED could be mergeable in principle but is
-// deferred — the parallel orchestrator only opts in on combinations
-// we exercise in goldens today.
+// merge by key-union, and so does ROUNDED (its key is the floor-rounded
+// value, its per-bucket count sums); QUANTILE/DATE/KMEANS depend on the
+// full set or a finalize-time bucketization that the parallel reducer
+// cannot replicate piecewise.
 func (t GroupType) Mergeable() bool {
 	switch t {
-	case GROUP_CATEGORY, GROUP_RANGE, GROUP_DATE_RANGES, GROUP_NUMERIC_RANGES,
+	case GROUP_CATEGORY, GROUP_RANGE, GROUP_ROUNDED, GROUP_DATE_RANGES, GROUP_NUMERIC_RANGES,
 		GROUP_SET_VALUE, GROUP_SET_PER_ELEMENT:
 		return true
-	case GROUP_ROUNDED, GROUP_QUANTILE, GROUP_DATE, GROUP_KMEANS:
+	case GROUP_QUANTILE, GROUP_DATE, GROUP_KMEANS:
 		return false
 	}
 	return false

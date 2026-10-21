@@ -126,7 +126,10 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 		rec     = 400
 	)
 	payload := int64(runBaseBytes + records*fileCopyFactor*stride)
-	bucket := func(aggs int64) int64 { return bucketBaseBytes + aggs*aggStateBytes }
+	// bucket is a merged bucket's state + finalize output; state is a
+	// parallel partition's bucket (no output).
+	state := func(aggs int64) int64 { return bucketBaseBytes + aggs*aggStateBytes }
+	bucket := func(aggs int64) int64 { return state(aggs) + bucketOutputBytes + aggs*aggOutputBytes }
 	cases := []struct {
 		name string
 		in   MemoryInputs
@@ -136,35 +139,62 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 			payload + records*(rec+2*bufferedValueBytes) + bucket(2)},
 		{"buffered derived columns", MemoryInputs{Arm: ArmBuffered, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, DerivedColumns: 3},
 			payload + records*(rec+bufferedValueBytes+3*derivedColumnBytes) + bucket(1)},
-		{"buffered crosstab", MemoryInputs{Arm: ArmBuffered, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, Cells: 40},
-			payload + records*(rec+bufferedValueBytes) + bucket(1) + 40*cellBytes},
+		{"buffered crosstab", MemoryInputs{Arm: ArmBuffered, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1,
+			Cells: 40, CellBytes: 900, AxisKeys: 13, AxisKeyBytes: 672, MarginSlots: 14, MarginSlotBytes: 900, AuxSlots: 14, AuxSlotBytes: 1200, CrosstabMeasures: 2},
+			payload + records*(rec+bufferedValueBytes) + bucket(1) + 40*900 + 13*672 + 14*900 + 14*1200 +
+				records*crosstabBufferedRecordBytes + 2*(40*crosstabBufferedCellBytes+13*crosstabBufferedAxisKeyBytes)},
 		// Streaming holds no record: buckets only.
 		{"streaming grouped", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 16, Aggregations: 2},
 			payload + 16*bucket(2)},
 		{"streaming value state", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, ValueStateAggregations: 1},
 			payload + records*valueEntryBytes + bucket(1)},
-		{"fused crosstab", MemoryInputs{Arm: ArmFusedCrosstab, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, Cells: 40},
-			payload + 40*cellBytes},
+		{"fused crosstab", MemoryInputs{Arm: ArmFusedCrosstab, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1,
+			Cells: 40, CellBytes: 900, AxisKeys: 13, AxisKeyBytes: 672, MarginSlots: 14, MarginSlotBytes: 900, AuxSlots: 14, AuxSlotBytes: 1200},
+			payload + 40*900 + 13*672 + 14*900 + 14*1200},
+		// The crosstab terms are the crosstab arms' alone.
+		{"streaming ignores crosstab terms", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1,
+			Cells: 40, CellBytes: 900, AxisKeys: 13, AxisKeyBytes: 672},
+			payload + bucket(1)},
 		{"join build side", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, JoinRightRows: 300},
 			payload + 300*(fileCopyFactor*stride+buildCopyFactor*rec) + bucket(1)},
 		{"matrix state", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, MatrixBytes: 12345},
 			payload + 12345 + bucket(1)},
 		{"no records", MemoryInputs{Arm: ArmBuffered, Buckets: 1}, runBaseBytes + bucket(0)},
-		// An archive: its byte length replaces records x stride in the
-		// payload term, plus every schema block decoded with its
-		// dictionaries (the canonical entry; the shards' are read
-		// layout-only).
-		{"archive", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, ArchiveBytes: 90_000, SchemaDecodes: 1, SchemaBytes: 7000},
-			runBaseBytes + fileCopyFactor*90_000 + 7000 + bucket(1)},
-		// An anchor-opened shard: the archive's bytes, no extra decode.
-		{"anchor", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, ArchiveBytes: 90_000},
-			runBaseBytes + fileCopyFactor*90_000 + bucket(1)},
-		{"archive under the payload", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, ArchiveBytes: 10},
-			payload + bucket(1)},
-		// The per-shard parallel arm: every partial's buckets and
-		// per-value state beside the merged ones.
+		// An archive (U51 E1-S2): streamed one shard at a time, so the
+		// payload term charges the LARGEST shard's records x stride, not
+		// the archive's; plus its central directory and the one schema
+		// block decoded with its dictionaries (the canonical entry; the
+		// shards' are read layout-only).
+		{"archive", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, MaxShardRecords: 400, DirectoryBytes: 900, SchemaDecodes: 1, SchemaBytes: 7000},
+			runBaseBytes + fileCopyFactor*400*stride + directoryCopyFactor*900 + 7000 + bucket(1)},
+		// Per-row terms keep the archive's whole record count: only the
+		// payload term reads the largest shard.
+		{"archive buffered", MemoryInputs{Arm: ArmBuffered, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, MaxShardRecords: 400, DirectoryBytes: 900},
+			runBaseBytes + fileCopyFactor*400*stride + directoryCopyFactor*900 + records*(rec+bufferedValueBytes) + bucket(1)},
+		// The parallel arms: the live partials' bucket STATE and
+		// per-value state beside the merged buckets (state + output).
 		{"shard partitions", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 4, Aggregations: 1, ValueStateAggregations: 1, PartitionBuckets: 9, PartitionRecords: records},
-			payload + 2*records*valueEntryBytes + 13*bucket(1)},
+			payload + 2*records*valueEntryBytes + 4*bucket(1) + 9*state(1)},
+		// Weighted slots (U51 E2-S4): the weighted accumulator and floor
+		// in place of the unweighted state; the output is the same.
+		{"weighted grouped", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 16, Aggregations: 3, AggStateBytes: aggStateBytes + 2*weightedAggStateBytes, PartitionBuckets: 5},
+			payload + 16*(bucket(3)+2*(weightedAggStateBytes-aggStateBytes)) + 5*(state(3)+2*(weightedAggStateBytes-aggStateBytes))},
+		// Components off (U51 E5-S7): a merged bucket's output is the
+		// row alone — 512 + each slot's off column — never 1024 + 576 a
+		// slot; a partition's state is unchanged.
+		{"components off", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 16, Aggregations: 2, ComponentsOff: true, AggOutputOffBytes: 2 * aggOutputOffBytes, PartitionBuckets: 5},
+			payload + 16*(state(2)+bucketOutputOffBytes+2*aggOutputOffBytes) + 5*state(2)},
+		// Two more groupers: a composite key's longer string and tuple
+		// in every bucket's state.
+		{"extra groupers", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 16, Aggregations: 1, ExtraGroupers: 2, PartitionBuckets: 5},
+			payload + 16*(bucket(1)+2*extraGrouperStateBytes) + 5*(state(1)+2*extraGrouperStateBytes)},
+		// Vector aggregators' merge-block fragments, once on every arm.
+		{"vector fragments", MemoryInputs{Arm: ArmFusedCrosstab, Records: records, Stride: stride, RecordBytes: rec, Buckets: 1, Aggregations: 1, VectorBytes: 4321},
+			payload + 4321},
+		// AGG_SET_FREQUENCY: a counter and an output label per member of
+		// the counted set, per bucket.
+		{"set members", MemoryInputs{Arm: ArmStreaming, Records: records, Stride: stride, RecordBytes: rec, Buckets: 16, Aggregations: 1, SetMembers: 200, PartitionBuckets: 5},
+			payload + 16*(bucket(1)+200*(setMemberStateBytes+setMemberOutputBytes)) + 5*(state(1)+200*setMemberStateBytes)},
 		// A fan-out grouper (U35 #267): a record reaches up to FanOut
 		// buckets, so the distinct (bucket, value) pairs reach records x
 		// FanOut; the buffered arm adds a partition slot per extra bucket.
@@ -178,6 +208,10 @@ func TestEstimateMemory_PerArm(t *testing.T) {
 			payload + records*(rec+bufferedValueBytes) + 4*bucket(1) + 8*testStateBytes + 16*testLevelBytes + 2*records*testValueBytes},
 	}
 	for _, c := range cases {
+		if c.in.AggStateBytes == 0 {
+			// Every slot an unmeasured (extension) type: the ceiling.
+			c.in.AggStateBytes = c.in.Aggregations * aggStateBytes
+		}
 		if got := EstimateMemory(c.in); got != c.want {
 			t.Errorf("%s: EstimateMemory = %d, want %d", c.name, got, c.want)
 		}
@@ -270,6 +304,37 @@ func TestEstimateMemory_JoinedRows(t *testing.T) {
 		}
 		if got := EstimateMemory(in); got != want {
 			t.Fatalf("%s: JoinedRows 400 = %d, want %d", arm, got, want)
+		}
+	}
+}
+
+// TestShardMergeWindowWithin (U51 E5-S4): the merge window is
+// ShardMergeWindow(workers) unless a set budget is exceeded at it; then
+// the largest window whose estimate fits, and 1 when none does. An
+// Unlimited budget or an unknown estimate never shrinks it.
+func TestShardMergeWindowWithin(t *testing.T) {
+	// 100 fixed bytes plus 10 a live partial.
+	est := func(w int) (int64, bool) { return 100 + 10*int64(w), true }
+	unknown := func(int) (int64, bool) { return 0, false }
+	for _, c := range []struct {
+		name     string
+		workers  int
+		budget   int64
+		estimate func(int) (int64, bool)
+		want     int
+	}{
+		{"unlimited", 4, Unlimited, est, 8},
+		{"unset", 4, 0, est, 8},
+		{"fits at full", 4, 180, est, 8},
+		{"shrinks to fit", 4, 155, est, 5},
+		{"one partial fits", 4, 110, est, 1},
+		{"none fits", 4, 50, est, 1},
+		{"unknown estimate", 4, 50, unknown, 8},
+		{"nil estimate", 3, 50, nil, 6},
+		{"one worker", 1, 50, est, 1},
+	} {
+		if got := ShardMergeWindowWithin(c.workers, c.budget, c.estimate); got != c.want {
+			t.Errorf("%s: window %d, want %d", c.name, got, c.want)
 		}
 	}
 }

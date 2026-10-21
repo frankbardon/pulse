@@ -23,6 +23,11 @@ func (s *Service) limitsPreflight(req *types.Request, schema *encoding.Schema, i
 	return nil
 }
 
+// MemoryBounded reports whether the instance sets MaxEstimatedMemory —
+// the only limit predict's memory estimate (and so its parallel-arm
+// probes) serves.
+func (s *Service) MemoryBounded() bool { return s.memoryBounded() }
+
 // memoryBounded reports whether MaxEstimatedMemory is set — the only
 // rule that needs the record counts, so an Unlimited memory limit (the
 // default) reads none.
@@ -42,23 +47,55 @@ func (s *Service) limitInputs(ctx context.Context, cohort *Cohort, path string) 
 		Extensions:     s.ExtensionsSnapshot(),
 		FusionDisabled: s.disableCrosstabFusion,
 		ShardWorkers:   s.shardWorkers,
+		DecodeWorkers:  s.decodeWorkers,
+		DefaultWeight:  s.defaultWeight,
+		// The components gate's engine half: estimateMemory resolves it
+		// with the request's disable_components (componentsGateClosed's
+		// rule), so the pre-flight charges the output the run builds.
+		DisableComponents: s.DisableComponents(),
 	}
 	if !s.memoryBounded() {
 		return in, nil
 	}
+	in.Mappable = decodeMappable(cohort)
 	c, err := s.cohortCounts(ctx, cohort, path)
 	if err != nil {
 		return in, err
 	}
-	in.Records, in.ShardRecords, in.ArchiveBytes = c.Records, c.ShardRecords, c.ArchiveBytes
+	in.Records, in.ShardRecords, in.DirectoryBytes = c.Records, c.ShardRecords, c.DirectoryBytes
 	return in, nil
+}
+
+// decodeMappable reports whether the parallel-decode reducer can map
+// cohort — the fs half of canParallelDecode: a single file (no shards)
+// on an fs that resolves a real on-disk path. Predict reads the same
+// answer through DecodeMappable.
+func decodeMappable(cohort *Cohort) bool {
+	if cohort == nil || cohort.fs == nil || len(cohort.Shards()) > 0 {
+		return false
+	}
+	_, ok := resolveRealPath(cohort.fs, cohort.path)
+	return ok
+}
+
+// DecodeMappable opens the cohort at path and reports whether the
+// parallel-decode reducer could map it (decodeMappable) — predict's
+// PredictOptions.DecodeMappable, so the memory estimate picks the arm
+// the run picks. An open failure answers false; the pass that loads the
+// schema reports it. No record is read.
+func (s *Service) DecodeMappable(ctx context.Context, path string) bool {
+	cohort, err := s.Open(ctx, path)
+	if err != nil {
+		return false
+	}
+	return decodeMappable(cohort)
 }
 
 // cohortCounts are the header facts of cohort (opened from path) the
 // limit rules read: an archive's per-shard counts from its manifest and
-// its byte length (what Open read), a single file's header-only count
-// (CountRecords, never Cohort.RecordCount) — plus, for an
-// anchor-opened shard, its archive's byte length.
+// its central-directory bytes (what Open parsed), a single file's — or
+// an anchor-opened shard's — header-only count (CountRecords, never
+// Cohort.RecordCount).
 func (s *Service) cohortCounts(ctx context.Context, cohort *Cohort, path string) (descx.CohortCounts, error) {
 	var c descx.CohortCounts
 	if shards := cohort.Shards(); len(shards) > 0 {
@@ -66,7 +103,7 @@ func (s *Service) cohortCounts(ctx context.Context, cohort *Cohort, path string)
 			c.ShardRecords = append(c.ShardRecords, sh.RecordCount)
 			c.Records += sh.RecordCount
 		}
-		c.ArchiveBytes = cohort.archiveBytes
+		c.DirectoryBytes = cohort.directoryBytes
 		return c, nil
 	}
 	n, err := s.CountRecords(ctx, path)
@@ -74,8 +111,6 @@ func (s *Service) cohortCounts(ctx context.Context, cohort *Cohort, path string)
 		return descx.CohortCounts{Records: -1}, err
 	}
 	c.Records = int64(n)
-	// An anchor-opened shard: its archive's bytes, no shard counts.
-	c.ArchiveBytes = cohort.archiveBytes
 	return c, nil
 }
 

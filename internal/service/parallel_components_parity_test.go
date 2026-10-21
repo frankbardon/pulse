@@ -345,6 +345,67 @@ func TestDecodeWorkers_ComponentsParity(t *testing.T) {
 	}
 }
 
+// TestShardWorkers_AttributeComponentsParity: a tally attribute
+// (ATTR_SCALE_SCORE, U51 E3-S2) runs on the shard reducer — each shard
+// scores its rows on its own instance, the merge folds the
+// out-of-range counts and the attribute floor — and its
+// Components.Attributes entry and PULSE_ATTR_SCALE_OUT_OF_RANGE warning
+// equal the serial run's, the warning raised once. Before, the request
+// ran serially; a reducer emitting per-shard figures would report one
+// shard's counts (or one warning per shard).
+func TestShardWorkers_AttributeComponentsParity(t *testing.T) {
+	schema := componentsParitySchema()
+	archive := buildNullableShardArchive(t, schema, []int{40, 37, 41})
+	cfg := fs.NewMemMap()
+	if err := afero.WriteFile(cfg.Fs(), "parity.pulse", archive, 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	req := &types.Request{
+		Cohort: &types.Cohort{Filename: "parity.pulse"},
+		Attributes: []*types.Attribute{{Type: types.ATTR_SCALE_SCORE, Fields: []string{"score", "id"}, Label: "sc",
+			Params: json.RawMessage(`{"scale_min":0,"scale_max":60}`)}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "sc", Label: "sum_sc"}, {Type: types.AGG_COUNT, Field: "sc", Label: "n_sc"}},
+	}
+	if !processing.CanMergeRequest(req, schema) {
+		t.Fatal("fixture request is not mergeable; the shard reducer would never fan out")
+	}
+	answer := func(workers int) *types.Response {
+		svc := New(cfg)
+		svc.SetShardWorkers(workers)
+		if workers > 1 {
+			cohort, err := svc.Open(context.Background(), "parity.pulse")
+			if err != nil {
+				t.Fatalf("Open: %v", err)
+			}
+			if _, ok := svc.shouldFanOut(req, cohort); !ok {
+				t.Fatalf("shouldFanOut refused a %d-worker fan-out", workers)
+			}
+		}
+		resp, err := svc.Process(context.Background(), req)
+		if err != nil {
+			t.Fatalf("Process(ShardWorkers=%d): %v", workers, err)
+		}
+		return resp
+	}
+	want := answer(1)
+	if want.Components == nil || len(want.Components.Attributes) != 1 {
+		t.Fatalf("serial run emitted no attribute entry: %+v", want.Components)
+	}
+	e := want.Components.Attributes[0]
+	if e.N == 0 || e.NNull == 0 || e.Operator["n_out_of_range"] == 0 || len(want.Warnings) != 1 {
+		t.Fatalf("degenerate serial tally %+v, warnings %+v", e, want.Warnings)
+	}
+	for _, workers := range []int{2, 3, 4} {
+		got := answer(workers)
+		if got.Components == nil || !reflect.DeepEqual(got.Components.Attributes, want.Components.Attributes) {
+			t.Errorf("ShardWorkers=%d Components.Attributes %+v, want %+v", workers, got.Components, want.Components.Attributes)
+		}
+		if !reflect.DeepEqual(got.Warnings, want.Warnings) || !reflect.DeepEqual(got.Data, want.Data) {
+			t.Errorf("ShardWorkers=%d warnings / data differ\n  got  %+v %+v\n  want %+v %+v", workers, got.Warnings, got.Data, want.Warnings, want.Data)
+		}
+	}
+}
+
 // The opt-out must keep working on the parallel arms: with components
 // disabled the wire form stays byte-identical to the pre-Components
 // baseline, i.e. Components is nil, not a floor-only shell.

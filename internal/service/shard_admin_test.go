@@ -494,7 +494,7 @@ func TestShardArchiveRemoveDropsShard(t *testing.T) {
 		[]string{shardA, shardB}); err != nil {
 		t.Fatalf("CreateShardArchive: %v", err)
 	}
-	if err := svc.RemoveShard(context.Background(), "arch.pulse", "a.pulse"); err != nil {
+	if _, err := svc.RemoveShard(context.Background(), "arch.pulse", "a.pulse"); err != nil {
 		t.Fatalf("RemoveShard: %v", err)
 	}
 
@@ -507,7 +507,7 @@ func TestShardArchiveRemoveDropsShard(t *testing.T) {
 	}
 
 	// Removing a non-existent shard surfaces PULSE_SHARD_MISSING.
-	err = svc.RemoveShard(context.Background(), "arch.pulse", "ghost.pulse")
+	_, err = svc.RemoveShard(context.Background(), "arch.pulse", "ghost.pulse")
 	if !errors.HasCode(err, errors.PULSE_SHARD_MISSING) {
 		t.Errorf("remove ghost: code = %v, want PULSE_SHARD_MISSING", err)
 	}

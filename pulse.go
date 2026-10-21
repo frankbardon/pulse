@@ -340,11 +340,17 @@ type Options struct {
 	// point spawning more workers than shards.
 	//
 	// Order semantics: partials merge in shard insertion order (zip
-	// central-directory order). Associative+commutative aggregators
-	// (count, sum, min, max, null_count, frequency, distinct_count,
-	// mode) produce byte-equal results vs the serial path; Welford
-	// mean / variance / stddev drift within ULP on well-conditioned
-	// inputs (parallel formula, see processing.MergeOnline docstrings).
+	// central-directory order). Integer and sentinel aggregators (count,
+	// min, max, null_count, frequency, distinct_count, mode) and the
+	// binned reproducible sums — AGG_SUM, AGG_AVERAGE (that sum over an
+	// exact integer n), AGG_RATIO, the weighted sums and AGG_COUNT, the
+	// sum_weights / n_eff floor and ATTR_FORMULA total() — are
+	// bit-identical to the serial path under any worker count or shard
+	// split. Welford mean / variance / stddev (AGG_WELFORD, AGG_VARIANCE,
+	// AGG_STDDEV, the shape moments) merge by Chan-Welford and agree
+	// within ULP on well-conditioned inputs, not bit for bit.
+	// The arm decodes only the fields the request reads, as the serial
+	// arm does. CLI: the global --shard-workers flag.
 	ShardWorkers int
 
 	// DecodeWorkers caps the per-cohort parallel decode worker pool the
@@ -360,7 +366,9 @@ type Options struct {
 	// dominates savings on small inputs. Sharded cohorts continue to
 	// route through ShardWorkers; the two knobs are orthogonal (one
 	// fans out across shards, the other fans out across record
-	// segments within a single file or shard payload).
+	// segments within a single file or shard payload). Predict reads it
+	// to pick the arm its memory estimate charges. CLI: the global
+	// --decode-workers flag.
 	DecodeWorkers int
 
 	// DefaultTimeZone is the engine-wide IANA zone ("UTC" or an
@@ -1648,12 +1656,8 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 		return nil, fmt.Errorf("pulse: reading file for predict: %w", err)
 	}
 	defer src.close()
-	// The runtime's OpenAnchor reads the whole archive to reach the
-	// shard; the memory estimate charges it the same.
-	anchorArchiveBytes := src.anchorArchiveBytes
 
 	opts := p.predictOptions(ctx, p.sidecarFacts(path))
-	opts.AnchorArchiveBytes = anchorArchiveBytes
 	env := descx.Predict(src.rs, req, &opts)
 	if result, ok := env.Data.(*descriptor.PredictResult); ok {
 		result.Errors, result.Warnings = env.Errors, env.Warnings
@@ -1674,6 +1678,65 @@ func (p *Pulse) predict(ctx context.Context, req *Request) (*descriptor.PredictR
 	}
 	p.touchManaged(ctx, path)
 	return result, nil
+}
+
+// PredictEnvelope is Predict's envelope-returning sibling, as
+// InspectEnvelope is Inspect's: same path-based no-record read of the
+// cohort req.Cohort names (header + schema; a shard archive's central
+// directory, canonical schema entry and shard headers; an anchor's one
+// entry), same afero.Fs, same SPSS sidecar facts — but it returns the
+// descriptor envelope WHOLE, and, like PredictBytes, takes
+// Options.Strict (warnings promoted to errors) and Options.EchoRequest
+// (envelope.Request carries the normalized request) from the instance.
+//
+// It is the path twin of PredictBytes for a caller that holds a path,
+// not the bytes: `pulse api predict` used to read the whole cohort into
+// memory to hand PredictBytes, which on a multi-gigabyte archive cost
+// the archive's size in resident memory and bypassed the injected
+// filesystem. Over a cohort without an SPSS sidecar the envelope equals
+// PredictBytes' over the same bytes; with one it adds the sidecar's
+// suggested weight and advisories, as Predict does.
+//
+// A returned error is a nil req, a req without a cohort, a cancelled
+// ctx or a READ failure (missing file, unresolvable anchor). Every
+// validation fault comes back as env.Errors with PredictResult.Valid
+// false, so a --json caller can emit the coded envelope verbatim.
+func (p *Pulse) PredictEnvelope(ctx context.Context, req *Request) (*descriptor.Envelope, error) {
+	return observed(p, ctx, requestOp(observe.OpPredict, req), func(ctx context.Context) (*descriptor.Envelope, error) {
+		return p.predictEnvelope(ctx, req)
+	})
+}
+
+func (p *Pulse) predictEnvelope(ctx context.Context, req *Request) (*descriptor.Envelope, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if req == nil {
+		return nil, fmt.Errorf("pulse: predict requires a request")
+	}
+	if req.Cohort == nil {
+		return nil, fmt.Errorf("pulse: predict requires a cohort")
+	}
+	path := resolveCohortPath(req.Cohort)
+	src, err := p.openCohortSource(path)
+	if err != nil {
+		if af, ok := asAnchorFault(err); ok {
+			return nil, fmt.Errorf("pulse: predict anchor: %w", af.err)
+		}
+		return nil, fmt.Errorf("pulse: reading file for predict: %w", err)
+	}
+	defer src.close()
+
+	opts := p.predictOptions(ctx, p.sidecarFacts(path))
+	opts.Strict = p.svc.Strict()
+	opts.EchoRequest = p.svc.EchoRequest()
+	env := descx.Predict(src.rs, req, &opts)
+	if _, ok := env.Data.(*descriptor.PredictResult); ok {
+		// A verdict, valid or not, is a use of the managed import (as
+		// Predict); an unreadable cohort is not.
+		p.touchManaged(ctx, path)
+	}
+	return env, nil
 }
 
 // InspectBytes inspects an in-memory .pulse cohort — a single file or a
@@ -1744,6 +1807,8 @@ func (p *Pulse) predictBytes(ctx context.Context, data []byte, req *Request) (*d
 		ModelLoader:           p.svc,
 		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
 		ShardWorkers:          p.svc.ShardWorkers(),
+		DecodeWorkers:         p.svc.DecodeWorkers(),
+		DecodeMappable:        p.predictDecodeMappable(ctx),
 	}), nil
 }
 
@@ -1781,11 +1846,26 @@ func (p *Pulse) predictOptions(ctx context.Context, sidecar sidecarFacts) descx.
 		ModelLoader:           p.svc,
 		DisableCrosstabFusion: p.svc.CrosstabFusionDisabled(),
 		ShardWorkers:          p.svc.ShardWorkers(),
+		DecodeWorkers:         p.svc.DecodeWorkers(),
+		DecodeMappable:        p.predictDecodeMappable(ctx),
 		// Echoed (never applied) when no weight resolves; measure levels
 		// feed the measure-level advisories only.
 		SuggestedWeightVariable: sidecar.weightVariable,
 		SidecarMeasureLevels:    sidecar.measures,
 	}
+}
+
+// predictDecodeMappable is PredictOptions.DecodeMappable over the
+// runtime's own probe (Service.DecodeMappable): whether the parallel-
+// decode reducer could map the cohort, so predict's memory estimate
+// picks the arm the run picks under Options.DecodeWorkers. Nil when no
+// memory limit is set — predict never asks then — so an unbounded
+// predict allocates no closure (TestObservabilityOffNoAllocs).
+func (p *Pulse) predictDecodeMappable(ctx context.Context) func(string) bool {
+	if !p.svc.MemoryBounded() {
+		return nil
+	}
+	return func(path string) bool { return p.svc.DecodeMappable(ctx, path) }
 }
 
 // predictRecordCounter counts a cohort's records through the runtime's
@@ -1949,6 +2029,92 @@ func (p *Pulse) filterToFileBySetAndExpr(ctx context.Context, src, dst, includeF
 		p.touchManaged(ctx, src)
 	}
 	return n, err
+}
+
+// FilterToFileOptions is FilterToFileWithOptions' input: the
+// predicate — an optional include-set (Set, tested on IncludeField; see
+// FilterToFileBySetAndExpr) and an optional FILTER_EXPRESSION
+// (Expression), AND-combined with the set tested first — and the
+// Flatten mode. Without Flatten at least one predicate is required.
+type FilterToFileOptions struct {
+	// Expression is the FILTER_EXPRESSION predicate; "" for none.
+	Expression string
+	// IncludeField names the field Set is tested on; required with Set.
+	IncludeField string
+	// Set is an include-set from LoadMemberSetFromReader; nil for none.
+	Set MemberSet
+	// Flatten writes a shard archive's surviving rows into ONE
+	// single-file cohort instead of a per-shard archive: the archive's
+	// canonical (widened) schema is the output schema — union
+	// dictionaries, widened set rungs and, for a grouped (0x02)
+	// archive, the canonical parent-group dictionaries every shard's
+	// rows already address — and the rows land in global archive order
+	// (shards in archive order, rows in shard order). With no predicate
+	// it is a pure flatten. Memory is O(one shard); the output is
+	// streamed into a stage beside dst and published by one rename. On
+	// a single-file or `archive#shard` input — already one file — it is
+	// a no-op: the output is what the same call without Flatten writes,
+	// and with no predicate every whole record is kept.
+	Flatten bool
+}
+
+// FilterToFileReport is FilterToFileWithOptions' report.
+type FilterToFileReport struct {
+	// Output is the path written.
+	Output string `json:"output"`
+	// Records is the number of records written.
+	Records int64 `json:"records"`
+	// Flattened is true when a shard archive was flattened into a
+	// single-file cohort.
+	Flattened bool `json:"flattened,omitempty"`
+	// InvalidatedSidecars names each sidecar beside Output that
+	// replacing an existing cohort there invalidated — the point-lookup
+	// index (one entry per shard sidecar for an archive index), the
+	// SPSS metadata sidecar — with the command that rebuilds it, as
+	// Pulse.InvalidatedSidecars reports them. Nothing is rebuilt. Empty
+	// when Output did not exist before the call.
+	InvalidatedSidecars []StaleSidecar `json:"invalidated_sidecars,omitempty"`
+	// Warnings carries a failure to ENUMERATE those sidecars; the write
+	// has already succeeded when it is set.
+	Warnings []*errors.CodedError `json:"warnings,omitempty"`
+}
+
+// FilterToFileWithOptions is FilterToFileBySetAndExpr with the Flatten
+// mode and a report: the records written, whether an archive was
+// flattened, and the sidecars an overwrite of an existing cohort at dst
+// invalidated. It runs the same filter-to-file path as FilterToFile and
+// FilterToFileBySetAndExpr (input-shape dispatch included) and backs
+// `pulse cohort filter`.
+func (p *Pulse) FilterToFileWithOptions(ctx context.Context, src, dst string, opts FilterToFileOptions) (*FilterToFileReport, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpFilterToFile, path: src}, func(ctx context.Context) (*FilterToFileReport, error) {
+		return p.filterToFileWithOptions(ctx, src, dst, opts)
+	})
+}
+
+func (p *Pulse) filterToFileWithOptions(ctx context.Context, src, dst string, opts FilterToFileOptions) (*FilterToFileReport, error) {
+	replacing := dst != ""
+	if replacing {
+		replacing, _ = afero.Exists(p.fsys, dst)
+	}
+	out, err := p.svc.FilterToFileWithOptions(ctx, src, dst, service.FilterToFileOptions{
+		IncludeField: opts.IncludeField,
+		Set:          opts.Set,
+		Expression:   opts.Expression,
+		Flatten:      opts.Flatten,
+	})
+	if err != nil {
+		return nil, err
+	}
+	p.touchManaged(ctx, src)
+	rep := &FilterToFileReport{Output: dst, Records: out.Records, Flattened: out.Flattened}
+	if replacing {
+		sidecars, scanErr := p.InvalidatedSidecars(ctx, dst)
+		rep.InvalidatedSidecars = sidecars
+		if scanErr != nil {
+			rep.Warnings = append(rep.Warnings, sidecarScanWarning(dst, scanErr))
+		}
+	}
+	return rep, nil
 }
 
 // Synth materializes a synthetic .pulse file at output from spec. The
@@ -2156,9 +2322,9 @@ type CohortFingerprint = encx.Fingerprint
 // element is the degenerate single-key case; more than one produces a
 // composite key, in column order). Delegates to internal/service.Service.BuildIndex
 // for the full algorithm and error surface — see that method's doc
-// comment for the scan/bucket/write contract, the
-// PULSE_INDEX_UNSUPPORTED_SHARDED shard-archive rejection, and the
-// PROCESSING_CONFIG disallowed-key-type rejection.
+// comment for the scan/bucket/write contract, a shard archive's
+// one-sidecar-per-shard index (BuildIndexResult.ShardIndexPaths), and
+// the PROCESSING_CONFIG disallowed-key-type rejection.
 func (p *Pulse) BuildIndex(ctx context.Context, path string, keyFields []string) (*BuildIndexResult, error) {
 	return observed(p, ctx, opSpec{kind: observe.OpIndexBuild, path: path}, func(ctx context.Context) (*BuildIndexResult, error) {
 		return p.buildIndex(ctx, path, keyFields)
@@ -2187,8 +2353,9 @@ type IndexFreshnessReason = service.IndexFreshnessReason
 // size+mtime fast-path before paying for a full content-hash recompute.
 // Delegates to internal/service.Service.VerifyIndex — see that method's doc
 // comment for the full fast-path decision tree. Returns
-// PULSE_INDEX_MISSING when no sidecar exists for keyFields and
-// PULSE_INDEX_UNSUPPORTED_SHARDED for shard archive cohorts.
+// PULSE_INDEX_MISSING when no sidecar exists for keyFields; a shard
+// archive is verified shard by shard (VerifyIndexResult.ShardsUncovered
+// / ShardsMismatched).
 func (p *Pulse) VerifyIndex(ctx context.Context, path string, keyFields []string) (*VerifyIndexResult, error) {
 	return observed(p, ctx, opSpec{kind: observe.OpIndexVerify, path: path}, func(ctx context.Context) (*VerifyIndexResult, error) {
 		return p.verifyIndex(ctx, path, keyFields)
@@ -2212,8 +2379,9 @@ type IndexInfo = service.IndexInfo
 // against the cohort at path. Delegates to internal/service.Service.ListIndexes
 // — see that method's doc comment for the directory-glob + sidecar-read
 // discovery algorithm. Returns an empty (non-nil) slice, not an error,
-// when no sidecar indexes have been built yet. Returns
-// PULSE_INDEX_UNSUPPORTED_SHARDED for shard archive cohorts.
+// when no sidecar indexes have been built yet. A shard archive lists
+// its manifest's indexes, each with its per-shard sidecars
+// (IndexInfo.ShardIndexPaths).
 func (p *Pulse) ListIndexes(ctx context.Context, path string) ([]IndexInfo, error) {
 	return observed(p, ctx, opSpec{kind: observe.OpIndexList, path: path}, func(ctx context.Context) ([]IndexInfo, error) {
 		return p.listIndexes(ctx, path)
@@ -2232,8 +2400,8 @@ func (p *Pulse) listIndexes(ctx context.Context, path string) ([]IndexInfo, erro
 // against the cohort at path. Delegates to internal/service.Service.DropIndex —
 // see that method's doc comment for the non-interactive
 // (no-confirmation-prompt) contract. Returns PULSE_INDEX_MISSING when
-// no sidecar exists at the derived path and
-// PULSE_INDEX_UNSUPPORTED_SHARDED for shard archive cohorts.
+// no sidecar exists at the derived path; on a shard archive it removes
+// the manifest entry and every per-shard sidecar.
 func (p *Pulse) DropIndex(ctx context.Context, path string, keyFields []string) error {
 	return p.observe(ctx, opSpec{kind: observe.OpIndexDrop, path: path}, func(ctx context.Context) error {
 		return p.dropIndex(ctx, path, keyFields)
@@ -2799,9 +2967,11 @@ type CreateShardArchiveResult = service.CreateShardArchiveResult
 // archive's canonical schema and appends it. Dict growth that the
 // incoming shard introduces is reflected in the rewritten
 // `_schema.pulse` payload before the new shard payload is appended.
-// v1 reads the whole archive into memory and writes it back via
-// temp+fsync+rename — semantically equivalent to true in-place append
-// and crash-safe at the canonical-path level.
+// The new archive is streamed into a staged file beside the original
+// (stored shards copied raw, never decoded; memory O(the new shard)) and
+// published by fsync + rename + directory fsync, so the original stays
+// byte-identical until the rename and a crashed stage is swept by the
+// next mutation.
 //
 // A merged dictionary that outgrows a set_* field's bitmask WIDENS the
 // field across the canonical schema and every shard payload instead of
@@ -2810,6 +2980,15 @@ type CreateShardArchiveResult = service.CreateShardArchiveResult
 // re-import it replaces but far more expensive than an append, and a
 // caller must be able to tell which one it paid for. A union above the
 // widest set rung stays fatal (PULSE_SHARD_DICT_WIDTH_OVERFLOW).
+//
+// Every archive point-lookup index is kept in step: the new shard's
+// sidecar for each index and the updated index manifest are built
+// before the archive is published (any failure aborts the add with the
+// archive, sidecars and manifest untouched), then published after it,
+// with a mandatory PULSE_SHARD_INDEXES_UPDATED warning. An add that
+// re-encodes the stored shards (an archive-level widen, a constant-group
+// promotion) keeps nothing and names the per-shard sidecars it
+// invalidated in AddShardResult.InvalidatedSidecars.
 //
 // AddShard returns a result rather than a bare error precisely so that
 // warning has nowhere to be dropped.
@@ -2833,9 +3012,10 @@ func (p *Pulse) addShard(ctx context.Context, archivePath, shardPath string) (*A
 }
 
 // AddShardResult carries the outcome of AddShard: the archive's new
-// shard count, any set-field widenings the add forced, and the
-// non-fatal warnings (PULSE_SHARD_DESCRIPTION_DIVERGENCE,
-// PULSE_SHARD_SET_WIDENED) to lift onto a --json envelope.
+// shard count, any set-field widenings the add forced, the non-fatal
+// warnings (PULSE_SHARD_DESCRIPTION_DIVERGENCE, PULSE_SHARD_SET_WIDENED,
+// PULSE_SHARD_INDEXES_UPDATED) to lift onto a --json envelope, and the
+// point-lookup sidecars a re-encoding add invalidated.
 type AddShardResult = service.AddShardResult
 
 // SetWidening records one set field promoted to a wider rung during a
@@ -2862,15 +3042,26 @@ type CohesionWarning = encx.CohesionWarning
 // canonical schema is preserved (dictionary entries are never
 // shrunk). Returns PULSE_SHARD_MISSING when the named shard is not in
 // the archive.
-func (p *Pulse) RemoveShard(ctx context.Context, archivePath, shardBasename string) error {
-	return p.observe(ctx, opSpec{kind: observe.OpShardRemove, path: archivePath}, func(ctx context.Context) error {
+//
+// Every archive point-lookup index covering the shard is kept in step:
+// the removed shard's sidecars are deleted and its record leaves the
+// index manifest (staged before the archive is touched, published after
+// its rename), reported as a mandatory PULSE_SHARD_INDEXES_UPDATED
+// warning on the result. No other sidecar is touched.
+func (p *Pulse) RemoveShard(ctx context.Context, archivePath, shardBasename string) (*RemoveShardResult, error) {
+	return observed(p, ctx, opSpec{kind: observe.OpShardRemove, path: archivePath}, func(ctx context.Context) (*RemoveShardResult, error) {
 		return p.removeShard(ctx, archivePath, shardBasename)
 	})
 }
 
-func (p *Pulse) removeShard(ctx context.Context, archivePath, shardBasename string) error {
+func (p *Pulse) removeShard(ctx context.Context, archivePath, shardBasename string) (*RemoveShardResult, error) {
 	return p.svc.RemoveShard(ctx, archivePath, shardBasename)
 }
+
+// RemoveShardResult carries the outcome of RemoveShard: the archive's
+// new shard count and the non-fatal warnings (PULSE_SHARD_INDEXES_UPDATED)
+// to lift onto a --json envelope.
+type RemoveShardResult = service.RemoveShardResult
 
 // ListShards returns the archive's shard manifest in central-
 // directory order (which equals shard insertion order). Single-file

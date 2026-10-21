@@ -38,8 +38,11 @@ type Extensions interface {
 	Grouper(name string) (mergeable, ok bool)
 	// Filterer reports an extension filterer's streamability.
 	Filterer(name string) (streamable, ok bool)
-	// Attribute reports whether an extension attribute is row-local
-	// (streamable and not two-pass).
+	// Attribute reports whether an extension attribute merges as a
+	// row-local operator: declared row_local (streamable, not
+	// two-pass) and — when it emits Components.Attributes figures —
+	// declared Mergeable (its per-run tally folds through
+	// extend.MergeableAttribute.MergeTally).
 	Attribute(name string) (rowLocal, ok bool)
 	// Matrix reports whether an extension MAT_* operator merges: its
 	// declared co-moment tier (Streamable) merges through the blocked
@@ -64,18 +67,38 @@ func (None) Matrix(string) (bool, bool)     { return false, false }
 // types.MatrixSpec.Mergeable — they merge through the blocked merge
 // tree, bit-identical to serial; a grouped request's per-bucket
 // matrices merge bucket by bucket the same way); only row-local
-// attributes (ATTR_FORMULA without a total(expr) call,
-// ATTR_DATE_PART, ATTR_REG_PREDICT, an ATTR_MAHALANOBIS /
+// attributes (ATTR_FORMULA without a total(expr) call — or with one
+// that ParallelTotals admits —, ATTR_DATE_PART, ATTR_REG_PREDICT,
+// ATTR_SCALE_SCORE, a non-centroid ATTR_PROFILE_SIMILARITY, an
+// ATTR_VEC_DISTANCE over a row-local metric and no centroid — each folds
+// its per-run tallies across partitions —, an ATTR_MAHALANOBIS /
 // ATTR_PC_SCORE / ATTR_FACTOR_SCORE / ATTR_REG_FITTED /
 // ATTR_REG_RESIDUAL bound to a prebuilt fit by params.fit —
-// vectors.FitBound —, row_local extensions); only mergeable groupers
+// vectors.FitBound —, row_local extensions, a component-emitting one
+// only when declared Mergeable); only mergeable groupers
 // (built-in Mergeable() or a declared extension); only streamable
 // filterers; and only mergeable aggregators, none of them a built-in
 // one over a decimal128 field (the built-in decimal fold is
 // buffered-only — an extension aggregator reads decimals itself).
 // schema may be nil (the decimal check is then skipped); a nil ext is
 // None.
+//
+// A total-bearing ATTR_FORMULA merges through the reducers' two-phase
+// drive (U51 E3-S1, #399): a parallel pre-pass folds each total()
+// argument into a binned {sum, count} per partition, the partitions
+// merge exactly and the published totals bind into every partition's
+// formula before the ordinary reduce. Only the first cut is admitted —
+// ParallelTotals: an ungrouped request whose total() formulas sit in
+// one pre-pass layer. Any other total() formula is refused with the
+// row-local reason, as before; so is every total() formula on a
+// ProcessChain stage (ChainRefusal), which has no two-phase runtime.
 func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) string {
+	return mergeRefusal(req, schema, ext, true)
+}
+
+// mergeRefusal is MergeRefusal; admitTotals=false keeps every
+// total-bearing formula off (the chain stage rule).
+func mergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, admitTotals bool) string {
 	if ext == nil {
 		ext = None{}
 	}
@@ -105,7 +128,8 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 			}
 		}
 	}
-	for _, attr := range req.Attributes {
+	var totals []bool // ParallelTotals, computed on the first total() formula
+	for i, attr := range req.Attributes {
 		if attr == nil {
 			return "an attribute slot is nil"
 		}
@@ -119,30 +143,50 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 			switch attr.Type {
 			case types.ATTR_FORMULA:
 				// Row-local unless it calls total(expr): a cohort total
-				// folded per partition would be partition-local.
+				// folded per partition would be partition-local. A
+				// total() formula the two-phase drive covers merges
+				// (ParallelTotals) — never on a chain stage.
 				rowLocal = !totalcall.Contains(attr.Expression)
+				if !rowLocal && admitTotals {
+					if totals == nil {
+						totals = ParallelTotals(req, ext)
+					}
+					rowLocal = totals[i]
+				}
 			case types.ATTR_DATE_PART,
 				// Pure per-row reads of the row's own stored values,
 				// no per-run state (#391).
 				types.ATTR_CODE_IN, types.ATTR_SET_HAS, types.ATTR_SET_POPCOUNT,
 				// Bound before the row pass: a pure per-row score.
-				types.ATTR_REG_PREDICT:
-				// ATTR_SCALE_SCORE and ATTR_PROFILE_SIMILARITY score
-				// per row too but stay off: each tallies per run (its
+				types.ATTR_REG_PREDICT,
+				// Row-local with a per-run tally (its
 				// Components.Attributes counters and its Response
-				// warning — out-of-range members, missing references),
-				// which per-partition instances would split and the
-				// merged route does not fold back.
+				// warning — out-of-range members) the reducers fold
+				// across partitions (processing.MergeableAttributeTally,
+				// U51 E3-S2, #456).
+				types.ATTR_SCALE_SCORE:
 				rowLocal = true
+			case types.ATTR_PROFILE_SIMILARITY:
+				// The reference form tallies per run (missing
+				// references, domain misses) and folds like
+				// ATTR_SCALE_SCORE; a centroid reference is a
+				// cohort-wide pre-pass (two-pass), which a partition
+				// cannot fold.
+				rowLocal = !vectors.ComparisonCentroid(attr.Type, attr)
 			case types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE, types.ATTR_FACTOR_SCORE,
 				types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL:
 				// Row-local only when bound to a prebuilt fit
 				// (params.fit): a fit_on fold — or an ATTR_REG_FITTED /
 				// RESIDUAL OLS refit — over one partition's rows would
-				// be partition-local. ATTR_VEC_DISTANCE stays
-				// off the list either way, like its row-local metrics
-				// (its per-row tallies would need a merge).
+				// be partition-local.
 				rowLocal = vectors.FitBound(attr.Type, attr)
+			case types.ATTR_VEC_DISTANCE:
+				// A row-local metric over any reference but a
+				// centroid tallies per run and folds like
+				// ATTR_PROFILE_SIMILARITY; a fitted metric
+				// (std_euclidean / mahalanobis — fit_on or a bound
+				// params.fit) or a centroid stays out.
+				rowLocal = vectors.ComparisonRowLocal(attr.Type, attr, req.Vectors, schema)
 			}
 		}
 		if rowLocal {
@@ -196,7 +240,9 @@ func MergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) s
 }
 
 // ChainRefusal is the v1 ProcessChain stage gate: nil when req passes
-// MergeRefusal, else a PULSE_CHAIN_NOT_MERGEABLE "chain stage is not
+// MergeRefusal — with every total-bearing ATTR_FORMULA refused as
+// not row-local, since a chain stage has no two-phase total() runtime
+// (the reducers' ParallelTotals admission stops at the chain) —, else a PULSE_CHAIN_NOT_MERGEABLE "chain stage is not
 // mergeable: <reason>" with details {stage_index, stage_name}. Every
 // mergeable scalar built-in aggregator emits one float64 per output row the
 // next stage's f64 column reads — AGG_MODE's modal value (on a
@@ -232,13 +278,76 @@ func ChainRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, s
 		stripped.Matrices = nil
 		req = &stripped
 	}
-	reason := MergeRefusal(req, schema, ext)
+	reason := mergeRefusal(req, schema, ext, false)
 	if reason == "" {
 		return nil
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_CHAIN_NOT_MERGEABLE,
 		"chain stage is not mergeable: "+reason,
 		map[string]any{"stage_index": stageIndex, "stage_name": stageName})
+}
+
+// ParallelTotals reports, per req.Attributes slot, whether it is a
+// total-bearing ATTR_FORMULA the parallel reducers' two-phase drive
+// runs (U51 E3-S1, #399): the request is ungrouped (no Groups, no
+// Crosstab) and the formula sits in pre-pass layer 0 — none of its
+// inputs is, directly or through row-local attributes, the label of an
+// earlier total() formula. That is processing's two-pass planner rule
+// (twoPassPlan) over the same inputs (vectors.AttributeInputNames,
+// labels by vectors.DefaultAttributeLabel), except that a slot whose
+// inputs cannot be proven — an ATTR_REG_PREDICT, a fit-referenced slot,
+// an extension attribute (its FieldInputs are not visible here) —
+// depends on every earlier slot, so the gate never admits a formula the
+// planner would put in a later layer. Every other slot reports false.
+// nil ext is None.
+func ParallelTotals(req *types.Request, ext Extensions) []bool {
+	if ext == nil {
+		ext = None{}
+	}
+	if req == nil {
+		return nil
+	}
+	n := len(req.Attributes)
+	out := make([]bool, n)
+	if len(req.Groups) > 0 || req.Crosstab != nil {
+		return out
+	}
+	labels := make([]string, n)
+	for i, a := range req.Attributes {
+		if a == nil {
+			return out
+		}
+		labels[i] = a.Label
+		if labels[i] == "" {
+			labels[i] = vectors.DefaultAttributeLabel(a)
+		}
+	}
+	// tainted[j]: slot j's output depends on a published total (it is a
+	// total() formula, or reads one through earlier slots).
+	tainted := make([]bool, n)
+	for i, a := range req.Attributes {
+		_, extension := ext.Attribute(string(a.Type))
+		isTotal := !extension && a.Type == types.ATTR_FORMULA && totalcall.Contains(a.Expression)
+		var inputs map[string]struct{}
+		known := false
+		if !extension {
+			inputs, known = vectors.AttributeInputNames(a)
+		}
+		reads := false
+		for j := 0; j < i && !reads; j++ {
+			if !tainted[j] {
+				continue
+			}
+			if !known {
+				reads = true
+				continue
+			}
+			_, reads = inputs[labels[j]]
+		}
+		tainted[i] = isTotal || reads
+		out[i] = isTotal && !reads
+	}
+	return out
 }
 
 // CrosstabStageReason is ChainRefusal's reason for a stage carrying

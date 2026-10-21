@@ -34,7 +34,7 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 | `u8` | 1 | no | no | 0..255 |
 | `u16` | 2 | no | no | 0..65,535 |
 | `u32` | 4 | no | no | 0..~4.29B |
-| `u64` | 8 | no | no | |
+| `u64` | 8 | no | no | index / join key exact (never joins a float key) |
 | `f32` | 4 | no | no | ~7 sig digits; index key = raw bit pattern (`-0.0`/NaN caveat) |
 | `f64` | 8 | no | no | ~15 sig digits; same bit-pattern caveat |
 | `date` | 4 | no | no | signed int32 epoch days (pre-1970 negative) |

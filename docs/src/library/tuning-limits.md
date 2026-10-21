@@ -160,8 +160,94 @@ roughly 1.3x to 4.9x the peak depending on the arm. Not modelled: a
 opt-in and independent of the Go runtime's own limit. Set it
 a little under the memory you can spare.
 
+**Grouped runs.** Each group bucket is charged in two parts. Its
+STATE is what it holds while records fold: about 256 bytes for the key,
+its map slot and the grouper's tally (128 more for each grouper past
+the first), plus each aggregation's own measured state. A built-in
+aggregator is charged from a per-operator table: 96 bytes for
+`AGG_MIN` or `AGG_MAX`, 128 for `AGG_SUM` (576 when weighted, since it
+keeps three reproducible sums and a weighted floor), 320 for
+`AGG_DISTINCT_COUNT`, and so on. Each figure is a measured ceiling,
+pinned by a test that measures every built-in. An extension aggregator,
+and the order statistics (`AGG_MEDIAN`, `AGG_PERCENTILE`, `AGG_ZSCORE`,
+`AGG_AUC`), are charged 256 bytes (512 weighted). The vector
+aggregators (`AGG_VEC_*`) also pay for their member count and for one
+block partial per 4,096-record merge block a bucket holds.
+
+Its OUTPUT is what the run writes for it at the end. With components
+on, that is the `data` row and the per-group `components` entries,
+charged 1,024 bytes plus 576 per aggregation. With components off
+(`Options.DisableComponents`, or `disable_components: true` on the
+request; the request's setting wins), it is the `data` row alone,
+charged 512 bytes plus about 96 per aggregation. An `AGG_SET_FREQUENCY`
+slot adds a counter and an output label per member of its set field
+(192 bytes a member) to every bucket. Measured at 50,000 one-row
+groups of `AGG_COUNT` + `AGG_SUM` + `AGG_AVERAGE`, the estimate is
+1.3 to 1.5 times the whole run's peak with components on and 2.1 to
+2.5 times with them off, where the fixed 16 MiB run base weighs more.
+A slot counts as weighted when a weight is in force on it (its own, the
+request's, or `Options.DefaultWeight`), whether or not the operator
+reads weights.
+
+**Crosstabs.** A crosstab is charged per measure (`cell`, or each
+`cells` entry), because each measure keeps its own grid. Every cell, and
+every row, column and grand margin slot, is charged the measure's
+per-operator state plus a measured per-cell output: the matrix value,
+the cell's `components` entry and the scratch the finalize lays out per
+cell. For `AGG_COUNT` that is about 1,100 bytes a cell with components
+on and about 600 off; for an `AGG_VEC_*` element cell it is about 2,450
+on (3,150 weighted), its 4,096-record merge-block partials included. Each row and column key adds
+784 bytes (544 off). Each `margin_aggregations` entry costs about a cell
+in every margin slot, once per measure, and nothing with components off.
+`normalize_within` adds a denominator slot per cell, `normalize_level`
+one per axis key. The buffered arm also pays for its partitions: 128
+bytes a row, and per measure 448 a cell and 416 an axis key. An axis
+whose cardinality the schema does not fix is bounded like a grouper
+(below). These figures replaced a flat
+512 bytes a cell, which was below the measured cost of every built-in
+cell with components on, so crosstab estimates rise.
+
+The matrix a crosstab emits is dense: it has a position for every row
+key and column key pair, and the fused arm also folds into a dense
+grid. So the estimate also charges the grid itself, rows times columns,
+where each axis is bounded like a grouper and the product is capped by
+`MaxCrosstabCells` (both arms refuse a larger grid). Only cells a record
+can reach are charged as cells: the whole grid when the schema fixes
+both axes, otherwise at most one per record (times any set fan-out).
+Every other position costs a fixed amount per measure: 130 bytes on the
+fused arm with components on, 110 off, 20 more weighted; 50 and 30 on
+the buffered arm. A grid whose axes the schema fixes, no larger than
+the record count, has no such positions, so its estimate is unchanged.
+A sparse grid over axes the schema does not fix, such as two
+high-cardinality integer fields, is charged far more than before. With
+the default `MaxCrosstabCells` of 10 million, the worst case is about
+1.3 GB per measure on the fused arm. Lower `MaxCrosstabCells` to bound
+it.
+
+**How many buckets.** The bucket count is an upper bound read from the
+schema alone. A dictionary-backed grouper (`GROUP_CATEGORY` over a
+categorical field), a `packed_bool`, an `include` list, a quantile or a
+k-means grouper is charged its key count. A grouper whose keys depend on
+the data is charged by the width of the field it keys on, when that
+field is an integer or a set word. `GROUP_CATEGORY`, `GROUP_ROUNDED` and
+`GROUP_RANGE` over a `u4`, `u8`, `u16` or `u32` field, and
+`GROUP_SET_VALUE` over a `set_u8`, `set_u16` or `set_u32` field, mint at
+most one key per stored value: 16 for `u4`, 256 for `u8`, 65,536 for
+`u16`. Two or more groupers multiply their bounds. Anything else (a
+float, a date or a 64-bit field, `GROUP_DATE`, an extension grouper) is
+bounded by the record count, because a run cannot mint more keys than
+it reads rows. When a `GROUP_SET_PER_ELEMENT` grouper fans a record out,
+the record bound is multiplied by the set's size. A shard's or a
+worker's partial uses the same rule over its own records. So grouping
+50 million rows by a `u32` customer id is charged 50 million buckets
+however few customers there are: predict reads no records, so it cannot
+count them, and no sidecar proves a smaller figure. A point-lookup
+index records a distinct-key count, but nothing proves the index
+matches the cohort without reading it, so the estimate never uses it.
+
 **Extension aggregators.** An extension aggregator is priced as a
-fixed-size accumulator, like `AGG_SUM`, unless its registration declares
+fixed-size accumulator of 256 bytes (512 weighted, and a 576-byte
+output column even with components off) unless its registration declares
 `ValueState: true`. Declared, it is charged the per-distinct-value term
 a built-in value-state aggregator (`AGG_MODE`, `AGG_DISTINCT_COUNT`,
 `AGG_FREQUENCY`, …) pays — the same estimate on predict and the run.
@@ -204,25 +290,97 @@ is), so the extra rows are judged twice:
 With the limit Unlimited (the default) nothing is counted and the join
 runs unchanged.
 
-**Shard archives.** Opening an archive reads it whole onto the heap and
-the run reads it again. Neither decodes a shard's dictionaries: the open
-counts each shard's records and the scan skips each shard's schema block,
-both reading the schema without its dictionaries, because the canonical
-schema decodes every row. The estimate therefore charges the archive's
-byte length where a single file charges records x stride, plus one
-decode of the canonical schema (whatever the shard count): an archive
-whose shards each carry a large dictionary still estimates far above its
-records, because those dictionaries are archive bytes. A shard opened through the anchor form
-(`archive.pulse#shard.pulse`) is charged its whole archive's byte length
-too, because opening it reads the archive; predict charges the same. On the per-shard
+**Shard archives.** An archive is read by random access: opening it
+reads only the zip central directory and the headers, and the run reads
+each shard through its own buffered window, so the archive is never
+resident. The estimate charges what the run holds instead of the
+archive's bytes. Where a single file charges 3 x records x stride (its
+payload plus the collector's headroom), an archive charges 3 x the
+LARGEST shard's records x stride, since one shard streams at a time.
+It adds 8 x the central directory's bytes (the directory a scan holds
+parsed: a few hundred bytes per shard). It also adds one decode of the
+canonical schema with its dictionaries, whatever the shard count.
+Neither the open nor the run decodes a shard's own dictionaries: the
+open counts each shard's records and the scan skips each shard's schema
+block, both reading the schema without its dictionaries, because the
+canonical schema decodes every row. So an archive whose shards each
+carry a large dictionary is charged that dictionary once, not once per
+shard. A shard opened through the anchor form
+(`archive.pulse#shard.pulse`) is charged as the single file it is: the
+run reads only that shard. Predict charges the same. Per-row state
+(buffered records, per-value state, buckets) still counts every record
+of the archive. On the per-shard
 parallel arm (`ShardWorkers` other than 1, two or more shards, a
-mergeable request) every shard's partial keeps its own group buckets
-until the merge, and the estimate counts them too. Predict reads the
-instance's `ShardWorkers` to pick the arm, as the run does. Measured on
-archives, the estimate lands at roughly 1.3x to 1.9x the peak heap.
+mergeable request) each shard's partial keeps its own group buckets
+until it is merged. The merge is incremental: shard i is merged as
+soon as shards 0 to i are done, in shard order, and is then released.
+No shard is handed to a worker until it is within twice the worker
+count of the first unmerged shard. So at most 2 x `ShardWorkers`
+partials are alive beside the merged result, however many shards the
+archive has. The estimate charges that window: the bucket state of the
+2 x workers shards with the largest bucket bounds, and the per-value
+state of the 2 x workers largest shards. Predict reads the instance's
+`ShardWorkers` to pick the arm, as the run does.
+
+When `MaxEstimatedMemory` is set, the window shrinks to fit it. If the
+whole-run estimate at 2 x workers live partials exceeds the limit, the
+run takes the largest window, down to one partial, whose estimate fits,
+and the limit refuses the request only when even one live partial does
+not fit (the refusal reports that one-partial estimate). A smaller
+window holds fewer shards' group buckets at once but keeps fewer
+workers busy, so it trades speed for memory. It never changes an
+answer: shards still merge in shard order. Predict applies the same
+rule, so a request it reports as fitting runs at the window predict
+assumed. With the default (`Unlimited`) the window is always
+2 x workers. Measured on archives,
+the estimate lands at roughly 1.2x to 2.4x the peak heap.
+
+On a single file the parallel-decode arm (`DecodeWorkers` other than 1,
+at least 100,000 records, a file the engine can memory-map, a mergeable
+request) holds one partial per worker until the merge, and the
+estimate counts those partials' bucket state too. Predict reads the instance's
+`DecodeWorkers` and asks the engine whether it could map the cohort, so
+it charges that arm exactly when the run takes it.
 
 An unknown record count produces no estimate and no finding. With the
 default (`Unlimited`) no count is read at all.
+
+## Worker counts
+
+`Options.ShardWorkers` (per-shard parallel arm over a shard archive) and
+`Options.DecodeWorkers` (segment-parallel decode of one large `.pulse`
+file) cap the worker pools: `0` means one worker per CPU, `1` forces the
+serial arm, a negative value is refused at `pulse.New`. The CLI exposes
+both as global flags on every leaf, `pulse mcp` included:
+`--shard-workers N` and `--decode-workers N` (a negative value is a usage
+error, exit 2; there is no environment-variable form). The two knobs are
+independent: an archive never decodes in segments and a single file
+never fans out by shard. Both parallel arms decode only the fields the
+request reads, as the serial arm does. A grouped request fans out
+whatever its key count. With a value-keyed grouper (`GROUP_ROUNDED`,
+`GROUP_RANGE`) whose keys approach the rows each worker reads, the
+fan-out gains nothing and allocates about twice the memory; set the
+worker count to `1` for such a run. Predict cannot see that key count.
+
+Measured on an Apple M1 Max (10 cores), 1M rows × 50 `f64` members,
+grouped `AGG_SUM` + `AGG_AVERAGE` over two members
+(`BenchmarkArchiveWorkerScaling`):
+
+| Workers | 8-shard archive: wall | peak heap | single file: wall | peak heap |
+|---|---|---|---|---|
+| 1 | 423 ms | 1.9 MB | 411 ms | 0.04 MB |
+| 2 | 268 ms | 3.2 MB | 267 ms | 2.3 MB |
+| 4 | 157 ms | 4.5 MB | 177 ms | 2.5 MB |
+| 8 | 107 ms | 15.3 MB | 125 ms | 12.3 MB |
+
+A request that reads every member (a 50 × 50 pairwise covariance) scales
+almost linearly: 6.1 s at 1 worker, 3.3 s at 2, 1.7 s at 4, 1.1 s at 8 on
+the archive, with the peak heap 48–69 MB. Each extra worker adds one
+read window and up to two unmerged partials (their group buckets) to
+the peak, so a high-cardinality grouping costs more memory per worker
+than these four-bucket runs. The shard count does not: merged partials
+are released. Beyond the number of shards, extra shard workers sit
+idle. Detail: `docs/internals/BENCHMARKS_BASELINE.md`.
 
 ## `RequestTimeout` and the caller's context
 

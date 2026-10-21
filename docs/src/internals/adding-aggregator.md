@@ -190,7 +190,9 @@ in `AggregationType.Mergeable()` (`types/streamability.go`) so it
 composes correctly under parallel decode
 (`internal/service/parallel_reduce.go`) and shard reduce (`internal/service/shard_reduce.go`).
 Both surfaces fold per-worker / per-shard partials in deterministic
-index order via `mergeShardPartials` + `finalizeMergedPartial`.
+index order through `partialMerger` (the shard arm incrementally, as
+each prefix of shards completes; the decode arm via
+`mergeShardPartials`), then `finalizeMergedPartial`.
 
 An aggregator registered but not `Mergeable()` silently forces the request
 down the serial `scanIter` / `shardIter` path; both parallel paths gate on
@@ -214,11 +216,18 @@ extension aggregator declares the same class on its registration's
 `PULSE_EXTENSION_MARGIN_REDUCIBILITY_MISMATCH`); undeclared, its
 crosstab cells run buffered.
 
-Associative + commutative aggregators (count, sum, min, max, frequency,
-distinct_count, mode) produce byte-equal merge output; Welford-Pébaÿ
-aggregators (mean, variance, stddev) use Chan-Welford and stay within ULP
-of serial. If your aggregator's online state cannot be folded associatively,
-leave `Mergeable()` returning false. See [Cohort schema design — Parallel
+Integer and sentinel aggregators (count, min, max, frequency,
+distinct_count, mode) produce byte-equal merge output. A float SUM must
+not use `+=`: accumulate it in an `internal/reprosum.Sum` (`Add`,
+`AddWeighted(w, x)` for a weighted product, `Merge` in `MergeOnline`,
+`Float64` at finalize) — the binned reproducible sum `AGG_SUM`,
+`AGG_AVERAGE` (that sum over an exact integer n), `AGG_RATIO`, the
+weighted sums and the `sum_weights` floor use, so serial, every
+`DecodeWorkers` / `ShardWorkers` count and every shard split answer the
+same bits (gate: root `TestBitExact_*`). Welford-Pébaÿ aggregators
+(variance, stddev, `AGG_WELFORD`, the shape moments) use Chan-Welford and
+stay within ULP of serial, not bit for bit. If your aggregator's online
+state cannot be folded associatively, leave `Mergeable()` returning false. See [Cohort schema design — Parallel
 decode](https://github.com/frankbardon/pulse/blob/main/internal/skills/cohort-schema-design.md)
 for the gate composition and observed perf characteristics.
 

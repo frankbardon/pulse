@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/reprosum"
 	"github.com/frankbardon/pulse/observe"
 	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
@@ -18,18 +19,18 @@ import (
 // (extensions_parity_test.go): score = r%50 + 0.5, null when r%7 == 3;
 // qty = r%13; region = r%4.
 
-// ftScoreSum is the sequential float64 Σ op(score) over fixture rows
-// [0, n) that keep(qty), null scores skipped — the reference a
-// total() must equal bit for bit.
+// ftScoreSum is the binned reproducible Σ op(score) (internal/reprosum)
+// over fixture rows [0, n) that keep(qty), null scores skipped — the
+// reference a total() must equal bit for bit on every arm.
 func ftScoreSum(n int, keep func(qty int) bool, op func(float64) float64) float64 {
-	var s float64
+	var s reprosum.Sum
 	for r := 0; r < n; r++ {
 		if r%7 == 3 || !keep(r%13) {
 			continue
 		}
-		s += op(float64(r%50) + 0.5)
+		s.Add(op(float64(r%50) + 0.5))
 	}
-	return s
+	return s.Float64()
 }
 
 func ftKeep(q int) bool { return q >= 2 }
@@ -53,7 +54,7 @@ func ftBits(t *testing.T, what string, got any, want float64) {
 	}
 }
 
-// TestFormulaTotal_Arms: total(score / 3) equals the sequential sum over
+// TestFormulaTotal_Arms: total(score / 3) equals the binned sum over
 // the post-filter rows on every arm — streaming two-pass, buffered, the
 // shard archive (sequential: not mergeable) and the >threshold single
 // file (parallel decode would fold partition-local totals; the merge
@@ -352,9 +353,11 @@ func TestFormulaTotal_MMMSubsetFactor(t *testing.T) {
 // TestFormulaTotal_PartitionedRouting: on each parallel arm — the
 // per-shard reducer (shard archive, ShardWorkers > 1) and the parallel
 // buffered decode (single file over the threshold, DecodeWorkers > 1)
-// — a plain formula still takes the parallel arm, while a total()
-// formula falls back to the sequential arm and equals the sequential
-// single-file run bit for bit (a partition-local total would differ).
+// — a plain formula takes the parallel arm, and so does an ungrouped,
+// one-layer total() formula (U51 E3-S1, #399: a two-phase pre-pass
+// publishes the cohort total) — equal to the sequential single-file run
+// bit for bit (a partition-local total would differ). A GROUPED total()
+// formula falls back to the sequential arm (mergegate.ParallelTotals).
 // Each arm is falsified on its own gate: shard_reduce.go's and
 // parallel_decode.go's CanMergeRequestWithExtensions checks.
 func TestFormulaTotal_PartitionedRouting(t *testing.T) {
@@ -422,8 +425,8 @@ func TestFormulaTotal_PartitionedRouting(t *testing.T) {
 			if err != nil {
 				t.Fatalf("total Process: %v", err)
 			}
-			if got := lastArm(); got == a.parallel {
-				t.Fatalf("total() formula took the parallel arm %q", got)
+			if got := lastArm(); got != a.parallel {
+				t.Fatalf("one-layer ungrouped total() formula took arm %q, want %q (two-phase)", got, a.parallel)
 			}
 			want, err := ref.Process(ctx, ftReq(refPath, total))
 			if err != nil {
@@ -433,6 +436,26 @@ func TestFormulaTotal_PartitionedRouting(t *testing.T) {
 			ftBits(t, "reference max", wv, ftScoreSum(a.rows, ftKeep, ftThird))
 			ftBits(t, "partitioned max", resp.Data[0]["max"], wv)
 			ftBits(t, "partitioned min", resp.Data[0]["min"], wv)
+
+			// Predict's PULSE_ADVISORY_EXTRA_PASS stays accurate on the
+			// two-phase arm: one added (parallel) pre-pass.
+			pred, err := p.Predict(ctx, ftReq(path, total))
+			if err != nil {
+				t.Fatalf("Predict: %v", err)
+			}
+			if len(pred.Advisories) != 1 || pred.Advisories[0].Code != string(errors.PULSE_ADVISORY_EXTRA_PASS) ||
+				pred.Advisories[0].Details["added_scans"] != 1 {
+				t.Fatalf("advisories %+v, want one EXTRA_PASS adding 1 scan", pred.Advisories)
+			}
+
+			grouped := ftReq(path, total)
+			grouped.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}
+			if _, err := p.Process(ctx, grouped); err != nil {
+				t.Fatalf("grouped total Process: %v", err)
+			}
+			if got := lastArm(); got == a.parallel {
+				t.Fatalf("grouped total() formula took the parallel arm %q", got)
+			}
 		})
 	}
 }

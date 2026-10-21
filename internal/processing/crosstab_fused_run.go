@@ -140,7 +140,7 @@ func (p *Processor) RunCrosstabFused(ctx context.Context, req *types.Request, it
 				return nil, rerr
 			}
 			SetAttributeOutput(rec, ra.label, val, ra.nullable)
-			ra.floor.observe(val, ra.nullable)
+			ra.floor.Observe(val, ra.nullable)
 		}
 
 		weights.Observe(rec)

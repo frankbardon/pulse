@@ -152,8 +152,8 @@ func TestJoinKeyOf_Decimal128DistinguishesBeyondFloat64(t *testing.T) {
 		map[string]float64{"amount": b.Float64(0)}, nil,
 		map[string]any{"amount": b})
 
-	keyA, okA := joinKeyOf(recA, schema, spec, false)
-	keyB, okB := joinKeyOf(recB, schema, spec, false)
+	keyA, okA, _ := joinKeyOf(recA, schema, spec, false)
+	keyB, okB, _ := joinKeyOf(recB, schema, spec, false)
 	if !okA || !okB {
 		t.Fatalf("joinKeyOf refused a non-null decimal128 key: %v / %v", okA, okB)
 	}
@@ -178,8 +178,8 @@ func TestJoinKeyOf_Decimal128EqualValuesShareAKey(t *testing.T) {
 			map[string]float64{"amount": d.Float64(2)}, nil,
 			map[string]any{"amount": d})
 	}
-	keyA, okA := joinKeyOf(mk(), schema, spec, false)
-	keyB, okB := joinKeyOf(mk(), schema, spec, false)
+	keyA, okA, _ := joinKeyOf(mk(), schema, spec, false)
+	keyB, okB, _ := joinKeyOf(mk(), schema, spec, false)
 	if !okA || !okB {
 		t.Fatalf("joinKeyOf refused a non-null decimal128 key")
 	}

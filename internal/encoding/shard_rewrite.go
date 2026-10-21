@@ -15,8 +15,9 @@ import (
 // every non-categorical field is preserved exactly.
 //
 // targetSchema must be structurally identical to the shard's own
-// schema (field count, names, types, byte offsets, bit positions) —
-// only the per-categorical dictionaries differ. The record bytes are
+// schema (field count, names, types, field widths, bit positions) —
+// only the per-categorical dictionaries and the stored ByteOffset cache
+// may differ; the shard's schema block takes targetSchema's offsets. The record bytes are
 // addressed by the type-derived layout the decoder walks
 // (widenFieldOffsets / LayoutFields), not by the stored offsets.
 //
@@ -81,7 +82,13 @@ func rewriteShardDicts(shardBytes []byte, targetSchema *encoding.Schema, remap m
 	for i := range srcSchema.Fields {
 		sf := &srcSchema.Fields[i]
 		tf := &targetSchema.Fields[i]
-		if sf.Name != tf.Name || sf.Type != tf.Type || sf.ByteOffset != tf.ByteOffset || sf.BitPosition != tf.BitPosition {
+		// The stored ByteOffset is a cache and is not compared (#373):
+		// the records are addressed by the type-derived layout below, so
+		// a legacy shard (all-zero or pre-canonical offsets) rewrites
+		// against a canonical-offset target and vice versa. The field
+		// WIDTH is compared instead (a vec dim is not in the type byte),
+		// and BitPosition, which decoders read.
+		if sf.Name != tf.Name || sf.Type != tf.Type || srcSchema.FieldWidth(i) != targetSchema.FieldWidth(i) || sf.BitPosition != tf.BitPosition {
 			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_SHARD_SCHEMA_MISMATCH,
 				fmt.Sprintf("shard rewrite: field %d structural mismatch", i),
 				map[string]any{"field_index": i, "shard_name": sf.Name, "target_name": tf.Name})

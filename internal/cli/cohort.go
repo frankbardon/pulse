@@ -190,7 +190,9 @@ func cohortFilterCmd() *cli.Command {
 			"include-set (--include-from + --include-field), or both. When both are " +
 			"supplied the predicates are AND-combined and the include-set is tested " +
 			"first so per-row work short-circuits on misses without paying the " +
-			"expression evaluation cost.",
+			"expression evaluation cost. --flatten writes a shard archive's surviving " +
+			"rows into ONE single-file cohort (canonical schema, archive order); with " +
+			"no predicate it is a pure flatten, and on a single-file input it is a no-op.",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
 			&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output .pulse file path", Required: true},
@@ -198,18 +200,20 @@ func cohortFilterCmd() *cli.Command {
 			&cli.StringFlag{Name: "include-from", Usage: "Path to newline-delimited file of values to include"},
 			&cli.StringFlag{Name: "include-field", Usage: "Field name whose value is tested against --include-from"},
 			&cli.StringFlag{Name: "time-zone", Usage: "IANA zone (UTC or Area/Location) a to_day() call in --filter reads; omitted reads UTC. An unknown name is PULSE_TIMEZONE_UNKNOWN and nothing is written"},
+			&cli.BoolFlag{Name: "flatten", Usage: "Write a shard archive input as ONE single-file .pulse (canonical schema, rows in archive order); --filter / --include-from become optional. A no-op on a single-file input"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			input := cmd.String("input")
+			flatten := cmd.Bool("flatten")
 			output := cmd.String("output")
 			filterExpr := cmd.String("filter")
 			includeFrom := cmd.String("include-from")
 			includeField := cmd.String("include-field")
 			jsonOut := cmd.Bool("json")
 
-			if filterExpr == "" && includeFrom == "" {
-				err := fmt.Errorf("pulse cohort filter requires at least one of --filter or --include-from")
+			if filterExpr == "" && includeFrom == "" && !flatten {
+				err := fmt.Errorf("pulse cohort filter requires at least one of --filter, --include-from or --flatten")
 				if jsonOut {
 					return writeCodedErrorEnvelope(cmd.Writer, "CLI_INPUT", err)
 				}
@@ -237,15 +241,52 @@ func cohortFilterCmd() *cli.Command {
 			}
 
 			if includeFrom == "" {
-				return runFilterByExpr(ctx, cmd, p, input, output, filterExpr, jsonOut)
+				return runFilterByExpr(ctx, cmd, p, input, output, filterExpr, flatten, jsonOut)
 			}
-			return runFilterByIncludeSet(ctx, cmd, p, input, output, includeFrom, includeField, filterExpr, jsonOut)
+			return runFilterByIncludeSet(ctx, cmd, p, input, output, includeFrom, includeField, filterExpr, flatten, jsonOut)
 		},
 	}
 }
 
-func runFilterByExpr(ctx context.Context, cmd *cli.Command, p *pulse.Pulse, input, output, filterExpr string, jsonOut bool) error {
-	written, err := p.FilterToFile(ctx, input, output, filterExpr)
+// filterReportData is the `--json` data both predicate shapes share:
+// the paths and count, plus `flattened` under --flatten and
+// `invalidated_sidecars` when the output replaced a cohort with
+// sidecars (absent otherwise, so a plain run's data is unchanged).
+func filterReportData(input string, rep *pulse.FilterToFileReport, flatten bool) map[string]any {
+	data := map[string]any{
+		"input":           input,
+		"output":          rep.Output,
+		"written_records": rep.Records,
+	}
+	if flatten {
+		data["flattened"] = rep.Flattened
+	}
+	if len(rep.InvalidatedSidecars) > 0 {
+		data["invalidated_sidecars"] = rep.InvalidatedSidecars
+	}
+	return data
+}
+
+// writeFilterReportText is the human line of a filter run plus any
+// invalidated sidecars and sidecar-scan warnings.
+func writeFilterReportText(cmd *cli.Command, input string, rep *pulse.FilterToFileReport) {
+	verb := "Filtered"
+	if rep.Flattened {
+		verb = "Flattened"
+	}
+	writeText(cmd.Writer, "%s %d rows from %s to %s\n", verb, rep.Records, input, rep.Output)
+	writeSourceWarnings(cmd.Writer, rep.Warnings)
+	if len(rep.InvalidatedSidecars) > 0 {
+		writeText(cmd.Writer, "Invalidated sidecars (not rebuilt — rebuilding is yours to schedule):\n")
+		for _, sc := range rep.InvalidatedSidecars {
+			writeText(cmd.Writer, "  %s  [%s]\n", sc.Path, sc.Kind)
+			writeText(cmd.Writer, "    %s\n", sc.Rebuild)
+		}
+	}
+}
+
+func runFilterByExpr(ctx context.Context, cmd *cli.Command, p *pulse.Pulse, input, output, filterExpr string, flatten, jsonOut bool) error {
+	rep, err := p.FilterToFileWithOptions(ctx, input, output, pulse.FilterToFileOptions{Expression: filterExpr, Flatten: flatten})
 	if err != nil {
 		if jsonOut {
 			return writeCodedErrorEnvelope(cmd.Writer, "FILTER_ERROR", err)
@@ -253,17 +294,13 @@ func runFilterByExpr(ctx context.Context, cmd *cli.Command, p *pulse.Pulse, inpu
 		return err
 	}
 	if jsonOut {
-		return writeEnvelope(cmd.Writer, map[string]any{
-			"input":           input,
-			"output":          output,
-			"written_records": written,
-		})
+		return writeEnvelopeWithWarnings(cmd.Writer, filterReportData(input, rep, flatten), rep.Warnings)
 	}
-	writeText(cmd.Writer, "Filtered %d rows from %s to %s\n", written, input, output)
+	writeFilterReportText(cmd, input, rep)
 	return nil
 }
 
-func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse, input, output, includeFrom, includeField, filterExpr string, jsonOut bool) error {
+func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse, input, output, includeFrom, includeField, filterExpr string, flatten, jsonOut bool) error {
 	schema, err := p.ResolveCanonicalSchema(ctx, input)
 	if err != nil {
 		if jsonOut {
@@ -303,7 +340,9 @@ func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse
 		return err
 	}
 
-	written, err := p.FilterToFileBySetAndExpr(ctx, input, output, includeField, load.Set, filterExpr)
+	rep, err := p.FilterToFileWithOptions(ctx, input, output, pulse.FilterToFileOptions{
+		Expression: filterExpr, IncludeField: includeField, Set: load.Set, Flatten: flatten,
+	})
 	if err != nil {
 		if jsonOut {
 			return writeCodedErrorEnvelope(cmd.Writer, "FILTER_ERROR", err)
@@ -312,17 +351,14 @@ func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse
 	}
 
 	if jsonOut {
-		return writeEnvelope(cmd.Writer, map[string]any{
-			"input":               input,
-			"output":              output,
-			"written_records":     written,
-			"include_field":       includeField,
-			"include_kind":        load.Set.Kind(),
-			"include_members":     load.Set.Len(),
-			"include_lines":       load.Lines,
-			"include_not_in_dict": load.NotInDictionary,
-			"include_invalid":     load.Invalid,
-		})
+		data := filterReportData(input, rep, flatten)
+		data["include_field"] = includeField
+		data["include_kind"] = load.Set.Kind()
+		data["include_members"] = load.Set.Len()
+		data["include_lines"] = load.Lines
+		data["include_not_in_dict"] = load.NotInDictionary
+		data["include_invalid"] = load.Invalid
+		return writeEnvelopeWithWarnings(cmd.Writer, data, rep.Warnings)
 	}
 
 	writeText(cmd.Writer, "Loaded %d include values (%s) from %s; field=%q",
@@ -333,6 +369,7 @@ func runFilterByIncludeSet(ctx context.Context, cmd *cli.Command, p *pulse.Pulse
 	if load.Invalid > 0 {
 		writeText(cmd.Writer, "; %d invalid (dropped)", load.Invalid)
 	}
-	writeText(cmd.Writer, "\nFiltered %d rows from %s to %s\n", written, input, output)
+	writeText(cmd.Writer, "\n")
+	writeFilterReportText(cmd, input, rep)
 	return nil
 }

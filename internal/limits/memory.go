@@ -44,13 +44,24 @@ const (
 	// garbage collector's overshoot past its heap goal.
 	runBaseBytes = 16 << 20
 	// fileCopyFactor x stride per record: the cohort payload and the
-	// collector's headroom over it. A filesystem the decoder cannot mmap
-	// is read whole onto the heap (afero.ReadFile), and the per-record
-	// garbage a scan produces (a joined record per row, decode scratch)
-	// lets the heap run to the collector's goal — twice the live heap
-	// under the default GOGC=100 — and past it while a concurrent mark
-	// is in flight: measured up to 2.9x the payload (a joined stream).
+	// collector's headroom over it. A single file on a filesystem the
+	// decoder cannot mmap is read whole onto the heap (afero.ReadFile),
+	// and the per-record garbage a scan produces (a joined record per
+	// row, decode scratch) lets the heap run to the collector's goal —
+	// twice the live heap under the default GOGC=100 — and past it
+	// while a concurrent mark is in flight: measured up to 2.9x the
+	// payload (a joined stream). A shard archive is never read whole
+	// (U51): its shards stream through a bounded window one at a time,
+	// so the factor applies to its LARGEST shard's payload
+	// (MaxShardRecords), never to the archive's bytes.
 	fileCopyFactor = 3
+	// directoryCopyFactor x a shard archive's central-directory bytes:
+	// the parsed directory a scan holds (a zip.File per entry with its
+	// name, the entry table and the by-name map) plus the cohort's shard
+	// list — measured ~6x the raw directory bytes (short shard names,
+	// the fixed per-entry cost dominating), rounded up
+	// (TestArchiveMemory_DirectoryTermBoundsOpen, internal/service).
+	directoryCopyFactor = 8
 	// buildCopyFactor x record bytes per join build-side row: the
 	// materialised right record plus the per-row copy garbage its build
 	// churns (the value maps it is copied out of).
@@ -75,19 +86,66 @@ const (
 	// bufferedValueBytes per record per aggregation on the buffered
 	// arm: the value copy an order statistic sorts.
 	bufferedValueBytes = 16
-	// bucketBaseBytes per group bucket: the key string, the map entry,
-	// the output row.
-	bucketBaseBytes = 512
-	// aggStateBytes per bucket per aggregation: one accumulator.
+	// A group bucket is charged in two halves (U51 E2-S4, #358), both
+	// measured at 800,000 one-row groups (darwin/arm64, go1.26; live heap
+	// after GC for the state, the peak of a whole Process for the
+	// output; internal/service TestGroupMemory_*). The STATE is what a
+	// bucket holds while records fold — on every grouped arm, and in
+	// every per-shard partition (PartitionBuckets) — and the OUTPUT what
+	// finalize adds per merged bucket: the Data row, the grouper's
+	// components bucket entry and the groups[] Components entry.
+	//
+	// bucketBaseBytes: a bucket's resident key state — its map slot (an
+	// 8-byte *GroupBucket value, paid at the table's 7/16..7/8 fill),
+	// the GroupBucket, the key string and the grouper's live components
+	// entry: measured 126-215 B across 300k-1.3M keys.
+	bucketBaseBytes = 256
+	// extraGrouperStateBytes per bucket per grouper past the first: the
+	// composite key's longer string and its per-grouper tuple entry —
+	// measured ~105 B a grouper (three groupers 355 B a bucket against
+	// one grouper's 145 B; U51 E5-S7, TestGroupMemory_FinalizedRowBytes).
+	extraGrouperStateBytes = 128
+	// bucketOutputBytes: a merged bucket's finalize output beside its
+	// aggregations' — the Data row map, its key column, the grouper's
+	// components bucket and the groups[] entry's key: measured 744 B
+	// retained, 1,080 B at the run's peak with no aggregation.
+	bucketOutputBytes = 1024
+	// bucketOutputOffBytes: the same with components off (U51 E5-S7) —
+	// the Data row map and its key column alone: measured 344-416 B
+	// retained up to seven columns (the row map's first group), one to
+	// three groupers (TestGroupMemory_FinalizedRowBytes).
+	bucketOutputOffBytes = 512
+	// aggStateBytes per bucket per unweighted aggregation the built-in
+	// table (aggregatorBytesTable) does not hold — an embedder
+	// extension's: one accumulator, its slot in the bucket and its floor
+	// tally. The built-ins measure 80-534 B (the table).
 	aggStateBytes = 256
+	// weightedAggStateBytes per bucket per WEIGHTED aggregation the
+	// table does not hold: the shared weighted accumulator (three binned
+	// sums and the Welford moments, 320 B), its slot, and its floor with
+	// the 128-byte weighted floor tally: 496-518 B measured on the
+	// built-ins.
+	weightedAggStateBytes = 512
+	// aggOutputBytes per merged bucket per aggregation with components
+	// on: the row's value and the groups[] Components entry with its
+	// operator map — measured 539 B a column just past the row map's
+	// growth points (28, 56, 112 AGG_MAX columns), at most 464 B a
+	// column below them. U51 E5-S7 raised it from 512, which those
+	// widths exceeded (the over-charged state had hidden it).
+	aggOutputBytes = 576
+	// setMemberStateBytes / setMemberOutputBytes per bucket per member
+	// of the set field an AGG_SET_FREQUENCY slot counts: a per-member
+	// counter (8 B; weighted a binned Σw, 56 B) and, at finalize, the
+	// label map the frozen result and the Data row each carry —
+	// measured 121 B (unweighted) / 170 B (weighted) a member at the
+	// peak over a set_u256 field with every member selected.
+	setMemberStateBytes  = 64
+	setMemberOutputBytes = 128
 	// valueEntryBytes per distinct value an aggregator keeps
 	// (distinct / mode / frequency families): a map entry. The distinct
 	// (bucket, value) pairs of one aggregation never exceed the record
 	// count, so the term is records x valueEntryBytes per such slot.
 	valueEntryBytes = 96
-	// cellBytes per crosstab cell: the cell accumulator, both axis-key
-	// interner entries and the margin share.
-	cellBytes = 512
 	// dictEntryDecodeBytes per dictionary entry a schema decode
 	// allocates beyond its label: the []string slot and the presized
 	// lookup-map entry with its slack (measured ~100 a entry).
@@ -120,6 +178,56 @@ const (
 	testValueBytes = 32
 )
 
+// ValueEntryBytes is the per-value-state charge a value-state
+// aggregation pays per record it can see (valueEntryBytes): the
+// per-aggregator gates add it to a value-state slot's bucket figures.
+const ValueEntryBytes = valueEntryBytes
+
+// ShardMergeWindow is how many shards the per-shard parallel reducer
+// keeps dispatched but not yet merged on workers goroutines: shard j is
+// handed out only once j < next + window, where next is the first shard
+// the incremental merge has not folded (internal/service
+// scanAndMergeShards). The window bounds the live partials — at most
+// window of them beside the merged state, whatever the shard count —
+// and predict charges exactly that many per-shard partitions
+// (descriptor EstimateMemory). Twice the workers leaves a finished
+// worker a shard to take while an earlier, slower shard holds the merge
+// back. At least 1.
+func ShardMergeWindow(workers int) int {
+	return max(2*workers, 1)
+}
+
+// ShardMergeWindowWithin is ShardMergeWindow(workers) shrunk to fit a
+// memory budget (U51 E5-S4): the largest window w in
+// [1, ShardMergeWindow(workers)] whose run estimate (estimate(w): the
+// whole-run EstimateMemory with w shards' partials alive) is at most
+// budget. The full window when the budget is Unlimited (MaxEstimatedMemory
+// unset), when the estimate is unknown, or when it already fits; 1 when
+// even one live partial does not fit (the pre-flight then refuses with
+// that smallest estimate). The window bounds only how many shards are
+// in flight — the merge order, and so every answer, is the same at any
+// window. predict (descriptor ShardMergeWindow) and the runtime
+// (scanAndMergeShards) both read it through the same estimate.
+func ShardMergeWindowWithin(workers int, budget int64, estimate func(window int) (int64, bool)) int {
+	full := ShardMergeWindow(workers)
+	if IsUnlimited(budget) || estimate == nil {
+		return full
+	}
+	for w := full; w > 1; w-- {
+		if n, ok := estimate(w); !ok || n <= budget {
+			return w
+		}
+	}
+	return 1
+}
+
+// ParallelDecodeRecordThreshold is the smallest single-file record
+// count the parallel-decode reducer fans out over (Options.
+// DecodeWorkers): below it the engine stays serial whatever the worker
+// cap. The runtime gate (internal/service) and predict's twin
+// (descriptor DecodeFanOut) both read it.
+const ParallelDecodeRecordThreshold = 100_000
+
 // MemoryInputs are the figures EstimateMemory reads. Counts are
 // non-negative; a figure the caller cannot know makes the estimate
 // unknowable, and the caller reports no finding instead of guessing.
@@ -139,6 +247,31 @@ type MemoryInputs struct {
 	// Aggregations is the number of aggregator slots (the crosstab
 	// cell counts as one).
 	Aggregations int64
+	// AggStateBytes is, summed over those slots, each slot's per-bucket
+	// state (AggregationStateBytes: a built-in's measured entry, its
+	// weighted one when a weight is in force on the slot — its own, else
+	// the request's, else the instance default; an extension's ceiling).
+	AggStateBytes int64
+	// ComponentsOff reports the request runs with components disabled
+	// (the request's disable_components, else Options.DisableComponents):
+	// a merged bucket's finalize output is then bucketOutputOffBytes +
+	// AggOutputOffBytes, never the components-on figure.
+	ComponentsOff bool
+	// AggOutputOffBytes is, summed over the slots, each slot's
+	// components-off output (AggregationOutputOffBytes).
+	AggOutputOffBytes int64
+	// ExtraGroupers is the groupers past the first (a composite key):
+	// each adds extraGrouperStateBytes to a bucket's state.
+	ExtraGroupers int64
+	// VectorBytes is the vector aggregators' merge-block fragments and
+	// buffered rows (VectorAggregationBytes, summed over the slots),
+	// charged once on every arm.
+	VectorBytes int64
+	// SetMembers is, summed over the AGG_SET_FREQUENCY slots, the member
+	// count of the set field each counts (its dictionary size, capped at
+	// the set address space): per bucket, a counter and an output label
+	// per member.
+	SetMembers int64
 	// ValueStateAggregations is how many of them keep per-value state
 	// (distinct / mode / frequency families).
 	ValueStateAggregations int64
@@ -147,6 +280,37 @@ type MemoryInputs struct {
 	DerivedColumns int64
 	// Cells is the crosstab grid bound (0 without a crosstab).
 	Cells int64
+	// CellBytes is one crosstab cell's charge, summed over the measures
+	// (CrosstabSlotBytes: each measure's state and finalize output) —
+	// U51 E5-S9; it replaced a flat 512 B a cell.
+	CellBytes int64
+	// AxisKeys is the crosstab's axis-key bound, rows + columns; each
+	// costs AxisKeyBytes (CrosstabAxisKeyBytes a measure).
+	AxisKeys     int64
+	AxisKeyBytes int64
+	// MarginSlots is the crosstab's margin slots — a row slot per row
+	// key with row margins, a column slot per column key with column
+	// margins, one grand slot — plus the normalize denominators (cells
+	// under normalize_within, rows + columns under normalize_level);
+	// each costs MarginSlotBytes (the measures' CrosstabSlotBytes).
+	MarginSlots     int64
+	MarginSlotBytes int64
+	// GridPositions is the crosstab's dense-grid positions past the
+	// populated-cell bound (U51 E5-S11): rows bound x cols bound, capped
+	// by MaxCrosstabCells, less Cells — the empty positions both arms'
+	// rows x cols matrices hold; each costs GridPositionBytes (the
+	// measures' CrosstabGridPositionBytes on the run's arm).
+	GridPositions     int64
+	GridPositionBytes int64
+	// CrosstabMeasures is the crosstab's measure count (crosstab.cell
+	// is one, else len(crosstab.cells)): the buffered arm lays out its
+	// cell and axis partitions once per measure.
+	CrosstabMeasures int64
+	// AuxSlots is the margin slots the margin_aggregations entries fill
+	// (row, column and grand, as emitted); each costs AuxSlotBytes (the
+	// entries' CrosstabAuxSlotBytes, once per measure).
+	AuxSlots     int64
+	AuxSlotBytes int64
 	// JoinRightRows is a join build side's record count (0 without a
 	// join); each is a materialised record of RecordBytes plus its
 	// payload.
@@ -158,13 +322,19 @@ type MemoryInputs struct {
 	// GrouperBytes is a buffered vector grouper's point store
 	// (KMeansBufferBytes, GROUP_KMEANS) — 0 without one.
 	GrouperBytes int64
-	// ArchiveBytes is a shard archive's byte length — every byte Open
-	// and the scan read onto the heap (afero.ReadFile, once each),
-	// whatever the filesystem; 0 for a single file. It replaces records
-	// x stride in the payload term when larger: every shard's header,
-	// schema block and dictionaries, the canonical _schema.pulse entry
-	// and the zip directory ride with the payload.
-	ArchiveBytes int64
+	// MaxShardRecords is a shard archive's largest per-shard record
+	// count; 0 for a single file or an anchor-opened shard. Open reads
+	// only the central directory and each shard's header, and the scan
+	// streams one shard at a time through a bounded read window (U51
+	// E1-S1) — the archive is never resident — so the payload term
+	// charges this one shard's records x stride in place of Records:
+	// the per-shard working set and the collector's headroom over it.
+	MaxShardRecords int64
+	// DirectoryBytes is a shard archive's central-directory bytes
+	// (encoding Archive.DirectoryBytes: the tail past the last entry's
+	// data); 0 for a single file or an anchor-opened shard. The scan
+	// holds the parsed directory, charged directoryCopyFactor a byte.
+	DirectoryBytes int64
 	// SchemaDecodes is how many schema blocks the run decodes, with
 	// their dictionaries, beyond the cohort's own (an archive: 1, the
 	// canonical entry — Open's record-count peek and the scan read
@@ -174,16 +344,20 @@ type MemoryInputs struct {
 	// SchemaBytes is what one decode of the cohort's schema allocates
 	// (SchemaDecodeBytes).
 	SchemaBytes int64
-	// PartitionBuckets is the bucket states the per-shard parallel
-	// reducer's partials hold until the merge — the sum over shards of
-	// each shard's bucket bound (1 per shard ungrouped); 0 off that arm.
-	// Each costs what a merged bucket costs; the merge folds into one
-	// partial while the others are still live.
+	// PartitionBuckets is the bucket states the parallel reducers'
+	// partials hold beside the merged state: on the per-shard arm the
+	// sum of the shard bucket bounds (1 per shard ungrouped) over the
+	// merge window's LARGEST shards (ShardMergeWindow, shrunk by
+	// ShardMergeWindowWithin under a set MaxEstimatedMemory) — the merge folds each
+	// shard as soon as every earlier one is done and releases it, and
+	// dispatches no shard past the window (U51 E2-S4) — and on the
+	// parallel-decode arm one partition per worker; 0 off both. Each
+	// costs a bucket's STATE (no output: a partition never finalizes).
 	PartitionBuckets int64
-	// PartitionRecords is the records whose per-value state the
-	// per-shard partials hold beside the merged state (the run's record
-	// count on the per-shard parallel arm, else 0): charged per
-	// value-state aggregation like Records.
+	// PartitionRecords is the records whose per-value state those
+	// partials hold beside the merged state (the window's shards'
+	// records on the per-shard arm, the run's records on the decode
+	// arm, else 0): charged per value-state aggregation like Records.
 	PartitionRecords int64
 	// FanOut is the most group buckets one record lands in
 	// (FanOutMultiplicity: the product of every fan-out grouper's key
@@ -217,31 +391,47 @@ type MemoryInputs struct {
 // bytes, per arm, where rows is JoinedRows when set (a fan-out join),
 // else records:
 //
-//	every arm  base + 3 x max(records x stride, archive bytes)
-//	             (the payload + GC headroom; an archive's every byte)
-//	           + schema decodes x schema bytes, on an archive
+//	every arm  base + 3 x payload records x stride
+//	             (the payload + GC headroom; payload records are the
+//	             largest shard's on an archive, else records)
+//	           + 8 x directory bytes + schema decodes x schema bytes,
+//	             on an archive
 //	           + join right rows x (3 x stride + 2 x record bytes)
 //	           + matrix merge-block state + vector-grouper point store
-//	           + partition buckets x (512 + 256 x aggs), per-shard arm
+//	           + vector aggregators' merge-block fragments
+//	           + partition buckets x state, parallel arms
 //	           + test instances x 1024 + test levels x 256
 //	           + buffered-test values x 32
 //	buffered   + rows x (record bytes + 16 x aggs + 128 x derived)
 //	           + rows x (fan-out - 1) x 24
-//	           + buckets x (512 + 256 x aggs) + cells x 512
-//	streaming  + buckets x (512 + 256 x aggs)
-//	fused      + cells x 512
+//	           + buckets x (state + output) + crosstab
+//	           + rows x fan-out x 128 + measures x (cells x 448 +
+//	             axis keys x 416), with a crosstab (its partitions)
+//	streaming  + buckets x (state + output)
+//	fused      + crosstab
 //
-// plus (rows + partition records) x fan-out x 96 per value-state
-// aggregation on every arm. Saturates at math.MaxInt64 rather than
-// wrapping.
+// where a bucket's state and output are BucketBytes', crosstab is
+// cells x cell bytes + empty grid positions x position bytes (U51
+// E5-S11) + axis keys x axis-key bytes + margin slots x
+// margin-slot bytes + auxiliary slots x auxiliary bytes (U51 E5-S9:
+// per measure, from the per-aggregator table), plus (rows +
+// partition records) x fan-out x 96 per value-state aggregation on
+// every arm. Saturates at math.MaxInt64
+// rather than wrapping.
 func EstimateMemory(in MemoryInputs) int64 {
 	total := int64(runBaseBytes)
 	add := func(a, b int64) { total = addSat(total, mulSat(a, b)) }
-	add(max(mulSat(in.Records, in.Stride), in.ArchiveBytes), fileCopyFactor)
+	payloadRecords := in.Records
+	if in.MaxShardRecords > 0 {
+		payloadRecords = in.MaxShardRecords
+	}
+	add(mulSat(payloadRecords, in.Stride), fileCopyFactor)
+	add(in.DirectoryBytes, directoryCopyFactor)
 	add(in.SchemaDecodes, in.SchemaBytes)
 	add(in.JoinRightRows, addSat(fileCopyFactor*in.Stride, buildCopyFactor*in.RecordBytes))
 	total = addSat(total, in.MatrixBytes)
 	total = addSat(total, in.GrouperBytes)
+	total = addSat(total, in.VectorBytes)
 	rows := in.Records
 	if in.JoinedRows > 0 {
 		rows = in.JoinedRows
@@ -251,21 +441,63 @@ func EstimateMemory(in MemoryInputs) int64 {
 	add(in.TestInstances, testStateBytes)
 	add(in.TestLevels, testLevelBytes)
 	add(in.TestValues, testValueBytes)
-	bucketState := addSat(bucketBaseBytes, mulSat(in.Aggregations, aggStateBytes))
+	bucketState, bucketFinal := BucketBytes(in)
 	add(in.PartitionBuckets, bucketState)
 	switch in.Arm {
 	case ArmBuffered:
 		per := addSat(in.RecordBytes, addSat(mulSat(in.Aggregations, bufferedValueBytes), mulSat(in.DerivedColumns, derivedColumnBytes)))
 		add(rows, per)
 		add(mulSat(rows, fanOut-1), fanOutSlotBytes)
-		add(in.Buckets, bucketState)
-		add(in.Cells, cellBytes)
+		add(in.Buckets, bucketFinal)
+		total = addSat(total, crosstabBytes(in))
+		if in.Cells > 0 {
+			// The buffered crosstab's partitions (U51 E5-S9): the rows'
+			// once, the cells' and axis keys' once per measure.
+			measures := max(in.CrosstabMeasures, 1)
+			add(mulSat(rows, fanOut), crosstabBufferedRecordBytes)
+			add(mulSat(in.Cells, measures), crosstabBufferedCellBytes)
+			add(mulSat(in.AxisKeys, measures), crosstabBufferedAxisKeyBytes)
+		}
 	case ArmStreaming:
-		add(in.Buckets, bucketState)
+		add(in.Buckets, bucketFinal)
 	case ArmFusedCrosstab:
-		add(in.Cells, cellBytes)
+		total = addSat(total, crosstabBytes(in))
 	}
 	return total
+}
+
+// crosstabBytes is a crosstab's grid, axis-key and margin charge
+// (U51 E5-S9): cells x cell bytes + empty grid positions x position
+// bytes (U51 E5-S11) + axis keys x axis-key bytes + margin slots x
+// margin-slot bytes + auxiliary slots x auxiliary bytes.
+func crosstabBytes(in MemoryInputs) int64 {
+	n := mulSat(in.Cells, in.CellBytes)
+	n = addSat(n, mulSat(in.GridPositions, in.GridPositionBytes))
+	n = addSat(n, mulSat(in.AxisKeys, in.AxisKeyBytes))
+	n = addSat(n, mulSat(in.MarginSlots, in.MarginSlotBytes))
+	return addSat(n, mulSat(in.AuxSlots, in.AuxSlotBytes))
+}
+
+// BucketBytes is one group bucket's charge under in: state is what it
+// holds while records fold (a parallel partition's bucket costs only
+// this), final adds what finalize writes for a merged bucket (EstimateMemory's
+// bucket terms): state = 256 + 128 x extra groupers + the slots'
+// AggStateBytes + 64 x set members; the output adds 1024 + 576 x aggs
+// with components on, 512 + the slots' AggOutputOffBytes with them off
+// (U51 E5-S7), and 128 x set members either way.
+func BucketBytes(in MemoryInputs) (state, final int64) {
+	state = addSat(bucketBaseBytes, mulSat(max(in.ExtraGroupers, 0), extraGrouperStateBytes))
+	state = addSat(state, max(in.AggStateBytes, 0))
+	state = addSat(state, mulSat(in.SetMembers, setMemberStateBytes))
+	if in.ComponentsOff {
+		final = addSat(state, bucketOutputOffBytes)
+		final = addSat(final, max(in.AggOutputOffBytes, 0))
+	} else {
+		final = addSat(state, bucketOutputBytes)
+		final = addSat(final, mulSat(in.Aggregations, aggOutputBytes))
+	}
+	final = addSat(final, mulSat(in.SetMembers, setMemberOutputBytes))
+	return state, final
 }
 
 // RecordBytes is the resident size, in bytes, of one buffered record

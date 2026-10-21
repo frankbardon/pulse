@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"cmp"
 	"encoding/json"
 	"math"
 	"runtime"
@@ -13,6 +14,7 @@ import (
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -32,18 +34,30 @@ type LimitInputs struct {
 	// restart per shard); nil for a single file, whose blocks derive
 	// from Records.
 	ShardRecords []int64
-	// ArchiveBytes is a shard archive's byte length (predict: the bytes
-	// it was handed; the runtime: what Open read), 0 for a single file.
-	// Open and the scan read every byte onto the heap. An anchor-opened
-	// shard (`archive.pulse#shard.pulse`) carries its archive's length
-	// too, with no ShardRecords: Open reads the whole archive to extract
-	// the one shard (predict: PredictOptions.AnchorArchiveBytes).
-	ArchiveBytes int64
+	// DirectoryBytes is a shard archive's central-directory bytes
+	// (encoding Archive.DirectoryBytes, read the same way by predict and
+	// by the runtime's Open), 0 for a single file. Since U51 an archive
+	// is never read whole — Open reads the directory and each shard's
+	// header, the scan streams one shard at a time — so the memory
+	// estimate charges the directory and the largest shard's payload,
+	// never the archive's bytes (archiveTerms). An anchor-opened shard
+	// (`archive.pulse#shard.pulse`) carries none: its run reads only its
+	// own shard, as a single file's does.
+	DirectoryBytes int64
 	// ShardWorkers is the instance's per-shard worker cap
 	// (Options.ShardWorkers: 0 = runtime.NumCPU, 1 = serial) — with the
 	// shard count and the merge gate it decides whether an archive run
 	// takes the per-shard parallel arm (ShardFanOut).
 	ShardWorkers int
+	// DecodeWorkers is the instance's parallel-decode worker cap
+	// (Options.DecodeWorkers: 0 = runtime.NumCPU, 1 = serial) and
+	// Mappable whether the runtime can memory-map the single file the
+	// request scans (a real on-disk path: never an archive, an anchored
+	// shard, an in-memory or RealPath-less fs) — with the record count
+	// and the merge gate they decide whether a single-file run takes the
+	// parallel-decode reducer (DecodeFanOut).
+	DecodeWorkers int
+	Mappable      bool
 	// Join reports a request carrying its one JoinSpec; JoinRightRows
 	// is that build side's header count (-1 unknown: no memory
 	// finding). A join never runs the fused crosstab.
@@ -60,6 +74,24 @@ type LimitInputs struct {
 	// and the engine's dispatch read them.
 	Extensions     *ExtensionsSnapshot
 	FusionDisabled bool
+	// DefaultWeight is the instance default weight
+	// (Options.DefaultWeight, nil = none): a slot with no weight of its
+	// own on a request with none runs weighted under it, and a weighted
+	// slot's bucket state is charged as such (EstimateMemory).
+	DefaultWeight *types.WeightSpec
+	// DisableComponents is the instance's components default
+	// (Options.DisableComponents): resolved with the request's
+	// disable_components by EffectiveDisableComponents — the runtime's
+	// components gate — a run with components off is charged the
+	// components-off finalize output (U51 E5-S7).
+	DisableComponents bool
+	// crosstabCellCap is the effective MaxCrosstabCells (<= 0:
+	// unlimited) the crosstab's dense-grid charge is capped at — both
+	// arms refuse a grid past it before it grows (U51 E5-S11).
+	// RequestLimitFindings fills it from the limits it judges, so
+	// predict and the pre-flight cap identically; a direct
+	// EstimateMemory call leaves the grid uncapped (an upper bound).
+	crosstabCellCap int64
 }
 
 // RequestLimitFindings is the one predict-time limit rule for a single
@@ -98,6 +130,7 @@ func RequestLimitFindings(req *types.Request, schema *encoding.Schema, inst *Ins
 		return nil
 	}
 	records := in.Records
+	in.crosstabCellCap = limits.Value(l, limits.MaxCrosstabCells)
 	var out []limits.Finding
 	if n, ok := EstimateGroups(req.Groups, schema, inst, records); ok {
 		// Every tier-1 test runs once per group, so tests x groups
@@ -117,7 +150,9 @@ func RequestLimitFindings(req *types.Request, schema *encoding.Schema, inst *Ins
 		}
 	}
 	if !limits.IsUnlimited(limits.Value(l, limits.MaxEstimatedMemory)) {
-		if n, ok := EstimateMemory(req, schema, inst, in); ok {
+		// The per-shard arm runs at the window the budget admits
+		// (ShardMergeWindow), so the estimate judged is that window's.
+		if n, ok := estimateMemoryWindow(req, schema, inst, in, in.Records, ShardMergeWindow(req, schema, inst, l, in)); ok {
 			if f, ok := limits.Evaluate(l, limits.MaxEstimatedMemory, n, limits.Certain); ok {
 				out = append(out, f)
 			} else if f, ok := joinFanOutFinding(req, schema, inst, l, in); ok {
@@ -176,17 +211,100 @@ func MemoryArm(req *types.Request, schema *encoding.Schema, inst *InstanceSnapsh
 // (mergegate.MergeRefusal over the declared extension facts) admits. A
 // crosstab or a join never reaches that dispatch.
 func ShardFanOut(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs) bool {
+	return shardWorkers(req, schema, inst, in) >= 2
+}
+
+// shardWorkers is the resolved per-shard worker count for req (the
+// runtime's: the cap, 0 = runtime.NumCPU, clamped by the shard count),
+// 0 when the run stays serial (see ShardFanOut).
+func shardWorkers(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs) int {
 	if req == nil || req.Crosstab != nil || in.Join || in.ShardWorkers == 1 || len(in.ShardRecords) < 2 {
-		return false
+		return 0
 	}
 	workers := in.ShardWorkers
 	if workers <= 0 {
 		workers = runtime.NumCPU()
 	}
-	if min(workers, len(in.ShardRecords)) < 2 {
-		return false
+	workers = min(workers, len(in.ShardRecords))
+	if workers < 2 || mergegate.MergeRefusal(req, schema, in.Extensions.mergeFacts(inst)) != "" {
+		return 0
 	}
-	return mergegate.MergeRefusal(req, schema, in.Extensions.mergeFacts(inst)) == ""
+	return workers
+}
+
+// ShardMergeWindow is the merge window req's per-shard parallel run
+// keeps — the runtime's scanAndMergeShards reads exactly this, from the
+// pre-flight's own inputs: limits.ShardMergeWindow(workers) (2 x
+// workers), shrunk by limits.ShardMergeWindowWithin while the whole-run
+// estimate at that window exceeds a set MaxEstimatedMemory (U51 E5-S4).
+// 0 when req does not take the per-shard arm (ShardFanOut false). The
+// window changes only how many shards are in flight, never the merge
+// order or an answer.
+func ShardMergeWindow(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, l limits.Limits, in LimitInputs) int {
+	workers := shardWorkers(req, schema, inst, in)
+	if workers < 2 {
+		return 0
+	}
+	return limits.ShardMergeWindowWithin(workers, limits.Value(l, limits.MaxEstimatedMemory), func(w int) (int64, bool) {
+		return estimateMemoryWindow(req, schema, inst, in, in.Records, w)
+	})
+}
+
+// shardWindowPartitions is the per-shard arm's live partitions: at most
+// window shards' partials (ShardMergeWindow) are alive beside the
+// merged state at once (the incremental merge releases every merged
+// shard and dispatches none past the window), charged as the window's
+// worst case — the largest bucket bounds (bound: a shard's bucket bound
+// from its record count) and, independently, the largest record counts
+// (the per-value state). Returns the summed buckets and records.
+func shardWindowPartitions(shardRecords []int64, window int, bound func(n int64) int64) (buckets, records int64) {
+	window = min(window, len(shardRecords))
+	bounds := make([]int64, len(shardRecords))
+	for i, n := range shardRecords {
+		bounds[i] = bound(n)
+	}
+	recs := slices.Clone(shardRecords)
+	desc := func(a, b int64) int { return cmp.Compare(b, a) }
+	slices.SortFunc(bounds, desc)
+	slices.SortFunc(recs, desc)
+	for i := range window {
+		buckets = addSaturating(buckets, bounds[i])
+		records = addSaturating(records, recs[i])
+	}
+	return buckets, records
+}
+
+// DecodeFanOut reports whether req runs on the parallel-decode reducer
+// over the single file `in` describes — the predict twin of the
+// runtime's processSingleFileParallelMaybe gate (canParallelDecode +
+// shouldFanOutDecode; parity: internal/service
+// TestDecodeFanOut_PredictMatchesRuntime): a mappable single file (no
+// shards), at least limits.ParallelDecodeRecordThreshold records, a
+// worker cap that resolves to two or more (0 = runtime.NumCPU, clamped
+// by the record count), no crosstab or join, and a request the shared
+// merge gate admits. A crosstab's parallel segment decode materialises
+// the records as the buffered arm does, so it adds no partials and is
+// not counted here.
+func DecodeFanOut(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs) bool {
+	return decodeWorkers(req, schema, inst, in) >= 2
+}
+
+// decodeWorkers is the resolved parallel-decode worker count for req
+// (0 when the run stays serial; see DecodeFanOut).
+func decodeWorkers(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs) int64 {
+	if req == nil || req.Crosstab != nil || in.Join || !in.Mappable || in.DecodeWorkers == 1 ||
+		len(in.ShardRecords) > 0 || in.Records < limits.ParallelDecodeRecordThreshold {
+		return 0
+	}
+	workers := int64(in.DecodeWorkers)
+	if workers <= 0 {
+		workers = int64(runtime.NumCPU())
+	}
+	workers = min(workers, in.Records)
+	if workers < 2 || mergegate.MergeRefusal(req, schema, in.Extensions.mergeFacts(inst)) != "" {
+		return 0
+	}
+	return workers
 }
 
 // EstimateMemory is the upper bound, in bytes, of the resident state
@@ -194,10 +312,14 @@ func ShardFanOut(req *types.Request, schema *encoding.Schema, inst *InstanceSnap
 // picks, with the record counts from in and the request-shaped figures
 // from the shared estimators:
 //
-//   - buckets: EstimateGroups (clamped by records); a grouper of
-//     unknown cardinality is bounded by the record count; 1 ungrouped.
-//   - cells: EstimateCrosstabCells, else rows x cols bounded by the
-//     record count when an axis is unknown.
+//   - buckets: memoryGroupBound — EstimateGroups (clamped by
+//     records); a grouper of unknown cardinality by its field's value
+//     width (valueKeyBound: 2^bits of an integer or set word), else
+//     the record count (x the fan-out multiplicity); 1 ungrouped.
+//   - cells: EstimateCrosstabCells, else the record count x the axes'
+//     fan-out, never past the dense grid — rows x cols over each axis's
+//     memoryGroupBound, capped by MaxCrosstabCells — whose empty
+//     positions are charged apart (crosstabMemory).
 //   - matrices: MatrixStateBytes over the merge blocks (per shard) and
 //     the matrix bucket bound — EstimatedBytes in PredictResult.Matrices
 //     — or records x accumulator bytes when the buckets are unknown
@@ -216,10 +338,23 @@ func ShardFanOut(req *types.Request, schema *encoding.Schema, inst *InstanceSnap
 //   - a shard archive charges its byte length in place of records x
 //     stride when larger, and one schema decode, the canonical entry's
 //     (archiveTerms; an anchor-opened shard its archive's byte length
-//     alone); on the per-shard parallel arm (ShardFanOut)
-//     every shard's partial holds its own buckets — EstimateGroups
-//     clamped by that shard's records, or its records for an unknown
-//     grouper, 1 ungrouped — and per-value state over its records.
+//     alone); on the per-shard parallel arm (ShardFanOut) the partials
+//     alive beside the merged state are at most the merge window's
+//     (limits.ShardMergeWindow: the incremental merge releases each
+//     merged shard; RequestLimitFindings judges the window a set
+//     MaxEstimatedMemory shrinks it to, ShardMergeWindow), charged as the window's largest shard bucket
+//     bounds — memoryGroupBound over that shard's records, 1
+//     ungrouped — and largest shard
+//     record counts (per-value state) (shardWindowPartitions).
+//     The parallel-decode reducer (DecodeFanOut) is charged per worker
+//     partition, each bounded by its block-aligned segment (at most
+//     ceil(blocks / workers) merge blocks). A partition's bucket costs
+//     its state only (limits.BucketBytes); a merged bucket adds its
+//     finalize output.
+//   - aggregations: weighted ones (a weight in force: the slot's own,
+//     else the request's, else in.DefaultWeight) cost the weighted
+//     accumulator; an AGG_SET_FREQUENCY slot adds its set field's
+//     member count (setMembers) per bucket.
 //
 // False when the record count (or a join's right count) is unknown.
 // The model never sees filter selectivity or field projection, so the
@@ -237,6 +372,13 @@ func EstimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceS
 // per-value state, buffered records, tests, matrices, point stores —
 // reads rows.
 func estimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs, rows int64) (int64, bool) {
+	return estimateMemoryWindow(req, schema, inst, in, rows, 0)
+}
+
+// estimateMemoryWindow is estimateMemory with the per-shard arm's live
+// partials charged at window shards (ShardMergeWindow); window 0 is the
+// unbudgeted limits.ShardMergeWindow(workers).
+func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs, rows int64, window int) (int64, bool) {
 	if req == nil || schema == nil || in.Records < 0 || (in.Join && in.JoinRightRows < 0) {
 		return 0, false
 	}
@@ -255,54 +397,232 @@ func estimateMemory(req *types.Request, schema *encoding.Schema, inst *InstanceS
 		matrixIn.Records, matrixIn.ShardRecords = rows, nil
 		records = rows
 	}
-	if ShardFanOut(req, schema, inst, in) {
-		mi.PartitionRecords = records
-		for _, n := range in.ShardRecords {
-			b := int64(1)
-			if len(req.Groups) > 0 {
-				if g, ok := EstimateGroups(req.Groups, schema, inst, n); ok {
-					b = g
-				} else {
-					b = n
-				}
-			}
-			mi.PartitionBuckets = addSaturating(mi.PartitionBuckets, b)
+	if workers := shardWorkers(req, schema, inst, in); workers >= 2 {
+		// The live partials: at most the merge window's shards beside
+		// the merged state (ShardMergeWindow, the runtime's
+		// scanAndMergeShards), charged as the window's largest.
+		if window <= 0 {
+			window = limits.ShardMergeWindow(workers)
 		}
+		mi.PartitionBuckets, mi.PartitionRecords = shardWindowPartitions(in.ShardRecords, window, func(n int64) int64 {
+			if len(req.Groups) == 0 {
+				return 1
+			}
+			return memoryGroupBound(req.Groups, schema, inst, n)
+		})
+	} else if workers := decodeWorkers(req, schema, inst, in); workers >= 2 {
+		// One partial per worker, live until the merge; a worker's
+		// segment is whole merge blocks (the runtime's
+		// blockAlignedSegments), at most ceil(blocks / workers) of them.
+		const block = int64(linalg.MergeBlockSize)
+		blocks := (records + block - 1) / block
+		seg := min(records, (blocks+workers-1)/workers*block)
+		b := int64(1)
+		if len(req.Groups) > 0 {
+			b = memoryGroupBound(req.Groups, schema, inst, seg)
+		}
+		mi.PartitionRecords = records
+		mi.PartitionBuckets = mulSaturating(b, workers)
 	}
 	if in.Join {
 		mi.JoinRightRows = in.JoinRightRows
 	}
 	if len(req.Groups) > 0 {
-		if n, ok := EstimateGroups(req.Groups, schema, inst, records); ok {
-			mi.Buckets = n
-		} else {
-			mi.Buckets = records
-		}
+		mi.Buckets = memoryGroupBound(req.Groups, schema, inst, records)
+	}
+	mi.ComponentsOff = EffectiveDisableComponents(req, in.DisableComponents)
+	mi.ExtraGroupers = int64(max(len(req.Groups)-1, 0))
+	mi.FanOut = requestFanOut(req, schema)
+	// A slot's merge-block fragments: every fragment holds at least one
+	// row, and an accumulator holds at most one per merge block — slots
+	// accumulators (buckets; a crosstab's cells or margin slots), fed
+	// feeds of them per row (fragmentBound).
+	fragmentBound := func(slots, feeds int64) int64 {
+		return min(mulSaturating(mergeBlocks(in), slots), mulSaturating(mulSaturating(records, max(mi.FanOut, 1)), feeds))
 	}
 	aggs := req.Aggregations
+	slotsOf := func(*types.Aggregation) (slots, feeds, copies int64) { return mi.Buckets, 1, 1 }
+	elementOf := func(*types.Aggregation) bool { return false }
 	if req.Crosstab != nil {
-		if n, ok := EstimateCrosstabCells(req.Crosstab, schema, inst, records); ok {
-			mi.Cells = n
-		} else {
-			mi.Cells = records
-		}
+		ct := crosstabMemory(req, schema, inst, in, records, mi.ComponentsOff, mi.Arm == limits.ArmFusedCrosstab)
+		mi.Cells, mi.CellBytes = ct.cells, ct.cellBytes
+		mi.GridPositions, mi.GridPositionBytes = ct.gridPositions, ct.gridPositionBytes
+		mi.AxisKeys, mi.AxisKeyBytes = ct.axisKeys, ct.axisKeyBytes
+		mi.MarginSlots, mi.MarginSlotBytes = ct.marginSlots, ct.marginSlotBytes
+		mi.AuxSlots, mi.AuxSlotBytes = ct.auxSlots, ct.auxSlotBytes
+		mi.CrosstabMeasures = int64(len(req.Crosstab.CellAggregations()))
 		aggs = append(append([]*types.Aggregation(nil), aggs...), req.Crosstab.CellAggregations()...)
 		aggs = append(append([]*types.Aggregation(nil), aggs...), req.Crosstab.MarginAggregations...)
+		slotsOf, elementOf = ct.slotsOf, ct.element
 	}
 	mi.Aggregations = int64(len(aggs))
+	var vecInputs map[*types.Aggregation]vectors.AggregationInput
 	for _, a := range aggs {
-		if a != nil && (valueStateAggregation[a.Type] || inst.Extensions().AggregatorValueState(a.Type)) {
-			mi.ValueStateAggregations++
+		if a == nil {
+			continue
 		}
+		// A crosstab slot's accumulators — a cell's and each margin's
+		// a row feeds, once per measure for a margin_aggregations entry
+		// — each keep their own per-value state and fragments.
+		slots, feeds, copies := slotsOf(a)
+		if valueStateAggregation[a.Type] || inst.Extensions().AggregatorValueState(a.Type) {
+			mi.ValueStateAggregations = addSaturating(mi.ValueStateAggregations, mulSaturating(feeds, copies))
+		}
+		var members int64
+		if vectors.IsVectorAggregation(a.Type) {
+			if vecInputs == nil {
+				vecInputs, _ = vectors.ResolveAggregations(req, schema, aggregationKinds(inst, nil))
+			}
+			members = vectorAggregationMembers(a, vecInputs, schema)
+			if elementOf(a) {
+				// A crosstab element slot reads its one member.
+				members = 1
+			}
+			buffered := mulSaturating(limits.MergeBufferedRows(in.ShardRecords...), max(mi.FanOut, 1))
+			mi.VectorBytes = addSaturating(mi.VectorBytes, mulSaturating(copies, limits.VectorAggregationBytes(a.Type, members, fragmentBound(slots, feeds), buffered)))
+		}
+		mi.AggStateBytes = addSaturating(mi.AggStateBytes, limits.AggregationStateBytes(a.Type, weightInForce(req, a, in.DefaultWeight), members))
+		mi.AggOutputOffBytes = addSaturating(mi.AggOutputOffBytes, limits.AggregationOutputOffBytes(a.Type, members))
+		mi.SetMembers = addSaturating(mi.SetMembers, setMembers(a, schema))
 	}
 	mi.DerivedColumns = int64(len(req.Attributes) + len(req.Features) + len(req.Windows))
-	mi.FanOut = requestFanOut(req, schema)
 	mi.TestInstances, mi.TestLevels, mi.TestValues = testMemory(req, schema, inst, records, mi.Buckets, mi.FanOut)
 	mi.MatrixBytes = matrixMemory(req, schema, inst, matrixIn)
 	for _, b := range GroupBufferBytes(req, schema, inst, records) {
 		mi.GrouperBytes = addSaturating(mi.GrouperBytes, b)
 	}
 	return limits.EstimateMemory(mi), true
+}
+
+// crosstabCharge is a crosstab's grid, axis-key and margin figures for
+// the memory model (U51 E5-S9), and the per-slot accumulator counts its
+// vector fragments are bounded by.
+type crosstabCharge struct {
+	cells, cellBytes             int64
+	gridPositions                int64
+	gridPositionBytes            int64
+	axisKeys, axisKeyBytes       int64
+	marginSlots, marginSlotBytes int64
+	auxSlots, auxSlotBytes       int64
+	// measureSlots / auxFeeds: the accumulators one measure's (one
+	// auxiliary's) slot holds — cells + margin slots (margin slots) —
+	// and how many of them one row feeds; auxCopies: an auxiliary is
+	// held once per measure (never with components off).
+	measureSlots, measureFeeds int64
+	auxFeeds, auxCopies        int64
+	auxSet, elementSet         map[*types.Aggregation]bool
+}
+
+// slotsOf is a crosstab aggregation's accumulator count, per-row feed
+// count (its per-value state and fragment bound's inputs) and copies
+// (an auxiliary's: one per measure, none with components off).
+func (c crosstabCharge) slotsOf(a *types.Aggregation) (slots, feeds, copies int64) {
+	if c.auxSet[a] {
+		return c.auxSlots, c.auxFeeds, c.auxCopies
+	}
+	return c.measureSlots, c.measureFeeds, 1
+}
+
+// element reports whether a is a crosstab element-selecting vector slot.
+func (c crosstabCharge) element(a *types.Aggregation) bool { return c.elementSet[a] }
+
+// crosstabMemory is req.Crosstab's charge on either crosstab arm. Per
+// measure (crosstab.cell, or each crosstab.cells entry — each runs its
+// own grid, interners and margins over the same records):
+//
+//   - the dense grid (U51 E5-S11) is rows x cols over each axis's
+//     memoryGroupBound (its schema-fixed cardinality, else its fields'
+//     value width, clamped by the record count x its fan-out), capped
+//     by the effective MaxCrosstabCells (in.crosstabCellCap — both arms
+//     refuse a grid past it before it grows);
+//   - every populated cell — the grid (EstimateCrosstabCells when every
+//     axis is schema-fixed), else at most the record count x both
+//     axes' fan-out, never past the grid — and every margin slot costs
+//     limits.CrosstabSlotBytes — the measure's per-aggregator state and
+//     finalize output, weighted when a weight is in force on the slot,
+//     components on or off;
+//   - every grid position past the populated cells costs
+//     limits.CrosstabGridPositionBytes on the run's arm (fused: the
+//     fold's dense slots and the emitted matrix; buffered: the matrix);
+//   - every axis key (each axis's memoryGroupBound: its
+//     crosstabAxisEstimate, else its fields' value width, else the
+//     record count x its fan-out) costs limits.CrosstabAxisKeyBytes;
+//   - the margin slots are a slot per row key with row margins, per
+//     column key with column margins, one grand slot, plus the
+//     normalize denominators — the cells under normalize_within, the
+//     axis keys under normalize_level;
+//   - each margin_aggregations entry costs limits.CrosstabAuxSlotBytes
+//     in each emitted row / column / grand slot.
+//
+// A vector element slot reads one member.
+func crosstabMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, in LimitInputs, records int64, off, fused bool) crosstabCharge {
+	spec := req.Crosstab
+	rows, cols := memoryGroupBound(spec.Rows, schema, inst, records), memoryGroupBound(spec.Columns, schema, inst, records)
+	grid := mulSaturating(rows, cols)
+	if limit := in.crosstabCellCap; limit > 0 {
+		grid = min(grid, limit)
+	}
+	fanOut := mulSaturating(FanOutMultiplicity(spec.Rows, schema), FanOutMultiplicity(spec.Columns, schema))
+	c := crosstabCharge{cells: min(mulSaturating(records, fanOut), grid), axisKeys: addSaturating(rows, cols)}
+	if n, ok := EstimateCrosstabCells(spec, schema, inst, records); ok {
+		c.cells = min(n, grid)
+	}
+	c.gridPositions = grid - c.cells
+	var feeds int64 = 1
+	if spec.NeedsRowMargin() {
+		c.auxSlots = addSaturating(c.auxSlots, rows)
+		c.auxFeeds++
+	}
+	if spec.NeedsColumnMargin() {
+		c.auxSlots = addSaturating(c.auxSlots, cols)
+		c.auxFeeds++
+	}
+	if spec.NeedsGrandMargin() {
+		c.auxSlots = addSaturating(c.auxSlots, 1)
+		c.auxFeeds++
+	}
+	feeds += c.auxFeeds
+	c.marginSlots = c.auxSlots
+	if spec.NormalizeWithin != nil {
+		c.marginSlots = addSaturating(c.marginSlots, c.cells)
+		feeds++
+	}
+	if spec.NormalizeLevel != nil {
+		c.marginSlots = addSaturating(c.marginSlots, c.axisKeys)
+		feeds++
+	}
+	c.measureSlots, c.measureFeeds = addSaturating(c.cells, c.marginSlots), feeds
+	kinds := aggregationKinds(inst, nil)
+	c.auxSet, c.elementSet = map[*types.Aggregation]bool{}, map[*types.Aggregation]bool{}
+	members := func(a *types.Aggregation) int64 {
+		if vectors.SelectsElement(a, kinds) {
+			c.elementSet[a] = true
+			return 1
+		}
+		return 0 // scalar; an array-valued vector slot is refused
+	}
+	for _, m := range spec.CellAggregations() {
+		if m == nil {
+			continue
+		}
+		slot := limits.CrosstabSlotBytes(m.Type, weightInForce(req, m, in.DefaultWeight), off, members(m), setMembers(m, schema))
+		if !off {
+			// Components off: neither arm accumulates an auxiliary.
+			c.auxCopies++
+		}
+		c.cellBytes = addSaturating(c.cellBytes, slot)
+		c.gridPositionBytes = addSaturating(c.gridPositionBytes, limits.CrosstabGridPositionBytes(fused, weightInForce(req, m, in.DefaultWeight), off))
+		c.marginSlotBytes = addSaturating(c.marginSlotBytes, slot)
+		c.axisKeyBytes = addSaturating(c.axisKeyBytes, limits.CrosstabAxisKeyBytes(off))
+		for _, a := range spec.MarginAggregations {
+			if a == nil {
+				continue
+			}
+			c.auxSet[a] = true
+			c.auxSlotBytes = addSaturating(c.auxSlotBytes, limits.CrosstabAuxSlotBytes(a.Type, weightInForce(req, a, in.DefaultWeight), off, members(a), setMembers(a, schema)))
+		}
+	}
+	return c
 }
 
 // JoinRowsBound is the joined-row bound a join's memory estimate is
@@ -521,25 +841,89 @@ func EstimateFacetMemory(req *types.FacetRequest, schema *encoding.Schema, in Li
 	return limits.EstimateMemory(mi), true
 }
 
-// archiveTerms sets the shard-archive inputs of the memory model: the
-// archive's byte length (Open and the scan read it whole) and the one
-// schema block the run decodes with its dictionaries — the canonical
-// entry, whatever the shard count. Open's record-count peek
-// (Archive.PeekShardRecordCount, E8-S4) and the scan (shardIter /
-// processOneShard, E8-S5) read every shard's schema layout-only and
-// allocate no dictionary, so neither is charged. An anchor-opened shard (ArchiveBytes
-// set, no ShardRecords) decodes only its own schema, as a single file
-// does: its archive's bytes alone are charged. A single file
-// (ArchiveBytes 0) sets nothing.
+// archiveTerms sets the shard-archive inputs of the memory model (U51
+// E1-S2): the central directory the scan holds parsed
+// (DirectoryBytes), the largest shard's record count — the archive
+// streams one shard at a time through a bounded window, so the payload
+// term charges that shard's records x stride, never the archive's bytes
+// (MaxShardRecords) — and the one schema block the run decodes with its
+// dictionaries: the canonical entry, whatever the shard count. Open's
+// record-count peek (Archive.PeekShardRecordCount, E8-S4) and the scan
+// (shardIter / processOneShard, E8-S5) read every shard's schema
+// layout-only and allocate no dictionary, so neither is charged. A
+// single file and an anchor-opened shard (no ShardRecords — its run
+// reads only its own shard) set nothing.
 func archiveTerms(mi *limits.MemoryInputs, schema *encoding.Schema, in LimitInputs) {
-	if in.ArchiveBytes <= 0 {
+	if len(in.ShardRecords) == 0 {
 		return
 	}
-	mi.ArchiveBytes = in.ArchiveBytes
-	if len(in.ShardRecords) > 0 {
-		mi.SchemaDecodes = 1
-		mi.SchemaBytes = limits.SchemaDecodeBytes(schema)
+	mi.DirectoryBytes = max(in.DirectoryBytes, 0)
+	for _, n := range in.ShardRecords {
+		mi.MaxShardRecords = max(mi.MaxShardRecords, n)
 	}
+	mi.SchemaDecodes = 1
+	mi.SchemaBytes = limits.SchemaDecodeBytes(schema)
+}
+
+// weightInForce reports whether aggregation slot a runs weighted under
+// req and the instance default: its own weight when set (`null` opts
+// out), else the request's, else def — processing.StampWeightsWith's
+// precedence. The slot's weight awareness is not read, so the figure is
+// an upper bound (an unaware slot runs unweighted).
+func weightInForce(req *types.Request, a *types.Aggregation, def *types.WeightSpec) bool {
+	switch {
+	case a.Weight.IsNull():
+		return false
+	case !a.Weight.IsZero():
+		return true
+	}
+	return req.Weight != nil || def != nil
+}
+
+// setMembers is the member count an AGG_SET_FREQUENCY slot keeps a
+// counter for per bucket — its set field's dictionary size, capped at
+// the set address space (encoding.SetMaskBits), the width
+// processing.newSetFrequencyAggregator pre-sizes — 0 for any other slot
+// or a field the schema does not carry as a set.
+func setMembers(a *types.Aggregation, schema *encoding.Schema) int64 {
+	if a.Type != types.AGG_SET_FREQUENCY || schema == nil {
+		return 0
+	}
+	f := schema.Field(a.Field)
+	if f == nil || !f.Type.IsSet() {
+		return 0
+	}
+	n := int(f.Type.MaxSetEntries())
+	if f.Dictionary != nil {
+		n = f.Dictionary.Count()
+	}
+	return int64(min(n, encoding.SetMaskBits))
+}
+
+// vectorAggregationMembers is a built-in vector aggregator slot's member
+// count p: its resolved input (inputs, vectors.ResolveAggregations),
+// else its inline fields; a slot that did not resolve — refused before
+// it runs — is charged every member the schema can supply (one per
+// column, a vec_* column's dimension).
+func vectorAggregationMembers(a *types.Aggregation, inputs map[*types.Aggregation]vectors.AggregationInput, schema *encoding.Schema) int64 {
+	if in, ok := inputs[a]; ok && in.Has() {
+		return int64(len(in.Members.Members))
+	}
+	if len(a.Fields) > 0 {
+		return int64(len(a.Fields))
+	}
+	var n int64
+	for i := range schema.Fields {
+		n += int64(max(schema.VectorDim(i), 1))
+	}
+	return n
+}
+
+// ValueStateAggregation reports whether the built-in aggregator t keeps
+// per-value state (valueStateAggregation): the memory estimate charges
+// it limits.ValueEntryBytes a record it can see.
+func ValueStateAggregation(t types.AggregationType) bool {
+	return valueStateAggregation[t]
 }
 
 // valueStateAggregation lists the built-in aggregators whose state
@@ -553,6 +937,8 @@ var valueStateAggregation = map[types.AggregationType]bool{
 	types.AGG_MODE:           true,
 	types.AGG_MODE_COUNT:     true,
 	types.AGG_FREQUENCY:      true,
+	// One map entry per distinct set mask (U51 E2-S4: was uncharged).
+	types.AGG_SET_DISTINCT_VALUES: true,
 }
 
 // mergeBlocks is the merge-fragment count a run over in's records
@@ -634,6 +1020,80 @@ func EstimateGroups(groups []*types.Group, schema *encoding.Schema, inst *Instan
 		return 0, false
 	}
 	return crosstabAxisEstimate(groups, schema, inst, records)
+}
+
+// memoryGroupBound is the group-bucket bound the memory estimate
+// charges over records (the run's, a shard's, a decode segment's):
+// EstimateGroups when every grouper's keys are schema-known; else the
+// product of each grouper's bound — its groupEstimate, else its
+// value-width bound (valueKeyBound), else unbounded — clamped by the
+// records (a run cannot mint more keys than it reads rows). A fan-out
+// position (GROUP_SET_PER_ELEMENT) lands one record in up to
+// FanOutMultiplicity keys, so with one the clamp is records x that
+// multiplicity (U51 E5-S6: it was records, below the composite keys a
+// fan-out run can mint).
+func memoryGroupBound(groups []*types.Group, schema *encoding.Schema, inst *InstanceSnapshot, records int64) int64 {
+	if n, ok := EstimateGroups(groups, schema, inst, records); ok {
+		return n
+	}
+	clamp := mulSaturating(records, FanOutMultiplicity(groups, schema))
+	n := int64(1)
+	for _, g := range groups {
+		b, ok := groupEstimate(g, schema, inst)
+		if !ok {
+			if b, ok = valueKeyBound(g, schema, inst); !ok {
+				return clamp
+			}
+		}
+		n = mulSaturating(n, b)
+	}
+	return min(n, clamp)
+}
+
+// valueKeyBound is a grouper's key-count bound from its field's value
+// width (U51 E5-S6): a built-in grouper whose key is a function of one
+// field's stored value alone — GROUP_CATEGORY, GROUP_ROUNDED and
+// GROUP_RANGE over an integer word, GROUP_SET_VALUE over a set mask —
+// mints at most one key per distinct stored value, and a w-bit word
+// holds at most 2^w (u4 16, u8 and set_u8 256, u16 and set_u16 65,536,
+// u32 and set_u32 2^32; a null row mints no key). False for any other
+// grouper (a float, date or 64-bit word, an extension grouper), or a
+// field the schema does not carry.
+func valueKeyBound(g *types.Group, schema *encoding.Schema, inst *InstanceSnapshot) (int64, bool) {
+	if g == nil || schema == nil {
+		return 0, false
+	}
+	f := schema.Field(g.Field)
+	if f == nil {
+		return 0, false
+	}
+	var bits int
+	switch opRoute(inst, g.Type) {
+	case types.GROUP_CATEGORY, types.GROUP_ROUNDED, types.GROUP_RANGE:
+		switch f.Type {
+		case encoding.FieldTypeU4:
+			bits = 4
+		case encoding.FieldTypeU8, encoding.FieldTypeCategoricalU8:
+			bits = 8
+		case encoding.FieldTypeU16, encoding.FieldTypeCategoricalU16:
+			bits = 16
+		case encoding.FieldTypeU32, encoding.FieldTypeCategoricalU32:
+			bits = 32
+		}
+	case types.GROUP_SET_VALUE:
+		switch f.Type {
+		case encoding.FieldTypeSetU8:
+			bits = 8
+		case encoding.FieldTypeSetU16:
+			bits = 16
+		case encoding.FieldTypeSetU32:
+			bits = 32
+		}
+	}
+	if bits == 0 {
+		return 0, false
+	}
+	return int64(1) << bits, true
 }
 
 // FanOutMultiplicity is the most buckets one record can land in under
@@ -903,16 +1363,16 @@ func joinBuildLimitFinding(req *types.Request, l limits.Limits, rightRows func(p
 }
 
 // CohortCounts are the header facts of one cohort the limit rules read
-// (LimitInputs.Records / ShardRecords / ArchiveBytes): the record
-// count (-1 unknown), an archive's per-shard counts and its byte
-// length, an anchor-opened shard's archive length. PredictOptions.
+// (LimitInputs.Records / ShardRecords / DirectoryBytes): the record
+// count (-1 unknown), an archive's per-shard counts and its
+// central-directory bytes. PredictOptions.
 // CohortCounter returns them for a Compose slot's (or fit's) cohort —
 // the facade passes the runtime pre-flight's own reader, so a slot's
 // certain finding carries the figure the slot's Process refuses with.
 type CohortCounts struct {
-	Records      int64
-	ShardRecords []int64
-	ArchiveBytes int64
+	Records        int64
+	ShardRecords   []int64
+	DirectoryBytes int64
 }
 
 // unknownCounts is CohortCounts with no record count — a chain stage
@@ -955,11 +1415,24 @@ func requestFindings(req *types.Request, schema *encoding.Schema, opts *PredictO
 	in := LimitInputs{
 		Records:        counts.Records,
 		ShardRecords:   counts.ShardRecords,
-		ArchiveBytes:   counts.ArchiveBytes,
+		DirectoryBytes: counts.DirectoryBytes,
 		ShardWorkers:   opts.ShardWorkers,
+		DecodeWorkers:  opts.DecodeWorkers,
 		JoinRightRows:  -1,
 		Extensions:     opts.Extensions,
 		FusionDisabled: opts.DisableCrosstabFusion,
+		DefaultWeight:  opts.DefaultWeight,
+		// pulse.Options.DisableComponents: resolved per request with its
+		// disable_components, as the runtime's components gate is.
+		DisableComponents: opts.DisableComponents,
+	}
+	// The mmap probe runs only when it can change the answer: a memory
+	// limit set, a single file at or past the threshold, decode not
+	// forced serial — so an unbounded predict never touches the fs.
+	if opts.DecodeMappable != nil && req != nil && req.Cohort != nil && len(counts.ShardRecords) == 0 &&
+		counts.Records >= limits.ParallelDecodeRecordThreshold && opts.DecodeWorkers != 1 &&
+		!limits.IsUnlimited(limits.Value(l, limits.MaxEstimatedMemory)) {
+		in.Mappable = opts.DecodeMappable(cohortPathFor(req.Cohort))
 	}
 	if req != nil && len(req.Joins) == 1 && req.Joins[0] != nil {
 		in.Join, in.JoinSpec = true, req.Joins[0]
@@ -1032,10 +1505,10 @@ func limitRefusalFinding(err error) (descriptor.LimitFinding, bool) {
 //
 // records is the cohort's header record count (-1 when unknown),
 // shardRecords an archive's per-shard counts (nil for a single file)
-// and archiveBytes its byte length (0 for a single file); they clamp
-// the group-bucket estimate and drive the memory estimate.
-func predictLimits(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, opts *PredictOptions, records int64, shardRecords []int64, archiveBytes int64) {
-	fs := requestFindings(req, schema, opts, CohortCounts{Records: records, ShardRecords: shardRecords, ArchiveBytes: archiveBytes})
+// and directoryBytes its central-directory bytes (0 for a single file);
+// they clamp the group-bucket estimate and drive the memory estimate.
+func predictLimits(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, opts *PredictOptions, records int64, shardRecords []int64, directoryBytes int64) {
+	fs := requestFindings(req, schema, opts, CohortCounts{Records: records, ShardRecords: shardRecords, DirectoryBytes: directoryBytes})
 	result.LimitFindings = limitFindingsDescriptor(fs)
 	for _, f := range fs {
 		if f.Grade == limits.Certain {

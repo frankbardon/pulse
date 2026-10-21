@@ -332,6 +332,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SHARD_GROUPS_REWRITTEN:       own(featShard),
 	errors.PULSE_SHARD_RESERVED_NAME:          shared,
 	errors.PULSE_SHARD_NAME_COLLISION:         own(featShard),
+	errors.PULSE_SHARD_COUNT_LIMIT:            own(featShard),
+	errors.PULSE_SHARD_INDEXES_UPDATED:        own(featShard),
 
 	errors.PULSE_CHAIN_NOT_MERGEABLE:     own(featProcessChain),
 	errors.PULSE_CHAIN_EMPTY:             own(featProcessChain),
@@ -480,7 +482,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_INDEX_MISSING:             plus(own(featIndex, featLookup), ownRecordRef),
 	errors.PULSE_LOOKUP_NOT_FOUND:          plus(own(featLookup), ownRecordRef),
 	errors.PULSE_LOOKUP_AMBIGUOUS:          plus(own(featLookup), ownRecordRef),
-	errors.PULSE_INDEX_STALE:               plus(own(featIndex, featLookup), ownRecordRef),
+	errors.PULSE_INDEX_STALE:               plus(own(featIndex, featLookup, featShard), ownRecordRef),
 	errors.PULSE_INDEX_UNSUPPORTED_SHARDED: plus(own(featIndex, featLookup), ownRecordRef),
 	errors.PULSE_INDEX_MANIFEST_INVALID:    own(featIndex, featLookup),
 	errors.PULSE_INDEX_MANIFEST_STALE:      own(featIndex, featLookup),

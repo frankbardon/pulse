@@ -115,10 +115,12 @@ type ExtensionRegistry struct {
 
 	// ComponentAttributes records which extension attributes emit a
 	// Response.Components.Attributes entry (a registration with a
-	// ComponentsFunc). Such an attribute is never admitted to the
-	// parallel reducers or ProcessChain (registryMergeFacts.Attribute):
-	// per-worker instances leave figures no orchestrator merge folds,
-	// so the request runs serial. Absent reads false.
+	// ComponentsFunc or declared ComponentSchema keys). Such an
+	// attribute is admitted to the parallel reducers and ProcessChain
+	// (registryMergeFacts.Attribute) only when its registration also
+	// declares Mergeable (Mergeable["attribute|<name>"]): its
+	// per-worker tallies then fold through extend.MergeableAttribute.
+	// Otherwise the request runs serial. Absent reads false.
 	ComponentAttributes map[types.AttributeType]bool
 
 	// VectorAggregators records the extension aggregators declared

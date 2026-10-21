@@ -118,18 +118,19 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 			r.Attributes[reg.Name] = adaptAttributeFactory(reg)
 			r.Streamable[processing.StreamabilityKey("attribute", string(reg.Name))] = reg.Mode != AttributeModeBuffered
 			r.WeightAware[processing.StreamabilityKey("attribute", string(reg.Name))] = reg.WeightAware
+			// The declared tally fold (extend.MergeableAttribute):
+			// admits a component-emitting row_local attribute to the
+			// reducers and chain stages (registryMergeFacts.Attribute).
+			r.Mergeable[processing.StreamabilityKey("attribute", string(reg.Name))] = reg.Mergeable
 			if reg.Mode == AttributeModeTwoPass {
 				if r.TwoPassAttributes == nil {
 					r.TwoPassAttributes = make(map[types.AttributeType]bool)
 				}
 				r.TwoPassAttributes[reg.Name] = true
 			}
-			// An emitting attribute (ComponentsFunc, or a self-emitting
-			// value) must declare Keys — pulse.New's probe refuses
-			// either emitter without them — so declared Keys mark it,
-			// the same fact predict reads off the snapshot's
-			// ComponentSchemas.
-			if reg.ComponentsFunc != nil || len(reg.ComponentSchema.Keys) > 0 {
+			// The one emitting rule (attributeEmitsComponents), shared
+			// with the snapshot predict reads.
+			if attributeEmitsComponents(reg) {
 				if r.ComponentAttributes == nil {
 					r.ComponentAttributes = make(map[types.AttributeType]bool)
 				}
@@ -217,6 +218,19 @@ func buildRuntimeExtensions(ext Extensions) *processing.ExtensionRegistry {
 // hasAnyRegistrations reports whether ext carries any
 // extension-API entry (operator or expression-side). Used to short-
 // circuit buildRuntimeExtensions when nothing is registered.
+// attributeEmitsComponents is THE rule for whether an extension
+// attribute emits a Response.Components.Attributes entry — the fact the
+// merge gate reads on both sides (the runtime registry's
+// ComponentAttributes, the snapshot's ComponentAttributes) and predict's
+// response-size count, so they cannot diverge. An emitter
+// (ComponentsFunc, or a self-emitting value) must declare Keys —
+// pulse.New's probe refuses either without them — so a ComponentsFunc
+// or declared Keys mark it; a ComponentSchema carrying only a
+// Mergeability class (no keys, no emitter) emits nothing.
+func attributeEmitsComponents(reg AttributeRegistration) bool {
+	return reg.ComponentsFunc != nil || len(reg.ComponentSchema.Keys) > 0
+}
+
 func hasAnyRegistrations(ext Extensions) bool {
 	return len(ext.Aggregators) > 0 ||
 		len(ext.Attributes) > 0 ||

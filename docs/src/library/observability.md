@@ -32,7 +32,7 @@ The core module depends on neither OpenTelemetry nor Prometheus. The two adapter
 
 ## What counts as an operation
 
-Every operation-bearing `*Pulse` method has an `OperationKind`: `open`, `process`, `process_stream`, `compose`, `compose_parallel`, `process_chain`, `facet`, `facet_schema`, `lookup`, `count_records`, `inspect`, `predict`, `manifest`, `payload_schema`, `import`, `export`, `convert`, `imports_sweep`, `drop`, `sample`, `filter_to_file`, `synth`, `synth_stream`, `profile`, `dedup`, `materialize`, `rake`, `widen`, the `index_*` and `shard_*` kinds, `template_render` and `template_reload`. `observe.AllOperationKinds()` is the authoritative list. Several methods share a kind: every predict entry point (`Predict`, `PredictBytes`, `PredictCompose`, `PredictFacet`, `PredictChain`, `PredictExport`) reports `predict`, every inspect entry point `inspect`. A Compose predict fires one `predict` operation, never a child per slot.
+Every operation-bearing `*Pulse` method has an `OperationKind`: `open`, `process`, `process_stream`, `compose`, `compose_parallel`, `process_chain`, `facet`, `facet_schema`, `lookup`, `count_records`, `inspect`, `predict`, `manifest`, `payload_schema`, `import`, `export`, `convert`, `imports_sweep`, `drop`, `sample`, `filter_to_file`, `synth`, `synth_stream`, `profile`, `dedup`, `materialize`, `rake`, `widen`, the `index_*` and `shard_*` kinds, `template_render` and `template_reload`. `observe.AllOperationKinds()` is the authoritative list. Several methods share a kind: every predict entry point (`Predict`, `PredictEnvelope`, `PredictBytes`, `PredictCompose`, `PredictFacet`, `PredictChain`, `PredictExport`) reports `predict`, every inspect entry point `inspect`, every filter-to-file entry point (`FilterToFile`, `FilterToFileBySetAndExpr`, `FilterToFileWithOptions`, `FilterToFileWithRequest`) `filter_to_file`. A Compose predict fires one `predict` operation, never a child per slot.
 
 Pure in-memory getters (`Skills`, `Limits`, `LabelTables`, ...) are not operations, and neither are handles whose real work reaches an instrumented call (`NewCohortBuilder`) or a few filesystem helpers (`CohortArtifacts`, `Imports`, `ResolveImport`, `Watch*`, `ExportReference`, ...): nothing useful to time, and each extra kind widens metric cardinality.
 
@@ -40,7 +40,7 @@ A Compose slot or ProcessChain stage is a **child** operation (`Scope` child, it
 
 ## Logs
 
-Attribute keys are stable; message text is not. Records: `op`, `cohort`, `request_hash`, `duration_ms`, `rows_scanned` (when positive), `code`. At Debug, an extra plan record adds `arm`, `workers`, `shards`, `projected_fields`.
+Attribute keys are stable; message text is not. Records: `op`, `cohort`, `request_hash`, `duration_ms`, `rows_scanned` (when positive), `code`. At Debug, an extra plan record adds `arm`, `workers`, `shards`, `projected_fields` (the number of fields the run decodes, `0` for every field; every arm that scans a cohort projects, the per-shard parallel arm included).
 
 - **Error**: an operation failed (code only). **Warn**: one record per result warning (code only) and one per resource-limit trip (`limit`, `configured`, `observed`). **Info**: `pulse.New` ready; index build/drop and shard create/add/remove/compact completed; imports sweeps and template reloads.
 - **Privacy**: logs never carry an error message, expression, filter value, dictionary entry or record. Warnings that exist only as free text are skipped for the same reason.

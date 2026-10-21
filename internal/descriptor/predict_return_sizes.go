@@ -493,7 +493,7 @@ func attributeComponentSlots(req *types.Request, inst *InstanceSnapshot) int {
 			continue
 		}
 		if snap != nil {
-			if _, ok := snap.ComponentSchemas[string(a.Type)]; ok {
+			if snap.ComponentAttributes[string(a.Type)] {
 				n++
 			}
 		}

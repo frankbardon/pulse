@@ -1,10 +1,10 @@
 ---
 name: cohort-sidecar-index
-description: The sidecar point-lookup index beside a cohort — the v3 file format, the O(1) seek path, three-outcome staleness, discovery through the indexes.json manifest, invalidation by a cohort rewrite, keyable types and constraints.
+description: The sidecar point-lookup index beside a cohort — the v3 file format, the O(1) seek path, three-outcome staleness, discovery through the indexes.json manifest, invalidation by a cohort rewrite, keyable types, shard-archive indexes and constraints.
 type: guide
 kind: design
 applies_to: inspect, predict, process, compose, sample, facet
-covers: [sidecar index, point lookup, idx, indexes.json, staleness, keyable types]
+covers: [sidecar index, point lookup, idx, indexes.json, staleness, keyable types, shard archive index]
 ---
 
 # Sidecar index
@@ -23,8 +23,10 @@ A lookup hashes the key, seeks its offset entry, seeks that bucket's data, then 
 
 **A cohort rewrite invalidates it.** `pulse widen` changes the cohort's byte length, so the index (and the SPSS metadata sidecar) self-invalidate on the size fingerprint — neither can serve stale data. Nothing is rebuilt automatically: that would attach unbounded work to a bounded metadata operation. `pulse widen` instead REPORTS what it invalidated and the exact `pulse index build ... --key a,b` that rebuilds it, discovered through the manifest (the key tuple is unrecoverable from the hashed filename). `--json` carries it as `data.invalidated_sidecars`; both arms print nothing when there are no sidecars. Library: `Pulse.InvalidatedSidecars`.
 
-**Keyable types** (`processing.IsIndexKeyableFieldType`): every type in the field-type matrix EXCEPT `set_*` — a multi-select mask has no single unambiguous equality value, so filter on it with the set filter instead. Per-type equality caveats are in that matrix's Notes column.
+**Keyable types** (`processing.IsIndexKeyableFieldType`): every type in the field-type matrix EXCEPT `set_*` — a multi-select mask has no single unambiguous equality value, so filter on it with the set filter instead. Per-type equality caveats are in that matrix's Notes column. A `u64` key is EXACT (stored word at build, `ParseUint` probe): ids above 2^53 one float apart stay distinct; an index built before that over such ids needs a rebuild.
+
+**Shard archives.** `pulse index build archive.pulse` writes ONE sidecar per shard — the anchor's path `archive.pulse#shard.pulse.<keyhash>.idx`, byte-identical to an anchored build, so `archive.pulse#shard.pulse` lookups read it too — plus a manifest entry listing every covered shard by name + size + zip CRC32 (never a zip entry). A lookup resolves the literal once on the canonical dictionary, probes every shard, unions hits in archive order (`assert_unique` across the union). A shard the entry does not cover (added, or replaced under the same name) ⇒ `PULSE_INDEX_STALE` with `details.shards_uncovered` — never a silent miss. Verify hashes every shard; list / drop work on the archive. `shard add` builds the new shard's sidecar for every archive index BEFORE the archive rename (a failed build aborts the add, nothing touched); `shard remove` deletes the removed shard's sidecar and record, no other file; both warn `PULSE_SHARD_INDEXES_UPDATED`. An add that re-encodes the stored shards (set widen, group promotion) keeps nothing and lists them as `invalidated_sidecars`. `compact` copies shards raw: sidecars stay valid.
 
 **Stored-record references.** A comparison attribute's `reference: {record: {cohort?, keys}}`<!-- feature: ATTR_VEC_DISTANCE --> (`op-attr-vec-distance`)<!-- /feature --> runs this same lookup, assert-unique, once before the run (the request's own cohort when `cohort` is omitted), so the index must exist on exactly those key columns in that order; every refusal below refuses the run — never a scan fallback — and predict, which reads no index, checks only the shape.
 
-**Constraints:** single-file cohorts only (the `archive.pulse#shard.pulse` anchor is a tested single-shard workaround); equality-only, full-key required, composite-key order significant end to end. The `PULSE_INDEX_*` / `PULSE_LOOKUP_*` codes carry their fixups in `pulse errors lookup CODE`<!-- feature: capability:lookup -->; the point-lookup MCP surface is `tool-lookup`<!-- /feature -->.
+**Constraints:** equality-only, full-key required, composite-key order significant end to end. The `PULSE_INDEX_*` / `PULSE_LOOKUP_*` codes carry their fixups in `pulse errors lookup CODE`<!-- feature: capability:lookup -->; the point-lookup MCP surface is `tool-lookup`<!-- /feature -->.

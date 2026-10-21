@@ -79,7 +79,10 @@ func (a *anovaRow) UpdateRow(record *Record) error {
 	if !ok {
 		return nil
 	}
-	key, ok := record.LevelValue(a.splitBy)
+	key, ok, err := record.LevelValueChecked(a.splitBy)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return nil
 	}

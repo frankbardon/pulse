@@ -207,7 +207,7 @@ func TestFinalizeMergedPartial_EmptyPartialMatchesSerial(t *testing.T) {
 					t.Fatal(err)
 				}
 				stamped := processing.StampWeightsWith(req, svc.defaultWeight, svc.extensions)
-				resp, err := finalizeMergedPartial(stamped, schema, merged, 0, svc.computePlanFor(ctx, req), svc.extensions, nil)
+				resp, err := finalizeMergedPartial(stamped, schema, merged, 0, svc.computePlanFor(ctx, req), svc.extensions, nil, nil)
 				if err != nil {
 					t.Fatalf("finalizeMergedPartial: %v", err)
 				}

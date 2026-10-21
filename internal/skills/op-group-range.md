@@ -42,7 +42,7 @@ Universal floor `{total_n, n_null}` plus:
 | `underflow_count` | int | Below low |
 | `overflow_count` | int | At/above high |
 
-- Mergeability: `Mergeable`
+- Mergeability: `Mergeable` — fans out whatever the bucket count; at very high cardinality (buckets ≳ 70% of each partition's rows) the fan-out gains nothing, which predict cannot see
 - Streaming: `StreamableGrouper` — eligible for fused crosstab
 
 ## Gotchas

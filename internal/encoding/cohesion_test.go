@@ -62,12 +62,18 @@ func TestShardArchiveStructuralCohesion(t *testing.T) {
 		assertCode(t, err, errors.PULSE_SHARD_SCHEMA_MISMATCH)
 	})
 
-	t.Run("same type different offset fails", func(t *testing.T) {
+	// #373: the stored ByteOffset is a cache of the type-derived
+	// layout, so a divergent stored offset is admitted — legacy cohorts
+	// (all-zero offsets, pre-canonical schema-file offsets) decode
+	// identically and must interoperate.
+	t.Run("same type different stored offset passes", func(t *testing.T) {
 		canonical := baseSchema(t)
 		incoming := baseSchema(t)
 		incoming.Fields[0].ByteOffset = 16
-		_, err := encx.ValidateStructuralCohesion(canonical, incoming)
-		assertCode(t, err, errors.PULSE_SHARD_SCHEMA_MISMATCH)
+		incoming.Fields[1].ByteOffset = 0
+		if _, err := encx.ValidateStructuralCohesion(canonical, incoming); err != nil {
+			t.Fatalf("stored-offset divergence refused: %v", err)
+		}
 	})
 
 	t.Run("different categorical width fails", func(t *testing.T) {

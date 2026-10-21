@@ -66,7 +66,8 @@ var (
 	_ attributeWarner   = (*scaleScoreAttribute)(nil)
 	_ MetaAttribute     = (*scaleScoreAttribute)(nil)
 
-	_ attributeTallyResetter = (*scaleScoreAttribute)(nil)
+	_ attributeTallyResetter  = (*scaleScoreAttribute)(nil)
+	_ MergeableAttributeTally = (*scaleScoreAttribute)(nil)
 )
 
 // newScaleScoreAttribute builds the computer over attr's resolved
@@ -192,6 +193,20 @@ func (a *scaleScoreAttribute) Components() (map[string]any, error) {
 		"n_out_of_range":      int(a.nOutOfRange),
 		"n_rows_out_of_range": int(a.nRows),
 	}, nil
+}
+
+// MergeTally satisfies MergeableAttributeTally: the parallel reducers
+// fold another partition's out-of-range counts (integers — exact in any
+// order), so the merged instance's Components() and warning carry the
+// cohort-wide figures.
+func (a *scaleScoreAttribute) MergeTally(other RowLocalAttribute) error {
+	o, ok := other.(*scaleScoreAttribute)
+	if !ok {
+		return tallyPartnerMismatch(types.ATTR_SCALE_SCORE, other)
+	}
+	a.nOutOfRange += o.nOutOfRange
+	a.nRows += o.nRows
+	return nil
 }
 
 // resetTally satisfies attributeTallyResetter: the two-pass arm's

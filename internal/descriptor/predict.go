@@ -3,6 +3,8 @@ package descriptor
 import (
 	"bytes"
 	"io"
+	"maps"
+	"slices"
 	"strconv"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -158,14 +160,20 @@ type PredictOptions struct {
 	// (ShardFanOut), as the engine's dispatch decides the arm.
 	ShardWorkers int
 
-	// AnchorArchiveBytes is, when the predicted bytes are ONE shard the
-	// caller extracted from an `archive.pulse#shard.pulse` anchor, that
-	// archive's byte length (0 otherwise). The runtime's OpenAnchor reads
-	// the whole archive to reach the shard, so the memory estimate
-	// charges the archive's bytes in place of the shard's payload when
-	// larger (LimitInputs.ArchiveBytes), exactly as the run's pre-flight
-	// does. Ignored when the bytes are themselves an archive.
-	AnchorArchiveBytes int64
+	// DecodeWorkers is pulse.Options.DecodeWorkers (0 = runtime.NumCPU,
+	// 1 = serial). Over a single file it decides, with DecodeMappable,
+	// whether the memory estimate counts the parallel-decode reducer's
+	// per-worker partials (DecodeFanOut), as the engine's dispatch
+	// decides the arm.
+	DecodeWorkers int
+
+	// DecodeMappable reports whether the runtime can memory-map the
+	// single-file cohort at path — the parallel-decode reducer's
+	// precondition (a real on-disk path). The facade passes the
+	// runtime's own probe; nil answers false (no parallel decode is
+	// predicted). Called only when a memory limit is set and the other
+	// fan-out conditions hold.
+	DecodeMappable func(path string) bool
 }
 
 // CrosstabFusionDisabledReason is the PredictResult.CrosstabFusionReasons
@@ -262,11 +270,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	if src, ok := sniffArchive(fileData); ok {
 		env = predictArchive(src, expanded, opts)
 	} else {
-		var anchorBytes int64
-		if opts != nil {
-			anchorBytes = opts.AnchorArchiveBytes
-		}
-		env = predictSingle(fileData, expanded, opts, nil, nil, anchorBytes)
+		env = predictSingle(fileData, expanded, opts, nil, nil, 0)
 	}
 	if len(fan) > 0 {
 		if result, ok := env.Data.(*descriptor.PredictResult); ok {
@@ -283,10 +287,10 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 // the response size estimates (PredictResult.Sizes), the limit findings
 // and the matrix state estimate — RecordCount stays the archive-only
 // figure it documents. shardRecords are an archive's per-shard counts
-// (merge blocks restart per shard) and archiveBytes its byte length
-// (the memory estimate's archive term); nil and 0 for a single file —
-// an anchor-extracted shard passes nil and its archive's length.
-func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions, records *int64, shardRecords []int64, archiveBytes int64) *descriptor.Envelope {
+// (merge blocks restart per shard) and directoryBytes its
+// central-directory bytes (the memory estimate's archive terms); nil
+// and 0 for a single file and an anchor-extracted shard.
+func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions, records *int64, shardRecords []int64, directoryBytes int64) *descriptor.Envelope {
 	if opts == nil {
 		opts = &PredictOptions{}
 	}
@@ -465,7 +469,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	if sizeIn.recordsKnown {
 		limitRecords = sizeIn.records
 	}
-	predictLimits(env, result, req, schema, opts, limitRecords, shardRecords, archiveBytes)
+	predictLimits(env, result, req, schema, opts, limitRecords, shardRecords, directoryBytes)
 
 	// Response size estimates — on every request, on the
 	// defaults-resolved request over the schema it executes over. With
@@ -961,7 +965,7 @@ func predictArchive(src archiveSource, req *types.Request, opts *PredictOptions)
 		shardRecords = nil
 	}
 
-	env := predictSingle(bytes.NewReader(canonical), req, opts, records, shardRecords, src.size)
+	env := predictSingle(bytes.NewReader(canonical), req, opts, records, shardRecords, arch.DirectoryBytes())
 	result, _ := env.Data.(*descriptor.PredictResult)
 	if result == nil {
 		return env
@@ -1218,27 +1222,33 @@ func populateOverlayDescriptors(result *descriptor.PredictResult, req *types.Req
 // built-in capability table wins on collision (which should never
 // happen because extension names cannot collide with built-ins, per
 // validateExtensions).
+//
+// The built-in map is built once per weighting variant
+// (builtinAggregatorSchemaIndex, #390) — as the instance manifest, no
+// weighted floor keys when capability:weighting is hidden. With no
+// extension aggregator schema to merge the SHARED map is returned:
+// READ-ONLY, as is every Keys slice in it. Otherwise a copy carries the
+// extension entries.
 func aggregatorComponentSchemaIndex(opts *PredictOptions) map[string]descriptor.ComponentSchema {
-	caps := aggregatorCapabilities()
-	if !opts.instance().Enabled(featWeighting) {
-		// As the instance manifest: no weighted floor keys when
-		// capability:weighting is hidden.
-		caps = aggregatorCapabilityTable()
-	}
-	out := make(map[string]descriptor.ComponentSchema, len(caps))
-	for _, op := range caps {
-		out[op.Name] = op.ComponentSchema
-	}
+	base := builtinAggregatorSchemaIndex(opts.instance().Enabled(featWeighting))
 	snap := extensionsFromOpts(opts)
-	if snap != nil && len(snap.ComponentSchemas) > 0 {
-		for _, m := range snap.Aggregators {
-			if _, dup := out[m.Name]; dup {
-				continue
-			}
-			if schema, ok := snap.ComponentSchemas[m.Name]; ok {
-				out[m.Name] = schema
-			}
+	if snap == nil || len(snap.ComponentSchemas) == 0 {
+		return base
+	}
+	var out map[string]descriptor.ComponentSchema
+	for _, m := range snap.Aggregators {
+		if _, dup := base[m.Name]; dup {
+			continue
 		}
+		if schema, ok := snap.ComponentSchemas[m.Name]; ok {
+			if out == nil {
+				out = maps.Clone(base)
+			}
+			out[m.Name] = schema
+		}
+	}
+	if out == nil {
+		return base
 	}
 	return out
 }
@@ -1350,6 +1360,10 @@ func populateAggregationPredicts(result *descriptor.PredictResult, req *types.Re
 			continue
 		}
 		cs := idx[string(opRoute(opts.instance(), agg.Type))]
+		// The index is shared (builtinAggregatorSchemaIndex): the
+		// result's consumer may mutate its schema, so it gets its own
+		// Keys.
+		cs.Keys = slices.Clone(cs.Keys)
 		ap := descriptor.AggregationPredict{
 			Type:               agg.Type,
 			Field:              agg.Field,

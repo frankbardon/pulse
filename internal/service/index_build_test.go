@@ -517,15 +517,19 @@ func TestBuildIndex_EmptyKeyFieldsRejected(t *testing.T) {
 	}
 }
 
-func TestBuildIndex_ShardArchiveRejected(t *testing.T) {
+func TestBuildIndex_ShardArchiveWritesOneSidecarPerShard(t *testing.T) {
 	schema, shards, _ := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, [][]uint64{})
 
-	_, err := svc.BuildIndex(context.Background(), "arch.pulse", []string{"id"})
-	if err == nil {
-		t.Fatal("expected error building an index against a shard archive")
+	res, err := svc.BuildIndex(context.Background(), "arch.pulse", []string{"id"})
+	if err != nil {
+		t.Fatalf("BuildIndex(archive): %v", err)
 	}
-	if !errors.HasCode(err, errors.PULSE_INDEX_UNSUPPORTED_SHARDED) {
-		t.Errorf("expected PULSE_INDEX_UNSUPPORTED_SHARDED, got: %v", err)
+	if res.Index != nil || len(res.ShardIndexPaths) != 3 || res.DistinctKeys != 12 || res.IndexedRecords != 12 {
+		t.Errorf("BuildIndex(archive) = index %v, shard sidecars %v, counts %d/%d; want nil, 3, 12/12",
+			res.Index, res.ShardIndexPaths, res.DistinctKeys, res.IndexedRecords)
+	}
+	if res.IndexPath != encx.SidecarIndexPath("arch.pulse", []string{"id"}) {
+		t.Errorf("IndexPath = %q, want the logical archive path", res.IndexPath)
 	}
 }

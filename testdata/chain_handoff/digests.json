@@ -1,0 +1,22 @@
+{
+  "plain/components-off": {
+    "sha256": "37b4b22bfee3fb03550f561d3277df5e3bdfbf74ea1a374f063194a4831dcdb9",
+    "bytes": 54199
+  },
+  "plain/components-on": {
+    "sha256": "6fd7bae811668ad86a584418f55c12d57163765496f86f816c69182e9fb497a9",
+    "bytes": 258672
+  },
+  "return/components-on": {
+    "sha256": "7c67fa6304f3778f9f89c7edc2e09709709a5112b9368c9461057a9c64f66197",
+    "bytes": 270314
+  },
+  "weighted/components-off": {
+    "sha256": "5130d2c2fa305008a171986640b17b5b907ddec8eb6337d7bb7e08d75030f199",
+    "bytes": 71157
+  },
+  "weighted/components-on": {
+    "sha256": "482eb1cad310409541de32a504a1f5a40aa1e910585c82acbf638567093be689",
+    "bytes": 337276
+  }
+}

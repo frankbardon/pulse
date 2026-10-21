@@ -3,6 +3,7 @@ pulse: type AddShardResult = pulse/internal/service.AddShardResult
 pulse: type AddShardResult underlying struct
 pulse: type AddShardResult field Added string "json:\"added\""
 pulse: type AddShardResult field Archive string "json:\"archive\""
+pulse: type AddShardResult field InvalidatedSidecars []pulse/internal/service.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
 pulse: type AddShardResult field Regrouped []pulse/internal/service.GroupReconciliation "json:\"regrouped,omitempty\""
 pulse: type AddShardResult field ShardCount int "json:\"shard_count\""
 pulse: type AddShardResult field Warnings []pulse/internal/encoding.CohesionWarning "json:\"warnings\""
@@ -47,6 +48,7 @@ pulse: type AttributeRegistration field Description string
 pulse: type AttributeRegistration field Emits pulse.AttributeEmitType
 pulse: type AttributeRegistration field Factory pulse/extend.AttributeFactory
 pulse: type AttributeRegistration field FieldInputs pulse.FieldInputsFunc
+pulse: type AttributeRegistration field Mergeable bool
 pulse: type AttributeRegistration field Mode pulse.AttributeMode
 pulse: type AttributeRegistration field Name pulse/types.AttributeType
 pulse: type AttributeRegistration field Params []pulse.ParamMeta
@@ -54,9 +56,12 @@ pulse: type AttributeRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type AttributeRegistration field WeightAware bool
 pulse: type BuildIndexResult = pulse/internal/service.BuildIndexResult
 pulse: type BuildIndexResult underlying struct
+pulse: type BuildIndexResult field DistinctKeys int
 pulse: type BuildIndexResult field Index *pulse/internal/encoding.Index
 pulse: type BuildIndexResult field IndexPath string
+pulse: type BuildIndexResult field IndexedRecords int
 pulse: type BuildIndexResult field ManifestPath string
+pulse: type BuildIndexResult field ShardIndexPaths []string
 pulse: type ChainOverlaySchemaDivergence = pulse/internal/descriptor.ChainOverlaySchemaDivergence
 pulse: type ChainOverlaySchemaDivergence underlying struct
 pulse: type ChainOverlaySchemaDivergence field Index int "json:\"index\""
@@ -438,6 +443,17 @@ pulse: type FeatureRegistration field Params []pulse.ParamMeta
 pulse: type FeatureRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type FeatureRegistration field Streamable bool
 pulse: type FieldInputsFunc func(raw encoding/json.RawMessage) []string
+pulse: type FilterToFileOptions struct
+pulse: type FilterToFileOptions field Expression string
+pulse: type FilterToFileOptions field Flatten bool
+pulse: type FilterToFileOptions field IncludeField string
+pulse: type FilterToFileOptions field Set pulse.MemberSet
+pulse: type FilterToFileReport struct
+pulse: type FilterToFileReport field Flattened bool "json:\"flattened,omitempty\""
+pulse: type FilterToFileReport field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
+pulse: type FilterToFileReport field Output string "json:\"output\""
+pulse: type FilterToFileReport field Records int64 "json:\"records\""
+pulse: type FilterToFileReport field Warnings []*pulse/errors.CodedError "json:\"warnings,omitempty\""
 pulse: type FilterToFileRequest struct
 pulse: type FilterToFileRequest field Expression string "json:\"expression,omitempty\""
 pulse: type FilterToFileRequest field Filterers []*pulse/types.Filterer "json:\"filterers,omitempty\""
@@ -448,6 +464,7 @@ pulse: type FilterToFileRequest field SourcePath string "json:\"source_path\""
 pulse: type FilterToFileRequest field TimeZone string "json:\"time_zone,omitempty\""
 pulse: type FilterToFileResult struct
 pulse: type FilterToFileResult field ElapsedMs int64 "json:\"elapsed_ms\""
+pulse: type FilterToFileResult field InvalidatedSidecars []pulse.StaleSidecar "json:\"invalidated_sidecars,omitempty\""
 pulse: type FilterToFileResult field OutputHash string "json:\"output_hash\""
 pulse: type FilterToFileResult field OutputPath string "json:\"output_path\""
 pulse: type FilterToFileResult field Reused bool "json:\"reused\""
@@ -574,6 +591,7 @@ pulse: type IndexInfo field DistinctKeys int
 pulse: type IndexInfo field IndexPath string
 pulse: type IndexInfo field IndexedRecords int
 pulse: type IndexInfo field Keys []string
+pulse: type IndexInfo field ShardIndexPaths []string
 pulse: func InitFeatureProfile(from string, ext ...pulse.Extensions) (*pulse.FeatureProfile, error)
 pulse: func Intents() []pulse/descriptor.Intent
 pulse: type LabelBinding = pulse/types.LabelBinding
@@ -780,6 +798,7 @@ pulse: type Pulse method (*Pulse) FeatureProfile() (*pulse.FeatureProfile, bool)
 pulse: type Pulse method (*Pulse) FeatureSetDigest() string
 pulse: type Pulse method (*Pulse) FilterToFile(ctx context.Context, src string, dst string, filterExpr string) (int64, error)
 pulse: type Pulse method (*Pulse) FilterToFileBySetAndExpr(ctx context.Context, src string, dst string, includeField string, set pulse.MemberSet, filterExpr string) (int64, error)
+pulse: type Pulse method (*Pulse) FilterToFileWithOptions(ctx context.Context, src string, dst string, opts pulse.FilterToFileOptions) (*pulse.FilterToFileReport, error)
 pulse: type Pulse method (*Pulse) FilterToFileWithRequest(ctx context.Context, req *pulse.FilterToFileRequest) (*pulse.FilterToFileResult, error)
 pulse: type Pulse method (*Pulse) Fs() github.com/spf13/afero.Fs
 pulse: type Pulse method (*Pulse) GetTemplate(name string) (*pulse.Template, error)
@@ -808,6 +827,7 @@ pulse: type Pulse method (*Pulse) Predict(ctx context.Context, req *pulse.Reques
 pulse: type Pulse method (*Pulse) PredictBytes(ctx context.Context, data []byte, req *pulse.Request) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) PredictChain(ctx context.Context, req *pulse.ChainRequest) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) PredictCompose(ctx context.Context, req *pulse.ComposedRequest) (*pulse/descriptor.Envelope, error)
+pulse: type Pulse method (*Pulse) PredictEnvelope(ctx context.Context, req *pulse.Request) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) PredictExport(ctx context.Context, job *pulse/io.ExportJob) (*pulse/io.PredictReport, error)
 pulse: type Pulse method (*Pulse) PredictFacet(ctx context.Context, req *pulse.FacetRequest) (*pulse/descriptor.Envelope, error)
 pulse: type Pulse method (*Pulse) Process(ctx context.Context, req *pulse.Request) (*pulse.Response, error)
@@ -819,7 +839,7 @@ pulse: type Pulse method (*Pulse) Rake(ctx context.Context, req pulse.RakeReques
 pulse: type Pulse method (*Pulse) RangeTables() []pulse.RangeTableInfo
 pulse: type Pulse method (*Pulse) Recommend(ctx context.Context, req pulse/descriptor.RecommendRequest) (*pulse/descriptor.RecommendResult, error)
 pulse: type Pulse method (*Pulse) ReloadTemplates() error
-pulse: type Pulse method (*Pulse) RemoveShard(ctx context.Context, archivePath string, shardBasename string) error
+pulse: type Pulse method (*Pulse) RemoveShard(ctx context.Context, archivePath string, shardBasename string) (*pulse.RemoveShardResult, error)
 pulse: type Pulse method (*Pulse) RenderTemplate(name string, vars map[string]any) (*pulse.RenderedTemplate, error)
 pulse: type Pulse method (*Pulse) RenderTemplateRequest(name string, vars map[string]any) (*pulse.Request, error)
 pulse: type Pulse method (*Pulse) ResolveCanonicalSchema(ctx context.Context, src string) (*pulse/encoding.Schema, error)
@@ -954,6 +974,12 @@ pulse: type RegressionRegistration field Streamable bool
 pulse: type RegressionRegistration field SupportsSelection bool
 pulse: type RegressionRegistration field Vcov bool
 pulse: type RegressionRegistration field WeightAware bool
+pulse: type RemoveShardResult = pulse/internal/service.RemoveShardResult
+pulse: type RemoveShardResult underlying struct
+pulse: type RemoveShardResult field Archive string "json:\"archive\""
+pulse: type RemoveShardResult field Removed string "json:\"removed\""
+pulse: type RemoveShardResult field ShardCount int "json:\"shard_count\""
+pulse: type RemoveShardResult field Warnings []pulse/internal/encoding.CohesionWarning "json:\"warnings\""
 pulse: type RenderedTemplate = pulse/internal/template.Rendered
 pulse: type RenderedTemplate underlying struct
 pulse: type RenderedTemplate field Chain *pulse/types.ChainRequest
@@ -1098,7 +1124,8 @@ pulse: type SkillMetadata field Name string "json:\"name\""
 pulse: type SkillMetadata field Operator string "json:\"operator,omitempty\""
 pulse: type SkillMetadata field Requires []string "json:\"requires,omitempty\""
 pulse: type SkillMetadata field Type string "json:\"type\""
-pulse: type StaleSidecar struct
+pulse: type StaleSidecar = pulse/internal/service.StaleSidecar
+pulse: type StaleSidecar underlying struct
 pulse: type StaleSidecar field Keys []string "json:\"keys,omitempty\""
 pulse: type StaleSidecar field Kind string "json:\"kind\""
 pulse: type StaleSidecar field Path string "json:\"path\""
@@ -1234,6 +1261,8 @@ pulse: type VerifyIndexResult field Fresh bool
 pulse: type VerifyIndexResult field IndexPath string
 pulse: type VerifyIndexResult field ModTimeDrift bool
 pulse: type VerifyIndexResult field Reason pulse/internal/service.IndexFreshnessReason
+pulse: type VerifyIndexResult field ShardsMismatched []string
+pulse: type VerifyIndexResult field ShardsUncovered []string
 pulse: type VerifyResult = pulse/internal/service.VerifyResult
 pulse: type VerifyResult underlying struct
 pulse: type VerifyResult field Errors []*pulse/errors.CodedError "json:\"errors\""
@@ -2686,11 +2715,13 @@ pulse/errors: const PULSE_REQUEST_UNKNOWN_FIELD pulse/errors.Code = "PULSE_REQUE
 pulse/errors: const PULSE_RETURN_INVALID pulse/errors.Code = "PULSE_RETURN_INVALID"
 pulse/errors: const PULSE_RETURN_PATH_UNKNOWN pulse/errors.Code = "PULSE_RETURN_PATH_UNKNOWN"
 pulse/errors: const PULSE_RETURN_PATH_UNMATCHED pulse/errors.Code = "PULSE_RETURN_PATH_UNMATCHED"
+pulse/errors: const PULSE_SHARD_COUNT_LIMIT pulse/errors.Code = "PULSE_SHARD_COUNT_LIMIT"
 pulse/errors: const PULSE_SHARD_DESCRIPTION_DIVERGENCE pulse/errors.Code = "PULSE_SHARD_DESCRIPTION_DIVERGENCE"
 pulse/errors: const PULSE_SHARD_DICT_DIVERGENCE pulse/errors.Code = "PULSE_SHARD_DICT_DIVERGENCE"
 pulse/errors: const PULSE_SHARD_DICT_WIDTH_OVERFLOW pulse/errors.Code = "PULSE_SHARD_DICT_WIDTH_OVERFLOW"
 pulse/errors: const PULSE_SHARD_GROUPS_REWRITTEN pulse/errors.Code = "PULSE_SHARD_GROUPS_REWRITTEN"
 pulse/errors: const PULSE_SHARD_HEADER_INVALID pulse/errors.Code = "PULSE_SHARD_HEADER_INVALID"
+pulse/errors: const PULSE_SHARD_INDEXES_UPDATED pulse/errors.Code = "PULSE_SHARD_INDEXES_UPDATED"
 pulse/errors: const PULSE_SHARD_MISSING pulse/errors.Code = "PULSE_SHARD_MISSING"
 pulse/errors: const PULSE_SHARD_NAME_COLLISION pulse/errors.Code = "PULSE_SHARD_NAME_COLLISION"
 pulse/errors: const PULSE_SHARD_RESERVED_NAME pulse/errors.Code = "PULSE_SHARD_RESERVED_NAME"
@@ -2883,6 +2914,9 @@ pulse/extend: type MergeableAggregator interface
 pulse/extend: type MergeableAggregator imethod Finalize() (float64, error)
 pulse/extend: type MergeableAggregator imethod Merge(other pulse/extend.OnlineAggregator) error
 pulse/extend: type MergeableAggregator imethod UpdateRow(rec pulse/extend.Record, field string) error
+pulse/extend: type MergeableAttribute interface
+pulse/extend: type MergeableAttribute imethod MergeTally(other pulse/extend.RowLocalAttribute) error
+pulse/extend: type MergeableAttribute imethod Row(rec pulse/extend.Record, field string) (float64, error)
 pulse/extend: type MergeableGrouper interface
 pulse/extend: type MergeableGrouper imethod Group(rows pulse/extend.Rows, field string) (map[string][]int, error)
 pulse/extend: type MergeableGrouper imethod MergeState(other pulse/extend.Grouper) error
@@ -5759,4 +5793,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 15d2c3fc0878c14fb07874002b1adcc23b686bb6d6cb2f7e8ff4e03c4d2b1f6a
+// golden-hash: 08cc226f40cffad7b5f7abb981452a8514c1b9e27ff171864b1e59c70735bb77

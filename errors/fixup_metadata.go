@@ -12,7 +12,7 @@ package errors
 var codeMetadata = map[Code]Metadata{
 	// ---------- ENCODING ----------
 	ENCODING_INVALID: {
-		Message: "The .pulse file header or schema block is malformed (bad magic, unsupported format version, or invalid field-type byte).",
+		Message: "The .pulse file is malformed: its header or schema block (bad magic, unsupported format version, or invalid field-type byte), or a record whose categorical index or set bit lies outside its field's dictionary.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -21,6 +21,10 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRequiresReschema,
 				Hint:   "If details.version is outside details.supported_versions, a newer Pulse wrote the file: upgrade this binary to one that reads that format version, or re-import the source with this binary (old format versions stay readable forever).",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "If details.reason is categorical_index_out_of_range or set_member_out_of_range, a record of details.field stores a code its dictionary (details.dictionary_size entries) does not hold: the record data is corrupt. Restore the cohort or shard from its source or re-import it; for a shard archive, `pulse shard verify` checks every stored shard's CRC.",
 			},
 		},
 	},
@@ -1760,11 +1764,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_MERGEABLE_MISMATCH: {
-		Message: "An aggregator or grouper registration declared Mergeable=true but cannot merge: it is not Streamable, its factory does not return the merge interface (extend.MergeableAggregator; extend.MergeableGrouper for a grouper that emits components), or its ComponentSchema declares keys with Mergeability \"none\".",
+		Message: "An aggregator, grouper or attribute registration declared Mergeable=true but cannot merge: it is not Streamable (an attribute: not Mode row_local), its factory does not return the merge interface (extend.MergeableAggregator; extend.MergeableGrouper for a grouper that emits components; extend.MergeableAttribute for an attribute that emits components), or its ComponentSchema declares keys with Mergeability \"none\".",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Declare Mergeable=true only alongside Streamable=true, implement Merge(other extend.OnlineAggregator) error on an aggregator (or MergeState(other extend.Grouper) error on a grouper that emits components) to fold other's state into the receiver, and classify ComponentSchema.Mergeability as \"mergeable\" or \"partial\" — or set Mergeable=false and the parallel reducers run the operator serially.",
+				Hint:   "Declare Mergeable=true only alongside Streamable=true (an attribute: Mode row_local), implement Merge(other extend.OnlineAggregator) error on an aggregator (MergeState(other extend.Grouper) error on a grouper that emits components, MergeTally(other extend.RowLocalAttribute) error on an attribute that emits components) to fold other's state into the receiver, and classify ComponentSchema.Mergeability as \"mergeable\" or \"partial\" — or set Mergeable=false and the parallel reducers run the operator serially.",
 			},
 		},
 	},
@@ -2007,13 +2011,32 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SHARD_COUNT_LIMIT: {
+		Message: "The archive would hold more than 65535 shards, the most the `_schema.pulse` shard_count (a u16) records; the write was refused before anything was written.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Shard", "Paths"},
+				Hint:   "Concatenate small shards into fewer, larger `.pulse` files before archiving them, or split the data across more than one archive. `details.shard_count` is the count the write would have produced and `details.limit` the ceiling.",
+			},
+		},
+	},
+	PULSE_SHARD_INDEXES_UPDATED: {
+		Message: "A `shard add` / `shard remove` kept the archive's point-lookup indexes in step: an add built the new shard's sidecar for every archive index, a remove deleted the removed shard's sidecar, and the index manifest's shard coverage was updated. Every index still answers lookups; the warning exists because files beside the archive were rewritten and that must never be silent.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "No action needed — details.indexes names each index kept (keys, logical index_path, the shard's shard_index_path). `pulse index list <archive>` shows the coverage and `pulse index verify <archive> --key <field>` re-checks it. An add that re-encodes the stored shards (a set widen or group promotion) keeps nothing and reports invalidated_sidecars instead: rebuild with `pulse index build <archive> --key <field>`.",
+			},
+		},
+	},
 	PULSE_CHAIN_NOT_MERGEABLE: {
 		Message: "A ProcessChain stage uses an operator that the v1 chain gate does not yet support (windows, features, tests, regressions, two-pass attributes, or a non-mergeable grouper/aggregator), or carries a crosstab (a crosstab answers a matrix, not the rows the next stage reads).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Stages", "*", "Request"},
-				Hint:   "Run the offending stage as a standalone Process call (the details payload names the rejecting stage index) or restructure the stage to use mergeable aggregators (COUNT, SUM, AVERAGE, MIN, MAX, RANGE, VARIANCE, STDDEV, DISTINCT_COUNT, NULL_COUNT, FREQUENCY, MODE, MODE_COUNT) with row-local attributes (FORMULA, DATE_PART) and mergeable groupers (GROUP_CATEGORY, GROUP_RANGE).",
+				Hint:   "Run the offending stage as a standalone Process call (the details payload names the rejecting stage index) or restructure the stage to use mergeable aggregators (COUNT, SUM, AVERAGE, MIN, MAX, RANGE, VARIANCE, STDDEV, DISTINCT_COUNT, NULL_COUNT, FREQUENCY, MODE, MODE_COUNT) with row-local attributes (FORMULA, DATE_PART) and mergeable groupers (any but GROUP_QUANTILE, GROUP_DATE, GROUP_KMEANS).",
 			},
 			{
 				Action: FixupReplaceField,
@@ -3479,20 +3502,24 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_INDEX_STALE: {
-		Message: "The sidecar point-lookup index's embedded content-hash fingerprint does not match the current .pulse cohort file — the cohort was mutated (re-imported, re-exported, or otherwise rewritten) after the sidecar was last built. Lookup refuses to serve rows against a stale index rather than risk returning silently wrong results; there is no automatic scan-fallback or auto-rebuild. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
+		Message: "The sidecar point-lookup index's embedded content-hash fingerprint does not match the current .pulse cohort file — the cohort was mutated (re-imported, re-exported, or otherwise rewritten) after the sidecar was last built. On a shard archive (one sidecar per shard) the same code refuses a shard the index does not cover — added after the build, or replaced (a different size or zip central-directory CRC32 under the same name) — and details.shards_uncovered names those shards: a lookup never silently skips one. Lookup refuses to serve rows against a stale index rather than risk returning silently wrong results; there is no automatic scan-fallback or auto-rebuild. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`). `shard add` / `shard remove` emit it as a warning (details.reason index_upkeep_publish_failed) when keeping the archive's index in step failed after the archive itself was rewritten.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
 				Hint:   "Rebuild the sidecar index against the current cohort content: `pulse index build <cohort> --key <field>` (or the equivalent Service.BuildIndex(ctx, path, keyFields) library call, or a quick freshness check first via `pulse index verify <cohort> --key <field>` / Service.VerifyIndex). Re-run the lookup once the rebuild completes.",
 			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "For a shard archive, details.shards_uncovered lists the shards the index does not cover. Rebuild the archive's index (`pulse index build <archive.pulse> --key <field>` rewrites every shard's sidecar and the manifest's coverage); `pulse index verify` reports the same shards as shards_uncovered.",
+			},
 		},
 	},
 	PULSE_INDEX_UNSUPPORTED_SHARDED: {
-		Message: "Point-lookup index build, lookup, and verify only support single-file .pulse cohorts in v1 — the target resolved to a shard archive (leading bytes matched the zip magic \"PK\\x03\\x04\" rather than the single-file \"PULSE\" magic). Row-id addressing (the sidecar's bucket entries point directly at a record's byte offset within one contiguous file) only has meaning for a single contiguous record region, which a multi-shard archive does not present. Sharded point-lookup support is a future/follow-up, not planned for this v1. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
+		Message: "No longer raised: point-lookup index build, lookup, verify, list and drop accept a shard archive, indexed one sidecar per shard plus a manifest entry recording the covered shards (U51). The code is retained so lookups of it keep resolving.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Point-lookup against a sharded cohort is not supported in v1 — there is no per-archive workaround that indexes across shards. If you only need to look up within a SINGLE shard, extract it as a standalone single-file cohort via the anchor syntax (`archive.pulse#shard.pulse`) and build/query the index against that anchor path instead — the anchor opens the named shard as if it were its own single-file `.pulse` cohort, so `pulse index build \"archive.pulse#shard.pulse\" --key <field>` and subsequent lookups work exactly as they do against any single-file cohort. This does not give you a cross-shard index; it only lets you index one shard at a time.",
+				Hint:   "Build the index on the archive itself — `pulse index build <archive.pulse> --key <field>` — and look up against the archive path; an anchored shard (`archive.pulse#shard.pulse`) reads the same per-shard sidecar.",
 			},
 		},
 	},

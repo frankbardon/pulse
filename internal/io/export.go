@@ -222,6 +222,11 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		vecs = newVectorCellReader(schema)
 	}
 	var expanded []any
+	// faults[i] is field i's dictionary-index fault on the current row
+	// (U51 E5-S8): a categorical / set code addressing no dictionary
+	// entry. It is judged only after the null bitmap, because a null
+	// cell's placeholder code is not data.
+	faults := make([]error, len(schema.Fields))
 
 	for {
 		select {
@@ -231,6 +236,7 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 		}
 
 		hitEOF := false
+		clear(faults)
 		for i, f := range schema.Fields {
 			if f.Type.IsBitPacked() {
 				v, err := readPackedValue(r, &f)
@@ -280,6 +286,7 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 					hitEOF = true
 					break
 				}
+				faults[i] = encx.SetMemberFault(&f, m)
 				values[i] = formatSetMask(m, f.Dictionary)
 				continue
 			}
@@ -288,6 +295,12 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 			if err != nil {
 				hitEOF = true
 				break
+			}
+			switch {
+			case f.Type.IsCategorical():
+				faults[i] = encx.CategoricalIndexFault(&f, float64(raw))
+			case f.Type.IsSet():
+				faults[i] = encx.SetMemberFault(&f, encoding.SetMaskFromUint64(raw))
 			}
 			values[i] = formatFieldValue(f.Type, raw, f.Dictionary, zone)
 		}
@@ -315,7 +328,15 @@ func (j *ExportJob) Run(ctx context.Context) (*ExportReport, error) {
 					// "", so their bytes are unchanged. See
 					// NullAwareWriter.
 					values[i] = nil
+					faults[i] = nil
 				}
+			}
+		}
+		// A non-null corrupt code is refused, never exported as the ""
+		// (categorical) or member-dropping (set) cell it formats to.
+		for _, ferr := range faults {
+			if ferr != nil {
+				return nil, ferr
 			}
 		}
 
