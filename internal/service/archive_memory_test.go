@@ -156,6 +156,18 @@ func TestShardFanOut_PredictMatchesRuntime(t *testing.T) {
 		"median (not mergeable)": func(p string) *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: p}, Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "x0", Label: "m"}}}
 		},
+		// U51 E3-S3: GROUP_ROUNDED merges, so it fans out; GROUP_QUANTILE
+		// (a whole-set bucketization) stays serial.
+		"rounded": func(p string) *types.Request {
+			req := dictArchiveRequest(p, false)
+			req.Groups = []*types.Group{{Type: types.GROUP_ROUNDED, Field: "x0", Interval: 3}}
+			return req
+		},
+		"quantile (not mergeable)": func(p string) *types.Request {
+			req := dictArchiveRequest(p, false)
+			req.Groups = []*types.Group{{Type: types.GROUP_QUANTILE, Field: "x0", Interval: 4}}
+			return req
+		},
 		"matrix": func(p string) *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: p}, Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "c", Fields: []string{"x0", "x1"}}}}
 		},
@@ -207,6 +219,9 @@ func TestShardFanOut_PredictMatchesRuntime(t *testing.T) {
 				_, runtimeFans := svc.shouldFanOut(req, cohort)
 				if got := descx.ShardFanOut(req, cohort.Schema(), svc.instance, in); got != runtimeFans {
 					t.Errorf("%s / %s / ShardWorkers %d: predict fan-out %v, runtime %v", path, name, workers, got, runtimeFans)
+				}
+				if name == "rounded" && path == "multi.pulse" && workers >= 2 && !runtimeFans {
+					t.Errorf("GROUP_ROUNDED / ShardWorkers %d: stayed serial on a multi-shard archive", workers)
 				}
 			}
 		}

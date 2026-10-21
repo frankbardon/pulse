@@ -209,3 +209,26 @@ func TestProcessChainCapability_RowLocalAttributesMatchGate(t *testing.T) {
 		t.Errorf("process_chain.row_local_attributes = %v, want the gate's %v", got, want)
 	}
 }
+
+// TestProcessChainCapability_MergeableGroupersMatchGate: the manifest's
+// process_chain.mergeable_groupers is exactly the built-in groupers the
+// shared chain gate (mergegate.ChainRefusal) admits — so the list moves
+// with types.GroupType.Mergeable (U51 E3-S3 admitted GROUP_ROUNDED; the
+// list had stopped at CATEGORY / RANGE) — and is sorted.
+func TestProcessChainCapability_MergeableGroupersMatchGate(t *testing.T) {
+	var want []string
+	for _, gt := range types.AllGroupTypes() {
+		req := &types.Request{
+			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x"}},
+			Groups:       []*types.Group{{Type: gt, Field: "g"}},
+		}
+		if mergegate.ChainRefusal(req, nil, nil, 0, "s0") == nil {
+			want = append(want, string(gt))
+		}
+	}
+	sort.Strings(want)
+	got := processChainCapability().MergeableGroupers
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("process_chain.mergeable_groupers = %v, want the gate's %v", got, want)
+	}
+}

@@ -632,3 +632,60 @@ func TestBitExact_CountsAndDistinctSums(t *testing.T) {
 		})
 	}
 }
+
+// TestBitExact_GroupRounded (U51 E3-S3): GROUP_ROUNDED merges
+// (types.GroupType.Mergeable, roundedGrouper.MergeGrouperState), so a
+// request grouped by it — alone, over the nullable mixed-magnitude x,
+// and beside a categorical grouper — fans out on both reducers and
+// answers the serial single file's Data and Components bit for bit,
+// grouper components (per-bucket counts, low / high, edges) included.
+func TestBitExact_GroupRounded(t *testing.T) {
+	dir := bitExactCohorts(t)
+	arms := bitExactArms(true)
+	cases := map[string][]*types.Group{
+		"y":        {{Type: types.GROUP_ROUNDED, Field: "y", Interval: 2.5}},
+		"x":        {{Type: types.GROUP_ROUNDED, Field: "x", Interval: 1000}},
+		"region*y": {{Type: types.GROUP_CATEGORY, Field: "region"}, {Type: types.GROUP_ROUNDED, Field: "y", Interval: 7.3}},
+	}
+	for name, groups := range cases {
+		t.Run(name, func(t *testing.T) {
+			resps := bitExactRun(t, dir, arms, func(cohort string) *types.Request {
+				gs := make([]*types.Group, len(groups))
+				for i, g := range groups {
+					c := *g
+					gs[i] = &c
+				}
+				aggs := bitExactAggs()
+				if name == "x" {
+					// Width-1000 buckets of values up to 1e6 are
+					// ill-conditioned for the Welford moments (their
+					// mean dwarfs their spread), which merge within
+					// ULP-scaled cancellation, not 1e-12: keep the
+					// binned sums only.
+					kept := aggs[:0]
+					for _, a := range aggs {
+						if a.Label != "wa" && a.Label != "wm" {
+							kept = append(kept, a)
+						}
+					}
+					aggs = kept
+				}
+				return &types.Request{Cohort: &types.Cohort{Filename: cohort}, Groups: gs, Aggregations: aggs}
+			})
+			ref := resps[0]
+			if len(ref.Data) < 10 {
+				t.Fatalf("%d rows: the fixture is degenerate", len(ref.Data))
+			}
+			var rounded map[string]any
+			for _, g := range ref.Components.Groupers {
+				if _, ok := g.Operator["precision"]; ok { // GROUP_ROUNDED's own key
+					rounded = g.Operator
+				}
+			}
+			if b, _ := rounded["buckets"].([]map[string]any); len(b) < 10 {
+				t.Fatalf("GROUP_ROUNDED components carry %d buckets: %v", len(b), rounded)
+			}
+			bitExactCompare(t, arms, resps)
+		})
+	}
+}

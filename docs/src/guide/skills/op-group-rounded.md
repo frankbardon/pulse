@@ -49,7 +49,7 @@ Universal floor `{total_n, n_null}` plus operator-specific:
 | `edges` | []float64 | Sorted rounded scalars separating buckets |
 | `buckets` | []bucket | `{key, low, high, count}` per emission |
 
-- Mergeability: `Mergeable`
+- Mergeability: `Mergeable` — fans out under `ShardWorkers` / `DecodeWorkers` with the serial bits; passes the chain stage gate
 - Streaming: `StreamableGrouper` — eligible for fused crosstab
 
 ## Gotchas

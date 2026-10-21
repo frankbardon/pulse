@@ -171,8 +171,9 @@ is the stop-rule measurement for switching GROUPED sums: `AGG_SUM` +
 `AGG_AVERAGE` grouped by `GROUP_ROUNDED` (interval 1) over a u32 key with
 100k or 800k distinct values, 4M rows, non-dyadic mixed-magnitude
 measures, through the real serial streaming-grouped path
-(`processStreamingGrouped`; this request does not fan out, so the
-`decode=8` rows run the same arm). Three alternating runs of the
+(`processStreamingGrouped`; at the time `GROUP_ROUNDED` was not
+mergeable, so the `decode=8` rows ran the same arm — the fanned-out
+figures are the next section). Three alternating runs of the
 pre-switch and post-switch test binaries, `-benchtime=3x`, Apple M1 Max:
 
 | Groups | naive (pre-switch) | binned | ratio (medians) | peak heap |
@@ -185,4 +186,37 @@ Allocated bytes per run rise 278 → 289 MB (100k) and 2071 → 2154 MB
 engine's per-row cost (record decode, map-keyed field lookups, the
 group map) dominates; under the owner's 2× stop rule the switch
 proceeds. Command:
+`PULSE_BENCH_DIR=<dir> go test -run='^$' -bench=GroupedSumScale -benchmem -count=3 -benchtime=3x -timeout=0 ./internal/service/`.
+
+### Grouped engine path, fanned out (U51 E3-S3)
+
+Since E3-S3 `GROUP_ROUNDED` merges, so the same request (4M rows,
+`AGG_SUM` + `AGG_AVERAGE`, binned sums) runs on both parallel reducers;
+the bench asserts each sub-run's arm before timing it. `decode=N` is
+the single file under `DecodeWorkers` N (parallel decode for N ≥ 2),
+`shards=N` an 8-shard archive of the same rows under `ShardWorkers` N
+(`shards=1` the serial archive scan). Median of three runs,
+`-benchtime=3x`, Apple M1 Max (10 cores):
+
+| Groups | Arm | Wall (median) | vs serial | Alloc / run | Allocs / run | Peak heap |
+|---|---|---|---|---|---|---|
+| 100k | decode=1 (serial) | 3.44 s | 1.00× | 271 MB | 6.70M | 214–222 MB |
+| 100k | decode=2 | 2.37 s | 1.45× faster | 933 MB | 19.3M | 210–222 MB |
+| 100k | decode=8 | 1.64 s | 2.10× faster | 1257 MB | 22.9M | 566–613 MB |
+| 100k | shards=1 (serial) | 3.51 s | 1.00× | 273 MB | 6.70M | 205–219 MB |
+| 100k | shards=8 | 1.63 s | 2.15× faster | 1259 MB | 22.9M | 526–586 MB |
+| 800k | decode=1 (serial) | 10.28 s | 1.00× | 2008 MB | 25.5M | 1763 MB |
+| 800k | decode=2 | 9.93 s | 1.04× faster | 3009 MB | 41.6M | 1763 MB |
+| 800k | decode=8 | 10.87 s | 0.95× (slower) | 3942 MB | 51.0M | 1763–1973 MB |
+| 800k | shards=1 (serial) | 10.51 s | 1.00× | 2010 MB | 25.5M | 1616–1753 MB |
+| 800k | shards=8 | 10.82 s | 0.97× (slower) | 3944 MB | 51.0M | 1648–2218 MB |
+
+The end-to-end grouped binned-merge cost: at 100k groups (40 rows per
+group) fan-out pays, 2.1× at 8 workers. At 800k groups (5 rows per
+group) every partition mints most of the keys, so the partitions hold
+~3–4× the merged bucket count and the per-key binned merge
+(`MergeOnline`, 56-byte states) plus that minting cancel the parallel
+scan: 8 workers land within ±5% of serial and allocate ~2× the bytes.
+Peak heap stays bounded by the incremental merge window (E2-S4).
+Command:
 `PULSE_BENCH_DIR=<dir> go test -run='^$' -bench=GroupedSumScale -benchmem -count=3 -benchtime=3x -timeout=0 ./internal/service/`.

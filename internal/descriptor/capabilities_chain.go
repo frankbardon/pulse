@@ -20,8 +20,12 @@ func processChainCapability() descriptor.ProcessChainCapability {
 			"AGG_RANGE", "AGG_STDDEV", "AGG_SUM",
 			"AGG_VARIANCE",
 		},
+		// Every built-in grouper the shared merge gate admits
+		// (types.GroupType.Mergeable), sorted
+		// (TestProcessChainCapability_MergeableGroupersMatchGate).
 		MergeableGroupers: []string{
-			"GROUP_CATEGORY", "GROUP_RANGE",
+			"GROUP_CATEGORY", "GROUP_DATE_RANGES", "GROUP_NUMERIC_RANGES", "GROUP_RANGE",
+			"GROUP_ROUNDED", "GROUP_SET_PER_ELEMENT", "GROUP_SET_VALUE",
 		},
 		// Every built-in attribute the shared merge gate
 		// (internal/mergegate) admits on its own spec, sorted
@@ -41,7 +45,7 @@ func processChainCapability() descriptor.ProcessChainCapability {
 			"chain rejects an ATTR_VEC_DISTANCE over a fitted metric (std_euclidean / mahalanobis), a centroid reference or a metric that does not resolve",
 			"chain rejects extension attributes not declared row_local, and component-emitting ones not declared Mergeable",
 			"chain rejects AGG_MEDIAN / AGG_PERCENTILE / AGG_ZSCORE / AGG_SKEWNESS / AGG_KURTOSIS (non-mergeable)",
-			"chain rejects GROUP_ROUNDED / GROUP_QUANTILE / GROUP_DATE (non-mergeable)",
+			"chain rejects GROUP_QUANTILE / GROUP_DATE / GROUP_KMEANS (non-mergeable)",
 			"chain rejects built-in aggregators over decimal128 targets",
 			"chain rejects extension aggregators and groupers not declared Mergeable",
 			"chain rejects non-streamable filterers",

@@ -94,6 +94,12 @@ func TestDecodeFanOut_PredictMatchesRuntime(t *testing.T) {
 		"median (not mergeable)": func(p string) *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: p}, Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "x", Label: "m"}}}
 		},
+		// U51 E3-S3: GROUP_ROUNDED merges, so it fans out.
+		"rounded": func(p string) *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: p},
+				Groups:       []*types.Group{{Type: types.GROUP_ROUNDED, Field: "x", Interval: 2.5}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x", Label: "s"}}}
+		},
 		// U51 E3-S1: an ungrouped one-layer total() fans out (two-phase);
 		// a grouped one stays serial.
 		"total": func(p string) *types.Request {
@@ -156,6 +162,9 @@ func TestDecodeFanOut_PredictMatchesRuntime(t *testing.T) {
 					got := descx.DecodeFanOut(req, cohort.Schema(), svc.instance, in)
 					if got != runtimeFans {
 						t.Errorf("predict fan-out %v, runtime %v", got, runtimeFans)
+					}
+					if name == "rounded" && c.name == "mappable" && workers >= 2 && !runtimeFans {
+						t.Error("GROUP_ROUNDED stayed serial on a mappable file past the threshold")
 					}
 					// Predict's own probe answers what the run's inputs say.
 					if svc.DecodeMappable(ctx, c.path) != in.Mappable {
