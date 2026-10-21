@@ -140,6 +140,12 @@ type recordAux struct {
 	ovVals  map[string]float64
 	ovNulls map[string]bool
 	ovWide  map[string]any
+
+	// allValuesFault is the dictionary-index fault (see
+	// Record.AllValuesChecked) the build of the record's CURRENT
+	// allValuesCache met; read only while that cache is non-nil, and
+	// rewritten by every build.
+	allValuesFault error
 }
 
 const (
@@ -1095,6 +1101,9 @@ func (r *Record) AllValues() map[string]any {
 	if r.allValuesCache != nil {
 		return r.allValuesCache
 	}
+	if r.aux != nil {
+		r.aux.allValuesFault = nil
+	}
 	out := make(map[string]any, r.valueCountHint())
 	for i := range r.vals {
 		if !r.test(planeHas, i) || r.test(planeNull, i) {
@@ -1103,6 +1112,7 @@ func (r *Record) AllValues() map[string]any {
 		f := r.fieldAt(i)
 		v := r.vals[i]
 		if f.Type.IsCategorical() && f.Dictionary != nil {
+			r.noteAllValuesFault(encx.CategoricalIndexFault(f, v))
 			out[f.Name] = f.Dictionary.Resolve(uint32(v))
 		} else {
 			out[f.Name] = v
@@ -1128,6 +1138,7 @@ func (r *Record) AllValues() map[string]any {
 				f = r.schema.Field(k)
 			}
 			if f != nil && f.Type.IsCategorical() && f.Dictionary != nil {
+				r.noteAllValuesFault(encx.CategoricalIndexFault(f, v))
 				out[k] = f.Dictionary.Resolve(uint32(v))
 			} else {
 				out[k] = v
@@ -1139,7 +1150,9 @@ func (r *Record) AllValues() map[string]any {
 			continue
 		}
 		f := r.fieldAt(i)
-		out[f.Name] = allValuesWide(f, r.boxWideAt(i))
+		wv := r.boxWideAt(i)
+		r.noteAllValuesFault(wideDictionaryFault(f, wv))
+		out[f.Name] = allValuesWide(f, wv)
 	}
 	if r.aux != nil {
 		for k, v := range r.aux.ovWide {
@@ -1150,11 +1163,52 @@ func (r *Record) AllValues() map[string]any {
 			if r.schema != nil {
 				f = r.schema.Field(k)
 			}
+			r.noteAllValuesFault(wideDictionaryFault(f, v))
 			out[k] = allValuesWide(f, v)
 		}
 	}
 	r.allValuesCache = out
 	return out
+}
+
+// AllValuesChecked is AllValues plus the refusal of a categorical or
+// set cell whose code addresses no entry of its field's dictionary —
+// corrupt record data AllValues alone would render as "" (a categorical)
+// or silently drop (a set member). Every consumer that renders or
+// evaluates the map (record rows, Sample, Lookup, expressions) reads
+// through here, so a corrupt cell is an ENCODING_INVALID refusal rather
+// than a minted output (U51 E5-S8). The fault is computed once per
+// build of the cached map.
+func (r *Record) AllValuesChecked() (map[string]any, error) {
+	out := r.AllValues()
+	if r.aux != nil && r.aux.allValuesFault != nil {
+		return out, r.aux.allValuesFault
+	}
+	return out, nil
+}
+
+// noteAllValuesFault keeps the first dictionary fault an AllValues
+// build met.
+func (r *Record) noteAllValuesFault(err error) {
+	if err == nil {
+		return
+	}
+	if aux := r.auxOrNew(); aux.allValuesFault == nil {
+		aux.allValuesFault = err
+	}
+}
+
+// wideDictionaryFault is the set-member fault of a wide value bound to
+// f (nil for any other field or value).
+func wideDictionaryFault(f *encoding.Field, v any) error {
+	if f == nil || !f.Type.IsSet() || f.Dictionary == nil {
+		return nil
+	}
+	m, ok := setMaskFromWideValue(v)
+	if !ok {
+		return nil
+	}
+	return encx.SetMemberFault(f, m)
 }
 
 // exprValue returns AllValues()[name] without building the map — the
@@ -1163,10 +1217,20 @@ func (r *Record) AllValues() map[string]any {
 // pass overwrites an earlier one): overflow wide, typed wide, overflow
 // value, slot value. Pinned to AllValues by
 // TestRecord_ExprValueMatchesAllValues.
-func (r *Record) exprValue(name string) (any, bool) {
+//
+// A categorical or set value whose code addresses no entry of its
+// field's dictionary is refused with AllValuesChecked's error.
+func (r *Record) exprValue(name string) (any, bool, error) {
 	if r.allValuesCache != nil {
 		v, ok := r.allValuesCache[name]
-		return v, ok
+		if ok && r.aux != nil && r.aux.allValuesFault != nil {
+			// The cached build met a fault somewhere in the record;
+			// refuse only when it is this field's.
+			if err := r.fieldDictionaryFault(name); err != nil {
+				return nil, false, err
+			}
+		}
+		return v, ok, nil
 	}
 	i := r.pos(name)
 	if r.aux != nil {
@@ -1175,15 +1239,22 @@ func (r *Record) exprValue(name string) (any, bool) {
 			if r.schema != nil {
 				f = r.schema.Field(name)
 			}
-			return allValuesWide(f, v), true
+			if err := wideDictionaryFault(f, v); err != nil {
+				return nil, false, err
+			}
+			return allValuesWide(f, v), true, nil
 		}
 	}
 	if i >= 0 && r.test(planeWide, i) && !r.test(planeNull, i) {
-		return allValuesWide(r.fieldAt(i), r.boxWideAt(i)), true
+		f, wv := r.fieldAt(i), r.boxWideAt(i)
+		if err := wideDictionaryFault(f, wv); err != nil {
+			return nil, false, err
+		}
+		return allValuesWide(f, wv), true, nil
 	}
 	if x := r.extraPos(name); x >= 0 {
 		if r.xtest(xplaneHas, x) && !r.xtest(xplaneNull, x) {
-			return *r.extraSlot(x), true
+			return *r.extraSlot(x), true, nil
 		}
 	} else if r.aux != nil {
 		if v, ok := r.aux.ovVals[name]; ok && !r.aux.ovNulls[name] {
@@ -1192,20 +1263,50 @@ func (r *Record) exprValue(name string) (any, bool) {
 				f = r.schema.Field(name)
 			}
 			if f != nil && f.Type.IsCategorical() && f.Dictionary != nil {
-				return f.Dictionary.Resolve(uint32(v)), true
+				if err := encx.CategoricalIndexFault(f, v); err != nil {
+					return nil, false, err
+				}
+				return f.Dictionary.Resolve(uint32(v)), true, nil
 			}
-			return v, true
+			return v, true, nil
 		}
 	}
 	if i >= 0 && r.test(planeHas, i) && !r.test(planeNull, i) {
 		f := r.fieldAt(i)
 		v := r.vals[i]
 		if f.Type.IsCategorical() && f.Dictionary != nil {
-			return f.Dictionary.Resolve(uint32(v)), true
+			if err := encx.CategoricalIndexFault(f, v); err != nil {
+				return nil, false, err
+			}
+			return f.Dictionary.Resolve(uint32(v)), true, nil
 		}
-		return v, true
+		return v, true, nil
 	}
-	return nil, false
+	return nil, false, nil
+}
+
+// fieldDictionaryFault is the dictionary-index fault of field name's
+// current value (nil when the field is not categorical / set, null,
+// absent or in range).
+func (r *Record) fieldDictionaryFault(name string) error {
+	if r.schema == nil {
+		return nil
+	}
+	f := r.schema.Field(name)
+	if f == nil || f.Dictionary == nil {
+		return nil
+	}
+	switch {
+	case f.Type.IsCategorical():
+		if v, ok := r.NumericValue(name); ok {
+			return encx.CategoricalIndexFault(f, v)
+		}
+	case f.Type.IsSet():
+		if m, ok := r.SetMaskValue(name); ok {
+			return encx.SetMemberFault(f, m)
+		}
+	}
+	return nil
 }
 
 // allValuesWide renders one wide value for AllValues: a set field with a

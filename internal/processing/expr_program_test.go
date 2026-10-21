@@ -221,7 +221,10 @@ func TestRecord_ExprValueMatchesAllValues(t *testing.T) {
 		var got []any
 		var gotOK []bool
 		for _, n := range names { // before AllValues builds its cache
-			v, ok := r.exprValue(n)
+			v, ok, err := r.exprValue(n)
+			if err != nil {
+				t.Fatalf("%s: exprValue(%q): %v", path, n, err)
+			}
 			got, gotOK = append(got, v), append(gotOK, ok)
 		}
 		all := r.AllValues()

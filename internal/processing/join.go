@@ -56,7 +56,14 @@ type HashJoinIterator struct {
 	leftRec     *Record
 	// maxMatches is the most right rows one join key holds.
 	maxMatches int
+	// err is the probe-side refusal that ended the stream (a corrupt
+	// categorical key code); Next returns false once it is set.
+	err error
 }
+
+// Err reports the refusal that ended the probe stream early, nil after
+// a clean exhaustion. Callers check it once Next returns false.
+func (h *HashJoinIterator) Err() error { return h.err }
 
 // MaxMatches is the most right (build) rows one join key holds — the
 // most joined rows one left row can emit, so the joined stream is at
@@ -92,7 +99,10 @@ func NewHashJoinIterator(left RecordIterator, right []*Record, leftSchema, right
 	rightHash := make(map[string][]*Record, len(right))
 	maxMatches := 0
 	for _, r := range right {
-		key, ok := joinKeyOf(r, rightSchema, spec, true)
+		key, ok, err := joinKeyOf(r, rightSchema, spec, true)
+		if err != nil {
+			return nil, nil, err
+		}
 		if !ok {
 			continue
 		}
@@ -119,11 +129,15 @@ func (h *HashJoinIterator) Next() bool {
 			h.cursor++
 			return true
 		}
-		if !h.left.Next() {
+		if h.err != nil || !h.left.Next() {
 			return false
 		}
 		h.leftRec = h.left.Record()
-		key, ok := joinKeyOf(h.leftRec, h.leftRec.schema, h.spec, false)
+		key, ok, err := joinKeyOf(h.leftRec, h.leftRec.schema, h.spec, false)
+		if err != nil {
+			h.err = err
+			return false
+		}
 		if !ok {
 			continue
 		}
@@ -199,7 +213,7 @@ func (h *HashJoinIterator) Reset() {
 // Set columns never reach here: the join-key rule
 // (internal/encoding.JoinKeysRefusals) rejects them at
 // NewHashJoinIterator. See internal/encoding.JoinKeySetRejection.
-func joinKeyOf(rec *Record, schema *encoding.Schema, spec *types.JoinSpec, build bool) (string, bool) {
+func joinKeyOf(rec *Record, schema *encoding.Schema, spec *types.JoinSpec, build bool) (string, bool, error) {
 	var parts []string
 	for _, pair := range spec.On {
 		field := pair.LeftField
@@ -208,15 +222,20 @@ func joinKeyOf(rec *Record, schema *encoding.Schema, spec *types.JoinSpec, build
 		}
 		f := schema.Field(field)
 		if f == nil {
-			return "", false
+			return "", false, nil
 		}
 		if rec.nullMarked(field) {
-			return "", false
+			return "", false, nil
 		}
 		if f.Type.IsCategorical() && f.Dictionary != nil {
 			v, ok := rec.rawValue(field)
 			if !ok {
-				return "", false
+				return "", false, nil
+			}
+			// A code outside the dictionary is corrupt record data:
+			// refused, never keyed as "" (U51 E5-S8).
+			if err := encx.CategoricalIndexFault(f, v); err != nil {
+				return "", false, err
 			}
 			parts = append(parts, f.Dictionary.Resolve(uint32(v)))
 			continue
@@ -224,11 +243,11 @@ func joinKeyOf(rec *Record, schema *encoding.Schema, spec *types.JoinSpec, build
 		if f.Type == encoding.FieldTypeDecimal128 {
 			wv, ok := rec.WideValue(field)
 			if !ok {
-				return "", false
+				return "", false, nil
 			}
 			d, ok := wv.(encoding.Decimal128)
 			if !ok {
-				return "", false
+				return "", false, nil
 			}
 			enc := encoding.EncodeDecimal128(d)
 			parts = append(parts, string(enc[:]))
@@ -237,7 +256,7 @@ func joinKeyOf(rec *Record, schema *encoding.Schema, spec *types.JoinSpec, build
 		if f.Type == encoding.FieldTypeU64 {
 			u, ok := rec.Uint64Value(field)
 			if !ok {
-				return "", false
+				return "", false, nil
 			}
 			if u >= joinExactU64Floor {
 				parts = append(parts, strconv.FormatUint(u, 10))
@@ -246,11 +265,11 @@ func joinKeyOf(rec *Record, schema *encoding.Schema, spec *types.JoinSpec, build
 		}
 		v, ok := rec.rawValue(field)
 		if !ok {
-			return "", false
+			return "", false, nil
 		}
 		parts = append(parts, strconv.FormatFloat(v, 'g', -1, 64))
 	}
-	return strings.Join(parts, "|"), true
+	return strings.Join(parts, "|"), true, nil
 }
 
 // joinExactU64Floor is 2^53: the first u64 whose float64 echo can be

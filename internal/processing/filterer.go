@@ -487,8 +487,13 @@ func (f *boolFilterer) Build(filter *types.Filterer, schema *encoding.Schema) (F
 	}
 
 	return func(record *Record) (bool, error) {
-		all := record.AllValues()
-		v, present := all[fieldName]
+		// exprValue is AllValues()[fieldName] (TestRecord_ExprValueMatchesAllValues)
+		// plus the refusal of a corrupt categorical / set code, which
+		// AllValues would read as the falsy "" (U51 E5-S8).
+		v, present, err := record.exprValue(fieldName)
+		if err != nil {
+			return false, err
+		}
 		if !present {
 			// null / missing — JS coerces to false
 			return !want, nil

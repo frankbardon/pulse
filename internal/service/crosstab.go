@@ -229,6 +229,9 @@ func (s *Service) processCrosstabWithJoin(ctx context.Context, req *types.Reques
 	if err := leftIter.Err(); err != nil {
 		return nil, err
 	}
+	if err := join.Err(); err != nil {
+		return nil, err
+	}
 	ei.Lap(observe.PhaseDecode)
 
 	proc := s.newProcessor(ctx, joinedSchema, req)

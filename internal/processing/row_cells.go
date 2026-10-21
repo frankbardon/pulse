@@ -266,8 +266,14 @@ func temporalColumns(schema *encoding.Schema, windows []*types.Window) map[strin
 // echo's; below 2^53 the JSON digits are the ones the echo printed. No
 // request zone applies: a raw row spells the stored value. The returned
 // map is the caller's to keep; AllValues' cached map is never mutated.
-func RenderRecordCells(rec *Record) map[string]any {
-	src := rec.AllValues()
+// A categorical / set cell whose code addresses no dictionary entry is
+// refused with AllValuesChecked's ENCODING_INVALID (U51 E5-S8), never
+// rendered as "".
+func RenderRecordCells(rec *Record) (map[string]any, error) {
+	src, err := rec.AllValuesChecked()
+	if err != nil {
+		return nil, err
+	}
 	out := make(map[string]any, len(src))
 	for k, v := range src {
 		if d, ok := v.(encoding.Decimal128); ok {
@@ -283,7 +289,7 @@ func RenderRecordCells(rec *Record) map[string]any {
 		}
 		out[k] = temporalCell(f, v)
 	}
-	return out
+	return out, nil
 }
 
 // temporalCell renders a date / datetime cell (AllValues' signed epoch

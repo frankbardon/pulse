@@ -66,7 +66,10 @@ func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.
 	}
 	rows := make([]map[string]any, 0, len(recs))
 	for _, m := range recs {
-		all := processing.RenderRecordCells(m.rec)
+		all, err := processing.RenderRecordCells(m.rec)
+		if err != nil {
+			return nil, err
+		}
 		row := make(map[string]any, len(returnCols))
 		for _, name := range returnCols {
 			if v, present := all[name]; present {

@@ -895,6 +895,17 @@ func readCohortCase(r io.Reader, s *encoding.Schema, c Case) error {
 			}
 		}
 	}
+	// A non-null set selecting a bit past its dictionary is corrupt
+	// record data (U51 E5-S8): no member column stands for that bit, so
+	// writing the case would drop it silently. A categorical ID past its
+	// dictionary is refused by category (PULSE_SPSS_EXPORT_UNSUPPORTED).
+	for i := range s.Fields {
+		if f := &s.Fields[i]; f.Type.IsSet() && !c[i].Null {
+			if err := encx.SetMemberFault(f, c[i].Mask); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 

@@ -1848,7 +1848,10 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	} else if len(req.Windows) > 0 {
 		// No group, no aggregation, but we have windows. Materialize one row
 		// per filtered record so windows can compute over the full set.
-		data, rowWords = recordsToRows(filtered, p.schema)
+		data, rowWords, err = recordsToRows(filtered, p.schema)
+		if err != nil {
+			return nil, err
+		}
 		recordRows = true
 	}
 
@@ -2134,11 +2137,16 @@ func recordsAsRegressionRecords(records []*Record) []regression.Record {
 // AllValues returns a cached map owned by the Record; window operators
 // mutate rows in place to write their output column, so we clone here to
 // avoid leaking window outputs back into the Record's cache.
-func recordsToRows(records []*Record, schema *encoding.Schema) ([]map[string]any, *u64RowWords) {
+func recordsToRows(records []*Record, schema *encoding.Schema) ([]map[string]any, *u64RowWords, error) {
 	rows := make([]map[string]any, len(records))
 	words := newU64RowWords(schema, len(records))
 	for i, r := range records {
-		src := r.AllValues()
+		// A corrupt categorical / set code is refused, never rendered
+		// as "" (U51 E5-S8).
+		src, err := r.AllValuesChecked()
+		if err != nil {
+			return nil, nil, err
+		}
 		clone := make(map[string]any, len(src)+2)
 		for k, v := range src {
 			if _, isDec := v.(encoding.Decimal128); isDec {
@@ -2149,7 +2157,7 @@ func recordsToRows(records []*Record, schema *encoding.Schema) ([]map[string]any
 		rows[i] = clone
 		words.capture(clone, r)
 	}
-	return rows, words
+	return rows, words, nil
 }
 
 // applyFiltersWithCounters is the buffered-path companion to

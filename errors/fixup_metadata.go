@@ -12,7 +12,7 @@ package errors
 var codeMetadata = map[Code]Metadata{
 	// ---------- ENCODING ----------
 	ENCODING_INVALID: {
-		Message: "The .pulse file header or schema block is malformed (bad magic, unsupported format version, or invalid field-type byte).",
+		Message: "The .pulse file is malformed: its header or schema block (bad magic, unsupported format version, or invalid field-type byte), or a record whose categorical index or set bit lies outside its field's dictionary.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -21,6 +21,10 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRequiresReschema,
 				Hint:   "If details.version is outside details.supported_versions, a newer Pulse wrote the file: upgrade this binary to one that reads that format version, or re-import the source with this binary (old format versions stay readable forever).",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "If details.reason is categorical_index_out_of_range or set_member_out_of_range, a record of details.field stores a code its dictionary (details.dictionary_size entries) does not hold: the record data is corrupt. Restore the cohort or shard from its source or re-import it; for a shard archive, `pulse shard verify` checks every stored shard's CRC.",
 			},
 		},
 	},

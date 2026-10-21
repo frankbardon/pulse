@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/dategroup"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/groupfit"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/temporal"
@@ -386,8 +387,15 @@ func (g *categoryGrouper) KeyFor(r *Record) (string, error) {
 	var key string
 	if g.schema != nil {
 		if f := g.schema.Field(g.field); f != nil && f.Type.IsCategorical() && f.Dictionary != nil {
+			// An index outside the (widened) dictionary is corrupt
+			// record data: refused, never minted as a numeric-key
+			// group (U51 E5-S8).
+			if err := encx.CategoricalIndexFault(f, v); err != nil {
+				return "", err
+			}
 			key = f.Dictionary.Resolve(uint32(v))
 			if key == "" {
+				// An in-range entry whose label is the empty string.
 				key = strconv.FormatUint(uint64(uint32(v)), 10)
 			}
 		}

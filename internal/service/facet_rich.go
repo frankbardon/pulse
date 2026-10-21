@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	encx "github.com/frankbardon/pulse/internal/encoding"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing"
@@ -441,6 +442,11 @@ func (a *categoricalAccumulator) update(r *processing.Record, field string) erro
 	if !ok {
 		a.nulls++
 		return nil
+	}
+	// An index outside the dictionary is corrupt record data: refused,
+	// never counted as a numeric-string value (U51 E5-S8).
+	if err := encx.CategoricalIndexFault(a.field, v); err != nil {
+		return err
 	}
 	id := uint32(v)
 	if _, seen := a.counts[id]; !seen {

@@ -326,6 +326,9 @@ func exactValue(f *encoding.Field, values map[string]float64, wide map[string]an
 		if !ok {
 			return nil, missingExact(f)
 		}
+		if err := encx.SetMemberFault(f, m); err != nil {
+			return nil, err
+		}
 		return m.Labels(f.Dictionary), nil
 	case encoding.FieldTypeVecF64:
 		v, ok := wide[f.Name].([]float64)
@@ -360,12 +363,20 @@ func exactValue(f *encoding.Field, values map[string]float64, wide map[string]an
 	case f.Type == encoding.FieldTypeDateTime:
 		return encoding.DateTimeSeconds(w), nil
 	case f.Type.IsSet():
-		return encoding.SetMaskFromUint64(w).Labels(f.Dictionary), nil
+		m := encoding.SetMaskFromUint64(w)
+		if err := encx.SetMemberFault(f, m); err != nil {
+			return nil, err
+		}
+		return m.Labels(f.Dictionary), nil
 	case f.Type.HasDictionary():
-		if f.Dictionary == nil || w >= uint64(f.Dictionary.Count()) {
+		if f.Dictionary == nil {
 			return nil, errors.NewCodedErrorWithDetails(errors.ENCODING_INVALID,
-				"categorical dictionary ID out of range",
+				"categorical field carries no dictionary",
 				map[string]any{"field": f.Name, "id": w})
+		}
+		// The engine's shared refusal (U51 E5-S8).
+		if err := encx.CategoricalIndexFault(f, float64(w)); err != nil {
+			return nil, err
 		}
 		return f.Dictionary.Resolve(uint32(w)), nil
 	default:

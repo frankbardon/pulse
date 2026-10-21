@@ -32,6 +32,7 @@ Floor `{total_n, n_null}` + `dict_size` (int, distinct values observed) and `buc
 ## Gotchas
 
 - `Include` matches the post-dictionary label; zero-record values drop, never emit empty.
+- A categorical index outside its (widened) dictionary is corrupt data: `ENCODING_INVALID` (`details.reason` `categorical_index_out_of_range`) on every arm, never a numeric-key bucket.
 - High-cardinality fields blow memory — filter to the values you need first.
 - `set_*` rejected at build time with `PULSE_FIELD_TYPE_UNSUPPORTED` — a bitmask has no single scalar to bucket on at any rung.
 

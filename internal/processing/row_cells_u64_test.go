@@ -24,7 +24,10 @@ func TestRenderRecordCells_U64Exact(t *testing.T) {
 	for _, v := range []uint64{two53 - 1, two53, two53 + 1, 1<<64 - 1, 1<<64 - 2, 7, 0} {
 		rec := NewRecord(schema, map[string]float64{"k": float64(v), "a": 1.5})
 		rec.SetExactU64("k", v)
-		cells := RenderRecordCells(rec)
+		cells, err := RenderRecordCells(rec)
+		if err != nil {
+			t.Fatal(err)
+		}
 		got, ok := cells["k"].(uint64)
 		if !ok || got != v {
 			t.Errorf("k cell = %T %v, want uint64 %d", cells["k"], cells["k"], v)
@@ -64,7 +67,10 @@ func TestFinalizeRowCells_U64Words(t *testing.T) {
 	r1 := NewRecord(schema, map[string]float64{"k": 7, "a": 2})
 	r1.SetExactU64("k", 7)
 	r2 := NewRecordWithNulls(schema, map[string]float64{"a": 3}, map[string]bool{"k": true})
-	rows, words := recordsToRows([]*Record{r0, r1, r2}, schema)
+	rows, words, err := recordsToRows([]*Record{r0, r1, r2}, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, ok := rows[0]["k"].(float64); !ok {
 		t.Fatalf("pre-render k = %T, want the float64 echo", rows[0]["k"])
 	}
@@ -84,7 +90,10 @@ func TestFinalizeRowCells_U64Words(t *testing.T) {
 		t.Errorf("f64 a = %T, want float64", rows[0]["a"])
 	}
 	// A stage that rewrote the cell keeps its value.
-	rows2, words2 := recordsToRows([]*Record{r0}, schema)
+	rows2, words2, err := recordsToRows([]*Record{r0}, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
 	rows2[0]["k"] = 1.5
 	finalizeRowCells(rows2, schema, nil, words2)
 	if rows2[0]["k"] != 1.5 {
@@ -117,7 +126,10 @@ func TestFinalizeRowCells_U64CopyWindows(t *testing.T) {
 	}
 	// A null id in partition 0 at a = 6.
 	recs = append(recs, NewRecordWithNulls(schema, map[string]float64{"a": 6, "g": 0}, map[string]bool{"k": true}))
-	rows, words := recordsToRows(recs, schema)
+	rows, words, err := recordsToRows(recs, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
 	ord := []types.OrderKey{{Field: "a"}}
 	part := []string{"g"}
 	wins := []*types.Window{
@@ -194,7 +206,10 @@ func TestFinalizeRowCells_U64CopyWindows(t *testing.T) {
 		}
 	}
 	// Without the observer a copy stays the echo (E4-S6 behaviour).
-	rows2, words2 := recordsToRows(recs[:2], schema)
+	rows2, words2, err := recordsToRows(recs[:2], schema)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := window.ApplyKeyed(context.Background(), rows2, wins[:1], nil, nil); err != nil {
 		t.Fatal(err)
 	}

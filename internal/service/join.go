@@ -66,6 +66,11 @@ func (s *Service) processWithJoin(ctx context.Context, req *types.Request) (*typ
 	if err != nil {
 		return nil, err
 	}
+	// A probe-side refusal (a corrupt categorical key code) ends the
+	// stream early; it fails the run rather than truncating it.
+	if err := join.Err(); err != nil {
+		return nil, err
+	}
 	if resp.Metadata != nil {
 		resp.Metadata.CohortFile = leftPath
 	}
