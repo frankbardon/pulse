@@ -115,6 +115,16 @@ func (s *Service) reduceParallelBuffered(
 		return nil, err
 	}
 
+	// A total() formula (admitted by mergegate.ParallelTotals) runs two
+	// phases: a parallel pre-pass over the same segments publishes the
+	// cohort totals, bound below into every worker's formula.
+	var totals *processing.PublishedTotals
+	if processing.HasFormulaTotals(req.Attributes) {
+		if totals, err = s.decodeTotalsPrepass(ctx, req, schema, pctx, workers); err != nil {
+			return nil, err
+		}
+	}
+
 	// One factory per grouper slot — every slot, not Groups[0] only.
 	grouperFactories, err := lookupGrouperFactories(req, s.extensions)
 	if err != nil {
@@ -157,7 +167,7 @@ func (s *Service) reduceParallelBuffered(
 		vecs := processing.ExprVectors(req, schema)
 		filterFns, buildErr = processing.BuildFiltersWithVectors(req.Filterers, schema, s.extensions, model.SetFrom(ctx), vecs)
 		if buildErr == nil {
-			rowLocalAttrs, buildErr = buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, partitionModels(ctx), vecs)
+			rowLocalAttrs, buildErr = buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, partitionModels(ctx), vecs, totals)
 		}
 		if buildErr == nil {
 			out, buildErr = newPartitionPartial(req, schema, s.extensions, specs, grouperFactories, compute, model.SetFrom(ctx), s.Limits())

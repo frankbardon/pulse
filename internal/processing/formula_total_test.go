@@ -268,10 +268,12 @@ func TestFormulaTotal_Routing(t *testing.T) {
 	}
 }
 
-// TestFormulaTotal_NotMergeable: a total() formula is not row-local, so
-// the parallel reducers and ProcessChain refuse to fan it out (each
-// partition's total would be partition-local); a plain formula merges.
-func TestFormulaTotal_NotMergeable(t *testing.T) {
+// TestFormulaTotal_MergeAdmission: a plain formula merges; an
+// ungrouped, one-layer total() formula merges through the reducers'
+// two-phase drive (U51 E3-S1, #399); a grouped one does not (each
+// partition would need per-bucket publication), and no total() formula
+// passes the ProcessChain stage gate, which has no two-phase runtime.
+func TestFormulaTotal_MergeAdmission(t *testing.T) {
 	s := exprParitySchema()
 	req := func(expr string) *types.Request {
 		return &types.Request{
@@ -282,8 +284,16 @@ func TestFormulaTotal_NotMergeable(t *testing.T) {
 	if !CanMergeRequest(req("x * 2"), s) {
 		t.Fatal("plain formula must stay mergeable")
 	}
-	if CanMergeRequest(req("x / total(x)"), s) {
-		t.Fatal("a total() formula must not be mergeable")
+	if !CanMergeRequest(req("x / total(x)"), s) {
+		t.Fatal("an ungrouped one-layer total() formula must merge (two-phase)")
+	}
+	grouped := req("x / total(x)")
+	grouped.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "x"}}
+	if CanMergeRequest(grouped, s) {
+		t.Fatal("a grouped total() formula must not merge")
+	}
+	if CanChainRequest(req("x / total(x)"), s) {
+		t.Fatal("a total() formula must not pass the chain stage gate")
 	}
 }
 

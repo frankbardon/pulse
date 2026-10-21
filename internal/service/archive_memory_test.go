@@ -128,6 +128,15 @@ func dictArchiveRequest(path string, grouped bool) *types.Request {
 	return req
 }
 
+// totalArchiveRequest is dictArchiveRequest with a total() formula sh
+// summed beside x0.
+func totalArchiveRequest(path string, grouped bool, expr string) *types.Request {
+	req := dictArchiveRequest(path, grouped)
+	req.Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: expr, Label: "sh"}}
+	req.Aggregations = append(req.Aggregations, &types.Aggregation{Type: types.AGG_SUM, Field: "sh", Label: "ssh"})
+	return req
+}
+
 // TestShardFanOut_PredictMatchesRuntime: the memory estimate's arm
 // decision (descx.ShardFanOut, which charges the per-shard partials) is
 // the dispatch Service.shouldFanOut takes, for every ShardWorkers cap
@@ -148,6 +157,19 @@ func TestShardFanOut_PredictMatchesRuntime(t *testing.T) {
 		},
 		"matrix": func(p string) *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: p}, Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "c", Fields: []string{"x0", "x1"}}}}
+		},
+		// U51 E3-S1: an ungrouped one-layer total() fans out (two-phase);
+		// grouped and multi-layer ones stay serial.
+		"total": func(p string) *types.Request {
+			return totalArchiveRequest(p, false, "x0 / total(x0)")
+		},
+		"grouped total": func(p string) *types.Request {
+			return totalArchiveRequest(p, true, "x0 / total(x0)")
+		},
+		"multi-layer total": func(p string) *types.Request {
+			req := totalArchiveRequest(p, false, "total(x0)")
+			req.Attributes = append(req.Attributes, &types.Attribute{Type: types.ATTR_FORMULA, Expression: "total(x0 - sh)", Label: "t2"})
+			return req
 		},
 	}
 	ctx := context.Background()

@@ -489,28 +489,109 @@ func TestBitExact_StreamingVsBuffered(t *testing.T) {
 	bitExactCompare(t, arms, resps)
 }
 
-// TestBitExact_FormulaTotal: total(x) — and its frequency-weighted form
-// — reads the same cohort total on every arm. The merge gate keeps a
-// total() formula on a sequential arm, whose row order differs between
-// the single file and the scattered archive; the binned sum does not
-// care.
+// TestBitExact_FormulaTotal: total(x) — and its frequency-weighted form,
+// and a filtered share formula whose total() reads a row-local label —
+// reads the same cohort total on every arm. A one-layer, ungrouped
+// total() runs two-phase on the parallel reducers (U51 E3-S1, #399): a
+// parallel pre-pass merges binned {sum, count} partials and the reduce
+// binds the published totals, so DecodeWorkers 2 / 3 / 7 and
+// ShardWorkers 2 / 3 / 8 must really fan out AND answer the serial
+// bits — the binned sum does not care about the split.
 func TestBitExact_FormulaTotal(t *testing.T) {
 	dir := bitExactCohorts(t)
-	arms := bitExactArms(false)
-	for _, weighted := range []bool{false, true} {
-		t.Run(fmt.Sprintf("weighted=%v", weighted), func(t *testing.T) {
-			resps := bitExactRun(t, dir, arms, func(cohort string) *types.Request {
-				attr := &types.Attribute{Type: types.ATTR_FORMULA, Expression: "total(x)", Label: "tot"}
-				if weighted {
-					attr.Weight = types.SlotWeightOf(types.WeightSpec{Field: "fw", Kind: types.WeightKindFrequency})
-				}
-				return &types.Request{Cohort: &types.Cohort{Filename: cohort},
-					Attributes:   []*types.Attribute{attr},
-					Aggregations: []*types.Aggregation{{Type: types.AGG_MAX, Field: "tot", Label: "max"}}}
-			})
-			if tot, _ := resps[0].Data[0]["max"].(float64); tot == 0 || tot == math.Trunc(tot) {
-				t.Fatalf("total %v is zero or integral: the fixture is not mixed-magnitude", tot)
+	arms := bitExactArms(true)
+	cases := []struct {
+		name string
+		mk   func(cohort string) *types.Request
+		key  string // a Data figure that must be non-integral
+	}{
+		{name: "plain", key: "max", mk: func(cohort string) *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: cohort},
+				Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "total(x)", Label: "tot"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_MAX, Field: "tot", Label: "max"}}}
+		}},
+		{name: "weighted", key: "max", mk: func(cohort string) *types.Request {
+			attr := &types.Attribute{Type: types.ATTR_FORMULA, Expression: "total(x)", Label: "tot",
+				Weight: types.SlotWeightOf(types.WeightSpec{Field: "fw", Kind: types.WeightKindFrequency})}
+			return &types.Request{Cohort: &types.Cohort{Filename: cohort},
+				Attributes:   []*types.Attribute{attr},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_MAX, Field: "tot", Label: "max"}}}
+		}},
+		{name: "filtered-share-over-label", key: "s", mk: func(cohort string) *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: cohort},
+				Filterers: []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: "y > 20"}},
+				Attributes: []*types.Attribute{
+					{Type: types.ATTR_FORMULA, Expression: "x == nil ? nil : x * y", Label: "xy"},
+					{Type: types.ATTR_FORMULA, Expression: "xy == nil ? nil : xy / total(xy) + total(y)", Label: "share"},
+				},
+				Aggregations: []*types.Aggregation{
+					{Type: types.AGG_SUM, Field: "share", Label: "s"},
+					{Type: types.AGG_AVERAGE, Field: "share", Label: "a"},
+					{Type: types.AGG_MAX, Field: "share", Label: "m"},
+					{Type: types.AGG_COUNT, Field: "xy", Label: "n"},
+				},
+				// A matrix beside the total() formula rides phase 2's
+				// blocked merge (the serial arm runs it buffered).
+				Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "c", Fields: []string{"x", "y"}}}}
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			resps := bitExactRun(t, dir, arms, c.mk)
+			if v, _ := resps[0].Data[0][c.key].(float64); v == 0 || v == math.Trunc(v) {
+				t.Fatalf("%s = %v is zero or integral: the fixture is not mixed-magnitude", c.key, v)
 			}
+			bitExactCompare(t, arms, resps)
+			// Matrices fold by merge-block position, so they match within
+			// a cohort (the archive scatters the rows into another order).
+			first := map[string]*types.Response{}
+			for i, r := range resps {
+				ref, ok := first[arms[i].cohort]
+				if !ok {
+					first[arms[i].cohort] = r
+					continue
+				}
+				if !reflect.DeepEqual(r.Matrices, ref.Matrices) {
+					t.Errorf("%s: Matrices differ\n got %s\nwant %s", arms[i].name, mustBitExactJSON(t, r.Matrices), mustBitExactJSON(t, ref.Matrices))
+				}
+			}
+		})
+	}
+}
+
+// TestBitExact_FormulaTotalOutsideFirstCut: a GROUPED total() and a
+// MULTI-LAYER total() (an argument reading an earlier total) stay off
+// the parallel reducers (mergegate.ParallelTotals) — every knob runs
+// the sequential arm — and still answer the same bits.
+func TestBitExact_FormulaTotalOutsideFirstCut(t *testing.T) {
+	dir := bitExactCohorts(t)
+	for _, c := range []struct {
+		name string
+		arm  observe.Arm
+		mk   func(cohort string) *types.Request
+	}{
+		{name: "grouped", arm: observe.ArmBuffered, mk: func(cohort string) *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: cohort},
+				Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "(x ?? 0) / total(x)", Label: "sh"}},
+				Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "sh", Label: "s"}}}
+		}},
+		{name: "multi-layer", arm: observe.ArmStreaming, mk: func(cohort string) *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: cohort},
+				Attributes: []*types.Attribute{
+					{Type: types.ATTR_FORMULA, Expression: "total(x)", Label: "t1"},
+					{Type: types.ATTR_FORMULA, Expression: "(x ?? 0) / total(x - t1 / 7)", Label: "t2"},
+				},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "t2", Label: "s"}}}
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var arms []bitExactArm
+			for _, a := range bitExactArms(false) {
+				a.arm = c.arm
+				arms = append(arms, a)
+			}
+			resps := bitExactRun(t, dir, arms, c.mk)
 			bitExactCompare(t, arms, resps)
 		})
 	}

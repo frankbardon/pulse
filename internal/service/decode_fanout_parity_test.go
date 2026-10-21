@@ -94,6 +94,19 @@ func TestDecodeFanOut_PredictMatchesRuntime(t *testing.T) {
 		"median (not mergeable)": func(p string) *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: p}, Aggregations: []*types.Aggregation{{Type: types.AGG_MEDIAN, Field: "x", Label: "m"}}}
 		},
+		// U51 E3-S1: an ungrouped one-layer total() fans out (two-phase);
+		// a grouped one stays serial.
+		"total": func(p string) *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: p},
+				Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "x / total(x)", Label: "sh"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "sh", Label: "s"}}}
+		},
+		"grouped total": func(p string) *types.Request {
+			return &types.Request{Cohort: &types.Cohort{Filename: p},
+				Groups:       []*types.Group{{Type: types.GROUP_RANGE, Field: "k", Interval: 2}},
+				Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Expression: "x / total(x)", Label: "sh"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "sh", Label: "s"}}}
+		},
 		"crosstab": func(p string) *types.Request {
 			return &types.Request{Cohort: &types.Cohort{Filename: p}, Crosstab: &types.CrosstabSpec{
 				Rows:    []*types.Group{{Type: types.GROUP_RANGE, Field: "k", Interval: 2}},

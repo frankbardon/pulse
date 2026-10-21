@@ -1,10 +1,6 @@
 package processing
 
 import (
-	exprast "github.com/expr-lang/expr/ast"
-	exprparser "github.com/expr-lang/expr/parser"
-
-	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -130,51 +126,17 @@ func planTwoPassStages(attrs []*types.Attribute, twoPass []bool, exts *Extension
 }
 
 // attributeInputNames returns every name attr may read off a record —
-// schema fields AND earlier attribute labels. known=false means the
-// set cannot be proven complete (an unparsable formula, an extension
+// schema fields AND earlier attribute labels (vectors.AttributeInputNames,
+// the built-in rule the merge gate's total() layering shares) plus an
+// extension attribute's declared FieldInputs. known=false means the set
+// cannot be proven complete (an unparsable formula, an extension
 // without a FieldInputs hook), and the planner then treats attr as
 // depending on every earlier attribute: correct, at the price of extra
 // layers.
 func attributeInputNames(attr *types.Attribute, exts *ExtensionRegistry) (map[string]struct{}, bool) {
-	if attr.Type == types.ATTR_REG_PREDICT || model.FitReferenced(attr.Type, attr) {
-		// Its inputs are the bound model's predictors (and, for a
-		// residual, its target), which the request does not spell:
-		// depend on every earlier attribute.
+	out, known := vectors.AttributeInputNames(attr)
+	if !known {
 		return nil, false
-	}
-	out := make(map[string]struct{}, 2+len(attr.Predictors))
-	add := func(s string) {
-		if s != "" {
-			out[s] = struct{}{}
-		}
-	}
-	add(attr.Field)
-	add(attr.Target)
-	for _, p := range attr.Predictors {
-		add(p)
-	}
-	// A vector-input attribute reads its members (source columns, so
-	// never an earlier label — added for completeness) and the columns
-	// of its params.fit_on filterers, which may be earlier labels.
-	for _, f := range attr.Fields {
-		add(f)
-	}
-	for _, f := range vectors.AttributeFitOn(attr.Type, attr) {
-		add(f.Field)
-		if f.Type == types.FILTER_EXPRESSION && f.Expression != "" {
-			tree, err := exprparser.Parse(f.Expression)
-			if err != nil {
-				return nil, false
-			}
-			exprast.Walk(&tree.Node, allIdentVisitor(out))
-		}
-	}
-	if attr.Type == types.ATTR_FORMULA && attr.Expression != "" {
-		tree, err := exprparser.Parse(attr.Expression)
-		if err != nil {
-			return nil, false
-		}
-		exprast.Walk(&tree.Node, allIdentVisitor(out))
 	}
 	if exts != nil {
 		if _, custom := exts.Attributes[attr.Type]; custom {
@@ -183,19 +145,11 @@ func attributeInputNames(attr *types.Attribute, exts *ExtensionRegistry) (map[st
 				return nil, false
 			}
 			for _, s := range inputs {
-				add(s)
+				if s != "" {
+					out[s] = struct{}{}
+				}
 			}
 		}
 	}
 	return out, true
-}
-
-// allIdentVisitor collects every identifier an expression names,
-// whether or not it is a schema field (attribute labels are not).
-type allIdentVisitor map[string]struct{}
-
-func (v allIdentVisitor) Visit(node *exprast.Node) {
-	if id, ok := (*node).(*exprast.IdentifierNode); ok {
-		v[id.Value] = struct{}{}
-	}
 }

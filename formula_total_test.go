@@ -353,9 +353,11 @@ func TestFormulaTotal_MMMSubsetFactor(t *testing.T) {
 // TestFormulaTotal_PartitionedRouting: on each parallel arm — the
 // per-shard reducer (shard archive, ShardWorkers > 1) and the parallel
 // buffered decode (single file over the threshold, DecodeWorkers > 1)
-// — a plain formula still takes the parallel arm, while a total()
-// formula falls back to the sequential arm and equals the sequential
-// single-file run bit for bit (a partition-local total would differ).
+// — a plain formula takes the parallel arm, and so does an ungrouped,
+// one-layer total() formula (U51 E3-S1, #399: a two-phase pre-pass
+// publishes the cohort total) — equal to the sequential single-file run
+// bit for bit (a partition-local total would differ). A GROUPED total()
+// formula falls back to the sequential arm (mergegate.ParallelTotals).
 // Each arm is falsified on its own gate: shard_reduce.go's and
 // parallel_decode.go's CanMergeRequestWithExtensions checks.
 func TestFormulaTotal_PartitionedRouting(t *testing.T) {
@@ -423,8 +425,8 @@ func TestFormulaTotal_PartitionedRouting(t *testing.T) {
 			if err != nil {
 				t.Fatalf("total Process: %v", err)
 			}
-			if got := lastArm(); got == a.parallel {
-				t.Fatalf("total() formula took the parallel arm %q", got)
+			if got := lastArm(); got != a.parallel {
+				t.Fatalf("one-layer ungrouped total() formula took arm %q, want %q (two-phase)", got, a.parallel)
 			}
 			want, err := ref.Process(ctx, ftReq(refPath, total))
 			if err != nil {
@@ -434,6 +436,26 @@ func TestFormulaTotal_PartitionedRouting(t *testing.T) {
 			ftBits(t, "reference max", wv, ftScoreSum(a.rows, ftKeep, ftThird))
 			ftBits(t, "partitioned max", resp.Data[0]["max"], wv)
 			ftBits(t, "partitioned min", resp.Data[0]["min"], wv)
+
+			// Predict's PULSE_ADVISORY_EXTRA_PASS stays accurate on the
+			// two-phase arm: one added (parallel) pre-pass.
+			pred, err := p.Predict(ctx, ftReq(path, total))
+			if err != nil {
+				t.Fatalf("Predict: %v", err)
+			}
+			if len(pred.Advisories) != 1 || pred.Advisories[0].Code != string(errors.PULSE_ADVISORY_EXTRA_PASS) ||
+				pred.Advisories[0].Details["added_scans"] != 1 {
+				t.Fatalf("advisories %+v, want one EXTRA_PASS adding 1 scan", pred.Advisories)
+			}
+
+			grouped := ftReq(path, total)
+			grouped.Groups = []*types.Group{{Type: types.GROUP_CATEGORY, Field: "region"}}
+			if _, err := p.Process(ctx, grouped); err != nil {
+				t.Fatalf("grouped total Process: %v", err)
+			}
+			if got := lastArm(); got == a.parallel {
+				t.Fatalf("grouped total() formula took the parallel arm %q", got)
+			}
 		})
 	}
 }

@@ -299,7 +299,9 @@ func CanStreamRequestWithExtensions(req *types.Request, schema *encoding.Schema,
 // single-file parallel decode reducer consult before fanning out work
 // across a worker pool. Returns true iff every aggregator, grouper,
 // and filterer is mergeable AND the request contains no windows, no
-// features, no regressions, no tests, no two-pass attributes, and no
+// features, no regressions, no tests, no two-pass attributes (save an
+// ungrouped one-layer total() formula, which the reducers run two-phase:
+// mergegate.ParallelTotals, formula_total_merge.go), and no
 // decimal-typed built-in aggregation targets. A nil/empty aggregation
 // list returns false (nothing to merge).
 //

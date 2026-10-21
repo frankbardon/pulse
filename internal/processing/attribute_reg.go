@@ -20,19 +20,7 @@ import (
 // applyAttributes, the buildRowLocal helper) routes through this so
 // the label rule stays single-sourced.
 func defaultAttributeLabel(attr *types.Attribute) string {
-	if label, ok := vectors.VectorAttributeLabel(attr.Type, attr); ok {
-		return label
-	}
-	switch attr.Type {
-	case types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE:
-		if model.FitReferenced(attr.Type, attr) {
-			return model.DefaultFitLabel(attr)
-		}
-		return string(attr.Type) + "_" + attr.Target
-	case types.ATTR_REG_PREDICT:
-		return model.DefaultScoreLabel(attr)
-	}
-	return string(attr.Type) + "_" + attr.Field
+	return vectors.DefaultAttributeLabel(attr)
 }
 
 // DefaultAttributeLabel is defaultAttributeLabel for the service's

@@ -135,6 +135,19 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 		return nil, err
 	}
 
+	// A total() formula (admitted by mergegate.ParallelTotals) runs two
+	// phases: a parallel pre-pass publishes the cohort totals, then the
+	// ordinary per-shard reduce binds them into every shard's formula.
+	if processing.HasFormulaTotals(req.Attributes) {
+		totals, err := s.shardTotalsPrepass(ctx, req, schema, arch, shards, workers)
+		if err != nil {
+			return nil, err
+		}
+		withTotals := *dec
+		withTotals.totals = totals
+		dec = &withTotals
+	}
+
 	merged, err := s.scanAndMergeShards(ctx, req, schema, dec, arch, shards, workers)
 	if err != nil {
 		return nil, err
@@ -422,6 +435,10 @@ type shardDecode struct {
 	plan      *encx.DecodePlan
 	projected int
 	binding   *processing.RecordBinding
+	// totals is the run's published total() values (the two-phase
+	// pre-pass, shardTotalsPrepass), bound into every shard's formula
+	// instances before its first row; nil without a total() formula.
+	totals *processing.PublishedTotals
 }
 
 // shardDecodeFor builds the shard reducer's decode shape for req over
@@ -526,7 +543,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 	if err != nil {
 		return nil, err
 	}
-	rowLocalAttrs, err := buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, partitionModels(ctx), vecs)
+	rowLocalAttrs, err := buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, partitionModels(ctx), vecs, dec.totals)
 	if err != nil {
 		return nil, err
 	}
@@ -924,13 +941,17 @@ type rowLocalAttrSpec struct {
 // buildRowLocalAttrSpecs builds one worker's row-local attributes, bound
 // (processing.BindAttributeWithVectors) to the registry, the request's
 // bound models and its resolved named vectors (processing.ExprVectors),
-// labelled by the processor's own default-label rule.
-func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, exts *processing.ExtensionRegistry, models *model.Set, vecs []vectors.Resolved) ([]rowLocalAttrSpec, error) {
+// labelled by the processor's own default-label rule. A total-bearing
+// formula (admitted by mergegate.ParallelTotals) is row-local once its
+// totals are published: totals.Bind installs the run's two-phase
+// pre-pass values on it (nil totals binds none — a build that never
+// evaluates a row, boundAttributeWarnings).
+func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, exts *processing.ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, totals *processing.PublishedTotals) ([]rowLocalAttrSpec, error) {
 	if len(attrs) == 0 {
 		return nil, nil
 	}
 	out := make([]rowLocalAttrSpec, 0, len(attrs))
-	for _, attr := range attrs {
+	for i, attr := range attrs {
 		factory, ok := exts.LookupAttribute(attr.Type)
 		if !ok {
 			return nil, errors.NewCodedError(errors.PROCESSING_CONFIG,
@@ -941,6 +962,9 @@ func buildRowLocalAttrSpecs(attrs []*types.Attribute, schema *encoding.Schema, e
 			return nil, err
 		}
 		if err := processing.BindAttributeWithVectors(computer, exts, models, vecs); err != nil {
+			return nil, err
+		}
+		if err := totals.Bind(i, computer); err != nil {
 			return nil, err
 		}
 		rl, ok := computer.(processing.RowLocalAttribute)
@@ -971,7 +995,7 @@ func boundAttributeWarnings(req *types.Request, schema *encoding.Schema, exts *p
 	if len(req.Attributes) == 0 {
 		return nil, nil
 	}
-	specs, err := buildRowLocalAttrSpecs(req.Attributes, schema, exts, models, processing.ExprVectors(req, schema))
+	specs, err := buildRowLocalAttrSpecs(req.Attributes, schema, exts, models, processing.ExprVectors(req, schema), nil)
 	if err != nil {
 		return nil, err
 	}
