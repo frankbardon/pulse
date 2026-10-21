@@ -96,12 +96,21 @@ func tallyRequest(path string, groups bool) *types.Request {
 			{Type: types.ATTR_PROFILE_SIMILARITY, Vector: "v", Label: "jac",
 				Params: json.RawMessage(`{"metric":"jaccard","reference":{"s":1,"q":0}}`)},
 			{Type: attrTallyMerge, Field: "score", Label: "ext"},
+			// ATTR_VEC_DISTANCE over row-local metrics (E3-S2
+			// follow-up): the keyed one misses west, hellinger's
+			// negative reference part is a domain miss on every row.
+			{Type: types.ATTR_VEC_DISTANCE, Vector: "v", Label: "dkeyed",
+				Params: json.RawMessage(`{"metric":"manhattan","reference":{"table":"targets","key_field":"region"}}`)},
+			{Type: types.ATTR_VEC_DISTANCE, Vector: "v", Label: "ddom",
+				Params: json.RawMessage(`{"metric":"hellinger","reference":{"s":-1,"q":1}}`)},
 		},
 		Aggregations: []*types.Aggregation{
 			{Type: types.AGG_SUM, Field: "scale", Label: "sum_scale"},
 			{Type: types.AGG_SUM, Field: "keyed", Label: "sum_keyed"},
 			{Type: types.AGG_COUNT, Field: "jac", Label: "n_jac"},
 			{Type: types.AGG_SUM, Field: "ext", Label: "sum_ext"},
+			{Type: types.AGG_SUM, Field: "dkeyed", Label: "sum_dkeyed"},
+			{Type: types.AGG_COUNT, Field: "ddom", Label: "n_ddom"},
 		},
 	}
 	if groups {
@@ -209,8 +218,8 @@ func TestTallyMerge_ParallelArmsMatchSerial(t *testing.T) {
 					if !reflect.DeepEqual(got.Warnings, want.Warnings) {
 						t.Errorf("Warnings differ\n  parallel: %s\n  serial:   %s", warnString(got.Warnings), warnString(want.Warnings))
 					}
-					if len(want.Components.Attributes) != 4 {
-						t.Fatalf("serial emitted %d attribute entries, want 4: %+v", len(want.Components.Attributes), want.Components.Attributes)
+					if len(want.Components.Attributes) != 6 {
+						t.Fatalf("serial emitted %d attribute entries, want 6: %+v", len(want.Components.Attributes), want.Components.Attributes)
 					}
 					if tc.nothing {
 						for _, e := range want.Components.Attributes {
@@ -226,18 +235,26 @@ func TestTallyMerge_ParallelArmsMatchSerial(t *testing.T) {
 					for _, e := range want.Components.Attributes {
 						ops[e.Label] = e.Operator
 					}
-					for label, key := range map[string]string{"scale": "n_out_of_range", "keyed": "n_reference_missing", "jac": "n_domain_invalid", "ext": "n_high"} {
+					for label, key := range map[string]string{"scale": "n_out_of_range", "keyed": "n_reference_missing", "jac": "n_domain_invalid", "ext": "n_high",
+						"dkeyed": "n_reference_missing", "ddom": "n_domain_invalid"} {
 						if n, _ := ops[label][key].(int); n == 0 {
 							t.Errorf("vacuous fixture: %s.%s = %v", label, key, ops[label][key])
 						}
 					}
-					codes := map[string]int{}
+					// Once per slot: code × attribute label.
+					seen := map[string]int{}
 					for _, w := range got.Warnings {
-						codes[w.Code]++
+						seen[w.Code+"/"+fmt.Sprint(w.Details["attribute"])]++
 					}
-					for _, c := range []perr.Code{perr.PULSE_ATTR_SCALE_OUT_OF_RANGE, perr.PULSE_VECTOR_REFERENCE_MISSING, perr.PULSE_VECTOR_METRIC_DOMAIN} {
-						if codes[string(c)] != 1 {
-							t.Errorf("warning %s raised %d times, want once: %s", c, codes[string(c)], warnString(got.Warnings))
+					for _, k := range []string{
+						string(perr.PULSE_ATTR_SCALE_OUT_OF_RANGE) + "/scale",
+						string(perr.PULSE_VECTOR_REFERENCE_MISSING) + "/keyed",
+						string(perr.PULSE_VECTOR_METRIC_DOMAIN) + "/jac",
+						string(perr.PULSE_VECTOR_REFERENCE_MISSING) + "/dkeyed",
+						string(perr.PULSE_VECTOR_METRIC_DOMAIN) + "/ddom",
+					} {
+						if seen[k] != 1 {
+							t.Errorf("warning %s raised %d times, want once: %s", k, seen[k], warnString(got.Warnings))
 						}
 					}
 				})
@@ -253,7 +270,11 @@ func TestTallyMerge_ParallelArmsMatchSerial(t *testing.T) {
 			solo := tallyRequest(path, false)
 			solo.Attributes = []*types.Attribute{{Type: attrTallySolo, Field: "score", Label: "ext"}}
 			solo.Aggregations = []*types.Aggregation{{Type: types.AGG_SUM, Field: "ext", Label: "sum_ext"}}
-			for name, req := range map[string]*types.Request{"centroid": centroid, "undeclared extension": solo} {
+			fitted := tallyRequest(path, false)
+			fitted.Attributes = []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Vector: "v", Label: "f",
+				Params: json.RawMessage(`{"metric":"std_euclidean","reference":{"s":1,"q":1}}`)}}
+			fitted.Aggregations = []*types.Aggregation{{Type: types.AGG_SUM, Field: "f", Label: "sum_f"}}
+			for name, req := range map[string]*types.Request{"centroid": centroid, "undeclared extension": solo, "fitted vec distance": fitted} {
 				if _, err := p.Process(ctx, req); err != nil {
 					t.Fatalf("%s Process: %v", name, err)
 				}
@@ -306,6 +327,11 @@ func TestTallyMerge_ChainStages(t *testing.T) {
 		{"scale score", full[:1], "scale", false},
 		{"keyed profile similarity", full[1:2], "keyed", false},
 		{"mergeable extension", full[3:4], "ext", false},
+		{"row-local vec distance", full[4:5], "dkeyed", false},
+		{"fitted vec distance", []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Vector: "v", Label: "f",
+			Params: json.RawMessage(`{"metric":"mahalanobis","reference":{"s":1,"q":1}}`)}}, "f", true},
+		{"centroid vec distance", []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Vector: "v", Label: "c",
+			Params: json.RawMessage(`{"metric":"euclidean","reference":{"centroid":{}}}`)}}, "c", true},
 		{"centroid profile similarity", []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY, Vector: "v", Label: "c",
 			Params: json.RawMessage(`{"metric":"cosine","reference":{"centroid":{}}}`)}}, "c", true},
 		{"undeclared extension", []*types.Attribute{{Type: attrTallySolo, Field: "score", Label: "ext"}}, "ext", true},
@@ -351,10 +377,14 @@ func TestTallyMerge_PredictFanOutMatchesRuntime(t *testing.T) {
 	solo := tallyRequest(path, false)
 	solo.Attributes = []*types.Attribute{{Type: attrTallySolo, Field: "score", Label: "ext"}}
 	solo.Aggregations = []*types.Aggregation{{Type: types.AGG_SUM, Field: "ext", Label: "sum_ext"}}
+	fitted := tallyRequest(path, false)
+	fitted.Attributes = []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Vector: "v", Label: "f",
+		Params: json.RawMessage(`{"metric":"std_euclidean","reference":{"s":1,"q":1}}`)}}
+	fitted.Aggregations = []*types.Aggregation{{Type: types.AGG_SUM, Field: "f", Label: "sum_f"}}
 	for name, tc := range map[string]struct {
 		req  *types.Request
 		fans bool
-	}{"tally": {tallyRequest(path, false), true}, "undeclared extension": {solo, false}} {
+	}{"tally": {tallyRequest(path, false), true}, "undeclared extension": {solo, false}, "fitted vec distance": {fitted, false}} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := p.Process(ctx, tc.req); err != nil {
 				t.Fatalf("Process: %v", err)

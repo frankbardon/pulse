@@ -186,13 +186,18 @@ func TestProcessChainCapability_OverlaysMirrorsOverlayCatalog(t *testing.T) {
 // the shared chain gate (mergegate.ChainRefusal) admits on a bare spec
 // — so the list moves with the gate (U51 E3-S2 admitted
 // ATTR_SCALE_SCORE and the reference-form ATTR_PROFILE_SIMILARITY; the
-// #391 row-local reads were missing) — and is sorted.
+// #391 row-local reads were missing) — and is sorted. ATTR_VEC_DISTANCE is judged over a row-local metric.
 func TestProcessChainCapability_RowLocalAttributesMatchGate(t *testing.T) {
 	var want []string
 	for _, at := range types.AllAttributeTypes() {
 		req := &types.Request{
 			Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "x"}},
 			Attributes:   []*types.Attribute{{Type: at, Field: "x"}},
+		}
+		if at == types.ATTR_VEC_DISTANCE {
+			// Admitted over a row-local metric (its rejection rule
+			// covers the fitted metrics and a centroid).
+			req.Attributes[0].Params = []byte(`{"metric":"euclidean","reference":[1]}`)
 		}
 		if mergegate.ChainRefusal(req, nil, nil, 0, "s0") == nil {
 			want = append(want, string(at))

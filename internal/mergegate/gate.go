@@ -69,8 +69,9 @@ func (None) Matrix(string) (bool, bool)     { return false, false }
 // matrices merge bucket by bucket the same way); only row-local
 // attributes (ATTR_FORMULA without a total(expr) call — or with one
 // that ParallelTotals admits —, ATTR_DATE_PART, ATTR_REG_PREDICT,
-// ATTR_SCALE_SCORE, a non-centroid ATTR_PROFILE_SIMILARITY — both fold
-// their per-run tallies across partitions —, an ATTR_MAHALANOBIS /
+// ATTR_SCALE_SCORE, a non-centroid ATTR_PROFILE_SIMILARITY, an
+// ATTR_VEC_DISTANCE over a row-local metric and no centroid — each folds
+// its per-run tallies across partitions —, an ATTR_MAHALANOBIS /
 // ATTR_PC_SCORE / ATTR_FACTOR_SCORE / ATTR_REG_FITTED /
 // ATTR_REG_RESIDUAL bound to a prebuilt fit by params.fit —
 // vectors.FitBound —, row_local extensions, a component-emitting one
@@ -177,12 +178,15 @@ func mergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, a
 				// Row-local only when bound to a prebuilt fit
 				// (params.fit): a fit_on fold — or an ATTR_REG_FITTED /
 				// RESIDUAL OLS refit — over one partition's rows would
-				// be partition-local. ATTR_VEC_DISTANCE stays
-				// off the list either way, its row-local metrics
-				// included (their tally folds like
-				// ATTR_PROFILE_SIMILARITY's, but the gate does not
-				// admit them yet).
+				// be partition-local.
 				rowLocal = vectors.FitBound(attr.Type, attr)
+			case types.ATTR_VEC_DISTANCE:
+				// A row-local metric over any reference but a
+				// centroid tallies per run and folds like
+				// ATTR_PROFILE_SIMILARITY; a fitted metric
+				// (std_euclidean / mahalanobis — fit_on or a bound
+				// params.fit) or a centroid stays out.
+				rowLocal = vectors.ComparisonRowLocal(attr.Type, attr, req.Vectors, schema)
 			}
 		}
 		if rowLocal {

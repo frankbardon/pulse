@@ -99,6 +99,12 @@ func buildExtensionsSnapshot(ext Extensions) *descx.ExtensionsSnapshot {
 		if len(r.ComponentSchema.Keys) > 0 || r.ComponentSchema.Mergeability != "" {
 			snap.ComponentSchemas[string(r.Name)] = r.ComponentSchema
 		}
+		if attributeEmitsComponents(r) {
+			if snap.ComponentAttributes == nil {
+				snap.ComponentAttributes = map[string]bool{}
+			}
+			snap.ComponentAttributes[string(r.Name)] = true
+		}
 	}
 	for _, r := range ext.Filterers {
 		snap.Filterers = append(snap.Filterers, descriptor.OperatorMeta{

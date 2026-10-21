@@ -70,6 +70,15 @@ type ExtensionsSnapshot struct {
 	// table does not carry an entry for the slot's operator name.
 	ComponentSchemas map[string]descriptor.ComponentSchema
 
+	// ComponentAttributes records which extension attributes emit a
+	// Response.Components.Attributes entry — filled by the root's one
+	// rule (attributeEmitsComponents) that also fills the runtime
+	// registry's ComponentAttributes, so the merge gate (mergeFacts)
+	// and the response-size count read the runtime's fact, never a
+	// re-derivation from ComponentSchemas (a schema carrying only a
+	// Mergeability class emits nothing). Absent reads false.
+	ComponentAttributes map[string]bool
+
 	// MatrixDetails carries each extension MAT_* operator's matrix-only
 	// facts (typed Accepts, OutputKeys, the p-value key, manifest
 	// params), keyed by name; its own ComponentSchema keys ride
@@ -614,6 +623,6 @@ func (f snapshotMergeFacts) Attribute(name string) (bool, bool) {
 	// An attribute emitting Components entries (a declared
 	// ComponentSchema) runs serial unless it declares Mergeable: its
 	// per-worker tallies then fold (extend.MergeableAttribute).
-	_, emits := f.s.ComponentSchemas[name]
+	emits := f.s.ComponentAttributes[name]
 	return m.Mode == "row_local" && (!emits || m.Mergeable), ok
 }

@@ -13694,13 +13694,15 @@
         "ATTR_REG_PREDICT",
         "ATTR_SCALE_SCORE",
         "ATTR_SET_HAS",
-        "ATTR_SET_POPCOUNT"
+        "ATTR_SET_POPCOUNT",
+        "ATTR_VEC_DISTANCE"
       ],
       "rejection_rules": [
         "chain rejects windows, features, tier-1 row tests, tier-2 post tests, regressions",
         "chain rejects two-pass attributes (ZSCORE / TSCORE / NORMALIZED / REG_*)",
         "chain rejects an ATTR_FORMULA whose expression calls total(expr) (a cohort-total pre-pass, not row-local)",
         "chain rejects an ATTR_PROFILE_SIMILARITY over a centroid reference (a cohort-wide pre-pass, not row-local)",
+        "chain rejects an ATTR_VEC_DISTANCE over a fitted metric (std_euclidean / mahalanobis), a centroid reference or a metric that does not resolve",
         "chain rejects extension attributes not declared row_local, and component-emitting ones not declared Mergeable",
         "chain rejects AGG_MEDIAN / AGG_PERCENTILE / AGG_ZSCORE / AGG_SKEWNESS / AGG_KURTOSIS (non-mergeable)",
         "chain rejects GROUP_ROUNDED / GROUP_QUANTILE / GROUP_DATE (non-mergeable)",
@@ -19447,4 +19449,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9e07566f9ece70bba0d42217e0b9e857cb59574558c4bb365fa90aa39dbc355f
+// golden-hash: 99f27f1fc84214e67e8151056238f7fdbdb1beb881954d34a5ba8ede30e85a8a

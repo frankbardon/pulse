@@ -98,7 +98,17 @@ func TestMergeRefusal(t *testing.T) {
 		{"profile-similarity literal", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY, Params: []byte(`{"metric":"cosine","reference":[1,2]}`)}}}, nil, ""},
 		{"profile-similarity centroid", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY, Params: []byte(`{"metric":"cosine","reference":{"centroid":{}}}`)}}}, nil, "attribute ATTR_PROFILE_SIMILARITY is not row-local"},
 		{"profile-similarity centroid by", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_PROFILE_SIMILARITY, Params: []byte(`{"metric":"cosine","reference":{"centroid":{"by":"n"}}}`)}}}, nil, "attribute ATTR_PROFILE_SIMILARITY is not row-local"},
-		{"row-local vec distance", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Params: []byte(`{"metric":"euclidean","reference":[1,2]}`)}}}, nil, "attribute ATTR_VEC_DISTANCE is not row-local"},
+		// ATTR_VEC_DISTANCE over a row-local metric folds like
+		// profile similarity; a fitted metric, a centroid or a metric
+		// that does not resolve stays out.
+		{"row-local vec distance", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Params: []byte(`{"metric":"euclidean","reference":[1,2]}`)}}}, nil, ""},
+		{"vec distance row-local kind default", &types.Request{Aggregations: sum("n"), Vectors: []types.VectorSpec{{Name: "v", Fields: []string{"n"}, Kind: types.VectorKindBinary}},
+			Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Vector: "v", Params: []byte(`{"reference":[1]}`)}}}, nil, ""},
+		{"vec distance fitted kind default", &types.Request{Aggregations: sum("n"), Vectors: []types.VectorSpec{{Name: "v", Fields: []string{"n"}, Kind: types.VectorKindMeasure}},
+			Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Vector: "v", Params: []byte(`{"reference":[1]}`)}}}, nil, "attribute ATTR_VEC_DISTANCE is not row-local"},
+		{"fit_on vec distance", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Params: []byte(`{"metric":"std_euclidean","reference":[1,2]}`)}}}, nil, "attribute ATTR_VEC_DISTANCE is not row-local"},
+		{"centroid vec distance", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Params: []byte(`{"metric":"euclidean","reference":{"centroid":{}}}`)}}}, nil, "attribute ATTR_VEC_DISTANCE is not row-local"},
+		{"vec distance without metric", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_VEC_DISTANCE, Params: []byte(`{"reference":[1,2]}`)}}}, nil, "attribute ATTR_VEC_DISTANCE is not row-local"},
 		{"refit attribute", &types.Request{Aggregations: sum("n"), Attributes: []*types.Attribute{{Type: types.ATTR_REG_FITTED}}}, nil, "attribute ATTR_REG_FITTED is not row-local"},
 		// A subject's records may sit in any partition or shard: a
 		// partition-local previous state would be wrong (U55). Never

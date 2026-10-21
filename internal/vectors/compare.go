@@ -976,6 +976,36 @@ func ComparisonTwoPass(typ types.AttributeType, a *types.Attribute, specs []type
 	return !FitBound(typ, a) && ComparisonFitted(typ, a, specs, schema)
 }
 
+// ComparisonRowLocal reports whether ATTR_VEC_DISTANCE slot a (route
+// typ) scores each row on its own: a reference that is not a centroid
+// and a metric — params.metric, else the kind default of the vector a
+// names in specs — that resolves and is not fitted (std_euclidean /
+// mahalanobis fit first). Such a slot is the row-local comparison
+// computer, whose per-run tally folds across partitions, so the merge
+// gate (internal/mergegate) admits it. A metric that does not resolve
+// (refused elsewhere) or params that do not decode report false: the
+// gate never admits what it cannot prove row-local. Any other type
+// reports false.
+func ComparisonRowLocal(typ types.AttributeType, a *types.Attribute, specs []types.VectorSpec, schema *encoding.Schema) bool {
+	if a == nil || typ != types.ATTR_VEC_DISTANCE || ComparisonCentroid(typ, a) {
+		return false
+	}
+	var p struct {
+		Metric *string `json:"metric"`
+	}
+	if raw := bytes.TrimSpace(a.Params); len(raw) > 0 && !bytes.Equal(raw, []byte("null")) {
+		if json.Unmarshal(raw, &p) != nil {
+			return false
+		}
+	}
+	name := ""
+	if p.Metric != nil {
+		name = *p.Metric
+	}
+	m, _, err := ResolveKindMetric(metric.ConsumerVecDistance, name, KindIn(specs, schema, a.Vector), metric.Distance)
+	return err == nil && !m.Fitted()
+}
+
 // ComparisonFitted reports whether attribute a (route typ) is an
 // ATTR_VEC_DISTANCE slot over a fitted metric (std_euclidean,
 // mahalanobis) — the per-attribute two-pass predicate. The metric is
