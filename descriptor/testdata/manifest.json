@@ -10822,7 +10822,7 @@
       },
       {
         "name": "pulse_lookup",
-        "description": "CALL TO FETCH ROWS BY EXACT KEY FROM A COHORT WITH A PREBUILT INDEX. Resolve a point lookup (single-key or composite) against a cohort's prebuilt sidecar index — O(1) row addressing instead of a full scan. Supply either field+value (single-key convenience) or an ordered keys[] tuple (composite key, order must match the index's build-time key-field order); return_columns projects the output (empty = every schema field). multiplicity controls duplicate-key handling: 'assert_unique' (default; errors with PULSE_LOOKUP_AMBIGUOUS on \u003e1 match), 'first' (deterministic lowest row-id, never errors on multi-match), or 'all' (every matching row, ascending row-id). Requires a sidecar index built via pulse index build (CLI) or Service.BuildIndex; returns PULSE_INDEX_MISSING when none exists for the requested key fields, PULSE_INDEX_STALE when the cohort changed since the index was built, PULSE_INDEX_UNSUPPORTED_SHARDED for shard-archive cohorts, and PULSE_LOOKUP_NOT_FOUND when the index exists but no record matches the key."
+        "description": "CALL TO FETCH ROWS BY EXACT KEY FROM A COHORT WITH A PREBUILT INDEX. Resolve a point lookup (single-key or composite) against a cohort's prebuilt sidecar index — O(1) row addressing instead of a full scan. Supply either field+value (single-key convenience) or an ordered keys[] tuple (composite key, order must match the index's build-time key-field order); return_columns projects the output (empty = every schema field). multiplicity controls duplicate-key handling: 'assert_unique' (default; errors with PULSE_LOOKUP_AMBIGUOUS on \u003e1 match), 'first' (deterministic lowest row-id, never errors on multi-match), or 'all' (every matching row, ascending row-id). Requires a sidecar index built via pulse index build (CLI) or Service.BuildIndex; returns PULSE_INDEX_MISSING when none exists for the requested key fields, PULSE_INDEX_STALE when the cohort changed since the index was built (on a shard archive, also when a shard is not covered by the index — details.shards_uncovered), and PULSE_LOOKUP_NOT_FOUND when the index exists but no record matches the key."
       },
       {
         "name": "pulse_manifest",
@@ -12195,7 +12195,7 @@
       },
       {
         "name": "cohort-sidecar-index",
-        "description": "The sidecar point-lookup index beside a cohort — the v3 file format, the O(1) seek path, three-outcome staleness, discovery through the indexes.json manifest, invalidation by a cohort rewrite, keyable types and constraints."
+        "description": "The sidecar point-lookup index beside a cohort — the v3 file format, the O(1) seek path, three-outcome staleness, discovery through the indexes.json manifest, invalidation by a cohort rewrite, keyable types, shard-archive indexes and constraints."
       },
       {
         "name": "cohort-width-overflow",
@@ -19454,4 +19454,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 38f6afb0d649d2c2f143dcadca113e9ced37f06b878c3567f732eb49e0c2ac66
+// golden-hash: 1946b475a484756d611d761caf21cefb332716579c6038d0a68128e566190f59

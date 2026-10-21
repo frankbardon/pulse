@@ -53,10 +53,12 @@ import (
 // order) is always ascending row-id — the sidecar bucket's RowIDs slice
 // is not itself guaranteed sorted, so Lookup sorts a copy before use.
 //
-// Shard archive cohorts (detected via the cheap leading-magic-bytes
-// dispatch Service.Open already performs) are rejected with
-// PULSE_INDEX_UNSUPPORTED_SHARDED — sharded point-lookup is out of
-// scope for v1. See Service.BuildIndex's doc comment for why.
+// A shard archive cohort reads its per-shard sidecars (index_archive.go):
+// a shard the archive's manifest entry does not cover (by name + size +
+// CRC32) is refused PULSE_INDEX_STALE with details.shards_uncovered;
+// otherwise every shard is probed, the hits unioned in archive order —
+// the single-file twin's ascending row-id order — and the multiplicity
+// rule applied across the union.
 func (s *Service) Lookup(ctx context.Context, req *types.LookupRequest) (*types.LookupResult, error) {
 	recs, returnCols, err := s.lookupRecords(ctx, req)
 	if err != nil {
@@ -114,11 +116,6 @@ func (s *Service) lookupRecords(ctx context.Context, req *types.LookupRequest) (
 	if err != nil {
 		return nil, nil, err
 	}
-	if len(cohort.Shards()) > 0 {
-		return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_UNSUPPORTED_SHARDED,
-			"point-lookup does not support shard archive cohorts",
-			map[string]any{"cohort": path})
-	}
 	schema := cohort.Schema()
 
 	keyFields := make([]*encoding.Field, len(components))
@@ -140,6 +137,16 @@ func (s *Service) lookupRecords(ctx context.Context, req *types.LookupRequest) (
 	fsys := cohort.fs
 	if fsys == nil {
 		fsys = s.fs.Fs()
+	}
+
+	literals := make([]string, len(components))
+	for i, c := range components {
+		literals[i] = c.Value
+	}
+
+	if len(cohort.Shards()) > 0 {
+		out, err := s.lookupArchive(fsys, cohort, path, keyFieldNames, keyFields, literals, returnCols, req.Multiplicity)
+		return out, returnCols, err
 	}
 
 	indexPath := encx.SidecarIndexPath(path, keyFieldNames)
@@ -209,10 +216,6 @@ func (s *Service) lookupRecords(ctx context.Context, req *types.LookupRequest) (
 			map[string]any{"cohort": path, "requested": len(components), "index_key_count": len(meta.Keys)})
 	}
 
-	literals := make([]string, len(components))
-	for i, c := range components {
-		literals[i] = c.Value
-	}
 	keyBytes, err := processing.ResolveCompositeLookupKeyBytes(keyFields, literals)
 	if err != nil {
 		return nil, nil, err
@@ -239,27 +242,11 @@ func (s *Service) lookupRecords(ctx context.Context, req *types.LookupRequest) (
 	rowIDs := append([]uint64(nil), entry.RowIDs...)
 	sort.Slice(rowIDs, func(i, j int) bool { return rowIDs[i] < rowIDs[j] })
 
-	mode := req.Multiplicity
-	if mode == "" {
-		mode = types.LookupMultiplicityAssertUnique
+	keepN, err := lookupMultiplicityKeep(req.Multiplicity, len(rowIDs), path, keyFieldNames, literals)
+	if err != nil {
+		return nil, nil, err
 	}
-	switch mode {
-	case types.LookupMultiplicityAssertUnique:
-		if len(rowIDs) > 1 {
-			return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_LOOKUP_AMBIGUOUS,
-				"key matched more than one row under assert-unique multiplicity",
-				map[string]any{"cohort": path, "fields": keyFieldNames, "values": literals, "match_count": len(rowIDs)})
-		}
-		rowIDs = rowIDs[:1]
-	case types.LookupMultiplicityFirst:
-		rowIDs = rowIDs[:1]
-	case types.LookupMultiplicityAll:
-		// keep every matching row-id, ascending order already applied.
-	default:
-		return nil, nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
-			"unknown lookup multiplicity mode",
-			map[string]any{"multiplicity": string(mode)})
-	}
+	rowIDs = rowIDs[:keepN]
 
 	// O(1) record read: open the cohort file once and derive the
 	// RecordLocator's geometry from the header+schema prefix (bounded by
@@ -273,16 +260,10 @@ func (s *Service) lookupRecords(ctx context.Context, req *types.LookupRequest) (
 	}
 	defer cohortFile.Close()
 
-	plan, err := encx.BuildDecodePlan(schema, returnCols)
+	plan, keep, err := lookupDecodePlan(schema, returnCols)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	wantCols := make(map[string]bool, len(returnCols))
-	for _, name := range returnCols {
-		wantCols[name] = true
-	}
-	keep := encx.FieldFilter(func(name string) bool { return wantCols[name] })
 
 	// The map decode echoes a u64 above 2^53 lossily; the capture keeps
 	// its exact word for the record (nil when the schema has no u64).
@@ -301,6 +282,79 @@ func (s *Service) lookupRecords(ctx context.Context, req *types.LookupRequest) (
 	}
 
 	return out, returnCols, nil
+}
+
+// lookupArchive is lookupRecords' shard-archive arm: the per-shard
+// probe (lookupArchiveHits), the multiplicity rule over the UNION of
+// every shard's hits, then a segment-aware decode of the kept hits. A
+// miss across every shard is PULSE_LOOKUP_NOT_FOUND, exactly as on the
+// single-file twin.
+func (s *Service) lookupArchive(fsys afero.Fs, cohort *Cohort, path string, keyFieldNames []string, keyFields []*encoding.Field, literals, returnCols []string, multiplicity types.LookupMultiplicity) ([]lookupMatch, error) {
+	a, err := openArchiveFile(fsys, path)
+	if err != nil {
+		return nil, err
+	}
+	defer a.Close()
+	hits, err := lookupArchiveHits(fsys, a, cohort, path, keyFieldNames, keyFields, literals)
+	if err != nil {
+		return nil, err
+	}
+	if len(hits) == 0 {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_LOOKUP_NOT_FOUND,
+			"no record matches the requested key",
+			map[string]any{"cohort": path, "fields": keyFieldNames, "values": literals})
+	}
+	keepN, err := lookupMultiplicityKeep(multiplicity, len(hits), path, keyFieldNames, literals)
+	if err != nil {
+		return nil, err
+	}
+	plan, keep, err := lookupDecodePlan(cohort.Schema(), returnCols)
+	if err != nil {
+		return nil, err
+	}
+	return readArchiveHits(a, cohort, path, hits[:keepN], plan, keep)
+}
+
+// lookupMultiplicityKeep applies the multiplicity mode to n ordered
+// matches and returns how many to keep (a prefix): assert-unique (the
+// default) refuses n > 1 with PULSE_LOOKUP_AMBIGUOUS, first keeps one,
+// all keeps n. Shared by the single-file and the archive arm, so an
+// archive asserts uniqueness across the union of its shards.
+func lookupMultiplicityKeep(mode types.LookupMultiplicity, n int, path string, keyFieldNames, literals []string) (int, error) {
+	if mode == "" {
+		mode = types.LookupMultiplicityAssertUnique
+	}
+	switch mode {
+	case types.LookupMultiplicityAssertUnique:
+		if n > 1 {
+			return 0, errors.NewCodedErrorWithDetails(errors.PULSE_LOOKUP_AMBIGUOUS,
+				"key matched more than one row under assert-unique multiplicity",
+				map[string]any{"cohort": path, "fields": keyFieldNames, "values": literals, "match_count": n})
+		}
+		return 1, nil
+	case types.LookupMultiplicityFirst:
+		return 1, nil
+	case types.LookupMultiplicityAll:
+		return n, nil
+	default:
+		return 0, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
+			"unknown lookup multiplicity mode",
+			map[string]any{"multiplicity": string(mode)})
+	}
+}
+
+// lookupDecodePlan is the one projected decode plan + field filter a
+// lookup reads its matched records with.
+func lookupDecodePlan(schema *encoding.Schema, returnCols []string) (*encx.DecodePlan, encx.FieldFilter, error) {
+	plan, err := encx.BuildDecodePlan(schema, returnCols)
+	if err != nil {
+		return nil, nil, err
+	}
+	wantCols := make(map[string]bool, len(returnCols))
+	for _, name := range returnCols {
+		wantCols[name] = true
+	}
+	return plan, encx.FieldFilter(func(name string) bool { return wantCols[name] }), nil
 }
 
 // resolveLookupReturnColumns validates req.ReturnColumns against schema

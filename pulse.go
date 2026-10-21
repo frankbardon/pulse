@@ -2177,9 +2177,9 @@ type CohortFingerprint = encx.Fingerprint
 // element is the degenerate single-key case; more than one produces a
 // composite key, in column order). Delegates to internal/service.Service.BuildIndex
 // for the full algorithm and error surface — see that method's doc
-// comment for the scan/bucket/write contract, the
-// PULSE_INDEX_UNSUPPORTED_SHARDED shard-archive rejection, and the
-// PROCESSING_CONFIG disallowed-key-type rejection.
+// comment for the scan/bucket/write contract, a shard archive's
+// one-sidecar-per-shard index (BuildIndexResult.ShardIndexPaths), and
+// the PROCESSING_CONFIG disallowed-key-type rejection.
 func (p *Pulse) BuildIndex(ctx context.Context, path string, keyFields []string) (*BuildIndexResult, error) {
 	return observed(p, ctx, opSpec{kind: observe.OpIndexBuild, path: path}, func(ctx context.Context) (*BuildIndexResult, error) {
 		return p.buildIndex(ctx, path, keyFields)
@@ -2208,8 +2208,9 @@ type IndexFreshnessReason = service.IndexFreshnessReason
 // size+mtime fast-path before paying for a full content-hash recompute.
 // Delegates to internal/service.Service.VerifyIndex — see that method's doc
 // comment for the full fast-path decision tree. Returns
-// PULSE_INDEX_MISSING when no sidecar exists for keyFields and
-// PULSE_INDEX_UNSUPPORTED_SHARDED for shard archive cohorts.
+// PULSE_INDEX_MISSING when no sidecar exists for keyFields; a shard
+// archive is verified shard by shard (VerifyIndexResult.ShardsUncovered
+// / ShardsMismatched).
 func (p *Pulse) VerifyIndex(ctx context.Context, path string, keyFields []string) (*VerifyIndexResult, error) {
 	return observed(p, ctx, opSpec{kind: observe.OpIndexVerify, path: path}, func(ctx context.Context) (*VerifyIndexResult, error) {
 		return p.verifyIndex(ctx, path, keyFields)
@@ -2233,8 +2234,9 @@ type IndexInfo = service.IndexInfo
 // against the cohort at path. Delegates to internal/service.Service.ListIndexes
 // — see that method's doc comment for the directory-glob + sidecar-read
 // discovery algorithm. Returns an empty (non-nil) slice, not an error,
-// when no sidecar indexes have been built yet. Returns
-// PULSE_INDEX_UNSUPPORTED_SHARDED for shard archive cohorts.
+// when no sidecar indexes have been built yet. A shard archive lists
+// its manifest's indexes, each with its per-shard sidecars
+// (IndexInfo.ShardIndexPaths).
 func (p *Pulse) ListIndexes(ctx context.Context, path string) ([]IndexInfo, error) {
 	return observed(p, ctx, opSpec{kind: observe.OpIndexList, path: path}, func(ctx context.Context) ([]IndexInfo, error) {
 		return p.listIndexes(ctx, path)
@@ -2253,8 +2255,8 @@ func (p *Pulse) listIndexes(ctx context.Context, path string) ([]IndexInfo, erro
 // against the cohort at path. Delegates to internal/service.Service.DropIndex —
 // see that method's doc comment for the non-interactive
 // (no-confirmation-prompt) contract. Returns PULSE_INDEX_MISSING when
-// no sidecar exists at the derived path and
-// PULSE_INDEX_UNSUPPORTED_SHARDED for shard archive cohorts.
+// no sidecar exists at the derived path; on a shard archive it removes
+// the manifest entry and every per-shard sidecar.
 func (p *Pulse) DropIndex(ctx context.Context, path string, keyFields []string) error {
 	return p.observe(ctx, opSpec{kind: observe.OpIndexDrop, path: path}, func(ctx context.Context) error {
 		return p.dropIndex(ctx, path, keyFields)

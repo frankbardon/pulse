@@ -2367,21 +2367,21 @@ const (
 	// PULSE_INDEX_MISSING (no sidecar exists at all) and from
 	// PULSE_LOOKUP_NOT_FOUND (the sidecar is fresh but the key has no
 	// match). Details carry the cohort path, key fields, and the derived
-	// index_path.
+	// index_path. On a shard archive (one sidecar per shard) it also
+	// refuses a shard the index does not cover — absent from the
+	// archive's manifest entry, or present with another size or
+	// central-directory CRC32 — and details.shards_uncovered names those
+	// shards in archive order: a lookup never silently skips a shard.
 	PULSE_INDEX_STALE Code = "PULSE_INDEX_STALE"
 
-	// PULSE_INDEX_UNSUPPORTED_SHARDED indicates a point-lookup
-	// operation (Service.BuildIndex, Service.Lookup, or
-	// Service.VerifyIndex) targeted a shard-archive cohort (first four
-	// bytes match internal/encoding.ZipMagic, "PK\x03\x04") rather than a
-	// single-file `.pulse` cohort. Sharded cohorts are out of scope for
-	// point-lookup v1: row-id addressing (encoding.RecordLocator.Offset)
-	// only has meaning for a single contiguous record region, which a
-	// multi-shard archive does not present. Detected cheaply — via the
-	// same leading-magic-bytes dispatch internal/service.Service.Open already
-	// performs to distinguish single-file vs archive cohorts, not an
-	// added scan. Details carry the cohort path. Distinct from
-	// PULSE_INDEX_MISSING (single-file cohort, no sidecar built yet).
+	// PULSE_INDEX_UNSUPPORTED_SHARDED is NO LONGER RAISED. It refused
+	// point-lookup index build / lookup / verify / list / drop against a
+	// shard-archive cohort until U51 indexed archives one sidecar per
+	// shard plus a manifest entry recording the covered shards. The code
+	// is retained rather than retired — the precedent of
+	// PULSE_CROSSTAB_EMPTY_COLUMNS: removing a code breaks the public
+	// constant, the manifest's error list and every embedder lookup of
+	// it, where a code that is merely never raised breaks nothing.
 	PULSE_INDEX_UNSUPPORTED_SHARDED Code = "PULSE_INDEX_UNSUPPORTED_SHARDED"
 
 	// PULSE_INDEX_MANIFEST_INVALID indicates the sidecar index MANIFEST

@@ -25,6 +25,14 @@ const JoinKeySetRejection = "a set_* column cannot be a join key: a multi-select
 // does not have — every row would key as missing and join nothing.
 const JoinKeyVectorRejection = "a vec_f32 / vec_f64 column cannot be a join key: a vector has dim values per row and no single equality value — join on a scalar key column; a vector column is carried THROUGH a join unchanged"
 
+// JoinKeyU64FloatRejection is the one explanation for refusing a u64
+// key paired with an f32 / f64 key, whichever side asks. A u64 key
+// compares on its EXACT stored word (an id above 2^53 is never folded
+// onto its float64 echo), and a float holds no exact integer above
+// 2^53, so the pairing could only ever match through the lossy echo
+// the exact key exists to retire. Exact or nothing.
+const JoinKeyU64FloatRejection = "a u64 join key cannot pair with an f32 / f64 key: a u64 key compares on its exact stored word, and a float has no exact integer above 2^53, so the pair could only match through a lossy float echo — key both sides as an integer type (u64, or u4 / u8 / u16 / u32 when the values fit)"
+
 // JoinKeysRefusals is the ONE join-key rule. It judges a JoinSpec's
 // kind and OnPairs against the left and right cohort schemas and
 // returns every refusal, in the order the runtime meets them:
@@ -38,7 +46,8 @@ const JoinKeyVectorRejection = "a vec_f32 / vec_f64 column cannot be a join key:
 //     {left_field, left_type, right_field, right_type, index}, plus
 //     reason "set_key" with JoinKeySetRejection for a set_* key, reason
 //     "vector_key" with JoinKeyVectorRejection for a vec_f32 / vec_f64
-//     key.
+//     key, reason "u64_float_key" with JoinKeyU64FloatRejection for a
+//     u64 key paired with an f32 / f64 key.
 //
 // The runtime (processing.NewHashJoinIterator, and the service before it
 // materialises the right side) refuses with the first entry; predict,
@@ -98,6 +107,9 @@ func JoinKeysRefusals(left, right *encoding.Schema, spec *types.JoinSpec) []*err
 			case lf.Type.IsVector() || rf.Type.IsVector():
 				msg = JoinKeyVectorRejection
 				details["reason"] = "vector_key"
+			case joinU64Float(lf.Type, rf.Type):
+				msg = JoinKeyU64FloatRejection
+				details["reason"] = "u64_float_key"
 			}
 			out = append(out, errors.NewCodedErrorWithDetails(errors.PULSE_JOIN_TYPE_MISMATCH, msg, details))
 		}
@@ -120,10 +132,15 @@ func JoinKeysRefusal(left, right *encoding.Schema, spec *types.JoinSpec) error {
 // JoinKeySetRejection), nor a vector column (JoinKeyVectorRejection);
 // identical types match; categorical types of
 // any width match each other (dict strings normalise to text); the
-// unsigned-int / float / date family matches within itself. decimal128
-// matches only decimal128 (precision differences matter).
+// unsigned-int / float / date family matches within itself, except that
+// u64 never pairs with f32 / f64 (JoinKeyU64FloatRejection — a u64 key
+// is exact, a float key above 2^53 cannot be). decimal128 matches only
+// decimal128 (precision differences matter).
 func JoinKeyTypesCompatible(a, b encoding.FieldType) bool {
 	if a.IsSet() || b.IsSet() || a.IsVector() || b.IsVector() {
+		return false
+	}
+	if joinU64Float(a, b) {
 		return false
 	}
 	if a == b {
@@ -144,4 +161,13 @@ func joinNumericFamily(t encoding.FieldType) bool {
 		return true
 	}
 	return false
+}
+
+// joinU64Float reports a u64 key paired with an f32 / f64 key, in
+// either order.
+func joinU64Float(a, b encoding.FieldType) bool {
+	isFloat := func(t encoding.FieldType) bool {
+		return t == encoding.FieldTypeF32 || t == encoding.FieldTypeF64
+	}
+	return (a == encoding.FieldTypeU64 && isFloat(b)) || (b == encoding.FieldTypeU64 && isFloat(a))
 }

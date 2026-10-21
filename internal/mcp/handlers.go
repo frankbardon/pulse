@@ -186,8 +186,8 @@ func HandleFacetSchema(ctx context.Context, p *pulse.Pulse, in FacetSchemaIn) (F
 
 // HandleLookup runs pulse_lookup: resolves a point lookup (single-key or
 // composite) against a cohort's prebuilt sidecar index. Delegates to
-// Pulse.Lookup only; coded errors (PULSE_INDEX_MISSING, PULSE_INDEX_STALE,
-// PULSE_INDEX_UNSUPPORTED_SHARDED, PULSE_LOOKUP_NOT_FOUND,
+// Pulse.Lookup only (a shard archive included); coded errors
+// (PULSE_INDEX_MISSING, PULSE_INDEX_STALE, PULSE_LOOKUP_NOT_FOUND,
 // PULSE_LOOKUP_AMBIGUOUS) surface verbatim.
 func HandleLookup(ctx context.Context, p *pulse.Pulse, in LookupIn) (LookupOut, error) {
 	req := in

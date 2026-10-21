@@ -80,6 +80,8 @@ func TestReadIndexManifest_UntrustworthyDocumentIsRefused(t *testing.T) {
 		{name: "foreign kind", body: `{"format_version":"1","kind":"orbit.folder-index","indexes":[]}`},
 		{name: "unknown format version", body: `{"format_version":"99","kind":"pulse.index-manifest","indexes":[]}`},
 		{name: "entry names no index file", body: `{"format_version":"1","kind":"pulse.index-manifest","indexes":[{"keys":[{"name":"id","type":"u32"}]}]}`},
+		{name: "archive shard names no shard", body: `{"format_version":"1","kind":"pulse.index-manifest","indexes":[{"index_path":"a.pulse.0000000000000000.idx","shards":[{"index_path":"a.pulse#s.pulse.0000000000000000.idx"}]}]}`},
+		{name: "archive shard names no index file", body: `{"format_version":"1","kind":"pulse.index-manifest","indexes":[{"index_path":"a.pulse.0000000000000000.idx","shards":[{"name":"s.pulse"}]}]}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -216,5 +218,50 @@ func TestWriteIndexManifest_EmptyCatalogIsAnEmptyArray(t *testing.T) {
 	}
 	if probe.Cohort != "c.pulse" {
 		t.Errorf("cohort = %q, want the basename %q", probe.Cohort, "c.pulse")
+	}
+}
+
+// TestIndexManifest_ArchiveEntryRoundTrips: an archive index's shard
+// coverage (name + size + CRC32 identity, per-shard sidecar and
+// counts) survives write → read in archive order, and a single-file
+// entry carries no shards key at all (byte-identical to before).
+func TestIndexManifest_ArchiveEntryRoundTrips(t *testing.T) {
+	fsys := afero.NewMemMapFs()
+	keys := []string{"id"}
+	m := NewIndexManifest("arch.pulse")
+	shards := []IndexManifestShard{
+		{Name: "b.pulse", Size: 300, CRC32: 0xdeadbeef, IndexPath: "arch.pulse#b.pulse.x.idx", DistinctKeys: 2, IndexedRecords: 3},
+		{Name: "a.pulse", Size: 120, CRC32: 1, IndexPath: "arch.pulse#a.pulse.x.idx", DistinctKeys: 1, IndexedRecords: 1},
+	}
+	entry := IndexManifestEntryFor(SidecarIndexPath("arch.pulse", keys), manifestTestIndex(IndexKeySpec{Name: "id", Type: encoding.FieldTypeU64}))
+	entry.Shards = shards
+	m.Upsert(entry)
+	if err := WriteIndexManifest(fsys, "arch.pulse", m); err != nil {
+		t.Fatal(err)
+	}
+	got, present, err := ReadIndexManifest(fsys, "arch.pulse")
+	if err != nil || !present {
+		t.Fatalf("ReadIndexManifest: present=%v err=%v", present, err)
+	}
+	if len(got.Indexes) != 1 || len(got.Indexes[0].Shards) != 2 {
+		t.Fatalf("round trip lost the shard coverage: %+v", got.Indexes)
+	}
+	for i, sh := range got.Indexes[0].Shards {
+		if sh != shards[i] {
+			t.Errorf("shard[%d] = %+v, want %+v (archive order kept)", i, sh, shards[i])
+		}
+	}
+
+	single := NewIndexManifest("c.pulse")
+	single.Upsert(IndexManifestEntryFor(SidecarIndexPath("c.pulse", keys), manifestTestIndex(IndexKeySpec{Name: "id", Type: encoding.FieldTypeU64})))
+	raw, err := json.Marshal(single)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "shards") {
+		t.Errorf("a single-file entry must carry no shards key: %s", raw)
+	}
+	if want := SidecarIndexPath("arch.pulse#a.pulse", keys); ArchiveShardIndexPath("arch.pulse", "a.pulse", keys) != want {
+		t.Errorf("ArchiveShardIndexPath must be the anchor's sidecar path %q", want)
 	}
 }

@@ -71,12 +71,50 @@ type IndexManifestKey struct {
 // unchanged content produces a byte-identical sidecar), not a freshness
 // claim: freshness lives in each sidecar's own Fingerprint and
 // source-stat snapshot, and nothing here is consulted for it.
+//
+// An ARCHIVE index (a shard archive cohort) is one sidecar per shard
+// plus this entry, whose Shards lists every shard the index COVERS.
+// Its IndexPath is then the index's logical name — the basename
+// SidecarIndexPath derives for the archive itself, carrying the key
+// hash — and names no file: the files are Shards[].IndexPath. Its
+// DistinctKeys / IndexedRecords are the per-shard sums (a key present
+// in k shards counts k times; the exact union would need every key of
+// the archive resident at once). A single-file entry has no Shards.
 type IndexManifestEntry struct {
-	IndexPath      string             `json:"index_path"`
-	KeyHash        string             `json:"key_hash"`
-	Keys           []IndexManifestKey `json:"keys"`
-	DistinctKeys   int                `json:"distinct_keys"`
-	IndexedRecords int                `json:"indexed_records"`
+	IndexPath      string               `json:"index_path"`
+	KeyHash        string               `json:"key_hash"`
+	Keys           []IndexManifestKey   `json:"keys"`
+	DistinctKeys   int                  `json:"distinct_keys"`
+	IndexedRecords int                  `json:"indexed_records"`
+	Shards         []IndexManifestShard `json:"shards,omitempty"`
+}
+
+// IndexManifestShard is one shard an archive index covers, in archive
+// (central-directory) order. Name + Size + CRC32 are the shard's
+// IDENTITY, all three read from the zip central directory (no payload
+// read): a lookup refuses with PULSE_INDEX_STALE
+// (details.shards_uncovered) for any shard of the archive whose
+// identity no entry here matches — a shard added after the build, or a
+// same-name replacement, which a bare name would silently accept.
+// IndexPath is the shard's sidecar BASENAME
+// (ArchiveShardIndexPath); the counts are that sidecar's own.
+type IndexManifestShard struct {
+	Name           string `json:"name"`
+	Size           int64  `json:"size"`
+	CRC32          uint32 `json:"crc32"`
+	IndexPath      string `json:"index_path"`
+	DistinctKeys   int    `json:"distinct_keys"`
+	IndexedRecords int    `json:"indexed_records"`
+}
+
+// ArchiveShardIndexPath derives the sidecar path of one shard of an
+// archive index: SidecarIndexPath over the shard's ANCHOR path
+// ("archive.pulse#shard.pulse"), so the file is the very sidecar an
+// index built on that anchor writes — byte for byte, since both
+// fingerprint the shard's stored payload — and an anchored lookup reads
+// it too. Pure — no filesystem access.
+func ArchiveShardIndexPath(archivePath, shardName string, keyFields []string) string {
+	return SidecarIndexPath(archivePath+"#"+shardName, keyFields)
 }
 
 // KeyNames returns the entry's ordered key column names — the tuple a
@@ -246,6 +284,13 @@ func ReadIndexManifest(fsys afero.Fs, cohortPath string) (*IndexManifest, bool, 
 			return nil, true, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_MANIFEST_INVALID,
 				"sidecar index manifest entry names no index file",
 				map[string]any{"manifest_path": path, "cohort": cohortPath, "entry": i})
+		}
+		for j, sh := range e.Shards {
+			if sh.Name == "" || sh.IndexPath == "" {
+				return nil, true, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_MANIFEST_INVALID,
+					"sidecar index manifest shard entry names no shard or no index file",
+					map[string]any{"manifest_path": path, "cohort": cohortPath, "entry": i, "shard": j})
+			}
 		}
 	}
 	if m.Indexes == nil {

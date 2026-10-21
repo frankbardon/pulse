@@ -308,3 +308,79 @@ func TestU64ExactKey_JoinRightSide(t *testing.T) {
 		t.Errorf("joined code_in hits = %v, want %d", resp.Data[0]["n"], want)
 	}
 }
+
+// TestU64ExactKey_JoinOnKey pins #458: the join ON key of a u64 column
+// is its EXACT stored word, so 2^53 / 2^53+1 and MaxUint64 /
+// MaxUint64-1 (each pair one float64 echo) join to their own right row
+// only. Every left-side iterator kind feeds joinKeyOf the exact word:
+// the single-file streaming scan, the serial shard-archive scan, and an
+// anchored shard. The right table holds one row per key with weight
+// 10^i, so a collision adds a neighbour's power of ten to the sum.
+func TestU64ExactKey_JoinOnKey(t *testing.T) {
+	ctx := context.Background()
+	fsys := afero.NewMemMapFs()
+	writeU64KeyCohort(t, fsys, "l.pulse", 0, 120)
+	shards := []string{"s0.pulse", "s1.pulse", "s2.pulse"}
+	for i, path := range shards {
+		writeU64KeyCohort(t, fsys, path, i*40, (i+1)*40)
+	}
+	var buf []byte
+	w := &byteSink{b: &buf}
+	if err := encoding.WriteHeader(w); err != nil {
+		t.Fatal(err)
+	}
+	if err := encoding.WriteSchema(w, &encoding.Schema{Fields: []encoding.Field{
+		{Name: "k", Type: encoding.FieldTypeU64, ByteOffset: 0},
+		{Name: "w", Type: encoding.FieldTypeF64, ByteOffset: 8},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	weight := map[uint64]float64{}
+	for i, k := range u64Keys {
+		weight[k] = math.Pow(10, float64(i))
+		buf = binary.LittleEndian.AppendUint64(buf, k)
+		buf = binary.LittleEndian.AppendUint64(buf, math.Float64bits(weight[k]))
+	}
+	if err := afero.WriteFile(fsys, "r.pulse", buf, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := pulse.New(pulse.Options{FS: fsys})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.CreateShardArchive(ctx, "la.pulse", shards); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name     string
+		cohort   string
+		from, to int
+	}{
+		{"streaming", "l.pulse", 0, 120},
+		{"shard_archive", "la.pulse", 0, 120},
+		{"anchored_shard", "la.pulse#s1.pulse", 40, 80},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			req := &types.Request{
+				Cohort:       &types.Cohort{Filename: c.cohort},
+				Joins:        []*types.JoinSpec{{Right: "r.pulse", On: []types.OnPair{{LeftField: "k", RightField: "k"}}, As: "r_"}},
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "r_w", Label: "s"}, {Type: types.AGG_COUNT, Field: "k", Label: "n"}},
+			}
+			resp, err := p.Process(ctx, req)
+			if err != nil {
+				t.Fatalf("Process: %v", err)
+			}
+			want := 0.0
+			for r := c.from; r < c.to; r++ {
+				k, _, _ := u64KeyRow(r)
+				want += weight[k]
+			}
+			if got, ok := vexprFloat(resp.Data[0]["s"]); !ok || got != want {
+				t.Errorf("joined weight sum = %v, want %v (a collision adds a neighbour's weight)", resp.Data[0]["s"], want)
+			}
+			if got, ok := vexprFloat(resp.Data[0]["n"]); !ok || got != float64(c.to-c.from) {
+				t.Errorf("joined rows = %v, want %d (one right row per left row)", resp.Data[0]["n"], c.to-c.from)
+			}
+		})
+	}
+}

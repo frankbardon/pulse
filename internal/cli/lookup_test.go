@@ -284,7 +284,10 @@ func TestAPILookupCLI_EchoRequestIncludesResolvedRequest(t *testing.T) {
 	}
 }
 
-func TestAPILookupCLI_ShardArchiveRejected(t *testing.T) {
+// TestAPILookupCLI_ShardArchiveAssertsUniqueAcrossShards: both shards
+// hold id 1, so on the archive the default assert-unique lookup sees
+// two matches across the union and refuses.
+func TestAPILookupCLI_ShardArchiveAssertsUniqueAcrossShards(t *testing.T) {
 	dir := t.TempDir()
 	shard1 := filepath.Join(dir, "shard1.pulse")
 	shard2 := filepath.Join(dir, "shard2.pulse")
@@ -299,6 +302,9 @@ func TestAPILookupCLI_ShardArchiveRejected(t *testing.T) {
 	if _, err := p.CreateShardArchive(context.Background(), archive, []string{shard1, shard2}); err != nil {
 		t.Fatalf("CreateShardArchive: %v", err)
 	}
+	if _, err := p.BuildIndex(context.Background(), archive, []string{"id"}); err != nil {
+		t.Fatalf("BuildIndex: %v", err)
+	}
 
 	var buf bytes.Buffer
 	err = runAPICLI(t, &buf, "lookup", "--input", archive, "--key", "id=1", "--json")
@@ -307,10 +313,7 @@ func TestAPILookupCLI_ShardArchiveRejected(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
 		t.Fatalf("json.Unmarshal: %v\nraw: %s", err, buf.String())
 	}
-	if len(env.Errors) != 1 {
-		t.Fatalf("errors = %v, want exactly 1 entry", env.Errors)
-	}
-	if env.Errors[0].Code != "PULSE_INDEX_UNSUPPORTED_SHARDED" {
-		t.Errorf("errors[0].code = %q, want PULSE_INDEX_UNSUPPORTED_SHARDED", env.Errors[0].Code)
+	if len(env.Errors) != 1 || env.Errors[0].Code != "PULSE_LOOKUP_AMBIGUOUS" || env.Errors[0].Details["match_count"] != 2.0 {
+		t.Errorf("errors = %+v, want one PULSE_LOOKUP_AMBIGUOUS with match_count 2", env.Errors)
 	}
 }

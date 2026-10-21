@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"hash/crc32"
 	"io"
 	"testing"
 
@@ -144,6 +145,9 @@ func TestArchive_OpenArchive_ParsesCentralDirectory(t *testing.T) {
 		}
 		if entries[i].Offset <= 0 {
 			t.Errorf("entries[%d].Offset = %d, want >0", i, entries[i].Offset)
+		}
+		if want := crc32.ChecksumIEEE(schema); entries[i].CRC32 != want {
+			t.Errorf("entries[%d].CRC32 = %08x, want the payload's %08x", i, entries[i].CRC32, want)
 		}
 	}
 }

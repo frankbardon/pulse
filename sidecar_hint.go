@@ -84,30 +84,34 @@ type StaleSidecar struct {
 // means there is nothing beside the cohort to rebuild; callers should
 // print NOTHING rather than an empty section.
 //
-// A cohort with no sidecars, and a shard archive (which cannot carry a
-// point-lookup index at all), both answer with an empty slice rather
-// than an error: this is advisory reporting attached to an operation
-// that has already succeeded, and failing it would turn a hint into an
-// outage.
+// A shard archive's point-lookup index is one sidecar per shard, and
+// each is reported on its own (same Keys and Rebuild command — the
+// rebuild is archive-wide), because each is a file whose validity is
+// bound to its shard's bytes.
+//
+// A cohort with no sidecars answers with an empty slice rather than an
+// error: this is advisory reporting attached to an operation that has
+// already succeeded, and failing it would turn a hint into an outage.
 func (p *Pulse) InvalidatedSidecars(ctx context.Context, cohortPath string) ([]StaleSidecar, error) {
 	out := []StaleSidecar{}
 
 	indexes, err := p.svc.ListIndexes(ctx, cohortPath)
-	switch {
-	case err == nil:
-		for _, idx := range indexes {
+	if err != nil {
+		return nil, err
+	}
+	for _, idx := range indexes {
+		paths := idx.ShardIndexPaths
+		if len(paths) == 0 {
+			paths = []string{idx.IndexPath}
+		}
+		for _, path := range paths {
 			out = append(out, StaleSidecar{
-				Path:    idx.IndexPath,
+				Path:    path,
 				Kind:    SidecarKindPointLookupIndex,
 				Keys:    append([]string(nil), idx.Keys...),
 				Rebuild: rebuildIndexCommand(cohortPath, idx.Keys),
 			})
 		}
-	case errors.HasCode(err, errors.PULSE_INDEX_UNSUPPORTED_SHARDED):
-		// A shard archive cannot carry a point-lookup index, so there
-		// is nothing to report rather than something to fail on.
-	default:
-		return nil, err
 	}
 
 	spssPath := spsssidecar.Path(cohortPath)

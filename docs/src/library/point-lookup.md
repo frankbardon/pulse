@@ -6,9 +6,8 @@ a whole cohort.
 
 `Pulse.Lookup` is a keyed point-lookup store: **O(1)** — flat latency
 regardless of cohort size — against a **prebuilt sidecar index**
-(`Pulse.BuildIndex`). It only works against a **single-file** cohort
-(shard archives are rejected with `PULSE_INDEX_UNSUPPORTED_SHARDED`;
-the `archive.pulse#shard.pulse` anchor is a tested workaround), it is
+(`Pulse.BuildIndex`). It works against a single-file cohort and a
+shard archive alike (see [Shard archives](#shard-archives)), it is
 **equality-only** (no ranges, no expressions), and it always resolves
 the **full key** — no prefix or partial-key matching. For anything
 else (ranges, expressions, unindexed ad hoc queries), use
@@ -138,8 +137,36 @@ if err != nil {
 `errors.HasCode(err, errors.CODE)` (`github.com/frankbardon/pulse/errors`)
 is the coded-error check used across the codebase — the same pattern
 covers `PULSE_INDEX_MISSING`, `PULSE_INDEX_STALE`,
-`PULSE_INDEX_UNSUPPORTED_SHARDED`, `PULSE_INDEX_MANIFEST_INVALID`,
-`PULSE_INDEX_MANIFEST_STALE`, and `PULSE_LOOKUP_NOT_FOUND`.
+`PULSE_INDEX_MANIFEST_INVALID`, `PULSE_INDEX_MANIFEST_STALE`, and
+`PULSE_LOOKUP_NOT_FOUND`.
+
+## Shard archives
+
+`BuildIndex` on a shard archive writes one sidecar per shard — at the
+shard's anchor path `archive.pulse#shard.pulse.<keyhash>.idx`, the
+same file an anchored build of that shard writes — plus an entry in
+`archive.pulse.indexes.json` listing every covered shard by name, size
+and zip CRC32. Nothing is written inside the zip.
+`BuildIndexResult.ShardIndexPaths` names the files; `IndexPath` is
+the index's logical name (no file lives there) and `Index` is nil; the
+counts are per-shard sums.
+
+`Lookup` against the archive resolves the key literal once against the
+archive's canonical dictionary, probes every shard, and returns the
+hits in archive order — the same rows, in the same order, as the
+single-file cohort holding the archive's rows. Multiplicity applies
+across shards: `assert_unique` refuses a key held by two shards, and
+`first` takes the earliest row in archive order. A shard the index
+does not cover — added after the build, or replaced under the same
+name — refuses the lookup with `PULSE_INDEX_STALE`, naming the shards
+in `details.shards_uncovered`; rebuild the index. `VerifyIndex`
+reports the same shards (`ShardsUncovered`) and hashes every shard
+against its sidecar (`ShardsMismatched`); `ListIndexes` and
+`DropIndex` work on the archive path.
+
+A `u64` key is exact: ids above 2^53 that share one `float64` are
+distinct keys. An index built by an earlier release over such ids
+merged them — rebuild it.
 
 ## Index lifecycle
 

@@ -794,7 +794,7 @@
       },
       {
         "name": "cohort-sidecar-index",
-        "description": "The sidecar point-lookup index beside a cohort — the v3 file format, the O(1) seek path, three-outcome staleness, discovery through the indexes.json manifest, invalidation by a cohort rewrite, keyable types and constraints."
+        "description": "The sidecar point-lookup index beside a cohort — the v3 file format, the O(1) seek path, three-outcome staleness, discovery through the indexes.json manifest, invalidation by a cohort rewrite, keyable types, shard-archive indexes and constraints."
       },
       {
         "name": "cohort-width-overflow",
@@ -1357,4 +1357,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c002a5240dabb02cc25e06dcbbf5e532fc2ac33b25631545ec307ea0f84140f1
+// golden-hash: 7cf79810a4d5ba681c3d72004b1dff61ff75fc7aabb0d27fae3885a85a22c412

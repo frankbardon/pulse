@@ -154,7 +154,7 @@ func TestIndexBuildCLI_JSONEnvelopeShape(t *testing.T) {
 	}
 }
 
-func TestIndexBuildCLI_ShardArchiveErrorEnvelope(t *testing.T) {
+func TestIndexBuildCLI_ShardArchiveBuildsPerShardSidecars(t *testing.T) {
 	dir := t.TempDir()
 	shard1 := filepath.Join(dir, "shard1.pulse")
 	shard2 := filepath.Join(dir, "shard2.pulse")
@@ -171,24 +171,23 @@ func TestIndexBuildCLI_ShardArchiveErrorEnvelope(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err = runIndexCLI(t, &buf, "build", "--input", archive, "--key", "id", "--json")
-	wantEnvelopeFatal(t, err)
-
+	if err := runIndexCLI(t, &buf, "build", "--input", archive, "--key", "id", "--json"); err != nil {
+		t.Fatalf("index build on an archive: %v\n%s", err, buf.String())
+	}
 	var env struct {
-		Errors []struct {
-			Code    string         `json:"code"`
-			Message string         `json:"message"`
-			Details map[string]any `json:"details"`
-		} `json:"errors"`
+		Data struct {
+			IndexPath       string   `json:"index_path"`
+			DistinctKeys    int      `json:"distinct_keys"`
+			IndexedRecords  int      `json:"indexed_records"`
+			ShardIndexPaths []string `json:"shard_index_paths"`
+		} `json:"data"`
+		Errors []any `json:"errors"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
 		t.Fatalf("json.Unmarshal: %v\nraw: %s", err, buf.String())
 	}
-	if len(env.Errors) != 1 {
-		t.Fatalf("errors = %v, want exactly 1 entry", env.Errors)
-	}
-	if env.Errors[0].Code != "PULSE_INDEX_UNSUPPORTED_SHARDED" {
-		t.Errorf("errors[0].code = %q, want PULSE_INDEX_UNSUPPORTED_SHARDED", env.Errors[0].Code)
+	if len(env.Errors) != 0 || len(env.Data.ShardIndexPaths) != 2 || env.Data.DistinctKeys != 6 || env.Data.IndexedRecords != 6 {
+		t.Errorf("archive build envelope = %+v, want two shard sidecars and per-shard sums 6/6", env)
 	}
 }
 

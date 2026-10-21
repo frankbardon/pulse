@@ -174,16 +174,19 @@ pulse index drop --input sales.pulse --key region,date
 | Code | Meaning |
 |---|---|
 | `PULSE_INDEX_MISSING` | `verify` / `drop` targeted a key combination with no built sidecar (and, for `drop`, no catalog entry either) |
-| `PULSE_INDEX_UNSUPPORTED_SHARDED` | The cohort is a shard archive — point-lookup indexing is single-file only |
 | `PULSE_INDEX_MANIFEST_INVALID` | `cohort.pulse.indexes.json` exists but is not a readable catalog (malformed JSON, foreign `kind`, unknown `format_version`) |
 | `PULSE_INDEX_MANIFEST_STALE` | The catalog names an index file that is not present — rebuild or drop that key tuple |
 | `PROCESSING_CONFIG` | `--key` names a field whose type is not index-keyable (`set_*`), or another field-resolution failure |
 
 ## Constraints
 
-- **Single-file cohorts only.** Shard archives reject with
-  `PULSE_INDEX_UNSUPPORTED_SHARDED`; the `archive.pulse#shard.pulse`
-  anchor works as a tested single-shard workaround.
+- **Shard archives are indexed per shard.** `build` writes one sidecar
+  per shard (`data.shard_index_paths`) plus the archive manifest's
+  coverage (name, size and zip CRC32 per shard); `verify` adds
+  `shards_uncovered` / `shards_mismatched`; `list` adds
+  `shard_index_paths`. A shard the index does not cover makes `verify`
+  stale and `pulse api lookup` refuse with `PULSE_INDEX_STALE` —
+  rebuild.
 - **Equality-only, full-key required.** No range or partial-key
   lookups in v1.
 - `set_*` fields cannot be key columns — see the keyable-type policy

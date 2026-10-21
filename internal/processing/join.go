@@ -173,8 +173,19 @@ func (h *HashJoinIterator) Reset() {
 // ok=false when any key field is null — inner join drops these rows.
 // The build flag is informational; semantics are identical for both
 // sides. Categorical fields resolve to dict strings; decimal128
-// fields stringify their EXACT 128-bit mantissa bytes; other numeric
-// fields stringify via canonical float formatting.
+// fields stringify their EXACT 128-bit mantissa bytes; a u64 at or
+// above 2^53 stringifies its EXACT stored word (FormatUint of
+// Record.Uint64Value, #458); other numeric fields — and a u64 below
+// 2^53, whose float echo is exact — stringify via canonical float
+// formatting.
+//
+// u64 switches to FormatUint only at 2^53 so every join keyed on
+// smaller values keeps its byte-identical key text (FormatFloat 'g'
+// writes 1e+15 where FormatUint writes 1000000000000000, and a u32 /
+// date partner key keeps the float form). No partner type can reach
+// 2^53 except u64 itself — an f32 / f64 partner is refused by the
+// join-key rule (internal/encoding.JoinKeyU64FloatRejection) — so the
+// exact text only ever meets exact text.
 //
 // decimal128 gets the exact-bytes treatment for the same reason
 // KeyFieldOnWireBytes gives it one (internal/processing/index_key.go): the
@@ -223,6 +234,16 @@ func joinKeyOf(rec *Record, schema *encoding.Schema, spec *types.JoinSpec, build
 			parts = append(parts, string(enc[:]))
 			continue
 		}
+		if f.Type == encoding.FieldTypeU64 {
+			u, ok := rec.Uint64Value(field)
+			if !ok {
+				return "", false
+			}
+			if u >= joinExactU64Floor {
+				parts = append(parts, strconv.FormatUint(u, 10))
+				continue
+			}
+		}
 		v, ok := rec.rawValue(field)
 		if !ok {
 			return "", false
@@ -231,6 +252,10 @@ func joinKeyOf(rec *Record, schema *encoding.Schema, spec *types.JoinSpec, build
 	}
 	return strings.Join(parts, "|"), true
 }
+
+// joinExactU64Floor is 2^53: the first u64 whose float64 echo can be
+// shared with a neighbour, so the first one joinKeyOf keys exactly.
+const joinExactU64Floor = uint64(1) << 53
 
 func joinRenameRight(spec *types.JoinSpec, name string) string {
 	if spec.As == "" {

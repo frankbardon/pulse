@@ -59,6 +59,13 @@ type ArchiveEntry struct {
 
 	// Offset is the byte offset of the payload within the archive.
 	Offset int64
+
+	// CRC32 is the entry's CRC-32 from the zip central directory: read
+	// with the directory, never recomputed from the payload. With Name
+	// and Size it is a shard's identity for an archive point-lookup
+	// index (IndexManifestShard) — a same-name, same-size replacement
+	// still moves it.
+	CRC32 uint32
 }
 
 // Archive is a parsed Pulse shard archive: zip central-directory cache
@@ -118,6 +125,7 @@ func OpenArchive(r io.ReaderAt, size int64) (*Archive, error) {
 			Name:   f.Name,
 			Size:   int64(f.UncompressedSize64),
 			Offset: off,
+			CRC32:  f.CRC32,
 		})
 		byName[f.Name] = f
 	}

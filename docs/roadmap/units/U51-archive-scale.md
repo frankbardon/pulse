@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U19]
 blocks: [U32]
-todo_items: [354, 355, 356, 357, 358, 359, 360, 361, 373, 390, 399, 455, 456, 458, 461]
+todo_items: [354, 355, 356, 357, 358, 359, 360, 361, 373, 390, 399, 455, 456, 458, 461, 491]
 branch: archive-scale
 ---
 
@@ -136,3 +136,9 @@ Filed from [U35](U35-predict-runtime-parity.md); tick in [`TODO.md`](../TODO.md)
 Filed from [U34](U34-extension-validation.md); tick in [`TODO.md`](../TODO.md) when done.
 
 - [ ] **#458** A join `ON` key over a `u64` field above 2^53 still matches on its float64 echo (`encoding/join_keys.go` documents it): two distinct large keys can collide. Give the join key an exact `u64` path, or refuse such a key. #427 fixed the attribute keys only. Found in U35 (E1-S2); re-homed from U34
+
+## Filed in U51
+
+Found while building this unit; ticked in [`TODO.md`](../TODO.md) by the story that fixed it.
+
+- [x] **#491** The sidecar index key of a `u64` field above 2^53 rode its float64 echo (build `uint64(NumericValue)`, probe `ParseFloat`), so two ids one float apart shared key bytes. Built from the exact word, probed with `ParseUint`; indexes over keys below 2^53 stay byte-identical, larger ones need a rebuild. Found in U51 (E4-S1)

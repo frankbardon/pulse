@@ -19,8 +19,10 @@ import (
 // shard fan-out, crosstab, join, Compose slots and chain stages all read
 // the one resolution.
 //
-// A lookup's refusal — PULSE_INDEX_MISSING, PULSE_INDEX_STALE,
-// PULSE_INDEX_UNSUPPORTED_SHARDED, PULSE_LOOKUP_NOT_FOUND,
+// A shard-archive cohort resolves through its per-shard sidecars, the
+// same archive lookup Service.Lookup runs. A lookup's refusal —
+// PULSE_INDEX_MISSING, PULSE_INDEX_STALE (an archive shard the index
+// does not cover included), PULSE_LOOKUP_NOT_FOUND,
 // PULSE_LOOKUP_AMBIGUOUS, a key field the cohort lacks — is bound in
 // the record's place and raised, unchanged but located on the slot,
 // where the slot binds (after the request's own validation, so a

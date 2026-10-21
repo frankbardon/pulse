@@ -93,3 +93,44 @@ func TestValidateJoin_SetKeyRejectedMessageMatchesProcessing(t *testing.T) {
 			env.Errors[0].Message, coded.Message)
 	}
 }
+
+// A u64 key paired with an f32 / f64 key is refused by the one join-key
+// rule (exact or nothing, #458): predict and runtime raise the same
+// code, reason and sentence, in both pair orders.
+func TestValidateJoin_U64FloatKeyRefusedMessageMatchesProcessing(t *testing.T) {
+	for _, c := range []struct{ left, right encoding.FieldType }{
+		{encoding.FieldTypeU64, encoding.FieldTypeF64},
+		{encoding.FieldTypeF32, encoding.FieldTypeU64},
+	} {
+		t.Run(c.left.String()+"_"+c.right.String(), func(t *testing.T) {
+			leftFields := []encoding.Field{{Name: "id", Type: c.left, ByteOffset: 0}}
+			rightFields := []encoding.Field{{Name: "id", Type: c.right, ByteOffset: 0}}
+			spec := &types.JoinSpec{Right: "right.pulse", Kind: "inner", As: "r_",
+				On: []types.OnPair{{LeftField: "id", RightField: "id"}}}
+			req := &types.Request{Cohort: &types.Cohort{Filename: "left.pulse"}, Joins: []*types.JoinSpec{spec}}
+
+			env := descx.ValidateJoinFromBytes(
+				joinSetKeyHeaderBytes(t, leftFields), joinSetKeyHeaderBytes(t, rightFields), req)
+			if len(env.Errors) == 0 {
+				t.Fatalf("descriptor.ValidateJoin accepted a %s / %s join key", c.left, c.right)
+			}
+			if got := env.Errors[0].Code; got != string(errors.PULSE_JOIN_TYPE_MISMATCH) {
+				t.Fatalf("predict code = %s, want %s", got, errors.PULSE_JOIN_TYPE_MISMATCH)
+			}
+			if got := env.Errors[0].Details["reason"]; got != "u64_float_key" {
+				t.Errorf("predict details[reason] = %v, want u64_float_key", got)
+			}
+
+			_, _, rerr := processing.NewHashJoinIterator(processing.NewSliceIterator(nil), nil,
+				&encoding.Schema{Fields: leftFields}, &encoding.Schema{Fields: rightFields}, spec)
+			var coded *errors.CodedError
+			if !stderrors.As(rerr, &coded) || coded.Code != errors.PULSE_JOIN_TYPE_MISMATCH {
+				t.Fatalf("runtime error = %v, want coded %s", rerr, errors.PULSE_JOIN_TYPE_MISMATCH)
+			}
+			if coded.Details["reason"] != "u64_float_key" || env.Errors[0].Message != coded.Message {
+				t.Errorf("predict and runtime disagree:\n  predict: %q %v\n  runtime: %q %v",
+					env.Errors[0].Message, env.Errors[0].Details, coded.Message, coded.Details)
+			}
+		})
+	}
+}

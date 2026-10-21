@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	encx "github.com/frankbardon/pulse/internal/encoding"
@@ -44,6 +43,10 @@ type indexBuildOutput struct {
 	Keys           []string `json:"keys"`
 	DistinctKeys   int      `json:"distinct_keys"`
 	IndexedRecords int      `json:"indexed_records"`
+	// ShardIndexPaths lists a shard archive's per-shard sidecars, in
+	// archive order (absent for a single-file cohort, whose index is
+	// the one file at IndexPath).
+	ShardIndexPaths []string `json:"shard_index_paths,omitempty"`
 }
 
 func indexBuildCmd() *cli.Command {
@@ -85,12 +88,13 @@ func indexBuildCmd() *cli.Command {
 			}
 
 			out := indexBuildOutput{
-				Cohort:         input,
-				IndexPath:      res.IndexPath,
-				ManifestPath:   res.ManifestPath,
-				Keys:           keyFields,
-				DistinctKeys:   countDistinctIndexKeys(res),
-				IndexedRecords: countIndexedRecords(res),
+				Cohort:          input,
+				IndexPath:       res.IndexPath,
+				ManifestPath:    res.ManifestPath,
+				Keys:            keyFields,
+				DistinctKeys:    res.DistinctKeys,
+				IndexedRecords:  res.IndexedRecords,
+				ShardIndexPaths: res.ShardIndexPaths,
 			}
 
 			if jsonOut {
@@ -111,10 +115,11 @@ func indexBuildCmd() *cli.Command {
 // (pulse.IndexInfo itself carries no tags — it is a service-layer
 // value type, not part of the wire contract).
 type indexListEntry struct {
-	IndexPath      string   `json:"index_path"`
-	Keys           []string `json:"keys"`
-	DistinctKeys   int      `json:"distinct_keys"`
-	IndexedRecords int      `json:"indexed_records"`
+	IndexPath       string   `json:"index_path"`
+	Keys            []string `json:"keys"`
+	DistinctKeys    int      `json:"distinct_keys"`
+	IndexedRecords  int      `json:"indexed_records"`
+	ShardIndexPaths []string `json:"shard_index_paths,omitempty"`
 }
 
 // indexListOutput is the JSON-envelope shape for a successful
@@ -159,10 +164,11 @@ func indexListCmd() *cli.Command {
 			entries := make([]indexListEntry, len(indexes))
 			for i, info := range indexes {
 				entries[i] = indexListEntry{
-					IndexPath:      info.IndexPath,
-					Keys:           info.Keys,
-					DistinctKeys:   info.DistinctKeys,
-					IndexedRecords: info.IndexedRecords,
+					IndexPath:       info.IndexPath,
+					Keys:            info.Keys,
+					DistinctKeys:    info.DistinctKeys,
+					IndexedRecords:  info.IndexedRecords,
+					ShardIndexPaths: info.ShardIndexPaths,
 				}
 			}
 			out := indexListOutput{Cohort: input, Indexes: entries}
@@ -201,6 +207,10 @@ type indexVerifyOutput struct {
 	Reason       string   `json:"reason"`
 	FastPath     bool     `json:"fast_path"`
 	ModTimeDrift bool     `json:"modtime_drift,omitempty"`
+	// ShardsUncovered / ShardsMismatched mirror the archive-only
+	// service.VerifyIndexResult fields (additive, omitempty).
+	ShardsUncovered  []string `json:"shards_uncovered,omitempty"`
+	ShardsMismatched []string `json:"shards_mismatched,omitempty"`
 }
 
 func indexVerifyCmd() *cli.Command {
@@ -242,13 +252,15 @@ func indexVerifyCmd() *cli.Command {
 			}
 
 			out := indexVerifyOutput{
-				Cohort:       input,
-				IndexPath:    res.IndexPath,
-				Keys:         keyFields,
-				Fresh:        res.Fresh,
-				Reason:       string(res.Reason),
-				FastPath:     res.FastPath,
-				ModTimeDrift: res.ModTimeDrift,
+				Cohort:           input,
+				IndexPath:        res.IndexPath,
+				Keys:             keyFields,
+				Fresh:            res.Fresh,
+				Reason:           string(res.Reason),
+				FastPath:         res.FastPath,
+				ModTimeDrift:     res.ModTimeDrift,
+				ShardsUncovered:  res.ShardsUncovered,
+				ShardsMismatched: res.ShardsMismatched,
 			}
 
 			if jsonOut {
@@ -360,45 +372,13 @@ func splitIndexKeyFields(raw string) []string {
 	return out
 }
 
-// countDistinctIndexKeys sums the number of key entries across every
-// hash bucket in the built index — the count of distinct key values
-// observed during the build scan (not the bucket-table size, which is
-// sized to the same number but is an implementation detail).
-func countDistinctIndexKeys(res *pulse.BuildIndexResult) int {
-	if res == nil || res.Index == nil {
-		return 0
-	}
-	n := 0
-	for _, b := range res.Index.Buckets {
-		n += len(b.Entries)
-	}
-	return n
-}
-
-// countIndexedRecords sums every entry's RowIDs across every bucket —
-// the total number of source records the index actually covers (rows
-// skipped for a null key component are not counted; see
-// service.Service.BuildIndex's null-key-skip contract).
-func countIndexedRecords(res *pulse.BuildIndexResult) int {
-	if res == nil || res.Index == nil {
-		return 0
-	}
-	n := 0
-	for _, b := range res.Index.Buckets {
-		for _, e := range b.Entries {
-			n += len(e.RowIDs)
-		}
-	}
-	return n
-}
-
 // indexCliError surfaces a facade/service error from any `pulse index`
 // leaf (build, list, verify, drop). In non-JSON mode the error is
 // returned as a plain "CODE: message" error (matching cliError's
 // non-JSON shape) so the coded error's real code is still visible on
 // stderr. In JSON mode the error is unwrapped to its underlying
 // *errors.CodedError (if any) so the envelope's error code round-trips
-// the real coded error (e.g. PULSE_INDEX_UNSUPPORTED_SHARDED,
+// the real coded error (e.g. PULSE_INDEX_STALE,
 // PULSE_INDEX_MISSING, PROCESSING_CONFIG) rather than a generic wrapper
 // string — the CLI never masks a coded error behind a made-up code.
 func indexCliError(cmd *cli.Command, jsonOut bool, err error) error {

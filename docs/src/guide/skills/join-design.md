@@ -63,17 +63,18 @@ Equi-keys must compare equal after normalisation. Accepted:
 
 - Identical types (`u32` ↔ `u32`).
 - `categorical_*` ↔ `categorical_*` at any width (dictionary strings compare as text).
-- The unsigned-int / float / date numeric family, interchangeably (`u32` ↔ `f64` ↔ `date`).
+- The unsigned-int / float / date numeric family, interchangeably (`u32` ↔ `f64` ↔ `date`) — except `u64` ↔ float.
 
 Rejected:
 
 - **Any `set_*` column, either side, even at identical rungs.** A bitmask has no unambiguous equality value, and the key would be a lossy float echo of the mask, so different selections collapse onto one key and unrelated rows join silently. Filter on set membership instead. Carrying a set column THROUGH a join (non-key) is fine.
 - `decimal128` ↔ any other type (precision/scale matter for hashing).
 - `categorical_*` ↔ a non-categorical numeric type.
+- `u64` ↔ `f32` / `f64` (`details.reason = "u64_float_key"`): a `u64` key is exact, a float above 2^53 cannot be.
 
 A mismatch is `PULSE_JOIN_TYPE_MISMATCH` with both field names + types in `details`; a set-key rejection adds `details.reason = "set_key"`. Fix by re-importing one side with a matching type.
 
-**Known limit:** a `u64` key above 2^53 compares through its float echo, so two ids rounding to one float join as equal. `decimal128` keys compare on their exact mantissa.
+A `u64` key compares on its exact stored word, so ids above 2^53 one float apart never join as equal; `decimal128` keys compare on their exact mantissa.
 
 ## Field collisions and the `as` prefix
 

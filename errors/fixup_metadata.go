@@ -3489,20 +3489,24 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_INDEX_STALE: {
-		Message: "The sidecar point-lookup index's embedded content-hash fingerprint does not match the current .pulse cohort file — the cohort was mutated (re-imported, re-exported, or otherwise rewritten) after the sidecar was last built. Lookup refuses to serve rows against a stale index rather than risk returning silently wrong results; there is no automatic scan-fallback or auto-rebuild. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
+		Message: "The sidecar point-lookup index's embedded content-hash fingerprint does not match the current .pulse cohort file — the cohort was mutated (re-imported, re-exported, or otherwise rewritten) after the sidecar was last built. On a shard archive (one sidecar per shard) the same code refuses a shard the index does not cover — added after the build, or replaced (a different size or zip central-directory CRC32 under the same name) — and details.shards_uncovered names those shards: a lookup never silently skips one. Lookup refuses to serve rows against a stale index rather than risk returning silently wrong results; there is no automatic scan-fallback or auto-rebuild. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
 				Hint:   "Rebuild the sidecar index against the current cohort content: `pulse index build <cohort> --key <field>` (or the equivalent Service.BuildIndex(ctx, path, keyFields) library call, or a quick freshness check first via `pulse index verify <cohort> --key <field>` / Service.VerifyIndex). Re-run the lookup once the rebuild completes.",
 			},
+			{
+				Action: FixupRequiresReschema,
+				Hint:   "For a shard archive, details.shards_uncovered lists the shards the index does not cover. Rebuild the archive's index (`pulse index build <archive.pulse> --key <field>` rewrites every shard's sidecar and the manifest's coverage); `pulse index verify` reports the same shards as shards_uncovered.",
+			},
 		},
 	},
 	PULSE_INDEX_UNSUPPORTED_SHARDED: {
-		Message: "Point-lookup index build, lookup, and verify only support single-file .pulse cohorts in v1 — the target resolved to a shard archive (leading bytes matched the zip magic \"PK\\x03\\x04\" rather than the single-file \"PULSE\" magic). Row-id addressing (the sidecar's bucket entries point directly at a record's byte offset within one contiguous file) only has meaning for a single contiguous record region, which a multi-shard archive does not present. Sharded point-lookup support is a future/follow-up, not planned for this v1. A row-comparison attribute's {record: {cohort, keys}} reference runs this same lookup before the run and refuses with this code, located on the slot (`attribute`).",
+		Message: "No longer raised: point-lookup index build, lookup, verify, list and drop accept a shard archive, indexed one sidecar per shard plus a manifest entry recording the covered shards (U51). The code is retained so lookups of it keep resolving.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
-				Hint:   "Point-lookup against a sharded cohort is not supported in v1 — there is no per-archive workaround that indexes across shards. If you only need to look up within a SINGLE shard, extract it as a standalone single-file cohort via the anchor syntax (`archive.pulse#shard.pulse`) and build/query the index against that anchor path instead — the anchor opens the named shard as if it were its own single-file `.pulse` cohort, so `pulse index build \"archive.pulse#shard.pulse\" --key <field>` and subsequent lookups work exactly as they do against any single-file cohort. This does not give you a cross-shard index; it only lets you index one shard at a time.",
+				Hint:   "Build the index on the archive itself — `pulse index build <archive.pulse> --key <field>` — and look up against the archive path; an anchored shard (`archive.pulse#shard.pulse`) reads the same per-shard sidecar.",
 			},
 		},
 	},

@@ -21,11 +21,18 @@ import (
 // exists (which is what lets discovery cost no sidecar read at all) and
 // otherwise from the sidecar's own bucket table
 // (encoding.ReadIndexFile).
+//
+// A shard archive's index has one sidecar per shard: IndexPath is then
+// the index's logical path (SidecarIndexPath over the archive — no file
+// lives there), ShardIndexPaths the per-shard sidecars in archive
+// order, and the counts the per-shard sums (a key present in k shards
+// counts k times).
 type IndexInfo struct {
-	IndexPath      string
-	Keys           []string
-	DistinctKeys   int
-	IndexedRecords int
+	IndexPath       string
+	Keys            []string
+	DistinctKeys    int
+	IndexedRecords  int
+	ShardIndexPaths []string
 }
 
 // sidecarIndexNameRegexp matches the basename shape
@@ -78,19 +85,15 @@ func sidecarIndexNameRegexp(cohortBase string) *regexp.Regexp {
 // across afero backends).
 //
 // No sidecar indexes is not an error — ListIndexes returns an empty
-// (non-nil) slice. Shard archive cohorts (same leading-magic-bytes
-// dispatch Service.Open already performs) are rejected with
-// PULSE_INDEX_UNSUPPORTED_SHARDED, matching Service.BuildIndex /
-// Service.VerifyIndex's v1 single-file-only contract.
+// (non-nil) slice. A shard archive's indexes are listed from its
+// manifest ALONE: an archive index is defined by the manifest entry
+// recording its shard coverage, so a per-shard sidecar on disk that no
+// entry names (an anchored build of one shard) is not an archive index
+// and the directory is not listed.
 func (s *Service) ListIndexes(ctx context.Context, path string) ([]IndexInfo, error) {
 	cohort, err := s.Open(ctx, path)
 	if err != nil {
 		return nil, err
-	}
-	if len(cohort.Shards()) > 0 {
-		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_UNSUPPORTED_SHARDED,
-			"point-lookup index list does not support shard archive cohorts",
-			map[string]any{"cohort": path})
 	}
 
 	fsys := cohort.fs
@@ -101,6 +104,12 @@ func (s *Service) ListIndexes(ctx context.Context, path string) ([]IndexInfo, er
 	manifest, hasManifest, err := encx.ReadIndexManifest(fsys, path)
 	if err != nil {
 		return nil, err
+	}
+	if len(cohort.Shards()) > 0 {
+		if !hasManifest {
+			return []IndexInfo{}, nil
+		}
+		return listIndexesFromManifest(fsys, path, manifest)
 	}
 
 	out := make([]IndexInfo, 0)
@@ -179,10 +188,13 @@ func (s *Service) ListIndexes(ctx context.Context, path string) ([]IndexInfo, er
 // An ORPHANED manifest entry (the entry is present, the file is gone —
 // an `rm` behind Pulse's back) is a successful drop rather than
 // PULSE_INDEX_MISSING: that state is what PULSE_INDEX_MANIFEST_STALE
-// reports, and this is the call its fixup points at. Shard archive cohorts are
-// rejected with PULSE_INDEX_UNSUPPORTED_SHARDED, matching
-// Service.BuildIndex / Service.VerifyIndex / Service.ListIndexes's v1
-// single-file-only contract.
+// reports, and this is the call its fixup points at.
+//
+// On a shard archive the drop removes the manifest entry and every
+// per-shard sidecar: the ones the entry names plus the derived sidecar
+// path of every current shard (so a sidecar an earlier build left for a
+// shard is not orphaned). PULSE_INDEX_MISSING only when there was
+// neither an entry nor any such file.
 func (s *Service) DropIndex(ctx context.Context, path string, keyFields []string) error {
 	if len(keyFields) == 0 {
 		return errors.NewCodedError(errors.SERVICE_VALIDATION,
@@ -193,15 +205,13 @@ func (s *Service) DropIndex(ctx context.Context, path string, keyFields []string
 	if err != nil {
 		return err
 	}
-	if len(cohort.Shards()) > 0 {
-		return errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_UNSUPPORTED_SHARDED,
-			"point-lookup index drop does not support shard archive cohorts",
-			map[string]any{"cohort": path})
-	}
 
 	fsys := cohort.fs
 	if fsys == nil {
 		fsys = s.fs.Fs()
+	}
+	if len(cohort.Shards()) > 0 {
+		return dropArchiveIndex(fsys, cohort, path, keyFields)
 	}
 
 	indexPath := encx.SidecarIndexPath(path, keyFields)
@@ -273,4 +283,66 @@ func countIndexIndexedRecords(idx *encx.Index) int {
 		}
 	}
 	return n
+}
+
+// dropArchiveIndex is DropIndex for a shard archive (see DropIndex).
+func dropArchiveIndex(fsys afero.Fs, cohort *Cohort, path string, keyFields []string) error {
+	indexPath := encx.SidecarIndexPath(path, keyFields)
+	dir := filepath.Dir(path)
+	var sidecars []string
+	seen := map[string]bool{}
+	add := func(p string) {
+		if !seen[p] {
+			seen[p] = true
+			sidecars = append(sidecars, p)
+		}
+	}
+
+	manifest, present, err := encx.ReadIndexManifest(fsys, path)
+	if err != nil {
+		return err
+	}
+	forgotten := false
+	if present {
+		base := filepath.Base(indexPath)
+		for _, e := range manifest.Indexes {
+			if e.IndexPath == base {
+				for _, sh := range e.Shards {
+					add(filepath.Join(dir, sh.IndexPath))
+				}
+			}
+		}
+		if manifest.Remove(base) {
+			if err := encx.WriteIndexManifest(fsys, path, manifest); err != nil {
+				return err
+			}
+			forgotten = true
+		}
+	}
+	for _, sh := range cohort.Shards() {
+		add(encx.ArchiveShardIndexPath(path, sh.Filename, keyFields))
+	}
+
+	removed := false
+	for _, p := range sidecars {
+		exists, err := afero.Exists(fsys, p)
+		if err != nil {
+			return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+				fmt.Sprintf("checking shard sidecar index existence: %s", p))
+		}
+		if !exists {
+			continue
+		}
+		if err := fsys.Remove(p); err != nil {
+			return errors.WrapCodedError(err, errors.SERVICE_RESOURCE,
+				fmt.Sprintf("removing shard sidecar index: %s", p))
+		}
+		removed = true
+	}
+	if !forgotten && !removed {
+		return errors.NewCodedErrorWithDetails(errors.PULSE_INDEX_MISSING,
+			"no sidecar point-lookup index found for these key fields",
+			map[string]any{"cohort": path, "fields": keyFields, "index_path": indexPath})
+	}
+	return nil
 }

@@ -85,8 +85,7 @@ status](flags.md#exit-status).
 | Code | Meaning |
 |---|---|
 | `PULSE_INDEX_MISSING` | No sidecar built for the requested key field(s) — run `pulse index build` first |
-| `PULSE_INDEX_STALE` | The cohort really changed — a different size, or a content hash disagreeing with the sidecar's fingerprint. An mtime that moved while the size held is **not** stale: it falls through to the fingerprint (see [`pulse index verify`](index.md#pulse-index-verify)). Rebuild |
-| `PULSE_INDEX_UNSUPPORTED_SHARDED` | The cohort is a shard archive — point lookup is single-file only. The `archive.pulse#shard.pulse` anchor works as a tested single-shard workaround |
+| `PULSE_INDEX_STALE` | The cohort really changed — a different size, or a content hash disagreeing with the sidecar's fingerprint. An mtime that moved while the size held is **not** stale: it falls through to the fingerprint (see [`pulse index verify`](index.md#pulse-index-verify)). On a shard archive, also a shard the index does not cover (`details.shards_uncovered`). Rebuild |
 | `PULSE_LOOKUP_NOT_FOUND` | The index is fresh but no record matches the key |
 | `PULSE_LOOKUP_AMBIGUOUS` | Default `assert-unique` mode rejects a key resolving to more than one row |
 

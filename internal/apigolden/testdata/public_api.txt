@@ -55,9 +55,12 @@ pulse: type AttributeRegistration field Purpose *pulse/descriptor.Purpose
 pulse: type AttributeRegistration field WeightAware bool
 pulse: type BuildIndexResult = pulse/internal/service.BuildIndexResult
 pulse: type BuildIndexResult underlying struct
+pulse: type BuildIndexResult field DistinctKeys int
 pulse: type BuildIndexResult field Index *pulse/internal/encoding.Index
 pulse: type BuildIndexResult field IndexPath string
+pulse: type BuildIndexResult field IndexedRecords int
 pulse: type BuildIndexResult field ManifestPath string
+pulse: type BuildIndexResult field ShardIndexPaths []string
 pulse: type ChainOverlaySchemaDivergence = pulse/internal/descriptor.ChainOverlaySchemaDivergence
 pulse: type ChainOverlaySchemaDivergence underlying struct
 pulse: type ChainOverlaySchemaDivergence field Index int "json:\"index\""
@@ -575,6 +578,7 @@ pulse: type IndexInfo field DistinctKeys int
 pulse: type IndexInfo field IndexPath string
 pulse: type IndexInfo field IndexedRecords int
 pulse: type IndexInfo field Keys []string
+pulse: type IndexInfo field ShardIndexPaths []string
 pulse: func InitFeatureProfile(from string, ext ...pulse.Extensions) (*pulse.FeatureProfile, error)
 pulse: func Intents() []pulse/descriptor.Intent
 pulse: type LabelBinding = pulse/types.LabelBinding
@@ -1235,6 +1239,8 @@ pulse: type VerifyIndexResult field Fresh bool
 pulse: type VerifyIndexResult field IndexPath string
 pulse: type VerifyIndexResult field ModTimeDrift bool
 pulse: type VerifyIndexResult field Reason pulse/internal/service.IndexFreshnessReason
+pulse: type VerifyIndexResult field ShardsMismatched []string
+pulse: type VerifyIndexResult field ShardsUncovered []string
 pulse: type VerifyResult = pulse/internal/service.VerifyResult
 pulse: type VerifyResult underlying struct
 pulse: type VerifyResult field Errors []*pulse/errors.CodedError "json:\"errors\""
@@ -5764,4 +5770,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 757d56391d817b84a318148d714808fbf5dbe2e75738299eb8f86994e07a18d1
+// golden-hash: 8bb909c1238305ab9b56aaac1f0e3f8b4b05ffbb72bf0280e20b8cced2de85d7
