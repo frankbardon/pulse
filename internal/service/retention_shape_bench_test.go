@@ -11,6 +11,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -27,16 +28,24 @@ import (
 // flags) and 15 aggregations (AGG_SUM, AGG_DISTINCT_COUNT, AGG_MIN, 12
 // AGG_MAX) per customer; spend's carries 3 aggregations and no
 // attribute; retention-budget is retention under a MaxEstimatedMemory
-// that shrinks the merge window. The archive is cached under
+// that shrinks the merge window. The -dense shapes (U51 E5-S12) run
+// the same chains over 300k customer ids, so a shard's partial holds
+// about half the customers (~151k of ~300k) — the per-shard key share
+// of the 50M showcase (~1.3M of 2.6M), where the shard partials, not
+// the returned rows, dominate. The archives are cached under
 // $PULSE_BENCH_DIR. Run one
 // shape per process under /usr/bin/time -l for RSS; figures in
 // docs/internals/BENCHMARKS_BASELINE.md. Never run in CI.
 func BenchmarkRetentionShape(b *testing.B) {
 	dir := matrixScaleDir(b)
 	cfg := matrixScaleOSConfig(b, dir)
-	path := retentionShapeArchive(b, dir, 12, 210_000, 1_200_000)
-	for _, shape := range []string{"retention", "spend", "retention-budget"} {
+	for _, shape := range []string{"retention", "spend", "retention-budget", "retention-dense", "spend-dense"} {
 		b.Run(shape, func(b *testing.B) {
+			customers := 1_200_000
+			if strings.HasSuffix(shape, "-dense") {
+				customers = 300_000
+			}
+			path := retentionShapeArchive(b, dir, 12, 210_000, customers)
 			svc := New(cfg)
 			svc.SetProjectBufferedFields(true)
 			svc.SetShardWorkers(4)
@@ -53,7 +62,7 @@ func BenchmarkRetentionShape(b *testing.B) {
 			}
 			ctx := context.Background()
 			run := func() error {
-				_, err := svc.ProcessChain(ctx, retentionShapeChain(path, shape != "spend"))
+				_, err := svc.ProcessChain(ctx, retentionShapeChain(path, !strings.HasPrefix(shape, "spend")))
 				return err
 			}
 			b.ReportAllocs()

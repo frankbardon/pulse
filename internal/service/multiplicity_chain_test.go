@@ -69,7 +69,7 @@ func runStage(t *testing.T, svc *Service, req *types.Request) *types.Response {
 	if err != nil {
 		t.Fatal(err)
 	}
-	recs, err := processing.RecordsFromChainRows(chainStageRows(), schema)
+	recs, err := processing.NewChainRowIterator(chainStageRows(), schema)
 	if err != nil {
 		t.Fatal(err)
 	}

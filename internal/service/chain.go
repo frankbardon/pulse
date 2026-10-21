@@ -308,7 +308,11 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 	if err != nil {
 		return nil, nil, err
 	}
-	records, err := processing.RecordsFromChainRows(priorResp.Data, synthSchema)
+	// The stage reads the previous stage's rows lazily: one record a
+	// row as the scan reaches it, never all of them at once (#499).
+	// The categorical keys resolve here, so the dictionaries are whole
+	// before the stage's defaults and gate read the schema.
+	records, err := processing.NewChainRowIterator(priorResp.Data, synthSchema)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -333,7 +337,7 @@ func (s *Service) runChainStageChild(ctx context.Context, req *types.ChainReques
 		return nil, nil, locate(err, "stage", i)
 	}
 	if err := s.limitsPreflight(stage, synthSchema, descx.LimitInputs{
-		Records:           int64(len(records)),
+		Records:           int64(records.Len()),
 		JoinRightRows:     -1,
 		Extensions:        s.ExtensionsSnapshot(),
 		FusionDisabled:    s.disableCrosstabFusion,
@@ -505,8 +509,8 @@ func snapshotRequest(req *types.Request) *types.Request {
 	return &clone
 }
 
-// runChainStage runs the processor against an in-memory record set
-// constructed from the prior stage's output. The synthesised schema
+// runChainStage runs the processor against the prior stage's output,
+// read through iter (processing.ChainRowIterator). The synthesised schema
 // has no on-wire byte layout — it exists purely to satisfy field
 // lookups and dictionary resolution in operators downstream.
 //
@@ -516,8 +520,7 @@ func snapshotRequest(req *types.Request) *types.Request {
 // stage's own Request.Overlays — a per-stage `request` family exactly
 // as a standalone Process of the stage request would correct it. A
 // nil or inactive plan is a no-op (byte-identical output).
-func (s *Service) runChainStage(ctx context.Context, req *types.Request, plan *descx.MultiplicityPlan, schema *encoding.Schema, records []*processing.Record) (*types.Response, error) {
-	iter := processing.NewSliceIterator(records)
+func (s *Service) runChainStage(ctx context.Context, req *types.Request, plan *descx.MultiplicityPlan, schema *encoding.Schema, iter processing.RecordIterator) (*types.Response, error) {
 	proc := s.newProcessor(ctx, schema, req)
 	resp, err := proc.Process(ctx, req, iter)
 	if err != nil {

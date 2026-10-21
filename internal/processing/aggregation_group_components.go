@@ -155,39 +155,42 @@ func slotTotalComponents(aggs []*types.Aggregation, records []*Record) []types.A
 	return slotFloorTotals(aggs, floors)
 }
 
+// bucketAggregationComponents is one bucket's per-slot Components
+// entries, off its live aggregators (already Finalized) and floor
+// tallies — the same builder the ungrouped streaming exit uses
+// (buildAggregationComponents + the weighted floor), so it equals the
+// buffered arm's entry for that bucket. FinalizeGroupedStream builds it
+// beside the bucket's Data row, before it releases the bucket (#499).
+func bucketAggregationComponents(aggs []*types.Aggregation, b *GroupBucket, key string) ([]types.AggregationComponents, error) {
+	bucket, fl := b.Aggs, b.Floors
+	if len(bucket) != len(aggs) || len(fl) != len(aggs) {
+		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			"grouped components: a bucket has no per-slot floor tally",
+			map[string]any{"group_key": key, "slots": len(aggs), "floors": len(fl)})
+	}
+	row := make([]types.AggregationComponents, len(aggs))
+	for i, oa := range bucket {
+		e, err := buildAggregationComponents(oa, aggs[i], fl[i].n, fl[i].nNull)
+		if err != nil {
+			return nil, err
+		}
+		fl[i].Stamp(&e)
+		row[i] = e
+	}
+	return row, nil
+}
+
 // streamedGroupedAggregationComponents assembles a streaming or merged
-// grouped run's Components.Aggregations from its live per-bucket
-// aggregators (already Finalized) and floor tallies, over the FINAL Data
-// order. Each bucket entry comes off the same builder the ungrouped
-// streaming exit uses (buildAggregationComponents + the weighted floor),
-// so it equals the buffered arm's entry for that bucket. set is the
-// multi-grouper run's observed composite keys (each groups[] GroupKey
-// then carries the full tuple); nil for one grouper.
-func streamedGroupedAggregationComponents(aggs []*types.Aggregation, totals []SlotFloor, buckets map[string]*GroupBucket, keys []string, set *CompositeKeySet) ([]types.AggregationComponents, error) {
+// grouped run's Components.Aggregations from the per-bucket entries
+// (bucketAggregationComponents, keyed by bucket key) and the cohort-wide
+// slot floors, over the FINAL Data order. set is the multi-grouper run's
+// observed composite keys (each groups[] GroupKey then carries the full
+// tuple); nil for one grouper.
+func streamedGroupedAggregationComponents(aggs []*types.Aggregation, totals []SlotFloor, entries map[string][]types.AggregationComponents, keys []string, set *CompositeKeySet) ([]types.AggregationComponents, error) {
 	if len(totals) != len(aggs) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 			"grouped components: cohort-wide slot floors missing",
 			map[string]any{"slots": len(aggs), "floors": len(totals)})
-	}
-	entries := make(map[string][]types.AggregationComponents, len(keys))
-	for _, key := range keys {
-		b := buckets[key]
-		bucket, fl := b.Aggs, b.Floors
-		if len(bucket) != len(aggs) || len(fl) != len(aggs) {
-			return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
-				"grouped components: a bucket has no per-slot floor tally",
-				map[string]any{"group_key": key, "slots": len(aggs), "floors": len(fl)})
-		}
-		row := make([]types.AggregationComponents, len(aggs))
-		for i, oa := range bucket {
-			e, err := buildAggregationComponents(oa, aggs[i], fl[i].n, fl[i].nNull)
-			if err != nil {
-				return nil, err
-			}
-			fl[i].Stamp(&e)
-			row[i] = e
-		}
-		entries[key] = row
 	}
 	return GroupedAggregationComponents(slotFloorTotals(aggs, totals), entries, keys, set)
 }
