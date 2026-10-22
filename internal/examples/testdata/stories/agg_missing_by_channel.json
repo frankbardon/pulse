@@ -1,0 +1,32 @@
+{
+  "data": [
+    {
+      "age_null": 3,
+      "channel": "paper",
+      "income_null": 52,
+      "income_present": 48
+    },
+    {
+      "age_null": 7,
+      "channel": "phone",
+      "income_null": 16,
+      "income_present": 84
+    },
+    {
+      "age_null": 4,
+      "channel": "web",
+      "income_null": 7,
+      "income_present": 93
+    }
+  ],
+  "metadata": {
+    "total_rows": 300,
+    "filtered_rows": 300,
+    "cohort_file": "intake.pulse"
+  },
+  "returned": {
+    "preset": "standard",
+    "digest": "rp1:e54405ae11f7db2bbe9d6bcfa4b9a169857bd482f45431aaae78605ca90255ef",
+    "precision": 4
+  }
+}

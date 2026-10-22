@@ -1,0 +1,53 @@
+{
+  "_meta": {
+    "interpretation": "Not evenly. Every channel has some blank incomes, but about half of the paper forms leave income blank, far more than the web forms, with phone in between, while age is blank on only a handful of forms in every channel. Missing income therefore depends on how the form arrived, so an average income over the present rows leans towards web applicants; compare the channels, or weight them back, before you report one figure for everyone. A null here is a blank answer, not a zero income: the counts of present values leave the blanks out instead of treating them as nothing earned.",
+    "question": "How much income is missing, and is it missing evenly across intake channels?",
+    "category": "aggregations",
+    "description": "Missing-data check on intake.pulse: AGG_COUNT (present values) beside AGG_NULL_COUNT on the nullable income and age fields, per intake channel via GROUP_CATEGORY. The null counts read the per-record null bitmap; income is blank on far more paper forms than web forms, while age gaps are small and even.",
+    "intents": [
+      "data_quality",
+      "compare_groups"
+    ],
+    "name": "agg_missing_by_channel",
+    "operators": [
+      "AGG_COUNT",
+      "AGG_NULL_COUNT",
+      "GROUP_CATEGORY"
+    ],
+    "tags": [
+      "data-quality",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "income",
+      "label": "income_present"
+    },
+    {
+      "type": "AGG_NULL_COUNT",
+      "field": "income",
+      "label": "income_null"
+    },
+    {
+      "type": "AGG_NULL_COUNT",
+      "field": "age",
+      "label": "age_null"
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "channel"
+    }
+  ],
+  "cohort": {
+    "filename": "intake.pulse",
+    "data_dir": ".data"
+  },
+  "return": {
+    "preset": "standard",
+    "precision": 4
+  }
+}

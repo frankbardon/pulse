@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "aggregations",
-    "description": "Null-state survey on the all_types.pulse u8 small_int field via AGG_NULL_COUNT paired with AGG_COUNT (non-null) for a complete present-vs-null contrast. AGG_NULL_COUNT consults the per-record null bitmap (Schema.HasBitmap()) so the count is exact even on fully-populated fixtures (returns 0 when no nulls — the canonical data-quality smoke shape).",
+    "description": "Null-state survey on the nullable income field of intake.pulse via AGG_NULL_COUNT paired with AGG_COUNT (present values) for a complete present-vs-null contrast. AGG_NULL_COUNT reads the per-record null bitmap (Schema.HasBitmap()), so a blank income counts as missing, never as zero: about a quarter of the forms leave income blank.",
     "intents": [
       "data_quality"
     ],
@@ -18,17 +18,17 @@
   "aggregations": [
     {
       "type": "AGG_COUNT",
-      "field": "small_int",
-      "label": "small_int_present"
+      "field": "income",
+      "label": "income_present"
     },
     {
       "type": "AGG_NULL_COUNT",
-      "field": "small_int",
-      "label": "small_int_null"
+      "field": "income",
+      "label": "income_null"
     }
   ],
   "cohort": {
-    "filename": "all_types.pulse",
+    "filename": "intake.pulse",
     "data_dir": ".data"
   }
 }

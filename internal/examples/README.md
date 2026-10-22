@@ -43,7 +43,7 @@ make build
 That writes `transactions.pulse`, `customers.pulse`, `orders.pulse`,
 `training_data.pulse`, `all_types.pulse`, `experiment.pulse`,
 `repeated_measures.pulse`, `card_issuers.pulse`, `tier_migrations.pulse`,
-`survey.pulse`, `subscribers.pulse`, `warehouse_orders.pulse`, `plan_history.pulse`, `plan_history_wide.pulse` and `battery.pulse` into `.data/` at the repo root, plus the point-lookup
+`survey.pulse`, `subscribers.pulse`, `warehouse_orders.pulse`, `plan_history.pulse`, `plan_history_wide.pulse`, `battery.pulse` and `intake.pulse` into `.data/` at the repo root, plus the point-lookup
 index on `experiment.pulse` (`id`). Every example request has
 `cohort.data_dir = ".data"` so the requests run unmodified.
 
@@ -63,6 +63,7 @@ index on `experiment.pulse` (`id`). Every example request has
 | `plan_history.pulse` | A long panel of 15 customers at three month-end snapshots (45 rows, not sorted by customer): `id` (u32), `customer_id` (u32), `seen_at` (date), `plan` (categorical, `basic` / `plus` / `pro`). Hand-curated; `attributes/24_previous_state_transitions.json` reads each row's previous plan (`ATTR_PREVIOUS_STATE`) for a from-plan × to-plan crosstab. |
 | `plan_history_wide.pulse` | The wide twin of `plan_history`: one row per move between two consecutive snapshots (30 rows): `id` (u32), `customer_id` (u32), `moved_at` (date, the later snapshot), `plan_before` / `plan_after` (categorical). `overlays/55_crosstab_previous_state_flows.json` runs Markov, symmetry and retention on the long panel; `TestExamples_PreviousStateFlowsMatchWideTwin` holds its answer to the same request over this file. |
 | `battery.pulse` | A one-trait engagement battery (300 respondents): `id` (u32), `bat_energy` / `bat_proud` / `bat_absorbed` / `bat_recommend` / `bat_time_flies` (u8, 1-5, positively keyed) and `bat_dread` (u8, 1-5, reverse-keyed). Every item loads on one latent trait (`fixtures/gen.go`), so the reliability example's omega is defined and the PCA example has one dominant component (`TestExamples_BatteryMeasuresOneTrait`). |
+| `intake.pulse` | 300 sign-up intake forms, 100 per channel, with planted nulls: `id` (u32), `channel` (categorical, `web` / `phone` / `paper`), `age` (u8, **nullable**, blank on a few forms in every channel) and `income` (f64, **nullable**, blank far more often on paper than on web). The one fixture with real nulls: a blank CSV cell in a nullable numeric column imports as a null in the per-record bitmap, never as zero, so the null-count and null-filter examples report non-zero, channel-dependent gaps (`TestExamples_IntakeNullsArePlanted`). To plant nulls in a new fixture, declare the field `"nullable": true` in its schema and write an empty cell (`fixtures/gen.go` `writeIntake`, which draws from its own seeded source so every other CSV stays byte-identical). |
 
 The generator (`fixtures/gen.go`) is deterministic — re-running with the
 same seed produces byte-identical CSVs. Re-generate from scratch:

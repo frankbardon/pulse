@@ -1,7 +1,5 @@
 {
   "_meta": {
-    "interpretation": "Yes, at least one. Mahalanobis distance measures how far a row sits from the centre of the cohort once the spread and correlation of age and income are taken into account; across the rows it averages about the number of fields, which is what a well-behaved cloud gives. The largest distance is many times that average and the smallest outlier p-value is tiny, so at least one customer sits well outside the usual profile. The p-value is fitted on the north and south regions only, so east and west customers are judged against that profile. An unusual row is a lead to check, not an error to delete: income here has a long upper tail, so the most distant customers are most likely genuine high earners, and the chi-square p-value assumes a bell-shaped cloud that a skewed income does not have.",
-    "question": "Is any customer's age and income combination far out of line with the rest?",
     "category": "attributes",
     "description": "Per-row Mahalanobis distance across age and income on customers.pulse via ATTR_MAHALANOBIS: D² from a cohort-wide fit (its mean over the rows is about p = 2), and its chi-square upper tail (output p) from a fit restricted by fit_on to the north and south regions — every filtered row is still scored, so east and west customers are measured against the north/south profile. The minimum p flags the most unusual age-income combination.",
     "intents": [
