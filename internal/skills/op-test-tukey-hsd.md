@@ -15,9 +15,13 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
-- `alpha` — float, default `0.05`, family-wise, in `(0, 1)`.
-- `ms_within` / `df_within` — float, both required. Within-group mean square + df from a preceding one-way ANOVA.
-- `n_column` — string, default `"n"`: result-row column holding each group's size (Tukey-Kramer weighs a pair by it).
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | Family-wise, in `(0, 1)`. |
+| `ms_within` | float | (required) | Both required. Within-group mean square + df from a preceding one-way ANOVA. |
+| `df_within` | float | (required) | Both required. Within-group mean square + df from a preceding one-way ANOVA. |
+| `n_column` | string | `n` | Result-row column holding each group's size (Tukey-Kramer weighs a pair by it). |
+| `partition_by` | list | — | Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). |
 
 `Field` + `SplitBy` both required. **Tier-2 only** — list in `Request.PostTests`.
 
@@ -31,10 +35,11 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - <!-- feature: capability:multiplicity -->Already family-wise: never joins a `multiplicity` family; an explicit non-`none` block is refused, an inherited one skipped.<!-- /feature -->
-- Never weighted (it reads aggregated result rows, which carry no row weights): any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; set `"weight": null` on the slot to run it unweighted.
 - Runs against materialized per-group result rows; a group row with a null drops (listwise); a non-numeric mean or `n_column` value is `PULSE_TEST_FIELD_NOT_NUMERIC`, a missing column `SERVICE_VALIDATION`. Buffered (`Streamable=false`).
 - Consumes tier-1 one-way ANOVA outputs: run as a follow-up Request, or compose inside a ProcessChain that exposes them.
 - Assumes equal variances (as ANOVA); Games-Howell for unequal is not yet shipped.

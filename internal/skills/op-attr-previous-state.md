@@ -13,15 +13,18 @@ examples_tags: [cohort-analysis, buffered-pipeline]
 
 ## Params
 
-None. Top-level keys: `field` (state), `subject_field`, `order_field`, `label`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `subject_field` | field | (required) | Column identifying the subject (matched by value). |
+| `order_field` | field | (required) | `date` / `datetime` column ordering each subject's rows. |
+
+Top-level slot keys: `field` (state), `subject_field`, `order_field`, `label`.
 
 ## Inputs
 
-| Slot | Accepted field types |
-|---|---|
-| `field` | `categorical_*`, `packed_bool`; a coded integer → `PULSE_FIELD_TYPE_UNSUPPORTED` (re-import categorical) |
-| `subject_field` | any scalar but `set_*` / `vec_*` |
-| `order_field` | `date`, `datetime` — by instant, no `tz` |
+- `field` — a coded integer is not a state: re-import it categorical
+- `subject_field` — any scalar but `set_*` / `vec_*`
+- `order_field` — `date`, `datetime` — by instant, no `tz`
 
 Source columns only.
 
@@ -31,7 +34,9 @@ The previous state, typed as `field` (its dictionary, nullable); crosstab it × 
 
 ## Components
 
-Floor `{n, n_null}` + `n_subjects`, `n_first`, `n_gap`, `n_ambiguous`. `None`: terminal chunk only.
+- `n_subjects`, `n_first`, `n_gap`, `n_ambiguous`.
+
+<!-- generated: contract -->
 
 ## Gotchas
 
@@ -39,7 +44,6 @@ Floor `{n, n_null}` + `n_subjects`, `n_first`, `n_gap`, `n_ambiguous`. `None`: t
 - Ties (same subject + order) read the time point before; the next reads the tied state only if all agree, else null + `PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE` (error under Strict).
 - Runs over the whole cohort before filters: a date window keeps each first in-window record's true previous state; Components count every record. An expression filter may read it by state name, as on the state field (`prev == "paid"`, `prev != nil`); a field filter may not.
 - Buffered: no streaming, fused crosstab or shard merge.
-- Weight refused (`"weight": null` runs it).
 
 ## See
 

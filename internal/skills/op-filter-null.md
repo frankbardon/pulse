@@ -19,17 +19,13 @@ examples_tags: [data-quality, cohort-analysis, streaming-friendly]
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | any cohort field type — null state is read from the per-record null bitmap. |
+- `Field` — any cohort field type — null state is read from the per-record null bitmap.
 
 ## Output
 
 Row-level predicate. Pass per the configured mode. No emitted column.
 
-## Components
-
-Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}` per `response-components` contract. `n_null_input` matches `n_out` when mode is `is_null`, and `n_in − n_out` when mode is `is_not_null` (book-keeping mirrors the predicate). Mergeable across chunks.
+<!-- generated: contract -->
 
 ## Gotchas
 

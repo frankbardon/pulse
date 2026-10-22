@@ -15,40 +15,35 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `interval` | float | (required) | Bucket width on value axis; set on `Group.Interval`. |
+| `interval` | float | `1` | Bucket width on value axis; set on `Group.Interval`. ≤ 0 is treated as 1. |
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
 
 ## Output
 
-String label `"low-high"` per row (`"10-20"` holds `[10, 20)`). Smart default (Interval=10) for numeric. Rows emit by numeric low edge (`"-20--10"`, `"-10-0"`, `"0-10"`, `"10-20"`, `"100-110"`) on every arm (streaming, shards, fused crosstab). An explicit `sort` or crosstab-axis `include` wins; sorting the key column compares strings.
+String label `"low-high"` per row (`"10-20"` holds `[10, 20)`). Rows emit by numeric low edge (`"-20--10"`, `"-10-0"`, `"0-10"`, `"10-20"`, `"100-110"`) on every arm (streaming, shards, fused crosstab). An explicit `sort` or crosstab-axis `include` wins; sorting the key column compares strings.
 
 ## Components
 
-Universal floor `{total_n, n_null}` plus:
+- `interval` — Bucket width
+- `range_min` — Smallest non-null
+- `range_max` — Largest non-null
+- `n_buckets` — Buckets emitted
+- `edges` — Sorted cutpoints
+- `buckets` — `{key, low, high, count}`
+- `underflow_count` — Below low
+- `overflow_count` — At/above high
+- Fans out whatever the bucket count; at very high cardinality (buckets ≳ 70% of each partition's rows) the fan-out gains nothing, which predict cannot see.
+- `StreamableGrouper`: eligible for fused crosstab.
 
-| Key | Type | Notes |
-|---|---|---|
-| `interval` | float64 | Bucket width |
-| `range_min` | float64 | Smallest non-null |
-| `range_max` | float64 | Largest non-null |
-| `n_buckets` | int | Buckets emitted |
-| `edges` | []float64 | Sorted cutpoints |
-| `buckets` | []bucket | `{key, low, high, count}` |
-| `underflow_count` | int | Below low |
-| `overflow_count` | int | At/above high |
-
-- Mergeability: `Mergeable` — fans out whatever the bucket count; at very high cardinality (buckets ≳ 70% of each partition's rows) the fan-out gains nothing, which predict cannot see
-- Streaming: `StreamableGrouper` — eligible for fused crosstab
+<!-- generated: contract -->
 
 ## Gotchas
 
 - Half-open `[low, high)` — upper edge belongs to next bucket.
-- Rejects categorical and `set_*` at construction (`PULSE_FIELD_TYPE_UNSUPPORTED`).
+- Explicit `"type":"GROUP_RANGE"` without `interval` buckets at width 1; a numeric slot with no `type` gets the smart default GROUP_RANGE with `interval` 10 (`defaults_applied`).
 - `Group.Include` not honoured.
 
 ## See

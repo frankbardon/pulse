@@ -2153,7 +2153,8 @@ ext := pulse.Extensions{
 The frontmatter keys and the required `##` sections are the built-in
 pack's (`.claude/reference/skill-pack.md` in the repo): an atomic skill
 carries `## Params`, `## Inputs`, `## Output`, `## Gotchas`, `## See`
-(plus `## Components` for `AGG` / `GROUP` / `FILTER`). Only an `ext-*`
+(`## Components` is optional; the `<!-- generated: contract -->` marker
+renders the component keys from your registration). Only an `ext-*`
 skill may carry `requires:` — an atomic skill already follows its
 operator.
 
@@ -2172,7 +2173,7 @@ The first failure is `PULSE_EXTENSION_SKILL_INVALID` (details carry
 | `frontmatter` / `name` / `description` | a `---` block; `name` equals the stem; a description |
 | `kind` / `operator` / `category` / `requires` | atomic: `kind: operator`, a registered extension operator, its prefix as `category`; topical: `kind: design`; each `requires:` entry a feature (`capability:crosstab`) or registered operator |
 | `sections` | the family's required `##` headings |
-| `budget` | body (frontmatter, fence markers and generated-section markers stripped) ≤ 1200 bytes for `op-*`, ≤ 6000 for `ext-*` — hard, unlike the built-in atomic budget |
+| `budget` | body (frontmatter, fence markers and generated-section markers stripped) within the built-in pack's tier for its stem prefix — `op-test-*` ≤ 2200, `op-reg-*` ≤ 3000, every other `op-*` ≤ 1800 bytes — and ≤ 6000 for `ext-*`; hard, exactly as for the shipped skills (one table, `skills.BodyBudget`); details carry `bytes` and `budget` |
 | `fence` | every `<!-- feature: … -->` fence closes and names a feature or registered operator |
 | `fence_coverage` | every operator, `<kind>:<name>` feature or feature-owned `pulse_*` tool the body names — your own other operators included — sits in a fence naming it, unless the skill goes whenever it is hidden (its own operator and that operator's `DependsOn`, transitively; a topical skill's `requires:`). The description may name none |
 | `see` | every backticked stem in `## See` is a skill the instance carries (built-in, virtual or yours) |
@@ -2187,7 +2188,13 @@ hides its atomic skill, and an `ext-*` skill whose `requires:` names a
 hidden feature: either then reads exactly like a name that never
 existed on every surface. A visible skill's fences render against the
 instance (a span naming a hidden feature is cut), so mention a feature
-the profile may hide only inside a fence. Registering skills never
+the profile may hide only inside a fence. Its `## See` section renders
+by edge — atomic and topical alike: a stem naming a hidden skill and a
+`tags=[…]` search no visible example answers are cut, a line left
+naming nothing goes, and a topical (`ext-*`) section left blank goes
+with its heading; an atomic skill keeps its required `## See` heading
+over an empty section.
+Registering skills never
 changes a built-in skill's listing or body.
 
 ### Generated sections (opt-in)
@@ -2199,9 +2206,22 @@ An atomic skill may carry the marker lines
 from the operator's registration `Purpose` (plain line, up to two
 questions, the not-for alternatives the instance can see), and
 `## Reading the output`, rendered from a test registration's
-`Interpretation`. A marker whose operator declares no such metadata is
-removed silently; a skill without markers is served unchanged; markers
-never cause a `pulse.New` failure and never count toward the budget.
+`Interpretation`. A third marker, `<!-- generated: contract -->` (just
+before `## Gotchas`), renders `## Contract` from the registration
+itself: the declared `Accepts` types, the weight line from
+`WeightAware` (aware: weighted under both kinds; not aware: an
+aggregator refuses an explicit weight with
+`PULSE_EXTENSION_NOT_WEIGHT_AWARE` and skips an instance default, any
+other category refuses any weight in force), multiplicity for a test
+or a matrix / regression registration declaring `PValues`,
+`Streamable` / `Mergeable` with the `ComponentSchema` mergeability
+class, and the declared `ComponentSchema` key names. On a profiled
+instance it names no hidden feature (no weight line without
+`capability:weighting`, no multiplicity line without
+`capability:multiplicity`). A marker whose operator declares no such
+metadata is removed silently; a skill without markers is served
+unchanged; markers are optional and never auto-injected, never cause a
+`pulse.New` failure and never count toward the budget.
 
 ## Embedder examples (`Extensions.Examples`)
 
@@ -2289,7 +2309,8 @@ the edges a built-in example gets: `operator exemplified_by example`
 for every operator and overlay kind, `serves_intent` per intent,
 `requires_capability` per declared or detected capability, `routes_to`
 for an operator the description names, and an `exemplified_by` edge
-from every atomic skill whose `## See` `tags=[…]` search it matches. A
+from every skill (atomic or topical) whose `## See` `tags=[…]` search
+it matches. A
 feature profile that hides your operator — or a built-in operator or
 capability the example uses — hides it: absent from every search and
 from the manifest counts, and `ExampleGet` / `pulse_examples_get` answer

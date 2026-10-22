@@ -26,12 +26,13 @@ Use something else:
 
 ## Params
 
-- `alpha` — float, default `0.05`, in `(0, 1)`.
-- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p ([`multiplicity-correction`](multiplicity-correction.md)).
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | In `(0, 1)`. Significance level in (0, 1); RejectNull is true when PValue < alpha. |
 
 ## Inputs
 
-`Field` (required) — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1). `SplitBy` (required, the condition) — categorical: `categorical_u8`/`u16`/`u32`, or `packed_bool` (levels `"0"`/`"1"`), else `PULSE_FIELD_TYPE_UNSUPPORTED`. `SubjectField` (required, the within-subject grouping) — `categorical_u8`/`u16`/`u32` ONLY: a `packed_bool` subject (two ids) is refused, same code.
+`Field` (required) — numeric (`decimal128` as its float64 echo, `packed_bool` as 0/1). `SplitBy` (required, the condition) — categorical (`packed_bool` levels `"0"`/`"1"`). `SubjectField` (required, the within-subject grouping) — `categorical_u8`/`u16`/`u32` ONLY: a `packed_bool` subject (two ids) is refused, same code.
 
 ## Output
 
@@ -43,9 +44,17 @@ Use something else:
   - Caveat: It says whether some conditions differ, not which ones.
 - `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 
+## Contract
+
+- Types (`field`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_TEST_FIELD_NOT_NUMERIC`.
+- Types (`split_by`): `categorical_*`, `packed_bool`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Types (`subject_field`): `categorical_*`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: refused under any weight in force, an instance default included (`PULSE_WEIGHT_UNSUPPORTED`: a per-row weight has no defined meaning in the subject-by-condition table repeated-measures ANOVA reads); `weight: null` on the slot runs it unweighted.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `request` (default), `compose` (inside Compose).
+- Streaming: buffered only.
+
 ## Gotchas
 
-- Never weighted (a row weight has no meaning in the subject-by-condition table): any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; set `"weight": null` on the slot to run it unweighted.
 - Buffered — requires the full wide subject × condition table.
 - Subjects missing a condition are dropped (`Details.dropped_subjects`); < 2 left -> `PULSE_TEST_INSUFFICIENT_N`.
 - Sphericity violations inflate type-I; no Greenhouse-Geisser yet.

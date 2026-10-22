@@ -29,12 +29,14 @@ Use something else:
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `control` | `"all"` \| [fields] | `all` | Held-fixed set; a listed member leaves the axis. |
-| `repair` | `nearest` | none | Repair non-PSD input. |
+| `repair` | `nearest` | — | Repair non-PSD input. |
 | `inference` | bool | `false` | `auxiliary.p` / `ci_lower` / `ci_upper`, df = N* − 2 − g. |
 | `alpha` | (0, 1) | `0.05` | Interval level; needs `inference`. |
-| `missing`, `max_drop_share`, `fit`, `weight`, `encoding` | | | As [`op-mat-correlation`](op-mat-correlation.md). |
+| `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise adds `auxiliary.n` ([`matrix-results`](matrix-results.md)). |
+| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
+| `fit` | string | — | Emit from a bound vector fit's listwise state, reading no row ([`vector-row-scores`](vector-row-scores.md)). |
 
-Spec `multiplicity` implies `inference` and adds `auxiliary.p_adjusted` / `significant_adjusted` over the distinct pairs, plus a `multiplicity` echo; family `matrix` (default) or `request`. Raw `p` untouched ([`multiplicity-correction`](multiplicity-correction.md)).
+Spec `multiplicity` implies `inference` ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Inputs
 
@@ -52,7 +54,15 @@ Integer / float members and controls.
 
 ## Components
 
-Over members + outside controls: `n`, `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`; weighted `sum_weights`, `n_eff`, `n_weight_invalid`.
+- Counts run over the members plus the outside controls.
+
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Multiplicity: a spec `multiplicity` block (implying `params.inference`; an inherited method reaches only a spec under `params.inference`) adds `p_adjusted` and `significant_adjusted` beside `p`; families `request`, `matrix` (default).
+- Streaming: streamable; partial states merge; components `mergeable`.
+- Components: `n`, `n_null`, `n_listwise_dropped`; optional `min_pair_n`, `max_pair_n`, `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 

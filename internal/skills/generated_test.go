@@ -9,6 +9,7 @@ func TestMarkerSection(t *testing.T) {
 	for line, want := range map[string]string{
 		"<!-- generated: use-when -->":            SectionUseWhen,
 		"  <!--generated:reading-the-output-->  ": SectionReadingTheOutput,
+		"<!-- generated: contract -->":            SectionContract,
 		"<!-- generated: nope -->":                "",
 		"text <!-- generated: use-when -->":       "",
 		"<!-- feature: TEST_WELCH -->":            "",

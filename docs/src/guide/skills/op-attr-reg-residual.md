@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, ols, outlier-detection, buffered-pipeline]
 ```
 
-Attributes emit row-level scalars; they do not produce `Response.Components`.
+Row-level scalars; no `Response.Components`.
 
 ## Use when
 
@@ -26,24 +26,23 @@ Use something else:
 
 ## Params
 
-Top-level keys, not `params` — except `params.fit`; `field` unread.
+Refit keys are top-level, not `params`; `fit` is `params.fit` ([`regression-row-scores`](regression-row-scores.md)).
 
-| Name | Type | Description |
-|---|---|---|
-| `target` | field | Dependent field (required without `params.fit`). |
-| `predictors` | list | Independent fields (required without `params.fit`). |
-| `penalty` | enum | `""`, `l1`, `l2`, `elasticnet`. |
-| `alpha` | float | Regularization strength. |
-| `l1_ratio` | float | Elasticnet mix. |
-| `weight` | slot weight | `null` opts out; REG_OLS's kinds: WLS refit; residual raw y − ŷ. With `params.fit` skipped (the fit's own weight applied when it ran). |
-| `params.fit` | string | Score a bound fit (`fits` / `models` entry) instead of refitting: `y − score`, y the fit's target; a REG_GLM's response residual. No `target` / `predictors` / `penalty` / `alpha` / `l1_ratio` beside it. |
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `target` | field | (required) | Dependent field; absent with `fit`. |
+| `predictors` | list | (required) | Independent fields; absent with `fit`. |
+| `penalty` | enum | `""` | `""`, `l1`, `l2`, `elasticnet`. |
+| `alpha` | float | — | Regularization strength. |
+| `l1_ratio` | float | — | Elasticnet mix. |
+| `fit` | string | — | Score a bound fit (`fits` / `models` entry) instead of refitting: `y − score`, y the fit's target (a GLM's response residual); no refit keys beside it. |
+| `weight` | slot weight | inherited | `null` opts out; a WLS refit; ignored with `fit`. |
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `target` / `predictors` | numeric analytics set: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
-| `Label` | new column name; default `<TYPE>_<target>`, with `params.fit` `<TYPE>_<fit>` |
+`target` / `predictors`: see `## Contract` (`decimal128` as its float64 echo, `packed_bool` 0/1).
+
+- `Label` — new column name; default `<TYPE>_<target>`, with `params.fit` `<TYPE>_<fit>`
 
 ## Output
 
@@ -55,14 +54,18 @@ One `float64` per record — `yᵢ − ŷᵢ`; **null (never 0) when the target 
   - Sign: positive means the row's target is above what the model predicts from its predictors; negative means the row's target is below what the model predicts from its predictors.
   - Caveat: A residual is what this model leaves unexplained, not a measurement error and not the effect of any one thing left out: another set of predictors gives other residuals.
 
+## Contract
+
+- Types (`target`, `predictor`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable.
+
 ## Gotchas
 
-- Two-pass: runs an independent OLS fit per slot. With `params.fit` it is row-local (streams beside groupers, merges) and fits nothing.
-- `params.fit` follows the scoring rule: an unknown name is `PULSE_MODEL_UNKNOWN`; an extension fit whose registration has no Scorer is `PULSE_MODEL_SCORE_INVALID` `no_scorer`; a refit field beside it is `slot_fields`; a failed fit nulls every row with `PULSE_FIT_UNAVAILABLE`. Predict refuses identically.
-- Large residuals flag response-space outliers.
-- Penalized residuals bias-shrunk; for diagnostics prefer unpenalized.
+- Two-pass: each slot refits on its own. With `params.fit` it is row-local and fits nothing; refusals and a failed fit (`PULSE_FIT_UNAVAILABLE`, every row null): [`regression-row-scores`](regression-row-scores.md).
+- Large residuals flag response-space outliers. Penalized residuals are bias-shrunk; for diagnostics prefer unpenalized.
 
 ## See
 
 - `pulse_examples_search tags=[regression, outlier-detection]`
-- Skills: [`regression-modeling`](regression-modeling.md), [`attribute-composition`](attribute-composition.md), [`op-attr-reg-fitted`](op-attr-reg-fitted.md)
+- Skills: [`regression-row-scores`](regression-row-scores.md), [`regression-modeling`](regression-modeling.md), [`attribute-composition`](attribute-composition.md), [`op-attr-reg-fitted`](op-attr-reg-fitted.md)

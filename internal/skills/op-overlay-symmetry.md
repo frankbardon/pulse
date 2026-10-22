@@ -17,10 +17,9 @@ Overlays decorate the host; no `Response.Components`.
 
 `Scope` `matrix`. `Ref` empty. `Level`/`Within` `0`.
 
-- `correct` — default `true` (R's `mcnemar.test`): 2 × 2 continuity correction `(|n_12 − n_21| − 1)²`, clamped at 0; inert on k × k.
-<!-- feature: capability:multiplicity -->
-- `multiplicity` — adds `summary.p_adjusted`, raw p untouched (`multiplicity-correction`).
-<!-- /feature -->
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `correct` | bool | `true` | (R's `mcnemar.test`): 2 × 2 continuity correction `(\|n_12 − n_21\| − 1)²`, clamped at 0; inert on k × k. |
 
 ## Host shape
 
@@ -31,6 +30,8 @@ MATRIX crosstab of PAIRED units: earlier-state rows × later-state columns, one 
 SCALAR χ² = Σ_{i<j} `(n_ij − n_ji)² / (n_ij + n_ji)`. `Summary.Parameters`: `df` (pairs kept), `states`, `discordant`, `pairs_dropped`, `continuity_corrected`.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

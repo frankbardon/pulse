@@ -63,8 +63,8 @@ func setGrouperField(grp *types.Group, schema *encoding.Schema) *encoding.Field 
 //
 // Refusing at construction matches what these three operators already
 // DECLARE: internal/descriptor/capabilities_groupers.go gives each of them
-// AcceptsTypes: numericFieldTypesNoDecimal, which has never included a
-// set rung. This is the grouper twin of the FILTER_RANGE refusal.
+// a numeric AcceptsTypes (the fieldaccept table's quantity row), which
+// has never included a set rung. This is the grouper twin of the FILTER_RANGE refusal.
 //
 // GROUP_CATEGORY calls this too. It used to be excluded because
 // narrowing it was a capability change rather than a guard; that

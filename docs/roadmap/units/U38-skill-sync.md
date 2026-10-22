@@ -4,11 +4,11 @@ slug: skill-sync
 title: "Hand-written skills say exactly what the engine does, and every skill fits its budget"
 track: Guided analysis
 size: M
-status: not-started
+status: done
 depends_on: [U21]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [235, 236, 237, 376, 396]
+todo_items: [235, 236, 237, 376, 396, 416]
 branch: skill-sync
 ---
 
@@ -33,9 +33,9 @@ Numbering note: appended as U38 after U37, not renumbered.
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#235** (7. Guided analysis › Follow-ups from U21) Correct the stale hand-written skill claims against the engine: `op-agg-ci-*` calls `t_critical` a scaled critical value; `ATTR_REG_LEVERAGE` says range [0,1] but can exceed 1 outside the fit; `op-win-*` say `order_by` numeric/date while every type except `set_*` is admitted; `WIN_LAG` offset says at least 1 but predict accepts 0; `WIN_LAG` / `WIN_LEAD` say float64 output but copy the raw cell; `GROUP_RANGE` / `ROUNDED` declare `interval` required but default to 1
-- [ ] **#236** (7. › Follow-ups from U21) Trim the `op-*` bodies over the 1,200-character atomic budget (about 111 today, measured on the hand-written body), then flip `TestSkillTokenBudget` for the `op-*` family from soft to hard; coordinate the `kind: design` and `session-bootstrap.md` overrun with U32 #161
-- [ ] **#237** (7. › Follow-ups from U21) Discovery leftovers from U10: CLI `pulse skills` / `pulse examples` list embedder additions (or state they are the embedded library), reword toolmeta `DescExamplesSearch` / `DescExamplesGet` ("embedded library"), and tag the synth examples or drop the `op-synth-*` `## See tags=[synth]` lines that match no example
+- [x] **#235** (7. Guided analysis › Follow-ups from U21) Correct the stale hand-written skill claims against the engine: `op-agg-ci-*` calls `t_critical` a scaled critical value; `ATTR_REG_LEVERAGE` says range [0,1] but can exceed 1 outside the fit; `op-win-*` say `order_by` numeric/date while every type except `set_*` is admitted; `WIN_LAG` offset says at least 1 but predict accepts 0; `WIN_LAG` / `WIN_LEAD` say float64 output but copy the raw cell; `GROUP_RANGE` / `ROUNDED` declare `interval` required but default to 1
+- [x] **#236** (7. › Follow-ups from U21) Trim the `op-*` bodies over the 1,200-character atomic budget (about 111 today, measured on the hand-written body), then flip `TestSkillTokenBudget` for the `op-*` family from soft to hard; coordinate the `kind: design` and `session-bootstrap.md` overrun with U32 #161
+- [x] **#237** (7. › Follow-ups from U21) Discovery leftovers from U10: CLI `pulse skills` / `pulse examples` list embedder additions (or state they are the embedded library), reword toolmeta `DescExamplesSearch` / `DescExamplesGet` ("embedded library"), and tag the synth examples or drop the `op-synth-*` `## See tags=[synth]` lines that match no example
 
 ## Scope
 
@@ -54,51 +54,75 @@ Numbering note: appended as U38 after U37, not renumbered.
 
 Each epic is a vertical slice. Commit with `feat|fix|test|docs(skill-sync/E<n>-S<m>): …`; close each epic with `milestone(skill-sync/E<n>): vertical slice complete — <epic title>`.
 
-### E1 — Skills match the engine
-- S1: the #235 claims, each verified and fixed with a guarding test
-- S2: #237 discovery leftovers
+As delivered (the plan's two epics grew to three once the generated contract made the trim mechanical):
 
-### E2 — Every skill fits its budget
-- S1: trim the over-budget `op-*` bodies
-- S2: flip the `op-*` budget to hard
+### E1 — Skills and manifest tell the truth
+- S1: the #235 claims, each verified against the engine and fixed in the declaration and the skill, with a guarding test
+- S2: #237 discovery leftovers
+- S3: one `## See` tag parser shared by the ontology, the profiled render, embedder validation and the gate; topical See sections build edges
+- S4: profiled topical skills' `## See` drops hidden routes
+
+### E2 — Generated contract and checked params
+- S1: the registry-rendered `## Contract` generated section
+- S2: every op skill reads its contract from the registries; `## Components` optional
+- S3–S4: `## Params` tables checked against the manifest for every op skill
+
+### E3 — Hard tiered budgets
+- S1: overlay and test skills fit their tiers (design children)
+- S2: every remaining atomic fits its tier, `tool-import` included
+- S3: tiers frozen, the gate hard, embedders on the same table, companions and bookkeeping
+- S4: `GROUP_DATE` refuses a field that is not date-family (owner-added; behaviour break)
 
 ## Acceptance criteria
 
-- [ ] Every #235 claim is verified against the engine and the skill is corrected or the claim is shown true
-- [ ] `go test ./internal/skills/ -run TestSkillTokenBudget` fails an `op-*` body over budget (hard)
-- [ ] No `pulse skills` / `pulse examples` wording claims to list more or less than it does
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] Every #235 claim is verified against the engine and the skill is corrected or the claim is shown true
+- [x] `go test ./internal/skills/ -run TestSkillTokenBudget` fails an `op-*` body over budget (hard) — and every other atomic family, on a frozen tier table
+- [x] No `pulse skills` / `pulse examples` wording claims to list more or less than it does
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
-- `TestSkillTokenBudget` (op family hard)
+- `TestSkillTokenBudget` (hard for every family, frozen tiers) + `TestBodyBudget_Tiers`; `TestLoadExtensionSkills_TieredBudget`
+- `TestSkillSeeExampleTagsResolve`, `TestSkillParamsMatchManifest`, `TestSkillContract_*`, `TestWindowSkillOrderByClaimsMatchEngine`, `TestCapabilities_VectorInputAcceptsMemberRule`, `TestCapabilities_RegPredictAcceptsScoringRule` (new, none prefix-matched)
 - `TestAtomicSkillHasRequiredSections`, `TestSkillsCoverFeatureFences` unchanged and green
 - `TestSkillPurposeSectionsCurrent` unchanged
 
 ## Update Demand companions
 
-- `.claude/reference/skill-pack.md` (budget table: `op-*` hard)
+- `.claude/reference/skill-pack.md` (tier table, hard flip, `## Contract`, the `## Params` table format, the new gates)
+- `docs/src/internals/extension-points.md` (embedder budget row, contract marker) and `docs/roadmap/v1.0.0-api-and-release/03-embedder-migration.md` ("Changes from U38")
 - `docs/src/internals/` skill-pack notes if they quote the soft budget
 - Regenerate `docs/src/guide` (`make docs`) when a skill body changes; skill edits also move the per-fixture manifest goldens
 
 ## Human inputs & decisions
 
-- None.
+- **Owner (2026-10-22):** topical `## See` sections build stem `routes_to` and tag `exemplified_by` edges like atomic ones.
+- **Owner-delegated:** `## Components` is no longer a required section for AGG / GROUP / FILTER / MAT skills (built-in and embedder); the generated `## Contract` lists the keys.
+- **Owner:** recommend drafts stay byte-identical — `draftAsksParams` (`internal/guide/catalog.go`) keeps asking for `interval` now that it is optional.
+- **Owner:** `GROUP_DATE` refuses a non-date-family field (E3-S4, a behaviour break; recorded in the migration doc).
+- **Owner:** the non-positive `interval` coercion is a behaviour question for the freeze, not this unit (#506 → U33).
+- **Tiers frozen** at the provisional values the trims were fitted to (`op-*` 1800, `op-test-*` 2200, `op-overlay-*` 2400, `op-reg-*` 3000 incl. `op-reg-mod-*`, `tool-*` 2500, `type-*` 2000); no headroom added — the gate forces trimming.
+
+## Handed on
+
+| Item | To | Why |
+|---|---|---|
+| #506 refuse an explicit non-positive `GROUP_RANGE` / `GROUP_ROUNDED` `interval`, or keep the coercion and say so | [U33](U33-v1-release.md) | a behaviour change (out of U38's scope: skills, not the engine); U35 and U36, which owned runtime defects, are done, and U33 holds the other decide-before-the-freeze items |
 
 ## Inherited from U41
 
 Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#376** — `session-bootstrap.md` routing hint for `--float f32` (skipped in U41: the skill is at its design budget). Found in U41 (E1-S2).
+- [x] **#376** — `session-bootstrap.md` routing hint for `--float f32` (skipped in U41: the skill is at its design budget). Found in U41 (E1-S2).
 
 ## Inherited from U42
 
 Filed from [U42 handed on](U42-fit-scoring.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#396** — `tool-compose.md` back under its soft budget, and it mentions `fits` and `models` (today it is over budget and names neither). Found in U42 (E1-S1).
+- [x] **#396** — `tool-compose.md` back under its soft budget, and it mentions `fits` and `models` (today it is over budget and names neither). Found in U42 (E1-S1).
 
 ## Handed on from U25
 
 Filed from [U25 handed on](U25-multivariate-tests-segmentation.md); tick in [`TODO.md`](../TODO.md) when delivered.
 
-- [ ] **#416** — `op-reg-ols` / `op-reg-glm` / `op-reg-bayes-linear` (grew with `covariance` in U25) and `op-mat-correlation` / `op-mat-reliability` / `op-mat-collinearity` / `op-mat-covariance` back under the soft atomic budget. U25 trimmed only the atomic skills it added (#413). Found in U25 (TODO-413).
+- [x] **#416** — `op-reg-ols` / `op-reg-glm` / `op-reg-bayes-linear` (grew with `covariance` in U25) and `op-mat-correlation` / `op-mat-reliability` / `op-mat-collinearity` / `op-mat-covariance` back under the soft atomic budget. U25 trimmed only the atomic skills it added (#413). Found in U25 (TODO-413).

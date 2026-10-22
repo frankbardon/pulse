@@ -13,7 +13,12 @@ examples_tags: [logistic, financial]
 
 ## Params
 
-`outcome` — required; packed_bool or 0/1 numeric. `positive` — event value 0 or 1 (default 1). Missing `outcome` or another `positive` → `PROCESSING_CONFIG`; categorical / set / date → `PULSE_FIELD_TYPE_UNSUPPORTED` — predict and runtime alike. A scored outcome other than 0/1 fails the run: `PROCESSING_AUC_OUTCOME_NOT_BINARY`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `outcome` | field | (required) | Binary outcome column: packed_bool or 0/1 numeric. |
+| `positive` | float | `1` | Event value, 0 or 1. |
+
+Missing `outcome` or another `positive` → `PROCESSING_CONFIG`; categorical / set / date → `PULSE_FIELD_TYPE_UNSUPPORTED` — predict and runtime alike. A scored outcome other than 0/1 fails the run: `PROCESSING_AUC_OUTCOME_NOT_BINARY`.
 
 <!-- feature: capability:weighting -->Weight-aware: Σwᵢwⱼψ / (Σw₊·Σw₋); `se` and the interval null, `se_note` = `PULSE_AUC_DELONG_WEIGHTED`.<!-- /feature -->
 
@@ -29,7 +34,10 @@ Scalar in [0, 1]; 0.5 = no discrimination, ties count half. An empty class or a 
 
 ## Components
 
-Floor `{n, n_null}` on `field`<!-- feature: capability:weighting --> (+ `sum_weights`, `n_eff`, `n_weight_invalid`)<!-- /feature -->; `auc`, `gini` (2·AUC − 1), `n_pos`, `n_neg`, `n_null_outcome`, DeLong `se`, `ci_lower`, `ci_upper` (clipped to [0, 1]; null under 2 rows a class), `conf_level` 0.95. `None`: buffered.
+- `auc`, `gini` (2·AUC − 1), `n_pos`, `n_neg`, `n_null_outcome`; DeLong `se`, `ci_lower`, `ci_upper` (clipped to [0, 1]; null under 2 rows a class), `conf_level` 0.95.
+- The `n` / `n_null` floor counts `field` only.
+
+<!-- generated: contract -->
 
 ## Gotchas
 

@@ -248,7 +248,7 @@ More on reading it: [AGG_CI_UPPER](../reading/descriptive.md#op-agg_ci_upper).
 - [Mix and share](composition.md)
 - [Compare groups](compare_groups.md)
 
-**Skills:** [`intents`](../skills/intents.md), [`aggregation-design`](../skills/aggregation-design.md), [`attribute-composition`](../skills/attribute-composition.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`window-design`](../skills/window-design.md), [`op-agg-average`](../skills/op-agg-average.md), [`op-agg-ci-lower`](../skills/op-agg-ci-lower.md), [`op-agg-ci-upper`](../skills/op-agg-ci-upper.md)
+**Skills:** [`intents`](../skills/intents.md), [`aggregation-design`](../skills/aggregation-design.md), [`attribute-composition`](../skills/attribute-composition.md), [`overlay-formula-namespace`](../skills/overlay-formula-namespace.md), [`overlay-pairwise`](../skills/overlay-pairwise.md), [`overlay-reference-tests`](../skills/overlay-reference-tests.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`panel-n-sources`](../skills/panel-n-sources.md), [`window-design`](../skills/window-design.md), [`op-agg-average`](../skills/op-agg-average.md), [`op-agg-ci-lower`](../skills/op-agg-ci-lower.md), [`op-agg-ci-upper`](../skills/op-agg-ci-upper.md)
 
 **From the command line:**
 

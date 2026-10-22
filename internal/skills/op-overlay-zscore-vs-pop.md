@@ -15,6 +15,10 @@ Rides on `FacetRequest.Overlays`. Overlays decorate the host; no `Response.Compo
 
 ## Params
 
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `field` | string | — | On a SERIES host, the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column `"<label>[<element label>]"`; absent, the first aggregation. |
+
 `Scope` must be `group`. `Ref.Population.Cohort` (string, required) — comparison-population cohort name. `Level`/`Within` must be `0`. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## Host shape
@@ -26,6 +30,8 @@ FACET — `FacetResult`, discrete or numeric arm. Streamable sibling to the popu
 SERIES — one `SeriesEntry` per host value in payload order carrying the z-score on `Summary.Statistic`. Layer `Baseline = 0`.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

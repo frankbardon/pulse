@@ -15,10 +15,19 @@ As `op-mat-covariance`.
 
 ## Params
 
-- `on` — `correlation` (default) or `covariance`. `repair` — `nearest`.
-- `rotation` (k ≥ 2) — `none`, `varimax`, `quartimax`, `geomin_orthogonal` (`epsilon`, 0.01), `entropy`. Oblique names refused: `rotation_oblique_unsupported`.
-- `components` — int k (≤ p), `kaiser` (λ > 1, default) or `{variance: s}`; required on `covariance`.
-- `missing`, `max_drop_share`, `fit`, `weight`, `encoding`: `op-mat-correlation`.
+
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `on` | `correlation` \| `covariance` | `correlation` | Covariance keeps units: a large-spread member dominates. |
+| `components` | any | `kaiser` | Int k (≤ p), `kaiser` (λ > 1, default) or `{variance: s}`; required on `covariance`. |
+| `rotation` | enum | `none` | k ≥ 2, orthogonal: `varimax`, `quartimax`, `geomin_orthogonal`, `entropy`. |
+| `epsilon` | float | `0.01` | Geomin ε, > 0; larger smooths. |
+| `repair` | `nearest` | — | Decompose the nearest correlation matrix (rescaled on `covariance`; `multivariate-design`). |
+| `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise adds `auxiliary.n` (`matrix-results`). |
+| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
+| `fit` | string | — | Emit from a bound vector fit's listwise state, reading no row (`vector-row-scores`). |
+
+`weight`, `encoding`: as `op-mat-correlation`. Oblique names are refused: `rotation_oblique_unsupported`.
 
 ## Inputs
 
@@ -30,13 +39,11 @@ Integer / float members.
 
 <!-- generated: reading-the-output -->
 
-## Components
-
-`n`, `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`<!-- feature: capability:weighting -->; weighted `sum_weights`, `n_eff`, `n_weight_invalid`<!-- /feature -->.
+<!-- generated: contract -->
 
 ## Gotchas
 
-- Signs are free. Rotated: read `rotated_variance`.
+- Signs are free; rotated, read `rotated_variance`.
 - Bartlett's n: rows, Σw or n_eff, pairwise the smallest pair's own. A pairwise weighted covariance scales each entry by its own pair.
 - Singular: KMO, Bartlett null (`PULSE_MATRIX_SINGULAR`). Non-PSD pairwise: `PULSE_MATRIX_NOT_PSD` unless `repair`.
 

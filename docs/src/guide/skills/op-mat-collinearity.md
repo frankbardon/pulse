@@ -25,8 +25,10 @@ Questions it answers:
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `center` | bool | `false` | Belsley on centered predictors (no intercept). |
-| `repair` | `nearest` | none | Read the nearest correlation matrix. |
-| `missing`, `max_drop_share`, `fit`, `weight`, `encoding` | | | As [`op-mat-correlation`](op-mat-correlation.md). |
+| `repair` | `nearest` | — | Read the nearest correlation matrix. |
+| `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise adds `auxiliary.n` ([`matrix-results`](matrix-results.md)). |
+| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
+| `fit` | string | — | Emit from a bound vector fit's listwise state, reading no row ([`vector-row-scores`](vector-row-scores.md)). |
 
 ## Inputs
 
@@ -41,9 +43,12 @@ Integer / float members.
 - `scalars.max_vif`: The largest variance inflation factor among the predictors (each one's is also listed): how many times larger that predictor's coefficient variance is than it would be if it were unrelated to the other predictors. 1 means no overlap; tolerance, its reciprocal, is the share of the predictor's spread the others do not explain.
 - `primary.values`: The predictors' correlation table that the variance inflation factors and the centered diagnostics are read from: each off-diagonal cell is the correlation of its row and column predictors, from -1 to +1.
 
-## Components
+## Contract
 
-`n`, `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`; weighted `sum_weights`, `n_eff`, `n_weight_invalid`.
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable; partial states merge; components `mergeable`.
+- Components: `n`, `n_null`, `n_listwise_dropped`; optional `min_pair_n`, `max_pair_n`, `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 

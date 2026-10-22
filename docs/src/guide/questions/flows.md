@@ -352,7 +352,7 @@ The figures these operators return read as their names say; for the ones that ne
 
 ## Next steps
 
-**Skills:** [`intents`](../skills/intents.md), [`attribute-composition`](../skills/attribute-composition.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`op-agg-count`](../skills/op-agg-count.md), [`op-group-category`](../skills/op-group-category.md)
+**Skills:** [`intents`](../skills/intents.md), [`attribute-composition`](../skills/attribute-composition.md), [`overlay-formula-namespace`](../skills/overlay-formula-namespace.md), [`overlay-pairwise`](../skills/overlay-pairwise.md), [`overlay-reference-tests`](../skills/overlay-reference-tests.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`panel-n-sources`](../skills/panel-n-sources.md), [`op-agg-count`](../skills/op-agg-count.md), [`op-group-category`](../skills/op-group-category.md)
 
 **From the command line:**
 

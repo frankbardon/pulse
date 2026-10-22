@@ -19,13 +19,11 @@ Window operators emit row-level values; they do not produce `Response.Components
 |---|---|---|---|
 | `periods` | int | `1` | Lookback distance (≥ 1) for the comparison row. |
 
-`partition_by` (carve), `order_by` (≥1, required, numeric / `date`), `frame` (forbidden). `field` (required, numeric).
+`partition_by` (carve), `order_by` (≥1, required, any type but `set_*` (`PULSE_WINDOW_INVALID`) or `vec_*` (`PULSE_VECTOR_FIELD_NOT_SCALAR`)), `frame` (forbidden). `field` (required, numeric).
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`; any other type (categorical, `set_*`, `decimal128`, `packed_bool`, `datetime`) is refused `PULSE_FIELD_TYPE_UNSUPPORTED` |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -33,14 +31,14 @@ One `float64` per row written to `Label` (default `WIN_PCT_CHANGE_<field>`). `(c
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
-- Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.
 - `periods <= 0` REJECTED (`PULSE_WINDOW_INVALID`, predict and runtime).
 - `prev == 0` emits `null` (no `+Inf`); a negative `prev` flips the sign.
 - Either side null emits `null`.
 - Result rows are NOT reordered — use `Request.Sort`.
-- Forces buffered execution (`Streamable=false`).
 
 ## See
 

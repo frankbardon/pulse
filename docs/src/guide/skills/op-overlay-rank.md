@@ -27,7 +27,11 @@ Use something else:
 
 ## Params
 
-`Scope` must be `cell`. `Reference` required — anchor for resolution + key-set gates only. `Targets` required slot labels. `params.population` (string, default `matrix`) — `row` / `column` / `matrix`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `population` | `column` \| `matrix` \| `row` | `matrix` | `row` / `column` / `matrix`. |
+
+`Scope` must be `cell`. `Reference` required — anchor for resolution + key-set gates only. `Targets` required slot labels.
 
 ## Host shape
 
@@ -36,6 +40,11 @@ COMPOSE — MATRIX crosstab. The reference slot anchors schema-match + key-align
 ## Output
 
 MATRIX — `Cells[r][c].Value` = 1-based rank (1 = largest) within the selected population. Mirrors the target's RowKeys / ColumnKeys. `Baseline` unset.
+
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: buffered only.
 
 ## Gotchas
 

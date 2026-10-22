@@ -31,23 +31,23 @@ Use something else:
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | any cohort field type EXCEPT `set_*` (categorical_*, numeric, date, datetime, packed_bool, decimal128); any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
 Row-level predicate. Drop when `Field`'s value is in `Values`; pass otherwise. No emitted column.
 
-## Components
+## Contract
 
-Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}` per [`response-components`](response-components.md) contract. Mergeable across chunks; counters fold by simple addition.
+- Types (`field`): `categorical_*`, `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable; components `mergeable`.
+- Components: `n_in`, `n_out`, `n_null_input`.
 
 ## Gotchas
 
 - Null rows PASS this filter (an include filter drops them).
 - Unknown categorical label in `Values` → `PROCESSING_CONFIG` at build time, surfaced via predict.
-- `set_*` rejected at build time with `PULSE_FIELD_TYPE_UNSUPPORTED` — a bitmask has no comparable scalar at any rung.
 
 ## See
 

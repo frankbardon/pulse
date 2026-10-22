@@ -161,7 +161,9 @@ func TestGroupDate_CalendarParamRefusalsPredictParity(t *testing.T) {
 		{"week_start-default-component", "ts", `{"week_start":"monday"}`},
 		{"week_start-bad-name", "ts", `{"component":"week","week_start":"Sunday"}`},
 		{"hour-on-date", "d", `{"component":"hour"}`},
-		{"hour-on-integer", "n", `{"component":"hour"}`},
+		// hour on an integer is the accepted-types refusal
+		// (PULSE_FIELD_TYPE_UNSUPPORTED), not a params one:
+		// TestGroupDate_RefusesNonDateFamily pins it.
 		{"unknown-component", "ts", `{"component":"minute"}`},
 		{"fiscal-on-hour", "ts", `{"component":"hour","fiscal_offset":3}`},
 	} {

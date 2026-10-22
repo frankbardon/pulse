@@ -29,9 +29,7 @@ None. Weight-aware (`"weight": null` opts out): Σw per member — map values be
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | any set rung — `set_u8`, `set_u16`, `set_u32`, `set_u64`, `set_u128`, `set_u256`; any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -39,18 +37,18 @@ Rich `map[string]int` — label→row count (weighted: `map[string]float64`, Σw
 
 ## Components
 
-Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
+- `total_label_observations` — Sum of popcounts (label selections)
+- `distinct_labels` — Distinct labels seen ≥ once
+- `per_label_count` — Label → row count
 
-Universal floor `{n, n_null}` plus operator-specific:
-
-| Key | Type | Notes |
-|---|---|---|
-| `total_label_observations` | int | Sum of popcounts (label selections) |
-| `distinct_labels` | int | Distinct labels seen ≥ once |
-| `per_label_count` | `map[string]int` | Label → row count |
-
-- Mergeability: `Partial` — bin-by-bin sum, but map allocation expensive; staged at terminal flush
 - Margin: summable for crosstab
+
+## Contract
+
+- Types (`field`): `set_*`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable; components `partial`.
+- Components: `n`, `n_null`, `total_label_observations`, `distinct_labels`, `per_label_count`; optional `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 

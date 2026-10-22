@@ -17,25 +17,26 @@ Window operators emit row-level values; they do not produce `Response.Components
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `kernel` | enum | — (required) | `geometric` \| `weibull_cdf` \| `weibull_pdf` |
-| `max_lag` | int | — (required) | last lag, `[1, 10000]`; `max_lag + 1` weights |
+| `kernel` | enum | (required) | `geometric` \| `weibull_cdf` \| `weibull_pdf` |
+| `max_lag` | int | (required) | last lag, `[1, 10000]`; `max_lag + 1` weights |
 | `decay` | float | — | geometric only, `[0, 1)`: `w_l = decay^l` |
-| `shape` / `scale` | float | — | Weibull only, both `> 0` |
+| `shape` | float | — | Weibull only, `> 0` |
+| `scale` | float | — | Weibull only, `> 0` |
 | `normalize` | bool | `true` | weights divided by their sum |
 
 Weibull kernels: `weibull_cdf` `w_l = exp(−(l/scale)^shape)` (survival, `w_0 = 1`); `weibull_pdf` `w_l = f(l + 1)` (density one lag on). `partition_by`, `order_by` (≥1), `field` (numeric) required; `frame` refused.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`; others → `PULSE_FIELD_TYPE_UNSUPPORTED` |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
 `y_i = Σ_l w_l · x_{i−l}`, one `float64` per row in `Label`.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

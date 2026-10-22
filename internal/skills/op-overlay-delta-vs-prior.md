@@ -15,7 +15,12 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` must be `group`. `Ref.Prior` (object, empty) — implicit-default — empty `Ref` also accepted. `Level`/`Within` must be `0`. `params.field` (string, optional) — OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`. `params.partition_by` (string list, optional) — a leading prefix of the group key columns (Host shape); anything else → `PULSE_OVERLAY_PARTITION_INVALID`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `field` | string | — | OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`. |
+| `partition_by` | list | — | A leading prefix of the group key columns (Host shape); anything else → `PULSE_OVERLAY_PARTITION_INVALID`. |
+
+`Scope` must be `group`. `Ref.Prior` (object, empty) — implicit-default — empty `Ref` also accepted. `Level`/`Within` must be `0`.
 
 ## Host shape
 
@@ -27,13 +32,13 @@ SERIES — one `SeriesEntry` per host group key in host order, carrying `delta =
 
 ## Choosing between this and the index twin
 
-Absolute-difference twin of the prior-period index, as the baseline delta is to the baseline index. Same host, same ref arm, same carrier — subtraction instead of division.
+Absolute-difference twin of the prior-period index (same host, ref arm and carrier; subtraction instead of division). This one answers "how much did it change", the index "what proportion of the prior is this": an index of `101.6` and a delta of `+1.5` are not interchangeable in a report.
 
-Pick this one for "how much did it change"; pick the index for "what proportion of the prior is this". An index of `101.6` and a delta of `+1.5` answer different questions and are not interchangeable in a report.
+<!-- generated: contract -->
 
 ## Gotchas
 
-- Single-state lag carrier (one `float64`) — streamable inside the streaming Process fold.
+- Single-state lag carrier (one `float64`), so it streams inside the Process fold.
 - First ordinal → NaN, no warning. A delta of `0` would CLAIM nothing changed about a comparison that was never made.
 - Absent host point → NaN + carrier does NOT advance (next present point still subtracts the last present value).
 - **NEVER emits `PULSE_OVERLAY_REF_ZERO`** — unlike the index twin. A prior of exactly zero is a valid subtrahend (`value − 0 = value`); there is no degenerate-denominator branch to hit. Its absence is deliberate, not an omission.

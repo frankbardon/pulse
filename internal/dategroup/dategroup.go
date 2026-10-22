@@ -138,8 +138,10 @@ func Parse(raw json.RawMessage) (Spec, error) {
 // non-temporal column is read as epoch days, and a field absent from
 // the schema (derived) is read as epoch days too — each would put every
 // row in hour 00 rather than fail. A nil schema (the probe paths, which
-// build an operator with no cohort behind it) is not judged. Every other
-// component keeps GROUP_DATE's permissive field posture.
+// build an operator with no cohort behind it) is not judged. A
+// non-date-family schema field never reaches it: the accepted-types
+// table's GROUP_DATE row (internal/fieldaccept) refuses it first, on
+// both sides.
 func CheckField(spec Spec, field string, schema *encoding.Schema) error {
 	if !SubDay(spec.Component) || schema == nil {
 		return nil

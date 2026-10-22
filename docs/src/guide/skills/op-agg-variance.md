@@ -24,13 +24,11 @@ Use something else:
 
 ## Params
 
-Weight: honours a resolved row weight (`weight` on the request or slot, or `Options.DefaultWeight`; `"weight": null` opts out) — weighted it is the population m2_w / Σw. Invalid weights (null, negative, NaN/Inf, fractional under `frequency`) are excluded and warned (`PULSE_WEIGHT_INVALID_ROWS`); zero contributes nothing.
+Weighted: the population m2_w / Σw.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date`, `datetime`, `packed_bool`, `u4`; a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -44,18 +42,16 @@ Scalar `float64` — population variance (n-denominator); `decimal128` input yie
 
 ## Components
 
-Weighted slots add floor keys `sum_weights` (Σw), `n_eff` (Kish; `probability` only) and `n_weight_invalid`; absent ⇒ unweighted. `n`/`n_null` stay raw counts.
+- `mean` — Welford running mean
+- `m2` — Sum of squared deviations
+- `variance` — `m2 / n`
 
-Universal floor `{n, n_null}` plus operator-specific:
+## Contract
 
-| Key | Type | Notes |
-|---|---|---|
-| `mean` | float64 | Welford running mean |
-| `m2` | float64 | Sum of squared deviations |
-| `variance` | float64 | `m2 / n` |
-
-- Mergeability: `Mergeable` (Chan parallel-merge)
-- Streaming: per-chunk Welford
+- Types (`field`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable; components `mergeable`.
+- Components: `n`, `n_null`, `mean`, `m2`, `variance`; optional `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 

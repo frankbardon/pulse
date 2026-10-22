@@ -166,7 +166,7 @@ The figures these operators return read as their names say; for the ones that ne
 - [Compare groups](compare_groups.md)
 - [Find drivers](drivers.md)
 
-**Skills:** [`intents`](../skills/intents.md), [`aggregation-design`](../skills/aggregation-design.md), [`attribute-composition`](../skills/attribute-composition.md), [`statistical-testing`](../skills/statistical-testing.md), [`op-agg-count`](../skills/op-agg-count.md), [`op-agg-null-count`](../skills/op-agg-null-count.md), [`op-group-category`](../skills/op-group-category.md)
+**Skills:** [`intents`](../skills/intents.md), [`aggregation-design`](../skills/aggregation-design.md), [`attribute-composition`](../skills/attribute-composition.md), [`statistical-testing`](../skills/statistical-testing.md), [`test-variant-options`](../skills/test-variant-options.md), [`op-agg-count`](../skills/op-agg-count.md), [`op-agg-null-count`](../skills/op-agg-null-count.md), [`op-group-category`](../skills/op-group-category.md)
 
 **From the command line:**
 

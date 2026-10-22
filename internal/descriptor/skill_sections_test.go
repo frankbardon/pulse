@@ -294,7 +294,7 @@ func TestSkillSections_BuiltinsWithinCapsAndLint(t *testing.T) {
 		names[n] = true
 	}
 	for n := range names {
-		for _, sec := range skills.GeneratedSections() {
+		for _, sec := range []string{skills.SectionUseWhen, skills.SectionReadingTheOutput} {
 			got := RenderGuidanceSection(n, sec, nil, nil, ProseScrub{})
 			limit := UseWhenSectionCap
 			if sec == skills.SectionReadingTheOutput {

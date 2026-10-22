@@ -13,16 +13,16 @@ examples_tags: [feature-engineering, multivariate, streaming-friendly]
 
 ## Params
 
-- `metric` — similarity only: `correlation`, `cosine`, `jaccard`, `dice`, `overlap`. Default from the vector's `kind` (scale → `correlation`); none → `PULSE_VECTOR_METRIC_REQUIRED`. A distance → `PULSE_VECTOR_METRIC_UNKNOWN`<!-- feature: ATTR_VEC_DISTANCE -->, `details.use` = `ATTR_VEC_DISTANCE`<!-- /feature -->.
-- `reference` (required) — `[…]` (member order), `{label: value}`, `{table, key}`, `{table, key_field}` (categorical or `u4`…`u64`, by exact base-10 form; `u64` above 2^53 too), `{centroid: {filter?, by?}}` (weighted per-member mean of the rows `filter` admits<!-- feature: AGG_VEC_MEAN -->, = `AGG_VEC_MEAN`<!-- /feature -->; `by` = per exact key, each row vs its own) `{population: name}` (a bound vector fit's mean: `compose-fits`) or `{record: {cohort?, keys}}` (one row point-looked-up via its cohort's index, the request's own if omitted: `cohort-sidecar-index`).
-- `min_valid` — fewest complete pairs, default 1; below → null.
-- `labels` — inline `fields` only.
-
-Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields`; no `field`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `metric` | enum | — | Similarity only: `correlation`, `cosine`, `jaccard`, `dice`, `overlap`. Absent: from the vector's `kind` (scale → `correlation`); none → `PULSE_VECTOR_METRIC_REQUIRED`. A distance → `PULSE_VECTOR_METRIC_UNKNOWN`<!-- feature: ATTR_VEC_DISTANCE -->, `details.use` = `ATTR_VEC_DISTANCE`<!-- /feature -->. |
+| `reference` | any | (required) | `[…]`, `{label: value}`, `{table, key}`, `{table, key_field}`, `{centroid: {filter?, by?}}`, `{population: name}` or `{record: {cohort?, keys}}` — forms and warnings: `vector-row-scores`. |
+| `min_valid` | int | `1` | Fewest complete pairs; below → null. |
+| `labels` | list | — | Inline `fields` only: one label per member. |
 
 ## Inputs
 
-Members: `u4`…`u64`, `f32`/`f64`; source columns only.
+`vector` or `fields` (no `field`); members: see `## Contract`, source columns only.
 
 ## Output
 
@@ -30,17 +30,18 @@ One `f64` per record; null below `min_valid` or with no profile / centroid.
 
 ## Components
 
-Floor `{n, n_null}` + `n_reference_missing`, `n_domain_invalid`. `Mergeable`.
+- `n_reference_missing`, `n_domain_invalid`.
+
+<!-- generated: contract -->
 
 ## Gotchas
 
 - Matched BY LABEL, never position: wrong labels / length → `PULSE_VECTOR_REFERENCE_MISMATCH` at predict.
-- A null or profile-less `key_field` / `by` row is null and warns `PULSE_VECTOR_REFERENCE_MISSING` (`n_key_null`, `n_key_unmatched`); a domain violation `PULSE_VECTOR_METRIC_DOMAIN`. Once per slot; strict does not escalate.
-- Unbound population → `PULSE_VECTOR_REFERENCE_UNKNOWN`; a compose fit that failed on its data → every row null + `PULSE_FIT_UNAVAILABLE`.
-- A record is read by member column (null = missing element); a member its cohort lacks → `PULSE_VECTOR_REFERENCE_MISMATCH` `record_members_absent`; lookup refusals (`PULSE_INDEX_*`, `PULSE_LOOKUP_*`) refuse the run, never at predict.
-- Row-local (streams, fuses, weight ignored) — except a centroid: two-pass, weighted, cohort-wide (grouped runs buffered). Merges (not a centroid): shards / parallel decode fold its per-run tallies (counts and warnings once, cohort-wide); a chain stage admits it. A centroid runs serially; a chain refuses it.
+- A null or profile-less key, or a domain violation, nulls the row and warns once (`PULSE_VECTOR_REFERENCE_MISSING`, `PULSE_VECTOR_METRIC_DOMAIN`); strict does not escalate. Unbound population → `PULSE_VECTOR_REFERENCE_UNKNOWN`; a failed compose fit → every row null + `PULSE_FIT_UNAVAILABLE`.
+- A record's lookup refusals (`PULSE_INDEX_*`, `PULSE_LOOKUP_*`) refuse the run, never at predict.
+- Row-local (streams, fuses, merges; weight ignored) — except a centroid: two-pass, weighted, cohort-wide, serial; a chain refuses it.
 
 ## See
 
 - `pulse_examples_search tags=[feature-engineering, multivariate]`
-- Skills: `vector-metrics`, `multivariate-design`
+- Skills: `vector-row-scores`, `vector-metrics`, `multivariate-design`

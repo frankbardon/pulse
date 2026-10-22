@@ -27,8 +27,10 @@ Use something else:
 
 ## Params
 
-- `mu` — float, default `0.0`. Log-space mean (mean of `ln(X)`).
-- `sigma` — float, default `1.0`. Log-space standard deviation; must be `> 0`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `mu` | float | `0` | Log-space mean (mean of `ln(X)`). |
+| `sigma` | float | `1` | Log-space standard deviation; must be `> 0`. |
 
 Spec defaults mirror the standard log-normal. Mean of the emitted distribution is `exp(mu + sigma²/2)`.
 
@@ -40,6 +42,10 @@ field `type:` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128
 
 Per-row `float64` sample `exp(mu + sigma * Z)` where `Z ~ N(0, 1)`. Cast to declared field type at write time.
 
+## Contract
+
+- Applies to: `numeric` fields.
+
 ## Gotchas
 
 - Right tail is heavy; larger `sigma` increases dispersion exponentially. Use `pareto` for true power-law tails.
@@ -49,5 +55,4 @@ Per-row `float64` sample `exp(mu + sigma * Z)` where `Z ~ N(0, 1)`. Cast to decl
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synthetic-data`](synthetic-data.md), [`op-synth-normal`](op-synth-normal.md), [`op-synth-pareto`](op-synth-pareto.md)

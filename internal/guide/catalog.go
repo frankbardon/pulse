@@ -1,6 +1,8 @@
 package guide
 
 import (
+	"slices"
+
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -87,6 +89,16 @@ func topLevelParam(op opInfo, p param) bool {
 	return p.slot || regressionShaped(op) || topLevelParams[op.category][p.name]
 }
 
+// draftAsksParams names optional params a draft still asks the caller
+// for: the declared default runs, but it is rarely the answer. The
+// runtime treats a GROUP_RANGE / GROUP_ROUNDED interval ≤ 0 as 1, a
+// width that suits almost no real measure, so the draft leaves an
+// <interval> placeholder rather than silently bucketing at width 1.
+var draftAsksParams = map[string][]string{
+	string(types.GROUP_RANGE):   {"interval"},
+	string(types.GROUP_ROUNDED): {"interval"},
+}
+
 // opInfo is what a draft needs to know about one operator: its
 // category and the declared slots and params it cannot run without.
 type opInfo struct {
@@ -132,6 +144,13 @@ func catalog(m *descriptor.Manifest) map[string]opInfo {
 				// name. A native vector whose schema kind has a default
 				// drops this need (nativeNeeds).
 				info.params = append([]param{{name: "metric", typ: "enum"}}, info.params...)
+			}
+			for _, name := range draftAsksParams[o.Name] {
+				for _, p := range o.Params {
+					if p.Name == name && !slices.ContainsFunc(info.params, func(q param) bool { return q.name == name }) {
+						info.params = append(info.params, param{name: p.Name, typ: p.Type, fieldFilter: p.FieldFilter, slot: p.Slot})
+					}
+				}
 			}
 			out[o.Name] = info
 		}

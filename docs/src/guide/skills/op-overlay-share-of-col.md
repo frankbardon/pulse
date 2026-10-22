@@ -36,12 +36,16 @@ MATRIX crosstab (`Response.Crosstab.Matrix`). Structural twin of the row and gra
 
 MATRIX — `Cells[r][c].Value = cell / col_margin` (raw ratio, no ×100). Cells along a single column sum to 1.0 in the absence of missing cells. Renderers present as 100%-stacked vertical projection. Layer `Baseline = 1` (raw-share centerpoint).
 
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: buffered only.
+
 ## Gotchas
 
 - A share, not an index (×100): the kind names are kept distinct so `share` is never read as `index/100`.
 - `col_margin == 0` → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` per affected column.
 - An undefined (NaN) host cell — a mean over no value, an unanswered element — is MISSING, as an absent one: the overlay cell stays absent, no warning, out of `summary.count` and of any Level / Within bucket sum.
-- Buffered (host crosstab always recomputes margins from raw rows).
 - Weighted host → weighted figure (reads the host payload).
 - Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
 

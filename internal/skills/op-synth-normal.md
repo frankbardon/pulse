@@ -15,9 +15,14 @@ Synth distributions emit per-row values; no `Response.Components`.
 
 ## Params
 
-- `mean` — float, default `0.0`.
-- `std` — float, default `1.0`; must be `> 0`.
-- `min` / `max` — float, default `-inf` / `+inf`. Setting EITHER flips an internal `clamped` flag; once on, BOTH bounds apply.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `mean` | float | `0` | Mean. |
+| `std` | float | `1` | Standard deviation; must be `> 0`. |
+| `min` | float | — | Lower clamp; absent: `-inf`. |
+| `max` | float | — | Upper clamp; absent: `+inf`. |
+
+Setting EITHER bound flips an internal `clamped` flag; once on, BOTH bounds apply.
 
 ## Inputs
 
@@ -26,6 +31,8 @@ Field `type:` — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`
 ## Output
 
 Per-row `float64` from `N(mean, std²)`, cast/clamped to the declared type at write time; days-since-epoch on a `date` field.
+
+<!-- generated: contract -->
 
 ## Gotchas
 
@@ -36,5 +43,4 @@ Per-row `float64` from `N(mean, std²)`, cast/clamped to the declared type at wr
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: `synthetic-data`, `op-synth-lognormal`, `op-synth-uniform`

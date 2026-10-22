@@ -31,17 +31,18 @@ Use something else:
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | strict mode: `packed_bool` only (any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime). Truthy mode: any scalar field type. |
+- `Field` — strict mode: `packed_bool` only. Truthy mode: any scalar field type.
 
 ## Output
 
 Row-level predicate. Pass when value is false / falsy. No emitted column.
 
-## Components
+## Contract
 
-Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}` per [`response-components`](response-components.md) contract. Mergeable across chunks.
+- Types (`field`): `packed_bool`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable; components `mergeable`.
+- Components: `n_in`, `n_out`, `n_null_input`.
 
 ## Gotchas
 

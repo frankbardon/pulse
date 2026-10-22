@@ -15,7 +15,9 @@ Synth distributions emit per-row values; no `Response.Components`.
 
 ## Params
 
-`p` — float, default `0.5`, probability of emitting `1`; must lie in `[0, 1]`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `p` | float | `0.5` | Probability of emitting `1`; must lie in `[0, 1]`. |
 
 ## Inputs
 
@@ -24,6 +26,8 @@ Field `type:` — `packed_bool` (1 bit per row), unsigned int (`u4`/`u8`/`u16`/`
 ## Output
 
 Per-row `1.0` with probability `p`, else `0.0`; cast to the declared field type at write time. `packed_bool` packs into the bit-shared neighbour byte.
+
+<!-- generated: contract -->
 
 ## Gotchas
 
@@ -36,5 +40,4 @@ Per-row `1.0` with probability `p`, else `0.0`; cast to the declared field type 
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: `synth-marginals`, `op-synth-weighted-categorical`, `op-synth-constant`

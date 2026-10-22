@@ -18,26 +18,24 @@ Window operators emit row-level values; they do not produce `Response.Components
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `offset` | int | `1` | Lookback distance (≥ 0). |
-| `default` | any | `null` | Substitute when offset crosses partition start. |
+| `default` | any | — | Substitute when offset crosses partition start; absent: `null`. |
 
-`partition_by` (carve), `order_by` (≥1, required, numeric / `date`), `frame` (forbidden).
+`partition_by` (carve), `order_by` (≥1, required, any type but `set_*` (`PULSE_WINDOW_INVALID`) or `vec_*` (`PULSE_VECTOR_FIELD_NOT_SCALAR`)), `frame` (forbidden).
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`; any other type (categorical, `set_*`, `decimal128`, `packed_bool`, `datetime`) is refused `PULSE_FIELD_TYPE_UNSUPPORTED` |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
 One value per row written to `Label` (default `WIN_LAG_<field>`): a verbatim copy, so a `u64` id renders its exact word. When `i - offset < 0` within the partition emits `default` if set, else `null`.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
-- Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.
 - `order_by` required, `frame` forbidden, `offset < 0` refused — `PULSE_WINDOW_INVALID` on predict AND runtime.
 - Partitioning by the raw `date` collapses each row to its own partition. Pick a coarser partition (region, account) and order by date.
-- Forces buffered execution (`Streamable=false`).
 
 ## See
 

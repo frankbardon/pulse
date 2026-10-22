@@ -26,10 +26,19 @@ Use something else:
 
 ## Params
 
-- `on` — `correlation` (default) or `covariance`. `repair` — `nearest`.
-- `rotation` (k ≥ 2) — `none`, `varimax`, `quartimax`, `geomin_orthogonal` (`epsilon`, 0.01), `entropy`. Oblique names refused: `rotation_oblique_unsupported`.
-- `components` — int k (≤ p), `kaiser` (λ > 1, default) or `{variance: s}`; required on `covariance`.
-- `missing`, `max_drop_share`, `fit`, `weight`, `encoding`: [`op-mat-correlation`](op-mat-correlation.md).
+
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `on` | `correlation` \| `covariance` | `correlation` | Covariance keeps units: a large-spread member dominates. |
+| `components` | any | `kaiser` | Int k (≤ p), `kaiser` (λ > 1, default) or `{variance: s}`; required on `covariance`. |
+| `rotation` | enum | `none` | k ≥ 2, orthogonal: `varimax`, `quartimax`, `geomin_orthogonal`, `entropy`. |
+| `epsilon` | float | `0.01` | Geomin ε, > 0; larger smooths. |
+| `repair` | `nearest` | — | Decompose the nearest correlation matrix (rescaled on `covariance`; [`multivariate-design`](multivariate-design.md)). |
+| `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise adds `auxiliary.n` ([`matrix-results`](matrix-results.md)). |
+| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
+| `fit` | string | — | Emit from a bound vector fit's listwise state, reading no row ([`vector-row-scores`](vector-row-scores.md)). |
+
+`weight`, `encoding`: as [`op-mat-correlation`](op-mat-correlation.md). Oblique names are refused: `rotation_oblique_unsupported`.
 
 ## Inputs
 
@@ -44,13 +53,16 @@ Integer / float members.
 - `primary.values`: Each cell is a loading: how strongly the row's measure is tied to the column's component, the correlation between the two on a correlation input. A component is named by the measures with the largest loadings; components are listed from the one that summarises the most spread down.
 - `scalars.kmo`: The Kaiser-Meyer-Olkin measure of sampling adequacy: how much of the measures' correlation is shared across the whole set rather than tied to single pairs, from 0 to 1. Higher means a component summary is more worthwhile.
 
-## Components
+## Contract
 
-`n`, `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`; weighted `sum_weights`, `n_eff`, `n_weight_invalid`.
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable; partial states merge; components `mergeable`.
+- Components: `n`, `n_null`, `n_listwise_dropped`; optional `min_pair_n`, `max_pair_n`, `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 
-- Signs are free. Rotated: read `rotated_variance`.
+- Signs are free; rotated, read `rotated_variance`.
 - Bartlett's n: rows, Σw or n_eff, pairwise the smallest pair's own. A pairwise weighted covariance scales each entry by its own pair.
 - Singular: KMO, Bartlett null (`PULSE_MATRIX_SINGULAR`). Non-PSD pairwise: `PULSE_MATRIX_NOT_PSD` unless `repair`.
 

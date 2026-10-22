@@ -124,7 +124,7 @@ func TestLoadExtensionSkills_Refusals(t *testing.T) {
 		{"category mismatch", map[string]string{"op-agg-acme-trim.md": atomic("category: AGG", "category: ATTR")}, errors.PULSE_EXTENSION_SKILL_INVALID, SkillReasonCategory, "op-agg-acme-trim"},
 		{"atomic requires", map[string]string{"op-agg-acme-trim.md": atomic("type: reference", "type: reference\nrequires: [capability:crosstab]")}, errors.PULSE_EXTENSION_SKILL_INVALID, SkillReasonRequires, "op-agg-acme-trim"},
 		{"requires unknown", map[string]string{"ext-acme-guide.md": topical("type: guide", "type: guide\nrequires: [capability:nope]")}, errors.PULSE_EXTENSION_SKILL_INVALID, SkillReasonRequires, "ext-acme-guide"},
-		{"missing section", map[string]string{"op-agg-acme-trim.md": atomic("## Components", "## Parts")}, errors.PULSE_EXTENSION_SKILL_INVALID, SkillReasonSections, "op-agg-acme-trim"},
+		{"missing section", map[string]string{"op-agg-acme-trim.md": atomic("## Params", "## Parts")}, errors.PULSE_EXTENSION_SKILL_INVALID, SkillReasonSections, "op-agg-acme-trim"},
 		{"atomic over budget", map[string]string{"op-agg-acme-trim.md": atomic("## Gotchas\n", "## Gotchas\n"+strings.Repeat("x", skills.OpBudget)+"\n")}, errors.PULSE_EXTENSION_SKILL_INVALID, SkillReasonBudget, "op-agg-acme-trim"},
 		{"topical over budget", map[string]string{"ext-acme-guide.md": extSkillTopical + strings.Repeat("y", skills.DesignBudget)}, errors.PULSE_EXTENSION_SKILL_INVALID, SkillReasonBudget, "ext-acme-guide"},
 		{"unclosed fence", map[string]string{"ext-acme-guide.md": extSkillTopical + "<!-- feature: AGG_SUM -->\nopen\n"}, errors.PULSE_EXTENSION_SKILL_INVALID, SkillReasonFence, "ext-acme-guide"},
@@ -267,4 +267,45 @@ func featureNames() []string {
 		out = append(out, f.Name)
 	}
 	return out
+}
+
+// TestLoadExtensionSkills_TieredBudget: embedder skills are held to the
+// same frozen tier table as the built-in pack (skills.BodyBudget). A
+// 1,500-byte op skill — refused under the old flat 1200 — is admitted,
+// a body exactly at its tier is admitted, and one byte over is refused
+// with the tier in details.
+func TestLoadExtensionSkills_TieredBudget(t *testing.T) {
+	// padded returns extSkillAtomic with its Gotchas grown so the served
+	// body measures exactly n bytes.
+	padded := func(t *testing.T, n int) string {
+		t.Helper()
+		base := len(skills.StripFrontmatter(extSkillAtomic))
+		if n < base {
+			t.Fatalf("target %d below the base body %d", n, base)
+		}
+		return strings.Replace(extSkillAtomic, "## Gotchas\n", "## Gotchas\n"+strings.Repeat("x", n-base-1)+"\n", 1)
+	}
+	load := func(body string) error {
+		_, err := LoadExtensionSkills(extSkillFS(map[string]string{
+			"op-agg-acme-trim.md": body, "ext-acme-guide.md": extSkillTopical,
+		}), extSkillSnapshot(), extSkillDeps)
+		return err
+	}
+	for _, n := range []int{1500, skills.OpBudget} {
+		body := padded(t, n)
+		if got := len(skills.StripFrontmatter(body)); got != n {
+			t.Fatalf("padded body = %d bytes, want %d", got, n)
+		}
+		if err := load(body); err != nil {
+			t.Errorf("%d-byte op skill refused: %v", n, err)
+		}
+	}
+	err := load(padded(t, skills.OpBudget+1))
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Details["reason"] != SkillReasonBudget {
+		t.Fatalf("over-tier op skill: err = %v, want reason %s", err, SkillReasonBudget)
+	}
+	if ce.Details["budget"] != skills.OpBudget || ce.Details["bytes"] != skills.OpBudget+1 {
+		t.Errorf("details = %v, want budget %d bytes %d", ce.Details, skills.OpBudget, skills.OpBudget+1)
+	}
 }

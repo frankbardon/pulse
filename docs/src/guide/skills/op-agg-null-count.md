@@ -29,20 +29,18 @@ None.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | any cohort field type (categorical_*, numeric, date, packed_bool, set_*, decimal128) |
+- `Field` — any cohort field type (categorical_*, numeric, date, packed_bool, set_*, decimal128)
 
 ## Output
 
 Scalar `int64` — count of null inputs. Per-group when wired under a grouper.
 
-## Components
+## Contract
 
-Floor only — no operator-specific keys. Universal `{n, n_null}` per response-components contract.
-
-- Mergeability: `Mergeable`
-- Streaming: per-chunk; orchestrator sums
+- Types: any type.
+- Weight: no weighted form; an explicit weight is `PROCESSING_CONFIG`, an instance default is skipped.
+- Streaming: streamable; components `mergeable`.
+- Components: `n`, `n_null`.
 
 ## Gotchas
 

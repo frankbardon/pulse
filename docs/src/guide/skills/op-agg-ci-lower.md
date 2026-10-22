@@ -33,9 +33,7 @@ Bound = mean ∓ z·√(s²/n), z = `qnorm(1 − α/2)`. Weight (both kinds; `"w
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `packed_bool`, `u4`; a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -49,20 +47,18 @@ Scalar `float64` — lower CI bound. NaN when `n < 2` (weighted: N* ≤ 1; `null
 
 ## Components
 
-Weighted: floor adds `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
+- `mean` — Welford running mean
+- `stderr` — Standard error of the mean
+- `alpha` — `1 - confidence`
+- `t_critical` — Normal critical z (`qnorm(1 − α/2)`)
+- `lower` — Resolved lower bound
 
-Universal floor `{n, n_null}` plus operator-specific:
+## Contract
 
-| Key | Type | Notes |
-|---|---|---|
-| `mean` | float64 | Welford running mean |
-| `stderr` | float64 | Standard error of the mean |
-| `alpha` | float64 | `1 - confidence` |
-| `t_critical` | float64 | Normal critical z (`qnorm(1 − α/2)`) |
-| `lower` | float64 | Resolved lower bound |
-
-- Mergeability: `Mergeable`
-- Streaming: per-chunk Welford
+- Types (`field`): `date`, `datetime`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable; components `mergeable`.
+- Components: `n`, `n_null`, `mean`, `stderr`, `alpha`, `t_critical`, `lower`; optional `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 

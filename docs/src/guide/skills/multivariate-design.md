@@ -60,14 +60,15 @@ Per-test correction on other operators: [`multiplicity-correction`](multiplicity
 
 ## Sanity checks
 
-- Few rows against many members makes every figure unstable; read `components.matrices[i].n` and the per-pair counts before trusting a cell.
+- Few rows against many members makes every figure unstable; read `components.matrices[i].n` and the pair counts first.
 - A `null` cell is undefined (constant member, thin bucket), never 0.
-- Grouped requests return one matrix per bucket; compare them as separate answers. Vector tests run per group; a singular or thin group gets a `null` result + warning, never an abort. Fitted score attributes fit cohort-wide by design, never per group.
+- Grouped requests return one matrix per bucket; compare them as separate answers. Vector tests run per group; a singular or thin group gets a `null` result + warning, never an abort.
 
 ## See
 
 - [`matrix-results`](matrix-results.md) — slot, encodings, refusals.
 - [`multivariate-outputs`](multivariate-outputs.md) — how the PCA, factor, distance, score and vector-test figures are laid out.
+- [`vector-row-scores`](vector-row-scores.md) — row-score fits (cohort-wide, never per group) and references.
 - [`vector-metrics`](vector-metrics.md) — vector `kind`, metric defaults and the unsuited-metric warning.
 - [`op-mat-pca`](op-mat-pca.md)
 - [`op-mat-factor`](op-mat-factor.md)

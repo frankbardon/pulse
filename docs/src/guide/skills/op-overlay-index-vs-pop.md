@@ -26,6 +26,10 @@ Use something else:
 
 ## Params
 
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `field` | string | — | On a SERIES host, the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column `"<label>[<element label>]"`; absent, the first aggregation. |
+
 `Scope` must be `group`. `Ref.Population.Cohort` (string, required) — comparison-population cohort name. `Level`/`Within` must be `0`. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## Host shape
@@ -35,6 +39,11 @@ FACET — `FacetResult`, discrete arm or numeric arm with `IncludeHistogram=true
 ## Output
 
 SERIES — one `SeriesEntry` per host value in payload order (categorical walks `FacetDiscrete.Values`, numeric walks histogram bins), carrying `index = subset_freq / pop_freq × 100` on `Summary.Statistic`. Layer `Baseline = 100`.
+
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable.
 
 ## Gotchas
 

@@ -41,8 +41,12 @@ func skillFieldTypes(t *testing.T, stem string) []string {
 	for _, end := range fieldClauseEnds {
 		clause, _, _ = strings.Cut(clause, end)
 	}
+	// No `:` — the skill names no enumeration (it defers to the
+	// registry-rendered `## Contract`).
 	if _, after, ok := strings.Cut(clause, ":"); ok {
 		clause = after
+	} else {
+		clause = ""
 	}
 	seen := map[string]bool{}
 	for _, m := range backticked.FindAllStringSubmatch(clause, -1) {
@@ -79,7 +83,8 @@ func tableJudgedSkillOps() []string {
 // an atomic skill lists to the accepted-types table (internal/
 // fieldaccept) — the rule predict and the runtime enforce — so a skill
 // can neither omit a type the operator reads nor promise one it
-// refuses.
+// refuses. A skill that names no enumeration defers to the generated
+// `## Contract` (same table), which it must then carry.
 func TestAtomicSkillFieldTypesMatchFieldAcceptTable(t *testing.T) {
 	ops := tableJudgedSkillOps()
 	if len(ops) != 16+19 {
@@ -90,6 +95,14 @@ func TestAtomicSkillFieldTypesMatchFieldAcceptTable(t *testing.T) {
 		stem := "op-" + strings.ToLower(category) + "-" + strings.ReplaceAll(strings.ToLower(name), "_", "-")
 		got := skillFieldTypes(t, stem)
 		want := fieldaccept.TypeNames(op, fieldaccept.SlotField)
+		if len(got) == 0 {
+			// Defers to the rendered `## Contract`, which is built from
+			// the very table `want` reads — so it must carry the marker.
+			if raw, _ := Raw(stem); !strings.Contains(raw, GeneratedMarker(SectionContract)) {
+				t.Errorf("%s lists no Field types and carries no %s", stem, GeneratedMarker(SectionContract))
+			}
+			continue
+		}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("%s lists Field types %v, the table accepts %v", stem, got, want)
 		}

@@ -27,8 +27,10 @@ Use something else:
 
 ## Params
 
-- `xm` — float, default `1.0`. Scale (minimum emitted value); must be `> 0`.
-- `alpha` — float, default `1.5`. Shape; must be `> 0`. Larger alpha → lighter tail.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `xm` | float | `1` | Scale (minimum emitted value); must be `> 0`. |
+| `alpha` | float | `1.5` | Shape; must be `> 0`. Larger alpha → lighter tail. |
 
 ## Inputs
 
@@ -37,6 +39,10 @@ field `type:` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128
 ## Output
 
 Per-row `float64` sample from a Pareto Type-I distribution. Drawn via inverse CDF: `xm / U^(1/alpha)` where `U = 1 - rng.Float64()`.
+
+## Contract
+
+- Applies to: `numeric` fields.
 
 ## Gotchas
 
@@ -48,5 +54,4 @@ Per-row `float64` sample from a Pareto Type-I distribution. Drawn via inverse CD
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synthetic-data`](synthetic-data.md), [`op-synth-exponential`](op-synth-exponential.md), [`op-synth-lognormal`](op-synth-lognormal.md)

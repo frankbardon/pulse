@@ -50,9 +50,12 @@ import (
 //   - example overlays[].kind         → operator exemplified_by example
 //   - example description naming an operator not otherwise linked →
 //     example routes_to operator (see ontology_examples.go)
-//   - atomic `## See` backticked stem → skill routes_to skill
-//   - atomic `## See` `tags=[…]`      → skill exemplified_by every example
-//     carrying ALL the tags (what pulse_examples_search returns)
+//   - `## See` backticked stem        → skill routes_to skill (atomic
+//     and topical)
+//   - `## See` `tags=[…]`             → skill exemplified_by every example
+//     carrying ALL the tags (what pulse_examples_search returns); quotes
+//     stripped, an `a|b` entry takes any alternative, every list in a
+//     span counts (seeTags) — atomic and topical
 //   - topical `requires:` frontmatter → skill requires_capability feature
 //   - topical feature-fence name      → skill routes_to operator|capability
 //     (skill_render.go; never prunes the skill — only `requires:` does)
@@ -410,15 +413,16 @@ func (b *ontologyBuilder) addDependencyEdges(src ontologySources) {
 	}
 }
 
-// addSeeEdges parses each ATOMIC skill's `## See` section: a backticked
-// span naming a skill is a routes_to edge; a `tags=[a, b]` span links
-// every example carrying all the tags. Other spans are prose.
+// addSeeEdges parses each atomic AND topical skill's `## See` section:
+// a backticked span naming a skill is a routes_to edge; a `tags=[…]`
+// span links every example one of its searches answers (seeTags). Other
+// spans are prose. Virtual (reference) skills carry no file.
 func (b *ontologyBuilder) addSeeEdges(src ontologySources) {
 	if src.skillBody == nil {
 		return
 	}
 	for _, md := range src.skills {
-		if md.Kind != "operator" && md.Kind != "tool" && md.Kind != "type" {
+		if md.Kind != "operator" && md.Kind != "tool" && md.Kind != "type" && md.Kind != "design" {
 			continue
 		}
 		body, ok := src.skillBody(md.Name)
@@ -427,11 +431,11 @@ func (b *ontologyBuilder) addSeeEdges(src ontologySources) {
 		}
 		from := OntologyID(descriptor.OntologyNodeSkill, md.Name)
 		for _, span := range backtickSpans(seeSection(body)) {
-			if tags, ok := seeTags(span); ok {
+			if searches, ok := seeTags(span); ok {
 				// A tag search matching nothing is an empty search
 				// result, not a broken reference: no edge, no problem.
 				for _, ex := range src.examples {
-					if hasAllTags(ex.Tags, tags) {
+					if seeTagsMatch(searches, ex.Tags) {
 						b.edge(from, OntologyID(descriptor.OntologyNodeExample, ex.Name), descriptor.OntologyEdgeExemplifiedBy, "see tags")
 					}
 				}
@@ -508,24 +512,77 @@ func backtickSpans(s string) []string {
 	}
 }
 
-// seeTags parses the `tags=[a, b]` list out of a See span.
-func seeTags(span string) ([]string, bool) {
-	i := strings.Index(span, "tags=[")
-	if i < 0 {
-		return nil, false
-	}
-	rest := span[i+len("tags=["):]
-	j := strings.IndexByte(rest, ']')
-	if j < 0 {
-		return nil, false
-	}
-	var tags []string
-	for _, t := range strings.Split(rest[:j], ",") {
-		if t = strings.TrimSpace(t); t != "" {
-			tags = append(tags, t)
+// seeTagSearch is one `tags=[…]` list of a See span: an AND over its
+// comma-separated entries, each entry an OR over its `a|b`
+// alternatives. A plain `tags=[a, b]` is two one-alternative entries —
+// exactly the pulse_examples_search tag filter.
+type seeTagSearch [][]string
+
+// matches reports whether an example carrying have answers the search:
+// every entry has at least one alternative among have.
+func (s seeTagSearch) matches(have []string) bool {
+	for _, alts := range s {
+		hit := false
+		for _, a := range alts {
+			if hasAllTags(have, []string{a}) {
+				hit = true
+				break
+			}
+		}
+		if !hit {
+			return false
 		}
 	}
-	return tags, len(tags) > 0
+	return true
+}
+
+// seeTagsMatch reports whether an example carrying have answers ANY of
+// a span's searches (the span links it).
+func seeTagsMatch(searches []seeTagSearch, have []string) bool {
+	for _, s := range searches {
+		if s.matches(have) {
+			return true
+		}
+	}
+	return false
+}
+
+// seeTags parses every `tags=[…]` list out of a See span — the one
+// parser the ontology, the profiled See render, embedder-skill
+// validation and TestSkillSeeExampleTagsResolve share. Quotes around a
+// tag (`tags=["time-series"]`) are author formatting and stripped; an
+// entry may offer `a|b` alternatives; a span may hold several lists.
+// ok is false when the span holds no non-empty list.
+func seeTags(span string) ([]seeTagSearch, bool) {
+	var out []seeTagSearch
+	for {
+		i := strings.Index(span, "tags=[")
+		if i < 0 {
+			break
+		}
+		rest := span[i+len("tags=["):]
+		j := strings.IndexByte(rest, ']')
+		if j < 0 {
+			break
+		}
+		var search seeTagSearch
+		for _, ent := range strings.Split(rest[:j], ",") {
+			var alts []string
+			for _, a := range strings.Split(ent, "|") {
+				if a = strings.Trim(strings.TrimSpace(a), `"'`); a != "" {
+					alts = append(alts, a)
+				}
+			}
+			if len(alts) > 0 {
+				search = append(search, alts)
+			}
+		}
+		if len(search) > 0 {
+			out = append(out, search)
+		}
+		span = rest[j+1:]
+	}
+	return out, len(out) > 0
 }
 
 func hasAllTags(have, want []string) bool {

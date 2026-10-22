@@ -155,7 +155,7 @@ func extendOntology(base *OntologyGraph, ext *ExtensionsSnapshot) *OntologyGraph
 // addExtensionSkills adds the embedder skills whose subject the graph
 // carries — an atomic skill's operator node, every topical `requires:`
 // target — with the edges a built-in skill of the same shape gets
-// (documented_by, requires_capability, atomic `## See` routes_to /
+// (documented_by, requires_capability, `## See` routes_to /
 // exemplified_by, topical fence routes_to). A skill whose subject is
 // absent documents a hidden extension operator (dropped from the
 // snapshot before the graph is built): it is no node, so it reads as

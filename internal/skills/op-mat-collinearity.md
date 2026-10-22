@@ -18,8 +18,10 @@ Slot and members as for `op-mat-covariance`. Members are the predictors only.
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `center` | bool | `false` | Belsley on centered predictors (no intercept). |
-| `repair` | `nearest` | none | Read the nearest correlation matrix. |
-| `missing`, `max_drop_share`, `fit`, `weight`, `encoding` | | | As `op-mat-correlation`. |
+| `repair` | `nearest` | — | Read the nearest correlation matrix. |
+| `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise adds `auxiliary.n` (`matrix-results`). |
+| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
+| `fit` | string | — | Emit from a bound vector fit's listwise state, reading no row (`vector-row-scores`). |
 
 ## Inputs
 
@@ -31,9 +33,7 @@ Integer / float members.
 
 <!-- generated: reading-the-output -->
 
-## Components
-
-`n`, `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`<!-- feature: capability:weighting -->; weighted `sum_weights`, `n_eff`, `n_weight_invalid`<!-- /feature -->.
+<!-- generated: contract -->
 
 ## Gotchas
 

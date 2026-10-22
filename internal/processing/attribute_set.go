@@ -184,8 +184,8 @@ func (a *setHasAttribute) Row(r *Record, field string) (float64, error) {
 // row, PrePass sees n=0, and the standardisation divides by a zero
 // stddev) with no error anywhere. That is the silent class this guard
 // closes; it needs no descriptor change, because all four already
-// declare numericFieldTypesNoDecimal, which has never carried a set
-// rung.
+// declare a numeric accepts_types (the fieldaccept table's
+// quantity row), which has never carried a set rung.
 //
 // A nil schema (registry probe construction) has nothing to check.
 func rejectSetFieldForNumericAttribute(attr *types.Attribute, schema *encoding.Schema) error {

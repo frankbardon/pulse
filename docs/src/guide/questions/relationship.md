@@ -233,7 +233,7 @@ More on reading it: [TEST_PEARSON_R](../reading/test.md#op-test_pearson_r).
 - [Compare groups](compare_groups.md)
 - [Describe a measure](describe.md)
 
-**Skills:** [`intents`](../skills/intents.md), [`attribute-composition`](../skills/attribute-composition.md), [`feature-engineering`](../skills/feature-engineering.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`regression-modeling`](../skills/regression-modeling.md), [`statistical-testing`](../skills/statistical-testing.md), [`op-agg-count`](../skills/op-agg-count.md), [`op-test-pearson-r`](../skills/op-test-pearson-r.md)
+**Skills:** [`intents`](../skills/intents.md), [`attribute-composition`](../skills/attribute-composition.md), [`feature-engineering`](../skills/feature-engineering.md), [`overlay-formula-namespace`](../skills/overlay-formula-namespace.md), [`overlay-pairwise`](../skills/overlay-pairwise.md), [`overlay-reference-tests`](../skills/overlay-reference-tests.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`panel-n-sources`](../skills/panel-n-sources.md), [`regression-modeling`](../skills/regression-modeling.md), [`statistical-testing`](../skills/statistical-testing.md), [`test-variant-options`](../skills/test-variant-options.md), [`op-agg-count`](../skills/op-agg-count.md), [`op-test-pearson-r`](../skills/op-test-pearson-r.md)
 
 **From the command line:**
 

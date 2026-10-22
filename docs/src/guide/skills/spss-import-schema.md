@@ -37,11 +37,13 @@ Part of the SPSS surface; entry skill [`spss-cohorts`](spss-cohorts.md). Missing
 
 **Labels naming only missing codes do NOT make a variable categorical** — `INCOME` labelled solely on 97/98/99 is continuous. Labels code the variable iff one names a value that is neither user-missing nor sysmis.
 
+Dictionaries hold SPSS **codes**, not labels (two codes may share a label): resolve labels at output with a LabelTable ([`label-display`](label-display.md)). The missing-value mode (`--spss-missing`) is deliberately NOT on `pulse import auto` or `pulse_import` ([`spss-missing-values`](spss-missing-values.md)).
+
 ## Reading real files
 
 **All three data encodings read**, identical cohorts from identical content: uncompressed; **bytecode** (SPSS's save default — bias from the header, not a hardcoded 100); **ZSAV** (zlib blocks inflating to a *bytecode* stream — two layers, not a third encoding; `.zsav` carries `$FL3` not `$FL2`). Pulse never writes ZSAV.
 
-**Text decodes out of the file's charset** — record `7/20` (a NAME), else `7/3` (numeric code), else UTF-8; on disagreement `7/20` wins. Spellings fold (`windows-1252` = `cp1252` = `1252`), never approximately (`1250` ≠ `1252`). Two hard rules: an undecodable byte errors naming variable and value, **never** a U+FFFD substitution; declared widths are BYTE counts, so padding is trimmed on raw bytes BEFORE decoding. `--charset` / `io.SPSSReaderOptions{Charset}` overrides a self-mislabelling file — **not yet on `pulse import auto` or `pulse_import`**.
+**Text decodes out of the file's charset** — record `7/20` (a NAME), else `7/3` (numeric code), else UTF-8; on disagreement `7/20` wins. Spellings fold (`windows-1252` = `cp1252` = `1252`), never approximately (`1250` ≠ `1252`). Two hard rules: an undecodable byte errors naming variable and value, **never** a U+FFFD substitution; declared widths are BYTE counts, so padding is trimmed on raw bytes BEFORE decoding. `--charset` / `io.SPSSReaderOptions{Charset}` overrides a self-mislabelling file (a stale `7/20` name, or no declaration failing the strict UTF-8 default) — also on `pulse import auto` and `pulse_import` (`charset`); decode-side only, the declaration is kept for export.
 
 **Either byte order reads.** The header layout code decides; record `7/3` corroborates only. A contradiction is FATAL — unlike the charset cross-check one field away — because byte order governs every count, offset and double: the wrong reading yields a whole file of plausible wrong numbers.
 

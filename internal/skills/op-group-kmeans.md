@@ -13,9 +13,17 @@ examples_tags: [multivariate, buffered-pipeline]
 
 ## Params
 
-- `k` (required, 2 ≤ k ≤ distinct tuples). `seed` int64 (0 = fixed). `max_iter` 100, `n_init` 10 (lowest within-SS wins). `standardize` true. `missing` `listwise`.
-- `fit` `global` (once over the filtered set) or `within` (per bucket of the groupers before it; no-op outermost). A `within` refit that stops at `max_iter` warns once per bucket, `details.group_key` = the outer segment; the whole-set fit (Components) warns unstamped.
-- `weight`: frequency only (a row is w points).
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `k` | int | (required) | 2 ≤ k ≤ distinct tuples. |
+| `seed` | int | `0` | int64; 0 = fixed. |
+| `max_iter` | int | `100` | Lloyd iterations per start. |
+| `n_init` | int | `10` | Seeded starts; lowest within-SS wins. |
+| `standardize` | bool | `true` | z-score each member first. |
+| `missing` | enum | `listwise` | `listwise` only. |
+| `fit` | enum | `global` | `global` (once over the filtered set) or `within` (per bucket of the groupers before it; no-op outermost). A `within` refit that stops at `max_iter` warns once per bucket, `details.group_key` = the outer segment; the whole-set fit (Components) warns unstamped. |
+
+`weight`: frequency only (a row is w points).
 
 Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields`; no `field`. Key column `GROUP_KMEANS_<vector>` or `_<first fields entry>`.
 
@@ -29,7 +37,9 @@ Keys `cluster_1`…`cluster_k`, emitted largest first (ties: lexicographic centr
 
 ## Components
 
-`{total_n, n_null}`, the params, `members`, `center` / `scale`, `distinct_points`, `buckets` `{key, count, size, within_ss, centroid, centroid_standardized}`, `total_ss`, `within_ss`, `between_ss`, `between_ss_ratio`, `iterations`, `converged`, `best_init`. Mergeability `None`.
+- The params, `members`, `center` / `scale`, `distinct_points`, `buckets` `{key, count, size, within_ss, centroid, centroid_standardized}`, `total_ss`, `within_ss`, `between_ss`, `between_ss_ratio`, `iterations`, `converged`, `best_init`.
+
+<!-- generated: contract -->
 
 ## Gotchas
 

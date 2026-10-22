@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, ols, buffered-pipeline]
 ```
 
-Attributes emit row-level scalars; they do not produce `Response.Components`.
+Row-level scalars; no `Response.Components`.
 
 ## Use when
 
@@ -27,24 +27,23 @@ Use something else:
 
 ## Params
 
-Top-level keys, not `params` — except `params.fit`; `field` unread.
+Refit keys are top-level, not `params`; `fit` is `params.fit` ([`regression-row-scores`](regression-row-scores.md)).
 
-| Name | Type | Description |
-|---|---|---|
-| `target` | field | Dependent field (required without `params.fit`). |
-| `predictors` | list | Independent fields (required without `params.fit`). |
-| `penalty` | enum | `""`, `l1`, `l2`, `elasticnet`. |
-| `alpha` | float | Regularization strength. |
-| `l1_ratio` | float | Elasticnet mix. |
-| `weight` | slot weight | `null` opts out; REG_OLS's kinds: WLS refit; residual raw y − ŷ. With `params.fit` skipped (the fit's own weight applied when it ran). |
-| `params.fit` | string | Score a bound fit (`fits` / `models` entry) instead of refitting: the fit's score — a REG_GLM's fitted mean; an extension regression's through its Scorer. No `target` / `predictors` / `penalty` / `alpha` / `l1_ratio` beside it. |
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `target` | field | (required) | Dependent field; absent with `fit`. |
+| `predictors` | list | (required) | Independent fields; absent with `fit`. |
+| `penalty` | enum | `""` | `""`, `l1`, `l2`, `elasticnet`. |
+| `alpha` | float | — | Regularization strength. |
+| `l1_ratio` | float | — | Elasticnet mix. |
+| `fit` | string | — | Score a bound fit (`fits` / `models` entry) instead of refitting: the fit's score (a GLM's fitted mean); no refit keys beside it. |
+| `weight` | slot weight | inherited | `null` opts out; a WLS refit; ignored with `fit`. |
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `target` / `predictors` | numeric analytics set: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
-| `Label` | new column name; default `<TYPE>_<target>`, with `params.fit` `<TYPE>_<fit>` |
+`target` / `predictors`: see `## Contract` (`decimal128` as its float64 echo, `packed_bool` 0/1).
+
+- `Label` — new column name; default `<TYPE>_<target>`, with `params.fit` `<TYPE>_<fit>`
 
 ## Output
 
@@ -55,13 +54,18 @@ One `float64` per record — the model's prediction ŷᵢ. **Null (never 0) when
 - `value`: The target value the fitted straight-line model predicts for the row from its predictors: intercept + sum(coefficient * predictor), in the target's units. The model is fitted by least squares to the rows that passed the filters and have the target and every predictor.
   - Caveat: The model describes association in these rows: a fitted value is what rows with these predictor values look like here, not what would happen to a row if a predictor were changed; a causal reading needs a design that supports it.
 
+## Contract
+
+- Types (`target`, `predictor`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable.
+
 ## Gotchas
 
-- Two-pass: prepass refits independently per ATTR_REG_* slot (Option A — no fit sharing). With `params.fit` it is row-local and equals the bound model's score bit for bit (ATTR_REG_PREDICT's); refusals: unknown name `PULSE_MODEL_UNKNOWN`, Scorer-less extension fit `no_scorer`, refit field beside it `slot_fields`; a failed fit nulls every row (`PULSE_FIT_UNAVAILABLE`).
-- `Mergeable` per-shard; predict reports streamability.
-- Penalized fits (`l1`/`l2`/`elasticnet`) reuse the same machinery; mis-tuned `alpha`/`l1_ratio` shrinks coefficients toward zero.
+- Two-pass: each slot refits on its own (no fit sharing). With `params.fit` it is row-local and equals the bound model's score bit for bit; refusals and a failed fit (`PULSE_FIT_UNAVAILABLE`, every row null): [`regression-row-scores`](regression-row-scores.md).
+- A penalty shrinks coefficients toward zero when `alpha` / `l1_ratio` is mis-tuned.
 
 ## See
 
 - `pulse_examples_search tags=[regression]`
-- Skills: [`regression-modeling`](regression-modeling.md), [`attribute-composition`](attribute-composition.md), [`op-attr-reg-residual`](op-attr-reg-residual.md)
+- Skills: [`regression-row-scores`](regression-row-scores.md), [`regression-modeling`](regression-modeling.md), [`attribute-composition`](attribute-composition.md), [`op-attr-reg-residual`](op-attr-reg-residual.md)

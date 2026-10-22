@@ -33,9 +33,7 @@ Weight (both kinds; `"weight": null` opts out): buckets cut at the weighted orde
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
 
 ## Output
 
@@ -43,22 +41,22 @@ Bucket label per row (`Qk` / `Dk` / `Pk`). Rows emit in bucket order (`D1`, `D2`
 
 ## Components
 
-Universal floor `{total_n, n_null}` plus operator-specific:
+- `n_quantiles` — Equal-population buckets
+- `method` — Interpolation (`"linear"`)
+- `edges` — Sorted cutpoints
+- `buckets` — `{key, low, high, count}`
+- `BufferedComponents`: needs the sorted full input.
 
-| Key | Type | Notes |
-|---|---|---|
-| `n_quantiles` | int | Equal-population buckets |
-| `method` | string | Interpolation (`"linear"`) |
-| `edges` | []float64 | Sorted cutpoints |
-| `buckets` | []bucket | `{key, low, high, count}` |
+## Contract
 
-- Mergeability: `None` — `BufferedComponents=true`; needs sorted full input
-- Streaming: `Streamable=false` — terminal-only.
+- Types (`field`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: buffered only; components `none`. Quantile cutoffs need the sorted value set; use GROUP_RANGE or GROUP_ROUNDED with known bounds for streaming.
+- Components: `total_n`, `n_null`, `n_quantiles`, `method`, `edges`, `buckets`.
 
 ## Gotchas
 
 - Forces buffered execution — disables fused crosstab.
-- Rejects categorical and `set_*` at construction (`PULSE_FIELD_TYPE_UNSUPPORTED`).
 - `Group.Include` not honoured — buckets are derived ranks.
 
 ## See

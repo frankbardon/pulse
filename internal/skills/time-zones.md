@@ -33,6 +33,10 @@ A NULL zone cell (or an out-of-dictionary code) gives the row NO local value, ne
 <!-- /feature -->
 Expressions (`to_day`, `weekday`) stay request-zone only (`time_zone`), never per-row: filter per row through a derived date feature plus a filter.
 
+## Stored instants
+
+A `datetime` stores whole seconds since the epoch, naive UTC. A fraction floors toward the past (native Arrow / Parquet timestamps warn `PULSE_IMPORT_TIMESTAMP_TRUNCATED`); keep microseconds in a `u64`. An offset-bearing literal is normalised to the same instant and the offset discarded (`…T10:11:12+02:00` → `…T08:11:12Z`); export `--tz` renders it back with a local offset. Truncating to a day floors toward the past (`1969-12-31T23:59:59Z` is day −1 in UTC).
+
 ## Local-day semantics
 
 A `datetime` is read on its LOCAL calendar day in every mode (process, stream, compose, parallel, shards, crosstab, join, chain, facet); a Berlin request's days are Berlin calendar days, DST changes included. Say so: "days are Berlin calendar days".
@@ -56,13 +60,7 @@ A `datetime` is read on its LOCAL calendar day in every mode (process, stream, c
 
 ## Import in a source zone
 
-A naive literal (no `Z`, no offset) is UTC unless the import names a source zone: CLI `--source-tz Zone` (or `col=Zone`, wins over the bare form), library `ImportJob.SourceTZ` / `ColumnSourceTZ`, MCP `source_tz` / `column_source_tz`. Offset and `Z` literals never move. Per-row source zone: `--source-tz-field COL` (`ImportJob.SourceTZField`, MCP `source_tz_field`) reads each row's zone from another column (IANA or `±HH:MM`) for every naive datetime column; `column_source_tz` wins; an empty cell falls back to `source_tz`, else a row error; an unknown name skips the row with `PULSE_TIMEZONE_UNKNOWN` (fatal under `--strict`); DST refusals as below. Also on `import auto`, `import predict`, `convert`, `convert predict`; managed imports persist the zone, so changing it means re-import with overwrite.
-
-`--dst-policy error|earlier|later` (default `error`): a wall time the zone skips is `PULSE_IMPORT_DST_NONEXISTENT`, one it shows twice is `PULSE_IMPORT_DST_AMBIGUOUS`; both name row, column, value, zone; no file written. `earlier`/`later` resolve it and warn `PULSE_IMPORT_DST_RESOLVED` with counts. `earlier` = PRE-transition offset, `later` = POST: overlap: first / second occurrence; GAP inverts — Berlin `02:30` on 2026-03-29: `earlier` = `01:30Z` = `03:30` local, `later` = `00:30Z` = `01:30` local. Predict reports the same refusal.
-
-<!-- feature: io_format:arrow, io_format:parquet, io_format:spss -->
-Native timestamps: Arrow and Parquet timestamp columns type `datetime`. Zoned Arrow types and UTC-adjusted Parquet are instants (the source zone never moves them); zone-less Arrow, non-adjusted Parquet and legacy INT96 are wall clocks (source zone applies). Sub-second values floor (`PULSE_IMPORT_TIMESTAMP_TRUNCATED`). SPSS `DATETIME` is a wall clock (source zone applies); SPSS `TIME`/`DTIME` are durations, `f64` seconds, never a datetime.
-<!-- /feature -->
+A naive literal (no `Z`, no offset) imports as UTC unless the import names a source zone — per file, per column or per row (`source_tz_field`); a DST gap or overlap is fatal unless `dst_policy` resolves it; zoned Arrow / UTC-adjusted Parquet timestamps never move. Every rule and code: `import-source-zones`.
 
 ## Export in a zone
 
@@ -77,4 +75,4 @@ SPSS export refuses a non-UTC `--tz` (`PULSE_SPSS_EXPORT_UNSUPPORTED`).
 
 ## See
 
-`grouper-design`, `calendar-formulas`, `type-datetime`, `type-date`, `request-envelope`, `session-format-flags`, `overlay-system`.
+`import-source-zones`, `grouper-design`, `calendar-formulas`, `type-datetime`, `type-date`, `request-envelope`, `session-format-flags`, `overlay-system`.

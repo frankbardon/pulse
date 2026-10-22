@@ -103,7 +103,7 @@ Windowed-Process overlays (index vs prior, year-over-year, …) DO produce typed
 
 ## See
 
-- Recipes: `pulse_examples_search tags=["time-series"]`, `tags=["ranking"]`, `tags=["moving-average"]`, `tags=["lag-lead"]` plus atomic `op-win-<name>`.
+- Recipes: `pulse_examples_search tags=["time-series"]`, `tags=["window-operator"]` plus atomic `op-win-<name>`.
 - `aggregation-design` — what the window-input rows come from.
 - `overlay-system` — windowed-Process overlays vs window columns.
 - `request-envelope` — slot keys, sort + streamability.

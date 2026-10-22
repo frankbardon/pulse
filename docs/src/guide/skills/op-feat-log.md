@@ -26,9 +26,7 @@ None. `Field` (required, numeric) — `params` block is unused.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
 
 ## Output
 
@@ -40,6 +38,12 @@ One `f64` column written to `Label` (default `LOG_<field>`). Formula `log1p(x) =
   - Sign: positive means the original value is above 0; negative means the original value is between -1 and 0.
   - Caveat: A value of -1 or less has no log and reads missing, with no error raised: count the missing rows before trusting a model built on the column.
   - Caveat: A missing input gives a missing output.
+
+## Contract
+
+- Types (`field`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable.
 
 ## Gotchas
 

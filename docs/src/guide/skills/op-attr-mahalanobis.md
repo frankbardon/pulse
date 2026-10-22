@@ -26,16 +26,21 @@ Use something else:
 
 ## Params
 
-- `output` — `d2` (default) or `p` (χ² upper tail on p df). `missing` — `listwise` only.
-- `fit_on` — `"filtered"` (default) or an inline filterer array picking the FIT rows; every filtered row is scored.
-- `fit` — a bound vector fit's name (a compose `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry: [`compose-fits`](compose-fits.md)), scored against instead of fitting (XOR `fit_on`: `fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members (`labels` — inline `fields` only); mismatch `PULSE_VECTOR_REFERENCE_MISMATCH`, unbound `PULSE_MODEL_UNKNOWN`, a regression's name `PULSE_MODEL_KIND_MISMATCH`.
-- `weight` — both kinds; fit only (N* = Σw or n_eff, cov M2*/(N* − 1)); a zero-weight row is scored, not fitted.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `output` | enum | `d2` | `d2` or `p` (χ² upper tail on p df). |
+| `fit_on` | any | `filtered` | `"filtered"` or a filterer array picking the FIT rows. |
+| `fit` | string | — | A bound vector fit, matched by label; XOR `fit_on` ([`vector-row-scores`](vector-row-scores.md)). |
+| `labels` | list | — | Inline `fields`: one label per member. |
+| `missing` | enum | `listwise` | `listwise` only. |
 
-Slot: exactly one of `vector` (a `vectors` entry) / `fields` (inline, globs ok); no `field`. Default label `ATTR_MAHALANOBIS_<vector>` or `_<first fields entry>`.
+`weight` — both kinds; fit only ([`vector-row-scores`](vector-row-scores.md)).
+
+Slot: `vector` or `fields`, no `field` ([`vector-row-scores`](vector-row-scores.md)). Default label `ATTR_MAHALANOBIS_<vector>` or `_<first fields entry>`.
 
 ## Inputs
 
-Members: `u4`…`u64`, `f32`/`f64` (`packed_bool` via `coerce: binary`); source columns only.
+Members: see `## Contract` (`packed_bool` via `coerce: binary`); source columns only.
 
 ## Output
 
@@ -45,13 +50,18 @@ One `f64` per record: D² = (x − μ)ᵀS⁻¹(x − μ) ≥ 0, or its p. A nul
 
 - `value`: With output d2 (the default): the row's squared Mahalanobis distance D² = (x - mean)' S^-1 (x - mean) across the p fields, the distance from the fitted average row in units of the fields' own spread and correlation; 0 is exactly average and it is never negative. With output p: the chance of a D² at least this large under a chi-square curve on p degrees of freedom, so a small value marks an unusual row.
 
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable.
+
 ## Gotchas
 
-- Fit is cohort-wide, never per group; with `fit_on`, groupers or features force buffered — two-pass, never merged.
-- With `fit` it is row-local: one pass, streams beside groupers and features, merges (shards, chain stages); same scores. A fit that failed on its data: every score null + `PULSE_FIT_UNAVAILABLE`.
+- Fit is cohort-wide, never per group: `fit_on` is two-pass (buffered beside groupers / features); `fit` is row-local and merges; a failed fit nulls every score + `PULSE_FIT_UNAVAILABLE` ([`vector-row-scores`](vector-row-scores.md)).
 - Singular fit or N* ≤ p: all scores null + `PULSE_MATRIX_SINGULAR` / `PULSE_MATRIX_INSUFFICIENT_N` warning.
 
 ## See
 
 - `pulse_examples_search tags=[outlier-detection, multivariate]`
-- Skills: [`attribute-composition`](attribute-composition.md), [`multivariate-design`](multivariate-design.md), [`op-attr-zscore`](op-attr-zscore.md)
+- Skills: [`vector-row-scores`](vector-row-scores.md), [`attribute-composition`](attribute-composition.md), [`multivariate-design`](multivariate-design.md), [`op-attr-zscore`](op-attr-zscore.md)

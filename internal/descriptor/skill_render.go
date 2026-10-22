@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/examples"
 	"github.com/frankbardon/pulse/internal/skills"
 )
 
@@ -19,12 +20,14 @@ import (
 //     name it lists resolves to a node of the instance's PRUNED ontology
 //     (FenceFeatureID). Markers are always stripped. Atomic and topical
 //     bodies alike.
-//  2. `## See` by edge (atomic bodies only — the section the ontology
-//     reads routes_to / exemplified_by edges from): a backticked stem
-//     naming a skill the instance pruned is cut from its line, a
-//     `pulse_examples_search tags=[…]` ref is cut when no VISIBLE example
-//     carries all its tags, and a line every span of which was cut is
-//     dropped.
+//  2. `## See` by edge (atomic and topical bodies alike — the section
+//     the ontology reads routes_to / exemplified_by edges from): a
+//     backticked stem naming a skill the instance pruned is cut from its
+//     line, a `pulse_examples_search tags=[…]` ref is cut when no VISIBLE
+//     example answers it (seeTags), a line every span of which was cut is
+//     dropped, and a topical section a cut left with no text is dropped
+//     with its heading (an atomic `## See` is required: its heading stays
+//     over an empty section).
 //
 // Between the two, every generated-section marker
 // (`<!-- generated: use-when -->` / `<!-- generated: reading-the-output -->`)
@@ -77,12 +80,22 @@ func (d *Discovery) renderBody(name, raw string) string {
 		return raw
 	}
 	out = d.renderGenerated(out)
-	if _, topical := d.topical[name]; topical {
-		return d.renderCovers(out)
+	_, topical := d.topical[name]
+	if topical {
+		out = d.renderCovers(out)
 	}
-	return renderSeeSection(out, func(span string) bool {
-		if tags, ok := seeTags(span); ok {
-			return len(d.ExamplesSearch("", tags, "")) > 0
+	var visible []examples.ExampleSummary
+	return renderSeeSection(out, topical, func(span string) bool {
+		if searches, ok := seeTags(span); ok {
+			if visible == nil {
+				visible = d.ExamplesSearch("", nil, "")
+			}
+			for _, ex := range visible {
+				if seeTagsMatch(searches, ex.Tags) {
+					return true
+				}
+			}
+			return false
 		}
 		_, pruned := d.hiddenSkills[span]
 		return !pruned
@@ -91,37 +104,59 @@ func (d *Discovery) renderBody(name, raw string) string {
 
 // renderSeeSection renders body's `## See` section line by line
 // (renderSeeLine); lines outside the section are untouched and a line
-// left naming nothing is dropped.
-func renderSeeSection(body string, keepSpan func(span string) bool) string {
+// left naming nothing is dropped. With dropEmpty (topical bodies) a
+// section a cut left holding only blank lines is dropped with its
+// heading (a section blank to begin with stays); without it (atomic
+// bodies, where `## See` is a required section — skills.RequiredSections)
+// the heading always survives, over an empty section. A render that
+// cuts nothing returns body unchanged.
+func renderSeeSection(body string, dropEmpty bool, keepSpan func(span string) bool) string {
 	lines := strings.Split(body, "\n")
 	out := make([]string, 0, len(lines))
-	in := false
+	head := -1 // index in out of the open See heading, -1 outside one
+	cut, text := false, false
+	closeSee := func() {
+		if dropEmpty && head >= 0 && cut && !text {
+			out = out[:head]
+		}
+		head, cut, text = -1, false, false
+	}
 	for _, line := range lines {
 		if strings.HasPrefix(line, "## ") {
-			in = strings.TrimSpace(line) == "## See"
+			closeSee()
+			if strings.TrimSpace(line) == "## See" {
+				head = len(out)
+			}
 			out = append(out, line)
 			continue
 		}
-		if !in {
+		if head < 0 {
 			out = append(out, line)
 			continue
 		}
-		if r, keep := renderSeeLine(line, keepSpan); keep {
-			out = append(out, r)
+		r, keep := renderSeeLine(line, keepSpan)
+		if !keep {
+			cut = true
+			continue
 		}
+		cut = cut || r != line
+		text = text || strings.TrimSpace(r) != ""
+		out = append(out, r)
 	}
+	closeSee()
 	return strings.Join(out, "\n")
 }
 
 // See-line separators between list items (outside backticks and
-// parentheses).
-var seeSeparators = []string{", ", "; ", " / "}
+// parentheses); " · " is the topical skills' inline-list separator.
+var seeSeparators = []string{", ", "; ", " / ", " · "}
 
 // renderSeeLine cuts the ITEMS of one See line whose every backticked
 // span keepSpan rejects. A line is `<prefix><item><sep><item>…<tail>`:
 // the prefix runs to the first backtick ("- Skills: "), items split at
-// ", " / "; " / " / " outside backticks and parentheses (so an item keeps
-// its annotation — "`request-envelope` (Time zones)"), and the tail is a
+// ", " / "; " / " / " / " · " outside backticks and parentheses (so an
+// item keeps its annotation — "`request-envelope` (Time zones)"), and
+// the tail is a
 // " — description" after the last span, shared by every item. A cut item
 // takes its separator with it (a trailing "." survives on the new last
 // item); a line whose every span-bearing item is cut reports keep=false.

@@ -29,15 +29,14 @@ O(1) row addressing, not a scan — needs a sidecar index already built (`pulse 
 
 ## Gotchas
 
-- `PULSE_INDEX_MISSING` — no sidecar for the key field(s); build one. To discover which tuples DO exist, read `pulse index list` / `Pulse.ListIndexes` — a sidecar's filename is a hash of its key tuple, so globbing `.idx` tells you nothing and is unavailable on object storage; the listing is served from the keyless `<cohort>.indexes.json` manifest.
-- `PULSE_INDEX_STALE` — the cohort really changed: a different size, or a content hash that disagrees. An mtime that moved while the size held is NOT stale — it falls through to the fingerprint (memoised per stat pair), so an index read through a bucket still serves. `details.fingerprint_checked` says which arm refused. Rebuild.
-- `PULSE_INDEX_MANIFEST_INVALID` / `_STALE` — the discovery manifest is unreadable, or names a sidecar that is gone. Rebuild or drop that tuple.
-- shard archives index one sidecar per shard; a shard the index does not cover is `PULSE_INDEX_STALE` with `details.shards_uncovered` — rebuild.
+- `PULSE_INDEX_MISSING` — no sidecar for the key field(s); build one. Discover which tuples exist with `pulse index list` / `Pulse.ListIndexes` (the `indexes.json` manifest) — never by globbing `.idx` files, whose names are hashes.
+- `PULSE_INDEX_STALE` — the cohort really changed (size or content hash; a moved mtime alone falls through to the fingerprint), or a shard the index does not cover (`details.shards_uncovered`). Rebuild.
+- `PULSE_INDEX_MANIFEST_INVALID` / `_STALE` — the discovery manifest is unreadable or names a gone sidecar. Rebuild or drop that tuple.
 - `PULSE_LOOKUP_NOT_FOUND` — fresh index, no matching record.
-- `PULSE_LOOKUP_AMBIGUOUS` — default `assert_unique` rejects >1-row matches; opt into `first`/`all` for duplicates.
-- Perf: indexed lookup is flat O(1) (~5µs, 10k→1M rows); a scan is linear.
+- `PULSE_LOOKUP_AMBIGUOUS` — default `assert_unique` rejects >1-row matches; opt into `first` / `all`.
+- Indexed lookup is flat O(1) (~5µs, 10k→1M rows); a scan is linear. Format, staleness arms, shards: [`cohort-sidecar-index`](cohort-sidecar-index.md).
 
 ## See
 
 - [`request-envelope`](request-envelope.md) — cohort slot shape shared across request types.
-- [`cohort-schema-design`](cohort-schema-design.md) — sidecar byte format (v3), field-type matrix (keyable types + equality caveats), staleness.
+- [`cohort-sidecar-index`](cohort-sidecar-index.md) — format, staleness, discovery, shards; [`cohort-schema-design`](cohort-schema-design.md) — keyable types and equality caveats.

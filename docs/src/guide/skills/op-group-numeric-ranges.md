@@ -25,11 +25,13 @@ Use something else:
 
 ## Params
 
-One source — `ranges` XOR `table`:
+One source — `ranges` XOR `table` (`ranges` declared required as the common case):
 
-- `ranges` — ordered `[]{label,start,end}`; JSON numbers, omitted/null = open, half-open `[start, end)`.
-- `table` — a NUMERIC `RangeTable` (number bounds; Extensions or `PULSE_RANGE_TABLES_DIR`).
-- `unmatched_label` — default `unmatched`; not a range label.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `ranges` | array | (required) | Ordered `[]{label,start,end}`; JSON numbers, omitted/null = open, half-open `[start, end)`. |
+| `unmatched_label` | string | `unmatched` | Bucket for rows outside every range; not a range label. |
+| `table` | string | — | A NUMERIC `RangeTable` (number bounds; Extensions or `PULSE_RANGE_TABLES_DIR`), in place of `ranges`. |
 
 Integer split idiom — 0..90 train, 91..103 holdout, ends meet:
 
@@ -39,7 +41,7 @@ Integer split idiom — 0..90 train, 91..103 holdout, ends meet:
 
 ## Inputs
 
-`Field` — `u4`, `u8`..`u64`, `f32` / `f64`. Date, `decimal128`, `packed_bool`, categorical or `set_*` → `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime); dates take `GROUP_DATE_RANGES`.
+`Field` — admitted types: see `## Contract`; dates take `GROUP_DATE_RANGES`.
 
 ## Output
 
@@ -47,7 +49,14 @@ Range label per row, else `unmatched_label`. Rows emit in supplied range order, 
 
 ## Components
 
-Floor `{total_n, n_null}` + `n_ranges` (int), `unmatched_label` (string), `buckets` (`{key, label, count}`, supplied order, unmatched last). Mergeable, streamable.
+- `n_ranges` (int), `unmatched_label` (string), `buckets` (`{key, label, count}`, supplied order, unmatched last).
+
+## Contract
+
+- Types (`field`): `f32`, `f64`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable; components `mergeable`.
+- Components: `total_n`, `n_null`, `n_ranges`, `unmatched_label`, `buckets`.
 
 ## Gotchas
 

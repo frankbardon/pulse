@@ -39,7 +39,7 @@ Set `"vcov": true` on a regression slot (flat spec field, NOT under `params`) to
 | Engine | Matrix |
 |---|---|
 | OLS | σ̂²(XᵀX)⁻¹, intercept cross terms included (−μᵀCov) |
-| Ridge (`l2`) | the sandwich estimator |
+| Ridge (`l2`) | the sandwich estimator (GLM: H⁻¹XᵀWXH⁻¹, H = XᵀWX + N*·α·D) |
 | GLM | φ·(XᵀWX)⁻¹ at the converged IRLS weights: φ = 1 (binomial, poisson), gamma's Pearson χ²/df estimate |
 | Bayesian linear | the posterior covariance b_N/(a_N−1)·Λ⁻¹; `null` when a_N ≤ 1 |
 
@@ -54,12 +54,12 @@ Weighted fits (frequency or probability) use the N* basis the weighted SE uses; 
 ## Robust standard errors
 
 `"covariance": {"type": "hc3"}` on `REG_OLS` swaps the estimator behind `std_errors`, `p_values`, the intervals and `vcov` (√diag still = `StdErrors`): `hc0`–`hc3`, `cluster` (CR1, OLS `df` = clusters − 1) or `hac` (Newey–West over `order_by`). Absent = `classical`, byte-identical. Matches R `sandwich` + `lmtest::coeftest`.
-`REG_GLM` takes it too: the sandwich over the IRLS scores (R `sandwich` on `glm`), still Wald z.
-`REG_BAYES_LINEAR`: Müller's sandwich posterior REPLACES the posterior covariance (mean kept; normal intervals, no `df`).
+`REG_GLM` takes it too: the sandwich over the IRLS scores at the converged weights (R `sandwich` on `glm`), dispersion-free, still Wald z with no `df` (cluster and gamma too); weighted, it follows w*.
+`REG_BAYES_LINEAR`: Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹MΛ_n⁻¹) REPLACES the posterior covariance (mean kept; normal intervals, no `df`) — honest under heteroskedastic or dependent rows, but no longer the conjugate model's probability statement.
 
 ## Refusals
 
-`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`, `details.reason` `penalty`: `l1` / `elasticnet` has no sampling covariance of its data-dependent active set, never approximated — refused under resample or selection too. A robust `covariance` is refused beside any penalty, resample or selection.
+`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`, `details.reason` `penalty`: `l1` / `elasticnet` has no sampling covariance of its data-dependent active set, never approximated — refused under resample or selection too. A robust `covariance` forces the buffered path and adds a `Covariance` echo; it is refused (same code) beside any penalty, resample, selection or `bounds`, with < 2 clusters, or a repeated `order_by`. A null `cluster` / `order_by` value drops the row.
 
 Predict and runtime apply the same rule, so predict reports it before any fit. `pulse_errors_lookup` carries the recovery.
 

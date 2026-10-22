@@ -13,13 +13,11 @@ examples_tags: [cardinality-analysis, cross-tabulation]
 
 ## Params
 
-Weight-aware (`"weight": null` opts out): the value with the largest Σw; `count` becomes that Σw (a float). Invalid weights excluded (`PULSE_WEIGHT_INVALID_ROWS`).
+Weighted: the value with the largest Σw; `count` becomes that Σw (a float).
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | any field type EXCEPT `set_*` and `decimal128`; any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -27,26 +25,18 @@ Scalar `float64` — the modal value (categorical: its dictionary index). Per-gr
 
 ## Components
 
-<!-- feature: capability:weighting -->Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.<!-- /feature -->
+- `value` — Most-frequent value
+- `count` — Row count of the modal value (weighted: Σw)
+- `distinct_count` — Distinct values observed
+- `tie_count` — Values tied at the max count
 
-Universal floor `{n, n_null}` plus operator-specific:
-
-| Key | Type | Notes |
-|---|---|---|
-| `value` | any | Most-frequent value |
-| `count` | int | Row count of the modal value (weighted: Σw) |
-| `distinct_count` | int | Distinct values observed |
-| `tie_count` | int | Values tied at the max count |
-
-- Mergeability: `Partial` — map allocation
-- Streaming: per-value counts merged at flush
+<!-- generated: contract -->
 
 ## Gotchas
 
 - Ties go to the SMALLEST value (or index), not the first seen; `tie_count > 1` flags a tie.
 - High cardinality costs memory; pre-filter.
 - No non-null value → `null` (NaN), never 0.
-- `set_*` → `PULSE_FIELD_TYPE_UNSUPPORTED` (no modal scalar).
 - Over `categorical_*` / `packed_bool` the value is a CODE: an overlay scoring it (any host; `params.field`, else `aggregations[0]`) is refused `PROCESSING_CONFIG`, reason `categorical_code` (+ `field`, `field_type`). So is a crosstab whose CELL is a code, under any MATRIX kind that reads cell values (`slot: "crosstab.cell"`; the moment pairwise kinds read none). Score a count or share instead. Code-ness survives ProcessChain: a later stage's column written by a code-emitting aggregation is still a code (`field_type` its origin type), so `AGG_MODE` over it, scored, is refused too.
 
 ## See

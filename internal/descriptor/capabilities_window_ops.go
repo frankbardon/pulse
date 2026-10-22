@@ -26,12 +26,14 @@ func windowCapabilities() []descriptor.Operator {
 			Category:    "window",
 			Description: "Return the value of Field from the row N positions before the current row in the ordered partition.",
 			Params: []descriptor.Param{
-				{Name: "offset", Type: "int", Required: false, Default: 1, Description: "Lookback offset (≥ 1)."},
+				{Name: "offset", Type: "int", Required: false, Default: 1, Description: "Lookback offset (≥ 0; 0 reads the current row itself)."},
 				{Name: "default", Type: "any", Required: false, Description: "Substitute value when the lookback row does not exist."},
 			},
-			AcceptsTypes:  tableAcceptsTypes(types.WIN_LAG),
-			EmitsType:     "f64",
-			EmitsTypeNote: "one float per row (Default when offset crosses partition start)",
+			AcceptsTypes: tableAcceptsTypes(types.WIN_LAG),
+			// No EmitsType: the output is a verbatim copy of the source
+			// cell, so its type is the source field's (a u64 keeps its
+			// exact word), and params.default is emitted as given.
+			EmitsTypeNote: "matches the source field type: a verbatim copy of the lookback row's cell; params.default (any JSON value) where the offset crosses the partition start",
 			Streamable:    false,
 		},
 		{
@@ -39,12 +41,12 @@ func windowCapabilities() []descriptor.Operator {
 			Category:    "window",
 			Description: "Return the value of Field from the row N positions after the current row in the ordered partition.",
 			Params: []descriptor.Param{
-				{Name: "offset", Type: "int", Required: false, Default: 1, Description: "Lookahead offset (≥ 1)."},
+				{Name: "offset", Type: "int", Required: false, Default: 1, Description: "Lookahead offset (≥ 0; 0 reads the current row itself)."},
 				{Name: "default", Type: "any", Required: false, Description: "Substitute value when the lookahead row does not exist."},
 			},
-			AcceptsTypes:  tableAcceptsTypes(types.WIN_LEAD),
-			EmitsType:     "f64",
-			EmitsTypeNote: "one float per row",
+			AcceptsTypes: tableAcceptsTypes(types.WIN_LEAD),
+			// No EmitsType: a verbatim copy of the source cell (see WIN_LAG).
+			EmitsTypeNote: "matches the source field type: a verbatim copy of the lookahead row's cell; params.default (any JSON value) where the offset crosses the partition end",
 			Streamable:    false,
 		},
 		{

@@ -396,7 +396,7 @@ func init() {
 		"AGG_SET_INTERSECTION", "AGG_SET_UNION", "ATTR_SET_HAS", "ATTR_SET_POPCOUNT",
 		"FILTER_SET_CONTAINS_ALL", "FILTER_SET_CONTAINS_ANY", "FILTER_SET_CONTAINS_NONE", "FILTER_SET_EQUALS",
 		"GROUP_SET_PER_ELEMENT", "GROUP_SET_VALUE")
-	add(temporalValue, unsupported, field, "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "FEAT_DATE_FEATURES", "ATTR_DATE_PART")
+	add(temporalValue, unsupported, field, "GROUP_DATE", "GROUP_DATE_RANGES", "FILTER_DATE_RANGES", "FEAT_DATE_FEATURES", "ATTR_DATE_PART")
 	add(packedBool, unsupported, field, "FILTER_TRUE", "FILTER_FALSE")
 	add(codeValue, unsupported, field, "ATTR_CODE_IN")
 	add(modelErrorValue, unsupported, []Slot{SlotField, SlotPrediction}, "AGG_MAE", "AGG_MAPE", "AGG_RMSE")

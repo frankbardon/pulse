@@ -25,13 +25,11 @@ Use something else:
 
 ## Params
 
-Weight: honours a resolved row weight (`weight` on the request or slot, or `Options.DefaultWeight`; `"weight": null` opts out) — weighted it is Σw over value-present rows (a float). Invalid weights (null, negative, NaN/Inf, fractional under `frequency`) are excluded and warned (`PULSE_WEIGHT_INVALID_ROWS`); zero contributes nothing.
+Weighted: Σw over value-present rows (a float).
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | any cohort field type (numeric, categorical, date, packed_bool, set_*, decimal128) |
+- `Field` — any cohort field type (numeric, categorical, date, packed_bool, set_*, decimal128)
 
 `AGG_COUNT` counts non-null rows.
 
@@ -39,14 +37,12 @@ Weight: honours a resolved row weight (`weight` on the request or slot, or `Opti
 
 Scalar `int64`. Per-group when wired under a grouper; otherwise one row across the cohort.
 
-## Components
+## Contract
 
-Weighted slots add floor keys `sum_weights` (Σw), `n_eff` (Kish; `probability` only) and `n_weight_invalid`; absent ⇒ unweighted. `n`/`n_null` stay raw counts.
-
-Floor only — no operator-specific keys. Universal `{n, n_null}` per response-components contract.
-
-- Mergeability: `Mergeable`
-- Streaming: per-chunk emission; orchestrator sums
+- Types: any type.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable; components `mergeable`.
+- Components: `n`, `n_null`; optional `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 

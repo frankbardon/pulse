@@ -28,9 +28,14 @@ Use something else:
 
 `Scope` `matrix`. `Ref` empty. `Level`/`Within` `0`.
 
-- `row_targets`, `col_targets` — `{key: value}`, one per host key, no extras.
-- `targets_as` — `shares` (default; normalized, scaled to the host total) | `counts` (totals must agree).
-- `max_iter` — default 100. `tolerance` — default 1e-8 (max relative margin error).
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `row_targets` | object | (required) | `{key: value}`, one per host key, no extras. |
+| `col_targets` | object | (required) | `{key: value}`, one per host key, no extras. |
+| `targets_as` | `counts` \| `shares` | `shares` | `shares` (default; normalized, scaled to the host total) \| `counts` (totals must agree). |
+| `max_iter` | int | `100` | Iteration cap. |
+| `tolerance` | float | 1e-08 | Convergence threshold on the maximum relative margin error. |
+
 
 ## Host shape
 
@@ -45,6 +50,11 @@ Primary MATRIX: fitted table. Part `factors` (MATRIX fitted / observed; `null` w
 - `cells.value`: The raked count for the cell: the table rescaled so its row and column totals match the targets while keeping its internal pattern.
 - `parts.factors.cells.value`: How much the cell was scaled: the raked count over the observed one (above 1 = scaled up). null where the observed cell was 0, which stays 0.
 - `summary.parameters.converged`: 1 when every fitted margin is within the tolerance of its target, 0 when the fit stopped at max_iter first (the table still ships, with a warning).
+
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: buffered only.
 
 ## Gotchas
 

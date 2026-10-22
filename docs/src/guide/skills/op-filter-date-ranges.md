@@ -27,21 +27,27 @@ Use something else:
 
 One source in `Params` (not `Values`) — `ranges` XOR `table`:
 
-- `ranges` — `[]{label,start,end}`, ISO; null bound = open; inclusive.
-- `table` — registered `RangeTable` (Extensions or `PULSE_RANGE_TABLES_DIR`).
-- `tz` (IANA) / `tz_field` (per-row zone column) — slot keys.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `ranges` | array | — | `[]{label,start,end}`, ISO; null bound = open; inclusive. |
+| `table` | string | — | Registered `RangeTable` (Extensions or `PULSE_RANGE_TABLES_DIR`). |
+
+`tz` (IANA) / `tz_field` (per-row zone column) — slot keys.
 
 ## Inputs
 
-`Field` — `date` or `datetime` (else `PULSE_FIELD_TYPE_UNSUPPORTED`). `datetime` floors to its local day (resolved zone, UTC default); bounds (inline or `table`; tables carry no zone) are local days.
+`Field` — `date` or `datetime`. `datetime` floors to its local day (resolved zone, UTC default); bounds (inline or `table`; tables carry no zone) are local days.
 
 ## Output
 
 Keeps rows whose day is in a range; `label` unused, no column.
 
-## Components
+## Contract
 
-Floor only — `{n_in, n_out, n_null_input}`. Mergeable (additive).
+- Types (`field`): `date`, `datetime`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable; components `mergeable`.
+- Components: `n_in`, `n_out`, `n_null_input`.
 
 ## Gotchas
 

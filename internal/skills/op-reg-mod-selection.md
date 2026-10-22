@@ -17,8 +17,10 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. T
 
 Top-level `selection` on `RegressionSpec` plus its required `criterion` companion. A **wrapper, not a fit**: the engine refits the host model against candidate subsets and keeps the lowest-criterion winner.
 
-- `selection` — enum, default `""`. `""`, `forward` (intercept-only, add best each step), `backward` (full, drop best each step), `stepwise` (bidirectional add/drop until no move improves).
-- `criterion` — enum, default required when set. `aic` or `bic`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `selection` | `backward` \| `forward` \| `stepwise` | — | `forward` (intercept-only, add best each step), `backward` (full, drop best each step), `stepwise` (bidirectional until no move improves); absent / `""` = off. |
+| `criterion` | `aic` \| `bic` | — | Information criterion; required when `selection` is set (`SERVICE_VALIDATION`). |
 
 ## Inputs
 
@@ -52,7 +54,6 @@ Inherits `target` / `predictors` from the host `RegressionSpec`. No additional f
 - Worst-case `O(p²)` fits (`stepwise`); on wide tables prefer `forward`.
 - Composes with `resample` — the resample wraps the selected-feature fit.
 - Selection inflates type-I error on retained predictors; treat the model as exploratory.
-- Never weighted: any row weight in force on the regression (slot, request or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; `"weight": null` on the slot runs it unweighted.
 
 ## See
 

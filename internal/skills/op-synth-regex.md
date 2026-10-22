@@ -15,8 +15,10 @@ Synth distributions emit per-row values; no `Response.Components`.
 
 ## Params
 
-- `pattern` — string, required, non-empty. Perl/RE2 source via `regexp/syntax.Parse`.
-- `max_repeat` — int, default `8`, floored at 1. Bounds unbounded `*` / `+` / `{m,}`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `pattern` | string | (required) | Non-empty Perl/RE2 source via `regexp/syntax.Parse`. |
+| `max_repeat` | int | `8` | Floored at 1. Bounds unbounded `*` / `+` / `{m,}`. |
 
 ## Inputs
 
@@ -25,6 +27,8 @@ Field `type:` — `categorical_u8`/`u16`/`u32`. Distinct generated strings becom
 ## Output
 
 Per-row string from the parsed AST: literals copy, char classes draw uniformly, alternations pick a branch, repeats expand under `max_repeat`. Stored as a dictionary index. Ops: `OpLiteral`, `OpCharClass`, `OpAnyChar(NotNL)`, `OpCapture`, `OpConcat`, `OpAlternate`, `OpStar`, `OpPlus`, `OpQuest`, `OpRepeat`, anchors (emit nothing).
+
+<!-- generated: contract -->
 
 ## Gotchas
 
@@ -35,5 +39,4 @@ Per-row string from the parsed AST: literals copy, char classes draw uniformly, 
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: `synthetic-data`, `op-synth-weighted-categorical`, `op-synth-constant`

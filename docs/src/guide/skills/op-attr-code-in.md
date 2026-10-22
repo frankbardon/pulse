@@ -30,14 +30,18 @@ Use something else:
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | `categorical_u8/u16/u32` (by LABEL, not id); `u4`/`u8`/`u16`/`u32`/`u64` (by exact value; `u64` above 2^53 too); any other type → `PULSE_FIELD_TYPE_UNSUPPORTED` |
-| `Label` (output name) | required; `target` → `PROCESSING_CONFIG` |
+- `Field` — `categorical_u8/u16/u32` (by LABEL, not id); `u4`/`u8`/`u16`/`u32`/`u64` (by exact value; `u64` above 2^53 too)
+- `Label` (output name) — required; `target` → `PROCESSING_CONFIG`
 
 ## Output
 
 `packed_bool` per row: `1` if the value is a code, else `0`. Null → `0`.
+
+## Contract
+
+- Types (`field`): `categorical_*`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable.
 
 ## Gotchas
 

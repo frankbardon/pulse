@@ -29,13 +29,11 @@ Use something else:
 |---|---|---|---|
 | `percentile` | float | (required) | Percentile in `[0, 100]`. e.g. 95 for p95. |
 
-Weight-aware (`"weight": null` opts out): Hmisc `wtd.quantile` — sort by value; h = p·(Σw−1); x(k) = first value with cumulative Σw ≥ k+1 (snapped to an integer within 1e-9); interpolate x(⌊h⌋)..x(⌈h⌉). `probability` weights first rescaled to Σw = n (rows used) — scale-invariant; `frequency` weights stay raw = type 7 on duplicated rows. Invalid weights excluded (`PULSE_WEIGHT_INVALID_ROWS`).
+Weighted: Hmisc `wtd.quantile` — sort by value; h = p·(Σw−1); x(k) = first value with cumulative Σw ≥ k+1 (snapped to an integer within 1e-9); interpolate x(⌊h⌋)..x(⌈h⌉). `probability` weights first rescaled to Σw = n (rows used) — scale-invariant; `frequency` weights stay raw = type 7 on duplicated rows.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `packed_bool`, `u4`; a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -49,21 +47,19 @@ Scalar `float64`. Per-group when wired under a grouper.
 
 ## Components
 
-Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
+- `p` — Requested percentile
+- `position` — Index in sorted set (weighted: ⌊h⌋, expanded)
+- `lower` — Lower bracket value
+- `upper` — Upper bracket value
+- `method` — Interpolation method (e.g. `"linear"`)
+- `value` — Resolved percentile
 
-Universal floor `{n, n_null}` plus operator-specific:
+## Contract
 
-| Key | Type | Notes |
-|---|---|---|
-| `p` | float64 | Requested percentile |
-| `position` | int | Index in sorted set (weighted: ⌊h⌋, expanded) |
-| `lower` | float64 | Lower bracket value |
-| `upper` | float64 | Upper bracket value |
-| `method` | string | Interpolation method (e.g. `"linear"`) |
-| `value` | float64 | Resolved percentile |
-
-- Mergeability: `None` — exact percentile needs full sort
-- Streaming: NOT streamable
+- Types (`field`): `date`, `datetime`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: buffered only; components `none`. Use AGG_AVERAGE or accept the buffered path; exact percentiles need sorted input.
+- Components: `n`, `n_null`, `p`, `position`, `lower`, `upper`, `method`, `value`; optional `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 

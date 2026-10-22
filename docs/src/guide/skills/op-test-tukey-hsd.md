@@ -26,9 +26,13 @@ Use something else:
 
 ## Params
 
-- `alpha` — float, default `0.05`, family-wise, in `(0, 1)`.
-- `ms_within` / `df_within` — float, both required. Within-group mean square + df from a preceding one-way ANOVA.
-- `n_column` — string, default `"n"`: result-row column holding each group's size (Tukey-Kramer weighs a pair by it).
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | Family-wise, in `(0, 1)`. |
+| `ms_within` | float | (required) | Both required. Within-group mean square + df from a preceding one-way ANOVA. |
+| `df_within` | float | (required) | Both required. Within-group mean square + df from a preceding one-way ANOVA. |
+| `n_column` | string | `n` | Result-row column holding each group's size (Tukey-Kramer weighs a pair by it). |
+| `partition_by` | list | — | Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). |
 
 `Field` + `SplitBy` both required. **Tier-2 only** — list in `Request.PostTests`.
 
@@ -46,10 +50,15 @@ Use something else:
 - `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
   - Caveat: This is the smallest Tukey-adjusted p-value across all pairs, already corrected for multiple comparisons; read details.comparisons for which pairs it belongs to.
 
+## Contract
+
+- Weight: refused under any weight in force, an instance default included (`PULSE_WEIGHT_UNSUPPORTED`: it reads the aggregated per-group result rows, which carry no row weights, and weighted Tukey-Kramer has no reference form); `weight: null` on the slot runs it unweighted.
+- Multiplicity: already corrected for its own comparisons; a method on its own block is `PULSE_MULTIPLICITY_INVALID`, an inherited one skips it.
+- Streaming: buffered only.
+
 ## Gotchas
 
 - Already family-wise: never joins a `multiplicity` family; an explicit non-`none` block is refused, an inherited one skipped.
-- Never weighted (it reads aggregated result rows, which carry no row weights): any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; set `"weight": null` on the slot to run it unweighted.
 - Runs against materialized per-group result rows; a group row with a null drops (listwise); a non-numeric mean or `n_column` value is `PULSE_TEST_FIELD_NOT_NUMERIC`, a missing column `SERVICE_VALIDATION`. Buffered (`Streamable=false`).
 - Consumes tier-1 one-way ANOVA outputs: run as a follow-up Request, or compose inside a ProcessChain that exposes them.
 - Assumes equal variances (as ANOVA); Games-Howell for unequal is not yet shipped.

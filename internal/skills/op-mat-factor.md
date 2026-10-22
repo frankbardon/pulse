@@ -15,9 +15,22 @@ As `op-mat-covariance`; always correlation.
 
 ## Params
 
-- `factors` — int k ≤ p or `kaiser` (default). `extraction` — `minres` (default), `principal_axis`, `ml`.
-- `rotation` — `none` (default); orthogonal `varimax`, `quartimax`, `geomin_orthogonal`, `entropy`; oblique `promax`, `oblimin`, `geomin`. `kappa` (4) promax, `gamma` (0) oblimin, `epsilon` (0.01) geomin pair. `repair` — `nearest`.
-- `conf_level` — `ml`, default 0.9: RMSEA interval coverage. `missing`, `max_drop_share`, `fit`, `weight`, `encoding`: `op-mat-correlation`.
+
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `factors` | any | `kaiser` | k ≤ p, or `"kaiser"` (eigenvalues > 1). |
+| `extraction` | `minres` \| `principal_axis` \| `ml` | `minres` | psych `fm` (`multivariate-outputs`). |
+| `rotation` | enum | `none` | Orthogonal `varimax`, `quartimax`, `geomin_orthogonal`, `entropy`; oblique `promax`, `oblimin`, `geomin`. |
+| `kappa` | float | `4` | Promax power, > 1. |
+| `gamma` | float | `0` | Oblimin: 0 quartimin, 0.5 biquartimin, 1 covarimin. |
+| `epsilon` | float | `0.01` | Geomin ε, > 0; larger smooths. |
+| `conf_level` | float | `0.9` | `ml` only: RMSEA interval coverage. |
+| `repair` | `nearest` | — | Factor the nearest correlation matrix (`multivariate-design`). |
+| `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise adds `auxiliary.n` (`matrix-results`). |
+| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
+| `fit` | string | — | Emit from a bound vector fit's listwise state, reading no row (`vector-row-scores`). |
+
+`weight`, `encoding`: as `op-mat-correlation`.
 
 ## Inputs
 
@@ -29,9 +42,7 @@ Integer / float members.
 
 <!-- generated: reading-the-output -->
 
-## Components
-
-`n`, `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`<!-- feature: capability:weighting -->; weighted `sum_weights`, `n_eff`, `n_weight_invalid`<!-- /feature -->.
+<!-- generated: contract -->
 
 ## Gotchas
 

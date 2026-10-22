@@ -1010,11 +1010,11 @@
       },
       {
         "name": "pulse_examples_get",
-        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process."
+        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process. Serves the same library as pulse_examples_search: embedder examples included, an example that uses a feature this server hides reads as not found."
       },
       {
         "name": "pulse_examples_search",
-        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nThe `compose` examples show a compose `sweep` expanded into slots.\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
+        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nThe `compose` examples show a compose `sweep` expanded into slots.\n\nThe library is this server's own: the shipped examples plus any the embedder registered, minus any that use a feature this server hides (those read as absent).\n\nPrefer this over inferring request shapes from documentation or source code — the shipped examples are curated, runnable, and stay in lockstep with the operator surface; embedder examples are validated the same way at startup."
       },
       {
         "name": "pulse_facet",
@@ -1439,6 +1439,14 @@
         "description": "Grouper slot semantics — multi-grouper composition (key product), fused crosstab eligibility, Group.Include inclusion-list, smart defaults per field type. Topical design; per-GROUP detail lives in atomic op-group-* skills."
       },
       {
+        "name": "import-schema-rows",
+        "description": "Importing a tabular source — an explicit schema matched by column name and its refusal codes, what inference decides (float width, nullability, widths, blank cells), zero-row and partial row failures, format dispatch, compressed and .pulse sources, and the one JSON casing. Topical design; the managed-import tool's own arguments in its atomic skill."
+      },
+      {
+        "name": "import-source-zones",
+        "description": "Importing naive datetimes recorded in a local zone — source_tz, per-column and per-row (source_tz_field) zones, the DST gap / overlap policy, which native Arrow, Parquet and SPSS timestamps move, the dropped-row and zone warnings, and why a managed handle is re-imported to change zone. Topical design; request-time zones in time-zones."
+      },
+      {
         "name": "intents",
         "description": "The closed intent taxonomy: the kinds of question an analysis answers, how each sounds, and the field shapes it fits. Use to map a user's question to an intent ID."
       },
@@ -1503,6 +1511,14 @@
         "description": "Explicit two-sample Welch t-test on a numeric field across a categorical SplitBy partition."
       },
       {
+        "name": "overlay-pairwise",
+        "description": "The contract shared by every intra-crosstab pairwise overlay kind — spec, the pair × opposite-axis p grid, the letters part, missing and degenerate pairs, weighted legs, proportion-cell versus moment-cell hosts and fusion."
+      },
+      {
+        "name": "overlay-reference-tests",
+        "description": "The contract shared by the inferential overlays that test a figure against a reference — the Compose parity tests (per cell, per group) and their explicit-moments rule, and the prior-period tests on an ordered series — host refusals, missing and degenerate entries, weighted legs."
+      },
+      {
         "name": "overlay-system",
         "description": "Overlay framework — OverlaySpec composition, reference families, three payload shapes, host-arm wiring (SERIES / MATRIX_RESULT / FACET / CHAIN / FORMULA), named payload parts of multi-output kinds. Per-kind detail lives in op-overlay-* atomics."
       },
@@ -1525,6 +1541,14 @@
       {
         "name": "regression-modeling",
         "description": "Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills."
+      },
+      {
+        "name": "regression-row-scores",
+        "description": "Per-row regression columns — the two-pass refit the fitted, residual and leverage attributes run, scoring a bound fit with params.fit instead, the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
+      },
+      {
+        "name": "regression-spec",
+        "description": "The regression entry's shared contract — flat top-level slot keys, knobs another engine owns, the penalty objective and its missing inference, weighted fits per engine, conf_level, save and name, and the GLM's dispersion, IRLS and pseudo-R² details. Topical design; per-model params in atomic op-reg-* skills."
       },
       {
         "name": "request-envelope",
@@ -1591,6 +1615,10 @@
         "description": "Reactive Pulse primitives — Request.Hash() cache keys, StreamResult[T] incremental output with per-chunk + terminal Components, Watch / WatchDir mutation observation, FilterToFileWithRequest deterministic derived cohorts, manifest CommandAnnotations caching policy."
       },
       {
+        "name": "test-variant-options",
+        "description": "The long per-variant option text the op-test-* Params tables point at — the CUPED `covariate` adjustment of the t-family and the two-proportion test (and its formula fallback), the one-proportion `p0` test, the `reference` level, and the chi-square `expected` goodness-of-fit map. Read once, shared by every test that offers the option."
+      },
+      {
         "name": "time-zones",
         "description": "Time zones end to end — which zone a request uses, how a datetime buckets by local calendar day, import in a source zone with DST policy, native timestamps, local-offset export and the tz database version. Topical design."
       },
@@ -1600,7 +1628,7 @@
       },
       {
         "name": "tool-examples-get",
-        "description": "Fetch one runnable request example from the embedded library by name."
+        "description": "Fetch one runnable request example from this server's library by name."
       },
       {
         "name": "tool-examples-search",
@@ -1727,8 +1755,16 @@
         "description": "Fixed-dim vector of float64 elements (dim 2..1024) stored as one field, with its kind, scale range and labels in the schema."
       },
       {
+        "name": "vector-aggregates",
+        "description": "The array-valued vector aggregators — the vector-or-fields slot and labels, per-element missing data, expand into one scalar column per member and where those columns can go, where an unexpanded array is refused, and element for one member in a crosstab cell or margin. Topical design; per-operator formulas in the atomic op-agg-vec-* skills."
+      },
+      {
         "name": "vector-fields",
         "description": "Native vector fields (vec_f32 / vec_f64) end to end — importing a battery or a list column into one field, naming it directly in vector slots, f[k] element references, how its member identity differs from a scalar twin, null vs NaN, export shapes, and what refuses it. Use when a cohort stores embeddings or a rating battery as one field."
+      },
+      {
+        "name": "vector-row-scores",
+        "description": "How the per-row vector scores fit and compare — the vector-or-fields slot and labels, fit_on against a bound params.fit, label matching, two-pass versus row-local execution and merging, the failed-fit and singular-fit nulls, a matrix read from a fit, and every reference form (inline, table, key_field, centroid, population, record) with its missing-key and domain warnings. Topical design; per-operator params in the atomic op-attr-* and op-mat-* skills."
       },
       {
         "name": "window-design",
@@ -2394,4 +2430,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e9b36f3e3ba71fc5c37619acfd2a7321f0d5deb9d9df38a0dfc7158481db95bc
+// golden-hash: 6238b12998d68dcbe98e865ead9999e4ce1e2750cfcfbd4bf01d26e15afb968c

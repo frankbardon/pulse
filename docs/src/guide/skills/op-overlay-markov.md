@@ -24,9 +24,11 @@ Questions it answers:
 
 `Scope` `matrix`. `Ref` empty. `Level`/`Within` `0`.
 
-- `steps` — default `[1,3,6,12]`; distinct integers 1–1000 (≤ 64).
-- `absorbing` — state keys, e.g. `["churned"]`.
-- `initial` — `"margin"` or `{state: share}`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `steps` | list | — | Distinct integers 1–1000 (≤ 64). |
+| `absorbing` | list | — | State keys, e.g. `["churned"]`. |
+| `initial` | object | — | `"margin"` or `{state: share}`. |
 
 ## Host shape
 
@@ -41,6 +43,11 @@ Primary MATRIX: transition P (rows sum to 1). Parts: `step_<n>` (MATRIX Pⁿ), `
 - `cells.value`: The probability (0 to 1) of moving from the row's state to the column's state in one period; each row adds up to 1. The step_&lt;n&gt; parts read the same way over n periods.
   - Caveat: A row built from few moves gives noisy probabilities, and every projection compounds that noise.
 - `parts.steady_state.summary.statistic`: In each series entry: the share of the population that would sit in the state in the long run if the switching probabilities never change; the shares add up to 1.
+
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: buffered only.
 
 ## Gotchas
 

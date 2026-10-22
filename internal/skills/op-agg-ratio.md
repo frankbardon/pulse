@@ -13,9 +13,14 @@ examples_tags: [proportion-analysis, streaming-friendly]
 
 ## Params
 
-`numerator_field`, `denominator_field` — required; a schema field OR a derived label (attribute<!-- feature: ATTR_REG_PREDICT --> incl. `ATTR_REG_PREDICT`<!-- /feature -->, feature output), read numerically; a categorical (its dictionary index) or `set_*` column is refused `PULSE_FIELD_TYPE_UNSUPPORTED`, numerator first. Unknown → `SERVICE_VALIDATION`, predict and runtime alike.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `numerator_field` | field | (required) | Summed numerator column. |
+| `denominator_field` | field | (required) | Summed denominator column. |
 
-Weight-aware (`"weight": null` opts out): Σw·num / Σw·den. Weighted `decimal128` num/den → `PULSE_WEIGHT_UNSUPPORTED`.
+Each a schema field OR a derived label (attribute<!-- feature: ATTR_REG_PREDICT --> incl. `ATTR_REG_PREDICT`<!-- /feature -->, feature output), read numerically; a categorical (its dictionary index) or `set_*` column is refused `PULSE_FIELD_TYPE_UNSUPPORTED`, numerator first. Unknown → `SERVICE_VALIDATION`, predict and runtime alike.
+
+Weighted: Σw·num / Σw·den. Weighted `decimal128` num/den → `PULSE_WEIGHT_UNSUPPORTED`.
 
 ## Inputs
 
@@ -29,11 +34,13 @@ Weight-aware (`"weight": null` opts out): Σw·num / Σw·den. Weighted `decimal
 
 ## Components
 
-Floor `{n, n_null}`<!-- feature: capability:weighting --> (weighted: `sum_weights`, `n_eff`, `n_weight_invalid`)<!-- /feature -->, plus `numerator`, `denominator` (sums), `ratio` (`null` if den 0). `Mergeable`; streams.
+- `numerator`, `denominator` (sums), `ratio` (`null` if den 0).
 
 ## ROI recipe
 
 Attribute `contrib` per row; `params {"numerator_field":"contrib","denominator_field":"spend"}` → Σcontrib/Σspend exactly, per group too. Marginal ROI or an interval bound: numerator = its own per-row label.
+
+<!-- generated: contract -->
 
 ## Gotchas
 

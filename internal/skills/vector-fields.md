@@ -14,9 +14,11 @@ A `vec_f32` / `vec_f64` field stores a fixed-length numeric vector (dim 2..1024)
 ## Creating one
 
 - **Fold columns:** `--vector NAME:/REGEX/` or `NAME:COL1,COL2,...` (`NAME:f32:...` for `vec_f32`); <!-- feature: capability:import -->MCP `pulse_import` takes the same strings as `vectors` / `vector_kinds`.<!-- /feature --> The members vanish from the cohort. Declare meaning with `--vector-kind NAME:KIND[:MIN:MAX]`.
-- **Native list column** (Arrow / Parquet LIST, NDJSON / JSON array): a bare `--vector NAME` (or `NAME:f32`). Dim = the first non-null list's length; a ragged list, non-numeric element or non-list cell refuses the whole import (`PULSE_IMPORT_VECTOR_INVALID`, `details.reason`). Without a declaration a list column still imports as a multi-select set.
+- **Native list column** (Arrow FixedSizeList / LIST, Parquet LIST, NDJSON / JSON array, read typed, never via pipe-joined text): a bare `--vector NAME` (or `NAME:f32`). Dim = the first non-null list's length; no labels. A null list or all-null elements = a null vector, a null element = `NaN`. Without a declaration a list column still imports as a multi-select `set_*`, byte-identically.
 - **Schema file:** type `vec_f64` / `vec_f32` with a required `dim`, optional `labels`, `kind`, `scale_min` / `scale_max`.
 - **Go:** `Pulse.NewCohortBuilder` takes a slice of exactly dim elements per cell.
+
+A folded battery's 2..1024 members vanish and the vector takes the first member's position. All elements empty = a null vector, some empty = `NaN`, a non-numeric element = a row error. A bad declaration is FATAL `PULSE_IMPORT_VECTOR_INVALID` before any row, `details.reason` such as `dim_out_of_range`, `pattern_no_match`, `column_claimed` (two vectors, or a vector and a group), `list_length_varies`, `element_not_numeric` (a quoted `"3"` too), `not_a_list`, `list_dim_unknown` (no non-null list), `no_columns` (a bare name on CSV / TSV / Excel). SPSS sources and `.pulse` passthrough refuse `vectors` (`PULSE_IMPORT_VECTOR_INVALID`).
 
 Vector import is never feature-gated; only the matrix operators that consume vector fields are.
 

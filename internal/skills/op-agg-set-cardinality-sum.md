@@ -17,9 +17,7 @@ None. Weight-aware (`"weight": null` opts out): Σw·popcount (a float).
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | any set rung — `set_u8`, `set_u16`, `set_u32`, `set_u64`, `set_u128`, `set_u256`; any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -27,16 +25,9 @@ Scalar `int64` — total selections seen across rows (weighted: `float64`).
 
 ## Components
 
-<!-- feature: capability:weighting -->Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.<!-- /feature -->
+- `sum_cardinality` — Sum of popcounts
 
-Universal floor `{n, n_null}` plus operator-specific:
-
-| Key | Type | Notes |
-|---|---|---|
-| `sum_cardinality` | int | Sum of popcounts |
-
-- Mergeability: `Mergeable`; margin-summable
-- Streaming: per-chunk popcount sum
+<!-- generated: contract -->
 
 ## Gotchas
 

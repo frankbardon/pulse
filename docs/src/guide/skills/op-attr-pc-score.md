@@ -26,17 +26,25 @@ Use something else:
 
 ## Params
 
-- `component` — required, 1-based. `on` — `correlation` (default) or `covariance`. `missing` — `listwise` only.
-- `rotation` — `none` (default) or orthogonal (`varimax`, `quartimax`, `geomin_orthogonal` + `epsilon`, `entropy`) with `components` = k rotated within (component ≤ k ≤ p); oblique refused (`rotation_oblique_unsupported`).
-- `fit_on` — `"filtered"` (default) or a filterer array picking the FIT rows; every filtered row is scored.
-- `fit` — a bound vector fit's name (a compose `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry: [`compose-fits`](compose-fits.md)), scored against instead of fitting (XOR `fit_on`: `fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members (`labels` — inline `fields` only); mismatch `PULSE_VECTOR_REFERENCE_MISMATCH`, unbound `PULSE_MODEL_UNKNOWN`, a regression's name `PULSE_MODEL_KIND_MISMATCH`.
-- `weight` — both kinds; fit only. A zero-weight row is scored, not fitted.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `component` | int | (required) | 1-based component to score. |
+| `on` | enum | `correlation` | `correlation` or `covariance`. |
+| `rotation` | enum | `none` | `none` or orthogonal (`varimax`, `quartimax`, `geomin_orthogonal` + `epsilon`, `entropy`) with `components` = k rotated within (component ≤ k ≤ p); oblique refused (`rotation_oblique_unsupported`). |
+| `epsilon` | float | `0.01` | `geomin_orthogonal` only. |
+| `components` | int | — | k components rotated within. |
+| `fit_on` | any | `filtered` | `"filtered"` or a filterer array picking the FIT rows. |
+| `fit` | string | — | A bound vector fit, matched by label; XOR `fit_on` ([`vector-row-scores`](vector-row-scores.md)). |
+| `labels` | list | — | Inline `fields`: one label per member. |
+| `missing` | enum | `listwise` | `listwise` only. |
 
-Slot: exactly one of `vector` (a `vectors` entry) / `fields`; no `field`. Default label `ATTR_PC_SCORE_<vector or first field>_PC<component>`.
+`weight` — both kinds; fit only.
+
+Slot: `vector` or `fields`, no `field` ([`vector-row-scores`](vector-row-scores.md)). Default label `ATTR_PC_SCORE_<vector or first field>_PC<component>`.
 
 ## Inputs
 
-Members: `u4`…`u64`, `f32`/`f64`; source columns only.
+Members: see `## Contract`; source columns only.
 
 ## Output
 
@@ -47,13 +55,18 @@ One `f64` per record: mean 0, variance 1 over the fit rows; corr(score, member) 
 - `value`: The row's score on the chosen principal component of the fields, standardized so the fitted rows average 0 with a standard deviation of 1: 0 is an average row, +1 is one standard deviation toward the end where the fields with positive loadings are high.
   - Caveat: The sign is a convention (MAT_PCA's: each component's largest loading is positive), not a meaning: check MAT_PCA's loadings on the same fields before calling a high score good or bad.
 
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable.
+
 ## Gotchas
 
-- Fit is cohort-wide, never per group; with `fit_on`, groupers or features force buffered — two-pass, never merged.
-- With `fit` it is row-local: one pass, streams beside groupers and features, merges (shards, chain stages); same scores. A fit that failed on its data: every score null + `PULSE_FIT_UNAVAILABLE`.
+- Fit is cohort-wide, never per group: `fit_on` is two-pass (buffered beside groupers / features); `fit` is row-local and merges; a failed fit nulls every score + `PULSE_FIT_UNAVAILABLE` ([`vector-row-scores`](vector-row-scores.md)).
 - Singular fit or N* ≤ p: all null (`PULSE_MATRIX_SINGULAR` / `_INSUFFICIENT_N`).
 
 ## See
 
 - `pulse_examples_search tags=[multivariate, feature-engineering]`
-- Skills: [`multivariate-design`](multivariate-design.md), [`op-mat-pca`](op-mat-pca.md), [`op-attr-mahalanobis`](op-attr-mahalanobis.md)
+- Skills: [`vector-row-scores`](vector-row-scores.md), [`multivariate-design`](multivariate-design.md), [`op-mat-pca`](op-mat-pca.md), [`op-attr-mahalanobis`](op-attr-mahalanobis.md)

@@ -13,13 +13,11 @@ examples_tags: [distribution-shape, streaming-friendly]
 
 ## Params
 
-Weight-aware (`"weight": null` opts out): weighted population moments, Σw in place of n. Invalid weights excluded (`PULSE_WEIGHT_INVALID_ROWS`).
+Weighted: weighted population moments, Σw in place of n.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `packed_bool`, `u4`; a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -29,27 +27,19 @@ Scalar `float64` — population excess kurtosis g2 = `m4 / m2^2 − 3` (moments 
 
 ## Components
 
-<!-- feature: capability:weighting -->Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.<!-- /feature -->
+- `mean` — Running mean
+- `m2` — Second-moment accumulator
+- `m3` — Third-moment accumulator
+- `m4` — Fourth-moment accumulator
+- `kurtosis` — Derived from m2, m4, n
 
-Universal floor `{n, n_null}` plus operator-specific:
-
-| Key | Type | Notes |
-|---|---|---|
-| `mean` | float64 | Running mean |
-| `m2` | float64 | Second-moment accumulator |
-| `m3` | float64 | Third-moment accumulator |
-| `m4` | float64 | Fourth-moment accumulator |
-| `kurtosis` | float64 | Derived from m2, m4, n |
-
-- Mergeability: `Mergeable` (Chan moments combine)
-- Streaming: per-chunk online moments
+<!-- generated: contract -->
 
 ## Gotchas
 
 - `n = 0` (or Σw = 0), `n = 1` or zero variance → `null` (NaN), scalar and component: no shape is visible there, never 0.
 - Small-n bias vs adjusted G2 is large on small groups; g2 ≥ −2 always.
 - Excess kurtosis (normal = 0), NOT raw kurtosis (normal = 3).
-- `decimal128` rejected.
 
 ## See
 

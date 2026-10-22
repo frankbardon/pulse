@@ -27,10 +27,10 @@ Use something else:
 
 ## Params
 
-- `values` — list[string], required. Dictionary entries to draw from; non-empty.
-- `weights` — list[float], default uniform. Per-value weight; length MUST match `values`. Non-negative; sum `> 0`.
-
-When `weights` absent the sampler installs equal weights internally.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `values` | list | (required) | Strings: dictionary entries to draw from; non-empty. |
+| `weights` | list | — | Per-value weight; length MUST match `values`. Non-negative; sum `> 0`. Absent: the sampler installs equal weights. |
 
 ## Inputs
 
@@ -39,6 +39,10 @@ field `type:` — `categorical_u8`/`u16`/`u32` (the writer registers `values` as
 ## Output
 
 Per-row sampled string from `values`, looked up via binary search over the cumulative-weight table. Encoded as a dictionary index in the host `categorical_*` field.
+
+## Contract
+
+- Applies to: `categorical` fields.
 
 ## Gotchas
 
@@ -50,5 +54,4 @@ Per-row sampled string from `values`, looked up via binary search over the cumul
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synthetic-data`](synthetic-data.md), [`op-synth-bernoulli`](op-synth-bernoulli.md), [`op-synth-regex`](op-synth-regex.md)

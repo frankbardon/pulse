@@ -15,18 +15,22 @@ Feature operators emit derived columns; no `Response.Components`.
 
 ## Params
 
-EXACTLY ONE of (manifest `exactly_one_of: cutpoints`; a Recommend draft names `boundaries`):
+EXACTLY ONE of `boundaries` / `quantiles` (manifest `exactly_one_of: cutpoints`; a Recommend draft names `boundaries`):
 
-- `boundaries` (list[float]) — sorted ascending cutpoints; `v` lands in bucket `i` where `boundaries[i-1] < v <= boundaries[i]`.
-- `quantiles` (int) — count of equal-population buckets.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `boundaries` | list | — | Sorted ascending cutpoints; `v` lands in bucket `i` where `boundaries[i-1] < v <= boundaries[i]`. |
+| `quantiles` | int | — | Count of equal-population buckets. |
 
 ## Inputs
 
-`Field` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (type judged before params).
+`Field` — numeric (`decimal128` as its float64 echo, `packed_bool` as 0/1). The type is judged before params.
 
 ## Output
 
 One `u32`-coded `f64` column at `Label` (default `BUCKET_<field>`) holding the bucket INDEX (0..N).
+
+<!-- generated: contract -->
 
 ## Gotchas
 

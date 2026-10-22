@@ -22,15 +22,15 @@ Synth distributions emit per-row values; no `Response.Components`.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| field `type:` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date` (interpreted as days-since-epoch). |
+- field `type:` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date` (interpreted as days-since-epoch).
 
 For `u8`–`u64` fields each sample rounds to the nearest integer at write time (`floor(v+0.5)`).
 
 ## Output
 
 Per-row `float64` sample `min + U * (max - min)` where `U ~ Uniform[0, 1)`. Half-open by construction.
+
+<!-- generated: contract -->
 
 ## Gotchas
 
@@ -41,5 +41,4 @@ Per-row `float64` sample `min + U * (max - min)` where `U ~ Uniform[0, 1)`. Half
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: `synthetic-data`, `op-synth-uniform-date`, `op-synth-normal`

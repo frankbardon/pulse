@@ -26,9 +26,11 @@ Use something else:
 
 ## Params
 
-`Scope` required, must be `group`. `Ref.Population` required — `{Cohort: "<name>"}`, the comparison-population cohort; other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Level` / `Within` must be `0`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `field` | string | — | On a SERIES host, the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column `"<label>[<element label>]"`; absent, the first aggregation. |
 
-- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched ([`multiplicity-correction`](multiplicity-correction.md)).
+`Scope` required, must be `group`. `Ref.Population` required — `{Cohort: "<name>"}`, the comparison-population cohort; other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Level` / `Within` must be `0`.
 
 ## Host shape
 
@@ -42,6 +44,12 @@ SCALAR — `Payload.Scalar` carries χ²; `OverlaySummary{Statistic, PValue, Par
 
 - `scalar`: The chi-square statistic, also in summary.statistic: the subset's category counts against the counts the population's shares predict at the subset's size, with the shares rescaled over the categories both sides show (population nulls and categories cut from a top-K listing are left out). 0 means the subset's mix matches the population's; read summary.p_value rather than the raw value.
 - `summary.statistic`: The same chi-square statistic as scalar.
+
+## Contract
+
+- Weight: refused under any weight in force, an instance default included (`PULSE_WEIGHT_UNSUPPORTED`); `weight: null` on the slot runs it unweighted.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `layer` (default), `request`, `compose` (inside Compose).
+- Streaming: buffered only.
 
 ## Gotchas
 

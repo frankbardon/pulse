@@ -28,7 +28,7 @@ Start from the question: `pulse_skills_get intents` → `drivers` (which predict
 | A curved relationship? | polynomial columns built upstream, then a linear fit |
 | Slopes that cannot be negative, an experiment-centred prior, a ridge that spares some predictors, or a model an embedder registered? | `regression-model-options` |
 
-Target / predictor types follow `encoding.FieldType.IsNumericForAnalytics` (integer / float / decimal plus `u4`, `packed_bool`, `date`); a null drops the row from the observation count.
+Target / predictor types: `IsNumericForAnalytics` (each model's `## Contract`); a null drops the row from the observation count.
 
 Streaming: the OLS and Bayesian linear fits stream; the GLM buffers, as does either modifier.
 
@@ -42,7 +42,7 @@ Both compose with the OLS and GLM fits; the Bayesian fit rejects both — credib
 |---|---|
 | `""` | closed-form / asymptotic SE |
 | `"jackknife"` | LOO, or `jackknife_groups` / `jackknife_by` groups; SE = √((g−1)/g·Σ(β₍ₖ₎−β̄)²) |
-| `"bootstrap"` | non-parametric (`bootstrap_iters` as given, `<= 0` → 1000; `rng_seed`); SE = sample std of replicates; percentile-method p; echoes `bootstrap_requested` / `bootstrap_succeeded` |
+| `"bootstrap"` | non-parametric (`bootstrap_iters`, `rng_seed`); SE = sample std of replicates; percentile-method p |
 
 Overwrites `StdErrors` / `PValues`; the point estimate is the full-data fit's. For `l1` / `elasticnet` or a binding `bounds`, `bootstrap` supplies the missing SEs.
 
@@ -103,14 +103,16 @@ Per model (atomic skill): Student-t p for unpenalized / `l2` OLS, null SE / p / 
 
 - `n_obs` < record count: nulls drop rows.
 - A fit failing on data fails ALONE: `{name, type, error}` + `PULSE_SLOT_FAILED` (`cohort-null-states`). Codes: `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM` (collinear; GLM names them) — drop one or regularize; `_SEPARATION` (binomial GLM: a predictor splits the outcome) — add `penalty: l2`, or drop or merge it; `_NO_CONVERGE` — raise `MaxIters` / `Tol` or cut `Alpha`.
-- Knobs belong to their engine: a gamma GLM penalty, or `Penalty` / `Family` / `Link` on the Bayesian fit: `PROCESSING_CONFIG`.
+- Knobs belong to their engine: another engine's knob is `PROCESSING_CONFIG` (`regression-spec`).
 
 ## See
 
 - Recipes: `pulse_examples_search tags=["regression"]`, atomic `op-reg-<name>`.
 - `feature-engineering` — polynomial parameter table + column naming.
 - `statistical-testing` — Wald-z vs Student-t.
-- `request-envelope` — slot keys, streamability.
+- `regression-spec` — flat slot keys, engine knobs, penalty, weighted fits, GLM dispersion.
+- `request-envelope` — streamability.
+- `regression-row-scores` — per-row fitted, residual and scored columns.
 - `regression-inference` — vcov
 - `regression-model-options` — ridge subset, NNLS, per-coefficient prior, registered regressions
 - `pulse_errors_lookup` — `PROCESSING_REGRESSION_*` recovery.

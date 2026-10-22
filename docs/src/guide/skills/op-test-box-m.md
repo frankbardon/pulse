@@ -26,9 +26,13 @@ Use something else:
 
 ## Params
 
-- `alpha` — float, default `0.05`. `missing` — `listwise` only.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | Significance level in (0, 1); RejectNull is true when PValue < alpha. |
+| `missing` | `listwise` | `listwise` | Missing-data mode; only listwise (a row with any null member is dropped). |
 
-Slot: exactly one of `vector` (a `vectors` entry) / `fields`; no `field`, `vector2` / `fields2`. `split_by` required, categorical or `packed_bool` (levels `"0"`/`"1"`; else `PULSE_FIELD_TYPE_UNSUPPORTED`), ≥ 2 levels.
+
+Slot: exactly one of `vector` (a `vectors` entry) / `fields`; no `field`, `vector2` / `fields2`. `split_by` required, categorical or `packed_bool` (levels `"0"`/`"1"`), ≥ 2 levels.
 - `weight` — both kinds; per-level ν_g = N*_g − 1.
 
 ## Inputs
@@ -44,6 +48,14 @@ Members: `u4`…`u64`, `f32`/`f64`.
 - `statistic`: A chi-square that grows as the groups' spreads and correlations across the fields differ; a small p-value says the groups do not share one covariance.
 - `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 - `details.m`: Box's M, the raw gap between the pooled and the per-group covariances before the small-sample correction; 0 when every group's covariance is the same.
+
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Types (`split_by`): `categorical_*`, `packed_bool`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `request` (default), `compose` (inside Compose).
+- Streaming: streamable.
 
 ## Gotchas
 

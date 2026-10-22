@@ -15,24 +15,26 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
-- `alpha` — float, default `0.05`, in `(0, 1)`.
-- `weight` — slot weight (`null` opts out), kind `frequency` only (a probability weight is `PULSE_WEIGHT_UNSUPPORTED` naming the kind): a row pair counts w_i·w_j times — equals τ-b on the expanded pairs. `Details` add `sum_weights` beside `n` (raw rows); pair counts become Σ w_i·w_j.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | In `(0, 1)`. Significance level in (0, 1); RejectNull is true when PValue < alpha. |
+| `partition_by` | list | — | Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). |
+
+- `weight` — frequency only: a row pair counts w_i·w_j times — equals τ-b on the expanded pairs. `Details` add `sum_weights` beside `n` (raw rows); pair counts become Σ w_i·w_j.
 
 Slot params: `Field` (required, numeric), `Field2` (required, numeric).
 
-<!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
-<!-- /feature -->
-
 ## Inputs
 
-`Field` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1). `Field2` — numeric (same set).
+`Field` — numeric (`decimal128` as its float64 echo, `packed_bool` as 0/1). `Field2` — numeric (same set).
 
 ## Output
 
 `Statistic` = τ_b (Kendall tau-b, `[-1, 1]`); `PValue` two-sided, R `cor.test` default: exact when untied and n < 50, else normal approximation (tie-adjusted variance, no continuity correction); `Details.z` = S/√Var(S). `Details.concordant`, `Details.discordant`, `Details.ties_x`, `Details.ties_y`, `Details.s`, `Details.var_s`, `Details.z`, `Details.n`.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

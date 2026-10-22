@@ -28,8 +28,10 @@ Use something else:
 
 `Scope` `matrix`. `Ref` empty. `Level`/`Within` `0`.
 
-- `dimensions` — default 2, capped at `K = min(r, c) − 1`; explicit `> K` ⇒ `PULSE_OVERLAY_PARAM_MISSING`.
-- `normalization` — `symmetric` (default) | `row_principal` | `column_principal`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `dimensions` | int | `2` | Default 2, capped at `K = min(r, c) − 1`; explicit `> K` ⇒ `PULSE_OVERLAY_PARAM_MISSING`. |
+| `normalization` | `column_principal` \| `row_principal` \| `symmetric` | `symmetric` | `symmetric` (default) \| `row_principal` \| `column_principal`. |
 
 ## Host shape
 
@@ -47,6 +49,11 @@ SERIES of `K` inertias, keys `dim_k` (`share`, `cumulative_share`, `singular_val
 ## Reading the map
 
 Plot dim_1 × dim_2: close same-kind points ⇒ similar profiles. Row-to-column closeness reads only in a principal/standard map. Check `cumulative_share` and quality first. Axes may mirror R `ca`. A low retained share ⇒ read `row_distance` / `column_distance`, not the map.
+
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: buffered only.
 
 ## Gotchas
 

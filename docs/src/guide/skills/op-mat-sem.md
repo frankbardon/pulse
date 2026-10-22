@@ -22,13 +22,17 @@ Questions it answers:
 
 ## Params
 
-| Name | Default | Description |
-|---|---|---|
-| `model` | one factor | `f =~ a + b`, `y ~ f`, `a ~~ b`; `l*x`, `0.5*x`. |
-| `solver` | `slsqp` | semopy's SLSQP, its early stop included; `fisher` converges. |
-| `information` | `dense` | `rank2`: faster, same figures. |
-| `ftol`, `max_iter`, `grad_tol` | 1e-6, 10000, 1e-10 | |
-| `missing`, `fit`, `weight`, `encoding` | | Listwise only. |
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `model` | string | — | `f =~ a + b`, `y ~ f`, `a ~~ b`; `l*x`, `0.5*x`. |
+| `solver` | `slsqp` \| `fisher` | `slsqp` | semopy's SLSQP, its early stop included; `fisher` converges. |
+| `information` | `dense` \| `rank2` | `dense` | `rank2`: faster, same figures. |
+| `ftol` | float | 1e-06 | SLSQP's ftol (SciPy's and semopy's default 1e-6), a number above 0: the run stops when the objective moves by less. |
+| `max_iter` | int | — | Iteration cap, a positive integer: default 10000 for slsqp (semopy's setting), 500 for fisher. |
+| `grad_tol` | float | 1e-10 | Fisher scoring's stop, a number above 0: every free gradient entry below it in absolute value. |
+| `missing` | `listwise` | `listwise` | Listwise only. |
+| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
+| `fit` | string | — | Listwise only. |
 
 ## Inputs
 
@@ -45,13 +49,20 @@ Integer / float members.
 
 ## Components
 
-`n`, `n_null`, `n_listwise_dropped`; weighted `sum_weights`, `n_eff`, `n_weight_invalid`; `min_pair_n` / `max_pair_n` never (listwise).
+- `min_pair_n` / `max_pair_n` never (listwise).
+
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: weighted under `frequency` weights only; a `probability` weight is `PULSE_WEIGHT_UNSUPPORTED`.
+- Streaming: streamable; partial states merge; components `mergeable`.
+- Components: `n`, `n_null`, `n_listwise_dropped`; optional `min_pair_n`, `max_pair_n`, `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 
 - Unused member or non-member variable: `bad_params`.
 - Default stops where semopy does.
-- Singular S: fatal `PULSE_MATRIX_SINGULAR`. No probability weight.
+- Singular S: fatal `PULSE_MATRIX_SINGULAR`.
 
 ## See
 

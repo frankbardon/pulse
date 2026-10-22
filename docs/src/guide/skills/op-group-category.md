@@ -29,7 +29,7 @@ None. `Group.Label` overrides the output column name; `Group.Include []string` a
 
 ## Inputs
 
-`Field` — any cohort field type EXCEPT `set_*` (refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime).
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -39,14 +39,21 @@ Non-empty `Include` is order-significant: buckets emit in `Include` order (`Data
 
 ## Components
 
-Floor `{total_n, n_null}` + `dict_size` (int, distinct values observed) and `buckets` (`[]bucket` of `{key, label, count}` in emission order). `Mergeable`; `StreamableGrouper`, so eligible for fused crosstab.
+- `dict_size` (int, distinct values observed), `buckets` (`[]bucket` of `{key, label, count}` in emission order).
+- `StreamableGrouper`: eligible for fused crosstab.
+
+## Contract
+
+- Types (`field`): `categorical_*`, `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable; components `mergeable`.
+- Components: `total_n`, `n_null`, `dict_size`, `buckets`.
 
 ## Gotchas
 
 - `Include` matches the post-dictionary label; zero-record values drop, never emit empty.
 - A categorical index outside its (widened) dictionary is corrupt data: `ENCODING_INVALID` (`details.reason` `categorical_index_out_of_range`) on every arm, never a numeric-key bucket.
 - High-cardinality fields blow memory — filter to the values you need first.
-- `set_*` rejected at build time with `PULSE_FIELD_TYPE_UNSUPPORTED` — a bitmask has no single scalar to bucket on at any rung.
 
 ## See
 

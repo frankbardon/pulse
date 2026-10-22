@@ -27,7 +27,12 @@ Use something else:
 
 ## Params
 
-- `start` / `end` — string, both required, ISO-8601 `YYYY-MM-DD`. `end` must not precede `start`; equal is legal. Each parses via `time.Parse("2006-01-02", …)` into days-since-1970-01-01.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `start` | string | (required) | ISO-8601 `YYYY-MM-DD`. |
+| `end` | string | (required) | ISO-8601 `YYYY-MM-DD`; must not precede `start` (equal is legal). |
+
+Each parses via `time.Parse("2006-01-02", …)` into days-since-1970-01-01.
 
 ## Inputs
 
@@ -36,6 +41,10 @@ Field `type:` — `date` (32-bit days-since-epoch).
 ## Output
 
 Per-row `float64` days-since-epoch; the writer stores it as the signed 32-bit `date` word. Draws `off = rng.Int64N(span + 1)` over `span = endDays - startDays`, so both endpoints are reachable.
+
+## Contract
+
+- Applies to: `date` fields.
 
 ## Gotchas
 
@@ -46,5 +55,4 @@ Per-row `float64` days-since-epoch; the writer stores it as the signed 32-bit `d
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synthetic-data`](synthetic-data.md), [`op-synth-uniform`](op-synth-uniform.md), [`op-synth-monotonic-from`](op-synth-monotonic-from.md)

@@ -24,14 +24,15 @@ Use something else:
 
 ## Params
 
-`distinct_by` (string, required) — field holding the distinct key. Absent or empty: `PROCESSING_CONFIG`, never defaulted to `Field`; unknown: `SERVICE_VALIDATION`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `distinct_by` | string | (required) | Field holding the distinct key. Absent or empty: `PROCESSING_CONFIG`, never defaulted to `Field`; unknown: `SERVICE_VALIDATION`. |
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric (no `decimal128`): `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `packed_bool`; a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
-| `distinct_by` | any numeric-coded field, `categorical_*` included |
+`Field` — admitted types: see `## Contract`.
+
+- `distinct_by` — any numeric-coded field, `categorical_*` included
 
 ## Output
 
@@ -39,14 +40,16 @@ Scalar `float64` — one value per key, summed.
 
 ## Components
 
-Universal floor `{n, n_null}` plus:
+- `sum` — Sum of the first value seen per key.
+- `distinct_count` — Distinct keys that contributed.
+- `MarginIndependent` margins: crosstabs fuse.
 
-| Key | Type | Notes |
-|---|---|---|
-| `sum` | float64 | Sum of the first value seen per key |
-| `distinct_count` | int | Distinct keys that contributed |
+## Contract
 
-- `Partial` merge (per-key map union); `MarginIndependent` margins — crosstabs fuse.
+- Types (`field`): `date`, `datetime`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`.
+- Weight: no weighted form; an explicit weight is `PROCESSING_CONFIG`, an instance default is skipped.
+- Streaming: streamable; components `partial`.
+- Components: `n`, `n_null`, `sum`, `distinct_count`.
 
 ## Gotchas
 

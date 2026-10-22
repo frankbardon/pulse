@@ -9,13 +9,20 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
+// vectorMemberFieldTypes is the accepts_types of every vector-input
+// operator (each MAT_*, AGG_VEC_*, the vector attributes,
+// GROUP_KMEANS): integer and float fields, plus packed_bool under the
+// vector's coerce "binary" — the member rule predict and the runtime
+// both run (internal/vectors.MemberTypeAllowed). `date` is NOT a member
+// type (PULSE_VECTOR_MEMBER_TYPE). Sorted for golden stability; pinned
+// by TestCapabilities_VectorInputAcceptsMemberRule.
+var vectorMemberFieldTypes = []string{"f32", "f64", "packed_bool", "u16", "u32", "u4", "u64", "u8"}
+
 // matrixCapabilities returns metadata for every entry in
 // types.AllMatrixTypes(). Order is irrelevant; manifest assembly sorts
 // by Name.
 func matrixCapabilities() []descriptor.MatrixMeta {
-	// Vector members: integer and float fields, plus packed_bool under
-	// the vector's coerce "binary" (internal/vectors.MemberTypeAllowed).
-	memberTypes := []string{"f32", "f64", "packed_bool", "u16", "u32", "u4", "u64", "u8"}
+	memberTypes := vectorMemberFieldTypes
 	// missing: the missing-data knobs every operator takes
 	// (internal/vectors.decodeMissing).
 	missing := []descriptor.Param{

@@ -15,11 +15,15 @@ Row-level output; no `Response.Components`.
 
 ## Params
 
-`cumulative` (bool, default `false`). Slots: `field` (required), `partition_by`, `order_by` (only with `cumulative: true`, then required), `frame` (refused).
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `cumulative` | bool | `false` | Running share (first row to this one) instead of the row's own. |
+
+Slots: `field` (required), `partition_by`, `order_by` (only with `cumulative: true`, then required), `frame` (refused).
 
 ## Inputs
 
-`Field`: numeric — `u4`…`u64`, `f32`/`f64`, `date`; any other type is `PULSE_FIELD_TYPE_UNSUPPORTED`. Usually an aggregation label on grouped rows.
+`Field`: numeric (types in `## Contract`). Usually an aggregation label on grouped rows.
 
 ## Output
 
@@ -27,11 +31,12 @@ One `float64` per row on `Label` (default `WIN_SHARE_<field>`), a fraction: `x /
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Nulls add nothing; a null row reads `null` (cumulative: carries the running share). A zero total reads `null`, never 0.
 - Refusals are `PULSE_WINDOW_INVALID` on predict AND runtime: `frame` set, `cumulative` without `order_by`, missing `field`.
-- Not weightable: a request `weight` is `PROCESSING_CONFIG`. Buffered (`Streamable=false`); rows not reordered.
 
 ## See
 

@@ -12,7 +12,7 @@ import (
 func SkillsCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "skills",
-		Usage: "List and view bundled skills documentation",
+		Usage: "List and view the built-in embedded skills (embedder skills: pulse_skills_* / Pulse.Skills)",
 		Commands: []*cli.Command{
 			skillsListCmd(),
 			skillsShowCmd(),

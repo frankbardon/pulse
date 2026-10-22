@@ -25,8 +25,10 @@ Use something else:
 
 ## Params
 
-- `values` — list of numbers, required, non-empty, **strictly ascending**.
-- `weights` — list of numbers, default uniform. Non-negative, `len(values)` long. Raw counts fine — normalised at parse.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `values` | list | (required) | Numbers, non-empty, **strictly ascending**. |
+| `weights` | list | — | Numbers, non-negative, `len(values)` long; absent: uniform. Raw counts fine — normalised at parse. |
 
 ## Inputs
 
@@ -35,6 +37,10 @@ Field `type:` — `u4`/`u8`/`u16`/`u32`/`u64` (the arm `profile create` targets)
 ## Output
 
 One declared level per row at its own share. Marginal exact — no threshold, no rounding bias.
+
+## Contract
+
+- Applies to: `numeric` fields.
 
 ## Gotchas
 

@@ -15,7 +15,11 @@ Tests emit statistic / p-value; no `Response.Components`.
 
 ## Params
 
-- `alpha` — float, default `0.05`. `missing` — `listwise` only.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | Significance level in (0, 1); RejectNull is true when PValue < alpha. |
+| `missing` | `listwise` | `listwise` | Missing-data mode; only listwise (a row with any null member is dropped). |
+
 
 Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields`, ≥ 2 members; no `field`, `vector2` / `fields2` or `split_by`.
 - `weight` — both kinds; N* = Σw or n_eff.
@@ -29,6 +33,8 @@ Members: `u4`…`u64`, `f32`/`f64`.
 `Statistic` = χ² = −ln|R|·(N* − 1 − (2p + 5)/6), `DF` = p(p − 1)/2, `PValue`. `Details`: `members`, `n`, `n_dropped`, `determinant` (|R|).
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

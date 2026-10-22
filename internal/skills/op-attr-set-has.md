@@ -21,14 +21,15 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | any set rung — `set_u8`, `set_u16`, `set_u32`, `set_u64`, `set_u128`, `set_u256`; any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
-| `Label` (the new column name) | required |
+`Field` — admitted types: see `## Contract`.
+
+- `Label` (the new column name) — required
 
 ## Output
 
 One `packed_bool` per record — `1` if the named label's bit is set, `0` otherwise. Null source → `0` (not null): a membership flag, so its mean is the share of the whole base.
+
+<!-- generated: contract -->
 
 ## Gotchas
 

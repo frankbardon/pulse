@@ -20,10 +20,13 @@ Questions it answers:
 
 ## Params
 
-- `stat` — `mean` (default) or `sum`: ALWAYS prorated (valid mean × item count); no raw sum.
-- `min_valid` — integer 1…p, default p: fewer valid items → null, never 0.
-- `reverse` — member LABELS, scored lo + hi − x; needs a range.
-- `scale_min` / `scale_max` — both or neither; else a `kind: scale` vector's bounds. No range + `reverse` → `SERVICE_VALIDATION`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `stat` | enum | `mean` | `mean` or `sum`: ALWAYS prorated (valid mean × item count); no raw sum. |
+| `min_valid` | int | — | Integer 1…p; absent: p. Fewer valid items → null, never 0. |
+| `reverse` | list | — | Member LABELS, scored lo + hi − x; needs a range. |
+| `scale_min` | float | — | Range low bound; both bounds or neither, else a `kind: scale` vector's. |
+| `scale_max` | float | — | Range high bound. No range + `reverse` → `SERVICE_VALIDATION`. |
 
 Slot: exactly one of `vector` (a `vectors` entry) / `fields`; no `field`. Default label `ATTR_SCALE_SCORE_<vector>`.
 
@@ -37,7 +40,15 @@ One `f64` per record on the item scale (`sum`: × p).
 
 ## Components
 
-`components.attributes` entry: floor `{n, n_null}` (present / null scores) + `n_out_of_range` (values), `n_rows_out_of_range` (rows) only with a range. `Mergeable`; no weighted keys.
+- `n_out_of_range` (values), `n_rows_out_of_range` (rows): only with a range.
+- The floor counts present / null scores; no weighted keys.
+
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable; components `mergeable`.
+- Components: `n`, `n_null`; optional `n_out_of_range`, `n_rows_out_of_range`.
 
 ## Gotchas
 

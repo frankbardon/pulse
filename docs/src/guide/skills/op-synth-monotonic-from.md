@@ -28,8 +28,10 @@ Use something else:
 
 ## Params
 
-- `start` — int, default `0`. First emitted value.
-- `step` — int, default `1`, non-zero. Negative ⇒ decreasing.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `start` | int | `0` | First emitted value. |
+| `step` | int | `1` | Non-zero. Negative ⇒ decreasing. |
 
 The sampler holds `cur = start - step` and adds `step` before emitting, so row 0 emits `start`.
 
@@ -41,6 +43,10 @@ Field `type:` — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`. `u64` for pr
 
 Per-row `float64` `start + i * step` for row `i`. RNG state untouched, so seeded streams stay independent of monotonic columns.
 
+## Contract
+
+- Applies to: `numeric` fields.
+
 ## Gotchas
 
 - `step == 0` → `SERVICE_VALIDATION` at spec parse.
@@ -51,5 +57,4 @@ Per-row `float64` `start + i * step` for row `i`. RNG state untouched, so seeded
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synthetic-data`](synthetic-data.md), [`op-synth-constant`](op-synth-constant.md), [`op-synth-uniform-date`](op-synth-uniform-date.md)

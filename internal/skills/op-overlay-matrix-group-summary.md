@@ -27,6 +27,8 @@ Primary MATRIX: per-cell unweighted mean across buckets. Parts `min`, `max`, `ra
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - A null cell, or a key a bucket lacks, is skipped; no contributing bucket ⇒ `null` (`n_groups` 0).

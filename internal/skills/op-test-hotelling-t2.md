@@ -15,14 +15,16 @@ No `Response.Components`.
 
 ## Params
 
-- `alpha` (0.05). `mu` — per member (default zeros). `missing` — `listwise` only.
-- `variance` — `pooled` (default) or `unequal` (Krishnamoorthy–Yu); two-sample only.
 
-Slot: one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields` (globs ok); no `field`. `split_by` optional, categorical or `packed_bool` (levels `"0"`/`"1"`; else `PULSE_FIELD_TYPE_UNSUPPORTED`), exactly 2 levels. Paired: `vector2` / `fields2`, same count, row-wise difference; never with `split_by`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | Significance level in (0, 1); RejectNull is true when PValue < alpha. |
+| `mu` | list | — | Hypothesized mean vector (one-sample) or mean difference vector (paired), one entry per member (default zeros; ignored when SplitBy is set). |
+| `variance` | `pooled` \| `unequal` | `pooled` | `pooled` (default) or `unequal` (Krishnamoorthy–Yu); two-sample only. |
+| `missing` | `listwise` | `listwise` | Missing-data mode; only listwise (a row with any null member is dropped). |
+
+Slot: one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields` (globs ok); no `field`. `split_by` optional, categorical or `packed_bool` (levels `"0"`/`"1"`), exactly 2 levels. Paired: `vector2` / `fields2`, same count, row-wise difference; never with `split_by`.
 - `weight` — both kinds; N* = Σw or n_eff (`Details` add `sum_weights`).
-<!-- feature: capability:multiplicity -->
-- `multiplicity` — `p_adjusted` (`multiplicity-correction`).
-<!-- /feature -->
 
 ## Inputs
 
@@ -33,6 +35,8 @@ Members: `u4`…`u64`, `f32`/`f64` (`packed_bool`: vector `coerce: binary`).
 `Statistic` = T², `DF` = p. `Details`: `f`, `df1`, `df2`, `n`, `members`, per-kind means (`multivariate-outputs`). `Variant`: `one_sample`, `paired`, `two_sample_pooled`, `two_sample_unequal`.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

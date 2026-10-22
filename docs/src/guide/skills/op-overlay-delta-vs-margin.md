@@ -36,6 +36,11 @@ MATRIX crosstab (`Response.Crosstab.Matrix`). Subtractive sibling of the margin 
 
 MATRIX — `OverlayLayer.Payload.Matrix.Cells[r][c].Value` = `cell - margin`. Mirrors host RowKeys / ColumnKeys / headers. Absent host cells stay absent on the overlay. Layer `Baseline = 0` (delta family centerpoint).
 
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: buffered only.
+
 ## Gotchas
 
 - An undefined (NaN) host cell — a mean over no value, an unanswered element — is MISSING, as an absent one: the overlay cell stays absent, no warning, out of `summary.count`.

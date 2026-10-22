@@ -28,7 +28,9 @@ Use something else:
 
 ## Params
 
-- `lambda` — float, default `1.0`. Rate parameter; equals both the mean and the variance. Must be `> 0`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `lambda` | float | `1` | Rate parameter; equals both the mean and the variance. Must be `> 0`. |
 
 ## Inputs
 
@@ -41,6 +43,10 @@ Per-row non-negative integer (returned as `float64`). Two algorithms:
 - `lambda < 30`: Knuth's multiplicative method — exact, draws `k` uniforms until product `< exp(-lambda)`.
 - `lambda >= 30`: normal approximation `N(lambda, lambda)` rounded to nearest non-negative integer.
 
+## Contract
+
+- Applies to: `numeric` fields.
+
 ## Gotchas
 
 - Knuth runtime is `O(lambda)` per row — large lambda would dominate without the normal-approx switch.
@@ -50,5 +56,4 @@ Per-row non-negative integer (returned as `float64`). Two algorithms:
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synthetic-data`](synthetic-data.md), [`op-synth-exponential`](op-synth-exponential.md), [`op-synth-bernoulli`](op-synth-bernoulli.md)

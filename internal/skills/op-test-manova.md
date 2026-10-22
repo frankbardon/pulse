@@ -15,13 +15,14 @@ No `Response.Components`.
 
 ## Params
 
-- `alpha` — float, default `0.05`. `missing` — `listwise` only.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | Significance level in (0, 1); RejectNull is true when PValue < alpha. |
+| `missing` | `listwise` | `listwise` | Missing-data mode; only listwise (a row with any null member is dropped). |
 
-Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields` (inline, globs ok); no `field`, no `vector2` / `fields2`. `split_by` required, categorical or `packed_bool` (levels `"0"`/`"1"`; else `PULSE_FIELD_TYPE_UNSUPPORTED`), ≥ 2 levels.
+
+Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields` (inline, globs ok); no `field`, no `vector2` / `fields2`. `split_by` required, categorical or `packed_bool` (levels `"0"`/`"1"`), ≥ 2 levels.
 - `weight` — both kinds (`Details` add `sum_weights`).
-<!-- feature: capability:multiplicity -->
-- `multiplicity` — one site, Pillai's p (`multiplicity-correction`).
-<!-- /feature -->
 
 ## Inputs
 
@@ -32,6 +33,8 @@ Members: `u4`…`u64`, `f32`/`f64`.
 `Statistic` = Pillai's V, `DF` = its df1, `PValue` its p. `Details`: Pillai's `f`, `df1`, `df2`, `members`, `groups`, `n`, `means`, `eigenvalues`, and `pillai` / `wilks` / `hotelling_lawley` / `roy`, each `{statistic, f, df1, df2, p_value}` (`multivariate-outputs`). `Variant`: `one_way`.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

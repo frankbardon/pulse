@@ -24,19 +24,18 @@ Questions it answers:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `kernel` | enum | — (required) | `geometric` \| `weibull_cdf` \| `weibull_pdf` |
-| `max_lag` | int | — (required) | last lag, `[1, 10000]`; `max_lag + 1` weights |
+| `kernel` | enum | (required) | `geometric` \| `weibull_cdf` \| `weibull_pdf` |
+| `max_lag` | int | (required) | last lag, `[1, 10000]`; `max_lag + 1` weights |
 | `decay` | float | — | geometric only, `[0, 1)`: `w_l = decay^l` |
-| `shape` / `scale` | float | — | Weibull only, both `> 0` |
+| `shape` | float | — | Weibull only, `> 0` |
+| `scale` | float | — | Weibull only, `> 0` |
 | `normalize` | bool | `true` | weights divided by their sum |
 
 Weibull kernels: `weibull_cdf` `w_l = exp(−(l/scale)^shape)` (survival, `w_0 = 1`); `weibull_pdf` `w_l = f(l + 1)` (density one lag on). `partition_by`, `order_by` (≥1), `field` (numeric) required; `frame` refused.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`; others → `PULSE_FIELD_TYPE_UNSUPPORTED` |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -46,6 +45,12 @@ Weibull kernels: `weibull_cdf` `w_l = exp(−(l/scale)^shape)` (survival, `w_0 =
 
 - `value`: The field's carried-over level: the current value plus earlier values, each weighted by the kernel at its distance back, up to max_lag rows. With the default normalisation the weights sum to 1, so the value is a weighted average of recent values on the field's own scale.
   - Caveat: The first rows of each partition have fewer earlier rows to draw on, so they read lower than a long series would at the same spend; read them with care.
+
+## Contract
+
+- Types (`field`): `date`, `f32`, `f64`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: no weighted form and no slot weight; a request weight is `PROCESSING_CONFIG`, an instance default is skipped.
+- Streaming: buffered only.
 
 ## Gotchas
 

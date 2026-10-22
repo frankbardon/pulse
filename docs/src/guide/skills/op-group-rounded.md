@@ -27,13 +27,11 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `interval` | float | (required) | Rounding increment; set on `Group.Interval`. |
+| `interval` | float | `1` | Rounding increment; set on `Group.Interval`. ≤ 0 is treated as 1. |
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
 
 ## Output
 
@@ -41,21 +39,22 @@ Floored numeric key per row. Each value rounds DOWN to a multiple of `Interval` 
 
 ## Components
 
-Universal floor `{total_n, n_null}` plus operator-specific:
+- `precision` — Rounding increment (Group.Interval)
+- `edges` — Sorted rounded scalars separating buckets
+- `buckets` — `{key, low, high, count}` per emission
+- Fans out under `ShardWorkers` / `DecodeWorkers` with the serial bits, whatever the key count; at very high cardinality (keys ≳ 70% of each partition's rows) the fan-out gains nothing, which predict cannot see; passes the chain stage gate.
+- `StreamableGrouper`: eligible for fused crosstab.
 
-| Key | Type | Notes |
-|---|---|---|
-| `precision` | float64 | Rounding increment (Group.Interval) |
-| `edges` | []float64 | Sorted rounded scalars separating buckets |
-| `buckets` | []bucket | `{key, low, high, count}` per emission |
+## Contract
 
-- Mergeability: `Mergeable` — fans out under `ShardWorkers` / `DecodeWorkers` with the serial bits, whatever the key count; at very high cardinality (keys ≳ 70% of each partition's rows) the fan-out gains nothing, which predict cannot see; passes the chain stage gate
-- Streaming: `StreamableGrouper` — eligible for fused crosstab
+- Types (`field`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable; components `mergeable`.
+- Components: `total_n`, `n_null`, `precision`, `edges`, `buckets`.
 
 ## Gotchas
 
 - Same partition as `GROUP_RANGE` at equal width; only the key differs (`"10"` vs `"10-20"`).
-- Rejects categorical and `set_*` at construction (`PULSE_FIELD_TYPE_UNSUPPORTED`).
 - `Group.Include` not honoured — filter source field instead.
 
 ## See

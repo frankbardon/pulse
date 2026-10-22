@@ -15,17 +15,21 @@ Feature operators emit derived columns; no `Response.Components`.
 
 ## Params
 
-`degree` — int, required. `>= 2` AND `<= 10` (`MaxPolyDegree`). Degree 1 is the original column; reference it directly downstream.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `degree` | int | (required) | `>= 2` AND `<= 10` (`MaxPolyDegree`). Degree 1 is the original column; reference it directly downstream. |
 
 ## Inputs
 
-`Field` — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`; `decimal128` via f64. A categorical, `set_*`, `packed_bool` or `datetime` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime alike).
+`Field` — numeric (types: `## Contract`); `decimal128` via f64.
 
 ## Output
 
 `Degree - 1` columns `<prefix>_<k>` for `k = 2..Degree`, `prefix` default `<field>_poly` (override via `Label`). Each holds `x^k` by iterative multiplication (`power *= v`). The ORIGINAL column is untouched, so a linear regression over `{x, x_poly_2, x_poly_3, …}` is the polynomial-regression basis.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/dategroup"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/groupfit"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/temporal"
@@ -1328,11 +1329,16 @@ func newDateGrouper(grp *types.Group, schema *encoding.Schema) (Grouper, error) 
 		return nil, err
 	}
 
-	// Non-strict posture: GROUP_DATE has never rejected a non-temporal
-	// Field against the schema, so widening it to `datetime` must not
-	// introduce a new rejection. The call resolves the day-vs-second
-	// reading of the column and nothing else. Only `hour` — which needs
-	// a time of day — insists on a datetime (dategroup.CheckField).
+	// A schema field must be date-family (the accepted-types table's
+	// GROUP_DATE row, which predict reads too): a non-temporal column
+	// read as epoch days would bucket silently wrong. A field absent from
+	// the schema (derived) is not judged here and reads as epoch days.
+	// The resolve call then picks the day-vs-second reading; only `hour`
+	// — which needs a time of day — insists on a datetime
+	// (dategroup.CheckField).
+	if cerr := fieldaccept.Check(string(types.GROUP_DATE), fieldaccept.SlotField, grp.Field, schema); cerr != nil {
+		return nil, cerr
+	}
 	date, err := resolveDateField("GROUP_DATE", grp.Field, grp.TimeZone, grp.TimeZoneField, schema, false)
 	if err != nil {
 		return nil, err

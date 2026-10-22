@@ -27,23 +27,6 @@ import (
 // Sorted (byte order, so `u4` falls between `u32` and `u64`) for golden
 // stability; TestCapabilities_AllCohortFieldTypesMatchesRegistry pins it.
 
-// numericFieldTypesNoDecimal lists numeric types excluding the
-// fixed-point decimal types. Used by aggregators that operate in float64
-// space (variance, stddev, skewness, kurtosis) and by the window /
-// attribute families. The value windows declare the same set through
-// the accepted-types table (internal/fieldaccept), which gates it on
-// both sides.
-var numericFieldTypesNoDecimal = []string{
-	"date",
-	"f32",
-	"f64",
-	"u16",
-	"u32",
-	"u4",
-	"u64",
-	"u8",
-}
-
 // numericFieldTypesAnalytics is the numeric types (the unsigned
 // integers, the floats, date and decimal128 — read through its float64
 // echo) widened with the bit-packed boolean encoding (packed_bool) and
@@ -698,7 +681,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Welford-running mean of the field."},
 				descriptor.ComponentKey{Name: "stderr", Type: "float64", Description: "Standard error of the mean derived from variance and n."},
 				descriptor.ComponentKey{Name: "alpha", Type: "float64", Description: "Significance level (1 - confidence)."},
-				descriptor.ComponentKey{Name: "t_critical", Type: "float64", Description: "Critical value used to scale the standard error."},
+				descriptor.ComponentKey{Name: "t_critical", Type: "float64", Description: "Normal critical value z = qnorm(1 − α/2) scaling the standard error (not Student t; the name is kept for vocabulary)."},
 				descriptor.ComponentKey{Name: "lower", Type: "float64", Description: "Resolved lower bound of the confidence interval."},
 			),
 		},
@@ -729,7 +712,7 @@ func aggregatorCapabilityTable() []descriptor.Operator {
 				descriptor.ComponentKey{Name: "mean", Type: "float64", Description: "Welford-running mean of the field."},
 				descriptor.ComponentKey{Name: "stderr", Type: "float64", Description: "Standard error of the mean derived from variance and n."},
 				descriptor.ComponentKey{Name: "alpha", Type: "float64", Description: "Significance level (1 - confidence)."},
-				descriptor.ComponentKey{Name: "t_critical", Type: "float64", Description: "Critical value used to scale the standard error."},
+				descriptor.ComponentKey{Name: "t_critical", Type: "float64", Description: "Normal critical value z = qnorm(1 − α/2) scaling the standard error (not Student t; the name is kept for vocabulary)."},
 				descriptor.ComponentKey{Name: "upper", Type: "float64", Description: "Resolved upper bound of the confidence interval."},
 			),
 		},
@@ -875,7 +858,7 @@ func vecAggCapability(op types.AggregationType, desc, emits string, own ...descr
 				Description: "Crosstab cell or margin_aggregations only: the display label of the ONE member the slot reads, making it a scalar — that element's figure (the scalar twin's: AGG_AVERAGE / AGG_SUM of the member, except an unanswered element stays this operator's NaN / 0), its floor {n, n_null} over the member's presence (so a record reaches an auxiliary margin only if its selected member reached a cell) and one-entry components. Fuses and margins like the scalar twin. Refused beside expand (element_with_expand), outside a crosstab (element_outside_crosstab), naming no member label (element_unknown) or a shared one (element_ambiguous).",
 			},
 		},
-		AcceptsTypes:    numericFieldTypesNoDecimal,
+		AcceptsTypes:    vectorMemberFieldTypes,
 		EmitsTypeNote:   emits,
 		Streamable:      true,
 		ComponentSchema: aggSchema(descriptor.Mergeable, keys...),

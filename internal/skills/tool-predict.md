@@ -27,20 +27,23 @@ A bare `types.Request` at the root, as execution takes it; or ONE alternative ro
 
 ## Output
 
-Every answer carries the coded `errors` / `warnings` (`{code, message, details}`, each omitted when empty) beside the verdict — read them for why `valid` is false. An alternative root answers under its own key (`valid`, the echoed `request`, its per-shape verdict); under the instance's strict mode its warnings come back as errors. A bare request answers with `PredictResult` at the root: `Streamable` (bool — matches runtime via `processing.CanStreamRequest`), `CrosstabFusable` + `CrosstabFusionReasons` (crosstab requests only: will the grid build on the fused one-pass, `O(cells + margins)` arm — and why not), `LimitFindings` (`limit_findings`, omitted when none: each instance resource limit a predicted figure exceeds — `{limit, configured, estimated, grade}`; `certain` = exact, refused with `PULSE_LIMIT_EXCEEDED` and `valid: false`; `possible` = an upper bound, a warning only), `DefaultsApplied` (slot-level inference summary), `Normalized` (the engine-canonical request after defaults)<!-- feature: capability:weighting -->, and `suggested_weight` — inspect's SPSS suggestion, echoed as data (never a warning or applied) while no weight resolves<!-- /feature -->, and `advisories` (omitted when none) — coded `{code, message, details}` notes that the analysis may not fit the data; never warnings, never escalated by `--strict` (`predict-advisories`).
+Every answer carries coded `errors` / `warnings` (`{code, message, details}`, omitted when empty) beside the verdict — read them for why `valid` is false. An alternative root answers under its own key (`valid`, the echoed `request`, its verdict); under strict mode warnings come back as errors. A bare request answers with `PredictResult` at the root:
+
+- `Streamable` — matches the runtime (per-operator `Streamable()` plus schema gates; `decimal128` buffers).
+- `CrosstabFusable` + `CrosstabFusionReasons` — crosstab only: will the grid build on the fused one-pass arm, and why not.
+- `limit_findings` — each resource limit a predicted figure exceeds, `{limit, configured, estimated, grade}`: `certain` refuses `PULSE_LIMIT_EXCEEDED` (`valid: false`), `possible` only warns.
+- `DefaultsApplied` (always computed, even under `--no-defaults`) and `Normalized` (the canonical request after defaults).
+<!-- feature: capability:weighting -->
+- `suggested_weight` — inspect's SPSS suggestion, echoed as data while no weight resolves; never applied.
+<!-- /feature -->
+- `advisories` — coded notes that the analysis may not fit the data; never warnings, never escalated (`predict-advisories`).
 
 ## Gotchas
 
-- Every formula, expression filter and `total()` argument is type-compiled against the schema: a failure is `PULSE_FORMULA_COMPILE_ERROR`, byte-identical to the runtime's.
-- Predict is no-execute: `internal/descriptor/predict.go` MUST NOT import `internal/service/` or `internal/processing/` (enforced by `TestPredictNoExecutionImports`). Header + schema only.
-- `Streamable` reflects per-operator `Streamable()` plus schema gates (decimal128 forces buffered).
-- `CrosstabFusable` is absent (nil) without a crosstab; it runs the engine's own fusion rule on the defaulted request and honours `Options.DisableCrosstabFusion` (false + reason). Output is identical either way — only memory differs. Predict cannot see a grouper factory rejecting its params: it may say fusable where the runtime refuses the request anyway.
-- `DefaultsApplied` is always computed — disabling defaults at request time via `--no-defaults` does NOT suppress the report.
-- An unknown key at any depth — a slot `params` key the operator does not declare included (`groups[0].params.unit`) — is rejected with `PULSE_REQUEST_UNKNOWN_FIELD`, `details.path` (`sort[0].direction`) and a "did you mean" suggestion; process refuses the same body alike.
+- Header + schema only, never records — but every formula, expression filter and `total()` argument is type-compiled: `PULSE_FORMULA_COMPILE_ERROR`, byte-identical to the runtime's.
+- `CrosstabFusable` honours `Options.DisableCrosstabFusion`; output is identical either way, only memory differs. It cannot see a grouper factory rejecting its params.
+- An unknown key at any depth (an undeclared `params` key included) is `PULSE_REQUEST_UNKNOWN_FIELD` with `details.path` and a "did you mean"; process refuses the same body alike.
 
 ## See
 
-- `request-envelope` — slot map and smart-default inference rules.
-- `tool-process` — runtime sibling; identical input shape.
-- `streaming-and-watching` — streamability semantics.
-- `predict-advisories` — the advisory codes and suppression.
+- `request-envelope` (slots, smart defaults), `tool-process` (same input shape), `streaming-and-watching`, `predict-advisories`.

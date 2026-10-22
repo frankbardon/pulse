@@ -13,7 +13,7 @@ Steps 1–2 once, cached; re-enter from step 3 per question.
 
 | # | Call | Cadence | Returns / effect |
 |---|---|---|---|
-| 1 | `pulse_manifest` (`intent` scopes it to one question kind) | once per session | operator catalogs (each entry's `intents` = the question kinds it answers), field types, error codes, MCP tool list, skills index, extensions, capability blocks |
+| 1 | `pulse_manifest` (`intent` scopes it to one question kind) | once per session | operator catalogs, field types, error codes, MCP tool list, skills index, extensions, capability blocks |
 | 2 | `pulse_inspect` | once per cohort | schema (fields, types, descriptions, dictionaries). **Side-effect:** binds schema-aware enums into the field-name arguments of `pulse_predict`<!-- feature: capability:process --> / `pulse_process`<!-- /feature --><!-- feature: capability:compose --> / `pulse_compose`<!-- /feature --><!-- feature: capability:sample --> / `pulse_sample`<!-- /feature --><!-- feature: capability:facet --> / `pulse_facet`<!-- /feature -->, constraining them to schema-resident values |
 | 3 | `pulse_examples_search` | per question | name + summary, by `query` + `tags` + `category`<!-- feature: capability:recommend -->; or `pulse_recommend` by `intents` ID<!-- /feature --> |
 | 4 | `pulse_examples_get` | per candidate | runnable Request JSON (`body`, `_meta` stripped). Adapt cohort filename / fields / labels — do not invent |
@@ -31,7 +31,7 @@ Steps 1–2 once, cached; re-enter from step 3 per question.
 | Question | Skill |
 |---|---|
 | Which skill to fetch for an operator prefix, manifest entry, request / response slot or CLI leaf; reading `data.components` on first sight | `session-skill-routing` |
-| Excel / SPSS read flags, parent groups on the managed import path, `.sav` write flags | `session-format-flags` |
+| Excel / SPSS read flags, parent groups on the managed import path, `.sav` write flags, `--float f32` | `session-format-flags` |
 <!-- feature: capability:synth -->
 | `pulse profile create` and `pulse synth from-profile` flags | `session-synth-flags` |
 <!-- /feature -->

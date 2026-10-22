@@ -17,7 +17,9 @@ Overlays decorate the host; no `Response.Components`.
 
 `Scope` `row`. `Ref` empty. `Level`/`Within` `0`.
 
-- `absorbing` — optional non-empty array of distinct state keys (row or column) whose arrivals count as churn. Omitted ⇒ no churn split.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `absorbing` | list | — | Optional non-empty array of distinct state keys (row or column) whose arrivals count as churn. Omitted ⇒ no churn split. |
 
 ## Host shape
 
@@ -28,6 +30,8 @@ MATRIX crosstab: earlier-state rows × later-state columns, one grouper each, co
 SERIES, one entry per from-state in row order: `summary.statistic` = stay `n_ii / R_i`; `summary.parameters` `switch`, `from_total` (`R_i`, the row total) and, with `absorbing`, `churn` — stay + switch + churn = 1. Layer `summary.parameters` pool them: `stay`, `switch`, `churn`, `states`, `total`.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

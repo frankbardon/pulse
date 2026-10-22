@@ -17,9 +17,11 @@ Overlays decorate the host; no `Response.Components`.
 
 `Scope` `matrix`. `Ref` empty. `Level`/`Within` `0`.
 
-- `steps` — default `[1,3,6,12]`; distinct integers 1–1000 (≤ 64).
-- `absorbing` — state keys, e.g. `["churned"]`.
-- `initial` — `"margin"` or `{state: share}`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `steps` | list | — | Distinct integers 1–1000 (≤ 64). |
+| `absorbing` | list | — | State keys, e.g. `["churned"]`. |
+| `initial` | object | — | `"margin"` or `{state: share}`. |
 
 ## Host shape
 
@@ -30,6 +32,8 @@ MATRIX crosstab, from-state rows × to-state columns, same keys (aligned by key)
 Primary MATRIX: transition P (rows sum to 1). Parts: `step_<n>` (MATRIX Pⁿ), `distribution_<n>` (SERIES, with `initial`), `steady_state` (SERIES), `absorption_time` (SERIES over non-absorbing states, with `absorbing`). Summary params: `states`, `classes`, `irreducible`, `period`.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

@@ -17,20 +17,13 @@ None.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | any cohort field type (categorical_*, numeric, date, packed_bool, set_*, decimal128) |
+- `Field` — any cohort field type (categorical_*, numeric, date, packed_bool, set_*, decimal128)
 
 ## Output
 
 Scalar `int64` — count of null inputs. Per-group when wired under a grouper.
 
-## Components
-
-Floor only — no operator-specific keys. Universal `{n, n_null}` per response-components contract.
-
-- Mergeability: `Mergeable`
-- Streaming: per-chunk; orchestrator sums
+<!-- generated: contract -->
 
 ## Gotchas
 

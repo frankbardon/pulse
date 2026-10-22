@@ -27,25 +27,27 @@ Use something else:
 
 ## Params
 
-None. `partition_by` (carve), `order_by` (≥1, required, numeric / `date`), `frame` (forbidden), `field` (refused `PULSE_WINDOW_INVALID` — no value read; manifest `forbids_field`, `accepts_types: []`).
+None. `partition_by` (carve), `order_by` (≥1, required, any type but `set_*` (`PULSE_WINDOW_INVALID`) or `vec_*` (`PULSE_VECTOR_FIELD_NOT_SCALAR`)), `frame` (forbidden), `field` (refused `PULSE_WINDOW_INVALID` — no value read; manifest `forbids_field`, `accepts_types: []`).
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | must be empty / omitted — no value field is read |
+- `Field` — must be empty / omitted — no value field is read
 
 ## Output
 
 One `int64` per row written to `Label` (default `WIN_ROW_NUMBER`). Counts `1, 2, 3, ...` in scan order, resets per partition. NEVER ties — row order is stable (nulls last) on the `order_by` comparator.
 
+## Contract
+
+- Types: reads no field; naming one is `PULSE_WINDOW_INVALID`.
+- Weight: no weighted form and no slot weight; a request weight is `PROCESSING_CONFIG`, an instance default is skipped.
+- Streaming: buffered only.
+
 ## Gotchas
 
-- Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.
 - Ties on `order_by`: ROW_NUMBER picks a deterministic but arbitrary order.
 - Common top-N idiom: `WIN_ROW_NUMBER` partitioned by group, then a range filter on the label `[1, N]`. Filter runs BEFORE windows in the pipeline — stage via Compose / ProcessChain.
 - Result rows are NOT reordered — use `Request.Sort` for response order.
-- Forces buffered execution (`Streamable=false`).
 
 ## See
 

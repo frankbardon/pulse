@@ -20,7 +20,7 @@ import (
 func ExamplesCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "examples",
-		Usage: "Search and fetch runnable Pulse request examples",
+		Usage: "Search and fetch the built-in runnable request examples (embedder examples: pulse_examples_* / Pulse.ExampleGet)",
 		Commands: []*cli.Command{
 			examplesSearchCmd(),
 			examplesShowCmd(),

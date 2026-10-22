@@ -22,6 +22,10 @@ Questions it answers:
 
 ## Params
 
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `field` | string | — | On a SERIES host, the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column `"<label>[<element label>]"`; absent, the first aggregation. |
+
 `Scope` must be `group`. `Ref.Population.Cohort` (string, required) — comparison-population cohort name. `Level`/`Within` must be `0`. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## Host shape
@@ -36,6 +40,11 @@ SERIES — one `SeriesEntry` per host value in payload order carrying the z-scor
 
 - `summary.statistic`: In each series entry, for a categorical field: the category's share in the subset minus its share in the population, divided by the standard deviation of the population's shares across categories. For a numeric field: a histogram bin's centre against the population's mean, in population standard deviations.
   - Sign: positive means the value sits above its centre; negative means the value sits below its centre.
+
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable.
 
 ## Gotchas
 
