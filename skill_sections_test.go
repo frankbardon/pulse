@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/extend"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/skills"
 )
 
 // Embedder skills opt in to generated sections (U21 E1-S1): a marker
@@ -177,7 +178,8 @@ func TestExtensionSkills_GeneratedSectionsProfiled(t *testing.T) {
 func TestExtensionSkills_MarkersOutsideBudget(t *testing.T) {
 	stripped := strings.ReplaceAll(strings.ReplaceAll(extSectionSkill, "<!-- generated: use-when -->\n\n", ""), "<!-- generated: reading-the-output -->\n\n", "")
 	body := len(stripped) - strings.Index(stripped, "\nGap between")
-	pad := strings.Repeat("x", 1200-body)
+	budget, _ := skills.BodyBudget("op-test-acme-gap", "operator") // the op-test-* tier
+	pad := strings.Repeat("x", budget-body)
 	ext := extSectionExtensions()
 	ext.Skills = fstest.MapFS{"op-test-acme-gap.md": {Data: []byte(strings.Replace(extSectionSkill, "## Gotchas\nNone.", "## Gotchas\nNone."+pad, 1))}}
 	if _, err := New(Options{FS: memFsWith(t, nil), Extensions: ext}); err != nil {
@@ -278,7 +280,8 @@ func TestExtensionSkills_ContractSection(t *testing.T) {
 func TestExtensionSkills_ContractMarkerOutsideBudget(t *testing.T) {
 	stripped := strings.Replace(extContractSkill, "<!-- generated: contract -->\n\n", "", 1)
 	body := len(stripped) - strings.Index(stripped, "\nContract stub aggregate.")
-	pad := strings.Repeat("x", 1200-body)
+	budget, _ := skills.BodyBudget("op-agg-acme-contract", "operator") // the op-* tier
+	pad := strings.Repeat("x", budget-body)
 	skill := strings.Replace(extContractSkill, "## Gotchas\nNone.", "## Gotchas\nNone."+pad, 1)
 	if _, err := New(Options{FS: memFsWith(t, nil), Extensions: extContractExtensions(skill)}); err != nil {
 		t.Fatalf("New: %v", err)

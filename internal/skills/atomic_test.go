@@ -29,14 +29,13 @@ func TestAtomicSkillHasRequiredSections(t *testing.T) {
 }
 
 // TestSkillTokenBudget holds each skill body (frontmatter stripped,
-// feature-fence markers stripped) to its family budget. The topical
-// (kind: design) budget is HARD: any byte over fails — a long topic
-// splits into focused skills (.claude/reference/skill-pack.md). The
-// atomic budgets (op-* / tool-* / type-*) are still SOFT: an overrun is
-// logged and fails only past the transitional cap.
+// feature-fence and generated-section markers stripped) to its family
+// budget (BodyBudget: the atomic tier table, DesignBudget for topical).
+// Every budget is HARD: one byte over fails, with no slack. An atomic
+// body that outgrows its tier moves prose into a design skill; a topic
+// that outgrows the design cap splits into focused skills
+// (.claude/reference/skill-pack.md, Token budget).
 func TestSkillTokenBudget(t *testing.T) {
-	const hardFailOverPercent = 1000
-
 	for _, stem := range embeddedMarkdownNames(t) {
 		raw, ok := Get(stem)
 		if !ok {
@@ -44,8 +43,8 @@ func TestSkillTokenBudget(t *testing.T) {
 			continue
 		}
 		// The budget covers the HAND-WRITTEN body: generated sections
-		// (Use when / Reading the output) are rendered from the guidance
-		// registries and carry their own hard caps (TestSkillPurposeSectionsCurrent
+		// (Use when / Reading the output / Contract) are rendered from
+		// the registries and carry their own caps (TestSkillPurposeSectionsCurrent
 		// in internal/descriptor), so any marker or already-rendered
 		// section is measured out. Marker lines are removed here whether
 		// or not a renderer is registered in this test binary.
@@ -54,31 +53,15 @@ func TestSkillTokenBudget(t *testing.T) {
 				raw = RenderGenerated(fenced, nil)
 			}
 		}
-		bodyLen := len(StripFrontmatter(raw))
 		kind := strings.TrimSpace(ParseFrontmatter(raw)["kind"])
 		budget, covered := BodyBudget(stem, kind)
 		if !covered {
 			continue // not budget-covered
 		}
-		hard := kind == "design"
-
-		if bodyLen <= budget {
-			continue
+		if bodyLen := len(StripFrontmatter(raw)); bodyLen > budget {
+			t.Errorf("%s: body %d > hard budget %d (over by %d bytes) — move prose into a design skill (or split the topic), never raise the tier",
+				stem, bodyLen, budget, bodyLen-budget)
 		}
-		overBytes := bodyLen - budget
-		overPct := (overBytes * 100) / budget
-		if hard {
-			t.Errorf("%s: design body %d > hard budget %d (over by %d bytes) — split the topic into focused skills",
-				stem, bodyLen, budget, overBytes)
-			continue
-		}
-		if overPct > hardFailOverPercent {
-			t.Errorf("%s: body %d > budget %d (over by %d bytes / %d%%) — exceeds transitional cap %d%%",
-				stem, bodyLen, budget, overBytes, overPct, hardFailOverPercent)
-			continue
-		}
-		t.Logf("%s: body %d > budget %d (over by %d bytes / %d%%)",
-			stem, bodyLen, budget, overBytes, overPct)
 	}
 }
 

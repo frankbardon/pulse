@@ -45,8 +45,10 @@ import (
 //     registered extension operator (requires);
 //  6. sections — the family's required `##` headings
 //     (skills.RequiredSections);
-//  7. budget — skills.BodyBudget, HARD (one byte over fails), measured
-//     with generated-section markers removed (they render from metadata);
+//  7. budget — skills.BodyBudget, the built-in pack's tier table (the
+//     first matching stem prefix: op-test-*, op-reg-*, other op-*;
+//     ext-* the design cap), HARD (one byte over fails), measured with
+//     generated-section markers removed (they render from metadata);
 //  8. fence — skills.ParseFences + every name a node of the graph;
 //  9. fence_coverage — every feature name (built-in operator,
 //     `<kind>:<name>` feature, feature-owned `pulse_*` tool, registered

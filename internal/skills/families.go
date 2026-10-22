@@ -9,13 +9,46 @@ import "strings"
 // between the built-in pack and an embedder's skills.
 
 // Body budgets, in bytes of the post-frontmatter body as Get serves it
-// (feature-fence markers stripped). chars / 4 ≈ tokens.
+// (feature-fence markers and generated-section markers stripped).
+// chars / 4 ≈ tokens. Every budget is HARD — one byte over fails
+// TestSkillTokenBudget for a built-in and refuses an embedder skill at
+// pulse.New. The atomic tiers were frozen in U38 from the measured pack
+// (.claude/reference/skill-pack.md, Token budget); a body that outgrows
+// its tier moves prose into a design skill, never raises the tier.
 const (
-	OpBudget     = 1200
-	ToolBudget   = 2000
-	TypeBudget   = 2000
-	DesignBudget = 6000
+	OpBudget        = 1800 // op-* not matched by a narrower tier
+	OpTestBudget    = 2200 // op-test-*
+	OpOverlayBudget = 2400 // op-overlay-*
+	OpRegBudget     = 3000 // op-reg-* (op-reg-mod-* included)
+	ToolBudget      = 2500
+	TypeBudget      = 2000
+	DesignBudget    = 6000
 )
+
+// BudgetTier is one row of the atomic budget table: a stem prefix and
+// the body budget of every skill whose stem starts with it.
+type BudgetTier struct {
+	Prefix string
+	Budget int
+}
+
+// bodyBudgetTiers is ordered most specific first: the first prefix a
+// stem matches decides its budget (TestBodyBudgetTiers_MostSpecificFirst).
+var bodyBudgetTiers = []BudgetTier{
+	{"op-test-", OpTestBudget},
+	{"op-overlay-", OpOverlayBudget},
+	{"op-reg-", OpRegBudget},
+	{"op-", OpBudget},
+	{"tool-", ToolBudget},
+	{"type-", TypeBudget},
+}
+
+// BodyBudgetTiers returns a copy of the atomic budget table, most
+// specific prefix first. Topical (kind: design) skills are not in it:
+// they share DesignBudget.
+func BodyBudgetTiers() []BudgetTier {
+	return append([]BudgetTier(nil), bodyBudgetTiers...)
+}
 
 // RequiredSections returns the `##` headings a skill of the given stem
 // and frontmatter category must carry; nil for a family with no required
@@ -39,16 +72,16 @@ func RequiredSections(stem, category string) []string {
 }
 
 // BodyBudget returns the body budget of a skill of the given stem and
-// frontmatter kind; ok is false for a family no budget covers.
+// frontmatter kind — the first matching prefix of the atomic tier table,
+// else DesignBudget for kind: design; ok is false for a family no budget
+// covers.
 func BodyBudget(stem, kind string) (budget int, ok bool) {
-	switch {
-	case strings.HasPrefix(stem, "op-"):
-		return OpBudget, true
-	case strings.HasPrefix(stem, "tool-"):
-		return ToolBudget, true
-	case strings.HasPrefix(stem, "type-"):
-		return TypeBudget, true
-	case strings.TrimSpace(kind) == "design":
+	for _, tier := range bodyBudgetTiers {
+		if strings.HasPrefix(stem, tier.Prefix) {
+			return tier.Budget, true
+		}
+	}
+	if strings.TrimSpace(kind) == "design" {
 		return DesignBudget, true
 	}
 	return 0, false
