@@ -2190,7 +2190,9 @@ instance (a span naming a hidden feature is cut), so mention a feature
 the profile may hide only inside a fence. Its `## See` section renders
 by edge — atomic and topical alike: a stem naming a hidden skill and a
 `tags=[…]` search no visible example answers are cut, a line left
-naming nothing goes, and a section left blank goes with its heading.
+naming nothing goes, and a topical (`ext-*`) section left blank goes
+with its heading; an atomic skill keeps its required `## See` heading
+over an empty section.
 Registering skills never
 changes a built-in skill's listing or body.
 

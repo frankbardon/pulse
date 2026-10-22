@@ -25,8 +25,9 @@ import (
 //     backticked stem naming a skill the instance pruned is cut from its
 //     line, a `pulse_examples_search tags=[…]` ref is cut when no VISIBLE
 //     example answers it (seeTags), a line every span of which was cut is
-//     dropped, and a section a cut left with no text is dropped with its
-//     heading.
+//     dropped, and a topical section a cut left with no text is dropped
+//     with its heading (an atomic `## See` is required: its heading stays
+//     over an empty section).
 //
 // Between the two, every generated-section marker
 // (`<!-- generated: use-when -->` / `<!-- generated: reading-the-output -->`)
@@ -79,11 +80,12 @@ func (d *Discovery) renderBody(name, raw string) string {
 		return raw
 	}
 	out = d.renderGenerated(out)
-	if _, topical := d.topical[name]; topical {
+	_, topical := d.topical[name]
+	if topical {
 		out = d.renderCovers(out)
 	}
 	var visible []examples.ExampleSummary
-	return renderSeeSection(out, func(span string) bool {
+	return renderSeeSection(out, topical, func(span string) bool {
 		if searches, ok := seeTags(span); ok {
 			if visible == nil {
 				visible = d.ExamplesSearch("", nil, "")
@@ -101,17 +103,20 @@ func (d *Discovery) renderBody(name, raw string) string {
 }
 
 // renderSeeSection renders body's `## See` section line by line
-// (renderSeeLine); lines outside the section are untouched, a line left
-// naming nothing is dropped, and a section a cut left holding only blank
-// lines is dropped with its heading (a section that was blank to begin
-// with stays). A render that cuts nothing returns body unchanged.
-func renderSeeSection(body string, keepSpan func(span string) bool) string {
+// (renderSeeLine); lines outside the section are untouched and a line
+// left naming nothing is dropped. With dropEmpty (topical bodies) a
+// section a cut left holding only blank lines is dropped with its
+// heading (a section blank to begin with stays); without it (atomic
+// bodies, where `## See` is a required section — skills.RequiredSections)
+// the heading always survives, over an empty section. A render that
+// cuts nothing returns body unchanged.
+func renderSeeSection(body string, dropEmpty bool, keepSpan func(span string) bool) string {
 	lines := strings.Split(body, "\n")
 	out := make([]string, 0, len(lines))
 	head := -1 // index in out of the open See heading, -1 outside one
 	cut, text := false, false
 	closeSee := func() {
-		if head >= 0 && cut && !text {
+		if dropEmpty && head >= 0 && cut && !text {
 			out = out[:head]
 		}
 		head, cut, text = -1, false, false

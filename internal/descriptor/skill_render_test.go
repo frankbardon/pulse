@@ -98,10 +98,10 @@ func TestRenderSeeSection(t *testing.T) {
 		"- Error list in `pulse_manifest` (`error_codes` slice).",
 		"", "## After", "", "- `op-gone`", "",
 	}, "\n")
-	if got := renderSeeSection(body, keep); got != want {
+	if got := renderSeeSection(body, false, keep); got != want {
 		t.Errorf("renderSeeSection:\n got %q\nwant %q", got, want)
 	}
-	if got := renderSeeSection(body, func(string) bool { return true }); got != body {
+	if got := renderSeeSection(body, false, func(string) bool { return true }); got != body {
 		t.Error("keep-all render changed the body")
 	}
 }
@@ -156,27 +156,52 @@ func TestDiscovery_RendersSeeByEdge(t *testing.T) {
 }
 
 // TestRenderSeeSection_TopicalShapes: the topical pack's " · " inline
-// lists cut item by item, and a section a cut left blank goes with its
-// heading — mid-body and at the end — while a section blank to begin
-// with stays.
+// lists cut item by item; with dropEmpty (topical) a section a cut left
+// blank goes with its heading — mid-body and at the end — while a
+// section blank to begin with stays; without it (atomic: `## See` is
+// required) the heading survives over an empty section.
 func TestRenderSeeSection_TopicalShapes(t *testing.T) {
 	keep := func(span string) bool { return span != "gone" }
-	for _, tc := range []struct{ name, body, want string }{
-		{"middot list", "## See\n\n`kept` (a) · `gone` (b) · `also` (c).\n",
+	for _, tc := range []struct {
+		name       string
+		dropEmpty  bool
+		body, want string
+	}{
+		{"middot list", true, "## See\n\n`kept` (a) · `gone` (b) · `also` (c).\n",
 			"## See\n\n`kept` (a) · `also` (c).\n"},
-		{"middot last item cut keeps the period", "## See\n\n`kept` · `gone`.\n",
+		{"middot last item cut keeps the period", true, "## See\n\n`kept` · `gone`.\n",
 			"## See\n\n`kept`.\n"},
-		{"emptied section at the end", "intro\n\n## See\n\n- `gone` — x.\n\n`gone` · `gone`\n",
+		{"emptied section at the end", true, "intro\n\n## See\n\n- `gone` — x.\n\n`gone` · `gone`\n",
 			"intro\n"},
-		{"emptied section mid-body", "intro\n\n## See\n\n- `gone`\n\n## After\n\n- `gone`\n",
+		{"emptied section mid-body", true, "intro\n\n## See\n\n- `gone`\n\n## After\n\n- `gone`\n",
 			"intro\n\n## After\n\n- `gone`\n"},
-		{"section blank from the start stays", "intro\n\n## See\n\n## After\n",
+		{"section blank from the start stays", true, "intro\n\n## See\n\n## After\n",
 			"intro\n\n## See\n\n## After\n"},
-		{"prose line keeps the section", "## See\n\n- `gone`\nAsk the team.\n",
+		{"prose line keeps the section", true, "## See\n\n- `gone`\nAsk the team.\n",
 			"## See\n\nAsk the team.\n"},
+		{"atomic emptied section keeps its heading", false, "intro\n\n## See\n\n- `gone` — x.\n\n`gone` · `gone`\n",
+			"intro\n\n## See\n\n\n"},
+		{"atomic emptied section mid-body keeps its heading", false, "intro\n\n## See\n\n- `gone`\n\n## After\n",
+			"intro\n\n## See\n\n\n## After\n"},
 	} {
-		if got := renderSeeSection(tc.body, keep); got != tc.want {
+		if got := renderSeeSection(tc.body, tc.dropEmpty, keep); got != tc.want {
 			t.Errorf("%s:\n got %q\nwant %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestDiscovery_EmptiedSeeHeading: on a profiled instance a See section
+// whose every item names a hidden skill keeps its required heading in an
+// atomic body and goes with its heading in a topical one.
+func TestDiscovery_EmptiedSeeHeading(t *testing.T) {
+	d := hidingSnapshot("REG_GLM").Discovery()
+	raw := "## Params\n\nx\n\n## See\n\n- `op-reg-glm`\n"
+	for _, tc := range []struct{ skill, want string }{
+		{"op-reg-ols", "## Params\n\nx\n\n## See\n\n"},
+		{"regression-modeling", "## Params\n\nx\n"},
+	} {
+		if got := d.renderBody(tc.skill, raw); got != tc.want {
+			t.Errorf("%s:\n got %q\nwant %q", tc.skill, got, tc.want)
 		}
 	}
 }
@@ -226,7 +251,7 @@ func TestDiscovery_FullRenderUnchangedBySeeRender(t *testing.T) {
 		if got, ok := fullDiscovery.Skill(md.Name); !ok || got != full {
 			t.Errorf("%s: full view differs from skills.Get", md.Name)
 		}
-		if got := renderSeeSection(full, func(string) bool { return true }); got != full {
+		if got := renderSeeSection(full, md.Kind == "design", func(string) bool { return true }); got != full {
 			t.Errorf("%s: keep-all See render changed the body", md.Name)
 		}
 	}
