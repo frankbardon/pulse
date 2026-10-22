@@ -9,7 +9,7 @@ applies_to: mcp
 ## When to use
 
 CALL BEFORE AUTHORING A REQUEST.
-Find a runnable template that matches the user's question; clone its body via `pulse_examples_get` and rename fields for the target cohort. The example library is curated, runnable, and stays in lockstep with the operator surface — prefer it over inferring request shapes from documentation or source code.
+Find a runnable template that matches the user's question; clone its body via `pulse_examples_get` and rename fields for the target cohort. The shipped examples are curated, runnable, and stay in lockstep with the operator surface — prefer them over inferring request shapes from documentation or source code. The library is this server's own: shipped examples plus any the embedder registered (validated at startup, not curated by Pulse), minus any that use a feature this server hides.
 
 ## Input
 
@@ -27,7 +27,7 @@ Find a runnable template that matches the user's question; clone its body via `p
 - Tags are ANDed, not ORed. Two tags → results carrying both.
 - `category` is an exact directory match, not a substring.
 - Literal matches win: synonyms are consulted only when no example matches the words themselves, near-miss spellings only when no synonym does.
-- A deployment may add examples for its own operators, under its own categories; they search, read and prune exactly like the built-in ones.
+- A deployment may add examples for its own operators, under its own categories; they search, read and prune exactly like the built-in ones. The `pulse examples search` CLI leaf reads the built-in library only.
 - The summary does NOT include the runnable body; you MUST follow up with `pulse_examples_get`.
 
 ## See

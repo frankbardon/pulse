@@ -53,5 +53,4 @@ Per-row `float64` sample `min + U * (max - min)` where `U ~ Uniform[0, 1)`. Half
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synthetic-data`](synthetic-data.md), [`op-synth-uniform-date`](op-synth-uniform-date.md), [`op-synth-normal`](op-synth-normal.md)

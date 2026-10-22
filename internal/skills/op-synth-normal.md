@@ -36,5 +36,4 @@ Per-row `float64` from `N(mean, std²)`, cast/clamped to the declared type at wr
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: `synthetic-data`, `op-synth-lognormal`, `op-synth-uniform`

@@ -49,5 +49,4 @@ Per-row `1.0` with probability `p`, else `0.0`; cast to the declared field type 
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synth-marginals`](synth-marginals.md), [`op-synth-weighted-categorical`](op-synth-weighted-categorical.md), [`op-synth-constant`](op-synth-constant.md)

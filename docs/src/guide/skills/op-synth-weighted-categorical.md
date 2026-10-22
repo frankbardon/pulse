@@ -50,5 +50,4 @@ Per-row sampled string from `values`, looked up via binary search over the cumul
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synthetic-data`](synthetic-data.md), [`op-synth-bernoulli`](op-synth-bernoulli.md), [`op-synth-regex`](op-synth-regex.md)

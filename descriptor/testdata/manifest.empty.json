@@ -242,11 +242,11 @@
       },
       {
         "name": "pulse_examples_get",
-        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped."
+        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped. Serves the same library as pulse_examples_search: embedder examples included, an example that uses a feature this server hides reads as not found."
       },
       {
         "name": "pulse_examples_search",
-        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nThe `compose` examples show a compose `sweep` expanded into slots.\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
+        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nThe `compose` examples show a compose `sweep` expanded into slots.\n\nThe library is this server's own: the shipped examples plus any the embedder registered, minus any that use a feature this server hides (those read as absent).\n\nPrefer this over inferring request shapes from documentation or source code — the shipped examples are curated, runnable, and stay in lockstep with the operator surface; embedder examples are validated the same way at startup."
       },
       {
         "name": "pulse_inspect",
@@ -508,7 +508,7 @@
       },
       {
         "name": "tool-examples-get",
-        "description": "Fetch one runnable request example from the embedded library by name."
+        "description": "Fetch one runnable request example from this server's library by name."
       },
       {
         "name": "tool-examples-search",
@@ -824,4 +824,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: dc13cb6ed042b667ab858f30ad6b16dc1590d816714e4e463616976511ec67c7
+// golden-hash: a5de50311e2d204a05a0b783ae43b47e7a5129e9ebf3815452425d906bc574fc

@@ -50,5 +50,4 @@ Per-row non-negative integer (returned as `float64`). Two algorithms:
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synthetic-data`](synthetic-data.md), [`op-synth-exponential`](op-synth-exponential.md), [`op-synth-bernoulli`](op-synth-bernoulli.md)

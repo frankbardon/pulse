@@ -1010,11 +1010,11 @@
       },
       {
         "name": "pulse_examples_get",
-        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process."
+        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process. Serves the same library as pulse_examples_search: embedder examples included, an example that uses a feature this server hides reads as not found."
       },
       {
         "name": "pulse_examples_search",
-        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nThe `compose` examples show a compose `sweep` expanded into slots.\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
+        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nThe `compose` examples show a compose `sweep` expanded into slots.\n\nThe library is this server's own: the shipped examples plus any the embedder registered, minus any that use a feature this server hides (those read as absent).\n\nPrefer this over inferring request shapes from documentation or source code — the shipped examples are curated, runnable, and stay in lockstep with the operator surface; embedder examples are validated the same way at startup."
       },
       {
         "name": "pulse_facet",
@@ -1600,7 +1600,7 @@
       },
       {
         "name": "tool-examples-get",
-        "description": "Fetch one runnable request example from the embedded library by name."
+        "description": "Fetch one runnable request example from this server's library by name."
       },
       {
         "name": "tool-examples-search",
@@ -2394,4 +2394,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e9b36f3e3ba71fc5c37619acfd2a7321f0d5deb9d9df38a0dfc7158481db95bc
+// golden-hash: 415f7afb694d468678188b86fa65bb902fd8d4d1ceba9567aa7f411d6f6c54ac

@@ -51,5 +51,4 @@ Same `value` returned on every row. RNG state untouched.
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synthetic-data`](synthetic-data.md), [`op-synth-monotonic-from`](op-synth-monotonic-from.md), [`op-synth-bernoulli`](op-synth-bernoulli.md)

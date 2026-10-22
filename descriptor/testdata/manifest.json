@@ -10783,11 +10783,11 @@
       },
       {
         "name": "pulse_examples_get",
-        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process."
+        "description": "CALL AFTER A SEARCH FINDS A MATCHING EXAMPLE, TO GET ITS RUNNABLE BODY. Fetch one request example from the request-example library by `name`. Returns the full record including `body`, a runnable types.Request JSON with the _meta annotation block stripped. Hand it straight to pulse_predict or pulse_process. Serves the same library as pulse_examples_search: embedder examples included, an example that uses a feature this server hides reads as not found."
       },
       {
         "name": "pulse_examples_search",
-        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters, all optional and ANDed: `query` (plain words: one word is a case-insensitive substring of name, description or operators; several words must each match a whole word of name, description, operators, intents or tags; an operator alias such as `anova` or `chisq.test`, or a phrase from an intent's sounds such as `move together`, also finds that operator's or intent's examples; failing those, a near-miss spelling such as `regon` still finds `region`), `intent` (an intent-taxonomy ID such as `compare_groups`; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `compose`, `crosstab`, `facet`, `features`, `filterers`, `groupers`, `matrices`, `overlays`, `regression`, `tests`, `windows`). The `matrices` examples show MAT_COVARIANCE and MAT_CORRELATION over named `vectors`. The `compose` examples show a compose `sweep` expanded into slots.\n\nPrefer this over inferring request shapes from documentation or source code — the example library is curated, runnable, and stays in lockstep with the operator surface."
+        "description": "CALL BEFORE AUTHORING A REQUEST. Search the request-example library to find a runnable template that matches the user's question. Returns lightweight summaries (name, category, tags, operators, description, intents); fetch the runnable JSON body via pulse_examples_get and modify field names for the target cohort.\n\nFilters, all optional and ANDed: `query` (plain words: one word is a case-insensitive substring of name, description or operators; several words must each match a whole word of name, description, operators, intents or tags; an operator alias such as `anova` or `chisq.test`, or a phrase from an intent's sounds such as `move together`, also finds that operator's or intent's examples; failing those, a near-miss spelling such as `regon` still finds `region`), `intent` (an intent-taxonomy ID such as `compare_groups`; an unknown one is PULSE_RECOMMEND_INTENT_UNKNOWN), `tags` (ANDed list of canonical taxonomy tags such as `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`), and `category` (exact directory: `aggregations`, `attributes`, `compose`, `crosstab`, `facet`, `features`, `filterers`, `groupers`, `matrices`, `overlays`, `regression`, `tests`, `windows`). The `matrices` examples show MAT_COVARIANCE and MAT_CORRELATION over named `vectors`. The `compose` examples show a compose `sweep` expanded into slots.\n\nThe library is this server's own: the shipped examples plus any the embedder registered, minus any that use a feature this server hides (those read as absent).\n\nPrefer this over inferring request shapes from documentation or source code — the shipped examples are curated, runnable, and stay in lockstep with the operator surface; embedder examples are validated the same way at startup."
       },
       {
         "name": "pulse_explain",
@@ -13352,7 +13352,7 @@
       },
       {
         "name": "tool-examples-get",
-        "description": "Fetch one runnable request example from the embedded library by name."
+        "description": "Fetch one runnable request example from this server's library by name."
       },
       {
         "name": "tool-examples-search",
@@ -19455,4 +19455,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 425951a3f831a98863f9099673acbaf97bf2e9bbd16e5d4701ee84380158b970
+// golden-hash: 69f1476db9789ae190636374e40f4e8e78de35aac4f3dae8825306480aaa1344

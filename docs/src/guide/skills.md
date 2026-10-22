@@ -298,7 +298,7 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`tool-dedup`](skills/tool-dedup.md): Deduplicate an existing cohort's repeated parent blocks into parent groups (format 0x02), or suggest groups read-only.
 - [`tool-drop`](skills/tool-drop.md): Remove a managed-import handle — delete its .pulse file and sidecar.
 - [`tool-errors-lookup`](skills/tool-errors-lookup.md): Look up Pulse error code metadata — message and fixup hints.
-- [`tool-examples-get`](skills/tool-examples-get.md): Fetch one runnable request example from the embedded library by name.
+- [`tool-examples-get`](skills/tool-examples-get.md): Fetch one runnable request example from this server's library by name.
 - [`tool-examples-search`](skills/tool-examples-search.md): Search the runnable request-example library for templates matching a question.
 - [`tool-explain`](skills/tool-explain.md): Say in plain words what a request will do, or what a result found — closed verdicts, conventional strength bands and caveats.
 - [`tool-facet`](skills/tool-facet.md): Return distinct values for one field in a cohort.

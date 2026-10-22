@@ -48,5 +48,4 @@ Per-row string from the parsed AST: literals copy, char classes draw uniformly, 
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synthetic-data`](synthetic-data.md), [`op-synth-weighted-categorical`](op-synth-weighted-categorical.md), [`op-synth-constant`](op-synth-constant.md)

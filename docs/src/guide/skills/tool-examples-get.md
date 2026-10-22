@@ -1,7 +1,7 @@
 ```yaml
 name: tool-examples-get
 kind: tool
-description: Fetch one runnable request example from the embedded library by name.
+description: Fetch one runnable request example from this server's library by name.
 type: reference
 applies_to: mcp
 ```
@@ -17,7 +17,7 @@ The full record's `body` has the `_meta` annotation block already stripped — h
 
 ## Output
 
-`descriptor.Envelope` wrapping the example record: `name`, `category`, `tags`, `operators`, `description`, [`intents`](intents.md), `question` + `interpretation` (each when declared — a story declares both; absent otherwise), `body` (runnable `types.Request` JSON). Missing example → MCP error `example "<name>" not found`.
+`descriptor.Envelope` wrapping the example record: `name`, `category`, `tags`, `operators`, `description`, `intents`, `question` + `interpretation` (each when declared — a story declares both; absent otherwise), `body` (runnable `types.Request` JSON). Missing example → MCP error `example "<name>" not found` — also what an example using a feature this server hides answers. Serves the same library as `pulse_examples_search` (embedder examples included).
 
 ## Gotchas
 

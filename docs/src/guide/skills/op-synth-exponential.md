@@ -50,5 +50,4 @@ Per-row `float64` sample from `Exp(lambda)`, computed as `rng.ExpFloat64() / lam
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synthetic-data`](synthetic-data.md), [`op-synth-poisson`](op-synth-poisson.md), [`op-synth-pareto`](op-synth-pareto.md)

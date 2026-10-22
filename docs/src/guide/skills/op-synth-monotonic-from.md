@@ -51,5 +51,4 @@ Per-row `float64` `start + i * step` for row `i`. RNG state untouched, so seeded
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synthetic-data`](synthetic-data.md), [`op-synth-constant`](op-synth-constant.md), [`op-synth-uniform-date`](op-synth-uniform-date.md)

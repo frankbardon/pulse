@@ -53,5 +53,4 @@ Per-row `float64` from the selected component's Gaussian. No `min`/`max` clamp â
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synth-shape-fit`](synth-shape-fit.md), [`op-synth-normal`](op-synth-normal.md), [`op-synth-weighted-categorical`](op-synth-weighted-categorical.md)

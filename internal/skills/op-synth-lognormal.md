@@ -37,5 +37,4 @@ Per-row `float64` sample `exp(mu + sigma * Z)` where `Z ~ N(0, 1)`. Cast to decl
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: `synthetic-data`, `op-synth-normal`, `op-synth-pareto`

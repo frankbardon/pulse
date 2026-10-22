@@ -46,5 +46,4 @@ Per-row `float64` days-since-epoch; the writer stores it as the signed 32-bit `d
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synthetic-data`](synthetic-data.md), [`op-synth-uniform`](op-synth-uniform.md), [`op-synth-monotonic-from`](op-synth-monotonic-from.md)

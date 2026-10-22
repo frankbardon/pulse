@@ -13,7 +13,7 @@ Distinct `types.Request` payloads against the same or different cohorts: ecologi
 
 ## Input
 
-`request` (string): JSON-encoded `types.ComposedRequest`. Carries `requests` (the slot list) plus optional Compose-level overlays that fold across slots (see `compose-requests`).<!-- feature: capability:compose_sweep --> An optional `sweep` expands one request body over axes into more slots (`compose-sweeps`); a sweep body's missing `return` defaults to `standard`.<!-- /feature --><!-- feature: capability:compose_banner --> An optional `banner` expands sections × column groups (+ Total) into crosstab slots (`compose-banner`).<!-- /feature --> Parallel execution: `Options.MaxWorkers`, `PerRequestTimeout`, `FailFast`. Each slot's `return` shapes its response; a top-level `return` (`overlays…` paths only) shapes `data.overlays` after the fold.
+`request` (string): JSON-encoded `types.ComposedRequest`. Carries `requests` (the slot list) plus optional Compose-level overlays that fold across slots (see `compose-requests`).<!-- feature: capability:compose_sweep --> An optional `sweep` expands one request body over axes into more slots (`compose-sweeps`); a sweep body's missing `return` defaults to `standard`.<!-- /feature --><!-- feature: capability:compose_fits --> An optional `fits` list runs named regressions or vector batteries once before the slots and binds each fit to every slot by name (`compose-fits`).<!-- /feature --><!-- feature: capability:models --> A request's `models` / `populations` load saved fits by name.<!-- /feature --><!-- feature: capability:compose_banner --> An optional `banner` expands sections × column groups (+ Total) into crosstab slots (`compose-banner`).<!-- /feature --> Parallel execution: `Options.MaxWorkers`, `PerRequestTimeout`, `FailFast`. Each slot's `return` shapes its response; a top-level `return` (`overlays…` paths only) shapes `data.overlays` after the fold.
 
 ## Output
 
@@ -25,7 +25,7 @@ Distinct `types.Request` payloads against the same or different cohorts: ecologi
 <!-- feature: capability:compose_banner -->
 - `data.banner` — the stitched banner tables (column blocks, per-block letters); omitted without a banner.
 <!-- /feature -->
-- `data.warnings[]` — batch-level diagnostics no slot owns (a fit save's overwrite, `details.fit`); omitted when empty.
+- `data.warnings[]` — batch-level diagnostics no slot owns<!-- feature: capability:compose_fits --> (a fit save's overwrite, `details.fit`)<!-- /feature -->; omitted when empty.
 
 ## Gotchas
 
@@ -38,3 +38,4 @@ Distinct `types.Request` payloads against the same or different cohorts: ecologi
 - `compose-requests` — multi-slot patterns, parallel knobs, overlay fold.
 - `response-components` — emitted per slot.
 - `overlay-system` — Compose-level overlay kinds.
+- `compose-sweeps` / `compose-fits` / `compose-banner` — the `sweep`, `fits` and `banner` expansions.

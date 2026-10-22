@@ -13,7 +13,7 @@ Distinct `types.Request` payloads against the same or different cohorts: ecologi
 
 ## Input
 
-`request` (string): JSON-encoded `types.ComposedRequest`. Carries `requests` (the slot list) plus optional Compose-level overlays that fold across slots (see [`compose-requests`](compose-requests.md)). An optional `sweep` expands one request body over axes into more slots ([`compose-sweeps`](compose-sweeps.md)); a sweep body's missing `return` defaults to `standard`. An optional `banner` expands sections × column groups (+ Total) into crosstab slots ([`compose-banner`](compose-banner.md)). Parallel execution: `Options.MaxWorkers`, `PerRequestTimeout`, `FailFast`. Each slot's `return` shapes its response; a top-level `return` (`overlays…` paths only) shapes `data.overlays` after the fold.
+`request` (string): JSON-encoded `types.ComposedRequest`. Carries `requests` (the slot list) plus optional Compose-level overlays that fold across slots (see [`compose-requests`](compose-requests.md)). An optional `sweep` expands one request body over axes into more slots ([`compose-sweeps`](compose-sweeps.md)); a sweep body's missing `return` defaults to `standard`. An optional `fits` list runs named regressions or vector batteries once before the slots and binds each fit to every slot by name ([`compose-fits`](compose-fits.md)). A request's `models` / `populations` load saved fits by name. An optional `banner` expands sections × column groups (+ Total) into crosstab slots ([`compose-banner`](compose-banner.md)). Parallel execution: `Options.MaxWorkers`, `PerRequestTimeout`, `FailFast`. Each slot's `return` shapes its response; a top-level `return` (`overlays…` paths only) shapes `data.overlays` after the fold.
 
 ## Output
 
@@ -36,3 +36,4 @@ Distinct `types.Request` payloads against the same or different cohorts: ecologi
 - [`compose-requests`](compose-requests.md) — multi-slot patterns, parallel knobs, overlay fold.
 - [`response-components`](response-components.md) — emitted per slot.
 - [`overlay-system`](overlay-system.md) — Compose-level overlay kinds.
+- [`compose-sweeps`](compose-sweeps.md) / [`compose-fits`](compose-fits.md) / [`compose-banner`](compose-banner.md) — the `sweep`, `fits` and `banner` expansions.

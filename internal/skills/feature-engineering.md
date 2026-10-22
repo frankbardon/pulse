@@ -69,7 +69,7 @@ Downstream: keep `split == 0` with a value filter for train-only; group by `spli
 
 ## See
 
-- Recipes: `pulse_examples_search tags=["feature-engineering"]`, `tags=["target-encoding"]`, `tags=["polynomial-regression"]`, `tags=["train-test-split"]` plus atomic `op-feat-<name>`.
+- Recipes: `pulse_examples_search tags=["feature-engineering"]`, `tags=["feature-pipeline"]`, `tags=["polynomial"]` plus atomic `op-feat-<name>`.
 - `attribute-composition` — when to derive a column AFTER the filter instead.
 - `regression-modeling` — polynomial columns upstream of a linear fit.
 - `request-envelope` — slot keys, streamability, smart defaults.

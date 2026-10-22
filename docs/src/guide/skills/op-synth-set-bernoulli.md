@@ -51,5 +51,4 @@ Per-row `map[string]bool` (every declared option; true = selected), assembled in
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synth-set-fields`](synth-set-fields.md), [`type-set-u8`](type-set-u8.md), [`op-synth-weighted-categorical`](op-synth-weighted-categorical.md), [`op-synth-bernoulli`](op-synth-bernoulli.md)

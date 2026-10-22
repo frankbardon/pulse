@@ -829,8 +829,8 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse docs export` | Write the analysis reference — question guides, operator catalog, "Reading your results" pages, glossary, skills and an mdBook `SUMMARY.md` fragment — as deterministic Markdown under `--out DIR` (required). Needs no data directory; `--feature-profile PATH` (host OS path; `PULSE_FEATURE_PROFILE` is not read) scopes it to a feature profile, `--no-skills` leaves the skill pages out. An unmarked non-empty `--out` is refused with `PULSE_DOCS_EXPORT_DIR_NOT_EMPTY` | [guided analysis](../library/guided-analysis.md#exporting-the-reference) |
 | `pulse errors list` | List error codes by domain and/or substring | `--help` |
 | `pulse errors lookup` | Message + fixups for one error code | `--help` |
-| `pulse examples search` | Search the embedded request-example library: `[--query Q \| WORDS...]` (plain words, as the flag or as arguments, not both — `CLI_INPUT`), `--intent ID` (examples must declare the intent-taxonomy ID; unknown or hidden is `PULSE_RECOMMEND_INTENT_UNKNOWN`, exit 1), `--tag T` (repeatable, ANDed), `--category C` (exact directory). Matching runs in tiers, the first with a hit answering: literal words, then operator aliases and intent phrasings, then near-miss spellings (a word of 4–7 letters within one edit, 8+ within two; 3 letters or fewer never) — `pulse examples search --intent compare_groups regon` finds the region examples | skill `tool-examples-search` |
-| `pulse examples show` | Print a named example's runnable request JSON | `--help` |
+| `pulse examples search` | Search the embedded (built-in) request-example library — embedder examples are served per instance by `pulse_examples_*` and the facade, not by this leaf: `[--query Q \| WORDS...]` (plain words, as the flag or as arguments, not both — `CLI_INPUT`), `--intent ID` (examples must declare the intent-taxonomy ID; unknown or hidden is `PULSE_RECOMMEND_INTENT_UNKNOWN`, exit 1), `--tag T` (repeatable, ANDed), `--category C` (exact directory). Matching runs in tiers, the first with a hit answering: literal words, then operator aliases and intent phrasings, then near-miss spellings (a word of 4–7 letters within one edit, 8+ within two; 3 letters or fewer never) — `pulse examples search --intent compare_groups regon` finds the region examples | skill `tool-examples-search` |
+| `pulse examples show` | Print a named built-in example's runnable request JSON (embedder examples: `pulse_examples_get` / `p.ExampleGet`) | `--help` |
 | `pulse export arrow` | Export `.pulse` to Arrow IPC | `--help` |
 | `pulse export csv` | Export `.pulse` to CSV | `--help` |
 | `pulse export excel` | Export `.pulse` to Excel | `--help` |
@@ -873,8 +873,8 @@ not found". Group nodes that carry no action of their own (`pulse api`,
 | `pulse shard list` | List shards inside an archive | `--help` |
 | `pulse shard remove` | Remove a shard from an archive by basename | `--help` |
 | `pulse shard verify` | Re-validate every shard against the canonical schema | `--help` |
-| `pulse skills list` | List every embedded skill | `--help` |
-| `pulse skills show` | Print one skill's markdown | `--help` |
+| `pulse skills list` | List every built-in embedded skill (embedder skills are served per instance by `pulse_skills_*` and `p.Skills()`) | `--help` |
+| `pulse skills show` | Print one built-in skill's markdown (not profile-scoped, no embedder content) | `--help` |
 | `pulse synth from-profile` | Generate a synthetic cohort from a captured profile; `--emit-spec` writes the derived spec (the one that actually generated) and `--rules` applies a standalone structural-rules file to it; `--fidelity-report` additionally scores how much of the captured structure survived, including the `models` and `model_residual_correlations` sections a `--fit-models` profile earns | [synth from-profile](synth-from-profile.md) |
 | `pulse synth from-schema` | Generate a cohort from a JSON schema/spec | [synth from-schema](synth-from-schema.md) |
 | `pulse version` | Print the build version as `pulse <version>`; `--json` emits the standard envelope whose `data` carries the build version, Go version, VCS commit and commit time (both omitted when the binary carries no VCS metadata) and the envelope `format_version`. Same build version as `pulse --version` and the root manifest | `--help` |

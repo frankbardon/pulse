@@ -48,5 +48,4 @@ Per-row `float64` sample from a Pareto Type-I distribution. Drawn via inverse CD
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: [`synthetic-data`](synthetic-data.md), [`op-synth-exponential`](op-synth-exponential.md), [`op-synth-lognormal`](op-synth-lognormal.md)

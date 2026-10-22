@@ -38,5 +38,4 @@ Same `value` returned on every row. RNG state untouched.
 
 ## See
 
-- `pulse_examples_search tags=[synth]`
 - Skills: `synthetic-data`, `op-synth-monotonic-from`, `op-synth-bernoulli`
