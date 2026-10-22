@@ -428,3 +428,41 @@ func TestSkillContract_ExtensionOperators(t *testing.T) {
 		}
 	}
 }
+
+// TestSkillContract_EveryOpSkillCarriesMarker: every built-in op skill
+// carries the contract marker once, alone on its line, directly before
+// `## Gotchas`, and its served body renders a non-empty `## Contract`
+// from its frontmatter operator (E2-S2: no hand-written type, weight,
+// multiplicity, streaming or component boilerplate remains to drift).
+func TestSkillContract_EveryOpSkillCarriesMarker(t *testing.T) {
+	marker := skills.GeneratedMarker(skills.SectionContract)
+	n := 0
+	for _, stem := range skills.Names() {
+		if !strings.HasPrefix(stem, "op-") {
+			continue
+		}
+		n++
+		raw, _ := skills.Raw(stem)
+		if op := skills.ParseFrontmatter(raw)["operator"]; RenderContractSection(op) == "" {
+			// A REG spec modifier (REG_RESAMPLE / REG_SELECTION) is no
+			// registered operator: no registry declares facts to render.
+			if strings.Contains(raw, marker) {
+				t.Errorf("%s: carries the marker but %q has no contract to render", stem, op)
+			}
+			continue
+		}
+		if strings.Count(raw, marker) != 1 || !strings.Contains(raw, "\n\n"+marker+"\n\n## Gotchas\n") {
+			t.Errorf("%s: want exactly one %s line, blank lines either side, just before ## Gotchas", stem, marker)
+			continue
+		}
+		op := skills.ParseFrontmatter(raw)["operator"]
+		r := RenderContractSection(op)
+		served, _ := skills.Get(stem)
+		if r == "" || !strings.Contains(served, r+"\n\n## Gotchas\n") {
+			t.Errorf("%s: served body lacks the rendered contract of %q", stem, op)
+		}
+	}
+	if n == 0 {
+		t.Fatal("no op skills walked")
+	}
+}

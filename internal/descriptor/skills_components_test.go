@@ -10,17 +10,18 @@ import (
 func TestSkillsCoverAllOperatorComponents(t *testing.T) {
 	check := func(t *testing.T, opName, stem string, keys []string) {
 		t.Helper()
+		// The RENDERED skill: the generated `## Contract` names every
+		// component key from the registry, so a skill needs no hand
+		// key list — but it must carry the contract marker (or name
+		// the keys itself).
 		content, ok := skills.Get(stem)
 		if !ok {
 			t.Errorf("%s: missing atomic skill skills/%s.md", opName, stem)
 			return
 		}
-		if !strings.Contains(content, "## Components") {
-			t.Errorf("%s: skills/%s.md missing required `## Components` section", opName, stem)
-		}
 		for _, key := range keys {
 			if !strings.Contains(content, key) {
-				t.Errorf("%s: skills/%s.md does not mention component key %q (declare it under `## Components`)",
+				t.Errorf("%s: skills/%s.md does not name component key %q (carry `<!-- generated: contract -->`)",
 					opName, stem, key)
 			}
 		}

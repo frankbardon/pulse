@@ -2153,7 +2153,8 @@ ext := pulse.Extensions{
 The frontmatter keys and the required `##` sections are the built-in
 pack's (`.claude/reference/skill-pack.md` in the repo): an atomic skill
 carries `## Params`, `## Inputs`, `## Output`, `## Gotchas`, `## See`
-(plus `## Components` for `AGG` / `GROUP` / `FILTER`). Only an `ext-*`
+(`## Components` is optional; the `<!-- generated: contract -->` marker
+renders the component keys from your registration). Only an `ext-*`
 skill may carry `requires:` — an atomic skill already follows its
 operator.
 

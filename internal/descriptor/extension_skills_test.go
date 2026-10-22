@@ -124,7 +124,7 @@ func TestLoadExtensionSkills_Refusals(t *testing.T) {
 		{"category mismatch", map[string]string{"op-agg-acme-trim.md": atomic("category: AGG", "category: ATTR")}, errors.PULSE_EXTENSION_SKILL_INVALID, SkillReasonCategory, "op-agg-acme-trim"},
 		{"atomic requires", map[string]string{"op-agg-acme-trim.md": atomic("type: reference", "type: reference\nrequires: [capability:crosstab]")}, errors.PULSE_EXTENSION_SKILL_INVALID, SkillReasonRequires, "op-agg-acme-trim"},
 		{"requires unknown", map[string]string{"ext-acme-guide.md": topical("type: guide", "type: guide\nrequires: [capability:nope]")}, errors.PULSE_EXTENSION_SKILL_INVALID, SkillReasonRequires, "ext-acme-guide"},
-		{"missing section", map[string]string{"op-agg-acme-trim.md": atomic("## Components", "## Parts")}, errors.PULSE_EXTENSION_SKILL_INVALID, SkillReasonSections, "op-agg-acme-trim"},
+		{"missing section", map[string]string{"op-agg-acme-trim.md": atomic("## Params", "## Parts")}, errors.PULSE_EXTENSION_SKILL_INVALID, SkillReasonSections, "op-agg-acme-trim"},
 		{"atomic over budget", map[string]string{"op-agg-acme-trim.md": atomic("## Gotchas\n", "## Gotchas\n"+strings.Repeat("x", skills.OpBudget)+"\n")}, errors.PULSE_EXTENSION_SKILL_INVALID, SkillReasonBudget, "op-agg-acme-trim"},
 		{"topical over budget", map[string]string{"ext-acme-guide.md": extSkillTopical + strings.Repeat("y", skills.DesignBudget)}, errors.PULSE_EXTENSION_SKILL_INVALID, SkillReasonBudget, "ext-acme-guide"},
 		{"unclosed fence", map[string]string{"ext-acme-guide.md": extSkillTopical + "<!-- feature: AGG_SUM -->\nopen\n"}, errors.PULSE_EXTENSION_SKILL_INVALID, SkillReasonFence, "ext-acme-guide"},
