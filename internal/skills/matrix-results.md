@@ -9,16 +9,16 @@ requires: [capability:matrices]
 ---
 # Vectors and matrices
 
-A **vector** names numeric fields once; a **matrix** slot turns a vector into a square result (every member against every member). Both are additive (`format_version` stays `"1.1"`).
+A **vector** names numeric fields once; a **matrix** slot turns a vector into a square member × member result. Both are additive (`format_version` stays `"1.1"`).
 
 ## 1. Name the vector
 
-`vectors: [{name, fields | pattern, labels?, coerce?, kind?}]` — one of `fields` / `pattern`; `kind` → `vector-metrics`. A `name` equal to a field or a feature / attribute / window label is `PULSE_VECTOR_NAME_COLLISION`.
+`vectors: [{name, fields | pattern, labels?, coerce?, kind?, standardize?}]` — one of `fields` / `pattern`; `kind`, `standardize` → `vector-metrics`. A `name` equal to a field or a feature / attribute / window label is `PULSE_VECTOR_NAME_COLLISION`.
 
 - A literal `fields` entry keeps the caller's position; a glob (`q*`) expands in place in schema order; `pattern` is an unanchored regexp in schema order.
 - Members: integer and float types. `packed_bool` only with `coerce: "binary"`. Categorical, `set_*`, `date`, `datetime`, `decimal128` are refused (`PULSE_VECTOR_MEMBER_TYPE`).
 - `labels`: one per member, else `PULSE_VECTOR_LABELS_MISMATCH`. A vector no slot or expression uses warns `PULSE_VECTOR_UNREFERENCED`.
-- `pulse predict` echoes `resolved_vectors`: check the members.
+- `pulse predict` echoes the members (`resolved_vectors`).
 
 ## 2. Ask for the matrix
 

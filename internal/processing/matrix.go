@@ -395,12 +395,23 @@ func (m *matrixSlot) slotResult() (types.MatrixResult, *types.MatrixComponents, 
 
 // merged is the state the slot emits from: the bound fit's co-moment
 // (a fresh copy per call, so no finalizer can disturb the binding) or
-// the fixed merge tree over the folded blocks.
+// the fixed merge tree over the folded blocks — z-scored once here,
+// after the tree, when the slot's vector sets standardize
+// (standardizeCoMoment), so every path emits the same bits.
 func (m *matrixSlot) merged() (*linalg.CoMoment, error) {
+	var cm *linalg.CoMoment
 	if m.bound != nil {
-		return m.bound.co.Clone(), nil
+		cm = m.bound.co.Clone()
+	} else {
+		var err error
+		if cm, err = m.state.Tree(); err != nil {
+			return nil, err
+		}
 	}
-	return m.state.Tree()
+	if m.plan.Members.Standardize == "" {
+		return cm, nil
+	}
+	return standardizeCoMoment(cm, len(m.plan.Members.Members))
 }
 
 // bindMatrixFit binds the slot's params.fit: the named vector fit

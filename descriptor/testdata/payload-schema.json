@@ -5268,12 +5268,21 @@
         },
         "scale_min": {
           "type": "number"
+        },
+        "standardize": {
+          "$ref": "#/$defs/VectorStandardize"
         }
       },
       "required": [
         "name"
       ],
       "type": "object"
+    },
+    "VectorStandardize": {
+      "enum": [
+        "zscore"
+      ],
+      "type": "string"
     },
     "Verdict": {
       "enum": [
@@ -5427,4 +5436,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: b51de03ef2fa6514b21ae52150d82f0f2a5f268c5f401212db5331bd6af3f4f0
+// golden-hash: 62f27ae7d056a2cbe5d5f05dc3bf222bcd2cb8ce6894e70094556ca22824fcc0

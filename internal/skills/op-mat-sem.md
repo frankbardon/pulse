@@ -48,6 +48,7 @@ Integer / float members.
 - Unused member or non-member variable: `bad_params`.
 - Default stops where semopy does.
 - Singular S: fatal `PULSE_MATRIX_SINGULAR`.
+- Standardized fit: vector `standardize: "zscore"` (S = correlation).
 
 ## See
 

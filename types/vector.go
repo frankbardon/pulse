@@ -45,6 +45,31 @@ type VectorSpec struct {
 	// response range (both or neither).
 	ScaleMin *float64 `json:"scale_min,omitempty"`
 	ScaleMax *float64 `json:"scale_max,omitempty"`
+	// Standardize rescales the members before a matrix reads them;
+	// empty reads them as stored. VectorStandardizeZScore z-scores every
+	// member with its population SD over the rows the matrix keeps
+	// after its listwise drop (frequency weights respected). Only a
+	// listwise co-moment MAT_* slot reads a standardized vector; every
+	// other consumer refuses it (PULSE_VECTOR_INVALID
+	// standardize_unsupported).
+	Standardize VectorStandardize `json:"standardize,omitempty"`
+}
+
+// VectorStandardize names a member rescaling a VectorSpec opts into.
+type VectorStandardize string
+
+const (
+	// VectorStandardizeZScore z-scores every member: (x − mean) / SD,
+	// the population SD (divisor Σw, n unweighted) over the matrix's
+	// listwise rows. The covariance of the standardized members is
+	// their correlation matrix.
+	VectorStandardizeZScore VectorStandardize = "zscore"
+)
+
+// AllVectorStandardizes returns every defined standardization, in
+// canonical order.
+func AllVectorStandardizes() []VectorStandardize {
+	return []VectorStandardize{VectorStandardizeZScore}
 }
 
 // VectorKind is what a vector's values mean, which decides the metrics

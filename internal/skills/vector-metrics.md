@@ -60,6 +60,7 @@ Row scores<!-- feature: ATTR_PROFILE_SIMILARITY --> (`ATTR_PROFILE_SIMILARITY`)<
 - Profiles of ratings: correlate (`correlation`) or center first; level differences are then ignored by design.
 - Shares with zeros: `aitchison` is undefined at a zero part (the row or cell is null and counted); `hellinger` or `manhattan` tolerate zeros.
 - Mixed units in a `measure` battery: standardize (`std_euclidean`), or one member dominates every distance.
+- Vector `standardize: "zscore"` is for listwise co-moment matrices only; distances, row scores and expressions refuse it (`standardize_unsupported`) — use `std_euclidean`, `vzscore` or the operator's own `standardize`.
 
 ## See
 

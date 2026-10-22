@@ -24,7 +24,7 @@ stays `"1.1"`. The slots are gated by the `capability:matrices` feature.
 
 ## Vectors
 
-`vectors: [{name, fields | pattern, labels?, coerce?}]`, exactly one of
+`vectors: [{name, fields | pattern, labels?, coerce?, kind?, standardize?}]`, exactly one of
 `fields` / `pattern`. A literal field keeps the caller's order; a glob
 (`q*`) expands in place in schema order; `pattern` is an unanchored
 regexp in schema order. Members are integer and float fields;
@@ -37,6 +37,20 @@ request (an expression reads a vector by name); a vector no operator
 slot or expression (formula, expression filter, `total()` argument)
 names warns `PULSE_VECTOR_UNREFERENCED`. `Pulse.Predict` echoes the resolved members
 as `resolved_vectors`.
+
+`standardize: "zscore"` z-scores every member with its population SD
+(divisor Σw, n unweighted; frequency weights respected) over the rows
+the matrix keeps after its listwise drop — per result on a grouped
+request. The engine rescales the merged co-moment once at finalize, so
+the slot stays streamable and mergeable and every path returns the same
+bits: `MAT_COVARIANCE` returns the correlation matrix and `MAT_SEM` fits
+it, exactly as if the members had been z-scored beforehand. A member
+with no spread is left as it is (its figures stay as without
+standardize). Only a listwise co-moment `MAT_*` reads a standardized
+vector; a test, attribute, grouper or aggregation `vector`, an
+expression, `MAT_DISTANCE` (which has its own `params.standardize`),
+`missing: "pairwise"` and a rank method refuse it with
+`PULSE_VECTOR_INVALID` (`reason` `standardize_unsupported`, `slot`).
 
 ## Matrices
 

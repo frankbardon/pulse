@@ -3,7 +3,10 @@
 # (*_semopy_default.json at semopy's defaults, *_semopy_tight.json at
 # ftol 1e-14). Needs python3; creates a venv with semopy 2.3.11.
 #   internal/sem/testdata/gen_semopy.sh [VENV_DIR]
-# hier_data.csv is simulated: simulate.py 1200 7 hier_model.txt.
+# hier_data.csv is simulated: simulate.py 1200 7 hier_model.txt;
+# std_data.csv likewise (simulate.py 500 11 std_model.txt), and the std
+# references are fitted to its z-scored columns (zscore.py: population
+# SD), the external twin of VectorSpec.standardize "zscore".
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 venv="${1:-$(mktemp -d)/venv}"
@@ -17,3 +20,7 @@ for case in hier:hier poldem:poldem hz:hz hz_ext:hz; do
   "$py" "$here/fit_semopy.py" "$here/${data}_data.csv" "$here/${name}_model.txt" > "$here/${name}_semopy_default.json"
   "$py" "$here/fit_semopy.py" "$here/${data}_data.csv" "$here/${name}_model.txt" 1e-14 > "$here/${name}_semopy_tight.json"
 done
+z="$(mktemp -d)/std_z.csv"
+"$py" "$here/zscore.py" "$here/std_data.csv" > "$z"
+"$py" "$here/fit_semopy.py" "$z" "$here/std_model.txt" > "$here/std_semopy_default.json"
+"$py" "$here/fit_semopy.py" "$z" "$here/std_model.txt" 1e-14 > "$here/std_semopy_tight.json"

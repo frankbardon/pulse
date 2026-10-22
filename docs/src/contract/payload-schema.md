@@ -40,8 +40,8 @@ built with a feature profile gets a narrower document:
   names;
 - a request slot the instance does not offer (`crosstab`, `joins`,
   `overlays`, `vectors`, `matrices`, `weight`) is not a property of its
-  request root (a hidden `vectors` takes `VectorSpec`, `VectorCoerce` and
-  `VectorKind` with it; hidden `matrices` takes `MatrixSpec`, the `Response.matrices`
+  request root (a hidden `vectors` takes `VectorSpec`, `VectorCoerce`,
+  `VectorKind` and `VectorStandardize` with it; hidden `matrices` takes `MatrixSpec`, the `Response.matrices`
   and `ResponseComponents.matrices` slots and `MatrixResult` /
   `MatrixComponents` with it — `MatrixValues` stays, shared with the
   regression `vcov` / `correlation`); without
@@ -458,7 +458,7 @@ rules and the unweighted-base recipe: [Row Weighting](../library/weighting.md).
 ## Vector slot
 
 `vectors` on `Request` is an additive array of `VectorSpec`
-`{name, fields | pattern, labels?, coerce?, kind?, scale_min?, scale_max?}`
+`{name, fields | pattern, labels?, coerce?, kind?, scale_min?, scale_max?, standardize?}`
 (`format_version` stays `"1.1"`; a request with no vectors is
 byte-identical and hashes identically). `coerce` is the closed
 `VectorCoerce` enum (`binary`); `kind` the closed `VectorKind` enum
@@ -468,6 +468,14 @@ predict's `defaults_applied`, category `metric`) and flags an explicit
 poorly fitting one (`PULSE_VECTOR_METRIC_UNSUITED`, a warning, an
 error under strict). `scale_min` / `scale_max` are numbers, accepted
 only beside `kind: "scale"`, both or neither, min below max.
+`standardize` is the closed `VectorStandardize` enum (`zscore`): the
+members are z-scored with their population SD over the rows a
+listwise co-moment `MAT_*` slot keeps (frequency weights respected), so
+its covariance is their correlation; every other consumer (a test,
+attribute, grouper or aggregation `vector`, an expression, `MAT_DISTANCE`,
+`missing: "pairwise"`, a rank method) is refused with
+`PULSE_VECTOR_INVALID` (`details.reason` `standardize_unsupported`,
+`details.slot`), and predict's `matrices[].standardize` echoes it.
 What the schema cannot say, predict and the runtime enforce
 identically before any record is read: exactly one of `fields` /
 `pattern`; literal `fields` entries keep the caller's order while glob

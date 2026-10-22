@@ -132,6 +132,7 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 			Shape:            [2]int{p, p},
 			AxisKeys:         axis,
 			Missing:          vectors.MissingListwise,
+			Standardize:      m.Members.Standardize,
 			Encoding:         m.Encoding,
 			AccumulatorBytes: m.AccumulatorBytes(),
 			Streamable:       m.Streamable,

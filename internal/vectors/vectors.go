@@ -40,10 +40,14 @@
 //     scale_min / scale_max are set only under kind "scale"
 //     (scale_bounds_without_scale_kind), together (scale_bounds_partial)
 //     and finite with min < max (scale_bounds_invalid).
+//   - Standardize, when set, is one of types.AllVectorStandardizes
+//     (unknown_standardize). Which consumers may read a standardized
+//     vector is judged after resolution (StandardizeRefusal, from
+//     ResolveMatricesWith): a listwise co-moment MAT_* slot only.
 //
 // Checks run spec by spec in request order; within one spec in the
 // order: name, duplicate name, field-name collision, fields/pattern
-// shape, coerce, kind and scale bounds, expansion (unknown literal, bad glob / regex, duplicate
+// shape, coerce, kind and scale bounds, standardize, expansion (unknown literal, bad glob / regex, duplicate
 // member), empty, member types, labels. The first failure is returned.
 package vectors
 
@@ -78,6 +82,10 @@ type Resolved struct {
 	// ScaleMin < ScaleMax, both finite.
 	HasScale           bool
 	ScaleMin, ScaleMax float64
+	// Standardize is the spec's member rescaling ("" when none): a
+	// listwise co-moment matrix standardizes its merged state
+	// (processing.standardizeCoMoment).
+	Standardize types.VectorStandardize
 	// Native is set when the vector IS one native vector field named
 	// directly (no Request.Vectors entry): its metadata is the schema's.
 	Native *NativeVector
@@ -152,6 +160,11 @@ func ResolveSpec(at string, spec types.VectorSpec, schema *encoding.Schema) (Res
 	if err := checkKind(at, spec); err != nil {
 		return Resolved{}, err
 	}
+	if spec.Standardize != "" && !slices.Contains(types.AllVectorStandardizes(), spec.Standardize) {
+		return Resolved{}, invalid(at, spec.Name, "unknown_standardize",
+			"vector "+describe(at, spec.Name)+" has unknown standardize "+strconv.Quote(string(spec.Standardize)),
+			map[string]any{"value": string(spec.Standardize), "valid": standardizeNames()})
+	}
 
 	var x expansion
 	var err *errors.CodedError
@@ -214,6 +227,8 @@ func ResolveSpec(at string, spec types.VectorSpec, schema *encoding.Schema) (Res
 		Coerce:  spec.Coerce,
 		Kind:    spec.Kind,
 		Refs:    x.refs,
+
+		Standardize: spec.Standardize,
 	}
 	if spec.ScaleMin != nil {
 		r.HasScale, r.ScaleMin, r.ScaleMax = true, *spec.ScaleMin, *spec.ScaleMax
@@ -606,6 +621,15 @@ func knownCoerce(c types.VectorCoerce) bool {
 		}
 	}
 	return false
+}
+
+func standardizeNames() []string {
+	all := types.AllVectorStandardizes()
+	out := make([]string, len(all))
+	for i, s := range all {
+		out[i] = string(s)
+	}
+	return out
 }
 
 func coerceNames() []string {

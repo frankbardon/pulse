@@ -792,7 +792,11 @@ type summaryParams struct {
 //   - a `vector` no Request.Vectors entry defines — PULSE_VECTOR_UNKNOWN
 //     (`vector`, `slot`, `defined`);
 //   - inline `fields` — the vector rules (ResolveSpec at
-//     "matrices[i].fields").
+//     "matrices[i].fields");
+//   - a standardized vector (VectorSpec.standardize) read by any slot
+//     but a listwise co-moment MAT_* — PULSE_VECTOR_INVALID
+//     standardize_unsupported (`slot`; StandardizeRefusal, judged before
+//     the matrix specs even when the request has none).
 //
 // The result is index-aligned with req.Matrices. Like Resolve it reads
 // only the schema.
@@ -829,6 +833,9 @@ func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, o MatrixRe
 	resolved, verr := Resolve(req.Vectors, schema)
 	if verr != nil {
 		return nil, verr
+	}
+	if serr := StandardizeRefusal(req); serr != nil {
+		return nil, serr
 	}
 	if len(req.Matrices) == 0 {
 		return nil, nil
@@ -910,6 +917,9 @@ func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, o MatrixRe
 				// A spec reading native elements carries their labels
 				// even when it sets none (the inline rule below).
 				m.ExplicitLabels = len(req.Vectors[indexOfVector(req.Vectors, spec.Vector)].Labels) > 0 || r.Refs != nil
+			}
+			if err := standardizeMatrixRefusal(at, req.Vectors, &m); err != nil {
+				return nil, err
 			}
 		} else {
 			r, err := ResolveSpec(at+".fields", types.VectorSpec{Name: name, Fields: spec.Fields}, schema)
