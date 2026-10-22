@@ -241,6 +241,22 @@ func applyReturnPlan(target any, p *returnplan.Plan) ([]returnplan.Path, bool) {
 	return unmatched, true
 }
 
+var matrixValuesType = reflect.TypeFor[MatrixValues]()
+
+// matrixRecordsValue returns the wire form of v when v is a MatrixValues
+// under MatrixEncodingRecords: its rows replace row_keys / column_keys /
+// values, so both layers shape the records the wire carries.
+func matrixRecordsValue(v reflect.Value) (reflect.Value, bool) {
+	if v.Type() != matrixValuesType {
+		return v, false
+	}
+	m := v.Interface().(MatrixValues)
+	if m.Encoding != MatrixEncodingRecords {
+		return v, false
+	}
+	return reflect.ValueOf(m.recordsWire()), true
+}
+
 // returnPruner is layer 1. matched[i] records that Include[i] selected
 // at least one concrete node.
 type returnPruner struct {
@@ -313,6 +329,16 @@ func (s *returnPruner) prune(v reflect.Value, path []returnplan.Segment) (reflec
 		return w, true
 	case reflect.Struct:
 		if opaqueType(v.Type()) {
+			return v, true
+		}
+		if w, ok := matrixRecordsValue(v); ok {
+			// A records matrix's wire is derived from its Go fields at
+			// encode time (the planned encoder visits it there), so
+			// pruning it in place would empty the rows. Walk a scratch
+			// copy only to mark the Open includes it satisfies.
+			c := reflect.New(w.Type()).Elem()
+			c.Set(w)
+			s.pruneFields(c, path)
 			return v, true
 		}
 		if !v.CanAddr() {
@@ -536,6 +562,9 @@ func (e *planEncoder) encode(v reflect.Value, path []returnplan.Segment, whole b
 		if opaqueType(v.Type()) {
 			b, err := encodeFinite(v)
 			return b, true, err
+		}
+		if w, ok := matrixRecordsValue(v); ok {
+			v = w
 		}
 		b, err := e.encodeStruct(v, path, whole)
 		return b, true, err

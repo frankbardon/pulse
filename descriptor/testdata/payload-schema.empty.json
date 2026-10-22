@@ -762,6 +762,7 @@
     "MatrixEncoding": {
       "enum": [
         "full",
+        "records",
         "upper"
       ],
       "type": "string"
@@ -864,68 +865,125 @@
       "type": "object"
     },
     "MatrixValues": {
-      "additionalProperties": false,
-      "properties": {
-        "column_keys": {
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "encoding": {
-          "$ref": "#/$defs/MatrixEncoding"
-        },
-        "kind": {
-          "$ref": "#/$defs/MatrixKind"
-        },
-        "labels": {
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "row_keys": {
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "values": {
-          "items": {
-            "items": {
+      "description": "One matrix: row_keys / column_keys / values under encoding full or upper; under records, columns and rows ({key, \u003ccolumn\u003e: value}, in row order).",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "column_keys": {
+              "items": {
+                "type": "string"
+              },
               "type": [
-                "number",
+                "array",
                 "null"
               ]
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "encoding": {
+              "$ref": "#/$defs/MatrixEncoding"
+            },
+            "kind": {
+              "$ref": "#/$defs/MatrixKind"
+            },
+            "labels": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "row_keys": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "values": {
+              "items": {
+                "items": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "required": [
+            "column_keys",
+            "encoding",
+            "kind",
+            "row_keys",
+            "values"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "columns": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "encoding": {
+              "const": "records"
+            },
+            "kind": {
+              "$ref": "#/$defs/MatrixKind"
+            },
+            "labels": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "rows": {
+              "items": {
+                "additionalProperties": {
+                  "type": [
+                    "number",
+                    "string",
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "columns",
+            "encoding",
+            "kind",
+            "rows"
+          ],
+          "type": "object"
         }
-      },
-      "required": [
-        "column_keys",
-        "encoding",
-        "kind",
-        "row_keys",
-        "values"
-      ],
-      "type": "object"
+      ]
     },
     "OrderKey": {
       "additionalProperties": false,
@@ -2002,4 +2060,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 31d76b0ae3fe0282f05e4210b8d1c91f9ab003e108c89c260e2defba20b41653
+// golden-hash: e78ba2a04dee088424c01b823cae4cae41358644fd698dfe5b10f0a6f9fbb97d

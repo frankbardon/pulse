@@ -3,7 +3,6 @@ package descriptor
 import (
 	"encoding/json"
 	"math"
-	"strconv"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -11,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/targetencode"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -403,96 +403,11 @@ func validateTargetEncodeParams(env *descriptor.Envelope, feat *types.Feature, s
 	}
 }
 
-// featureOutputLabels returns the output column names a feature emits.
-// Mirrors the operator implementations in internal/processing/feature; CI does not
-// statically verify the agreement, but the integration tests round-trip
-// each operator end to end.
+// featureOutputLabels returns the output column names a feature emits
+// (vectors.FeatureOutputLabels — the one rule predict, the walk and the
+// computed vector members share).
 func featureOutputLabels(feat *types.Feature, schema *encoding.Schema) []string {
-	switch feat.Type {
-	case types.FEAT_LOG:
-		return []string{singleLabel(feat, "LOG_")}
-	case types.FEAT_SQRT:
-		return []string{singleLabel(feat, "SQRT_")}
-	case types.FEAT_BUCKETIZE:
-		return []string{singleLabel(feat, "BUCKET_")}
-	case types.FEAT_FREQUENCY_ENCODE:
-		return []string{singleLabel(feat, "FREQ_")}
-	case types.FEAT_TARGET_ENCODE:
-		return []string{singleLabel(feat, "TARGET_")}
-	case types.FEAT_TRAIN_TEST_SPLIT:
-		label := feat.Label
-		if label == "" {
-			label = "split"
-		}
-		return []string{label}
-	case types.FEAT_DATE_FEATURES:
-		prefix := feat.Label
-		if prefix == "" {
-			prefix = feat.Field
-		}
-		out := []string{
-			prefix + "_year",
-			prefix + "_month",
-			prefix + "_day",
-			prefix + "_dow",
-			prefix + "_quarter",
-		}
-		// A `datetime` also carries the wall-clock hour.
-		if schema != nil {
-			if f := schema.Field(feat.Field); f != nil && f.Type == encoding.FieldTypeDateTime {
-				out = append(out, prefix+"_hour")
-			}
-		}
-		return out
-	case types.FEAT_POLY:
-		prefix := feat.Label
-		if prefix == "" {
-			prefix = feat.Field + "_poly"
-		}
-		var p struct {
-			Degree int `json:"degree"`
-		}
-		if len(feat.Params) > 0 {
-			_ = json.Unmarshal(feat.Params, &p)
-		}
-		if p.Degree < 2 {
-			// Predict surfaces a validation error elsewhere; emit no
-			// columns rather than guess.
-			return nil
-		}
-		if p.Degree > 10 {
-			p.Degree = 10
-		}
-		out := make([]string, 0, p.Degree-1)
-		for k := 2; k <= p.Degree; k++ {
-			out = append(out, prefix+"_"+strconv.Itoa(k))
-		}
-		return out
-	case types.FEAT_ONE_HOT:
-		prefix := feat.Label
-		if prefix == "" {
-			prefix = feat.Field
-		}
-		// The runtime's level list (newOneHot): dictionary labels, or a
-		// packed_bool's "0" / "1".
-		values := fieldaccept.Levels(schema.Field(feat.Field))
-		if values == nil {
-			return nil
-		}
-		out := make([]string, len(values))
-		for i, v := range values {
-			out[i] = prefix + "_" + strings.ReplaceAll(v, " ", "_")
-		}
-		return out
-	}
-	return nil
-}
-
-func singleLabel(feat *types.Feature, prefix string) string {
-	if feat.Label != "" {
-		return feat.Label
-	}
-	return prefix + feat.Field
+	return vectors.FeatureOutputLabels(feat, schema)
 }
 
 // trainTestSplitName names the split operator in the target-leakage

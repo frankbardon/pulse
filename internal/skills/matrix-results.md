@@ -4,21 +4,21 @@ description: Vectors and matrices on a Request — naming a battery of numeric f
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [vectors, matrices, covariance, correlation, pairwise deletion, listwise deletion, upper triangle, top_pairs, determinant]
+covers: [vectors, matrices, covariance, correlation, pairwise deletion, listwise deletion, upper triangle, records, top_pairs, determinant]
 requires: [capability:matrices]
 ---
 # Vectors and matrices
 
-A **vector** names numeric fields once; a **matrix** slot turns a vector into a square result (every member against every member). Both are additive (`format_version` stays `"1.1"`).
+A **vector** names numeric fields once; a **matrix** slot turns a vector into a square member × member result. Both are additive (`format_version` stays `"1.1"`).
 
 ## 1. Name the vector
 
-`vectors: [{name, fields | pattern, labels?, coerce?, kind?}]` — one of `fields` / `pattern`; `kind` → `vector-metrics`. A `name` equal to a field or a feature / attribute / window label is `PULSE_VECTOR_NAME_COLLISION`.
+`vectors: [{name, fields | pattern, labels?, coerce?, kind?, standardize?}]` — one of `fields` / `pattern`; `kind`, `standardize` → `vector-metrics`. A `name` equal to a field or a feature / attribute / window label is `PULSE_VECTOR_NAME_COLLISION`.
 
 - A literal `fields` entry keeps the caller's position; a glob (`q*`) expands in place in schema order; `pattern` is an unanchored regexp in schema order.
 - Members: integer and float types. `packed_bool` only with `coerce: "binary"`. Categorical, `set_*`, `date`, `datetime`, `decimal128` are refused (`PULSE_VECTOR_MEMBER_TYPE`).
 - `labels`: one per member, else `PULSE_VECTOR_LABELS_MISMATCH`. A vector no slot or expression uses warns `PULSE_VECTOR_UNREFERENCED`.
-- `pulse predict` echoes `resolved_vectors`: check the members.
+- `pulse predict` echoes the members (`resolved_vectors`).
 
 ## 2. Ask for the matrix
 
@@ -54,7 +54,7 @@ A **vector** names numeric fields once; a **matrix** slot turns a vector into a 
 
 Reading a result: `primary` is the matrix (`row_keys` = members, `labels` only when you set them); `scalars.determinant` is null unless the matrix is positive definite; `kind` is `square_symmetric` or `rectangular` (p × k); `warnings` lists data-quality findings. **Undefined cells are `null`, never NaN or 0.**
 
-`encoding`: `full` (default) or `upper` (row r holds the p − r cells from the diagonal, `values[r][k]` = cell (r, r + k)) — half the bytes.
+`encoding`: `full` (default), `upper` (`values[r][k]` = cell (r, r + k)), or `records` — every part as `{kind, encoding, columns, rows: [{key, <column>: value}]}` in row order, nulls kept (SEM `estimates` add `lval`, `op`, `rval`, `parameter`, `free`; a member `key` is refused).
 
 ## 3. Missing data and weights
 
@@ -82,7 +82,7 @@ A request with `groups` returns one `MatrixResult` per non-empty bucket and spec
 | `estimated_cells` | buckets × p² |
 | `estimated_bytes` | merge blocks (`ceil(records / 4096)`, per shard) × buckets × `accumulator_bytes` — the run's state |
 
-A range or date grouper is `unknown`: the three figures are omitted, never guessed. They are a report; the host's `max_estimated_memory` limit (opt-in) counts `estimated_bytes` in its memory estimate.
+A range or date grouper is `unknown`: the three figures are omitted, never guessed. The opt-in `max_estimated_memory` limit counts `estimated_bytes`.
 
 ## 6. What is refused
 
@@ -90,9 +90,9 @@ A range or date grouper is `unknown`: the three figures are omitted, never guess
 - `matrices` with `crosstab`: `PULSE_MATRIX_HOST_CONFLICT`.
 - Matrices are not streamed row by row: they arrive at the final flush. `ProcessStream` rows carry no matrices.
 
-Serial, parallel-decode and sharded runs return bit-identical matrices, and a multi-shard archive matches its single-file twin bit for bit.
+Serial, parallel-decode and sharded runs (a multi-shard archive vs its single-file twin) are bit-identical.
 
-Streamability is per spec, not per type: a spec whose params need every row at once (a rank method) is buffered — predict `matrices[].streamable` / `mergeable` false — so the whole request runs buffered (`ProcessStream` too) and serially.
+Streamability is per spec: a rank method needs every row, so predict reports `streamable` / `mergeable` false and the request runs buffered (`ProcessStream` too) and serially.
 
 ## See
 

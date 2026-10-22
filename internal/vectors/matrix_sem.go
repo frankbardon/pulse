@@ -24,7 +24,22 @@ type SEMPlan struct {
 	// Options are the solver settings (the zero value is semopy's
 	// default setup).
 	Options sem.Options
+	// Singular is params.singular: SEMSingularNearest (default, semopy's
+	// default fit) or SEMSingularRefuse.
+	Singular string
 }
+
+// MAT_SEM's params.singular values: fit a rank-deficient covariance as
+// semopy's default fit does — raw while it factors, else statsmodels'
+// cov_nearest substitute (PULSE_MATRIX_NEAREST_PD) — or refuse it
+// (PULSE_MATRIX_SINGULAR).
+const (
+	SEMSingularRefuse  = "refuse"
+	SEMSingularNearest = "nearest"
+)
+
+// SEMSingular are the accepted params.singular values, default first.
+func SEMSingular() []string { return []string{SEMSingularNearest, SEMSingularRefuse} }
 
 // semParams is MAT_SEM's params object: the model description, the
 // solver settings and the missing-data knobs (listwise only); any
@@ -36,6 +51,7 @@ type semParams struct {
 	Ftol        *float64 `json:"ftol"`
 	MaxIter     *int     `json:"max_iter"`
 	GradTol     *float64 `json:"grad_tol"`
+	Singular    *string  `json:"singular"`
 	missingParams
 }
 
@@ -64,7 +80,14 @@ func SEMDefaultModel(labels []string) string {
 // decodeSEM decodes MAT_SEM's solver settings and keeps the model
 // description for resolveSEM, which needs the members.
 func decodeSEM(at string, p semParams, m *Matrix) *errors.CodedError {
-	plan := &SEMPlan{}
+	plan := &SEMPlan{Singular: SEMSingularNearest}
+	if p.Singular != nil {
+		if !slices.Contains(SEMSingular(), *p.Singular) {
+			return matrixInvalid(at, "bad_params", at+` params.singular must be "nearest" or "refuse"`,
+				map[string]any{"param": "singular", "value": *p.Singular, "valid": SEMSingular()})
+		}
+		plan.Singular = *p.Singular
+	}
 	if p.Model != nil {
 		if strings.TrimSpace(*p.Model) == "" {
 			return matrixInvalid(at, "bad_params", at+" params.model is empty; omit it for a one-factor model over every member",
@@ -133,7 +156,7 @@ func resolveSEM(at string, m *Matrix) *errors.CodedError {
 		return nil
 	}
 	if m.SEM == nil {
-		m.SEM = &SEMPlan{}
+		m.SEM = &SEMPlan{Singular: SEMSingularNearest}
 	}
 	labels := m.FitLabels()
 	if m.SEM.Desc == "" {

@@ -1752,6 +1752,7 @@ pulse/descriptor: type MatrixPredict field Name string "json:\"name\""
 pulse/descriptor: type MatrixPredict field PairwisePSDRisk bool "json:\"pairwise_psd_risk\""
 pulse/descriptor: type MatrixPredict field RowBufferBytes *int64 "json:\"row_buffer_bytes,omitempty\""
 pulse/descriptor: type MatrixPredict field Shape [2]int "json:\"shape\""
+pulse/descriptor: type MatrixPredict field Standardize pulse/types.VectorStandardize "json:\"standardize,omitempty\""
 pulse/descriptor: type MatrixPredict field Streamable bool "json:\"streamable\""
 pulse/descriptor: type MatrixPredict field Type pulse/types.MatrixType "json:\"type\""
 pulse/descriptor: const Mergeable pulse/types.ComponentsMergeability = "mergeable"
@@ -2642,6 +2643,7 @@ pulse/errors: const PULSE_MATRIX_HOST_CONFLICT pulse/errors.Code = "PULSE_MATRIX
 pulse/errors: const PULSE_MATRIX_INSUFFICIENT_N pulse/errors.Code = "PULSE_MATRIX_INSUFFICIENT_N"
 pulse/errors: const PULSE_MATRIX_LISTWISE_HEAVY_DROP pulse/errors.Code = "PULSE_MATRIX_LISTWISE_HEAVY_DROP"
 pulse/errors: const PULSE_MATRIX_METRIC_DOMAIN pulse/errors.Code = "PULSE_MATRIX_METRIC_DOMAIN"
+pulse/errors: const PULSE_MATRIX_NEAREST_PD pulse/errors.Code = "PULSE_MATRIX_NEAREST_PD"
 pulse/errors: const PULSE_MATRIX_NOT_CONVERGED pulse/errors.Code = "PULSE_MATRIX_NOT_CONVERGED"
 pulse/errors: const PULSE_MATRIX_NOT_IDENTIFIED pulse/errors.Code = "PULSE_MATRIX_NOT_IDENTIFIED"
 pulse/errors: const PULSE_MATRIX_NOT_PSD pulse/errors.Code = "PULSE_MATRIX_NOT_PSD"
@@ -4549,6 +4551,7 @@ pulse/types: func AllSweepRankOrders() []pulse/types.SweepRankOrder
 pulse/types: func AllTestTypes() []pulse/types.TestType
 pulse/types: func AllVectorCoerces() []pulse/types.VectorCoerce
 pulse/types: func AllVectorKinds() []pulse/types.VectorKind
+pulse/types: func AllVectorStandardizes() []pulse/types.VectorStandardize
 pulse/types: func AllWindowTypes() []pulse/types.WindowType
 pulse/types: type AppliedMultiplicity struct
 pulse/types: type AppliedMultiplicity field Alpha float64 "json:\"alpha\""
@@ -5110,6 +5113,7 @@ pulse/types: type MatrixComponents field Type pulse/types.MatrixType "json:\"typ
 pulse/types: type MatrixComponents method (MatrixComponents) MarshalJSON() ([]byte, error)
 pulse/types: type MatrixEncoding string
 pulse/types: const MatrixEncodingFull pulse/types.MatrixEncoding = "full"
+pulse/types: const MatrixEncodingRecords pulse/types.MatrixEncoding = "records"
 pulse/types: const MatrixEncodingUpper pulse/types.MatrixEncoding = "upper"
 pulse/types: type MatrixKind string
 pulse/types: const MatrixKindRectangular pulse/types.MatrixKind = "rectangular"
@@ -5133,6 +5137,7 @@ pulse/types: type MatrixPayload field RowHeader pulse/types.AxisHeader "json:\"r
 pulse/types: type MatrixPayload field RowKeys []pulse/types.AxisKey "json:\"row_keys\""
 pulse/types: type MatrixPayload field RowMargins []pulse/types.MatrixCell "json:\"row_margins,omitempty\""
 pulse/types: type MatrixPayload method (MatrixPayload) MarshalJSON() ([]byte, error)
+pulse/types: const MatrixRecordKey untyped string = "key"
 pulse/types: type MatrixResult struct
 pulse/types: type MatrixResult field Auxiliary map[string]*pulse/types.MatrixValues "json:\"auxiliary,omitempty\""
 pulse/types: type MatrixResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
@@ -5167,9 +5172,12 @@ pulse/types: type MatrixValues field ColumnKeys []string "json:\"column_keys\""
 pulse/types: type MatrixValues field Encoding pulse/types.MatrixEncoding "json:\"encoding\""
 pulse/types: type MatrixValues field Kind pulse/types.MatrixKind "json:\"kind\""
 pulse/types: type MatrixValues field Labels []string "json:\"labels,omitempty\""
+pulse/types: type MatrixValues field RecordFields []map[string]any "json:\"-\""
 pulse/types: type MatrixValues field RowKeys []string "json:\"row_keys\""
 pulse/types: type MatrixValues field Values [][]float64 "json:\"values\""
+pulse/types: type MatrixValues method (*MatrixValues) UnmarshalJSON(b []byte) error
 pulse/types: type MatrixValues method (MatrixValues) MarshalJSON() ([]byte, error)
+pulse/types: type MatrixValues method (MatrixValues) Records() []map[string]any
 pulse/types: type ModelRef struct
 pulse/types: type ModelRef field Name string "json:\"name\""
 pulse/types: type ModelRef field Path string "json:\"path\""
@@ -5766,6 +5774,9 @@ pulse/types: type VectorSpec field Name string "json:\"name\""
 pulse/types: type VectorSpec field Pattern string "json:\"pattern,omitempty\""
 pulse/types: type VectorSpec field ScaleMax *float64 "json:\"scale_max,omitempty\""
 pulse/types: type VectorSpec field ScaleMin *float64 "json:\"scale_min,omitempty\""
+pulse/types: type VectorSpec field Standardize pulse/types.VectorStandardize "json:\"standardize,omitempty\""
+pulse/types: type VectorStandardize string
+pulse/types: const VectorStandardizeZScore pulse/types.VectorStandardize = "zscore"
 pulse/types: type VersionResponse struct
 pulse/types: type VersionResponse field BuildDate string "json:\"build_date,omitempty\""
 pulse/types: type VersionResponse field GoVersion string "json:\"go_version,omitempty\""
@@ -5803,4 +5814,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 9d27ab8e09a28dc9ddf6541487528371869984c7e23a163484af53e074e91738
+// golden-hash: 0406707080ebae06a60b604a119b92df7c94bbf9dffd03fca84df691da13f5d2

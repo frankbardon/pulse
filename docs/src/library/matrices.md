@@ -24,7 +24,7 @@ stays `"1.1"`. The slots are gated by the `capability:matrices` feature.
 
 ## Vectors
 
-`vectors: [{name, fields | pattern, labels?, coerce?}]`, exactly one of
+`vectors: [{name, fields | pattern, labels?, coerce?, kind?, standardize?}]`, exactly one of
 `fields` / `pattern`. A literal field keeps the caller's order; a glob
 (`q*`) expands in place in schema order; `pattern` is an unanchored
 regexp in schema order. Members are integer and float fields;
@@ -37,6 +37,35 @@ request (an expression reads a vector by name); a vector no operator
 slot or expression (formula, expression filter, `total()` argument)
 names warns `PULSE_VECTOR_UNREFERENCED`. `Pulse.Predict` echoes the resolved members
 as `resolved_vectors`.
+
+A literal member may also name a column the same request computes: a
+feature output, an attribute label or — when windows run over the record
+rows (no groups, aggregations or crosstab) — a window label, e.g. an
+`ATTR_FORMULA` imputation. The matrix reads the value the request writes
+on each record, so the result is byte-identical to materializing the
+column first (`Pulse.Materialize`) and fitting over it: a null computed
+value drops the row listwise, a two-pass attribute among the members
+(`ATTR_ZSCORE`, a `total()` formula) runs the request buffered and serial,
+and `standardize` z-scores the computed values like any member. Globs and
+`pattern` match schema fields only. Only a `MAT_*` reads such a vector: a
+test, attribute, grouper or aggregation `vector`, an expression and a
+`MAT_DISTANCE` `params.between.vector` refuse it with
+`PULSE_VECTOR_INVALID` (`reason` `computed_member_unsupported`, `slot`,
+`member`).
+
+`standardize: "zscore"` z-scores every member with its population SD
+(divisor Σw, n unweighted; frequency weights respected) over the rows
+the matrix keeps after its listwise drop — per result on a grouped
+request. The engine rescales the merged co-moment once at finalize, so
+the slot stays streamable and mergeable and every path returns the same
+bits: `MAT_COVARIANCE` returns the correlation matrix and `MAT_SEM` fits
+it, exactly as if the members had been z-scored beforehand. A member
+with no spread is left as it is (its figures stay as without
+standardize). Only a listwise co-moment `MAT_*` reads a standardized
+vector; a test, attribute, grouper or aggregation `vector`, an
+expression, `MAT_DISTANCE` (which has its own `params.standardize`),
+`missing: "pairwise"` and a rank method refuse it with
+`PULSE_VECTOR_INVALID` (`reason` `standardize_unsupported`, `slot`).
 
 ## Matrices
 
@@ -53,8 +82,19 @@ request order:
 | `warnings` | `PULSE_MATRIX_*` data-quality findings |
 | `group_key`, `group_header` | set on a per-bucket result |
 
-`encoding` is `full` (default) or `upper` (row r carries the p - r cells
-from the diagonal). Undefined cells are `null`, keys kept.
+`encoding` is `full` (default), `upper` (row r carries the p - r cells
+from the diagonal) or `records`. Undefined cells are `null`, keys kept.
+
+`records` writes every matrix of the result (the primary and each
+auxiliary, rectangular ones included) as row records:
+`{kind, encoding, columns, rows, labels?}`, `rows` one object per row in
+`row_keys` order — `{"key": <row key>, <column>: value, ...}` — with
+undefined cells `null`. `MAT_SEM`'s `auxiliary.estimates` rows also carry
+`lval`, `op`, `rval`, `parameter` and `free`. The numbers are exactly the
+`full` encoding's; a member named `key` is refused (`SERVICE_VALIDATION`,
+`records_key_collision`), and a data-derived column of that name (a
+`MAT_DISTANCE` bucket label) fails the slot. In Go, `MatrixValues.Values`
+keeps the full layout and `MatrixValues.Records()` derives the rows.
 
 ## Missing data and weights
 
@@ -457,8 +497,16 @@ carry each row's parameter name and whether it is free; `scalars` carry
 Listwise only. Under a frequency weight the fit is exactly semopy's on
 the expanded rows (N = Σw); a probability weight is refused
 (`PULSE_WEIGHT_UNSUPPORTED`: semopy has no design-based form). A
-rank-deficient covariance is refused with `PULSE_MATRIX_SINGULAR` (semopy
-would substitute a nearest positive-definite matrix); a solver stop short
+rank-deficient covariance is fitted as semopy's default fit fits it
+(`params.singular: "nearest"`, the default): raw while its Cholesky
+factorization succeeds, however near singular; otherwise to
+statsmodels' `cov_nearest` substitute (the correlation form's
+eigenvalues raised to 0.01, the variances kept) with the warning
+`PULSE_MATRIX_NEAREST_PD` (`n`, `p`, `min_eigenvalue`), every figure
+against the adjusted matrix. A zero-spread member (raw, or the zeros
+of a standardized one) has no substitute — semopy raises — and fails
+the slot with `PULSE_MATRIX_SINGULAR`; `params.singular: "refuse"`
+refuses every rank-deficient covariance that way. A solver stop short
 of success keeps the last iterate with `PULSE_MATRIX_NOT_CONVERGED`; a
 model with more parameters than moments is fitted with
 `PULSE_MATRIX_NOT_IDENTIFIED`. Streamable and mergeable: the fit reads

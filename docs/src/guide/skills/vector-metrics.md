@@ -60,6 +60,8 @@ Row scores (`ATTR_PROFILE_SIMILARITY`) (`ATTR_VEC_DISTANCE`) read the same table
 - Profiles of ratings: correlate (`correlation`) or center first; level differences are then ignored by design.
 - Shares with zeros: `aitchison` is undefined at a zero part (the row or cell is null and counted); `hellinger` or `manhattan` tolerate zeros.
 - Mixed units in a `measure` battery: standardize (`std_euclidean`), or one member dominates every distance.
+- Vector `standardize: "zscore"` is for listwise co-moment matrices only; distances, row scores and expressions refuse it (`standardize_unsupported`) — use `std_euclidean`, `vzscore` or the operator's own `standardize`.
+- A literal member may name an attribute / feature / record-row window label of the same request (e.g. a formula imputation): only `MAT_*` reads it (else `computed_member_unsupported`); a null drops the row; same bits as materializing first.
 
 ## See
 

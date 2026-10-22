@@ -1,0 +1,59 @@
+{
+  "name": "m",
+  "primary": {
+    "columns": [
+      "F1"
+    ],
+    "encoding": "records",
+    "kind": "rectangular",
+    "rows": [
+      {
+        "F1": 0.980119802,
+        "key": "y1"
+      },
+      {
+        "F1": 0.933813372,
+        "key": "y2"
+      },
+      {
+        "F1": 0.827023704,
+        "key": "y3"
+      },
+      {
+        "F1": 0.655064685,
+        "key": "y4"
+      }
+    ]
+  },
+  "scalars": {
+    "bartlett_chisq": 794.728582367,
+    "bartlett_df": 6,
+    "bartlett_p": 0,
+    "converged": 1,
+    "df": 2,
+    "empirical_chisq": 0.284985945,
+    "empirical_p": 0.867193649,
+    "factors_retained": 1,
+    "iterations": 3,
+    "kmo": 0.793958634,
+    "rmsr": 0.010251015
+  },
+  "type": "MAT_FACTOR",
+  "vectors": {
+    "communalities": [
+      0.960634827,
+      0.872007414,
+      0.683968207,
+      0.429109742
+    ],
+    "uniquenesses": [
+      0.039365173,
+      0.127992586,
+      0.316031793,
+      0.570890258
+    ],
+    "variance_accounted": [
+      2.945720191
+    ]
+  }
+}

@@ -381,6 +381,12 @@ type MatrixPredict struct {
 	Labels []string `json:"labels,omitempty"`
 	// Missing is the missing-data mode, "listwise" or "pairwise".
 	Missing string `json:"missing"`
+	// Standardize is the vector's member rescaling (VectorSpec.standardize,
+	// "zscore": the members are z-scored over the listwise rows, so a
+	// covariance reads as their correlation); omitted when none. It
+	// changes no streamability or mergeability: the merged state is
+	// rescaled once at finalize.
+	Standardize types.VectorStandardize `json:"standardize,omitempty"`
 	// Encoding is the effective Values layout.
 	Encoding types.MatrixEncoding `json:"encoding"`
 	// AccumulatorBytes estimates the payload bytes of one co-moment

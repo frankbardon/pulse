@@ -157,7 +157,7 @@ func ResolveAttributes(req *types.Request, schema *encoding.Schema, route func(t
 	if route == nil {
 		route = func(t types.AttributeType) types.AttributeType { return t }
 	}
-	resolved, verr := Resolve(req.Vectors, schema)
+	resolved, verr := ResolveRequest(req, schema)
 	if verr != nil {
 		return nil, verr
 	}

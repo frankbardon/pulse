@@ -3732,6 +3732,17 @@ const (
 	// "matrix", "outputs", "n_star", "row" and "col" (the pair).
 	PULSE_MATRIX_PAIRWISE_N_STAR Code = "PULSE_MATRIX_PAIRWISE_N_STAR"
 
+	// PULSE_MATRIX_NEAREST_PD is a per-matrix WARNING: MAT_SEM under
+	// params.singular "nearest" found the sample covariance not positive
+	// definite (fewer rows than members, a linear dependency, a
+	// zero-spread member under standardize) and fitted semopy's
+	// substitute for it, statsmodels' cov_nearest(S, threshold=1e-2)
+	// (its correlation form's eigenvalues raised to 0.01). Every figure,
+	// residual_covariance included, is against the adjusted matrix.
+	// Details carry "matrix", "n", "p" and "min_eigenvalue" (the
+	// smallest eigenvalue of S's correlation form before the clip).
+	PULSE_MATRIX_NEAREST_PD Code = "PULSE_MATRIX_NEAREST_PD"
+
 	// PULSE_RETURN_INVALID indicates a `return` block that cannot be
 	// read: an unknown preset, a precision outside 1–17, or a malformed
 	// include / exclude path (an empty segment, `*` anywhere but the end
@@ -4430,6 +4441,7 @@ var allCodes = []Code{
 	PULSE_MATRIX_HEYWOOD,
 	PULSE_MATRIX_NOT_IDENTIFIED,
 	PULSE_MATRIX_PAIRWISE_N_STAR,
+	PULSE_MATRIX_NEAREST_PD,
 	PULSE_RETURN_INVALID,
 	PULSE_RETURN_PATH_UNKNOWN,
 	PULSE_RETURN_PATH_UNMATCHED,

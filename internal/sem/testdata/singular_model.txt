@@ -1,0 +1,5 @@
+# A synthetic two-factor model over ten items, fitted to fewer rows than
+# items (n < p): the sample covariance is singular (MAT_SEM singular
+# "nearest").
+f1 =~ a1 + a2 + a3 + a4 + a5
+f2 =~ b1 + b2 + b3 + b4 + b5

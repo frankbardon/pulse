@@ -285,10 +285,8 @@ func semProcessErr(t *testing.T, cfg *fs.Config, spec types.MatrixSpec) (*types.
 	return resp, ce
 }
 
-// TestMatrixSEM_Refusals: a probability weight (no design-based form),
-// a rank-deficient covariance (semopy would substitute a nearest PD
-// matrix; Pulse refuses) and pairwise deletion are refused with their
-// codes.
+// TestMatrixSEM_Refusals: a probability weight (no design-based form)
+// and pairwise deletion are refused with their codes.
 func TestMatrixSEM_Refusals(t *testing.T) {
 	cfg, _ := semCohort(t, semTestdata+"hz_data.csv", func(r int) float64 { return 1 + 0.5*float64(r%2) }, nil)
 	model, _ := json.Marshal(map[string]any{"model": "f =~ x1 + x2 + x3"})
@@ -326,9 +324,10 @@ func semRowsCohort(t *testing.T, rows [][3]float64) *fs.Config {
 	return cfg
 }
 
-// TestMatrixSEM_SingularRefused: a member that is an exact linear
-// combination of others makes S singular — refused with
-// PULSE_MATRIX_SINGULAR naming the dependent fields.
+// TestMatrixSEM_SingularRefused: under params.singular "refuse" a
+// member that is an exact linear combination of others makes S
+// singular — refused with PULSE_MATRIX_SINGULAR naming the dependent
+// fields.
 func TestMatrixSEM_SingularRefused(t *testing.T) {
 	var rows [][3]float64
 	for i := range 50 {
@@ -336,7 +335,7 @@ func TestMatrixSEM_SingularRefused(t *testing.T) {
 		rows = append(rows, [3]float64{a, b, a + b})
 	}
 	cfg := semRowsCohort(t, rows)
-	_, ce := semProcessErr(t, cfg, types.MatrixSpec{Name: "sem", Type: types.MAT_SEM, Fields: []string{"a", "b", "c"}})
+	_, ce := semProcessErr(t, cfg, types.MatrixSpec{Name: "sem", Type: types.MAT_SEM, Fields: []string{"a", "b", "c"}, Params: json.RawMessage(`{"singular": "refuse"}`)})
 	if ce == nil || ce.Code != errors.PULSE_MATRIX_SINGULAR {
 		t.Fatalf("err = %v, want PULSE_MATRIX_SINGULAR", ce)
 	}

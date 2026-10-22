@@ -528,3 +528,27 @@ func slicesHasNil(attrs []*types.Attribute) bool {
 	}
 	return false
 }
+
+// TestMergeRefusal_MatrixTotalMember: a matrix reading a total()-derived
+// attribute as a computed member (directly or through a row-local
+// formula over it) is refused; one reading a plain row-local formula —
+// or a total() formula it does not read — still merges.
+func TestMergeRefusal_MatrixTotalMember(t *testing.T) {
+	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "x", Type: encoding.FieldTypeF64}, {Name: "y", Type: encoding.FieldTypeF64}}}
+	attrs := []*types.Attribute{
+		{Type: types.ATTR_FORMULA, Label: "share", Expression: "x / total(x)"},
+		{Type: types.ATTR_FORMULA, Label: "pct", Expression: "share * 100"},
+		{Type: types.ATTR_FORMULA, Label: "sum", Expression: "x + y"},
+	}
+	req := func(members ...string) *types.Request {
+		return &types.Request{Attributes: attrs, Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Fields: members}}}
+	}
+	for _, m := range []string{"share", "pct"} {
+		if got := MergeRefusal(req("x", m), schema, nil); !strings.Contains(got, "computed member "+m) {
+			t.Errorf("member %s: refusal %q", m, got)
+		}
+	}
+	if got := MergeRefusal(req("x", "sum"), schema, nil); got != "" {
+		t.Errorf("row-local member refused: %q", got)
+	}
+}

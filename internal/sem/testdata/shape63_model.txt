@@ -1,0 +1,20 @@
+# A synthetic same-shape SEM over 63 indicators (mostly 0/1 items):
+# four outputs on one factor, a mediator over constructs, and
+# two-level hierarchies (constructs over first-order factors).
+y1, y2, y3, y4 ~ g
+g ~ m + c1
+m ~ c1 + c2 + c3
+g =~ x59 + x60 + x61 + x62 + x63
+m =~ x55 + x56 + x57 + x58
+c1 =~ f1 + f2 + f3
+c2 =~ f4 + f5 + f6
+c3 =~ f7 + f8 + f9
+f1 =~ x01 + x02 + x03 + x04 + x05 + x06
+f2 =~ x07 + x08 + x09 + x10 + x11 + x12
+f3 =~ x13 + x14 + x15 + x16 + x17 + x18
+f4 =~ x19 + x20 + x21 + x22 + x23 + x24
+f5 =~ x25 + x26 + x27 + x28 + x29 + x30
+f6 =~ x31 + x32 + x33 + x34 + x35 + x36
+f7 =~ x37 + x38 + x39 + x40 + x41 + x42
+f8 =~ x43 + x44 + x45 + x46 + x47 + x48
+f9 =~ x49 + x50 + x51 + x52 + x53 + x54

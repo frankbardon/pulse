@@ -9801,7 +9801,7 @@
       },
       {
         "name": "MAT_SEM",
-        "description": "Structural equation model of a vector's members (listwise only): a lavaan / semopy description in params.model (=~ measurement, ~ regression, ~~ covariance; label* equality and number* fixed multipliers) fitted by maximum likelihood to the members' covariance, whose observed variables are exactly the members (by label). The default setup reproduces semopy (semopy.Model(desc).fit(data), semopy 2.3.11): the Wishart ML objective over the biased (divisor N) covariance minimised by a port of SciPy's SLSQP at ftol 1e-6 — semopy's early stop included — with semopy's specification rules, starting values, expected-information standard errors and calc_stats fit indices. params.solver fisher converges to the optimum instead; params.information rank2 computes the same derivatives more cheaply. The primary is the model-implied covariance Sigma(theta) over the members; auxiliary.estimates is the parameter table (rectangular: a row per semopy inspect row keyed \"lval op rval\" — op ~ for loadings and regressions, ~~ for (co)variances — columns estimate, std_estimate, std_err, z_value, p_value; SE, z and p null on a fixed parameter) and auxiliary.residual_covariance S - Sigma(theta); vectors carry each row's parameter name and whether it is free; scalars the fit indices and the fit's iterations / convergence. A rank-deficient covariance is PULSE_MATRIX_SINGULAR (semopy would substitute a nearest positive-definite matrix); a solver stop short of success warns PULSE_MATRIX_NOT_CONVERGED; negative degrees of freedom warn PULSE_MATRIX_NOT_IDENTIFIED. Weighted under frequency weights (exactly the fit on the expanded rows, N = the sum of weights); a probability weight is PULSE_WEIGHT_UNSUPPORTED.",
+        "description": "Structural equation model of a vector's members (listwise only): a lavaan / semopy description in params.model (=~ measurement, ~ regression, ~~ covariance; label* equality and number* fixed multipliers) fitted by maximum likelihood to the members' covariance, whose observed variables are exactly the members (by label). The default setup reproduces semopy (semopy.Model(desc).fit(data), semopy 2.3.11): the Wishart ML objective over the biased (divisor N) covariance minimised by a port of SciPy's SLSQP at ftol 1e-6 — semopy's early stop included — with semopy's specification rules, starting values, expected-information standard errors and calc_stats fit indices. params.solver fisher converges to the optimum instead; params.information rank2 computes the same derivatives more cheaply. The primary is the model-implied covariance Sigma(theta) over the members; auxiliary.estimates is the parameter table (rectangular: a row per semopy inspect row keyed \"lval op rval\" — op ~ for loadings and regressions, ~~ for (co)variances — columns estimate, std_estimate, std_err, z_value, p_value; SE, z and p null on a fixed parameter) and auxiliary.residual_covariance S - Sigma(theta); vectors carry each row's parameter name and whether it is free; scalars the fit indices and the fit's iterations / convergence. A rank-deficient covariance is fitted as semopy fits it (params.singular nearest, the default): raw while its Cholesky factors, else to semopy's nearest positive-definite substitute with PULSE_MATRIX_NEAREST_PD; a zero-spread member, or params.singular refuse, is PULSE_MATRIX_SINGULAR; a solver stop short of success warns PULSE_MATRIX_NOT_CONVERGED; negative degrees of freedom warn PULSE_MATRIX_NOT_IDENTIFIED. Weighted under frequency weights (exactly the fit on the expanded rows, N = the sum of weights); a probability weight is PULSE_WEIGHT_UNSUPPORTED.",
         "accepts_types": [
           "f32",
           "f64",
@@ -9860,6 +9860,17 @@
             "required": false,
             "default": 1e-10,
             "description": "Fisher scoring's stop, a number above 0: every free gradient entry below it in absolute value. Solver fisher only."
+          },
+          {
+            "name": "singular",
+            "type": "enum",
+            "required": false,
+            "default": "nearest",
+            "description": "A rank-deficient sample covariance: nearest (semopy's default fit) fits it raw while its Cholesky factors, else semopy's substitute, statsmodels' cov_nearest (threshold 0.01), with PULSE_MATRIX_NEAREST_PD (n, p, min_eigenvalue); a zero-spread member has no substitute and is PULSE_MATRIX_SINGULAR, as semopy raises. refuse is PULSE_MATRIX_SINGULAR on every rank-deficient covariance.",
+            "enum_values": [
+              "nearest",
+              "refuse"
+            ]
           },
           {
             "name": "missing",
@@ -10354,7 +10365,7 @@
         ]
       }
     ],
-    "error_codes_count": 402,
+    "error_codes_count": 403,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10550,6 +10561,7 @@
       "PULSE_MATRIX_INSUFFICIENT_N",
       "PULSE_MATRIX_LISTWISE_HEAVY_DROP",
       "PULSE_MATRIX_METRIC_DOMAIN",
+      "PULSE_MATRIX_NEAREST_PD",
       "PULSE_MATRIX_NOT_CONVERGED",
       "PULSE_MATRIX_NOT_IDENTIFIED",
       "PULSE_MATRIX_NOT_PSD",
@@ -14056,7 +14068,8 @@
       "name": "matrices",
       "encodings": [
         "full",
-        "upper"
+        "upper",
+        "records"
       ],
       "default_encoding": "full",
       "kinds": [
@@ -14407,9 +14420,10 @@
         "Matrices follow Request.Groups: a grouped request returns one result per spec per non-empty bucket (group_key, group_header), spec-major then bucket in the final Data row order (Request.Sort included); a thin bucket is still emitted, with PULSE_MATRIX_INSUFFICIENT_N.",
         "A request carrying matrices fans out over DecodeWorkers and ShardWorkers with bit-identical results, per bucket on a grouped request.",
         "A matrix result is emitted at finalize: a streamed run carries it at terminal flush only.",
-        "A rectangular matrix (kind \"rectangular\", MAT_PCA's p x k loadings and eigenvectors, MAT_FACTOR's p x k loadings, MAT_COLLINEARITY's variance decomposition) has the members as rows (MAT_COLLINEARITY's uncentered decomposition leads with an \"(intercept)\" row) and its own column keys, and is always written full whatever the spec's encoding; MAT_DISTANCE's centroids are the one k x p matrix with the bucket labels as rows and the members as columns.",
+        "A rectangular matrix (kind \"rectangular\", MAT_PCA's p x k loadings and eigenvectors, MAT_FACTOR's p x k loadings, MAT_COLLINEARITY's variance decomposition) has the members as rows (MAT_COLLINEARITY's uncentered decomposition leads with an \"(intercept)\" row) and its own column keys, and is written full under upper (records: rows); MAT_DISTANCE's centroids are the one k x p matrix with the bucket labels as rows and the members as columns.",
         "MAT_DISTANCE's primary is square but keyed by the between grouper's bucket labels, not the members.",
-        "A request carrying matrices with joins, or a ProcessChain stage after 0 carrying matrices, is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE; matrices with a crosstab are refused with PULSE_MATRIX_HOST_CONFLICT."
+        "A request carrying matrices with joins, or a ProcessChain stage after 0 carrying matrices, is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE; matrices with a crosstab are refused with PULSE_MATRIX_HOST_CONFLICT.",
+        "Vector members may name a feature, attribute or record-row window label of the request; only MAT_* reads such a vector (else computed_member_unsupported)."
       ]
     },
     "overlays": [
@@ -19509,4 +19523,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f43ea601411ffccbe06fd7fcc5b97018ae1531dfeec9fa630a0689c6256bc8bc
+// golden-hash: aa3a50b6152b3227d76ab2a03f009ec1d86a4846b9aa6e5d5366359b39855cd3

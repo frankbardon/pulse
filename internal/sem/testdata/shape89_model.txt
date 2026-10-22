@@ -1,0 +1,23 @@
+# The 89-indicator variant of shape63_model.txt: a fourth two-level
+# construct (c4) joins the mediator's predictors.
+y1, y2, y3, y4 ~ g
+g ~ m + c1
+m ~ c1 + c2 + c3 + c4
+g =~ x59 + x60 + x61 + x62 + x63
+m =~ x55 + x56 + x57 + x58
+c1 =~ f1 + f2 + f3
+c2 =~ f4 + f5 + f6
+c3 =~ f7 + f8 + f9
+c4 =~ f10 + f11 + f12
+f1 =~ x01 + x02 + x03 + x04 + x05 + x06
+f2 =~ x07 + x08 + x09 + x10 + x11 + x12
+f3 =~ x13 + x14 + x15 + x16 + x17 + x18
+f4 =~ x19 + x20 + x21 + x22 + x23 + x24
+f5 =~ x25 + x26 + x27 + x28 + x29 + x30
+f6 =~ x31 + x32 + x33 + x34 + x35 + x36
+f7 =~ x37 + x38 + x39 + x40 + x41 + x42
+f8 =~ x43 + x44 + x45 + x46 + x47 + x48
+f9 =~ x49 + x50 + x51 + x52 + x53 + x54
+f10 =~ x64 + x65 + x66 + x67 + x68 + x69 + x70 + x71 + x72
+f11 =~ x73 + x74 + x75 + x76 + x77 + x78 + x79 + x80 + x81
+f12 =~ x82 + x83 + x84 + x85 + x86 + x87 + x88 + x89

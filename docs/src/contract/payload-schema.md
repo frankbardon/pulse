@@ -40,8 +40,8 @@ built with a feature profile gets a narrower document:
   names;
 - a request slot the instance does not offer (`crosstab`, `joins`,
   `overlays`, `vectors`, `matrices`, `weight`) is not a property of its
-  request root (a hidden `vectors` takes `VectorSpec`, `VectorCoerce` and
-  `VectorKind` with it; hidden `matrices` takes `MatrixSpec`, the `Response.matrices`
+  request root (a hidden `vectors` takes `VectorSpec`, `VectorCoerce`,
+  `VectorKind` and `VectorStandardize` with it; hidden `matrices` takes `MatrixSpec`, the `Response.matrices`
   and `ResponseComponents.matrices` slots and `MatrixResult` /
   `MatrixComponents` with it — `MatrixValues` stays, shared with the
   regression `vcov` / `correlation`); without
@@ -458,7 +458,7 @@ rules and the unweighted-base recipe: [Row Weighting](../library/weighting.md).
 ## Vector slot
 
 `vectors` on `Request` is an additive array of `VectorSpec`
-`{name, fields | pattern, labels?, coerce?, kind?, scale_min?, scale_max?}`
+`{name, fields | pattern, labels?, coerce?, kind?, scale_min?, scale_max?, standardize?}`
 (`format_version` stays `"1.1"`; a request with no vectors is
 byte-identical and hashes identically). `coerce` is the closed
 `VectorCoerce` enum (`binary`); `kind` the closed `VectorKind` enum
@@ -468,6 +468,14 @@ predict's `defaults_applied`, category `metric`) and flags an explicit
 poorly fitting one (`PULSE_VECTOR_METRIC_UNSUITED`, a warning, an
 error under strict). `scale_min` / `scale_max` are numbers, accepted
 only beside `kind: "scale"`, both or neither, min below max.
+`standardize` is the closed `VectorStandardize` enum (`zscore`): the
+members are z-scored with their population SD over the rows a
+listwise co-moment `MAT_*` slot keeps (frequency weights respected), so
+its covariance is their correlation; every other consumer (a test,
+attribute, grouper or aggregation `vector`, an expression, `MAT_DISTANCE`,
+`missing: "pairwise"`, a rank method) is refused with
+`PULSE_VECTOR_INVALID` (`details.reason` `standardize_unsupported`,
+`details.slot`), and predict's `matrices[].standardize` echoes it.
 What the schema cannot say, predict and the runtime enforce
 identically before any record is read: exactly one of `fields` /
 `pattern`; literal `fields` entries keep the caller's order while glob
@@ -637,7 +645,7 @@ scalars, warnings}`, one per spec in request order (`format_version`
 stays `"1.1"`; a matrix-free request and response are byte-identical).
 `type` is the registry-backed `MatrixType` enum (`MAT_COVARIANCE`,
 `MAT_CORRELATION`, `MAT_PARTIAL_CORRELATION`, `MAT_PCA`, `MAT_FACTOR`,
-`MAT_COLLINEARITY`, `MAT_RELIABILITY`, `MAT_DISTANCE`, `MAT_SEM`); `encoding` is `full` (default) or `upper`. Every
+`MAT_COLLINEARITY`, `MAT_RELIABILITY`, `MAT_DISTANCE`, `MAT_SEM`); `encoding` is `full` (default), `upper` or `records`. Every
 matrix is a dedicated `MatrixValues` `{kind, encoding, row_keys,
 column_keys, labels?, values}` — not the crosstab `MatrixPayload` —
 whose `values` rows hold `p` cells (`full`) or `p − r` cells from the
@@ -653,6 +661,12 @@ between grouper's bucket labels, and its `auxiliary.centroids` is k × p:
 `auxiliary.estimates` is r × 5: `row_keys` semopy's inspect rows
 `"lval op rval"`, `column_keys` `estimate`, `std_estimate`, `std_err`,
 `z_value`, `p_value`).
+Under `encoding: "records"` every matrix (primary and each auxiliary,
+rectangular ones too) is instead `{kind, encoding, columns, rows,
+labels?}`: `columns` the column keys, `rows` one object per row in row
+order, `{"key": <row key>, <column>: number | null, ...}`, plus on
+`MAT_SEM`'s estimates `lval`, `op`, `rval`, `parameter` and `free`; the
+schema's `MatrixValues` is the `oneOf` of the two forms.
 `MAT_CORRELATION` (every `method`) and `MAT_PARTIAL_CORRELATION` take
 `params.inference` (bool) and `params.alpha` (0 < alpha < 1, default
 0.05): on, `auxiliary` gains `p`, `ci_lower` and `ci_upper`, square
@@ -703,7 +717,7 @@ variables are exactly the members by label; default one factor over every
 member), `solver` `slsqp` (default) or `fisher`, `information` `dense`
 (default) or `rank2`, `ftol` (slsqp only, default 1e-6), `max_iter`
 (default 10000 slsqp, 500 fisher), `grad_tol` (fisher only, default
-1e-10), listwise only — a probability weight is
+1e-10), `singular` `nearest` (default, semopy's) or `refuse`, listwise only — a probability weight is
 `PULSE_WEIGHT_UNSUPPORTED`). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
 the same shape and encoding holding each pair's row count. `vectors` is an
 open object: with `summary.top_pairs`, `vectors.top_pairs` is
@@ -759,7 +773,11 @@ whole fit) and, under `ml`, `_INSUFFICIENT_N` scope `likelihood` that
 nulls the likelihood figures; `MAT_DISTANCE` `_INSUFFICIENT_N` scope
 `buckets` (a massless bucket) or `pooled` (mahalanobis with no more rows
 than buckets) and a `_SINGULAR` warning that nulls the mahalanobis
-distances; `MAT_SEM` a fatal `_SINGULAR` on a rank-deficient covariance,
+distances; `MAT_SEM` `_NEAREST_PD` when the covariance does not factor
+and is fitted to semopy's `cov_nearest` substitute (`singular`
+`nearest`, the default; one that factors is fitted raw), a fatal
+`_SINGULAR` on a zero-spread member or, under `singular` `refuse`, on
+any rank-deficient covariance,
 `_NOT_CONVERGED` (solver stop short of success, last iterate kept) and
 `_NOT_IDENTIFIED` (negative degrees of freedom, fitted anyway)). `components.matrices` carries one
 `MatrixComponents` per result, in the same order: `{name, type,

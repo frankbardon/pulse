@@ -409,7 +409,9 @@ func TestMatrixWarnings_InsufficientN(t *testing.T) {
 
 // TestMatrixWarnings_ZeroVariance: a constant member is named on both
 // operators; the correlation nulls its row and column, the covariance
-// keeps them at 0 (a defined figure).
+// keeps them at 0 (a defined figure). MAT_SEM's default (singular
+// "nearest", semopy's) has no substitute for it and fails the slot, as
+// semopy raises; its "refuse" names and nulls it like the others.
 func TestMatrixWarnings_ZeroVariance(t *testing.T) {
 	rows := pearsonParityRows(40)
 	for i := range rows {
@@ -421,7 +423,15 @@ func TestMatrixWarnings_ZeroVariance(t *testing.T) {
 				continue
 			}
 			t.Run(string(typ)+mode, func(t *testing.T) {
-				res := runOneMatrix(t, rows, missingSpec(typ, x123, "", mode))
+				spec := missingSpec(typ, x123, "", mode)
+				if typ == types.MAT_SEM {
+					res := runOneMatrix(t, rows, spec)
+					if res.Error == nil || res.Error.Code != string(errors.PULSE_MATRIX_SINGULAR) {
+						t.Fatalf("SEM over a constant member, default: error %+v, want PULSE_MATRIX_SINGULAR", res.Error)
+					}
+					spec.Params = json.RawMessage(strings.TrimSuffix(mode, "}") + `, "singular": "refuse"}`)
+				}
+				res := runOneMatrix(t, rows, spec)
 				w := findWarning(res, errors.PULSE_MATRIX_ZERO_VARIANCE)
 				if w == nil || !reflect.DeepEqual(w.Details["members"], []string{"x2"}) {
 					t.Fatalf("zero-variance warning = %v (warnings %v)", w, matWarningCodes(res))

@@ -1,0 +1,5 @@
+# A synthetic one-factor model over five items, x5 a near-exact linear
+# combination of x1..x4 (near_data.csv): the sample covariance fails the
+# one singular rule yet factors, so MAT_SEM singular "nearest" fits it
+# raw, as semopy does.
+f1 =~ x1 + x2 + x3 + x4 + x5

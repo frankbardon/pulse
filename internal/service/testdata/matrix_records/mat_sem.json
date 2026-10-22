@@ -1,0 +1,261 @@
+{
+  "auxiliary": {
+    "estimates": {
+      "columns": [
+        "estimate",
+        "std_estimate",
+        "std_err",
+        "z_value",
+        "p_value"
+      ],
+      "encoding": "records",
+      "kind": "rectangular",
+      "rows": [
+        {
+          "estimate": 1,
+          "free": false,
+          "key": "y1 ~ F1",
+          "lval": "y1",
+          "op": "~",
+          "p_value": null,
+          "parameter": "_b1",
+          "rval": "F1",
+          "std_err": null,
+          "std_estimate": 0.985687938,
+          "z_value": null
+        },
+        {
+          "estimate": 0.802776848,
+          "free": true,
+          "key": "y2 ~ F1",
+          "lval": "y2",
+          "op": "~",
+          "p_value": 0,
+          "parameter": "_b2",
+          "rval": "F1",
+          "std_err": 0.02442489,
+          "std_estimate": 0.943264423,
+          "z_value": 32.867162787
+        },
+        {
+          "estimate": 0.569111588,
+          "free": true,
+          "key": "y3 ~ F1",
+          "lval": "y3",
+          "op": "~",
+          "p_value": 0,
+          "parameter": "_b3",
+          "rval": "F1",
+          "std_err": 0.029156393,
+          "std_estimate": 0.813000208,
+          "z_value": 19.519272772
+        },
+        {
+          "estimate": 0.380906614,
+          "free": true,
+          "key": "y4 ~ F1",
+          "lval": "y4",
+          "op": "~",
+          "p_value": 0,
+          "parameter": "_b4",
+          "rval": "F1",
+          "std_err": 0.031152845,
+          "std_estimate": 0.643740759,
+          "z_value": 12.227025123
+        },
+        {
+          "estimate": 0.355032194,
+          "free": true,
+          "key": "F1 ~~ F1",
+          "lval": "F1",
+          "op": "~~",
+          "p_value": 0,
+          "parameter": "_c1",
+          "rval": "F1",
+          "std_err": 0.034839836,
+          "std_estimate": 1,
+          "z_value": 10.190409531
+        },
+        {
+          "estimate": 0.010384894,
+          "free": true,
+          "key": "y1 ~~ y1",
+          "lval": "y1",
+          "op": "~~",
+          "p_value": 0.075104305,
+          "parameter": "_c2",
+          "rval": "y1",
+          "std_err": 0.005834778,
+          "std_estimate": 0.028419289,
+          "z_value": 1.779826832
+        },
+        {
+          "estimate": 0.02835162,
+          "free": true,
+          "key": "y2 ~~ y2",
+          "lval": "y2",
+          "op": "~~",
+          "p_value": 1e-9,
+          "parameter": "_c3",
+          "rval": "y2",
+          "std_err": 0.004583298,
+          "std_estimate": 0.110252228,
+          "z_value": 6.185855689
+        },
+        {
+          "estimate": 0.058982103,
+          "free": true,
+          "key": "y3 ~~ y3",
+          "lval": "y3",
+          "op": "~~",
+          "p_value": 0,
+          "parameter": "_c4",
+          "rval": "y3",
+          "std_err": 0.005911387,
+          "std_estimate": 0.339030661,
+          "z_value": 9.977708847
+        },
+        {
+          "estimate": 0.072791758,
+          "free": true,
+          "key": "y4 ~~ y4",
+          "lval": "y4",
+          "op": "~~",
+          "p_value": 0,
+          "parameter": "_c5",
+          "rval": "y4",
+          "std_err": 0.006973945,
+          "std_estimate": 0.585597835,
+          "z_value": 10.437672565
+        }
+      ]
+    },
+    "residual_covariance": {
+      "columns": [
+        "y1",
+        "y2",
+        "y3",
+        "y4"
+      ],
+      "encoding": "records",
+      "kind": "square_symmetric",
+      "rows": [
+        {
+          "key": "y1",
+          "y1": -0.000080193,
+          "y2": 0.000039992,
+          "y3": -0.000316017,
+          "y4": -0.000159926
+        },
+        {
+          "key": "y2",
+          "y1": 0.000039992,
+          "y2": -0.000077656,
+          "y3": -0.00034135,
+          "y4": -0.001650137
+        },
+        {
+          "key": "y3",
+          "y1": -0.000316017,
+          "y2": -0.00034135,
+          "y3": -0.00003548,
+          "y4": 0.006398051
+        },
+        {
+          "key": "y4",
+          "y1": -0.000159926,
+          "y2": -0.001650137,
+          "y3": 0.006398051,
+          "y4": 0.000008843
+        }
+      ]
+    }
+  },
+  "name": "m",
+  "primary": {
+    "columns": [
+      "y1",
+      "y2",
+      "y3",
+      "y4"
+    ],
+    "encoding": "records",
+    "kind": "square_symmetric",
+    "rows": [
+      {
+        "key": "y1",
+        "y1": 0.365417088,
+        "y2": 0.285011626,
+        "y3": 0.202052935,
+        "y4": 0.135234111
+      },
+      {
+        "key": "y2",
+        "y1": 0.285011626,
+        "y2": 0.257152355,
+        "y3": 0.162203419,
+        "y4": 0.108562813
+      },
+      {
+        "key": "y3",
+        "y1": 0.202052935,
+        "y2": 0.162203419,
+        "y3": 0.17397277,
+        "y4": 0.076963299
+      },
+      {
+        "key": "y4",
+        "y1": 0.135234111,
+        "y2": 0.108562813,
+        "y3": 0.076963299,
+        "y4": 0.124303326
+      }
+    ]
+  },
+  "scalars": {
+    "agfi": 0.990667733,
+    "aic": 15.97781116,
+    "bic": 43.342091155,
+    "cfi": 0.999365844,
+    "chi2": 2.507338872,
+    "chi2_baseline": 806.022415861,
+    "chi2_p_value": 0.285455412,
+    "converged": 1,
+    "dof": 2,
+    "dof_baseline": 6,
+    "gfi": 0.996889244,
+    "iterations": 29,
+    "loglik": 0.01109442,
+    "n": 226,
+    "n_params": 8,
+    "nfi": 0.996889244,
+    "objective": 0.01109442,
+    "rmsea": 0.033577071,
+    "tli": 0.998097533
+  },
+  "type": "MAT_SEM",
+  "vectors": {
+    "free": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "parameter": [
+      "_b1",
+      "_b2",
+      "_b3",
+      "_b4",
+      "_c1",
+      "_c2",
+      "_c3",
+      "_c4",
+      "_c5"
+    ]
+  }
+}

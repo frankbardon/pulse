@@ -22,7 +22,7 @@ func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, 
 		return
 	}
 	if len(req.Vectors) > 0 {
-		resolved, err := vectors.Resolve(req.Vectors, schema)
+		resolved, err := vectors.ResolveRequest(req, schema)
 		if err != nil {
 			return
 		}
@@ -63,7 +63,7 @@ func predictReferences(env *descriptor.Envelope, req *types.Request, schema *enc
 	}
 	// Resolve also yields the schema's native vector fields (nil, nil
 	// when there are no vectors at all).
-	resolved, _ := vectors.Resolve(req.Vectors, schema)
+	resolved, _ := vectors.ResolveRequest(req, schema)
 	for _, ce := range vectors.ReferenceIssues(req, schema, resolved, snap.ReferenceTables()) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}
@@ -84,7 +84,7 @@ func predictVectorLengths(env *descriptor.Envelope, req *types.Request, schema *
 	if req == nil || (len(req.Filterers) == 0 && len(req.Attributes) == 0) {
 		return
 	}
-	resolved, _ := vectors.Resolve(req.Vectors, schema)
+	resolved, _ := vectors.ResolveRequest(req, schema)
 	for _, ce := range vectors.StaticIssues(req, schema, resolved) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}
@@ -132,6 +132,7 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 			Shape:            [2]int{p, p},
 			AxisKeys:         axis,
 			Missing:          vectors.MissingListwise,
+			Standardize:      m.Members.Standardize,
 			Encoding:         m.Encoding,
 			AccumulatorBytes: m.AccumulatorBytes(),
 			Streamable:       m.Streamable,

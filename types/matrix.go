@@ -1,6 +1,9 @@
 package types
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"math"
+)
 
 // MatrixType identifies a matrix operator: a whole-set reducer over a
 // battery of numeric columns (a virtual vector, see VectorSpec) whose
@@ -203,8 +206,8 @@ func (t MatrixType) Mergeable() bool {
 	return false
 }
 
-// MatrixEncoding selects how MatrixValues.Values lays out a square
-// symmetric matrix.
+// MatrixEncoding selects how a MatrixValues is laid out: Values for a
+// square symmetric matrix (full / upper), or the wire as row records.
 type MatrixEncoding string
 
 const (
@@ -214,11 +217,23 @@ const (
 	// MatrixEncodingUpper emits the upper triangle, diagonal included:
 	// Values[r] has p − r entries, Values[r][k] being cell (r, r + k).
 	MatrixEncodingUpper MatrixEncoding = "upper"
+	// MatrixEncodingRecords writes every matrix of the result — primary
+	// and each auxiliary, rectangular ones included — as row records:
+	// {kind, encoding, columns, rows, labels?}, rows[r] an object
+	// {"key": RowKeys[r], <column>: cell, …} in RowKeys order, an
+	// undefined cell null, plus the row's RecordFields. In Go, Values
+	// keeps the full layout (Records derives the rows); only the wire
+	// differs.
+	MatrixEncodingRecords MatrixEncoding = "records"
 )
+
+// MatrixRecordKey is the record field holding a row's key under
+// MatrixEncodingRecords; a column of that name is refused.
+const MatrixRecordKey = "key"
 
 // AllMatrixEncodings returns every MatrixEncoding in manifest order.
 func AllMatrixEncodings() []MatrixEncoding {
-	return []MatrixEncoding{MatrixEncodingFull, MatrixEncodingUpper}
+	return []MatrixEncoding{MatrixEncodingFull, MatrixEncodingUpper, MatrixEncodingRecords}
 }
 
 // MatrixKind names the shape of a MatrixValues.
@@ -412,8 +427,9 @@ func (s MatrixSpec) EffectiveName() string {
 // order) — on a MatrixKindRectangular matrix ColumnKeys name its
 // columns instead (MAT_PCA: "PC1" … "PCk"); Labels, when the vector
 // carried display labels, are the row members' labels in the same
-// order. Values follows Encoding. An undefined cell
-// (no mass, zero spread) is NaN in Go and null on the wire.
+// order. Values follows Encoding (MatrixEncodingRecords: the full
+// layout). An undefined cell (no mass, zero spread) is NaN in Go and
+// null on the wire.
 type MatrixValues struct {
 	Kind       MatrixKind     `json:"kind"`
 	Encoding   MatrixEncoding `json:"encoding"`
@@ -421,6 +437,67 @@ type MatrixValues struct {
 	ColumnKeys []string       `json:"column_keys"`
 	Labels     []string       `json:"labels,omitempty"`
 	Values     [][]float64    `json:"values"`
+	// RecordFields are per-row descriptive fields a records encoding
+	// writes beside each row's key and cells, index for index with
+	// RowKeys (MAT_SEM's auxiliary.estimates: lval, op, rval,
+	// parameter, free); nil elsewhere. Never on the wire otherwise.
+	RecordFields []map[string]any `json:"-"`
+}
+
+// matrixRecordsWire is the wire form of a MatrixValues under
+// MatrixEncodingRecords. It has no marshaller, so the planned Return
+// encoder walks it field by field like the structural types.
+type matrixRecordsWire struct {
+	Kind     MatrixKind       `json:"kind"`
+	Encoding MatrixEncoding   `json:"encoding"`
+	Columns  []string         `json:"columns"`
+	Rows     []map[string]any `json:"rows"`
+	Labels   []string         `json:"labels,omitempty"`
+}
+
+// Records returns the matrix as row records, in RowKeys order: each an
+// object holding MatrixRecordKey (the row key), one entry per column
+// (NaN for an undefined cell) and the row's RecordFields. An upper
+// square symmetric layout is read through its mirror, so every encoding
+// yields the same records.
+func (v MatrixValues) Records() []map[string]any {
+	upper := v.Encoding == MatrixEncodingUpper && v.Kind == MatrixKindSquareSymmetric
+	out := make([]map[string]any, len(v.RowKeys))
+	for r, key := range v.RowKeys {
+		rec := make(map[string]any, len(v.ColumnKeys)+1)
+		if r < len(v.RecordFields) {
+			for k, x := range v.RecordFields[r] {
+				rec[k] = x
+			}
+		}
+		rec[MatrixRecordKey] = key
+		for c, col := range v.ColumnKeys {
+			i, j := r, c
+			if upper && j < i {
+				i, j = j, i
+			}
+			if upper {
+				j -= i
+			}
+			cell := math.NaN()
+			if i < len(v.Values) && j >= 0 && j < len(v.Values[i]) {
+				cell = v.Values[i][j]
+			}
+			rec[col] = cell
+		}
+		out[r] = rec
+	}
+	return out
+}
+
+func (v MatrixValues) recordsWire() matrixRecordsWire {
+	return matrixRecordsWire{
+		Kind:     v.Kind,
+		Encoding: v.Encoding,
+		Columns:  append([]string{}, v.ColumnKeys...),
+		Rows:     v.Records(),
+		Labels:   v.Labels,
+	}
 }
 
 // MatrixResult is the result of one MatrixSpec. Primary is the
@@ -475,8 +552,90 @@ type MatrixPair struct {
 // MarshalJSON writes the matrix values with every non-finite float as
 // null; see MarshalFinite.
 func (v MatrixValues) MarshalJSON() ([]byte, error) {
+	if v.Encoding == MatrixEncodingRecords {
+		w := v.recordsWire()
+		return MarshalFinite(&w)
+	}
 	type alias MatrixValues
 	return MarshalFinite((*alias)(&v))
+}
+
+// UnmarshalJSON reads every encoding; a records form is read back into
+// the full layout (RowKeys from each row's key, ColumnKeys from
+// columns, a null cell NaN) with each row's other fields as its
+// RecordFields.
+func (v *MatrixValues) UnmarshalJSON(b []byte) error {
+	var probe struct {
+		Encoding MatrixEncoding `json:"encoding"`
+	}
+	if err := json.Unmarshal(b, &probe); err != nil {
+		return err
+	}
+	type alias MatrixValues
+	if probe.Encoding != MatrixEncodingRecords {
+		return json.Unmarshal(b, (*alias)(v))
+	}
+	var w struct {
+		Kind     MatrixKind                   `json:"kind"`
+		Encoding MatrixEncoding               `json:"encoding"`
+		Columns  []string                     `json:"columns"`
+		Rows     []map[string]json.RawMessage `json:"rows"`
+		Labels   []string                     `json:"labels"`
+	}
+	if err := json.Unmarshal(b, &w); err != nil {
+		return err
+	}
+	out := MatrixValues{Kind: w.Kind, Encoding: w.Encoding, ColumnKeys: w.Columns, Labels: w.Labels,
+		RowKeys: make([]string, len(w.Rows)), Values: make([][]float64, len(w.Rows))}
+	if out.ColumnKeys == nil {
+		out.ColumnKeys = []string{}
+	}
+	cols := make(map[string]bool, len(w.Columns))
+	for _, c := range w.Columns {
+		cols[c] = true
+	}
+	for r, row := range w.Rows {
+		if raw, ok := row[MatrixRecordKey]; ok {
+			if err := json.Unmarshal(raw, &out.RowKeys[r]); err != nil {
+				return err
+			}
+		}
+		out.Values[r] = make([]float64, len(w.Columns))
+		for c, col := range w.Columns {
+			var x *float64
+			if raw, ok := row[col]; ok {
+				if err := json.Unmarshal(raw, &x); err != nil {
+					return err
+				}
+			}
+			out.Values[r][c] = math.NaN()
+			if x != nil {
+				out.Values[r][c] = *x
+			}
+		}
+		var extra map[string]any
+		for k, raw := range row {
+			if k == MatrixRecordKey || cols[k] {
+				continue
+			}
+			var x any
+			if err := json.Unmarshal(raw, &x); err != nil {
+				return err
+			}
+			if extra == nil {
+				extra = make(map[string]any)
+			}
+			extra[k] = x
+		}
+		if extra != nil {
+			if out.RecordFields == nil {
+				out.RecordFields = make([]map[string]any, len(w.Rows))
+			}
+			out.RecordFields[r] = extra
+		}
+	}
+	*v = out
+	return nil
 }
 
 // MarshalJSON writes the matrix result with every non-finite float as

@@ -237,3 +237,36 @@ func TestPredict_ReturnSizes_MatrixMultiplicity(t *testing.T) {
 		t.Errorf("inherited block on a spec without inference: %d, want %d", got, off)
 	}
 }
+
+// TestPredict_ReturnSizes_MatrixRecords: encoding records sizes every
+// part — primary and each auxiliary, the rectangular estimates with
+// their five record fields — as columns plus one record per row, and
+// the echo carries the encoding.
+func TestPredict_ReturnSizes_MatrixRecords(t *testing.T) {
+	data := auxSizesCohort(t, 50)
+	x3 := []string{"x1", "x2", "x3"}
+	run := func(enc types.MatrixEncoding) (descriptor.ResponseSectionSize, descriptor.MatrixPredict) {
+		t.Helper()
+		spec := auxSpec(types.MAT_SEM, x3, "")
+		spec.Encoding = enc
+		rp := predictSizes(t, data, &types.Request{Matrices: []types.MatrixSpec{spec}})
+		s, ok := sizeOf(rp, "matrices")
+		if !ok || len(rp.Matrices) != 1 {
+			t.Fatalf("%s: matrices not sized", enc)
+		}
+		return s, rp.Matrices[0]
+	}
+	full, _ := run("")
+	rec, mp := run(types.MatrixEncodingRecords)
+	if mp.Encoding != types.MatrixEncodingRecords {
+		t.Errorf("echo encoding %q", mp.Encoding)
+	}
+	delta := func(rows, cols, fields int64) int64 {
+		return matrixNode("m", rows, cols, types.MatrixEncodingRecords, fields).full() - matrixValuesNode("m", rows, cols).full()
+	}
+	// primary 3 x 3, estimates 7 x 5 (+ lval, op, rval, parameter,
+	// free), residual_covariance 3 x 3.
+	if want := full.FullBytes + 2*delta(3, 3, 0) + delta(7, 5, semRecordFields); rec.FullBytes != want {
+		t.Errorf("records full = %d, want %d (full %d)", rec.FullBytes, want, full.FullBytes)
+	}
+}

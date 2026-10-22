@@ -131,6 +131,7 @@ type state struct {
 	free       []*parameter
 	mats       [nMatrices]*mat.Dense
 	s          *mat.SymDense
+	raw        *mat.SymDense // the data's covariance the Lambda starts read
 	sInvLogDet float64
 	nObs, nIn  int
 	starts     map[*parameter]float64
@@ -138,7 +139,7 @@ type state struct {
 }
 
 func newState(m *Model, s *mat.SymDense) *state {
-	st := &state{m: m, s: s, nObs: len(m.Observed), nIn: len(m.Inner), starts: map[*parameter]float64{}}
+	st := &state{m: m, s: s, raw: s, nObs: len(m.Observed), nIn: len(m.Inner), starts: map[*parameter]float64{}}
 	st.mats[mBeta] = mat.NewDense(st.nIn, st.nIn, nil)
 	st.mats[mLambda] = mat.NewDense(st.nObs, st.nIn, nil)
 	st.mats[mPsi] = mat.NewDense(st.nIn, st.nIn, nil)
@@ -205,8 +206,10 @@ func (st *state) startRule(l location) float64 {
 			}
 			first = next
 		}
+		// semopy's linregress slope over its mx_data: the data's
+		// covariance, not a cov_nearest substitute (FitCovNearest).
 		i, j := m.obsIndex[first], m.obsIndex[lval]
-		return s.At(i, j) / s.At(i, i)
+		return st.raw.At(i, j) / st.raw.At(i, i)
 	case mPsi:
 		lval, rval := m.Inner[l.i], m.Inner[l.j]
 		if m.latent.has(lval) || m.latent.has(rval) {
@@ -267,7 +270,11 @@ func symmetrize(d *mat.Dense) *mat.SymDense {
 	return out
 }
 
-// invLogDet inverts a symmetric PD matrix via Cholesky.
+// invLogDet inverts a symmetric PD matrix via Cholesky. Like semopy's
+// chol_inv / chol_inv2 (dpotrf, then dpotri), only a failed
+// factorization fails: gonum's InverseTo still fills the inverse when
+// it reports an ill-conditioned matrix (mat.Condition), and a
+// near-singular S that factors is fitted, as semopy fits it.
 func invLogDet(a *mat.SymDense) (*mat.SymDense, float64, bool) {
 	var ch mat.Cholesky
 	if ok := ch.Factorize(a); !ok {
@@ -275,7 +282,9 @@ func invLogDet(a *mat.SymDense) (*mat.SymDense, float64, bool) {
 	}
 	var inv mat.SymDense
 	if err := ch.InverseTo(&inv); err != nil {
-		return nil, 0, false
+		if _, ill := err.(mat.Condition); !ill {
+			return nil, 0, false
+		}
 	}
 	return &inv, ch.LogDet(), true
 }
@@ -542,6 +551,19 @@ func solveLM(h *mat.SymDense, g []float64, idx []int, mu float64) []float64 {
 // FitCov fits the model to a sample covariance matrix S (over
 // m.Observed, divisor N — semopy's biased covariance) from n rows.
 func FitCov(m *Model, s *mat.SymDense, n float64, opt Options) (*Fit, error) {
+	return fitCov(m, s, s, n, opt)
+}
+
+// FitCovNearest fits the model to adj, the CovNearest substitute for
+// the data's covariance raw, as semopy fits it after load_cov's
+// fallback: the objective, the Psi / Theta starts and every statistic
+// read adj (semopy's mx_cov), while the Lambda starts are linregress
+// slopes over the rows (mx_data), so they read raw.
+func FitCovNearest(m *Model, adj, raw *mat.SymDense, n float64, opt Options) (*Fit, error) {
+	return fitCov(m, adj, raw, n, opt)
+}
+
+func fitCov(m *Model, s, raw *mat.SymDense, n float64, opt Options) (*Fit, error) {
 	if err := opt.Validate(); err != nil {
 		return nil, err
 	}
@@ -550,6 +572,7 @@ func FitCov(m *Model, s *mat.SymDense, n float64, opt Options) (*Fit, error) {
 		return nil, fmt.Errorf("sample covariance is %d×%d, the model has %d observed variables", r, r, len(m.Observed))
 	}
 	st := newState(m, s)
+	st.raw = raw
 	st.info = opt.Information
 	_, ld, ok := invLogDet(s)
 	if !ok {
