@@ -1,10 +1,10 @@
 ---
 name: test-variant-options
-description: The long per-variant option text the op-test-* Params tables point at — the CUPED `covariate` adjustment of the t-family and the two-proportion test, the `reference` level, and the chi-square `expected` goodness-of-fit map. Read once, shared by every test that offers the option.
+description: The long per-variant option text the op-test-* Params tables point at — the CUPED `covariate` adjustment of the t-family and the two-proportion test (and its formula fallback), the one-proportion `p0` test, the `reference` level, and the chi-square `expected` goodness-of-fit map. Read once, shared by every test that offers the option.
 type: guide
 kind: design
 applies_to: process, compose, predict
-covers: [TEST, covariate, CUPED, reference, expected, goodness-of-fit, two_proportion_adjusted, variance_reduction]
+covers: [TEST, covariate, CUPED, p0, one_proportion, reference, expected, goodness-of-fit, two_proportion_adjusted, variance_reduction]
 ---
 
 # Test variant options
@@ -19,9 +19,17 @@ A numeric pre-period column `x`, one pass: θ = slope of `Field` on `x` pooled o
 - Composes with `reference`. Weighted (both kinds) it is the weighted two-step: θ and x̄ on the weights, each group's N*. Grouped, θ is per group.
 - Needs `SplitBy`; without it, non-numeric, or `= Field` → `PULSE_TEST_COVARIATE_INVALID` (predict too). The same code on any test that has no covariate form.
 
+<!-- feature: ATTR_FORMULA -->
+**Without `covariate`** (a test that refuses it): the two-step in one call — an `ATTR_FORMULA` column `y - ((total(1)*total(y*x) - total(y)*total(x)) / (total(1)*total(x*x) - total(x)*total(x))) * (x - total(x)/total(1))` under the plain test. Caveats: each `total()` skips its own nulls, so filter `y` and `x` non-null first or the sums misalign; a probability weight is refused (`total()` is frequency-only); no `theta` / `variance_reduction`; its pre-pass reads the rows twice (`covariate` is one pass).
+<!-- /feature -->
+
 ## `covariate` — the two-proportion test
 
 A numeric pre-period column adjusting the success indicator I to I − θ(x − x̄), θ pooled over both groups (weighted: on the weights; grouped: per group). `Variant` `two_proportion_adjusted`: `proportion`, `diff`, Wald CI and `cohens_h` adjusted; z = `diff` / its Wald SE (θ = 0 gives the unadjusted interval). `Details` add `diff_unadjusted`, `theta`, `covariate_mean`, `variance_reduction`, `n_covariate_dropped`. With `p0` (one-proportion), non-numeric or `= Field` → `PULSE_TEST_COVARIATE_INVALID` (predict too).
+
+## `p0` — the one-proportion test
+
+`p0` in `(0, 1)` with `SplitBy` absent tests one proportion against it (`Variant` `one_proportion`): z = (p̂ − p0)/√(p0(1−p0)/N*). `Details` are scalar `n`, `successes`, `proportion`, plus `p0`, `diff` = p̂ − p0 and a Wald `ci_low` / `ci_high` on `diff`; `cohens_h` is against p0. Out of range or beside `SplitBy` → `PULSE_TEST_P0_INVALID` (predict too).
 
 ## `reference` — the two-group tests
 

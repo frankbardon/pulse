@@ -13145,12 +13145,28 @@
         "description": "Each row's share of its partition's total (x / Σx), or with cumulative the running share down the ordered rows — a capture curve."
       },
       {
+        "name": "overlay-formula-namespace",
+        "description": "What a formula overlay's expression can read on each host — the crosstab cell and margin variables, the grouped-series row variables and baseline position, the Compose slot paths — plus the functions it may call and every refusal code."
+      },
+      {
+        "name": "overlay-pairwise",
+        "description": "The contract shared by every intra-crosstab pairwise overlay kind — spec, the pair × opposite-axis p grid, the letters part, missing and degenerate pairs, weighted legs, proportion-cell versus moment-cell hosts and fusion."
+      },
+      {
+        "name": "overlay-reference-tests",
+        "description": "The contract shared by the inferential overlays that test a figure against a reference — the Compose parity tests (per cell, per group) and their explicit-moments rule, and the prior-period tests on an ordered series — host refusals, missing and degenerate entries, weighted legs."
+      },
+      {
         "name": "overlay-system",
         "description": "Overlay framework — OverlaySpec composition, reference families, three payload shapes, host-arm wiring (SERIES / MATRIX_RESULT / FACET / CHAIN / FORMULA), named payload parts of multi-output kinds. Per-kind detail lives in op-overlay-* atomics."
       },
       {
         "name": "pairwise-n-sources",
         "description": "The sample-size vocabulary shared by every OVERLAY_PAIRWISE_* kind — the nine n_source modes, the three distinct-key modes and their cell-aggregator admission, the slab partition gate, the null rules, and p_source."
+      },
+      {
+        "name": "panel-n-sources",
+        "description": "The sample-size modes of the Compose-host proportion-z panel — the four n_source modes, the load-bearing n_within_depth pointer, the row partition gate, the distinct-key admission and its wholesale refusals, and why the pairwise spellings are not aliases."
       },
       {
         "name": "predict-advisories",
@@ -13338,7 +13354,7 @@
       },
       {
         "name": "test-variant-options",
-        "description": "The long per-variant option text the op-test-* Params tables point at — the CUPED `covariate` adjustment of the t-family and the two-proportion test, the `reference` level, and the chi-square `expected` goodness-of-fit map. Read once, shared by every test that offers the option."
+        "description": "The long per-variant option text the op-test-* Params tables point at — the CUPED `covariate` adjustment of the t-family and the two-proportion test (and its formula fallback), the one-proportion `p0` test, the `reference` level, and the chi-square `expected` goodness-of-fit map. Read once, shared by every test that offers the option."
       },
       {
         "name": "time-zones",
@@ -19465,4 +19481,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b11c1b347caa9bd3acad6142cce6a6bf7df3b4bc7610dd77578b189e4b6bd50b
+// golden-hash: 31d4b5fd306486737eb66de94042b2998a3bb0a0efc95dff2dbf758f9e79b6b9

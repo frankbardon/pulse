@@ -846,6 +846,10 @@
         "description": "Partition numeric records into half-open ranges [a, b); Interval controls bucket width."
       },
       {
+        "name": "overlay-reference-tests",
+        "description": "The contract shared by the inferential overlays that test a figure against a reference — the Compose parity tests (per cell, per group) and their explicit-moments rule, and the prior-period tests on an ordered series — host refusals, missing and degenerate entries, weighted legs."
+      },
+      {
         "name": "overlay-system",
         "description": "Overlay framework — OverlaySpec composition, reference families, three payload shapes, host-arm wiring (SERIES / MATRIX_RESULT / FACET / CHAIN / FORMULA), named payload parts of multi-output kinds. Per-kind detail lives in op-overlay-* atomics."
       },
@@ -899,7 +903,7 @@
       },
       {
         "name": "test-variant-options",
-        "description": "The long per-variant option text the op-test-* Params tables point at — the CUPED `covariate` adjustment of the t-family and the two-proportion test, the `reference` level, and the chi-square `expected` goodness-of-fit map. Read once, shared by every test that offers the option."
+        "description": "The long per-variant option text the op-test-* Params tables point at — the CUPED `covariate` adjustment of the t-family and the two-proportion test (and its formula fallback), the one-proportion `p0` test, the `reference` level, and the chi-square `expected` goodness-of-fit map. Read once, shared by every test that offers the option."
       },
       {
         "name": "time-zones",
@@ -1362,4 +1366,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3e487cdf79664b8928c0206a3ba4a5364221f94a3e9c122c31c8129b1a3f3039
+// golden-hash: bdb532ce0b467cbe70be08ec03fdaefb9fe02d5a1449a17575bd77377042b0b6

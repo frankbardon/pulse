@@ -9,12 +9,21 @@ covers: [TEST, tier-1, tier-2, tests, post_tests, ANOVA, Tukey, assumption-gates
 
 # Statistical testing
 
-Two test slots; this file teaches choosing and chaining; per-test: `op-test-<name>`. No `Response.Components`; results ride `Response.Tests` / `PostTests`.
+Two test slots; this file teaches choosing and chaining. No `Response.Components`; results ride `Response.Tests` / `PostTests`.
+
+## Which skill answers what
+
+| Question | Skill |
+|---|---|
+| CUPED `covariate`, `reference`, one-proportion `p0`, chi-square `expected` | [`test-variant-options`](test-variant-options.md) |
+| Reusing the Welford state of the same `(field, split_by)` | [`aggregation-design`](aggregation-design.md) |
+| Wald-z vs Student-t in regressions | [`regression-modeling`](regression-modeling.md) |
+| One test's params and output | atomic `op-test-<name>` |
 
 ## Finding the right test
 
 1. `pulse_skills_get intents` — question kind: `compare_groups` (do averages / rates / mixes differ), `relationship` (do two fields move together), `distribution_shape` (is it normal, do two shapes differ), `change_over_time` (is an ordered series trending), `benchmark` (one group against a fixed target).
-2. In `pulse_manifest`, keep the `tests[]` entries whose [`intents`](intents.md) carry that ID. Each entry also states its `tier` and `streamable`.
+2. In `pulse_manifest`, keep the `tests[]` entries whose [`intents`](intents.md) carry that ID (each states its `tier` and `streamable`).
 3. Read the `op-test-<name>` skill; narrow by data shape (below).
 
 ## Two tiers, one shape
@@ -84,15 +93,11 @@ A tier-1 test streams when it can run on online state (mean / variance / n, or c
 ## Gotchas
 
 - Tier-2 `field` names match the aggregator's projected column (`AGG_<TYPE>_<field>`).
-- Tier-2 Welch's ANOVA needs `params.n_col` + `params.variance_col`; Tukey HSD needs `params.ms_within` + `params.df_within` from a tier-1 ANOVA.
+- Tier-2 Welch's ANOVA needs `params.n_col` + `params.variance_col`.
 - A test failing on its data (`PULSE_TEST_VARIANCE_ZERO`: a constant field) fails alone: `{label, type, error}` + `PULSE_SLOT_FAILED` ([`cohort-null-states`](cohort-null-states.md)).
 
 ## See
 
-- Recipes: `pulse_examples_search tags=["experiment-analysis"]`, `tags=["k-sample"]`, `tags=["correlation-analysis"]`, `tags=["nonparametric"]` plus atomic `op-test-<name>`.
-- [`test-variant-options`](test-variant-options.md) — CUPED `covariate`, `reference`, chi-square `expected`.
-- [`aggregation-design`](aggregation-design.md) — a mean-based tier-1 test reads the Welford aggregator's `(mean, variance, n)` on the same `(field, split_by)` free; `MetaAggregator` contract.
-- [`regression-modeling`](regression-modeling.md) — Wald-z vs Student-t in regressions.
-- [`overlay-system`](overlay-system.md) — crosstab cell stat overlays.
-- [`request-envelope`](request-envelope.md) — slot keys.
+- Recipes: `pulse_examples_search tags=["experiment-analysis"]`, `tags=["k-sample"]`, `tags=["correlation-analysis"]`, `tags=["nonparametric"]`.
+- [`test-variant-options`](test-variant-options.md), [`aggregation-design`](aggregation-design.md) (`MetaAggregator` contract), [`regression-modeling`](regression-modeling.md), [`overlay-system`](overlay-system.md) (crosstab cell stat overlays), [`request-envelope`](request-envelope.md) (slot keys).
 - `pulse_errors_lookup` — `PULSE_TEST_*` recovery.

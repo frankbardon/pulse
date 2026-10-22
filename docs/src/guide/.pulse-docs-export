@@ -279,8 +279,12 @@ skills/op-win-row-number.md
 skills/op-win-running-avg.md
 skills/op-win-running-sum.md
 skills/op-win-share.md
+skills/overlay-formula-namespace.md
+skills/overlay-pairwise.md
+skills/overlay-reference-tests.md
 skills/overlay-system.md
 skills/pairwise-n-sources.md
+skills/panel-n-sources.md
 skills/predict-advisories.md
 skills/process-chain.md
 skills/regression-inference.md

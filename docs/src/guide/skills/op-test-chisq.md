@@ -29,8 +29,8 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `alpha` | float | `0.05` | In `(0, 1)`. Significance level in (0, 1); RejectNull is true when PValue < alpha. |
-| `expected` | object | — | `{level: proportion}`: goodness of fit (`Variant` `goodness_of_fit`), `Cols` omitted; each > 0, sum 1 ± 1e-9; bad map → `PULSE_TEST_EXPECTED_INVALID`. The SRM check: `{"control":0.5,"treatment":0.5}`. Detail: [`test-variant-options`](test-variant-options.md). |
+| `alpha` | float | `0.05` | Significance level in `(0, 1)`; `RejectNull` when p < alpha. |
+| `expected` | object | — | `{level: proportion}`: goodness of fit (`Variant` `goodness_of_fit`), `Cols` omitted; also the sample-ratio-mismatch check. Rules: [`test-variant-options`](test-variant-options.md). |
 
 - `weight` — table of Σw per cell. Frequency: Pearson on the Σw table. Probability: Pearson on the table scaled to n_eff — first-order Kish approximation; not Rao-Scott (`survey::svychisq`). `expected_min`, the `< 5` guard, V, φ read the scaled table; `Details` add scalar `sum_weights` (+ `n_eff`); `n` stays raw rows.
 
@@ -59,7 +59,6 @@ Slot params: `Rows` (required, categorical or `packed_bool`), `Cols` (required u
 ## Gotchas
 
 - Any expected cell `< 5` emits `PULSE_TEST_EXPECTED_COUNT_TOO_LOW`.
-- Streamable — builds the contingency table during the row scan.
 - Sparse high-cardinality axes blow memory; filter them first.
 - With `groups`: one result per group, each with `group_key`; `rows` / `cols` a grouper → `PULSE_TEST_CONTINGENCY_DEGENERATE`; a single-level group → `null` figures + a warning ([`statistical-testing`](statistical-testing.md)).
 - Pairs with `Response.Crosstab`; `OVERLAY_CHISQ_VS_POP` is the FACET-host equivalent.

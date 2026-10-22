@@ -28,9 +28,9 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `alpha` | float | `0.05` | In `(0, 1)`. Significance level in (0, 1); RejectNull is true when PValue < alpha. |
-| `reference` | string | — | The `SplitBy` level read second, so `diff` and the effect size read other − reference (default: alphabetical). Not a level → `PULSE_TEST_REFERENCE_INVALID`; unobserved → `PULSE_TEST_REFERENCE_MISSING`. Detail: [`test-variant-options`](test-variant-options.md). |
-| `covariate` | string | — | A numeric pre-period column (CUPED): the test runs on the adjusted `Field − θ(x − x̄)`; `Details` add `diff_unadjusted`, `theta`, `variance_reduction`. Needs `SplitBy`; else `PULSE_TEST_COVARIATE_INVALID`. Detail: [`test-variant-options`](test-variant-options.md). |
+| `alpha` | float | `0.05` | Significance level in `(0, 1)`; `RejectNull` when p < alpha. |
+| `reference` | string | — | The `SplitBy` level read second: `diff` reads other − reference (default: alphabetical). Codes: [`test-variant-options`](test-variant-options.md). |
+| `covariate` | string | — | A numeric pre-period column (CUPED): the test runs on `Field − θ(x − x̄)`; needs `SplitBy`. Detail: [`test-variant-options`](test-variant-options.md). |
 
 Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exactly 2 groups).
 - `weight` — per-group moments on w*, Welch–Satterthwaite df on N*_g (Σw frequency, Kish n_eff probability; fractional). `Details` add `sum_weights` (+ `n_eff`, probability) shaped like `n` (raw rows); n_eff < 2 warns `PULSE_WEIGHT_LOW_NEFF`.
@@ -59,13 +59,11 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 
 ## Gotchas
 
-- Fixed-horizon p only: no sequential / always-valid p-values, no Bayesian readout ([`statistical-testing`](statistical-testing.md)).
 - Identical math to `TEST_T` with `SplitBy`; this alias documents intent.
 - Welch denominator never assumes equal variance — the safe default when spreads may differ.
 - The Welford triple is byte-equal to the Welford aggregate's on the same inputs — reuse via `OVERLAY_T_CELL` on crosstabs.
 - Constant Field within a group → `PULSE_TEST_VARIANCE_ZERO`.
 - No `Field` or no `SplitBy` → `PROCESSING_CONFIG` (predict too).
-- Fallback without `covariate` (a test that refuses it): the two-step in one call — an `ATTR_FORMULA` column `y - ((total(1)*total(y*x) - total(y)*total(x)) / (total(1)*total(x*x) - total(x)*total(x))) * (x - total(x)/total(1))` under the plain test. Caveats: each `total()` skips its own nulls, so filter `y` and `x` non-null first or the sums misalign; a probability weight is refused (`total()` is frequency-only); no `theta` / `variance_reduction`; its pre-pass reads the rows twice (`covariate` is one pass).
 
 ## See
 
