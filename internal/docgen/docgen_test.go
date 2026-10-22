@@ -587,3 +587,32 @@ func TestRender_KnownAsListed(t *testing.T) {
 		t.Errorf("%s declares no KnownAs but renders the line:\n%s", bare, got)
 	}
 }
+
+// TestRender_GlossaryLinksConceptPrimers: the glossary terms that match
+// a hand-written concept primer link to its published page, and every
+// linked page exists under docs/src/concepts.
+func TestRender_GlossaryLinksConceptPrimers(t *testing.T) {
+	g := tree(docgen.Render(defaultSnapshot(), docgen.Options{}))["glossary.md"]
+	linkRe := regexp.MustCompile(`\*\*Concept primer:\*\* \[[^\]]+\]\(https://frankbardon\.github\.io/pulse/concepts/([a-z-]+)\.html\)`)
+	got := map[string]string{}
+	for _, sec := range strings.Split(g, "\n## ")[1:] {
+		if m := linkRe.FindStringSubmatch(sec); m != nil {
+			got[strings.SplitN(sec, "\n", 2)[0]] = m[1]
+		}
+	}
+	want := map[string]string{
+		"correlation": "correlation-matrix", "principal-component": "pca", "eigenvalue": "pca",
+		"loading": "pca", "distance": "distance-vs-similarity", "similarity": "distance-vs-similarity",
+	}
+	for term, page := range want {
+		if got[term] != page {
+			t.Errorf("term %s links %q, want %q", term, got[term], page)
+		}
+		if _, err := os.Stat("../../docs/src/concepts/" + page + ".md"); err != nil {
+			t.Errorf("primer page %s: %v", page, err)
+		}
+	}
+	if strings.Count(g, "**Concept primer:**") != len(want) {
+		t.Errorf("unexpected primer links: %d", strings.Count(g, "**Concept primer:**"))
+	}
+}

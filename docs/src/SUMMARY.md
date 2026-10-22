@@ -393,6 +393,13 @@
     - [window-design](guide/skills/window-design.md)
 <!-- docgen:summary end -->
 
+# Concepts
+
+- [Correlation matrix](concepts/correlation-matrix.md)
+- [Principal component analysis](concepts/pca.md)
+- [Distance versus similarity](concepts/distance-vs-similarity.md)
+- [Perceptual maps](concepts/perceptual-maps.md)
+
 # Command Line Reference
 
 - [api process](cli/api-process.md)
