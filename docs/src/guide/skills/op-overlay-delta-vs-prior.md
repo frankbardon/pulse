@@ -43,9 +43,7 @@ SERIES — one `SeriesEntry` per host group key in host order, carrying `delta =
 
 ## Choosing between this and the index twin
 
-Absolute-difference twin of the prior-period index, as the baseline delta is to the baseline index. Same host, same ref arm, same carrier — subtraction instead of division.
-
-Pick this one for "how much did it change"; pick the index for "what proportion of the prior is this". An index of `101.6` and a delta of `+1.5` answer different questions and are not interchangeable in a report.
+Absolute-difference twin of the prior-period index (same host, ref arm and carrier; subtraction instead of division). This one answers "how much did it change", the index "what proportion of the prior is this": an index of `101.6` and a delta of `+1.5` are not interchangeable in a report.
 
 ## Contract
 
@@ -54,7 +52,7 @@ Pick this one for "how much did it change"; pick the index for "what proportion 
 
 ## Gotchas
 
-- Single-state lag carrier (one `float64`) — streamable inside the streaming Process fold.
+- Single-state lag carrier (one `float64`), so it streams inside the Process fold.
 - First ordinal → NaN, no warning. A delta of `0` would CLAIM nothing changed about a comparison that was never made.
 - Absent host point → NaN + carrier does NOT advance (next present point still subtracts the last present value).
 - **NEVER emits `PULSE_OVERLAY_REF_ZERO`** — unlike the index twin. A prior of exactly zero is a valid subtrahend (`value − 0 = value`); there is no degenerate-denominator branch to hit. Its absence is deliberate, not an omission.
