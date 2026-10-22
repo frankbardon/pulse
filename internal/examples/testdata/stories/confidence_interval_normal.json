@@ -1,0 +1,60 @@
+{
+  "data": [
+    {
+      "ci_lower_95": 4.356e+04,
+      "ci_upper_95": 5.252e+04,
+      "mean_income": 4.804e+04
+    }
+  ],
+  "metadata": {
+    "total_rows": 200,
+    "filtered_rows": 200,
+    "cohort_file": "customers.pulse"
+  },
+  "components": {
+    "aggregations": [
+      {
+        "label": "mean_income",
+        "n": 200,
+        "n_null": 0,
+        "operator": {
+          "sum": 9.608e+06
+        }
+      },
+      {
+        "label": "ci_lower_95",
+        "n": 200,
+        "n_null": 0,
+        "operator": {
+          "alpha": 0.05,
+          "lower": 4.356e+04,
+          "mean": 4.804e+04,
+          "stderr": 2286,
+          "t_critical": 1.96
+        }
+      },
+      {
+        "label": "ci_upper_95",
+        "n": 200,
+        "n_null": 0,
+        "operator": {
+          "alpha": 0.05,
+          "mean": 4.804e+04,
+          "stderr": 2286,
+          "t_critical": 1.96,
+          "upper": 5.252e+04
+        }
+      }
+    ],
+    "run": {
+      "total_records": 200,
+      "filtered_records": 200,
+      "null_records": 0
+    }
+  },
+  "returned": {
+    "preset": "full",
+    "digest": "rp1:2a47356146fe7626329ca77359f19495ac57bb6a599dfdd7658729be64597be6",
+    "precision": 4
+  }
+}

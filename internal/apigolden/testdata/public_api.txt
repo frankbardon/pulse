@@ -255,8 +255,10 @@ pulse: type Example field Body encoding/json.RawMessage "json:\"body\""
 pulse: type Example field Category string "json:\"category\""
 pulse: type Example field Description string "json:\"description\""
 pulse: type Example field Intents []string "json:\"intents,omitempty\""
+pulse: type Example field Interpretation string "json:\"interpretation,omitempty\""
 pulse: type Example field Name string "json:\"name\""
 pulse: type Example field Operators []string "json:\"operators\""
+pulse: type Example field Question string "json:\"question,omitempty\""
 pulse: type Example field Tags []string "json:\"tags\""
 pulse: func ExampleFeatureProfile(name string) (*pulse.FeatureProfile, error)
 pulse: func ExampleFeatureProfiles() []string
@@ -265,8 +267,10 @@ pulse: type ExampleSummary underlying struct
 pulse: type ExampleSummary field Category string "json:\"category\""
 pulse: type ExampleSummary field Description string "json:\"description\""
 pulse: type ExampleSummary field Intents []string "json:\"intents,omitempty\""
+pulse: type ExampleSummary field Interpretation string "json:\"interpretation,omitempty\""
 pulse: type ExampleSummary field Name string "json:\"name\""
 pulse: type ExampleSummary field Operators []string "json:\"operators\""
+pulse: type ExampleSummary field Question string "json:\"question,omitempty\""
 pulse: type ExampleSummary field Tags []string "json:\"tags\""
 pulse: type ExamplesQuery = pulse/internal/examples.Query
 pulse: type ExamplesQuery underlying struct
@@ -5793,4 +5797,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 08cc226f40cffad7b5f7abb981452a8514c1b9e27ff171864b1e59c70735bb77
+// golden-hash: f68da81a3fafb5e82b2a5c673579bbb1347ca0902c4b6ca473536a8d9c32e33a

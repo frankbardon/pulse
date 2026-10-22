@@ -39,6 +39,12 @@ Fetching via `pulse_examples_get` returns the request body with the `_meta`
 block already stripped, so you can pass it straight to
 `pulse_process` / `pulse_predict`.
 
+A **story** example also declares `_meta.question` (the plain-language
+question it answers) and `_meta.interpretation` (a qualitative reading of
+its result); both ride search and get results. Its request sets
+`return.precision`, and its response is pinned by a committed golden
+(`internal/examples/README.md`, "Story examples").
+
 ## Searching the library
 
 Three filter dimensions, all optional and combined with AND:

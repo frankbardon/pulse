@@ -152,12 +152,14 @@ func SearchQuery(lib []*Example, q Query, syn Options) []ExampleSummary {
 	for _, h := range hits {
 		ex := h.doc.ex
 		out = append(out, ExampleSummary{
-			Name:        ex.Name,
-			Category:    ex.Category,
-			Tags:        append([]string(nil), ex.Tags...),
-			Operators:   append([]string(nil), ex.Operators...),
-			Description: ex.Description,
-			Intents:     slices.Clone(h.doc.intents),
+			Name:           ex.Name,
+			Category:       ex.Category,
+			Tags:           append([]string(nil), ex.Tags...),
+			Operators:      append([]string(nil), ex.Operators...),
+			Description:    ex.Description,
+			Intents:        slices.Clone(h.doc.intents),
+			Question:       ex.Question,
+			Interpretation: ex.Interpretation,
 		})
 	}
 	return out

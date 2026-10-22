@@ -100,6 +100,12 @@ type ExampleSummary struct {
 	// Intents is the example's _meta.intents (intent-taxonomy IDs);
 	// absent on the wire when the example declares none.
 	Intents []string `json:"intents,omitempty"`
+	// Question is the example's _meta.question: the plain-language
+	// question a story example answers. Absent unless declared.
+	Question string `json:"question,omitempty"`
+	// Interpretation is the example's _meta.interpretation: a
+	// qualitative reading of the story's result. Absent unless declared.
+	Interpretation string `json:"interpretation,omitempty"`
 }
 
 // Example is the full record returned by Get. Body carries the request
@@ -113,8 +119,19 @@ type Example struct {
 	Description string   `json:"description"`
 	// Intents is the example's _meta.intents (intent-taxonomy IDs);
 	// absent on the wire when the example declares none.
-	Intents []string        `json:"intents,omitempty"`
-	Body    json.RawMessage `json:"body"`
+	Intents []string `json:"intents,omitempty"`
+	// Question and Interpretation are the example's _meta.question and
+	// _meta.interpretation; both present makes it a story (Stories).
+	Question       string          `json:"question,omitempty"`
+	Interpretation string          `json:"interpretation,omitempty"`
+	Body           json.RawMessage `json:"body"`
+}
+
+// isStory reports whether the example is a story: it declares both
+// _meta.question and _meta.interpretation. A story's result is pinned
+// by a harness-produced golden (StoryGolden).
+func isStory(e *Example) bool {
+	return e.Question != "" && e.Interpretation != ""
 }
 
 // Meta mirrors the _meta block every example JSON carries — built-in
@@ -133,6 +150,13 @@ type Meta struct {
 	// feature name (validated by internal/descriptor's
 	// TestExamples_CapabilitiesFromFeatures).
 	Capabilities []string `json:"capabilities,omitempty"`
+	// Question is optional: the plain-language question the example
+	// answers. Declared together with Interpretation (a story example);
+	// one without the other is a StoryProblems refusal.
+	Question string `json:"question,omitempty"`
+	// Interpretation is optional: a qualitative reading of the result —
+	// no digits, the figures live in the story's golden.
+	Interpretation string `json:"interpretation,omitempty"`
 }
 
 // indexed is the package-private in-memory index built on first access.
@@ -247,13 +271,15 @@ func Parse(data []byte, strict bool) (*Example, Meta, error) {
 		return nil, Meta{}, fmt.Errorf("re-marshal body: %w", err)
 	}
 	return &Example{
-		Name:        m.Name,
-		Category:    m.Category,
-		Tags:        append([]string(nil), m.Tags...),
-		Operators:   append([]string(nil), m.Operators...),
-		Description: m.Description,
-		Intents:     slices.Clone(m.Intents),
-		Body:        body,
+		Name:           m.Name,
+		Category:       m.Category,
+		Tags:           append([]string(nil), m.Tags...),
+		Operators:      append([]string(nil), m.Operators...),
+		Description:    m.Description,
+		Intents:        slices.Clone(m.Intents),
+		Question:       m.Question,
+		Interpretation: m.Interpretation,
+		Body:           body,
 	}, m, nil
 }
 

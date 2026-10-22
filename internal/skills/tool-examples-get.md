@@ -17,7 +17,7 @@ The full record's `body` has the `_meta` annotation block already stripped — h
 
 ## Output
 
-`descriptor.Envelope` wrapping the example record: `name`, `category`, `tags`, `operators`, `description`, `body` (runnable `types.Request` JSON). Missing example → MCP error `example "<name>" not found`.
+`descriptor.Envelope` wrapping the example record: `name`, `category`, `tags`, `operators`, `description`, `intents`, `question` + `interpretation` (a story example only; absent otherwise), `body` (runnable `types.Request` JSON). Missing example → MCP error `example "<name>" not found`.
 
 ## Gotchas
 

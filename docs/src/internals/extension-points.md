@@ -2248,7 +2248,8 @@ body hands straight to `Process` / `Predict`:
 ```
 
 `category` is yours to choose (`acme` above) — it is what
-`category=` filters on. `intents` and `capabilities` are optional;
+`category=` filters on. `intents`, `capabilities` and the story pair
+`question` / `interpretation` (served on search and get results) are optional;
 declare a capability (`capability:stream`) only when the body carries no
 structural sign of it — `crosstab`, `joins`, a `requests` (compose) or
 `stages` (process chain) root and a `facet` category or tag are
@@ -2265,13 +2266,14 @@ or `PULSE_EXTENSION_EXAMPLE_COLLISION`:
 | `reason` | Rule |
 |---|---|
 | `layout` | the root reads; every entry is a regular top-level `.json` file |
-| `meta` | the file is a JSON object with a `_meta` block holding only `name`, `category`, `description`, `tags`, `operators`, `intents`, `capabilities` |
+| `meta` | the file is a JSON object with a `_meta` block holding only `name`, `category`, `description`, `tags`, `operators`, `intents`, `capabilities`, `question`, `interpretation` |
 | `name` | lowercase letters and digits joined by `-` or `_` |
 | `builtin` / `duplicate` (COLLISION) | the name is not a built-in example and is shipped once across every merged `Extensions` value — embedders never override or shadow the shipped library; prefixing names with your namespace avoids both |
 | `category` / `description` | a lowercase category token; a description |
 | `tags` | every tag from the canonical example taxonomy |
 | `intents` | every intent an intent-taxonomy ID (`pulse.Intents()`) |
 | `capabilities` | every entry a non-operator feature name (`capability:stream`); operators belong in `operators` |
+| `story` | `question` and `interpretation` come together (a story); the interpretation carries no digit, and a story's request sets `"return": {"precision": 4}` |
 | `body` | the body decodes STRICTLY — an unknown key is refused — as its request root: `requests` → compose, `stages` → process chain, `fields` → facet, otherwise process |
 | `operators_body` | `operators` equals the operators the body names as a `"type"` value |
 | `operators` | every `operators` entry is a built-in operator or one registered in the same `Extensions` |

@@ -92,6 +92,7 @@ const (
 	ExampleReasonBody          = "body"
 	ExampleReasonOperatorsBody = "operators_body"
 	ExampleReasonEdgeCoverage  = "edge_coverage"
+	ExampleReasonStory         = "story"
 )
 
 var (
@@ -159,6 +160,9 @@ func LoadExtensionExamples(fsys fs.FS, ext *ExtensionsSnapshot) ([]ExtensionExam
 		}
 		if err := checkExtensionExampleBody(m, ex.Body); err != nil {
 			return nil, err
+		}
+		if p := examples.StoryProblems(m, ex.Body); len(p) > 0 {
+			return nil, exampleInvalid(m.Name, ExampleReasonStory, strings.Join(p, "; "), map[string]any{"problems": p})
 		}
 		out = append(out, ExtensionExample{
 			Example:      *ex,

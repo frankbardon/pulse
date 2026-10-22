@@ -59,6 +59,12 @@ func TestLoadExtensionExamples_Valid(t *testing.T) {
 	if !slices.Equal(trim.ExtOperators, []string{"AGG_ACME_TRIM"}) || !slices.Equal(got[1].ExtOperators, []string{"AGG_ACME_OTHER"}) {
 		t.Errorf("ExtOperators = %v / %v", trim.ExtOperators, got[1].ExtOperators)
 	}
+	// A story (question + interpretation + return.precision) loads and
+	// serves both fields.
+	story := strings.Replace(strings.Replace(extExampleTrim, `"intents"`, `"question": "How much?", "interpretation": "Mostly tails.", "intents"`, 1), `"cohort"`, `"return": {"precision": 4}, "cohort"`, 1)
+	if s, err := LoadExtensionExamples(extSkillFS(map[string]string{"s.json": story}), extSkillSnapshot()); err != nil || len(s) != 1 || s[0].Example.Question != "How much?" || s[0].Example.Interpretation != "Mostly tails." {
+		t.Errorf("story example: %v, %+v", err, s)
+	}
 	if none, err := LoadExtensionExamples(nil, extSkillSnapshot()); none != nil || err != nil {
 		t.Errorf("nil fs: %v, %v", none, err)
 	}
@@ -89,6 +95,9 @@ func TestLoadExtensionExamples_Refusals(t *testing.T) {
 		{"operators differ from body", map[string]string{"a.json": sub(`, "GROUP_CATEGORY"]`, `]`)}, errors.PULSE_EXTENSION_EXAMPLE_INVALID, ExampleReasonOperatorsBody},
 		{"unregistered operator", map[string]string{"a.json": strings.ReplaceAll(extExampleTrim, "AGG_ACME_TRIM", "AGG_ACME_NOPE")}, errors.PULSE_EXTENSION_EXAMPLE_INVALID, ExampleReasonOperators},
 		{"operator named off an edge", map[string]string{"a.json": sub(`"field": "revenue"}`, `"field": "revenue", "label": "TEST_WELCH"}`)}, errors.PULSE_EXTENSION_EXAMPLE_INVALID, ExampleReasonEdgeCoverage},
+		{"question without interpretation", map[string]string{"a.json": sub(`"intents"`, `"question": "How much?", "intents"`)}, errors.PULSE_EXTENSION_EXAMPLE_INVALID, ExampleReasonStory},
+		{"interpretation with a digit", map[string]string{"a.json": strings.Replace(sub(`"intents"`, `"question": "How much?", "interpretation": "About 5 units.", "intents"`), `"cohort"`, `"return": {"precision": 4}, "cohort"`, 1)}, errors.PULSE_EXTENSION_EXAMPLE_INVALID, ExampleReasonStory},
+		{"story without return.precision", map[string]string{"a.json": sub(`"intents"`, `"question": "How much?", "interpretation": "Mostly tails.", "intents"`)}, errors.PULSE_EXTENSION_EXAMPLE_INVALID, ExampleReasonStory},
 		{"capability contradicts its detector", map[string]string{"a.json": sub(`"intents"`, `"capabilities": ["capability:crosstab"], "intents"`)}, errors.PULSE_EXTENSION_EXAMPLE_INVALID, ExampleReasonEdgeCoverage},
 	}
 	for _, tc := range cases {

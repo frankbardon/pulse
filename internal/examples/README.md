@@ -104,8 +104,10 @@ ignores it.
 | `description` | yes | one-sentence summary served by search |
 | `tags` | yes | drawn from `CanonicalTags` |
 | `operators` | yes (may be `[]`) | exactly the `"type": "AGG_/ATTR_/FILTER_/GROUP_/WIN_/FEAT_/TEST_/REG_..."` values in the body (`TestExamples_OperatorsMatchBody`); overlay kinds ride `overlays[].kind` instead |
-| `intents` | expected | intent-taxonomy IDs (`TestExamples_IntentsFromTaxonomy`) |
+| `intents` | expected | a LIST of intent-taxonomy IDs (`TestExamples_IntentsFromTaxonomy`), even for one intent: `["describe"]` |
 | `capabilities` | optional | non-operator feature names in feature-profile spelling (`capability:stream`), for capabilities the body carries no structural signal for |
+| `question` | story only | the plain-language question the example answers; declared together with `interpretation` |
+| `interpretation` | story only | a qualitative reading of the result — no digit `0`–`9`; the figures live in the story's golden |
 
 `capabilities` exists so an example is joined to every capability it
 needs by an explicit edge in the discovery graph rather than by a scan of
@@ -122,6 +124,30 @@ value is a known non-operator feature), `TestExamples_EdgeCoverage` (every
 operator a body or description names is an edge; a declared capability
 never contradicts its detector), and
 `TestExamples_EmptyOperatorExamplesDeclareCapabilities`.
+
+## Story examples
+
+An example is a **story** iff its `_meta` declares both `question` and
+`interpretation`; one without the other is refused. A story's request
+sets `"return": {"precision": 4}` (`examples.StoryPrecision`, four
+significant digits), so a float's last few ulps — which differ between
+amd64 and arm64 — never reach its output. Rules: `examples.StoryProblems`,
+gated by `TestStories_LibraryHoldsTheRules` (and, for embedder examples,
+`reason: story` at `pulse.New`).
+
+Each story's response is pinned by a harness-produced golden,
+`testdata/stories/<name>.json` — the response exactly as
+`json.MarshalIndent` writes it. The root package's
+`TestExamples_StoryGoldens` builds the fixture cohorts, runs every story
+and fails on a missing, extra or differing golden. Never hand-edit one;
+regenerate after changing a story or a fixture:
+
+```sh
+go test -count=1 . -run TestExamples_StoryGoldens -update
+```
+
+The goldens are embedded: `examples.StoryGolden(name)` returns one, so
+the generated docs quote real figures without executing a request.
 
 ## Adding a new example category
 
