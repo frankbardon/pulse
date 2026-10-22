@@ -425,14 +425,17 @@ func TestWrite_ThroughAfero(t *testing.T) {
 
 // TestDocgenImportBoundary: docgen is no-execute — it imports the
 // standard library, afero, the public descriptor package and the
-// internal descriptor and skills packages only (never internal/service
-// or internal/processing), and builds no JSON by hand.
+// internal descriptor, skills and examples packages only (never
+// internal/service or internal/processing — the examples package, read
+// for the story goldens, is checked to import neither), and builds no
+// JSON by hand.
 func TestDocgenImportBoundary(t *testing.T) {
 	allowed := map[string]bool{
 		"github.com/spf13/afero":                           true,
 		"github.com/frankbardon/pulse/descriptor":          true,
 		"github.com/frankbardon/pulse/internal/descriptor": true,
 		"github.com/frankbardon/pulse/internal/skills":     true,
+		"github.com/frankbardon/pulse/internal/examples":   true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -456,7 +459,7 @@ func TestDocgenImportBoundary(t *testing.T) {
 				continue
 			}
 			if !allowed[p] {
-				t.Errorf("%s imports %q: docgen may import only stdlib, afero, descriptor, internal/descriptor and internal/skills", name, p)
+				t.Errorf("%s imports %q: docgen may import only stdlib, afero, descriptor, internal/descriptor, internal/skills and internal/examples", name, p)
 			}
 		}
 		src, err := os.ReadFile(name)
@@ -469,6 +472,26 @@ func TestDocgenImportBoundary(t *testing.T) {
 	}
 	if seen == 0 {
 		t.Fatal("no non-test Go files found")
+	}
+	exEntries, err := os.ReadDir("../examples")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range exEntries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, path.Join("../examples", name), nil, parser.ImportsOnly)
+		if err != nil {
+			t.Fatalf("parse examples/%s: %v", name, err)
+		}
+		for _, imp := range f.Imports {
+			p, _ := strconv.Unquote(imp.Path.Value)
+			if strings.HasPrefix(p, "github.com/frankbardon/pulse/internal/service") || strings.HasPrefix(p, "github.com/frankbardon/pulse/internal/processing") {
+				t.Errorf("internal/examples/%s imports %q: docgen reads examples, so it must stay no-execute", name, p)
+			}
+		}
 	}
 }
 

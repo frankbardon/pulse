@@ -10,6 +10,13 @@
 //
 //	SUMMARY.md                mdBook summary fragment listing every page
 //	index.md                  the landing page
+//	questions.md              "What can Pulse answer?": one row per
+//	                          question guide, plus the utility intents
+//	questions/<intent>.md     one question guide per analytic intent
+//	                          some visible operator serves, titled by
+//	                          Intent.Label (the six-part template:
+//	                          question, pick your analysis, worked
+//	                          story, how to read, pitfalls, next steps)
 //	catalog.md                the catalog's category index
 //	catalog/<category>.md     one page per PurposeSurfaces() category the
 //	                          instance offers an operator of
@@ -48,7 +55,12 @@
 // "<!-- docgen:preserve end <id> -->" lines and is copied verbatim
 // from a file embedded in this package, so regeneration reproduces it
 // byte for byte and an export outside the repository carries it. The
-// Components intro's source of truth is components_intro.md here.
+// Components intro's source of truth is components_intro.md here; the
+// question pages' prose lives in guides/<stem>.md (prose.go), scrubbed
+// for the instance like every prose string. A question guide's worked
+// story is the story example whose first _meta.intents entry is the
+// guide's intent, its result the committed golden served by
+// examples.StoryGolden — docgen never executes a request.
 //
 // Determinism: every listing is sorted, every map is walked in a fixed
 // order, and Render returns the files sorted by path, so two renders of
@@ -87,6 +99,7 @@ func Render(inst *descx.InstanceSnapshot, opts Options) []File {
 	g := newGen(inst, opts)
 	files := map[string]string{}
 	cats := g.categories()
+	g.cats = cats
 	for _, c := range cats {
 		files[catalogPath(c.key)] = g.renderCategory(c)
 	}
@@ -105,8 +118,21 @@ func Render(inst *descx.InstanceSnapshot, opts Options) []File {
 		}
 		files["skills.md"] = renderSkillIndex(stems)
 	}
+	guides := g.questionGuides()
+	readingHome := map[string]string{}
+	for _, p := range pages {
+		for _, sec := range p.sections {
+			for _, e := range sec.entries {
+				readingHome[e.name] = readingPath(p.fam.key)
+			}
+		}
+	}
+	for _, qg := range guides {
+		files[questionPath(qg.intent.ID)] = g.renderGuide(qg, guides, readingHome, homes)
+	}
+	files[questionsPage] = g.renderQuestions(guides)
 	files["index.md"] = g.renderIndex()
-	files["SUMMARY.md"] = renderSummary(cats, pages, stems, opts.OmitSkills)
+	files["SUMMARY.md"] = renderSummary(guides, cats, pages, stems, opts.OmitSkills)
 
 	out := make([]File, 0, len(files))
 	for p, body := range files {

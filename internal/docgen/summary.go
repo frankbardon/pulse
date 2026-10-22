@@ -16,7 +16,8 @@ func (g *gen) renderIndex() string {
 	if g.inst.Scoped() && len(g.inst.HiddenNames()) > 0 {
 		b.WriteString("\nThis instance offers a subset of Pulse's features; the reference covers only what it offers.\n")
 	}
-	b.WriteString("\n- [Operator catalog](catalog.md): ")
+	b.WriteString("\n- [" + questionsTitle + "](" + questionsPage + "): start from your question; one guide per kind of question.\n")
+	b.WriteString("- [Operator catalog](catalog.md): ")
 	b.WriteString("one page per operator category.\n")
 	b.WriteString("- [Reading your results](reading.md): how to read each output field, and the counts beside every result.\n")
 	b.WriteString("- [Glossary](glossary.md): plain-language definitions of the terms the guidance uses.\n")
@@ -28,10 +29,18 @@ func (g *gen) renderIndex() string {
 
 // renderSummary renders SUMMARY.md: an mdBook summary fragment listing
 // every page of the tree, paths relative to the export root.
-func renderSummary(cats []category, pages []readingPage, list []skills.Metadata, omitSkills bool) string {
+func renderSummary(guides []questionGuide, cats []category, pages []readingPage, list []skills.Metadata, omitSkills bool) string {
 	var b strings.Builder
 	b.WriteString("# Summary\n\n")
 	b.WriteString("- [Analysis Guide](index.md)\n")
+	b.WriteString("  - [" + questionsTitle + "](" + questionsPage + ")\n")
+	for _, qg := range guides {
+		b.WriteString("    - [")
+		b.WriteString(qg.intent.Label)
+		b.WriteString("](")
+		b.WriteString(questionPath(qg.intent.ID))
+		b.WriteString(")\n")
+	}
 	b.WriteString("  - [Operator catalog](catalog.md)\n")
 	for _, c := range cats {
 		b.WriteString("    - [")

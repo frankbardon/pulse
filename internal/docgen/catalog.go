@@ -32,6 +32,8 @@ type gen struct {
 	// skillSet is every skill stem the export writes a page for (empty
 	// with OmitSkills).
 	skillSet map[string]bool
+	// cats is the instance's catalog pages (set by Render).
+	cats []category
 }
 
 func newGen(inst *descx.InstanceSnapshot, opts Options) *gen {

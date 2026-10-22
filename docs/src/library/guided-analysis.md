@@ -11,7 +11,7 @@ and a glossary of the statistical terms involved. The metadata is
 > **Status (v1.0.0 alphas).** Every operator carries a `Purpose`, and
 > every statistical test, overlay and regression an `Interpretation`.
 > Pulse renders them for you: the book's [Analysis Guide](../guide/index.md)
-> (operator catalog, "Reading your results", glossary), the `## Use when`
+> (question guides, operator catalog, "Reading your results", glossary), the `## Use when`
 > and `## Reading the output` sections of every operator skill, and
 > `p.ExportReference` / `pulse docs export` for your own instance. The
 > prose is still pulled, never pushed: it appears in none of the default
@@ -189,6 +189,9 @@ stay.
 `p.ExportReference(fs, dir, pulse.ExportReferenceOptions{})` writes
 the instance's whole analysis reference as Markdown under `dir` on an
 `afero.Fs` (a nil `fs` writes through the instance filesystem): the
+"What can Pulse answer?" page with one question guide per analytic
+intent (the question, the operators that answer it, a worked example
+with its committed result, how to read it, pitfalls and next steps), the
 operator catalog with each operator's purpose, the "Reading your
 results" pages, the glossary, every skill as the instance serves it,
 and an mdBook `SUMMARY.md` fragment. `OmitSkills: true` leaves the
