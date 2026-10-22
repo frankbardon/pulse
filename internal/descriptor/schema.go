@@ -508,6 +508,10 @@ var fieldOverrides = map[fieldKey]any{
 		"type":        "object",
 		"description": "The draft request as wire JSON (the #/$defs/Request shape). Every value the caller must supply is a \"<placeholder>\" string named after its wire key, listed in placeholders.",
 	},
+	{reflect.TypeFor[descriptor.RecommendStep](), "request"}: map[string]any{
+		"type":        "object",
+		"description": "The step tool's input as wire JSON: for pulse_materialize the {request, out} pair (request in the #/$defs/Request shape), for pulse_process a #/$defs/Request. Every value the caller must supply is a \"<placeholder>\" string, listed in placeholders.",
+	},
 }
 
 // optionalFields are wire keys whose Go field carries no omitempty (the
