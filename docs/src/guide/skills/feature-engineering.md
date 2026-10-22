@@ -46,7 +46,7 @@ Train/test assignment materialises its table in precompute — O(rows) memory ei
 
 Target encoding replaces a categorical with the MEAN of a numeric target per category; smoothing `s`: `encoded = (n * mean_cat + s * mean_global) / (n + s)`.
 
-The trap: features run pre-filter, so without `params.fit_on` each mean averages EVERY row's target — test / val rows and the row's own; a split or a `split == 0` filter changes no value. Set `fit_on: "split == 0"` (a boolean expression over the schema and EARLIER features): only those rows feed the means, every row is encoded. Add `folds: k` + `rng_seed` to encode training rows out-of-fold.
+The trap: features run pre-filter, so without `params.fit_on` each mean averages EVERY row's target — test / val rows and the row's own; a split or a `split == 0` filter changes no value. Set `fit_on: "split == 0"` (a boolean expression over the schema and EARLIER features): only those rows feed the means, every row is encoded. Add `folds: k` + `rng_seed` to encode training rows out-of-fold (dealt in order, blocks of k, balanced ±1).
 
 Predict warns (error under `--strict` / `Options.Strict: true`) on every encoder without `fit_on`; `folds` alone keeps a reworded warning.
 

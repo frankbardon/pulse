@@ -81,13 +81,14 @@ A formula's result is coerced to a scalar (`bool` → `1.0` / `0.0`); a filter's
 ## Gotchas
 
 - A formula sees source fields, feature output and EARLIER attribute labels, only.
-- `total(expr)` — cohort-wide sum of a row-level expression over post-filter rows; ONLY in the formula attribute (`PULSE_FORMULA_TOTAL_SITE` in a filter or overlay formula). One argument, no nesting; nulls skipped; frequency-weighted, probability refused. One extra scan. Not overridable by `ExprFunctions`.
+- `total(expr)` — cohort-wide post-filter sum, ONLY in the formula attribute (`PULSE_FORMULA_TOTAL_SITE` in a filter or overlay formula); not overridable by `ExprFunctions`. Weights, the extra scan, recipes: `formula-totals`.
 - Filters run before attributes, so a filter expression cannot read a derived column — restate it over source fields.
 
 ## See
 
 - `attribute-composition` — where the formula attribute sits among attributes.
 - `aggregation-design` — filter chaining and per-stage counters.
+- `formula-totals` — `total(expr)` in a formula.
 <!-- feature: capability:templates -->
 - `request-templating` — the request-authoring parameters this language is not.
 <!-- /feature -->

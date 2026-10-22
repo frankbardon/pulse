@@ -33,7 +33,7 @@ Decide what the new column must say about a row, then pick from the manifest `co
 ## Composition rules
 
 1. **Labels must be unique** — never a schema field, feature output or earlier label. Shadowing → `SERVICE_VALIDATION`, runtime and predict.
-2. **No in-slot chaining.** A formula cannot reference another attribute's label. To stage a derived value into another formula, use Compose / ProcessChain.
+2. **Declared order.** A formula reads only EARLIER attribute labels (declared order), never a later one. To stage a value across requests, use Compose / ProcessChain.
 3. **Two-pass attributes** — anything scoring a row against the column or a model — need a pre-pass over filter-passing rows to compute aggregate statistics (mean / stddev / min/max / quantile / OLS coefficients) before pass 2 emits per-row output. Handled transparently — no full-dataset buffering.
 4. **Row-local attributes** (formula, calendar part, set membership / popcount) stream — one pass, no state.
 5. **Null inputs propagate.** Null source → null output (`n_null`); a 0/1 membership flag reads `0`. A formula is stricter — arithmetic on a null field raises `PROCESSING_RUNTIME` unless guarded by `??`.

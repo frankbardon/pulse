@@ -1535,6 +1535,14 @@
         "description": "Choosing and composing a regression — outcome type, priors, penalties, the resampling and stepwise modifiers, polynomial terms built upstream, and how textbook regression names map to specs. Topical design; per-model detail in atomic op-reg-* skills."
       },
       {
+        "name": "regression-row-scores",
+        "description": "Per-row regression columns — the two-pass refit the fitted, residual and leverage attributes run, scoring a bound fit with params.fit instead, the scoring rule and its refusals, why the fit's predictor list is authoritative, a registered model's scorer, and the save-then-load recipe. Topical design; per-attribute params in the atomic op-attr-reg-* skills."
+      },
+      {
+        "name": "regression-spec",
+        "description": "The regression entry's shared contract — flat top-level slot keys, knobs another engine owns, the penalty objective and its missing inference, weighted fits per engine, conf_level, save and name, and the GLM's dispersion, IRLS and pseudo-R² details. Topical design; per-model params in atomic op-reg-* skills."
+      },
+      {
         "name": "request-envelope",
         "description": "Request shapes, envelope contract, slot keys, smart defaults, streamability and time zones. Use when authoring or adapting any Pulse Request."
       },
@@ -1739,8 +1747,16 @@
         "description": "Fixed-dim vector of float64 elements (dim 2..1024) stored as one field, with its kind, scale range and labels in the schema."
       },
       {
+        "name": "vector-aggregates",
+        "description": "The array-valued vector aggregators — the vector-or-fields slot and labels, per-element missing data, expand into one scalar column per member and where those columns can go, where an unexpanded array is refused, and element for one member in a crosstab cell or margin. Topical design; per-operator formulas in the atomic op-agg-vec-* skills."
+      },
+      {
         "name": "vector-fields",
         "description": "Native vector fields (vec_f32 / vec_f64) end to end — importing a battery or a list column into one field, naming it directly in vector slots, f[k] element references, how its member identity differs from a scalar twin, null vs NaN, export shapes, and what refuses it. Use when a cohort stores embeddings or a rating battery as one field."
+      },
+      {
+        "name": "vector-row-scores",
+        "description": "How the per-row vector scores fit and compare — the vector-or-fields slot and labels, fit_on against a bound params.fit, label matching, two-pass versus row-local execution and merging, the failed-fit and singular-fit nulls, a matrix read from a fit, and every reference form (inline, table, key_field, centroid, population, record) with its missing-key and domain warnings. Topical design; per-operator params in the atomic op-attr-* and op-mat-* skills."
       },
       {
         "name": "window-design",
@@ -2406,4 +2422,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d1227068ab4ac120784763970b3081906db1e3de50ef129733f3373a0a28aee9
+// golden-hash: dbaf8ec75aa53d3471e5195390555147bb54ebb7d070bce9a903ecd6cc1289b9
