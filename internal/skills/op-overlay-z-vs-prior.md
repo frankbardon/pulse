@@ -17,7 +17,7 @@ Inferential prior-period test. Overlays decorate the host; no `Response.Componen
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `field` | string | — | On a SERIES host, the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column "<label>[<element label>]"; absent, the first aggregation. |
+| `field` | string | — | On a SERIES host, the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column `"<label>[<element label>]"`; absent, the first aggregation. |
 | `partition_by` | list | — | Over two or more groupers, the leading group key columns each partition shares (default every key but the last; [] = one walk over every row; the YoY overlay: exactly the non-date keys). |
 
 `Scope` must be `group`, `Ref.Prior` (or empty; lag 1 only), `Level` / `Within` `0`; refusals and `params.field` / `params.partition_by` as on the prior delta: `overlay-reference-tests`.

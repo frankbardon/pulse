@@ -17,7 +17,7 @@ An `expr-lang/expr` expression evaluated per host coordinate. The variables, fun
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `field` | string | — | SERIES host: the OUTPUT LABEL read as `value` (label, else TYPE_field) or one element column "<label>[<element label>]"; absent, the first aggregation. |
+| `field` | string | — | SERIES host: the OUTPUT LABEL read as `value` (label, else TYPE_field) or one element column `"<label>[<element label>]"`; absent, the first aggregation. |
 | `partition_by` | list | — | Over two or more groupers, the leading group key columns each partition shares (default every key but the last; [] = one walk over every row). |
 | `formula` | string | (required) | The expression; absent, empty or not a string → `PULSE_OVERLAY_PARAM_MISSING`, unparsable → `PULSE_OVERLAY_FORMULA_PARSE_ERROR`. |
 | `baseline_position` | int | — | SERIES host: the 0-based row of each partition `baseline` reads. |

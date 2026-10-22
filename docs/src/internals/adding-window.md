@@ -91,8 +91,8 @@ section in `skills/window-design.md` — `TestSkillsCoverAllWindowTypes` and
 `TestOperatorHasAtomicSkill` both key off that stem. Frontmatter `name:` must
 equal the file stem; `category: WIN`; `operator:` the full constant. The
 required `##` sections are `## Params`, `## Inputs`, `## Output`,
-`## Gotchas`, `## See`, and the body budget is 1,200 characters
-(`TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`).
+`## Gotchas`, `## See`, and the body budget is a hard 1,800 characters
+(the `op-*` tier; `TestAtomicSkillHasRequiredSections`, `TestSkillTokenBudget`).
 `## Params` is the one `| Name | Type | Default | Description |` table, one
 row per declared param (`partition_by` / `order_by` / `frame` may sit beside
 them), Default `(required)` / `—` / the declared value

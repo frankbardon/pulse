@@ -9,7 +9,7 @@ covers: [import, --schema, explicit schema, ignore_extra, --float, row errors, P
 
 # Import: explicit schema, inference, row failures
 
-The same rules hold for every import path: CLI `pulse import <fmt>` / `import auto` / `import predict` / `convert`, the library `ImportJob` / `ConvertJob` / `ImportSpec`<!-- feature: capability:import -->, and `pulse_import`<!-- /feature -->. Types and widths: `cohort-schema-design`;<!-- feature: io_format:spss --> SPSS: `spss-import-schema`;<!-- /feature --> zones: `import-source-zones`; vectors: `vector-fields`; parent groups: `cohort-parent-groups`.
+The same rules hold for every import path: CLI `pulse import <fmt>` / `import auto` / `import predict` / `convert`, the library `ImportJob` / `ConvertJob` / `ImportSpec`<!-- feature: capability:import -->, and `pulse_import`<!-- /feature -->. Types and widths: `cohort-schema-design`;<!-- feature: io_format:spss --> SPSS: `spss-import-schema`;<!-- /feature --> zones: `import-source-zones`; vector fields: `vector-fields`; parent groups: `cohort-parent-groups`.
 
 ## An explicit schema matches BY NAME
 

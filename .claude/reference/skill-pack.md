@@ -92,7 +92,7 @@ go test ./internal/descriptor/ -run TestSkillsCoverFeatureFences -v
 
 ## Embedder skills (U10)
 
-`pulse.Options.Extensions.Skills` (an `fs.FS`) adds an embedder's own skills to the instance: atomic `op-<category>-<kebab>.md` for ONE registered extension operator and topical `ext-<kebab>.md` (`kind: design`; no built-in stem starts with `ext-`). They go through THIS file's rules — the same frontmatter, the "Required body sections" table and the "Token budget" table (one source: `internal/skills/families.go`, which `TestAtomicSkillHasRequiredSections` / `TestSkillTokenBudget` also read), "Feature fences" and "Fence coverage" (extension operator names join the scan list; an atomic skill is guarded by its operator and that operator's `DependsOn`) — but every rule is HARD at `pulse.New`, budgets included (`op-*` ≤1200, `ext-*` ≤6000), and a `## See` stem must resolve. A stem colliding with a built-in or virtual skill is refused: embedders never shadow the shipped pack. They are skill nodes of the instance ontology, pruned with their operator / `requires:`, and served by every discovery surface like built-ins. Rule table and error reasons: `docs/src/internals/extension-points.md` (Embedder skills); wiring: `.claude/reference/architecture.md` (Extension surface).
+`pulse.Options.Extensions.Skills` (an `fs.FS`) adds an embedder's own skills to the instance: atomic `op-<category>-<kebab>.md` for ONE registered extension operator and topical `ext-<kebab>.md` (`kind: design`; no built-in stem starts with `ext-`). They go through THIS file's rules — the same frontmatter, the "Required body sections" table and the "Token budget" table (one source: `internal/skills/families.go`, which `TestAtomicSkillHasRequiredSections` / `TestSkillTokenBudget` also read), "Feature fences" and "Fence coverage" (extension operator names join the scan list; an atomic skill is guarded by its operator and that operator's `DependsOn`) — but every rule is HARD at `pulse.New`, budgets included (the same atomic tier table — `op-*` ≤1800, `op-test-*` ≤2200, `op-reg-*` ≤3000 — and `ext-*` ≤6000), and a `## See` stem must resolve. A stem colliding with a built-in or virtual skill is refused: embedders never shadow the shipped pack. They are skill nodes of the instance ontology, pruned with their operator / `requires:`, and served by every discovery surface like built-ins. Rule table and error reasons: `docs/src/internals/extension-points.md` (Embedder skills); wiring: `.claude/reference/architecture.md` (Extension surface).
 
 ## Generated sections
 
@@ -127,14 +127,21 @@ A `tool-*` skill's `## When to use` opens with ONE line holding ONE `CALL …` t
 
 Heuristic: `chars / 4 ≈ tokens`. Budgets are byte counts of the post-frontmatter body as `skills.Get` serves it (feature-fence markers stripped).
 
-| Family | Budget (chars) | Token target | Mode |
+| Family (first matching stem prefix) | Budget (chars) | Token target | Mode |
 |---|---|---|---|
-| `op-*` | ≤1200 | ≤300 | soft |
-| `tool-*` | ≤2000 | ≤500 | soft |
-| `type-*` | ≤2000 | ≤500 | soft |
+| `op-test-*` | ≤2200 | ≤550 | **hard** |
+| `op-overlay-*` | ≤2400 | ≤600 | **hard** |
+| `op-reg-*` (incl. `op-reg-mod-*`) | ≤3000 | ≤750 | **hard** |
+| `op-*` (every other op family) | ≤1800 | ≤450 | **hard** |
+| `tool-*` | ≤2500 | ≤625 | **hard** |
+| `type-*` | ≤2000 | ≤500 | **hard** |
 | `kind: design` (topical) | ≤6000 | ≤1500 | **hard** |
 
-`TestSkillTokenBudget` enforces these, measuring the HAND-WRITTEN body only: generated-section markers (and anything rendered from them) are excluded, so the soft `op-*` figure never charges the Use when / Reading the output / Contract text. Those sections have their own HARD caps instead — 450 B and 600 B, heading included — enforced by construction (overflow truncates, never fails) and pinned by `TestSkillSections_BuiltinsWithinCapsAndLint` / `TestSkillPurposeSectionsCurrent`. The topical budget is **HARD** (since U10 E4-S3): one byte over fails, with no slack — a topic that outgrows it splits into an entry skill (a question → skill routing table plus the always-needed contract) and focused children, as `synthetic-data`, `cohort-schema-design`, `spss-cohorts` and `session-bootstrap` did. The atomic budgets are still SOFT and transitional: an overrun is logged (`t.Logf`) and fails only past 1000% over, so reviewers see the live state of legacy bodies without a red gate; a follow-up tightens them once the over-budget `op-overlay-*` / `op-reg-*` / `op-synth-*` / `op-feat-*` bodies and `tool-import` / `tool-lookup` are trimmed (run the test with `-v` for the live list).
+One table, `bodyBudgetTiers` in `internal/skills/families.go` (`skills.BodyBudget` / `BodyBudgetTiers`), ordered most specific prefix first (`TestBodyBudgetTiers_MostSpecificFirst`, values pinned by `TestBodyBudget_Tiers`); `TestSkillTokenBudget` and the embedder validation at `pulse.New` both read it, so an embedder `op-test-<ns>-<name>` skill gets the test tier. The gate measures the HAND-WRITTEN body only: generated-section markers (and anything rendered from them) are excluded, so no tier charges the Use when / Reading the output / Contract text. Those sections have their own caps instead — 450 B and 600 B, heading included, enforced by construction (overflow truncates, never fails) and pinned by `TestSkillSections_BuiltinsWithinCapsAndLint` / `TestSkillPurposeSectionsCurrent`; the contract has none (facts are never dropped).
+
+**Every budget is HARD.** The topical cap since U10 E4-S3; the atomic tiers since U38 E3-S3, which removed the transitional 1000%-over slack and froze the tiers from the measured pack (U38: every family's maximum sat within its tier after the E3 trims; the closest were `op-reg-ols` 2997, `op-mat-pca` 1799, `tool-predict` 2498, `tool-compose` 2495, `op-overlay-share-of-total` 2397). One byte over fails. **Never raise a tier for headroom** — the gate exists to force trimming: an atomic body that outgrows its tier moves its long-form prose into a `kind: design` child routed from the family's entry skill (as `overlay-pairwise`, `regression-spec`, `import-schema-rows` did), and deletes whatever the generated `## Contract` already states; a topic that outgrows the design cap splits into an entry skill (a question → skill routing table plus the always-needed contract) and focused children, as `synthetic-data`, `cohort-schema-design`, `spss-cohorts` and `session-bootstrap` did.
+
+**Skill-truth gates (U38), none prefix-matched** (no CLAUDE.md entry): `TestSkillTokenBudget` + `TestBodyBudget_Tiers` (`internal/skills`); `TestSkillParamsMatchManifest` + `TestSkillParamsRegressionModifiers` (the `## Params` table, above); `TestSkillContract_*` (the `## Contract` section); `TestSkillSeeExampleTagsResolve` (every `tags=[…]` list in a `## See` answers an example); `TestWindowSkillOrderByClaimsMatchEngine` (`internal/skills`); `TestCapabilities_VectorInputAcceptsMemberRule` / `TestCapabilities_RegPredictAcceptsScoringRule` (declarations match the shared acceptance rule); `TestLoadExtensionSkills_TieredBudget` (embedder skills on the same tiers).
 
 ## List source of truth
 
@@ -169,6 +176,6 @@ Counts surfaced at runtime via `pulse_manifest` (`commands`, `components.{aggreg
 
 1. Create the file at the conventional stem (`op-<category>-<kebab>.md`, `tool-<kebab>.md`, `type-<kebab>.md`, or a new topical name).
 2. Write the required frontmatter for the matching shape (atomic or topical) and the required `##` section set for that family.
-3. Stay under budget — atomic op ≤1200 chars body, tool/type ≤2000, topical ≤6000 (hard).
+3. Stay under budget (all hard) — the "Token budget" tier for the stem (`op-*` ≤1800, `op-test-*` ≤2200, `op-overlay-*` ≤2400, `op-reg-*` ≤3000, `tool-*` ≤2500, `type-*` ≤2000), topical ≤6000.
 4. Run `go test ./internal/skills/... -count=1`. The filesystem walk picks the new file up; no count bump or index entry is needed.
 

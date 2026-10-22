@@ -18,7 +18,7 @@ A `vec_f32` / `vec_f64` field stores a fixed-length numeric vector (dim 2..1024)
 - **Schema file:** type `vec_f64` / `vec_f32` with a required `dim`, optional `labels`, `kind`, `scale_min` / `scale_max`.
 - **Go:** `Pulse.NewCohortBuilder` takes a slice of exactly dim elements per cell.
 
-A folded battery's 2..1024 members vanish and the vector takes the first member's position. All elements empty = a null vector, some empty = `NaN`, a non-numeric element = a row error. A bad declaration is FATAL `PULSE_IMPORT_VECTOR_INVALID` before any row, `details.reason` e.g. `dim_out_of_range`, `pattern_no_match`, `column_claimed` (two vectors, or a vector and a group), `list_length_varies`, `element_not_numeric` (a quoted `"3"` too), `not_a_list`, `list_dim_unknown` (no non-null list), `no_columns` (a bare name on CSV / TSV / Excel). SPSS sources and `.pulse` passthrough refuse `vectors`.
+A folded battery's 2..1024 members vanish and the vector takes the first member's position. All elements empty = a null vector, some empty = `NaN`, a non-numeric element = a row error. A bad declaration is FATAL `PULSE_IMPORT_VECTOR_INVALID` before any row, `details.reason` such as `dim_out_of_range`, `pattern_no_match`, `column_claimed` (two vectors, or a vector and a group), `list_length_varies`, `element_not_numeric` (a quoted `"3"` too), `not_a_list`, `list_dim_unknown` (no non-null list), `no_columns` (a bare name on CSV / TSV / Excel). SPSS sources and `.pulse` passthrough refuse `vectors` (`PULSE_IMPORT_VECTOR_INVALID`).
 
 Vector import is never feature-gated; only the matrix operators that consume vector fields are.
 

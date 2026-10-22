@@ -17,7 +17,7 @@ Rides on `FacetRequest.Overlays`. Overlays decorate the host; no `Response.Compo
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `field` | string | — | On a SERIES host, the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column "<label>[<element label>]"; absent, the first aggregation. |
+| `field` | string | — | On a SERIES host, the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column `"<label>[<element label>]"`; absent, the first aggregation. |
 
 `Scope` must be `group`. `Ref.Population.Cohort` required — the comparison-population cohort; other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Level` / `Within` must be `0`.
 

@@ -2173,7 +2173,7 @@ The first failure is `PULSE_EXTENSION_SKILL_INVALID` (details carry
 | `frontmatter` / `name` / `description` | a `---` block; `name` equals the stem; a description |
 | `kind` / `operator` / `category` / `requires` | atomic: `kind: operator`, a registered extension operator, its prefix as `category`; topical: `kind: design`; each `requires:` entry a feature (`capability:crosstab`) or registered operator |
 | `sections` | the family's required `##` headings |
-| `budget` | body (frontmatter, fence markers and generated-section markers stripped) ≤ 1200 bytes for `op-*`, ≤ 6000 for `ext-*` — hard, unlike the built-in atomic budget |
+| `budget` | body (frontmatter, fence markers and generated-section markers stripped) within the built-in pack's tier for its stem prefix — `op-test-*` ≤ 2200, `op-reg-*` ≤ 3000, every other `op-*` ≤ 1800 bytes — and ≤ 6000 for `ext-*`; hard, exactly as for the shipped skills (one table, `skills.BodyBudget`); details carry `bytes` and `budget` |
 | `fence` | every `<!-- feature: … -->` fence closes and names a feature or registered operator |
 | `fence_coverage` | every operator, `<kind>:<name>` feature or feature-owned `pulse_*` tool the body names — your own other operators included — sits in a fence naming it, unless the skill goes whenever it is hidden (its own operator and that operator's `DependsOn`, transitively; a topical skill's `requires:`). The description may name none |
 | `see` | every backticked stem in `## See` is a skill the instance carries (built-in, virtual or yours) |
