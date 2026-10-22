@@ -1,5 +1,7 @@
 {
   "_meta": {
+    "interpretation": "Each row splits one region's customers into those who converted and those who did not, so the two cells of a row sum to one and the yes cell is that region's conversion rate. Most regions convert a little over a third of their customers; north converts noticeably more. With around a hundred customers per region a gap that size can easily arise by chance: shares describe the mix, they do not test it, so run a chi-square test across the regions before calling north different. The row margin keeps each region's raw count beside its shares.",
+    "question": "What share of customers in each region converted?",
     "category": "crosstab",
     "description": "Region × converted count crosstab with row normalization. Cells in each row sum to 1, so the value at (region, converted=yes) is the conversion rate within that region.",
     "intents": [
@@ -43,5 +45,8 @@
       "rows": true
     },
     "normalize": "row"
+  },
+  "return": {
+    "precision": 4
   }
 }

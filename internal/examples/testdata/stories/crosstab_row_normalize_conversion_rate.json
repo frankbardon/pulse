@@ -1,0 +1,243 @@
+{
+  "metadata": {
+    "total_rows": 400,
+    "filtered_rows": 400,
+    "cohort_file": "experiment.pulse"
+  },
+  "crosstab": {
+    "shape": "matrix",
+    "matrix": {
+      "row_header": {
+        "fields": [
+          "region"
+        ],
+        "types": [
+          "GROUP_CATEGORY"
+        ]
+      },
+      "column_header": {
+        "fields": [
+          "converted"
+        ],
+        "types": [
+          "GROUP_CATEGORY"
+        ]
+      },
+      "row_keys": [
+        [
+          "east"
+        ],
+        [
+          "north"
+        ],
+        [
+          "south"
+        ],
+        [
+          "west"
+        ]
+      ],
+      "column_keys": [
+        [
+          "no"
+        ],
+        [
+          "yes"
+        ]
+      ],
+      "cells": [
+        [
+          {
+            "value": 0.6458,
+            "present": true
+          },
+          {
+            "value": 0.3542,
+            "present": true
+          }
+        ],
+        [
+          {
+            "value": 0.5556,
+            "present": true
+          },
+          {
+            "value": 0.4444,
+            "present": true
+          }
+        ],
+        [
+          {
+            "value": 0.6146,
+            "present": true
+          },
+          {
+            "value": 0.3854,
+            "present": true
+          }
+        ],
+        [
+          {
+            "value": 0.6514,
+            "present": true
+          },
+          {
+            "value": 0.3486,
+            "present": true
+          }
+        ]
+      ],
+      "row_margins": [
+        {
+          "value": 96,
+          "present": true
+        },
+        {
+          "value": 99,
+          "present": true
+        },
+        {
+          "value": 96,
+          "present": true
+        },
+        {
+          "value": 109,
+          "present": true
+        }
+      ],
+      "grand_total": {
+        "present": false
+      },
+      "cell_label": "n",
+      "normalize_applied": "row"
+    }
+  },
+  "components": {
+    "crosstab": {
+      "cell_counts": [
+        [
+          62,
+          34
+        ],
+        [
+          55,
+          44
+        ],
+        [
+          59,
+          37
+        ],
+        [
+          71,
+          38
+        ]
+      ],
+      "cell_components": [
+        [
+          {
+            "n": 62,
+            "n_null": 0
+          },
+          {
+            "n": 34,
+            "n_null": 0
+          }
+        ],
+        [
+          {
+            "n": 55,
+            "n_null": 0
+          },
+          {
+            "n": 44,
+            "n_null": 0
+          }
+        ],
+        [
+          {
+            "n": 59,
+            "n_null": 0
+          },
+          {
+            "n": 37,
+            "n_null": 0
+          }
+        ],
+        [
+          {
+            "n": 71,
+            "n_null": 0
+          },
+          {
+            "n": 38,
+            "n_null": 0
+          }
+        ]
+      ],
+      "row_margin_counts": [
+        96,
+        99,
+        96,
+        109
+      ],
+      "row_margin_components": [
+        {
+          "n": 96,
+          "n_null": 0
+        },
+        {
+          "n": 99,
+          "n_null": 0
+        },
+        {
+          "n": 96,
+          "n_null": 0
+        },
+        {
+          "n": 109,
+          "n_null": 0
+        }
+      ],
+      "row_key_components": [
+        {
+          "count": 96,
+          "key": "east",
+          "label": "east"
+        },
+        {
+          "count": 99,
+          "key": "north",
+          "label": "north"
+        },
+        {
+          "count": 96,
+          "key": "south",
+          "label": "south"
+        },
+        {
+          "count": 109,
+          "key": "west",
+          "label": "west"
+        }
+      ],
+      "column_key_components": [
+        {
+          "count": 247,
+          "key": "no",
+          "label": "no"
+        },
+        {
+          "count": 153,
+          "key": "yes",
+          "label": "yes"
+        }
+      ],
+      "included_records": 400
+    }
+  },
+  "returned": {
+    "preset": "full",
+    "digest": "rp1:2a47356146fe7626329ca77359f19495ac57bb6a599dfdd7658729be64597be6",
+    "precision": 4
+  }
+}

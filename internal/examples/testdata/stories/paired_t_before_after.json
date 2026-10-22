@@ -1,0 +1,41 @@
+{
+  "metadata": {
+    "total_rows": 400,
+    "filtered_rows": 400,
+    "cohort_file": "experiment.pulse"
+  },
+  "tests": [
+    {
+      "label": "revenue_lift_paired",
+      "type": "TEST_PAIRED_T",
+      "variant": "paired_two_sided",
+      "statistic": 23.95,
+      "df": 399,
+      "p_value": 3.227e-79,
+      "alpha": 0.05,
+      "reject_null": true,
+      "details": {
+        "ci_high": 33.43,
+        "ci_low": 28.36,
+        "effect_size": {
+          "cohens_d": 1.198
+        },
+        "mean_diff": 30.9,
+        "n": 400,
+        "variance": 665.6
+      }
+    }
+  ],
+  "components": {
+    "run": {
+      "total_records": 400,
+      "filtered_records": 400,
+      "null_records": 0
+    }
+  },
+  "returned": {
+    "preset": "full",
+    "digest": "rp1:2a47356146fe7626329ca77359f19495ac57bb6a599dfdd7658729be64597be6",
+    "precision": 4
+  }
+}

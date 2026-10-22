@@ -1,0 +1,61 @@
+{
+  "metadata": {
+    "total_rows": 400,
+    "filtered_rows": 400,
+    "cohort_file": "experiment.pulse"
+  },
+  "regressions": [
+    {
+      "name": "revenue_clustered_by_region",
+      "type": "REG_OLS",
+      "coefficients": {
+        "(intercept)": -0.02415,
+        "revenue_before": 1.224,
+        "session_minutes": 0.2382
+      },
+      "std_errors": {
+        "(intercept)": 1.787,
+        "revenue_before": 0.007101,
+        "session_minutes": 0.1366
+      },
+      "p_values": {
+        "(intercept)": 0.9901,
+        "revenue_before": 4.301e-07,
+        "session_minutes": 0.1796
+      },
+      "ci_lower": {
+        "(intercept)": -5.71,
+        "revenue_before": 1.202,
+        "session_minutes": -0.1966
+      },
+      "ci_upper": {
+        "(intercept)": 5.661,
+        "revenue_before": 1.247,
+        "session_minutes": 0.673
+      },
+      "df": 3,
+      "conf_level": 0.95,
+      "r2": 0.9566,
+      "adj_r2": 0.9564,
+      "n_obs": 400,
+      "residual_std_err": 19.61,
+      "covariance": {
+        "type": "cluster",
+        "cluster": "region",
+        "clusters": 4
+      }
+    }
+  ],
+  "components": {
+    "run": {
+      "total_records": 400,
+      "filtered_records": 400,
+      "null_records": 0
+    }
+  },
+  "returned": {
+    "preset": "full",
+    "digest": "rp1:2a47356146fe7626329ca77359f19495ac57bb6a599dfdd7658729be64597be6",
+    "precision": 4
+  }
+}

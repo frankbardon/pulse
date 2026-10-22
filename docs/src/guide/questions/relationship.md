@@ -2,10 +2,17 @@
 
 ## The question
 
-Questions of this kind sound like:
+<!-- docgen:preserve begin guide-relationship-question -->
+You have two measures and want to know whether they go together: when one is high, does the other tend to be high (or low) too, and how tightly? For two numeric fields that is a correlation; for two categorical fields it is a test of whether the categories are independent, read from a crosstab of the two.
 
-- Do X and Y move together?
-- Is X associated with Y?
+It sounds like:
+
+- "Do customers who spent more last year spend more this year?"
+- "Is age associated with income?"
+- "Does conversion depend on the customer segment?"
+
+A relationship is symmetric: nothing is cast as the cause and nothing as the effect. When you want to say how much one outcome moves with several measures at once, that is the drivers question.
+<!-- docgen:preserve end guide-relationship-question -->
 
 ## Pick your analysis
 
@@ -67,15 +74,156 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 ## A worked example
 
-No worked example is published for this question yet. `pulse recommend --intent relationship` drafts requests for it.
+**Do customers who spent more before the test also spend more during it?**
+
+The request (example `pearson_correlation`; `pulse examples show pearson_correlation` prints it):
+
+```json
+{
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "revenue",
+      "label": "n"
+    }
+  ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "return": {
+    "precision": 4
+  },
+  "tests": [
+    {
+      "type": "TEST_PEARSON_R",
+      "field": "revenue",
+      "field2": "revenue_before",
+      "alpha": 0.05,
+      "label": "revenue_pre_post_pearson"
+    }
+  ]
+}
+```
+
+The result:
+
+```json
+{
+  "data": [
+    {
+      "n": 400
+    }
+  ],
+  "metadata": {
+    "total_rows": 400,
+    "filtered_rows": 400,
+    "cohort_file": "experiment.pulse"
+  },
+  "tests": [
+    {
+      "label": "revenue_pre_post_pearson",
+      "type": "TEST_PEARSON_R",
+      "variant": "pearson",
+      "statistic": 0.9777,
+      "df": 398,
+      "p_value": 6.718e-272,
+      "alpha": 0.05,
+      "reject_null": true,
+      "details": {
+        "ci_high": 0.9817,
+        "ci_low": 0.9729,
+        "covariance": 6909,
+        "mean_x": 154.3,
+        "mean_y": 123.4,
+        "n": 400,
+        "t": 92.9,
+        "variance_x": 8825,
+        "variance_y": 5658
+      }
+    }
+  ],
+  "components": {
+    "aggregations": [
+      {
+        "label": "n",
+        "n": 400,
+        "n_null": 0
+      }
+    ],
+    "run": {
+      "total_records": 400,
+      "filtered_records": 400,
+      "null_records": 0
+    }
+  },
+  "returned": {
+    "preset": "full",
+    "digest": "rp1:2a47356146fe7626329ca77359f19495ac57bb6a599dfdd7658729be64597be6",
+    "precision": 4
+  }
+}
+```
+
+Very strongly. The correlation sits close to its ceiling and its interval is narrow, so customers keep almost exactly their spending order from before the test to during it. A correlation this high says the two measures rise and fall together; on its own it says nothing about cause, and nothing about whether spending went up overall, which is a before-and-after comparison of the same customers.
 
 ## How to read the result
 
-The figures these operators return read as their names say; for the ones that need more, see [Reading your results](../reading.md).
+### `TEST_PEARSON_R`
+
+**`statistic`**
+
+r measures how closely the two fields follow a straight line together, from -1 to +1; 0 means no straight-line link.
+
+**Bands** (convention: Cohen (1988); a labelled convention, not a rule):
+
+| Absolute value | Label |
+|---|---|
+| below 0.1 | very small |
+| from 0.1 to below 0.3 | small |
+| from 0.3 to below 0.5 | medium |
+| 0.5 and above | large |
+
+**Sign:**
+
+- `+`: the two fields tend to rise together
+- `-`: one field tends to fall as the other rises
+
+**Caveats:**
+
+- Correlation is not causation: a third factor may drive both fields.
+- An r near zero rules out only a straight-line link; a curved relationship can still be strong.
+- A few extreme rows, or a narrow range of either field, can move r a lot.
+
+**`p_value`**
+
+Follows the shared reading: see [Reading a p-value](../reading/test.md#shared-p-value).
+
+**`details.ci_low`**
+
+Lower end of the confidence interval for r at the 1 - alpha level (95% by default).
+
+**Caveats:**
+
+- With fewer than four pairs (total weight, under frequency weights), or a perfect r, no interval can be computed and both ends are set to r: this is not a precise estimate. Treat r as highly uncertain and do not report the interval.
+
+**`details.ci_high`**
+
+Upper end of the confidence interval for r at the 1 - alpha level (95% by default).
+
+More on reading it: [TEST_PEARSON_R](../reading/test.md#op-test_pearson_r).
 
 ## Pitfalls
 
-Each operator's catalog entry lists its assumptions and when to reach for something else; read them before trusting a figure.
+<!-- docgen:preserve begin guide-relationship-pitfalls -->
+- **Association is not causation.** Two measures can move together because a third thing drives both, or by the way the rows were selected; a correlation never says which way, if any, the influence runs.
+- **Pearson's r sees straight lines only.** A strong curved or step-shaped relationship can show a weak r; plot the data or use a rank correlation (Spearman, Kendall), which also resists a few extreme values.
+- **One or two outliers can make or break a correlation.** Check whether the figure survives the rank-based version before reporting it.
+- **A significant correlation can be tiny.** With many rows a correlation close to zero still clears the bar; read the size of r and its interval, not only the p-value.
+- **Chi-square needs enough rows per cell.** When some expected cell counts are small, use Fisher's exact test instead; a crosstab with many sparse cells is better collapsed into fewer categories first.
+- **Group averages can tell a different story from rows.** A relationship between group means (region by region) need not hold for the individual rows inside them; the ecological fallacy example shows the reversal.
+- **Many pairs at once inflate false alarms.** A full correlation table across many fields will show some strong-looking pairs by luck; treat them as leads to confirm, not findings.
+<!-- docgen:preserve end guide-relationship-pitfalls -->
 
 ## Next steps
 
@@ -85,7 +233,7 @@ Each operator's catalog entry lists its assumptions and when to reach for someth
 - [Compare groups](compare_groups.md)
 - [Describe a measure](describe.md)
 
-**Skills:** [`intents`](../skills/intents.md), [`attribute-composition`](../skills/attribute-composition.md), [`feature-engineering`](../skills/feature-engineering.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`regression-modeling`](../skills/regression-modeling.md), [`statistical-testing`](../skills/statistical-testing.md)
+**Skills:** [`intents`](../skills/intents.md), [`attribute-composition`](../skills/attribute-composition.md), [`feature-engineering`](../skills/feature-engineering.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`regression-modeling`](../skills/regression-modeling.md), [`statistical-testing`](../skills/statistical-testing.md), [`op-agg-count`](../skills/op-agg-count.md), [`op-test-pearson-r`](../skills/op-test-pearson-r.md)
 
 **From the command line:**
 
