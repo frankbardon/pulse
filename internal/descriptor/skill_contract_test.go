@@ -153,6 +153,8 @@ func TestSkillContract_TypesMatchFieldAccept(t *testing.T) {
 		{"AGG_COUNT", "- Types: any type."},
 		{"TEST_CHISQ", "- Types (`rows`, `cols`): `categorical_*`, `packed_bool`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`."},
 		{"TEST_PAIRED_T", "- Types (`field2`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_TEST_FIELD2_NOT_NUMERIC`."},
+		// The scoring frame: regressionAcceptsType / model.PredictorNotNumeric.
+		{"ATTR_REG_PREDICT", "- Types: `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (each column the bound model reads); any other scalar type is `PULSE_MODEL_PREDICTOR_NOT_NUMERIC`."},
 		{"AGG_VEC_MEAN", "- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: \"binary\"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`."},
 	}
 	for _, c := range cases {

@@ -343,12 +343,38 @@ func operatorContractTypes(op descriptor.Operator) []contractTypes {
 	}
 	out := tabledContractTypes(op.Name)
 	switch {
+	case op.Name == string(types.ATTR_REG_PREDICT):
+		out = []contractTypes{scoringFrameContractTypes()}
 	case isVectorInput(op.Name):
 		out = append([]contractTypes{vectorMemberTypes()}, out...)
 	case len(out) == 0 && !op.IgnoresField && len(op.AcceptsTypes) > 0:
 		out = []contractTypes{declaredContractTypes(nil, op.AcceptsTypes)}
 	}
 	return out
+}
+
+// scoringFrameContractTypes is ATTR_REG_PREDICT's admission: every
+// column the bound model reads that is a schema field must pass
+// regressionAcceptsType — the predicate predict (field_refs.go) and the
+// runtime bind both judge the scoring frame by — else
+// PULSE_MODEL_PREDICTOR_NOT_NUMERIC (model.PredictorNotNumeric). Not a
+// fieldaccept row: the columns are the fit's terms, not a request slot.
+func scoringFrameContractTypes() contractTypes {
+	var admit []string
+	for _, ft := range knownScalarTypes {
+		if regressionAcceptsType("", ft) {
+			admit = append(admit, ft.String())
+		}
+	}
+	sort.Strings(admit)
+	g := refusalGroup(admit, func(ft encoding.FieldType) errors.Code {
+		if regressionAcceptsType("", ft) {
+			return ""
+		}
+		return errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC
+	})
+	g.suffix = "each column the bound model reads"
+	return g
 }
 
 // tabledContractTypes renders every fieldaccept slot of op: the

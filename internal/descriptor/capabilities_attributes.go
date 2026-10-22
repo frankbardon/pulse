@@ -201,7 +201,7 @@ func attributeCapabilities() []descriptor.Operator {
 					Description: "Coefficient figure the score multiplies: point (the coefficient) or lower / upper (its confidence bound at the fit's conf_level). A non-point bound needs terms to list exactly one predictor — a contribution's interval column, never a prediction interval; a term with no bound scores null.",
 				},
 			},
-			AcceptsTypes:  numericFieldTypesNoDecimal,
+			AcceptsTypes:  numericFieldTypesAnalytics, // the scoring frame rule: IsNumericForAnalytics (TestCapabilities_RegPredictAcceptsScoringRule)
 			EmitsType:     "f64",
 			EmitsTypeNote: "one score per record (null when a column the score reads is null)",
 			Streamable:    true,

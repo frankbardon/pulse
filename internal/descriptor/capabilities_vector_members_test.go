@@ -54,3 +54,34 @@ func TestCapabilities_VectorInputAcceptsMemberRule(t *testing.T) {
 		t.Fatal("no vector-input operator walked")
 	}
 }
+
+// TestCapabilities_RegPredictAcceptsScoringRule pins ATTR_REG_PREDICT's
+// declared accepts_types to the rule its scoring frame is judged by:
+// every column the bound model reads that is a schema field must be
+// IsNumericForAnalytics — the predicate the runtime bind
+// (processing.regPredictAttribute.bindModels) and predict
+// (regressionAcceptsType, field_refs.go) both call, refusing any other
+// type PULSE_MODEL_PREDICTOR_NOT_NUMERIC. It is not a fieldaccept row:
+// the columns are the fit's terms, not a request slot, and the refusal
+// keeps the model package's own message.
+func TestCapabilities_RegPredictAcceptsScoringRule(t *testing.T) {
+	var want []string
+	for _, ft := range knownScalarTypes {
+		if ft.IsNumericForAnalytics() {
+			want = append(want, ft.String())
+		}
+	}
+	slices.Sort(want)
+	for _, op := range attributeCapabilities() {
+		if op.Name != string(types.ATTR_REG_PREDICT) {
+			continue
+		}
+		got := slices.Clone(op.AcceptsTypes)
+		slices.Sort(got)
+		if !slices.Equal(got, want) {
+			t.Errorf("%s: accepts_types %v, want the scoring rule %v", op.Name, got, want)
+		}
+		return
+	}
+	t.Fatal("ATTR_REG_PREDICT not declared")
+}
