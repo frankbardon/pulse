@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/examples"
 	"github.com/frankbardon/pulse/internal/skills"
 )
 
@@ -80,9 +81,18 @@ func (d *Discovery) renderBody(name, raw string) string {
 	if _, topical := d.topical[name]; topical {
 		return d.renderCovers(out)
 	}
+	var visible []examples.ExampleSummary
 	return renderSeeSection(out, func(span string) bool {
-		if tags, ok := seeTags(span); ok {
-			return len(d.ExamplesSearch("", tags, "")) > 0
+		if searches, ok := seeTags(span); ok {
+			if visible == nil {
+				visible = d.ExamplesSearch("", nil, "")
+			}
+			for _, ex := range visible {
+				if seeTagsMatch(searches, ex.Tags) {
+					return true
+				}
+			}
+			return false
 		}
 		_, pruned := d.hiddenSkills[span]
 		return !pruned

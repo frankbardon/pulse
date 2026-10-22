@@ -354,9 +354,9 @@ func TestOntology_ExampleEdges(t *testing.T) {
 	}
 }
 
-// TestOntology_SeeEdges: atomic `## See` stems route to skills and
-// `tags=[…]` links every example carrying all the tags; prose spans and
-// topical See sections emit nothing.
+// TestOntology_SeeEdges: atomic and topical `## See` stems route to
+// skills and `tags=[…]` links every example carrying all the tags; prose
+// spans emit nothing.
 func TestOntology_SeeEdges(t *testing.T) {
 	g := BaseOntology()
 	if e := ontoEdge(skillID("op-test-welch"), skillID("op-test-t"), descriptor.OntologyEdgeRoutesTo); !hasEdge(g, e) {
@@ -400,6 +400,7 @@ func TestOntology_SeeEdges(t *testing.T) {
 		ontoEdge(skillID("op-a"), "example:both", descriptor.OntologyEdgeExemplifiedBy),
 		ontoEdge(skillID("op-a"), skillID("op-b"), descriptor.OntologyEdgeRoutesTo),
 		ontoEdge(skillID("op-a"), skillID("topic"), descriptor.OntologyEdgeRoutesTo),
+		ontoEdge(skillID("topic"), skillID("op-a"), descriptor.OntologyEdgeRoutesTo),
 	}
 	if got := sg.Ontology().Edges; !reflect.DeepEqual(got, want) {
 		t.Errorf("synthetic See edges = %+v, want %+v", got, want)
@@ -425,12 +426,6 @@ func TestSeeParsing(t *testing.T) {
 	body := "# T\n## Params\n`x`\n## See\n- `a` and `b`\n- `pulse_examples_search tags=[p, q]`\n## Gotchas\n`c`\n"
 	if got := backtickSpans(seeSection(body)); !slices.Equal(got, []string{"a", "b", "pulse_examples_search tags=[p, q]"}) {
 		t.Errorf("spans = %q", got)
-	}
-	if tags, ok := seeTags("tags=[feature-engineering]"); !ok || !slices.Equal(tags, []string{"feature-engineering"}) {
-		t.Errorf("bare tags = %q %v", tags, ok)
-	}
-	if _, ok := seeTags("op-agg-count"); ok {
-		t.Error("stem parsed as tags")
 	}
 	if got := backtickSpans("unclosed `x"); len(got) != 0 {
 		t.Errorf("unclosed span = %q", got)

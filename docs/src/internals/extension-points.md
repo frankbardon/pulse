@@ -2289,7 +2289,8 @@ the edges a built-in example gets: `operator exemplified_by example`
 for every operator and overlay kind, `serves_intent` per intent,
 `requires_capability` per declared or detected capability, `routes_to`
 for an operator the description names, and an `exemplified_by` edge
-from every atomic skill whose `## See` `tags=[…]` search it matches. A
+from every skill (atomic or topical) whose `## See` `tags=[…]` search
+it matches. A
 feature profile that hides your operator — or a built-in operator or
 capability the example uses — hides it: absent from every search and
 from the manifest counts, and `ExampleGet` / `pulse_examples_get` answer

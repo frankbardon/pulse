@@ -2,7 +2,6 @@ package descriptor
 
 import (
 	"errors"
-	"slices"
 	"strings"
 	"testing"
 
@@ -80,8 +79,8 @@ func TestRenderSeeSection(t *testing.T) {
 		"", "## After", "", "- `op-gone`", "",
 	}, "\n")
 	keep := func(span string) bool {
-		if tags, ok := seeTags(span); ok {
-			return slices.Equal(tags, []string{"live"})
+		if searches, ok := seeTags(span); ok {
+			return seeTagsMatch(searches, []string{"live"})
 		}
 		return span != "op-gone"
 	}
