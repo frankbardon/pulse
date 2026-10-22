@@ -18,18 +18,18 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `output` | enum | `d2` | `d2` or `p` (χ² upper tail on p df). |
-| `fit_on` | any | `filtered` | `"filtered"` or an inline filterer array picking the FIT rows; every filtered row is scored. |
-| `fit` | string | — | A bound vector fit's name (a compose `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry: `compose-fits`), scored against instead of fitting (XOR `fit_on`: `fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members (`labels`); mismatch `PULSE_VECTOR_REFERENCE_MISMATCH`, unbound `PULSE_MODEL_UNKNOWN`, a regression's name `PULSE_MODEL_KIND_MISMATCH`. |
-| `labels` | list | — | Inline `fields` only: one label per member. |
+| `fit_on` | any | `filtered` | `"filtered"` or a filterer array picking the FIT rows. |
+| `fit` | string | — | A bound vector fit, matched by label; XOR `fit_on` (`vector-row-scores`). |
+| `labels` | list | — | Inline `fields`: one label per member. |
 | `missing` | enum | `listwise` | `listwise` only. |
 
-`weight` — both kinds; fit only (N* = Σw or n_eff, cov M2*/(N* − 1)); a zero-weight row is scored, not fitted.
+`weight` — both kinds; fit only (`vector-row-scores`).
 
-Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields` (inline, globs ok); no `field`. Default label `ATTR_MAHALANOBIS_<vector>` or `_<first fields entry>`.
+Slot: `vector` or `fields`, no `field` (`vector-row-scores`). Default label `ATTR_MAHALANOBIS_<vector>` or `_<first fields entry>`.
 
 ## Inputs
 
-Members: `u4`…`u64`, `f32`/`f64` (`packed_bool` via `coerce: binary`); source columns only.
+Members: see `## Contract` (`packed_bool` via `coerce: binary`); source columns only.
 
 ## Output
 
@@ -41,11 +41,10 @@ One `f64` per record: D² = (x − μ)ᵀS⁻¹(x − μ) ≥ 0, or its p. A nul
 
 ## Gotchas
 
-- Fit is cohort-wide, never per group; with `fit_on`, groupers or features force buffered — two-pass, never merged.
-- With `fit` it is row-local: one pass, streams beside groupers and features, merges (shards, chain stages); same scores. A fit that failed on its data: every score null + `PULSE_FIT_UNAVAILABLE`.
+- Fit is cohort-wide, never per group: `fit_on` is two-pass (buffered beside groupers / features); `fit` is row-local and merges; a failed fit nulls every score + `PULSE_FIT_UNAVAILABLE` (`vector-row-scores`).
 - Singular fit or N* ≤ p: all scores null + `PULSE_MATRIX_SINGULAR` / `PULSE_MATRIX_INSUFFICIENT_N` warning.
 
 ## See
 
 - `pulse_examples_search tags=[outlier-detection, multivariate]`
-- Skills: `attribute-composition`, `multivariate-design`, `op-attr-zscore`
+- Skills: `vector-row-scores`, `attribute-composition`, `multivariate-design`, `op-attr-zscore`

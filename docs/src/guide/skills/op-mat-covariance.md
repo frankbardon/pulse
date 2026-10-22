@@ -31,7 +31,7 @@ Use something else:
 | `ddof` | 0 \| 1 | `1` | Denominator Σw − ddof. |
 | `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise: per-pair rows. |
 | `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
-| `fit` | vector fit name | — | Emit from a bound vector fit (a `fits` or `populations` entry: [`compose-fits`](compose-fits.md)), reading no row; by label; its basis governs. Not with `missing` / `max_drop_share` (`fit_and_missing`), groups (`fit_grouped`); a regression's name `PULSE_MODEL_KIND_MISMATCH`. A fit that failed on its data fails this slot alone (its code, `details.fit`). |
+| `fit` | vector fit name | — | Emit from a bound vector fit's listwise state, reading no row ([`vector-row-scores`](vector-row-scores.md)). |
 | `weight` | slot | inherited | Both kinds; `null` opts out. |
 | `encoding` | slot | `full` | `upper`: row r holds p − r cells. |
 
@@ -63,4 +63,4 @@ Integer/float members; `packed_bool` under `coerce: "binary"`.
 ## See
 
 - `pulse_examples_search tags=[covariance]`
-- Skills: [`matrix-results`](matrix-results.md), [`weighting`](weighting.md)
+- Skills: [`matrix-results`](matrix-results.md), [`vector-row-scores`](vector-row-scores.md), [`weighting`](weighting.md)

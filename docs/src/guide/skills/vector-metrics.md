@@ -53,7 +53,7 @@ Expressions are checked too, statically: `cosine(sat, other)` or `dist(shares, o
 ## Reference profiles
 
 An embedder registers target profiles in `Options.Extensions.ReferenceVectors` (manifest `extensions.reference_vectors`: each table's `labels` and `keys`). `ref("table", "key")` reads one as a vector: `cosine(vcenter(sat), vcenter(ref("ideal", "premium")))`. Inside `dot` / `dist` / `cosine` (directly or under `vcenter` / `vzscore` / `vnormalize`) it is matched BY LABEL to the other side — a named vector or another `ref` — never by position; elsewhere it keeps the table's label order. Different label sets, or a literal-array partner, are `PULSE_VECTOR_REFERENCE_MISMATCH`; an unknown table or key, or a non-literal table, is `PULSE_VECTOR_REFERENCE_UNKNOWN`. Predict and the build check literals; a computed key is checked per row.
-Row scores read the same tables: `ATTR_PROFILE_SIMILARITY` `ATTR_VEC_DISTANCE` with `reference: {table, key_field}`; a key with no profile is null, counted, warned. They also compare with a centroid computed from the data — `{centroid: {filter, by}}`, the weighted per-member mean of the filtered rows `filter` admits, per `by` value each row against its own (a pre-pass: two-pass, cohort-wide) — a saved population's mean, `{population: name}`, matched by label — or one stored row, `{record: {cohort?, keys}}`, looked up through the cohort's sidecar index before the run and read by member column.
+Row scores (`ATTR_PROFILE_SIMILARITY`) (`ATTR_VEC_DISTANCE`) read the same tables with `reference: {table, key_field}` (a key with no profile is null, counted, warned), and also compare with a data centroid, a saved population or one stored row: every form, warning and pass in [`vector-row-scores`](vector-row-scores.md).
 
 ## Choosing anyway
 
@@ -64,5 +64,6 @@ Row scores read the same tables: `ATTR_PROFILE_SIMILARITY` `ATTR_VEC_DISTANCE` w
 ## See
 
 - [`multivariate-design`](multivariate-design.md) — which operator answers the question.
+- [`vector-row-scores`](vector-row-scores.md) — row-score references, `fit_on` / `fit`, passes.
 - [`matrix-results`](matrix-results.md) — declaring the vector.
 - [`expression-language`](expression-language.md) — the metric functions.

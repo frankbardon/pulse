@@ -15,21 +15,21 @@ examples_tags: [feature-engineering, multivariate, streaming-friendly]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `metric` | enum | — | Distance only: `euclidean`, `sq_euclidean`, `manhattan`, `chebyshev`, `cosine` (1 − cos), `hellinger`, `aitchison`, `hamming`, `std_euclidean`, `mahalanobis`. Absent: from `kind` (measure → `std_euclidean`); none → `PULSE_VECTOR_METRIC_REQUIRED`. A similarity → `PULSE_VECTOR_METRIC_UNKNOWN`<!-- feature: ATTR_PROFILE_SIMILARITY -->, `details.use` = `ATTR_PROFILE_SIMILARITY`<!-- /feature -->. |
-| `reference` | any | (required) | `[…]`, `{label: value}`, `{table, key}`, `{table, key_field}` (categorical or `u4`…`u64`, by exact base-10 form; `u64` above 2^53 too), `{centroid: {filter?, by?}}` (weighted per-member mean of the rows `filter` admits<!-- feature: AGG_VEC_MEAN -->, = `AGG_VEC_MEAN`<!-- /feature -->; `by` = per exact key) `{population: name}` (a bound fit's mean; need not be the `fit`) or `{record: {cohort?, keys}}` (one indexed row, own cohort if omitted: `cohort-sidecar-index`). |
+| `metric` | enum | — | Distance only: `euclidean`, `sq_euclidean`, `manhattan`, `chebyshev`, `cosine`, `hellinger`, `aitchison`, `hamming`, `std_euclidean`, `mahalanobis`. Absent: from `kind`; none → `PULSE_VECTOR_METRIC_REQUIRED`. A similarity → `PULSE_VECTOR_METRIC_UNKNOWN`<!-- feature: ATTR_PROFILE_SIMILARITY -->, `details.use` = `ATTR_PROFILE_SIMILARITY`<!-- /feature -->. |
+| `reference` | any | (required) | `[…]`, `{label: value}`, `{table, key}`, `{table, key_field}`, `{centroid: {filter?, by?}}`, `{population: name}` or `{record: {cohort?, keys}}` — forms and warnings: `vector-row-scores`. |
 | `min_valid` | int | `1` | Fewest complete pairs. |
-| `labels` | list | — | Inline `fields` only: one label per member. |
-| `fit_on` | any | `filtered` | Fitted metrics only: `"filtered"` or a filterer array picking the FIT rows. |
-| `fit` | string | — | Fitted metrics only: a bound vector fit (a compose `fits` entry or loaded `populations` entry: `compose-fits`) read by label instead of fitting (XOR `fit_on`; a regression's name `PULSE_MODEL_KIND_MISMATCH`). |
-| `missing` | enum | `listwise` | Fitted metrics only; `listwise` only. |
+| `labels` | list | — | Inline `fields`: one label per member. |
+| `fit_on` | any | `filtered` | Fitted metrics: filterers picking the FIT rows. |
+| `fit` | string | — | Fitted metrics: a bound vector fit; XOR `fit_on` (`vector-row-scores`). |
+| `missing` | enum | `listwise` | Fitted metrics; `listwise` only. |
 
 ## Inputs
 
-Members: `u4`…`u64`, `f32`/`f64`; exactly one of `vector` / `fields`.
+`vector` or `fields` (no `field`); members: see `## Contract`.
 
 ## Output
 
-One `f64` ≥ 0 per record; sums rescaled by p / p_observed.
+One `f64` ≥ 0 per record.
 
 ## Components
 
@@ -39,13 +39,11 @@ One `f64` ≥ 0 per record; sums rescaled by p / p_observed.
 
 ## Gotchas
 
-- `std_euclidean` / `mahalanobis`: two-pass fit (listwise, weighted under a weight); N* ≤ p or singular → all null + warning. With `fit`: row-local, one pass, streams beside groupers; never merged (shards run serially; a chain stage refuses it).
-- A row-local metric (no centroid) merges: shards / parallel decode fold its per-run tallies (counts and warnings once, cohort-wide); a chain stage admits it.
-- A centroid reference is two-pass for every metric (and keeps a `fit` slot two-pass); weighted, cohort-wide.
-- Matched BY LABEL: `PULSE_VECTOR_REFERENCE_MISMATCH` at predict; unbound population `PULSE_VECTOR_REFERENCE_UNKNOWN`; a failed compose fit (population or `fit`) nulls every row + `PULSE_FIT_UNAVAILABLE`. A record matches by member column; its lookup refuses at run time only (`PULSE_INDEX_*`, `PULSE_LOOKUP_*`).
-- A null / profile-less key (`key_field` or `by`) or a domain violation (`hellinger`, `aitchison`) nulls the row and warns once per slot: `PULSE_VECTOR_REFERENCE_MISSING`, `PULSE_VECTOR_METRIC_DOMAIN`; strict does not escalate.
+- `std_euclidean` / `mahalanobis` fit first: two-pass, listwise, weighted (with `fit`: streams, never merges); N* ≤ p or singular → all null + warning.
+- Every other metric is row-local and merges; a centroid reference is two-pass for any metric.
+- Matched BY LABEL (`PULSE_VECTOR_REFERENCE_MISMATCH` at predict). A missing key, a domain violation (`hellinger`, `aitchison`) or a failed fit nulls rows with a warning (`vector-row-scores`).
 
 ## See
 
 - `pulse_examples_search tags=[feature-engineering, multivariate]`
-- Skills: `vector-metrics`, `multivariate-design`
+- Skills: `vector-row-scores`, `vector-metrics`, `multivariate-design`

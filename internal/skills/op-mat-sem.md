@@ -24,7 +24,7 @@ Members = the model's observed variables, by label.
 | `max_iter` | int | — | Iteration cap, a positive integer: default 10000 for slsqp (semopy's setting), 500 for fisher. |
 | `grad_tol` | float | 1e-10 | Fisher scoring's stop, a number above 0: every free gradient entry below it in absolute value. |
 | `missing` | `listwise` | `listwise` | Listwise only. |
-| `max_drop_share` | float | — | Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1). |
+| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
 | `fit` | string | — | Listwise only. |
 
 ## Inputs

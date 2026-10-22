@@ -23,7 +23,7 @@ With an orthogonal `rotation` (k ≥ 2: `varimax`, `stats::varimax` Kaiser-norma
 <!-- feature: MAT_FACTOR -->
 ## Factor analysis
 
-`primary` holds the loadings (`F1`…`Fk`, rotated when set); `auxiliary.unrotated` appears on rotated runs and `factor_correlation` (k × k) on an oblique rotation (promax, oblimin, geomin). `kappa` is the promax power (default 4), `gamma` the oblimin γ (default 0), `epsilon` the geomin pair's ε (default 0.01); any other rotation refuses them. Geomin may stop in a local optimum (one start, at the unrotated loadings, as GPArotation). `extraction` follows psych `fm`: `minres`, `principal_axis` (`pa`) or `ml` (`factanal`, ψ held in [0.005, 1]).
+`primary` holds the loadings (`F1`…`Fk`, rotated when set); `auxiliary.unrotated` appears on rotated runs and `factor_correlation` (k × k) on an oblique rotation (promax, oblimin, geomin). `kappa` is the promax power (default 4), `gamma` the oblimin γ (default 0), `epsilon` the geomin pair's ε (default 0.01); any other rotation refuses them. Geomin may stop in a local optimum (one start, at the unrotated loadings, as GPArotation). `extraction` follows psych `fm`: `minres` (solved to the exact optimum; psych stops ~1e-5 short), `principal_axis` (`pa`) or `ml` (`factanal`, ψ held in [0.005, 1]).
 
 `vectors` carry `communalities`, `uniquenesses`, `variance_accounted`; pairwise runs add `auxiliary.n`. `scalars` always carry `rmsr`, `empirical_chisq`, `df`, `empirical_p`, `kmo`, `bartlett_*`, `iterations`, `converged` (1/0) and `factors_retained`. `empirical_chisq` measures the residual size; it is not a likelihood test.
 
@@ -49,7 +49,7 @@ All scores null with a warning: a singular fit (`PULSE_MATRIX_SINGULAR`), N* ≤
 <!-- feature: TEST_HOTELLING_T2 -->
 ## Hotelling's T²
 
-`Statistic` = T², `DF` = p. `Details`: `f`, `df1`, `df2`, `n`, `n_dropped`, `members`; one-sample adds `mean`, `mu`; paired `members2`, `mean_diff`, `mu`; two-sample `groups` (sorted), `means`, `mean_diff`. `Variant`: `one_sample`, `paired`, `two_sample_pooled`, `two_sample_unequal`. `variance: unequal` is Krishnamoorthy–Yu (fractional `df2`), Welch's t at p = 1, and refused on one-sample / paired. Needs n > p (one-sample, paired), n₁+n₂ > p+1 (pooled), n > p per level (unequal). `unequal` at p = 1 is Welch's t. Weighted: moments on w*, N* = Σw or n_eff, and `Details` add `sum_weights` (+ `n_eff`) shaped like `n`.
+`Statistic` = T², `DF` = p. `Details`: `f`, `df1`, `df2`, `n`, `n_dropped`, `members`; one-sample adds `mean`, `mu`; paired `members2`, `mean_diff`, `mu`; two-sample `groups` (sorted), `means`, `mean_diff`. `Variant`: `one_sample`, `paired`, `two_sample_pooled`, `two_sample_unequal`. `variance: unequal` is Krishnamoorthy–Yu (fractional `df2`), Welch's t at p = 1, and refused on one-sample / paired. Needs n > p (one-sample, paired), n₁+n₂ > p+1 (pooled), n > p per level (unequal). Weighted: moments on w*, N* = Σw or n_eff, and `Details` add `sum_weights` (+ `n_eff`) shaped like `n`.
 <!-- /feature -->
 
 <!-- feature: TEST_MANOVA -->

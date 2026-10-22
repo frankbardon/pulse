@@ -18,16 +18,16 @@ As `op-mat-covariance`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `on` | `correlation` \| `covariance` | `correlation` | correlation: analyse the correlation matrix (every member on one scale); covariance: the covariance matrix (members in their own units, so a large-spread member dominates; params.components is then required). |
+| `on` | `correlation` \| `covariance` | `correlation` | Covariance keeps units: a large-spread member dominates. |
 | `components` | any | `kaiser` | Int k (≤ p), `kaiser` (λ > 1, default) or `{variance: s}`; required on `covariance`. |
-| `rotation` | enum | `none` | `none` (default); with k ≥ 2 orthogonal `varimax`, `quartimax`, `geomin_orthogonal` (`epsilon`), `entropy`. Oblique names are refused. |
-| `epsilon` | float | `0.01` | Geomin epsilon, a finite number above 0 (GPArotation delta; default 0.01): larger smooths the criterion. |
-| `repair` | `nearest` | — | nearest: decompose the nearest correlation matrix (scaled back to the covariance's variances on a covariance) when the (pairwise) input is not PSD, with a PULSE_MATRIX_NOT_PSD warning carrying frobenius_adjustment. |
-| `missing` | `listwise` \| `pairwise` | `listwise` | listwise drops a row with any member null; pairwise computes each pair over the rows where both are present and adds auxiliary.n (pairwise N). |
-| `max_drop_share` | float | — | Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1). |
-| `fit` | string | — | A bound vector fit's name (a Compose fits entry over one MAT_* or fitted-attribute battery): the matrix is emitted from that fit's listwise state, folding no row; matched to the members BY LABEL; its own weight basis governs. |
+| `rotation` | enum | `none` | k ≥ 2, orthogonal: `varimax`, `quartimax`, `geomin_orthogonal`, `entropy`. |
+| `epsilon` | float | `0.01` | Geomin ε, > 0; larger smooths. |
+| `repair` | `nearest` | — | Decompose the nearest correlation matrix (rescaled on `covariance`; `multivariate-design`). |
+| `missing` | `listwise` \| `pairwise` | `listwise` | Pairwise adds `auxiliary.n` (`matrix-results`). |
+| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
+| `fit` | string | — | Emit from a bound vector fit's listwise state, reading no row (`vector-row-scores`). |
 
-`weight`, `encoding`: as `op-mat-correlation`. Oblique rotation names are refused: `rotation_oblique_unsupported`.
+`weight`, `encoding`: as `op-mat-correlation`. Oblique names are refused: `rotation_oblique_unsupported`.
 
 ## Inputs
 
@@ -43,7 +43,7 @@ Integer / float members.
 
 ## Gotchas
 
-- Signs are free. Rotated: read `rotated_variance`.
+- Signs are free; rotated, read `rotated_variance`.
 - Bartlett's n: rows, Σw or n_eff, pairwise the smallest pair's own. A pairwise weighted covariance scales each entry by its own pair.
 - Singular: KMO, Bartlett null (`PULSE_MATRIX_SINGULAR`). Non-PSD pairwise: `PULSE_MATRIX_NOT_PSD` unless `repair`.
 

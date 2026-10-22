@@ -27,15 +27,13 @@ Use something else:
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `metric` | enum | — | Similarity only: `correlation`, `cosine`, `jaccard`, `dice`, `overlap`. Absent: from the vector's `kind` (scale → `correlation`); none → `PULSE_VECTOR_METRIC_REQUIRED`. A distance → `PULSE_VECTOR_METRIC_UNKNOWN`, `details.use` = `ATTR_VEC_DISTANCE`. |
-| `reference` | any | (required) | `[…]` (member order), `{label: value}`, `{table, key}`, `{table, key_field}` (categorical or `u4`…`u64`, by exact base-10 form; `u64` above 2^53 too), `{centroid: {filter?, by?}}` (weighted per-member mean of the rows `filter` admits, = `AGG_VEC_MEAN`; `by` = per exact key, each row vs its own) `{population: name}` (a bound vector fit's mean: [`compose-fits`](compose-fits.md)) or `{record: {cohort?, keys}}` (one row point-looked-up via its cohort's index, the request's own if omitted: [`cohort-sidecar-index`](cohort-sidecar-index.md)). |
+| `reference` | any | (required) | `[…]`, `{label: value}`, `{table, key}`, `{table, key_field}`, `{centroid: {filter?, by?}}`, `{population: name}` or `{record: {cohort?, keys}}` — forms and warnings: [`vector-row-scores`](vector-row-scores.md). |
 | `min_valid` | int | `1` | Fewest complete pairs; below → null. |
 | `labels` | list | — | Inline `fields` only: one label per member. |
 
-Slot: exactly one of `vector` (a `vectors` entry) / `fields`; no `field`.
-
 ## Inputs
 
-Members: `u4`…`u64`, `f32`/`f64`; source columns only.
+`vector` or `fields` (no `field`); members: see `## Contract`, source columns only.
 
 ## Output
 
@@ -55,12 +53,11 @@ One `f64` per record; null below `min_valid` or with no profile / centroid.
 ## Gotchas
 
 - Matched BY LABEL, never position: wrong labels / length → `PULSE_VECTOR_REFERENCE_MISMATCH` at predict.
-- A null or profile-less `key_field` / `by` row is null and warns `PULSE_VECTOR_REFERENCE_MISSING` (`n_key_null`, `n_key_unmatched`); a domain violation `PULSE_VECTOR_METRIC_DOMAIN`. Once per slot; strict does not escalate.
-- Unbound population → `PULSE_VECTOR_REFERENCE_UNKNOWN`; a compose fit that failed on its data → every row null + `PULSE_FIT_UNAVAILABLE`.
-- A record is read by member column (null = missing element); a member its cohort lacks → `PULSE_VECTOR_REFERENCE_MISMATCH` `record_members_absent`; lookup refusals (`PULSE_INDEX_*`, `PULSE_LOOKUP_*`) refuse the run, never at predict.
-- Row-local (streams, fuses, weight ignored) — except a centroid: two-pass, weighted, cohort-wide (grouped runs buffered). Merges (not a centroid): shards / parallel decode fold its per-run tallies (counts and warnings once, cohort-wide); a chain stage admits it. A centroid runs serially; a chain refuses it.
+- A null or profile-less key, or a domain violation, nulls the row and warns once (`PULSE_VECTOR_REFERENCE_MISSING`, `PULSE_VECTOR_METRIC_DOMAIN`); strict does not escalate. Unbound population → `PULSE_VECTOR_REFERENCE_UNKNOWN`; a failed compose fit → every row null + `PULSE_FIT_UNAVAILABLE`.
+- A record's lookup refusals (`PULSE_INDEX_*`, `PULSE_LOOKUP_*`) refuse the run, never at predict.
+- Row-local (streams, fuses, merges; weight ignored) — except a centroid: two-pass, weighted, cohort-wide, serial; a chain refuses it.
 
 ## See
 
 - `pulse_examples_search tags=[feature-engineering, multivariate]`
-- Skills: [`vector-metrics`](vector-metrics.md), [`multivariate-design`](multivariate-design.md)
+- Skills: [`vector-row-scores`](vector-row-scores.md), [`vector-metrics`](vector-metrics.md), [`multivariate-design`](multivariate-design.md)

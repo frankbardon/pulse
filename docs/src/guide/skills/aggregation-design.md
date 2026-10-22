@@ -82,7 +82,8 @@ Numeric-only ops on a categorical field (its dictionary index) are refused `PULS
 ## See
 
 - Recipes: `pulse_examples_search tags=["cohort-analysis"]`, `tags=["welford-triple"]`, `tags=["welch"]`, `tags=["pre-filter"]` plus atomic `op-agg-<name>` / `op-filter-<name>`.
-- [`request-envelope`](request-envelope.md) — slot keys, smart defaults, streamability.
-- [`response-components`](response-components.md) — Components contract + per-family typed shape.
-- [`attribute-composition`](attribute-composition.md) — when to derive a column instead of aggregating.
+- [`request-envelope`](request-envelope.md) — slot keys, defaults, streaming.
+- [`response-components`](response-components.md) — the Components contract.
+- [`vector-aggregates`](vector-aggregates.md) — vector arrays, `expand`, `element`.
+- [`attribute-composition`](attribute-composition.md) — derive a column instead of aggregating.
 - [`grouper-design`](grouper-design.md), [`financial-cohorts`](financial-cohorts.md), [`cohort-schema-design`](cohort-schema-design.md) — partitions, decimal rules, `set_*` + sharded buffered-op memory.
