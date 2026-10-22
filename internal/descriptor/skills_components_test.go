@@ -19,9 +19,13 @@ func TestSkillsCoverAllOperatorComponents(t *testing.T) {
 			t.Errorf("%s: missing atomic skill skills/%s.md", opName, stem)
 			return
 		}
+		// Each key must be a backticked token on the rendered
+		// `- Components:` line — a bare substring match let a short key
+		// such as `n` pass on any prose that happens to contain it.
+		named := renderedComponentTokens(content)
 		for _, key := range keys {
-			if !strings.Contains(content, key) {
-				t.Errorf("%s: skills/%s.md does not name component key %q (carry `<!-- generated: contract -->`)",
+			if !named[key] {
+				t.Errorf("%s: skills/%s.md does not name component key %q on its rendered `- Components:` line (carry `<!-- generated: contract -->`)",
 					opName, stem, key)
 			}
 		}
@@ -96,6 +100,32 @@ func TestSkillsCoverAllOperatorComponents(t *testing.T) {
 			})
 		}
 	})
+}
+
+// renderedComponentTokens is every backticked token on the rendered
+// `- Components:` line(s) of a served skill body (the generated
+// `## Contract` line renderContractKeys writes).
+func renderedComponentTokens(body string) map[string]bool {
+	out := map[string]bool{}
+	for _, line := range strings.Split(body, "\n") {
+		rest, ok := strings.CutPrefix(line, "- Components: ")
+		if !ok {
+			continue
+		}
+		for {
+			i := strings.IndexByte(rest, '`')
+			if i < 0 {
+				break
+			}
+			j := strings.IndexByte(rest[i+1:], '`')
+			if j < 0 {
+				break
+			}
+			out[rest[i+1:i+1+j]] = true
+			rest = rest[i+2+j:]
+		}
+	}
+	return out
 }
 
 // atomicKebab is the descriptor-side mirror of skills.kebab — used to
