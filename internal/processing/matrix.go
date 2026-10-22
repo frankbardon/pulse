@@ -383,6 +383,11 @@ func (m *matrixSlot) slotResult() (types.MatrixResult, *types.MatrixComponents, 
 		return types.MatrixResult{Name: m.plan.Name, Type: m.plan.Type, Error: m.fitFailed}, nil, nil
 	}
 	res, c, err := m.result()
+	if err == nil && m.plan.Encoding == types.MatrixEncodingRecords && m.compute.MatricesSlot {
+		if se := recordsEncode(&res); se != nil {
+			return types.MatrixResult{Name: m.plan.Name, Type: m.plan.Type, Error: se}, nil, nil
+		}
+	}
 	if err == nil {
 		return res, c, nil
 	}

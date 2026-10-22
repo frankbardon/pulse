@@ -962,6 +962,9 @@ func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, o MatrixRe
 		if err := resolveFit(at, req, &m); err != nil {
 			return nil, err
 		}
+		if err := recordsKeyRefusal(at, &m); err != nil {
+			return nil, err
+		}
 		out = append(out, m)
 	}
 	return out, nil
@@ -2045,6 +2048,25 @@ func builtinMatrixType(t types.MatrixType) bool {
 		}
 	}
 	return false
+}
+
+// recordsKeyRefusal refuses a records-encoded spec whose member is
+// named types.MatrixRecordKey: the members are the columns of its
+// member-axis matrices, and a column of that name would collide with
+// each record's row key. A data-derived column (a MAT_DISTANCE bucket
+// label, an extension's own column keys) is checked at render.
+func recordsKeyRefusal(at string, m *Matrix) *errors.CodedError {
+	if m.Encoding != types.MatrixEncodingRecords {
+		return nil
+	}
+	for _, f := range m.Members.Members {
+		if f == types.MatrixRecordKey {
+			return matrixInvalid(at, "records_key_collision",
+				at+" uses encoding \"records\", whose rows hold their key under \""+types.MatrixRecordKey+"\"; member "+strconv.Quote(f)+" would collide with it (use full or upper)",
+				map[string]any{"member": f})
+		}
+	}
+	return nil
 }
 
 func knownEncoding(e types.MatrixEncoding) bool {

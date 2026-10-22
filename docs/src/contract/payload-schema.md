@@ -645,7 +645,7 @@ scalars, warnings}`, one per spec in request order (`format_version`
 stays `"1.1"`; a matrix-free request and response are byte-identical).
 `type` is the registry-backed `MatrixType` enum (`MAT_COVARIANCE`,
 `MAT_CORRELATION`, `MAT_PARTIAL_CORRELATION`, `MAT_PCA`, `MAT_FACTOR`,
-`MAT_COLLINEARITY`, `MAT_RELIABILITY`, `MAT_DISTANCE`, `MAT_SEM`); `encoding` is `full` (default) or `upper`. Every
+`MAT_COLLINEARITY`, `MAT_RELIABILITY`, `MAT_DISTANCE`, `MAT_SEM`); `encoding` is `full` (default), `upper` or `records`. Every
 matrix is a dedicated `MatrixValues` `{kind, encoding, row_keys,
 column_keys, labels?, values}` — not the crosstab `MatrixPayload` —
 whose `values` rows hold `p` cells (`full`) or `p − r` cells from the
@@ -661,6 +661,12 @@ between grouper's bucket labels, and its `auxiliary.centroids` is k × p:
 `auxiliary.estimates` is r × 5: `row_keys` semopy's inspect rows
 `"lval op rval"`, `column_keys` `estimate`, `std_estimate`, `std_err`,
 `z_value`, `p_value`).
+Under `encoding: "records"` every matrix (primary and each auxiliary,
+rectangular ones too) is instead `{kind, encoding, columns, rows,
+labels?}`: `columns` the column keys, `rows` one object per row in row
+order, `{"key": <row key>, <column>: number | null, ...}`, plus on
+`MAT_SEM`'s estimates `lval`, `op`, `rval`, `parameter` and `free`; the
+schema's `MatrixValues` is the `oneOf` of the two forms.
 `MAT_CORRELATION` (every `method`) and `MAT_PARTIAL_CORRELATION` take
 `params.inference` (bool) and `params.alpha` (0 < alpha < 1, default
 0.05): on, `auxiliary` gains `p`, `ci_lower` and `ci_upper`, square

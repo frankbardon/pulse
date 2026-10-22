@@ -69,7 +69,10 @@ type MatrixInput struct {
 	WeightKind types.WeightKind
 
 	// Encoding is the Values layout the request asked for; Square
-	// applies it.
+	// applies it. Under types.MatrixEncodingRecords every part is
+	// rendered full and the engine stamps each one records after the
+	// operator returns (the wire writes it as row records), so an
+	// operator needs nothing of its own for it.
 	Encoding types.MatrixEncoding
 
 	// WantAuxiliary, WantVectors and WantScalars report whether the
@@ -109,8 +112,9 @@ func (in *MatrixInput) Square(at func(r, c int) float64) *types.MatrixValues {
 
 // Rect renders a rectangular matrix (types.MatrixKindRectangular): one
 // row per member, one column per given key; at reads cell (r, c). It is
-// always written full — the upper encoding applies to a symmetric
-// matrix only. The result owns fresh slices.
+// written full — the upper encoding applies to a symmetric matrix only;
+// records restamps it after the operator returns. The result owns fresh
+// slices.
 func (in *MatrixInput) Rect(columns []string, at func(r, c int) float64) *types.MatrixValues {
 	out := &types.MatrixValues{
 		Kind:       types.MatrixKindRectangular,

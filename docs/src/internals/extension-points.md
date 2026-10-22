@@ -694,7 +694,10 @@ per-pair co-moment `PairM2`), the members in axis order, their explicit
 labels, the raw `params`, the folded weight's kind (`""` when
 unweighted), the requested encoding, and the `WantAuxiliary` /
 `WantVectors` / `WantScalars` flags a `return` exclusion clears.
-`Square` and `Rect` render a matrix in that encoding. A registration
+`Square` and `Rect` render a matrix in that encoding. Under `records`
+they render full and the engine stamps every returned part records
+after the operator (a part written `upper` is expanded; a column named
+`key` fails the slot), so an operator needs no code for it. A registration
 declaring `Streamable: false` also receives the admitted rows
 (`MatrixRows`) and runs buffered and serially. `extend.MatrixOutput`
 holds the primary (required), auxiliary matrices, vectors, scalars,

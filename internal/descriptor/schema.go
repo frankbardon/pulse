@@ -392,6 +392,8 @@ func (b *schemaBuilder) defFor(t reflect.Type) any {
 		return priorPrecisionDef()
 	case reflect.TypeFor[types.FitResult]():
 		return b.fitResultDef()
+	case reflect.TypeFor[types.MatrixValues]():
+		return b.matrixValuesDef(t)
 	}
 	// Registry-backed enum.
 	if vals, ok := b.enums[t]; ok {
@@ -752,6 +754,37 @@ func (b *schemaBuilder) fitResultDef() any {
 				"additionalProperties": false,
 			},
 		},
+	}
+}
+
+// matrixValuesDef is types.MatrixValues, which writes its own wire
+// form: the reflected layout (row_keys / column_keys / values) under
+// encoding full or upper, or under records the columns and one object
+// per row — its key, a number or null per column, and the row's
+// record fields (MAT_SEM's estimates: lval, op, rval, parameter,
+// free).
+func (b *schemaBuilder) matrixValuesDef(t reflect.Type) any {
+	str := map[string]any{"type": "string"}
+	records := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"kind":     map[string]any{"$ref": "#/$defs/" + b.register(reflect.TypeFor[types.MatrixKind]())},
+			"encoding": map[string]any{"const": string(types.MatrixEncodingRecords)},
+			"columns":  map[string]any{"type": "array", "items": str},
+			"rows": map[string]any{"type": "array", "items": map[string]any{
+				"type":                 "object",
+				"properties":           map[string]any{types.MatrixRecordKey: str},
+				"required":             []string{types.MatrixRecordKey},
+				"additionalProperties": map[string]any{"type": []any{"number", "string", "boolean", "null"}},
+			}},
+			"labels": map[string]any{"type": "array", "items": str},
+		},
+		"required":             []string{"columns", "encoding", "kind", "rows"},
+		"additionalProperties": false,
+	}
+	return map[string]any{
+		"description": "One matrix: row_keys / column_keys / values under encoding full or upper; under records, columns and rows ({key, <column>: value}, in row order).",
+		"oneOf":       []any{b.structSchema(t), records},
 	}
 }
 

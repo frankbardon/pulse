@@ -5113,6 +5113,7 @@ pulse/types: type MatrixComponents field Type pulse/types.MatrixType "json:\"typ
 pulse/types: type MatrixComponents method (MatrixComponents) MarshalJSON() ([]byte, error)
 pulse/types: type MatrixEncoding string
 pulse/types: const MatrixEncodingFull pulse/types.MatrixEncoding = "full"
+pulse/types: const MatrixEncodingRecords pulse/types.MatrixEncoding = "records"
 pulse/types: const MatrixEncodingUpper pulse/types.MatrixEncoding = "upper"
 pulse/types: type MatrixKind string
 pulse/types: const MatrixKindRectangular pulse/types.MatrixKind = "rectangular"
@@ -5136,6 +5137,7 @@ pulse/types: type MatrixPayload field RowHeader pulse/types.AxisHeader "json:\"r
 pulse/types: type MatrixPayload field RowKeys []pulse/types.AxisKey "json:\"row_keys\""
 pulse/types: type MatrixPayload field RowMargins []pulse/types.MatrixCell "json:\"row_margins,omitempty\""
 pulse/types: type MatrixPayload method (MatrixPayload) MarshalJSON() ([]byte, error)
+pulse/types: const MatrixRecordKey untyped string = "key"
 pulse/types: type MatrixResult struct
 pulse/types: type MatrixResult field Auxiliary map[string]*pulse/types.MatrixValues "json:\"auxiliary,omitempty\""
 pulse/types: type MatrixResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
@@ -5170,9 +5172,12 @@ pulse/types: type MatrixValues field ColumnKeys []string "json:\"column_keys\""
 pulse/types: type MatrixValues field Encoding pulse/types.MatrixEncoding "json:\"encoding\""
 pulse/types: type MatrixValues field Kind pulse/types.MatrixKind "json:\"kind\""
 pulse/types: type MatrixValues field Labels []string "json:\"labels,omitempty\""
+pulse/types: type MatrixValues field RecordFields []map[string]any "json:\"-\""
 pulse/types: type MatrixValues field RowKeys []string "json:\"row_keys\""
 pulse/types: type MatrixValues field Values [][]float64 "json:\"values\""
+pulse/types: type MatrixValues method (*MatrixValues) UnmarshalJSON(b []byte) error
 pulse/types: type MatrixValues method (MatrixValues) MarshalJSON() ([]byte, error)
+pulse/types: type MatrixValues method (MatrixValues) Records() []map[string]any
 pulse/types: type ModelRef struct
 pulse/types: type ModelRef field Name string "json:\"name\""
 pulse/types: type ModelRef field Path string "json:\"path\""
@@ -5809,4 +5814,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 8c86827059fc9f434f5e9138681c1540b2a02748cdafd194e3e7c112c604844a
+// golden-hash: 0406707080ebae06a60b604a119b92df7c94bbf9dffd03fca84df691da13f5d2

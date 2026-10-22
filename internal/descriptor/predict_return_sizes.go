@@ -315,7 +315,7 @@ func returnSections(in returnSizeInputs) []returnSection {
 			p := int64(m.Shape[0])
 			result := []*sizeNode{
 				leaf("name", sizeLabel), leaf("type", sizeLabel), leaf("group_key", sizeLabel),
-				matrixValuesNode("primary", p, p), key("vectors", elemValues(p, sizeNumber)),
+				matrixNode("primary", p, p, m.Encoding, 0), key("vectors", elemValues(p, sizeNumber)),
 				leaf("scalars", sizeNumber)}
 			if i < len(in.matrixPlans) {
 				member := i < len(in.matrixMembers) && in.matrixMembers[i]
@@ -510,6 +510,22 @@ func matrixValuesNode(name string, rows, cols int64) *sizeNode {
 		key("values", elemValues(rows*cols, sizeNumber)))
 }
 
+// matrixNode is matrixValuesNode in the spec's encoding: under records
+// the columns plus one object per row — its key, a keyed number per
+// column and fields extra keyed labels (MAT_SEM's estimates: lval, op,
+// rval, parameter, free) — sized as one leaf per row, the column names
+// at a label's width.
+func matrixNode(name string, rows, cols int64, enc types.MatrixEncoding, fields int64) *sizeNode {
+	if enc != types.MatrixEncodingRecords {
+		return matrixValuesNode(name, rows, cols)
+	}
+	keyed := int64(sizeLabel + sizeKeyOverhead)
+	row := &sizeNode{seg: returnplan.Elem(), count: rows,
+		own: sizeObject + int64(len(types.MatrixRecordKey)) + sizeKeyOverhead + sizeLabel + cols*(keyed+sizeNumber) + fields*(keyed+sizeLabel)}
+	return key(name, leaf("kind", sizeLabel), leaf("encoding", sizeLabel),
+		key("columns", elemValues(cols, sizeLabel)), key("rows", row))
+}
+
 // matrixAuxiliaryNodes sizes the auxiliary matrices spec m emits — every
 // key its operator declares (capabilities_matrix.go OutputKeys.Auxiliary)
 // under the params that emit it, by the runtime's shapes: p is the
@@ -534,6 +550,11 @@ func matrixValuesNode(name string, rows, cols int64) *sizeNode {
 //   - MAT_SEM: estimates r x 5, r the model's parameter-table rows
 //     (sem.SpecifiedRows: known from the description alone);
 //     residual_covariance p x p.
+//
+// semRecordFields are the fields a MAT_SEM estimates record carries
+// beside its key and figures (processing.semParts).
+const semRecordFields = 5
+
 func matrixAuxiliaryNodes(m vectors.Matrix, mp descriptor.MatrixPredict, member bool) []*sizeNode {
 	p, k := int64(mp.Shape[0]), int64(mp.Shape[1])
 	keys, _ := m.AuxiliaryKeys()
@@ -544,28 +565,28 @@ func matrixAuxiliaryNodes(m vectors.Matrix, mp descriptor.MatrixPredict, member 
 	for _, name := range keys {
 		switch name {
 		case "eigenvectors", "unrotated":
-			out = append(out, matrixValuesNode(name, p, k))
+			out = append(out, matrixNode(name, p, k, m.Encoding, 0))
 		case "factor_correlation":
-			out = append(out, matrixValuesNode(name, k, k))
+			out = append(out, matrixNode(name, k, k, m.Encoding, 0))
 		case "variance_decomposition":
 			q := p
 			if !m.Center {
 				q++
 			}
-			out = append(out, matrixValuesNode(name, q, q))
+			out = append(out, matrixNode(name, q, q, m.Encoding, 0))
 		case "centroids", "centroids_standardized":
-			out = append(out, matrixValuesNode(name, p, int64(len(m.Members.Members))))
+			out = append(out, matrixNode(name, p, int64(len(m.Members.Members)), m.Encoding, 0))
 		case "pooled_covariance":
 			members := int64(len(m.Members.Members))
-			out = append(out, matrixValuesNode(name, members, members))
+			out = append(out, matrixNode(name, members, members, m.Encoding, 0))
 		case "estimates":
 			rows := int64(0)
 			if m.SEM != nil && m.SEM.Model != nil {
 				rows = int64(len(sem.SpecifiedRows(m.SEM.Model)))
 			}
-			out = append(out, matrixValuesNode(name, rows, int64(len(vectors.SEMEstimateColumns()))))
+			out = append(out, matrixNode(name, rows, int64(len(vectors.SEMEstimateColumns())), m.Encoding, semRecordFields))
 		default: // n and the inference squares: p x p over the output axis
-			out = append(out, matrixValuesNode(name, p, p))
+			out = append(out, matrixNode(name, p, p, m.Encoding, 0))
 		}
 	}
 	return out

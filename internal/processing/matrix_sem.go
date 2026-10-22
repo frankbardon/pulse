@@ -184,6 +184,15 @@ func (in *matrixFinalizeInput) semParts(out *matrixOutput, fit *sem.Fit, implied
 			},
 			"residual_covariance": in.Square(resid),
 		}
+		if in.Plan().Encoding == types.MatrixEncodingRecords {
+			// A records row is self-describing: the path's parts and
+			// the parameter's name / freedom ride beside its figures.
+			fields := make([]map[string]any, len(rows))
+			for i, e := range rows {
+				fields[i] = map[string]any{"lval": e.LVal, "op": e.Op, "rval": e.RVal, "parameter": e.Param, "free": e.Free}
+			}
+			out.Auxiliary["estimates"].RecordFields = fields
+		}
 	}
 	if in.WantVectors() {
 		names := make([]string, len(rows))

@@ -82,8 +82,19 @@ request order:
 | `warnings` | `PULSE_MATRIX_*` data-quality findings |
 | `group_key`, `group_header` | set on a per-bucket result |
 
-`encoding` is `full` (default) or `upper` (row r carries the p - r cells
-from the diagonal). Undefined cells are `null`, keys kept.
+`encoding` is `full` (default), `upper` (row r carries the p - r cells
+from the diagonal) or `records`. Undefined cells are `null`, keys kept.
+
+`records` writes every matrix of the result (the primary and each
+auxiliary, rectangular ones included) as row records:
+`{kind, encoding, columns, rows, labels?}`, `rows` one object per row in
+`row_keys` order — `{"key": <row key>, <column>: value, ...}` — with
+undefined cells `null`. `MAT_SEM`'s `auxiliary.estimates` rows also carry
+`lval`, `op`, `rval`, `parameter` and `free`. The numbers are exactly the
+`full` encoding's; a member named `key` is refused (`SERVICE_VALIDATION`,
+`records_key_collision`), and a data-derived column of that name (a
+`MAT_DISTANCE` bucket label) fails the slot. In Go, `MatrixValues.Values`
+keeps the full layout and `MatrixValues.Records()` derives the rows.
 
 ## Missing data and weights
 

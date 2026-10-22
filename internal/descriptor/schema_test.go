@@ -519,3 +519,36 @@ func TestPayloadSchema_FailedFitsValidate(t *testing.T) {
 		t.Error("VectorFitResult accepted without its figures or an error")
 	}
 }
+
+// TestPayloadSchema_MatrixRecordsValidate: a records-encoded matrix
+// (rectangular, with record fields and a null cell) validates, beside a
+// full one; a records payload missing its rows does not.
+func TestPayloadSchema_MatrixRecordsValidate(t *testing.T) {
+	c := jsonschema.NewCompiler()
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(BuildPayloadSchema()))
+	if err != nil {
+		t.Fatalf("unmarshal schema: %v", err)
+	}
+	if err := c.AddResource(payloadSchemaID, doc); err != nil {
+		t.Fatalf("add resource: %v", err)
+	}
+	rec := &types.MatrixValues{Kind: types.MatrixKindRectangular, Encoding: types.MatrixEncodingRecords,
+		RowKeys: []string{"y ~ x"}, ColumnKeys: []string{"estimate", "p_value"}, Values: [][]float64{{0.5, math.NaN()}},
+		RecordFields: []map[string]any{{"lval": "y", "op": "~", "rval": "x", "parameter": "_b1", "free": true}}}
+	full := &types.MatrixValues{Kind: types.MatrixKindSquareSymmetric, Encoding: types.MatrixEncodingFull,
+		RowKeys: []string{"a"}, ColumnKeys: []string{"a"}, Values: [][]float64{{1}}}
+	resp := types.Response{Matrices: []types.MatrixResult{{Name: "m", Type: types.MAT_SEM, Primary: full,
+		Auxiliary: map[string]*types.MatrixValues{"estimates": rec}}}}
+	validateAgainst(t, c, "#/$defs/Response", resp)
+	sch, err := c.Compile(payloadSchemaID + "#/$defs/MatrixValues")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inst, err := jsonschema.UnmarshalJSON(strings.NewReader(`{"kind":"rectangular","encoding":"records","columns":["a"]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sch.Validate(inst) == nil {
+		t.Error("a records matrix without rows validated")
+	}
+}

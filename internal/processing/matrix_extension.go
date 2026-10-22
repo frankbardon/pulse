@@ -190,7 +190,10 @@ func (s *matrixPlanSet) buildMatrixOps(req *types.Request) error {
 // heavy drop — the engine owns missing / max_drop_share) lead the
 // operator's own, and its Components become the entry's operator keys.
 // want reports whether the result parts are rendered at all (false on
-// a components-only run, every Want* off).
+// a components-only run, every Want* off). Under encoding records the
+// operator renders full and slotResult stamps its parts records exactly
+// as a built-in's (recordsEncode; a part it wrote upper is expanded,
+// a column named "key" fails the slot).
 func (m *matrixSlot) finalizeExtension(cm *linalg.CoMoment, want bool) (matrixOutput, error) {
 	in := &MatrixOpInput{
 		Name:          m.plan.Name,
