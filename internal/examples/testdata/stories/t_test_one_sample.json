@@ -1,0 +1,63 @@
+{
+  "data": [
+    {
+      "avg_revenue": 154.3,
+      "n": 400
+    }
+  ],
+  "metadata": {
+    "total_rows": 400,
+    "filtered_rows": 400,
+    "cohort_file": "experiment.pulse"
+  },
+  "tests": [
+    {
+      "label": "revenue_vs_100",
+      "type": "TEST_T",
+      "variant": "one_sample",
+      "statistic": 11.56,
+      "df": 399,
+      "p_value": 7.392e-27,
+      "alpha": 0.05,
+      "reject_null": true,
+      "details": {
+        "ci_high": 163.5,
+        "ci_low": 145.1,
+        "effect_size": {
+          "cohens_d": 0.578
+        },
+        "mean": 154.3,
+        "mu": 100,
+        "n": 400,
+        "variance": 8825
+      }
+    }
+  ],
+  "components": {
+    "aggregations": [
+      {
+        "label": "avg_revenue",
+        "n": 400,
+        "n_null": 0,
+        "operator": {
+          "sum": 6.172e+04
+        }
+      },
+      {
+        "label": "n",
+        "n": 400,
+        "n_null": 0
+      }
+    ],
+    "run": {
+      "total_records": 400,
+      "filtered_records": 400,
+      "null_records": 0
+    }
+  },
+  "returned": {
+    "preset": "full",
+    "digest": "rp1:2a47356146fe7626329ca77359f19495ac57bb6a599dfdd7658729be64597be6",
+    "precision": 4
+  }
+}

@@ -2,11 +2,17 @@
 
 ## The question
 
-Questions of this kind sound like:
+<!-- docgen:preserve begin guide-benchmark-question -->
+You have a figure — an average, a share, a total, a score — and something to hold it against: a target you set, the whole population, another group, last wave or a reference request. You want to know whether your figure sits above or below that reference, by how much, and whether the gap is bigger than the noise in the rows you have.
 
-- How does this compare to the total?
-- Is this group above or below the population?
-- How does this wave compare to the last?
+It sounds like:
+
+- "Is our average order value above the target we set?"
+- "Which regions over-index on revenue against the total?"
+- "How does this wave's mix compare with the last one?"
+
+Decide first what the reference is, because it picks the analysis. A fixed figure you supply takes a one-sample test (a t-test for an average). The total or the population takes an index or z-score overlay, where an index of one hundred means level with the reference. Another group, another wave or another request takes a delta or index overlay against that sibling, stage or reference.
+<!-- docgen:preserve end guide-benchmark-question -->
 
 ## Pick your analysis
 
@@ -79,15 +85,234 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 
 ## A worked example
 
-No worked example is published for this question yet. `pulse recommend --intent benchmark` drafts requests for it.
+**Do customers spend more on average than the target of 100 per customer?**
+
+The request (example `t_test_one_sample`; `pulse examples show t_test_one_sample` prints it):
+
+```json
+{
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "revenue",
+      "label": "avg_revenue"
+    },
+    {
+      "type": "AGG_COUNT",
+      "field": "revenue",
+      "label": "n"
+    }
+  ],
+  "cohort": {
+    "filename": "experiment.pulse",
+    "data_dir": ".data"
+  },
+  "return": {
+    "precision": 4
+  },
+  "tests": [
+    {
+      "type": "TEST_T",
+      "field": "revenue",
+      "alpha": 0.05,
+      "label": "revenue_vs_100",
+      "params": {
+        "mu": 100.0
+      }
+    }
+  ]
+}
+```
+
+The result:
+
+```json
+{
+  "data": [
+    {
+      "avg_revenue": 154.3,
+      "n": 400
+    }
+  ],
+  "metadata": {
+    "total_rows": 400,
+    "filtered_rows": 400,
+    "cohort_file": "experiment.pulse"
+  },
+  "tests": [
+    {
+      "label": "revenue_vs_100",
+      "type": "TEST_T",
+      "variant": "one_sample",
+      "statistic": 11.56,
+      "df": 399,
+      "p_value": 7.392e-27,
+      "alpha": 0.05,
+      "reject_null": true,
+      "details": {
+        "ci_high": 163.5,
+        "ci_low": 145.1,
+        "effect_size": {
+          "cohens_d": 0.578
+        },
+        "mean": 154.3,
+        "mu": 100,
+        "n": 400,
+        "variance": 8825
+      }
+    }
+  ],
+  "components": {
+    "aggregations": [
+      {
+        "label": "avg_revenue",
+        "n": 400,
+        "n_null": 0,
+        "operator": {
+          "sum": 6.172e+04
+        }
+      },
+      {
+        "label": "n",
+        "n": 400,
+        "n_null": 0
+      }
+    ],
+    "run": {
+      "total_records": 400,
+      "filtered_records": 400,
+      "null_records": 0
+    }
+  },
+  "returned": {
+    "preset": "full",
+    "digest": "rp1:2a47356146fe7626329ca77359f19495ac57bb6a599dfdd7658729be64597be6",
+    "precision": 4
+  }
+}
+```
+
+Yes, comfortably. The average customer brought in about half as much again as the target, and the test says an average this far above the target would almost never turn up if the true average sat at the target: the p-value is tiny and the whole confidence interval lies above it. Cohen's d puts the gap at a medium size next to how much customers vary, so plenty of individual customers can still sit below the target even though the average clears it. The test compares one average with a fixed figure you supply, so choose the target before looking at the data; to benchmark against another group instead, use a two-sample test.
 
 ## How to read the result
 
-The figures these operators return read as their names say; for the ones that need more, see [Reading your results](../reading.md).
+### `TEST_T`
+
+**`statistic`**
+
+t is the gap between averages measured in standard errors: the sample mean minus the target value (one-sample), or the first group's mean minus the second's (two-sample, Welch). Values far from 0 in either direction are unlikely if the true gap is zero.
+
+**Sign:**
+
+- `+`: the sample mean is above the target, or the first group in details.groups has the higher mean
+- `-`: the sample mean is below the target, or the second group in details.groups has the higher mean
+
+**Caveats:**
+
+- The two-sample form is Welch's: degrees of freedom (df) are adjusted for unequal variances and are usually not a whole number.
+
+**`p_value`**
+
+Follows the shared reading: see [Reading a p-value](../reading/test.md#shared-p-value).
+
+**`details.reference`**
+
+Present only with params.reference: the split_by level read second in details.groups, so diff, its interval, the statistic and the signed effect size read the other group minus this one.
+
+**`details.diff`**
+
+Two-sample only: the first group's mean minus the second's, in the field's own units.
+
+**Sign:**
+
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
+
+**`details.ci_low`**
+
+Lower end of the confidence interval at the 1 - alpha level (95% by default): for the mean itself in the one-sample form, for the difference in means (details.diff) in the two-sample form.
+
+**Caveats:**
+
+- In the one-sample form the interval is around the mean, not around mean minus target: compare it with the target value directly.
+
+**`details.ci_high`**
+
+Upper end of the same confidence interval: for the mean (one-sample) or for the difference in means (two-sample).
+
+**`details.effect_size.cohens_d`**
+
+The gap in standard-deviation units: (mean - target) / SD for one sample, (first mean - second mean) / pooled SD for two groups. 0.5 means the averages sit half a standard deviation apart.
+
+**Bands** (convention: Cohen (1988); a labelled convention, not a rule):
+
+| Absolute value | Label |
+|---|---|
+| below 0.2 | very small |
+| from 0.2 to below 0.5 | small |
+| from 0.5 to below 0.8 | medium |
+| 0.8 and above | large |
+
+**Sign:**
+
+- `+`: the mean is above the target, or the first group in details.groups is higher
+- `-`: the mean is below the target, or the second group in details.groups is higher
+
+**Caveats:**
+
+- This d divides by the pooled standard deviation of the two groups, even though the test itself does not assume equal variances; when spreads differ a lot, d describes neither group exactly.
+- When the standard deviation is zero, d is undefined and the key is left out rather than reported as 0.
+
+**`details.diff_unadjusted`**
+
+Present only with params.covariate: the raw first-minus-second difference of means on the same rows; details.diff, its interval, the statistic, p, mean, variance and cohens_d are the covariate-adjusted figures.
+
+**Sign:**
+
+- `+`: the first group in details.groups is higher (alphabetical order; with params.reference, the non-reference group)
+- `-`: the second group in details.groups is higher (alphabetical order; with params.reference, the reference)
+
+**Caveats:**
+
+- Cohen's d here divides by the adjusted spread, so it is larger than the raw d: compare it only with other adjusted d's.
+
+**`details.theta`**
+
+Present only with params.covariate: the slope of the outcome on the covariate pooled over both groups; each row is read as outcome - theta x (covariate - covariate_mean).
+
+**Caveats:**
+
+- Null when the covariate is constant: nothing is adjusted then. It is estimated from the same data, which standard CUPED practice ignores in the interval.
+
+**`details.covariate_mean`**
+
+Present only with params.covariate: the covariate's mean over both groups, the point the adjustment centres on.
+
+**`details.variance_reduction`**
+
+Present only with params.covariate: the share of the difference's sampling variance the covariate removed (0.6 = the interval is about 37% narrower than unadjusted).
+
+**Caveats:**
+
+- Null when theta is; below 0 means the covariate made the estimate noisier, so drop it. Use a covariate measured before assignment: one the treatment moved biases diff.
+
+**`details.n_covariate_dropped`**
+
+Present only with params.covariate: rows with an outcome and a group but a null covariate, left out of the test (n counts the rest).
+
+More on reading it: [TEST_T](../reading/test.md#op-test_t).
 
 ## Pitfalls
 
-Each operator's catalog entry lists its assumptions and when to reach for something else; read them before trusting a figure.
+<!-- docgen:preserve begin guide-benchmark-pitfalls -->
+- **Choose the reference before you look.** A target picked after seeing the data, or the one comparison that happened to look good, makes any gap look convincing; write the reference down first.
+- **An index is a ratio, not a test.** An index of one hundred and twenty says the figure is a fifth above the reference; it says nothing about whether that gap could come from the rows you happened to collect. Read the base counts, or use a test or a z-score overlay to judge it.
+- **A group is part of its own total.** When a large group is compared with a total it makes up much of, the gap shrinks towards zero; for a fair contrast compare it with everyone else, or with a sibling group.
+- **Sums and averages index differently.** Indexing each group's total against the grand total gives its share of the whole, which grows with group size; index an average or a rate when you want to compare how the typical row performs.
+- **A small p-value is not a big gap.** With many rows a gap too small to matter still clears the bar; read the size of the gap and the effect size beside the p-value.
+- **Many groups against one reference inflate false alarms.** Scoring every region or every cell against the total makes some stand out by luck; use the request's `multiplicity` block to adjust the p-values.
+- **Survey data may need a weight.** An unweighted figure describes the sample; set the request's weight when you benchmark against a population figure.
+<!-- docgen:preserve end guide-benchmark-pitfalls -->
 
 ## Next steps
 
@@ -97,7 +322,7 @@ Each operator's catalog entry lists its assumptions and when to reach for someth
 - [Mix and share](composition.md)
 - [Compare groups](compare_groups.md)
 
-**Skills:** [`intents`](../skills/intents.md), [`aggregation-design`](../skills/aggregation-design.md), [`attribute-composition`](../skills/attribute-composition.md), [`facet-design`](../skills/facet-design.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`process-chain`](../skills/process-chain.md), [`statistical-testing`](../skills/statistical-testing.md), [`window-design`](../skills/window-design.md)
+**Skills:** [`intents`](../skills/intents.md), [`aggregation-design`](../skills/aggregation-design.md), [`attribute-composition`](../skills/attribute-composition.md), [`facet-design`](../skills/facet-design.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`process-chain`](../skills/process-chain.md), [`statistical-testing`](../skills/statistical-testing.md), [`window-design`](../skills/window-design.md), [`op-agg-average`](../skills/op-agg-average.md), [`op-agg-count`](../skills/op-agg-count.md), [`op-test-t`](../skills/op-test-t.md)
 
 **From the command line:**
 

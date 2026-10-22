@@ -1,5 +1,7 @@
 {
   "_meta": {
+    "interpretation": "Yes. Cronbach's alpha and McDonald's omega both come out in the range usually read as good reliability, and every alpha if deleted sits below the full-scale alpha, so dropping any one item would make the scale less reliable, not more. Each item's corrected item-total correlation is moderate to strong: every question moves with the rest. The dread item is worded the other way round, so the request reverses it before scoring; leave that out and the item works against the others and alpha falls sharply. Items that move together are not yet one dimension, which a principal-component or factor analysis checks, and a consistent score is not by itself a score of what its name claims.",
+    "question": "Do these six engagement questions measure one thing well enough to add up into a single score?",
     "name": "scale_reliability",
     "category": "matrices",
     "tags": [

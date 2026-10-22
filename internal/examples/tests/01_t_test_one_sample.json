@@ -1,5 +1,7 @@
 {
   "_meta": {
+    "interpretation": "Yes, comfortably. The average customer brought in about half as much again as the target, and the test says an average this far above the target would almost never turn up if the true average sat at the target: the p-value is tiny and the whole confidence interval lies above it. Cohen's d puts the gap at a medium size next to how much customers vary, so plenty of individual customers can still sit below the target even though the average clears it. The test compares one average with a fixed figure you supply, so choose the target before looking at the data; to benchmark against another group instead, use a two-sample test.",
+    "question": "Do customers spend more on average than the target of 100 per customer?",
     "category": "tests",
     "description": "One-sample t-test comparing revenue mean against the hypothesized mu=100.",
     "intents": [
@@ -47,6 +49,8 @@
         "mu": 100.0
       }
     }
-  ]
-
+  ],
+  "return": {
+    "precision": 4
+  }
 }

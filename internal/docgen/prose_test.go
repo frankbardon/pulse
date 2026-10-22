@@ -142,8 +142,8 @@ func TestParseProse(t *testing.T) {
 
 // TestProse_EmbeddedFilesWellFormed: every embedded prose file is the
 // landing page's or an analytic intent's, carries only the sections its
-// page reads, parses without a problem, and the describe guide is
-// fully written.
+// page reads, parses without a problem, and the landing page and every
+// analytic intent's guide are fully written.
 func TestProse_EmbeddedFilesWellFormed(t *testing.T) {
 	analytic := map[string]bool{}
 	for _, in := range descx.Intents() {
@@ -180,7 +180,12 @@ func TestProse_EmbeddedFilesWellFormed(t *testing.T) {
 			}
 		}
 	}
-	for stem, want := range map[string][]string{landingProseFile: landingSections, "describe": guideSections} {
+	complete := map[string][]string{landingProseFile: landingSections}
+	for id := range analytic {
+		complete[id] = guideSections
+	}
+	rendered := renderTree(nil)
+	for stem, want := range complete {
 		pf, ok := readProse(stem)
 		if !ok {
 			t.Errorf("guides/%s.md missing", stem)
@@ -190,14 +195,34 @@ func TestProse_EmbeddedFilesWellFormed(t *testing.T) {
 		if stem != landingProseFile {
 			page, id = questionPath(stem), func(s string) string { return guideSpanID(stem, s) }
 		}
-		rendered := renderTree(nil)[page]
 		for _, s := range want {
 			if pf.sections[s] == "" {
 				t.Errorf("guides/%s.md: section %q not written", stem, s)
 			}
-			if got, _ := span(rendered, id(s)); got != pf.sections[s] {
+			if got, _ := span(rendered[page], id(s)); got != pf.sections[s] {
 				t.Errorf("%s: span %s is not guides/%s.md's %q section verbatim", page, id(s), stem, s)
 			}
 		}
+	}
+}
+
+// TestGuides_EveryAnalyticIntentHasAStory: on the full instance every
+// analytic intent's guide shows a worked story — an example listing the
+// intent first, with question, interpretation and a committed golden —
+// so no guide falls back to the bare pulse recommend pointer.
+func TestGuides_EveryAnalyticIntentHasAStory(t *testing.T) {
+	g := newGen(nil, Options{})
+	seen := 0
+	for _, in := range descx.Intents() {
+		if !in.Analytic {
+			continue
+		}
+		seen++
+		if _, ok := g.guideStory(in.ID); !ok {
+			t.Errorf("%s: no story example (one whose first _meta.intents entry is %s, with question, interpretation and a golden)", in.ID, in.ID)
+		}
+	}
+	if seen == 0 {
+		t.Fatal("no analytic intents: vacuous")
 	}
 }
