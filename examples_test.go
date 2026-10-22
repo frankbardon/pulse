@@ -87,7 +87,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 // the anchor-syntax example reads.
 func buildExampleFixtures(t *testing.T, p *pulse.Pulse, fs afero.Fs, tmp string) {
 	t.Helper()
-	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers", "tier_migrations", "survey", "subscribers", "warehouse_orders", "plan_history", "plan_history_wide"}
+	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers", "tier_migrations", "survey", "subscribers", "warehouse_orders", "plan_history", "plan_history_wide", "battery"}
 	for _, name := range cohorts {
 		csvPath := filepath.Join("internal", "examples", "fixtures", name+".csv")
 		schemaPath := filepath.Join("internal", "examples", "fixtures", "schemas", name+".json")

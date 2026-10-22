@@ -1,13 +1,13 @@
 {
   "_meta": {
     "category": "tests",
-    "description": "Tier-2 Mann-Kendall trend test on daily revenue means bucketed by GROUP_DATE.",
+    "description": "Tier-2 Mann-Kendall trend test: is revenue climbing against its own pre-period baseline? AGG_RATIO folds sum(revenue) / sum(revenue_before) per ISO week (GROUP_DATE component week), so each customer's base spend and region lift cancel out and what is left is the treatment lift and the time drift; TEST_TREND then orders the weekly ratios by period. On experiment.pulse that lift drifts upward across the quarter (planted in the generator), so the test rejects no trend with Kendall's tau around 0.85 over the 14 weeks.",
     "intents": [
       "change_over_time"
     ],
     "name": "post_trend_on_dates",
     "operators": [
-      "AGG_AVERAGE",
+      "AGG_RATIO",
       "GROUP_DATE",
       "TEST_TREND"
     ],
@@ -22,9 +22,13 @@
   },
   "aggregations": [
     {
-      "type": "AGG_AVERAGE",
+      "type": "AGG_RATIO",
       "field": "revenue",
-      "label": "avg_revenue"
+      "label": "revenue_lift",
+      "params": {
+        "numerator_field": "revenue",
+        "denominator_field": "revenue_before"
+      }
     }
   ],
   "cohort": {
@@ -36,16 +40,16 @@
       "type": "GROUP_DATE",
       "field": "period",
       "params": {
-        "component": "day"
+        "component": "week"
       }
     }
   ],
   "post_tests": [
     {
       "type": "TEST_TREND",
-      "field": "avg_revenue",
+      "field": "revenue_lift",
       "alpha": 0.05,
-      "label": "daily_revenue_trend",
+      "label": "weekly_lift_trend",
       "order_by": [
         {
           "field": "period"
@@ -60,6 +64,8 @@
     {
       "field": "period"
     }
-  ]
-
+  ],
+  "return": {
+    "precision": 4
+  }
 }

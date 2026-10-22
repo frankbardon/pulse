@@ -43,7 +43,7 @@ make build
 That writes `transactions.pulse`, `customers.pulse`, `orders.pulse`,
 `training_data.pulse`, `all_types.pulse`, `experiment.pulse`,
 `repeated_measures.pulse`, `card_issuers.pulse`, `tier_migrations.pulse`,
-`survey.pulse`, `subscribers.pulse`, `warehouse_orders.pulse`, `plan_history.pulse` and `plan_history_wide.pulse` into `.data/` at the repo root, plus the point-lookup
+`survey.pulse`, `subscribers.pulse`, `warehouse_orders.pulse`, `plan_history.pulse`, `plan_history_wide.pulse` and `battery.pulse` into `.data/` at the repo root, plus the point-lookup
 index on `experiment.pulse` (`id`). Every example request has
 `cohort.data_dir = ".data"` so the requests run unmodified.
 
@@ -62,6 +62,7 @@ index on `experiment.pulse` (`id`). Every example request has
 | `warehouse_orders.pulse` | 8 orders across four warehouses: `id` (u32), `warehouse_tz` (categorical, IANA zone names), `ordered_at` (datetime, UTC instants straddling local midnights), `revenue` (f64). The per-row-zone example (`groupers/13_date_per_row_zone.json`) reads `warehouse_tz` through `time_zone_field`. |
 | `plan_history.pulse` | A long panel of 15 customers at three month-end snapshots (45 rows, not sorted by customer): `id` (u32), `customer_id` (u32), `seen_at` (date), `plan` (categorical, `basic` / `plus` / `pro`). Hand-curated; `attributes/24_previous_state_transitions.json` reads each row's previous plan (`ATTR_PREVIOUS_STATE`) for a from-plan × to-plan crosstab. |
 | `plan_history_wide.pulse` | The wide twin of `plan_history`: one row per move between two consecutive snapshots (30 rows): `id` (u32), `customer_id` (u32), `moved_at` (date, the later snapshot), `plan_before` / `plan_after` (categorical). `overlays/55_crosstab_previous_state_flows.json` runs Markov, symmetry and retention on the long panel; `TestExamples_PreviousStateFlowsMatchWideTwin` holds its answer to the same request over this file. |
+| `battery.pulse` | A one-trait engagement battery (300 respondents): `id` (u32), `bat_energy` / `bat_proud` / `bat_absorbed` / `bat_recommend` / `bat_time_flies` (u8, 1-5, positively keyed) and `bat_dread` (u8, 1-5, reverse-keyed). Every item loads on one latent trait (`fixtures/gen.go`), so the reliability example's omega is defined and the PCA example has one dominant component (`TestExamples_BatteryMeasuresOneTrait`). |
 
 The generator (`fixtures/gen.go`) is deterministic — re-running with the
 same seed produces byte-identical CSVs. Re-generate from scratch:

@@ -10,20 +10,37 @@
     "operators": [
       "MAT_RELIABILITY"
     ],
-    "description": "Scale reliability of a three-measure battery on experiment.pulse (revenue_before, revenue, session_minutes): Cronbach's alpha and standardized alpha, McDonald's omega from a one-factor minres fit, the mean inter-item correlation, and per item the corrected item-total r, alpha if deleted, mean and sd, with the inter-item correlation matrix as primary. On a rating battery, params.reverse with scale_min / scale_max flips reverse-worded items (x' = min + max - x) before the fold. Omega is null with a warning on 2 items, a Heywood fit or an unrepaired non-PSD pairwise input; here session_minutes does not belong with the two revenue measures (alpha if deleted jumps to 0.98), so the fit is a Heywood case and omega comes back null with PULSE_MATRIX_HEYWOOD. Streamable and mergeable; no p-values.",
+    "description": "Scale reliability of a six-item engagement battery on battery.pulse (bat_energy, bat_proud, bat_absorbed, bat_recommend, bat_time_flies, bat_dread; 1-5 ratings on one latent trait): Cronbach's alpha and standardized alpha, McDonald's omega from a one-factor minres fit, the mean inter-item correlation, and per item the corrected item-total r, alpha if deleted, mean and sd, with the inter-item correlation matrix as primary. bat_dread is reverse-worded, so params.reverse with scale_min 1 / scale_max 5 flips it (x' = min + max - x) before the fold; without the flip it would drag alpha down. Here the battery holds together: alpha and omega both land near 0.82 and every alpha if deleted sits below the full-scale alpha, so no item is worth dropping. Omega is null with a warning on 2 items (PULSE_MATRIX_NOT_IDENTIFIED), a Heywood fit (PULSE_MATRIX_HEYWOOD, typical when one measure does not belong with the rest) or an unrepaired non-PSD pairwise input. Streamable and mergeable; no p-values.",
     "intents": [
       "measure_construct"
     ]
   },
   "cohort": {
-    "filename": "experiment.pulse",
+    "filename": "battery.pulse",
     "data_dir": ".data"
   },
   "matrices": [
     {
       "type": "MAT_RELIABILITY",
       "name": "battery",
-      "fields": ["revenue_before", "revenue", "session_minutes"]
+      "fields": [
+        "bat_energy",
+        "bat_proud",
+        "bat_absorbed",
+        "bat_recommend",
+        "bat_time_flies",
+        "bat_dread"
+      ],
+      "params": {
+        "reverse": [
+          "bat_dread"
+        ],
+        "scale_min": 1,
+        "scale_max": 5
+      }
     }
-  ]
+  ],
+  "return": {
+    "precision": 4
+  }
 }

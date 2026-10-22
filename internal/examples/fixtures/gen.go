@@ -63,7 +63,10 @@ func main() {
 	// function of the row index, so the showcase tests can derive their
 	// expected numbers by hand.
 	must(writeSubscribers(48))
-	fmt.Println("wrote 8 CSVs to", outputDir)
+	// The one-trait battery draws from its own source too, so adding it
+	// left every CSV above byte-identical.
+	must(writeBattery(rand.New(rand.NewSource(seed+2)), 300))
+	fmt.Println("wrote 9 CSVs to", outputDir)
 }
 
 // writeExperiment produces an A/B testing cohort designed so every
@@ -389,6 +392,52 @@ func writeSurvey(r *rand.Rand, n int) error {
 			communality := float64(l[0]*l[0]) + float64(l[1]*l[1]) + float64(2*l[0]*l[1]*phi)
 			item := common + float64(math.Sqrt(1-communality)*r.NormFloat64())
 			row = append(row, fmt.Sprintf("%.2f", 4+float64(1.2*item)))
+		}
+		if err := w.Write(row); err != nil {
+			return err
+		}
+	}
+	w.Flush()
+	return w.Error()
+}
+
+// writeBattery produces a six-item Likert battery measuring ONE latent
+// trait (job engagement), so reliability and principal-component
+// examples have a well-defined answer: a one-factor fit with no
+// Heywood case (omega defined) and one dominant component. Each item
+// is a 1-5 rating cut from loading*trait + unique noise at fixed
+// thresholds. bat_dread is reverse-worded: it loads NEGATIVELY on the
+// trait, so a reliability request flips it with params.reverse
+// (scale 1..5) before the fold.
+//
+// Fields:
+//
+//	id                         — u32, 1..n
+//	bat_energy .. bat_absorbed — u8 ratings 1..5, positively keyed
+//	bat_dread                  — u8 rating 1..5, reverse-keyed
+func writeBattery(r *rand.Rand, n int) error {
+	w, close := openCSV("battery.csv")
+	defer close()
+	header := []string{"id", "bat_energy", "bat_proud", "bat_absorbed", "bat_recommend", "bat_time_flies", "bat_dread"}
+	if err := w.Write(header); err != nil {
+		return err
+	}
+	// Loadings on the single trait; the last item is reverse-keyed.
+	loadings := [6]float64{0.80, 0.75, 0.70, 0.65, 0.60, -0.70}
+	// Cut points on the unit-variance item scale: 1 | 2 | 3 | 4 | 5.
+	cuts := [4]float64{-1.5, -0.5, 0.5, 1.5}
+	for i := range n {
+		trait := r.NormFloat64()
+		row := []string{itoa(i + 1)}
+		for _, l := range loadings {
+			item := float64(l*trait) + float64(math.Sqrt(1-l*l)*r.NormFloat64())
+			rating := 1
+			for _, c := range cuts {
+				if item > c {
+					rating++
+				}
+			}
+			row = append(row, itoa(rating))
 		}
 		if err := w.Write(row); err != nil {
 			return err
