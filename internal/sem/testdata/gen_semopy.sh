@@ -14,6 +14,10 @@
 # z-scored. nearest_statsmodels.json is gen_nearest.py (cov_nearest).
 # near_data.csv is gen_near_data.py (a near-exact dependency that still
 # factors: semopy fits it raw), fitted by fit_semopy_exact.py.
+# shape_data.csv is gen_shape_data.py (the synthetic same-shape models
+# shape63 / shape89); fit_semopy_shape.py fits each to its z-scored
+# listwise rows, shape63_singular to ids < 50 (n < p: semopy's
+# cov_nearest). The scripts need numpy, scipy (both semopy's) and pandas.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 venv="${1:-$(mktemp -d)/venv}"
@@ -40,3 +44,9 @@ done
 "$py" "$here/gen_near_data.py" > "$here/near_data.csv"
 "$py" "$here/fit_semopy_exact.py" "$here/near_data.csv" "$here/near_model.txt" > "$here/near_semopy_default.json"
 "$py" "$here/fit_semopy_exact.py" "$here/near_data.csv" "$here/near_model.txt" 1e-14 > "$here/near_semopy_tight.json"
+"$py" "$here/gen_shape_data.py" > "$here/shape_data.csv"
+for case in shape63:shape63:all shape89:shape89:all shape63_singular:shape63:50; do
+  IFS=: read -r name model rows <<< "$case"
+  "$py" "$here/fit_semopy_shape.py" "$here/shape_data.csv" "$here/${model}_model.txt" "$rows" > "$here/${name}_semopy_default.json"
+  "$py" "$here/fit_semopy_shape.py" "$here/shape_data.csv" "$here/${model}_model.txt" "$rows" 1e-14 > "$here/${name}_semopy_tight.json"
+done
