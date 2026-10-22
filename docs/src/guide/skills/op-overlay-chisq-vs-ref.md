@@ -28,7 +28,6 @@ Use something else:
 
 `Scope` must be `matrix`. `Reference` required — reference slot label. `Targets` required — one target slot label.
 
-- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Host shape
 
@@ -43,6 +42,12 @@ SCALAR — `Payload.Scalar` carries the p-value (= `Summary.PValue`), NOT χ²; 
 - `scalar`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 - `summary.p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 - `summary.parameters.df`: Degrees of freedom: the number of cells present in both requests with a positive reference count, minus 1.
+
+## Contract
+
+- Weight: weighted under `frequency` and `probability` weights.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `layer` (default), `request`, `compose` (inside Compose).
+- Streaming: buffered only.
 
 ## Gotchas
 

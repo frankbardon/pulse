@@ -35,10 +35,8 @@ Use something else:
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| model predictors | numeric slot columns (schema, features, earlier labels) |
-| `label` | output name; default `ATTR_REG_PREDICT_<fit>` |
+- model predictors — numeric slot columns (schema, features, earlier labels)
+- `label` — output name; default `ATTR_REG_PREDICT_<fit>`
 
 ## Output
 
@@ -48,6 +46,12 @@ One `f64` per record; null when a column the score reads is null, and on EVERY r
 
 - `value`: The target value the named fitted model predicts for the row from the row's own predictor values: intercept + sum(coefficient * predictor) at the fit's full precision, in the target's units — for a GLM on the response scale (the inverse link applied: a probability, a count) unless scale is link. With terms, only the listed terms are summed: that part of the prediction, a contribution in the target's units (link units for a GLM).
   - Caveat: A coefficient's confidence bound gives the range of that one term, not a prediction interval for a row.
+
+## Contract
+
+- Types: `date`, `f32`, `f64`, `u16`, `u32`, `u4`, `u64`, `u8`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable.
 
 ## Gotchas
 

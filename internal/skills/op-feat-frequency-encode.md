@@ -27,13 +27,14 @@ One `f64` column written to `Label` (default `FREQ_<field>`). Value per row = `c
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - GLOBAL-PASS: PrePass tallies categories cohort-wide, Finalize freezes the denominator, EmitRow serves O(1) per row. Streamable via `iter.Reset()`; file-backed iterators pay a second I/O.
 - Frequencies reflect the RAW cohort because FEAT runs PRE-FILTER. To encode within a filtered subset, stage via Compose / ProcessChain.
 - Cohort with zero non-null categories → every row emits `null`.
 - Null categories on individual rows emit `null`.
-- Any other field type rejected with `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime).
 
 ## See
 

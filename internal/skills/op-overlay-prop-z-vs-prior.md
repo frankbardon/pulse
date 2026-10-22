@@ -17,9 +17,6 @@ Inferential prior-period test of a share. Overlays decorate the host; no `Respon
 
 `Scope` must be `group`. `Ref.Prior` (empty `Ref` accepted; lag 1 only); other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Level` / `Within` must be `0` (`PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`). `params.field` / `params.partition_by` as on the delta twin (unknown → `PULSE_OVERLAY_FIELD_UNKNOWN` / `PULSE_OVERLAY_PARTITION_INVALID`).
 
-<!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family, alpha}`; adds per-entry `p_adjusted` + `significant_adjusted`, raw p untouched (`multiplicity-correction`).
-<!-- /feature -->
 
 ## Host shape
 
@@ -31,6 +28,8 @@ SERIES — one `SeriesEntry` per period in host order: `Summary.Statistic` = poo
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - **Independence assumed.** The two periods must be separate samples; a panel (same respondents both waves) makes the p-value wrong — Pulse cannot detect it.
@@ -38,7 +37,6 @@ SERIES — one `SeriesEntry` per period in host order: `Summary.Statistic` = poo
 - A missing period keeps its key with no statistic and the carrier does not advance.
 - n of 0, a share outside [0, 1] or a pooled share of 0 / 1 → NaN entry; one `PULSE_OVERLAY_REF_ZERO` warning per skip reason (`details.reason` a `PULSE_STATS_SKIP_*` code, `skipped`).
 - Weighted: p̂ is the weighted mean, n = `sum_weights` (frequency) or Kish `n_eff` (probability).
-- Buffered (not streamable): inferential policy, reads components.
 
 ## See
 

@@ -19,13 +19,15 @@ Row-level output; no `Response.Components`.
 
 ## Inputs
 
-`Field` and `params.base`: numeric — `u4`…`u64`, `f32`/`f64`, `date`; any other type is `PULSE_FIELD_TYPE_UNSUPPORTED`. On a decile table: defaults (field) over loans (base).
+`Field` and `params.base`: numeric (types in `## Contract`). On a decile table: defaults (field) over loans (base).
 
 ## Output
 
 One `float64` per row on `Label` (default `WIN_LIFT_<field>`): `(x/Σx) / (b/Σb)` — exactly the field's share over the base's share, each total over its own present values. Cumulative: running share of field ÷ running share of base (`978/2149 ÷ 3600/18000`); `1` on the last row.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

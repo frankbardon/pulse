@@ -37,7 +37,7 @@ Every param is a top-level key of the regression entry (manifest `slot: true`); 
 
 ## Inputs
 
-`target` / `predictors` — numeric analytics set: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date`, `datetime`, `packed_bool`, plus nullable variants. A categorical or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED`. Nullable rows drop from `n_obs`.
+`target` / `predictors` — types: see `## Contract` (nullable variants too). Nullable rows drop from `n_obs`.
 
 ## Output
 
@@ -45,9 +45,10 @@ Every param is a top-level key of the regression entry (manifest `slot: true`); 
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
-- A probability weight in force (request, slot or `Options.DefaultWeight`) → `PULSE_WEIGHT_UNSUPPORTED` naming the kind; `"weight": null` runs it unweighted.
 - `penalty` / `alpha` / `l1_ratio` / `unpenalized` / `family` / `link` rejected — other engines' knobs.
 - `resample` / `selection` → `PROCESSING_CONFIG` (not advertised; predict refuses them too) — credible intervals already convey uncertainty.
 - `prior_mu` or a `prior_precision` list of length ≠ predictors + 1, or a negative entry → `PROCESSING_CONFIG` at predict and runtime.

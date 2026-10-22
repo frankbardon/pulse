@@ -45,6 +45,12 @@ One `f64` per record: D² = (x − μ)ᵀS⁻¹(x − μ) ≥ 0, or its p. A nul
 
 - `value`: With output d2 (the default): the row's squared Mahalanobis distance D² = (x - mean)' S^-1 (x - mean) across the p fields, the distance from the fitted average row in units of the fields' own spread and correlation; 0 is exactly average and it is never negative. With output p: the chance of a D² at least this large under a chi-square curve on p degrees of freedom, so a small value marks an unusual row.
 
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable.
+
 ## Gotchas
 
 - Fit is cohort-wide, never per group; with `fit_on`, groupers or features force buffered — two-pass, never merged.

@@ -33,6 +33,8 @@ One `f64` per record: mean 0, variance 1 over the fit rows<!-- feature: MAT_PCA 
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Fit is cohort-wide, never per group; with `fit_on`, groupers or features force buffered — two-pass, never merged.

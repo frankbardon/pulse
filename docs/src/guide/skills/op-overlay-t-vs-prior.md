@@ -28,7 +28,6 @@ Use something else:
 
 `Scope` must be `group`. `Ref.Prior` (empty `Ref` accepted; lag 1 only); other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `Level` / `Within` must be `0` (`PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`). `params.field` / `params.partition_by` as on the delta twin (unknown → `PULSE_OVERLAY_FIELD_UNKNOWN` / `PULSE_OVERLAY_PARTITION_INVALID`).
 
-- `multiplicity` — optional `{method, family, alpha}`; adds per-entry `p_adjusted` + `significant_adjusted`, raw p untouched ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Host shape
 
@@ -44,6 +43,12 @@ SERIES — one `SeriesEntry` per period in host order: `Summary.Statistic` = Wel
   - Sign: positive means this period is higher than the one before; negative means this period is lower than the one before.
 - `summary.p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 
+## Contract
+
+- Weight: weighted under `frequency` and `probability` weights.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `layer` (default), `request`, `compose` (inside Compose).
+- Streaming: buffered only.
+
 ## Gotchas
 
 - **Independence assumed.** The two periods must be separate samples; a panel (same respondents both waves) makes the p-value wrong — Pulse cannot detect it.
@@ -51,7 +56,6 @@ SERIES — one `SeriesEntry` per period in host order: `Summary.Statistic` = Wel
 - A missing period keeps its key with no statistic and the carrier does not advance.
 - Degenerate pair (`n < 2`, `se == 0`) → NaN entry; one `PULSE_OVERLAY_REF_ZERO` warning per skip reason (`details.reason` a `PULSE_STATS_SKIP_*` code, `skipped`).
 - Weighted: N* = `sum_weights` (frequency) or `n_eff` (probability), variance from `m2`.
-- Buffered (not streamable): inferential policy, reads components.
 
 ## See
 

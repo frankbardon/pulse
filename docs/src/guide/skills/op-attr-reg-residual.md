@@ -40,10 +40,9 @@ Top-level keys, not `params` — except `params.fit`; `field` unread.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `target` / `predictors` | numeric analytics set: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
-| `Label` | new column name; default `<TYPE>_<target>`, with `params.fit` `<TYPE>_<fit>` |
+`target` / `predictors` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
+
+- `Label` — new column name; default `<TYPE>_<target>`, with `params.fit` `<TYPE>_<fit>`
 
 ## Output
 
@@ -54,6 +53,12 @@ One `float64` per record — `yᵢ − ŷᵢ`; **null (never 0) when the target 
 - `value`: Actual minus predicted: the row's target value minus the value the straight-line model predicts for it, in the target's units. Over the rows used in an unpenalized fit the residuals average 0.
   - Sign: positive means the row's target is above what the model predicts from its predictors; negative means the row's target is below what the model predicts from its predictors.
   - Caveat: A residual is what this model leaves unexplained, not a measurement error and not the effect of any one thing left out: another set of predictors gives other residuals.
+
+## Contract
+
+- Types (`target`, `predictor`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable.
 
 ## Gotchas
 

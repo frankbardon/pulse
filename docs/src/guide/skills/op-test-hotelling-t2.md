@@ -29,9 +29,8 @@ Use something else:
 - `alpha` (0.05). `mu` — per member (default zeros). `missing` — `listwise` only.
 - `variance` — `pooled` (default) or `unequal` (Krishnamoorthy–Yu); two-sample only.
 
-Slot: one of `vector` (a `vectors` entry) / `fields` (globs ok); no `field`. `split_by` optional, categorical or `packed_bool` (levels `"0"`/`"1"`; else `PULSE_FIELD_TYPE_UNSUPPORTED`), exactly 2 levels. Paired: `vector2` / `fields2`, same count, row-wise difference; never with `split_by`.
+Slot: one of `vector` (a `vectors` entry) / `fields` (globs ok); no `field`. `split_by` optional, categorical or `packed_bool` (levels `"0"`/`"1"`), exactly 2 levels. Paired: `vector2` / `fields2`, same count, row-wise difference; never with `split_by`.
 - `weight` — both kinds; N* = Σw or n_eff (`Details` add `sum_weights`).
-- `multiplicity` — `p_adjusted` ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Inputs
 
@@ -45,6 +44,14 @@ Members: `u4`…`u64`, `f32`/`f64` (`packed_bool`: vector `coerce: binary`).
 
 - `statistic`: T² is the squared distance between the observed average profile and the target profile (one sample) or between the two groups' average profiles, measured in units of the fields' own spread and correlation; larger values are stronger evidence that the profiles differ; the p-value says whether it is large enough to be surprising.
 - `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
+
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Types (`split_by`): `categorical_*`, `packed_bool`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `request` (default), `compose` (inside Compose).
+- Streaming: streamable.
 
 ## Gotchas
 

@@ -25,13 +25,14 @@ None. `Field` (required, categorical or `packed_bool`) — `params` block is unu
 
 ONE column per dictionary entry, named `<prefix>_<category>`; a `packed_bool` emits exactly `<prefix>_0` and `<prefix>_1`, prefix = `Label` (default `<field>`). Each row holds `1.0` in its category's column, `0.0` elsewhere. The column set comes from the SCHEMA dictionary at construction, so predict reports the full post-feature schema without scanning records.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
-- A `Field` of any other type → `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime); dictionary-less → `PROCESSING_CONFIG`.
+- A dictionary-less categorical `Field` → `PROCESSING_CONFIG`.
 - Whitespace in labels normalises to `_` for column-name safety (`"New York"` -> `<prefix>_New_York`); other punctuation is the caller's problem.
 - Null categories emit ALL ZERO across the one-hot block (mirrors `Compute`). No implicit "unknown" column.
 - A dictionary category absent from the records still gets an all-zero column, which keeps downstream layouts stable.
-- Streamable per-row.
 
 ## See
 

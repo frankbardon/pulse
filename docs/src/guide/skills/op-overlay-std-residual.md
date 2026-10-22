@@ -28,7 +28,6 @@ Use something else:
 
 `Scope` must be `cell`. `Ref` empty (implicit-margin). `Level`/`Within` `0`.
 
-- `multiplicity` — optional; adjusts `parts.p` into `payload.p_adjusted` / `significant_adjusted`; raw p untouched.
 
 ## Host shape
 
@@ -42,6 +41,12 @@ MATRIX residual `(O − E) / sqrt(E (1 − r/N) (1 − c/N))`, `E = r c / N` (R 
 
 - `cells.value`: The cell's adjusted standardized residual: (observed - expected) divided by its standard error, where expected is the count the row and column totals predict if the two fields were independent. Under independence it is about standard normal, so a value beyond plus or minus 1.96 is unusual at the 5% level; the cells with the largest absolute values are the ones driving the table's chi-square.
   - Caveat: A cell whose expected count is 0 (an empty row or column) has no residual and is null.
+
+## Contract
+
+- Weight: weighted under `frequency` and `probability` weights.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `layer` (default), `row`, `column`, `request`, `compose` (inside Compose).
+- Streaming: buffered only.
 
 ## Gotchas
 

@@ -24,11 +24,9 @@ None. Top-level keys: `field` (state), `subject_field`, `order_field`, `label`.
 
 ## Inputs
 
-| Slot | Accepted field types |
-|---|---|
-| `field` | `categorical_*`, `packed_bool`; a coded integer → `PULSE_FIELD_TYPE_UNSUPPORTED` (re-import categorical) |
-| `subject_field` | any scalar but `set_*` / `vec_*` |
-| `order_field` | `date`, `datetime` — by instant, no `tz` |
+- `field` — a coded integer is not a state: re-import it categorical
+- `subject_field` — any scalar but `set_*` / `vec_*`
+- `order_field` — `date`, `datetime` — by instant, no `tz`
 
 Source columns only.
 
@@ -38,7 +36,16 @@ The previous state, typed as `field` (its dictionary, nullable); crosstab it × 
 
 ## Components
 
-Floor `{n, n_null}` + `n_subjects`, `n_first`, `n_gap`, `n_ambiguous`. `None`: terminal chunk only.
+- `n_subjects`, `n_first`, `n_gap`, `n_ambiguous`.
+
+## Contract
+
+- Types (`field`): `categorical_*`, `packed_bool`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Types (`subject_field`): `categorical_*`, `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Types (`order_field`): `date`, `datetime`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: no weighted form; an explicit weight is `PROCESSING_CONFIG`, an instance default is skipped.
+- Streaming: buffered only; components `none`. No streaming form: a subject's records may sit anywhere in the cohort.
+- Components: `n`, `n_null`, `n_subjects`, `n_first`, `n_gap`, `n_ambiguous`.
 
 ## Gotchas
 
@@ -46,7 +53,6 @@ Floor `{n, n_null}` + `n_subjects`, `n_first`, `n_gap`, `n_ambiguous`. `None`: t
 - Ties (same subject + order) read the time point before; the next reads the tied state only if all agree, else null + `PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE` (error under Strict).
 - Runs over the whole cohort before filters: a date window keeps each first in-window record's true previous state; Components count every record. An expression filter may read it by state name, as on the state field (`prev == "paid"`, `prev != nil`); a field filter may not.
 - Buffered: no streaming, fused crosstab or shard merge.
-- Weight refused (`"weight": null` runs it).
 
 ## See
 

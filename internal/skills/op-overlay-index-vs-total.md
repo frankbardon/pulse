@@ -25,6 +25,8 @@ SERIES — grouped Process host. Over two or more `groups` the total is each par
 
 SERIES — one `SeriesEntry` per host group key in host order, carrying `index = group_val / total × 100` (`total` = the partition's) on `Summary.Statistic`. Layer `Baseline = 100`.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Zero total → NaN entries + ONE `PULSE_OVERLAY_REF_ZERO` per layer (`details.partitions` = raising count).

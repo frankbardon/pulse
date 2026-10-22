@@ -13,13 +13,11 @@ examples_tags: [distribution-shape, streaming-friendly]
 
 ## Params
 
-Weight-aware (`"weight": null` opts out): weighted population moments, Σw in place of n. Invalid weights excluded (`PULSE_WEIGHT_INVALID_ROWS`).
+Weighted: weighted population moments, Σw in place of n.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `packed_bool`, `u4`; a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -29,19 +27,12 @@ Scalar `float64` — population skewness g1 = `m3 / m2^1.5` (moments divide by `
 
 ## Components
 
-<!-- feature: capability:weighting -->Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.<!-- /feature -->
+- `mean` — Running mean
+- `m2` — Squared-deviation accumulator
+- `m3` — Cubed-deviation accumulator
+- `skewness` — Derived from m2, m3, n
 
-Universal floor `{n, n_null}` plus operator-specific:
-
-| Key | Type | Notes |
-|---|---|---|
-| `mean` | float64 | Running mean |
-| `m2` | float64 | Squared-deviation accumulator |
-| `m3` | float64 | Cubed-deviation accumulator |
-| `skewness` | float64 | Derived from m2, m3, n |
-
-- Mergeability: `Mergeable` (Chan moments combine)
-- Streaming: per-chunk online moments
+<!-- generated: contract -->
 
 ## Gotchas
 

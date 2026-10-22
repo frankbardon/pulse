@@ -40,9 +40,15 @@ Use something else:
 
 One `u8`-valued `f64` column at `Label` (default `split`), from `internal/processing/feature`: `feature.SplitTrain = 0`, `feature.SplitVal = 1`, `feature.SplitTest = 2`.
 
+## Contract
+
+- Types (`stratify`): `categorical_*`, `packed_bool`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable.
+
 ## Gotchas
 
-- `ratios` length outside `[2, 3]`, any negative ratio, or a sum off `1.0` by more than `1e-6` → `PROCESSING_CONFIG`; a `stratify` of any other type → `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime).
+- `ratios` length outside `[2, 3]`, any negative ratio, or a sum off `1.0` by more than `1e-6` → `PROCESSING_CONFIG`.
 - GLOBAL-PASS: PrePass collects row count + stratify keys, Finalize materialises the assignment table (O(rows) memory), EmitRow yields it in PrePass order. EmitRow over-call (more rows than PrePass) → `PROCESSING_INTERNAL`.
 - Streamable via `iter.Reset()`; file-backed iterators pay a second I/O.
 - Stratified mode seeds each group distinctly, so groups never share one shuffle.

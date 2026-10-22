@@ -32,7 +32,6 @@ Use something else:
 
 `Field` + `OrderBy` (≥ 1 key) both required. **Tier-2 typical** — list in `Request.PostTests`; tier-1 works when the raw field has an ordering key.
 
-- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Inputs
 
@@ -48,9 +47,14 @@ Use something else:
 - `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 - `details.s`: S counts every pair of points: +1 when the later point is higher, -1 when it is lower, 0 when tied.
 
+## Contract
+
+- Weight: refused under any weight in force, an instance default included (`PULSE_WEIGHT_UNSUPPORTED`: it runs Mann-Kendall over the aggregated result rows, which carry no row weights); `weight: null` on the slot runs it unweighted.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `request` (default), `compose` (inside Compose).
+- Streaming: buffered only.
+
 ## Gotchas
 
-- Never weighted (it reads aggregated result rows, which carry no row weights): any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; set `"weight": null` on the slot to run it unweighted.
 - Meaningful only over an ordered upstream series (a moving average over a date grouper is canonical); reads result rows, not raw cohort.
 - Empty `OrderBy` → `PULSE_TEST_MISSING_ORDER_BY`. Buffered.
 - A row with a null value or `OrderBy` key drops listwise (R's NA default); `details.n` is the n used. n < 3 -> `PULSE_TEST_INSUFFICIENT_N`; n < 8 warns (advisory; ~10+ advised).

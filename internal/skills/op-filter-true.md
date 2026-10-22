@@ -19,17 +19,13 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | strict mode: `packed_bool` only (any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime). Truthy mode: any scalar field type. |
+- `Field` — strict mode: `packed_bool` only. Truthy mode: any scalar field type.
 
 ## Output
 
 Row-level predicate. Pass when value is true / truthy. No emitted column.
 
-## Components
-
-Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}` per `response-components` contract. Mergeable across chunks.
+<!-- generated: contract -->
 
 ## Gotchas
 

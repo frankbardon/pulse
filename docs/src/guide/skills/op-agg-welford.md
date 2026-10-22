@@ -25,15 +25,11 @@ Use something else:
 
 ## Params
 
-Weight: honours a resolved row weight (`weight` on the request or slot, or `Options.DefaultWeight`; `"weight": null` opts out) — weighted the variance is the sample m2_w / (Σw − 1); `N` stays the contributing row count. Invalid weights (null, negative, NaN/Inf, fractional under `frequency`) are excluded and warned (`PULSE_WEIGHT_INVALID_ROWS`); zero contributes nothing.
+Weighted: the variance is the sample m2_w / (Σw − 1); `N` stays the contributing row count.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | strict scalar numeric: `u8`/`u16`/`u32`/`u64`, `f32`/`f64` |
-
-Any other type (`date`, `datetime`, bit-packed, categorical, `set_*`) is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`.
+- `Field` — strict scalar numeric: `u8`/`u16`/`u32`/`u64`, `f32`/`f64`
 
 ## Output
 
@@ -47,19 +43,17 @@ Scalar `float64` — running mean (NaN no rows; `null` in JSON). Rich: `WelfordT
 
 ## Components
 
-Weighted slots add floor keys `sum_weights` (Σw), `n_eff` (Kish; `probability` only) and `n_weight_invalid`; absent ⇒ unweighted. `n`/`n_null` stay raw counts.
+- `mean` — Welford running mean
+- `m2` — Sum of squared deviations
+- `variance` — Unbiased sample variance (`m2/(n-1)`); `null` when `n < 2` (weighted Σw ≤ 1)
+- `stddev` — Sample standard deviation
 
-Universal floor `{n, n_null}` plus operator-specific:
+## Contract
 
-| Key | Type | Notes |
-|---|---|---|
-| `mean` | float64 | Welford running mean |
-| `m2` | float64 | Sum of squared deviations |
-| `variance` | float64 | Unbiased sample variance (`m2/(n-1)`); `null` when `n < 2` (weighted Σw ≤ 1) |
-| `stddev` | float64 | Sample standard deviation |
-
-- Mergeability: `Mergeable` (Chan-Welford combine); margin recompute
-- Streaming: per-chunk; rich payload exposed at terminal flush
+- Types (`field`): `f32`, `f64`, `u16`, `u32`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable; components `mergeable`.
+- Components: `n`, `n_null`, `mean`, `m2`, `variance`, `stddev`; optional `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 

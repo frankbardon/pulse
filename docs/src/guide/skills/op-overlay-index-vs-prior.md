@@ -36,6 +36,11 @@ SERIES — ordered grouped Process host. Over two or more `groups` it runs once 
 
 SERIES — one `SeriesEntry` per host group key in host order, carrying `index = point / prior × 100` on `Summary.Statistic`. Layer `Baseline = 100`.
 
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable.
+
 ## Gotchas
 
 - Single-state lag carrier (one `float64`) — streamable inside the streaming Process fold.

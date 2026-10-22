@@ -42,6 +42,11 @@ Primary MATRIX: transition P (rows sum to 1). Parts: `step_<n>` (MATRIX Pⁿ), `
   - Caveat: A row built from few moves gives noisy probabilities, and every projection compounds that noise.
 - `parts.steady_state.summary.statistic`: In each series entry: the share of the population that would sit in the state in the long run if the switching probabilities never change; the shares add up to 1.
 
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: buffered only.
+
 ## Gotchas
 
 - Key sets differ ⇒ `PULSE_OVERLAY_MATRIX_NOT_SQUARE`, unless every column-only state is in `absorbing` (unit row synthesized, `REF_ZERO` warning).

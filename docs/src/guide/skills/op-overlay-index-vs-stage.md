@@ -36,6 +36,11 @@ CHAIN — `ProcessChain`; reference + target stages' host shape (scalar / series
 
 Shape inherited from target stage. Per-coordinate `index = target / ref × 100`. Layer `Baseline = 100`.
 
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: buffered only.
+
 ## Gotchas
 
 - Series host: an undefined value (NaN — a mean over a group with no value, an unanswered element) on either side is a MISSING point, as on the request host — the entry keeps its key with NO `statistic` (absent, not `null`), no warning, out of `summary.count`.

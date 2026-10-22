@@ -28,6 +28,8 @@ Field `type:` — any set rung, `set_u8`/`u16`/`u32`/`u64`/`u128`/`u256`; `optio
 
 Per-row `map[string]bool` (every declared option; true = selected), assembled into the bitmask at write time from each selected option's pre-registered dictionary ID, never by first-encounter order.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Empty `options`, `frequencies` length mismatch, or a frequency outside `[0, 1]` → `SERVICE_VALIDATION`.

@@ -36,6 +36,11 @@ COMPOSE dual-shape: MATRIX crosstab OR SERIES on reference and every target. Sch
 
 ONE layer per target, `layers[i].Name = "<spec.Name>__<spec.Targets[i]>"`. Payload shape mirrors the reference slot's. Byte-equal per layer to the two-slot reference index on each `(reference, target[i])`.
 
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable.
+
 ## Gotchas
 
 - An undefined value (NaN — a mean over a group with no value, an unanswered element) on either side is MISSING, as on the request host: series — the entry keeps its key with NO `statistic` (absent, not `null`); matrix — the cell stays absent; no warning, out of `summary.count`.

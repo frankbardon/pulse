@@ -26,13 +26,11 @@ Use something else:
 
 ## Params
 
-Weight: honours a resolved row weight (`weight` on the request or slot, or `Options.DefaultWeight`; `"weight": null` opts out) — weighted it is Σw·x. Invalid weights (null, negative, NaN/Inf, fractional under `frequency`) are excluded and warned (`PULSE_WEIGHT_INVALID_ROWS`); zero contributes nothing.
+Weighted: Σw·x.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date`, `datetime`, `packed_bool`, `u4`; a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 Decimal128 sums stay in decimal (banker-rounded precision propagation); all other numerics emit float64.
 
@@ -42,16 +40,7 @@ Scalar `float64` (decimal128 preserved when input is decimal). One row per group
 
 ## Components
 
-Weighted slots add floor keys `sum_weights` (Σw), `n_eff` (Kish; `probability` only) and `n_weight_invalid`; absent ⇒ unweighted. `n`/`n_null` stay raw counts.
-
-Universal floor `{n, n_null}` plus operator-specific:
-
-| Key | Type | Notes |
-|---|---|---|
-| `sum` | float64 | Running sum of non-null values |
-
-- Mergeability: `Mergeable`
-- Streaming: per-chunk; orchestrator sums
+- `sum` — Running sum of non-null values
 
 ## Contract
 
@@ -63,7 +52,6 @@ Universal floor `{n, n_null}` plus operator-specific:
 ## Gotchas
 
 - Smart default for numeric fields when `Type` omitted.
-- Set-typed fields (`set_*`) NOT supported.
 - Overflow on huge u64 sums silently promotes through float64.
 - Order-free binned sum: serial, any `DecodeWorkers` / `ShardWorkers` count and any shard split give the same bits (not correctly rounded; error ≲ 7ε·|sum|).
 - Empty input (all null / no rows) sums to `0` (`"0.00"` on `decimal128`), never null: the empty sum is defined. Detect emptiness by `n == 0` in the components floor.

@@ -17,7 +17,7 @@ None. The key column is named `Field`; `Group.Include []string` allow-lists comp
 
 ## Inputs
 
-`Field` — any set rung: `set_u8`/`set_u16`/`set_u32`/`set_u64`/`set_u128`/`set_u256`; any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime.
+`Field` — any set rung: `set_u8`/`set_u16`/`set_u32`/`set_u64`/`set_u128`/`set_u256`.
 
 ## Output
 
@@ -27,7 +27,11 @@ Non-empty `Include` is order-significant: buckets emit in listed composite-key o
 
 ## Components
 
-Floor `{total_n, n_null}` + `n_empty_mask` (int, empty zero-bit selections) and `buckets` (`[]bucket` of `{key, count, labels}` per emission) plus **exactly one of** `mask` (uint64, when the selection fits 64 bits) or `mask_words` (`[]uint64`, low word first, when a `set_u128`/`set_u256` selection reaches bit 64+). Mutually exclusive: a `mask` holding only a wide selection's low word is a plausible wrong number. `Mergeable`; `StreamableGrouper`, so eligible for fused crosstab.
+- `n_empty_mask` (int, empty zero-bit selections), `buckets` (`[]bucket` of `{key, count, labels}` per emission).
+- **Exactly one of** `mask` (uint64, when the selection fits 64 bits) or `mask_words` (`[]uint64`, low word first, when a `set_u128`/`set_u256` selection reaches bit 64+). Mutually exclusive: a `mask` holding only a wide selection's low word is a plausible wrong number.
+- `StreamableGrouper`: eligible for fused crosstab.
+
+<!-- generated: contract -->
 
 ## Gotchas
 

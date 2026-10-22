@@ -41,7 +41,14 @@ One `f64` per record; null below `min_valid` or with no profile / centroid.
 
 ## Components
 
-Floor `{n, n_null}` + `n_reference_missing`, `n_domain_invalid`. `Mergeable`.
+- `n_reference_missing`, `n_domain_invalid`.
+
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable; components `mergeable`.
+- Components: `n`, `n_null`, `n_reference_missing`, `n_domain_invalid`.
 
 ## Gotchas
 

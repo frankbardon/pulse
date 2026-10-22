@@ -27,6 +27,8 @@ SERIES — one `SeriesEntry` per host value in payload order carrying the z-scor
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Discrete: `(subset_freq - pop_freq) / sd_pop`, `sd_pop = FacetPopulationView.DiscreteFrequencyStdev()` (population Welford SD across per-category frequencies).

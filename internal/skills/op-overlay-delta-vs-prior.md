@@ -31,6 +31,8 @@ Absolute-difference twin of the prior-period index, as the baseline delta is to 
 
 Pick this one for "how much did it change"; pick the index for "what proportion of the prior is this". An index of `101.6` and a delta of `+1.5` answer different questions and are not interchangeable in a report.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Single-state lag carrier (one `float64`) — streamable inside the streaming Process fold.

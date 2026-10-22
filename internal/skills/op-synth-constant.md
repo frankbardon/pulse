@@ -28,6 +28,8 @@ field `type:` — any `.pulse` field type. Categorical takes a string, `set_*` a
 
 Same `value` returned on every row. RNG state untouched.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Missing `value` param → `SERVICE_VALIDATION` ("requires param value").

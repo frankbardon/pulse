@@ -29,7 +29,10 @@ Scalar `float64` in the actual's units. Rows with a null on either side are skip
 
 ## Components
 
-Floor `{n, n_null}` (on `field` only)<!-- feature: capability:weighting --> (weighted adds `sum_weights`, `n_eff`, `n_weight_invalid`)<!-- /feature --> plus `loss_sum` (Σw·(y − ŷ)²), `weight_sum`, `n_scored`, `n_null_prediction`, `mse`, `rmse`. `Mergeable` (pooled sums, root at finalize); streams.
+- `loss_sum` (Σw·(y − ŷ)²), `weight_sum`, `n_scored`, `n_null_prediction`, `mse`, `rmse` (root of the pooled sums, at finalize).
+- The `n` / `n_null` floor counts `field` only.
+
+<!-- generated: contract -->
 
 ## Gotchas
 

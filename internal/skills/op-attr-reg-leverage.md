@@ -25,16 +25,17 @@ Top-level keys, not `params`; `field` unread.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `target` / `predictors` | numeric analytics set: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
-| `Label` | required — new column name |
+`target` / `predictors` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
+
+- `Label` — required — new column name
 
 ## Output
 
 One `float64` per record — `hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x)`. Over the rows in the fit it lies in `[1/n, 1]` and sums to `p + 1` (predictors + intercept); a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. **Null (never 0) when any predictor is null**; a row the weighted refit excludes stays 0.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

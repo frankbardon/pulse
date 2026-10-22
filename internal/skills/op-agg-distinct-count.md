@@ -17,9 +17,7 @@ None.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | any cohort field type EXCEPT `set_*` (categorical_*, numeric, date, datetime, packed_bool, decimal128); any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -27,21 +25,15 @@ Scalar `int64` — number of distinct non-null values. Per-group when wired unde
 
 ## Components
 
-Universal floor `{n, n_null}` plus operator-specific:
+- `cardinality` — Distinct non-null values observed
 
-| Key | Type | Notes |
-|---|---|---|
-| `cardinality` | int | Distinct non-null values observed |
-
-- Mergeability: `Partial` — distinct-set merge
-- Streaming: per-chunk; merge unions per-chunk seen-sets
+<!-- generated: contract -->
 
 ## Gotchas
 
 - High-cardinality fields → memory growth proportional to distinct values.
 - Counts non-null only; nulls collapsed.
 - Over `decimal128` the count is a JSON integer (`3`), never a decimal string; distinct by value at the column scale.
-- `set_*` rejected at build time with `PULSE_FIELD_TYPE_UNSUPPORTED`.
 
 ## See
 

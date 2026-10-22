@@ -30,17 +30,18 @@ Use something else:
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | any cohort field type — null state is read from the per-record null bitmap. |
+- `Field` — any cohort field type — null state is read from the per-record null bitmap.
 
 ## Output
 
 Row-level predicate. Pass per the configured mode. No emitted column.
 
-## Components
+## Contract
 
-Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}` per [`response-components`](response-components.md) contract. `n_null_input` matches `n_out` when mode is `is_null`, and `n_in − n_out` when mode is `is_not_null` (book-keeping mirrors the predicate). Mergeable across chunks.
+- Types: any type.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable; components `mergeable`.
+- Components: `n_in`, `n_out`, `n_null_input`.
 
 ## Gotchas
 

@@ -28,6 +28,8 @@ field `type:` — `categorical_u8`/`u16`/`u32` (the writer registers `values` as
 
 Per-row sampled string from `values`, looked up via binary search over the cumulative-weight table. Encoded as a dictionary index in the host `categorical_*` field.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - `weights` length mismatch → `SERVICE_VALIDATION` at spec parse.

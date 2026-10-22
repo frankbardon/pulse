@@ -28,6 +28,8 @@ Per-row non-negative integer (returned as `float64`). Two algorithms:
 - `lambda < 30`: Knuth's multiplicative method — exact, draws `k` uniforms until product `< exp(-lambda)`.
 - `lambda >= 30`: normal approximation `N(lambda, lambda)` rounded to nearest non-negative integer.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Knuth runtime is `O(lambda)` per row — large lambda would dominate without the normal-approx switch.

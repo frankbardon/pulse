@@ -43,6 +43,10 @@ Field `type:` — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`
 
 Per-row `float64` from the selected component's Gaussian. No `min`/`max` clamp — use `constraints` for hard bounds.
 
+## Contract
+
+- Applies to: `numeric` fields.
+
 ## Gotchas
 
 - Fewer than 2 `means` → `SERVICE_VALIDATION` (use `normal` for one component).

@@ -29,7 +29,10 @@ Scalar in [0, 1]; 0.5 = no discrimination, ties count half. An empty class or a 
 
 ## Components
 
-Floor `{n, n_null}` on `field`<!-- feature: capability:weighting --> (+ `sum_weights`, `n_eff`, `n_weight_invalid`)<!-- /feature -->; `auc`, `gini` (2·AUC − 1), `n_pos`, `n_neg`, `n_null_outcome`, DeLong `se`, `ci_lower`, `ci_upper` (clipped to [0, 1]; null under 2 rows a class), `conf_level` 0.95. `None`: buffered.
+- `auc`, `gini` (2·AUC − 1), `n_pos`, `n_neg`, `n_null_outcome`; DeLong `se`, `ci_lower`, `ci_upper` (clipped to [0, 1]; null under 2 rows a class), `conf_level` 0.95.
+- The `n` / `n_null` floor counts `field` only.
+
+<!-- generated: contract -->
 
 ## Gotchas
 

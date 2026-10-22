@@ -44,7 +44,16 @@ Scalar `float64` in the actual's units. Rows with a null on either side are skip
 
 ## Components
 
-Floor `{n, n_null}` (on `field` only) (weighted adds `sum_weights`, `n_eff`, `n_weight_invalid`) plus `loss_sum` (Σw·|y − ŷ|), `weight_sum`, `n_scored`, `n_null_prediction`, `mae`. `Mergeable`; streams.
+- `loss_sum` (Σw·|y − ŷ|), `weight_sum`, `n_scored`, `n_null_prediction`, `mae`.
+- The `n` / `n_null` floor counts `field` only.
+
+## Contract
+
+- Types (`field`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`.
+- Types (`prediction_field`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable; components `mergeable`.
+- Components: `n`, `n_null`, `loss_sum`, `weight_sum`, `n_scored`, `n_null_prediction`, `mae`; optional `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 

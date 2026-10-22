@@ -43,6 +43,11 @@ Primary MATRIX: per-cell unweighted mean across buckets. Parts `min`, `max`, `ra
 - `parts.range.cells.value`: How far apart the groups sit on the cell: the largest group value minus the smallest (0 when one group fed it).
 - `parts.n_groups.cells.value`: How many groups had a defined value for the cell; null cells elsewhere in the layer have 0 here.
 
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: buffered only.
+
 ## Gotchas
 
 - A null cell, or a key a bucket lacks, is skipped; no contributing bucket ⇒ `null` (`n_groups` 0).

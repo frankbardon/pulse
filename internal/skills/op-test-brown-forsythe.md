@@ -16,23 +16,22 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
-- `weight` — slot weight (`null` opts out), kind `frequency` only (a probability weight is `PULSE_WEIGHT_UNSUPPORTED` naming the kind): weighted group medians, ANOVA on Σw — equals the expanded rows, the `n ≥ 2` per-group floor on Σw too (one row of weight 2 runs). `Details` add `sum_weights` beside `n` (raw rows).
+- `weight` — frequency only: weighted group medians, ANOVA on Σw — equals the expanded rows, the `n ≥ 2` per-group floor on Σw too (one row of weight 2 runs). `Details` add `sum_weights` beside `n` (raw rows).
 
 Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, ≥ 2 groups).
 
-<!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p (`multiplicity-correction`).
-<!-- /feature -->
 
 ## Inputs
 
-`Field` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1). `SplitBy` — categorical: `categorical_u8`/`u16`/`u32` or `packed_bool` (levels `"0"`/`"1"`); else `PULSE_FIELD_TYPE_UNSUPPORTED`.
+`Field` — numeric (`decimal128` as its float64 echo, `packed_bool` as 0/1). `SplitBy` — categorical (`packed_bool` levels `"0"`/`"1"`).
 
 ## Output
 
 `Statistic` = F (ANOVA on absolute deviations from per-group medians); `DF` = k-1 (`df_within` = N-k in Details); `PValue` via F-distribution survival. Flat `Details`: `groups`, `n`, `group_medians`, `abs_dev_means`, `ss_between`, `ss_within`.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

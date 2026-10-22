@@ -19,9 +19,7 @@ None. `partition_by` (carve), `order_by` (≥1, required, any type but `set_*` (
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | must be empty / omitted — `WIN_RANK` reads ranking from `order_by` keys only |
+- `Field` — must be empty / omitted — `WIN_RANK` reads ranking from `order_by` keys only
 
 ## Output
 
@@ -29,13 +27,13 @@ One `int64` per row written to `Label` (default `WIN_RANK`). Ties (rows equal on
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
-- Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.
 - `order_by` defines BOTH scan order AND tie key — same field choice changes the answer.
 - Multiple `order_by` keys: tie only when ALL keys equal.
 - Result rows are NOT reordered — use `Request.Sort` for response order.
-- Forces buffered execution (`Streamable=false`).
 
 ## See
 

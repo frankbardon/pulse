@@ -37,7 +37,15 @@ One `f64` per record on the item scale (`sum`: × p).
 
 ## Components
 
-`components.attributes` entry: floor `{n, n_null}` (present / null scores) + `n_out_of_range` (values), `n_rows_out_of_range` (rows) only with a range. `Mergeable`; no weighted keys.
+- `n_out_of_range` (values), `n_rows_out_of_range` (rows): only with a range.
+- The floor counts present / null scores; no weighted keys.
+
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable; components `mergeable`.
+- Components: `n`, `n_null`; optional `n_out_of_range`, `n_rows_out_of_range`.
 
 ## Gotchas
 

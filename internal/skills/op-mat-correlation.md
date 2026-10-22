@@ -41,10 +41,6 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 <!-- generated: reading-the-output -->
 
-## Components
-
-`components.matrices[i]`: `n`, `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`<!-- feature: capability:weighting -->; weighted `sum_weights`, `n_eff`, `n_weight_invalid`<!-- /feature -->.
-
 <!-- generated: contract -->
 
 ## Gotchas

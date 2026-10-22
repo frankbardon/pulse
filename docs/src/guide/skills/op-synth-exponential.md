@@ -33,13 +33,15 @@ Use something else:
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| field `type:` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`. Output is always `> 0`. |
+- field `type:` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`. Output is always `> 0`.
 
 ## Output
 
 Per-row `float64` sample from `Exp(lambda)`, computed as `rng.ExpFloat64() / lambda`. Tail is unbounded — heavy enough to inflate `u4`/`u8` overflow risk under low lambda.
+
+## Contract
+
+- Applies to: `numeric` fields.
 
 ## Gotchas
 

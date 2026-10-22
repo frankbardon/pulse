@@ -19,9 +19,6 @@ Intra-matrix pairwise on MEANS along one axis of the SAME crosstab: `row` scope 
 
 `n_source` / `p_source` are NOT accepted — n, mean and variance all come from the Welford triple, so either would be a silent no-op. Predict refuses both (`PULSE_OVERLAY_PARAM_MISSING`), for EVERY mode and not just the distinct-key ones; runtime does not, the param being inert (weighted host: see Gotchas). `n_within_depth` stays accepted and inert. Detail: `pairwise-n-sources`. `params.letters` (object, unset) — `{}` or `{"alpha": a}`, `0 < a < 1` (else `PULSE_OVERLAY_PARAM_MISSING`, predict and runtime): adds the `letters` part.
 
-<!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiplicity-correction`).
-<!-- /feature -->
 
 ## Host shape
 
@@ -34,6 +31,8 @@ MATRIX — pair × opposite-axis grid of two-sided p-values<!-- feature: OVERLAY
 `payload.parts.letters` (with `params.letters`): per host cell of a compared index `{letter, group, higher, above}` — its letter (restarting per `pair_along_dim` group), the letters its mean beats (sign of `t`) and the significant subset (raw p < `0.05` or `alpha`<!-- feature: capability:multiplicity -->; `significant_adjusted` under a correction<!-- /feature -->). The implicit Total column gets none.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

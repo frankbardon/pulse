@@ -38,6 +38,10 @@ field `type:` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128
 
 Per-row `float64` sample from a Pareto Type-I distribution. Drawn via inverse CDF: `xm / U^(1/alpha)` where `U = 1 - rng.Float64()`.
 
+## Contract
+
+- Applies to: `numeric` fields.
+
 ## Gotchas
 
 - `alpha <= 1` → no finite mean. `alpha <= 2` → no finite variance. Document the choice if downstream tests assume moments.

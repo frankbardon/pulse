@@ -25,11 +25,12 @@ SERIES ordered grouped Process host. Over two or more `groups` it runs once per 
 
 SERIES — one `SeriesEntry` per host group key in host order carrying `index = point / mean(prior ≤W) × 100` on `Summary.Statistic`. Layer `Baseline = 100`.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Missing `params.window` → `PULSE_OVERLAY_PARAM_MISSING`; `window <= 0` or `min_periods` outside 1..`W` → `PULSE_OVERLAY_LEVEL_OUT_OF_RANGE`, predict and runtime. Window 1 indexes each point against the previous present one.
 - Under `min_periods` present priors → `null`, no warning (default: until the window fills); below `W` the mean is over the priors held. Absent host point → no `statistic` key, ring does NOT advance. Zero rolling mean → `null` + ONE `PULSE_OVERLAY_REF_ZERO`.
-- Buffered.
 - Weighted host → weighted figure (reads the host payload).
 
 ## See

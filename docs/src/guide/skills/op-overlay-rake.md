@@ -46,6 +46,11 @@ Primary MATRIX: fitted table. Part `factors` (MATRIX fitted / observed; `null` w
 - `parts.factors.cells.value`: How much the cell was scaled: the raked count over the observed one (above 1 = scaled up). null where the observed cell was 0, which stays 0.
 - `summary.parameters.converged`: 1 when every fitted margin is within the tolerance of its target, 0 when the fit stopped at max_iter first (the table still ships, with a warning).
 
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: buffered only.
+
 ## Gotchas
 
 - Key mismatch, or `counts` totals differ ⇒ `PULSE_OVERLAY_RAKE_TARGET_MISMATCH` (never dropped).

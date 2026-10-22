@@ -28,9 +28,7 @@ None.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `packed_bool`, `u4`; a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -43,23 +41,22 @@ Scalar `float64` — the MEAN of the group's row z-scores, `0` by construction. 
 
 ## Components
 
-Universal floor `{n, n_null}` plus operator-specific:
+- `pop_mean` — Population mean (center)
+- `pop_stddev` — Population stddev (scale)
+- `target_value` — Value standardized
+- `zscore` — Resolved score
 
-| Key | Type | Notes |
-|---|---|---|
-| `pop_mean` | float64 | Population mean (center) |
-| `pop_stddev` | float64 | Population stddev (scale) |
-| `target_value` | float64 | Value standardized |
-| `zscore` | float64 | Resolved score |
+## Contract
 
-- Mergeability: `Mergeable`
-- Streaming: NOT streamable — finalize needs full deviation sum
+- Types (`field`): `date`, `datetime`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`.
+- Weight: no weighted form; an explicit weight is `PROCESSING_CONFIG`, an instance default is skipped.
+- Streaming: buffered only; components `mergeable`. Streaming uses online Welford moments; the ZSCORE aggregate finalize step needs the full deviation sum.
+- Components: `n`, `n_null`, `pop_mean`, `pop_stddev`, `target_value`, `zscore`.
 
 ## Gotchas
 
 - Buffered path only.
 - Empty group → `null` (NaN), scalar and components; zero stddev → scalar and `zscore` `null` (0/0), `pop_mean` / `pop_stddev` (0) / `target_value` defined.
-- `decimal128` rejected.
 
 ## See
 

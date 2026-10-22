@@ -31,6 +31,8 @@ One `f64` column at `Label` (default `TARGET_<field>`): the (smoothed) mean of `
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - **LEAKAGE — `PULSE_FEAT_TARGET_LEAKAGE_RISK`** on every encoder WITHOUT `fit_on` (predict and process `warnings`, Compose slots too; strict refuses before any record): its means include test rows and the row's own target, and a prior split or `split == 0` filter changes nothing. `folds` alone keeps a reworded warning. Holdout outcomes never move a `fit_on` encoding.

@@ -27,7 +27,7 @@ Integer split idiom — 0..90 train, 91..103 holdout, ends meet:
 
 ## Inputs
 
-`Field` — `u4`, `u8`..`u64`, `f32` / `f64`. Date, `decimal128`, `packed_bool`, categorical or `set_*` → `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime); dates take <!-- feature: GROUP_DATE_RANGES -->`GROUP_DATE_RANGES`<!-- /feature -->.
+`Field` — admitted types: see `## Contract`; dates take <!-- feature: GROUP_DATE_RANGES -->`GROUP_DATE_RANGES`<!-- /feature -->.
 
 ## Output
 
@@ -35,7 +35,9 @@ Range label per row, else `unmatched_label`. Rows emit in supplied range order, 
 
 ## Components
 
-Floor `{total_n, n_null}` + `n_ranges` (int), `unmatched_label` (string), `buckets` (`{key, label, count}`, supplied order, unmatched last). Mergeable, streamable.
+- `n_ranges` (int), `unmatched_label` (string), `buckets` (`{key, label, count}`, supplied order, unmatched last).
+
+<!-- generated: contract -->
 
 ## Gotchas
 

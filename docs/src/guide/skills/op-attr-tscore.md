@@ -30,10 +30,9 @@ None. Weight (both kinds, same scores; `"weight": null` opts out): weighted mean
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
-| `Label` | required — new column name |
+`Field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
+
+- `Label` — required — new column name
 
 ## Output
 
@@ -45,12 +44,17 @@ One `float64` per record — `50 + 10 * zscore`. Null source → `null` (counted
   - Caveat: Unrelated to Student's t or a t test: the name comes from educational testing, and the value carries no p-value.
   - Caveat: It is not a percentile: 70 does not mean the 70th percentile. Only on a roughly normal field does 60 sit near the 84th percentile.
 
+## Contract
+
+- Types (`field`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable.
+
 ## Gotchas
 
 - Two-pass: a Welford pre-pass computes the mean and sd. Reading-friendly scale for survey / education contexts (mean 50, sd 10, no negatives in the typical range).
 - Zero stddev (constant field, or one non-null row) → `null` per row (0/0), counted in `n_null`.
 - Not a percentile — same shape as the underlying distribution.
-- `set_*` and categorical rejected at build time with `PULSE_FIELD_TYPE_UNSUPPORTED` — a bitmask or dictionary index has no value to standardise.
 
 ## See
 

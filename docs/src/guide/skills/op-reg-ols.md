@@ -50,7 +50,7 @@ Every param is a top-level key of the regression entry (manifest `slot: true`); 
 
 ## Inputs
 
-`target` / `predictors` — the numeric analytics set (integers, `f32`/`f64`, `decimal128`, `date`, `datetime`, `packed_bool`, nullable too). A categorical or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED`; null rows drop from `n_obs`.
+`target` / `predictors` — types: see `## Contract` (nullable too); null rows drop from `n_obs`.
 
 ## Output
 

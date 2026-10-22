@@ -47,7 +47,6 @@ An explicit depth SUMS across rows, so they must partition the key set. A fan-ou
 
 Two WHOLESALE refusals, never a per-slot drop (dropping changes `M`): one unadmitted slot, AND slots that are each admitted but name DIFFERENT aggregators — keys-that-summed vs distinct non-null values are not the same UNIT, and a pair's two legs must never be counted in different units.
 
-- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Host shape
 
@@ -62,6 +61,12 @@ MATRIX — `Cells[r][c].Value` is `[]float64`: upper-triangular p-values (row-ma
 - `cells.value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
   - Caveat: Each cell holds a list of two-sided p-values, one per pair of requests, in upper-triangle order with the reference at index 0: (0,1), (0,2), ..., (1,2), ...; M requests give M(M-1)/2 entries.
   - Caveat: The normal approximation needs roughly 10 successes and 10 failures per side.
+
+## Contract
+
+- Weight: weighted under `frequency` and `probability` weights.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `layer` (default), `row`, `column`, `request`, `compose` (inside Compose).
+- Streaming: buffered only.
 
 ## Gotchas
 

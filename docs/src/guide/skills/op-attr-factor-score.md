@@ -44,6 +44,12 @@ One `f64` per record: zᵀw on fit-standardized members (psych `factor.scores`);
   - Caveat: The direction is MAT_FACTOR's convention (each factor's loadings sum positive), not a meaning: check its loadings on the same fields before calling a high score good or bad.
   - Caveat: After an oblique rotation (promax, oblimin, geomin) the factors correlate, so scores on two factors move together.
 
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable.
+
 ## Gotchas
 
 - Fit is cohort-wide, never per group; with `fit_on`, groupers or features force buffered — two-pass, never merged.

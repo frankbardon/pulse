@@ -25,13 +25,11 @@ Use something else:
 
 ## Params
 
-Weight-aware (`"weight": null` opts out): Hmisc `wtd.quantile` — sort by value; h = 0.5·(Σw−1); x(k) = first value with cumulative Σw ≥ k+1 (snapped to an integer within 1e-9); interpolate x(⌊h⌋)..x(⌈h⌉). `probability` weights first rescaled to Σw = n (rows used) — scale-invariant; `frequency` weights stay raw = type 7 on duplicated rows. Invalid weights excluded (`PULSE_WEIGHT_INVALID_ROWS`).
+Weighted: Hmisc `wtd.quantile` — sort by value; h = 0.5·(Σw−1); x(k) = first value with cumulative Σw ≥ k+1 (snapped to an integer within 1e-9); interpolate x(⌊h⌋)..x(⌈h⌉). `probability` weights first rescaled to Σw = n (rows used) — scale-invariant; `frequency` weights stay raw = type 7 on duplicated rows.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `packed_bool`, `u4`; a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -39,18 +37,16 @@ Scalar `float64`. Per-group when wired under a grouper.
 
 ## Components
 
-Weighted adds floor `sum_weights`, `n_eff` (`probability`), `n_weight_invalid`.
+- `position_low` — Lower bracket index (weighted: ⌊h⌋, expanded)
+- `position_high` — Upper bracket index (weighted: ⌈h⌉)
+- `median` — Resolved median (linear interpolation)
 
-Universal floor `{n, n_null}` plus operator-specific:
+## Contract
 
-| Key | Type | Notes |
-|---|---|---|
-| `position_low` | int | Lower bracket index (weighted: ⌊h⌋, expanded) |
-| `position_high` | int | Upper bracket index (weighted: ⌈h⌉) |
-| `median` | float64 | Resolved median (linear interpolation) |
-
-- Mergeability: `None` — exact median needs full sort
-- Streaming: NOT streamable (buffered only).
+- Types (`field`): `date`, `datetime`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: buffered only; components `none`. Use AGG_AVERAGE for a streaming central-tendency proxy, or accept the buffered path.
+- Components: `n`, `n_null`, `position_low`, `position_high`, `median`; optional `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 

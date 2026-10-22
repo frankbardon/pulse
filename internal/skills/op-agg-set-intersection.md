@@ -17,9 +17,7 @@ None.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | any set rung — `set_u8`, `set_u16`, `set_u32`, `set_u64`, `set_u128`, `set_u256`; any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -27,16 +25,13 @@ Rich `[]string` — resolved dictionary labels. Scalar fallback = popcount of th
 
 ## Components
 
-Universal floor `{n, n_null}` plus operator-specific:
+- `mask_intersection` — Bitwise AND across contributing rows; 4 little-endian words, `words[0]` = bits 0-63
+- `popcount` — Bits set in `mask_intersection`
+- `labels` — Resolved dictionary labels
 
-| Key | Type | Notes |
-|---|---|---|
-| `mask_intersection` | `[]uint64` | Bitwise AND across contributing rows; 4 little-endian words, `words[0]` = bits 0-63 |
-| `popcount` | int | Bits set in `mask_intersection` |
-| `labels` | `[]string` | Resolved dictionary labels |
-
-- Mergeability: `Mergeable` per-chunk
 - Margin reducibility: NOT margin-reducible — crosstab margins recompute from raw rows
+
+<!-- generated: contract -->
 
 ## Gotchas
 

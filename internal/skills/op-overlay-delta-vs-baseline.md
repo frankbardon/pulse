@@ -25,6 +25,8 @@ SERIES — ordered grouped Process host (e.g. a date grouper). Over two or more 
 
 SERIES — one `SeriesEntry` per host group key in host order, carrying `delta = point - baseline` on `Summary.Statistic`. Baseline ordinal itself emits `0.0` (self-vs-self). Layer `Baseline = 0` (delta family centerpoint).
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Out-of-range `Position` → `PULSE_OVERLAY_REF_UNKNOWN` (predict + runtime via `ResolveBaselineIndex`).

@@ -31,6 +31,8 @@ Primary MATRIX: fitted table. Part `factors` (MATRIX fitted / observed; `null` w
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Key mismatch, or `counts` totals differ ⇒ `PULSE_OVERLAY_RAKE_TARGET_MISMATCH` (never dropped).

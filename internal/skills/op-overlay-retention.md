@@ -29,6 +29,8 @@ SERIES, one entry per from-state in row order: `summary.statistic` = stay `n_ii 
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - A from-state named in `absorbing` is not reported (churn leads into it).

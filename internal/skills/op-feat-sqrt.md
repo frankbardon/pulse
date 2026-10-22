@@ -19,9 +19,7 @@ None. `Field` (required, numeric) — `params` block is unused.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
 
 ## Output
 
@@ -29,12 +27,13 @@ One `f64` column written to `Label` (default `SQRT_<field>`). Formula `sqrt(x)`.
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Negative inputs (`x < 0`) emit `null` — sqrt of negative is undefined for real-valued features. No error.
 - Null inputs propagate to null outputs.
 - Gentler skew compression than a log — prefer it for moderate-skew counts.
-- Streamable per-row.
 
 ## See
 

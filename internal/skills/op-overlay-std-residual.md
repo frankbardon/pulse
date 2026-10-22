@@ -17,9 +17,6 @@ Overlays decorate the host; no `Response.Components`.
 
 `Scope` must be `cell`. `Ref` empty (implicit-margin). `Level`/`Within` `0`.
 
-<!-- feature: capability:multiplicity -->
-- `multiplicity` — optional; adjusts `parts.p` into `payload.p_adjusted` / `significant_adjusted`; raw p untouched.
-<!-- /feature -->
 
 ## Host shape
 
@@ -30,6 +27,8 @@ MATRIX crosstab.
 MATRIX residual `(O − E) / sqrt(E (1 − r/N) (1 − c/N))`, `E = r c / N` (R `chisq.test()$stdres`). Parts `expected` and `p` (two-sided normal), MATRIX on the same keys. `Summary`: `Baseline` 0, `Min`/`Max`/`Count` of defined residuals.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

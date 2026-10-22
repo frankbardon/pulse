@@ -30,7 +30,9 @@ One `f64` per record; null below `min_valid` or with no profile / centroid.
 
 ## Components
 
-Floor `{n, n_null}` + `n_reference_missing`, `n_domain_invalid`. `Mergeable`.
+- `n_reference_missing`, `n_domain_invalid`.
+
+<!-- generated: contract -->
 
 ## Gotchas
 

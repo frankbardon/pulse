@@ -25,6 +25,8 @@ FACET — `FacetResult`, discrete arm or numeric arm with `IncludeHistogram=true
 
 SERIES — one `SeriesEntry` per host value in payload order (categorical walks `FacetDiscrete.Values`, numeric walks histogram bins), carrying `index = subset_freq / pop_freq × 100` on `Summary.Statistic`. Layer `Baseline = 100`.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - `pop_freq == 0`, or a value absent from the population dict (treated as zero pop_freq) → ONE `PULSE_OVERLAY_REF_ZERO` per affected entry + SKIP it (`Statistic` unset).

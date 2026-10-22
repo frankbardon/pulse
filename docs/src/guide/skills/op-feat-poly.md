@@ -30,7 +30,7 @@ Use something else:
 
 ## Inputs
 
-`Field` — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`; `decimal128` via f64. A categorical, `set_*`, `packed_bool` or `datetime` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` (predict and runtime alike).
+`Field` — numeric (types: `## Contract`); `decimal128` via f64.
 
 ## Output
 
@@ -41,6 +41,12 @@ Use something else:
 - `value.*`: One column per power k from 2 up to the degree, named &lt;prefix&gt;_&lt;k&gt; (prefix is the label, by default &lt;field&gt;_poly), each holding the value raised to that power: x_poly_2 is x squared, x_poly_3 is x cubed. There is no power-1 column; the original field is it.
   - Caveat: A single power column means little alone: the curve shows in a model's coefficients on x and its powers together, and those change when the field is centred first.
   - Caveat: Even powers lose the sign: x = -3 and x = 3 both give 9 in the squared column.
+
+## Contract
+
+- Types (`field`): `date`, `decimal128`, `f32`, `f64`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable.
 
 ## Gotchas
 

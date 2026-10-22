@@ -27,6 +27,8 @@ MATRIX — `Cells[r][c].Value = (cell - margin) / sd`. Mirrors host RowKeys / Co
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - An undefined (NaN) host cell — a mean over no value, an unanswered element — is MISSING, as an absent one: the overlay cell stays absent, no warning, out of `summary.count` and of its slice SD.

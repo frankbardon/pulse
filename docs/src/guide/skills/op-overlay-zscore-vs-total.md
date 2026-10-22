@@ -42,6 +42,11 @@ SERIES — one `SeriesEntry` per host group key in host order carrying `z = (gro
   - Sign: positive means the value sits above its centre; negative means the value sits below its centre.
   - Caveat: The spread is between groups, not between rows within a group.
 
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable.
+
 ## Gotchas
 
 - **POPULATION SD**: the per-group set IS the standardisation target. Contrast the rolling z-score (sample SD, n-1); matches the margin z-score's and the row z-score attribute's denominator — but the variance is across GROUPS, not raw records.

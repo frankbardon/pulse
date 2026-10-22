@@ -30,7 +30,6 @@ Use something else:
 
 `n_source` / `p_source` are NOT accepted — n, mean and variance all come from the Welford triple, so either would be a silent no-op. Predict refuses both (`PULSE_OVERLAY_PARAM_MISSING`), for EVERY mode and not just the distinct-key ones; runtime does not, the param being inert. `n_within_depth` stays accepted and inert. Detail: [`pairwise-n-sources`](pairwise-n-sources.md). `params.letters` (object, unset) — `{}` or `{"alpha": a}`, `0 < a < 1` (else `PULSE_OVERLAY_PARAM_MISSING`, predict and runtime): adds the `letters` part.
 
-- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Host shape
 
@@ -48,9 +47,14 @@ MATRIX — pair × opposite-axis grid of two-sided p-values  (layout as [`op-ove
   - Caveat: Each cell holds the two-sided z-test p-value for one pair of means, read from the normal curve; it is absent when a leg is unreadable or the test is degenerate.
 - `parts.letters.cells.value`: Significance letters for this host cell: its column's (or row's) letter, and in above the letters of the same-group columns it is significantly higher than here.
 
+## Contract
+
+- Weight: refused under any weight in force, an instance default included (`PULSE_WEIGHT_UNSUPPORTED`: its unweighted Welford triple cannot carry a weighted variance; its weighted twin computes the weighted z); `weight: null` on the slot runs it unweighted; the weighted twin is `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z`.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `layer` (default), `row`, `column`, `request`, `compose` (inside Compose).
+- Streaming: buffered only.
+
 ## Gotchas
 
-- Never weighted: a row weight reaching the overlay slot (request, its own `weight`, or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason` and `details.alternative`: use `OVERLAY_PAIRWISE_WEIGHTED_TWO_MEANS_Z` for weighted means; set `"weight": null` on the overlay to run it unweighted.
 - Either leg with `n <= 1`, or an undefined (`null`) Welford variance (n < 2 / Σw ≤ 1), skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`) — never scored off a 0 variance.
 - Assumes the normal approximation: no small-sample df correction.
 - `n_basis` here is inert; predict refuses it.

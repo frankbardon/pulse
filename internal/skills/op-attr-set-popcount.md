@@ -19,14 +19,15 @@ None.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | any set rung — `set_u8`, `set_u16`, `set_u32`, `set_u64`, `set_u128`, `set_u256`; any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
-| `Label` | required — new column name |
+`Field` — admitted types: see `## Contract`.
+
+- `Label` — required — new column name
 
 ## Output
 
 One integer per record, 0..set width **inclusive** — 0..256 at `set_u256`, hence `emits_type` `u16`, not `u8`. Empty mask → `0` (valid). Null source → `null` (counted in `n_null`), never the empty mask's `0`.
+
+<!-- generated: contract -->
 
 ## Gotchas
 

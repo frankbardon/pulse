@@ -46,6 +46,13 @@ Skewness: χ² = N·b1p/6 on p(p + 1)(p + 2)/6 df. Kurtosis: z, `DF` 0. `Variant
 - `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 - `details.skewness`: Mardia's multivariate skewness, 0 for jointly normal data; it grows as the joint shape leans to one side.
 
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: weighted under `frequency` weights only; a `probability` weight is `PULSE_WEIGHT_UNSUPPORTED`.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `request` (default), `compose` (inside Compose).
+- Streaming: buffered only.
+
 ## Gotchas
 
 - Buffered: keeps n × p values.

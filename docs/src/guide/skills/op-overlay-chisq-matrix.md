@@ -28,7 +28,6 @@ Use something else:
 
 `Scope` (enum, required) — must be `matrix`. `Ref` (object, empty) — implicit-margin — leave empty. `Level`/`Within` must be `0`.
 
-- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Host shape
 
@@ -43,6 +42,12 @@ SCALAR — `OverlayLayer.Payload.Shape = "scalar"`. `Payload.Scalar` carries χ�
 - `scalar`: The chi-square statistic for the whole crosstab, also in summary.statistic: the sum over cells of (observed - expected)^2 / expected, where expected is the count the row and column totals predict if the two fields were independent. 0 means the table matches that pattern exactly; how far above 0 is unusual depends on summary.parameters.df, so read summary.p_value rather than the raw value.
   - Caveat: No continuity (Yates) correction is applied.
 - `summary.statistic`: The same chi-square statistic as scalar.
+
+## Contract
+
+- Weight: weighted under `frequency` and `probability` weights.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `layer` (default), `request`, `compose` (inside Compose).
+- Streaming: buffered only.
 
 ## Gotchas
 

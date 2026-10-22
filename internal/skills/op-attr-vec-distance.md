@@ -28,7 +28,9 @@ One `f64` ≥ 0 per record; sums rescaled by p / p_observed.
 
 ## Components
 
-Floor `{n, n_null}` + `n_reference_missing`, `n_domain_invalid`. `Mergeable`.
+- `n_reference_missing`, `n_domain_invalid`.
+
+<!-- generated: contract -->
 
 ## Gotchas
 

@@ -27,6 +27,8 @@ SERIES — one `SeriesEntry` per host group key in host order carrying `z = (gro
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - **POPULATION SD**: the per-group set IS the standardisation target. Contrast the rolling z-score (sample SD, n-1); matches the margin z-score's and the row z-score attribute's denominator — but the variance is across GROUPS, not raw records.

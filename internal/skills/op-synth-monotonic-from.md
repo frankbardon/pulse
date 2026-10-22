@@ -28,6 +28,8 @@ Field `type:` — numeric `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`. `u64` for pr
 
 Per-row `float64` `start + i * step` for row `i`. RNG state untouched, so seeded streams stay independent of monotonic columns.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - `step == 0` → `SERVICE_VALIDATION` at spec parse.

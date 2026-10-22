@@ -36,21 +36,23 @@ Use something else:
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`; any other type (categorical, `set_*`, `decimal128`, `packed_bool`, `datetime`) is refused `PULSE_FIELD_TYPE_UNSUPPORTED` |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
 One value per row written to `Label` (default `WIN_LEAD_<field>`): a verbatim copy, so a `u64` id renders its exact word. When `i + offset >= partition_len` emits `default` if set, else `null`.
 
+## Contract
+
+- Types (`field`): `date`, `f32`, `f64`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: no weighted form and no slot weight; a request weight is `PROCESSING_CONFIG`, an instance default is skipped.
+- Streaming: buffered only.
+
 ## Gotchas
 
-- Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.
 - Mirror of a lag — same partition / order / frame rules, opposite scan direction.
 - `order_by` required, `frame` forbidden.
 - Result rows are NOT reordered by `order_by` — use `Request.Sort` for response order.
-- Forces buffered execution (`Streamable=false`).
 
 ## See
 

@@ -30,9 +30,7 @@ None. `partition_by` (carve), `order_by` (≥1, required, any type but `set_*` (
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | must be empty / omitted — reads ranking from `order_by` keys only |
+- `Field` — must be empty / omitted — reads ranking from `order_by` keys only
 
 ## Output
 
@@ -43,13 +41,17 @@ One `int64` per row written to `Label` (default `WIN_DENSE_RANK`). Ties share a 
 - `value`: The row's position among the distinct order_by values within its partition, starting at 1. Rows equal on every order_by key share a rank, and the next rank follows on with no gap: 1, 2, 2, 3. The largest rank is the number of distinct values, not the number of rows.
   - Caveat: Rank 1 is the first row in order_by order: the smallest value with an ascending key, the largest with desc. Say which when reporting a 'top' rank.
 
+## Contract
+
+- Types: reads no field; naming one is `PULSE_WINDOW_INVALID`.
+- Weight: no weighted form and no slot weight; a request weight is `PROCESSING_CONFIG`, an instance default is skipped.
+- Streaming: buffered only.
+
 ## Gotchas
 
-- Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.
 - Tie comparison uses every `order_by` key; tie only when ALL keys equal.
 - `WIN_DENSE_RANK` does NOT distinguish row count from rank count.
 - Result rows are NOT reordered — use `Request.Sort` for response order.
-- Forces buffered execution (`Streamable=false`).
 
 ## See
 

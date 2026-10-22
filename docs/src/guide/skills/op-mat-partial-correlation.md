@@ -52,7 +52,15 @@ Integer / float members and controls.
 
 ## Components
 
-Over members + outside controls: `n`, `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`; weighted `sum_weights`, `n_eff`, `n_weight_invalid`.
+- Counts run over the members plus the outside controls.
+
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Multiplicity: a spec `multiplicity` block (implying `params.inference`; an inherited method reaches only a spec under `params.inference`) adds `p_adjusted` and `significant_adjusted` beside `p`; families `request`, `matrix` (default).
+- Streaming: streamable; partial states merge; components `mergeable`.
+- Components: `n`, `n_null`, `n_listwise_dropped`; optional `min_pair_n`, `max_pair_n`, `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 

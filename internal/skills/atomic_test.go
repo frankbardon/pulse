@@ -238,3 +238,19 @@ func allFieldTypes() []encoding.FieldType {
 	}
 	return out
 }
+
+// TestRequiredSections_NoComponentsRequirement: the registry-rendered
+// `## Contract` carries every component key, so no op family owes a
+// hand-written `## Components` (agg / group / filter / mat included).
+func TestRequiredSections_NoComponentsRequirement(t *testing.T) {
+	for _, c := range []struct{ stem, category string }{
+		{"op-agg-sum", "AGG"}, {"op-group-range", "GROUP"}, {"op-filter-range", "FILTER"},
+		{"op-mat-pca", "MAT"}, {"op-agg-acme-trim", ""}, {"op-attr-zscore", "ATTR"},
+	} {
+		for _, h := range RequiredSections(c.stem, c.category) {
+			if h == "## Components" {
+				t.Errorf("%s requires %q; the generated contract carries the keys", c.stem, h)
+			}
+		}
+	}
+}

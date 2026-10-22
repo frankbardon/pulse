@@ -45,13 +45,20 @@ Integer / float members.
 
 ## Components
 
-`n`, `n_null`, `n_listwise_dropped`; weighted `sum_weights`, `n_eff`, `n_weight_invalid`; `min_pair_n` / `max_pair_n` never (listwise).
+- `min_pair_n` / `max_pair_n` never (listwise).
+
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: weighted under `frequency` weights only; a `probability` weight is `PULSE_WEIGHT_UNSUPPORTED`.
+- Streaming: streamable; partial states merge; components `mergeable`.
+- Components: `n`, `n_null`, `n_listwise_dropped`; optional `min_pair_n`, `max_pair_n`, `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 
 - Unused member or non-member variable: `bad_params`.
 - Default stops where semopy does.
-- Singular S: fatal `PULSE_MATRIX_SINGULAR`. No probability weight.
+- Singular S: fatal `PULSE_MATRIX_SINGULAR`.
 
 ## See
 

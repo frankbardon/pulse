@@ -17,9 +17,6 @@ Compose-only. Overlays decorate the host; no `Response.Components`.
 
 `Scope` must be `matrix`. `Reference` required — reference slot label. `Targets` required — one target slot label.
 
-<!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiplicity-correction`).
-<!-- /feature -->
 
 ## Host shape
 
@@ -30,6 +27,8 @@ COMPOSE — MATRIX crosstab on reference + target. Schema-match + key-alignment 
 SCALAR — `Payload.Scalar` carries the p-value (= `Summary.PValue`), NOT χ²; χ² is on `Summary.Statistic`, plus `Parameters["df"]`. One layer per target.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

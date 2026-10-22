@@ -20,9 +20,10 @@ const (
 // RequiredSections returns the `##` headings a skill of the given stem
 // and frontmatter category must carry; nil for a family with no required
 // set (topical, virtual). The category (`AGG`, `GROUP`, …) is
-// load-bearing for op-* skills — AGG / GROUP / FILTER / MAT also
-// carry `## Components` — with the stem prefix as the fallback when it
-// is empty.
+// accepted for op-* skills (every op family shares one set: the
+// registry-rendered `## Contract` carries the component keys, so
+// `## Components` is optional prose for per-key meaning only), with the
+// stem prefix as the fallback when it is empty.
 func RequiredSections(stem, category string) []string {
 	switch {
 	case strings.HasPrefix(stem, "type-"):
@@ -32,24 +33,7 @@ func RequiredSections(stem, category string) []string {
 	case strings.HasPrefix(stem, "op-overlay-"):
 		return []string{"## Params", "## Host shape", "## Output", "## Gotchas", "## See"}
 	case strings.HasPrefix(stem, "op-"):
-		required := []string{"## Params", "## Inputs", "## Output", "## Gotchas", "## See"}
-		cat := strings.ToUpper(strings.TrimSpace(category))
-		if cat == "" {
-			switch {
-			case strings.HasPrefix(stem, "op-agg-"):
-				cat = "AGG"
-			case strings.HasPrefix(stem, "op-group-"):
-				cat = "GROUP"
-			case strings.HasPrefix(stem, "op-filter-"):
-				cat = "FILTER"
-			case strings.HasPrefix(stem, "op-mat-"):
-				cat = "MAT"
-			}
-		}
-		if cat == "AGG" || cat == "GROUP" || cat == "FILTER" || cat == "MAT" {
-			required = append(required, "## Components")
-		}
-		return required
+		return []string{"## Params", "## Inputs", "## Output", "## Gotchas", "## See"}
 	}
 	return nil
 }

@@ -46,7 +46,15 @@ Rich `[]float64`, one SAMPLE standard deviation per member (n − 1; `AGG_STDDEV
 
 ## Components
 
-Floor `{n, n_null}` — a row is present when ANY member answered (weighted adds `sum_weights`, `n_eff`, `n_weight_invalid`). Plus `labels`, `element_n` (raw per member), `element_sum`, `element_mean` (Welford running mean), `element_m2`, `element_sum_weights` and `element_sum_weights_sq` (weighted). `Mergeable` (Chan combine per merge block); streams; bit-identical for any worker count or shard split.
+- `labels`, `element_n` (raw per member), `element_sum`, `element_mean` (Welford running mean), `element_m2`; weighted adds `element_sum_weights`, `element_sum_weights_sq`.
+- A row is present when ANY member answered. Chan combine per merge block; bit-identical for any worker count or shard split.
+
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable; components `mergeable`.
+- Components: `n`, `n_null`, `labels`, `element_n`, `element_sum`, `element_mean`, `element_m2`; optional `sum_weights`, `n_eff`, `n_weight_invalid`, `element_sum_weights`, `element_sum_weights_sq`.
 
 ## Gotchas
 

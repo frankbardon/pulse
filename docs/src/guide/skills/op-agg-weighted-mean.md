@@ -33,10 +33,9 @@ The weighted mean of the core family: same figure and engine, own type name and 
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric (no `decimal128`): `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `packed_bool`; a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
-| `weight_field` | numeric, same family |
+`Field` — admitted types: see `## Contract`.
+
+- `weight_field` — numeric, same family
 
 ## Output
 
@@ -50,27 +49,29 @@ Scalar `float64` — exact `Σ field·w / Σw` (a few ULP from releases that use
 
 ## Components
 
-Floor `{n, n_null}` plus `n_weight_invalid` (rows excluded for an invalid weight); operator keys (all float64; Σw = 0: `weighted_mean` and the scalar `null`, `weighted_variance` `null` (Σw ≤ 1), the rest 0):
+All float64. With Σw = 0, `weighted_mean` and the scalar are `null` and the rest 0.
 
-| Key | Notes |
-|---|---|
-| `sum_weighted` | Σ field·w |
-| `sum_weights` | Σw |
-| `weighted_mean` | Σ field·w / Σw |
-| `m2_weighted` | Σw(x − mean)² |
-| `sum_weights_sq` | Σw² |
-| `weighted_variance` | m2/(Σw−1); `null` if Σw ≤ 1 |
-| `n_eff` | Kish (Σw)²/Σw² |
+- `sum_weighted` — Σ field·w
+- `sum_weights` — Σw
+- `weighted_mean` — Σ field·w / Σw
+- `m2_weighted` — Σw(x − mean)²
+- `sum_weights_sq` — Σw²
+- `weighted_variance` — m2/(Σw−1); `null` if Σw ≤ 1
+- `n_eff` — Kish (Σw)²/Σw²
+- `n_weight_invalid` — rows excluded for an invalid weight.
 
-- Mergeability: `Mergeable` (weighted Chan-Welford)
-- Streaming: per-chunk
+## Contract
+
+- Types (`field`): `date`, `datetime`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable; components `mergeable`.
+- Components: `n`, `n_null`, `sum_weighted`, `sum_weights`, `weighted_mean`, `m2_weighted`, `sum_weights_sq`, `weighted_variance`, `n_eff`; optional `n_weight_invalid`.
 
 ## Gotchas
 
 - Invalid/zero-weight rows skip the mean but STILL count in floor `n` (`n`/`n_null` track `Field`); size from `sum_weights`/`n_eff`.
 - Unknown `weight_field` → `SERVICE_VALIDATION` (predict + runtime).
 - Scalar and every Σ key, `weighted_mean`, `n_eff`: binned sums, the same bits on every worker count and shard split; `m2_weighted` / `weighted_variance` are Welford — within ULP.
-- `decimal128` rejected.
 
 ## See
 

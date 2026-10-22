@@ -19,7 +19,7 @@ Row-level output; no `Response.Components`.
 
 ## Inputs
 
-`Field`: numeric — `u4`…`u64`, `f32`/`f64`, `date`. Any other type (categorical, `set_*`, `decimal128`, `packed_bool`, `datetime`) is refused `PULSE_FIELD_TYPE_UNSUPPORTED`.
+`Field`: numeric; types in `## Contract`.
 
 ## Output
 
@@ -27,9 +27,10 @@ One `float64` per row on `Label` (default `WIN_DELTA_<field>`). `cur - prev` at 
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
-- Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.
 - **A zero prior is a REAL delta, not a null.** A percent change nulls it because the division is undefined; subtraction has no such case, so `prev == 0` emits `cur`.
 - A `frame` is refused `PULSE_WINDOW_INVALID` by predict AND at construction, like every frame-less window.
 - `periods <= 0` rejected (`PULSE_WINDOW_INVALID`); either side null → `null`; rows NOT reordered (`Request.Sort`); buffered.

@@ -31,7 +31,7 @@ None. `Field` (required) — `params` block is unused.
 
 ## Inputs
 
-`Field` — `date` or `datetime`; any other type is refused.
+`Field` — `date` or `datetime`.
 
 ## Output
 
@@ -46,6 +46,12 @@ Columns prefixed by `Label` (default the field name):
 | `<prefix>_quarter` | f64 | `1..4` |
 | `<prefix>_hour` | f64 | `0..23` — `datetime` only |
 
+## Contract
+
+- Types (`field`): `date`, `datetime`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable.
+
 ## Gotchas
 
 - Null source or `tz_field` cell → every column `null`.
@@ -53,7 +59,6 @@ Columns prefixed by `Label` (default the field name):
 - Local Saturdays out: `FILTER_EXCLUDE` on `<prefix>_dow` `["6"]`; with `tz_field` each row reads its own zone.
 - Suffixes are `dow` / `quarter` (not `day_of_week` / `is_weekend`).
 - Zone-capable: a `datetime` reads the LOCAL clock (slot `tz` / `tz_field` → `time_zone_field` / `time_zone` → default → UTC). A `date` ignores zones (explicit refused).
-- Streamable per-row.
 
 ## See
 

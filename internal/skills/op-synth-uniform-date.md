@@ -25,6 +25,8 @@ Field `type:` — `date` (32-bit days-since-epoch).
 
 Per-row `float64` days-since-epoch; the writer stores it as the signed 32-bit `date` word. Draws `off = rng.Int64N(span + 1)` over `span = endDays - startDays`, so both endpoints are reachable.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Both bounds inclusive — `uniform_date(2024-01-01, 2024-12-31)` can emit either.

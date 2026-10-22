@@ -13,13 +13,11 @@ examples_tags: [distribution-shape, streaming-friendly]
 
 ## Params
 
-Weight: honours a resolved row weight (`weight` on the request or slot, or `Options.DefaultWeight`; `"weight": null` opts out) — weighted it is √(m2_w / Σw). Invalid weights (null, negative, NaN/Inf, fractional under `frequency`) are excluded and warned (`PULSE_WEIGHT_INVALID_ROWS`); zero contributes nothing.
+Weighted: √(m2_w / Σw).
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date`, `datetime`, `packed_bool`, `u4`; a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -29,19 +27,12 @@ Scalar `float64` — population stddev (n-denominator); `decimal128` input yield
 
 ## Components
 
-<!-- feature: capability:weighting -->Weighted slots add floor keys `sum_weights` (Σw), `n_eff` (Kish; `probability` only) and `n_weight_invalid`; absent ⇒ unweighted. <!-- /feature -->`n`/`n_null` stay raw counts.
+- `mean` — Welford running mean
+- `m2` — Sum of squared deviations
+- `variance` — `m2 / n`
+- `stddev` — √variance
 
-Universal floor `{n, n_null}` plus operator-specific:
-
-| Key | Type | Notes |
-|---|---|---|
-| `mean` | float64 | Welford running mean |
-| `m2` | float64 | Sum of squared deviations |
-| `variance` | float64 | `m2 / n` |
-| `stddev` | float64 | √variance |
-
-- Mergeability: `Mergeable` (Chan parallel-merge)
-- Streaming: per-chunk; merge via Chan combine
+<!-- generated: contract -->
 
 ## Gotchas
 

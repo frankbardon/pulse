@@ -19,10 +19,9 @@ None.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
-| `Label` | required — new column name |
+`Field` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
+
+- `Label` — required — new column name
 
 ## Output
 
@@ -30,13 +29,13 @@ One `float64` per record in `(0, 100]` — `rank / n * 100` within the filter-pa
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
-- Never weighted (a weighted rank cannot reproduce the distinct unweighted ranks): any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; set `"weight": null` on the slot to run it unweighted.
 - **NOT streamable** — pre-pass sorts the full filter-passing field; cohort-sized memory peak. Predict surfaces this under `streamable_reasons`.
 - Ties do NOT share a percentile: each tied row gets its own rank, in arbitrary order.
 - Under shard archives the sort runs per-shard along the `Mergeable` path; pass 2 emits global ranks once shards merge.
-- `set_*` and categorical rejected at build time with `PULSE_FIELD_TYPE_UNSUPPORTED` — a bitmask or dictionary index has no value to standardise.
 
 ## See
 

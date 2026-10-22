@@ -28,11 +28,10 @@ Use something else:
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
-- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Inputs
 
-`Field` (required) — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1). `SplitBy` (optional — when set, runs per-group) — categorical: `categorical_u8`/`u16`/`u32` or `packed_bool` (levels `"0"`/`"1"`); else `PULSE_FIELD_TYPE_UNSUPPORTED`.
+`Field` (required) — numeric (`decimal128` as its float64 echo, `packed_bool` as 0/1). `SplitBy` (optional — when set, runs per-group) — categorical (`packed_bool` levels `"0"`/`"1"`).
 
 ## Output
 
@@ -44,9 +43,16 @@ Use something else:
   - Caveat: With SplitBy, the headline W' and p-value belong to the group with the smallest p; read details.per_group for every group.
 - `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 
+## Contract
+
+- Types (`field`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_TEST_FIELD_NOT_NUMERIC`.
+- Types (`split_by`): `categorical_*`, `packed_bool`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: refused under any weight in force, an instance default included (`PULSE_WEIGHT_UNSUPPORTED`: a frequency-weighted W' would need the expected normal order statistics of all Σw expanded rows and Royston's p-value calibration on a tie-heavy sample, and no probability-weighted form exists); `weight: null` on the slot runs it unweighted.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `request` (default), `compose` (inside Compose).
+- Streaming: buffered only.
+
 ## Gotchas
 
-- Never weighted (no standard weighted form exists): any row weight in force on the slot (request, slot or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; set `"weight": null` on the slot to run it unweighted.
 - Buffered — requires the ordered values.
 - Matches R `nortest::sf.test` (not `shapiro.test`, a different W). p calibrated for 5..5000 rows: above 5000 `per_group[].warning` marks it advisory.
 - Not a gate: few rows miss real departures, many flag trivial ones.

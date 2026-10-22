@@ -29,9 +29,7 @@ None.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric (no `decimal128`): `u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `packed_bool`, `u4`; a categorical (its dictionary index) or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -39,15 +37,15 @@ Scalar `float64` — `max - min`. Per-group when wired under a grouper.
 
 ## Components
 
-Universal floor `{n, n_null}` plus operator-specific:
+- `min` — Smallest non-null value
+- `max` — Largest non-null value
 
-| Key | Type | Notes |
-|---|---|---|
-| `min` | float64 | Smallest non-null value |
-| `max` | float64 | Largest non-null value |
+## Contract
 
-- Mergeability: `Mergeable`
-- Streaming: per-chunk tracks (min, max)
+- Types (`field`): `date`, `datetime`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`.
+- Weight: no weighted form; an explicit weight is `PROCESSING_CONFIG`, an instance default is skipped.
+- Streaming: streamable; components `mergeable`.
+- Components: `n`, `n_null`, `min`, `max`.
 
 ## Gotchas
 

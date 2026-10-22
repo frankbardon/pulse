@@ -56,7 +56,7 @@ Inherits `target` / `predictors` from the host `RegressionSpec`. No additional f
 - Every jackknife replicate must refit: one failure (e.g. separation once a group is gone) fails the slot with that refit's code, `details.jackknife_group` naming it. `g` above the fitted rows, or one cluster, is `PROCESSING_REGRESSION_INSUFFICIENT_DATA`.
 - Composes with `selection` — the resample wraps the selected-feature fit.
 - `rng_seed = 0` is deterministic per request but cohort-dependent; pin non-zero for cross-cohort reproducibility.
-- Jackknife is weighted (JK1): each replicate refits the remaining rows with their own weights. Bootstrap is never weighted: a weight in force is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; `"weight": null` opts out.
+- Jackknife is weighted (JK1): each replicate refits the remaining rows with their own weights. Bootstrap is never weighted.
 
 ## See
 

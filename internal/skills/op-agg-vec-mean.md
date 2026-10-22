@@ -29,7 +29,10 @@ Rich `[]float64`, one mean per member; per-element missing data (a null member s
 
 ## Components
 
-Floor `{n, n_null}` — a row is present when ANY member answered<!-- feature: capability:weighting --> (weighted adds `sum_weights`, `n_eff`, `n_weight_invalid`)<!-- /feature -->. Plus `labels`, `element_n` (raw per member), `element_sum`<!-- feature: capability:weighting -->, `element_sum_weights` (weighted)<!-- /feature -->. `Mergeable`; streams; bit-identical for any worker count or shard split.
+- `labels`, `element_n` (raw per member), `element_sum`; weighted adds `element_sum_weights`.
+- A row is present when ANY member answered. Bit-identical for any worker count or shard split.
+
+<!-- generated: contract -->
 
 ## Gotchas
 

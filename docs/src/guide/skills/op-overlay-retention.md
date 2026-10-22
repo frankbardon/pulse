@@ -44,6 +44,11 @@ SERIES, one entry per from-state in row order: `summary.statistic` = stay `n_ii 
 - `summary.parameters.switch`: The switch rate: the share (0 to 1) of the starting state's units that ended in another state other than a named absorbing one. In each entry it is that state's rate; on the layer it pools every reported state.
 - `summary.parameters.from_total`: In each series entry: the starting state's row total, the number of units (or, on a weighted host, the sum of weights) the rates divide by.
 
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: buffered only.
+
 ## Gotchas
 
 - A from-state named in `absorbing` is not reported (churn leads into it).

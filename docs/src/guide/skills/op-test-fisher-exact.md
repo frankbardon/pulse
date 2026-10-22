@@ -27,12 +27,11 @@ Use something else:
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)` (else `PULSE_TEST_INVALID_ALPHA`); also sets the interval's coverage, `1 − alpha`.
-- `weight` — slot weight (`null` opts out), kind `frequency` only (a probability weight is `PULSE_WEIGHT_UNSUPPORTED` naming the kind): the exact test on the Σw table — equals the expanded rows. `contingency` becomes the Σw table; `n` stays raw rows, `sum_weights` beside it.
-- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p ([`multiplicity-correction`](multiplicity-correction.md)).
+- `weight` — frequency only: the exact test on the Σw table — equals the expanded rows. `contingency` becomes the Σw table; `n` stays raw rows, `sum_weights` beside it.
 
 ## Inputs
 
-`Rows` / `Cols` (both required, 2 levels each) — categorical: `categorical_u8`/`u16`/`u32`, or `packed_bool` (levels `"0"`/`"1"`) (a yes/no x yes/no table is the natural 2x2); any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (rows first). `Field` ignored.
+`Rows` / `Cols` (both required, 2 levels each) — categorical (`packed_bool` levels `"0"`/`"1"`) (a yes/no x yes/no table is the natural 2x2). `Field` ignored.
 
 ## Output
 
@@ -43,6 +42,13 @@ Use something else:
 - `statistic`: The conditional maximum-likelihood odds ratio of the 2x2 table in details.contingency (the estimate R's fisher.test reports), also in details.odds_ratio: 1 means the odds of the first column are the same in both rows, above 1 higher in the first row, below 1 lower.
 - `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 - `details.ci_high`: Upper end of the exact conditional confidence interval for the odds ratio.
+
+## Contract
+
+- Types (`rows`, `cols`): `categorical_*`, `packed_bool`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` weights only; a `probability` weight is `PULSE_WEIGHT_UNSUPPORTED`.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `request` (default), `compose` (inside Compose).
+- Streaming: buffered only.
 
 ## Gotchas
 

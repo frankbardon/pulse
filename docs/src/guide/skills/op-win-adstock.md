@@ -34,9 +34,7 @@ Weibull kernels: `weibull_cdf` `w_l = exp(−(l/scale)^shape)` (survival, `w_0 =
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`; others → `PULSE_FIELD_TYPE_UNSUPPORTED` |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -46,6 +44,12 @@ Weibull kernels: `weibull_cdf` `w_l = exp(−(l/scale)^shape)` (survival, `w_0 =
 
 - `value`: The field's carried-over level: the current value plus earlier values, each weighted by the kernel at its distance back, up to max_lag rows. With the default normalisation the weights sum to 1, so the value is a weighted average of recent values on the field's own scale.
   - Caveat: The first rows of each partition have fewer earlier rows to draw on, so they read lower than a long series would at the same spend; read them with care.
+
+## Contract
+
+- Types (`field`): `date`, `f32`, `f64`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: no weighted form and no slot weight; a request weight is `PROCESSING_CONFIG`, an instance default is skipped.
+- Streaming: buffered only.
 
 ## Gotchas
 

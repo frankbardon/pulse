@@ -30,7 +30,9 @@ Integer / float members.
 
 ## Components
 
-`n`, `n_null`, `n_listwise_dropped`<!-- feature: capability:weighting -->; weighted `sum_weights`, `n_eff`, `n_weight_invalid`<!-- /feature -->; `metric`, `standardize`, `buckets`, `n_null_key`; `min_pair_n` / `max_pair_n` never (listwise).
+- `metric`, `standardize`, `buckets`, `n_null_key`; `min_pair_n` / `max_pair_n` never (listwise).
+
+<!-- generated: contract -->
 
 ## Gotchas
 

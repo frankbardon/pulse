@@ -29,7 +29,10 @@ Scalar `float64` FRACTION (0.12 = 12%). Rows with a null on either side, or an a
 
 ## Components
 
-Floor `{n, n_null}` (on `field` only)<!-- feature: capability:weighting --> (weighted adds `sum_weights`, `n_eff`, `n_weight_invalid`)<!-- /feature --> plus `loss_sum`, `weight_sum`, `n_scored`, `n_null_prediction`, `n_zero_actual` (zero actuals skipped), `mape`. `Mergeable`; streams.
+- `loss_sum`, `weight_sum`, `n_scored`, `n_null_prediction`, `n_zero_actual` (zero actuals skipped), `mape`.
+- The `n` / `n_null` floor counts `field` only.
+
+<!-- generated: contract -->
 
 ## Gotchas
 

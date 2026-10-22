@@ -36,6 +36,11 @@ Use something else:
 
 Shape matches host; one `float64` per evaluation. No `Baseline`.
 
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: buffered only.
+
 ## Gotchas
 
 - MATRIX: An undefined (NaN) host cell — a mean over no value, an unanswered element — is MISSING, as an absent one: the overlay cell stays absent, no warning, out of `summary.count`; never evaluated, out of the `sd_*` slices.

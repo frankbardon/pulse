@@ -40,6 +40,10 @@ field `type:` — numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128
 
 Per-row `float64` sample `exp(mu + sigma * Z)` where `Z ~ N(0, 1)`. Cast to declared field type at write time.
 
+## Contract
+
+- Applies to: `numeric` fields.
+
 ## Gotchas
 
 - Right tail is heavy; larger `sigma` increases dispersion exponentially. Use `pareto` for true power-law tails.

@@ -37,6 +37,11 @@ COMPOSE — MATRIX crosstab. The reference slot anchors schema-match + key-align
 
 MATRIX — `Cells[r][c].Value` = 1-based rank (1 = largest) within the selected population. Mirrors the target's RowKeys / ColumnKeys. `Baseline` unset.
 
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: buffered only.
+
 ## Gotchas
 
 - Tie-breaking: average rank (matches `scipy.stats.rankdata` default).

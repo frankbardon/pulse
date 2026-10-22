@@ -29,7 +29,9 @@ Keys `cluster_1`…`cluster_k`, emitted largest first (ties: lexicographic centr
 
 ## Components
 
-`{total_n, n_null}`, the params, `members`, `center` / `scale`, `distinct_points`, `buckets` `{key, count, size, within_ss, centroid, centroid_standardized}`, `total_ss`, `within_ss`, `between_ss`, `between_ss_ratio`, `iterations`, `converged`, `best_init`. Mergeability `None`.
+- The params, `members`, `center` / `scale`, `distinct_points`, `buckets` `{key, count, size, within_ss, centroid, centroid_standardized}`, `total_ss`, `within_ss`, `between_ss`, `between_ss_ratio`, `iterations`, `converged`, `best_init`.
+
+<!-- generated: contract -->
 
 ## Gotchas
 

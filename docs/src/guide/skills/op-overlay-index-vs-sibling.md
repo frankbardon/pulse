@@ -36,6 +36,11 @@ SERIES — grouped Process host. Over two or more `groups` it runs once per part
 
 SERIES — one `SeriesEntry` per host group, carrying `index = group / sibling × 100` on `Summary.Statistic`. Sibling group itself emits `100.0` (self-vs-self). Layer `Baseline = 100`.
 
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: buffered only.
+
 ## Gotchas
 
 - Unknown `(Field, Value)` pair → ONE `PULSE_OVERLAY_REF_UNKNOWN` per layer + NaN entries.

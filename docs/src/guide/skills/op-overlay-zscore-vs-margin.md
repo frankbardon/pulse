@@ -42,6 +42,11 @@ MATRIX — `Cells[r][c].Value = (cell - margin) / sd`. Mirrors host RowKeys / Co
   - Sign: positive means the value sits above its centre; negative means the value sits below its centre.
   - Caveat: The spread is that of the cells in the slice, not the sampling error of one cell, so a cell built from few rows can sit far out without being unusual.
 
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: buffered only.
+
 ## Gotchas
 
 - An undefined (NaN) host cell — a mean over no value, an unanswered element — is MISSING, as an absent one: the overlay cell stays absent, no warning, out of `summary.count` and of its slice SD.

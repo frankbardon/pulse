@@ -45,6 +45,13 @@ One `f64` column at `Label` (default `TARGET_<field>`): the (smoothed) mean of `
 - `value`: The average of the outcome field over the training records (params.fit_on, else every record) in this record's category, in the outcome's units; with smoothing s, (n * category average + s * overall average) / (n + s), so a category with few records sits nearer the overall average.
   - Caveat: Computed over every record of the cohort before any filter runs, so a filtered result still carries figures from the records it filtered out.
 
+## Contract
+
+- Types (`field`): `categorical_*`, `packed_bool`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Types (`target`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable.
+
 ## Gotchas
 
 - **LEAKAGE — `PULSE_FEAT_TARGET_LEAKAGE_RISK`** on every encoder WITHOUT `fit_on` (predict and process `warnings`, Compose slots too; strict refuses before any record): its means include test rows and the row's own target, and a prior split or `split == 0` filter changes nothing. `folds` alone keeps a reworded warning. Holdout outcomes never move a `fit_on` encoding.

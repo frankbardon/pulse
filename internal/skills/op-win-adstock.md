@@ -27,15 +27,15 @@ Weibull kernels: `weibull_cdf` `w_l = exp(−(l/scale)^shape)` (survival, `w_0 =
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | numeric: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`; others → `PULSE_FIELD_TYPE_UNSUPPORTED` |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
 `y_i = Σ_l w_l · x_{i−l}`, one `float64` per row in `Label`.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

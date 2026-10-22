@@ -42,13 +42,15 @@ Every param is a top-level key of the regression entry (manifest `slot: true`); 
 
 ## Inputs
 
-`target` / `predictors` — numeric analytics set: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date`, `datetime`, `packed_bool`, plus nullable variants. A categorical or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED`. Binomial targets accept `{0,1}` or `packed_bool`. Nullable rows drop from `n_obs`.
+`target` / `predictors` — types: see `## Contract` (nullable variants too). Binomial targets accept `{0,1}` or `packed_bool`. Nullable rows drop from `n_obs`.
 
 ## Output
 
 `RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs (link scale); `StdErrors`, `PValues` from `Cov(β) = φ·(XᵀWX)⁻¹`: binomial / poisson φ = 1, Wald z, `CILower` / `CIUpper` = β ∓ z·SE (R `confint.default`, not the profile `confint`), no `DF`; gamma φ̂ = Pearson χ²/`DF`, `DF` = N* − p − 1 (N* = n, Σw, or n_eff), t p-values and β ∓ t·SE (R `summary.glm`; φ̂ not emitted; `DF` ≤ 0 → SE / p / CI / `DF` null); `ConfLevel`; `Deviance`, `NullDeviance`, `PseudoR2` = 1 − D/D₀ (McFadden only for 0/1 binomial); `Family`, `Link` (+ `Penalty`, `Alpha`, `L1Ratio`) echoed; `l2` SEs are the H = XᵀWX + N*·α·D sandwich; `l1` / `elasticnet` without `resample`: `StdErrors` / `PValues` / CIs null on every key + `Advisories` `[PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED]`; `ConvergedIters` = IRLS steps (R's per-row start, step-halving); `NObs` raw rows, weighted adds `SumWeights` (+ `NEff`, probability); a robust `covariance` adds the `Covariance` echo. Always buffered — IRLS needs multiple passes.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

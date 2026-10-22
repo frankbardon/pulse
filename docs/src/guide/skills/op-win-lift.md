@@ -30,7 +30,7 @@ Use something else:
 
 ## Inputs
 
-`Field` and `params.base`: numeric — `u4`…`u64`, `f32`/`f64`, `date`; any other type is `PULSE_FIELD_TYPE_UNSUPPORTED`. On a decile table: defaults (field) over loans (base).
+`Field` and `params.base`: numeric (types in `## Contract`). On a decile table: defaults (field) over loans (base).
 
 ## Output
 
@@ -41,6 +41,12 @@ One `float64` per row on `Label` (default `WIN_LIFT_<field>`): `(x/Σx) / (b/Σb
 - `value`: The field's share over the base's share: 1 means the row holds the same share of both, 2 twice its base share of the field. With cumulative, the running shares are compared, so 2.3 on the second decile says the top two deciles hold 2.3 times their share of loans in defaults.
   - Sign: positive means above 1: the row holds more of the field than its share of the base; negative means below 1: the row holds less of the field than its share of the base.
   - Caveat: A missing value on either side, or a base share of 0, reads null.
+
+## Contract
+
+- Types (`field`, `base`): `date`, `f32`, `f64`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: no weighted form and no slot weight; a request weight is `PROCESSING_CONFIG`, an instance default is skipped.
+- Streaming: buffered only.
 
 ## Gotchas
 

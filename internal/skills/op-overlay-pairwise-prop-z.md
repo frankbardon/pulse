@@ -17,9 +17,6 @@ One host-matrix slot against another ALONG one axis of the SAME crosstab — the
 
 `Scope` (enum, required) — `row` (pair rows per column) or `column` (pair columns per row). `Ref` (object, empty) — intra-matrix; any populated arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `params.pair_along_dim` (int, unset) — restrict pairs to buckets agreeing on all pair-axis dims but this one; unset = every pair. `params.n_source` (omitted: the cell's base — on a normalised host the denominator its share is of, as a count or, weighted, its N*), `params.n_within_depth` (default `0`) and `params.p_source` (default `cell_value` on a normalised host, else `cell_value_pct` — omitted over an unnormalised mean / non-count cell → `PULSE_OVERLAY_PARAM_MISSING`; explicit `cell_value_pct` on a normalised host → same) are the family-wide vocabulary — nine sample-size modes, three of them distinct-KEY: `pairwise-n-sources`. `params.letters` (object, unset) — `{}` or `{"alpha": a}`, `0 < a < 1` (else `PULSE_OVERLAY_PARAM_MISSING`, predict and runtime): adds the `letters` part.
 
-<!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiplicity-correction`).
-<!-- /feature -->
 
 ## Host shape
 
@@ -32,6 +29,8 @@ MATRIX (`Payload.Shape = "matrix"`). PAIR axis = one entry per evaluated `(i, j)
 `payload.parts.letters` (with `params.letters`) — MATRIX on the HOST coordinates. A cell of a compared pair-axis index holds `{letter, group, higher, above}`: its letter (`A`, `B`, … `Z`, `AA`, in axis order, restarting per comparison group — one group, or one per `pair_along_dim` bucket), the group, the letters of same-group indexes its figure beats (the test statistic's sign) and the significant subset. Significant = raw p < `0.05` (or `alpha`, echoed as `summary.parameters.letters_alpha`)<!-- feature: capability:multiplicity -->; under a correction `significant_adjusted` (an explicit `alpha` compares `p_adjusted`)<!-- /feature -->. An index compared to nothing — the implicit Total column, a lone bucket member — has no cell. A multi-measure host letters each measure's rows.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

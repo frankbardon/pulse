@@ -29,16 +29,17 @@ Top-level keys, not `params` — except `params.fit`; `field` unread.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `target` / `predictors` | numeric analytics set: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
-| `Label` | new column name; default `<TYPE>_<target>`, with `params.fit` `<TYPE>_<fit>` |
+`target` / `predictors` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
+
+- `Label` — new column name; default `<TYPE>_<target>`, with `params.fit` `<TYPE>_<fit>`
 
 ## Output
 
 One `float64` per record — `yᵢ − ŷᵢ`; **null (never 0) when the target or any predictor is null**, so a downstream aggregation counts the row in `n_null`. With an intercept (always present for OLS) Σ residuals ≈ 0 across the fit set.
 
 <!-- generated: reading-the-output -->
+
+<!-- generated: contract -->
 
 ## Gotchas
 

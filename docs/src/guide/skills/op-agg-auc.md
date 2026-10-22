@@ -44,7 +44,16 @@ Scalar in [0, 1]; 0.5 = no discrimination, ties count half. An empty class or a 
 
 ## Components
 
-Floor `{n, n_null}` on `field` (+ `sum_weights`, `n_eff`, `n_weight_invalid`); `auc`, `gini` (2·AUC − 1), `n_pos`, `n_neg`, `n_null_outcome`, DeLong `se`, `ci_lower`, `ci_upper` (clipped to [0, 1]; null under 2 rows a class), `conf_level` 0.95. `None`: buffered.
+- `auc`, `gini` (2·AUC − 1), `n_pos`, `n_neg`, `n_null_outcome`; DeLong `se`, `ci_lower`, `ci_upper` (clipped to [0, 1]; null under 2 rows a class), `conf_level` 0.95.
+- The `n` / `n_null` floor counts `field` only.
+
+## Contract
+
+- Types (`field`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`.
+- Types (`outcome`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: buffered only; components `none`. No streaming discrimination proxy exists; accept the buffered path (a stream reports it at terminal flush).
+- Components: `n`, `n_null`, `auc`, `gini`, `n_pos`, `n_neg`, `n_null_outcome`, `se`, `ci_lower`, `ci_upper`, `conf_level`; optional `sum_weights`, `n_eff`, `n_weight_invalid`, `se_note`.
 
 ## Gotchas
 

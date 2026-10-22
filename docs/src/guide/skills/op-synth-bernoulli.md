@@ -38,6 +38,10 @@ Field `type:` — `packed_bool` (1 bit per row), unsigned int (`u4`/`u8`/`u16`/`
 
 Per-row `1.0` with probability `p`, else `0.0`; cast to the declared field type at write time. `packed_bool` packs into the bit-shared neighbour byte.
 
+## Contract
+
+- Applies to: `bool`, `numeric` fields.
+
 ## Gotchas
 
 - **The only honest marginal for a `packed_bool`.** `profile create` reconstructs every `packed_bool` as `bernoulli` with `p` = observed mean, ahead of `--fit-shape`. A continuous marginal cannot round-trip through one bit — the writer must threshold, and a thresholded clamped normal reproduces the wrong prevalence (measured on a 90-boolean cohort: mean error 0.47, 89 of 90 fields off by >0.05; an 11% attribute generated at 64%).

@@ -42,7 +42,15 @@ String key (`2024-Q1`, `FY2025-Q1`, `2026-03-29T03`, `Monday`, `09`), chronologi
 
 ## Components
 
-Floor `{total_n, n_null}` + `granularity`, `range_start` / `range_end`, `n_buckets`, `buckets` (`{key, period_start, period_end, count}`; `hour` period = label; `day_of_week` / `hour_of_day` none). `Mergeable`; `Streamable=false` (stream: `GROUP_CATEGORY` over `ATTR_DATE_PART`).
+- `granularity`, `range_start` / `range_end`, `n_buckets`, `buckets` (`{key, period_start, period_end, count}`; `hour` period = label; `day_of_week` / `hour_of_day` none).
+- Not streamable as a grouper; stream `GROUP_CATEGORY` over `ATTR_DATE_PART` instead.
+
+## Contract
+
+- Types: `date`, `datetime`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: buffered only; components `mergeable`. Use GROUP_CATEGORY on an ATTR_DATE_PART output column for a streaming-friendly substitute.
+- Components: `total_n`, `n_null`, `granularity`, `range_start`, `range_end`, `n_buckets`, `buckets`.
 
 ## Gotchas
 

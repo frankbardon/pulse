@@ -28,17 +28,16 @@ Use something else:
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
-- `weight` — slot weight (`null` opts out), both kinds: table of Σw per cell. Frequency: Pearson on the Σw table. Probability: Pearson on the table scaled to n_eff — first-order Kish approximation; not Rao-Scott (`survey::svychisq`). `expected_min`, the `< 5` guard, V, φ read the scaled table; `Details` add scalar `sum_weights` (+ `n_eff`); `n` stays raw rows.
+- `weight` — table of Σw per cell. Frequency: Pearson on the Σw table. Probability: Pearson on the table scaled to n_eff — first-order Kish approximation; not Rao-Scott (`survey::svychisq`). `expected_min`, the `< 5` guard, V, φ read the scaled table; `Details` add scalar `sum_weights` (+ `n_eff`); `n` stays raw rows.
 
 - `expected` — object, optional: `{level: proportion}` → goodness of fit (`Variant` `goodness_of_fit`), `Cols` omitted. Each > 0, sum 1 ± 1e-9 (never renormalised), ≥ 2 labels; a listed level never observed counts as 0; an observed level not listed → `PULSE_TEST_EXPECTED_LABEL_MISSING`. Bad map / with `Cols` / `packed_bool` label ≠ `"0"`/`"1"` → `PULSE_TEST_EXPECTED_INVALID` (predict too). The SRM check: `{"control":0.5,"treatment":0.5}`.
 
 Slot params: `Rows` (required, categorical or `packed_bool`), `Cols` (required unless `expected`, same). `Field` is ignored.
 
-- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Inputs
 
-`Rows`, `Cols` — categorical: `categorical_u8`/`u16`/`u32`, or `packed_bool` (levels named `"0"`/`"1"`; labels sorted byte-wise, as for any categorical); any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (rows first).
+`Rows`, `Cols` — categorical: `categorical_u8`/`u16`/`u32`, or `packed_bool` (levels named `"0"`/`"1"`; labels sorted byte-wise, as for any categorical).
 
 ## Output
 
@@ -48,6 +47,13 @@ Slot params: `Rows` (required, categorical or `packed_bool`), `Cols` (required u
 
 - `statistic`: Pearson's chi-square adds up, over every cell, how far the observed count is from the count expected if the two fields were unrelated. Larger values mean the table departs more from that pattern. With params.expected (Variant goodness_of_fit) the cells are the rows levels and the expected counts come from the given proportions, so it measures how far the observed mix is from the planned one.
 - `details.expected_min`: The smallest expected count across all cells.
+
+## Contract
+
+- Types (`rows`, `cols`): `categorical_*`, `packed_bool`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `request` (default), `compose` (inside Compose).
+- Streaming: streamable.
 
 ## Gotchas
 

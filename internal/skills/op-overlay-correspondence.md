@@ -34,6 +34,8 @@ SERIES of `K` inertias, keys `dim_k` (`share`, `cumulative_share`, `singular_val
 
 Plot dim_1 × dim_2: close same-kind points ⇒ similar profiles. Row-to-column closeness reads only in a principal/standard map. Check `cumulative_share` and quality first. Axes may mirror R `ca`. A low retained share ⇒ read `row_distance` / `column_distance`, not the map.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Other cell, or a negative / undefined (NaN) cell ⇒ `PULSE_OVERLAY_NONNEGATIVE_REQUIRED`.

@@ -41,10 +41,9 @@ Top-level keys, not `params` — except `params.fit`; `field` unread.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `target` / `predictors` | numeric analytics set: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `date`, `datetime`, `decimal128` (its float64 echo), `packed_bool` (0/1); a categorical or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
-| `Label` | new column name; default `<TYPE>_<target>`, with `params.fit` `<TYPE>_<fit>` |
+`target` / `predictors` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
+
+- `Label` — new column name; default `<TYPE>_<target>`, with `params.fit` `<TYPE>_<fit>`
 
 ## Output
 
@@ -54,6 +53,12 @@ One `float64` per record — the model's prediction ŷᵢ. **Null (never 0) when
 
 - `value`: The target value the fitted straight-line model predicts for the row from its predictors: intercept + sum(coefficient * predictor), in the target's units. The model is fitted by least squares to the rows that passed the filters and have the target and every predictor.
   - Caveat: The model describes association in these rows: a fitted value is what rows with these predictor values look like here, not what would happen to a row if a predictor were changed; a causal reading needs a design that supports it.
+
+## Contract
+
+- Types (`target`, `predictor`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable.
 
 ## Gotchas
 

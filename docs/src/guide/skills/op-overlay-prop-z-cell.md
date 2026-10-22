@@ -28,7 +28,6 @@ Use something else:
 
 `Scope` must be `cell`. `Reference` (string, required) — reference slot label. `Targets` ([]string, required) — target slot labels.
 
-- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Host shape
 
@@ -44,6 +43,12 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors referen
   - Caveat: Each cell holds the two-sided p-value comparing the target's share (cell / row total) with the reference's share in the same cell.
   - Caveat: A cell whose row total is missing or zero on either side is NaN, with a warning (PULSE_OVERLAY_REF_ZERO): it gets no test.
 
+## Contract
+
+- Weight: weighted under `frequency` and `probability` weights.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `layer` (default), `row`, `column`, `request`, `compose` (inside Compose).
+- Streaming: buffered only.
+
 ## Gotchas
 
 - An undefined (NaN) target or reference cell is a MISSING pair: the cell stays absent, no warning, out of `summary.count`.
@@ -51,7 +56,6 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value as `float64`. Mirrors referen
 - Pooled SE: `sqrt(pooled × (1-pooled) × (1/n_target + 1/n_ref))` where `pooled = (target+ref) / (n_target+n_ref)`. Reuses `normalTwoSidedP` — byte-equal to the two-proportion z-test on the same `(success, n)` pair.
 - Degenerate inputs (`pooled ∈ {0,1}`, `se == 0`, missing/zero row margin on EITHER side — never the cell value as n) → NaN cell + ONE `PULSE_OVERLAY_REF_ZERO` per affected cell.
 - Schema-match + key-alignment gates at the slot barrier.
-- Buffered (inferential).
 
 ## See
 

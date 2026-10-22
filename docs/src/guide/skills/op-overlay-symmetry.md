@@ -29,7 +29,6 @@ Use something else:
 `Scope` `matrix`. `Ref` empty. `Level`/`Within` `0`.
 
 - `correct` — default `true` (R's `mcnemar.test`): 2 × 2 continuity correction `(|n_12 − n_21| − 1)²`, clamped at 0; inert on k × k.
-- `multiplicity` — adds `summary.p_adjusted`, raw p untouched ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Host shape
 
@@ -44,6 +43,12 @@ SCALAR χ² = Σ_{i<j} `(n_ij − n_ji)² / (n_ij + n_ji)`. `Summary.Parameters`
 - `scalar`: The symmetry chi-square, also in summary.statistic: over every pair of states, the squared gap between moves one way and moves back, divided by all moves between the two. 0 means every pair moved both ways equally; read summary.p_value rather than the raw value.
 - `summary.statistic`: The same symmetry chi-square as scalar.
 - `summary.p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
+
+## Contract
+
+- Weight: weighted under `frequency` and `probability` weights.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `layer` (default), `request`, `compose` (inside Compose).
+- Streaming: buffered only.
 
 ## Gotchas
 

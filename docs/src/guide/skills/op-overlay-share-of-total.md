@@ -36,6 +36,11 @@ Dual-shape: **MATRIX** crosstab (`Ref.Margin` required, grand-axis) → `cell / 
 
 MATRIX or SERIES — raw share (no ×100). A whole matrix / complete partition sums to 1.0 within ULP. Layer `Baseline = 1`.
 
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable.
+
 ## Gotchas
 
 - MATRIX: An undefined (NaN) host cell — a mean over no value, an unanswered element — is MISSING, as an absent one: the overlay cell stays absent, no warning, out of `summary.count` and of any Level / Within bucket sum.

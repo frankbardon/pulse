@@ -30,11 +30,13 @@ Range label per row, else `unmatched_label`; supplied order, unmatched last. `in
 
 ## Components
 
-Floor `{total_n, n_null}` + `n_ranges` (int), `unmatched_label` (string), `buckets` (`{key, label, count}`, same order; zero-count ranges kept). Mergeable, streamable.
+- `n_ranges` (int), `unmatched_label` (string), `buckets` (`{key, label, count}`, same order; zero-count ranges kept).
+
+<!-- generated: contract -->
 
 ## Gotchas
 
-- Both/neither source → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`; numeric table → `PULSE_RANGE_TABLE_KIND_MISMATCH`; non-date → `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Both/neither source → `PULSE_RANGE_SOURCE_AMBIGUOUS`; unknown table → `PULSE_RANGE_TABLE_UNKNOWN`; numeric table → `PULSE_RANGE_TABLE_KIND_MISMATCH`.
 - Overlap / dup / bad bound → `PULSE_RANGE_OVERLAP` / `_DUPLICATE_LABEL` / `_INVALID`.
 - Zone on `date` / derived field → `PROCESSING_CONFIG`; null `tz_field` cell → `n_null`.
 - An `include` label matching no range drops silently.

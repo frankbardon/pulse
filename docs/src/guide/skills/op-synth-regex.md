@@ -39,6 +39,10 @@ Field `type:` — `categorical_u8`/`u16`/`u32`. Distinct generated strings becom
 
 Per-row string from the parsed AST: literals copy, char classes draw uniformly, alternations pick a branch, repeats expand under `max_repeat`. Stored as a dictionary index. Ops: `OpLiteral`, `OpCharClass`, `OpAnyChar(NotNL)`, `OpCapture`, `OpConcat`, `OpAlternate`, `OpStar`, `OpPlus`, `OpQuest`, `OpRepeat`, anchors (emit nothing).
 
+## Contract
+
+- Applies to: `categorical` fields.
+
 ## Gotchas
 
 - No backreferences (`\1`, `(?P=name)`); invalid pattern → `SERVICE_VALIDATION` with the syntax error.

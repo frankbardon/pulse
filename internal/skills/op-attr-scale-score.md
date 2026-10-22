@@ -30,7 +30,10 @@ One `f64` per record on the item scale (`sum`: × p).
 
 ## Components
 
-`components.attributes` entry: floor `{n, n_null}` (present / null scores) + `n_out_of_range` (values), `n_rows_out_of_range` (rows) only with a range. `Mergeable`; no weighted keys.
+- `n_out_of_range` (values), `n_rows_out_of_range` (rows): only with a range.
+- The floor counts present / null scores; no weighted keys.
+
+<!-- generated: contract -->
 
 ## Gotchas
 

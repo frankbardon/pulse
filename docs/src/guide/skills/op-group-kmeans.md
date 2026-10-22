@@ -41,7 +41,14 @@ Keys `cluster_1`…`cluster_k`, emitted largest first (ties: lexicographic centr
 
 ## Components
 
-`{total_n, n_null}`, the params, `members`, `center` / `scale`, `distinct_points`, `buckets` `{key, count, size, within_ss, centroid, centroid_standardized}`, `total_ss`, `within_ss`, `between_ss`, `between_ss_ratio`, `iterations`, `converged`, `best_init`. Mergeability `None`.
+- The params, `members`, `center` / `scale`, `distinct_points`, `buckets` `{key, count, size, within_ss, centroid, centroid_standardized}`, `total_ss`, `within_ss`, `between_ss`, `between_ss_ratio`, `iterations`, `converged`, `best_init`.
+
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: weighted under `frequency` weights only; a `probability` weight is `PULSE_WEIGHT_UNSUPPORTED` (k-means has no probability-weighted form: a sampling weight does not make a row several coincident points, and no reference implementation defines design-weighted clusters).
+- Streaming: buffered only; components `none`. k-means fits over every row before any label exists; the request runs buffered and serially under DecodeWorkers / ShardWorkers, and a crosstab falls back to the buffered arm.
+- Components: `total_n`, `n_null`, `k`, `seed`, `n_init`, `max_iter`, `standardize`, `members`, `center`, `scale`, `distinct_points`, `buckets`, `total_ss`, `within_ss`, `between_ss`, `between_ss_ratio`, `iterations`, `converged`, `best_init`.
 
 ## Gotchas
 

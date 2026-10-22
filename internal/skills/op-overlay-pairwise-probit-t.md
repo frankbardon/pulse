@@ -17,9 +17,6 @@ Intra-matrix pairwise along one axis of the SAME crosstab: `row` scope pairs row
 
 `Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.pair_along_dim` (int, unset) — restrict pairs to same-bucket comparisons on the pair axis. `params.n_source` (omitted: the cell's base — the normalise denominator on a normalised host, its N* when weighted), `params.n_within_depth` and `params.p_source` (default `cell_value` on a normalised host, else `cell_value_pct`; omitted over an unnormalised mean / non-count cell → `PULSE_OVERLAY_PARAM_MISSING`) are the family-wide vocabulary, identical to `op-overlay-pairwise-prop-z`: `pairwise-n-sources`. `params.letters` (object, unset) — `{}` or `{"alpha": a}`, `0 < a < 1` (else `PULSE_OVERLAY_PARAM_MISSING`, predict and runtime): adds the `letters` part.
 
-<!-- feature: capability:multiplicity -->
-- `multiplicity` — optional `{method, family, alpha}`; adds `p_adjusted` figures, raw p untouched (`multiplicity-correction`).
-<!-- /feature -->
 
 ## Host shape
 
@@ -31,10 +28,11 @@ MATRIX — pair × opposite-axis grid of two-sided p-values, layout identical to
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - An undefined (NaN) host cell is MISSING: its pairs skip as an absent cell's do (`PULSE_STATS_SKIP_EXTRACT_FAILED`).
-- Never weighted (no reference weighted form): a row weight reaching the overlay slot (request, its own `weight`, or `Options.DefaultWeight`) is `PULSE_WEIGHT_UNSUPPORTED` with `details.reason`; set `"weight": null` on the overlay to run it unweighted.
 - `df <= 0` (n_i + n_j <= 2) or a non-finite t skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`).
 - The primary stays RAW p-values; direction and significance ride `letters` only when asked; min-n is the embedder's job.
 - `p_source` mismatch empties the layer: a leg outside `[0,1]` (`cell_value` over a raw count or a 0..100 percentage) skips every pair (`PULSE_OVERLAY_REF_ZERO`, reason `PULSE_STATS_SKIP_PROPORTION_INVALID`) — never clipped. Normalize a count cell first.

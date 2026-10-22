@@ -25,6 +25,8 @@ SERIES — grouped Process host. Over two or more `groups` it runs once per part
 
 SERIES — one `SeriesEntry` per host group, carrying `delta = group - sibling` on `Summary.Statistic`. Sibling group itself emits `0.0` (self-vs-self). Layer `Baseline = 0`.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Unknown `(Field, Value)` pair → ONE `PULSE_OVERLAY_REF_UNKNOWN` per layer + NaN across entries.

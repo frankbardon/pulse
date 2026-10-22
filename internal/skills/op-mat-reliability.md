@@ -36,7 +36,9 @@ omega = (Σλ)² / ((Σλ)² + Σψ) from the minres fit (the model form, not ps
 
 ## Components
 
-`n`, `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`<!-- feature: capability:weighting -->; weighted `sum_weights`, `n_eff`, `n_weight_invalid`<!-- /feature -->; `iterations`, `converged` when the omega fit ran.
+- `iterations`, `converged` when the omega fit ran.
+
+<!-- generated: contract -->
 
 ## Gotchas
 

@@ -29,9 +29,7 @@ None.
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | any set rung — `set_u8`, `set_u16`, `set_u32`, `set_u64`, `set_u128`, `set_u256`; any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -39,16 +37,16 @@ Scalar `int64` — count of distinct exact masks.
 
 ## Components
 
-Universal floor `{n, n_null}` plus operator-specific:
+- `mask_union` — Bitwise OR of every row's mask; 4 little-endian words, `words[0]` = bits 0-63
+- `popcount` — Distinct labels observed
+- `labels` — Resolved dictionary labels
 
-| Key | Type | Notes |
-|---|---|---|
-| `mask_union` | `[]uint64` | Bitwise OR of every row's mask; 4 little-endian words, `words[0]` = bits 0-63 |
-| `popcount` | int | Distinct labels observed |
-| `labels` | `[]string` | Resolved dictionary labels |
+## Contract
 
-- Mergeability: `Mergeable` via union of seen-mask sets
-- Streaming: per-chunk
+- Types (`field`): `set_*`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`.
+- Weight: no weighted form; an explicit weight is `PROCESSING_CONFIG`, an instance default is skipped.
+- Streaming: streamable; components `mergeable`.
+- Components: `n`, `n_null`, `mask_union`, `popcount`, `labels`.
 
 ## Gotchas
 

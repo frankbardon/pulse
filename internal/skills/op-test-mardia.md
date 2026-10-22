@@ -30,6 +30,8 @@ Skewness: χ² = N·b1p/6 on p(p + 1)(p + 2)/6 df. Kurtosis: z, `DF` 0. `Variant
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Buffered: keeps n × p values.

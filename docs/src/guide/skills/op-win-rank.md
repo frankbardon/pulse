@@ -30,9 +30,7 @@ None. `partition_by` (carve), `order_by` (≥1, required, any type but `set_*` (
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | must be empty / omitted — `WIN_RANK` reads ranking from `order_by` keys only |
+- `Field` — must be empty / omitted — `WIN_RANK` reads ranking from `order_by` keys only
 
 ## Output
 
@@ -44,13 +42,17 @@ One `int64` per row written to `Label` (default `WIN_RANK`). Ties (rows equal on
   - Caveat: Rank 1 is the first row in order_by order: the smallest value with an ascending key, the largest with desc. Say which when reporting a 'top' rank.
   - Caveat: Rows tie only when equal on every order_by key; rows with a missing order_by value sort last and tie with each other, so they share the last rank.
 
+## Contract
+
+- Types: reads no field; naming one is `PULSE_WINDOW_INVALID`.
+- Weight: no weighted form and no slot weight; a request weight is `PROCESSING_CONFIG`, an instance default is skipped.
+- Streaming: buffered only.
+
 ## Gotchas
 
-- Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.
 - `order_by` defines BOTH scan order AND tie key — same field choice changes the answer.
 - Multiple `order_by` keys: tie only when ALL keys equal.
 - Result rows are NOT reordered — use `Request.Sort` for response order.
-- Forces buffered execution (`Streamable=false`).
 
 ## See
 

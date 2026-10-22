@@ -37,6 +37,11 @@ SERIES — one `SeriesEntry` per host value in payload order carrying the z-scor
 - `summary.statistic`: In each series entry, for a categorical field: the category's share in the subset minus its share in the population, divided by the standard deviation of the population's shares across categories. For a numeric field: a histogram bin's centre against the population's mean, in population standard deviations.
   - Sign: positive means the value sits above its centre; negative means the value sits below its centre.
 
+## Contract
+
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable.
+
 ## Gotchas
 
 - Discrete: `(subset_freq - pop_freq) / sd_pop`, `sd_pop = FacetPopulationView.DiscreteFrequencyStdev()` (population Welford SD across per-category frequencies).

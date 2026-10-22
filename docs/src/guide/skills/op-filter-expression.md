@@ -31,9 +31,7 @@ Use something else:
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | unused — the expression names fields. |
+- `Field` — unused — the expression names fields.
 
 Categorical → STRING; `set_*` → `[]string` (`has_any(tags, "a")`); `decimal128` → an exact decimal (`price * 1.1 > cost`, [`decimal-formulas`](decimal-formulas.md)); `date` → epoch days, `datetime` → epoch seconds — day helpers need `to_day` ([`calendar-formulas`](calendar-formulas.md)).
 
@@ -41,9 +39,12 @@ Categorical → STRING; `set_*` → `[]string` (`has_any(tags, "a")`); `decimal1
 
 Row-level predicate. No emitted column.
 
-## Components
+## Contract
 
-Floor only: universal `{n_in, n_out, n_null_input}` ([`response-components`](response-components.md)). `n_null_input` stays 0 — no fixed input field. Mergeable.
+- Types: any type.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable; components `mergeable`.
+- Components: `n_in`, `n_out`, `n_null_input`.
 
 ## Gotchas
 

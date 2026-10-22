@@ -24,6 +24,8 @@ Field `type:` — `u4`/`u8`/`u16`/`u32`/`u64` (the arm `profile create` targets)
 
 One declared level per row at its own share. Marginal exact — no threshold, no rounding bias.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - **The only honest marginal for a coded scale.** `profile create` uses it for every integer column with ≤64 observed levels, ahead of `--fit-shape`. A clamped normal keeps the mean and flattens the shape: a 1–7 item at 25.26% on level 1 generated 13.73%.

@@ -49,7 +49,7 @@ Every param is a top-level key of the regression entry (manifest `slot: true`); 
 
 ## Inputs
 
-`target` / `predictors` — numeric analytics set: `u4`/`u8`/`u16`/`u32`/`u64`, `f32`/`f64`, `decimal128`, `date`, `datetime`, `packed_bool`, plus nullable variants. A categorical or `set_*` field is refused `PULSE_FIELD_TYPE_UNSUPPORTED`. Binomial targets accept `{0,1}` or `packed_bool`. Nullable rows drop from `n_obs`.
+`target` / `predictors` — types: see `## Contract` (nullable variants too). Binomial targets accept `{0,1}` or `packed_bool`. Nullable rows drop from `n_obs`.
 
 ## Output
 
@@ -59,6 +59,13 @@ Every param is a top-level key of the regression entry (manifest `slot: true`); 
 
 - `coefficients.*`: The change in the linear predictor, on the link scale, for a one-unit increase in this predictor, holding the other predictors fixed: log-odds for binomial (logit link), the log of the expected count for Poisson (log link), the inverse of the expected value for gamma (inverse link).
 - `std_errors.*`: How much the coefficient would vary from sample to sample, from the inverse of the fitted information matrix: with the dispersion fixed at 1 for binomial and Poisson, and scaled by the estimated dispersion for gamma.
+
+## Contract
+
+- Types (`target`, `predictor`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Multiplicity: its own `multiplicity` block (an inherited one never reaches it) adds per-coefficient `p_adjusted` and `significant_adjusted` beside the raw p; families `request` (default), `compose` (inside Compose).
+- Streaming: buffered only. Always buffered; IRLS requires multiple passes over the data.
 
 ## Gotchas
 

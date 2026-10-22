@@ -35,13 +35,15 @@ Integer / float members.
 
 ## Components
 
-`n`, `n_null`, `n_listwise_dropped`<!-- feature: capability:weighting -->; weighted `sum_weights`, `n_eff`, `n_weight_invalid`<!-- /feature -->; `min_pair_n` / `max_pair_n` never (listwise).
+- `min_pair_n` / `max_pair_n` never (listwise).
+
+<!-- generated: contract -->
 
 ## Gotchas
 
 - Unused member or non-member variable: `bad_params`.
 - Default stops where semopy does.
-- Singular S: fatal `PULSE_MATRIX_SINGULAR`. No probability weight.
+- Singular S: fatal `PULSE_MATRIX_SINGULAR`.
 
 ## See
 

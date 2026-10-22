@@ -31,7 +31,10 @@ Rich `[]float64`, one SAMPLE standard deviation per member (n − 1<!-- feature:
 
 ## Components
 
-Floor `{n, n_null}` — a row is present when ANY member answered<!-- feature: capability:weighting --> (weighted adds `sum_weights`, `n_eff`, `n_weight_invalid`)<!-- /feature -->. Plus `labels`, `element_n` (raw per member), `element_sum`, `element_mean` (Welford running mean), `element_m2`<!-- feature: capability:weighting -->, `element_sum_weights` and `element_sum_weights_sq` (weighted)<!-- /feature -->. `Mergeable` (Chan combine per merge block); streams; bit-identical for any worker count or shard split.
+- `labels`, `element_n` (raw per member), `element_sum`, `element_mean` (Welford running mean), `element_m2`; weighted adds `element_sum_weights`, `element_sum_weights_sq`.
+- A row is present when ANY member answered. Chan combine per merge block; bit-identical for any worker count or shard split.
+
+<!-- generated: contract -->
 
 ## Gotchas
 

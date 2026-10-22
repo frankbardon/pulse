@@ -45,7 +45,14 @@ Integer/float members; `packed_bool` under `coerce: "binary"`.
 
 ## Components
 
-`components.matrices[i]`: `n`, `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`; weighted `sum_weights`, `n_eff`, `n_weight_invalid`; `operator.ddof`.
+- `operator.ddof`.
+
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable; partial states merge; components `mergeable`.
+- Components: `n`, `n_null`, `n_listwise_dropped`, `ddof`; optional `min_pair_n`, `max_pair_n`, `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 

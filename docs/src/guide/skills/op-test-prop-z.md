@@ -27,16 +27,15 @@ Use something else:
 ## Params
 
 - `alpha` — float, default `0.05`, in `(0, 1)`.
-- `weight` — slot weight (`null` opts out), both kinds: p̂_g = Σw_success/Σw_g, N*_g = Σw_g (frequency) or Kish n_eff_g (probability) for the pooled rate and SEs. `successes` becomes Σw_success; `Details` add `sum_weights` (+ `n_eff`) shaped like `n` (raw rows).
+- `weight` — p̂_g = Σw_success/Σw_g, N*_g = Σw_g (frequency) or Kish n_eff_g (probability) for the pooled rate and SEs. `successes` becomes Σw_success; `Details` add `sum_weights` (+ `n_eff`) shaped like `n` (raw rows).
 - `success` — string, required. Dictionary value of Field treated as a "success"; on a `packed_bool` Field strictly `"1"` or `"0"`.
 - `reference` — string, two-proportion: the `SplitBy` level read second, so `diff`, CI, z and `cohens_h` read other − reference (default: alphabetical, second level). Not a level, or no `SplitBy` → `PULSE_TEST_REFERENCE_INVALID` (predict too); neither observed group → `PULSE_TEST_REFERENCE_MISSING` (grouped: that group's figures `null`).
 - `p0` — float in `(0, 1)`, optional: with `SplitBy` absent, the one-proportion test (`Variant` `one_proportion`). Out of range or beside `SplitBy` → `PULSE_TEST_P0_INVALID` (predict too).
 - `covariate` — string, two-proportion: a numeric pre-period column (CUPED) adjusting the success indicator I to I − θ(x − x̄), θ pooled over both groups (weighted: on the weights; grouped: per group). `Variant` `two_proportion_adjusted`: `proportion`, `diff`, Wald CI, `cohens_h` adjusted; z = `diff` / its Wald SE (θ = 0 gives the unadjusted interval). `Details` add `diff_unadjusted`, `theta`, `covariate_mean`, `variance_reduction`, `n_covariate_dropped`. With `p0`, non-numeric or `= Field` → `PULSE_TEST_COVARIATE_INVALID` (predict too).
-- `multiplicity` — optional `{method, family}`; adds `p_adjusted` beside the raw p ([`multiplicity-correction`](multiplicity-correction.md)).
 
 ## Inputs
 
-`Field` (required) — categorical: `categorical_u8`/`u16`/`u32`, or `packed_bool` (levels `"0"`/`"1"`). `SplitBy` (required unless `p0`, exactly 2 groups) — same set. Any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime (field first).
+`Field` (required) — categorical (`packed_bool` levels `"0"`/`"1"`). `SplitBy` (required unless `p0`, exactly 2 groups) — same set.
 
 ## Output
 
@@ -47,6 +46,13 @@ Use something else:
 - `statistic`: z: the first group's success rate minus the second's, in standard errors computed from the pooled rate. Values far from 0 in either direction are unlikely if the true rates are equal. With params.p0 (Variant one_proportion) it is the observed rate minus p0, in standard errors computed from p0.
 - `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 - `details.ci_high`: Upper end of the confidence interval for details.diff.
+
+## Contract
+
+- Types (`field`, `split_by`): `categorical_*`, `packed_bool`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `request` (default), `compose` (inside Compose).
+- Streaming: streamable.
 
 ## Gotchas
 

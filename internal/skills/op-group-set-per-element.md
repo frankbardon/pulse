@@ -17,9 +17,7 @@ None. `Group.Label` renames the output column; `Group.Include` allow-lists fan-o
 
 ## Inputs
 
-| Param | Accepted field types |
-|---|---|
-| `Field` | any set rung — `set_u8`/`u16`/`u32`/`u64`/`u128`/`u256`; any other type is refused `PULSE_FIELD_TYPE_UNSUPPORTED` by predict and the runtime |
+`Field` — admitted types: see `## Contract`.
 
 ## Output
 
@@ -27,15 +25,11 @@ One string key per set bit per row. Smart default for `set_*`. `GroupType.FansOu
 
 ## Components
 
-Floor `{total_n, n_null}` plus:
-
-| Key | Type | Notes |
-|---|---|---|
-| `total_label_observations` | int | Sum of `buckets[].count`; MAY exceed `total_n` — fan-out |
-| `buckets` | []bucket | `{key, label, count, dict_index}` |
-
-- Mergeability: `Mergeable`
+- `total_label_observations` — Sum of `buckets[].count`; MAY exceed `total_n` — fan-out
+- `buckets` — `{key, label, count, dict_index}`
 - **Is** a fused-crosstab axis — admitted at any position, either or both axes.
+
+<!-- generated: contract -->
 
 ## Gotchas
 

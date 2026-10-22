@@ -30,6 +30,8 @@ Members: `u4`…`u64`, `f32`/`f64`.
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Streamable. Same rows ⇒ same bits as the PCA operator's Bartlett scalars<!-- feature: MAT_PCA --> (`MAT_PCA`)<!-- /feature -->.
