@@ -4,7 +4,7 @@ slug: guidance-guides
 title: "A developer can start from a question and find the right analysis without knowing statistics"
 track: Guided analysis
 size: M
-status: not-started
+status: done
 depends_on: [U21, U24, U28]
 soft_depends_on: []
 blocks: [U32]
@@ -20,23 +20,23 @@ branch: guidance-guides
 
 ## Summary
 
-Hand-written prose around generated blocks: the "What can Pulse answer?" landing page, one question guide per intent, story examples (`_meta.intent/question/interpretation`), and the vector & matrix concept primers.
+Hand-written prose around generated blocks: the "What can Pulse answer?" landing page, one question guide per intent, story examples (`_meta.intents` / `question` / `interpretation`), and the vector & matrix concept primers.
 
 ## References
 
 **Theme documents (read before starting):**
 - [guided-analysis 02 — Documentation](../v1.0.0-guided-analysis/02-documentation.md) — D1 landing page, D2 question guides, D6 story examples, D8 primers
 
-**TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
+**TODO items delivered by this unit** (ticked in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#100** (7. Guided analysis — docs, API & MCP › G6 — Guides) "What can Pulse answer?" landing page
-- [ ] **#101** (7. Guided analysis — docs, API & MCP › G6 — Guides) Question guides, one per intent: describe, compare groups, relationships, drivers, change over time, composition, benchmark, distribution, segment, measure construct, flows, data quality
-- [ ] **#102** (7. Guided analysis — docs, API & MCP › G6 — Guides) Story examples: `_meta.intent` / `question` / `interpretation`, at least one per intent
-- [ ] **#103** (7. Guided analysis — docs, API & MCP › G6 — Guides) Vector & matrix concept primers: correlation matrix, PCA, distance vs similarity, perceptual maps
-- [ ] **#250** (7. Guided analysis › Follow-ups from U23) Fuzzy (typo-tolerant) search over examples and skills: a final `matchTier` after the literal and `KnownAs`/Sound tiers (the seam in `internal/examples/search.go`), edit distance scaled by length, ranked below exact and synonym hits
-- [ ] **#251** (7. Guided analysis › Follow-ups from U23) Align the story-example metadata spelling: #102 says `_meta.intent`, examples carry `_meta.intents` (a list); pick one and make the item text, the harness and the docs agree
-- [ ] **#252** (7. Guided analysis › Follow-ups from U23) `pulse examples search` has no `--intent` flag (the MCP tool and the facade `ExamplesSearchWith` take one); add it and a `docs/src/cli/flags.md` row
-- [ ] **#269** (10. Vector & matrix — operators › Follow-ups from U24) A rating-battery demo cohort (Likert items on one latent trait) so `MAT_RELIABILITY` and `MAT_PCA` examples show a defined omega and real loadings; `08_reliability.json` runs on `experiment.pulse` and shows a Heywood null omega
+- [x] **#100** (7. Guided analysis — docs, API & MCP › G6 — Guides) "What can Pulse answer?" landing page
+- [x] **#101** (7. Guided analysis — docs, API & MCP › G6 — Guides) Question guides, one per intent: describe, compare groups, relationships, drivers, change over time, composition, benchmark, distribution, segment, measure construct, flows, data quality
+- [x] **#102** (7. Guided analysis — docs, API & MCP › G6 — Guides) Story examples: `_meta.intents` (a list) / `question` / `interpretation`, at least one per intent
+- [x] **#103** (7. Guided analysis — docs, API & MCP › G6 — Guides) Vector & matrix concept primers: correlation matrix, PCA, distance vs similarity, perceptual maps
+- [x] **#250** (7. Guided analysis › Follow-ups from U23) Fuzzy (typo-tolerant) search over examples (examples only: no free-text skill search exists): a final `matchTier` after the literal and `KnownAs`/Sound tiers (the seam in `internal/examples/search.go`), edit distance scaled by length, ranked below exact and synonym hits
+- [x] **#251** (7. Guided analysis › Follow-ups from U23) Align the story-example metadata spelling on `_meta.intents` (a list); the item text, the harness and the docs agree
+- [x] **#252** (7. Guided analysis › Follow-ups from U23) `pulse examples search` has no `--intent` flag (the MCP tool and the facade `ExamplesSearchWith` take one); add it and a `docs/src/cli/flags.md` row
+- [x] **#269** (10. Vector & matrix — operators › Follow-ups from U24) A rating-battery demo cohort (Likert items on one latent trait) so `MAT_RELIABILITY` and `MAT_PCA` examples show a defined omega and real loadings; `08_reliability.json` runs on `experiment.pulse` and shows a Heywood null omega
 
 ## Scope
 
@@ -63,10 +63,10 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(guidance-guides/E
 
 ## Acceptance criteria
 
-- [ ] Every intent has a guide whose generated blocks are current
-- [ ] Every story's output is produced by the examples harness (no hand-typed numbers)
-- [ ] Guides name only real CLI leaves (`TestSkillsCoverAllCliLeaves` passes)
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] Every intent has a guide whose generated blocks are current
+- [x] Every story's output is produced by the examples harness (no hand-typed numbers)
+- [x] Guides name only real CLI leaves (`TestSkillsCoverAllCliLeaves` passes)
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
@@ -84,6 +84,19 @@ Each epic is a vertical slice. Commit with `feat|fix|perf|test(guidance-guides/E
 
 ## Inherited from U41
 
-Filed from [U41 handed on](U41-derived-cohort.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
+Filed from [U41 handed on](U41-derived-cohort.md#handed-on); ticked in [`TODO.md`](../TODO.md).
 
-- [ ] **#377** — Recommend drafts a materialise step: an intent route (e.g. a derived column a later model reads) that proposes `pulse_materialize` before the step-2 request. Found in U41 (E2-S2).
+- [x] **#377** — Recommend drafts a materialise step: an intent route (e.g. a derived column a later model reads) that proposes `pulse_materialize` before the step-2 request. Found in U41 (E2-S2).
+
+## Decisions
+
+- **Review for plain-language clarity:** done without a human reader. A critical non-statistician review of the landing page, the 12 guides and the 4 primers ran in E3-S2; its findings (location → problem → fix) are in that commit's body and every one is fixed or justified there. The generated decision lists stay full length (owner decision).
+- **`FEAT_POLY` gets no materialise plan** (`Recommendation.Steps`, #377): its output column set depends on the degree the caller picks, so a drafted `REG_OLS` cannot name the columns ahead of time (owner decision). `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`, `ATTR_SCALE_SCORE`, `ATTR_REG_PREDICT`, `FEAT_LOG`, `FEAT_SQRT` and `FEAT_FREQUENCY_ENCODE` do.
+- **#250 narrowed to examples:** Pulse has no free-text skill search, so the fuzzy tier lives in `internal/examples/search.go` only.
+
+## Handed on
+
+| Item | To | Why |
+|---|---|---|
+| #504 a runnable, golden-pinned perceptual-map example chain behind `docs/src/concepts/perceptual-maps.md` | [U32](U32-docs-audit.md) | the primer describes the recipe (PCA loadings → `ATTR_PC_SCORE` → group averages → `MAT_DISTANCE`) but no example or story golden runs it, so its steps are unchecked |
+| #505 `skills/session-bootstrap.md` line for the CLI `pulse examples search --intent` | [U32](U32-docs-audit.md) | the skill is at its 6,000-byte topical budget, and the MCP `intent` argument it would echo predates U31; the docs audit owns skill trims |
