@@ -9,7 +9,7 @@ covers: [RegressionSpec, slot keys, penalty, alpha, l1_ratio, conf_level, weight
 
 # Regression spec
 
-What every built-in fit shares. Per-model params and outputs: atomic `op-reg-*`; choosing a model: `regression-modeling`; intervals, `vcov`, robust `covariance`: `regression-inference`; `unpenalized`, `bounds`, per-coefficient priors: `regression-model-options`; the resample knobs: `op-reg-mod-resample`.
+What every built-in fit shares. Per-model params and outputs: atomic `op-reg-*`; choosing a model: `regression-modeling`; intervals, `vcov`, robust `covariance`: `regression-inference`; `unpenalized`, `bounds`, per-coefficient priors: `regression-model-options`; the resample knobs: the resample modifier's atomic skill.
 
 ## Slot keys
 
@@ -44,7 +44,7 @@ Shared keys:
 
 ## Weighted fits
 
-`weight: null` opts a slot out (`weighting`). `NObs` stays the raw row count; a weighted fit adds `SumWeights` (+ `NEff` under a probability weight).
+`weight: null` opts a slot out<!-- feature: capability:weighting --> (`weighting`)<!-- /feature -->. `NObs` stays the raw row count; a weighted fit adds `SumWeights` (+ `NEff` under a probability weight).
 
 | Fit | Kinds | What the weight does |
 |---|---|---|

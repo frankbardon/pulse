@@ -9,7 +9,7 @@ covers: [fit_on, fit, labels, reference, centroid, population, record, key_field
 
 # Vector row scores: fits and references
 
-A row score reads one vector — exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> or inline `fields` (globs ok), never `field` — and emits one `f64` per record; a null member nulls the row. `labels` (inline `fields` only) gives one label per member. Which operator: `multivariate-design`; which metric: `vector-metrics`; figure layout: `multivariate-outputs`.
+A row score reads one vector — exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> or inline `fields` (globs ok), never `field` — and emits one `f64` per record; a null member nulls the row. `labels` (inline `fields` only) gives one label per member.<!-- feature: capability:matrices --> Which operator: `multivariate-design`; which metric: `vector-metrics`; figure layout: `multivariate-outputs`.<!-- /feature -->
 
 ## Fitted scores
 
@@ -29,7 +29,7 @@ A row score reads one vector — exactly one of `vector`<!-- feature: capability
 Each fits once, then scores every row:
 
 - `fit_on` — `"filtered"` (default) or an inline filterer array picking the FIT rows; every filtered row is still scored.
-- `fit` — a bound vector fit's name, scored against instead of fitting: a compose `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry (`compose-fits`). XOR `fit_on` (`fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members: a mismatch is `PULSE_VECTOR_REFERENCE_MISMATCH`, an unbound name `PULSE_MODEL_UNKNOWN`, a regression's name `PULSE_MODEL_KIND_MISMATCH`.
+- `fit` — a bound vector fit's name, scored against instead of fitting: a compose `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry<!-- feature: capability:compose_fits --> (`compose-fits`)<!-- /feature -->. XOR `fit_on` (`fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members: a mismatch is `PULSE_VECTOR_REFERENCE_MISMATCH`, an unbound name `PULSE_MODEL_UNKNOWN`, a regression's name `PULSE_MODEL_KIND_MISMATCH`.
 - `missing` — `listwise` only.
 - `weight` — fits only (N* = Σw or n_eff; the Mahalanobis covariance is M2*/(N* − 1)); a zero-weight row is scored, not fitted.
 
@@ -54,10 +54,10 @@ Execution and failure:
 |---|---|
 | `[…]` | values in member order |
 | `{label: value}` | values by label |
-| `{table, key}` | one registered profile (`vector-metrics`) |
+| `{table, key}` | one registered profile<!-- feature: capability:matrices --> (`vector-metrics`)<!-- /feature --> |
 | `{table, key_field}` | its own profile, keyed by a categorical or `u4`…`u64` field in exact base-10 form (`u64` above 2^53 too) |
 | `{centroid: {filter?, by?}}` | the weighted per-member mean of the rows `filter` admits<!-- feature: AGG_VEC_MEAN --> (= `AGG_VEC_MEAN`)<!-- /feature -->; `by` = one centroid per exact key, each row against its own |
-| `{population: name}` | a bound vector fit's mean (`compose-fits`); a distance's population need not be its `fit` |
+| `{population: name}` | a bound vector fit's mean<!-- feature: capability:compose_fits --> (`compose-fits`)<!-- /feature -->; a distance's population need not be its `fit` |
 | `{record: {cohort?, keys}}` | one stored row, point-looked-up through its cohort's index (the request's own if omitted: `cohort-sidecar-index`), read by member column (null = a missing element) |
 
 - `min_valid` (default 1) — the fewest complete pairs; below it the row is null. A distance's sums rescale by p / p_observed.

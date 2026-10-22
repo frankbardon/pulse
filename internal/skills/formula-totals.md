@@ -44,7 +44,7 @@ A `total` formula is **two-pass**, like the z-score attribute: a pre-pass sums, 
 
 ## Refusals
 
-- `total()` in an expression filter or an overlay formula (Compose host too) → `PULSE_FORMULA_TOTAL_SITE`; an overlay formula reads its `total` variable instead (`overlay-formula-namespace`).
+- `total()` in an expression filter or an overlay formula (Compose host too) → `PULSE_FORMULA_TOTAL_SITE`; an overlay formula reads its `total` variable instead<!-- feature: OVERLAY_FORMULA --> (`overlay-formula-namespace`)<!-- /feature -->.
 - Nested → `PULSE_FORMULA_TOTAL_NESTED`; arity ≠ 1 → `PULSE_FORMULA_TOTAL_ARITY`.
 - An embedder `ExprFunction` named `total` → `PULSE_EXTENSION_NAME_RESERVED`.
 

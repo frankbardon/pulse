@@ -9,7 +9,7 @@ covers: [RegressionSpec, slot keys, penalty, alpha, l1_ratio, conf_level, weight
 
 # Regression spec
 
-What every built-in fit shares. Per-model params and outputs: atomic `op-reg-*`; choosing a model: [`regression-modeling`](regression-modeling.md); intervals, `vcov`, robust `covariance`: [`regression-inference`](regression-inference.md); `unpenalized`, `bounds`, per-coefficient priors: [`regression-model-options`](regression-model-options.md); the resample knobs: [`op-reg-mod-resample`](op-reg-mod-resample.md).
+What every built-in fit shares. Per-model params and outputs: atomic `op-reg-*`; choosing a model: [`regression-modeling`](regression-modeling.md); intervals, `vcov`, robust `covariance`: [`regression-inference`](regression-inference.md); `unpenalized`, `bounds`, per-coefficient priors: [`regression-model-options`](regression-model-options.md); the resample knobs: the resample modifier's atomic skill.
 
 ## Slot keys
 

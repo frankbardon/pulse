@@ -9,7 +9,7 @@ covers: [vector aggregator, array_valued, expand, element, labels, element_n, pe
 
 # Vector aggregates: arrays, `expand`, `element`
 
-A vector aggregator<!-- feature: AGG_VEC_MEAN --> (`AGG_VEC_MEAN`)<!-- /feature --><!-- feature: AGG_VEC_SUM --> (`AGG_VEC_SUM`)<!-- /feature --><!-- feature: AGG_VEC_SD --> (`AGG_VEC_SD`)<!-- /feature --> returns one figure per member as a rich `[]float64`, per group row when grouped. Which operator: `multivariate-design`; the formula: its atomic skill.
+A vector aggregator<!-- feature: AGG_VEC_MEAN --> (`AGG_VEC_MEAN`)<!-- /feature --><!-- feature: AGG_VEC_SUM --> (`AGG_VEC_SUM`)<!-- /feature --><!-- feature: AGG_VEC_SD --> (`AGG_VEC_SD`)<!-- /feature --> returns one figure per member as a rich `[]float64`, per group row when grouped. <!-- feature: capability:matrices -->Which operator: `multivariate-design`; <!-- /feature -->The formula: its atomic skill.
 
 ## Slot
 

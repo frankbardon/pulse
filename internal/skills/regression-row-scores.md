@@ -9,7 +9,7 @@ covers: [ATTR_REG, fitted value, residual, leverage, scoring, params.fit, bound 
 
 # Per-row regression scores
 
-Model coefficients come from a regression slot (`regression-modeling`); these attributes put a per-row figure from a model into a column. Fits that several slots share: `compose-fits`.
+Model coefficients come from a regression slot (`regression-modeling`); these attributes put a per-row figure from a model into a column.<!-- feature: capability:compose_fits --> Fits that several slots share: `compose-fits`.<!-- /feature -->
 
 ## Refit in the attribute prepass
 
