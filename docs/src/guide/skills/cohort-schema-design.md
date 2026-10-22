@@ -18,10 +18,12 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 | Null bitmap; null promotion on import; null vs empty vs selected in `set_*` / categorical cells per format | [`cohort-null-states`](cohort-null-states.md) |
 | A value outgrew its width — promote or refuse? | [`cohort-width-overflow`](cohort-width-overflow.md) |
 | Storing a repeated parent block once (`0x02`), `--group`, `dedup`, constant elision | [`cohort-parent-groups`](cohort-parent-groups.md) |
-| Shard archive cohesion, auto-widen, anchors, memory, concurrency, moving a cohort | [`cohort-sharding`](cohort-sharding.md) |
+| Shard archives: cohesion, auto-widen, anchors, memory, moving a cohort | [`cohort-sharding`](cohort-sharding.md) |
 | The point-lookup sidecar index: format, staleness, discovery, keyable types | [`cohort-sidecar-index`](cohort-sidecar-index.md) |
 | A cohort imported from `.sav` / `.zsav` | [`spss-cohorts`](spss-cohorts.md) |
 | Vector fields (`vec_*`): import a battery or list column, name it in a request, export, refusals | [`vector-fields`](vector-fields.md) |
+| Importing: explicit schema by name, inference, row failures, dispatch | [`import-schema-rows`](import-schema-rows.md) |
+| Naive datetimes recorded in a local zone | [`import-source-zones`](import-source-zones.md) |
 | One type's bytes, range, null and dictionary rules | atomic `type-<kebab>` |
 
 ## Field-type matrix (all 22)
@@ -53,7 +55,7 @@ Pick the right `.pulse` field type, decide nullability, address shards. The sche
 
 `set_*` mask bit `i` = label `dict[i]` selected; empty mask is a valid value (NOT null). Nullability is opt-in per field via the bitmap; all 22 types participate identically. How null, empty and selected stay apart in every format: [`cohort-null-states`](cohort-null-states.md).
 
-`date` and `datetime` are NOT interchangeable — days vs. seconds, a factor of 86,400. Both are accepted by the date grouper, the date-range grouper and the date-range filter, which day-truncate `datetime` to the UTC calendar day. Sub-second timestamps: `u64` microseconds. Resolution, timezone and text-format detail belong to [`type-date`](type-date.md) / [`type-datetime`](type-datetime.md).
+`date` and `datetime` are NOT interchangeable — days vs. seconds, a factor of 86,400. Both are accepted by the date grouper, the date-range grouper and the date-range filter, which read a `datetime` on its local calendar day ([`time-zones`](time-zones.md)). Sub-second timestamps: `u64` microseconds. Resolution, timezone and text-format detail belong to [`type-date`](type-date.md) / [`type-datetime`](type-datetime.md).
 
 ## Selection heuristics
 
@@ -65,7 +67,7 @@ Counts / IDs → smallest unsigned width that fits the max. Measurements → `f3
 
 ## Field descriptions
 
-Capped at 1000 bytes per field; over-cap → `PULSE_IMPORT_DESCRIPTION_TOO_LONG`. Empty, sub-10-character, or generic ("n/a", "tbd", "unknown", "field", "data", "value", "column") → `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` (warning; error under `--strict`). Style: concise, third-person, present-tense — what the field represents, its units, its domain semantics.
+Capped at 1000 bytes (`PULSE_IMPORT_DESCRIPTION_TOO_LONG`); empty, short or generic text warns `PULSE_FIELD_DESCRIPTION_LOW_QUALITY` ([`import-schema-rows`](import-schema-rows.md)). Style: concise, third-person, present-tense — what the field represents, its units, its domain semantics.
 
 ## Sharded cohorts
 
@@ -73,4 +75,4 @@ A `.pulse` path resolves to one of two shapes, dispatched on the leading 4 bytes
 
 ## Cross-links
 
-[`financial-cohorts`](financial-cohorts.md) (`decimal128` rules) · [`response-components`](response-components.md) (`data.components.run.shard_count` + `partial_cohort_reason`) · [`aggregation-design`](aggregation-design.md) / [`grouper-design`](grouper-design.md) / [`attribute-composition`](attribute-composition.md) (`set_*` operator surfaces) · [`tool-lookup`](tool-lookup.md) (point-lookup MCP surface on the sidecar format) · [`tool-import`](tool-import.md) (import MCP surface incl. the SPSS format enum) · [`label-display`](label-display.md) (resolving SPSS value labels from stored codes) · [`spss-cohorts`](spss-cohorts.md) (the full `.sav` / `.zsav` surface) · `docs/src/internals/managing-shard-archives.md`.
+[`financial-cohorts`](financial-cohorts.md) (`decimal128` rules) · [`response-components`](response-components.md) (`data.components.run.shard_count` + `partial_cohort_reason`) · [`aggregation-design`](aggregation-design.md) / [`grouper-design`](grouper-design.md) / [`attribute-composition`](attribute-composition.md) (`set_*` operator surfaces) · [`tool-lookup`](tool-lookup.md) (point-lookup MCP surface on the sidecar format) · [`tool-import`](tool-import.md) (the MCP import) · [`label-display`](label-display.md) (resolving SPSS value labels from stored codes) · [`spss-cohorts`](spss-cohorts.md) (the full `.sav` / `.zsav` surface) · `docs/src/internals/managing-shard-archives.md`.
