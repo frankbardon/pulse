@@ -2643,6 +2643,7 @@ pulse/errors: const PULSE_MATRIX_HOST_CONFLICT pulse/errors.Code = "PULSE_MATRIX
 pulse/errors: const PULSE_MATRIX_INSUFFICIENT_N pulse/errors.Code = "PULSE_MATRIX_INSUFFICIENT_N"
 pulse/errors: const PULSE_MATRIX_LISTWISE_HEAVY_DROP pulse/errors.Code = "PULSE_MATRIX_LISTWISE_HEAVY_DROP"
 pulse/errors: const PULSE_MATRIX_METRIC_DOMAIN pulse/errors.Code = "PULSE_MATRIX_METRIC_DOMAIN"
+pulse/errors: const PULSE_MATRIX_NEAREST_PD pulse/errors.Code = "PULSE_MATRIX_NEAREST_PD"
 pulse/errors: const PULSE_MATRIX_NOT_CONVERGED pulse/errors.Code = "PULSE_MATRIX_NOT_CONVERGED"
 pulse/errors: const PULSE_MATRIX_NOT_IDENTIFIED pulse/errors.Code = "PULSE_MATRIX_NOT_IDENTIFIED"
 pulse/errors: const PULSE_MATRIX_NOT_PSD pulse/errors.Code = "PULSE_MATRIX_NOT_PSD"
@@ -5808,4 +5809,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 8d47e60099504c0cb842c2711dfa582c53bf025e8937d716d29339d526bd03ee
+// golden-hash: 8c86827059fc9f434f5e9138681c1540b2a02748cdafd194e3e7c112c604844a

@@ -486,8 +486,14 @@ carry each row's parameter name and whether it is free; `scalars` carry
 Listwise only. Under a frequency weight the fit is exactly semopy's on
 the expanded rows (N = Σw); a probability weight is refused
 (`PULSE_WEIGHT_UNSUPPORTED`: semopy has no design-based form). A
-rank-deficient covariance is refused with `PULSE_MATRIX_SINGULAR` (semopy
-would substitute a nearest positive-definite matrix); a solver stop short
+rank-deficient covariance is refused with `PULSE_MATRIX_SINGULAR` by
+default; with `params.singular: "nearest"` it is fitted, as semopy fits
+it, to statsmodels' `cov_nearest` substitute (the correlation form's
+eigenvalues raised to 0.01, the variances kept) with the warning
+`PULSE_MATRIX_NEAREST_PD` (`n`, `p`, `min_eigenvalue`), every figure
+against the adjusted matrix — there a zero-spread member of a
+standardized vector is all zeros, entered at unit variance and
+uncorrelated; a solver stop short
 of success keeps the last iterate with `PULSE_MATRIX_NOT_CONVERGED`; a
 model with more parameters than moments is fitted with
 `PULSE_MATRIX_NOT_IDENTIFIED`. Streamable and mergeable: the fit reads

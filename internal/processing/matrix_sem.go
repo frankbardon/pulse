@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/sem"
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 	"gonum.org/v1/gonum/mat"
 )
@@ -33,8 +34,10 @@ import (
 // non-finite member) nulls every figure — the co-moment warnings say
 // why. A rank-deficient S (a member a linear combination of others —
 // the one rule, singular_rule.go) refuses the matrix with
-// PULSE_MATRIX_SINGULAR: semopy would substitute statsmodels'
-// cov_nearest, Pulse never fits a matrix the data did not produce. A
+// PULSE_MATRIX_SINGULAR by default; params.singular "nearest" instead
+// fits semopy's substitute, statsmodels' cov_nearest (sem.CovNearest),
+// with PULSE_MATRIX_NEAREST_PD — there a zero-spread member of a
+// standardized vector is all zeros and enters at unit variance. A
 // solver stop short of success (SLSQP's exit mode, or Fisher scoring
 // before grad_tol) keeps the last iterate with PULSE_MATRIX_NOT_CONVERGED;
 // a model with negative degrees of freedom is fitted as semopy fits it,
@@ -48,13 +51,19 @@ func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
 	out := matrixOutput{Warnings: m.warnings(cm, cov)}
 	p := cov.N()
 	k := len(spec.Model.Observed)
-	defined := cm.N() >= 2 && cm.W() > 0 && judgeable(cov)
+	nearest := spec.Singular == vectors.SEMSingularNearest
+	// Under nearest a zero-spread member of a standardized vector is
+	// defined: its z-scores are all 0 (its row of S is), and it enters
+	// cov_nearest at unit variance (semNearest).
+	zeroOK := nearest && plan.Members.Standardize != ""
+	defined := cm.N() >= 2 && cm.W() > 0 && semJudgeable(cov, zeroOK)
 	if !defined {
-		in.semParts(&out, nil, nil)
+		in.semParts(&out, nil, nil, nil)
 		return out, nil
 	}
-	if err := singularUnderRule(cov); err != nil {
-		return matrixOutput{}, singularMatrixError(err, plan.Name, in.Members())
+	singular := singularUnderRule(cov)
+	if singular != nil && !nearest {
+		return matrixOutput{}, singularMatrixError(singular, plan.Name, in.Members())
 	}
 	s := mat.NewSymDense(k, nil)
 	for a := 0; a < k; a++ {
@@ -62,7 +71,23 @@ func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
 			s.SetSym(a, b, cov.At(spec.Order[a], spec.Order[b]))
 		}
 	}
-	fit, err := sem.FitCov(spec.Model, s, cm.W(), spec.Options)
+	// semopy substitutes on its Cholesky failure; the one singular rule
+	// is the wider test (a near-exact dependency whose factorization
+	// still succeeds), and either one substitutes here.
+	raw := s
+	if nearest && (singular != nil || !sem.PositiveDefinite(s)) {
+		adj, err := semNearest(s)
+		if err != nil {
+			return matrixOutput{}, errors.NewCodedErrorWithDetails(errors.PULSE_MATRIX_SINGULAR,
+				"matrix "+plan.Name+": no nearest positive-definite substitute: "+err.Error(),
+				map[string]any{"matrix": plan.Name, "error": err.Error()})
+		}
+		s = adj.Cov
+		out.Warnings = append(out.Warnings, matrixWarning(errors.PULSE_MATRIX_NEAREST_PD,
+			"matrix "+plan.Name+": the sample covariance is not positive definite; the model is fitted to its nearest positive-definite substitute (statsmodels cov_nearest, threshold 0.01, as semopy), and every figure is against that adjusted matrix",
+			map[string]any{"matrix": plan.Name, "n": cm.W(), "p": k, "min_eigenvalue": adj.MinEigenvalue}))
+	}
+	fit, err := sem.FitCovNearest(spec.Model, s, raw, cm.W(), spec.Options)
 	if err == nil {
 		err = sem.ComputeStats(fit, spec.Desc)
 	}
@@ -86,8 +111,46 @@ func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
 	for a, i := range spec.Order {
 		pos[i] = a
 	}
-	in.semParts(&out, fit, func(r, c int) float64 { return fit.Implied.At(pos[r], pos[c]) })
+	in.semParts(&out, fit,
+		func(r, c int) float64 { return fit.Implied.At(pos[r], pos[c]) },
+		func(r, c int) float64 { return s.At(pos[r], pos[c]) })
 	return out, nil
+}
+
+// semJudgeable is judgeable, except that zeroOK admits a diagonal
+// entry of exactly 0 (a zero-spread member).
+func semJudgeable(s *linalg.Sym, zeroOK bool) bool {
+	if !zeroOK {
+		return judgeable(s)
+	}
+	for i := 0; i < s.N(); i++ {
+		if d := s.At(i, i); d < 0 || math.IsNaN(d) || math.IsInf(d, 0) {
+			return false
+		}
+	}
+	return true
+}
+
+// semNearest is semopy's substitute for a sample covariance that is
+// not positive definite (sem.CovNearest at sem.NearestThreshold). A
+// zero diagonal entry — only admitted for a zero-spread member of a
+// standardized vector, whose row is all zeros — is raised to 1 first,
+// the unit variance of every other standardized member (statsmodels'
+// cov_nearest min_diag): semopy itself cannot fit such a member, its
+// correlation form being NaN.
+func semNearest(s *mat.SymDense) (*sem.Nearest, error) {
+	k := s.SymmetricDim()
+	in := s
+	for i := 0; i < k; i++ {
+		if s.At(i, i) == 0 {
+			if in == s {
+				in = mat.NewSymDense(k, nil)
+				in.CopySym(s)
+			}
+			in.SetSym(i, i, 1)
+		}
+	}
+	return sem.CovNearest(in, sem.NearestThreshold)
 }
 
 // semScalarKeys are MAT_SEM's scalars, in manifest order.
@@ -97,12 +160,12 @@ var semScalarKeys = []string{
 	"objective", "n", "n_params", "iterations", "converged",
 }
 
-// semParts fills the outputs from fit and implied, its Σ(θ̂) in member
-// coordinates (both nil: an undefined input, every figure null; the
-// estimate rows still list the specified parameters).
-func (in *matrixFinalizeInput) semParts(out *matrixOutput, fit *sem.Fit, implied func(r, c int) float64) {
+// semParts fills the outputs from fit, implied (its Σ(θ̂)) and sample
+// (the S it was fitted to — the data's, or the nearest substitute),
+// both in member coordinates (all nil: an undefined input, every figure
+// null; the estimate rows still list the specified parameters).
+func (in *matrixFinalizeInput) semParts(out *matrixOutput, fit *sem.Fit, implied, sample func(r, c int) float64) {
 	spec := in.Plan().SEM
-	cov := in.CM.Cov(0)
 	if implied == nil {
 		out.Primary = in.Square(func(int, int) float64 { return math.NaN() })
 	} else {
@@ -127,7 +190,7 @@ func (in *matrixFinalizeInput) semParts(out *matrixOutput, fit *sem.Fit, implied
 		}
 		resid := func(int, int) float64 { return math.NaN() }
 		if implied != nil {
-			resid = func(r, c int) float64 { return cov.At(r, c) - implied(r, c) }
+			resid = func(r, c int) float64 { return sample(r, c) - implied(r, c) }
 		}
 		out.Auxiliary = map[string]*types.MatrixValues{
 			"estimates": {

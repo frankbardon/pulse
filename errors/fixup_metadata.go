@@ -4725,6 +4725,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MATRIX_NEAREST_PD: {
+		Message: "A structural equation model under `singular` \"nearest\" found its sample covariance not positive definite (fewer rows than members, a linear dependency among them, or a zero-spread member of a standardized vector) and was fitted to semopy's substitute, statsmodels' cov_nearest with threshold 0.01: the correlation form's eigenvalues below 0.01 raised to it, the variances kept (a zero-spread standardized member enters at unit variance, uncorrelated). Every figure, the residual covariance included, is against the adjusted matrix, not the data's. Details carry `matrix`, `n`, `p` and `min_eigenvalue` (the correlation form's smallest eigenvalue before the adjustment).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"vectors", "*", "fields"},
+				Hint:   "Fit on more rows than members, or drop a member that is constant or a combination of others, so the sample covariance is positive definite.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"matrices", "*", "params", "singular"},
+				Hint:   "Set params.singular to \"refuse\" to get PULSE_MATRIX_SINGULAR instead of a fit to an adjusted matrix.",
+			},
+		},
+	},
 	PULSE_MATRIX_PAIRWISE_N_STAR: {
 		Message: "An inferential figure over a pairwise matrix needs one sample size, but under pairwise deletion every cell rests on its own rows, so the figure uses the smallest pair's inference size (pair N unweighted, pair sum of weights under frequency weights, scaled to Kish n_eff under probability weights) — the conservative choice: Bartlett's sphericity test, and a factor analysis's empirical chi-square and maximum-likelihood fit figures. Details carry `matrix`, `outputs`, `n_star` and the pair as `row` / `col`.",
 		Fixups: []Fixup{
