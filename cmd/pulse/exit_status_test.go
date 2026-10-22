@@ -244,7 +244,7 @@ func exitCases(f exitFixture) []exitCase {
 		{leaf: "docs export", fatal: []string{"--out", f.p("docs_taken")}, ok: []string{"--out", f.p("docs_out")}},
 		{leaf: "errors list", noFatal: "an unmatched filter is an empty list", ok: []string{}},
 		{leaf: "errors lookup", fatal: []string{"NOPE"}, ok: []string{"PULSE_REQUEST_UNKNOWN_FIELD"}},
-		{leaf: "examples search", noFatal: "an unmatched query is an empty list", ok: []string{"--query", "count"}},
+		{leaf: "examples search", fatal: []string{"--intent", "nope"}, ok: []string{"--query", "count"}},
 		{leaf: "examples show", fatal: []string{"nope"}, ok: []string{"categorical_mode_count"}},
 		{leaf: "skills list", noFatal: "lists the embedded pack", ok: []string{}},
 		{leaf: "skills show", fatal: []string{"nope"}, ok: []string{"session-bootstrap"}},

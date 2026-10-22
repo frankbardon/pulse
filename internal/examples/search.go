@@ -64,8 +64,8 @@ type searchDoc struct {
 
 // matchTier is one ordered match strategy. Tiers run in order and the
 // first tier that matches any example decides the result set; a later
-// tier is a fallback, never a merge, so adding one (U31's fuzzy tier
-// goes last) cannot reorder what an earlier tier already answers.
+// tier is a fallback, never a merge, so a later one (the fuzzy tier is
+// last) cannot reorder what an earlier tier already answers.
 // match returns the matched-field bits for doc (0 = no match).
 type matchTier interface {
 	match(doc *searchDoc) int
@@ -90,6 +90,12 @@ type matchTier interface {
 //     intent's Sound expands it to that intent. An example matches when
 //     its operators or intents carry an expansion; the fields matched by
 //     the expansions and by any query token count.
+//  3. fuzzy — typo tolerance, the last resort: every content query token
+//     (stop words and placeholders dropped) must match some field token
+//     either exactly or, when both tokens are fuzzable (longer than
+//     three characters), within fuzzyEdits(len(query token)) edits —
+//     insertions, deletions, substitutions and adjacent transpositions.
+//     "regon" finds "region"; a short token ("sum", "agg") never fuzzes.
 //
 // Score = distinct matched fields; ties break alphabetically by name.
 // No query lists every example passing the filters, alphabetically.
@@ -178,10 +184,11 @@ func SearchLibrary(q Query, opts Options) []ExampleSummary {
 // tiersFor builds the ordered tiers for a non-empty query.
 func tiersFor(query string, syn Options) []matchTier {
 	toks := Tokenize(query)
+	var exact matchTier = newTokenTier(toks)
 	if len(toks) == 1 && toks[0] == strings.ToLower(query) {
-		return []matchTier{substringTier{q: toks[0]}, newSynonymTier(query, toks, syn)}
+		exact = substringTier{q: toks[0]}
 	}
-	return []matchTier{newTokenTier(toks), newSynonymTier(query, toks, syn)}
+	return []matchTier{exact, newSynonymTier(query, toks, syn), newFuzzyTier(toks)}
 }
 
 // tokenize fills d.fields once.
@@ -390,4 +397,109 @@ func (t synonymTier) match(d *searchDoc) int {
 		}
 	}
 	return bits
+}
+
+// Fuzzy-tier thresholds. A token of at most fuzzyMinLen characters
+// never fuzzes (on either side): at that length one edit reaches a
+// different common word. A longer query token tolerates fuzzyEdits of
+// its length: one edit up to seven characters, two from eight on.
+const (
+	fuzzyMinLen    = 3
+	fuzzyLongToken = 8
+)
+
+// fuzzyEdits is the edit budget of a query token of n characters.
+func fuzzyEdits(n int) int {
+	switch {
+	case n <= fuzzyMinLen:
+		return 0
+	case n < fuzzyLongToken:
+		return 1
+	default:
+		return 2
+	}
+}
+
+// fuzzyTier is the typo-tolerant last tier: every content query token
+// must equal, or sit within its edit budget of, a token of some field.
+// A query with no fuzzable content token disables the tier — it could
+// only repeat the exact tier, which already found nothing.
+type fuzzyTier struct{ toks []string }
+
+func newFuzzyTier(toks []string) fuzzyTier {
+	var content []string
+	fuzzable := false
+	for _, t := range toks {
+		if !isContent(t) {
+			continue
+		}
+		content = append(content, t)
+		if fuzzyEdits(len(t)) > 0 {
+			fuzzable = true
+		}
+	}
+	if !fuzzable {
+		return fuzzyTier{}
+	}
+	return fuzzyTier{toks: content}
+}
+
+func (t fuzzyTier) match(d *searchDoc) int {
+	if len(t.toks) == 0 {
+		return 0
+	}
+	bits := 0
+	for _, tok := range t.toks {
+		budget := fuzzyEdits(len(tok))
+		found := false
+		for i, f := range d.fields {
+			for _, ft := range f {
+				if ft == tok || (budget > 0 && len(ft) > fuzzyMinLen && withinEdits(tok, ft, budget)) {
+					bits |= 1 << i
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			return 0
+		}
+	}
+	return bits
+}
+
+// withinEdits reports whether the optimal-string-alignment distance
+// (insert, delete, substitute, transpose adjacent) between the ASCII
+// tokens a and b is at most k.
+func withinEdits(a, b string, k int) bool {
+	if d := len(a) - len(b); d > k || -d > k {
+		return false
+	}
+	prev2 := make([]int, len(b)+1)
+	prev := make([]int, len(b)+1)
+	cur := make([]int, len(b)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	for i := 1; i <= len(a); i++ {
+		cur[0] = i
+		rowMin := cur[0]
+		for j := 1; j <= len(b); j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+			v := min(prev[j]+1, cur[j-1]+1, prev[j-1]+cost)
+			if i > 1 && j > 1 && a[i-1] == b[j-2] && a[i-2] == b[j-1] {
+				v = min(v, prev2[j-2]+1)
+			}
+			cur[j] = v
+			rowMin = min(rowMin, v)
+		}
+		if rowMin > k {
+			return false
+		}
+		prev2, prev, cur = prev, cur, prev2
+	}
+	return prev[len(b)] <= k
 }
