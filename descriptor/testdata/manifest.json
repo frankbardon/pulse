@@ -13543,7 +13543,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 247,
+    "examples_count": 248,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -19455,4 +19455,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 82f949cacb757c525089855669f6440acf08673f54b7318ea06605d85b9bb567
+// golden-hash: d34633d412f2bd4ea608a98a19eb02cb1e4c025b849e3c5588df96edb8d66f65

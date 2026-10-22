@@ -34,7 +34,7 @@ type materializeTrigger struct {
 // column naming) over the cohort's schema.
 func steps(inst *descx.InstanceSnapshot, rec descriptor.Recommendation, b *Bound) []descriptor.RecommendStep {
 	trig, ok := materializeSteps[rec.Operator]
-	if !ok || rec.Category != catAttribute {
+	if !ok || (rec.Category != catAttribute && rec.Category != catFeature) {
 		return nil
 	}
 	for _, tool := range []string{toolMaterialize, toolProcess} {
@@ -117,8 +117,9 @@ func freeName(schema *encoding.Schema, name string) string {
 	return out
 }
 
-// labelled returns the draft request with its one attribute entry
-// labelled column, so the model step can name the column it reads.
+// labelled returns the draft request with its one derived entry — an
+// attribute or a feature, the only one across both slots — labelled
+// column, so the model step can name the column it reads.
 func labelled(request json.RawMessage, column string) (json.RawMessage, bool) {
 	dec := json.NewDecoder(bytes.NewReader(request))
 	dec.UseNumber()
@@ -126,11 +127,20 @@ func labelled(request json.RawMessage, column string) (json.RawMessage, bool) {
 	if err := dec.Decode(&body); err != nil {
 		return nil, false
 	}
-	attrs, ok := body[slotKey[catAttribute]].([]any)
-	if !ok || len(attrs) != 1 {
+	var entries []any
+	for _, cat := range []string{catAttribute, catFeature} {
+		if v, ok := body[slotKey[cat]]; ok {
+			list, ok := v.([]any)
+			if !ok {
+				return nil, false
+			}
+			entries = append(entries, list...)
+		}
+	}
+	if len(entries) != 1 {
 		return nil, false
 	}
-	entry, ok := attrs[0].(map[string]any)
+	entry, ok := entries[0].(map[string]any)
 	if !ok {
 		return nil, false
 	}

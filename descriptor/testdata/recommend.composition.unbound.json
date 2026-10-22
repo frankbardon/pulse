@@ -385,6 +385,54 @@
             "when": "the field has few categories and each should be its own column",
             "use": "FEAT_ONE_HOT"
           }
+        ],
+        "steps": [
+          {
+            "tool": "pulse_materialize",
+            "request": {
+              "out": "\u003cout\u003e",
+              "request": {
+                "cohort": {
+                  "filename": "\u003ccohort\u003e"
+                },
+                "features": [
+                  {
+                    "field": "\u003cfield\u003e",
+                    "label": "frequency",
+                    "type": "FEAT_FREQUENCY_ENCODE"
+                  }
+                ]
+              }
+            },
+            "placeholders": [
+              "cohort",
+              "field",
+              "out"
+            ],
+            "why": "A model cannot read a column its own request derives, so write the frequency column to a new cohort first."
+          },
+          {
+            "tool": "pulse_process",
+            "request": {
+              "cohort": {
+                "filename": "\u003cout\u003e"
+              },
+              "regressions": [
+                {
+                  "predictors": [
+                    "frequency"
+                  ],
+                  "target": "\u003ctarget\u003e",
+                  "type": "REG_OLS"
+                }
+              ]
+            },
+            "placeholders": [
+              "out",
+              "target"
+            ],
+            "why": "Then fit the model on the new cohort, reading frequency as a predictor."
+          }
         ]
       },
       {
@@ -426,4 +474,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: e3a7d6bcc9b01a53d4a7fb8844bdfcadff3e8d9f2700c417e4b774480de03005
+// golden-hash: 0a6059aad509eedfb26e234c23531f16322e62261bf8b5efe0f0add7ca7f9c18

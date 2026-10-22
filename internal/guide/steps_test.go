@@ -37,9 +37,21 @@ func recsOf(res *descriptor.RecommendResult) map[string]descriptor.Recommendatio
 	return out
 }
 
+// stepLabel returns the label of req's one derived entry when it is
+// op's — an attribute or a feature — else "".
+func stepLabel(req types.Request, op string) string {
+	switch {
+	case len(req.Attributes) == 1 && len(req.Features) == 0 && req.Attributes[0].Type == types.AttributeType(op):
+		return req.Attributes[0].Label
+	case len(req.Features) == 1 && len(req.Attributes) == 0 && req.Features[0].Type == types.FeatureType(op):
+		return req.Features[0].Label
+	}
+	return ""
+}
+
 // TestRecommend_MaterializeStepsTrigger: each materializeSteps producer
 // drafted (unbound) carries a pulse_materialize step whose request is
-// the draft itself with its attribute labelled, then a pulse_process
+// the draft itself with its attribute or feature labelled, then a pulse_process
 // REG_OLS request on the "<out>" cohort reading that label; every step
 // placeholder appears in its request and every why is lint-clean.
 func TestRecommend_MaterializeStepsTrigger(t *testing.T) {
@@ -65,8 +77,7 @@ func TestRecommend_MaterializeStepsTrigger(t *testing.T) {
 			if err := json.Unmarshal(mat.Request, &body); err != nil {
 				t.Fatalf("%s: %v in %s", r.Operator, err, mat.Request)
 			}
-			if body.Out != "<out>" || len(body.Request.Attributes) != 1 ||
-				body.Request.Attributes[0].Label != trig.column || body.Request.Attributes[0].Type != types.AttributeType(r.Operator) {
+			if body.Out != "<out>" || stepLabel(body.Request, r.Operator) != trig.column {
 				t.Errorf("%s: materialize step %s", r.Operator, mat.Request)
 			}
 			var req types.Request
@@ -164,6 +175,13 @@ func TestRecommend_MaterializeStepsHidden(t *testing.T) {
 		if r.Steps != nil {
 			t.Errorf("hide %s: steps %+v survive", hide, r.Steps)
 		}
+		f, ok := recsOf(all(t, inst, descx.IntentDistributionShape))["FEAT_LOG"]
+		if !ok {
+			t.Fatalf("hide %s: FEAT_LOG no longer drafted", hide)
+		}
+		if f.Steps != nil {
+			t.Errorf("hide %s: FEAT_LOG steps %+v survive", hide, f.Steps)
+		}
 	}
 	if r := recsOf(all(t, profiled("TEST_WELCH"), descx.IntentMeasureConstruct))["ATTR_PC_SCORE"]; len(r.Steps) != 2 {
 		t.Errorf("an unrelated hidden operator dropped the steps: %+v", r.Steps)
@@ -213,5 +231,67 @@ func TestRecommendBound_MaterializeStepValidates(t *testing.T) {
 	}
 	if materializes(nil, inner, &b, "other") {
 		t.Error("a column the draft does not write passes")
+	}
+	// A feature producer: its label steps aside too, and the labelled
+	// feature draft passes the same validation.
+	fs := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "income", Type: encoding.FieldTypeF64, Description: "Yearly income of the household"},
+		{Name: "log_value", Type: encoding.FieldTypeF64, Description: "Spending of the household last year"},
+	}}
+	fb := bound(t, nil, fs, nil)
+	fr := draftsOf(t, fb, descx.IntentDistributionShape, "FEAT_LOG")[0]
+	if len(fr.Steps) != 2 {
+		t.Fatalf("bound FEAT_LOG steps = %+v", fr.Steps)
+	}
+	if err := json.Unmarshal(fr.Steps[0].Request, &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Request.Features) != 1 || body.Request.Features[0].Label != "log_value_2" {
+		t.Errorf("feature materialize request %s, want label log_value_2 (log_value is a source field)", fr.Steps[0].Request)
+	}
+	if !strings.Contains(string(fr.Steps[1].Request), `"predictors":["log_value_2"]`) {
+		t.Errorf("model step does not read log_value_2: %s", fr.Steps[1].Request)
+	}
+	finner, ok := labelled(fr.Request, "log_value_2")
+	if !ok || !materializes(nil, finner, &fb, "log_value_2") {
+		t.Error("the bound feature materialize draft fails materialize validation")
+	}
+	if materializes(nil, fr.Request, &fb, "log_value_2") {
+		t.Error("an unlabelled feature draft passes: its column is LOG_<field>, not the label")
+	}
+}
+
+// TestMaterializeSteps_FeatureTriggersDecided: a feature is a trigger
+// exactly when its capability declaration emits ONE float column (a
+// measurement a model can read as a predictor — not a bin number, a
+// split code, calendar parts or a column set whose size the caller
+// still picks) and some intent drafts it. Each such row reads the
+// column as a predictor of REG_OLS. A new FEAT_* operator lands on one
+// side of the rule without a table edit going unnoticed.
+func TestMaterializeSteps_FeatureTriggersDecided(t *testing.T) {
+	drafted := map[string]bool{}
+	for _, in := range descx.Intents() {
+		for _, r := range all(t, nil, in.ID).Recommendations {
+			drafted[r.Operator] = true
+		}
+	}
+	caps := map[string]descriptor.Operator{}
+	for _, op := range descx.BuildManifest().Components.Features {
+		caps[op.Name] = op
+	}
+	for _, ft := range types.AllFeatureTypes() {
+		name := string(ft)
+		op, ok := caps[name]
+		if !ok {
+			t.Fatalf("%s: no capability declaration", name)
+		}
+		oneFloat := (op.EmitsType == "f64" || op.EmitsType == "f32") && strings.HasPrefix(op.EmitsTypeNote, "single column")
+		trig, isTrig := materializeSteps[name]
+		if want := oneFloat && drafted[name]; isTrig != want {
+			t.Errorf("%s: trigger %v, want %v (one float column %v, drafted %v)", name, isTrig, want, oneFloat, drafted[name])
+		}
+		if isTrig && (trig.model != "REG_OLS" || trig.role != "predictors") {
+			t.Errorf("%s: trigger %+v, want a REG_OLS predictor", name, trig)
+		}
 	}
 }

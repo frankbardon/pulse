@@ -115,7 +115,8 @@ the instance offers appear. CLI: `pulse recommend --intent ID`; MCP:
 `pulse_recommend`.
 
 A draft whose column a model should read next — a component, factor or
-scale score, or a fitted model's predictions — also carries `steps`. A
+scale score, a fitted model's predictions, or a log, square-root or
+frequency-encoded feature column — also carries `steps`. A
 request cannot hand a column it derives to its own regression, so step
 one is a `pulse_materialize` draft that writes the column (labelled,
 under a name the cohort does not already use) to a new cohort at

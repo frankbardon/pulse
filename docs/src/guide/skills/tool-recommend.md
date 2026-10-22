@@ -31,7 +31,7 @@ Get ranked drafts instead of JSON built from memory. CLI twin: `pulse recommend 
 - Empty `recommendations` + `routes_to` is not an error: tooling answers it, or nothing serves it yet.
 - Reads header, schema and sidecar only. Unreadable cohort → `DATA_FILE`.
 - Ranking: hints, fully bound, level, fewest advisories.
-- **`steps`** (a score or prediction a model reads next): run in order — `pulse_materialize` writes the labelled column to `"<out>"`, then `pulse_process` fits the model there. Fill each step's `placeholders`.
+- **`steps`** (a score, prediction or feature column a model reads next): run in order — `pulse_materialize` writes the labelled column to `"<out>"`, then `pulse_process` fits the model there. Fill each step's `placeholders`.
 - A native vector field is drafted whole as `"vector": "<field>"`, before a list of numeric columns, and only where its schema `kind` suits the operator; never in a scalar slot.
 
 ## See

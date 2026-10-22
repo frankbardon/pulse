@@ -91,7 +91,24 @@ func TestRecommend_MaterializeStepsRun(t *testing.T) {
 	if _, err := b.Close(); err != nil {
 		t.Fatal(err)
 	}
-	res, err := p.Recommend(ctx, descriptor.RecommendRequest{Intent: "measure_construct", Cohort: &types.Cohort{Filename: "battery.pulse"}, Limit: 1000})
+	ran := runPlans(t, p, "measure_construct", "battery.pulse", "q1")
+	for _, op := range []string{"ATTR_PC_SCORE", "ATTR_FACTOR_SCORE", "ATTR_SCALE_SCORE"} {
+		if !ran[op] {
+			t.Errorf("%s: no plan ran", op)
+		}
+	}
+}
+
+// runPlans recommends intent bound to cohort and runs every plan a
+// draft carries — the pulse_materialize step through Pulse.Materialize,
+// which must write exactly the labelled column, then the pulse_process
+// step's model over the written cohort reading that column, with its
+// other role filled by the source field other. It returns the
+// operators whose plan ran.
+func runPlans(t *testing.T, p *pulse.Pulse, intent, cohort, other string) map[string]bool {
+	t.Helper()
+	ctx := context.Background()
+	res, err := p.Recommend(ctx, descriptor.RecommendRequest{Intent: intent, Cohort: &types.Cohort{Filename: cohort}, Limit: 1000})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +133,7 @@ func TestRecommend_MaterializeStepsRun(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: materialize step: %v\n%s", r.Operator, err, raw)
 		}
-		label := mat.Request.Attributes[0].Label
+		label := derivedLabel(mat.Request)
 		if len(got.DerivedColumns) != 1 || got.DerivedColumns[0] != label {
 			t.Errorf("%s: derived columns %v, want [%s]", r.Operator, got.DerivedColumns, label)
 		}
@@ -124,8 +141,8 @@ func TestRecommend_MaterializeStepsRun(t *testing.T) {
 			t.Fatal(err)
 		}
 		raw, _ = json.Marshal(fillSteps(t, v))
-		// The fixture has no y: the model reads a source item instead.
-		raw = []byte(strings.ReplaceAll(string(raw), `"y"`, `"q1"`))
+		// The fixture has no y: the model reads a source field instead.
+		raw = []byte(strings.ReplaceAll(string(raw), `"y"`, `"`+other+`"`))
 		var model types.Request
 		if err := json.Unmarshal(raw, &model); err != nil {
 			t.Fatal(err)
@@ -142,7 +159,61 @@ func TestRecommend_MaterializeStepsRun(t *testing.T) {
 		}
 		ran[r.Operator] = true
 	}
-	for _, op := range []string{"ATTR_PC_SCORE", "ATTR_FACTOR_SCORE", "ATTR_SCALE_SCORE"} {
+	return ran
+}
+
+// derivedLabel is the label of a materialize request's one derived
+// entry: an attribute's or a feature's.
+func derivedLabel(req types.Request) string {
+	if len(req.Attributes) == 1 {
+		return req.Attributes[0].Label
+	}
+	if len(req.Features) == 1 {
+		return req.Features[0].Label
+	}
+	return ""
+}
+
+// TestRecommend_FeatureMaterializeStepsRun: bound over a cohort with a
+// skewed positive field and a category, the feature producers' plans
+// run end to end — FEAT_LOG and FEAT_SQRT (distribution_shape) and
+// FEAT_FREQUENCY_ENCODE (composition): materialize writes the labelled
+// feature column, then REG_OLS on the derived cohort reads it as a
+// predictor.
+func TestRecommend_FeatureMaterializeStepsRun(t *testing.T) {
+	ctx := context.Background()
+	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	region := encoding.NewDictionary()
+	for _, l := range []string{"north", "south", "east"} {
+		if _, err := region.Add(l); err != nil {
+			t.Fatal(err)
+		}
+	}
+	schema := encoding.Schema{Fields: []encoding.Field{
+		{Name: "spend", Type: encoding.FieldTypeF64, Description: "Money the household spent last year"},
+		{Name: "region", Type: encoding.FieldTypeCategoricalU8, Description: "Region the household lives in", Dictionary: region},
+	}}
+	b, err := p.NewCohortBuilder(ctx, "households.pulse", schema, pulse.CohortBuilderOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	levels := []string{"north", "south", "south", "east", "east", "east"}
+	for r := range 48 {
+		if err := b.Append(pulse.CohortRow{float64(1 + (r*r)%37), levels[r%len(levels)]}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := b.Close(); err != nil {
+		t.Fatal(err)
+	}
+	ran := runPlans(t, p, "distribution_shape", "households.pulse", "spend")
+	for op, ok := range runPlans(t, p, "composition", "households.pulse", "spend") {
+		ran[op] = ok
+	}
+	for _, op := range []string{"FEAT_LOG", "FEAT_SQRT", "FEAT_FREQUENCY_ENCODE"} {
 		if !ran[op] {
 			t.Errorf("%s: no plan ran", op)
 		}
