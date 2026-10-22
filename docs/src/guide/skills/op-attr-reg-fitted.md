@@ -27,17 +27,17 @@ Use something else:
 
 ## Params
 
-Top-level keys, not `params` — except `params.fit`; `field` unread.
+`target` / `predictors` / `penalty` / `alpha` / `l1_ratio` are top-level keys, not `params`; `fit` is `params.fit`; `field` unread.
 
-| Name | Type | Description |
-|---|---|---|
-| `target` | field | Dependent field (required without `params.fit`). |
-| `predictors` | list | Independent fields (required without `params.fit`). |
-| `penalty` | enum | `""`, `l1`, `l2`, `elasticnet`. |
-| `alpha` | float | Regularization strength. |
-| `l1_ratio` | float | Elasticnet mix. |
-| `weight` | slot weight | `null` opts out; REG_OLS's kinds: WLS refit; residual raw y − ŷ. With `params.fit` skipped (the fit's own weight applied when it ran). |
-| `params.fit` | string | Score a bound fit (`fits` / `models` entry) instead of refitting: the fit's score — a REG_GLM's fitted mean; an extension regression's through its Scorer. No `target` / `predictors` / `penalty` / `alpha` / `l1_ratio` beside it. |
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `target` | field | (required) | Dependent field; absent with `fit`. |
+| `predictors` | list | (required) | Independent fields; absent with `fit`. |
+| `penalty` | enum | `""` | `""`, `l1`, `l2`, `elasticnet`. |
+| `alpha` | float | — | Regularization strength. |
+| `l1_ratio` | float | — | Elasticnet mix. |
+| `fit` | string | — | Score a bound fit (`fits` / `models` entry) instead of refitting: the fit's score — a REG_GLM's fitted mean; an extension regression's through its Scorer. No `target` / `predictors` / `penalty` / `alpha` / `l1_ratio` beside it. |
+| `weight` | slot weight | inherited | `null` opts out; REG_OLS's kinds: WLS refit; residual raw y − ŷ. Skipped with `fit` (the fit's own weight applied when it ran). |
 
 ## Inputs
 

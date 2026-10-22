@@ -24,7 +24,12 @@ Use something else:
 
 ## Params
 
-`numerator_field`, `denominator_field` — required; a schema field OR a derived label (attribute incl. `ATTR_REG_PREDICT`, feature output), read numerically; a categorical (its dictionary index) or `set_*` column is refused `PULSE_FIELD_TYPE_UNSUPPORTED`, numerator first. Unknown → `SERVICE_VALIDATION`, predict and runtime alike.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `numerator_field` | field | (required) | Summed numerator column. |
+| `denominator_field` | field | (required) | Summed denominator column. |
+
+Each a schema field OR a derived label (attribute incl. `ATTR_REG_PREDICT`, feature output), read numerically; a categorical (its dictionary index) or `set_*` column is refused `PULSE_FIELD_TYPE_UNSUPPORTED`, numerator first. Unknown → `SERVICE_VALIDATION`, predict and runtime alike.
 
 Weighted: Σw·num / Σw·den. Weighted `decimal128` num/den → `PULSE_WEIGHT_UNSUPPORTED`.
 

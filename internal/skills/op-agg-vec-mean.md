@@ -13,9 +13,13 @@ examples_tags: [multivariate, streaming-friendly]
 
 ## Params
 
-- `labels` — inline `fields` only: one display label per member (default the member names).
-- `expand` — `true`: one scalar column per member, `<label>[<element label>]`, instead of the array (grouped: per row); the label is absent. Predict lists them (`aggregations[i].columns`). Element labels must be distinct.
-- <!-- feature: capability:crosstab -->`element` — crosstab `cell` / `margin_aggregations` only: one member's display label; the slot reads that member alone, a scalar (its mean). Refused with `expand`, outside a crosstab, unknown or shared label (`SERVICE_VALIDATION`, reason `element_*`).<!-- /feature -->
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `labels` | list | — | Inline `fields` only: one display label per member; absent: the member names. |
+| `expand` | bool | — | `true`: one scalar column per member, `<label>[<element label>]`, instead of the array (grouped: per row); the label is absent. Predict lists them (`aggregations[i].columns`). Element labels must be distinct. |
+<!-- feature: capability:crosstab -->
+| `element` | string | — | Crosstab `cell` / `margin_aggregations` only: one member's display label; the slot reads that member alone, a scalar (its mean). Refused with `expand`, outside a crosstab, unknown or shared label (`SERVICE_VALIDATION`, reason `element_*`). |
+<!-- /feature -->
 
 Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry, its labels kept)<!-- /feature --> / `fields`; no `field`. Default label `AGG_VEC_MEAN_<vector>`.<!-- feature: capability:weighting --> Weight-aware: Σw·x / Σw per member.<!-- /feature -->
 

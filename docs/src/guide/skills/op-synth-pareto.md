@@ -27,8 +27,10 @@ Use something else:
 
 ## Params
 
-- `xm` — float, default `1.0`. Scale (minimum emitted value); must be `> 0`.
-- `alpha` — float, default `1.5`. Shape; must be `> 0`. Larger alpha → lighter tail.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `xm` | float | `1` | Scale (minimum emitted value); must be `> 0`. |
+| `alpha` | float | `1.5` | Shape; must be `> 0`. Larger alpha → lighter tail. |
 
 ## Inputs
 

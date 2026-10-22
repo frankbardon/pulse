@@ -17,9 +17,9 @@ Synth distributions emit per-row values; no `Response.Components`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `means` | list[float] | required | Per-component means; length sets the component count (`>= 2`). |
-| `stds` | list[float] | required | Per-component std devs; each `> 0`, length must match `means`. |
-| `weights` | list[float] | uniform | Mixing weights; length must match `means`, non-negative, sum `> 0`. |
+| `means` | list | (required) | Per-component means; length sets the component count (`>= 2`). |
+| `stds` | list | (required) | Per-component std devs; each `> 0`, length must match `means`. |
+| `weights` | list | — | Mixing weights; length must match `means`, non-negative, sum `> 0`; absent: uniform. |
 
 Selection mirrors `weighted_categorical`: draw an index off the cumulative-weight table, then draw `N(means[i], stds[i]²)`.
 

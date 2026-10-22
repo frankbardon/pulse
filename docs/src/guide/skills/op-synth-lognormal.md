@@ -27,8 +27,10 @@ Use something else:
 
 ## Params
 
-- `mu` — float, default `0.0`. Log-space mean (mean of `ln(X)`).
-- `sigma` — float, default `1.0`. Log-space standard deviation; must be `> 0`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `mu` | float | `0` | Log-space mean (mean of `ln(X)`). |
+| `sigma` | float | `1` | Log-space standard deviation; must be `> 0`. |
 
 Spec defaults mirror the standard log-normal. Mean of the emitted distribution is `exp(mu + sigma²/2)`.
 

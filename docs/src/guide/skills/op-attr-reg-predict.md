@@ -26,12 +26,12 @@ Use something else:
 
 ## Params
 
-| Name | Type | Description |
-|---|---|---|
-| `fit` | string | Bound model name (required). |
-| `terms` | []string | Score only these terms, `(intercept)` opt-in; fit order. Omit: whole model. |
-| `scale` | enum | GLM only: `response` (default, inverse link) or `link`. |
-| `bound` | enum | `point` (default), `lower`, `upper`: ci bound × column. Needs `terms` = one predictor. |
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `fit` | string | (required) | Bound model name. |
+| `terms` | list | — | Score only these terms, `(intercept)` opt-in; fit order. Absent: whole model. |
+| `scale` | enum | `response` | GLM only: `response` (inverse link) or `link`. |
+| `bound` | enum | `point` | `point`, `lower`, `upper`: ci bound × column. Needs `terms` = one predictor. |
 
 ## Inputs
 
@@ -49,7 +49,7 @@ One `f64` per record; null when a column the score reads is null, and on EVERY r
 
 ## Contract
 
-- Types: `date`, `f32`, `f64`, `u16`, `u32`, `u4`, `u64`, `u8`.
+- Types: `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (each column the bound model reads); any other scalar type is `PULSE_MODEL_PREDICTOR_NOT_NUMERIC`.
 - Weight: not read; a weight in force is skipped.
 - Streaming: streamable.
 

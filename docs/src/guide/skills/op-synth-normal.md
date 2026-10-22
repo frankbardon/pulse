@@ -27,9 +27,14 @@ Use something else:
 
 ## Params
 
-- `mean` — float, default `0.0`.
-- `std` — float, default `1.0`; must be `> 0`.
-- `min` / `max` — float, default `-inf` / `+inf`. Setting EITHER flips an internal `clamped` flag; once on, BOTH bounds apply.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `mean` | float | `0` | Mean. |
+| `std` | float | `1` | Standard deviation; must be `> 0`. |
+| `min` | float | — | Lower clamp; absent: `-inf`. |
+| `max` | float | — | Upper clamp; absent: `+inf`. |
+
+Setting EITHER bound flips an internal `clamped` flag; once on, BOTH bounds apply.
 
 ## Inputs
 

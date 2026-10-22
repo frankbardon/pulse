@@ -26,7 +26,9 @@ Use something else:
 
 ## Params
 
-- `part` — enum, required: `day`, `hour`, `iso_weekday`, `month`, `month_day`, `year`, `year_month`, `year_month_day`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `part` | enum | (required) | `day`, `hour`, `iso_weekday`, `month`, `month_day`, `year`, `year_month`, `year_month_day`. |
 
 ## Inputs
 

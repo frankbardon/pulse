@@ -15,7 +15,12 @@ Synth distributions emit per-row values; no `Response.Components`.
 
 ## Params
 
-- `start` / `end` — string, both required, ISO-8601 `YYYY-MM-DD`. `end` must not precede `start`; equal is legal. Each parses via `time.Parse("2006-01-02", …)` into days-since-1970-01-01.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `start` | string | (required) | ISO-8601 `YYYY-MM-DD`. |
+| `end` | string | (required) | ISO-8601 `YYYY-MM-DD`; must not precede `start` (equal is legal). |
+
+Each parses via `time.Parse("2006-01-02", …)` into days-since-1970-01-01.
 
 ## Inputs
 

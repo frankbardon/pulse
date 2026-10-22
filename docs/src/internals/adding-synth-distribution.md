@@ -48,6 +48,9 @@ Create `skills/op-synth-<kebab>.md` covering the parameter shape, the
 distribution's family (continuous, discrete, heavy-tailed,
 categorical-like), and any sampling caveats;
 `TestSkillsCoverAllSynthDistributions` enforces the file exists at that stem.
+Its `## Params` is the one `| Name | Type | Default | Description |` table,
+one row per declared param, Default `(required)` / `—` / the declared value
+(`TestSkillParamsMatchManifest`; `.claude/reference/skill-pack.md`).
 Add the kind's name to the "Distribution registry" list in
 `skills/synthetic-data.md`, and — if it changes reconstruction, correlation
 or model participation — the focused `skills/synth-*.md` skill that owns that

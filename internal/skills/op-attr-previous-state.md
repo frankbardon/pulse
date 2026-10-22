@@ -13,7 +13,12 @@ examples_tags: [cohort-analysis, buffered-pipeline]
 
 ## Params
 
-None. Top-level keys: `field` (state), `subject_field`, `order_field`, `label`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `subject_field` | field | (required) | Column identifying the subject (matched by value). |
+| `order_field` | field | (required) | `date` / `datetime` column ordering each subject's rows. |
+
+Top-level slot keys: `field` (state), `subject_field`, `order_field`, `label`.
 
 ## Inputs
 

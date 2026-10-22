@@ -28,8 +28,10 @@ Use something else:
 
 ## Params
 
-- `pattern` — string, required, non-empty. Perl/RE2 source via `regexp/syntax.Parse`.
-- `max_repeat` — int, default `8`, floored at 1. Bounds unbounded `*` / `+` / `{m,}`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `pattern` | string | (required) | Non-empty Perl/RE2 source via `regexp/syntax.Parse`. |
+| `max_repeat` | int | `8` | Floored at 1. Bounds unbounded `*` / `+` / `{m,}`. |
 
 ## Inputs
 

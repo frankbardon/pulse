@@ -15,10 +15,15 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 ## Params
 
-- `output` — `d2` (default) or `p` (χ² upper tail on p df). `missing` — `listwise` only.
-- `fit_on` — `"filtered"` (default) or an inline filterer array picking the FIT rows; every filtered row is scored.
-- `fit` — a bound vector fit's name (a compose `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry: `compose-fits`), scored against instead of fitting (XOR `fit_on`: `fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members (`labels` — inline `fields` only); mismatch `PULSE_VECTOR_REFERENCE_MISMATCH`, unbound `PULSE_MODEL_UNKNOWN`, a regression's name `PULSE_MODEL_KIND_MISMATCH`.
-- `weight` — both kinds; fit only (N* = Σw or n_eff, cov M2*/(N* − 1)); a zero-weight row is scored, not fitted.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `output` | enum | `d2` | `d2` or `p` (χ² upper tail on p df). |
+| `fit_on` | any | `filtered` | `"filtered"` or an inline filterer array picking the FIT rows; every filtered row is scored. |
+| `fit` | string | — | A bound vector fit's name (a compose `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry: `compose-fits`), scored against instead of fitting (XOR `fit_on`: `fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members (`labels`); mismatch `PULSE_VECTOR_REFERENCE_MISMATCH`, unbound `PULSE_MODEL_UNKNOWN`, a regression's name `PULSE_MODEL_KIND_MISMATCH`. |
+| `labels` | list | — | Inline `fields` only: one label per member. |
+| `missing` | enum | `listwise` | `listwise` only. |
+
+`weight` — both kinds; fit only (N* = Σw or n_eff, cov M2*/(N* − 1)); a zero-weight row is scored, not fitted.
 
 Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields` (inline, globs ok); no `field`. Default label `ATTR_MAHALANOBIS_<vector>` or `_<first fields entry>`.
 

@@ -13,10 +13,13 @@ examples_tags: [feature-engineering, multivariate, streaming-friendly]
 
 ## Params
 
-- `stat` — `mean` (default) or `sum`: ALWAYS prorated (valid mean × item count); no raw sum.
-- `min_valid` — integer 1…p, default p: fewer valid items → null, never 0.
-- `reverse` — member LABELS, scored lo + hi − x; needs a range.
-- `scale_min` / `scale_max` — both or neither; else a `kind: scale` vector's bounds. No range + `reverse` → `SERVICE_VALIDATION`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `stat` | enum | `mean` | `mean` or `sum`: ALWAYS prorated (valid mean × item count); no raw sum. |
+| `min_valid` | int | — | Integer 1…p; absent: p. Fewer valid items → null, never 0. |
+| `reverse` | list | — | Member LABELS, scored lo + hi − x; needs a range. |
+| `scale_min` | float | — | Range low bound; both bounds or neither, else a `kind: scale` vector's. |
+| `scale_max` | float | — | Range high bound. No range + `reverse` → `SERVICE_VALIDATION`. |
 
 Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields`; no `field`. Default label `ATTR_SCALE_SCORE_<vector>`.
 

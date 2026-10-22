@@ -24,7 +24,9 @@ Use something else:
 
 ## Params
 
-`distinct_by` (string, required) — field holding the distinct key. Absent or empty: `PROCESSING_CONFIG`, never defaulted to `Field`; unknown: `SERVICE_VALIDATION`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `distinct_by` | string | (required) | Field holding the distinct key. Absent or empty: `PROCESSING_CONFIG`, never defaulted to `Field`; unknown: `SERVICE_VALIDATION`. |
 
 ## Inputs
 

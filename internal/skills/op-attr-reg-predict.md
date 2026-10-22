@@ -15,12 +15,12 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 ## Params
 
-| Name | Type | Description |
-|---|---|---|
-| `fit` | string | Bound model name (required). |
-| `terms` | []string | Score only these terms, `(intercept)` opt-in; fit order. Omit: whole model. |
-| `scale` | enum | GLM only: `response` (default, inverse link) or `link`. |
-| `bound` | enum | `point` (default), `lower`, `upper`: ci bound × column. Needs `terms` = one predictor. |
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `fit` | string | (required) | Bound model name. |
+| `terms` | list | — | Score only these terms, `(intercept)` opt-in; fit order. Absent: whole model. |
+| `scale` | enum | `response` | GLM only: `response` (inverse link) or `link`. |
+| `bound` | enum | `point` | `point`, `lower`, `upper`: ci bound × column. Needs `terms` = one predictor. |
 
 ## Inputs
 

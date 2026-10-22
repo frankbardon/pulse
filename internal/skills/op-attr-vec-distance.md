@@ -13,10 +13,15 @@ examples_tags: [feature-engineering, multivariate, streaming-friendly]
 
 ## Params
 
-- `metric` — distance only: `euclidean`, `sq_euclidean`, `manhattan`, `chebyshev`, `cosine` (1 − cos), `hellinger`, `aitchison`, `hamming`, `std_euclidean`, `mahalanobis`. Default from `kind` (measure → `std_euclidean`); none → `PULSE_VECTOR_METRIC_REQUIRED`. A similarity → `PULSE_VECTOR_METRIC_UNKNOWN`<!-- feature: ATTR_PROFILE_SIMILARITY -->, `details.use` = `ATTR_PROFILE_SIMILARITY`<!-- /feature -->.
-- `reference` (required) — `[…]`, `{label: value}`, `{table, key}`, `{table, key_field}` (categorical or `u4`…`u64`, by exact base-10 form; `u64` above 2^53 too), `{centroid: {filter?, by?}}` (weighted per-member mean of the rows `filter` admits<!-- feature: AGG_VEC_MEAN -->, = `AGG_VEC_MEAN`<!-- /feature -->; `by` = per exact key) `{population: name}` (a bound fit's mean; need not be the `fit`) or `{record: {cohort?, keys}}` (one indexed row, own cohort if omitted: `cohort-sidecar-index`).
-- `min_valid` — fewest complete pairs, default 1. `labels` — inline `fields` only.
-- `fit_on`, `missing`, `fit` — fitted metrics only; `fit` reads a bound vector fit (a compose `fits` entry or loaded `populations` entry: `compose-fits`) by label instead of fitting (XOR `fit_on`; a regression's name `PULSE_MODEL_KIND_MISMATCH`).
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `metric` | enum | — | Distance only: `euclidean`, `sq_euclidean`, `manhattan`, `chebyshev`, `cosine` (1 − cos), `hellinger`, `aitchison`, `hamming`, `std_euclidean`, `mahalanobis`. Absent: from `kind` (measure → `std_euclidean`); none → `PULSE_VECTOR_METRIC_REQUIRED`. A similarity → `PULSE_VECTOR_METRIC_UNKNOWN`<!-- feature: ATTR_PROFILE_SIMILARITY -->, `details.use` = `ATTR_PROFILE_SIMILARITY`<!-- /feature -->. |
+| `reference` | any | (required) | `[…]`, `{label: value}`, `{table, key}`, `{table, key_field}` (categorical or `u4`…`u64`, by exact base-10 form; `u64` above 2^53 too), `{centroid: {filter?, by?}}` (weighted per-member mean of the rows `filter` admits<!-- feature: AGG_VEC_MEAN -->, = `AGG_VEC_MEAN`<!-- /feature -->; `by` = per exact key) `{population: name}` (a bound fit's mean; need not be the `fit`) or `{record: {cohort?, keys}}` (one indexed row, own cohort if omitted: `cohort-sidecar-index`). |
+| `min_valid` | int | `1` | Fewest complete pairs. |
+| `labels` | list | — | Inline `fields` only: one label per member. |
+| `fit_on` | any | `filtered` | Fitted metrics only: `"filtered"` or a filterer array picking the FIT rows. |
+| `fit` | string | — | Fitted metrics only: a bound vector fit (a compose `fits` entry or loaded `populations` entry: `compose-fits`) read by label instead of fitting (XOR `fit_on`; a regression's name `PULSE_MODEL_KIND_MISMATCH`). |
+| `missing` | enum | `listwise` | Fitted metrics only; `listwise` only. |
 
 ## Inputs
 

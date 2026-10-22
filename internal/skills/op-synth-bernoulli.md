@@ -15,7 +15,9 @@ Synth distributions emit per-row values; no `Response.Components`.
 
 ## Params
 
-`p` — float, default `0.5`, probability of emitting `1`; must lie in `[0, 1]`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `p` | float | `0.5` | Probability of emitting `1`; must lie in `[0, 1]`. |
 
 ## Inputs
 

@@ -29,7 +29,7 @@ Use something else:
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `offset` | int | `1` | Lookback distance (≥ 0). |
-| `default` | any | `null` | Substitute when offset crosses partition start. |
+| `default` | any | — | Substitute when offset crosses partition start; absent: `null`. |
 
 `partition_by` (carve), `order_by` (≥1, required, any type but `set_*` (`PULSE_WINDOW_INVALID`) or `vec_*` (`PULSE_VECTOR_FIELD_NOT_SCALAR`)), `frame` (forbidden).
 

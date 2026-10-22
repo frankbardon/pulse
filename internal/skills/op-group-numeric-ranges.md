@@ -13,11 +13,13 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 ## Params
 
-One source — `ranges` XOR `table`:
+One source — `ranges` XOR `table` (`ranges` declared required as the common case):
 
-- `ranges` — ordered `[]{label,start,end}`; JSON numbers, omitted/null = open, half-open `[start, end)`.
-- `table` — a NUMERIC `RangeTable` (number bounds; Extensions or `PULSE_RANGE_TABLES_DIR`).
-- `unmatched_label` — default `unmatched`; not a range label.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `ranges` | array | (required) | Ordered `[]{label,start,end}`; JSON numbers, omitted/null = open, half-open `[start, end)`. |
+| `unmatched_label` | string | `unmatched` | Bucket for rows outside every range; not a range label. |
+| `table` | string | — | A NUMERIC `RangeTable` (number bounds; Extensions or `PULSE_RANGE_TABLES_DIR`), in place of `ranges`. |
 
 Integer split idiom — 0..90 train, 91..103 holdout, ends meet:
 

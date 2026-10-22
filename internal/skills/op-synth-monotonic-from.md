@@ -15,8 +15,10 @@ Synth distributions emit per-row values; no `Response.Components`.
 
 ## Params
 
-- `start` — int, default `0`. First emitted value.
-- `step` — int, default `1`, non-zero. Negative ⇒ decreasing.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `start` | int | `0` | First emitted value. |
+| `step` | int | `1` | Non-zero. Negative ⇒ decreasing. |
 
 The sampler holds `cur = start - step` and adds `step` before emitting, so row 0 emits `start`.
 

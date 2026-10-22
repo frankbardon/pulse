@@ -15,11 +15,13 @@ Feature operators emit derived columns; no `Response.Components`.
 
 ## Params
 
-- `target` — string, required. Numeric field whose grouped mean replaces the category.
-- `smoothing` — float, default `0.0`, `>= 0`: `(n * mean_cat + s * mean_global) / (n + s)`.
-- `fit_on` — boolean expression (expression-filter syntax, null → not training) choosing the TRAINING rows, e.g. `"split == 0"`. Reads the schema and EARLIER features' columns; a later or own label, or a non-bool result, is `PULSE_FORMULA_COMPILE_ERROR`. Only training rows feed the means; EVERY row is encoded; unseen category → training global mean. Absent: every row trains.
-- `folds` — `0` (off) or `2..100`: each training row is encoded from the training rows OUTSIDE its fold (null when none hold an outcome); other rows get the full-training value.
-- `rng_seed` — int, only with `folds`: seeds the fold deal (training rows in order, blocks of k, balanced ±1).
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `target` | field | (required) | Numeric field whose grouped mean replaces the category. |
+| `smoothing` | float | `0` | `>= 0`: `(n * mean_cat + s * mean_global) / (n + s)`. |
+| `fit_on` | string | — | Boolean expression (expression-filter syntax, null → not training) choosing the TRAINING rows, e.g. `"split == 0"`. Reads the schema and EARLIER features' columns; a later or own label, or a non-bool result, is `PULSE_FORMULA_COMPILE_ERROR`. Only training rows feed the means; EVERY row is encoded; unseen category → training global mean. Absent: every row trains. |
+| `folds` | int | `0` | `0` (off) or `2..100`: each training row is encoded from the training rows OUTSIDE its fold (null when none hold an outcome); other rows get the full-training value. |
+| `rng_seed` | int | — | Only with `folds`: seeds the fold deal (training rows in order, blocks of k, balanced ±1). |
 
 ## Inputs
 

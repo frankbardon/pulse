@@ -27,7 +27,7 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `weight_field` | string | (none) | Per-row weight field; sugar for a slot `weight` of kind `probability` |
+| `weight_field` | string | — | Per-row weight field; sugar for a slot `weight` of kind `probability`. |
 
 The weighted mean of the core family: same figure and engine, own type name and components. The weight is `weight_field`, else the slot / request `weight`, else `Options.DefaultWeight`. A `weight_field` that differs from the slot `weight` (or a `"weight": null`), or no weight resolving at all, is `PROCESSING_CONFIG`. Invalid weights (null, negative, NaN/Inf) are excluded and warned (`PULSE_WEIGHT_INVALID_ROWS`).
 

@@ -15,7 +15,11 @@ Row-level output; no `Response.Components`.
 
 ## Params
 
-`cumulative` (bool, default `false`). Slots: `field` (required), `partition_by`, `order_by` (only with `cumulative: true`, then required), `frame` (refused).
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `cumulative` | bool | `false` | Running share (first row to this one) instead of the row's own. |
+
+Slots: `field` (required), `partition_by`, `order_by` (only with `cumulative: true`, then required), `frame` (refused).
 
 ## Inputs
 

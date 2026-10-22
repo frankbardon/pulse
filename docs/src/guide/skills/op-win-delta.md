@@ -26,7 +26,11 @@ Use something else:
 
 ## Params
 
-`periods` (int, default `1`) — lookback distance (≥ 1). Slots: `field` (required, numeric), `order_by` (≥1, any type but `set_*` (`PULSE_WINDOW_INVALID`) or `vec_*` (`PULSE_VECTOR_FIELD_NOT_SCALAR`)), `partition_by`, `frame` (forbidden).
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `periods` | int | `1` | Lookback distance (≥ 1). |
+
+Slots: `field` (required, numeric), `order_by` (≥1, any type but `set_*` (`PULSE_WINDOW_INVALID`) or `vec_*` (`PULSE_VECTOR_FIELD_NOT_SCALAR`)), `partition_by`, `frame` (forbidden).
 
 ## Inputs
 

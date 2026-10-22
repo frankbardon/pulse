@@ -15,7 +15,9 @@ Feature operators emit derived columns; no `Response.Components`.
 
 ## Params
 
-`degree` — int, required. `>= 2` AND `<= 10` (`MaxPolyDegree`). Degree 1 is the original column; reference it directly downstream.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `degree` | int | (required) | `>= 2` AND `<= 10` (`MaxPolyDegree`). Degree 1 is the original column; reference it directly downstream. |
 
 ## Inputs
 

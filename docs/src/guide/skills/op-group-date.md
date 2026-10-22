@@ -25,12 +25,14 @@ Use something else:
 
 ## Params
 
-- `component`: enum, default `month`: `hour`, `hour_of_day`, `day`, `day_of_week`, `week`, `month`, `quarter`, `year`.
-- `week_start`: `week` only; `monday` (default, ISO `2026-W09`) .. `sunday` (key = first day: 2026-03-01).
-- `fiscal_offset`: -11..11, `year`/`quarter`; keys `FY` (end-year).
-- `frequency`: not a bucketing knob — the `OVERLAY_YOY` frequency an overlay on this grouper inherits when it sets none.
-- Other keys (`unit`, …) → `PULSE_REQUEST_UNKNOWN_FIELD`.
-- `tz` (IANA) / `tz_field` (per-row zone column): slot keys.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `component` | enum | `month` | `hour`, `hour_of_day`, `day`, `day_of_week`, `week`, `month`, `quarter`, `year`. |
+| `week_start` | enum | `monday` | `week` only; `monday` (ISO `2026-W09`) .. `sunday` (key = first day: 2026-03-01). |
+| `fiscal_offset` | int | `0` | -11..11, `year`/`quarter`; keys `FY` (end-year). |
+| `frequency` | enum | — | Not a bucketing knob — the `OVERLAY_YOY` frequency an overlay on this grouper inherits when it sets none. |
+
+Other keys (`unit`, …) → `PULSE_REQUEST_UNKNOWN_FIELD`. `tz` (IANA) / `tz_field` (per-row zone column): slot keys.
 
 ## Inputs
 

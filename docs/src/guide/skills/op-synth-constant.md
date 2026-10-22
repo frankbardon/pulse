@@ -28,8 +28,10 @@ Use something else:
 
 ## Params
 
-- `value` — any, required. Per-row payload. Interpreted by the declared field type at write time.
-- `options` — list, optional, `set_*` fields only. Dictionary entries in bit order, pre-registered at schema-build time (as `set_bernoulli`'s); on any other field type it is an unknown key and refused.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `value` | any | (required) | Per-row payload, interpreted by the declared field type. |
+| `options` | list | — | `set_*` fields only: dictionary entries in bit order, pre-registered at schema-build time (as `set_bernoulli`'s); on any other field type an unknown key, refused. |
 
 `value` is checked and normalised to the field's row shape once, at spec parse — never at write time.
 

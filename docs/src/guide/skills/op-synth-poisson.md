@@ -28,7 +28,9 @@ Use something else:
 
 ## Params
 
-- `lambda` — float, default `1.0`. Rate parameter; equals both the mean and the variance. Must be `> 0`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `lambda` | float | `1` | Rate parameter; equals both the mean and the variance. Must be `> 0`. |
 
 ## Inputs
 

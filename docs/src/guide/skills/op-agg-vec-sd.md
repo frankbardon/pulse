@@ -24,9 +24,11 @@ Use something else:
 
 ## Params
 
-- `labels` — inline `fields` only: one display label per member (default the member names).
-- `expand` — `true`: one scalar column per member, `<label>[<element label>]`, instead of the array (grouped: per row); the label is absent. Predict lists them (`aggregations[i].columns`). Element labels must be distinct.
-- `element` — crosstab `cell` / `margin_aggregations` only: one member's display label; the slot reads that member alone, a scalar (its sd). Refused with `expand`, outside a crosstab, unknown or shared label (`SERVICE_VALIDATION`, reason `element_*`).
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `labels` | list | — | Inline `fields` only: one display label per member; absent: the member names. |
+| `expand` | bool | — | `true`: one scalar column per member, `<label>[<element label>]`, instead of the array (grouped: per row); the label is absent. Predict lists them (`aggregations[i].columns`). Element labels must be distinct. |
+| `element` | string | — | Crosstab `cell` / `margin_aggregations` only: one member's display label; the slot reads that member alone, a scalar (its sd). Refused with `expand`, outside a crosstab, unknown or shared label (`SERVICE_VALIDATION`, reason `element_*`). |
 
 Slot: exactly one of `vector` (a `vectors` entry, its labels kept) / `fields`; no `field`. Default label `AGG_VEC_SD_<vector>`. Weight-aware: √(M2 / (N* − 1)) per member, M2 = Σw·(x − mean)², N* = Σw under `kind: frequency` (the expanded rows), Kish n_eff = (Σw)²/Σw² under `probability`.
 

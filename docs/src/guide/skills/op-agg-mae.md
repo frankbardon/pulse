@@ -24,7 +24,11 @@ Use something else:
 
 ## Params
 
-`prediction_field` — required; the predicted column (typically an `ATTR_REG_PREDICT` score column). Missing is `PROCESSING_CONFIG`; a non-numeric column on either side (categorical, set, date, datetime) `PULSE_FIELD_TYPE_UNSUPPORTED`, a `decimal128` actual `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`; an unknown name `SERVICE_VALIDATION` — predict and runtime alike.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `prediction_field` | field | (required) | The predicted column (typically an `ATTR_REG_PREDICT` score column). |
+
+Missing is `PROCESSING_CONFIG`; a non-numeric column on either side (categorical, set, date, datetime) `PULSE_FIELD_TYPE_UNSUPPORTED`, a `decimal128` actual `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`; an unknown name `SERVICE_VALIDATION` — predict and runtime alike.
 
 Weight-aware: Σw·|y − ŷ| / Σw. A `decimal128` side under a weight → `PULSE_WEIGHT_UNSUPPORTED`.
 

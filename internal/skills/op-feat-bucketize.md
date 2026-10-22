@@ -15,10 +15,12 @@ Feature operators emit derived columns; no `Response.Components`.
 
 ## Params
 
-EXACTLY ONE of (manifest `exactly_one_of: cutpoints`; a Recommend draft names `boundaries`):
+EXACTLY ONE of `boundaries` / `quantiles` (manifest `exactly_one_of: cutpoints`; a Recommend draft names `boundaries`):
 
-- `boundaries` (list[float]) — sorted ascending cutpoints; `v` lands in bucket `i` where `boundaries[i-1] < v <= boundaries[i]`.
-- `quantiles` (int) — count of equal-population buckets.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `boundaries` | list | — | Sorted ascending cutpoints; `v` lands in bucket `i` where `boundaries[i-1] < v <= boundaries[i]`. |
+| `quantiles` | int | — | Count of equal-population buckets. |
 
 ## Inputs
 

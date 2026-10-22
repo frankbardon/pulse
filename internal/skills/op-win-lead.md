@@ -18,7 +18,7 @@ Window operators emit row-level values; they do not produce `Response.Components
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `offset` | int | `1` | Lookahead distance (≥ 0). |
-| `default` | any | `null` | Substitute when offset crosses partition end. |
+| `default` | any | — | Substitute when offset crosses partition end; absent: `null`. |
 
 `partition_by` (carve), `order_by` (≥1, required, any type but `set_*` (`PULSE_WINDOW_INVALID`) or `vec_*` (`PULSE_VECTOR_FIELD_NOT_SCALAR`)), `frame` (forbidden).
 

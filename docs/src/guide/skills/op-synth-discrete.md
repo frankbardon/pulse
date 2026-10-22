@@ -25,8 +25,10 @@ Use something else:
 
 ## Params
 
-- `values` — list of numbers, required, non-empty, **strictly ascending**.
-- `weights` — list of numbers, default uniform. Non-negative, `len(values)` long. Raw counts fine — normalised at parse.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `values` | list | (required) | Numbers, non-empty, **strictly ascending**. |
+| `weights` | list | — | Numbers, non-negative, `len(values)` long; absent: uniform. Raw counts fine — normalised at parse. |
 
 ## Inputs
 

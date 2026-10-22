@@ -27,9 +27,12 @@ Use something else:
 
 One source in `Params` (not `Values`) — `ranges` XOR `table`:
 
-- `ranges` — `[]{label,start,end}`, ISO; null bound = open; inclusive.
-- `table` — registered `RangeTable` (Extensions or `PULSE_RANGE_TABLES_DIR`).
-- `tz` (IANA) / `tz_field` (per-row zone column) — slot keys.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `ranges` | array | — | `[]{label,start,end}`, ISO; null bound = open; inclusive. |
+| `table` | string | — | Registered `RangeTable` (Extensions or `PULSE_RANGE_TABLES_DIR`). |
+
+`tz` (IANA) / `tz_field` (per-row zone column) — slot keys.
 
 ## Inputs
 

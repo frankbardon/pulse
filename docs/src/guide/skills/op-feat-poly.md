@@ -26,7 +26,9 @@ Use something else:
 
 ## Params
 
-`degree` — int, required. `>= 2` AND `<= 10` (`MaxPolyDegree`). Degree 1 is the original column; reference it directly downstream.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `degree` | int | (required) | `>= 2` AND `<= 10` (`MaxPolyDegree`). Degree 1 is the original column; reference it directly downstream. |
 
 ## Inputs
 

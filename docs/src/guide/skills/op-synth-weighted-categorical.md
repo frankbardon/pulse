@@ -27,10 +27,10 @@ Use something else:
 
 ## Params
 
-- `values` — list[string], required. Dictionary entries to draw from; non-empty.
-- `weights` — list[float], default uniform. Per-value weight; length MUST match `values`. Non-negative; sum `> 0`.
-
-When `weights` absent the sampler installs equal weights internally.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `values` | list | (required) | Strings: dictionary entries to draw from; non-empty. |
+| `weights` | list | — | Per-value weight; length MUST match `values`. Non-negative; sum `> 0`. Absent: the sampler installs equal weights. |
 
 ## Inputs
 

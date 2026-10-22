@@ -13,12 +13,15 @@ examples_tags: [time-series, cohort-analysis]
 
 ## Params
 
-One source — `ranges` XOR `table`:
+One source — `ranges` XOR `table` (`ranges` declared required as the common case):
 
-- `ranges` — ordered `[]{label,start,end}`; ISO, omitted = open, inclusive.
-- `table` — a DATE `RangeTable` (ISO bounds; Extensions or `PULSE_RANGE_TABLES_DIR`).
-- `unmatched_label` — default `unmatched`; not a range label.
-- `tz` (IANA) / `tz_field` (per-row zone column) — slot keys.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `ranges` | array | (required) | Ordered `[]{label,start,end}`; ISO, omitted = open, inclusive. |
+| `unmatched_label` | string | `unmatched` | Bucket for rows outside every range; not a range label. |
+| `table` | string | — | A DATE `RangeTable` (ISO bounds; Extensions or `PULSE_RANGE_TABLES_DIR`), in place of `ranges`. |
+
+`tz` (IANA) / `tz_field` (per-row zone column) — slot keys.
 
 ## Inputs
 

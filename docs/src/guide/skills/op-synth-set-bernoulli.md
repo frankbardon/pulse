@@ -27,8 +27,10 @@ Use something else:
 
 ## Params
 
-- `options` — list[string], required. Dictionary entries in bit order (bit `i` ↔ `options[i]`). Pre-registers the field's dictionary at schema-build time — never lazily by first touch, so bit assignment is deterministic.
-- `frequencies` — list[float], default `0.5` each. Per-option `P(bit set)` in `[0, 1]`; length must match `options`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `options` | list | (required) | Strings: dictionary entries in bit order (bit `i` ↔ `options[i]`). Pre-registers the field's dictionary at schema-build time — never lazily by first touch, so bit assignment is deterministic. |
+| `frequencies` | list | `0.5` | Per-option `P(bit set)` in `[0, 1]` (default each); length must match `options`. |
 
 An option draws independently unless `Spec.SetCategoricalPairs` / `SetNumericPairs` / `SetSetPairs` names it as a captured joint pair's target — then its bit is resampled from the pair's conditional probability instead of `frequencies[i]`.
 

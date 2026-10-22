@@ -15,11 +15,22 @@ Row-level scalars; no `Response.Components`.
 
 ## Params
 
-- `factor` — required, 1-based. `method` — `regression` (default) or `bartlett`. `missing` — `listwise` only.
-- `factors`, `extraction`, `rotation` (oblique too), `kappa`, `gamma`, `epsilon` — the factor fit's knobs<!-- feature: MAT_FACTOR --> (`MAT_FACTOR`'s)<!-- /feature -->; no `repair`.
-- `fit_on` — `"filtered"` (default) or a filterer array picking the FIT rows; every filtered row is scored.
-- `fit` — a bound vector fit's name (a compose `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry: `compose-fits`), scored against instead of fitting (XOR `fit_on`: `fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members (`labels` — inline `fields` only); mismatch `PULSE_VECTOR_REFERENCE_MISMATCH`, unbound `PULSE_MODEL_UNKNOWN`, a regression's name `PULSE_MODEL_KIND_MISMATCH`.
-- `weight` — fit only; weight-0 rows are scored, not fitted.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `factor` | int | (required) | 1-based factor to score. |
+| `method` | enum | `regression` | `regression` or `bartlett`. |
+| `factors` | any | `kaiser` | Positive integer k (≥ `factor`) or `"kaiser"`. |
+| `extraction` | enum | `minres` | `minres`, `principal_axis` or `ml`. |
+| `rotation` | enum | `none` | Orthogonal or oblique (an oblique factor correlation enters the weights). |
+| `kappa` | float | `4` | Promax power. |
+| `gamma` | float | `0` | Oblimin gamma. |
+| `epsilon` | float | `0.01` | Geomin epsilon. |
+| `fit_on` | any | `filtered` | `"filtered"` or a filterer array picking the FIT rows; every filtered row is scored. |
+| `fit` | string | — | A bound vector fit's name (a compose `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry: `compose-fits`), scored against instead of fitting (XOR `fit_on`: `fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members (`labels`); mismatch `PULSE_VECTOR_REFERENCE_MISMATCH`, unbound `PULSE_MODEL_UNKNOWN`, a regression's name `PULSE_MODEL_KIND_MISMATCH`. |
+| `labels` | list | — | Inline `fields` only: one label per member. |
+| `missing` | enum | `listwise` | `listwise` only. |
+
+The fit knobs are<!-- feature: MAT_FACTOR --> `MAT_FACTOR`'s<!-- /feature --> factor fit's; no `repair`. `weight` — fit only; weight-0 rows are scored, not fitted.
 
 Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields`; no `field`.
 

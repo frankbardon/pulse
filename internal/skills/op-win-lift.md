@@ -15,7 +15,12 @@ Row-level output; no `Response.Components`.
 
 ## Params
 
-`base` (field, required) — the comparison column; `cumulative` (bool, default `false`). Slots: `field` (required), `partition_by`, `order_by` (only with `cumulative: true`, then required), `frame` (refused).
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `base` | field | (required) | The comparison column. |
+| `cumulative` | bool | `false` | Running shares (first row to this one) instead of the row's own. |
+
+Slots: `field` (required), `partition_by`, `order_by` (only with `cumulative: true`, then required), `frame` (refused).
 
 ## Inputs
 
