@@ -479,8 +479,8 @@ func TestGroupSetWide_NarrowRungsAreUnchanged(t *testing.T) {
 // numeric map as a float64 — for set_u128 / set_u256 that echo is the
 // LOW 64 BITS of the mask, a plausible number that would bucket
 // silently and wrongly. GROUP_RANGE / GROUP_ROUNDED / GROUP_QUANTILE all
-// declare numeric field types only (descriptor AcceptsTypes:
-// numericFieldTypesNoDecimal), so the mismatch is refused at
+// declare numeric field types only (descriptor AcceptsTypes: the
+// fieldaccept quantity row), so the mismatch is refused at
 // construction rather than answered at run time.
 func TestGrouperNumeric_RejectsSetField(t *testing.T) {
 	rungs := []encoding.FieldType{

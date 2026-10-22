@@ -27,23 +27,6 @@ import (
 // Sorted (byte order, so `u4` falls between `u32` and `u64`) for golden
 // stability; TestCapabilities_AllCohortFieldTypesMatchesRegistry pins it.
 
-// numericFieldTypesNoDecimal lists numeric types excluding the
-// fixed-point decimal types. Used by aggregators that operate in float64
-// space (variance, stddev, skewness, kurtosis) and by the window /
-// attribute families. The value windows declare the same set through
-// the accepted-types table (internal/fieldaccept), which gates it on
-// both sides.
-var numericFieldTypesNoDecimal = []string{
-	"date",
-	"f32",
-	"f64",
-	"u16",
-	"u32",
-	"u4",
-	"u64",
-	"u8",
-}
-
 // numericFieldTypesAnalytics is the numeric types (the unsigned
 // integers, the floats, date and decimal128 — read through its float64
 // echo) widened with the bit-packed boolean encoding (packed_bool) and
