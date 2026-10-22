@@ -705,7 +705,7 @@
               {
                 "name": "t_critical",
                 "type": "float64",
-                "description": "Critical value used to scale the standard error."
+                "description": "Normal critical value z = qnorm(1 − α/2) scaling the standard error (not Student t; the name is kept for vocabulary)."
               },
               {
                 "name": "lower",
@@ -807,7 +807,7 @@
               {
                 "name": "t_critical",
                 "type": "float64",
-                "description": "Critical value used to scale the standard error."
+                "description": "Normal critical value z = qnorm(1 − α/2) scaling the standard error (not Student t; the name is kept for vocabulary)."
               },
               {
                 "name": "upper",
@@ -4027,7 +4027,7 @@
         {
           "name": "ATTR_REG_LEVERAGE",
           "category": "attribute",
-          "description": "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Range ∈ [0, 1]; Σᵢ hᵢᵢ = p + 1. Restricted to unpenalized OLS — penalized leverage / GLM leverage deferred.",
+          "description": "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. Restricted to unpenalized OLS — penalized leverage / GLM leverage deferred.",
           "params": [
             {
               "name": "target",
@@ -4059,7 +4059,7 @@
             "u8"
           ],
           "emits_type": "f64",
-          "emits_type_note": "one leverage per record in [0, 1]",
+          "emits_type_note": "one leverage per record: in [1/n, 1] within the fit, can exceed 1 for a row outside the fit",
           "streamable": true,
           "streamable_hint": "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
           "component_schema": {
@@ -5692,8 +5692,9 @@
             {
               "name": "interval",
               "type": "float",
-              "required": true,
-              "description": "Bucket width on the value axis; set on the request's Group.Interval field.",
+              "required": false,
+              "default": 1,
+              "description": "Bucket width on the value axis; set on the request's Group.Interval field. Default 1; ≤ 0 is treated as 1. A slot that names a numeric field without a type gets GROUP_RANGE with interval 10 (smart default).",
               "slot": true
             }
           ],
@@ -5780,8 +5781,9 @@
             {
               "name": "interval",
               "type": "float",
-              "required": true,
-              "description": "Rounding increment; set on the request's Group.Interval field.",
+              "required": false,
+              "default": 1,
+              "description": "Rounding increment; set on the request's Group.Interval field. Default 1; ≤ 0 is treated as 1.",
               "slot": true
             }
           ],
@@ -6096,7 +6098,7 @@
               "type": "int",
               "required": false,
               "default": 1,
-              "description": "Lookback offset (≥ 1)."
+              "description": "Lookback offset (≥ 0; 0 reads the current row itself)."
             },
             {
               "name": "default",
@@ -6115,8 +6117,7 @@
             "u64",
             "u8"
           ],
-          "emits_type": "f64",
-          "emits_type_note": "one float per row (Default when offset crosses partition start)",
+          "emits_type_note": "matches the source field type: a verbatim copy of the lookback row's cell; params.default (any JSON value) where the offset crosses the partition start",
           "streamable": false,
           "component_schema": {
             "mergeability": ""
@@ -6136,7 +6137,7 @@
               "type": "int",
               "required": false,
               "default": 1,
-              "description": "Lookahead offset (≥ 1)."
+              "description": "Lookahead offset (≥ 0; 0 reads the current row itself)."
             },
             {
               "name": "default",
@@ -6155,8 +6156,7 @@
             "u64",
             "u8"
           ],
-          "emits_type": "f64",
-          "emits_type_note": "one float per row",
+          "emits_type_note": "matches the source field type: a verbatim copy of the lookahead row's cell; params.default (any JSON value) where the offset crosses the partition end",
           "streamable": false,
           "component_schema": {
             "mergeability": ""
@@ -16485,7 +16485,7 @@
             {
               "name": "t_critical",
               "type": "float64",
-              "description": "Critical value used to scale the standard error."
+              "description": "Normal critical value z = qnorm(1 − α/2) scaling the standard error (not Student t; the name is kept for vocabulary)."
             },
             {
               "name": "lower",
@@ -16543,7 +16543,7 @@
             {
               "name": "t_critical",
               "type": "float64",
-              "description": "Critical value used to scale the standard error."
+              "description": "Normal critical value z = qnorm(1 − α/2) scaling the standard error (not Student t; the name is kept for vocabulary)."
             },
             {
               "name": "upper",
@@ -19455,4 +19455,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d34633d412f2bd4ea608a98a19eb02cb1e4c025b849e3c5588df96edb8d66f65
+// golden-hash: 425951a3f831a98863f9099673acbaf97bf2e9bbd16e5d4701ee84380158b970

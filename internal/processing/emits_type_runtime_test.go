@@ -47,8 +47,8 @@ package processing
 //     ATTR_SET_POPCOUNT at 256 (the exact value that broke "u8"),
 //     FEAT_TRAIN_TEST_SPLIT at 2 against "u8", ATTR_SET_HAS against
 //     packed_bool.
-//   - A row on which the operator emitted NO value (the first row of a
-//     WIN_LAG, a null-masked feature output) carries nothing to check and
+//   - A row on which the operator emitted NO value (a window row left
+//     null, a null-masked feature output) carries nothing to check and
 //     is skipped; every probe must still emit at least one value, so a
 //     probe cannot pass by producing nothing.
 //   - It says nothing about the Go KIND on the wire (int64 vs float64 in
@@ -486,20 +486,8 @@ var emitsTypeProbes = map[string]func(t *testing.T) emitted{
 	},
 
 	// --- window operators -------------------------------------------
-	string(types.WIN_LAG): func(t *testing.T) emitted {
-		return winEmitted(t, &types.Window{
-			Type: types.WIN_LAG, Field: "x", Label: "out",
-			OrderBy: []types.OrderKey{{Field: "ts"}},
-			Params:  json.RawMessage(`{"offset":1}`),
-		}, emitsWindowRows())
-	},
-	string(types.WIN_LEAD): func(t *testing.T) emitted {
-		return winEmitted(t, &types.Window{
-			Type: types.WIN_LEAD, Field: "x", Label: "out",
-			OrderBy: []types.OrderKey{{Field: "ts"}},
-			Params:  json.RawMessage(`{"offset":1}`),
-		}, emitsWindowRows())
-	},
+	// WIN_LAG / WIN_LEAD declare no EmitsType: they copy the source
+	// cell verbatim, held by TestWinLagLead_DeclarationMatchesRuntime.
 	string(types.WIN_ROW_NUMBER): func(t *testing.T) emitted {
 		return winEmitted(t, &types.Window{
 			Type: types.WIN_ROW_NUMBER, Label: "out",

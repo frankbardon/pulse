@@ -15,7 +15,7 @@ Window operators emit row-level values; they do not produce `Response.Components
 
 ## Params
 
-None operator-level. `partition_by` (carve), `order_by` (≥1, required, numeric / `date`), `frame` (REQUIRED — mode `"rows"`, `preceding` AND `following` BOTH bounded). `field` (required, numeric).
+None operator-level. `partition_by` (carve), `order_by` (≥1, required, any type but `set_*` (`PULSE_WINDOW_INVALID`) or `vec_*` (`PULSE_VECTOR_FIELD_NOT_SCALAR`)), `frame` (REQUIRED — mode `"rows"`, `preceding` AND `following` BOTH bounded). `field` (required, numeric).
 
 ## Inputs
 

@@ -15,7 +15,7 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `interval` | float | (required) | Bucket width on value axis; set on `Group.Interval`. |
+| `interval` | float | `1` | Bucket width on value axis; set on `Group.Interval`. ≤ 0 is treated as 1. |
 
 ## Inputs
 
@@ -25,7 +25,7 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 ## Output
 
-String label `"low-high"` per row (`"10-20"` holds `[10, 20)`). Smart default (Interval=10) for numeric. Rows emit by numeric low edge (`"-20--10"`, `"-10-0"`, `"0-10"`, `"10-20"`, `"100-110"`) on every arm (streaming, shards, fused crosstab). An explicit `sort` or crosstab-axis `include` wins; sorting the key column compares strings.
+String label `"low-high"` per row (`"10-20"` holds `[10, 20)`). Rows emit by numeric low edge (`"-20--10"`, `"-10-0"`, `"0-10"`, `"10-20"`, `"100-110"`) on every arm (streaming, shards, fused crosstab). An explicit `sort` or crosstab-axis `include` wins; sorting the key column compares strings.
 
 ## Components
 
@@ -48,6 +48,7 @@ Universal floor `{total_n, n_null}` plus:
 ## Gotchas
 
 - Half-open `[low, high)` — upper edge belongs to next bucket.
+- Explicit `"type":"GROUP_RANGE"` without `interval` buckets at width 1; a numeric slot with no `type` gets the smart default GROUP_RANGE with `interval` 10 (`defaults_applied`).
 - Rejects categorical and `set_*` at construction (`PULSE_FIELD_TYPE_UNSUPPORTED`).
 - `Group.Include` not honoured.
 

@@ -31,7 +31,7 @@ Use something else:
 | `offset` | int | `1` | Lookback distance (≥ 0). |
 | `default` | any | `null` | Substitute when offset crosses partition start. |
 
-`partition_by` (carve), `order_by` (≥1, required, numeric / `date`), `frame` (forbidden).
+`partition_by` (carve), `order_by` (≥1, required, any type but `set_*` (`PULSE_WINDOW_INVALID`) or `vec_*` (`PULSE_VECTOR_FIELD_NOT_SCALAR`)), `frame` (forbidden).
 
 ## Inputs
 

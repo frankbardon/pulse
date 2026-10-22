@@ -124,7 +124,7 @@ Each operator's own keys, beyond the floor and the weighted floor keys.
 | `mean` | float64 | always | Welford-running mean of the field. |
 | `stderr` | float64 | always | Standard error of the mean derived from variance and n. |
 | `alpha` | float64 | always | Significance level (1 - confidence). |
-| `t_critical` | float64 | always | Critical value used to scale the standard error. |
+| `t_critical` | float64 | always | Normal critical value z = qnorm(1 − α/2) scaling the standard error (not Student t; the name is kept for vocabulary). |
 | `lower` | float64 | always | Resolved lower bound of the confidence interval. |
 
 <a id="op-agg_ci_upper"></a>
@@ -138,7 +138,7 @@ Each operator's own keys, beyond the floor and the weighted floor keys.
 | `mean` | float64 | always | Welford-running mean of the field. |
 | `stderr` | float64 | always | Standard error of the mean derived from variance and n. |
 | `alpha` | float64 | always | Significance level (1 - confidence). |
-| `t_critical` | float64 | always | Critical value used to scale the standard error. |
+| `t_critical` | float64 | always | Normal critical value z = qnorm(1 − α/2) scaling the standard error (not Student t; the name is kept for vocabulary). |
 | `upper` | float64 | always | Resolved upper bound of the confidence interval. |
 
 <a id="op-agg_count"></a>

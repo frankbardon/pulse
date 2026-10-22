@@ -15,7 +15,7 @@ examples_tags: [cohort-analysis, streaming-friendly]
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `interval` | float | (required) | Rounding increment; set on `Group.Interval`. |
+| `interval` | float | `1` | Rounding increment; set on `Group.Interval`. ≤ 0 is treated as 1. |
 
 ## Inputs
 

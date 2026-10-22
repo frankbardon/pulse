@@ -257,8 +257,9 @@ func grouperCapabilities() []descriptor.Operator {
 				{
 					Name:        "interval",
 					Type:        "float",
-					Required:    true,
-					Description: "Bucket width on the value axis; set on the request's Group.Interval field.",
+					Required:    false,
+					Default:     1,
+					Description: "Bucket width on the value axis; set on the request's Group.Interval field. Default 1; ≤ 0 is treated as 1. A slot that names a numeric field without a type gets GROUP_RANGE with interval 10 (smart default).",
 					Slot:        true,
 				},
 			},
@@ -284,8 +285,9 @@ func grouperCapabilities() []descriptor.Operator {
 				{
 					Name:        "interval",
 					Type:        "float",
-					Required:    true,
-					Description: "Rounding increment; set on the request's Group.Interval field.",
+					Required:    false,
+					Default:     1,
+					Description: "Rounding increment; set on the request's Group.Interval field. Default 1; ≤ 0 is treated as 1.",
 					Slot:        true,
 				},
 			},

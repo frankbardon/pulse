@@ -15,7 +15,7 @@ Row-level output; no `Response.Components`.
 
 ## Params
 
-`periods` (int, default `1`) — lookback distance (≥ 1). Slots: `field` (required, numeric), `order_by` (≥1, numeric / `date`), `partition_by`, `frame` (forbidden).
+`periods` (int, default `1`) — lookback distance (≥ 1). Slots: `field` (required, numeric), `order_by` (≥1, any type but `set_*` (`PULSE_WINDOW_INVALID`) or `vec_*` (`PULSE_VECTOR_FIELD_NOT_SCALAR`)), `partition_by`, `frame` (forbidden).
 
 ## Inputs
 

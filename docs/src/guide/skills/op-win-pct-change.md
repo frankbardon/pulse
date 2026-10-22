@@ -30,7 +30,7 @@ Use something else:
 |---|---|---|---|
 | `periods` | int | `1` | Lookback distance (≥ 1) for the comparison row. |
 
-`partition_by` (carve), `order_by` (≥1, required, numeric / `date`), `frame` (forbidden). `field` (required, numeric).
+`partition_by` (carve), `order_by` (≥1, required, any type but `set_*` (`PULSE_WINDOW_INVALID`) or `vec_*` (`PULSE_VECTOR_FIELD_NOT_SCALAR`)), `frame` (forbidden). `field` (required, numeric).
 
 ## Inputs
 

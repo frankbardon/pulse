@@ -162,11 +162,11 @@ func attributeCapabilities() []descriptor.Operator {
 		{
 			Name:           string(types.ATTR_REG_LEVERAGE),
 			Category:       "attribute",
-			Description:    "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Range ∈ [0, 1]; Σᵢ hᵢᵢ = p + 1. Restricted to unpenalized OLS — penalized leverage / GLM leverage deferred.",
+			Description:    "Per-row hat-matrix diagonal hᵢᵢ = 1/n + (xᵢ − μ_x)ᵀ · M2_xx⁻¹ · (xᵢ − μ_x) from an unpenalized OLS refit. Over the rows in the fit it lies in [1/n, 1] and Σᵢ hᵢᵢ = p + 1; a row outside the fit (null target, predictors present) is scored from its predictors and can exceed 1. Restricted to unpenalized OLS — penalized leverage / GLM leverage deferred.",
 			Params:         regAttributeParams(false),
 			AcceptsTypes:   fieldaccept.TypeNames(string(types.ATTR_REG_LEVERAGE), fieldaccept.SlotPredictor),
 			EmitsType:      "f64",
-			EmitsTypeNote:  "one leverage per record in [0, 1]",
+			EmitsTypeNote:  "one leverage per record: in [1/n, 1] within the fit, can exceed 1 for a row outside the fit",
 			Streamable:     true,
 			StreamableHint: "Requires unpenalized OLS only; any non-empty Penalty surfaces PROCESSING_CONFIG.",
 		},

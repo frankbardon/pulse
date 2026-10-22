@@ -279,8 +279,9 @@
             {
               "name": "interval",
               "type": "float",
-              "required": true,
-              "description": "Bucket width on the value axis; set on the request's Group.Interval field.",
+              "required": false,
+              "default": 1,
+              "description": "Bucket width on the value axis; set on the request's Group.Interval field. Default 1; ≤ 0 is treated as 1. A slot that names a numeric field without a type gets GROUP_RANGE with interval 10 (smart default).",
               "slot": true
             }
           ],
@@ -1357,4 +1358,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7cf79810a4d5ba681c3d72004b1dff61ff75fc7aabb0d27fae3885a85a22c412
+// golden-hash: 9e8cb2eb87a76e8b9b31641169bdf89e05257299e37b5b5a16efbcbc9202dea0
