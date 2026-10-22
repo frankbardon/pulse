@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/examples"
 )
 
 // extExampleTrim is a valid embedder example using AGG_ACME_TRIM (an
@@ -70,6 +71,37 @@ func TestLoadExtensionExamples_Valid(t *testing.T) {
 	}
 }
 
+// TestLoadExtensionExamples_StoryRulesNotEnforced: an embedder example
+// may declare _meta.question / _meta.interpretation without obeying the
+// shipped library's story rules (examples.StoryProblems) — half a story,
+// a digit in the interpretation, no return.precision all load and serve
+// the fields exactly as declared.
+func TestLoadExtensionExamples_StoryRulesNotEnforced(t *testing.T) {
+	sub := func(old, new string) string { return strings.Replace(extExampleTrim, old, new, 1) }
+	cases := []struct {
+		name, file, question, interpretation string
+	}{
+		{"question without interpretation", sub(`"intents"`, `"question": "How much?", "intents"`), "How much?", ""},
+		{"interpretation without question", sub(`"intents"`, `"interpretation": "Mostly tails.", "intents"`), "", "Mostly tails."},
+		{"interpretation with a digit", strings.Replace(sub(`"intents"`, `"question": "How much?", "interpretation": "About 5 units.", "intents"`), `"cohort"`, `"return": {"precision": 4}, "cohort"`, 1), "How much?", "About 5 units."},
+		{"story without return.precision", sub(`"intents"`, `"question": "How much?", "interpretation": "Mostly tails.", "intents"`), "How much?", "Mostly tails."},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if len(examples.StoryProblems(examples.Meta{Question: tc.question, Interpretation: tc.interpretation}, []byte(tc.file))) == 0 {
+				t.Fatal("fixture breaks no story rule; the case proves nothing")
+			}
+			got, err := LoadExtensionExamples(extSkillFS(map[string]string{"a.json": tc.file}), extSkillSnapshot())
+			if err != nil {
+				t.Fatalf("refused: %v", err)
+			}
+			if len(got) != 1 || got[0].Example.Question != tc.question || got[0].Example.Interpretation != tc.interpretation {
+				t.Fatalf("got %+v, want question %q interpretation %q", got, tc.question, tc.interpretation)
+			}
+		})
+	}
+}
+
 func TestLoadExtensionExamples_Refusals(t *testing.T) {
 	sub := func(old, new string) string { return strings.Replace(extExampleTrim, old, new, 1) }
 	cases := []struct {
@@ -95,9 +127,6 @@ func TestLoadExtensionExamples_Refusals(t *testing.T) {
 		{"operators differ from body", map[string]string{"a.json": sub(`, "GROUP_CATEGORY"]`, `]`)}, errors.PULSE_EXTENSION_EXAMPLE_INVALID, ExampleReasonOperatorsBody},
 		{"unregistered operator", map[string]string{"a.json": strings.ReplaceAll(extExampleTrim, "AGG_ACME_TRIM", "AGG_ACME_NOPE")}, errors.PULSE_EXTENSION_EXAMPLE_INVALID, ExampleReasonOperators},
 		{"operator named off an edge", map[string]string{"a.json": sub(`"field": "revenue"}`, `"field": "revenue", "label": "TEST_WELCH"}`)}, errors.PULSE_EXTENSION_EXAMPLE_INVALID, ExampleReasonEdgeCoverage},
-		{"question without interpretation", map[string]string{"a.json": sub(`"intents"`, `"question": "How much?", "intents"`)}, errors.PULSE_EXTENSION_EXAMPLE_INVALID, ExampleReasonStory},
-		{"interpretation with a digit", map[string]string{"a.json": strings.Replace(sub(`"intents"`, `"question": "How much?", "interpretation": "About 5 units.", "intents"`), `"cohort"`, `"return": {"precision": 4}, "cohort"`, 1)}, errors.PULSE_EXTENSION_EXAMPLE_INVALID, ExampleReasonStory},
-		{"story without return.precision", map[string]string{"a.json": sub(`"intents"`, `"question": "How much?", "interpretation": "Mostly tails.", "intents"`)}, errors.PULSE_EXTENSION_EXAMPLE_INVALID, ExampleReasonStory},
 		{"capability contradicts its detector", map[string]string{"a.json": sub(`"intents"`, `"capabilities": ["capability:crosstab"], "intents"`)}, errors.PULSE_EXTENSION_EXAMPLE_INVALID, ExampleReasonEdgeCoverage},
 	}
 	for _, tc := range cases {

@@ -134,8 +134,10 @@ An example is a **story** iff its `_meta` declares both `question` and
 sets `"return": {"precision": 4}` (`examples.StoryPrecision`, four
 significant digits), so a float's last few ulps — which differ between
 amd64 and arm64 — never reach its output. Rules: `examples.StoryProblems`,
-gated by `TestStories_LibraryHoldsTheRules` (and, for embedder examples,
-`reason: story` at `pulse.New`).
+gated by `TestStories_LibraryHoldsTheRules`. They bind the shipped
+library only: an embedder example (`Extensions.Examples`) may declare
+`question` / `interpretation`, and `pulse.New` serves them as declared
+without applying these rules.
 
 Each story's response is pinned by a harness-produced golden,
 `testdata/stories/<name>.json` — the response exactly as

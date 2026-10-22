@@ -152,7 +152,8 @@ type Meta struct {
 	Capabilities []string `json:"capabilities,omitempty"`
 	// Question is optional: the plain-language question the example
 	// answers. Declared together with Interpretation (a story example);
-	// one without the other is a StoryProblems refusal.
+	// in the shipped library one without the other fails StoryProblems
+	// (CI only — an embedder example is never refused for it).
 	Question string `json:"question,omitempty"`
 	// Interpretation is optional: a qualitative reading of the result —
 	// no digits, the figures live in the story's golden.

@@ -2249,7 +2249,10 @@ body hands straight to `Process` / `Predict`:
 
 `category` is yours to choose (`acme` above) — it is what
 `category=` filters on. `intents`, `capabilities` and the story pair
-`question` / `interpretation` (served on search and get results) are optional;
+`question` / `interpretation` (served on search and get results, exactly as
+declared) are optional — the shipped library's story rules (both keys, a
+digit-free interpretation, `return.precision` 4) bind it in CI only and are
+never enforced on an embedder example;
 declare a capability (`capability:stream`) only when the body carries no
 structural sign of it — `crosstab`, `joins`, a `requests` (compose) or
 `stages` (process chain) root and a `facet` category or tag are
@@ -2259,7 +2262,8 @@ detected from the body.
 
 Every file is validated HARD — against every registration, before a
 feature profile hides any, so validity never depends on the profile. The
-rules are the shipped library's own CI rules. The first failure is
+rules are the shipped library's own CI rules, except its story rules
+(`question` / `interpretation` are optional and unchecked). The first failure is
 `PULSE_EXTENSION_EXAMPLE_INVALID` (details carry `example` and `reason`)
 or `PULSE_EXTENSION_EXAMPLE_COLLISION`:
 
@@ -2273,7 +2277,6 @@ or `PULSE_EXTENSION_EXAMPLE_COLLISION`:
 | `tags` | every tag from the canonical example taxonomy |
 | `intents` | every intent an intent-taxonomy ID (`pulse.Intents()`) |
 | `capabilities` | every entry a non-operator feature name (`capability:stream`); operators belong in `operators` |
-| `story` | `question` and `interpretation` come together (a story); the interpretation carries no digit, and a story's request sets `"return": {"precision": 4}` |
 | `body` | the body decodes STRICTLY — an unknown key is refused — as its request root: `requests` → compose, `stages` → process chain, `fields` → facet, otherwise process |
 | `operators_body` | `operators` equals the operators the body names as a `"type"` value |
 | `operators` | every `operators` entry is a built-in operator or one registered in the same `Extensions` |
