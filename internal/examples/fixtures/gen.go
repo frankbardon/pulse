@@ -69,7 +69,7 @@ func main() {
 	// The intake forms draw from their own source as well, so adding
 	// them left every CSV above byte-identical.
 	must(writeIntake(rand.New(rand.NewSource(seed+3)), 300))
-	fmt.Println("wrote 9 CSVs to", outputDir)
+	fmt.Println("wrote 10 CSVs to", outputDir)
 }
 
 // writeExperiment produces an A/B testing cohort designed so every
