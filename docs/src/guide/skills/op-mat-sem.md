@@ -64,6 +64,7 @@ Integer / float members.
 - Default stops where semopy does.
 - Singular S: fatal `PULSE_MATRIX_SINGULAR`.
 - Standardized fit: vector `standardize: "zscore"` (S = correlation).
+- Derived observed variable: name the request's attribute / feature label as a member.
 
 ## See
 

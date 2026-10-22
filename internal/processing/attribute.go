@@ -540,7 +540,7 @@ func ExprVectors(req *types.Request, schema *encoding.Schema) []vectors.Resolved
 	if req == nil || (len(req.Vectors) == 0 && (schema == nil || !schema.HasVectors())) {
 		return nil
 	}
-	resolved, err := vectors.Resolve(req.Vectors, schema)
+	resolved, err := vectors.ResolveRequest(req, schema)
 	if err != nil {
 		return nil
 	}

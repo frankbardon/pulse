@@ -38,17 +38,44 @@ func StandardizeRefusal(req *types.Request) *errors.CodedError {
 	if len(std) == 0 {
 		return nil
 	}
-	refuse := func(name, slot, why string) *errors.CodedError {
+	const rowWise = "it reads the member values row by row; only a listwise co-moment MAT_* slot standardizes its vector"
+	return nonMatrixConsumerRefusal(req, func(name, slot string, kind consumerKind) *errors.CodedError {
 		i, ok := std[name]
 		if !ok {
 			return nil
 		}
+		why := rowWise
+		switch kind {
+		case consumerBetween:
+			why = "a between grouper keys rows by their raw member values"
+		case consumerExpr:
+			why = "an expression reads the member values row by row; only a listwise co-moment MAT_* slot standardizes its vector"
+		}
 		return standardizeUnsupported(slotPath(i), name, slot, why)
-	}
-	const rowWise = "it reads the member values row by row; only a listwise co-moment MAT_* slot standardizes its vector"
+	})
+}
+
+// consumerKind tells a non-matrix vector consumer's refusal which
+// sentence fits.
+type consumerKind int
+
+const (
+	consumerSlot    consumerKind = iota // a test / attribute / grouper / aggregation vector
+	consumerBetween                     // a MAT_DISTANCE params.between vector
+	consumerExpr                        // an expression identifier
+)
+
+// nonMatrixConsumerRefusal visits, in a fixed order, every slot of req
+// that reads a Request.Vectors entry by name other than a MAT_* member
+// vector — a MAT_DISTANCE params.between vector, a test vector /
+// vector2, an attribute / grouper / aggregation vector and an
+// expression identifier (the slots exprReferenced scans) — and returns
+// the first refusal refuse makes (refuse returns nil for a name it
+// admits).
+func nonMatrixConsumerRefusal(req *types.Request, refuse func(name, slot string, kind consumerKind) *errors.CodedError) *errors.CodedError {
 	for i, m := range req.Matrices {
 		if g, ok := SpecBetween(m); ok && g.Vector != "" {
-			if err := refuse(g.Vector, matrixPath(i)+".params.between.vector", "a between grouper keys rows by their raw member values"); err != nil {
+			if err := refuse(g.Vector, matrixPath(i)+".params.between.vector", consumerBetween); err != nil {
 				return err
 			}
 		}
@@ -58,10 +85,10 @@ func StandardizeRefusal(req *types.Request) *errors.CodedError {
 			continue
 		}
 		at := "tests[" + strconv.Itoa(i) + "]"
-		if err := refuse(t.Vector, at+".vector", rowWise); err != nil {
+		if err := refuse(t.Vector, at+".vector", consumerSlot); err != nil {
 			return err
 		}
-		if err := refuse(t.Vector2, at+".vector2", rowWise); err != nil {
+		if err := refuse(t.Vector2, at+".vector2", consumerSlot); err != nil {
 			return err
 		}
 	}
@@ -69,35 +96,34 @@ func StandardizeRefusal(req *types.Request) *errors.CodedError {
 		if a == nil {
 			continue
 		}
-		if err := refuse(a.Vector, "attributes["+strconv.Itoa(i)+"].vector", rowWise); err != nil {
+		if err := refuse(a.Vector, "attributes["+strconv.Itoa(i)+"].vector", consumerSlot); err != nil {
 			return err
 		}
 	}
 	for _, s := range GroupSlots(req) {
-		if err := refuse(s.Group.Vector, s.Path+".vector", rowWise); err != nil {
+		if err := refuse(s.Group.Vector, s.Path+".vector", consumerSlot); err != nil {
 			return err
 		}
 	}
 	for _, s := range AggregationSlots(req) {
-		if err := refuse(s.Agg.Vector, s.Path+".vector", rowWise); err != nil {
+		if err := refuse(s.Agg.Vector, s.Path+".vector", consumerSlot); err != nil {
 			return err
 		}
 	}
-	return standardizeExprRefusal(req, refuse)
+	return exprConsumerRefusal(req, refuse)
 }
 
-// standardizeExprRefusal refuses an expression that binds a
-// standardized vector as an identifier (the slots exprReferenced
-// scans): the expression program reads raw member values per row.
-func standardizeExprRefusal(req *types.Request, refuse func(name, slot, why string) *errors.CodedError) *errors.CodedError {
-	const why = "an expression reads the member values row by row; only a listwise co-moment MAT_* slot standardizes its vector"
+// exprConsumerRefusal visits every expression identifier of the slots
+// exprReferenced scans (a FILTER_EXPRESSION in Request.Filterers or a
+// vector attribute's params.fit_on, an ATTR_FORMULA expression).
+func exprConsumerRefusal(req *types.Request, refuse func(name, slot string, kind consumerKind) *errors.CodedError) *errors.CodedError {
 	scan := func(src, slot string) *errors.CodedError {
 		if src == "" {
 			return nil
 		}
 		idents, _, _ := exprident.Free(src)
 		for _, id := range idents {
-			if err := refuse(id, slot, why); err != nil {
+			if err := refuse(id, slot, consumerExpr); err != nil {
 				return err
 			}
 		}

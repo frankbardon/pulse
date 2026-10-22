@@ -128,6 +128,9 @@ func mergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, a
 			}
 		}
 	}
+	if reason := matrixTotalMemberRefusal(req, schema, ext); reason != "" {
+		return reason
+	}
 	var totals []bool // ParallelTotals, computed on the first total() formula
 	for i, attr := range req.Attributes {
 		if attr == nil {
@@ -239,6 +242,32 @@ func mergeRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, a
 	return ""
 }
 
+// matrixTotalMemberRefusal keeps a matrix that reads a total()-derived
+// attribute as a computed member (vectors.MatrixComputedMembers) off the
+// parallel reducers: the member is two-pass (the cohort total precedes
+// the row), so its matrix folds on the buffered serial path — the one
+// route materialize-then-fit takes. "" when no matrix reads one.
+func matrixTotalMemberRefusal(req *types.Request, schema *encoding.Schema, ext Extensions) string {
+	if len(req.Matrices) == 0 || len(req.Attributes) == 0 {
+		return ""
+	}
+	members := vectors.MatrixComputedMembers(req, schema)
+	if len(members) == 0 {
+		return ""
+	}
+	_, tainted := totalLayers(req, ext)
+	if tainted == nil {
+		return ""
+	}
+	comp := vectors.ComputedColumns(req, schema)
+	for _, m := range members {
+		if c := comp[m]; c.Slot == "attribute" && tainted[c.Index] {
+			return fmt.Sprintf("a matrix reads computed member %s, which a two-pass attribute computes", m)
+		}
+	}
+	return ""
+}
+
 // ChainRefusal is the v1 ProcessChain stage gate: nil when req passes
 // MergeRefusal — with every total-bearing ATTR_FORMULA refused as
 // not row-local, since a chain stage has no two-phase total() runtime
@@ -301,21 +330,29 @@ func ChainRefusal(req *types.Request, schema *encoding.Schema, ext Extensions, s
 // planner would put in a later layer. Every other slot reports false.
 // nil ext is None.
 func ParallelTotals(req *types.Request, ext Extensions) []bool {
+	out, _ := totalLayers(req, ext)
+	return out
+}
+
+// totalLayers is ParallelTotals plus, per slot, whether its output
+// depends on a published total (a total() formula, or a slot reading
+// one through earlier slots) — nil when the request is grouped.
+func totalLayers(req *types.Request, ext Extensions) (admit, tainted []bool) {
 	if ext == nil {
 		ext = None{}
 	}
 	if req == nil {
-		return nil
+		return nil, nil
 	}
 	n := len(req.Attributes)
 	out := make([]bool, n)
 	if len(req.Groups) > 0 || req.Crosstab != nil {
-		return out
+		return out, nil
 	}
 	labels := make([]string, n)
 	for i, a := range req.Attributes {
 		if a == nil {
-			return out
+			return out, nil
 		}
 		labels[i] = a.Label
 		if labels[i] == "" {
@@ -324,7 +361,7 @@ func ParallelTotals(req *types.Request, ext Extensions) []bool {
 	}
 	// tainted[j]: slot j's output depends on a published total (it is a
 	// total() formula, or reads one through earlier slots).
-	tainted := make([]bool, n)
+	tainted = make([]bool, n)
 	for i, a := range req.Attributes {
 		_, extension := ext.Attribute(string(a.Type))
 		isTotal := !extension && a.Type == types.ATTR_FORMULA && totalcall.Contains(a.Expression)
@@ -347,7 +384,7 @@ func ParallelTotals(req *types.Request, ext Extensions) []bool {
 		tainted[i] = isTotal || reads
 		out[i] = isTotal && !reads
 	}
-	return out
+	return out, tainted
 }
 
 // CrosstabStageReason is ChainRefusal's reason for a stage carrying

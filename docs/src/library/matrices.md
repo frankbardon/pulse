@@ -38,6 +38,21 @@ slot or expression (formula, expression filter, `total()` argument)
 names warns `PULSE_VECTOR_UNREFERENCED`. `Pulse.Predict` echoes the resolved members
 as `resolved_vectors`.
 
+A literal member may also name a column the same request computes: a
+feature output, an attribute label or — when windows run over the record
+rows (no groups, aggregations or crosstab) — a window label, e.g. an
+`ATTR_FORMULA` imputation. The matrix reads the value the request writes
+on each record, so the result is byte-identical to materializing the
+column first (`Pulse.Materialize`) and fitting over it: a null computed
+value drops the row listwise, a two-pass attribute among the members
+(`ATTR_ZSCORE`, a `total()` formula) runs the request buffered and serial,
+and `standardize` z-scores the computed values like any member. Globs and
+`pattern` match schema fields only. Only a `MAT_*` reads such a vector: a
+test, attribute, grouper or aggregation `vector`, an expression and a
+`MAT_DISTANCE` `params.between.vector` refuse it with
+`PULSE_VECTOR_INVALID` (`reason` `computed_member_unsupported`, `slot`,
+`member`).
+
 `standardize: "zscore"` z-scores every member with its population SD
 (divisor Σw, n unweighted; frequency weights respected) over the rows
 the matrix keeps after its listwise drop — per result on a grouped

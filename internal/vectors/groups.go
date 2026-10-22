@@ -145,7 +145,7 @@ func ResolveGroups(req *types.Request, schema *encoding.Schema, route func(types
 	if route == nil {
 		route = func(t types.GroupType) types.GroupType { return t }
 	}
-	resolved, verr := Resolve(req.Vectors, schema)
+	resolved, verr := ResolveRequest(req, schema)
 	if verr != nil {
 		return nil, verr
 	}

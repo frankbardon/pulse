@@ -122,7 +122,7 @@ func (w *fieldRefWalk) initCompile(req *types.Request, schema *encoding.Schema) 
 			c.vecNames[v.Name] = true
 		}
 	}
-	vecs, err := vectors.Resolve(req.Vectors, schema)
+	vecs, err := vectors.ResolveRequest(req, schema)
 	c.vecs, c.vecsFailed = vecs, err != nil
 	c.bound = exprenv.Bound{Coef: exprenv.Placeholder}
 	if w.snap != nil {

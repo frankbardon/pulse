@@ -830,12 +830,16 @@ func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, o MatrixRe
 	if req == nil {
 		return nil, nil
 	}
-	resolved, verr := Resolve(req.Vectors, schema)
+	computed := ComputedColumns(req, schema)
+	resolved, verr := resolveIn(req.Vectors, schema, computed)
 	if verr != nil {
 		return nil, verr
 	}
 	if serr := StandardizeRefusal(req); serr != nil {
 		return nil, serr
+	}
+	if cerr := ComputedRefusal(req, resolved); cerr != nil {
+		return nil, cerr
 	}
 	if len(req.Matrices) == 0 {
 		return nil, nil
@@ -922,7 +926,7 @@ func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, o MatrixRe
 				return nil, err
 			}
 		} else {
-			r, err := ResolveSpec(at+".fields", types.VectorSpec{Name: name, Fields: spec.Fields}, schema)
+			r, err := resolveSpec(at+".fields", types.VectorSpec{Name: name, Fields: spec.Fields}, schema, computed)
 			if err != nil {
 				return nil, err
 			}
@@ -937,7 +941,7 @@ func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, o MatrixRe
 				return nil, err
 			}
 		}
-		if err := resolveControls(at, schema, &m); err != nil {
+		if err := resolveControls(at, schema, computed, &m); err != nil {
 			return nil, err
 		}
 		if err := resolveReliability(at, spec, &m); err != nil {
@@ -1207,16 +1211,19 @@ func acceptsMembers(at string, op types.MatrixType, accepts []encoding.FieldType
 		if r.Refs != nil {
 			field = r.Refs[i].Field
 		}
-		f := schema.Field(field)
-		if f == nil {
-			continue // unreachable: members come from the schema
-		}
-		ft := f.Type
-		if ft.IsVector() {
-			ft = encoding.FieldTypeF64
-			if f.Type.VectorElemSize() == 4 {
-				ft = encoding.FieldTypeF32
+		var ft encoding.FieldType
+		if f := schema.Field(field); f != nil {
+			ft = f.Type
+			if ft.IsVector() {
+				ft = encoding.FieldTypeF64
+				if f.Type.VectorElemSize() == 4 {
+					ft = encoding.FieldTypeF32
+				}
 			}
+		} else if slices.Contains(r.Computed, name) {
+			ft = encoding.FieldTypeF64 // a computed column is a nullable f64
+		} else {
+			continue // unreachable: members come from the schema or computed
 		}
 		if slices.Contains(accepts, ft) {
 			continue
@@ -1768,7 +1775,7 @@ func controlSlot(err *errors.CodedError, at string, controls, outside []string) 
 // "matrices[i].params.control": the field-reference and member-type
 // refusals) and joins the fold as Extra. At least one member must stay
 // on the output axis.
-func resolveControls(at string, schema *encoding.Schema, m *Matrix) *errors.CodedError {
+func resolveControls(at string, schema *encoding.Schema, computed Computed, m *Matrix) *errors.CodedError {
 	if m.Controls == nil {
 		return nil
 	}
@@ -1789,7 +1796,7 @@ func resolveControls(at string, schema *encoding.Schema, m *Matrix) *errors.Code
 		}
 	}
 	if len(outside) > 0 {
-		r, err := ResolveSpec(at+".params.control", types.VectorSpec{Name: m.Name, Fields: outside}, schema)
+		r, err := resolveSpec(at+".params.control", types.VectorSpec{Name: m.Name, Fields: outside}, schema, computed)
 		if err != nil {
 			return controlSlot(err, at, m.Controls, outside)
 		}
@@ -1940,9 +1947,10 @@ func MatrixMembers(req *types.Request, schema *encoding.Schema) (members []strin
 		return nil, true
 	}
 	ok = true
+	computed := ComputedColumns(req, schema)
 	for i, spec := range req.Matrices {
 		if spec.Type == types.MAT_PARTIAL_CORRELATION {
-			members, ok = appendControlFields(members, ok, matrixPath(i), spec, schema)
+			members, ok = appendControlFields(members, ok, matrixPath(i), spec, schema, computed)
 		}
 		if spec.Type == types.MAT_DISTANCE {
 			members, ok = appendBetweenFields(members, ok, matrixPath(i), spec, schema)
@@ -1950,7 +1958,7 @@ func MatrixMembers(req *types.Request, schema *encoding.Schema) (members []strin
 		if spec.Vector != "" || len(spec.Fields) == 0 {
 			continue // vector members ride Members(req.Vectors)
 		}
-		r, err := ResolveSpec(matrixPath(i)+".fields", types.VectorSpec{Name: spec.EffectiveName(), Fields: spec.Fields}, schema)
+		r, err := resolveSpec(matrixPath(i)+".fields", types.VectorSpec{Name: spec.EffectiveName(), Fields: spec.Fields}, schema, computed)
 		if err != nil {
 			ok = false
 			continue
@@ -1964,7 +1972,7 @@ func MatrixMembers(req *types.Request, schema *encoding.Schema) (members []strin
 // in the schema (a member repeated here is harmless: projection
 // de-duplicates); a malformed control, or one the schema lacks, clears
 // ok.
-func appendControlFields(members []string, ok bool, at string, spec types.MatrixSpec, schema *encoding.Schema) ([]string, bool) {
+func appendControlFields(members []string, ok bool, at string, spec types.MatrixSpec, schema *encoding.Schema, computed Computed) ([]string, bool) {
 	var p struct {
 		Control json.RawMessage `json:"control"`
 	}
@@ -1976,6 +1984,9 @@ func appendControlFields(members []string, ok bool, at string, spec types.Matrix
 		return members, false
 	}
 	for _, c := range controls {
+		if _, isComputed := computed[c]; isComputed && (schema == nil || schema.Field(c) == nil) {
+			continue // a computed control decodes its producer's inputs
+		}
 		if schema == nil || schema.Field(c) == nil {
 			ok = false
 			continue

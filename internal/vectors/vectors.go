@@ -26,6 +26,8 @@
 //   - Exactly one of Fields and Pattern is set.
 //   - A Fields entry without a glob metacharacter (`*`, `?`, `[`) is a
 //     literal member and keeps its position (caller order is axis order);
+//     under ResolveRequest a literal may also name a column the request
+//     computes (computed.go: a feature, attribute or window output);
 //     a glob entry expands in place to every matching schema field, in
 //     schema order (path.Match semantics, whole-name). Pattern is a Go
 //     regular expression (unanchored) whose matches are taken in schema
@@ -93,6 +95,12 @@ type Resolved struct {
 	// member is an element of a native vector field; nil when every
 	// member is a scalar column (Ref reads Members then).
 	Refs []MemberRef
+	// Computed lists, in axis order, the members that are columns the
+	// request computes (ComputedColumns: a feature output, attribute or
+	// window label) rather than schema fields; nil when none (the
+	// computed-free shape, byte-identical). Only a MAT_* slot reads such
+	// a vector (ComputedRefusal).
+	Computed []string
 }
 
 // Resolve resolves every spec in specs against schema, in order. It
@@ -101,6 +109,12 @@ type Resolved struct {
 // (Find) accepts a native field named directly — or the first refusal.
 // A nil / empty specs over a vector-free schema resolves to nil, nil.
 func Resolve(specs []types.VectorSpec, schema *encoding.Schema) ([]Resolved, *errors.CodedError) {
+	return resolveIn(specs, schema, nil)
+}
+
+// resolveIn is Resolve with computed admitted as literal members (nil:
+// schema fields only).
+func resolveIn(specs []types.VectorSpec, schema *encoding.Schema, computed Computed) ([]Resolved, *errors.CodedError) {
 	natives := Natives(schema)
 	if len(specs) == 0 {
 		return natives, nil
@@ -129,7 +143,7 @@ func Resolve(specs []types.VectorSpec, schema *encoding.Schema) ([]Resolved, *er
 				"vector name "+strconv.Quote(spec.Name)+" ("+at+") is also a schema field's name; an expression could not tell the two apart",
 				map[string]any{"vector": at, "name": spec.Name, "field": spec.Name})
 		}
-		r, err := ResolveSpec(at, spec, schema)
+		r, err := resolveSpec(at, spec, schema, computed)
 		if err != nil {
 			return nil, err
 		}
@@ -143,6 +157,12 @@ func Resolve(specs []types.VectorSpec, schema *encoding.Schema) ([]Resolved, *er
 // and lands in every refusal's details under "vector". Duplicate NAMES
 // are Resolve's concern, not this function's.
 func ResolveSpec(at string, spec types.VectorSpec, schema *encoding.Schema) (Resolved, *errors.CodedError) {
+	return resolveSpec(at, spec, schema, nil)
+}
+
+// resolveSpec is ResolveSpec with computed admitted as literal members
+// (nil: schema fields only).
+func resolveSpec(at string, spec types.VectorSpec, schema *encoding.Schema, computed Computed) (Resolved, *errors.CodedError) {
 	hasFields, hasPattern := len(spec.Fields) > 0, spec.Pattern != ""
 	switch {
 	case hasFields && hasPattern:
@@ -169,7 +189,7 @@ func ResolveSpec(at string, spec types.VectorSpec, schema *encoding.Schema) (Res
 	var x expansion
 	var err *errors.CodedError
 	if hasFields {
-		x, err = expandFields(at, spec, schema)
+		x, err = expandFields(at, spec, schema, computed)
 	} else {
 		x, err = expandPattern(at, spec, schema)
 	}
@@ -192,18 +212,22 @@ func ResolveSpec(at string, spec types.VectorSpec, schema *encoding.Schema) (Res
 		if x.refs != nil && x.refs[i].Native() {
 			continue // a native element is a float: always a member
 		}
-		f := schema.Field(m)
-		if f == nil {
-			continue // unreachable: members come from the schema
+		var ft encoding.FieldType
+		if f := schema.Field(m); f != nil {
+			ft = f.Type
+		} else if c, ok := computed[m]; ok {
+			ft = c.Type
+		} else {
+			continue // unreachable: members come from the schema or computed
 		}
-		if !MemberTypeAllowed(f.Type, spec.Coerce) {
+		if !MemberTypeAllowed(ft, spec.Coerce) {
 			msg := "vector " + describe(at, spec.Name) + " member " + strconv.Quote(m) +
-				" has type " + f.Type.String() + ", which a vector cannot carry"
-			if f.Type == encoding.FieldTypePackedBool {
+				" has type " + ft.String() + ", which a vector cannot carry"
+			if ft == encoding.FieldTypePackedBool {
 				msg += " without coerce \"binary\""
 			}
 			return Resolved{}, errors.NewCodedErrorWithDetails(errors.PULSE_VECTOR_MEMBER_TYPE, msg,
-				map[string]any{"vector": at, "name": spec.Name, "field": m, "field_type": f.Type.String()})
+				map[string]any{"vector": at, "name": spec.Name, "field": m, "field_type": ft.String()})
 		}
 	}
 
@@ -229,6 +253,7 @@ func ResolveSpec(at string, spec types.VectorSpec, schema *encoding.Schema) (Res
 		Refs:    x.refs,
 
 		Standardize: spec.Standardize,
+		Computed:    x.computed,
 	}
 	if spec.ScaleMin != nil {
 		r.HasScale, r.ScaleMin, r.ScaleMax = true, *spec.ScaleMin, *spec.ScaleMax
@@ -434,8 +459,9 @@ func Members(req *types.Request, schema *encoding.Schema) (members []string, ok 
 		return nil, true
 	}
 	ok = true
+	computed := ComputedColumns(req, schema)
 	for i, spec := range req.Vectors {
-		r, err := ResolveSpec(slotPath(i), spec, schema)
+		r, err := resolveSpec(slotPath(i), spec, schema, computed)
 		if err != nil {
 			ok = false
 			continue
@@ -458,7 +484,7 @@ func Normalize(req *types.Request, schema *encoding.Schema) *types.Request {
 	if req == nil || len(req.Vectors) == 0 {
 		return req
 	}
-	resolved, err := Resolve(req.Vectors, schema)
+	resolved, err := ResolveRequest(req, schema)
 	if err != nil {
 		return req
 	}
@@ -483,6 +509,8 @@ type expansion struct {
 	members  []string
 	refs     []MemberRef
 	seen     map[string]bool
+	// computed are the members that name a computed column, in order.
+	computed []string
 }
 
 // add appends one member, refusing a repeat.
@@ -541,7 +569,7 @@ func (x *expansion) defaultLabels(schema *encoding.Schema) []string {
 // expandFields expands a Fields list: literals in place, globs in schema
 // order at their position, a native vector field to its elements, an
 // element member ("f[k]") to that one element.
-func expandFields(at string, spec types.VectorSpec, schema *encoding.Schema) (expansion, *errors.CodedError) {
+func expandFields(at string, spec types.VectorSpec, schema *encoding.Schema, computed Computed) (expansion, *errors.CodedError) {
 	x := expansion{at: at, name: spec.Name}
 	for j, entry := range spec.Fields {
 		entryPath := at + ".fields[" + strconv.Itoa(j) + "]"
@@ -560,6 +588,15 @@ func expandFields(at string, spec types.VectorSpec, schema *encoding.Schema) (ex
 		// expanded element columns ("m[b1]"), and the runtime's slot
 		// rewrite hands the resolved member names back as entries.
 		if !isGlob(entry) || (schema != nil && schema.Field(entry) != nil) {
+			if _, ok := computed[entry]; ok && (schema == nil || schema.Field(entry) == nil) {
+				// A literal naming a column the request computes: read
+				// off the record like a scalar member.
+				if err := x.add(entry, MemberRef{Field: entry, Element: -1}); err != nil {
+					return expansion{}, err
+				}
+				x.computed = append(x.computed, entry)
+				continue
+			}
 			if schema == nil || schema.Field(entry) == nil {
 				return expansion{}, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 					"vector references unknown field: "+entry,

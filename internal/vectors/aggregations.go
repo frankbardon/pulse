@@ -413,7 +413,7 @@ func ResolveAggregations(req *types.Request, schema *encoding.Schema, kinds Aggr
 		return nil, nil
 	}
 	slots := AggregationSlots(req)
-	resolved, verr := Resolve(req.Vectors, schema)
+	resolved, verr := ResolveRequest(req, schema)
 	if verr != nil {
 		return nil, verr
 	}
@@ -603,7 +603,7 @@ func AggregationOutputColumns(req *types.Request, a *types.Aggregation, schema *
 	if req != nil {
 		specs = req.Vectors
 	}
-	resolved, verr := Resolve(specs, schema)
+	resolved, verr := ResolveRequest(req, schema)
 	if verr != nil || schema == nil {
 		return []string{label}, false
 	}

@@ -14409,7 +14409,8 @@
         "A matrix result is emitted at finalize: a streamed run carries it at terminal flush only.",
         "A rectangular matrix (kind \"rectangular\", MAT_PCA's p x k loadings and eigenvectors, MAT_FACTOR's p x k loadings, MAT_COLLINEARITY's variance decomposition) has the members as rows (MAT_COLLINEARITY's uncentered decomposition leads with an \"(intercept)\" row) and its own column keys, and is always written full whatever the spec's encoding; MAT_DISTANCE's centroids are the one k x p matrix with the bucket labels as rows and the members as columns.",
         "MAT_DISTANCE's primary is square but keyed by the between grouper's bucket labels, not the members.",
-        "A request carrying matrices with joins, or a ProcessChain stage after 0 carrying matrices, is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE; matrices with a crosstab are refused with PULSE_MATRIX_HOST_CONFLICT."
+        "A request carrying matrices with joins, or a ProcessChain stage after 0 carrying matrices, is refused with PULSE_MATRIX_UNSUPPORTED_SOURCE; matrices with a crosstab are refused with PULSE_MATRIX_HOST_CONFLICT.",
+        "Vector members may name a feature, attribute or record-row window label of the request; only MAT_* reads such a vector (else computed_member_unsupported)."
       ]
     },
     "overlays": [
@@ -19509,4 +19510,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f43ea601411ffccbe06fd7fcc5b97018ae1531dfeec9fa630a0689c6256bc8bc
+// golden-hash: 80e4080fe1fb468abc2e6445b63d6a71c6b07caa704e87942e887aa60e0550ed

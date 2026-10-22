@@ -301,8 +301,9 @@ func CanStreamRequestWithExtensions(req *types.Request, schema *encoding.Schema,
 // and filterer is mergeable AND the request contains no windows, no
 // features, no regressions, no tests, no two-pass attributes (save an
 // ungrouped one-layer total() formula, which the reducers run two-phase:
-// mergegate.ParallelTotals, formula_total_merge.go), and no
-// decimal-typed built-in aggregation targets. A nil/empty aggregation
+// mergegate.ParallelTotals, formula_total_merge.go — though not when a
+// matrix reads it as a computed member), and no decimal-typed built-in
+// aggregation targets. A nil/empty aggregation
 // list returns false (nothing to merge).
 //
 // Mergeable is a strict subset of Streamable. This is the built-in-only
@@ -1865,6 +1866,13 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	if len(req.Windows) > 0 {
 		if err := p.applyWindows(ctx, data, req.Windows, keyOrders, rowWords.copyObserver()); err != nil {
 			return nil, err
+		}
+		// A window label a matrix reads as a computed member lands on
+		// its record before the sort (data[i] is filtered[i] here).
+		if recordRows {
+			if err := p.copyWindowMembers(req, filtered, data); err != nil {
+				return nil, err
+			}
 		}
 	}
 

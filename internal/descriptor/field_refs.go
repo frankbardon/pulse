@@ -133,10 +133,11 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     field or to an earlier aggregation's label is refused, since the
 //     row holds one value per name and the other figure was silently
 //     lost (not on a crosstab, whose output is its cell grid).
-//  6. vectors — Request.Vectors resolved against the schema alone
-//     (internal/vectors.Resolve): the first PULSE_VECTOR_* refusal, or
-//     the SERVICE_VALIDATION unknown-field refusal for a literal member
-//     the schema lacks; then a vector name equal to a feature output,
+//  6. vectors — Request.Vectors resolved against the schema and the
+//     request's computed columns (internal/vectors.ResolveRequest): the
+//     first PULSE_VECTOR_* refusal, or the SERVICE_VALIDATION
+//     unknown-field refusal for a literal member neither the schema nor
+//     a feature / attribute / record-row window label names; then a vector name equal to a feature output,
 //     attribute or window label of the request
 //     (PULSE_VECTOR_NAME_COLLISION — an expression would read the
 //     column, never the vector).
@@ -750,9 +751,11 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	}
 
 	// 6. Vectors — resolved against the SCHEMA the request executes
-	// over (members are source columns, never derived ones) by the one
-	// resolver internal/vectors, which projection and predict's
-	// resolved_vectors echo also call. Resolution stops at its first
+	// over by the one resolver internal/vectors, which projection and
+	// predict's resolved_vectors echo also call. A literal member may
+	// name a column the request computes (vectors.ComputedColumns: a
+	// feature output, attribute or record-row window label), which
+	// only a MAT_* slot reads (vectors.ComputedRefusal). Resolution stops at its first
 	// failure, so it contributes one refusal at most.
 	//
 	// 7. Matrices — each Request.Matrices spec resolved by the same
