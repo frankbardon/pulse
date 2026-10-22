@@ -43,4 +43,4 @@ Pair × opposite-axis two-sided p-values. `weights`: `var = m2/(Σw−1)`, `n = 
 
 ## See
 
-- Skills: `op-overlay-pairwise-two-means-z`, `op-agg-weighted-mean`, `overlay-system`.
+- Skills: `overlay-pairwise`, `op-overlay-pairwise-two-means-z`, `op-agg-weighted-mean`, `overlay-system`.

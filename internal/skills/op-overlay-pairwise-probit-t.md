@@ -9,7 +9,7 @@ applies_to: process
 examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise]
 ---
 
-Intra-matrix pairwise along one axis of the SAME crosstab: `row` scope pairs row indices per column, `column` pairs column indices per row. Sibling of the pairwise proportion z — same proportion + n inputs, probit transform instead. Overlays decorate the host; no `Response.Components` (this family READS them).
+Probit-transformed t between host slots ALONG one axis of the SAME crosstab — sibling of the pairwise proportion z: same share + n inputs, probit transform instead. Shared pairwise contract (spec, grid, letters, skips, weighted legs): `overlay-pairwise`.
 
 <!-- generated: use-when -->
 
@@ -19,19 +19,19 @@ Intra-matrix pairwise along one axis of the SAME crosstab: `row` scope pairs row
 |---|---|---|---|
 | `pair_along_dim` | int | — | Restrict pairs to same-bucket comparisons on the pair axis. |
 | `n_within_depth` | int | `0` | With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; inert otherwise. |
-| `letters` | object | — | `{}` or `{"alpha": a}`, `0 < a < 1` (else `PULSE_OVERLAY_PARAM_MISSING`, predict and runtime): adds the `letters` part. |
-| `n_source` | enum | — | Where each leg's sample size is read (default cell_n_unweighted). |
-| `p_source` | enum | — | How each leg's proportion is derived (default cell_value on a normalized host, else cell_value_pct; cell_value_pct on a normalized host is refused, and so is the omitted default on an unnormalized host whose built-in cell is not a count or sum — a mean cell … |
+| `letters` | object | — | `{}` or `{"alpha": a}`, `0 < a < 1`: adds the `letters` part. |
+| `n_source` | enum | — | Where each leg's n is read; omitted = the cell's base (the normalise denominator on a normalised host; weighted, its N*). |
+| `p_source` | enum | — | How each leg's share is read; omitted = `cell_value` on a normalised host, else `cell_value_pct`. |
 
-`Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.n_source` (omitted: the cell's base — the normalise denominator on a normalised host, its N* when weighted), `params.n_within_depth` and `params.p_source` (default `cell_value` on a normalised host, else `cell_value_pct`; omitted over an unnormalised mean / non-count cell → `PULSE_OVERLAY_PARAM_MISSING`) are the family-wide vocabulary, identical to `op-overlay-pairwise-prop-z`: `pairwise-n-sources`.
+`Scope` (required) — `row` or `column`. `Ref` empty. n and share vocabulary, identical to the pairwise proportion z: `pairwise-n-sources`.
 
 ## Host shape
 
-MATRIX crosstab + `Response.Components.Crosstab`. Components-disabled host (options or request) → `PULSE_OVERLAY_COMPONENTS_REQUIRED`, predict and runtime.
+MATRIX crosstab + `Response.Components.Crosstab` (components off → `PULSE_OVERLAY_COMPONENTS_REQUIRED`, predict and runtime). A code cell is refused (`overlay-pairwise`).
 
 ## Output
 
-MATRIX — pair × opposite-axis grid of two-sided p-values, layout identical to `op-overlay-pairwise-prop-z`. Per pair: `t = (Φ⁻¹(p_i) - Φ⁻¹(p_j)) / sqrt(1/n_i + 1/n_j)` against Student-t with `df = n_i + n_j - 2`, two-sided; proportions clipped to `[1e-10, 1-1e-10]` before Φ⁻¹. A design formula (market-research convention), pinned as is to R computing it at 1e-10: the `sqrt(1/n_i + 1/n_j)` standard error is not a probit share's real spread and no stock test computes it, so read the p as a convention, not a calibrated test. `payload.parts.letters` (with `params.letters`): per host cell `{letter, group, higher, above}` — `higher` from the sign of `t`, `above` its significant subset — as `op-overlay-pairwise-prop-z` describes.
+MATRIX — pair × opposite-axis grid of two-sided p-values (layout: `overlay-pairwise`). Per pair: `t = (Φ⁻¹(p_i) - Φ⁻¹(p_j)) / sqrt(1/n_i + 1/n_j)` against Student-t with `df = n_i + n_j - 2`; proportions clipped to `[1e-10, 1-1e-10]` before Φ⁻¹. A design formula (market-research convention), pinned as is to R at 1e-10: the `sqrt(1/n_i + 1/n_j)` SE is not a probit share's real spread and no stock test computes it, so read the p as a convention, not a calibrated test. `letters`: `higher` from the sign of `t`.
 
 <!-- generated: reading-the-output -->
 
@@ -39,16 +39,11 @@ MATRIX — pair × opposite-axis grid of two-sided p-values, layout identical to
 
 ## Gotchas
 
-- An undefined (NaN) host cell is MISSING: its pairs skip as an absent cell's do (`PULSE_STATS_SKIP_EXTRACT_FAILED`).
 - `df <= 0` (n_i + n_j <= 2) or a non-finite t skips the pair (aggregated `PULSE_OVERLAY_REF_ZERO`).
-- The primary stays RAW p-values; direction and significance ride `letters` only when asked; min-n is the embedder's job.
-- `p_source` mismatch empties the layer: a leg outside `[0,1]` (`cell_value` over a raw count or a 0..100 percentage) skips every pair (`PULSE_OVERLAY_REF_ZERO`, reason `PULSE_STATS_SKIP_PROPORTION_INVALID`) — never clipped. Normalize a count cell first.
-- **Distinct-KEY n modes carry the same admission and the same slab partition refusal as on prop-Z** — distinct-key cell aggregators only, `PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED` for a fan-out grouper at a summed-across depth, margin modes never gated. Full rules: `pairwise-n-sources`.
-- Flagged buffered in `OverlayStreamability`; the HOST crosstab still FUSES on a mergeable cell aggregator.
-<!-- feature: AGG_MODE -->
-- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
-<!-- /feature -->
+- `p_source` mismatch (a leg outside `[0,1]`) empties the layer — never clipped; normalize a count cell first.
+- Distinct-KEY n modes: the same admission and slab partition refusal as the proportion z (`pairwise-n-sources`).
+- The host crosstab still FUSES on a mergeable cell aggregator.
 
 ## See
 
-- Skills: `overlay-system`, `pairwise-n-sources`, `crosstab-guide`, `op-overlay-pairwise-prop-z`, `op-test-t`.
+- Skills: `overlay-pairwise`, `pairwise-n-sources`, `overlay-system`, `crosstab-guide`, `op-overlay-pairwise-prop-z`, `op-test-t`.

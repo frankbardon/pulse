@@ -62,4 +62,4 @@ Pair × opposite-axis two-sided p-values. `weights`: `var = m2/(Σw−1)`, `n = 
 
 ## See
 
-- Skills: [`op-overlay-pairwise-two-means-z`](op-overlay-pairwise-two-means-z.md), [`op-agg-weighted-mean`](op-agg-weighted-mean.md), [`overlay-system`](overlay-system.md).
+- Skills: [`overlay-pairwise`](overlay-pairwise.md), [`op-overlay-pairwise-two-means-z`](op-overlay-pairwise-two-means-z.md), [`op-agg-weighted-mean`](op-agg-weighted-mean.md), [`overlay-system`](overlay-system.md).

@@ -9,7 +9,7 @@ applies_to: process
 examples_tags: [overlay, cross-tabulation, hypothesis-test, pairwise]
 ```
 
-One host-matrix slot against another ALONG one axis of the SAME crosstab — the per-Request counterpart to Compose's proportion-z panel. Overlays decorate the host; no `Response.Components` (this family READS them).
+Pooled-SE two-proportion z between host slots ALONG one axis of the SAME crosstab — the per-Request counterpart to Compose's proportion-z panel. Shared pairwise contract (spec, grid, letters, skips, weighted legs): [`overlay-pairwise`](overlay-pairwise.md).
 
 ## Use when
 
@@ -30,21 +30,19 @@ Use something else:
 |---|---|---|---|
 | `pair_along_dim` | int | — | Restrict pairs to buckets agreeing on all pair-axis dims but this one; unset = every pair. |
 | `n_within_depth` | int | `0` | With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; inert otherwise. |
-| `letters` | object | — | `{}` or `{"alpha": a}`, `0 < a < 1` (else `PULSE_OVERLAY_PARAM_MISSING`, predict and runtime): adds the `letters` part. |
-| `n_source` | enum | — | Where each leg's sample size is read (default cell_n_unweighted). |
-| `p_source` | enum | — | How each leg's proportion is derived (default cell_value on a normalized host, else cell_value_pct; cell_value_pct on a normalized host is refused, and so is the omitted default on an unnormalized host whose built-in cell is not a count or sum — a mean cell … |
+| `letters` | object | — | `{}` or `{"alpha": a}`, `0 < a < 1`: adds the `letters` part. |
+| `n_source` | enum | — | Where each leg's n is read; omitted = the cell's base (the normalise denominator on a normalised host; weighted, its N*). |
+| `p_source` | enum | — | How each leg's share is read; omitted = `cell_value` on a normalised host, else `cell_value_pct`. |
 
-`Scope` (enum, required) — `row` (pair rows per column) or `column` (pair columns per row). `Ref` (object, empty) — intra-matrix; any populated arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `params.n_source` (omitted: the cell's base — on a normalised host the denominator its share is of, as a count or, weighted, its N*), `params.n_within_depth` (default `0`) and `params.p_source` (default `cell_value` on a normalised host, else `cell_value_pct` — omitted over an unnormalised mean / non-count cell → `PULSE_OVERLAY_PARAM_MISSING`; explicit `cell_value_pct` on a normalised host → same) are the family-wide vocabulary — nine sample-size modes, three of them distinct-KEY: [`pairwise-n-sources`](pairwise-n-sources.md).
+`Scope` (required) — `row` or `column`. `Ref` empty. The nine n modes (three distinct-KEY) and the `p_source` refusals: [`pairwise-n-sources`](pairwise-n-sources.md).
 
 ## Host shape
 
-MATRIX crosstab (`Response.Crosstab.Matrix`) + `Response.Components.Crosstab`. Components-disabled host (options or request) → `PULSE_OVERLAY_COMPONENTS_REQUIRED`, predict and runtime.
+MATRIX crosstab + `Response.Components.Crosstab` (components off → `PULSE_OVERLAY_COMPONENTS_REQUIRED`, predict and runtime). The cell must be a count or a share: a code cell is refused ([`overlay-pairwise`](overlay-pairwise.md)).
 
 ## Output
 
-MATRIX (`Payload.Shape = "matrix"`). PAIR axis = one entry per evaluated `(i, j)` pair, key = the 2-tuple of the legs' labels; OPPOSITE axis echoes the host's other axis. Cell = the pair's two-sided p-value, absent when a leg is unreadable or the test degenerate. `row` scope → rows = pairs; `column` transposes.
-
-`payload.parts.letters` (with `params.letters`) — MATRIX on the HOST coordinates. A cell of a compared pair-axis index holds `{letter, group, higher, above}`: its letter (`A`, `B`, … `Z`, `AA`, in axis order, restarting per comparison group — one group, or one per `pair_along_dim` bucket), the group, the letters of same-group indexes its figure beats (the test statistic's sign) and the significant subset. Significant = raw p < `0.05` (or `alpha`, echoed as `summary.parameters.letters_alpha`); under a correction `significant_adjusted` (an explicit `alpha` compares `p_adjusted`). An index compared to nothing — the implicit Total column, a lone bucket member — has no cell. A multi-measure host letters each measure's rows.
+MATRIX — pair × opposite-axis grid of two-sided p-values; `payload.parts.letters` with `params.letters` (`higher` from the sign of z). Layout: [`overlay-pairwise`](overlay-pairwise.md).
 
 ## Reading the output
 
@@ -60,16 +58,13 @@ MATRIX (`Payload.Shape = "matrix"`). PAIR axis = one entry per evaluated `(i, j)
 
 ## Gotchas
 
-- An undefined (NaN) host cell is MISSING: its pairs skip as an absent cell's do (`PULSE_STATS_SKIP_EXTRACT_FAILED`).
-- Weighted host (both kinds, any source): p̂ = the weighted cell share (Σw_success/Σw_base); with `n_source` omitted n = the N* of that base, the cell's normalise denominator (`sum_weights` frequency, `n_eff` probability); `row_margin_n` / `column_margin_n` read a displayed margin's N*. Unweighted-count modes (and `cell_weight_sum` / `cell_value_weighted` under probability) are `PROCESSING_CONFIG` in predict AND runtime ([`pairwise-n-sources`](pairwise-n-sources.md)). `Summary.Parameters` adds `sum_weights` (+ `n_eff`).
 - Reuses `twoProportionZ` — byte-for-byte equal to every two-proportion z test and overlay on the same (success, n).
-- The primary stays RAW p-values; direction and significance ride `letters` only when asked; min-n flags are the embedder's job.
-- Degenerate pairs (n=0, pooled ∈ {0,1}, zero SE) fold into one aggregated `PULSE_OVERLAY_REF_ZERO` per reason.
-- **`p_source` mismatch empties the layer.** A leg outside `[0,1]` (`cell_value` over a raw count or a 0..100 percentage) skips EVERY pair (`PULSE_OVERLAY_REF_ZERO`, reason `PULSE_STATS_SKIP_PROPORTION_INVALID`). A count cell needs `normalize: row` (row scope) first.
-- **The three distinct-KEY n modes are admitted only on a distinct-key cell aggregator** (sum-of-distinct or distinct count) — the modal aggregators spell a `distinct_count` too, but theirs counts answer codes. `n_within_distinct` additionally refuses a fan-out grouper at a summed-across depth (`PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`, predict AND runtime); the margin modes are exact by construction and never gated. Null rules and the direct-caller bypass: [`pairwise-n-sources`](pairwise-n-sources.md).
-- Flagged buffered in `OverlayStreamability`, but the HOST crosstab still FUSES on a mergeable cell aggregator (a weighted mean included, even over a per-element set axis).
-- Reads cell values: a code cell (`AGG_MODE` over `categorical_*` / `packed_bool` — the modal dictionary index / truth value) → `PROCESSING_CONFIG`, reason `categorical_code`, `slot: "crosstab.cell"` (+ `field`, `field_type`), predict and runtime. Use a count cell.
+- Degenerate pairs (n = 0, pooled ∈ {0,1}, zero SE) fold into one aggregated `PULSE_OVERLAY_REF_ZERO` per reason.
+- `p_source` mismatch (a leg outside `[0,1]`) empties the layer; normalize a count cell first.
+- Distinct-KEY n modes need a distinct-key cell aggregator and a partitioned slab (`PULSE_OVERLAY_DISTINCT_SLAB_NOT_PARTITIONED`): [`pairwise-n-sources`](pairwise-n-sources.md).
+- Weighted host: p̂ is the weighted share, n the base's N*; unweighted-count modes are `PROCESSING_CONFIG` ([`overlay-pairwise`](overlay-pairwise.md)).
+- The host crosstab still FUSES on a mergeable cell aggregator.
 
 ## See
 
-- Skills: [`overlay-system`](overlay-system.md), [`pairwise-n-sources`](pairwise-n-sources.md), [`crosstab-guide`](crosstab-guide.md), [`op-overlay-pairwise-probit-t`](op-overlay-pairwise-probit-t.md), [`op-overlay-prop-z-cell`](op-overlay-prop-z-cell.md), [`op-test-prop-z`](op-test-prop-z.md).
+- Skills: [`overlay-pairwise`](overlay-pairwise.md), [`pairwise-n-sources`](pairwise-n-sources.md), [`overlay-system`](overlay-system.md), [`crosstab-guide`](crosstab-guide.md), [`op-overlay-pairwise-probit-t`](op-overlay-pairwise-probit-t.md), [`op-overlay-prop-z-cell`](op-overlay-prop-z-cell.md), [`op-test-prop-z`](op-test-prop-z.md).
