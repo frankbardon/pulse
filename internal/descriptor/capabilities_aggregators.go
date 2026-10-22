@@ -875,7 +875,7 @@ func vecAggCapability(op types.AggregationType, desc, emits string, own ...descr
 				Description: "Crosstab cell or margin_aggregations only: the display label of the ONE member the slot reads, making it a scalar — that element's figure (the scalar twin's: AGG_AVERAGE / AGG_SUM of the member, except an unanswered element stays this operator's NaN / 0), its floor {n, n_null} over the member's presence (so a record reaches an auxiliary margin only if its selected member reached a cell) and one-entry components. Fuses and margins like the scalar twin. Refused beside expand (element_with_expand), outside a crosstab (element_outside_crosstab), naming no member label (element_unknown) or a shared one (element_ambiguous).",
 			},
 		},
-		AcceptsTypes:    numericFieldTypesNoDecimal,
+		AcceptsTypes:    vectorMemberFieldTypes,
 		EmitsTypeNote:   emits,
 		Streamable:      true,
 		ComponentSchema: aggSchema(descriptor.Mergeable, keys...),

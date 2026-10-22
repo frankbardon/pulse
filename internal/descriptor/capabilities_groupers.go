@@ -199,7 +199,7 @@ func grouperCapabilities() []descriptor.Operator {
 				{Name: "missing", Type: "enum", Default: "listwise", EnumValues: []string{"listwise"}, Description: "Missing-data mode; only listwise (a row with any null member joins no cluster)."},
 				groupFitParam,
 			},
-			AcceptsTypes:   numericFieldTypesNoDecimal,
+			AcceptsTypes:   vectorMemberFieldTypes,
 			EmitsTypeNote:  "cluster label per row (cluster_1 .. cluster_k, by descending size)",
 			Streamable:     false,
 			StreamableHint: "k-means fits over every row before any label exists; the request runs buffered and serially under DecodeWorkers / ShardWorkers, and a crosstab falls back to the buffered arm.",

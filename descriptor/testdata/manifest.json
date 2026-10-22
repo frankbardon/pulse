@@ -2780,9 +2780,9 @@
             }
           ],
           "accepts_types": [
-            "date",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -2880,9 +2880,9 @@
             }
           ],
           "accepts_types": [
-            "date",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -2996,9 +2996,9 @@
             }
           ],
           "accepts_types": [
-            "date",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -3481,9 +3481,9 @@
             }
           ],
           "accepts_types": [
-            "date",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -3594,9 +3594,9 @@
             }
           ],
           "accepts_types": [
-            "date",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -3727,9 +3727,9 @@
             }
           ],
           "accepts_types": [
-            "date",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -3893,9 +3893,9 @@
             }
           ],
           "accepts_types": [
-            "date",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -4263,9 +4263,9 @@
             }
           ],
           "accepts_types": [
-            "date",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -4462,9 +4462,9 @@
             }
           ],
           "accepts_types": [
-            "date",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -5407,9 +5407,9 @@
             }
           ],
           "accepts_types": [
-            "date",
             "f32",
             "f64",
+            "packed_bool",
             "u16",
             "u32",
             "u4",
@@ -11545,28 +11545,19 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
-          "AGG_VEC_MEAN",
-          "AGG_VEC_SD",
-          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
           "ATTR_DATE_PART",
-          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
-          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
-          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
-          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
-          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
-          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -11583,7 +11574,6 @@
           "GROUP_CATEGORY",
           "GROUP_DATE",
           "GROUP_DATE_RANGES",
-          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -11640,18 +11630,27 @@
           "AGG_STDDEV",
           "AGG_SUM",
           "AGG_VARIANCE",
+          "AGG_VEC_MEAN",
+          "AGG_VEC_SD",
+          "AGG_VEC_SUM",
           "AGG_WEIGHTED_MEAN",
           "AGG_ZSCORE"
         ],
         "compatible_attributes": [
+          "ATTR_FACTOR_SCORE",
           "ATTR_FORMULA",
+          "ATTR_MAHALANOBIS",
           "ATTR_NORMALIZED",
+          "ATTR_PC_SCORE",
           "ATTR_PERCENTILE",
           "ATTR_PREVIOUS_STATE",
+          "ATTR_PROFILE_SIMILARITY",
           "ATTR_REG_FITTED",
           "ATTR_REG_LEVERAGE",
           "ATTR_REG_RESIDUAL",
+          "ATTR_SCALE_SCORE",
           "ATTR_TSCORE",
+          "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
         ],
         "compatible_filterers": [
@@ -11665,6 +11664,7 @@
         ],
         "compatible_groupers": [
           "GROUP_CATEGORY",
+          "GROUP_KMEANS",
           "GROUP_QUANTILE",
           "GROUP_RANGE",
           "GROUP_ROUNDED"
@@ -19455,4 +19455,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 69f1476db9789ae190636374e40f4e8e78de35aac4f3dae8825306480aaa1344
+// golden-hash: 6cdea1fc11b5f98d983d0d62ccc9e04a01b2049207a42c2e252fc619c9027cac
