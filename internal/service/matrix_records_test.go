@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -221,7 +222,8 @@ func TestMatrixRecords_RoundTripsFull(t *testing.T) {
 
 // TestMatrixRecords_Golden pins each built-in operator's records wire
 // (numbers rounded to 1e-9, so the pin is the layout, not the last
-// bits of a decomposition). Regenerate with
+// bits of a decomposition; iterative fits within recordsGoldenTol).
+// Regenerate with
 // `go test ./internal/service/ -run TestMatrixRecords_Golden -update-records-golden`.
 func TestMatrixRecords_Golden(t *testing.T) {
 	cfg := recordsCohort(t)
@@ -248,11 +250,85 @@ func TestMatrixRecords_Golden(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%v (regenerate with -update-records-golden)", err)
 			}
+			if tol, ok := recordsGoldenTol[typ]; ok {
+				for _, d := range diffRecordsWire(t, got, want, tol) {
+					t.Errorf("%s drifted from the runtime: %s", path, d)
+				}
+				return
+			}
 			if !bytes.Equal(got, want) {
 				t.Errorf("%s drifted from the runtime:\n%s", path, got)
 			}
 		})
 	}
+}
+
+// recordsGoldenTol: operators whose numbers come from an iterative fit
+// compare numbers within a tolerance instead of byte for byte. The SLSQP
+// stop of MAT_SEM moves with floating-point contraction (Go fuses
+// multiply-add on arm64, not on amd64), so its figures differ across
+// architectures by up to ~5e-8 (relative, or absolute below 1); 1e-6
+// leaves headroom while still catching any real change of value.
+// Everything else (keys, columns, row order, nulls, the lval / op /
+// rval / parameter / free fields, encoding, kind) stays exact. The
+// closed-form operators are stable across architectures at the golden's
+// 1e-9 rounding and stay byte-exact.
+var recordsGoldenTol = map[types.MatrixType]float64{
+	types.MAT_SEM: 1e-6,
+}
+
+// diffRecordsWire compares two normalized wires: structure and every
+// non-number exactly, numbers to |got-want| <= tol*max(1, |want|).
+func diffRecordsWire(t *testing.T, got, want []byte, tol float64) []string {
+	t.Helper()
+	var g, w any
+	if err := json.Unmarshal(got, &g); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(want, &w); err != nil {
+		t.Fatal(err)
+	}
+	var diffs []string
+	var walk func(path string, g, w any)
+	walk = func(path string, g, w any) {
+		switch w := w.(type) {
+		case float64:
+			gf, ok := g.(float64)
+			if !ok || math.Abs(gf-w) > tol*math.Max(1, math.Abs(w)) {
+				diffs = append(diffs, fmt.Sprintf("%s = %v, want %v", path, g, w))
+			}
+		case []any:
+			ga, ok := g.([]any)
+			if !ok || len(ga) != len(w) {
+				diffs = append(diffs, fmt.Sprintf("%s = %v, want %v", path, g, w))
+				return
+			}
+			for i := range w {
+				walk(fmt.Sprintf("%s[%d]", path, i), ga[i], w[i])
+			}
+		case map[string]any:
+			gm, ok := g.(map[string]any)
+			if !ok || len(gm) != len(w) {
+				diffs = append(diffs, fmt.Sprintf("%s = %v, want %v", path, g, w))
+				return
+			}
+			for k, wv := range w {
+				gv, ok := gm[k]
+				if !ok {
+					diffs = append(diffs, fmt.Sprintf("%s.%s missing", path, k))
+					continue
+				}
+				walk(path+"."+k, gv, wv)
+			}
+		default:
+			if !reflect.DeepEqual(g, w) {
+				diffs = append(diffs, fmt.Sprintf("%s = %v, want %v", path, g, w))
+			}
+		}
+	}
+	walk("", g, w)
+	sort.Strings(diffs)
+	return diffs
 }
 
 // normalizeRecordsWire re-encodes wire indented with every number
