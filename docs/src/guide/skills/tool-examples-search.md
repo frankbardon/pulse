@@ -9,11 +9,11 @@ applies_to: mcp
 ## When to use
 
 CALL BEFORE AUTHORING A REQUEST.
-Find a runnable template that matches the user's question; clone its body via `pulse_examples_get` and rename fields for the target cohort. The shipped examples are curated, runnable, and stay in lockstep with the operator surface — prefer them over inferring request shapes from documentation or source code. The library is this server's own: shipped examples plus any the embedder registered (validated at startup, not curated by Pulse), minus any that use a feature this server hides.
+Find a runnable template matching the question; clone its body via `pulse_examples_get` and rename fields for the target cohort. Examples are runnable and in lockstep with the operators — prefer them over inferring request shapes. The library is this server's own: shipped examples plus any the embedder registered, minus any using a feature this server hides.
 
 ## Input
 
-- `query` (string, optional): plain words. One word is a case-insensitive substring of name, description or operators. Several words must each match a whole word (lower-cased, no stemming) of name, description, operators, intents or tags. An operator alias (`anova`, `chisq.test`, `pearson`) or a phrase from an intent's sounds (`move together`) also finds that operator's or intent's examples when nothing matches literally. Last, a misspelt word still matches a near-miss word (`regon` → `region`): one edit for 4–7 letters, two for 8+; a word of 3 letters or fewer must be exact.
+- `query` (string, optional): plain words. One word is a case-insensitive substring of name, description or operators; several must each match a whole word (no stemming) of name, description, operators, intents or tags. Fallbacks, in order: an operator alias (`anova`, `pearson`) or intent phrase (`move together`); then a near-miss spelling (`regon` → `region`; one edit at 4–7 letters, two at 8+, exact at ≤3).
 - `intent` (string, optional): an intent-taxonomy ID (`compare_groups`, `relationship`, …); results must declare it. Unknown: `PULSE_RECOMMEND_INTENT_UNKNOWN`, `details.valid` lists the IDs.
 - `tags` (string[], optional): ANDed list of canonical taxonomy tags (e.g. `time-series`, `experiment-analysis`, `tier-1-test`, `regression`, `ols`, `logistic`).
 - `category` (string, optional): exact directory — `aggregations`, `attributes`, `compose`, `crosstab`, `facet`, `features`, `filterers`, `groupers`, `matrices`, `overlays`, `regression`, `tests`, `windows`.
@@ -26,12 +26,10 @@ Find a runnable template that matches the user's question; clone its body via `p
 
 - Tags are ANDed, not ORed. Two tags → results carrying both.
 - `category` is an exact directory match, not a substring.
-- Literal matches win: synonyms are consulted only when no example matches the words themselves, near-miss spellings only when no synonym does.
-- A deployment may add examples for its own operators, under its own categories; they search, read and prune exactly like the built-in ones. The `pulse examples search` CLI leaf reads the built-in library only.
+- Literal matches win over aliases, aliases over near-misses.
+- Embedder examples (own categories too) search and prune like built-ins; the `pulse examples search` CLI leaf reads the built-in library only.
 - The summary does NOT include the runnable body; you MUST follow up with `pulse_examples_get`.
 
 ## See
 
-- [`tool-examples-get`](tool-examples-get.md) — fetch runnable body for one named example.
-- [`session-bootstrap`](session-bootstrap.md) — example-library role in the request-authoring workflow.
-- [`tool-manifest`](tool-manifest.md) — operator catalog companion.
+- [`tool-examples-get`](tool-examples-get.md) (the runnable body), [`session-bootstrap`](session-bootstrap.md) (the authoring workflow), [`tool-manifest`](tool-manifest.md).

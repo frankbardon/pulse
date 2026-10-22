@@ -9,7 +9,7 @@ applies_to: compose, process, mcp
 ## When to use
 
 CALL TO RUN SEVERAL REQUESTS IN ONE ROUND-TRIP.
-Distinct `types.Request` payloads against the same or different cohorts: ecological regression (slot 1 aggregates, slot 2 regresses over aggregates) or any multi-question loop that would otherwise take N round-trips.
+Distinct `types.Request` payloads against the same or different cohorts: ecological regression (slot 1 aggregates, slot 2 regresses over them) or any loop that would take N round-trips.
 
 ## Input
 
@@ -20,20 +20,17 @@ Distinct `types.Request` payloads against the same or different cohorts: ecologi
 `descriptor.Envelope` (`format_version: "1.1"`) wrapping a `pulse.ComposedResponse` on `data`:
 
 - `data.responses[]` — full `Response` per slot in input order; each carries its slot's final `label` (caller's or `request_<n>`) plus its own `Data`, `Metadata`, `Components`, per-Request `Overlays`.
-- `data.overlays[]` — `OverlayLayer` per Compose `overlays[i]` spec via `internal/service/compose_overlay.go`. Omitted when no Compose overlays declared.
-- `data.overlays[i].warnings[]` — per-layer `OverlayWarning{code, message, details}` diagnostics (cohesion, missing coordinates, panel overflow). Omitted when empty, so overlay-free Compose stays byte-identical (`TestComposedResponse_OverlayFreeByteIdentical`).
+- `data.overlays[]` — one `OverlayLayer` per Compose `overlays[i]` spec; omitted when none is declared.
+- `data.overlays[i].warnings[]` — per-layer `OverlayWarning{code, message, details}` (cohesion, missing coordinates, panel overflow); omitted when empty, so overlay-free Compose stays byte-identical.
 - `data.banner` — the stitched banner tables (column blocks, per-block letters); omitted without a banner.
 - `data.warnings[]` — batch-level diagnostics no slot owns (a fit save's overwrite, `details.fit`); omitted when empty.
 
 ## Gotchas
 
-- Compose-overlay multi-slot probes use byte-equal schema match by default. Enable `OverlaySpec.Options.DictPrefixFast` when slots share dictionary-prefix-equal categoricals.
+- Compose overlays match slot schemas byte-equal by default; `OverlaySpec.Options.DictPrefixFast` accepts dictionary-prefix-equal categoricals.
 - Panel overlays cap Targets at `MaxPanelTargets` (default 16); overflow → `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`.
 - Per-slot errors surface in that slot's envelope; Compose still returns unless `FailFast: true`.
 
 ## See
 
-- [`compose-requests`](compose-requests.md) — multi-slot patterns, parallel knobs, overlay fold.
-- [`response-components`](response-components.md) — emitted per slot.
-- [`overlay-system`](overlay-system.md) — Compose-level overlay kinds.
-- [`compose-sweeps`](compose-sweeps.md) / [`compose-fits`](compose-fits.md) / [`compose-banner`](compose-banner.md) — the `sweep`, `fits` and `banner` expansions.
+- [`compose-requests`](compose-requests.md) (slots, parallel knobs, the overlay fold), [`response-components`](response-components.md), [`overlay-system`](overlay-system.md), [`compose-sweeps`](compose-sweeps.md), [`compose-fits`](compose-fits.md), [`compose-banner`](compose-banner.md).

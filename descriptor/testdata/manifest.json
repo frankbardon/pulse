@@ -12273,6 +12273,14 @@
         "description": "Grouper slot semantics — multi-grouper composition (key product), fused crosstab eligibility, Group.Include inclusion-list, smart defaults per field type. Topical design; per-GROUP detail lives in atomic op-group-* skills."
       },
       {
+        "name": "import-schema-rows",
+        "description": "Importing a tabular source — an explicit schema matched by column name and its refusal codes, what inference decides (float width, nullability, widths, blank cells), zero-row and partial row failures, format dispatch, compressed and .pulse sources, and the one JSON casing. Topical design; the managed-import tool's own arguments in its atomic skill."
+      },
+      {
+        "name": "import-source-zones",
+        "description": "Importing naive datetimes recorded in a local zone — source_tz, per-column and per-row (source_tz_field) zones, the DST gap / overlap policy, which native Arrow, Parquet and SPSS timestamps move, the dropped-row and zone warnings, and why a managed handle is re-imported to change zone. Topical design; request-time zones in time-zones."
+      },
+      {
         "name": "intents",
         "description": "The closed intent taxonomy: the kinds of question an analysis answers, how each sounds, and the field shapes it fits. Use to map a user's question to an intent ID."
       },
@@ -19501,4 +19509,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c5a13596f930aeddd5d9d765e5bf7f9a34ef3d7d9515841173146ce64134caab
+// golden-hash: f43ea601411ffccbe06fd7fcc5b97018ae1531dfeec9fa630a0689c6256bc8bc

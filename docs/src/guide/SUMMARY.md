@@ -60,6 +60,8 @@
     - [formula-totals](skills/formula-totals.md)
     - [glossary](skills/glossary.md)
     - [grouper-design](skills/grouper-design.md)
+    - [import-schema-rows](skills/import-schema-rows.md)
+    - [import-source-zones](skills/import-source-zones.md)
     - [intents](skills/intents.md)
     - [item-fan-out](skills/item-fan-out.md)
     - [join-design](skills/join-design.md)

@@ -72,6 +72,8 @@
     - [formula-totals](guide/skills/formula-totals.md)
     - [glossary](guide/skills/glossary.md)
     - [grouper-design](guide/skills/grouper-design.md)
+    - [import-schema-rows](guide/skills/import-schema-rows.md)
+    - [import-source-zones](guide/skills/import-source-zones.md)
     - [intents](guide/skills/intents.md)
     - [item-fan-out](guide/skills/item-fan-out.md)
     - [join-design](guide/skills/join-design.md)

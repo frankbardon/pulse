@@ -38,7 +38,4 @@ Get ranked drafts instead of JSON built from memory. CLI twin: `pulse recommend 
 
 ## See
 
-- `intents` — every intent ID and its field shapes.
-- `tool-predict` — re-check a draft after filling placeholders.
-- `tool-materialize` — the first of a draft's steps.
-- `session-bootstrap` — where recommend sits in a session.
+- `intents` (every intent ID and its field shapes), `tool-predict` (re-check a filled draft), `tool-materialize` (a draft's first step), `session-bootstrap`.
