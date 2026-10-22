@@ -30,14 +30,17 @@ import (
 // vectors.parameter (each row's parameter name: an auto "_bN" / "_cN"
 // or the model's label) and vectors.free; scalars semScalarKeys.
 //
-// An undefined input (fewer than 2 rows, no mass, a zero-spread or
-// non-finite member) nulls every figure — the co-moment warnings say
-// why. A rank-deficient S (a member a linear combination of others —
-// the one rule, singular_rule.go) refuses the matrix with
-// PULSE_MATRIX_SINGULAR by default; params.singular "nearest" instead
-// fits semopy's substitute, statsmodels' cov_nearest (sem.CovNearest),
-// with PULSE_MATRIX_NEAREST_PD — there a zero-spread member of a
-// standardized vector is all zeros and enters at unit variance. A
+// An undefined input (fewer than 2 rows, no mass, a non-finite member,
+// or a zero-spread one under params.singular "refuse") nulls every
+// figure — the co-moment warnings say why. A rank-deficient S (a member
+// a linear combination of others — the one rule, singular_rule.go) is
+// fitted as semopy's default fit fits it under params.singular
+// "nearest" (the default): raw while its Cholesky factors, else
+// semopy's substitute, statsmodels' cov_nearest (sem.CovNearest), with
+// PULSE_MATRIX_NEAREST_PD. A zero-spread member (raw, or the zeros of a
+// standardized one) has no substitute — semopy raises LinAlgError — so
+// it refuses the matrix with PULSE_MATRIX_SINGULAR. params.singular
+// "refuse" refuses every rank-deficient S with PULSE_MATRIX_SINGULAR. A
 // solver stop short of success (SLSQP's exit mode, or Fisher scoring
 // before grad_tol) keeps the last iterate with PULSE_MATRIX_NOT_CONVERGED;
 // a model with negative degrees of freedom is fitted as semopy fits it,
@@ -52,10 +55,10 @@ func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
 	p := cov.N()
 	k := len(spec.Model.Observed)
 	nearest := spec.Singular == vectors.SEMSingularNearest
-	// Under nearest a zero-spread member of a standardized vector is
-	// defined: its z-scores are all 0 (its row of S is), and it enters
-	// cov_nearest at unit variance (semNearest).
-	zeroOK := nearest && plan.Members.Standardize != ""
+	// Under nearest a zero-spread member is not an undefined input but
+	// a singular S without a substitute: cov_nearest refuses it, as
+	// semopy's raises, so the slot fails rather than nulling.
+	zeroOK := nearest
 	defined := cm.N() >= 2 && cm.W() > 0 && semJudgeable(cov, zeroOK)
 	if !defined {
 		in.semParts(&out, nil, nil, nil)
@@ -71,12 +74,13 @@ func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
 			s.SetSym(a, b, cov.At(spec.Order[a], spec.Order[b]))
 		}
 	}
-	// semopy substitutes on its Cholesky failure; the one singular rule
-	// is the wider test (a near-exact dependency whose factorization
-	// still succeeds), and either one substitutes here.
+	// semopy substitutes only when its Cholesky (load_cov's dpotrf)
+	// fails. The one singular rule is the wider test: a near-exact
+	// dependency whose factorization still succeeds is fitted raw under
+	// nearest, as semopy fits it, with no warning.
 	raw := s
-	if nearest && (singular != nil || !sem.PositiveDefinite(s)) {
-		adj, err := semNearest(s)
+	if nearest && !sem.PositiveDefinite(s) {
+		adj, err := sem.CovNearest(s, sem.NearestThreshold)
 		if err != nil {
 			return matrixOutput{}, errors.NewCodedErrorWithDetails(errors.PULSE_MATRIX_SINGULAR,
 				"matrix "+plan.Name+": no nearest positive-definite substitute: "+err.Error(),
@@ -129,28 +133,6 @@ func semJudgeable(s *linalg.Sym, zeroOK bool) bool {
 		}
 	}
 	return true
-}
-
-// semNearest is semopy's substitute for a sample covariance that is
-// not positive definite (sem.CovNearest at sem.NearestThreshold). A
-// zero diagonal entry — only admitted for a zero-spread member of a
-// standardized vector, whose row is all zeros — is raised to 1 first,
-// the unit variance of every other standardized member (statsmodels'
-// cov_nearest min_diag): semopy itself cannot fit such a member, its
-// correlation form being NaN.
-func semNearest(s *mat.SymDense) (*sem.Nearest, error) {
-	k := s.SymmetricDim()
-	in := s
-	for i := 0; i < k; i++ {
-		if s.At(i, i) == 0 {
-			if in == s {
-				in = mat.NewSymDense(k, nil)
-				in.CopySym(s)
-			}
-			in.SetSym(i, i, 1)
-		}
-	}
-	return sem.CovNearest(in, sem.NearestThreshold)
 }
 
 // semScalarKeys are MAT_SEM's scalars, in manifest order.

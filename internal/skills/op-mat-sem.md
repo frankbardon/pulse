@@ -23,7 +23,7 @@ Members = the model's observed variables, by label.
 | `ftol` | float | 1e-06 | SLSQP stop: the objective moves by less. |
 | `max_iter` | int | — | Iteration cap: 10000 slsqp, 500 fisher. |
 | `grad_tol` | float | 1e-10 | Fisher stop: every free \|gradient\| below it. |
-| `singular` | `refuse` \| `nearest` | `refuse` | `nearest`: semopy's `cov_nearest`. |
+| `singular` | `nearest` \| `refuse` | `nearest` | semopy's: `cov_nearest` if Cholesky fails. |
 | `missing` | `listwise` | `listwise` | Listwise only. |
 | `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
 | `fit` | string | — | Listwise only. |
@@ -48,7 +48,7 @@ Integer / float members.
 
 - Unused member or non-member variable: `bad_params`.
 - Default stops where semopy does.
-- Singular S: fatal `PULSE_MATRIX_SINGULAR`, or `nearest` + `PULSE_MATRIX_NEAREST_PD`.
+- S not factoring: `PULSE_MATRIX_NEAREST_PD`; constant member or `refuse`: fatal `PULSE_MATRIX_SINGULAR`.
 - Standardized fit: vector `standardize: "zscore"` (S = correlation).
 - Derived observed variable: name the request's attribute / feature label as a member.
 

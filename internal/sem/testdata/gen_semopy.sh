@@ -12,6 +12,8 @@
 # singular_model.txt (n < p); constant_data.csv is simulate.py 80 13
 # constant_model.txt with d4 overwritten by the constant 4, fitted
 # z-scored. nearest_statsmodels.json is gen_nearest.py (cov_nearest).
+# near_data.csv is gen_near_data.py (a near-exact dependency that still
+# factors: semopy fits it raw), fitted by fit_semopy_exact.py.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 venv="${1:-$(mktemp -d)/venv}"
@@ -35,3 +37,6 @@ for case in "singular:" "constant:zscore"; do
   "$py" "$here/fit_semopy_nearest.py" "$here/${name}_data.csv" "$here/${name}_model.txt" $z 1e-14 > "$here/${name}_semopy_tight.json"
 done
 "$py" "$here/gen_nearest.py" > "$here/nearest_statsmodels.json"
+"$py" "$here/gen_near_data.py" > "$here/near_data.csv"
+"$py" "$here/fit_semopy_exact.py" "$here/near_data.csv" "$here/near_model.txt" > "$here/near_semopy_default.json"
+"$py" "$here/fit_semopy_exact.py" "$here/near_data.csv" "$here/near_model.txt" 1e-14 > "$here/near_semopy_tight.json"

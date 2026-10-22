@@ -270,7 +270,11 @@ func symmetrize(d *mat.Dense) *mat.SymDense {
 	return out
 }
 
-// invLogDet inverts a symmetric PD matrix via Cholesky.
+// invLogDet inverts a symmetric PD matrix via Cholesky. Like semopy's
+// chol_inv / chol_inv2 (dpotrf, then dpotri), only a failed
+// factorization fails: gonum's InverseTo still fills the inverse when
+// it reports an ill-conditioned matrix (mat.Condition), and a
+// near-singular S that factors is fitted, as semopy fits it.
 func invLogDet(a *mat.SymDense) (*mat.SymDense, float64, bool) {
 	var ch mat.Cholesky
 	if ok := ch.Factorize(a); !ok {
@@ -278,7 +282,9 @@ func invLogDet(a *mat.SymDense) (*mat.SymDense, float64, bool) {
 	}
 	var inv mat.SymDense
 	if err := ch.InverseTo(&inv); err != nil {
-		return nil, 0, false
+		if _, ill := err.(mat.Condition); !ill {
+			return nil, 0, false
+		}
 	}
 	return &inv, ch.LogDet(), true
 }

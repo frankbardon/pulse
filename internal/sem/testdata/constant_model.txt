@@ -1,4 +1,5 @@
 # A synthetic two-factor model whose last item is constant, fitted to
-# the z-scored items (standardize "zscore" + singular "nearest").
+# the z-scored items. semopy raises on it (and MAT_SEM refuses it); the
+# sem-level reference fits a wrapped substitute (fit_semopy_nearest.py).
 f1 =~ c1 + c2 + c3 + c4
 f2 =~ d1 + d2 + d3 + d4

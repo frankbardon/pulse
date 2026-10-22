@@ -9801,7 +9801,7 @@
       },
       {
         "name": "MAT_SEM",
-        "description": "Structural equation model of a vector's members (listwise only): a lavaan / semopy description in params.model (=~ measurement, ~ regression, ~~ covariance; label* equality and number* fixed multipliers) fitted by maximum likelihood to the members' covariance, whose observed variables are exactly the members (by label). The default setup reproduces semopy (semopy.Model(desc).fit(data), semopy 2.3.11): the Wishart ML objective over the biased (divisor N) covariance minimised by a port of SciPy's SLSQP at ftol 1e-6 — semopy's early stop included — with semopy's specification rules, starting values, expected-information standard errors and calc_stats fit indices. params.solver fisher converges to the optimum instead; params.information rank2 computes the same derivatives more cheaply. The primary is the model-implied covariance Sigma(theta) over the members; auxiliary.estimates is the parameter table (rectangular: a row per semopy inspect row keyed \"lval op rval\" — op ~ for loadings and regressions, ~~ for (co)variances — columns estimate, std_estimate, std_err, z_value, p_value; SE, z and p null on a fixed parameter) and auxiliary.residual_covariance S - Sigma(theta); vectors carry each row's parameter name and whether it is free; scalars the fit indices and the fit's iterations / convergence. A rank-deficient covariance is PULSE_MATRIX_SINGULAR, or under params.singular nearest fitted to semopy's nearest positive-definite substitute with PULSE_MATRIX_NEAREST_PD; a solver stop short of success warns PULSE_MATRIX_NOT_CONVERGED; negative degrees of freedom warn PULSE_MATRIX_NOT_IDENTIFIED. Weighted under frequency weights (exactly the fit on the expanded rows, N = the sum of weights); a probability weight is PULSE_WEIGHT_UNSUPPORTED.",
+        "description": "Structural equation model of a vector's members (listwise only): a lavaan / semopy description in params.model (=~ measurement, ~ regression, ~~ covariance; label* equality and number* fixed multipliers) fitted by maximum likelihood to the members' covariance, whose observed variables are exactly the members (by label). The default setup reproduces semopy (semopy.Model(desc).fit(data), semopy 2.3.11): the Wishart ML objective over the biased (divisor N) covariance minimised by a port of SciPy's SLSQP at ftol 1e-6 — semopy's early stop included — with semopy's specification rules, starting values, expected-information standard errors and calc_stats fit indices. params.solver fisher converges to the optimum instead; params.information rank2 computes the same derivatives more cheaply. The primary is the model-implied covariance Sigma(theta) over the members; auxiliary.estimates is the parameter table (rectangular: a row per semopy inspect row keyed \"lval op rval\" — op ~ for loadings and regressions, ~~ for (co)variances — columns estimate, std_estimate, std_err, z_value, p_value; SE, z and p null on a fixed parameter) and auxiliary.residual_covariance S - Sigma(theta); vectors carry each row's parameter name and whether it is free; scalars the fit indices and the fit's iterations / convergence. A rank-deficient covariance is fitted as semopy fits it (params.singular nearest, the default): raw while its Cholesky factors, else to semopy's nearest positive-definite substitute with PULSE_MATRIX_NEAREST_PD; a zero-spread member, or params.singular refuse, is PULSE_MATRIX_SINGULAR; a solver stop short of success warns PULSE_MATRIX_NOT_CONVERGED; negative degrees of freedom warn PULSE_MATRIX_NOT_IDENTIFIED. Weighted under frequency weights (exactly the fit on the expanded rows, N = the sum of weights); a probability weight is PULSE_WEIGHT_UNSUPPORTED.",
         "accepts_types": [
           "f32",
           "f64",
@@ -9865,11 +9865,11 @@
             "name": "singular",
             "type": "enum",
             "required": false,
-            "default": "refuse",
-            "description": "A sample covariance that is not positive definite: refuse is PULSE_MATRIX_SINGULAR; nearest fits semopy's substitute, statsmodels' cov_nearest (threshold 0.01), with PULSE_MATRIX_NEAREST_PD (n, p, min_eigenvalue) — a zero-spread member of a standardized vector enters at unit variance, uncorrelated.",
+            "default": "nearest",
+            "description": "A rank-deficient sample covariance: nearest (semopy's default fit) fits it raw while its Cholesky factors, else semopy's substitute, statsmodels' cov_nearest (threshold 0.01), with PULSE_MATRIX_NEAREST_PD (n, p, min_eigenvalue); a zero-spread member has no substitute and is PULSE_MATRIX_SINGULAR, as semopy raises. refuse is PULSE_MATRIX_SINGULAR on every rank-deficient covariance.",
             "enum_values": [
-              "refuse",
-              "nearest"
+              "nearest",
+              "refuse"
             ]
           },
           {
@@ -19522,4 +19522,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a1af4767284ddf2a4957e053f08994a3da584914cf4f0b086563cc439e5e2b9c
+// golden-hash: 5d8df40a1f18fa67e4b6ba87bc3253a1858fc771ece5e9ea1bb8e98b186b2150

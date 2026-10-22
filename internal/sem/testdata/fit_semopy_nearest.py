@@ -6,8 +6,9 @@
 # zero-spread column as zeros (VectorSpec.standardize "zscore"). semopy
 # cannot fit such a column (its correlation form is NaN), so the
 # cov_nearest it calls is wrapped to enter a zero variance at 1, the
-# unit variance of the other z-scored columns (MAT_SEM singular
-# "nearest"); everything else, the fit from the rows included, is
+# unit variance of the other z-scored columns (a sem.FitCovNearest
+# reference only: MAT_SEM refuses a zero-spread member, as semopy
+# raises); everything else, the fit from the rows included, is
 # semopy's own.
 import sys, json, numpy as np, pandas as pd, semopy
 from scipy.linalg import lapack
