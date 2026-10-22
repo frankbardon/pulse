@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/types"
 )
@@ -192,7 +193,7 @@ func MatrixComputedMembers(req *types.Request, schema *encoding.Schema) []string
 			var p struct {
 				Control json.RawMessage `json:"control"`
 			}
-			if json.Unmarshal(m.Params, &p) == nil {
+			if paramread.Probe(m.Params, &p) == nil {
 				if controls, err := decodeControl(matrixPath(i), p.Control); err == nil {
 					add(controls)
 				}
@@ -266,7 +267,7 @@ func FeatureOutputLabels(feat *types.Feature, schema *encoding.Schema) []string 
 			Degree int `json:"degree"`
 		}
 		if len(feat.Params) > 0 {
-			_ = json.Unmarshal(feat.Params, &p)
+			_ = paramread.Probe(feat.Params, &p)
 		}
 		if p.Degree < 2 {
 			// Predict surfaces a validation error elsewhere; emit no
