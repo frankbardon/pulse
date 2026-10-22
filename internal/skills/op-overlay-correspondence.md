@@ -17,8 +17,10 @@ Overlays decorate the host; no `Response.Components`.
 
 `Scope` `matrix`. `Ref` empty. `Level`/`Within` `0`.
 
-- `dimensions` — default 2, capped at `K = min(r, c) − 1`; explicit `> K` ⇒ `PULSE_OVERLAY_PARAM_MISSING`.
-- `normalization` — `symmetric` (default) | `row_principal` | `column_principal`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `dimensions` | int | `2` | Default 2, capped at `K = min(r, c) − 1`; explicit `> K` ⇒ `PULSE_OVERLAY_PARAM_MISSING`. |
+| `normalization` | `column_principal` \| `row_principal` \| `symmetric` | `symmetric` | `symmetric` (default) \| `row_principal` \| `column_principal`. |
 
 ## Host shape
 

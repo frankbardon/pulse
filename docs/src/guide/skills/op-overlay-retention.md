@@ -28,7 +28,9 @@ Use something else:
 
 `Scope` `row`. `Ref` empty. `Level`/`Within` `0`.
 
-- `absorbing` — optional non-empty array of distinct state keys (row or column) whose arrivals count as churn. Omitted ⇒ no churn split.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `absorbing` | list | — | Optional non-empty array of distinct state keys (row or column) whose arrivals count as churn. Omitted ⇒ no churn split. |
 
 ## Host shape
 

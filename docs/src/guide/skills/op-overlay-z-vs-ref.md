@@ -26,8 +26,17 @@ Use something else:
 
 ## Params
 
-`Scope` required, must be `group`. `Reference` / `Targets` required slot labels. A scalar scored aggregation (anything but `AGG_WELFORD`) REQUIRES `params.variance_target/_ref` and `params.sample_size_target/_ref` (or symmetric `variance` / `sample_size`), each > 0 — no default: missing → `PULSE_OVERLAY_PARAM_MISSING` (`side`, `params`), predict and runtime. They apply to EVERY group: p-values then describe the supplied values, not each group. `params.field` (string, optional, series slots) — OUTPUT LABEL of the aggregation to score on every slot (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = each slot's `aggregations[0]`; rows key on group columns only; a slot lacking it → `PULSE_OVERLAY_FIELD_UNKNOWN`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `field` | string | — | OUTPUT LABEL of the aggregation to score on every slot (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = each slot's `aggregations[0]`; rows key on group columns only; a slot lacking it → `PULSE_OVERLAY_FIELD_UNKNOWN`. |
+| `variance_target` | float | — | Target side's sample variance. Required (> 0) for a side whose cell carries no mean + variance components; no default. |
+| `variance_ref` | float | — | Reference side's sample variance. Required (> 0) for a side whose cell carries no mean + variance components; no default. |
+| `variance` | float | — | One sample variance for both sides, read when a side's own key is absent. |
+| `sample_size_target` | float | — | Target side's sample size. Required (> 0) for a side whose cell carries no mean + variance components; no default. |
+| `sample_size_ref` | float | — | Reference side's sample size. Required (> 0) for a side whose cell carries no mean + variance components; no default. |
+| `sample_size` | float | — | One sample size for both sides, read when a side's own key is absent. |
 
+`Scope` required, must be `group`. `Reference` / `Targets` required slot labels. A scalar scored aggregation (anything but `AGG_WELFORD`) REQUIRES `params.variance_target/_ref` and `params.sample_size_target/_ref` (or symmetric `variance` / `sample_size`), each > 0 — no default: missing → `PULSE_OVERLAY_PARAM_MISSING` (`side`, `params`), predict and runtime. They apply to EVERY group: p-values then describe the supplied values, not each group.
 
 ## Host shape
 

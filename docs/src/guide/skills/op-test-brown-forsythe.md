@@ -27,11 +27,14 @@ Use something else:
 
 ## Params
 
-- `alpha` — float, default `0.05`, in `(0, 1)`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | In `(0, 1)`. Significance level in (0, 1); RejectNull is true when PValue < alpha. |
+| `partition_by` | list | — | Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). |
+
 - `weight` — frequency only: weighted group medians, ANOVA on Σw — equals the expanded rows, the `n ≥ 2` per-group floor on Σw too (one row of weight 2 runs). `Details` add `sum_weights` beside `n` (raw rows).
 
 Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, ≥ 2 groups).
-
 
 ## Inputs
 

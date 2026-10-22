@@ -15,7 +15,11 @@ No `Response.Components`.
 
 ## Params
 
-- `alpha` — float, default `0.05`. `missing` — `listwise` only.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | Significance level in (0, 1); RejectNull is true when PValue < alpha. |
+| `missing` | `listwise` | `listwise` | Missing-data mode; only listwise (a row with any null member is dropped). |
+
 
 Slot: exactly one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields` (inline, globs ok); no `field`, no `vector2` / `fields2`. `split_by` required, categorical or `packed_bool` (levels `"0"`/`"1"`), ≥ 2 levels.
 - `weight` — both kinds (`Details` add `sum_weights`).

@@ -15,8 +15,16 @@ Compose-only parity overlay. Overlays decorate the host; no `Response.Components
 
 ## Params
 
-`Scope` required, must be `cell`. `Reference` / `Targets` required slot labels. A scalar cell — any cell without mean + variance components (`AGG_WELFORD`<!-- feature: AGG_VARIANCE --> / `AGG_VARIANCE`<!-- /feature --><!-- feature: AGG_STDDEV --> / `AGG_STDDEV`<!-- /feature --> with components on) — REQUIRES `params.variance_target/_ref` and `params.sample_size_target/_ref` (or symmetric `variance` / `sample_size`), each > 0 — no default: missing → `PULSE_OVERLAY_PARAM_MISSING` (`side`, `params`), predict and runtime. These ONE values per side apply to EVERY cell, so the p-values describe the supplied values (and the measure's units), not each cell's spread.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `variance_target` | float | — | Target side's sample variance. Required (> 0) for a side whose cell carries no mean + variance components; no default. |
+| `variance_ref` | float | — | Reference side's sample variance. Required (> 0) for a side whose cell carries no mean + variance components; no default. |
+| `variance` | float | — | One sample variance for both sides, read when a side's own key is absent. |
+| `sample_size_target` | float | — | Target side's sample size. Required (> 0) for a side whose cell carries no mean + variance components; no default. |
+| `sample_size_ref` | float | — | Reference side's sample size. Required (> 0) for a side whose cell carries no mean + variance components; no default. |
+| `sample_size` | float | — | One sample size for both sides, read when a side's own key is absent. |
 
+`Scope` required, must be `cell`. `Reference` / `Targets` required slot labels. A scalar cell — any cell without mean + variance components (`AGG_WELFORD`<!-- feature: AGG_VARIANCE --> / `AGG_VARIANCE`<!-- /feature --><!-- feature: AGG_STDDEV --> / `AGG_STDDEV`<!-- /feature --> with components on) — REQUIRES `params.variance_target/_ref` and `params.sample_size_target/_ref` (or symmetric `variance` / `sample_size`), each > 0 — no default: missing → `PULSE_OVERLAY_PARAM_MISSING` (`side`, `params`), predict and runtime. These ONE values per side apply to EVERY cell, so the p-values describe the supplied values (and the measure's units), not each cell's spread.
 
 ## Host shape
 

@@ -28,7 +28,9 @@ Use something else:
 
 `Scope` `matrix`. `Ref` empty. `Level`/`Within` `0`.
 
-- `correct` — default `true` (R's `mcnemar.test`): 2 × 2 continuity correction `(|n_12 − n_21| − 1)²`, clamped at 0; inert on k × k.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `correct` | bool | `true` | (R's `mcnemar.test`): 2 × 2 continuity correction `(\|n_12 − n_21\| − 1)²`, clamped at 0; inert on k × k. |
 
 ## Host shape
 

@@ -26,6 +26,11 @@ Use something else:
 
 ## Params
 
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `n_source` | enum | `row_margin_value` | Where each slot's sample size is read (types.PanelNSources). |
+| `n_within_depth` | int | — | With a within-prefix n_source, the row-key prefix depth the margin is summed within; required there, refused otherwise. |
+
 `Scope` = `cell`. `Reference` = panel 0, `Targets` = 1..N. `MaxPanelTargets` (`OverlayOptions`, default 16) caps `len(Targets)` and refuses FIRST (`PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`) — an `Options` knob, never a param.
 
 `Params` → `PanelOverlayParams`; absent, `{}` and the explicit default stay byte-identical to the pre-params baseline. `n_source` picks each SLOT's n at the tested coordinate ("row" = that slot's own axis, never a pair axis):

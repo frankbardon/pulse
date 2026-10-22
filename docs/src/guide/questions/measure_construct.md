@@ -322,7 +322,7 @@ More on reading it: [MAT_RELIABILITY](../reading/matrix.md#op-mat_reliability).
 - [Describe a measure](describe.md)
 - [Relationship between measures](relationship.md)
 
-**Skills:** [`intents`](../skills/intents.md), [`attribute-composition`](../skills/attribute-composition.md), [`statistical-testing`](../skills/statistical-testing.md), [`op-mat-reliability`](../skills/op-mat-reliability.md)
+**Skills:** [`intents`](../skills/intents.md), [`attribute-composition`](../skills/attribute-composition.md), [`statistical-testing`](../skills/statistical-testing.md), [`test-variant-options`](../skills/test-variant-options.md), [`op-mat-reliability`](../skills/op-mat-reliability.md)
 
 **From the command line:**
 

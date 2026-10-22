@@ -15,11 +15,14 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
-- `alpha` — float, default `0.05`, in `(0, 1)`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | In `(0, 1)`. Significance level in (0, 1); RejectNull is true when PValue < alpha. |
+| `partition_by` | list | — | Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). |
+
 - `weight` — frequency only: a pair of weight w ranks as w identical pairs — equals the test on the expanded pairs. `Details` add `sum_weights` beside `n`; `n` and `zero_diffs` stay raw row counts.
 
 Slot params: `Field` (required, numeric), `Field2` (required, numeric — the pre value).
-
 
 ## Inputs
 

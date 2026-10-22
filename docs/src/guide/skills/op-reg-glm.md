@@ -30,20 +30,29 @@ Every param is a top-level key of the regression entry (manifest `slot: true`); 
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `target` | field | required | Response variable (numeric). |
-| `predictors` | []field | required | ≥1 numeric predictor. |
-| `family` | enum | required | `binomial`, `poisson`, `gamma`. |
-| `link` | enum | family default | `binomial→logit`, `poisson→log`, `gamma→inverse`. `identity`, `probit`, `cloglog`, `sqrt` reserved. |
+| `target` | field | (required) | Response variable (numeric). |
+| `predictors` | []field | (required) | ≥1 numeric predictor. |
+| `family` | enum | (required) | `binomial`, `poisson`, `gamma`. |
+| `link` | enum | — | `binomial→logit`, `poisson→log`, `gamma→inverse`. `identity`, `probit`, `cloglog`, `sqrt` reserved. |
 | `penalty` | enum | `""` | `l2`, `l1`, `elasticnet` (binomial / poisson). Minimizes −loglik/N* + `alpha`·[(1−`l1_ratio`)/2‖β‖² + `l1_ratio`‖β‖₁] — glmnet `standardize=FALSE`: raw predictor units, intercept unpenalized, N* = Σw. |
-| `alpha` / `l1_ratio` | float | — | Strength (>0, glmnet `lambda`) / mix (`elasticnet` only, 0<r<1). |
-| `max_iters` / `tol` | int / float | engine | IRLS caps. |
-| `weight` | slot weight | inherited | `null` opts out; both kinds. IRLS prior weights w* (R `glm(weights = w*)`); SEs, deviances on w*. |
+| `alpha` | float | — | Penalty strength, `> 0` (glmnet `lambda`); required with `penalty`. |
+| `l1_ratio` | float | — | Elastic-net mix, `0<r<1` (`elasticnet` only). |
+| `max_iters` | int | — | IRLS iteration cap. |
+| `tol` | float | — | IRLS relative convergence tolerance. |
+| `resample` | `bootstrap` \| `jackknife` | — | Orthogonal resampling layer. |
+| `bootstrap_iters` | int | `1000` | Replicate count when resample == bootstrap, used as given; <= 0 means 1000. |
+| `jackknife_groups` | int | — | resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row; SE √((g−1)/g·Σ(β₍ₖ₎−β̄)²), echoed as jackknife_groups. |
+| `jackknife_by` | field | — | resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. |
+| `rng_seed` | int | — | Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows. |
+| `selection` | `backward` \| `forward` \| `stepwise` | — | Subset-selection wrapper. |
+| `criterion` | `aic` \| `bic` | — | Information criterion driving selection. |
 | `conf_level` | float | `0.95` | `CILower` / `CIUpper` coverage, `0<c<1`. |
 | `vcov` | bool | `false` | Adds `Vcov` = φ·(XᵀWX)⁻¹ at the converged weights (φ = 1; gamma φ̂; `l2`: sandwich H⁻¹XᵀWXH⁻¹) + `Correlation`; √diag = `StdErrors`. Resample: replicate covariance; selection: final refit's. |
-| `covariance` | object | absent | `{type, cluster, order_by, lags}` as [`op-reg-ols`](op-reg-ols.md): `hc0`–`hc3`, `cluster` (CR1), `hac` (Newey–West). Sandwich over the IRLS scores at the converged weights (R `sandwich` on `glm`) behind `StdErrors`, `PValues`, CIs, `Vcov`; dispersion-free, still Wald z (no `DF`; cluster, gamma too). Weighted: w* rule. |
-| `multiplicity` | object | absent | `{method, family, alpha, coefficients}` as [`op-reg-ols`](op-reg-ols.md): the member coefficients' p-values join a `request` / `compose` family; adds `PAdjusted` / `SignificantAdjusted` + echo beside `PValues`. |
-| `name` | string | synthesized | Result alias; the saved model's name (default: the `save` file's stem). |
-| `save` | string | absent | Writes the finished fit as a model file (`.pulse-model.json`, [`compose-fits`](compose-fits.md)). |
+| `covariance` | object | — | `{type, cluster, order_by, lags}` as [`op-reg-ols`](op-reg-ols.md): `hc0`–`hc3`, `cluster` (CR1), `hac` (Newey–West). Sandwich over the IRLS scores at the converged weights (R `sandwich` on `glm`) behind `StdErrors`, `PValues`, CIs, `Vcov`; dispersion-free, still Wald z (no `DF`; cluster, gamma too). Weighted: w* rule. |
+| `weight` | slot weight | — | `null` opts out; both kinds. IRLS prior weights w* (R `glm(weights = w*)`); SEs, deviances on w*. |
+| `multiplicity` | object | — | `{method, family, alpha, coefficients}` as [`op-reg-ols`](op-reg-ols.md): the member coefficients' p-values join a `request` / `compose` family; adds `PAdjusted` / `SignificantAdjusted` + echo beside `PValues`. |
+| `save` | string | — | Writes the finished fit as a model file (`.pulse-model.json`, [`compose-fits`](compose-fits.md)). |
+| `name` | string | — | Result alias; the saved model's name (default: the `save` file's stem). |
 
 `resample` / `selection` are top-level modifiers — see [`op-reg-mod-resample`](op-reg-mod-resample.md), [`op-reg-mod-selection`](op-reg-mod-selection.md).
 

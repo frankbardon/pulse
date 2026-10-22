@@ -26,12 +26,15 @@ Use something else:
 
 ## Params
 
-- `alpha` — float, default `0.05`, in `(0, 1)`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | In `(0, 1)`. Significance level in (0, 1); RejectNull is true when PValue < alpha. |
+| `success` | string | (required) | Required. Dictionary value of Field treated as a "success"; on a `packed_bool` Field strictly `"1"` or `"0"`. |
+| `p0` | float | — | Float in `(0, 1)`, optional: with `SplitBy` absent, the one-proportion test (`Variant` `one_proportion`). Out of range or beside `SplitBy` → `PULSE_TEST_P0_INVALID` (predict too). |
+| `reference` | string | — | The `SplitBy` level read second, so `diff` and the effect size read other − reference (default: alphabetical). Not a level → `PULSE_TEST_REFERENCE_INVALID`; unobserved → `PULSE_TEST_REFERENCE_MISSING`. Detail: [`test-variant-options`](test-variant-options.md). |
+| `covariate` | string | — | A numeric pre-period column (CUPED) adjusting the success indicator; `Variant` `two_proportion_adjusted`. Not with `p0`; else `PULSE_TEST_COVARIATE_INVALID`. Detail: [`test-variant-options`](test-variant-options.md). |
+
 - `weight` — p̂_g = Σw_success/Σw_g, N*_g = Σw_g (frequency) or Kish n_eff_g (probability) for the pooled rate and SEs. `successes` becomes Σw_success; `Details` add `sum_weights` (+ `n_eff`) shaped like `n` (raw rows).
-- `success` — string, required. Dictionary value of Field treated as a "success"; on a `packed_bool` Field strictly `"1"` or `"0"`.
-- `reference` — string, two-proportion: the `SplitBy` level read second, so `diff`, CI, z and `cohens_h` read other − reference (default: alphabetical, second level). Not a level, or no `SplitBy` → `PULSE_TEST_REFERENCE_INVALID` (predict too); neither observed group → `PULSE_TEST_REFERENCE_MISSING` (grouped: that group's figures `null`).
-- `p0` — float in `(0, 1)`, optional: with `SplitBy` absent, the one-proportion test (`Variant` `one_proportion`). Out of range or beside `SplitBy` → `PULSE_TEST_P0_INVALID` (predict too).
-- `covariate` — string, two-proportion: a numeric pre-period column (CUPED) adjusting the success indicator I to I − θ(x − x̄), θ pooled over both groups (weighted: on the weights; grouped: per group). `Variant` `two_proportion_adjusted`: `proportion`, `diff`, Wald CI, `cohens_h` adjusted; z = `diff` / its Wald SE (θ = 0 gives the unadjusted interval). `Details` add `diff_unadjusted`, `theta`, `covariate_mean`, `variance_reduction`, `n_covariate_dropped`. With `p0`, non-numeric or `= Field` → `PULSE_TEST_COVARIATE_INVALID` (predict too).
 
 ## Inputs
 

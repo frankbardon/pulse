@@ -15,8 +15,13 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
-- `alpha` — float, default `0.05`, in `(0, 1)`.
-- `n_col` / `variance_col` — string, both required on the post-test (summary) form: result-row columns holding each group's size and sample variance.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | In `(0, 1)`. Significance level in (0, 1); RejectNull is true when PValue < alpha. |
+| `n_col` | string | (required) | Both required on the post-test (summary) form: result-row columns holding each group's size and sample variance. |
+| `variance_col` | string | (required) | Both required on the post-test (summary) form: result-row columns holding each group's size and sample variance. |
+| `partition_by` | list | — | Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). |
+
 - `weight` — per-group moments on w*, `weights` = N*_j/s²_j, df on N*_j−1 (Σw or Kish n_eff). `Details` add `sum_weights` (+ `n_eff`, probability) shaped like `n` (raw rows); n_eff < 2 warns `PULSE_WEIGHT_LOW_NEFF`.
 
 ## Inputs

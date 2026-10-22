@@ -29,10 +29,12 @@ Use something else:
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `control` | `"all"` \| [fields] | `all` | Held-fixed set; a listed member leaves the axis. |
-| `repair` | `nearest` | none | Repair non-PSD input. |
+| `repair` | `nearest` | — | Repair non-PSD input. |
 | `inference` | bool | `false` | `auxiliary.p` / `ci_lower` / `ci_upper`, df = N* − 2 − g. |
 | `alpha` | (0, 1) | `0.05` | Interval level; needs `inference`. |
-| `missing`, `max_drop_share`, `fit`, `weight`, `encoding` | | | As [`op-mat-correlation`](op-mat-correlation.md). |
+| `missing` | `listwise` \| `pairwise` | `listwise` | listwise drops a row with any member null; pairwise computes each pair over the rows where both are present and adds auxiliary.n (pairwise N). |
+| `max_drop_share` | float | — | Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1). |
+| `fit` | string | — | A bound vector fit's name (a Compose fits entry over one MAT_* or fitted-attribute battery): the matrix is emitted from that fit's listwise state, folding no row; matched to the members BY LABEL; its own weight basis governs. |
 
 Spec `multiplicity` implies `inference` and adds `auxiliary.p_adjusted` / `significant_adjusted` over the distinct pairs, plus a `multiplicity` echo; family `matrix` (default) or `request`. Raw `p` untouched ([`multiplicity-correction`](multiplicity-correction.md)).
 

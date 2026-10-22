@@ -15,9 +15,13 @@ Tests emit statistic / p-value / effect size; no `Response.Components`.
 
 ## Params
 
-- `alpha` — float, default `0.05`, family-wise, in `(0, 1)`.
-- `ms_within` / `df_within` — float, both required. Within-group mean square + df from a preceding one-way ANOVA.
-- `n_column` — string, default `"n"`: result-row column holding each group's size (Tukey-Kramer weighs a pair by it).
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | Family-wise, in `(0, 1)`. |
+| `ms_within` | float | (required) | Both required. Within-group mean square + df from a preceding one-way ANOVA. |
+| `df_within` | float | (required) | Both required. Within-group mean square + df from a preceding one-way ANOVA. |
+| `n_column` | string | `n` | Result-row column holding each group's size (Tukey-Kramer weighs a pair by it). |
+| `partition_by` | list | — | Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). |
 
 `Field` + `SplitBy` both required. **Tier-2 only** — list in `Request.PostTests`.
 

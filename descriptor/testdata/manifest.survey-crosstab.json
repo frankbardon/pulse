@@ -1591,6 +1591,10 @@
         "description": "Reactive Pulse primitives — Request.Hash() cache keys, StreamResult[T] incremental output with per-chunk + terminal Components, Watch / WatchDir mutation observation, FilterToFileWithRequest deterministic derived cohorts, manifest CommandAnnotations caching policy."
       },
       {
+        "name": "test-variant-options",
+        "description": "The long per-variant option text the op-test-* Params tables point at — the CUPED `covariate` adjustment of the t-family and the two-proportion test, the `reference` level, and the chi-square `expected` goodness-of-fit map. Read once, shared by every test that offers the option."
+      },
+      {
         "name": "time-zones",
         "description": "Time zones end to end — which zone a request uses, how a datetime buckets by local calendar day, import in a source zone with DST policy, native timestamps, local-offset export and the tz database version. Topical design."
       },
@@ -2394,4 +2398,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 415f7afb694d468678188b86fa65bb902fd8d4d1ceba9567aa7f411d6f6c54ac
+// golden-hash: 14b74bb2321000071b7349949d159fbe18194309c4126d491206e4245860e948

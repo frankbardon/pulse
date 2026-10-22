@@ -17,11 +17,11 @@ Top-level `resample` on `RegressionSpec` plus its knobs. A **wrapper, not a fit*
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `resample` | enum | `""` | `""`, `jackknife`, `bootstrap` (non-parametric). |
-| `jackknife_groups` | int | absent | Jackknife only: delete-a-group over `g` seeded random groups (2 ≤ g ≤ fitted rows, sizes within one). Absent = leave-one-out. |
-| `jackknife_by` | field | absent | Jackknife only: delete-a-cluster, one replicate per distinct value (≥ 2); a null value drops the row from the fit. Exclusive with `jackknife_groups` (`PROCESSING_CONFIG`). |
+| `resample` | enum | — | `""`, `jackknife`, `bootstrap` (non-parametric). |
 | `bootstrap_iters` | int | `1000` | Replicate count, used as given (`<= 0` → `1000`); read only when `resample == "bootstrap"`. |
-| `rng_seed` | int | `0` | Seeds the bootstrap and the `jackknife_groups` draw; `0` derives a deterministic per-request seed; non-zero is reproducible. |
+| `jackknife_groups` | int | — | Jackknife only: delete-a-group over `g` seeded random groups (2 ≤ g ≤ fitted rows, sizes within one). Absent = leave-one-out. |
+| `jackknife_by` | field | — | Jackknife only: delete-a-cluster, one replicate per distinct value (≥ 2); a null value drops the row from the fit. Exclusive with `jackknife_groups` (`PROCESSING_CONFIG`). |
+| `rng_seed` | int | — | Seeds the bootstrap and the `jackknife_groups` draw; `0` derives a deterministic per-request seed; non-zero is reproducible. |
 
 ## Inputs
 

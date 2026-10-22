@@ -26,11 +26,14 @@ Use something else:
 
 ## Params
 
-- `alpha` — float, default `0.05`, in `(0, 1)`. Always two-sided; there is no one-sided form.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | In `(0, 1)`. Always two-sided; there is no one-sided form. |
+| `partition_by` | list | — | Over two or more groupers the post-test runs once per partition: the rows sharing these leading group key columns (default every key but the last; [] = one run over every row). |
+
 - `weight` — frequency only: ECDFs step by Σw, p on the Σw sizes — equals the expanded rows. `Details` add `sum_weights` beside `n` (raw rows).
 
 Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exactly 2 groups).
-
 
 ## Inputs
 

@@ -330,7 +330,7 @@ More on reading it: [TEST_T](../reading/test.md#op-test_t).
 - [Change over time](change_over_time.md)
 - [Relationship between measures](relationship.md)
 
-**Skills:** [`intents`](../skills/intents.md), [`aggregation-design`](../skills/aggregation-design.md), [`grouper-design`](../skills/grouper-design.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`statistical-testing`](../skills/statistical-testing.md), [`op-agg-average`](../skills/op-agg-average.md), [`op-test-t`](../skills/op-test-t.md)
+**Skills:** [`intents`](../skills/intents.md), [`aggregation-design`](../skills/aggregation-design.md), [`grouper-design`](../skills/grouper-design.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`statistical-testing`](../skills/statistical-testing.md), [`test-variant-options`](../skills/test-variant-options.md), [`op-agg-average`](../skills/op-agg-average.md), [`op-test-t`](../skills/op-test-t.md)
 
 **From the command line:**
 

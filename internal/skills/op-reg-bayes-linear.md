@@ -19,21 +19,22 @@ Every param is a top-level key of the regression entry (manifest `slot: true`); 
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `target` | field | required | Response variable (numeric). |
-| `predictors` | []field | required | ≥1 numeric predictor. |
+| `target` | field | (required) | Response variable (numeric). |
+| `predictors` | []field | (required) | ≥1 numeric predictor. |
 | `prior` | enum | `nig` | Only `"nig"` (conjugate Normal-Inverse-Gamma) in v1. |
-| `prior_mu` | []float | zero | Prior mean vector, length predictors + 1, intercept FIRST. |
-| `prior_precision` | float or []float | 0.001 | Scalar ε: Λ₀ = ε·I, relative to σ² (prior SD = σ/√ε). Or one entry per coefficient, length predictors + 1, intercept FIRST like `prior_mu`: Λ₀ = diag. `0` = flat on that coefficient; a large entry pins it to its `prior_mu` (an experiment-centred prior). |
-| `prior_shape` / `prior_rate` | float | engine | Inverse-gamma α₀ / β₀ on residual variance. |
+| `prior_mu` | []float | — | Prior mean vector, length predictors + 1, intercept FIRST. |
+| `prior_precision` | float or []float | `0.001` | Scalar ε: Λ₀ = ε·I, relative to σ² (prior SD = σ/√ε). Or one entry per coefficient, length predictors + 1, intercept FIRST like `prior_mu`: Λ₀ = diag. `0` = flat on that coefficient; a large entry pins it to its `prior_mu` (an experiment-centred prior). |
+| `prior_shape` | float | — | Inverse-gamma α₀ / β₀ on residual variance. |
+| `prior_rate` | float | — | Inverse-gamma α₀ / β₀ on residual variance. |
 | `credible_level` | float | `0.95` | Posterior credible-interval mass. |
-| `conf_level` | float | `credible_level` | `CILower` / `CIUpper` mass, `0<c<1`. |
-| `weight` | slot weight | inherited | `null` opts out; frequency only (= the expanded rows: X'WX, X'Wy, Σw in the posterior). Adds `SumWeights`; `NObs` raw rows. |
+| `conf_level` | float | `0.95` | `CILower` / `CIUpper` mass, `0<c<1`. |
 | `vcov` | bool | `false` | Adds the POSTERIOR covariance b_n/(a_n−1)·Λ_n⁻¹ (null if a_n ≤ 1) + `Correlation`; diag = `StdErrors`²·a_n/(a_n−1). |
-| `covariance` | object | absent | `{type, cluster, order_by, lags}` as `op-reg-ols`. Keeps the posterior-mean βs but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹MΛ_n⁻¹): `StdErrors`, `CredibleIntervals`, CIs (normal, no `DF`) and `Vcov` (√diag = `StdErrors`) follow it. |
-| `name` | string | synthesized | Result alias; the saved model's name (default: the `save` file's stem). |
+| `covariance` | object | — | `{type, cluster, order_by, lags}` as `op-reg-ols`. Keeps the posterior-mean βs but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹MΛ_n⁻¹): `StdErrors`, `CredibleIntervals`, CIs (normal, no `DF`) and `Vcov` (√diag = `StdErrors`) follow it. |
+| `weight` | slot weight | — | `null` opts out; frequency only (= the expanded rows: X'WX, X'Wy, Σw in the posterior). Adds `SumWeights`; `NObs` raw rows. |
 <!-- feature: capability:model_save -->
-| `save` | string | absent | Writes the finished fit as a model file (`.pulse-model.json`, `compose-fits`). |
+| `save` | string | — | Writes the finished fit as a model file (`.pulse-model.json`, `compose-fits`). |
 <!-- /feature -->
+| `name` | string | — | Result alias; the saved model's name (default: the `save` file's stem). |
 
 ## Inputs
 

@@ -26,8 +26,15 @@ Use something else:
 
 ## Params
 
-`Scope` (enum, required) — `row` (pair rows per column) or `column` (pair columns per row). `Ref` (object, empty) — intra-matrix; any populated arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `params.pair_along_dim` (int, unset) — restrict pairs to buckets agreeing on all pair-axis dims but this one; unset = every pair. `params.n_source` (omitted: the cell's base — on a normalised host the denominator its share is of, as a count or, weighted, its N*), `params.n_within_depth` (default `0`) and `params.p_source` (default `cell_value` on a normalised host, else `cell_value_pct` — omitted over an unnormalised mean / non-count cell → `PULSE_OVERLAY_PARAM_MISSING`; explicit `cell_value_pct` on a normalised host → same) are the family-wide vocabulary — nine sample-size modes, three of them distinct-KEY: [`pairwise-n-sources`](pairwise-n-sources.md). `params.letters` (object, unset) — `{}` or `{"alpha": a}`, `0 < a < 1` (else `PULSE_OVERLAY_PARAM_MISSING`, predict and runtime): adds the `letters` part.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `pair_along_dim` | int | — | Restrict pairs to buckets agreeing on all pair-axis dims but this one; unset = every pair. |
+| `n_within_depth` | int | `0` | With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; inert otherwise. |
+| `letters` | object | — | `{}` or `{"alpha": a}`, `0 < a < 1` (else `PULSE_OVERLAY_PARAM_MISSING`, predict and runtime): adds the `letters` part. |
+| `n_source` | enum | — | Where each leg's sample size is read (default cell_n_unweighted). |
+| `p_source` | enum | — | How each leg's proportion is derived (default cell_value on a normalized host, else cell_value_pct; cell_value_pct on a normalized host is refused, and so is the omitted default on an unnormalized host whose built-in cell is not a count or sum — a mean cell … |
 
+`Scope` (enum, required) — `row` (pair rows per column) or `column` (pair columns per row). `Ref` (object, empty) — intra-matrix; any populated arm → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`. `params.n_source` (omitted: the cell's base — on a normalised host the denominator its share is of, as a count or, weighted, its N*), `params.n_within_depth` (default `0`) and `params.p_source` (default `cell_value` on a normalised host, else `cell_value_pct` — omitted over an unnormalised mean / non-count cell → `PULSE_OVERLAY_PARAM_MISSING`; explicit `cell_value_pct` on a normalised host → same) are the family-wide vocabulary — nine sample-size modes, three of them distinct-KEY: [`pairwise-n-sources`](pairwise-n-sources.md).
 
 ## Host shape
 

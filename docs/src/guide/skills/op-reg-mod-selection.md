@@ -15,8 +15,10 @@ Regression operators emit coefficient + diagnostics; no `Response.Components`. T
 
 Top-level `selection` on `RegressionSpec` plus its required `criterion` companion. A **wrapper, not a fit**: the engine refits the host model against candidate subsets and keeps the lowest-criterion winner.
 
-- `selection` — enum, default `""`. `""`, `forward` (intercept-only, add best each step), `backward` (full, drop best each step), `stepwise` (bidirectional add/drop until no move improves).
-- `criterion` — enum, default required when set. `aic` or `bic`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `selection` | `backward` \| `forward` \| `stepwise` | — | `forward` (intercept-only, add best each step), `backward` (full, drop best each step), `stepwise` (bidirectional until no move improves); absent / `""` = off. |
+| `criterion` | `aic` \| `bic` | — | Information criterion; required when `selection` is set (`SERVICE_VALIDATION`). |
 
 ## Inputs
 

@@ -15,7 +15,12 @@ Tests emit statistic / p-value; no `Response.Components`.
 
 ## Params
 
-- `statistic` — `skewness` (default) or `kurtosis`: the headline. `alpha` — default `0.05`. `missing` — `listwise` only.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | Significance level in (0, 1); RejectNull is true when PValue < alpha. |
+| `statistic` | `skewness` \| `kurtosis` | `skewness` | Headline statistic: the skewness χ² (default) or the kurtosis z; both always appear in details. |
+| `missing` | `listwise` | `listwise` | Missing-data mode; only listwise (a row with any null member is dropped). |
+
 
 Slot: one of `vector`<!-- feature: capability:matrices --> (a `vectors` entry)<!-- /feature --> / `fields`, ≥ 1 member; no `split_by`.
 - `weight` — `frequency` only (= expanded rows); `sum_weights` beside raw `n`.

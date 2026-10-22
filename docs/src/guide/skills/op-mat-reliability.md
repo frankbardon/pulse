@@ -28,10 +28,13 @@ Use something else:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `reverse` | [fields] | none | Reverse-keyed items: x' = min + max − x before the fold. |
-| `scale_min`, `scale_max` | number | the vector's | Battery range; both or neither, required with `reverse`. Absent: a `kind: "scale"` vector's bounds ([`vector-metrics`](vector-metrics.md)). |
-| `repair` | `nearest` | none | Fit omega on the nearest correlation matrix. |
-| `missing`, `max_drop_share`, `fit`, `weight`, `encoding` | | | As [`op-mat-correlation`](op-mat-correlation.md); `fit` refused with a scale range (`fit_unsupported`). |
+| `reverse` | [fields] | — | Reverse-keyed items: x' = min + max − x before the fold. |
+| `scale_min` | float | — | Battery range; both or neither, required with `reverse`. Absent: a `kind: "scale"` vector's bounds ([`vector-metrics`](vector-metrics.md)). |
+| `scale_max` | float | — | Battery range; both or neither, required with `reverse`. Absent: a `kind: "scale"` vector's bounds ([`vector-metrics`](vector-metrics.md)). |
+| `repair` | `nearest` | — | Fit omega on the nearest correlation matrix. |
+| `missing` | `listwise` \| `pairwise` | `listwise` | listwise drops a row with any member null; pairwise computes each pair over the rows where both are present and adds auxiliary.n (pairwise N). |
+| `max_drop_share` | float | — | Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1). |
+| `fit` | string | — | A bound vector fit's name (a Compose fits entry over one MAT_* or fitted-attribute battery): the matrix is emitted from that fit's listwise state, folding no row; matched to the members BY LABEL; its own weight basis governs. |
 
 ## Inputs
 

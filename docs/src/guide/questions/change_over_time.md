@@ -234,7 +234,7 @@ More on reading it: [TEST_PAIRED_T](../reading/test.md#op-test_paired_t).
 - [Describe a measure](describe.md)
 - [Benchmark against a reference](benchmark.md)
 
-**Skills:** [`intents`](../skills/intents.md), [`aggregation-design`](../skills/aggregation-design.md), [`attribute-composition`](../skills/attribute-composition.md), [`feature-engineering`](../skills/feature-engineering.md), [`grouper-design`](../skills/grouper-design.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`statistical-testing`](../skills/statistical-testing.md), [`window-design`](../skills/window-design.md), [`op-test-paired-t`](../skills/op-test-paired-t.md)
+**Skills:** [`intents`](../skills/intents.md), [`aggregation-design`](../skills/aggregation-design.md), [`attribute-composition`](../skills/attribute-composition.md), [`feature-engineering`](../skills/feature-engineering.md), [`grouper-design`](../skills/grouper-design.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`statistical-testing`](../skills/statistical-testing.md), [`test-variant-options`](../skills/test-variant-options.md), [`window-design`](../skills/window-design.md), [`op-test-paired-t`](../skills/op-test-paired-t.md)
 
 **From the command line:**
 

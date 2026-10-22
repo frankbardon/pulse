@@ -34,26 +34,22 @@ const paramsTableHeader = "| Name | Type | Default | Description |"
 // operator params: request-level slots (a slot / request `weight`, a
 // `multiplicity` block), window spec slots (`partition_by`, `order_by`,
 // `frame`), slot keys documented beside the params (`tz`, `tz_field`)
-// and the slot fields a filterer / ATTR_FORMULA reads instead of params
-// (`values`, `expression`). They are allowed, never required, and their
+// the slot fields a filterer / ATTR_FORMULA reads instead of params
+// (`values`, `expression`) and a matrix slot's `encoding`. They are allowed, never required, and their
 // Default cell is not checked.
 var skillParamsSlotKeys = map[string]bool{
 	"weight": true, "multiplicity": true,
 	"partition_by": true, "order_by": true, "frame": true,
 	"tz": true, "tz_field": true,
 	"values": true, "expression": true,
+	"encoding": true,
 }
 
-// skillParamsFamilyAllowlist are the op families whose Params sections
-// are not yet normalized (U38 E2-S4 normalizes them and deletes the
-// entries). Keyed by the stem's family segment (`op-<family>-…`).
-// TestSkillParamsAllowlistNotStale fails once an entry's every skill
-// passes, so an entry is removed the moment its family is clean.
-var skillParamsFamilyAllowlist = map[string]string{
-	"test":    "E2-S4",
-	"overlay": "E2-S4",
-	"reg":     "E2-S4",
-	"mat":     "E2-S4",
+// regressionModifierParams names, per modifier skill operator, the
+// REG_OLS slot params it documents (REG_GLM declares the same knobs).
+var regressionModifierParams = map[string][]string{
+	"REG_RESAMPLE":  {"resample", "jackknife_groups", "jackknife_by", "bootstrap_iters", "rng_seed"},
+	"REG_SELECTION": {"selection", "criterion"},
 }
 
 // skillParamRow is one parsed table row.
@@ -213,6 +209,24 @@ func declaredOpParams() map[string][]descriptor.Param {
 	for _, r := range regressionCapabilities() {
 		merge(r.Name, r.Params)
 	}
+	// The two regression modifiers declare no params of their own
+	// (descriptor.RegressionModifier carries a name and enum values);
+	// their knobs are the host regressions' slot params, so the modifier
+	// skills are held to those by name.
+	for mod, names := range regressionModifierParams {
+		for _, r := range regressionCapabilities() {
+			if r.Name != "REG_OLS" {
+				continue
+			}
+			for _, p := range r.Params {
+				for _, n := range names {
+					if p.Name == n {
+						merge(mod, []descriptor.Param{p})
+					}
+				}
+			}
+		}
+	}
 	for _, m := range matrixCapabilities() {
 		merge(m.Name, m.Params)
 	}
@@ -262,27 +276,18 @@ func skillParamsProblems(body string, declared []descriptor.Param) []string {
 	return problems
 }
 
-// skillParamsFamily is an op skill stem's family segment.
-func skillParamsFamily(stem string) string {
-	fam, _, _ := strings.Cut(strings.TrimPrefix(stem, "op-"), "-")
-	return fam
-}
-
-// TestSkillParamsMatchManifest: every op skill outside the temporary
-// family allowlist documents exactly its operator's declared params in
+// TestSkillParamsMatchManifest: every op skill documents exactly its operator's declared params in
 // the one normalized table — names in both directions (request-level
 // and spec slots allowed beside them), `(required)` iff Required, the
 // default as declared.
 func TestSkillParamsMatchManifest(t *testing.T) {
 	declared := declaredOpParams()
-	walked := 0
+	walked, ops := 0, 0
 	for _, stem := range skills.Names() {
 		if !strings.HasPrefix(stem, "op-") {
 			continue
 		}
-		if _, allowed := skillParamsFamilyAllowlist[skillParamsFamily(stem)]; allowed {
-			continue
-		}
+		ops++
 		raw, _ := skills.Raw(stem)
 		op := skills.ParseFrontmatter(raw)["operator"]
 		ps, ok := declared[op]
@@ -296,35 +301,28 @@ func TestSkillParamsMatchManifest(t *testing.T) {
 			t.Errorf("%s: %s", stem, p)
 		}
 	}
-	if walked == 0 {
-		t.Fatal("no op skill walked")
+	if walked == 0 || walked != ops {
+		t.Fatalf("walked %d of %d op skills; every one must be checked", walked, ops)
 	}
 }
 
-// TestSkillParamsAllowlistNotStale: an allowlisted family is still
-// drifting somewhere — once every one of its skills passes, the entry
-// must go (and every entry names a family that has skills).
-func TestSkillParamsAllowlistNotStale(t *testing.T) {
+// TestSkillParamsRegressionModifiers: the two regression modifiers
+// declare no params of their own, so their skills are held to the host
+// regression's slot params of the same names — and every name resolves.
+func TestSkillParamsRegressionModifiers(t *testing.T) {
 	declared := declaredOpParams()
-	for fam := range skillParamsFamilyAllowlist {
-		skillsIn, failing := 0, 0
-		for _, stem := range skills.Names() {
-			if !strings.HasPrefix(stem, "op-") || skillParamsFamily(stem) != fam {
-				continue
-			}
-			skillsIn++
-			raw, _ := skills.Raw(stem)
-			ps, ok := declared[skills.ParseFrontmatter(raw)["operator"]]
-			body, _ := skills.Get(stem)
-			if !ok || len(skillParamsProblems(body, ps)) > 0 {
-				failing++
+	for mod, names := range regressionModifierParams {
+		got := map[string]bool{}
+		for _, p := range declared[mod] {
+			got[p.Name] = true
+		}
+		for _, n := range names {
+			if !got[n] {
+				t.Errorf("%s: no REG_OLS slot param %q to hold its skill to", mod, n)
 			}
 		}
-		switch {
-		case skillsIn == 0:
-			t.Errorf("allowlisted family %q has no op skills; drop the entry", fam)
-		case failing == 0:
-			t.Errorf("allowlisted family %q passes TestSkillParamsMatchManifest; drop the entry", fam)
+		if len(got) != len(names) {
+			t.Errorf("%s declares %d params, want %d", mod, len(got), len(names))
 		}
 	}
 }

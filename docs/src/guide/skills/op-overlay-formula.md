@@ -26,6 +26,13 @@ Use something else:
 
 ## Params
 
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `field` | string | — | On a SERIES host, the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column "&lt;label&gt;[<element label>]"; absent, the first aggregation. |
+| `partition_by` | list | — | Over two or more groupers, the leading group key columns each partition shares (default every key but the last; [] = one walk over every row; the YoY overlay: exactly the non-date keys). |
+| `formula` | string | (required) | The expr-lang expression evaluated per coordinate over the host's namespace; absent, empty or not a string is PULSE_OVERLAY_PARAM_MISSING. |
+| `baseline_position` | int | — | SERIES host: the 0-based row of each partition `baseline` reads; a non-negative integer. |
+
 `Scope` — `cell` (MATRIX) / `group` (SERIES) / `total` (SCALAR). `params.formula` required — an `expr-lang/expr` expression; absent, empty or not a string → `PULSE_OVERLAY_PARAM_MISSING` (`details.param: "formula"`, `reason`) on every host, predict and runtime; present but unparsable → `PULSE_OVERLAY_FORMULA_PARSE_ERROR`.
 
 ## Host shape

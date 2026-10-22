@@ -26,8 +26,15 @@ Use something else:
 
 ## Params
 
-`Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.pair_along_dim` (int, unset) — restrict pairs to same-bucket comparisons on the pair axis. `params.n_source` (omitted: the cell's base — the normalise denominator on a normalised host, its N* when weighted), `params.n_within_depth` and `params.p_source` (default `cell_value` on a normalised host, else `cell_value_pct`; omitted over an unnormalised mean / non-count cell → `PULSE_OVERLAY_PARAM_MISSING`) are the family-wide vocabulary, identical to [`op-overlay-pairwise-prop-z`](op-overlay-pairwise-prop-z.md): [`pairwise-n-sources`](pairwise-n-sources.md). `params.letters` (object, unset) — `{}` or `{"alpha": a}`, `0 < a < 1` (else `PULSE_OVERLAY_PARAM_MISSING`, predict and runtime): adds the `letters` part.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `pair_along_dim` | int | — | Restrict pairs to same-bucket comparisons on the pair axis. |
+| `n_within_depth` | int | `0` | With a within-prefix n_source, the pair-axis dim positions (depth + 1) the n denominator is summed within; inert otherwise. |
+| `letters` | object | — | `{}` or `{"alpha": a}`, `0 < a < 1` (else `PULSE_OVERLAY_PARAM_MISSING`, predict and runtime): adds the `letters` part. |
+| `n_source` | enum | — | Where each leg's sample size is read (default cell_n_unweighted). |
+| `p_source` | enum | — | How each leg's proportion is derived (default cell_value on a normalized host, else cell_value_pct; cell_value_pct on a normalized host is refused, and so is the omitted default on an unnormalized host whose built-in cell is not a count or sum — a mean cell … |
 
+`Scope` (enum, required) — `row` or `column`. `Ref` (object, empty) — intra-matrix — leave empty. `params.n_source` (omitted: the cell's base — the normalise denominator on a normalised host, its N* when weighted), `params.n_within_depth` and `params.p_source` (default `cell_value` on a normalised host, else `cell_value_pct`; omitted over an unnormalised mean / non-count cell → `PULSE_OVERLAY_PARAM_MISSING`) are the family-wide vocabulary, identical to [`op-overlay-pairwise-prop-z`](op-overlay-pairwise-prop-z.md): [`pairwise-n-sources`](pairwise-n-sources.md).
 
 ## Host shape
 

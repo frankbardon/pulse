@@ -26,8 +26,13 @@ Use something else:
 
 ## Params
 
-- `alpha` (0.05). `mu` — per member (default zeros). `missing` — `listwise` only.
-- `variance` — `pooled` (default) or `unequal` (Krishnamoorthy–Yu); two-sample only.
+
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | Significance level in (0, 1); RejectNull is true when PValue < alpha. |
+| `mu` | list | — | Hypothesized mean vector (one-sample) or mean difference vector (paired), one entry per member (default zeros; ignored when SplitBy is set). |
+| `variance` | `pooled` \| `unequal` | `pooled` | `pooled` (default) or `unequal` (Krishnamoorthy–Yu); two-sample only. |
+| `missing` | `listwise` | `listwise` | Missing-data mode; only listwise (a row with any null member is dropped). |
 
 Slot: one of `vector` (a `vectors` entry) / `fields` (globs ok); no `field`. `split_by` optional, categorical or `packed_bool` (levels `"0"`/`"1"`), exactly 2 levels. Paired: `vector2` / `fields2`, same count, row-wise difference; never with `split_by`.
 - `weight` — both kinds; N* = Σw or n_eff (`Details` add `sum_weights`).

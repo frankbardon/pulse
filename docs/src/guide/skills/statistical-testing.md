@@ -9,13 +9,13 @@ covers: [TEST, tier-1, tier-2, tests, post_tests, ANOVA, Tukey, assumption-gates
 
 # Statistical testing
 
-Two test slots; this file teaches choosing and chaining; per-test detail: `op-test-<name>`. No `Response.Components`; results ride `Response.Tests` / `PostTests`.
+Two test slots; this file teaches choosing and chaining; per-test: `op-test-<name>`. No `Response.Components`; results ride `Response.Tests` / `PostTests`.
 
 ## Finding the right test
 
-1. `pulse_skills_get intents` — pick the question kind: `compare_groups` (do averages / rates / mixes differ), `relationship` (do two fields move together), `distribution_shape` (is it normal, do two shapes differ), `change_over_time` (is an ordered series trending), `benchmark` (one group against a fixed target).
+1. `pulse_skills_get intents` — question kind: `compare_groups` (do averages / rates / mixes differ), `relationship` (do two fields move together), `distribution_shape` (is it normal, do two shapes differ), `change_over_time` (is an ordered series trending), `benchmark` (one group against a fixed target).
 2. In `pulse_manifest`, keep the `tests[]` entries whose [`intents`](intents.md) carry that ID. Each entry also states its `tier` and `streamable`.
-3. Read the chosen `op-test-<name>` skill; narrow by data shape (below).
+3. Read the `op-test-<name>` skill; narrow by data shape (below).
 
 ## Two tiers, one shape
 
@@ -24,11 +24,11 @@ Two test slots; this file teaches choosing and chaining; per-test detail: `op-te
 | `tests` (tier 1) | during row scan | raw records | near-zero reusing Welford state |
 | `post_tests` (tier 2) | after `windows` | materialized result rows | one pass over `Response.Data` |
 
-Same `Test` shape and `TestResult`. A post-test drops rows with a null in a used column (listwise; `details.n` = rows used); a NaN cell stays and nulls the result.
+Same `Test` / `TestResult`. A post-test drops rows with a null in a used column (listwise; `details.n` = rows used); a NaN cell stays and nulls the result.
 
 ## Picking the tier
 
-Tier 1 — raw distribution questions (A/B revenue, churn × region, normality). Tier 2 — per-group summaries / windowed columns (per-region averages, trend on `moving_avg`).
+Tier 1 — raw distribution questions (A/B revenue, normality). Tier 2 — per-group summaries / windowed columns (trend on `moving_avg`).
 
 Raw-row and per-group correlations can disagree (Simpson's paradox); `Variant` (`pearson` / `pearson_post`) says which.
 
@@ -90,8 +90,9 @@ A tier-1 test streams when it can run on online state (mean / variance / n, or c
 ## See
 
 - Recipes: `pulse_examples_search tags=["experiment-analysis"]`, `tags=["k-sample"]`, `tags=["correlation-analysis"]`, `tags=["nonparametric"]` plus atomic `op-test-<name>`.
+- [`test-variant-options`](test-variant-options.md) — CUPED `covariate`, `reference`, chi-square `expected`.
 - [`aggregation-design`](aggregation-design.md) — a mean-based tier-1 test reads the Welford aggregator's `(mean, variance, n)` on the same `(field, split_by)` free; `MetaAggregator` contract.
-- [`regression-modeling`](regression-modeling.md) — Wald-z vs Student-t inference inside regressions.
+- [`regression-modeling`](regression-modeling.md) — Wald-z vs Student-t in regressions.
 - [`overlay-system`](overlay-system.md) — crosstab cell stat overlays.
 - [`request-envelope`](request-envelope.md) — slot keys.
 - `pulse_errors_lookup` — `PULSE_TEST_*` recovery.

@@ -28,9 +28,14 @@ Use something else:
 
 `Scope` `matrix`. `Ref` empty. `Level`/`Within` `0`.
 
-- `row_targets`, `col_targets` — `{key: value}`, one per host key, no extras.
-- `targets_as` — `shares` (default; normalized, scaled to the host total) | `counts` (totals must agree).
-- `max_iter` — default 100. `tolerance` — default 1e-8 (max relative margin error).
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `row_targets` | object | (required) | `{key: value}`, one per host key, no extras. |
+| `col_targets` | object | (required) | `{key: value}`, one per host key, no extras. |
+| `targets_as` | `counts` \| `shares` | `shares` | `shares` (default; normalized, scaled to the host total) \| `counts` (totals must agree). |
+| `max_iter` | int | `100` | Iteration cap. |
+| `tolerance` | float | 1e-08 | Convergence threshold on the maximum relative margin error. |
+
 
 ## Host shape
 

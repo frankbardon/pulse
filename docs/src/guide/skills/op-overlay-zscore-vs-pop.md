@@ -22,6 +22,10 @@ Questions it answers:
 
 ## Params
 
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `field` | string | — | On a SERIES host, the OUTPUT LABEL of the aggregation to score (explicit label, else TYPE_field) or one expanded element column "&lt;label&gt;[<element label>]"; absent, the first aggregation. |
+
 `Scope` must be `group`. `Ref.Population.Cohort` (string, required) — comparison-population cohort name. `Level`/`Within` must be `0`. Other `Ref` arms → `PULSE_OVERLAY_REF_INCOMPATIBLE_WITH_SHAPE`.
 
 ## Host shape

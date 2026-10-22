@@ -26,7 +26,10 @@ Use something else:
 
 ## Params
 
-- `alpha` — float, default `0.05`, in `(0, 1)` (else `PULSE_TEST_INVALID_ALPHA`); also sets the interval's coverage, `1 − alpha`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `alpha` | float | `0.05` | In `(0, 1)` (else `PULSE_TEST_INVALID_ALPHA`); also sets the interval's coverage, `1 − alpha`. |
+
 - `weight` — frequency only: the exact test on the Σw table — equals the expanded rows. `contingency` becomes the Σw table; `n` stays raw rows, `sum_weights` beside it.
 
 ## Inputs

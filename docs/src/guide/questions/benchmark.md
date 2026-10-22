@@ -322,7 +322,7 @@ More on reading it: [TEST_T](../reading/test.md#op-test_t).
 - [Mix and share](composition.md)
 - [Compare groups](compare_groups.md)
 
-**Skills:** [`intents`](../skills/intents.md), [`aggregation-design`](../skills/aggregation-design.md), [`attribute-composition`](../skills/attribute-composition.md), [`facet-design`](../skills/facet-design.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`process-chain`](../skills/process-chain.md), [`statistical-testing`](../skills/statistical-testing.md), [`window-design`](../skills/window-design.md), [`op-agg-average`](../skills/op-agg-average.md), [`op-agg-count`](../skills/op-agg-count.md), [`op-test-t`](../skills/op-test-t.md)
+**Skills:** [`intents`](../skills/intents.md), [`aggregation-design`](../skills/aggregation-design.md), [`attribute-composition`](../skills/attribute-composition.md), [`facet-design`](../skills/facet-design.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`process-chain`](../skills/process-chain.md), [`statistical-testing`](../skills/statistical-testing.md), [`test-variant-options`](../skills/test-variant-options.md), [`window-design`](../skills/window-design.md), [`op-agg-average`](../skills/op-agg-average.md), [`op-agg-count`](../skills/op-agg-count.md), [`op-test-t`](../skills/op-test-t.md)
 
 **From the command line:**
 

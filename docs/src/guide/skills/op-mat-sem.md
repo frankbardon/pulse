@@ -22,13 +22,17 @@ Questions it answers:
 
 ## Params
 
-| Name | Default | Description |
-|---|---|---|
-| `model` | one factor | `f =~ a + b`, `y ~ f`, `a ~~ b`; `l*x`, `0.5*x`. |
-| `solver` | `slsqp` | semopy's SLSQP, its early stop included; `fisher` converges. |
-| `information` | `dense` | `rank2`: faster, same figures. |
-| `ftol`, `max_iter`, `grad_tol` | 1e-6, 10000, 1e-10 | |
-| `missing`, `fit`, `weight`, `encoding` | | Listwise only. |
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `model` | string | — | `f =~ a + b`, `y ~ f`, `a ~~ b`; `l*x`, `0.5*x`. |
+| `solver` | `slsqp` \| `fisher` | `slsqp` | semopy's SLSQP, its early stop included; `fisher` converges. |
+| `information` | `dense` \| `rank2` | `dense` | `rank2`: faster, same figures. |
+| `ftol` | float | 1e-06 | SLSQP's ftol (SciPy's and semopy's default 1e-6), a number above 0: the run stops when the objective moves by less. |
+| `max_iter` | int | — | Iteration cap, a positive integer: default 10000 for slsqp (semopy's setting), 500 for fisher. |
+| `grad_tol` | float | 1e-10 | Fisher scoring's stop, a number above 0: every free gradient entry below it in absolute value. |
+| `missing` | `listwise` | `listwise` | Listwise only. |
+| `max_drop_share` | float | — | Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1). |
+| `fit` | string | — | Listwise only. |
 
 ## Inputs
 

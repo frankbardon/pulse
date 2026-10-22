@@ -26,10 +26,17 @@ Use something else:
 
 ## Params
 
-- `between` — required grouper spec as in `groups`, extension groupers too; no own `weight`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `between` | object | (required) | Required grouper spec as in `groups`, extension groupers too; no own `weight`. |
+| `metric` | enum | `euclidean` | A linalg/metric registry name (capabilities.matrix.metrics, consumer MAT_DISTANCE), in the distance form. |
+| `min_valid` | int | `1` | Fewest complete member pairs per distance (default 1); below it null. |
+| `standardize` | bool | `false` | z-score every member over the bucketed rows (their mean and N* - 1 standard deviation, R scale()) before comparing, so no member dominates by its units. |
+| `missing` | `listwise` | `listwise` | listwise only: a row with any member null joins no centroid (pairwise is refused). |
+| `max_drop_share` | float | — | Listwise only, no default: warn PULSE_MATRIX_LISTWISE_HEAVY_DROP when the share of rows dropped exceeds it (0 to 1). |
+
 - `metric` — a `matrix.metrics` name with consumer `MAT_DISTANCE`: `euclidean` (default; over a `kind` vector the kind's default, [`vector-metrics`](vector-metrics.md)), `sq_euclidean`, `manhattan`, `chebyshev`, `cosine` (1 − cos), `hellinger`, `aitchison`, `mahalanobis` (pooled covariance, raw centroids). `standardize` — z-score first; refused with `hellinger` / `aitchison`.
-- `min_valid` — fewest complete member pairs per distance (default 1); below it null.
-- `missing` (`listwise`), `max_drop_share`, `weight`, `encoding`: [`op-mat-correlation`](op-mat-correlation.md). `fit` is refused (`fit_unsupported`: centroids are not one fitted state).
+`weight`, `encoding`: as [`op-mat-correlation`](op-mat-correlation.md); `missing` is `listwise` only. `fit` is refused (`fit_unsupported`: centroids are not one fitted state).
 
 ## Inputs
 

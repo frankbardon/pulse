@@ -17,9 +17,11 @@ Overlays decorate the host; no `Response.Components`.
 
 `Scope` `matrix`. `Ref` empty. `Level`/`Within` `0`.
 
-- `steps` — default `[1,3,6,12]`; distinct integers 1–1000 (≤ 64).
-- `absorbing` — state keys, e.g. `["churned"]`.
-- `initial` — `"margin"` or `{state: share}`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `steps` | list | — | Distinct integers 1–1000 (≤ 64). |
+| `absorbing` | list | — | State keys, e.g. `["churned"]`. |
+| `initial` | object | — | `"margin"` or `{state: share}`. |
 
 ## Host shape
 

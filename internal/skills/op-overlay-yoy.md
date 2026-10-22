@@ -15,7 +15,13 @@ Overlays decorate the host; no `Response.Components`.
 
 ## Params
 
-`Scope` must be `group`. `Ref.YoY` (empty marker) — tags ref family. `params.frequency` (string, conditional) — `annual`/`quarterly`/`monthly`/`weekly`/`daily`/`hourly`. `params.field` (string, optional) — OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`.
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `field` | string | — | OUTPUT LABEL of the aggregation to score (`label`, else `TYPE_field`) or an expanded element column `<label>[<elem>]` (`params.expand`); absent = `aggregations[0]`; unknown → `PULSE_OVERLAY_FIELD_UNKNOWN`. |
+| `partition_by` | list | — | Over two or more groupers, the leading group key columns each partition shares (default every key but the last; [] = one walk over every row; OVERLAY_YOY: exactly the non-date keys). |
+| `frequency` | enum | — | `annual`/`quarterly`/`monthly`/`weekly`/`daily`/`hourly`. |
+
+`Scope` must be `group`. `Ref.YoY` (empty marker) — tags ref family.
 
 ## Host shape
 

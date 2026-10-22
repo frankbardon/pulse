@@ -338,6 +338,7 @@
     - [synth-shape-fit](guide/skills/synth-shape-fit.md)
     - [synth-structural-rules](guide/skills/synth-structural-rules.md)
     - [synthetic-data](guide/skills/synthetic-data.md)
+    - [test-variant-options](guide/skills/test-variant-options.md)
     - [time-zones](guide/skills/time-zones.md)
     - [tool-compose](guide/skills/tool-compose.md)
     - [tool-dedup](guide/skills/tool-dedup.md)

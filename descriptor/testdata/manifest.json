@@ -13337,6 +13337,10 @@
         "description": "Entry point for synthetic data — `pulse synth from-schema` vs `pulse synth from-profile` (CLI + library; no MCP tool), the spec shape, the distribution registry, the determinism rule, and which focused synth skill answers each question."
       },
       {
+        "name": "test-variant-options",
+        "description": "The long per-variant option text the op-test-* Params tables point at — the CUPED `covariate` adjustment of the t-family and the two-proportion test, the `reference` level, and the chi-square `expected` goodness-of-fit map. Read once, shared by every test that offers the option."
+      },
+      {
         "name": "time-zones",
         "description": "Time zones end to end — which zone a request uses, how a datetime buckets by local calendar day, import in a source zone with DST policy, native timestamps, local-offset export and the tz database version. Topical design."
       },
@@ -19461,4 +19465,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d440d6b879e27a92d05153a02c4fd2b8198518f183f686799142ddbe5764b2c1
+// golden-hash: b11c1b347caa9bd3acad6142cce6a6bf7df3b4bc7610dd77578b189e4b6bd50b
