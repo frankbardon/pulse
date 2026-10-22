@@ -40,7 +40,7 @@ Use something else:
 
 ## Output
 
-One `f64` per record; null when a column the score reads is null, and on EVERY row when the fit failed on its data (its `fits` entry carries `error`): the slot then warns `PULSE_FIT_UNAVAILABLE` `{fit, attribute, code}` and the response's other slots compute normally (strict mode fails the batch with the fit's code first). Predict cannot foresee a failed fit. Training rows equal the fit's own fitted values bit for bit.
+One `f64` per record; null when a column the score reads is null, and on EVERY row when the fit failed on its data (`PULSE_FIT_UNAVAILABLE` `{fit, attribute, code}`; other slots compute normally; predict cannot foresee it). Training rows equal the fit's own fitted values bit for bit.
 
 ## Reading the output
 
@@ -55,14 +55,12 @@ One `f64` per record; null when a column the score reads is null, and on EVERY r
 
 ## Gotchas
 
-- The fit's predictor list is authoritative: build the same columns (same features) in the slot. An absent one-hot column is the reference level; scoring never infers a level.
+- The fit's predictor list is authoritative: build the same columns (same features) in the slot. An absent one-hot column is the reference level; scoring never infers a level. Under selection a dropped feature scores 0.
 - A coefficient bound is not a prediction interval. A term with no bound scores null.
 - Row-local: streams, merges, materializes. Row weight ignored (the fit's own applied).
-- Under selection a dropped feature scores 0.
-- An embedder-registered regression's fit scores through its registration's scorer, whole model only (no `terms`, no `lower`/`upper` `bound`); with none it is `PULSE_MODEL_SCORE_INVALID` reason `no_scorer`. Its saved model loads only where that regression is registered and enabled, else `PULSE_MODEL_REGRESSION_UNREGISTERED`.
-- Save, then load: `save: "models/m.pulse-model.json"` on the fit; a later request declares `models: [{name: "m", path: "models/m.pulse-model.json"}]` and scores `fit: "m"` — bit-equal to the in-compose fit, any cohort with the same predictor columns.
+- A registered model scores whole-model only, through its scorer (`no_scorer` without one); save-then-load recipe: [`regression-row-scores`](regression-row-scores.md).
 
 ## See
 
 - `pulse_examples_search tags=[compose]`
-- Skills: [`compose-fits`](compose-fits.md), [`regression-modeling`](regression-modeling.md), [`op-attr-reg-fitted`](op-attr-reg-fitted.md), [`expression-language`](expression-language.md) (`coef()`)
+- Skills: [`regression-row-scores`](regression-row-scores.md), [`compose-fits`](compose-fits.md), [`regression-modeling`](regression-modeling.md), [`op-attr-reg-fitted`](op-attr-reg-fitted.md), [`expression-language`](expression-language.md) (`coef()`)

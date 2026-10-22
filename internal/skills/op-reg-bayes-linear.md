@@ -9,40 +9,40 @@ applies_to: process, compose, predict
 examples_tags: [regression, bayesian, streaming-friendly]
 ---
 
-Regression operators emit coefficient + diagnostics; no `Response.Components`. Fit summaries ride `Response.Regressions[i]`.
+Fits ride `Response.Regressions[i]`; no `Response.Components`.
 
 <!-- generated: use-when -->
 
 ## Params
 
-Every param is a top-level key of the regression entry (manifest `slot: true`); a `params` key is refused `PULSE_REQUEST_UNKNOWN_FIELD`.
+Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regression-spec`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `target` | field | (required) | Response variable (numeric). |
+| `target` | field | (required) | Response (numeric). |
 | `predictors` | []field | (required) | ≥1 numeric predictor. |
-| `prior` | enum | `nig` | Only `"nig"` (conjugate Normal-Inverse-Gamma) in v1. |
-| `prior_mu` | []float | — | Prior mean vector, length predictors + 1, intercept FIRST. |
-| `prior_precision` | float or []float | `0.001` | Scalar ε: Λ₀ = ε·I, relative to σ² (prior SD = σ/√ε). Or one entry per coefficient, length predictors + 1, intercept FIRST like `prior_mu`: Λ₀ = diag. `0` = flat on that coefficient; a large entry pins it to its `prior_mu` (an experiment-centred prior). |
-| `prior_shape` | float | — | Inverse-gamma α₀ / β₀ on residual variance. |
-| `prior_rate` | float | — | Inverse-gamma α₀ / β₀ on residual variance. |
-| `credible_level` | float | `0.95` | Posterior credible-interval mass. |
-| `conf_level` | float | `0.95` | `CILower` / `CIUpper` mass, `0<c<1`. |
-| `vcov` | bool | `false` | Adds the POSTERIOR covariance b_n/(a_n−1)·Λ_n⁻¹ (null if a_n ≤ 1) + `Correlation`; diag = `StdErrors`²·a_n/(a_n−1). |
-| `covariance` | object | — | `{type, cluster, order_by, lags}` as `op-reg-ols`. Keeps the posterior-mean βs but REPLACES the posterior covariance with Müller's (2013) sandwich posterior N(μ_n, Λ_n⁻¹MΛ_n⁻¹): `StdErrors`, `CredibleIntervals`, CIs (normal, no `DF`) and `Vcov` (√diag = `StdErrors`) follow it. |
-| `weight` | slot weight | — | `null` opts out; frequency only (= the expanded rows: X'WX, X'Wy, Σw in the posterior). Adds `SumWeights`; `NObs` raw rows. |
+| `prior` | enum | `nig` | Only `"nig"` (conjugate Normal-Inverse-Gamma). |
+| `prior_mu` | []float | — | Prior mean, length predictors + 1, intercept FIRST. |
+| `prior_precision` | float or []float | `0.001` | Scalar ε: Λ₀ = ε·I relative to σ² (prior SD = σ/√ε); or one entry per coefficient like `prior_mu` (`0` = flat; `regression-model-options`). |
+| `prior_shape` | float | — | Inverse-gamma α₀ on residual variance. |
+| `prior_rate` | float | — | Inverse-gamma β₀ on residual variance. |
+| `credible_level` | float | `0.95` | Credible-interval mass. |
+| `conf_level` | float | `0.95` | `CILower` / `CIUpper` mass. |
+| `vcov` | bool | `false` | Adds the posterior covariance + `Correlation` (`regression-inference`). |
+| `covariance` | object | — | Müller sandwich posterior (`regression-inference`). |
+| `weight` | slot weight | — | `null` opts out; frequency only. |
 <!-- feature: capability:model_save -->
-| `save` | string | — | Writes the finished fit as a model file (`.pulse-model.json`, `compose-fits`). |
+| `save` | string | — | Writes a model file. |
 <!-- /feature -->
-| `name` | string | — | Result alias; the saved model's name (default: the `save` file's stem). |
+| `name` | string | — | Result / saved-model name. |
 
 ## Inputs
 
-`target` / `predictors` — types: see `## Contract` (nullable variants too). Nullable rows drop from `n_obs`.
+`target` / `predictors`: see `## Contract`; a null drops the row from `n_obs`.
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor posterior-mean βs; `StdErrors` = the Student-t marginal's SCALE (not the posterior SD, which is larger by √(ν/(ν−2))); `CredibleIntervals[name] = [lower, upper]` at `credible_level`; `CILower` / `CIUpper` the same t interval at `conf_level` (equal when unset), `DF` = 2a_n, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs`; a robust `covariance` adds the `Covariance` echo. **No `PValues`** — Bayesian inference reports credibility, not tail probability. Streams the same Welford stats as OLS; one finalize-time Cholesky on `Λ_n` applies the conjugate posterior.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor posterior-mean βs; `StdErrors` = the Student-t marginal's SCALE (not the posterior SD, which is larger by √(ν/(ν−2))); `CredibleIntervals[name] = [lower, upper]` at `credible_level`; `CILower` / `CIUpper` the same t interval at `conf_level`, `DF` = 2a_n, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs` (+ weighted `SumWeights`). **No `PValues`** — Bayesian inference reports credibility, not tail probability.
 
 <!-- generated: reading-the-output -->
 
@@ -50,18 +50,17 @@ Every param is a top-level key of the regression entry (manifest `slot: true`); 
 
 ## Gotchas
 
-- `penalty` / `alpha` / `l1_ratio` / `unpenalized` / `family` / `link` rejected — other engines' knobs.
-- `resample` / `selection` → `PROCESSING_CONFIG` (not advertised; predict refuses them too) — credible intervals already convey uncertainty.
-- `prior_mu` or a `prior_precision` list of length ≠ predictors + 1, or a negative entry → `PROCESSING_CONFIG` at predict and runtime.
-- Flat (`0`) entries need the data to identify those coefficients: an improper posterior (e.g. collinear predictors, both flat) → `PROCESSING_REGRESSION_RANK_DEFICIENT` at fit time.
+- Other engines' knobs (`penalty`, `family`, `link`, …) and `resample` / `selection` → `PROCESSING_CONFIG`, predict too (`regression-spec`).
+- `prior_mu` or a `prior_precision` list of length ≠ predictors + 1, or a negative entry → `PROCESSING_CONFIG`.
+- Flat (`0`) entries need the data to identify those coefficients: an improper posterior (e.g. collinear, both flat) → `PROCESSING_REGRESSION_RANK_DEFICIENT`.
 <!-- feature: capability:multiplicity -->
-- A `multiplicity` block resolving to any method but `none` → `PULSE_MULTIPLICITY_INVALID` (no p-values to correct); predict refuses it identically.
+- A `multiplicity` method other than `none` → `PULSE_MULTIPLICITY_INVALID` (no p-values).
 <!-- /feature -->
-- Robust `covariance` is a substitution, not a posterior: honest under heteroskedastic or dependent rows, but no longer the conjugate model's probability statement. It forces the buffered path; < 2 clusters or a repeated `order_by` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`.
+- A robust `covariance` is a substitution, not a posterior (`regression-inference`).
 - Vague-prior limit reproduces the OLS point estimate; intervals and `ResidualStdErr` run below OLS with few rows per predictor (σ² ≈ RSS/n, not RSS/(n−p−1)).
 - `R2` is on the posterior-mean fit, not averaged over posterior draws.
 
 ## See
 
 - `pulse_examples_search tags=[bayesian]`
-- Skills: `regression-modeling`, `op-reg-ols`, `op-reg-glm`
+- Skills: `regression-spec`, `regression-modeling`, `regression-model-options`, `regression-inference`

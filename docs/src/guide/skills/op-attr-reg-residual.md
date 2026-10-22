@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, ols, outlier-detection, buffered-pipeline]
 ```
 
-Attributes emit row-level scalars; they do not produce `Response.Components`.
+Row-level scalars; no `Response.Components`.
 
 ## Use when
 
@@ -26,7 +26,7 @@ Use something else:
 
 ## Params
 
-`target` / `predictors` / `penalty` / `alpha` / `l1_ratio` are top-level keys, not `params`; `fit` is `params.fit`; `field` unread.
+Refit keys are top-level, not `params`; `fit` is `params.fit` ([`regression-row-scores`](regression-row-scores.md)).
 
 | Name | Type | Default | Description |
 |---|---|---|---|
@@ -35,12 +35,12 @@ Use something else:
 | `penalty` | enum | `""` | `""`, `l1`, `l2`, `elasticnet`. |
 | `alpha` | float | — | Regularization strength. |
 | `l1_ratio` | float | — | Elasticnet mix. |
-| `fit` | string | — | Score a bound fit (`fits` / `models` entry) instead of refitting: `y − score`, y the fit's target; a REG_GLM's response residual. No `target` / `predictors` / `penalty` / `alpha` / `l1_ratio` beside it. |
-| `weight` | slot weight | inherited | `null` opts out; REG_OLS's kinds: WLS refit; residual raw y − ŷ. Skipped with `fit` (the fit's own weight applied when it ran). |
+| `fit` | string | — | Score a bound fit (`fits` / `models` entry) instead of refitting: `y − score`, y the fit's target (a GLM's response residual); no refit keys beside it. |
+| `weight` | slot weight | inherited | `null` opts out; a WLS refit; ignored with `fit`. |
 
 ## Inputs
 
-`target` / `predictors` — admitted types: see `## Contract`; `decimal128` reads as its float64 echo, `packed_bool` as 0/1.
+`target` / `predictors`: see `## Contract` (`decimal128` as its float64 echo, `packed_bool` 0/1).
 
 - `Label` — new column name; default `<TYPE>_<target>`, with `params.fit` `<TYPE>_<fit>`
 
@@ -62,12 +62,10 @@ One `float64` per record — `yᵢ − ŷᵢ`; **null (never 0) when the target 
 
 ## Gotchas
 
-- Two-pass: runs an independent OLS fit per slot. With `params.fit` it is row-local (streams beside groupers, merges) and fits nothing.
-- `params.fit` follows the scoring rule: an unknown name is `PULSE_MODEL_UNKNOWN`; an extension fit whose registration has no Scorer is `PULSE_MODEL_SCORE_INVALID` `no_scorer`; a refit field beside it is `slot_fields`; a failed fit nulls every row with `PULSE_FIT_UNAVAILABLE`. Predict refuses identically.
-- Large residuals flag response-space outliers.
-- Penalized residuals bias-shrunk; for diagnostics prefer unpenalized.
+- Two-pass: each slot refits on its own. With `params.fit` it is row-local and fits nothing; refusals and a failed fit (`PULSE_FIT_UNAVAILABLE`, every row null): [`regression-row-scores`](regression-row-scores.md).
+- Large residuals flag response-space outliers. Penalized residuals are bias-shrunk; for diagnostics prefer unpenalized.
 
 ## See
 
 - `pulse_examples_search tags=[regression, outlier-detection]`
-- Skills: [`regression-modeling`](regression-modeling.md), [`attribute-composition`](attribute-composition.md), [`op-attr-reg-fitted`](op-attr-reg-fitted.md)
+- Skills: [`regression-row-scores`](regression-row-scores.md), [`regression-modeling`](regression-modeling.md), [`attribute-composition`](attribute-composition.md), [`op-attr-reg-fitted`](op-attr-reg-fitted.md)

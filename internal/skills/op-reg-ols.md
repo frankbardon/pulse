@@ -9,53 +9,51 @@ applies_to: process, compose, predict
 examples_tags: [regression, ols, streaming-friendly]
 ---
 
-Regression operators emit coefficient + diagnostics; no `Response.Components`. Fit summaries ride `Response.Regressions[i]`.
+Fits ride `Response.Regressions[i]`; no `Response.Components`.
 
 <!-- generated: use-when -->
 
 ## Params
 
-Every param is a top-level key of the regression entry (manifest `slot: true`); a `params` key is refused `PULSE_REQUEST_UNKNOWN_FIELD`.
+Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regression-spec`.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `target` | field | (required) | Response variable (numeric). |
+| `target` | field | (required) | Response (numeric). |
 | `predictors` | []field | (required) | ≥1 numeric predictor. |
-| `penalty` | enum | `""` | `""`, `l1`, `l2`, `elasticnet`; glmnet `standardize=FALSE` objective (raw units, intercept free). |
-| `alpha` | float | — | Strength; >0 when `penalty` set. |
-| `l1_ratio` | float | — | Elastic-net mix, `0<r<1` (`elasticnet` only). |
-| `unpenalized` | []field | — | `l2` only: listed predictors the ridge term skips (glmnet `penalty.factor` 0). |
-| `bounds` | object | — | `{nonnegative: [predictors]}`: those slopes ≥ 0 (NNLS). A binding bound nulls `StdErrors` / `PValues` / CIs / `Vcov` + `PULSE_ADVISORY_CONSTRAINT_ACTIVE`; use `resample: bootstrap`. |
-| `max_iters` | int | — | Coordinate-descent iteration cap for regularized fits. |
-| `tol` | float | — | Coordinate-descent convergence tolerance for regularized fits. |
-| `resample` | `bootstrap` \| `jackknife` | — | Orthogonal resampling layer; downgrades streaming. |
-| `bootstrap_iters` | int | `1000` | Replicate count when resample == bootstrap, used as given; <= 0 means 1000. |
-| `jackknife_groups` | int | — | resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row; SE √((g−1)/g·Σ(β₍ₖ₎−β̄)²), echoed as jackknife_groups. |
-| `jackknife_by` | field | — | resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. |
-| `rng_seed` | int | — | Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows. |
-| `selection` | `backward` \| `forward` \| `stepwise` | — | Subset-selection wrapper; downgrades streaming. |
-| `criterion` | `aic` \| `bic` | — | Information criterion driving selection. |
-| `conf_level` | float | `0.95` | `CILower` / `CIUpper` coverage, `0<c<1`. |
-| `vcov` | bool | `false` | Adds `Vcov` + `Correlation`; √diag = `StdErrors`. `l1` / `elasticnet` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`. |
-| `covariance` | object | — | `{type, cluster, order_by, lags}`: `classical` (= absent), `hc0`–`hc3`, `cluster` (CR1), `hac` (Newey–West; `lags` int or `"auto"`). See `regression-inference`. |
-| `weight` | slot weight | — | `null` opts out; both kinds; WLS β, df = N*−p−1, N* = Σw (frequency) / Kish n_eff (probability). |
+| `penalty` | enum | `""` | `l1`, `l2`, `elasticnet`. |
+| `alpha` | float | — | Strength, > 0. |
+| `l1_ratio` | float | — | Elastic-net mix, `0<r<1`. |
+| `unpenalized` | []field | — | `l2`: predictors left unshrunk. |
+| `bounds` | object | — | `{nonnegative: [predictors]}`: slopes ≥ 0 (NNLS). |
+| `max_iters` | int | — | Penalized iteration cap. |
+| `tol` | float | — | Penalized tolerance. |
+| `resample` | enum | — | `bootstrap`, `jackknife` (`op-reg-mod-resample`). |
+| `bootstrap_iters` | int | `1000` | Resample knob. |
+| `jackknife_groups` | int | — | Resample knob. |
+| `jackknife_by` | field | — | Resample knob. |
+| `rng_seed` | int | — | Resample knob. |
+| `selection` | enum | — | `backward`, `forward`, `stepwise` (`op-reg-mod-selection`). |
+| `criterion` | enum | — | `aic`, `bic`. |
+| `conf_level` | float | `0.95` | CI coverage. |
+| `vcov` | bool | `false` | Adds `Vcov` + `Correlation`. |
+| `covariance` | object | — | Robust SEs (`regression-inference`). |
+| `weight` | slot weight | — | `null` opts out; WLS. |
 <!-- feature: capability:multiplicity -->
-| `multiplicity` | object | — | `{method, family, alpha, coefficients}`: coefficient `PValues` join a correction family; adds `PAdjusted` / `SignificantAdjusted` beside the raw `PValues` (`multiplicity-correction`). |
+| `multiplicity` | object | — | Coefficient p-values join a family; adds `PAdjusted`. |
 <!-- /feature -->
 <!-- feature: capability:model_save -->
-| `save` | string | — | Writes the finished fit as a model file (`.pulse-model.json`, `compose-fits`). |
+| `save` | string | — | Writes a model file. |
 <!-- /feature -->
-| `name` | string | — | Result alias; the saved model's name (default: the `save` file's stem). |
-
-`resample` / `selection` are top-level modifiers — see `op-reg-mod-resample`, `op-reg-mod-selection`.
+| `name` | string | — | Result / saved-model name. |
 
 ## Inputs
 
-`target` / `predictors` — types: see `## Contract` (nullable too); null rows drop from `n_obs`.
+`target` / `predictors`: see `## Contract`; a null drops the row from `n_obs`.
 
 ## Output
 
-`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `CILower` / `CIUpper`, `DF`, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs`; weighted adds `SumWeights` (+ `NEff`, probability). `l2` SEs are the ridge sandwich. `l1` / `elasticnet` without `resample`: SE / p / CI null on EVERY key + `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`. A robust `covariance` adds the `Covariance` echo. Streams sufficient stats; the penalized solve runs once at finalize.
+`RegressionResult`: `Coefficients["(intercept)"]` + per-predictor βs; `StdErrors`, `PValues` (Student-t); `CILower` / `CIUpper`, `DF`, `ConfLevel`; `R2`, `AdjR2`, `ResidualStdErr`, `NObs` (+ weighted `SumWeights`). `l1` / `elasticnet` without `resample`: SE / p / CI null + `PULSE_ADVISORY_PENALIZED_INFERENCE_UNDEFINED`. Robust `covariance` adds a `Covariance` echo.
 
 <!-- generated: reading-the-output -->
 
@@ -63,17 +61,14 @@ Every param is a top-level key of the regression entry (manifest `slot: true`); 
 
 ## Gotchas
 
-- Weighted: `resample: bootstrap` / `selection` → `PULSE_WEIGHT_UNSUPPORTED` (a jackknife is weighted); n_eff ≤ p+1 → `PULSE_WEIGHT_LOW_NEFF`; residual df ≤ 0 makes SEs, p, `CILower`/`CIUpper`, `DF`, `AdjR2`, `ResidualStdErr` null.
-- `l1` / `elasticnet` have no analytical inference (the data pick the predictors): SE / p / CI null, advisory not warning, never Strict-escalated. Want uncertainty → `op-reg-mod-resample`; want p-values → `l2` or no penalty.
-- `unpenalized` (`l2` only; lasso / elastic-net penalty factors are not offered) and `bounds` (no `penalty` / `selection`; robust `covariance` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED` `reason: bounds`): misuse, an unknown or repeated name → `PROCESSING_CONFIG`, predict too. Detail: `regression-model-options`.
-- The penalty reads raw units: divide each predictor by its SD upstream to penalize all alike.
-- Robust `covariance` forces the buffered path; beside `penalty` / `resample` / `selection`, < 2 clusters or a repeated `order_by` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`.
-- Collinearity → `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`; drop a predictor or add `l2`.
-- `penalty != ""` + `selection != ""` → `PROCESSING_REGRESSION_REGULARIZED_SELECTION`.
-- Polynomial: stage<!-- feature: FEAT_POLY --> `FEAT_POLY`<!-- /feature --> polynomial columns upstream; degree gate `[2,10]`; standardize first.
-- Per-row residual / fitted / leverage live in `ATTR_REG_*` — separate slot, separate prepass.
+- `l1` / `elasticnet`: the null SE / p / CI is an advisory; uncertainty → `resample`. The penalty reads raw units (`regression-spec`).
+- `unpenalized` (`l2` only) / `bounds` misuse → `PROCESSING_CONFIG`; a binding bound nulls SE / p / CI + `PULSE_ADVISORY_CONSTRAINT_ACTIVE` (`regression-model-options`).
+- `vcov` under `l1` / `elasticnet`, or a robust `covariance` (buffered) beside `penalty` / `resample` / `selection` / `bounds` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`.
+- Weighted: `resample: bootstrap` / `selection` → `PULSE_WEIGHT_UNSUPPORTED`.
+- Collinear → `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`: drop one or add `l2`.
+- Per-row fitted / residual / leverage: `ATTR_REG_*`.
 
 ## See
 
 - `pulse_examples_search tags=[ols]`
-- Skills: `regression-modeling`, `regression-model-options`, `op-reg-mod-resample`, `op-reg-mod-selection`, `op-reg-glm`, `op-reg-bayes-linear`
+- Skills: `regression-spec`, `regression-modeling`, `regression-model-options`, `regression-inference`, `op-reg-mod-resample`, `op-reg-mod-selection`
