@@ -49,7 +49,7 @@ String key (`2024-Q1`, `FY2025-Q1`, `2026-03-29T03`, `Monday`, `09`), chronologi
 
 ## Contract
 
-- Types: `date`, `datetime`.
+- Types (`field`): `date`, `datetime`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
 - Weight: not read; a weight in force is skipped.
 - Streaming: buffered only; components `mergeable`. Use GROUP_CATEGORY on an ATTR_DATE_PART output column for a streaming-friendly substitute.
 - Components: `total_n`, `n_null`, `granularity`, `range_start`, `range_end`, `n_buckets`, `buckets`.
@@ -58,7 +58,7 @@ String key (`2024-Q1`, `FY2025-Q1`, `2026-03-29T03`, `Monday`, `09`), chronologi
 
 - An `include` key never minted (`monday`, `7`) drops silently.
 - Local clock: a skipped DST hour has no bucket; a repeated one is ONE. Null `tz_field` cell → `n_null`.
-- `PROCESSING_CONFIG`: zone on `date` / derived field, `hour` / `hour_of_day` off `datetime`, misplaced `week_start` / `fiscal_offset`.
+- `PROCESSING_CONFIG`: zone on `date` / derived field, `hour` / `hour_of_day` on a `date` / derived field, misplaced `week_start` / `fiscal_offset`.
 
 ## See
 

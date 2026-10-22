@@ -149,7 +149,7 @@ func TestSkillContract_TypesMatchFieldAccept(t *testing.T) {
 		{"AGG_SET_UNION", "- Types (`field`): `set_*`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`; `decimal128` is `PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`."},
 		{"AGG_RATIO", "- Types (`numerator_field`, `denominator_field`): "},
 		{"WIN_ROW_NUMBER", "- Types: reads no field; naming one is `PULSE_WINDOW_INVALID`."},
-		{"GROUP_DATE", "- Types: `date`, `datetime`."},
+		{"GROUP_DATE", "- Types (`field`): `date`, `datetime`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`."},
 		{"AGG_COUNT", "- Types: any type."},
 		{"TEST_CHISQ", "- Types (`rows`, `cols`): `categorical_*`, `packed_bool`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`."},
 		{"TEST_PAIRED_T", "- Types (`field2`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_TEST_FIELD2_NOT_NUMERIC`."},
@@ -162,9 +162,14 @@ func TestSkillContract_TypesMatchFieldAccept(t *testing.T) {
 			t.Errorf("%s: want line %q in:\n%s", c.op, c.want, got)
 		}
 	}
-	// A slot with no tabled admission never invents a code.
-	if got := RenderContractSection("GROUP_DATE"); strings.Contains(got, "PULSE_FIELD_TYPE_UNSUPPORTED") {
-		t.Errorf("untabled slot rendered a refusal code:\n%s", got)
+	// A slot with no tabled admission renders its declared accepts_types
+	// and never invents a code (no built-in has one since GROUP_DATE was
+	// tabled; an untabled declaration is probed).
+	untabled := renderFacts(contractFacts{category: "grouper", types: operatorContractTypes(descriptor.Operator{
+		Name: "\x00untabled-probe", AcceptsTypes: []string{"date", "datetime"},
+	})}, fullContractVisibility)
+	if !strings.Contains(untabled, "- Types: `date`, `datetime`.") || strings.Contains(untabled, "PULSE_") {
+		t.Errorf("untabled slot rendered:\n%s", untabled)
 	}
 }
 

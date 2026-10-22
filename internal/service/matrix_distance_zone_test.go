@@ -223,7 +223,9 @@ func TestMatrixDistance_DateBetweenPredictMatchesRuntime(t *testing.T) {
 	}{
 		{"tz on a category between", `{"type": "GROUP_CATEGORY", "field": "bday", "tz": "Europe/Berlin"}`, "", errors.PROCESSING_CONFIG},
 		{"unknown between tz", `{"type": "GROUP_DATE", "field": "ts", "tz": "Mars/Olympus"}`, "", errors.PULSE_TIMEZONE_UNKNOWN},
-		{"hour over a date-free field", `{"type": "GROUP_DATE", "field": "x1", "params": {"component": "hour"}}`, "", errors.PROCESSING_CONFIG},
+		// A non-date-family field is the accepted-types table's refusal,
+		// raised before the sub-day datetime rule.
+		{"hour over a date-free field", `{"type": "GROUP_DATE", "field": "x1", "params": {"component": "hour"}}`, "", errors.PULSE_FIELD_TYPE_UNSUPPORTED},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			req := distZoneReq(c.between, c.tz)

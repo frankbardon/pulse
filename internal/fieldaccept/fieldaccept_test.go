@@ -185,7 +185,7 @@ func TestTypeNames_SetOperators(t *testing.T) {
 }
 
 func TestTypeNames_DateRanges(t *testing.T) {
-	for _, op := range []string{"GROUP_DATE_RANGES", "FILTER_DATE_RANGES"} {
+	for _, op := range []string{"GROUP_DATE", "GROUP_DATE_RANGES", "FILTER_DATE_RANGES"} {
 		if got, want := TypeNames(op, SlotField), []string{"date", "datetime"}; !reflect.DeepEqual(got, want) {
 			t.Errorf("%s: %v, want %v", op, got, want)
 		}
