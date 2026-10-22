@@ -510,7 +510,7 @@ var fieldOverrides = map[fieldKey]any{
 	},
 	{reflect.TypeFor[descriptor.RecommendStep](), "request"}: map[string]any{
 		"type":        "object",
-		"description": "The step tool's input as wire JSON: for pulse_materialize the {request, out} pair (request in the #/$defs/Request shape), for pulse_process a #/$defs/Request. Every value the caller must supply is a \"<placeholder>\" string, listed in placeholders.",
+		"description": "The step tool's input as wire JSON: a {request, out} pair (request in the #/$defs/Request shape) for a step that writes a cohort, else a #/$defs/Request. Every value the caller must supply is a \"<placeholder>\" string, listed in placeholders.",
 	},
 }
 

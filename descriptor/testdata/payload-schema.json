@@ -3645,7 +3645,7 @@
           ]
         },
         "request": {
-          "description": "The step tool's input as wire JSON: for pulse_materialize the {request, out} pair (request in the #/$defs/Request shape), for pulse_process a #/$defs/Request. Every value the caller must supply is a \"\u003cplaceholder\u003e\" string, listed in placeholders.",
+          "description": "The step tool's input as wire JSON: a {request, out} pair (request in the #/$defs/Request shape) for a step that writes a cohort, else a #/$defs/Request. Every value the caller must supply is a \"\u003cplaceholder\u003e\" string, listed in placeholders.",
           "type": "object"
         },
         "tool": {
@@ -5427,4 +5427,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 96931dafdf671990f8f9a2b66d5e4ae851b68f6a7acd0de5df7dc1817d10bbb9
+// golden-hash: b51de03ef2fa6514b21ae52150d82f0f2a5f268c5f401212db5331bd6af3f4f0
