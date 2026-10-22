@@ -45,7 +45,7 @@ graph LR
   P --> E[pulse.Explain / pulse_explain]
   I[Intent taxonomy] --> R
   I --> D
-  I --> X[Examples _meta.intent / question]
+  I --> X[Examples _meta.intents / question]
   I --> MP[MCP prompts]
 ```
 

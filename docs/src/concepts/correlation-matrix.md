@@ -16,7 +16,7 @@ If you only care about one pair, ask the [relationship question](../guide/questi
 
 ## How to read it in Pulse
 
-Declare the fields once as a vector and ask for `MAT_CORRELATION` over it (`pulse examples show correlation_matrix` prints a runnable request). The result's `primary` block holds the grid: `row_keys` and `column_keys` name the fields, and `values` holds the cells in the same order.
+Declare the fields once as a vector (a named list of fields in the request's `vectors` block) and ask for `MAT_CORRELATION` over it (`pulse examples show correlation_matrix` prints a runnable request). The result's `primary` block holds the grid: `row_keys` and `column_keys` name the fields, and `values` holds the cells in the same order.
 
 - Read the sign first (do they move together or apart), then the size.
 - Rank-based methods (`spearman`, `kendall`) via `params.method` cope better with outliers and with ratings that are really ordered categories.

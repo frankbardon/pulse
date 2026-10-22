@@ -200,7 +200,7 @@ The result:
 }
 ```
 
-Yes. The variant arm's average revenue is higher than the control arm's by close to a fifth, and the test says a gap this wide would rarely appear if the arms truly spent the same: the p-value sits well below alpha and the interval for the difference stays on one side of zero. The difference reads as the first group minus the second (control minus variant), which is why it is negative. Cohen's d puts the effect at the small end, so the two arms overlap heavily and plenty of control customers still out-spend variant customers. The average in the data row is the whole cohort; the per-arm means sit in the test's details.
+Yes. The variant arm's average revenue is higher than the control arm's by close to a fifth, and the test says a gap this wide would rarely appear if the arms truly spent the same: the p-value sits well below alpha (the false-alarm rate the request accepts) and the interval for the difference stays on one side of zero. The difference reads as the first group minus the second (control minus variant), which is why it is negative. Cohen's d puts the effect at the small end, so the two arms overlap heavily and plenty of control customers still out-spend variant customers. The average in the data row is the whole cohort; the per-arm means sit in the test's details.
 
 ## How to read the result
 

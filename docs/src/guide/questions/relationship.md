@@ -165,7 +165,7 @@ The result:
 }
 ```
 
-Very strongly. The correlation sits close to its ceiling and its interval is narrow, so customers keep almost exactly their spending order from before the test to during it. A correlation this high says the two measures rise and fall together; on its own it says nothing about cause, and nothing about whether spending went up overall, which is a before-and-after comparison of the same customers.
+Very strongly. The correlation sits close to its ceiling and its interval is narrow, so spending during the test follows earlier spending along an almost perfect straight line: customers who spent more before spend more now. A correlation this high says the two measures rise and fall together; on its own it says nothing about cause, and nothing about whether spending went up overall, which is a before-and-after comparison of the same customers.
 
 ## How to read the result
 

@@ -31,7 +31,7 @@ To check what the picture shows, ask `MAT_DISTANCE` for the grid of distances be
 ## Common traps
 
 - **The map is only as good as the ratings.** If respondents rated everything alike, the map shows noise.
-- **Ratings with different levels.** People who rate everything high and people who rate everything low separate on the first component for reasons that are not about the brands. Centre each row's ratings first, or use a correlation-based similarity.
+- **Ratings with different levels.** People who rate everything high and people who rate everything low separate on the first component for reasons that are not about the brands. Centre each row's ratings first (subtract the row's own average rating from each of its ratings), or use a correlation-based similarity.
 - **Too few rows per item.** Averages from a handful of rows move a lot.
 - **Over-reading small gaps.** Pulse's centre distances carry no p-values; two close points are not proven different, and two far points are not proven far.
 - **Distances in the plot are not the distances in the data.** Always verify a surprising pair against the distance grid.

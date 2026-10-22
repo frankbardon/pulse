@@ -12,7 +12,7 @@ It sounds like:
 - "Are there customers whose figures look implausible?"
 - "Who answered carelessly?"
 
-Count what is missing per field (a null count beside a count of present values), then group the same counts by a field that could explain the gaps, such as the channel a form arrived through. Keep or drop the null rows with a null filter once you know who they are. For rows out of line on several fields at once, score each row's distance from the cohort's centre (Mahalanobis distance) or its leverage in a model. For a rating battery, flag rows that give the same answer to every item (straight-lining) or answer too few items to score.
+Count what is missing per field (a null count beside a count of present values), then group the same counts by a field that could explain the gaps, such as the channel a form arrived through. Keep or drop the null rows with a null filter once you know who they are. For rows out of line on several fields at once, score each row's distance from the cohort's centre (Mahalanobis distance) or its leverage in a model (how strongly that one row pulls the fitted line towards itself). For a rating battery, flag rows that give the same answer to every item (straight-lining) or answer too few items to score.
 <!-- docgen:preserve end guide-data_quality-question -->
 
 ## Pick your analysis

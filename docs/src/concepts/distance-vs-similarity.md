@@ -29,7 +29,7 @@ The decision that goes wrong most often is the metric. Declare what the numbers 
 - **Euclidean on shares.** Shares that sum to a whole call for `aitchison`, not a straight-line gap.
 - **Units.** A field in thousands swamps a field in single digits. Standardize (`params.standardize`) so each field counts equally.
 - **Shared absences.** For yes/no memberships, decide whether two things both lacking a trait make them alike. `jaccard` says no; `hamming` says yes.
-- **Distance between centres is not spread.** Two segments can have close centres yet barely overlap, or far centres and heavy overlap. `MAT_DISTANCE` gives centres only, with no p-values.
+- **Distance between centres is not spread.** How far apart two centres are says nothing about how much the segments' members overlap: two tight segments can sit close yet barely overlap, and two widely spread ones can sit far apart yet overlap heavily. `MAT_DISTANCE` gives centres only, with no p-values.
 
 ## Where next
 

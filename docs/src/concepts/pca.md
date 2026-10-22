@@ -16,10 +16,10 @@ If you believe a hidden trait causes the answers and want to model that, look at
 
 ## How to read it in Pulse
 
-Declare the fields as a vector and ask for `MAT_PCA` (`pulse examples show principal_components` prints a runnable request). Check these in order:
+List the fields on a `MAT_PCA` matrix (inline as `fields`, or once as a named vector in the request's `vectors` block) (`pulse examples show principal_components` prints a runnable request). Check these in order:
 
-1. **Is it worth doing?** The result reports a KMO figure (how well the fields share variation; higher is better) and Bartlett's sphericity test (are the fields related at all). If they fail, the fields have too little in common to summarise.
-2. **How many components?** `eigenvalues`, `explained_variance` and `cumulative` list every component with its share of the total variation. A big first share and then a sharp drop means one dominant dimension. By default Pulse keeps components with an eigenvalue above 1; set `params.components` to choose a number or a variance share.
+1. **Is it worth doing?** The result reports a KMO figure (the Kaiser-Meyer-Olkin measure of how well the fields share variation, from 0 to 1; higher is better) and Bartlett's sphericity test (are the fields related at all). If they fail, the fields have too little in common to summarise.
+2. **How many components?** `eigenvalues`, `explained_variance` and `cumulative` list every component with its share of the total variation. An eigenvalue is the amount of variation a component carries, counted in fields: on the default correlation basis each field brings 1, so an eigenvalue above 1 carries more than a single field does. A big first share and then a sharp drop means one dominant dimension. By default Pulse keeps components with an eigenvalue above 1; set `params.components` to choose a number or a variance share.
 3. **What does each mean?** The `primary` block holds the loadings: one row per field, one column per component (`PC1`, `PC2`, ...). Large loadings, in size, say which fields make up a component; name the component after them.
 4. **Per-field fit.** `communalities` say how much of each field the kept components explain; a low one means the field does not belong with the rest.
 

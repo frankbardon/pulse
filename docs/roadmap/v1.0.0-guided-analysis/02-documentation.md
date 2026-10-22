@@ -91,12 +91,14 @@ The examples library is already curated and runnable. Extend `_meta` with:
 
 ```jsonc
 "_meta": {
-  "intent": "compare_groups",
+  "intents": ["compare_groups"],
   "question": "Do average satisfaction scores differ by region?",
   "interpretation": "p < 0.05 → regions differ; eta² ≈ 0.04 → small effect. Follow with TEST_TUKEY_HSD to see which regions.",
   "level": "basic"
 }
 ```
+
+As shipped in U31: `intents` is a list (its first entry picks the guide that shows the story), the interpretation is qualitative and carries no digits (the figures live in the golden), a story request sets `return.precision` 4, and no `level` key was added.
 
 Then render a *Stories* page per intent: question → request → (golden) output → interpretation. Golden outputs come from the examples test harness, so the story cannot show a stale number. The target is at least one story per intent, and at least one per committed operator in the vector & matrix theme.
 

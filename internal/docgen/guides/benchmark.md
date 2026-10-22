@@ -4,10 +4,10 @@ You have a figure — an average, a share, a total, a score — and something to
 It sounds like:
 
 - "Is our average order value above the target we set?"
-- "Which regions over-index on revenue against the total?"
+- "Which regions sit above the total on revenue?"
 - "How does this wave's mix compare with the last one?"
 
-Decide first what the reference is, because it picks the analysis. A fixed figure you supply takes a one-sample test (a t-test for an average). The total or the population takes an index or z-score overlay, where an index of one hundred means level with the reference. Another group, another wave or another request takes a delta or index overlay against that sibling, stage or reference.
+Decide first what the reference is, because it picks the analysis. A fixed figure you supply takes a one-sample test (a t-test for an average). The total or the population takes an index or a z-score overlay: an index of one hundred means level with the reference, and a z-score says how many standard errors the figure sits above or below it. Another group, another wave or another request takes a delta (the plain difference) or an index overlay against that group, wave or request.
 
 <!-- section pitfalls -->
 - **Choose the reference before you look.** A target picked after seeing the data, or the one comparison that happened to look good, makes any gap look convincing; write the reference down first.

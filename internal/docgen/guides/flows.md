@@ -7,7 +7,7 @@ It sounds like:
 - "Who switched from silver to gold?"
 - "What share of each tier did we keep?"
 
-Build a from-by-to crosstab of counts: each row is a starting state, each column an ending state, so a row read across shows where that state's members went. A retention overlay turns each row into stay, switch and churn rates; a Markov overlay turns the table into transition probabilities and projects the mix forward; a symmetry overlay tests whether moves between two states balance out. When the data is one row per snapshot rather than one per move, a previous-state attribute adds each row's earlier state first.
+Build a from-by-to crosstab of counts: each row is a starting state, each column an ending state, so a row read across shows where that state's members went. A retention overlay turns each row into stay, switch and churn rates; a Markov overlay turns the table into the chance of each move (transition probabilities) and projects the mix forward; a symmetry overlay tests whether moves between two states balance out. When the data is one row per snapshot rather than one per move, a previous-state attribute adds each row's earlier state first.
 
 <!-- section pitfalls -->
 - **Read along the row, not down the column.** A row shows where one starting state's members went; a column shows where an ending state's members came from. They answer different questions.
