@@ -255,6 +255,36 @@ func TestExtensions_SkillsPrunedWithOperator(t *testing.T) {
 	}
 }
 
+// TestExtensions_TopicalSkillSeeRenderedByEdge: an embedder TOPICAL
+// skill's `## See` renders by edge like a built-in one — a stem the
+// profile hides is cut from its line, a line left naming nothing goes —
+// and a profile-free instance serves it unchanged.
+func TestExtensions_TopicalSkillSeeRenderedByEdge(t *testing.T) {
+	const see = "\n## See\n\n`op-agg-acme-kept` · `op-agg-acme-brand` · `ext-acme-brand-guide`.\n\n- `ext-acme-brand-guide` — reading brand share.\n"
+	ext := acmeSkillExtensions()
+	ext.Skills.(fstest.MapFS)["ext-acme-guide.md"] = &fstest.MapFile{Data: []byte(rootExtSkillGuide + see)}
+	for _, tc := range []struct {
+		name    string
+		profile *FeatureProfile
+		want    string
+	}{
+		{"profile-free", nil, see},
+		{"brand hidden", &FeatureProfile{Features: []string{"capability:process", "AGG_ACME_KEPT"}}, "\n## See\n\n`op-agg-acme-kept`.\n\n"},
+	} {
+		p, err := New(Options{FS: memFsWith(t, nil), Extensions: ext, FeatureProfile: tc.profile})
+		if err != nil {
+			t.Fatalf("%s: New: %v", tc.name, err)
+		}
+		body, ok := p.Skill("ext-acme-guide")
+		if !ok {
+			t.Fatalf("%s: ext-acme-guide not served", tc.name)
+		}
+		if !strings.HasSuffix(body, tc.want) {
+			t.Errorf("%s: body = %q, want suffix %q", tc.name, body, tc.want)
+		}
+	}
+}
+
 // TestExtensions_SkillsRefusedAtNew: pulse.New surfaces the validation
 // code (the full table: internal/descriptor TestLoadExtensionSkills_Refusals).
 func TestExtensions_SkillsRefusedAtNew(t *testing.T) {

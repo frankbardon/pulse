@@ -155,6 +155,83 @@ func TestDiscovery_RendersSeeByEdge(t *testing.T) {
 	}
 }
 
+// TestRenderSeeSection_TopicalShapes: the topical pack's " · " inline
+// lists cut item by item, and a section a cut left blank goes with its
+// heading — mid-body and at the end — while a section blank to begin
+// with stays.
+func TestRenderSeeSection_TopicalShapes(t *testing.T) {
+	keep := func(span string) bool { return span != "gone" }
+	for _, tc := range []struct{ name, body, want string }{
+		{"middot list", "## See\n\n`kept` (a) · `gone` (b) · `also` (c).\n",
+			"## See\n\n`kept` (a) · `also` (c).\n"},
+		{"middot last item cut keeps the period", "## See\n\n`kept` · `gone`.\n",
+			"## See\n\n`kept`.\n"},
+		{"emptied section at the end", "intro\n\n## See\n\n- `gone` — x.\n\n`gone` · `gone`\n",
+			"intro\n"},
+		{"emptied section mid-body", "intro\n\n## See\n\n- `gone`\n\n## After\n\n- `gone`\n",
+			"intro\n\n## After\n\n- `gone`\n"},
+		{"section blank from the start stays", "intro\n\n## See\n\n## After\n",
+			"intro\n\n## See\n\n## After\n"},
+		{"prose line keeps the section", "## See\n\n- `gone`\nAsk the team.\n",
+			"## See\n\nAsk the team.\n"},
+	} {
+		if got := renderSeeSection(tc.body, keep); got != tc.want {
+			t.Errorf("%s:\n got %q\nwant %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestDiscovery_RendersTopicalSeeByEdge: a profiled instance renders a
+// shipped TOPICAL body's `## See` by edge exactly as it does an atomic
+// one — a hidden skill stem and a tag search no visible example answers
+// are cut, every visible sibling stays.
+func TestDiscovery_RendersTopicalSeeByEdge(t *testing.T) {
+	d := hidingSnapshot("AGG_WELFORD", featWeighting).Discovery()
+	for _, tc := range []struct {
+		skill, cut string
+		kept       []string
+	}{
+		{"matrix-results", "`weighting`", []string{"`request-envelope` · `response-components`", "`multivariate-design`"}},
+		{"survey-weights", "`weighting`", []string{"`response-components` · `pulse_errors_lookup`"}},
+		{"aggregation-design", `tags=["welford-triple"]`, []string{`tags=["cohort-analysis"]` + "`, `" + `tags=["welch"]`, "`request-envelope`"}},
+	} {
+		if _, ok := d.topical[tc.skill]; !ok {
+			t.Fatalf("premise: %s is a topical skill", tc.skill)
+		}
+		full, _ := skills.Get(tc.skill)
+		if !strings.Contains(seeSection(full), tc.cut) {
+			t.Fatalf("premise: %s's See names %s", tc.skill, tc.cut)
+		}
+		got, ok := d.Skill(tc.skill)
+		if !ok {
+			t.Fatalf("%s pruned", tc.skill)
+		}
+		if strings.Contains(seeSection(got), tc.cut) {
+			t.Errorf("%s: See still names hidden %s:\n%s", tc.skill, tc.cut, seeSection(got))
+		}
+		for _, k := range tc.kept {
+			if !strings.Contains(seeSection(got), k) {
+				t.Errorf("%s: See lost visible %s:\n%s", tc.skill, k, seeSection(got))
+			}
+		}
+	}
+}
+
+// TestDiscovery_FullRenderUnchangedBySeeRender: the profile-free view
+// serves every shipped skill as skills.Get does, and a See render that
+// keeps every span leaves each body byte-identical.
+func TestDiscovery_FullRenderUnchangedBySeeRender(t *testing.T) {
+	for _, md := range skills.List() {
+		full, _ := skills.Get(md.Name)
+		if got, ok := fullDiscovery.Skill(md.Name); !ok || got != full {
+			t.Errorf("%s: full view differs from skills.Get", md.Name)
+		}
+		if got := renderSeeSection(full, func(string) bool { return true }); got != full {
+			t.Errorf("%s: keep-all See render changed the body", md.Name)
+		}
+	}
+}
+
 // TestDiscovery_KeepsTableRows is the regression test for U06's line-wise
 // scrub: hiding FILTER_INCLUDE used to delete op-agg-frequency's `value`
 // parameter row (its one sentence named FILTER_INCLUDE). Fence rendering

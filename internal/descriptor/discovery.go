@@ -37,8 +37,8 @@ import (
 //     ProseScrub, so it names no hidden operator or tool (a frontmatter
 //     description cannot hold a feature fence);
 //   - every surviving embedded BODY — atomic and topical — is rendered
-//     by its feature fences against the pruned graph, and an atomic body's
-//     `## See` section by edge (skill_render.go). Fence markers are
+//     by its feature fences against the pruned graph, then its `## See`
+//     section by edge (skill_render.go). Fence markers are
 //     always stripped. Prose outside a fence is served as written: a body
 //     names a hidden feature only where it is not fenced yet.
 //
@@ -277,9 +277,9 @@ func (d *Discovery) keepNode(kind descriptor.OntologyNodeKind) func(id string) b
 // Skill returns the markdown body of a visible skill; a pruned name
 // answers exactly as a nonexistent one ("", false). An embedded body is
 // rendered for the instance (renderBody, skill_render.go): its feature
-// fences against the pruned graph and, atomic only, its `## See` section
-// by edge — so a table row, list item or code block survives whole or
-// goes whole. The virtual intents / glossary bodies render from the
+// fences against the pruned graph and, atomic and topical alike, its
+// `## See` section by edge — so a table row, list item or code block
+// survives whole or goes whole. The virtual intents / glossary bodies render from the
 // pruned graph. The pass-through view serves skills.Get (the full
 // render: every fence kept, markers stripped).
 func (d *Discovery) Skill(name string) (string, bool) {
