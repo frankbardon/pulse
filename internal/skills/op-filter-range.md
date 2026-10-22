@@ -31,6 +31,8 @@ Row-level predicate. Pass when `low ≤ value ≤ high`; drop otherwise. No emit
 
 Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}` per `response-components` contract. Mergeable across chunks; counters fold by simple addition.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Inclusive bounds on both ends. <!-- feature: FILTER_EXPRESSION -->Open intervals require `FILTER_EXPRESSION`.<!-- /feature -->

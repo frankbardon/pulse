@@ -29,6 +29,8 @@ One `f64` column written to `Label` (default `LOG_<field>`). Formula `log1p(x) =
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Inputs with `x <= -1` (where `1 + x <= 0`) produce a `null`, not an error — the rest of the cohort keeps going.

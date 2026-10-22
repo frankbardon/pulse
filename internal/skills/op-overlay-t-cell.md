@@ -31,6 +31,8 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value. One layer per target; `Basel
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - An undefined (NaN) target or reference cell is a MISSING pair: the cell stays absent, no warning, out of `summary.count`.

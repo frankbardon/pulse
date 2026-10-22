@@ -45,6 +45,12 @@ One `float64` per record — `(value − pop_mean) / pop_stddev`. Null source �
   - Sign: positive means the row's value is above the mean; negative means the row's value is below the mean.
   - Caveat: Rules such as 'about 95% of rows lie within 2 standard deviations' hold only for a roughly bell-shaped (normal) field; on a skewed field far more rows can sit beyond 2 on the long side.
 
+## Contract
+
+- Types (`field`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable.
+
 ## Gotchas
 
 - Two-pass: pre-pass computes mean/stddev over filter-passing rows, then pass 2 emits per row. Orchestrator handles transparently — no full buffering unless paired with a buffered op downstream.

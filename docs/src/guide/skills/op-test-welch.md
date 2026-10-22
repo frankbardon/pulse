@@ -48,6 +48,14 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 - `p_value`: a p-value. Below alpha (0.05 unless the request sets another) the result is called significant; that is not the same as important, so read the effect size for how big it is.
 - `details.diff`: The first group's mean minus the second's, in the field's own units.
 
+## Contract
+
+- Types (`field`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_TEST_FIELD_NOT_NUMERIC`.
+- Types (`split_by`): `categorical_*`, `packed_bool`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `request` (default), `compose` (inside Compose).
+- Streaming: streamable.
+
 ## Gotchas
 
 - Fixed-horizon p only: no sequential / always-valid p-values, no Bayesian readout ([`statistical-testing`](statistical-testing.md)).

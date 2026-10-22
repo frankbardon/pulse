@@ -32,6 +32,8 @@ Window operators emit row-level values; they do not produce `Response.Components
 
 One value per row written to `Label` (default `WIN_LAG_<field>`): a verbatim copy, so a `u64` id renders its exact word. When `i - offset < 0` within the partition emits `default` if set, else `null`.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Not weightable: a request `weight` is `PROCESSING_CONFIG` (windows carry no slot weight); `Options.DefaultWeight` is skipped.

@@ -43,6 +43,13 @@ Row-level predicate. Pass when `low ≤ value ≤ high`; drop otherwise. No emit
 
 Floor only — no operator-specific keys. Universal `{n_in, n_out, n_null_input}` per [`response-components`](response-components.md) contract. Mergeable across chunks; counters fold by simple addition.
 
+## Contract
+
+- Types (`field`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable; components `mergeable`.
+- Components: `n_in`, `n_out`, `n_null_input`.
+
 ## Gotchas
 
 - Inclusive bounds on both ends. Open intervals require `FILTER_EXPRESSION`.

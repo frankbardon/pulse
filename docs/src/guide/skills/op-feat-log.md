@@ -41,6 +41,12 @@ One `f64` column written to `Label` (default `LOG_<field>`). Formula `log1p(x) =
   - Caveat: A value of -1 or less has no log and reads missing, with no error raised: count the missing rows before trusting a model built on the column.
   - Caveat: A missing input gives a missing output.
 
+## Contract
+
+- Types (`field`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable.
+
 ## Gotchas
 
 - Inputs with `x <= -1` (where `1 + x <= 0`) produce a `null`, not an error — the rest of the cohort keeps going.

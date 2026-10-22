@@ -2205,9 +2205,22 @@ An atomic skill may carry the marker lines
 from the operator's registration `Purpose` (plain line, up to two
 questions, the not-for alternatives the instance can see), and
 `## Reading the output`, rendered from a test registration's
-`Interpretation`. A marker whose operator declares no such metadata is
-removed silently; a skill without markers is served unchanged; markers
-never cause a `pulse.New` failure and never count toward the budget.
+`Interpretation`. A third marker, `<!-- generated: contract -->` (just
+before `## Gotchas`), renders `## Contract` from the registration
+itself: the declared `Accepts` types, the weight line from
+`WeightAware` (aware: weighted under both kinds; not aware: an
+aggregator refuses an explicit weight with
+`PULSE_EXTENSION_NOT_WEIGHT_AWARE` and skips an instance default, any
+other category refuses any weight in force), multiplicity for a test
+or a matrix / regression registration declaring `PValues`,
+`Streamable` / `Mergeable` with the `ComponentSchema` mergeability
+class, and the declared `ComponentSchema` key names. On a profiled
+instance it names no hidden feature (no weight line without
+`capability:weighting`, no multiplicity line without
+`capability:multiplicity`). A marker whose operator declares no such
+metadata is removed silently; a skill without markers is served
+unchanged; markers are optional and never auto-injected, never cause a
+`pulse.New` failure and never count toward the budget.
 
 ## Embedder examples (`Extensions.Examples`)
 

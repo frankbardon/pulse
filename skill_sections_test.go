@@ -6,6 +6,8 @@ import (
 	"testing/fstest"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/extend"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 )
 
@@ -180,5 +182,109 @@ func TestExtensionSkills_MarkersOutsideBudget(t *testing.T) {
 	ext.Skills = fstest.MapFS{"op-test-acme-gap.md": {Data: []byte(strings.Replace(extSectionSkill, "## Gotchas\nNone.", "## Gotchas\nNone."+pad, 1))}}
 	if _, err := New(Options{FS: memFsWith(t, nil), Extensions: ext}); err != nil {
 		t.Fatalf("New: %v", err)
+	}
+}
+
+// extContractSkill is an embedder op skill carrying the contract
+// marker (U38 E2-S1).
+const extContractSkill = `---
+name: op-agg-acme-contract
+description: Contract stub aggregate.
+kind: operator
+category: AGG
+operator: AGG_ACME_CONTRACT
+type: reference
+applies_to: process
+---
+
+Contract stub aggregate.
+
+## Params
+None.
+
+## Inputs
+A float field.
+
+## Output
+A float64.
+
+## Components
+One operator key.
+
+<!-- generated: contract -->
+
+## Gotchas
+None.
+
+## See
+None.
+`
+
+func extContractExtensions(skill string) Extensions {
+	return Extensions{
+		Aggregators: []AggregatorRegistration{{
+			Name: "AGG_ACME_CONTRACT", Description: "Stub.", Factory: featureSetStubAggFactory,
+			WeightAware: true, Accepts: []encoding.FieldType{encoding.FieldTypeF64},
+			ComponentSchema: descriptor.ComponentSchema{Mergeability: descriptor.None, Keys: []descriptor.ComponentKey{
+				{Name: "acme_total", Type: "float64", Description: "Stub total."},
+			}},
+			ComponentsFunc: func(extend.Aggregator) (map[string]any, error) { return map[string]any{"acme_total": 0.0}, nil },
+		}},
+		Skills: fstest.MapFS{"op-agg-acme-contract.md": {Data: []byte(skill)}},
+	}
+}
+
+// TestExtensionSkills_ContractSection: an embedder op skill carrying
+// `<!-- generated: contract -->` gets `## Contract` rendered from its
+// registration (accepts, WeightAware, Streamable / Mergeable, the
+// declared ComponentSchema); on an instance hiding capability:weighting
+// the Weight line is absent. A skill without the marker is unchanged
+// (TestExtensionSkills_GeneratedSections, op-agg-acme-kept).
+func TestExtensionSkills_ContractSection(t *testing.T) {
+	p, err := New(Options{FS: memFsWith(t, nil), Extensions: extContractExtensions(extContractSkill)})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	got, ok := p.Skill("op-agg-acme-contract")
+	if !ok {
+		t.Fatal("op-agg-acme-contract not served")
+	}
+	want := "## Contract\n\n" +
+		"- Types: `f64`.\n" +
+		"- Weight: weighted under `frequency` and `probability` weights.\n" +
+		"- Streaming: buffered only; partial states do not merge; components `none`.\n" +
+		"- Components: `acme_total`.\n\n## Gotchas"
+	if !strings.Contains(got, want) {
+		t.Errorf("contract not rendered from the registration; want\n%s\nin\n%s", want, got)
+	}
+	if strings.Contains(got, "<!-- generated") {
+		t.Errorf("marker survived:\n%s", got)
+	}
+
+	profiled, err := New(Options{FS: memFsWith(t, nil), Extensions: extContractExtensions(extContractSkill),
+		FeatureProfile: &FeatureProfile{Features: []string{"capability:process", "AGG_ACME_CONTRACT"}}})
+	if err != nil {
+		t.Fatalf("New (profiled): %v", err)
+	}
+	got, _ = profiled.Skill("op-agg-acme-contract")
+	if !strings.Contains(got, "## Contract") || strings.Contains(got, "- Weight:") {
+		t.Errorf("hidden capability:weighting still rendered a Weight line:\n%s", got)
+	}
+}
+
+// TestExtensionSkills_ContractMarkerOutsideBudget: the contract marker
+// line does not count toward the hard embedder budget — a body at
+// exactly the budget without it still loads with it.
+func TestExtensionSkills_ContractMarkerOutsideBudget(t *testing.T) {
+	stripped := strings.Replace(extContractSkill, "<!-- generated: contract -->\n\n", "", 1)
+	body := len(stripped) - strings.Index(stripped, "\nContract stub aggregate.")
+	pad := strings.Repeat("x", 1200-body)
+	skill := strings.Replace(extContractSkill, "## Gotchas\nNone.", "## Gotchas\nNone."+pad, 1)
+	if _, err := New(Options{FS: memFsWith(t, nil), Extensions: extContractExtensions(skill)}); err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	over := strings.Replace(skill, "None."+pad, "None."+pad+"x", 1)
+	if _, err := New(Options{FS: memFsWith(t, nil), Extensions: extContractExtensions(over)}); err == nil {
+		t.Fatal("one byte over the budget loaded: the measure is not the hand-written body")
 	}
 }

@@ -57,6 +57,14 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 `components.matrices[i]`: `n`, `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`; weighted `sum_weights`, `n_eff`, `n_weight_invalid`.
 
+## Contract
+
+- Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Multiplicity: a spec `multiplicity` block (implying `params.inference`; an inherited method reaches only a spec under `params.inference`) adds `p_adjusted` and `significant_adjusted` beside `p`; families `request`, `matrix` (default).
+- Streaming: streamable; partial states merge; components `mergeable`.
+- Components: `n`, `n_null`, `n_listwise_dropped`; optional `min_pair_n`, `max_pair_n`, `sum_weights`, `n_eff`, `n_weight_invalid`.
+
 ## Gotchas
 
 - Each cell is the matching two-field test (Pearson, Spearman, Kendall) over its pair's rows. Weight-0 rows count in `n`, add no mass.

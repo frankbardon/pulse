@@ -53,6 +53,13 @@ Universal floor `{n, n_null}` plus operator-specific:
 - Mergeability: `Mergeable`
 - Streaming: per-chunk; orchestrator sums
 
+## Contract
+
+- Types (`field`): `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: weighted under `frequency` and `probability` weights.
+- Streaming: streamable; components `mergeable`.
+- Components: `n`, `n_null`, `sum`; optional `sum_weights`, `n_eff`, `n_weight_invalid`.
+
 ## Gotchas
 
 - Smart default for numeric fields when `Type` omitted.

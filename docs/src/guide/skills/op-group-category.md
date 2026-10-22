@@ -41,6 +41,13 @@ Non-empty `Include` is order-significant: buckets emit in `Include` order (`Data
 
 Floor `{total_n, n_null}` + `dict_size` (int, distinct values observed) and `buckets` (`[]bucket` of `{key, label, count}` in emission order). `Mergeable`; `StreamableGrouper`, so eligible for fused crosstab.
 
+## Contract
+
+- Types (`field`): `categorical_*`, `date`, `datetime`, `decimal128`, `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8`; any other scalar type is `PULSE_FIELD_TYPE_UNSUPPORTED`.
+- Weight: not read; a weight in force is skipped.
+- Streaming: streamable; components `mergeable`.
+- Components: `total_n`, `n_null`, `dict_size`, `buckets`.
+
 ## Gotchas
 
 - `Include` matches the post-dictionary label; zero-record values drop, never emit empty.

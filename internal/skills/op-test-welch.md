@@ -35,6 +35,8 @@ Slot params: `Field` (required, numeric), `SplitBy` (required, categorical, exac
 
 <!-- generated: reading-the-output -->
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Fixed-horizon p only: no sequential / always-valid p-values, no Bayesian readout (`statistical-testing`).

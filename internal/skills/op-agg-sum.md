@@ -40,6 +40,8 @@ Universal floor `{n, n_null}` plus operator-specific:
 - Mergeability: `Mergeable`
 - Streaming: per-chunk; orchestrator sums
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Smart default for numeric fields when `Type` omitted.

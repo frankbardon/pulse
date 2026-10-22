@@ -13,7 +13,10 @@ import (
 //
 // An atomic skill may carry the marker lines
 // `<!-- generated: use-when -->` and `<!-- generated: reading-the-output -->`
-// (internal/skills/generated.go). Every rendered read replaces them with
+// (internal/skills/generated.go); the third marker,
+// `<!-- generated: contract -->`, renders from the capability
+// declarations instead (skill_contract.go) and is dispatched there by
+// the init renderer and Discovery.renderGenerated. Every rendered read replaces them with
 // a heading plus a body built HERE from the documented operator's
 // guidance metadata — never stored in the file:
 //
@@ -59,6 +62,9 @@ const pValueBrief = "a p-value. Below alpha (0.05 unless the request sets anothe
 
 func init() {
 	skills.RegisterSectionRenderer(func(operator, section string) string {
+		if section == skills.SectionContract {
+			return RenderContractSection(operator)
+		}
 		return RenderGuidanceSection(operator, section, nil, nil, ProseScrub{})
 	})
 }
@@ -389,7 +395,9 @@ func sentenceEnd(s string) string {
 // renderGenerated substitutes body's generated-section markers for the
 // instance: the operator is the body's frontmatter `operator:`; a
 // not-for target survives iff its node survived the prune, and every
-// string goes through the instance scrub.
+// string goes through the instance scrub. The contract section renders
+// from the instance view too (skill_contract.go): an extension
+// operator's registration, no line about a hidden feature.
 func (d *Discovery) renderGenerated(body string) string {
 	op := ""
 	if md, ok := skills.ParseMetadata(body); ok {
@@ -404,6 +412,9 @@ func (d *Discovery) renderGenerated(body string) string {
 	return skills.RenderGenerated(body, func(section string) string {
 		if op == "" {
 			return ""
+		}
+		if section == skills.SectionContract {
+			return renderContractSection(op, d.extSnap, d.contractVisibility())
 		}
 		return RenderGuidanceSection(op, section, d.extSnap, keep, d.scrub)
 	})

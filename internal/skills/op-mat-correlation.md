@@ -45,6 +45,8 @@ Integer / float members; `packed_bool` under `coerce: "binary"`.
 
 `components.matrices[i]`: `n`, `n_null`, `n_listwise_dropped`; pairwise `min_pair_n` / `max_pair_n`<!-- feature: capability:weighting -->; weighted `sum_weights`, `n_eff`, `n_weight_invalid`<!-- /feature -->.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - Each cell is the matching two-field test (Pearson, Spearman, Kendall) over its pair's rows. Weight-0 rows count in `n`, add no mass.

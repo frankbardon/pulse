@@ -29,6 +29,8 @@ Non-empty `Include` is order-significant: buckets emit in `Include` order (`Data
 
 Floor `{total_n, n_null}` + `dict_size` (int, distinct values observed) and `buckets` (`[]bucket` of `{key, label, count}` in emission order). `Mergeable`; `StreamableGrouper`, so eligible for fused crosstab.
 
+<!-- generated: contract -->
+
 ## Gotchas
 
 - `Include` matches the post-dictionary label; zero-record values drop, never emit empty.

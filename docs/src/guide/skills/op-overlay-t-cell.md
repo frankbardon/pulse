@@ -44,6 +44,12 @@ MATRIX — `Cells[r][c].Value` = two-sided p-value. One layer per target; `Basel
   - Caveat: Each cell holds the two-sided Welch t-test p-value comparing the target's mean in that cell with the reference's.
   - Caveat: Without AGG_WELFORD values (or explicit variance and sample-size params) Pulse computes the p-value from placeholder inputs (variance 1, n 2), and it then describes those placeholders, not your data.
 
+## Contract
+
+- Weight: weighted under `frequency` and `probability` weights.
+- Multiplicity: a `multiplicity` method adds `p_adjusted` and `significant_adjusted` beside the raw p; families `layer` (default), `row`, `column`, `request`, `compose` (inside Compose).
+- Streaming: buffered only.
+
 ## Gotchas
 
 - An undefined (NaN) target or reference cell is a MISSING pair: the cell stays absent, no warning, out of `summary.count`.

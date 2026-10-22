@@ -10,10 +10,13 @@ import (
 //
 //	<!-- generated: use-when -->
 //	<!-- generated: reading-the-output -->
+//	<!-- generated: contract -->
 //
 // that is replaced at READ time with a heading plus a body rendered from
-// the documented operator's guidance metadata (its Purpose and
-// Interpretation). The prose lives in the registries, never in the file:
+// the documented operator's registry declarations: its guidance
+// metadata (Purpose, Interpretation) for the first two, its capability
+// facts (field types, weight class, multiplicity, streaming, component
+// keys) for the contract. The text lives in the registries, never in the file:
 // Raw serves the marker verbatim, every rendered read (Get, and the
 // instance render in internal/descriptor) substitutes it. A marker is
 // recognised only alone on its line (surrounding whitespace allowed);
@@ -33,12 +36,18 @@ const (
 	// SectionReadingTheOutput renders `## Reading the output` from the
 	// operator's Interpretation entries.
 	SectionReadingTheOutput = "reading-the-output"
+	// SectionContract renders `## Contract` from the operator's
+	// capability declarations: admitted field types and the refusal
+	// code for any other, the weight class or refusal, multiplicity
+	// (only for an operator emitting p-values), streaming and
+	// components mergeability, and the component key names.
+	SectionContract = "contract"
 )
 
 // GeneratedSections returns the known generated-section names, in the
 // order they appear in an atomic skill.
 func GeneratedSections() []string {
-	return []string{SectionUseWhen, SectionReadingTheOutput}
+	return []string{SectionUseWhen, SectionReadingTheOutput, SectionContract}
 }
 
 // GeneratedMarker returns the marker line for section.
