@@ -47,10 +47,10 @@ const componentsPage = "reading/components.md"
 // Preserve markers. A span between a begin and an end marker is
 // hand-written prose, not generated text: Render copies it verbatim
 // from its embedded source, so regeneration reproduces it byte for
-// byte. The only span today is the Components intro, whose source of
-// truth is components_intro.md in this package (embedded, so an export
-// outside the repository carries it too) — edit that file, never the
-// span in a rendered page.
+// byte. The Components intro's source of truth is components_intro.md
+// in this package; the question pages' prose lives under guides/ (see
+// prose.go). Both are embedded, so an export outside the repository
+// carries them too — edit those files, never a span in a rendered page.
 const (
 	preserveBeginPrefix = "<!-- docgen:preserve begin "
 	preserveEndPrefix   = "<!-- docgen:preserve end "
@@ -424,12 +424,7 @@ var mergeabilityText = []struct {
 func (g *gen) renderComponents() string {
 	var b strings.Builder
 	b.WriteString("# Reading the components\n\n")
-	b.WriteString(preserveBeginPrefix + componentsIntroID + preserveSuffix + "\n")
-	b.WriteString(componentsIntro)
-	if !strings.HasSuffix(componentsIntro, "\n") {
-		b.WriteString("\n")
-	}
-	b.WriteString(preserveEndPrefix + componentsIntroID + preserveSuffix + "\n")
+	writePreserved(&b, componentsIntroID, componentsIntro)
 
 	slots := g.componentSlots()
 	b.WriteString("\n<a id=\"floor\"></a>\n\n## The floor every entry carries\n\n")

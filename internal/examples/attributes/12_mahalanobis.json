@@ -55,5 +55,9 @@
   "cohort": {
     "filename": "customers.pulse",
     "data_dir": ".data"
+  },
+  "return": {
+    "preset": "standard",
+    "precision": 4
   }
 }

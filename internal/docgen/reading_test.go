@@ -334,10 +334,20 @@ func lintExempt() []string {
 
 // lintPage runs the guidance lint's text rules over a rendered page,
 // line by line (each line carries one prose string), and returns the
-// hits outside the exemptions.
+// hits outside the exemptions. A fenced code block (a story's request
+// and its golden response) is wire JSON, not prose: its keys name the
+// slots they are (`matrices`, `vectors`), so it is skipped.
 func lintPage(body string) []string {
 	var out []string
+	inFence := false
 	for _, line := range strings.Split(body, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "```") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
 		// A table row's first cell is a component key or band range,
 		// an identifier rather than prose: the scrub drops the whole
 		// slot table with the capability owning the key, so SLOT-TOKEN

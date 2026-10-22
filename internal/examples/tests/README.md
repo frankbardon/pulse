@@ -14,7 +14,7 @@ its cohort from the shared `.data` directory and assumes
 | `06_ks_two_sample.json` | 1 | `TEST_KS` | distribution-shape change on `session_minutes` even when mean tests stay ambiguous |
 | `07_combined_battery.json` | 1 | three tests | t-test + ANOVA + chi-square in a single Process call |
 | `08_post_anova_on_grouped_means.json` | 2 | `TEST_ANOVA_F` (post) | re-running ANOVA over per-region summary rows produced by aggregators |
-| `09_post_trend_on_dates.json` | 2 | `TEST_TREND` | Mann-Kendall over daily mean revenue — picks up the planted upward drift |
+| `09_post_trend_on_dates.json` | 2 | `TEST_TREND` | Mann-Kendall over the weekly revenue-to-baseline ratio (`AGG_RATIO`) — picks up the planted upward drift |
 | `10_post_trend_on_window.json` | 2 | `TEST_TREND` | trend test on a 7-day moving average — pairing windows with trend tests is the standard pattern for noisy series |
 | `11_pearson_correlation.json` | 1 | `TEST_PEARSON_R` | linear correlation between revenue and revenue_before (paired by construction) |
 | `12_paired_t_before_after.json` | 1 | `TEST_PAIRED_T` | paired-sample t on per-unit revenue lift |

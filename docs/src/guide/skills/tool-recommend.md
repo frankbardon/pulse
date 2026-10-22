@@ -21,7 +21,7 @@ Get ranked drafts instead of JSON built from memory. CLI twin: `pulse recommend 
 
 ## Output
 
-`intent`, `bound`, `shapes` (the roles a request's fields fill), `recommendations[]`, `routes_to`, `truncated`, `candidates_considered`. Each recommendation: `operator`, `category`, `level`, `why`, `bound`, `request` (the draft), `placeholders`, `needs` (`{param, why}`), `advisories` (predict's), `alternatives`, `follow_ups`.
+`intent`, `bound`, `shapes` (the roles a request's fields fill), `recommendations[]`, `routes_to`, `truncated`, `candidates_considered`. Each recommendation: `operator`, `category`, `level`, `why`, `bound`, `request` (the draft), `placeholders`, `needs` (`{param, why}`), `advisories` (predict's), `alternatives`, `follow_ups`, `steps`.
 
 ## Gotchas
 
@@ -31,10 +31,12 @@ Get ranked drafts instead of JSON built from memory. CLI twin: `pulse recommend 
 - Empty `recommendations` + `routes_to` is not an error: tooling answers it, or nothing serves it yet.
 - Reads header, schema and sidecar only. Unreadable cohort → `DATA_FILE`.
 - Ranking: hints, fully bound, level, fewest advisories.
+- **`steps`** (a score, prediction or feature column a model reads next): run in order — `pulse_materialize` writes the labelled column to `"<out>"`, then `pulse_process` fits the model there. Fill each step's `placeholders`.
 - A native vector field is drafted whole as `"vector": "<field>"`, before a list of numeric columns, and only where its schema `kind` suits the operator; never in a scalar slot.
 
 ## See
 
 - [`intents`](intents.md) — every intent ID and its field shapes.
 - [`tool-predict`](tool-predict.md) — re-check a draft after filling placeholders.
+- [`tool-materialize`](tool-materialize.md) — the first of a draft's steps.
 - [`session-bootstrap`](session-bootstrap.md) — where recommend sits in a session.

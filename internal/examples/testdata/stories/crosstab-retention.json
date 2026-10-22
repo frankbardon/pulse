@@ -1,0 +1,237 @@
+{
+  "metadata": {
+    "total_rows": 154,
+    "filtered_rows": 154,
+    "cohort_file": "tier_migrations.pulse"
+  },
+  "crosstab": {
+    "shape": "matrix",
+    "matrix": {
+      "row_header": {
+        "fields": [
+          "from_tier"
+        ],
+        "types": [
+          "GROUP_CATEGORY"
+        ]
+      },
+      "column_header": {
+        "fields": [
+          "to_tier"
+        ],
+        "types": [
+          "GROUP_CATEGORY"
+        ]
+      },
+      "row_keys": [
+        [
+          "bronze"
+        ],
+        [
+          "churned"
+        ],
+        [
+          "gold"
+        ],
+        [
+          "silver"
+        ]
+      ],
+      "column_keys": [
+        [
+          "bronze"
+        ],
+        [
+          "churned"
+        ],
+        [
+          "gold"
+        ],
+        [
+          "silver"
+        ]
+      ],
+      "cells": [
+        [
+          {
+            "value": 30,
+            "present": true
+          },
+          {
+            "value": 6,
+            "present": true
+          },
+          {
+            "value": 2,
+            "present": true
+          },
+          {
+            "value": 8,
+            "present": true
+          }
+        ],
+        [
+          {
+            "present": false
+          },
+          {
+            "value": 10,
+            "present": true
+          },
+          {
+            "present": false
+          },
+          {
+            "present": false
+          }
+        ],
+        [
+          {
+            "value": 1,
+            "present": true
+          },
+          {
+            "value": 3,
+            "present": true
+          },
+          {
+            "value": 38,
+            "present": true
+          },
+          {
+            "value": 5,
+            "present": true
+          }
+        ],
+        [
+          {
+            "value": 6,
+            "present": true
+          },
+          {
+            "value": 4,
+            "present": true
+          },
+          {
+            "value": 7,
+            "present": true
+          },
+          {
+            "value": 34,
+            "present": true
+          }
+        ]
+      ],
+      "row_margins": [
+        {
+          "value": 46,
+          "present": true
+        },
+        {
+          "value": 10,
+          "present": true
+        },
+        {
+          "value": 47,
+          "present": true
+        },
+        {
+          "value": 51,
+          "present": true
+        }
+      ],
+      "column_margins": [
+        {
+          "value": 37,
+          "present": true
+        },
+        {
+          "value": 23,
+          "present": true
+        },
+        {
+          "value": 47,
+          "present": true
+        },
+        {
+          "value": 47,
+          "present": true
+        }
+      ],
+      "grand_total": {
+        "value": 154,
+        "present": true
+      },
+      "cell_label": "n",
+      "normalize_applied": "none"
+    }
+  },
+  "overlays": [
+    {
+      "name": "retention",
+      "kind": "OVERLAY_RETENTION",
+      "scope": "row",
+      "ref": {},
+      "payload": {
+        "shape": "series",
+        "series": {
+          "entries": [
+            {
+              "key": [
+                "bronze"
+              ],
+              "summary": {
+                "statistic": 0.6522,
+                "parameters": {
+                  "churn": 0.1304,
+                  "from_total": 46,
+                  "switch": 0.2174
+                }
+              }
+            },
+            {
+              "key": [
+                "gold"
+              ],
+              "summary": {
+                "statistic": 0.8085,
+                "parameters": {
+                  "churn": 0.06383,
+                  "from_total": 47,
+                  "switch": 0.1277
+                }
+              }
+            },
+            {
+              "key": [
+                "silver"
+              ],
+              "summary": {
+                "statistic": 0.6667,
+                "parameters": {
+                  "churn": 0.07843,
+                  "from_total": 51,
+                  "switch": 0.2549
+                }
+              }
+            }
+          ]
+        }
+      },
+      "summary": {
+        "parameters": {
+          "churn": 0.09028,
+          "states": 3,
+          "stay": 0.7083,
+          "switch": 0.2014,
+          "total": 144
+        }
+      }
+    }
+  ],
+  "returned": {
+    "preset": "standard",
+    "digest": "rp1:e54405ae11f7db2bbe9d6bcfa4b9a169857bd482f45431aaae78605ca90255ef",
+    "precision": 4
+  }
+}

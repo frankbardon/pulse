@@ -25,7 +25,7 @@ const (
 	docsGuidePrefx = "guide/"
 	docsStaleHint  = "the committed Analysis Guide is stale: run `make docs` and commit docs/src/guide/** and docs/src/SUMMARY.md. " +
 		"Never hand-edit docs/src/guide — edit the source (the guidance registries in internal/descriptor, a skill under internal/skills, " +
-		"or internal/docgen/components_intro.md for the Components intro) and regenerate."
+		"internal/docgen/components_intro.md for the Components intro, or internal/docgen/guides/*.md for the question pages' prose) and regenerate."
 )
 
 // TestDocsGeneratedCurrent keeps the public book's generated Analysis

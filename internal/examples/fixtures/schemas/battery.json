@@ -1,0 +1,9 @@
+[
+  {"name": "id", "type": "u32", "description": "Respondent identifier (1..N), one row per completed engagement questionnaire"},
+  {"name": "bat_energy", "type": "u8", "description": "Rating 1-5 (strongly disagree to strongly agree): I feel full of energy at work. Positively keyed engagement item"},
+  {"name": "bat_proud", "type": "u8", "description": "Rating 1-5 (strongly disagree to strongly agree): I am proud of the work I do. Positively keyed engagement item"},
+  {"name": "bat_absorbed", "type": "u8", "description": "Rating 1-5 (strongly disagree to strongly agree): I get absorbed in my tasks. Positively keyed engagement item"},
+  {"name": "bat_recommend", "type": "u8", "description": "Rating 1-5 (strongly disagree to strongly agree): I would recommend this workplace to a friend. Positively keyed engagement item"},
+  {"name": "bat_time_flies", "type": "u8", "description": "Rating 1-5 (strongly disagree to strongly agree): time flies when I am working. Positively keyed engagement item"},
+  {"name": "bat_dread", "type": "u8", "description": "Rating 1-5 (strongly disagree to strongly agree): I dread starting the working day. Reverse-keyed engagement item; flip it (6 minus the rating) before scoring"}
+]

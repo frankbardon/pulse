@@ -11,7 +11,7 @@ and a glossary of the statistical terms involved. The metadata is
 > **Status (v1.0.0 alphas).** Every operator carries a `Purpose`, and
 > every statistical test, overlay and regression an `Interpretation`.
 > Pulse renders them for you: the book's [Analysis Guide](../guide/index.md)
-> (operator catalog, "Reading your results", glossary), the `## Use when`
+> (question guides, operator catalog, "Reading your results", glossary), the `## Use when`
 > and `## Reading the output` sections of every operator skill, and
 > `p.ExportReference` / `pulse docs export` for your own instance. The
 > prose is still pulled, never pushed: it appears in none of the default
@@ -114,6 +114,17 @@ not to use it for) and `follow_ups` (what to ask next). Only operators
 the instance offers appear. CLI: `pulse recommend --intent ID`; MCP:
 `pulse_recommend`.
 
+A draft whose column a model should read next — a component, factor or
+scale score, a fitted model's predictions, or a log, square-root or
+frequency-encoded feature column — also carries `steps`. A
+request cannot hand a column it derives to its own regression, so step
+one is a `pulse_materialize` draft that writes the column (labelled,
+under a name the cohort does not already use) to a new cohort at
+`"<out>"`, and step two is the `pulse_process` model request that
+reads it there. Bound, the materialize draft passes materialize's own
+checks. Every other draft carries no `steps`; nor does any draft when
+the instance hides `pulse_materialize`, `pulse_process` or the model.
+
 ## Explain: from a request or a result to plain language
 
 `p.Explain` takes exactly one root: a request (`request`, `composed`,
@@ -189,6 +200,9 @@ stay.
 `p.ExportReference(fs, dir, pulse.ExportReferenceOptions{})` writes
 the instance's whole analysis reference as Markdown under `dir` on an
 `afero.Fs` (a nil `fs` writes through the instance filesystem): the
+"What can Pulse answer?" page with one question guide per analytic
+intent (the question, the operators that answer it, a worked example
+with its committed result, how to read it, pitfalls and next steps), the
 operator catalog with each operator's purpose, the "Reading your
 results" pages, the glossary, every skill as the instance serves it,
 and an mdBook `SUMMARY.md` fragment. `OmitSkills: true` leaves the

@@ -1,5 +1,7 @@
 {
   "_meta": {
+    "interpretation": "Earlier spending explains nearly all of it. R-squared is close to one, and each extra unit of earlier revenue goes with somewhat more than one extra unit now, an estimate pinned down tightly. Session time adds nothing that can be told apart from noise once earlier spending is in the model: its interval spans zero. The standard errors treat customers in the same region as a cluster that may share conditions; with only a handful of regions that check is deliberately cautious. A coefficient describes how revenue moves with a predictor in this data, not what would happen if you changed that predictor.",
+    "question": "What explains a customer's revenue: what they spent before, or how long their sessions run?",
     "name": "clustered_covariance",
     "category": "regression",
     "tags": [
@@ -31,5 +33,8 @@
         "cluster": "region"
       }
     }
-  ]
+  ],
+  "return": {
+    "precision": 4
+  }
 }

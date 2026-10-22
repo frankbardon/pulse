@@ -1,5 +1,7 @@
 {
   "_meta": {
+    "interpretation": "Gold holds on best: about four in five gold members stayed gold, and gold also loses the fewest to churn. Bronze and silver each keep around two in three. Bronze loses the most members to churn, while silver's leavers mostly switch to another tier rather than churn. Each row of the table is a starting tier and each column the tier a member ended in, so read a tier's row across to see where its members went. Churned is named absorbing, so it is not reported as a starting tier and every move into it counts as churn rather than a switch. Each rate rests on around fifty moves, so treat small gaps between tiers with caution.",
+    "question": "Which tiers hold on to their members, and where do the leavers go?",
     "category": "overlays",
     "description": "Crosstab count of from_tier x to_tier (one row per member-month move: each member's tier before and after) decorated with an OVERLAY_RETENTION row-scope overlay: one series entry per starting tier carrying its stay rate (the share still in the same tier), its switch rate (the share that moved to another tier), its churn rate (the share that moved into churned, named absorbing) and the tier's member count. churned itself is not reported as a starting tier. The layer summary pools the three rates over every reported tier. Rows and columns align by tier name (implicit-margin contract; no ref pointer).",
     "intents": [
@@ -53,5 +55,9 @@
         "absorbing": ["churned"]
       }
     }
-  ]
+  ],
+  "return": {
+    "preset": "standard",
+    "precision": 4
+  }
 }

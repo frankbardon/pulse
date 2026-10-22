@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U01, U02, U02b, U02c, U34, U35, U06, U10, U18, U19, U20, U23, U30, U31, U37, U38, U40, U41, U42, U43, U44, U45, U46, U47, U48, U49, U50, U51, U52, U53, U55, U56]
 soft_depends_on: [all feature units]
 blocks: [U33]
-todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 469, 472, 473, 474, 478]
+todo_items: [159, 160, 161, 162, 163, 164, 165, 166, 167, 238, 239, 257, 268, 371, 412, 413, 435, 453, 463, 469, 472, 473, 474, 478, 504, 505]
 branch: docs-audit
 ---
 
@@ -183,3 +183,10 @@ Filed from [U47](U47-survey-tables.md#handed-on); tick in [`TODO.md`](../TODO.md
 Filed from [U48](U48-experiment-readout.md#handed-on); tick in [`TODO.md`](../TODO.md) when done.
 
 - [ ] **#478** Skill `pulse_examples_search tags=[…]` pointers that no example carries (`synth` in the 14 `op-synth-*` skills, `target-encoding` / `polynomial-regression` / `train-test-split`, `survey`, `ranking` / `moving-average` / `lag-lead`); repoint them at canonical tags an example carries and gate it. Found in U48 (E3-S3)
+
+## Handed on from U31
+
+Filed from [U31](U31-guidance-guides.md#handed-on); tick in [`TODO.md`](../TODO.md) when done.
+
+- [ ] **#504** The perceptual-maps primer (`docs/src/concepts/perceptual-maps.md`) describes a recipe (PCA loadings → `ATTR_PC_SCORE` per row → group averages of the two scores → `MAT_DISTANCE` over the group centres) with no runnable example and no story golden behind it; add the example chain and pin its output, then point the primer at it. Found in U31 (E3-S2)
+- [ ] **#505** `skills/session-bootstrap.md` does not mention the CLI `pulse examples search --intent` added in U31 (#252); the skill sits at its 6,000-byte topical budget, and the MCP `pulse_examples_search {intent}` argument predates U31. Make room and add the line, or record why the CLI flag needs no bootstrap mention. Found in U31 (E3-S2)

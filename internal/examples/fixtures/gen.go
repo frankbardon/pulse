@@ -63,7 +63,13 @@ func main() {
 	// function of the row index, so the showcase tests can derive their
 	// expected numbers by hand.
 	must(writeSubscribers(48))
-	fmt.Println("wrote 8 CSVs to", outputDir)
+	// The one-trait battery draws from its own source too, so adding it
+	// left every CSV above byte-identical.
+	must(writeBattery(rand.New(rand.NewSource(seed+2)), 300))
+	// The intake forms draw from their own source as well, so adding
+	// them left every CSV above byte-identical.
+	must(writeIntake(rand.New(rand.NewSource(seed+3)), 300))
+	fmt.Println("wrote 10 CSVs to", outputDir)
 }
 
 // writeExperiment produces an A/B testing cohort designed so every
@@ -391,6 +397,93 @@ func writeSurvey(r *rand.Rand, n int) error {
 			row = append(row, fmt.Sprintf("%.2f", 4+float64(1.2*item)))
 		}
 		if err := w.Write(row); err != nil {
+			return err
+		}
+	}
+	w.Flush()
+	return w.Error()
+}
+
+// writeBattery produces a six-item Likert battery measuring ONE latent
+// trait (job engagement), so reliability and principal-component
+// examples have a well-defined answer: a one-factor fit with no
+// Heywood case (omega defined) and one dominant component. Each item
+// is a 1-5 rating cut from loading*trait + unique noise at fixed
+// thresholds. bat_dread is reverse-worded: it loads NEGATIVELY on the
+// trait, so a reliability request flips it with params.reverse
+// (scale 1..5) before the fold.
+//
+// Fields:
+//
+//	id                         — u32, 1..n
+//	bat_energy .. bat_absorbed — u8 ratings 1..5, positively keyed
+//	bat_dread                  — u8 rating 1..5, reverse-keyed
+func writeBattery(r *rand.Rand, n int) error {
+	w, close := openCSV("battery.csv")
+	defer close()
+	header := []string{"id", "bat_energy", "bat_proud", "bat_absorbed", "bat_recommend", "bat_time_flies", "bat_dread"}
+	if err := w.Write(header); err != nil {
+		return err
+	}
+	// Loadings on the single trait; the last item is reverse-keyed.
+	loadings := [6]float64{0.80, 0.75, 0.70, 0.65, 0.60, -0.70}
+	// Cut points on the unit-variance item scale: 1 | 2 | 3 | 4 | 5.
+	cuts := [4]float64{-1.5, -0.5, 0.5, 1.5}
+	for i := range n {
+		trait := r.NormFloat64()
+		row := []string{itoa(i + 1)}
+		for _, l := range loadings {
+			item := float64(l*trait) + float64(math.Sqrt(1-l*l)*r.NormFloat64())
+			rating := 1
+			for _, c := range cuts {
+				if item > c {
+					rating++
+				}
+			}
+			row = append(row, itoa(rating))
+		}
+		if err := w.Write(row); err != nil {
+			return err
+		}
+	}
+	w.Flush()
+	return w.Error()
+}
+
+// writeIntake produces the missing-data cohort the data_quality
+// examples read: 300 sign-up intake forms, 100 from each channel
+// (web, phone, paper), with nulls planted in two nullable fields. An
+// empty CSV cell in a nullable numeric column imports as a null (the
+// per-record null bitmap), never as zero.
+//
+// Fields:
+//
+//	id      — u32, 1..n
+//	channel — categorical: web / phone / paper, cycling by row
+//	age     — u8, nullable; 18..80, left blank on about 3% of forms in
+//	          every channel (missing at random)
+//	income  — f64, nullable; log-normal yearly income, left blank on
+//	          about 5% of web, 15% of phone and 40% of paper forms, so
+//	          the missing rate depends on the channel
+func writeIntake(r *rand.Rand, n int) error {
+	w, close := openCSV("intake.csv")
+	defer close()
+	if err := w.Write([]string{"id", "channel", "age", "income"}); err != nil {
+		return err
+	}
+	channels := []string{"web", "phone", "paper"}
+	incomeGap := map[string]float64{"web": 0.05, "phone": 0.15, "paper": 0.40}
+	for i := range n {
+		channel := channels[i%len(channels)]
+		age := itoa(18 + r.Intn(63))
+		if r.Float64() < 0.03 {
+			age = ""
+		}
+		income := fmt.Sprintf("%.2f", math.Exp(10.8+0.5*r.NormFloat64()))
+		if r.Float64() < incomeGap[channel] {
+			income = ""
+		}
+		if err := w.Write([]string{itoa(i + 1), channel, age, income}); err != nil {
 			return err
 		}
 	}

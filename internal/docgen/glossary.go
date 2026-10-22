@@ -11,6 +11,26 @@ import (
 // termAnchor is the anchor of a glossary term on glossary.md.
 func termAnchor(id string) string { return "term-" + id }
 
+// conceptsBase is where the hand-written concept primers are published.
+// An absolute URL, so a glossary exported outside the book still links
+// to a page that exists (the primers are not part of an export).
+const conceptsBase = "https://frankbardon.github.io/pulse/concepts/"
+
+// primer is a hand-written concept page a glossary term links to.
+type primer struct{ page, title string }
+
+// termPrimers maps a glossary term ID to the concept primer
+// (docs/src/concepts/<page>.md) that explains it. "Perceptual maps" has
+// no glossary term, so no entry points at it.
+var termPrimers = map[string]primer{
+	"correlation":         {"correlation-matrix", "Correlation matrix"},
+	"principal-component": {"pca", "Principal component analysis"},
+	"eigenvalue":          {"pca", "Principal component analysis"},
+	"loading":             {"pca", "Principal component analysis"},
+	"distance":            {"distance-vs-similarity", "Distance versus similarity"},
+	"similarity":          {"distance-vs-similarity", "Distance versus similarity"},
+}
+
 // termVisible reports whether the instance keeps glossary term id: its
 // node survived the prune — the keep-function the virtual glossary
 // skill renders with. A term every operator user of which is hidden is
@@ -57,6 +77,9 @@ func (g *gen) renderGlossary() string {
 			b.WriteString("\n**Forms:** ")
 			b.WriteString(strings.Join(t.Forms, ", "))
 			b.WriteString("\n")
+		}
+		if pr, ok := termPrimers[t.ID]; ok {
+			b.WriteString("\n**Concept primer:** [" + pr.title + "](" + conceptsBase + pr.page + ".html)\n")
 		}
 		var see []string
 		for _, id := range t.SeeAlso {

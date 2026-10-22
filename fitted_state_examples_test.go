@@ -122,6 +122,10 @@ func TestFittedState_ExamplesGolden(t *testing.T) {
 			t.Fatalf("%s: %v", name, err)
 		}
 		req.Cohort.DataDir = tmp
+		// The golden pins the UNSHAPED fitted result: an example's
+		// `return` block (a worked story's compact preset) is
+		// presentation, and would drop the components this test pins.
+		req.Return = nil
 		resp, err := p.Process(context.Background(), &req)
 		if err != nil {
 			t.Fatalf("%s: Process: %v", name, err)

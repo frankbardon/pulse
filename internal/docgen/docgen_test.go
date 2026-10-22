@@ -425,14 +425,17 @@ func TestWrite_ThroughAfero(t *testing.T) {
 
 // TestDocgenImportBoundary: docgen is no-execute — it imports the
 // standard library, afero, the public descriptor package and the
-// internal descriptor and skills packages only (never internal/service
-// or internal/processing), and builds no JSON by hand.
+// internal descriptor, skills and examples packages only (never
+// internal/service or internal/processing — the examples package, read
+// for the story goldens, is checked to import neither), and builds no
+// JSON by hand.
 func TestDocgenImportBoundary(t *testing.T) {
 	allowed := map[string]bool{
 		"github.com/spf13/afero":                           true,
 		"github.com/frankbardon/pulse/descriptor":          true,
 		"github.com/frankbardon/pulse/internal/descriptor": true,
 		"github.com/frankbardon/pulse/internal/skills":     true,
+		"github.com/frankbardon/pulse/internal/examples":   true,
 	}
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -456,7 +459,7 @@ func TestDocgenImportBoundary(t *testing.T) {
 				continue
 			}
 			if !allowed[p] {
-				t.Errorf("%s imports %q: docgen may import only stdlib, afero, descriptor, internal/descriptor and internal/skills", name, p)
+				t.Errorf("%s imports %q: docgen may import only stdlib, afero, descriptor, internal/descriptor, internal/skills and internal/examples", name, p)
 			}
 		}
 		src, err := os.ReadFile(name)
@@ -469,6 +472,26 @@ func TestDocgenImportBoundary(t *testing.T) {
 	}
 	if seen == 0 {
 		t.Fatal("no non-test Go files found")
+	}
+	exEntries, err := os.ReadDir("../examples")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range exEntries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, path.Join("../examples", name), nil, parser.ImportsOnly)
+		if err != nil {
+			t.Fatalf("parse examples/%s: %v", name, err)
+		}
+		for _, imp := range f.Imports {
+			p, _ := strconv.Unquote(imp.Path.Value)
+			if strings.HasPrefix(p, "github.com/frankbardon/pulse/internal/service") || strings.HasPrefix(p, "github.com/frankbardon/pulse/internal/processing") {
+				t.Errorf("internal/examples/%s imports %q: docgen reads examples, so it must stay no-execute", name, p)
+			}
+		}
 	}
 }
 
@@ -562,5 +585,34 @@ func TestRender_KnownAsListed(t *testing.T) {
 	}
 	if got := block("catalog/aggregator.md", bare); strings.Contains(got, "Also known as") {
 		t.Errorf("%s declares no KnownAs but renders the line:\n%s", bare, got)
+	}
+}
+
+// TestRender_GlossaryLinksConceptPrimers: the glossary terms that match
+// a hand-written concept primer link to its published page, and every
+// linked page exists under docs/src/concepts.
+func TestRender_GlossaryLinksConceptPrimers(t *testing.T) {
+	g := tree(docgen.Render(defaultSnapshot(), docgen.Options{}))["glossary.md"]
+	linkRe := regexp.MustCompile(`\*\*Concept primer:\*\* \[[^\]]+\]\(https://frankbardon\.github\.io/pulse/concepts/([a-z-]+)\.html\)`)
+	got := map[string]string{}
+	for _, sec := range strings.Split(g, "\n## ")[1:] {
+		if m := linkRe.FindStringSubmatch(sec); m != nil {
+			got[strings.SplitN(sec, "\n", 2)[0]] = m[1]
+		}
+	}
+	want := map[string]string{
+		"correlation": "correlation-matrix", "principal-component": "pca", "eigenvalue": "pca",
+		"loading": "pca", "distance": "distance-vs-similarity", "similarity": "distance-vs-similarity",
+	}
+	for term, page := range want {
+		if got[term] != page {
+			t.Errorf("term %s links %q, want %q", term, got[term], page)
+		}
+		if _, err := os.Stat("../../docs/src/concepts/" + page + ".md"); err != nil {
+			t.Errorf("primer page %s: %v", page, err)
+		}
+	}
+	if strings.Count(g, "**Concept primer:**") != len(want) {
+		t.Errorf("unexpected primer links: %d", strings.Count(g, "**Concept primer:**"))
 	}
 }

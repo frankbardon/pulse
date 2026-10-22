@@ -410,6 +410,58 @@
             "when": "you want the coefficients, their standard errors and p-values",
             "use": "REG_OLS"
           }
+        ],
+        "steps": [
+          {
+            "tool": "pulse_materialize",
+            "request": {
+              "out": "\u003cout\u003e",
+              "request": {
+                "attributes": [
+                  {
+                    "field": "\u003cfield\u003e",
+                    "label": "predicted",
+                    "params": {
+                      "fit": "\u003cfit\u003e"
+                    },
+                    "type": "ATTR_REG_PREDICT"
+                  }
+                ],
+                "cohort": {
+                  "filename": "\u003ccohort\u003e"
+                }
+              }
+            },
+            "placeholders": [
+              "cohort",
+              "field",
+              "fit",
+              "out"
+            ],
+            "why": "A model cannot read a column its own request derives, so write the predicted column to a new cohort first."
+          },
+          {
+            "tool": "pulse_process",
+            "request": {
+              "cohort": {
+                "filename": "\u003cout\u003e"
+              },
+              "regressions": [
+                {
+                  "predictors": [
+                    "predicted"
+                  ],
+                  "target": "\u003ctarget\u003e",
+                  "type": "REG_OLS"
+                }
+              ]
+            },
+            "placeholders": [
+              "out",
+              "target"
+            ],
+            "why": "Then fit the model on the new cohort, reading predicted as a predictor."
+          }
         ]
       }
     ],
@@ -419,4 +471,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d92294b23af28e5d63f9638a3715e2a36d6915fdb04dc6c4360b3742415108c5
+// golden-hash: 4a4ce3dafb31f2ce0f044b77149ca4ca89010a4ea49cca3ee30ce4bbe52d3c27

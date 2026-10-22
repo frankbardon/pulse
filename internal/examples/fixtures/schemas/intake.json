@@ -1,0 +1,6 @@
+[
+  {"name": "id", "type": "u32", "description": "Intake form identifier (1..N), one row per submitted sign-up form"},
+  {"name": "channel", "type": "categorical_u8", "description": "Channel the sign-up form arrived through: web, phone or paper; one third of the forms each"},
+  {"name": "age", "type": "u8", "nullable": true, "description": "Applicant age in whole years (18-80); null when the applicant left the question blank, which happens on a few forms in every channel"},
+  {"name": "income", "type": "f64", "nullable": true, "description": "Self-reported yearly household income in USD; null when the applicant left it blank, which paper forms do far more often than web forms"}
+]

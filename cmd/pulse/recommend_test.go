@@ -18,6 +18,9 @@ type recommendEnvelope struct {
 			Operator string          `json:"operator"`
 			Bound    bool            `json:"bound"`
 			Request  json.RawMessage `json:"request"`
+			Steps    []struct {
+				Tool string `json:"tool"`
+			} `json:"steps"`
 		} `json:"recommendations"`
 		RoutesTo []struct {
 			Use string `json:"use"`
@@ -98,6 +101,27 @@ func TestCliRecommend(t *testing.T) {
 		if env := decodeRecommend(t, text); len(env.Errors) == 0 || env.Errors[0].Code != tc.want {
 			t.Errorf("recommend %v: errors = %+v, want %s", tc.args, env.Errors, tc.want)
 		}
+	}
+
+	// A derived-column producer's materialise plan passes through: the
+	// pulse_materialize step first, then the model request.
+	text, err = runApp(t, "recommend", "--intent", "measure_construct", "--json")
+	if err != nil {
+		t.Fatalf("steps: %v\n%s", err, text)
+	}
+	env = decodeRecommend(t, text)
+	planned := false
+	for _, r := range env.Data.Recommendations {
+		if r.Operator == "ATTR_PC_SCORE" {
+			planned = len(r.Steps) == 2 && r.Steps[0].Tool == "pulse_materialize" && r.Steps[1].Tool == "pulse_process"
+		}
+	}
+	if !planned {
+		t.Errorf("ATTR_PC_SCORE carries no materialise plan: %s", text)
+	}
+	text, err = runApp(t, "recommend", "--intent", "measure_construct")
+	if err != nil || !strings.Contains(text, "step 1 (pulse_materialize): ") || !strings.Contains(text, "step 2 (pulse_process): ") {
+		t.Errorf("text output lacks the steps (%v): %s", err, text)
 	}
 
 	text, err = runApp(t, "recommend", "--intent", "describe")

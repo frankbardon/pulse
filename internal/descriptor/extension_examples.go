@@ -160,6 +160,9 @@ func LoadExtensionExamples(fsys fs.FS, ext *ExtensionsSnapshot) ([]ExtensionExam
 		if err := checkExtensionExampleBody(m, ex.Body); err != nil {
 			return nil, err
 		}
+		// _meta.question / _meta.interpretation are optional and served
+		// as declared: the story rules (examples.StoryProblems) bind the
+		// shipped library in CI only, never an embedder example.
 		out = append(out, ExtensionExample{
 			Example:      *ex,
 			Intents:      slices.Clone(m.Intents),

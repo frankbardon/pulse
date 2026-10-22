@@ -1,0 +1,148 @@
+{
+  "metadata": {
+    "total_rows": 300,
+    "filtered_rows": 300,
+    "cohort_file": "battery.pulse"
+  },
+  "matrices": [
+    {
+      "name": "battery",
+      "type": "MAT_RELIABILITY",
+      "primary": {
+        "kind": "square_symmetric",
+        "encoding": "full",
+        "row_keys": [
+          "bat_energy",
+          "bat_proud",
+          "bat_absorbed",
+          "bat_recommend",
+          "bat_time_flies",
+          "bat_dread"
+        ],
+        "column_keys": [
+          "bat_energy",
+          "bat_proud",
+          "bat_absorbed",
+          "bat_recommend",
+          "bat_time_flies",
+          "bat_dread"
+        ],
+        "values": [
+          [
+            1,
+            0.5724,
+            0.5089,
+            0.3953,
+            0.4718,
+            0.48
+          ],
+          [
+            0.5724,
+            1,
+            0.4519,
+            0.4365,
+            0.4602,
+            0.4461
+          ],
+          [
+            0.5089,
+            0.4519,
+            1,
+            0.3562,
+            0.3644,
+            0.4581
+          ],
+          [
+            0.3953,
+            0.4365,
+            0.3562,
+            1,
+            0.373,
+            0.3825
+          ],
+          [
+            0.4718,
+            0.4602,
+            0.3644,
+            0.373,
+            1,
+            0.3644
+          ],
+          [
+            0.48,
+            0.4461,
+            0.4581,
+            0.3825,
+            0.3644,
+            1
+          ]
+        ]
+      },
+      "vectors": {
+        "alpha_if_deleted": [
+          0.7762,
+          0.7806,
+          0.7963,
+          0.8086,
+          0.8031,
+          0.7967
+        ],
+        "item_mean": [
+          2.933,
+          2.96,
+          3.003,
+          2.997,
+          2.913,
+          2.977
+        ],
+        "item_sd": [
+          0.9961,
+          1.004,
+          1.01,
+          0.9763,
+          0.9912,
+          0.976
+        ],
+        "item_total_r": [
+          0.6694,
+          0.649,
+          0.5767,
+          0.5165,
+          0.5442,
+          0.5743
+        ]
+      },
+      "scalars": {
+        "alpha": 0.8221,
+        "alpha_standardized": 0.8219,
+        "mean_inter_item_r": 0.4348,
+        "omega": 0.8236
+      }
+    }
+  ],
+  "components": {
+    "run": {
+      "total_records": 300,
+      "filtered_records": 300,
+      "null_records": 0
+    },
+    "matrices": [
+      {
+        "name": "battery",
+        "type": "MAT_RELIABILITY",
+        "n": 300,
+        "n_null": 0,
+        "n_listwise_dropped": 0,
+        "operator": {
+          "converged": true,
+          "iterations": 19
+        }
+      }
+    ]
+  },
+  "returned": {
+    "preset": "full",
+    "digest": "rp1:2a47356146fe7626329ca77359f19495ac57bb6a599dfdd7658729be64597be6",
+    "precision": 4
+  }
+}

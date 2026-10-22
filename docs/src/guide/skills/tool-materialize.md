@@ -36,3 +36,4 @@ The cohort holds the source fields verbatim, then one nullable `f64` per derived
 
 - [`derived-cohorts`](derived-cohorts.md) — when to materialise, and the two-step recipe.
 - [`request-envelope`](request-envelope.md) — the request slots.
+- [`tool-recommend`](tool-recommend.md) — a score or feature draft's steps are this two-step recipe, drafted.

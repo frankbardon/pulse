@@ -118,6 +118,8 @@ How closely two measures move together in a straight line, from -1 (opposite) th
 
 **Forms:** correlation, correlations, correlation coefficient
 
+**Concept primer:** [Correlation matrix](https://frankbardon.github.io/pulse/concepts/correlation-matrix.html)
+
 **See also:** [`covariance`](#term-covariance), [`r-squared`](#term-r-squared), [`outlier`](#term-outlier), [`independence`](#term-independence)
 
 <a id="term-covariance"></a>
@@ -200,6 +202,8 @@ A number for how far apart two rows are across several fields; zero means identi
 
 **Why care:** Clustering groups rows by distance, so fields with large units dominate unless you standardise them first.
 
+**Concept primer:** [Distance versus similarity](https://frankbardon.github.io/pulse/concepts/distance-vs-similarity.html)
+
 **See also:** [`similarity`](#term-similarity), [`centroid`](#term-centroid), [`z-score`](#term-z-score)
 
 <a id="term-effect-size"></a>
@@ -235,6 +239,8 @@ How much of the total variation in a set of fields one underlying dimension acco
 **Why care:** It ranks the dimensions a principal component analysis finds; dimensions with small eigenvalues explain little and are usually dropped.
 
 **Forms:** eigenvalue, eigenvalues
+
+**Concept primer:** [Principal component analysis](https://frankbardon.github.io/pulse/concepts/pca.html)
 
 **See also:** [`principal-component`](#term-principal-component), [`variance`](#term-variance)
 
@@ -449,6 +455,8 @@ How strongly one original field is tied to a component or factor.
 **Why care:** Loadings are how you name a component: the fields with the largest loadings tell you what it represents.
 
 **Forms:** factor loading, factor loadings, component loading, component loadings
+
+**Concept primer:** [Principal component analysis](https://frankbardon.github.io/pulse/concepts/pca.html)
 
 **See also:** [`principal-component`](#term-principal-component), [`factor`](#term-factor)
 
@@ -764,6 +772,8 @@ A new combined measure built from many correlated fields so that a few of them c
 
 **Forms:** principal component, principal components, pca
 
+**Concept primer:** [Principal component analysis](https://frankbardon.github.io/pulse/concepts/pca.html)
+
 **See also:** [`eigenvalue`](#term-eigenvalue), [`loading`](#term-loading), [`factor`](#term-factor)
 
 <a id="term-prior"></a>
@@ -923,6 +933,8 @@ How many rows (or respondents, or measurements) an estimate or test is based on.
 A number for how alike two rows or items are; the mirror image of distance.
 
 **Why care:** It drives "customers like this one" style matching. Different measures weigh shared absences differently, so pick one that fits your data.
+
+**Concept primer:** [Distance versus similarity](https://frankbardon.github.io/pulse/concepts/distance-vs-similarity.html)
 
 **See also:** [`distance`](#term-distance), [`correlation`](#term-correlation)
 

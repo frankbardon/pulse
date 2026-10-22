@@ -2248,7 +2248,11 @@ body hands straight to `Process` / `Predict`:
 ```
 
 `category` is yours to choose (`acme` above) — it is what
-`category=` filters on. `intents` and `capabilities` are optional;
+`category=` filters on. `intents`, `capabilities` and the story pair
+`question` / `interpretation` (served on search and get results, exactly as
+declared) are optional — the shipped library's story rules (both keys, a
+digit-free interpretation, `return.precision` 4) bind it in CI only and are
+never enforced on an embedder example;
 declare a capability (`capability:stream`) only when the body carries no
 structural sign of it — `crosstab`, `joins`, a `requests` (compose) or
 `stages` (process chain) root and a `facet` category or tag are
@@ -2258,14 +2262,15 @@ detected from the body.
 
 Every file is validated HARD — against every registration, before a
 feature profile hides any, so validity never depends on the profile. The
-rules are the shipped library's own CI rules. The first failure is
+rules are the shipped library's own CI rules, except its story rules
+(`question` / `interpretation` are optional and unchecked). The first failure is
 `PULSE_EXTENSION_EXAMPLE_INVALID` (details carry `example` and `reason`)
 or `PULSE_EXTENSION_EXAMPLE_COLLISION`:
 
 | `reason` | Rule |
 |---|---|
 | `layout` | the root reads; every entry is a regular top-level `.json` file |
-| `meta` | the file is a JSON object with a `_meta` block holding only `name`, `category`, `description`, `tags`, `operators`, `intents`, `capabilities` |
+| `meta` | the file is a JSON object with a `_meta` block holding only `name`, `category`, `description`, `tags`, `operators`, `intents`, `capabilities`, `question`, `interpretation` |
 | `name` | lowercase letters and digits joined by `-` or `_` |
 | `builtin` / `duplicate` (COLLISION) | the name is not a built-in example and is shipped once across every merged `Extensions` value — embedders never override or shadow the shipped library; prefixing names with your namespace avoids both |
 | `category` / `description` | a lowercase category token; a description |

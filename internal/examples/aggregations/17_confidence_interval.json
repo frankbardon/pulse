@@ -5,12 +5,14 @@
     "intents": [
       "describe"
     ],
+    "interpretation": "The mean income sits in the middle of a fairly tight interval: each bound lies within about a tenth of the mean, so the cohort pins the typical income down well. The interval describes the mean, not individual customers, whose incomes spread far more widely.",
     "name": "confidence_interval_normal",
     "operators": [
       "AGG_AVERAGE",
       "AGG_CI_LOWER",
       "AGG_CI_UPPER"
     ],
+    "question": "What is a typical customer's income, and how precisely does this cohort pin it down?",
     "tags": [
       "distribution-shape",
       "hypothesis-test",
@@ -45,5 +47,8 @@
   "cohort": {
     "filename": "customers.pulse",
     "data_dir": ".data"
+  },
+  "return": {
+    "precision": 4
   }
 }

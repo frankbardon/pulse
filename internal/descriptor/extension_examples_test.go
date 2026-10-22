@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/examples"
 )
 
 // extExampleTrim is a valid embedder example using AGG_ACME_TRIM (an
@@ -59,8 +60,45 @@ func TestLoadExtensionExamples_Valid(t *testing.T) {
 	if !slices.Equal(trim.ExtOperators, []string{"AGG_ACME_TRIM"}) || !slices.Equal(got[1].ExtOperators, []string{"AGG_ACME_OTHER"}) {
 		t.Errorf("ExtOperators = %v / %v", trim.ExtOperators, got[1].ExtOperators)
 	}
+	// A story (question + interpretation + return.precision) loads and
+	// serves both fields.
+	story := strings.Replace(strings.Replace(extExampleTrim, `"intents"`, `"question": "How much?", "interpretation": "Mostly tails.", "intents"`, 1), `"cohort"`, `"return": {"precision": 4}, "cohort"`, 1)
+	if s, err := LoadExtensionExamples(extSkillFS(map[string]string{"s.json": story}), extSkillSnapshot()); err != nil || len(s) != 1 || s[0].Example.Question != "How much?" || s[0].Example.Interpretation != "Mostly tails." {
+		t.Errorf("story example: %v, %+v", err, s)
+	}
 	if none, err := LoadExtensionExamples(nil, extSkillSnapshot()); none != nil || err != nil {
 		t.Errorf("nil fs: %v, %v", none, err)
+	}
+}
+
+// TestLoadExtensionExamples_StoryRulesNotEnforced: an embedder example
+// may declare _meta.question / _meta.interpretation without obeying the
+// shipped library's story rules (examples.StoryProblems) — half a story,
+// a digit in the interpretation, no return.precision all load and serve
+// the fields exactly as declared.
+func TestLoadExtensionExamples_StoryRulesNotEnforced(t *testing.T) {
+	sub := func(old, new string) string { return strings.Replace(extExampleTrim, old, new, 1) }
+	cases := []struct {
+		name, file, question, interpretation string
+	}{
+		{"question without interpretation", sub(`"intents"`, `"question": "How much?", "intents"`), "How much?", ""},
+		{"interpretation without question", sub(`"intents"`, `"interpretation": "Mostly tails.", "intents"`), "", "Mostly tails."},
+		{"interpretation with a digit", strings.Replace(sub(`"intents"`, `"question": "How much?", "interpretation": "About 5 units.", "intents"`), `"cohort"`, `"return": {"precision": 4}, "cohort"`, 1), "How much?", "About 5 units."},
+		{"story without return.precision", sub(`"intents"`, `"question": "How much?", "interpretation": "Mostly tails.", "intents"`), "How much?", "Mostly tails."},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if len(examples.StoryProblems(examples.Meta{Question: tc.question, Interpretation: tc.interpretation}, []byte(tc.file))) == 0 {
+				t.Fatal("fixture breaks no story rule; the case proves nothing")
+			}
+			got, err := LoadExtensionExamples(extSkillFS(map[string]string{"a.json": tc.file}), extSkillSnapshot())
+			if err != nil {
+				t.Fatalf("refused: %v", err)
+			}
+			if len(got) != 1 || got[0].Example.Question != tc.question || got[0].Example.Interpretation != tc.interpretation {
+				t.Fatalf("got %+v, want question %q interpretation %q", got, tc.question, tc.interpretation)
+			}
+		})
 	}
 }
 

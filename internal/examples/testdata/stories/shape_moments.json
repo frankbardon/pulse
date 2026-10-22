@@ -1,0 +1,20 @@
+{
+  "data": [
+    {
+      "kurt_income": 4.908,
+      "mean_income": 4.804e+04,
+      "skew_income": 1.825,
+      "stddev_income": 3.225e+04
+    }
+  ],
+  "metadata": {
+    "total_rows": 200,
+    "filtered_rows": 200,
+    "cohort_file": "customers.pulse"
+  },
+  "returned": {
+    "preset": "standard",
+    "digest": "rp1:e54405ae11f7db2bbe9d6bcfa4b9a169857bd482f45431aaae78605ca90255ef",
+    "precision": 4
+  }
+}

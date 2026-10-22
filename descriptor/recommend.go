@@ -58,6 +58,13 @@ type RecommendResult struct {
 // Alternatives come from the operator's not-for guidance and FollowUps
 // from its follow-up guidance; neither names an operator or capability
 // the instance hides.
+//
+// Steps, when set, is a multi-request plan around a draft whose derived
+// column a model reads: a request cannot hand a column it derives to its
+// own regression, so the first step is a pulse_materialize draft that
+// writes the column to a new cohort, and the next is the model request
+// that reads it there. Absent (omitted on the wire) for every other
+// draft, and whenever the instance hides a tool or operator a step needs.
 type Recommendation struct {
 	Operator     string          `json:"operator"`
 	Category     string          `json:"category"`
@@ -70,6 +77,22 @@ type Recommendation struct {
 	Advisories   []Advisory      `json:"advisories,omitempty"`
 	Alternatives []Alternative   `json:"alternatives,omitempty"`
 	FollowUps    []Alternative   `json:"follow_ups,omitempty"`
+	Steps        []RecommendStep `json:"steps,omitempty"`
+}
+
+// RecommendStep is one request of a Recommendation's multi-request plan,
+// run in order. Tool names the MCP tool that runs it (pulse_materialize,
+// then pulse_process; the CLI and library twins take the same body).
+// Request is the tool's input as wire JSON — for pulse_materialize the
+// {request, out} pair — whose caller-supplied values are
+// "<placeholder>" strings listed in Placeholders; a later step names the
+// cohort an earlier one writes by the same "<out>" placeholder. Why says
+// what the step does.
+type RecommendStep struct {
+	Tool         string          `json:"tool"`
+	Request      json.RawMessage `json:"request"`
+	Placeholders []string        `json:"placeholders,omitempty"`
+	Why          string          `json:"why"`
 }
 
 // RecommendNeed is one parameter a draft cannot fill from the schema:

@@ -3632,6 +3632,36 @@
       ],
       "type": "object"
     },
+    "RecommendStep": {
+      "additionalProperties": false,
+      "properties": {
+        "placeholders": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "request": {
+          "description": "The step tool's input as wire JSON: a {request, out} pair (request in the #/$defs/Request shape) for a step that writes a cohort, else a #/$defs/Request. Every value the caller must supply is a \"\u003cplaceholder\u003e\" string, listed in placeholders.",
+          "type": "object"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "why": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "request",
+        "tool",
+        "why"
+      ],
+      "type": "object"
+    },
     "Recommendation": {
       "additionalProperties": false,
       "properties": {
@@ -3695,6 +3725,15 @@
         "request": {
           "description": "The draft request as wire JSON (the #/$defs/Request shape). Every value the caller must supply is a \"\u003cplaceholder\u003e\" string named after its wire key, listed in placeholders.",
           "type": "object"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/RecommendStep"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "why": {
           "type": "string"
@@ -5388,4 +5427,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 8e533936edd5b990c458a658035f45bce56bb474c8677a8e0c444a834bad4864
+// golden-hash: b51de03ef2fa6514b21ae52150d82f0f2a5f268c5f401212db5331bd6af3f4f0

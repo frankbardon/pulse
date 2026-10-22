@@ -43,7 +43,7 @@ make build
 That writes `transactions.pulse`, `customers.pulse`, `orders.pulse`,
 `training_data.pulse`, `all_types.pulse`, `experiment.pulse`,
 `repeated_measures.pulse`, `card_issuers.pulse`, `tier_migrations.pulse`,
-`survey.pulse`, `subscribers.pulse`, `warehouse_orders.pulse`, `plan_history.pulse` and `plan_history_wide.pulse` into `.data/` at the repo root, plus the point-lookup
+`survey.pulse`, `subscribers.pulse`, `warehouse_orders.pulse`, `plan_history.pulse`, `plan_history_wide.pulse`, `battery.pulse` and `intake.pulse` into `.data/` at the repo root, plus the point-lookup
 index on `experiment.pulse` (`id`). Every example request has
 `cohort.data_dir = ".data"` so the requests run unmodified.
 
@@ -62,6 +62,8 @@ index on `experiment.pulse` (`id`). Every example request has
 | `warehouse_orders.pulse` | 8 orders across four warehouses: `id` (u32), `warehouse_tz` (categorical, IANA zone names), `ordered_at` (datetime, UTC instants straddling local midnights), `revenue` (f64). The per-row-zone example (`groupers/13_date_per_row_zone.json`) reads `warehouse_tz` through `time_zone_field`. |
 | `plan_history.pulse` | A long panel of 15 customers at three month-end snapshots (45 rows, not sorted by customer): `id` (u32), `customer_id` (u32), `seen_at` (date), `plan` (categorical, `basic` / `plus` / `pro`). Hand-curated; `attributes/24_previous_state_transitions.json` reads each row's previous plan (`ATTR_PREVIOUS_STATE`) for a from-plan × to-plan crosstab. |
 | `plan_history_wide.pulse` | The wide twin of `plan_history`: one row per move between two consecutive snapshots (30 rows): `id` (u32), `customer_id` (u32), `moved_at` (date, the later snapshot), `plan_before` / `plan_after` (categorical). `overlays/55_crosstab_previous_state_flows.json` runs Markov, symmetry and retention on the long panel; `TestExamples_PreviousStateFlowsMatchWideTwin` holds its answer to the same request over this file. |
+| `battery.pulse` | A one-trait engagement battery (300 respondents): `id` (u32), `bat_energy` / `bat_proud` / `bat_absorbed` / `bat_recommend` / `bat_time_flies` (u8, 1-5, positively keyed) and `bat_dread` (u8, 1-5, reverse-keyed). Every item loads on one latent trait (`fixtures/gen.go`), so the reliability example's omega is defined and the PCA example has one dominant component (`TestExamples_BatteryMeasuresOneTrait`). |
+| `intake.pulse` | 300 sign-up intake forms, 100 per channel, with planted nulls: `id` (u32), `channel` (categorical, `web` / `phone` / `paper`), `age` (u8, **nullable**, blank on a few forms in every channel) and `income` (f64, **nullable**, blank far more often on paper than on web). The one fixture with real nulls: a blank CSV cell in a nullable numeric column imports as a null in the per-record bitmap, never as zero, so the null-count and null-filter examples report non-zero, channel-dependent gaps (`TestExamples_IntakeNullsArePlanted`). To plant nulls in a new fixture, declare the field `"nullable": true` in its schema and write an empty cell (`fixtures/gen.go` `writeIntake`, which draws from its own seeded source so every other CSV stays byte-identical). |
 
 The generator (`fixtures/gen.go`) is deterministic — re-running with the
 same seed produces byte-identical CSVs. Re-generate from scratch:
@@ -104,8 +106,10 @@ ignores it.
 | `description` | yes | one-sentence summary served by search |
 | `tags` | yes | drawn from `CanonicalTags` |
 | `operators` | yes (may be `[]`) | exactly the `"type": "AGG_/ATTR_/FILTER_/GROUP_/WIN_/FEAT_/TEST_/REG_..."` values in the body (`TestExamples_OperatorsMatchBody`); overlay kinds ride `overlays[].kind` instead |
-| `intents` | expected | intent-taxonomy IDs (`TestExamples_IntentsFromTaxonomy`) |
+| `intents` | expected | a LIST of intent-taxonomy IDs (`TestExamples_IntentsFromTaxonomy`), even for one intent: `["describe"]` |
 | `capabilities` | optional | non-operator feature names in feature-profile spelling (`capability:stream`), for capabilities the body carries no structural signal for |
+| `question` | story only | the plain-language question the example answers; declared together with `interpretation` |
+| `interpretation` | story only | a qualitative reading of the result — no digit `0`–`9`; the figures live in the story's golden |
 
 `capabilities` exists so an example is joined to every capability it
 needs by an explicit edge in the discovery graph rather than by a scan of
@@ -122,6 +126,32 @@ value is a known non-operator feature), `TestExamples_EdgeCoverage` (every
 operator a body or description names is an edge; a declared capability
 never contradicts its detector), and
 `TestExamples_EmptyOperatorExamplesDeclareCapabilities`.
+
+## Story examples
+
+An example is a **story** iff its `_meta` declares both `question` and
+`interpretation`; one without the other is refused. A story's request
+sets `"return": {"precision": 4}` (`examples.StoryPrecision`, four
+significant digits), so a float's last few ulps — which differ between
+amd64 and arm64 — never reach its output. Rules: `examples.StoryProblems`,
+gated by `TestStories_LibraryHoldsTheRules`. They bind the shipped
+library only: an embedder example (`Extensions.Examples`) may declare
+`question` / `interpretation`, and `pulse.New` serves them as declared
+without applying these rules.
+
+Each story's response is pinned by a harness-produced golden,
+`testdata/stories/<name>.json` — the response exactly as
+`json.MarshalIndent` writes it. The root package's
+`TestExamples_StoryGoldens` builds the fixture cohorts, runs every story
+and fails on a missing, extra or differing golden. Never hand-edit one;
+regenerate after changing a story or a fixture:
+
+```sh
+go test -count=1 . -run TestExamples_StoryGoldens -update
+```
+
+The goldens are embedded: `examples.StoryGolden(name)` returns one, so
+the generated docs quote real figures without executing a request.
 
 ## Adding a new example category
 
