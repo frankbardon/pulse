@@ -12,6 +12,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/imports"
 	iio "github.com/frankbardon/pulse/internal/io"
+	pio "github.com/frankbardon/pulse/io"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
 )
@@ -34,7 +35,7 @@ func importAutoCmd() *cli.Command {
 		Usage:     "Auto-detect a source format and import into the managed pool",
 		ArgsUsage: "SOURCE",
 		Flags: append([]cli.Flag{
-			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Format override (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss, pulse)"},
+			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Format override (" + commaList(append(pio.Formats(), pio.FormatPulse)) + ")"},
 			&cli.StringFlag{Name: "handle", Usage: "Managed handle name (defaults to source basename)"},
 			&cli.StringFlag{Name: "ttl", Value: "7d", Usage: "Lifetime in the managed pool: Go duration (24h, 30m), day form (7d), or \"pin\""},
 			&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name (ignored for non-Excel)"},

@@ -30,6 +30,27 @@ const (
 	DSTPolicyLater DSTPolicy = "later"
 )
 
+// DSTPolicies returns every DSTPolicy spelling, the default first
+// (error, earlier, later). The slice is a fresh copy.
+func DSTPolicies() []DSTPolicy {
+	return []DSTPolicy{DSTPolicyError, DSTPolicyEarlier, DSTPolicyLater}
+}
+
+// ParseDSTPolicy resolves a DSTPolicy spelling: exact and lower case,
+// one of DSTPolicies(); the empty string is the default, DSTPolicyError.
+// Any other spelling is SERVICE_VALIDATION with details
+// {option: "dst_policy", value}, the refusal ImportJob.Run raises for
+// the same value.
+func ParseDSTPolicy(s string) (DSTPolicy, error) {
+	if _, err := parseDSTPolicy(DSTPolicy(s)); err != nil {
+		return "", err
+	}
+	if s == "" {
+		return DSTPolicyError, nil
+	}
+	return DSTPolicy(s), nil
+}
+
 // DetailOption marks a refusal of an import OPTION (rather than of the
 // data): its details carry DetailOption = the option's name, so an adapter
 // (the CLI) can tell a mistyped flag value from a bad source.

@@ -37,7 +37,8 @@ func RakeCommand() *cli.Command {
 			&cli.StringFlag{Name: "weight-field", Usage: "Name of the output weight column (default rake_weight); a name the source already carries needs --overwrite, which replaces that column in place"},
 			&cli.StringFlag{Name: "by", Usage: "Rake every group of this field (e.g. a wave) separately to the same targets"},
 			&cli.StringFlag{Name: "base-weight", Usage: "Start from this design-weight field: the output is it times the raking adjustment"},
-			&cli.StringFlag{Name: "missing", Usage: `Null margin value policy: "refuse" (default; PULSE_RAKE_MISSING_VALUE) or "base" (the record keeps its factor for that margin)`},
+			&cli.StringFlag{Name: "missing", Usage: "Null margin value policy, one of " + orList(pulse.RakeMissingPolicies()) + ": " + pulse.RakeMissingRefuse +
+				" (default) refuses the record with PULSE_RAKE_MISSING_VALUE; " + pulse.RakeMissingBase + " keeps the record's factor for that margin"},
 			&cli.FloatFlag{Name: "min-weight", Usage: "Lower cap on every weight, relative to its group's mean weight (0 = none), applied after every sweep"},
 			&cli.FloatFlag{Name: "max-weight", Usage: "Upper cap on every weight, relative to its group's mean weight (0 = none), applied after every sweep"},
 			&cli.IntFlag{Name: "max-iter", Usage: "Sweep ceiling (default 100); a run that stops there still writes, with a PULSE_RAKE_NOT_CONVERGED warning"},

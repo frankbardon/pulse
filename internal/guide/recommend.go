@@ -300,14 +300,17 @@ func findIntent(id string) (descriptor.Intent, bool) {
 }
 
 func validateLevel(l descriptor.Level) error {
-	switch l {
-	case "", descriptor.LevelBasic, descriptor.LevelIntermediate, descriptor.LevelAdvanced:
+	if l == "" || slices.Contains(descriptor.Levels(), l) {
 		return nil
+	}
+	valid := make([]string, 0, 3)
+	for _, v := range descriptor.Levels() {
+		valid = append(valid, string(v))
 	}
 	return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 		"recommend: level must be basic, intermediate or advanced",
 		map[string]any{"field": "level", "level": string(l),
-			"valid": []string{string(descriptor.LevelBasic), string(descriptor.LevelIntermediate), string(descriptor.LevelAdvanced)}})
+			"valid": valid})
 }
 
 // purposeOf finds name's Purpose: built-in first, then the instance's

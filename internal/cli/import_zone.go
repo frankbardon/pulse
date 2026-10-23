@@ -13,12 +13,16 @@ import (
 )
 
 // sourceTZFlagUsage / dstPolicyFlagUsage are the shared help lines for the
-// source-zone import flags.
+// source-zone import flags; --dst-policy's values are pio.DSTPolicies.
 const (
 	sourceTZFlagUsage      = "Zone naive datetime values were recorded in (IANA name such as America/New_York, UTC, or a fixed +HH:MM / -HH:MM offset); stored values stay UTC instants. Bare Zone applies to every datetime column (date columns are skipped); repeatable col=Zone sets one column and wins over the bare form. A value with its own Z or offset ignores the zone"
 	sourceTZFieldFlagUsage = "Column whose cell holds each row's source zone (same spellings as --source-tz); every naive datetime column not named by a col=Zone --source-tz reads in its own row's zone. A bare --source-tz is the fallback for an empty zone cell (else the row is a row error); an unknown zone name is a PULSE_TIMEZONE_UNKNOWN row error. The zone column itself imports as an ordinary column"
-	dstPolicyFlagUsage     = "How a naive datetime that a DST transition makes ambiguous (repeated hour) or nonexistent (skipped hour) resolves under --source-tz: error (default — the import fails naming the first such row), earlier (pre-transition offset) or later (post-transition offset); a resolved value is counted in a PULSE_IMPORT_DST_RESOLVED warning"
 )
+
+var dstPolicyFlagUsage = "How a naive datetime that a DST transition makes ambiguous (repeated hour) or nonexistent (skipped hour) resolves under --source-tz, one of " +
+	orList(pio.DSTPolicies()) + ": " + string(pio.DSTPolicyError) + " (default) fails the import naming the first such row, " +
+	string(pio.DSTPolicyEarlier) + " takes the pre-transition offset, " + string(pio.DSTPolicyLater) +
+	" the post-transition one; a resolved value is counted in a PULSE_IMPORT_DST_RESOLVED warning"
 
 // sourceZoneFlags is the parsed --source-tz / --source-tz-field /
 // --dst-policy set, in
@@ -104,15 +108,16 @@ func parseSourceZoneFlags(cmd *cli.Command) (sourceZoneFlags, error) {
 		out.cols[col] = zone
 	}
 	out.field = cmd.String("source-tz-field")
-	switch p := cmd.String("dst-policy"); p {
-	case "":
-		// A leaf without the flag: the library default (error).
-	case "error", "earlier", "later":
-		out.policy = pio.DSTPolicy(p)
-	default:
-		return sourceZoneFlags{}, perr.NewCodedErrorWithDetails(perr.CLI_INPUT,
-			fmt.Sprintf("--dst-policy %q: want error, earlier or later", p),
-			map[string]any{"flag": "dst-policy", "value": p})
+	// An empty value is a leaf without the flag: the policy stays unset
+	// and the library default (error) applies.
+	if p := cmd.String("dst-policy"); p != "" {
+		policy, err := pio.ParseDSTPolicy(p)
+		if err != nil {
+			return sourceZoneFlags{}, perr.NewCodedErrorWithDetails(perr.CLI_INPUT,
+				fmt.Sprintf("--dst-policy %q: want %s", p, orList(pio.DSTPolicies())),
+				map[string]any{"flag": "dst-policy", "value": p})
+		}
+		out.policy = policy
 	}
 	return out, nil
 }

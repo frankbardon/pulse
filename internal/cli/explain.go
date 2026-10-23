@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
@@ -15,29 +16,30 @@ import (
 	cli "github.com/urfave/cli/v3"
 )
 
-// explainRootPairs maps each --root value to its ExplainRequest request
-// slot and, when one exists, the result slot a --response file fills.
-var explainRootPairs = map[string]struct {
+// explainRootPairs maps each --root value — descriptor.ExplainRequestRoots,
+// which --root is validated against — to its ExplainRequest request slot
+// and, when one exists, the result slot a --response file fills.
+var explainRootPairs = map[descriptor.ExplainRoot]struct {
 	request  func(*descriptor.ExplainRequest) any
 	response func(*descriptor.ExplainRequest) any
 }{
-	"request": {
+	descriptor.ExplainRootRequest: {
 		func(r *descriptor.ExplainRequest) any { return &r.Request },
 		func(r *descriptor.ExplainRequest) any { return &r.Response },
 	},
-	"composed": {
+	descriptor.ExplainRootComposed: {
 		func(r *descriptor.ExplainRequest) any { return &r.Composed },
 		func(r *descriptor.ExplainRequest) any { return &r.ComposedResponse },
 	},
-	"chain": {
+	descriptor.ExplainRootChain: {
 		func(r *descriptor.ExplainRequest) any { return &r.Chain },
 		func(r *descriptor.ExplainRequest) any { return &r.ChainResponse },
 	},
-	"facet": {
+	descriptor.ExplainRootFacet: {
 		func(r *descriptor.ExplainRequest) any { return &r.Facet },
 		func(r *descriptor.ExplainRequest) any { return &r.FacetResult },
 	},
-	"sample": {
+	descriptor.ExplainRootSample: {
 		func(r *descriptor.ExplainRequest) any { return &r.Sample },
 		nil,
 	},
@@ -60,22 +62,25 @@ func ExplainCommand() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Request JSON file. Alone: described before it runs. With --response: the request that produced it"},
 			&cli.StringFlag{Name: "response", Usage: "Result JSON file to read into findings (a --json envelope is unwrapped to its data)"},
-			&cli.StringFlag{Name: "root", Value: "request", Usage: "Which root the files hold: request (process), composed, chain, facet or sample (request only)"},
-			&cli.StringFlag{Name: "detail", Usage: "terse (default) or full (adds narrative sentences, glossary refs, follow-ups and assumptions)"},
+			&cli.StringFlag{Name: "root", Value: string(descriptor.ExplainRootRequest), Usage: "Which root the files hold, one of " + orList(descriptor.ExplainRequestRoots()) +
+				" (" + string(descriptor.ExplainRootRequest) + " is a process request; " + string(descriptor.ExplainRootSample) + " takes --request only)"},
+			&cli.StringFlag{Name: "detail", Usage: "One of " + orList(descriptor.ExplainDetails()) + ": " + string(descriptor.ExplainTerse) + " (default) is the summary and structured parts; " +
+				string(descriptor.ExplainFull) + " adds narrative sentences, glossary refs, follow-ups and assumptions"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			jsonOut := cmd.Bool("json")
-			reqPath, respPath, root := cmd.String("request"), cmd.String("response"), cmd.String("root")
+			reqPath, respPath, root := cmd.String("request"), cmd.String("response"), descriptor.ExplainRoot(cmd.String("root"))
+			roots := descriptor.ExplainRequestRoots()
 			pair, ok := explainRootPairs[root]
 			switch {
 			case reqPath == "" && respPath == "":
 				return cliError(cmd, jsonOut, "CLI_INPUT",
-					"usage: pulse explain --request FILE | --response FILE [--request FILE] [--root request|composed|chain|facet|sample] [--detail terse|full]")
-			case !ok:
-				return cliError(cmd, jsonOut, "CLI_INPUT", "--root "+root+" is not one of request, composed, chain, facet, sample")
+					"usage: pulse explain --request FILE | --response FILE [--request FILE] [--root "+pipeList(roots)+"] [--detail "+pipeList(descriptor.ExplainDetails())+"]")
+			case !ok || !slices.Contains(roots, root):
+				return cliError(cmd, jsonOut, "CLI_INPUT", "--root "+string(root)+" is not one of "+commaList(roots))
 			case respPath != "" && pair.response == nil:
-				return cliError(cmd, jsonOut, "CLI_INPUT", "--root sample has no response to read; a sample result is rows, not findings")
+				return cliError(cmd, jsonOut, "CLI_INPUT", "--root "+string(root)+" has no response to read; a sample result is rows, not findings")
 			}
 
 			req := descriptor.ExplainRequest{Detail: descriptor.ExplainDetail(cmd.String("detail"))}

@@ -622,6 +622,7 @@ pulse: type LabelTableInfo struct
 pulse: type LabelTableInfo field Enumerable bool "json:\"enumerable\""
 pulse: type LabelTableInfo field Name string "json:\"name\""
 pulse: type LabelTableInfo field RowCount int "json:\"row_count\""
+pulse: func LimitNames() []string
 pulse: type Limits = pulse/internal/limits.Limits
 pulse: type Limits underlying struct
 pulse: type Limits field MaxChainStages int64
@@ -914,6 +915,9 @@ pulse: type RakeMarginReport underlying struct
 pulse: type RakeMarginReport field Categories []pulse/internal/rake.CategoryReport "json:\"categories\""
 pulse: type RakeMarginReport field Fields []string "json:\"fields\""
 pulse: type RakeMarginReport field NMissing int64 "json:\"n_missing\""
+pulse: const RakeMissingBase untyped string = "base"
+pulse: func RakeMissingPolicies() []string
+pulse: const RakeMissingRefuse untyped string = "refuse"
 pulse: type RakeRequest = pulse/internal/rake.Request
 pulse: type RakeRequest underlying struct
 pulse: type RakeRequest field BaseWeight string "json:\"base_weight,omitempty\""
@@ -1288,6 +1292,7 @@ pulse: type WidenReport field Records int64
 pulse: type WidenReport field StrideAfter int
 pulse: type WidenReport field StrideBefore int
 pulse: type WidenReport field To pulse/encoding.FieldType
+pulse: func WidenSetFieldTargets() []string
 pulse: type WindowRegistration struct
 pulse: type WindowRegistration field Accepts []pulse/encoding.FieldType
 pulse: type WindowRegistration field DependsOn []string
@@ -1427,6 +1432,7 @@ pulse/descriptor: type EnvelopeEntry field Code string "json:\"code\""
 pulse/descriptor: type EnvelopeEntry field Details map[string]any "json:\"details,omitempty\""
 pulse/descriptor: type EnvelopeEntry field Message string "json:\"message\""
 pulse/descriptor: type ExplainDetail string
+pulse/descriptor: func ExplainDetails() []pulse/descriptor.ExplainDetail
 pulse/descriptor: type ExplainFinding struct
 pulse/descriptor: type ExplainFinding field Convention string "json:\"convention,omitempty\""
 pulse/descriptor: type ExplainFinding field Multiplicity *pulse/descriptor.ExplainMultiplicity "json:\"multiplicity,omitempty\""
@@ -1455,6 +1461,7 @@ pulse/descriptor: type ExplainRequest field FacetResult *pulse/types.FacetResult
 pulse/descriptor: type ExplainRequest field Request *pulse/types.Request "json:\"request,omitempty\""
 pulse/descriptor: type ExplainRequest field Response *pulse/types.Response "json:\"response,omitempty\""
 pulse/descriptor: type ExplainRequest field Sample *pulse/types.SampleRequest "json:\"sample,omitempty\""
+pulse/descriptor: func ExplainRequestRoots() []pulse/descriptor.ExplainRoot
 pulse/descriptor: type ExplainResult struct
 pulse/descriptor: type ExplainResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
 pulse/descriptor: type ExplainResult field Caveats []string "json:\"caveats,omitempty\""
@@ -1649,6 +1656,7 @@ pulse/descriptor: type Level string
 pulse/descriptor: const LevelAdvanced pulse/descriptor.Level = "advanced"
 pulse/descriptor: const LevelBasic pulse/descriptor.Level = "basic"
 pulse/descriptor: const LevelIntermediate pulse/descriptor.Level = "intermediate"
+pulse/descriptor: func Levels() []pulse/descriptor.Level
 pulse/descriptor: type LimitFinding struct
 pulse/descriptor: type LimitFinding field Configured int64 "json:\"configured\""
 pulse/descriptor: type LimitFinding field Details map[string]any "json:\"details,omitempty\""
@@ -3082,6 +3090,7 @@ pulse/io: type ConvertSource = pulse/internal/iocore.ConvertSource
 pulse/io: type ConvertSource underlying struct
 pulse/io: type ConvertSource field Schema *pulse/encoding.Schema
 pulse/io: type ConvertSource field Sidecar pulse/internal/iocore.SidecarEmitter
+pulse/io: func DSTPolicies() []pulse/io.DSTPolicy
 pulse/io: type DSTPolicy = pulse/internal/io.DSTPolicy
 pulse/io: type DSTPolicy underlying string
 pulse/io: const DSTPolicyEarlier pulse/internal/io.DSTPolicy = "earlier"
@@ -3157,6 +3166,7 @@ pulse/io: type ExportReport field OverlayWarnings []*pulse/errors.CodedError "js
 pulse/io: type ExportReport field RowErrors []pulse/internal/io.RowError "json:\"row_errors,omitempty\""
 pulse/io: type ExportReport field RowsExported int "json:\"rows_exported\""
 pulse/io: type ExportReport field TargetWarnings []*pulse/errors.CodedError "json:\"target_warnings,omitempty\""
+pulse/io: func FloatWidths() []string
 pulse/io: type Format string
 pulse/io: type Format method (Format) CanRead() bool
 pulse/io: type Format method (Format) CanWrite() bool
@@ -3357,6 +3367,7 @@ pulse/io: type OverlayAwareWriter imethod WriteRow(values []any) error
 pulse/io: type OverlayWarningEmitter = pulse/internal/iocore.OverlayWarningEmitter
 pulse/io: type OverlayWarningEmitter underlying interface
 pulse/io: type OverlayWarningEmitter imethod OverlayWarnings() []*pulse/errors.CodedError
+pulse/io: func ParseDSTPolicy(s string) (pulse/io.DSTPolicy, error)
 pulse/io: type PredictReport = pulse/internal/io.PredictReport
 pulse/io: type PredictReport underlying struct
 pulse/io: type PredictReport field Columns []string "json:\"columns,omitempty\""
@@ -3394,6 +3405,7 @@ pulse/io: type RowError field Row int
 pulse/io: type RowError method (RowError) MarshalJSON() ([]byte, error)
 pulse/io: const SPSSMissingAuto pulse/io.SPSSMissingMode = "auto"
 pulse/io: type SPSSMissingMode string
+pulse/io: func SPSSMissingModes() []pulse/io.SPSSMissingMode
 pulse/io: const SPSSMissingNull pulse/io.SPSSMissingMode = "null"
 pulse/io: type SPSSReaderOptions struct
 pulse/io: type SPSSReaderOptions field Charset string
@@ -4538,6 +4550,8 @@ pulse/types: func AllCovarianceTypes() []pulse/types.CovarianceType
 pulse/types: func AllFeatureTypes() []pulse/types.FeatureType
 pulse/types: func AllFiltererTypes() []pulse/types.FiltererType
 pulse/types: func AllGroupTypes() []pulse/types.GroupType
+pulse/types: func AllLabelModes() []pulse/types.LabelMode
+pulse/types: func AllLookupMultiplicities() []pulse/types.LookupMultiplicity
 pulse/types: func AllMatrixEncodings() []pulse/types.MatrixEncoding
 pulse/types: func AllMatrixKinds() []pulse/types.MatrixKind
 pulse/types: func AllMatrixTypes() []pulse/types.MatrixType
@@ -5423,6 +5437,8 @@ pulse/types: type PanelSlabPartitionViolation field SlotIndex int
 pulse/types: type PanelSlabPartitionViolation field SlotLabel string
 pulse/types: type PanelSlabPartitionViolation method (PanelSlabPartitionViolation) Details(kind pulse/types.OverlayKind, params pulse/types.PanelOverlayParams, index int) map[string]any
 pulse/types: type PanelSlabPartitionViolation method (PanelSlabPartitionViolation) Message(kind pulse/types.OverlayKind, params pulse/types.PanelOverlayParams) string
+pulse/types: func ParseLabelMode(s string) (m pulse/types.LabelMode, ok bool)
+pulse/types: func ParseLookupMultiplicity(s string) (m pulse/types.LookupMultiplicity, ok bool)
 pulse/types: type PopulationRef struct
 pulse/types: type PopulationRef field Name string "json:\"name\""
 pulse/types: type PopulationRef field Path string "json:\"path\""
@@ -5814,4 +5830,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0406707080ebae06a60b604a119b92df7c94bbf9dffd03fca84df691da13f5d2
+// golden-hash: 6fddd9573db76acda4c3001c137261d5c27e729816d30c18d6f2db53ed8d7528

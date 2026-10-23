@@ -18,6 +18,12 @@ const (
 	ExplainFull ExplainDetail = "full"
 )
 
+// ExplainDetails returns every ExplainDetail, the default first (terse,
+// full). The slice is a fresh copy.
+func ExplainDetails() []ExplainDetail {
+	return []ExplainDetail{ExplainTerse, ExplainFull}
+}
+
 // ExplainMode is what an Explain result describes.
 type ExplainMode string
 
@@ -51,6 +57,17 @@ const (
 	// ExplainRootFacetResult is response mode over a Facet FacetResult.
 	ExplainRootFacetResult ExplainRoot = "facet_result"
 )
+
+// ExplainRequestRoots returns the request-mode roots, in ExplainRequest
+// field order (request, composed, chain, facet, sample): the roots a
+// caller holding a request names to pick the ExplainRequest slot it
+// fills (Request, Composed, Chain, Facet, Sample). Every one but
+// ExplainRootSample has a response-mode counterpart. Response-mode
+// spellings (ExplainRootResponse, …) only ever appear on a result.
+// The slice is a fresh copy.
+func ExplainRequestRoots() []ExplainRoot {
+	return []ExplainRoot{ExplainRootRequest, ExplainRootComposed, ExplainRootChain, ExplainRootFacet, ExplainRootSample}
+}
 
 // ExplainRequest asks Explain to describe a request, or read a
 // response, in plain words. Detail is terse (the default) or full; any

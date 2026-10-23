@@ -264,7 +264,7 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	m[reflect.TypeFor[types.CovarianceType]()] = stringify(types.AllCovarianceTypes())
 	// Explain's closed vocabularies: its detail levels, modes, roots and
 	// the finding verdicts.
-	m[reflect.TypeFor[descriptor.ExplainDetail]()] = stringify([]descriptor.ExplainDetail{descriptor.ExplainTerse, descriptor.ExplainFull})
+	m[reflect.TypeFor[descriptor.ExplainDetail]()] = stringify(descriptor.ExplainDetails())
 	m[reflect.TypeFor[descriptor.ExplainMode]()] = stringify([]descriptor.ExplainMode{descriptor.ExplainModeRequest, descriptor.ExplainModeResponse})
 	m[reflect.TypeFor[descriptor.ExplainRoot]()] = stringify(explainRoots())
 	m[reflect.TypeFor[descriptor.Verdict]()] = stringify(descriptor.Verdicts())
@@ -274,12 +274,10 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 // explainRoots is every ExplainRoot spelling: the five request roots,
 // then the four result roots.
 func explainRoots() []descriptor.ExplainRoot {
-	return []descriptor.ExplainRoot{
-		descriptor.ExplainRootRequest, descriptor.ExplainRootComposed, descriptor.ExplainRootChain,
-		descriptor.ExplainRootFacet, descriptor.ExplainRootSample,
+	return append(descriptor.ExplainRequestRoots(),
 		descriptor.ExplainRootResponse, descriptor.ExplainRootComposedResponse,
 		descriptor.ExplainRootChainResponse, descriptor.ExplainRootFacetResult,
-	}
+	)
 }
 
 // stringify converts a slice of ~string enum constants to []string sorted

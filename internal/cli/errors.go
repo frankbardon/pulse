@@ -61,7 +61,7 @@ func errorsListCmd() *cli.Command {
 		Name:  "list",
 		Usage: "List error codes filtered by domain and/or substring query",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "domain", Usage: "Restrict to a single domain (CLI, DATA, ENCODING, PROCESSING, PULSE, SERVICE); case-insensitive"},
+			&cli.StringFlag{Name: "domain", Usage: "Restrict to a single domain (" + commaList(errors.AllDomains()) + "); case-insensitive"},
 			&cli.StringFlag{Name: "query", Usage: "Case-insensitive substring search across descriptions and fixup hints"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},

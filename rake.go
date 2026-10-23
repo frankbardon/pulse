@@ -53,6 +53,21 @@ const (
 	RakeDefaultWeightField = rake.DefaultWeightField
 )
 
+// Rake null-margin-value policies (RakeRequest.Missing).
+const (
+	// RakeMissingRefuse (the default; also the empty string) refuses a
+	// record whose margin value is null with PULSE_RAKE_MISSING_VALUE.
+	RakeMissingRefuse = rake.MissingRefuse
+	// RakeMissingBase keeps the record's current factor for a margin
+	// whose value it lacks.
+	RakeMissingBase = rake.MissingBase
+)
+
+// RakeMissingPolicies returns every RakeRequest.Missing spelling, the
+// default first (refuse, base); any other value is PULSE_RAKE_INVALID.
+// The slice is a fresh copy.
+func RakeMissingPolicies() []string { return rake.MissingPolicies() }
+
 // RakeResult is what a successful Pulse.Rake wrote and how well the
 // weights fit.
 type RakeResult struct {

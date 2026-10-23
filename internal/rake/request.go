@@ -37,6 +37,12 @@ const (
 	MissingBase = "base"
 )
 
+// MissingPolicies returns every Request.Missing spelling, the default
+// first (refuse, base). The slice is a fresh copy.
+func MissingPolicies() []string {
+	return []string{MissingRefuse, MissingBase}
+}
+
 // Target spellings (Margin.TargetsAs).
 const (
 	// TargetsShares (the default): the targets are shares summing to 1,

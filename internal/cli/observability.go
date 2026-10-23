@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/frankbardon/pulse"
@@ -25,11 +26,21 @@ const (
 	logFormatJSON = "json"
 )
 
+// logLevelNames / logFormatNames are the ONE ordered spelling list for
+// each root logging flag: the validator, the Usage line and the
+// completer all read them. These vocabularies are CLI-owned — the CLI
+// builds the logger; the library only takes a *slog.Logger.
+var (
+	logLevelNames  = []string{logLevelOff, "debug", "info", "warn", "error"}
+	logFormatNames = []string{logFormatText, logFormatJSON}
+)
+
+// logLevels maps each logLevelNames entry but off to its slog level.
 var logLevels = map[string]slog.Level{
-	"debug": slog.LevelDebug,
-	"info":  slog.LevelInfo,
-	"warn":  slog.LevelWarn,
-	"error": slog.LevelError,
+	logLevelNames[1]: slog.LevelDebug,
+	logLevelNames[2]: slog.LevelInfo,
+	logLevelNames[3]: slog.LevelWarn,
+	logLevelNames[4]: slog.LevelError,
 }
 
 // LogFlags returns the root persistent --log-level / --log-format flags.
@@ -39,12 +50,12 @@ func LogFlags() []cli.Flag {
 	return []cli.Flag{
 		&cli.StringFlag{
 			Name:  flagLogLevel,
-			Usage: "Structured log level written to stderr (off|debug|info|warn|error); off logs nothing",
+			Usage: "Structured log level written to stderr (" + pipeList(logLevelNames) + "); " + logLevelOff + " logs nothing",
 			Value: logLevelOff,
 		},
 		&cli.StringFlag{
 			Name:  flagLogFormat,
-			Usage: "Structured log format on stderr (text|json); ignored while --log-level is off",
+			Usage: "Structured log format on stderr (" + pipeList(logFormatNames) + "); ignored while --log-level is " + logLevelOff,
 			Value: logFormatText,
 		},
 	}
@@ -89,15 +100,15 @@ func newLogger(level, format string, w io.Writer) (*slog.Logger, error) {
 	if format == "" {
 		format = logFormatText
 	}
-	if format != logFormatText && format != logFormatJSON {
-		return nil, logFlagError(flagLogFormat, format, "--log-format "+format+": want text or json")
+	if !slices.Contains(logFormatNames, format) {
+		return nil, logFlagError(flagLogFormat, format, "--log-format "+format+": want "+orList(logFormatNames))
 	}
 	if level == "" || level == logLevelOff {
 		return nil, nil
 	}
 	lv, ok := logLevels[level]
 	if !ok {
-		return nil, logFlagError(flagLogLevel, level, "--log-level "+level+": want off, debug, info, warn or error")
+		return nil, logFlagError(flagLogLevel, level, "--log-level "+level+": want "+orList(logLevelNames))
 	}
 	opts := &slog.HandlerOptions{Level: lv}
 	if format == logFormatJSON {

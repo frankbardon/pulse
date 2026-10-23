@@ -290,6 +290,23 @@ const (
 	DSTPolicyLater = iio.DSTPolicyLater
 )
 
+// DSTPolicies returns every DSTPolicy, the default first (error,
+// earlier, later) — the values ImportJob.DSTPolicy accepts, for a
+// caller that validates or offers them. The slice is a fresh copy.
+func DSTPolicies() []DSTPolicy { return iio.DSTPolicies() }
+
+// ParseDSTPolicy resolves a DSTPolicy spelling (exact, lower case); the
+// empty string is DSTPolicyError. Any other spelling is
+// SERVICE_VALIDATION with details {option: "dst_policy", value} — the
+// refusal an import raises for the same value, before any row is read.
+func ParseDSTPolicy(s string) (DSTPolicy, error) { return iio.ParseDSTPolicy(s) }
+
+// FloatWidths returns every ImportJob.FloatWidth / ConvertJob.FloatWidth
+// spelling, the default first ("f64", "f32"); the empty string also
+// means "f64". Any other value fails the job with
+// PULSE_IMPORT_FLOAT_WIDTH_INVALID. The slice is a fresh copy.
+func FloatWidths() []string { return iio.FloatWidths() }
+
 // ImportProjection is the measured pass's view of the file the import
 // would write.
 type ImportProjection = iio.ImportProjection

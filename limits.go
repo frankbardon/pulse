@@ -65,3 +65,16 @@ func profileLimits(fp *FeatureProfile) *limits.Limits {
 	}
 	return &l
 }
+
+// LimitNames returns every resource limit's snake_case name, in Limits
+// field order (the spelling the manifest's limits section, the feature
+// profile's limits section and limit-breach details use). The slice is
+// a fresh copy.
+func LimitNames() []string {
+	names := limits.Names()
+	out := make([]string, len(names))
+	for i, n := range names {
+		out[i] = string(n)
+	}
+	return out
+}

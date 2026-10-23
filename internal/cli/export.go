@@ -17,14 +17,14 @@ var exportFlags = []cli.Flag{
 	&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
 	&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Output file path", Required: true},
 	&cli.StringSliceFlag{Name: "include", Usage: "Export only the named source-schema field. Repeatable; omit to export every field. Output order always follows the source schema, not flag order."},
-	&cli.StringSliceFlag{Name: "labels", Usage: "Label binding on a categorical or integer-coded u4/u8/u16/u32 field: field=table[:replace|augment]. Repeatable. An integer field's table is keyed by its values' decimal spellings (else PULSE_LABEL_KEY_INVALID); any other type is PULSE_LABEL_FIELD_NOT_CATEGORICAL. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
+	&cli.StringSliceFlag{Name: "labels", Usage: "Label binding on a categorical or integer-coded u4/u8/u16/u32 field: " + labelBindingGrammar + ". Repeatable. An integer field's table is keyed by its values' decimal spellings (else PULSE_LABEL_KEY_INVALID); any other type is PULSE_LABEL_FIELD_NOT_CATEGORICAL. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
 	&cli.StringFlag{Name: "tz", Usage: exportTZFlagUsage},
 	&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 }
 
 // predictLabelsFlagUsage is `export predict --labels`: the export leaves'
 // binding syntax, checked rather than applied.
-const predictLabelsFlagUsage = "Categorical label binding to check, as the export leaves take it: field=table[:replace|augment]. Repeatable. Predicts every export's label refusals (a field neither categorical nor integer-coded u4-u32, an integer field's non-decimal table key, an unregistered table) and, with --format spss, the .sav value-label ones too (unknown field, a field bound twice, a binding beside the SPSS metadata sidecar), with the export's own codes. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."
+var predictLabelsFlagUsage = "Categorical label binding to check, as the export leaves take it: " + labelBindingGrammar + ". Repeatable. Predicts every export's label refusals (a field neither categorical nor integer-coded u4-u32, an integer field's non-decimal table key, an unregistered table) and, with --format spss, the .sav value-label ones too (unknown field, a field bound twice, a binding beside the SPSS metadata sidecar), with the export's own codes. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."
 
 // exportTZFlagUsage is shared by the export leaves and `export predict`.
 const exportTZFlagUsage = "Render datetime columns on this IANA zone's wall clock with its offset (e.g. Asia/Kolkata -> 2026-03-29T08:00:00+05:30) instead of UTC ...Z. Re-imports to the same instants; date columns never move. Omit, or UTC, for byte-identical UTC output. Refused by spss (a .sav DATETIME has no offset)."
@@ -274,7 +274,7 @@ func exportPredictCmd() *cli.Command {
 		Usage: "Validate an export without writing output",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
-			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Output format to validate against (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss). Omit to validate the source cohort only, with no target-format check."},
+			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Output format to validate against (" + commaList(pio.Formats()) + "). Omit to validate the source cohort only, with no target-format check."},
 			&cli.BoolFlag{Name: "ignore-sidecar", Usage: ignoreSidecarFlagUsage},
 			&cli.BoolFlag{Name: "uncompressed", Usage: uncompressedFlagUsage},
 			&cli.StringFlag{Name: "charset", Usage: writeCharsetFlagUsage},

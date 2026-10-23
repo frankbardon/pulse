@@ -60,6 +60,18 @@ func invalid(reason, field, msg string) error {
 		map[string]any{"reason": reason, "field": field})
 }
 
+// quotedOr spells values as `"a", "b" or "c"`.
+func quotedOr(values []string) string {
+	q := make([]string, len(values))
+	for i, v := range values {
+		q[i] = strconv.Quote(v)
+	}
+	if len(q) == 1 {
+		return q[0]
+	}
+	return strings.Join(q[:len(q)-1], ", ") + " or " + q[len(q)-1]
+}
+
 // keySep joins a joint margin's category tuple into one lookup key; it
 // cannot occur in a dictionary label written by import.
 const keySep = "\x00"
@@ -87,7 +99,7 @@ func Compile(req *Request, schema *encoding.Schema) (*Plan, error) {
 	case MissingBase:
 		p.missingBase = true
 	default:
-		return nil, invalid("missing_policy", "missing", `missing must be "refuse" or "base"`)
+		return nil, invalid("missing_policy", "missing", "missing must be "+quotedOr(MissingPolicies()))
 	}
 	if req.MaxIter < 0 {
 		return nil, invalid("max_iter", "max_iter", "max_iter must be non-negative")
