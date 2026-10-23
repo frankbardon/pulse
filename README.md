@@ -505,7 +505,7 @@ make vet      # go vet
 make lint     # gofmt check (fmt-check) + go vet + staticcheck (auto-installed via go run); CI runs it
 make cover    # Coverage report
 make docs     # Regenerate the Analysis Guide (docs/src/guide) and build mdBook
-make dist     # 6-platform release archives + checksums.txt in ./dist (VERSION=v1.2.3)
+make dist     # 6-platform release archives (binary + completions/) + checksums.txt in ./dist (VERSION=v1.2.3)
 make contrib  # vet + staticcheck + tidy check + test the contrib/ adapter modules
 make sites ARGS="op MAT_PCA"  # change-site checklist (op / new-op / slot) for contributors
 make clean    # Remove artifacts
