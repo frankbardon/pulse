@@ -138,13 +138,6 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 	}
 }
 
-// windowLabel returns the effective output column name for a window.
-func windowLabel(w *types.Window) string {
-	if w.Label != "" {
-		return w.Label
-	}
-	if w.Field == "" {
-		return string(w.Type)
-	}
-	return string(w.Type) + "_" + w.Field
-}
+// windowLabel returns the effective output column name for a window:
+// windowparams.Label, the one derivation the engine reads too.
+func windowLabel(w *types.Window) string { return windowparams.Label(w) }

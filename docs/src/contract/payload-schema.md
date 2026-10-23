@@ -49,7 +49,10 @@ built with a feature profile gets a narrower document:
   `SlotWeight` and `WeightSpec` are absent), and without
   `capability:multiplicity` no `multiplicity` block is a property of any
   root or slot (so `Multiplicity`, `RegressionMultiplicity`,
-  `MultiplicityMethod` and `MultiplicityFamily` are absent);
+  `MultiplicityMethod` and `MultiplicityFamily` are absent); without
+  `capability:regression_holdout` neither `RegressionSpec.holdout` nor
+  `RegressionResult.holdout` is a property (so `RegressionHoldout` is
+  absent);
 - a root whose capability is not offered is absent — `ComposedRequest` /
   `ComposedResponse` (compose), `ChainRequest` / `ChainResponse`
   (process-chain), `FacetRequest` / `FacetResult` (facet),
@@ -938,6 +941,36 @@ the resampled standard errors (no `df`). An undefined bound or `df`
 (residual df ≤ 0) is `null`. All four are in the `standard` preset (not
 `minimal`) and rounded by `return.precision`.
 
+## Regression holdout
+
+`RegressionSpec` takes an additive `holdout` string — an expr-lang
+boolean predicate over the fully built record (schema fields, feature
+outputs, attribute labels, window labels and post-window attribute
+labels; a window label only where the windows run over the record rows,
+else `PULSE_REGRESSION_WINDOW_UNAVAILABLE` with `details.slot`
+`holdout`). A row it calls `true` is held out of the fit and scored by
+the fitted model afterwards, `false` is fitted, `null` joins neither.
+`RegressionResult` gains the additive `omitempty` object `holdout`
+(`#/$defs/RegressionHoldout`) `{n, n_null, rmse, mae, r2}`: `n` the
+scored held-out rows (target, predictors and — weighted — a valid
+positive weight present; a raw count), `n_null` the null-predicate
+rows, the figures on the response scale (a `REG_GLM`'s inverse link)
+weighted by the slot `weight`, `r2` = 1 − SSE/SST about the held-out
+rows' own mean — `null` (key kept) when the held-out targets do not
+vary. Absent `holdout` is byte-identical and `format_version` stays
+`"1.1"`. A predicate that does not compile as a boolean or names an
+unknown column is `PULSE_FORMULA_COMPILE_ERROR`; a type the instance
+cannot score is `PULSE_MODEL_SCORE_INVALID` `details.reason`
+`no_scorer` — both refused identically at predict and at runtime. No
+scorable held-out row fails the slot alone
+(`PROCESSING_REGRESSION_INSUFFICIENT_DATA`, `details.reason`
+`holdout_empty`; `PULSE_SLOT_FAILED`). A holdout forces the buffered
+path (predict `streamable_reasons`: "regression <TYPE> holdout requires
+the buffered path (the held-out rows are scored after the fit)"). The
+block rides `capability:regression_holdout`, is kept by the `standard`
+and `minimal` presets, is rounded by `return.precision` and never
+appears under `Response.components`.
+
 ## Per-group aggregation components
 
 `groups` on `AggregationComponents` is an additive `omitempty` array of
@@ -1067,7 +1100,7 @@ covering the path removes it; excluding `<key>` drops it too. Every listed path 
 | `crosstab` | `shape`, `matrix` | whole |
 | `matrices[*]` | `name`, `type`, `group_key`, `primary` | all but `auxiliary`, except the inference figures a spec asked for: `auxiliary.p` / `ci_lower` / `ci_upper` (`params.inference`), `p_adjusted` / `significant_adjusted` (a multiplicity family), and the pairwise `auxiliary.n` beside a kept `p` (a companion). They exist only on that spec's result, so a spec without inference keeps no auxiliary |
 | `tests[*]` / `post_tests[*]` | `label`, `type`, `group_key`, `statistic`, `p_value`, `reject_null`, `p_adjusted`, `significant_adjusted` | minimal's keys + `variant`, `df`, `alpha`, `multiplicity`, `details.effect_size` (no other `details` key) |
-| `regressions[*]` | `name`, `type`, `coefficients`, `p_values`, an extension model's `outputs` | all but `credible_intervals` and `selection` (so `ci_lower` / `ci_upper` / `df` / `conf_level`, and `vcov` / `correlation` / `covariance` when asked for; an extension model's `statistics` and `outputs`) |
+| `regressions[*]` | `name`, `type`, `coefficients`, `p_values`, an extension model's `outputs`, `holdout` when asked for | all but `credible_intervals` and `selection` (so `ci_lower` / `ci_upper` / `df` / `conf_level`, and `vcov` / `correlation` / `covariance` / `holdout` when asked for; an extension model's `statistics` and `outputs`) |
 | `overlays[*]` | `name`, `kind`, `ref`, `summary` (no `payload`) | whole |
 | `components` | no | no |
 

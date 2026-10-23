@@ -29,7 +29,7 @@ Attributes emit row-level scalars; they do not produce `Response.Components`.
 
 ## Output
 
-One `f64` per record; null when a column the score reads is null, and on EVERY row when the fit failed on its data (`PULSE_FIT_UNAVAILABLE` `{fit, attribute, code}`; other slots compute normally; predict cannot foresee it). Training rows equal the fit's own fitted values bit for bit.
+One `f64` per record; null when a column the score reads is null, NaN or ±Inf, and on EVERY row when the fit failed on its data (`PULSE_FIT_UNAVAILABLE` `{fit, attribute, code}`; other slots compute normally; predict cannot foresee it). Training rows equal the fit's own fitted values bit for bit.
 
 <!-- generated: reading-the-output -->
 

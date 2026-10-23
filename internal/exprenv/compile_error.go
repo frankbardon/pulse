@@ -18,6 +18,7 @@ const (
 	SiteFormula       = "formula"                  // an ATTR_FORMULA expression
 	SiteFilter        = "filter"                   // a FILTER_EXPRESSION expression
 	SiteTotalArgument = "formula total() argument" // one total(expr) argument
+	SiteHoldout       = "regression holdout"       // a RegressionSpec.Holdout predicate
 )
 
 // ResultRefusal is the compile-time result-type check of site: nil, or
@@ -34,9 +35,10 @@ const (
 // ternary mixing types) and a vector ([]float64 — the shared vector
 // result refusal) stay judged per row. expr.AsBool itself is not used:
 // it also casts an untyped result at run time, which would move those
-// per-row refusals' codes.
+// per-row refusals' codes. A regression holdout (SiteHoldout) is a
+// predicate too and is judged exactly like a filter.
 func ResultRefusal(site, src string, prog *vm.Program) *errors.CodedError {
-	if site != SiteFilter || prog == nil {
+	if (site != SiteFilter && site != SiteHoldout) || prog == nil {
 		return nil
 	}
 	t := prog.Node().Type()

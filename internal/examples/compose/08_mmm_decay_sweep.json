@@ -1,0 +1,195 @@
+{
+  "_meta": {
+    "category": "compose",
+    "description": "One-step media-mix model with a decay sweep: four channels are adstocked by WIN_ADSTOCK windows whose geometric decay is a sweep axis, saturated by post-window hill() ATTR_FORMULA attributes, and fed to ONE REG_OLS with non-negative channel slopes and a holdout on weeks 91 and later. The sweep ranks its ten decay slots by the held-out RMSE (regressions.mmm.holdout.rmse), so the true decay (0.5) comes first; the return excludes data, leaving the fit and its holdout figures. No materialize step: the regression reads the window labels in the same request.",
+    "capabilities": [
+      "capability:compose_sweep",
+      "capability:regression_holdout"
+    ],
+    "intents": [
+      "drivers"
+    ],
+    "name": "compose-mmm-decay-sweep",
+    "operators": [
+      "ATTR_FORMULA",
+      "REG_OLS",
+      "WIN_ADSTOCK"
+    ],
+    "tags": [
+      "compose",
+      "composed",
+      "regression",
+      "ols",
+      "time-series",
+      "feature-engineering"
+    ]
+  },
+  "sweep": {
+    "axes": [
+      {
+        "name": "decay",
+        "values": [
+          0.0,
+          0.1,
+          0.2,
+          0.3,
+          0.4,
+          0.5,
+          0.6,
+          0.7,
+          0.8,
+          0.9
+        ]
+      }
+    ],
+    "label": "decay_{{decay}}",
+    "rank": {
+      "by": "regressions.mmm.holdout.rmse",
+      "order": "asc"
+    },
+    "request": {
+      "cohort": {
+        "filename": "mmm_weekly.pulse",
+        "data_dir": ".data"
+      },
+      "windows": [
+        {
+          "type": "WIN_ADSTOCK",
+          "field": "tv",
+          "label": "tv_ad",
+          "partition_by": [
+            "market"
+          ],
+          "order_by": [
+            {
+              "field": "week"
+            }
+          ],
+          "params": {
+            "kernel": "geometric",
+            "decay": {
+              "$var": "decay"
+            },
+            "max_lag": 13,
+            "normalize": false
+          }
+        },
+        {
+          "type": "WIN_ADSTOCK",
+          "field": "radio",
+          "label": "radio_ad",
+          "partition_by": [
+            "market"
+          ],
+          "order_by": [
+            {
+              "field": "week"
+            }
+          ],
+          "params": {
+            "kernel": "geometric",
+            "decay": {
+              "$var": "decay"
+            },
+            "max_lag": 13,
+            "normalize": false
+          }
+        },
+        {
+          "type": "WIN_ADSTOCK",
+          "field": "search",
+          "label": "search_ad",
+          "partition_by": [
+            "market"
+          ],
+          "order_by": [
+            {
+              "field": "week"
+            }
+          ],
+          "params": {
+            "kernel": "geometric",
+            "decay": {
+              "$var": "decay"
+            },
+            "max_lag": 13,
+            "normalize": false
+          }
+        },
+        {
+          "type": "WIN_ADSTOCK",
+          "field": "social",
+          "label": "social_ad",
+          "partition_by": [
+            "market"
+          ],
+          "order_by": [
+            {
+              "field": "week"
+            }
+          ],
+          "params": {
+            "kernel": "geometric",
+            "decay": {
+              "$var": "decay"
+            },
+            "max_lag": 13,
+            "normalize": false
+          }
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_FORMULA",
+          "label": "tv_sat",
+          "expression": "hill(tv_ad, 800, 1.5)"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "radio_sat",
+          "expression": "hill(radio_ad, 240, 1.5)"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "search_sat",
+          "expression": "hill(search_ad, 100, 1.5)"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "social_sat",
+          "expression": "hill(social_ad, 160, 1.5)"
+        }
+      ],
+      "regressions": [
+        {
+          "type": "REG_OLS",
+          "name": "mmm",
+          "target": "sales",
+          "predictors": [
+            "tv_sat",
+            "radio_sat",
+            "search_sat",
+            "social_sat",
+            "price",
+            "promo"
+          ],
+          "bounds": {
+            "nonnegative": [
+              "tv_sat",
+              "radio_sat",
+              "search_sat",
+              "social_sat"
+            ]
+          },
+          "holdout": "week >= 91"
+        }
+      ],
+      "return": {
+        "preset": "standard",
+        "exclude": [
+          "data"
+        ]
+      }
+    }
+  }
+}

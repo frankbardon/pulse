@@ -105,6 +105,20 @@ func FrameRejected(t types.WindowType) bool { return frameRejected[t] || sharepa
 // (and so refuses a slot without one).
 func FieldRequired(t types.WindowType) bool { return fieldRequired[t] }
 
+// Label returns a window's output column name: its label, else
+// "<TYPE>_<field>" (the bare type when it reads no field). The one
+// derivation: the window engine, predict's field-reference walk and the
+// computed-column model (internal/vectors) all read it here.
+func Label(w *types.Window) string {
+	if w.Label != "" {
+		return w.Label
+	}
+	if w.Field == "" {
+		return string(w.Type)
+	}
+	return string(w.Type) + "_" + w.Field
+}
+
 // Refusal is one violated rule: Message is the operator-neutral sentence
 // (callers prefix their own context) and Details the offending values.
 type Refusal struct {

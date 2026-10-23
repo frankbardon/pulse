@@ -101,17 +101,17 @@ type regressionAccumWrap struct {
 }
 
 // PrePassRecord folds one record's (target, predictors) into the
-// accumulator. Rows with any null are skipped (listwise deletion,
-// matches olsEngine.UpdateRow).
+// accumulator. Rows with any null or non-finite input are skipped
+// (listwise deletion, regression.InputValue — matches olsEngine.UpdateRow).
 func (w *regressionAccumWrap) PrePassRecord(rec *Record) {
-	if _, ok := rec.NumericValue(w.target); !ok {
+	y, ok := regression.InputValue(rec, w.target)
+	if !ok {
 		return
 	}
 	values := make(map[string]float64, len(w.predictors)+1)
-	y, _ := rec.NumericValue(w.target)
 	values[w.target] = y
 	for _, name := range w.predictors {
-		v, ok := rec.NumericValue(name)
+		v, ok := regression.InputValue(rec, name)
 		if !ok {
 			return
 		}
@@ -314,8 +314,8 @@ func (a *regressionAttribute) EmitsNull() bool { return true }
 var _ NullEmitter = (*regressionAttribute)(nil)
 
 // Row emits the per-row scalar for this attribute given a record and
-// the finalized fit. A row with a null predictor — or, for
-// ATTR_REG_RESIDUAL, a null target — emits NaN, which the orchestrator
+// the finalized fit. A row with a null or non-finite predictor — or,
+// for ATTR_REG_RESIDUAL, target (regression.InputValue) — emits NaN, which the orchestrator
 // writes as a NULL (NullEmitter), so a downstream aggregation skips it
 // rather than averaging a 0. ATTR_REG_PREDICT shares the rule.
 func (a *regressionAttribute) Row(rec *Record, _ string) (float64, error) {
@@ -325,7 +325,7 @@ func (a *regressionAttribute) Row(rec *Record, _ string) (float64, error) {
 	}
 	x := make([]float64, len(a.fit.PredictorOrder))
 	for i, name := range a.fit.PredictorOrder {
-		v, ok := rec.NumericValue(name)
+		v, ok := regression.InputValue(rec, name)
 		if !ok {
 			return math.NaN(), nil
 		}
@@ -339,7 +339,7 @@ func (a *regressionAttribute) Row(rec *Record, _ string) (float64, error) {
 	case regAttrFitted:
 		return yhat, nil
 	case regAttrResidual:
-		y, ok := rec.NumericValue(a.spec.Target)
+		y, ok := regression.InputValue(rec, a.spec.Target)
 		if !ok {
 			return math.NaN(), nil
 		}

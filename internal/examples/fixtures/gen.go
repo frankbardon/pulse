@@ -22,7 +22,10 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
+
+	"github.com/frankbardon/pulse/internal/mmmfixture"
 )
 
 const (
@@ -69,6 +72,10 @@ func main() {
 	// The intake forms draw from their own source as well, so adding
 	// them left every CSV above byte-identical.
 	must(writeIntake(rand.New(rand.NewSource(seed+3)), 300))
+	// The weekly media-mix cohort draws nothing from a source: it is the
+	// mmmfixture rows verbatim, so the decay-sweep example and the
+	// acceptance suites read the same data.
+	must(writeMMMWeekly())
 	fmt.Println("wrote 10 CSVs to", outputDir)
 }
 
@@ -583,4 +590,27 @@ func must(err error) {
 
 func itoa(i int) string {
 	return fmt.Sprintf("%d", i)
+}
+
+// writeMMMWeekly writes mmm_weekly.csv from mmmfixture.Rows(): two
+// markets x 104 weeks of four channel spends, two controls and sales,
+// floats at full precision so the cohort equals the fixture's.
+func writeMMMWeekly() error {
+	w, close := openCSV("mmm_weekly.csv")
+	defer close()
+	if err := w.Write([]string{"market", "week", "tv", "radio", "search", "social", "price", "promo", "sales"}); err != nil {
+		return err
+	}
+	f := func(v any) string { return strconv.FormatFloat(v.(float64), 'g', -1, 64) }
+	for _, row := range mmmfixture.Rows() {
+		rec := []string{row[0].(string), strconv.FormatUint(row[1].(uint64), 10)}
+		for _, v := range row[2:] {
+			rec = append(rec, f(v))
+		}
+		if err := w.Write(rec); err != nil {
+			return err
+		}
+	}
+	w.Flush()
+	return w.Error()
 }

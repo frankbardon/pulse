@@ -716,6 +716,14 @@ func computeCrosstabFusion(req *types.Request, schema *encoding.Schema, opts *Pr
 	return &fused, reasons
 }
 
+// HoldoutStreamableReason is predict's Streamable reason for a
+// regression whose holdout predicate (types.RegressionSpec.Holdout)
+// forces the buffered path: its held-out rows are scored after the fit,
+// a second pass the single-pass engine has no form of.
+func HoldoutStreamableReason(t types.RegressionType) string {
+	return "regression " + string(t) + " holdout requires the buffered path (the held-out rows are scored after the fit)"
+}
+
 // computeStreamable reports whether the request can execute via the
 // streaming Process path. Mirrors processing.canStream's gates but reads
 // from the types.* Streamable() methods instead of constructing operators
@@ -740,6 +748,8 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		if !regressionSpecStreamable(opts, reg) {
 			if reg.Covariance.Robust() {
 				reasons = append(reasons, "regression "+string(reg.Type)+" covariance "+string(reg.Covariance.Type)+" requires the buffered path (a second pass for residuals and leverage)")
+			} else if reg.Holdout != "" {
+				reasons = append(reasons, HoldoutStreamableReason(reg.Type))
 			} else {
 				reasons = append(reasons, "regression "+string(reg.Type)+" requires the buffered path under the current spec")
 			}
@@ -816,7 +826,7 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		reasons = append(reasons, "two-pass attribute "+string(tp)+" with groupers or features runs via the buffered path")
 	}
 	if len(req.Windows) > 0 {
-		reasons = append(reasons, "windows run over the post-aggregate row set")
+		reasons = append(reasons, "windows run over the whole row set (every filtered record, or the post-aggregate rows when grouped)")
 	}
 
 	for _, agg := range req.Aggregations {

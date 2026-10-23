@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:64bfafee2a0434df9b260e4b510149331825dae09ec1acc1b59174c8d805c144",
+  "$comment": "feature_set_digest: fs1:8b3078651bebb03d1e0c5bbc01a8e6196e641dbfb55db2c4fa5f90a9a424809d",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -3866,6 +3866,43 @@
       ],
       "type": "object"
     },
+    "RegressionHoldout": {
+      "additionalProperties": false,
+      "properties": {
+        "mae": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "n": {
+          "type": "integer"
+        },
+        "n_null": {
+          "type": "integer"
+        },
+        "r2": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rmse": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "mae",
+        "n",
+        "n_null",
+        "r2",
+        "rmse"
+      ],
+      "type": "object"
+    },
     "RegressionMultiplicity": {
       "additionalProperties": false,
       "properties": {
@@ -3997,6 +4034,9 @@
         },
         "family": {
           "type": "string"
+        },
+        "holdout": {
+          "$ref": "#/$defs/RegressionHoldout"
         },
         "jackknife_groups": {
           "type": "integer"
@@ -4159,6 +4199,9 @@
           "type": "string"
         },
         "family": {
+          "type": "string"
+        },
+        "holdout": {
           "type": "string"
         },
         "jackknife_by": {
@@ -5494,4 +5537,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 0f9180996de303b0859f1322ce65fa8062c61577fd96401e422a97b7cd73bb83
+// golden-hash: e16c20461c2142999852594ed99a7b70cfe56bdcbf7e3b23289d3ea4aa56fe89

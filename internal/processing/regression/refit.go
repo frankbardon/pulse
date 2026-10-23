@@ -71,7 +71,7 @@ func olsFitter(records []Record, target string, activePredictors []string, spec 
 		acc.basis = rw.basis
 		buf := make([]float64, 0)
 		for _, rec := range records {
-			y, ok := rec.NumericValue(target)
+			y, ok := InputValue(rec, target)
 			if !ok {
 				continue
 			}
@@ -101,13 +101,13 @@ func olsFitter(records []Record, target string, activePredictors []string, spec 
 	acc.basis = rw.basis
 	xBuf := make([]float64, p)
 	for _, rec := range records {
-		y, ok := rec.NumericValue(target)
+		y, ok := InputValue(rec, target)
 		if !ok {
 			continue
 		}
 		skip := false
 		for j, name := range activePredictors {
-			v, ok := rec.NumericValue(name)
+			v, ok := InputValue(rec, name)
 			if !ok {
 				skip = true
 				break

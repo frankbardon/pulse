@@ -214,12 +214,12 @@ func jackknifeRows(spec *types.RegressionSpec, records []Record, predictors []st
 	rw := newRowWeights(spec)
 	out := make([]Record, 0, len(records))
 	for _, rec := range records {
-		if _, ok := rec.NumericValue(spec.Target); !ok {
+		if _, ok := InputValue(rec, spec.Target); !ok {
 			continue
 		}
 		complete := true
 		for _, name := range predictors {
-			if _, ok := rec.NumericValue(name); !ok {
+			if _, ok := InputValue(rec, name); !ok {
 				complete = false
 				break
 			}
@@ -480,7 +480,7 @@ func deriveBootstrapSeed(spec *types.RegressionSpec, records []Record, predictor
 	fields := append([]string{spec.Target}, predictors...)
 	for _, r := range records {
 		for _, f := range fields {
-			v, ok := r.NumericValue(f)
+			v, ok := InputValue(r, f)
 			if !ok {
 				word(0x7ff8000000000001) // a null: a NaN payload no value carries
 				continue

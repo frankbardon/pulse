@@ -209,7 +209,13 @@ var regressionFieldClasses = map[string]RegressionFieldClass{
 	// the reported (or replicate) standard errors
 	// (regression.AttachExtensionIntervals), so every model accepts it.
 	"conf_level": RegressionFieldAccepted,
-	"weight":     RegressionFieldWeightClass,
+	// holdout: the engine partitions the rows, fits the model on the
+	// train rows and scores the held-out rows through the model's own
+	// scorer, so every model accepts it; one whose registration supplies
+	// no Scorer is refused PULSE_MODEL_SCORE_INVALID no_scorer by the
+	// field-reference walk (model.HoldoutScorerRefusal).
+	"holdout": RegressionFieldAccepted,
+	"weight":  RegressionFieldWeightClass,
 }
 
 // RegressionFieldClassOf classifies the types.RegressionSpec JSON key:
@@ -311,6 +317,10 @@ func regressionSlotParamsFor(decl ExtensionRegression) []descriptor.Param {
 	}
 	if len(covTypes) > 0 {
 		out = append(out, descriptor.Param{Name: "covariance", Type: "object", Description: "{type, cluster, order_by, lags}: the covariance estimator the model computes; declared types: " + strings.Join(covTypes, ", ") + ". A top-level key of the regression entry.", Slot: true})
+	}
+	// holdout: an accepted field, listed when the model can be scored.
+	if decl.Scorer {
+		out = append(out, descriptor.Param{Name: "holdout", Type: "string", Description: holdoutParamDescription, Slot: true})
 	}
 	if accepts("save", probe) {
 		out = append(out, descriptor.Param{Name: "save", Type: "string", Description: "Write the finished fit as a model file (.pulse-model.json); a top-level key of the regression entry.", Slot: true})

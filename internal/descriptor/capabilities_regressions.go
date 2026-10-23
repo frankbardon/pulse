@@ -10,6 +10,10 @@ import (
 // regressionCapabilities returns metadata for every entry in
 // types.AllRegressionTypes(). Order is irrelevant; manifest assembly
 // sorts by Name.
+// holdoutParamDescription is the manifest description of the shared
+// `holdout` slot (every built-in, and an extension model with a scorer).
+const holdoutParamDescription = "Boolean expression over the built record (schema, features, attributes, windows, post-window attributes): true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, rmse, mae, r2} on the response scale; forces the buffered path."
+
 func regressionCapabilities() []descriptor.RegressionMeta {
 	// All three engines consume the analytics-numeric set (integer /
 	// float / decimal families, u4, packed_bool, date, datetime) through
@@ -39,8 +43,8 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 	// built-in reads beside its own knobs: the slot weight, the
 	// multiplicity block (only an engine that emits p-values — the
 	// REG_BAYES_LINEAR posterior has none, and its block is refused
-	// PULSE_MULTIPLICITY_INVALID), the model-file save (every built-in
-	// is scorable) and the result name. On a scoped instance a key whose
+	// PULSE_MULTIPLICITY_INVALID), the holdout predicate and the
+	// model-file save (every built-in is scorable) and the result name. On a scoped instance a key whose
 	// capability is hidden drops from the list (assembleManifest), as
 	// the payload schema drops it.
 	sharedSlotParams := func(weight string, pValues bool) []descriptor.Param {
@@ -51,6 +55,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 			out = append(out, descriptor.Param{Name: "multiplicity", Type: "object", Required: false, Description: "{method, family, alpha, coefficients}: corrects the coefficient p_values; adds p_adjusted / significant_adjusted.", Slot: true})
 		}
 		return append(out,
+			descriptor.Param{Name: "holdout", Type: "string", Required: false, Description: holdoutParamDescription, Slot: true},
 			descriptor.Param{Name: "save", Type: "string", Required: false, Description: "Write the finished fit as a model file (.pulse-model.json).", Slot: true},
 			descriptor.Param{Name: "name", Type: "string", Required: false, Description: "Result alias; also the saved model's name (default: the save file's stem).", Slot: true},
 		)

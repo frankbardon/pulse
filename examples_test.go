@@ -87,7 +87,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 // the anchor-syntax example reads.
 func buildExampleFixtures(t *testing.T, p *pulse.Pulse, fs afero.Fs, tmp string) {
 	t.Helper()
-	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers", "tier_migrations", "survey", "subscribers", "warehouse_orders", "plan_history", "plan_history_wide", "battery", "intake"}
+	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers", "tier_migrations", "survey", "subscribers", "warehouse_orders", "plan_history", "plan_history_wide", "battery", "intake", "mmm_weekly"}
 	for _, name := range cohorts {
 		csvPath := filepath.Join("internal", "examples", "fixtures", name+".csv")
 		schemaPath := filepath.Join("internal", "examples", "fixtures", "schemas", name+".json")
@@ -499,5 +499,73 @@ func TestExamples_VectorFitPopulationRoundTrip(t *testing.T) {
 	}
 	if len(loaded.Responses[1].Matrices) != 1 {
 		t.Fatalf("06: panel_a_matrix returned %d matrices, want 1", len(loaded.Responses[1].Matrices))
+	}
+}
+
+// TestExamples_MMMDecaySweepRanksTrueDecayFirst runs
+// compose/08_mmm_decay_sweep.json over the mmm_weekly fixture cohort
+// (built from the same rows the acceptance suites use): predict is
+// clean, ten decay slots come back ranked ascending by the fit's own
+// holdout RMSE, the data's true decay (0.5) ranks first, and the
+// return excludes data.
+func TestExamples_MMMDecaySweepRanksTrueDecayFirst(t *testing.T) {
+	tmp := t.TempDir()
+	osfs := afero.NewOsFs()
+	builder, err := pulse.New(pulse.Options{FS: osfs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	buildExampleFixtures(t, builder, osfs, tmp)
+	p, err := pulse.New(pulse.Options{DataDir: tmp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join("internal", "examples", "compose", "08_mmm_decay_sweep.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The instance is rooted at tmp, so the sweep body's data_dir goes.
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	delete(doc["sweep"].(map[string]any)["request"].(map[string]any)["cohort"].(map[string]any), "data_dir")
+	if body, err = json.Marshal(doc); err != nil {
+		t.Fatal(err)
+	}
+	var req pulse.ComposedRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	env, err := p.PredictCompose(context.Background(), &req)
+	if err != nil {
+		t.Fatalf("PredictCompose: %v", err)
+	}
+	if len(env.Errors) != 0 {
+		t.Fatalf("PredictCompose errors: %v", env.Errors)
+	}
+	out, err := p.Compose(context.Background(), &req)
+	if err != nil {
+		t.Fatalf("Compose: %v", err)
+	}
+	if len(out.Responses) != 10 || len(out.Ranking) != 10 {
+		t.Fatalf("%d slots, %d ranked; want 10 each", len(out.Responses), len(out.Ranking))
+	}
+	for _, r := range out.Responses {
+		if len(r.Data) != 0 {
+			t.Fatalf("slot %s carries data; its return excludes it", r.Label)
+		}
+		if len(r.Regressions) != 1 || r.Regressions[0].Error != nil || r.Regressions[0].Holdout == nil {
+			t.Fatalf("slot %s: regressions %+v, want one fit with a holdout", r.Label, r.Regressions)
+		}
+	}
+	if out.Ranking[0].Label != "decay_0.5" {
+		t.Fatalf("best slot %q, want decay_0.5; ranking %+v", out.Ranking[0].Label, out.Ranking)
+	}
+	for i := 1; i < len(out.Ranking); i++ {
+		if !(out.Ranking[i-1].Value < out.Ranking[i].Value) {
+			t.Fatalf("ranking not ascending at %d: %+v", i, out.Ranking)
+		}
 	}
 }

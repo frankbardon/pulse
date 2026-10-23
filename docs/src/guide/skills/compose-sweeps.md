@@ -49,6 +49,10 @@ Omit `label` for the default: the `axis=value` pairs joined by `_`. An authored 
 
 The substituted body decodes STRICTLY into a `Request`, like a plain compose slot: an unknown key is `PULSE_REQUEST_UNKNOWN_FIELD` (`details.path`, suggestion, plus the sweep `slot` / `values`); a wrong-typed value is `PULSE_SWEEP_INVALID` `request_decode`. The failure is found at expansion, before any slot runs.
 
+## Decay-sweep pattern
+
+Rank one-step fits on held-out error: an adstock window whose `decay` is `{"$var": "decay"}`, a post-window formula attribute, one regression with a `holdout`, `rank` `{by: "regressions.<name>.holdout.rmse", order: "asc"}`, `return` excluding `data`. The true decay ranks first; no materialize step ([`regression-model-options`](regression-model-options.md)).
+
 ## Overlays
 
 `sweep.overlays` is an array of compose overlay specs, substituted per expanded slot and appended after the request's own `overlays`. Use `{{axis}}` in `reference` / `targets` to point each copy at its slot label.

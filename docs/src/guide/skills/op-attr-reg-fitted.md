@@ -47,7 +47,7 @@ Refit keys are top-level, not `params`; `fit` is `params.fit` ([`regression-row-
 
 ## Output
 
-One `float64` per record — the model's prediction ŷᵢ. **Null (never 0) when any predictor is null**, so a downstream aggregation counts the row in `n_null`; a null target alone still gets ŷᵢ.
+One `float64` per record — the model's prediction ŷᵢ. **Null (never 0) when any predictor is null, NaN or ±Inf**, so a downstream aggregation counts the row in `n_null`; a null target alone still gets ŷᵢ.
 
 ## Reading the output
 

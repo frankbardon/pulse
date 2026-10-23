@@ -91,7 +91,7 @@ func clusterKey(rec Record, field string) (string, bool) {
 			return "s:" + s, true
 		}
 	}
-	v, ok := rec.NumericValue(field)
+	v, ok := InputValue(rec, field)
 	if !ok {
 		return "", false
 	}
@@ -116,7 +116,7 @@ func robustRowKeys(spec *types.RegressionSpec, rec Record) (cluster string, orde
 		}
 	}
 	if c.OrderBy != "" {
-		if order, ok = rec.NumericValue(c.OrderBy); !ok {
+		if order, ok = InputValue(rec, c.OrderBy); !ok {
 			return "", 0, false
 		}
 	}

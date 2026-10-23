@@ -199,6 +199,10 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_FACET_VALUES_TRUNCATED:             own(featFacet),
 	errors.PULSE_FIELD_DESCRIPTION_LOW_QUALITY:      shared,
 	errors.PULSE_WINDOW_INVALID:                     ownAllWindows,
+	// Only a regression slot naming a window label raises it.
+	errors.PULSE_REGRESSION_WINDOW_UNAVAILABLE: ownAllRegs,
+	// An attribute slot reading a window label raises it.
+	errors.PULSE_ATTRIBUTE_WINDOW_ORDER: opsWithPrefix("ATTR_"),
 	// Every operator the accepted-types table refuses a type for with it.
 	errors.PULSE_FIELD_TYPE_UNSUPPORTED:   fieldaccept.OperatorsRaising(errors.PULSE_FIELD_TYPE_UNSUPPORTED),
 	errors.PULSE_FEAT_TARGET_LEAKAGE_RISK: own("FEAT_TARGET_ENCODE"),
@@ -350,8 +354,9 @@ var errorOwners = map[errors.Code][]string{
 	// ATTR_REG_PREDICT's scoring rule (internal/model.CheckScore), an
 	// ATTR_REG_FITTED / RESIDUAL params.fit (CheckFitReference) and
 	// the coef() expression function (internal/model.CheckCoef), which
-	// ATTR_FORMULA and FILTER_EXPRESSION evaluate.
-	errors.PULSE_MODEL_SCORE_INVALID:         own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
+	// ATTR_FORMULA and FILTER_EXPRESSION evaluate; a regression holdout
+	// over an unscorable type (model.HoldoutScorerRefusal, no_scorer).
+	errors.PULSE_MODEL_SCORE_INVALID:         own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", featRegHoldout),
 	errors.PULSE_MODEL_TERM_UNKNOWN:          own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
 	errors.PULSE_MODEL_STAT_UNKNOWN:          own("ATTR_FORMULA", "FILTER_EXPRESSION"),
 	errors.PULSE_MODEL_INTERVALS_UNAVAILABLE: own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
@@ -361,7 +366,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_FORMULA_TOTAL_SITE:          own("FILTER_EXPRESSION", "OVERLAY_FORMULA"),
 	errors.PULSE_FORMULA_TOTAL_NESTED:        own("ATTR_FORMULA"),
 	errors.PULSE_FORMULA_TOTAL_ARITY:         own("ATTR_FORMULA"),
-	errors.PULSE_FORMULA_COMPILE_ERROR:       own("ATTR_FORMULA", "FILTER_EXPRESSION"),
+	errors.PULSE_FORMULA_COMPILE_ERROR:       own("ATTR_FORMULA", "FILTER_EXPRESSION", featRegHoldout),
 	errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC: own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
 	// The model file: a `save` writes it (capability:model_save), a
 	// `models` entry loads it (capability:models) — the parse codes are

@@ -368,3 +368,33 @@ func TestExplain_ProseLint_Falsifier(t *testing.T) {
 		t.Fatal("lint passes an ASA-NODIFF sentence")
 	}
 }
+
+// TestExplain_PostWindowAttributeOrder: an attribute reading a window
+// label is described after the windows (the post-window phase), one
+// reading none stays before them, and a regression naming a window
+// label says so.
+func TestExplain_PostWindowAttributeOrder(t *testing.T) {
+	r := &types.Request{
+		Windows: []*types.Window{{Type: types.WIN_LAG, Field: "score", Label: "prev", OrderBy: []types.OrderKey{{Field: "taken_on"}}}},
+		Attributes: []*types.Attribute{
+			{Type: types.ATTR_FORMULA, Label: "sat", Expression: "(prev ?? 0) * 2"},
+			{Type: types.ATTR_FORMULA, Label: "plain", Expression: "score * 2"},
+		},
+		Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"sat", "prev"}}},
+	}
+	res := explain(t, nil, descriptor.ExplainRequest{Request: r}, Checks{})
+	var got []string
+	for _, st := range res.Steps {
+		got = append(got, st.Slot)
+	}
+	want := []string{"attributes[1]", "windows[0]", "attributes[0]", "regressions[0]"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("slots = %v, want %v", got, want)
+	}
+	if txt := res.Steps[2].Text; !strings.Contains(txt, "after the windows") || !strings.Contains(txt, "`prev`") {
+		t.Errorf("post-window step text = %q", txt)
+	}
+	if txt := res.Steps[3].Text; !strings.Contains(txt, "window values `prev`") {
+		t.Errorf("regression step text = %q", txt)
+	}
+}

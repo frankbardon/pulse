@@ -81,6 +81,8 @@ var returnPresetPaths = map[types.ReturnPreset][]string{
 		"regressions[*].residual_std_err", "regressions[*].converged_iters", "regressions[*].selected_features",
 		"regressions[*].vcov", "regressions[*].correlation", "regressions[*].covariance",
 		"regressions[*].advisories",
+		// the out-of-sample figures a holdout asked for (absent otherwise)
+		"regressions[*].holdout",
 		// an extension model's statistics and declared outputs
 		"regressions[*].statistics", "regressions[*].outputs",
 		"overlays",
@@ -96,7 +98,7 @@ var returnPresetPaths = map[types.ReturnPreset][]string{
 		"post_tests[*].label", "post_tests[*].type", "post_tests[*].group_key", "post_tests[*].statistic", "post_tests[*].p_value",
 		"post_tests[*].reject_null", "post_tests[*].p_adjusted", "post_tests[*].significant_adjusted",
 		"regressions[*].name", "regressions[*].type", "regressions[*].coefficients", "regressions[*].p_values",
-		"regressions[*].advisories", "regressions[*].outputs",
+		"regressions[*].advisories", "regressions[*].outputs", "regressions[*].holdout",
 		"overlays[*].name", "overlays[*].kind", "overlays[*].ref", "overlays[*].summary",
 	},
 }

@@ -17,12 +17,13 @@ Pipeline order: `features → filterers → attributes → groups → aggregatio
 
 - Filterers see source fields only — never an attribute label.
 - Groupers / aggregators / windows CAN reference an attribute label as `field`.
+- **Post-window phase.** A row-local formula or `ATTR_REG_PREDICT` reading a window label (or an earlier post-window attribute) runs AFTER windows, so a saturation `hill(tv_ad, 800, 1.5)` can feed a regression. Any other attribute reading a window, a `total()` formula, or any outside the windows-over-records shape: `PULSE_ATTRIBUTE_WINDOW_ORDER` (`attribute`, `field`; materialize first). A lag's first rows are null: guard with `?? 0`.
 
 Entry shape: `{type, field?, label, params?, expression?}`. `type` is the attribute constant; `field` is the source for single-source attributes; `label` names the new column.
 
 ## Choosing an attribute
 
-Decide what the new column must say about a row, then pick from the manifest `components.attributes` entries whose [`intents`](intents.md) match (`pulse_skills_get intents`: `prepare`, `segment`, `data_quality` for outlier flags, `drivers` for model diagnostics) and read `op-attr-<name>`; each operator's guidance names its alternatives.
+Decide what the new column must say about a row, then pick from the manifest `components.attributes` whose [`intents`](intents.md) match (`pulse_skills_get intents`) and read `op-attr-<name>`; its guidance names alternatives.
 
 - **Position against the column** (standard deviations, a 0–1 range, a percentile rank) — a two-pass score. Skewed data or extreme values distort mean-based scores; a rank-based one resists them.
 - **Position against a model** (fitted value, residual, leverage) — a regression diagnostic; for the model's own coefficients run a regression instead.
@@ -34,7 +35,7 @@ Decide what the new column must say about a row, then pick from the manifest `co
 
 1. **Labels must be unique** — never a schema field, feature output or earlier label. Shadowing → `SERVICE_VALIDATION`, runtime and predict.
 2. **Declared order.** A formula reads only EARLIER attribute labels (declared order), never a later one. To stage a value across requests, use Compose / ProcessChain.
-3. **Two-pass attributes** — anything scoring a row against the column or a model — need a pre-pass over filter-passing rows to compute aggregate statistics (mean / stddev / min/max / quantile / OLS coefficients) before pass 2 emits per-row output. Handled transparently — no full-dataset buffering.
+3. **Two-pass attributes** — scoring a row against the column or a model — pre-pass the filter-passing rows for aggregate statistics (mean / stddev / min/max / quantile / OLS coefficients), then emit per row. Transparent; no full buffering.
 4. **Row-local attributes** (formula, calendar part, set membership / popcount) stream — one pass, no state.
 5. **Null inputs propagate.** Null source → null output (`n_null`); a 0/1 membership flag reads `0`. A formula is stricter — arithmetic on a null field raises `PROCESSING_RUNTIME` unless guarded by `??`.
 6. **Output is coerced to a scalar.** Numbers pass through; `bool` → `1.0` / `0.0`; a formula's `nil` → null; anything else errors. Attributes do not emit Rich payloads.
@@ -50,7 +51,7 @@ Both add columns. Split:
 | Output column | `label` (rebindable) | fixed per FEAT |
 | Use for | per-record scoring, formulas, regression diagnostics | encoding (one-hot, target, frequency), transforms (log, sqrt, bucketize), date features |
 
-Rule: a derived value a filterer must see is a FEAT; otherwise ATTR. They coexist — FEAT output is in scope for both `filterers` and `attributes`.
+Rule: a derived value a filterer must see is a FEAT; otherwise ATTR. FEAT output is in scope for both.
 
 ## Formula expressions
 
@@ -70,17 +71,17 @@ As a filter expression, `vsd(battery) > 0` drops flat responders. A vector named
 
 ## Streamability
 
-Two-pass attributes stream via the two-pass orchestrator (`iter.Reset()`). Buffer-forcing happens only when combined with a window, a buffered grouper, or another buffered op. Predict reports per-slot streamability under `data.streamable_reasons`. Full table: [`request-envelope`](request-envelope.md) and [`streaming-and-watching`](streaming-and-watching.md).
+Two-pass attributes stream via the two-pass orchestrator. Only a window, a buffered grouper or another buffered op forces buffering; predict reports it under `data.streamable_reasons` ([`request-envelope`](request-envelope.md), [`streaming-and-watching`](streaming-and-watching.md)).
 
 ## Components
 
-Attributes emit scalars, not `Response.Components` (which covers aggregations, groupers, filterers, crosstab, run). To audit attribute output, read `Response.Data` or wrap the attribute in an aggregation.
+Attributes emit scalars, not `Response.Components`; audit them in `Response.Data` or an aggregation.
 
 ## Gotchas
 
 - Categorical fields appear as strings; arithmetic on them errors. Branch on the label and emit a number.
-- Two-pass attributes against shard archives: pre-pass is per-shard for `Mergeable` paths and across-shard union for buffered paths. See [`cohort-schema-design`](cohort-schema-design.md).
-- Attribute output is f64 by default; declare `decimal128` source explicitly if precision matters — see [`financial-cohorts`](financial-cohorts.md).
+- Two-pass attributes on shard archives: pre-pass per shard for `Mergeable` paths, union across shards for buffered ([`cohort-schema-design`](cohort-schema-design.md)).
+- Output is f64 by default; for `decimal128` precision see [`financial-cohorts`](financial-cohorts.md).
 
 ## See
 

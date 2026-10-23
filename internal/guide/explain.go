@@ -8,6 +8,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -558,18 +559,26 @@ func (e *explainer) requestSteps(prefix string, r *types.Request, inferred map[s
 		e.opStep(stepIn{slot: slot, role: roleFeature, n: i + 1,
 			op: string(f.Type), fields: nonEmpty(f.Field), detail: onFields(nonEmpty(f.Field)) + as})
 	}
-	for i, a := range x.Attributes {
-		if a == nil {
-			continue
-		}
+	// An attribute reading a window label runs AFTER the windows (the
+	// post-window phase): described in that position, flagged as such.
+	post := vectors.PostWindowAttributes(x, nil, nil, nil)
+	attributeStep := func(i int, a *types.Attribute, after bool) {
 		fields, detail := nonEmpty(a.Field), onFields(nonEmpty(a.Field))
 		if a.Target != "" {
 			fields = append(nonEmpty(a.Target), a.Predictors...)
 			detail = predicting(a.Target, a.Predictors)
 		}
+		if after {
+			detail += ", after the windows because it reads the window value " + tick(post.DepOf(i))
+		}
 		slot, as := fan.slot(prefix, "attributes", i, roleAttribute, a.Label)
 		e.opStep(stepIn{slot: slot, role: roleAttribute, n: i + 1,
 			op: string(a.Type), fields: fields, detail: detail + as})
+	}
+	for i, a := range x.Attributes {
+		if a != nil && !post.IsPost(i) {
+			attributeStep(i, a, false)
+		}
 	}
 	for i, w := range x.Windows {
 		if w == nil {
@@ -591,6 +600,11 @@ func (e *explainer) requestSteps(prefix string, r *types.Request, inferred map[s
 		slot, as := fan.slot(prefix, "windows", i, roleWindow, w.Label)
 		e.opStep(stepIn{slot: slot, role: roleWindow, n: i + 1,
 			op: string(w.Type), fields: fields, detail: detail + as})
+	}
+	for i, a := range x.Attributes {
+		if a != nil && post.IsPost(i) {
+			attributeStep(i, a, true)
+		}
 	}
 	for i, g := range r.Groups {
 		if g == nil {
@@ -666,6 +680,9 @@ func (e *explainer) requestSteps(prefix string, r *types.Request, inferred map[s
 			// The predictors are candidates: the selection keeps a subset.
 			detail = predicting(g.Target, nil) + ", choosing among the candidate predictors " + andList(ticks(g.Predictors)) +
 				" by " + strings.ToLower(selectionWords(g.Selection, g.Criterion)[:1]) + selectionWords(g.Selection, g.Criterion)[1:]
+		}
+		if wl := windowTerms(x, g); len(wl) > 0 {
+			detail += ", reading the window values " + andList(ticks(wl)) + " computed before the fit"
 		}
 		e.opStep(stepIn{slot: prefix + "regressions[" + strconv.Itoa(i) + "]", role: roleRegression, n: i + 1,
 			op: string(g.Type), fields: append(nonEmpty(g.Target), g.Predictors...), detail: detail})
@@ -1101,4 +1118,23 @@ func andList(items []string) string {
 		return items[0]
 	}
 	return strings.Join(items[:len(items)-1], ", ") + " and " + items[len(items)-1]
+}
+
+// windowTerms are the window labels a regression names as target or
+// predictor, in first-read order: values the windows produce before the
+// regression runs.
+func windowTerms(r *types.Request, g *types.RegressionSpec) []string {
+	labels := map[string]bool{}
+	for _, w := range r.Windows {
+		if w != nil {
+			labels[vectors.WindowLabel(w)] = true
+		}
+	}
+	var out []string
+	for _, n := range append(nonEmpty(g.Target), g.Predictors...) {
+		if labels[n] {
+			out = append(out, n)
+		}
+	}
+	return out
 }

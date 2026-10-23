@@ -537,6 +537,11 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 	}
 	// A before-filters attribute (ATTR_PREVIOUS_STATE) runs over every
 	// record ahead of the filters; the rest over the survivors.
+	// No attribute runs after windows beside a crosstab: a
+	// window-dependent slot is PULSE_ATTRIBUTE_WINDOW_ORDER.
+	if _, err := p.postWindowPlan(req); err != nil {
+		return nil, err
+	}
 	filtered, _, attrWarnings, attrComps, err := p.filterThenAttributes(req, records)
 	if err != nil {
 		return nil, err

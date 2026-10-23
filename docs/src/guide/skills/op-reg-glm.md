@@ -39,24 +39,25 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regr
 | `l1_ratio` | float | — | Elastic-net mix, `0<r<1`. |
 | `max_iters` | int | — | IRLS iteration cap. |
 | `tol` | float | — | IRLS tolerance. |
-| `resample` | enum | — | `bootstrap`, `jackknife` ([`op-reg-mod-resample`](op-reg-mod-resample.md)). |
-| `bootstrap_iters` | int | `1000` | Resample knob. |
-| `jackknife_groups` | int | — | Resample knob. |
-| `jackknife_by` | field | — | Resample knob. |
-| `rng_seed` | int | — | Resample knob. |
-| `selection` | enum | — | `backward`, `forward`, `stepwise` ([`op-reg-mod-selection`](op-reg-mod-selection.md)). |
+| `resample` | enum | — | `bootstrap`, `jackknife`. |
+| `bootstrap_iters` | int | `1000` | Resample. |
+| `jackknife_groups` | int | — | Resample. |
+| `jackknife_by` | field | — | Resample. |
+| `rng_seed` | int | — | Resample. |
+| `selection` | enum | — | `backward`, `forward`, `stepwise`. |
 | `criterion` | enum | — | `aic`, `bic`. |
 | `conf_level` | float | `0.95` | CI coverage. |
 | `vcov` | bool | `false` | Adds `Vcov` + `Correlation`. |
 | `covariance` | object | — | Robust SEs ([`regression-inference`](regression-inference.md)). |
 | `weight` | slot weight | — | `null` opts out; IRLS prior weights. |
 | `multiplicity` | object | — | Coefficient p-values join a family; adds `PAdjusted`. |
+| `holdout` | expr | — | Held-out rows → `Holdout`. |
 | `save` | string | — | Writes a model file. |
-| `name` | string | — | Result / saved-model name. |
+| `name` | string | — | Result / model name. |
 
 ## Inputs
 
-`target` / `predictors`: see `## Contract`; a binomial target is `{0,1}` or `packed_bool`; a null drops the row.
+`target` / `predictors`: see `## Contract`; a binomial target is `{0,1}` or `packed_bool`; a null, NaN or ±Inf drops the row.
 
 ## Output
 

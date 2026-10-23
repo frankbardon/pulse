@@ -179,7 +179,7 @@ func (s *linearScorer) Score(row model.Row) (float64, bool) {
 		x = make([]float64, 0, len(s.columns))
 	}
 	for _, c := range s.columns {
-		v, ok := row.NumericValue(c)
+		v, ok := InputValue(row, c)
 		if !ok {
 			return 0, false
 		}

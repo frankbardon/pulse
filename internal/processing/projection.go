@@ -357,6 +357,13 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 			addKnown(c.OrderBy)
 		}
 		addKnown(r.JackknifeBy)
+		// The holdout predicate reads its fields off every record.
+		if r.Holdout != "" {
+			if !appendExprIdents(out, r.Holdout, known, vecMembers) {
+				out.Widen()
+				return out
+			}
+		}
 	}
 
 	// Virtual vectors decode every member (internal/vectors, the one

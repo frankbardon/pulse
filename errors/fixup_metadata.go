@@ -918,6 +918,26 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_REGRESSION_WINDOW_UNAVAILABLE: {
+		Message: "A regression names a window label where the windows run over grouped or aggregated output rows, so no record carries the window value the fit would read.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"Windows"},
+				Hint:   "Materialize the window first (pulse api materialize with the windows and their filters), then run the regression over the derived cohort, naming the window's column; or drop the groups, aggregations and crosstab so the windows run over the record rows.",
+			},
+		},
+	},
+	PULSE_ATTRIBUTE_WINDOW_ORDER: {
+		Message: "An attribute reads a window label, but only a row-local expression formula (no total()) or bound-model score runs after the windows, and only when the windows run over the record rows.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"Attributes"},
+				Hint:   "Materialize the window first (pulse api materialize with the windows and their filters), then run the attribute over the derived cohort, naming the window's column; or rewrite the step as a row-local expression formula and drop the groups, aggregations and crosstab so the windows run over the record rows.",
+			},
+		},
+	},
 	PULSE_WINDOW_INVALID: {
 		Message: "A window operator's configuration is invalid (bad frame, bad params, no order key, no value field, label collision); predict and every runtime surface refuse it alike.",
 		Fixups: []Fixup{

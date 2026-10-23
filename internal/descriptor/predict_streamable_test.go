@@ -806,6 +806,23 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 			},
 			numericSchema,
 		},
+		// U57: a holdout scores its held-out rows after the fit — a
+		// second pass, so the slot buffers on both sides.
+		{
+			"REG_OLS with a holdout buffers",
+			&types.Request{
+				Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "score"}},
+				Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "score", Predictors: []string{"score"}, Holdout: "score > 1"}},
+			},
+			numericSchema,
+		},
+		{
+			"REG_BAYES_LINEAR with a holdout buffers",
+			&types.Request{
+				Regressions: []*types.RegressionSpec{{Type: types.REG_BAYES_LINEAR, Target: "score", Predictors: []string{"score"}, Holdout: "score > 1"}},
+			},
+			numericSchema,
+		},
 		{
 			"REG_BAYES_LINEAR with bootstrap modifier buffers",
 			&types.Request{

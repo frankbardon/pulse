@@ -1793,7 +1793,26 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// the filtered set — save a before-filters attribute
 	// (ATTR_PREVIOUS_STATE), computed over every record ahead of step 1
 	// (filterThenAttributes).
-	filtered, filterCounters, attrWarnings, attrComps, err := p.filterThenAttributes(req, records)
+	//
+	// A row-local attribute reading a window label (the post-window
+	// plan, vectors.PostWindowAttributes) waits for step 4b; with none,
+	// the historical path runs unchanged.
+	post, err := p.postWindowPlan(req)
+	if err != nil {
+		return nil, err
+	}
+	var (
+		filtered       []*Record
+		filterCounters []filterPassCounters
+		attrWarnings   []*types.ResponseWarning
+		attrComps      []types.AttributeComponents
+		attrSlots      []attrSlotOut
+	)
+	if post.Any() {
+		filtered, filterCounters, attrSlots, err = p.filterThenAttributeSlots(req, records, post)
+	} else {
+		filtered, filterCounters, attrWarnings, attrComps, err = p.filterThenAttributes(req, records)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -1867,13 +1886,23 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		if err := p.applyWindows(ctx, data, req.Windows, keyOrders, rowWords.copyObserver()); err != nil {
 			return nil, err
 		}
-		// A window label a matrix reads as a computed member lands on
-		// its record before the sort (data[i] is filtered[i] here).
+		// A window label a matrix reads as a computed member, or a
+		// regression reads per record, lands on its record before the
+		// sort (data[i] is filtered[i] here).
 		if recordRows {
-			if err := p.copyWindowMembers(req, filtered, data); err != nil {
+			if err := p.copyWindowMembers(req, post, filtered, data); err != nil {
 				return nil, err
 			}
 		}
+	}
+	// Step 4b: the post-window attributes (only ever over the record
+	// rows), in declared order over the window-copied records; their
+	// warnings and Components entries rejoin the declared slot order.
+	if post.Any() {
+		if err := p.applyPostWindowAttributes(req, post, filtered, data, attrSlots); err != nil {
+			return nil, err
+		}
+		attrWarnings, attrComps = mergeAttrSlots(attrSlots)
 	}
 
 	// Grouped, the bucket keys follow the rows through the sort so the
@@ -1934,11 +1963,10 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	var regressionResults []*types.RegressionResult
 	if p.compute.Regressions && len(req.Regressions) > 0 {
 		workRegressionFits.Add(int64(len(req.Regressions)))
-		fits, fitErrs, err := regression.FitEachBufferedWithContext(ctx, req.Regressions, p.schema, recordsAsRegressionRecords(filtered), p.exts.LookupRegression)
-		if err != nil {
-			return nil, err
-		}
-		if regressionResults, err = regressionSlotResults(req.Regressions, fits, fitErrs); err != nil {
+		// A holdout slot fits its train rows and scores its held-out
+		// rows (regression_holdout.go); every other slot fits the
+		// filtered set as one batch.
+		if regressionResults, err = p.fitRegressions(ctx, req, filtered); err != nil {
 			return nil, err
 		}
 	}
@@ -2273,41 +2301,11 @@ func (p *Processor) filterThenAttributes(req *types.Request, records []*Record) 
 		}
 		return filtered, counters, warns, comps, nil
 	}
-	type slotOut struct {
-		warns []*types.ResponseWarning
-		comp  types.AttributeComponents
-		ok    bool
-	}
-	outs := make([]slotOut, len(req.Attributes))
-	for i, attr := range req.Attributes {
-		if attr == nil || !prevstate.BeforeFilters(attr.Type) {
-			continue
-		}
-		w, entry, ok, err := p.applyAttribute(attr, records)
-		if err != nil {
-			return nil, nil, nil, nil, err
-		}
-		outs[i] = slotOut{warns: w, comp: entry, ok: ok}
-	}
-	filtered, counters, err := p.applyFiltersWithCounters(req.Filterers, records)
+	filtered, counters, outs, err := p.filterThenAttributeSlots(req, records, vectors.PostWindow{})
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	var warns []*types.ResponseWarning
-	var comps []types.AttributeComponents
-	for i, attr := range req.Attributes {
-		if attr == nil || !prevstate.BeforeFilters(attr.Type) {
-			w, entry, ok, err := p.applyAttribute(attr, filtered)
-			if err != nil {
-				return nil, nil, nil, nil, err
-			}
-			outs[i] = slotOut{warns: w, comp: entry, ok: ok}
-		}
-		warns = append(warns, outs[i].warns...)
-		if outs[i].ok {
-			comps = append(comps, outs[i].comp)
-		}
-	}
+	warns, comps := mergeAttrSlots(outs)
 	return filtered, counters, warns, comps, nil
 }
 

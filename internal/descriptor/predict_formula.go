@@ -109,6 +109,10 @@ type exprCompileScope struct {
 	vecNames   map[string]bool
 	vecsFailed bool
 	bound      exprenv.Bound
+	// extra are names a compile declares as derived columns beyond the
+	// walk's current column set (a holdout's window and post-window
+	// labels, checkHoldout); nil otherwise.
+	extra map[string]bool
 }
 
 // initCompile fixes the walk's compile scope for req over schema.
@@ -183,7 +187,7 @@ func (w *fieldRefWalk) compileRefusal(src, site string, opts []expr.Option) *err
 				continue
 			}
 			switch {
-			case w.cols[name], w.preFilter[name]:
+			case w.cols[name], w.preFilter[name], c.extra[name]:
 				decl[name] = exprenv.DerivedDecl(c.keys, name)
 			case w.open, c.vecsFailed && c.vecNames[name]:
 				return nil

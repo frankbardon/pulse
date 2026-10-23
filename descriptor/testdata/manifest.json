@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:64bfafee2a0434df9b260e4b510149331825dae09ec1acc1b59174c8d805c144",
+    "feature_set_digest": "fs1:8b3078651bebb03d1e0c5bbc01a8e6196e641dbfb55db2c4fa5f90a9a424809d",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -8069,6 +8069,13 @@
             "slot": true
           },
           {
+            "name": "holdout",
+            "type": "string",
+            "required": false,
+            "description": "Boolean expression over the built record (schema, features, attributes, windows, post-window attributes): true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, rmse, mae, r2} on the response scale; forces the buffered path.",
+            "slot": true
+          },
+          {
             "name": "save",
             "type": "string",
             "required": false,
@@ -8296,6 +8303,13 @@
             "type": "object",
             "required": false,
             "description": "{method, family, alpha, coefficients}: corrects the coefficient p_values; adds p_adjusted / significant_adjusted.",
+            "slot": true
+          },
+          {
+            "name": "holdout",
+            "type": "string",
+            "required": false,
+            "description": "Boolean expression over the built record (schema, features, attributes, windows, post-window attributes): true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, rmse, mae, r2} on the response scale; forces the buffered path.",
             "slot": true
           },
           {
@@ -8532,6 +8546,13 @@
             "type": "object",
             "required": false,
             "description": "{method, family, alpha, coefficients}: corrects the coefficient p_values; adds p_adjusted / significant_adjusted.",
+            "slot": true
+          },
+          {
+            "name": "holdout",
+            "type": "string",
+            "required": false,
+            "description": "Boolean expression over the built record (schema, features, attributes, windows, post-window attributes): true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, rmse, mae, r2} on the response scale; forces the buffered path.",
             "slot": true
           },
           {
@@ -10374,7 +10395,7 @@
         ]
       }
     ],
-    "error_codes_count": 403,
+    "error_codes_count": 405,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10430,6 +10451,7 @@
       "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
       "PULSE_ARCHIVE_CORRUPT",
       "PULSE_ARCHIVE_MAGIC_INVALID",
+      "PULSE_ATTRIBUTE_WINDOW_ORDER",
       "PULSE_ATTR_CODE_NOT_IN_DICTIONARY",
       "PULSE_ATTR_SCALE_OUT_OF_RANGE",
       "PULSE_AUC_DELONG_WEIGHTED",
@@ -10649,6 +10671,7 @@
       "PULSE_RANGE_TABLE_KIND_MISMATCH",
       "PULSE_RANGE_TABLE_UNKNOWN",
       "PULSE_RECOMMEND_INTENT_UNKNOWN",
+      "PULSE_REGRESSION_WINDOW_UNAVAILABLE",
       "PULSE_REQUEST_PARAM_INVALID",
       "PULSE_REQUEST_UNKNOWN_FIELD",
       "PULSE_RETURN_INVALID",
@@ -13618,7 +13641,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 248,
+    "examples_count": 249,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -19423,6 +19446,7 @@
           "regressions[*].correlation",
           "regressions[*].covariance",
           "regressions[*].advisories",
+          "regressions[*].holdout",
           "regressions[*].statistics",
           "regressions[*].outputs",
           "overlays"
@@ -19465,6 +19489,7 @@
           "regressions[*].p_values",
           "regressions[*].advisories",
           "regressions[*].outputs",
+          "regressions[*].holdout",
           "overlays[*].name",
           "overlays[*].kind",
           "overlays[*].ref",
@@ -19532,4 +19557,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 25b9361c398745b847cfc7079cb14c3d7d929f2641aea5eb48a6a00be976f356
+// golden-hash: 1156b9d87f2a3e5029eb3a81ea92973a6a3673f76f73600dd8c731f457c2978a

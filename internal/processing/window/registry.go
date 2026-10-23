@@ -156,14 +156,7 @@ type copyingComputer interface {
 	setCopyObserver(observe CopyObserver)
 }
 
-// windowLabel returns the effective output column name for a window. Mirrors
-// descriptor.windowLabel; both must match exactly.
-func windowLabel(w *types.Window) string {
-	if w.Label != "" {
-		return w.Label
-	}
-	if w.Field == "" {
-		return string(w.Type)
-	}
-	return string(w.Type) + "_" + w.Field
-}
+// windowLabel returns the effective output column name for a window:
+// windowparams.Label, the one derivation predict and the computed-column
+// model read too.
+func windowLabel(w *types.Window) string { return windowparams.Label(w) }

@@ -97,16 +97,17 @@ func newRegressionDriver(reg RegressionRegistration, spec *types.RegressionSpec,
 	return d
 }
 
-// admit judges rec: false for a row missing its target or a predictor,
-// or — weighted — whose weight is invalid or zero (built-in regression
+// admit judges rec: false for a row missing its target or a predictor
+// (null, absent or non-finite — regression.InputValue, the built-in
+// listwise read), or — weighted — whose weight is invalid or zero (built-in regression
 // admission, regression.rowWeights.of); else it counts the row and
 // returns its weight (0 unweighted).
 func (d *regressionDriver) admit(rec extend.Record) (float64, bool) {
-	if _, ok := rec.NumericValue(d.spec.Target); !ok {
+	if _, ok := regression.InputValue(rec, d.spec.Target); !ok {
 		return 0, false
 	}
 	for _, p := range d.spec.Predictors {
-		if _, ok := rec.NumericValue(p); !ok {
+		if _, ok := regression.InputValue(rec, p); !ok {
 			return 0, false
 		}
 	}
@@ -459,7 +460,10 @@ func buildRegressionScorer(reg RegressionRegistration, fit extend.FittedRegressi
 }
 
 // regressionRowScorer is the engine's view of an extension RowScorer;
-// the engine row (model.Row) is an extend.ScoreRow as is.
+// the engine row (model.Row) is an extend.ScoreRow as is. A row whose
+// declared column holds a NaN or ±Inf scores null without reaching the
+// extension — a non-finite input is missing data, as in every built-in
+// scorer (regression.InputValue).
 type regressionRowScorer struct {
 	rs   extend.RowScorer
 	cols []string
@@ -467,7 +471,14 @@ type regressionRowScorer struct {
 
 func (s regressionRowScorer) Columns() []string { return slices.Clone(s.cols) }
 
-func (s regressionRowScorer) Score(row model.Row) (float64, bool) { return s.rs.Score(row) }
+func (s regressionRowScorer) Score(row model.Row) (float64, bool) {
+	for _, c := range s.cols {
+		if v, ok := row.NumericValue(c); ok && (math.IsNaN(v) || math.IsInf(v, 0)) {
+			return 0, false
+		}
+	}
+	return s.rs.Score(row)
+}
 
 // ---- engine adapter ----------------------------------------------------
 

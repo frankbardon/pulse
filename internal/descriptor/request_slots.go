@@ -47,6 +47,8 @@ import (
 //   - every item `for_each` (Window, Feature, Attribute) —
 //     capability:for_each
 //   - every `save` (RegressionSpec, FitSpec) — capability:model_save
+//   - every regression `holdout` (+ the RegressionResult block) —
+//     capability:regression_holdout
 //   - Request.Models and FacetRequest.Models — capability:models
 //   - Request.Populations — capability:models
 //
@@ -113,6 +115,10 @@ const saveKey = "save"
 // modelSaveSlotGate is the one gate every `save` key shares.
 var modelSaveSlotGate = gatedSlot{key: saveKey, visible: capabilityGate(featModelSave)}
 
+// holdoutSlotGate gates the `holdout` key on a RegressionSpec and the
+// RegressionResult block it produces: capability:regression_holdout.
+var holdoutSlotGate = gatedSlot{key: "holdout", visible: capabilityGate(featRegHoldout)}
+
 // modelsSlotGate gates the `models` key on a Request and a
 // FacetRequest; both ride capability:models.
 var modelsSlotGate = gatedSlot{key: "models", visible: capabilityGate(featModels)}
@@ -162,7 +168,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "measures", visible: capabilityGate(featCrosstabCells)},
 	},
 	reflect.TypeOf(types.Test{}):               {weightSlotGate, multiplicitySlotGate},
-	reflect.TypeOf(types.RegressionSpec{}):     {weightSlotGate, modelSaveSlotGate, multiplicitySlotGate},
+	reflect.TypeOf(types.RegressionSpec{}):     {weightSlotGate, modelSaveSlotGate, multiplicitySlotGate, holdoutSlotGate},
 	reflect.TypeOf(types.FitSpec{}):            {modelSaveSlotGate},
 	reflect.TypeOf(types.MatrixSpec{}):         {weightSlotGate, multiplicitySlotGate},
 	reflect.TypeOf(types.Attribute{}):          {weightSlotGate, forEachSlotGate},
@@ -198,6 +204,8 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	// The regression twins: the adjusted coefficient maps and the echo.
 	reflect.TypeOf(types.RegressionResult{}): {
 		multiplicitySlotGate,
+		// The out-of-sample figures only a holdout produces.
+		holdoutSlotGate,
 		{key: "p_adjusted", visible: capabilityGate(featMultiplicity)},
 		{key: "significant_adjusted", visible: capabilityGate(featMultiplicity)},
 	},
@@ -655,6 +663,22 @@ func nestedModelSaveRefusal(req *types.Request, inst *InstanceSnapshot) *errors.
 	return nil
 }
 
+// nestedHoldoutRefusal refuses the first regression `holdout` set inside
+// req when inst hides capability:regression_holdout —
+// PULSE_REQUEST_UNKNOWN_FIELD at that regression (details.path),
+// valid_keys over its visible keys.
+func nestedHoldoutRefusal(req *types.Request, inst *InstanceSnapshot) *errors.CodedError {
+	if req == nil || inst.Enabled(featRegHoldout) {
+		return nil
+	}
+	for i, r := range req.Regressions {
+		if r != nil && r.Holdout != "" {
+			return unknownFieldErrorAt(fmt.Sprintf("regressions[%d]", i), []string{holdoutSlotGate.key}, VisibleSlotKeys(r, inst))
+		}
+	}
+	return nil
+}
+
 // nestedForEachRefusal refuses the first item `for_each` set inside req
 // when inst hides capability:for_each, in expansion order: features,
 // attributes, windows. The refusal is PULSE_REQUEST_UNKNOWN_FIELD at that
@@ -698,7 +722,8 @@ func nestedCrosstabCellsRefusal(req *types.Request, inst *InstanceSnapshot) *err
 
 // requestSlotRefusal gates one Request: its own top-level slots, then
 // the crosstab `cells` key, then every nested slot `weight`, then every
-// nested `multiplicity`, then every item `for_each`.
+// nested `multiplicity`, then every item `for_each`, then every
+// regression `save`, then every regression `holdout`.
 func requestSlotRefusal(req *types.Request, inst *InstanceSnapshot) *errors.CodedError {
 	if ce := rootSlotRefusal(req, inst); ce != nil {
 		return ce
@@ -715,7 +740,10 @@ func requestSlotRefusal(req *types.Request, inst *InstanceSnapshot) *errors.Code
 	if ce := nestedForEachRefusal(req, inst); ce != nil {
 		return ce
 	}
-	return nestedModelSaveRefusal(req, inst)
+	if ce := nestedModelSaveRefusal(req, inst); ce != nil {
+		return ce
+	}
+	return nestedHoldoutRefusal(req, inst)
 }
 
 // SlotRefusal is the request-slot gate. v is a *types.Request,
@@ -762,6 +790,9 @@ func SlotRefusal(v any, inst *InstanceSnapshot) error {
 			return ce
 		}
 		if ce := nestedModelSaveRefusal(r, inst); ce != nil {
+			return ce
+		}
+		if ce := nestedHoldoutRefusal(r, inst); ce != nil {
 			return ce
 		}
 	case *types.FacetRequest:
