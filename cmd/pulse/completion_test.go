@@ -8,18 +8,26 @@ package main
 // in-process through run(), the same entry point main uses.
 //
 // The tree walk (walkCompletionTree / completionTree) is shared with
-// cliLeaves and is the hook a per-flag value-completion gate extends:
-// TestCompletion_TreeCoverage visits every leaf and every flag of it.
+// cliLeaves: TestCompletion_TreeCoverage visits every leaf and every
+// flag of it, and requires every value-taking flag to be classified in
+// internal/cli/completion_values.go (vocab, file, cohort, field, free).
 
 import (
 	"bytes"
 	"context"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	pcli "github.com/frankbardon/pulse/internal/cli"
+
+	"github.com/frankbardon/pulse"
+	perrors "github.com/frankbardon/pulse/errors"
+	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/types"
 	cli "github.com/urfave/cli/v3"
 )
 
@@ -245,7 +253,7 @@ func TestCompletion_TreeCoverage(t *testing.T) {
 		return suggested[key]
 	}
 
-	leaves := 0
+	leaves, vocabFlags := 0, 0
 	walkCompletionTree(root, func(path []string, _, c *cli.Command) {
 		if c.Hidden {
 			return
@@ -274,14 +282,276 @@ func TestCompletion_TreeCoverage(t *testing.T) {
 			if want := flagCandidate(f); !slices.Contains(got, want) {
 				t.Errorf("%s -<TAB> does not suggest %s (got %v)", strings.Join(path, " "), want, got)
 			}
+			if isCompletionLeafPath(path) || !flagTakesValue(f) {
+				continue
+			}
+			// Every value-taking flag is classified for value
+			// completion; a closed vocabulary completes non-empty,
+			// sorted and quiet.
+			class, ok := pcli.CompletionFlagClass(c, f.Names()[0])
+			if !ok {
+				t.Errorf("%s %s is not classified for value completion (add it to internal/cli/completion_values.go)",
+					strings.Join(path, " "), flagCandidate(f))
+				continue
+			}
+			if class != "vocab" {
+				continue
+			}
+			vocabFlags++
+			vout, vstderr, vst := completeWords(t, append(slices.Clone(path), flagCandidate(f))...)
+			vals := candidates(vout)
+			if vst != 0 || vstderr != "" || len(vals) == 0 || !slices.IsSorted(vals) {
+				t.Errorf("%s %s <TAB>: status %d stderr %q candidates %v (want non-empty, sorted)",
+					strings.Join(path, " "), flagCandidate(f), vst, vstderr, vals)
+			}
 		}
 	})
 	if leaves == 0 {
 		t.Fatal("tree walk found no runnable leaf")
+	}
+	if vocabFlags == 0 {
+		t.Fatal("tree walk found no flag with a closed vocabulary")
+	}
+	for scope, flags := range pcli.CompletionFlagScopes() {
+		cmd := commandAt(root, scope)
+		if cmd == nil {
+			t.Errorf("completion scope %q is not a command", scope)
+			continue
+		}
+		for _, name := range flags {
+			if !scopeHasFlag(cmd, name) {
+				t.Errorf("completion scope %q reclassifies --%s, which no command under it has", scope, name)
+			}
+		}
+	}
+	for leaf, classes := range pcli.CompletionPositionalClasses() {
+		cmd := commandAt(root, leaf)
+		if cmd == nil || cmd.Action == nil {
+			t.Errorf("positional completion for %q: not a leaf", leaf)
+			continue
+		}
+		if n := len(strings.Fields(cmd.ArgsUsage)); n < len(classes) {
+			t.Errorf("positional completion for %q lists %d positionals; ArgsUsage %q has %d", leaf, len(classes), cmd.ArgsUsage, n)
+		}
 	}
 	for _, sh := range []string{"bash", "zsh", "fish"} {
 		if root.Command("completion") == nil || root.Command("completion").Command(sh) == nil {
 			t.Errorf("pulse completion %s is not in the walked tree", sh)
 		}
 	}
+}
+
+// flagTakesValue reports whether f needs a value (every non-bool flag).
+func flagTakesValue(f cli.Flag) bool {
+	df, ok := f.(cli.DocGenerationFlag)
+	return ok && df.TakesValue()
+}
+
+// commandAt returns the command at path ("pulse a b"), or nil.
+func commandAt(root *cli.Command, path string) *cli.Command {
+	words := strings.Fields(path)
+	if len(words) == 0 || words[0] != root.Name {
+		return nil
+	}
+	c := root
+	for _, w := range words[1:] {
+		if c = c.Command(w); c == nil {
+			return nil
+		}
+	}
+	return c
+}
+
+// scopeHasFlag reports whether c or a command under it has a flag
+// whose primary name is name.
+func scopeHasFlag(c *cli.Command, name string) bool {
+	for _, f := range c.Flags {
+		if f.Names()[0] == name {
+			return true
+		}
+	}
+	for _, sub := range c.Commands {
+		if scopeHasFlag(sub, name) {
+			return true
+		}
+	}
+	return false
+}
+
+// TestCompletion_FlagValues: a value-taking flag typed without its value
+// completes from the library's own vocabulary, sorted; the lookup alias
+// assert-unique is accepted but never offered.
+func TestCompletion_FlagValues(t *testing.T) {
+	for _, tc := range []struct {
+		words []string
+		want  []string
+	}{
+		{[]string{"pulse", "api", "lookup", "--mode"}, []string{"all", "assert_unique", "first"}},
+		{[]string{"pulse", "import", "csv", "--dst-policy"}, []string{"earlier", "error", "later"}},
+		{[]string{"pulse", "--log-level"}, []string{"debug", "error", "info", "off", "warn"}},
+		{[]string{"pulse", "api", "process", "--log-format"}, []string{"json", "text"}},
+		{[]string{"pulse", "errors", "list", "--domain"}, sortedCopy(perrors.AllDomains())},
+		{[]string{"pulse", "import", "predict", "--format"}, sortedStrs(pio.Formats())},
+		{[]string{"pulse", "convert", "--to"}, sortedStrs(pio.Formats())},
+		{[]string{"pulse", "widen", "--to"}, sortedCopy(pulse.WidenSetFieldTargets())},
+		{[]string{"pulse", "features", "init", "--from"}, sortedCopy(pulse.ExampleFeatureProfiles())},
+		{[]string{"pulse", "mcp", "--return"}, sortedStrs(types.AllReturnPresets())},
+		{[]string{"pulse", "mcp", "--limit"}, limitAssignments()},
+	} {
+		t.Run(strings.Join(tc.words[1:], " "), func(t *testing.T) {
+			out, stderr, st := completeWords(t, tc.words...)
+			if st != 0 || stderr != "" {
+				t.Fatalf("status %d stderr %q", st, stderr)
+			}
+			if got := candidates(out); !slices.Equal(got, tc.want) {
+				t.Errorf("candidates %v, want %v", got, tc.want)
+			}
+		})
+	}
+
+	// Repeated runs answer byte-identically.
+	first, _, _ := completeWords(t, "pulse", "examples", "search", "--category")
+	if first == "" {
+		t.Fatal("examples search --category completed nothing")
+	}
+	for range 3 {
+		if again, _, _ := completeWords(t, "pulse", "examples", "search", "--category"); again != first {
+			t.Fatalf("completion output differs across runs:\n%s\n---\n%s", first, again)
+		}
+	}
+
+	// A flag that prefixes a longer one also offers the longer one, so a
+	// word still being typed completes to it.
+	out, _, _ := completeWords(t, "pulse", "import", "csv", "--source-tz")
+	if got := candidates(out); !slices.Equal(got, []string{"--source-tz-field"}) {
+		t.Errorf("import csv --source-tz<TAB> = %v, want [--source-tz-field]", got)
+	}
+	// A free-text flag value completes nothing (the shell falls back).
+	if out, _, _ := completeWords(t, "pulse", "api", "sample", "--count"); out != "" {
+		t.Errorf("api sample --count<TAB> = %q, want nothing", out)
+	}
+}
+
+// TestCompletion_Positionals: named positionals complete from the
+// library (error codes, skills, examples, an archive's shards).
+func TestCompletion_Positionals(t *testing.T) {
+	out, stderr, st := completeWords(t, "pulse", "errors", "lookup")
+	if st != 0 || stderr != "" {
+		t.Fatalf("errors lookup: status %d stderr %q", st, stderr)
+	}
+	got := candidates(out)
+	if !slices.Equal(got, sortedCopy(perrors.SortedCodeNames())) {
+		t.Errorf("errors lookup <TAB> does not list exactly the error codes (got %d)", len(got))
+	}
+	var mat []string
+	for _, c := range got {
+		if strings.HasPrefix(c, "PULSE_MAT") {
+			mat = append(mat, c)
+		}
+	}
+	if len(mat) == 0 {
+		t.Error("errors lookup PULSE_MAT<TAB> has no matrix code to offer")
+	}
+	// One positional only: nothing after the code.
+	if out, _, _ := completeWords(t, "pulse", "errors", "lookup", "PULSE_MATRIX_DIM"); out != "" {
+		t.Errorf("errors lookup CODE <TAB> = %q, want nothing", out)
+	}
+
+	out, _, _ = completeWords(t, "pulse", "skills", "show")
+	if got := candidates(out); !slices.Contains(got, "session-bootstrap") || !slices.IsSorted(got) {
+		t.Errorf("skills show <TAB> = %v, want sorted skill names incl. session-bootstrap", got)
+	}
+	out, _, _ = completeWords(t, "pulse", "examples", "show")
+	if got := candidates(out); len(got) == 0 || !slices.IsSorted(got) {
+		t.Errorf("examples show <TAB> = %v, want sorted example names", got)
+	}
+
+	dir := t.TempDir()
+	shard := createTestPulseFile(t, dir)
+	archive := filepath.Join(dir, "archive.pulse")
+	var so, se bytes.Buffer
+	if st := run(context.Background(), []string{"pulse", "shard", "create", archive, "--include", shard}, &so, &se); st != 0 {
+		t.Fatalf("shard create: status %d stderr %s", st, se.String())
+	}
+	before, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, leaf := range []string{"remove", "extract"} {
+		out, stderr, st := completeWords(t, "pulse", "shard", leaf, archive)
+		if st != 0 || stderr != "" {
+			t.Fatalf("shard %s ARCHIVE: status %d stderr %q", leaf, st, stderr)
+		}
+		if got := candidates(out); !slices.Equal(got, []string{filepath.Base(shard)}) {
+			t.Errorf("shard %s ARCHIVE <TAB> = %v, want [%s]", leaf, got, filepath.Base(shard))
+		}
+		// The archive slot itself is a path: the shell completes it.
+		if out, _, _ := completeWords(t, "pulse", "shard", leaf); out != "" {
+			t.Errorf("shard %s <TAB> = %q, want nothing (file fallback)", leaf, out)
+		}
+	}
+	after, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != len(before) {
+		t.Errorf("completion changed the directory: %d entries before, %d after", len(before), len(after))
+	}
+}
+
+// TestCompletion_ProviderFailureIsQuiet: a provider that cannot answer
+// (missing archive, unbuildable Pulse) prints nothing, exits 0 and
+// writes nothing to stderr.
+func TestCompletion_ProviderFailureIsQuiet(t *testing.T) {
+	bad := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bad, "broken.json"), []byte("{not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name  string
+		env   map[string]string
+		words []string
+	}{
+		{"missing archive", nil, []string{"pulse", "shard", "remove", filepath.Join(bad, "nope.pulse")}},
+		{"unbuildable pulse", map[string]string{"PULSE_LABEL_TABLES_DIR": bad}, []string{"pulse", "skills", "show"}},
+		{"unbuildable pulse, manifest vocab", map[string]string{"PULSE_LABEL_TABLES_DIR": bad}, []string{"pulse", "examples", "search", "--tag"}},
+		{"garbled flag", nil, []string{"pulse", "api", "lookup", "--mode", "--bogus", "--mo"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.env {
+				t.Setenv(k, v)
+			}
+			out, stderr, st := completeWords(t, tc.words...)
+			if st != 0 || stderr != "" {
+				t.Errorf("status %d stderr %q, want 0 and nothing", st, stderr)
+			}
+			if tc.name != "garbled flag" && out != "" {
+				t.Errorf("output %q, want nothing", out)
+			}
+		})
+	}
+}
+
+func sortedCopy(vs []string) []string {
+	out := slices.Clone(vs)
+	slices.Sort(out)
+	return out
+}
+
+func sortedStrs[T ~string](vs []T) []string {
+	out := make([]string, len(vs))
+	for i, v := range vs {
+		out[i] = string(v)
+	}
+	slices.Sort(out)
+	return out
+}
+
+func limitAssignments() []string {
+	var out []string
+	for _, n := range pulse.LimitNames() {
+		out = append(out, n+"=")
+	}
+	slices.Sort(out)
+	return out
 }

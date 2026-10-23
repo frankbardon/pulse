@@ -11,6 +11,7 @@ import (
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	iio "github.com/frankbardon/pulse/internal/io"
 	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
 )
@@ -64,9 +65,9 @@ var importFlags = []cli.Flag{
 // vectorFlagUsage / vectorKindFlagUsage are the one-line help for
 // --vector / --vector-kind, shared by every import leaf so the wording
 // cannot drift.
-const (
+var (
 	vectorFlagUsage     = "Fold sibling columns into one native vector field: NAME[:f32|f64]:COL1,COL2,... (element order as listed) or NAME:/REGEX/ (matching columns in source order; the first capture group labels each element, else the column name). 2..1024 columns, default f64; all elements empty = null vector, some empty = NaN. Repeatable, one vector per flag (writes format 0x02)"
-	vectorKindFlagUsage = "Declare a --vector's kind: NAME:measure|scale|composition|binary[:MIN:MAX] (MIN:MAX the declared value range). Repeatable; never inferred"
+	vectorKindFlagUsage = "Declare a --vector's kind: NAME:" + pipeList(types.AllVectorKinds()) + "[:MIN:MAX] (MIN:MAX the declared value range). Repeatable; never inferred"
 )
 
 // parseVectorFlags parses --vector and applies --vector-kind with the

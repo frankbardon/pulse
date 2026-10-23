@@ -58,11 +58,14 @@ func completionRequested(ctx context.Context) bool {
 
 // EnableCompletion turns on shell completion for root and shapes the
 // built-in `completion` command: listed in help, bash / zsh / fish only.
-// urfave/cli appends that command when root first runs, after
+// Every command of the tree gets the shared value completer
+// (completeValues): flag values and positionals complete from the
+// library's own vocabularies. urfave/cli appends that command when root first runs, after
 // InstallExitPolicy has walked the tree, so the configure hook installs
 // the exit policy on it too. It returns root for chaining.
 func EnableCompletion(root *cli.Command) *cli.Command {
 	root.EnableShellCompletion = true
+	installValueCompletion(root)
 	root.ConfigureShellCompletionCommand = configureCompletionCommand
 	return root
 }

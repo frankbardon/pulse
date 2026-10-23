@@ -81,10 +81,50 @@ cp completions/pulse.fish ~/.config/fish/completions/pulse.fish
   typed so far, the root's persistent flags (`--log-level`,
   `--log-format`, `--shard-workers`, `--decode-workers`) included.
 
-Flag values and positional arguments (cohort paths, field names) are not
-completed by Pulse today; the shell falls back to its default completion,
-normally file names. Completion reads no cohort, so it does not depend on
-`PULSE_DATA_DIR`: an unset or missing data directory never breaks it.
+- **Flag values.** After a flag that takes a value (`--mode <TAB>`), a
+  closed vocabulary completes from the same library list the flag's
+  validator reads, so the candidates are always exactly what the flag
+  accepts:
+
+  | Flag | Candidates |
+  |---|---|
+  | `--intent` (root, `recommend`, `examples search`) | intent IDs |
+  | `--log-level`, `--log-format` | the logging levels and formats |
+  | `--format`; `convert --from` / `--to` | I/O format names |
+  | `--float` | float widths |
+  | `--dst-policy` | DST policies (`earlier`, `error`, `later`) |
+  | `--spss-missing` | SPSS user-missing modes |
+  | `api lookup --mode` | `all`, `assert_unique`, `first` |
+  | `errors list --domain` | error domains |
+  | `explain --root` / `--detail` | request roots / detail levels |
+  | `recommend --level` | guidance levels |
+  | `rake --missing` | missing-value policies |
+  | `widen --to` | the wider set types |
+  | `examples search --category` / `--tag` | example categories / tags |
+  | `features init --from` | the built-in example feature profiles |
+  | `mcp --return` | response presets |
+  | `mcp --limit` | `name=` for every resource limit |
+
+  Type the value after a space (`--mode first`): bash splits
+  `--mode=first` at the `=`, so the `=` form does not complete.
+- **Positional arguments.** `errors lookup CODE` completes error codes
+  (`pulse errors lookup PULSE_MAT<TAB>` lists the matrix codes),
+  `skills show NAME` skill names, `examples show NAME` example names,
+  `import drop HANDLE` managed-import handles, and the second argument of
+  `shard remove` / `shard extract` the shard basenames of the archive
+  named first.
+
+Candidates are sorted and the same on every run. They are the full
+built-in vocabularies; a feature profile does not narrow them.
+
+Every other value (cohort and file paths, field names, numbers, free
+text) is not completed by Pulse today; the shell falls back to its
+default completion, normally file names. Completion reads only what a
+candidate list needs (the error-code table, the skill and example
+library, the managed-imports directory, an archive's central directory)
+and never writes a file. An unset or missing `PULSE_DATA_DIR`, a missing
+archive or any other failure leaves the candidates empty, never an
+error.
 
 ## Quiet by design
 
