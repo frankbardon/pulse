@@ -329,7 +329,7 @@ func apiSampleCmd() *cli.Command {
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse file path", Required: true},
 			&cli.IntFlag{Name: "count", Aliases: []string{"n"}, Value: 10, Usage: "Number of rows to sample"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
-			&cli.StringSliceFlag{Name: "labels", Usage: "Categorical label binding: field=table[:replace|augment]. Repeatable. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
+			&cli.StringSliceFlag{Name: "labels", Usage: "Categorical label binding: " + labelBindingGrammar + ". Repeatable. Requires PULSE_LABEL_TABLES_DIR or programmatic table registration."},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the resolved SampleRequest on the envelope under \"request\"."},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -415,7 +415,7 @@ func apiFacetCmd() *cli.Command {
 			&cli.Float64Flag{Name: "histogram-min", Usage: "Histogram lower bound (required with --histogram)"},
 			&cli.Float64Flag{Name: "histogram-max", Usage: "Histogram upper bound (required with --histogram)"},
 			&cli.StringSliceFlag{Name: "additive", Usage: "Compute additive contribution counts for this field (repeatable)"},
-			&cli.StringSliceFlag{Name: "labels", Usage: "Categorical label binding: field=table[:replace|augment]. Repeatable."},
+			&cli.StringSliceFlag{Name: "labels", Usage: "Categorical label binding: " + labelBindingGrammar + ". Repeatable."},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the resolved FacetRequest on the envelope under \"request\"."},
 		},
@@ -669,7 +669,7 @@ func apiLookupCmd() *cli.Command {
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input .pulse cohort file path"},
 			&cli.StringSliceFlag{Name: "key", Aliases: []string{"k"}, Usage: "Key column=value pair to match; repeat for a composite key in the same column order the sidecar index was built with (e.g. --key region=EU --key date=2026-01-01)"},
 			&cli.StringFlag{Name: "return", Usage: "Comma-separated field names to project into the result row(s); omit for every schema field"},
-			&cli.StringFlag{Name: "mode", Usage: "Multiplicity mode when the key matches more than one row: assert-unique (default; errors PULSE_LOOKUP_AMBIGUOUS), first, or all"},
+			&cli.StringFlag{Name: "mode", Usage: lookupModeFlagUsage},
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Full LookupRequest JSON file (flags layer on top of the file)"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 			&cli.BoolFlag{Name: "echo-request", Usage: "Include the resolved LookupRequest on the envelope under \"request\"."},
@@ -840,22 +840,22 @@ func parseLookupKeys(args []string) ([]types.LookupKey, error) {
 	return keys, nil
 }
 
-// translateLookupMode translates the CLI's hyphenated --mode spelling
-// into the wire-form types.LookupMultiplicity value ("assert_unique" |
-// "first" | "all"). Accepts the underscore spelling too, since that is
-// also a valid --request JSON payload value round-tripped through this
-// flag.
+// lookupModeFlagUsage lists types.AllLookupMultiplicities, the default
+// first.
+var lookupModeFlagUsage = "Multiplicity mode when the key matches more than one row, one of " +
+	orList(types.AllLookupMultiplicities()) + ": " + string(types.LookupMultiplicityAssertUnique) +
+	" (default; also spelled assert-unique) errors PULSE_LOOKUP_AMBIGUOUS"
+
+// translateLookupMode resolves a --mode value through
+// types.ParseLookupMultiplicity: the wire spellings ("assert_unique" |
+// "first" | "all") and the hyphenated "assert-unique" alias. A refusal
+// stays uncoded (the leaf's placeholder code), as it always was.
 func translateLookupMode(mode string) (types.LookupMultiplicity, error) {
-	switch mode {
-	case "assert-unique", "assert_unique":
-		return types.LookupMultiplicityAssertUnique, nil
-	case "first":
-		return types.LookupMultiplicityFirst, nil
-	case "all":
-		return types.LookupMultiplicityAll, nil
-	default:
-		return "", fmt.Errorf("invalid --mode %q, want assert-unique|first|all", mode)
+	m, ok := types.ParseLookupMultiplicity(mode)
+	if !ok {
+		return "", fmt.Errorf("invalid --mode %q, want %s (or assert-unique)", mode, pipeList(types.AllLookupMultiplicities()))
 	}
+	return m, nil
 }
 
 func loadRequest(path string) (*types.Request, error) {

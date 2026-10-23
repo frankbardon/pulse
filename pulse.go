@@ -2469,6 +2469,20 @@ func (p *Pulse) widenSetField(ctx context.Context, path, field, targetType strin
 	return rep, nil
 }
 
+// WidenSetFieldTargets returns the field type names WidenSetField
+// accepts as targetType: every set_* rung above the narrowest, narrowest
+// first (set_u16 … set_u256). Which of them is valid for a given column
+// depends on its current rung: the target must be wider. The slice is a
+// fresh copy.
+func WidenSetFieldTargets() []string {
+	ladder := encx.SetLadder()[1:]
+	out := make([]string, len(ladder))
+	for i, ft := range ladder {
+		out[i] = ft.String()
+	}
+	return out
+}
+
 // ExamplesSearch returns summaries from the request-example library
 // matching the given filters; it is ExamplesSearchWith without an
 // intent, so it never fails. An empty filter is treated as "no

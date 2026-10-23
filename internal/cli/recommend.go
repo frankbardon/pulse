@@ -24,7 +24,7 @@ func RecommendCommand() *cli.Command {
 			&cli.StringFlag{Name: "intent", Usage: "Intent ID naming the kind of question (pulse skills show intents lists them); required"},
 			&cli.StringFlag{Name: "cohort", Usage: "A .pulse cohort to bind the drafts to; each bound draft has passed predict. Omit for unbound placeholder skeletons"},
 			&cli.StringSliceFlag{Name: "field", Usage: "A field hint (needs --cohort): pins the field to the first role of the intent it fits. Repeatable"},
-			&cli.StringFlag{Name: "level", Usage: "Rank operators at this level first: basic, intermediate or advanced"},
+			&cli.StringFlag{Name: "level", Usage: "Rank operators at this level first: " + orList(descriptor.Levels())},
 			&cli.IntFlag{Name: "limit", Usage: "Maximum recommendations returned (0 = the default, 10)"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},

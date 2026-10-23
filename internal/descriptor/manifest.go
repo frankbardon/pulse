@@ -67,6 +67,7 @@ func commands() []descriptor.Command {
 		{Name: "features diff", Description: "List the features this build offers that a feature profile does not list, and the names it does not resolve", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "features show", Description: "Describe every feature a feature profile lists: kind, category, source, since and dependencies", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "docs export", Description: "Write the instance's analysis reference as a deterministic Markdown tree with an mdBook SUMMARY.md fragment", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
+		{Name: "completion", Description: "Print a bash, zsh or fish shell completion script that completes Pulse's commands, subcommands and flags", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 		{Name: "version", Description: "Print the Pulse build version (--json adds Go version, commit and envelope format_version)", Annotations: descriptor.CommandAnnotations{Streamable: false, Deterministic: true, Expensive: false}},
 	}
 }

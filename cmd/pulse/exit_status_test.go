@@ -249,14 +249,18 @@ func exitCases(f exitFixture) []exitCase {
 		{leaf: "skills list", noFatal: "lists the embedded pack", ok: []string{}},
 		{leaf: "skills show", fatal: []string{"nope"}, ok: []string{"session-bootstrap"}},
 		{leaf: "schema", noFatal: "prints the embedded payload schema", ok: []string{}},
+		{leaf: "completion bash", noFatal: "prints a fixed script; a bad flag is still a usage error (the configure hook installs the exit policy)", ok: []string{}},
+		{leaf: "completion fish", noFatal: "prints a fixed script; a bad flag is still a usage error (the configure hook installs the exit policy)", ok: []string{}},
+		{leaf: "completion zsh", noFatal: "prints a fixed script; a bad flag is still a usage error (the configure hook installs the exit policy)", ok: []string{}},
 		{leaf: "version", noFatal: "prints build info (a bad --log-level is a usage error, TestExitStatus_PersistentFlagIsUsage)", ok: []string{}},
 	}
 }
 
-// leafCommand finds the leaf at path ("api process") in the tree.
+// leafCommand finds the leaf at path ("api process") in the set-up tree
+// (completionTree), so framework-mounted leaves are found too.
 func leafCommand(t *testing.T, path string) *cli.Command {
 	t.Helper()
-	cmds := buildApp().Commands
+	cmds := completionTree().Commands
 	var cur *cli.Command
 	for _, name := range strings.Fields(path) {
 		cur = nil

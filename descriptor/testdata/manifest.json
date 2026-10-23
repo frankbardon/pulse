@@ -350,6 +350,15 @@
         }
       },
       {
+        "name": "completion",
+        "description": "Print a bash, zsh or fish shell completion script that completes Pulse's commands, subcommands and flags",
+        "annotations": {
+          "streamable": false,
+          "deterministic": true,
+          "expensive": false
+        }
+      },
+      {
         "name": "version",
         "description": "Print the Pulse build version (--json adds Go version, commit and envelope format_version)",
         "annotations": {
@@ -19523,4 +19532,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: aa3a50b6152b3227d76ab2a03f009ec1d86a4846b9aa6e5d5366359b39855cd3
+// golden-hash: 25b9361c398745b847cfc7079cb14c3d7d929f2641aea5eb48a6a00be976f356

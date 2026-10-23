@@ -69,6 +69,9 @@ func TestLogFlags_AcceptedOnEveryLeaf(t *testing.T) {
 		t.Fatalf("cliLeaves() = %d leaves; the walk is broken", len(leaves))
 	}
 	for _, leaf := range leaves {
+		if isCompletionLeafPath(strings.Fields(leaf)) {
+			continue // urfave's script printers: no instance, persistent flags unlisted
+		}
 		t.Run(leaf, func(t *testing.T) {
 			app := buildApp()
 			var buf bytes.Buffer

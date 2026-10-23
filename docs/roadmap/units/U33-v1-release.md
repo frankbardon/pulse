@@ -8,7 +8,7 @@ status: not-started
 depends_on: [U32]
 soft_depends_on: [all other units]
 blocks: []
-todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 232, 233, 234, 506]
+todo_items: [168, 169, 170, 171, 173, 174, 175, 176, 177, 178, 179, 206, 220, 232, 233, 234, 506, 507, 508]
 branch: v1-release
 ---
 
@@ -157,3 +157,10 @@ U24 shipped the multivariate matrix operators without a human reviewer: an exter
 Filed from [U38 handed on](U38-skill-sync.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
 
 - [ ] **#506** — **A non-positive `interval` is silently 1.** `GROUP_RANGE` / `GROUP_ROUNDED` treat an explicit `interval ≤ 0` as 1 at predict and at runtime. U38 corrected the manifest to say so (`interval` optional, default 1) and left the behaviour alone (out of its scope). Decide before the freeze: refuse an explicit `interval ≤ 0` (a behaviour change for `STABILITY.md` and the migration doc, with a predict ≡ runtime test) or keep the coercion and state it in `STABILITY.md`.
+
+## Inherited from U37
+
+Filed from [U37 handed on](U37-shell-completion.md#handed-on); tick in [`TODO.md`](../TODO.md) when delivered.
+
+- [ ] **#507** — **Lookup multiplicity and label mode have no schema enum.** `LookupRequest.multiplicity` and `LabelBinding.mode` are bare strings in the payload schema; add the enums from `types.AllLookupMultiplicities()` / `types.AllLabelModes()` (additive, golden regenerated) before the freeze.
+- [ ] **#508** — **Completion candidates containing `:` are split by the shell scripts.** Escape per shell in `writeCandidates` or document it in `completion.md`.

@@ -43,7 +43,14 @@ type workerCaps struct{ shard, decode int }
 // then the worker flags. A negative worker count is refused before any
 // leaf runs — a usage error (exit 2) carrying CLI_INPUT, the rule
 // pulse.New applies to the Options fields.
+//
+// A shell-completion request skips both: completion must stay silent
+// and exit 0 whatever the persistent flags typed so far say, and no
+// leaf runs to read them.
 func GlobalBefore(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+	if completionRequested(ctx) {
+		return ctx, nil
+	}
 	ctx, err := LogBefore(ctx, cmd)
 	if err != nil {
 		return ctx, err

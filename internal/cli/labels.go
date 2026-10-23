@@ -8,6 +8,10 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
+// labelBindingGrammar is the --labels value grammar; the modes are
+// types.AllLabelModes.
+var labelBindingGrammar = "field=table[:" + pipeList(types.AllLabelModes()) + "]"
+
 // parseLabelBindings turns a slice of CLI --labels arguments into
 // []*types.LabelBinding. Each arg has the form:
 //
@@ -37,14 +41,11 @@ func parseLabelBindings(args []string) ([]*types.LabelBinding, error) {
 		if colon := strings.IndexByte(rest, ':'); colon >= 0 {
 			tableName := strings.TrimSpace(rest[:colon])
 			modeStr := strings.TrimSpace(rest[colon+1:])
-			switch modeStr {
-			case "", "replace":
-				mode = types.LabelModeReplace
-			case "augment":
-				mode = types.LabelModeAugment
-			default:
-				return nil, fmt.Errorf("labels[%d]: unknown mode %q (expected replace or augment)", i, modeStr)
+			m, ok := types.ParseLabelMode(modeStr)
+			if !ok {
+				return nil, fmt.Errorf("labels[%d]: unknown mode %q (expected %s)", i, modeStr, orList(types.AllLabelModes()))
 			}
+			mode = m
 			rest = tableName
 		}
 		if field == "" || rest == "" {

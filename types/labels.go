@@ -25,6 +25,27 @@ const (
 	LabelModeAugment LabelMode = "augment"
 )
 
+// AllLabelModes returns every LabelMode, the default first (replace,
+// augment). The slice is a fresh copy.
+func AllLabelModes() []LabelMode {
+	return []LabelMode{LabelModeReplace, LabelModeAugment}
+}
+
+// ParseLabelMode resolves a label-mode spelling: one of AllLabelModes()
+// exactly (case-sensitive), or the empty string for the default,
+// LabelModeReplace. Any other spelling reports ok=false.
+func ParseLabelMode(s string) (m LabelMode, ok bool) {
+	if s == "" {
+		return LabelModeReplace, true
+	}
+	for _, m := range AllLabelModes() {
+		if s == string(m) {
+			return m, true
+		}
+	}
+	return "", false
+}
+
 // LabelBinding requests that an output surface render the named
 // categorical field through the named label table.
 //

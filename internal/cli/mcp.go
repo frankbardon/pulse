@@ -54,12 +54,12 @@ func MCPCommand(version string) *cli.Command {
 			},
 			&cli.StringFlag{
 				Name: "return",
-				Usage: "Response preset (full|standard|minimal) for a tool request without its own return block. " +
+				Usage: "Response preset (" + pipeList(types.AllReturnPresets()) + ") for a tool request without its own return block. " +
 					"Unset: the instance or feature-profile return default, else standard. full serves the unshaped library output.",
 			},
 			&cli.StringSliceFlag{
 				Name: "limit",
-				Usage: "Instance resource limit as name=value (repeatable; snake_case names such as max_groups, request_timeout). " +
+				Usage: "Instance resource limit as name=value (repeatable; names: " + commaList(pulse.LimitNames()) + "). " +
 					"Values: a positive integer, a Go duration for request_timeout (30s), unlimited (or -1), or 0 for the default. " +
 					"Overrides the feature profile's limits section per key; an unknown name or bad value fails startup with CLI_INPUT.",
 			},
@@ -249,12 +249,7 @@ func parseLimitFlags(specs []string) (pulse.Limits, error) {
 }
 
 func limitNameList() string {
-	names := limits.Names()
-	parts := make([]string, len(names))
-	for i, n := range names {
-		parts[i] = string(n)
-	}
-	return strings.Join(parts, ", ")
+	return commaList(pulse.LimitNames())
 }
 
 func limitFlagError(spec string, n limits.Name, msg string) error {

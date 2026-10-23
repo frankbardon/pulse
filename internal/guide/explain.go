@@ -1,6 +1,7 @@
 package guide
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -113,16 +114,20 @@ func ValidateExplainRequest(req descriptor.ExplainRequest) (descriptor.ExplainRo
 
 // explainDetail resolves the detail level: empty is terse.
 func explainDetail(d descriptor.ExplainDetail) (descriptor.ExplainDetail, error) {
-	switch d {
-	case "":
+	if d == "" {
 		return descriptor.ExplainTerse, nil
-	case descriptor.ExplainTerse, descriptor.ExplainFull:
+	}
+	if slices.Contains(descriptor.ExplainDetails(), d) {
 		return d, nil
+	}
+	valid := make([]string, 0, 2)
+	for _, v := range descriptor.ExplainDetails() {
+		valid = append(valid, string(v))
 	}
 	return "", errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 		"explain: detail must be terse or full",
 		map[string]any{"field": "detail", "detail": string(d),
-			"valid": []string{string(descriptor.ExplainTerse), string(descriptor.ExplainFull)}})
+			"valid": valid})
 }
 
 // Explain describes what the request root in req will do (request

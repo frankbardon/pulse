@@ -539,6 +539,13 @@ const (
 	FloatWidthF32 = "f32"
 )
 
+// FloatWidths returns every float-width knob spelling, the default
+// first (f64, f32). The slice is a fresh copy; the empty string (which
+// means FloatWidthF64) is not listed.
+func FloatWidths() []string {
+	return []string{FloatWidthF64, FloatWidthF32}
+}
+
 // ResolveFloatWidth maps a float-width knob value to the field type an
 // all-float column infers as: "" and "f64" → f64, "f32" → f32. Any other
 // value is PULSE_IMPORT_FLOAT_WIDTH_INVALID (details: value, valid).
@@ -551,8 +558,8 @@ func ResolveFloatWidth(width string) (encoding.FieldType, error) {
 	}
 	return 0, errors.NewCodedErrorWithDetails(
 		errors.PULSE_IMPORT_FLOAT_WIDTH_INVALID,
-		fmt.Sprintf("float width %q is not one of f64, f32", width),
-		map[string]any{"value": width, "valid": []string{FloatWidthF64, FloatWidthF32}},
+		fmt.Sprintf("float width %q is not one of %s", width, strings.Join(FloatWidths(), ", ")),
+		map[string]any{"value": width, "valid": FloatWidths()},
 	)
 }
 

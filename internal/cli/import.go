@@ -11,6 +11,7 @@ import (
 	encx "github.com/frankbardon/pulse/internal/encoding"
 	iio "github.com/frankbardon/pulse/internal/io"
 	pio "github.com/frankbardon/pulse/io"
+	"github.com/frankbardon/pulse/types"
 	"github.com/spf13/afero"
 	cli "github.com/urfave/cli/v3"
 )
@@ -21,15 +22,25 @@ const charsetFlagUsage = "Character encoding override for SPSS .sav input (e.g. 
 
 // spssMissingFlagUsage is the one-line help for --spss-missing, shared by
 // every leaf a `.sav` can arrive through so the wording cannot drift.
-const spssMissingFlagUsage = "How SPSS numeric user-missing values are represented: auto (default — null plus a <var>_missing sibling carrying the reason) or null (plain null, reason not preserved)"
+// The values are pio.SPSSMissingModes.
+var spssMissingFlagUsage = "How SPSS numeric user-missing values are represented, one of " + orList(pio.SPSSMissingModes()) +
+	": " + string(pio.SPSSMissingAuto) + " (default) is a null plus a <var>_missing sibling carrying the reason; " +
+	string(pio.SPSSMissingNull) + " is a plain null, the reason not preserved"
 
 // ignoreExtraFlagUsage is the one-line help for --ignore-extra, shared by
 // every leaf that takes --schema so the wording cannot drift.
 const ignoreExtraFlagUsage = "With --schema: drop source columns (and NDJSON / JSON-array keys first seen after the first object) the schema does not name, instead of refusing with PULSE_IMPORT_SCHEMA_COLUMN_UNMAPPED / PULSE_IMPORT_SCHEMA_KEY_LATE. Schema fields always match columns by exact name"
 
 // floatFlagUsage is the one-line help for --float, shared by every leaf
-// that infers a schema so the wording cannot drift.
-const floatFlagUsage = "Width an all-float column infers as: f64 (default; exact decimals) or f32 (half the bytes, rounds to ~7 significant digits). Any other value is PULSE_IMPORT_FLOAT_WIDTH_INVALID. Inert with --schema"
+// that infers a schema so the wording cannot drift. The values are
+// pio.FloatWidths.
+var floatFlagUsage = "Width an all-float column infers as, one of " + orList(pio.FloatWidths()) +
+	": " + iio.FloatWidthF64 + " (default) keeps exact decimals; " + iio.FloatWidthF32 +
+	" halves the bytes and rounds to ~7 significant digits. Any other value is PULSE_IMPORT_FLOAT_WIDTH_INVALID. Inert with --schema"
+
+// formatFlagUsage is the one-line help for an input --format, listing
+// pio.Formats.
+var formatFlagUsage = "Input format (" + commaList(pio.Formats()) + ")"
 
 // importFlags are the common flags for all import format subcommands.
 var importFlags = []cli.Flag{
@@ -54,9 +65,9 @@ var importFlags = []cli.Flag{
 // vectorFlagUsage / vectorKindFlagUsage are the one-line help for
 // --vector / --vector-kind, shared by every import leaf so the wording
 // cannot drift.
-const (
+var (
 	vectorFlagUsage     = "Fold sibling columns into one native vector field: NAME[:f32|f64]:COL1,COL2,... (element order as listed) or NAME:/REGEX/ (matching columns in source order; the first capture group labels each element, else the column name). 2..1024 columns, default f64; all elements empty = null vector, some empty = NaN. Repeatable, one vector per flag (writes format 0x02)"
-	vectorKindFlagUsage = "Declare a --vector's kind: NAME:measure|scale|composition|binary[:MIN:MAX] (MIN:MAX the declared value range). Repeatable; never inferred"
+	vectorKindFlagUsage = "Declare a --vector's kind: NAME:" + pipeList(types.AllVectorKinds()) + "[:MIN:MAX] (MIN:MAX the declared value range). Repeatable; never inferred"
 )
 
 // parseVectorFlags parses --vector and applies --vector-kind with the
@@ -273,7 +284,7 @@ func importPredictCmd() *cli.Command {
 			&cli.StringFlag{Name: "input", Aliases: []string{"i"}, Usage: "Input file path", Required: true},
 			&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
 			&cli.BoolFlag{Name: "ignore-extra", Usage: ignoreExtraFlagUsage},
-			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Input format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss)"},
+			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: formatFlagUsage},
 			&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name"},
 			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
 			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},
@@ -466,7 +477,7 @@ func importSchemaTemplateCmd() *cli.Command {
 		Usage:     "Generate an editable schema template from input data",
 		ArgsUsage: "INPUT",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: "Input format (csv, tsv, ndjson, jsonarray, parquet, arrow, excel, spss)"},
+			&cli.StringFlag{Name: "format", Aliases: []string{"f"}, Usage: formatFlagUsage},
 			&cli.StringFlag{Name: "sheet", Usage: "Excel sheet name"},
 			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
 			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},

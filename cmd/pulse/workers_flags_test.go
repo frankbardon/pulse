@@ -20,6 +20,9 @@ import (
 // in help.
 func TestWorkerFlags_AcceptedOnEveryLeaf(t *testing.T) {
 	for _, leaf := range cliLeaves() {
+		if isCompletionLeafPath(strings.Fields(leaf)) {
+			continue // urfave's script printers: no instance, persistent flags unlisted
+		}
 		t.Run(leaf, func(t *testing.T) {
 			app := buildApp()
 			var buf bytes.Buffer

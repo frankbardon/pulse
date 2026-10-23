@@ -3,15 +3,20 @@
 #
 # Cross-compiles the pulse CLI for the six release targets
 # (linux/darwin/windows x amd64/arm64), packages each binary with
-# LICENSE, THIRD_PARTY_NOTICES.md and README.md, and writes SHA-256 sums
-# of every archive to OUTDIR/checksums.txt.
+# LICENSE, THIRD_PARTY_NOTICES.md, README.md and the shell completion
+# scripts (completions/pulse.bash, completions/_pulse,
+# completions/pulse.fish), and writes SHA-256 sums of every archive to
+# OUTDIR/checksums.txt.
 #
 #   pulse_<version>_<os>_<arch>.tar.gz   (linux, darwin)
 #   pulse_<version>_windows_<arch>.zip   (binary named pulse.exe)
 #
 # OUTDIR defaults to `dist` and is wiped before the build. LDFLAGS may be
 # supplied by the caller (`make dist` passes the Makefile's); when unset
-# the script builds the same flags itself. Portable to bash 3.2 (macOS)
+# the script builds the same flags itself. The completion scripts are
+# generated ONCE by a host build (scripts/release-completions.sh) — a
+# cross-compiled binary cannot run here, and the scripts are
+# platform-independent. Portable to bash 3.2 (macOS)
 # and GNU userlands (ubuntu runners).
 set -euo pipefail
 
@@ -43,6 +48,15 @@ OUTDIR_ABS="$(cd "$OUTDIR" && pwd)"
 STAGE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/pulse-dist.XXXXXX")"
 trap 'rm -rf "$STAGE_ROOT"' EXIT
 
+# Host build, used only to print the completion scripts.
+echo "release-dist: generating completion scripts"
+HOST_BIN="$STAGE_ROOT/host/pulse"
+CGO_ENABLED=0 GOOS="$("$GO" env GOHOSTOS)" GOARCH="$("$GO" env GOHOSTARCH)" \
+	"$GO" build -trimpath -ldflags "$LDFLAGS" -o "$HOST_BIN" ./cmd/pulse
+COMPLETIONS="$STAGE_ROOT/completions"
+./scripts/release-completions.sh "$COMPLETIONS" "$HOST_BIN"
+COMPLETION_FILES="completions/pulse.bash completions/_pulse completions/pulse.fish"
+
 for target in $TARGETS; do
 	goos="${target%/*}"
 	goarch="${target#*/}"
@@ -59,11 +73,13 @@ for target in $TARGETS; do
 	CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
 		"$GO" build -trimpath -ldflags "$LDFLAGS" -o "$stage/$bin" ./cmd/pulse
 	cp LICENSE THIRD_PARTY_NOTICES.md README.md "$stage/"
+	cp -R "$COMPLETIONS" "$stage/completions"
 
+	# shellcheck disable=SC2086
 	if [ "$goos" = "windows" ]; then
-		(cd "$stage" && zip -q "$OUTDIR_ABS/$name.zip" "$bin" LICENSE THIRD_PARTY_NOTICES.md README.md)
+		(cd "$stage" && zip -q "$OUTDIR_ABS/$name.zip" "$bin" LICENSE THIRD_PARTY_NOTICES.md README.md $COMPLETION_FILES)
 	else
-		tar -czf "$OUTDIR_ABS/$name.tar.gz" -C "$stage" "$bin" LICENSE THIRD_PARTY_NOTICES.md README.md
+		tar -czf "$OUTDIR_ABS/$name.tar.gz" -C "$stage" "$bin" LICENSE THIRD_PARTY_NOTICES.md README.md $COMPLETION_FILES
 	fi
 done
 

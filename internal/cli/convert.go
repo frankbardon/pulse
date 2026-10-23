@@ -18,8 +18,8 @@ func ConvertCommand() *cli.Command {
 		Usage:     "Convert between tabular formats (auto-detects from extensions)",
 		ArgsUsage: "INPUT OUTPUT",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "from", Usage: "Source format override"},
-			&cli.StringFlag{Name: "to", Usage: "Target format override"},
+			&cli.StringFlag{Name: "from", Usage: "Source format override (" + commaList(pio.Formats()) + ")"},
+			&cli.StringFlag{Name: "to", Usage: "Target format override (" + commaList(pio.Formats()) + ")"},
 			&cli.StringFlag{Name: "schema", Usage: "Schema JSON file path"},
 			&cli.BoolFlag{Name: "ignore-extra", Usage: ignoreExtraFlagUsage},
 			&cli.StringFlag{Name: "float", Value: "f64", Usage: floatFlagUsage},
@@ -181,8 +181,8 @@ func convertPredictCmd() *cli.Command {
 		Usage:     "Validate a conversion without writing output",
 		ArgsUsage: "INPUT OUTPUT",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "from", Usage: "Source format override"},
-			&cli.StringFlag{Name: "to", Usage: "Target format override"},
+			&cli.StringFlag{Name: "from", Usage: "Source format override (" + commaList(pio.Formats()) + ")"},
+			&cli.StringFlag{Name: "to", Usage: "Target format override (" + commaList(pio.Formats()) + ")"},
 			&cli.StringFlag{Name: "charset", Usage: charsetFlagUsage},
 			&cli.StringFlag{Name: "spss-missing", Value: "auto", Usage: spssMissingFlagUsage},
 			&cli.BoolFlag{Name: "ignore-sidecar", Usage: ignoreSidecarFlagUsage},

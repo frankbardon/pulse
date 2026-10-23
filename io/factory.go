@@ -70,6 +70,13 @@ const (
 	SPSSMissingNull SPSSMissingMode = "null"
 )
 
+// SPSSMissingModes returns every SPSSMissingMode, the default first
+// (auto, null) — the values SPSSReaderOptions.MissingMode accepts. The
+// slice is a fresh copy.
+func SPSSMissingModes() []SPSSMissingMode {
+	return []SPSSMissingMode{SPSSMissingAuto, SPSSMissingNull}
+}
+
 // WriterOptions carries the per-format writer knobs. Each sub-struct is
 // honoured only by its own format and ignored silently by every other.
 // The zero value is every format's default.

@@ -63,20 +63,17 @@ import (
 )
 
 // cliLeaves returns every runnable command path in the binary's command tree,
-// sorted, in `pulse <group> <leaf>` form.
+// sorted, in `pulse <group> <leaf>` form. The tree is the one the binary
+// runs AFTER urfave/cli's setup (completionTree), so the framework-mounted
+// `pulse completion <shell>` leaves count too; urfave's `help` commands do
+// not (walkCompletionTree skips them).
 func cliLeaves() []string {
 	var out []string
-	var walk func(prefix string, cmds []*cli.Command)
-	walk = func(prefix string, cmds []*cli.Command) {
-		for _, c := range cmds {
-			path := prefix + " " + c.Name
-			if c.Action != nil {
-				out = append(out, path)
-			}
-			walk(path, c.Commands)
+	walkCompletionTree(completionTree(), func(path []string, _, c *cli.Command) {
+		if c.Action != nil {
+			out = append(out, strings.Join(path, " "))
 		}
-	}
-	walk("pulse", buildApp().Commands)
+	})
 	sort.Strings(out)
 	return out
 }

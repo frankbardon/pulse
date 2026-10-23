@@ -26,6 +26,29 @@ const (
 	LookupMultiplicityAll LookupMultiplicity = "all"
 )
 
+// AllLookupMultiplicities returns every LookupMultiplicity, the default
+// first (assert_unique, first, all). The slice is a fresh copy.
+func AllLookupMultiplicities() []LookupMultiplicity {
+	return []LookupMultiplicity{LookupMultiplicityAssertUnique, LookupMultiplicityFirst, LookupMultiplicityAll}
+}
+
+// ParseLookupMultiplicity resolves a multiplicity spelling: one of
+// AllLookupMultiplicities() exactly, or the hyphenated alias
+// "assert-unique" for LookupMultiplicityAssertUnique. Any other
+// spelling — the empty string included, which is no spelling at all —
+// reports ok=false.
+func ParseLookupMultiplicity(s string) (m LookupMultiplicity, ok bool) {
+	if s == "assert-unique" {
+		return LookupMultiplicityAssertUnique, true
+	}
+	for _, m := range AllLookupMultiplicities() {
+		if s == string(m) {
+			return m, true
+		}
+	}
+	return "", false
+}
+
 // LookupKey is one ordered key column/value pair within a composite
 // point lookup — see LookupRequest.Keys. A composite key is an ORDERED
 // TUPLE: [{region, "east"}, {date, "2024-01-01"}] and

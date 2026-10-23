@@ -48,6 +48,13 @@ const (
 	LevelAdvanced Level = "advanced"
 )
 
+// Levels returns every Level, simplest first (basic, intermediate,
+// advanced) — the values RecommendRequest.Level and a Purpose accept.
+// The slice is a fresh copy.
+func Levels() []Level {
+	return []Level{LevelBasic, LevelIntermediate, LevelAdvanced}
+}
+
 // FieldKind is the coarse family of a cohort field type, the vocabulary
 // intent shapes are written in. Every registered field type maps to
 // exactly one kind.
