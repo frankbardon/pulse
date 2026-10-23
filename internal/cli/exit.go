@@ -114,8 +114,13 @@ func usageExit(err error) error {
 }
 
 // onUsageError keeps the parser's usual stderr report and help text
-// and marks the error ExitUsage.
-func onUsageError(_ context.Context, cmd *cli.Command, err error, isSubcommand bool) error {
+// and marks the error ExitUsage. Under a shell-completion request it
+// prints nothing (help would land on stdout among the candidates) and
+// swallows the refusal: completion offers nothing and exits 0.
+func onUsageError(ctx context.Context, cmd *cli.Command, err error, isSubcommand bool) error {
+	if completionRequested(ctx) {
+		return nil
+	}
 	if errw := cmd.Root().ErrWriter; errw != nil {
 		fmt.Fprintf(errw, "Incorrect Usage: %s\n\n", err.Error())
 	}

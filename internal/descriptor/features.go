@@ -1027,6 +1027,9 @@ var commandBindings = []CommandBinding{
 	// --feature-profile), so it describes the binary, not this instance.
 	{Command: "docs export", Ungated: true},
 	{Command: "version", Ungated: true},
+	// Shell completion scripts describe the binary's command tree, not
+	// an instance: never hidden by a feature profile.
+	{Command: "completion", Ungated: true},
 	// Manifest.Operations.
 	{Command: "filter_to_file", Feature: featFilterToFile},
 	{Command: "process_stream", Feature: featStream},

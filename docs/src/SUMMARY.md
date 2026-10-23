@@ -431,6 +431,7 @@
 - [profile create](cli/profile-create.md)
 - [Synth calibration & rationale](cli/synth-calibration.md)
 - [mcp](cli/mcp.md)
+- [completion](cli/completion.md)
 - [Flag Reference](cli/flags.md)
 
 # Library Embedding

@@ -21,9 +21,19 @@ func main() {
 // (warnings allowed), 1 a fatal error (in the --json envelope, or printed
 // to stderr in text mode), 2 a usage error the flag parser refused.
 // pcli.ExitStatus owns the mapping; main only applies it.
+//
+// A shell-completion request (pcli.CompletionRequest) is quiet: stderr
+// is discarded and the status is always 0, so a half-typed or invalid
+// command line never disturbs the shell.
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	ctx, completing := pcli.CompletionRequest(ctx, args)
 	app := buildApp()
 	app.Writer, app.ErrWriter = stdout, stderr
+	if completing {
+		app.ErrWriter = io.Discard
+		_ = app.Run(ctx, args)
+		return pcli.ExitOK
+	}
 	err := app.Run(ctx, args)
 	status, printErr := pcli.ExitStatus(err)
 	if printErr {
@@ -33,7 +43,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 }
 
 func buildApp() *cli.Command {
-	return pcli.InstallExitPolicy(&cli.Command{
+	return pcli.InstallExitPolicy(pcli.EnableCompletion(&cli.Command{
 		Name:    "pulse",
 		Usage:   "High-performance tabular data processing engine",
 		Version: pulse.Version(),
@@ -79,5 +89,5 @@ func buildApp() *cli.Command {
 			pcli.FeaturesCommand(),
 			pcli.DocsCommand(),
 		},
-	})
+	}))
 }

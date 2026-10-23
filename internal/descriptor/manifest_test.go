@@ -435,3 +435,22 @@ func TestManifest_CommandsIncludeVersion(t *testing.T) {
 	}
 	t.Fatal("manifest commands do not include \"version\"")
 }
+
+// TestManifest_CommandsIncludeCompletion: the `pulse completion` leaf
+// reaches the manifest command catalogue, bound Ungated so no feature
+// profile hides it (the scripts describe the binary, not an instance).
+func TestManifest_CommandsIncludeCompletion(t *testing.T) {
+	found := false
+	for _, c := range BuildManifest().Commands {
+		if c.Name == "completion" {
+			found = c.Description != "" && c.Annotations.Deterministic
+		}
+	}
+	if !found {
+		t.Fatal("manifest commands do not include a well-formed \"completion\"")
+	}
+	b, ok := CommandBindingOf("completion")
+	if !ok || !b.Ungated {
+		t.Fatalf("completion binding = %+v, %v; want Ungated", b, ok)
+	}
+}
