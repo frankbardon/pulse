@@ -116,7 +116,11 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     expression filter may read: it runs over the whole cohort first);
 //  3. attributes — as filterers plus each EARLIER attribute's label
 //     (Field, or Target / Predictors for ATTR_REG_*; ATTR_FORMULA reads
-//     its expression and may omit Field);
+//     its expression and may omit Field). A window-dependent attribute
+//     (vectors.PostWindowAttributes: it reads a window label, directly
+//     or through an earlier post-window attribute) is judged at 5b when
+//     it is row-local and the windows run over the record rows, else is
+//     PULSE_ATTRIBUTE_WINDOW_ORDER {attribute, field};
 //  4. tier-1 tests, regressions, groups, aggregations and the crosstab
 //     axes / cell / margin aggregations — the record columns: schema,
 //     features and every attribute label;
@@ -133,6 +137,10 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     field or to an earlier aggregation's label is refused, since the
 //     row holds one value per name and the other figure was silently
 //     lost (not on a crosstab, whose output is its cell grid).
+//     5b. post-window attributes — judged as at step 3, in declared
+//     order, against the record columns plus every window label and
+//     each earlier post-window label (a regression at step 4 and a sort
+//     key or post-test at step 5 may read their labels);
 //  6. vectors — Request.Vectors resolved against the schema and the
 //     request's computed columns (internal/vectors.ResolveRequest): the
 //     first PULSE_VECTOR_* refusal, or the SERVICE_VALIDATION
@@ -248,7 +256,7 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	if req == nil || schema == nil {
 		return nil
 	}
-	w := &fieldRefWalk{cols: make(map[string]bool, len(schema.Fields)), snap: snap, inst: inst}
+	w := &fieldRefWalk{cols: make(map[string]bool, len(schema.Fields)), snap: snap, inst: inst, req: req}
 	for i := range schema.Fields {
 		w.cols[schema.Fields[i].Name] = true
 	}
@@ -350,11 +358,45 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 		})
 	}
 
-	// 3. Attributes, each seeing the earlier ones' labels.
-	for _, attr := range req.Attributes {
-		if attr == nil || attr.Type == "ATTR_RANK" {
+	// 3. Attributes, each seeing the earlier ones' labels. A
+	// window-dependent attribute (vectors.PostWindowAttributes — the
+	// classification the engine orders by) is not judged here: a
+	// row-local one runs after the windows and is judged at step 5b,
+	// beside the window labels; any other is
+	// PULSE_ATTRIBUTE_WINDOW_ORDER, judged before the open column set
+	// an extension feature leaves (no feature output carries a window's
+	// value). Its label still joins the columns, so a later reader is
+	// not refused twice.
+	route := func(t types.AttributeType) types.AttributeType { return opRoute(inst, t) }
+	pw := vectors.PostWindowAttributes(req, schema, route, models)
+	for _, win := range req.Windows {
+		if win == nil {
 			continue
 		}
+		if w.winLabels == nil {
+			w.winLabels = map[string]bool{}
+		}
+		w.winLabels[windowLabel(win)] = true
+	}
+	for _, l := range pw.Labels {
+		if w.postLabels == nil {
+			w.postLabels = map[string]bool{}
+		}
+		w.postLabels[l] = true
+	}
+	addAttrLabel := func(attr *types.Attribute) {
+		label := attr.Label
+		if label == "" {
+			label = attributeDefaultLabel(attr, inst)
+		}
+		w.shadow(label, func() *errors.CodedError {
+			return refusal("attribute label "+label+" shadows an existing field",
+				map[string]any{"label": label, "attribute": string(attr.Type)})
+		})
+		w.cols[label] = true
+		w.claim(label, map[string]any{"slot": "attribute " + string(attr.Type), "attribute": string(attr.Type)})
+	}
+	judgeAttr := func(attr *types.Attribute) {
 		attrRoute := opRoute(inst, attr.Type)
 		if cerr := prevstate.ForeignSlotRefusal(attr, attrRoute); cerr != nil {
 			w.out = append(w.out, cerr)
@@ -453,33 +495,28 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 			}
 		}
 		w.checkInputs("attribute", string(attr.Type), attr.Params, "attribute")
-		label := attr.Label
-		if label == "" {
-			label = attributeDefaultLabel(attr, inst)
+		addAttrLabel(attr)
+	}
+	for i, attr := range req.Attributes {
+		if attr == nil || attr.Type == "ATTR_RANK" || pw.IsPost(i) {
+			continue
 		}
-		w.shadow(label, func() *errors.CodedError {
-			return refusal("attribute label "+label+" shadows an existing field",
-				map[string]any{"label": label, "attribute": string(attr.Type)})
-		})
-		w.cols[label] = true
-		w.claim(label, map[string]any{"slot": "attribute " + string(attr.Type), "attribute": string(attr.Type)})
+		if dep := pw.DepOf(i); dep != "" {
+			w.out = append(w.out, vectors.AttributeWindowOrderRefusal(req, attr, dep))
+			addAttrLabel(attr)
+			continue
+		}
+		judgeAttr(attr)
 	}
 
 	// 4. Record-level consumers. A regression may also read a window
-	// label of this request (judged by checkRegression): windows run
-	// after the attributes, but over the record rows
-	// (vectors.WindowsOverRecords) the engine copies each label a
-	// regression reads back onto its record before the fit. The windows
-	// themselves are judged at step 5, against what precedes them.
-	for _, win := range req.Windows {
-		if win == nil {
-			continue
-		}
-		if w.winLabels == nil {
-			w.winLabels = map[string]bool{}
-		}
-		w.winLabels[windowLabel(win)] = true
-	}
+	// label of this request, or a post-window attribute's label (judged
+	// by checkRegression): windows run after the attributes, but over
+	// the record rows (vectors.WindowsOverRecords) the engine copies each
+	// window label a regression reads back onto its record, and runs the
+	// post-window attributes over those records, before the fit. The
+	// windows themselves are judged at step 5, against what precedes
+	// them, and the post-window attributes right after them.
 	w.checkWeights(req, schema)
 	w.checkZoneFields(req, schema)
 	for _, t := range req.Tests {
@@ -732,6 +769,17 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 		})
 		w.cols[label] = true
 		w.claim(label, map[string]any{"slot": "window[" + idx + "] " + string(win.Type), "window_index": i, "window": string(win.Type)})
+	}
+	// 5b. Post-window attributes (vectors.PostWindowAttributes: a
+	// row-local attribute reading a window label, directly or through an
+	// earlier post-window attribute) — judged as at step 3, in declared
+	// order, against the record columns plus every window label and each
+	// earlier post-window label. Only the windows-over-records shape has
+	// any, where w.cols is still the record column set.
+	for i, attr := range req.Attributes {
+		if pw.IsPost(i) {
+			judgeAttr(attr)
+		}
 	}
 	// An array-valued aggregation's bare label (AGG_VEC_*: w.arrayCols)
 	// names no single number to order by; an expanded per-element
@@ -998,6 +1046,13 @@ type fieldRefWalk struct {
 	// seeded before step 4: the names a regression may read once the
 	// windows run (checkRegression), and a weight may never read.
 	winLabels map[string]bool
+	// postLabels holds the labels of the request's post-window
+	// attributes (vectors.PostWindowAttributes), seeded before step 3:
+	// names a regression may read (checkRegression), judged at step 5b.
+	postLabels map[string]bool
+	// req is the request walked (the shape a window-order refusal
+	// names).
+	req *types.Request
 }
 
 // arrayRef refuses a downstream read (a Sort key, a window's field /
@@ -1130,6 +1185,12 @@ func (w *fieldRefWalk) checkInputs(category, name string, raw json.RawMessage, s
 		if in == "" {
 			continue
 		}
+		if category == "attribute" && (w.winLabels[in] || w.postLabels[in]) && !w.cols[in] {
+			// An extension attribute is never row-local here: it cannot
+			// run after the windows (PULSE_ATTRIBUTE_WINDOW_ORDER).
+			w.out = append(w.out, vectors.AttributeWindowOrderRefusal(w.req, &types.Attribute{Type: types.AttributeType(name)}, in))
+			continue
+		}
 		w.check(in, func() *errors.CodedError {
 			return refusal(category+" "+name+": FieldInputs references unknown field "+in,
 				map[string]any{"field": in, slotKey: slot, "field_inputs": true})
@@ -1159,7 +1220,7 @@ func (w *fieldRefWalk) check(name string, mk func() *errors.CodedError) {
 // a window's value either). A column of that name already present wins
 // (the window's own shadow refusal follows at step 5).
 func (w *fieldRefWalk) checkRegression(req *types.Request, reg *types.RegressionSpec, name string, mk func() *errors.CodedError) {
-	if name == "" || !w.winLabels[name] || w.cols[name] {
+	if name == "" || !(w.winLabels[name] || w.postLabels[name]) || w.cols[name] {
 		w.check(name, mk)
 		return
 	}

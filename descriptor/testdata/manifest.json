@@ -10374,7 +10374,7 @@
         ]
       }
     ],
-    "error_codes_count": 404,
+    "error_codes_count": 405,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10430,6 +10430,7 @@
       "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL",
       "PULSE_ARCHIVE_CORRUPT",
       "PULSE_ARCHIVE_MAGIC_INVALID",
+      "PULSE_ATTRIBUTE_WINDOW_ORDER",
       "PULSE_ATTR_CODE_NOT_IN_DICTIONARY",
       "PULSE_ATTR_SCALE_OUT_OF_RANGE",
       "PULSE_AUC_DELONG_WEIGHTED",
@@ -19533,4 +19534,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 71f8b8fd18017b43430b94b1e11c5dc917e6ac0c09d18ab6c30aac14d688cae7
+// golden-hash: 97f5133ee344a77dec482dfa1e6379b70d10962c597e2ae89b25509be1c53149

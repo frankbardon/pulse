@@ -2511,6 +2511,7 @@ pulse/errors: const PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL pulse/errors.Code =
 pulse/errors: const PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL pulse/errors.Code = "PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL"
 pulse/errors: const PULSE_ARCHIVE_CORRUPT pulse/errors.Code = "PULSE_ARCHIVE_CORRUPT"
 pulse/errors: const PULSE_ARCHIVE_MAGIC_INVALID pulse/errors.Code = "PULSE_ARCHIVE_MAGIC_INVALID"
+pulse/errors: const PULSE_ATTRIBUTE_WINDOW_ORDER pulse/errors.Code = "PULSE_ATTRIBUTE_WINDOW_ORDER"
 pulse/errors: const PULSE_ATTR_CODE_NOT_IN_DICTIONARY pulse/errors.Code = "PULSE_ATTR_CODE_NOT_IN_DICTIONARY"
 pulse/errors: const PULSE_ATTR_SCALE_OUT_OF_RANGE pulse/errors.Code = "PULSE_ATTR_SCALE_OUT_OF_RANGE"
 pulse/errors: const PULSE_AUC_DELONG_WEIGHTED pulse/errors.Code = "PULSE_AUC_DELONG_WEIGHTED"
@@ -5831,4 +5832,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 8976caef02d4c94dea626e29f8f8cf5f8b09ac9f26bf3f1aaa544c2ec0ac6b4f
+// golden-hash: 3fd4251cef968137395237406582282dd2811ccbdf350ab554d64b69faeea638

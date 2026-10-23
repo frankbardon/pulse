@@ -18,10 +18,14 @@ import (
 // fold then reads the same value a materialized column would hold. A
 // regression reading a window label (target, predictors, covariance
 // keys, jackknife_by — vectors.RegressionWindowReads) rides the same
-// copy, so its fit reads the materialized column's value too.
+// copy, so its fit reads the materialized column's value too, and so
+// does a post-window attribute (vectors.PostWindowAttributes: a
+// row-local attribute reading a window label), which then runs over the
+// records (applyPostWindowAttributes).
 
 // windowRecordColumn is one window label copied onto the records, and
-// the consumer that reads it there ("matrix" or "regression").
+// the consumer that reads it there ("matrix", "regression" or
+// "attribute").
 type windowRecordColumn struct {
 	label    string
 	consumer string
@@ -32,8 +36,8 @@ type windowRecordColumn struct {
 // per record (windowRecordColumns), from rows[i] (the windowed record
 // rows, still in record order). A request whose matrices and
 // regressions read no window label copies nothing.
-func (p *Processor) copyWindowMembers(req *types.Request, filtered []*Record, rows []map[string]any) error {
-	cols := p.windowRecordColumns(req)
+func (p *Processor) copyWindowMembers(req *types.Request, post vectors.PostWindow, filtered []*Record, rows []map[string]any) error {
+	cols := p.windowRecordColumns(req, post)
 	if len(cols) == 0 {
 		return nil
 	}
@@ -43,9 +47,14 @@ func (p *Processor) copyWindowMembers(req *types.Request, filtered []*Record, ro
 			v, err := derivedFloat(l, rows[i][l])
 			if err != nil {
 				vt := fmt.Sprintf("%T", rows[i][l])
-				if c.consumer == "regression" {
+				switch c.consumer {
+				case "regression":
 					return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 						"regression input "+l+" holds a non-numeric window value, which a regression cannot read",
+						map[string]any{"field": l, "value_type": vt})
+				case "attribute":
+					return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+						"post-window attribute input "+l+" holds a non-numeric window value, which an attribute cannot read",
 						map[string]any{"field": l, "value_type": vt})
 				}
 				return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
@@ -66,9 +75,10 @@ func (p *Processor) copyWindowMembers(req *types.Request, filtered []*Record, ro
 // those req's matrices fold (vectors.MatrixComputedMembers produced by a
 // window), then those its regressions read (vectors.RegressionWindowReads,
 // when the regressions slot computes) not already listed, in first-read
-// order; nil when none. Both read vectors.ComputedColumns, the one
+// order, then those its post-window attributes read (post.WindowReads);
+// nil when none. The first two read vectors.ComputedColumns, the one
 // record-column model of a window label.
-func (p *Processor) windowRecordColumns(req *types.Request) []windowRecordColumn {
+func (p *Processor) windowRecordColumns(req *types.Request, post vectors.PostWindow) []windowRecordColumn {
 	comp := vectors.ComputedColumns(req, p.schema)
 	var out []windowRecordColumn
 	seen := map[string]bool{}
@@ -84,6 +94,12 @@ func (p *Processor) windowRecordColumns(req *types.Request) []windowRecordColumn
 				seen[l] = true
 				out = append(out, windowRecordColumn{label: l, consumer: "regression"})
 			}
+		}
+	}
+	for _, l := range post.WindowReads {
+		if !seen[l] {
+			seen[l] = true
+			out = append(out, windowRecordColumn{label: l, consumer: "attribute"})
 		}
 	}
 	return out

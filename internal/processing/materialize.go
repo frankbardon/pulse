@@ -79,11 +79,23 @@ func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter 
 	}
 	// A before-filters attribute (ATTR_PREVIOUS_STATE) runs over every
 	// record ahead of the filters; the rest over the survivors.
-	filtered, _, warns, _, err := p.filterThenAttributes(req, all)
+	// A row-local attribute reading a window label runs after the
+	// windows (the post-window plan), exactly as processRecords runs it.
+	post, err := p.postWindowPlan(req)
 	if err != nil {
 		return err
 	}
-	p.deriveWarnings = warns
+	var filtered []*Record
+	var warns []*types.ResponseWarning
+	var slots []attrSlotOut
+	if post.Any() {
+		filtered, _, slots, err = p.filterThenAttributeSlots(req, all, post)
+	} else {
+		filtered, _, warns, _, err = p.filterThenAttributes(req, all)
+	}
+	if err != nil {
+		return err
+	}
 	var rows []map[string]any
 	if len(req.Windows) > 0 {
 		// Only window outputs leave this row set; no u64 render needed.
@@ -94,6 +106,18 @@ func (p *Processor) DeriveRecords(ctx context.Context, req *types.Request, iter 
 			return err
 		}
 	}
+	if post.Any() {
+		// Materialize carries no regression or matrix: the copy is the
+		// post-window attributes' window reads alone.
+		if err := p.copyWindowMembers(req, post, filtered, rows); err != nil {
+			return err
+		}
+		if err := p.applyPostWindowAttributes(req, post, filtered, rows, slots); err != nil {
+			return err
+		}
+		warns, _ = mergeAttrSlots(slots)
+	}
+	p.deriveWarnings = warns
 
 	// filtered is an order-preserving subsequence of all (the filter
 	// pass appends survivors in input order), so one forward walk

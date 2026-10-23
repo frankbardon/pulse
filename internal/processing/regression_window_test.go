@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/processing/window"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -163,12 +164,12 @@ func TestWindowPredictor_NoRegressionReadCopiesNothing(t *testing.T) {
 		Windows:     []*types.Window{{Type: types.WIN_LAG, Field: "x", Label: "lag_x", OrderBy: []types.OrderKey{{Field: "t"}}}},
 		Regressions: []*types.RegressionSpec{{Name: "fit", Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}}},
 	}
-	if got := p.windowRecordColumns(req); len(got) != 0 {
+	if got := p.windowRecordColumns(req, vectors.PostWindow{}); len(got) != 0 {
 		t.Fatalf("window record columns = %v, want none", got)
 	}
 	req.Regressions[0].Predictors = []string{"x", "lag_x"}
 	req.Regressions[0].Covariance = &types.RegressionCovariance{Type: "cluster", Cluster: "lag_x"}
-	got := p.windowRecordColumns(req)
+	got := p.windowRecordColumns(req, vectors.PostWindow{})
 	if len(got) != 1 || got[0].label != "lag_x" || got[0].consumer != "regression" {
 		t.Fatalf("window record columns = %+v, want one regression lag_x", got)
 	}
