@@ -1,0 +1,11 @@
+[
+  {"name": "market", "type": "categorical_u8", "description": "Sales market of the weekly row: east or west; each market is one ordered weekly series"},
+  {"name": "week", "type": "u16", "description": "Week number since the start of the series (1..104 per market); the order of the adstock windows and the holdout cut"},
+  {"name": "tv", "type": "f64", "description": "Weekly television spend in dollars; carries over into later weeks"},
+  {"name": "radio", "type": "f64", "description": "Weekly radio spend in dollars; carries over into later weeks"},
+  {"name": "search", "type": "f64", "description": "Weekly paid search spend in dollars; carries over into later weeks"},
+  {"name": "social", "type": "f64", "description": "Weekly paid social spend in dollars; carries over into later weeks"},
+  {"name": "price", "type": "f64", "description": "Average shelf price in dollars for the week"},
+  {"name": "promo", "type": "f64", "description": "One when a promotion ran that week, else zero"},
+  {"name": "sales", "type": "f64", "description": "Weekly sales revenue in thousands; the response of the media-mix model"}
+]

@@ -34,7 +34,8 @@ const (
 
 func classifyExample(body map[string]json.RawMessage) exampleHost {
 	switch {
-	case body["requests"] != nil:
+	case body["requests"] != nil, body["sweep"] != nil:
+		// A Compose batch may carry only a sweep (compose/08).
 		return hostCompose
 	case body["stages"] != nil:
 		return hostChain

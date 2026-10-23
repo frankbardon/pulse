@@ -51,7 +51,13 @@ func requestObjects(v any, out *[]map[string]any) {
 // probe is what runs the classification over every attribute shape the
 // corpus holds: formulas, regression and scoring attributes, vector
 // attributes, previous-state slots).
+//
+// The one exception is the example that teaches the phase: the
+// one-step MMM decay sweep reads its adstock labels in formula
+// attributes, so it MUST classify post-window (checked, not skipped).
 func TestWindowPredictor_PostWindowPlanInertOverCorpus(t *testing.T) {
+	teaches := map[string]bool{"compose-mmm-decay-sweep": true}
+	var taught int
 	probe := &types.Window{Type: types.WIN_ROW_NUMBER, Label: "post_window_probe", OrderBy: []types.OrderKey{{Field: "post_window_probe_key"}}}
 	var requests, probed int
 	for _, ex := range examples.All() {
@@ -71,6 +77,15 @@ func TestWindowPredictor_PostWindowPlanInertOverCorpus(t *testing.T) {
 				t.Fatalf("%s: a request-shaped object does not decode: %v", ex.Name, err)
 			}
 			requests++
+			if teaches[ex.Name] {
+				if pw := vectors.PostWindowAttributes(&req, nil, nil, nil); len(req.Attributes) > 0 {
+					if !pw.Any() || pw.Refusal(&req) != nil {
+						t.Errorf("%s: the example that teaches the post-window phase classifies %+v", ex.Name, pw)
+					}
+					taught++
+				}
+				continue
+			}
 			inert := func(r *types.Request, how string) {
 				pw := vectors.PostWindowAttributes(r, nil, nil, nil)
 				if pw.Any() || pw.Dep != nil || pw.WindowReads != nil || pw.Refusal(r) != nil {
@@ -85,6 +100,9 @@ func TestWindowPredictor_PostWindowPlanInertOverCorpus(t *testing.T) {
 				inert(&withProbe, "probe window")
 			}
 		}
+	}
+	if taught == 0 {
+		t.Fatal("the post-window teaching example was not found in the corpus")
 	}
 	if requests == 0 || probed == 0 {
 		t.Fatalf("corpus scanned %d requests, %d with attributes; the gate judged nothing", requests, probed)
