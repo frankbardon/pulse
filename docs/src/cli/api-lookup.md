@@ -34,7 +34,7 @@ pulse api lookup --input PATH --key FIELD=VALUE [--key FIELD=VALUE ...]
 | `--input`         | `-i` | string | (required unless `--request`) | Cohort `.pulse` file path; replaces a `--request` file's `cohort` (filename and `data_dir`) |
 | `--key`           | `-k` | string | (required unless `--request`) | `field=value` pair; repeat for a composite key, in the same column order the sidecar index was built with |
 | `--return`        |      | string | (none) | Comma-separated field names to project into each result row; omit for every schema field |
-| `--mode`          |      | string | `assert-unique` | Multiplicity when the key matches more than one row: `assert-unique` (errors `PULSE_LOOKUP_AMBIGUOUS`), `first`, or `all` |
+| `--mode`          |      | string | `assert_unique` | Multiplicity when the key matches more than one row: `assert_unique` (errors `PULSE_LOOKUP_AMBIGUOUS`; the hyphen form `assert-unique` is accepted as an alias), `first`, or `all` |
 | `--request`       | `-r` | string | (none) | Full `LookupRequest` JSON file; flags layer on top of (override) the file |
 | `--json`          |      | bool   | false  | Emit the standard envelope |
 | `--echo-request`  |      | bool   | false  | Include the resolved `LookupRequest` on `envelope.request` |
@@ -61,7 +61,7 @@ a set.
 }
 ```
 
-`rows` carries one entry under the default `assert-unique` mode or
+`rows` carries one entry under the default `assert_unique` mode or
 `first`; 1..N entries, ascending row-id order, under `all`. Cells render
 as [`api sample`](api-sample.md) renders them: `decimal128` a string,
 `date` `YYYY-MM-DD`, `datetime` RFC 3339 UTC (`…Z`).
@@ -87,7 +87,7 @@ status](flags.md#exit-status).
 | `PULSE_INDEX_MISSING` | No sidecar built for the requested key field(s) — run `pulse index build` first |
 | `PULSE_INDEX_STALE` | The cohort really changed — a different size, or a content hash disagreeing with the sidecar's fingerprint. An mtime that moved while the size held is **not** stale: it falls through to the fingerprint (see [`pulse index verify`](index.md#pulse-index-verify)). On a shard archive, also a shard the index does not cover (`details.shards_uncovered`). Rebuild |
 | `PULSE_LOOKUP_NOT_FOUND` | The index is fresh but no record matches the key |
-| `PULSE_LOOKUP_AMBIGUOUS` | Default `assert-unique` mode rejects a key resolving to more than one row |
+| `PULSE_LOOKUP_AMBIGUOUS` | Default `assert_unique` mode rejects a key resolving to more than one row |
 
 ## Performance notes
 

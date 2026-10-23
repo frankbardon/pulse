@@ -41,11 +41,11 @@ Theme documents: see the [roadmap index](README.md).
 - [x] **#216** Extension aggregators declare whether their output is a count, so `return.precision` can write it exact (today every extension aggregator rounds like a measure; built-ins are classified in `countSemanticAggregations`) · [U34](units/U34-extension-validation.md)
 
 #### CLI shell completion
-- [ ] **#208** `pulse completion {bash,zsh,fish,pwsh}` prints an installable script; every command, subcommand and flag of `buildApp()` completes · [U37](units/U37-shell-completion.md)
-- [ ] **#209** Closed-vocabulary flag values complete dynamically from the library (operators, features, example profiles, I/O formats, templates, error codes, enum flags), never a CLI-side list · [U37](units/U37-shell-completion.md)
-- [ ] **#210** Cohort-aware completion: `.pulse` cohorts under `PULSE_DATA_DIR` and header-only field names for field-taking flags · [U37](units/U37-shell-completion.md)
-- [ ] **#211** Completion gates: every leaf and flag reachable, deterministic and quick candidates, quiet failure, nothing but candidates on stdout · [U37](units/U37-shell-completion.md)
-- [ ] **#212** Per-shell install docs, `flags.md` row, and generated scripts shipped in the `make dist` archives · [U37](units/U37-shell-completion.md)
+- [x] **#208** `pulse completion {bash,zsh,fish}` prints an installable script; every command, subcommand and flag of `buildApp()` completes · [U37](units/U37-shell-completion.md)
+- [x] **#209** Closed-vocabulary flag values complete dynamically from the library, never a CLI-side list — the vocabularies that have a consumer flag (I/O formats, example profiles, error codes, enum flags, skills, examples); operator, feature and template completion are out (no consumer flag) · [U37](units/U37-shell-completion.md)
+- [x] **#210** Cohort-aware completion: `.pulse` cohorts under `PULSE_DATA_DIR` and header-only field names for field-taking flags · [U37](units/U37-shell-completion.md)
+- [x] **#211** Completion gates: every leaf and flag reachable, deterministic and quick candidates, quiet failure, nothing but candidates on stdout · [U37](units/U37-shell-completion.md)
+- [x] **#212** Per-shell install docs, `flags.md` row, and generated scripts shipped in the `make dist` archives · [U37](units/U37-shell-completion.md)
 
 #### Predict / runtime parity (pre-existing gaps found in U03 / U05)
 - [x] **#198** Predict refuses every operator × field type the runtime refuses: the "predict looser" half of the `knownTypeDivergence` ledger (`field_type_acceptance_test.go`) is emptied. Done (E2-S2 + E2-S3): every pair predict let through and the runtime refused now refuses on both sides with one code, the decimal-on-aggregator case included (`PULSE_AGG_NOT_MEANINGFUL_FOR_DECIMAL`, an error on both sides); the ledger is deleted · [U35](units/U35-predict-runtime-parity.md)

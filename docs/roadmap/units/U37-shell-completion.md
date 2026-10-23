@@ -4,7 +4,7 @@ slug: shell-completion
 title: "The pulse CLI completes commands, flags and values natively in the terminal"
 track: API & release
 size: M
-status: not-started
+status: done
 depends_on: []
 soft_depends_on: [U06]
 blocks: [U32]
@@ -34,11 +34,11 @@ Numbering note: appended as U37 after U36, not renumbered.
 
 **TODO items delivered by this unit** (tick them in [`TODO.md`](../TODO.md) in this unit's PR):
 
-- [ ] **#208** (1. API surface & release pipeline › CLI shell completion) `pulse completion {bash,zsh,fish,pwsh}` prints an installable script; every command, subcommand and flag of `buildApp()` completes
-- [ ] **#209** (1. › CLI shell completion) Closed-vocabulary flag values complete dynamically from the library, never from a CLI-side list: operator types, feature names, example feature profiles, I/O formats, request-template names, error codes (`pulse errors lookup`), and enum-valued flags
-- [ ] **#210** (1. › CLI shell completion) Cohort-aware completion: `.pulse` cohorts (single-file and shard archive) under `PULSE_DATA_DIR`, and field names from a cohort's header for field-taking flags. Header only: never reads a record
-- [ ] **#211** (1. › CLI shell completion) Gates: every runnable leaf and flag is reachable by completion; candidates are deterministic and quick; completion mode never writes anything but candidates to stdout and never fails noisily (a bad cohort or env just yields no candidates)
-- [ ] **#212** (1. › CLI shell completion) Install docs per shell (`docs/src/cli/completion.md` + SUMMARY), a `flags.md` row, and the release archives (`make dist`) ship the generated scripts
+- [x] **#208** (1. API surface & release pipeline › CLI shell completion) `pulse completion {bash,zsh,fish}` prints an installable script; every command, subcommand and flag of `buildApp()` completes
+- [x] **#209** (1. › CLI shell completion) Closed-vocabulary flag values complete dynamically from the library, never from a CLI-side list: the vocabularies that have a consumer flag: example feature profiles, I/O formats, error codes (`pulse errors lookup`), skills, examples and enum-valued flags (operator, feature and template completion are out: no consumer flag)
+- [x] **#210** (1. › CLI shell completion) Cohort-aware completion: `.pulse` cohorts (single-file and shard archive) under `PULSE_DATA_DIR`, and field names from a cohort's header for field-taking flags. Header only: never reads a record
+- [x] **#211** (1. › CLI shell completion) Gates: every runnable leaf and flag is reachable by completion; candidates are deterministic and quick; completion mode never writes anything but candidates to stdout and never fails noisily (a bad cohort or env just yields no candidates)
+- [x] **#212** (1. › CLI shell completion) Install docs per shell (`docs/src/cli/completion.md` + SUMMARY), a `flags.md` row, and the release archives (`make dist`) ship the generated scripts
 
 ## Scope
 
@@ -91,6 +91,12 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(shell-completion/
 
 ## Human inputs & decisions
 
-- **Open:** whether dynamic candidates respect a feature profile (`PULSE_FEATURE_PROFILE` / `--feature-profile`) so a profiled shell only completes enabled operators, or always show the full built-in set
-- **Open:** whether candidate generation is exposed as a library function (e.g. an embedder-usable `Complete` helper) or kept as internal CLI glue over existing public calls. Library-first argues for the latter unless an embedder use case exists.
-- **Open:** where the field-taking flags find their cohort (the positional cohort arg, `--input`, or `--request`'s `cohort` key)
+- **Decided:** feature profiles are ignored; candidates are always the full built-in vocabularies
+- **Decided:** no public `Complete` API; candidate generation stays CLI glue over existing public library listers
+- **Decided:** field-taking flags read their cohort from `--input`, else the positional cohort, else `--cohort`; `--request` is never read
+- **Decided:** PowerShell is dropped (its script never passes the preceding words); shells are bash, zsh and fish
+- **Decided:** the scripts stay byte-equal to urfave/cli's own output; `completion` is bound Ungated in `commandBindings`
+- **Accepted limit:** `--labels field=table[:mode]` completes the field part only; `--vector-kind NAME:kind` does not complete
+- **Accepted limit:** zsh offers only the data-dir cohorts (no file fallback) when `PULSE_DATA_DIR` holds cohorts; urfave's zsh script falls back to files only on empty output
+- **Accepted limit:** comma-list flags complete the first element only
+- **Accepted limit:** bash needs the `bash-completion` package (the script calls `_get_comp_words_by_ref`)

@@ -23,8 +23,10 @@ complete.
 
 ### bash
 
-Source the script from your shell startup file; it works with or without
-the `bash-completion` package:
+The script needs the [`bash-completion`](https://github.com/scop/bash-completion)
+package (it calls `_get_comp_words_by_ref`; under plain bash it prints
+`_get_comp_words_by_ref: command not found`). Install that first, then
+source the script from your shell startup file:
 
 ```sh
 # ~/.bashrc — always matches the installed binary
@@ -80,7 +82,6 @@ cp completions/pulse.fish ~/.config/fish/completions/pulse.fish
 - **Flags.** A word starting with `-` completes the flags of the command
   typed so far, the root's persistent flags (`--log-level`,
   `--log-format`, `--shard-workers`, `--decode-workers`) included.
-
 - **Flag values.** After a flag that takes a value (`--mode <TAB>`), a
   closed vocabulary completes from the same library list the flag's
   validator reads, so the candidates are always exactly what the flag
@@ -105,8 +106,8 @@ cp completions/pulse.fish ~/.config/fish/completions/pulse.fish
   | `mcp --return` | response presets |
   | `mcp --limit` | `name=` for every resource limit |
 
-  Type the value after a space (`--mode first`): bash splits
-  `--mode=first` at the `=`, so the `=` form does not complete.
+  Type the value after a space (`--mode first`), not `--mode=<TAB>`: the
+  `=` form does not complete.
 - **Positional arguments.** `errors lookup CODE` completes error codes
   (`pulse errors lookup PULSE_MAT<TAB>` lists the matrix codes),
   `skills show NAME` skill names, `examples show NAME` example names,
@@ -118,12 +119,15 @@ cp completions/pulse.fish ~/.config/fish/completions/pulse.fish
   positional (`cohort inspect`, `widen`, `dedup`, `rake`,
   `index build|list|verify|drop`, `shard add|list|compact|verify|remove|extract`)
   complete the `.pulse` cohorts under `PULSE_DATA_DIR` — single files and
-  shard archives, in subdirectories too, never a `.pulse.zst` transfer
-  artifact. Each prints as the data directory joined with the cohort's
+  shard archives, in subdirectories too (managed imports included), never
+  a `.pulse.zst` transfer artifact. Each prints as the data directory joined with the cohort's
   path under it, the path the leaf then opens. With `PULSE_DATA_DIR`
   unset (or holding no cohort) nothing is offered and the shell completes
   file names; in bash a typed prefix none of the candidates matches
-  (`./`, `~/`) falls back to file names too.
+  (`./`, `~/`) falls back to file names too. In zsh, when
+  `PULSE_DATA_DIR` holds cohorts, a cohort slot offers only those cohorts
+  and not local files (the zsh script falls back to file completion only
+  on empty output): unset `PULSE_DATA_DIR` or type the path by hand.
 - **Field names.** A field-taking flag completes the schema fields of the
   cohort the leaf names, read from `--input`, else the leaf's positional
   cohort, else `--cohort`. A `--request` file is never read. The flags:
@@ -132,16 +136,19 @@ cp completions/pulse.fish ~/.config/fish/completions/pulse.fish
   `api lookup --key` / `--return`, `api sample --labels`,
   `widen --field`, `dedup --group`, `rake --by` / `--base-weight`,
   `index build|verify|drop --key`, `recommend --field`. Only the field name completes:
-  not the label table or mode after it, and in a comma list only a first
-  element (the scripts never pass a partly typed word to the binary).
-  Name the cohort first: with none named nothing is offered.
+  not the table or mode after the colon of `--labels field=table[:mode]`,
+  and in a comma list (`api lookup --key` / `--return`, `index --key`,
+  `dedup --group`) only a first element (the scripts never pass a partly
+  typed word to the binary). `--vector-kind NAME:kind` does not complete.
+  Name the cohort first: the cohort must be typed before the field flag;
+  with none named nothing is offered.
 
 Candidates are sorted and the same on every run. They are the full
 built-in vocabularies; a feature profile does not narrow them.
 
-Every other value (host file paths, numbers, free text) is not completed
-by Pulse; the shell falls back to its default completion, normally file
-names. Completion reads only what a candidate list needs (the error-code
+Not completed: request JSON bodies, time zones, charsets, numbers, free
+text and the source-file columns of the `import` family. Host file paths
+fall to the shell's default completion, normally file names. Completion reads only what a candidate list needs (the error-code
 table, the skill and example library, the managed-imports directory, the
 `PULSE_DATA_DIR` directory listing, a cohort's header and schema, an
 archive's central directory and shard headers) — never a record — and
