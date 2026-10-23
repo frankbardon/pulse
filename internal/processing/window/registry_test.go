@@ -59,6 +59,11 @@ func TestWindowLabel(t *testing.T) {
 			if got != tc.want {
 				t.Errorf("windowLabel = %q, want %q", got, tc.want)
 			}
+			// FR-8: the engine names a window by the one derivation
+			// predict and the computed-column model read.
+			if wp := windowparams.Label(tc.w); wp != got {
+				t.Errorf("windowparams.Label = %q, engine windowLabel %q", wp, got)
+			}
 		})
 	}
 }

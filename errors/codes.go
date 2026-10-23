@@ -535,6 +535,17 @@ const (
 	// one rule sentence.
 	PULSE_WINDOW_INVALID Code = "PULSE_WINDOW_INVALID"
 
+	// PULSE_REGRESSION_WINDOW_UNAVAILABLE indicates a regression slot
+	// (target, predictors, covariance cluster / order_by, jackknife_by)
+	// naming a same-request window label where the windows run over the
+	// grouped / aggregated output rows (or beside a crosstab), so no
+	// record carries the window value. A window label is a per-record
+	// column only when windows run over the record rows (no groups, no
+	// aggregations, no crosstab). details carry regression (its type),
+	// field and reason ("grouped_shape"). Predict and the engine raise
+	// it alike, before any record is read.
+	PULSE_REGRESSION_WINDOW_UNAVAILABLE Code = "PULSE_REGRESSION_WINDOW_UNAVAILABLE"
+
 	// PULSE_FIELD_TYPE_UNSUPPORTED indicates an operator slot names a
 	// field whose type the slot does not accept — a value window,
 	// FEAT_POLY, a regression or a standardising attribute over a
@@ -4135,6 +4146,7 @@ var allCodes = []Code{
 	PULSE_FACET_VALUES_TRUNCATED,
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
 	PULSE_WINDOW_INVALID,
+	PULSE_REGRESSION_WINDOW_UNAVAILABLE,
 	PULSE_FIELD_TYPE_UNSUPPORTED,
 	PULSE_FEAT_TARGET_LEAKAGE_RISK,
 	PULSE_DECIMAL_OVERFLOW,

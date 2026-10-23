@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/prevstate"
+	"github.com/frankbardon/pulse/internal/windowparams"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -111,6 +112,58 @@ func ComputedColumns(req *types.Request, schema *encoding.Schema) Computed {
 	return out
 }
 
+// RegressionReads returns the names a regression slot reads off each
+// record: target, predictors, unpenalized, covariance cluster /
+// order_by and jackknife_by, in that order (empties skipped, repeats
+// kept). The slot weight is not one — a weight names a cohort field.
+func RegressionReads(reg *types.RegressionSpec) []string {
+	if reg == nil {
+		return nil
+	}
+	out := make([]string, 0, 2+len(reg.Predictors)+len(reg.Unpenalized))
+	add := func(n string) {
+		if n != "" {
+			out = append(out, n)
+		}
+	}
+	add(reg.Target)
+	for _, p := range reg.Predictors {
+		add(p)
+	}
+	for _, p := range reg.Unpenalized {
+		add(p)
+	}
+	if c := reg.Covariance; c != nil {
+		add(c.Cluster)
+		add(c.OrderBy)
+	}
+	add(reg.JackknifeBy)
+	return out
+}
+
+// RegressionWindowReads returns the window labels req's regressions
+// read (RegressionReads) that are computed record columns
+// (ComputedColumns, slot "window": only when WindowsOverRecords), in
+// first-read order without repeats; nil when none. The engine copies
+// exactly these onto the records before the fit.
+func RegressionWindowReads(req *types.Request, schema *encoding.Schema) []string {
+	if !WindowsOverRecords(req) || len(req.Regressions) == 0 {
+		return nil
+	}
+	comp := ComputedColumns(req, schema)
+	var out []string
+	seen := map[string]bool{}
+	for _, reg := range req.Regressions {
+		for _, n := range RegressionReads(reg) {
+			if comp[n].Slot == "window" && !seen[n] {
+				seen[n] = true
+				out = append(out, n)
+			}
+		}
+	}
+	return out
+}
+
 // ResolveRequest is Resolve over req.Vectors with req's computed columns
 // (ComputedColumns) admitted as literal members — the resolution every
 // request-holding site reads, so predict, the walk, projection and the
@@ -203,18 +256,9 @@ func MatrixComputedMembers(req *types.Request, schema *encoding.Schema) []string
 	return out
 }
 
-// WindowLabel returns a window's output column name: its label, else
-// "<TYPE>_<field>" (the bare type when it reads no field). Mirrors the
-// window registry's naming.
-func WindowLabel(w *types.Window) string {
-	if w.Label != "" {
-		return w.Label
-	}
-	if w.Field == "" {
-		return string(w.Type)
-	}
-	return string(w.Type) + "_" + w.Field
-}
+// WindowLabel returns a window's output column name: windowparams.Label,
+// the one derivation the window engine and predict read too.
+func WindowLabel(w *types.Window) string { return windowparams.Label(w) }
 
 // FeatureOutputLabels returns the output column names a built-in feature
 // emits (nil when its params or source field name none, or the type is

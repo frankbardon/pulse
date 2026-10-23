@@ -1867,8 +1867,9 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		if err := p.applyWindows(ctx, data, req.Windows, keyOrders, rowWords.copyObserver()); err != nil {
 			return nil, err
 		}
-		// A window label a matrix reads as a computed member lands on
-		// its record before the sort (data[i] is filtered[i] here).
+		// A window label a matrix reads as a computed member, or a
+		// regression reads per record, lands on its record before the
+		// sort (data[i] is filtered[i] here).
 		if recordRows {
 			if err := p.copyWindowMembers(req, filtered, data); err != nil {
 				return nil, err

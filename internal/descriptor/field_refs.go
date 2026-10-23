@@ -465,7 +465,21 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 		w.claim(label, map[string]any{"slot": "attribute " + string(attr.Type), "attribute": string(attr.Type)})
 	}
 
-	// 4. Record-level consumers.
+	// 4. Record-level consumers. A regression may also read a window
+	// label of this request (judged by checkRegression): windows run
+	// after the attributes, but over the record rows
+	// (vectors.WindowsOverRecords) the engine copies each label a
+	// regression reads back onto its record before the fit. The windows
+	// themselves are judged at step 5, against what precedes them.
+	for _, win := range req.Windows {
+		if win == nil {
+			continue
+		}
+		if w.winLabels == nil {
+			w.winLabels = map[string]bool{}
+		}
+		w.winLabels[windowLabel(win)] = true
+	}
 	w.checkWeights(req, schema)
 	w.checkZoneFields(req, schema)
 	for _, t := range req.Tests {
@@ -479,13 +493,13 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 			continue
 		}
 		if reg.Target != "" {
-			w.check(reg.Target, func() *errors.CodedError {
+			w.checkRegression(req, reg, reg.Target, func() *errors.CodedError {
 				return refusal("regression references unknown target field: "+reg.Target,
 					map[string]any{"field": reg.Target, "type": string(reg.Type)})
 			})
 		}
 		for _, p := range reg.Predictors {
-			w.check(p, func() *errors.CodedError {
+			w.checkRegression(req, reg, p, func() *errors.CodedError {
 				return refusal("regression references unknown predictor field: "+p,
 					map[string]any{"field": p, "type": string(reg.Type)})
 			})
@@ -495,14 +509,14 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 				if f == "" {
 					continue
 				}
-				w.check(f, func() *errors.CodedError {
+				w.checkRegression(req, reg, f, func() *errors.CodedError {
 					return refusal("regression covariance references unknown field: "+f,
 						map[string]any{"field": f, "type": string(reg.Type)})
 				})
 			}
 		}
 		if f := reg.JackknifeBy; f != "" {
-			w.check(f, func() *errors.CodedError {
+			w.checkRegression(req, reg, f, func() *errors.CodedError {
 				return refusal("regression jackknife_by references unknown field: "+f,
 					map[string]any{"field": f, "type": string(reg.Type)})
 			})
@@ -980,6 +994,10 @@ type fieldRefWalk struct {
 	// the filter step on reads it as a derived column, since the runtime
 	// writes it before any filter runs.
 	preFilter map[string]bool
+	// winLabels holds every window label of the request (windowLabel),
+	// seeded before step 4: the names a regression may read once the
+	// windows run (checkRegression), and a weight may never read.
+	winLabels map[string]bool
 }
 
 // arrayRef refuses a downstream read (a Sort key, a window's field /
@@ -1130,6 +1148,29 @@ func (w *fieldRefWalk) check(name string, mk func() *errors.CodedError) {
 	w.out = append(w.out, mk())
 }
 
+// checkRegression is check for a name a regression slot reads per
+// record (target, predictors, covariance cluster / order_by,
+// jackknife_by), which may also be a window label of the request. Over
+// the record rows (vectors.WindowsOverRecords) the engine copies the
+// label onto each record before the fit, so it is a column; elsewhere
+// the windows run over grouped / aggregated output rows and no record
+// carries it — PULSE_REGRESSION_WINDOW_UNAVAILABLE, judged before the
+// open column set an extension feature leaves (its outputs never carry
+// a window's value either). A column of that name already present wins
+// (the window's own shadow refusal follows at step 5).
+func (w *fieldRefWalk) checkRegression(req *types.Request, reg *types.RegressionSpec, name string, mk func() *errors.CodedError) {
+	if name == "" || !w.winLabels[name] || w.cols[name] {
+		w.check(name, mk)
+		return
+	}
+	if vectors.WindowsOverRecords(req) {
+		return
+	}
+	w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PULSE_REGRESSION_WINDOW_UNAVAILABLE,
+		"regression "+string(reg.Type)+" reads window output "+name+", which only the grouped or aggregated output rows carry, not the records the fit reads",
+		map[string]any{"regression": string(reg.Type), "field": name, "reason": "grouped_shape"}))
+}
+
 // shadow refuses a derived column (attribute label, feature output,
 // window label) whose name is already an available column — a schema
 // field, an earlier derived column or, for a window, an output-row
@@ -1216,6 +1257,13 @@ func (w *fieldRefWalk) checkTest(t *types.Test, postIndex int) {
 func (w *fieldRefWalk) checkWeights(req *types.Request, schema *encoding.Schema) {
 	judge := func(slot string, spec *types.WeightSpec) {
 		if spec == nil || spec.Field == "" || schema.Field(spec.Field) != nil {
+			return
+		}
+		if w.winLabels[spec.Field] {
+			// A window label is no weight: windows run after every
+			// weight is resolved.
+			w.out = append(w.out, refusal(slot+" references window output "+spec.Field+" (a weight must name a cohort field; materialize the window first)",
+				map[string]any{"field": spec.Field, "slot": slot, "window": spec.Field}))
 			return
 		}
 		w.out = append(w.out, refusal(slot+" references unknown field: "+spec.Field+" (a weight must name a cohort field)",

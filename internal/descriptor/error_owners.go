@@ -199,6 +199,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_FACET_VALUES_TRUNCATED:             own(featFacet),
 	errors.PULSE_FIELD_DESCRIPTION_LOW_QUALITY:      shared,
 	errors.PULSE_WINDOW_INVALID:                     ownAllWindows,
+	// Only a regression slot naming a window label raises it.
+	errors.PULSE_REGRESSION_WINDOW_UNAVAILABLE: ownAllRegs,
 	// Every operator the accepted-types table refuses a type for with it.
 	errors.PULSE_FIELD_TYPE_UNSUPPORTED:   fieldaccept.OperatorsRaising(errors.PULSE_FIELD_TYPE_UNSUPPORTED),
 	errors.PULSE_FEAT_TARGET_LEAKAGE_RISK: own("FEAT_TARGET_ENCODE"),

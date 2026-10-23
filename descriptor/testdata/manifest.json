@@ -10374,7 +10374,7 @@
         ]
       }
     ],
-    "error_codes_count": 403,
+    "error_codes_count": 404,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10649,6 +10649,7 @@
       "PULSE_RANGE_TABLE_KIND_MISMATCH",
       "PULSE_RANGE_TABLE_UNKNOWN",
       "PULSE_RECOMMEND_INTENT_UNKNOWN",
+      "PULSE_REGRESSION_WINDOW_UNAVAILABLE",
       "PULSE_REQUEST_PARAM_INVALID",
       "PULSE_REQUEST_UNKNOWN_FIELD",
       "PULSE_RETURN_INVALID",
@@ -19532,4 +19533,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 25b9361c398745b847cfc7079cb14c3d7d929f2641aea5eb48a6a00be976f356
+// golden-hash: 71f8b8fd18017b43430b94b1e11c5dc917e6ac0c09d18ab6c30aac14d688cae7
