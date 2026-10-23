@@ -826,7 +826,7 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		reasons = append(reasons, "two-pass attribute "+string(tp)+" with groupers or features runs via the buffered path")
 	}
 	if len(req.Windows) > 0 {
-		reasons = append(reasons, "windows run over the post-aggregate row set")
+		reasons = append(reasons, "windows run over the whole row set (every filtered record, or the post-aggregate rows when grouped)")
 	}
 
 	for _, agg := range req.Aggregations {
