@@ -87,6 +87,8 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		"capability:compose_fits": {{"capability:compose"}, {"ATTR_FACTOR_SCORE", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "REG_BAYES_LINEAR", "REG_GLM", "REG_OLS", "capability:matrices"}},
 		// a save writes a fitted regression, from any request host
 		"capability:model_save": {requestHosts, {"ATTR_FACTOR_SCORE", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "REG_BAYES_LINEAR", "REG_GLM", "REG_OLS", "capability:matrices"}},
+		// a holdout scores a regression slot's fit, from any request host
+		"capability:regression_holdout": {requestHosts, {"REG_BAYES_LINEAR", "REG_GLM", "REG_OLS"}},
 		// a load feeds a scoring reference, from any request host or a facet
 		"capability:models":            {{"capability:process", "capability:compose", "capability:process_chain", "capability:facet"}, {"ATTR_FACTOR_SCORE", "ATTR_FORMULA", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "ATTR_REG_FITTED", "ATTR_REG_PREDICT", "ATTR_REG_RESIDUAL", "ATTR_VEC_DISTANCE", "FILTER_EXPRESSION", "capability:matrices"}},
 		"ATTR_REG_FITTED":              {requestHosts, {"REG_OLS"}},

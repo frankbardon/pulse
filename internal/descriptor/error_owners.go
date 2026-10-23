@@ -354,8 +354,9 @@ var errorOwners = map[errors.Code][]string{
 	// ATTR_REG_PREDICT's scoring rule (internal/model.CheckScore), an
 	// ATTR_REG_FITTED / RESIDUAL params.fit (CheckFitReference) and
 	// the coef() expression function (internal/model.CheckCoef), which
-	// ATTR_FORMULA and FILTER_EXPRESSION evaluate.
-	errors.PULSE_MODEL_SCORE_INVALID:         own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
+	// ATTR_FORMULA and FILTER_EXPRESSION evaluate; a regression holdout
+	// over an unscorable type (model.HoldoutScorerRefusal, no_scorer).
+	errors.PULSE_MODEL_SCORE_INVALID:         own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", featRegHoldout),
 	errors.PULSE_MODEL_TERM_UNKNOWN:          own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
 	errors.PULSE_MODEL_STAT_UNKNOWN:          own("ATTR_FORMULA", "FILTER_EXPRESSION"),
 	errors.PULSE_MODEL_INTERVALS_UNAVAILABLE: own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
@@ -365,7 +366,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_FORMULA_TOTAL_SITE:          own("FILTER_EXPRESSION", "OVERLAY_FORMULA"),
 	errors.PULSE_FORMULA_TOTAL_NESTED:        own("ATTR_FORMULA"),
 	errors.PULSE_FORMULA_TOTAL_ARITY:         own("ATTR_FORMULA"),
-	errors.PULSE_FORMULA_COMPILE_ERROR:       own("ATTR_FORMULA", "FILTER_EXPRESSION"),
+	errors.PULSE_FORMULA_COMPILE_ERROR:       own("ATTR_FORMULA", "FILTER_EXPRESSION", featRegHoldout),
 	errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC: own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
 	// The model file: a `save` writes it (capability:model_save), a
 	// `models` entry loads it (capability:models) — the parse codes are

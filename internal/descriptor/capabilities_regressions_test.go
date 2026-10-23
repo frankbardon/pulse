@@ -108,6 +108,7 @@ var regressionKeyProbes = map[string]string{
 	"save":             `{"save":"m.pulse-model.json"}`,
 	"weight":           `{"weight":{"field":"w","kind":"frequency"}}`,
 	"multiplicity":     `{"multiplicity":{"method":"holm"}}`,
+	"holdout":          `{"holdout":"a > 1"}`,
 }
 
 // regressionKeysAcceptedUnread is the ledger of top-level keys a

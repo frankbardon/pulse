@@ -1963,11 +1963,10 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	var regressionResults []*types.RegressionResult
 	if p.compute.Regressions && len(req.Regressions) > 0 {
 		workRegressionFits.Add(int64(len(req.Regressions)))
-		fits, fitErrs, err := regression.FitEachBufferedWithContext(ctx, req.Regressions, p.schema, recordsAsRegressionRecords(filtered), p.exts.LookupRegression)
-		if err != nil {
-			return nil, err
-		}
-		if regressionResults, err = regressionSlotResults(req.Regressions, fits, fitErrs); err != nil {
+		// A holdout slot fits its train rows and scores its held-out
+		// rows (regression_holdout.go); every other slot fits the
+		// filtered set as one batch.
+		if regressionResults, err = p.fitRegressions(ctx, req, filtered); err != nil {
 			return nil, err
 		}
 	}

@@ -8,6 +8,8 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprenv"
+	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
@@ -559,6 +561,7 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 			})
 		}
 		w.checkInputs("regression", string(reg.Type), reg.Params, "type")
+		w.checkHoldout(req, reg, models)
 	}
 	for _, grp := range req.Groups {
 		if grp == nil {
@@ -1230,6 +1233,57 @@ func (w *fieldRefWalk) checkRegression(req *types.Request, reg *types.Regression
 	w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PULSE_REGRESSION_WINDOW_UNAVAILABLE,
 		"regression "+string(reg.Type)+" reads window output "+name+", which only the grouped or aggregated output rows carry, not the records the fit reads",
 		map[string]any{"regression": string(reg.Type), "field": name, "reason": "grouped_shape"}))
+}
+
+// checkHoldout judges a regression's holdout predicate (step 4): the
+// fit's type must be scorable (model.HoldoutScorerRefusal — the
+// held-out rows are scored by the fit's scorer); a window or post-window
+// attribute label it reads is the record column checkRegression admits
+// only where the windows run over the record rows, else
+// PULSE_REGRESSION_WINDOW_UNAVAILABLE (details.slot "holdout"); then the
+// total() and coef() rules and the boolean compile of a filter
+// expression (exprenv.SiteHoldout), against the record columns plus
+// every window and post-window label — the engine compiles it on the
+// first fully built record. An unknown name fails that compile
+// (PULSE_FORMULA_COMPILE_ERROR), as in a FILTER_EXPRESSION.
+func (w *fieldRefWalk) checkHoldout(req *types.Request, reg *types.RegressionSpec, models model.Catalog) {
+	src := reg.Holdout
+	if src == "" {
+		return
+	}
+	before := len(w.out)
+	_, builtin := knownRegressionTypes[opRoute(w.inst, reg.Type)]
+	_, _, extension := regressionExtensionFor(w.inst, w.snap, reg.Type)
+	if builtin || extension {
+		if cerr := model.HoldoutScorerRefusal(reg, scorableRegression(w.inst, w.snap)); cerr != nil {
+			w.out = append(w.out, cerr)
+			return
+		}
+	}
+	refs, _, _ := exprident.Free(src)
+	extra := map[string]bool{}
+	for _, name := range refs {
+		if !(w.winLabels[name] || w.postLabels[name]) || w.cols[name] {
+			continue
+		}
+		if !vectors.WindowsOverRecords(req) {
+			w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PULSE_REGRESSION_WINDOW_UNAVAILABLE,
+				"regression "+string(reg.Type)+" holdout reads window output "+name+", which only the grouped or aggregated output rows carry, not the records the fit reads",
+				map[string]any{"regression": string(reg.Type), "field": name, "reason": "grouped_shape", "slot": model.HoldoutKey}))
+			return
+		}
+		extra[name] = true
+	}
+	w.checkTotal(src, string(exprenv.SiteHoldout))
+	w.checkCoef(src, models)
+	if len(w.out) > before {
+		return
+	}
+	w.compile.extra = extra
+	if ce := w.compileRefusal(src, exprenv.SiteHoldout, w.compile.bound.Options()); ce != nil {
+		w.out = append(w.out, ce)
+	}
+	w.compile.extra = nil
 }
 
 // shadow refuses a derived column (attribute label, feature output,

@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/prevstate"
@@ -114,8 +115,9 @@ func ComputedColumns(req *types.Request, schema *encoding.Schema) Computed {
 
 // RegressionReads returns the names a regression slot reads off each
 // record: target, predictors, unpenalized, covariance cluster /
-// order_by and jackknife_by, in that order (empties skipped, repeats
-// kept). The slot weight is not one — a weight names a cohort field.
+// order_by, jackknife_by and the free identifiers of its holdout
+// predicate, in that order (empties skipped, repeats kept). The slot
+// weight is not one — a weight names a cohort field.
 func RegressionReads(reg *types.RegressionSpec) []string {
 	if reg == nil {
 		return nil
@@ -138,11 +140,29 @@ func RegressionReads(reg *types.RegressionSpec) []string {
 		add(c.OrderBy)
 	}
 	add(reg.JackknifeBy)
+	if reg.Holdout != "" {
+		names, _, _ := exprident.Free(reg.Holdout)
+		for _, n := range names {
+			add(n)
+		}
+	}
 	return out
 }
 
+// holdoutReadsWholeEnv reports whether reg's holdout predicate reads
+// the whole record ($env) or does not parse, so its names cannot be
+// listed: every window label is then copied onto the records.
+func holdoutReadsWholeEnv(reg *types.RegressionSpec) bool {
+	if reg == nil || reg.Holdout == "" {
+		return false
+	}
+	_, usesEnv, parsed := exprident.Free(reg.Holdout)
+	return usesEnv || !parsed
+}
+
 // RegressionWindowReads returns the window labels req's regressions
-// read (RegressionReads) that are computed record columns
+// read (RegressionReads; every window label when a holdout predicate
+// reads $env) that are computed record columns
 // (ComputedColumns, slot "window": only when WindowsOverRecords), in
 // first-read order without repeats; nil when none. The engine copies
 // exactly these onto the records before the fit.
@@ -154,7 +174,15 @@ func RegressionWindowReads(req *types.Request, schema *encoding.Schema) []string
 	var out []string
 	seen := map[string]bool{}
 	for _, reg := range req.Regressions {
-		for _, n := range RegressionReads(reg) {
+		reads := RegressionReads(reg)
+		if holdoutReadsWholeEnv(reg) {
+			for _, w := range req.Windows {
+				if w != nil {
+					reads = append(reads, WindowLabel(w))
+				}
+			}
+		}
+		for _, n := range reads {
 			if comp[n].Slot == "window" && !seen[n] {
 				seen[n] = true
 				out = append(out, n)

@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:64bfafee2a0434df9b260e4b510149331825dae09ec1acc1b59174c8d805c144",
+    "feature_set_digest": "fs1:8b3078651bebb03d1e0c5bbc01a8e6196e641dbfb55db2c4fa5f90a9a424809d",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -8069,6 +8069,13 @@
             "slot": true
           },
           {
+            "name": "holdout",
+            "type": "string",
+            "required": false,
+            "description": "Boolean expression over the built record (schema, features, attributes, windows, post-window attributes): true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, rmse, mae, r2} on the response scale; forces the buffered path.",
+            "slot": true
+          },
+          {
             "name": "save",
             "type": "string",
             "required": false,
@@ -8296,6 +8303,13 @@
             "type": "object",
             "required": false,
             "description": "{method, family, alpha, coefficients}: corrects the coefficient p_values; adds p_adjusted / significant_adjusted.",
+            "slot": true
+          },
+          {
+            "name": "holdout",
+            "type": "string",
+            "required": false,
+            "description": "Boolean expression over the built record (schema, features, attributes, windows, post-window attributes): true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, rmse, mae, r2} on the response scale; forces the buffered path.",
             "slot": true
           },
           {
@@ -8532,6 +8546,13 @@
             "type": "object",
             "required": false,
             "description": "{method, family, alpha, coefficients}: corrects the coefficient p_values; adds p_adjusted / significant_adjusted.",
+            "slot": true
+          },
+          {
+            "name": "holdout",
+            "type": "string",
+            "required": false,
+            "description": "Boolean expression over the built record (schema, features, attributes, windows, post-window attributes): true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, rmse, mae, r2} on the response scale; forces the buffered path.",
             "slot": true
           },
           {
@@ -19425,6 +19446,7 @@
           "regressions[*].correlation",
           "regressions[*].covariance",
           "regressions[*].advisories",
+          "regressions[*].holdout",
           "regressions[*].statistics",
           "regressions[*].outputs",
           "overlays"
@@ -19467,6 +19489,7 @@
           "regressions[*].p_values",
           "regressions[*].advisories",
           "regressions[*].outputs",
+          "regressions[*].holdout",
           "overlays[*].name",
           "overlays[*].kind",
           "overlays[*].ref",
@@ -19534,4 +19557,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 97f5133ee344a77dec482dfa1e6379b70d10962c597e2ae89b25509be1c53149
+// golden-hash: 7d5d43141b5752e1ef1d59e429ab220fa251febf4d43281a10e492f199ea0bd0

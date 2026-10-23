@@ -267,6 +267,22 @@ type RegressionSpec struct {
 	// Gated by capability:multiplicity.
 	Multiplicity *RegressionMultiplicity `json:"multiplicity,omitempty"`
 
+	// Holdout is an expr-lang boolean predicate evaluated on each fully
+	// built record — schema fields, feature outputs, attribute labels,
+	// window labels and post-window attribute labels (window labels only
+	// where the windows run over the record rows). A row it calls true is
+	// held out: excluded from the fit and scored by the fitted model's
+	// scorer afterwards (RegressionResult.Holdout); a row it calls false
+	// is fitted; a row whose predicate is null joins neither and is
+	// counted in Holdout.NNull. Holdout forces the buffered path. It must
+	// compile as a boolean over known names (PULSE_FORMULA_COMPILE_ERROR,
+	// refused at predict and run alike); a type without a scorer is
+	// PULSE_MODEL_SCORE_INVALID reason no_scorer; no scorable holdout row
+	// fails the slot alone (PROCESSING_REGRESSION_INSUFFICIENT_DATA,
+	// reason holdout_empty). Gated by capability:regression_holdout.
+	// Empty is byte-identical.
+	Holdout string `json:"holdout,omitempty"`
+
 	// Params is the model's own configuration object, read by an
 	// extension regression (pulse.RegressionRegistration.Params declares
 	// its keys; the factory sees it on the spec). A key the registration
@@ -571,12 +587,35 @@ type RegressionResult struct {
 	// dropped. Absent when none applies.
 	Advisories []Advisory `json:"advisories,omitempty"`
 
+	// Holdout carries the out-of-sample figures of a spec that set
+	// RegressionSpec.Holdout; absent otherwise (byte-identical).
+	Holdout *RegressionHoldout `json:"holdout,omitempty"`
+
 	// Error is the data-dependent refusal that failed this fit alone
 	// (PROCESSING_REGRESSION_SEPARATION, _NO_CONVERGE, _RANK_DEFICIENT,
 	// _INSUFFICIENT_DATA) while the rest of the response survived; see
 	// SlotError. A result carrying one has Name / Type and the error
 	// only: every coefficient and figure is absent on the wire.
 	Error *SlotError `json:"error,omitempty"`
+}
+
+// RegressionHoldout is RegressionResult.Holdout: the fitted model scored
+// on the rows RegressionSpec.Holdout held out of the fit, on the
+// response scale (a REG_GLM's inverse link). N counts the scored rows —
+// held-out rows whose target and every predictor are present and finite
+// (and, weighted, whose weight is valid and positive) — as a raw count,
+// weighted or not; NNull counts the rows whose predicate was null
+// (neither fitted nor held out). RMSE = √(Σw·e²/Σw), MAE = Σw·|e|/Σw
+// and R2 = 1 − Σw·e²/Σw·(y − ȳ)² about the held-out rows' own (weighted)
+// mean, e = y − ŷ, w the slot's weight (1 unweighted). An undefined
+// figure (R2 when the held-out targets do not vary) is NaN — null on
+// the wire, key kept.
+type RegressionHoldout struct {
+	N     int     `json:"n"`
+	NNull int     `json:"n_null"`
+	RMSE  float64 `json:"rmse"`
+	MAE   float64 `json:"mae"`
+	R2    float64 `json:"r2"`
 }
 
 // Streamable reports whether a regression type can run via the
@@ -631,12 +670,13 @@ func (s RegressionSpec) Streamable() bool {
 // which RegressionType.Streamable cannot know. The modifier downgrade is
 // the same: any non-empty Resample or Selection, or a robust Covariance
 // (a second pass for every fitted row's residual), forces the buffered
-// path.
+// path, and so does a Holdout (the held-out rows are scored after the
+// fit, a second pass).
 func (s RegressionSpec) StreamableAs(typeStreamable bool) bool {
 	if !typeStreamable {
 		return false
 	}
-	if s.Resample != "" || s.Selection != "" {
+	if s.Resample != "" || s.Selection != "" || s.Holdout != "" {
 		return false
 	}
 	return !s.Covariance.Robust()

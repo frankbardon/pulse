@@ -39,11 +39,12 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regr
 | `prior_rate` | float | — | Inverse-gamma β₀ on residual variance. |
 | `credible_level` | float | `0.95` | Credible-interval mass. |
 | `conf_level` | float | `0.95` | `CILower` / `CIUpper` mass. |
-| `vcov` | bool | `false` | Adds the posterior covariance + `Correlation` ([`regression-inference`](regression-inference.md)). |
+| `vcov` | bool | `false` | Adds the posterior covariance + `Correlation`. |
 | `covariance` | object | — | Müller sandwich posterior ([`regression-inference`](regression-inference.md)). |
 | `weight` | slot weight | — | `null` opts out; frequency only. |
+| `holdout` | expr | — | Held-out rows → `Holdout`. |
 | `save` | string | — | Writes a model file. |
-| `name` | string | — | Result / saved-model name. |
+| `name` | string | — | Result / model name. |
 
 ## Inputs
 

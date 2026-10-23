@@ -132,7 +132,7 @@ way).
 | `Penalty` | reads `penalty` / `alpha` / `l1_ratio` itself | `PROCESSING_CONFIG` `{slot: "penalty"}` |
 | `CovarianceTypes` | the robust types it computes itself (`cluster`, `hac`, …) | `PROCESSING_CONFIG` `{slot: "covariance"}` |
 | `SupportsSelection` | a refit over a predictor subset is meaningful; every fit reports `Fit.Deviance` | `PROCESSING_CONFIG` `{slot: "selection"}`; a fit without a deviance is `_OUTPUT_MISMATCH` `missing_deviance` |
-| `Scorer` | scores rows from the fit, enabling `ATTR_REG_PREDICT` and `save` | `PULSE_MODEL_SCORE_INVALID` `no_scorer`; `save` refused |
+| `Scorer` | scores rows from the fit, enabling `ATTR_REG_PREDICT`, `save` and `holdout` | `PULSE_MODEL_SCORE_INVALID` `no_scorer` (`ATTR_REG_PREDICT`, `holdout`); `save` refused |
 | `FieldInputs` | fields the model reads beyond target, predictors and weight | a buffered request decodes every field |
 
 **Declare or refuse.** Every shared `RegressionSpec` slot is either honoured
@@ -215,8 +215,8 @@ missing / misshapen `Vcov` or a finite `PValue` without `PValues` is
   enum include it, and a feature profile that omits it makes the name act
   never-registered.
 - A custom-only profile meets the REG_* dependency edges of
-  `ATTR_REG_PREDICT`, `capability:model_save` and `capability:compose_fits`
-  (a `Scorer` for the first two).
+  `ATTR_REG_PREDICT`, `capability:model_save`, `capability:regression_holdout`
+  and `capability:compose_fits` (a `Scorer` for all but the last).
 - Declare `PValues: true` when the model reports p-values. Then only a
   coefficient carrying a `PValue` joins a default multiplicity family (an
   explicit `multiplicity.coefficients` list names the model's own

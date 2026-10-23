@@ -1116,7 +1116,21 @@ func regressionsSchema(c fieldClassification, inst *descx.InstanceSnapshot) map[
 		},
 	}
 	addModelSave(out, inst, "Write the finished fit as a model file at this path (relative to the data root, ending .pulse-model.json), atomically; overwriting warns PULSE_MODEL_OVERWRITTEN.")
+	addRegressionHoldout(out, inst)
 	return out
+}
+
+// addRegressionHoldout adds the `holdout` property to the regressions
+// array schema's items when inst enables capability:regression_holdout.
+func addRegressionHoldout(arr map[string]any, inst *descx.InstanceSnapshot) {
+	if !inst.Enabled(descx.FeatureRegressionHoldout) {
+		return
+	}
+	props := arr["items"].(map[string]any)["properties"].(map[string]any)
+	props["holdout"] = map[string]any{
+		"type":        "string",
+		"description": "Boolean expression over the built record (schema fields, features, attributes, windows, post-window attributes): true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, rmse, mae, r2} to the result; forces the buffered path.",
+	}
 }
 
 // addModelSave adds the `save` property to an array schema's items when

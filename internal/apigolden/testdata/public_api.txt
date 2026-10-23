@@ -4967,6 +4967,7 @@ pulse/types: type FitResult field RegressionResult.DF float64 "json:\"df,omitemp
 pulse/types: type FitResult field RegressionResult.Deviance float64 "json:\"deviance,omitempty\""
 pulse/types: type FitResult field RegressionResult.Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type FitResult field RegressionResult.Family string "json:\"family,omitempty\""
+pulse/types: type FitResult field RegressionResult.Holdout *pulse/types.RegressionHoldout "json:\"holdout,omitempty\""
 pulse/types: type FitResult field RegressionResult.JackknifeGroups int "json:\"jackknife_groups,omitempty\""
 pulse/types: type FitResult field RegressionResult.L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type FitResult field RegressionResult.Link string "json:\"link,omitempty\""
@@ -5480,6 +5481,12 @@ pulse/types: type RegressionCovarianceResult field Clusters int "json:\"clusters
 pulse/types: type RegressionCovarianceResult field Lags *int "json:\"lags,omitempty\""
 pulse/types: type RegressionCovarianceResult field OrderBy string "json:\"order_by,omitempty\""
 pulse/types: type RegressionCovarianceResult field Type pulse/types.CovarianceType "json:\"type\""
+pulse/types: type RegressionHoldout struct
+pulse/types: type RegressionHoldout field MAE float64 "json:\"mae\""
+pulse/types: type RegressionHoldout field N int "json:\"n\""
+pulse/types: type RegressionHoldout field NNull int "json:\"n_null\""
+pulse/types: type RegressionHoldout field R2 float64 "json:\"r2\""
+pulse/types: type RegressionHoldout field RMSE float64 "json:\"rmse\""
 pulse/types: type RegressionMultiplicity struct
 pulse/types: type RegressionMultiplicity field Alpha float64 "json:\"alpha,omitempty\""
 pulse/types: type RegressionMultiplicity field Coefficients []string "json:\"coefficients,omitempty\""
@@ -5506,6 +5513,7 @@ pulse/types: type RegressionResult field DF float64 "json:\"df,omitempty\""
 pulse/types: type RegressionResult field Deviance float64 "json:\"deviance,omitempty\""
 pulse/types: type RegressionResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
 pulse/types: type RegressionResult field Family string "json:\"family,omitempty\""
+pulse/types: type RegressionResult field Holdout *pulse/types.RegressionHoldout "json:\"holdout,omitempty\""
 pulse/types: type RegressionResult field JackknifeGroups int "json:\"jackknife_groups,omitempty\""
 pulse/types: type RegressionResult field L1Ratio float64 "json:\"l1_ratio,omitempty\""
 pulse/types: type RegressionResult field Link string "json:\"link,omitempty\""
@@ -5542,6 +5550,7 @@ pulse/types: type RegressionSpec field Covariance *pulse/types.RegressionCovaria
 pulse/types: type RegressionSpec field CredibleLevel float64 "json:\"credible_level,omitempty\""
 pulse/types: type RegressionSpec field Criterion string "json:\"criterion,omitempty\""
 pulse/types: type RegressionSpec field Family string "json:\"family,omitempty\""
+pulse/types: type RegressionSpec field Holdout string "json:\"holdout,omitempty\""
 pulse/types: type RegressionSpec field JackknifeBy string "json:\"jackknife_by,omitempty\""
 pulse/types: type RegressionSpec field JackknifeGroups int "json:\"jackknife_groups,omitempty\""
 pulse/types: type RegressionSpec field L1Ratio float64 "json:\"l1_ratio,omitempty\""
@@ -5832,4 +5841,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 3fd4251cef968137395237406582282dd2811ccbdf350ab554d64b69faeea638
+// golden-hash: 922b6fc412b0218015e93ee325517027386a9464ef0475d952b48e1cf0fac0cf

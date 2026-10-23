@@ -105,6 +105,7 @@ var (
 	featComposeFits   = FeatureName(FeatureKindCapability, "compose_fits")
 	featComposeBanner = FeatureName(FeatureKindCapability, "compose_banner")
 	featModelSave     = FeatureModelSave
+	featRegHoldout    = FeatureRegressionHoldout
 	featModels        = FeatureModels
 	featForEach       = FeatureForEach
 	featProcessChain  = FeatureName(FeatureKindCapability, "process_chain")
@@ -159,6 +160,11 @@ const FeatureForEach = "capability:for_each"
 // fit as a model file. Exported for the MCP bound schema.
 const FeatureModelSave = "capability:model_save"
 
+// FeatureRegressionHoldout is capability:regression_holdout — the
+// `holdout` predicate on a regression slot (RegressionSpec.Holdout) and
+// the out-of-sample figures it produces (RegressionResult.Holdout).
+const FeatureRegressionHoldout = "capability:regression_holdout"
+
 // FeatureModels is capability:models — the `models` key on a Request
 // and a FacetRequest, which loads saved model files by name into the
 // bound-model namespace. Exported for the MCP bound schema.
@@ -179,41 +185,42 @@ const FeatureWeighting = "capability:weighting"
 // features (capability:synth gates every distribution).
 var builtinFeatures = withDependencies([]Feature{
 	// Capabilities.
-	capability("process"),        // Process (+ outputs/sort/labels/time_zone request slots)
-	capability("stream"),         // ProcessStream, ProcessStreamResult
-	capability("watch"),          // Watch*
-	capability("compose"),        // Compose, ComposeParallel, ApplySeriesOverlays
-	capability("compose_sweep"),  // ComposedRequest.Sweep + ComposedResponse.Ranking
-	capability("compose_fits"),   // ComposedRequest.Fits + ComposedResponse.Fits
-	capability("compose_banner"), // ComposedRequest.Banner + ComposedResponse.Banner
-	capability("model_save"),     // RegressionSpec.Save + FitSpec.Save (model + population files)
-	capability("models"),         // Request.Models + FacetRequest.Models + Request.Populations (load saved files)
-	capability("for_each"),       // the `for_each` item fan-out on Window / Feature / Attribute
-	capability("process_chain"),  // ProcessChain
-	capability("facet"),          // Facet, FacetSchema
-	capability("sample"),         // Sample, SampleWithRequest
-	capability("joins"),          // Request.Joins slot
-	capability("crosstab"),       // Request.Crosstab slot
-	capability("crosstab_cells"), // CrosstabSpec.Cells (several measures as stub rows)
-	capability("lookup"),         // Lookup
-	capability("index"),          // BuildIndex, VerifyIndex, ListIndexes, DropIndex
-	capability("shard"),          // every shard-archive method
-	capability("import"),         // managed import pool
-	capability("export"),         // Export, Convert, ImportTransfer, ExportTransfer
-	capability("filter_to_file"), // FilterToFile*
-	capability("dedup"),          // Dedup
-	capability("materialize"),    // pulse_materialize, pulse api materialize (the facade stays ungated)
-	capability("rake"),           // pulse_rake, pulse rake: rim / cell weights written to a new cohort (the facade stays ungated)
-	capability("widen"),          // WidenSetField
-	capability("templates"),      // request templates
-	capability("synth"),          // Synth, SynthStream, data-profile capture; gates every synth distribution
-	capability("labels"),         // label tables + resolve
-	capability("range_tables"),   // range tables
-	capability("weighting"),      // Request.Weight + every per-slot weight + Options.DefaultWeight
-	capability("multiplicity"),   // every `multiplicity` slot + Options.DefaultMultiplicity
-	capability("matrices"),       // Request.Vectors + Request.Matrices
-	capability("recommend"),      // pulse_recommend, pulse recommend (the facade stays ungated)
-	capability("explain"),        // pulse_explain, pulse explain (the facade stays ungated)
+	capability("process"),            // Process (+ outputs/sort/labels/time_zone request slots)
+	capability("stream"),             // ProcessStream, ProcessStreamResult
+	capability("watch"),              // Watch*
+	capability("compose"),            // Compose, ComposeParallel, ApplySeriesOverlays
+	capability("compose_sweep"),      // ComposedRequest.Sweep + ComposedResponse.Ranking
+	capability("compose_fits"),       // ComposedRequest.Fits + ComposedResponse.Fits
+	capability("compose_banner"),     // ComposedRequest.Banner + ComposedResponse.Banner
+	capability("model_save"),         // RegressionSpec.Save + FitSpec.Save (model + population files)
+	capability("regression_holdout"), // RegressionSpec.Holdout + RegressionResult.Holdout
+	capability("models"),             // Request.Models + FacetRequest.Models + Request.Populations (load saved files)
+	capability("for_each"),           // the `for_each` item fan-out on Window / Feature / Attribute
+	capability("process_chain"),      // ProcessChain
+	capability("facet"),              // Facet, FacetSchema
+	capability("sample"),             // Sample, SampleWithRequest
+	capability("joins"),              // Request.Joins slot
+	capability("crosstab"),           // Request.Crosstab slot
+	capability("crosstab_cells"),     // CrosstabSpec.Cells (several measures as stub rows)
+	capability("lookup"),             // Lookup
+	capability("index"),              // BuildIndex, VerifyIndex, ListIndexes, DropIndex
+	capability("shard"),              // every shard-archive method
+	capability("import"),             // managed import pool
+	capability("export"),             // Export, Convert, ImportTransfer, ExportTransfer
+	capability("filter_to_file"),     // FilterToFile*
+	capability("dedup"),              // Dedup
+	capability("materialize"),        // pulse_materialize, pulse api materialize (the facade stays ungated)
+	capability("rake"),               // pulse_rake, pulse rake: rim / cell weights written to a new cohort (the facade stays ungated)
+	capability("widen"),              // WidenSetField
+	capability("templates"),          // request templates
+	capability("synth"),              // Synth, SynthStream, data-profile capture; gates every synth distribution
+	capability("labels"),             // label tables + resolve
+	capability("range_tables"),       // range tables
+	capability("weighting"),          // Request.Weight + every per-slot weight + Options.DefaultWeight
+	capability("multiplicity"),       // every `multiplicity` slot + Options.DefaultMultiplicity
+	capability("matrices"),           // Request.Vectors + Request.Matrices
+	capability("recommend"),          // pulse_recommend, pulse recommend (the facade stays ungated)
+	capability("explain"),            // pulse_explain, pulse explain (the facade stays ungated)
 
 	// I/O formats — io.Formats(). One name gates import AND export.
 	ioFormat("csv"),
@@ -469,12 +476,13 @@ var processOnly = map[string]bool{
 // requestSlotCapabilities are request slots modelled as capabilities;
 // like operators they need a request-executing host.
 var requestSlotCapabilities = map[string]bool{
-	featJoins:     true,
-	featCrosstab:  true,
-	featWeighting: true,
-	featMatrices:  true,
-	featForEach:   true,
-	featModelSave: true,
+	featJoins:      true,
+	featCrosstab:   true,
+	featWeighting:  true,
+	featMatrices:   true,
+	featForEach:    true,
+	featModelSave:  true,
+	featRegHoldout: true,
 }
 
 // modelsHosts is the any-of host group of capability:models: every
@@ -546,6 +554,10 @@ var slotTokens = map[string]slotTokenSet{
 	featComposeBanner: {},
 	// `save` is everyday English; no guidance sentence names the slot.
 	featModelSave: {},
+	// `holdout` is everyday modelling English (a train / holdout split
+	// with a filter or a range grouper); no guidance sentence names the
+	// slot.
+	featRegHoldout: {},
 	// `models` is everyday English; no guidance sentence names the slot.
 	featModels: {},
 	// `for_each` names the item key only; no guidance sentence names it.
@@ -715,6 +727,8 @@ var overlayHostKinds = map[string][]string{
 //   - capability:model_save writes a fitted regression or a vector
 //     fit, so it needs any-of the REG_* operators, the fitted vector
 //     attributes and capability:matrices.
+//   - capability:regression_holdout holds rows out of a regression
+//     slot's fit and scores them: it needs any-of the REG_* operators.
 //   - capability:models loads a model only a scoring reference reads
 //     (ATTR_REG_PREDICT, an ATTR_REG_FITTED / RESIDUAL params.fit, or
 //     coef() in ATTR_FORMULA / FILTER_EXPRESSION)
@@ -764,6 +778,9 @@ var hardEdges = map[string][]string{
 	// there is nothing to save.
 	featModelSave: {string(types.ATTR_FACTOR_SCORE), string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
 		string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS), featMatrices},
+	// A holdout scores the fit of a regression slot: without a
+	// regression there is nothing to hold rows out of.
+	featRegHoldout: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS)},
 	// A loaded model or population is read only by a reference: a
 	// scoring reference (ATTR_REG_PREDICT, coef()) or a params.fit (a
 	// fitted vector attribute, ATTR_REG_FITTED / RESIDUAL, a MAT_* slot).
@@ -784,6 +801,7 @@ var hardEdges = map[string][]string{
 var extensionRegressionEdges = map[string]bool{
 	"ATTR_REG_PREDICT": true,
 	featModelSave:      true,
+	featRegHoldout:     true,
 	featComposeFits:    false,
 }
 

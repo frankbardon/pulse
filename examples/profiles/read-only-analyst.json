@@ -9,6 +9,7 @@
     "capability:compose_sweep",
     "capability:compose_fits",
     "capability:compose_banner",
+    "capability:regression_holdout",
     "capability:models",
     "capability:for_each",
     "capability:process_chain",
