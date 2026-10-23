@@ -10,7 +10,7 @@ requires: [capability:materialize, capability:process]
 
 # Derived cohorts
 
-A derived column — a window, a feature output, an attribute — exists only inside the request that computes it. Regressions, groupers, filters, joins and tests read COHORT fields, so they cannot name one (`SERVICE_VALIDATION`: unknown field). Materialising writes the derived columns as ordinary fields of a NEW cohort; the next request reads them like any other field.
+A derived column — a window, a feature output, an attribute — exists only inside the request that computes it. Features, attributes and (windows-over-records shape) regressions read same-request labels directly; groupers, filters, joins and tests read COHORT fields, so they cannot name one (`SERVICE_VALIDATION`: unknown field). Materialising writes the derived columns as ordinary fields of a NEW cohort; the next request reads them like any other field.
 
 Surfaces: MCP `pulse_materialize` (`tool-materialize`), CLI `pulse api materialize -r REQ.json -o OUT.pulse [--overwrite] [--strict] [--json]`, library `Pulse.Materialize(ctx, req, out, MaterializeOptions{Overwrite, Strict})`.
 

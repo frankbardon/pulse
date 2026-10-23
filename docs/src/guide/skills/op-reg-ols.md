@@ -51,7 +51,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regr
 | `covariance` | object | — | Robust SEs ([`regression-inference`](regression-inference.md)). |
 | `weight` | slot weight | — | `null` opts out; WLS. |
 | `multiplicity` | object | — | Coefficient p-values join a family; adds `PAdjusted`. |
-| `holdout` | expr | — | Held-out rows → `Holdout`. |
+| `holdout` | expr | — | Bool expr; held-out rows → `Holdout`. |
 | `save` | string | — | Writes a model file. |
 | `name` | string | — | Result / model name. |
 
@@ -78,11 +78,11 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regr
 
 ## Gotchas
 
-- `l1` / `elasticnet`: the null SE / p / CI is an advisory; uncertainty → `resample`. The penalty reads raw units ([`regression-spec`](regression-spec.md)).
+- `l1` / `elasticnet`: null SE / p / CI is an advisory; use `resample`. The penalty reads raw units ([`regression-spec`](regression-spec.md)).
 - `unpenalized` (`l2` only) / `bounds` misuse → `PROCESSING_CONFIG`; a binding bound nulls SE / p / CI + `PULSE_ADVISORY_CONSTRAINT_ACTIVE` ([`regression-model-options`](regression-model-options.md)).
 - `vcov` under `l1` / `elasticnet`, or a robust `covariance` (buffered) beside `penalty` / `resample` / `selection` / `bounds` → `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`.
 - Weighted: `resample: bootstrap` / `selection` → `PULSE_WEIGHT_UNSUPPORTED`.
-- Collinear → `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`: drop one or add `l2`.
+- Collinear → `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM`: drop one or `l2`.
 - Per-row fitted / residual / leverage: `ATTR_REG_*`.
 
 ## See

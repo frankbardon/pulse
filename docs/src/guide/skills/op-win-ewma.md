@@ -59,9 +59,10 @@ One `float64` per row written to `Label` (default `WIN_EWMA_<field>`). Recurrenc
 - Exactly one of `alpha` / `decay` — both, neither, `alpha` outside `(0, 1]` or `decay` outside `[0, 1)` → `PULSE_WINDOW_INVALID` (predict and runtime alike).
 - `alpha = 1 − decay` from the decay's EXACT decimal: `decay: 0.7` smooths bit-identically to `alpha: 0.3` (not float `1 − 0.7`). `decay: 0` is `alpha: 1` (identity).
 - Rows preceding the first non-null emit `null` (no seed).
-- Null values emit `null` but state survives through to the next non-null row.
+- Null values emit `null`; state survives to the next non-null row.
 - Result rows are NOT reordered — use `Request.Sort`.
 - For media adstock use `WIN_ADSTOCK`: carry-over starts from zero, with geometric or Weibull lag kernels.
+- Regressions and post-window formulas may read the label ([`regression-model-options`](regression-model-options.md)).
 
 ## See
 
