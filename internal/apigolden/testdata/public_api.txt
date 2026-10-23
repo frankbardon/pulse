@@ -2730,6 +2730,7 @@ pulse/errors: const PULSE_RANGE_SOURCE_AMBIGUOUS pulse/errors.Code = "PULSE_RANG
 pulse/errors: const PULSE_RANGE_TABLE_KIND_MISMATCH pulse/errors.Code = "PULSE_RANGE_TABLE_KIND_MISMATCH"
 pulse/errors: const PULSE_RANGE_TABLE_UNKNOWN pulse/errors.Code = "PULSE_RANGE_TABLE_UNKNOWN"
 pulse/errors: const PULSE_RECOMMEND_INTENT_UNKNOWN pulse/errors.Code = "PULSE_RECOMMEND_INTENT_UNKNOWN"
+pulse/errors: const PULSE_REGRESSION_WINDOW_UNAVAILABLE pulse/errors.Code = "PULSE_REGRESSION_WINDOW_UNAVAILABLE"
 pulse/errors: const PULSE_REQUEST_PARAM_INVALID pulse/errors.Code = "PULSE_REQUEST_PARAM_INVALID"
 pulse/errors: const PULSE_REQUEST_UNKNOWN_FIELD pulse/errors.Code = "PULSE_REQUEST_UNKNOWN_FIELD"
 pulse/errors: const PULSE_RETURN_INVALID pulse/errors.Code = "PULSE_RETURN_INVALID"
@@ -5830,4 +5831,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 6fddd9573db76acda4c3001c137261d5c27e729816d30c18d6f2db53ed8d7528
+// golden-hash: 8976caef02d4c94dea626e29f8f8cf5f8b09ac9f26bf3f1aaa544c2ec0ac6b4f
