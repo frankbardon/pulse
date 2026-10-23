@@ -102,3 +102,10 @@ As built, the effort ran as three epics: E1 commands and flags (bash, zsh, fish 
 - **Accepted limit:** zsh offers only the data-dir cohorts (no file fallback) when `PULSE_DATA_DIR` holds cohorts; urfave's zsh script falls back to files only on empty output
 - **Accepted limit:** comma-list flags complete the first element only
 - **Accepted limit:** bash needs the `bash-completion` package (the script calls `_get_comp_words_by_ref`)
+
+## Handed on
+
+| TODO | Item | Owner |
+|---|---|---|
+| #507 | Payload-schema enums for `LookupRequest.multiplicity` and `LabelBinding.mode` | [U33](U33-v1-release.md) |
+| #508 | Escape `:` in completion candidates, or document it | [U33](U33-v1-release.md) |
