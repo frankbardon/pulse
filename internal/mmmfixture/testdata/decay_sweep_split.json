@@ -1,0 +1,183 @@
+{
+  "sweep": {
+    "axes": [
+      {
+        "name": "decay",
+        "values": [
+          0.0,
+          0.1,
+          0.2,
+          0.3,
+          0.4,
+          0.5,
+          0.6,
+          0.7,
+          0.8,
+          0.9
+        ]
+      }
+    ],
+    "label": "decay_{{decay}}",
+    "rank": {
+      "by": "regressions.mmm.holdout.rmse",
+      "order": "asc"
+    },
+    "request": {
+      "cohort": {
+        "filename": "mmm_weekly.pulse"
+      },
+      "features": [
+        {
+          "type": "FEAT_TRAIN_TEST_SPLIT",
+          "label": "split",
+          "params": {
+            "ratios": [
+              0.7,
+              0.15,
+              0.15
+            ],
+            "seed": 7
+          }
+        }
+      ],
+      "windows": [
+        {
+          "type": "WIN_ADSTOCK",
+          "field": "tv",
+          "label": "tv_ad",
+          "partition_by": [
+            "market"
+          ],
+          "order_by": [
+            {
+              "field": "week"
+            }
+          ],
+          "params": {
+            "kernel": "geometric",
+            "decay": {
+              "$var": "decay"
+            },
+            "max_lag": 13,
+            "normalize": false
+          }
+        },
+        {
+          "type": "WIN_ADSTOCK",
+          "field": "radio",
+          "label": "radio_ad",
+          "partition_by": [
+            "market"
+          ],
+          "order_by": [
+            {
+              "field": "week"
+            }
+          ],
+          "params": {
+            "kernel": "geometric",
+            "decay": {
+              "$var": "decay"
+            },
+            "max_lag": 13,
+            "normalize": false
+          }
+        },
+        {
+          "type": "WIN_ADSTOCK",
+          "field": "search",
+          "label": "search_ad",
+          "partition_by": [
+            "market"
+          ],
+          "order_by": [
+            {
+              "field": "week"
+            }
+          ],
+          "params": {
+            "kernel": "geometric",
+            "decay": {
+              "$var": "decay"
+            },
+            "max_lag": 13,
+            "normalize": false
+          }
+        },
+        {
+          "type": "WIN_ADSTOCK",
+          "field": "social",
+          "label": "social_ad",
+          "partition_by": [
+            "market"
+          ],
+          "order_by": [
+            {
+              "field": "week"
+            }
+          ],
+          "params": {
+            "kernel": "geometric",
+            "decay": {
+              "$var": "decay"
+            },
+            "max_lag": 13,
+            "normalize": false
+          }
+        }
+      ],
+      "attributes": [
+        {
+          "type": "ATTR_FORMULA",
+          "label": "tv_sat",
+          "expression": "hill(tv_ad, 800, 1.5)"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "radio_sat",
+          "expression": "hill(radio_ad, 240, 1.5)"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "search_sat",
+          "expression": "hill(search_ad, 100, 1.5)"
+        },
+        {
+          "type": "ATTR_FORMULA",
+          "label": "social_sat",
+          "expression": "hill(social_ad, 160, 1.5)"
+        }
+      ],
+      "regressions": [
+        {
+          "type": "REG_OLS",
+          "name": "mmm",
+          "target": "sales",
+          "predictors": [
+            "tv_sat",
+            "radio_sat",
+            "search_sat",
+            "social_sat",
+            "price",
+            "promo"
+          ],
+          "bounds": {
+            "nonnegative": [
+              "tv_sat",
+              "radio_sat",
+              "search_sat",
+              "social_sat"
+            ]
+          },
+          "holdout": "split == 2"
+        }
+      ],
+      "return": {
+        "preset": "standard",
+        "exclude": [
+          "data"
+        ]
+      }
+    }
+  }
+}
