@@ -20,7 +20,7 @@ branch: shell-completion
 
 ## Summary
 
-The CLI has no shell completion today: `cmd/pulse` / `internal/cli` never enable urfave/cli v3's completion support (`github.com/urfave/cli/v3` v3.10.1). This unit adds a `pulse completion <shell>` leaf that prints an installable script for bash, zsh, fish and PowerShell. Every command, subcommand and flag in the `buildApp()` tree completes statically. Flags whose values come from a closed vocabulary complete dynamically, and so do cohort paths and field names. Every dynamic candidate list is **sourced from the library**: the manifest, `ListTemplates`, the feature table, the I/O format registry, the error-code list and header-only `Inspect`. None is hard-coded in the CLI, which keeps the "CLI never contains business logic" rule and keeps feature-profile scoping honest.
+The CLI has no shell completion today: `cmd/pulse` / `internal/cli` never enable urfave/cli v3's completion support (`github.com/urfave/cli/v3` v3.14.0). This unit adds a `pulse completion <shell>` leaf that prints an installable script for bash, zsh and fish (PowerShell was dropped; see Open decisions). Every command, subcommand and flag in the `buildApp()` tree completes statically. Flags whose values come from a closed vocabulary complete dynamically, and so do cohort paths and field names. Every dynamic candidate list is **sourced from the library**: exported library listers (one per closed flag vocabulary), the I/O format registry, the error-code list, instance lists (skills, examples, imports, shards) and header-only `Inspect`. None is hard-coded in the CLI, which keeps the "CLI never contains business logic" rule; feature profiles do not narrow candidates.
 
 Numbering note: appended as U37 after U36, not renumbered.
 
@@ -43,11 +43,11 @@ Numbering note: appended as U37 after U36, not renumbered.
 ## Scope
 
 **In scope**
-- The `completion` leaf with its `commandBindings` entry. It is a core surface, so feature profiles never hide it.
+- The `completion` leaf with its `commandBindings` entry, bound `Ungated`, so feature profiles never hide it.
 - Static completion for the whole command tree
-- Dynamic value completion through library calls, with an embedder-free default instance (honouring `PULSE_FEATURE_PROFILE`?, see Open decisions)
+- Dynamic value completion through library calls, with an embedder-free default instance on a read-only filesystem (feature profiles ignored)
 - Cohort path and field-name completion through header-only reads
-- Script generation for bash, zsh, fish and pwsh; scripts bundled in `make dist`
+- Script generation for bash, zsh and fish; scripts bundled in `make dist`
 - Tests, docs and the Update Demand companions
 
 **Out of scope**
@@ -60,9 +60,11 @@ Numbering note: appended as U37 after U36, not renumbered.
 
 Each epic is a vertical slice. Commit with `feat|fix|test|docs(shell-completion/E<n>-S<m>): …`; close each epic with `milestone(shell-completion/E<n>): vertical slice complete — <epic title>`.
 
+As built, the effort ran as three epics: E1 commands and flags (bash, zsh, fish + dist scripts), E2 flag values from one exported library list per vocabulary, E3 cohorts and header-only field names plus this close-out. The original two-epic plan follows.
+
 ### E1 — Commands and flags complete in every supported shell
 - S1: enable completion across `buildApp()`; `pulse completion <shell>` leaf + `commandBindings` + `flags.md` row; a gate walking the tree to assert every leaf and flag completes
-- S2: script generation for bash, zsh, fish and pwsh; `make dist` bundles them; install docs
+- S2: script generation for bash, zsh and fish; `make dist` bundles them; install docs
 
 ### E2 — Values complete from the library
 - S1: closed-vocabulary flag values from library calls (manifest operators, features, I/O formats, templates, error codes, enum flags)
@@ -70,12 +72,12 @@ Each epic is a vertical slice. Commit with `feat|fix|test|docs(shell-completion/
 
 ## Acceptance criteria
 
-- [ ] `source <(pulse completion zsh)` (and the bash / fish / pwsh equivalents) completes `pulse api pro<TAB>` → `process`, `process-chain`
-- [ ] `pulse errors lookup PULSE_MAT<TAB>` lists the matrix codes from the library's error list
-- [ ] Field-taking flags complete the field names of the named cohort without decoding a record
-- [ ] No candidate list is a literal in `cmd/pulse` / `internal/cli` (grep or AST gate)
-- [ ] `format_version` unchanged; no wire change
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
+- [x] `source <(pulse completion zsh)` (and the bash / fish equivalents) completes `pulse api pro<TAB>` → `process`, `process-chain`
+- [x] `pulse errors lookup PULSE_MAT<TAB>` lists the matrix codes from the library's error list
+- [x] Field-taking flags complete the field names of the named cohort without decoding a record
+- [x] No candidate list is a literal in `cmd/pulse` / `internal/cli` (grep or AST gate)
+- [x] `format_version` unchanged; no wire change
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 
 ## Gates & tests
 
