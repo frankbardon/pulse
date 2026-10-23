@@ -2,6 +2,9 @@ package cli
 
 import (
 	"context"
+	stderrors "errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -30,8 +33,9 @@ import (
 //
 // SINGLE SOURCE (TestCompletion_SingleSource): no candidate is ever
 // written down here. Every table entry is either a class marker
-// (freeValue, fileValue, cohortValue, fieldValue) or a constructor call
-// that references the library lister the flag's validator also reads.
+// (freeValue, fileValue) or a constructor call that references the
+// library lister the flag's validator also reads (cohortValue and
+// fieldValue are constructor-built too).
 // The CLI-owned logging vocabulary (logLevelNames / logFormatNames) is
 // the one allowlisted exception.
 
@@ -43,12 +47,12 @@ const (
 	classFree valueClass = iota
 	// classFile is a host file path: the shell's file completion.
 	classFile
-	// classCohort is a .pulse cohort path. It completes as a file
-	// today; the cohort-aware completer (E3) attaches here.
+	// classCohort is a .pulse cohort path: the cohorts under
+	// PULSE_DATA_DIR, else the shell's file completion.
 	classCohort
 	// classField is a cohort field name (or a grammar that opens with
-	// one). Nothing completes today; the field completer (E3) attaches
-	// here and reads the cohort the leaf names.
+	// one): the schema fields of the cohort the leaf names, read from
+	// its header.
 	classField
 	// classVocab is a closed vocabulary a library lister enumerates.
 	classVocab
@@ -63,16 +67,21 @@ var valueClassNames = map[valueClass]string{
 }
 
 // completionEnv is what a provider may consult: the request ctx, the
-// leaf's positional arguments typed so far and a lazily built,
-// read-only Pulse instance.
+// leaf being completed, its positional arguments typed so far and two
+// lazily built, read-only Pulse instances — pulse over the unrooted OS
+// filesystem the leaves themselves open paths on, dataPulse rooted at
+// PULSE_DATA_DIR (with that directory, as set, for re-forming the OS
+// paths a leaf opens).
 type completionEnv struct {
-	ctx   context.Context
-	args  []string
-	pulse func() (*pulse.Pulse, error)
+	ctx       context.Context
+	cmd       *cli.Command
+	args      []string
+	pulse     func() (*pulse.Pulse, error)
+	dataPulse func() (*pulse.Pulse, string, error)
 }
 
-// valueSource classifies one flag value or positional; list is set only
-// for classVocab.
+// valueSource classifies one flag value or positional; list is set for
+// classVocab, classCohort and classField.
 type valueSource struct {
 	class valueClass
 	list  func(env *completionEnv) ([]string, error)
@@ -80,11 +89,25 @@ type valueSource struct {
 
 // Class markers for values Pulse does not enumerate.
 var (
-	freeValue   = valueSource{class: classFree}
-	fileValue   = valueSource{class: classFile}
-	cohortValue = valueSource{class: classCohort}
-	fieldValue  = valueSource{class: classField}
+	freeValue = valueSource{class: classFree}
+	fileValue = valueSource{class: classFile}
 )
+
+// cohortValue lists the .pulse cohorts (single files and shard
+// archives; never a .pulse.zst transfer artifact) under PULSE_DATA_DIR.
+var cohortValue = fromDataDir(func(path string) bool { return pio.FormatFromPath(path) == pio.FormatPulse })
+
+// fieldValue lists the schema fields of the cohort the leaf names, read
+// by Inspect from the header and schema alone — never a record.
+var fieldValue = fromCohort(
+	func(ctx context.Context, p *pulse.Pulse, cohort string) ([]*descriptor.InspectField, error) {
+		r, err := p.Inspect(ctx, cohort)
+		if err != nil {
+			return nil, err
+		}
+		return r.Fields, nil
+	},
+	func(f *descriptor.InspectField) string { return f.Name })
 
 // vocab lists a library enumeration of string-kinded values.
 func vocab[T ~string](fn func() []T) valueSource {
@@ -145,6 +168,85 @@ func fromManifest(fn func(*descriptor.Manifest) []string) valueSource {
 		}
 		return slices.Clone(fn(p.Manifest(env.ctx))), nil
 	}}
+}
+
+// fromDataDir lists the files under PULSE_DATA_DIR that keep accepts,
+// walking the read-only data-dir Pulse instance's own filesystem. Each
+// is printed as the OS path a leaf opens (the leaves resolve paths on
+// the unrooted OS filesystem, not under PULSE_DATA_DIR): the data
+// directory as set, joined with the file's path under it.
+func fromDataDir(keep func(path string) bool) valueSource {
+	return valueSource{class: classCohort, list: func(env *completionEnv) ([]string, error) {
+		p, dir, err := env.dataPulse()
+		if err != nil {
+			return nil, err
+		}
+		var out []string
+		err = afero.Walk(p.Fs(), "", func(path string, info os.FileInfo, err error) error {
+			if err != nil || info == nil || info.IsDir() || !keep(path) {
+				return nil
+			}
+			out = append(out, filepath.Join(dir, path))
+			return nil
+		})
+		return out, err
+	}}
+}
+
+// errNoCohort: the leaf names no cohort yet, so no field completes.
+var errNoCohort = stderrors.New("no cohort named")
+
+// fromCohort lists names read from the cohort the leaf names
+// (completionCohort) through the read-only Pulse instance.
+func fromCohort[T any](fn func(context.Context, *pulse.Pulse, string) ([]T, error), name func(T) string) valueSource {
+	return valueSource{class: classField, list: func(env *completionEnv) ([]string, error) {
+		cohort := completionCohort(env.cmd, env.args)
+		if cohort == "" {
+			return nil, errNoCohort
+		}
+		p, err := env.pulse()
+		if err != nil {
+			return nil, err
+		}
+		items, err := fn(env.ctx, p, cohort)
+		if err != nil {
+			return nil, err
+		}
+		return names(items, name), nil
+	}}
+}
+
+// completionCohort returns the cohort a field-taking flag reads: the
+// leaf's --input, else its positional cohort, else --cohort (recommend).
+// A request file (--request) is never parsed.
+func completionCohort(cmd *cli.Command, args []string) string {
+	if cmd == nil {
+		return ""
+	}
+	if v := flagString(cmd, "input"); v != "" {
+		return v
+	}
+	for i, src := range positionalValues[cmd.FullName()] {
+		if src.class != classCohort {
+			continue
+		}
+		if i < len(args) && !strings.HasPrefix(args[i], "-") {
+			return args[i]
+		}
+		break
+	}
+	return flagString(cmd, "cohort")
+}
+
+// flagString is cmd.String(name) for a string flag cmd (or an ancestor)
+// declares, else "".
+func flagString(cmd *cli.Command, name string) string {
+	for _, f := range commandFlags(cmd) {
+		if _, ok := f.(*cli.StringFlag); ok && f.Names()[0] == name {
+			return cmd.String(name)
+		}
+	}
+	return ""
 }
 
 func names[T any](items []T, name func(T) string) []string {
@@ -300,8 +402,20 @@ var positionalValues = map[string][]valueSource{
 			return p.Imports(ctx)
 		},
 		func(e pulse.ImportEntry) string { return e.Handle })},
-	"pulse shard remove":  {cohortValue, archiveShards},
-	"pulse shard extract": {cohortValue, archiveShards},
+	"pulse cohort inspect": {cohortValue},
+	"pulse widen":          {cohortValue},
+	"pulse dedup":          {cohortValue},
+	"pulse rake":           {cohortValue},
+	"pulse index build":    {cohortValue},
+	"pulse index list":     {cohortValue},
+	"pulse index verify":   {cohortValue},
+	"pulse index drop":     {cohortValue},
+	"pulse shard add":      {cohortValue, cohortValue},
+	"pulse shard list":     {cohortValue},
+	"pulse shard compact":  {cohortValue},
+	"pulse shard verify":   {cohortValue},
+	"pulse shard remove":   {cohortValue, archiveShards},
+	"pulse shard extract":  {cohortValue, archiveShards},
 }
 
 // archiveShards lists the shard basenames of the archive named by the
@@ -342,12 +456,12 @@ func completeValues(ctx context.Context, cmd *cli.Command) {
 		// flags it prefixes (--source-tz → --source-tz-field) as well
 		// lets the shell pick whichever matches.
 		src := flagSource(cmd, f.Names()[0])
-		writeCandidates(cmd, append(listValues(ctx, src, nil), longerFlags(cmd, f.Names()[0])...))
+		writeCandidates(cmd, append(listValues(ctx, cmd, src, args[:n-1]), longerFlags(cmd, f.Names()[0])...))
 		return
 	}
 	if srcs, ok := positionalValues[cmd.FullName()]; ok {
 		if i := len(args); i < len(srcs) {
-			writeCandidates(cmd, listValues(ctx, srcs[i], args))
+			writeCandidates(cmd, listValues(ctx, cmd, srcs[i], args))
 		}
 		return
 	}
@@ -355,7 +469,7 @@ func completeValues(ctx context.Context, cmd *cli.Command) {
 }
 
 // listValues runs src's provider; any failure yields no candidate.
-func listValues(ctx context.Context, src valueSource, args []string) (out []string) {
+func listValues(ctx context.Context, cmd *cli.Command, src valueSource, args []string) (out []string) {
 	if src.list == nil {
 		return nil
 	}
@@ -364,13 +478,18 @@ func listValues(ctx context.Context, src valueSource, args []string) (out []stri
 			out = nil
 		}
 	}()
-	env := &completionEnv{ctx: ctx, args: args, pulse: completionPulse()}
+	env := &completionEnv{ctx: ctx, cmd: cmd, args: args, pulse: completionPulse(), dataPulse: completionDataPulse()}
 	vs, err := src.list(env)
 	if err != nil {
 		return nil
 	}
 	return vs
 }
+
+// completionBaseFs is the filesystem completion reads under its
+// read-only layer: the OS filesystem (a test swaps in an instrumented
+// one).
+var completionBaseFs = func() afero.Fs { return afero.NewOsFs() }
 
 // completionPulse returns a once-only builder of the Pulse instance a
 // provider reads: the OS filesystem behind a read-only layer (completion
@@ -384,9 +503,36 @@ func completionPulse() func() (*pulse.Pulse, error) {
 	return func() (*pulse.Pulse, error) {
 		if !done {
 			done = true
-			p, err = pulse.New(pulse.Options{FS: afero.NewReadOnlyFs(afero.NewOsFs())})
+			p, err = pulse.New(pulse.Options{FS: afero.NewReadOnlyFs(completionBaseFs())})
 		}
 		return p, err
+	}
+}
+
+// errNoDataDir: PULSE_DATA_DIR is unset, so no cohort is listed.
+var errNoDataDir = stderrors.New("PULSE_DATA_DIR is not set")
+
+// completionDataPulse returns a once-only builder of the Pulse instance
+// cohort listing walks: rooted at PULSE_DATA_DIR, read-only, no logger.
+// It also returns the directory as set.
+func completionDataPulse() func() (*pulse.Pulse, string, error) {
+	var (
+		p    *pulse.Pulse
+		dir  string
+		err  error
+		done bool
+	)
+	return func() (*pulse.Pulse, string, error) {
+		if !done {
+			done = true
+			dir = os.Getenv("PULSE_DATA_DIR")
+			if dir == "" {
+				err = errNoDataDir
+			} else {
+				p, err = pulse.New(pulse.Options{FS: afero.NewReadOnlyFs(afero.NewBasePathFs(completionBaseFs(), dir))})
+			}
+		}
+		return p, dir, err
 	}
 }
 

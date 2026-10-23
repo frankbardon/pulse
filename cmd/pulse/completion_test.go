@@ -477,6 +477,7 @@ func TestCompletion_Positionals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("PULSE_DATA_DIR", "") // no data dir: cohort slots fall back to files
 	for _, leaf := range []string{"remove", "extract"} {
 		out, stderr, st := completeWords(t, "pulse", "shard", leaf, archive)
 		if st != 0 || stderr != "" {
@@ -554,4 +555,167 @@ func limitAssignments() []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// cohortDataDir builds a PULSE_DATA_DIR holding a single-file cohort, a
+// shard archive (in a subdirectory), a .pulse.zst transfer artifact and
+// a non-cohort file, sets the env var, and returns the two cohort paths
+// as completion prints them.
+func cohortDataDir(t *testing.T) (single, archive string) {
+	t.Helper()
+	stage := t.TempDir()
+	shard := createTestPulseFile(t, stage)
+	data := t.TempDir()
+	single = filepath.Join(data, "people.pulse")
+	archive = filepath.Join(data, "sub", "people-archive.pulse")
+	if err := os.MkdirAll(filepath.Dir(archive), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(shard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(single, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var so, se bytes.Buffer
+	if st := run(context.Background(), []string{"pulse", "shard", "create", archive, "--include", shard}, &so, &se); st != 0 {
+		t.Fatalf("shard create: status %d stderr %s", st, se.String())
+	}
+	var tr bytes.Buffer
+	if st := run(context.Background(), []string{"pulse", "export", "transfer", "-i", single}, &tr, &se); st != 0 {
+		t.Fatalf("export transfer: status %d stderr %s", st, se.String())
+	}
+	if _, err := os.Stat(single + ".zst"); err != nil {
+		t.Fatalf("transfer artifact: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(data, "notes.csv"), []byte("a\n1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PULSE_DATA_DIR", data)
+	return single, archive
+}
+
+// TestCompletion_Cohorts: a cohort flag or positional lists the .pulse
+// cohorts under PULSE_DATA_DIR — single files and shard archives, never
+// a .pulse.zst — as paths the leaf opens.
+func TestCompletion_Cohorts(t *testing.T) {
+	single, archive := cohortDataDir(t)
+	want := sortedCopy([]string{single, archive})
+	for _, words := range [][]string{
+		{"pulse", "api", "facet", "--input"},
+		{"pulse", "api", "lookup", "-i"},
+		{"pulse", "recommend", "--cohort"},
+		{"pulse", "synth", "from-profile", "--source"},
+		{"pulse", "cohort", "inspect"},
+		{"pulse", "widen"},
+		{"pulse", "dedup"},
+		{"pulse", "rake"},
+		{"pulse", "index", "build"},
+		{"pulse", "index", "drop"},
+		{"pulse", "shard", "list"},
+		{"pulse", "shard", "remove"},
+	} {
+		t.Run(strings.Join(words[1:], " "), func(t *testing.T) {
+			out, stderr, st := completeWords(t, words...)
+			if st != 0 || stderr != "" {
+				t.Fatalf("status %d stderr %q", st, stderr)
+			}
+			if got := candidates(out); !slices.Equal(got, want) {
+				t.Errorf("candidates %v, want %v", got, want)
+			}
+		})
+	}
+	// import reads source files: its --input stays the shell's.
+	if out, _, _ := completeWords(t, "pulse", "import", "csv", "--input"); out != "" {
+		t.Errorf("import csv --input<TAB> = %q, want nothing (file fallback)", out)
+	}
+}
+
+// TestCompletion_Fields: a field-taking flag lists the schema fields of
+// the cohort the leaf names, single file or shard archive.
+func TestCompletion_Fields(t *testing.T) {
+	single, archive := cohortDataDir(t)
+	want := []string{"age", "name"}
+	for _, words := range [][]string{
+		{"pulse", "api", "facet", "--input", single, "--field"},
+		{"pulse", "api", "facet", "-i", archive, "--additive"},
+		{"pulse", "api", "lookup", "--input", archive, "--key"},
+		{"pulse", "api", "lookup", "--input", single, "--return"},
+		{"pulse", "api", "sample", "--input", single, "--labels"},
+		{"pulse", "export", "csv", "--input", archive, "--include"},
+		{"pulse", "export", "csv", "--input", single, "--labels"},
+		{"pulse", "cohort", "filter", "--input", single, "--include-field"},
+		{"pulse", "widen", archive, "--field"},
+		{"pulse", "dedup", single, "--group"},
+		{"pulse", "rake", single, "--by"},
+		{"pulse", "rake", "--input", archive, "--base-weight"},
+		{"pulse", "index", "build", archive, "--key"},
+		{"pulse", "index", "verify", "--input", single, "--key"},
+		{"pulse", "recommend", "--cohort", archive, "--field"},
+	} {
+		t.Run(strings.Join(words[1:], " "), func(t *testing.T) {
+			out, stderr, st := completeWords(t, words...)
+			if st != 0 || stderr != "" {
+				t.Fatalf("status %d stderr %q", st, stderr)
+			}
+			if got := candidates(out); !slices.Equal(got, want) {
+				t.Errorf("candidates %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+// TestCompletion_CohortFailuresAreQuiet: a missing or corrupt cohort, an
+// unreadable or missing data dir and an unset PULSE_DATA_DIR complete
+// nothing, write nothing to stderr and exit 0 — the shell falls back to
+// its file completion.
+func TestCompletion_CohortFailuresAreQuiet(t *testing.T) {
+	dir := t.TempDir()
+	corrupt := filepath.Join(dir, "corrupt.pulse")
+	if err := os.WriteFile(corrupt, []byte("PULSE\x00\x00\x00\x09garbage"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	locked := filepath.Join(dir, "locked")
+	if err := os.MkdirAll(locked, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(locked, "hidden.pulse"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(locked, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+	for _, tc := range []struct {
+		name    string
+		dataDir string
+		words   []string
+	}{
+		{"missing cohort", dir, []string{"pulse", "api", "facet", "--input", filepath.Join(dir, "nope.pulse"), "--field"}},
+		{"corrupt cohort", dir, []string{"pulse", "widen", corrupt, "--field"}},
+		{"not a cohort", dir, []string{"pulse", "recommend", "--cohort", dir, "--field"}},
+		{"unset data dir", "", []string{"pulse", "api", "facet", "--input"}},
+		{"missing data dir", filepath.Join(dir, "nope"), []string{"pulse", "widen"}},
+		{"unreadable data dir", locked, []string{"pulse", "cohort", "inspect"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("PULSE_DATA_DIR", tc.dataDir)
+			if tc.dataDir == "" {
+				// An unset data dir never falls back to the working
+				// directory, even one holding a cohort.
+				t.Chdir(dir)
+			}
+			out, stderr, st := completeWords(t, tc.words...)
+			if st != 0 || stderr != "" {
+				t.Errorf("status %d stderr %q, want 0 and nothing", st, stderr)
+			}
+			if tc.name == "unreadable data dir" && os.Geteuid() == 0 {
+				return // root reads a 000 directory anyway
+			}
+			if out != "" {
+				t.Errorf("output %q, want nothing", out)
+			}
+		})
+	}
 }

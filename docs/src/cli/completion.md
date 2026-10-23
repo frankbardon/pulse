@@ -113,18 +113,42 @@ cp completions/pulse.fish ~/.config/fish/completions/pulse.fish
   `import drop HANDLE` managed-import handles, and the second argument of
   `shard remove` / `shard extract` the shard basenames of the archive
   named first.
+- **Cohort paths.** A cohort flag (`--input` on a cohort-reading leaf,
+  `recommend --cohort`, `synth from-profile --source`) and a cohort
+  positional (`cohort inspect`, `widen`, `dedup`, `rake`,
+  `index build|list|verify|drop`, `shard add|list|compact|verify|remove|extract`)
+  complete the `.pulse` cohorts under `PULSE_DATA_DIR` — single files and
+  shard archives, in subdirectories too, never a `.pulse.zst` transfer
+  artifact. Each prints as the data directory joined with the cohort's
+  path under it, the path the leaf then opens. With `PULSE_DATA_DIR`
+  unset (or holding no cohort) nothing is offered and the shell completes
+  file names; in bash a typed prefix none of the candidates matches
+  (`./`, `~/`) falls back to file names too.
+- **Field names.** A field-taking flag completes the schema fields of the
+  cohort the leaf names, read from `--input`, else the leaf's positional
+  cohort, else `--cohort`. A `--request` file is never read. The flags:
+  `export --include` and the field of `--labels field=table`,
+  `cohort filter --include-field`, `api facet --field` / `--additive`,
+  `api lookup --key` / `--return`, `api sample --labels`,
+  `widen --field`, `dedup --group`, `rake --by` / `--base-weight`,
+  `index build|verify|drop --key`, `recommend --field`. Only the field name completes:
+  not the label table or mode after it, and in a comma list only a first
+  element (the scripts never pass a partly typed word to the binary).
+  Name the cohort first: with none named nothing is offered.
 
 Candidates are sorted and the same on every run. They are the full
 built-in vocabularies; a feature profile does not narrow them.
 
-Every other value (cohort and file paths, field names, numbers, free
-text) is not completed by Pulse today; the shell falls back to its
-default completion, normally file names. Completion reads only what a
-candidate list needs (the error-code table, the skill and example
-library, the managed-imports directory, an archive's central directory)
-and never writes a file. An unset or missing `PULSE_DATA_DIR`, a missing
-archive or any other failure leaves the candidates empty, never an
-error.
+Every other value (host file paths, numbers, free text) is not completed
+by Pulse; the shell falls back to its default completion, normally file
+names. Completion reads only what a candidate list needs (the error-code
+table, the skill and example library, the managed-imports directory, the
+`PULSE_DATA_DIR` directory listing, a cohort's header and schema, an
+archive's central directory and shard headers) — never a record — and
+never writes a file: it runs on a read-only filesystem. An unset or
+missing `PULSE_DATA_DIR`, an unreadable directory, a missing or corrupt
+cohort or archive, or any other failure leaves the candidates empty,
+never an error.
 
 ## Quiet by design
 

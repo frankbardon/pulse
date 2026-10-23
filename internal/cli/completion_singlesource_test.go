@@ -15,11 +15,18 @@ import (
 var completionConstructors = map[string]bool{
 	"vocab": true, "vocabBy": true, "assignments": true,
 	"cliOwned": true, "fromPulse": true, "fromManifest": true,
+	"fromDataDir": true, "fromCohort": true,
 }
 
 // completionMarkers are the class markers a table entry may name.
 var completionMarkers = map[string]bool{
-	"freeValue": true, "fileValue": true, "cohortValue": true, "fieldValue": true,
+	"freeValue": true, "fileValue": true,
+}
+
+// completionSourceVars are package vars a table may name: each is
+// initialised by a constructor call, checked where it is declared.
+var completionSourceVars = map[string]bool{
+	"archiveShards": true, "cohortValue": true, "fieldValue": true,
 }
 
 // completionTables are the package vars holding the flag / positional
@@ -220,7 +227,7 @@ func (g *singleSourceGate) checkTableValue(e ast.Expr) {
 
 // isSourceVar reports whether name is a package var initialised by a
 // constructor call (checked where it is declared).
-func (g *singleSourceGate) isSourceVar(name string) bool { return name == "archiveShards" }
+func (g *singleSourceGate) isSourceVar(name string) bool { return completionSourceVars[name] }
 
 // checkConstructor: the lister argument is a library function (or, for
 // cliOwned, the allowlisted CLI vocabulary); no argument spells a
@@ -243,7 +250,7 @@ func (g *singleSourceGate) checkConstructor(call *ast.CallExpr) {
 		if !g.isLibrarySelector(first) {
 			g.errorf(call, "%s(%s): the lister must be a library function (pulse, types, descriptor, errors, io)", name, exprString(first))
 		}
-	case "fromPulse", "fromManifest":
+	case "fromPulse", "fromManifest", "fromDataDir", "fromCohort":
 		if !g.referencesLibrary(first) {
 			g.errorf(call, "%s: the lister must read the library", name)
 		}
