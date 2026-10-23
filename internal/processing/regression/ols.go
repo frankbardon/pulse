@@ -145,13 +145,13 @@ func (e *olsEngine) UpdateRow(rec Record) error {
 // complete). The robust second pass re-reads the fitted rows through
 // it, so both passes see exactly the same rows.
 func (e *olsEngine) fitRow(rec Record) (x []float64, y, w float64, ok bool) {
-	y, ok = rec.NumericValue(e.spec.Target)
+	y, ok = InputValue(rec, e.spec.Target)
 	if !ok {
 		return nil, 0, 0, false
 	}
 	x = make([]float64, len(e.spec.Predictors))
 	for i, name := range e.spec.Predictors {
-		v, ok := rec.NumericValue(name)
+		v, ok := InputValue(rec, name)
 		if !ok {
 			return nil, 0, 0, false
 		}

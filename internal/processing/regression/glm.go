@@ -465,13 +465,13 @@ func buildWeightedDesign(records []Record, predictors []string, target string, r
 	prior = make([]float64, 0, len(records))
 	xBuf := make([]float64, p)
 	for _, rec := range records {
-		y, ok := rec.NumericValue(target)
+		y, ok := InputValue(rec, target)
 		if !ok {
 			continue
 		}
 		anyNull := false
 		for j, name := range predictors {
-			v, ok := rec.NumericValue(name)
+			v, ok := InputValue(rec, name)
 			if !ok {
 				anyNull = true
 				break
@@ -536,13 +536,13 @@ func buildDesign(records []Record, predictors []string, target string) (xRows []
 	yVec = make([]float64, 0, len(records))
 	xBuf := make([]float64, p)
 	for _, rec := range records {
-		y, ok := rec.NumericValue(target)
+		y, ok := InputValue(rec, target)
 		if !ok {
 			continue
 		}
 		anyNull := false
 		for j, name := range predictors {
-			v, ok := rec.NumericValue(name)
+			v, ok := InputValue(rec, name)
 			if !ok {
 				anyNull = true
 				break

@@ -47,7 +47,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regr
 
 ## Inputs
 
-`target` / `predictors`: see `## Contract`; a null drops the row from `n_obs`.
+`target` / `predictors`: see `## Contract`; a null, NaN or ±Inf drops the row from `n_obs`.
 
 ## Output
 

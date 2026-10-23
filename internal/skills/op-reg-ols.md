@@ -26,7 +26,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regre
 | `l1_ratio` | float | — | Elastic-net mix, `0<r<1`. |
 | `unpenalized` | []field | — | `l2`: predictors left unshrunk. |
 | `bounds` | object | — | `{nonnegative: [predictors]}`: slopes ≥ 0 (NNLS). |
-| `max_iters` | int | — | Penalized iteration cap. |
+| `max_iters` | int | — | Penalized cap. |
 | `tol` | float | — | Penalized tolerance. |
 | `resample` | enum | — | `bootstrap`, `jackknife` (`op-reg-mod-resample`). |
 | `bootstrap_iters` | int | `1000` | Resample knob. |
@@ -49,7 +49,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: `regre
 
 ## Inputs
 
-`target` / `predictors`: see `## Contract`; a null drops the row from `n_obs`.
+`target` / `predictors`: see `## Contract`; null / NaN / ±Inf drops the row from `n_obs`.
 
 ## Output
 

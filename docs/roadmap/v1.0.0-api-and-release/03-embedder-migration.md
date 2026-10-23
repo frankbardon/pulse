@@ -1051,6 +1051,14 @@ Ships in the next alpha. `format_version` stays `"1.1"`; no `.pulse` byte-layout
 | the rake missing policies, the limit names and the `WidenSetField` target names were reachable only through internal packages or prose | `pulse.RakeMissingRefuse` / `pulse.RakeMissingBase` + `pulse.RakeMissingPolicies()`, `pulse.LimitNames()` (snake_case, `Limits` field order), `pulse.WidenSetFieldTargets()` (`set_u16` … `set_u256`) | additive (constants + functions) | none | U37 (E2-S1) |
 | CLI help lines of the enumerated flags were hand-written | built from the listers above (wording changed, every value still named); `pulse api lookup --mode` refusal reads `want assert_unique\|first\|all (or assert-unique)` — still uncoded, every previously accepted spelling still accepted | CLI help / message text | a script matching the old help or `--mode` message text re-reads it | U37 (E2-S1) |
 
+## Changes from U57 (transformed predictors)
+
+Ships in the next alpha. `format_version` stays `"1.1"`; no `.pulse` byte-layout change and no payload shape change.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| a NaN or ±Inf regression input — a schema cell, a feature / attribute output or a window value (a `WIN_LAG` carrying a NaN forward) in the target, a predictor, a robust `covariance` `cluster` / `order_by` or `jackknife_by` — stayed in the fit (only a null dropped listwise): `n_obs` counted the row and the slot failed (typically `PROCESSING_REGRESSION_RANK_DEFICIENT` / `_NO_CONVERGE` via `PULSE_SLOT_FAILED`), or a GLM / bootstrap carried NaN figures | a non-finite input is missing data: the row drops listwise exactly like a null (not in `n_obs`, `sum_weights` or a resample's rows; a bootstrap / jackknife seed hashes it as a null) on every built-in `REG_*`, `ATTR_REG_*` refit and selection refit, and on the engine's admission of an extension regression's rows. Scoring (`ATTR_REG_PREDICT`, `ATTR_REG_FITTED` / `_RESIDUAL`, compose `fits` scorers, an extension `RowScorer`) reads a row with a non-finite column as a null score, as for a null column. A non-finite WEIGHT is unchanged (already invalid, `n_weight_invalid`) | behaviour change (refusal lifted, figure) | none; a fit that failed on a stray NaN / Inf now returns figures over the finite rows — compare `n_obs` with the record count to see the drop | U57 (E1-S3) |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

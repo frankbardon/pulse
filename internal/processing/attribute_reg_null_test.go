@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -136,5 +137,65 @@ func TestAttrReg_NullSkippedDownstream(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestAttrReg_NonFiniteInputEmitsNull (transformed-predictors E1-S3): a
+// NaN or ±Inf in a cell the null fixture leaves null is missing data —
+// the refit drops the row and the attribute emits null on exactly the
+// same rows, every defined row bit-identical to the null fixture's.
+func TestAttrReg_NonFiniteInputEmitsNull(t *testing.T) {
+	schema := regNullSchema()
+	for _, typ := range regNullTypes {
+		attr := &types.Attribute{Target: "y", Predictors: []string{"x1", "x2"}}
+		want, err := makeRegAttr(t, typ, schema, attr).Compute(regNullRecords(schema), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, fill := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+			recs := regNullRecords(schema)
+			for i, r := range recs {
+				if regNullPredictorRows[i] {
+					r.Set("x2", fill)
+				}
+				if regNullTargetRows[i] {
+					r.Set("y", fill)
+				}
+			}
+			got, err := makeRegAttr(t, typ, schema, attr).Compute(recs, "")
+			if err != nil {
+				t.Fatalf("%s fill %v: %v", typ, fill, err)
+			}
+			for i := range want {
+				same := got[i] == want[i] || (math.IsNaN(got[i]) && math.IsNaN(want[i]))
+				if !same {
+					t.Fatalf("%s fill %v row %d = %v, null fixture %v", typ, fill, i, got[i], want[i])
+				}
+			}
+		}
+	}
+}
+
+// constScorer scores every row 1 (a stand-in bound fit).
+type constScorer struct{}
+
+func (constScorer) Columns() []string               { return nil }
+func (constScorer) Score(model.Row) (float64, bool) { return 1, true }
+
+// TestAttrReg_FitResidualNonFiniteTargetIsNull: ATTR_REG_RESIDUAL over
+// a bound fit (params.fit) reads a NaN / ±Inf target as missing — a
+// null residual, as for a null target — and a finite one as y − ŷ.
+func TestAttrReg_FitResidualNonFiniteTargetIsNull(t *testing.T) {
+	schema := regNullSchema()
+	a := &regFitScoreAttribute{attr: &types.Attribute{Type: types.ATTR_REG_RESIDUAL}, kind: regAttrResidual, scorer: constScorer{}, target: "y"}
+	for _, fill := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+		rec := NewRecordWithNulls(schema, map[string]float64{"x1": 1, "x2": 1, "y": fill}, nil)
+		if v, err := a.Row(rec, ""); err != nil || !math.IsNaN(v) {
+			t.Errorf("y=%v: residual (%v, %v), want null", fill, v, err)
+		}
+	}
+	rec := NewRecordWithNulls(schema, map[string]float64{"x1": 1, "x2": 1, "y": 3}, nil)
+	if v, err := a.Row(rec, ""); err != nil || v != 2 {
+		t.Errorf("y=3: residual (%v, %v), want 2", v, err)
 	}
 }

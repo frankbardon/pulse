@@ -69,7 +69,7 @@ Weighted fits (frequency or probability) use the N* basis the weighted SE uses; 
 
 ## Refusals
 
-`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`, `details.reason` `penalty`: `l1` / `elasticnet` has no sampling covariance of its data-dependent active set, never approximated — refused under resample or selection too. A robust `covariance` forces the buffered path and adds a `Covariance` echo; it is refused (same code) beside any penalty, resample, selection or `bounds`, with < 2 clusters, or a repeated `order_by`. A null `cluster` / `order_by` value drops the row.
+`PROCESSING_REGRESSION_VCOV_UNSUPPORTED`, `details.reason` `penalty`: `l1` / `elasticnet` has no sampling covariance of its data-dependent active set, never approximated — refused under resample or selection too. A robust `covariance` forces the buffered path and adds a `Covariance` echo; it is refused (same code) beside any penalty, resample, selection or `bounds`, with < 2 clusters, or a repeated `order_by`. A null, NaN or ±Inf `cluster` / `order_by` value drops the row.
 
 Predict and runtime apply the same rule, so predict reports it before any fit. `pulse_errors_lookup` carries the recovery.
 

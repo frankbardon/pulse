@@ -121,13 +121,13 @@ func FitForAttribute(
 	acc.basis = rw.basis
 	xBuf := make([]float64, p)
 	for _, rec := range records {
-		y, ok := rec.NumericValue(spec.Target)
+		y, ok := InputValue(rec, spec.Target)
 		if !ok {
 			continue
 		}
 		skip := false
 		for i, name := range spec.Predictors {
-			v, ok := rec.NumericValue(name)
+			v, ok := InputValue(rec, name)
 			if !ok {
 				skip = true
 				break

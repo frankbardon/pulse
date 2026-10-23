@@ -56,7 +56,7 @@ Flat keys (a `params` key is `PULSE_REQUEST_UNKNOWN_FIELD`); shared keys: [`regr
 
 ## Inputs
 
-`target` / `predictors`: see `## Contract`; a binomial target is `{0,1}` or `packed_bool`; a null drops the row.
+`target` / `predictors`: see `## Contract`; a binomial target is `{0,1}` or `packed_bool`; a null, NaN or ±Inf drops the row.
 
 ## Output
 

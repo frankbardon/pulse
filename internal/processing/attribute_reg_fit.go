@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -115,7 +116,8 @@ func (a *regFitScoreAttribute) attributeWarnings() []*types.ResponseWarning {
 }
 
 // Row is the row's fitted value (FITTED) or target minus it (RESIDUAL);
-// NaN (null) when a column read is null or the fit failed on its data.
+// NaN (null) when a column read is null or non-finite
+// (regression.InputValue) or the fit failed on its data.
 func (a *regFitScoreAttribute) Row(rec *Record, _ string) (float64, error) {
 	if a.unavailable != nil {
 		return math.NaN(), nil
@@ -131,7 +133,7 @@ func (a *regFitScoreAttribute) Row(rec *Record, _ string) (float64, error) {
 	if a.kind != regAttrResidual {
 		return yhat, nil
 	}
-	y, ok := rec.NumericValue(a.target)
+	y, ok := regression.InputValue(rec, a.target)
 	if !ok {
 		return math.NaN(), nil
 	}

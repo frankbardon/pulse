@@ -28,7 +28,7 @@ Start from the question: `pulse_skills_get intents` → `drivers` (which predict
 | A curved relationship? | polynomial columns built upstream, then a linear fit |
 | Slopes that cannot be negative, an experiment-centred prior, a ridge that spares some predictors, or a model an embedder registered? | `regression-model-options` |
 
-Target / predictor types: `IsNumericForAnalytics` (each model's `## Contract`); a null drops the row from the observation count.
+Target / predictor types: `IsNumericForAnalytics` (each model's `## Contract`); a null, NaN or ±Inf drops the row from `n_obs`.
 
 Streaming: the OLS and Bayesian linear fits stream; the GLM buffers, as does either modifier.
 
@@ -101,7 +101,7 @@ Per model (atomic skill): Student-t p for unpenalized / `l2` OLS, null SE / p / 
 
 ## Gotchas
 
-- `n_obs` < record count: nulls drop rows.
+- `n_obs` < record count: missing values drop rows.
 - A fit failing on data fails ALONE: `{name, type, error}` + `PULSE_SLOT_FAILED` (`cohort-null-states`). Codes: `PROCESSING_REGRESSION_RANK_DEFICIENT` / `SINGULAR_GRAM` (collinear; GLM names them) — drop one or regularize; `_SEPARATION` (binomial GLM: a predictor splits the outcome) — add `penalty: l2`, or drop or merge it; `_NO_CONVERGE` — raise `MaxIters` / `Tol` or cut `Alpha`.
 - Knobs belong to their engine: another engine's knob is `PROCESSING_CONFIG` (`regression-spec`).
 

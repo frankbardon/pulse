@@ -426,8 +426,10 @@ func TestWindowPredictor_ParityBootstrapRunsWindowsOnce(t *testing.T) {
 // row) is stored null — the reader returns nil, never NaN — and drops
 // its record listwise on both routes alike. A NaN window VALUE (a lag
 // carrying a NaN spend forward) is stored as NaN, not null — derivedFloat
-// keeps it, as it keeps a NaN schema cell — so neither route drops it:
-// it reaches the fit, and both routes fail the slot identically.
+// keeps it, as it keeps a NaN schema cell — yet a regression reads a
+// non-finite input as missing (regression.InputValue, E1-S3), so it
+// drops its record listwise too, on both routes alike; so does a NaN
+// schema cell regressed on directly.
 func TestWindowPredictor_ParityNullAndNaNCells(t *testing.T) {
 	rows := windowParityRows()
 	rows[10][2] = math.NaN() // east, week 11: tv is NaN
@@ -478,25 +480,35 @@ func TestWindowPredictor_ParityNullAndNaNCells(t *testing.T) {
 	}
 	runWindowParity(t, p, nullCase)
 
-	// A NaN value is kept on both routes: the fit sees it and the slot
-	// fails alike — same code, message and details, nothing dropped.
+	// A NaN value drops listwise on both routes, like a null: the fit
+	// succeeds without the NaN-lag record (east week 12) on top of the
+	// null-cell drops.
 	nanReg := windowParityOLS("nan-value")
 	nanReg.Predictors = append(nanReg.Predictors, "tv_lag")
 	nanCase := windowParityFromSlots("nan-value", derive, nanReg)
-	if _, err := p.Materialize(context.Background(), nanCase.Materialize, "nan.pulse", MaterializeOptions{}); err != nil {
-		t.Fatalf("Materialize: %v", err)
+	nanCase.Check = func(t *testing.T, single []*types.RegressionResult) {
+		t.Helper()
+		if single[0].Error != nil {
+			t.Fatalf("NaN-value slot failed: %+v", single[0].Error)
+		}
+		if single[0].NObs != windowParityNObs-2 {
+			t.Fatalf("n_obs = %d, want %d (the NaN-lag row dropped like a null)", single[0].NObs, windowParityNObs-2)
+		}
 	}
-	resp, err := p.Process(context.Background(), nanCase.Reference("nan.pulse"))
-	if err != nil {
-		t.Fatalf("reference Process: %v", err)
+	runWindowParity(t, p, nanCase)
+
+	// A NaN schema cell regressed on directly drops the same way.
+	schemaReg := &types.RegressionSpec{Name: "nan-schema", Type: types.REG_OLS, Target: "sales",
+		Predictors: []string{"tv", "radio_lag", "trend"}}
+	schemaCase := windowParityFromSlots("nan-schema", derive, schemaReg)
+	schemaCase.Check = func(t *testing.T, single []*types.RegressionResult) {
+		t.Helper()
+		if single[0].Error != nil {
+			t.Fatalf("NaN-schema slot failed: %+v", single[0].Error)
+		}
+		if single[0].NObs != windowParityNObs-1 {
+			t.Fatalf("n_obs = %d, want %d (the NaN tv row dropped like a null)", single[0].NObs, windowParityNObs-1)
+		}
 	}
-	single := nanCase.Single(t, p)
-	if len(single) != 1 || single[0].Error == nil {
-		t.Fatalf("single route fit a NaN predictor: %+v", single)
-	}
-	var diffs []string
-	bitDiff("regressions[0]", reflect.ValueOf(single[0]), reflect.ValueOf(resp.Regressions[0]), &diffs)
-	if len(diffs) != 0 {
-		t.Fatalf("NaN-value slot differs between routes: %v", diffs)
-	}
+	runWindowParity(t, p, schemaCase)
 }
