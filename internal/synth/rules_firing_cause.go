@@ -241,7 +241,8 @@ func whenFieldsRead(src string, byName map[string]FieldSpec, rw rewriteIndex, id
 // as a bare identifier (`nps == 9`) and as the string argument of the
 // isnull builtin (`isnull("nps")`, which an author may also write as
 // isnull(nps) — that spelling is an identifier and the first arm catches
-// it).
+// it), plus lag's first argument (`lag("nps", 1)` reads nps's previous
+// row).
 //
 // A function CALLEE is an identifier too, so a field sharing a builtin's
 // name would be collected from a call that does not read it. That is the
@@ -260,7 +261,12 @@ func (p *fieldReadProbe) Visit(node *ast.Node) {
 		}
 	case *ast.CallNode:
 		callee, ok := n.Callee.(*ast.IdentifierNode)
-		if !ok || callee.Value != isnullFuncName || len(n.Arguments) != 1 {
+		// lag("nps", 1) reads nps too (its previous row's value), named
+		// the same way isnull's string form names it.
+		if !ok || (callee.Value != isnullFuncName && callee.Value != lagFuncName) || len(n.Arguments) == 0 {
+			return
+		}
+		if callee.Value == isnullFuncName && len(n.Arguments) != 1 {
 			return
 		}
 		lit, ok := n.Arguments[0].(*ast.StringNode)

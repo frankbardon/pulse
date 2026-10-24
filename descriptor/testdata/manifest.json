@@ -10395,7 +10395,7 @@
         ]
       }
     ],
-    "error_codes_count": 406,
+    "error_codes_count": 408,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10738,6 +10738,8 @@
       "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
       "PULSE_SYNTH_DISTRIBUTION_UNKNOWN",
       "PULSE_SYNTH_EXPR_NONDETERMINISTIC",
+      "PULSE_SYNTH_LAG_FIELD_INVALID",
+      "PULSE_SYNTH_LAG_OFFSET_INVALID",
       "PULSE_SYNTH_OUTPUT_COLLISION",
       "PULSE_SYNTH_OUTPUT_REQUIRED",
       "PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH",
@@ -13387,7 +13389,7 @@
       },
       {
         "name": "synth-rule-expressions",
-        "description": "Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, its functions, the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy."
+        "description": "Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, its functions (incl. `row()` / `lag()`), the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy."
       },
       {
         "name": "synth-rule-nulls",
@@ -19558,4 +19560,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3b058acfd16f6f5bdf651a6f5954a0b944470dc3a7e9cc9fecde559b6191d112
+// golden-hash: 2c312b26f13ddc312462cd7c2a098ed7ec0a561b90521fbf9a0dba9381879866

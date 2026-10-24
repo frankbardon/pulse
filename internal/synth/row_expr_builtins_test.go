@@ -252,16 +252,7 @@ func TestSynthExprMath_NowIsRefusedAtSpecValidation(t *testing.T) {
 // added, so the wider environment provably changes nothing it does not
 // name.
 func TestSynthExprMath_SpecWithoutNewFunctionsIsByteIdentical(t *testing.T) {
-	spec := ruleFreeSpec()
-	// uniform, not normal: like ruleFreeSpec, nothing here may reach
-	// NormFloat64, Exp or Log, or the pin becomes architecture-sensitive.
-	spec.Fields = append(spec.Fields, synth.FieldSpec{Name: "score", Type: "f64", Distribution: synth.DistUniform,
-		Params: map[string]any{"min": 0.0, "max": 100.0}})
-	spec.Rules = []synth.RuleSpec{
-		{When: "!isnull(perception)", SetExpr: map[string]string{"perception": "round(perception)"}},
-		{When: "nps >= 9 && region == \"east\"", SetExpr: map[string]string{"score": "abs(score - 50) * 2 + max(nps, 3)"}},
-	}
-	spec.Constraints = []synth.ConstraintSpec{{Expr: "score < 90"}}
+	spec := preU58RowEnvSpec()
 	data, _, err := synth.SynthBytes(spec, synth.Options{Seed: 4242})
 	if err != nil {
 		t.Fatalf("SynthBytes: %v", err)
@@ -283,6 +274,23 @@ func TestSynthExprMath_SpecWithoutNewFunctionsIsByteIdentical(t *testing.T) {
 			t.Fatalf("row %d: id = %v, want %d", i, id, 1+i)
 		}
 	}
+}
+
+// preU58RowEnvSpec exercises the row environment through rules and a
+// rejecting constraint with ONLY pre-U58 vocabulary. Pinned at seed
+// 4242 to preSharedMathSpecHash.
+func preU58RowEnvSpec() *synth.Spec {
+	spec := ruleFreeSpec()
+	// uniform, not normal: like ruleFreeSpec, nothing here may reach
+	// NormFloat64, Exp or Log, or the pin becomes architecture-sensitive.
+	spec.Fields = append(spec.Fields, synth.FieldSpec{Name: "score", Type: "f64", Distribution: synth.DistUniform,
+		Params: map[string]any{"min": 0.0, "max": 100.0}})
+	spec.Rules = []synth.RuleSpec{
+		{When: "!isnull(perception)", SetExpr: map[string]string{"perception": "round(perception)"}},
+		{When: "nps >= 9 && region == \"east\"", SetExpr: map[string]string{"score": "abs(score - 50) * 2 + max(nps, 3)"}},
+	}
+	spec.Constraints = []synth.ConstraintSpec{{Expr: "score < 90"}}
+	return spec
 }
 
 // preSharedMathSpecHash is the sha256 of the spec above at seed 4242.

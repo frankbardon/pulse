@@ -121,6 +121,15 @@ func (a *ruleApplier) setRowOrdinal(n int) {
 	a.nullState.ordinal = n
 }
 
+// setLag attaches generate's cross-row buffer to the rule host, the
+// one the constraint host also reads. nil-safe like setRowOrdinal.
+func (a *ruleApplier) setLag(b *lagBuffer) {
+	if a == nil {
+		return
+	}
+	a.nullState.lag = b
+}
+
 // commitRow folds the just-ACCEPTED row's firings into the totals.
 // generate() calls it after the row has passed the constraint pass and
 // been encoded; a rejected row is simply never committed and its

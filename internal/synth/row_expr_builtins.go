@@ -76,8 +76,13 @@ func rowBuiltinOptions() []expr.Option {
 // code (rowExprSiteError).
 type rowExprRefusal struct {
 	nondeterministic bool
-	function         string
-	msg              string
+	// code, when set, overrides the site's default code (a malformed
+	// lag call: PULSE_SYNTH_LAG_FIELD_INVALID / _OFFSET_INVALID).
+	code     errors.Code
+	function string
+	// field is the field a lag call names, when it names one.
+	field string
+	msg   string
 }
 
 func (r *rowExprRefusal) Error() string { return r.msg }
@@ -136,6 +141,14 @@ func (w *rowExprWalker) Visit(node *ast.Node) {
 			w.found = &rowExprRefusal{function: id.Value, msg: fmt.Sprintf(
 				"%s(...) cannot call the built-in: the spec declares a field named %q, and a bare %s reads that field; rename the field to call %s()",
 				id.Value, id.Value, id.Value, id.Value)}
+			return
+		}
+		if id.Value == lagFuncName {
+			// lag's name and offset size the cross-row state, so both are
+			// literals checked here, before a row exists (row_lag.go).
+			if _, _, r := lagCallShape(n, w.declared); r != nil {
+				w.found = r
+			}
 		}
 	case *ast.IdentifierNode:
 		if w.callees[n] || w.declared[n.Value] || !rowReservedNames[n.Value] {
@@ -173,9 +186,15 @@ func rowExprRuleRefusal(idx int, slot, target, src string, r *rowExprRefusal) er
 	if r.nondeterministic {
 		code = errors.PULSE_SYNTH_EXPR_NONDETERMINISTIC
 	}
+	if r.code != "" {
+		code = r.code
+	}
 	details := map[string]any{errors.DetailSynthRule: idx, errors.DetailSynthRuleSlot: slot, "function": r.function, "expr": src}
 	if target != "" {
 		details["field"] = target
+	}
+	if r.field != "" {
+		details["lag_field"] = r.field
 	}
 	return errors.NewCodedErrorWithDetails(code, fmt.Sprintf("rule %d: %s %s", idx, where, r.msg), details)
 }
@@ -188,9 +207,14 @@ func rowExprConstraintRefusal(src string, r *rowExprRefusal) error {
 	if r.nondeterministic {
 		code = errors.PULSE_SYNTH_EXPR_NONDETERMINISTIC
 	}
-	return errors.NewCodedErrorWithDetails(code,
-		fmt.Sprintf("constraint %q %s", src, r.msg),
-		map[string]any{"expr": src, "function": r.function})
+	if r.code != "" {
+		code = r.code
+	}
+	details := map[string]any{"expr": src, "function": r.function}
+	if r.field != "" {
+		details["lag_field"] = r.field
+	}
+	return errors.NewCodedErrorWithDetails(code, fmt.Sprintf("constraint %q %s", src, r.msg), details)
 }
 
 // rowOrdinalFuncName is the expression-visible name of the accepted-row

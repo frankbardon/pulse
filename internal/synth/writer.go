@@ -330,6 +330,13 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 	}
 
 	committers := acceptCommitters(wfs)
+	// lag()'s cross-row state: one buffer for both hosts, empty at the
+	// first row generate draws (so AugmentFromProfile's generated
+	// partition never reads a copied source row), nil when no
+	// expression calls lag. See internal/synth/row_lag.go.
+	lags := newLagBuffer(s, wfs)
+	cons.lag = lags
+	rules.setLag(lags)
 	for rowsGenerated < s.RowCount {
 		// row() reads the ACCEPTED-row ordinal: stamped before every
 		// attempt with the count already accepted, so a rejected attempt
@@ -375,6 +382,9 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		for _, c := range committers {
 			c.commitAccepted()
 		}
+		// The row's FINAL values enter lag's buffer only now, so a
+		// rejected attempt is never read as a previous row.
+		lags.commit(row, rowNullMask)
 		rowsGenerated++
 	}
 	// A rule that applied to NO generated row is the one rule fault

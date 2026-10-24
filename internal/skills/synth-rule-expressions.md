@@ -1,10 +1,10 @@
 ---
 name: synth-rule-expressions
-description: Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, its functions, the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy.
+description: Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, its functions (incl. `row()` / `lag()`), the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy.
 type: guide
 kind: design
 applies_to: inspect, predict, manifest
-covers: [synth, constraints, set_expr, isnull, coercion, pre-rounding, functions]
+covers: [synth, constraints, set_expr, isnull, coercion, pre-rounding, functions, lag]
 requires: [capability:synth]
 ---
 
@@ -14,7 +14,7 @@ requires: [capability:synth]
 
 `constraints[]` reuse `expr-lang/expr`. Any constraint returning false rejects the row; the generator redraws until `row_count`. Reject cap 50% (`max_rejection_rate`); beyond it `PULSE_SYNTH_CONSTRAINT_INFEASIBLE`.
 
-**Env types are the ROW's types** (`sentinelFor`, derived from `fieldTypeFromName` so the two cannot drift): every scalar — `u4`/`u8`…`u64`, `f32`/`f64`, `date`, `decimal128` AND `packed_bool` — is `float64`; `categorical_*` is `string`; `set_*` is `map[string]bool` (`flags["opt"]`). So a boolean is tested `flag == 1`, never bare `flag` (a compile-time refusal, not a boolean). Typing `packed_bool` as Go `bool` (#258) compiled, then failed every row.
+**Env types are the ROW's types** (`sentinelFor`, derived from `fieldTypeFromName` so the two cannot drift): every scalar — `u4`/`u8`…`u64`, `f32`/`f64`, `date`, `decimal128` AND `packed_bool` — is `float64`; `categorical_*` is `string`; `set_*` is `map[string]bool` (`flags["opt"]`). So a boolean is tested `flag == 1`, never bare `flag` (a compile-time refusal).
 
 **`isnull(field)`** reads the per-record null mask — the only way to test absence, since a nulled field still carries its drawn value. Takes the field NAME: `isnull(x)` (rewritten to a literal) and `isnull("x")` are equivalent, and an undeclared name in EITHER form is refused before a row exists — bare by expr's unknown-name check, string form by a parse pass (`isnullUnknownField`) applied to rules and `constraints[]` alike, never answered `false`. Only an argument that is a string at RUN time (`isnull(region + "!")`) reaches the loud run-time refusal.
 
@@ -29,6 +29,7 @@ Stock expr-lang built-ins (`abs`, `round`, `max`, `split`…) plus the formula a
 | `sin` `cos` `tan`, `atan2(y, x)` | radians |
 | `pi()` `e()` | calls, not bare names |
 | `row()` | ACCEPTED-row ordinal from 0 (a rejected attempt keeps it; no RNG): `row() % 52 == 0 ? a : b` |
+| `lag("f", n[, d])` | `f`'s final value `n` ACCEPTED rows back, typed as `f`; `d` (else null: guard `??`) before row `n`, null if it was null; self-lag works, no RNG: `spend + 0.6 * lag("ad", 1, 0)`. Literal name and `n` 1–1024, else `PULSE_SYNTH_LAG_FIELD_INVALID` / `_OFFSET_INVALID` |
 
 `%` takes floats (dividend's sign; `% 0` is NaN). Bad arity is refused at parse. `now()` is refused (`PULSE_SYNTH_EXPR_NONDETERMINISTIC`). A field named like a built-in (`log`, `e`, `row`, `lag`) reads as a bare name; calling it, or a bare built-in no field declares, is refused.
 
@@ -53,7 +54,7 @@ Scalar = `u4` `u8` `u16` `u32` `u64` `f32` `f64` `date` `packed_bool` `decimal12
 
 ### Pre-rounding
 
-**Pre-rounding.** `when` / `set_expr` read the row's PRE-ROUNDING float, not the wire value, so `== k` fires only on draws landing exactly on `k`. Use comparisons (`>= 9`). It bites `set_expr` hardest because the result still LOOKS right — a three-band NPS classification off raw `nps` sets exactly one flag per row and merely disagrees with the score beside it. Normalise in an EARLIER rule (snapshot semantics means the same rule will not do), with `round`, NOT `int`: an integer field is stored as `floor(v+0.5)`, so `round(v)` reproduces the value the FILE will hold and moves the FLAGS onto the right side of the edge, while `int(v)` truncates and reaches the same band agreement by moving the SCORE down instead. **Guard with `when` whenever the target is nullable** — `set_expr` clears the null flag:
+**Pre-rounding.** `when` / `set_expr` read the row's PRE-ROUNDING float, not the wire value, so `== k` fires only on draws landing exactly on `k`. Use comparisons (`>= 9`). It bites `set_expr` hardest: a band classification off raw `nps` still LOOKS right. Normalise in an EARLIER rule (snapshot semantics means the same rule will not do), with `round`, NOT `int`: an integer field is stored as `floor(v+0.5)`, so `round(v)` reproduces the stored value and moves the FLAGS, while `int(v)` truncates and moves the SCORE instead. **Guard with `when` whenever the target is nullable** — `set_expr` clears the null flag:
 
 ```json
 {"when": "!isnull(nps)", "set_expr": {"nps": "round(nps)"}}

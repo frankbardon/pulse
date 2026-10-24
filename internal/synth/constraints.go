@@ -46,6 +46,12 @@ type compiledConstraints struct {
 	// ordinal. A validation-only probe never sets it; it is only compiled
 	// against, never run.
 	ordinal int
+
+	// lag is the accept-only cross-row state the lag builtin reads
+	// (row_lag.go). generate attaches ONE buffer to both the constraint
+	// and the rule host; nil when no expression calls lag, and on every
+	// validation-only probe.
+	lag *lagBuffer
 }
 
 // rowExprEnv builds the expr environment shape for a set of declared
@@ -88,7 +94,12 @@ func rowExprOptions(env map[string]any, names map[string]bool, host *compiledCon
 		expr.Function(isnullFuncName, host.isnullBuiltin, new(func(string) bool)),
 		expr.Function(rowOrdinalFuncName, host.rowOrdinalBuiltin, new(func() int)),
 		expr.Patch(isnullIdentifierPatcher{fields: names}),
+		// lag(name, n[, default]) is typed per lagged field's class by
+		// rewriting each well-formed call onto an internal name before
+		// the type check (row_lag.go).
+		expr.Patch(lagPatcherFor(env, names)),
 	}
+	opts = append(opts, lagFunctionOptions(host)...)
 	// The shared maths (exprenv.MathOptions) and the now() removal: see
 	// row_expr_builtins.go. Appended to every row expression, so
 	// constraints, `when`, `set_expr` and both --suggest-rules detectors

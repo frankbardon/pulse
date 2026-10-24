@@ -866,6 +866,21 @@ const (
 	// `details.function` names the call, `details.expr` the expression.
 	PULSE_SYNTH_EXPR_NONDETERMINISTIC Code = "PULSE_SYNTH_EXPR_NONDETERMINISTIC"
 
+	// PULSE_SYNTH_LAG_FIELD_INVALID indicates a synth row expression's
+	// `lag(name, n[, default])` call whose first argument is not a string
+	// literal naming a declared field. The name sizes the cross-row state
+	// before the first row, so it cannot be computed. Refused at spec
+	// validation. `details.lag_field` names the field when the argument
+	// is a literal, `details.expr` the expression.
+	PULSE_SYNTH_LAG_FIELD_INVALID Code = "PULSE_SYNTH_LAG_FIELD_INVALID"
+
+	// PULSE_SYNTH_LAG_OFFSET_INVALID indicates a `lag(name, n[, default])`
+	// call whose `n` is not an integer literal from 1 to 1024. The offset
+	// sizes the cross-row buffer, so it must be a literal; the cap bounds
+	// the state. Refused at spec validation. `details.lag_field` names the
+	// lagged field, `details.expr` the expression.
+	PULSE_SYNTH_LAG_OFFSET_INVALID Code = "PULSE_SYNTH_LAG_OFFSET_INVALID"
+
 	// PULSE_PROFILE_FIELD_UNSUPPORTED indicates a field type the profile
 	// layer cannot summarize. The field is skipped with a warning rather
 	// than failing the whole profile.
@@ -4207,6 +4222,8 @@ var allCodes = []Code{
 	PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE,
 	PULSE_SYNTH_RULE_OWNERSHIP_INVALID,
 	PULSE_SYNTH_EXPR_NONDETERMINISTIC,
+	PULSE_SYNTH_LAG_FIELD_INVALID,
+	PULSE_SYNTH_LAG_OFFSET_INVALID,
 	PULSE_PROFILE_FIELD_UNSUPPORTED,
 	PULSE_TEST_UNKNOWN_TYPE,
 	PULSE_TEST_FIELD_NOT_NUMERIC,

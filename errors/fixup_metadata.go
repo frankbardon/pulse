@@ -1369,6 +1369,26 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SYNTH_LAG_FIELD_INVALID: {
+		Message: "A synth row expression's `lag(name, n[, default])` call does not name a declared field with a string literal. The field name sizes the cross-row state before the first row is drawn, so it cannot be computed or misspelled.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*", "SetExpr"},
+				Hint:   "Write the field as a quoted literal the spec declares: `lag(\"spend\", 1, 0)`, not `lag(spend, 1)` or `lag(\"sp\" + \"end\", 1)`. Check the spelling against `fields[].name`.",
+			},
+		},
+	},
+	PULSE_SYNTH_LAG_OFFSET_INVALID: {
+		Message: "A synth row expression's `lag(name, n[, default])` call has an `n` that is not an integer literal from 1 to 1024. The offset sizes the cross-row buffer before the first row is drawn, so it must be a literal, and the cap bounds that buffer.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*", "SetExpr"},
+				Hint:   "Write n as a whole-number literal between 1 and 1024: `lag(\"spend\", 1)` reads the previous accepted row, `lag(\"spend\", 52)` the row 52 accepted rows back. A computed, fractional, zero or negative offset is refused.",
+			},
+		},
+	},
 	PULSE_PROFILE_FIELD_UNSUPPORTED: {
 		Message: "The profile layer cannot summarize this field type; the field is skipped.",
 		Fixups: []Fixup{

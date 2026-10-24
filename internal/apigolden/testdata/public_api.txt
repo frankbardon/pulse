@@ -2798,6 +2798,8 @@ pulse/errors: const PULSE_SYNTH_ALREADY_TAGGED pulse/errors.Code = "PULSE_SYNTH_
 pulse/errors: const PULSE_SYNTH_CONSTRAINT_INFEASIBLE pulse/errors.Code = "PULSE_SYNTH_CONSTRAINT_INFEASIBLE"
 pulse/errors: const PULSE_SYNTH_DISTRIBUTION_UNKNOWN pulse/errors.Code = "PULSE_SYNTH_DISTRIBUTION_UNKNOWN"
 pulse/errors: const PULSE_SYNTH_EXPR_NONDETERMINISTIC pulse/errors.Code = "PULSE_SYNTH_EXPR_NONDETERMINISTIC"
+pulse/errors: const PULSE_SYNTH_LAG_FIELD_INVALID pulse/errors.Code = "PULSE_SYNTH_LAG_FIELD_INVALID"
+pulse/errors: const PULSE_SYNTH_LAG_OFFSET_INVALID pulse/errors.Code = "PULSE_SYNTH_LAG_OFFSET_INVALID"
 pulse/errors: const PULSE_SYNTH_OUTPUT_COLLISION pulse/errors.Code = "PULSE_SYNTH_OUTPUT_COLLISION"
 pulse/errors: const PULSE_SYNTH_OUTPUT_REQUIRED pulse/errors.Code = "PULSE_SYNTH_OUTPUT_REQUIRED"
 pulse/errors: const PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH pulse/errors.Code = "PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH"
@@ -5842,4 +5844,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: bba922803c6ea36cec7df5c4221e1baeff1283103782e3e94f2b80229c7d2b7b
+// golden-hash: 45f0cd5d3d422e59829589eee726858545df18c9963a59f2ec522e0add87ea58

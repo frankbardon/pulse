@@ -332,6 +332,8 @@ func TestWhenFieldsRead_ClassifiesTheFieldsAPredicateReads(t *testing.T) {
 		// isnull's string spelling must resolve to the field too, or a
 		// co-missingness gate reads as a predicate over nothing.
 		{`isnull("nps")`, []string{"nps"}, []string{"nps"}},
+		// lag's first argument names the field it reads (U58).
+		{`lag("nps", 1, 0) >= 9`, []string{"nps"}, []string{"nps"}},
 		// An identifier that is not a declared field contributes
 		// nothing — the message names fields, not free variables.
 		{"1 == 2", nil, nil},
