@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/frankbardon/pulse/internal/detmath"
 )
 
 var (
@@ -289,10 +291,62 @@ func TestScalar(t *testing.T) {
 		{"exp-overflow", Exp(1000), inf},
 		{"pow", Pow(2, 10), 1024},
 		{"pow-neg-frac", Pow(-8, 1.0/3), nan},
+		{"log1p", Log1p(0), 0},
+		{"log1p-minus-one", Log1p(-1), ninf},
+		{"log1p-below", Log1p(-2), nan},
+		{"sin", Sin(0), 0},
+		{"sin-inf", Sin(inf), nan},
+		{"cos", Cos(0), 1},
+		{"cos-nan", Cos(nan), nan},
+		{"tan", Tan(0), 0},
+		{"tan-inf", Tan(ninf), nan},
+		{"atan2", Atan2(1, 1), math.Pi / 4},
+		{"atan2-quadrant", Atan2(0, -1), math.Pi},
 	}
 	for _, c := range cases {
 		if !same(c.got, c.want) {
 			t.Errorf("%s = %v, want %v", c.name, c.got, c.want)
+		}
+	}
+}
+
+// TestScalar_TranscendentalsAreDetmath: every transcendental kernel is
+// internal/detmath's port bit for bit, never math.*. The two edge pins
+// are where the standard library is wrong on one architecture or the
+// other — arm64 math.Exp underflows -745.1 to 0, amd64 assembly
+// math.Log reads the smallest subnormal as about -709.09 — so reverting
+// either kernel to math.* fails here on that architecture.
+func TestScalar_TranscendentalsAreDetmath(t *testing.T) {
+	if got := Exp(-745.1); got != 5e-324 {
+		t.Errorf("Exp(-745.1) = %v, want 5e-324 (the smallest subnormal)", got)
+	}
+	if got := Log(5e-324); math.Abs(got-(-744.4400719213812)) > 1e-12 {
+		t.Errorf("Log(5e-324) = %v, want -744.4400719213812", got)
+	}
+	unary := map[string][2]func(float64) float64{
+		"Log": {Log, detmath.Log}, "Log1p": {Log1p, detmath.Log1p}, "Exp": {Exp, detmath.Exp},
+		"Sin": {Sin, detmath.Sin}, "Cos": {Cos, detmath.Cos}, "Tan": {Tan, detmath.Tan},
+	}
+	inputs := []float64{-700.5, -3.7, -0.5, -1e-9, 0, 1e-300, 0.3, 1, 2.5, 17.25, 709.5, 1e6}
+	for name, fns := range unary {
+		for _, x := range inputs {
+			got, want := fns[0](x), fns[1](x)
+			if math.IsNaN(want) && math.IsNaN(got) {
+				continue
+			}
+			if math.Float64bits(got) != math.Float64bits(want) {
+				t.Errorf("%s(%v) = %v, detmath gives %v", name, x, got, want)
+			}
+		}
+	}
+	for _, x := range inputs {
+		for _, y := range []float64{-2.5, -1, 0.5, 3} {
+			if got, want := Pow(math.Abs(x), y), detmath.Pow(math.Abs(x), y); math.Float64bits(got) != math.Float64bits(want) {
+				t.Errorf("Pow(%v, %v) = %v, detmath gives %v", math.Abs(x), y, got, want)
+			}
+			if got, want := Atan2(y, x), detmath.Atan2(y, x); math.Float64bits(got) != math.Float64bits(want) {
+				t.Errorf("Atan2(%v, %v) = %v, detmath gives %v", y, x, got, want)
+			}
 		}
 	}
 }
@@ -310,10 +364,12 @@ func TestFMAFreeOrder(t *testing.T) {
 	}
 }
 
-// TestVecmathImportBoundary keeps the package a stdlib-only leaf so
+// TestVecmathImportBoundary keeps the package a leaf — the standard
+// library plus internal/detmath, itself stdlib-only — so
 // internal/processing and internal/descriptor can both import it.
 func TestVecmathImportBoundary(t *testing.T) {
-	allowed := map[string]bool{"errors": true, "fmt": true, "math": true}
+	allowed := map[string]bool{"errors": true, "fmt": true, "math": true,
+		"github.com/frankbardon/pulse/internal/detmath": true}
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
@@ -334,7 +390,7 @@ func TestVecmathImportBoundary(t *testing.T) {
 		for _, imp := range af.Imports {
 			p, _ := strconv.Unquote(imp.Path.Value)
 			if !allowed[p] {
-				t.Errorf("%s imports %q; vecmath must stay a stdlib-only leaf", f, p)
+				t.Errorf("%s imports %q; vecmath must stay a leaf over the stdlib and internal/detmath", f, p)
 			}
 		}
 	}

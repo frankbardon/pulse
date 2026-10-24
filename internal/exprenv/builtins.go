@@ -7,6 +7,9 @@
 //     and ref() (ref.go);
 //   - the `%` patcher (mod.go);
 //   - the Hill saturation curve (hill.go);
+//   - trigonometry and the constants pi() / e() (trig.go); every
+//     transcendental (exp, log, log1p, pow, hill's power, the trig set)
+//     runs on internal/detmath's portable kernels via internal/vecmath;
 //   - the calendar helpers and log1p (calendar.go): weekday,
 //     month_index and date_trunc over epoch days through
 //     internal/temporal, to_day in the request zone ([Bound.Zone]),
@@ -73,6 +76,9 @@ var reserved = []string{
 	"sqrt", "log", "exp", "pow", "log1p",
 	// Media saturation (hill.go): hill(x, half_saturation, shape).
 	"hill",
+	// Trigonometry in radians and the zero-argument constants pi(), e()
+	// (trig.go).
+	"sin", "cos", "tan", "atan2", "pi", "e",
 	// Calendar over epoch days (calendar.go); to_day converts a datetime.
 	"weekday", "month_index", "date_trunc", "to_day",
 	// Set similarity over two label sets.
@@ -108,6 +114,12 @@ func IsReserved(name string) bool { return reservedSet[name] }
 // and transform families are refused there; both the predict gate
 // (internal/descriptor) and the runtime compile (internal/processing)
 // read this one list so they never disagree.
+//
+// The trigonometry set and the constants (sin, cos, tan, atan2, pi, e)
+// are deliberately NOT in it (U58): an overlay formula post-processes
+// counts, shares and statistics of host cells, where an angle has no
+// meaning, and widening the subset later is additive while narrowing
+// it would break a request. TestOverlaySubset pins the refusal.
 var overlayAllowed = []string{"sqrt", "log", "exp", "pow", "log1p"}
 
 // overlayAllowedSet indexes overlayAllowed for OverlayAllowed.

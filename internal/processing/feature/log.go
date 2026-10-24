@@ -2,11 +2,11 @@ package feature
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/vecmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -62,11 +62,14 @@ func (c *log) EmitRow(r Record, field string) (map[string]Output, error) {
 }
 
 // logValue is the shared inner math: log1p with null propagation for
-// missing values and v <= -1.
+// missing values and v <= -1. The kernel is vecmath.Log1p
+// (internal/detmath's portable port), the one the expression log1p()
+// uses, so FEAT_LOG and ATTR_FORMULA `log1p(x)` agree bit for bit on
+// every architecture.
 func logValue(r Record, field string) (float64, bool) {
 	v, ok := r.NumericValue(field)
 	if !ok || v <= -1 {
 		return 0, true
 	}
-	return math.Log1p(v), false
+	return vecmath.Log1p(v), false
 }

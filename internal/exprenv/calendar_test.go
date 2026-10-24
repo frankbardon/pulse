@@ -12,6 +12,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/detmath"
 	"github.com/frankbardon/pulse/internal/temporal"
 )
 
@@ -68,7 +69,7 @@ func TestCalendarHelpers_Oracle(t *testing.T) {
 		{"month_index(to_day(ts + 3600)) - month_index(to_day(ts))", 1},
 		{`date_trunc("year", to_day(ts + 3600))`, day(2025, 1, 1)},
 		{"weekday(19782)", 4}, // an int literal day (2024-02-29)
-		{"log1p(x)", math.Log1p(1)},
+		{"log1p(x)", detmath.Log1p(1)},
 	}
 	for _, c := range cases {
 		got, err := calendarRun(t, c.src, Bound{}, env)

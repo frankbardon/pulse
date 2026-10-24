@@ -34,7 +34,7 @@ An undefined (NaN) host cell — a mean over no value, an unanswered element —
 
 ## Functions
 
-- Built-ins: scalar `sqrt` / `log` / `exp` / `pow` and the set helpers. The vector functions (`vmean`, `dot`, …) are `PULSE_OVERLAY_FORMULA_INVALID_IDENT` (`details.allowed_builtins`), predict and runtime, every host.
+- Built-ins: scalar `sqrt` / `log` / `exp` / `pow` and the set helpers. The vector and trig functions (`vmean`, `dot`, `sin`, `pi()`, …) are `PULSE_OVERLAY_FORMULA_INVALID_IDENT` (`details.allowed_builtins`), predict and runtime, every host.
 - Embedder `ExprFunctions` widen functions, never variables. `lookup(...)` needs a LookupTable.
 - `total(expr)` is `PULSE_FORMULA_TOTAL_SITE` here; use the `total` variable (SERIES).
 

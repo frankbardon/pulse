@@ -96,6 +96,7 @@ func docExprSchema() *encoding.Schema {
 		num("spend"),
 		num("weight_kg"), num("height_m"), num("score"),
 		num("q1"), num("q2"), num("q3"),
+		num("week"), num("x"), num("y"),
 		set("tags", "a", "b", "c"),
 		set("issuers", "VISA", "MC", "AMEX"),
 	}}

@@ -52,6 +52,13 @@ func TestVectorBuiltin_StaticRefusalsMatchRuntime(t *testing.T) {
 		{"vector result filter", filterReq(`vnormalize(xy, "l2")`)},
 		{"total() argument", attrReq("x / total(vsum(xy, 1))")},
 		{"total() argument vector result", attrReq("x / total(vzscore(xy))")},
+		// U58: the trig set and the zero-argument constants share the
+		// same static arity rule.
+		{"sin arity", attrReq("sin(x, y)")},
+		{"atan2 arity", attrReq("atan2(x)")},
+		{"pi arity", attrReq("x * pi(2)")},
+		{"e arity in a filter", filterReq("e(x) > 1")},
+		{"cos arity in a total() argument", attrReq("x / total(cos())")},
 		// No row reaches the formula: only the build's static refusal
 		// can agree with predict.
 		{"no row evaluated", func() *types.Request {
@@ -81,6 +88,7 @@ func TestVectorBuiltin_StaticRefusalsMatchRuntime(t *testing.T) {
 		`vsum(vnormalize(xy, x > 0 ? "l1" : "l2"))`,
 		"vmean(vcenter(xy))",
 		"x / total(vsum(xy))",
+		"sin(x) + cos(y) + tan(x) + atan2(y, x) + pi() + e()",
 	} {
 		if env := predictEnvelope(t, p, fs, cohort, attrReq(expr)); len(env.Errors) != 0 {
 			t.Errorf("%s: predict %v", expr, envCodes(env))

@@ -41,4 +41,4 @@ Row-level predicate. No emitted column.
 ## See
 
 - `pulse_examples_search tags=[feature-engineering]`
-- Skills: `expression-language` (maths / vector functions, `ExprFunctions`, `LookupTables`), `aggregation-design`, `response-components`
+- Skills: `expression-language` (maths, trig and vector functions, `ExprFunctions`, `LookupTables`), `aggregation-design`, `response-components`

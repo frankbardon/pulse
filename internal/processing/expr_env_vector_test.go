@@ -44,6 +44,13 @@ var vectorBuiltinCases = map[string]struct {
 	"pow":        {`pow(y, 3)`, 8},
 	"log1p":      {`log1p(x)`, math.Ln2},
 	"hill":       {`hill(z, 3, 2) + hill(0, y, 1)`, 0.5},
+	// Trigonometry (radians) and the zero-argument constants.
+	"sin":   {`sin(pi() / 2) + sin(0 * x)`, 1},
+	"cos":   {`cos(pi()) + z`, 2},
+	"tan":   {`tan(atan2(y, x)) * x`, 2},
+	"atan2": {`atan2(x, x) * 4 - pi()`, 0},
+	"pi":    {`round(pi() * 1e6)`, 3141593},
+	"e":     {`log(e()) + x`, 2},
 	// Calendar helpers over epoch days: day 1 is 1970-01-02, a Friday.
 	"weekday":     {`weekday(x)`, 5},
 	"month_index": {`month_index(z) - 1970 * 12`, 0},
@@ -341,6 +348,10 @@ func TestVectorBuiltins_StaticRefusalsAtBuild(t *testing.T) {
 		{`vzscore([x, y])`, perr.PROCESSING_CONFIG},
 		{`pow(x)`, perr.PROCESSING_CONFIG},
 		{`hill(x, 2)`, perr.PROCESSING_CONFIG},
+		{`sin(x, y)`, perr.PROCESSING_CONFIG},
+		{`atan2(x)`, perr.PROCESSING_CONFIG},
+		{`pi(x)`, perr.PROCESSING_CONFIG},
+		{`e(1) + x`, perr.PROCESSING_CONFIG},
 		{`vsum([x], [y])`, perr.PROCESSING_CONFIG},
 	} {
 		_, err := newExprProgram(tc.src, "formula", vectorTestSchema(), nil, nil, exprenv.Options())

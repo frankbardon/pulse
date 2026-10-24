@@ -29,8 +29,8 @@ Arithmetic on a categorical errors; branch on the label.
 
 - **Operators**: arithmetic (`+ - * / % **`), comparison, logical, membership / pattern (`in`; string-only `contains`, `startsWith`, `endsWith`, `matches`), range (`..`), nil-coalesce (`??`), ternary.
 - **Functions**: numeric (`abs`, `ceil`, `floor`, `round`, `min`, `max`, `sum`, `mean`, `median`), cast (`int`, `float` — a decimal's f64 escape, `string`), collection (`len`, `keys`, `values`, `concat`, `sort`, `uniq`, `filter`, `map`, `reduce`, `all`, `any`), string (`join`, `split`, `replace`, `trim`, `lower`, `upper`, `hasPrefix`, `hasSuffix`, `indexOf`), JSON / time (`toJSON`, `fromJSON`, `now`, `date`, `duration`).
-- **Set helpers**: `has_any`, `has_all`, `has_none`, `popcount`, `set_union`, `set_intersect`, `set_diff`, `set_xor`. `contains` is a string keyword, not a set helper: use `"x" in tags`.
-- `%` on a field is float `math.Mod` (dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.
+- **Set helpers**: `has_any`, `has_all`, `has_none`, `popcount`, `set_union`, `set_intersect`, `set_diff`, `set_xor`.
+- `%` on a float is `math.Mod` (dividend's sign); `% 0` → NaN, `/ 0` → ±Inf.
 
 ## Vector and maths built-ins
 
@@ -44,19 +44,20 @@ A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is
 | `dot` `dist` `cosine` (vector pair) | pairwise-complete; `dist` (euclidean) rescales by p/p_observed; `cosine` is the similarity, zero norm → NaN; unequal lengths → `PROCESSING_VECTOR_LENGTH_MISMATCH` (build + predict) |
 | `argmax` `argmin` | 0-based int index; none valid → NaN |
 | `vcenter` `vzscore` `vnormalize` (mode `"l1"` / `"l2"`, case-sensitive) | a vector, only inside a call: `vmax(vzscore([q1, q2, q3]))`; top-level, a wrong arity or a literal bad mode → `PROCESSING_CONFIG` (build + predict) |
-| `sqrt` `log` (natural) `log1p` `exp` `pow(score, 2)` | IEEE scalar (`sqrt(-1)` NaN); all an overlay formula admits |
+| `sqrt` `log` (natural) `log1p` `exp` `pow(score, 2)` | scalar (`sqrt(-1)` NaN); all an overlay formula admits |
+| `sin` `cos` `tan` (radians) `atan2(y, x)`; constants `pi()` `e()` (calls) | scalar; null → null |
 | `hill(score, 40, 2)` (x, k, s) | `x^s / (x^s + k^s)`; null → null; `x < 0`, `k`/`s <= 0` → NaN |
 | `jaccard` `dice` `overlap` `hamming` (two sets: field or `["a", "b"]`, matched by label; a dictionary-less set pairs only with another) | float, `hamming` int; null set → NaN; two empty → NaN, `hamming` 0 |
 | `ref` (table, key) | a reference profile, aligned by label<!-- feature: capability:matrices --> (`vector-metrics`)<!-- /feature --> |
 
-A non-finite result is `null` on the wire. Reserved names: an embedder `ExprFunctions` entry using one → `PULSE_EXTENSION_NAME_RESERVED`.
+Named maths is machine-independent; `**` is not: use `pow`. A non-finite result is `null` on the wire. Reserved names: an embedder `ExprFunctions` entry using one → `PULSE_EXTENSION_NAME_RESERVED`.
 
 ## Null handling
 
 A null field binds `nil`. Guard with `x ?? 0` or `x == nil ? a : b`. An unguarded `nil`, by host:
 
 - **Formula** — arithmetic on `nil` raises `PROCESSING_RUNTIME`; a `nil` result is a null value.
-- **Filter** — `==` is false, `!=` true; `>` / `+` / `len` on `nil` make the predicate UNKNOWN and the row is dropped.
+- **Filter** — `==` is false, `!=` true; `>` / `+` / `len` on `nil` make it UNKNOWN: row dropped.
 
 Compiled once, predict included: bad syntax, an unknown name or a type error is `PULSE_FORMULA_COMPILE_ERROR` pre-run (`details.compile_error`); derived columns are numbers.
 
@@ -72,22 +73,23 @@ Compiled once, predict included: bad syntax, an unknown name or a type error is 
 
 ## Patterns
 
+Fourier term (pair with its `cos` twin):
+
 ```json
-{"label": "bmi", "expression": "weight_kg / (height_m ** 2)"}
+{"label": "sin1", "expression": "sin(2 * pi() * week / 52)"}
 ```
 
 A formula's result is coerced to a scalar (`bool` → `1.0` / `0.0`); a filter's must be `bool`: typed non-bool fails compile, untyped `PROCESSING_RUNTIME`.
 
 ## Gotchas
 
-- A formula sees source fields, feature output and EARLIER attribute labels, only.
+- A formula sees only source fields, feature output and EARLIER attribute labels.
 - `total(expr)` — cohort-wide post-filter sum, ONLY in the formula attribute (`PULSE_FORMULA_TOTAL_SITE` in a filter or overlay formula); not overridable by `ExprFunctions`.<!-- feature: ATTR_FORMULA --> Weights, the extra scan, recipes: `formula-totals`.<!-- /feature -->
 - Filters run before attributes, so a filter expression cannot read a derived column — restate it over source fields.
 
 ## See
 
-- `attribute-composition` — where the formula attribute sits among attributes.
-- `aggregation-design` — filter chaining and per-stage counters.
+- `attribute-composition`, `aggregation-design` — attribute order; filter chaining.
 <!-- feature: ATTR_FORMULA -->
 - `formula-totals` — `total(expr)` in a formula.
 <!-- /feature -->

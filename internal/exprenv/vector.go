@@ -70,6 +70,12 @@ var builtinImpls = map[string]exprBuiltinFunc{
 	"hamming":     setHammingBuiltin,
 	"overlap":     setSimilarity("overlap", exprMetric(builtinMetric("overlap"))),
 	"ref":         refBuiltin,
+	FuncSin:       trigImpls[FuncSin],
+	FuncCos:       trigImpls[FuncCos],
+	FuncTan:       trigImpls[FuncTan],
+	FuncAtan2:     trigImpls[FuncAtan2],
+	FuncPi:        trigImpls[FuncPi],
+	FuncE:         trigImpls[FuncE],
 }
 
 // builtinMetric is the registry metric and form the reserved built-in

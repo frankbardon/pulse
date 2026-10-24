@@ -121,6 +121,14 @@ func TestOverlaySubset(t *testing.T) {
 		{"cosine", false, true},
 		{"argmax", false, true},
 		{"vnormalize", false, true},
+		// U58: the trig set and the constants are reserved but refused
+		// in OVERLAY_FORMULA (builtins.go, overlayAllowed).
+		{"sin", false, true},
+		{"cos", false, true},
+		{"tan", false, true},
+		{"atan2", false, true},
+		{"pi", false, true},
+		{"e", false, true},
 		{"abs", false, false},
 		{"pct_change", false, false},
 	}
