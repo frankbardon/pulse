@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"sort"
+
+	"github.com/frankbardon/pulse/internal/detmath"
 )
 
 // categoricalPairSampler resamples field B conditioned on field A's
@@ -265,7 +267,7 @@ func conditionalNumericDraw(rng *rand.Rand, mom categoryMoments, bernoulli bool)
 		}
 		return 0
 	}
-	return mom.mean + float64(rng.NormFloat64()*mom.std)
+	return mom.mean + float64(detmath.NormFloat64(rng)*mom.std)
 }
 
 // discreteConditional is the target-side half of a conditional pair whose
@@ -435,7 +437,7 @@ func buildDiscreteConditionals(wfs []*writerField) (map[string]*discreteConditio
 // normal arm it replaces, though not the same values. The per-row RNG
 // sequence stays a function of the SPEC.
 func conditionalDiscreteDraw(rng *rand.Rand, mom categoryMoments, dc *discreteConditional) float64 {
-	z := rng.NormFloat64()
+	z := detmath.NormFloat64(rng)
 	u := float64((mom.mean-dc.mean)*dc.invStd) + float64((mom.std*dc.invStd)*z)
 	return dc.levels.quantile(phi(u))
 }

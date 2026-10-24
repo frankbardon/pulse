@@ -1,6 +1,7 @@
 // Package detmath holds deterministic, architecture-independent ports of
 // the Go standard library's transcendental kernels: Exp, Expm1, Log,
-// Log1p, Sin, Cos, Tan, Atan2, Pow, Erf and Erfinv.
+// Log1p, Sin, Cos, Tan, Atan2, Pow, Erf and Erfinv — plus the ziggurat
+// standard normal and exponential variates, NormFloat64 and ExpFloat64.
 //
 // # Why it exists
 //
@@ -46,6 +47,16 @@
 // TestDetmath_NoFMAContraction, which cross-compiles the package for
 // arm64 with -d=fmahash=vy and fails on any contraction the compiler
 // reports.
+//
+// NormFloat64 / ExpFloat64 (ziggurat.go) port math/rand/v2's ziggurat
+// methods: they take the caller's *rand.Rand and consume it exactly as
+// the methods do (TestDetmath_ZigguratStreamParity /
+// TestDetmath_ZigguratConsumption), so a seed's stream is unchanged, but
+// their rare tail and wedge branches call Log / Exp above and never fuse
+// a multiply-add, so a draw's bits are a function of the seed alone
+// (TestDetmath_ZigguratGoldenBits). The float32 wedge products are
+// barriered with float32(...), which the source scan accepts for a
+// float32 product only.
 //
 // The ported code is Copyright The Go Authors and is used under the BSD
 // license reproduced in THIRD_PARTY_NOTICES.md at the repository root.

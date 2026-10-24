@@ -28,7 +28,8 @@ import (
 // what the others cannot:
 //
 //  1. TestDetmath_NoFusibleProducts — a source scan: every non-constant
-//     float product is the direct operand of float64(...). Runs on every
+//     float product is the direct operand of float64(...) (float32(...)
+//     for a float32 product). Runs on every
 //     architecture and names the line.
 //  2. TestDetmath_NoFMAContraction — the compiler's own word: the
 //     package is cross-compiled for arm64 with -d=fmahash=vy, which
@@ -88,7 +89,7 @@ func TestDetmath_ImportBoundary(t *testing.T) {
 
 // TestDetmath_NoFusibleProducts is gate 1: every non-constant float
 // multiplication in the kernels, including a `*=` assignment, must be the
-// direct operand of a float64(...) conversion.
+// direct operand of a same-width float64(...) / float32(...) conversion.
 func TestDetmath_NoFusibleProducts(t *testing.T) {
 	fset, files := parseKernel(t)
 	info := &types.Info{Types: map[ast.Expr]types.TypeAndValue{}}
@@ -106,8 +107,15 @@ func TestDetmath_NoFusibleProducts(t *testing.T) {
 		ast.Inspect(f, func(n ast.Node) bool {
 			switch n := n.(type) {
 			case *ast.CallExpr:
-				if id, ok := n.Fun.(*ast.Ident); ok && id.Name == "float64" && len(n.Args) == 1 {
-					barriered[ast.Unparen(n.Args[0])] = true
+				// float64(p) barriers a float64 product, float32(p) a
+				// float32 one (the ziggurat's wedge arithmetic); a
+				// conversion to the OTHER width is a value change, not a
+				// barrier, so it does not count.
+				if id, ok := n.Fun.(*ast.Ident); ok && (id.Name == "float64" || id.Name == "float32") && len(n.Args) == 1 {
+					arg := ast.Unparen(n.Args[0])
+					if b, ok := info.Types[arg].Type.Underlying().(*types.Basic); ok && b.Name() == id.Name {
+						barriered[arg] = true
+					}
 				}
 			case *ast.AssignStmt:
 				if n.Tok == token.MUL_ASSIGN && isFloat(n.Lhs[0]) {
@@ -130,7 +138,7 @@ func TestDetmath_NoFusibleProducts(t *testing.T) {
 	}
 	for _, p := range products {
 		if !barriered[p] {
-			t.Errorf("%s: float product without a float64() barrier", fset.Position(p.Pos()))
+			t.Errorf("%s: float product without a same-width float64()/float32() barrier", fset.Position(p.Pos()))
 		}
 	}
 }

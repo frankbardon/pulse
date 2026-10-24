@@ -281,8 +281,8 @@ func TestSynthExprMath_SpecWithoutNewFunctionsIsByteIdentical(t *testing.T) {
 // 4242 to preSharedMathSpecHash.
 func preU58RowEnvSpec() *synth.Spec {
 	spec := ruleFreeSpec()
-	// uniform, not normal: like ruleFreeSpec, nothing here may reach
-	// NormFloat64, Exp or Log, or the pin becomes architecture-sensitive.
+	// uniform, not normal: like ruleFreeSpec, the pin predates portable
+	// variates, and keeping it free of them keeps it comparable.
 	spec.Fields = append(spec.Fields, synth.FieldSpec{Name: "score", Type: "f64", Distribution: synth.DistUniform,
 		Params: map[string]any{"min": 0.0, "max": 100.0}})
 	spec.Rules = []synth.RuleSpec{
@@ -300,8 +300,8 @@ func preU58RowEnvSpec() *synth.Spec {
 // `id` column lost its gaps — and decoding both files showed `id` was
 // the ONLY column that differed, so the maths pin still holds for every
 // drawn and rule-written value. Like preRuleApplySpecHash, it rides
-// no Exp / Log / NormFloat64-sensitive path beyond what that pin already
-// trusts across architectures.
+// no variate or transcendental beyond what that pin already trusts
+// across architectures.
 const preSharedMathSpecHash = "935c3bb50cac2c031e3cb06ac96ef2d5ad949f4e7ba6c9544791ee77712fa682"
 
 func sha256Hex(b []byte) string {

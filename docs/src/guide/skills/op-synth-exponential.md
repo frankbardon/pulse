@@ -37,7 +37,7 @@ Use something else:
 
 ## Output
 
-Per-row `float64` sample from `Exp(lambda)`, computed as `rng.ExpFloat64() / lambda`. Tail is unbounded — heavy enough to inflate `u4`/`u8` overflow risk under low lambda.
+Per-row `float64` sample from `Exp(lambda)`, a portable rate-1 ziggurat variate divided by `lambda`. Tail is unbounded — heavy enough to inflate `u4`/`u8` overflow risk under low lambda.
 
 ## Contract
 

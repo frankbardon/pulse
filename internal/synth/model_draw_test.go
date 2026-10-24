@@ -32,7 +32,9 @@ import (
 // deliberately not pinned in code for the reason recorded on
 // preModelsSpecHash: math.Exp / math.Log are architecture-specific in
 // the standard library, so a cross-machine byte pin would be a flaky
-// gate rather than a contract. TestSynthModel_StageInertWithoutDrawers
+// gate rather than a contract (true then; since U58 generation is
+// portable, and TestSynthZiggurat_GenerationBytesPortable pins a
+// modelled spec's bytes). TestSynthModel_StageInertWithoutDrawers
 // below is the in-tree structural form of the same property.
 //
 // The composed value is compared with a tolerance rather than exactly

@@ -45,7 +45,7 @@ func TestSynthGeneration_DrawsRunOnDetmath(t *testing.T) {
 		rng, twin := rand.New(rand.NewPCG(5, 6)), rand.New(rand.NewPCG(5, 6))
 		for i := range detmathSweep {
 			got, _ := s.next(rng)
-			want := detmath.Exp(mu + float64(twin.NormFloat64()*sigma))
+			want := detmath.Exp(mu + float64(detmath.NormFloat64(twin)*sigma))
 			if !sameBits(got.(float64), want) {
 				t.Fatalf("draw %d: lognormal = %x, want detmath's %x", i, math.Float64bits(got.(float64)), math.Float64bits(want))
 			}

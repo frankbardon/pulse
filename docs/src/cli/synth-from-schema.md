@@ -6,7 +6,8 @@ declarative spec — for testing, demos, and bootstrapping fixtures.
 `pulse synth from-schema` reads a JSON synth spec (field-by-field
 distributions, row count, optional pairwise correlations) and writes
 a deterministic `.pulse` file. Same `(spec, seed)` pair produces a
-byte-identical output.
+byte-identical output — on every machine, not just across runs: every
+draw's variates and maths run on portable kernels.
 
 > **No MCP tool.** Synthesis is CLI and library (`Pulse.Synth`) only.
 > The `synthetic-data` skill covers spec authoring, the supported

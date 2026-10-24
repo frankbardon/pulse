@@ -40,21 +40,18 @@ package synth
 // (exprenv.MathOptions, row_expr_builtins.go), the lognormal / pareto /
 // poisson draws (distributions.go) and the copula's Φ / Φ⁻¹ and marginal
 // transforms (copula.go), which every correlated, modelled and vector
-// draw passes through. `math.Sqrt` is exempt — IEEE-754 requires it to be
+// draw passes through — and the standard normal / exponential variates
+// themselves: math/rand/v2's ziggurat calls math.Log / math.Exp and fuses
+// a multiply-add in its rare tail, so every draw goes through
+// detmath.NormFloat64 / ExpFloat64, a port that consumes the RNG exactly
+// as the stdlib does (TestSynthZiggurat_NoStdlibVariates bans the stdlib
+// methods here). `math.Sqrt` is exempt — IEEE-754 requires it to be
 // correctly rounded — and so is `math.Pow10`, a table lookup times one
 // correctly rounded product.
 //
-// Two known residuals remain:
-//
-//   - the standard normal and exponential VARIATES come from math/rand/v2's
-//     ziggurat (`NormFloat64`, `ExpFloat64`), whose rare tail and wedge
-//     branches call math.Log / math.Exp and an unbarriered float32
-//     multiply-add internally, so a spec drawing them (normal, lognormal,
-//     exponential, any copula, model or vector field) can still differ in
-//     the last bits of a tail draw across machines;
-//   - `internal/processing/regression` (the OLS engine behind the `models`
-//     section) has not been made fusion-free; see the package's own
-//     notes.
+// One known residual remains: `internal/processing/regression` (the OLS
+// engine behind `--fit-models`' `models` section) has not been made
+// fusion-free; see the package's own notes.
 
 // sampleVariance is the unbiased sample variance from a running
 // (count, sum, sumSq) triple, in the one place every caller shares.

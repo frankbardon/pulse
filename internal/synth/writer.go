@@ -512,7 +512,7 @@ func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask m
 	}
 	// One correlated normal vector for the whole row, drawn before the
 	// first drawer runs so every participant reads the same row's
-	// residual structure. It consumes exactly one rng.NormFloat64() per
+	// residual structure. It consumes exactly one detmath.NormFloat64(rng) per
 	// participant in component order (= drawer order = schema order),
 	// and is skipped entirely — no draws at all — when nothing
 	// participates, which is what keeps a spec without residual

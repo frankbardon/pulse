@@ -205,7 +205,7 @@ func newNormalSampler(f FieldSpec) (sampler, error) {
 }
 
 func (n *normalSampler) next(rng *rand.Rand) (any, bool) {
-	v := n.mean + float64(rng.NormFloat64()*n.std)
+	v := n.mean + float64(detmath.NormFloat64(rng)*n.std)
 	if n.clamped {
 		if v < n.min {
 			v = n.min
@@ -238,7 +238,7 @@ func newLogNormalSampler(f FieldSpec) (sampler, error) {
 }
 
 func (l *logNormalSampler) next(rng *rand.Rand) (any, bool) {
-	return detmath.Exp(l.mu + float64(rng.NormFloat64()*l.sigma)), false
+	return detmath.Exp(l.mu + float64(detmath.NormFloat64(rng)*l.sigma)), false
 }
 
 type exponentialSampler struct{ lambda float64 }
@@ -256,7 +256,7 @@ func newExponentialSampler(f FieldSpec) (sampler, error) {
 }
 
 func (e *exponentialSampler) next(rng *rand.Rand) (any, bool) {
-	return rng.ExpFloat64() / e.lambda, false
+	return detmath.ExpFloat64(rng) / e.lambda, false
 }
 
 // poissonSampler draws a Poisson count. l is e^-lambda, Knuth's stopping
@@ -295,7 +295,7 @@ func (p *poissonSampler) next(rng *rand.Rand) (any, bool) {
 	}
 	// Normal approximation for large lambda. Mean = lambda, variance =
 	// lambda. Round to nearest non-negative integer.
-	v := p.lambda + float64(rng.NormFloat64()*math.Sqrt(p.lambda))
+	v := p.lambda + float64(detmath.NormFloat64(rng)*math.Sqrt(p.lambda))
 	if v < 0 {
 		v = 0
 	}
@@ -754,7 +754,7 @@ func (m *mixtureSampler) next(rng *rand.Rand) (any, bool) {
 	if idx >= len(m.means) {
 		idx = len(m.means) - 1
 	}
-	return m.means[idx] + float64(rng.NormFloat64()*m.stds[idx]), false
+	return m.means[idx] + float64(detmath.NormFloat64(rng)*m.stds[idx]), false
 }
 
 // setSampler draws a set_* field's own independent marginal: one

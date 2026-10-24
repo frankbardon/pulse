@@ -320,15 +320,14 @@ func TestRules_ConsumeNoRNG(t *testing.T) {
 // additive, so every spec in the world that declares no rule must be
 // generated exactly as it was.
 //
-// A byte pin is normally avoided in this package because math.Exp and
-// math.Log are architecture-specific in the standard library (see
-// preModelsSpecHash). THIS spec is safe to pin and that is a property of
-// the spec, not luck: every sampler it uses is comparison or
-// barriered-arithmetic only (monotonic_from, bernoulli, uniform —
+// It was safe to pin across architectures when it was taken, before
+// generation's variates and transcendentals moved onto internal/detmath:
+// every sampler it uses is comparison or barriered-arithmetic only
+// (monotonic_from, bernoulli, uniform —
 // `u.min + float64(rng.Float64()*(u.max-u.min))`, weighted_categorical,
-// set_bernoulli), it declares no model and no correlation, and it never
-// reaches NormFloat64, Exp or Log. Anything added to it must keep that
-// true or the gate becomes flaky rather than protective.
+// set_bernoulli), and it declares no model and no correlation. Since U58
+// every generation path is portable (TestSynthZiggurat_GenerationBytesPortable
+// pins one that draws them all), so that restriction no longer binds.
 const preRuleApplySpecHash = "bb456a2e9fb29666d817aee9bb275f9efc2ba342abb5db4cb4b0a37a71435c55"
 
 // ruleFreeSpec is the pinned spec. See preRuleApplySpecHash.

@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/detmath"
 )
 
 // This file is the generation-time half of the multi-predictor work:
@@ -97,7 +98,7 @@ import (
 // A drawer whose field takes part in Spec.ResidualCorrelations reads its
 // own component of ONE correlated standard-normal vector drawn for the
 // whole row (internal/synth/residual_draw.go); every other drawer takes its own
-// fresh rng.NormFloat64(). That is the whole of how a field becomes
+// fresh detmath.NormFloat64(rng). That is the whole of how a field becomes
 // conditioned AND correlated at once: the predictors move mu, the shared
 // vector correlates the residual, and neither overwrites the other.
 //
@@ -115,7 +116,7 @@ import (
 type modelDrawer struct {
 	field string
 	// order is the target's index in the schema's field order. Drawers
-	// are sorted by it so the per-row sequence of rng.NormFloat64()
+	// are sorted by it so the per-row sequence of detmath.NormFloat64(rng)
 	// calls is fixed by the SCHEMA, never by the order the `models`
 	// array happened to be written in and never by a map range — the
 	// same determinism rule buildSchema's dictionary pre-registration
@@ -363,7 +364,7 @@ func buildModelDrawers(models []FieldModelSpec, wfs []*writerField) ([]*modelDra
 // participating drawer reads its stamped component of the vector
 // residualCorrelator.draw already filled for this row (consuming one
 // normal per participant, in component order, before the first drawer
-// ran), and a non-participating one calls rng.NormFloat64() exactly
+// ran), and a non-participating one calls detmath.NormFloat64(rng) exactly
 // where it always did. So the per-row RNG sequence is still a function
 // of the Spec alone — N shared draws followed by one per independent
 // drawer in schema order — which is what lets fields share randomness
@@ -390,7 +391,7 @@ func (d *modelDrawer) transform(rng *mrand.Rand, row map[string]any, nullMask ma
 	if rc != nil && d.residual >= 0 {
 		z = rc.component(d.residual)
 	} else {
-		z = rng.NormFloat64()
+		z = detmath.NormFloat64(rng)
 	}
 	u := float64((prediction-d.mean)*d.invStd) + float64(d.residualZ*z)
 	row[d.field] = d.hasClamp.apply(d.quantile(u, phi(u)))

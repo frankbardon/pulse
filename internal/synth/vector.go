@@ -8,6 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/detmath"
 )
 
 // Vector fields (vec_f32 / vec_f64) are synthesised as ONE joint draw per
@@ -471,7 +472,7 @@ func (s *vectorSampler) next(rng *rand.Rand) (any, bool) {
 		correlatedNormals(rng, s.chol, z, u)
 	} else {
 		for k := range u {
-			u[k] = rng.NormFloat64()
+			u[k] = detmath.NormFloat64(rng)
 		}
 	}
 	// z's storage carries the result: L·z has already been read into u,

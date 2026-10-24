@@ -511,13 +511,13 @@ func factorCorrelations(subject, participant string, names []string, idx map[str
 // (correlator.transform), on the residual scale each component IS the
 // modelled field's z (residualCorrelator.draw).
 //
-// z is consumed in COMPONENT ORDER, one rng.NormFloat64() per
+// z is consumed in COMPONENT ORDER, one detmath.NormFloat64(rng) per
 // participant, and both callers fix that order at construction time
 // from the Spec rather than from a map — the determinism contract rests
 // on it. See skills/synth-determinism.md.
 func correlatedNormals(rng *mrand.Rand, chol [][]float64, z, u []float64) {
 	for i := range z {
-		z[i] = rng.NormFloat64()
+		z[i] = detmath.NormFloat64(rng)
 	}
 	for i := range u {
 		sum := 0.0
