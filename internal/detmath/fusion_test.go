@@ -148,7 +148,7 @@ func fmahashBuild(t *testing.T, dir, importPath string) []string {
 		t.Fatalf("cross-compile for arm64 failed: %v\n%s", err, out.String())
 	}
 	var lines []string
-	for _, l := range strings.Split(out.String(), "\n") {
+	for l := range strings.SplitSeq(out.String(), "\n") {
 		if strings.Contains(l, "fmahash triggered") {
 			lines = append(lines, l)
 		}
