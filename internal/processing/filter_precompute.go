@@ -405,13 +405,15 @@ func (v *exprPurityVisitor) Visit(node *exprast.Node) {
 }
 
 // exprPureSetBuiltins are the built-ins exprenv.Options registers, all
-// pure: the set helpers, the `%` rewrite target and every reserved
+// pure: the set helpers, the `%` / `**` / `^` rewrite targets and every reserved
 // vector / scalar-maths built-in (internal/exprenv — the one list,
 // so a new built-in can never silently drop a filter off the precompute
 // fast path).
 var exprPureSetBuiltins = func() map[string]bool {
 	m := map[string]bool{
-		exprenv.ModFuncName: true, // the builtin `%` rewrites into (internal/exprenv mod.go)
+		exprenv.ModFuncName:      true, // the builtin `%` rewrites into (internal/exprenv mod.go)
+		exprenv.PowFuncName:      true, // the builtin `**` rewrites into (internal/exprenv pow.go)
+		exprenv.PowCaretFuncName: true, // the builtin `^` rewrites into (pow.go)
 	}
 	for _, name := range exprenv.SetHelperNames() {
 		m[name] = true

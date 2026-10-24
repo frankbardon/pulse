@@ -50,7 +50,7 @@ A vector is a literal list, `[5, 5, 1, 1]` or `[q1, q2, q3]`; a `nil` element is
 | `jaccard` `dice` `overlap` `hamming` (two sets: field or `["a", "b"]`, matched by label; a dictionary-less set pairs only with another) | float, `hamming` int; null set → NaN; two empty → NaN, `hamming` 0 |
 | `ref` (table, key) | a reference profile, aligned by label ([`vector-metrics`](vector-metrics.md)) |
 
-Named maths is machine-independent; `**` is not: use `pow`. A non-finite result is `null` on the wire. Reserved names: an embedder `ExprFunctions` entry using one → `PULSE_EXTENSION_NAME_RESERVED`.
+Maths, `**` included, is machine-independent. A non-finite result is `null` on the wire. Reserved names: an embedder `ExprFunctions` entry using one → `PULSE_EXTENSION_NAME_RESERVED`.
 
 ## Null handling
 
