@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/detmath"
 	"github.com/frankbardon/pulse/internal/temporal"
 )
 
@@ -237,7 +238,7 @@ func newLogNormalSampler(f FieldSpec) (sampler, error) {
 }
 
 func (l *logNormalSampler) next(rng *rand.Rand) (any, bool) {
-	return math.Exp(l.mu + float64(rng.NormFloat64()*l.sigma)), false
+	return detmath.Exp(l.mu + float64(rng.NormFloat64()*l.sigma)), false
 }
 
 type exponentialSampler struct{ lambda float64 }
@@ -258,7 +259,11 @@ func (e *exponentialSampler) next(rng *rand.Rand) (any, bool) {
 	return rng.ExpFloat64() / e.lambda, false
 }
 
-type poissonSampler struct{ lambda float64 }
+// poissonSampler draws a Poisson count. l is e^-lambda, Knuth's stopping
+// threshold, computed ONCE through detmath at construction: math.Exp's
+// last bits differ between machines, and a threshold one ulp away decides
+// a different count whenever a running product lands between the two.
+type poissonSampler struct{ lambda, l float64 }
 
 func newPoissonSampler(f FieldSpec) (sampler, error) {
 	lambda, _, err := paramFloat(f.Name, f.Params, "lambda", 1)
@@ -269,7 +274,7 @@ func newPoissonSampler(f FieldSpec) (sampler, error) {
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("field %q: poisson lambda must be > 0", f.Name), nil)
 	}
-	return &poissonSampler{lambda: lambda}, nil
+	return &poissonSampler{lambda: lambda, l: detmath.Exp(-lambda)}, nil
 }
 
 // next implements Knuth's multiplicative algorithm for small lambda and
@@ -278,13 +283,12 @@ func newPoissonSampler(f FieldSpec) (sampler, error) {
 // is plenty fast.
 func (p *poissonSampler) next(rng *rand.Rand) (any, bool) {
 	if p.lambda < 30 {
-		L := math.Exp(-p.lambda)
 		k := 0.0
 		prod := 1.0
 		for {
 			k++
 			prod *= rng.Float64()
-			if prod <= L {
+			if prod <= p.l {
 				return k - 1, false
 			}
 		}
@@ -324,7 +328,7 @@ func (p *paretoSampler) next(rng *rand.Rand) (any, bool) {
 	// scaled integer, and without the conversion `1 - scale*n` contracts
 	// into a single fused multiply-subtract on arm64 but not on amd64.
 	u := 1 - float64(rng.Float64())
-	return p.xm / math.Pow(u, 1.0/p.alpha), false
+	return p.xm / detmath.Pow(u, 1.0/p.alpha), false
 }
 
 type bernoulliSampler struct{ p float64 }

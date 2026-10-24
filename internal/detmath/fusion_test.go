@@ -42,7 +42,8 @@ import (
 //     see a dropped barrier), while TestDetmath_GoldenBits holds the
 //     production kernels to the barriered bits. On amd64 the twin is not
 //     actually fused, so this gate can only detect on a contracting
-//     architecture and logs which case it is in.
+//     architecture and logs which case it is in. For Expm1 / Erf /
+//     Erfinv the contracted stdlib itself serves as the twin.
 
 // parseKernel parses the package's non-test files.
 func parseKernel(t *testing.T) (*token.FileSet, []*ast.File) {
@@ -364,5 +365,29 @@ func TestDetmath_FusedTwinsDiverge(t *testing.T) {
 				"the twin is no longer the verbatim port", name, diverged)
 		}
 		t.Logf("%s: unbarriered twin differs from the pinned bits on %d rows", name, diverged)
+	}
+	// Expm1 / Erf / Erfinv need no hand-copied twin: off s390x (the one
+	// GOARCH with assembly for them) math.Expm1 / Erf / Erfinv ARE the
+	// unbarriered pure-Go sources, so on a contracting build the stdlib
+	// itself is the fused twin. On amd64 it is not fused, and math.Erf
+	// also calls the FMA-path exp assembly, so this half runs only where
+	// it can detect.
+	if !obs || runtime.GOARCH == "s390x" {
+		return
+	}
+	for name, twin := range map[string]func(float64) float64{
+		"Expm1": math.Expm1, "Erf": math.Erf, "Erfinv": math.Erfinv,
+	} {
+		diverged := 0
+		for _, c := range goldenCases {
+			if c.fn == name && !c.isNaN && math.Float64bits(twin(c.x)) != c.want {
+				diverged++
+			}
+		}
+		if diverged == 0 {
+			t.Errorf("%s: the contracted stdlib reproduces every golden row, so the golden table can "+
+				"no longer see a dropped barrier — add an input where fusion moves the last bit", name)
+		}
+		t.Logf("%s: contracted math.%s differs from the pinned bits on %d rows", name, name, diverged)
 	}
 }

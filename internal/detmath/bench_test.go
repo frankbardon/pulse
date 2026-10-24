@@ -47,6 +47,9 @@ var (
 	atanX   = benchInputs(7, func(r *sweepRand) float64 { return r.scaled(-20, 20) })
 	powX    = benchInputs(8, func(r *sweepRand) float64 { return r.positive(-4, 4) })
 	powY    = benchInputs(9, func(r *sweepRand) float64 { return r.scaled(-4, 5) })
+	expm1In = benchInputs(10, func(r *sweepRand) float64 { return r.scaled(-30, 5) })
+	erfIn   = benchInputs(11, func(r *sweepRand) float64 { return r.scaled(-8, 2) })
+	erfiIn  = benchInputs(12, func(r *sweepRand) float64 { return r.scaled(-20, -1) })
 )
 
 func BenchmarkDetmath_Exp(b *testing.B)     { bench1(b, Exp, expIn) }
@@ -67,3 +70,9 @@ func BenchmarkDetmath_Atan2(b *testing.B)   { bench2(b, Atan2, atanY, atanX) }
 func BenchmarkStdlib_Atan2(b *testing.B)    { bench2(b, math.Atan2, atanY, atanX) }
 func BenchmarkDetmath_Pow(b *testing.B)     { bench2(b, Pow, powX, powY) }
 func BenchmarkStdlib_Pow(b *testing.B)      { bench2(b, math.Pow, powX, powY) }
+func BenchmarkDetmath_Expm1(b *testing.B)   { bench1(b, Expm1, expm1In) }
+func BenchmarkStdlib_Expm1(b *testing.B)    { bench1(b, math.Expm1, expm1In) }
+func BenchmarkDetmath_Erf(b *testing.B)     { bench1(b, Erf, erfIn) }
+func BenchmarkStdlib_Erf(b *testing.B)      { bench1(b, math.Erf, erfIn) }
+func BenchmarkDetmath_Erfinv(b *testing.B)  { bench1(b, Erfinv, erfiIn) }
+func BenchmarkStdlib_Erfinv(b *testing.B)   { bench1(b, math.Erfinv, erfiIn) }

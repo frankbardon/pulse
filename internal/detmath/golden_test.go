@@ -37,6 +37,10 @@ var (
 // (|x| ≥ 2^29), the inputs where the stdlib itself disagrees across
 // architectures, and the amd64 assembly defects detmath does not share
 // (math.Log of a subnormal, math.Exp overflowing early near 709.4–709.78).
+// The Expm1 / Erf / Erfinv rows include the sweep inputs where arm64's
+// contracted stdlib (Expm1(0.1466…), Erf(0.2291…), Erfinv(0.0340…)) and
+// amd64's FMA-path Exp inside math.Erf (Erf(1.5911…)) leave the
+// unbarriered result.
 var goldenCases = []goldenCase{
 	// Exp
 	{fn: "Exp", x: 0, want: 0x3ff0000000000000},                  // 1
@@ -226,6 +230,73 @@ var goldenCases = []goldenCase{
 	{fn: "Pow", x: 1.5, y: 2.75, want: 0x400865b271ccd152},                                 // 3.0496567621832265
 	{fn: "Pow", x: 1.7, y: 0.521, want: 0x3ff5185fbd1648f2},                                // 1.3184506784642136
 	{fn: "Pow", x: 1.7, y: 256.535, want: 0x4c34ea34005290c4},                              // 1.3128467874391292e+59
+	// Expm1
+	{fn: "Expm1", x: 0, want: 0x0000000000000000},                   // 0
+	{fn: "Expm1", x: nz, want: 0x8000000000000000},                  // -0
+	{fn: "Expm1", x: 1e-20, want: 0x3bc79ca10c924223},               // 1e-20
+	{fn: "Expm1", x: 1e-10, want: 0x3ddb7cdfd9dda4e3},               // 1.00000000005e-10
+	{fn: "Expm1", x: 0.1, want: 0x3fbaec7b35a00d3a},                 // 0.10517091807564763
+	{fn: "Expm1", x: 0.14668497136738634, want: 0x3fc438fcad596ef6}, // 0.15798910583804798
+	{fn: "Expm1", x: 0.3, want: 0x3fd6641632306a56},                 // 0.3498588075760031
+	{fn: "Expm1", x: 0.4, want: 0x3fdf7a0e4beeff80},                 // 0.49182469764127035
+	{fn: "Expm1", x: 0.5, want: 0x3fe4c2531c3c0d38},                 // 0.6487212707001282
+	{fn: "Expm1", x: -0.5, want: 0xbfd92e9a0720d3ec},                // -0.3934693402873666
+	{fn: "Expm1", x: 0.8, want: 0x3ff39bd0cdfc8dd1},                 // 1.2255409284924677
+	{fn: "Expm1", x: 1.2, want: 0x40028f99761065a4},                 // 2.3201169227365472
+	{fn: "Expm1", x: -2, want: 0xbfebab5557101f8d},                  // -0.8646647167633873
+	{fn: "Expm1", x: 10, want: 0x40d5825dcf950560},                  // 22025.465794806718
+	{fn: "Expm1", x: 30, want: 0x42a370470aec26ed},                  // 1.0686474581523463e+13
+	{fn: "Expm1", x: 40, want: 0x438a220d397972ea},                  // 2.3538526683701997e+17
+	{fn: "Expm1", x: -30, want: 0xbfeffffffffffcb5},                 // -0.9999999999999064
+	{fn: "Expm1", x: -40, want: 0xbff0000000000000},                 // -1
+	{fn: "Expm1", x: 709.7, want: 0x7fed75ae7a50ee14},               // 1.6549840276802644e+308
+	{fn: "Expm1", x: 709.8, want: 0x7ff0000000000000},               // +Inf
+	{fn: "Expm1", x: inf, want: 0x7ff0000000000000},                 // +Inf
+	{fn: "Expm1", x: ninf, want: 0xbff0000000000000},                // -1
+	{fn: "Expm1", x: nan, isNaN: true},
+	// Erf
+	{fn: "Erf", x: 0, want: 0x0000000000000000},                   // 0
+	{fn: "Erf", x: nz, want: 0x8000000000000000},                  // -0
+	{fn: "Erf", x: 5e-324, want: 0x0000000000000001},              // 5e-324
+	{fn: "Erf", x: 1e-310, want: 0x000014c5898977c4},              // 1.1283791670955e-310
+	{fn: "Erf", x: 1e-20, want: 0x3bcaa4a230244ae0},               // 1.1283791670955125e-20
+	{fn: "Erf", x: 0.1, want: 0x3fbcca5ea24fb334},                 // 0.1124629160182849
+	{fn: "Erf", x: 0.22917078131981217, want: 0x3fd043bf50375a1f}, // 0.2541349681245339
+	{fn: "Erf", x: 0.5, want: 0x3fe0a7ef5c18edd2},                 // 0.5204998778130465
+	{fn: "Erf", x: -0.5, want: 0xbfe0a7ef5c18edd2},                // -0.5204998778130465
+	{fn: "Erf", x: 0.9, want: 0x3fe98045a6c8a2e6},                 // 0.7969082124228322
+	{fn: "Erf", x: 1, want: 0x3feaf767a741088b},                   // 0.8427007929497149
+	{fn: "Erf", x: -1.2, want: 0xbfed214ac7b2d067},                // -0.9103139782296353
+	{fn: "Erf", x: 1.5911460540786109, want: 0x3fef37d42b70e196},  // 0.9755650375800993
+	{fn: "Erf", x: 2, want: 0x3fefd9ae142795e3},                   // 0.9953222650189527
+	{fn: "Erf", x: 2.5, want: 0x3feffcaa8f4c9bea},                 // 0.999593047982555
+	{fn: "Erf", x: 3, want: 0x3fefffd1ac4135f9},                   // 0.9999779095030014
+	{fn: "Erf", x: -4, want: 0xbfeffffff7b91176},                  // -0.9999999845827421
+	{fn: "Erf", x: 5.9, want: 0x3fefffffffffffff},                 // 0.9999999999999999
+	{fn: "Erf", x: 6, want: 0x3ff0000000000000},                   // 1
+	{fn: "Erf", x: 30, want: 0x3ff0000000000000},                  // 1
+	{fn: "Erf", x: inf, want: 0x3ff0000000000000},                 // 1
+	{fn: "Erf", x: ninf, want: 0xbff0000000000000},                // -1
+	{fn: "Erf", x: nan, isNaN: true},
+	// Erfinv
+	{fn: "Erfinv", x: 0, want: 0x0000000000000000},                   // 0
+	{fn: "Erfinv", x: nz, want: 0x8000000000000000},                  // -0
+	{fn: "Erfinv", x: 1e-300, want: 0x01a2fdf36bf69ba0},              // 8.862269254527582e-301
+	{fn: "Erfinv", x: 0.03401419535294149, want: 0x3f9ee08a92787d9b}, // 0.030153432073459645
+	{fn: "Erfinv", x: 0.5, want: 0x3fde861fbb24c00a},                 // 0.4769362762044699
+	{fn: "Erfinv", x: -0.85, want: 0xbff04954184f8aa5},               // -1.0179024648320276
+	{fn: "Erfinv", x: 0.85, want: 0x3ff04954184f8aa5},                // 1.0179024648320276
+	{fn: "Erfinv", x: 0.9, want: 0x3ff29c014677064f},                 // 1.1630871536766738
+	{fn: "Erfinv", x: -0.99, want: 0xbffd2466082bb20c},               // -1.821386367718449
+	{fn: "Erfinv", x: 0.999999, want: 0x400babd964830d57},            // 3.4589107372754984
+	{fn: "Erfinv", x: 1 - 0x1p-40, want: 0x4014347bf36fbae8},         // 5.05125408524939
+	{fn: "Erfinv", x: 1 - 0x1p-52, want: 0x40173856d153f080},         // 5.8050186831934525
+	{fn: "Erfinv", x: -(1 - 0x1p-52), want: 0xc0173856d153f080},      // -5.8050186831934525
+	{fn: "Erfinv", x: 1, want: 0x7ff0000000000000},                   // +Inf
+	{fn: "Erfinv", x: -1, want: 0xfff0000000000000},                  // -Inf
+	{fn: "Erfinv", x: 1.5, isNaN: true},
+	{fn: "Erfinv", x: -1.5, isNaN: true},
+	{fn: "Erfinv", x: nan, isNaN: true},
 }
 
 func eval(c goldenCase) float64 {
@@ -246,6 +317,12 @@ func eval(c goldenCase) float64 {
 		return Atan2(c.x, c.y)
 	case "Pow":
 		return Pow(c.x, c.y)
+	case "Expm1":
+		return Expm1(c.x)
+	case "Erf":
+		return Erf(c.x)
+	case "Erfinv":
+		return Erfinv(c.x)
 	}
 	panic("unknown kernel " + c.fn)
 }
@@ -271,7 +348,7 @@ func TestDetmath_GoldenBits(t *testing.T) {
 				c.fn, c.x, c.y, got, math.Float64bits(got), math.Float64frombits(c.want), c.want)
 		}
 	}
-	for _, fn := range []string{"Exp", "Log", "Log1p", "Sin", "Cos", "Tan", "Atan2", "Pow"} {
+	for _, fn := range []string{"Exp", "Log", "Log1p", "Sin", "Cos", "Tan", "Atan2", "Pow", "Expm1", "Erf", "Erfinv"} {
 		if !seen[fn] {
 			t.Errorf("golden table has no %s row", fn)
 		}

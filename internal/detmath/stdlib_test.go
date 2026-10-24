@@ -73,6 +73,21 @@ func kernels1() []kernel1 {
 		{"Sin", Sin, math.Sin, func(r *sweepRand) float64 { return r.scaled(-30, 60) }},
 		{"Cos", Cos, math.Cos, func(r *sweepRand) float64 { return r.scaled(-30, 60) }},
 		{"Tan", Tan, math.Tan, func(r *sweepRand) float64 { return r.scaled(-30, 60) }},
+		// ±2^-60 … ±2^9: the |x| < 2^-54 identity, both k = ±1 reductions,
+		// the k < 20 and k ≥ 20 rebuilds, and the -1 / +Inf saturations.
+		{"Expm1", Expm1, math.Expm1, func(r *sweepRand) float64 { return r.scaled(-60, 9) }},
+		{"Erf", Erf, math.Erf, func(r *sweepRand) float64 {
+			if r.next()%8 == 0 { // the |x| < 2^-28 linear arms, subnormals included
+				return r.scaled(-1074, -29)
+			}
+			return r.scaled(-6, 2) // every rational arm and the |x| ≥ 6 saturation
+		}},
+		{"Erfinv", Erfinv, math.Erfinv, func(r *sweepRand) float64 {
+			if r.next()&1 == 1 { // the log tail: 1 - 2^-k, both r ≤ 5 and r > 5
+				return signOf(r) * (1 - math.Ldexp(r.unit(), -int(r.next()%52)-2))
+			}
+			return r.scaled(-40, -1) // (-1, 1): the |x| ≤ 0.85 arm and the start of the tail
+		}},
 	}
 }
 
@@ -149,16 +164,23 @@ const sweepN = 200_000
 //     through the repeated-squaring chain and 1/a1, landing where the
 //     result's binade magnifies it (worst measured: 6 ulp on arm64, 5
 //     on amd64).
+//   - Erfinv 8: arm64 contracts the stdlib's degree-7 Horner chains in
+//     the |x| ≤ 0.85 arm, and numerator and denominator move together
+//     (worst measured: 7 ulp on arm64; 0 on amd64, whose math.Log tail
+//     agreed with detmath's on every sweep input).
+//   - Erf 1: arm64 contracts the rational arms; on amd64 the |x| ≥ 1.25
+//     arms call the FMA-path exp_amd64.s, 1 ulp from detmath.Exp.
 //   - every other kernel 1.
 var ulpBound = map[string]uint64{
 	"Exp": 2, "Log": 1, "Log1p": 1, "Sin": 1, "Cos": 1, "Tan": 2, "Atan2": 1, "Pow": 8,
+	"Expm1": 1, "Erf": 1, "Erfinv": 8,
 }
 
 // exactOnAMD64 are the kernels whose math.* twin is the very pure-Go
 // source detmath ports, compiled without contraction on amd64. There the
 // two must agree BIT FOR BIT: any difference is a mis-ported line, not
 // rounding, so this is the port-fidelity check CI runs on linux/amd64.
-var exactOnAMD64 = map[string]bool{"Log1p": true, "Sin": true, "Cos": true, "Tan": true, "Atan2": true}
+var exactOnAMD64 = map[string]bool{"Expm1": true, "Log1p": true, "Sin": true, "Cos": true, "Tan": true, "Atan2": true}
 
 func boundFor(name string) uint64 {
 	if runtime.GOARCH == "amd64" && exactOnAMD64[name] {
@@ -267,14 +289,17 @@ func isSpecial(v float64) bool {
 // assembly is known wrong (stdlibAsmDefect).
 func TestDetmath_SpecialCasesMatchStdlib(t *testing.T) {
 	std := map[string]func(x, y float64) float64{
-		"Exp":   func(x, _ float64) float64 { return math.Exp(x) },
-		"Log":   func(x, _ float64) float64 { return math.Log(x) },
-		"Log1p": func(x, _ float64) float64 { return math.Log1p(x) },
-		"Sin":   func(x, _ float64) float64 { return math.Sin(x) },
-		"Cos":   func(x, _ float64) float64 { return math.Cos(x) },
-		"Tan":   func(x, _ float64) float64 { return math.Tan(x) },
-		"Atan2": math.Atan2,
-		"Pow":   math.Pow,
+		"Exp":    func(x, _ float64) float64 { return math.Exp(x) },
+		"Log":    func(x, _ float64) float64 { return math.Log(x) },
+		"Log1p":  func(x, _ float64) float64 { return math.Log1p(x) },
+		"Sin":    func(x, _ float64) float64 { return math.Sin(x) },
+		"Cos":    func(x, _ float64) float64 { return math.Cos(x) },
+		"Tan":    func(x, _ float64) float64 { return math.Tan(x) },
+		"Atan2":  math.Atan2,
+		"Pow":    math.Pow,
+		"Expm1":  func(x, _ float64) float64 { return math.Expm1(x) },
+		"Erf":    func(x, _ float64) float64 { return math.Erf(x) },
+		"Erfinv": func(x, _ float64) float64 { return math.Erfinv(x) },
 	}
 	checked := 0
 	for _, c := range goldenCases {

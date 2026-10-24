@@ -32,18 +32,26 @@ package synth
 // The transcendental kernels are a separate hazard: `math.Exp`
 // (assembly on arm64, an FMA path picked per CPU on amd64) and
 // `math.Log` (assembly on amd64, pure Go on arm64) are
-// architecture-specific in the standard library. `--fit-shape`
-// (shape.go) and the rule / constraint row maths (exprenv.MathOptions,
-// row_expr_builtins.go) therefore run on internal/detmath's portable
-// ports instead, which give identical bits everywhere. `math.Sqrt` is
-// exempt — IEEE-754 requires it to be correctly rounded.
+// architecture-specific in the standard library, and the pure-Go
+// `math.Pow` / `Expm1` / `Erf` / `Erfinv` are compiled with contraction
+// on arm64. Every transcendental this package evaluates therefore runs on
+// internal/detmath's portable ports, which give identical bits
+// everywhere: `--fit-shape` (shape.go), the rule / constraint row maths
+// (exprenv.MathOptions, row_expr_builtins.go), the lognormal / pareto /
+// poisson draws (distributions.go) and the copula's Φ / Φ⁻¹ and marginal
+// transforms (copula.go), which every correlated, modelled and vector
+// draw passes through. `math.Sqrt` is exempt — IEEE-754 requires it to be
+// correctly rounded — and so is `math.Pow10`, a table lookup times one
+// correctly rounded product.
 //
 // Two known residuals remain:
 //
-//   - the GENERATION draws that still call the standard library —
-//     lognormal / exponential / pareto / poisson (distributions.go) and
-//     the copula's marginal transforms (copula.go) — stay
-//     machine-sensitive in their last bits;
+//   - the standard normal and exponential VARIATES come from math/rand/v2's
+//     ziggurat (`NormFloat64`, `ExpFloat64`), whose rare tail and wedge
+//     branches call math.Log / math.Exp and an unbarriered float32
+//     multiply-add internally, so a spec drawing them (normal, lognormal,
+//     exponential, any copula, model or vector field) can still differ in
+//     the last bits of a tail draw across machines;
 //   - `internal/processing/regression` (the OLS engine behind the `models`
 //     section) has not been made fusion-free; see the package's own
 //     notes.

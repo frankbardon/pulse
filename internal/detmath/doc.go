@@ -1,6 +1,6 @@
 // Package detmath holds deterministic, architecture-independent ports of
-// the Go standard library's transcendental kernels: Exp, Log, Log1p, Sin,
-// Cos, Tan, Atan2 and Pow.
+// the Go standard library's transcendental kernels: Exp, Expm1, Log,
+// Log1p, Sin, Cos, Tan, Atan2, Pow, Erf and Erfinv.
 //
 // # Why it exists
 //
@@ -11,8 +11,11 @@
 //     picks an FMA path at run time when the CPU supports it
 //     (exp_amd64.go: useFMA), so two amd64 machines can disagree.
 //   - math.Log is assembly on amd64 and pure Go on arm64.
-//   - The pure-Go Sin / Cos / Tan / Atan / Pow are compiled with
-//     fused multiply-add contraction on arm64 and without it on amd64.
+//   - The pure-Go Sin / Cos / Tan / Atan / Pow / Expm1 / Erf / Erfinv
+//     are compiled with fused multiply-add contraction on arm64 and
+//     without it on amd64; math.Erf and math.Erfinv also call the
+//     machine-specific math.Exp / math.Log internally (detmath's Erf and
+//     Erfinv call detmath's Exp and Log instead).
 //
 // Each function here is a line-for-line port of the PURE-GO path of the
 // Go 1.26 source named in its doc comment, with one change: every
@@ -32,10 +35,11 @@
 //
 // Every special case (NaN, ±Inf, ±0, subnormals, overflow, underflow)
 // follows math.*'s documented semantics. On linux/amd64, where the
-// compiler never contracts, Log1p / Sin / Cos / Tan / Atan2 are bit-for-bit
-// math.*; elsewhere results sit within the stdlib's own cross-build
-// spread: 1 ulp, 2 for Exp (amd64's FMA assembly) and Tan (arm64
-// contraction), 8 for Pow (it compounds Exp∘Log). Two amd64 assembly
+// compiler never contracts, Expm1 / Log1p / Sin / Cos / Tan / Atan2 are
+// bit-for-bit math.*; elsewhere results sit within the stdlib's own
+// cross-build spread: 1 ulp, 2 for Exp (amd64's FMA assembly) and Tan
+// (arm64 contraction), 8 for Pow (it compounds Exp∘Log) and Erfinv
+// (arm64 contracts its degree-7 Horner chains). Two amd64 assembly
 // defects are not shared: math.Log of a subnormal returns about -709.09,
 // and math.Exp overflows to +Inf from about 709.44 instead of 709.78. The gate is TestDetmath_GoldenBits (exact
 // uint64 pins that must hold on amd64 and arm64 alike) plus

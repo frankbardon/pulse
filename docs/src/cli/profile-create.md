@@ -1632,19 +1632,22 @@ Two causes, both closed:
   capture formula now carries an explicit `float64(...)` conversion,
   which the language defines as forbidding contraction.
 
-Two residuals remain, and they are stated rather than papered over:
+A third cause, the transcendental kernels, is closed too: `math.Exp` /
+`math.Log` are architecture-specific in the standard library, so
+`--fit-shape`'s EM fit (and every exp / log / erf the generator evaluates)
+runs on portable ports with identical bits on every machine.
 
-- `--fit-shape` runs an EM fit through `math.Exp` / `math.Log`, whose
-  standard-library implementations are architecture-specific. A
-  `shape` section's last bits can therefore still differ between
-  machines. Every other section is architecture-independent.
+One residual remains, and it is stated rather than papered over:
+
 - `--fit-models` solves its least squares in `internal/processing/regression`,
   which has not been made fusion-free. A `models` coefficient's last
-  bits can differ between machines.
+  bits can differ between machines. Every other section is
+  architecture-independent.
 
-Neither affects a value you would read or report — the divergence is at
-the 1e-15 relative level — but a byte-for-byte `diff` of two documents
-captured with those flags on different CPUs may still show movement.
+It does not affect a value you would read or report — the divergence is
+at the 1e-15 relative level — but a byte-for-byte `diff` of two
+documents captured with `--fit-models` on different CPUs may still show
+movement.
 
 ### Text mode summary
 

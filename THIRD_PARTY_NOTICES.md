@@ -47,8 +47,9 @@ OF SUCH DAMAGE.
 ## The Go standard library
 
 `internal/detmath` (deterministic transcendental kernels) is a port of the
-pure-Go `exp`, `log`, `log1p`, `sin`, `cos`, `tan`, `trigReduce`, `atan`,
-`atan2` and `pow` sources of the Go 1.26 standard library (`src/math/`),
+pure-Go `exp`, `expm1`, `log`, `log1p`, `sin`, `cos`, `tan`, `trigReduce`,
+`atan`, `atan2`, `pow`, `erf` and `erfinv` sources of the Go 1.26 standard
+library (`src/math/`),
 <https://go.dev/>, with every floating-point product wrapped in an explicit
 `float64(...)` conversion. Those sources in turn carry the FreeBSD msun
 (Sun Microsystems) and Cephes (Stephen L. Moshier) notices reproduced in the
