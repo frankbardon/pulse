@@ -13263,6 +13263,10 @@
         "description": "Request shapes, envelope contract, slot keys, smart defaults, streamability and time zones. Use when authoring or adapting any Pulse Request."
       },
       {
+        "name": "request-params",
+        "description": "Request.Params — named constants a request's expressions read as params.\u003cname\u003e instead of splicing values into expression text; types, refusals, the read-only rule and Compose / chain inheritance."
+      },
+      {
         "name": "request-templating",
         "description": "Stored parameterised JSON requests — the {target, variables, body} wrapper, $var / {{}} / $when substitution, the nine variable types, directory discovery, hot reload, and the PULSE_TEMPLATE_* family. Not expr-lang."
       },
@@ -13651,7 +13655,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 249,
+    "examples_count": 250,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -19567,4 +19571,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9ed27a62dccb6220532ee3758e422c968dc7111f68f692565fc456e0531ee577
+// golden-hash: 0f280aa0f88390cbe2ae8fb28c3c749017aecf8b4ffaf2ce3b9c4a170e3d2555

@@ -18,6 +18,7 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `02_exclude.json` | `FILTER_EXCLUDE` | Blacklist categorical values |
 | `03_range.json` | `FILTER_RANGE` | Numeric range `[min, max]` (inclusive) |
 | `04_expression.json` | `FILTER_EXPRESSION` | Compound predicate via `expr-lang/expr` |
+| `10_expression_params.json` | `FILTER_EXPRESSION` | `panel == params.from_wave`: a request param read by the expression |
 
 `FILTER_INCLUDE`/`FILTER_EXCLUDE` compare against the resolved
 dictionary string for categorical fields. `FILTER_RANGE` accepts

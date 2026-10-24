@@ -529,6 +529,16 @@ There is also **no CLI surface** for templating. It is a library and
 embedding feature: `Options.TemplateDirs` /
 `PULSE_TEMPLATES_DIR` plus the five facade methods.
 
+## Request params are not template variables
+
+A rendered request can carry `"params": {...}`, the request's own
+constants. An expression reads one as `params.<name>` (`wave ==
+params.from_wave`) instead of having the value spliced into the
+expression text. A number, string, bool or one-kind list; read-only; the top-level
+`params` of a Compose batch or a chain merges into every sub-request.
+Contract: [Request params](../contract/payload-schema.md#request-params);
+skill `skills/request-params.md`.
+
 ## See also
 
 - [`pulse.New` & Options](options.md) — the rest of the construction

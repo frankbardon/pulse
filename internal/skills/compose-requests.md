@@ -22,6 +22,8 @@ requires: [capability:compose]
 
 Not a fit when a later step consumes an earlier step's OUTPUT rows — that is a chain<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->. Every slot opens and decodes its own cohort: composing saves round-trips, not decode work.
 
+Top-level `params` merge into every slot and fit: `request-params`.
+
 ```jsonc
 {
   "requests": [
@@ -55,9 +57,7 @@ The response is a `ComposedResponse` object `{responses, overlays}`: `responses[
 
 ## Slot labels
 
-Each `Request` takes an optional `label`. An empty label is auto-filled with `request_<index+1>` (1-based) on a clone — the caller's request is never mutated. Labels are how a Compose overlay names its `Reference` / `Target` slots, so set them explicitly whenever an overlay refers to a slot.
-
-Each response echoes its slot's final label as `label`.
+Each `Request` takes an optional `label`. An empty label is auto-filled with `request_<index+1>` (1-based) on a clone — the caller's request is never mutated. Each response echoes its final label as `label`. Labels are how a Compose overlay names its `Reference` / `Target` slots, so set them explicitly whenever an overlay refers to a slot.
 
 Two slots resolving to the same final label (duplicates, or a caller label colliding with an auto label) ⇒ `PULSE_COMPOSE_LABEL_COLLISION` before any slot runs. Omitting labels keeps wire bytes and `CanonicalHash` identical to label-free callers.
 
@@ -71,7 +71,7 @@ Two slots resolving to the same final label (duplicates, or a caller label colli
 
 `ComposedRequest.Overlays` runs AFTER every slot finalises. The fold reads each slot's finished `crosstab` / `data` / `components` (read-only) and writes one sibling `overlays[i]` layer per spec. **It never mutates a slot's payload or `components`** — overlays are additive decorations keyed to host coordinates (`overlay-system`).
 
-Compose-host overlay kinds resolve `Reference.SlotLabel` / `Target.SlotLabel` against the labels above; find them among the manifest `overlays[]` entries serving `compare_groups` or `benchmark` and read their atomic skills. The usual refusal is schema divergence — the reference and target slots group or crosstab on different axes; keep the compared slots' shapes identical and vary only the filter or cohort. Per-layer diagnostics land on `overlays[i].warnings`.
+Compose-host overlay kinds resolve `Reference.SlotLabel` / `Target.SlotLabel` against the labels above; find them in the manifest `overlays[]` entries serving `compare_groups` or `benchmark`. The usual refusal is schema divergence (reference and target group or crosstab on different axes): keep compared slots' shapes identical, vary only the filter or cohort. Per-layer diagnostics land on `overlays[i].warnings`.
 
 Library knobs on `OverlaySpec.Options`: `DictPrefixFast` (match slot schemas by byte-equal dictionary PREFIX; only when verified) and `MaxPanelTargets` (default 16; overflow ⇒ `PULSE_OVERLAY_PANEL_TARGETS_OVER_CAP`).
 
@@ -83,7 +83,7 @@ Library knobs on `OverlaySpec.Options`: `DictPrefixFast` (match slot schemas by 
 
 ## Per-slot Components contract
 
-Every slot's `components` is emitted independently — the universal floor (`{n, n_null}` per aggregator, `{total_n, n_null}` per grouper, `{n_in, n_out, n_null_input}` per filterer) plus each operator's own keys. The overlay fold runs AFTER that emission and treats it as read-only input, so a client can render per-slot components immediately and the overlay layer on top. `--no-components` / `DisableComponents` suppresses them on every slot (`response-components`).
+Every slot's `components` is emitted independently — the universal floor (`{n, n_null}` per aggregator, `{total_n, n_null}` per grouper, `{n_in, n_out, n_null_input}` per filterer) plus each operator's own keys. The overlay fold runs AFTER that emission and treats it as read-only input, so a client can render per-slot components first. `--no-components` / `DisableComponents` suppresses them on every slot (`response-components`).
 
 ## Validate before executing
 

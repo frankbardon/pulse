@@ -295,6 +295,7 @@
     - [regression-row-scores](skills/regression-row-scores.md)
     - [regression-spec](skills/regression-spec.md)
     - [request-envelope](skills/request-envelope.md)
+    - [request-params](skills/request-params.md)
     - [request-templating](skills/request-templating.md)
     - [response-components](skills/response-components.md)
     - [response-shaping](skills/response-shaping.md)

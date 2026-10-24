@@ -32,26 +32,28 @@ Chain when a question is "aggregate, then aggregate the aggregates" — revenue 
 
 `<…>` = any operator the stage gate admits (below). Only stage 0 names a cohort (the chain-level `cohort`); later stages' `cohort` is ignored. A later stage addresses earlier outputs by their LABEL (`store_rev`) or default output name.
 
+Chain-level `params` merge into every stage: `request-params`.
+
 ## The stage gate (v1: mergeable only)
 
-The bridge between stages is a synthesised cohort: grouper keys become `categorical_u32` columns, aggregator outputs become `f64`. A stage passes only if everything it runs fits that bridge — mergeable aggregators and groupers, row-local attributes, streamable filterers, no built-in aggregator over `decimal128`. **Read the admitted set off the manifest `process_chain` block** — `mergeable_aggregators`, `mergeable_groupers`, `row_local_attributes`, and `rejection_rules` for what is refused (windows, features, tests, regressions, two-pass attributes, order statistics). An extension operator passes iff declared `Mergeable`.
+Stages bridge through a synthesised cohort: grouper keys become `categorical_u32` columns, aggregator outputs become `f64`. A stage passes only if everything it runs fits that bridge — mergeable aggregators and groupers, row-local attributes, streamable filterers, no built-in aggregator over `decimal128`. **Read the admitted set off the manifest `process_chain` block** — `mergeable_aggregators`, `mergeable_groupers`, `row_local_attributes`, and `rejection_rules` for what is refused (windows, features, tests, regressions, two-pass attributes, order statistics). An extension operator passes iff declared `Mergeable`.
 
 - **Smart defaults run first.** `{"field": "n"}` on a numeric field is gated as its default aggregator, and the next stage sees that default's output name. A joined stage 0 defaults against the joined schema.
 - **A modal value on a categorical field chains its DICTIONARY INDEX** — the next stage sees a number.
 - **Only stage 0 may join.** A later stage's `joins` ⇒ `PULSE_CHAIN_STAGE_JOIN {count, stage, stage_name}`<!-- feature: capability:joins --> (`join-design`)<!-- /feature -->.
 - **No stage may carry a `crosstab`** (it answers a matrix, not rows) ⇒ `PULSE_CHAIN_NOT_MERGEABLE`.
-- Failure: `PULSE_CHAIN_NOT_MERGEABLE` `"chain stage is not mergeable: <reason>"` `{stage_index, stage_name}`. Stages are gated as they run, so a refusal in stage 2 comes after stages 0–1 executed; any other stage refusal carries `details.stage`.
+- Failure: `PULSE_CHAIN_NOT_MERGEABLE` `"chain stage is not mergeable: <reason>"` `{stage_index, stage_name}`. Stages are gated as they run: a stage 2 refusal comes after stages 0–1 executed; any other stage refusal carries `details.stage`.
 - **`labels` + `AutoLabels` apply on every stage**: a forwarded group key relabels; an f64 output ⇒ `PULSE_LABEL_FIELD_NOT_CATEGORICAL`.
 
-When the gate refuses, run stage 0 as an ordinary request<!-- feature: capability:process --> (`pulse_process`)<!-- /feature --> and finish the later steps client-side.
+On refusal, run stage 0 as an ordinary request<!-- feature: capability:process --> (`pulse_process`)<!-- /feature --> and finish the later steps client-side.
 <!-- feature: capability:materialize -->
 
-A later step that must READ a window, feature or attribute column (a regression on a window) cannot chain: write the column first with `pulse_materialize` (`derived-cohorts`), then run that step on the new cohort.
+A later step that must READ a window, feature or attribute column cannot chain: write the column first with `pulse_materialize` (`derived-cohorts`), then run that step on the new cohort.
 <!-- /feature -->
 
 ## Per-stage `Response.Components`
 
-Each stage emits its own `components` on `ChainResponse.stages[i]` — the universal floor plus operator keys. `ChainResponse.final` is the last stage's response. A stage's `return` shapes it after the whole chain ran. Overlays read these as inputs and never rewrite them (`response-components`).
+Each stage emits its own `components` on `ChainResponse.stages[i]` — the universal floor plus operator keys. `ChainResponse.final` is the last stage's response. Overlays read these as inputs and never rewrite them (`response-components`).
 
 ## Dual-slot overlay design
 
