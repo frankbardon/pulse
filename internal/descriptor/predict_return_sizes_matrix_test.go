@@ -94,6 +94,10 @@ func TestMatrixAuxiliaryNodes_PerOperator(t *testing.T) {
 			[]auxShape{{"estimates", 11, 7}, {"residual_covariance", 3, 3}, {"implied_means", 3, 1}, {"observed_means", 3, 1}}},
 		{"sem_intercept_lines", auxSpec(types.MAT_SEM, x3, `{"model": "f =~ x1 + x2 + x3\nf ~ 1\nx1 ~ 0*1"}`),
 			[]auxShape{{"estimates", 11, 7}, {"residual_covariance", 3, 3}, {"implied_means", 3, 1}, {"observed_means", 3, 1}}},
+		// Two := rows close the table, and a := line switches to lavaan
+		// conventions (the two Wald columns) without a mean structure.
+		{"sem_defined", auxSpec(types.MAT_SEM, x3, `{"model": "f =~ x1 + a*x2 + b*x3\nd := a*b\ne := d/2"}`),
+			[]auxShape{{"estimates", 9, 7}, {"residual_covariance", 3, 3}}},
 		{"distance_standardized_mahalanobis", auxSpec(types.MAT_DISTANCE, x3, `{`+between+`, "standardize": true, "metric": "mahalanobis"}`),
 			[]auxShape{{"centroids", 4, 3}, {"centroids_standardized", 4, 3}, {"pooled_covariance", 3, 3}}},
 	}
@@ -388,5 +392,43 @@ func TestPredict_ReturnSizes_MatrixRecords(t *testing.T) {
 	// free), residual_covariance 3 x 3.
 	if want := full.FullBytes + 2*delta(3, 3, 0) + delta(7, 5, semRecordFields); rec.FullBytes != want {
 		t.Errorf("records full = %d, want %d (full %d)", rec.FullBytes, want, full.FullBytes)
+	}
+}
+
+// TestMatrixAuxiliaryNodes_SEMMultiplicityTwins: a member MAT_SEM (its
+// own multiplicity block) sizes p_adjusted / significant_adjusted as one
+// column over the estimates rows (:= rows included), the runtime fold's
+// shape; a non-member sizes none. Grouped, the := rows are counted
+// once, not per level.
+func TestMatrixAuxiliaryNodes_SEMMultiplicityTwins(t *testing.T) {
+	for _, c := range []struct {
+		params string
+		rows   int64
+	}{
+		{`{"model": "f =~ x1 + a*x2 + b*x3\nd := a*b"}`, 8},
+		{`{"model": "f =~ x1 + a*x2 + b*x3\nd := a*b", "group": "region"}`, 4*11 + 1},
+	} {
+		spec := auxSpec(types.MAT_SEM, []string{"x1", "x2", "x3"}, c.params)
+		result := &descriptor.PredictResult{}
+		plans := predictMatrices(result, &types.Request{Matrices: []types.MatrixSpec{spec}}, auxSizesSchema(t), nil, nil, -1, 0, -1)
+		if len(plans) != 1 {
+			t.Fatalf("%s: %d plans", c.params, len(plans))
+		}
+		shapes := func(member bool) map[string][2]int64 {
+			out := map[string][2]int64{}
+			for _, n := range matrixAuxiliaryNodes(plans[0], result.Matrices[0], member) {
+				out[n.seg.Name] = [2]int64{n.kids[2].kids[0].count, n.kids[3].kids[0].count}
+			}
+			return out
+		}
+		if got := shapes(false); got["estimates"][0] != c.rows || got["p_adjusted"] != [2]int64{} {
+			t.Errorf("%s non-member: %v", c.params, got)
+		}
+		got := shapes(true)
+		for _, k := range []string{"p_adjusted", "significant_adjusted"} {
+			if got[k] != [2]int64{c.rows, 1} {
+				t.Errorf("%s member %s = %v, want %d x 1", c.params, k, got[k], c.rows)
+			}
+		}
 	}
 }

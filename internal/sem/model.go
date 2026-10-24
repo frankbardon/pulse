@@ -107,6 +107,9 @@ type Model struct {
 	// lavaan is set when any lavaan-only feature is in play: the fit
 	// then follows lavaan's conventions (Lavaan) instead of semopy's.
 	lavaan bool
+	// defined are the description's := lines (defined.go), validated
+	// against its labels at every level.
+	defined []*definedParam
 
 	// desc and opt are the description and options the model was
 	// specified from: FitGroups specifies every group's copy from them.
@@ -142,8 +145,8 @@ type ModelOptions struct {
 }
 
 // Lavaan reports whether the model follows lavaan's conventions rather
-// than semopy's: true whenever a lavaan-only feature (a mean structure)
-// is in play. Such a fit converges to the optimum (the default solver
+// than semopy's: true whenever a lavaan-only feature (a mean structure,
+// a := defined parameter) is in play. Such a fit converges to the optimum (the default solver
 // is Fisher scoring), leaves variances unbounded, and reports lavaan's
 // chi-square, degrees of freedom, fit indices, log-likelihood and Wald
 // intervals (ComputeStats); a covariance-only model keeps semopy's.
@@ -180,12 +183,17 @@ func newModel(desc string, baseline bool, opt ModelOptions) (*Model, error) {
 	if opt.grouped && arity > 0 && opt.level >= arity {
 		return nil, fmt.Errorf("per-group modifiers c(...) list %d values, fewer than the groups", arity)
 	}
+	if len(eff.defs) > 0 {
+		if err := checkDefined(eff.defs, eff.labels()); err != nil {
+			return nil, err
+		}
+	}
 	eff.selectGroup(opt.level)
-	m := &Model{byName: map[string]*parameter{}, firstManif: map[string]string{}, baseline: baseline,
+	m := &Model{defined: eff.defs, byName: map[string]*parameter{}, firstManif: map[string]string{}, baseline: baseline,
 		desc: desc, opt: opt, arity: arity}
 	_, icpt := eff.byOp[OpIntercept]
 	m.MeanStructure = opt.MeanStructure || icpt
-	m.lavaan = m.MeanStructure
+	m.lavaan = m.MeanStructure || len(eff.defs) > 0
 	m.classify(eff)
 	m.preprocessCovariances(eff)
 	for _, op := range eff.ops {

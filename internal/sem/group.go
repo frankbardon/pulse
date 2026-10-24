@@ -61,7 +61,12 @@ type GroupFit struct {
 	// Chi2Group are the per-group chi-squares n_g F_g, summing to
 	// Stats.Chi2.
 	Chi2Group []float64
-	theta     []float64
+	// Defined are the := rows over the joint free vector and its
+	// covariance (a label resolves to its group's parameter; a shared
+	// one is one parameter), in description order; nil without a :=
+	// line.
+	Defined []Estimate
+	theta   []float64
 }
 
 // NewGroupModel specifies desc for a multi-group fit: the model every
@@ -280,7 +285,7 @@ func FitGroups(model *Model, groups []GroupMoments, opt Options) (*GroupFit, err
 		res := slsqpMinimize(j.objective, j.gradient, x0, xl, xu, opt.Ftol, opt.MaxIter)
 		x, f, iters, conv, status = res.x, res.fun, res.nit, res.mode == slsqpSuccess, slsqpMessages[res.mode]
 	}
-	se, err := j.standardErrors(x, groups)
+	se, vcov, err := j.standardErrors(x, groups, len(model.defined) > 0)
 	if err != nil {
 		return nil, err
 	}
@@ -311,15 +316,26 @@ func FitGroups(model *Model, groups []GroupMoments, opt Options) (*GroupFit, err
 		}
 	}
 	gf.Stats = lavaanCombine(parts, gf.Chi2Group, j.nFree)
+	if len(model.defined) > 0 {
+		// A label reads its first group's parameter (group order): a
+		// shared label is one joint index wherever it is read.
+		labels := map[string]labelValue{}
+		for g, st := range j.parts {
+			ix := j.idx[g]
+			st.addLabels(labels, gf.Groups[g].Estimates, func(k int) int { return ix[k] })
+		}
+		gf.Defined = evalDefined(model.defined, labels, x, vcov)
+	}
 	return gf, nil
 }
 
 // standardErrors inverts the joint expected information
-// Σ_g (n_g/2)·H_g (lavaan's, square roots taken as they are).
-func (j *jointState) standardErrors(x []float64, groups []GroupMoments) ([]float64, error) {
+// Σ_g (n_g/2)·H_g (lavaan's, square roots taken as they are); full
+// returns the inverse too (nil otherwise).
+func (j *jointState) standardErrors(x []float64, groups []GroupMoments, full bool) ([]float64, *mat.SymDense, error) {
 	_, _, h, err := j.derivatives(x, true)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// h is Σ w_g H_g with w_g = n_g / N, so the information is (N/2)·h.
 	total := 0.0
@@ -333,18 +349,10 @@ func (j *jointState) standardErrors(x []float64, groups []GroupMoments) ([]float
 			fim.SetSym(a, b, total/2*h.At(a, b))
 		}
 	}
-	var diag []float64
-	if inv, _, ok := invLogDet(fim); ok {
-		diag = make([]float64, k)
-		for i := range diag {
-			diag[i] = inv.At(i, i)
-		}
-	} else {
-		diag = pinvDiag(fim)
-	}
+	diag, vcov := invertInformation(fim, full)
 	se := make([]float64, k)
 	for i, v := range diag {
 		se[i] = math.Sqrt(v)
 	}
-	return se, nil
+	return se, vcov, nil
 }

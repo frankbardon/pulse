@@ -141,8 +141,11 @@ type Fit struct {
 	// (Model.MeanStructure only; nil otherwise).
 	SampleMean, ImpliedMean []float64
 	Estimates               []Estimate
-	Stats                   Stats
-	theta                   []float64
+	// Defined are the := rows (defined.go), in description order, after
+	// Estimates in every table; nil without a := line.
+	Defined []Estimate
+	Stats   Stats
+	theta   []float64
 }
 
 // state holds the model matrices at a parameter vector.
@@ -875,20 +878,63 @@ func fitCov(m *Model, s, raw *mat.SymDense, mean []float64, n float64, opt Optio
 	if m.MeanStructure {
 		fit.SampleMean, fit.ImpliedMean = st.ybar, st.mu(mm)
 	}
-	se, err := st.standardErrors(x, n)
+	se, vcov, err := st.standardErrors(x, n)
 	if err != nil {
 		return nil, err
 	}
 	fit.Estimates = st.estimates(x, se, sg, c)
+	if len(m.defined) > 0 {
+		labels := map[string]labelValue{}
+		st.addLabels(labels, fit.Estimates, func(k int) int { return k })
+		fit.Defined = evalDefined(m.defined, labels, x, vcov)
+	}
 	return fit, nil
+}
+
+// addLabels records the value of every labelled parameter of st not yet
+// in labels: a free one by its index into the (joint) free vector
+// (index maps st's free position k to it), a fixed one by its value;
+// rows are st's estimates (the std_estimate a free label reads).
+func (st *state) addLabels(labels map[string]labelValue, rows []Estimate, index func(k int) int) {
+	freeIdx := map[*parameter]int{}
+	for k, p := range st.free {
+		freeIdx[p] = k
+	}
+	std := map[string]float64{}
+	for _, e := range rows {
+		if _, ok := std[e.Param]; !ok {
+			std[e.Param] = e.StdValue
+		}
+	}
+	for _, p := range st.m.params {
+		if !p.user {
+			continue
+		}
+		if _, ok := labels[p.name]; ok {
+			continue
+		}
+		if k, ok := freeIdx[p]; ok {
+			s, ok := std[p.name]
+			if !ok {
+				s = math.NaN()
+			}
+			labels[p.name] = labelValue{free: index(k), std: s}
+			continue
+		}
+		v := st.starts[p]
+		labels[p.name] = labelValue{free: -1, value: v, std: v}
+	}
 }
 
 // standardErrors inverts the expected Fisher information
 // (N/2)·tr(Σ⁻¹∂Σ_kΣ⁻¹∂Σ_l) — semopy's calc_se(information="expected").
-func (st *state) standardErrors(x []float64, n float64) ([]float64, error) {
+// The inverse itself (the free parameters' covariance, a := line's
+// delta method) is returned too when the model defines a parameter,
+// nil otherwise.
+func (st *state) standardErrors(x []float64, n float64) ([]float64, *mat.SymDense, error) {
 	_, _, h, err := st.derivatives(x, true)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	k := len(x)
 	fim := mat.NewSymDense(k, nil)
@@ -897,15 +943,7 @@ func (st *state) standardErrors(x []float64, n float64) ([]float64, error) {
 			fim.SetSym(i, j, n/2*h.At(i, j))
 		}
 	}
-	var diag []float64
-	if inv, _, ok := invLogDet(fim); ok {
-		diag = make([]float64, k)
-		for i := range diag {
-			diag[i] = inv.At(i, i)
-		}
-	} else {
-		diag = pinvDiag(fim)
-	}
+	diag, vcov := invertInformation(fim, len(st.m.defined) > 0)
 	se := make([]float64, k)
 	for i, v := range diag {
 		switch {
@@ -918,7 +956,59 @@ func (st *state) standardErrors(x []float64, n float64) ([]float64, error) {
 		}
 		se[i] = math.Sqrt(v)
 	}
-	return se, nil
+	return se, vcov, nil
+}
+
+// invertInformation returns the diagonal of the information's inverse
+// (its Moore–Penrose inverse when it does not factor) and, when full,
+// the whole inverse (nil otherwise).
+func invertInformation(fim *mat.SymDense, full bool) ([]float64, *mat.SymDense) {
+	k := fim.SymmetricDim()
+	if inv, _, ok := invLogDet(fim); ok {
+		diag := make([]float64, k)
+		for i := range diag {
+			diag[i] = inv.At(i, i)
+		}
+		if !full {
+			inv = nil
+		}
+		return diag, inv
+	}
+	if !full {
+		return pinvDiag(fim), nil
+	}
+	pinv := pinvFull(fim)
+	diag := make([]float64, k)
+	for i := range diag {
+		diag[i] = pinv.At(i, i)
+	}
+	return diag, pinv
+}
+
+// pinvFull is the Moore–Penrose inverse of a symmetric matrix
+// (pinvDiag's cut).
+func pinvFull(a *mat.SymDense) *mat.SymDense {
+	k := a.SymmetricDim()
+	var svd mat.SVD
+	svd.Factorize(a, mat.SVDFull)
+	vals := svd.Values(nil)
+	var u, v mat.Dense
+	svd.UTo(&u)
+	svd.VTo(&v)
+	cut := 1e-15 * float64(k) * vals[0]
+	out := mat.NewSymDense(k, nil)
+	for i := 0; i < k; i++ {
+		for j := i; j < k; j++ {
+			s := 0.0
+			for t, sv := range vals {
+				if sv > cut {
+					s += v.At(i, t) * u.At(j, t) / sv
+				}
+			}
+			out.SetSym(i, j, s)
+		}
+	}
+	return out
 }
 
 // pinvDiag returns the diagonal of the Moore–Penrose inverse of a

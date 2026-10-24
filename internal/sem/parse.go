@@ -66,6 +66,8 @@ type Mult struct {
 type Effects struct {
 	ops  []string
 	byOp map[string]*lhsMap
+	// defs are the := lines (defined parameters), in order.
+	defs []*definedParam
 }
 
 type lhsMap struct {
@@ -125,8 +127,10 @@ var (
 // `+`-separated right sides and optional `mult*` prefixes (a number, a
 // label, NA, or lavaan's per-group list c(m1, m2, ...)). A `1` term
 // on a `~` right side (`x ~ 1`, `x ~ 0*1`, `x ~ a*1`, `y ~ 1 + x`) is
-// an intercept / latent mean, kept under OpIntercept. semopy's
-// operation commands (START, BOUND, DEFINE, ...) are not supported.
+// an intercept / latent mean, kept under OpIntercept. A `name := expr`
+// line is a defined parameter (defined.go); a lavaan constraint line
+// (==, <, >) is a *ConstraintError. semopy's operation commands (START,
+// BOUND, DEFINE, ...) are not supported.
 func Parse(desc string) (*Effects, error) {
 	desc = strings.ReplaceAll(desc, "∼", "~")
 	e := newEffects()
@@ -138,6 +142,17 @@ func Parse(desc string) (*Effects, error) {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
+		}
+		if isDefinedLine(line) {
+			d, err := parseDefinedLine(line)
+			if err != nil {
+				return nil, fmt.Errorf("model line %d: %w", lineNo+1, err)
+			}
+			e.defs = append(e.defs, d)
+			continue
+		}
+		if op := constraintOp(line); op != "" {
+			return nil, fmt.Errorf("model line %d: %w", lineNo+1, &ConstraintError{Op: op, Line: line})
 		}
 		g := ptrnEffect.FindStringSubmatch(line)
 		if g == nil {

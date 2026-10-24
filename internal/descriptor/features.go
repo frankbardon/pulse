@@ -138,6 +138,7 @@ var (
 	featParams        = FeatureParams
 	featSEMMeans      = FeatureSEMMeanStructure
 	featSEMGroups     = FeatureSEMGroups
+	featSEMDefined    = FeatureSEMDefined
 )
 
 // FeatureSEMMeanStructure is capability:sem_meanstructure — MAT_SEM's
@@ -154,6 +155,13 @@ const FeatureSEMMeanStructure = vectors.SEMFeatureMeanStructure
 // label, scalars chi2_group_<level> / n_group_<level>). A grouped fit
 // always models the means, so it needs capability:sem_meanstructure.
 const FeatureSEMGroups = vectors.SEMFeatureGroups
+
+// FeatureSEMDefined is capability:sem_defined — MAT_SEM's lavaan
+// defined parameters: the `name := expr` lines of params.model, whose
+// rows (delta-method SE, z, p, interval) close auxiliary.estimates. It
+// owns model syntax only — no params key, no output key. Hidden, a :=
+// line is refused (vectors.SEMHidden).
+const FeatureSEMDefined = vectors.SEMFeatureDefined
 
 // FeatureParams is capability:params — the request `params` object
 // (types.Request.Params): named constants every request-scoped
@@ -245,6 +253,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("matrices"),           // Request.Vectors + Request.Matrices
 	capability("sem_meanstructure"),  // MAT_SEM params.meanstructure + `~ 1` model lines
 	capability("sem_groups"),         // MAT_SEM params.group / group_reference / group_equal / group_partial + c(...) modifiers
+	capability("sem_defined"),        // MAT_SEM `name := expr` model lines (defined parameters)
 	capability("params"),             // Request.Params (params.<name> in request expressions)
 	capability("recommend"),          // pulse_recommend, pulse recommend (the facade stays ungated)
 	capability("explain"),            // pulse_explain, pulse explain (the facade stays ungated)
@@ -758,7 +767,8 @@ var overlayHostKinds = map[string][]string{
 //     capability:matrices gates.
 //   - capability:sem_meanstructure is a MAT_SEM params surface (and
 //     capability:sem_groups, a groupEdges row, also needs it: a
-//     multi-group fit always models the means).
+//     multi-group fit always models the means); capability:sem_defined
+//     is MAT_SEM model syntax.
 //   - capability:model_save writes a fitted regression or a vector
 //     fit, so it needs any-of the REG_* operators, the fitted vector
 //     attributes and capability:matrices.
@@ -798,6 +808,7 @@ var hardEdges = map[string][]string{
 	featFilterToFile:    {"FILTER_EXPRESSION"},
 	// MAT_SEM's mean structure is a MAT_SEM params surface.
 	featSEMMeans:              {string(types.MAT_SEM)},
+	featSEMDefined:            {string(types.MAT_SEM)},
 	"MAT_COLLINEARITY":        {featMatrices},
 	"MAT_CORRELATION":         {featMatrices},
 	"MAT_COVARIANCE":          {featMatrices},

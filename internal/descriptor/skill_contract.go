@@ -111,6 +111,10 @@ type contractMult struct {
 	// that a spec block implies params.inference (built-ins).
 	pKey    string
 	implies bool
+	// pColumn: the column of pKey holding the p-values (MAT_SEM's
+	// estimates p_value); the twins are then p_adjusted /
+	// significant_adjusted and only the spec's own block files them.
+	pColumn string
 }
 
 // contractFacts is everything one `## Contract` section renders.
@@ -254,6 +258,9 @@ func buildContractIndex() map[string]contractFacts {
 		}
 		if inference[types.MatrixType(m.Name)] {
 			f.mult = contractMult{set: true, surface: surfaceMatrix, pKey: MatrixAuxP, implies: true}
+		}
+		if m.Name == string(types.MAT_SEM) {
+			f.mult = contractMult{set: true, surface: surfaceMatrix, pKey: SEMPValueKey, pColumn: SEMPValueColumn}
 		}
 		idx[m.Name] = f
 	}
@@ -793,12 +800,19 @@ func renderContractMult(m contractMult, v contractVisibility) string {
 	switch m.surface {
 	case surfaceMatrix:
 		adj, sig := MatrixAdjustedKeys(m.pKey)
-		if m.implies {
+		switch {
+		case m.pColumn != "":
+			adj, sig = MatrixAdjustedKeys(MatrixAuxP)
+			lead = "its own `multiplicity` block (an inherited one never reaches it) adds `" + adj + "` and `" + sig +
+				"` beside `" + m.pKey + "` `" + m.pColumn + "`, every row with a p one hypothesis"
+		case m.implies:
 			lead = "a spec `multiplicity` block (implying `params.inference`; an inherited method reaches only a spec under `params.inference`)"
-		} else {
+		default:
 			lead = "a `multiplicity` method"
 		}
-		lead += " adds `" + adj + "` and `" + sig + "` beside `" + m.pKey + "`"
+		if m.pColumn == "" {
+			lead += " adds `" + adj + "` and `" + sig + "` beside `" + m.pKey + "`"
+		}
 	case surfaceRegression:
 		lead = "its own `multiplicity` block (an inherited one never reaches it) adds per-coefficient `p_adjusted` and `significant_adjusted` beside the raw p"
 	default:

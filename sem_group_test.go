@@ -232,7 +232,11 @@ func checkMGAgainstLavaan(t *testing.T, res types.MatrixResult, ref mgLavaan, re
 	for i, k := range est.RowKeys {
 		rows[k] = est.Values[i]
 	}
-	groups, _ := res.Vectors["group"].([]string)
+	groupsAny, _ := res.Vectors["group"].([]any)
+	groups := make([]string, len(groupsAny))
+	for i, g := range groupsAny {
+		groups[i], _ = g.(string)
+	}
 	labels, _ := res.Vectors["label"].([]string)
 	params, _ := res.Vectors["parameter"].([]string)
 	if len(groups) != len(est.RowKeys) || len(labels) != len(est.RowKeys) || len(params) != len(est.RowKeys) {
@@ -240,6 +244,12 @@ func checkMGAgainstLavaan(t *testing.T, res types.MatrixResult, ref mgLavaan, re
 	}
 	labelOf := map[string]string{}
 	for i, k := range est.RowKeys {
+		// A := row (a defined parameter) belongs to no group: unprefixed,
+		// vectors.group null.
+		if groupsAny[i] == nil && strings.Contains(k, " := ") {
+			labelOf[k] = labels[i]
+			continue
+		}
 		if !strings.HasPrefix(k, "["+groups[i]+"] ") {
 			t.Fatalf("row %q carries vectors.group %q", k, groups[i])
 		}
@@ -254,7 +264,9 @@ func checkMGAgainstLavaan(t *testing.T, res types.MatrixResult, ref mgLavaan, re
 		case "~1":
 			key = r.LHS + " ~1"
 		}
-		key = "[" + r.Group + "] " + key
+		if r.Op != ":=" {
+			key = "[" + r.Group + "] " + key
+		}
 		row, ok := rows[key]
 		if !ok && r.Op == "~~" {
 			row, ok = rows["["+r.Group+"] "+r.RHS+" ~~ "+r.LHS]
@@ -276,7 +288,7 @@ func checkMGAgainstLavaan(t *testing.T, res types.MatrixResult, ref mgLavaan, re
 		if r.Label != "" && !strings.HasPrefix(r.Label, ".p") && labelOf[key] != r.Label {
 			t.Errorf("%s vectors.label = %q, lavaan %q", key, labelOf[key], r.Label)
 		}
-		if !r.Free {
+		if !r.Free && r.Op != ":=" {
 			continue
 		}
 		near("std_err", row[2], r.SE)

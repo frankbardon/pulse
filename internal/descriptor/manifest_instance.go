@@ -237,6 +237,9 @@ func hiddenProseNames(inst *InstanceSnapshot) map[string]struct{} {
 var semProseTokens = map[string][]string{
 	featSEMMeans:  {"meanstructure", "implied_means", "observed_means"},
 	featSEMGroups: {"group_reference", "group_equal", "group_partial", "chi2_group_", "n_group_"},
+	// The := lines own no wire key: their sentences name the code
+	// only they raise.
+	featSEMDefined: {"PULSE_MATRIX_DEFINED_NONFINITE"},
 }
 
 // manifestScrubSkip names the top-level Manifest fields the prose scrub

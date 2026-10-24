@@ -61,6 +61,7 @@ Integer / float members.
 
 - Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
 - Weight: weighted under `frequency` weights only; a `probability` weight is `PULSE_WEIGHT_UNSUPPORTED`.
+- Multiplicity: its own `multiplicity` block (an inherited one never reaches it) adds `p_adjusted` and `significant_adjusted` beside `estimates` `p_value`, every row with a p one hypothesis; families `request`, `matrix` (default).
 - Streaming: streamable; partial states merge; components `mergeable`.
 - Components: `n`, `n_null`, `n_listwise_dropped`; optional `min_pair_n`, `max_pair_n`, `sum_weights`, `n_eff`, `n_weight_invalid`.
 

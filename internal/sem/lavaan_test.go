@@ -134,6 +134,9 @@ func checkAgainstLavaan(t *testing.T, fit *Fit, ref lavaanRef) {
 			free++
 		}
 	}
+	for _, e := range fit.Defined {
+		byKey[e.Key()] = e
+	}
 	refFree := 0
 	worst := 0.0
 	for _, p := range ref.Params {
@@ -166,10 +169,14 @@ func checkAgainstLavaan(t *testing.T, fit *Fit, ref lavaanRef) {
 		if p.Label != "" && e.Label != p.Label {
 			t.Errorf("%s label = %q, lavaan %q", key, e.Label, p.Label)
 		}
-		if !p.Free {
+		// A := row is no free parameter, but carries the delta
+		// method's SE, z, p and interval.
+		if !p.Free && p.Op != OpDefined {
 			continue
 		}
-		refFree++
+		if p.Free {
+			refFree++
+		}
 		check("std_err", e.SE, p.SE, lavaanEstTol)
 		check("z_value", e.Z, p.Z, lavaanEstTol)
 		check("ci_lower", e.CILower, p.CILower, lavaanEstTol)

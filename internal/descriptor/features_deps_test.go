@@ -117,6 +117,7 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		// a multi-group fit always models the means too.
 		"capability:sem_meanstructure": {{"MAT_SEM"}},
 		"capability:sem_groups":        {{"MAT_SEM"}, {"capability:sem_meanstructure"}},
+		"capability:sem_defined":       {{"MAT_SEM"}},
 	}
 	for name, want := range expect {
 		got, ok := descx.FeatureDependencies(name)

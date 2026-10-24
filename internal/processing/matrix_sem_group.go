@@ -199,6 +199,7 @@ func finalizeSEMGroups(in *matrixFinalizeInput) (matrixOutput, error) {
 			"matrix "+plan.Name+": the model has more free parameters than the groups' covariances and means have distinct moments (negative degrees of freedom); its estimates are not identified",
 			map[string]any{"matrix": plan.Name, "dof": fit.Stats.DoF, "n_params": fit.Stats.NParams}))
 	}
+	out.Warnings = append(out.Warnings, semDefinedWarnings(plan.Name, fit.Defined)...)
 	pos := make([]int, len(spec.Order))
 	for a, i := range spec.Order {
 		pos[i] = a
@@ -211,13 +212,20 @@ func finalizeSEMGroups(in *matrixFinalizeInput) (matrixOutput, error) {
 		out.Auxiliary = semGroupAuxiliary(in, fit, labels, pos, implied)
 	}
 	if in.WantVectors() {
-		var names, groups, ulabels []string
+		// vectors.group is each row's level, null on a := row (a
+		// defined parameter belongs to no group).
+		var names, ulabels []string
+		var groups []any
 		var free []bool
 		for g, gf := range fit.Groups {
 			for _, e := range gf.Estimates {
 				names, groups, ulabels = append(names, e.Param), append(groups, labels[g]), append(ulabels, e.Label)
 				free = append(free, e.Free)
 			}
+		}
+		for _, e := range fit.Defined {
+			names, groups, ulabels = append(names, e.Param), append(groups, nil), append(ulabels, e.Label)
+			free = append(free, false)
 		}
 		out.Vectors = map[string]any{"parameter": names, "free": free, "group": groups, "label": ulabels}
 	}
@@ -249,7 +257,7 @@ func semGroupEstimateKey(level string, e sem.Estimate) string { return "[" + lev
 
 // semGroupAuxiliary builds a grouped fit's auxiliaries: the estimates
 // (every group's rows in level order, keys "[level] lval op rval",
-// lavaan's columns) and per level its implied and residual covariance
+// lavaan's columns, then the := rows unprefixed) and per level its implied and residual covariance
 // and implied and observed means (vectors.SEMGroupAuxiliaryKeys).
 func semGroupAuxiliary(in *matrixFinalizeInput, fit *sem.GroupFit, labels []string, pos []int, implied func(int) func(r, c int) float64) map[string]*types.MatrixValues {
 	spec := in.Plan().SEM
@@ -266,6 +274,16 @@ func semGroupAuxiliary(in *matrixFinalizeInput, fit *sem.GroupFit, labels []stri
 				fields = append(fields, map[string]any{"lval": e.LVal, "op": e.Op, "rval": e.RVal, "parameter": e.Param,
 					"free": e.Free, "group": labels[g], "label": e.Label})
 			}
+		}
+	}
+	// The := rows close the table, unprefixed: a defined parameter reads
+	// the joint parameters, so it belongs to no group (group null).
+	for _, e := range fit.Defined {
+		keys = append(keys, e.Key())
+		values = append(values, []float64{e.Value, e.StdValue, e.SE, e.Z, e.P, e.CILower, e.CIUpper})
+		if records {
+			fields = append(fields, map[string]any{"lval": e.LVal, "op": e.Op, "rval": e.RVal, "parameter": e.Param,
+				"free": false, "group": nil, "label": e.Label})
 		}
 	}
 	aux := map[string]*types.MatrixValues{

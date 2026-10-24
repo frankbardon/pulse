@@ -2,6 +2,7 @@ package processing
 
 import (
 	"math"
+	"strings"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/sem"
@@ -52,8 +53,13 @@ import (
 // default solver converges to the optimum, the scalars are lavaan's,
 // the estimates gain `~1` rows and the Wald ci_lower / ci_upper
 // columns, and auxiliary implied_means / observed_means (member order,
-// one "mean" column) are emitted. A covariance-only model is the
-// semopy fit above, bit for bit. params.group fits one joint
+// one "mean" column) are emitted. A `name := expr` line (a defined
+// parameter, sem/defined.go) switches to lavaan's conventions too,
+// mean structure or not, and appends a row "name := expr" per line
+// after the parameter table: its value at the estimate and the delta
+// method's SE, z, p and interval (vectors.parameter its name, free
+// false). A covariance-only model without one is the semopy fit above,
+// bit for bit. params.group fits one joint
 // multi-group model instead (finalizeSEMGroups, matrix_sem_group.go).
 func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
 	if in.Plan().SEM.Grouped() {
@@ -132,6 +138,7 @@ func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
 			"matrix "+plan.Name+": the model has more free parameters than the covariance has distinct moments (negative degrees of freedom); it is fitted as semopy fits it, but its estimates are not identified",
 			map[string]any{"matrix": plan.Name, "dof": fit.Stats.DoF, "n_params": fit.Stats.NParams}))
 	}
+	out.Warnings = append(out.Warnings, semDefinedWarnings(plan.Name, fit.Defined)...)
 	// Σ(θ̂) back in member order.
 	pos := make([]int, p)
 	for a, i := range spec.Order {
@@ -145,6 +152,23 @@ func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
 		out.Auxiliary["observed_means"] = in.Rect(semMeanColumns, func(r, _ int) float64 { return fit.SampleMean[pos[r]] })
 	}
 	return out, nil
+}
+
+// semDefinedWarnings is PULSE_MATRIX_DEFINED_NONFINITE when a := row
+// is undefined at the estimate (its figures null), else nothing.
+func semDefinedWarnings(name string, rows []sem.Estimate) []*types.ResponseWarning {
+	var bad []string
+	for _, e := range rows {
+		if math.IsNaN(e.Value) {
+			bad = append(bad, e.LVal)
+		}
+	}
+	if len(bad) == 0 {
+		return nil
+	}
+	return []*types.ResponseWarning{matrixWarning(errors.PULSE_MATRIX_DEFINED_NONFINITE,
+		"matrix "+name+": defined parameter(s) "+strings.Join(bad, ", ")+" are not finite at the estimate (a division by zero, or a log / sqrt outside its domain); their rows are null",
+		map[string]any{"matrix": name, "defined": bad})}
 }
 
 // semJudgeable is judgeable, except that zeroOK admits a diagonal
@@ -183,11 +207,12 @@ func (in *matrixFinalizeInput) semParts(out *matrixOutput, fit *sem.Fit, implied
 	} else {
 		out.Primary = in.Square(implied)
 	}
+	// The := rows (defined parameters) follow the parameter table.
 	var rows []sem.Estimate
 	if fit != nil {
-		rows = fit.Estimates
+		rows = append(fit.Estimates, fit.Defined...)
 	} else {
-		rows = sem.SpecifiedRows(spec.Model)
+		rows = append(sem.SpecifiedRows(spec.Model), sem.SpecifiedDefined(spec.Model)...)
 	}
 	if in.WantAuxiliary() {
 		columns := vectors.SEMEstimateColumnsOf(spec)

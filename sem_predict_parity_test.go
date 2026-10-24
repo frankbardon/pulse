@@ -79,12 +79,16 @@ func semKeysOf[V any](m map[string]V) []string {
 // distinct vectors.group entries).
 func runLevels(t *testing.T, res types.MatrixResult) []string {
 	t.Helper()
-	groups, ok := res.Vectors["group"].([]string)
+	groups, ok := res.Vectors["group"].([]any)
 	if !ok {
 		t.Fatalf("vectors.group is %T", res.Vectors["group"])
 	}
 	var out []string
-	for _, g := range groups {
+	for _, v := range groups {
+		g, ok := v.(string)
+		if !ok {
+			continue // a := row: no group
+		}
 		if len(out) == 0 || out[len(out)-1] != g {
 			out = append(out, g)
 		}
@@ -233,7 +237,11 @@ func TestSEM_HiddenSurfacesRefuseLikeUnknown(t *testing.T) {
 				sameEntry(t, predict(req()), rerr)
 			})
 		}
-		syntax := map[string]string{"c(...)": "f =~ q1 + c(a, b)*q2 + q3 + v1 + v2 + v3 + s1 + s2 + s3 + recommend"}
+		syntax := map[string]string{
+			"c(...)": "f =~ q1 + c(a, b)*q2 + q3 + v1 + v2 + v3 + s1 + s2 + s3 + recommend",
+			// capability:sem_defined is never enabled here.
+			":=": "f =~ q1 + a*q2 + b*q3 + v1 + v2 + v3 + s1 + s2 + s3 + recommend\nd := a*b",
+		}
 		if !means {
 			syntax["~ 1"] = "f =~ q1 + q2 + q3 + v1 + v2 + v3 + s1 + s2 + s3 + recommend\nq2 ~ 1"
 		} else {
@@ -253,7 +261,7 @@ func TestSEM_HiddenSurfacesRefuseLikeUnknown(t *testing.T) {
 				if !asCoded(rerr, &ce) || ce.Code != errors.SERVICE_VALIDATION || ce.Details["reason"] != "bad_params" || ce.Details["param"] != "model" {
 					t.Fatalf("hidden %s: %v (%v)", name, rerr, semDetailsOf(ce))
 				}
-				for _, word := range []string{"group", "meanstructure", "mean structure"} {
+				for _, word := range []string{"group", "meanstructure", "mean structure", "defined"} {
 					if strings.Contains(ce.Message, word) {
 						t.Errorf("the refusal names the hidden surface (%q): %s", word, ce.Message)
 					}
@@ -309,8 +317,8 @@ func TestSEM_HiddenSurfacesLeaveTheManifest(t *testing.T) {
 		hidden []string // params and wire tokens absent from the entry
 		kept   []string // params still listed
 	}{
-		{true, []string{"group", "group_reference", "group_equal", "group_partial", "chi2_group_", "n_group_"}, []string{"meanstructure", "model"}},
-		{false, []string{"group", "group_reference", "group_equal", "group_partial", "meanstructure", "implied_means", "observed_means"}, []string{"model", "solver"}},
+		{true, []string{"group", "group_reference", "group_equal", "group_partial", "chi2_group_", "n_group_", "PULSE_MATRIX_DEFINED_NONFINITE", ":="}, []string{"meanstructure", "model"}},
+		{false, []string{"group", "group_reference", "group_equal", "group_partial", "meanstructure", "implied_means", "observed_means", "PULSE_MATRIX_DEFINED_NONFINITE", ":="}, []string{"model", "solver"}},
 	} {
 		t.Run(fmt.Sprintf("means=%v", c.means), func(t *testing.T) {
 			p, _ := semHidingInstance(t, c.means)

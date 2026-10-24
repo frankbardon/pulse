@@ -671,6 +671,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATRIX_PAIRWISE_N_STAR: own("MAT_PCA", "MAT_FACTOR"),
 	// MAT_SEM's singular "nearest" fit to semopy's cov_nearest substitute.
 	errors.PULSE_MATRIX_NEAREST_PD: own("MAT_SEM"),
+	// A MAT_SEM := line undefined at the estimate (its row nulled).
+	errors.PULSE_MATRIX_DEFINED_NONFINITE: own(featSEMDefined),
 
 	// Response shaping: `return` is a plain request slot, not a feature.
 	errors.PULSE_RETURN_INVALID:        shared,

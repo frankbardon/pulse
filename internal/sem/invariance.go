@@ -204,3 +204,29 @@ func (m *Model) groupModels(levels []int, ref int) ([]*Model, error) {
 	}
 	return out, nil
 }
+
+// GroupFreeRows is how many parameter-table rows carry a free
+// parameter across a multi-group fit of model (NewGroupModel) over
+// levels groups (the first the reference): every group's free rows, the
+// specification's non-reference freeing and equality fixing applied.
+// The rows a member multiplicity block corrects, less the :=
+// rows.
+func GroupFreeRows(model *Model, levels int) (int, error) {
+	lv := make([]int, levels)
+	for g := range lv {
+		lv[g] = g
+	}
+	models, err := model.groupModels(lv, 0)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, mg := range models {
+		for _, e := range SpecifiedRows(mg) {
+			if e.Free {
+				n++
+			}
+		}
+	}
+	return n, nil
+}

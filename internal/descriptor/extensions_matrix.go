@@ -133,13 +133,18 @@ func matrixSpecStreamable(inst *InstanceSnapshot, snap *ExtensionsSnapshot, spec
 
 // matrixPValueKey is the auxiliary key holding the p-values of matrix
 // type t on the instance: "p" for a built-in inferential operator
-// (vectors.InferenceTypes), an extension's declared PValues, else "".
+// (vectors.InferenceTypes), MAT_SEM's estimates table (SEMPValueKey;
+// its p-values are the SEMPValueColumn column), an extension's declared
+// PValues, else "".
 func matrixPValueKey(inst *InstanceSnapshot, t types.MatrixType) string {
 	routed := opRoute(inst, t)
 	for _, k := range vectors.InferenceTypes() {
 		if k == routed {
 			return MatrixAuxP
 		}
+	}
+	if routed == types.MAT_SEM {
+		return SEMPValueKey
 	}
 	if routed == "" {
 		return ""
@@ -153,6 +158,17 @@ func matrixPValueKey(inst *InstanceSnapshot, t types.MatrixType) string {
 // MatrixAuxP is the built-in inferential matrix operators' p-value
 // auxiliary key.
 const MatrixAuxP = "p"
+
+// SEMPValueKey and SEMPValueColumn locate MAT_SEM's p-values: the
+// p_value column of auxiliary.estimates, one hypothesis per row
+// carrying a p-value (a free parameter, a := defined parameter). The
+// fold writes the twins under the built-ins' names
+// (MatrixAdjustedKeys(MatrixAuxP): p_adjusted, significant_adjusted),
+// rectangular, one row per estimates row.
+const (
+	SEMPValueKey    = "estimates"
+	SEMPValueColumn = "p_value"
+)
 
 // MatrixAdjustedKeys are the auxiliary twins the multiplicity fold
 // writes beside a p-value matrix stored under key: key+"_adjusted" (so

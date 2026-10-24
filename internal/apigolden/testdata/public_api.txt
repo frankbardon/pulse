@@ -2653,6 +2653,7 @@ pulse/errors: const PULSE_MATERIALIZE_OUTPUT_NOT_NUMERIC pulse/errors.Code = "PU
 pulse/errors: const PULSE_MATERIALIZE_OUTPUT_UNDECLARED pulse/errors.Code = "PULSE_MATERIALIZE_OUTPUT_UNDECLARED"
 pulse/errors: const PULSE_MATERIALIZE_SIDECARS_INVALIDATED pulse/errors.Code = "PULSE_MATERIALIZE_SIDECARS_INVALIDATED"
 pulse/errors: const PULSE_MATERIALIZE_SLOT_UNSUPPORTED pulse/errors.Code = "PULSE_MATERIALIZE_SLOT_UNSUPPORTED"
+pulse/errors: const PULSE_MATRIX_DEFINED_NONFINITE pulse/errors.Code = "PULSE_MATRIX_DEFINED_NONFINITE"
 pulse/errors: const PULSE_MATRIX_HEYWOOD pulse/errors.Code = "PULSE_MATRIX_HEYWOOD"
 pulse/errors: const PULSE_MATRIX_HOST_CONFLICT pulse/errors.Code = "PULSE_MATRIX_HOST_CONFLICT"
 pulse/errors: const PULSE_MATRIX_INSUFFICIENT_N pulse/errors.Code = "PULSE_MATRIX_INSUFFICIENT_N"
@@ -5860,4 +5861,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 261436f7637a7c327fcc9bbde7ada5782b537734e48949f6179b453ad0892e56
+// golden-hash: 852a7afd6d8fc97e7bd8d8fbf1e169b39ced7e5a8b9a2a4b661b3f07347af3e7

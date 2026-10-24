@@ -29,3 +29,10 @@ fit brand brand_ms TRUE brand_mg_partial wave loadings,intercepts "v2~1,service=
 # group.equal value at once
 fit brand_uneq brand_mgmod TRUE brand_mg_modifiers wave loadings,residual.covariances "value=~v3,quality=~q1"
 fit brand brand_mgmod TRUE brand_mg_strict wave loadings,intercepts,means,residuals,residual.covariances,lv.variances,lv.covariances,regressions
+# lavaan defined parameters (:=): indirect / total effects and the
+# grammar, with and without a mean structure (the covariance-only fit
+# switches to lavaan conventions), and a cross-group contribution
+# (a path times a latent mean change) under scalar invariance
+fit brand brand_def TRUE brand_def_ms
+fit brand brand_def FALSE brand_def_cov
+fit brand brand_mgdef TRUE brand_mg_defined wave loadings,intercepts

@@ -3860,6 +3860,15 @@ const (
 	// smallest eigenvalue of S's correlation form before the clip).
 	PULSE_MATRIX_NEAREST_PD Code = "PULSE_MATRIX_NEAREST_PD"
 
+	// PULSE_MATRIX_DEFINED_NONFINITE is a per-matrix WARNING: a MAT_SEM
+	// defined parameter (a `name := expr` model line) is not finite at
+	// the estimate — a division by zero, the log or square root of a
+	// value it does not take — so its row's figures (estimate, SE, z,
+	// p, interval, std_estimate) are null, as are those of every :=
+	// line reading it; the fit and the other rows stand. Details carry
+	// "matrix" and "defined" (the names, in model order).
+	PULSE_MATRIX_DEFINED_NONFINITE Code = "PULSE_MATRIX_DEFINED_NONFINITE"
+
 	// PULSE_RETURN_INVALID indicates a `return` block that cannot be
 	// read: an unknown preset, a precision outside 1–17, or a malformed
 	// include / exclude path (an empty segment, `*` anywhere but the end
@@ -4570,6 +4579,7 @@ var allCodes = []Code{
 	PULSE_MATRIX_NOT_IDENTIFIED,
 	PULSE_MATRIX_PAIRWISE_N_STAR,
 	PULSE_MATRIX_NEAREST_PD,
+	PULSE_MATRIX_DEFINED_NONFINITE,
 	PULSE_RETURN_INVALID,
 	PULSE_RETURN_PATH_UNKNOWN,
 	PULSE_RETURN_PATH_UNMATCHED,

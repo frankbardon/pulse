@@ -27,6 +27,7 @@ pe <- parameterEstimates(fit, standardized = TRUE, ci = TRUE, level = 0.95)
 pt <- parTable(fit)
 if (is.null(grp)) {
   free <- pt$free[match(paste(pe$lhs, pe$op, pe$rhs), paste(pt$lhs, pt$op, pt$rhs))] > 0
+  # (a := row is never free: lavaan's free 0)
 } else {
   free <- pt$free[match(paste(pe$lhs, pe$op, pe$rhs, pe$group), paste(pt$lhs, pt$op, pt$rhs, pt$group))] > 0
 }
@@ -40,7 +41,8 @@ param <- function(i) {
     lhs = pe$lhs[i], op = pe$op[i], rhs = pe$rhs[i], label = pe$label[i], free = free[i],
     est = na(pe$est[i]), se = na(pe$se[i]), z = na(pe$z[i]), p = na(pe$pvalue[i]),
     ci_lower = na(pe$ci.lower[i]), ci_upper = na(pe$ci.upper[i]), std_all = na(pe$std.all[i]))
-  if (!is.null(grp)) p$group <- lavInspect(fit, "group.label")[pe$group[i]]
+  # a := row belongs to no group (lavaan's group 0): null
+  if (!is.null(grp)) p$group <- if (pe$group[i] > 0) lavInspect(fit, "group.label")[pe$group[i]] else NA
   p
 }
 out <- list(

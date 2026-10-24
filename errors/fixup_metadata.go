@@ -4882,6 +4882,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MATRIX_DEFINED_NONFINITE: {
+		Message: "A structural equation model's defined parameter (a `name := expr` line of params.model) is not finite at the fitted estimate — a division by zero, or the log or square root of a value outside its domain — so its estimate-table row has every figure null (estimate, std_estimate, std_err, z_value, p_value, ci_lower, ci_upper), as does every := line reading it; the fit and every other row stand. Details carry `matrix` and `defined` (the names, in model order).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"matrices", "*", "params", "model"},
+				Hint:   "Rewrite the := expression so it is defined at the estimate: divide by a parameter that is not zero, and take log / sqrt of a positive quantity (abs() or a square first).",
+			},
+		},
+	},
 	PULSE_MATRIX_PAIRWISE_N_STAR: {
 		Message: "An inferential figure over a pairwise matrix needs one sample size, but under pairwise deletion every cell rests on its own rows, so the figure uses the smallest pair's inference size (pair N unweighted, pair sum of weights under frequency weights, scaled to Kish n_eff under probability weights) — the conservative choice: Bartlett's sphericity test, and a factor analysis's empirical chi-square and maximum-likelihood fit figures. Details carry `matrix`, `outputs`, `n_star` and the pair as `row` / `col`.",
 		Fixups: []Fixup{

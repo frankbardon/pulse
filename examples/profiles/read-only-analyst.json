@@ -27,6 +27,7 @@
     "capability:matrices",
     "capability:sem_meanstructure",
     "capability:sem_groups",
+    "capability:sem_defined",
     "capability:params",
     "capability:recommend",
     "capability:explain",

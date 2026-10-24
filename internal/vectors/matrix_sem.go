@@ -2,6 +2,7 @@ package vectors
 
 import (
 	"encoding/json"
+	stderrors "errors"
 	"slices"
 	"strconv"
 	"strings"
@@ -208,25 +209,30 @@ func SEMEstimateColumnsOf(plan *SEMPlan) []string {
 
 // semDefaultSolver is the solver a fit without params.solver runs:
 // Fisher scoring (to the optimum) under lavaan conventions — a
-// meanstructure param or a `~ 1` line — else semopy's SLSQP.
+// meanstructure param, a group, a `~ 1` line or a `:=` line — else
+// semopy's SLSQP.
 func semDefaultSolver(p semParams) sem.Solver {
-	if (p.MeanStructure != nil && *p.MeanStructure) || p.Group != nil || (p.Model != nil && sem.HasIntercepts(*p.Model)) {
+	if (p.MeanStructure != nil && *p.MeanStructure) || p.Group != nil ||
+		(p.Model != nil && (sem.HasIntercepts(*p.Model) || sem.HasDefined(*p.Model))) {
 		return sem.SolverFisher
 	}
 	return sem.SolverSLSQP
 }
 
 // MAT_SEM's params surfaces a feature profile can hide: the mean
-// structure and the joint multi-group fit (the capability rows
-// internal/descriptor declares under these names). Hidden, a surface
-// resolves as never existing — its params keys leave the instance's
-// params allowlist (internal/descriptor.ParamsAllowlist: refused as
-// unknown keys), its model syntax is refused (semHiddenSyntaxRefusal)
-// — and the manifest drops its params and output keys
-// (SEMFeatureParams, SEMFeatureOutputs).
+// structure, the joint multi-group fit and the `:=` defined parameters
+// (the capability rows internal/descriptor declares under these names).
+// Hidden, a surface resolves as never existing — its params keys leave
+// the instance's params allowlist (internal/descriptor.ParamsAllowlist:
+// refused as unknown keys), its model syntax is refused
+// (semHiddenSyntaxRefusal) — and the manifest drops its params and
+// output keys (SEMFeatureParams, SEMFeatureOutputs). The defined
+// parameters own model syntax only: no params key, no output key (their
+// rows ride auxiliary.estimates).
 const (
 	SEMFeatureMeanStructure = "capability:sem_meanstructure"
 	SEMFeatureGroups        = "capability:sem_groups"
+	SEMFeatureDefined       = "capability:sem_defined"
 )
 
 // SEMFeatureParams returns the MAT_SEM params keys each hideable
@@ -235,6 +241,7 @@ func SEMFeatureParams() map[string][]string {
 	return map[string][]string{
 		SEMFeatureMeanStructure: {"meanstructure"},
 		SEMFeatureGroups:        {"group", "group_reference", "group_equal", "group_partial"},
+		SEMFeatureDefined:       {},
 	}
 }
 
@@ -273,8 +280,8 @@ func MatrixOutputKeyMatches(declared, key string) bool {
 
 // semHiddenSyntaxRefusal refuses the model syntax a hidden surface
 // owns: a `~ 1` line without the mean structure, a per-group modifier
-// c(...) without the multi-group fit. The message names neither
-// surface.
+// c(...) without the multi-group fit, a `:=` line without the defined
+// parameters. The message names no surface.
 func semHiddenSyntaxRefusal(at string, m *Matrix, hidden func(string) bool) *errors.CodedError {
 	if m.Type != types.MAT_SEM || hidden == nil || m.SEM == nil || m.SEM.Desc == "" {
 		return nil
@@ -285,6 +292,10 @@ func semHiddenSyntaxRefusal(at string, m *Matrix, hidden func(string) bool) *err
 	}
 	if hidden(SEMFeatureGroups) && sem.HasGroupModifiers(m.SEM.Desc) {
 		return matrixInvalid(at, "bad_params", at+" params.model: a c(...) modifier is not supported; use a label (a*x) or a number (0.5*x)",
+			map[string]any{"param": "model"})
+	}
+	if hidden(SEMFeatureDefined) && sem.HasDefined(m.SEM.Desc) {
+		return matrixInvalid(at, "bad_params", at+" params.model: a name := expr line is not supported; drop the line",
 			map[string]any{"param": "model"})
 	}
 	return nil
@@ -383,7 +394,7 @@ func decodeSEM(at string, p semParams, m *Matrix) *errors.CodedError {
 		if solver == sem.SolverFisher {
 			msg := at + ` params.ftol applies to solver "slsqp" only; Fisher scoring stops on grad_tol`
 			if p.Solver == nil {
-				msg += `; a lavaan-convention fit (meanstructure, group, a ~ 1 line) runs Fisher scoring unless params.solver is "slsqp"`
+				msg += `; a lavaan-convention fit (meanstructure, group, a ~ 1 or := line) runs Fisher scoring unless params.solver is "slsqp"`
 			}
 			return matrixInvalid(at, "bad_params", msg,
 				map[string]any{"param": "ftol", "solver": string(sem.SolverFisher)})
@@ -441,6 +452,19 @@ func resolveSEM(at string, m *Matrix) *errors.CodedError {
 	if ge, ok := err.(*sem.GroupSpecError); ok {
 		return matrixInvalid(at, "bad_params", at+" params."+ge.Error(),
 			map[string]any{"param": ge.Param, "value": ge.Value})
+	}
+	var de *sem.DefinedError
+	if stderrors.As(err, &de) {
+		extra := map[string]any{"param": "model", "defined": de.Name, "problem": de.Reason, "error": err.Error()}
+		if de.Ref != "" {
+			extra["reference"] = de.Ref
+		}
+		return matrixInvalid(at, "defined_invalid", at+" params.model: "+err.Error(), extra)
+	}
+	var ce *sem.ConstraintError
+	if stderrors.As(err, &ce) {
+		return matrixInvalid(at, "constraint_unsupported", at+" params.model: "+err.Error(),
+			map[string]any{"param": "model", "constraint": ce.Op, "error": err.Error()})
 	}
 	if err != nil {
 		return matrixInvalid(at, "bad_params", at+" params.model: "+err.Error(),
