@@ -116,7 +116,7 @@ func docExprSchema() *encoding.Schema {
 		num("spend"),
 		num("weight_kg"), num("height_m"), num("score"),
 		num("q1"), num("q2"), num("q3"),
-		num("week"), num("x"), num("y"),
+		num("week"), num("wave"), num("x"), num("y"),
 		set("tags", "a", "b", "c"),
 		set("issuers", "VISA", "MC", "AMEX"),
 	}}
@@ -134,20 +134,70 @@ type docExpr struct {
 var docParamsRe = regexp.MustCompile(`"params"\s*:\s*(\{[^{}]*\})`)
 
 // fenceParams merges every request-level `params` object in one fenced
-// block: each `"params"` key whose value is an object of scalars and
-// lists (an operator's own params object holding a nested object is
-// not request params). A fence that does not decode as JSON falls back
-// to its one-line `"params": {...}` objects.
+// block: each `"params"` key whose value is an object of scalars, lists
+// and `{"$var": name}` markers (an operator's own params object holding
+// any other nested object is not request params). A marker resolves to
+// a sample of what fills it — the first value of a sweep axis of that
+// name, else a zero of the template variable's declared type, else 0.
+// A fence that does not decode as JSON falls back to its one-line
+// `"params": {...}` objects.
 func fenceParams(body string) map[string]any {
 	out := map[string]any{}
+	samples := map[string]any{}
+	marker := func(v any) (string, bool) {
+		m, ok := v.(map[string]any)
+		if !ok || len(m) != 1 {
+			return "", false
+		}
+		name, ok := m["$var"].(string)
+		return name, ok
+	}
 	merge := func(m map[string]any) {
 		for _, v := range m {
 			if _, nested := v.(map[string]any); nested {
-				return
+				if _, ok := marker(v); !ok {
+					return
+				}
 			}
 		}
 		for k, v := range m {
+			if name, ok := marker(v); ok {
+				if s, found := samples[name]; found {
+					v = s
+				} else {
+					v = json.Number("0")
+				}
+			}
 			out[k] = v
+		}
+	}
+	// collect records each sweep axis's first value and each template
+	// variable's zero, so a marker binds a value of the right type.
+	var collect func(any)
+	collect = func(v any) {
+		switch x := v.(type) {
+		case map[string]any:
+			if name, ok := x["name"].(string); ok {
+				if vals, ok := x["values"].([]any); ok && len(vals) > 0 {
+					samples[name] = vals[0]
+				} else if typ, ok := x["type"].(string); ok {
+					switch typ {
+					case "string":
+						samples[name] = ""
+					case "bool":
+						samples[name] = false
+					case "number", "integer":
+						samples[name] = json.Number("0")
+					}
+				}
+			}
+			for _, e := range x {
+				collect(e)
+			}
+		case []any:
+			for _, e := range x {
+				collect(e)
+			}
 		}
 	}
 	var walk func(any)
@@ -166,10 +216,27 @@ func fenceParams(body string) map[string]any {
 			}
 		}
 	}
-	dec := json.NewDecoder(strings.NewReader(body))
-	dec.UseNumber()
+	// A fence is either a whole JSON document or a `"key": {...}`
+	// fragment of one; try both before the one-line fallback.
 	var doc any
-	if dec.Decode(&doc) == nil {
+	decoded := false
+	for _, src := range []string{body, "{" + body + "}"} {
+		dec := json.NewDecoder(strings.NewReader(src))
+		dec.UseNumber()
+		// A fragment's leading `"key"` decodes as a bare string; only an
+		// object or array is a whole document.
+		if dec.Decode(&doc) == nil {
+			switch doc.(type) {
+			case map[string]any, []any:
+				decoded = true
+			}
+			if decoded {
+				break
+			}
+		}
+	}
+	if decoded {
+		collect(doc)
 		walk(doc)
 	} else {
 		for _, m := range docParamsRe.FindAllStringSubmatch(body, -1) {
@@ -347,4 +414,28 @@ func TestExprDocExamples_HarvestsFenceParams(t *testing.T) {
 		return
 	}
 	t.Fatalf("request-params example %q was not harvested", src)
+}
+
+// TestExprDocExamples_FenceParamsResolveMarkers guards the marker arm
+// of fenceParams: a `{"$var": name}` params entry binds a sample of the
+// value that fills it — a sweep axis's first value, else a zero of the
+// template variable's declared type — and a `"key": {...}` fragment
+// fence decodes as the object it belongs to, never as its bare key.
+func TestExprDocExamples_FenceParamsResolveMarkers(t *testing.T) {
+	sweep := `"sweep": {
+  "axes": [{"name": "w", "values": [2, 3]}],
+  "request": {"params": {"w": {"$var": "w"}}}
+}`
+	if got := fenceParams(sweep); got["w"] != json.Number("2") {
+		t.Fatalf("sweep fragment: params %v, want w = the axis's first value 2", got)
+	}
+	tmpl := `{"variables": [{"name": "label", "type": "string"}],
+ "body": {"params": {"label": {"$var": "label"}}}}`
+	if got := fenceParams(tmpl); got["label"] != "" {
+		t.Fatalf("template: params %v, want label = the string zero", got)
+	}
+	op := `{"params": {"window": {"size": 3}}}`
+	if got := fenceParams(op); got != nil {
+		t.Fatalf("operator params object: harvested %v, want none", got)
+	}
 }
