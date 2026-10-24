@@ -4322,7 +4322,7 @@
         {
           "name": "ATTR_SEM_SCORE",
           "category": "attribute",
-          "description": "Per-row score on one latent variable (params.latent) of a structural equation model fitted inline on the fit rows: MAT_SEM's fit and knobs over the p members of vector / fields (exactly one; listwise), matched to the model's observed variables by label, scored as lavaan's lavPredict — regression (the default: E(latent | row), every observed variable informing it) or Bartlett (generalized least squares on the measures, a higher-order factor through the first-order loadings). With a mean structure (params.meanstructure, a ~ 1 line, or params.group) the scores sit on the latent-mean scale; without one they are centered at the fit rows. Under params.group the fit is MAT_SEM's joint multi-group fit and each row is scored with its own group's parameters; a level without fit rows scores null with PULSE_SEM_SCORE_LEVEL_UNSEEN, a null group scores null. Every filtered row is scored; a null member scores null; a fit with too few rows, a singular covariance under singular refuse, negative degrees of freedom or an undefined fit nulls every score with a warning; a solver stop short of its tolerance or the nearest positive-definite substitute scores with a warning. Frequency weights only (N = the sum of weights); two-pass.",
+          "description": "Per-row score on one latent variable (params.latent) of a structural equation model fitted inline on the fit rows: MAT_SEM's fit and knobs over the p members of vector / fields (exactly one; listwise), matched to the model's observed variables by label, scored as lavaan's lavPredict — regression (the default: E(latent | row), every observed variable informing it) or Bartlett (generalized least squares on the measures, a higher-order factor through the first-order loadings). With a mean structure (params.meanstructure, a ~ 1 line, or params.group) the scores sit on the latent-mean scale; without one they are centered at the fit rows. Under params.group the fit is MAT_SEM's joint multi-group fit and each row is scored with its own group's parameters; a level without fit rows scores null with PULSE_SEM_SCORE_LEVEL_UNSEEN, a null group scores null. Every filtered row is scored; a null member scores null; a fit with too few rows, a singular covariance under singular refuse, negative degrees of freedom or an undefined fit nulls every score with a warning; a solver stop short of its tolerance or the nearest positive-definite substitute scores with a warning. Frequency weights only (N = the sum of weights); two-pass — or, scoring a bound SEM fit (params.fit), row-local.",
           "params": [
             {
               "name": "latent",
@@ -4449,6 +4449,12 @@
               "description": "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored."
             },
             {
+              "name": "fit",
+              "type": "string",
+              "required": false,
+              "description": "A bound SEM fit's name (a Compose fits entry whose request holds one MAT_SEM matrix — kind sem) to score from instead of fitting inline: no model, MAT_SEM knob or fit_on beside it (the fit supplies them). The fit's member labels must be the slot's (matched by label), its group field a field of the cohort (each row's level matched by label); the slot is row-local — it streams, fuses into a crosstab and merges across shards and chain stages — and scores every row to the bit of the inline fit on the same fit rows. A fit that failed on its data nulls every score with PULSE_FIT_UNAVAILABLE; another kind is PULSE_MODEL_KIND_MISMATCH, an unbound name PULSE_MODEL_UNKNOWN."
+            },
+            {
               "name": "labels",
               "type": "list",
               "required": false,
@@ -4478,7 +4484,7 @@
           "emits_type": "f64",
           "emits_type_note": "one latent score per record (null when a member or the group is null, the level holds no fit rows, or the fit cannot score)",
           "streamable": true,
-          "streamable_hint": "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per request group.",
+          "streamable_hint": "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per request group. Bound to a SEM fit (params.fit) it is row-local: it streams beside groupers and features.",
           "component_schema": {
             "mergeability": ""
           },
@@ -13559,6 +13565,10 @@
         "description": "Defined parameters on MAT_SEM — lavaan's name := expr for indirect, total and contribution effects (a path times a latent mean change) with a delta-method or bootstrap interval and a p. The grammar and its refusals, the convention switch, how the rows read, correcting them together, and telling whether an effect differs from zero."
       },
       {
+        "name": "sem-fits",
+        "description": "SEM fits in Compose — a fits entry holding one MAT_SEM matrix fits the structural equation model once and binds its parameters by name; ATTR_SEM_SCORE params.fit scores any slot's rows from it, row-local and bit-equal to the inline fit. The fit request, the response shape, scoring rules, refusals and failures."
+      },
+      {
         "name": "sem-modeling",
         "description": "Structural equation modelling with MAT_SEM — which convention a fit follows (semopy's covariance-only default or lavaan's) and how to read the outputs. The meanstructure param and the ~ 1 syntax for intercepts and latent means. Multi-group fits and the invariance ladder (group_equal, group_partial, c(...) modifiers)."
       },
@@ -19855,4 +19865,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b464285a8f66c20b68157c8b000034832ef4d3d5dddec5053b233bb0ec712e7f
+// golden-hash: 36b59eb32e994426710ae3858e70da49593824b2cc00b5773f3e5c1cd59691f7

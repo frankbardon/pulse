@@ -168,11 +168,13 @@ func finalizeSEMGroups(in *matrixFinalizeInput) (matrixOutput, error) {
 		}
 	}
 	moments := make([]sem.GroupMoments, len(codes))
+	levelCMs := make([]*linalg.CoMoment, len(codes))
 	for g, c := range codes {
 		cm, err := gs.buckets[c].Tree()
 		if err != nil {
 			return matrixOutput{}, err
 		}
+		levelCMs[g] = cm
 		if cm.N() <= int64(k) || !(cm.W() > float64(k)) {
 			return matrixOutput{}, semGroupRefusal(errors.PULSE_MATRIX_INSUFFICIENT_N, plan.Name, "level_too_thin",
 				"group "+strconv.Quote(labels[g])+" has "+strconv.FormatInt(cm.N(), 10)+" rows; each group needs more rows (and weight) than the model's "+strconv.Itoa(k)+" observed variables",
@@ -219,6 +221,19 @@ func finalizeSEMGroups(in *matrixFinalizeInput) (matrixOutput, error) {
 			map[string]any{"matrix": plan.Name, "dof": fit.Stats.DoF, "n_params": fit.Stats.NParams}))
 	}
 	out.Warnings = append(out.Warnings, semDefinedWarnings(plan.Name, fit.Defined)...)
+	if m.capture != nil {
+		// A Compose SEM fit request's battery: bind the point fit, each
+		// group's own parameters.
+		sf := m.semCaptureFit(in.CM, fit.Converged, fit.Status, fit.Iterations, fit.Options, fit.Stats, nil)
+		for g := range codes {
+			params, _ := fit.Groups[g].Params()
+			if params.SampleMean == nil {
+				params.SampleMean = append([]float64(nil), moments[g].Mean...)
+			}
+			sf.Groups = append(sf.Groups, semCaptureGroup(labels[g], levelCMs[g], params))
+		}
+		m.capture.OfferSEM(sf)
+	}
 	var boot *sem.Bootstrap
 	if spec.Bootstrap() {
 		// Each level's rows are redrawn within the level, so every

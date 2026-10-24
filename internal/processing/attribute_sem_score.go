@@ -6,6 +6,7 @@ import (
 	"math"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -49,6 +50,21 @@ import (
 //
 // The fit is cohort-wide over the filtered rows (two-pass, like the
 // fitted vector attributes); a grouped request never refits per bucket.
+//
+// Bound (params.fit naming a SEM fit — a Compose `fits` entry of kind
+// sem, model.SEMFit): the slot fits nothing. bindFitOn aligns the
+// fit's member labels to the slot's (by label), rebuilds the fit's
+// model from its description and options (semScoreFitFromBound) and
+// each group's scorer from its stored matrices by the one arithmetic
+// Finalize uses, and closes the slot — ROW-LOCAL (vectors.FitBound,
+// prebuiltAttribute): it streams one pass, fuses into a crosstab and
+// merges across shards, decode workers and chain stages, its
+// unseen-level tally folding by MergeTally. The scores are the inline
+// fit's bits on the same fit rows (same parameters, same scorer). A
+// row's group is matched to the fit's levels by LABEL (a categorical's
+// dictionary entry, else the integer), so a fit taken on one cohort
+// scores any cohort holding its members and group field; a failed fit
+// nulls every score with PULSE_FIT_UNAVAILABLE.
 
 // semScoreFit is a closed SEM fit in the form a scorer reads: the
 // model (one per group), the levels (the group labels, fit order, and
@@ -59,6 +75,37 @@ type semScoreFit struct {
 	labels []string
 	codes  []uint64
 	params []sem.Params
+}
+
+// semScoreFitFromBound rebuilds a bound SEM fit's scoring form: the
+// model re-specified from its description and options (one model for
+// every group — a group's own model differs only in the fixed values
+// and labels its matrices already hold) and each group's stored
+// matrices. A model that does not reproduce the fit's variable orders
+// is PROCESSING_INTERNAL: the matrices would be read misaligned.
+func semScoreFitFromBound(sf *model.SEMFit) (*semScoreFit, error) {
+	opt := sem.ModelOptions{MeanStructure: sf.MeanStructure, GroupEqual: sf.GroupEqual, GroupPartial: sf.GroupPartial, Lavaan: sf.Lavaan}
+	newModel := sem.NewModelWithOptions
+	if sf.Grouped() {
+		newModel = sem.NewGroupModel
+	}
+	m, err := newModel(sf.Model, opt)
+	if err == nil && (!slices.Equal(m.Observed, sf.Observed) || !slices.Equal(m.Inner, sf.Inner)) {
+		err = fmt.Errorf("its model specifies observed %v and inner %v, the fit stores %v and %v", m.Observed, m.Inner, sf.Observed, sf.Inner)
+	}
+	if err != nil {
+		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			fmt.Sprintf("bound SEM fit %q cannot be rebuilt: %v", sf.Name, err),
+			map[string]any{"fit": sf.Name, "error": err.Error()})
+	}
+	out := &semScoreFit{}
+	for _, g := range sf.Groups {
+		out.models = append(out.models, m)
+		out.labels = append(out.labels, g.Level)
+		out.params = append(out.params, sem.Params{Lambda: g.Lambda, Beta: g.Beta, Psi: g.Psi, Theta: g.Theta,
+			Nu: g.Nu, Alpha: g.Alpha, SampleMean: g.SampleMean})
+	}
+	return out, nil
 }
 
 // semScoreAttribute is ATTR_SEM_SCORE's TwoPassAttribute.
@@ -79,6 +126,19 @@ type semScoreAttribute struct {
 	// field's, guarding the index).
 	groupField string
 	dict       *encoding.Field
+	// levels are the group field's level labels by code when the
+	// schema knows them (a categorical's dictionary, packed_bool's
+	// "0" / "1"); nil on an integer field.
+	levels []string
+
+	// fitName is params.fit ("" fits inline); labels are the slot's
+	// member labels the bound fit aligns to; bound is the fit, set by
+	// bindFitOn, and prebuilt reports the slot closed at bind (bound,
+	// or its fit failed on its data).
+	fitName  string
+	labels   []string
+	bound    *model.SEMFit
+	prebuilt bool
 
 	base    *linalg.CoMoment
 	buckets map[uint64]*linalg.CoMoment
@@ -99,10 +159,13 @@ type semScoreAttribute struct {
 }
 
 var (
-	_ TwoPassAttribute = (*semScoreAttribute)(nil)
-	_ NullEmitter      = (*semScoreAttribute)(nil)
-	_ fitOnBinder      = (*semScoreAttribute)(nil)
-	_ attributeWarner  = (*semScoreAttribute)(nil)
+	_ TwoPassAttribute        = (*semScoreAttribute)(nil)
+	_ NullEmitter             = (*semScoreAttribute)(nil)
+	_ fitOnBinder             = (*semScoreAttribute)(nil)
+	_ attributeWarner         = (*semScoreAttribute)(nil)
+	_ prebuiltAttribute       = (*semScoreAttribute)(nil)
+	_ MergeableAttributeTally = (*semScoreAttribute)(nil)
+	_ attributeTallyResetter  = (*semScoreAttribute)(nil)
 )
 
 // newSEMScoreAttribute is ATTR_SEM_SCORE's registry factory.
@@ -126,7 +189,8 @@ func newSEMScoreAttribute(attr *types.Attribute, schema *encoding.Schema) (Attri
 		return nil, cerr
 	}
 	members := vectors.Resolved{Members: append([]string(nil), attr.Fields...)}
-	if _, cerr := vectors.ResolveSEMScore(at, &cfg, members, schema); cerr != nil {
+	labels, cerr := vectors.ResolveSEMScore(at, &cfg, members, schema)
+	if cerr != nil {
 		return nil, cerr
 	}
 	base, err := linalg.NewCoMoment(len(attr.Fields), linalg.Listwise)
@@ -143,10 +207,18 @@ func newSEMScoreAttribute(attr *types.Attribute, schema *encoding.Schema) (Attri
 		weight:    attr.Weight.Spec(),
 		base:      base,
 		x:         make([]float64, len(attr.Fields)),
-		order:     cfg.Plan.Order,
+		fitName:   cfg.Fit,
+		labels:    labels,
 	}
+	if cfg.Fit != "" {
+		// The bound fit supplies the model, groups and member order
+		// (bindFitOn).
+		return a, nil
+	}
+	a.order = cfg.Plan.Order
 	if cfg.Plan.Grouped() {
 		a.groupField = cfg.Plan.Group
+		a.levels = cfg.Plan.GroupLevels
 		a.buckets = map[uint64]*linalg.CoMoment{}
 		if schema != nil {
 			if f := schema.Field(a.groupField); f != nil && f.Type.IsCategorical() {
@@ -158,8 +230,11 @@ func newSEMScoreAttribute(attr *types.Attribute, schema *encoding.Schema) (Attri
 }
 
 // bindFitOn compiles params.fit_on against the request's registry and
-// bound models (fitOnBinder).
+// bound models, or binds and closes params.fit (fitOnBinder).
 func (a *semScoreAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set, vecs []vectors.Resolved, keys *encoding.Schema) error {
+	if a.fitName != "" {
+		return a.bindFit(models)
+	}
 	fns, err := buildFilterFuncsWith(a.fitOnSpec, a.schema, exts, models, vecs, keys)
 	if err != nil {
 		return err
@@ -167,6 +242,181 @@ func (a *semScoreAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set
 	a.fitOn, a.fitOnBound = fns, true
 	return nil
 }
+
+// bindFit resolves params.fit in models and closes the slot: a failed
+// SEM fit nulls every score with PULSE_FIT_UNAVAILABLE; another kind
+// is PULSE_MODEL_KIND_MISMATCH, an unbound name PULSE_MODEL_UNKNOWN
+// (details.attribute, the message prefixed with the slot); the fit's
+// member labels must be the slot's (PULSE_VECTOR_REFERENCE_MISMATCH
+// labels_differ), its group field a group field of the cohort, and
+// params.latent a latent of its model (SERVICE_VALIDATION). The fit's
+// own caveats and refusals are the inline fit's: too few fit rows or
+// negative degrees of freedom null every score with a warning, a
+// solver stop short of its tolerance or the nearest positive-definite
+// substitute score with one.
+func (a *semScoreAttribute) bindFit(models *model.Set) error {
+	a.finalized, a.prebuilt = true, true
+	if se, failed := models.FailedOfKind(a.fitName, types.FitKindSEM); failed {
+		a.warnings = append(a.warnings, model.FitUnavailable(a.fitName, a.label, se))
+		return nil
+	}
+	sf, err := models.LookupSEM(a.fitName)
+	if err != nil {
+		if ce, ok := err.(*errors.CodedError); ok {
+			ce.Details["attribute"] = a.label
+			ce.Message = a.label + ": " + ce.Message
+		}
+		return err
+	}
+	if _, cerr := vectors.AlignFit("attribute", a.label, a.fitName, sf.Labels, a.labels); cerr != nil {
+		return cerr
+	}
+	pos := make(map[string]int, len(a.labels))
+	for i, l := range a.labels {
+		pos[l] = i
+	}
+	a.order = make([]int, len(sf.Observed))
+	for k, v := range sf.Observed {
+		i, ok := pos[v]
+		if !ok {
+			return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+				fmt.Sprintf("%s: bound SEM fit %q observes %q, which is none of its member labels", a.label, a.fitName, v),
+				map[string]any{"attribute": a.label, "fit": a.fitName, "observed": v})
+		}
+		a.order[k] = i
+	}
+	fit, err := semScoreFitFromBound(sf)
+	if err != nil {
+		return err
+	}
+	lats := fit.models[0].Latents()
+	switch {
+	case a.cfg.Latent == "" && len(lats) == 1:
+		a.cfg.Latent = lats[0]
+	case a.cfg.Latent == "":
+		return attributeFitInvalid(a.label, a.fitName, "bad_params",
+			fmt.Sprintf("params.latent is required: bound SEM fit %q's model has %d latent variables (%s)", a.fitName, len(lats), strings.Join(lats, ", ")),
+			map[string]any{"param": "latent", "latents": lats})
+	case !slices.Contains(lats, a.cfg.Latent):
+		return attributeFitInvalid(a.label, a.fitName, "latent_unknown",
+			fmt.Sprintf("params.latent %q is not a latent variable of bound SEM fit %q (latents: %s)", a.cfg.Latent, a.fitName, strings.Join(lats, ", ")),
+			map[string]any{"param": "latent", "value": a.cfg.Latent, "latents": lats})
+	}
+	a.bound = sf
+	codes, err := a.bindFitGroups(sf)
+	if err != nil {
+		return err
+	}
+	fit.codes = codes
+	k := len(sf.Observed)
+	if !sf.Grouped() && (sf.N <= int64(k) || !(sf.SumWeights > float64(k))) {
+		a.warnings = append(a.warnings, a.fitWarning(&fitRefusal{code: errors.PULSE_MATRIX_INSUFFICIENT_N,
+			msg:     fmt.Sprintf("the fit has %d complete rows for the model's %d observed variables (needs more rows, and weight, than variables); every score is null", sf.N, k),
+			details: map[string]any{"n": sf.N, "sum_weights": sf.SumWeights, "observed": k}}))
+		return nil
+	}
+	if sf.NearestPD {
+		a.warnings = append(a.warnings, a.fitWarning(&fitRefusal{code: errors.PULSE_MATRIX_NEAREST_PD,
+			msg:     "the fit rows' covariance is not positive definite; the model is fitted to its nearest positive-definite substitute (MAT_SEM's params.singular \"nearest\") and scored from that fit",
+			details: map[string]any{"min_eigenvalue": sf.MinEigenvalue}}))
+	}
+	if note := semConvergenceNote(sf.Converged, sf.Status, sem.Solver(sf.Solver), sf.Iterations); note != nil {
+		a.warnings = append(a.warnings, a.fitWarning(note))
+	}
+	if ref := semIdentifiedRefusal(sem.Stats{DoF: sf.DoF, NParams: sf.NParams}); ref != nil {
+		a.warnings = append(a.warnings, a.fitWarning(ref))
+		return nil
+	}
+	a.closeFit(fit)
+	return nil
+}
+
+// bindFitGroups points the slot at the bound fit's group field on this
+// cohort and returns each fit group's level code here (nil ungrouped):
+// a categorical's dictionary index of the level's label, packed_bool's
+// 0 / 1, an integer's value. A level the cohort cannot hold takes no
+// code (no row scores with it). The field must be a group field of the
+// cohort (SERVICE_VALIDATION reason fit_group_field).
+func (a *semScoreAttribute) bindFitGroups(sf *model.SEMFit) ([]uint64, error) {
+	if !sf.Grouped() {
+		return []uint64{0}, nil
+	}
+	var f *encoding.Field
+	if a.schema != nil {
+		f = a.schema.Field(sf.Group)
+	}
+	if f == nil || !slices.Contains(vectors.SEMGroupFieldTypes(), f.Type) {
+		what := "which the cohort does not have"
+		if f != nil {
+			what = "which is " + f.Type.String() + " here, not a group field (categorical, packed_bool, u4 or u8)"
+		}
+		return nil, attributeFitInvalid(a.label, a.fitName, "fit_group_field",
+			fmt.Sprintf("bound SEM fit %q is a multi-group fit by field %q, %s", a.fitName, sf.Group, what),
+			map[string]any{"group": sf.Group})
+	}
+	a.groupField = sf.Group
+	switch {
+	case f.Type.IsCategorical():
+		a.dict = f
+		if f.Dictionary != nil {
+			for i, l := range f.Dictionary.Values() {
+				if l == "" {
+					l = strconv.Itoa(i)
+				}
+				a.levels = append(a.levels, l)
+			}
+		}
+	case f.Type == encoding.FieldTypePackedBool:
+		a.levels = []string{"0", "1"}
+	}
+	codes := make([]uint64, len(sf.Groups))
+	for g, gr := range sf.Groups {
+		codes[g] = math.MaxUint64 // no code: the cohort holds no such level
+		if a.levels != nil {
+			if i := slices.Index(a.levels, gr.Level); i >= 0 {
+				codes[g] = uint64(i)
+			}
+		} else if v, err := strconv.ParseUint(gr.Level, 10, 64); err == nil {
+			codes[g] = v
+		}
+	}
+	return codes, nil
+}
+
+// attributeFitInvalid is a bound slot's SERVICE_VALIDATION refusal.
+func attributeFitInvalid(label, fit, reason, msg string, extra map[string]any) *errors.CodedError {
+	d := map[string]any{"attribute": label, "reason": reason, "fit": fit}
+	for k, v := range extra {
+		d[k] = v
+	}
+	return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION, label+": "+msg, d)
+}
+
+// prebuiltFit satisfies prebuiltAttribute: a bound (or failed) fit
+// closed at bind, so the slot is row-local (vectors.FitBound).
+func (a *semScoreAttribute) prebuiltFit() bool { return a.prebuilt }
+
+// MergeTally satisfies MergeableAttributeTally: the bound form's
+// unseen-level tally folds across partitions (integers, exact). The
+// inline form is two-pass and never reaches the reducers.
+func (a *semScoreAttribute) MergeTally(other RowLocalAttribute) error {
+	o, ok := other.(*semScoreAttribute)
+	if !ok {
+		return tallyPartnerMismatch(types.ATTR_SEM_SCORE, other)
+	}
+	for c, n := range o.unseen {
+		if a.unseen == nil {
+			a.unseen = map[uint64]int64{}
+		}
+		a.unseen[c] += n
+	}
+	return nil
+}
+
+// resetTally satisfies attributeTallyResetter: a stage a prepass layer
+// scored once already counts its unseen rows again on the emission
+// scan.
+func (a *semScoreAttribute) resetTally() { a.unseen = nil }
 
 // EmitsNull satisfies NullEmitter: a NaN score is a null.
 func (a *semScoreAttribute) EmitsNull() bool { return true }
@@ -196,9 +446,9 @@ func (a *semScoreAttribute) attributeWarnings() []*types.ResponseWarning {
 }
 
 // levelLabel is a level code's label: the dictionary entry (the
-// plan's GroupLevels), else the integer.
+// field's levels), else the integer.
 func (a *semScoreAttribute) levelLabel(code uint64) string {
-	if lv := a.cfg.Plan.GroupLevels; a.dict != nil && int(code) < len(lv) {
+	if lv := a.levels; a.dict != nil && int(code) < len(lv) {
 		return lv[code]
 	}
 	return strconv.FormatUint(code, 10)
@@ -222,6 +472,10 @@ func (a *semScoreAttribute) groupCode(rec *Record) (uint64, bool, error) {
 // every fit_on filterer admitting it, a valid positive weight; grouped,
 // a non-null group).
 func (a *semScoreAttribute) PrePass(rec *Record, _ string) error {
+	if a.prebuilt {
+		// A bound fit is already fitted: no row is folded.
+		return nil
+	}
 	if a.finalized {
 		return errors.NewCodedError(errors.PROCESSING_INTERNAL, "ATTR_SEM_SCORE PrePass after Finalize")
 	}
@@ -269,6 +523,9 @@ func (a *semScoreAttribute) PrePass(rec *Record, _ string) error {
 
 // Finalize fits the model and builds the scorers, once.
 func (a *semScoreAttribute) Finalize() error {
+	if a.prebuilt {
+		return nil
+	}
 	if a.finalized {
 		return errors.NewCodedError(errors.PROCESSING_INTERNAL, "ATTR_SEM_SCORE Finalize called twice")
 	}
@@ -281,6 +538,17 @@ func (a *semScoreAttribute) Finalize() error {
 		a.warnings = append(a.warnings, a.fitWarning(ref))
 		return nil
 	}
+	a.closeFit(fit)
+	return nil
+}
+
+// closeFit builds each fit group's scorer under its level code — the
+// one scorer arithmetic an inline and a bound fit share (sem.NewScorer
+// over the group's model and matrices). A scorer that cannot be built
+// nulls every score with PULSE_MATRIX_SINGULAR; a group without a code
+// on this cohort (a bound fit's level the cohort cannot hold) scores
+// no row.
+func (a *semScoreAttribute) closeFit(fit *semScoreFit) {
 	scorers := make(map[uint64]*sem.Scorer, len(fit.codes))
 	for g, code := range fit.codes {
 		sc, err := sem.NewScorer(fit.models[g], fit.params[g], a.cfg.Latent, a.cfg.Method)
@@ -288,12 +556,14 @@ func (a *semScoreAttribute) Finalize() error {
 			a.warnings = append(a.warnings, a.fitWarning(&fitRefusal{code: errors.PULSE_MATRIX_SINGULAR,
 				msg:     "the fitted model's implied covariance cannot be inverted" + levelSuffix(fit.labels[g]) + ", so its " + string(a.cfg.Method) + " scores are undefined; every score is null",
 				details: map[string]any{"error": err.Error()}}))
-			return nil
+			return
+		}
+		if code == math.MaxUint64 {
+			continue
 		}
 		scorers[code] = sc
 	}
 	a.fit, a.scorers = fit, scorers
-	return nil
 }
 
 func levelSuffix(label string) string {
@@ -480,6 +750,17 @@ func (a *semScoreAttribute) fitWarning(ref *fitRefusal) *types.ResponseWarning {
 	if a.weight != nil {
 		details["sum_weights"] = a.base.W()
 	}
+	if a.fitName != "" {
+		// A bound fit's figures are the fit's own.
+		details["fit"] = a.fitName
+		if sf := a.bound; sf != nil {
+			details["n"] = sf.N
+			delete(details, "sum_weights")
+			if sf.Basis != model.VectorBasisUnweighted {
+				details["sum_weights"] = sf.SumWeights
+			}
+		}
+	}
 	for k, v := range ref.details {
 		if _, taken := details[k]; !taken {
 			details[k] = v
@@ -502,7 +783,7 @@ func (a *semScoreAttribute) Row(rec *Record, _ string) (float64, error) {
 		return math.NaN(), nil
 	}
 	code := uint64(0)
-	if a.buckets != nil {
+	if a.groupField != "" {
 		c, ok, err := a.groupCode(rec)
 		if err != nil {
 			return 0, err

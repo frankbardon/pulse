@@ -2225,7 +2225,7 @@
       "type": "string"
     },
     "FitResult": {
-      "description": "One fit's result: a regression fit's RegressionResult, or a vector fit's {vector: VectorFitResult}. The vector key discriminates; a regression entry never carries it.",
+      "description": "One fit's result: a regression fit's RegressionResult, a vector fit's {vector: VectorFitResult} or a SEM fit's {sem: SEMFitResult}. The vector / sem key discriminates; a regression entry never carries either.",
       "oneOf": [
         {
           "$ref": "#/$defs/RegressionResult"
@@ -2239,6 +2239,18 @@
           },
           "required": [
             "vector"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "sem": {
+              "$ref": "#/$defs/SEMFitResult"
+            }
+          },
+          "required": [
+            "sem"
           ],
           "type": "object"
         }
@@ -4916,6 +4928,321 @@
       ],
       "type": "object"
     },
+    "SEMFitGroup": {
+      "additionalProperties": false,
+      "properties": {
+        "alpha": {
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "beta": {
+          "items": {
+            "items": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "lambda": {
+          "items": {
+            "items": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "level": {
+          "type": "string"
+        },
+        "n": {
+          "type": "integer"
+        },
+        "nu": {
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "psi": {
+          "items": {
+            "items": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "sample_mean": {
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "sum_weights": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "theta": {
+          "items": {
+            "items": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "alpha",
+        "beta",
+        "lambda",
+        "n",
+        "nu",
+        "psi",
+        "sample_mean",
+        "sum_weights",
+        "theta"
+      ],
+      "type": "object"
+    },
+    "SEMFitResult": {
+      "additionalProperties": false,
+      "if": {
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      },
+      "properties": {
+        "basis": {
+          "type": "string"
+        },
+        "conventions": {
+          "type": "string"
+        },
+        "converged": {
+          "type": "boolean"
+        },
+        "dof": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "error": {
+          "$ref": "#/$defs/SlotError"
+        },
+        "estimator": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        },
+        "group_equal": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "group_partial": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "group_reference": {
+          "type": "string"
+        },
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/SEMFitGroup"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "information": {
+          "type": "string"
+        },
+        "inner": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "iterations": {
+          "type": "integer"
+        },
+        "labels": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "latents": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "meanstructure": {
+          "type": "boolean"
+        },
+        "members": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "model": {
+          "type": "string"
+        },
+        "n": {
+          "type": "integer"
+        },
+        "n_params": {
+          "type": "integer"
+        },
+        "nearest_pd_min_eigenvalue": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "observed": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "operator": {
+          "type": "string"
+        },
+        "solver": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "sum_weights": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "operator"
+      ],
+      "then": {
+        "required": [
+          "basis",
+          "conventions",
+          "converged",
+          "dof",
+          "estimator",
+          "groups",
+          "information",
+          "inner",
+          "iterations",
+          "labels",
+          "latents",
+          "meanstructure",
+          "members",
+          "model",
+          "n",
+          "n_params",
+          "observed",
+          "solver",
+          "status",
+          "sum_weights"
+        ]
+      },
+      "type": "object"
+    },
     "SampleRequest": {
       "additionalProperties": false,
       "properties": {
@@ -5652,4 +5979,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: fe9c02b0cbec41dfc399ce676e760d6ee0a3f8a03ab5e4c87d380a84771fa98f
+// golden-hash: 0effa2d9f42a8547231a7aa68eec485021255188c02a4a6652cab7e9a55a0669

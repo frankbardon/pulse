@@ -908,12 +908,13 @@ func AttributeFit(typ types.AttributeType, a *types.Attribute) string {
 // whose reference is a centroid is never bound: its pre-pass remains.
 // An ATTR_REG_FITTED / ATTR_REG_RESIDUAL slot naming a bound regression
 // fit (params.fit — model.FitReferenced) is bound the same way: it
-// scores that fit instead of refitting OLS in a pre-pass.
+// scores that fit instead of refitting OLS in a pre-pass; so is an
+// ATTR_SEM_SCORE naming a bound SEM fit (params.fit, kind sem).
 func FitBound(typ types.AttributeType, a *types.Attribute) bool {
 	if model.FitReferenced(typ, a) {
 		return true
 	}
-	if !IsFittedAttribute(typ) && typ != types.ATTR_VEC_DISTANCE {
+	if !IsFittedAttribute(typ) && typ != types.ATTR_VEC_DISTANCE && typ != types.ATTR_SEM_SCORE {
 		return false
 	}
 	// A centroid reference still folds in a pre-pass, whatever fit the

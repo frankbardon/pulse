@@ -1315,11 +1315,18 @@ func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, 
 func composeFitCatalog(fits []types.FitSpec, summaries []descriptor.FitSummary) model.FitCatalog {
 	cat := model.CatalogFromFits(fits)
 	for i, f := range fits {
-		if i >= len(summaries) || summaries[i].Vector == nil || summaries[i].Vector.Labels == nil {
+		if i >= len(summaries) {
 			continue
 		}
-		if sig, ok := cat[f.Name]; ok && sig.Kind == types.FitKindVector {
-			sig.Members = append([]string(nil), summaries[i].Vector.Labels...)
+		sum, kind := summaries[i].Vector, types.FitKindVector
+		if summaries[i].SEM != nil {
+			sum, kind = summaries[i].SEM, types.FitKindSEM
+		}
+		if sum == nil || sum.Labels == nil {
+			continue
+		}
+		if sig, ok := cat[f.Name]; ok && sig.Kind == kind {
+			sig.Members = append([]string(nil), sum.Labels...)
 			cat[f.Name] = sig
 		}
 	}
@@ -1536,11 +1543,15 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 	out := make([]descriptor.FitSummary, len(fits))
 	for i, f := range fits {
 		req := model.FitRequest(f)
-		vector := model.FitKindOf(req) == types.FitKindVector
+		kind := model.FitKindOf(req)
+		vector := kind == types.FitKindVector || kind == types.FitKindSEM
 		out[i] = descriptor.FitSummary{Name: f.Name}
-		if vector {
+		switch kind {
+		case types.FitKindSEM:
+			out[i].SEM = &descriptor.VectorFitSummary{Operator: vectorFitOperator(req)}
+		case types.FitKindVector:
 			out[i].Vector = &descriptor.VectorFitSummary{Operator: vectorFitOperator(req)}
-		} else {
+		default:
 			reg := req.Regressions[0]
 			out[i].Type, out[i].Target = reg.Type, reg.Target
 			out[i].Predictors = append([]string{}, reg.Predictors...)
@@ -1557,7 +1568,11 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 		// The request body (validateComposeRequest's last pass) judged
 		// the regression rules too.
 		if vector {
-			out[i].Vector.Labels, out[i].Vector.Members = vectorFitAxis(req, schema, opts)
+			sum := out[i].Vector
+			if sum == nil {
+				sum = out[i].SEM
+			}
+			sum.Labels, sum.Members = vectorFitAxis(req, schema, opts)
 		}
 	}
 	return out

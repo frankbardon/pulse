@@ -235,6 +235,15 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 				}
 			}
 		}
+		// An ATTR_SEM_SCORE params.fit reads its bound SEM fit's group
+		// field (each row's parameters) beside its members.
+		if a.Type == types.ATTR_SEM_SCORE {
+			if name := vectors.AttributeFit(a.Type, a); name != "" {
+				if sf, lerr := models.LookupSEM(name); lerr == nil {
+					addKnown(sf.Group)
+				}
+			}
+		}
 		if a.Type == types.ATTR_FORMULA && a.Expression != "" {
 			if !appendExprIdents(out, a.Expression, known, vecMembers) {
 				out.Widen()

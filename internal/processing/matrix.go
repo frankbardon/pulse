@@ -515,7 +515,8 @@ func basisWeightSpec(b weighting.Basis) *types.WeightSpec {
 // offerCapture hands a Compose vector fit request's battery state (cm,
 // listwise) to the fit pre-pass, under the slot's fit labels.
 func (m *matrixSlot) offerCapture(cm *linalg.CoMoment) error {
-	if m.capture == nil {
+	if m.capture == nil || m.plan.Type == types.MAT_SEM {
+		// A MAT_SEM battery binds a SEM fit (its finalizer offers it).
 		return nil
 	}
 	vf, err := newFittedState(cm, weighting.BasisOf(m.weight)).vectorFit("", m.plan.FitLabels(), m.cols)

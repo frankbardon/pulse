@@ -8,10 +8,12 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/sem"
 	"github.com/frankbardon/pulse/internal/vectors"
+	"github.com/frankbardon/pulse/internal/weighting"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
 	"gonum.org/v1/gonum/mat"
@@ -84,6 +86,17 @@ func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
 	// semopy's raises, so the slot fails rather than nulling.
 	zeroOK := nearest
 	defined := cm.N() >= 2 && cm.W() > 0 && semJudgeable(cov, zeroOK)
+	if !defined && m.capture != nil {
+		// A Compose SEM fit request's battery has no fit to bind: the
+		// fit fails on its data (its slot alone), never binds nulls.
+		code, why := errors.PULSE_MATRIX_INSUFFICIENT_N, "has fewer than 2 complete rows or no weight"
+		if cm.N() >= 2 && cm.W() > 0 {
+			code, why = errors.PULSE_MATRIX_SINGULAR, "has a member without finite spread"
+		}
+		return matrixOutput{}, errors.NewCodedErrorWithDetails(code,
+			"matrix "+plan.Name+": the SEM fit is undefined — its input "+why+" — so the fit binds no model",
+			map[string]any{"matrix": plan.Name, "n": cm.N(), "sum_weights": cm.W()})
+	}
 	if !defined {
 		in.semParts(&out, nil, nil, nil)
 		return out, nil
@@ -103,6 +116,7 @@ func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
 	// dependency whose factorization still succeeds is fitted raw under
 	// nearest, as semopy fits it, with no warning.
 	raw := s
+	var nearestMin *float64
 	if nearest && !sem.PositiveDefinite(s) {
 		adj, err := sem.CovNearest(s, sem.NearestThreshold)
 		if err != nil {
@@ -111,6 +125,7 @@ func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
 				map[string]any{"matrix": plan.Name, "error": err.Error()})
 		}
 		s = adj.Cov
+		nearestMin = &adj.MinEigenvalue
 		out.Warnings = append(out.Warnings, matrixWarning(errors.PULSE_MATRIX_NEAREST_PD,
 			"matrix "+plan.Name+": the sample covariance is not positive definite; the model is fitted to its nearest positive-definite substitute (statsmodels cov_nearest, threshold 0.01, as semopy), and every figure is against that adjusted matrix",
 			map[string]any{"matrix": plan.Name, "n": cm.W(), "p": k, "min_eigenvalue": adj.MinEigenvalue}))
@@ -144,6 +159,21 @@ func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
 			map[string]any{"matrix": plan.Name, "dof": fit.Stats.DoF, "n_params": fit.Stats.NParams}))
 	}
 	out.Warnings = append(out.Warnings, semDefinedWarnings(plan.Name, fit.Defined)...)
+	if m.capture != nil {
+		// A Compose SEM fit request's battery: bind the point fit.
+		mv := cm.Mean()
+		ybar := make([]float64, k)
+		for a := 0; a < k; a++ {
+			ybar[a] = mv.At(spec.Order[a])
+		}
+		sf := m.semCaptureFit(cm, fit.Converged, fit.Status, fit.Iterations, fit.Options, fit.Stats, nearestMin)
+		params, _ := fit.Params()
+		if params.SampleMean == nil {
+			params.SampleMean = ybar
+		}
+		sf.Groups = []model.SEMGroup{semCaptureGroup("", cm, params)}
+		m.capture.OfferSEM(sf)
+	}
 	var boot *sem.Bootstrap
 	if spec.Bootstrap() {
 		rows := sem.BootstrapRows(fit)
@@ -416,4 +446,60 @@ func (in *matrixFinalizeInput) semParts(out *matrixOutput, fit *sem.Fit, implied
 		}
 		out.Scalars = sc
 	}
+}
+
+// semCaptureFit is the SEM fit a Compose SEM fit request's MAT_SEM slot
+// binds (model.SEMFit), less its groups: the plan's model and options,
+// the slot's member labels and columns, the weight basis and the fit's
+// solver stop and statistics. nearestMin is the nearest-PD substitute's
+// minimum eigenvalue (nil when the fit used the sample covariance).
+func (m *matrixSlot) semCaptureFit(cm *linalg.CoMoment, converged bool, status string, iterations int, opt sem.Options, st sem.Stats, nearestMin *float64) *model.SEMFit {
+	spec := m.plan.SEM
+	info := string(opt.Information)
+	if info == "" {
+		info = string(sem.InformationDense)
+	}
+	sf := &model.SEMFit{
+		Operator:       string(m.plan.Type),
+		Model:          spec.Desc,
+		Labels:         append([]string(nil), m.plan.FitLabels()...),
+		Members:        append([]string(nil), m.cols...),
+		Observed:       append([]string(nil), spec.Model.Observed...),
+		Inner:          append([]string(nil), spec.Model.Inner...),
+		Latents:        spec.Model.Latents(),
+		Estimator:      "ml",
+		Lavaan:         spec.Model.Lavaan(),
+		MeanStructure:  spec.MeanStructure,
+		Group:          spec.Group,
+		GroupReference: spec.GroupReference,
+		GroupEqual:     append([]string(nil), spec.GroupEqual...),
+		GroupPartial:   append([]string(nil), spec.GroupPartial...),
+		Solver:         string(opt.Solver),
+		Information:    info,
+		Basis:          vectorBasisOf(weighting.BasisOf(m.weight)),
+		N:              cm.N(),
+		SumWeights:     cm.W(),
+		DoF:            st.DoF,
+		NParams:        st.NParams,
+		Converged:      converged,
+		Status:         status,
+		Iterations:     iterations,
+	}
+	if len(sf.GroupEqual) == 0 {
+		sf.GroupEqual = nil
+	}
+	if len(sf.GroupPartial) == 0 {
+		sf.GroupPartial = nil
+	}
+	if nearestMin != nil {
+		sf.NearestPD, sf.MinEigenvalue = true, *nearestMin
+	}
+	return sf
+}
+
+// semCaptureGroup is one group of a captured SEM fit: its level, its
+// fit rows' count and weight (cm) and its parameter matrices.
+func semCaptureGroup(level string, cm *linalg.CoMoment, p sem.Params) model.SEMGroup {
+	return model.SEMGroup{Level: level, N: cm.N(), SumWeights: cm.W(),
+		Lambda: p.Lambda, Beta: p.Beta, Psi: p.Psi, Theta: p.Theta, Nu: p.Nu, Alpha: p.Alpha, SampleMean: p.SampleMean}
 }

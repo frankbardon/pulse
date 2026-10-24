@@ -30,25 +30,24 @@ A **fit** is a named model a Compose batch runs ONCE, before any slot, so every 
 
 ## The fit request
 
-- `request` is an ordinary request, no `groups` / `crosstab`, holding exactly ONE regression (a **regression fit**) or ONE vector battery and no regression (a **vector fit**: one fitted vector attribute or one `matrices` entry, its listwise mean + co-moment). Fit another model as another entry.
-- Its own cohort, filters, features and weight decide the fit rows, independent of every slot (fit weeks 0–90 while a slot filters 91–103).
-- Its `return` is ignored.
-- Each fit runs once; serial and parallel answers are byte-identical.
+- `request` is an ordinary request, no `groups` / `crosstab`, holding exactly ONE regression (a **regression fit**) or ONE vector battery and no regression (a **vector fit**: one fitted vector attribute or one `matrices` entry, its listwise mean + co-moment); one `MAT_SEM` entry is a **SEM fit** ([`sem-fits`](sem-fits.md)). Another model is another entry.
+- Its own cohort, filters, features and weight decide the fit rows, independent of every slot (fit 0–90, score 91–103). Its `return` is ignored.
+- Each fit runs once; serial and parallel are byte-identical.
 
 A fit's regression may read same-request window labels (windows-over-records shape); a scoring slot's post-window `ATTR_REG_PREDICT` runs after its windows; a `holdout` is scored at fit time ([`regression-model-options`](regression-model-options.md)).
 
 ## Names
 
-- `name` is required and unique. Both kinds share ONE namespace; a duplicate is `PULSE_MODEL_NAME_COLLISION`, an unbound name `PULSE_MODEL_UNKNOWN` (`details.available`: bound names of that kind), a name of the other kind `PULSE_MODEL_KIND_MISMATCH` (`details.fit`, `kind`, `expected`).
-- Every slot, sweep-expanded included, receives every fit; a sweep axis varies the slot, not the model.
-- A regression's predictor list is authoritative: a scoring slot supplies those columns; a one-hot column left out is the reference level.
+- `name` is required and unique. All kinds share ONE namespace; a duplicate is `PULSE_MODEL_NAME_COLLISION`, an unbound name `PULSE_MODEL_UNKNOWN` (`details.available`: bound names of that kind), a name of another kind `PULSE_MODEL_KIND_MISMATCH` (`details.fit`, `kind`, `expected`).
+- Every slot, sweep-expanded too, receives every fit; a sweep axis varies the slot, not the model.
+- A regression's predictor list is authoritative: a scoring slot supplies those columns; an absent one-hot column is the reference level.
 - A slot scores a fit per row with `ATTR_REG_PREDICT` (`params: {fit: "<name>"}`, optional `terms` / `scale` / `bound`): no refit, full precision, null on a null predictor; see [`op-attr-reg-predict`](op-attr-reg-predict.md).
 - A slot's formula or filter expression reads a regression figure with `coef("<name>", "<term>"[, "point|lower|upper|se"])`; see [`expression-language`](expression-language.md).
 - A vector fit is read by `params.fit` on a fitted vector attribute or any matrix slot ([`op-mat-correlation`](op-mat-correlation.md)): it emits from the bound state, reading no row of its own, matched BY LABEL under the fit's weight basis.
 
 ## Response
 
-`fits` on the compose response is keyed by fit name: a regression fit's full regression result, or a vector fit's `{"vector": {operator, labels, members, basis, n, n_weight_invalid, sum_weights, n_star, mean, covariance}}` (covariance M2*/(N* − 1); undefined cells `null`). Omitted without fits; outside the compose-level `return` — never rounded. A fit adds no slot row.
+`fits` on the compose response is keyed by fit name: a regression fit's full regression result, a vector fit's `{"vector": {operator, labels, members, basis, n, n_weight_invalid, sum_weights, n_star, mean, covariance}}` (covariance M2*/(N* − 1); undefined cells `null`), or a SEM fit's `{"sem": {…}}`. Omitted without fits; outside the `return`, never rounded. A fit adds no row.
 
 ## Saving
 
@@ -71,7 +70,7 @@ A fit its data refuses fails alone: its `fits` entry keeps identity + `error`, c
 
 ## Validate before executing
 
-`pulse_predict` with `composed` (`PredictCompose`) runs the same structural rules, then checks each fit request like a slot, located by `details.fit`; a valid batch lists `fits: [{name, type, target, predictors, cohort}]` (a vector fit: `{name, cohort, vector: {operator, labels, members}}`) — never fitted, so a data failure is not foreseen; every `params.fit` name and kind is judged too.
+`pulse_predict` with `composed` (`PredictCompose`) runs the same structural rules, then checks each fit request like a slot, located by `details.fit`; a valid batch lists `fits: [{name, type, target, predictors, cohort}]` (a vector or SEM fit: `{name, cohort, vector|sem: {operator, labels, members}}`) — never fitted, so a data failure is unforeseen; every `params.fit` name and kind is judged.
 
 ## See
 

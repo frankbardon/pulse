@@ -1004,9 +1004,11 @@ type FitSummary struct {
 	Predictors []string `json:"predictors,omitempty"`
 	// Cohort is the path of the cohort the fit runs over.
 	Cohort string `json:"cohort,omitempty"`
-	// Vector is a vector fit's static summary (nil on a regression
-	// fit).
+	// Vector is a vector fit's static summary (nil on any other fit).
 	Vector *VectorFitSummary `json:"vector,omitempty"`
+	// SEM is a SEM fit's static summary — its MAT_SEM battery's
+	// operator, labels and members (nil on any other fit).
+	SEM *VectorFitSummary `json:"sem,omitempty"`
 }
 
 // VectorFitSummary is a vector fit's FitSummary: its battery and, when

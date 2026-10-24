@@ -927,7 +927,12 @@ func vectorFitRefusals(req *types.Request, schema *encoding.Schema, mats []vecto
 			labels, labelsOK = vectors.AttributeFitLabels(typ, attr, ains[i].Members, schema)
 		}
 		if name != "" {
-			if cerr := model.CheckVectorFit(models, name); cerr != nil {
+			check := model.CheckVectorFit
+			if typ == types.ATTR_SEM_SCORE {
+				// ATTR_SEM_SCORE reads a SEM fit (kind sem).
+				check = model.CheckSEMFit
+			}
+			if cerr := check(models, name); cerr != nil {
 				cerr.Details["attribute"] = label
 				cerr.Message = label + ": " + cerr.Message
 				out = append(out, cerr)

@@ -748,17 +748,24 @@ func (b *schemaBuilder) slotWeightDef() any {
 
 // fitResultDef builds the ComposedResponse.fits entry union
 // (types.FitResult, which writes its own wire form): a regression fit's
-// RegressionResult object as is, or a vector fit's {"vector":
-// VectorFitResult} — the `vector` key discriminates.
+// RegressionResult object as is, a vector fit's {"vector":
+// VectorFitResult} or a SEM fit's {"sem": SEMFitResult} — the `vector`
+// / `sem` key discriminates.
 func (b *schemaBuilder) fitResultDef() any {
 	return map[string]any{
-		"description": "One fit's result: a regression fit's RegressionResult, or a vector fit's {vector: VectorFitResult}. The vector key discriminates; a regression entry never carries it.",
+		"description": "One fit's result: a regression fit's RegressionResult, a vector fit's {vector: VectorFitResult} or a SEM fit's {sem: SEMFitResult}. The vector / sem key discriminates; a regression entry never carries either.",
 		"oneOf": []any{
 			map[string]any{"$ref": "#/$defs/" + b.register(reflect.TypeFor[types.RegressionResult]())},
 			map[string]any{
 				"type":                 "object",
 				"properties":           map[string]any{"vector": map[string]any{"$ref": "#/$defs/" + b.register(reflect.TypeFor[types.VectorFitResult]())}},
 				"required":             []string{"vector"},
+				"additionalProperties": false,
+			},
+			map[string]any{
+				"type":                 "object",
+				"properties":           map[string]any{"sem": map[string]any{"$ref": "#/$defs/" + b.register(reflect.TypeFor[types.SEMFitResult]())}},
+				"required":             []string{"sem"},
 				"additionalProperties": false,
 			},
 		},

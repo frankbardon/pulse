@@ -56,6 +56,13 @@ func loadSEMScoreRef(t *testing.T, name string) semScoreRef {
 // the CSV's ("" keeps it; "-" makes it null).
 func brandSEMFixture(t *testing.T, extra []string, relevel func(r int) string) (*encoding.Schema, func() []*Record) {
 	t.Helper()
+	return brandSEMFixtureDict(t, append([]string{"1", "2"}, extra...), relevel)
+}
+
+// brandSEMFixtureDict is brandSEMFixture over a wave dictionary holding
+// levels in that order.
+func brandSEMFixtureDict(t *testing.T, levels []string, relevel func(r int) string) (*encoding.Schema, func() []*Record) {
+	t.Helper()
 	f, err := os.Open(semScoreTestdata + "brand_data.csv")
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +74,7 @@ func brandSEMFixture(t *testing.T, extra []string, relevel func(r int) string) (
 	}
 	header := recs[0]
 	waveDict := encoding.NewDictionary()
-	for _, l := range append([]string{"1", "2"}, extra...) {
+	for _, l := range levels {
 		if _, err := waveDict.Add(l); err != nil {
 			t.Fatal(err)
 		}

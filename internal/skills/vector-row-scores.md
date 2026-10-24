@@ -29,7 +29,7 @@ A row score reads one vector — exactly one of `vector`<!-- feature: capability
 Each fits once, then scores every row:
 
 - `fit_on` — `"filtered"` (default) or an inline filterer array picking the FIT rows; every filtered row is still scored.
-- `fit` — a bound vector fit's name, scored against instead of fitting: a compose `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry<!-- feature: capability:compose_fits --> (`compose-fits`)<!-- /feature -->. XOR `fit_on` (`fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members: a mismatch is `PULSE_VECTOR_REFERENCE_MISMATCH`, an unbound name `PULSE_MODEL_UNKNOWN`, a regression's name `PULSE_MODEL_KIND_MISMATCH`.
+- `fit` — a bound vector fit's name, scored against instead of fitting: a compose `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry<!-- feature: capability:compose_fits --> (`compose-fits`)<!-- /feature -->. XOR `fit_on` (`fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members: a mismatch is `PULSE_VECTOR_REFERENCE_MISMATCH`, an unbound name `PULSE_MODEL_UNKNOWN`, another kind's name `PULSE_MODEL_KIND_MISMATCH`.<!-- feature: ATTR_SEM_SCORE --> `ATTR_SEM_SCORE` reads a SEM fit instead (`sem-fits`).<!-- /feature -->
 - `missing` — `listwise` only.
 - `weight` — fits only (N* = Σw or n_eff; the Mahalanobis covariance is M2*/(N* − 1)); a zero-weight row is scored, not fitted.
 

@@ -44,11 +44,17 @@ type SEMScoreConfig struct {
 	FitOn []*types.Filterer
 	// Labels are params.labels as written (nil: the members').
 	Labels []string
+	// Fit is params.fit: the bound SEM fit (a Compose `fits` entry of
+	// kind sem) the slot scores from instead of fitting inline — Plan is
+	// then nil and the model, options, groups and member order are the
+	// fit's ("" fits inline).
+	Fit string
 }
 
 // semScoreParams is ATTR_SEM_SCORE's params object.
 type semScoreParams struct {
 	FitOn   json.RawMessage `json:"fit_on"`
+	Fit     *string         `json:"fit"`
 	Missing *string         `json:"missing"`
 	fittedLabels
 	Latent         *string  `json:"latent"`
@@ -65,6 +71,25 @@ type semScoreParams struct {
 	GroupReference *string  `json:"group_reference"`
 	GroupEqual     *semList `json:"group_equal"`
 	GroupPartial   *semList `json:"group_partial"`
+}
+
+// fitKnob is the first MAT_SEM fit knob params sets ("" for none) — a
+// key a bound fit (params.fit) supplies itself.
+func (p semScoreParams) fitKnob() string {
+	for _, k := range []struct {
+		name string
+		set  bool
+	}{
+		{"model", p.Model != nil}, {"meanstructure", p.MeanStructure != nil}, {"group", p.Group != nil},
+		{"group_reference", p.GroupReference != nil}, {"group_equal", p.GroupEqual != nil},
+		{"group_partial", p.GroupPartial != nil}, {"solver", p.Solver != nil}, {"information", p.Information != nil},
+		{"ftol", p.Ftol != nil}, {"max_iter", p.MaxIter != nil}, {"grad_tol", p.GradTol != nil}, {"singular", p.Singular != nil},
+	} {
+		if k.set {
+			return k.name
+		}
+	}
+	return ""
 }
 
 // SEMScoreFeatureParams are the ATTR_SEM_SCORE params keys each hideable
@@ -104,15 +129,19 @@ func SEMScoreParams(at string, raw json.RawMessage) (SEMScoreConfig, *errors.Cod
 	if len(raw) > 0 && !bytes.Equal(raw, []byte("null")) {
 		if err := paramread.DecodeStrict(paramread.Attribute, string(types.ATTR_SEM_SCORE), raw, &params); err != nil {
 			return SEMScoreConfig{}, attributeInvalid(at, "bad_params",
-				at+" ATTR_SEM_SCORE params: "+err.Error()+" (keys: latent, method, model, meanstructure, group, group_reference, group_equal, group_partial, solver, information, ftol, max_iter, grad_tol, singular, fit_on, labels, missing)", nil)
+				at+" ATTR_SEM_SCORE params: "+err.Error()+" (keys: latent, method, model, meanstructure, group, group_reference, group_equal, group_partial, solver, information, ftol, max_iter, grad_tol, singular, fit_on, fit, labels, missing)", nil)
 		}
 	}
-	common := FittedCommon{FitOn: params.FitOn, Missing: params.Missing}
+	common := FittedCommon{FitOn: params.FitOn, Fit: params.Fit, Missing: params.Missing}
+	fit, err := common.resolveFit(at)
+	if err != nil {
+		return SEMScoreConfig{}, err
+	}
 	fitOn, err := common.resolve(at)
 	if err != nil {
 		return SEMScoreConfig{}, err
 	}
-	cfg := SEMScoreConfig{Method: sem.ScoreRegression, FitOn: fitOn, Labels: params.Labels}
+	cfg := SEMScoreConfig{Method: sem.ScoreRegression, FitOn: fitOn, Labels: params.Labels, Fit: fit}
 	if params.Latent != nil {
 		if *params.Latent == "" {
 			return SEMScoreConfig{}, attributeInvalid(at, "bad_params", at+" params.latent is empty; name a latent variable of params.model",
@@ -126,6 +155,15 @@ func SEMScoreParams(at string, raw json.RawMessage) (SEMScoreConfig, *errors.Cod
 				map[string]any{"param": "method", "value": *params.Method, "valid": sem.ScoreMethods()})
 		}
 		cfg.Method = sem.ScoreMethod(*params.Method)
+	}
+	if fit != "" {
+		// The bound fit supplies the model and every fit knob.
+		if k := params.fitKnob(); k != "" {
+			return SEMScoreConfig{}, attributeInvalid(at, "fit_and_model",
+				at+" sets params.fit and params."+k+"; the bound SEM fit "+strconv.Quote(fit)+" supplies the model and every fit knob — drop "+k+", or drop fit to fit inline",
+				map[string]any{"param": k, "fit": fit})
+		}
+		return cfg, nil
 	}
 	sp := semParams{Model: params.Model, Solver: params.Solver, Information: params.Information, Ftol: params.Ftol,
 		MaxIter: params.MaxIter, GradTol: params.GradTol, Singular: params.Singular, MeanStructure: params.MeanStructure,
@@ -149,6 +187,11 @@ func ResolveSEMScore(at string, cfg *SEMScoreConfig, members Resolved, schema *e
 	labels, err := slotLabels(at, cfg.Labels, members)
 	if err != nil {
 		return nil, err
+	}
+	if cfg.Fit != "" {
+		// A bound fit's model, groups and latent are judged against the
+		// fit at bind (BindSEMScoreFit): only the labels resolve here.
+		return labels, nil
 	}
 	plan := *cfg.Plan
 	m := Matrix{Type: types.MAT_SEM, Members: members, SEM: &plan}

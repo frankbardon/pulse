@@ -1260,14 +1260,17 @@ request}`: `request` is an ordinary `Request` with no `groups` /
 `crosstab` holding exactly one regression (a regression fit) or, with no
 regression, exactly one vector battery — one `matrices` entry or one
 `ATTR_MAHALANOBIS` / `ATTR_PC_SCORE` / `ATTR_FACTOR_SCORE` attribute (a
-vector fit: the battery's listwise mean and co-moment). Every fit runs
+vector fit: the battery's listwise mean and co-moment) — one `MAT_SEM`
+entry is instead a SEM fit (kind `sem`: the fitted model's parameter
+matrices per group). Every fit runs
 once, before any slot (sweep slots included), over its own cohort,
 filters, features and weight; slots read it by `name` — a regression fit
 through `ATTR_REG_PREDICT` / `coef()`, a vector fit through `params.fit`
-on a fitted vector attribute or any co-moment `MAT_*` slot. One
-namespace holds both kinds: `PULSE_MODEL_NAME_COLLISION` on a duplicate,
+on a fitted vector attribute or any co-moment `MAT_*` slot, a SEM fit
+through `ATTR_SEM_SCORE`'s `params.fit` (row-local, bit-equal to the
+inline fit over the same rows). One namespace holds all three kinds: `PULSE_MODEL_NAME_COLLISION` on a duplicate,
 `PULSE_MODEL_UNKNOWN` for an unbound reference, `PULSE_MODEL_KIND_MISMATCH`
-(`details.fit`, `kind`, `expected`) for a name of the other kind. A
+(`details.fit`, `kind`, `expected`) for a name of another kind. A
 malformed entry is `PULSE_FIT_INVALID` with `details.fit` (the entry
 index) and `details.reason` (`name_missing`, `request_missing`,
 `regression_count`, `kind_ambiguous`, `vector_count`, `grouped`,
@@ -1279,13 +1282,22 @@ object as is (byte-identical to the regression-only shape), or a vector
 fit's `{"vector": VectorFitResult}` — `operator`, `labels`, `members`,
 `basis`, `n`, `n_weight_invalid`, `sum_weights`, `n_star`, `mean` and
 `covariance` (a full square-symmetric `MatrixValues`, M2*/(N* − 1) on the
-fit's weight basis; undefined cells `null`). The `vector` key
-discriminates. A fit that failed on its data keeps its entry with
+fit's weight basis; undefined cells `null`), or a SEM fit's
+`{"sem": SEMFitResult}` — `operator`, `model`, `labels`, `members`, the
+model's `observed` / `inner` / `latents` orders, `estimator`,
+`conventions`, `meanstructure` and the multi-group knobs, `solver`,
+`information`, `basis`, `n`, `sum_weights`, `dof`, `n_params`,
+`converged`, `status`, `iterations`, `nearest_pd_min_eigenvalue` (only
+when the nearest positive-definite substitute was fitted) and `groups`
+(per level `level`, `n`, `sum_weights` and the full-precision matrices
+`lambda`, `beta`, `psi`, `theta`, `nu`, `alpha`, `sample_mean`). The
+`vector` / `sem` key discriminates. A fit that failed on its data keeps its entry with
 an `error` and no figures (see Failed slots). The object is pinned outside the Compose-level `return`
 like `ranking` (always emitted, never rounded). Both slots are gated by
 `capability:compose_fits`. `pulse_predict` with `composed` lists them as
 `fits [{name, type, target, predictors, cohort}]` — a vector fit as
-`{name, cohort, vector: {operator, labels, members}}` — on the predict
+`{name, cohort, vector: {operator, labels, members}}`, a SEM fit as
+`{name, cohort, sem: {operator, labels, members}}` — on the predict
 result (not payload-reachable).
 
 ### Model files (`save`)
@@ -1320,7 +1332,8 @@ population file instead (`population_format_version` 1; the path must end
 `suffix`): the battery's stored listwise state — labels, members, weight
 basis, counts, Σw / Σw², raw mean and raw co-moment — with nothing
 derived, written atomically under the fit's name with the same overwrite
-warning (format: `.claude/reference/byte-layout.md`, "Population file").
+warning (format: `.claude/reference/byte-layout.md`, "Population file"). A SEM fit's `save` writes no file yet: it is refused before any fit
+runs (`PULSE_MODEL_SAVE_INVALID` reason `sem_unsupported`).
 
 ### Loading models (`models`)
 
@@ -1492,7 +1505,8 @@ kept by every `return` preset and include list (like a nested
 A Compose `fits` entry whose fit fails on its data fails alone too: its
 `ComposedResponse.fits[name]` entry carries `error` beside its identity
 — `{name, type, error}` for a regression fit, `{"vector": {operator,
-error}}` for a vector fit (on `VectorFitResult` `operator` stays
+error}}` for a vector fit, `{"sem": {operator, error}}` for a SEM fit
+(on `VectorFitResult` / `SEMFitResult` `operator` stays
 required and the figures move under the same `if` / `then`) — its
 `PULSE_SLOT_FAILED` warning lifts to the batch `warnings` with
 `details.fit`, and every other fit and slot runs. An attribute reading

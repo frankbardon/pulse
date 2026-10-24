@@ -427,7 +427,7 @@ func attributeCapabilities() []descriptor.Operator {
 		{
 			Name:        string(types.ATTR_SEM_SCORE),
 			Category:    "attribute",
-			Description: "Per-row score on one latent variable (params.latent) of a structural equation model fitted inline on the fit rows: MAT_SEM's fit and knobs over the p members of vector / fields (exactly one; listwise), matched to the model's observed variables by label, scored as lavaan's lavPredict — regression (the default: E(latent | row), every observed variable informing it) or Bartlett (generalized least squares on the measures, a higher-order factor through the first-order loadings). With a mean structure (params.meanstructure, a ~ 1 line, or params.group) the scores sit on the latent-mean scale; without one they are centered at the fit rows. Under params.group the fit is MAT_SEM's joint multi-group fit and each row is scored with its own group's parameters; a level without fit rows scores null with PULSE_SEM_SCORE_LEVEL_UNSEEN, a null group scores null. Every filtered row is scored; a null member scores null; a fit with too few rows, a singular covariance under singular refuse, negative degrees of freedom or an undefined fit nulls every score with a warning; a solver stop short of its tolerance or the nearest positive-definite substitute scores with a warning. Frequency weights only (N = the sum of weights); two-pass.",
+			Description: "Per-row score on one latent variable (params.latent) of a structural equation model fitted inline on the fit rows: MAT_SEM's fit and knobs over the p members of vector / fields (exactly one; listwise), matched to the model's observed variables by label, scored as lavaan's lavPredict — regression (the default: E(latent | row), every observed variable informing it) or Bartlett (generalized least squares on the measures, a higher-order factor through the first-order loadings). With a mean structure (params.meanstructure, a ~ 1 line, or params.group) the scores sit on the latent-mean scale; without one they are centered at the fit rows. Under params.group the fit is MAT_SEM's joint multi-group fit and each row is scored with its own group's parameters; a level without fit rows scores null with PULSE_SEM_SCORE_LEVEL_UNSEEN, a null group scores null. Every filtered row is scored; a null member scores null; a fit with too few rows, a singular covariance under singular refuse, negative degrees of freedom or an undefined fit nulls every score with a warning; a solver stop short of its tolerance or the nearest positive-definite substitute scores with a warning. Frequency weights only (N = the sum of weights); two-pass — or, scoring a bound SEM fit (params.fit), row-local.",
 			Params: []descriptor.Param{
 				{Name: "latent", Type: "string", Description: "The latent variable to score: a left side of an =~ line of params.model (a higher-order factor included). Required unless the model has exactly one latent."},
 				{Name: "method", Type: "enum", Default: string(sem.ScoreRegression), EnumValues: sem.ScoreMethods(), Description: "regression: lavaan's regression (Thurstone) scores, E(latent | row) = E(latent) + Cov(latent, y) Sigma^-1 (y - mu) — shrunk toward the latent mean, the most accurate per row. bartlett: lavaan's Bartlett scores, (L' Sigma^-1 L)^-1 L' Sigma^-1 (y - mu) over the measurement loadings (an observed variable of a ~ line is its own column, so it informs no latent) — unbiased for the latent, noisier."},
@@ -450,6 +450,11 @@ func attributeCapabilities() []descriptor.Operator {
 					Description: "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored.",
 				},
 				{
+					Name:        "fit",
+					Type:        "string",
+					Description: "A bound SEM fit's name (a Compose fits entry whose request holds one MAT_SEM matrix — kind sem) to score from instead of fitting inline: no model, MAT_SEM knob or fit_on beside it (the fit supplies them). The fit's member labels must be the slot's (matched by label), its group field a field of the cohort (each row's level matched by label); the slot is row-local — it streams, fuses into a crosstab and merges across shards and chain stages — and scores every row to the bit of the inline fit on the same fit rows. A fit that failed on its data nulls every score with PULSE_FIT_UNAVAILABLE; another kind is PULSE_MODEL_KIND_MISMATCH, an unbound name PULSE_MODEL_UNKNOWN.",
+				},
+				{
 					Name:        "labels",
 					Type:        "list",
 					Description: "Inline fields only: one unique label per member, the names params.model uses (default: the field names). A named vector carries its own labels.",
@@ -466,7 +471,7 @@ func attributeCapabilities() []descriptor.Operator {
 			EmitsType:      "f64",
 			EmitsTypeNote:  "one latent score per record (null when a member or the group is null, the level holds no fit rows, or the fit cannot score)",
 			Streamable:     true,
-			StreamableHint: "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per request group.",
+			StreamableHint: "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per request group. Bound to a SEM fit (params.fit) it is row-local: it streams beside groupers and features.",
 		},
 		{
 			Name:        string(types.ATTR_SCALE_SCORE),

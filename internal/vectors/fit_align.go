@@ -46,7 +46,7 @@ func AttributeFitLabels(typ types.AttributeType, a *types.Attribute, members Res
 		return nil, false
 	}
 	switch {
-	case IsFittedAttribute(typ):
+	case IsFittedAttribute(typ), typ == types.ATTR_SEM_SCORE:
 		labels, err := FittedLabels("", typ, a.Params, members)
 		return labels, err == nil
 	case IsComparisonAttribute(typ):

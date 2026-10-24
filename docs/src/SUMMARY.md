@@ -314,6 +314,7 @@
     - [response-shaping](guide/skills/response-shaping.md)
     - [sem-bootstrap](guide/skills/sem-bootstrap.md)
     - [sem-defined-parameters](guide/skills/sem-defined-parameters.md)
+    - [sem-fits](guide/skills/sem-fits.md)
     - [sem-modeling](guide/skills/sem-modeling.md)
     - [session-bootstrap](guide/skills/session-bootstrap.md)
     - [session-format-flags](guide/skills/session-format-flags.md)

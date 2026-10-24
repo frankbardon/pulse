@@ -4,6 +4,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
@@ -180,6 +181,9 @@ func (s *Set) WithModels(refs []types.ModelRef, files []*File) (*Set, error) {
 	out := &Set{byName: make(map[string]*Bound, s.Len()+len(refs))}
 	if s != nil {
 		out.records, out.failed = s.records, s.failed
+		if len(s.sems) > 0 {
+			out.sems = maps.Clone(s.sems)
+		}
 		for k, b := range s.byName {
 			out.byName[k] = b
 		}

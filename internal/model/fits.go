@@ -61,9 +61,10 @@ func VectorBatteries(req *types.Request) int {
 }
 
 // FitKindOf is the kind a fit request binds: a regression fit (exactly
-// one non-null regression, no vector battery), a vector fit (no
-// regression, exactly one vector battery), or "" for a request CheckFits
-// refuses.
+// one non-null regression, no vector battery), a SEM fit (no
+// regression, exactly one battery, a MAT_SEM matrix — IsSEMFitRequest),
+// a vector fit (no regression, exactly one other vector battery), or ""
+// for a request CheckFits refuses.
 func FitKindOf(req *types.Request) types.FitKind {
 	if req == nil {
 		return ""
@@ -72,6 +73,8 @@ func FitKindOf(req *types.Request) types.FitKind {
 	switch {
 	case len(req.Regressions) == 1 && req.Regressions[0] != nil && nV == 0:
 		return types.FitKindRegression
+	case IsSEMFitRequest(req):
+		return types.FitKindSEM
 	case len(req.Regressions) == 0 && nV == 1:
 		return types.FitKindVector
 	}
@@ -136,7 +139,11 @@ func CheckFits(fits []types.FitSpec) error {
 				"is grouped; a fit is one ungrouped model (drop groups / crosstab)", nil)
 		}
 		cerr := (*errors.CodedError)(nil)
-		if nV == 1 {
+		if IsSEMFitRequest(f.Request) {
+			if f.Save != "" {
+				cerr = semSaveUnsupported(f.Save)
+			}
+		} else if nV == 1 {
 			if what, extra := VectorSourceRefusal(f.Request); what != "" {
 				return fitInvalid(i, f.Name, ReasonVectorSource, what, extra)
 			}
@@ -204,6 +211,19 @@ func VectorSourceRefusal(req *types.Request) (string, map[string]any) {
 			map[string]any{"type": string(spec.Type), "param": "reverse"}
 	}
 	return "", nil
+}
+
+// ReasonSaveSEMUnsupported is the PULSE_MODEL_SAVE_INVALID reason of a
+// `save` on a SEM fit, which writes no file yet.
+const ReasonSaveSEMUnsupported = "sem_unsupported"
+
+// semSaveUnsupported refuses a SEM fit's `save` (PULSE_MODEL_SAVE_INVALID
+// reason sem_unsupported): a SEM fit has no file format yet, and a save
+// that wrote nothing would be silent.
+func semSaveUnsupported(p string) *errors.CodedError {
+	return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_SAVE_INVALID,
+		fmt.Sprintf("save path %q: a SEM fit (a MAT_SEM fit request) writes no saved-fit file; drop save", p),
+		map[string]any{"path": p, "reason": ReasonSaveSEMUnsupported})
 }
 
 func fitInvalid(i int, name, reason, what string, extra map[string]any) error {

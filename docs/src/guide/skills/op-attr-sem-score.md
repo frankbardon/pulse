@@ -24,12 +24,12 @@ Questions it answers:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `latent` | string | — | Latent (higher-order too); absent: the only one. |
+| `latent` | string | — | Absent: the only one. |
 | `method` | enum | `regression` | Or `bartlett` (lavaan `lavPredict`). |
 | `model` | string | — | Members by label; absent: `F1 =~` all. |
 | `meanstructure` | bool | `false` | Scores on the latent-mean scale. |
-| `group` | string | — | Multi-group fit; rows score by group. |
-| `group_reference` | string | — | Latent means 0. |
+| `group` | string | — | Multi-group fit. |
+| `group_reference` | string | — | Means 0. |
 | `group_equal` | list | — | lavaan `group.equal`. |
 | `group_partial` | list | — | Freed rows. |
 | `solver` | enum | `slsqp` | Or `fisher`. |
@@ -39,6 +39,7 @@ Questions it answers:
 | `grad_tol` | float | 1e-10 | |
 | `singular` | enum | `nearest` | Or `refuse`. |
 | `fit_on` | any | `filtered` | Filterers picking the FIT rows. |
+| `fit` | string | — | A SEM fit; no knobs. |
 | `labels` | list | — | Inline `fields`: one label per member. |
 | `missing` | enum | `listwise` | `listwise` only. |
 
@@ -66,11 +67,11 @@ One `f64` per record, E(η) + wᵀ(y − μ) per group: latent-mean scale with a
 
 ## Gotchas
 
-- Fit is cohort-wide, never per request group (two-pass).
+- Fit is cohort-wide, never per request group (two-pass; `fit`: row-local).
 - A level with no fit rows scores null + `PULSE_SEM_SCORE_LEVEL_UNSEEN`.
 - All null + warning: `PULSE_MATRIX_INSUFFICIENT_N`, `_SINGULAR`, `_NOT_IDENTIFIED`. Scored + warning: `_NOT_CONVERGED`, `_NEAREST_PD`.
 
 ## See
 
 - `pulse_examples_search tags=[multivariate, comparison]`
-- Skills: [`sem-modeling`](sem-modeling.md), [`vector-row-scores`](vector-row-scores.md), [`op-mat-sem`](op-mat-sem.md)
+- Skills: [`sem-fits`](sem-fits.md), [`sem-modeling`](sem-modeling.md), [`op-mat-sem`](op-mat-sem.md)

@@ -58,6 +58,8 @@ func TestSEMScore_ConfigRefusalsPredictMatchesRuntime(t *testing.T) {
 		{"latent_observed", map[string]any{"latent": "q1"}, "latent_unknown"},
 		{"group_missing", map[string]any{"group": "nope"}, ""},
 		{"method", map[string]any{"method": "ml"}, "bad_params"},
+		{"fit_and_model", map[string]any{"fit": "brand"}, "fit_and_model"},
+		{"fit_and_fit_on", map[string]any{"fit": "brand", "model": nil, "latent": nil, "fit_on": []map[string]any{{"type": "FILTER_TRUE"}}}, "fit_and_fit_on"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			_, rerr := p.Process(context.Background(), semScoreRequest(semScoreCFA, c.params))
