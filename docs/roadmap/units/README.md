@@ -32,7 +32,7 @@ These files were generated once from the theme documents and `TODO.md`, and are 
 
 ## Suggested order
 
-The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U38 (skill sync, appended after U21) lands after U21 and before U32. U39 (code-in attribute, appended after U38) is done and has no dependencies. U40 (compose sweep, added after U39) is done and lands before U32; U41 (derived cohort), U42 (fit scoring) and U43 (post-aggregation ratios) are done; U41, U42 and U43 follow it in a chain (derived cohort, fit scoring, post-aggregation ratios) and ship in v1.0.0 (owner decision 2026-10-10). U44–U52 (from the [showcase examples](https://github.com/frankbardon/pulse-casebook/tree/main/showcase)) also ship in v1.0.0 and land before U32; they have no hard dependencies on each other, so they can run in parallel sessions, with the soft dependencies in each unit's frontmatter. U53 (custom regressions, appended after U52) ships in v1.0.0 (owner decision 2026-10-10) and lands before U32; it has no hard dependency, with U34, U36 and U42 soft. U57 (transformed predictors, from U53's backlog item #490) follows U53, ships in v1.0.0 and lands before U32. U56 (operation panic recovery, split out of U34 on 2026-10-19) owns #231 and follows U20; it ships in v1.0.0 and lands before U32. U55 (previous state, appended after U50 on 2026-10-18) owns #452 and follows U50; it ships in v1.0.0 and lands before U32. U54 (multi-grouper, appended after U53 on 2026-10-11) runs NEXT, immediately after U27 (owner decision): plain `groups` has only ever executed its first grouper, silently; it takes #200 from U35 and #318 from U46, and U46 now depends on it. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
+The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U38 (skill sync, appended after U21) lands after U21 and before U32. U39 (code-in attribute, appended after U38) is done and has no dependencies. U40 (compose sweep, added after U39) is done and lands before U32; U41 (derived cohort), U42 (fit scoring) and U43 (post-aggregation ratios) are done; U41, U42 and U43 follow it in a chain (derived cohort, fit scoring, post-aggregation ratios) and ship in v1.0.0 (owner decision 2026-10-10). U44–U52 (from the [showcase examples](https://github.com/frankbardon/pulse-casebook/tree/main/showcase)) also ship in v1.0.0 and land before U32; they have no hard dependencies on each other, so they can run in parallel sessions, with the soft dependencies in each unit's frontmatter. U53 (custom regressions, appended after U52) ships in v1.0.0 (owner decision 2026-10-10) and lands before U32; it has no hard dependency, with U34, U36 and U42 soft. U57 (transformed predictors, from U53's backlog item #490) follows U53, ships in v1.0.0 and lands before U32. U58 (expression maths, lags and params, appended after U57) follows U53, owns #509–#520, ships in v1.0.0 and lands before U32. U56 (operation panic recovery, split out of U34 on 2026-10-19) owns #231 and follows U20; it ships in v1.0.0 and lands before U32. U55 (previous state, appended after U50 on 2026-10-18) owns #452 and follows U50; it ships in v1.0.0 and lands before U32. U54 (multi-grouper, appended after U53 on 2026-10-11) runs NEXT, immediately after U27 (owner decision): plain `groups` has only ever executed its first grouper, silently; it takes #200 from U35 and #318 from U46, and U46 now depends on it. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
 
 | # | Unit | Track | Size | Depends on | TODO items |
 |---|---|---|---|---|---|
@@ -95,6 +95,7 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U55 | [previous-state](U55-previous-state.md): A long panel feeds a from-state × to-state crosstab: a per-subject previous-state attribute | Time zones | M | U50 | 452 |
 | U56 | [operation-panic-recovery](U56-operation-panic-recovery.md): A panic raised inside an operation becomes a coded error at the facade instead of crashing the host | Embedder operations | S | U20 (U34 soft) | 231 |
 | U57 | [transformed-predictors](U57-transformed-predictors.md): A regression reads a window label of its own request, so a media-mix model fits, scores a holdout and sweeps its decay in one request | API & release | L | U53 (U40, U42 soft) | 490 |
+| U58 | [expr-math-lags-params](U58-expr-math-lags-params.md): Query and synth expressions share a deterministic maths set, synth rows read earlier rows, and a request hands expressions named parameters | API & release | L | U53 (U40, U52, U57 soft) | 509–520 |
 
 ## Dependency graph
 
@@ -159,6 +160,7 @@ graph TD
   U55["U55 previous-state"]
   U56["U56 operation-panic-recovery"]
   U57["U57 transformed-predictors"]
+  U58["U58 expr-math-lags-params"]
   U02 --> U02b
   U02 --> U02c
   U02 --> U04
@@ -248,7 +250,9 @@ graph TD
   U55 --> U32
   U56 --> U32
   U57 --> U32
+  U58 --> U32
   U53 --> U57
+  U53 --> U58
   U20 --> U56
   U50 --> U55
   U54 --> U46
@@ -270,6 +274,9 @@ graph TD
   U42 -.-> U53
   U40 -.-> U57
   U42 -.-> U57
+  U40 -.-> U58
+  U52 -.-> U58
+  U57 -.-> U58
 ```
 
 ## Human inputs that gate units
