@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/sem"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -228,7 +229,9 @@ func semBootstrap(in *matrixFinalizeInput, samples []sem.BootstrapSample, rows [
 func semSeedSpec(spec types.MatrixSpec) []byte {
 	if len(spec.Params) > 0 {
 		var params map[string]json.RawMessage
-		if json.Unmarshal(spec.Params, &params) == nil {
+		// A lenient look: the MAT_SEM decoder reads (and records)
+		// rng_seed; this only drops it from the hashed wire form.
+		if paramread.Probe(spec.Params, &params) == nil {
 			delete(params, "rng_seed")
 			if b, err := json.Marshal(params); err == nil {
 				spec.Params = b
