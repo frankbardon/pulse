@@ -234,6 +234,13 @@ var objectShapes = map[reflect.Type]reflect.Type{
 var walkedUnmarshalers = map[reflect.Type]bool{
 	// SweepAxis keeps numbers as json.Number; its keys are its fields.
 	reflect.TypeFor[types.SweepAxis](): true,
+	// Params keeps numbers as json.Number; its object form is a
+	// free-form map whose keys are the caller's parameter names (no key
+	// is unknown) and whose values are any — the walk visits the map
+	// and checks nothing inside it. The value rules (no object, no
+	// nested or mixed list) are PULSE_PARAMS_INVALID, judged after the
+	// decode, never an unknown-field refusal.
+	reflect.TypeFor[types.Params](): true,
 }
 
 // opaqueUnmarshalers never accept a JSON object, so there is no key to

@@ -32,7 +32,9 @@ Chain when a question is "aggregate, then aggregate the aggregates" — revenue 
 
 `<…>` = any operator the stage gate admits (below). Only stage 0 names a cohort (the chain-level `cohort`); later stages' `cohort` is ignored. A later stage addresses earlier outputs by their LABEL (`store_rev`) or default output name.
 
+<!-- feature: capability:params -->
 Chain-level `params` merge into every stage: `request-params`.
+<!-- /feature -->
 
 ## The stage gate (v1: mergeable only)
 

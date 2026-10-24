@@ -109,3 +109,69 @@ func TestStrictJSON_ImportBoundary(t *testing.T) {
 		}
 	}
 }
+
+// TestStrictJSON_ParamsFreeFormKeys: Request.Params (and the Compose /
+// chain top-level params) is a name→value map, so ANY parameter name
+// and any nested value passes the walk and decodes exactly as
+// encoding/json does, numbers kept as json.Number — while an unknown
+// key beside params, or inside a slot after it, is still refused.
+func TestStrictJSON_ParamsFreeFormKeys(t *testing.T) {
+	accepted := []struct {
+		name   string
+		decode func([]byte) error
+		body   string
+	}{
+		{name: "request", decode: decodeAs[types.Request],
+			body: `{"params":{"from_wave":"a","min_age":30,"ids":[18446744073709551615,2],"nested":{"cohrt":1},"lists":[[1]]}}`},
+		{name: "compose", decode: decodeAs[types.ComposedRequest],
+			body: `{"params":{"feild":1},"requests":[{"label":"a","params":{"lable":"x"}}]}`},
+		{name: "chain", decode: decodeAs[types.ChainRequest],
+			body: `{"params":{"direction":true},"stages":[{"name":"s0","request":{"params":{"sort":[1]}}}]}`},
+	}
+	for _, tc := range accepted {
+		t.Run("accepts/"+tc.name, func(t *testing.T) {
+			if err := tc.decode([]byte(tc.body)); err != nil {
+				t.Fatalf("params keys are caller names, never unknown fields: %v", err)
+			}
+		})
+	}
+
+	body := []byte(`{"params":{"big":18446744073709551615,"rate":1.10}}`)
+	got, err := Decode[types.Request](body, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var viaJSON types.Request
+	if err := json.Unmarshal(body, &viaJSON); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got.Params, viaJSON.Params) {
+		t.Fatalf("strict params %#v differ from encoding/json %#v", got.Params, viaJSON.Params)
+	}
+	if n, ok := got.Params["big"].(json.Number); !ok || n.String() != "18446744073709551615" {
+		t.Fatalf("params.big = %#v, want json.Number 18446744073709551615", got.Params["big"])
+	}
+
+	refused := []struct {
+		name, body, path string
+		unknown          []string
+	}{
+		{name: "sibling of params", body: `{"params":{"a":1},"filters":[]}`, unknown: []string{"filters"}},
+		{name: "slot after params", body: `{"params":{"a":1},"sort":[{"feild":"a"}]}`,
+			path: "sort[0].feild", unknown: []string{"feild"}},
+	}
+	for _, tc := range refused {
+		t.Run("refuses/"+tc.name, func(t *testing.T) {
+			ce := codedOf(t, decodeAs[types.Request]([]byte(tc.body)))
+			if ce.Code != "PULSE_REQUEST_UNKNOWN_FIELD" {
+				t.Fatalf("code = %s, want PULSE_REQUEST_UNKNOWN_FIELD", ce.Code)
+			}
+			if got := ce.Details["unknown_keys"]; !reflect.DeepEqual(got, tc.unknown) {
+				t.Errorf("unknown_keys = %v, want %v", got, tc.unknown)
+			}
+			if got, ok := ce.Details["path"]; (tc.path == "") == ok || (ok && got != tc.path) {
+				t.Errorf("details.path = %v, want %q", got, tc.path)
+			}
+		})
+	}
+}

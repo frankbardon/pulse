@@ -22,7 +22,9 @@ requires: [capability:compose]
 
 Not a fit when a later step consumes an earlier step's OUTPUT rows — that is a chain<!-- feature: capability:process_chain --> (`process-chain`)<!-- /feature -->. Every slot opens and decodes its own cohort: composing saves round-trips, not decode work.
 
+<!-- feature: capability:params -->
 Top-level `params` merge into every slot and fit: `request-params`.
+<!-- /feature -->
 
 ```jsonc
 {
