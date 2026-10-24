@@ -13340,6 +13340,10 @@
         "description": "Synth spec `correlations` — the Gaussian-copula construction, which marginals and field types may participate, how rank and Pearson correlation survive, and how unmeasured matrix entries are completed and reported."
       },
       {
+        "name": "synth-cross-row",
+        "description": "Synth rows that depend on EARLIER rows — `row()` and `lag()` in rules and constraints, accepted-row order, the panel reset, a recursive adstock recipe, and what profile capture ignores."
+      },
+      {
         "name": "synth-determinism",
         "description": "The synth determinism contract — byte-identical `.pulse` output per spec and seed, byte-identical profile documents per input and seed, and the two non-RNG threats to capture (map iteration order, float fusion)."
       },
@@ -19560,4 +19564,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 2c312b26f13ddc312462cd7c2a098ed7ec0a561b90521fbf9a0dba9381879866
+// golden-hash: a61a41cd3d03a437b543f885fb3c3d3b9a724f1ad6a4015068ec08569e505c8c
