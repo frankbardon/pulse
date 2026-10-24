@@ -620,6 +620,11 @@ Compare `chi2`, `dof`, `cfi` and `rmsea` step to step; Pulse computes no
 χ² difference test. Parity: lavaan 0.7.3's `group.equal` /
 `group.partial` fits within the same tolerances.
 
+Runnable: `internal/examples/matrices/16_sem_multigroup.json` (mean
+structure, configural, scalar and partial slots across `survey.pulse`'s
+`panel` waves) and `internal/examples/compose/09_sem_invariance_sweep.json`
+(the ladder as one sweep).
+
 ## Groups, cost and refusals
 
 With `groups`, a matrix is computed per bucket, in `Response.Data` order

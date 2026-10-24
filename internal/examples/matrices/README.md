@@ -21,6 +21,7 @@ Whole-set matrix operators (`MAT_*`) over virtual vectors
 | `13_correlation_inference.json` | `MAT_CORRELATION` + `MAT_PARTIAL_CORRELATION` | `params.inference`: per-pair `auxiliary.p` and Fisher-z intervals (`ci_lower` / `ci_upper`) on a pairwise Pearson matrix and on a partial correlation with `alpha` 0.1. |
 | `14_rotations.json` | `MAT_FACTOR` + `MAT_PCA` | Rotation criteria on a two-factor rating battery (`survey.pulse`): `geomin` (oblique, `epsilon`, `factor_correlation`), `quartimax`, `entropy`, and `geomin_orthogonal` on MAT_PCA (orthogonal criteria only). |
 | `15_sem.json` | `MAT_SEM` | A confirmatory factor analysis in lavaan / semopy syntax (`service =~ q1 + q2 + q3`, `value =~ q4 + q5 + q6`): semopy's estimates, standard errors and fit indices (default, its SLSQP and early stop), and the converged fit (`solver: "fisher"`, `information: "rank2"`). |
+| `16_sem_multigroup.json` | `MAT_SEM` | The same CFA on the lavaan path: `meanstructure` (intercept `~1` rows, Wald `ci_lower` / `ci_upper`, implied / observed means), then one joint multi-group fit across the `panel` waves — configural, scalar (`group_equal` loadings + intercepts frees wave b's latent means) and partial (`group_partial` `q3~1`). The ladder as one compose sweep: `compose/09_sem_invariance_sweep.json`. |
 
 Run every example:
 

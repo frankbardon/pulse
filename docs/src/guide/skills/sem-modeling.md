@@ -26,6 +26,8 @@ Under lavaan conventions:
 - `rmsea` divides by N; `cfi`, `tli`, `nfi` are lavaan's;
 - `gfi` / `agfi` are lavaan's `gfi_lisrel` / `agfi_lisrel` (lavaan's own `agfi`);
 - `loglik` is the log-likelihood, and `aic` / `bic` derive from it.
+- `nfi` is `null` when `dof` exceeds `dof_baseline` (1 when saturated);
+- a `~~` row between two variables has `std_estimate` = their residual correlation (lavaan's `std.all`).
 
 The same covariance model can report a different `chi2` on the two paths. Compare fits on ONE convention: set `meanstructure` on every slot of a comparison.
 
@@ -49,7 +51,7 @@ The same covariance model can report a different `chi2` on the two paths. Compar
 - Configural (no `group_equal`): every parameter is free per group. A labelled parameter (`a*x`) is one value in every group, as lavaan reads a label.
 - A group fit always models the means and follows lavaan.
 - The levels are the field's values that hold rows, in dictionary order (else ascending). A null group drops the row. Predict's `group_levels` bounds them (`unknown` on an integer field).
-- `estimates` rows are `[level] lval op rval`. `vectors.group` and `vectors.label` give each row's level and model label.
+- `estimates` rows are `[level] lval op rval`. `vectors.group` and `vectors.label` give each row's level and model label (`records` rows add `group`, `label`).
 - `primary` is the `group_reference` level's Σ̂ (default: the first level). Per level, the auxiliaries are `implied_covariance.<level>`, `residual_covariance.<level>`, `implied_means.<level>` and `observed_means.<level>`.
 - The scalars are joint (`chi2` sums the groups, `rmsea` carries lavaan's √G), plus `chi2_group_<level>` and `n_group_<level>` (Σw under a frequency weight).
 - Refused: request `groups` with `group`, a vector that standardizes, another field type, a one-entry dictionary.
@@ -63,6 +65,7 @@ The same covariance model can report a different `chi2` on the two paths. Compar
 - A marker loading stays 1 in every group. A labelled row keeps its label's equality, not its class's.
 - `c(a1,a2)*x` / `c(0.5,NA)*x` set a label or value per level, in level order (categorical or `packed_bool` field only). `NA*x` frees a loading (on a first indicator: no marker).
 - Ladder: one slot per step, or a zip sweep over `group_equal` (a comma-separated string, `""` = configural): axes `step` [configural, metric, scalar] and `eq` [`""`, `loadings`, `loadings,intercepts`], label `{{step}}`. Compare `chi2`, `dof`, `cfi`, `rmsea` step to step; Pulse computes no Δχ² test.
+- Examples: `pulse_examples_search tags=[matrix, multivariate]` (one slot per step), `tags=[compose, multivariate]` (the sweep).
 
 ## Members
 

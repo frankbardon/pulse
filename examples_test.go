@@ -569,3 +569,81 @@ func TestExamples_MMMDecaySweepRanksTrueDecayFirst(t *testing.T) {
 		}
 	}
 }
+
+// TestExamples_SEMInvarianceLadderSweep runs
+// compose/09_sem_invariance_sweep.json over the survey fixture cohort:
+// predict is clean, the zip sweep expands into the configural /
+// metric / scalar slots in order, each a joint multi-group MAT_SEM fit
+// with no slot error, dof rises step by step, and only the scalar step
+// frees the non-reference wave's latent means.
+func TestExamples_SEMInvarianceLadderSweep(t *testing.T) {
+	tmp := t.TempDir()
+	osfs := afero.NewOsFs()
+	builder, err := pulse.New(pulse.Options{FS: osfs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	buildExampleFixtures(t, builder, osfs, tmp)
+	p, err := pulse.New(pulse.Options{DataDir: tmp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join("internal", "examples", "compose", "09_sem_invariance_sweep.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	delete(doc["sweep"].(map[string]any)["request"].(map[string]any)["cohort"].(map[string]any), "data_dir")
+	if body, err = json.Marshal(doc); err != nil {
+		t.Fatal(err)
+	}
+	var req pulse.ComposedRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	env, err := p.PredictCompose(context.Background(), &req)
+	if err != nil {
+		t.Fatalf("PredictCompose: %v", err)
+	}
+	if len(env.Errors) != 0 {
+		t.Fatalf("PredictCompose errors: %v", env.Errors)
+	}
+	out, err := p.Compose(context.Background(), &req)
+	if err != nil {
+		t.Fatalf("Compose: %v", err)
+	}
+	steps := []string{"configural", "metric", "scalar"}
+	if len(out.Responses) != len(steps) {
+		t.Fatalf("%d slots, want %d", len(out.Responses), len(steps))
+	}
+	prevDof := -1.0
+	for i, step := range steps {
+		r := out.Responses[i]
+		if r.Label != step || len(r.Matrices) != 1 || r.Matrices[0].Error != nil {
+			t.Fatalf("slot %d: label %q, matrices %+v", i, r.Label, r.Matrices)
+		}
+		m := r.Matrices[0]
+		dof := m.Scalars["dof"]
+		if !(dof > prevDof) {
+			t.Errorf("%s: dof %g does not rise past %g", step, dof, prevDof)
+		}
+		prevDof = dof
+		est := m.Auxiliary["estimates"]
+		if est == nil {
+			t.Fatalf("%s: no estimates", step)
+		}
+		freeMean := false
+		for k, key := range est.RowKeys {
+			if key == "[b] service ~1" {
+				freeMean = m.Vectors["free"].([]bool)[k]
+			}
+		}
+		if want := step == "scalar"; freeMean != want {
+			t.Errorf("%s: [b] service ~1 free = %v, want %v", step, freeMean, want)
+		}
+	}
+}
