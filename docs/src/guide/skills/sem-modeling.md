@@ -1,6 +1,6 @@
 ```yaml
 name: sem-modeling
-description: Structural equation modelling with MAT_SEM — which convention a fit follows (semopy's covariance-only default or lavaan's once a mean structure is in play), the ~ 1 syntax for intercepts and latent means, multi-group fits and the invariance ladder (group_equal, group_partial, c(...) modifiers), and how to read the outputs.
+description: Structural equation modelling with MAT_SEM — which convention a fit follows (semopy's covariance-only default or lavaan's) and how to read the outputs. The meanstructure param and the ~ 1 syntax for intercepts and latent means. Multi-group fits and the invariance ladder (group_equal, group_partial, c(...) modifiers).
 kind: design
 type: guide
 applies_to: process, compose, predict
@@ -48,7 +48,7 @@ The same covariance model can report a different `chi2` on the two paths. Compar
 
 - Configural (no `group_equal`): every parameter is free per group. A labelled parameter (`a*x`) is one value in every group, as lavaan reads a label.
 - A group fit always models the means and follows lavaan.
-- The levels are the field's values that hold rows, in dictionary order (else ascending). A null group drops the row.
+- The levels are the field's values that hold rows, in dictionary order (else ascending). A null group drops the row. Predict's `group_levels` bounds them (`unknown` on an integer field).
 - `estimates` rows are `[level] lval op rval`. `vectors.group` and `vectors.label` give each row's level and model label.
 - `primary` is the `group_reference` level's Σ̂ (default: the first level). Per level, the auxiliaries are `implied_covariance.<level>`, `residual_covariance.<level>`, `implied_means.<level>` and `observed_means.<level>`.
 - The scalars are joint (`chi2` sums the groups, `rmsea` carries lavaan's √G), plus `chi2_group_<level>` and `n_group_<level>` (Σw under a frequency weight).

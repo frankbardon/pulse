@@ -25,6 +25,8 @@
     "capability:weighting",
     "capability:multiplicity",
     "capability:matrices",
+    "capability:sem_meanstructure",
+    "capability:sem_groups",
     "capability:params",
     "capability:recommend",
     "capability:explain",

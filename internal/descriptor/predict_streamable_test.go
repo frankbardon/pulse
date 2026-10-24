@@ -497,6 +497,24 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 	grouped := func(r *types.Request) {
 		r.Groups = []*types.Group{{Type: types.GROUP_RANGE, Field: "a", Interval: 10}}
 	}
+	semDict := encoding.NewDictionary()
+	semDict.Add("w1")
+	semDict.Add("w2")
+	semSchema := &encoding.Schema{
+		Fields: []encoding.Field{
+			{Name: "wave", Type: encoding.FieldTypeCategoricalU8, Dictionary: semDict, Description: "Survey wave of the response"},
+			{Name: "x1", Type: encoding.FieldTypeF64, Description: "First battery item score"},
+			{Name: "x2", Type: encoding.FieldTypeF64, Description: "Second battery item score"},
+			{Name: "x3", Type: encoding.FieldTypeF64, Description: "Third battery item score"},
+		},
+	}
+	semReq := func(params string, mutate func(*types.Request)) *types.Request {
+		r := &types.Request{Matrices: []types.MatrixSpec{{Type: types.MAT_SEM, Fields: []string{"x1", "x2", "x3"}, Params: json.RawMessage(params)}}}
+		if mutate != nil {
+			mutate(r)
+		}
+		return r
+	}
 	teDict := encoding.NewDictionary()
 	teDict.Add("a")
 	teDict.Add("b")
@@ -831,6 +849,14 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 			},
 			numericSchema,
 		},
+		// U59: a mean structure and a joint multi-group fit fold the
+		// per-level co-moments row by row, so MAT_SEM keeps streaming;
+		// the request-level routing still applies beside them.
+		{"MAT_SEM meanstructure streams", semReq(`{"meanstructure":true}`, nil), semSchema},
+		{"MAT_SEM grouped streams", semReq(`{"group":"wave","group_equal":["loadings","intercepts"]}`, nil), semSchema},
+		{"MAT_SEM grouped beside a two-pass attribute buffers", semReq(`{"group":"wave"}`, func(r *types.Request) {
+			r.Attributes = []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "x1", Label: "z"}}
+		}), semSchema},
 		// U55: buffered only (it orders every record of a subject) —
 		// grouped, beside an expression filter reading it by name.
 		{
@@ -853,6 +879,11 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 			if result.Streamable != runtime {
 				t.Errorf("predict.Streamable=%v but runtime CanStreamRequest=%v (reasons: %v)",
 					result.Streamable, runtime, result.StreamableReasons)
+			}
+			// The U59 MAT_SEM rows also pin the verdict their name states,
+			// so the parity is not vacuous.
+			if strings.HasPrefix(c.name, "MAT_SEM") && runtime != strings.HasSuffix(c.name, " streams") {
+				t.Errorf("%s: streamable = %v", c.name, runtime)
 			}
 		})
 	}

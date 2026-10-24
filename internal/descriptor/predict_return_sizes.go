@@ -306,11 +306,15 @@ func returnSections(in returnSizeInputs) []returnSection {
 		basis := returnSizeExact
 		known := true
 		for i, m := range in.matrices {
-			if m.EstimatedBuckets == nil {
+			if m.EstimatedBuckets == nil || m.GroupLevelsBasis == vectors.BucketBasisUnknown {
+				// unknown buckets, or a grouped MAT_SEM whose levels are
+				// an integer field's observed values
 				known = false
 				break
 			}
-			if m.BucketBasis != vectors.BucketBasisUngrouped {
+			if m.BucketBasis != vectors.BucketBasisUngrouped || m.GroupLevelsBasis != "" {
+				// the buckets, or a grouped MAT_SEM's levels, are a
+				// schema bound a level without rows never reaches
 				basis = returnSizeUpperBound
 			}
 			p := int64(m.Shape[0])
@@ -553,13 +557,20 @@ func matrixNode(name string, rows, cols int64, enc types.MatrixEncoding, fields 
 //     vectors.SEMEstimateColumnsOf (5, or 7 with the Wald interval of a
 //     lavaan-convention fit); residual_covariance p x p; implied_means
 //     and observed_means p x 1 under a mean structure. Grouped
-//     (params.group): estimates r x c per known level, and per level
+//     (params.group): estimates r x c per known level (MatrixPredict.
+//     GroupLevels, an upper bound), and per level
 //     implied_covariance.<level> / residual_covariance.<level> p x p,
-//     implied_means.<level> / observed_means.<level> p x 1.
+//     implied_means.<level> / observed_means.<level> p x 1; an integer
+//     group field's levels are unknown, and so is the section's size.
 //
 // semRecordFields are the fields a MAT_SEM estimates record carries
-// beside its key and figures (processing.semParts).
-const semRecordFields = 5
+// beside its key and figures (processing.semParts); a grouped fit's
+// record adds its group and label (semGroupRecordFields,
+// processing.semGroupAuxiliary).
+const (
+	semRecordFields      = 5
+	semGroupRecordFields = 7
+)
 
 func matrixAuxiliaryNodes(m vectors.Matrix, mp descriptor.MatrixPredict, member bool) []*sizeNode {
 	p, k := int64(mp.Shape[0]), int64(mp.Shape[1])
@@ -594,7 +605,11 @@ func matrixAuxiliaryNodes(m vectors.Matrix, mp descriptor.MatrixPredict, member 
 					rows *= int64(max(len(m.SEM.GroupLevels), 1))
 				}
 			}
-			out = append(out, matrixNode(name, rows, int64(len(vectors.SEMEstimateColumnsOf(m.SEM))), m.Encoding, semRecordFields))
+			fields := int64(semRecordFields)
+			if m.SEM.Grouped() {
+				fields = semGroupRecordFields
+			}
+			out = append(out, matrixNode(name, rows, int64(len(vectors.SEMEstimateColumnsOf(m.SEM))), m.Encoding, fields))
 		case "implied_means", "observed_means":
 			out = append(out, matrixNode(name, p, 1, m.Encoding, 0))
 		default:

@@ -564,6 +564,26 @@ with no more rows than observed variables, or a `group_reference` level
 without rows fails the slot alone with `PULSE_MATRIX_INSUFFICIENT_N`.
 Parity: lavaan 0.7.3's `group = "wave"` fit within the same tolerances.
 
+`Pulse.Predict` names the levels it can see on the matrix entry:
+`group_levels` (a categorical's dictionary entries, `packed_bool`'s `"0"`
+/ `"1"`) with `group_levels_basis` `dictionary` / `boolean`. The list is
+an upper bound — a level without rows after the filters is no group —
+and the per-level auxiliaries are sized over it. On a `u4` / `u8` field
+the levels are the data's: `group_levels_basis` is `unknown`, and the
+`matrices` entry of `sizes` is left out. `estimated_bytes`
+counts one co-moment state per level beside the base state (the
+integer type's value range when the levels are unknown). The manifest
+declares the per-level keys as patterns, `implied_means.<level>` or
+`chi2_group_<level>`: `<level>` stands for a level's label.
+
+A feature profile can hide the two surfaces: `capability:sem_meanstructure`
+(`meanstructure` and `~ 1` lines) and `capability:sem_groups` (`group`,
+`group_reference`, `group_equal`, `group_partial` and `c(...)`
+modifiers; it needs `capability:sem_meanstructure`). Hidden, their keys
+are unknown params keys (`PULSE_REQUEST_UNKNOWN_FIELD`), the model
+syntax they own is `bad_params`, and the manifest lists neither their
+params nor their output keys.
+
 **Invariance.** `params.group_equal` holds lavaan `group.equal` classes
 equal across the groups — `loadings`, `intercepts`, `means`, `residuals`,
 `residual.covariances`, `lv.variances`, `lv.covariances`, `regressions`

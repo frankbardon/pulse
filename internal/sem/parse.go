@@ -193,6 +193,27 @@ func HasIntercepts(desc string) bool {
 	return ok
 }
 
+// HasGroupModifiers reports whether a description parses and carries
+// any per-group modifier c(...) — a multi-group construct.
+func HasGroupModifiers(desc string) bool {
+	e, err := Parse(desc)
+	if err != nil {
+		return false
+	}
+	for _, op := range e.ops {
+		l := e.byOp[op]
+		for _, lv := range l.keys {
+			r := l.m[lv]
+			for _, rv := range r.keys {
+				if len(r.m[rv].Groups) > 0 {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func (r *rhsMap) without(name string) *rhsMap {
 	out := &rhsMap{m: map[string]Mult{}}
 	for _, k := range r.keys {

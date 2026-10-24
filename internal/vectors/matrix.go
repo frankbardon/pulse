@@ -213,11 +213,17 @@ type MatrixExtension struct {
 // BetweenExt are ResolveMatricesRouted's known / route / ext; Extension
 // reports a registered (and offered) extension MAT_* operator, which
 // resolves even when Known refuses it. Nil Extension registers none.
+// Hidden reports a feature the instance hides (the instance's feature
+// set: the runtime's ExtensionRegistry and predict's InstanceSnapshot
+// read the same one): the model syntax a hidden MAT_SEM params surface
+// owns is refused (its params keys already left the instance's params
+// allowlist). Nil hides nothing.
 type MatrixResolve struct {
 	Known      func(types.MatrixType) bool
 	Route      func(types.GroupType) types.GroupType
 	BetweenExt func(string) bool
 	Extension  func(types.MatrixType) (MatrixExtension, bool)
+	Hidden     func(feature string) bool
 }
 
 // AuxiliaryKeys lists the matrices[*].auxiliary keys m's finalizer
@@ -909,8 +915,13 @@ func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, o MatrixRe
 			if err := decodeExtensionParams(at, spec, &m); err != nil {
 				return nil, err
 			}
-		} else if err := decodeMatrixParams(at, spec, &m); err != nil {
-			return nil, err
+		} else {
+			if err := decodeMatrixParams(at, spec, &m); err != nil {
+				return nil, err
+			}
+			if err := semHiddenSyntaxRefusal(at, &m, o.Hidden); err != nil {
+				return nil, err
+			}
 		}
 		// Controls resolve after the members (below): a control is a
 		// member or another numeric field.

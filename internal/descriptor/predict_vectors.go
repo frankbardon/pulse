@@ -140,6 +140,9 @@ func predictMatrices(result *descriptor.PredictResult, req *types.Request, schem
 			PairwisePSDRisk:  m.PSDRisk(),
 			BucketBasis:      basis,
 		}
+		if m.SEM.Grouped() {
+			mp.GroupLevels, mp.GroupLevelsBasis = m.SEM.GroupLevelsKnown()
+		}
 		if m.Type == types.MAT_PCA && m.Components.Rule == vectors.PCAComponentsFixed {
 			// The p × k loadings: k is known before the run only for an
 			// integer params.components; a data-driven rule keeps the

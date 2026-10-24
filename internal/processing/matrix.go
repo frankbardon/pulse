@@ -175,6 +175,9 @@ func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *Exten
 			return ok
 		},
 		Extension: exts.matrixExtension,
+		// A MAT_SEM params surface the instance hides resolves as never
+		// existing (predict reads the same instance: resolveMatricesFor).
+		Hidden: exts.isHidden,
 	})
 	if verr != nil {
 		return nil, verr

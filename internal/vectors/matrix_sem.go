@@ -80,6 +80,34 @@ func SEMGroupChi2Key(level string) string { return "chi2_group_" + level }
 
 func SEMGroupNKey(level string) string { return "n_group_" + level }
 
+// GroupLevelsKnown is a grouped plan's levels as the schema knows them
+// (an upper bound: a level without rows after the filters is no group)
+// and their basis — BucketBasisDictionary (a categorical),
+// BucketBasisBoolean (packed_bool) or, on an integer field whose levels
+// are its observed values, nil and BucketBasisUnknown. A fresh slice.
+func (p *SEMPlan) GroupLevelsKnown() ([]string, string) {
+	switch {
+	case p.GroupType.IsCategorical():
+		return append([]string(nil), p.GroupLevels...), BucketBasisDictionary
+	case p.GroupType == encoding.FieldTypePackedBool:
+		return append([]string(nil), p.GroupLevels...), BucketBasisBoolean
+	}
+	return nil, BucketBasisUnknown
+}
+
+// groupStateBound is the per-level co-moment states a grouped plan
+// holds beside its base state, at most: one per known level, else the
+// integer type's value range (u4 16, u8 256).
+func (p *SEMPlan) groupStateBound() int64 {
+	switch {
+	case p.GroupLevels != nil:
+		return int64(len(p.GroupLevels))
+	case p.GroupType == encoding.FieldTypeU4:
+		return 16
+	}
+	return 256
+}
+
 // Lavaan reports whether the resolved fit follows lavaan's conventions
 // (sem.Model.Lavaan: a mean structure); false before resolution.
 func (p *SEMPlan) Lavaan() bool { return p != nil && p.Model != nil && p.Model.Lavaan() }
@@ -186,6 +214,80 @@ func semDefaultSolver(p semParams) sem.Solver {
 		return sem.SolverFisher
 	}
 	return sem.SolverSLSQP
+}
+
+// MAT_SEM's params surfaces a feature profile can hide: the mean
+// structure and the joint multi-group fit (the capability rows
+// internal/descriptor declares under these names). Hidden, a surface
+// resolves as never existing — its params keys leave the instance's
+// params allowlist (internal/descriptor.ParamsAllowlist: refused as
+// unknown keys), its model syntax is refused (semHiddenSyntaxRefusal)
+// — and the manifest drops its params and output keys
+// (SEMFeatureParams, SEMFeatureOutputs).
+const (
+	SEMFeatureMeanStructure = "capability:sem_meanstructure"
+	SEMFeatureGroups        = "capability:sem_groups"
+)
+
+// SEMFeatureParams returns the MAT_SEM params keys each hideable
+// surface owns, in capability-declaration order (a fresh map).
+func SEMFeatureParams() map[string][]string {
+	return map[string][]string{
+		SEMFeatureMeanStructure: {"meanstructure"},
+		SEMFeatureGroups:        {"group", "group_reference", "group_equal", "group_partial"},
+	}
+}
+
+// SEMOutputKeyLevel is the placeholder a patterned MAT_SEM output key
+// carries where a grouped fit writes a level's label: the manifest
+// declares "implied_means.<level>" for the runtime's "implied_means.2"
+// (MatrixOutputKeyMatches).
+const SEMOutputKeyLevel = "<level>"
+
+// SEMFeatureOutputs returns the MAT_SEM output keys each hideable
+// surface owns, by MatrixResult part ("auxiliary", "vectors",
+// "scalars"; a fresh map): what only a mean structure, or only a
+// grouped fit, emits.
+func SEMFeatureOutputs() map[string]map[string][]string {
+	group := map[string][]string{
+		"auxiliary": SEMGroupAuxiliaryKeys(SEMOutputKeyLevel),
+		"vectors":   {"group", "label"},
+		"scalars":   {SEMGroupChi2Key(SEMOutputKeyLevel), SEMGroupNKey(SEMOutputKeyLevel)},
+	}
+	return map[string]map[string][]string{
+		SEMFeatureMeanStructure: {"auxiliary": {"implied_means", "observed_means"}},
+		SEMFeatureGroups:        group,
+	}
+}
+
+// MatrixOutputKeyMatches reports whether a result key matches a
+// declared output key: equal, or — a declared key holding
+// SEMOutputKeyLevel — the key with a non-empty level in its place.
+func MatrixOutputKeyMatches(declared, key string) bool {
+	pre, post, ok := strings.Cut(declared, SEMOutputKeyLevel)
+	if !ok {
+		return declared == key
+	}
+	return len(key) > len(pre)+len(post) && strings.HasPrefix(key, pre) && strings.HasSuffix(key, post)
+}
+
+// semHiddenSyntaxRefusal refuses the model syntax a hidden surface
+// owns: a `~ 1` line without the mean structure, a per-group modifier
+// c(...) without the multi-group fit. The message names neither
+// surface.
+func semHiddenSyntaxRefusal(at string, m *Matrix, hidden func(string) bool) *errors.CodedError {
+	if m.Type != types.MAT_SEM || hidden == nil || m.SEM == nil || m.SEM.Desc == "" {
+		return nil
+	}
+	if hidden(SEMFeatureMeanStructure) && sem.HasIntercepts(m.SEM.Desc) {
+		return matrixInvalid(at, "bad_params", at+" params.model: an intercept term 1 (x ~ 1) is not supported; drop the line",
+			map[string]any{"param": "model"})
+	}
+	if hidden(SEMFeatureGroups) && sem.HasGroupModifiers(m.SEM.Desc) {
+		return matrixInvalid(at, "bad_params", at+" params.model: a c(...) modifier is not supported; use a label (a*x) or a number (0.5*x)",
+			map[string]any{"param": "model"})
+	}
+	return nil
 }
 
 // SEMDefaultModel is MAT_SEM's model when params.model is absent: one

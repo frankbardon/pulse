@@ -17,12 +17,16 @@ Members = the model's observed variables, by label.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `model` | string | — | `f =~ a + b`, `y ~ f`, `a ~~ b`, `x ~ 1`; `l*x`, `0.5*x`. |
+| `model` | string | — | `f =~ a + b`, `y ~ f`, `a ~~ b`<!-- feature: capability:sem_meanstructure -->, `x ~ 1`<!-- /feature -->; `l*x`, `0.5*x`. |
+<!-- feature: capability:sem_meanstructure -->
 | `meanstructure` | bool | false | Means (lavaan rules). |
+<!-- /feature -->
+<!-- feature: capability:sem_groups -->
 | `group` | string | — | Multi-group fit. |
 | `group_reference` | string | — | Primary level. |
 | `group_equal` | list | — | Invariance. |
 | `group_partial` | list | — | Freed rows. |
+<!-- /feature -->
 | `solver` | `slsqp` \| `fisher` | `slsqp` | semopy's SLSQP (early stop); `fisher` converges. |
 | `information` | `dense` \| `rank2` | `dense` | `rank2`: faster. |
 | `ftol` | float | 1e-06 | SLSQP objective-change stop. |
@@ -39,7 +43,7 @@ Integer / float members.
 
 ## Output
 
-`primary`: Σ(θ̂). `auxiliary.estimates`: rows `lval op rval` × `estimate`, `std_estimate`, `std_err`, `z_value`, `p_value` (+ Wald `ci_*`, lavaan); `residual_covariance` S − Σ; `implied_means` / `observed_means`. `vectors`: `parameter`, `free`; `scalars`: fit indices.
+`primary`: Σ(θ̂). `auxiliary.estimates`: rows `lval op rval` × `estimate`, `std_estimate`, `std_err`, `z_value`, `p_value` (+ Wald `ci_*`, lavaan); `residual_covariance` S − Σ<!-- feature: capability:sem_meanstructure -->; `implied_means` / `observed_means`<!-- /feature -->. `vectors`: `parameter`, `free`; `scalars`: fit indices.
 
 <!-- generated: reading-the-output -->
 
@@ -52,7 +56,9 @@ Integer / float members.
 ## Gotchas
 
 - Unused / non-member variable: `bad_params`.
+<!-- feature: capability:sem_meanstructure -->
 - Means, `group`: lavaan (`sem-modeling`).
+<!-- /feature -->
 - S not factoring: `PULSE_MATRIX_NEAREST_PD`; constant member / `refuse`: fatal `PULSE_MATRIX_SINGULAR`.
 
 ## See
