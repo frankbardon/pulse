@@ -41,7 +41,7 @@ func (r *ExtensionRegistry) exprBound() exprenv.Bound {
 	if r == nil {
 		return exprenv.Bound{}
 	}
-	b := exprenv.Bound{Extensions: make([]exprenv.NamedFunc, len(r.ExprFunctions))}
+	b := exprenv.Bound{Extensions: make([]exprenv.NamedFunc, len(r.ExprFunctions)), Params: r.params}
 	for i, fn := range r.ExprFunctions {
 		b.Extensions[i] = exprenv.NamedFunc{Name: fn.Name, Fn: fn.Fn}
 	}

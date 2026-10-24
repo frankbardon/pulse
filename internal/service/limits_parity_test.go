@@ -410,7 +410,7 @@ func parityCases(f *limitsFixture) []parityCase {
 	// expansion's preflight checks before rendering.
 	fanOut := func() *types.Request {
 		return &types.Request{Cohort: wideCohort(f), Aggregations: paritySum,
-			Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Field: "weight", Label: "w{{k}}", Expression: "weight * {{k}}",
+			Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Field: "weight", Label: "w{{k}}", Expression: "weight * 2",
 				ForEach: &types.ForEach{Axes: []types.SweepAxis{{Name: "k", Values: []any{1, 2, 3}}}}}}}
 	}
 	// A sorted materialize: the pre-flight predict reports is the one

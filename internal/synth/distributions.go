@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/detmath"
 	"github.com/frankbardon/pulse/internal/temporal"
 )
 
@@ -204,7 +205,7 @@ func newNormalSampler(f FieldSpec) (sampler, error) {
 }
 
 func (n *normalSampler) next(rng *rand.Rand) (any, bool) {
-	v := n.mean + float64(rng.NormFloat64()*n.std)
+	v := n.mean + float64(detmath.NormFloat64(rng)*n.std)
 	if n.clamped {
 		if v < n.min {
 			v = n.min
@@ -237,7 +238,7 @@ func newLogNormalSampler(f FieldSpec) (sampler, error) {
 }
 
 func (l *logNormalSampler) next(rng *rand.Rand) (any, bool) {
-	return math.Exp(l.mu + float64(rng.NormFloat64()*l.sigma)), false
+	return detmath.Exp(l.mu + float64(detmath.NormFloat64(rng)*l.sigma)), false
 }
 
 type exponentialSampler struct{ lambda float64 }
@@ -255,10 +256,14 @@ func newExponentialSampler(f FieldSpec) (sampler, error) {
 }
 
 func (e *exponentialSampler) next(rng *rand.Rand) (any, bool) {
-	return rng.ExpFloat64() / e.lambda, false
+	return detmath.ExpFloat64(rng) / e.lambda, false
 }
 
-type poissonSampler struct{ lambda float64 }
+// poissonSampler draws a Poisson count. l is e^-lambda, Knuth's stopping
+// threshold, computed ONCE through detmath at construction: math.Exp's
+// last bits differ between machines, and a threshold one ulp away decides
+// a different count whenever a running product lands between the two.
+type poissonSampler struct{ lambda, l float64 }
 
 func newPoissonSampler(f FieldSpec) (sampler, error) {
 	lambda, _, err := paramFloat(f.Name, f.Params, "lambda", 1)
@@ -269,7 +274,7 @@ func newPoissonSampler(f FieldSpec) (sampler, error) {
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("field %q: poisson lambda must be > 0", f.Name), nil)
 	}
-	return &poissonSampler{lambda: lambda}, nil
+	return &poissonSampler{lambda: lambda, l: detmath.Exp(-lambda)}, nil
 }
 
 // next implements Knuth's multiplicative algorithm for small lambda and
@@ -278,20 +283,19 @@ func newPoissonSampler(f FieldSpec) (sampler, error) {
 // is plenty fast.
 func (p *poissonSampler) next(rng *rand.Rand) (any, bool) {
 	if p.lambda < 30 {
-		L := math.Exp(-p.lambda)
 		k := 0.0
 		prod := 1.0
 		for {
 			k++
 			prod *= rng.Float64()
-			if prod <= L {
+			if prod <= p.l {
 				return k - 1, false
 			}
 		}
 	}
 	// Normal approximation for large lambda. Mean = lambda, variance =
 	// lambda. Round to nearest non-negative integer.
-	v := p.lambda + float64(rng.NormFloat64()*math.Sqrt(p.lambda))
+	v := p.lambda + float64(detmath.NormFloat64(rng)*math.Sqrt(p.lambda))
 	if v < 0 {
 		v = 0
 	}
@@ -324,7 +328,7 @@ func (p *paretoSampler) next(rng *rand.Rand) (any, bool) {
 	// scaled integer, and without the conversion `1 - scale*n` contracts
 	// into a single fused multiply-subtract on arm64 but not on amd64.
 	u := 1 - float64(rng.Float64())
-	return p.xm / math.Pow(u, 1.0/p.alpha), false
+	return p.xm / detmath.Pow(u, 1.0/p.alpha), false
 }
 
 type bernoulliSampler struct{ p float64 }
@@ -348,6 +352,14 @@ func (b *bernoulliSampler) next(rng *rand.Rand) (any, bool) {
 	return 0.0, false
 }
 
+// monotonicSampler emits start + i*step for the i-th ACCEPTED row.
+//
+// next does NOT advance it: generate commits the step only once a row
+// passes the constraint pass (commitAccepted, via acceptCommitters), so a
+// rejected attempt redraws the SAME value and the written column has no
+// gaps. Before U58 next advanced on every attempt, which left one gap
+// per rejected attempt; a spec that never rejects writes identical
+// bytes either way.
 type monotonicSampler struct {
 	cur  int64
 	step int64
@@ -366,12 +378,46 @@ func newMonotonicSampler(f FieldSpec) (sampler, error) {
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("field %q: monotonic_from step must be non-zero", f.Name), nil)
 	}
-	return &monotonicSampler{cur: start - step, step: step}, nil
+	return &monotonicSampler{cur: start, step: step}, nil
 }
 
 func (m *monotonicSampler) next(_ *rand.Rand) (any, bool) {
-	m.cur += m.step
 	return float64(m.cur), false
+}
+
+func (m *monotonicSampler) commitAccepted() { m.cur += m.step }
+
+// acceptCommitter is a sampler whose state advances per ACCEPTED row
+// rather than per attempt. generate calls commitAccepted after a row
+// passes every constraint and is encoded, alongside the rule firing
+// commit (ruleApplier.commitRow) — the same accept-only rule.
+type acceptCommitter interface{ commitAccepted() }
+
+// acceptCommitters collects every field's accept-only state, looking
+// through the two wrappers that can sit between a field and its own
+// sampler (the null-rate wrapper and the rule-owned-null wrapper). A
+// wrapper that hid the counter would silently restore the old
+// per-attempt gaps, or freeze the column at start.
+func acceptCommitters(wfs []*writerField) []acceptCommitter {
+	var out []acceptCommitter
+	for _, wf := range wfs {
+		s := wf.sampler
+		for {
+			switch w := s.(type) {
+			case ruleOwnedNullSampler:
+				s = w.inner
+				continue
+			case *nullableSampler:
+				s = w.inner
+				continue
+			}
+			break
+		}
+		if c, ok := s.(acceptCommitter); ok {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 type constantSampler struct{ val any }
@@ -708,7 +754,7 @@ func (m *mixtureSampler) next(rng *rand.Rand) (any, bool) {
 	if idx >= len(m.means) {
 		idx = len(m.means) - 1
 	}
-	return m.means[idx] + float64(rng.NormFloat64()*m.stds[idx]), false
+	return m.means[idx] + float64(detmath.NormFloat64(rng)*m.stds[idx]), false
 }
 
 // setSampler draws a set_* field's own independent marginal: one

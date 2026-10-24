@@ -487,6 +487,16 @@ type fieldKey struct {
 // object rather than #/$defs/Request: a placeholder may sit where the
 // request takes a number.
 var fieldOverrides = map[fieldKey]any{
+	// Request.Params is a map[string]any on the Go side (numbers kept as
+	// json.Number); on the wire every value is a scalar or a one-kind
+	// list of scalars, under an identifier name
+	// (exprenv.NormalizeParams).
+	{reflect.TypeFor[types.Request](), "params"}: paramsSchema(),
+	// The top-level block a Compose batch or a chain hands every
+	// sub-request (InheritComposeParams / InheritChainParams): the same
+	// value rules.
+	{reflect.TypeFor[types.ComposedRequest](), "params"}: inheritedParamsSchema("Compose slot and fit request", " A Compose-level OVERLAY_FORMULA reads them too."),
+	{reflect.TypeFor[types.ChainRequest](), "params"}:    inheritedParamsSchema("chain stage", ""),
 	// A sweep body is a Request with axis placeholders — `{"$var":
 	// "axis"}` may stand where the request takes a number — so it is an
 	// open object, not #/$defs/Request; likewise its overlays.
@@ -847,4 +857,37 @@ func splitComma(s string) []string {
 	}
 	out = append(out, s[start:])
 	return out
+}
+
+// inheritedParamsSchema is a root's top-level params (ComposedRequest,
+// ChainRequest): paramsSchema's shape, merged into every sub-request
+// (each sub-request's own name wins).
+func inheritedParamsSchema(sub, extra string) map[string]any {
+	out := paramsSchema()
+	out["description"] = "Named constants every " + sub + " inherits into its own params (a name it declares itself wins), read as params.<name>: a number (integers kept exact), a string, a bool, or a list of one of those kinds. Never null." + extra
+	return out
+}
+
+// paramsSchema is Request.params on the wire: an object whose names are
+// identifiers and whose values are a number, string or bool, or a list
+// of ONE of those kinds.
+func paramsSchema() map[string]any {
+	list := func(t string) map[string]any {
+		return map[string]any{"type": "array", "items": map[string]any{"type": t}}
+	}
+	return map[string]any{
+		"type":          "object",
+		"description":   "Named constants every expression of the request reads, read-only, as params.<name>: a number (integers kept exact), a string, a bool, or a list of one of those kinds. Never null.",
+		"propertyNames": map[string]any{"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+		"additionalProperties": map[string]any{
+			"anyOf": []any{
+				map[string]any{"type": "number"},
+				map[string]any{"type": "string"},
+				map[string]any{"type": "boolean"},
+				list("number"),
+				list("string"),
+				list("boolean"),
+			},
+		},
+	}
 }

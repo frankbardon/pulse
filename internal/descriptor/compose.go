@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/banner"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
@@ -260,7 +261,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	// effective request. Every pass below judges the effective request:
 	// explicit slots, then sweep slots, one label namespace.
 	// result.Request keeps the request as written.
-	if req.Sweep != nil || req.Banner != nil {
+	if req.Sweep != nil || req.Banner != nil || len(req.Params) > 0 {
 		if serr := SlotRefusal(req, opts.instance()); serr != nil {
 			addCodedError(env, serr)
 			result.Valid = false
@@ -280,7 +281,17 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 		result.Valid = false
 		return env, written
 	}
-	req = exp.Composed
+	// Then the top-level params merge into every slot and fit request
+	// (each sub-request's own key wins) — the runtime's
+	// InheritComposeParams call at the same point; an invalid top-level
+	// block is refused here, before any slot is judged.
+	inherited, perr := InheritComposeParams(exp.Composed)
+	if perr != nil {
+		addCodedError(env, perr)
+		result.Valid = false
+		return env, exp.Composed
+	}
+	req = inherited
 	if result.Sweep != nil {
 		result.Sweep.Labels = exp.SweepLabels
 	}
@@ -914,12 +925,14 @@ func validateComposeOverlaySpec(env *descriptor.Envelope, result *ComposeValidat
 		for _, target := range resolved {
 			slots = append(slots, formulaident.Slot{Label: target.label, Shape: inferComposeSlotShape(target.req)})
 		}
-		if cerr := formulaident.ComposeRefusal(spec.Kind, spec.Params, specIdx, refShape, slots, buildFormulaAllowedFuncs(opts)); cerr != nil {
+		// The batch's top-level params (validated by
+		// InheritComposeParams before any slot) are what the formula's
+		// params.<name> reads read.
+		composeParams, _ := exprenv.NormalizeParams(req.Params)
+		if cerr := formulaident.ComposeRefusalWithParams(spec.Kind, spec.Params, specIdx, refShape, slots, buildFormulaAllowedFuncs(opts), composeParams); cerr != nil {
 			addCodedError(env, cerr)
 		}
 	}
-
-	_ = req // reserved for future per-spec walks that need siblings
 }
 
 // composeSlotRowAxis returns one Compose slot's crosstab ROW axis, or

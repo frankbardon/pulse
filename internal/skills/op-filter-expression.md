@@ -36,9 +36,12 @@ Row-level predicate. No emitted column.
 - A result typed non-bool (`x + 1`) → `PULSE_FORMULA_COMPILE_ERROR` at predict and build; an untyped (`any`) result non-bool on a non-null row, or an eval error → `PROCESSING_RUNTIME`.
 - `%` on a field: float `math.Mod` (`age % 2 == 0`, dividend's sign); `% 0` → NaN, as `/ 0` → ±Inf.
 - No attribute output — filters run first.
+<!-- feature: capability:params -->
+- Pass values as `params`: `panel == params.from_wave` with `"params": {"from_wave": "a"}`, never spliced text (`request-params`).
+<!-- /feature -->
 - `coef()` of a compose fit that failed on its data (`compose-fits`) refuses the request at build with the fit's own code + `details.fit`: a filter verdict cannot be null.
 
 ## See
 
 - `pulse_examples_search tags=[feature-engineering]`
-- Skills: `expression-language` (maths / vector functions, `ExprFunctions`, `LookupTables`), `aggregation-design`, `response-components`
+- Skills: `expression-language` (maths, trig and vector functions, `ExprFunctions`, `LookupTables`), `aggregation-design`, `response-components`

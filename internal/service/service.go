@@ -98,7 +98,7 @@ type Service struct {
 	// freshness fall-through (classifyIndexFreshness) pays a whole-file
 	// hash once per distinct stat rather than once per point lookup.
 	// Zero value is usable — the map is lazily created under the mutex.
-	fingerprints cohortFingerprintCache
+	fingerprints *cohortFingerprintCache
 
 	// defaultZone is pulse.Options.DefaultTimeZone ("" = UTC) and zones
 	// the per-instance zone cache; both feed resolveZones.
@@ -148,7 +148,7 @@ func (s *Service) CrosstabFusionDisabled() bool { return s.disableCrosstabFusion
 // out per instance (or pass pulse.Options{DisableDefaults: true} via the
 // facade).
 func New(fsConfig *fs.Config) *Service {
-	return &Service{fs: fsConfig, disablePanicRecovery: testForcePanicRecoveryOff}
+	return &Service{fs: fsConfig, disablePanicRecovery: testForcePanicRecoveryOff, fingerprints: &cohortFingerprintCache{}}
 }
 
 // testForcePanicRecoveryOff is a test-only override, never set in
@@ -679,6 +679,9 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	if req.Cohort == nil {
 		return nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "request cohort is required")
 	}
+	// Every expression of this run folds the request's params: the
+	// arms below compile through the per-request registry.
+	s = s.forRequest(req)
 
 	// A slot the instance hides is an unknown field. It runs before the
 	// join-count rule and the crosstab / joins dispatch below, so a

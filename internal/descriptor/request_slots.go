@@ -128,6 +128,12 @@ var modelsSlotGate = gatedSlot{key: "models", visible: capabilityGate(featModels
 // rides capability:models too.
 var populationsSlotGate = gatedSlot{key: "populations", visible: capabilityGate(featModels)}
 
+// paramsSlotGate gates the `params` key on a Request, a
+// ComposedRequest and a ChainRequest (the top-level block every
+// sub-request inherits): capability:params. A nested operator's own `params` (a filterer's, an
+// overlay's) is a different key on a different struct and never gated.
+var paramsSlotGate = gatedSlot{key: "params", visible: capabilityGate(featParams)}
+
 // crosstabCellsSlotGate gates the `cells` key on a CrosstabSpec (the
 // multi-measure crosstab): capability:crosstab_cells.
 var crosstabCellsSlotGate = gatedSlot{key: "cells", visible: capabilityGate(featCrosstabCells)}
@@ -155,6 +161,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		multiplicitySlotGate,
 		modelsSlotGate,
 		populationsSlotGate,
+		paramsSlotGate,
 	},
 	reflect.TypeOf(types.Aggregation{}): {weightSlotGate},
 	// The multi-measure crosstab: the `cells` request key and the
@@ -225,6 +232,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "sweep", visible: capabilityGate(featComposeSweep)},
 		{key: "fits", visible: capabilityGate(featComposeFits)},
 		{key: "banner", visible: capabilityGate(featComposeBanner)},
+		paramsSlotGate,
 	},
 	// The sweep rank rides capability:compose_sweep with the `sweep`
 	// slot that produces it.
@@ -238,6 +246,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	},
 	reflect.TypeOf(types.ChainRequest{}): {
 		{key: "overlays", visible: overlayGate(featProcessChain)},
+		paramsSlotGate,
 	},
 	reflect.TypeOf(types.ChainResponse{}): {
 		{key: "overlays", visible: overlayGate(featProcessChain)},
@@ -429,6 +438,9 @@ func setSlots(v any) []string {
 		if len(r.Populations) > 0 {
 			out = append(out, "populations")
 		}
+		if len(r.Params) > 0 {
+			out = append(out, "params")
+		}
 	case *types.ComposedRequest:
 		if r != nil && len(r.Overlays) > 0 {
 			out = append(out, "overlays")
@@ -445,9 +457,15 @@ func setSlots(v any) []string {
 		if r != nil && r.Banner != nil {
 			out = append(out, "banner")
 		}
+		if r != nil && len(r.Params) > 0 {
+			out = append(out, "params")
+		}
 	case *types.ChainRequest:
 		if r != nil && len(r.Overlays) > 0 {
 			out = append(out, "overlays")
+		}
+		if r != nil && len(r.Params) > 0 {
+			out = append(out, "params")
 		}
 	case *types.FacetRequest:
 		if r != nil && len(r.Overlays) > 0 {

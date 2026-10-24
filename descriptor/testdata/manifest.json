@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:8b3078651bebb03d1e0c5bbc01a8e6196e641dbfb55db2c4fa5f90a9a424809d",
+    "feature_set_digest": "fs1:167b554eeadf635ad66494f2e6a744b76b4dff70187905f425928f50e97e75d0",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -10395,7 +10395,7 @@
         ]
       }
     ],
-    "error_codes_count": 405,
+    "error_codes_count": 414,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10521,6 +10521,7 @@
       "PULSE_FORMULA_TOTAL_ARITY",
       "PULSE_FORMULA_TOTAL_NESTED",
       "PULSE_FORMULA_TOTAL_SITE",
+      "PULSE_FOR_EACH_EXPR_SPLICE",
       "PULSE_FOR_EACH_INVALID",
       "PULSE_GROUP_DECLARATION_INVALID",
       "PULSE_GROUP_ENTRIES_EXHAUSTED",
@@ -10654,6 +10655,9 @@
       "PULSE_OVERLAY_TARGET_UNKNOWN",
       "PULSE_OVERLAY_YOY_FREQUENCY_MISSING",
       "PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY",
+      "PULSE_PARAMS_FIELD_COLLISION",
+      "PULSE_PARAMS_INVALID",
+      "PULSE_PARAMS_UNDECLARED",
       "PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE",
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
       "PULSE_RAKE_EMPTY_CELL",
@@ -10732,11 +10736,15 @@
       "PULSE_SPSS_ZSAV_BLOCK_CORRUPT",
       "PULSE_SPSS_ZSAV_INVALID",
       "PULSE_SUPPRESS_ADVISORY_UNKNOWN",
+      "PULSE_SWEEP_EXPR_SPLICE",
       "PULSE_SWEEP_INVALID",
       "PULSE_SWEEP_RANK_PATH",
       "PULSE_SYNTH_ALREADY_TAGGED",
       "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
       "PULSE_SYNTH_DISTRIBUTION_UNKNOWN",
+      "PULSE_SYNTH_EXPR_NONDETERMINISTIC",
+      "PULSE_SYNTH_LAG_FIELD_INVALID",
+      "PULSE_SYNTH_LAG_OFFSET_INVALID",
       "PULSE_SYNTH_OUTPUT_COLLISION",
       "PULSE_SYNTH_OUTPUT_REQUIRED",
       "PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH",
@@ -10750,6 +10758,7 @@
       "PULSE_SYNTH_RULE_VALUE_INVALID",
       "PULSE_SYNTH_SOURCE_REQUIRED",
       "PULSE_TEMPLATE_AXIS_COLLISION",
+      "PULSE_TEMPLATE_EXPR_SPLICE",
       "PULSE_TEMPLATE_INVALID",
       "PULSE_TEMPLATE_NOT_FOUND",
       "PULSE_TEMPLATE_RENDER_INVALID",
@@ -13257,6 +13266,10 @@
         "description": "Request shapes, envelope contract, slot keys, smart defaults, streamability and time zones. Use when authoring or adapting any Pulse Request."
       },
       {
+        "name": "request-params",
+        "description": "Request.Params — named constants a request's expressions read as params.\u003cname\u003e instead of splicing values into expression text; types, refusals, the read-only rule and Compose / chain inheritance."
+      },
+      {
         "name": "request-templating",
         "description": "Stored parameterised JSON requests — the {target, variables, body} wrapper, $var / {{}} / $when substitution, the nine variable types, directory discovery, hot reload, and the PULSE_TEMPLATE_* family. Not expr-lang."
       },
@@ -13337,6 +13350,10 @@
         "description": "Synth spec `correlations` — the Gaussian-copula construction, which marginals and field types may participate, how rank and Pearson correlation survive, and how unmeasured matrix entries are completed and reported."
       },
       {
+        "name": "synth-cross-row",
+        "description": "Synth rows that depend on EARLIER rows — `row()` and `lag()` in rules and constraints, accepted-row order, the panel reset, a recursive adstock recipe, and what profile capture ignores."
+      },
+      {
         "name": "synth-determinism",
         "description": "The synth determinism contract — byte-identical `.pulse` output per spec and seed, byte-identical profile documents per input and seed, and the two non-RNG threats to capture (map iteration order, float fusion)."
       },
@@ -13386,7 +13403,7 @@
       },
       {
         "name": "synth-rule-expressions",
-        "description": "Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy."
+        "description": "Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, its functions (incl. `row()` / `lag()`), the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy."
       },
       {
         "name": "synth-rule-nulls",
@@ -13641,7 +13658,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 249,
+    "examples_count": 250,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -19557,4 +19574,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1156b9d87f2a3e5029eb3a81ea92973a6a3673f76f73600dd8c731f457c2978a
+// golden-hash: 1d2d8554b4faf9eaee571ec7f3567f7c3923bfea9726c67b1f5900878376e5e0

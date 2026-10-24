@@ -68,6 +68,13 @@ func TestVectorBuiltins_Edges(t *testing.T) {
 		t.Errorf("pow(2, 0.5) = %v, %v", got, err)
 	}
 	for name, fn := range builtinImpls {
+		if name == FuncPi || name == FuncE {
+			// The zero-argument constants: one argument is the misuse.
+			if _, err := fn(1.0); err == nil || topCode(err) != perr.PROCESSING_RUNTIME {
+				t.Errorf("%s(1): %v, want PROCESSING_RUNTIME arity error", name, err)
+			}
+			continue
+		}
 		if _, err := fn(); err == nil || topCode(err) != perr.PROCESSING_RUNTIME {
 			t.Errorf("%s() with no arguments: %v, want PROCESSING_RUNTIME arity error", name, err)
 		}

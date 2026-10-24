@@ -244,6 +244,48 @@ source}` (`source: "field"` with `tz: null` for a per-row zone) —
 which is a predict result field, not part of this schema. See
 `skills/request-envelope.md` (Time zones).
 
+## Request params
+
+`params` on `Request` is an additive, optional object of named
+constants every expression of that request reads, read-only, as
+`params.<name>` (or `params["<name>"]`): `ATTR_FORMULA`,
+`FILTER_EXPRESSION`, a `total()` argument, a regression `holdout` and
+`OVERLAY_FORMULA`. `format_version` stays `"1.1"`; omitting it is
+byte-identical to the earlier wire form. Gated by `capability:params`:
+an instance whose feature profile omits it has no `params` property and
+refuses the key as an unknown field.
+
+The schema types it as an object whose property names match
+`^[A-Za-z_][A-Za-z0-9_]*$` and whose values are a number, a string, a
+boolean, or an array of numbers, of strings or of booleans. Rules the
+schema cannot say, enforced by `pulse predict` and at run time alike,
+before any record is read:
+
+- a value is never `null`, and a list holds ONE kind — otherwise
+  `PULSE_PARAMS_INVALID` (`details.reason`: `null_value`,
+  `invalid_name`, `mixed_list`, `unsupported_value`);
+- numbers are kept as their JSON text: an integer binds as an integer
+  (`int64`, or `uint64` above it), so a large id compares exactly; any
+  other number binds as a float. A list of numbers binds as the one
+  integer or float array type every element fits;
+- reading a name the object does not declare is
+  `PULSE_PARAMS_UNDECLARED`; reading `params.<name>` where `params` is
+  also a column (a schema field, feature output, attribute label or
+  vector called `params`) is `PULSE_PARAMS_FIELD_COLLISION`. A bare
+  `params` always reads that column.
+
+`ComposedRequest` and `ChainRequest` carry a `params` of their own,
+same schema and gate: every sub-request inherits it — each Compose
+slot (sweep- and banner-expanded ones included), each Compose `fits`
+request, each chain stage — merged during normalization with a key the
+sub-request declares itself winning. The top-level block is validated
+once, before any sub-request (`PULSE_PARAMS_INVALID`, even when every
+sub-request overrides the bad name). The normalized request
+(`--echo-request`, `pulse api predict-compose` / `predict-chain`)
+shows the merged params on every sub-request. A Compose-level
+`OVERLAY_FORMULA` reads the batch's top-level params; an undeclared
+read there is `PULSE_PARAMS_UNDECLARED`.
+
 ## Multiplicity slots
 
 Multiple-comparison correction adds one additive block shape,
@@ -1135,7 +1177,8 @@ are `SweepAxis {name, values}` (`values` a non-empty list of scalars),
 `mode` the closed enum `SweepMode` (`grid` default, `zip`), `request` an
 object in the `Request` shape that may carry `{{axis}}` / `{"$var":
 "axis"}` placeholders (the schema types it as `object`; the substituted
-body is decoded strictly at expansion), `overlays` an array of
+body is decoded strictly at expansion; a `{{axis}}` inside an
+expression string is `PULSE_SWEEP_EXPR_SPLICE`), `overlays` an array of
 `ComposeOverlaySpec` objects with placeholders, and `rank` a
 `SweepRank {by, order, top}` (`SweepRankOrder`: `asc`, `desc`). The slot
 is `omitempty`, so a sweep-free request is byte-identical on the wire.
@@ -1321,7 +1364,8 @@ and labels.
 Before any other check the item is replaced IN PLACE by one ordinary
 item per axis combination (grid: first axis slowest; zip: lockstep),
 each rendered from the item's own body with the sweep substitution —
-`{{axis}}` in any string (`label`, `field`, `expression`), `{"$var":
+`{{axis}}` in any non-expression string (`label`, `field`; inside an
+expression slot it is `PULSE_FOR_EACH_EXPR_SPLICE`), `{"$var":
 "axis"}` as a whole value inside `params` (opaque JSON; a typed
 non-string key cannot hold the marker) — and decoded strictly. Plain
 items are untouched, so a list may mix both, and no response shape

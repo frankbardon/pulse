@@ -42,6 +42,13 @@ type ChainRequest struct {
 	// inherits that contract via the data-driven JSON walk in
 	// types/hash.go (see TestChainCanonicalHash_OverlayFreeByteIdentity).
 	Overlays []*ChainOverlaySpec `json:"overlays,omitempty"`
+
+	// Params names constants every stage's request inherits: each stage
+	// reads them as params.<name> beside its own, a name the stage
+	// declares itself winning. The merge happens before any stage runs,
+	// so the normalized request echoes the merged params on every stage.
+	// Nil declares none. Gated by capability:params. See Params.
+	Params Params `json:"params,omitempty"`
 }
 
 // ChainStage wraps a single Request with optional diagnostic name.

@@ -174,11 +174,13 @@ func TestForEach_ComposeAndChain(t *testing.T) {
 	}
 
 	// A chain stage: the aggregation reads a column only the expansion
-	// produces, so a stage that skipped it would be refused.
+	// produces, so a stage that skipped it would be refused. (The axis
+	// names the label only: an `{{axis}}` inside the expression is
+	// PULSE_FOR_EACH_EXPR_SPLICE.)
 	stage := func() *types.Request {
 		var r types.Request
 		if err := json.Unmarshal([]byte(`{"attributes": [{"for_each": {"axes": [{"name": "k", "values": [2, 3]}]},
-			"type": "ATTR_FORMULA", "field": "week", "label": "x_by{{k}}", "expression": "week * {{k}}"}],
+			"type": "ATTR_FORMULA", "field": "week", "label": "x_by{{k}}", "expression": "week * 3"}],
 			"aggregations": [{"type": "AGG_SUM", "field": "x_by3", "label": "n"}]}`), &r); err != nil {
 			t.Fatal(err)
 		}

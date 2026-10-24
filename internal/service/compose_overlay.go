@@ -188,7 +188,7 @@ func (s *Service) applyComposeOverlays(ctx context.Context, req *types.ComposedR
 	// column against the slot's members — predict-compose's reading.
 	return processing.ApplyComposeOverlaysWithSchemas(req.Overlays, responses, labels, requests, func(j int) *encoding.Schema {
 		return s.requestInputSchema(ctx, requests[j])
-	}, s.extensions)
+	}, s.composeExtensions(req))
 }
 
 // composeOverlayFloorsPresent re-runs descx.ComposeOverlayHiddenFloorRefusal

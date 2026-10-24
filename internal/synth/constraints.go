@@ -38,6 +38,20 @@ type compiledConstraints struct {
 	// One compiledConstraints per generate() call, one row at a time —
 	// not safe for concurrent evaluation.
 	nullMask map[string]bool
+
+	// ordinal is the 0-based ordinal of the ACCEPTED row being drawn,
+	// read by the row() builtin (rowOrdinalBuiltin) the same way isnull
+	// reads nullMask. generate sets it before every attempt to the count
+	// of rows already accepted, so a rejected attempt redraws at the same
+	// ordinal. A validation-only probe never sets it; it is only compiled
+	// against, never run.
+	ordinal int
+
+	// lag is the accept-only cross-row state the lag builtin reads
+	// (row_lag.go). generate attaches ONE buffer to both the constraint
+	// and the rule host; nil when no expression calls lag, and on every
+	// validation-only probe.
+	lag *lagBuffer
 }
 
 // rowExprEnv builds the expr environment shape for a set of declared
@@ -63,22 +77,34 @@ func rowExprEnv(fields []FieldSpec) (env map[string]any, names map[string]bool) 
 }
 
 // rowExprOptions returns the expr.Option set every expression compiled
-// against a generated row shares: the environment, the isnull builtin
-// and the bare-identifier patch that feeds it. isnull is passed in
-// rather than looked up because it must close over the evaluating
-// compiledConstraints' current null mask; a validation-only caller
-// supplies a throwaway probe whose mask is never read.
+// against a generated row shares: the environment, the isnull and row()
+// builtins and the bare-identifier patch that feeds isnull. The host is
+// passed in rather than looked up because both builtins must close over
+// the evaluating compiledConstraints' current null mask and accepted-row
+// ordinal; a validation-only caller supplies a throwaway probe that is
+// never run.
 //
 // extra is appended last, so a caller wanting expr.AsBool() (a `when`
 // predicate or a constraint) adds it and a caller compiling a value
 // expression (`set_expr`, whose return type is the coercion matrix's
 // business, not the compiler's) does not.
-func rowExprOptions(env map[string]any, names map[string]bool, isnull func(...any) (any, error), extra ...expr.Option) []expr.Option {
+func rowExprOptions(env map[string]any, names map[string]bool, host *compiledConstraints, extra ...expr.Option) []expr.Option {
 	opts := []expr.Option{
 		expr.Env(env),
-		expr.Function(isnullFuncName, isnull, new(func(string) bool)),
+		expr.Function(isnullFuncName, host.isnullBuiltin, new(func(string) bool)),
+		expr.Function(rowOrdinalFuncName, host.rowOrdinalBuiltin, new(func() int)),
 		expr.Patch(isnullIdentifierPatcher{fields: names}),
+		// lag(name, n[, default]) is typed per lagged field's class by
+		// rewriting each well-formed call onto an internal name before
+		// the type check (row_lag.go).
+		expr.Patch(lagPatcherFor(env, names)),
 	}
+	opts = append(opts, lagFunctionOptions(host)...)
+	// The shared maths (exprenv.MathOptions) and the now() removal: see
+	// row_expr_builtins.go. Appended to every row expression, so
+	// constraints, `when`, `set_expr` and both --suggest-rules detectors
+	// see one function set.
+	opts = append(opts, rowBuiltinOptions()...)
 	return append(opts, extra...)
 }
 
@@ -97,8 +123,13 @@ func compileConstraints(in []ConstraintSpec, wfs []*writerField) (*compiledConst
 		exprs:  make([]string, 0, len(in)),
 		fields: names,
 	}
-	opts := rowExprOptions(env, names, out.isnullBuiltin, expr.AsBool())
+	opts := rowExprOptions(env, names, out, expr.AsBool())
 	for _, c := range in {
+		// validateSpec refused these already; repeated here for a Spec
+		// that bypassed it (SpecFromProfile), so the code is the same.
+		if r := rowExprStaticRefusal(c.Expr, names); r != nil {
+			return nil, rowExprConstraintRefusal(c.Expr, r)
+		}
 		prog, err := expr.Compile(c.Expr, opts...)
 		if err != nil {
 			return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,

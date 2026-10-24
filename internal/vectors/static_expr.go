@@ -43,6 +43,7 @@ var BuiltinArity = map[string][2]int{
 	"vnormalize": {2, 2}, "pow": {2, 2}, "hill": {3, 3},
 	"jaccard": {2, 2}, "dice": {2, 2}, "hamming": {2, 2}, "overlap": {2, 2},
 	"ref": {2, 2}, "date_trunc": {2, 2},
+	"atan2": {2, 2}, "pi": {0, 0}, "e": {0, 0},
 }
 
 // VectorResultBuiltins names the built-ins that return a vector.

@@ -63,7 +63,7 @@ import (
 // The component order is the DRAWER order, which buildModelDrawers has
 // already fixed to schema field order — never the order the
 // `residual_correlations` array happened to be written in, and never a
-// map range. Each row consumes exactly one rng.NormFloat64() per
+// map range. Each row consumes exactly one detmath.NormFloat64(rng) per
 // participant, in that order, before any drawer runs; a drawer that does
 // not participate still consumes its own single draw where it always
 // did. So the per-row RNG sequence is a function of the Spec alone, and

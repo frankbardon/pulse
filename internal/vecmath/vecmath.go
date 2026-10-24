@@ -5,9 +5,18 @@
 // cosine, jaccard, dice, hamming, overlap) are not here: they resolve
 // through the one linalg/metric registry.
 //
-// It is a LEAF: standard library only, so internal/processing,
-// internal/descriptor and any future caller import it without a cycle.
-// TestVecmathImportBoundary enforces the ceiling.
+// It is a LEAF: the standard library plus internal/detmath (itself
+// stdlib-only), so internal/processing, internal/descriptor and any
+// future caller import it without a cycle. TestVecmathImportBoundary
+// enforces the ceiling.
+//
+// # Transcendental kernels
+//
+// Log, Log1p, Exp, Pow, Sin, Cos, Tan and Atan2 are internal/detmath's
+// portable ports, never math.*: the standard library's answers for
+// them depend on the architecture and, for amd64 Exp, on the CPU, so a
+// formula would give different bits on two machines. Sqrt stays
+// math.Sqrt (IEEE-754 correctly rounded everywhere).
 //
 // # Edge semantics (pinned)
 //
@@ -39,6 +48,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+
+	"github.com/frankbardon/pulse/internal/detmath"
 )
 
 // ErrLengthMismatch is the sentinel every *LengthMismatchError matches
@@ -257,14 +268,37 @@ func Normalize(v []float64, mode string) ([]float64, error) {
 // Sqrt is the IEEE square root (negative → NaN).
 func Sqrt(x float64) float64 { return math.Sqrt(x) }
 
-// Log is the IEEE natural logarithm (0 → -Inf, negative → NaN).
-func Log(x float64) float64 { return math.Log(x) }
+// Log is the natural logarithm (0 → -Inf, negative → NaN), through
+// detmath.Log.
+func Log(x float64) float64 { return detmath.Log(x) }
 
-// Exp is the IEEE natural exponential (overflow → +Inf).
-func Exp(x float64) float64 { return math.Exp(x) }
+// Log1p is ln(1 + x), accurate near 0 (-1 → -Inf, below -1 → NaN),
+// through detmath.Log1p.
+func Log1p(x float64) float64 { return detmath.Log1p(x) }
 
-// Pow is the IEEE power x**y (math.Pow special cases apply).
-func Pow(x, y float64) float64 { return math.Pow(x, y) }
+// Exp is the natural exponential (overflow → +Inf), through
+// detmath.Exp.
+func Exp(x float64) float64 { return detmath.Exp(x) }
+
+// Pow is the power x**y (math.Pow's special cases apply), through
+// detmath.Pow.
+func Pow(x, y float64) float64 { return detmath.Pow(x, y) }
+
+// Sin is the sine of x radians (±Inf, NaN → NaN), through detmath.Sin.
+func Sin(x float64) float64 { return detmath.Sin(x) }
+
+// Cos is the cosine of x radians (±Inf, NaN → NaN), through
+// detmath.Cos.
+func Cos(x float64) float64 { return detmath.Cos(x) }
+
+// Tan is the tangent of x radians (±Inf, NaN → NaN), through
+// detmath.Tan.
+func Tan(x float64) float64 { return detmath.Tan(x) }
+
+// Atan2 is the arc tangent of y/x in radians, in [-π, π], using the
+// signs of both to pick the quadrant (math.Atan2's special cases
+// apply), through detmath.Atan2.
+func Atan2(y, x float64) float64 { return detmath.Atan2(y, x) }
 
 // sumCount is the NaN-skipping left-to-right sum and valid count.
 func sumCount(v []float64) (float64, int) {

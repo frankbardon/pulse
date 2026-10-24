@@ -29,7 +29,8 @@ Six items: `tv_lag1`, `tv_lag2`, `tv_lag4`, `search_lag1`, … in that order.
 ## Axes, modes, placeholders
 
 - Axes and modes are the compose sweep's ([`compose-sweeps`](compose-sweeps.md)): unique identifier names, non-empty scalar values; `grid` (default) is the Cartesian product, first axis slowest; `zip` walks equal-length axes in lockstep.
-- `{{axis}}` splices text inside any string — `label`, `field`, a formula `expression`. `{"$var": "axis"}` splices a whole value type-preserving, but only inside `params` (opaque JSON); a typed key such as `order_by` cannot hold the marker.
+- `{{axis}}` splices text inside a string such as `label` or `field` — never inside an expression (a formula `expression`, a params-borne `fit_on` or centroid filter): there it is `PULSE_FOR_EACH_EXPR_SPLICE`, refused before expansion. `{"$var": "axis"}` splices a whole value type-preserving, but only inside `params` (opaque JSON; a whole `fit_on` expression too); a typed key such as `order_by` cannot hold the marker.
+- To vary a value a formula reads, use a compose sweep whose request sets `"params": {"x": {"$var": "x"}}` and read `params.x`.
 - Every axis must be referenced in the item and every placeholder must name an axis. Not expr-lang: there is no arithmetic.
 
 ## The label-axis idiom (zip)
@@ -59,7 +60,7 @@ Under `grid` the same two axes would make 16 items, most mislabelled. To cross c
 
 ## Templates, MCP and Explain
 
-- In a stored request template ([`request-templating`](request-templating.md)) the renderer leaves a `for_each` item's own `{{axis}}` and `{"$var": "axis"}` untouched for the expansion — no escape needed. Template variables still substitute beside them and inside `for_each` itself, so `"values": {"$var": "decays"}` takes an axis list from a `list` variable. Axis names must be literal; a template variable named like an axis is refused at load (`PULSE_TEMPLATE_AXIS_COLLISION`).
+- In a stored request template ([`request-templating`](request-templating.md)) the renderer leaves a `for_each` item's own `{{axis}}` and `{"$var": "axis"}` untouched for the expansion — no escape needed; an axis token inside an expression is refused at load (`PULSE_TEMPLATE_EXPR_SPLICE`). Template variables still substitute beside them and inside `for_each` itself, so `"values": {"$var": "decays"}` takes an axis list from a `list` variable. Axis names must be literal; a template variable named like an axis is refused at load (`PULSE_TEMPLATE_AXIS_COLLISION`).
 - A cohort-bound MCP tool schema lets an item WITH `for_each` spell its field, type, `partition_by` / `order_by` keys and other enum-bound strings as `{{axis}}` placeholders; an item without one keeps the strict enums.
 - Explain describes the expanded items (each naming its column) and states each fan-out.
 

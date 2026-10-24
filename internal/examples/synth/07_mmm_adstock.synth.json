@@ -1,0 +1,16 @@
+{
+  "row_count": 156,
+  "fields": [
+    {"name": "week", "type": "u16", "distribution": "constant", "params": {"value": 0}},
+    {"name": "spend", "type": "f64", "distribution": "uniform", "params": {"min": 500, "max": 5000}},
+    {"name": "true_adstock", "type": "f64", "distribution": "constant", "params": {"value": 0}},
+    {"name": "fourier_sin", "type": "f64", "distribution": "constant", "params": {"value": 0}},
+    {"name": "fourier_cos", "type": "f64", "distribution": "constant", "params": {"value": 0}}
+  ],
+  "rules": [
+    {"set_expr": {"week": "row()"}},
+    {"set_expr": {"true_adstock": "spend + 0.6 * lag(\"true_adstock\", 1, 0)"}},
+    {"set_expr": {"fourier_sin": "sin(2 * pi() * week / 52)"}},
+    {"set_expr": {"fourier_cos": "cos(2 * pi() * week / 52)"}}
+  ]
+}

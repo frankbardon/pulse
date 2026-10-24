@@ -32,7 +32,9 @@ import (
 // AllValues surfaces it (exprenv.Prototype / ValueType — float64 for numeric/date/bool
 // columns, string for a dictionary-bearing categorical, []string for a
 // dictionary-bearing set, a {value, scale} exprenv.Decimal for a
-// decimal128, uint64 / SetMask otherwise). Type
+// decimal128, its stored word as an exprenv.U64 for a u64 — compared
+// exactly, a float64 everywhere else, internal/exprenv u64.go —
+// uint64 / SetMask otherwise). Type
 // checking therefore sees the same types a per-row compile saw on a row
 // where every field was present, so a request that compiled per row
 // compiles here, to the same program, and one that failed to compile
@@ -114,6 +116,12 @@ type exprProgram struct {
 	// bindings excluded), used to decide at build whether the schema
 	// alone can declare them.
 	refs []string
+	// u64Refs are the refs naming a u64 schema field, each bound as its
+	// stored word (exprenv.U64, Record.exprU64) rather than its float64
+	// echo (nil: none — the per-row bind then costs nothing). inputU64
+	// is index-aligned with inputs.
+	u64Refs  []string
+	inputU64 []bool
 	// wholeEnv is set when the expression reads $env: it then needs the
 	// record's whole AllValues map, not just the named fields.
 	wholeEnv bool
@@ -185,9 +193,23 @@ func newExprProgramKeyed(src, what string, schema, keys *encoding.Schema, vecs [
 		p.refPatch = &refPatcher{scope: scope}
 	}
 	refs, wholeEnv, parsed := exprFreeIdentifiers(src)
+	if _, column := p.decl[exprenv.ParamsName]; !column && exprenv.FoldsParams(src) {
+		// Every `params` it names is a parameter read: folded as a
+		// constant by the params patcher (or refused before the build,
+		// exprenv.ParamsRefusal), never an env input that would defer
+		// the compile.
+		refs = slices.DeleteFunc(refs, func(n string) bool { return n == exprenv.ParamsName })
+	}
 	p.refs, p.wholeEnv = refs, wholeEnv
 	if err := p.bindVectors(vecs); err != nil {
 		return nil, err
+	}
+	if schema != nil {
+		for _, name := range refs {
+			if f := schema.Field(name); f != nil && f.Type == encoding.FieldTypeU64 && !p.isVector(name) {
+				p.u64Refs = append(p.u64Refs, name)
+			}
+		}
 	}
 	deferred := false
 	if parsed {
@@ -252,6 +274,12 @@ func (p *exprProgram) settleInputs() {
 			p.inputs = append(p.inputs, name)
 		}
 	}
+	if len(p.u64Refs) > 0 {
+		p.inputU64 = make([]bool, len(p.inputs))
+		for i, name := range p.inputs {
+			p.inputU64[i] = slices.Contains(p.u64Refs, name)
+		}
+	}
 	if !p.decimals && p.derived == nil {
 		return
 	}
@@ -272,9 +300,11 @@ func (p *exprProgram) settleInputs() {
 }
 
 // bindEnv copies the record's whole AllValues map into a pooled env,
-// every decimal and derived column lifted (exprenv.Bind): the map is the
-// record's shared cache and is never written.
-func (p *exprProgram) bindEnv(all map[string]any) map[string]any {
+// every decimal and derived column lifted (exprenv.Bind) and every u64
+// field the expression names bound as its stored word (unless it reads
+// $env, whose map keeps the float64 echo it always carried): the map is
+// the record's shared cache and is never written.
+func (p *exprProgram) bindEnv(all map[string]any, r *Record) map[string]any {
 	env := exprEnvPool.Get().(map[string]any)
 	for k, v := range all {
 		if f := p.derived[k]; f != nil {
@@ -283,6 +313,13 @@ func (p *exprProgram) bindEnv(all map[string]any) map[string]any {
 			v = exprenv.Bind(p.schema.Field(k), v)
 		}
 		env[k] = v
+	}
+	if !p.wholeEnv {
+		for _, name := range p.u64Refs {
+			if v, ok := env[name]; ok {
+				env[name] = r.exprU64(name, v)
+			}
+		}
 	}
 	return env
 }
@@ -485,13 +522,13 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 				}
 			}
 		}
-		if len(p.vecs) == 0 && !p.decimals && p.derived == nil {
+		if len(p.vecs) == 0 && !p.decimals && p.derived == nil && (p.wholeEnv || len(p.u64Refs) == 0) {
 			return p.run(all, r.nullMarked)
 		}
 		// The AllValues map is the record's shared cache: bind the
 		// vectors and lift the decimals and derived columns in a pooled
 		// copy, never in the cache.
-		env := p.bindEnv(all)
+		env := p.bindEnv(all, r)
 		var f *exprVectorFrame
 		if len(p.vecs) > 0 {
 			f = p.fillVectors(env, r)
@@ -514,6 +551,8 @@ func (p *exprProgram) runRecord(r *Record) (out any, nullInput bool, err error) 
 		if ok {
 			if p.inputDecs != nil && p.inputDecs[i] != nil {
 				v = exprenv.Bind(p.inputDecs[i], v)
+			} else if p.inputU64 != nil && p.inputU64[i] {
+				v = r.exprU64(name, v)
 			}
 			env[name] = v
 		} else {

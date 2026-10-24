@@ -1217,19 +1217,20 @@ func (p *Pulse) ProcessChain(ctx context.Context, req *ChainRequest) (*ChainResp
 }
 
 func (p *Pulse) processChain(ctx context.Context, req *ChainRequest) (*ChainResponse, error) {
-	resp, err := p.svc.ProcessChain(ctx, req)
+	resp, stages, err := p.svc.ProcessChainResolved(ctx, req)
 	if err != nil {
 		return resp, err
 	}
 	if req != nil && req.Cohort != nil {
 		p.touchManaged(ctx, resolveCohortPath(req.Cohort))
 	}
-	// The service ran every stage request in place, defaults resolved,
-	// which is what the plan's precision exemptions read.
+	// The stage requests the service ran, defaults resolved (the
+	// caller's own, or their params-inheriting copies), which is what
+	// the plan's precision exemptions read.
 	inst := p.svc.InstanceSnapshot()
-	plans := make([]*returnplan.Plan, len(req.Stages))
-	for i, st := range req.Stages {
-		plan, rerr := descx.ResolveReturn(st.Request, inst)
+	plans := make([]*returnplan.Plan, len(stages))
+	for i, st := range stages {
+		plan, rerr := descx.ResolveReturn(st, inst)
 		if rerr != nil {
 			return nil, descx.RefusalAt(rerr, "stage", i)
 		}

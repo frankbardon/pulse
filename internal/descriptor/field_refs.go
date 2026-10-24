@@ -264,6 +264,14 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	}
 	w.initCompile(req, schema)
 
+	// -1. The request's params block (exprenv.NormalizeParams — the
+	// values every expression compile below folds): a null value, a
+	// non-identifier name, a mixed list or any other value is
+	// PULSE_PARAMS_INVALID, judged first, once.
+	if _, cerr := exprenv.NormalizeParams(req.Params); cerr != nil {
+		w.out = append(w.out, cerr)
+	}
+
 	// 0. A native vector field named in a slot that reads one value
 	// (vectorScalarRefusals) — PULSE_VECTOR_FIELD_NOT_SCALAR, judged
 	// first so it wins over the slot's own type refusals.

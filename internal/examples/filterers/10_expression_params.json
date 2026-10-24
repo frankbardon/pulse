@@ -1,0 +1,44 @@
+{
+  "_meta": {
+    "category": "filterers",
+    "description": "Keep one fieldwork wave with an expression that reads a request param, panel == params.from_wave, instead of splicing the wave into the expression text.",
+    "intents": [
+      "segment"
+    ],
+    "name": "filter_expression_params",
+    "operators": [
+      "AGG_AVERAGE",
+      "AGG_COUNT",
+      "FILTER_EXPRESSION"
+    ],
+    "tags": [
+      "cohort-analysis",
+      "streaming-friendly"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_COUNT",
+      "field": "id",
+      "label": "n"
+    },
+    {
+      "type": "AGG_AVERAGE",
+      "field": "q1",
+      "label": "avg_q1"
+    }
+  ],
+  "cohort": {
+    "filename": "survey.pulse",
+    "data_dir": ".data"
+  },
+  "filterers": [
+    {
+      "type": "FILTER_EXPRESSION",
+      "expression": "panel == params.from_wave"
+    }
+  ],
+  "params": {
+    "from_wave": "a"
+  }
+}

@@ -3,6 +3,8 @@ package synth
 import (
 	"math"
 	"sort"
+
+	"github.com/frankbardon/pulse/internal/detmath"
 )
 
 // MinShapeFitObservations is the minimum number of retained samples a
@@ -102,7 +104,7 @@ func fitNumericShape(samples []float64, mean, std float64) *ShapeProfile {
 		return nil
 	}
 	normalLL := normalLogLikelihood(samples, mean, std)
-	lnN := math.Log(float64(n))
+	lnN := detmath.Log(float64(n))
 	bicNormal := float64(-2*normalLL) + float64(2*lnN)
 	bicMixture := float64(-2*mixLL) + float64(5*lnN)
 	if bicMixture >= bicNormal {
@@ -199,7 +201,7 @@ func fitTwoComponentEM(samples []float64, overallStd float64) (m1, m2, s1, s2, w
 		if mix <= 0 {
 			mix = math.SmallestNonzeroFloat64
 		}
-		total += math.Log(mix)
+		total += detmath.Log(mix)
 	}
 	// Order components by mean ascending for a deterministic, readable
 	// captured shape regardless of which half of the split each
@@ -215,7 +217,7 @@ func fitTwoComponentEM(samples []float64, overallStd float64) (m1, m2, s1, s2, w
 // normalPDF is the standard Gaussian density.
 func normalPDF(x, mean, std float64) float64 {
 	variance := float64(std * std)
-	return math.Exp(-float64((x-mean)*(x-mean))/(2*variance)) / math.Sqrt(2*math.Pi*variance)
+	return detmath.Exp(-float64((x-mean)*(x-mean))/(2*variance)) / math.Sqrt(2*math.Pi*variance)
 }
 
 // normalLogLikelihood is the total log-likelihood of samples under a
@@ -225,7 +227,7 @@ func normalLogLikelihood(samples []float64, mean, std float64) float64 {
 		return math.Inf(-1)
 	}
 	variance := float64(std * std)
-	logNorm := float64(-0.5 * math.Log(2*math.Pi*variance))
+	logNorm := float64(-0.5 * detmath.Log(2*math.Pi*variance))
 	var ll float64
 	for _, x := range samples {
 		d := x - mean

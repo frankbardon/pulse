@@ -6,7 +6,8 @@ declarative spec — for testing, demos, and bootstrapping fixtures.
 `pulse synth from-schema` reads a JSON synth spec (field-by-field
 distributions, row count, optional pairwise correlations) and writes
 a deterministic `.pulse` file. Same `(spec, seed)` pair produces a
-byte-identical output.
+byte-identical output — on every machine, not just across runs: every
+draw's variates and maths run on portable kernels.
 
 > **No MCP tool.** Synthesis is CLI and library (`Pulse.Synth`) only.
 > The `synthetic-data` skill covers spec authoring, the supported
@@ -448,6 +449,44 @@ the quoted form compiles, so it is reported as the unknown FIELD it is
 (`PULSE_SYNTH_RULE_FIELD_UNKNOWN`), not as an expression that will not
 compile.
 
+Beyond expr-lang's stock built-ins (`abs`, `round`, `max`, `split`, …)
+the environment carries the same maths the formula attribute uses:
+`sqrt`, `exp`, `log`, `log1p`, `pow(x, y)`, `hill(x, k, s)`, `sin`,
+`cos`, `tan` (radians), `atan2(y, x)` and the constants `pi()` / `e()`
+(calls, not bare names). `%` takes floats (`x % 0.5`; the result has the
+dividend's sign, a zero divisor gives NaN) and `**` / `^` equal `pow`.
+All run on Pulse's portable kernels, so a `set_expr` writes the same
+bits on every machine. A wrong argument count is refused when the spec
+is parsed (`PULSE_SYNTH_RULE_EXPR_INVALID`). `now()` is NOT available —
+the wall clock would make two runs of one seed differ — and is refused
+with `PULSE_SYNTH_EXPR_NONDETERMINISTIC`. A field named like a built-in
+(`log`, `e`, `row`, `lag`, …) keeps working as a bare name; CALLING that
+name is refused (rename the field to reach the built-in), and a bare
+built-in name that no field declares (`pi` for `pi()`) is refused too.
+
+`row()` returns the 0-based ordinal of the row being generated, counted
+in ACCEPTED rows only: when a constraint rejects an attempt, the redraw
+keeps the same ordinal, so the written cohort reads exactly
+`0..row_count-1`. It consumes no randomness, so adding it moves no other
+value. `row() % 52 == 0 ? a : b` picks `a` at the start of every 52-row
+period. `monotonic_from` counts the same way: a rejected attempt leaves
+no gap in its sequence. Under `synth from-profile` with a source cohort,
+both count the generated rows from 0, not the copied source rows.
+
+`lag("field", n[, default])` reads that field's value `n` accepted rows
+back (`n` an integer literal from 1 to 1024, the name a declared field).
+For the first `n` rows it returns `default`, or null when none is given;
+a lagged null stays null, so guard with a default or `??`. Self-lag is
+allowed, which makes a recursive series one rule: `{"set_expr":
+{"true_adstock": "spend + 0.6 * lag(\"true_adstock\", 1, 0)"}}`. Like
+`row()` it consumes no randomness and never sees a rejected attempt. It
+returns the value before encode rounding. Profile capture, the fidelity
+report and `--suggest-rules` do not model it. A bad name or offset is
+`PULSE_SYNTH_LAG_FIELD_INVALID` / `PULSE_SYNTH_LAG_OFFSET_INVALID`. The
+full recipe, with a panel reset and Fourier controls, is
+[`internal/examples/synth/07_mmm_adstock.synth.json`](https://github.com/frankbardon/pulse/blob/main/internal/examples/synth/07_mmm_adstock.synth.json)
+and `skills/synth-cross-row.md`.
+
 The same array is also the standalone **rules file** format that
 [`synth from-profile --rules`](synth-from-profile.md) loads, so an
 inline declaration and a file are the same JSON.
@@ -632,6 +671,7 @@ the `--json` path, where `data.warnings` carries them in full.
 | `PULSE_SYNTH_RULE_CONFLICT`         | One rule names the same field in two slots that disagree about it |
 | `PULSE_SYNTH_RULE_BLOCK_INVALID`    | A `null_together` block names fewer than two distinct fields |
 | `PULSE_SYNTH_RULE_OWNERSHIP_INVALID` | A rule declares `"owns_nulls": true` but names no field in `set_null`, so the claim has nothing to apply to |
+| `PULSE_SYNTH_EXPR_NONDETERMINISTIC` | A constraint, `when` or `set_expr` calls `now()`, whose answer differs on every run |
 
 ## Examples
 

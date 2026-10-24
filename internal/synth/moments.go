@@ -29,17 +29,29 @@ package synth
 // only DETECT a regression on a fusing architecture (arm64), so it is
 // silent on amd64 by construction.
 //
-// Two known residuals this cannot reach:
+// The transcendental kernels are a separate hazard: `math.Exp`
+// (assembly on arm64, an FMA path picked per CPU on amd64) and
+// `math.Log` (assembly on amd64, pure Go on arm64) are
+// architecture-specific in the standard library, and the pure-Go
+// `math.Pow` / `Expm1` / `Erf` / `Erfinv` are compiled with contraction
+// on arm64. Every transcendental this package evaluates therefore runs on
+// internal/detmath's portable ports, which give identical bits
+// everywhere: `--fit-shape` (shape.go), the rule / constraint row maths
+// (exprenv.MathOptions, row_expr_builtins.go), the lognormal / pareto /
+// poisson draws (distributions.go) and the copula's Φ / Φ⁻¹ and marginal
+// transforms (copula.go), which every correlated, modelled and vector
+// draw passes through — and the standard normal / exponential variates
+// themselves: math/rand/v2's ziggurat calls math.Log / math.Exp and fuses
+// a multiply-add in its rare tail, so every draw goes through
+// detmath.NormFloat64 / ExpFloat64, a port that consumes the RNG exactly
+// as the stdlib does (TestSynthZiggurat_NoStdlibVariates bans the stdlib
+// methods here). `math.Sqrt` is exempt — IEEE-754 requires it to be
+// correctly rounded — and so is `math.Pow10`, a table lookup times one
+// correctly rounded product.
 //
-//   - `math.Exp` (assembly on both amd64 and arm64) and `math.Log`
-//     (assembly on amd64, pure Go on arm64) are architecture-specific
-//     in the standard library. A `--fit-shape` capture and a lognormal
-//     draw ride them, so those remain machine-sensitive in their last
-//     bits. `math.Sqrt` is exempt — IEEE-754 requires it to be
-//     correctly rounded.
-//   - `internal/processing/regression` (the OLS engine behind the `models`
-//     section) has not been made fusion-free; see the package's own
-//     notes.
+// One known residual remains: `internal/processing/regression` (the OLS
+// engine behind `--fit-models`' `models` section) has not been made
+// fusion-free; see the package's own notes.
 
 // sampleVariance is the unbiased sample variance from a running
 // (count, sum, sumSq) triple, in the one place every caller shares.

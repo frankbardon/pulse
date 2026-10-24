@@ -50,6 +50,10 @@ func TestRequestFormula_IdentRefusalMatchesPredict(t *testing.T) {
 		{"unknown callee", "bogusfn(cell)", "bogusfn", errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
 		{"unknown variable", "cell + bogusvar", "bogusvar", errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
 		{"vector built-in", "vsum(cell)", "vsum", errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
+		// U58: the trig set and the constants are reserved but outside
+		// the overlay subset (exprenv.overlayAllowed).
+		{"trig built-in", "sin(cell)", "sin", errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
+		{"constant built-in", "cell * pi()", "pi", errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
 		{"compose slot path", "slot.a.cell + cell", "slot.a.cell", errors.PULSE_OVERLAY_FORMULA_INVALID_IDENT},
 		// The whole Request-host gate is shared (U35 #432); a spec with
 		// no usable formula is PULSE_OVERLAY_PARAM_MISSING on every

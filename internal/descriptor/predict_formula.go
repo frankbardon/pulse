@@ -129,6 +129,10 @@ func (w *fieldRefWalk) initCompile(req *types.Request, schema *encoding.Schema) 
 	vecs, err := vectors.ResolveRequest(req, schema)
 	c.vecs, c.vecsFailed = vecs, err != nil
 	c.bound = exprenv.Bound{Coef: exprenv.Placeholder}
+	// The request's params, folded exactly as the engine folds them (an
+	// invalid block is refused once, at the walk's head — paramsRefusal —
+	// and declares nothing here).
+	c.bound.Params, _ = exprenv.NormalizeParams(req.Params)
 	if w.snap != nil {
 		for _, fn := range w.snap.ExprFunctions {
 			c.bound.Extensions = append(c.bound.Extensions, exprenv.NamedFunc{Name: fn.Name, Fn: exprenv.Placeholder})
@@ -164,7 +168,9 @@ func (w *fieldRefWalk) checkCompile(src string, formula bool, before int) {
 				return
 			}
 		}
-		opts = append(w.compile.bound.Options(), totalcall.Options(totalcall.Index(keys), exprenv.Placeholder)...)
+		// total()'s patcher first, as the engine orders it: it keys each
+		// call by its argument's source, before the params fold.
+		opts = append(totalcall.Options(totalcall.Index(keys), exprenv.Placeholder), w.compile.bound.Options()...)
 	}
 	if ce := w.compileRefusal(src, exprenv.SiteFormula, opts); ce != nil {
 		w.out = append(w.out, ce)
@@ -181,9 +187,20 @@ func (w *fieldRefWalk) compileRefusal(src, site string, opts []expr.Option) *err
 	for _, v := range vectors.ExprBindings(refs, c.vecs, isField) {
 		decl[v.Name] = exprenv.VectorType
 	}
+	// The params rule (exprenv.ParamsRefusal, the engine's too): a
+	// params.<name> read over a request where `params` is a column it
+	// could read is a collision, an undeclared name is refused; a read
+	// it folds is no env name.
+	_, column := decl[exprenv.ParamsName]
+	pn := exprenv.ParamsName
+	column = column || w.cols[pn] || w.preFilter[pn] || c.extra[pn] || c.vecNames[pn]
+	if ce := exprenv.ParamsRefusal(src, c.bound.Params, column); ce != nil {
+		return ce
+	}
+	folds := !column && exprenv.FoldsParams(src)
 	if parsed {
 		for _, name := range refs {
-			if _, ok := decl[name]; ok {
+			if _, ok := decl[name]; ok || (folds && name == exprenv.ParamsName) {
 				continue
 			}
 			switch {

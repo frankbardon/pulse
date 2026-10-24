@@ -305,3 +305,41 @@ func assertBimodal(t *testing.T, values []float64, mean1, std1, mean2, std2 floa
 			valley, hist[lowIdx], hist[highIdx])
 	}
 }
+
+// TestProfile_FitShapeIsByteReproducible: two --fit-shape captures of one
+// cohort serialize to the same bytes. The fit's exp / log run on
+// internal/detmath (TestShapeFit_RunsOnDetmath), so the document is also
+// the same on every architecture, not only on one machine.
+func TestProfile_FitShapeIsByteReproducible(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	p, err := pulse.New(pulse.Options{FS: fs, DisablePanicRecovery: true})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	data := synthSingleField(t, 4000, 23, synth.DistMixture, map[string]any{
+		"means":   []any{-4.0, 6.0},
+		"stds":    []any{1.0, 2.0},
+		"weights": []any{0.4, 0.6},
+	})
+	if err := afero.WriteFile(fs, "/bimodal.pulse", data, 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	capture := func() []byte {
+		t.Helper()
+		prof, err := p.Profile(context.Background(), "/bimodal.pulse", pulse.ProfileOptions{FitShape: true, IncludeStats: true})
+		if err != nil {
+			t.Fatalf("profile: %v", err)
+		}
+		if prof.Fields[0].Numeric == nil || prof.Fields[0].Numeric.Shape == nil {
+			t.Fatal("expected a fitted shape; the fixture no longer exercises the fit")
+		}
+		raw, err := json.Marshal(prof)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		return raw
+	}
+	if a, b := capture(), capture(); string(a) != string(b) {
+		t.Fatalf("two --fit-shape captures differ:\n%s\n%s", a, b)
+	}
+}

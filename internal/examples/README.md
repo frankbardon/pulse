@@ -25,7 +25,7 @@ internal/examples/
 ├── matrices/                  # MAT_* matrix operators over virtual vectors (14)
 ├── overlays/                  # OVERLAY_* layers on Request / Compose / Facet hosts (48)
 ├── regression/                # REG_* regressions (18)
-├── synth/                     # synth specs (6)
+├── synth/                     # synth specs (7)
 ├── tests/                     # TEST_* tier-1 and tier-2 statistical tests (37)
 ├── windows/                   # WIN_* per-row analytics (12)
 └── <new-category>/            # each: README.md + run-all.sh + *.json

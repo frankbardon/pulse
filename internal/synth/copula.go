@@ -7,6 +7,7 @@ import (
 	mrand "math/rand/v2"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/detmath"
 	"github.com/frankbardon/pulse/linalg"
 )
 
@@ -96,14 +97,16 @@ type quantileFunc func(u, p float64) float64
 // phi returns Φ(x), the standard normal CDF — the first step of the
 // Gaussian-copula construction, mapping a correlated standard-normal
 // draw to a Uniform(0,1) value every field's own quantile function can
-// invert. Implemented via math.Erf (Go stdlib since Go 1.10, no new
-// dependency): Φ(x) = 0.5*(1 + erf(x/√2)).
+// invert. Φ(x) = 0.5*(1 + erf(x/√2)), with erf from internal/detmath:
+// math.Erf is pure Go compiled WITH multiply-add contraction on arm64 and
+// calls the machine-specific math.Exp, so its last bits depend on the
+// machine, and every copula, model and vector draw passes through here.
 func phi(x float64) float64 {
-	return 0.5 * (1 + math.Erf(x/math.Sqrt2))
+	return 0.5 * (1 + detmath.Erf(x/math.Sqrt2))
 }
 
 // phiInv returns Φ⁻¹(p), the standard normal quantile — phi's inverse,
-// via math.Erfinv: Φ⁻¹(p) = √2·erf⁻¹(2p−1). Nothing in GENERATION needs
+// via detmath.Erfinv (portable, unlike math.Erfinv): Φ⁻¹(p) = √2·erf⁻¹(2p−1). Nothing in GENERATION needs
 // it (the copula construction starts from a normal draw and never has
 // to go back), so it exists solely for latentFor below, which reads a
 // generated value back onto the latent scale for E5-S1's model-recovery
@@ -126,7 +129,7 @@ func phiInv(p float64) float64 {
 	case p >= 1-eps:
 		p = 1 - eps
 	}
-	return math.Sqrt2 * math.Erfinv(2*p-1)
+	return math.Sqrt2 * detmath.Erfinv(float64(2*p)-1)
 }
 
 // latentFunc maps one generated DATA-SCALE value back onto the standard
@@ -216,7 +219,7 @@ func latentFor(fs FieldSpec, mean, std float64) (latentFunc, error) {
 			if v <= 0 {
 				return 0, false
 			}
-			return (math.Log(v) - mu) / sigma, true
+			return (detmath.Log(v) - mu) / sigma, true
 		}, nil
 	case DistExponential:
 		lambda, _, err := paramFloat(fs.Name, fs.Params, "lambda", 1)
@@ -232,7 +235,7 @@ func latentFor(fs FieldSpec, mean, std float64) (latentFunc, error) {
 			if v < 0 {
 				return 0, false
 			}
-			return phiInv(-math.Expm1(-lambda * v)), true
+			return phiInv(-detmath.Expm1(-lambda * v)), true
 		}, nil
 	case DistMixture:
 		// The mixture's CDF is a closed-form weighted sum of erfs — it
@@ -508,13 +511,13 @@ func factorCorrelations(subject, participant string, names []string, idx map[str
 // (correlator.transform), on the residual scale each component IS the
 // modelled field's z (residualCorrelator.draw).
 //
-// z is consumed in COMPONENT ORDER, one rng.NormFloat64() per
+// z is consumed in COMPONENT ORDER, one detmath.NormFloat64(rng) per
 // participant, and both callers fix that order at construction time
 // from the Spec rather than from a map — the determinism contract rests
 // on it. See skills/synth-determinism.md.
 func correlatedNormals(rng *mrand.Rand, chol [][]float64, z, u []float64) {
 	for i := range z {
-		z[i] = rng.NormFloat64()
+		z[i] = detmath.NormFloat64(rng)
 	}
 	for i := range u {
 		sum := 0.0
@@ -641,8 +644,8 @@ func fieldMoments(fs FieldSpec) (mean, std, clampMin, clampMax float64, hasClamp
 			return
 		}
 		sigmaSq := float64(sigma * sigma)
-		mean = math.Exp(mu + float64(sigmaSq/2))
-		std = math.Sqrt(float64((math.Exp(sigmaSq) - 1) * math.Exp(float64(2*mu)+sigmaSq)))
+		mean = detmath.Exp(mu + float64(sigmaSq/2))
+		std = math.Sqrt(float64((detmath.Exp(sigmaSq) - 1) * detmath.Exp(float64(2*mu)+sigmaSq)))
 	case DistExponential:
 		var lambda float64
 		if lambda, _, err = paramFloat(fs.Name, fs.Params, "lambda", 1); err != nil {
@@ -788,7 +791,7 @@ func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 			return nil, err
 		}
 		return func(u, p float64) float64 {
-			return math.Exp(mu + float64(sigma*u))
+			return detmath.Exp(mu + float64(sigma*u))
 		}, nil
 	case DistExponential:
 		lambda, _, err := paramFloat(fs.Name, fs.Params, "lambda", 1)
@@ -796,7 +799,7 @@ func quantileFor(fs FieldSpec, mean, std float64) (quantileFunc, error) {
 			return nil, err
 		}
 		return func(u, p float64) float64 {
-			return -math.Log(1-p) / lambda
+			return -detmath.Log(1-p) / lambda
 		}, nil
 	case DistMixture:
 		// The one arm with no closed form. A Gaussian mixture's CDF is a

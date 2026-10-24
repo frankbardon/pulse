@@ -857,6 +857,30 @@ const (
 	// and no number anywhere says the flag did nothing.
 	PULSE_SYNTH_RULE_OWNERSHIP_INVALID Code = "PULSE_SYNTH_RULE_OWNERSHIP_INVALID"
 
+	// PULSE_SYNTH_EXPR_NONDETERMINISTIC indicates a synth row expression
+	// — a `constraints[]` entry, a rule's `when` or one of its `set_expr`
+	// values — calls `now()`. The wall clock answers differently on every
+	// run, so a spec calling it could never honour the byte-identical
+	// `(spec, seed)` contract; the synth row environment does not register
+	// it, and the call is refused at spec validation, before a row exists.
+	// `details.function` names the call, `details.expr` the expression.
+	PULSE_SYNTH_EXPR_NONDETERMINISTIC Code = "PULSE_SYNTH_EXPR_NONDETERMINISTIC"
+
+	// PULSE_SYNTH_LAG_FIELD_INVALID indicates a synth row expression's
+	// `lag(name, n[, default])` call whose first argument is not a string
+	// literal naming a declared field. The name sizes the cross-row state
+	// before the first row, so it cannot be computed. Refused at spec
+	// validation. `details.lag_field` names the field when the argument
+	// is a literal, `details.expr` the expression.
+	PULSE_SYNTH_LAG_FIELD_INVALID Code = "PULSE_SYNTH_LAG_FIELD_INVALID"
+
+	// PULSE_SYNTH_LAG_OFFSET_INVALID indicates a `lag(name, n[, default])`
+	// call whose `n` is not an integer literal from 1 to 1024. The offset
+	// sizes the cross-row buffer, so it must be a literal; the cap bounds
+	// the state. Refused at spec validation. `details.lag_field` names the
+	// lagged field, `details.expr` the expression.
+	PULSE_SYNTH_LAG_OFFSET_INVALID Code = "PULSE_SYNTH_LAG_OFFSET_INVALID"
+
 	// PULSE_PROFILE_FIELD_UNSUPPORTED indicates a field type the profile
 	// layer cannot summarize. The field is skipped with a warning rather
 	// than failing the whole profile.
@@ -1422,6 +1446,20 @@ const (
 	// slot only) carries on its own response.
 	PULSE_SWEEP_RANK_PATH Code = "PULSE_SWEEP_RANK_PATH"
 
+	// PULSE_SWEEP_EXPR_SPLICE indicates a `{{token}}` placeholder inside
+	// an expression-bearing string of a ComposedRequest `sweep` request
+	// or overlays (a filterer or attribute `expression`, a regression
+	// `holdout`, an overlay `params.formula`; the slot list is
+	// internal/exprslots). Splicing an axis value's text into an
+	// expression would let the value rewrite the expression's logic, so
+	// the sweep is refused before any slot is substituted — identically by
+	// predict and the runtime. An axis value reaches an expression through
+	// the request's `params` object (`"params": {"x": {"$var": "x"}}`, read
+	// as `params.x`); a whole-value {"$var": …} marker supplying the entire
+	// expression stays allowed. Details carry "field" (the sweep-rooted
+	// path), "placeholder" (the token's name) and "slot" (the slot name).
+	PULSE_SWEEP_EXPR_SPLICE Code = "PULSE_SWEEP_EXPR_SPLICE"
+
 	// PULSE_BANNER_INVALID indicates a malformed ComposedRequest
 	// `banner` block: no base request, a base request that sets `label`,
 	// crosstab `columns` or crosstab shape `long`, no sections, a section
@@ -1531,6 +1569,32 @@ const (
 	// CompileError.
 	PULSE_FORMULA_COMPILE_ERROR Code = "PULSE_FORMULA_COMPILE_ERROR"
 
+	// PULSE_PARAMS_INVALID indicates a request `params` entry that is
+	// not a parameter: a null value, a name that is not an identifier
+	// (params.<name> could not spell it), a list mixing kinds (numbers,
+	// strings, bools), or any other value (an object, a nested list, a
+	// non-finite number). Refused identically by predict and the runtime
+	// before any record is read. Details carry "param" and "reason"
+	// (null_value | invalid_name | mixed_list | unsupported_value).
+	PULSE_PARAMS_INVALID Code = "PULSE_PARAMS_INVALID"
+
+	// PULSE_PARAMS_UNDECLARED indicates an expression (ATTR_FORMULA,
+	// FILTER_EXPRESSION, a total() argument, a regression holdout,
+	// OVERLAY_FORMULA) reading params.<name> for a name the request's
+	// `params` does not declare. Refused identically by predict and the
+	// runtime at compile, before any record is read. Details carry
+	// "expression", "param" and "declared" (the declared names, sorted).
+	PULSE_PARAMS_UNDECLARED Code = "PULSE_PARAMS_UNDECLARED"
+
+	// PULSE_PARAMS_FIELD_COLLISION indicates an expression reading
+	// params.<name> over a request where `params` is also a column the
+	// expression could read: a schema field, a derived column (feature
+	// output, attribute label) or a named vector called params. A bare
+	// identifier reads the column, so the parameter namespace is
+	// shadowed. Refused identically by predict and the runtime at
+	// compile. Details carry "expression", "param" and "field".
+	PULSE_PARAMS_FIELD_COLLISION Code = "PULSE_PARAMS_FIELD_COLLISION"
+
 	// PULSE_MODEL_PREDICTOR_MISSING indicates a scoring frame without a
 	// column for one of a bound model's predictors: no schema field,
 	// feature output or earlier attribute label carries the name.
@@ -1618,6 +1682,20 @@ const (
 	// involved and, where they apply, "value" / "valid", the faulting
 	// combination "index" and its axis "values", and "unknown_field".
 	PULSE_FOR_EACH_INVALID Code = "PULSE_FOR_EACH_INVALID"
+
+	// PULSE_FOR_EACH_EXPR_SPLICE indicates a `{{token}}` placeholder
+	// inside an expression-bearing string of a window, feature or
+	// attribute item carrying a `for_each` (an attribute `expression`, a
+	// params-borne `fit_on` or centroid `filter` expression; the slot list
+	// is internal/exprslots). Splicing an axis value's text into an
+	// expression would let the value rewrite the expression's logic, so
+	// the request is refused before any item is substituted — identically
+	// by predict and the runtime. A whole-value {"$var": …} marker
+	// supplying the entire expression stays allowed; a value the
+	// expression reads goes through the request's `params` object, swept
+	// by a Compose sweep. Details carry "field" (the request-rooted path),
+	// "placeholder" (the token's name) and "slot" (the slot name).
+	PULSE_FOR_EACH_EXPR_SPLICE Code = "PULSE_FOR_EACH_EXPR_SPLICE"
 
 	// PULSE_JOIN_TYPE_MISMATCH indicates an equi-join key pair where
 	// the left field's schema type differs from the right field's
@@ -2647,6 +2725,23 @@ const (
 	// template under DetailTemplate, the shared name under
 	// DetailVariable, and the axis name's body path under "path".
 	PULSE_TEMPLATE_AXIS_COLLISION Code = "PULSE_TEMPLATE_AXIS_COLLISION"
+
+	// PULSE_TEMPLATE_EXPR_SPLICE indicates a template body carries a
+	// `{{token}}` interpolation inside an expression-bearing string slot
+	// (a filterer or attribute `expression`, a regression `holdout`, an
+	// overlay `params.formula`; the slot list is internal/exprslots).
+	// Splicing a variable's text into an expression would let the value
+	// rewrite the expression's logic, so it is refused: a value reaches an
+	// expression through the request's `params` object (filled with a
+	// type-preserving {"$var": …} marker) read as `params.<name>`. A
+	// whole-value {"$var": …} marker supplying the entire expression stays
+	// allowed, as does the `{{{{` escape. A for_each or sweep axis token
+	// there is refused the same way (its value's text would be spliced by
+	// that expansion). Raised at declaration validation (an author error,
+	// like PULSE_TEMPLATE_INVALID). Details carry the template under
+	// DetailTemplate, the variable or axis name under DetailVariable, the
+	// body path under "path" and the slot name under "slot".
+	PULSE_TEMPLATE_EXPR_SPLICE Code = "PULSE_TEMPLATE_EXPR_SPLICE"
 
 	// PULSE_SPSS_DICT_INVALID indicates an SPSS `.sav` dictionary is
 	// structurally malformed: the file does not open with the `$FL2` /
@@ -4197,6 +4292,9 @@ var allCodes = []Code{
 	PULSE_SYNTH_RULE_BLOCK_INVALID,
 	PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE,
 	PULSE_SYNTH_RULE_OWNERSHIP_INVALID,
+	PULSE_SYNTH_EXPR_NONDETERMINISTIC,
+	PULSE_SYNTH_LAG_FIELD_INVALID,
+	PULSE_SYNTH_LAG_OFFSET_INVALID,
 	PULSE_PROFILE_FIELD_UNSUPPORTED,
 	PULSE_TEST_UNKNOWN_TYPE,
 	PULSE_TEST_FIELD_NOT_NUMERIC,
@@ -4267,6 +4365,7 @@ var allCodes = []Code{
 	PULSE_COMPOSE_LABEL_COLLISION,
 	PULSE_SWEEP_INVALID,
 	PULSE_SWEEP_RANK_PATH,
+	PULSE_SWEEP_EXPR_SPLICE,
 	PULSE_BANNER_INVALID,
 	PULSE_FIT_INVALID,
 	PULSE_MODEL_NAME_COLLISION,
@@ -4280,6 +4379,9 @@ var allCodes = []Code{
 	PULSE_FORMULA_TOTAL_NESTED,
 	PULSE_FORMULA_TOTAL_ARITY,
 	PULSE_FORMULA_COMPILE_ERROR,
+	PULSE_PARAMS_INVALID,
+	PULSE_PARAMS_UNDECLARED,
+	PULSE_PARAMS_FIELD_COLLISION,
 	PULSE_MODEL_PREDICTOR_MISSING,
 	PULSE_MODEL_PREDICTOR_NOT_NUMERIC,
 	PULSE_MODEL_SAVE_INVALID,
@@ -4291,6 +4393,7 @@ var allCodes = []Code{
 	PULSE_MODEL_REF_INVALID,
 	PULSE_MODEL_FILE_UNREADABLE,
 	PULSE_FOR_EACH_INVALID,
+	PULSE_FOR_EACH_EXPR_SPLICE,
 	PULSE_JOIN_TYPE_MISMATCH,
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED,
 	PULSE_JOIN_FIELD_UNKNOWN,
@@ -4385,6 +4488,7 @@ var allCodes = []Code{
 	PULSE_TEMPLATE_UNRESOLVED,
 	PULSE_TEMPLATE_RENDER_INVALID,
 	PULSE_TEMPLATE_AXIS_COLLISION,
+	PULSE_TEMPLATE_EXPR_SPLICE,
 	PULSE_SPSS_DICT_INVALID,
 	PULSE_SPSS_DICT_TRUNCATED,
 	PULSE_SPSS_FILE_EMPTY,

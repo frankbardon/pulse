@@ -329,7 +329,20 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		rules:       rules,
 	}
 
+	committers := acceptCommitters(wfs)
+	// lag()'s cross-row state: one buffer for both hosts, empty at the
+	// first row generate draws (so AugmentFromProfile's generated
+	// partition never reads a copied source row), nil when no
+	// expression calls lag. See internal/synth/row_lag.go.
+	lags := newLagBuffer(s, wfs)
+	cons.lag = lags
+	rules.setLag(lags)
 	for rowsGenerated < s.RowCount {
+		// row() reads the ACCEPTED-row ordinal: stamped before every
+		// attempt with the count already accepted, so a rejected attempt
+		// redraws at the same ordinal (rowOrdinalBuiltin).
+		cons.ordinal = rowsGenerated
+		rules.setRowOrdinal(rowsGenerated)
 		if err := drawRow(rng, wfs, row, rowNullMask, stages); err != nil {
 			return rowsGenerated, rowsRejected, warnings, err
 		}
@@ -363,6 +376,15 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		// was re-drawn and left no trace. See internal/synth/rules_firing.go.
 		rules.commitRow()
 		rules.commitOwnedNulls()
+		// Accept-only sampler state (monotonic_from), committed here for
+		// the same reason as the firing counts: a rejected attempt left
+		// no row, so it must leave no step either.
+		for _, c := range committers {
+			c.commitAccepted()
+		}
+		// The row's FINAL values enter lag's buffer only now, so a
+		// rejected attempt is never read as a previous row.
+		lags.commit(row, rowNullMask)
 		rowsGenerated++
 	}
 	// A rule that applied to NO generated row is the one rule fault
@@ -490,7 +512,7 @@ func drawRow(rng *mrand.Rand, wfs []*writerField, row map[string]any, nullMask m
 	}
 	// One correlated normal vector for the whole row, drawn before the
 	// first drawer runs so every participant reads the same row's
-	// residual structure. It consumes exactly one rng.NormFloat64() per
+	// residual structure. It consumes exactly one detmath.NormFloat64(rng) per
 	// participant in component order (= drawer order = schema order),
 	// and is skipped entirely — no draws at all — when nothing
 	// participates, which is what keeps a spec without residual

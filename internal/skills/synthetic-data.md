@@ -26,7 +26,7 @@ Synth does not emit `Response.Components` — it writes a `.pulse` file.
 | `correlations`: which marginals / types may join | `synth-correlations` |
 | Two relationships name one field — which wins? | `synth-conflicts` |
 | Several drivers conditioning one numeric (`--fit-models`) | `synth-models` |
-| Gating, masking, deriving a field (`rules[]`, `constraints[]`) | `synth-structural-rules` |
+| Gating, masking, deriving a field, reading earlier rows (`rules[]`, `constraints[]`, `lag`) | `synth-structural-rules` |
 | The `_synthetic` top-up and `--fidelity-report` | `synth-fidelity-report` |
 | Byte-identical output; why a profile can drift | `synth-determinism` |
 | `--fit-shape` mixtures | `synth-shape-fit` |
@@ -85,7 +85,7 @@ Same `(spec, opts.Seed)` MUST produce a byte-identical `.pulse` file; same `(--i
 
 ## Gotchas
 
-- Constraints + `monotonic_from`: monotonic ignores RNG, so a rejected row still increments the counter.
+- `monotonic_from` counts ACCEPTED rows: no gaps under constraints.
 - **A model coefficient is latent-scale** (data units only when `Q` is `normal`); a quantized modelled target attenuates at write time — `synth-models`.
 - `--fit-models` does not imply `--residual-correlations`, and neither implies `--conditional`. `--fit-shape` composes with all of them.
 

@@ -1359,6 +1359,36 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SYNTH_EXPR_NONDETERMINISTIC: {
+		Message: "A synth row expression (a constraint, a rule's `when` or a `set_expr` value) calls `now()`. The wall clock answers differently on every run, so the spec could never generate byte-identical output for one seed; the synth row environment does not provide it.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*", "SetExpr"},
+				Hint:   "Replace `now()` with a fixed value: a literal epoch-day or epoch-second number, or a field drawn from a `date` / `datetime` distribution with explicit bounds. A generated row has no wall-clock time of its own.",
+			},
+		},
+	},
+	PULSE_SYNTH_LAG_FIELD_INVALID: {
+		Message: "A synth row expression's `lag(name, n[, default])` call does not name a declared field with a string literal. The field name sizes the cross-row state before the first row is drawn, so it cannot be computed or misspelled.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*", "SetExpr"},
+				Hint:   "Write the field as a quoted literal the spec declares: `lag(\"spend\", 1, 0)`, not `lag(spend, 1)` or `lag(\"sp\" + \"end\", 1)`. Check the spelling against `fields[].name`.",
+			},
+		},
+	},
+	PULSE_SYNTH_LAG_OFFSET_INVALID: {
+		Message: "A synth row expression's `lag(name, n[, default])` call has an `n` that is not an integer literal from 1 to 1024. The offset sizes the cross-row buffer before the first row is drawn, so it must be a literal, and the cap bounds that buffer.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*", "SetExpr"},
+				Hint:   "Write n as a whole-number literal between 1 and 1024: `lag(\"spend\", 1)` reads the previous accepted row, `lag(\"spend\", 52)` the row 52 accepted rows back. A computed, fractional, zero or negative offset is refused.",
+			},
+		},
+	},
 	PULSE_PROFILE_FIELD_UNSUPPORTED: {
 		Message: "The profile layer cannot summarize this field type; the field is skipped.",
 		Fixups: []Fixup{
@@ -2297,6 +2327,48 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_PARAMS_INVALID: {
+		Message: "A request `params` entry is not a parameter. A parameter is a number (kept exact: an integer binds as an integer, so a large id compares exactly), a string, a bool, or a list of ONE of those kinds; it is never null, and its name is an identifier so `params.<name>` can spell it. The entry is under `param`, the failure under `reason`: null_value, invalid_name, mixed_list or unsupported_value (an object, a nested list, a non-finite number).",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"params", "*"},
+				Hint:     "Give the parameter a value: a number, string, bool or a one-kind list. To leave a parameter unset, drop its entry (an expression reading it is then refused as undeclared) rather than writing null.",
+				Examples: []any{map[string]any{"params": map[string]any{"from_wave": 3, "waves": []any{3, 4, 5}, "region": "west"}}},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"params"},
+				Hint:   "Rename an entry whose name is not an identifier (start with a letter or underscore; letters, digits and underscores only), and update every params.<name> that reads it.",
+			},
+		},
+	},
+	PULSE_PARAMS_UNDECLARED: {
+		Message: "An expression reads `params.<name>` for a name the request's `params` object does not declare. Parameters are declared on the request (`\"params\": {\"<name>\": value}`) and read read-only in every expression of that request (formulas, filter expressions, total() arguments, a regression holdout, overlay formulas). The expression is under `expression`, the missing name under `param`, the declared names under `declared`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"params"},
+				Hint:     "Declare the parameter on the request, or correct the spelling in the expression to one of `declared`.",
+				Examples: []any{map[string]any{"params": map[string]any{"from_wave": 3}}},
+			},
+		},
+	},
+	PULSE_PARAMS_FIELD_COLLISION: {
+		Message: "An expression reads `params.<name>`, but `params` is also a column the expression can read: a schema field, a derived column (feature output, attribute label) or a named vector called params. A bare identifier always reads the column, so the request-parameter namespace is shadowed on this cohort and the request is refused rather than guessing. The column itself stays readable as bare `params` or `$env[\"params\"]`; there is no spelling that reaches the parameters past it.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"cohort"},
+				Hint:   "Rename the cohort field called params (re-import with a different column name), then read the parameters as params.<name>.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "label"},
+				Hint:   "When the column is a derived one (an attribute label, a feature output or a vector named params), rename it in the request.",
+			},
+		},
+	},
 	PULSE_MODEL_PREDICTOR_MISSING: {
 		Message: "The scoring slot has no column for one of the bound model's predictors: no schema field, feature output or earlier attribute label carries the name. Scoring reads the model's predictors from the slot's own columns and never infers one — a one-hot reference level is an ABSENT predictor of the fit, not a missing column. The predictor is under `field`, the fit under `fit`.",
 		Fixups: []Fixup{
@@ -2437,6 +2509,42 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"windows", "*", "label"},
 				Hint:   "Reference every axis with `{{axis}}` in a string (label, field) or `{\"$var\": \"axis\"}` inside params, name only declared axes, and correct the key under `unknown_field`. A for_each item works the same under `features` and `attributes`.",
+			},
+		},
+	},
+	PULSE_SWEEP_EXPR_SPLICE: {
+		Message: "The ComposedRequest `sweep` places an axis placeholder `{{name}}` inside an expression string of its request or overlays (a filterer or attribute expression, a regression holdout, an overlay formula), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so a sweep never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"sweep", "request", "params"},
+				Hint:   "Carry the axis value through the request's params instead: add `\"params\": {\"x\": {\"$var\": \"x\"}}` to the sweep request (the marker keeps the value's type) and read it in the expression as `params.x`. To sweep whole expressions, give the axis the expression strings as values and supply the slot with a `{\"$var\": \"x\"}` marker.",
+				Examples: []any{map[string]any{
+					"axes": []any{map[string]any{"name": "w", "values": []any{1, 2}}},
+					"request": map[string]any{
+						"params":    map[string]any{"w": map[string]any{"$var": "w"}},
+						"filterers": []any{map[string]any{"type": "FILTER_EXPRESSION", "expression": "wave == params.w"}},
+					},
+				}},
+			},
+		},
+	},
+	PULSE_FOR_EACH_EXPR_SPLICE: {
+		Message: "A window, feature or attribute item carrying a `for_each` places an axis placeholder `{{name}}` inside an expression string (an attribute expression, or a params-borne fit or centroid filter expression), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so an item fan-out never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "expression"},
+				Hint:   "Vary the value with a Compose `sweep` instead: its request carries `\"params\": {\"x\": {\"$var\": \"x\"}}` (the marker keeps the value's type) and the expression reads `params.x`, one slot per axis value. For an expression inside an item's params (a fit_on), an axis may instead supply the whole expression with a `{\"$var\": \"x\"}` marker whose values are the complete expression strings.",
+				Examples: []any{map[string]any{
+					"sweep": map[string]any{
+						"axes": []any{map[string]any{"name": "k", "values": []any{2, 3}}},
+						"request": map[string]any{
+							"params":     map[string]any{"k": map[string]any{"$var": "k"}},
+							"attributes": []any{map[string]any{"type": "ATTR_FORMULA", "label": "x_by_k", "expression": "week * params.k"}},
+						},
+					},
+				}},
 			},
 		},
 	},
@@ -3662,6 +3770,20 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"Variables", "*"},
 				Hint:   "Rename either the template variable or the for_each or sweep axis named in the error details so the two no longer share a name, and update the placeholders that refer to the renamed one.",
+			},
+		},
+	},
+	PULSE_TEMPLATE_EXPR_SPLICE: {
+		Message: "The template body interpolates a variable with `{{name}}` inside an expression string (a filterer or attribute expression, a regression holdout, an overlay formula). Splicing text into an expression would let the variable's value rewrite the expression's logic, so the template is refused when it is loaded. A `for_each` or `sweep` axis token in an expression string is refused the same way, since that expansion would splice the axis value's text. The error details name the variable or axis, the body path and the slot.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"body", "params"},
+				Hint:   "Pass the value as a request parameter instead: add `\"params\": {\"x\": {\"$var\": \"x\"}}` to the request body (the marker keeps the value's type) and read it in the expression as `params.x`. A `{\"$var\": \"f\"}` marker may still supply the whole expression string, and `{{{{` still writes a literal `{{`.",
+				Examples: []any{map[string]any{
+					"params":    map[string]any{"from_wave": map[string]any{"$var": "from_wave"}},
+					"filterers": []any{map[string]any{"type": "FILTER_EXPRESSION", "expression": "wave == params.from_wave"}},
+				}},
 			},
 		},
 	},

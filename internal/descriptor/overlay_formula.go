@@ -2,6 +2,7 @@ package descriptor
 
 import (
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/types"
@@ -92,7 +93,8 @@ func validateFormulaOverlay(env *descriptor.Envelope, req *types.Request, spec *
 			return
 		}
 	}
-	if cerr := formulaident.RequestSpecRefusal(spec, index, shape, buildFormulaAllowedFuncs(opts)); cerr != nil {
+	params, _ := exprenv.NormalizeParams(req.Params)
+	if cerr := formulaident.RequestSpecRefusalWithParams(spec, index, shape, buildFormulaAllowedFuncs(opts), params); cerr != nil {
 		addCodedError(env, cerr)
 	}
 }

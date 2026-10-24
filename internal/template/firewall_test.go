@@ -36,6 +36,10 @@ var allowedIntraModuleDeps = map[string]bool{
 	// unknown key and suggests the nearest valid one. It imports only
 	// stdlib, types and errors (TestStrictJSON_ImportBoundary).
 	modulePrefix + "/internal/strictjson": true,
+	// The shared expression-slot list the engine names its compile
+	// sites through: which body strings are expressions, so a
+	// `{{token}}` spliced into one is refused. Stdlib only.
+	modulePrefix + "/internal/exprslots": true,
 }
 
 // forbiddenDeps are the packages named explicitly in the import ceiling.

@@ -360,6 +360,7 @@ func buildProcessChainSchemaWithExtensions(c fieldClassification, inst *descx.In
 				"items":       stageItem,
 			},
 			"overlays": overlaysSchemaForFacade(overlayFacadeChain, inst),
+			"params":   inheritedParamsSchema("stage's request", ""),
 		},
 		"required":             []string{"stages"},
 		"additionalProperties": true,
@@ -883,6 +884,7 @@ func addRequestSlotDetail(props map[string]any, c fieldClassification, inst *des
 	props["matrices"] = matricesSchema(c, inst)
 	props["models"] = modelsSchema("Saved model files loaded by name, before any record is read, into the namespace Compose `fits` bind: ATTR_REG_PREDICT `fit` and coef() resolve a loaded name like a fit. A name bound twice is PULSE_MODEL_NAME_COLLISION.")
 	props["populations"] = populationsSchema()
+	props["params"] = paramsSchema()
 
 	itemProps := func(slot string) map[string]any {
 		arr, _ := props[slot].(map[string]any)
@@ -1166,6 +1168,41 @@ func modelsSchema(desc string) map[string]any {
 // population files a vector fit's `save` wrote, loaded by name as
 // vector fits. Dropped with the slot when capability:models is hidden
 // (dropHiddenSlots).
+// inheritedParamsSchema is a root's top-level params (pulse_compose,
+// pulse_process_chain): paramsSchema's shape, merged into every
+// sub-request before any runs, a name the sub-request declares itself
+// winning. Dropped with the slot when capability:params is hidden
+// (dropHiddenSlots).
+func inheritedParamsSchema(sub, extra string) map[string]any {
+	out := paramsSchema()
+	out["description"] = "Named constants every " + sub + " inherits into its own params (a name it declares itself wins), read as params.<name>. Same value rules as a request's params: a number, a string, a bool or a list of ONE of those kinds; never null." + extra
+	return out
+}
+
+// paramsSchema is Request.params: named constants the request's
+// expressions read as params.<name> — the payload schema's shape
+// (identifier names; a number, string, bool or a one-kind list).
+func paramsSchema() map[string]any {
+	list := func(t string) map[string]any {
+		return map[string]any{"type": "array", "items": map[string]any{"type": t}}
+	}
+	return map[string]any{
+		"type":          "object",
+		"description":   "Named constants every expression of this request (formulas, filter expressions, total() arguments, a regression holdout, overlay formulas) reads, read-only, as params.<name> — typed values, never spliced into the expression text. A value is a number (integers kept exact), a string, a bool or a list of ONE of those kinds (for `x in params.list`); never null. Reading an undeclared name is PULSE_PARAMS_UNDECLARED.",
+		"propertyNames": map[string]any{"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+		"additionalProperties": map[string]any{
+			"anyOf": []any{
+				map[string]any{"type": "number"},
+				map[string]any{"type": "string"},
+				map[string]any{"type": "boolean"},
+				list("number"),
+				list("string"),
+				list("boolean"),
+			},
+		},
+	}
+}
+
 func populationsSchema() map[string]any {
 	return map[string]any{
 		"type":        "array",
@@ -1805,6 +1842,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 			"sweep":  sweepSchema(),
 			"fits":   fitsSchema(reqSchema, inst),
 			"banner": bannerSchema(reqSchema),
+			"params": inheritedParamsSchema("slot request (sweep and banner slots included) and fit request", " A Compose-level OVERLAY_FORMULA reads them too."),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,

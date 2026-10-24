@@ -1,0 +1,23 @@
+{
+  "description": "Spend from one wave on: the wave reaches the filter as a request parameter, never as text spliced into the expression",
+  "target": "request",
+  "variables": [
+    {
+      "name": "from_wave",
+      "type": "number",
+      "description": "The wave the filter keeps",
+      "required": true
+    }
+  ],
+  "body": {
+    "cohort": {"filename": "panel.pulse"},
+    "params": {"from_wave": {"$var": "from_wave"}},
+    "filterers": [
+      {"type": "FILTER_EXPRESSION", "expression": "wave == params.from_wave"}
+    ],
+    "aggregations": [
+      {"type": "AGG_COUNT", "field": "amount", "label": "n"},
+      {"type": "AGG_SUM", "field": "amount", "label": "total"}
+    ]
+  }
+}

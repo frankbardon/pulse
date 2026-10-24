@@ -53,6 +53,9 @@ func TestExprenvImportBoundary(t *testing.T) {
 		// The calendar helpers' only home for epoch-day and zone math
 		// (TestNoZoneMathOutsideTemporal); a leaf over stdlib + errors.
 		module + "/internal/temporal": true,
+		// The shared expression-slot list (the compile-site nouns);
+		// stdlib only.
+		module + "/internal/exprslots": true,
 	}
 	files, err := filepath.Glob("*.go")
 	if err != nil {
@@ -121,6 +124,14 @@ func TestOverlaySubset(t *testing.T) {
 		{"cosine", false, true},
 		{"argmax", false, true},
 		{"vnormalize", false, true},
+		// U58: the trig set and the constants are reserved but refused
+		// in OVERLAY_FORMULA (builtins.go, overlayAllowed).
+		{"sin", false, true},
+		{"cos", false, true},
+		{"tan", false, true},
+		{"atan2", false, true},
+		{"pi", false, true},
+		{"e", false, true},
 		{"abs", false, false},
 		{"pct_change", false, false},
 	}

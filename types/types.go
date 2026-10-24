@@ -1605,6 +1605,13 @@ type Request struct {
 	// a wire float precision. Nil returns the whole Response. See
 	// Return.
 	Return *Return `json:"return,omitempty"`
+
+	// Params names constants this request's expressions read,
+	// read-only, as params.<name>: every ATTR_FORMULA, FILTER_EXPRESSION,
+	// total() argument, regression holdout and OVERLAY_FORMULA of the
+	// request. Values are typed, never spliced into an expression's
+	// text. Nil declares none. Gated by capability:params. See Params.
+	Params Params `json:"params,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.
@@ -2139,6 +2146,16 @@ type ComposedRequest struct {
 	// `omitempty`, so a banner-free request is byte-identical on the
 	// wire and under Hash. See BannerSpec.
 	Banner *BannerSpec `json:"banner,omitempty"`
+
+	// Params names constants every sub-request of the batch inherits:
+	// each slot (sweep- and banner-expanded ones included) and each fit
+	// request reads them as params.<name> beside its own, a name the
+	// sub-request declares itself winning. The merge happens before any
+	// slot runs, so the normalized request echoes the merged params on
+	// every sub-request. The Compose-host OVERLAY_FORMULA specs read
+	// these top-level params. Nil declares none. Gated by
+	// capability:params. See Params.
+	Params Params `json:"params,omitempty"`
 }
 
 // ComposedResponse is the structured response shape for ComposedRequest

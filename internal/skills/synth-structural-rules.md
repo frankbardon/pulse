@@ -21,6 +21,7 @@ Every measurement behind a figure here, and the closed design questions: `docs/s
 | Refusal codes, non-nullable targets, a rule that never fires | `synth-rule-validation` |
 | Which rules retire a field's model / pairs / residual correlations | `synth-rule-claims` |
 | `--rules` / `--emit-spec`, and detecting rules with `--suggest-rules` | `synth-rules-from-profile` |
+| `row()` / `lag()`, panel reset, recursive adstock | `synth-cross-row` |
 | Detector-specific rules and the emitted candidate order | `synth-rule-detectors` |
 
 ## Structural rules
@@ -55,6 +56,8 @@ The pass consumes no RNG and allocates nothing per row, so a rules-free spec is 
 A `set` literal is coerced to the row's Go shape once at compile time via `constantRowValue`, which turns a `set_*` target's `["tv","radio"]` into the row's `map[string]bool`.
 
 **ACROSS rules an expression sees EARLIER writes, not LATER ones. WITHIN one rule order is UNOBSERVABLE:** every expression, `when` included, reads the row as it stood BEFORE the rule ran, and all its writes land after — so `{"set_expr": {"a": "b", "b": "a"}}` swaps, like SQL `UPDATE`. A sibling `set` literal is invisible to a sibling `set_expr`; self-reference (`{"nps": "nps + 1"}`) works and does NOT pre-claim the field. The alternative exposes an order nobody can SEE: a rule's slots are Go maps, JSON key order is gone after decode, and the surviving order is ALPHABETICAL, so renaming a column would silently change a number.
+
+**Declaration order is also ACCEPTED-row order — rows are never shuffled**, which is what lets `row()` / `lag()` (`synth-cross-row`) mean "the previous row".
 
 Rules reach GENERATED rows only — `synth from-profile --source` re-encodes the real partition straight through.
 

@@ -112,7 +112,8 @@ func TestComposeRefusal(t *testing.T) {
 
 // TestFormulaidentImportBoundary keeps the package a no-execute leaf:
 // stdlib, the expr-lang parser / ast, types, errors, exprenv and
-// the stdlib-only params read recorder internal/paramread.
+// the stdlib-only params read recorder internal/paramread and
+// expression-slot list internal/exprslots.
 func TestFormulaidentImportBoundary(t *testing.T) {
 	allowed := map[string]bool{
 		"sort": true, "github.com/expr-lang/expr/ast": true, "github.com/expr-lang/expr/parser": true,
@@ -121,6 +122,7 @@ func TestFormulaidentImportBoundary(t *testing.T) {
 		"github.com/frankbardon/pulse/internal/exprident": true,
 		"github.com/frankbardon/pulse/internal/totalcall": true,
 		"github.com/frankbardon/pulse/internal/paramread": true,
+		"github.com/frankbardon/pulse/internal/exprslots": true,
 		"strings": true, "encoding/json": true, "math": true,
 	}
 	files, err := filepath.Glob("*.go")

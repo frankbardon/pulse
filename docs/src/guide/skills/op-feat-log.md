@@ -30,7 +30,7 @@ None. `Field` (required, numeric) — `params` block is unused.
 
 ## Output
 
-One `f64` column written to `Label` (default `LOG_<field>`). Formula `log1p(x) = ln(1 + x)` — the +1 shift keeps `x=0 -> 0` instead of `-inf`.
+One `f64` column written to `Label` (default `LOG_<field>`). Formula `log1p(x) = ln(1 + x)` — the +1 shift keeps `x=0 -> 0` instead of `-inf`. Bit-identical to the formula attribute's `log1p(x)` on every machine (`log(x + 1)` is not: it rounds `1 + x` first).
 
 ## Reading the output
 

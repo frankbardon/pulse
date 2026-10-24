@@ -82,6 +82,7 @@ pulse: type ChainRequest = pulse/types.ChainRequest
 pulse: type ChainRequest underlying struct
 pulse: type ChainRequest field Cohort *pulse/types.Cohort "json:\"cohort\""
 pulse: type ChainRequest field Overlays []*pulse/types.ChainOverlaySpec "json:\"overlays,omitempty\""
+pulse: type ChainRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse: type ChainRequest field Stages []*pulse/types.ChainStage "json:\"stages\""
 pulse: type ChainRequest method (*ChainRequest) Hash() string
 pulse: type ChainResponse = pulse/types.ChainResponse
@@ -172,6 +173,7 @@ pulse: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,
 pulse: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
+pulse: type ComposedRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
 pulse: type ComposedRequest field Return *pulse/types.Return "json:\"return,omitempty\""
 pulse: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omitempty\""
@@ -1016,6 +1018,7 @@ pulse: type Request field Models []pulse/types.ModelRef "json:\"models,omitempty
 pulse: type Request field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse: type Request field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
 pulse: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
+pulse: type Request field Params pulse/types.Params "json:\"params,omitempty\""
 pulse: type Request field Populations []pulse/types.PopulationRef "json:\"populations,omitempty\""
 pulse: type Request field PostTests []*pulse/types.Test "json:\"post_tests,omitempty\""
 pulse: type Request field Regressions []*pulse/types.RegressionSpec "json:\"regressions,omitempty\""
@@ -2581,6 +2584,7 @@ pulse/errors: const PULSE_FORMULA_COMPILE_ERROR pulse/errors.Code = "PULSE_FORMU
 pulse/errors: const PULSE_FORMULA_TOTAL_ARITY pulse/errors.Code = "PULSE_FORMULA_TOTAL_ARITY"
 pulse/errors: const PULSE_FORMULA_TOTAL_NESTED pulse/errors.Code = "PULSE_FORMULA_TOTAL_NESTED"
 pulse/errors: const PULSE_FORMULA_TOTAL_SITE pulse/errors.Code = "PULSE_FORMULA_TOTAL_SITE"
+pulse/errors: const PULSE_FOR_EACH_EXPR_SPLICE pulse/errors.Code = "PULSE_FOR_EACH_EXPR_SPLICE"
 pulse/errors: const PULSE_FOR_EACH_INVALID pulse/errors.Code = "PULSE_FOR_EACH_INVALID"
 pulse/errors: const PULSE_GROUP_DECLARATION_INVALID pulse/errors.Code = "PULSE_GROUP_DECLARATION_INVALID"
 pulse/errors: const PULSE_GROUP_ENTRIES_EXHAUSTED pulse/errors.Code = "PULSE_GROUP_ENTRIES_EXHAUSTED"
@@ -2714,6 +2718,9 @@ pulse/errors: const PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT pulse/errors.Code = "PULS
 pulse/errors: const PULSE_OVERLAY_TARGET_UNKNOWN pulse/errors.Code = "PULSE_OVERLAY_TARGET_UNKNOWN"
 pulse/errors: const PULSE_OVERLAY_YOY_FREQUENCY_MISSING pulse/errors.Code = "PULSE_OVERLAY_YOY_FREQUENCY_MISSING"
 pulse/errors: const PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY pulse/errors.Code = "PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY"
+pulse/errors: const PULSE_PARAMS_FIELD_COLLISION pulse/errors.Code = "PULSE_PARAMS_FIELD_COLLISION"
+pulse/errors: const PULSE_PARAMS_INVALID pulse/errors.Code = "PULSE_PARAMS_INVALID"
+pulse/errors: const PULSE_PARAMS_UNDECLARED pulse/errors.Code = "PULSE_PARAMS_UNDECLARED"
 pulse/errors: const PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE pulse/errors.Code = "PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE"
 pulse/errors: const PULSE_PROFILE_FIELD_UNSUPPORTED pulse/errors.Code = "PULSE_PROFILE_FIELD_UNSUPPORTED"
 pulse/errors: const PULSE_RAKE_EMPTY_CELL pulse/errors.Code = "PULSE_RAKE_EMPTY_CELL"
@@ -2792,11 +2799,15 @@ pulse/errors: const PULSE_SPSS_WIDTH_OVERFLOW pulse/errors.Code = "PULSE_SPSS_WI
 pulse/errors: const PULSE_SPSS_ZSAV_BLOCK_CORRUPT pulse/errors.Code = "PULSE_SPSS_ZSAV_BLOCK_CORRUPT"
 pulse/errors: const PULSE_SPSS_ZSAV_INVALID pulse/errors.Code = "PULSE_SPSS_ZSAV_INVALID"
 pulse/errors: const PULSE_SUPPRESS_ADVISORY_UNKNOWN pulse/errors.Code = "PULSE_SUPPRESS_ADVISORY_UNKNOWN"
+pulse/errors: const PULSE_SWEEP_EXPR_SPLICE pulse/errors.Code = "PULSE_SWEEP_EXPR_SPLICE"
 pulse/errors: const PULSE_SWEEP_INVALID pulse/errors.Code = "PULSE_SWEEP_INVALID"
 pulse/errors: const PULSE_SWEEP_RANK_PATH pulse/errors.Code = "PULSE_SWEEP_RANK_PATH"
 pulse/errors: const PULSE_SYNTH_ALREADY_TAGGED pulse/errors.Code = "PULSE_SYNTH_ALREADY_TAGGED"
 pulse/errors: const PULSE_SYNTH_CONSTRAINT_INFEASIBLE pulse/errors.Code = "PULSE_SYNTH_CONSTRAINT_INFEASIBLE"
 pulse/errors: const PULSE_SYNTH_DISTRIBUTION_UNKNOWN pulse/errors.Code = "PULSE_SYNTH_DISTRIBUTION_UNKNOWN"
+pulse/errors: const PULSE_SYNTH_EXPR_NONDETERMINISTIC pulse/errors.Code = "PULSE_SYNTH_EXPR_NONDETERMINISTIC"
+pulse/errors: const PULSE_SYNTH_LAG_FIELD_INVALID pulse/errors.Code = "PULSE_SYNTH_LAG_FIELD_INVALID"
+pulse/errors: const PULSE_SYNTH_LAG_OFFSET_INVALID pulse/errors.Code = "PULSE_SYNTH_LAG_OFFSET_INVALID"
 pulse/errors: const PULSE_SYNTH_OUTPUT_COLLISION pulse/errors.Code = "PULSE_SYNTH_OUTPUT_COLLISION"
 pulse/errors: const PULSE_SYNTH_OUTPUT_REQUIRED pulse/errors.Code = "PULSE_SYNTH_OUTPUT_REQUIRED"
 pulse/errors: const PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH pulse/errors.Code = "PULSE_SYNTH_PROFILE_SCHEMA_MISMATCH"
@@ -2810,6 +2821,7 @@ pulse/errors: const PULSE_SYNTH_RULE_OWNERSHIP_INVALID pulse/errors.Code = "PULS
 pulse/errors: const PULSE_SYNTH_RULE_VALUE_INVALID pulse/errors.Code = "PULSE_SYNTH_RULE_VALUE_INVALID"
 pulse/errors: const PULSE_SYNTH_SOURCE_REQUIRED pulse/errors.Code = "PULSE_SYNTH_SOURCE_REQUIRED"
 pulse/errors: const PULSE_TEMPLATE_AXIS_COLLISION pulse/errors.Code = "PULSE_TEMPLATE_AXIS_COLLISION"
+pulse/errors: const PULSE_TEMPLATE_EXPR_SPLICE pulse/errors.Code = "PULSE_TEMPLATE_EXPR_SPLICE"
 pulse/errors: const PULSE_TEMPLATE_INVALID pulse/errors.Code = "PULSE_TEMPLATE_INVALID"
 pulse/errors: const PULSE_TEMPLATE_NOT_FOUND pulse/errors.Code = "PULSE_TEMPLATE_NOT_FOUND"
 pulse/errors: const PULSE_TEMPLATE_RENDER_INVALID pulse/errors.Code = "PULSE_TEMPLATE_RENDER_INVALID"
@@ -4680,6 +4692,7 @@ pulse/types: type ChainOverlaySpec field Target pulse/types.StageRef "json:\"tar
 pulse/types: type ChainRequest struct
 pulse/types: type ChainRequest field Cohort *pulse/types.Cohort "json:\"cohort\""
 pulse/types: type ChainRequest field Overlays []*pulse/types.ChainOverlaySpec "json:\"overlays,omitempty\""
+pulse/types: type ChainRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse/types: type ChainRequest field Stages []*pulse/types.ChainStage "json:\"stages\""
 pulse/types: type ChainRequest method (*ChainRequest) Hash() string
 pulse/types: type ChainResponse struct
@@ -4718,6 +4731,7 @@ pulse/types: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"b
 pulse/types: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse/types: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
+pulse/types: type ComposedRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse/types: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
 pulse/types: type ComposedRequest field Return *pulse/types.Return "json:\"return,omitempty\""
 pulse/types: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omitempty\""
@@ -5440,6 +5454,8 @@ pulse/types: type PanelSlabPartitionViolation field SlotIndex int
 pulse/types: type PanelSlabPartitionViolation field SlotLabel string
 pulse/types: type PanelSlabPartitionViolation method (PanelSlabPartitionViolation) Details(kind pulse/types.OverlayKind, params pulse/types.PanelOverlayParams, index int) map[string]any
 pulse/types: type PanelSlabPartitionViolation method (PanelSlabPartitionViolation) Message(kind pulse/types.OverlayKind, params pulse/types.PanelOverlayParams) string
+pulse/types: type Params map[string]any
+pulse/types: type Params method (*Params) UnmarshalJSON(data []byte) error
 pulse/types: func ParseLabelMode(s string) (m pulse/types.LabelMode, ok bool)
 pulse/types: func ParseLookupMultiplicity(s string) (m pulse/types.LookupMultiplicity, ok bool)
 pulse/types: type PopulationRef struct
@@ -5597,6 +5613,7 @@ pulse/types: type Request field Models []pulse/types.ModelRef "json:\"models,omi
 pulse/types: type Request field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type Request field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
 pulse/types: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
+pulse/types: type Request field Params pulse/types.Params "json:\"params,omitempty\""
 pulse/types: type Request field Populations []pulse/types.PopulationRef "json:\"populations,omitempty\""
 pulse/types: type Request field PostTests []*pulse/types.Test "json:\"post_tests,omitempty\""
 pulse/types: type Request field Regressions []*pulse/types.RegressionSpec "json:\"regressions,omitempty\""
@@ -5841,4 +5858,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 922b6fc412b0218015e93ee325517027386a9464ef0475d952b48e1cf0fac0cf
+// golden-hash: 20ec8cf12c5addf3e48fc853feeaf4902a04a4f391cfebd3df784a9b683fe922

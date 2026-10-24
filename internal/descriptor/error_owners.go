@@ -264,6 +264,9 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SYNTH_RULE_BLOCK_INVALID:      own(featSynth),
 	errors.PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE: own(featSynth),
 	errors.PULSE_SYNTH_RULE_OWNERSHIP_INVALID:  own(featSynth),
+	errors.PULSE_SYNTH_EXPR_NONDETERMINISTIC:   own(featSynth),
+	errors.PULSE_SYNTH_LAG_FIELD_INVALID:       own(featSynth),
+	errors.PULSE_SYNTH_LAG_OFFSET_INVALID:      own(featSynth),
 	errors.PULSE_PROFILE_FIELD_UNSUPPORTED:     own(featSynth),
 
 	// Statistical tests. The unknown-name code is shared (see above);
@@ -345,6 +348,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_COMPOSE_LABEL_COLLISION: own(featCompose),
 	errors.PULSE_SWEEP_INVALID:           own(featComposeSweep),
 	errors.PULSE_SWEEP_RANK_PATH:         own(featComposeSweep),
+	errors.PULSE_SWEEP_EXPR_SPLICE:       own(featComposeSweep),
 	errors.PULSE_BANNER_INVALID:          own(featComposeBanner),
 	// The one model namespace: Compose fits and loaded models bind it.
 	errors.PULSE_FIT_INVALID:          own(featComposeFits),
@@ -363,10 +367,16 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MODEL_PREDICTOR_MISSING:     own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
 	// ATTR_FORMULA's total(expr) cohort-total term (internal/totalcall):
 	// the site refusal fires from the other two expression operators.
-	errors.PULSE_FORMULA_TOTAL_SITE:          own("FILTER_EXPRESSION", "OVERLAY_FORMULA"),
-	errors.PULSE_FORMULA_TOTAL_NESTED:        own("ATTR_FORMULA"),
-	errors.PULSE_FORMULA_TOTAL_ARITY:         own("ATTR_FORMULA"),
-	errors.PULSE_FORMULA_COMPILE_ERROR:       own("ATTR_FORMULA", "FILTER_EXPRESSION", featRegHoldout),
+	errors.PULSE_FORMULA_TOTAL_SITE:    own("FILTER_EXPRESSION", "OVERLAY_FORMULA"),
+	errors.PULSE_FORMULA_TOTAL_NESTED:  own("ATTR_FORMULA"),
+	errors.PULSE_FORMULA_TOTAL_ARITY:   own("ATTR_FORMULA"),
+	errors.PULSE_FORMULA_COMPILE_ERROR: own("ATTR_FORMULA", "FILTER_EXPRESSION", featRegHoldout),
+	// The params block is capability:params; an expression reading
+	// params.<name> can be refused (undeclared, collision) wherever an
+	// expression compiles, the slot hidden or not.
+	errors.PULSE_PARAMS_INVALID:              own(featParams),
+	errors.PULSE_PARAMS_UNDECLARED:           own("ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", featRegHoldout, featParams),
+	errors.PULSE_PARAMS_FIELD_COLLISION:      own("ATTR_FORMULA", "FILTER_EXPRESSION", featRegHoldout, featParams),
 	errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC: own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
 	// The model file: a `save` writes it (capability:model_save), a
 	// `models` entry loads it (capability:models) — the parse codes are
@@ -381,6 +391,9 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MODEL_FILE_UNREADABLE:         own(featModels),
 	// nested_in_sweep is raised by a sweep body, so either surface lists it.
 	errors.PULSE_FOR_EACH_INVALID: own(featForEach, featComposeSweep),
+	// Raised only by an item expansion: a for_each inside a sweep body
+	// is refused nested_in_sweep first.
+	errors.PULSE_FOR_EACH_EXPR_SPLICE: own(featForEach),
 
 	errors.PULSE_JOIN_TYPE_MISMATCH:        own(featJoins),
 	errors.PULSE_JOIN_KIND_NOT_IMPLEMENTED: own(featJoins),
@@ -502,6 +515,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_TEMPLATE_UNRESOLVED:     own(featTemplates),
 	errors.PULSE_TEMPLATE_RENDER_INVALID: own(featTemplates),
 	errors.PULSE_TEMPLATE_AXIS_COLLISION: own(featTemplates),
+	errors.PULSE_TEMPLATE_EXPR_SPLICE:    own(featTemplates),
 
 	// SPSS: every code is raised by the .sav / .zsav reader or writer or
 	// the SPSS metadata sidecar, all gated by io_format:spss.

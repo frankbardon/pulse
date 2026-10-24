@@ -16,6 +16,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/temporal"
+	"github.com/frankbardon/pulse/internal/vecmath"
 )
 
 // Calendar helpers and log1p (U45, TODO #316).
@@ -175,7 +176,8 @@ func ToDayFunc(z *temporal.Zone) func(args ...any) (any, error) {
 }
 
 // log1pBuiltin is log1p(x) = ln(1 + x), accurate for x near 0; nil for
-// a nil x.
+// a nil x. The kernel is vecmath.Log1p (internal/detmath's portable
+// port), the one FEAT_LOG computes with, so the two agree bit for bit.
 func log1pBuiltin(args ...any) (any, error) {
 	if len(args) != 1 {
 		return nil, builtinArityError(FuncLog1p, 1, len(args))
@@ -187,7 +189,7 @@ func log1pBuiltin(args ...any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return math.Log1p(x), nil
+	return vecmath.Log1p(x), nil
 }
 
 // calendarDayArg is the argument position of the epoch day each day

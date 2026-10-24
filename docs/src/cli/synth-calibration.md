@@ -164,7 +164,7 @@ On a 20,000-row generation from that profile **18,198 rows carry
 On the motivating cohort **15 of 19** shape-fitted fields carry a model with
 predictors once the exclusivity was removed, including all four motivating ones
 (`nps`, `detractor`, `promoter`, `catSpend`). The mixture quantile inverse costs
-~128 `math.Erf` calls per row, paid only by fields that are both shape-fitted
+~128 erf evaluations per row, paid only by fields that are both shape-fitted
 and modelled.
 
 ### Residual correlations
