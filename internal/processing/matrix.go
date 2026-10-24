@@ -84,6 +84,10 @@ type matrixSlot struct {
 	// capture receives the slot's closed listwise state when it is a
 	// Compose vector fit request's battery (nil otherwise).
 	capture *model.VectorCapture
+	// semGroups is a grouped MAT_SEM slot's per-level state
+	// (params.group; matrix_sem_group.go); nil otherwise. Its base
+	// state (state) then folds every grouped row once.
+	semGroups *semGroupState
 }
 
 var _ BlockMerger = (*matrixSlot)(nil)
@@ -226,6 +230,8 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 			}
 		case !plan.Streamable:
 			slots[i].rows = newMatrixRows(len(cols), plan.Pairwise)
+		case plan.Type == types.MAT_SEM && plan.SEM.Grouped():
+			slots[i].semGroups = newSEMGroupState(plan, s.schema)
 		}
 		workMatrixAccumulators.Add(1)
 	}
@@ -247,6 +253,9 @@ func (m *matrixSlot) UpdateRow(r *Record, _ string) error {
 	}
 	if m.dist != nil {
 		return m.dist.update(m, r)
+	}
+	if m.semGroups != nil {
+		return m.semGroups.update(m, r)
 	}
 	w, err := m.readRow(r)
 	if err != nil {

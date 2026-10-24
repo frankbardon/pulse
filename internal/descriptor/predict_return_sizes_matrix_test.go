@@ -129,6 +129,32 @@ func TestMatrixAuxiliaryNodes_PerOperator(t *testing.T) {
 	}
 }
 
+// TestMatrixAuxiliaryNodes_SEMGrouped: a grouped MAT_SEM (params.group
+// on a four-level categorical) sizes the estimates over every level the
+// dictionary knows (11 meanstructure rows per level, lavaan's 7
+// columns) and per level its two p x p covariances and two p x 1 means,
+// in the runtime's key order (vectors.SEMGroupAuxiliaryKeys).
+func TestMatrixAuxiliaryNodes_SEMGrouped(t *testing.T) {
+	spec := auxSpec(types.MAT_SEM, []string{"x1", "x2", "x3"}, `{"group": "region"}`)
+	result := &descriptor.PredictResult{}
+	plans := predictMatrices(result, &types.Request{Matrices: []types.MatrixSpec{spec}}, auxSizesSchema(t), nil, nil, -1, 0, -1)
+	if len(plans) != 1 || len(result.Matrices) != 1 {
+		t.Fatalf("resolve: %d plans, %d results", len(plans), len(result.Matrices))
+	}
+	want := []auxShape{{"estimates", 44, 7}}
+	for _, l := range []string{"N", "S", "E", "W"} {
+		want = append(want, auxShape{"implied_covariance." + l, 3, 3}, auxShape{"residual_covariance." + l, 3, 3},
+			auxShape{"implied_means." + l, 3, 1}, auxShape{"observed_means." + l, 3, 1})
+	}
+	var got []auxShape
+	for _, n := range matrixAuxiliaryNodes(plans[0], result.Matrices[0], false) {
+		got = append(got, auxShape{n.seg.Name, n.kids[2].kids[0].count, n.kids[3].kids[0].count})
+	}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("auxiliary = %v, want %v", got, want)
+	}
+}
+
 // TestPredict_ReturnSizes_MatrixAuxiliary: params.inference grows the
 // matrices section by exactly its three p x p auxiliaries (plus the
 // auxiliary key); a `return` that drops matrices[*].auxiliary (exclude,

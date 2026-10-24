@@ -9854,7 +9854,7 @@
             "type": "enum",
             "required": false,
             "default": "slsqp",
-            "description": "slsqp: SciPy's SLSQP as semopy calls it (a port: the same iterates, the same stop at ftol), so the results are semopy's to rounding — including its early stop short of the optimum at the default ftol. fisher: damped Fisher scoring (Levenberg-Marquardt on the expected information) to the optimum, stopping when every free gradient entry is below grad_tol; a semopy fit at a small ftol lands on the same figures. A lavaan-convention fit (a mean structure) defaults to fisher.",
+            "description": "slsqp: SciPy's SLSQP as semopy calls it (a port: the same iterates, the same stop at ftol), so the results are semopy's to rounding — including its early stop short of the optimum at the default ftol. fisher: damped Fisher scoring (Levenberg-Marquardt on the expected information) to the optimum, stopping when every free gradient entry is below grad_tol; a semopy fit at a small ftol lands on the same figures. A lavaan-convention fit (a mean structure, a group) defaults to fisher.",
             "enum_values": [
               "slsqp",
               "fisher"
@@ -9910,6 +9910,18 @@
             "description": "Model the means too (lavaan's meanstructure = TRUE): every observed intercept free (an observed exogenous variable's mean fixed to its sample mean, fixed.x), every latent mean fixed to 0 unless a model line f ~ 1 frees it; x ~ 1, x ~ 0*1 and x ~ a*1 lines free, fix or label an intercept and set it on whatever this says. Switches the fit to lavaan conventions: solver defaults to fisher (to the optimum), variances are unbounded, the scalars are lavaan's (chi2 = N * objective, dof over the means too, the closed-form independence baseline, rmsea with divisor N, gfi / agfi lavaan's gfi_lisrel / agfi_lisrel, loglik the log-likelihood, aic / bic from it), estimates gains ~1 rows and the 95% Wald ci_lower / ci_upper columns, and auxiliary.implied_means / observed_means (one mean column per member) are emitted. Absent or false with no ~ 1 line: semopy's covariance-only fit, unchanged."
           },
           {
+            "name": "group",
+            "type": "string",
+            "required": false,
+            "description": "A field whose levels split the rows into the groups of ONE joint multi-group fit (lavaan's group =; configural: every parameter free per group, a labelled one shared across groups): categorical (levels in dictionary order), packed_bool (0, 1) or u4 / u8 (ascending values); a level without rows after the filters is no group, a null group drops the row (listwise). Implies the mean structure and lavaan conventions. The estimates rows are keyed \"[level] lval op rval\" in level order, vectors.group / vectors.label give each row's level and model label, the primary is the reference level's implied covariance, auxiliary carries implied_covariance.\u003clevel\u003e, residual_covariance.\u003clevel\u003e, implied_means.\u003clevel\u003e and observed_means.\u003clevel\u003e, and the scalars are joint plus chi2_group_\u003clevel\u003e and n_group_\u003clevel\u003e (n_g = the sum of weights under a frequency weight). Refused with request groups (group_with_groups), on any other field type (group_field_type), on a one-entry dictionary (group_one_level) or a member field; fewer than two levels with rows, a level with no more rows than observed variables, or a reference level without rows fail the slot alone with PULSE_MATRIX_INSUFFICIENT_N, a level's non-positive-definite covariance with PULSE_MATRIX_SINGULAR."
+          },
+          {
+            "name": "group_reference",
+            "type": "string",
+            "required": false,
+            "description": "The level (its label) whose implied covariance is the primary; default the first level. params.group only."
+          },
+          {
             "name": "missing",
             "type": "enum",
             "required": false,
@@ -9942,6 +9954,8 @@
           ],
           "vectors": [
             "free",
+            "group",
+            "label",
             "parameter"
           ],
           "scalars": [
@@ -19587,4 +19601,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 8b42ea87b5b43b5bc55e0fcfe913b6aeaba4268db500272b95cdb0c6ab58731f
+// golden-hash: 83e7e53f7afa4464820e91a582d2597303593b89a04f074dc2e6d7c2ce68f5b0

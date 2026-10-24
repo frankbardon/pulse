@@ -9,7 +9,11 @@
 # TestSEM_BrandSurveyRegenerates -regen-brand). CI never runs R.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
-fit() { Rscript "$here/fit_lavaan.R" "$here/$1_data.csv" "$here/$2_model.txt" "$3" > "$here/$4_lavaan.json"; }
-# name data model meanstructure
+fit() { Rscript "$here/fit_lavaan.R" "$here/$1_data.csv" "$here/$2_model.txt" "$3" "${5:-}" > "$here/$4_lavaan.json"; }
+# name data model meanstructure [group]
 fit brand brand_ms TRUE brand_ms
 fit brand brand_mx FALSE brand_mx
+fit brand brand_ms TRUE brand_mg_configural wave
+# unequal groups (600 / 400: brand_data.csv's first 1000 rows), a misfit
+# and a label shared across groups
+fit brand_uneq brand_mgmis TRUE brand_mg_misfit wave

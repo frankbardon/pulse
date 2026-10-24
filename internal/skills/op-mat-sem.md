@@ -19,6 +19,8 @@ Members = the model's observed variables, by label.
 |---|---|---|---|
 | `model` | string | — | `f =~ a + b`, `y ~ f`, `a ~~ b`, `x ~ 1`; `l*x`, `0.5*x`. |
 | `meanstructure` | bool | false | Means (lavaan rules). |
+| `group` | string | — | Multi-group fit. |
+| `group_reference` | string | — | Primary level. |
 | `solver` | `slsqp` \| `fisher` | `slsqp` | semopy's SLSQP (early stop); `fisher` converges. |
 | `information` | `dense` \| `rank2` | `dense` | `rank2`: faster. |
 | `ftol` | float | 1e-06 | SLSQP objective-change stop. |
@@ -49,10 +51,8 @@ Integer / float members.
 
 - Unused / non-member variable: `bad_params`.
 - Default: semopy's early stop.
-- Means (`meanstructure`, `~ 1`): lavaan, `sem-modeling`.
+- Means (`meanstructure`, `~ 1`), `group`: lavaan, `sem-modeling`.
 - S not factoring: `PULSE_MATRIX_NEAREST_PD`; constant member / `refuse`: fatal `PULSE_MATRIX_SINGULAR`.
-- Standardized: vector `standardize: "zscore"`.
-- Derived variable: an attribute / feature label as a member.
 
 ## See
 

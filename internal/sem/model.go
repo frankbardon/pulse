@@ -38,6 +38,9 @@ type parameter struct {
 	hasStart bool
 	lower    float64 // 0 for variances, -Inf otherwise
 	locs     []location
+	// user is set on a parameter the description labels ("a*x"): one
+	// value wherever the label appears — across groups too (FitGroups).
+	user bool
 }
 
 type stringSet map[string]struct{}
@@ -358,7 +361,8 @@ func (m *Model) addParam(name string, active bool, mu Mult, lower float64, loc l
 		p.locs = append(p.locs, loc)
 		return
 	}
-	p := &parameter{name: name, active: active, lower: lower, locs: []location{loc}}
+	p := &parameter{name: name, active: active, lower: lower, locs: []location{loc},
+		user: mu.Set && !mu.Fixed && !mu.isStart() && mu.Label != ""}
 	if mu.Fixed {
 		p.start, p.hasStart = mu.Value, true
 	}

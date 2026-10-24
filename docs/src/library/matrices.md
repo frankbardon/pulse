@@ -531,6 +531,39 @@ on the two paths, so compare fits on one convention. The estimates gain
 member) are emitted. Parity: lavaan 0.7.3's ML fit within 1e-4 on
 estimates and SEs, 1e-3 on fit indices.
 
+**Multi-group fits.** `params.group` names a categorical, `packed_bool`
+or `u4` / `u8` field whose levels are the groups of ONE joint fit —
+lavaan's `group =`, configural: every parameter free per group, except
+that a labelled parameter (`a*x`) is one value in every group, as lavaan
+reads a label. A group fit always models the means and follows lavaan's
+conventions. The levels are the field's values that hold rows after the
+filters, in dictionary order (else ascending); a row whose group is null
+is dropped (listwise). Each group's mean and covariance merge on their
+own, so the fit stays streamable and mergeable, and a frequency weight
+applies within each group (n_g = Σw).
+
+```json
+{"type": "MAT_SEM", "name": "waves", "vector": "battery",
+ "params": {"model": "service =~ q1 + q2 + q3\nvalue =~ q4 + q5 + q6",
+            "group": "wave", "group_reference": "2"}}
+```
+
+The estimate rows are keyed `"[level] lval op rval"` in level order,
+with `vectors.group` (each row's level) and `vectors.label` (its model
+label, empty when unlabelled) beside `parameter` / `free`. `primary` is
+the `group_reference` level's implied covariance (default the first
+level); per level the auxiliaries are `implied_covariance.<level>`,
+`residual_covariance.<level>`, `implied_means.<level>` and
+`observed_means.<level>`. The scalars are joint — `chi2` sums the
+groups' n_g·F_g, `dof` and the baseline sum over the groups, `rmsea`
+carries lavaan's multiple-group factor √G — plus `chi2_group_<level>` and
+`n_group_<level>`. A request that also sets `groups`, another field
+type, a one-entry dictionary, or a group field that is a member is
+refused (`SERVICE_VALIDATION`); fewer than two levels with rows, a level
+with no more rows than observed variables, or a `group_reference` level
+without rows fails the slot alone with `PULSE_MATRIX_INSUFFICIENT_N`.
+Parity: lavaan 0.7.3's `group = "wave"` fit within the same tolerances.
+
 ## Groups, cost and refusals
 
 With `groups`, a matrix is computed per bucket, in `Response.Data` order

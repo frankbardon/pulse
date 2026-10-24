@@ -4,7 +4,7 @@ description: Structural equation modelling with MAT_SEM — which convention a f
 kind: design
 type: guide
 applies_to: process, compose, predict
-covers: [SEM, structural equation model, CFA, mean structure, intercepts, latent means, lavaan, semopy, fit indices]
+covers: [SEM, structural equation model, CFA, mean structure, intercepts, latent means, multi-group, lavaan, semopy, fit indices]
 requires: [MAT_SEM]
 ---
 
@@ -41,6 +41,24 @@ The same covariance model can report a different `chi2` on the two paths. Compar
 - `auxiliary.estimates` gains `x ~1` rows: intercepts for observed variables, means for latents. `std_estimate` is the estimate over the variable's model-implied SD.
 - `auxiliary.implied_means` (μ(θ̂)) and `observed_means` (the listwise sample means) carry one `mean` column per member. Their gap is the mean misfit.
 - `ci_lower` / `ci_upper` are 95% Wald intervals (estimate ± 1.96 SE). They are `null` on a fixed row.
+
+## Multi-group fits
+
+`params.group` names a categorical, `packed_bool` or `u4` / `u8` field. Its levels are the groups of ONE joint fit (lavaan's `group =`):
+
+- Configural: every parameter is free per group. A labelled parameter (`a*x`) is one value in every group, as lavaan reads a label.
+- A group fit always models the means and follows lavaan.
+- The levels are the field's values that hold rows, in dictionary order (else ascending). A null group drops the row.
+- `estimates` rows are `[level] lval op rval`. `vectors.group` and `vectors.label` give each row's level and model label.
+- `primary` is the `group_reference` level's Σ̂ (default: the first level). Per level, the auxiliaries are `implied_covariance.<level>`, `residual_covariance.<level>`, `implied_means.<level>` and `observed_means.<level>`.
+- The scalars are joint (`chi2` sums the groups, `rmsea` carries lavaan's √G), plus `chi2_group_<level>` and `n_group_<level>` (Σw under a frequency weight).
+- Refused: request `groups` with `group`, a vector that standardizes, another field type, a one-entry dictionary.
+- The slot fails alone (`PULSE_MATRIX_INSUFFICIENT_N`) on fewer than two levels with rows, on a level with no more rows than observed variables, or on a reference level without rows.
+
+## Members
+
+- Standardized: vector `standardize: "zscore"` (not with `group`).
+- Derived variable: an attribute / feature label as a member.
 
 ## See
 

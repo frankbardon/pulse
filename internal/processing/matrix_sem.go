@@ -53,8 +53,12 @@ import (
 // the estimates gain `~1` rows and the Wald ci_lower / ci_upper
 // columns, and auxiliary implied_means / observed_means (member order,
 // one "mean" column) are emitted. A covariance-only model is the
-// semopy fit above, bit for bit.
+// semopy fit above, bit for bit. params.group fits one joint
+// multi-group model instead (finalizeSEMGroups, matrix_sem_group.go).
 func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
+	if in.Plan().SEM.Grouped() {
+		return finalizeSEMGroups(in)
+	}
 	m := in.slot
 	plan := in.Plan()
 	spec := plan.SEM

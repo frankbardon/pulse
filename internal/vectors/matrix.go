@@ -273,6 +273,16 @@ func (m Matrix) AuxiliaryKeys() (keys []string, known bool) {
 	case types.MAT_COLLINEARITY:
 		keys = append(keys, "variance_decomposition")
 	case types.MAT_SEM:
+		if m.SEM.Grouped() {
+			// Per level: the levels the schema knows (an upper bound —
+			// a level without rows is no group), unknown on an integer
+			// field.
+			keys = append(keys, "estimates")
+			for _, l := range m.SEM.GroupLevels {
+				keys = append(keys, SEMGroupAuxiliaryKeys(l)...)
+			}
+			return keys, m.SEM.GroupLevels != nil
+		}
 		keys = append(keys, "estimates", "residual_covariance")
 		if m.SEM.HasMeans() {
 			keys = append(keys, "implied_means", "observed_means")
@@ -958,6 +968,9 @@ func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, o MatrixRe
 			return nil, err
 		}
 		if err := resolveSEM(at, &m); err != nil {
+			return nil, err
+		}
+		if err := resolveSEMGroup(at, req, schema, &m); err != nil {
 			return nil, err
 		}
 		if err := resolveDistance(at, req.Vectors, resolved, schema, route, ext, &m); err != nil {
@@ -1962,6 +1975,9 @@ func MatrixMembers(req *types.Request, schema *encoding.Schema) (members []strin
 		if spec.Type == types.MAT_DISTANCE {
 			members, ok = appendBetweenFields(members, ok, matrixPath(i), spec, schema)
 		}
+		if spec.Type == types.MAT_SEM {
+			members, ok = appendSEMGroupField(members, ok, spec, schema)
+		}
 		if spec.Vector != "" || len(spec.Fields) == 0 {
 			continue // vector members ride Members(req.Vectors)
 		}
@@ -2027,6 +2043,22 @@ func appendBetweenFields(members []string, ok bool, at string, spec types.Matrix
 		return members, false
 	}
 	return append(members, g.Field), ok
+}
+
+// appendSEMGroupField appends a MAT_SEM spec's params.group field (the
+// column that splits a multi-group fit's rows); a group the schema
+// lacks clears ok.
+func appendSEMGroupField(members []string, ok bool, spec types.MatrixSpec, schema *encoding.Schema) ([]string, bool) {
+	var p struct {
+		Group *string `json:"group"`
+	}
+	if len(spec.Params) == 0 || paramread.Probe(spec.Params, &p) != nil || p.Group == nil {
+		return members, ok
+	}
+	if schema == nil || schema.Field(*p.Group) == nil {
+		return members, false
+	}
+	return append(members, *p.Group), ok
 }
 
 // SpecBetween decodes a MAT_DISTANCE spec's params.between as written

@@ -713,7 +713,8 @@ Under `encoding: "records"` every matrix (primary and each auxiliary,
 rectangular ones too) is instead `{kind, encoding, columns, rows,
 labels?}`: `columns` the column keys, `rows` one object per row in row
 order, `{"key": <row key>, <column>: number | null, ...}`, plus on
-`MAT_SEM`'s estimates `lval`, `op`, `rval`, `parameter` and `free`; the
+`MAT_SEM`'s estimates `lval`, `op`, `rval`, `parameter` and `free` (and
+`group`, `label` under `params.group`); the
 schema's `MatrixValues` is the `oneOf` of the two forms.
 `MAT_CORRELATION` (every `method`) and `MAT_PARTIAL_CORRELATION` take
 `params.inference` (bool) and `params.alpha` (0 < alpha < 1, default
@@ -767,7 +768,10 @@ member), `solver` `slsqp` (default) or `fisher`, `information` `dense`
 (default 10000 slsqp, 500 fisher), `grad_tol` (fisher only, default
 1e-10), `singular` `nearest` (default, semopy's) or `refuse`,
 `meanstructure` (boolean, default `false`; true — or a `~ 1` line in the
-model — models the means under lavaan conventions), listwise only — a probability weight is
+model — models the means under lavaan conventions), `group` (a categorical,
+`packed_bool` or `u4` / `u8` field: one joint multi-group fit over its
+levels, lavaan conventions) and `group_reference` (a level label; default
+the first level), listwise only — a probability weight is
 `PULSE_WEIGHT_UNSUPPORTED`). Under `pairwise`, `auxiliary.n` is a `MatrixValues` of
 the same shape and encoding holding each pair's row count. `vectors` is an
 open object: with `summary.top_pairs`, `vectors.top_pairs` is
@@ -806,7 +810,13 @@ it adds `auxiliary.estimates` and `residual_covariance` (S − Σ(θ̂)),
 `chi2_baseline`, `cfi`, `gfi`, `agfi`, `nfi`, `tli`, `rmsea`, `aic`,
 `bic`, `loglik`, `objective`, `n`, `n_params`, `iterations`, `converged`
 (`dof`, `dof_baseline`, `n_params`, `iterations` and `converged` are
-never rounded by `return.precision`).
+never rounded by `return.precision`); under `params.group` the estimate rows are
+keyed `"[level] lval op rval"`, `vectors` adds `group` and `label` (one
+per row), the primary is the `group_reference` level's implied
+covariance, `auxiliary` carries `estimates` plus per level
+`implied_covariance.<level>`, `residual_covariance.<level>`,
+`implied_means.<level>` and `observed_means.<level>`, and `scalars` add
+`chi2_group_<level>` and `n_group_<level>`).
 `warnings` are `{code, message, details}` entries
 (`PULSE_MATRIX_INSUFFICIENT_N`, `_ZERO_VARIANCE`,
 `_LISTWISE_HEAVY_DROP`, `_NOT_PSD` — fatal, not a warning, on

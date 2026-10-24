@@ -113,9 +113,28 @@ func chiCDF(x, dof float64) float64 {
 //   - LogLik the h0 log-likelihood (less the exogenous block's
 //     saturated marginal, as lavaan's fixed.x logl), AIC = −2LL + 2k, BIC = −2LL + k·ln N.
 func lavaanStats(fit *Fit) error {
-	m := fit.Model
+	part, err := lavaanGroupPart(fit.Model, fit.Sample, fit.Implied, fit.SampleMean, fit.ImpliedMean, fit.N)
+	if err != nil {
+		return err
+	}
+	fit.Stats = lavaanCombine([]lavaanPart{part}, []float64{fit.N * fit.Objective}, len(fit.theta))
+	return nil
+}
+
+// lavaanPart is one group's share of lavaan's statistics: its counted
+// moments (ndat, and nel, every moment the GFI weighs), the baseline's
+// free parameters and discrepancy F_b, the h0 log-likelihood and the
+// group's gfi_lisrel, with its row count n.
+type lavaanPart struct {
+	ndat, nel, baseParams float64
+	fb, logLik, gfi, n    float64
+}
+
+// lavaanGroupPart computes one group's lavaanPart from its sample and
+// implied moments (the means nil without a mean structure).
+func lavaanGroupPart(m *Model, s, implied *mat.SymDense, sampleMean, impliedMean []float64, n float64) (lavaanPart, error) {
 	p := len(m.Observed)
-	pf, k, n := float64(p), float64(len(fit.theta)), fit.N
+	pf := float64(p)
 	var xIdx, yIdx []int
 	for i, v := range m.Observed {
 		if m.isObsExo(v) {
@@ -136,16 +155,11 @@ func lavaanStats(fit *Fit) error {
 		baseParams += ny
 	}
 	ndat -= xMoments
-	st := Stats{NParams: len(fit.theta)}
-	st.DoF = ndat - k
-	st.DoFBaseline = ndat - baseParams
-	st.Chi2 = n * fit.Objective
-	st.Chi2P = 1 - chiCDF(st.Chi2, st.DoF)
+	part := lavaanPart{ndat: ndat, nel: nel, baseParams: baseParams, n: n}
 
-	s := fit.Sample
 	_, ldS, ok := invLogDet(s)
 	if !ok {
-		return errLavaanStats
+		return part, errLavaanStats
 	}
 	fb := -ldS
 	ldSxx := 0.0
@@ -161,16 +175,16 @@ func lavaanStats(fit *Fit) error {
 		}
 		_, ldX, ok := invLogDet(sxx)
 		if !ok {
-			return errLavaanStats
+			return part, errLavaanStats
 		}
 		fb += ldX
 		ldSxx = ldX
 	}
-	st.Chi2Baseline = n * fb
+	part.fb = fb
 
-	inv, ldSigma, ok := invLogDet(fit.Implied)
+	inv, ldSigma, ok := invLogDet(implied)
 	if !ok {
-		return errLavaanStats
+		return part, errLavaanStats
 	}
 	// h0 log-likelihood: −N/2 [p ln 2π + ln|Σ| + tr(SΣ⁻¹) + rᵀΣ⁻¹r].
 	tr := 0.0
@@ -183,21 +197,59 @@ func lavaanStats(fit *Fit) error {
 	if m.MeanStructure {
 		r = make([]float64, p)
 		for i := range r {
-			r[i] = fit.SampleMean[i] - fit.ImpliedMean[i]
+			r[i] = sampleMean[i] - impliedMean[i]
 		}
 		tr += quad(inv, r, r)
 	}
-	st.LogLik = -n / 2 * (pf*math.Log(2*math.Pi) + ldSigma + tr)
+	part.logLik = -n / 2 * (pf*math.Log(2*math.Pi) + ldSigma + tr)
 	if len(xIdx) > 0 {
 		// fixed.x: lavaan's logl is conditional on the exogenous block,
 		// so its (saturated) marginal log-likelihood leaves it.
-		st.LogLik += n / 2 * (nx*math.Log(2*math.Pi) + ldSxx + nx)
+		part.logLik += n / 2 * (nx*math.Log(2*math.Pi) + ldSxx + nx)
 	}
+	part.gfi = gfiLisrel(s, implied, sampleMean, inv, xIdx, r)
+	return part, nil
+}
+
+// lavaanCombine is lavaan's statistics over the groups' parts (one
+// part: a single-group fit), chi2[g] each group's n_g·F_g and k the
+// free-parameter count: the counts, chi-squares, log-likelihoods and
+// baseline sum over the groups, N is the total row count, RMSEA carries
+// lavaan's multiple-group factor √G, and gfi_lisrel is the groups'
+// n-weighted mean.
+func lavaanCombine(parts []lavaanPart, chi2 []float64, nParams int) Stats {
+	k := float64(nParams)
+	var ndat, nel, baseParams, n, chi, chiB, ll, gfi float64
+	for g, pt := range parts {
+		ndat += pt.ndat
+		nel += pt.nel
+		baseParams += pt.baseParams
+		n += pt.n
+		chi += chi2[g]
+		chiB += pt.n * pt.fb
+		ll += pt.logLik
+		gfi += pt.n * pt.gfi
+	}
+	if len(parts) == 1 {
+		gfi = parts[0].gfi
+	} else {
+		gfi /= n
+	}
+	st := Stats{NParams: nParams}
+	st.DoF = ndat - k
+	st.DoFBaseline = ndat - baseParams
+	st.Chi2 = chi
+	st.Chi2P = 1 - chiCDF(st.Chi2, st.DoF)
+	st.Chi2Baseline = chiB
+	st.LogLik = ll
 	st.AIC = -2*st.LogLik + 2*k
 	st.BIC = -2*st.LogLik + k*math.Log(n)
 
 	if st.DoF > 0 {
 		st.RMSEA = math.Sqrt(math.Max((st.Chi2/n)/st.DoF-1/n, 0))
+		if len(parts) > 1 {
+			st.RMSEA *= math.Sqrt(float64(len(parts)))
+		}
 	}
 	t1 := math.Max(st.Chi2-st.DoF, 0)
 	t2 := math.Max(math.Max(st.Chi2-st.DoF, st.Chi2Baseline-st.DoFBaseline), 0)
@@ -220,14 +272,13 @@ func lavaanStats(fit *Fit) error {
 	} else {
 		st.NFI = (st.Chi2Baseline - st.Chi2) / st.Chi2Baseline
 	}
-	st.GFI = gfiLisrel(fit, inv, xIdx, r)
+	st.GFI = gfi
 	if st.DoF > 0 {
 		st.AGFI = 1 - nel/st.DoF*(1-st.GFI)
 	} else {
 		st.AGFI = 1
 	}
-	fit.Stats = st
-	return nil
+	return st
 }
 
 var errLavaanStats = errors.New("the fit statistics are undefined: a covariance is not positive definite")
@@ -240,8 +291,8 @@ func nearlyZero(x float64) bool { return math.Abs(x) < 1.5e-8 }
 // V the normal-theory weight at Σ(θ̂) — Σ⁻¹ on the means, ½D'(Σ⁻¹⊗Σ⁻¹)D
 // on the covariance — with the exogenous block zeroed (fixed.x). On a
 // symmetric A, vech(A)ᵀ½D'(K⊗K)D vech(A) = ½tr(KAKA).
-func gfiLisrel(fit *Fit, inv *mat.SymDense, xIdx []int, r []float64) float64 {
-	p := len(fit.Model.Observed)
+func gfiLisrel(sample, implied *mat.SymDense, sampleMean []float64, inv *mat.SymDense, xIdx []int, r []float64) float64 {
+	p := sample.SymmetricDim()
 	isX := make([]bool, p)
 	for _, i := range xIdx {
 		isX[i] = true
@@ -263,8 +314,8 @@ func gfiLisrel(fit *Fit, inv *mat.SymDense, xIdx []int, r []float64) float64 {
 			if isX[i] && isX[j] {
 				continue
 			}
-			diff.Set(i, j, fit.Sample.At(i, j)-fit.Implied.At(i, j))
-			obs.Set(i, j, fit.Sample.At(i, j))
+			diff.Set(i, j, sample.At(i, j)-implied.At(i, j))
+			obs.Set(i, j, sample.At(i, j))
 		}
 	}
 	var dm, om []float64
@@ -274,7 +325,7 @@ func gfiLisrel(fit *Fit, inv *mat.SymDense, xIdx []int, r []float64) float64 {
 			if isX[i] {
 				continue
 			}
-			dm[i], om[i] = r[i], fit.SampleMean[i]
+			dm[i], om[i] = r[i], sampleMean[i]
 		}
 	}
 	return 1 - form(diff, dm)/form(obs, om)

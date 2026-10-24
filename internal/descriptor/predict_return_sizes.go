@@ -3,6 +3,7 @@ package descriptor
 import (
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -551,7 +552,10 @@ func matrixNode(name string, rows, cols int64, enc types.MatrixEncoding, fields 
 //     (sem.SpecifiedRows: known from the description alone), c
 //     vectors.SEMEstimateColumnsOf (5, or 7 with the Wald interval of a
 //     lavaan-convention fit); residual_covariance p x p; implied_means
-//     and observed_means p x 1 under a mean structure.
+//     and observed_means p x 1 under a mean structure. Grouped
+//     (params.group): estimates r x c per known level, and per level
+//     implied_covariance.<level> / residual_covariance.<level> p x p,
+//     implied_means.<level> / observed_means.<level> p x 1.
 //
 // semRecordFields are the fields a MAT_SEM estimates record carries
 // beside its key and figures (processing.semParts).
@@ -585,11 +589,20 @@ func matrixAuxiliaryNodes(m vectors.Matrix, mp descriptor.MatrixPredict, member 
 			rows := int64(0)
 			if m.SEM != nil && m.SEM.Model != nil {
 				rows = int64(len(sem.SpecifiedRows(m.SEM.Model)))
+				if m.SEM.Grouped() {
+					// every level's rows (the levels the schema knows)
+					rows *= int64(max(len(m.SEM.GroupLevels), 1))
+				}
 			}
 			out = append(out, matrixNode(name, rows, int64(len(vectors.SEMEstimateColumnsOf(m.SEM))), m.Encoding, semRecordFields))
 		case "implied_means", "observed_means":
 			out = append(out, matrixNode(name, p, 1, m.Encoding, 0))
-		default: // n and the inference squares: p x p over the output axis
+		default:
+			if strings.HasPrefix(name, "implied_means.") || strings.HasPrefix(name, "observed_means.") {
+				// a grouped MAT_SEM level's means
+				out = append(out, matrixNode(name, p, 1, m.Encoding, 0))
+				break
+			} // n and the inference squares: p x p over the output axis
 			out = append(out, matrixNode(name, p, p, m.Encoding, 0))
 		}
 	}

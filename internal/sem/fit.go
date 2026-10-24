@@ -109,6 +109,9 @@ type Estimate struct {
 	SE, Z, P         float64
 	CILower, CIUpper float64
 	Param            string
+	// Label is the parameter's label in the description ("a*x"), ""
+	// for an unlabelled one (whose Param is an auto name).
+	Label string
 }
 
 // Key is "lval op rval" ("lval ~1" for an intercept row).
@@ -664,6 +667,19 @@ func (st *state) minimize(x []float64, opt Options) ([]float64, float64, int, bo
 	for k, p := range st.free {
 		lower[k] = p.lower
 	}
+	return fisherMinimize(st, lower, x, opt)
+}
+
+// fisherProblem is what Fisher scoring minimises: one group's state, or
+// a joint multi-group fit (jointState).
+type fisherProblem interface {
+	objective(x []float64) float64
+	derivatives(x []float64, needH bool) (float64, []float64, *mat.SymDense, error)
+}
+
+// fisherMinimize is the damped Fisher scoring of minimize over any
+// fisherProblem, lower the per-parameter bounds.
+func fisherMinimize(st fisherProblem, lower, x []float64, opt Options) ([]float64, float64, int, bool, error) {
 	f, g, h, err := st.derivatives(x, true)
 	if err != nil {
 		return x, f, 0, false, fmt.Errorf("at the starting values: %w", err)
@@ -955,7 +971,7 @@ func (st *state) estimates(x, se []float64, sg *mat.SymDense, c *mat.Dense) []Es
 				if l.mat != mi {
 					continue
 				}
-				e := Estimate{Op: matOp[mi], Param: p.name, SE: math.NaN(), Z: math.NaN(), P: math.NaN(),
+				e := Estimate{Op: matOp[mi], Param: p.name, Label: p.userLabel(), SE: math.NaN(), Z: math.NaN(), P: math.NaN(),
 					CILower: math.NaN(), CIUpper: math.NaN()}
 				e.LVal, e.RVal = m.rowNames(l)
 				_, isFree := freeIdx[p]
@@ -996,6 +1012,14 @@ func (st *state) estimates(x, se []float64, sg *mat.SymDense, c *mat.Dense) []Es
 	return out
 }
 
+// userLabel is the parameter's description label, "" when unlabelled.
+func (p *parameter) userLabel() string {
+	if p.user {
+		return p.name
+	}
+	return ""
+}
+
 func normCDF(z float64) float64 { return 0.5 * math.Erfc(-z/math.Sqrt2) }
 
 // SpecifiedRows lists the parameter-table rows of an unfitted model,
@@ -1010,7 +1034,7 @@ func SpecifiedRows(m *Model) []Estimate {
 					continue
 				}
 				lv, rv := m.rowNames(l)
-				e := Estimate{Op: matOp[mi], Param: p.name, LVal: lv, RVal: rv, Free: p.active,
+				e := Estimate{Op: matOp[mi], Param: p.name, Label: p.userLabel(), LVal: lv, RVal: rv, Free: p.active,
 					Value: math.NaN(), StdValue: math.NaN(), SE: math.NaN(), Z: math.NaN(), P: math.NaN(),
 					CILower: math.NaN(), CIUpper: math.NaN()}
 				if !p.active && m.hiddenRow(mi, e.LVal, e.RVal) {
