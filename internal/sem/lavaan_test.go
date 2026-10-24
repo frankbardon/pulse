@@ -163,6 +163,9 @@ func checkAgainstLavaan(t *testing.T, fit *Fit, ref lavaanRef) {
 		}
 		check("estimate", e.Value, p.Est, lavaanEstTol)
 		check("std_estimate", e.StdValue, p.StdAll, lavaanEstTol)
+		if p.Label != "" && e.Label != p.Label {
+			t.Errorf("%s label = %q, lavaan %q", key, e.Label, p.Label)
+		}
 		if !p.Free {
 			continue
 		}
@@ -229,6 +232,10 @@ var lavaanMeanCases = []struct {
 	{"brand_mx", "brand_mx", ModelOptions{}},
 	// the same description with the option set too.
 	{"brand_mx", "brand_mx", ModelOptions{MeanStructure: true}},
+	// lavaan's marker rule (NA frees the first indicator, a labelled
+	// one stays fixed at 1) and std.all of residual covariances
+	// (observed and latent) over the residual variances.
+	{"brand_res", "brand_res", ModelOptions{MeanStructure: true}},
 }
 
 // TestSEM_MeanStructureMatchesLavaan holds the mean-structure ML fit

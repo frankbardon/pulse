@@ -45,6 +45,9 @@ type brandGroupCohort struct {
 	// shards cuts the cohort into a shard archive of that many rows per
 	// shard (0: a single file).
 	shards int
+	// dict pre-seeds a categorical wave's dictionary (levels without
+	// rows included), in order.
+	dict []string
 }
 
 // build writes the cohort as "brand.pulse" on a fresh in-memory
@@ -66,6 +69,15 @@ func (c brandGroupCohort) build(t *testing.T, opts pulse.Options) (*pulse.Pulse,
 		fields[i] = encoding.Field{Name: h, Type: encoding.FieldTypeF64, Description: "Synthetic brand-survey rating " + h}
 		if h == "wave" {
 			fields[i] = encoding.Field{Name: h, Type: c.wave, Description: "Synthetic survey wave"}
+			if c.dict != nil {
+				d := encoding.NewDictionary()
+				for _, l := range c.dict {
+					if _, err := d.Add(l); err != nil {
+						t.Fatal(err)
+					}
+				}
+				fields[i].Dictionary = d
+			}
 		}
 	}
 	if c.weight != nil {
@@ -173,7 +185,11 @@ type mgLavaan struct {
 	Observed  []string            `json:"observed"`
 	Fit       map[string]*float64 `json:"fit"`
 	Chi2Group []float64           `json:"chi2_group"`
-	Params    []struct {
+	Options   struct {
+		GroupEqual   []string `json:"group_equal"`
+		GroupPartial []string `json:"group_partial"`
+	} `json:"options"`
+	Params []struct {
 		LHS, Op, RHS, Group string
 		Label               string
 		Free                bool
@@ -255,6 +271,11 @@ func checkMGAgainstLavaan(t *testing.T, res types.MatrixResult, ref mgLavaan, re
 		}
 		near("estimate", row[0], r.Est)
 		near("std_estimate", row[1], r.StdAll)
+		// lavaan labels a group.equal row ".pN." (its class); only a
+		// description label is the model's — on a fixed row too.
+		if r.Label != "" && !strings.HasPrefix(r.Label, ".p") && labelOf[key] != r.Label {
+			t.Errorf("%s vectors.label = %q, lavaan %q", key, labelOf[key], r.Label)
+		}
 		if !r.Free {
 			continue
 		}
@@ -265,15 +286,17 @@ func checkMGAgainstLavaan(t *testing.T, res types.MatrixResult, ref mgLavaan, re
 		if r.P == nil || !(math.Abs(row[4]-*r.P) <= 1e-4) {
 			t.Errorf("%s p = %g, lavaan %v", key, row[4], r.P)
 		}
-		if r.Label != "" && labelOf[key] != r.Label {
-			t.Errorf("%s vectors.label = %q, lavaan %q", key, labelOf[key], r.Label)
-		}
 	}
 	if matched != len(est.RowKeys) {
 		t.Errorf("matched %d lavaan rows, the result has %d", matched, len(est.RowKeys))
 	}
 	for k, lk := range mgScalarKeys {
-		if w := ref.Fit[lk]; w == nil || !(mgRel(res.Scalars[k], *w) <= 1e-3) {
+		if w := ref.Fit[lk]; w == nil {
+			// lavaan's NA (NFI past the baseline's dof): undefined.
+			if !math.IsNaN(res.Scalars[k]) {
+				t.Errorf("scalar %s = %.10g, lavaan reports none", k, res.Scalars[k])
+			}
+		} else if !(mgRel(res.Scalars[k], *w) <= 1e-3) {
 			t.Errorf("scalar %s = %.10g, lavaan %s %v", k, res.Scalars[k], lk, w)
 		}
 	}

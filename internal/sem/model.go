@@ -27,7 +27,22 @@ type location struct {
 	mat  int
 	i, j int
 	sym  bool
+	// kind is the statement the location comes from: a loading (=~), a
+	// regression (~), a (co)variance (~~) or a mean (~ 1) — lavaan's
+	// group.equal reads it, as Lambda holds both loadings and
+	// regressions on outputs.
+	kind rowKind
 }
+
+// rowKind is the statement kind of a parameter-table row.
+type rowKind uint8
+
+const (
+	kindRegression rowKind = iota
+	kindLoading
+	kindCovariance
+	kindMean
+)
 
 // parameter is one semopy Parameter: a free (active) value or a fixed
 // one, at one or more matrix locations (a label shares one value).
@@ -41,6 +56,12 @@ type parameter struct {
 	// user is set on a parameter the description labels ("a*x"): one
 	// value wherever the label appears — across groups too (FitGroups).
 	user bool
+	// auto is set on a fixing the specification made, not the
+	// description: the marker loading (lavaan's first indicator, fixed
+	// to 1) and an unstated latent mean (fixed to 0). A multi-group fit
+	// frees them outside the reference group under group_equal
+	// loadings / intercepts, as lavaan does.
+	auto bool
 }
 
 type stringSet map[string]struct{}
@@ -86,6 +107,16 @@ type Model struct {
 	// lavaan is set when any lavaan-only feature is in play: the fit
 	// then follows lavaan's conventions (Lavaan) instead of semopy's.
 	lavaan bool
+
+	// desc and opt are the description and options the model was
+	// specified from: FitGroups specifies every group's copy from them.
+	desc string
+	opt  ModelOptions
+	// arity is the per-group modifiers' length (0: none).
+	arity int
+	// equal and partial are a multi-group model's group_equal values
+	// and group_partial row keys (lavaanRowKey).
+	equal, partial stringSet
 }
 
 // ModelOptions select the features beyond semopy's default
@@ -97,6 +128,17 @@ type ModelOptions struct {
 	// statement frees it — lavaan's meanstructure = TRUE. A `~ 1`
 	// statement in the description sets it too.
 	MeanStructure bool
+	// GroupEqual and GroupPartial are a multi-group model's (NewGroupModel)
+	// lavaan group.equal values (GroupEqualValues) and group.partial
+	// rows ("lhs op rhs", e.g. "x1~1", "f=~x2", "x1~~x2"): the
+	// parameters of the named classes are one value across groups,
+	// except the partial rows.
+	GroupEqual, GroupPartial []string
+
+	// grouped marks a multi-group specification; level is the group
+	// whose per-group modifiers it reads.
+	grouped bool
+	level   int
 }
 
 // Lavaan reports whether the model follows lavaan's conventions rather
@@ -128,7 +170,19 @@ func newModel(desc string, baseline bool, opt ModelOptions) (*Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	m := &Model{byName: map[string]*parameter{}, firstManif: map[string]string{}, baseline: baseline}
+	arity, err := eff.arity()
+	if err != nil {
+		return nil, err
+	}
+	if arity > 1 && !opt.grouped {
+		return nil, fmt.Errorf("a per-group modifier c(...) lists %d values, but the fit has one group; per-group modifiers need a multi-group fit (one value per group)", arity)
+	}
+	if opt.grouped && arity > 0 && opt.level >= arity {
+		return nil, fmt.Errorf("per-group modifiers c(...) list %d values, fewer than the groups", arity)
+	}
+	eff.selectGroup(opt.level)
+	m := &Model{byName: map[string]*parameter{}, firstManif: map[string]string{}, baseline: baseline,
+		desc: desc, opt: opt, arity: arity}
 	_, icpt := eff.byOp[OpIntercept]
 	m.MeanStructure = opt.MeanStructure || icpt
 	m.lavaan = m.MeanStructure
@@ -138,7 +192,7 @@ func newModel(desc string, baseline bool, opt ModelOptions) (*Model, error) {
 		var err error
 		switch op {
 		case OpRegression:
-			err = m.effectRegression(eff.byOp[op])
+			err = m.effectRegression(eff.byOp[op], kindRegression)
 		case OpMeasurement:
 			err = m.effectMeasurement(eff.byOp[op])
 		case OpCovariance:
@@ -172,6 +226,7 @@ func (m *Model) effectMeans(user *lhsMap) error {
 			m.nMean++
 			name = fmt.Sprintf("_m%d", m.nMean)
 		}
+		loc.kind = kindMean
 		m.addParam(name, active, mu, math.Inf(-1), loc)
 		done.add(v)
 		return nil
@@ -198,7 +253,7 @@ func (m *Model) effectMeans(user *lhsMap) error {
 		if done.has(v) || !m.latent.has(v) {
 			continue
 		}
-		if err := add(v, Mult{Set: true, Fixed: true, Value: 0}, false, ""); err != nil {
+		if err := add(v, Mult{Set: true, Fixed: true, Value: 0, auto: true}, false, ""); err != nil {
 			return err
 		}
 	}
@@ -359,10 +414,15 @@ func (m *Model) preprocessCovariances(eff *Effects) {
 func (m *Model) addParam(name string, active bool, mu Mult, lower float64, loc location) {
 	if p, ok := m.byName[name]; ok {
 		p.locs = append(p.locs, loc)
+		if mu.Fixed && p.active {
+			// A label one fixed use carries (lavaan's labelled marker)
+			// fixes every use.
+			p.active, p.start, p.hasStart = false, mu.Value, true
+		}
 		return
 	}
 	p := &parameter{name: name, active: active, lower: lower, locs: []location{loc},
-		user: mu.Set && !mu.Fixed && !mu.isStart() && mu.Label != ""}
+		user: mu.Set && !mu.isStart() && mu.Label != "", auto: mu.auto}
 	if mu.Fixed {
 		p.start, p.hasStart = mu.Value, true
 	}
@@ -377,7 +437,7 @@ func paramMode(mu Mult) (string, bool) {
 	case !mu.Set:
 		return "", true
 	case mu.Fixed:
-		return "", false
+		return mu.Label, false
 	case mu.isStart():
 		return "", false
 	default:
@@ -385,7 +445,7 @@ func paramMode(mu Mult) (string, bool) {
 	}
 }
 
-func (m *Model) effectRegression(l *lhsMap) error {
+func (m *Model) effectRegression(l *lhsMap, kind rowKind) error {
 	if m.baseline {
 		return nil
 	}
@@ -409,7 +469,7 @@ func (m *Model) effectRegression(l *lhsMap) error {
 				m.nReg++
 				name = fmt.Sprintf("_b%d", m.nReg)
 			}
-			m.addParam(name, active, r.m[rv], math.Inf(-1), location{mat: mat, i: i, j: j})
+			m.addParam(name, active, r.m[rv], math.Inf(-1), location{mat: mat, i: i, j: j, kind: kind})
 		}
 	}
 	return nil
@@ -428,7 +488,23 @@ func (m *Model) effectMeasurement(l *lhsMap) error {
 				first = k
 			}
 		}
-		if first < 0 {
+		if m.lavaan && len(inds) > 0 {
+			// lavaan's auto.fix.first: the first indicator's loading is
+			// fixed to 1 whatever follows; its own modifier overrides —
+			// a number fixes it there, NA frees it (no marker), a label
+			// keeps the fixing (a labelled marker).
+			first = 0
+			switch mu := mults[0]; {
+			case !mu.Set:
+				mults[0] = Mult{Set: true, Fixed: true, Value: 1, auto: true}
+			case mu.Fixed || mu.isStart():
+			case mu.Label == "":
+				first = -1
+				m.firstManif[lat] = inds[0] // the starting values' scale
+			default:
+				mults[0] = Mult{Set: true, Fixed: true, Value: 1, Label: mu.Label, auto: true}
+			}
+		} else if first < 0 {
 			for k := range mults {
 				if !mults[k].Set {
 					first = k
@@ -446,7 +522,7 @@ func (m *Model) effectMeasurement(l *lhsMap) error {
 			m.firstManif[lat] = inds[first]
 		}
 	}
-	return m.effectRegression(rev)
+	return m.effectRegression(rev, kindLoading)
 }
 
 func (m *Model) effectCovariance(l *lhsMap) error {
@@ -484,7 +560,7 @@ func (m *Model) effectCovariance(l *lhsMap) error {
 			} else if m.baseline {
 				continue
 			}
-			m.addParam(name, active, mu, lower, location{mat: mat, i: i, j: j, sym: sym})
+			m.addParam(name, active, mu, lower, location{mat: mat, i: i, j: j, sym: sym, kind: kindCovariance})
 		}
 	}
 	return nil

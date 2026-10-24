@@ -1,10 +1,10 @@
 ---
 name: sem-modeling
-description: Structural equation modelling with MAT_SEM — which convention a fit follows (semopy's covariance-only default or lavaan's once a mean structure is in play), the ~ 1 syntax for intercepts and latent means, and how to read the mean-structure outputs.
+description: Structural equation modelling with MAT_SEM — which convention a fit follows (semopy's covariance-only default or lavaan's once a mean structure is in play), the ~ 1 syntax for intercepts and latent means, multi-group fits and the invariance ladder (group_equal, group_partial, c(...) modifiers), and how to read the outputs.
 kind: design
 type: guide
 applies_to: process, compose, predict
-covers: [SEM, structural equation model, CFA, mean structure, intercepts, latent means, multi-group, lavaan, semopy, fit indices]
+covers: [SEM, structural equation model, CFA, mean structure, intercepts, latent means, multi-group, measurement invariance, group_equal, lavaan, semopy, fit indices]
 requires: [MAT_SEM]
 ---
 
@@ -46,7 +46,7 @@ The same covariance model can report a different `chi2` on the two paths. Compar
 
 `params.group` names a categorical, `packed_bool` or `u4` / `u8` field. Its levels are the groups of ONE joint fit (lavaan's `group =`):
 
-- Configural: every parameter is free per group. A labelled parameter (`a*x`) is one value in every group, as lavaan reads a label.
+- Configural (no `group_equal`): every parameter is free per group. A labelled parameter (`a*x`) is one value in every group, as lavaan reads a label.
 - A group fit always models the means and follows lavaan.
 - The levels are the field's values that hold rows, in dictionary order (else ascending). A null group drops the row.
 - `estimates` rows are `[level] lval op rval`. `vectors.group` and `vectors.label` give each row's level and model label.
@@ -54,6 +54,15 @@ The same covariance model can report a different `chi2` on the two paths. Compar
 - The scalars are joint (`chi2` sums the groups, `rmsea` carries lavaan's √G), plus `chi2_group_<level>` and `n_group_<level>` (Σw under a frequency weight).
 - Refused: request `groups` with `group`, a vector that standardizes, another field type, a one-entry dictionary.
 - The slot fails alone (`PULSE_MATRIX_INSUFFICIENT_N`) on fewer than two levels with rows, on a level with no more rows than observed variables, or on a reference level without rows.
+
+## Invariance
+
+- `group_equal` holds lavaan `group.equal` classes equal across groups: `loadings`, `intercepts`, `means`, `residuals`, `residual.covariances`, `lv.variances`, `lv.covariances`, `regressions`. Metric = `["loadings"]`, scalar = `["loadings","intercepts"]`.
+- Equal intercepts (without `means`) free the latent means outside the `group_reference` level, which stays at 0. They read in marker units: the non-reference level's shift on each factor.
+- `group_partial` frees rows from their class, spelled as lavaan does: `v2~1`, `f=~x2`, `x1~~x2`. A freed marker loading is free outside the reference.
+- A marker loading stays 1 in every group. A labelled row keeps its label's equality, not its class's.
+- `c(a1,a2)*x` / `c(0.5,NA)*x` set a label or value per level, in level order (categorical or `packed_bool` field only). `NA*x` frees a loading (on a first indicator: no marker).
+- Ladder: one slot per step, or a zip sweep over `group_equal` (a comma-separated string, `""` = configural): axes `step` [configural, metric, scalar] and `eq` [`""`, `loadings`, `loadings,intercepts`], label `{{step}}`. Compare `chi2`, `dof`, `cfi`, `rmsea` step to step; Pulse computes no Δχ² test.
 
 ## Members
 

@@ -23,7 +23,13 @@ type lavaanGroupRef struct {
 	Params    []lavaanGroupParam  `json:"params"`
 	Fit       map[string]*float64 `json:"fit"`
 	Chi2Group []float64           `json:"chi2_group"`
-	Groups    []struct {
+	// Options carry the fit's group.equal / group.partial (absent:
+	// configural).
+	Options struct {
+		GroupEqual   []string `json:"group_equal"`
+		GroupPartial []string `json:"group_partial"`
+	} `json:"options"`
+	Groups []struct {
 		Label      string      `json:"label"`
 		ImpliedCov [][]float64 `json:"implied_cov"`
 		ImpliedMu  []float64   `json:"implied_mean"`
@@ -68,7 +74,7 @@ func readCSVGroupMoments(t *testing.T, path, group string, labels []string, cols
 			}
 		}
 		mean, s := moments(sub)
-		out[g] = GroupMoments{Label: lab, S: s, Raw: s, Mean: mean, N: float64(len(sub))}
+		out[g] = GroupMoments{Label: lab, S: s, Raw: s, Mean: mean, N: float64(len(sub)), Level: g}
 	}
 	return out
 }
@@ -108,6 +114,17 @@ var lavaanGroupCases = []struct{ name, data, model string }{
 	// unequal groups (600 / 400), a misfit (RMSEA > 0, CFI < 1) and a
 	// label shared within and across groups.
 	{"brand_mg_misfit", "brand_uneq", "brand_mgmis"},
+	// the invariance ladder (group.equal): equal loadings, then equal
+	// intercepts too (latent means freed outside the first group), and
+	// a partial scalar fit (an intercept and a loading freed).
+	{"brand_mg_metric", "brand", "brand_ms"},
+	{"brand_mg_scalar", "brand", "brand_ms"},
+	{"brand_mg_partial", "brand", "brand_ms"},
+	// per-group modifiers c(...)*x under equal loadings and residual
+	// covariances, a marker freed by group.partial; then every
+	// group.equal value at once (a labelled row stays out of its class).
+	{"brand_mg_modifiers", "brand_uneq", "brand_mgmod"},
+	{"brand_mg_strict", "brand", "brand_mgmod"},
 }
 
 // TestSEM_MultiGroupMatchesLavaan holds the joint multi-group fit
@@ -122,7 +139,7 @@ func TestSEM_MultiGroupMatchesLavaan(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		m, err := NewGroupModel(string(desc), ModelOptions{})
+		m, err := NewGroupModel(string(desc), ModelOptions{GroupEqual: ref.Options.GroupEqual, GroupPartial: ref.Options.GroupPartial})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -263,6 +280,12 @@ func checkEstimatesAgainstLavaan(t *testing.T, where string, fit *Fit, ref lavaa
 		}
 		check("estimate", e.Value, p.Est)
 		check("std_estimate", e.StdValue, p.StdAll)
+		// lavaan labels a group.equal row ".pN." (its class); only a
+		// description label is the model's — on a fixed row too (a
+		// labelled marker).
+		if p.Label != "" && !strings.HasPrefix(p.Label, ".p") && e.Label != p.Label {
+			t.Errorf("%s %s label = %q, lavaan %q", where, key, e.Label, p.Label)
+		}
 		if !p.Free {
 			continue
 		}
@@ -273,9 +296,6 @@ func checkEstimatesAgainstLavaan(t *testing.T, where string, fit *Fit, ref lavaa
 		check("ci_upper", e.CIUpper, p.CIUpper)
 		if p.P == nil || !(math.Abs(e.P-*p.P) <= lavaanPTol) {
 			t.Errorf("%s %s p_value = %.10g, lavaan %v", where, key, e.P, p.P)
-		}
-		if p.Label != "" && e.Label != p.Label {
-			t.Errorf("%s %s label = %q, lavaan %q", where, key, e.Label, p.Label)
 		}
 	}
 	if free != refFree {
@@ -294,7 +314,10 @@ func checkFitAgainstLavaan(t *testing.T, st Stats, objective float64, ref map[st
 	} {
 		want := ref[name]
 		if want == nil {
-			t.Errorf("fit measure %s: lavaan reports none", name)
+			// lavaan's NA (NFI past the baseline's dof): undefined.
+			if !math.IsNaN(got) {
+				t.Errorf("fit measure %s = %g, lavaan reports none", name, got)
+			}
 			continue
 		}
 		if d := relTol(got, *want); !(d <= lavaanFitTol) {

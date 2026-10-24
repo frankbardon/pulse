@@ -44,13 +44,20 @@ const (
 )
 
 // Mult is the multiplier written before a right-hand variable: none
-// (a free parameter), a fixed number ("0.5*x") or a parameter label
-// ("a*x", equality across every place the label is used).
+// (a free parameter), a fixed number ("0.5*x"), a parameter label
+// ("a*x", equality across every place the label is used) or lavaan's
+// NA ("NA*x": free, unlabelled — Set without Fixed or Label). A
+// per-group modifier ("c(a1,a2)*x", "c(0.5,NA)*x") carries one of
+// those per group in Groups, in level order; the model of group g
+// reads Groups[g] (selectGroup).
 type Mult struct {
-	Set   bool
-	Fixed bool
-	Value float64
-	Label string
+	Set    bool
+	Fixed  bool
+	Value  float64
+	Label  string
+	Groups []Mult
+	// auto marks a fixing the specification made (parameter.auto).
+	auto bool
 }
 
 // Effects maps operator -> left variable -> right variable -> multiplier,
@@ -102,15 +109,21 @@ func (r *rhsMap) set(name string, m Mult) {
 
 func (r *rhsMap) has(name string) bool { _, ok := r.m[name]; return ok }
 
+// rTerm is one right-hand term: an optional multiplier — a number, a
+// label, NA or a per-group c(...) list — then a variable (or 1).
+const rTerm = `(?:c\s*\([^()+*]*\)\s*\*\s*\w[\w.]*|-?\w[\w.-]*(?:\s*\*\s*\w[\w.]*)?)`
+
 var (
-	ptrnEffect = regexp.MustCompile(`^(\w[\w.]*(?:\s*,\s*[\w.]*)*)\s*(=~|~~|~)\s*(-?\w[\w.-]*(?:\s*\*\s*\w[\w.]*)?(?:\s*\+\s*-?\w[\w.-]*(?:\s*\*\s*\w[\w.]*)?)*)$`)
-	ptrnRValue = regexp.MustCompile(`^((-?\w[\w.-]*\*)?\w[\w.]*)$`)
+	ptrnEffect = regexp.MustCompile(`^(\w[\w.]*(?:\s*,\s*[\w.]*)*)\s*(=~|~~|~)\s*(` + rTerm + `(?:\s*\+\s*` + rTerm + `)*)$`)
+	ptrnRValue = regexp.MustCompile(`^((-?\w[\w.-]*\*|c\([^()+*]*\)\*)?\w[\w.]*)$`)
+	ptrnLabel  = regexp.MustCompile(`^[A-Za-z_][\w.]*$`)
 )
 
 // Parse reads a model description in semopy / lavaan syntax: one
 // statement per line, `#` comments, `=~` (measurement), `~`
 // (regression) and `~~` (covariance), comma-separated left sides,
-// `+`-separated right sides and optional `mult*` prefixes. A `1` term
+// `+`-separated right sides and optional `mult*` prefixes (a number, a
+// label, NA, or lavaan's per-group list c(m1, m2, ...)). A `1` term
 // on a `~` right side (`x ~ 1`, `x ~ 0*1`, `x ~ a*1`, `y ~ 1 + x`) is
 // an intercept / latent mean, kept under OpIntercept. semopy's
 // operation commands (START, BOUND, DEFINE, ...) are not supported.
@@ -203,14 +216,82 @@ func parseRValues(tok string) (*rhsMap, error) {
 		if i := strings.LastIndexByte(t, '*'); i >= 0 {
 			mult, v := t[:i], t[i+1:]
 			name = v
-			m.Set = true
-			if f, err := strconv.ParseFloat(mult, 64); err == nil {
-				m.Fixed, m.Value = true, f
+			if strings.HasPrefix(mult, "c(") {
+				var err error
+				if m, err = parseModifierList(mult, t); err != nil {
+					return nil, err
+				}
 			} else {
-				m.Label = mult
+				m = parseModifier(mult)
 			}
 		}
 		out.set(name, m)
 	}
 	return out, nil
+}
+
+// parseModifier reads one multiplier: a number (fixed), NA (free,
+// unlabelled) or a label.
+func parseModifier(mult string) Mult {
+	if mult == "NA" {
+		return Mult{Set: true}
+	}
+	if f, err := strconv.ParseFloat(mult, 64); err == nil {
+		return Mult{Set: true, Fixed: true, Value: f}
+	}
+	return Mult{Set: true, Label: mult}
+}
+
+// parseModifierList reads lavaan's per-group modifier c(m1, m2, ...):
+// one number, NA or label per group.
+func parseModifierList(mult, term string) (Mult, error) {
+	body := strings.TrimSuffix(strings.TrimPrefix(mult, "c("), ")")
+	out := Mult{Set: true}
+	for _, e := range strings.Split(body, ",") {
+		g := parseModifier(e)
+		if e == "" || (g.Label != "" && !ptrnLabel.MatchString(e)) {
+			return Mult{}, fmt.Errorf("%q: a per-group modifier c(...) lists one number, NA or label per group", term)
+		}
+		out.Groups = append(out.Groups, g)
+	}
+	return out, nil
+}
+
+// arity is the per-group modifiers' common length: 0 without any, an
+// error when two lists differ (one of them cannot match the group
+// count).
+func (e *Effects) arity() (int, error) {
+	n := 0
+	for _, op := range e.ops {
+		l := e.byOp[op]
+		for _, lv := range l.keys {
+			r := l.m[lv]
+			for _, rv := range r.keys {
+				k := len(r.m[rv].Groups)
+				if k == 0 {
+					continue
+				}
+				if n != 0 && k != n {
+					return 0, fmt.Errorf("per-group modifiers c(...) list %d and %d values; each lists one per group", n, k)
+				}
+				n = k
+			}
+		}
+	}
+	return n, nil
+}
+
+// selectGroup resolves every per-group modifier to group g's entry.
+func (e *Effects) selectGroup(g int) {
+	for _, op := range e.ops {
+		l := e.byOp[op]
+		for _, lv := range l.keys {
+			r := l.m[lv]
+			for _, rv := range r.keys {
+				if mu := r.m[rv]; len(mu.Groups) > g {
+					r.m[rv] = mu.Groups[g]
+				}
+			}
+		}
+	}
 }

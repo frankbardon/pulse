@@ -9,10 +9,12 @@ import (
 )
 
 // group.go is the joint multi-group ML fit (lavaan's group =): one
-// model description specified once per group, every parameter free per
-// group (configural) except a labelled one, whose value is shared
-// wherever the label appears — across groups too, as lavaan reads a
-// label. The groups' discrepancies combine as lavaan's
+// model description specified once per group (its per-group modifiers
+// c(...) read at the group's level), every parameter free per group
+// (configural) except a labelled one, whose value is shared wherever
+// the label appears — across groups too, as lavaan reads a label — and
+// the group_equal classes (invariance.go). The groups' discrepancies
+// combine as lavaan's
 //
 //	F(θ) = Σ_g (n_g / N) F_g(θ_g),
 //
@@ -22,12 +24,18 @@ import (
 
 // GroupMoments are one group's sample moments: S (adjusted, as
 // FitMoments' s, or the data's), the data's covariance Raw, the sample
-// mean and the row count, all over the model's Observed order.
+// mean and the row count, all over the model's Observed order. Level
+// is the group's position in the per-group modifiers c(...) (its level
+// index: a group without rows leaves its position unused); Reference
+// marks the group whose latent means stay fixed at 0 and whose marker
+// loadings stay fixed (lavaan's first group; none marked: the first).
 type GroupMoments struct {
-	Label  string
-	S, Raw *mat.SymDense
-	Mean   []float64
-	N      float64
+	Label     string
+	S, Raw    *mat.SymDense
+	Mean      []float64
+	N         float64
+	Level     int
+	Reference bool
 }
 
 // GroupFit is a fitted multi-group model.
@@ -57,11 +65,19 @@ type GroupFit struct {
 }
 
 // NewGroupModel specifies desc for a multi-group fit: the model every
-// group's copy follows, with a mean structure and lavaan conventions
-// whatever opt says.
+// group's copy follows (the first group's per-group modifiers), with a
+// mean structure and lavaan conventions whatever opt says, and opt's
+// group_equal / group_partial validated (a *GroupSpecError).
 func NewGroupModel(desc string, opt ModelOptions) (*Model, error) {
-	opt.MeanStructure = true
-	return newModel(desc, false, opt)
+	opt.MeanStructure, opt.grouped, opt.level = true, true, 0
+	m, err := newModel(desc, false, opt)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.specifyEquality(opt); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // jointState is the multi-group problem: one state per group, the
@@ -153,8 +169,29 @@ func FitGroups(model *Model, groups []GroupMoments, opt Options) (*GroupFit, err
 	if len(groups) < 2 {
 		return nil, errors.New("a multi-group fit needs at least two groups")
 	}
-	if !model.MeanStructure || !model.lavaan {
+	if !model.MeanStructure || !model.lavaan || !model.opt.grouped {
 		return nil, errors.New("a multi-group model is specified by NewGroupModel")
+	}
+	ref, levels := 0, make([]int, len(groups))
+	seenRef, seenLevel := false, map[int]bool{}
+	for g, gm := range groups {
+		levels[g] = g
+		if model.arity > 0 {
+			if gm.Level < 0 || gm.Level >= model.arity || seenLevel[gm.Level] {
+				return nil, fmt.Errorf("group %q: level %d is not a distinct position of the per-group modifiers (%d values)", gm.Label, gm.Level, model.arity)
+			}
+			levels[g], seenLevel[gm.Level] = gm.Level, true
+		}
+		if gm.Reference {
+			if seenRef {
+				return nil, errors.New("more than one reference group")
+			}
+			ref, seenRef = g, true
+		}
+	}
+	models, err := model.groupModels(levels, ref)
+	if err != nil {
+		return nil, err
 	}
 	if err := opt.Validate(); err != nil {
 		return nil, err
@@ -175,13 +212,7 @@ func FitGroups(model *Model, groups []GroupMoments, opt Options) (*GroupFit, err
 		if r, _ := gm.S.Dims(); r != p || len(gm.Mean) != p {
 			return nil, fmt.Errorf("group %q: moments over %d variables, the model has %d", gm.Label, r, p)
 		}
-		// Every group's copy is specified from the same description,
-		// so the parameter tables align row for row.
-		m := model
-		if g > 0 {
-			m = model.clone()
-		}
-		st := newState(m, gm.S)
+		st := newState(models[g], gm.S)
 		st.raw = gm.Raw
 		st.info = opt.Information
 		st.ybar = append([]float64(nil), gm.Mean...)
@@ -194,12 +225,12 @@ func FitGroups(model *Model, groups []GroupMoments, opt Options) (*GroupFit, err
 		j.w[g] = gm.N / total
 		ix := make([]int, len(st.free))
 		for k, par := range st.free {
-			if par.user {
-				if t, ok := shared[par.name]; ok {
+			if key := st.m.classKey(par); key != "" {
+				if t, ok := shared[key]; ok {
 					ix[k] = t
 					continue
 				}
-				shared[par.name] = j.nFree
+				shared[key] = j.nFree
 			}
 			ix[k] = j.nFree
 			lower = append(lower, par.lower)
@@ -316,19 +347,4 @@ func (j *jointState) standardErrors(x []float64, groups []GroupMoments) ([]float
 		se[i] = math.Sqrt(v)
 	}
 	return se, nil
-}
-
-// clone returns an independent copy of m's parameter table (the
-// matrices a state fills are per state already).
-func (m *Model) clone() *Model {
-	c := *m
-	c.params = make([]*parameter, len(m.params))
-	c.byName = make(map[string]*parameter, len(m.byName))
-	for i, p := range m.params {
-		q := *p
-		q.locs = append([]location(nil), p.locs...)
-		c.params[i] = &q
-		c.byName[q.name] = &q
-	}
-	return &c
 }

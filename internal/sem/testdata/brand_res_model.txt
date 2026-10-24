@@ -1,0 +1,15 @@
+# Brand survey for lavaan's single-group rules: NA frees a first
+# indicator (no marker; the factor's variance is fixed instead), a
+# labelled first indicator stays the marker (fixed to 1), two
+# endogenous factors with a residual covariance, and a residual
+# covariance between items (lavaan's std.all divides a residual
+# covariance by the residual variances).
+quality =~ NA*q1 + q2 + q3
+quality ~~ 1*quality
+value =~ m*v1 + v2 + v3
+service =~ s1 + s2 + s3
+value ~ quality
+service ~ quality
+value ~~ service
+q1 ~~ v1
+recommend ~ quality + value + service

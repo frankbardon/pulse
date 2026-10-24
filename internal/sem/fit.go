@@ -998,12 +998,20 @@ func (st *state) estimates(x, se []float64, sg *mat.SymDense, c *mat.Dense) []Es
 					e.StdValue = e.Value * stds[l.j] / full[l.i]
 				case mPsi:
 					e.StdValue = e.Value / stds[l.i] / stds[l.j]
+					if m.lavaan && l.i != l.j {
+						e.StdValue = e.Value / math.Sqrt(st.mats[mPsi].At(l.i, l.i)*st.mats[mPsi].At(l.j, l.j))
+					}
 				case mNu:
 					e.StdValue = e.Value / full[l.i]
 				case mAlpha:
 					e.StdValue = e.Value / stds[l.i]
 				default:
 					e.StdValue = e.Value / full[l.i] / full[l.j]
+					if m.lavaan && l.i != l.j {
+						// lavaan's std.all of a covariance is the
+						// residuals' correlation.
+						e.StdValue = e.Value / math.Sqrt(st.mats[mTheta].At(l.i, l.i)*st.mats[mTheta].At(l.j, l.j))
+					}
 				}
 				out = append(out, e)
 			}

@@ -173,7 +173,15 @@ func finalizeSEMGroups(in *matrixFinalizeInput) (matrixOutput, error) {
 				"group "+strconv.Quote(labels[g])+"'s sample covariance is not positive definite; a multi-group fit has no nearest substitute",
 				map[string]any{"group": spec.Group, "level": labels[g]})
 		}
-		moments[g] = sem.GroupMoments{Label: labels[g], S: s, Raw: s, Mean: mean, N: cm.W()}
+		// The level index — a categorical's dictionary index,
+		// packed_bool's 0 / 1 — places the group in the per-group
+		// modifiers (a level without rows leaves its position unused);
+		// an integer field takes none (resolveSEMGroup).
+		level := g
+		if spec.GroupLevels != nil {
+			level = int(c)
+		}
+		moments[g] = sem.GroupMoments{Label: labels[g], S: s, Raw: s, Mean: mean, N: cm.W(), Level: level, Reference: g == ref}
 	}
 	fit, err := sem.FitGroups(spec.Model, moments, spec.Options)
 	if err != nil {

@@ -1,6 +1,7 @@
 package vectors
 
 import (
+	"encoding/json"
 	"slices"
 	"strconv"
 	"strings"
@@ -48,6 +49,11 @@ type SEMPlan struct {
 	// without rows after the filters is no group of the fit.
 	GroupType   encoding.FieldType
 	GroupLevels []string
+	// GroupEqual and GroupPartial are params.group_equal /
+	// group_partial: lavaan's group.equal classes held equal across
+	// the groups and the group.partial rows freed from them
+	// (sem.ModelOptions).
+	GroupEqual, GroupPartial []string
 }
 
 // Grouped reports whether the plan is a joint multi-group fit.
@@ -112,7 +118,36 @@ type semParams struct {
 	// a joint multi-group fit; GroupReference the primary's level.
 	Group          *string `json:"group"`
 	GroupReference *string `json:"group_reference"`
+	// GroupEqual / GroupPartial are lavaan's group.equal /
+	// group.partial: a list, or one comma-separated string (a compose
+	// sweep axis value).
+	GroupEqual   *semList `json:"group_equal"`
+	GroupPartial *semList `json:"group_partial"`
 	missingParams
+}
+
+// semList is a list param that also reads as one comma-separated
+// string ("" is the empty list): a compose sweep axis value is a
+// scalar, so a sweep over group_equal writes "loadings,intercepts".
+type semList []string
+
+func (l *semList) UnmarshalJSON(b []byte) error {
+	var one string
+	if err := json.Unmarshal(b, &one); err == nil {
+		*l = nil
+		for _, v := range strings.Split(one, ",") {
+			if v = strings.TrimSpace(v); v != "" {
+				*l = append(*l, v)
+			}
+		}
+		return nil
+	}
+	var many []string
+	if err := json.Unmarshal(b, &many); err != nil {
+		return err
+	}
+	*l = many
+	return nil
 }
 
 // SEMSolvers and SEMInformation are the accepted params.solver and
@@ -177,6 +212,30 @@ func decodeSEM(at string, p semParams, m *Matrix) *errors.CodedError {
 				map[string]any{"param": "meanstructure", "value": false})
 		}
 		plan.Group = *p.Group
+	}
+	for _, lp := range []struct {
+		name string
+		v    *semList
+		out  *[]string
+	}{{"group_equal", p.GroupEqual, &plan.GroupEqual}, {"group_partial", p.GroupPartial, &plan.GroupPartial}} {
+		if lp.v == nil {
+			continue
+		}
+		if p.Group == nil {
+			return matrixInvalid(at, "bad_params", at+" params."+lp.name+" applies with params.group only",
+				map[string]any{"param": lp.name, "value": []string(*lp.v)})
+		}
+		*lp.out = []string(*lp.v)
+	}
+	for _, v := range plan.GroupEqual {
+		if !slices.Contains(sem.GroupEqualValues(), v) {
+			msg := at + " params.group_equal " + strconv.Quote(v) + " is not a lavaan group.equal value"
+			if v == "thresholds" {
+				msg = at + ` params.group_equal "thresholds" needs an ordinal estimator; the ML fit has no thresholds`
+			}
+			return matrixInvalid(at, "bad_params", msg,
+				map[string]any{"param": "group_equal", "value": v, "valid": sem.GroupEqualValues()})
+		}
 	}
 	if p.GroupReference != nil {
 		if p.Group == nil {
@@ -275,7 +334,12 @@ func resolveSEM(at string, m *Matrix) *errors.CodedError {
 	if m.SEM.Grouped() {
 		newModel = sem.NewGroupModel
 	}
-	model, err := newModel(m.SEM.Desc, sem.ModelOptions{MeanStructure: m.SEM.MeanStructure})
+	model, err := newModel(m.SEM.Desc, sem.ModelOptions{MeanStructure: m.SEM.MeanStructure,
+		GroupEqual: m.SEM.GroupEqual, GroupPartial: m.SEM.GroupPartial})
+	if ge, ok := err.(*sem.GroupSpecError); ok {
+		return matrixInvalid(at, "bad_params", at+" params."+ge.Error(),
+			map[string]any{"param": ge.Param, "value": ge.Value})
+	}
 	if err != nil {
 		return matrixInvalid(at, "bad_params", at+" params.model: "+err.Error(),
 			map[string]any{"param": "model", "error": err.Error()})
@@ -379,6 +443,16 @@ func resolveSEMGroup(at string, req *types.Request, schema *encoding.Schema, m *
 		}
 	case f.Type == encoding.FieldTypePackedBool:
 		plan.GroupLevels = []string{"0", "1"}
+	}
+	if k := plan.Model.Arity(); k > 0 {
+		if plan.GroupLevels == nil {
+			return matrixInvalid(at, "bad_params", at+" params.model's per-group modifiers c(...) read one value per level, but the levels of "+f.Type.String()+" field "+strconv.Quote(plan.Group)+" are its observed values; group by a categorical or packed_bool field",
+				map[string]any{"param": "model", "group": plan.Group, "arity": k, "field_type": f.Type.String()})
+		}
+		if err := plan.Model.CheckGroupCount(len(plan.GroupLevels)); err != nil {
+			return matrixInvalid(at, "bad_params", at+" params.model: "+err.Error()+" (the levels of "+strconv.Quote(plan.Group)+", in order: "+strings.Join(plan.GroupLevels, ", ")+")",
+				map[string]any{"param": "model", "group": plan.Group, "arity": k, "groups": len(plan.GroupLevels), "levels": plan.GroupLevels})
+		}
 	}
 	if plan.GroupReference == "" {
 		return nil

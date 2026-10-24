@@ -564,6 +564,42 @@ with no more rows than observed variables, or a `group_reference` level
 without rows fails the slot alone with `PULSE_MATRIX_INSUFFICIENT_N`.
 Parity: lavaan 0.7.3's `group = "wave"` fit within the same tolerances.
 
+**Invariance.** `params.group_equal` holds lavaan `group.equal` classes
+equal across the groups — `loadings`, `intercepts`, `means`, `residuals`,
+`residual.covariances`, `lv.variances`, `lv.covariances`, `regressions`
+— and `params.group_partial` frees single rows from them, spelled as
+lavaan labels them (`v2~1`, `service=~s2`, `q1~~v1`). Identification
+follows lavaan: a marker loading stays fixed at 1 in every group, and
+equal intercepts (without `means`) free the latent means outside the
+`group_reference` level, whose means stay 0 — so the scalar fit's
+non-reference latent means are each factor's shift in marker units. A
+labelled row keeps its label's equality instead of its class's. In the
+model, lavaan's per-group modifiers `c(a1, a2)*x` and `c(0.5, NA)*x` set
+a label or a value per level, in level order (a categorical or
+`packed_bool` group field; one entry per level), and `NA*x` frees a
+parameter. An unknown `group_equal` value, `thresholds` (no ordinal
+estimator yet), a `group_partial` row the model lacks, or a modifier
+whose length is not the level count is refused (`SERVICE_VALIDATION`
+`bad_params`, predict alike).
+
+The invariance ladder is one slot per step, or a compose sweep over
+`group_equal` — which also reads one comma-separated string, so a sweep
+axis (a scalar) can carry it:
+
+```json
+{"sweep": {"mode": "zip", "label": "{{step}}",
+  "axes": [{"name": "step", "values": ["configural", "metric", "scalar"]},
+           {"name": "eq", "values": ["", "loadings", "loadings,intercepts"]}],
+  "request": {"cohort": {"filename": "survey.pulse"},
+    "matrices": [{"type": "MAT_SEM", "name": "waves", "vector": "battery",
+      "params": {"model": "service =~ q1 + q2 + q3\nvalue =~ q4 + q5 + q6",
+                 "group": "wave", "group_equal": "{{eq}}"}}]}}}
+```
+
+Compare `chi2`, `dof`, `cfi` and `rmsea` step to step; Pulse computes no
+χ² difference test. Parity: lavaan 0.7.3's `group.equal` /
+`group.partial` fits within the same tolerances.
+
 ## Groups, cost and refusals
 
 With `groups`, a matrix is computed per bucket, in `Response.Data` order

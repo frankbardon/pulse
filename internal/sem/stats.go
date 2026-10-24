@@ -267,10 +267,16 @@ func lavaanCombine(parts []lavaanPart, chi2 []float64, nParams int) Stats {
 	default:
 		st.TLI = 1
 	}
-	if st.Chi2Baseline == 0 {
+	// lav_fit_nfi: undefined past the baseline's degrees of freedom (a
+	// model more restricted than independence) or on a zero baseline,
+	// 1 when saturated.
+	switch {
+	case st.DoF > st.DoFBaseline || nearlyZero(st.Chi2Baseline):
 		st.NFI = math.NaN()
-	} else {
+	case st.DoF > 0:
 		st.NFI = (st.Chi2Baseline - st.Chi2) / st.Chi2Baseline
+	default:
+		st.NFI = 1
 	}
 	st.GFI = gfi
 	if st.DoF > 0 {
