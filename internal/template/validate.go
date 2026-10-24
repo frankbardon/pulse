@@ -433,22 +433,22 @@ func (s *bodyScan) marker(raw any, path string, axes axisScope) error {
 // `holdout`, an overlay `params.formula`) is refused
 // PULSE_TEMPLATE_EXPR_SPLICE: a variable's text spliced into an
 // expression could rewrite its logic. Values reach an expression through
-// the request's `params` object instead. Three things stay legal there:
+// the request's `params` object instead. Two things stay legal there:
 // the `{{{{` escape (walkInterpolation consumes it as literal text, never
-// a token), a for_each or sweep axis token (passed through for that
-// expansion, not substituted here), and a whole-value {"$var": …}
-// marker (an object, never reaching this walk).
+// a token) and a whole-value {"$var": …} marker (an object, never
+// reaching this walk). A for_each or sweep axis token is refused too:
+// that expansion would splice the axis value's text in the same way.
 func (s *bodyScan) text(str, path string, keys []string, axes axisScope) error {
 	if !strings.Contains(str, interpOpen) {
 		return nil
 	}
 	slot, inExpr := exprslots.Match(keys)
 	return walkInterpolation(s.t, str, path, func(string) {}, func(name string) error {
+		if inExpr {
+			return exprSplice(s.t, name, path, slot.Name, axes.has(name))
+		}
 		if axes.has(name) {
 			return nil
-		}
-		if inExpr {
-			return exprSplice(s.t, name, path, slot.Name)
 		}
 		if !s.isDeclared(name) {
 			return undeclaredRef(s.t, name, path, subjectInterp)
@@ -460,11 +460,17 @@ func (s *bodyScan) text(str, path string, keys []string, axes axisScope) error {
 // exprSplice builds the `{{token}}`-inside-an-expression fault. It is a
 // template AUTHOR error caught at declaration, whatever the variable
 // would resolve to.
-func exprSplice(t *Template, name, path, slot string) error {
+func exprSplice(t *Template, name, path, slot string, axis bool) error {
 	details := renderDetails(t, name, path)
 	details["slot"] = slot
+	what := "variable"
+	if axis {
+		// A for_each or sweep axis: that expansion would splice the
+		// axis value's text.
+		what = "axis"
+	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_TEMPLATE_EXPR_SPLICE,
-		"template body at "+path+": "+string(subjectInterp)+" interpolates variable "+strconv.Quote(name)+
+		"template body at "+path+": "+string(subjectInterp)+" interpolates "+what+" "+strconv.Quote(name)+
 			" into an expression ("+slot+" slot); a template never splices text into an expression — "+
 			"pass the value as a request parameter, "+`"params": {`+strconv.Quote(name)+`: {"$var": `+strconv.Quote(name)+`}}`+
 			", and read it as params."+name+", or supply the whole expression with a "+

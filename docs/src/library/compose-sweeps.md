@@ -48,6 +48,29 @@ refused. This is a purpose-built substitution, not an expression
 language and not the stored-template surface: it runs before the body
 is decoded.
 
+A sweep never splices an axis value's text into an expression. A
+`{{axis}}` inside an expression string — a filterer's or attribute's
+`expression`, a regression's `holdout`, an overlay's `params.formula`,
+a feature's `params.fit_on`, in the request or the sweep overlays — is
+`PULSE_SWEEP_EXPR_SPLICE`, refused before any slot is substituted, by
+`PredictCompose` and the runtime alike (details `field`, `placeholder`,
+`slot`). Spliced text could rewrite the expression's logic. Carry the
+value through the slot request's `params` instead and read it in the
+expression:
+
+```jsonc
+"sweep": {
+  "axes": [{"name": "w", "values": [2, 3]}],
+  "request": {
+    "params": {"w": {"$var": "w"}},
+    "filterers": [{"type": "FILTER_EXPRESSION", "expression": "wave >= params.w"}]
+  }
+}
+```
+
+A `{"$var": "axis"}` marker may still supply a whole expression, the
+axis values then being the complete expression strings.
+
 The substituted body decodes **strictly** into a `Request`, exactly as a
 plain compose slot does: an unknown key fails with
 `PULSE_REQUEST_UNKNOWN_FIELD` (`details.path`, a nearest-key suggestion,

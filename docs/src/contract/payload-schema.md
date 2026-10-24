@@ -1177,7 +1177,8 @@ are `SweepAxis {name, values}` (`values` a non-empty list of scalars),
 `mode` the closed enum `SweepMode` (`grid` default, `zip`), `request` an
 object in the `Request` shape that may carry `{{axis}}` / `{"$var":
 "axis"}` placeholders (the schema types it as `object`; the substituted
-body is decoded strictly at expansion), `overlays` an array of
+body is decoded strictly at expansion; a `{{axis}}` inside an
+expression string is `PULSE_SWEEP_EXPR_SPLICE`), `overlays` an array of
 `ComposeOverlaySpec` objects with placeholders, and `rank` a
 `SweepRank {by, order, top}` (`SweepRankOrder`: `asc`, `desc`). The slot
 is `omitempty`, so a sweep-free request is byte-identical on the wire.
@@ -1363,7 +1364,8 @@ and labels.
 Before any other check the item is replaced IN PLACE by one ordinary
 item per axis combination (grid: first axis slowest; zip: lockstep),
 each rendered from the item's own body with the sweep substitution —
-`{{axis}}` in any string (`label`, `field`, `expression`), `{"$var":
+`{{axis}}` in any non-expression string (`label`, `field`; inside an
+expression slot it is `PULSE_FOR_EACH_EXPR_SPLICE`), `{"$var":
 "axis"}` as a whole value inside `params` (opaque JSON; a typed
 non-string key cannot hold the marker) — and decoded strictly. Plain
 items are untouched, so a list may mix both, and no response shape

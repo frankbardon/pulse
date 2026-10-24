@@ -10395,7 +10395,7 @@
         ]
       }
     ],
-    "error_codes_count": 412,
+    "error_codes_count": 414,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10521,6 +10521,7 @@
       "PULSE_FORMULA_TOTAL_ARITY",
       "PULSE_FORMULA_TOTAL_NESTED",
       "PULSE_FORMULA_TOTAL_SITE",
+      "PULSE_FOR_EACH_EXPR_SPLICE",
       "PULSE_FOR_EACH_INVALID",
       "PULSE_GROUP_DECLARATION_INVALID",
       "PULSE_GROUP_ENTRIES_EXHAUSTED",
@@ -10735,6 +10736,7 @@
       "PULSE_SPSS_ZSAV_BLOCK_CORRUPT",
       "PULSE_SPSS_ZSAV_INVALID",
       "PULSE_SUPPRESS_ADVISORY_UNKNOWN",
+      "PULSE_SWEEP_EXPR_SPLICE",
       "PULSE_SWEEP_INVALID",
       "PULSE_SWEEP_RANK_PATH",
       "PULSE_SYNTH_ALREADY_TAGGED",
@@ -19572,4 +19574,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4cd8e047b189a888e019364dea8252ecb2653c5bf6453628f44bf2792cb4183a
+// golden-hash: 1d2d8554b4faf9eaee571ec7f3567f7c3923bfea9726c67b1f5900878376e5e0

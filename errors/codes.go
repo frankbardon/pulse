@@ -1446,6 +1446,20 @@ const (
 	// slot only) carries on its own response.
 	PULSE_SWEEP_RANK_PATH Code = "PULSE_SWEEP_RANK_PATH"
 
+	// PULSE_SWEEP_EXPR_SPLICE indicates a `{{token}}` placeholder inside
+	// an expression-bearing string of a ComposedRequest `sweep` request
+	// or overlays (a filterer or attribute `expression`, a regression
+	// `holdout`, an overlay `params.formula`; the slot list is
+	// internal/exprslots). Splicing an axis value's text into an
+	// expression would let the value rewrite the expression's logic, so
+	// the sweep is refused before any slot is substituted — identically by
+	// predict and the runtime. An axis value reaches an expression through
+	// the request's `params` object (`"params": {"x": {"$var": "x"}}`, read
+	// as `params.x`); a whole-value {"$var": …} marker supplying the entire
+	// expression stays allowed. Details carry "field" (the sweep-rooted
+	// path), "placeholder" (the token's name) and "slot" (the slot name).
+	PULSE_SWEEP_EXPR_SPLICE Code = "PULSE_SWEEP_EXPR_SPLICE"
+
 	// PULSE_BANNER_INVALID indicates a malformed ComposedRequest
 	// `banner` block: no base request, a base request that sets `label`,
 	// crosstab `columns` or crosstab shape `long`, no sections, a section
@@ -1668,6 +1682,20 @@ const (
 	// involved and, where they apply, "value" / "valid", the faulting
 	// combination "index" and its axis "values", and "unknown_field".
 	PULSE_FOR_EACH_INVALID Code = "PULSE_FOR_EACH_INVALID"
+
+	// PULSE_FOR_EACH_EXPR_SPLICE indicates a `{{token}}` placeholder
+	// inside an expression-bearing string of a window, feature or
+	// attribute item carrying a `for_each` (an attribute `expression`, a
+	// params-borne `fit_on` or centroid `filter` expression; the slot list
+	// is internal/exprslots). Splicing an axis value's text into an
+	// expression would let the value rewrite the expression's logic, so
+	// the request is refused before any item is substituted — identically
+	// by predict and the runtime. A whole-value {"$var": …} marker
+	// supplying the entire expression stays allowed; a value the
+	// expression reads goes through the request's `params` object, swept
+	// by a Compose sweep. Details carry "field" (the request-rooted path),
+	// "placeholder" (the token's name) and "slot" (the slot name).
+	PULSE_FOR_EACH_EXPR_SPLICE Code = "PULSE_FOR_EACH_EXPR_SPLICE"
 
 	// PULSE_JOIN_TYPE_MISMATCH indicates an equi-join key pair where
 	// the left field's schema type differs from the right field's
@@ -2707,11 +2735,12 @@ const (
 	// expression through the request's `params` object (filled with a
 	// type-preserving {"$var": …} marker) read as `params.<name>`. A
 	// whole-value {"$var": …} marker supplying the entire expression stays
-	// allowed, as do the `{{{{` escape and a for_each / sweep axis token
-	// left for that expansion. Raised at declaration validation (an author
-	// error, like PULSE_TEMPLATE_INVALID). Details carry the template
-	// under DetailTemplate, the variable under DetailVariable, the body
-	// path under "path" and the slot name under "slot".
+	// allowed, as does the `{{{{` escape. A for_each or sweep axis token
+	// there is refused the same way (its value's text would be spliced by
+	// that expansion). Raised at declaration validation (an author error,
+	// like PULSE_TEMPLATE_INVALID). Details carry the template under
+	// DetailTemplate, the variable or axis name under DetailVariable, the
+	// body path under "path" and the slot name under "slot".
 	PULSE_TEMPLATE_EXPR_SPLICE Code = "PULSE_TEMPLATE_EXPR_SPLICE"
 
 	// PULSE_SPSS_DICT_INVALID indicates an SPSS `.sav` dictionary is
@@ -4336,6 +4365,7 @@ var allCodes = []Code{
 	PULSE_COMPOSE_LABEL_COLLISION,
 	PULSE_SWEEP_INVALID,
 	PULSE_SWEEP_RANK_PATH,
+	PULSE_SWEEP_EXPR_SPLICE,
 	PULSE_BANNER_INVALID,
 	PULSE_FIT_INVALID,
 	PULSE_MODEL_NAME_COLLISION,
@@ -4363,6 +4393,7 @@ var allCodes = []Code{
 	PULSE_MODEL_REF_INVALID,
 	PULSE_MODEL_FILE_UNREADABLE,
 	PULSE_FOR_EACH_INVALID,
+	PULSE_FOR_EACH_EXPR_SPLICE,
 	PULSE_JOIN_TYPE_MISMATCH,
 	PULSE_JOIN_KIND_NOT_IMPLEMENTED,
 	PULSE_JOIN_FIELD_UNKNOWN,

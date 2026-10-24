@@ -6,6 +6,7 @@ import (
 	stderrors "errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
@@ -56,8 +57,11 @@ func TestTemplateExprSplice_Refused(t *testing.T) {
 			`{"requests": [{"label": "a"}], "overlays": [{"kind": "OVERLAY_FORMULA", "params": {"formula": "slot.a.x * {{w}}"}}]}`,
 			"body.overlays[0].params.formula", exprslots.SlotOverlayFormula},
 		{"compose sweep request formula", "composed",
-			`{"sweep": {"axes": [{"name": "d", "values": [1, 2]}], "request": {"attributes": [{"type": "ATTR_FORMULA", "label": "x", "expression": "spend * {{d}} * {{w}}"}]}}}`,
+			`{"sweep": {"axes": [{"name": "d", "values": [1, 2]}], "request": {"attributes": [{"type": "ATTR_FORMULA", "label": "x_{{d}}", "expression": "spend * {{w}}"}]}}}`,
 			"body.sweep.request.attributes[0].expression", exprslots.SlotExpression},
+		{"feature fit_on", "request",
+			`{"features": [{"type": "FEAT_TARGET_ENCODE", "field": "g", "params": {"target": "y", "fit_on": "wave < {{w}}"}}]}`,
+			"body.features[0].params.fit_on", exprslots.SlotFeatureFitOn},
 		{"chain stage holdout", "chain",
 			`{"stages": [{"request": {"regressions": [{"type": "REG_OLS", "holdout": "wave >= {{w}}"}]}}]}`,
 			"body.stages[0].request.regressions[0].holdout", exprslots.SlotHoldout},
@@ -82,11 +86,50 @@ func TestTemplateExprSplice_Refused(t *testing.T) {
 	}
 }
 
+// TestTemplateExprSplice_AxisTokenRefused: a for_each or sweep axis
+// token inside an expression slot is refused at declaration too — the
+// expansion would splice the axis value's text exactly as a template
+// variable's — naming the axis under details.variable.
+func TestTemplateExprSplice_AxisTokenRefused(t *testing.T) {
+	cases := []struct {
+		name, target, body, path, slot string
+	}{
+		{"for_each attribute expression", "request",
+			`{"attributes": [{"type": "ATTR_FORMULA", "for_each": {"axes": [{"name": "d", "values": [1, 2]}]}, "label": "x_{{d}}", "expression": "spend * {{d}}"}]}`,
+			"body.attributes[0].expression", exprslots.SlotExpression},
+		{"for_each feature fit_on", "request",
+			`{"features": [{"type": "FEAT_TARGET_ENCODE", "field": "g", "for_each": {"axes": [{"name": "d", "values": [1, 2]}]}, "label": "te{{d}}", "params": {"target": "y", "fit_on": "wave < {{d}}"}}]}`,
+			"body.features[0].params.fit_on", exprslots.SlotFeatureFitOn},
+		{"sweep request filter", "composed",
+			`{"sweep": {"axes": [{"name": "d", "values": [1, 2]}], "request": {"filterers": [{"type": "FILTER_EXPRESSION", "expression": "wave == {{d}}"}]}}}`,
+			"body.sweep.request.filterers[0].expression", exprslots.SlotExpression},
+		{"sweep overlay formula", "composed",
+			`{"sweep": {"axes": [{"name": "d", "values": [1, 2]}], "request": {"label": "x"}, "overlays": [{"kind": "OVERLAY_FORMULA", "params": {"formula": "cell * {{d}}"}}]}}`,
+			"body.sweep.overlays[0].params.formula", exprslots.SlotOverlayFormula},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := template.Parse([]byte(spliceDoc(c.target, c.body)))
+			var ce *perr.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_TEMPLATE_EXPR_SPLICE {
+				t.Fatalf("Parse = %v, want PULSE_TEMPLATE_EXPR_SPLICE", err)
+			}
+			if ce.Details["path"] != c.path || ce.Details["slot"] != c.slot || ce.Details[perr.DetailVariable] != "d" {
+				t.Errorf("details %+v, want path %q slot %q variable d", ce.Details, c.path, c.slot)
+			}
+			if !strings.Contains(ce.Message, `axis "d"`) {
+				t.Errorf("message %q does not name the axis", ce.Message)
+			}
+		})
+	}
+}
+
 // TestTemplateExprSplice_WholeValueAllowed: what stays legal in an
 // expression slot — a whole-value marker supplying the entire
-// expression, the `{{{{` escape, a for_each axis token left for the
-// item's expansion — and `{{token}}` outside one (a label, a params
-// entry sharing a slot's key) still interpolates.
+// expression (a variable's, or a for_each axis's inside params), the
+// `{{{{` escape —
+// and `{{token}}` outside one (a label, a params entry sharing a slot's
+// key) still interpolates.
 func TestTemplateExprSplice_WholeValueAllowed(t *testing.T) {
 	cases := []struct {
 		name, body string
@@ -98,9 +141,9 @@ func TestTemplateExprSplice_WholeValueAllowed(t *testing.T) {
 		{"escape",
 			`{"attributes": [{"type": "ATTR_FORMULA", "label": "x", "expression": "name == '{{{{w}}'"}]}`,
 			map[string]any{"attributes": []any{map[string]any{"type": "ATTR_FORMULA", "label": "x", "expression": "name == '{{w}}'"}}}},
-		{"for_each axis token",
-			`{"attributes": [{"type": "ATTR_FORMULA", "for_each": {"axes": [{"name": "d", "values": [1, 2]}]}, "label": "x_{{d}}", "expression": "spend * {{d}}"}]}`,
-			map[string]any{"attributes": []any{map[string]any{"type": "ATTR_FORMULA", "for_each": map[string]any{"axes": []any{map[string]any{"name": "d", "values": []any{json.Number("1"), json.Number("2")}}}}, "label": "x_{{d}}", "expression": "spend * {{d}}"}}}},
+		{"for_each axis token beside an expression",
+			`{"features": [{"type": "FEAT_TARGET_ENCODE", "field": "g", "for_each": {"axes": [{"name": "d", "values": [1, 2]}, {"name": "e", "values": ["wave < 2", "wave < 3"]}], "mode": "zip"}, "label": "te_{{d}}", "params": {"target": "y", "fit_on": {"$var": "e"}}}]}`,
+			map[string]any{"features": []any{map[string]any{"type": "FEAT_TARGET_ENCODE", "field": "g", "for_each": map[string]any{"axes": []any{map[string]any{"name": "d", "values": []any{json.Number("1"), json.Number("2")}}, map[string]any{"name": "e", "values": []any{"wave < 2", "wave < 3"}}}, "mode": "zip"}, "label": "te_{{d}}", "params": map[string]any{"target": "y", "fit_on": map[string]any{"$var": "e"}}}}}},
 		{"label beside an expression",
 			`{"label": "wave {{w}}", "filterers": [{"type": "FILTER_EXPRESSION", "expression": "wave == params.w"}], "params": {"w": {"$var": "w"}}}`,
 			map[string]any{"label": "wave 3", "filterers": []any{map[string]any{"type": "FILTER_EXPRESSION", "expression": "wave == params.w"}}, "params": map[string]any{"w": json.Number("3")}}},

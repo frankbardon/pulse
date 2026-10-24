@@ -113,7 +113,9 @@ func countAxes(axes []types.SweepAxis, mode types.SweepMode) int {
 // nested_in_sweep); then the reference rule (every axis is
 // named by a placeholder in the request body, the AUTHORED label pattern
 // or the overlays — the default label does not count — and every
-// placeholder names an axis); then preflight, when non-nil, with the
+// placeholder names an axis, and none sits inside an expression slot —
+// internal/exprslots, PULSE_SWEEP_EXPR_SPLICE); then preflight, when
+// non-nil, with the
 // total slot count (explicit + expanded) BEFORE anything is rendered,
 // so an oversized product is refused without being built; then one
 // substitution per combination through internal/template — `{{axis}}`
@@ -440,7 +442,13 @@ func referenceFault(err error) *errors.CodedError {
 	field := scanPath(path)
 	name, _ := tce.Details[errors.DetailVariable].(string)
 	var ce *errors.CodedError
-	if name != "" {
+	if tce.Code == errors.PULSE_TEMPLATE_EXPR_SPLICE {
+		slot, _ := tce.Details["slot"].(string)
+		ce = exprSplice(errors.PULSE_SWEEP_EXPR_SPLICE, "sweep", field, name, slot,
+			"carry the axis value through the request's params — `\"params\": {"+strconv.Quote(name)+
+				": {\"$var\": "+strconv.Quote(name)+"}}` read as `params."+name+"` — or sweep whole "+
+				"expressions with a `{\"$var\": "+strconv.Quote(name)+"}` marker supplying the slot")
+	} else if name != "" {
 		ce = invalidWith(field, ReasonPlaceholderUnknown,
 			"sweep placeholder "+strconv.Quote(name)+" at "+field+" names no axis; declare an axis "+
 				strconv.Quote(name)+" or correct the placeholder",
@@ -451,6 +459,20 @@ func referenceFault(err error) *errors.CodedError {
 	}
 	ce.Cause = err
 	return ce
+}
+
+// exprSplice builds the `{{axis}}`-inside-an-expression refusal (code
+// PULSE_SWEEP_EXPR_SPLICE or PULSE_FOR_EACH_EXPR_SPLICE) from the
+// template scan's PULSE_TEMPLATE_EXPR_SPLICE: the slot list is
+// internal/exprslots, matched by the same walk that substitutes, so the
+// refusal fires before any value is spliced. fix is the surface's
+// alternative, in prose.
+func exprSplice(code errors.Code, noun, field, name, slot, fix string) *errors.CodedError {
+	return errors.NewCodedErrorWithDetails(code,
+		noun+" placeholder "+strconv.Quote("{{"+name+"}}")+" at "+field+" sits inside an expression ("+slot+
+			" slot); a "+noun+" never splices an axis value's text into an expression, which would let the "+
+			"value rewrite its logic — "+fix,
+		map[string]any{"field": field, "placeholder": name, "slot": slot})
 }
 
 // scanPath maps a reference-scan body path (`body.request.x`) to its

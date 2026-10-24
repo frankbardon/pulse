@@ -23,6 +23,11 @@ func TestMatch(t *testing.T) {
 		{[]string{"regressions", "holdout"}, exprslots.SlotHoldout},
 		{[]string{"overlays", "params", "formula"}, exprslots.SlotOverlayFormula},
 		{[]string{"requests", "overlays", "params", "formula"}, exprslots.SlotOverlayFormula},
+		{[]string{"features", "params", "fit_on"}, exprslots.SlotFeatureFitOn},
+		{[]string{"stages", "request", "features", "params", "fit_on"}, exprslots.SlotFeatureFitOn},
+		// An attribute's params.fit_on is a keyword or a filterer list.
+		{[]string{"attributes", "params", "fit_on"}, ""},
+		{[]string{"params", "features", "params", "fit_on"}, ""},
 		// A params entry sharing a slot's key is data.
 		{[]string{"params", "expression"}, ""},
 		{[]string{"attributes", "params", "holdout"}, ""},

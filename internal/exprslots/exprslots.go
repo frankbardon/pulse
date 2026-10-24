@@ -56,6 +56,7 @@ const (
 	SlotExpression     = "expression"
 	SlotHoldout        = "holdout"
 	SlotOverlayFormula = "overlay_formula"
+	SlotFeatureFitOn   = "feature_fit_on"
 )
 
 var slots = []Slot{
@@ -76,7 +77,21 @@ var slots = []Slot{
 		Owners: []string{"OverlaySpec", "ComposeOverlaySpec"},
 		Tail:   []string{"overlays", "params", OverlayFormulaParam},
 	},
+	{
+		// A feature's params.fit_on row expression (FEAT_TARGET_ENCODE),
+		// compiled as an expression filter. The tail is rooted at the
+		// `features` list so an attribute's params.fit_on — the
+		// "filtered" keyword or a filterer list — never matches.
+		Name:   SlotFeatureFitOn,
+		Owners: []string{"Feature"},
+		Tail:   []string{"features", ParamsKey, FeatureFitOnParam},
+		Sites:  []string{SiteFilter},
+	},
 }
+
+// FeatureFitOnParam is the feature params key carrying a row
+// expression (FEAT_TARGET_ENCODE params.fit_on).
+const FeatureFitOnParam = "fit_on"
 
 // All returns every expression-bearing slot, in a fixed order. The
 // result is a copy.

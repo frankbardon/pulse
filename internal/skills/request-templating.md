@@ -12,14 +12,14 @@ requires: [capability:templates]
 
 Stored JSON that renders into a **validated typed request** — shape fixed once, caller supplies only variables. Execution-free.
 
-**Not expr-lang.** `$var` / `{{}}` / `$when` substitute before decode; expressions run on *row fields* at execution (`expression-language`). `{{}}` in an `expression`, `holdout` or overlay `params.formula` is `_EXPR_SPLICE` at load; whole-value `$var`, `{{{{` and axis tokens are legal.
+**Not expr-lang.** `$var` / `{{}}` / `$when` substitute before decode; expressions run on *row fields* at execution (`expression-language`). `{{}}` in an expression string (`expression`, `holdout`, overlay `params.formula`, feature `params.fit_on`) is `_EXPR_SPLICE` at load, axis tokens too; whole `$var`, `{{{{` are legal.
 <!-- feature: capability:params -->
 Use a param: `"params":{"x":{"$var":"x"}}` + `params.x` (`request-params`).
 <!-- /feature -->
 
 ## File shape
 
-`{"name"?, "description"?, "target", "variables"[], "body"}`; unknown top-level keys rejected. `target` ∈ `request | composed | chain | facet | sample` (lowercase) picks the strict-decode request root — required, never inferred. `name` derives from the file path; a disagreeing `name` key is rejected. `body` is a non-empty object, deliberately **not** runnable as-is.
+`{"name"?, "description"?, "target", "variables"[], "body"}`; unknown top-level keys rejected. `target` ∈ `request | composed | chain | facet | sample` (lowercase) picks the strict-decode root — required, never inferred. `name` derives from the file path; a disagreeing `name` key is rejected. `body` is a non-empty object, deliberately **not** runnable as-is.
 
 ## Substitution — three forms
 
@@ -30,10 +30,10 @@ Use a param: `"params":{"x":{"$var":"x"}}` + `params.x` (`request-params`).
 | `{"$when":"segs",…}` | Survives iff the variable resolved — **presence, not truthiness**: drops only when unsupplied AND undefaulted; supplied `""`/`[]`/`0`/`false` KEEPS it. Key stripped either way. Guards run **before** descent, so markers in a dropped block never raise. Array drops compact the slice; root-level `$when` errors. |
 
 <!-- feature: capability:for_each -->
-A `for_each` item's own axis placeholders pass through to its expansion (`item-fan-out`).
+A `for_each` item's axis placeholders pass through to its expansion (`item-fan-out`).
 <!-- /feature -->
 <!-- feature: capability:compose_sweep -->
-A `sweep`'s axis placeholders pass through in its `request`, `overlays` and `label` only (`compose-sweeps`).
+A `sweep`'s axis placeholders pass through in its `request`, `overlays`, `label` only (`compose-sweeps`).
 <!-- /feature -->
 
 ## Variable types (nine)
@@ -68,11 +68,11 @@ A `sweep`'s axis placeholders pass through in its `request`, `overlays` and `lab
 "groups":[{"type":"<binning grouper>","field":"revenue","interval":10}]}
 ```
 
-`bucket` defaulted, splicing the **number** `10`; the `segs`-guarded grouper dropped, the array compacted.
+`bucket` defaulted to the **number** `10`; the `segs`-guarded grouper dropped, the array compacted.
 
 ## Discovery + lifecycle
 
-`Options.TemplateDirs []string`, else `PULSE_TEMPLATES_DIR` split on `os.PathListSeparator` Name = path relative to its root minus `.json`, forward-slash separated. Roots are ordered precedence — **first root wins**; losers land on the winner's `Summary.Shadows`, never an error. **Filesystem faults are `DATA_FILE`**, outside the `PULSE_TEMPLATE_*` family.
+`Options.TemplateDirs []string`, else `PULSE_TEMPLATES_DIR` split on `os.PathListSeparator`. Name = root-relative path minus `.json`, `/`-separated. Roots are ordered precedence — **first root wins**; losers land on the winner's `Summary.Shadows`, never an error. **Filesystem faults are `DATA_FILE`**, outside the `PULSE_TEMPLATE_*` family.
 
 | Malformed file | Behaviour |
 |---|---|

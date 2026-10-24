@@ -2584,6 +2584,7 @@ pulse/errors: const PULSE_FORMULA_COMPILE_ERROR pulse/errors.Code = "PULSE_FORMU
 pulse/errors: const PULSE_FORMULA_TOTAL_ARITY pulse/errors.Code = "PULSE_FORMULA_TOTAL_ARITY"
 pulse/errors: const PULSE_FORMULA_TOTAL_NESTED pulse/errors.Code = "PULSE_FORMULA_TOTAL_NESTED"
 pulse/errors: const PULSE_FORMULA_TOTAL_SITE pulse/errors.Code = "PULSE_FORMULA_TOTAL_SITE"
+pulse/errors: const PULSE_FOR_EACH_EXPR_SPLICE pulse/errors.Code = "PULSE_FOR_EACH_EXPR_SPLICE"
 pulse/errors: const PULSE_FOR_EACH_INVALID pulse/errors.Code = "PULSE_FOR_EACH_INVALID"
 pulse/errors: const PULSE_GROUP_DECLARATION_INVALID pulse/errors.Code = "PULSE_GROUP_DECLARATION_INVALID"
 pulse/errors: const PULSE_GROUP_ENTRIES_EXHAUSTED pulse/errors.Code = "PULSE_GROUP_ENTRIES_EXHAUSTED"
@@ -2798,6 +2799,7 @@ pulse/errors: const PULSE_SPSS_WIDTH_OVERFLOW pulse/errors.Code = "PULSE_SPSS_WI
 pulse/errors: const PULSE_SPSS_ZSAV_BLOCK_CORRUPT pulse/errors.Code = "PULSE_SPSS_ZSAV_BLOCK_CORRUPT"
 pulse/errors: const PULSE_SPSS_ZSAV_INVALID pulse/errors.Code = "PULSE_SPSS_ZSAV_INVALID"
 pulse/errors: const PULSE_SUPPRESS_ADVISORY_UNKNOWN pulse/errors.Code = "PULSE_SUPPRESS_ADVISORY_UNKNOWN"
+pulse/errors: const PULSE_SWEEP_EXPR_SPLICE pulse/errors.Code = "PULSE_SWEEP_EXPR_SPLICE"
 pulse/errors: const PULSE_SWEEP_INVALID pulse/errors.Code = "PULSE_SWEEP_INVALID"
 pulse/errors: const PULSE_SWEEP_RANK_PATH pulse/errors.Code = "PULSE_SWEEP_RANK_PATH"
 pulse/errors: const PULSE_SYNTH_ALREADY_TAGGED pulse/errors.Code = "PULSE_SYNTH_ALREADY_TAGGED"
@@ -5856,4 +5858,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 75bb469a2d2ef8d956bd03a9e36e34eb3209e75ca7994ff83a34a0f7a6d5d641
+// golden-hash: 20ec8cf12c5addf3e48fc853feeaf4902a04a4f391cfebd3df784a9b683fe922

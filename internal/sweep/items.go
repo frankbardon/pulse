@@ -160,7 +160,8 @@ type pendingItem struct {
 // attributes, windows) and declared order within a list, is checked
 // structurally (the compose sweep's axis rules) and by the reference
 // rule (every axis named by a placeholder in the item, every
-// placeholder naming an axis); then preflight, when non-nil, with
+// placeholder naming an axis, none inside an expression slot —
+// PULSE_FOR_EACH_EXPR_SPLICE); then preflight, when non-nil, with
 // DerivedCount — plain items plus expanded ones — BEFORE anything is
 // rendered, so an oversized product is refused without being built;
 // then each for_each item renders once per combination (grid: first axis
@@ -195,7 +196,7 @@ func ExpandItems(req *types.Request, preflight func(derived int) error) (*types.
 		if err != nil {
 			return itemInternalFault(path, err)
 		}
-		if ce := checkItemReferences(path, spec, body); ce != nil {
+		if ce := checkItemReferences(path, list, spec, body); ce != nil {
 			return ce
 		}
 		pending = append(pending, pendingItem{path: path, spec: spec, body: body})
@@ -344,14 +345,26 @@ func itemBody(item any) (json.RawMessage, error) {
 // checkItemReferences is the reference rule over one item body: every
 // placeholder names an axis (validation with every axis declared), and
 // every axis is named somewhere (validation with that axis alone
-// undeclared must fail on it).
-func checkItemReferences(path string, spec *types.ForEach, body json.RawMessage) *errors.CodedError {
+// undeclared must fail on it). A placeholder inside an expression slot
+// is PULSE_FOR_EACH_EXPR_SPLICE, checked first: that scan reads the item
+// nested under its list key ({"<list>": [item]}), so the
+// expression-slot list (internal/exprslots) matches the key paths it
+// would from a request root — a feature's params.fit_on, not an
+// attribute's. Its other faults are left to the item-rooted scan.
+func checkItemReferences(path, list string, spec *types.ForEach, body json.RawMessage) *errors.CodedError {
 	all := make([]*template.Variable, len(spec.Axes))
 	for i, ax := range spec.Axes {
 		all[i] = &template.Variable{Name: ax.Name, Type: template.VarString}
 	}
+	nested := wrap(list, append(append([]byte("["), body...), ']'))
+	if err := template.Validate(&template.Template{Target: template.TargetRequest, Variables: all, Body: nested}); err != nil {
+		var tce *errors.CodedError
+		if stderrors.As(err, &tce) && tce.Code == errors.PULSE_TEMPLATE_EXPR_SPLICE {
+			return itemReferenceFault(path, list, err)
+		}
+	}
 	if err := template.Validate(&template.Template{Target: template.TargetRequest, Variables: all, Body: body}); err != nil {
-		return itemReferenceFault(path, err)
+		return itemReferenceFault(path, list, err)
 	}
 	rules := itemRules(path)
 	for i, ax := range spec.Axes {
@@ -371,16 +384,27 @@ func checkItemReferences(path string, spec *types.ForEach, body json.RawMessage)
 
 // itemReferenceFault maps a template validation fault on an item body
 // to PULSE_FOR_EACH_INVALID.
-func itemReferenceFault(path string, err error) *errors.CodedError {
+func itemReferenceFault(path, list string, err error) *errors.CodedError {
 	var tce *errors.CodedError
 	if !stderrors.As(err, &tce) {
 		return itemInternalFault(path, err)
 	}
 	bodyPath, _ := tce.Details["path"].(string)
+	// The expression scan nests the item at <list>[0].
+	if rest, ok := strings.CutPrefix(bodyPath, "body."+list+"[0]"); ok {
+		bodyPath = "body" + rest
+	}
 	field := itemFieldPath(path, bodyPath)
 	name, _ := tce.Details[errors.DetailVariable].(string)
 	var ce *errors.CodedError
-	if name != "" {
+	if tce.Code == errors.PULSE_TEMPLATE_EXPR_SPLICE {
+		slot, _ := tce.Details["slot"].(string)
+		ce = exprSplice(errors.PULSE_FOR_EACH_EXPR_SPLICE, "for_each", field, name, slot,
+			"vary the value with a Compose sweep instead (its request carries `\"params\": {"+strconv.Quote(name)+
+				": {\"$var\": "+strconv.Quote(name)+"}}` and the expression reads `params."+name+"`), or, for an "+
+				"expression inside params, supply it whole with a `{\"$var\": "+strconv.Quote(name)+"}` axis marker "+
+				"whose values are the complete expressions")
+	} else if name != "" {
 		ce = forEachInvalid(field, ReasonPlaceholderUnknown,
 			"for_each placeholder "+strconv.Quote(name)+" at "+field+" names no axis; declare an axis "+
 				strconv.Quote(name)+" in "+path+".for_each or correct the placeholder",

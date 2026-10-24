@@ -2512,6 +2512,42 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SWEEP_EXPR_SPLICE: {
+		Message: "The ComposedRequest `sweep` places an axis placeholder `{{name}}` inside an expression string of its request or overlays (a filterer or attribute expression, a regression holdout, an overlay formula), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so a sweep never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"sweep", "request", "params"},
+				Hint:   "Carry the axis value through the request's params instead: add `\"params\": {\"x\": {\"$var\": \"x\"}}` to the sweep request (the marker keeps the value's type) and read it in the expression as `params.x`. To sweep whole expressions, give the axis the expression strings as values and supply the slot with a `{\"$var\": \"x\"}` marker.",
+				Examples: []any{map[string]any{
+					"axes": []any{map[string]any{"name": "w", "values": []any{1, 2}}},
+					"request": map[string]any{
+						"params":    map[string]any{"w": map[string]any{"$var": "w"}},
+						"filterers": []any{map[string]any{"type": "FILTER_EXPRESSION", "expression": "wave == params.w"}},
+					},
+				}},
+			},
+		},
+	},
+	PULSE_FOR_EACH_EXPR_SPLICE: {
+		Message: "A window, feature or attribute item carrying a `for_each` places an axis placeholder `{{name}}` inside an expression string (an attribute expression, or a params-borne fit or centroid filter expression), so nothing runs — predict refuses it identically. Splicing an axis value's text into an expression would let the value rewrite the expression's logic, so an item fan-out never substitutes there. The path is under `field`, the placeholder under `placeholder` and the expression slot under `slot`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "expression"},
+				Hint:   "Vary the value with a Compose `sweep` instead: its request carries `\"params\": {\"x\": {\"$var\": \"x\"}}` (the marker keeps the value's type) and the expression reads `params.x`, one slot per axis value. For an expression inside an item's params (a fit_on), an axis may instead supply the whole expression with a `{\"$var\": \"x\"}` marker whose values are the complete expression strings.",
+				Examples: []any{map[string]any{
+					"sweep": map[string]any{
+						"axes": []any{map[string]any{"name": "k", "values": []any{2, 3}}},
+						"request": map[string]any{
+							"params":     map[string]any{"k": map[string]any{"$var": "k"}},
+							"attributes": []any{map[string]any{"type": "ATTR_FORMULA", "label": "x_by_k", "expression": "week * params.k"}},
+						},
+					},
+				}},
+			},
+		},
+	},
 	PULSE_SWEEP_RANK_PATH: {
 		Message: "The sweep `rank.by` path does not parse, or does not resolve to one number in a slot's response. The rank reads each sweep slot's unshaped response JSON at that path: dotted segments, where a segment on an object is a key and a segment on a list selects the one element whose `name` or `label` equals it (never an index). The batch is refused when the path ends on a non-number, is ambiguous (two elements match, or the match's name and label differ) or resolves in no sweep slot (reason `syntax`, `not_number`, `ambiguous` or `missing`). As a WARNING on a slot's own response it means that slot is left out of the ranking: its value is null (undefined) or the path is missing there only. The path is under `by`, the slot under `label`, the failing segment under `segment`.",
 		Fixups: []Fixup{
@@ -3738,7 +3774,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_TEMPLATE_EXPR_SPLICE: {
-		Message: "The template body interpolates a variable with `{{name}}` inside an expression string (a filterer or attribute expression, a regression holdout, an overlay formula). Splicing text into an expression would let the variable's value rewrite the expression's logic, so the template is refused when it is loaded. The error details name the variable, the body path and the slot.",
+		Message: "The template body interpolates a variable with `{{name}}` inside an expression string (a filterer or attribute expression, a regression holdout, an overlay formula). Splicing text into an expression would let the variable's value rewrite the expression's logic, so the template is refused when it is loaded. A `for_each` or `sweep` axis token in an expression string is refused the same way, since that expansion would splice the axis value's text. The error details name the variable or axis, the body path and the slot.",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,

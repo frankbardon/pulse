@@ -10,7 +10,7 @@ requires: [capability:compose_sweep]
 
 # Compose sweeps
 
-A **sweep** is one request body plus axes of values. Before any slot runs, Pulse expands it into ordinary Compose slots, appended after the explicit `requests`. Each expanded slot then runs exactly like a hand-written one ([`compose-requests`](compose-requests.md)). Use it when the same question repeats over a parameter grid; write plain `requests` when the slots differ in shape.
+A **sweep** is one request body plus axes of values. Before any slot runs, Pulse expands it into ordinary Compose slots after the explicit `requests`, each run like a hand-written one ([`compose-requests`](compose-requests.md)). Use it when the same question repeats over a parameter grid; write plain `requests` when the slots differ in shape.
 
 ```jsonc
 {
@@ -39,7 +39,8 @@ A **sweep** is one request body plus axes of values. Before any slot runs, Pulse
 
 - `{{axis}}` inside a string splices the value as text. `{"$var": "axis"}` as a whole value keeps its JSON type (a number stays a number). A `$when` guard may name an axis. `{{` inside an object key is refused.
 - Every axis must be referenced by the body, an authored `label` pattern or the overlays; a placeholder naming no axis is refused. Both ride `PULSE_SWEEP_INVALID` with `details.reason` (`axis_unreferenced`, `placeholder_unknown`, `placeholder_invalid`).
-- This is NOT expr-lang and not the stored-template surface: substitution happens before the body is decoded.
+- NOT expr-lang, not the stored-template surface: substitution happens before decode, and never inside an expression (`expression`, `holdout`, overlay `params.formula`) — a `{{axis}}` there is `PULSE_SWEEP_EXPR_SPLICE`, refused before expansion. A `$var` marker may supply a whole expression.
+- To vary a value an expression reads, sweep a param: `"params": {"x": {"$var": "x"}}` + `params.x` ([`request-params`](request-params.md)).
 
 ## Labels
 
@@ -51,7 +52,7 @@ The substituted body decodes STRICTLY into a `Request`, like a plain compose slo
 
 ## Decay-sweep pattern
 
-Rank one-step fits on held-out error: an adstock window whose `decay` is `{"$var": "decay"}`, a post-window formula attribute, one regression with a `holdout`, `rank` `{by: "regressions.<name>.holdout.rmse", order: "asc"}`, `return` excluding `data`. The true decay ranks first; no materialize step ([`regression-model-options`](regression-model-options.md)).
+Rank one-step fits on held-out error: an adstock window with `decay` `{"$var": "decay"}`, a post-window formula attribute, one regression with a `holdout`, `rank` `{by: "regressions.<name>.holdout.rmse", order: "asc"}`, `return` excluding `data`. The true decay ranks first ([`regression-model-options`](regression-model-options.md)).
 
 ## Overlays
 
@@ -61,7 +62,7 @@ Rank one-step fits on held-out error: an adstock window whose `decay` is `{"$var
 
 - `requests` and `sweep` combine: explicit slots first (indices unchanged), sweep slots after. A request with only a `sweep` is valid.
 - `MaxComposeSlots` counts the EXPANDED total (explicit + sweep); an over-limit batch is `PULSE_LIMIT_EXCEEDED` before anything runs, serial and parallel alike.
-- `pulse_predict` with `composed` (and `PredictCompose`) expands too: same limit, label and slot checks as runtime, plus a `sweep` summary `{axes[{name,count}], mode, expanded_count, labels}`. Predict a sweep before running it.
+- `pulse_predict` with `composed` (and `PredictCompose`) expands too: the runtime's limit, label and slot checks, plus a `sweep` summary `{axes[{name,count}], mode, expanded_count, labels}`. Predict a sweep before running it.
 - `--echo-request` / `EchoRequest` echoes the expanded slots the service ran. MCP fills a missing `return` in the sweep body with the `standard` default, never overwriting an authored one.
 
 ## Rank

@@ -348,6 +348,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_COMPOSE_LABEL_COLLISION: own(featCompose),
 	errors.PULSE_SWEEP_INVALID:           own(featComposeSweep),
 	errors.PULSE_SWEEP_RANK_PATH:         own(featComposeSweep),
+	errors.PULSE_SWEEP_EXPR_SPLICE:       own(featComposeSweep),
 	errors.PULSE_BANNER_INVALID:          own(featComposeBanner),
 	// The one model namespace: Compose fits and loaded models bind it.
 	errors.PULSE_FIT_INVALID:          own(featComposeFits),
@@ -390,6 +391,9 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MODEL_FILE_UNREADABLE:         own(featModels),
 	// nested_in_sweep is raised by a sweep body, so either surface lists it.
 	errors.PULSE_FOR_EACH_INVALID: own(featForEach, featComposeSweep),
+	// Raised only by an item expansion: a for_each inside a sweep body
+	// is refused nested_in_sweep first.
+	errors.PULSE_FOR_EACH_EXPR_SPLICE: own(featForEach),
 
 	errors.PULSE_JOIN_TYPE_MISMATCH:        own(featJoins),
 	errors.PULSE_JOIN_KIND_NOT_IMPLEMENTED: own(featJoins),

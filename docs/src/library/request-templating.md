@@ -178,13 +178,17 @@ rejected outright at validation, so this is never a silent no-op.
 expression-bearing string — a filterer's or an attribute's
 `expression` (a `total()` argument included, and the filterers nested
 in an attribute's `params`), a regression's `holdout`, an overlay's
-`params.formula`, at any depth of any target — is
-`PULSE_TEMPLATE_EXPR_SPLICE`, raised at declaration validation, so the
-file fails at `pulse.New()`. Spliced text could rewrite the
-expression's logic (`"wave == {{w}}"` with `w` = `"1 || true"`). Three
-things stay legal there: a whole-value `{"$var": "f"}` marker supplying
-the entire expression, the `{{{{` escape, and a `for_each` / `sweep`
-axis token left for that expansion.
+`params.formula`, a feature's `params.fit_on`, at any depth of any
+target — is `PULSE_TEMPLATE_EXPR_SPLICE`, raised at declaration
+validation, so the file fails at `pulse.New()`. Spliced text could
+rewrite the expression's logic (`"wave == {{w}}"` with `w` =
+`"1 || true"`). A `for_each` or `sweep` axis token there is refused the
+same way: that expansion would splice the axis value's text just as the
+renderer would splice a variable's (a request written without a
+template is refused at expansion, `PULSE_FOR_EACH_EXPR_SPLICE` /
+`PULSE_SWEEP_EXPR_SPLICE`). Two things stay legal there: a whole-value
+`{"$var": "f"}` marker supplying the entire expression, and the `{{{{`
+escape.
 
 ### Optional blocks — `{"$when": "name", ...}`
 
@@ -214,8 +218,8 @@ vanishes — optionality is spelled `$when`, always.
 
 A window, feature or attribute item may carry a `for_each`, which fans
 it out over parameter axes after the template renders, using the same
-two placeholder spellings (`{{axis}}` in a string, `{"$var": "axis"}`
-as a whole value inside `params`). The renderer recognises such an item
+two placeholder spellings (`{{axis}}` in a non-expression string,
+`{"$var": "axis"}` as a whole value inside `params`). The renderer recognises such an item
 structurally — an object whose `for_each` lists `axes` with literal
 `name`s — and leaves **that item's own axis placeholders untouched** for
 the expansion. No escape is needed.
@@ -261,7 +265,10 @@ without that `for_each` is an undeclared reference
 
 A `target: composed` body may carry a Compose `sweep`, whose `request`,
 `overlays` and `label` use the same `{{axis}}` / `{"$var": "axis"}`
-placeholders, substituted per slot when the sweep expands. The same
+placeholders, substituted per slot when the sweep expands (never a
+`{{axis}}` inside an expression: carry the value through the slot
+request's `params`, `"params": {"x": {"$var": "x"}}`, read as
+`params.x`). The same
 structural rule applies one level down: an object whose `sweep` lists
 `axes` with literal `name`s scopes those names over the sweep's
 `request`, `overlays` and `label` — and nowhere else. The sweep's
@@ -510,7 +517,7 @@ render-time `PULSE_TEMPLATE_UNRESOLVED`.
 | `PULSE_TEMPLATE_UNRESOLVED` | an unguarded marker survived substitution — declared, but nothing resolved | Supply the variable, give it a default, or wrap the block in `$when`. Rendering hard-fails rather than emit a request carrying a literal marker string. |
 | `PULSE_TEMPLATE_RENDER_INVALID` | substitution succeeded but the rendered JSON failed **strict decode** into the target request type | Usually an unknown field, or a substituted value landing in a slot whose type it does not fit. |
 | `PULSE_TEMPLATE_AXIS_COLLISION` | a declared variable shares its name with an axis of a `for_each` item or a `sweep` in the body | Rename the variable or the axis. An **author** fault, raised at declaration validation like `PULSE_TEMPLATE_INVALID`. |
-| `PULSE_TEMPLATE_EXPR_SPLICE` | a `{{name}}` token sits inside an expression string (`expression`, `holdout`, an overlay's `params.formula`) | Pass the value as a request parameter — `"params": {"x": {"$var": "x"}}` and `params.x` in the expression — or supply the whole expression with a `{"$var": ...}` marker. An **author** fault, raised at declaration validation. |
+| `PULSE_TEMPLATE_EXPR_SPLICE` | a `{{name}}` token — a variable's, or a `for_each` / `sweep` axis's — sits inside an expression string (`expression`, `holdout`, an overlay's `params.formula`, a feature's `params.fit_on`) | Pass the value as a request parameter — `"params": {"x": {"$var": "x"}}` and `params.x` in the expression — or supply the whole expression with a `{"$var": ...}` marker. An **author** fault, raised at declaration validation. |
 
 Every JSON request Pulse decodes is strict; a template keeps its own
 code. An unknown key fails `PULSE_TEMPLATE_RENDER_INVALID` with
