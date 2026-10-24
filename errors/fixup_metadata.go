@@ -3737,6 +3737,20 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_TEMPLATE_EXPR_SPLICE: {
+		Message: "The template body interpolates a variable with `{{name}}` inside an expression string (a filterer or attribute expression, a regression holdout, an overlay formula). Splicing text into an expression would let the variable's value rewrite the expression's logic, so the template is refused when it is loaded. The error details name the variable, the body path and the slot.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"body", "params"},
+				Hint:   "Pass the value as a request parameter instead: add `\"params\": {\"x\": {\"$var\": \"x\"}}` to the request body (the marker keeps the value's type) and read it in the expression as `params.x`. A `{\"$var\": \"f\"}` marker may still supply the whole expression string, and `{{{{` still writes a literal `{{`.",
+				Examples: []any{map[string]any{
+					"params":    map[string]any{"from_wave": map[string]any{"$var": "from_wave"}},
+					"filterers": []any{map[string]any{"type": "FILTER_EXPRESSION", "expression": "wave == params.from_wave"}},
+				}},
+			},
+		},
+	},
 
 	// ---------- PULSE (SPSS) ----------
 	PULSE_SPSS_DICT_INVALID: {

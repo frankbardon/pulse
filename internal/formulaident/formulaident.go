@@ -25,6 +25,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/exprident"
+	"github.com/frankbardon/pulse/internal/exprslots"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -228,7 +229,7 @@ func ComposeSlotPaths(slots []Slot) map[string]struct{} {
 // ComposeFormula reads params["formula"]: (formula, "") when it is a
 // non-empty string, else ("", reason).
 func ComposeFormula(params map[string]any) (formula, reason string) {
-	raw, present := params["formula"]
+	raw, present := params[exprslots.OverlayFormulaParam]
 	if !present {
 		return "", ReasonMissingFormula
 	}

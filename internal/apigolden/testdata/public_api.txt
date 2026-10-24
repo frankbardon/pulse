@@ -2819,6 +2819,7 @@ pulse/errors: const PULSE_SYNTH_RULE_OWNERSHIP_INVALID pulse/errors.Code = "PULS
 pulse/errors: const PULSE_SYNTH_RULE_VALUE_INVALID pulse/errors.Code = "PULSE_SYNTH_RULE_VALUE_INVALID"
 pulse/errors: const PULSE_SYNTH_SOURCE_REQUIRED pulse/errors.Code = "PULSE_SYNTH_SOURCE_REQUIRED"
 pulse/errors: const PULSE_TEMPLATE_AXIS_COLLISION pulse/errors.Code = "PULSE_TEMPLATE_AXIS_COLLISION"
+pulse/errors: const PULSE_TEMPLATE_EXPR_SPLICE pulse/errors.Code = "PULSE_TEMPLATE_EXPR_SPLICE"
 pulse/errors: const PULSE_TEMPLATE_INVALID pulse/errors.Code = "PULSE_TEMPLATE_INVALID"
 pulse/errors: const PULSE_TEMPLATE_NOT_FOUND pulse/errors.Code = "PULSE_TEMPLATE_NOT_FOUND"
 pulse/errors: const PULSE_TEMPLATE_RENDER_INVALID pulse/errors.Code = "PULSE_TEMPLATE_RENDER_INVALID"
@@ -5855,4 +5856,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 35ada0a8ec4d054f8c06a3ccb4d47a1f1bdfa5bd3fbe47e1c92123f5793f5e89
+// golden-hash: 75bb469a2d2ef8d956bd03a9e36e34eb3209e75ca7994ff83a34a0f7a6d5d641

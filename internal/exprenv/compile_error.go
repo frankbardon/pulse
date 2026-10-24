@@ -9,16 +9,20 @@ import (
 	"github.com/expr-lang/expr/vm"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprslots"
 )
 
 // The compile sites, the what of [CompileError]: the runtime build and
 // predict both name a site through these, so their messages agree to the
-// byte.
+// byte. Each is the shared expression-slot list's (internal/exprslots),
+// which the request-template renderer reads to refuse a `{{token}}`
+// spliced into an expression; a new site is declared there first
+// (TestTemplateExprSplice_CompileSitesShared).
 const (
-	SiteFormula       = "formula"                  // an ATTR_FORMULA expression
-	SiteFilter        = "filter"                   // a FILTER_EXPRESSION expression
-	SiteTotalArgument = "formula total() argument" // one total(expr) argument
-	SiteHoldout       = "regression holdout"       // a RegressionSpec.Holdout predicate
+	SiteFormula       = exprslots.SiteFormula       // an ATTR_FORMULA expression
+	SiteFilter        = exprslots.SiteFilter        // a FILTER_EXPRESSION expression
+	SiteTotalArgument = exprslots.SiteTotalArgument // one total(expr) argument
+	SiteHoldout       = exprslots.SiteHoldout       // a RegressionSpec.Holdout predicate
 )
 
 // ResultRefusal is the compile-time result-type check of site: nil, or

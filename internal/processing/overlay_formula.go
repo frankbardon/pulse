@@ -11,6 +11,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprenv"
+	"github.com/frankbardon/pulse/internal/exprslots"
 	"github.com/frankbardon/pulse/internal/formulaident"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/totalcall"
@@ -98,7 +99,7 @@ import (
 // pulling in the typed constant directly — the code is registered in
 // `errors/codes.go` + `errors/fixup_metadata.go` in the same PR.
 const (
-	formulaParamFormula = "formula"
+	formulaParamFormula = exprslots.OverlayFormulaParam
 )
 
 // formulaProgram bundles a compiled expr-lang program with the source

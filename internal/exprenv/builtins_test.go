@@ -53,6 +53,9 @@ func TestExprenvImportBoundary(t *testing.T) {
 		// The calendar helpers' only home for epoch-day and zone math
 		// (TestNoZoneMathOutsideTemporal); a leaf over stdlib + errors.
 		module + "/internal/temporal": true,
+		// The shared expression-slot list (the compile-site nouns);
+		// stdlib only.
+		module + "/internal/exprslots": true,
 	}
 	files, err := filepath.Glob("*.go")
 	if err != nil {

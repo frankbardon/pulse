@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprslots"
 )
 
 // Parse decodes a template document from its JSON bytes and runs
@@ -302,7 +303,7 @@ func validateBodyReferences(t *Template) error {
 			declared[v.Name] = struct{}{}
 		}
 	}
-	return (&bodyScan{t: t, declared: declared}).value(body, bodyPath, nil)
+	return (&bodyScan{t: t, declared: declared}).value(body, bodyPath, nil, nil)
 }
 
 // bodyScan is the declaration-time body walker. It mirrors the render
@@ -315,20 +316,22 @@ type bodyScan struct {
 }
 
 // value dispatches on the node's JSON kind. axes is the for_each axis
-// scope in force at the node, exactly as in the render walk.
-func (s *bodyScan) value(v any, path string, axes axisScope) error {
+// scope in force at the node, exactly as in the render walk. keys is the
+// node's JSON key path from the body root, array indices dropped — what
+// the expression-slot list (internal/exprslots) matches.
+func (s *bodyScan) value(v any, path string, keys []string, axes axisScope) error {
 	switch node := v.(type) {
 	case map[string]any:
-		return s.object(node, path, axes, nil)
+		return s.object(node, path, keys, axes, nil)
 	case []any:
 		for i, e := range node {
-			if err := s.value(e, indexPath(path, i), axes); err != nil {
+			if err := s.value(e, indexPath(path, i), keys, axes); err != nil {
 				return err
 			}
 		}
 		return nil
 	case string:
-		return s.text(node, path, axes)
+		return s.text(node, path, keys, axes)
 	default:
 		return nil
 	}
@@ -337,7 +340,7 @@ func (s *bodyScan) value(v any, path string, axes axisScope) error {
 // object checks a marker, a guard, and every key, in that order.
 // swept mirrors the render walk: the scope a sweep object's request,
 // overlays and label walk in, nil outside a declared sweep.
-func (s *bodyScan) object(obj map[string]any, path string, axes, swept axisScope) error {
+func (s *bodyScan) object(obj map[string]any, path string, keys []string, axes, swept axisScope) error {
 	if isLoneMarkerKey(obj) {
 		return s.marker(obj[markerKey], path, axes)
 	}
@@ -387,13 +390,14 @@ func (s *bodyScan) object(obj map[string]any, path string, axes, swept axisScope
 		case swept != nil && sweepScoped(key):
 			scope = swept
 		}
+		childKeys := append(keys[:len(keys):len(keys)], key)
 		if sub, ok := obj[key].(map[string]any); ok && key == sweepKey && len(sweepAx) > 0 {
-			if err := s.object(sub, childPath(path, key), scope, scope.with(sweepAx)); err != nil {
+			if err := s.object(sub, childPath(path, key), childKeys, scope, scope.with(sweepAx)); err != nil {
 				return err
 			}
 			continue
 		}
-		if err := s.value(obj[key], childPath(path, key), scope); err != nil {
+		if err := s.value(obj[key], childPath(path, key), childKeys, scope); err != nil {
 			return err
 		}
 	}
@@ -423,16 +427,49 @@ func (s *bodyScan) marker(raw any, path string, axes axisScope) error {
 }
 
 // text checks every interpolation token in a string value.
-func (s *bodyScan) text(str, path string, axes axisScope) error {
+//
+// A token inside an expression-bearing slot (exprslots.Match over the
+// string's key path: a filterer or attribute `expression`, a regression
+// `holdout`, an overlay `params.formula`) is refused
+// PULSE_TEMPLATE_EXPR_SPLICE: a variable's text spliced into an
+// expression could rewrite its logic. Values reach an expression through
+// the request's `params` object instead. Three things stay legal there:
+// the `{{{{` escape (walkInterpolation consumes it as literal text, never
+// a token), a for_each or sweep axis token (passed through for that
+// expansion, not substituted here), and a whole-value {"$var": …}
+// marker (an object, never reaching this walk).
+func (s *bodyScan) text(str, path string, keys []string, axes axisScope) error {
 	if !strings.Contains(str, interpOpen) {
 		return nil
 	}
+	slot, inExpr := exprslots.Match(keys)
 	return walkInterpolation(s.t, str, path, func(string) {}, func(name string) error {
-		if !s.isDeclared(name) && !axes.has(name) {
+		if axes.has(name) {
+			return nil
+		}
+		if inExpr {
+			return exprSplice(s.t, name, path, slot.Name)
+		}
+		if !s.isDeclared(name) {
 			return undeclaredRef(s.t, name, path, subjectInterp)
 		}
 		return nil
 	})
+}
+
+// exprSplice builds the `{{token}}`-inside-an-expression fault. It is a
+// template AUTHOR error caught at declaration, whatever the variable
+// would resolve to.
+func exprSplice(t *Template, name, path, slot string) error {
+	details := renderDetails(t, name, path)
+	details["slot"] = slot
+	return errors.NewCodedErrorWithDetails(errors.PULSE_TEMPLATE_EXPR_SPLICE,
+		"template body at "+path+": "+string(subjectInterp)+" interpolates variable "+strconv.Quote(name)+
+			" into an expression ("+slot+" slot); a template never splices text into an expression — "+
+			"pass the value as a request parameter, "+`"params": {`+strconv.Quote(name)+`: {"$var": `+strconv.Quote(name)+`}}`+
+			", and read it as params."+name+", or supply the whole expression with a "+
+			strconv.Quote(markerKey)+" marker",
+		details)
 }
 
 // isDeclared reports whether the template declares name. Lookup is exact

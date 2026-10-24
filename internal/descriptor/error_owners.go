@@ -511,6 +511,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_TEMPLATE_UNRESOLVED:     own(featTemplates),
 	errors.PULSE_TEMPLATE_RENDER_INVALID: own(featTemplates),
 	errors.PULSE_TEMPLATE_AXIS_COLLISION: own(featTemplates),
+	errors.PULSE_TEMPLATE_EXPR_SPLICE:    own(featTemplates),
 
 	// SPSS: every code is raised by the .sav / .zsav reader or writer or
 	// the SPSS metadata sidecar, all gated by io_format:spss.

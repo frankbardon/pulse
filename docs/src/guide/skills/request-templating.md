@@ -12,7 +12,8 @@ requires: [capability:templates]
 
 Stored JSON that renders into a **validated typed request** — shape fixed once, caller supplies only variables. Execution-free.
 
-**Not expr-lang.** `$var` / `{{}}` / `$when` are *request-authoring* parameters substituted before decode; the formula attribute and expression filter run expr-lang over *row fields* at execution time ([`expression-language`](expression-language.md)). A formula string in a body is inert text to the renderer.
+**Not expr-lang.** `$var` / `{{}}` / `$when` substitute before decode; expressions run on *row fields* at execution ([`expression-language`](expression-language.md)). `{{}}` in an `expression`, `holdout` or overlay `params.formula` is `_EXPR_SPLICE` at load; whole-value `$var`, `{{{{` and axis tokens are legal.
+Use a param: `"params":{"x":{"$var":"x"}}` + `params.x` ([`request-params`](request-params.md)).
 
 ## File shape
 
@@ -73,20 +74,20 @@ A `sweep`'s axis placeholders pass through in its `request`, `overlays` and `lab
 | after startup, parsed before | **serves last-good parse**; `ListTemplates` marks `Broken` + `Error` |
 | after startup, never parsed | listed to be seen, not fetchable; `GetTemplate` → `_INVALID` |
 
-Lookups rescan after 1s (unchanged size+mtime is not re-parsed). `ReloadTemplates()` forces the walk; it returns **nil** for one broken file, only whole-walk faults return.
+Lookups rescan after 1s (unchanged size+mtime: no re-parse). `ReloadTemplates()` forces it; **nil** for one broken file, only whole-walk faults return.
 
-Facade: `ListTemplates` (non-nil `[]Summary`), `GetTemplate`, `RenderTemplate` (all five targets), `RenderTemplateRequest` (95% path), `ReloadTemplates`. `Rendered.Target` picks the populated pointer — compare it to `pulse.TemplateTarget*`, a variable's type to `pulse.TemplateVar*`, never `.String()`; echo `Rendered.JSON` — re-marshaling drops explicit zeros from `omitempty` structs.
+Facade: `ListTemplates` (non-nil `[]Summary`), `GetTemplate`, `RenderTemplate` (all five targets), `RenderTemplateRequest` (95% path), `ReloadTemplates`. `Rendered.Target` picks the set pointer; compare it to `pulse.TemplateTarget*`, a variable's type to `pulse.TemplateVar*`, never `.String()`; echo `Rendered.JSON` — re-marshaling drops explicit zeros from `omitempty` structs.
 
-## Errors — ten codes, by provenance
+## Errors — eleven codes, by provenance
 
 A bad **declared default** is an author error → `PULSE_TEMPLATE_INVALID` (checked semantically at declaration: enum membership, date parse, period XOR); a bad **caller value** → `_VAR_TYPE` / `_VAR_ENUM`. Same split on names: `$var`/`{{}}`/`$when` naming an **undeclared** variable is an author error caught at validation (`_INVALID`); a **declared but unresolved** reference is render-time `_UNRESOLVED`.
 
-Also `_NOT_FOUND`, `_TARGET_UNKNOWN` (absent/unknown target, or `RenderTemplateRequest` on a non-`request` template), `_VAR_MISSING` (required, nothing resolved), `_VAR_UNKNOWN` (supplied, undeclared — never ignored), `_RENDER_INVALID` (strict decode failed, incl. a top-level slot this instance does not offer), `_AXIS_COLLISION` (a variable shares an item or sweep axis's name). Details carry `template` + `variable`; `pulse errors lookup CODE` is authoritative.
+Also `_NOT_FOUND`, `_TARGET_UNKNOWN` (absent/unknown target, or `RenderTemplateRequest` on a non-`request` template), `_VAR_MISSING` (required, nothing resolved), `_VAR_UNKNOWN` (supplied, undeclared — never ignored), `_RENDER_INVALID` (strict decode failed, incl. a top-level slot this instance does not offer), `_AXIS_COLLISION` (a variable shares an item or sweep axis's name), `_EXPR_SPLICE`. Details carry `template` + `variable`; `pulse errors lookup CODE` is authoritative.
 
 ## What render does NOT do
 
-Render **never opens a cohort**: it checks the request *shape* only; field existence, types, operator applicability and streamability stay `Predict`'s job. Strict decode: an unknown key (examples `_meta` too) fails `_RENDER_INVALID` (`details.path`, `suggestion`).
+Render **never opens a cohort**: shape only; fields, types, operators and streamability are `Predict`'s job. Strict decode: an unknown key (examples `_meta` too) fails `_RENDER_INVALID` (`details.path`, `suggestion`).
 
 ## See
 
-[`request-envelope`](request-envelope.md) (body slot map) · [`expression-language`](expression-language.md) (the other axis: expr-lang over row fields).
+[`request-envelope`](request-envelope.md) (body slot map) · [`expression-language`](expression-language.md) (expr-lang over row fields).

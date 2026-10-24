@@ -2698,6 +2698,22 @@ const (
 	// DetailVariable, and the axis name's body path under "path".
 	PULSE_TEMPLATE_AXIS_COLLISION Code = "PULSE_TEMPLATE_AXIS_COLLISION"
 
+	// PULSE_TEMPLATE_EXPR_SPLICE indicates a template body carries a
+	// `{{token}}` interpolation inside an expression-bearing string slot
+	// (a filterer or attribute `expression`, a regression `holdout`, an
+	// overlay `params.formula`; the slot list is internal/exprslots).
+	// Splicing a variable's text into an expression would let the value
+	// rewrite the expression's logic, so it is refused: a value reaches an
+	// expression through the request's `params` object (filled with a
+	// type-preserving {"$var": …} marker) read as `params.<name>`. A
+	// whole-value {"$var": …} marker supplying the entire expression stays
+	// allowed, as do the `{{{{` escape and a for_each / sweep axis token
+	// left for that expansion. Raised at declaration validation (an author
+	// error, like PULSE_TEMPLATE_INVALID). Details carry the template
+	// under DetailTemplate, the variable under DetailVariable, the body
+	// path under "path" and the slot name under "slot".
+	PULSE_TEMPLATE_EXPR_SPLICE Code = "PULSE_TEMPLATE_EXPR_SPLICE"
+
 	// PULSE_SPSS_DICT_INVALID indicates an SPSS `.sav` dictionary is
 	// structurally malformed: the file does not open with the `$FL2` /
 	// `$FL3` magic, the layout code identifies neither byte order, a
@@ -4441,6 +4457,7 @@ var allCodes = []Code{
 	PULSE_TEMPLATE_UNRESOLVED,
 	PULSE_TEMPLATE_RENDER_INVALID,
 	PULSE_TEMPLATE_AXIS_COLLISION,
+	PULSE_TEMPLATE_EXPR_SPLICE,
 	PULSE_SPSS_DICT_INVALID,
 	PULSE_SPSS_DICT_TRUNCATED,
 	PULSE_SPSS_FILE_EMPTY,

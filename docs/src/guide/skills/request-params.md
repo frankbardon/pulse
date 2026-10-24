@@ -48,6 +48,7 @@ A top-level `params` on a Compose batch or a process chain merges into EVERY sub
 - `u64` fields compare exactly against params, literals and each other (`==`, `<`, `in`); arithmetic still goes through float64.
 - A profile hiding `capability:params` makes the slot unknown (`PULSE_REQUEST_UNKNOWN_FIELD`).
 - Not request templating: templates fill a request BEFORE it is validated; params are the request's own constants, read at compile time.
+- A template fills params with a marker, `"params":{"w":{"$var":"w"}}` (the number stays a number); `{{w}}` inside an expression is refused `PULSE_TEMPLATE_EXPR_SPLICE` ([`request-templating`](request-templating.md)).
 
 ## See
 

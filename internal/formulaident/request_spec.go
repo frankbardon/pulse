@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprenv"
+	"github.com/frankbardon/pulse/internal/exprslots"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
@@ -116,7 +117,7 @@ func requestParams(spec *types.OverlaySpec, index int) (map[string]any, *errors.
 		return nil, MissingFormula(kind, "overlay "+kind+" Params must be a JSON object carrying \"formula\"",
 			index, "params is not a JSON object")
 	}
-	paramread.Read(paramread.Overlay, kind, "formula")
+	paramread.Read(paramread.Overlay, kind, exprslots.OverlayFormulaParam)
 	return m, nil
 }
 
