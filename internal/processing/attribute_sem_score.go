@@ -31,7 +31,14 @@ import (
 // level code (a categorical's dictionary index, else the value), when
 // grouped; a null group is a listwise drop. A frequency weight is a
 // replication count (MAT_SEM's: N = Σw); a row whose weight is invalid
-// or zero adds nothing but is still scored. Finalize fits MAT_SEM's
+// or zero adds nothing but is still scored. The co-moments fold through
+// MAT_SEM's blocked merge (BlockCoMoments keyed by each record's merge
+// position — an unpositioned record by its PrePass ordinal — and the one
+// fixed tree at Finalize, per level as MAT_SEM's per-level buckets), and
+// every fit_on-admitted row opens its block even when it adds no mass,
+// as MAT_SEM's listwise fold does; so the inline fit is MAT_SEM's fit
+// over the same fit rows bit for bit at any n, any DecodeWorkers /
+// ShardWorkers count and any shard split. Finalize fits MAT_SEM's
 // model on the moments exactly as MAT_SEM's finalizer does
 // (sem.FitMoments on the population covariance Cov(0) in model order,
 // the nearest positive-definite substitute under params.singular
@@ -140,9 +147,25 @@ type semScoreAttribute struct {
 	bound    *model.SEMFit
 	prebuilt bool
 
-	base    *linalg.CoMoment
-	buckets map[uint64]*linalg.CoMoment
-	x       []float64
+	// base and buckets are the fit's moments as MAT_SEM folds them:
+	// per-merge-block partials (BlockCoMoments) keyed by each record's
+	// merge position, combined by the one fixed tree at Finalize — so
+	// the inline fit is MAT_SEM's fit on the same rows bit for bit at
+	// any n, worker count and shard split. baseCM / bucketCM are the
+	// trees (baseCM an empty accumulator before Finalize).
+	base     *BlockCoMoments
+	buckets  map[uint64]*BlockCoMoments
+	baseCM   *linalg.CoMoment
+	bucketCM map[uint64]*linalg.CoMoment
+	x        []float64
+	// nan is an all-NaN row: a fit-eligible record that adds nothing (a
+	// null member, an invalid or zero weight) still opens its merge
+	// block, exactly as MAT_SEM's listwise fold does, so the block
+	// sequence — and the tree's shape — is MAT_SEM's.
+	nan []float64
+	// seq is the PrePass ordinal; an unpositioned record (a chain
+	// stage, a join) keys its block by it.
+	seq int
 
 	finalized bool
 	fit       *semScoreFit
@@ -193,9 +216,17 @@ func newSEMScoreAttribute(attr *types.Attribute, schema *encoding.Schema) (Attri
 	if cerr != nil {
 		return nil, cerr
 	}
-	base, err := linalg.NewCoMoment(len(attr.Fields), linalg.Listwise)
+	base, err := NewBlockCoMoments(len(attr.Fields), linalg.Listwise)
 	if err != nil {
 		return nil, err
+	}
+	baseCM, err := linalg.NewCoMoment(len(attr.Fields), linalg.Listwise)
+	if err != nil {
+		return nil, err
+	}
+	nan := make([]float64, len(attr.Fields))
+	for i := range nan {
+		nan[i] = math.NaN()
 	}
 	a := &semScoreAttribute{
 		label:     at,
@@ -206,7 +237,9 @@ func newSEMScoreAttribute(attr *types.Attribute, schema *encoding.Schema) (Attri
 		fitOnSpec: inheritExprZone(cfg.FitOn, attr.TimeZone),
 		weight:    attr.Weight.Spec(),
 		base:      base,
+		baseCM:    baseCM,
 		x:         make([]float64, len(attr.Fields)),
+		nan:       nan,
 		fitName:   cfg.Fit,
 		labels:    labels,
 	}
@@ -219,7 +252,7 @@ func newSEMScoreAttribute(attr *types.Attribute, schema *encoding.Schema) (Attri
 	if cfg.Plan.Grouped() {
 		a.groupField = cfg.Plan.Group
 		a.levels = cfg.Plan.GroupLevels
-		a.buckets = map[uint64]*linalg.CoMoment{}
+		a.buckets = map[uint64]*BlockCoMoments{}
 		if schema != nil {
 			if f := schema.Field(a.groupField); f != nil && f.Type.IsCategorical() {
 				a.dict = f
@@ -470,7 +503,8 @@ func (a *semScoreAttribute) groupCode(rec *Record) (uint64, bool, error) {
 
 // PrePass folds one filtered record into the fit (complete members,
 // every fit_on filterer admitting it, a valid positive weight; grouped,
-// a non-null group).
+// a non-null group). A fit_on-admitted row that adds no mass still
+// opens its merge block (fold of the all-NaN row).
 func (a *semScoreAttribute) PrePass(rec *Record, _ string) error {
 	if a.prebuilt {
 		// A bound fit is already fitted: no row is folded.
@@ -482,9 +516,11 @@ func (a *semScoreAttribute) PrePass(rec *Record, _ string) error {
 	if len(a.fitOnSpec) > 0 && !a.fitOnBound {
 		return errors.NewCodedError(errors.PROCESSING_INTERNAL, "ATTR_SEM_SCORE params.fit_on was not bound before PrePass")
 	}
-	if !a.fill.complete(rec, a.x) {
-		return nil
+	key, positioned := rec.MergeBlock()
+	if !positioned {
+		key = BlockKey{Block: a.seq / linalg.MergeBlockSize, Head: true}
 	}
+	a.seq++
 	for _, fn := range a.fitOn {
 		ok, err := fn(rec)
 		if err != nil {
@@ -494,16 +530,28 @@ func (a *semScoreAttribute) PrePass(rec *Record, _ string) error {
 			return nil
 		}
 	}
-	w := 1.0
-	if a.weight != nil {
-		var reason weighting.Reason
-		if w, reason = readWeight(rec, a.weight); reason != weighting.Valid || w == 0 {
-			return nil
+	// The row is fit-eligible (MAT_SEM over the fit rows would see it):
+	// it opens its block whether or not it adds mass.
+	x := a.x
+	if !a.fill.complete(rec, a.x) {
+		x = a.nan
+	} else if a.weight != nil {
+		w, reason := readWeight(rec, a.weight)
+		if reason != weighting.Valid || w == 0 {
+			x = a.nan
+		} else {
+			return a.fold(rec, key, x, w)
 		}
 	}
+	return a.fold(rec, key, x, 1)
+}
+
+// fold adds x (weight w; the all-NaN row only opens its block) at key
+// into the base moments and, grouped, into rec's level — a null group
+// is a listwise drop that opens no block, as in MAT_SEM.
+func (a *semScoreAttribute) fold(rec *Record, key BlockKey, x []float64, w float64) error {
 	if a.buckets == nil {
-		a.base.Add(a.x, w)
-		return nil
+		return a.base.AddAt(key, x, w)
 	}
 	code, ok, err := a.groupCode(rec)
 	if err != nil || !ok {
@@ -511,14 +559,15 @@ func (a *semScoreAttribute) PrePass(rec *Record, _ string) error {
 	}
 	b, ok := a.buckets[code]
 	if !ok {
-		if b, err = linalg.NewCoMoment(len(a.members), linalg.Listwise); err != nil {
+		if b, err = NewBlockCoMoments(len(a.members), linalg.Listwise); err != nil {
 			return err
 		}
 		a.buckets[code] = b
 	}
-	b.Add(a.x, w)
-	a.base.Add(a.x, w)
-	return nil
+	if err := b.AddAt(key, x, w); err != nil {
+		return err
+	}
+	return a.base.AddAt(key, x, w)
 }
 
 // Finalize fits the model and builds the scorers, once.
@@ -530,6 +579,19 @@ func (a *semScoreAttribute) Finalize() error {
 		return errors.NewCodedError(errors.PROCESSING_INTERNAL, "ATTR_SEM_SCORE Finalize called twice")
 	}
 	a.finalized = true
+	cm, err := a.base.Tree()
+	if err != nil {
+		return err
+	}
+	a.baseCM = cm
+	if a.buckets != nil {
+		a.bucketCM = make(map[uint64]*linalg.CoMoment, len(a.buckets))
+		for c, b := range a.buckets {
+			if a.bucketCM[c], err = b.Tree(); err != nil {
+				return err
+			}
+		}
+	}
 	fit, notes, ref := a.fitModel()
 	for _, n := range notes {
 		a.warnings = append(a.warnings, a.fitWarning(n))
@@ -581,7 +643,7 @@ func (a *semScoreAttribute) fitModel() (*semScoreFit, []*fitRefusal, *fitRefusal
 		return a.fitGroups()
 	}
 	k := len(plan.Model.Observed)
-	cm := a.base
+	cm := a.baseCM
 	if cm.N() <= int64(k) || !(cm.W() > float64(k)) {
 		return nil, nil, &fitRefusal{code: errors.PULSE_MATRIX_INSUFFICIENT_N,
 			msg:     fmt.Sprintf("the fit has %d complete rows for the model's %d observed variables (needs more rows, and weight, than variables); every score is null", cm.N(), k),
@@ -635,8 +697,8 @@ func (a *semScoreAttribute) fitModel() (*semScoreFit, []*fitRefusal, *fitRefusal
 func (a *semScoreAttribute) fitGroups() (*semScoreFit, []*fitRefusal, *fitRefusal) {
 	plan := a.cfg.Plan
 	k := len(plan.Model.Observed)
-	codes := make([]uint64, 0, len(a.buckets))
-	for c := range a.buckets {
+	codes := make([]uint64, 0, len(a.bucketCM))
+	for c := range a.bucketCM {
 		codes = append(codes, c)
 	}
 	slices.Sort(codes)
@@ -659,7 +721,7 @@ func (a *semScoreAttribute) fitGroups() (*semScoreFit, []*fitRefusal, *fitRefusa
 	}
 	moments := make([]sem.GroupMoments, len(codes))
 	for g, c := range codes {
-		cm := a.buckets[c]
+		cm := a.bucketCM[c]
 		if cm.N() <= int64(k) || !(cm.W() > float64(k)) {
 			return nil, nil, &fitRefusal{code: errors.PULSE_MATRIX_INSUFFICIENT_N,
 				msg:     fmt.Sprintf("group %q has %d fit rows; each group needs more rows (and weight) than the model's %d observed variables, and every score is null", labels[g], cm.N(), k),
@@ -745,10 +807,10 @@ func (a *semScoreAttribute) fitWarning(ref *fitRefusal) *types.ResponseWarning {
 		"scope":     "fit",
 		"latent":    a.cfg.Latent,
 		"members":   append([]string(nil), a.members...),
-		"n":         a.base.N(),
+		"n":         a.baseCM.N(),
 	}
 	if a.weight != nil {
-		details["sum_weights"] = a.base.W()
+		details["sum_weights"] = a.baseCM.W()
 	}
 	if a.fitName != "" {
 		// A bound fit's figures are the fit's own.

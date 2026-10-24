@@ -379,3 +379,69 @@ func semSameRefusal(t *testing.T, what string, rerr error, pe *descriptor.Envelo
 		t.Errorf("%s: runtime %s %q %s\npredict %s %q %s", what, ce.Code, ce.Message, want, pe.Code, pe.Message, have)
 	}
 }
+
+// TestSEMFit_BoundScoresMatchInlineAboveMergeBlock: past one merge block
+// per group (linalg.MergeBlockSize fit rows a wave) the inline fit folds
+// its co-moments through MAT_SEM's blocked merge, so its scores still
+// equal the bound fit's to the bit — the single file at DecodeWorkers 1
+// and 4, and a shard archive (shard edges inside blocks) at ShardWorkers
+// 1 and 3, ungrouped and by wave; the archive's inline figures are the
+// single file's.
+func TestSEMFit_BoundScoresMatchInlineAboveMergeBlock(t *testing.T) {
+	ctx := context.Background()
+	const repeat = 8 // 1,200 brand rows × 8: 4,800 fit rows a wave
+	for _, grouped := range []bool{false, true} {
+		shape := func(r *types.Request) *types.Request {
+			if grouped {
+				return byWave(r)
+			}
+			return r
+		}
+		var single string
+		for _, c := range []struct {
+			name   string
+			shards int
+			opts   pulse.Options
+		}{
+			{"single/decode1", 0, pulse.Options{DecodeWorkers: 1}},
+			{"single/decode4", 0, pulse.Options{DecodeWorkers: 4}},
+			{"archive/shard1", 1500, pulse.Options{ShardWorkers: 1}},
+			{"archive/shard3", 1500, pulse.Options{ShardWorkers: 3}},
+		} {
+			p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8, shards: c.shards,
+				repeat: func(int) int { return repeat }}.build(t, c.opts)
+			// The sum is exact only serially; the order-free figures
+			// carry the bits on the merging arms.
+			withSum := c.opts.DecodeWorkers == 1 || c.opts.ShardWorkers == 1
+			want, err := p.Process(ctx, shape(semScoreSlotReq(inlineParams(), withSum)))
+			if err != nil {
+				t.Fatalf("%s grouped=%v: %v", c.name, grouped, err)
+			}
+			out, err := p.Compose(ctx, &pulse.ComposedRequest{
+				Fits:     []types.FitSpec{{Name: "brand", Request: semFitRequest(semFitKnobs())}},
+				Requests: []*types.Request{shape(semScoreSlotReq(boundParams(), withSum))},
+			})
+			if err != nil {
+				t.Fatalf("%s grouped=%v: %v", c.name, grouped, err)
+			}
+			g, w := dataJSON(t, out.Responses[0].Data), dataJSON(t, want.Data)
+			if g != w {
+				t.Fatalf("%s grouped=%v: bound figures differ from the inline fit\n got %s\nwant %s", c.name, grouped, g, w)
+			}
+			if !strings.Contains(w, `"n":4800`) && !strings.Contains(w, `"n":9600`) {
+				t.Fatalf("%s grouped=%v: vacuous — the fit is not past one merge block a wave: %s", c.name, grouped, w)
+			}
+			if len(want.Warnings) != 0 {
+				t.Fatalf("%s grouped=%v: inline warnings %+v", c.name, grouped, want.Warnings)
+			}
+			if !withSum {
+				continue
+			}
+			if single == "" {
+				single = w
+			} else if w != single {
+				t.Fatalf("%s grouped=%v: inline figures differ from the single file's\n got %s\nwant %s", c.name, grouped, w, single)
+			}
+		}
+	}
+}
