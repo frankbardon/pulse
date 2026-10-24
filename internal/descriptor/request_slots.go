@@ -128,6 +128,11 @@ var modelsSlotGate = gatedSlot{key: "models", visible: capabilityGate(featModels
 // rides capability:models too.
 var populationsSlotGate = gatedSlot{key: "populations", visible: capabilityGate(featModels)}
 
+// paramsSlotGate gates the `params` key on a Request:
+// capability:params. A nested operator's own `params` (a filterer's, an
+// overlay's) is a different key on a different struct and never gated.
+var paramsSlotGate = gatedSlot{key: "params", visible: capabilityGate(featParams)}
+
 // crosstabCellsSlotGate gates the `cells` key on a CrosstabSpec (the
 // multi-measure crosstab): capability:crosstab_cells.
 var crosstabCellsSlotGate = gatedSlot{key: "cells", visible: capabilityGate(featCrosstabCells)}
@@ -155,6 +160,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		multiplicitySlotGate,
 		modelsSlotGate,
 		populationsSlotGate,
+		paramsSlotGate,
 	},
 	reflect.TypeOf(types.Aggregation{}): {weightSlotGate},
 	// The multi-measure crosstab: the `cells` request key and the
@@ -428,6 +434,9 @@ func setSlots(v any) []string {
 		}
 		if len(r.Populations) > 0 {
 			out = append(out, "populations")
+		}
+		if len(r.Params) > 0 {
+			out = append(out, "params")
 		}
 	case *types.ComposedRequest:
 		if r != nil && len(r.Overlays) > 0 {

@@ -25,6 +25,7 @@
     "capability:weighting",
     "capability:multiplicity",
     "capability:matrices",
+    "capability:params",
     "capability:recommend",
     "capability:explain",
     "AGG_COUNT",

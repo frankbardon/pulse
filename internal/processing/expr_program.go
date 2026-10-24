@@ -185,6 +185,13 @@ func newExprProgramKeyed(src, what string, schema, keys *encoding.Schema, vecs [
 		p.refPatch = &refPatcher{scope: scope}
 	}
 	refs, wholeEnv, parsed := exprFreeIdentifiers(src)
+	if _, column := p.decl[exprenv.ParamsName]; !column && exprenv.FoldsParams(src) {
+		// Every `params` it names is a parameter read: folded as a
+		// constant by the params patcher (or refused before the build,
+		// exprenv.ParamsRefusal), never an env input that would defer
+		// the compile.
+		refs = slices.DeleteFunc(refs, func(n string) bool { return n == exprenv.ParamsName })
+	}
 	p.refs, p.wholeEnv = refs, wholeEnv
 	if err := p.bindVectors(vecs); err != nil {
 		return nil, err

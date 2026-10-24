@@ -13,7 +13,7 @@ Four kinds (`descriptor.AllFeatureKinds()` in `internal/descriptor/features.go`)
 | Kind | Spelling | Rows |
 |---|---|---|
 | `operator` | `AGG_SUM`, `TEST_T`, `OVERLAY_YOY` | every `types.All*Types()` entry — AGG / ATTR / FILTER / GROUP / WIN / FEAT / TEST / REG / OVERLAY. A `TEST_*` is ONE name covering both its row-test and post-test tiers |
-| `capability` | `capability:process` | `process`, `stream`, `watch`, `compose`, `compose_sweep`, `compose_fits`, `compose_banner`, `model_save`, `regression_holdout`, `models`, `for_each`, `process_chain`, `facet`, `sample`, `joins`, `crosstab`, `crosstab_cells`, `lookup`, `index`, `shard`, `import`, `export`, `filter_to_file`, `dedup`, `materialize`, `widen`, `templates`, `synth`, `labels`, `range_tables`, `weighting`, `multiplicity`, `matrices`, `recommend`, `explain` |
+| `capability` | `capability:process` | `process`, `stream`, `watch`, `compose`, `compose_sweep`, `compose_fits`, `compose_banner`, `model_save`, `regression_holdout`, `models`, `for_each`, `process_chain`, `facet`, `sample`, `joins`, `crosstab`, `crosstab_cells`, `lookup`, `index`, `shard`, `import`, `export`, `filter_to_file`, `dedup`, `materialize`, `widen`, `templates`, `synth`, `labels`, `range_tables`, `weighting`, `multiplicity`, `matrices`, `params`, `recommend`, `explain` |
 | `io_format` | `io_format:csv` | one per `io.Formats()` entry; ONE name gates BOTH import and export |
 | `mcp_extra` | `mcp_extra:cohort_resources` | the cohort-resource enumeration plus one row per registered MCP prompt (`prompt_bootstrap`, `prompt_author_request`, and one `prompt_<intent>` per ANALYTIC intent — `prompt_describe` … `prompt_data_quality`, hand-written rows in intent-registry order) |
 

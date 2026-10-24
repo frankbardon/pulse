@@ -113,7 +113,7 @@ Full guide: [Tuning Limits](tuning-limits.md).
 | Kind | Spelling | Examples |
 |---|---|---|
 | operator | bare registered name | `AGG_SUM`, `GROUP_DATE`, `TEST_T`, `REG_OLS`, `OVERLAY_YOY`, and your extension operators |
-| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:compose_sweep`, `capability:compose_fits`, `capability:compose_banner`, `capability:model_save`, `capability:regression_holdout`, `capability:models`, `capability:for_each`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:crosstab_cells`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:materialize`, `capability:rake`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:recommend`, `capability:explain` |
+| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:compose_sweep`, `capability:compose_fits`, `capability:compose_banner`, `capability:model_save`, `capability:regression_holdout`, `capability:models`, `capability:for_each`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:crosstab_cells`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:materialize`, `capability:rake`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:params`, `capability:recommend`, `capability:explain` |
 | I/O format | `io_format:<name>` | `io_format:csv`, `io_format:parquet`, `io_format:spss`. One name covers both import and export |
 | MCP extra | `mcp_extra:<name>` | `mcp_extra:cohort_resources`, `mcp_extra:prompt_bootstrap`, `mcp_extra:prompt_author_request`, and one `mcp_extra:prompt_<intent>` per analytic intent (`mcp_extra:prompt_describe`, `mcp_extra:prompt_compare_groups`, …) for the `pulse-<intent>` prompts |
 
@@ -146,7 +146,7 @@ one name in every group must be enabled:
 
 - Every operator, and `capability:crosstab` / `capability:joins` /
   `capability:weighting` / `capability:matrices` / `capability:for_each` /
-  `capability:model_save` / `capability:regression_holdout`, needs a host that runs requests: `capability:process`, `capability:compose` or
+  `capability:model_save` / `capability:regression_holdout` / `capability:params`, needs a host that runs requests: `capability:process`, `capability:compose` or
   `capability:process_chain`.
 - `capability:models` needs a host that runs requests or `capability:facet`
   (a facet's `models` feed its filters' `coef()`).
@@ -178,6 +178,7 @@ one name in every group must be enabled:
 | `capability:filter_to_file` | `FILTER_EXPRESSION` (filter-to-file compiles every filterer into one filter expression) |
 | `capability:model_save` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_OLS`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE` or `capability:matrices` (any one; a `save` writes a fitted regression as a model file or a vector fit as a population file) |
 | `capability:regression_holdout` | `REG_BAYES_LINEAR`, `REG_GLM` or `REG_OLS` (any one; a regression `holdout` scores that slot's fit) |
+| `capability:params` | `ATTR_FORMULA`, `FILTER_EXPRESSION`, `OVERLAY_FORMULA` or `capability:regression_holdout` (any one; a request `params` value is read only by an expression) |
 | `capability:models` | `ATTR_REG_PREDICT`, `ATTR_REG_FITTED`, `ATTR_REG_RESIDUAL`, `ATTR_FORMULA`, `FILTER_EXPRESSION`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`, `ATTR_VEC_DISTANCE` or `capability:matrices` (any one; a loaded model is read only by a scoring reference, a loaded population — the `populations` key, which this capability also gates — only by a `params.fit`) |
 
 `TEST_TUKEY_HSD` does not require `TEST_ANOVA_F`.
@@ -336,6 +337,12 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   definitions and the `Response.matrices` result slot, and the manifest
   drops the `matrix` block. Every `MAT_*` operator depends on
   `capability:matrices`.
+- **Request parameters.** Without `capability:params` a request `params`
+  object (inside Compose requests and chain stages too) fails
+  `PULSE_REQUEST_UNKNOWN_FIELD`, and the payload schema and the MCP tool
+  input schemas drop the key. An expression reading `params.<name>` is
+  then refused `PULSE_PARAMS_UNDECLARED`, as on any request declaring no
+  such name.
 - **Item fan-out.** Without `capability:for_each` a `for_each` on a
   window, feature or attribute item (inside Compose requests and chain
   stages too) fails `PULSE_REQUEST_UNKNOWN_FIELD`, locating the key under

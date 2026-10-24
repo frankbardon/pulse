@@ -2327,6 +2327,48 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_PARAMS_INVALID: {
+		Message: "A request `params` entry is not a parameter. A parameter is a number (kept exact: an integer binds as an integer, so a large id compares exactly), a string, a bool, or a list of ONE of those kinds; it is never null, and its name is an identifier so `params.<name>` can spell it. The entry is under `param`, the failure under `reason`: null_value, invalid_name, mixed_list or unsupported_value (an object, a nested list, a non-finite number).",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"params", "*"},
+				Hint:     "Give the parameter a value: a number, string, bool or a one-kind list. To leave a parameter unset, drop its entry (an expression reading it is then refused as undeclared) rather than writing null.",
+				Examples: []any{map[string]any{"params": map[string]any{"from_wave": 3, "waves": []any{3, 4, 5}, "region": "west"}}},
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"params"},
+				Hint:   "Rename an entry whose name is not an identifier (start with a letter or underscore; letters, digits and underscores only), and update every params.<name> that reads it.",
+			},
+		},
+	},
+	PULSE_PARAMS_UNDECLARED: {
+		Message: "An expression reads `params.<name>` for a name the request's `params` object does not declare. Parameters are declared on the request (`\"params\": {\"<name>\": value}`) and read read-only in every expression of that request (formulas, filter expressions, total() arguments, a regression holdout, overlay formulas). The expression is under `expression`, the missing name under `param`, the declared names under `declared`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"params"},
+				Hint:     "Declare the parameter on the request, or correct the spelling in the expression to one of `declared`.",
+				Examples: []any{map[string]any{"params": map[string]any{"from_wave": 3}}},
+			},
+		},
+	},
+	PULSE_PARAMS_FIELD_COLLISION: {
+		Message: "An expression reads `params.<name>`, but `params` is also a column the expression can read: a schema field, a derived column (feature output, attribute label) or a named vector called params. A bare identifier always reads the column, so the request-parameter namespace is shadowed on this cohort and the request is refused rather than guessing. The column itself stays readable as bare `params` or `$env[\"params\"]`; there is no spelling that reaches the parameters past it.",
+		Fixups: []Fixup{
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"cohort"},
+				Hint:   "Rename the cohort field called params (re-import with a different column name), then read the parameters as params.<name>.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "label"},
+				Hint:   "When the column is a derived one (an attribute label, a feature output or a vector named params), rename it in the request.",
+			},
+		},
+	},
 	PULSE_MODEL_PREDICTOR_MISSING: {
 		Message: "The scoring slot has no column for one of the bound model's predictors: no schema field, feature output or earlier attribute label carries the name. Scoring reads the model's predictors from the slot's own columns and never infers one — a one-hot reference level is an ABSENT predictor of the fit, not a missing column. The predictor is under `field`, the fit under `fit`.",
 		Fixups: []Fixup{

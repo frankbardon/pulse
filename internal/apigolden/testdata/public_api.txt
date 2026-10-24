@@ -1016,6 +1016,7 @@ pulse: type Request field Models []pulse/types.ModelRef "json:\"models,omitempty
 pulse: type Request field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse: type Request field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
 pulse: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
+pulse: type Request field Params pulse/types.Params "json:\"params,omitempty\""
 pulse: type Request field Populations []pulse/types.PopulationRef "json:\"populations,omitempty\""
 pulse: type Request field PostTests []*pulse/types.Test "json:\"post_tests,omitempty\""
 pulse: type Request field Regressions []*pulse/types.RegressionSpec "json:\"regressions,omitempty\""
@@ -2714,6 +2715,9 @@ pulse/errors: const PULSE_OVERLAY_SLOT_SHAPE_DIVERGENT pulse/errors.Code = "PULS
 pulse/errors: const PULSE_OVERLAY_TARGET_UNKNOWN pulse/errors.Code = "PULSE_OVERLAY_TARGET_UNKNOWN"
 pulse/errors: const PULSE_OVERLAY_YOY_FREQUENCY_MISSING pulse/errors.Code = "PULSE_OVERLAY_YOY_FREQUENCY_MISSING"
 pulse/errors: const PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY pulse/errors.Code = "PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY"
+pulse/errors: const PULSE_PARAMS_FIELD_COLLISION pulse/errors.Code = "PULSE_PARAMS_FIELD_COLLISION"
+pulse/errors: const PULSE_PARAMS_INVALID pulse/errors.Code = "PULSE_PARAMS_INVALID"
+pulse/errors: const PULSE_PARAMS_UNDECLARED pulse/errors.Code = "PULSE_PARAMS_UNDECLARED"
 pulse/errors: const PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE pulse/errors.Code = "PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE"
 pulse/errors: const PULSE_PROFILE_FIELD_UNSUPPORTED pulse/errors.Code = "PULSE_PROFILE_FIELD_UNSUPPORTED"
 pulse/errors: const PULSE_RAKE_EMPTY_CELL pulse/errors.Code = "PULSE_RAKE_EMPTY_CELL"
@@ -5443,6 +5447,8 @@ pulse/types: type PanelSlabPartitionViolation field SlotIndex int
 pulse/types: type PanelSlabPartitionViolation field SlotLabel string
 pulse/types: type PanelSlabPartitionViolation method (PanelSlabPartitionViolation) Details(kind pulse/types.OverlayKind, params pulse/types.PanelOverlayParams, index int) map[string]any
 pulse/types: type PanelSlabPartitionViolation method (PanelSlabPartitionViolation) Message(kind pulse/types.OverlayKind, params pulse/types.PanelOverlayParams) string
+pulse/types: type Params map[string]any
+pulse/types: type Params method (*Params) UnmarshalJSON(data []byte) error
 pulse/types: func ParseLabelMode(s string) (m pulse/types.LabelMode, ok bool)
 pulse/types: func ParseLookupMultiplicity(s string) (m pulse/types.LookupMultiplicity, ok bool)
 pulse/types: type PopulationRef struct
@@ -5600,6 +5606,7 @@ pulse/types: type Request field Models []pulse/types.ModelRef "json:\"models,omi
 pulse/types: type Request field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type Request field Outputs []*pulse/types.Output "json:\"outputs,omitempty\""
 pulse/types: type Request field Overlays []pulse/types.OverlaySpec "json:\"overlays,omitempty\""
+pulse/types: type Request field Params pulse/types.Params "json:\"params,omitempty\""
 pulse/types: type Request field Populations []pulse/types.PopulationRef "json:\"populations,omitempty\""
 pulse/types: type Request field PostTests []*pulse/types.Test "json:\"post_tests,omitempty\""
 pulse/types: type Request field Regressions []*pulse/types.RegressionSpec "json:\"regressions,omitempty\""
@@ -5844,4 +5851,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 45f0cd5d3d422e59829589eee726858545df18c9963a59f2ec522e0add87ea58
+// golden-hash: a5127a4c502db44c83090a88f38ee15c9483eaa0d93c019778796a874b5c9e5d

@@ -244,6 +244,39 @@ source}` (`source: "field"` with `tz: null` for a per-row zone) —
 which is a predict result field, not part of this schema. See
 `skills/request-envelope.md` (Time zones).
 
+## Request params
+
+`params` on `Request` is an additive, optional object of named
+constants every expression of that request reads, read-only, as
+`params.<name>` (or `params["<name>"]`): `ATTR_FORMULA`,
+`FILTER_EXPRESSION`, a `total()` argument, a regression `holdout` and
+`OVERLAY_FORMULA`. `format_version` stays `"1.1"`; omitting it is
+byte-identical to the earlier wire form. Gated by `capability:params`:
+an instance whose feature profile omits it has no `params` property and
+refuses the key as an unknown field.
+
+The schema types it as an object whose property names match
+`^[A-Za-z_][A-Za-z0-9_]*$` and whose values are a number, a string, a
+boolean, or an array of numbers, of strings or of booleans. Rules the
+schema cannot say, enforced by `pulse predict` and at run time alike,
+before any record is read:
+
+- a value is never `null`, and a list holds ONE kind — otherwise
+  `PULSE_PARAMS_INVALID` (`details.reason`: `null_value`,
+  `invalid_name`, `mixed_list`, `unsupported_value`);
+- numbers are kept as their JSON text: an integer binds as an integer
+  (`int64`, or `uint64` above it), so a large id compares exactly; any
+  other number binds as a float. A list of numbers binds as the one
+  integer or float array type every element fits;
+- reading a name the object does not declare is
+  `PULSE_PARAMS_UNDECLARED`; reading `params.<name>` where `params` is
+  also a column (a schema field, feature output, attribute label or
+  vector called `params`) is `PULSE_PARAMS_FIELD_COLLISION`. A bare
+  `params` always reads that column.
+
+`ComposedRequest` and `ChainRequest` carry none of their own; each inner
+`Request` (slot or stage) carries its own.
+
 ## Multiplicity slots
 
 Multiple-comparison correction adds one additive block shape,

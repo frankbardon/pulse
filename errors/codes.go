@@ -1555,6 +1555,32 @@ const (
 	// CompileError.
 	PULSE_FORMULA_COMPILE_ERROR Code = "PULSE_FORMULA_COMPILE_ERROR"
 
+	// PULSE_PARAMS_INVALID indicates a request `params` entry that is
+	// not a parameter: a null value, a name that is not an identifier
+	// (params.<name> could not spell it), a list mixing kinds (numbers,
+	// strings, bools), or any other value (an object, a nested list, a
+	// non-finite number). Refused identically by predict and the runtime
+	// before any record is read. Details carry "param" and "reason"
+	// (null_value | invalid_name | mixed_list | unsupported_value).
+	PULSE_PARAMS_INVALID Code = "PULSE_PARAMS_INVALID"
+
+	// PULSE_PARAMS_UNDECLARED indicates an expression (ATTR_FORMULA,
+	// FILTER_EXPRESSION, a total() argument, a regression holdout,
+	// OVERLAY_FORMULA) reading params.<name> for a name the request's
+	// `params` does not declare. Refused identically by predict and the
+	// runtime at compile, before any record is read. Details carry
+	// "expression", "param" and "declared" (the declared names, sorted).
+	PULSE_PARAMS_UNDECLARED Code = "PULSE_PARAMS_UNDECLARED"
+
+	// PULSE_PARAMS_FIELD_COLLISION indicates an expression reading
+	// params.<name> over a request where `params` is also a column the
+	// expression could read: a schema field, a derived column (feature
+	// output, attribute label) or a named vector called params. A bare
+	// identifier reads the column, so the parameter namespace is
+	// shadowed. Refused identically by predict and the runtime at
+	// compile. Details carry "expression", "param" and "field".
+	PULSE_PARAMS_FIELD_COLLISION Code = "PULSE_PARAMS_FIELD_COLLISION"
+
 	// PULSE_MODEL_PREDICTOR_MISSING indicates a scoring frame without a
 	// column for one of a bound model's predictors: no schema field,
 	// feature output or earlier attribute label carries the name.
@@ -4307,6 +4333,9 @@ var allCodes = []Code{
 	PULSE_FORMULA_TOTAL_NESTED,
 	PULSE_FORMULA_TOTAL_ARITY,
 	PULSE_FORMULA_COMPILE_ERROR,
+	PULSE_PARAMS_INVALID,
+	PULSE_PARAMS_UNDECLARED,
+	PULSE_PARAMS_FIELD_COLLISION,
 	PULSE_MODEL_PREDICTOR_MISSING,
 	PULSE_MODEL_PREDICTOR_NOT_NUMERIC,
 	PULSE_MODEL_SAVE_INVALID,

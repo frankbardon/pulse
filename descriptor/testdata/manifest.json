@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:8b3078651bebb03d1e0c5bbc01a8e6196e641dbfb55db2c4fa5f90a9a424809d",
+    "feature_set_digest": "fs1:167b554eeadf635ad66494f2e6a744b76b4dff70187905f425928f50e97e75d0",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -10395,7 +10395,7 @@
         ]
       }
     ],
-    "error_codes_count": 408,
+    "error_codes_count": 411,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10654,6 +10654,9 @@
       "PULSE_OVERLAY_TARGET_UNKNOWN",
       "PULSE_OVERLAY_YOY_FREQUENCY_MISSING",
       "PULSE_OVERLAY_YOY_INCOMPATIBLE_FREQUENCY",
+      "PULSE_PARAMS_FIELD_COLLISION",
+      "PULSE_PARAMS_INVALID",
+      "PULSE_PARAMS_UNDECLARED",
       "PULSE_PREVIOUS_STATE_AMBIGUOUS_TIE",
       "PULSE_PROFILE_FIELD_UNSUPPORTED",
       "PULSE_RAKE_EMPTY_CELL",
@@ -19564,4 +19567,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a61a41cd3d03a437b543f885fb3c3d3b9a724f1ad6a4015068ec08569e505c8c
+// golden-hash: 9ed27a62dccb6220532ee3758e422c968dc7111f68f692565fc456e0531ee577

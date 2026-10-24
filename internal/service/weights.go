@@ -64,7 +64,7 @@ func (s *Service) neededFields(ctx context.Context, req *types.Request, schema *
 // and the instance's effective resource limits (Service.Limits — the
 // parallel reducers bypass this and take them through newShardPartial).
 func (s *Service) newProcessor(ctx context.Context, schema *encoding.Schema, req *types.Request) *processing.Processor {
-	proc := processing.NewProcessorWithExtensions(schema, s.extensions)
+	proc := processing.NewProcessorWithExtensions(schema, s.requestExtensions(req))
 	proc.SetComputePlan(s.computePlanFor(ctx, req))
 	proc.SetWeighting(s.defaultWeight, s.strict)
 	proc.SetLimits(s.Limits())

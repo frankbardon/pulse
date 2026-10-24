@@ -212,7 +212,14 @@ func strictAcceptanceRequiredFamilies() []string {
 		for _, f := range jsonFields(t) {
 			name := prefix + "." + f.name
 			if f.name == "params" && isRawOrMap(f.Type) {
-				out = append(out, name)
+				// Request.params (types.Params) is the request's
+				// expression constants: its keys are caller-chosen
+				// names, never an allowlist, so no misspelled-key
+				// refusal exists (a bad name is PULSE_PARAMS_INVALID,
+				// TestParams_PredictMatchesRuntime).
+				if t != reflect.TypeFor[types.Request]() {
+					out = append(out, name)
+				}
 				continue
 			}
 			et := structElem(f.Type)
@@ -236,7 +243,7 @@ func strictAcceptanceRequiredFamilies() []string {
 			// request) are families of their own.
 			for _, sub := range jsonFields(et) {
 				switch {
-				case sub.name == "params" && isRawOrMap(sub.Type),
+				case sub.name == "params" && isRawOrMap(sub.Type) && et != reflect.TypeFor[types.Request](),
 					sub.name == "for_each",
 					sub.name == "request" && structElem(sub.Type) != nil:
 					out = append(out, name+"."+sub.name)

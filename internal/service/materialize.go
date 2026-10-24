@@ -60,6 +60,7 @@ func (s *Service) materialize(ctx context.Context, req *types.Request, sink Mate
 	if req == nil || req.Cohort == nil {
 		return errors.NewCodedError(errors.SERVICE_VALIDATION, "request cohort is required")
 	}
+	s = s.forRequest(req)
 	if err := s.slotRefusal(req); err != nil {
 		return markLocated(err)
 	}

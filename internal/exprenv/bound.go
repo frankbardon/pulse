@@ -43,6 +43,11 @@ type Bound struct {
 	// always-on UTC registration; predict leaves it nil (it never runs
 	// the function, and the declaration is the same).
 	Zone *temporal.Zone
+	// Params are the request's normalized parameters
+	// (types.Request.Params through [NormalizeParams]), folded as
+	// constants wherever an expression reads params.<name> (params.go).
+	// Nil declares none; predict and the runtime fold the same values.
+	Params Params
 }
 
 // Options returns [Options] plus the bound declarations: to_day() over
@@ -52,7 +57,9 @@ type Bound struct {
 // float64 — so `coef("m", "x") + "a"` fails to compile; the embedder
 // functions and lookup are untyped (any arguments, any result).
 func (b Bound) Options() []expr.Option {
-	out := Options()
+	// The params fold runs first, so every later patcher and the type
+	// check see the constant's own type.
+	out := append(paramsOption(b.Params), Options()...)
 	if b.Zone != nil && !b.Zone.IsUTC() {
 		out = append(out, expr.Function(FuncToDay, ToDayFunc(b.Zone), calendarSignatures[FuncToDay]...))
 	}

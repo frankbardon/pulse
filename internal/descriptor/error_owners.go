@@ -366,10 +366,16 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MODEL_PREDICTOR_MISSING:     own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
 	// ATTR_FORMULA's total(expr) cohort-total term (internal/totalcall):
 	// the site refusal fires from the other two expression operators.
-	errors.PULSE_FORMULA_TOTAL_SITE:          own("FILTER_EXPRESSION", "OVERLAY_FORMULA"),
-	errors.PULSE_FORMULA_TOTAL_NESTED:        own("ATTR_FORMULA"),
-	errors.PULSE_FORMULA_TOTAL_ARITY:         own("ATTR_FORMULA"),
-	errors.PULSE_FORMULA_COMPILE_ERROR:       own("ATTR_FORMULA", "FILTER_EXPRESSION", featRegHoldout),
+	errors.PULSE_FORMULA_TOTAL_SITE:    own("FILTER_EXPRESSION", "OVERLAY_FORMULA"),
+	errors.PULSE_FORMULA_TOTAL_NESTED:  own("ATTR_FORMULA"),
+	errors.PULSE_FORMULA_TOTAL_ARITY:   own("ATTR_FORMULA"),
+	errors.PULSE_FORMULA_COMPILE_ERROR: own("ATTR_FORMULA", "FILTER_EXPRESSION", featRegHoldout),
+	// The params block is capability:params; an expression reading
+	// params.<name> can be refused (undeclared, collision) wherever an
+	// expression compiles, the slot hidden or not.
+	errors.PULSE_PARAMS_INVALID:              own(featParams),
+	errors.PULSE_PARAMS_UNDECLARED:           own("ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", featRegHoldout, featParams),
+	errors.PULSE_PARAMS_FIELD_COLLISION:      own("ATTR_FORMULA", "FILTER_EXPRESSION", featRegHoldout, featParams),
 	errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC: own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
 	// The model file: a `save` writes it (capability:model_save), a
 	// `models` entry loads it (capability:models) — the parse codes are

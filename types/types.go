@@ -1605,6 +1605,13 @@ type Request struct {
 	// a wire float precision. Nil returns the whole Response. See
 	// Return.
 	Return *Return `json:"return,omitempty"`
+
+	// Params names constants this request's expressions read,
+	// read-only, as params.<name>: every ATTR_FORMULA, FILTER_EXPRESSION,
+	// total() argument, regression holdout and OVERLAY_FORMULA of the
+	// request. Values are typed, never spliced into an expression's
+	// text. Nil declares none. Gated by capability:params. See Params.
+	Params Params `json:"params,omitempty"`
 }
 
 // ResponseMetadata holds metadata about a processing result.

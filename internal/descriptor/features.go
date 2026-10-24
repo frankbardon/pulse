@@ -134,7 +134,13 @@ var (
 	featWeighting     = FeatureWeighting
 	featMultiplicity  = FeatureMultiplicity
 	featMatrices      = FeatureName(FeatureKindCapability, "matrices")
+	featParams        = FeatureParams
 )
+
+// FeatureParams is capability:params — the request `params` object
+// (types.Request.Params): named constants every request-scoped
+// expression reads as params.<name>. Exported for the MCP bound schema.
+const FeatureParams = "capability:params"
 
 // FeatureMultiplicity is capability:multiplicity — the multiple-
 // comparison correction surface: every `multiplicity` slot (Request,
@@ -219,6 +225,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("weighting"),          // Request.Weight + every per-slot weight + Options.DefaultWeight
 	capability("multiplicity"),       // every `multiplicity` slot + Options.DefaultMultiplicity
 	capability("matrices"),           // Request.Vectors + Request.Matrices
+	capability("params"),             // Request.Params (params.<name> in request expressions)
 	capability("recommend"),          // pulse_recommend, pulse recommend (the facade stays ungated)
 	capability("explain"),            // pulse_explain, pulse explain (the facade stays ungated)
 
@@ -483,6 +490,7 @@ var requestSlotCapabilities = map[string]bool{
 	featForEach:    true,
 	featModelSave:  true,
 	featRegHoldout: true,
+	featParams:     true,
 }
 
 // modelsHosts is the any-of host group of capability:models: every
@@ -560,6 +568,10 @@ var slotTokens = map[string]slotTokenSet{
 	featRegHoldout: {},
 	// `models` is everyday English; no guidance sentence names the slot.
 	featModels: {},
+	// `params` is every operator's own configuration key too (a
+	// filterer's, an overlay's params.formula), so the request slot
+	// owns no token.
+	featParams: {},
 	// `for_each` names the item key only; no guidance sentence names it.
 	featForEach: {},
 	// pulse_explain's `sample` root slot: "sample" is everyday English
@@ -729,6 +741,10 @@ var overlayHostKinds = map[string][]string{
 //     attributes and capability:matrices.
 //   - capability:regression_holdout holds rows out of a regression
 //     slot's fit and scores them: it needs any-of the REG_* operators.
+//   - capability:params declares constants only an expression reads:
+//     it needs any-of ATTR_FORMULA, FILTER_EXPRESSION, OVERLAY_FORMULA
+//     and capability:regression_holdout (a total() argument rides
+//     ATTR_FORMULA).
 //   - capability:models loads a model only a scoring reference reads
 //     (ATTR_REG_PREDICT, an ATTR_REG_FITTED / RESIDUAL params.fit, or
 //     coef() in ATTR_FORMULA / FILTER_EXPRESSION)
@@ -781,6 +797,9 @@ var hardEdges = map[string][]string{
 	// A holdout scores the fit of a regression slot: without a
 	// regression there is nothing to hold rows out of.
 	featRegHoldout: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS)},
+	// Parameters are read only by an expression: without one there is
+	// nothing to read them.
+	featParams: {"ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", featRegHoldout},
 	// A loaded model or population is read only by a reference: a
 	// scoring reference (ATTR_REG_PREDICT, coef()) or a params.fit (a
 	// fitted vector attribute, ATTR_REG_FITTED / RESIDUAL, a MAT_* slot).

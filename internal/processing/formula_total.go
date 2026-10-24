@@ -95,7 +95,10 @@ func (a *formulaAttribute) prepareTotals() (*exprProgram, error) {
 		}
 		t.args[i] = prog
 	}
-	opts := append(a.exts.exprOptionsWithModels(a.models, a.zone), totalcall.Options(t.index, t.read)...)
+	// The total() patcher runs FIRST: it reads each call's argument by
+	// its source key (totalcall.ArgKey), which the params fold would
+	// otherwise have rewritten into constants already.
+	opts := append(totalcall.Options(t.index, t.read), a.exts.exprOptionsWithModels(a.models, a.zone)...)
 	return newExprProgramKeyed(a.expression, exprenv.SiteFormula, a.schema, a.keys, a.vecs, a.exts.referenceTables(), opts)
 }
 

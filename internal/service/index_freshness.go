@@ -81,7 +81,7 @@ func (c *cohortFingerprintCache) store(path string, size uint64, modTime int64, 
 // otherwise. size/modTime come from the caller's own statCohortFile so
 // the file is stat'd once per decision, not twice.
 func (s *Service) cohortFingerprint(fsys afero.Fs, path string, size uint64, modTime int64, useMemo bool) (encx.Fingerprint, error) {
-	if useMemo {
+	if useMemo && s.fingerprints != nil {
 		if fp, ok := s.fingerprints.load(path, size, modTime); ok {
 			return fp, nil
 		}
@@ -90,7 +90,9 @@ func (s *Service) cohortFingerprint(fsys afero.Fs, path string, size uint64, mod
 	if err != nil {
 		return encx.Fingerprint{}, err
 	}
-	s.fingerprints.store(path, size, modTime, fp)
+	if s.fingerprints != nil {
+		s.fingerprints.store(path, size, modTime, fp)
+	}
 	return fp, nil
 }
 

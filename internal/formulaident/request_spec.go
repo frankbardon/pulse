@@ -6,6 +6,7 @@ import (
 	exprparser "github.com/expr-lang/expr/parser"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/totalcall"
 	"github.com/frankbardon/pulse/types"
@@ -30,12 +31,26 @@ const BaselineParam = "baseline_position"
 //     formula, parse_error};
 //   - a total() call: totalcall.Refusal's code, Details + index, kind;
 //   - a vector built-in: BuiltinRefusal;
+//   - a params.<name> the request does not declare:
+//     PULSE_PARAMS_UNDECLARED {index, kind, expression, param,
+//     declared} (RequestSpecRefusalWithParams);
 //   - SERIES only: a params.baseline_position that is not a
 //     non-negative integer: PULSE_OVERLAY_LEVEL_OUT_OF_RANGE {index,
 //     kind, param, baseline_position};
 //   - an unknown variable, function or slot path: RequestRefusal over
 //     RequestVars(shape, baseline_position set).
 func RequestSpecRefusal(spec *types.OverlaySpec, index int, shape types.OverlayShape, funcs map[string]struct{}) *errors.CodedError {
+	return RequestSpecRefusalWithParams(spec, index, shape, funcs, nil)
+}
+
+// RequestSpecRefusalWithParams is RequestSpecRefusal over a request
+// declaring params (the request's normalized params; nil: none): after
+// the vector built-in rule, a params.<name> the request does not
+// declare is PULSE_PARAMS_UNDECLARED (exprenv.ParamsRefusal, Details +
+// index, kind). The host namespace never names `params`, so a read
+// cannot collide here. Predict and the runtime dispatchers pass the
+// same params.
+func RequestSpecRefusalWithParams(spec *types.OverlaySpec, index int, shape types.OverlayShape, funcs map[string]struct{}, reqParams exprenv.Params) *errors.CodedError {
 	if spec == nil {
 		return nil
 	}
@@ -67,6 +82,11 @@ func RequestSpecRefusal(spec *types.OverlaySpec, index int, shape types.OverlayS
 	}
 	if cerr := BuiltinRefusal(spec.Kind, formula, index); cerr != nil {
 		return cerr
+	}
+	if pc := exprenv.ParamsRefusal(formula, reqParams, false); pc != nil {
+		pc.Details["index"] = index
+		pc.Details["kind"] = kind
+		return pc
 	}
 	baseline := false
 	if shape == types.OverlayShapeSeries {

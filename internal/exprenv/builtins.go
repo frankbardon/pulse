@@ -30,6 +30,9 @@
 //     the embedder functions, lookup) and the derived-column and
 //     named-vector types ([DerivedType], [VectorType]), so predict and
 //     the engine type-check every expression against the same env;
+//   - the request params ([Params], params.go): their validation
+//     ([NormalizeParams]), the shared static rule ([ParamsRefusal]) and
+//     the constant fold [Bound.Params] registers first;
 //   - the compile failure, PULSE_FORMULA_COMPILE_ERROR ([CompileError],
 //     the site nouns [SiteFormula], [SiteFilter], [SiteTotalArgument]).
 //

@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/daterange"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/numrange"
 	"github.com/frankbardon/pulse/internal/processing/feature"
@@ -200,6 +201,41 @@ type ExtensionRegistry struct {
 	// name takes — its site's own unknown-name error, no re-wording and
 	// no pre-check. Nil hides nothing.
 	hidden func(name string) bool
+
+	// params are the running request's normalized parameters
+	// (exprenv.NormalizeParams over types.Request.Params), installed by
+	// WithParams on a per-request copy: every expression compile the
+	// registry contributes options to (exprBound) folds them as
+	// constants. Nil declares none.
+	params exprenv.Params
+}
+
+// WithParams returns a registry that resolves exactly like r and whose
+// expression options fold params (exprenv.Bound.Params) — the
+// per-request view a run with a `params` object compiles its
+// expressions through. r is not mutated: the result is a shallow copy
+// sharing r's read-only maps, so concurrent requests with different
+// params never see each other's values. Empty params returns r
+// unchanged (byte-identical for a request without params).
+func (r *ExtensionRegistry) WithParams(params exprenv.Params) *ExtensionRegistry {
+	if len(params) == 0 {
+		return r
+	}
+	var out ExtensionRegistry
+	if r != nil {
+		out = *r
+	}
+	out.params = params
+	return &out
+}
+
+// Params returns the parameters WithParams installed (nil: none).
+// Nil-receiver-safe.
+func (r *ExtensionRegistry) Params() exprenv.Params {
+	if r == nil {
+		return nil
+	}
+	return r.params
 }
 
 // WithHidden returns a registry that resolves exactly like r except that
