@@ -104,8 +104,14 @@ func (m Matrix) FragmentRowBytes() int64 {
 // StateCount is the co-moment states the matrix holds per merge block:
 // 1, or on MAT_DISTANCE its base state plus one per between bucket
 // when the bucket count is known from the schema (EstimateBuckets over
-// params.between; 1 otherwise, the per-bucket states then uncounted).
+// params.between; 1 otherwise, the per-bucket states then uncounted),
+// or on a grouped MAT_SEM (params.group) its base state plus one per
+// level, at most (SEMPlan.groupStateBound: the schema's levels, else
+// the integer field's value range).
 func (m Matrix) StateCount(schema *encoding.Schema) int64 {
+	if m.Type == types.MAT_SEM && m.SEM.Grouped() {
+		return 1 + m.SEM.groupStateBound()
+	}
 	if m.Type != types.MAT_DISTANCE || m.Between == nil {
 		return 1
 	}

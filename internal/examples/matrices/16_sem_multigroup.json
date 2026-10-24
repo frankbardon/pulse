@@ -1,0 +1,57 @@
+{
+  "_meta": {
+    "name": "sem-mean-structure-and-groups",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "multivariate",
+      "comparison",
+      "streaming-friendly"
+    ],
+    "operators": [
+      "MAT_SEM"
+    ],
+    "capabilities": [
+      "capability:sem_groups",
+      "capability:sem_meanstructure"
+    ],
+    "description": "The two-factor CFA of survey.pulse (service =~ q1 + q2 + q3, value =~ q4 + q5 + q6) on the lavaan path, then across the two panel waves as ONE joint multi-group fit. means sets meanstructure: lavaan's ML fit with free intercepts (x ~1 rows), Wald ci_lower / ci_upper columns and implied_means / observed_means. configural adds group panel: every parameter free per wave, estimate rows keyed [level] lval op rval with vectors.group and vectors.label, per-wave auxiliaries (implied_covariance.a, observed_means.b, ...) and joint scalars plus chi2_group_<level> / n_group_<level>. scalar holds loadings and intercepts equal (group_equal), which frees the latent means of wave b (wave a, the group_reference, stays 0): the [b] service ~1 and [b] value ~1 rows are each factor's shift in marker units. partial frees the q3 intercept again (group_partial q3~1). Compare chi2, dof, cfi and rmsea from configural to scalar to read measurement invariance. Streamable and mergeable: each wave's means and covariance merge on their own.",
+    "intents": [
+      "compare_groups",
+      "measure_construct"
+    ]
+  },
+  "cohort": {
+    "filename": "survey.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {"name": "battery", "fields": ["q1", "q2", "q3", "q4", "q5", "q6"]}
+  ],
+  "matrices": [
+    {
+      "type": "MAT_SEM",
+      "name": "means",
+      "vector": "battery",
+      "params": {"model": "service =~ q1 + q2 + q3\nvalue =~ q4 + q5 + q6", "meanstructure": true}
+    },
+    {
+      "type": "MAT_SEM",
+      "name": "configural",
+      "vector": "battery",
+      "params": {"model": "service =~ q1 + q2 + q3\nvalue =~ q4 + q5 + q6", "group": "panel"}
+    },
+    {
+      "type": "MAT_SEM",
+      "name": "scalar",
+      "vector": "battery",
+      "params": {"model": "service =~ q1 + q2 + q3\nvalue =~ q4 + q5 + q6", "group": "panel", "group_equal": ["loadings", "intercepts"]}
+    },
+    {
+      "type": "MAT_SEM",
+      "name": "partial",
+      "vector": "battery",
+      "params": {"model": "service =~ q1 + q2 + q3\nvalue =~ q4 + q5 + q6", "group": "panel", "group_equal": ["loadings", "intercepts"], "group_partial": ["q3~1"]}
+    }
+  ]
+}

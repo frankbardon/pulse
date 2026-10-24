@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/internal/buildinfo"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -132,6 +133,39 @@ func hideRegressionSlotParams(m *descriptor.Manifest, inst *InstanceSnapshot) {
 	}
 }
 
+// hideSEMSurfaces drops, from the built-in MAT_SEM entry, the params
+// and output keys of every MAT_SEM surface inst hides
+// (vectors.SEMFeatureParams / SEMFeatureOutputs: the mean structure,
+// the multi-group fit), as the runtime refuses their keys as unknown;
+// the prose scrub removes the sentences naming them (semProseTokens).
+// No-op on a nil / unscoped instance.
+func hideSEMSurfaces(mats []descriptor.MatrixMeta, inst *InstanceSnapshot) {
+	var params []string
+	outputs := map[string][]string{}
+	for feat, keys := range vectors.SEMFeatureParams() {
+		if inst.Hidden(feat) {
+			params = append(params, keys...)
+			for part, ks := range vectors.SEMFeatureOutputs()[feat] {
+				outputs[part] = append(outputs[part], ks...)
+			}
+		}
+	}
+	if len(params) == 0 {
+		return
+	}
+	drop := func(in []string, part string) []string {
+		return filterSlice(in, func(k string) bool { return !slices.Contains(outputs[part], k) })
+	}
+	for i := range mats {
+		if mats[i].Name != string(types.MAT_SEM) {
+			continue
+		}
+		mats[i].Params = filterSlice(mats[i].Params, func(p descriptor.Param) bool { return !slices.Contains(params, p.Name) })
+		ok := &mats[i].OutputKeys
+		ok.Auxiliary, ok.Vectors, ok.Scalars = drop(ok.Auxiliary, "auxiliary"), drop(ok.Vectors, "vectors"), drop(ok.Scalars, "scalars")
+	}
+}
+
 func filterOverlays(in []descriptor.OverlayCapability, on func(string) bool) []descriptor.OverlayCapability {
 	return filterSlice(in, func(o descriptor.OverlayCapability) bool { return on(string(o.Kind)) })
 }
@@ -185,7 +219,24 @@ func hiddenProseNames(inst *InstanceSnapshot) map[string]struct{} {
 			}
 		}
 	}
+	for c, toks := range semProseTokens {
+		if !inst.Enabled(c) {
+			for _, tok := range toks {
+				out[tok] = struct{}{}
+			}
+		}
+	}
 	return out
+}
+
+// semProseTokens are the wire tokens naming a hideable MAT_SEM surface
+// (vectors.SEMFeatureParams) in manifest prose: hidden, the scrub drops
+// every sentence naming one, so MAT_SEM's description keeps no word of
+// the hidden surface. "group" itself is everyday English and is no
+// token: the group param's own description goes with the param.
+var semProseTokens = map[string][]string{
+	featSEMMeans:  {"meanstructure", "implied_means", "observed_means"},
+	featSEMGroups: {"group_reference", "group_equal", "group_partial", "chi2_group_", "n_group_"},
 }
 
 // manifestScrubSkip names the top-level Manifest fields the prose scrub

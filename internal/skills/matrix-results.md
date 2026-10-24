@@ -43,7 +43,7 @@ A **vector** names numeric fields once; a **matrix** slot turns a vector into a 
 - `MAT_FACTOR` — factor loadings (rectangular p × k), communalities, uniquenesses, rmsr (`ml`: likelihood chi-square, TLI, RMSEA, BIC); `params.factors`, `extraction`, `rotation`.
 <!-- /feature -->
 <!-- feature: MAT_SEM -->
-- `MAT_SEM` — semopy `params.model`: implied covariance, `estimates`, fit indices.
+- `MAT_SEM` — lavaan / semopy model: implied covariance, `estimates`, fit indices.
 <!-- /feature -->
 <!-- feature: MAT_PCA -->
 - `MAT_PCA` — loadings (rectangular p × k), eigenvalues, KMO, Bartlett; `params.components` k / `kaiser` / `{variance}`.

@@ -45,7 +45,20 @@ import (
 // before grad_tol) keeps the last iterate with PULSE_MATRIX_NOT_CONVERGED;
 // a model with negative degrees of freedom is fitted as semopy fits it,
 // with PULSE_MATRIX_NOT_IDENTIFIED.
+//
+// A mean structure (params.meanstructure, or a `~ 1` line) switches the
+// fit to lavaan's conventions (sem.Model.Lavaan): the co-moment's means
+// (in model order) join S, the objective gains the mean term, the
+// default solver converges to the optimum, the scalars are lavaan's,
+// the estimates gain `~1` rows and the Wald ci_lower / ci_upper
+// columns, and auxiliary implied_means / observed_means (member order,
+// one "mean" column) are emitted. A covariance-only model is the
+// semopy fit above, bit for bit. params.group fits one joint
+// multi-group model instead (finalizeSEMGroups, matrix_sem_group.go).
 func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
+	if in.Plan().SEM.Grouped() {
+		return finalizeSEMGroups(in)
+	}
 	m := in.slot
 	plan := in.Plan()
 	spec := plan.SEM
@@ -91,7 +104,16 @@ func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
 			"matrix "+plan.Name+": the sample covariance is not positive definite; the model is fitted to its nearest positive-definite substitute (statsmodels cov_nearest, threshold 0.01, as semopy), and every figure is against that adjusted matrix",
 			map[string]any{"matrix": plan.Name, "n": cm.W(), "p": k, "min_eigenvalue": adj.MinEigenvalue}))
 	}
-	fit, err := sem.FitCovNearest(spec.Model, s, raw, cm.W(), spec.Options)
+	// The means (a mean structure only) in model order.
+	var mean []float64
+	if spec.Model.MeanStructure {
+		mv := cm.Mean()
+		mean = make([]float64, k)
+		for a := 0; a < k; a++ {
+			mean[a] = mv.At(spec.Order[a])
+		}
+	}
+	fit, err := sem.FitMoments(spec.Model, s, raw, mean, cm.W(), spec.Options)
 	if err == nil {
 		err = sem.ComputeStats(fit, spec.Desc)
 	}
@@ -118,6 +140,10 @@ func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
 	in.semParts(&out, fit,
 		func(r, c int) float64 { return fit.Implied.At(pos[r], pos[c]) },
 		func(r, c int) float64 { return s.At(pos[r], pos[c]) })
+	if fit.ImpliedMean != nil && in.WantAuxiliary() {
+		out.Auxiliary["implied_means"] = in.Rect(semMeanColumns, func(r, _ int) float64 { return fit.ImpliedMean[pos[r]] })
+		out.Auxiliary["observed_means"] = in.Rect(semMeanColumns, func(r, _ int) float64 { return fit.SampleMean[pos[r]] })
+	}
 	return out, nil
 }
 
@@ -134,6 +160,10 @@ func semJudgeable(s *linalg.Sym, zeroOK bool) bool {
 	}
 	return true
 }
+
+// semMeanColumns is the one column of MAT_SEM's implied_means /
+// observed_means (a mean structure only): a member's mean.
+var semMeanColumns = []string{"mean"}
 
 // semScalarKeys are MAT_SEM's scalars, in manifest order.
 var semScalarKeys = []string{
@@ -160,15 +190,20 @@ func (in *matrixFinalizeInput) semParts(out *matrixOutput, fit *sem.Fit, implied
 		rows = sem.SpecifiedRows(spec.Model)
 	}
 	if in.WantAuxiliary() {
+		columns := vectors.SEMEstimateColumnsOf(spec)
+		lavaan := spec.Lavaan()
 		keys := make([]string, len(rows))
 		values := make([][]float64, len(rows))
 		for i, e := range rows {
 			keys[i] = e.Key()
 			if fit == nil {
-				values[i] = nanVector(len(vectors.SEMEstimateColumns()))
+				values[i] = nanVector(len(columns))
 				continue
 			}
 			values[i] = []float64{e.Value, e.StdValue, e.SE, e.Z, e.P}
+			if lavaan {
+				values[i] = append(values[i], e.CILower, e.CIUpper)
+			}
 		}
 		resid := func(int, int) float64 { return math.NaN() }
 		if implied != nil {
@@ -179,10 +214,15 @@ func (in *matrixFinalizeInput) semParts(out *matrixOutput, fit *sem.Fit, implied
 				Kind:       types.MatrixKindRectangular,
 				Encoding:   types.MatrixEncodingFull,
 				RowKeys:    keys,
-				ColumnKeys: vectors.SEMEstimateColumns(),
+				ColumnKeys: columns,
 				Values:     values,
 			},
 			"residual_covariance": in.Square(resid),
+		}
+		if spec.HasMeans() && fit == nil {
+			nan := func(int, int) float64 { return math.NaN() }
+			out.Auxiliary["implied_means"] = in.Rect(semMeanColumns, nan)
+			out.Auxiliary["observed_means"] = in.Rect(semMeanColumns, nan)
 		}
 		if in.Plan().Encoding == types.MatrixEncodingRecords {
 			// A records row is self-describing: the path's parts and

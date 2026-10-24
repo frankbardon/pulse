@@ -299,6 +299,7 @@
     - [request-templating](skills/request-templating.md)
     - [response-components](skills/response-components.md)
     - [response-shaping](skills/response-shaping.md)
+    - [sem-modeling](skills/sem-modeling.md)
     - [session-bootstrap](skills/session-bootstrap.md)
     - [session-format-flags](skills/session-format-flags.md)
     - [session-skill-routing](skills/session-skill-routing.md)

@@ -1,0 +1,5 @@
+# Brand survey: three correlated factors and a recommend outcome.
+quality =~ q1 + q2 + q3
+value =~ v1 + v2 + v3
+service =~ s1 + s2 + s3
+recommend ~ quality + value + service

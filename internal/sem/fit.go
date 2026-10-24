@@ -97,17 +97,34 @@ func (o Options) Validate() error {
 // Estimate is one row of the parameter table, laid out like semopy's
 // Model.inspect(std_est=True): lval op rval, the estimate, the
 // standardized estimate, and (free parameters only) SE, z and p.
+//
+// An intercept / latent mean row has Op OpIntercept and an empty RVal.
+// CILower / CIUpper are the Wald interval of a free parameter under
+// lavaan conventions (Model.Lavaan), NaN otherwise.
 type Estimate struct {
-	LVal, Op, RVal string
-	Value          float64
-	StdValue       float64
-	Free           bool
-	SE, Z, P       float64
-	Param          string
+	LVal, Op, RVal   string
+	Value            float64
+	StdValue         float64
+	Free             bool
+	SE, Z, P         float64
+	CILower, CIUpper float64
+	Param            string
+	// Label is the parameter's label in the description ("a*x"), ""
+	// for an unlabelled one (whose Param is an auto name).
+	Label string
 }
 
-// Key is "lval op rval".
-func (e Estimate) Key() string { return e.LVal + " " + e.Op + " " + e.RVal }
+// Key is "lval op rval" ("lval ~1" for an intercept row).
+func (e Estimate) Key() string {
+	if e.RVal == "" {
+		return e.LVal + " " + e.Op
+	}
+	return e.LVal + " " + e.Op + " " + e.RVal
+}
+
+// waldZ975 is the standard normal 0.975 quantile (R's qnorm(0.975)):
+// a 95% Wald interval is estimate ± waldZ975·SE.
+const waldZ975 = 1.959963984540054
 
 // Fit is a fitted model.
 type Fit struct {
@@ -120,9 +137,12 @@ type Fit struct {
 	Options    Options
 	Sample     *mat.SymDense // S over Model.Observed
 	Implied    *mat.SymDense // Σ(θ̂)
-	Estimates  []Estimate
-	Stats      Stats
-	theta      []float64
+	// SampleMean and ImpliedMean are ȳ and μ(θ̂) over Model.Observed
+	// (Model.MeanStructure only; nil otherwise).
+	SampleMean, ImpliedMean []float64
+	Estimates               []Estimate
+	Stats                   Stats
+	theta                   []float64
 }
 
 // state holds the model matrices at a parameter vector.
@@ -136,6 +156,8 @@ type state struct {
 	nObs, nIn  int
 	starts     map[*parameter]float64
 	info       Information
+	// ybar is the sample mean over Observed (mean structure only).
+	ybar []float64
 }
 
 func newState(m *Model, s *mat.SymDense) *state {
@@ -144,6 +166,8 @@ func newState(m *Model, s *mat.SymDense) *state {
 	st.mats[mLambda] = mat.NewDense(st.nObs, st.nIn, nil)
 	st.mats[mPsi] = mat.NewDense(st.nIn, st.nIn, nil)
 	st.mats[mTheta] = mat.NewDense(st.nObs, st.nObs, nil)
+	st.mats[mNu] = mat.NewDense(st.nObs, 1, nil)
+	st.mats[mAlpha] = mat.NewDense(st.nIn, 1, nil)
 	for v, j := range m.innerIndex {
 		if i, ok := m.obsIndex[v]; ok {
 			st.mats[mLambda].Set(i, j, 1)
@@ -177,6 +201,9 @@ func (st *state) startValues() []float64 {
 		}
 		st.starts[p] = v
 		st.setParam(p, v)
+	}
+	if st.ybar != nil {
+		st.meanStarts()
 	}
 	x := make([]float64, len(st.free))
 	for k, p := range st.free {
@@ -226,12 +253,143 @@ func (st *state) startRule(l location) float64 {
 			return s.At(i, j) / 2
 		}
 		return 0
+	case mNu:
+		return st.ybar[l.i]
+	case mAlpha:
+		// A latent mean starts at 0 (meanStarts moves a free one), an
+		// observed inner intercept (or an observed exogenous mean,
+		// fixed.x) at the sample mean.
+		v := m.Inner[l.i]
+		if m.latent.has(v) {
+			return 0
+		}
+		return st.ybar[m.obsIndex[v]]
 	default: // theta
 		if l.i != l.j {
 			return 0
 		}
 		return s.At(l.i, l.i) / 2
 	}
+}
+
+// meanStarts refines the mean-structure starts so the start's implied
+// means sit near the sample's: a free latent mean whose marker
+// indicator (the firstManif chain) has a fixed intercept starts at the
+// marker's sample mean less that intercept, then every free observed
+// intercept (Nu) without an explicit start at ȳ − (Mα)ᵢ. The optimum
+// does not depend on the starts; a start far from it can stall Fisher
+// scoring in a near-zero latent variance.
+func (st *state) meanStarts() {
+	m := st.m
+	fixedNu := map[int]float64{}
+	for _, p := range m.params {
+		for _, l := range p.locs {
+			if l.mat == mNu && !p.active {
+				fixedNu[l.i] = st.starts[p]
+			}
+		}
+	}
+	for _, p := range st.free {
+		l := p.locs[0]
+		if l.mat != mAlpha || p.hasStart || !m.latent.has(m.Inner[l.i]) {
+			continue
+		}
+		first := m.Inner[l.i]
+		for {
+			if _, ok := m.obsIndex[first]; ok {
+				break
+			}
+			next, ok := m.firstManif[first]
+			if !ok || next == m.Inner[l.i] {
+				first = ""
+				break
+			}
+			first = next
+		}
+		i, ok := m.obsIndex[first]
+		if first == "" || !ok {
+			continue
+		}
+		if nu, fixed := fixedNu[i]; fixed {
+			st.starts[p] = st.ybar[i] - nu
+			st.setParam(p, st.starts[p])
+		}
+	}
+	_, mm, _, err := st.sigma()
+	if err != nil {
+		return
+	}
+	for _, p := range st.free {
+		l := p.locs[0]
+		if l.mat != mNu || p.hasStart || len(p.locs) > 1 {
+			continue
+		}
+		v := st.ybar[l.i]
+		for j := 0; j < st.nIn; j++ {
+			v -= mm.At(l.i, j) * st.mats[mAlpha].At(j, 0)
+		}
+		st.starts[p] = v
+		st.setParam(p, v)
+	}
+}
+
+// mu returns the implied mean μ = ν + Mα over Observed (M = ΛC).
+func (st *state) mu(mm *mat.Dense) []float64 {
+	out := make([]float64, st.nObs)
+	for i := range out {
+		v := st.mats[mNu].At(i, 0)
+		for j := 0; j < st.nIn; j++ {
+			v += mm.At(i, j) * st.mats[mAlpha].At(j, 0)
+		}
+		out[i] = v
+	}
+	return out
+}
+
+// meanResidual returns r = ȳ − μ (nil without a mean structure).
+func (st *state) meanResidual(mm *mat.Dense) []float64 {
+	if st.ybar == nil {
+		return nil
+	}
+	mu := st.mu(mm)
+	for i := range mu {
+		mu[i] = st.ybar[i] - mu[i]
+	}
+	return mu
+}
+
+// meanGrad returns ∂μ/∂θ_k for every free parameter: Nu (i) e_i;
+// Alpha (j) M[:,j]; Lambda (i,j) e_i·(Cα)_j; Beta (i,j) M[:,i]·(Cα)_j.
+func (st *state) meanGrad(mm, c *mat.Dense) [][]float64 {
+	ca := make([]float64, st.nIn)
+	for i := range ca {
+		for j := 0; j < st.nIn; j++ {
+			ca[i] += c.At(i, j) * st.mats[mAlpha].At(j, 0)
+		}
+	}
+	n := st.nObs
+	out := make([][]float64, len(st.free))
+	for k, par := range st.free {
+		g := make([]float64, n)
+		for _, l := range par.locs {
+			switch l.mat {
+			case mNu:
+				g[l.i]++
+			case mAlpha:
+				for a := 0; a < n; a++ {
+					g[a] += mm.At(a, l.i)
+				}
+			case mLambda:
+				g[l.i] += ca[l.j]
+			case mBeta:
+				for a := 0; a < n; a++ {
+					g[a] += mm.At(a, l.i) * ca[l.j]
+				}
+			}
+		}
+		out[k] = g
+	}
+	return out
 }
 
 func (st *state) update(x []float64) {
@@ -289,10 +447,11 @@ func invLogDet(a *mat.SymDense) (*mat.SymDense, float64, bool) {
 	return &inv, ch.LogDet(), true
 }
 
-// objective is semopy's obj_mlw: tr(SΣ⁻¹) − p + ln|Σ| − ln|S|.
+// objective is semopy's obj_mlw: tr(SΣ⁻¹) − p + ln|Σ| − ln|S|, plus
+// (ȳ − μ)ᵀΣ⁻¹(ȳ − μ) under a mean structure (twice lavaan's fmin).
 func (st *state) objective(x []float64) float64 {
 	st.update(x)
-	sg, _, _, err := st.sigma()
+	sg, mm, _, err := st.sigma()
 	if err != nil {
 		return math.Inf(1)
 	}
@@ -307,6 +466,9 @@ func (st *state) objective(x []float64) float64 {
 		}
 	}
 	loss := tr - float64(st.nObs) + ld - st.sInvLogDet
+	if r := st.meanResidual(mm); r != nil {
+		loss += quad(inv, r, r)
+	}
 	if loss < 0 {
 		return math.Inf(1)
 	}
@@ -388,11 +550,24 @@ func (st *state) derivatives(x []float64, needH bool) (float64, []float64, *mat.
 		return 0, nil, nil, errors.New("implied covariance is not positive definite")
 	}
 	var w, t mat.Dense
-	t.Mul(inv, st.s)
+	r := st.meanResidual(mm)
+	if r == nil {
+		t.Mul(inv, st.s)
+	} else {
+		// The mean term's covariance derivative: S → S + rrᵀ.
+		sr := mat.NewDense(st.nObs, st.nObs, nil)
+		for a := 0; a < st.nObs; a++ {
+			for b := 0; b < st.nObs; b++ {
+				sr.Set(a, b, st.s.At(a, b)+r[a]*r[b])
+			}
+		}
+		t.Mul(inv, sr)
+	}
 	w.Mul(&t, inv)
 	w.Sub(inv, &w) // Σ⁻¹ − Σ⁻¹SΣ⁻¹
 	if st.info == InformationRank2 {
 		g, h := st.rank2Derivatives(mm, c, inv, &w, needH)
+		st.addMeanDerivatives(mm, c, inv, r, g, h)
 		return f, g, h, nil
 	}
 	grads := st.sigmaGrad(mm, c)
@@ -403,6 +578,7 @@ func (st *state) derivatives(x []float64, needH bool) (float64, []float64, *mat.
 		g[i] = floats.Dot(wd, dg.RawMatrix().Data) // tr(W∂Σ), both symmetric
 	}
 	if !needH {
+		st.addMeanDerivatives(mm, c, inv, r, g, nil)
 		return f, g, nil, nil
 	}
 	// tr(Σ⁻¹∂Σ_k Σ⁻¹∂Σ_l) = Σ_ab A_k[a,b]·B_l[a,b] with A = Σ⁻¹∂Σ and
@@ -427,7 +603,46 @@ func (st *state) derivatives(x []float64, needH bool) (float64, []float64, *mat.
 			h.SetSym(i, j, floats.Dot(as[i], bs[j]))
 		}
 	}
+	st.addMeanDerivatives(mm, c, inv, r, g, h)
 	return f, g, h, nil
+}
+
+// addMeanDerivatives adds the mean term's share to the gradient,
+// −2·∂μ_kᵀΣ⁻¹r, and (h non-nil) to the expected information,
+// 2·∂μ_kᵀΣ⁻¹∂μ_l. A no-op without a mean structure (r nil).
+func (st *state) addMeanDerivatives(mm, c *mat.Dense, inv *mat.SymDense, r, g []float64, h *mat.SymDense) {
+	if r == nil {
+		return
+	}
+	dm := st.meanGrad(mm, c)
+	for k := range g {
+		g[k] -= 2 * quad(inv, dm[k], r)
+	}
+	if h == nil {
+		return
+	}
+	for i := range dm {
+		for j := i; j < len(dm); j++ {
+			h.SetSym(i, j, h.At(i, j)+2*quad(inv, dm[i], dm[j]))
+		}
+	}
+}
+
+// quad is aᵀKb.
+func quad(k *mat.SymDense, a, b []float64) float64 {
+	n := len(a)
+	s := 0.0
+	for i := 0; i < n; i++ {
+		if a[i] == 0 {
+			continue
+		}
+		row := 0.0
+		for j := 0; j < n; j++ {
+			row += k.At(i, j) * b[j]
+		}
+		s += a[i] * row
+	}
+	return s
 }
 
 // gradient is semopy's grad_mlw: +Inf everywhere when Σ is not PD.
@@ -452,6 +667,19 @@ func (st *state) minimize(x []float64, opt Options) ([]float64, float64, int, bo
 	for k, p := range st.free {
 		lower[k] = p.lower
 	}
+	return fisherMinimize(st, lower, x, opt)
+}
+
+// fisherProblem is what Fisher scoring minimises: one group's state, or
+// a joint multi-group fit (jointState).
+type fisherProblem interface {
+	objective(x []float64) float64
+	derivatives(x []float64, needH bool) (float64, []float64, *mat.SymDense, error)
+}
+
+// fisherMinimize is the damped Fisher scoring of minimize over any
+// fisherProblem, lower the per-parameter bounds.
+func fisherMinimize(st fisherProblem, lower, x []float64, opt Options) ([]float64, float64, int, bool, error) {
 	f, g, h, err := st.derivatives(x, true)
 	if err != nil {
 		return x, f, 0, false, fmt.Errorf("at the starting values: %w", err)
@@ -551,7 +779,10 @@ func solveLM(h *mat.SymDense, g []float64, idx []int, mu float64) []float64 {
 // FitCov fits the model to a sample covariance matrix S (over
 // m.Observed, divisor N — semopy's biased covariance) from n rows.
 func FitCov(m *Model, s *mat.SymDense, n float64, opt Options) (*Fit, error) {
-	return fitCov(m, s, s, n, opt)
+	if m.MeanStructure {
+		return nil, errors.New("a mean-structure model needs the sample means: use FitMoments")
+	}
+	return fitCov(m, s, s, nil, n, opt)
 }
 
 // FitCovNearest fits the model to adj, the CovNearest substitute for
@@ -560,12 +791,34 @@ func FitCov(m *Model, s *mat.SymDense, n float64, opt Options) (*Fit, error) {
 // read adj (semopy's mx_cov), while the Lambda starts are linregress
 // slopes over the rows (mx_data), so they read raw.
 func FitCovNearest(m *Model, adj, raw *mat.SymDense, n float64, opt Options) (*Fit, error) {
-	return fitCov(m, adj, raw, n, opt)
+	if m.MeanStructure {
+		return nil, errors.New("a mean-structure model needs the sample means: use FitMoments")
+	}
+	return fitCov(m, adj, raw, nil, n, opt)
 }
 
-func fitCov(m *Model, s, raw *mat.SymDense, n float64, opt Options) (*Fit, error) {
+// FitMoments fits the model to the sample moments: S (adjusted, as
+// FitCovNearest's adj, or the data's), the data's covariance raw and
+// the sample mean (over m.Observed; required under a mean structure,
+// ignored otherwise). A covariance-only model fits exactly as
+// FitCovNearest.
+func FitMoments(m *Model, s, raw *mat.SymDense, mean []float64, n float64, opt Options) (*Fit, error) {
+	if !m.MeanStructure {
+		return fitCov(m, s, raw, nil, n, opt)
+	}
+	if len(mean) != len(m.Observed) {
+		return nil, fmt.Errorf("sample mean has %d entries, the model has %d observed variables", len(mean), len(m.Observed))
+	}
+	return fitCov(m, s, raw, mean, n, opt)
+}
+
+func fitCov(m *Model, s, raw *mat.SymDense, mean []float64, n float64, opt Options) (*Fit, error) {
 	if err := opt.Validate(); err != nil {
 		return nil, err
+	}
+	if m.lavaan && opt.Solver == "" {
+		// lavaan conventions converge to the optimum.
+		opt.Solver = SolverFisher
 	}
 	opt = opt.withDefaults()
 	if r, _ := s.Dims(); r != len(m.Observed) {
@@ -574,6 +827,9 @@ func fitCov(m *Model, s, raw *mat.SymDense, n float64, opt Options) (*Fit, error
 	st := newState(m, s)
 	st.raw = raw
 	st.info = opt.Information
+	if m.MeanStructure {
+		st.ybar = append([]float64(nil), mean...)
+	}
 	_, ld, ok := invLogDet(s)
 	if !ok {
 		return nil, errors.New("sample covariance matrix is not positive definite")
@@ -611,11 +867,14 @@ func fitCov(m *Model, s, raw *mat.SymDense, n float64, opt Options) (*Fit, error
 		x, f, iters, conv, status = res.x, res.fun, res.nit, res.mode == slsqpSuccess, slsqpMessages[res.mode]
 	}
 	st.update(x)
-	sg, _, c, err := st.sigma()
+	sg, mm, c, err := st.sigma()
 	if err != nil {
 		return nil, err
 	}
 	fit := &Fit{Model: m, N: n, Objective: f, Iterations: iters, Converged: conv, Status: status, Options: opt, Sample: s, Implied: sg, theta: x}
+	if m.MeanStructure {
+		fit.SampleMean, fit.ImpliedMean = st.ybar, st.mu(mm)
+	}
 	se, err := st.standardErrors(x, n)
 	if err != nil {
 		return nil, err
@@ -650,6 +909,8 @@ func (st *state) standardErrors(x []float64, n float64) ([]float64, error) {
 	se := make([]float64, k)
 	for i, v := range diag {
 		switch {
+		case st.m.lavaan:
+			// lavaan takes the square root as is (NaN below 0).
 		case v < 0 && v > -1e-1:
 			v = 1e-12
 		case v < 0:
@@ -710,25 +971,22 @@ func (st *state) estimates(x, se []float64, sg *mat.SymDense, c *mat.Dense) []Es
 				if l.mat != mi {
 					continue
 				}
-				e := Estimate{Op: matOp[mi], Param: p.name, SE: math.NaN(), Z: math.NaN(), P: math.NaN()}
-				var rows, cols []string
-				switch mi {
-				case mBeta, mPsi:
-					rows, cols = m.Inner, m.Inner
-				case mLambda:
-					rows, cols = m.Observed, m.Inner
-				default:
-					rows, cols = m.Observed, m.Observed
-				}
-				e.LVal, e.RVal = rows[l.i], cols[l.j]
+				e := Estimate{Op: matOp[mi], Param: p.name, Label: p.userLabel(), SE: math.NaN(), Z: math.NaN(), P: math.NaN(),
+					CILower: math.NaN(), CIUpper: math.NaN()}
+				e.LVal, e.RVal = m.rowNames(l)
 				_, isFree := freeIdx[p]
-				if mi == mPsi && !isFree && m.isObsExo(e.LVal) && m.isObsExo(e.RVal) {
+				if !isFree && m.hiddenRow(mi, e.LVal, e.RVal) {
 					continue // semopy's inspect hides the fixed sample moments of observed exogenous variables
 				}
 				if k, ok := freeIdx[p]; ok {
 					e.Free, e.Value = true, x[k]
 					e.SE = se[k]
-					e.Z = e.Value / (e.SE + 1e-12)
+					if m.lavaan {
+						e.Z = e.Value / e.SE
+						e.CILower, e.CIUpper = e.Value-waldZ975*e.SE, e.Value+waldZ975*e.SE
+					} else {
+						e.Z = e.Value / (e.SE + 1e-12)
+					}
 					e.P = 2 * (1 - normCDF(math.Abs(e.Z)))
 				} else {
 					e.Value = st.starts[p]
@@ -740,14 +998,34 @@ func (st *state) estimates(x, se []float64, sg *mat.SymDense, c *mat.Dense) []Es
 					e.StdValue = e.Value * stds[l.j] / full[l.i]
 				case mPsi:
 					e.StdValue = e.Value / stds[l.i] / stds[l.j]
+					if m.lavaan && l.i != l.j {
+						e.StdValue = e.Value / math.Sqrt(st.mats[mPsi].At(l.i, l.i)*st.mats[mPsi].At(l.j, l.j))
+					}
+				case mNu:
+					e.StdValue = e.Value / full[l.i]
+				case mAlpha:
+					e.StdValue = e.Value / stds[l.i]
 				default:
 					e.StdValue = e.Value / full[l.i] / full[l.j]
+					if m.lavaan && l.i != l.j {
+						// lavaan's std.all of a covariance is the
+						// residuals' correlation.
+						e.StdValue = e.Value / math.Sqrt(st.mats[mTheta].At(l.i, l.i)*st.mats[mTheta].At(l.j, l.j))
+					}
 				}
 				out = append(out, e)
 			}
 		}
 	}
 	return out
+}
+
+// userLabel is the parameter's description label, "" when unlabelled.
+func (p *parameter) userLabel() string {
+	if p.user {
+		return p.name
+	}
+	return ""
 }
 
 func normCDF(z float64) float64 { return 0.5 * math.Erfc(-z/math.Sqrt2) }
@@ -763,18 +1041,11 @@ func SpecifiedRows(m *Model) []Estimate {
 				if l.mat != mi {
 					continue
 				}
-				var rows, cols []string
-				switch mi {
-				case mBeta, mPsi:
-					rows, cols = m.Inner, m.Inner
-				case mLambda:
-					rows, cols = m.Observed, m.Inner
-				default:
-					rows, cols = m.Observed, m.Observed
-				}
-				e := Estimate{Op: matOp[mi], Param: p.name, LVal: rows[l.i], RVal: cols[l.j], Free: p.active,
-					Value: math.NaN(), StdValue: math.NaN(), SE: math.NaN(), Z: math.NaN(), P: math.NaN()}
-				if mi == mPsi && !p.active && m.isObsExo(e.LVal) && m.isObsExo(e.RVal) {
+				lv, rv := m.rowNames(l)
+				e := Estimate{Op: matOp[mi], Param: p.name, Label: p.userLabel(), LVal: lv, RVal: rv, Free: p.active,
+					Value: math.NaN(), StdValue: math.NaN(), SE: math.NaN(), Z: math.NaN(), P: math.NaN(),
+					CILower: math.NaN(), CIUpper: math.NaN()}
+				if !p.active && m.hiddenRow(mi, e.LVal, e.RVal) {
 					continue
 				}
 				out = append(out, e)
@@ -782,4 +1053,34 @@ func SpecifiedRows(m *Model) []Estimate {
 		}
 	}
 	return out
+}
+
+// rowNames are a location's lval and rval (an intercept row's rval is
+// empty).
+func (m *Model) rowNames(l location) (string, string) {
+	switch l.mat {
+	case mBeta, mPsi:
+		return m.Inner[l.i], m.Inner[l.j]
+	case mLambda:
+		return m.Observed[l.i], m.Inner[l.j]
+	case mNu:
+		return m.Observed[l.i], ""
+	case mAlpha:
+		return m.Inner[l.i], ""
+	default:
+		return m.Observed[l.i], m.Observed[l.j]
+	}
+}
+
+// hiddenRow reports a fixed row the table hides: the sample moments of
+// observed exogenous variables — their (co)variances, as semopy's
+// inspect hides them, and their fixed.x means.
+func (m *Model) hiddenRow(mi int, lval, rval string) bool {
+	switch mi {
+	case mPsi:
+		return m.isObsExo(lval) && m.isObsExo(rval)
+	case mAlpha, mNu:
+		return m.isObsExo(lval)
+	}
+	return false
 }

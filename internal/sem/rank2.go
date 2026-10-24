@@ -66,6 +66,8 @@ func (st *state) rank2Terms(mm, c *mat.Dense, k *mat.SymDense) [][]rank2Term {
 				a, b = col(mm, l.i, 1), col(mm, l.j, half)
 			case mTheta:
 				a, b = unit(l.i, 1), unit(l.j, half)
+			default:
+				continue // a mean parameter leaves Σ unchanged
 			}
 			out[q] = append(out[q], rank2Term{a: a, b: b, ka: mulK(a), kb: mulK(b)})
 		}

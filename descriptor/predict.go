@@ -445,6 +445,19 @@ type MatrixPredict struct {
 	// bucket: the set dictionary size), an upper bound. Omitted on a streamable
 	// spec or with the record count unknown; EstimatedBytes includes it.
 	RowBufferBytes *int64 `json:"row_buffer_bytes,omitempty"`
+	// GroupLevels are a grouped MAT_SEM fit's (params.group) levels as
+	// the schema knows them, in level order: a categorical's dictionary
+	// entries (an empty entry by its index), packed_bool's "0" / "1".
+	// An UPPER BOUND on the fit's groups — a level no row reaches after
+	// the filters is no group (it keeps its c(...) position) — so the
+	// per-level auxiliaries and scalars are sized over it. Omitted on
+	// an ungrouped spec and on an integer group field, whose levels are
+	// its observed values (GroupLevelsBasis "unknown").
+	GroupLevels []string `json:"group_levels,omitempty"`
+	// GroupLevelsBasis says how GroupLevels was derived: "dictionary",
+	// "boolean" or "unknown" (an integer field: the levels are the
+	// data's). Omitted on an ungrouped spec.
+	GroupLevelsBasis string `json:"group_levels_basis,omitempty"`
 	// PairwisePSDRisk reports whether the result (or a decomposition
 	// operator's input) can come back not positive semidefinite —
 	// pairwise MAT_COVARIANCE at p ≥ 2, pairwise MAT_CORRELATION,

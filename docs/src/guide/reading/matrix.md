@@ -431,17 +431,18 @@ Each cell is the covariance the fitted model implies between the row's and the c
 
 #### `auxiliary.estimates`
 
-The parameter table, one row per semopy inspect row: lval ~ rval is a loading (an indicator on its quality) or a regression path, lval ~~ rval a variance or covariance. estimate is in the variables' own units; std_estimate rescales it so loadings and paths compare across variables; std_err, z_value and p_value test it against zero.
+The parameter table, one row per semopy inspect row: lval ~ rval is a loading (an indicator on its quality) or a regression path, lval ~~ rval a variance or covariance, and with a mean structure lval ~1 an intercept (a measure) or a latent mean (a quality). estimate is in the variables' own units; std_estimate rescales it so loadings and paths compare across variables; std_err, z_value and p_value test it against zero, and on a lavaan-convention fit ci_lower / ci_upper bound its 95% Wald interval. On a multi-group fit every row is prefixed [level]; a quality's latent mean in a level other than the reference is its mean difference from the reference level, whose latent means are fixed at 0.
 
 **Sign:**
 
-- `+`: the left variable rises with the right one
-- `-`: the left variable falls as the right one rises
+- `+`: the left variable rises with the right one; for a latent mean, the level sits above the reference level
+- `-`: the left variable falls as the right one rises; for a latent mean, the level sits below the reference level
 
 **Caveats:**
 
 - Each quality's first indicator is fixed to 1 to set its scale, so that row has no standard error.
 - A variance at 0, or a standardized loading beyond 1, means an improper solution; simplify the model.
+- Latent means compare across levels only when the loadings and intercepts are held equal (group_equal loadings, intercepts); without that the qualities need not be measured on the same scale in every level.
 
 #### `scalars.chi2_p_value`
 
@@ -449,12 +450,13 @@ Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
 
 #### `scalars.chi2`
 
-The likelihood-ratio chi-square of the model against a free covariance, on dof degrees of freedom: N times the minimised discrepancy. A small p says the model leaves covariance unexplained.
+The likelihood-ratio chi-square of the model against a free covariance (and free means, with a mean structure), on dof degrees of freedom: N times the minimised discrepancy. A small p says the model leaves covariance unexplained. On a multi-group fit it is the sum of each level's share, reported per level as chi2_group_&lt;level&gt; beside that level's n_group_&lt;level&gt;.
 
 **Caveats:**
 
 - With many rows it flags even trivial misfit; read cfi, tli and rmsea beside it.
 - It assumes multivariate normal measures and rests on N, the rows (the summed weight under a frequency weight).
+- Between two nested multi-group fits on the same rows (say equal loadings against none), the difference in chi2 on the difference in dof tests the added equality constraints.
 
 #### `scalars.cfi`
 
@@ -478,8 +480,36 @@ The root mean square error of approximation: misfit per degree of freedom, adjus
 
 #### `scalars.aic`
 
-semopy's AIC, 2(k - F) with k the free parameters and F the minimised discrepancy: for comparing models of the same measures, lower preferred. It is semopy's convention, not the log-likelihood AIC other software reports.
+semopy's AIC, 2(k - F) with k the free parameters and F the minimised discrepancy: for comparing models of the same measures, lower preferred. On a lavaan-convention fit (a mean structure or a group) it is lavaan's log-likelihood AIC, -2 loglik + 2k, instead.
 
 #### `scalars.bic`
 
-semopy's BIC, ln(N)k - 2F: as aic with a heavier penalty per parameter; for comparing models of the same measures, lower preferred.
+semopy's BIC, ln(N)k - 2F: as aic with a heavier penalty per parameter; for comparing models of the same measures, lower preferred. On a lavaan-convention fit it is lavaan's -2 loglik + k ln(N).
+
+#### `scalars.loglik`
+
+On a lavaan-convention fit, the model's log-likelihood (lavaan's logl), the basis of its aic and bic; on a semopy fit, semopy's minimised discrepancy F. For comparing models fitted to the same rows and measures; higher fits better.
+
+#### `auxiliary.implied_means`
+
+With a mean structure, the mean of each measure the fitted model implies: its intercept plus its loadings times the latent means. Compared with auxiliary.observed_means it shows where the model reproduces the measures' means and where it does not.
+
+#### `auxiliary.observed_means`
+
+With a mean structure, each measure's sample mean over the fitted rows (the weighted mean under a frequency weight): the means the model was fitted to.
+
+#### `auxiliary.implied_means.*`
+
+On a multi-group fit, one matrix per level of the group field: the means the fitted model implies within that level, read like auxiliary.implied_means.
+
+#### `auxiliary.observed_means.*`
+
+On a multi-group fit, one matrix per level: that level's sample means of the measures, read like auxiliary.observed_means.
+
+#### `auxiliary.implied_covariance.*`
+
+On a multi-group fit, one matrix per level: the covariance the fitted model implies within that level (the primary is the reference level's).
+
+#### `auxiliary.residual_covariance.*`
+
+On a multi-group fit, one matrix per level: that level's observed covariance minus its implied covariance, so large cells locate where the model misfits that group.

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -135,7 +136,24 @@ var (
 	featMultiplicity  = FeatureMultiplicity
 	featMatrices      = FeatureName(FeatureKindCapability, "matrices")
 	featParams        = FeatureParams
+	featSEMMeans      = FeatureSEMMeanStructure
+	featSEMGroups     = FeatureSEMGroups
 )
+
+// FeatureSEMMeanStructure is capability:sem_meanstructure — MAT_SEM's
+// mean structure: params.meanstructure and the `~ 1` intercept / latent
+// mean lines of params.model, and the outputs only a mean structure
+// emits (auxiliary.implied_means / observed_means). Hidden, the params
+// key is an unknown key and a `~ 1` line is refused (vectors.SEMHidden).
+const FeatureSEMMeanStructure = vectors.SEMFeatureMeanStructure
+
+// FeatureSEMGroups is capability:sem_groups — MAT_SEM's joint
+// multi-group fit: params.group, group_reference, group_equal,
+// group_partial and the per-group c(...) modifiers of params.model,
+// and the per-level outputs (auxiliary.<name>.<level>, vectors.group /
+// label, scalars chi2_group_<level> / n_group_<level>). A grouped fit
+// always models the means, so it needs capability:sem_meanstructure.
+const FeatureSEMGroups = vectors.SEMFeatureGroups
 
 // FeatureParams is capability:params — the request `params` object
 // (types.Request.Params): named constants every request-scoped
@@ -225,6 +243,8 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("weighting"),          // Request.Weight + every per-slot weight + Options.DefaultWeight
 	capability("multiplicity"),       // every `multiplicity` slot + Options.DefaultMultiplicity
 	capability("matrices"),           // Request.Vectors + Request.Matrices
+	capability("sem_meanstructure"),  // MAT_SEM params.meanstructure + `~ 1` model lines
+	capability("sem_groups"),         // MAT_SEM params.group / group_reference / group_equal / group_partial + c(...) modifiers
 	capability("params"),             // Request.Params (params.<name> in request expressions)
 	capability("recommend"),          // pulse_recommend, pulse recommend (the facade stays ungated)
 	capability("explain"),            // pulse_explain, pulse explain (the facade stays ungated)
@@ -736,6 +756,9 @@ var overlayHostKinds = map[string][]string{
 //     would break FilterToFile for nearly any request.
 //   - every MAT_* operator rides the Request.Matrices slot, which
 //     capability:matrices gates.
+//   - capability:sem_meanstructure is a MAT_SEM params surface (and
+//     capability:sem_groups, a groupEdges row, also needs it: a
+//     multi-group fit always models the means).
 //   - capability:model_save writes a fitted regression or a vector
 //     fit, so it needs any-of the REG_* operators, the fitted vector
 //     attributes and capability:matrices.
@@ -769,10 +792,12 @@ var hardEdges = map[string][]string{
 	"ATTR_REG_FITTED":                       {"REG_OLS"},
 	"ATTR_REG_LEVERAGE":                     {"REG_OLS"},
 	// Scores a bound fit of any scorable regression type.
-	"ATTR_REG_PREDICT":        {"REG_BAYES_LINEAR", "REG_GLM", "REG_OLS"},
-	"ATTR_REG_RESIDUAL":       {"REG_OLS"},
-	"OVERLAY_YOY":             {"GROUP_DATE"},
-	featFilterToFile:          {"FILTER_EXPRESSION"},
+	"ATTR_REG_PREDICT":  {"REG_BAYES_LINEAR", "REG_GLM", "REG_OLS"},
+	"ATTR_REG_RESIDUAL": {"REG_OLS"},
+	"OVERLAY_YOY":       {"GROUP_DATE"},
+	featFilterToFile:    {"FILTER_EXPRESSION"},
+	// MAT_SEM's mean structure is a MAT_SEM params surface.
+	featSEMMeans:              {string(types.MAT_SEM)},
 	"MAT_COLLINEARITY":        {featMatrices},
 	"MAT_CORRELATION":         {featMatrices},
 	"MAT_COVARIANCE":          {featMatrices},
@@ -848,6 +873,8 @@ var groupEdges = map[string][][]string{
 	// Compose there is nothing to expand into, without the crosstab host
 	// there is no table to stitch.
 	featComposeBanner: {{featCompose}, {featCrosstab}},
+	// A multi-group fit is a MAT_SEM fit that always models the means.
+	featSEMGroups: {{string(types.MAT_SEM)}, {featSEMMeans}},
 	featComposeFits: {
 		{featCompose},
 		{string(types.ATTR_FACTOR_SCORE), string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),

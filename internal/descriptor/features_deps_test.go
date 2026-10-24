@@ -113,6 +113,10 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		"OVERLAY_YOY":             {{"capability:compose"}, {"GROUP_DATE"}},
 		"capability:process":      nil,
 		"io_format:csv":           nil,
+		// MAT_SEM params surfaces (U59): the mean structure rides MAT_SEM,
+		// a multi-group fit always models the means too.
+		"capability:sem_meanstructure": {{"MAT_SEM"}},
+		"capability:sem_groups":        {{"MAT_SEM"}, {"capability:sem_meanstructure"}},
 	}
 	for name, want := range expect {
 		got, ok := descx.FeatureDependencies(name)

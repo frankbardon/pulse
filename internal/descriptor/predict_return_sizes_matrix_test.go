@@ -3,10 +3,12 @@ package descriptor
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -86,6 +88,12 @@ func TestMatrixAuxiliaryNodes_PerOperator(t *testing.T) {
 		// three residual variances and the factor variance.
 		{"sem_default", auxSpec(types.MAT_SEM, x3, ""), []auxShape{{"estimates", 7, 5}, {"residual_covariance", 3, 3}}},
 		{"sem_model", auxSpec(types.MAT_SEM, x4, `{"model": "f =~ x1 + x2 + x3\nx4 ~ f"}`), []auxShape{{"estimates", 9, 5}, {"residual_covariance", 4, 4}}},
+		// A mean structure adds three intercepts and the (fixed) latent
+		// mean, the two Wald columns and the p x 1 mean auxiliaries.
+		{"sem_meanstructure", auxSpec(types.MAT_SEM, x3, `{"meanstructure": true}`),
+			[]auxShape{{"estimates", 11, 7}, {"residual_covariance", 3, 3}, {"implied_means", 3, 1}, {"observed_means", 3, 1}}},
+		{"sem_intercept_lines", auxSpec(types.MAT_SEM, x3, `{"model": "f =~ x1 + x2 + x3\nf ~ 1\nx1 ~ 0*1"}`),
+			[]auxShape{{"estimates", 11, 7}, {"residual_covariance", 3, 3}, {"implied_means", 3, 1}, {"observed_means", 3, 1}}},
 		{"distance_standardized_mahalanobis", auxSpec(types.MAT_DISTANCE, x3, `{`+between+`, "standardize": true, "metric": "mahalanobis"}`),
 			[]auxShape{{"centroids", 4, 3}, {"centroids_standardized", 4, 3}, {"pooled_covariance", 3, 3}}},
 	}
@@ -118,6 +126,118 @@ func TestMatrixAuxiliaryNodes_PerOperator(t *testing.T) {
 			}
 			if fmt.Sprint(got) != fmt.Sprint(c.want) {
 				t.Errorf("auxiliary = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+// TestMatrixAuxiliaryNodes_SEMGrouped: a grouped MAT_SEM (params.group
+// on a four-level categorical) sizes the estimates over every level the
+// dictionary knows (11 meanstructure rows per level, lavaan's 7
+// columns) and per level its two p x p covariances and two p x 1 means,
+// in the runtime's key order (vectors.SEMGroupAuxiliaryKeys).
+func TestMatrixAuxiliaryNodes_SEMGrouped(t *testing.T) {
+	spec := auxSpec(types.MAT_SEM, []string{"x1", "x2", "x3"}, `{"group": "region"}`)
+	result := &descriptor.PredictResult{}
+	plans := predictMatrices(result, &types.Request{Matrices: []types.MatrixSpec{spec}}, auxSizesSchema(t), nil, nil, -1, 0, -1)
+	if len(plans) != 1 || len(result.Matrices) != 1 {
+		t.Fatalf("resolve: %d plans, %d results", len(plans), len(result.Matrices))
+	}
+	want := []auxShape{{"estimates", 44, 7}}
+	for _, l := range []string{"N", "S", "E", "W"} {
+		want = append(want, auxShape{"implied_covariance." + l, 3, 3}, auxShape{"residual_covariance." + l, 3, 3},
+			auxShape{"implied_means." + l, 3, 1}, auxShape{"observed_means." + l, 3, 1})
+	}
+	var declared []string
+	for _, meta := range matrixCapabilities() {
+		if meta.Name == string(types.MAT_SEM) {
+			declared = meta.OutputKeys.Auxiliary
+		}
+	}
+	var got []auxShape
+	for _, n := range matrixAuxiliaryNodes(plans[0], result.Matrices[0], false) {
+		got = append(got, auxShape{n.seg.Name, n.kids[2].kids[0].count, n.kids[3].kids[0].count})
+		// A per-level key is declared by its pattern (<level>).
+		if !slices.ContainsFunc(declared, func(d string) bool { return vectors.MatrixOutputKeyMatches(d, n.seg.Name) }) {
+			t.Errorf("MAT_SEM sizes auxiliary.%s, which no declared key (%v) matches", n.seg.Name, declared)
+		}
+	}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("auxiliary = %v, want %v", got, want)
+	}
+}
+
+// TestSEM_PredictGroupLevels: a grouped MAT_SEM's predict entry names
+// the levels the schema knows and how (a categorical's dictionary,
+// packed_bool's 0 / 1 — an upper bound — or unknown on an integer
+// field), counts one co-moment state per level beside the base state
+// in estimated_bytes (the dictionary's levels, else the integer's
+// value range), sizes the matrices section as an upper bound with the
+// grouped record fields (group, label), and leaves it unsized when the
+// levels are the data's.
+func TestSEM_PredictGroupLevels(t *testing.T) {
+	schema := &encoding.Schema{Fields: []encoding.Field{
+		{Name: "wave", Type: encoding.FieldTypeCategoricalU8, Dictionary: makeDictionary(t, "w1", "w2", "w3")},
+		{Name: "flag", Type: encoding.FieldTypePackedBool},
+		{Name: "code", Type: encoding.FieldTypeU4},
+		{Name: "big", Type: encoding.FieldTypeU8},
+		{Name: "x1", Type: encoding.FieldTypeF64},
+		{Name: "x2", Type: encoding.FieldTypeF64},
+		{Name: "x3", Type: encoding.FieldTypeF64},
+	}}
+	data := append(buildTestPulseFile(t, schema), make([]byte, 40*schema.RecordByteSize())...)
+	x3 := []string{"x1", "x2", "x3"}
+	for _, c := range []struct {
+		group, basis string
+		levels       []string
+		states       int64
+	}{
+		{"wave", "dictionary", []string{"w1", "w2", "w3"}, 4},
+		{"flag", "boolean", []string{"0", "1"}, 3},
+		{"code", "unknown", nil, 17},
+		{"big", "unknown", nil, 257},
+	} {
+		t.Run(c.group, func(t *testing.T) {
+			spec := auxSpec(types.MAT_SEM, x3, `{"group": "`+c.group+`"}`)
+			spec.Encoding = types.MatrixEncodingRecords
+			req := &types.Request{Matrices: []types.MatrixSpec{spec}}
+			res := predictSizes(t, data, req)
+			if len(res.Matrices) != 1 {
+				t.Fatalf("%d matrices", len(res.Matrices))
+			}
+			mp := res.Matrices[0]
+			if mp.GroupLevelsBasis != c.basis || fmt.Sprint(mp.GroupLevels) != fmt.Sprint(c.levels) {
+				t.Errorf("group levels %v (%s), want %v (%s)", mp.GroupLevels, mp.GroupLevelsBasis, c.levels, c.basis)
+			}
+			if mp.EstimatedBuckets == nil || *mp.EstimatedBuckets != 1 {
+				t.Fatalf("estimated_buckets %v, want 1 (one joint result)", mp.EstimatedBuckets)
+			}
+			if want := mp.AccumulatorBytes * c.states; mp.EstimatedBytes == nil || *mp.EstimatedBytes != want {
+				t.Errorf("estimated_bytes %v, want %d (%d states x %d)", mp.EstimatedBytes, want, c.states, mp.AccumulatorBytes)
+			}
+			sz, sized := sizeOf(res, "matrices")
+			if c.basis == "unknown" {
+				if sized {
+					t.Errorf("an integer group field's levels are the data's, but matrices is sized %+v", sz)
+				}
+				return
+			}
+			if !sized || sz.Basis != returnSizeUpperBound {
+				t.Fatalf("matrices %+v (sized %v), want an upper bound", sz, sized)
+			}
+			// The grouped records carry group and label beside the
+			// ungrouped five fields.
+			plans := predictMatrices(&descriptor.PredictResult{}, req, schema, nil, nil, -1, 0, -1)
+			for _, n := range matrixAuxiliaryNodes(plans[0], mp, false) {
+				if n.seg.Name != "estimates" {
+					continue
+				}
+				rows := n.kids[3].kids[0]
+				keyed := int64(sizeLabel + sizeKeyOverhead)
+				perRow := sizeObject + int64(len(types.MatrixRecordKey)) + sizeKeyOverhead + sizeLabel + 7*(keyed+sizeNumber) + semGroupRecordFields*(keyed+sizeLabel)
+				if rows.own != perRow || rows.count != 11*int64(len(c.levels)) {
+					t.Errorf("estimates records: %d rows of %d bytes, want %d of %d", rows.count, rows.own, 11*len(c.levels), perRow)
+				}
 			}
 		})
 	}

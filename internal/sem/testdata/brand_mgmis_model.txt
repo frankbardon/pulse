@@ -1,0 +1,6 @@
+# Brand survey, misspecified for the multi-group oracle: service's items
+# load on value, so the model misfits (RMSEA > 0, CFI < 1); a label
+# holds one loading equal within and across groups.
+quality =~ q1 + q2 + q3
+value =~ v1 + l*v2 + v3 + s1 + l*s2 + s3
+recommend ~ quality + value

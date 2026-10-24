@@ -161,6 +161,16 @@ func mergeSlotSets(dst, src []*matrixSlot) error {
 				return err
 			}
 		}
+		if (s.semGroups == nil) != (src[i].semGroups == nil) {
+			return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+				"matrix merge: partitions differ in grouped MAT_SEM state",
+				map[string]any{"matrix": s.plan.Name})
+		}
+		if s.semGroups != nil {
+			if err := s.semGroups.merge(src[i].semGroups); err != nil {
+				return err
+			}
+		}
 		if err := MergeBlockMerger(s, src[i]); err != nil {
 			return err
 		}

@@ -510,7 +510,120 @@ refuses every rank-deficient covariance that way. A solver stop short
 of success keeps the last iterate with `PULSE_MATRIX_NOT_CONVERGED`; a
 model with more parameters than moments is fitted with
 `PULSE_MATRIX_NOT_IDENTIFIED`. Streamable and mergeable: the fit reads
-only the merged covariance and N.
+only the merged covariance and N (and the merged means under a mean
+structure).
+
+**A mean structure switches to lavaan.** `params.meanstructure: true`,
+or any `~ 1` line in the model, models the means too, as lavaan's
+`meanstructure = TRUE`: every observed intercept free (a pure
+predictor's mean fixed to its sample mean, lavaan's `fixed.x`), every
+latent mean fixed to 0 unless `f ~ 1` frees it; `x ~ 0*1` fixes an
+intercept and `x ~ a*1` labels it (identify a free latent mean by fixing
+its marker's intercept: `f ~ 1` with `x1 ~ 0*1`). The fit then follows
+lavaan's conventions, not semopy's: Fisher scoring to the optimum,
+unbounded variances, lavaan's χ², degrees of freedom (the means
+counted), CFI / TLI / NFI / RMSEA, `gfi` / `agfi` as lavaan's
+`gfi_lisrel` / `agfi_lisrel`, `loglik` the log-likelihood and `aic` /
+`bic` from it — the same covariance model can report a different `chi2`
+on the two paths, so compare fits on one convention. The estimates gain
+`"x ~1"` rows and 95% Wald `ci_lower` / `ci_upper` columns, and
+`auxiliary.implied_means` / `observed_means` (one `mean` column per
+member) are emitted. Parity: lavaan 0.7.3's ML fit within 1e-4 on
+estimates and SEs, 1e-3 on fit indices.
+
+**Multi-group fits.** `params.group` names a categorical, `packed_bool`
+or `u4` / `u8` field whose levels are the groups of ONE joint fit —
+lavaan's `group =`, configural: every parameter free per group, except
+that a labelled parameter (`a*x`) is one value in every group, as lavaan
+reads a label. A group fit always models the means and follows lavaan's
+conventions. The levels are the field's values that hold rows after the
+filters, in dictionary order (else ascending); a row whose group is null
+is dropped (listwise). Each group's mean and covariance merge on their
+own, so the fit stays streamable and mergeable, and a frequency weight
+applies within each group (n_g = Σw).
+
+```json
+{"type": "MAT_SEM", "name": "waves", "vector": "battery",
+ "params": {"model": "service =~ q1 + q2 + q3\nvalue =~ q4 + q5 + q6",
+            "group": "wave", "group_reference": "2"}}
+```
+
+The estimate rows are keyed `"[level] lval op rval"` in level order,
+with `vectors.group` (each row's level) and `vectors.label` (its model
+label, empty when unlabelled) beside `parameter` / `free`. `primary` is
+the `group_reference` level's implied covariance (default the first
+level); per level the auxiliaries are `implied_covariance.<level>`,
+`residual_covariance.<level>`, `implied_means.<level>` and
+`observed_means.<level>`. The scalars are joint — `chi2` sums the
+groups' n_g·F_g, `dof` and the baseline sum over the groups, `rmsea`
+carries lavaan's multiple-group factor √G — plus `chi2_group_<level>` and
+`n_group_<level>`. A request that also sets `groups`, another field
+type, a one-entry dictionary, or a group field that is a member is
+refused (`SERVICE_VALIDATION`); fewer than two levels with rows, a level
+with no more rows than observed variables, or a `group_reference` level
+without rows fails the slot alone with `PULSE_MATRIX_INSUFFICIENT_N`.
+Parity: lavaan 0.7.3's `group = "wave"` fit within the same tolerances.
+
+`Pulse.Predict` names the levels it can see on the matrix entry:
+`group_levels` (a categorical's dictionary entries, `packed_bool`'s `"0"`
+/ `"1"`) with `group_levels_basis` `dictionary` / `boolean`. The list is
+an upper bound — a level without rows after the filters is no group —
+and the per-level auxiliaries are sized over it. On a `u4` / `u8` field
+the levels are the data's: `group_levels_basis` is `unknown`, and the
+`matrices` entry of `sizes` is left out. `estimated_bytes`
+counts one co-moment state per level beside the base state (the
+integer type's value range when the levels are unknown). The manifest
+declares the per-level keys as patterns, `implied_means.<level>` or
+`chi2_group_<level>`: `<level>` stands for a level's label.
+
+A feature profile can hide the two surfaces: `capability:sem_meanstructure`
+(`meanstructure` and `~ 1` lines) and `capability:sem_groups` (`group`,
+`group_reference`, `group_equal`, `group_partial` and `c(...)`
+modifiers; it needs `capability:sem_meanstructure`). Hidden, their keys
+are unknown params keys (`PULSE_REQUEST_UNKNOWN_FIELD`), the model
+syntax they own is `bad_params`, and the manifest lists neither their
+params nor their output keys.
+
+**Invariance.** `params.group_equal` holds lavaan `group.equal` classes
+equal across the groups — `loadings`, `intercepts`, `means`, `residuals`,
+`residual.covariances`, `lv.variances`, `lv.covariances`, `regressions`
+— and `params.group_partial` frees single rows from them, spelled as
+lavaan labels them (`v2~1`, `service=~s2`, `q1~~v1`). Identification
+follows lavaan: a marker loading stays fixed at 1 in every group, and
+equal intercepts (without `means`) free the latent means outside the
+`group_reference` level, whose means stay 0 — so the scalar fit's
+non-reference latent means are each factor's shift in marker units. A
+labelled row keeps its label's equality instead of its class's. In the
+model, lavaan's per-group modifiers `c(a1, a2)*x` and `c(0.5, NA)*x` set
+a label or a value per level, in level order (a categorical or
+`packed_bool` group field; one entry per level), and `NA*x` frees a
+parameter. An unknown `group_equal` value, `thresholds` (no ordinal
+estimator yet), a `group_partial` row the model lacks, or a modifier
+whose length is not the level count is refused (`SERVICE_VALIDATION`
+`bad_params`, predict alike).
+
+The invariance ladder is one slot per step, or a compose sweep over
+`group_equal` — which also reads one comma-separated string, so a sweep
+axis (a scalar) can carry it:
+
+```json
+{"sweep": {"mode": "zip", "label": "{{step}}",
+  "axes": [{"name": "step", "values": ["configural", "metric", "scalar"]},
+           {"name": "eq", "values": ["", "loadings", "loadings,intercepts"]}],
+  "request": {"cohort": {"filename": "survey.pulse"},
+    "matrices": [{"type": "MAT_SEM", "name": "waves", "vector": "battery",
+      "params": {"model": "service =~ q1 + q2 + q3\nvalue =~ q4 + q5 + q6",
+                 "group": "wave", "group_equal": "{{eq}}"}}]}}}
+```
+
+Compare `chi2`, `dof`, `cfi` and `rmsea` step to step; Pulse computes no
+χ² difference test. Parity: lavaan 0.7.3's `group.equal` /
+`group.partial` fits within the same tolerances.
+
+Runnable: `internal/examples/matrices/16_sem_multigroup.json` (mean
+structure, configural, scalar and partial slots across `survey.pulse`'s
+`panel` waves) and `internal/examples/compose/09_sem_invariance_sweep.json`
+(the ladder as one sweep).
 
 ## Groups, cost and refusals
 

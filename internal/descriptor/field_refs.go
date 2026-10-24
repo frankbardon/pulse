@@ -1003,6 +1003,9 @@ func resolveMatricesFor(req *types.Request, schema *encoding.Schema, snap *Exten
 		// registration, as the runtime resolves it
 		// (processing.resolveMatrixPlans).
 		Extension: matrixExtensionFor(inst, snap),
+		// A MAT_SEM params surface the instance hides resolves as never
+		// existing, as the runtime resolves it.
+		Hidden: inst.Hidden,
 	})
 }
 
