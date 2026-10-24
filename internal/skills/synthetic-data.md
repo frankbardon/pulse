@@ -85,7 +85,7 @@ Same `(spec, opts.Seed)` MUST produce a byte-identical `.pulse` file; same `(--i
 
 ## Gotchas
 
-- Constraints + `monotonic_from`: monotonic ignores RNG, so a rejected row still increments the counter.
+- `monotonic_from` counts ACCEPTED rows: no gaps under constraints.
 - **A model coefficient is latent-scale** (data units only when `Q` is `normal`); a quantized modelled target attenuates at write time — `synth-models`.
 - `--fit-models` does not imply `--residual-correlations`, and neither implies `--conditional`. `--fit-shape` composes with all of them.
 

@@ -463,6 +463,15 @@ with `PULSE_SYNTH_EXPR_NONDETERMINISTIC`. A field named like a built-in
 name is refused (rename the field to reach the built-in), and a bare
 built-in name that no field declares (`pi` for `pi()`) is refused too.
 
+`row()` returns the 0-based ordinal of the row being generated, counted
+in ACCEPTED rows only: when a constraint rejects an attempt, the redraw
+keeps the same ordinal, so the written cohort reads exactly
+`0..row_count-1`. It consumes no randomness, so adding it moves no other
+value. `row() % 52 == 0 ? a : b` picks `a` at the start of every 52-row
+period. `monotonic_from` counts the same way: a rejected attempt leaves
+no gap in its sequence. Under `synth from-profile` with a source cohort,
+both count the generated rows from 0, not the copied source rows.
+
 The same array is also the standalone **rules file** format that
 [`synth from-profile --rules`](synth-from-profile.md) loads, so an
 inline declaration and a file are the same JSON.

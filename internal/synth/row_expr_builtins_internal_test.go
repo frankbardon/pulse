@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/detmath"
 )
@@ -81,5 +82,30 @@ func TestShapeFit_RunsOnDetmath(t *testing.T) {
 		if got := normalLogLikelihood([]float64{x}, mean, std); math.Float64bits(got) != math.Float64bits(0+wantLL) {
 			t.Fatalf("normalLogLikelihood(%v, %v, %v) = %x, want detmath's %x", x, mean, std, math.Float64bits(got), math.Float64bits(wantLL))
 		}
+	}
+}
+
+// TestSynthRow_DetectorsCompileAgainstTheLoaderEnvironment pins the
+// --suggest-rules decision for row(): both detectors only COMPILE a
+// candidate, to check the loader will accept it, and never run one over
+// captured records — so row() compiles there exactly as it does in a
+// spec (no record-index meaning to choose), and bad arity is refused the
+// same way.
+func TestSynthRow_DetectorsCompileAgainstTheLoaderEnvironment(t *testing.T) {
+	gate := (&gateDetector{schema: &encoding.Schema{Fields: []encoding.Field{
+		{Name: "x", Type: encoding.FieldTypeU4},
+	}}}).predicateCompiler()
+	if err := gate("row() % 52 == 0 && x > 1"); err != nil {
+		t.Fatalf("gate detector refused row(): %v", err)
+	}
+	if err := gate("row(1) > 0"); err == nil {
+		t.Fatal("gate detector compiled row(1)")
+	}
+	dep := (&depDetector{fields: []depField{{name: "x", typ: "u4"}, {name: "y", typ: "u4"}}}).exprChecker()
+	if err := dep("y", "row() % 2"); err != nil {
+		t.Fatalf("dependency detector refused row(): %v", err)
+	}
+	if err := dep("y", "row(1)"); err == nil {
+		t.Fatal("dependency detector compiled row(1)")
 	}
 }

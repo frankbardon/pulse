@@ -534,7 +534,7 @@ func (d *gateDetector) predicateCompiler() func(string) error {
 	}
 	env, names := rowExprEnv(specs)
 	probe := &compiledConstraints{fields: names}
-	opts := rowExprOptions(env, names, probe.isnullBuiltin, expr.AsBool())
+	opts := rowExprOptions(env, names, probe, expr.AsBool())
 	return func(src string) error {
 		_, err := expr.Compile(src, opts...)
 		return err

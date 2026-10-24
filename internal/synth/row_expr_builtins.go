@@ -192,3 +192,35 @@ func rowExprConstraintRefusal(src string, r *rowExprRefusal) error {
 		fmt.Sprintf("constraint %q %s", src, r.msg),
 		map[string]any{"expr": src, "function": r.function})
 }
+
+// rowOrdinalFuncName is the expression-visible name of the accepted-row
+// ordinal (U58).
+const rowOrdinalFuncName = "row"
+
+// rowOrdinalBuiltin answers row(): the 0-based ordinal of the row being
+// drawn, counted in ACCEPTED rows only. generate stamps it on every host
+// before each attempt (setRowOrdinal), so an attempt a constraint
+// rejects redraws at the SAME ordinal — row() over the written cohort is
+// exactly 0..row_count-1, with no gaps. It reads a counter, never the
+// RNG, so a spec that adds row() moves no drawn value, and a spec that
+// does not call it is byte-identical to one generated before it existed.
+//
+// Typed func() int in rowExprOptions, so row(1) is a compile refusal
+// and `row() % 52` stays integer arithmetic.
+//
+// The --suggest-rules detectors (profile_dependency.go,
+// profile_gating.go) only COMPILE their candidates against this
+// environment — so a candidate is checked against exactly the
+// environment the loader will accept — and never run one over captured
+// records, so row() has no record-index meaning there to choose. Their
+// probes leave ordinal at 0 and are never evaluated.
+//
+// AugmentFromProfile runs generate over its GENERATED partition only,
+// so there row() counts generated rows from 0 and does not include the
+// copied source rows (the same rule monotonic_from follows).
+func (c *compiledConstraints) rowOrdinalBuiltin(params ...any) (any, error) {
+	if len(params) != 0 {
+		return nil, fmt.Errorf("%s expects no arguments, got %d", rowOrdinalFuncName, len(params))
+	}
+	return c.ordinal, nil
+}

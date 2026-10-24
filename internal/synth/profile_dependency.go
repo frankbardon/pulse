@@ -830,7 +830,7 @@ func (d *depDetector) exprChecker() func(target, src string) error {
 	}
 	env, names := rowExprEnv(specs)
 	probe := &compiledConstraints{fields: names}
-	opts := rowExprOptions(env, names, probe.isnullBuiltin)
+	opts := rowExprOptions(env, names, probe)
 	return func(target, src string) error {
 		prog, err := expr.Compile(src, opts...)
 		if err != nil {

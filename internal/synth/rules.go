@@ -266,8 +266,8 @@ func validateRules(s *Spec) error {
 	// (TestCompileRules_RefusesIndependentlyOfValidateRules).
 	env, names := rowExprEnv(s.Fields)
 	probe := &compiledConstraints{fields: names}
-	whenOpts := rowExprOptions(env, names, probe.isnullBuiltin, expr.AsBool())
-	valueOpts := rowExprOptions(env, names, probe.isnullBuiltin)
+	whenOpts := rowExprOptions(env, names, probe, expr.AsBool())
+	valueOpts := rowExprOptions(env, names, probe)
 
 	for i, r := range s.Rules {
 		if err := validateRule(i, r, byName, names, whenOpts, valueOpts); err != nil {

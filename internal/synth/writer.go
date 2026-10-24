@@ -329,7 +329,13 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		rules:       rules,
 	}
 
+	committers := acceptCommitters(wfs)
 	for rowsGenerated < s.RowCount {
+		// row() reads the ACCEPTED-row ordinal: stamped before every
+		// attempt with the count already accepted, so a rejected attempt
+		// redraws at the same ordinal (rowOrdinalBuiltin).
+		cons.ordinal = rowsGenerated
+		rules.setRowOrdinal(rowsGenerated)
 		if err := drawRow(rng, wfs, row, rowNullMask, stages); err != nil {
 			return rowsGenerated, rowsRejected, warnings, err
 		}
@@ -363,6 +369,12 @@ func generate(s *Spec, schema *encoding.Schema, wfs []*writerField, recordsBuf *
 		// was re-drawn and left no trace. See internal/synth/rules_firing.go.
 		rules.commitRow()
 		rules.commitOwnedNulls()
+		// Accept-only sampler state (monotonic_from), committed here for
+		// the same reason as the firing counts: a rejected attempt left
+		// no row, so it must leave no step either.
+		for _, c := range committers {
+			c.commitAccepted()
+		}
 		rowsGenerated++
 	}
 	// A rule that applied to NO generated row is the one rule fault

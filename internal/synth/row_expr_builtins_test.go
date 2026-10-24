@@ -276,14 +276,25 @@ func TestSynthExprMath_SpecWithoutNewFunctionsIsByteIdentical(t *testing.T) {
 	if got := sha256Hex(data); got != preSharedMathSpecHash {
 		t.Fatalf("a spec using no new function changed bytes\n got %s\nwant %s", got, preSharedMathSpecHash)
 	}
+	// The one column E2-S2 moved: `id` is monotonic_from under a
+	// rejecting constraint, and now has no gaps.
+	for i, id := range readF64Field(t, data, "id") {
+		if id != float64(1+i) {
+			t.Fatalf("row %d: id = %v, want %d", i, id, 1+i)
+		}
+	}
 }
 
-// preSharedMathSpecHash is the sha256 of the spec above at seed 4242,
-// generated on the tree BEFORE rowExprOptions gained exprenv.MathOptions
-// (the parent of the E2-S1 commit). Like preRuleApplySpecHash, it rides
+// preSharedMathSpecHash is the sha256 of the spec above at seed 4242.
+// E2-S1 took it on the tree BEFORE rowExprOptions gained
+// exprenv.MathOptions (530d6ca8…). E2-S2 re-took it once monotonic_from
+// began counting ACCEPTED rows: this spec's constraint rejects, so its
+// `id` column lost its gaps — and decoding both files showed `id` was
+// the ONLY column that differed, so the maths pin still holds for every
+// drawn and rule-written value. Like preRuleApplySpecHash, it rides
 // no Exp / Log / NormFloat64-sensitive path beyond what that pin already
 // trusts across architectures.
-const preSharedMathSpecHash = "530d6ca89be111d385216ba840087fcce6d17df345b45cd694201058b8e9996c"
+const preSharedMathSpecHash = "935c3bb50cac2c031e3cb06ac96ef2d5ad949f4e7ba6c9544791ee77712fa682"
 
 func sha256Hex(b []byte) string {
 	sum := sha256.Sum256(b)

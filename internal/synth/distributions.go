@@ -348,6 +348,14 @@ func (b *bernoulliSampler) next(rng *rand.Rand) (any, bool) {
 	return 0.0, false
 }
 
+// monotonicSampler emits start + i*step for the i-th ACCEPTED row.
+//
+// next does NOT advance it: generate commits the step only once a row
+// passes the constraint pass (commitAccepted, via acceptCommitters), so a
+// rejected attempt redraws the SAME value and the written column has no
+// gaps. Before U58 next advanced on every attempt, which left one gap
+// per rejected attempt; a spec that never rejects writes identical
+// bytes either way.
 type monotonicSampler struct {
 	cur  int64
 	step int64
@@ -366,12 +374,46 @@ func newMonotonicSampler(f FieldSpec) (sampler, error) {
 		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			fmt.Sprintf("field %q: monotonic_from step must be non-zero", f.Name), nil)
 	}
-	return &monotonicSampler{cur: start - step, step: step}, nil
+	return &monotonicSampler{cur: start, step: step}, nil
 }
 
 func (m *monotonicSampler) next(_ *rand.Rand) (any, bool) {
-	m.cur += m.step
 	return float64(m.cur), false
+}
+
+func (m *monotonicSampler) commitAccepted() { m.cur += m.step }
+
+// acceptCommitter is a sampler whose state advances per ACCEPTED row
+// rather than per attempt. generate calls commitAccepted after a row
+// passes every constraint and is encoded, alongside the rule firing
+// commit (ruleApplier.commitRow) — the same accept-only rule.
+type acceptCommitter interface{ commitAccepted() }
+
+// acceptCommitters collects every field's accept-only state, looking
+// through the two wrappers that can sit between a field and its own
+// sampler (the null-rate wrapper and the rule-owned-null wrapper). A
+// wrapper that hid the counter would silently restore the old
+// per-attempt gaps, or freeze the column at start.
+func acceptCommitters(wfs []*writerField) []acceptCommitter {
+	var out []acceptCommitter
+	for _, wf := range wfs {
+		s := wf.sampler
+		for {
+			switch w := s.(type) {
+			case ruleOwnedNullSampler:
+				s = w.inner
+				continue
+			case *nullableSampler:
+				s = w.inner
+				continue
+			}
+			break
+		}
+		if c, ok := s.(acceptCommitter); ok {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 type constantSampler struct{ val any }

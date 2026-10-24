@@ -111,6 +111,16 @@ func (a *ruleApplier) noteFired(i int) {
 	a.everFired[i] = true
 }
 
+// setRowOrdinal stamps the accepted-row ordinal row() reads in every
+// rule's `when` and `set_expr` (rowOrdinalBuiltin). nil-safe like
+// commitRow, for the rules-free spec.
+func (a *ruleApplier) setRowOrdinal(n int) {
+	if a == nil {
+		return
+	}
+	a.nullState.ordinal = n
+}
+
 // commitRow folds the just-ACCEPTED row's firings into the totals.
 // generate() calls it after the row has passed the constraint pass and
 // been encoded; a rejected row is simply never committed and its

@@ -224,8 +224,8 @@ func compileRules(rules []RuleSpec, wfs []*writerField) (*ruleApplier, []string,
 	// against the TARGET, and expr.AsBool() here would refuse
 	// `{"set_expr": {"score": "nps * 2"}}` at compile time for returning
 	// the very thing it is supposed to return.
-	whenOpts := rowExprOptions(env, names, applier.nullState.isnullBuiltin, expr.AsBool())
-	valueOpts := rowExprOptions(env, names, applier.nullState.isnullBuiltin)
+	whenOpts := rowExprOptions(env, names, applier.nullState, expr.AsBool())
+	valueOpts := rowExprOptions(env, names, applier.nullState)
 
 	// What every rule's set_expr says about the fields it writes,
 	// resolved before the loop because a LATER rule's write is just as
