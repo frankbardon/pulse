@@ -79,6 +79,11 @@ func rowExprOptions(env map[string]any, names map[string]bool, isnull func(...an
 		expr.Function(isnullFuncName, isnull, new(func(string) bool)),
 		expr.Patch(isnullIdentifierPatcher{fields: names}),
 	}
+	// The shared maths (exprenv.MathOptions) and the now() removal: see
+	// row_expr_builtins.go. Appended to every row expression, so
+	// constraints, `when`, `set_expr` and both --suggest-rules detectors
+	// see one function set.
+	opts = append(opts, rowBuiltinOptions()...)
 	return append(opts, extra...)
 }
 
@@ -99,6 +104,11 @@ func compileConstraints(in []ConstraintSpec, wfs []*writerField) (*compiledConst
 	}
 	opts := rowExprOptions(env, names, out.isnullBuiltin, expr.AsBool())
 	for _, c := range in {
+		// validateSpec refused these already; repeated here for a Spec
+		// that bypassed it (SpecFromProfile), so the code is the same.
+		if r := rowExprStaticRefusal(c.Expr, names); r != nil {
+			return nil, rowExprConstraintRefusal(c.Expr, r)
+		}
 		prog, err := expr.Compile(c.Expr, opts...)
 		if err != nil {
 			return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,

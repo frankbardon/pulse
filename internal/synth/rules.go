@@ -313,6 +313,9 @@ func validateRule(idx int, r RuleSpec, byName map[string]FieldSpec, declared map
 	}
 
 	if r.When != "" {
+		if rf := rowExprStaticRefusal(r.When, declared); rf != nil {
+			return rowExprRuleRefusal(idx, "when", "", r.When, rf)
+		}
 		if _, err := expr.Compile(r.When, whenOpts...); err != nil {
 			return ruleError(errors.PULSE_SYNTH_RULE_EXPR_INVALID, idx, "when", "",
 				fmt.Sprintf("rule when %q does not compile: %v", r.When, err))
@@ -322,6 +325,9 @@ func validateRule(idx int, r RuleSpec, byName map[string]FieldSpec, declared map
 		}
 	}
 	for _, name := range sortedKeys(r.SetExpr) {
+		if rf := rowExprStaticRefusal(r.SetExpr[name], declared); rf != nil {
+			return rowExprRuleRefusal(idx, "set_expr", name, r.SetExpr[name], rf)
+		}
 		prog, err := expr.Compile(r.SetExpr[name], valueOpts...)
 		if err != nil {
 			return ruleError(errors.PULSE_SYNTH_RULE_EXPR_INVALID, idx, "set_expr", name,

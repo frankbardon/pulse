@@ -1359,6 +1359,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SYNTH_EXPR_NONDETERMINISTIC: {
+		Message: "A synth row expression (a constraint, a rule's `when` or a `set_expr` value) calls `now()`. The wall clock answers differently on every run, so the spec could never generate byte-identical output for one seed; the synth row environment does not provide it.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"Rules", "*", "SetExpr"},
+				Hint:   "Replace `now()` with a fixed value: a literal epoch-day or epoch-second number, or a field drawn from a `date` / `datetime` distribution with explicit bounds. A generated row has no wall-clock time of its own.",
+			},
+		},
+	},
 	PULSE_PROFILE_FIELD_UNSUPPORTED: {
 		Message: "The profile layer cannot summarize this field type; the field is skipped.",
 		Fixups: []Fixup{

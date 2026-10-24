@@ -29,14 +29,21 @@ package synth
 // only DETECT a regression on a fusing architecture (arm64), so it is
 // silent on amd64 by construction.
 //
-// Two known residuals this cannot reach:
+// The transcendental kernels are a separate hazard: `math.Exp`
+// (assembly on arm64, an FMA path picked per CPU on amd64) and
+// `math.Log` (assembly on amd64, pure Go on arm64) are
+// architecture-specific in the standard library. `--fit-shape`
+// (shape.go) and the rule / constraint row maths (exprenv.MathOptions,
+// row_expr_builtins.go) therefore run on internal/detmath's portable
+// ports instead, which give identical bits everywhere. `math.Sqrt` is
+// exempt — IEEE-754 requires it to be correctly rounded.
 //
-//   - `math.Exp` (assembly on both amd64 and arm64) and `math.Log`
-//     (assembly on amd64, pure Go on arm64) are architecture-specific
-//     in the standard library. A `--fit-shape` capture and a lognormal
-//     draw ride them, so those remain machine-sensitive in their last
-//     bits. `math.Sqrt` is exempt — IEEE-754 requires it to be
-//     correctly rounded.
+// Two known residuals remain:
+//
+//   - the GENERATION draws that still call the standard library —
+//     lognormal / exponential / pareto / poisson (distributions.go) and
+//     the copula's marginal transforms (copula.go) — stay
+//     machine-sensitive in their last bits;
 //   - `internal/processing/regression` (the OLS engine behind the `models`
 //     section) has not been made fusion-free; see the package's own
 //     notes.

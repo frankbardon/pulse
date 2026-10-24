@@ -663,6 +663,15 @@ func validateSpec(s *Spec) error {
 				map[string]any{"a": rc.A, "b": rc.B})
 		}
 	}
+	// Constraints compile only at generation (compileConstraints needs
+	// the writer fields), so their PARSE-settled refusals — a now() call,
+	// a shadowed or bare built-in (row_expr_builtins.go) — are checked
+	// here, at spec validation, before any field is built.
+	for _, c := range s.Constraints {
+		if r := rowExprStaticRefusal(c.Expr, seen); r != nil {
+			return rowExprConstraintRefusal(c.Expr, r)
+		}
+	}
 	if s.MaxRejectionRate < 0 || s.MaxRejectionRate >= 1 {
 		return errors.NewCodedErrorWithDetails(errors.SERVICE_VALIDATION,
 			"max_rejection_rate must be in [0, 1)", map[string]any{"value": s.MaxRejectionRate})

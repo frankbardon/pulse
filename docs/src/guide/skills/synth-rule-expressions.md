@@ -1,10 +1,10 @@
 ```yaml
 name: synth-rule-expressions
-description: Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy.
+description: Synth `constraints[]` and the expression side of `rules[]` — the row environment's types, `isnull`, its functions, the `set_expr` coercion matrix, set-option addressing, and the pre-rounding gotcha with its `round` (not `int`) remedy.
 type: guide
 kind: design
 applies_to: inspect, predict, manifest
-covers: [synth, constraints, set_expr, isnull, coercion, pre-rounding]
+covers: [synth, constraints, set_expr, isnull, coercion, pre-rounding, functions]
 requires: [capability:synth]
 ```
 
@@ -17,6 +17,19 @@ requires: [capability:synth]
 **Env types are the ROW's types** (`sentinelFor`, derived from `fieldTypeFromName` so the two cannot drift): every scalar — `u4`/`u8`…`u64`, `f32`/`f64`, `date`, `decimal128` AND `packed_bool` — is `float64`; `categorical_*` is `string`; `set_*` is `map[string]bool` (`flags["opt"]`). So a boolean is tested `flag == 1`, never bare `flag` (a compile-time refusal, not a boolean). Typing `packed_bool` as Go `bool` was issue #258: compiled, then failed every row with `PROCESSING_RUNTIME: invalid operation: bool(float64)`.
 
 **`isnull(field)`** reads the per-record null mask — the only way to test absence, since a nulled field still carries its drawn value. Takes the field NAME: `isnull(x)` (rewritten to a literal) and `isnull("x")` are equivalent, and an undeclared name in EITHER form is refused before a row exists — bare by expr's unknown-name check, string form by a parse pass (`isnullUnknownField`) applied to rules and `constraints[]` alike, never answered `false`. Only an argument that is a string at RUN time (`isnull(region + "!")`) reaches the loud run-time refusal.
+
+### Functions
+
+Stock expr-lang built-ins (`abs`, `round`, `max`, `split`…) plus the formula attribute's maths, on portable kernels (same bits on every machine):
+
+| call | |
+|---|---|
+| `sqrt` `exp` `log` `log1p` | one number |
+| `pow(x, y)` `hill(x, k, s)` | `x ** y` / `x ^ y` equal `pow` |
+| `sin` `cos` `tan`, `atan2(y, x)` | radians |
+| `pi()` `e()` | calls, not bare names |
+
+`%` takes floats (dividend's sign; `% 0` is NaN). Bad arity is refused at parse. `now()` is refused (`PULSE_SYNTH_EXPR_NONDETERMINISTIC`). A field named like a built-in (`log`, `e`, `row`, `lag`) reads as a bare name; calling it, or a bare built-in no field declares, is refused.
 
 ### `set_expr` and the coercion matrix
 
@@ -51,4 +64,4 @@ Scalar = `u4` `u8` `u16` `u32` `u64` `f32` `f64` `date` `packed_bool` `decimal12
 
 - [`synth-structural-rules`](synth-structural-rules.md) — slots and order; [`synth-rule-validation`](synth-rule-validation.md) — the refusal codes.
 - [`synth-marginals`](synth-marginals.md) — why a small integer or `packed_bool` is already exact.
-- [`expression-language`](expression-language.md) — the general expr environment the formula attribute and expression filter share (synth rules use their own row env).
+- [`expression-language`](expression-language.md) — the formula attribute's environment; the row env shares only its maths.

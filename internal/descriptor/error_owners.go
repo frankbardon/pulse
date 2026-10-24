@@ -264,6 +264,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SYNTH_RULE_BLOCK_INVALID:      own(featSynth),
 	errors.PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE: own(featSynth),
 	errors.PULSE_SYNTH_RULE_OWNERSHIP_INVALID:  own(featSynth),
+	errors.PULSE_SYNTH_EXPR_NONDETERMINISTIC:   own(featSynth),
 	errors.PULSE_PROFILE_FIELD_UNSUPPORTED:     own(featSynth),
 
 	// Statistical tests. The unknown-name code is shared (see above);

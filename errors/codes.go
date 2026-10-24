@@ -857,6 +857,15 @@ const (
 	// and no number anywhere says the flag did nothing.
 	PULSE_SYNTH_RULE_OWNERSHIP_INVALID Code = "PULSE_SYNTH_RULE_OWNERSHIP_INVALID"
 
+	// PULSE_SYNTH_EXPR_NONDETERMINISTIC indicates a synth row expression
+	// — a `constraints[]` entry, a rule's `when` or one of its `set_expr`
+	// values — calls `now()`. The wall clock answers differently on every
+	// run, so a spec calling it could never honour the byte-identical
+	// `(spec, seed)` contract; the synth row environment does not register
+	// it, and the call is refused at spec validation, before a row exists.
+	// `details.function` names the call, `details.expr` the expression.
+	PULSE_SYNTH_EXPR_NONDETERMINISTIC Code = "PULSE_SYNTH_EXPR_NONDETERMINISTIC"
+
 	// PULSE_PROFILE_FIELD_UNSUPPORTED indicates a field type the profile
 	// layer cannot summarize. The field is skipped with a warning rather
 	// than failing the whole profile.
@@ -4197,6 +4206,7 @@ var allCodes = []Code{
 	PULSE_SYNTH_RULE_BLOCK_INVALID,
 	PULSE_SYNTH_RULE_FIELD_NOT_NULLABLE,
 	PULSE_SYNTH_RULE_OWNERSHIP_INVALID,
+	PULSE_SYNTH_EXPR_NONDETERMINISTIC,
 	PULSE_PROFILE_FIELD_UNSUPPORTED,
 	PULSE_TEST_UNKNOWN_TYPE,
 	PULSE_TEST_FIELD_NOT_NUMERIC,

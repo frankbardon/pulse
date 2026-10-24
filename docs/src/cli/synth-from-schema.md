@@ -448,6 +448,21 @@ the quoted form compiles, so it is reported as the unknown FIELD it is
 (`PULSE_SYNTH_RULE_FIELD_UNKNOWN`), not as an expression that will not
 compile.
 
+Beyond expr-lang's stock built-ins (`abs`, `round`, `max`, `split`, …)
+the environment carries the same maths the formula attribute uses:
+`sqrt`, `exp`, `log`, `log1p`, `pow(x, y)`, `hill(x, k, s)`, `sin`,
+`cos`, `tan` (radians), `atan2(y, x)` and the constants `pi()` / `e()`
+(calls, not bare names). `%` takes floats (`x % 0.5`; the result has the
+dividend's sign, a zero divisor gives NaN) and `**` / `^` equal `pow`.
+All run on Pulse's portable kernels, so a `set_expr` writes the same
+bits on every machine. A wrong argument count is refused when the spec
+is parsed (`PULSE_SYNTH_RULE_EXPR_INVALID`). `now()` is NOT available —
+the wall clock would make two runs of one seed differ — and is refused
+with `PULSE_SYNTH_EXPR_NONDETERMINISTIC`. A field named like a built-in
+(`log`, `e`, `row`, `lag`, …) keeps working as a bare name; CALLING that
+name is refused (rename the field to reach the built-in), and a bare
+built-in name that no field declares (`pi` for `pi()`) is refused too.
+
 The same array is also the standalone **rules file** format that
 [`synth from-profile --rules`](synth-from-profile.md) loads, so an
 inline declaration and a file are the same JSON.
@@ -632,6 +647,7 @@ the `--json` path, where `data.warnings` carries them in full.
 | `PULSE_SYNTH_RULE_CONFLICT`         | One rule names the same field in two slots that disagree about it |
 | `PULSE_SYNTH_RULE_BLOCK_INVALID`    | A `null_together` block names fewer than two distinct fields |
 | `PULSE_SYNTH_RULE_OWNERSHIP_INVALID` | A rule declares `"owns_nulls": true` but names no field in `set_null`, so the claim has nothing to apply to |
+| `PULSE_SYNTH_EXPR_NONDETERMINISTIC` | A constraint, `when` or `set_expr` calls `now()`, whose answer differs on every run |
 
 ## Examples
 
