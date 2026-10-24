@@ -315,6 +315,7 @@
     - [survey-weights](skills/survey-weights.md)
     - [synth-conflicts](skills/synth-conflicts.md)
     - [synth-correlations](skills/synth-correlations.md)
+    - [synth-cross-row](skills/synth-cross-row.md)
     - [synth-determinism](skills/synth-determinism.md)
     - [synth-fidelity-report](skills/synth-fidelity-report.md)
     - [synth-marginals](skills/synth-marginals.md)

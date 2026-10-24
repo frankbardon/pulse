@@ -26,7 +26,7 @@ Synth does not emit `Response.Components` — it writes a `.pulse` file.
 | `correlations`: which marginals / types may join | [`synth-correlations`](synth-correlations.md) |
 | Two relationships name one field — which wins? | [`synth-conflicts`](synth-conflicts.md) |
 | Several drivers conditioning one numeric (`--fit-models`) | [`synth-models`](synth-models.md) |
-| Gating, masking, deriving a field (`rules[]`, `constraints[]`) | [`synth-structural-rules`](synth-structural-rules.md) |
+| Gating, masking, deriving a field, reading earlier rows (`rules[]`, `constraints[]`, `lag`) | [`synth-structural-rules`](synth-structural-rules.md) |
 | The `_synthetic` top-up and `--fidelity-report` | [`synth-fidelity-report`](synth-fidelity-report.md) |
 | Byte-identical output; why a profile can drift | [`synth-determinism`](synth-determinism.md) |
 | `--fit-shape` mixtures | [`synth-shape-fit`](synth-shape-fit.md) |

@@ -473,6 +473,20 @@ period. `monotonic_from` counts the same way: a rejected attempt leaves
 no gap in its sequence. Under `synth from-profile` with a source cohort,
 both count the generated rows from 0, not the copied source rows.
 
+`lag("field", n[, default])` reads that field's value `n` accepted rows
+back (`n` an integer literal from 1 to 1024, the name a declared field).
+For the first `n` rows it returns `default`, or null when none is given;
+a lagged null stays null, so guard with a default or `??`. Self-lag is
+allowed, which makes a recursive series one rule: `{"set_expr":
+{"true_adstock": "spend + 0.6 * lag(\"true_adstock\", 1, 0)"}}`. Like
+`row()` it consumes no randomness and never sees a rejected attempt. It
+returns the value before encode rounding. Profile capture, the fidelity
+report and `--suggest-rules` do not model it. A bad name or offset is
+`PULSE_SYNTH_LAG_FIELD_INVALID` / `PULSE_SYNTH_LAG_OFFSET_INVALID`. The
+full recipe, with a panel reset and Fourier controls, is
+[`internal/examples/synth/07_mmm_adstock.synth.json`](https://github.com/frankbardon/pulse/blob/main/internal/examples/synth/07_mmm_adstock.synth.json)
+and `skills/synth-cross-row.md`.
+
 The same array is also the standalone **rules file** format that
 [`synth from-profile --rules`](synth-from-profile.md) loads, so an
 inline declaration and a file are the same JSON.

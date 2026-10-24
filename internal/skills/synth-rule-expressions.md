@@ -28,10 +28,10 @@ Stock expr-lang built-ins (`abs`, `round`, `max`, `split`…) plus the formula a
 | `pow(x, y)` `hill(x, k, s)` | `x ** y` / `x ^ y` equal `pow` |
 | `sin` `cos` `tan`, `atan2(y, x)` | radians |
 | `pi()` `e()` | calls, not bare names |
-| `row()` | ACCEPTED-row ordinal from 0 (a rejected attempt keeps it; no RNG): `row() % 52 == 0 ? a : b` |
-| `lag("f", n[, d])` | `f`'s final value `n` ACCEPTED rows back, typed as `f`; `d` (else null: guard `??`) before row `n`, null if it was null; self-lag works, no RNG: `spend + 0.6 * lag("ad", 1, 0)`. Literal name and `n` 1–1024, else `PULSE_SYNTH_LAG_FIELD_INVALID` / `_OFFSET_INVALID` |
+| `row()` | ACCEPTED-row ordinal from 0 (no RNG) |
+| `lag("f", n[, d])` | `f`'s value `n` ACCEPTED rows back (null before row `n` unless `d`); no RNG. Literal name, `n` 1–1024 |
 
-`%` takes floats (dividend's sign; `% 0` is NaN). Bad arity is refused at parse. `now()` is refused (`PULSE_SYNTH_EXPR_NONDETERMINISTIC`). A field named like a built-in (`log`, `e`, `row`, `lag`) reads as a bare name; calling it, or a bare built-in no field declares, is refused.
+A panel resets with `row() % 52 == 0 ? 0 : lag(…)`; profile capture, the fidelity report and `--suggest-rules` ignore `lag`. `%` takes floats (dividend's sign; `% 0` is NaN). Bad arity is refused at parse. `now()` is refused (`PULSE_SYNTH_EXPR_NONDETERMINISTIC`). A field named like a built-in (`log`, `e`, `row`, `lag`) reads as a bare name; calling it, or a bare built-in no field declares, is refused.
 
 ### `set_expr` and the coercion matrix
 
@@ -64,6 +64,6 @@ Scalar = `u4` `u8` `u16` `u32` `u64` `f32` `f64` `date` `packed_bool` `decimal12
 
 ## See
 
-- `synth-structural-rules` — slots and order; `synth-rule-validation` — the refusal codes.
+- `synth-cross-row` — `row()` / `lag()` semantics, panel reset, adstock recipe; `synth-structural-rules` — slots and order; `synth-rule-validation` — the refusal codes.
 - `synth-marginals` — why a small integer or `packed_bool` is already exact.
 - `expression-language` — the formula attribute's environment; the row env shares only its maths.
