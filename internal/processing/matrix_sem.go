@@ -2,11 +2,13 @@ package processing
 
 import (
 	"context"
+	"encoding/json"
 	stderrors "errors"
 	"math"
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/internal/sem"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg"
@@ -192,8 +194,12 @@ func semModelRows(rows *matrixRows, order []int) []float64 {
 func semBootstrap(in *matrixFinalizeInput, samples []sem.BootstrapSample, rows []sem.Estimate) (*sem.Bootstrap, error) {
 	plan := in.Plan()
 	spec := plan.SEM
+	seed := spec.RNGSeed
+	if seed == 0 {
+		seed = semDeriveSeed(in.slot.semSeedSpec, samples, len(spec.Order))
+	}
 	b, err := sem.RunBootstrap(spec.Model, samples, spec.Options, sem.BootstrapOptions{
-		Iters: spec.BootstrapIters, Seed: uint64(spec.RNGSeed), Level: spec.CILevel,
+		Iters: spec.BootstrapIters, Seed: uint64(seed), Level: spec.CILevel,
 		Standardize: plan.Members.Standardize != "", Ctx: in.slot.ctx,
 	}, rows)
 	if stderrors.Is(err, context.Canceled) || stderrors.Is(err, context.DeadlineExceeded) {
@@ -213,6 +219,47 @@ func semBootstrap(in *matrixFinalizeInput, samples []sem.BootstrapSample, rows [
 	}
 	b.Apply(rows)
 	return b, nil
+}
+
+// semSeedSpec is the wire form a MAT_SEM bootstrap's rng_seed 0
+// derivation hashes: the slot's spec with params.rng_seed dropped, so
+// an absent seed and an explicit 0 derive alike (REG_RESAMPLE's
+// omitempty RNGSeed does the same).
+func semSeedSpec(spec types.MatrixSpec) []byte {
+	if len(spec.Params) > 0 {
+		var params map[string]json.RawMessage
+		if json.Unmarshal(spec.Params, &params) == nil {
+			delete(params, "rng_seed")
+			if b, err := json.Marshal(params); err == nil {
+				spec.Params = b
+			}
+		}
+	}
+	body, err := types.MarshalFinite(&spec)
+	if err != nil {
+		return nil
+	}
+	return body
+}
+
+// semDeriveSeed is a MAT_SEM bootstrap's seed at rng_seed 0:
+// REG_RESAMPLE's derivation (regression.DeriveSeed) over the slot's
+// wire form (spec) and the rows the fit reads — every sample's rows in
+// fit order, each row in model order (k values) — so the same request
+// over the same data draws the same replicates, worker and shard count
+// aside (the slot is buffered: its rows keep record order).
+func semDeriveSeed(spec []byte, samples []sem.BootstrapSample, k int) int64 {
+	n := 0
+	for _, s := range samples {
+		n += len(s.Rows) / k
+	}
+	return regression.DeriveSeed(spec, n, func(word func(v float64, ok bool)) {
+		for _, s := range samples {
+			for _, v := range s.Rows {
+				word(v, true)
+			}
+		}
+	})
 }
 
 // semBootstrapScalars writes a bootstrap's replicate counts into sc

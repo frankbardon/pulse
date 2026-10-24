@@ -7,6 +7,7 @@ import (
 
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/stat/distuv"
 )
 
 // Solver selects the optimiser.
@@ -51,6 +52,20 @@ type Options struct {
 	// GradTol is Fisher scoring's stop: every free gradient entry below
 	// it in absolute value (default 1e-10).
 	GradTol float64
+	// Level is the Wald interval's level (lavaan's level), in (0, 1);
+	// 0 is 0.95. It sets ci_lower / ci_upper only (a lavaan-convention
+	// fit's), never an estimate, SE or p.
+	Level float64
+}
+
+// waldCrit is the Wald interval's critical value at o.Level: the
+// standard normal (1 + level) / 2 quantile, the constant waldZ975 at
+// the default (so a 0.95 interval keeps its bits).
+func (o Options) waldCrit() float64 {
+	if o.Level == 0 || o.Level == 0.95 {
+		return waldZ975
+	}
+	return distuv.UnitNormal.Quantile((1 + o.Level) / 2)
 }
 
 func (o Options) withDefaults() Options {
@@ -90,6 +105,9 @@ func (o Options) Validate() error {
 	}
 	if o.Ftol < 0 || o.MaxIter < 0 || o.GradTol < 0 {
 		return errors.New("ftol, max_iter and grad_tol must be positive")
+	}
+	if o.Level < 0 || o.Level >= 1 {
+		return fmt.Errorf("interval level %v: need 0 < level < 1", o.Level)
 	}
 	return nil
 }
@@ -882,11 +900,11 @@ func fitCov(m *Model, s, raw *mat.SymDense, mean []float64, n float64, opt Optio
 	if err != nil {
 		return nil, err
 	}
-	fit.Estimates = st.estimates(x, se, sg, c)
+	fit.Estimates = st.estimates(x, se, sg, c, opt.waldCrit())
 	if len(m.defined) > 0 {
 		labels := map[string]labelValue{}
 		st.addLabels(labels, fit.Estimates, func(k int) int { return k })
-		fit.Defined = evalDefined(m.defined, labels, x, vcov)
+		fit.Defined = evalDefined(m.defined, labels, x, vcov, opt.waldCrit())
 	}
 	return fit, nil
 }
@@ -1035,7 +1053,7 @@ func pinvDiag(a *mat.SymDense) []float64 {
 	return out
 }
 
-func (st *state) estimates(x, se []float64, sg *mat.SymDense, c *mat.Dense) []Estimate {
+func (st *state) estimates(x, se []float64, sg *mat.SymDense, c *mat.Dense, crit float64) []Estimate {
 	m := st.m
 	// Standardization scales: latent/inner SDs from CΨCᵀ, observed SDs
 	// from Σ (semopy inspect std_est=True).
@@ -1073,7 +1091,7 @@ func (st *state) estimates(x, se []float64, sg *mat.SymDense, c *mat.Dense) []Es
 					e.SE = se[k]
 					if m.lavaan {
 						e.Z = e.Value / e.SE
-						e.CILower, e.CIUpper = e.Value-waldZ975*e.SE, e.Value+waldZ975*e.SE
+						e.CILower, e.CIUpper = e.Value-crit*e.SE, e.Value+crit*e.SE
 					} else {
 						e.Z = e.Value / (e.SE + 1e-12)
 					}

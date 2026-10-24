@@ -45,7 +45,7 @@ The same covariance model can report a different `chi2` on the two paths. Compar
 
 - `auxiliary.estimates` gains `x ~1` rows: intercepts for observed variables, means for latents. `std_estimate` is the estimate over the variable's model-implied SD.
 - `auxiliary.implied_means` (μ(θ̂)) and `observed_means` (the listwise sample means) carry one `mean` column per member. Their gap is the mean misfit.
-- `ci_lower` / `ci_upper` are 95% Wald intervals (estimate ± 1.96 SE). They are `null` on a fixed row.
+- `ci_lower` / `ci_upper` are Wald intervals, 95% by default (estimate ± 1.96 SE; another level: `sem-bootstrap`). They are `null` on a fixed row.
 <!-- /feature -->
 
 <!-- feature: capability:sem_groups -->

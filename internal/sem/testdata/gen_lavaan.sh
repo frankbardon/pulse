@@ -9,8 +9,8 @@
 # TestSEM_BrandSurveyRegenerates -regen-brand). CI never runs R.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
-fit() { Rscript "$here/fit_lavaan.R" "$here/$1_data.csv" "$here/$2_model.txt" "$3" "${5:-}" "${6:-}" "${7:-}" > "$here/$4_lavaan.json"; }
-# data model meanstructure name [group] [group_equal] [group_partial]
+fit() { Rscript "$here/fit_lavaan.R" "$here/$1_data.csv" "$here/$2_model.txt" "$3" "${5:-}" "${6:-}" "${7:-}" "${8:-}" > "$here/$4_lavaan.json"; }
+# data model meanstructure name [group] [group_equal] [group_partial] [level]
 fit brand brand_ms TRUE brand_ms
 fit brand brand_mx FALSE brand_mx
 # NA and labelled first indicators, residual covariances
@@ -36,6 +36,9 @@ fit brand brand_mgmod TRUE brand_mg_strict wave loadings,intercepts,means,residu
 fit brand brand_def TRUE brand_def_ms
 fit brand brand_def FALSE brand_def_cov
 fit brand brand_mgdef TRUE brand_mg_defined wave loadings,intercepts
+# a non-default Wald level (lavaan's level = 0.90): params.ci_level sets
+# ci_lower / ci_upper of every free and := row
+fit brand brand_def TRUE brand_def_l90 "" "" "" 0.90
 # lavaan's se = "bootstrap" (percentile intervals, seeded): the
 # distributional references for params.resample "bootstrap" — a
 # sampling tolerance, never the bits (fit_lavaan_boot.R)

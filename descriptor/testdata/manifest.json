@@ -9964,14 +9964,14 @@
             "type": "int",
             "required": false,
             "default": 0,
-            "description": "Seeds the bootstrap's draws: the same rows and seed give the same figures bit for bit, whatever the worker count. params.resample bootstrap only."
+            "description": "Seeds the bootstrap's draws: the same rows and seed give the same figures bit for bit, whatever the worker count. 0 or absent derives the seed from the request and the slot's rows (REG_RESAMPLE's rule: the same request over the same data draws the same replicates); pin a non-zero seed for draws that do not move with the data. params.resample bootstrap only."
           },
           {
             "name": "ci_level",
             "type": "float",
             "required": false,
             "default": 0.95,
-            "description": "The percentile interval's level, strictly between 0 and 1. params.resample bootstrap only."
+            "description": "The interval level, strictly between 0 and 1 (lavaan's level): the Wald ci_lower / ci_upper of every lavaan-convention fit and, under params.resample bootstrap, the percentile interval. Refused (bad_params) on a semopy-convention fit, which reports no interval."
           },
           {
             "name": "missing",
@@ -19666,4 +19666,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: c3fb670733c314f41a486210f5df56213ed316719143677f466d67c3c939f910
+// golden-hash: 4b9333655bdbe3c9057fe8c9aa4a22f67433a727ed97b0b1b9d228a5b8ca6685

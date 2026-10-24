@@ -59,13 +59,20 @@ type SEMPlan struct {
 	// Resample is params.resample: SEMResampleBootstrap (lavaan's se =
 	// "bootstrap": the bootstrap's SE, z, p and percentile interval
 	// replace the analytic ones; the slot buffers its rows) or "" (none).
-	// BootstrapIters, RNGSeed and CILevel are its replicate count
-	// (default SEMBootstrapItersDefault), seed (default 0) and interval
-	// level (default SEMCILevelDefault).
+	// BootstrapIters and RNGSeed are its replicate count (default
+	// SEMBootstrapItersDefault) and seed (0 — absent or explicit —
+	// derives one from the request and the slot's rows, REG_RESAMPLE's
+	// rule: regression.DeriveSeed).
 	Resample       string
 	BootstrapIters int
 	RNGSeed        int64
-	CILevel        float64
+	// CILevel is params.ci_level (default SEMCILevelDefault): the level
+	// of the percentile interval and — lavaan's level — of every
+	// lavaan-convention fit's Wald interval (Options.Level); CILevelSet
+	// reports it was given (refused on a semopy-convention fit, which
+	// reports no interval).
+	CILevel    float64
+	CILevelSet bool
 }
 
 // Bootstrap reports whether the plan bootstraps its fit.
@@ -490,23 +497,34 @@ func decodeSEM(at string, p semParams, m *Matrix) *errors.CodedError {
 }
 
 // decodeSEMBootstrap decodes params.resample and its knobs:
-// bootstrap_iters a positive integer, ci_level strictly between 0 and
-// 1, rng_seed any integer; a knob without resample "bootstrap" (or
-// resample "" — none) is bad_params, never ignored.
+// bootstrap_iters a positive integer, rng_seed any integer — either
+// without resample "bootstrap" (or resample "" — none) is bad_params,
+// never ignored — and ci_level strictly between 0 and 1 (any
+// lavaan-convention fit's Wald interval too; resolveSEM refuses it on
+// a semopy-convention one).
 func decodeSEMBootstrap(at string, p semParams, plan *SEMPlan) *errors.CodedError {
 	on := false
+	plan.CILevel = SEMCILevelDefault
 	if p.Resample != nil && *p.Resample != "" {
 		if !slices.Contains(SEMResample(), *p.Resample) {
 			return matrixInvalid(at, "bad_params", at+` params.resample must be "bootstrap" (non-parametric, lavaan's se = "bootstrap") or omitted`,
 				map[string]any{"param": "resample", "value": *p.Resample, "valid": SEMResample()})
 		}
 		on = true
-		plan.Resample, plan.BootstrapIters, plan.CILevel = *p.Resample, SEMBootstrapItersDefault, SEMCILevelDefault
+		plan.Resample, plan.BootstrapIters = *p.Resample, SEMBootstrapItersDefault
+	}
+	if p.CILevel != nil {
+		if !(*p.CILevel > 0 && *p.CILevel < 1) {
+			return matrixInvalid(at, "bad_params", at+" params.ci_level must lie strictly between 0 and 1",
+				map[string]any{"param": "ci_level", "value": *p.CILevel})
+		}
+		plan.CILevel, plan.CILevelSet = *p.CILevel, true
+		plan.Options.Level = *p.CILevel
 	}
 	for _, k := range []struct {
 		name string
 		set  bool
-	}{{"bootstrap_iters", p.BootstrapIters != nil}, {"rng_seed", p.RNGSeed != nil}, {"ci_level", p.CILevel != nil}} {
+	}{{"bootstrap_iters", p.BootstrapIters != nil}, {"rng_seed", p.RNGSeed != nil}} {
 		if k.set && !on {
 			return matrixInvalid(at, "bad_params", at+" params."+k.name+` applies with params.resample "bootstrap" only`,
 				map[string]any{"param": k.name})
@@ -521,13 +539,6 @@ func decodeSEMBootstrap(at string, p semParams, plan *SEMPlan) *errors.CodedErro
 				map[string]any{"param": "bootstrap_iters", "value": *p.BootstrapIters})
 		}
 		plan.BootstrapIters = *p.BootstrapIters
-	}
-	if p.CILevel != nil {
-		if !(*p.CILevel > 0 && *p.CILevel < 1) {
-			return matrixInvalid(at, "bad_params", at+" params.ci_level must lie strictly between 0 and 1",
-				map[string]any{"param": "ci_level", "value": *p.CILevel})
-		}
-		plan.CILevel = *p.CILevel
 	}
 	if p.RNGSeed != nil {
 		plan.RNGSeed = *p.RNGSeed
@@ -607,6 +618,10 @@ func resolveSEM(at string, m *Matrix) *errors.CodedError {
 	if len(unused) > 0 {
 		return matrixInvalid(at, "bad_params", at+" members the model never names: "+strings.Join(unused, ", ")+"; drop them from the battery or add them to params.model",
 			map[string]any{"param": "model", "unused_members": unused})
+	}
+	if m.SEM.CILevelSet && !model.Lavaan() {
+		return matrixInvalid(at, "bad_params", at+" params.ci_level sets the Wald interval (ci_lower / ci_upper) of a lavaan-convention fit, but this fit follows semopy's conventions and reports none; add meanstructure, a := line or resample \"bootstrap\", or drop ci_level",
+			map[string]any{"param": "ci_level", "value": m.SEM.CILevel})
 	}
 	m.SEM.Model, m.SEM.Order = model, order
 	return nil

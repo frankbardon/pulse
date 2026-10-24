@@ -93,6 +93,9 @@ type matrixSlot struct {
 	// nil elsewhere): a finalizer that loops — MAT_SEM's bootstrap —
 	// reads it between iterations.
 	ctx context.Context
+	// semSeedSpec is a bootstrapped MAT_SEM slot's wire form for the
+	// rng_seed 0 derivation (semSeedSpec); nil on every other slot.
+	semSeedSpec []byte
 }
 
 // bindMatrixContext hands ctx to every slot (the buffered path's
@@ -156,6 +159,9 @@ type matrixPlanSet struct {
 	// ctx is the buffered run's context, handed to every slot fresh()
 	// mints (nil: none).
 	ctx context.Context
+	// semSeeds are the bootstrapped MAT_SEM plans' seed wire forms
+	// (semSeedSpec), index-aligned with plans; nil entries elsewhere.
+	semSeeds [][]byte
 }
 
 // resolveMatrixPlans resolves req.Matrices against schema (nil when
@@ -201,6 +207,12 @@ func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *Exten
 	set := &matrixPlanSet{plans: plans, weights: make([]*types.WeightSpec, len(plans)), compute: compute, schema: schema, exts: exts}
 	for i := range plans {
 		set.weights[i] = req.Matrices[i].Weight.Spec()
+		if plans[i].Type == types.MAT_SEM && plans[i].SEM.Bootstrap() {
+			if set.semSeeds == nil {
+				set.semSeeds = make([][]byte, len(plans))
+			}
+			set.semSeeds[i] = semSeedSpec(req.Matrices[i])
+		}
 	}
 	if err := set.buildMatrixOps(req); err != nil {
 		return nil, err
@@ -236,6 +248,9 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 		}
 		slots[i].capture = s.models.Capture()
 		slots[i].ctx = s.ctx
+		if s.semSeeds != nil {
+			slots[i].semSeedSpec = s.semSeeds[i]
+		}
 		if plan.Fit != "" {
 			if err := slots[i].bindMatrixFit(s.models); err != nil {
 				return nil, err

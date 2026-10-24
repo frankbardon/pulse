@@ -307,7 +307,7 @@ func FitGroups(model *Model, groups []GroupMoments, opt Options) (*GroupFit, err
 		fit := &Fit{Model: st.m, N: gm.N, Objective: st.objective(xg), Iterations: iters, Converged: conv,
 			Status: status, Options: opt, Sample: gm.S, Implied: sg, theta: append([]float64(nil), xg...),
 			SampleMean: st.ybar, ImpliedMean: st.mu(mm)}
-		fit.Estimates = st.estimates(xg, seg, sg, c)
+		fit.Estimates = st.estimates(xg, seg, sg, c, opt.waldCrit())
 		gf.Groups = append(gf.Groups, fit)
 		gf.Labels = append(gf.Labels, gm.Label)
 		gf.Chi2Group = append(gf.Chi2Group, gm.N*fit.Objective)
@@ -324,7 +324,7 @@ func FitGroups(model *Model, groups []GroupMoments, opt Options) (*GroupFit, err
 			ix := j.idx[g]
 			st.addLabels(labels, gf.Groups[g].Estimates, func(k int) int { return ix[k] })
 		}
-		gf.Defined = evalDefined(model.defined, labels, x, vcov)
+		gf.Defined = evalDefined(model.defined, labels, x, vcov, opt.waldCrit())
 	}
 	return gf, nil
 }

@@ -154,7 +154,7 @@ func TestSEM_DefinedGradientExact(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%q: %v", src, err)
 		}
-		got := evalDefined([]*definedParam{d}, labels, x, nil)[0]
+		got := evalDefined([]*definedParam{d}, labels, x, nil, waldZ975)[0]
 		if relTol(got.Value, want) > 1e-12 {
 			t.Errorf("%q = %.15g, want %.15g", src, got.Value, want)
 		}
@@ -188,7 +188,7 @@ func TestSEM_DefinedGradientExact(t *testing.T) {
 	// The delta method: SE² = gᵀVg.
 	d, _ := parseDefinedLine("p := a*b")
 	v := mat.NewSymDense(3, []float64{0.04, 0.01, 0, 0.01, 0.09, 0, 0, 0, 1})
-	e := evalDefined([]*definedParam{d}, labels, x, v)[0]
+	e := evalDefined([]*definedParam{d}, labels, x, v, waldZ975)[0]
 	g := []float64{1.3, 0.7, 0}
 	want := math.Sqrt(g[0]*g[0]*0.04 + 2*g[0]*g[1]*0.01 + g[1]*g[1]*0.09)
 	if relTol(e.SE, want) > 1e-14 || relTol(e.Z, e.Value/want) > 1e-14 ||
@@ -213,7 +213,7 @@ func TestSEM_DefinedUndefinedAtEstimate(t *testing.T) {
 		defs = append(defs, d)
 	}
 	v := mat.NewSymDense(2, []float64{0.04, 0, 0, 0.09})
-	rows := evalDefined(defs, labels, x, v)
+	rows := evalDefined(defs, labels, x, v, waldZ975)
 	for _, e := range rows[:3] {
 		for what, f := range map[string]float64{"estimate": e.Value, "std": e.StdValue, "se": e.SE, "z": e.Z, "p": e.P, "lo": e.CILower, "hi": e.CIUpper} {
 			if !math.IsNaN(f) {
@@ -304,3 +304,52 @@ func TestSEM_DefinedSwitchesConventions(t *testing.T) {
 		t.Errorf("SpecifiedDefined %+v", rows)
 	}
 }
+
+// TestSEM_WaldLevelMatchesLavaan holds a non-default Wald level
+// (Options.Level, lavaan's level = 0.90) to lavaan: every free and :=
+// row's ci_lower / ci_upper at the 0.95 quantile's sibling, the
+// estimates, SEs, z and p unchanged — and a 0.95 level keeps the
+// default's bits.
+func TestSEM_WaldLevelMatchesLavaan(t *testing.T) {
+	ref := loadLavaanRef(t, "testdata/brand_def_l90_lavaan.json")
+	desc, err := os.ReadFile("testdata/brand_def_model.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := NewModelWithOptions(string(desc), ModelOptions{MeanStructure: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mean, s, n := readCSVMoments(t, "testdata/brand_data.csv", m.Observed)
+	fit, err := FitMoments(m, s, s, mean, n, Options{Level: 0.90})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ComputeStats(fit, string(desc)); err != nil {
+		t.Fatal(err)
+	}
+	checkAgainstLavaan(t, fit, ref)
+	def, err := FitMoments(m, s, s, mean, n, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	at95, err := FitMoments(m, s, s, mean, n, Options{Level: 0.95})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := func(f *Fit) []Estimate { return append(append([]Estimate(nil), f.Estimates...), f.Defined...) }
+	a, b, c := rows(def), rows(at95), rows(fit)
+	for i := range a {
+		if math.Float64bits(a[i].CILower) != math.Float64bits(b[i].CILower) || math.Float64bits(a[i].CIUpper) != math.Float64bits(b[i].CIUpper) {
+			t.Errorf("%s: level 0.95 moved the default interval", a[i].Key())
+		}
+		if a[i].Value != c[i].Value || !sameNaN(a[i].SE, c[i].SE) || !sameNaN(a[i].P, c[i].P) {
+			t.Errorf("%s: the level moved the estimate, SE or p", a[i].Key())
+		}
+	}
+	if _, err := FitMoments(m, s, s, mean, n, Options{Level: 1}); err == nil {
+		t.Error("level 1 accepted")
+	}
+}
+
+func sameNaN(a, b float64) bool { return a == b || (math.IsNaN(a) && math.IsNaN(b)) }

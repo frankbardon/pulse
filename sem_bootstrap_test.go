@@ -258,6 +258,143 @@ func TestSEM_BootstrapDeterministic(t *testing.T) {
 	}
 }
 
+// TestSEM_BootstrapDerivedSeed: without rng_seed (or at 0) the seed is
+// derived from the request and the rows, REG_RESAMPLE's rule — an
+// absent seed and an explicit 0 give the same bits, run to run, under
+// any decode-worker count and over a shard archive; a request that
+// differs only in the slot's name (no figure reads it) draws other
+// replicates, while a pinned seed draws the same ones whatever the
+// name.
+func TestSEM_BootstrapDerivedSeed(t *testing.T) {
+	for _, c := range []struct {
+		name, model string
+		params      map[string]any
+	}{
+		{"single", "brand_def", map[string]any{"group": nil}},
+		{"grouped", "brand_mgdef", map[string]any{"group_equal": "loadings,intercepts"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			req := func(seed any, name string) *types.Request {
+				params := map[string]any{"resample": "bootstrap", "bootstrap_iters": 25}
+				if seed != nil {
+					params["rng_seed"] = seed
+				}
+				for k, v := range c.params {
+					params[k] = v
+				}
+				r := semGroupRequest(t, c.model, params)
+				r.Matrices[0].Name = name
+				return r
+			}
+			ses := func(p *pulse.Pulse, r *types.Request) string {
+				res := semGroupRun(t, p, r)
+				if res.Error != nil {
+					t.Fatalf("error %+v", res.Error)
+				}
+				raw, _ := json.Marshal(res.Auxiliary["estimates"])
+				return string(raw)
+			}
+			p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{DecodeWorkers: 1, ShardWorkers: 1})
+			want := ses(p, req(nil, "sem"))
+			if ses(p, req(nil, "sem")) != want || ses(p, req(0, "sem")) != want {
+				t.Fatal("an absent seed and rng_seed 0 differ, or a second run does")
+			}
+			if ses(p, req(nil, "other")) == want {
+				t.Error("the derived seed does not move with the request")
+			}
+			if ses(p, req(11, "sem")) != ses(p, req(11, "other")) {
+				t.Error("a pinned seed moved with the slot name")
+			}
+			for _, dw := range []int{3, 8} {
+				p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{DecodeWorkers: dw})
+				if ses(p, req(nil, "sem")) != want {
+					t.Errorf("DecodeWorkers %d differs", dw)
+				}
+			}
+			for _, sw := range []int{1, 3} {
+				p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8, shards: 230}.build(t, pulse.Options{ShardWorkers: sw})
+				if ses(p, req(nil, "sem")) != want {
+					t.Errorf("shard archive, ShardWorkers %d differs", sw)
+				}
+			}
+		})
+	}
+}
+
+// TestSEM_CILevelWald: params.ci_level is lavaan's level on the Wald
+// interval too — without a bootstrap, a 0.90 level moves every free and
+// := row's ci_lower / ci_upper to lavaan's (brand_def_l90_lavaan.json)
+// and nothing else, an explicit 0.95 is the default's bits, and a
+// semopy-convention fit (no interval) refuses it, predict ≡ runtime.
+func TestSEM_CILevelWald(t *testing.T) {
+	ctx := context.Background()
+	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
+	base := semGroupRun(t, p, semGroupRequest(t, "brand_def", map[string]any{"group": nil, "meanstructure": true}))
+	at95 := semGroupRun(t, p, semGroupRequest(t, "brand_def", map[string]any{"group": nil, "meanstructure": true, "ci_level": 0.95}))
+	a, _ := json.Marshal(base)
+	b, _ := json.Marshal(at95)
+	if string(a) != string(b) {
+		t.Fatal("ci_level 0.95 moved the default result")
+	}
+	res := semGroupRun(t, p, semGroupRequest(t, "brand_def", map[string]any{"group": nil, "meanstructure": true, "ci_level": 0.9}))
+	raw, err := os.ReadFile(semGroupTestdata + "brand_def_l90_lavaan.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ref semBootLavaan
+	if err := json.Unmarshal(raw, &ref); err != nil || ref.Lavaan == "" {
+		t.Fatalf("brand_def_l90: %v (lavaan %q)", err, ref.Lavaan)
+	}
+	est := res.Auxiliary["estimates"]
+	rows := map[string][]float64{}
+	for i, k := range est.RowKeys {
+		rows[k] = est.Values[i]
+	}
+	checked := 0
+	for _, r := range ref.Params {
+		if !r.Free && r.Op != ":=" {
+			continue
+		}
+		key := r.LHS + " " + r.Op + " " + r.RHS
+		switch r.Op {
+		case "=~":
+			key = r.RHS + " ~ " + r.LHS
+		case "~1":
+			key = r.LHS + " ~1"
+		}
+		row, ok := rows[key]
+		if !ok && r.Op == "~~" {
+			row, ok = rows[r.RHS+" ~~ "+r.LHS]
+		}
+		if !ok {
+			t.Errorf("lavaan row %q has no estimate row", key)
+			continue
+		}
+		checked++
+		if !(mgRel(row[5], *r.CILower) <= 1e-4) || !(mgRel(row[6], *r.CIUpper) <= 1e-4) {
+			t.Errorf("%s 90%% interval [%.8g, %.8g], lavaan [%.8g, %.8g]", key, row[5], row[6], *r.CILower, *r.CIUpper)
+		}
+	}
+	if checked < 25 {
+		t.Fatalf("only %d rows matched lavaan's", checked)
+	}
+	bv := base.Auxiliary["estimates"].Values
+	for i, row := range est.Values {
+		for j := 0; j < 5; j++ {
+			if row[j] != bv[i][j] && !(math.IsNaN(row[j]) && math.IsNaN(bv[i][j])) {
+				t.Errorf("%s %s moved under ci_level", est.RowKeys[i], est.ColumnKeys[j])
+			}
+		}
+	}
+	req := semGroupRequest(t, "brand_ms", map[string]any{"group": nil, "ci_level": 0.9})
+	_, rerr := p.Process(ctx, req)
+	var ce *errors.CodedError
+	if !asCoded(rerr, &ce) || ce.Code != errors.SERVICE_VALIDATION || ce.Details["reason"] != "bad_params" || ce.Details["param"] != "ci_level" {
+		t.Fatalf("semopy-convention ci_level: %v (%v), want SERVICE_VALIDATION bad_params on ci_level", rerr, semDetailsOf(ce))
+	}
+	sameEntry(t, predictEnvelope(t, p, fsys, "brand.pulse", req), rerr)
+}
+
 // TestSEM_BootstrapPredictBuffered: predict reports the bootstrap's
 // buffered downgrade (request and spec level, the spec's own verdict),
 // and the runtime result is what that request computes.
@@ -359,10 +496,11 @@ func TestSEM_BootstrapTooFewFailsSlot(t *testing.T) {
 	}
 }
 
-// TestSEM_BootstrapRefusals: a bootstrap knob without resample, another
-// resample value, a non-positive bootstrap_iters, a ci_level outside
-// (0, 1) and a params.fit binding are config refusals that predict
-// reports identically.
+// TestSEM_BootstrapRefusals: a bootstrap knob without resample (a
+// ci_level on a semopy-convention fit, which reports no interval),
+// another resample value, a non-positive bootstrap_iters, a ci_level
+// outside (0, 1) and a params.fit binding are config refusals that
+// predict reports identically.
 func TestSEM_BootstrapRefusals(t *testing.T) {
 	ctx := context.Background()
 	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})

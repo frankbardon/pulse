@@ -207,9 +207,10 @@ type labelValue struct {
 }
 
 // evalDefined evaluates every definition at the free vector x with
-// covariance vcov (nil: no standard errors). A label the fit lacks (a
+// covariance vcov (nil: no standard errors), the Wald interval at the
+// critical value crit (Options.waldCrit). A label the fit lacks (a
 // per-group label of a level without rows) is NaN.
-func evalDefined(defs []*definedParam, labels map[string]labelValue, x []float64, vcov *mat.SymDense) []Estimate {
+func evalDefined(defs []*definedParam, labels map[string]labelValue, x []float64, vcov *mat.SymDense, crit float64) []Estimate {
 	if len(defs) == 0 {
 		return nil
 	}
@@ -260,7 +261,7 @@ func evalDefined(defs []*definedParam, labels map[string]labelValue, x []float64
 			e.SE = math.Sqrt(quadDense(vcov, v.d))
 			e.Z = e.Value / e.SE
 			e.P = 2 * (1 - normCDF(math.Abs(e.Z)))
-			e.CILower, e.CIUpper = e.Value-waldZ975*e.SE, e.Value+waldZ975*e.SE
+			e.CILower, e.CIUpper = e.Value-crit*e.SE, e.Value+crit*e.SE
 		}
 		out[i] = e
 	}
