@@ -161,11 +161,17 @@ func exprDecodePaths(t *testing.T, s *encoding.Schema, raw []byte, fn func(path 
 		return rec, rr.ReadRecordReusedWithPlan(rec, keepAll, plan)
 	})
 	loop("map-decode", func(rr *encx.RecordReader) (*Record, error) {
+		// As the service's map decoders do: capture the u64 words and
+		// hand them to the record (encx.ExactU64Words.ApplyTo).
+		exact := encx.NewExactU64Words(s)
+		rr.CaptureExactU64(exact)
 		vals, nulls, wide := map[string]float64{}, map[string]bool{}, map[string]any{}
 		if err := rr.ReadRecordWithWide(vals, nulls, wide); err != nil {
 			return nil, err
 		}
-		return NewRecordWithWide(s, vals, nulls, wide), nil
+		rec := NewRecordWithWide(s, vals, nulls, wide)
+		exact.ApplyTo(rec)
+		return rec, nil
 	})
 }
 
@@ -186,8 +192,9 @@ func TestExprValueType_MatchesAllValues(t *testing.T) {
 			}
 			seen[path][f.Name] = true
 			// The env binds the value through exprenv.Bind (a decimal
-			// gains its field's scale), as runRecord does.
-			if got, want := reflect.TypeOf(exprenv.Bind(f, v)), exprenv.ValueType(f); got != want {
+			// gains its field's scale) and a u64 as its stored word
+			// (Record.exprU64), as runRecord does.
+			if got, want := reflect.TypeOf(r.exprU64(f.Name, exprenv.Bind(f, v))), exprenv.ValueType(f); got != want {
 				t.Errorf("%s: %s (%s) binds %v, prototype declares %v", path, f.Name, f.Type, got, want)
 			}
 		}

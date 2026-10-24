@@ -6,6 +6,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	encx "github.com/frankbardon/pulse/internal/encoding"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 )
 
@@ -870,6 +871,25 @@ func (r *Record) Uint64Value(name string) (uint64, bool) {
 		return 0, false
 	}
 	return floatToUint64Key(v), true
+}
+
+// exprU64 is the expression env value of u64 field name whose bound
+// value is v: the decoder's stored word as an exprenv.U64 when the
+// record holds it for the value it holds now (planeExact, and the echo
+// v is that word's float64), else v unchanged — a column a feature or
+// attribute rewrote keeps the float64 it always bound as.
+func (r *Record) exprU64(name string, v any) any {
+	f, ok := v.(float64)
+	if !ok {
+		return v
+	}
+	if i := r.pos(name); i >= 0 && r.layout.wideKind[i] == wideExactU64 &&
+		r.test(planeExact, i) && r.test(planeHas, i) && !r.test(planeNull, i) {
+		if w := r.wordAt(int(r.layout.wideOff[i])); float64(w) == f {
+			return exprenv.U64(w)
+		}
+	}
+	return v
 }
 
 // floatToUint64Key converts a float64 echo to uint64 the way the key

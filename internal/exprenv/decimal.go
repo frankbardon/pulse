@@ -153,11 +153,14 @@ var untypedDecimal exprtypes.Type = reflectDecl{exprDecimalAnyType}
 
 // Untyped is the null-row twin's declaration of a name declared t: a
 // decimal stays recognisably decimal (so its operators are patched the
-// same way), everything else is `any`.
+// same way), a u64 recognisably u64 (u64.go), everything else is `any`.
 func Untyped(t exprtypes.Type) exprtypes.Type {
 	if t != nil {
-		if n := t.Nature(); n.Type == exprDecimalType {
+		switch t.Nature().Type {
+		case exprDecimalType:
 			return untypedDecimal
+		case exprU64Type:
+			return untypedU64
 		}
 	}
 	return exprtypes.Any

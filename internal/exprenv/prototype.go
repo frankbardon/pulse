@@ -50,9 +50,10 @@ var (
 // dictionary-bearing categorical resolves to its label, a
 // dictionary-bearing set to its label slice, a decimal to a [Decimal]
 // (mantissa + the field's scale), a dictionary-less set rides its wide
-// value, a vector its []float64 elements, everything else is the
-// float64 slot. Pinned against every decode path by
-// internal/processing's TestExprValueType_MatchesAllValues.
+// value, a vector its []float64 elements, a u64 its stored word as a
+// [U64] (u64.go), everything else is the float64 slot. Pinned against
+// every decode path by internal/processing's
+// TestExprValueType_MatchesAllValues.
 func ValueType(f *encoding.Field) reflect.Type {
 	switch {
 	case f.Type.IsCategorical():
@@ -71,6 +72,8 @@ func ValueType(f *encoding.Field) reflect.Type {
 		return exprDecimalType
 	case f.Type.IsVector():
 		return exprFloat64sType
+	case f.Type == encoding.FieldTypeU64:
+		return exprU64Type
 	}
 	return exprFloat64Type
 }

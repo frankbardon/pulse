@@ -17,7 +17,7 @@ A field is named bare; what it binds depends on its schema type:
 
 | Field type | Binds as | Write |
 |---|---|---|
-| numeric (`u*`, `f*`) | number | `weight_kg / (height_m ** 2)` |
+| numeric (`u*`, `f*`) | number (`u64` compares exactly) | `weight_kg / (height_m ** 2)` |
 | `categorical_*` | dictionary STRING, never the index | `brand == "Apple"`, `region in ["NA", "EU"]` |
 | `set_*` | sorted `[]string` of member labels | `"a" in tags`, `has_any(tags, "a", "b")` |
 | `decimal128` | exact decimal — operators and numeric functions ([`decimal-formulas`](decimal-formulas.md)) | `price / cost > 1.2`, `float(price) * 1.5` |
@@ -83,7 +83,7 @@ A formula's result is coerced to a scalar (`bool` → `1.0` / `0.0`); a filter's
 
 - A formula sees only source fields, feature output and EARLIER attribute labels.
 - `total(expr)` — cohort-wide post-filter sum, ONLY in the formula attribute (`PULSE_FORMULA_TOTAL_SITE` in a filter or overlay formula); not overridable by `ExprFunctions`. Weights, the extra scan, recipes: [`formula-totals`](formula-totals.md).
-- Filters run before attributes, so a filter expression cannot read a derived column — restate it over source fields.
+- Filters run before attributes: a filter cannot read a derived column — restate it over source fields.
 
 ## See
 

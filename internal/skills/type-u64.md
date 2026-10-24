@@ -14,7 +14,7 @@ Fixed-width: 8 bytes per record, little-endian. Not bit-packed. Stride contribut
 
 `0..2^64 − 1`. The canonical home for sub-day timestamps stored as microseconds (or nanoseconds) since epoch — Pulse has no native sub-day temporal type, so the convention is `u64` micros. Also fits very wide surrogate keys and hash-derived identifiers.
 
-Exact where identity matters: index keys, join `ON` keys and rendered rows (point-lookup, sample and `process` record rows, including a lag / lead window copy: Go `uint64`, JSON the exact integer) use the stored word. Arithmetic, windows and `sort` read a `float64` echo, exact only below 2^53 (ids above it can tie).
+Exact where identity matters: index keys, join `ON` keys, rendered rows (point-lookup, sample and `process` record rows, including a lag / lead window copy: Go `uint64`, JSON the exact integer) and expression comparisons (`id == 9007199254740993`, `id < params.k`, `id in [...]`, against an integer, a float or another `u64`) use the stored word. Arithmetic (expressions included), windows and `sort` read a `float64` echo, exact only below 2^53 (ids above it can tie).
 
 ## Null
 

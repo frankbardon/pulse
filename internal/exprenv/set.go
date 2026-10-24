@@ -29,7 +29,7 @@ import (
 // hook every expression site (FILTER_EXPRESSION, ATTR_FORMULA and its
 // untyped null-row twin, total() arguments, OVERLAY_FORMULA) and
 // a no-engine compile (predict) must reuse: the set helpers, the reserved vector /
-// scalar-maths built-ins (vector.go), the exact decimal operators (decimal.go), the `%` patcher (mod.go)
+// scalar-maths built-ins (vector.go), the exact u64 comparisons (u64.go), the exact decimal operators (decimal.go), the `%` patcher (mod.go)
 // and the `**` / `^` patcher (pow.go). Call
 // sites prepend this to their own and the embedder's options so the
 // built-ins are uniformly visible.
@@ -44,12 +44,13 @@ func options(withPow bool) []expr.Option {
 		opts = append(opts, expr.Function(name, setHelperImpls[name]))
 	}
 	opts = append(opts, builtinOptions()...)
+	opts = append(opts, exprU64Options()...) // exact u64 comparisons, float64 echo elsewhere (u64.go)
 	opts = append(opts, decimalOptions()...) // exact decimal operators (decimal.go)
 	opts = append(opts, exprModOptions()...) // `%` over float64 fields (mod.go)
 	if withPow {
 		opts = append(opts, exprPowOptions()...) // `**` / `^` on detmath (pow.go)
 	}
-	return opts
+	return append(opts, exprU64Retype()) // LAST repeatable patcher (u64.go)
 }
 
 // setHelperImpls implements every SetHelperNames entry

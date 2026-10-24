@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -363,6 +364,12 @@ func exprPureInputs(src string, exts *ExtensionRegistry) ([]string, bool) {
 		return nil, false
 	}
 	exprast.Walk(&tree.Node, v)
+	if !v.impure && exprenv.FoldsParams(src) {
+		// A params.<name> read is a request constant folded into the
+		// program (internal/exprenv params.go), never a row input — the
+		// compile-once runtime drops it from its free names the same way.
+		v.idents = slices.DeleteFunc(v.idents, func(n string) bool { return n == exprenv.ParamsName })
+	}
 	if v.impure || len(v.idents) == 0 {
 		return nil, false
 	}
@@ -405,7 +412,7 @@ func (v *exprPurityVisitor) Visit(node *exprast.Node) {
 }
 
 // exprPureSetBuiltins are the built-ins exprenv.Options registers, all
-// pure: the set helpers, the `%` / `**` / `^` rewrite targets and every reserved
+// pure: the set helpers, the `%` / `**` / `^` / u64-comparison rewrite targets and every reserved
 // vector / scalar-maths built-in (internal/exprenv — the one list,
 // so a new built-in can never silently drop a filter off the precompute
 // fast path).
@@ -414,6 +421,9 @@ var exprPureSetBuiltins = func() map[string]bool {
 		exprenv.ModFuncName:      true, // the builtin `%` rewrites into (internal/exprenv mod.go)
 		exprenv.PowFuncName:      true, // the builtin `**` rewrites into (internal/exprenv pow.go)
 		exprenv.PowCaretFuncName: true, // the builtin `^` rewrites into (pow.go)
+	}
+	for _, name := range exprenv.U64FuncNames() { // the exact u64 comparisons (u64.go)
+		m[name] = true
 	}
 	for _, name := range exprenv.SetHelperNames() {
 		m[name] = true

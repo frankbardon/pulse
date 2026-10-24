@@ -95,9 +95,11 @@ func TestLookupBuiltin_FuncBackedError(t *testing.T) {
 // operator builtins, float / lift / lift_dyn / negate / the `%`
 // refusal / `in`, and their patcher — 17) and the twelve decimal
 // built-in overrides (decimal_builtins.go: abs ceil floor round int
-// max min mean median sum sort sortBy). Bump this constant when the
-// set-helper roster changes.
-var setExprHelperCount = 8 + 2 + 3 + len(exprenv.Names()) + 17 + 12
+// max min mean median sum sort sortBy), plus the exact u64 comparisons
+// (internal/exprenv u64.go: the float64 echo, six comparisons, `in`,
+// the wrap and compare patchers and the retype pass — 11). Bump this
+// constant when the set-helper roster changes.
+var setExprHelperCount = 8 + 2 + 3 + len(exprenv.Names()) + 17 + 12 + 11
 
 func TestExprOptions_NilRegistry(t *testing.T) {
 	var r *ExtensionRegistry
