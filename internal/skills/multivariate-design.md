@@ -10,7 +10,7 @@ requires: [capability:matrices]
 
 # Choosing a multivariate operator
 
-Every operator here reads one vector (`vectors`, see `matrix-results`) and answers with a matrix plus vectors and scalars. Pick by the QUESTION, then set the missing-data mode. For distance or similarity, declare the vector's `kind` first (`vector-metrics`).
+Every operator here reads one vector (`matrix-results`) and answers with a matrix, vectors and scalars. Pick by the QUESTION, then set the missing-data mode. For distance or similarity, declare the vector's `kind` first (`vector-metrics`).
 
 ## Which operator answers my question
 
@@ -36,6 +36,7 @@ Every operator here reads one vector (`vectors`, see `matrix-results`) and answe
 <!-- /feature -->
 <!-- feature: MAT_SEM -->
 | Does my CFA / path model fit? | `MAT_SEM` |
+| Does a driver's mean change move the outcome? | `MAT_SEM` `:=` (`sem-defined-parameters`) |
 <!-- /feature -->
 <!-- feature: MAT_COLLINEARITY -->
 | Are candidate predictors too redundant to fit together (VIF, condition index)? | `MAT_COLLINEARITY` |
@@ -81,7 +82,7 @@ Every operator here reads one vector (`vectors`, see `matrix-results`) and answe
 How uncertain are the coefficients of a fitted model, and how do they co-move? That is not a matrix slot: set `"vcov": true` on the regression (`regression-inference`).
 <!-- /feature -->
 
-Rank correlation (`spearman`, `kendall`) suits ordinal data, outliers and monotone curves. It is buffered and serial, takes frequency weights only, and stays off the streaming path. PCA is a variance summary, not a factor model<!-- feature: MAT_FACTOR -->; `MAT_FACTOR` fits one (minres, principal axis or maximum likelihood with fit indices; orthogonal or oblique rotation)<!-- /feature --><!-- feature: MAT_PCA -->; `MAT_PCA` takes an orthogonal `rotation` (varimax, …) for a simpler loading pattern<!-- /feature -->.
+Rank correlation (`spearman`, `kendall`) suits ordinal data, outliers and monotone curves. It is buffered and serial and takes frequency weights only. PCA is a variance summary, not a factor model<!-- feature: MAT_FACTOR -->; `MAT_FACTOR` fits one (minres, principal axis or maximum likelihood with fit indices; orthogonal or oblique rotation)<!-- /feature --><!-- feature: MAT_PCA -->; `MAT_PCA` takes an orthogonal `rotation` (varimax, …) for a simpler loading pattern<!-- /feature -->.
 
 ## Missing data
 
@@ -99,7 +100,7 @@ Frequency weights work everywhere. Probability weights work on the co-moment ope
 
 ## Significance
 
-Correlation (any method) and partial correlation give each pair a raw p and interval under `params.inference` (`op-mat-correlation`, `op-mat-partial-correlation`). Nothing corrects across a matrix's cells: a grid of p = 0.05 cells hides false positives, so read them as screening, not findings.<!-- feature: TEST_HOTELLING_T2 --> To test whether whole mean profiles differ (one sample against a target, paired before / after sets, or two groups with pooled or unequal covariance), run `TEST_HOTELLING_T2` on the same `vector`; it is a test with a p-value.<!-- /feature --><!-- feature: TEST_MANOVA --> Across three or more groups run `TEST_MANOVA` (Pillai's trace headline; Wilks, Hotelling–Lawley and Roy beside it).<!-- /feature --><!-- feature: TEST_BOX_M --> Check their equal-covariance assumption with `TEST_BOX_M`.<!-- /feature --><!-- feature: TEST_BARTLETT_SPHERICITY --> `TEST_BARTLETT_SPHERICITY` is PCA's Bartlett test as a standalone test.<!-- /feature --><!-- feature: TEST_MARDIA --> `TEST_MARDIA` checks the joint normality these tests assume.<!-- /feature -->
+Correlation (any method) and partial correlation give each pair a raw p and interval under `params.inference` (`op-mat-correlation`, `op-mat-partial-correlation`). A grid of p = 0.05 cells hides false positives: read it as screening, not findings.<!-- feature: TEST_HOTELLING_T2 --> To test whether whole mean profiles differ (one sample against a target, paired before / after sets, or two groups with pooled or unequal covariance), run `TEST_HOTELLING_T2` on the same `vector`; it is a test with a p-value.<!-- /feature --><!-- feature: TEST_MANOVA --> Across three or more groups run `TEST_MANOVA` (Pillai's trace headline; Wilks, Hotelling–Lawley and Roy beside it).<!-- /feature --><!-- feature: TEST_BOX_M --> Check their equal-covariance assumption with `TEST_BOX_M`.<!-- /feature --><!-- feature: TEST_BARTLETT_SPHERICITY --> `TEST_BARTLETT_SPHERICITY` is PCA's Bartlett test as a standalone test.<!-- /feature --><!-- feature: TEST_MARDIA --> `TEST_MARDIA` checks the joint normality these tests assume.<!-- /feature -->
 <!-- feature: capability:multiplicity -->
 Per-test correction on other operators: `multiplicity-correction`.
 <!-- /feature -->

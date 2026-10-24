@@ -76,5 +76,6 @@ The same covariance model can report a different `chi2` on the two paths. Compar
 
 - [`op-mat-sem`](op-mat-sem.md)
 - [`sem-bootstrap`](sem-bootstrap.md) — bootstrap standard errors and percentile intervals.
+- [`sem-defined-parameters`](sem-defined-parameters.md) — `:=` indirect and contribution effects.
 - [`multivariate-design`](multivariate-design.md) — which multivariate operator answers which question.
 - [`matrix-results`](matrix-results.md) — the slot, encodings and refusals.

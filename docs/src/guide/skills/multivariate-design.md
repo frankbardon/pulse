@@ -10,7 +10,7 @@ requires: [capability:matrices]
 
 # Choosing a multivariate operator
 
-Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-results.md)) and answers with a matrix plus vectors and scalars. Pick by the QUESTION, then set the missing-data mode. For distance or similarity, declare the vector's `kind` first ([`vector-metrics`](vector-metrics.md)).
+Every operator here reads one vector ([`matrix-results`](matrix-results.md)) and answers with a matrix, vectors and scalars. Pick by the QUESTION, then set the missing-data mode. For distance or similarity, declare the vector's `kind` first ([`vector-metrics`](vector-metrics.md)).
 
 ## Which operator answers my question
 
@@ -23,6 +23,7 @@ Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-r
 | How many dimensions carry the variance; is the battery factorable (KMO, Bartlett)? | `MAT_PCA` |
 | Which hidden qualities do the items reflect (factor analysis, rotation)? | `MAT_FACTOR` |
 | Does my CFA / path model fit? | `MAT_SEM` |
+| Does a driver's mean change move the outcome? | `MAT_SEM` `:=` ([`sem-defined-parameters`](sem-defined-parameters.md)) |
 | Are candidate predictors too redundant to fit together (VIF, condition index)? | `MAT_COLLINEARITY` |
 | Which rows are unusual across the fields as a whole? | `ATTR_MAHALANOBIS` (a row score) |
 | Each row's score on a component (a summary column)? | `ATTR_PC_SCORE` (a row score) |
@@ -39,7 +40,7 @@ Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-r
 
 How uncertain are the coefficients of a fitted model, and how do they co-move? That is not a matrix slot: set `"vcov": true` on the regression ([`regression-inference`](regression-inference.md)).
 
-Rank correlation (`spearman`, `kendall`) suits ordinal data, outliers and monotone curves. It is buffered and serial, takes frequency weights only, and stays off the streaming path. PCA is a variance summary, not a factor model; `MAT_FACTOR` fits one (minres, principal axis or maximum likelihood with fit indices; orthogonal or oblique rotation); `MAT_PCA` takes an orthogonal `rotation` (varimax, …) for a simpler loading pattern.
+Rank correlation (`spearman`, `kendall`) suits ordinal data, outliers and monotone curves. It is buffered and serial and takes frequency weights only. PCA is a variance summary, not a factor model; `MAT_FACTOR` fits one (minres, principal axis or maximum likelihood with fit indices; orthogonal or oblique rotation); `MAT_PCA` takes an orthogonal `rotation` (varimax, …) for a simpler loading pattern.
 
 ## Missing data
 
@@ -55,7 +56,7 @@ Frequency weights work everywhere. Probability weights work on the co-moment ope
 
 ## Significance
 
-Correlation (any method) and partial correlation give each pair a raw p and interval under `params.inference` ([`op-mat-correlation`](op-mat-correlation.md), [`op-mat-partial-correlation`](op-mat-partial-correlation.md)). Nothing corrects across a matrix's cells: a grid of p = 0.05 cells hides false positives, so read them as screening, not findings. To test whether whole mean profiles differ (one sample against a target, paired before / after sets, or two groups with pooled or unequal covariance), run `TEST_HOTELLING_T2` on the same `vector`; it is a test with a p-value. Across three or more groups run `TEST_MANOVA` (Pillai's trace headline; Wilks, Hotelling–Lawley and Roy beside it). Check their equal-covariance assumption with `TEST_BOX_M`. `TEST_BARTLETT_SPHERICITY` is PCA's Bartlett test as a standalone test. `TEST_MARDIA` checks the joint normality these tests assume.
+Correlation (any method) and partial correlation give each pair a raw p and interval under `params.inference` ([`op-mat-correlation`](op-mat-correlation.md), [`op-mat-partial-correlation`](op-mat-partial-correlation.md)). A grid of p = 0.05 cells hides false positives: read it as screening, not findings. To test whether whole mean profiles differ (one sample against a target, paired before / after sets, or two groups with pooled or unequal covariance), run `TEST_HOTELLING_T2` on the same `vector`; it is a test with a p-value. Across three or more groups run `TEST_MANOVA` (Pillai's trace headline; Wilks, Hotelling–Lawley and Roy beside it). Check their equal-covariance assumption with `TEST_BOX_M`. `TEST_BARTLETT_SPHERICITY` is PCA's Bartlett test as a standalone test. `TEST_MARDIA` checks the joint normality these tests assume.
 Per-test correction on other operators: [`multiplicity-correction`](multiplicity-correction.md).
 
 ## Sanity checks

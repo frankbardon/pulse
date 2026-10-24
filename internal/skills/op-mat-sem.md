@@ -43,7 +43,7 @@ examples_tags: [matrix, multivariate]
 
 ## Inputs
 
-Integer / float members: the model's observed variables, by label.
+Numeric members: the model's observed variables, by label.
 
 ## Output
 
@@ -59,11 +59,11 @@ Integer / float members: the model's observed variables, by label.
 
 ## Gotchas
 
-- Unused / non-member variable: `bad_params`.
-- lavaan rules: `sem-modeling`<!-- feature: capability:sem_bootstrap -->; `resample`: `sem-bootstrap`<!-- /feature -->.
+- Unused / non-member: `bad_params`.
+- lavaan rules: `sem-modeling`<!-- feature: capability:sem_defined -->; `:=`: `sem-defined-parameters`<!-- /feature --><!-- feature: capability:sem_bootstrap -->; `resample`: `sem-bootstrap`<!-- /feature -->.
 - S not factoring: `PULSE_MATRIX_NEAREST_PD`; constant member / `refuse`: fatal `PULSE_MATRIX_SINGULAR`.
 
 ## See
 
 - `pulse_examples_search tags=[matrix, multivariate]`
-- Skills: `sem-modeling`, `matrix-results`, `multivariate-design`, `op-mat-factor`, `op-mat-reliability`
+- Skills: `sem-modeling`, `matrix-results`, `multivariate-design`, `op-mat-factor`

@@ -30,7 +30,7 @@ var interpMatSEM = []descriptor.Interpretation{
 	},
 	{
 		Field: "auxiliary.estimates",
-		Means: "The parameter table, one row per semopy inspect row: lval ~ rval is a loading (an indicator on its quality) or a regression path, lval ~~ rval a variance or covariance, and with a mean structure lval ~1 an intercept (a measure) or a latent mean (a quality). estimate is in the variables' own units; std_estimate rescales it so loadings and paths compare across variables; std_err, z_value and p_value test it against zero, and on a lavaan-convention fit ci_lower / ci_upper bound its 95% Wald interval. On a multi-group fit every row is prefixed [level]; a quality's latent mean in a level other than the reference is its mean difference from the reference level, whose latent means are fixed at 0.",
+		Means: "The parameter table, one row per semopy inspect row: lval ~ rval is a loading (an indicator on its quality) or a regression path, lval ~~ rval a variance or covariance, and with a mean structure lval ~1 an intercept (a measure) or a latent mean (a quality). estimate is in the variables' own units; std_estimate rescales it so loadings and paths compare across variables; std_err, z_value and p_value test it against zero, and on a lavaan-convention fit ci_lower / ci_upper bound its Wald interval, 95% by default. params.ci_level sets another level. On a multi-group fit every row is prefixed [level]; a quality's latent mean in a level other than the reference is its mean difference from the reference level, whose latent means are fixed at 0. A name := expr row is a defined parameter, a function of labelled parameters such as an indirect effect or a path times a latent mean change, with a delta-method std_err; under resample bootstrap every free and := row's std_err is the replicates' spread and ci_lower / ci_upper the percentile interval.",
 		Sign: map[string]string{
 			"+": "the left variable rises with the right one; for a latent mean, the level sits above the reference level",
 			"-": "the left variable falls as the right one rises; for a latent mean, the level sits below the reference level",
@@ -39,6 +39,7 @@ var interpMatSEM = []descriptor.Interpretation{
 			"Each quality's first indicator is fixed to 1 to set its scale, so that row has no standard error.",
 			"A variance at 0, or a standardized loading beyond 1, means an improper solution; simplify the model.",
 			"Latent means compare across levels only when the loadings and intercepts are held equal (group_equal loadings, intercepts); without that the qualities need not be measured on the same scale in every level.",
+			"A defined parameter, such as a contribution, differs from zero when its p_value is below alpha and its interval excludes 0; a product or ratio is skewed, so its symmetric delta-method interval can mislead where the bootstrap's percentile interval does not.",
 		},
 	},
 	{

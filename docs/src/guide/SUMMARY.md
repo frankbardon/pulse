@@ -300,6 +300,7 @@
     - [response-components](skills/response-components.md)
     - [response-shaping](skills/response-shaping.md)
     - [sem-bootstrap](skills/sem-bootstrap.md)
+    - [sem-defined-parameters](skills/sem-defined-parameters.md)
     - [sem-modeling](skills/sem-modeling.md)
     - [session-bootstrap](skills/session-bootstrap.md)
     - [session-format-flags](skills/session-format-flags.md)

@@ -17,7 +17,7 @@ Many tests in one answer make a lucky hit likely. Name a `multiplicity` block an
 
 - `method` — `none`, `bonferroni`, `holm` (both family-wise error), `bh`, `by` (false discovery rate; `by` is valid under any dependence). Matches R `p.adjust`.
 - `family` — which p-values are corrected together (below).
-- `alpha` — overlay significance level in (0, 1), default `0.05`. A test reads its own `alpha`, so a test's block refuses `alpha`.
+- `alpha` — overlay significance level in (0, 1), default `0.05`. A test's block refuses `alpha` (it reads its own).
 
 It rides on `Request`, each `tests[]` / `post_tests[]` entry, each `overlays[]` spec<!-- feature: capability:matrices -->, each correlation `matrices[]` spec (implies `params.inference`)<!-- /feature -->, each `regressions[]` spec, the Compose `ComposedRequest` and its overlay specs, and engine-wide as `Options.DefaultMultiplicity`. Each key falls through on its own: slot → request → `ComposedRequest` → engine default → none.
 
@@ -37,10 +37,11 @@ Refused `PULSE_MULTIPLICITY_INVALID` (predict too): `row` / `column` on a non-ma
 
 - Test result: `p_adjusted`, `significant_adjusted` (against the test's own `alpha`) and `multiplicity {method, family, alpha, m, excluded}`; `m` counts the defined p-values corrected.
 - Overlay summary: `p_adjusted` / `significant_adjusted` beside `p_value`.
-- Overlay matrix payload: parallel `payload.p_adjusted` / `payload.significant_adjusted` grids on the same coordinates; a panel cell maps element for element.
+- Overlay matrix payload: parallel `payload.p_adjusted` / `significant_adjusted` grids, same coordinates; a panel cell maps element for element.
 - Pairwise `params.letters`: `above` follows `significant_adjusted` (an explicit `letters.alpha` compares `p_adjusted` instead).
 - Overlay layer: a `multiplicity` echo.
 <!-- feature: capability:matrices -->- Matrix result: `auxiliary.p_adjusted` / `significant_adjusted` (1 / 0) beside `auxiliary.p`, mirrored, diagonal null, plus a `multiplicity` echo. An inherited block reaches only a spec under `params.inference`.<!-- /feature -->
+<!-- feature: MAT_SEM -->- `MAT_SEM`: own block only; every estimates row with a p (`:=` too) joins: `sem-defined-parameters`.<!-- /feature -->
 - Regression result: `p_adjusted` / `significant_adjusted` maps beside `p_values` over its member `coefficients` (default every predictor) + echo; `alpha` as overlays. ONLY its own block opts it in, never inherited.
 - An undefined p (NaN) gives `p_adjusted: null`, no `significant_adjusted`, and is left out of `m`, counted in `excluded` (absent when 0).
 
@@ -50,10 +51,10 @@ Refused `PULSE_MULTIPLICITY_INVALID` (predict too): `row` / `column` on a non-ma
 
 ## Where it runs
 
-- Process: every arm (streaming, crosstab, join, shard, parallel decode).
+- Process: every arm (streaming, crosstab, join, shard, decode).
 - Compose: after all slots finish, serial = parallel; non-compose families stay per slot, `compose` pools all; `--stream` rows carry no corrections; a failed slot errors the batch first.
-- ProcessChain: each stage folds its own request, never across stages; the whole-chain overlays take no block.
-- Facet: each overlay layer on its own.
+- ProcessChain: each stage folds its own, never across stages; whole-chain overlays take no block.
+- Facet: each overlay layer alone.
 - Tests from extensions join families like built-ins.
 <!-- feature: capability:matrices -->- An extension matrix operator joins only if it declares the auxiliary key of its p-values; it then joins under any block (no `params.inference`), and its twins are `<key>_adjusted` / `significant_adjusted`.<!-- /feature -->
 
@@ -66,7 +67,7 @@ Refused `PULSE_MULTIPLICITY_INVALID` (predict too): `row` / `column` on a non-ma
 
 ## Choosing
 
-Few planned tests, any false positive costly: `holm`. Screening many cells or pairs, a few false hits tolerable: `bh`. Oddly dependent hits: `by`. Match the question: `row` for "does any group differ from the others", `layer` for one table, `request` / `compose` for one headline claim over many tests.
+Few planned tests, false positives costly: `holm`. Screening many cells or pairs: `bh`. Odd dependence: `by`. Match the question: `row` for "does any group differ from the rest", `layer` for one table, `request` / `compose` for one claim over many tests.
 
 ## See
 

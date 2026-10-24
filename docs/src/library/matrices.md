@@ -627,6 +627,65 @@ structure, configural, scalar and partial slots across
 one sweep). The fixture plants a wave-2 shift in the value and service
 means, which the scalar step recovers.
 
+**Defined parameters.** A model line `name := expr` is lavaan's
+defined parameter: a function of labelled parameters — an indirect
+effect `ind := a*b`, a total, a ratio, or a driver's contribution to a
+change between groups (`dv := bv*(mv2 - mv1)`, a path times a latent
+mean change). The expression takes labels (every level's label of a
+per-group `c(a1, a2)*x`), numeric constants, `+ - * / ^` with R's
+precedence, parentheses, `sqrt` / `exp` / `log` / `abs` and the names
+of earlier `:=` lines. An unknown label, a forward or self reference, a
+repeated name or bad syntax is `SERVICE_VALIDATION` `defined_invalid`
+(`details.problem`); lavaan's `==` / `<` / `>` lines are
+`constraint_unsupported`. A `:=` line switches a covariance-only model
+to lavaan's conventions. Each definition is a row `"name := expr"` after
+the parameter table (under `group`, after every level, with
+`vectors.group` `null` and `vectors.label` the name): the estimate, a
+delta-method `std_err` √(gᵀVg) from the expression's exact gradient,
+`z_value`, the normal `p_value`, the Wald `ci_lower` / `ci_upper` and
+`std_estimate` over the standardized solution. A value that is not
+finite at the estimate nulls the row and its dependents with
+`PULSE_MATRIX_DEFINED_NONFINITE`. `abs()` is differentiated by its sign
+(exact); lavaan's complex-step jacobian reads that slope as 0, so an
+`abs()` row matches lavaan's estimate but not its SE. A contribution is
+distinguishable from zero when its p is below alpha and its interval
+excludes 0. The rows join a correction only through the spec's OWN
+`multiplicity` block, whose family is every estimates row with a p (the
+free parameters and the `:=` rows): `auxiliary.p_adjusted` /
+`significant_adjusted` beside the raw `p_value`, which never moves.
+Parity: lavaan 0.7.3 within 1e-4 on estimates, SEs and intervals.
+
+**Interval level.** `params.ci_level` (default 0.95, strictly between 0
+and 1) is lavaan's `level`: it sets the Wald `ci_lower` / `ci_upper` of
+every lavaan-convention fit, and the percentile interval of a bootstrap.
+A semopy-convention fit reports no interval, so `ci_level` there is
+`bad_params`.
+
+**Bootstrap.** `params.resample: "bootstrap"` is lavaan's
+`se = "bootstrap"`: `bootstrap_iters` replicates (default 1000), each
+drawing the listwise rows with replacement — within each level under
+`group`, so every replicate keeps each group's n — and refitting the
+model. Over the replicates that refit, every free and `:=` row's
+`std_err` is the replicates' standard deviation, `z_value` = estimate /
+`std_err`, `p_value` its normal p (normal theory over the bootstrap SE,
+as lavaan reports it) and `ci_lower` / `ci_upper` the percentile
+interval at `ci_level`; the estimates and fit statistics stay the full
+data's. `scalars.bootstrap_requested` / `bootstrap_succeeded` echo the
+replicates; fewer than 10 successes fail the slot alone
+(`PULSE_MATRIX_NOT_CONVERGED`, `reason: bootstrap_too_few`). The same
+rows and `rng_seed` give the same bits at any worker or shard count;
+without `rng_seed` (or at 0) the seed is derived from the request and
+the slot's rows, as a regression's `resample` derives it. The slot
+buffers its rows (predict reports the buffered path), any weight is
+`PULSE_WEIGHT_UNSUPPORTED`, `params.fit` cannot bind it, and
+`bootstrap_iters` has no instance limit (`Options.Limits.RequestTimeout`
+stops a long run between replicates).
+
+Runnable: `internal/examples/matrices/17_sem_contribution.json` — each
+driver's contribution to the change in `recommend` between the two
+waves of `brand_survey.pulse`, with delta-method and bootstrap
+intervals.
+
 ## Groups, cost and refusals
 
 With `groups`, a matrix is computed per bucket, in `Response.Data` order

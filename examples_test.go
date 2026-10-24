@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -667,5 +668,89 @@ func TestExamples_SEMInvarianceLadderSweep(t *testing.T) {
 				t.Errorf("scalar: %s = %.4f (SE %.4f) is not distinguishable from zero", key, v, se)
 			}
 		}
+	}
+}
+
+// TestExamples_SEMContributionRecipe runs
+// matrices/17_sem_contribution.json over the brand_survey fixture: the
+// := rows close the table (vectors.group null, vectors.label the name)
+// with a delta-method SE, p and Wald interval; the planted wave-2 shift
+// makes value's contribution negative and service's positive, each
+// distinguishable from zero (p < 0.05, the interval excluding 0); the
+// slot's Holm block adjusts every row with a p, := rows included; and
+// the bootstrap slot keeps the estimates, echoes 200 replicates and
+// replaces the SEs and intervals.
+func TestExamples_SEMContributionRecipe(t *testing.T) {
+	tmp := t.TempDir()
+	osfs := afero.NewOsFs()
+	builder, err := pulse.New(pulse.Options{FS: osfs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	buildExampleFixtures(t, builder, osfs, tmp)
+	p, err := pulse.New(pulse.Options{DataDir: tmp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join("internal", "examples", "matrices", "17_sem_contribution.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var req pulse.Request
+	if err := json.Unmarshal(body, &req); err != nil {
+		t.Fatal(err)
+	}
+	req.Cohort.DataDir = ""
+	resp, err := p.Process(context.Background(), &req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Matrices) != 2 || resp.Matrices[0].Error != nil || resp.Matrices[1].Error != nil {
+		t.Fatalf("matrices %+v", resp.Matrices)
+	}
+	delta, boot := resp.Matrices[0], resp.Matrices[1]
+	est := delta.Auxiliary["estimates"]
+	row := func(name string) (int, []float64) {
+		for i, k := range est.RowKeys {
+			if strings.HasPrefix(k, name+" := ") {
+				return i, est.Values[i]
+			}
+		}
+		t.Fatalf("no %s := row in %v", name, est.RowKeys)
+		return 0, nil
+	}
+	for name, sign := range map[string]float64{"dv": -1, "ds": 1} {
+		i, r := row(name)
+		v, p, lo, hi := r[0], r[4], r[5], r[6]
+		if !(v*sign > 0) || !(p < 0.05) || !(lo*sign > 0 && hi*sign > 0) {
+			t.Errorf("%s = %.4f, p %.3g, interval [%.4f, %.4f]: want a %+g-signed contribution distinguishable from zero", name, v, p, lo, hi, sign)
+		}
+		if g := delta.Vectors["group"].([]any)[i]; g != nil {
+			t.Errorf("%s vectors.group %v, want null", name, g)
+		}
+		if l := delta.Vectors["label"].([]string)[i]; l != name {
+			t.Errorf("%s vectors.label %q", name, l)
+		}
+	}
+	adj := delta.Auxiliary["p_adjusted"]
+	if adj == nil {
+		t.Fatal("no p_adjusted under the slot's Holm block")
+	}
+	var family []float64
+	for _, r := range est.Values {
+		if !math.IsNaN(r[4]) {
+			family = append(family, r[4])
+		}
+	}
+	di, _ := row("dv")
+	if math.IsNaN(adj.Values[di][0]) || !(adj.Values[di][0] >= est.Values[di][4]) || len(family) < 40 {
+		t.Errorf("dv p_adjusted %v vs raw %v over a family of %d", adj.Values[di][0], est.Values[di][4], len(family))
+	}
+	if boot.Scalars["bootstrap_requested"] != 200 || !(boot.Scalars["bootstrap_succeeded"] >= 190) {
+		t.Errorf("bootstrap echoes %v / %v", boot.Scalars["bootstrap_requested"], boot.Scalars["bootstrap_succeeded"])
+	}
+	bv := boot.Auxiliary["estimates"].Values
+	if bv[di][0] != est.Values[di][0] || bv[di][2] == est.Values[di][2] || bv[di][5] == est.Values[di][5] {
+		t.Errorf("bootstrap dv row %v vs delta %v: want the estimate kept, the SE and interval replaced", bv[di], est.Values[di])
 	}
 }

@@ -22,7 +22,7 @@ requires: [MAT_SEM, capability:sem_bootstrap]
 ## Reading the outputs
 
 - `estimate` and `std_estimate` stay the full data's.
-- On every free row and every `:=` row, `std_err` is the replicates' standard deviation. `z_value` = estimate / `std_err`, and `p_value` is its two-sided normal p, as lavaan reports it.
+- On every free row and every `:=` row, `std_err` is the replicates' standard deviation. `z_value` = estimate / `std_err`, and `p_value` is its two-sided normal p, as lavaan reports it: normal theory over the bootstrap SE, not the share of replicates crossing 0 (a regression's `resample` p).
 - `ci_lower` / `ci_upper` are the percentile interval at `ci_level` (default 0.95), lavaan's `boot.ci.type = "perc"`. It need not be symmetric about the estimate: on a skewed effect it is the figure to read, not the p.
 - Fixed rows keep `null` figures.
 - `scalars.bootstrap_requested` is the replicates run, `bootstrap_succeeded` those that refitted. A replicate whose fit fails, stops short of convergence or gives a non-finite figure is skipped; every figure reads the successes only. A large gap means the model is unstable on resampled data.
@@ -39,4 +39,5 @@ requires: [MAT_SEM, capability:sem_bootstrap]
 
 - [`op-mat-sem`](op-mat-sem.md)
 - [`sem-modeling`](sem-modeling.md) — conventions, means and multi-group fits.
+- [`sem-defined-parameters`](sem-defined-parameters.md) — `:=` effects, the contribution recipe.
 - [`multiplicity-correction`](multiplicity-correction.md) — correcting the bootstrap p-values like any other.

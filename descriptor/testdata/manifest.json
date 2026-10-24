@@ -13370,6 +13370,10 @@
         "description": "Bootstrap standard errors, p-values and percentile intervals for a structural equation model — lavaan's se = \"bootstrap\" on MAT_SEM, seeded and reproducible, within-group under a multi-group fit. When to prefer it over the analytic (delta-method) figures, what it costs and how to read the replicate counts."
       },
       {
+        "name": "sem-defined-parameters",
+        "description": "Defined parameters on MAT_SEM — lavaan's name := expr for indirect, total and contribution effects (a path times a latent mean change) with a delta-method or bootstrap interval and a p. The grammar and its refusals, the convention switch, how the rows read, correcting them together, and telling whether an effect differs from zero."
+      },
+      {
         "name": "sem-modeling",
         "description": "Structural equation modelling with MAT_SEM — which convention a fit follows (semopy's covariance-only default or lavaan's) and how to read the outputs. The meanstructure param and the ~ 1 syntax for intercepts and latent means. Multi-group fits and the invariance ladder (group_equal, group_partial, c(...) modifiers)."
       },
@@ -13750,7 +13754,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 252,
+    "examples_count": 253,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -19666,4 +19670,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4b9333655bdbe3c9057fe8c9aa4a22f67433a727ed97b0b1b9d228a5b8ca6685
+// golden-hash: 77d1828e54d2e2f9e6403948073de841e8f78ec1780f4f83c7eeaf52e6b58cea

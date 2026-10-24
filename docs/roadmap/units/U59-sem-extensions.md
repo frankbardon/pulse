@@ -25,16 +25,16 @@ branch: sem-extensions
 This unit extends `MAT_SEM` in four slices, each validated against lavaan (0.7.3; ≈1e-4 relative on estimates and SEs, ≈1e-3 on fit indices). The legacy single-group covariance-only fit stays semopy-parity and byte-identical.
 
 - **M1 (E1, done):** `meanstructure` and `~ 1` intercepts / latent means; a joint multi-group fit over `params.group` with lavaan's `group_equal` / `group_partial`, the `c(...)*x` per-group modifiers, `NA*x` and lavaan's identification. A fit that uses any of them follows lavaan's conventions.
-- **M3 (E2):** `:=` defined parameters with delta-method SEs, and a seeded bootstrap with percentile intervals.
+- **M3 (E2, done):** `:=` defined parameters with delta-method SEs, a seeded bootstrap with percentile intervals, and `ci_level` on every lavaan-convention interval.
 - **M2 (E3):** `ATTR_SEM_SCORE`, the compose `sem` fit kind and saved `*.pulse-sem.json` fits.
 - **M4 (E4):** DWLS / WLSMV with polychoric and polyserial correlations for ordered indicators, and EBM scores.
 
 ## References
 
 - `.claude/reference/matrix-and-vectors.md` (slice `matrix-sem.md`), `update-demand.md` (vectors-and-matrices slice), `feature-profiles.md`, `guided-analysis.md`
-- `internal/skills/op-mat-sem.md`, `sem-modeling.md`, `matrix-results.md`, `multivariate-design.md`
+- `internal/skills/op-mat-sem.md`, `sem-modeling.md`, `sem-defined-parameters.md`, `sem-bootstrap.md`, `multiplicity-correction.md`, `matrix-results.md`, `multivariate-design.md`
 - `docs/src/library/matrices.md` (Structural equation models)
-- Examples: `internal/examples/matrices/16_sem_multigroup.json`, `internal/examples/compose/09_sem_invariance_sweep.json`
+- Examples: `internal/examples/matrices/16_sem_multigroup.json`, `internal/examples/compose/09_sem_invariance_sweep.json`, `internal/examples/matrices/17_sem_contribution.json`, all on the `brand_survey.pulse` fixture (`internal/brandfixture`, the lavaan oracles' rows, with a planted wave-2 latent-mean shift)
 - [Embedder migration: Changes from U59](../v1.0.0-api-and-release/03-embedder-migration.md)
 
 **TODO items delivered** (tick in [`TODO.md`](../TODO.md)):
@@ -44,8 +44,8 @@ This unit extends `MAT_SEM` in four slices, each validated against lavaan (0.7.3
 - [x] **#530** invariance: `group_equal`, `group_partial`, `c(...)*x` / `NA*x`, lavaan identification
 - [x] **#531** predict, manifest and feature-profile parity (`capability:sem_meanstructure`, `capability:sem_groups`)
 - [x] **#532** skills, book page, examples and the invariance-ladder recipe
-- [ ] **#533** `:=` defined parameters with delta-method SEs, joining the multiplicity family
-- [ ] **#534** seeded bootstrap (`resample: "bootstrap"`), percentile CIs, buffered, weight refused
+- [x] **#533** `:=` defined parameters with delta-method SEs, joining the multiplicity family
+- [x] **#534** seeded bootstrap (`resample: "bootstrap"`), percentile CIs, buffered, weight refused; the derived seed and `ci_level` on the Wald interval
 - [ ] **#535** `ATTR_SEM_SCORE` (regression / Bartlett), inline `fit_on` or a bound `fit`
 - [ ] **#536** the compose `sem` fit kind and `*.pulse-sem.json` save / load
 - [ ] **#537** DWLS / WLSMV with thresholds, polychoric and polyserial correlations
@@ -69,7 +69,7 @@ This unit extends `MAT_SEM` in four slices, each validated against lavaan (0.7.3
 
 ### E1 — Analyst compares latent means across groups under invariance constraints (done)
 - S1 single-group mean structure, S2 joint multi-group fit, S3 invariance constraints and latent mean differences, S4 predict / manifest / profile parity, S5 docs, skills, examples and this unit
-### E2 — Analyst gets intervals on derived effects
+### E2 — Analyst gets intervals on derived effects (done)
 - S1 defined parameters with delta-method SEs, S2 seeded bootstrap, S3 contract, docs and example
 ### E3 — Analyst scores latents per row and reuses SEM fits
 - S1 `ATTR_SEM_SCORE` from an inline fit, S2 the compose `sem` fit kind, S3 save and load, S4 contract, docs and example
@@ -81,7 +81,7 @@ This unit extends `MAT_SEM` in four slices, each validated against lavaan (0.7.3
 - [x] ML mean structure and the configural / metric / scalar / partial multi-group fits match lavaan within tolerance; the scalar fit on the brand-survey fixture recovers the wave-2 latent mean shifts within 2 SE
 - [x] Legacy single-group covariance-only output is byte-identical (semopy parity unchanged)
 - [x] The invariance ladder reads from fit indices across fits; a compose sweep over `group_equal` runs it (`compose/09_sem_invariance_sweep.json`)
-- [ ] `:=` contributions get delta-method or bootstrap intervals and p
+- [x] `:=` contributions get delta-method or bootstrap intervals and p (`matrices/17_sem_contribution.json`, `TestExamples_SEMContributionRecipe`)
 - [ ] SEM latent scores are usable downstream; scoring a saved fit is bit-equal to scoring the in-compose fit
 - [ ] DWLS / WLSMV matches lavaan, and the docs say when to prefer it over ML
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
@@ -89,18 +89,20 @@ This unit extends `MAT_SEM` in four slices, each validated against lavaan (0.7.3
 ## Gates & tests
 
 - `TestPayloadSchemaGolden`, `TestPublicAPIGolden`, `TestManifest*Complete`, `TestSkillTokenBudget`, `TestSkillsCoverFeatureFences`, `TestSkillParamsMatchManifest`, `TestEveryOperatorHasAnExampleTag`, `TestDocsGeneratedCurrent`
-- M1: `TestSEM_MeanStructureMatchesLavaan`, `TestSEM_MultiGroupMatchesLavaan`, `TestSEM_ScalarLatentMeansRecoverTruth`, `TestSEM_LegacyConventionsUnchanged`, `TestSEM_InvarianceComposeSweep`, `TestSEM_HiddenSurfaces*`, `TestSEM_PredictGroupLevels`, `TestExamples_SEMInvarianceLadderSweep`
+- M1: `TestSEM_MeanStructureMatchesLavaan`, `TestSEM_MultiGroupMatchesLavaan`, `TestSEM_ScalarLatentMeansRecoverTruth`, `TestSEM_LegacyConventionsUnchanged`, `TestSEM_InvarianceComposeSweep`, `TestSEM_HiddenSurfaces*`, `TestSEM_PredictGroupLevels`, `TestExamples_SEMInvarianceLadderSweep` (now on `brand_survey.pulse`: the scalar step recovers the planted shift)
+- M3: `TestSEM_DefinedMatchesLavaan`, `TestSEM_DefinedMultiGroupMatchesLavaan`, `TestSEM_Bootstrap*` (incl. `TestSEM_BootstrapDerivedSeed`), `TestSEM_WaldLevelMatchesLavaan`, `TestSEM_CILevelWald`, `TestRegOLS_Bootstrap_DerivedSeedStream`, `TestBrandFixture_ExamplesCohortIsTheOracleRows`, `TestExamples_SEMContributionRecipe`
 
 ## Update Demand companions
 
-- Skills: `op-mat-sem`, `sem-modeling` (new, M1), `matrix-results`
-- Features: `capability:sem_meanstructure`, `capability:sem_groups` (`internal/descriptor/features.go`)
+- Skills: `op-mat-sem`, `sem-modeling` (new, M1), `sem-bootstrap` and `sem-defined-parameters` (new, M3), `multiplicity-correction`, `multivariate-design`, `matrix-results`
+- Features: `capability:sem_meanstructure`, `capability:sem_groups`, `capability:sem_defined`, `capability:sem_bootstrap` (`internal/descriptor/features.go`)
+- Error code: `PULSE_MATRIX_DEFINED_NONFINITE`
 - Goldens regenerated with `-update` (manifest, payload schema, public API); `format_version` stays `"1.1"`
 - [Embedder migration](../v1.0.0-api-and-release/03-embedder-migration.md) (Changes from U59)
 
 ## Handed on to later work
 
-None from M1. Later epics add their hand-ons here.
+None from M1 or M3. `bootstrap_iters` stays without an `Options.Limits` cap, matching a regression's `resample` (owner decision, E2-S3); a cap for both is a new limit, not a SEM change. Later epics add their hand-ons here.
 
 ## Human inputs & decisions
 
