@@ -4968,6 +4968,15 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_SEM_SCORE_LEVEL_UNSEEN: {
+		Message: "Warning-class — an ATTR_SEM_SCORE slot with params.group scored rows whose group level holds no fit rows (params.fit_on left them out, or no filtered row of that level reached the fit), so the joint multi-group fit has no parameters to score them with: their scores are null, counted in details.rows per level (details.levels), and every other row is scored with its own group's parameters. details.fit_levels lists the levels the fit holds.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Widen params.fit_on (or the request filters) so every level you need scored reaches the fit, or filter the unseen levels' rows out of the request when they should not be scored.",
+			},
+		},
+	},
 	PULSE_FIT_UNAVAILABLE: {
 		Message: "Warning-class — an attribute slot reads a Compose fit that failed on its data (its `fits` entry carries `error`): scoring it, a formula naming it in a literal coef() call, a fitted vector attribute's params.fit or a {population} reference. No model is bound under that name, so the slot's column is null on every row (aggregations over it count the rows in n_null) and every other slot of the response is computed normally. Details carry `fit` (the fit's name), `attribute` (the reading slot's label) and `code` (the fit's own error code). Under Options.Strict the failed fit fails the whole batch with its own code before any slot runs.",
 		Fixups: []Fixup{

@@ -19,6 +19,7 @@ The attributes this instance offers: what each is for, the questions it answers 
 | [`ATTR_REG_PREDICT`](#op-attr_reg_predict) | Adds to every row the value a model fitted once, elsewhere in the request, predicts for it from the row's own predictor values. | How close are the model's predictions on weeks it was not fitted to (a holdout)? | advanced | [`ATTR_REG_FITTED`](#op-attr_reg_fitted) when the model should be fitted to these same rows inside the slot.<br>[`REG_OLS`](regression.md#op-reg_ols) when you want the coefficients, their standard errors and p-values. |
 | [`ATTR_REG_RESIDUAL`](#op-attr_reg_residual) | Adds to every row its residual: the actual target value minus the value a straight-line model predicts for it. | Which stores sell far more or less than their size and footfall predict? | advanced | [`REG_OLS`](regression.md#op-reg_ols) when you want the model's summary (coefficients, R-squared).<br>[`ATTR_REG_LEVERAGE`](#op-attr_reg_leverage) when you want how unusual each row's predictor values are.<br>[`ATTR_ZSCORE`](#op-attr_zscore) when you want how far a value is from the mean, with no model. |
 | [`ATTR_SCALE_SCORE`](#op-attr_scale_score) | Adds to every row its score on a rating battery: the average of its answered items or a prorated total, reverse-worded items flipped. | What is each respondent's satisfaction score across the five satisfaction items, counting only people who answered at least four? | intermediate | [`MAT_RELIABILITY`](matrix.md#op-mat_reliability) when you want how consistently the items measure one thing.<br>[`ATTR_FACTOR_SCORE`](#op-attr_factor_score) when the items should be weighted by how much each reflects a common trait.<br>[`ATTR_FORMULA`](#op-attr_formula) when you want an arbitrary formula of the items. |
+| [`ATTR_SEM_SCORE`](#op-attr_sem_score) | Adds to every row its score on one hidden quality of a structural equation model you write, estimated from the measures it drives. | What is each respondent's perceived-value score under our brand model, to crosstab it by segment? | advanced | [`ATTR_FACTOR_SCORE`](#op-attr_factor_score) when you do not yet know which measures belong to which quality.<br>[`MAT_SEM`](matrix.md#op-mat_sem) when you want the model's fit, paths and latent means rather than per-row scores.<br>[`ATTR_SCALE_SCORE`](#op-attr_scale_score) when every item counts equally and you want a plain battery average. |
 | [`ATTR_SET_HAS`](#op-attr_set_has) | Adds a 1 / 0 column saying whether each row's multi-select field includes one named option. | Which respondents ticked 'price' among their reasons, as a column to cross with other answers? | basic | [`FILTER_SET_CONTAINS_ANY`](filterer.md#op-filter_set_contains_any) when you want to keep only rows that include any of several options.<br>[`AGG_SET_FREQUENCY`](aggregator.md#op-agg_set_frequency) when you want how often each option was chosen. |
 | [`ATTR_SET_POPCOUNT`](#op-attr_set_popcount) | Adds to every row the number of options its multi-select field has selected. | How many reasons did each respondent tick? | basic | [`AGG_SET_CARDINALITY_AVG`](aggregator.md#op-agg_set_cardinality_avg) when you want the average number of selections per group.<br>[`ATTR_SET_HAS`](#op-attr_set_has) when you want whether one particular option was chosen. |
 | [`ATTR_TSCORE`](#op-attr_tscore) | Adds to every row its T-score: the z-score rescaled so the mean is 50 and one standard deviation is 10. | How does each candidate's test result compare with the group, on a 50-centred scale? | intermediate | [`ATTR_ZSCORE`](#op-attr_zscore) when you want plain standard-deviation units centred on 0.<br>[`ATTR_PERCENTILE`](#op-attr_percentile) when you want each row's percentile rank (the share at or below it when values are untied). |
@@ -559,6 +560,44 @@ Adds to every row its score on a rating battery: the average of its answered ite
 **Glossary:** [`mean`](../glossary.md#term-mean), [`missing-value`](../glossary.md#term-missing-value), [`reliability`](../glossary.md#term-reliability)
 
 **Skill:** [`op-attr-scale-score`](../skills/op-attr-scale-score.md)
+
+<a id="op-attr_sem_score"></a>
+
+### `ATTR_SEM_SCORE`
+
+Adds to every row its score on one hidden quality of a structural equation model you write, estimated from the measures it drives.
+
+**Level:** advanced
+
+**Also known as:** `sem factor score`, `latent variable score`, `lavPredict`, `sem score`
+
+**Questions it answers:**
+
+- What is each respondent's perceived-value score under our brand model, to crosstab it by segment?
+- Can every row carry its service-quality score, with each survey wave scored by its own wave's fit, to track the shift?
+
+**Use cases by domain:**
+
+- *survey:* Score each respondent on the qualities a confirmed brand model measures, then compare waves or segments on the scores.
+- *science:* Estimate each subject's standing on a latent construct of a fitted measurement model for a later analysis.
+
+**Assumptions:**
+
+- The model is MAT_SEM's with the same settings, fitted once over every row that passed the filters (or the subset fit_on selects), never per request group; every filtered row is scored.
+- With a group field each row is scored with its own group's fit; a group without fitted rows gets no score, with a warning.
+- With a mean structure (or a group) the scores sit on the latent-mean scale, so group averages compare; without one they are centred at the fitted rows.
+- A row missing any of the measures is left out of the fit and gets no score (listwise deletion).
+- A fit that fails (too few rows, a redundant measure under singular refuse, a model with more parameters than moments) leaves every score empty, with a warning.
+
+**Use something else:**
+
+- [`ATTR_FACTOR_SCORE`](#op-attr_factor_score) when you do not yet know which measures belong to which quality.
+- [`MAT_SEM`](matrix.md#op-mat_sem) when you want the model's fit, paths and latent means rather than per-row scores.
+- [`ATTR_SCALE_SCORE`](#op-attr_scale_score) when every item counts equally and you want a plain battery average.
+
+**Glossary:** [`factor`](../glossary.md#term-factor), [`loading`](../glossary.md#term-loading), [`listwise-deletion`](../glossary.md#term-listwise-deletion)
+
+**Skill:** [`op-attr-sem-score`](../skills/op-attr-sem-score.md)
 
 <a id="op-attr_set_has"></a>
 

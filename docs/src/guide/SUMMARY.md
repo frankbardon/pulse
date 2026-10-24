@@ -122,6 +122,7 @@
     - [op-attr-reg-predict](skills/op-attr-reg-predict.md)
     - [op-attr-reg-residual](skills/op-attr-reg-residual.md)
     - [op-attr-scale-score](skills/op-attr-scale-score.md)
+    - [op-attr-sem-score](skills/op-attr-sem-score.md)
     - [op-attr-set-has](skills/op-attr-set-has.md)
     - [op-attr-set-popcount](skills/op-attr-set-popcount.md)
     - [op-attr-tscore](skills/op-attr-tscore.md)

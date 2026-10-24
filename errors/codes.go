@@ -3920,6 +3920,15 @@ const (
 	// its own code.
 	PULSE_FIT_UNAVAILABLE Code = "PULSE_FIT_UNAVAILABLE"
 
+	// PULSE_SEM_SCORE_LEVEL_UNSEEN is a WARNING: an ATTR_SEM_SCORE slot
+	// with params.group scored rows whose group level holds no fit rows
+	// (fit_on excluded them, or no filtered row reached it), so the
+	// joint fit has no parameters for that level; those rows score
+	// null. details: attribute, type, group, levels (the unseen level
+	// labels, in level order), rows (their row counts, aligned) and
+	// fit_levels (the levels the fit holds).
+	PULSE_SEM_SCORE_LEVEL_UNSEEN Code = "PULSE_SEM_SCORE_LEVEL_UNSEEN"
+
 	// PULSE_AUC_DELONG_WEIGHTED is a NOTE, never an error or a
 	// warning: it rides an AGG_AUC slot's components as `se_note` when
 	// the slot is weighted, beside a `se` / `ci_lower` / `ci_upper` that
@@ -4585,6 +4594,7 @@ var allCodes = []Code{
 	PULSE_RETURN_PATH_UNMATCHED,
 	PULSE_SLOT_FAILED,
 	PULSE_FIT_UNAVAILABLE,
+	PULSE_SEM_SCORE_LEVEL_UNSEEN,
 	PULSE_AUC_DELONG_WEIGHTED,
 	PULSE_LIMIT_INVALID,
 	PULSE_LIMIT_EXCEEDED,

@@ -45,3 +45,15 @@ fit brand brand_def TRUE brand_def_l90 "" "" "" 0.90
 boot() { Rscript "$here/fit_lavaan_boot.R" "$here/$1_data.csv" "$here/$2_model.txt" "$3" "${5:-}" "${6:-}" 1000 20261024 > "$here/$4_lavaan.json"; }
 boot brand brand_def TRUE brand_boot_def
 boot brand brand_mgdef TRUE brand_boot_mg wave loadings,intercepts
+# lavaan's factor scores (lavPredict regression / Bartlett): the
+# ATTR_SEM_SCORE oracle — a single-group mean structure, the same model
+# under scalar invariance across the waves, an observed covariate with
+# a free latent mean (lavaan's phantom latents), an indicator with an
+# outgoing arrow, and a second-order factor (predict_lavaan.R; every
+# 4th row recorded)
+score() { Rscript "$here/predict_lavaan.R" "$here/$1_data.csv" "$here/$2_model.txt" "$3" "${5:-}" "${6:-}" > "$here/$4_lavaan.json"; }
+score brand brand_ms TRUE brand_score_ms
+score brand brand_ms TRUE brand_score_mg wave loadings,intercepts
+score brand brand_mx TRUE brand_score_mx
+score brand brand_xind TRUE brand_score_xind
+score brand brand_ho TRUE brand_score_ho

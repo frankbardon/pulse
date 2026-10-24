@@ -193,14 +193,26 @@ var builtinParamsAllowlist = sync.OnceValue(func() map[paramread.Key]ParamsDecl 
 
 // instanceBuiltinDecl is built-in k's allowlist d on inst: a MAT_SEM
 // params surface the instance hides (vectors.SEMFeatureParams: the
-// mean structure, the multi-group fit) is no key at all — refused, and
-// absent from valid_keys, exactly as a key MAT_SEM never read. d itself
+// mean structure, the multi-group fit — on MAT_SEM and on
+// ATTR_SEM_SCORE's inline fit, vectors.SEMScoreFeatureParams) is no key
+// at all — refused, and absent from valid_keys, exactly as a key the
+// operator never read. d itself
 // is never mutated (the built-in table is shared).
 func instanceBuiltinDecl(k paramread.Key, d ParamsDecl, inst *InstanceSnapshot) ParamsDecl {
-	if k.Category != paramread.Matrix || k.Op != string(types.MAT_SEM) || !inst.Scoped() {
+	if !inst.Scoped() {
 		return d
 	}
-	for feat, keys := range vectors.SEMFeatureParams() {
+	var owned map[string][]string
+	switch {
+	case k.Category == paramread.Matrix && k.Op == string(types.MAT_SEM):
+		owned = vectors.SEMFeatureParams()
+	case k.Category == paramread.Attribute && k.Op == string(types.ATTR_SEM_SCORE):
+		// ATTR_SEM_SCORE's inline fit reads the same MAT_SEM surfaces.
+		owned = vectors.SEMScoreFeatureParams()
+	default:
+		return d
+	}
+	for feat, keys := range owned {
 		if inst.Hidden(feat) {
 			d.Keys = slices.DeleteFunc(slices.Clone(d.Keys), func(k string) bool { return slices.Contains(keys, k) })
 		}

@@ -351,6 +351,7 @@ var builtinFeatures = withDependencies([]Feature{
 	op("ATTR_REG_PREDICT"),
 	op("ATTR_REG_RESIDUAL"),
 	op("ATTR_SCALE_SCORE"),
+	op("ATTR_SEM_SCORE"),
 	op("ATTR_SET_HAS"),
 	op("ATTR_SET_POPCOUNT"),
 	op("ATTR_TSCORE"),
@@ -774,11 +775,11 @@ var overlayHostKinds = map[string][]string{
 //     would break FilterToFile for nearly any request.
 //   - every MAT_* operator rides the Request.Matrices slot, which
 //     capability:matrices gates.
-//   - capability:sem_meanstructure is a MAT_SEM params surface (and
-//     capability:sem_groups, a groupEdges row, also needs it: a
-//     multi-group fit always models the means); capability:sem_defined
-//     is MAT_SEM model syntax, capability:sem_bootstrap a MAT_SEM
-//     params surface.
+//   - capability:sem_meanstructure is a params surface of any inline
+//     SEM fit, MAT_SEM's or ATTR_SEM_SCORE's (and capability:sem_groups,
+//     a groupEdges row, also needs it: a multi-group fit always models
+//     the means); capability:sem_defined is the same fits' model
+//     syntax, capability:sem_bootstrap a MAT_SEM params surface.
 //   - capability:model_save writes a fitted regression or a vector
 //     fit, so it needs any-of the REG_* operators, the fitted vector
 //     attributes and capability:matrices.
@@ -816,9 +817,10 @@ var hardEdges = map[string][]string{
 	"ATTR_REG_RESIDUAL": {"REG_OLS"},
 	"OVERLAY_YOY":       {"GROUP_DATE"},
 	featFilterToFile:    {"FILTER_EXPRESSION"},
-	// MAT_SEM's mean structure is a MAT_SEM params surface.
-	featSEMMeans:              {string(types.MAT_SEM)},
-	featSEMDefined:            {string(types.MAT_SEM)},
+	// MAT_SEM's mean structure and defined parameters are params / model
+	// surfaces of every inline SEM fit: MAT_SEM's and ATTR_SEM_SCORE's.
+	featSEMMeans:              {string(types.ATTR_SEM_SCORE), string(types.MAT_SEM)},
+	featSEMDefined:            {string(types.ATTR_SEM_SCORE), string(types.MAT_SEM)},
 	featSEMBootstrap:          {string(types.MAT_SEM)},
 	"MAT_COLLINEARITY":        {featMatrices},
 	"MAT_CORRELATION":         {featMatrices},
@@ -895,8 +897,9 @@ var groupEdges = map[string][][]string{
 	// Compose there is nothing to expand into, without the crosstab host
 	// there is no table to stitch.
 	featComposeBanner: {{featCompose}, {featCrosstab}},
-	// A multi-group fit is a MAT_SEM fit that always models the means.
-	featSEMGroups: {{string(types.MAT_SEM)}, {featSEMMeans}},
+	// A multi-group fit is an inline SEM fit (MAT_SEM's or
+	// ATTR_SEM_SCORE's) that always models the means.
+	featSEMGroups: {{string(types.ATTR_SEM_SCORE), string(types.MAT_SEM)}, {featSEMMeans}},
 	featComposeFits: {
 		{featCompose},
 		{string(types.ATTR_FACTOR_SCORE), string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),

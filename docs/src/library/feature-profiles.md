@@ -179,9 +179,9 @@ one name in every group must be enabled:
 | `capability:model_save` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_OLS`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE` or `capability:matrices` (any one; a `save` writes a fitted regression as a model file or a vector fit as a population file) |
 | `capability:regression_holdout` | `REG_BAYES_LINEAR`, `REG_GLM` or `REG_OLS` (any one; a regression `holdout` scores that slot's fit) |
 | `capability:params` | `ATTR_FORMULA`, `FILTER_EXPRESSION`, `OVERLAY_FORMULA` or `capability:regression_holdout` (any one; a request `params` value is read only by an expression) |
-| `capability:sem_meanstructure` | `MAT_SEM` (its `meanstructure` param and `~ 1` model lines) |
-| `capability:sem_groups` | `MAT_SEM` and `capability:sem_meanstructure` (both; a multi-group fit always models the means) |
-| `capability:sem_defined` | `MAT_SEM` (its `name := expr` defined-parameter model lines) |
+| `capability:sem_meanstructure` | `MAT_SEM` or `ATTR_SEM_SCORE` (any one; their `meanstructure` param and `~ 1` model lines) |
+| `capability:sem_groups` | `MAT_SEM` or `ATTR_SEM_SCORE`, and `capability:sem_meanstructure` (a multi-group fit always models the means) |
+| `capability:sem_defined` | `MAT_SEM` or `ATTR_SEM_SCORE` (any one; their `name := expr` defined-parameter model lines) |
 | `capability:sem_bootstrap` | `MAT_SEM` (its `resample`, `bootstrap_iters`, `rng_seed` and `ci_level` params) |
 | `capability:models` | `ATTR_REG_PREDICT`, `ATTR_REG_FITTED`, `ATTR_REG_RESIDUAL`, `ATTR_FORMULA`, `FILTER_EXPRESSION`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`, `ATTR_VEC_DISTANCE` or `capability:matrices` (any one; a loaded model is read only by a scoring reference, a loaded population — the `populations` key, which this capability also gates — only by a `params.fit`) |
 

@@ -471,12 +471,100 @@
             "why": "Then fit the model on the new cohort, reading pc_score as a predictor."
           }
         ]
+      },
+      {
+        "operator": "ATTR_SEM_SCORE",
+        "category": "attribute",
+        "level": "advanced",
+        "why": "Adds to every row its score on one hidden quality of a structural equation model you write, estimated from the measures it drives. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "attributes": [
+            {
+              "fields": [
+                "\u003cfields\u003e"
+              ],
+              "type": "ATTR_SEM_SCORE"
+            }
+          ],
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          }
+        },
+        "placeholders": [
+          "cohort",
+          "fields"
+        ],
+        "alternatives": [
+          {
+            "when": "you do not yet know which measures belong to which quality",
+            "use": "ATTR_FACTOR_SCORE"
+          },
+          {
+            "when": "you want the model's fit, paths and latent means rather than per-row scores",
+            "use": "MAT_SEM"
+          },
+          {
+            "when": "every item counts equally and you want a plain battery average",
+            "use": "ATTR_SCALE_SCORE"
+          }
+        ],
+        "steps": [
+          {
+            "tool": "pulse_materialize",
+            "request": {
+              "out": "\u003cout\u003e",
+              "request": {
+                "attributes": [
+                  {
+                    "fields": [
+                      "\u003cfields\u003e"
+                    ],
+                    "label": "sem_score",
+                    "type": "ATTR_SEM_SCORE"
+                  }
+                ],
+                "cohort": {
+                  "filename": "\u003ccohort\u003e"
+                }
+              }
+            },
+            "placeholders": [
+              "cohort",
+              "fields",
+              "out"
+            ],
+            "why": "A model cannot read a column its own request derives, so write the sem_score column to a new cohort first."
+          },
+          {
+            "tool": "pulse_process",
+            "request": {
+              "cohort": {
+                "filename": "\u003cout\u003e"
+              },
+              "regressions": [
+                {
+                  "predictors": [
+                    "sem_score"
+                  ],
+                  "target": "\u003ctarget\u003e",
+                  "type": "REG_OLS"
+                }
+              ]
+            },
+            "placeholders": [
+              "out",
+              "target"
+            ],
+            "why": "Then fit the model on the new cohort, reading sem_score as a predictor."
+          }
+        ]
       }
     ],
     "truncated": false,
-    "candidates_considered": 8
+    "candidates_considered": 9
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 53955e92b357399d0ea45bf5baa892d500e484b3b467fac3c7186fbba45a239a
+// golden-hash: fa2c37b43cbf2d0ff20d9dee746868994faa39624c13d9eeae391d45ca489eaf

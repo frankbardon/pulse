@@ -477,6 +477,23 @@ Actual minus predicted: the row's target value minus the value the straight-line
 - A row missing the target or any predictor gets null, never 0.
 - With a penalty (l1, l2, elasticnet) the coefficients are deliberately shrunk toward 0, so fitted values sit closer to the target's mean and the residuals are larger overall (their sum of squares rises) than an unpenalized fit's, though a single row's can go either way; use no penalty for diagnostics.
 
+<a id="op-attr_sem_score"></a>
+
+### `ATTR_SEM_SCORE`
+
+Adds to every row its score on one hidden quality of a structural equation model you write, estimated from the measures it drives. See its [catalog entry](../catalog/attribute.md#op-attr_sem_score).
+
+#### `value`
+
+The row's estimated score on the chosen latent quality, in the units of its first (marker) measure: higher is toward the end where that measure is high; with a mean structure 0 is the reference group's average.
+
+**Caveats:**
+
+- A score is an estimate, not the quality itself: regression scores are shrunk toward the group's mean, Bartlett scores are unbiased but noisier.
+- Group averages of the scores track the model's latent means only as far as the equality constraints you set make the measures comparable across groups.
+- The fit is over every filtered row (or the fit_on subset), never the request's groups. A frequency weight counts each row that many times in the fit; every row is still scored once.
+- A row missing any measure or its group reads null, and every row reads null, with a warning, when the fit cannot score.
+
 <a id="op-attr_tscore"></a>
 
 ### `ATTR_TSCORE`

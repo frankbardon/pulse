@@ -308,6 +308,7 @@ func FitGroups(model *Model, groups []GroupMoments, opt Options) (*GroupFit, err
 			Status: status, Options: opt, Sample: gm.S, Implied: sg, theta: append([]float64(nil), xg...),
 			SampleMean: st.ybar, ImpliedMean: st.mu(mm)}
 		fit.Estimates = st.estimates(xg, seg, sg, c, opt.waldCrit())
+		fit.params = st.snapshot(st.ybar)
 		gf.Groups = append(gf.Groups, fit)
 		gf.Labels = append(gf.Labels, gm.Label)
 		gf.Chi2Group = append(gf.Chi2Group, gm.N*fit.Objective)

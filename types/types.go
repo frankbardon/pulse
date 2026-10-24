@@ -446,6 +446,20 @@ const (
 	// score null).
 	ATTR_FACTOR_SCORE AttributeType = "ATTR_FACTOR_SCORE"
 
+	// ATTR_SEM_SCORE emits each row's score on one latent variable
+	// (params.latent) of a structural equation model fitted inline on
+	// the fit rows — MAT_SEM's fit and knobs (params.model,
+	// meanstructure, group, group_equal, …) over the p members of
+	// Vector / Fields matched by label — scored by params.method
+	// "regression" (the default) or "bartlett" (lavaan's lavPredict).
+	// With a mean structure the scores sit on the latent-mean scale;
+	// without one they are centered at the fit rows. Under params.group
+	// a row is scored with its own group's parameters (an unseen level
+	// or a null group scores null). Two-pass with the fitted-attribute
+	// rules (fit_on, listwise, null member → null, a fit that fails →
+	// every score null).
+	ATTR_SEM_SCORE AttributeType = "ATTR_SEM_SCORE"
+
 	// ATTR_SCALE_SCORE emits each row's rating-battery score across the
 	// p members of Vector / Fields: the mean of the row's valid items
 	// (params.stat "mean", the default) or the PRORATED sum, that mean ×
@@ -519,6 +533,7 @@ func AllAttributeTypes() []AttributeType {
 		ATTR_REG_PREDICT,
 		ATTR_REG_RESIDUAL,
 		ATTR_SCALE_SCORE,
+		ATTR_SEM_SCORE,
 		ATTR_SET_HAS,
 		ATTR_SET_POPCOUNT,
 		ATTR_TSCORE,

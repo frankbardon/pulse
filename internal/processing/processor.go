@@ -351,7 +351,7 @@ func CanMergeRequestWithExtensions(req *types.Request, schema *encoding.Schema, 
 // attribute_fitted.go: ZSCORE/TSCORE/NORMALIZED need population stats;
 // ATTR_REG_FITTED/RESIDUAL/LEVERAGE need a finalize-time regression fit;
 // the fitted vector attributes (MAHALANOBIS, PC_SCORE, FACTOR_SCORE) a finalize-time co-moment
-// fit; FORMULA/DATE_PART are pure row-local. ATTR_VEC_DISTANCE and
+// fit; SEM_SCORE a finalize-time SEM fit of its (per-level) co-moments; FORMULA/DATE_PART are pure row-local. ATTR_VEC_DISTANCE and
 // ATTR_PROFILE_SIMILARITY are two-pass per slot (a fitted metric or a
 // centroid reference: vectors.ComparisonTwoPass, read by
 // attrRequiresTwoPass), never by type, and a fitted
@@ -361,7 +361,8 @@ func requiresTwoPass(t types.AttributeType) bool {
 	switch t {
 	case types.ATTR_ZSCORE, types.ATTR_TSCORE, types.ATTR_NORMALIZED,
 		types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE,
-		types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE, types.ATTR_FACTOR_SCORE:
+		types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE, types.ATTR_FACTOR_SCORE,
+		types.ATTR_SEM_SCORE:
 		return true
 	}
 	return false

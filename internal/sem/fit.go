@@ -164,6 +164,8 @@ type Fit struct {
 	Defined []Estimate
 	Stats   Stats
 	theta   []float64
+	// params are the matrices at the estimate (Params).
+	params *Params
 }
 
 // state holds the model matrices at a parameter vector.
@@ -896,6 +898,7 @@ func fitCov(m *Model, s, raw *mat.SymDense, mean []float64, n float64, opt Optio
 	if m.MeanStructure {
 		fit.SampleMean, fit.ImpliedMean = st.ybar, st.mu(mm)
 	}
+	fit.params = st.snapshot(st.ybar)
 	se, vcov, err := st.standardErrors(x, n)
 	if err != nil {
 		return nil, err

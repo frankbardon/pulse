@@ -773,6 +773,13 @@ func ResolveAttributeInputs(req *types.Request, schema *encoding.Schema, exts *E
 				cp.Params = params
 			}
 		}
+		if cp.Type == types.ATTR_SEM_SCORE && !exts.isHidden(string(cp.Type)) {
+			// The model names its members by label, which the
+			// literal-member rewrite would lose: write them out.
+			if params, ok := vectors.SEMScoreSlotParams(a, inputs[i].Members); ok {
+				cp.Params = params
+			}
+		}
 		if vectors.IsComparisonAttribute(cp.Type) && !exts.isHidden(string(cp.Type)) {
 			// The literal members lose the vector's labels and kind:
 			// hand the factory canonical params (the metric written out,

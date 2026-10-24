@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:55e6c61e5ee48d2e190af161c05d8dbdc13f78cfc5fae21fe0146c4091d0d27a",
+    "feature_set_digest": "fs1:532f1426ad79f926d20bddb48bf1042911f925eab250075167fc5bda4ca68c3f",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -4314,6 +4314,178 @@
             ],
             "mergeability": "mergeable"
           },
+          "intents": [
+            "measure_construct",
+            "prepare"
+          ]
+        },
+        {
+          "name": "ATTR_SEM_SCORE",
+          "category": "attribute",
+          "description": "Per-row score on one latent variable (params.latent) of a structural equation model fitted inline on the fit rows: MAT_SEM's fit and knobs over the p members of vector / fields (exactly one; listwise), matched to the model's observed variables by label, scored as lavaan's lavPredict — regression (the default: E(latent | row), every observed variable informing it) or Bartlett (generalized least squares on the measures, a higher-order factor through the first-order loadings). With a mean structure (params.meanstructure, a ~ 1 line, or params.group) the scores sit on the latent-mean scale; without one they are centered at the fit rows. Under params.group the fit is MAT_SEM's joint multi-group fit and each row is scored with its own group's parameters; a level without fit rows scores null with PULSE_SEM_SCORE_LEVEL_UNSEEN, a null group scores null. Every filtered row is scored; a null member scores null; a fit with too few rows, a singular covariance under singular refuse, negative degrees of freedom or an undefined fit nulls every score with a warning; a solver stop short of its tolerance or the nearest positive-definite substitute scores with a warning. Frequency weights only (N = the sum of weights); two-pass.",
+          "params": [
+            {
+              "name": "latent",
+              "type": "string",
+              "required": false,
+              "description": "The latent variable to score: a left side of an =~ line of params.model (a higher-order factor included). Required unless the model has exactly one latent."
+            },
+            {
+              "name": "method",
+              "type": "enum",
+              "required": false,
+              "default": "regression",
+              "description": "regression: lavaan's regression (Thurstone) scores, E(latent | row) = E(latent) + Cov(latent, y) Sigma^-1 (y - mu) — shrunk toward the latent mean, the most accurate per row. bartlett: lavaan's Bartlett scores, (L' Sigma^-1 L)^-1 L' Sigma^-1 (y - mu) over the measurement loadings (an observed variable of a ~ line is its own column, so it informs no latent) — unbiased for the latent, noisier.",
+              "enum_values": [
+                "regression",
+                "bartlett"
+              ]
+            },
+            {
+              "name": "model",
+              "type": "string",
+              "required": false,
+              "description": "MAT_SEM's params.model: the model description over the members (by label). Absent: one factor F1 over every member."
+            },
+            {
+              "name": "meanstructure",
+              "type": "bool",
+              "required": false,
+              "default": false,
+              "description": "MAT_SEM's params.meanstructure: model the means too, so the scores sit on the latent-mean scale (lavaan conventions)."
+            },
+            {
+              "name": "group",
+              "type": "string",
+              "required": false,
+              "description": "MAT_SEM's params.group: a categorical, packed_bool or u4 / u8 field (not a member) whose levels are the groups of one joint multi-group fit; each row is scored with its own group's parameters. Implies the mean structure."
+            },
+            {
+              "name": "group_reference",
+              "type": "string",
+              "required": false,
+              "description": "MAT_SEM's params.group_reference: the level whose latent means stay at 0. params.group only."
+            },
+            {
+              "name": "group_equal",
+              "type": "list",
+              "required": false,
+              "description": "MAT_SEM's params.group_equal (lavaan's group.equal): loadings and intercepts make the groups' scores comparable on one latent-mean scale. A list or one comma-separated string. params.group only.",
+              "enum_values": [
+                "loadings",
+                "intercepts",
+                "means",
+                "residuals",
+                "residual.covariances",
+                "lv.variances",
+                "lv.covariances",
+                "regressions"
+              ]
+            },
+            {
+              "name": "group_partial",
+              "type": "list",
+              "required": false,
+              "description": "MAT_SEM's params.group_partial: rows freed from group_equal. params.group only."
+            },
+            {
+              "name": "solver",
+              "type": "enum",
+              "required": false,
+              "default": "slsqp",
+              "description": "MAT_SEM's params.solver (a lavaan-convention fit defaults to fisher).",
+              "enum_values": [
+                "slsqp",
+                "fisher"
+              ]
+            },
+            {
+              "name": "information",
+              "type": "enum",
+              "required": false,
+              "default": "dense",
+              "description": "MAT_SEM's params.information.",
+              "enum_values": [
+                "dense",
+                "rank2"
+              ]
+            },
+            {
+              "name": "ftol",
+              "type": "float",
+              "required": false,
+              "default": 0.000001,
+              "description": "MAT_SEM's params.ftol (solver slsqp only)."
+            },
+            {
+              "name": "max_iter",
+              "type": "int",
+              "required": false,
+              "description": "MAT_SEM's params.max_iter: the iteration cap; a run at the cap scores from its last iterate with PULSE_MATRIX_NOT_CONVERGED."
+            },
+            {
+              "name": "grad_tol",
+              "type": "float",
+              "required": false,
+              "default": 1e-10,
+              "description": "MAT_SEM's params.grad_tol (solver fisher only)."
+            },
+            {
+              "name": "singular",
+              "type": "enum",
+              "required": false,
+              "default": "nearest",
+              "description": "MAT_SEM's params.singular: nearest fits a rank-deficient fit covariance's nearest positive-definite substitute (PULSE_MATRIX_NEAREST_PD, scored); refuse nulls every score with PULSE_MATRIX_SINGULAR.",
+              "enum_values": [
+                "nearest",
+                "refuse"
+              ]
+            },
+            {
+              "name": "fit_on",
+              "type": "any",
+              "required": false,
+              "default": "filtered",
+              "description": "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored."
+            },
+            {
+              "name": "labels",
+              "type": "list",
+              "required": false,
+              "description": "Inline fields only: one unique label per member, the names params.model uses (default: the field names). A named vector carries its own labels."
+            },
+            {
+              "name": "missing",
+              "type": "enum",
+              "required": false,
+              "default": "listwise",
+              "description": "Missing-data mode; only listwise (a row with any null member is left out of the fit and scores null).",
+              "enum_values": [
+                "listwise"
+              ]
+            }
+          ],
+          "accepts_types": [
+            "f32",
+            "f64",
+            "packed_bool",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one latent score per record (null when a member or the group is null, the level holds no fit rows, or the fit cannot score)",
+          "streamable": true,
+          "streamable_hint": "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per request group.",
+          "component_schema": {
+            "mergeability": ""
+          },
+          "weight_aware": true,
+          "weight_kinds": [
+            "frequency"
+          ],
           "intents": [
             "measure_construct",
             "prepare"
@@ -10478,7 +10650,7 @@
         ]
       }
     ],
-    "error_codes_count": 415,
+    "error_codes_count": 416,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10765,6 +10937,7 @@
       "PULSE_RETURN_INVALID",
       "PULSE_RETURN_PATH_UNKNOWN",
       "PULSE_RETURN_PATH_UNMATCHED",
+      "PULSE_SEM_SCORE_LEVEL_UNSEEN",
       "PULSE_SHARD_COUNT_LIMIT",
       "PULSE_SHARD_DESCRIPTION_DIVERGENCE",
       "PULSE_SHARD_DICT_DIVERGENCE",
@@ -11062,6 +11235,7 @@
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_SCALE_SCORE",
+          "ATTR_SEM_SCORE",
           "ATTR_TSCORE",
           "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
@@ -11155,6 +11329,7 @@
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_SCALE_SCORE",
+          "ATTR_SEM_SCORE",
           "ATTR_TSCORE",
           "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
@@ -11248,6 +11423,7 @@
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_SCALE_SCORE",
+          "ATTR_SEM_SCORE",
           "ATTR_TSCORE",
           "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
@@ -11341,6 +11517,7 @@
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_SCALE_SCORE",
+          "ATTR_SEM_SCORE",
           "ATTR_TSCORE",
           "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
@@ -11433,6 +11610,7 @@
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_SCALE_SCORE",
+          "ATTR_SEM_SCORE",
           "ATTR_TSCORE",
           "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
@@ -11525,6 +11703,7 @@
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_SCALE_SCORE",
+          "ATTR_SEM_SCORE",
           "ATTR_TSCORE",
           "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
@@ -11617,6 +11796,7 @@
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_SCALE_SCORE",
+          "ATTR_SEM_SCORE",
           "ATTR_TSCORE",
           "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
@@ -11790,6 +11970,7 @@
           "ATTR_REG_PREDICT",
           "ATTR_REG_RESIDUAL",
           "ATTR_SCALE_SCORE",
+          "ATTR_SEM_SCORE",
           "ATTR_TSCORE",
           "ATTR_VEC_DISTANCE",
           "ATTR_ZSCORE"
@@ -12656,6 +12837,10 @@
       {
         "name": "op-attr-scale-score",
         "description": "Per-row rating-battery score — the valid-item mean or prorated sum across a vector of members, with reverse-keyed items and a min_valid floor."
+      },
+      {
+        "name": "op-attr-sem-score",
+        "description": "Per-row score on one latent of a structural equation model fitted inline with the SEM matrix operator's knobs; lavaan's regression or Bartlett scores, each group scored with its own group's parameters; fit_on fits on a subset and still scores every row."
       },
       {
         "name": "op-attr-set-has",
@@ -13754,7 +13939,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 253,
+    "examples_count": 254,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -19670,4 +19855,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 77d1828e54d2e2f9e6403948073de841e8f78ec1780f4f83c7eeaf52e6b58cea
+// golden-hash: b464285a8f66c20b68157c8b000034832ef4d3d5dddec5053b233bb0ec712e7f

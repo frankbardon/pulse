@@ -1,0 +1,64 @@
+{
+  "_meta": {
+    "category": "attributes",
+    "description": "Per-row latent scores from a structural equation model on brand_survey.pulse via ATTR_SEM_SCORE: the three-factor CFA (quality =~ q1 + q2 + q3, value =~ v1 + v2 + v3, service =~ s1 + s2 + s3) fitted inline as MAT_SEM's joint multi-group fit across the two waves (params.group wave) with loadings and intercepts held equal (group_equal), so every row is scored with its own wave's parameters on one latent-mean scale (wave1, the reference, at 0). value_score and service_score are lavaan's regression scores (lavPredict's default), service_bartlett the Bartlett score of the same fit. Averaged by wave, the scores track the latent mean shift MAT_SEM reports for the same model: value down about 0.24 and service up about 0.52 in marker units, quality unchanged. The fit is cohort-wide, never per request group; grouping runs the request buffered.",
+    "intents": [
+      "measure_construct",
+      "compare_groups"
+    ],
+    "name": "attr_sem_score",
+    "operators": [
+      "AGG_AVERAGE",
+      "ATTR_SEM_SCORE",
+      "GROUP_CATEGORY"
+    ],
+    "capabilities": [
+      "capability:sem_groups",
+      "capability:sem_meanstructure"
+    ],
+    "tags": [
+      "multivariate",
+      "feature-engineering",
+      "comparison",
+      "buffered-pipeline"
+    ]
+  },
+  "cohort": {
+    "filename": "brand_survey.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {"name": "brand", "fields": ["q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3"]}
+  ],
+  "attributes": [
+    {
+      "type": "ATTR_SEM_SCORE",
+      "label": "value_score",
+      "vector": "brand",
+      "params": {"model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3", "latent": "value", "group": "wave", "group_equal": ["loadings", "intercepts"]}
+    },
+    {
+      "type": "ATTR_SEM_SCORE",
+      "label": "service_score",
+      "vector": "brand",
+      "params": {"model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3", "latent": "service", "group": "wave", "group_equal": ["loadings", "intercepts"]}
+    },
+    {
+      "type": "ATTR_SEM_SCORE",
+      "label": "service_bartlett",
+      "vector": "brand",
+      "params": {"model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3", "latent": "service", "method": "bartlett", "group": "wave", "group_equal": ["loadings", "intercepts"]}
+    }
+  ],
+  "groups": [
+    {
+      "type": "GROUP_CATEGORY",
+      "field": "wave"
+    }
+  ],
+  "aggregations": [
+    {"type": "AGG_AVERAGE", "field": "value_score", "label": "mean_value_score"},
+    {"type": "AGG_AVERAGE", "field": "service_score", "label": "mean_service_score"},
+    {"type": "AGG_AVERAGE", "field": "service_bartlett", "label": "mean_service_bartlett"}
+  ]
+}

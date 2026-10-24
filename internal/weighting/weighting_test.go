@@ -67,6 +67,8 @@ func TestClassify_NonAggregatorFamilies(t *testing.T) {
 	for _, a := range []types.AttributeType{types.ATTR_REG_FITTED, types.ATTR_REG_RESIDUAL, types.ATTR_REG_LEVERAGE, types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE, types.ATTR_FACTOR_SCORE} {
 		want[string(a)] = ClassAware
 	}
+	// U59 E3-S1: the inline SEM fit is MAT_SEM's frequency-only fit.
+	want[string(types.ATTR_SEM_SCORE)] = ClassFrequencyOnly
 	// U27 E3-S2: the fitted metrics read ATTR_MAHALANOBIS's weighted fit.
 	want[string(types.ATTR_VEC_DISTANCE)] = ClassAware
 	// U30 E3-S1: a centroid reference is the weighted per-element mean.

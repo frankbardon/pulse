@@ -113,11 +113,12 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		"OVERLAY_YOY":             {{"capability:compose"}, {"GROUP_DATE"}},
 		"capability:process":      nil,
 		"io_format:csv":           nil,
-		// MAT_SEM params surfaces (U59): the mean structure rides MAT_SEM,
+		// SEM params surfaces (U59): the mean structure rides an inline SEM
+		// fit (MAT_SEM or ATTR_SEM_SCORE),
 		// a multi-group fit always models the means too.
-		"capability:sem_meanstructure": {{"MAT_SEM"}},
-		"capability:sem_groups":        {{"MAT_SEM"}, {"capability:sem_meanstructure"}},
-		"capability:sem_defined":       {{"MAT_SEM"}},
+		"capability:sem_meanstructure": {{"ATTR_SEM_SCORE", "MAT_SEM"}},
+		"capability:sem_groups":        {{"ATTR_SEM_SCORE", "MAT_SEM"}, {"capability:sem_meanstructure"}},
+		"capability:sem_defined":       {{"ATTR_SEM_SCORE", "MAT_SEM"}},
 		"capability:sem_bootstrap":     {{"MAT_SEM"}},
 	}
 	for name, want := range expect {

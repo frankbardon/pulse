@@ -1,6 +1,7 @@
 package descriptor
 
 import (
+	"github.com/frankbardon/pulse/internal/sem"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
@@ -422,6 +423,50 @@ func attributeCapabilities() []descriptor.Operator {
 			EmitsTypeNote:  "one factor score per record (mean 0 over the fit rows; null when a member is null or the fit cannot score)",
 			Streamable:     true,
 			StreamableHint: "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per group.",
+		},
+		{
+			Name:        string(types.ATTR_SEM_SCORE),
+			Category:    "attribute",
+			Description: "Per-row score on one latent variable (params.latent) of a structural equation model fitted inline on the fit rows: MAT_SEM's fit and knobs over the p members of vector / fields (exactly one; listwise), matched to the model's observed variables by label, scored as lavaan's lavPredict — regression (the default: E(latent | row), every observed variable informing it) or Bartlett (generalized least squares on the measures, a higher-order factor through the first-order loadings). With a mean structure (params.meanstructure, a ~ 1 line, or params.group) the scores sit on the latent-mean scale; without one they are centered at the fit rows. Under params.group the fit is MAT_SEM's joint multi-group fit and each row is scored with its own group's parameters; a level without fit rows scores null with PULSE_SEM_SCORE_LEVEL_UNSEEN, a null group scores null. Every filtered row is scored; a null member scores null; a fit with too few rows, a singular covariance under singular refuse, negative degrees of freedom or an undefined fit nulls every score with a warning; a solver stop short of its tolerance or the nearest positive-definite substitute scores with a warning. Frequency weights only (N = the sum of weights); two-pass.",
+			Params: []descriptor.Param{
+				{Name: "latent", Type: "string", Description: "The latent variable to score: a left side of an =~ line of params.model (a higher-order factor included). Required unless the model has exactly one latent."},
+				{Name: "method", Type: "enum", Default: string(sem.ScoreRegression), EnumValues: sem.ScoreMethods(), Description: "regression: lavaan's regression (Thurstone) scores, E(latent | row) = E(latent) + Cov(latent, y) Sigma^-1 (y - mu) — shrunk toward the latent mean, the most accurate per row. bartlett: lavaan's Bartlett scores, (L' Sigma^-1 L)^-1 L' Sigma^-1 (y - mu) over the measurement loadings (an observed variable of a ~ line is its own column, so it informs no latent) — unbiased for the latent, noisier."},
+				{Name: "model", Type: "string", Description: "MAT_SEM's params.model: the model description over the members (by label). Absent: one factor F1 over every member."},
+				{Name: "meanstructure", Type: "bool", Default: false, Description: "MAT_SEM's params.meanstructure: model the means too, so the scores sit on the latent-mean scale (lavaan conventions)."},
+				{Name: "group", Type: "string", Description: "MAT_SEM's params.group: a categorical, packed_bool or u4 / u8 field (not a member) whose levels are the groups of one joint multi-group fit; each row is scored with its own group's parameters. Implies the mean structure."},
+				{Name: "group_reference", Type: "string", Description: "MAT_SEM's params.group_reference: the level whose latent means stay at 0. params.group only."},
+				{Name: "group_equal", Type: "list", EnumValues: sem.GroupEqualValues(), Description: "MAT_SEM's params.group_equal (lavaan's group.equal): loadings and intercepts make the groups' scores comparable on one latent-mean scale. A list or one comma-separated string. params.group only."},
+				{Name: "group_partial", Type: "list", Description: "MAT_SEM's params.group_partial: rows freed from group_equal. params.group only."},
+				{Name: "solver", Type: "enum", Default: string(sem.SolverSLSQP), EnumValues: vectors.SEMSolvers(), Description: "MAT_SEM's params.solver (a lavaan-convention fit defaults to fisher)."},
+				{Name: "information", Type: "enum", Default: string(sem.InformationDense), EnumValues: vectors.SEMInformation(), Description: "MAT_SEM's params.information."},
+				{Name: "ftol", Type: "float", Default: 1e-6, Description: "MAT_SEM's params.ftol (solver slsqp only)."},
+				{Name: "max_iter", Type: "int", Description: "MAT_SEM's params.max_iter: the iteration cap; a run at the cap scores from its last iterate with PULSE_MATRIX_NOT_CONVERGED."},
+				{Name: "grad_tol", Type: "float", Default: 1e-10, Description: "MAT_SEM's params.grad_tol (solver fisher only)."},
+				{Name: "singular", Type: "enum", Default: vectors.SEMSingularNearest, EnumValues: vectors.SEMSingular(), Description: "MAT_SEM's params.singular: nearest fits a rank-deficient fit covariance's nearest positive-definite substitute (PULSE_MATRIX_NEAREST_PD, scored); refuse nulls every score with PULSE_MATRIX_SINGULAR."},
+				{
+					Name:        "fit_on",
+					Type:        "any",
+					Default:     "filtered",
+					Description: "Fit population: \"filtered\" (every filtered row) or an inline array of filterer objects selecting a subset of the filtered rows; every filtered row is still scored.",
+				},
+				{
+					Name:        "labels",
+					Type:        "list",
+					Description: "Inline fields only: one unique label per member, the names params.model uses (default: the field names). A named vector carries its own labels.",
+				},
+				{
+					Name:        "missing",
+					Type:        "enum",
+					Default:     "listwise",
+					EnumValues:  []string{"listwise"},
+					Description: "Missing-data mode; only listwise (a row with any null member is left out of the fit and scores null).",
+				},
+			},
+			AcceptsTypes:   vectorMemberFieldTypes,
+			EmitsType:      "f64",
+			EmitsTypeNote:  "one latent score per record (null when a member or the group is null, the level holds no fit rows, or the fit cannot score)",
+			Streamable:     true,
+			StreamableHint: "Two-pass: streams alone; with groupers or features the request runs buffered. The fit is cohort-wide, never per request group.",
 		},
 		{
 			Name:        string(types.ATTR_SCALE_SCORE),

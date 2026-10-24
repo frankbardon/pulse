@@ -144,6 +144,10 @@ var attributeClasses = map[types.AttributeType]Class{
 	types.ATTR_MAHALANOBIS:  ClassAware,
 	types.ATTR_PC_SCORE:     ClassAware,
 	types.ATTR_FACTOR_SCORE: ClassAware,
+	// ATTR_SEM_SCORE's inline SEM fit is MAT_SEM's: a frequency weight
+	// is a replication count (S = M2_w/Σw, N = Σw); a probability
+	// weight has no ML reading. The weight shapes the fit only.
+	types.ATTR_SEM_SCORE: ClassFrequencyOnly,
 	// ATTR_VEC_DISTANCE's fitted metrics (std_euclidean, mahalanobis)
 	// read that same weighted fit; a centroid reference (either
 	// comparison type, U30 E3-S1) is the per-element weighted mean
