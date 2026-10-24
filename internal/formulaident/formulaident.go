@@ -252,7 +252,22 @@ func ComposeFormula(params map[string]any) (formula, reason string) {
 //     order): PULSE_OVERLAY_FORMULA_INVALID_IDENT, Details
 //     {index, kind, unknown_identifier, host_shape, formula} plus
 //     `allowed`, `allowed_funcs` or `allowed_slots`.
+//
+// A params.<name> read is judged by ComposeRefusalWithParams; this form
+// declares none, so any such read is PULSE_PARAMS_UNDECLARED.
 func ComposeRefusal(kind types.OverlayKind, params map[string]any, index int, shape types.OverlayShape, slots []Slot, funcs map[string]struct{}) *errors.CodedError {
+	return ComposeRefusalWithParams(kind, params, index, shape, slots, funcs, nil)
+}
+
+// ComposeRefusalWithParams is ComposeRefusal over a batch declaring
+// top-level params (ComposedRequest.Params, normalized; nil: none):
+// right after the parse, a params.<name> the batch does not declare is
+// PULSE_PARAMS_UNDECLARED (exprenv.ParamsRefusal, Details + index,
+// kind). The Compose namespace never names `params`, so a read cannot
+// collide here; a bare `params` stays an unknown identifier. Predict
+// and the runtime dispatcher pass the same params, and the runtime
+// folds the declared ones as constants when it compiles.
+func ComposeRefusalWithParams(kind types.OverlayKind, params map[string]any, index int, shape types.OverlayShape, slots []Slot, funcs map[string]struct{}, reqParams exprenv.Params) *errors.CodedError {
 	formula, reason := ComposeFormula(params)
 	if reason != "" {
 		return MissingFormula(string(kind), "overlay "+string(kind)+" requires params.formula (a non-empty string)", index, reason)
@@ -262,6 +277,11 @@ func ComposeRefusal(kind types.OverlayKind, params map[string]any, index int, sh
 		return errors.NewCodedErrorWithDetails(errors.PULSE_OVERLAY_FORMULA_PARSE_ERROR,
 			"overlay "+string(kind)+" formula failed to parse: "+err.Error(),
 			map[string]any{"index": index, "kind": string(kind), "formula": formula, "parse_error": err.Error()})
+	}
+	if pc := exprenv.ParamsRefusal(formula, reqParams, false); pc != nil {
+		pc.Details["index"] = index
+		pc.Details["kind"] = string(kind)
+		return pc
 	}
 	refs := Collect(&tree.Node)
 	unknown := func(ident, msg, allowedKey string, allowed map[string]struct{}) *errors.CodedError {

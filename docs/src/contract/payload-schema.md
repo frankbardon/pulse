@@ -274,8 +274,17 @@ before any record is read:
   vector called `params`) is `PULSE_PARAMS_FIELD_COLLISION`. A bare
   `params` always reads that column.
 
-`ComposedRequest` and `ChainRequest` carry none of their own; each inner
-`Request` (slot or stage) carries its own.
+`ComposedRequest` and `ChainRequest` carry a `params` of their own,
+same schema and gate: every sub-request inherits it — each Compose
+slot (sweep- and banner-expanded ones included), each Compose `fits`
+request, each chain stage — merged during normalization with a key the
+sub-request declares itself winning. The top-level block is validated
+once, before any sub-request (`PULSE_PARAMS_INVALID`, even when every
+sub-request overrides the bad name). The normalized request
+(`--echo-request`, `pulse api predict-compose` / `predict-chain`)
+shows the merged params on every sub-request. A Compose-level
+`OVERLAY_FORMULA` reads the batch's top-level params; an undeclared
+read there is `PULSE_PARAMS_UNDECLARED`.
 
 ## Multiplicity slots
 

@@ -82,6 +82,7 @@ pulse: type ChainRequest = pulse/types.ChainRequest
 pulse: type ChainRequest underlying struct
 pulse: type ChainRequest field Cohort *pulse/types.Cohort "json:\"cohort\""
 pulse: type ChainRequest field Overlays []*pulse/types.ChainOverlaySpec "json:\"overlays,omitempty\""
+pulse: type ChainRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse: type ChainRequest field Stages []*pulse/types.ChainStage "json:\"stages\""
 pulse: type ChainRequest method (*ChainRequest) Hash() string
 pulse: type ChainResponse = pulse/types.ChainResponse
@@ -172,6 +173,7 @@ pulse: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,
 pulse: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
+pulse: type ComposedRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
 pulse: type ComposedRequest field Return *pulse/types.Return "json:\"return,omitempty\""
 pulse: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omitempty\""
@@ -4687,6 +4689,7 @@ pulse/types: type ChainOverlaySpec field Target pulse/types.StageRef "json:\"tar
 pulse/types: type ChainRequest struct
 pulse/types: type ChainRequest field Cohort *pulse/types.Cohort "json:\"cohort\""
 pulse/types: type ChainRequest field Overlays []*pulse/types.ChainOverlaySpec "json:\"overlays,omitempty\""
+pulse/types: type ChainRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse/types: type ChainRequest field Stages []*pulse/types.ChainStage "json:\"stages\""
 pulse/types: type ChainRequest method (*ChainRequest) Hash() string
 pulse/types: type ChainResponse struct
@@ -4725,6 +4728,7 @@ pulse/types: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"b
 pulse/types: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse/types: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
 pulse/types: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
+pulse/types: type ComposedRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse/types: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
 pulse/types: type ComposedRequest field Return *pulse/types.Return "json:\"return,omitempty\""
 pulse/types: type ComposedRequest field Sweep *pulse/types.SweepSpec "json:\"sweep,omitempty\""
@@ -5851,4 +5855,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: a5127a4c502db44c83090a88f38ee15c9483eaa0d93c019778796a874b5c9e5d
+// golden-hash: 35ada0a8ec4d054f8c06a3ccb4d47a1f1bdfa5bd3fbe47e1c92123f5793f5e89

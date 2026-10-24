@@ -46,3 +46,20 @@ func (s *Service) forRequest(req *types.Request) *Service {
 	cp.extensions = exts
 	return &cp
 }
+
+// composeExtensions is s.extensions folding the batch's top-level params
+// (types.ComposedRequest.Params, U58 E3-S2) — the registry the
+// Compose-host overlay fold compiles an OVERLAY_FORMULA through, so a
+// params.<name> read there sees the same values every slot inherited.
+// s.extensions itself when the batch declares none (or the block is
+// invalid: descx.InheritComposeParams refused it before any slot ran).
+func (s *Service) composeExtensions(c *types.ComposedRequest) *processing.ExtensionRegistry {
+	if c == nil || len(c.Params) == 0 {
+		return s.extensions
+	}
+	params, cerr := exprenv.NormalizeParams(c.Params)
+	if cerr != nil {
+		return s.extensions
+	}
+	return s.extensions.WithParams(params)
+}

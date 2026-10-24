@@ -360,6 +360,7 @@ func buildProcessChainSchemaWithExtensions(c fieldClassification, inst *descx.In
 				"items":       stageItem,
 			},
 			"overlays": overlaysSchemaForFacade(overlayFacadeChain, inst),
+			"params":   inheritedParamsSchema("stage's request", ""),
 		},
 		"required":             []string{"stages"},
 		"additionalProperties": true,
@@ -1167,6 +1168,17 @@ func modelsSchema(desc string) map[string]any {
 // population files a vector fit's `save` wrote, loaded by name as
 // vector fits. Dropped with the slot when capability:models is hidden
 // (dropHiddenSlots).
+// inheritedParamsSchema is a root's top-level params (pulse_compose,
+// pulse_process_chain): paramsSchema's shape, merged into every
+// sub-request before any runs, a name the sub-request declares itself
+// winning. Dropped with the slot when capability:params is hidden
+// (dropHiddenSlots).
+func inheritedParamsSchema(sub, extra string) map[string]any {
+	out := paramsSchema()
+	out["description"] = "Named constants every " + sub + " inherits into its own params (a name it declares itself wins), read as params.<name>. Same value rules as a request's params: a number, a string, a bool or a list of ONE of those kinds; never null." + extra
+	return out
+}
+
 // paramsSchema is Request.params: named constants the request's
 // expressions read as params.<name> — the payload schema's shape
 // (identifier names; a number, string, bool or a one-kind list).
@@ -1830,6 +1842,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 			"sweep":  sweepSchema(),
 			"fits":   fitsSchema(reqSchema, inst),
 			"banner": bannerSchema(reqSchema),
+			"params": inheritedParamsSchema("slot request (sweep and banner slots included) and fit request", " A Compose-level OVERLAY_FORMULA reads them too."),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,

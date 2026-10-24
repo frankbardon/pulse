@@ -148,7 +148,7 @@ func chainEcho(req, expanded *types.ChainRequest, staged []*types.Request) *type
 	if expanded != nil {
 		src = expanded
 	}
-	out := &types.ChainRequest{Cohort: req.Cohort, Overlays: req.Overlays}
+	out := &types.ChainRequest{Cohort: req.Cohort, Overlays: req.Overlays, Params: req.Params}
 	if len(src.Stages) > 0 {
 		out.Stages = make([]*types.ChainStage, len(src.Stages))
 	}
@@ -201,6 +201,17 @@ func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 		result.Valid = false
 		return env
 	}
+	// Then the chain's top-level params merge into every stage's
+	// request (each stage's own key wins) — the runtime's
+	// InheritChainParams call at the same point; an invalid top-level
+	// block is refused before any stage is judged.
+	inherited, perr := InheritChainParams(req)
+	if perr != nil {
+		addCodedError(env, perr)
+		result.Valid = false
+		return env
+	}
+	req = inherited
 	// Then every stage's item for_each expands (the runtime's order,
 	// before the cohort opens); a refusal is located by details.stage.
 	// Every pass below judges the expanded stages; result.Request stays

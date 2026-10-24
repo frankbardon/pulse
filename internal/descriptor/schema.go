@@ -492,6 +492,11 @@ var fieldOverrides = map[fieldKey]any{
 	// list of scalars, under an identifier name
 	// (exprenv.NormalizeParams).
 	{reflect.TypeFor[types.Request](), "params"}: paramsSchema(),
+	// The top-level block a Compose batch or a chain hands every
+	// sub-request (InheritComposeParams / InheritChainParams): the same
+	// value rules.
+	{reflect.TypeFor[types.ComposedRequest](), "params"}: inheritedParamsSchema("Compose slot and fit request", " A Compose-level OVERLAY_FORMULA reads them too."),
+	{reflect.TypeFor[types.ChainRequest](), "params"}:    inheritedParamsSchema("chain stage", ""),
 	// A sweep body is a Request with axis placeholders — `{"$var":
 	// "axis"}` may stand where the request takes a number — so it is an
 	// open object, not #/$defs/Request; likewise its overlays.
@@ -851,6 +856,15 @@ func splitComma(s string) []string {
 		}
 	}
 	out = append(out, s[start:])
+	return out
+}
+
+// inheritedParamsSchema is a root's top-level params (ComposedRequest,
+// ChainRequest): paramsSchema's shape, merged into every sub-request
+// (each sub-request's own name wins).
+func inheritedParamsSchema(sub, extra string) map[string]any {
+	out := paramsSchema()
+	out["description"] = "Named constants every " + sub + " inherits into its own params (a name it declares itself wins), read as params.<name>: a number (integers kept exact), a string, a bool, or a list of one of those kinds. Never null." + extra
 	return out
 }
 

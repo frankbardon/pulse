@@ -29,13 +29,28 @@ import (
 // Process; a stage >= 1 carrying Joins is PULSE_CHAIN_STAGE_JOIN. Stage 0's Request.Cohort is replaced with req.Cohort; any
 // Request.Cohort on stages >= 1 is ignored.
 func (s *Service) ProcessChain(ctx context.Context, req *types.ChainRequest) (*types.ChainResponse, error) {
-	ctx, release := s.BoundRequest(ctx)
-	defer release()
-	resp, err := s.processChain(ctx, req)
-	return resp, s.scopeRefusal(MapRequestTimeout(ctx, err))
+	resp, _, err := s.ProcessChainResolved(ctx, req)
+	return resp, err
 }
 
-func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*types.ChainResponse, error) {
+// ProcessChainResolved is ProcessChain that also returns the stage
+// requests the stages ran — index-aligned with ChainResponse.Stages,
+// defaults resolved (nil on error). Without top-level params they are
+// the caller's own stage requests (the service runs them in place);
+// with them, the inheriting copies (descx.InheritChainParams). The
+// facade resolves each stage's `return` plan from them.
+func (s *Service) ProcessChainResolved(ctx context.Context, req *types.ChainRequest) (*types.ChainResponse, []*types.Request, error) {
+	ctx, release := s.BoundRequest(ctx)
+	defer release()
+	var stages []*types.Request
+	resp, err := s.processChain(ctx, req, &stages)
+	if err != nil {
+		return resp, nil, s.scopeRefusal(MapRequestTimeout(ctx, err))
+	}
+	return resp, stages, nil
+}
+
+func (s *Service) processChain(ctx context.Context, req *types.ChainRequest, ran *[]*types.Request) (*types.ChainResponse, error) {
 	if req == nil || len(req.Stages) == 0 {
 		return nil, errors.NewCodedError(errors.PULSE_CHAIN_EMPTY, "chain request must carry at least one stage")
 	}
@@ -57,6 +72,18 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 	// opens (details.stage locates a stage's).
 	if err := s.slotRefusal(req); err != nil {
 		return nil, err
+	}
+	// The chain's top-level params merge into every stage's request
+	// (each stage's own key wins), before anything reads a stage —
+	// ValidateChainWithOptions's InheritChainParams call at the same
+	// point. A params-free chain keeps the caller's stage requests.
+	req, cerr := descx.InheritChainParams(req)
+	if cerr != nil {
+		return nil, cerr
+	}
+	*ran = make([]*types.Request, len(req.Stages))
+	for i, st := range req.Stages {
+		(*ran)[i] = st.Request
 	}
 	// A whole-chain overlay over a stage carrying an array-valued
 	// (vector) aggregation, before any stage runs (ValidateChainWithOptions's
@@ -215,6 +242,7 @@ func (s *Service) processChain(ctx context.Context, req *types.ChainRequest) (*t
 			Cohort:   req.Cohort,
 			Stages:   normStages,
 			Overlays: req.Overlays,
+			Params:   req.Params,
 		}
 	}
 	// Whole-chain overlay barrier. Runs AFTER every stage has finalised

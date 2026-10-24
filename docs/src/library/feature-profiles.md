@@ -338,7 +338,8 @@ feature. Development builds (`devel`, untagged builds) offer everything.
   drops the `matrix` block. Every `MAT_*` operator depends on
   `capability:matrices`.
 - **Request parameters.** Without `capability:params` a request `params`
-  object (inside Compose requests and chain stages too) fails
+  object (inside Compose requests and chain stages too, and the
+  top-level `params` of a Compose batch or a chain) fails
   `PULSE_REQUEST_UNKNOWN_FIELD`, and the payload schema and the MCP tool
   input schemas drop the key. An expression reading `params.<name>` is
   then refused `PULSE_PARAMS_UNDECLARED`, as on any request declaring no

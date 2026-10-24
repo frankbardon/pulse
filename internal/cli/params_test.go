@@ -79,3 +79,81 @@ func TestParams_APIProcessJSON(t *testing.T) {
 		t.Fatalf("predict lacks the run's %s %q: %s", env.Errors[0].Code, env.Errors[0].Message, pout)
 	}
 }
+
+// TestParams_APIComposeAndChainInherit (U58 E3-S2): `pulse api compose`
+// and `pulse api process-chain` with a top-level params block — every
+// slot / stage inherits it (a sub-request's own key wins), and
+// --echo-request shows the merged params on each sub-request.
+func TestParams_APIComposeAndChainInherit(t *testing.T) {
+	dir := withTempDataDir(t)
+	cohort := seedCohortViaImport(t, dir, "waves.csv", "wave,x\n1,10\n2,20\n3,30\n3,31\n5,50\n")
+	c, err := json.Marshal(map[string]string{"filename": cohort})
+	if err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, body string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	body := func(own string) string {
+		return own + `"filterers":[{"type":"FILTER_EXPRESSION","expression":"wave == params.from_wave"}],` +
+			`"aggregations":[{"type":"AGG_SUM","field":"x","label":"s"}]}`
+	}
+	type echoed struct {
+		Params map[string]json.Number `json:"params"`
+	}
+
+	compose := write("compose.json", `{"params":{"from_wave":3},"requests":[`+
+		`{"cohort":`+string(c)+`,`+body("")+`,`+
+		`{"cohort":`+string(c)+`,`+body(`"params":{"from_wave":5},`)+`]}`)
+	out, err := runAPI(t, "compose", "--json", "--echo-request", "-r", compose)
+	if err != nil {
+		t.Fatalf("compose: %v\n%s", err, out)
+	}
+	var cenv struct {
+		Data struct {
+			Responses []struct {
+				Data []map[string]any `json:"data"`
+			} `json:"responses"`
+		} `json:"data"`
+		Request struct {
+			Requests []echoed `json:"requests"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal([]byte(out), &cenv); err != nil || len(cenv.Data.Responses) != 2 {
+		t.Fatalf("compose envelope: %v\n%s", err, out)
+	}
+	if cenv.Data.Responses[0].Data[0]["s"] != float64(61) || cenv.Data.Responses[1].Data[0]["s"] != float64(50) {
+		t.Fatalf("compose sums: %s", out)
+	}
+	if len(cenv.Request.Requests) != 2 || cenv.Request.Requests[0].Params["from_wave"] != "3" || cenv.Request.Requests[1].Params["from_wave"] != "5" {
+		t.Fatalf("compose echo: %s", out)
+	}
+
+	chain := write("chain.json", `{"cohort":`+string(c)+`,"params":{"from_wave":3},"stages":[{"request":{`+body("")+`}]}`)
+	out, err = runAPI(t, "process-chain", "--json", "--echo-request", "-r", chain)
+	if err != nil {
+		t.Fatalf("process-chain: %v\n%s", err, out)
+	}
+	var chenv struct {
+		Data struct {
+			Final struct {
+				Data []map[string]any `json:"data"`
+			} `json:"final"`
+		} `json:"data"`
+		Request struct {
+			Stages []struct {
+				Request echoed `json:"request"`
+			} `json:"stages"`
+		} `json:"request"`
+	}
+	if err := json.Unmarshal([]byte(out), &chenv); err != nil || len(chenv.Data.Final.Data) != 1 || chenv.Data.Final.Data[0]["s"] != float64(61) {
+		t.Fatalf("process-chain: %v\n%s", err, out)
+	}
+	if len(chenv.Request.Stages) != 1 || chenv.Request.Stages[0].Request.Params["from_wave"] != "3" {
+		t.Fatalf("process-chain echo: %s", out)
+	}
+}

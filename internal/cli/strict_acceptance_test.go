@@ -216,8 +216,10 @@ func strictAcceptanceRequiredFamilies() []string {
 				// expression constants: its keys are caller-chosen
 				// names, never an allowlist, so no misspelled-key
 				// refusal exists (a bad name is PULSE_PARAMS_INVALID,
-				// TestParams_PredictMatchesRuntime).
-				if t != reflect.TypeFor[types.Request]() {
+				// TestParams_PredictMatchesRuntime). The same holds for
+				// the top-level block a ComposedRequest / ChainRequest
+				// hands every sub-request (U58 E3-S2).
+				if t != reflect.TypeFor[types.Request]() && t != reflect.TypeFor[types.ComposedRequest]() && t != reflect.TypeFor[types.ChainRequest]() {
 					out = append(out, name)
 				}
 				continue

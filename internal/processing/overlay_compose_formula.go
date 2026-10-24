@@ -52,7 +52,7 @@ func applyComposeFormula(spec *types.ComposeOverlaySpec, reference *types.Respon
 func applyComposeFormulaWith(spec *types.ComposeOverlaySpec, index int, shapes composeSlotShapes, reference *types.Response, targets []*types.Response, exts *ExtensionRegistry) (types.OverlayLayer, []types.OverlayWarning, error) {
 	paramread.Read(paramread.Overlay, string(spec.Kind), "formula")
 	slots := composeFormulaSlots(spec, shapes)
-	if cerr := formulaident.ComposeRefusal(spec.Kind, spec.Params, index, shapes.ref, slots, exts.overlayFormulaFuncs()); cerr != nil {
+	if cerr := formulaident.ComposeRefusalWithParams(spec.Kind, spec.Params, index, shapes.ref, slots, exts.overlayFormulaFuncs(), exts.Params()); cerr != nil {
 		return types.OverlayLayer{}, nil, cerr
 	}
 	formula, _ := formulaident.ComposeFormula(spec.Params)

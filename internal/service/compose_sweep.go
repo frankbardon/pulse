@@ -5,6 +5,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/banner"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/types"
 )
@@ -31,10 +32,12 @@ type composeExpansion struct {
 // banner, expanded into slots appended after the explicit ones
 // (banner.ExpandCompose, the expansion predict shares). With
 // EchoRequest on, it is what ComposedResponse.NormalizedRequest
-// carries. A sweep- and banner-free request comes back as the same
-// pointer, after the MaxComposeSlots preflight it always ran.
+// carries. Then its top-level params merge into every slot and fit
+// request (descx.InheritComposeParams). A sweep-, banner- and
+// params-free request comes back as the same pointer, after the
+// MaxComposeSlots preflight it always ran.
 //
-// A set sweep or banner on an instance that hides it is refused as an
+// A set sweep, banner or params on an instance that hides it is refused as an
 // unknown field BEFORE its contents are judged, exactly as predict
 // refuses it; then the limit is checked on explicit + expanded slots
 // before a single expanded slot is rendered, so no product of axes and
@@ -43,7 +46,7 @@ func (s *Service) expandCompose(composed *types.ComposedRequest) (*types.Compose
 	if composed == nil || (len(composed.Requests) == 0 && composed.Sweep == nil && composed.Banner == nil) {
 		return nil, nil, errors.NewCodedError(errors.SERVICE_VALIDATION, "composed request must contain at least one request")
 	}
-	if composed.Sweep != nil || composed.Banner != nil {
+	if composed.Sweep != nil || composed.Banner != nil || len(composed.Params) > 0 {
 		if err := s.slotRefusal(composed); err != nil {
 			return nil, nil, err
 		}
@@ -56,7 +59,14 @@ func (s *Service) expandCompose(composed *types.ComposedRequest) (*types.Compose
 	if composed.Sweep != nil && composed.Sweep.Rank != nil {
 		ext.rank = &composeRank{spec: composed.Sweep.Rank, explicit: exp.Explicit, count: len(exp.SweepLabels)}
 	}
-	return exp.Composed, ext, nil
+	// The top-level params merge into every slot (sweep and banner
+	// slots included) and every fit request, each sub-request's own key
+	// winning — predict's InheritComposeParams call at the same point.
+	effective, cerr := descx.InheritComposeParams(exp.Composed)
+	if cerr != nil {
+		return nil, nil, cerr
+	}
+	return effective, ext, nil
 }
 
 // rankVetoKey marks a ranked sweep slot's ctx: the slot computes every
