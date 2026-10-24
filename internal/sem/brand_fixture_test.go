@@ -3,13 +3,13 @@ package sem
 import (
 	"bytes"
 	"encoding/csv"
-	"encoding/json"
 	"flag"
 	"math"
-	"math/rand/v2"
 	"os"
 	"strconv"
 	"testing"
+
+	"github.com/frankbardon/pulse/internal/brandfixture"
 )
 
 // The brand-survey fixture is the lavaan oracles' data: a generic,
@@ -21,113 +21,23 @@ import (
 
 var regenBrand = flag.Bool("regen-brand", false, "rewrite testdata/brand_data.csv from testdata/brand_spec.json")
 
-type brandSpec struct {
-	N         int    `json:"n"`
-	Seed      uint64 `json:"seed"`
-	WaveField string `json:"wave_field"`
-	Factors   []struct {
-		Name       string    `json:"name"`
-		Items      []string  `json:"items"`
-		Loadings   []float64 `json:"loadings"`
-		Wave2Shift float64   `json:"wave2_shift"`
-	} `json:"factors"`
-	FactorCorrelation [][]float64 `json:"factor_correlation"`
-	Item              struct {
-		Intercept float64 `json:"intercept"`
-		NoiseSD   float64 `json:"noise_sd"`
-		Min       float64 `json:"min"`
-		Max       float64 `json:"max"`
-	} `json:"item"`
-	Outcome struct {
-		Name      string    `json:"name"`
-		Intercept float64   `json:"intercept"`
-		Weights   []float64 `json:"weights"`
-		NoiseSD   float64   `json:"noise_sd"`
-		Min       float64   `json:"min"`
-		Max       float64   `json:"max"`
-	} `json:"outcome"`
-}
-
-func loadBrandSpec(t *testing.T) brandSpec {
+func loadBrandSpec(t *testing.T) brandfixture.Spec {
 	t.Helper()
 	b, err := os.ReadFile("testdata/brand_spec.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	var s brandSpec
-	if err := json.Unmarshal(b, &s); err != nil {
+	s, err := brandfixture.Parse(b)
+	if err != nil {
 		t.Fatal(err)
 	}
 	return s
 }
 
-// brandSurvey renders the spec's rows as CSV. Every product is written
-// float64(a*b) so no architecture fuses it into an FMA: the draws and
-// therefore the rounded ratings are the same bits everywhere.
-func brandSurvey(s brandSpec) []byte {
-	k := len(s.Factors)
-	// Lower Cholesky factor of the factor correlation (FMA-free).
-	l := make([][]float64, k)
-	for i := range l {
-		l[i] = make([]float64, k)
-		for j := 0; j <= i; j++ {
-			acc := s.FactorCorrelation[i][j]
-			for t := 0; t < j; t++ {
-				acc -= float64(l[i][t] * l[j][t])
-			}
-			if i == j {
-				l[i][j] = math.Sqrt(acc)
-			} else {
-				l[i][j] = acc / l[j][j]
-			}
-		}
-	}
-	clamp := func(v, lo, hi float64) float64 { return math.Min(hi, math.Max(lo, math.Round(v))) }
-	rng := rand.New(rand.NewPCG(s.Seed, s.Seed^0x9e3779b97f4a7c15))
-	var buf bytes.Buffer
-	buf.WriteString(s.WaveField)
-	for _, f := range s.Factors {
-		for _, it := range f.Items {
-			buf.WriteString("," + it)
-		}
-	}
-	buf.WriteString("," + s.Outcome.Name + "\n")
-	z := make([]float64, k)
-	f := make([]float64, k)
-	for r := 0; r < s.N; r++ {
-		wave := 1
-		if r >= s.N/2 {
-			wave = 2
-		}
-		for i := range z {
-			z[i] = rng.NormFloat64()
-		}
-		for i := range f {
-			acc := 0.0
-			for j := 0; j <= i; j++ {
-				acc += float64(l[i][j] * z[j])
-			}
-			if wave == 2 {
-				acc += s.Factors[i].Wave2Shift
-			}
-			f[i] = acc
-		}
-		buf.WriteString(strconv.Itoa(wave))
-		for i, fac := range s.Factors {
-			for j := range fac.Items {
-				v := s.Item.Intercept + float64(fac.Loadings[j]*f[i]) + float64(s.Item.NoiseSD*rng.NormFloat64())
-				buf.WriteString("," + strconv.FormatFloat(clamp(v, s.Item.Min, s.Item.Max), 'f', -1, 64))
-			}
-		}
-		v := s.Outcome.Intercept
-		for i, w := range s.Outcome.Weights {
-			v += float64(w * f[i])
-		}
-		v += float64(s.Outcome.NoiseSD * rng.NormFloat64())
-		buf.WriteString("," + strconv.FormatFloat(clamp(v, s.Outcome.Min, s.Outcome.Max), 'f', -1, 64) + "\n")
-	}
-	return buf.Bytes()
-}
+// brandSurvey renders the spec's rows as the oracles' CSV
+// (internal/brandfixture, the one generator the examples' brand_survey
+// cohort shares).
+func brandSurvey(s brandfixture.Spec) []byte { return s.OracleCSV() }
 
 // TestSEM_BrandSurveyRegenerates holds the committed brand-survey CSV
 // to its spec and seed: regenerated, it is the same bytes.

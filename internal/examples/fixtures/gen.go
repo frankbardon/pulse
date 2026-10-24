@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/frankbardon/pulse/internal/brandfixture"
 	"github.com/frankbardon/pulse/internal/mmmfixture"
 )
 
@@ -76,7 +77,11 @@ func main() {
 	// mmmfixture rows verbatim, so the decay-sweep example and the
 	// acceptance suites read the same data.
 	must(writeMMMWeekly())
-	fmt.Println("wrote 10 CSVs to", outputDir)
+	// The brand survey draws nothing from r either: it is the lavaan
+	// oracles' rows (internal/brandfixture over brand_spec.json and its
+	// seed), so the SEM examples read the data the oracles fit.
+	must(writeBrandSurvey())
+	fmt.Println("wrote the fixture CSVs to", outputDir)
 }
 
 // writeExperiment produces an A/B testing cohort designed so every
@@ -608,6 +613,41 @@ func writeMMMWeekly() error {
 			rec = append(rec, f(v))
 		}
 		if err := w.Write(rec); err != nil {
+			return err
+		}
+	}
+	w.Flush()
+	return w.Error()
+}
+
+// writeBrandSurvey writes brand_survey.csv: the generic two-wave brand
+// survey of internal/sem/testdata/brand_spec.json (1200 respondents,
+// 600 per wave), row for row the lavaan oracles' brand_data.csv with an
+// id and the wave spelled wave1 / wave2. Three correlated factors —
+// quality (q1-q3), value (v1-v3), service (s1-s3) — each rated 1-5, and
+// recommend 0-10. Wave 2's latent means are PLANTED: value −0.30 and
+// service +0.70 in factor SD (−0.24 and +0.525 in marker units),
+// quality 0 — the shift a scalar-invariant multi-group MAT_SEM reads.
+func writeBrandSurvey() error {
+	body, err := os.ReadFile(filepath.Join("internal", "sem", "testdata", "brand_spec.json"))
+	if err != nil {
+		return err
+	}
+	spec, err := brandfixture.Parse(body)
+	if err != nil {
+		return err
+	}
+	w, close := openCSV("brand_survey.csv")
+	defer close()
+	if err := w.Write(append([]string{"id", spec.WaveField}, spec.Columns()...)); err != nil {
+		return err
+	}
+	for i, r := range spec.Rows() {
+		row := []string{itoa(i + 1), "wave" + itoa(r.Wave)}
+		for _, v := range r.Values {
+			row = append(row, strconv.FormatFloat(v, 'f', -1, 64))
+		}
+		if err := w.Write(row); err != nil {
 			return err
 		}
 	}

@@ -17,7 +17,7 @@
       "capability:sem_groups",
       "capability:sem_meanstructure"
     ],
-    "description": "The measurement-invariance ladder as ONE compose sweep: a zip over two axes, step [configural, metric, scalar] and eq [\"\", \"loadings\", \"loadings,intercepts\"], expands one multi-group MAT_SEM request (the two-factor CFA of survey.pulse across the panel waves) into three slots labelled by step. group_equal reads the eq value as one comma-separated string (\"\" = configural, nothing held equal), so a scalar sweep axis can carry it. Each slot is a joint lavaan fit; dof rises step by step as loadings, then intercepts, are held equal across waves. Compare chi2, dof, cfi and rmsea slot to slot: a small chi2 rise per degree of freedom gained supports the stricter step. Pulse computes no chi-square difference test. The scalar slot frees the latent means of wave b (marker units; wave a stays 0).",
+    "description": "The measurement-invariance ladder as ONE compose sweep: a zip over two axes, step [configural, metric, scalar] and eq [\"\", \"loadings\", \"loadings,intercepts\"], expands one multi-group MAT_SEM request (the three-factor CFA of brand_survey.pulse across its two waves) into three slots labelled by step. group_equal reads the eq value as one comma-separated string (\"\" = configural, nothing held equal), so a scalar sweep axis can carry it. Each slot is a joint lavaan fit; dof rises step by step as loadings, then intercepts, are held equal across waves. Compare chi2, dof, cfi and rmsea slot to slot: a small chi2 rise per degree of freedom gained supports the stricter step. Pulse computes no chi-square difference test. The scalar slot frees the latent means of wave2 (marker units; wave1 stays 0) and recovers the fixture's planted shift: value down about 0.24, service up about 0.525, quality near 0.",
     "intents": [
       "compare_groups",
       "measure_construct"
@@ -31,16 +31,16 @@
     "mode": "zip",
     "label": "{{step}}",
     "request": {
-      "cohort": {"filename": "survey.pulse", "data_dir": ".data"},
+      "cohort": {"filename": "brand_survey.pulse", "data_dir": ".data"},
       "vectors": [
-        {"name": "battery", "fields": ["q1", "q2", "q3", "q4", "q5", "q6"]}
+        {"name": "brand", "fields": ["q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3"]}
       ],
       "matrices": [
         {
           "type": "MAT_SEM",
           "name": "waves",
-          "vector": "battery",
-          "params": {"model": "service =~ q1 + q2 + q3\nvalue =~ q4 + q5 + q6", "group": "panel", "group_equal": "{{eq}}"}
+          "vector": "brand",
+          "params": {"model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3", "group": "wave", "group_equal": "{{eq}}"}
         }
       ]
     }

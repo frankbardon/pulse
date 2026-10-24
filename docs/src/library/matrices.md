@@ -610,9 +610,9 @@ axis (a scalar) can carry it:
 {"sweep": {"mode": "zip", "label": "{{step}}",
   "axes": [{"name": "step", "values": ["configural", "metric", "scalar"]},
            {"name": "eq", "values": ["", "loadings", "loadings,intercepts"]}],
-  "request": {"cohort": {"filename": "survey.pulse"},
-    "matrices": [{"type": "MAT_SEM", "name": "waves", "vector": "battery",
-      "params": {"model": "service =~ q1 + q2 + q3\nvalue =~ q4 + q5 + q6",
+  "request": {"cohort": {"filename": "brand_survey.pulse"},
+    "matrices": [{"type": "MAT_SEM", "name": "waves", "vector": "brand",
+      "params": {"model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3",
                  "group": "wave", "group_equal": "{{eq}}"}}]}}}
 ```
 
@@ -621,9 +621,11 @@ Compare `chi2`, `dof`, `cfi` and `rmsea` step to step; Pulse computes no
 `group.partial` fits within the same tolerances.
 
 Runnable: `internal/examples/matrices/16_sem_multigroup.json` (mean
-structure, configural, scalar and partial slots across `survey.pulse`'s
-`panel` waves) and `internal/examples/compose/09_sem_invariance_sweep.json`
-(the ladder as one sweep).
+structure, configural, scalar and partial slots across
+`brand_survey.pulse`'s two waves) and
+`internal/examples/compose/09_sem_invariance_sweep.json` (the ladder as
+one sweep). The fixture plants a wave-2 shift in the value and service
+means, which the scalar step recovers.
 
 ## Groups, cost and refusals
 

@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -87,7 +89,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 // the anchor-syntax example reads.
 func buildExampleFixtures(t *testing.T, p *pulse.Pulse, fs afero.Fs, tmp string) {
 	t.Helper()
-	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers", "tier_migrations", "survey", "subscribers", "warehouse_orders", "plan_history", "plan_history_wide", "battery", "intake", "mmm_weekly"}
+	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers", "tier_migrations", "survey", "subscribers", "warehouse_orders", "plan_history", "plan_history_wide", "battery", "intake", "mmm_weekly", "brand_survey"}
 	for _, name := range cohorts {
 		csvPath := filepath.Join("internal", "examples", "fixtures", name+".csv")
 		schemaPath := filepath.Join("internal", "examples", "fixtures", "schemas", name+".json")
@@ -571,11 +573,14 @@ func TestExamples_MMMDecaySweepRanksTrueDecayFirst(t *testing.T) {
 }
 
 // TestExamples_SEMInvarianceLadderSweep runs
-// compose/09_sem_invariance_sweep.json over the survey fixture cohort:
-// predict is clean, the zip sweep expands into the configural /
+// compose/09_sem_invariance_sweep.json over the brand_survey fixture
+// cohort: predict is clean, the zip sweep expands into the configural /
 // metric / scalar slots in order, each a joint multi-group MAT_SEM fit
-// with no slot error, dof rises step by step, and only the scalar step
-// frees the non-reference wave's latent means.
+// with no slot error, dof rises step by step, only the scalar step
+// frees wave2's latent means, and those means recover the fixture's
+// planted shift (brand_spec.json: value −0.30 and service +0.70 factor
+// SD, so −0.24 and +0.525 in marker units; quality 0) — each within two
+// SEs of its truth, value and service distinguishable from zero.
 func TestExamples_SEMInvarianceLadderSweep(t *testing.T) {
 	tmp := t.TempDir()
 	osfs := afero.NewOsFs()
@@ -638,12 +643,29 @@ func TestExamples_SEMInvarianceLadderSweep(t *testing.T) {
 		}
 		freeMean := false
 		for k, key := range est.RowKeys {
-			if key == "[b] service ~1" {
+			if key == "[wave2] service ~1" {
 				freeMean = m.Vectors["free"].([]bool)[k]
 			}
 		}
 		if want := step == "scalar"; freeMean != want {
-			t.Errorf("%s: [b] service ~1 free = %v, want %v", step, freeMean, want)
+			t.Errorf("%s: [wave2] service ~1 free = %v, want %v", step, freeMean, want)
+		}
+		if step != "scalar" {
+			continue
+		}
+		for factor, truth := range map[string]float64{"quality": 0, "value": -0.24, "service": 0.525} {
+			key := "[wave2] " + factor + " ~1"
+			k := slices.Index(est.RowKeys, key)
+			if k < 0 {
+				t.Fatalf("scalar: no %s row", key)
+			}
+			v, se := est.Values[k][0], est.Values[k][2]
+			if !(math.Abs(v-truth) <= 2*se) {
+				t.Errorf("scalar: %s = %.4f (SE %.4f), planted %.3f", key, v, se, truth)
+			}
+			if truth != 0 && !(math.Abs(v/se) > 2) {
+				t.Errorf("scalar: %s = %.4f (SE %.4f) is not distinguishable from zero", key, v, se)
+			}
 		}
 	}
 }

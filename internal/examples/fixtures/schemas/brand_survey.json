@@ -1,0 +1,14 @@
+[
+  {"name": "id", "type": "u32", "description": "Respondent identifier (1..N), one row per completed brand-perception questionnaire"},
+  {"name": "wave", "type": "categorical_u8", "description": "Fieldwork wave: wave1 (the first 600 respondents) or wave2 (the next 600), the group field of a multi-group SEM; wave2 carries a planted shift in the value and service means"},
+  {"name": "q1", "type": "u8", "description": "Rating 1-5 (poor to excellent): the brand's products are well made. Marker item of the quality factor"},
+  {"name": "q2", "type": "u8", "description": "Rating 1-5 (poor to excellent): the brand's products last. Loads on the quality factor"},
+  {"name": "q3", "type": "u8", "description": "Rating 1-5 (poor to excellent): the brand's products work as described. Loads on the quality factor"},
+  {"name": "v1", "type": "u8", "description": "Rating 1-5 (poor to excellent): the brand is worth what it costs. Marker item of the value factor"},
+  {"name": "v2", "type": "u8", "description": "Rating 1-5 (poor to excellent): the brand's prices are fair. Loads on the value factor"},
+  {"name": "v3", "type": "u8", "description": "Rating 1-5 (poor to excellent): the brand gives more for the money than rivals. Loads on the value factor"},
+  {"name": "s1", "type": "u8", "description": "Rating 1-5 (poor to excellent): the brand's staff are helpful. Marker item of the service factor"},
+  {"name": "s2", "type": "u8", "description": "Rating 1-5 (poor to excellent): the brand resolves problems quickly. Loads on the service factor"},
+  {"name": "s3", "type": "u8", "description": "Rating 1-5 (poor to excellent): the brand is easy to reach. Loads on the service factor"},
+  {"name": "recommend", "type": "u8", "description": "Rating 0-10: how likely the respondent is to recommend the brand to a friend; driven by the quality, value and service factors"}
+]
