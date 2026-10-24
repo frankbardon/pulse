@@ -12,10 +12,16 @@ const (
 	mLambda
 	mPsi
 	mTheta
+	// mNu (observed intercepts, a column over Observed) and mAlpha
+	// (latent means and observed-inner intercepts, a column over Inner)
+	// carry the mean structure; a covariance-only model has no
+	// parameter in either, so its tables are unchanged.
+	mNu
+	mAlpha
 	nMatrices
 )
 
-var matOp = [nMatrices]string{OpRegression, OpRegression, OpCovariance, OpCovariance}
+var matOp = [nMatrices]string{OpRegression, OpRegression, OpCovariance, OpCovariance, OpIntercept, OpIntercept}
 
 type location struct {
 	mat  int
@@ -65,9 +71,38 @@ type Model struct {
 	params                        []*parameter
 	byName                        map[string]*parameter
 	firstManif                    map[string]string
-	nReg, nCov                    int
+	nReg, nCov, nMean             int
 	baseline                      bool
+
+	// MeanStructure is set when the fit models the means too
+	// (ModelOptions.MeanStructure, or any `~ 1` statement): observed
+	// intercepts (Nu, and Alpha for observed inner variables) and latent
+	// means (Alpha) join the parameters, and the objective gains the
+	// mean term.
+	MeanStructure bool
+	// lavaan is set when any lavaan-only feature is in play: the fit
+	// then follows lavaan's conventions (Lavaan) instead of semopy's.
+	lavaan bool
 }
+
+// ModelOptions select the features beyond semopy's default
+// covariance-structure model. The zero value is that model.
+type ModelOptions struct {
+	// MeanStructure models the means: every observed intercept free
+	// (an observed exogenous variable's mean fixed to its sample mean,
+	// lavaan's fixed.x), every latent mean fixed to 0 unless a `f ~ 1`
+	// statement frees it — lavaan's meanstructure = TRUE. A `~ 1`
+	// statement in the description sets it too.
+	MeanStructure bool
+}
+
+// Lavaan reports whether the model follows lavaan's conventions rather
+// than semopy's: true whenever a lavaan-only feature (a mean structure)
+// is in play. Such a fit converges to the optimum (the default solver
+// is Fisher scoring), leaves variances unbounded, and reports lavaan's
+// chi-square, degrees of freedom, fit indices, log-likelihood and Wald
+// intervals (ComputeStats); a covariance-only model keeps semopy's.
+func (m *Model) Lavaan() bool { return m.lavaan }
 
 // NewModel specifies the model a description describes, with semopy's
 // defaults (variances of every endogenous and latent variable free,
@@ -75,11 +110,25 @@ type Model struct {
 // latents free to covary, the first indicator of each latent fixed to
 // 1). baseline builds semopy's independence model instead.
 func NewModel(desc string, baseline bool) (*Model, error) {
+	return newModel(desc, baseline, ModelOptions{})
+}
+
+// NewModelWithOptions specifies the model a description describes with
+// the features opt selects (ModelOptions); NewModel(desc, false) is
+// NewModelWithOptions(desc, ModelOptions{}).
+func NewModelWithOptions(desc string, opt ModelOptions) (*Model, error) {
+	return newModel(desc, false, opt)
+}
+
+func newModel(desc string, baseline bool, opt ModelOptions) (*Model, error) {
 	eff, err := Parse(desc)
 	if err != nil {
 		return nil, err
 	}
 	m := &Model{byName: map[string]*parameter{}, firstManif: map[string]string{}, baseline: baseline}
+	_, icpt := eff.byOp[OpIntercept]
+	m.MeanStructure = opt.MeanStructure || icpt
+	m.lavaan = m.MeanStructure
 	m.classify(eff)
 	m.preprocessCovariances(eff)
 	for _, op := range eff.ops {
@@ -96,7 +145,74 @@ func NewModel(desc string, baseline bool) (*Model, error) {
 			return nil, err
 		}
 	}
+	if m.MeanStructure && !baseline {
+		if err := m.effectMeans(eff.byOp[OpIntercept]); err != nil {
+			return nil, err
+		}
+	}
 	return m, nil
+}
+
+// effectMeans adds the mean-structure parameters with lavaan's
+// defaults: the `~ 1` statements first, in their order, then every
+// other observed variable (Observed order) — free, except an observed
+// exogenous one, whose mean is fixed to its sample mean (fixed.x) —
+// then every other latent (Inner order), its mean fixed to 0.
+func (m *Model) effectMeans(user *lhsMap) error {
+	done := stringSet{}
+	add := func(v string, mu Mult, active bool, name string) error {
+		loc, ok := m.meanLocation(v)
+		if !ok {
+			return fmt.Errorf("intercept statement %s ~ 1 names a variable the model does not use", v)
+		}
+		if name == "" {
+			m.nMean++
+			name = fmt.Sprintf("_m%d", m.nMean)
+		}
+		m.addParam(name, active, mu, math.Inf(-1), loc)
+		done.add(v)
+		return nil
+	}
+	if user != nil {
+		for _, v := range user.keys {
+			mu := user.m[v].m[interceptTerm]
+			name, active := paramMode(mu)
+			if err := add(v, mu, active, name); err != nil {
+				return err
+			}
+		}
+	}
+	for _, v := range m.Observed {
+		if done.has(v) {
+			continue
+		}
+		// An observed exogenous mean is the sample's (startRule).
+		if err := add(v, Mult{}, !m.exogenous.has(v), ""); err != nil {
+			return err
+		}
+	}
+	for _, v := range m.Inner {
+		if done.has(v) || !m.latent.has(v) {
+			continue
+		}
+		if err := add(v, Mult{Set: true, Fixed: true, Value: 0}, false, ""); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// meanLocation is where a variable's intercept / mean lives: Alpha for
+// an inner variable (a latent, or an observed variable with outgoing
+// arrows, whose Lambda row is the identity), else Nu.
+func (m *Model) meanLocation(v string) (location, bool) {
+	if i, ok := m.innerIndex[v]; ok {
+		return location{mat: mAlpha, i: i}, true
+	}
+	if i, ok := m.obsIndex[v]; ok {
+		return location{mat: mNu, i: i}, true
+	}
+	return location{}, false
 }
 
 func (m *Model) classify(eff *Effects) {
@@ -356,7 +472,11 @@ func (m *Model) effectCovariance(l *lhsMap) error {
 				if m.baseline && m.latent.has(lv) {
 					continue
 				}
+				// semopy bounds a variance below by 0; lavaan does not.
 				lower, sym = 0, false
+				if m.lavaan {
+					lower = math.Inf(-1)
+				}
 			} else if m.baseline {
 				continue
 			}

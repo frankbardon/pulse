@@ -12,7 +12,14 @@
 // converging Fisher-scoring solver and the rank-2 derivative
 // computation instead.
 //
-// The package reads only a covariance matrix and a row count; it is
+// A mean structure (ModelOptions.MeanStructure, or a `~ 1` statement)
+// is a lavaan-only feature: the model gains intercepts and latent
+// means, and the fit follows lavaan's conventions instead (Model.Lavaan:
+// Fisher scoring to the optimum, unbounded variances, lavaan's
+// statistics and Wald intervals), reproducing lavaan's ML fit.
+//
+// The package reads only a covariance matrix and a row count (and the
+// sample means under a mean structure); it is
 // no-execute safe (stdlib, gonum) and imported by both the resolver
 // (internal/vectors: model validation at predict time) and the engine
 // (internal/processing: the finalizer).
@@ -30,6 +37,10 @@ const (
 	OpRegression  = "~"
 	OpMeasurement = "=~"
 	OpCovariance  = "~~"
+	// OpIntercept is a "~ 1" term: an observed variable's intercept or
+	// a latent variable's mean (lavaan's mean-structure syntax). It
+	// switches the fit to lavaan conventions (Model.Lavaan).
+	OpIntercept = "~1"
 )
 
 // Mult is the multiplier written before a right-hand variable: none
@@ -99,7 +110,9 @@ var (
 // Parse reads a model description in semopy / lavaan syntax: one
 // statement per line, `#` comments, `=~` (measurement), `~`
 // (regression) and `~~` (covariance), comma-separated left sides,
-// `+`-separated right sides and optional `mult*` prefixes. semopy's
+// `+`-separated right sides and optional `mult*` prefixes. A `1` term
+// on a `~` right side (`x ~ 1`, `x ~ 0*1`, `x ~ a*1`, `y ~ 1 + x`) is
+// an intercept / latent mean, kept under OpIntercept. semopy's
 // operation commands (START, BOUND, DEFINE, ...) are not supported.
 func Parse(desc string) (*Effects, error) {
 	desc = strings.ReplaceAll(desc, "∼", "~")
@@ -122,10 +135,23 @@ func Parse(desc string) (*Effects, error) {
 		if err != nil {
 			return nil, fmt.Errorf("model line %d: %w", lineNo+1, err)
 		}
+		icpt, hasIcpt := rv.m[interceptTerm]
+		if hasIcpt {
+			if op != OpRegression {
+				return nil, fmt.Errorf("model line %d: the intercept term 1 belongs on a ~ statement, not %s", lineNo+1, op)
+			}
+			rv = rv.without(interceptTerm)
+		}
 		for _, left := range strings.Split(lefts, ",") {
 			left = strings.TrimSpace(left)
 			if left == "" {
 				return nil, fmt.Errorf("model line %d: empty left-hand variable", lineNo+1)
+			}
+			if hasIcpt {
+				e.lhs(OpIntercept).rhs(left).set(interceptTerm, icpt)
+			}
+			if len(rv.keys) == 0 {
+				continue
 			}
 			r := e.lhs(op).rhs(left)
 			for _, k := range rv.keys {
@@ -138,6 +164,30 @@ func Parse(desc string) (*Effects, error) {
 		return nil, fmt.Errorf("model has no statements")
 	}
 	return e, nil
+}
+
+// interceptTerm is the right-hand "variable" of an intercept: `x ~ 1`.
+const interceptTerm = "1"
+
+// HasIntercepts reports whether a description parses and carries any
+// `~ 1` statement — a mean structure, so lavaan conventions.
+func HasIntercepts(desc string) bool {
+	e, err := Parse(desc)
+	if err != nil {
+		return false
+	}
+	_, ok := e.byOp[OpIntercept]
+	return ok
+}
+
+func (r *rhsMap) without(name string) *rhsMap {
+	out := &rhsMap{m: map[string]Mult{}}
+	for _, k := range r.keys {
+		if k != name {
+			out.set(k, r.m[k])
+		}
+	}
+	return out
 }
 
 func parseRValues(tok string) (*rhsMap, error) {

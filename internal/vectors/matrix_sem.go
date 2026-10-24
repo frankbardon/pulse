@@ -27,7 +27,19 @@ type SEMPlan struct {
 	// Singular is params.singular: SEMSingularNearest (default, semopy's
 	// default fit) or SEMSingularRefuse.
 	Singular string
+	// MeanStructure is params.meanstructure: model the means too
+	// (sem.ModelOptions.MeanStructure). A `~ 1` line in the model sets
+	// Model.MeanStructure whatever this says.
+	MeanStructure bool
 }
+
+// Lavaan reports whether the resolved fit follows lavaan's conventions
+// (sem.Model.Lavaan: a mean structure); false before resolution.
+func (p *SEMPlan) Lavaan() bool { return p != nil && p.Model != nil && p.Model.Lavaan() }
+
+// HasMeans reports whether the resolved fit models the means
+// (auxiliary implied_means / observed_means, `~1` estimate rows).
+func (p *SEMPlan) HasMeans() bool { return p != nil && p.Model != nil && p.Model.MeanStructure }
 
 // MAT_SEM's params.singular values: fit a rank-deficient covariance as
 // semopy's default fit does — raw while it factors, else statsmodels'
@@ -52,6 +64,9 @@ type semParams struct {
 	MaxIter     *int     `json:"max_iter"`
 	GradTol     *float64 `json:"grad_tol"`
 	Singular    *string  `json:"singular"`
+	// MeanStructure is lavaan's meanstructure: observed intercepts and
+	// latent means join the model (lavaan conventions).
+	MeanStructure *bool `json:"meanstructure"`
 	missingParams
 }
 
@@ -65,10 +80,32 @@ func SEMInformation() []string {
 	return []string{string(sem.InformationDense), string(sem.InformationRank2)}
 }
 
-// SEMEstimateColumns are the columns of MAT_SEM's auxiliary.estimates,
-// in order: the ONE list the runtime renders and predict sizes.
+// SEMEstimateColumns are the columns of a semopy-convention MAT_SEM
+// fit's auxiliary.estimates, in order.
 func SEMEstimateColumns() []string {
 	return []string{"estimate", "std_estimate", "std_err", "z_value", "p_value"}
+}
+
+// SEMEstimateColumnsOf are the columns of plan's auxiliary.estimates,
+// in order — the ONE list the runtime renders and predict sizes: a
+// lavaan-convention fit (SEMPlan.Lavaan) adds the 95% Wald interval
+// ci_lower / ci_upper; a semopy one is SEMEstimateColumns.
+func SEMEstimateColumnsOf(plan *SEMPlan) []string {
+	cols := SEMEstimateColumns()
+	if plan.Lavaan() {
+		cols = append(cols, "ci_lower", "ci_upper")
+	}
+	return cols
+}
+
+// semDefaultSolver is the solver a fit without params.solver runs:
+// Fisher scoring (to the optimum) under lavaan conventions — a
+// meanstructure param or a `~ 1` line — else semopy's SLSQP.
+func semDefaultSolver(p semParams) sem.Solver {
+	if (p.MeanStructure != nil && *p.MeanStructure) || (p.Model != nil && sem.HasIntercepts(*p.Model)) {
+		return sem.SolverFisher
+	}
+	return sem.SolverSLSQP
 }
 
 // SEMDefaultModel is MAT_SEM's model when params.model is absent: one
@@ -81,6 +118,10 @@ func SEMDefaultModel(labels []string) string {
 // description for resolveSEM, which needs the members.
 func decodeSEM(at string, p semParams, m *Matrix) *errors.CodedError {
 	plan := &SEMPlan{Singular: SEMSingularNearest}
+	if p.MeanStructure != nil {
+		plan.MeanStructure = *p.MeanStructure
+	}
+	solver := semDefaultSolver(p)
 	if p.Singular != nil {
 		if !slices.Contains(SEMSingular(), *p.Singular) {
 			return matrixInvalid(at, "bad_params", at+` params.singular must be "nearest" or "refuse"`,
@@ -97,6 +138,7 @@ func decodeSEM(at string, p semParams, m *Matrix) *errors.CodedError {
 	}
 	if p.Solver != nil {
 		plan.Options.Solver = sem.Solver(*p.Solver)
+		solver = plan.Options.Solver
 		if !slices.Contains(SEMSolvers(), *p.Solver) {
 			return matrixInvalid(at, "bad_params", at+` params.solver must be "slsqp" or "fisher"`,
 				map[string]any{"param": "solver", "value": *p.Solver, "valid": SEMSolvers()})
@@ -114,8 +156,12 @@ func decodeSEM(at string, p semParams, m *Matrix) *errors.CodedError {
 			return matrixInvalid(at, "bad_params", at+" params.ftol must be positive",
 				map[string]any{"param": "ftol", "value": *p.Ftol})
 		}
-		if plan.Options.Solver == sem.SolverFisher {
-			return matrixInvalid(at, "bad_params", at+` params.ftol applies to solver "slsqp" only; Fisher scoring stops on grad_tol`,
+		if solver == sem.SolverFisher {
+			msg := at + ` params.ftol applies to solver "slsqp" only; Fisher scoring stops on grad_tol`
+			if p.Solver == nil {
+				msg += `; a lavaan-convention fit (meanstructure, a ~ 1 line) runs Fisher scoring unless params.solver is "slsqp"`
+			}
+			return matrixInvalid(at, "bad_params", msg,
 				map[string]any{"param": "ftol", "solver": string(sem.SolverFisher)})
 		}
 		plan.Options.Ftol = *p.Ftol
@@ -132,7 +178,7 @@ func decodeSEM(at string, p semParams, m *Matrix) *errors.CodedError {
 			return matrixInvalid(at, "bad_params", at+" params.grad_tol must be positive",
 				map[string]any{"param": "grad_tol", "value": *p.GradTol})
 		}
-		if plan.Options.Solver != sem.SolverFisher {
+		if solver != sem.SolverFisher {
 			return matrixInvalid(at, "bad_params", at+` params.grad_tol applies to solver "fisher" only; SLSQP stops on ftol`,
 				map[string]any{"param": "grad_tol", "solver": string(sem.SolverSLSQP)})
 		}
@@ -162,7 +208,7 @@ func resolveSEM(at string, m *Matrix) *errors.CodedError {
 	if m.SEM.Desc == "" {
 		m.SEM.Desc = SEMDefaultModel(labels)
 	}
-	model, err := sem.NewModel(m.SEM.Desc, false)
+	model, err := sem.NewModelWithOptions(m.SEM.Desc, sem.ModelOptions{MeanStructure: m.SEM.MeanStructure})
 	if err != nil {
 		return matrixInvalid(at, "bad_params", at+" params.model: "+err.Error(),
 			map[string]any{"param": "model", "error": err.Error()})

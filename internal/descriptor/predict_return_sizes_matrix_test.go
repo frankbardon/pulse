@@ -86,6 +86,12 @@ func TestMatrixAuxiliaryNodes_PerOperator(t *testing.T) {
 		// three residual variances and the factor variance.
 		{"sem_default", auxSpec(types.MAT_SEM, x3, ""), []auxShape{{"estimates", 7, 5}, {"residual_covariance", 3, 3}}},
 		{"sem_model", auxSpec(types.MAT_SEM, x4, `{"model": "f =~ x1 + x2 + x3\nx4 ~ f"}`), []auxShape{{"estimates", 9, 5}, {"residual_covariance", 4, 4}}},
+		// A mean structure adds three intercepts and the (fixed) latent
+		// mean, the two Wald columns and the p x 1 mean auxiliaries.
+		{"sem_meanstructure", auxSpec(types.MAT_SEM, x3, `{"meanstructure": true}`),
+			[]auxShape{{"estimates", 11, 7}, {"residual_covariance", 3, 3}, {"implied_means", 3, 1}, {"observed_means", 3, 1}}},
+		{"sem_intercept_lines", auxSpec(types.MAT_SEM, x3, `{"model": "f =~ x1 + x2 + x3\nf ~ 1\nx1 ~ 0*1"}`),
+			[]auxShape{{"estimates", 11, 7}, {"residual_covariance", 3, 3}, {"implied_means", 3, 1}, {"observed_means", 3, 1}}},
 		{"distance_standardized_mahalanobis", auxSpec(types.MAT_DISTANCE, x3, `{`+between+`, "standardize": true, "metric": "mahalanobis"}`),
 			[]auxShape{{"centroids", 4, 3}, {"centroids_standardized", 4, 3}, {"pooled_covariance", 3, 3}}},
 	}

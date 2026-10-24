@@ -237,7 +237,8 @@ type MatrixResolve struct {
 //   - MAT_FACTOR: unrotated under a rotation; factor_correlation under
 //     an oblique one.
 //   - MAT_COLLINEARITY: variance_decomposition.
-//   - MAT_SEM: estimates, residual_covariance.
+//   - MAT_SEM: estimates, residual_covariance; implied_means,
+//     observed_means under a mean structure.
 //   - MAT_DISTANCE: centroids; centroids_standardized under
 //     standardize; pooled_covariance under a fitted inverse-covariance
 //     metric.
@@ -273,6 +274,9 @@ func (m Matrix) AuxiliaryKeys() (keys []string, known bool) {
 		keys = append(keys, "variance_decomposition")
 	case types.MAT_SEM:
 		keys = append(keys, "estimates", "residual_covariance")
+		if m.SEM.HasMeans() {
+			keys = append(keys, "implied_means", "observed_means")
+		}
 	case types.MAT_DISTANCE:
 		keys = append(keys, "centroids")
 		if m.Standardize {

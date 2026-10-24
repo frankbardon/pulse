@@ -17,15 +17,16 @@ Members = the model's observed variables, by label.
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `model` | string | — | `f =~ a + b`, `y ~ f`, `a ~~ b`; `l*x`, `0.5*x`. |
-| `solver` | `slsqp` \| `fisher` | `slsqp` | semopy's SLSQP, its early stop included; `fisher` converges. |
-| `information` | `dense` \| `rank2` | `dense` | `rank2`: faster, same figures. |
-| `ftol` | float | 1e-06 | SLSQP stop: the objective moves by less. |
-| `max_iter` | int | — | Iteration cap: 10000 slsqp, 500 fisher. |
-| `grad_tol` | float | 1e-10 | Fisher stop: every free \|gradient\| below it. |
-| `singular` | `nearest` \| `refuse` | `nearest` | semopy's: `cov_nearest` if Cholesky fails. |
+| `model` | string | — | `f =~ a + b`, `y ~ f`, `a ~~ b`, `x ~ 1`; `l*x`, `0.5*x`. |
+| `meanstructure` | bool | false | Means (lavaan rules). |
+| `solver` | `slsqp` \| `fisher` | `slsqp` | semopy's SLSQP (early stop); `fisher` converges. |
+| `information` | `dense` \| `rank2` | `dense` | `rank2`: faster. |
+| `ftol` | float | 1e-06 | SLSQP objective-change stop. |
+| `max_iter` | int | — | Cap: 10000 slsqp, 500 fisher. |
+| `grad_tol` | float | 1e-10 | Fisher stop: max \|gradient\|. |
+| `singular` | `nearest` \| `refuse` | `nearest` | `cov_nearest` if Cholesky fails. |
 | `missing` | `listwise` | `listwise` | Listwise only. |
-| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
+| `max_drop_share` | 0–1 | — | Drop-share warning. |
 | `fit` | string | — | Listwise only. |
 
 ## Inputs
@@ -34,7 +35,7 @@ Integer / float members.
 
 ## Output
 
-`primary`: Σ(θ̂). `auxiliary.estimates`: rows `lval op rval` × `estimate`, `std_estimate`, `std_err`, `z_value`, `p_value`; `residual_covariance` S − Σ. `vectors`: `parameter`, `free`. `scalars`: fit indices (`chi2`, `cfi`, `rmsea`, …).
+`primary`: Σ(θ̂). `auxiliary.estimates`: rows `lval op rval` × `estimate`, `std_estimate`, `std_err`, `z_value`, `p_value` (+ `ci_lower`, `ci_upper` if lavaan); `residual_covariance` S − Σ; means: `implied_means`, `observed_means`. `vectors`: `parameter`, `free`; `scalars`: fit indices.
 
 <!-- generated: reading-the-output -->
 
@@ -46,13 +47,14 @@ Integer / float members.
 
 ## Gotchas
 
-- Unused member or non-member variable: `bad_params`.
-- Default stops where semopy does.
-- S not factoring: `PULSE_MATRIX_NEAREST_PD`; constant member or `refuse`: fatal `PULSE_MATRIX_SINGULAR`.
-- Standardized fit: vector `standardize: "zscore"` (S = correlation).
-- Derived observed variable: name the request's attribute / feature label as a member.
+- Unused / non-member variable: `bad_params`.
+- Default: semopy's early stop.
+- Means (`meanstructure`, `~ 1`): lavaan, `sem-modeling`.
+- S not factoring: `PULSE_MATRIX_NEAREST_PD`; constant member / `refuse`: fatal `PULSE_MATRIX_SINGULAR`.
+- Standardized: vector `standardize: "zscore"`.
+- Derived variable: an attribute / feature label as a member.
 
 ## See
 
 - `pulse_examples_search tags=[matrix, multivariate]`
-- Skills: `matrix-results`, `multivariate-design`, `op-mat-factor`, `op-mat-reliability`
+- Skills: `sem-modeling`, `matrix-results`, `multivariate-design`, `op-mat-factor`, `op-mat-reliability`

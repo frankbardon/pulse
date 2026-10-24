@@ -547,9 +547,11 @@ func matrixNode(name string, rows, cols int64, enc types.MatrixEncoding, fields 
 //   - MAT_DISTANCE: centroids b x p; centroids_standardized b x p under
 //     standardize; pooled_covariance p x p under a fitted inverse
 //     covariance metric (mahalanobis).
-//   - MAT_SEM: estimates r x 5, r the model's parameter-table rows
-//     (sem.SpecifiedRows: known from the description alone);
-//     residual_covariance p x p.
+//   - MAT_SEM: estimates r x c, r the model's parameter-table rows
+//     (sem.SpecifiedRows: known from the description alone), c
+//     vectors.SEMEstimateColumnsOf (5, or 7 with the Wald interval of a
+//     lavaan-convention fit); residual_covariance p x p; implied_means
+//     and observed_means p x 1 under a mean structure.
 //
 // semRecordFields are the fields a MAT_SEM estimates record carries
 // beside its key and figures (processing.semParts).
@@ -584,7 +586,9 @@ func matrixAuxiliaryNodes(m vectors.Matrix, mp descriptor.MatrixPredict, member 
 			if m.SEM != nil && m.SEM.Model != nil {
 				rows = int64(len(sem.SpecifiedRows(m.SEM.Model)))
 			}
-			out = append(out, matrixNode(name, rows, int64(len(vectors.SEMEstimateColumns())), m.Encoding, semRecordFields))
+			out = append(out, matrixNode(name, rows, int64(len(vectors.SEMEstimateColumnsOf(m.SEM))), m.Encoding, semRecordFields))
+		case "implied_means", "observed_means":
+			out = append(out, matrixNode(name, p, 1, m.Encoding, 0))
 		default: // n and the inference squares: p x p over the output axis
 			out = append(out, matrixNode(name, p, p, m.Encoding, 0))
 		}

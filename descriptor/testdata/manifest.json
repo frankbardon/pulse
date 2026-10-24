@@ -9831,7 +9831,7 @@
       },
       {
         "name": "MAT_SEM",
-        "description": "Structural equation model of a vector's members (listwise only): a lavaan / semopy description in params.model (=~ measurement, ~ regression, ~~ covariance; label* equality and number* fixed multipliers) fitted by maximum likelihood to the members' covariance, whose observed variables are exactly the members (by label). The default setup reproduces semopy (semopy.Model(desc).fit(data), semopy 2.3.11): the Wishart ML objective over the biased (divisor N) covariance minimised by a port of SciPy's SLSQP at ftol 1e-6 — semopy's early stop included — with semopy's specification rules, starting values, expected-information standard errors and calc_stats fit indices. params.solver fisher converges to the optimum instead; params.information rank2 computes the same derivatives more cheaply. The primary is the model-implied covariance Sigma(theta) over the members; auxiliary.estimates is the parameter table (rectangular: a row per semopy inspect row keyed \"lval op rval\" — op ~ for loadings and regressions, ~~ for (co)variances — columns estimate, std_estimate, std_err, z_value, p_value; SE, z and p null on a fixed parameter) and auxiliary.residual_covariance S - Sigma(theta); vectors carry each row's parameter name and whether it is free; scalars the fit indices and the fit's iterations / convergence. A rank-deficient covariance is fitted as semopy fits it (params.singular nearest, the default): raw while its Cholesky factors, else to semopy's nearest positive-definite substitute with PULSE_MATRIX_NEAREST_PD; a zero-spread member, or params.singular refuse, is PULSE_MATRIX_SINGULAR; a solver stop short of success warns PULSE_MATRIX_NOT_CONVERGED; negative degrees of freedom warn PULSE_MATRIX_NOT_IDENTIFIED. Weighted under frequency weights (exactly the fit on the expanded rows, N = the sum of weights); a probability weight is PULSE_WEIGHT_UNSUPPORTED.",
+        "description": "Structural equation model of a vector's members (listwise only): a lavaan / semopy description in params.model (=~ measurement, ~ regression, ~~ covariance; label* equality and number* fixed multipliers) fitted by maximum likelihood to the members' covariance, whose observed variables are exactly the members (by label). The default setup reproduces semopy (semopy.Model(desc).fit(data), semopy 2.3.11): the Wishart ML objective over the biased (divisor N) covariance minimised by a port of SciPy's SLSQP at ftol 1e-6 — semopy's early stop included — with semopy's specification rules, starting values, expected-information standard errors and calc_stats fit indices. params.solver fisher converges to the optimum instead; params.information rank2 computes the same derivatives more cheaply. The primary is the model-implied covariance Sigma(theta) over the members; auxiliary.estimates is the parameter table (rectangular: a row per semopy inspect row keyed \"lval op rval\" — op ~ for loadings and regressions, ~~ for (co)variances — columns estimate, std_estimate, std_err, z_value, p_value; SE, z and p null on a fixed parameter) and auxiliary.residual_covariance S - Sigma(theta); vectors carry each row's parameter name and whether it is free; scalars the fit indices and the fit's iterations / convergence. A rank-deficient covariance is fitted as semopy fits it (params.singular nearest, the default): raw while its Cholesky factors, else to semopy's nearest positive-definite substitute with PULSE_MATRIX_NEAREST_PD; a zero-spread member, or params.singular refuse, is PULSE_MATRIX_SINGULAR; a solver stop short of success warns PULSE_MATRIX_NOT_CONVERGED; negative degrees of freedom warn PULSE_MATRIX_NOT_IDENTIFIED. Weighted under frequency weights (exactly the fit on the expanded rows, N = the sum of weights); a probability weight is PULSE_WEIGHT_UNSUPPORTED. A mean structure (params.meanstructure, or a ~ 1 line in the model) switches the fit to lavaan conventions (lavaan's ML meanstructure = TRUE fit: Fisher scoring to the optimum, unbounded variances, lavaan's chi-square, degrees of freedom, fit indices and log-likelihood): the estimates gain ~1 rows (observed intercepts, latent means) and the 95% Wald columns ci_lower / ci_upper, and auxiliary.implied_means / observed_means are emitted.",
         "accepts_types": [
           "f32",
           "f64",
@@ -9854,7 +9854,7 @@
             "type": "enum",
             "required": false,
             "default": "slsqp",
-            "description": "slsqp: SciPy's SLSQP as semopy calls it (a port: the same iterates, the same stop at ftol), so the results are semopy's to rounding — including its early stop short of the optimum at the default ftol. fisher: damped Fisher scoring (Levenberg-Marquardt on the expected information) to the optimum, stopping when every free gradient entry is below grad_tol; a semopy fit at a small ftol lands on the same figures.",
+            "description": "slsqp: SciPy's SLSQP as semopy calls it (a port: the same iterates, the same stop at ftol), so the results are semopy's to rounding — including its early stop short of the optimum at the default ftol. fisher: damped Fisher scoring (Levenberg-Marquardt on the expected information) to the optimum, stopping when every free gradient entry is below grad_tol; a semopy fit at a small ftol lands on the same figures. A lavaan-convention fit (a mean structure) defaults to fisher.",
             "enum_values": [
               "slsqp",
               "fisher"
@@ -9903,6 +9903,13 @@
             ]
           },
           {
+            "name": "meanstructure",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Model the means too (lavaan's meanstructure = TRUE): every observed intercept free (an observed exogenous variable's mean fixed to its sample mean, fixed.x), every latent mean fixed to 0 unless a model line f ~ 1 frees it; x ~ 1, x ~ 0*1 and x ~ a*1 lines free, fix or label an intercept and set it on whatever this says. Switches the fit to lavaan conventions: solver defaults to fisher (to the optimum), variances are unbounded, the scalars are lavaan's (chi2 = N * objective, dof over the means too, the closed-form independence baseline, rmsea with divisor N, gfi / agfi lavaan's gfi_lisrel / agfi_lisrel, loglik the log-likelihood, aic / bic from it), estimates gains ~1 rows and the 95% Wald ci_lower / ci_upper columns, and auxiliary.implied_means / observed_means (one mean column per member) are emitted. Absent or false with no ~ 1 line: semopy's covariance-only fit, unchanged."
+          },
+          {
             "name": "missing",
             "type": "enum",
             "required": false,
@@ -9929,6 +9936,8 @@
           "primary": "implied_covariance",
           "auxiliary": [
             "estimates",
+            "implied_means",
+            "observed_means",
             "residual_covariance"
           ],
           "vectors": [
@@ -13280,6 +13289,10 @@
       {
         "name": "response-shaping",
         "description": "The request `return` block — choose which parts of a response come back (presets, include / exclude paths) and how many significant digits floats carry on the wire; what is projected, what stays exact, and how it composes with streaming and instance defaults."
+      },
+      {
+        "name": "sem-modeling",
+        "description": "Structural equation modelling with MAT_SEM — which convention a fit follows (semopy's covariance-only default or lavaan's once a mean structure is in play), the ~ 1 syntax for intercepts and latent means, and how to read the mean-structure outputs."
       },
       {
         "name": "session-bootstrap",
@@ -19574,4 +19587,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1d2d8554b4faf9eaee571ec7f3567f7c3923bfea9726c67b1f5900878376e5e0
+// golden-hash: 8b42ea87b5b43b5bc55e0fcfe913b6aeaba4268db500272b95cdb0c6ab58731f

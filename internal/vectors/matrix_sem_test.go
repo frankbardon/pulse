@@ -91,6 +91,40 @@ func TestResolveMatrices_SEM(t *testing.T) {
 		}
 	})
 
+	t.Run("mean structure", func(t *testing.T) {
+		for _, params := range []string{
+			`{"meanstructure": true}`,
+			`{"model": "f =~ q_1 + q_2 + q_3\nf ~ 1\nq_1 ~ 0*1"}`,
+		} {
+			m, err := resolve(sem3(params))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !m.SEM.Lavaan() || !m.SEM.HasMeans() {
+				t.Errorf("%s: lavaan %v means %v, want both", params, m.SEM.Lavaan(), m.SEM.HasMeans())
+			}
+			if keys, _ := m.AuxiliaryKeys(); !slices.Equal(keys, []string{"estimates", "residual_covariance", "implied_means", "observed_means"}) {
+				t.Errorf("%s: auxiliary keys = %v", params, keys)
+			}
+			if cols := SEMEstimateColumnsOf(m.SEM); !slices.Equal(cols, append(SEMEstimateColumns(), "ci_lower", "ci_upper")) {
+				t.Errorf("%s: estimate columns %v", params, cols)
+			}
+		}
+		// grad_tol needs fisher: the lavaan-convention default.
+		m, err := resolve(sem3(`{"meanstructure": true, "grad_tol": 1e-9}`))
+		if err != nil || m.SEM.Options.GradTol != 1e-9 {
+			t.Errorf("grad_tol under a mean structure: %v %+v", err, m.SEM)
+		}
+		// Explicit slsqp keeps ftol.
+		if m, err = resolve(sem3(`{"meanstructure": true, "solver": "slsqp", "ftol": 1e-12}`)); err != nil || m.SEM.Options.Ftol != 1e-12 {
+			t.Errorf("slsqp ftol under a mean structure: %v %+v", err, m.SEM)
+		}
+		// meanstructure false is the covariance-only semopy fit.
+		if m, err = resolve(sem3(`{"meanstructure": false}`)); err != nil || m.SEM.Lavaan() || m.SEM.HasMeans() || !slices.Equal(SEMEstimateColumnsOf(m.SEM), SEMEstimateColumns()) {
+			t.Errorf("meanstructure false: %v %+v", err, m.SEM)
+		}
+	})
+
 	refusals := []struct {
 		name, params, reason, param string
 	}{
@@ -102,6 +136,12 @@ func TestResolveMatrices_SEM(t *testing.T) {
 		{"unknown information", `{"information": "sparse"}`, "bad_params", "information"},
 		{"ftol beside fisher", `{"solver": "fisher", "ftol": 1e-8}`, "bad_params", "ftol"},
 		{"grad_tol beside slsqp", `{"grad_tol": 1e-8}`, "bad_params", "grad_tol"},
+		// A mean structure defaults the solver to fisher: ftol needs an
+		// explicit slsqp.
+		{"ftol beside a mean structure", `{"meanstructure": true, "ftol": 1e-8}`, "bad_params", "ftol"},
+		{"ftol beside a ~ 1 line", `{"model": "f =~ q_1 + q_2 + q_3\nf ~ 1\nq_1 ~ 0*1", "ftol": 1e-8}`, "bad_params", "ftol"},
+		{"intercept on a non-variable", `{"model": "f =~ q_1 + q_2 + q_3\nz ~ 1"}`, "bad_params", "model"},
+		{"meanstructure not a bool", `{"meanstructure": "yes"}`, "bad_params", ""},
 		{"zero ftol", `{"ftol": 0}`, "bad_params", "ftol"},
 		{"zero max_iter", `{"max_iter": 0}`, "bad_params", "max_iter"},
 		{"pairwise", `{"missing": "pairwise"}`, "pairwise_unsupported", "missing"},

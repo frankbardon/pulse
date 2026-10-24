@@ -311,6 +311,7 @@
     - [request-templating](guide/skills/request-templating.md)
     - [response-components](guide/skills/response-components.md)
     - [response-shaping](guide/skills/response-shaping.md)
+    - [sem-modeling](guide/skills/sem-modeling.md)
     - [session-bootstrap](guide/skills/session-bootstrap.md)
     - [session-format-flags](guide/skills/session-format-flags.md)
     - [session-skill-routing](guide/skills/session-skill-routing.md)

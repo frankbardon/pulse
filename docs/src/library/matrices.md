@@ -510,7 +510,26 @@ refuses every rank-deficient covariance that way. A solver stop short
 of success keeps the last iterate with `PULSE_MATRIX_NOT_CONVERGED`; a
 model with more parameters than moments is fitted with
 `PULSE_MATRIX_NOT_IDENTIFIED`. Streamable and mergeable: the fit reads
-only the merged covariance and N.
+only the merged covariance and N (and the merged means under a mean
+structure).
+
+**A mean structure switches to lavaan.** `params.meanstructure: true`,
+or any `~ 1` line in the model, models the means too, as lavaan's
+`meanstructure = TRUE`: every observed intercept free (a pure
+predictor's mean fixed to its sample mean, lavaan's `fixed.x`), every
+latent mean fixed to 0 unless `f ~ 1` frees it; `x ~ 0*1` fixes an
+intercept and `x ~ a*1` labels it (identify a free latent mean by fixing
+its marker's intercept: `f ~ 1` with `x1 ~ 0*1`). The fit then follows
+lavaan's conventions, not semopy's: Fisher scoring to the optimum,
+unbounded variances, lavaan's χ², degrees of freedom (the means
+counted), CFI / TLI / NFI / RMSEA, `gfi` / `agfi` as lavaan's
+`gfi_lisrel` / `agfi_lisrel`, `loglik` the log-likelihood and `aic` /
+`bic` from it — the same covariance model can report a different `chi2`
+on the two paths, so compare fits on one convention. The estimates gain
+`"x ~1"` rows and 95% Wald `ci_lower` / `ci_upper` columns, and
+`auxiliary.implied_means` / `observed_means` (one `mean` column per
+member) are emitted. Parity: lavaan 0.7.3's ML fit within 1e-4 on
+estimates and SEs, 1e-3 on fit indices.
 
 ## Groups, cost and refusals
 
