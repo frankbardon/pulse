@@ -207,15 +207,23 @@ func TestSEM_HiddenSurfacesRefuseLikeUnknown(t *testing.T) {
 			t.Fatalf("a made-up key: %v", unknownErr)
 		}
 		unknownDetails, _ := json.Marshal(unknown.Details)
-		hiddenKeys := []string{"group", "group_reference", "group_equal", "group_partial"}
+		// capability:sem_bootstrap is never enabled here either.
+		hiddenKeys := []string{"group", "group_reference", "group_equal", "group_partial", "resample", "bootstrap_iters", "rng_seed", "ci_level"}
 		if !means {
 			hiddenKeys = append(hiddenKeys, "meanstructure")
 		}
 		for _, k := range hiddenKeys {
 			t.Run(fmt.Sprintf("means=%v/%s", means, k), func(t *testing.T) {
 				var v any = "wave"
-				if k == "meanstructure" {
+				switch k {
+				case "meanstructure":
 					v = true
+				case "resample":
+					v = "bootstrap"
+				case "bootstrap_iters", "rng_seed":
+					v = 10
+				case "ci_level":
+					v = 0.9
 				}
 				req := func() *types.Request {
 					return semGroupRequest(t, "brand_mgmis", map[string]any{"group": nil, k: v})
@@ -280,6 +288,27 @@ func TestSEM_HiddenSurfacesRefuseLikeUnknown(t *testing.T) {
 	}
 }
 
+// TestSEM_HiddenBootstrapUnderWeight: with capability:sem_bootstrap
+// hidden and capability:weighting offered, a weighted slot carrying
+// params.resample is refused as the unknown key it is — never as the
+// bootstrap's weight refusal, which would name the hidden surface —
+// predict ≡ runtime.
+func TestSEM_HiddenBootstrapUnderWeight(t *testing.T) {
+	features := []string{"capability:process", "capability:matrices", "capability:weighting", "MAT_SEM"}
+	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8, weight: func(int) int { return 1 }}.build(t, pulse.Options{FeatureProfile: &pulse.FeatureProfile{Features: features}})
+	req := func() *types.Request {
+		r := semGroupRequest(t, "brand_mgmis", map[string]any{"group": nil, "resample": "bootstrap"})
+		r.Matrices[0].Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency})
+		return r
+	}
+	_, rerr := p.Process(context.Background(), req())
+	var ce *errors.CodedError
+	if !asCoded(rerr, &ce) || ce.Code != errors.PULSE_REQUEST_UNKNOWN_FIELD {
+		t.Fatalf("got %v (%v), want the unknown-key refusal", rerr, semDetailsOf(ce))
+	}
+	sameEntry(t, predictEnvelope(t, p, fsys, "brand.pulse", req()), rerr)
+}
+
 // TestSEM_HiddenSurfacesLeaveTheManifest: a profile hiding the MAT_SEM
 // surfaces drops their params, their output keys and every manifest
 // sentence naming one of their wire tokens from the MAT_SEM entry,
@@ -307,7 +336,7 @@ func TestSEM_HiddenSurfacesLeaveTheManifest(t *testing.T) {
 	}
 	full, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	fm := entry(full)
-	for _, k := range []string{"meanstructure", "group", "group_reference", "group_equal", "group_partial"} {
+	for _, k := range []string{"meanstructure", "group", "group_reference", "group_equal", "group_partial", "resample", "bootstrap_iters", "rng_seed", "ci_level"} {
 		if !slices.Contains(params(fm), k) {
 			t.Errorf("default manifest lacks params.%s", k)
 		}
@@ -317,8 +346,10 @@ func TestSEM_HiddenSurfacesLeaveTheManifest(t *testing.T) {
 		hidden []string // params and wire tokens absent from the entry
 		kept   []string // params still listed
 	}{
-		{true, []string{"group", "group_reference", "group_equal", "group_partial", "chi2_group_", "n_group_", "PULSE_MATRIX_DEFINED_NONFINITE", ":="}, []string{"meanstructure", "model"}},
-		{false, []string{"group", "group_reference", "group_equal", "group_partial", "meanstructure", "implied_means", "observed_means", "PULSE_MATRIX_DEFINED_NONFINITE", ":="}, []string{"model", "solver"}},
+		{true, []string{"group", "group_reference", "group_equal", "group_partial", "chi2_group_", "n_group_", "PULSE_MATRIX_DEFINED_NONFINITE", ":=",
+			"resample", "bootstrap_iters", "rng_seed", "ci_level", "bootstrap_requested", "bootstrap_succeeded"}, []string{"meanstructure", "model"}},
+		{false, []string{"group", "group_reference", "group_equal", "group_partial", "meanstructure", "implied_means", "observed_means", "PULSE_MATRIX_DEFINED_NONFINITE", ":=",
+			"resample", "bootstrap_iters", "rng_seed", "ci_level", "bootstrap_requested", "bootstrap_succeeded"}, []string{"model", "solver"}},
 	} {
 		t.Run(fmt.Sprintf("means=%v", c.means), func(t *testing.T) {
 			p, _ := semHidingInstance(t, c.means)
@@ -351,8 +382,12 @@ func TestSEM_HiddenSurfacesLeaveTheManifest(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// REG_RESAMPLE's RegressionSpec slots share the bootstrap's
+			// names (resample, bootstrap_iters, rng_seed and the echoes),
+			// so the schema names them for the regressions.
+			regression := []string{"resample", "bootstrap_iters", "rng_seed", "bootstrap_requested", "bootstrap_succeeded"}
 			for _, k := range c.hidden {
-				if k != "group" && strings.Contains(string(schema), `"`+k) {
+				if k != "group" && !slices.Contains(regression, k) && strings.Contains(string(schema), `"`+k) {
 					t.Errorf("the payload schema names %q", k)
 				}
 			}

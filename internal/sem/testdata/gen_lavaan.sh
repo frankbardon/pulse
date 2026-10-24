@@ -36,3 +36,9 @@ fit brand brand_mgmod TRUE brand_mg_strict wave loadings,intercepts,means,residu
 fit brand brand_def TRUE brand_def_ms
 fit brand brand_def FALSE brand_def_cov
 fit brand brand_mgdef TRUE brand_mg_defined wave loadings,intercepts
+# lavaan's se = "bootstrap" (percentile intervals, seeded): the
+# distributional references for params.resample "bootstrap" — a
+# sampling tolerance, never the bits (fit_lavaan_boot.R)
+boot() { Rscript "$here/fit_lavaan_boot.R" "$here/$1_data.csv" "$here/$2_model.txt" "$3" "${5:-}" "${6:-}" 1000 20261024 > "$here/$4_lavaan.json"; }
+boot brand brand_def TRUE brand_boot_def
+boot brand brand_mgdef TRUE brand_boot_mg wave loadings,intercepts

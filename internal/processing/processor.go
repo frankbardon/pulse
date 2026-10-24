@@ -1847,6 +1847,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		if groupedMatrices, err = BuildGroupedMatrices(req, p.schema, p.exts, p.compute, p.limits); err != nil {
 			return nil, err
 		}
+		groupedMatrices.bindContext(ctx)
 		if groupedTests, err = p.buildGroupedRowTests(req); err != nil {
 			return nil, err
 		}
@@ -1988,6 +1989,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		if err != nil {
 			return nil, err
 		}
+		bindMatrixContext(matrixSlots, ctx)
 		if err := foldMatrixRecords(matrixSlots, filtered); err != nil {
 			return nil, err
 		}

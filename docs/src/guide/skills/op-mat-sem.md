@@ -9,8 +9,6 @@ applies_to: process, compose, predict
 examples_tags: [matrix, multivariate]
 ```
 
-Members = the model's observed variables, by label.
-
 ## Use when
 
 Whether a theory of how measures hang together holds: the hidden qualities they reflect, how those drive each other, how well it fits.
@@ -24,29 +22,33 @@ Questions it answers:
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `model` | string | — | `f =~ a + b`, `y ~ f`, `a ~~ b`, `x ~ 1`; `l*x`, `0.5*x`. |
-| `meanstructure` | bool | false | Means (lavaan rules). |
+| `model` | string | — | `f =~ a + b`, `y ~ f`, `a ~~ b`; `l*x`, `0.5*x`. |
+| `meanstructure` | bool | false | Means; `x ~ 1` too. |
 | `group` | string | — | Multi-group fit. |
 | `group_reference` | string | — | Primary level. |
 | `group_equal` | list | — | Invariance. |
 | `group_partial` | list | — | Freed rows. |
-| `solver` | `slsqp` \| `fisher` | `slsqp` | semopy's SLSQP (early stop); `fisher` converges. |
-| `information` | `dense` \| `rank2` | `dense` | `rank2`: faster. |
-| `ftol` | float | 1e-06 | SLSQP objective-change stop. |
-| `max_iter` | int | — | Cap: 10000 slsqp, 500 fisher. |
-| `grad_tol` | float | 1e-10 | Fisher stop: max \|gradient\|. |
-| `singular` | `nearest` \| `refuse` | `nearest` | `cov_nearest` fallback. |
-| `missing` | `listwise` | `listwise` | Listwise only. |
+| `resample` | `bootstrap` | — | SE, p, CI. |
+| `bootstrap_iters` | int | 1000 | B. |
+| `rng_seed` | int | 0 | — |
+| `ci_level` | float | 0.95 | — |
+| `solver` | enum | `slsqp` | `fisher`: to optimum. |
+| `information` | enum | `dense` | `rank2`: faster. |
+| `ftol` | float | 1e-06 | SLSQP stop. |
+| `max_iter` | int | — | Cap. |
+| `grad_tol` | float | 1e-10 | Fisher stop. |
+| `singular` | enum | `nearest` | `cov_nearest` fallback. |
+| `missing` | enum | `listwise` | Listwise only. |
 | `max_drop_share` | 0–1 | — | Drop warning. |
-| `fit` | string | — | Listwise only. |
+| `fit` | string | — | Bound fit. |
 
 ## Inputs
 
-Integer / float members.
+Integer / float members: the model's observed variables, by label.
 
 ## Output
 
-`primary`: Σ(θ̂). `auxiliary.estimates`: rows `lval op rval` × `estimate`, `std_estimate`, `std_err`, `z_value`, `p_value` (+ Wald `ci_*`, lavaan); `residual_covariance` S − Σ; `implied_means` / `observed_means`. `vectors`: `parameter`, `free`; `scalars`: fit indices.
+`primary`: Σ(θ̂). `auxiliary.estimates`: rows `lval op rval` × `estimate`, `std_estimate`, `std_err`, `z_value`, `p_value` (+ `ci_*`, lavaan); `residual_covariance` S − Σ; `implied_means` / `observed_means`. `vectors`: `parameter`, `free`; `scalars`: fit indices.
 
 ## Reading the output
 
@@ -68,7 +70,7 @@ Integer / float members.
 ## Gotchas
 
 - Unused / non-member variable: `bad_params`.
-- Means, `group`: lavaan ([`sem-modeling`](sem-modeling.md)).
+- lavaan rules: [`sem-modeling`](sem-modeling.md); `resample`: [`sem-bootstrap`](sem-bootstrap.md).
 - S not factoring: `PULSE_MATRIX_NEAREST_PD`; constant member / `refuse`: fatal `PULSE_MATRIX_SINGULAR`.
 
 ## See

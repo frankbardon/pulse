@@ -118,6 +118,7 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		"capability:sem_meanstructure": {{"MAT_SEM"}},
 		"capability:sem_groups":        {{"MAT_SEM"}, {"capability:sem_meanstructure"}},
 		"capability:sem_defined":       {{"MAT_SEM"}},
+		"capability:sem_bootstrap":     {{"MAT_SEM"}},
 	}
 	for name, want := range expect {
 		got, ok := descx.FeatureDependencies(name)

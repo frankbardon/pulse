@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/sem"
 	"github.com/frankbardon/pulse/types"
 )
@@ -55,6 +56,53 @@ type SEMPlan struct {
 	// the groups and the group.partial rows freed from them
 	// (sem.ModelOptions).
 	GroupEqual, GroupPartial []string
+	// Resample is params.resample: SEMResampleBootstrap (lavaan's se =
+	// "bootstrap": the bootstrap's SE, z, p and percentile interval
+	// replace the analytic ones; the slot buffers its rows) or "" (none).
+	// BootstrapIters, RNGSeed and CILevel are its replicate count
+	// (default SEMBootstrapItersDefault), seed (default 0) and interval
+	// level (default SEMCILevelDefault).
+	Resample       string
+	BootstrapIters int
+	RNGSeed        int64
+	CILevel        float64
+}
+
+// Bootstrap reports whether the plan bootstraps its fit.
+func (p *SEMPlan) Bootstrap() bool { return p != nil && p.Resample == SEMResampleBootstrap }
+
+// MAT_SEM's params.resample value and the bootstrap's defaults.
+const (
+	SEMResampleBootstrap     = "bootstrap"
+	SEMBootstrapItersDefault = 1000
+	SEMCILevelDefault        = 0.95
+)
+
+// SpecSEMResample is a MAT_SEM spec's params.resample as written ("" on
+// any other type, when absent, or when the params do not decode) — the
+// weight resolver's input (a bootstrap refuses every weight), read
+// before the params are judged.
+func SpecSEMResample(spec types.MatrixSpec) string {
+	if spec.Type != types.MAT_SEM || len(spec.Params) == 0 {
+		return ""
+	}
+	var p struct {
+		Resample *string `json:"resample"`
+	}
+	if paramread.Probe(spec.Params, &p) != nil || p.Resample == nil {
+		return ""
+	}
+	return *p.Resample
+}
+
+// SEMResample are the accepted non-empty params.resample values.
+func SEMResample() []string { return []string{SEMResampleBootstrap} }
+
+// SEMBootstrapScalarKeys are the scalars a bootstrapped fit adds: the
+// replicates run and those that refitted (the SE / p / interval read
+// these only).
+func SEMBootstrapScalarKeys() []string {
+	return []string{"bootstrap_requested", "bootstrap_succeeded"}
 }
 
 // Grouped reports whether the plan is a joint multi-group fit.
@@ -152,6 +200,13 @@ type semParams struct {
 	// sweep axis value).
 	GroupEqual   *semList `json:"group_equal"`
 	GroupPartial *semList `json:"group_partial"`
+	// Resample is lavaan's se = "bootstrap" (REG_RESAMPLE's naming):
+	// BootstrapIters replicates seeded by RNGSeed, percentile intervals
+	// at CILevel.
+	Resample       *string  `json:"resample"`
+	BootstrapIters *int     `json:"bootstrap_iters"`
+	RNGSeed        *int64   `json:"rng_seed"`
+	CILevel        *float64 `json:"ci_level"`
 	missingParams
 }
 
@@ -209,10 +264,10 @@ func SEMEstimateColumnsOf(plan *SEMPlan) []string {
 
 // semDefaultSolver is the solver a fit without params.solver runs:
 // Fisher scoring (to the optimum) under lavaan conventions — a
-// meanstructure param, a group, a `~ 1` line or a `:=` line — else
-// semopy's SLSQP.
+// meanstructure param, a group, a bootstrap, a `~ 1` line or a `:=`
+// line — else semopy's SLSQP.
 func semDefaultSolver(p semParams) sem.Solver {
-	if (p.MeanStructure != nil && *p.MeanStructure) || p.Group != nil ||
+	if (p.MeanStructure != nil && *p.MeanStructure) || p.Group != nil || (p.Resample != nil && *p.Resample != "") ||
 		(p.Model != nil && (sem.HasIntercepts(*p.Model) || sem.HasDefined(*p.Model))) {
 		return sem.SolverFisher
 	}
@@ -220,8 +275,9 @@ func semDefaultSolver(p semParams) sem.Solver {
 }
 
 // MAT_SEM's params surfaces a feature profile can hide: the mean
-// structure, the joint multi-group fit and the `:=` defined parameters
-// (the capability rows internal/descriptor declares under these names).
+// structure, the joint multi-group fit, the `:=` defined parameters and
+// the bootstrap (the capability rows internal/descriptor declares under
+// these names).
 // Hidden, a surface resolves as never existing — its params keys leave
 // the instance's params allowlist (internal/descriptor.ParamsAllowlist:
 // refused as unknown keys), its model syntax is refused
@@ -233,6 +289,7 @@ const (
 	SEMFeatureMeanStructure = "capability:sem_meanstructure"
 	SEMFeatureGroups        = "capability:sem_groups"
 	SEMFeatureDefined       = "capability:sem_defined"
+	SEMFeatureBootstrap     = "capability:sem_bootstrap"
 )
 
 // SEMFeatureParams returns the MAT_SEM params keys each hideable
@@ -242,6 +299,7 @@ func SEMFeatureParams() map[string][]string {
 		SEMFeatureMeanStructure: {"meanstructure"},
 		SEMFeatureGroups:        {"group", "group_reference", "group_equal", "group_partial"},
 		SEMFeatureDefined:       {},
+		SEMFeatureBootstrap:     {"resample", "bootstrap_iters", "rng_seed", "ci_level"},
 	}
 }
 
@@ -264,6 +322,7 @@ func SEMFeatureOutputs() map[string]map[string][]string {
 	return map[string]map[string][]string{
 		SEMFeatureMeanStructure: {"auxiliary": {"implied_means", "observed_means"}},
 		SEMFeatureGroups:        group,
+		SEMFeatureBootstrap:     {"scalars": SEMBootstrapScalarKeys()},
 	}
 }
 
@@ -394,7 +453,7 @@ func decodeSEM(at string, p semParams, m *Matrix) *errors.CodedError {
 		if solver == sem.SolverFisher {
 			msg := at + ` params.ftol applies to solver "slsqp" only; Fisher scoring stops on grad_tol`
 			if p.Solver == nil {
-				msg += `; a lavaan-convention fit (meanstructure, group, a ~ 1 or := line) runs Fisher scoring unless params.solver is "slsqp"`
+				msg += `; a lavaan-convention fit (meanstructure, group, resample, a ~ 1 or := line) runs Fisher scoring unless params.solver is "slsqp"`
 			}
 			return matrixInvalid(at, "bad_params", msg,
 				map[string]any{"param": "ftol", "solver": string(sem.SolverFisher)})
@@ -419,11 +478,60 @@ func decodeSEM(at string, p semParams, m *Matrix) *errors.CodedError {
 		}
 		plan.Options.GradTol = *p.GradTol
 	}
+	if err := decodeSEMBootstrap(at, p, plan); err != nil {
+		return err
+	}
 	if p.Missing != nil && *p.Missing == MissingPairwise {
 		return matrixInvalid(at, "pairwise_unsupported", at+` params.missing "pairwise" is not supported on MAT_SEM: the likelihood is one sample's covariance, so use "listwise"`,
 			map[string]any{"param": "missing", "value": *p.Missing, "valid": []string{MissingListwise}})
 	}
 	m.SEM = plan
+	return nil
+}
+
+// decodeSEMBootstrap decodes params.resample and its knobs:
+// bootstrap_iters a positive integer, ci_level strictly between 0 and
+// 1, rng_seed any integer; a knob without resample "bootstrap" (or
+// resample "" — none) is bad_params, never ignored.
+func decodeSEMBootstrap(at string, p semParams, plan *SEMPlan) *errors.CodedError {
+	on := false
+	if p.Resample != nil && *p.Resample != "" {
+		if !slices.Contains(SEMResample(), *p.Resample) {
+			return matrixInvalid(at, "bad_params", at+` params.resample must be "bootstrap" (non-parametric, lavaan's se = "bootstrap") or omitted`,
+				map[string]any{"param": "resample", "value": *p.Resample, "valid": SEMResample()})
+		}
+		on = true
+		plan.Resample, plan.BootstrapIters, plan.CILevel = *p.Resample, SEMBootstrapItersDefault, SEMCILevelDefault
+	}
+	for _, k := range []struct {
+		name string
+		set  bool
+	}{{"bootstrap_iters", p.BootstrapIters != nil}, {"rng_seed", p.RNGSeed != nil}, {"ci_level", p.CILevel != nil}} {
+		if k.set && !on {
+			return matrixInvalid(at, "bad_params", at+" params."+k.name+` applies with params.resample "bootstrap" only`,
+				map[string]any{"param": k.name})
+		}
+	}
+	if !on {
+		return nil
+	}
+	if p.BootstrapIters != nil {
+		if *p.BootstrapIters < 1 {
+			return matrixInvalid(at, "bad_params", at+" params.bootstrap_iters must be a positive integer",
+				map[string]any{"param": "bootstrap_iters", "value": *p.BootstrapIters})
+		}
+		plan.BootstrapIters = *p.BootstrapIters
+	}
+	if p.CILevel != nil {
+		if !(*p.CILevel > 0 && *p.CILevel < 1) {
+			return matrixInvalid(at, "bad_params", at+" params.ci_level must lie strictly between 0 and 1",
+				map[string]any{"param": "ci_level", "value": *p.CILevel})
+		}
+		plan.CILevel = *p.CILevel
+	}
+	if p.RNGSeed != nil {
+		plan.RNGSeed = *p.RNGSeed
+	}
 	return nil
 }
 
@@ -448,7 +556,7 @@ func resolveSEM(at string, m *Matrix) *errors.CodedError {
 		newModel = sem.NewGroupModel
 	}
 	model, err := newModel(m.SEM.Desc, sem.ModelOptions{MeanStructure: m.SEM.MeanStructure,
-		GroupEqual: m.SEM.GroupEqual, GroupPartial: m.SEM.GroupPartial})
+		GroupEqual: m.SEM.GroupEqual, GroupPartial: m.SEM.GroupPartial, Lavaan: m.SEM.Bootstrap()})
 	if ge, ok := err.(*sem.GroupSpecError); ok {
 		return matrixInvalid(at, "bad_params", at+" params."+ge.Error(),
 			map[string]any{"param": ge.Param, "value": ge.Value})

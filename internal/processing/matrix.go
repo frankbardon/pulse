@@ -2,6 +2,7 @@ package processing
 
 import (
 	"cmp"
+	"context"
 	"math"
 	"slices"
 	"strconv"
@@ -88,6 +89,18 @@ type matrixSlot struct {
 	// (params.group; matrix_sem_group.go); nil otherwise. Its base
 	// state (state) then folds every grouped row once.
 	semGroups *semGroupState
+	// ctx is the run's context on the buffered path (bindMatrixContext;
+	// nil elsewhere): a finalizer that loops — MAT_SEM's bootstrap —
+	// reads it between iterations.
+	ctx context.Context
+}
+
+// bindMatrixContext hands ctx to every slot (the buffered path's
+// finalizers read it).
+func bindMatrixContext(slots []*matrixSlot, ctx context.Context) {
+	for _, s := range slots {
+		s.ctx = ctx
+	}
 }
 
 var _ BlockMerger = (*matrixSlot)(nil)
@@ -140,6 +153,9 @@ type matrixPlanSet struct {
 	// vector fit (bindMatrixFit) and a Compose vector fit request's set
 	// carries the capture. Nil binds nothing.
 	models *model.Set
+	// ctx is the buffered run's context, handed to every slot fresh()
+	// mints (nil: none).
+	ctx context.Context
 }
 
 // resolveMatrixPlans resolves req.Matrices against schema (nil when
@@ -219,6 +235,7 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 			slots[i].extOp, slots[i].extComponents = s.extOps[i], s.extComponents[i]
 		}
 		slots[i].capture = s.models.Capture()
+		slots[i].ctx = s.ctx
 		if plan.Fit != "" {
 			if err := slots[i].bindMatrixFit(s.models); err != nil {
 				return nil, err
@@ -231,10 +248,12 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 			if slots[i].dist, err = newDistanceState(plan, s.weights[i], s.schema, s.exts); err != nil {
 				return nil, err
 			}
+		case plan.Type == types.MAT_SEM && plan.SEM.Grouped():
+			// A bootstrapped grouped fit (buffered) keeps each level's
+			// rows beside its co-moments, for the within-group draws.
+			slots[i].semGroups = newSEMGroupState(plan, s.schema)
 		case !plan.Streamable:
 			slots[i].rows = newMatrixRows(len(cols), plan.Pairwise)
-		case plan.Type == types.MAT_SEM && plan.SEM.Grouped():
-			slots[i].semGroups = newSEMGroupState(plan, s.schema)
 		}
 		workMatrixAccumulators.Add(1)
 	}

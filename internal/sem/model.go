@@ -137,6 +137,10 @@ type ModelOptions struct {
 	// parameters of the named classes are one value across groups,
 	// except the partial rows.
 	GroupEqual, GroupPartial []string
+	// Lavaan switches a covariance-only model to lavaan's conventions
+	// (Model.Lavaan) with no lavaan-only syntax in the description: a
+	// bootstrap (RunBootstrap) is lavaan's se = "bootstrap".
+	Lavaan bool
 
 	// grouped marks a multi-group specification; level is the group
 	// whose per-group modifiers it reads.
@@ -146,7 +150,7 @@ type ModelOptions struct {
 
 // Lavaan reports whether the model follows lavaan's conventions rather
 // than semopy's: true whenever a lavaan-only feature (a mean structure,
-// a := defined parameter) is in play. Such a fit converges to the optimum (the default solver
+// a := defined parameter, ModelOptions.Lavaan — a bootstrap) is in play. Such a fit converges to the optimum (the default solver
 // is Fisher scoring), leaves variances unbounded, and reports lavaan's
 // chi-square, degrees of freedom, fit indices, log-likelihood and Wald
 // intervals (ComputeStats); a covariance-only model keeps semopy's.
@@ -193,7 +197,7 @@ func newModel(desc string, baseline bool, opt ModelOptions) (*Model, error) {
 		desc: desc, opt: opt, arity: arity}
 	_, icpt := eff.byOp[OpIntercept]
 	m.MeanStructure = opt.MeanStructure || icpt
-	m.lavaan = m.MeanStructure || len(eff.defs) > 0
+	m.lavaan = m.MeanStructure || len(eff.defs) > 0 || opt.Lavaan
 	m.classify(eff)
 	m.preprocessCovariances(eff)
 	for _, op := range eff.ops {

@@ -139,6 +139,7 @@ var (
 	featSEMMeans      = FeatureSEMMeanStructure
 	featSEMGroups     = FeatureSEMGroups
 	featSEMDefined    = FeatureSEMDefined
+	featSEMBootstrap  = FeatureSEMBootstrap
 )
 
 // FeatureSEMMeanStructure is capability:sem_meanstructure — MAT_SEM's
@@ -162,6 +163,13 @@ const FeatureSEMGroups = vectors.SEMFeatureGroups
 // owns model syntax only — no params key, no output key. Hidden, a :=
 // line is refused (vectors.SEMHidden).
 const FeatureSEMDefined = vectors.SEMFeatureDefined
+
+// FeatureSEMBootstrap is capability:sem_bootstrap — MAT_SEM's seeded
+// non-parametric bootstrap (lavaan's se = "bootstrap"): params.resample,
+// bootstrap_iters, rng_seed and ci_level, and the scalars
+// bootstrap_requested / bootstrap_succeeded. Hidden, its keys are
+// unknown keys and its scalars leave the manifest.
+const FeatureSEMBootstrap = vectors.SEMFeatureBootstrap
 
 // FeatureParams is capability:params — the request `params` object
 // (types.Request.Params): named constants every request-scoped
@@ -254,6 +262,7 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("sem_meanstructure"),  // MAT_SEM params.meanstructure + `~ 1` model lines
 	capability("sem_groups"),         // MAT_SEM params.group / group_reference / group_equal / group_partial + c(...) modifiers
 	capability("sem_defined"),        // MAT_SEM `name := expr` model lines (defined parameters)
+	capability("sem_bootstrap"),      // MAT_SEM params.resample / bootstrap_iters / rng_seed / ci_level
 	capability("params"),             // Request.Params (params.<name> in request expressions)
 	capability("recommend"),          // pulse_recommend, pulse recommend (the facade stays ungated)
 	capability("explain"),            // pulse_explain, pulse explain (the facade stays ungated)
@@ -768,7 +777,8 @@ var overlayHostKinds = map[string][]string{
 //   - capability:sem_meanstructure is a MAT_SEM params surface (and
 //     capability:sem_groups, a groupEdges row, also needs it: a
 //     multi-group fit always models the means); capability:sem_defined
-//     is MAT_SEM model syntax.
+//     is MAT_SEM model syntax, capability:sem_bootstrap a MAT_SEM
+//     params surface.
 //   - capability:model_save writes a fitted regression or a vector
 //     fit, so it needs any-of the REG_* operators, the fitted vector
 //     attributes and capability:matrices.
@@ -809,6 +819,7 @@ var hardEdges = map[string][]string{
 	// MAT_SEM's mean structure is a MAT_SEM params surface.
 	featSEMMeans:              {string(types.MAT_SEM)},
 	featSEMDefined:            {string(types.MAT_SEM)},
+	featSEMBootstrap:          {string(types.MAT_SEM)},
 	"MAT_COLLINEARITY":        {featMatrices},
 	"MAT_CORRELATION":         {featMatrices},
 	"MAT_COVARIANCE":          {featMatrices},

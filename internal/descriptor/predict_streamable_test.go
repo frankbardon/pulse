@@ -854,6 +854,11 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		// the request-level routing still applies beside them.
 		{"MAT_SEM meanstructure streams", semReq(`{"meanstructure":true}`, nil), semSchema},
 		{"MAT_SEM grouped streams", semReq(`{"group":"wave","group_equal":["loadings","intercepts"]}`, nil), semSchema},
+		// U59 E2-S2: a bootstrap redraws the rows, so the slot buffers
+		// them (ungrouped and within each level); resample "" is none.
+		{"MAT_SEM bootstrap buffers", semReq(`{"resample":"bootstrap","bootstrap_iters":20}`, nil), semSchema},
+		{"MAT_SEM grouped bootstrap buffers", semReq(`{"group":"wave","resample":"bootstrap"}`, nil), semSchema},
+		{"MAT_SEM resample empty streams", semReq(`{"resample":""}`, nil), semSchema},
 		{"MAT_SEM grouped beside a two-pass attribute buffers", semReq(`{"group":"wave"}`, func(r *types.Request) {
 			r.Attributes = []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "x1", Label: "z"}}
 		}), semSchema},

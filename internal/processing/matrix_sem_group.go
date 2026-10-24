@@ -39,10 +39,18 @@ type semGroupState struct {
 	// buckets holds one co-moment set per level code: the dictionary
 	// index, else the integer value.
 	buckets map[uint64]*BlockCoMoments
+	// rows holds each level's admitted rows (member order) on a
+	// BUFFERED plan — a bootstrap, which redraws them within each level
+	// — and is nil on a streaming one. Rows do not merge: a buffered
+	// spec is never Mergeable.
+	rows map[uint64]*matrixRows
 }
 
 func newSEMGroupState(plan vectors.Matrix, schema *encoding.Schema) *semGroupState {
 	st := &semGroupState{field: plan.SEM.Group, buckets: map[uint64]*BlockCoMoments{}}
+	if !plan.Streamable {
+		st.rows = map[uint64]*matrixRows{}
+	}
 	if schema != nil {
 		if f := schema.Field(plan.SEM.Group); f != nil && f.Type.IsCategorical() {
 			st.dict = f
@@ -79,8 +87,19 @@ func (s *semGroupState) update(m *matrixSlot, r *Record) error {
 		}
 		s.buckets[code] = b
 	}
+	if s.rows != nil {
+		rb, ok := s.rows[code]
+		if !ok {
+			rb = newMatrixRows(len(m.cols), false)
+			s.rows[code] = rb
+		}
+		rb.add(m.x, w)
+	}
 	return b.Add(r, m.x, w)
 }
+
+// buffered reports whether s keeps its levels' rows (a nil s: no).
+func (s *semGroupState) buffered() bool { return s != nil && s.rows != nil }
 
 // merge absorbs o's buckets (a level one side alone saw moves over
 // whole).
@@ -200,6 +219,25 @@ func finalizeSEMGroups(in *matrixFinalizeInput) (matrixOutput, error) {
 			map[string]any{"matrix": plan.Name, "dof": fit.Stats.DoF, "n_params": fit.Stats.NParams}))
 	}
 	out.Warnings = append(out.Warnings, semDefinedWarnings(plan.Name, fit.Defined)...)
+	var boot *sem.Bootstrap
+	if spec.Bootstrap() {
+		// Each level's rows are redrawn within the level, so every
+		// replicate keeps each n_g.
+		samples := make([]sem.BootstrapSample, len(codes))
+		for g, c := range codes {
+			samples[g] = sem.BootstrapSample{Rows: semModelRows(gs.rows[c], spec.Order),
+				Label: moments[g].Label, Level: moments[g].Level, Reference: moments[g].Reference}
+		}
+		rows := sem.BootstrapGroupRows(fit)
+		if boot, err = semBootstrap(in, samples, rows); err != nil {
+			return matrixOutput{}, err
+		}
+		at := 0
+		for _, gf := range fit.Groups {
+			at += copy(gf.Estimates, rows[at:])
+		}
+		copy(fit.Defined, rows[at:])
+	}
 	pos := make([]int, len(spec.Order))
 	for a, i := range spec.Order {
 		pos[i] = a
@@ -246,6 +284,7 @@ func finalizeSEMGroups(in *matrixFinalizeInput) (matrixOutput, error) {
 			sc[vectors.SEMGroupChi2Key(l)] = fit.Chi2Group[g]
 			sc[vectors.SEMGroupNKey(l)] = fit.Groups[g].N
 		}
+		semBootstrapScalars(sc, boot)
 		out.Scalars = sc
 	}
 	return out, nil

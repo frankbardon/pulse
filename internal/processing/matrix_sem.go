@@ -1,6 +1,8 @@
 package processing
 
 import (
+	"context"
+	stderrors "errors"
 	"math"
 	"strings"
 
@@ -139,6 +141,16 @@ func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
 			map[string]any{"matrix": plan.Name, "dof": fit.Stats.DoF, "n_params": fit.Stats.NParams}))
 	}
 	out.Warnings = append(out.Warnings, semDefinedWarnings(plan.Name, fit.Defined)...)
+	var boot *sem.Bootstrap
+	if spec.Bootstrap() {
+		rows := sem.BootstrapRows(fit)
+		samples := []sem.BootstrapSample{{Rows: semModelRows(in.Rows, spec.Order)}}
+		if boot, err = semBootstrap(in, samples, rows); err != nil {
+			return matrixOutput{}, err
+		}
+		copy(fit.Estimates, rows)
+		copy(fit.Defined, rows[len(fit.Estimates):])
+	}
 	// Σ(θ̂) back in member order.
 	pos := make([]int, p)
 	for a, i := range spec.Order {
@@ -151,7 +163,66 @@ func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
 		out.Auxiliary["implied_means"] = in.Rect(semMeanColumns, func(r, _ int) float64 { return fit.ImpliedMean[pos[r]] })
 		out.Auxiliary["observed_means"] = in.Rect(semMeanColumns, func(r, _ int) float64 { return fit.SampleMean[pos[r]] })
 	}
+	semBootstrapScalars(out.Scalars, boot)
 	return out, nil
+}
+
+// semModelRows is a buffered slot's admitted rows, row-major, each
+// reordered from member order to the model's observed order (order:
+// SEMPlan.Order).
+func semModelRows(rows *matrixRows, order []int) []float64 {
+	k := len(order)
+	out := make([]float64, 0, rows.Len()*k)
+	for r := 0; r < rows.Len(); r++ {
+		row := rows.Row(r)
+		for _, i := range order {
+			out = append(out, row[i])
+		}
+	}
+	return out
+}
+
+// semBootstrap runs the plan's bootstrap (params.resample "bootstrap")
+// over samples — the fit's rows, one sample per group in fit order —
+// and writes its SE, z, p and percentile interval into rows, the fit's
+// table rows (sem.BootstrapRows / BootstrapGroupRows), in place. Fewer
+// than sem.BootstrapMinSuccesses successful replicates fail the slot
+// alone with PULSE_MATRIX_NOT_CONVERGED (details.reason
+// bootstrap_too_few).
+func semBootstrap(in *matrixFinalizeInput, samples []sem.BootstrapSample, rows []sem.Estimate) (*sem.Bootstrap, error) {
+	plan := in.Plan()
+	spec := plan.SEM
+	b, err := sem.RunBootstrap(spec.Model, samples, spec.Options, sem.BootstrapOptions{
+		Iters: spec.BootstrapIters, Seed: uint64(spec.RNGSeed), Level: spec.CILevel,
+		Standardize: plan.Members.Standardize != "", Ctx: in.slot.ctx,
+	}, rows)
+	if stderrors.Is(err, context.Canceled) || stderrors.Is(err, context.DeadlineExceeded) {
+		return nil, err // the request's deadline or cancel, as is
+	}
+	var be *sem.BootstrapError
+	if stderrors.As(err, &be) {
+		return nil, errors.NewCodedErrorWithDetails(errors.PULSE_MATRIX_NOT_CONVERGED,
+			"matrix "+plan.Name+": "+be.Error()+"; the refit is unstable on this data (raise bootstrap_iters, simplify the model, or drop resample)",
+			map[string]any{"matrix": plan.Name, "reason": "bootstrap_too_few", "bootstrap_requested": be.Requested,
+				"bootstrap_attempted": be.Attempted, "bootstrap_succeeded": be.Succeeded, "minimum": sem.BootstrapMinSuccesses})
+	}
+	if err != nil {
+		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+			"matrix "+plan.Name+": the bootstrap is misconfigured: "+err.Error(),
+			map[string]any{"matrix": plan.Name, "error": err.Error()})
+	}
+	b.Apply(rows)
+	return b, nil
+}
+
+// semBootstrapScalars writes a bootstrap's replicate counts into sc
+// (nil sc: scalars skipped; nil b: no bootstrap ran).
+func semBootstrapScalars(sc map[string]float64, b *sem.Bootstrap) {
+	if sc == nil || b == nil {
+		return
+	}
+	keys := vectors.SEMBootstrapScalarKeys()
+	sc[keys[0]], sc[keys[1]] = float64(b.Requested), float64(b.Succeeded)
 }
 
 // semDefinedWarnings is PULSE_MATRIX_DEFINED_NONFINITE when a := row
@@ -271,6 +342,11 @@ func (in *matrixFinalizeInput) semParts(out *matrixOutput, fit *sem.Fit, implied
 		sc := make(map[string]float64, len(semScalarKeys))
 		for _, k := range semScalarKeys {
 			sc[k] = math.NaN()
+		}
+		if spec.Bootstrap() {
+			for _, k := range vectors.SEMBootstrapScalarKeys() {
+				sc[k] = math.NaN()
+			}
 		}
 		if fit != nil {
 			st := fit.Stats

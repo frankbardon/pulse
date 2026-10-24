@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:74f2e3722acc58e66f0cc6c803435405306c1b3b371042da4abb819261f58ba7",
+    "feature_set_digest": "fs1:55e6c61e5ee48d2e190af161c05d8dbdc13f78cfc5fae21fe0146c4091d0d27a",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -9944,6 +9944,36 @@
             "description": "lavaan's group.partial: rows freed from group_equal, spelled as lavaan labels them (f=~x2, x1~1, x1~~x2, y~x; spaces ignored) — a freed marker loading is free outside the reference group. A list or one comma-separated string. A row the model lacks is bad_params. params.group only."
           },
           {
+            "name": "resample",
+            "type": "enum",
+            "required": false,
+            "description": "bootstrap: lavaan's se = \"bootstrap\" — bootstrap_iters non-parametric replicates, each drawing the listwise rows with replacement (within each level under params.group, so every replicate keeps each group's n) and refitting the model with the slot's options. Over the replicates that refit (a fit that errors, stops short of convergence or yields a non-finite figure is skipped), every free and := row's std_err is the replicates' standard deviation (divisor B - 1), z_value = estimate / std_err, p_value its two-sided normal p and ci_lower / ci_upper the percentile interval at ci_level (boot's norm.inter, as lavaan's boot.ci.type = \"perc\"); estimate and std_estimate stay the full data's. Switches the fit to lavaan conventions and adds the scalars bootstrap_requested and bootstrap_succeeded. Fewer than 10 successful replicates fail the slot alone with PULSE_MATRIX_NOT_CONVERGED (reason bootstrap_too_few). Buffers the slot's rows, so the request runs the buffered path (predict reports it). Refused under any weight (PULSE_WEIGHT_UNSUPPORTED) and with params.fit. Absent: the analytic standard errors.",
+            "enum_values": [
+              "bootstrap"
+            ]
+          },
+          {
+            "name": "bootstrap_iters",
+            "type": "int",
+            "required": false,
+            "default": 1000,
+            "description": "The bootstrap's replicate count B, a positive integer; each one is a full refit. params.resample bootstrap only."
+          },
+          {
+            "name": "rng_seed",
+            "type": "int",
+            "required": false,
+            "default": 0,
+            "description": "Seeds the bootstrap's draws: the same rows and seed give the same figures bit for bit, whatever the worker count. params.resample bootstrap only."
+          },
+          {
+            "name": "ci_level",
+            "type": "float",
+            "required": false,
+            "default": 0.95,
+            "description": "The percentile interval's level, strictly between 0 and 1. params.resample bootstrap only."
+          },
+          {
             "name": "missing",
             "type": "enum",
             "required": false,
@@ -9988,6 +10018,8 @@
             "agfi",
             "aic",
             "bic",
+            "bootstrap_requested",
+            "bootstrap_succeeded",
             "cfi",
             "chi2",
             "chi2_baseline",
@@ -13332,6 +13364,10 @@
       {
         "name": "response-shaping",
         "description": "The request `return` block — choose which parts of a response come back (presets, include / exclude paths) and how many significant digits floats carry on the wire; what is projected, what stays exact, and how it composes with streaming and instance defaults."
+      },
+      {
+        "name": "sem-bootstrap",
+        "description": "Bootstrap standard errors, p-values and percentile intervals for a structural equation model — lavaan's se = \"bootstrap\" on MAT_SEM, seeded and reproducible, within-group under a multi-group fit. When to prefer it over the analytic (delta-method) figures, what it costs and how to read the replicate counts."
       },
       {
         "name": "sem-modeling",
@@ -19630,4 +19666,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 9c2221bc922b610cd8e8ef55e4c02b4af44d45cf9547c56a45def8f673e56ec5
+// golden-hash: c3fb670733c314f41a486210f5df56213ed316719143677f466d67c3c939f910

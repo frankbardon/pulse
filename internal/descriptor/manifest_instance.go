@@ -240,6 +240,11 @@ var semProseTokens = map[string][]string{
 	// The := lines own no wire key: their sentences name the code
 	// only they raise.
 	featSEMDefined: {"PULSE_MATRIX_DEFINED_NONFINITE"},
+	// The bootstrap's other keys (resample, bootstrap_iters, rng_seed,
+	// the bootstrap_* echoes) are REG_RESAMPLE's too: only ci_level
+	// names the MAT_SEM surface alone. Its params' own descriptions go
+	// with the params.
+	featSEMBootstrap: {"ci_level"},
 }
 
 // manifestScrubSkip names the top-level Manifest fields the prose scrub
