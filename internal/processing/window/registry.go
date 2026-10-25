@@ -104,11 +104,15 @@ func ApplyObserved(ctx context.Context, rows []map[string]any, windows []*types.
 
 	cache := newSortCache(rows, orders)
 
-	for _, w := range windows {
+	for i, w := range windows {
 		factory, ok := resolve.lookup(w.Type)
 		if !ok {
-			return errors.NewCodedError(errors.PROCESSING_CONFIG,
-				fmt.Sprintf("unknown window type: %s", w.Type))
+			// Predict's refusal, code, sentence and details alike
+			// (internal/descriptor/predict_window.go): windows is the
+			// request's Windows slice, so i is the slot's index.
+			return errors.NewCodedErrorWithDetails(errors.PULSE_WINDOW_INVALID,
+				fmt.Sprintf("window[%d]: unknown window type %s", i, w.Type),
+				map[string]any{"window_index": i, "type": string(w.Type)})
 		}
 		computer, err := factory(w, WindowOptions{})
 		if err != nil {

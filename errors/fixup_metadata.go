@@ -939,8 +939,13 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_WINDOW_INVALID: {
-		Message: "A window operator's configuration is invalid (bad frame, bad params, no order key, no value field, label collision); predict and every runtime surface refuse it alike.",
+		Message: "A window operator's configuration is invalid (unknown window type, bad frame, bad params, no order key, no value field, label collision); predict and every runtime surface refuse it alike.",
 		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Windows", "*", "Type"},
+				Hint:   "An unknown window type (details.type, at details.window_index) names no registered WIN_* operator on this instance: pick one from the manifest's window list (a retired name such as WIN_ADSTOCK is now WIN_DISTRIBUTED_LAG).",
+			},
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Windows", "*", "OrderBy"},

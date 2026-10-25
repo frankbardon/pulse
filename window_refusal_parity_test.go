@@ -336,10 +336,10 @@ func TestWindowRefusals_ExtensionPredictMatchesRuntime(t *testing.T) {
 
 // TestWindowRename_RetiredAdstockNameRefused: WIN_ADSTOCK was renamed to
 // WIN_DISTRIBUTED_LAG with no alias, so the retired name is an unknown
-// window type like any other — predict reports PULSE_WINDOW_INVALID
-// (which carries fixups), and Process, ProcessStream and Materialize
-// all refuse it with the engine's unknown-type PROCESSING_CONFIG. The same slot under
-// the new name runs everywhere.
+// window type like any other — predict, Process, ProcessStream,
+// Materialize and Compose all refuse it with PULSE_WINDOW_INVALID (which
+// carries fixups) and the one sentence. The same slot under the new
+// name runs everywhere.
 func TestWindowRename_RetiredAdstockNameRefused(t *testing.T) {
 	p, fsys := windowParityCohort(t, pulse.Extensions{})
 	ctx := context.Background()
@@ -353,37 +353,9 @@ func TestWindowRename_RetiredAdstockNameRefused(t *testing.T) {
 		return &r
 	}
 
-	env := predictEnvelope(t, p, fsys, "series.pulse", req("WIN_ADSTOCK"))
-	found := false
-	for _, e := range env.Errors {
-		if e.Code == string(errors.PULSE_WINDOW_INVALID) && strings.Contains(e.Message, "unknown window type WIN_ADSTOCK") {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("predict did not refuse WIN_ADSTOCK as an unknown window type: %+v", env.Errors)
-	}
+	assertUnknownWindowTypeParity(t, p, fsys, "WIN_ADSTOCK", func() *types.Request { return req("WIN_ADSTOCK") })
 	if md, ok := errors.MetadataFor(errors.PULSE_WINDOW_INVALID); !ok || len(md.Fixups) == 0 {
 		t.Fatalf("PULSE_WINDOW_INVALID has no fixups: %+v", md)
-	}
-
-	_, perr := p.Process(ctx, req("WIN_ADSTOCK"))
-	_, serr := p.ProcessStream(ctx, req("WIN_ADSTOCK"))
-	_, merr := p.Materialize(ctx, req("WIN_ADSTOCK"), "retired.pulse", pulse.MaterializeOptions{})
-	for _, s := range []struct {
-		name string
-		err  error
-	}{{"Process", perr}, {"ProcessStream", serr}, {"Materialize", merr}} {
-		var ce *errors.CodedError
-		if !stderrors.As(s.err, &ce) {
-			t.Errorf("%s accepted the retired WIN_ADSTOCK: err = %v", s.name, s.err)
-			continue
-		}
-		// The engine's existing unknown-type refusal (every unknown
-		// window type gets the same code and message).
-		if ce.Code != errors.PROCESSING_CONFIG || ce.Message != "unknown window type: WIN_ADSTOCK" {
-			t.Errorf("%s refused WIN_ADSTOCK as %s %q, not the unknown-window-type refusal", s.name, ce.Code, ce.Message)
-		}
 	}
 
 	if env := predictEnvelope(t, p, fsys, "series.pulse", req("WIN_DISTRIBUTED_LAG")); len(env.Errors) != 0 {
@@ -391,5 +363,67 @@ func TestWindowRename_RetiredAdstockNameRefused(t *testing.T) {
 	}
 	if _, err := p.Process(ctx, req("WIN_DISTRIBUTED_LAG")); err != nil {
 		t.Fatalf("Process refused WIN_DISTRIBUTED_LAG: %v", err)
+	}
+}
+
+// TestWindowUnknownType_PredictRuntimeParity: any window type no
+// registry resolves — a never-registered name, the retired WIN_ADSTOCK,
+// one past a valid slot — is refused by predict and by every runtime
+// surface with the same code (PULSE_WINDOW_INVALID) and the same
+// sentence, indexed by the slot's position in the request.
+func TestWindowUnknownType_PredictRuntimeParity(t *testing.T) {
+	p, fsys := windowParityCohort(t, pulse.Extensions{})
+	for _, tc := range []struct {
+		name, typ string
+		lead      string // a valid slot placed before the unknown one
+	}{
+		{name: "never-registered", typ: "WIN_NOPE"},
+		{name: "retired", typ: "WIN_ADSTOCK"},
+		{name: "second-slot", typ: "WIN_NOPE", lead: `{"type": "WIN_ROW_NUMBER", "order_by": [{"field": "t"}]}, `},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := func() *types.Request {
+				var r types.Request
+				slot := `{"windows": [` + tc.lead + `{"type": "` + tc.typ + `", "field": "x", "order_by": [{"field": "t"}]}]}`
+				if err := json.Unmarshal([]byte(slot), &r); err != nil {
+					t.Fatal(err)
+				}
+				r.Cohort = &types.Cohort{Filename: "series.pulse"}
+				return &r
+			}
+			assertUnknownWindowTypeParity(t, p, fsys, tc.typ, req)
+		})
+	}
+}
+
+// assertUnknownWindowTypeParity: predict reports the unknown window type
+// as exactly one PULSE_WINDOW_INVALID error, and Process, ProcessStream,
+// Materialize and Compose each refuse the same request with that code
+// and that message, as a *errors.CodedError.
+func assertUnknownWindowTypeParity(t *testing.T, p *pulse.Pulse, fsys afero.Fs, typ string, req func() *types.Request) {
+	t.Helper()
+	ctx := context.Background()
+	env := predictEnvelope(t, p, fsys, "series.pulse", req())
+	if len(env.Errors) != 1 || env.Errors[0].Code != string(errors.PULSE_WINDOW_INVALID) || !strings.Contains(env.Errors[0].Message, "unknown window type "+typ) {
+		t.Fatalf("predict did not refuse %s as one unknown window type: %+v", typ, env.Errors)
+	}
+	want := env.Errors[0].Message
+
+	_, perr := p.Process(ctx, req())
+	_, serr := p.ProcessStream(ctx, req())
+	_, merr := p.Materialize(ctx, req(), "unknown.pulse", pulse.MaterializeOptions{})
+	_, cerr := p.Compose(ctx, &types.ComposedRequest{Requests: []*types.Request{req()}})
+	for _, s := range []struct {
+		name string
+		err  error
+	}{{"Process", perr}, {"ProcessStream", serr}, {"Materialize", merr}, {"Compose", cerr}} {
+		var ce *errors.CodedError
+		if !stderrors.As(s.err, &ce) {
+			t.Errorf("%s accepted unknown window type %s: err = %v", s.name, typ, s.err)
+			continue
+		}
+		if ce.Code != errors.PULSE_WINDOW_INVALID || ce.Message != want {
+			t.Errorf("%s refused %s as %s %q, want predict's %s %q", s.name, typ, ce.Code, ce.Message, errors.PULSE_WINDOW_INVALID, want)
+		}
 	}
 }

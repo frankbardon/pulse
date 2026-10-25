@@ -41,6 +41,13 @@ func TestApply_UnknownTypeError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unknown window type")
 	}
+	// Predict's refusal: PULSE_WINDOW_INVALID, the slot's index and type.
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_WINDOW_INVALID ||
+		ce.Message != "window[0]: unknown window type WIN_NOPE" ||
+		ce.Details["window_index"] != 0 || ce.Details["type"] != "WIN_NOPE" {
+		t.Fatalf("err = %#v, want PULSE_WINDOW_INVALID window[0] WIN_NOPE", err)
+	}
 }
 
 func TestWindowLabel(t *testing.T) {
