@@ -4,7 +4,7 @@ slug: sem-extensions
 title: "MAT_SEM compares latent means across groups under invariance constraints, puts intervals on derived effects, scores latents per row and fits ordinal ratings"
 track: Vector & matrix
 size: L
-status: in-progress
+status: done
 depends_on: []
 soft_depends_on: [U24, U40, U42]
 blocks: [U32]
@@ -88,7 +88,7 @@ Status: every story is implemented on branch `sem-extensions`; the unit flips to
 - [x] SEM latent scores are usable downstream; scoring a saved fit is bit-equal to scoring the in-compose fit (`compose/10_sem_fit_scores.json`, `TestExamples_SEMFitScoresFeedRegression`, `TestSEMFit_SaveThenLoadScoresBitEqual`)
 - [x] DWLS / WLSMV matches lavaan (thresholds, polychorics, polyserials, Gamma, estimates, robust SEs, scaled-shifted test, `_scaled` indices; single and multi-group), and the docs say when to prefer it over ML (`sem-ordinal` "ML vs WLSMV — when to prefer which", the book's "ML or WLSMV?", `matrices/18_sem_ordinal.json`, `TestExamples_SEMOrdinalRecipe`)
 - [x] EBM scores of ordinal fits match lavaan (`TestSEMScore_EBMMatchesLavaan`, `attributes/26_sem_ordinal_score.json`, `TestExamples_SEMOrdinalScores`)
-- [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit)) — the full gate set and CI run at the PR; `status` flips to `done` at merge
+- [x] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit)) — the full gate set and CI run at the PR; `status` flips to `done` at merge
 
 ## Gates & tests
 
