@@ -57,6 +57,12 @@ type Params struct {
 	Lambda, Beta, Psi, Theta [][]float64
 	Nu, Alpha                []float64
 	SampleMean               []float64
+	// Thresholds are an ordinal fit's raw thresholds τ per Observed
+	// variable (an ordered variable's Levels − 1, nil for a numeric
+	// one); nil for an ML fit. Theta's ordered diagonal is then the
+	// delta parameterization's residual 1/Δ² − common (EBM scores,
+	// NewEBMScorer).
+	Thresholds [][]float64
 }
 
 // snapshot copies st's matrices (the parameters as last set) and the
@@ -98,9 +104,18 @@ func copyParams(p *Params) Params {
 		}
 		return out
 	}
-	return Params{Lambda: cp(p.Lambda), Beta: cp(p.Beta), Psi: cp(p.Psi), Theta: cp(p.Theta),
+	out := Params{Lambda: cp(p.Lambda), Beta: cp(p.Beta), Psi: cp(p.Psi), Theta: cp(p.Theta),
 		Nu: append([]float64(nil), p.Nu...), Alpha: append([]float64(nil), p.Alpha...),
 		SampleMean: append([]float64(nil), p.SampleMean...)}
+	if p.Thresholds != nil {
+		out.Thresholds = make([][]float64, len(p.Thresholds))
+		for i, t := range p.Thresholds {
+			if t != nil {
+				out.Thresholds[i] = append([]float64(nil), t...)
+			}
+		}
+	}
+	return out
 }
 
 // Params returns the fit's parameter matrices (a copy); false when the

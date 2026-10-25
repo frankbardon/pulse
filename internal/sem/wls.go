@@ -394,6 +394,16 @@ func (ws *wlsState) setDeltaResiduals(x []float64) (*mat.SymDense, *mat.Dense, *
 	return st.sigma()
 }
 
+// thresholds are the raw thresholds τ at x per observed variable (nil
+// for a numeric one): Params.Thresholds.
+func (ws *wlsState) thresholds(x []float64) [][]float64 {
+	out := make([][]float64, len(ws.kinds))
+	for t, tr := range ws.th {
+		out[tr.v] = append(out[tr.v], x[ws.nModel+t])
+	}
+	return out
+}
+
 // scaledImplied is Δ·Σ·Δ, the latent responses' implied covariance (Σ
 // itself when every Δ is 1).
 func (ws *wlsState) scaledImplied(x []float64, sg *mat.SymDense) *mat.SymDense {
@@ -489,6 +499,7 @@ func fitOrdinal(m *Model, in TwoStepInput, est Estimator, opt Options, pointOnly
 	fit := &Fit{Model: m, N: n, Objective: (n - 1) / n * f, Iterations: iters, Converged: conv, Status: status,
 		Options: opt, Sample: s, Implied: sg, theta: x, SampleMean: mean, ImpliedMean: st.mu(mm)}
 	fit.params = st.snapshot(mean)
+	fit.params.Thresholds = ws.thresholds(x)
 	crit := opt.waldCrit()
 	if pointOnly {
 		se := nanSlice(len(x))

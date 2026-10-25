@@ -1274,8 +1274,7 @@ inline fit over the same rows). One namespace holds all three kinds: `PULSE_MODE
 malformed entry is `PULSE_FIT_INVALID` with `details.fit` (the entry
 index) and `details.reason` (`name_missing`, `request_missing`,
 `regression_count`, `kind_ambiguous`, `vector_count`, `grouped`,
-`vector_source`, `sem_ordinal` — a MAT_SEM battery with an ordinal
-`estimator`); a fit request's own refusal keeps its
+`vector_source`); a fit request's own refusal keeps its
 code and gains `details.fit`. A fit request's `return` is ignored. The
 fits surface as `ComposedResponse.fits`, an `omitempty` object of
 `FitResult` keyed by fit name: a regression fit's `RegressionResult`
@@ -1291,7 +1290,11 @@ model's `observed` / `inner` / `latents` orders, `estimator`,
 `converged`, `status`, `iterations`, `nearest_pd_min_eigenvalue` (only
 when the nearest positive-definite substitute was fitted) and `groups`
 (per level `level`, `n`, `sum_weights` and the full-precision matrices
-`lambda`, `beta`, `psi`, `theta`, `nu`, `alpha`, `sample_mean`). The
+`lambda`, `beta`, `psi`, `theta`, `nu`, `alpha`, `sample_mean`). An
+ordinal fit (`estimator` `dwls` / `wlsmv`) adds `ordered` (its ordered
+variables, `observed` order), `categories` (each one's category values,
+ascending) and, per group, `thresholds` (one list per ordered variable);
+all three are absent on an ML fit. The
 `vector` / `sem` key discriminates. A fit that failed on its data keeps its entry with
 an `error` and no figures (see Failed slots). The object is pinned outside the Compose-level `return`
 like `ranking` (always emitted, never rounded). Both slots are gated by
@@ -1333,7 +1336,7 @@ population file instead (`population_format_version` 1; the path must end
 `suffix`): the battery's stored listwise state — labels, members, weight
 basis, counts, Σw / Σw², raw mean and raw co-moment — with nothing
 derived, written atomically under the fit's name with the same overwrite
-warning (format: `.claude/reference/byte-layout.md`, "Population file"). A SEM fit's `save` writes a SEM fit file (`sem_format_version` 1; the
+warning (format: `.claude/reference/byte-layout.md`, "Population file"). A SEM fit's `save` writes a SEM fit file (`sem_format_version` 1, or 2 for an ordinal fit; the
 path must end `.pulse-sem.json`, else `PULSE_MODEL_SAVE_INVALID` reason
 `suffix`): the model description and options, member labels, the
 model's variable orders, the solver stop and per group its level,

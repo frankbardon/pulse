@@ -4989,11 +4989,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SEM_SCORE_LEVEL_UNSEEN: {
-		Message: "Warning-class — an ATTR_SEM_SCORE slot with params.group scored rows whose group level holds no fit rows (params.fit_on left them out, or no filtered row of that level reached the fit), so the joint multi-group fit has no parameters to score them with: their scores are null, counted in details.rows per level (details.levels), and every other row is scored with its own group's parameters. details.fit_levels lists the levels the fit holds.",
+		Message: "Warning-class — an ATTR_SEM_SCORE slot with params.group scored rows whose group level holds no fit rows (params.fit_on left them out, or no filtered row of that level reached the fit), so the joint multi-group fit has no parameters to score them with: their scores are null, counted in details.rows per level (details.levels), and every other row is scored with its own group's parameters. details.fit_levels lists the levels the fit holds. On an ordinal fit (estimator dwls / wlsmv) the same warning, details.reason category_unseen, counts the rows holding an ordered member value that is none of the fit's categories (details.variables, rows per variable, categories the fit's values): those rows have no category probability and score null.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Widen params.fit_on (or the request filters) so every level you need scored reaches the fit, or filter the unseen levels' rows out of the request when they should not be scored.",
+				Hint:   "Widen params.fit_on (or the request filters) so every level — and, on an ordinal fit, every category — you need scored reaches the fit, or filter the unseen rows out of the request when they should not be scored.",
 			},
 		},
 	},

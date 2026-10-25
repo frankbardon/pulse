@@ -5050,6 +5050,24 @@
             "array",
             "null"
           ]
+        },
+        "thresholds": {
+          "items": {
+            "items": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         }
       },
       "required": [
@@ -5077,6 +5095,24 @@
       "properties": {
         "basis": {
           "type": "string"
+        },
+        "categories": {
+          "items": {
+            "items": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "conventions": {
           "type": "string"
@@ -5200,6 +5236,15 @@
         },
         "operator": {
           "type": "string"
+        },
+        "ordered": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "solver": {
           "type": "string"
@@ -5979,4 +6024,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: da0dae576ee479b8bd2b134d0811ee9f0eadffac78b48ece1dc8c788ae88f27c
+// golden-hash: 72a496d0035e164c2c003552e999f3337e8f1fcc53d5bc26c5f69ee1f893dd17

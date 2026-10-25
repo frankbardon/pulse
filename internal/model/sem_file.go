@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -40,12 +41,24 @@ import (
 const SEMSuffix = ".pulse-sem.json"
 
 // SEMFormatVersion is the newest sem_format_version this build writes
-// and reads.
-const SEMFormatVersion = 1
+// and reads. The version is a function of the content, never a choice:
+// an ordinal fit (ordered, categories, per-group thresholds) writes
+// SEMFormatVersionOrdinal, every other fit SEMFormatVersionML — byte
+// for byte the document a build before the ordinal fields wrote — so a
+// version-1 file stays readable forever and an older build refuses an
+// ordinal file as an unsupported version rather than misreading it.
+const SEMFormatVersion = SEMFormatVersionOrdinal
+
+// The sem_format_version values: 1, a maximum-likelihood fit; 2, an
+// ordinal (DWLS / WLSMV) fit.
+const (
+	SEMFormatVersionML      = 1
+	SEMFormatVersionOrdinal = 2
+)
 
 // SEMFormatVersions are the sem_format_version values this build
 // reads, oldest first.
-func SEMFormatVersions() []int { return []int{SEMFormatVersion} }
+func SEMFormatVersions() []int { return []int{SEMFormatVersionML, SEMFormatVersionOrdinal} }
 
 // The SEMFile conventions spellings.
 const (
@@ -80,6 +93,11 @@ type SEMFile struct {
 	// "semopy".
 	Estimator   string `json:"estimator"`
 	Conventions string `json:"conventions"`
+	// Ordered are an ordinal fit's ordered variables (Observed order)
+	// and Categories[k] the k-th one's category values ascending — a
+	// version-2 file only, absent from a version-1 file.
+	Ordered    []string  `json:"ordered,omitempty"`
+	Categories [][]Float `json:"categories,omitempty"`
 	// MeanStructure, Group, GroupReference, GroupEqual, GroupPartial,
 	// Solver and Information are the fit's options.
 	MeanStructure  bool     `json:"meanstructure"`
@@ -123,6 +141,9 @@ type SEMFileGroup struct {
 	Nu         []Float   `json:"nu"`
 	Alpha      []Float   `json:"alpha"`
 	SampleMean []Float   `json:"sample_mean"`
+	// Thresholds are the group's raw thresholds per ordered variable (a
+	// version-2 file only).
+	Thresholds [][]Float `json:"thresholds,omitempty"`
 }
 
 // NewSEMFile builds the SEM fit file of a bound SEM fit under name. A
@@ -133,8 +154,12 @@ func NewSEMFile(name string, f *SEMFit, prov Provenance) (*SEMFile, error) {
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 			fmt.Sprintf("SEM fit %q has no state to save", name), map[string]any{"name": name})
 	}
+	version := SEMFormatVersionML
+	if f.Ordinal() {
+		version = SEMFormatVersionOrdinal
+	}
 	out := &SEMFile{
-		SEMFormatVersion: SEMFormatVersion,
+		SEMFormatVersion: version,
 		Name:             name,
 		Operator:         f.Operator,
 		Model:            f.Model,
@@ -145,6 +170,7 @@ func NewSEMFile(name string, f *SEMFit, prov Provenance) (*SEMFile, error) {
 		Latents:          nonNil(f.Latents),
 		Estimator:        f.Estimator,
 		Conventions:      f.Conventions(),
+		Ordered:          cloneStrings(f.Ordered),
 		MeanStructure:    f.MeanStructure,
 		Group:            f.Group,
 		GroupReference:   f.GroupReference,
@@ -167,11 +193,17 @@ func NewSEMFile(name string, f *SEMFit, prov Provenance) (*SEMFile, error) {
 		v := Float(f.MinEigenvalue)
 		out.NearestPDMinEigenvalue = &v
 	}
+	if f.Ordinal() {
+		out.Categories = toFloatRows(f.Categories)
+	}
 	for g, gr := range f.Groups {
 		out.Groups[g] = SEMFileGroup{
 			Level: gr.Level, N: gr.N, SumWeights: Float(gr.SumWeights),
 			Lambda: toFloatRows(gr.Lambda), Beta: toFloatRows(gr.Beta), Psi: toFloatRows(gr.Psi), Theta: toFloatRows(gr.Theta),
 			Nu: toFloatSlice(gr.Nu), Alpha: toFloatSlice(gr.Alpha), SampleMean: toFloatSlice(gr.SampleMean),
+		}
+		if f.Ordinal() {
+			out.Groups[g].Thresholds = toFloatRows(gr.Thresholds)
 		}
 	}
 	if what := out.check(); what != "" {
@@ -296,6 +328,63 @@ func (f *SEMFile) check() string {
 			return fmt.Sprintf("has a group %d nu, alpha or sample_mean unlike the model's %d observed and %d inner variables", g, nObs, nIn)
 		}
 	}
+	return f.checkOrdinal()
+}
+
+// checkOrdinal is the rule over the ordinal fields: present exactly on
+// a version-2 file, the ordered variables distinct observed variables
+// in Observed order, each with two or more ascending finite category
+// values, and every group one finite threshold per category boundary.
+func (f *SEMFile) checkOrdinal() string {
+	ordinal := f.SEMFormatVersion == SEMFormatVersionOrdinal
+	if !ordinal {
+		if f.Ordered != nil || f.Categories != nil || slices.ContainsFunc(f.Groups, func(g SEMFileGroup) bool { return g.Thresholds != nil }) {
+			return fmt.Sprintf("has ordered, categories or thresholds under sem_format_version %d; an ordinal fit is version %d", f.SEMFormatVersion, SEMFormatVersionOrdinal)
+		}
+		return ""
+	}
+	if what := distinctNames("ordered variable", f.Ordered); what != "" {
+		return what
+	}
+	last := -1
+	for _, v := range f.Ordered {
+		i := slices.Index(f.Observed, v)
+		if i < 0 {
+			return fmt.Sprintf("lists ordered variable %q outside observed", v)
+		}
+		if i < last {
+			return "lists the ordered variables out of observed order"
+		}
+		last = i
+	}
+	if len(f.Categories) != len(f.Ordered) {
+		return fmt.Sprintf("has %d category lists for %d ordered variables", len(f.Categories), len(f.Ordered))
+	}
+	for k, cats := range f.Categories {
+		if len(cats) < 2 {
+			return fmt.Sprintf("has fewer than two categories for ordered variable %q", f.Ordered[k])
+		}
+		for i, c := range cats {
+			if !finite(float64(c)) || (i > 0 && !(c > cats[i-1])) {
+				return fmt.Sprintf("has categories of ordered variable %q that are not finite and ascending", f.Ordered[k])
+			}
+		}
+	}
+	for g, gr := range f.Groups {
+		if len(gr.Thresholds) != len(f.Ordered) {
+			return fmt.Sprintf("has %d threshold lists in group %d for %d ordered variables", len(gr.Thresholds), g, len(f.Ordered))
+		}
+		for k, th := range gr.Thresholds {
+			if len(th) != len(f.Categories[k])-1 {
+				return fmt.Sprintf("has %d thresholds of ordered variable %q in group %d for its %d categories", len(th), f.Ordered[k], g, len(f.Categories[k]))
+			}
+			for _, t := range th {
+				if !finite(float64(t)) {
+					return fmt.Sprintf("has a non-finite threshold of ordered variable %q in group %d", f.Ordered[k], g)
+				}
+			}
+		}
+	}
 	return ""
 }
 
@@ -331,6 +420,7 @@ func (f *SEMFile) SEMFit(name string) *SEMFit {
 		Latents:        append([]string(nil), f.Latents...),
 		Estimator:      f.Estimator,
 		Lavaan:         f.Conventions == semConventionsLavaan,
+		Ordered:        cloneStrings(f.Ordered),
 		MeanStructure:  f.MeanStructure,
 		Group:          f.Group,
 		GroupReference: f.GroupReference,
@@ -351,11 +441,17 @@ func (f *SEMFile) SEMFit(name string) *SEMFit {
 	if f.NearestPDMinEigenvalue != nil {
 		out.NearestPD, out.MinEigenvalue = true, float64(*f.NearestPDMinEigenvalue)
 	}
+	if f.Categories != nil {
+		out.Categories = fromFloatRows(f.Categories)
+	}
 	for g, gr := range f.Groups {
 		out.Groups[g] = SEMGroup{
 			Level: gr.Level, N: gr.N, SumWeights: float64(gr.SumWeights),
 			Lambda: fromFloatRows(gr.Lambda), Beta: fromFloatRows(gr.Beta), Psi: fromFloatRows(gr.Psi), Theta: fromFloatRows(gr.Theta),
 			Nu: fromFloatSlice(gr.Nu), Alpha: fromFloatSlice(gr.Alpha), SampleMean: fromFloatSlice(gr.SampleMean),
+		}
+		if gr.Thresholds != nil {
+			out.Groups[g].Thresholds = fromFloatRows(gr.Thresholds)
 		}
 	}
 	return out
@@ -422,6 +518,8 @@ func CheckLoadedSEM(refs Refs, l *Loaded, rebuild SEMRebuildFunc) *errors.CodedE
 	}
 	return nil
 }
+
+func finite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }
 
 func semFileInvalid(source, reason, what string) *errors.CodedError {
 	return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_FILE_INVALID,

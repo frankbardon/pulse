@@ -18,7 +18,8 @@ import (
 // check over a saved SEM fit file (model.CheckLoadedSEM, runtime and
 // predict alike) both call it.
 func RebuildSEMModel(sf *model.SEMFit) (*sem.Model, error) {
-	opt := sem.ModelOptions{MeanStructure: sf.MeanStructure, GroupEqual: sf.GroupEqual, GroupPartial: sf.GroupPartial, Lavaan: sf.Lavaan}
+	opt := sem.ModelOptions{MeanStructure: sf.MeanStructure, GroupEqual: sf.GroupEqual, GroupPartial: sf.GroupPartial, Lavaan: sf.Lavaan,
+		Ordered: sf.Ordered}
 	newModel := sem.NewModelWithOptions
 	if sf.Grouped() {
 		newModel = sem.NewGroupModel
@@ -31,6 +32,10 @@ func RebuildSEMModel(sf *model.SEMFit) (*sem.Model, error) {
 		return nil, fmt.Errorf("its model specifies observed %v, inner %v and latents %v, the fit stores %v, %v and %v",
 			m.Observed, m.Inner, m.Latents(), sf.Observed, sf.Inner, sf.Latents)
 	}
+	if sf.Ordinal() != sem.Estimator(sf.Estimator).Ordinal() {
+		return nil, fmt.Errorf("its estimator %q does not match its ordered variables %v", sf.Estimator, sf.Ordered)
+	}
+
 	return m, nil
 }
 

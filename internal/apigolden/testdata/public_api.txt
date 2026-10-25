@@ -5697,8 +5697,10 @@ pulse/types: type SEMFitGroup field Psi [][]float64 "json:\"psi\""
 pulse/types: type SEMFitGroup field SampleMean []float64 "json:\"sample_mean\""
 pulse/types: type SEMFitGroup field SumWeights float64 "json:\"sum_weights\""
 pulse/types: type SEMFitGroup field Theta [][]float64 "json:\"theta\""
+pulse/types: type SEMFitGroup field Thresholds [][]float64 "json:\"thresholds,omitempty\""
 pulse/types: type SEMFitResult struct
 pulse/types: type SEMFitResult field Basis string "json:\"basis\""
+pulse/types: type SEMFitResult field Categories [][]float64 "json:\"categories,omitempty\""
 pulse/types: type SEMFitResult field Conventions string "json:\"conventions\""
 pulse/types: type SEMFitResult field Converged bool "json:\"converged\""
 pulse/types: type SEMFitResult field DoF float64 "json:\"dof\""
@@ -5722,6 +5724,7 @@ pulse/types: type SEMFitResult field NParams int "json:\"n_params\""
 pulse/types: type SEMFitResult field NearestPDMinEigenvalue *float64 "json:\"nearest_pd_min_eigenvalue,omitempty\""
 pulse/types: type SEMFitResult field Observed []string "json:\"observed\""
 pulse/types: type SEMFitResult field Operator string "json:\"operator\""
+pulse/types: type SEMFitResult field Ordered []string "json:\"ordered,omitempty\""
 pulse/types: type SEMFitResult field Solver string "json:\"solver\""
 pulse/types: type SEMFitResult field Status string "json:\"status\""
 pulse/types: type SEMFitResult field SumWeights float64 "json:\"sum_weights\""
@@ -5907,4 +5910,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 4cb30e42b2559f4813cae3af8dd1df951becec015418e363fab23f7be40426a9
+// golden-hash: 0dc5342bec455ae928862f7f7abb54d013eecf77ffc065f7d26d52d3fa41054d

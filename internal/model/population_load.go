@@ -209,6 +209,7 @@ func CatalogWithLoaded(outer Catalog, refs Refs, l *Loaded) FitCatalog {
 			Kind:    types.FitKindSEM,
 			Members: append([]string(nil), l.SEMs[j].Labels...),
 			Source:  ModelSource(j, r.Path),
+			Ordinal: len(l.SEMs[j].Ordered) > 0,
 		}
 	}
 	for k, r := range refs.Populations {

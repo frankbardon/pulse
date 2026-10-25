@@ -19,7 +19,7 @@ import (
 // predict reports the buffered downgrade the runtime takes, files the
 // threshold rows' p-values in the spec's family on the right basis, and
 // refuses what the runtime refuses; a Compose SEM fit over an ordinal
-// battery is refused alike. The figures themselves are held to lavaan
+// battery binds alike (U59 E4-S4). The figures themselves are held to lavaan
 // in internal/sem and internal/service.
 
 var brandOrdered = []string{"q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3"}
@@ -108,8 +108,8 @@ func TestSEM_OrdinalPredictMatchesRuntime(t *testing.T) {
 }
 
 // TestSEM_OrdinalRefusalsMatchPredict: every ordinal config refusal is
-// the same entry in predict; an ordinal battery in a Compose fit is
-// PULSE_FIT_INVALID sem_ordinal in Compose and PredictCompose alike.
+// the same entry in predict; an ordinal battery in a Compose fit binds
+// in Compose and PredictCompose alike.
 func TestSEM_OrdinalRefusalsMatchPredict(t *testing.T) {
 	ctx := context.Background()
 	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
@@ -130,17 +130,17 @@ func TestSEM_OrdinalRefusalsMatchPredict(t *testing.T) {
 		}
 		sameEntry(t, predictEnvelope(t, p, fsys, "brand.pulse", req), err)
 	}
-	fit := semGroupRequest(t, "brand_ord", map[string]any{"group": nil, "estimator": "wlsmv", "ordered": brandOrdered})
+	// U59 E4-S4 lifted the Compose refusal: an ordinal battery binds a
+	// SEM fit (scored by EBM), in Compose and PredictCompose alike.
+	fit := semGroupRequest(t, "brand_ms", map[string]any{"group": nil, "estimator": "wlsmv", "ordered": brandOrdered})
 	creq := &types.ComposedRequest{Fits: []types.FitSpec{{Name: "m", Request: fit}},
 		Requests: []*types.Request{{Cohort: &types.Cohort{Filename: "brand.pulse"}, Aggregations: []*types.Aggregation{{Type: types.AGG_COUNT, Field: "q1"}}}}}
-	_, err := p.Compose(ctx, creq)
-	var ce *errors.CodedError
-	if !asCoded(err, &ce) || ce.Code != errors.PULSE_FIT_INVALID || ce.Details["reason"] != "sem_ordinal" {
-		t.Fatalf("compose: %v (%v), want PULSE_FIT_INVALID sem_ordinal", err, semDetailsOf(ce))
+	out, err := p.Compose(ctx, creq)
+	if err != nil || out.Fits["m"] == nil || out.Fits["m"].SEM == nil || len(out.Fits["m"].SEM.Ordered) != len(brandOrdered) {
+		t.Fatalf("compose: %v, want the ordinal fit bound", err)
 	}
 	penv, perr := p.PredictCompose(ctx, creq)
-	if perr != nil {
-		t.Fatal(perr)
+	if perr != nil || len(penv.Errors) != 0 {
+		t.Fatalf("predict compose: %v %+v", perr, penv.Errors)
 	}
-	sameEntry(t, penv, err)
 }

@@ -82,6 +82,18 @@ type semScoreFit struct {
 	labels []string
 	codes  []uint64
 	params []sem.Params
+	// cats are an ordinal fit's category values per observed variable
+	// (model order; ascending, code = index; nil for a numeric one) —
+	// nil for an ML fit. A row's ordered value is coded through them
+	// before the EBM scorer reads it.
+	cats [][]float64
+}
+
+// semRowScorer is one group's scoring rule over a row in model order:
+// the linear ML scorer (sem.Scorer) or the ordinal EBM one
+// (sem.EBMScorer).
+type semRowScorer interface {
+	Score(y []float64) float64
 }
 
 // semScoreFitFromBound rebuilds a bound SEM fit's scoring form: the
@@ -101,11 +113,27 @@ func semScoreFitFromBound(sf *model.SEMFit) (*semScoreFit, error) {
 			map[string]any{"fit": sf.Name, "error": err.Error()})
 	}
 	out := &semScoreFit{}
+	var at []int // each ordered variable's observed position
+	if sf.Ordinal() {
+		out.cats = make([][]float64, len(sf.Observed))
+		for k, v := range sf.Ordered {
+			i := slices.Index(sf.Observed, v)
+			at = append(at, i)
+			out.cats[i] = sf.Categories[k]
+		}
+	}
 	for _, g := range sf.Groups {
 		out.models = append(out.models, m)
 		out.labels = append(out.labels, g.Level)
-		out.params = append(out.params, sem.Params{Lambda: g.Lambda, Beta: g.Beta, Psi: g.Psi, Theta: g.Theta,
-			Nu: g.Nu, Alpha: g.Alpha, SampleMean: g.SampleMean})
+		p := sem.Params{Lambda: g.Lambda, Beta: g.Beta, Psi: g.Psi, Theta: g.Theta,
+			Nu: g.Nu, Alpha: g.Alpha, SampleMean: g.SampleMean}
+		if sf.Ordinal() {
+			p.Thresholds = make([][]float64, len(sf.Observed))
+			for k, i := range at {
+				p.Thresholds[i] = g.Thresholds[k]
+			}
+		}
+		out.params = append(out.params, p)
 	}
 	return out, nil
 }
@@ -166,7 +194,7 @@ type semScoreAttribute struct {
 	fit       *semScoreFit
 	// scorers holds each fit level's scorer by level code (the single
 	// key 0 ungrouped); nil when the fit cannot score.
-	scorers map[uint64]*sem.Scorer
+	scorers map[uint64]semRowScorer
 	// order maps model-order position k to member position (the
 	// plan's Order); y is the reordered row.
 	order []int
@@ -174,6 +202,13 @@ type semScoreAttribute struct {
 	warnings []*types.ResponseWarning
 	// unseen tallies the scored rows of each level without fit rows.
 	unseen map[uint64]int64
+
+	// ord is an inline ordinal fit's buffered rows (estimator dwls /
+	// wlsmv: the two-step statistics read every row); nil otherwise.
+	ord *semScoreOrdinalRows
+	// unseenCats tallies, per ordered variable (model order), the rows
+	// holding a value that is none of the fit's categories.
+	unseenCats map[int]int64
 }
 
 var (
@@ -244,6 +279,9 @@ func newSEMScoreAttribute(attr *types.Attribute, schema *encoding.Schema) (Attri
 		return a, nil
 	}
 	a.order = cfg.Plan.Order
+	if cfg.Plan.Ordinal() {
+		a.ord = newSEMScoreOrdinalRows(len(attr.Fields), cfg.Plan.Grouped())
+	}
 	if cfg.Plan.Grouped() {
 		a.groupField = cfg.Plan.Group
 		a.levels = cfg.Plan.GroupLevels
@@ -285,6 +323,13 @@ func (a *semScoreAttribute) bindFitOn(exts *ExtensionRegistry, models *model.Set
 func (a *semScoreAttribute) bindFit(models *model.Set) error {
 	a.finalized, a.prebuilt = true, true
 	if se, failed := models.FailedOfKind(a.fitName, types.FitKindSEM); failed {
+		// An ordinal fit's static face refuses Bartlett before its
+		// failure is reported, as predict's catalog does.
+		if sig, _ := models.Signature(a.fitName); sig.Ordinal {
+			if cerr := vectors.SEMScoreOrdinalMethodRefusal(a.label, a.fitName, a.cfg.Method, ""); cerr != nil {
+				return cerr
+			}
+		}
 		a.warnings = append(a.warnings, model.FitUnavailable(a.fitName, a.label, se))
 		return nil
 	}
@@ -298,6 +343,11 @@ func (a *semScoreAttribute) bindFit(models *model.Set) error {
 	}
 	if _, cerr := vectors.AlignFit("attribute", a.label, a.fitName, sf.Labels, a.labels); cerr != nil {
 		return cerr
+	}
+	if sf.Ordinal() {
+		if cerr := vectors.SEMScoreOrdinalMethodRefusal(a.label, a.fitName, a.cfg.Method, sf.Estimator); cerr != nil {
+			return cerr
+		}
 	}
 	pos := make(map[string]int, len(a.labels))
 	for i, l := range a.labels {
@@ -316,6 +366,11 @@ func (a *semScoreAttribute) bindFit(models *model.Set) error {
 	fit, err := semScoreFitFromBound(sf)
 	if err != nil {
 		return err
+	}
+	if v := vectors.SEMScoreObservedInner(fit.models[0]); sf.Ordinal() && v != "" {
+		return attributeFitInvalid(a.label, a.fitName, "bad_params",
+			fmt.Sprintf("bound SEM fit %q is an ordinal fit whose observed variable %q predicts another variable; ordinal (empirical Bayes modal) scores need every variable with an outgoing arrow to be latent", a.fitName, v),
+			map[string]any{"param": "fit", "variable": v})
 	}
 	lats := fit.models[0].Latents()
 	switch {
@@ -337,7 +392,7 @@ func (a *semScoreAttribute) bindFit(models *model.Set) error {
 	}
 	fit.codes = codes
 	k := len(sf.Observed)
-	if !sf.Grouped() && (sf.N <= int64(k) || !(sf.SumWeights > float64(k))) {
+	if !sf.Grouped() && !sf.Ordinal() && (sf.N <= int64(k) || !(sf.SumWeights > float64(k))) {
 		a.warnings = append(a.warnings, a.fitWarning(&fitRefusal{code: errors.PULSE_MATRIX_INSUFFICIENT_N,
 			msg:     fmt.Sprintf("the fit has %d complete rows for the model's %d observed variables (needs more rows, and weight, than variables); every score is null", sf.N, k),
 			details: map[string]any{"n": sf.N, "sum_weights": sf.SumWeights, "observed": k}}))
@@ -438,13 +493,19 @@ func (a *semScoreAttribute) MergeTally(other RowLocalAttribute) error {
 		}
 		a.unseen[c] += n
 	}
+	for k, n := range o.unseenCats {
+		if a.unseenCats == nil {
+			a.unseenCats = map[int]int64{}
+		}
+		a.unseenCats[k] += n
+	}
 	return nil
 }
 
 // resetTally satisfies attributeTallyResetter: a stage a prepass layer
 // scored once already counts its unseen rows again on the emission
 // scan.
-func (a *semScoreAttribute) resetTally() { a.unseen = nil }
+func (a *semScoreAttribute) resetTally() { a.unseen, a.unseenCats = nil, nil }
 
 // EmitsNull satisfies NullEmitter: a NaN score is a null.
 func (a *semScoreAttribute) EmitsNull() bool { return true }
@@ -453,6 +514,9 @@ func (a *semScoreAttribute) EmitsNull() bool { return true }
 // the unseen-level tally of the rows scored so far.
 func (a *semScoreAttribute) attributeWarnings() []*types.ResponseWarning {
 	out := append([]*types.ResponseWarning(nil), a.warnings...)
+	if w := a.unseenCategoryWarning(); w != nil {
+		out = append(out, w)
+	}
 	if len(a.unseen) == 0 {
 		return out
 	}
@@ -524,6 +588,9 @@ func (a *semScoreAttribute) PrePass(rec *Record, _ string) error {
 		if !ok {
 			return nil
 		}
+	}
+	if a.ord != nil {
+		return a.prePassOrdinal(rec)
 	}
 	// The row is fit-eligible (MAT_SEM over the fit rows would see it):
 	// it opens its block whether or not it adds mass.
@@ -606,9 +673,18 @@ func (a *semScoreAttribute) Finalize() error {
 // on this cohort (a bound fit's level the cohort cannot hold) scores
 // no row.
 func (a *semScoreAttribute) closeFit(fit *semScoreFit) {
-	scorers := make(map[uint64]*sem.Scorer, len(fit.codes))
+	scorers := make(map[uint64]semRowScorer, len(fit.codes))
 	for g, code := range fit.codes {
-		sc, err := sem.NewScorer(fit.models[g], fit.params[g], a.cfg.Latent, a.cfg.Method)
+		var sc semRowScorer
+		var err error
+		if fit.cats != nil {
+			// An ordinal fit: lavaan's empirical Bayes modal scores
+			// (method "regression" means them; Bartlett is refused at
+			// decode and bind).
+			sc, err = sem.NewEBMScorer(fit.models[g], fit.params[g], a.cfg.Latent)
+		} else {
+			sc, err = sem.NewScorer(fit.models[g], fit.params[g], a.cfg.Latent, a.cfg.Method)
+		}
 		if err != nil {
 			a.warnings = append(a.warnings, a.fitWarning(&fitRefusal{code: errors.PULSE_MATRIX_SINGULAR,
 				msg:     "the fitted model's implied covariance cannot be inverted" + levelSuffix(fit.labels[g]) + ", so its " + string(a.cfg.Method) + " scores are undefined; every score is null",
@@ -634,6 +710,9 @@ func levelSuffix(label string) string {
 // the caveats it owes (scored) and a refusal (every score null).
 func (a *semScoreAttribute) fitModel() (*semScoreFit, []*fitRefusal, *fitRefusal) {
 	plan := a.cfg.Plan
+	if a.ord != nil {
+		return a.fitOrdinalModel()
+	}
 	if plan.Grouped() {
 		return a.fitGroups()
 	}
@@ -807,6 +886,13 @@ func (a *semScoreAttribute) fitWarning(ref *fitRefusal) *types.ResponseWarning {
 	if a.weight != nil {
 		details["sum_weights"] = a.baseCM.W()
 	}
+	if a.ord != nil {
+		// An inline ordinal fit buffers its rows (no co-moment).
+		details["n"] = int64(a.ord.base.Len())
+		if a.weight != nil {
+			details["sum_weights"] = a.ord.base.SumW()
+		}
+	}
 	if a.fitName != "" {
 		// A bound fit's figures are the fit's own.
 		details["fit"] = a.fitName
@@ -861,6 +947,24 @@ func (a *semScoreAttribute) Row(rec *Record, _ string) (float64, error) {
 	y := make([]float64, len(a.order))
 	for k, i := range a.order {
 		y[k] = x[i]
+	}
+	if cats := a.fit.cats; cats != nil {
+		// An ordered value is coded by the fit's categories; one that is
+		// none of them has no category probability: null, tallied.
+		for k, c := range cats {
+			if c == nil {
+				continue
+			}
+			code, found := slices.BinarySearch(c, y[k])
+			if !found {
+				if a.unseenCats == nil {
+					a.unseenCats = map[int]int64{}
+				}
+				a.unseenCats[k]++
+				return math.NaN(), nil
+			}
+			y[k] = float64(code)
+		}
 	}
 	return sc.Score(y), nil
 }

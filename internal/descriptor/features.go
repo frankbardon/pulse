@@ -175,8 +175,9 @@ const FeatureSEMBootstrap = vectors.SEMFeatureBootstrap
 // FeatureSEMOrdinal is capability:sem_ordinal — MAT_SEM's ordinal
 // estimators (lavaan's DWLS / WLSMV over polychoric and polyserial
 // correlations): params.estimator and params.ordered, the `x | tk`
-// threshold rows and the WLSMV scaled-test scalars. Hidden, its keys
-// are unknown keys and its scalars leave the manifest.
+// threshold rows and the WLSMV scaled-test scalars — and ATTR_SEM_SCORE's
+// same keys (an inline ordinal fit, empirical Bayes modal scores).
+// Hidden, its keys are unknown keys and its scalars leave the manifest.
 const FeatureSEMOrdinal = vectors.SEMFeatureOrdinal
 
 // FeatureParams is capability:params — the request `params` object
@@ -788,8 +789,9 @@ var overlayHostKinds = map[string][]string{
 //     SEM fit, MAT_SEM's or ATTR_SEM_SCORE's (and capability:sem_groups,
 //     a groupEdges row, also needs it: a multi-group fit always models
 //     the means); capability:sem_defined is the same fits' model
-//     syntax, capability:sem_bootstrap and capability:sem_ordinal
-//     MAT_SEM params surfaces.
+//     syntax and capability:sem_ordinal their params surface (an inline
+//     ordinal fit, scored by EBM), capability:sem_bootstrap a MAT_SEM
+//     params surface.
 //   - capability:model_save writes a fitted regression or a vector
 //     fit, so it needs any-of the REG_* operators, the fitted vector
 //     attributes and capability:matrices.
@@ -832,7 +834,7 @@ var hardEdges = map[string][]string{
 	featSEMMeans:              {string(types.ATTR_SEM_SCORE), string(types.MAT_SEM)},
 	featSEMDefined:            {string(types.ATTR_SEM_SCORE), string(types.MAT_SEM)},
 	featSEMBootstrap:          {string(types.MAT_SEM)},
-	featSEMOrdinal:            {string(types.MAT_SEM)},
+	featSEMOrdinal:            {string(types.ATTR_SEM_SCORE), string(types.MAT_SEM)},
 	"MAT_COLLINEARITY":        {featMatrices},
 	"MAT_CORRELATION":         {featMatrices},
 	"MAT_COVARIANCE":          {featMatrices},

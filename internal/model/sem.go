@@ -48,11 +48,18 @@ type SEMFit struct {
 	Inner    []string
 	Latents  []string
 
-	// Estimator is the fit's estimator ("ml"). Lavaan reports the fit
-	// followed lavaan's conventions (Conventions "lavaan"); the model
-	// rebuild needs it only for a bootstrapped covariance-only fit.
+	// Estimator is the fit's estimator ("ml", or an ordinal "dwls" /
+	// "wlsmv"). Lavaan reports the fit followed lavaan's conventions
+	// (Conventions "lavaan"); the model rebuild needs it only for a
+	// bootstrapped covariance-only fit.
 	Estimator string
 	Lavaan    bool
+
+	// Ordered are an ordinal fit's ordered variables in Observed order
+	// (nil for an ML fit) and Categories[k] the k-th one's category
+	// values ascending (category code = index; pooled over every group).
+	Ordered    []string
+	Categories [][]float64
 
 	// MeanStructure is params.meanstructure; Group, GroupReference,
 	// GroupEqual and GroupPartial the multi-group knobs ("" / nil
@@ -108,7 +115,14 @@ type SEMGroup struct {
 	// included; SampleMean the group's fit-row mean over Observed.
 	Lambda, Beta, Psi, Theta [][]float64
 	Nu, Alpha, SampleMean    []float64
+
+	// Thresholds are an ordinal fit's raw thresholds per Ordered
+	// variable (nil for an ML fit).
+	Thresholds [][]float64
 }
+
+// Ordinal reports whether f is an ordinal (DWLS / WLSMV) fit.
+func (f *SEMFit) Ordinal() bool { return f != nil && len(f.Ordered) > 0 }
 
 // Grouped reports whether the fit is a joint multi-group fit.
 func (f *SEMFit) Grouped() bool { return f != nil && f.Group != "" }
@@ -123,7 +137,7 @@ func (f *SEMFit) Conventions() string {
 
 // Signature is f's static face: kind sem, its member labels.
 func (f *SEMFit) Signature() Signature {
-	return Signature{Name: f.Name, Kind: types.FitKindSEM, Members: append([]string(nil), f.Labels...), Source: f.Source}
+	return Signature{Name: f.Name, Kind: types.FitKindSEM, Members: append([]string(nil), f.Labels...), Source: f.Source, Ordinal: f.Ordinal()}
 }
 
 // Result is f's ComposedResponse.Fits summary: every stored figure, at
@@ -139,6 +153,7 @@ func (f *SEMFit) Result() *types.SEMFitResult {
 		Latents:        cloneStrings(f.Latents),
 		Estimator:      f.Estimator,
 		Conventions:    f.Conventions(),
+		Ordered:        cloneStrings(f.Ordered),
 		MeanStructure:  f.MeanStructure,
 		Group:          f.Group,
 		GroupReference: f.GroupReference,
@@ -163,11 +178,17 @@ func (f *SEMFit) Result() *types.SEMFitResult {
 		v := f.MinEigenvalue
 		out.NearestPDMinEigenvalue = &v
 	}
+	if f.Categories != nil {
+		out.Categories = cloneRows(f.Categories)
+	}
 	for g, gr := range f.Groups {
 		out.Groups[g] = types.SEMFitGroup{
 			Level: gr.Level, N: gr.N, SumWeights: gr.SumWeights,
 			Lambda: cloneRows(gr.Lambda), Beta: cloneRows(gr.Beta), Psi: cloneRows(gr.Psi), Theta: cloneRows(gr.Theta),
 			Nu: cloneFloats(gr.Nu), Alpha: cloneFloats(gr.Alpha), SampleMean: cloneFloats(gr.SampleMean),
+		}
+		if gr.Thresholds != nil {
+			out.Groups[g].Thresholds = cloneRows(gr.Thresholds)
 		}
 	}
 	return out

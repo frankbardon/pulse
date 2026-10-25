@@ -51,12 +51,24 @@ boot brand brand_mgdef TRUE brand_boot_mg wave loadings,intercepts
 # a free latent mean (lavaan's phantom latents), an indicator with an
 # outgoing arrow, and a second-order factor (predict_lavaan.R; every
 # 4th row recorded)
-score() { Rscript "$here/predict_lavaan.R" "$here/$1_data.csv" "$here/$2_model.txt" "$3" "${5:-}" "${6:-}" > "$here/$4_lavaan.json"; }
+score() { Rscript "$here/predict_lavaan.R" "$here/$1_data.csv" "$here/$2_model.txt" "$3" "${5:-}" "${6:-}" "${7:-}" "${8:-}" > "$here/$4_lavaan.json"; }
 score brand brand_ms TRUE brand_score_ms
 score brand brand_ms TRUE brand_score_mg wave loadings,intercepts
 score brand brand_mx TRUE brand_score_mx
 score brand brand_xind TRUE brand_score_xind
 score brand brand_ho TRUE brand_score_ho
+# lavaan's empirical Bayes modal scores of the WLSMV fits (the nine
+# ratings ordered; lavPredict's categorical default, and what method
+# "regression" means there): the measurement model, the structural
+# model with the numeric recommend outcome (mixed indicators), the
+# latent regressions with residual covariances (Theta's diagonal alone
+# enters), and the mixed model across the waves under thresholds,
+# loadings and intercepts (wave-2 scale factors and latent means free)
+q9s=q1,q2,q3,v1,v2,v3,s1,s2,s3
+score brand brand_ord TRUE brand_score_ord "" "" "" "$q9s"
+score brand brand_ms TRUE brand_score_ordmx "" "" "" "$q9s"
+score brand brand_res TRUE brand_score_ordres "" "" "" "$q9s"
+score brand brand_ms TRUE brand_score_ordmg wave thresholds,loadings,intercepts "" "$q9s"
 # the two-step ordinal sample statistics (lavCor(..., ordered = ...)):
 # thresholds, polychoric, polyserial and Pearson correlations, with an
 # independent re-derivation and lavaan's casewise scores

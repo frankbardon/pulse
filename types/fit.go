@@ -256,10 +256,19 @@ type SEMFitResult struct {
 	Inner    []string `json:"inner"`
 	Latents  []string `json:"latents"`
 
-	// Estimator is the fit's estimator ("ml"); Conventions "lavaan" or
-	// "semopy" — the fit's convention set.
+	// Estimator is the fit's estimator ("ml", or an ordinal "dwls" /
+	// "wlsmv"); Conventions "lavaan" or "semopy" — the fit's convention
+	// set.
 	Estimator   string `json:"estimator"`
 	Conventions string `json:"conventions"`
+
+	// Ordered are an ordinal fit's ordered variables in Observed order
+	// (absent on an ML fit); Categories[k] the k-th one's category
+	// values, ascending — the raw member values the fit coded as
+	// categories 0, 1, … (a row holding another value is no category of
+	// the fit). Each group's Thresholds align to them.
+	Ordered    []string    `json:"ordered,omitempty"`
+	Categories [][]float64 `json:"categories,omitempty"`
 
 	// MeanStructure reports params.meanstructure; Group,
 	// GroupReference, GroupEqual and GroupPartial are the multi-group
@@ -323,6 +332,13 @@ type SEMFitGroup struct {
 	// SampleMean is the group's fit-row mean over Observed — the center
 	// of a covariance-only fit's scores.
 	SampleMean []float64 `json:"sample_mean"`
+
+	// Thresholds are an ordinal fit's raw thresholds, one list per
+	// Ordered variable (its categories less one; absent on an ML fit).
+	// Theta's diagonal then holds each ordered variable's residual on
+	// the latent-response scale (the delta parameterization's
+	// remainder).
+	Thresholds [][]float64 `json:"thresholds,omitempty"`
 }
 
 // slotFailureSEMFit is the wire form of a SEMFitResult carrying an

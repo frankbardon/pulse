@@ -59,10 +59,16 @@ Maximum likelihood treats a 1-5 rating as continuous and normal. With few catego
 - `resample: "bootstrap"` refits each replicate's own thresholds and polychorics at the full fit's categories. A replicate that loses a category is skipped. Thresholds get bootstrap SEs too. lavaan bootstraps DWLS only; a `wlsmv` bootstrap has the same estimates.
 <!-- /feature -->
 
+<!-- feature: ATTR_SEM_SCORE -->
+## Scores
+
+- `ATTR_SEM_SCORE` scores an ordinal fit (inline, a Compose `fits` entry, a `.pulse-sem.json`) by lavaan's empirical Bayes modal scores: each row's posterior mode, with its own group's thresholds and parameters. `method: "regression"` means them, as in lavaan; `"bartlett"` is `bad_params`.
+- A row is coded by the fit's categories: a value the fit never saw scores null (`PULSE_SEM_SCORE_LEVEL_UNSEEN`, reason `category_unseen`). Every variable with an outgoing arrow must be latent.
+<!-- /feature -->
+
 ## Refusals
 
 - `bad_params`: an unknown estimator; `ordered` without an ordinal estimator; an ordinal estimator without `ordered`; a duplicate member; a latent, a predictor or a member the model does not read in `ordered`; `solver: "slsqp"`, `information`, `singular` or `meanstructure: false` with an ordinal estimator; a standardizing vector.
-- Not yet supported: a Compose `fits` entry (`PULSE_FIT_INVALID`, reason `sem_ordinal`).
 - On the data, the slot fails alone: a constant ordered member is `PULSE_MATRIX_SINGULAR`; no rows or an empty category is `PULSE_MATRIX_INSUFFICIENT_N`. `details.reason` and `details.variable` say which.
 
 ## See

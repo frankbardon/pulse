@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/sem"
 	"github.com/frankbardon/pulse/internal/vectors"
 )
@@ -73,6 +74,16 @@ func finalizeSEMOrdinal(in *matrixFinalizeInput) (matrixOutput, error) {
 			map[string]any{"matrix": plan.Name, "dof": fit.Stats.DoF, "n_params": fit.Stats.NParams}))
 	}
 	out.Warnings = append(out.Warnings, semDefinedWarnings(plan.Name, fit.Defined)...)
+	if m.capture != nil {
+		// A Compose SEM fit request's battery: bind the point fit, its
+		// coding and thresholds (EBM scores, ATTR_SEM_SCORE).
+		sf := m.semCaptureFit(in.CM, fit.Converged, fit.Status, fit.Iterations, fit.Options, fit.Stats, nil)
+		sf.N, sf.SumWeights = int64(rows.Len()), rows.SumW()
+		semCaptureOrdinal(sf, spec, codes)
+		params, _ := fit.Params()
+		sf.Groups = []model.SEMGroup{semCaptureOrdinalGroup("", rows, params, spec)}
+		m.capture.OfferSEM(sf)
+	}
 	var boot *sem.Bootstrap
 	if spec.Bootstrap() {
 		// Every replicate refits the two-step statistics from its own
@@ -162,6 +173,37 @@ func semOrdinalInputOf(rows *matrixRows, spec *vectors.SEMPlan, codes []map[floa
 	return in
 }
 
+// semCaptureOrdinal records an ordinal fit's ordered variables
+// (Observed order) and each one's category values ascending (the codes
+// of semOrdinalCoding) on a captured SEM fit.
+func semCaptureOrdinal(sf *model.SEMFit, spec *vectors.SEMPlan, codes []map[float64]int) {
+	for a, v := range spec.Model.Observed {
+		if codes[a] == nil {
+			continue
+		}
+		cats := make([]float64, len(codes[a]))
+		for x, c := range codes[a] {
+			cats[c] = x
+		}
+		sf.Ordered = append(sf.Ordered, v)
+		sf.Categories = append(sf.Categories, cats)
+	}
+}
+
+// semCaptureOrdinalGroup is one group of a captured ordinal SEM fit: its
+// level, its rows' count and weight, its parameter matrices and its
+// thresholds per ordered variable.
+func semCaptureOrdinalGroup(level string, rows *matrixRows, p sem.Params, spec *vectors.SEMPlan) model.SEMGroup {
+	g := model.SEMGroup{Level: level, N: int64(rows.Len()), SumWeights: rows.SumW(),
+		Lambda: p.Lambda, Beta: p.Beta, Psi: p.Psi, Theta: p.Theta, Nu: p.Nu, Alpha: p.Alpha, SampleMean: p.SampleMean}
+	for a, v := range spec.Model.Observed {
+		if spec.Model.IsOrdered(v) {
+			g.Thresholds = append(g.Thresholds, append([]float64(nil), p.Thresholds[a]...))
+		}
+	}
+	return g
+}
+
 // semCodedRows is a two-step input's rows, row-major (the bootstrap's
 // sample).
 func semCodedRows(in sem.TwoStepInput) []float64 {
@@ -187,17 +229,24 @@ func semBootstrapOrdinal(spec *vectors.SEMPlan, in sem.TwoStepInput) *sem.Bootst
 // anything else PULSE_MATRIX_SINGULAR (the fit is undefined on this
 // data).
 func semOrdinalError(name string, spec *vectors.SEMPlan, err error, levels []string, cats []int) error {
-	details := map[string]any{"matrix": name, "estimator": string(spec.Estimator), "error": err.Error()}
+	code, msg, details := semOrdinalFault(spec, err, levels, cats)
+	details["matrix"] = name
+	return errors.NewCodedErrorWithDetails(code, "matrix "+name+": "+msg, details)
+}
+
+// semOrdinalFault is semOrdinalError's code, message (unprefixed) and
+// details (no slot key) — shared with ATTR_SEM_SCORE's inline ordinal
+// fit, whose refusals are fit-scoped warnings.
+func semOrdinalFault(spec *vectors.SEMPlan, err error, levels []string, cats []int) (errors.Code, string, map[string]any) {
+	details := map[string]any{"estimator": string(spec.Estimator), "error": err.Error()}
 	var ge *sem.GroupSpecError
 	if stderrors.As(err, &ge) {
 		details["reason"], details["param"], details["value"] = "partial_threshold_absent", ge.Param, ge.Value
-		return errors.NewCodedErrorWithDetails(errors.PULSE_MATRIX_INSUFFICIENT_N,
-			"matrix "+name+": params."+ge.Error(), details)
+		return errors.PULSE_MATRIX_INSUFFICIENT_N, "params." + ge.Error(), details
 	}
 	var oe *sem.OrdinalError
 	if !stderrors.As(err, &oe) {
-		return errors.NewCodedErrorWithDetails(errors.PULSE_MATRIX_SINGULAR,
-			"matrix "+name+": the ordinal SEM fit is undefined: "+err.Error(), details)
+		return errors.PULSE_MATRIX_SINGULAR, "the ordinal SEM fit is undefined: " + err.Error(), details
 	}
 	details["reason"] = oe.Reason
 	if oe.Var >= 0 && oe.Var < len(spec.Model.Observed) {
@@ -223,7 +272,7 @@ func semOrdinalError(name string, spec *vectors.SEMPlan, err error, levels []str
 		msg += "; an ordered member is a rating scale — fit a continuous measure by the ML estimator, or recode it into at most " +
 			strconv.Itoa(sem.MaxOrderedCategories) + " categories"
 	}
-	return errors.NewCodedErrorWithDetails(code, "matrix "+name+": the ordinal SEM fit is undefined: "+msg, details)
+	return code, "the ordinal SEM fit is undefined: " + msg, details
 }
 
 // semOrdinalScalars writes a WLSMV fit's scaled test into sc (nil sc:
@@ -318,6 +367,20 @@ func finalizeSEMOrdinalGroups(in *matrixFinalizeInput) (matrixOutput, error) {
 			map[string]any{"matrix": plan.Name, "dof": fit.Stats.DoF, "n_params": fit.Stats.NParams}))
 	}
 	out.Warnings = append(out.Warnings, semDefinedWarnings(plan.Name, fit.Defined)...)
+	if m.capture != nil {
+		// A Compose SEM fit request's battery: bind the point fit, each
+		// group's own parameters and thresholds at the pooled coding.
+		sf := m.semCaptureFit(in.CM, fit.Converged, fit.Status, fit.Iterations, fit.Options, fit.Stats, nil)
+		sf.N, sf.SumWeights = 0, 0
+		semCaptureOrdinal(sf, spec, cmap)
+		for g := range codes {
+			params, _ := fit.Groups[g].Params()
+			sf.Groups = append(sf.Groups, semCaptureOrdinalGroup(labels[g], sets[g], params, spec))
+			sf.N += int64(sets[g].Len())
+			sf.SumWeights += sets[g].SumW()
+		}
+		m.capture.OfferSEM(sf)
+	}
 	var boot *sem.Bootstrap
 	if spec.Bootstrap() {
 		samples := make([]sem.BootstrapSample, len(codes))

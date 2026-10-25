@@ -3935,7 +3935,10 @@ const (
 	// joint fit has no parameters for that level; those rows score
 	// null. details: attribute, type, group, levels (the unseen level
 	// labels, in level order), rows (their row counts, aligned) and
-	// fit_levels (the levels the fit holds).
+	// fit_levels (the levels the fit holds). On an ordinal fit it also
+	// counts rows whose ordered member value is none of the fit's
+	// categories (details.reason category_unseen, variables, rows,
+	// categories): null too.
 	PULSE_SEM_SCORE_LEVEL_UNSEEN Code = "PULSE_SEM_SCORE_LEVEL_UNSEEN"
 
 	// PULSE_AUC_DELONG_WEIGHTED is a NOTE, never an error or a

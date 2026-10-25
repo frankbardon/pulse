@@ -938,8 +938,17 @@ func vectorFitRefusals(req *types.Request, schema *encoding.Schema, mats []vecto
 				out = append(out, cerr)
 				continue
 			}
-			if sig, _ := models.Signature(name); sig.Members != nil && labelsOK {
+			sig, _ := models.Signature(name)
+			if sig.Members != nil && labelsOK {
 				if _, cerr := vectors.AlignFit("attribute", label, name, sig.Members, labels); cerr != nil {
+					out = append(out, cerr)
+					continue
+				}
+			}
+			if typ == types.ATTR_SEM_SCORE && sig.Ordinal {
+				// An ordinal SEM fit scores by EBM: Bartlett is refused
+				// at bind (vectors.SEMScoreOrdinalMethodRefusal).
+				if cerr := vectors.SEMScoreOrdinalMethodRefusal(label, name, vectors.SEMScoreMethodOf(attr), ""); cerr != nil {
 					out = append(out, cerr)
 					continue
 				}

@@ -20,7 +20,9 @@ import (
 // or "Bartlett" (internal/sem/score.go). The fit knobs are MAT_SEM's
 // (model, meanstructure, group, group_reference, group_equal,
 // group_partial, solver, information, ftol, max_iter, grad_tol,
-// singular), decoded by MAT_SEM's own rule (decodeSEM) and resolved by
+// singular, and the ordinal estimator, ordered and parameterization —
+// an ordinal fit scores by lavaan's EBM, sem.NewEBMScorer), decoded by
+// MAT_SEM's own rule (decodeSEM) and resolved by
 // it once the members are known (resolveSEM, resolveSEMGroup), so a
 // model MAT_SEM refuses is refused here with the same reason. A
 // bootstrap has nothing to score and is not a key.
@@ -71,6 +73,12 @@ type semScoreParams struct {
 	GroupReference *string  `json:"group_reference"`
 	GroupEqual     *semList `json:"group_equal"`
 	GroupPartial   *semList `json:"group_partial"`
+	// Estimator, Ordered and Parameterization are MAT_SEM's ordinal
+	// knobs: an inline DWLS / WLSMV fit, scored by empirical Bayes
+	// modal scores (sem.NewEBMScorer).
+	Estimator        *string  `json:"estimator"`
+	Ordered          *semList `json:"ordered"`
+	Parameterization *string  `json:"parameterization"`
 }
 
 // fitKnob is the first MAT_SEM fit knob params sets ("" for none) — a
@@ -84,6 +92,7 @@ func (p semScoreParams) fitKnob() string {
 		{"group_reference", p.GroupReference != nil}, {"group_equal", p.GroupEqual != nil},
 		{"group_partial", p.GroupPartial != nil}, {"solver", p.Solver != nil}, {"information", p.Information != nil},
 		{"ftol", p.Ftol != nil}, {"max_iter", p.MaxIter != nil}, {"grad_tol", p.GradTol != nil}, {"singular", p.Singular != nil},
+		{"estimator", p.Estimator != nil}, {"ordered", p.Ordered != nil}, {"parameterization", p.Parameterization != nil},
 	} {
 		if k.set {
 			return k.name
@@ -93,14 +102,63 @@ func (p semScoreParams) fitKnob() string {
 }
 
 // SEMScoreFeatureParams are the ATTR_SEM_SCORE params keys each hideable
-// MAT_SEM surface owns (SEMFeatureParams' mean structure and multi-group
-// keys; the bootstrap's are no keys here).
+// MAT_SEM surface owns (SEMFeatureParams' mean structure, multi-group
+// and ordinal keys; the bootstrap's are no keys here).
 func SEMScoreFeatureParams() map[string][]string {
 	all := SEMFeatureParams()
 	return map[string][]string{
 		SEMFeatureMeanStructure: all[SEMFeatureMeanStructure],
 		SEMFeatureGroups:        all[SEMFeatureGroups],
+		SEMFeatureOrdinal:       all[SEMFeatureOrdinal],
 	}
+}
+
+// SEMScoreOrdinalMethodRefusal refuses params.method "bartlett" on an
+// ordinal fit (estimator dwls / wlsmv): lavaan's ordinal scores are
+// empirical Bayes modal (EBM) — method "regression", the default,
+// means them — and its Bartlett on categorical data is a different
+// (maximum-likelihood) estimator Pulse does not compute. at is the slot
+// label; fit names a bound fit ("" inline). Predict and the runtime
+// both call it. Nil when the method is allowed.
+func SEMScoreOrdinalMethodRefusal(at, fit string, method sem.ScoreMethod, estimator string) *errors.CodedError {
+	if method != sem.ScoreBartlett {
+		return nil
+	}
+	if fit == "" {
+		return attributeInvalid(at, "bad_params",
+			at+` params.method "bartlett" is not available on an ordinal fit (estimator `+strconv.Quote(estimator)+`): ordinal scores are empirical Bayes modal (lavaan's EBM) — drop method, or set "regression"`,
+			map[string]any{"param": "method", "value": string(method), "estimator": estimator, "valid": []string{string(sem.ScoreRegression)}})
+	}
+	return attributeInvalid(at, "bad_params",
+		at+`: params.method "bartlett" is not available on bound SEM fit `+strconv.Quote(fit)+`, an ordinal fit: ordinal scores are empirical Bayes modal (lavaan's EBM) — drop method, or set "regression"`,
+		map[string]any{"param": "method", "value": string(method), "fit": fit, "valid": []string{string(sem.ScoreRegression)}})
+}
+
+// SEMScoreMethodOf is an ATTR_SEM_SCORE slot's params.method, read
+// loosely (sem.ScoreRegression when absent or unreadable: a malformed
+// params object is SEMScoreParams' to refuse).
+func SEMScoreMethodOf(a *types.Attribute) sem.ScoreMethod {
+	var p struct {
+		Method *string `json:"method"`
+	}
+	if a == nil || len(a.Params) == 0 || paramread.Probe(a.Params, &p) != nil || p.Method == nil {
+		return sem.ScoreRegression
+	}
+	return sem.ScoreMethod(*p.Method)
+}
+
+// SEMScoreObservedInner is the first inner variable of m that is not
+// latent ("" when every one is): an observed variable that predicts
+// another, which ordinal (EBM) scores do not model
+// (sem.ErrEBMObservedInner).
+func SEMScoreObservedInner(m *sem.Model) string {
+	lats := m.Latents()
+	for _, v := range m.Inner {
+		if !slices.Contains(lats, v) {
+			return v
+		}
+	}
+	return ""
 }
 
 // asAttributeRefusal re-keys a MAT_SEM decode refusal (details.matrix)
@@ -129,7 +187,7 @@ func SEMScoreParams(at string, raw json.RawMessage) (SEMScoreConfig, *errors.Cod
 	if len(raw) > 0 && !bytes.Equal(raw, []byte("null")) {
 		if err := paramread.DecodeStrict(paramread.Attribute, string(types.ATTR_SEM_SCORE), raw, &params); err != nil {
 			return SEMScoreConfig{}, attributeInvalid(at, "bad_params",
-				at+" ATTR_SEM_SCORE params: "+err.Error()+" (keys: latent, method, model, meanstructure, group, group_reference, group_equal, group_partial, solver, information, ftol, max_iter, grad_tol, singular, fit_on, fit, labels, missing)", nil)
+				at+" ATTR_SEM_SCORE params: "+err.Error()+" (keys: latent, method, model, meanstructure, group, group_reference, group_equal, group_partial, solver, information, ftol, max_iter, grad_tol, singular, estimator, ordered, parameterization, fit_on, fit, labels, missing)", nil)
 		}
 	}
 	common := FittedCommon{FitOn: params.FitOn, Fit: params.Fit, Missing: params.Missing}
@@ -167,10 +225,16 @@ func SEMScoreParams(at string, raw json.RawMessage) (SEMScoreConfig, *errors.Cod
 	}
 	sp := semParams{Model: params.Model, Solver: params.Solver, Information: params.Information, Ftol: params.Ftol,
 		MaxIter: params.MaxIter, GradTol: params.GradTol, Singular: params.Singular, MeanStructure: params.MeanStructure,
-		Group: params.Group, GroupReference: params.GroupReference, GroupEqual: params.GroupEqual, GroupPartial: params.GroupPartial}
+		Group: params.Group, GroupReference: params.GroupReference, GroupEqual: params.GroupEqual, GroupPartial: params.GroupPartial,
+		Estimator: params.Estimator, Ordered: params.Ordered, Parameterization: params.Parameterization}
 	var m Matrix
 	if ce := decodeSEM(at, sp, &m); ce != nil {
 		return SEMScoreConfig{}, asAttributeRefusal(ce)
+	}
+	if m.SEM.Ordinal() {
+		if ce := SEMScoreOrdinalMethodRefusal(at, "", cfg.Method, string(m.SEM.Estimator)); ce != nil {
+			return SEMScoreConfig{}, ce
+		}
 	}
 	cfg.Plan = m.SEM
 	return cfg, nil
@@ -201,6 +265,16 @@ func ResolveSEMScore(at string, cfg *SEMScoreConfig, members Resolved, schema *e
 	}
 	if ce := resolveSEMGroup(at, nil, schema, &m); ce != nil {
 		return nil, asAttributeRefusal(ce)
+	}
+	if ce := resolveSEMOrdinal(at, schema, &m); ce != nil {
+		return nil, asAttributeRefusal(ce)
+	}
+	if m.SEM.Ordinal() {
+		if v := SEMScoreObservedInner(m.SEM.Model); v != "" {
+			return nil, attributeInvalid(at, "bad_params",
+				at+" params.model: observed variable "+strconv.Quote(v)+" predicts another variable; ordinal (empirical Bayes modal) scores need every variable with an outgoing arrow to be latent — make it an outcome, or fit by the ML estimator",
+				map[string]any{"param": "model", "variable": v, "estimator": string(m.SEM.Estimator)})
+		}
 	}
 	lats := m.SEM.Model.Latents()
 	switch {

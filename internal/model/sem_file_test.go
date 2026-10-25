@@ -21,6 +21,18 @@ import (
 // WithLoaded binds it as a SEM fit and CatalogWithLoaded signs it kind
 // sem; CheckLoadedSEM refuses a file whose model does not rebuild.
 
+// semOrdinalFixture is semFileFixture as an ordinal (WLSMV) fit: a and
+// c ordered, b numeric.
+func semOrdinalFixture() *SEMFit {
+	f := semFileFixture()
+	f.Estimator, f.Ordered = "wlsmv", []string{"a", "c"}
+	f.Categories = [][]float64{{1, 2, 3}, {0, 1}}
+	for g := range f.Groups {
+		f.Groups[g].Thresholds = [][]float64{{-0.7, 0.4 + float64(g)}, {0.12345678901234567}}
+	}
+	return f
+}
+
 // semFileFixture is a two-group fit whose figures exercise the Float
 // policy.
 func semFileFixture() *SEMFit {
@@ -101,6 +113,27 @@ func encodedSEM(t *testing.T, f *SEMFit) []byte {
 }
 
 func TestSEMFile_RoundTripBitExact(t *testing.T) {
+	for _, c := range []struct {
+		fixture func() *SEMFit
+		version string
+	}{{semFileFixture, `"sem_format_version": 1`}, {semOrdinalFixture, `"sem_format_version": 2`}} {
+		want := c.fixture()
+		data := encodedSEM(t, want)
+		if !bytes.Contains(data, []byte(c.version)) {
+			t.Fatalf("want %s:\n%s", c.version, data)
+		}
+		if want.Ordinal() != bytes.Contains(data, []byte(`"thresholds"`)) {
+			t.Fatalf("ordinal %v, thresholds in the document %v", want.Ordinal(), !want.Ordinal())
+		}
+		file, err := DecodeSEMFile("x"+SEMSuffix, data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sameSEMFit(t, file.SEMFit(want.Name), want)
+		if back := encodedSEM(t, file.SEMFit(want.Name)); !bytes.Equal(back, data) {
+			t.Fatal("re-encode differs")
+		}
+	}
 	for _, mutate := range []func(*SEMFit){
 		func(*SEMFit) {},
 		// Ungrouped, covariance-only, semopy conventions, no nearest PD.
@@ -161,7 +194,10 @@ func TestSEMFile_DecodeRefusals(t *testing.T) {
 		{"version missing", func(m map[string]any) { delete(m, "sem_format_version") }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileVersionMissing},
 		{"version null", func(m map[string]any) { m["sem_format_version"] = nil }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileVersionMissing},
 		{"version string", func(m map[string]any) { m["sem_format_version"] = "1" }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
-		{"version 2", func(m map[string]any) { m["sem_format_version"] = 2 }, errors.PULSE_MODEL_VERSION_UNSUPPORTED, ""},
+		{"version 3", func(m map[string]any) { m["sem_format_version"] = 3 }, errors.PULSE_MODEL_VERSION_UNSUPPORTED, ""},
+		{"version 2 without ordered", func(m map[string]any) { m["sem_format_version"] = 2 }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"ordered under version 1", func(m map[string]any) { m["ordered"] = []any{"a"} }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
+		{"thresholds under version 1", func(m map[string]any) { group(m, 0)["thresholds"] = []any{[]any{0}} }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"unknown key", func(m map[string]any) { m["extra"] = 1 }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"wrong type", func(m map[string]any) { m["n"] = "x" }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
 		{"no model", func(m map[string]any) { m["model"] = " " }, errors.PULSE_MODEL_FILE_INVALID, ReasonFileSchema},
@@ -194,6 +230,38 @@ func TestSEMFile_DecodeRefusals(t *testing.T) {
 	}
 	if _, err := DecodeSEMFile("f", []byte("[")); err == nil {
 		t.Fatal("malformed JSON decoded")
+	}
+	ordinal := func() map[string]any {
+		var m map[string]any
+		if err := json.Unmarshal(encodedSEM(t, semOrdinalFixture()), &m); err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	for _, c := range []struct {
+		name   string
+		mutate func(map[string]any)
+	}{
+		{"ordered outside observed", func(m map[string]any) { m["ordered"] = []any{"a", "z"} }},
+		{"ordered out of order", func(m map[string]any) { m["ordered"] = []any{"c", "a"} }},
+		{"repeated ordered", func(m map[string]any) { m["ordered"] = []any{"a", "a"} }},
+		{"category lists", func(m map[string]any) { m["categories"] = []any{[]any{1, 2}} }},
+		{"one category", func(m map[string]any) { m["categories"].([]any)[1] = []any{0} }},
+		{"categories descending", func(m map[string]any) { m["categories"].([]any)[0] = []any{3, 2, 1} }},
+		{"threshold lists", func(m map[string]any) { group(m, 1)["thresholds"] = []any{[]any{0, 1}} }},
+		{"threshold count", func(m map[string]any) { group(m, 0)["thresholds"].([]any)[0] = []any{0} }},
+		{"infinite threshold", func(m map[string]any) { group(m, 0)["thresholds"].([]any)[1] = []any{"+Inf"} }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			m := ordinal()
+			c.mutate(m)
+			data, _ := json.Marshal(m)
+			_, err := DecodeSEMFile("f"+SEMSuffix, data)
+			var ce *errors.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_MODEL_FILE_INVALID || ce.Details["reason"] != ReasonFileSchema {
+				t.Fatalf("got %v, want PULSE_MODEL_FILE_INVALID schema", err)
+			}
+		})
 	}
 	// The writer refuses what the decode refuses.
 	bad := semFileFixture()

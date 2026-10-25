@@ -94,15 +94,24 @@ func TestSEMScore_HiddenSurfacesRefuseLikeUnknown(t *testing.T) {
 			t.Fatalf("a made-up key: %v", unknownErr)
 		}
 		unknownDetails, _ := json.Marshal(unknown.Details)
-		hiddenKeys := []string{"group", "group_reference", "group_equal", "group_partial"}
+		// capability:sem_ordinal is never enabled here (U59 E4-S4: its
+		// keys ride ATTR_SEM_SCORE's inline fit too).
+		hiddenKeys := []string{"group", "group_reference", "group_equal", "group_partial", "estimator", "ordered", "parameterization"}
 		if !means {
 			hiddenKeys = append(hiddenKeys, "meanstructure")
 		}
 		for _, k := range hiddenKeys {
 			t.Run(fmt.Sprintf("means=%v/%s", means, k), func(t *testing.T) {
 				var v any = "wave"
-				if k == "meanstructure" {
+				switch k {
+				case "meanstructure":
 					v = true
+				case "estimator":
+					v = "wlsmv"
+				case "ordered":
+					v = []string{"q1"}
+				case "parameterization":
+					v = "delta"
 				}
 				req := func() *types.Request { return semScoreRequest(semScoreCFA, map[string]any{k: v}) }
 				_, rerr := p.Process(ctx, req())

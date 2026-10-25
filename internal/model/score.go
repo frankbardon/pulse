@@ -100,6 +100,13 @@ type Signature struct {
 	// PULSE_MODEL_KIND_MISMATCH.
 	Kind types.FitKind
 
+	// Ordinal reports a SEM fit taken by an ordinal estimator (dwls /
+	// wlsmv), whose ATTR_SEM_SCORE scores are empirical Bayes modal (no
+	// Bartlett method): known statically from a fit request's
+	// params.estimator, a loaded SEM fit file's ordered variables and
+	// the runtime's bound fit alike.
+	Ordinal bool
+
 	// Coefficients are the coefficient names an extension regression's
 	// fit reports (sorted), when known (CoefficientsKnown): the
 	// runtime's Set and a loaded model file know them; predict's static
@@ -222,7 +229,7 @@ func CatalogFromFits(fits []types.FitSpec) FitCatalog {
 		case types.FitKindVector:
 			out[f.Name] = Signature{Name: f.Name, Source: FitSource(i), Kind: types.FitKindVector}
 		case types.FitKindSEM:
-			out[f.Name] = Signature{Name: f.Name, Source: FitSource(i), Kind: types.FitKindSEM}
+			out[f.Name] = Signature{Name: f.Name, Source: FitSource(i), Kind: types.FitKindSEM, Ordinal: SEMOrdinalEstimator(f.Request) != ""}
 		}
 	}
 	return out

@@ -292,6 +292,7 @@ func fitOrdinalGroups(model *Model, gs []OrdinalGroup, est Estimator, opt Option
 		fit := &Fit{Model: st.m, N: n, Objective: fg, Iterations: iters, Converged: conv, Status: status,
 			Options: opt, Sample: p.s, Implied: ws.scaledImplied(xg, sg), theta: xg, SampleMean: p.mean, ImpliedMean: st.mu(mm)}
 		fit.params = st.snapshot(p.mean)
+		fit.params.Thresholds = ws.thresholds(xg)
 		// std_estimate reads Σ itself: an ordered variable's implied
 		// variance 1/Δ² (lavaan's std.all under the delta
 		// parameterization).

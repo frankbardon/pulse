@@ -33,7 +33,7 @@ import (
 // paste them in and say in the commit why the bits moved.
 
 // twoStepFiles are the FMA-free sources.
-var twoStepFiles = []string{"normal.go", "bvn.go", "ordinal.go", "ordinal_scores.go", "ordinal_gamma.go"}
+var twoStepFiles = []string{"normal.go", "bvn.go", "ordinal.go", "ordinal_scores.go", "ordinal_gamma.go", "ebm.go"}
 
 // TestPolychoric_GoldenBits pins scalar results of Φ, Φ⁻¹ and Φ₂ (every
 // BVN branch: the 6-, 12- and 20-point Sheppard rules, the |ρ| ≥ 0.925
