@@ -48,7 +48,6 @@ var (
 	ownRecordRef   = own("ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE")
 	ownAllTests    = opsWithPrefix("TEST_")
 	ownAllOverlays = opsWithPrefix("OVERLAY_")
-	ownAllWindows  = opsWithPrefix("WIN_")
 	ownAllRegs     = opsWithPrefix("REG_")
 	// ownAllMats: every matrix operator (and capability:matrices, which
 	// each depends on) — a code only a `matrices` slot can raise.
@@ -198,7 +197,10 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: own(featFacet),
 	errors.PULSE_FACET_VALUES_TRUNCATED:             own(featFacet),
 	errors.PULSE_FIELD_DESCRIPTION_LOW_QUALITY:      shared,
-	errors.PULSE_WINDOW_INVALID:                     ownAllWindows,
+	// Also the unknown-window-type refusal (a hidden WIN_* included), so
+	// shared like every unknown-name code: the windows slot is never
+	// feature-gated.
+	errors.PULSE_WINDOW_INVALID: shared,
 	// Only a regression slot naming a window label raises it.
 	errors.PULSE_REGRESSION_WINDOW_UNAVAILABLE: ownAllRegs,
 	// An unknown regression type: shared, so a hidden REG_* fails exactly

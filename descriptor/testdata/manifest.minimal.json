@@ -378,7 +378,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 108,
+    "error_codes_count": 109,
     "error_domains": [
       "CLI",
       "DATA",
@@ -492,6 +492,7 @@
       "PULSE_TEST_UNKNOWN_TYPE",
       "PULSE_TIMEZONE_UNKNOWN",
       "PULSE_VECTOR_FIELD_NOT_SCALAR",
+      "PULSE_WINDOW_INVALID",
       "SERVICE_INTERNAL",
       "SERVICE_REGISTRY",
       "SERVICE_RESOURCE",
@@ -1403,4 +1404,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: b4472f484af0750359e15e4a3726f675c19422aa6e647139491112ed5552043f
+// golden-hash: 3f11a00a952f991761a044c596dbf17a82644019499e07ed002569d7c11e1bfa

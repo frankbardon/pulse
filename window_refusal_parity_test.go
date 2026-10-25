@@ -427,3 +427,58 @@ func assertUnknownWindowTypeParity(t *testing.T, p *pulse.Pulse, fsys afero.Fs, 
 		}
 	}
 }
+
+// TestWindowUnknownType_HiddenFamilyStillListsCode: a feature profile
+// that hides every WIN_* operator still lists PULSE_WINDOW_INVALID (its
+// owner is shared — a hidden window type is refused with it exactly as
+// a never-registered one), in the manifest's error codes and through
+// ErrorLookup, and a request naming a hidden WIN_* is refused with it.
+func TestWindowUnknownType_HiddenFamilyStillListsCode(t *testing.T) {
+	fsys := afero.NewMemMapFs()
+	full, err := pulse.New(pulse.Options{FS: fsys})
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema := encoding.Schema{Fields: []encoding.Field{
+		{Name: "t", Type: encoding.FieldTypeU16, Description: "Period index that orders the series"},
+		{Name: "x", Type: encoding.FieldTypeF64, Description: "Measured value of the series in the period"},
+	}}
+	b, err := full.NewCohortBuilder(context.Background(), "series.pulse", schema, pulse.CohortBuilderOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range 4 {
+		if err := b.Append(pulse.CohortRow{uint64(i), float64(i)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := b.Close(); err != nil {
+		t.Fatal(err)
+	}
+	p, err := pulse.New(pulse.Options{FS: fsys, FeatureProfile: &pulse.FeatureProfile{Features: []string{"capability:process", "AGG_SUM"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := p.ErrorLookup(string(errors.PULSE_WINDOW_INVALID)); !ok {
+		t.Error("PULSE_WINDOW_INVALID not listed (ErrorLookup) with every WIN_* hidden")
+	}
+	found := false
+	for _, c := range p.Manifest(context.Background()).ErrorCodes {
+		if c == string(errors.PULSE_WINDOW_INVALID) {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("PULSE_WINDOW_INVALID missing from the manifest's error codes with every WIN_* hidden")
+	}
+	var req types.Request
+	if err := json.Unmarshal([]byte(`{"windows": [{"type": "WIN_LAG", "field": "x", "order_by": [{"field": "t"}]}]}`), &req); err != nil {
+		t.Fatal(err)
+	}
+	req.Cohort = &types.Cohort{Filename: "series.pulse"}
+	_, err = p.Process(context.Background(), &req)
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_WINDOW_INVALID || ce.Message != "window[0]: unknown window type WIN_LAG" {
+		t.Errorf("hidden WIN_LAG: err = %v, want PULSE_WINDOW_INVALID window[0]", err)
+	}
+}
