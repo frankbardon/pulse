@@ -164,6 +164,15 @@ studentized-range and Student-t quantile references are refined in R
 beyond the stock `ptukey()` / `qtukey()` / `qt()` because those are less
 accurate than the oracle needs; the script's header explains why.
 
+The public `optimize` package keeps its own oracles beside it:
+`optimize/testdata/gen_optimize.R` writes `least_squares.json`
+(`minpack.lm`) and `minimize.json` (`nloptr` SLSQP), and
+`make reference-optimize` runs it and appends the footer that
+`TestOptimize_OracleGoldensHashed` checks. The script refuses any R
+or package version but the pinned ones. `TestOptimize_*Matches*` hold
+the solvers to `1e-6` relative, at least 50 times the measured
+disagreement. As above, a failure means the solver is wrong.
+
 ### Multivariate goldens and their fixtures
 
 The same `make reference` run also sources
@@ -349,6 +358,8 @@ is the whole list in one place.
 | `Kendall` | 2.2.2 | Mann-Kendall cross-check for `TEST_TREND` (`gen_test_outputs.R`); it computes in single precision, so the 1e-10 oracle is base R |
 | `pwr` | 1.3-0 | no generator uses it yet; `internal/processing/test_effect_size_test.go` cites `pwr::ES.h` in a comment only, so it is installed for cross-checks, not for `make reference` |
 | `Hmisc` | 5.3-0 | probability-weight quantiles (`internal/service/testdata/weight_reference/hmisc_quantile.R`); compiles Fortran, so install it with the workaround below |
+| `minpack.lm` | 1.2-4 | `optimize.LeastSquares` (`optimize/testdata/gen_optimize.R`, `make reference-optimize`); links gfortran, so install it with the workaround below |
+| `nloptr` | 2.2.1 | `optimize.Minimize`, `NLOPT_LD_SLSQP` (`optimize/testdata/gen_optimize.R`, `make reference-optimize`) |
 
 `ICSNP`, `MVTests` and `MVN` do NOT build on R 4.6.1; nothing needs
 them. The scripts compute what they would (the unequal-covariance

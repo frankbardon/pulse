@@ -107,6 +107,12 @@ A nonlinear parameter is a coefficient too, named by the model. `Outputs`
 carries what has no coefficient slot: per-channel `k` and `s` objects, a
 convergence flag, a pooled variance.
 
+For the iteration itself, use the public bounded Levenberg–Marquardt
+solver `optimize.LeastSquares`. Its
+[Writing a model pack](../library/optimize.md#writing-a-model-pack)
+section covers the row copy, FMA-free callbacks, bounds, the
+convergence code and the covariance from `JTJ`.
+
 Every coefficient name the fit reports is readable in an expression:
 `coef("<fit>", "<name>")`, with `"lower"` / `"upper"` (the engine's
 `conf_level` interval) and `"se"`, NaN where the fit reports no figure.

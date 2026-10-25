@@ -90,3 +90,28 @@ The solver never panics.
 ## Same bits on every architecture
 
 Every product that feeds an addition is an explicit `float64(a*b)` conversion, which stops the compiler from fusing it into a fused multiply-add. Write your callbacks the same way, and route `exp`, `log` and `pow` through deterministic kernels rather than `math`. A problem built that way gives identical bits on arm64 and amd64.
+
+## Checked against R
+
+Both solvers are pinned to R in `optimize/testdata/`. The R script `gen_optimize.R` sits beside its JSON outputs, which record the R and package versions. CI never runs R. To regenerate, run `make reference-optimize`; see [Regenerating Goldens](../internals/regenerating-goldens.md).
+
+| Solver | R reference | Problem | Agreement |
+|---|---|---|---|
+| `LeastSquares` | `minpack.lm` (`nlsLM`, cross-checked by `nls.lm` on the analytic Jacobian) | a four-parameter Hill curve with slack bounds; an exponential decay whose `c ≥ 0` bound binds | `x` and the standard errors from `JTJ` to about `2e-8`, the cost to `4e-15` |
+| `Minimize` | `nloptr`, `NLOPT_LD_SLSQP` | a strictly convex objective with one equality, one inequality and box bounds, all binding at the unique optimum | `x`, `f` and both multipliers to about `1e-14` (at `Acc: 1e-12`) |
+
+The tests allow `1e-6` relative. `nloptr` does not report multipliers, so the stored multipliers come from solving the KKT system at R's solution.
+
+When a bound binds, `minpack.lm` clamps the whole step and stops short of the bound-constrained optimum: about 5% off in the decay case, and the gap depends on the start. The oracle for that case is therefore `nlsLM` on the reduced problem, with the held parameter fixed at its bound. `LeastSquares` reaches that optimum and puts the held parameter exactly on its bound.
+
+## Writing a model pack
+
+A nonlinear regression in a pack is an `extend.BufferedRegression` (see [Adding a Regression Model](../internals/adding-regression.md)). Inside `Fit`, use `LeastSquares` like this:
+
+1. **Copy the rows first.** `rows` is valid only during the call. Read `rows.At(i)` into plain slices once, then build the residual and Jacobian closures over those slices. Allocate the returned slices once and reuse them.
+2. **Keep the callbacks FMA-free.** Wrap every product that feeds an addition in `float64(…)`, and take `exp`, `log` and `pow` from deterministic kernels. The solver is serial, so the same rows then give the same bits on every architecture, in serial and parallel compose.
+3. **Use bounds, not a reparametrization, where a coefficient may reach its limit.** A coefficient bounded at 0 can come back exactly 0, and `Active` says so. A reparametrization such as `exp(θ)` can only approach 0.
+4. **Map the stop to the regression codes.** Return `PROCESSING_REGRESSION_NO_CONVERGE` when `LeastSquares` returns `PULSE_OPTIMIZE_NOT_CONVERGED`. The slot then fails alone, keeping its identity and warning `PULSE_SLOT_FAILED`. Report `res.Iterations` as `Fit.Iterations`.
+5. **Form the uncertainty from `JTJ`.** Use `σ² = 2·Cost/(m − n)`. Drop the rows and columns of the parameters `Active` marks as held, invert the rest with `linalg.InverseSPD`, and leave a held parameter's `StdErr` nil. If the registration declares `Vcov`, return that matrix as `RegressionOutput.Vcov`.
+
+`REG_TESTMMM_HILL` in `extensions_testmmm_hill_test.go` is a complete worked example. It runs unbounded with an `exp(θ)` reparametrization because it keeps its slopes strictly positive.

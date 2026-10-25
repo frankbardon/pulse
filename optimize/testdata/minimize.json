@@ -1,0 +1,63 @@
+{
+  "generator": "optimize/testdata/gen_optimize.R",
+  "r_version": "R version 4.6.1 (2026-06-24)",
+  "packages": {
+    "nloptr": "2.2.1",
+    "jsonlite": "2.0.0"
+  },
+  "primitive": "optimize.Minimize (SLSQP, equality + inequality + bounds)",
+  "r_function": "nloptr::nloptr(algorithm = NLOPT_LD_SLSQP, xtol_rel = 1e-15, ftol_rel = 1e-16); multipliers from the KKT system at the solution",
+  "note": "ineq is Fn(x) >= 0; multipliers in constraint order with grad f = sum(lambda_i grad Fn_i) on the free variables; active_* are 0-based variable indices",
+  "cases": [
+    {
+      "name": "convex_eq_ineq_bounds",
+      "objective": "sum((x - c)^2) + exp(0.5 (x1 - x2)), c = (1, 2, 1.5, -1)",
+      "constraints": [
+        {
+          "type": "eq",
+          "fn": "x1 + x2 + x3 + x4 - 2.5"
+        },
+        {
+          "type": "ineq",
+          "fn": "2.5 - x2^2 - x3^2"
+        }
+      ],
+      "x0": [
+        1,
+        1,
+        1,
+        0.5
+      ],
+      "lower": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "upper": [
+        3,
+        3,
+        3,
+        3
+      ],
+      "x": [
+        0.3301781321476755,
+        1.3550373218401568,
+        0.81478454601217076,
+        0
+      ],
+      "f": 2.933196798012367,
+      "multipliers": [
+        -1.0401245413264857,
+        0.20269552746539135
+      ],
+      "active_lower": [
+        3
+      ],
+      "active_upper": [],
+      "nloptr_status": 3,
+      "nloptr_iterations": 20
+    }
+  ]
+}
+// golden-hash: f75f67f45932baed7ed6f98fffc1c4e05bcf87f88096f1130ce449fbea6306f7
