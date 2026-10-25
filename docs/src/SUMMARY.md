@@ -469,6 +469,7 @@
 - [Observability](library/observability.md)
 - [Guided-Analysis Vocabulary](library/guided-analysis.md)
 - [Linear Algebra (linalg)](library/linalg.md)
+- [Numerical Optimization (optimize)](library/optimize.md)
 - [Vectors and Matrices](library/matrices.md)
 
 # .pulse File Format

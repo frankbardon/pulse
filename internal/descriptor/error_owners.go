@@ -590,8 +590,11 @@ var errorOwners = map[errors.Code][]string{
 	// The linear-algebra core is reachable from more than one feature
 	// (regression, synthetic data, later matrix operators) and from no
 	// single request slot, so its codes are always listed.
-	errors.PULSE_MATRIX_SINGULAR:       shared,
-	errors.PULSE_MATRIX_SHAPE_MISMATCH: shared,
+	errors.PULSE_MATRIX_SINGULAR:        shared,
+	errors.PULSE_OPTIMIZE_INVALID:       shared,
+	errors.PULSE_OPTIMIZE_NOT_CONVERGED: shared,
+	errors.PULSE_OPTIMIZE_INFEASIBLE:    shared,
+	errors.PULSE_MATRIX_SHAPE_MISMATCH:  shared,
 
 	// Virtual vectors are capability:matrices: with it hidden the
 	// `vectors` slot is refused as an unknown field before any vector is

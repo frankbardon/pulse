@@ -4483,6 +4483,45 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_OPTIMIZE_INVALID: {
+		Message: "The optimize package refused the problem before solving it (or when a callback returned a gradient of the wrong length): the start is empty or not finite, a callback is nil, a bound slice is not one entry per variable, a lower bound is above its upper, the accuracy is negative or not finite, the iteration cap is negative, a constraint has no type, or there are more equality constraints than variables. Details carry `reason` (`nil_callback`, `empty_x0`, `bounds_length`, `bounds_crossed`, `acc`, `max_iter`, `non_finite_x0`, `constraint_type`, `too_many_equalities`, `gradient_length`) and, where they apply, `index`, `constraint`, `want` and `got`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Fix the field named by details.reason: give every variable a finite start, size Lower / Upper to one entry per variable (or nil), keep each lower bound at or below its upper, and set every constraint's Type to Eq or Ineq.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Hint:   "Drop or merge redundant equality constraints so there are no more of them than variables.",
+			},
+		},
+	},
+	PULSE_OPTIMIZE_NOT_CONVERGED: {
+		Message: "The optimize solver stopped before its convergence test passed — the iteration limit, a positive directional derivative in the line search, or a singular or rank-deficient subproblem — at a point that still meets the constraints. The final iterate is returned with the error. Details carry `status` (the solver's exit mode), `message`, `iterations` and `max_violation`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Hint:   "Raise MaxIter, or loosen Acc toward its 1e-6 default, when details.status is the iteration limit (9).",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "Start from a different x0, rescale the variables to similar magnitudes, or check that the gradient matches the objective: a wrong or noisy gradient is the usual cause of a positive directional derivative (status 8).",
+			},
+		},
+	},
+	PULSE_OPTIMIZE_INFEASIBLE: {
+		Message: "The optimize solver could not satisfy the constraints: the linearised constraints were incompatible, the equality constraints were singular, or the run stopped with a constraint violated by more than ten times the accuracy goal. The final iterate is returned with the error. Details carry `status`, `message`, `iterations` and `max_violation`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Check the constraints and bounds admit a common point: loosen a bound or an inequality, or remove an equality that contradicts another.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "Start nearer the feasible region, or check each constraint's Grad matches its Fn.",
+			},
+		},
+	},
 	PULSE_MATRIX_SINGULAR: {
 		Message: "A matrix could not be factored, solved against, inverted or decomposed. Usually it is singular or not positive definite: a Cholesky pivot came out zero or negative, or its condition number is past the solver's ceiling. In data terms some variables are exact (or near-exact) linear combinations of others — a duplicated or constant column, a one-hot set with every level included, or fewer usable rows than variables. The same code covers a decomposition (eigen, SVD, QR, rank, condition number) handed a NaN or infinite element (details `reason` = `non_finite`) or whose iteration did not converge (`reason` = `no_convergence`). Details carry `reason` where the routine classifies the failure (also `not_positive_definite`, `ill_conditioned`, `backend_error`), `pivot` for a reference Cholesky failure, `attempts` / `ridge` when a ridge schedule was exhausted, and `condition_number` from the SPD solve / inverse. A failed Cholesky factorisation (reference or SPD) of a finite matrix also carries `rank` (under the rank tolerance), `condition_number` (null when rank-deficient) and, when the matrix is rank-deficient, `dependent_indices` — the axis positions in the linear dependency; a matrix operator adds `matrix` and names those members as `dependent_fields`. An operator whose other outputs stay defined may raise it as a per-matrix WARNING instead, naming the figures it nulls under `outputs`.",
 		Fixups: []Fixup{

@@ -3583,6 +3583,36 @@ const (
 	// members' names as "dependent_fields".
 	PULSE_MATRIX_SINGULAR Code = "PULSE_MATRIX_SINGULAR"
 
+	// PULSE_OPTIMIZE_INVALID indicates a problem the public optimize
+	// package refuses before (or, for a callback returning a gradient of
+	// the wrong length, while) solving: an empty or non-finite start, a
+	// nil objective, gradient or constraint callback, a bound slice of
+	// the wrong length or a lower bound above its upper, a negative or
+	// non-finite accuracy, a negative iteration cap, a constraint with no
+	// type, or more equality constraints than variables. Details carry
+	// "reason" (nil_callback, empty_x0, bounds_length, bounds_crossed,
+	// acc, max_iter, non_finite_x0, constraint_type,
+	// too_many_equalities, gradient_length) plus "index" / "constraint"
+	// / "want" / "got" where they apply. No result is returned.
+	PULSE_OPTIMIZE_INVALID Code = "PULSE_OPTIMIZE_INVALID"
+
+	// PULSE_OPTIMIZE_NOT_CONVERGED indicates an optimize solver run that
+	// stopped before its convergence test passed — the iteration limit,
+	// a positive directional derivative in the line search, an LSQ
+	// subproblem iteration limit or a singular / rank-deficient
+	// subproblem — at a point that still meets the constraints. The
+	// final iterate is returned alongside. Details carry "status" (the
+	// solver's exit mode), "message", "iterations" and "max_violation".
+	PULSE_OPTIMIZE_NOT_CONVERGED Code = "PULSE_OPTIMIZE_NOT_CONVERGED"
+
+	// PULSE_OPTIMIZE_INFEASIBLE indicates an optimize solver run that
+	// could not satisfy its constraints: the linearised constraints were
+	// incompatible, the equality constraints were singular, or the run
+	// stopped with a constraint violated by more than ten times the
+	// accuracy goal. The final iterate is returned alongside. Details
+	// carry "status", "message", "iterations" and "max_violation".
+	PULSE_OPTIMIZE_INFEASIBLE Code = "PULSE_OPTIMIZE_INFEASIBLE"
+
 	// PULSE_MATRIX_SHAPE_MISMATCH indicates linear-algebra operands whose
 	// dimensions disagree (a non-square or ragged matrix, a vector whose
 	// length is not the matrix order, data whose length is not
@@ -4572,6 +4602,9 @@ var allCodes = []Code{
 	PULSE_MULTIPLICITY_CONFLICT,
 	PULSE_MATRIX_SINGULAR,
 	PULSE_MATRIX_SHAPE_MISMATCH,
+	PULSE_OPTIMIZE_INVALID,
+	PULSE_OPTIMIZE_NOT_CONVERGED,
+	PULSE_OPTIMIZE_INFEASIBLE,
 	PULSE_VECTOR_INVALID,
 	PULSE_VECTOR_EMPTY,
 	PULSE_VECTOR_MEMBER_TYPE,

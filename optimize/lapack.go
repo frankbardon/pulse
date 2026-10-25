@@ -1,8 +1,12 @@
-package sem
+package optimize
 
 // Reference BLAS / LAPACK routines used by the SLSQP port, transcribed
-// from the reference Fortran (column-major storage, unit stride). Only
-// the argument combinations SLSQP uses are implemented.
+// from the reference Fortran (column-major storage). Only the argument
+// combinations SLSQP uses are implemented. Every product that feeds an
+// addition or subtraction is an explicit float64(a*b), which the Go
+// specification forbids the compiler from fusing into a multiply-add, so
+// the arithmetic is identical on every architecture
+// (TestOptimize_NoFMAContraction).
 
 import "math"
 
@@ -16,7 +20,7 @@ const (
 func ddot(n int, x, y []float64) float64 {
 	s := 0.0
 	for i := 0; i < n; i++ {
-		s += x[i] * y[i]
+		s += float64(x[i] * y[i])
 	}
 	return s
 }
@@ -32,11 +36,11 @@ func dnrm2(n int, x []float64) float64 {
 			a := math.Abs(x[i])
 			if scale < a {
 				r := scale / a
-				ssq = 1 + ssq*r*r
+				ssq = 1 + float64(ssq*r*r)
 				scale = a
 			} else {
 				r := a / scale
-				ssq += r * r
+				ssq += float64(r * r)
 			}
 		}
 	}
@@ -54,7 +58,7 @@ func daxpy(n int, a float64, x, y []float64) {
 		return
 	}
 	for i := 0; i < n; i++ {
-		y[i] += a * x[i]
+		y[i] += float64(a * x[i])
 	}
 }
 
@@ -71,7 +75,7 @@ func dlapy2(x, y float64) float64 {
 	if z == 0 || w > math.MaxFloat64 {
 		return w
 	}
-	return w * math.Sqrt(1+(z/w)*(z/w))
+	return w * math.Sqrt(1+float64((z/w)*(z/w)))
 }
 
 func fsign(a, b float64) float64 {
@@ -210,12 +214,12 @@ func dlarfLeft(m, n int, v []float64, tau float64, c []float64, ldc int) {
 		col := c[j*ldc:]
 		w := 0.0
 		for i := 0; i < lastv; i++ {
-			w += col[i] * v[i]
+			w += float64(col[i] * v[i])
 		}
 		if w != 0 {
 			t := -tau * w
 			for i := 0; i < lastv; i++ {
-				col[i] += v[i] * t
+				col[i] += float64(v[i] * t)
 			}
 		}
 	}
@@ -253,7 +257,7 @@ func dtrsmRUNN(m, n int, a []float64, lda int, b []float64, ldb int) {
 		for k := 0; k < j; k++ {
 			if akj := a[k+j*lda]; akj != 0 {
 				for i := 0; i < m; i++ {
-					b[i+j*ldb] -= akj * b[i+k*ldb]
+					b[i+j*ldb] -= float64(akj * b[i+k*ldb])
 				}
 			}
 		}
@@ -271,7 +275,7 @@ func dtrsvUNN(n int, a []float64, lda int, x []float64) {
 			x[j] /= a[j+j*lda]
 			t := x[j]
 			for i := j - 1; i >= 0; i-- {
-				x[i] -= t * a[i+j*lda]
+				x[i] -= float64(t * a[i+j*lda])
 			}
 		}
 	}
@@ -291,7 +295,7 @@ func dgemvN(m, n int, alpha float64, a []float64, lda int, x []float64, beta flo
 	for j := 0; j < n; j++ {
 		t := alpha * x[j]
 		for i := 0; i < m; i++ {
-			y[i] += t * a[i+j*lda]
+			y[i] += float64(t * a[i+j*lda])
 		}
 	}
 }
@@ -301,12 +305,12 @@ func dgemvT(m, n int, alpha float64, a []float64, lda int, x []float64, beta flo
 	for j := 0; j < n; j++ {
 		t := 0.0
 		for i := 0; i < m; i++ {
-			t += a[i+j*lda] * x[i]
+			t += float64(a[i+j*lda] * x[i])
 		}
 		if beta == 0 {
 			y[j] = alpha * t
 		} else {
-			y[j] = beta*y[j] + alpha*t
+			y[j] = float64(beta*y[j]) + float64(alpha*t)
 		}
 	}
 }
@@ -319,7 +323,7 @@ func dtpsvLNU(n int, ap, x []float64) {
 			t := x[j]
 			k := kk + 1
 			for i := j + 1; i < n; i++ {
-				x[i] -= t * ap[k]
+				x[i] -= float64(t * ap[k])
 				k++
 			}
 		}
@@ -334,7 +338,7 @@ func dtpmvLTU(n int, ap, x []float64) {
 		t := x[j]
 		k := kk + 1
 		for i := j + 1; i < n; i++ {
-			t += ap[k] * x[i]
+			t += float64(ap[k] * x[i])
 			k++
 		}
 		x[j] = t
@@ -350,7 +354,7 @@ func dtpmvLNU(n int, ap, x []float64) {
 			t := x[j]
 			k := kk
 			for i := n - 1; i > j; i-- {
-				x[i] += t * ap[k]
+				x[i] += float64(t * ap[k])
 				k--
 			}
 		}
@@ -382,7 +386,7 @@ func dlartgp(f, g float64) (cs, sn, r float64) {
 				break
 			}
 		}
-		r = math.Sqrt(f1*f1 + g1*g1)
+		r = math.Sqrt(float64(f1*f1) + float64(g1*g1))
 		cs, sn = f1/r, g1/r
 		for i := 0; i < count; i++ {
 			r *= safmx2
@@ -398,17 +402,237 @@ func dlartgp(f, g float64) (cs, sn, r float64) {
 				break
 			}
 		}
-		r = math.Sqrt(f1*f1 + g1*g1)
+		r = math.Sqrt(float64(f1*f1) + float64(g1*g1))
 		cs, sn = f1/r, g1/r
 		for i := 0; i < count; i++ {
 			r *= safmn2
 		}
 	default:
-		r = math.Sqrt(f1*f1 + g1*g1)
+		r = math.Sqrt(float64(f1*f1) + float64(g1*g1))
 		cs, sn = f1/r, g1/r
 	}
 	if r < 0 {
 		cs, sn, r = -cs, -sn, -r
 	}
 	return cs, sn, r
+}
+
+// The routines below serve the equality-constrained LSEI path (me > 0),
+// which the bounds-only path never reaches: the RQ factorisation of the
+// equality rows and its application to A, G and the solution.
+
+// dnrm2s is dnrm2 over n entries of x at stride incx.
+func dnrm2s(n int, x []float64, incx int) float64 {
+	if n <= 0 {
+		return 0
+	}
+	scale, ssq := 0.0, 1.0
+	for i := 0; i < n; i++ {
+		if xi := x[i*incx]; xi != 0 {
+			a := math.Abs(xi)
+			if scale < a {
+				r := scale / a
+				ssq = 1 + float64(ssq*r*r)
+				scale = a
+			} else {
+				r := a / scale
+				ssq += float64(r * r)
+			}
+		}
+	}
+	return scale * math.Sqrt(ssq)
+}
+
+// dscals is dscal over n entries of x at stride incx.
+func dscals(n int, a float64, x []float64, incx int) {
+	for i := 0; i < n; i++ {
+		x[i*incx] = float64(x[i*incx] * a)
+	}
+}
+
+// dlarfgs is dlarfg with x at stride incx (the RQ reflectors run along
+// a row of a column-major matrix).
+func dlarfgs(n int, alpha *float64, x []float64, incx int) float64 {
+	if n <= 1 {
+		return 0
+	}
+	xnorm := dnrm2s(n-1, x, incx)
+	if xnorm == 0 {
+		return 0
+	}
+	beta := -fsign(dlapy2(*alpha, xnorm), *alpha)
+	knt := 0
+	if math.Abs(beta) < lapackSmlnum {
+		rsafmn := 1 / lapackSmlnum
+		for {
+			knt++
+			dscals(n-1, rsafmn, x, incx)
+			beta = float64(beta * rsafmn)
+			*alpha = float64(*alpha * rsafmn)
+			if !(math.Abs(beta) < lapackSmlnum && knt < 20) {
+				break
+			}
+		}
+		xnorm = dnrm2s(n-1, x, incx)
+		beta = -fsign(dlapy2(*alpha, xnorm), *alpha)
+	}
+	tau := (beta - *alpha) / beta
+	dscals(n-1, 1/(*alpha-beta), x, incx)
+	for j := 0; j < knt; j++ {
+		beta = float64(beta * lapackSmlnum)
+	}
+	*alpha = beta
+	return tau
+}
+
+// dlarfRight applies H = I − tau·v·vᵀ from the right to the m × n
+// matrix c (leading dimension ldc); v has n entries at stride incv.
+func dlarfRight(m, n int, v []float64, incv int, tau float64, c []float64, ldc int) {
+	if tau == 0 {
+		return
+	}
+	lastv := n
+	for lastv > 0 && v[(lastv-1)*incv] == 0 {
+		lastv--
+	}
+	if lastv == 0 {
+		return
+	}
+	// iladlr: last non-zero row of c(:, 0:lastv)
+	lastc := 0
+	for i := m - 1; i >= 0 && lastc == 0; i-- {
+		for j := 0; j < lastv; j++ {
+			if c[i+j*ldc] != 0 {
+				lastc = i + 1
+				break
+			}
+		}
+	}
+	if lastc == 0 {
+		return
+	}
+	// w = C·v (dgemv 'N'), then C −= tau·w·vᵀ (dger).
+	w := make([]float64, lastc)
+	for j := 0; j < lastv; j++ {
+		t := v[j*incv]
+		for i := 0; i < lastc; i++ {
+			w[i] += float64(t * c[i+j*ldc])
+		}
+	}
+	for j := 0; j < lastv; j++ {
+		if vj := v[j*incv]; vj != 0 {
+			t := float64(-tau * vj)
+			for i := 0; i < lastc; i++ {
+				c[i+j*ldc] += float64(w[i] * t)
+			}
+		}
+	}
+}
+
+// dlarfLeftS applies H = I − tau·v·vᵀ from the left to the m × n matrix
+// c (leading dimension ldc); v has m entries at stride incv.
+func dlarfLeftS(m, n int, v []float64, incv int, tau float64, c []float64, ldc int) {
+	if tau == 0 {
+		return
+	}
+	lastv := m
+	for lastv > 0 && v[(lastv-1)*incv] == 0 {
+		lastv--
+	}
+	if lastv == 0 {
+		return
+	}
+	lastc := 0
+	for j := n - 1; j >= 0 && lastc == 0; j-- {
+		for i := 0; i < lastv; i++ {
+			if c[i+j*ldc] != 0 {
+				lastc = j + 1
+				break
+			}
+		}
+	}
+	for j := 0; j < lastc; j++ {
+		w := 0.0
+		for i := 0; i < lastv; i++ {
+			w += float64(c[i+j*ldc] * v[i*incv])
+		}
+		if w != 0 {
+			t := float64(-tau * w)
+			for i := 0; i < lastv; i++ {
+				c[i+j*ldc] += float64(v[i*incv] * t)
+			}
+		}
+	}
+}
+
+// dgerq2 computes the unblocked RQ factorisation A = R·Q of the m × n
+// matrix a (m ≤ n): R lands in the last m columns, the reflectors
+// H(i) in the rows to its left, Q = H(1)·H(2)···H(m).
+func dgerq2(m, n int, a []float64, lda int, tau []float64) {
+	k := min(m, n)
+	for i := k - 1; i >= 0; i-- {
+		row := m - k + i
+		col := n - k + i
+		tau[i] = dlarfgs(col+1, &a[row+col*lda], a[row:], lda)
+		aii := a[row+col*lda]
+		a[row+col*lda] = 1
+		dlarfRight(row, col+1, a[row:], lda, tau[i], a, lda)
+		a[row+col*lda] = aii
+	}
+}
+
+// dormr2RT computes C·Qᵀ for the m × n matrix c, Q from dgerq2's k
+// reflectors stored in the k × n matrix a.
+func dormr2RT(m, n, k int, a []float64, lda int, tau, c []float64, ldc int) {
+	if m == 0 || n == 0 || k == 0 {
+		return
+	}
+	for i := k - 1; i >= 0; i-- {
+		ni := n - k + i + 1
+		aii := a[i+(n-k+i)*lda]
+		a[i+(n-k+i)*lda] = 1
+		dlarfRight(m, ni, a[i:], lda, tau[i], c, ldc)
+		a[i+(n-k+i)*lda] = aii
+	}
+}
+
+// dormr2LT computes Qᵀ·C for the m × n matrix c, Q from dgerq2's k
+// reflectors stored in the k × m matrix a.
+func dormr2LT(m, n, k int, a []float64, lda int, tau, c []float64, ldc int) {
+	if m == 0 || n == 0 || k == 0 {
+		return
+	}
+	for i := 0; i < k; i++ {
+		mi := m - k + i + 1
+		aii := a[i+(m-k+i)*lda]
+		a[i+(m-k+i)*lda] = 1
+		dlarfLeftS(mi, n, a[i:], lda, tau[i], c, ldc)
+		a[i+(m-k+i)*lda] = aii
+	}
+}
+
+// dtrsvUTN solves Aᵀ·x = b (A upper triangular, non-unit) in place.
+func dtrsvUTN(n int, a []float64, lda int, x []float64) {
+	for j := 0; j < n; j++ {
+		t := x[j]
+		for i := 0; i < j; i++ {
+			t -= float64(a[i+j*lda] * x[i])
+		}
+		x[j] = t / a[j+j*lda]
+	}
+}
+
+// dgemvTAcc computes y += alpha·Aᵀ·x for the m × n matrix A (dgemv 'T'
+// with beta = 1; a quick return when m or n is zero).
+func dgemvTAcc(m, n int, alpha float64, a []float64, lda int, x, y []float64) {
+	if m == 0 || n == 0 {
+		return
+	}
+	for j := 0; j < n; j++ {
+		t := 0.0
+		for i := 0; i < m; i++ {
+			t += float64(a[i+j*lda] * x[i])
+		}
+		y[j] += float64(alpha * t)
+	}
 }

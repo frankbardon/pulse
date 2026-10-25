@@ -14,6 +14,7 @@ import (
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/mcp/gosdk"
 	"github.com/frankbardon/pulse/mcpserve"
+	"github.com/frankbardon/pulse/optimize"
 	"github.com/frankbardon/pulse/synth"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
@@ -303,6 +304,18 @@ var (
 	_                                           = pulse.SkillMetadata{Name: "op-agg-count", Requires: []string{}}
 	_                                           = descriptor.OntologyEdge{Kind: descriptor.OntologyEdgeServesIntent}
 	_                                           = descriptor.OntologyNode{Kind: descriptor.OntologyNodeSkill}
+)
+
+// Optimization core: SLSQP over bounds and Eq / Ineq constraints.
+var (
+	_ func(func([]float64) float64, func([]float64) []float64, []float64, optimize.MinimizeOptions) (*optimize.MinimizeResult, error) = optimize.Minimize
+	_                                                                                                                                 = optimize.MinimizeOptions{Lower: []float64{}, Upper: []float64{}, Acc: 1e-6, MaxIter: 100,
+		Constraints: []optimize.Constraint{{Type: optimize.Eq}, {Type: optimize.Ineq}}}
+	_ = optimize.MinimizeResult{Active: []optimize.ActiveBound{optimize.NotActive, optimize.AtLower, optimize.AtUpper},
+		Status: optimize.StatusSuccess}
+	_ perrors.Code = perrors.PULSE_OPTIMIZE_INVALID
+	_ perrors.Code = perrors.PULSE_OPTIMIZE_NOT_CONVERGED
+	_ perrors.Code = perrors.PULSE_OPTIMIZE_INFEASIBLE
 )
 
 // Linear-algebra core: Pulse-owned matrix types, the FMA-free

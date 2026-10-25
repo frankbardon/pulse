@@ -1120,6 +1120,16 @@ Shipped in `v1.0.0-alpha.26`. `format_version` stays `"1.1"`; no `.pulse` byte-l
 | — | an ordinal fit's `ATTR_SEM_SCORE` scores a row with a null ordered (or continuous) member `null`; lavaan's `lavPredict` instead skips the missing indicator and scores the row from the rest. Listwise is Pulse's rule on every SEM surface | divergence from lavaan (documented) | filter or impute rows with a missing rating before scoring if you need lavaan's partial-row scores | U59 (E4-S4) |
 | — | parity notes for the ordinal slices, no wire change: the WLSMV bootstrap is held to lavaan's DWLS bootstrap, because lavaan refuses `se = "bootstrap"` under WLSMV and the two estimators share their point estimates; the EBM scores are held to lavaan's EBM objective minimised to `reltol` 1e-15, because `lavPredict(method = "EBM")` at its default (BFGS, `reltol` 1e-8) stops up to about 4e-4 short of the posterior mode, which Pulse returns | parity note | compare Pulse's EBM scores with lavaan's only after tightening lavaan's optimiser; expect differences up to ~4e-4 against a default `lavPredict` call | U59 (E4-S3, E4-S4) |
 
+## Changes from U60 (MMM estimation)
+
+Not yet released (targets `v1.0.0-alpha.27`). `format_version` stays `"1.1"`; no `.pulse` byte-layout change.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| — | NEW public package `github.com/frankbardon/pulse/optimize`: `Minimize(f, grad, x0, MinimizeOptions)` — SLSQP (SciPy 1.18.1's, BSD-3 notice in `optimize/SCIPY_LICENSE.txt`) over `Lower` / `Upper` bounds and `[]Constraint{Fn, Grad, Type: Eq\|Ineq}`, `Acc` (default `1e-6`) and `MaxIter` (default 100), returning `*MinimizeResult` (`X`, `F`, per-constraint `Multipliers`, per-variable `Active` bound, `MaxViolation`, `Status`, `Iterations`, `FuncEvals`, `GradEvals`); FMA-free, so the same callbacks give the same bits on every architecture. Docs: `docs/src/library/optimize.md` | additive (package) | import it to solve a bounded or constrained smooth problem | U60 (E1-S1) |
+| — | NEW error codes `PULSE_OPTIMIZE_INVALID` (bad input, nil result), `PULSE_OPTIMIZE_NOT_CONVERGED` and `PULSE_OPTIMIZE_INFEASIBLE` (a short stop; the final iterate returned with the error), with fixups and the `shared` owner | additive (error code) | handle them like any coded error | U60 (E1-S1) |
+| `MAT_SEM`'s SLSQP lived in `internal/sem` and contracted multiply-adds on arm64 | `MAT_SEM` fits through `optimize.Minimize`, bounds only. On amd64 every figure is bit-identical; on arm64 the solver's rounding now matches amd64, so a fit's last digits can move there | behaviour change (arm64 rounding only) | none | U60 (E1-S1) |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

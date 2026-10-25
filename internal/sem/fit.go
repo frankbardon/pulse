@@ -889,8 +889,11 @@ func fitCov(m *Model, s, raw *mat.SymDense, mean []float64, n float64, opt Optio
 				xl[k] = p.lower
 			}
 		}
-		res := slsqpMinimize(st.objective, st.gradient, x0, xl, xu, opt.Ftol, opt.MaxIter)
-		x, f, iters, conv, status = res.x, res.fun, res.nit, res.mode == slsqpSuccess, slsqpMessages[res.mode]
+		var err error
+		x, f, iters, conv, status, err = slsqpBounded(st.objective, st.gradient, x0, xl, xu, opt)
+		if err != nil {
+			return nil, err
+		}
 	}
 	st.update(x)
 	sg, mm, c, err := st.sigma()

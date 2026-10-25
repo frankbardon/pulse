@@ -2689,6 +2689,9 @@ pulse/errors: const PULSE_MODEL_VERSION_UNSUPPORTED pulse/errors.Code = "PULSE_M
 pulse/errors: const PULSE_MODEL_WRITE_FAILED pulse/errors.Code = "PULSE_MODEL_WRITE_FAILED"
 pulse/errors: const PULSE_MULTIPLICITY_CONFLICT pulse/errors.Code = "PULSE_MULTIPLICITY_CONFLICT"
 pulse/errors: const PULSE_MULTIPLICITY_INVALID pulse/errors.Code = "PULSE_MULTIPLICITY_INVALID"
+pulse/errors: const PULSE_OPTIMIZE_INFEASIBLE pulse/errors.Code = "PULSE_OPTIMIZE_INFEASIBLE"
+pulse/errors: const PULSE_OPTIMIZE_INVALID pulse/errors.Code = "PULSE_OPTIMIZE_INVALID"
+pulse/errors: const PULSE_OPTIMIZE_NOT_CONVERGED pulse/errors.Code = "PULSE_OPTIMIZE_NOT_CONVERGED"
 pulse/errors: const PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT pulse/errors.Code = "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT"
 pulse/errors: const PULSE_OVERLAY_COMPONENTS_REQUIRED pulse/errors.Code = "PULSE_OVERLAY_COMPONENTS_REQUIRED"
 pulse/errors: const PULSE_OVERLAY_DICT_PREFIX_DRIFT pulse/errors.Code = "PULSE_OVERLAY_DICT_PREFIX_DRIFT"
@@ -3857,6 +3860,47 @@ pulse/observe: const ScopeChild pulse/observe.Scope = "child"
 pulse/observe: const ScopeTop pulse/observe.Scope = "top"
 pulse/observe: type UpDownCounter interface
 pulse/observe: type UpDownCounter imethod Add(delta float64)
+pulse/optimize: package optimize
+pulse/optimize: type ActiveBound int8
+pulse/optimize: const AtLower pulse/optimize.ActiveBound = 1
+pulse/optimize: const AtUpper pulse/optimize.ActiveBound = 2
+pulse/optimize: type Constraint struct
+pulse/optimize: type Constraint field Fn func(x []float64) float64
+pulse/optimize: type Constraint field Grad func(x []float64) []float64
+pulse/optimize: type Constraint field Type pulse/optimize.ConstraintType
+pulse/optimize: type ConstraintType int
+pulse/optimize: type ConstraintType method (ConstraintType) String() string
+pulse/optimize: const Eq pulse/optimize.ConstraintType = 1
+pulse/optimize: const Ineq pulse/optimize.ConstraintType = 2
+pulse/optimize: func Minimize(f func(x []float64) float64, grad func(x []float64) []float64, x0 []float64, opts pulse/optimize.MinimizeOptions) (res *pulse/optimize.MinimizeResult, err error)
+pulse/optimize: type MinimizeOptions struct
+pulse/optimize: type MinimizeOptions field Acc float64
+pulse/optimize: type MinimizeOptions field Constraints []pulse/optimize.Constraint
+pulse/optimize: type MinimizeOptions field Lower []float64
+pulse/optimize: type MinimizeOptions field MaxIter int
+pulse/optimize: type MinimizeOptions field Upper []float64
+pulse/optimize: type MinimizeResult struct
+pulse/optimize: type MinimizeResult field Active []pulse/optimize.ActiveBound
+pulse/optimize: type MinimizeResult field F float64
+pulse/optimize: type MinimizeResult field FuncEvals int
+pulse/optimize: type MinimizeResult field GradEvals int
+pulse/optimize: type MinimizeResult field Iterations int
+pulse/optimize: type MinimizeResult field MaxViolation float64
+pulse/optimize: type MinimizeResult field Multipliers []float64
+pulse/optimize: type MinimizeResult field Status pulse/optimize.Status
+pulse/optimize: type MinimizeResult field X []float64
+pulse/optimize: const NotActive pulse/optimize.ActiveBound = 0
+pulse/optimize: type Status int
+pulse/optimize: type Status method (Status) String() string
+pulse/optimize: const StatusIncompatible pulse/optimize.Status = 4
+pulse/optimize: const StatusIterLimit pulse/optimize.Status = 9
+pulse/optimize: const StatusLSQIterLimit pulse/optimize.Status = 3
+pulse/optimize: const StatusPositiveDirection pulse/optimize.Status = 8
+pulse/optimize: const StatusRankDeficient pulse/optimize.Status = 7
+pulse/optimize: const StatusSingularC pulse/optimize.Status = 6
+pulse/optimize: const StatusSingularE pulse/optimize.Status = 5
+pulse/optimize: const StatusSuccess pulse/optimize.Status = 0
+pulse/optimize: const StatusTooManyEquality pulse/optimize.Status = 2
 pulse/synth: package synth
 pulse/synth: type CategoricalNumericCategoryFidelity = pulse/internal/synth.CategoricalNumericCategoryFidelity
 pulse/synth: type CategoricalNumericCategoryFidelity underlying struct
@@ -5910,4 +5954,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 0dc5342bec455ae928862f7f7abb54d013eecf77ffc065f7d26d52d3fa41054d
+// golden-hash: ebc534df10c72feb980fdbe3aa518c779b1552cc1b37fa2d5c3ecd2c580aac2a

@@ -10721,7 +10721,7 @@
         ]
       }
     ],
-    "error_codes_count": 417,
+    "error_codes_count": 420,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10949,6 +10949,9 @@
       "PULSE_MODEL_WRITE_FAILED",
       "PULSE_MULTIPLICITY_CONFLICT",
       "PULSE_MULTIPLICITY_INVALID",
+      "PULSE_OPTIMIZE_INFEASIBLE",
+      "PULSE_OPTIMIZE_INVALID",
+      "PULSE_OPTIMIZE_NOT_CONVERGED",
       "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT",
       "PULSE_OVERLAY_COMPONENTS_REQUIRED",
       "PULSE_OVERLAY_DICT_PREFIX_DRIFT",
@@ -19935,4 +19938,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 632ed5f71551ff14d71e5fcd1df353347c2aaad249a7ed01c0dfd955e6751654
+// golden-hash: f97a4107dc165da392b914d56e14a447e5c509e0182f12cf0b1f785e90c3d6c5

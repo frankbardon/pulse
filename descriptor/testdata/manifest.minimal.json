@@ -378,7 +378,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 104,
+    "error_codes_count": 107,
     "error_domains": [
       "CLI",
       "DATA",
@@ -467,6 +467,9 @@
       "PULSE_MATERIALIZE_SLOT_UNSUPPORTED",
       "PULSE_MATRIX_SHAPE_MISMATCH",
       "PULSE_MATRIX_SINGULAR",
+      "PULSE_OPTIMIZE_INFEASIBLE",
+      "PULSE_OPTIMIZE_INVALID",
+      "PULSE_OPTIMIZE_NOT_CONVERGED",
       "PULSE_OVERLAY_KIND_UNKNOWN",
       "PULSE_RAKE_EMPTY_CELL",
       "PULSE_RAKE_INVALID",
@@ -1399,4 +1402,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 95cfb9fe72e82d65e1e773999cce16c0e1bdbf781b2b81a7577e7a5e16bfbe47
+// golden-hash: 541383ceae60ffc7ec0b1a3c1a4ed1625e6156d2d0a9493170bf92904d834985

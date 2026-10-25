@@ -1,4 +1,4 @@
-sem/slsqp.go is a Go port of SLSQP from SciPy 1.18.1 (scipy/optimize/src/slsqp.c,
+optimize/slsqp.go (with optimize/lapack.go) is a Go port of SLSQP from SciPy 1.18.1 (scipy/optimize/src/slsqp.c,
 scipy/optimize/src/nnls.c, scipy/optimize/_slsqp_py.py), distributed under the
 following license:
 
