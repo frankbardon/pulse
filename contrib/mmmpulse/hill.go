@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
@@ -105,6 +106,14 @@ func Registration() pulse.RegressionRegistration {
 	return pulse.RegressionRegistration{
 		Name:        Name,
 		Description: "Media-mix model: joint nonlinear least squares over Hill-saturated, already-adstocked channels plus linear controls; coefficients k:<channel> / s:<channel> carry each curve.",
+		Purpose: &descriptor.Purpose{
+			Plain:     "Fit a media-mix model: each channel's response curve (half-saturation and shape) and effect, jointly with linear controls.",
+			Intents:   []string{"drivers"},
+			Questions: []string{"What does each marketing channel contribute to sales?", "Where do the channels saturate?"},
+			UseCases:  map[descriptor.Domain]string{descriptor.DomainOps: "Which channels earn their spend, and where to move budget."},
+			NotFor:    []descriptor.Alternative{{When: "the response is linear in spend, with no saturation", Use: string(types.REG_OLS)}},
+			Level:     descriptor.LevelAdvanced,
+		},
 		Params: []pulse.ParamMeta{
 			{Name: "channels", JSONType: "array", Required: true, Description: "Predictors entering through the Hill curve (adstocked spend, at least one); the other predictors are linear controls."},
 			{Name: "nonnegative", JSONType: "boolean", Default: true, Description: "Bound every channel β below by 0, so an unsupported channel is exactly 0 (default true)."},

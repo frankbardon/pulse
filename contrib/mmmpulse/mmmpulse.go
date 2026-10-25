@@ -21,13 +21,29 @@
 // public packages; Pulse itself never imports it.
 package mmmpulse
 
-import "github.com/frankbardon/pulse"
+import (
+	"embed"
+	"io/fs"
 
-// Extensions is the pack's registration set: REG_MMM_HILL. Merge it
-// into pulse.Options.Extensions (append its Regressions to an existing
-// set). Each call returns a fresh value.
+	"github.com/frankbardon/pulse"
+)
+
+//go:embed skills/*.md
+var skillFiles embed.FS
+
+// Extensions is the pack's registration set: REG_MMM_HILL and its two
+// skills (the operator's and a media-mix workflow guide), served through
+// Extensions.Skills. Use it as pulse.Options.Extensions; to combine it
+// with the embedder's own, append its Regressions to the existing set and
+// keep one Skills filesystem that holds both skill sets. Each call returns
+// a fresh value.
 func Extensions() pulse.Extensions {
+	skills, err := fs.Sub(skillFiles, "skills")
+	if err != nil {
+		panic(err) // the embedded directory is fixed at build time
+	}
 	return pulse.Extensions{
 		Regressions: []pulse.RegressionRegistration{Registration()},
+		Skills:      skills,
 	}
 }

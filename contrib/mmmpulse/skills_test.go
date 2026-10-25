@@ -1,0 +1,39 @@
+package mmmpulse_test
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/spf13/afero"
+
+	"github.com/frankbardon/pulse"
+	"github.com/frankbardon/pulse/contrib/mmmpulse"
+)
+
+// TestMMMPack_SkillsServed: the pack's skills pass the embedder skill
+// validation at pulse.New and are served through the facade like the
+// shipped pack (the surface pulse_skills_list reads).
+func TestMMMPack_SkillsServed(t *testing.T) {
+	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: mmmpulse.Extensions()})
+	if err != nil {
+		t.Fatalf("pulse.New: %v", err)
+	}
+	listed := map[string]bool{}
+	for _, s := range p.Skills() {
+		listed[s.Name] = true
+	}
+	for _, name := range []string{"op-reg-mmm-hill", "ext-mmm-workflow"} {
+		if !listed[name] {
+			t.Errorf("skill %s not listed", name)
+		}
+	}
+	body, ok := p.Skill("op-reg-mmm-hill")
+	if !ok {
+		t.Fatal("op-reg-mmm-hill not served")
+	}
+	for _, want := range []string{"k:<channel>", "## Use when", "## Contract"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("served op-reg-mmm-hill lacks %q", want)
+		}
+	}
+}
