@@ -9,7 +9,9 @@
 # REPLICATED w times (lavaan sees the copies; the Go side weighs the
 # rows). score_rows > 0 (ungrouped, unweighted only) also dumps the first
 # score_rows rows of lavaan's casewise score matrix SC, its INNER =
-# crossprod(SC) and A21 (muthen1984, lavaan's internal Gamma pieces).
+# crossprod(SC) and A21 (muthen1984, lavaan's internal Gamma pieces);
+# every ungrouped run dumps lavaan's Gamma pieces (gamma: A11, A21, A22,
+# WLS.W, WLS.obs) for the TestWLSMV_Gamma* tests.
 #
 # The independent block re-derives every figure without lavaan:
 # thresholds qnorm(cumulative proportions); polychorics as the root
@@ -133,13 +135,30 @@ out <- list(
                  zero_add = lavInspect(fit, "options")$zero.add,
                  zero_keep_margins = lavInspect(fit, "options")$zero.keep.margins),
   groups = lapply(seq_along(ss), block))
-if (nsc > 0 && is.null(grp) && is.null(wcol)) {
+if (is.null(grp)) {
+  # muthen1984 on the (replicated, when weighted) rows: lavaan's own
+  # Gamma pieces, the default numeric_bread = "observed" of sem() /
+  # cfa(): A11 (per-variable blocks; a numeric column's the observed
+  # information), A21 and A22 (a pair touching a numeric column: the
+  # observed second derivatives), WLS.W (the asymptotic covariance of
+  # WLS.obs: the cor -> cov conversion H and the numeric-mean sign flip
+  # applied; NACOV = N * WLS.W) and WLS.obs itself (thresholds, a
+  # numeric column's -mean, numeric variances, then the off-diagonal
+  # covariances, lav_samp_wls_obs's layout).
   y <- as.matrix(data[, vars])
   for (v in ord) y[, v] <- as.integer(ordered(y[, v]))
   types <- ifelse(vars %in% ord, "ordered", "numeric")
   lev <- sapply(vars, function(v) if (v %in% ord) length(unique(y[, v])) else 0L)
   m <- lavaan:::muthen1984(data_1 = y, ov_names = vars, ov_types = types, ov_levels = unname(lev))
   rows <- function(x) unname(lapply(seq_len(nrow(x)), function(i) unname(x[i, ])))
-  out$scores <- list(rows = rows(m$SC[seq_len(nsc), , drop = FALSE]), inner = rows(m$INNER), a21 = rows(m$A21))
+  if (nsc > 0 && is.null(wcol)) {
+    out$scores <- list(rows = rows(m$SC[seq_len(nsc), , drop = FALSE]), inner = rows(m$INNER), a21 = rows(m$A21))
+  }
+  th <- unlist(m$TH)
+  th[unlist(m$TH.IDX) == 0] <- -th[unlist(m$TH.IDX) == 0]
+  num <- which(types == "numeric")
+  wobs <- c(th, unlist(m$VAR)[num], lavaan:::lav_mat_vech(m$COV, diagonal = FALSE))
+  out$gamma <- list(n = nrow(y), a11 = rows(m$A11), a21 = rows(m$A21), a22 = unname(diag(m$A22)),
+                    wls_w = rows(m$WLS.W), wls_obs = unname(wobs))
 }
 cat(toJSON(out, auto_unbox = TRUE, digits = I(17), pretty = FALSE, na = "null", null = "null"), "\n")

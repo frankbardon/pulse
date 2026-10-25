@@ -6,8 +6,8 @@ import (
 	"github.com/frankbardon/pulse/internal/detmath"
 )
 
-// The ordinal (two-step) numerics — normal.go, bvn.go, ordinal.go and
-// ordinal_scores.go — are FMA-free and call only the portable detmath
+// The ordinal (two-step) numerics — normal.go, bvn.go, ordinal.go,
+// ordinal_scores.go and ordinal_gamma.go — are FMA-free and call only the portable detmath
 // kernels (plus the correctly rounded math.Sqrt), so a threshold, a
 // polychoric or a polyserial correlation is a function of the data
 // alone: identical bits on amd64 and arm64 (TestPolychoric_GoldenBits).
