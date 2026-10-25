@@ -147,20 +147,6 @@ func SEMScoreMethodOf(a *types.Attribute) sem.ScoreMethod {
 	return sem.ScoreMethod(*p.Method)
 }
 
-// SEMScoreObservedInner is the first inner variable of m that is not
-// latent ("" when every one is): an observed variable that predicts
-// another, which ordinal (EBM) scores do not model
-// (sem.ErrEBMObservedInner).
-func SEMScoreObservedInner(m *sem.Model) string {
-	lats := m.Latents()
-	for _, v := range m.Inner {
-		if !slices.Contains(lats, v) {
-			return v
-		}
-	}
-	return ""
-}
-
 // asAttributeRefusal re-keys a MAT_SEM decode refusal (details.matrix)
 // to the attribute slot (details.attribute).
 func asAttributeRefusal(ce *errors.CodedError) *errors.CodedError {
@@ -268,13 +254,6 @@ func ResolveSEMScore(at string, cfg *SEMScoreConfig, members Resolved, schema *e
 	}
 	if ce := resolveSEMOrdinal(at, schema, &m); ce != nil {
 		return nil, asAttributeRefusal(ce)
-	}
-	if m.SEM.Ordinal() {
-		if v := SEMScoreObservedInner(m.SEM.Model); v != "" {
-			return nil, attributeInvalid(at, "bad_params",
-				at+" params.model: observed variable "+strconv.Quote(v)+" predicts another variable; ordinal (empirical Bayes modal) scores need every variable with an outgoing arrow to be latent — make it an outcome, or fit by the ML estimator",
-				map[string]any{"param": "model", "variable": v, "estimator": string(m.SEM.Estimator)})
-		}
 	}
 	lats := m.SEM.Model.Latents()
 	switch {

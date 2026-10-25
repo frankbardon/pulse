@@ -26,6 +26,17 @@ import (
 // parameterization's residual 1/Δ² − common — the latent response
 // scale lavaan's own scorer reads (delta = FALSE).
 //
+// An observed inner variable d (an observed mediator: an observed
+// variable with an outgoing arrow) is lavaan's ov.y dummy latent, and
+// the split is lavaan's: η, μ and V are over the latents alone (the
+// latent block of Cα and CΨCᵀ, so d's paths and variance shape the
+// prior), and d enters the likelihood as a numeric indicator with
+// ŷ_d = α_d + B_d,lat η and s_d = √Ψ_dd — its own row's value, never
+// conditioned on in the prior. Every effect OF an observed variable on
+// an observed one (B_d,d′, an output's Λ_i,d — lavaan makes such an
+// output a dummy too, whose dummy inputs its scorer zeroes) is dropped
+// from ŷ, exactly as lav_lisrel_eyetax does.
+//
 // The optimisation is deterministic: Newton's method from the fixed
 // start μ with a halving (Armijo) line search — the full step once the
 // Newton decrement is below ebmQuadratic — stopping when the decrement
@@ -58,12 +69,6 @@ const (
 	ebmFloor = 2.220446049250313e-16
 )
 
-// ErrEBMObservedInner refuses EBM scores of a model with an observed
-// variable that predicts another (an observed mediator): lavaan scores
-// it as a dummy latent fixed at the row's value, which this scorer does
-// not model.
-var ErrEBMObservedInner = errors.New("an observed variable predicts another variable; ordinal (EBM) factor scores need every variable with an outgoing arrow to be latent")
-
 // ErrEBMResidualVariance refuses EBM scores of a fit with a residual
 // variance (an ordered indicator's delta residual, a numeric indicator's
 // Θ_ii) that is not positive: the indicator's density is undefined
@@ -83,10 +88,11 @@ type EBMScorer struct {
 
 // NewEBMScorer builds the EBM rule of latent from one group's
 // parameters p of the ordinal model m (ModelOptions.Ordered; p carries
-// the thresholds, Params.Thresholds). Every inner variable must be
-// latent (ErrEBMObservedInner); ErrScoreSingular when the latents'
+// the thresholds, Params.Thresholds). An observed inner variable is a
+// dummy latent (the file comment); ErrScoreSingular when the latents'
 // implied covariance is not positive definite; ErrEBMResidualVariance
-// for a non-positive residual variance.
+// for a non-positive residual variance (an observed inner variable's
+// Ψ_dd included).
 func NewEBMScorer(m *Model, p Params, latent string) (*EBMScorer, error) {
 	nObs, nIn := len(m.Observed), len(m.Inner)
 	j, ok := m.innerIndex[latent]
@@ -96,9 +102,16 @@ func NewEBMScorer(m *Model, p Params, latent string) (*EBMScorer, error) {
 	if len(m.ordered) == 0 {
 		return nil, errors.New("EBM scores need an ordinal model (ordered variables)")
 	}
+	// The latents lead Inner (classify); the observed inner variables
+	// follow them.
+	nLat := 0
 	for _, v := range m.Inner {
-		if !m.latent.has(v) {
-			return nil, ErrEBMObservedInner
+		if m.latent.has(v) {
+			nLat++
+		} else if m.exogenous.has(v) {
+			// An ordinal fit refuses an observed exogenous variable
+			// (OrdinalSpecExogenous): lavaan conditions on it.
+			return nil, fmt.Errorf("observed exogenous variable %q: ordinal (EBM) factor scores condition on no observed covariate", v)
 		}
 	}
 	if err := p.check(nObs, nIn); err != nil {
@@ -107,7 +120,7 @@ func NewEBMScorer(m *Model, p Params, latent string) (*EBMScorer, error) {
 	if len(p.Thresholds) != nObs {
 		return nil, fmt.Errorf("the fit carries thresholds for %d observed variables, the model has %d", len(p.Thresholds), nObs)
 	}
-	s := &EBMScorer{nLat: nIn, j: j, nu: append([]float64(nil), p.Nu...), sd: make([]float64, nObs),
+	s := &EBMScorer{nLat: nLat, j: j, nu: append([]float64(nil), p.Nu...), sd: make([]float64, nObs),
 		th: make([][]float64, nObs), ordered: make([]bool, nObs), lam: make([][]float64, nObs)}
 	for i, v := range m.Observed {
 		s.ordered[i] = m.ordered.has(v)
@@ -120,11 +133,21 @@ func NewEBMScorer(m *Model, p Params, latent string) (*EBMScorer, error) {
 			return nil, fmt.Errorf("numeric variable %q carries thresholds", v)
 		}
 		t := p.Theta[i][i]
+		s.lam[i] = append([]float64(nil), p.Lambda[i][:nLat]...)
+		if d, inner := m.innerIndex[v]; inner {
+			// A dummy latent (lavaan's ov.y dummy): Λ_d is the identity
+			// row, ŷ_d = ν_d + α_d + B_d,lat η (its paths from observed
+			// variables dropped), s_d² = Ψ_dd (lavaan's Θ for a dummy).
+			s.nu[i] += p.Alpha[d]
+			for a := 0; a < nLat; a++ {
+				s.lam[i][a] += p.Beta[d][a]
+			}
+			t = p.Psi[d][d]
+		}
 		if !(t > 0) || math.IsInf(t, 0) {
 			return nil, ErrEBMResidualVariance
 		}
 		s.sd[i] = math.Sqrt(t)
-		s.lam[i] = append([]float64(nil), p.Lambda[i]...)
 	}
 	c, ok := invertGeneral(identityMinus(p.Beta))
 	if !ok {
@@ -163,21 +186,28 @@ func NewEBMScorer(m *Model, p Params, latent string) (*EBMScorer, error) {
 			vm[a][b], vm[b][a] = v, v
 		}
 	}
+	// The latents' block: an observed inner variable is no coordinate
+	// of the solve (lavaan's remove_dummy_lv).
+	s.mu = s.mu[:nLat]
+	vm = vm[:nLat]
+	for a := range vm {
+		vm[a] = vm[a][:nLat]
+	}
 	l, ok := cholesky(vm)
 	if !ok {
 		return nil, ErrScoreSingular
 	}
 	s.v = vm
-	s.vinv = make([][]float64, nIn)
-	e := make([]float64, nIn)
-	for a := 0; a < nIn; a++ {
+	s.vinv = make([][]float64, nLat)
+	e := make([]float64, nLat)
+	for a := 0; a < nLat; a++ {
 		for b := range e {
 			e[b] = 0
 		}
 		e[a] = 1
 		s.vinv[a] = cholSolve(l, e)
 	}
-	for a := 0; a < nIn; a++ {
+	for a := 0; a < nLat; a++ {
 		for b := 0; b < a; b++ {
 			v := float64(float64(s.vinv[a][b]+s.vinv[b][a]) / 2)
 			s.vinv[a][b], s.vinv[b][a] = v, v

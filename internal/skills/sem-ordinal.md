@@ -63,7 +63,7 @@ Maximum likelihood treats a 1-5 rating as continuous and normal. With few catego
 ## Scores
 
 - `ATTR_SEM_SCORE` scores an ordinal fit (inline, a Compose `fits` entry, a `.pulse-sem.json`) by lavaan's empirical Bayes modal scores: each row's posterior mode, with its own group's thresholds and parameters. `method: "regression"` means them, as in lavaan; `"bartlett"` is `bad_params`.
-- A row is coded by the fit's categories: a value the fit never saw scores null (`PULSE_SEM_SCORE_LEVEL_UNSEEN`, reason `category_unseen`). Every variable with an outgoing arrow must be latent.
+- A row is coded by the fit's categories: a value the fit never saw scores null (`PULSE_SEM_SCORE_LEVEL_UNSEEN`, reason `category_unseen`). A null member scores null (lavaan skips it instead). An observed mediator is scored as lavaan does.
 <!-- /feature -->
 
 ## Refusals

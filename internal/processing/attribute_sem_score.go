@@ -367,11 +367,6 @@ func (a *semScoreAttribute) bindFit(models *model.Set) error {
 	if err != nil {
 		return err
 	}
-	if v := vectors.SEMScoreObservedInner(fit.models[0]); sf.Ordinal() && v != "" {
-		return attributeFitInvalid(a.label, a.fitName, "bad_params",
-			fmt.Sprintf("bound SEM fit %q is an ordinal fit whose observed variable %q predicts another variable; ordinal (empirical Bayes modal) scores need every variable with an outgoing arrow to be latent", a.fitName, v),
-			map[string]any{"param": "fit", "variable": v})
-	}
 	lats := fit.models[0].Latents()
 	switch {
 	case a.cfg.Latent == "" && len(lats) == 1:

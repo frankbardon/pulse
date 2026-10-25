@@ -29,7 +29,21 @@ import (
 // numeric indicator of service (mixed ordered / continuous), grouped
 // by wave under thresholds, loadings and intercepts when grouped.
 func semOrdKnobs(grouped bool) map[string]any {
-	k := map[string]any{"model": semScoreCFA, "estimator": "wlsmv", "ordered": brandOrdered}
+	return semOrdKnobsOf(semScoreCFA, brandOrdered, grouped)
+}
+
+// semOrdMediator is the brand model with an observed mediator: the
+// numeric recommend predicted by quality and value and predicting the
+// service factor and its s3 (lavaan's dummy latents;
+// internal/sem/testdata/brand_ordmed_model.txt), v3 numeric.
+const semOrdMediator = "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3\nrecommend ~ quality + value\nservice ~ recommend\ns3 ~ recommend"
+
+var brandOrderedMed = []string{"q1", "q2", "q3", "v1", "v2", "s1", "s2", "s3"}
+
+// semOrdKnobsOf are the WLSMV fit knobs of model with ordered members,
+// grouped by wave under thresholds, loadings and intercepts when grouped.
+func semOrdKnobsOf(model string, ordered []string, grouped bool) map[string]any {
+	k := map[string]any{"model": model, "estimator": "wlsmv", "ordered": ordered}
 	if grouped {
 		k["group"], k["group_equal"] = "wave", []string{"thresholds", "loadings", "intercepts"}
 	}
@@ -49,10 +63,30 @@ const semOrdFitPath = "fits/brand_ord" + model.SEMSuffix
 // inline ordinal fit's, ungrouped and grouped; the compose entry carries
 // the coding and thresholds; the saved file is version 2 and scores
 // bit-equal (Process and a loaded slot); predict accepts all three and
-// streams the bound and loaded slots.
+// streams the bound and loaded slots. The observed-mediator model (its
+// mediator a dummy latent — no refusal on any arm, predict alike) holds
+// the same, ungrouped and grouped.
 func TestSEMScore_OrdinalBoundAndLoadedMatchInline(t *testing.T) {
+	for _, c := range []struct {
+		name, model string
+		ordered     []string
+	}{
+		{"cfa", semScoreCFA, brandOrdered},
+		{"mediator", semOrdMediator, brandOrderedMed},
+	} {
+		t.Run(c.name, func(t *testing.T) { checkOrdinalBoundAndLoaded(t, c.model, c.ordered) })
+	}
+}
+
+func checkOrdinalBoundAndLoaded(t *testing.T, mdl string, ordered []string) {
 	p, fsys := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	ctx := context.Background()
+	semOrdKnobs := func(grouped bool) map[string]any { return semOrdKnobsOf(mdl, ordered, grouped) }
+	semOrdInline := func(grouped bool) map[string]any {
+		k := semOrdKnobs(grouped)
+		k["latent"] = "service"
+		return k
+	}
 	for _, grouped := range []bool{false, true} {
 		want, err := p.Process(ctx, semScoreSlotReq(semOrdInline(grouped), true))
 		if err != nil {
@@ -74,8 +108,8 @@ func TestSEMScore_OrdinalBoundAndLoadedMatchInline(t *testing.T) {
 			t.Fatalf("grouped=%v: bound figures differ from the inline fit\n got %s\nwant %s", grouped, got, wantJSON)
 		}
 		s := out.Fits["brand"].SEM
-		if s == nil || s.Estimator != "wlsmv" || len(s.Ordered) != len(brandOrdered) || len(s.Categories) != len(brandOrdered) ||
-			len(s.Groups[0].Thresholds) != len(brandOrdered) || len(s.Groups[0].Thresholds[0]) != len(s.Categories[0])-1 {
+		if s == nil || s.Estimator != "wlsmv" || len(s.Ordered) != len(ordered) || len(s.Categories) != len(ordered) ||
+			len(s.Groups[0].Thresholds) != len(ordered) || len(s.Groups[0].Thresholds[0]) != len(s.Categories[0])-1 {
 			t.Fatalf("grouped=%v: sem fit %s", grouped, dataJSON(t, s))
 		}
 		data, err := afero.ReadFile(fsys, semOrdFitPath)

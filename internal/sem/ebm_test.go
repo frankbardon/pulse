@@ -17,13 +17,16 @@ const ebmDefaultTol = 1e-3
 
 // ebmCases are the EBM references (predict_lavaan.R with ordered): the
 // measurement model, mixed ordered / numeric indicators (recommend), the
-// latent regressions with residual covariances, and the mixed model
-// across the waves under thresholds, loadings and intercepts.
+// latent regressions with residual covariances, the mixed model across
+// the waves under thresholds, loadings and intercepts, and an observed
+// mediator (lavaan's dummy latents) single-group and across the waves.
 var ebmCases = []struct{ name, model string }{
 	{"brand_score_ord", "brand_ord"},
 	{"brand_score_ordmx", "brand_ms"},
 	{"brand_score_ordres", "brand_res"},
 	{"brand_score_ordmg", "brand_ms"},
+	{"brand_score_ordmed", "brand_ordmed"},
+	{"brand_score_ordmedmg", "brand_ordmed"},
 }
 
 // ebmRef is lavaanScoreRef plus the ordinal fields.
@@ -209,9 +212,10 @@ func TestSEMScore_EBMIsTheMode(t *testing.T) {
 	}
 }
 
-// TestSEMScore_EBMRefusals: a model whose observed variable predicts
-// another, a non-positive residual variance and a fit without
-// thresholds are refused, never scored.
+// TestSEMScore_EBMRefusals: a non-positive residual variance (an
+// observed mediator's Ψ_dd included) and a fit without thresholds are
+// refused, never scored; an observed mediator alone scores (a dummy
+// latent, no coordinate of the solve).
 func TestSEMScore_EBMRefusals(t *testing.T) {
 	q := []string{"q1", "q2", "q3"}
 	m, err := NewModelWithOptions("quality =~ q1 + q2 + q3\nrecommend ~ quality\ns1 ~ recommend", ModelOptions{Ordered: append(q, "s1")})
@@ -219,8 +223,23 @@ func TestSEMScore_EBMRefusals(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := zeroParams(m)
-	if _, err := NewEBMScorer(m, p, "quality"); err != ErrEBMObservedInner {
-		t.Errorf("observed mediator: %v, want ErrEBMObservedInner", err)
+	p.Thresholds = make([][]float64, len(m.Observed))
+	for i, v := range m.Observed {
+		if m.IsOrdered(v) {
+			p.Thresholds[i] = []float64{0}
+		}
+	}
+	sc, err := NewEBMScorer(m, p, "quality")
+	if err != nil {
+		t.Fatalf("observed mediator: %v, want a scorer", err)
+	}
+	if sc.nLat != 1 {
+		t.Errorf("observed mediator: %d solve coordinates, want 1 (the latent alone)", sc.nLat)
+	}
+	d := m.innerIndex["recommend"]
+	p.Psi[d][d] = 0
+	if _, err := NewEBMScorer(m, p, "quality"); err != ErrEBMResidualVariance {
+		t.Errorf("zero mediator residual variance: %v, want ErrEBMResidualVariance", err)
 	}
 	m, err = NewModelWithOptions("quality =~ q1 + q2 + q3", ModelOptions{Ordered: q})
 	if err != nil {

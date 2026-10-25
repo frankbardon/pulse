@@ -51,7 +51,7 @@ boot brand brand_mgdef TRUE brand_boot_mg wave loadings,intercepts
 # a free latent mean (lavaan's phantom latents), an indicator with an
 # outgoing arrow, and a second-order factor (predict_lavaan.R; every
 # 4th row recorded)
-score() { Rscript "$here/predict_lavaan.R" "$here/$1_data.csv" "$here/$2_model.txt" "$3" "${5:-}" "${6:-}" "${7:-}" "${8:-}" > "$here/$4_lavaan.json"; }
+score() { Rscript "$here/predict_lavaan.R" "$here/$1_data.csv" "$here/$2_model.txt" "$3" "${5:-}" "${6:-}" "${7:-}" "${8:-}" "${9:-}" "${10:-}" > "$here/$4_lavaan.json"; }
 score brand brand_ms TRUE brand_score_ms
 score brand brand_ms TRUE brand_score_mg wave loadings,intercepts
 score brand brand_mx TRUE brand_score_mx
@@ -69,6 +69,14 @@ score brand brand_ord TRUE brand_score_ord "" "" "" "$q9s"
 score brand brand_ms TRUE brand_score_ordmx "" "" "" "$q9s"
 score brand brand_res TRUE brand_score_ordres "" "" "" "$q9s"
 score brand brand_ms TRUE brand_score_ordmg wave thresholds,loadings,intercepts "" "$q9s"
+# the observed mediator (numeric recommend predicted by two factors,
+# predicting the service factor and its ordered s3; v3 numeric too):
+# lavaan's dummy latents, single-group and across the waves under
+# thresholds, loadings and intercepts (that fit tightened: BFGS at
+# reltol 1e-14, lavaan's default stop ~1e-5 off the optimum)
+q8s=q1,q2,q3,v1,v2,s1,s2,s3
+score brand brand_ordmed TRUE brand_score_ordmed "" "" "" "$q8s"
+score brand brand_ordmed TRUE brand_score_ordmedmg wave thresholds,loadings,intercepts "" "$q8s" WLSMV TRUE
 # the two-step ordinal sample statistics (lavCor(..., ordered = ...)):
 # thresholds, polychoric, polyserial and Pearson correlations, with an
 # independent re-derivation and lavaan's casewise scores
