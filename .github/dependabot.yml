@@ -19,13 +19,15 @@ updates:
     labels:
       - dependencies
 
-  # Published contrib adapter modules (OpenTelemetry, Prometheus). Each
+  # Published contrib modules (OpenTelemetry, Prometheus adapters; the
+  # media-mix model pack). Each
   # replaces the root module locally; `make contrib` fails on an untidy
   # go.mod/go.sum, so a ROOT bump needs `make contrib-tidy` in its PR.
   - package-ecosystem: gomod
     directories:
       - /contrib/otelpulse
       - /contrib/prompulse
+      - /contrib/mmmpulse
     schedule:
       interval: weekly
     open-pull-requests-limit: 5

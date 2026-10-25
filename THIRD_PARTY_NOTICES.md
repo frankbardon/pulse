@@ -55,7 +55,9 @@ their `kn` / `wn` / `fn` / `ke` / `we` / `fe` tables (`src/math/rand/v2/normal.g
 <https://go.dev/>, with every floating-point product wrapped in an explicit
 `float64(...)` (or, for float32 arithmetic, `float32(...)`) conversion. Those sources in turn carry the FreeBSD msun
 (Sun Microsystems) and Cephes (Stephen L. Moshier) notices reproduced in the
-ported files.
+ported files. `contrib/mmmpulse/detmath.go` is a copy of its `exp`, `log`
+and `pow` ports (a separately published module cannot import
+`internal/`), shipped with this notice as `contrib/mmmpulse/GO_LICENSE.txt`.
 
 ```
 Copyright 2009 The Go Authors.

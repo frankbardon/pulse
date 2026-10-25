@@ -46,9 +46,10 @@ smoke:
 	cd internal/embeddersmoke && GOFLAGS=-mod=mod $(GO) vet ./... && GOFLAGS=-mod=mod $(GO) test -count=1 ./...
 
 # contrib vets, lints (staticcheck), checks tidiness of and tests every
-# nested adapter module under contrib/ (otelpulse, prompulse): separate Go
-# modules with their own go.mod + go.sum, `require pulse` at the matching
-# root version and `replace => ../..` for in-repo development. Unlike
+# nested module under contrib/ (the otelpulse / prompulse adapters and the
+# mmmpulse model pack): separate Go modules with their own go.mod +
+# go.sum, `require pulse` at the matching root version and
+# `replace => ../..` for in-repo development. Unlike
 # `make smoke` these are PUBLISHED modules, so there is no -mod=mod: a
 # stale go.mod/go.sum fails here (and in CI) instead of reaching a tag or
 # an IDE. A root dependency bump therefore needs `make contrib-tidy` in

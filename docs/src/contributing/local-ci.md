@@ -82,7 +82,8 @@ make smoke                               # builds internal/embeddersmoke as an e
 
 ## Contrib modules
 
-`contrib/otelpulse` and `contrib/prompulse` are separately published Go
+`contrib/otelpulse` and `contrib/prompulse` (observability adapters) and
+`contrib/mmmpulse` (the media-mix model pack) are separately published Go
 modules (own `go.mod` + `go.sum`, `replace => ../..` for development).
 The core module never depends on them, nor on any OpenTelemetry or
 Prometheus module (`TestCoreModuleNoObservabilityDeps`).
