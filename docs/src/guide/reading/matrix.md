@@ -431,7 +431,7 @@ Each cell is the covariance the fitted model implies between the row's and the c
 
 #### `auxiliary.estimates`
 
-The parameter table, one row per semopy inspect row: lval ~ rval is a loading (an indicator on its quality) or a regression path, lval ~~ rval a variance or covariance, and with a mean structure lval ~1 an intercept (a measure) or a latent mean (a quality). estimate is in the variables' own units; std_estimate rescales it so loadings and paths compare across variables; std_err, z_value and p_value test it against zero, and on a lavaan-convention fit ci_lower / ci_upper bound its Wald interval, 95% by default. params.ci_level sets another level. On a multi-group fit every row is prefixed [level]; a quality's latent mean in a level other than the reference is its mean difference from the reference level, whose latent means are fixed at 0. A name := expr row is a defined parameter, a function of labelled parameters such as an indirect effect or a path times a latent mean change, with a delta-method std_err; under resample bootstrap every free and := row's std_err is the replicates' spread and ci_lower / ci_upper the percentile interval.
+The parameter table, one row per semopy inspect row: lval ~ rval is a loading (an indicator on its quality) or a regression path, lval ~~ rval a variance or covariance, and with a mean structure lval ~1 an intercept (a measure) or a latent mean (a quality). estimate is in the variables' own units; std_estimate rescales it so loadings and paths compare across variables; std_err, z_value and p_value test it against zero, and on a lavaan-convention fit ci_lower / ci_upper bound its Wald interval, 95% by default. params.ci_level sets another level. On a multi-group fit every row is prefixed [level]; a quality's latent mean in a level other than the reference is its mean difference from the reference level, whose latent means are fixed at 0. A name := expr row is a defined parameter, a function of labelled parameters such as an indirect effect or a path times a latent mean change, with a delta-method std_err; under resample bootstrap every free and := row's std_err is the replicates' spread and ci_lower / ci_upper the percentile interval. Under estimator dwls or wlsmv each ordered measure adds one x | tk row per threshold: the cut point, on the standard normal scale of the continuous response assumed beneath the ratings, above which category k + 1 begins; a multi-group ordinal fit adds an x ~*~ x row, the measure's scale factor in that level.
 
 **Sign:**
 
@@ -490,6 +490,43 @@ semopy's BIC, ln(N)k - 2F: as aic with a heavier penalty per parameter; for comp
 #### `scalars.loglik`
 
 On a lavaan-convention fit, the model's log-likelihood (lavaan's logl), the basis of its aic and bic; on a semopy fit, semopy's minimised discrepancy F. For comparing models fitted to the same rows and measures; higher fits better.
+
+#### `scalars.chi2_scaled`
+
+Under estimator wlsmv, the scaled-shifted chi-square: chi2 rescaled and shifted (a times chi2 plus shift_parameter, with 1/a the scaling_factor) so that it follows a chi-square on dof degrees of freedom when the measures are ordinal, which the unscaled chi2 does not. Its p is chi2_scaled_p_value, read like any p-value; a small one says the model leaves the polychoric correlations unexplained.
+
+**Caveats:**
+
+- Under wlsmv, judge fit by chi2_scaled and the _scaled indices; the unscaled chi2 has no p (null), as in lavaan.
+- Under wlsmv, chi2_scaled is not additive: the difference between two nested fits' chi2_scaled is not itself a chi-square.
+
+#### `scalars.scaling_factor`
+
+Under estimator wlsmv, lavaan's scaling factor of the scaled-shifted test: chi2_scaled is chi2 divided by it plus shift_parameter. The further scaling_factor sits from 1, the further the unscaled chi2 is from a chi-square on these ordinal measures.
+
+#### `scalars.shift_parameter`
+
+Under estimator wlsmv, the constant added after rescaling chi2 into chi2_scaled, chosen so that the scaled statistic has the mean and variance of a chi-square on dof.
+
+#### `scalars.chi2_baseline_scaled`
+
+Under estimator wlsmv, the baseline (independence) model's scaled-shifted chi-square, the reference cfi_scaled and tli_scaled compare the model against.
+
+#### `scalars.cfi_scaled`
+
+Under estimator wlsmv, the comparative fit index computed from chi2_scaled and chi2_baseline_scaled, read like cfi: from 0 to 1, higher is better.
+
+**Caveats:**
+
+- Under wlsmv, published cfi cut-offs were set for maximum likelihood on continuous measures and need not carry over to cfi_scaled.
+
+#### `scalars.tli_scaled`
+
+Under estimator wlsmv, the Tucker-Lewis index computed from chi2_scaled and chi2_baseline_scaled, read like tli: higher is better, and it can leave the 0 to 1 range.
+
+#### `scalars.rmsea_scaled`
+
+Under estimator wlsmv, the root mean square error of approximation computed from chi2_scaled, read like rmsea: misfit per degree of freedom, 0 a perfect fit, smaller is better.
 
 #### `auxiliary.implied_means`
 

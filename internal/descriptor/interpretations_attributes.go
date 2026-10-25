@@ -254,6 +254,7 @@ var (
 				"Group averages of the scores track the model's latent means only as far as the equality constraints you set make the measures comparable across groups.",
 				"The fit is over every filtered row (or the fit_on subset), never the request's groups. A frequency weight counts each row that many times in the fit; every row is still scored once.",
 				"A row missing any measure or its group reads null, and every row reads null, with a warning, when the fit cannot score.",
+				"On a dwls or wlsmv fit each score is an empirical Bayes modal score (the latent's most likely value given the row's rating categories) on the scale of the marker's underlying continuous response, and a row holding a rating category that dwls or wlsmv fit never saw reads null, with a warning.",
 			},
 		},
 	}

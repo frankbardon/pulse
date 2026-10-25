@@ -36,6 +36,7 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `23_date_part_iso_weekday.json` | `ATTR_DATE_PART` | Local ISO weekday number of a `datetime` (`part: iso_weekday`, 1 = Monday .. 7 = Sunday) as a Monday-first grouping key |
 | `24_previous_state_transitions.json` | `ATTR_PREVIOUS_STATE` | Each row's plan at the same customer's previous snapshot on the `plan_history.pulse` long panel, typed as `plan`, crossed with `plan` for a from × to count of plan moves |
 | `25_sem_score.json` | `ATTR_SEM_SCORE` | Latent scores of a two-wave scalar-invariant SEM (each row scored with its own wave's parameters), regression and Bartlett, averaged by wave — the latent mean shift MAT_SEM reports |
+| `26_sem_ordinal_score.json` | `ATTR_SEM_SCORE` | Empirical Bayes modal (EBM) scores of a two-wave ordinal (`estimator: "wlsmv"`) SEM with thresholds, loadings and intercepts equal, averaged by wave — value down and service up in wave2 |
 
 See `pulse skills show attribute-composition` for the full operator
 contract, the `ATTR_FORMULA` allowlist, and composition rules.

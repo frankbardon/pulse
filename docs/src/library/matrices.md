@@ -728,6 +728,58 @@ scores averaged by wave) and
 `internal/examples/compose/10_sem_fit_scores.json` (one compose fit,
 scores averaged by wave and regressed on by `recommend`).
 
+**Ordinal items (DWLS / WLSMV).** `params.estimator: "wlsmv"` (or
+`"dwls"`) with `params.ordered` naming the ordered members fits the model
+as lavaan does with `ordered = ...`: each ordered member is a cut-up
+latent normal response. Stage one estimates each ordered member's
+thresholds and every pair's polychoric (ordered × ordered), polyserial
+(ordered × continuous) or Pearson correlation; stage two fits the model
+to those statistics, weighted by the inverse diagonal of their
+asymptotic covariance (Gamma, from per-row scores), in lavaan's delta
+parameterization with its robust (sandwich) standard errors. The
+estimates gain one `x | tk` row per threshold; an ordered member's
+intercept is fixed at 0 and its residual variance is the remainder of 1.
+`chi2` / `dof` are the unscaled test with a null `chi2_p_value`, and
+`loglik` / `aic` / `bic` are null (there is no likelihood). `wlsmv` adds
+the scaled-shifted test — `chi2_scaled`, `chi2_scaled_p_value`,
+`scaling_factor`, `shift_parameter`, `chi2_baseline_scaled` — and
+`cfi_scaled`, `tli_scaled`, `rmsea_scaled`; judge fit by those. With
+`params.group` each level gets its own thresholds and Gamma, and
+`group_equal: "thresholds"` holds the thresholds equal (add `loadings`
+and `intercepts` to free the latent means); `resample: "bootstrap"`
+refits every replicate's two-step statistics; `:=` rows use the robust
+covariance. Gamma needs every row, so the request runs buffered (predict
+reports it). `ATTR_SEM_SCORE` scores an ordinal fit by lavaan's empirical
+Bayes modal (EBM) scores — each row's posterior mode; `method:
+"bartlett"` is refused there, and a rating value the fit never saw scores
+null with `PULSE_SEM_SCORE_LEVEL_UNSEEN` (reason `category_unseen`).
+Refused: `ordered` under `ml`, an ordinal estimator without `ordered`,
+`parameterization: "theta"` (delta only), `solver: "slsqp"` and
+`meanstructure: false` beside an ordinal estimator, a probability
+weight, and more than 32 categories in one ordered member
+(`PULSE_MATRIX_TOO_MANY_CATEGORIES`). Parity: lavaan 0.7.3 `estimator =
+"WLSMV"` within 1e-4 (estimates, SEs, fit measures); the bootstrap oracle
+is lavaan's DWLS bootstrap, since lavaan refuses `se = "bootstrap"` under
+WLSMV and the two share their estimates.
+
+**ML or WLSMV?** Prefer `wlsmv` for items with five or fewer categories,
+binary items, or answers piled at one end: ML reads them as continuous
+and normal, which biases loadings down and inflates the chi-square. With
+seven or more roughly symmetric categories ML is usually close; prefer
+it then, and whenever you need a log-likelihood (`aic` / `bic` to compare
+non-nested models), a streamed or merged fit, or Bartlett scores.
+`wlsmv` needs more rows — polychorics from sparse tables are unstable
+below a few hundred rows, so merge rare categories first. Unsure, fit
+both in two slots and compare the `std_estimate` loadings. Prefer `wlsmv`
+to `dwls`: the same estimates and SEs plus the corrected test. The
+`sem-ordinal` skill carries the same advice.
+
+Runnable: `internal/examples/matrices/18_sem_ordinal.json` (ML beside
+WLSMV on the brand ratings, then the two-wave ordinal fit whose latent
+means recover the planted shift) and
+`internal/examples/attributes/26_sem_ordinal_score.json` (EBM scores of
+that fit averaged by wave).
+
 ## Groups, cost and refusals
 
 With `groups`, a matrix is computed per bucket, in `Response.Data` order

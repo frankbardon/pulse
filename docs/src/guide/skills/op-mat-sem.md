@@ -32,7 +32,7 @@ Questions it answers:
 | `bootstrap_iters` | int | 1000 | B. |
 | `rng_seed` | int | 0 | — |
 | `ci_level` | float | 0.95 | — |
-| `estimator` | enum | `ml` | [`sem-ordinal`](sem-ordinal.md). |
+| `estimator` | enum | `ml` | Ratings: [`sem-ordinal`](sem-ordinal.md). |
 | `ordered` | list | — | — |
 | `parameterization` | enum | `delta` | — |
 | `solver` | enum | `slsqp` | `fisher`. |
@@ -41,7 +41,7 @@ Questions it answers:
 | `max_iter` | int | — | — |
 | `grad_tol` | float | 1e-10 | — |
 | `singular` | enum | `nearest` | — |
-| `missing` | enum | `listwise` | Listwise only. |
+| `missing` | enum | `listwise` | Only. |
 | `max_drop_share` | 0–1 | — | Warn. |
 | `fit` | string | — | Bound fit. |
 

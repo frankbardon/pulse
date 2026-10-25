@@ -32,7 +32,7 @@ examples_tags: [matrix, multivariate]
 | `ci_level` | float | 0.95 | — |
 <!-- /feature -->
 <!-- feature: capability:sem_ordinal -->
-| `estimator` | enum | `ml` | `sem-ordinal`. |
+| `estimator` | enum | `ml` | Ratings: `sem-ordinal`. |
 | `ordered` | list | — | — |
 | `parameterization` | enum | `delta` | — |
 <!-- /feature -->
@@ -42,7 +42,7 @@ examples_tags: [matrix, multivariate]
 | `max_iter` | int | — | — |
 | `grad_tol` | float | 1e-10 | — |
 | `singular` | enum | `nearest` | — |
-| `missing` | enum | `listwise` | Listwise only. |
+| `missing` | enum | `listwise` | Only. |
 | `max_drop_share` | 0–1 | — | Warn. |
 | `fit` | string | — | Bound fit. |
 

@@ -10,13 +10,15 @@ requires: [MAT_SEM, capability:sem_ordinal]
 
 # Ordinal SEM
 
-Maximum likelihood treats a 1-5 rating as continuous and normal. With few categories or skewed answers that biases loadings down and inflates the chi-square. `estimator: "wlsmv"` (or `"dwls"`) fits the model the way lavaan does with `ordered = ...`: each ordered member is a cut-up latent normal response.
+`estimator: "wlsmv"` (or `"dwls"`) fits the model as lavaan does with `ordered = ...`: each ordered member is a cut-up latent normal response.
 
-## When to use it
+## ML vs WLSMV — when to prefer which
 
-- Items with up to about 7 categories, binary items, or answers piled on one end. With 7+ roughly symmetric categories ML is usually close.
-- Prefer `wlsmv`: the same estimates as `dwls`, plus the scaled-shifted test that corrects the chi-square. `dwls` reports the unscaled test only.
-- The two estimators read the same two-step statistics, so they give the same `estimate` and `std_err`.
+- Prefer `wlsmv` for items with 5 or fewer categories, binary items, or answers piled on one end. ML reads them as continuous and normal, which biases loadings down and inflates the chi-square.
+- With 7+ roughly symmetric categories ML is usually close. Prefer ML then, and whenever you need `loglik`, `aic` or `bic`, a streamed or merged fit (`wlsmv` buffers), or Bartlett scores.
+- `wlsmv` needs more rows: polychorics from sparse tables are unstable below a few hundred rows. Merge rare categories first.
+- Unsure? Fit both in two slots: close `std_estimate` loadings mean ML's continuous reading does little harm.
+- Prefer `wlsmv` to `dwls`: the same `estimate` and `std_err`, plus the scaled-shifted test that corrects the chi-square.
 
 ## Declaring the members
 

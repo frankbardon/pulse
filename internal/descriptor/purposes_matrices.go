@@ -44,6 +44,7 @@ var purposeMatSEM = descriptor.Purpose{
 	Assumptions: []string{
 		"You write the model: which measures reflect which quality, which qualities drive which, and any covariances; the fit says how well that theory reproduces the measures' covariance, not whether it is the only theory that would.",
 		"Maximum likelihood assumes roughly normal measures; with few rating levels the chi-square and standard errors are optimistic.",
+		"With few rating levels (say five or fewer) or skewed ratings, estimator wlsmv over the ordered measures fits them as ordinal categories through polychoric correlations instead; it needs more rows than maximum likelihood and reports no log-likelihood.",
 		"The default reproduces semopy's results exactly, including where its optimiser stops short of the best fit; choose solver fisher for the converged optimum.",
 		"A row with any measure missing is dropped from every figure (listwise deletion).",
 		"A mean structure or a group switches to lavaan's conventions (converged optimum, lavaan's chi-square and indices); a multi-group fit treats the groups as independent samples and compares latent means only as far as the equality constraints you set make the measures comparable.",
