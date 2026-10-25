@@ -16,6 +16,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -27,10 +28,11 @@ import (
 // reproducible; holdout, ATTR_REG_PREDICT and a saved model score
 // through the Scorer; data refusals fail the slot alone.
 
-// TestMMMPack_DetmathGoldenBits: the pack's copies of Exp, Log and Pow
-// give exactly internal/detmath's bits (pinned from it; its own golden,
-// TestDetmath_GoldenBits, holds them equal on amd64 and arm64), so a fit
-// is bit-identical across architectures and the curve matches hill().
+// TestMMMPack_DetmathGoldenBits: the public linalg/detmath Exp, Log and
+// Pow the pack computes with give exactly the bits pinned here (from
+// detmath's own golden, TestDetmath_GoldenBits, which holds them equal
+// on amd64 and arm64), so a fit is bit-identical across architectures
+// and the curve matches hill().
 func TestMMMPack_DetmathGoldenBits(t *testing.T) {
 	cases := []struct {
 		fn   string
@@ -65,11 +67,11 @@ func TestMMMPack_DetmathGoldenBits(t *testing.T) {
 		var got float64
 		switch c.fn {
 		case "exp":
-			got = detExp(c.x)
+			got = detmath.Exp(c.x)
 		case "log":
-			got = detLog(c.x)
+			got = detmath.Log(c.x)
 		default:
-			got = detPow(c.x, c.y)
+			got = detmath.Pow(c.x, c.y)
 		}
 		if b := math.Float64bits(got); b != c.want {
 			t.Errorf("%s(%v, %v) = %#016x, want %#016x", c.fn, c.x, c.y, b, c.want)

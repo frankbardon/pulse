@@ -12,8 +12,8 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/detmath"
 	"github.com/frankbardon/pulse/internal/temporal"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // calendarSchema: d a `date`, ts a `datetime`, x an f64, cat a

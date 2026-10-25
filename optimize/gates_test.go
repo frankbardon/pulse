@@ -20,7 +20,7 @@ func optimizeAllowed(path string) bool {
 	switch path {
 	case "github.com/frankbardon/pulse/errors",
 		"github.com/frankbardon/pulse/linalg",
-		"github.com/frankbardon/pulse/internal/detmath":
+		"github.com/frankbardon/pulse/linalg/detmath":
 		return true
 	}
 	return false
@@ -51,7 +51,7 @@ func TestOptimize_ImportBoundary(t *testing.T) {
 			}
 			if !optimizeAllowed(path) {
 				t.Errorf("%s imports %q; optimize may import only the standard library, "+
-					"pulse/errors, pulse/linalg and pulse/internal/detmath", f, path)
+					"pulse/errors, pulse/linalg and pulse/linalg/detmath", f, path)
 			}
 		}
 	}

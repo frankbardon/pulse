@@ -22,7 +22,13 @@
 // does not read (decay on a Weibull kernel, shape / scale on geometric),
 // and a kernel whose weights are not finite or sum to no positive mass.
 //
-// Leaf: stdlib + the public errors / types packages + paramread.
+// The weights are computed with linalg/detmath's Exp / Log / Pow, never
+// math.*, and every product feeding an add is barriered float64(...), so
+// a kernel's bits are the same on every architecture
+// (TestDistLag_WeightBitsPinned, TestDistLag_NoFMAContraction).
+//
+// Leaf: stdlib + the public errors / types / linalg/detmath packages +
+// paramread.
 package distlagparams
 
 import (
@@ -32,6 +38,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -144,7 +151,7 @@ func Resolve(raw json.RawMessage) (Spec, *Refusal) {
 			return refuse("params.decay must be in [0, 1)", map[string]any{"decay": d})
 		}
 		for l := range w {
-			w[l] = math.Pow(d, float64(l))
+			w[l] = detmath.Pow(d, float64(l))
 		}
 	default:
 		if p.Decay != nil {
@@ -164,15 +171,15 @@ func Resolve(raw json.RawMessage) (Spec, *Refusal) {
 		}
 		if kernel == KernelWeibullCDF {
 			for l := range w {
-				w[l] = math.Exp(-math.Pow(float64(l)/lambda, k))
+				w[l] = detmath.Exp(-detmath.Pow(float64(l)/lambda, k))
 			}
 		} else {
 			// The density in log space, so a large shape or scale
 			// underflows to 0 instead of meeting Inf * 0 = NaN.
-			logNorm := math.Log(k) - math.Log(lambda)
+			logNorm := detmath.Log(k) - detmath.Log(lambda)
 			for l := range w {
 				z := float64(l+1) / lambda
-				w[l] = math.Exp(logNorm + float64((k-1)*math.Log(z)) - math.Pow(z, k))
+				w[l] = detmath.Exp(logNorm + float64((k-1)*detmath.Log(z)) - detmath.Pow(z, k))
 			}
 		}
 	}

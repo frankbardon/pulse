@@ -18,8 +18,8 @@ func credibleInterval(mean, se, df, level float64) [2]float64 {
 	if se == 0 {
 		return [2]float64{mean, mean}
 	}
-	q := statdist.StudentTQuantile(0.5+level/2, df)
-	half := q * se
+	q := statdist.StudentTQuantile(0.5+float64(level/2), df)
+	half := float64(q * se) // barriered: same bounds on every GOARCH
 	return [2]float64{mean - half, mean + half}
 }
 
@@ -30,6 +30,6 @@ func normalCredibleInterval(mean, se, level float64) [2]float64 {
 	if se == 0 {
 		return [2]float64{mean, mean}
 	}
-	half := statdist.NormalQuantile(0.5+level/2) * se
+	half := float64(statdist.NormalQuantile(0.5+float64(level/2)) * se)
 	return [2]float64{mean - half, mean + half}
 }

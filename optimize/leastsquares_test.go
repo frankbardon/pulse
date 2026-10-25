@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	perr "github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/detmath"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/optimize"
 )
 

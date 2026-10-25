@@ -187,7 +187,7 @@ func TestDetmath_NoFMAContraction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := fmahashBuild(t, wd, "github.com/frankbardon/pulse/internal/detmath"); len(got) > 0 {
+	if got := fmahashBuild(t, wd, "github.com/frankbardon/pulse/linalg/detmath"); len(got) > 0 {
 		t.Errorf("the arm64 compiler contracted %d multiply-adds in detmath; wrap each product in "+
 			"float64(...):\n%s", len(got), strings.Join(got, "\n"))
 	}

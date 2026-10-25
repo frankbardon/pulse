@@ -89,7 +89,7 @@ The solver never panics.
 
 ## Same bits on every architecture
 
-Every product that feeds an addition is an explicit `float64(a*b)` conversion, which stops the compiler from fusing it into a fused multiply-add. Write your callbacks the same way, and route `exp`, `log` and `pow` through deterministic kernels rather than `math`. A problem built that way gives identical bits on arm64 and amd64.
+Every product that feeds an addition is an explicit `float64(a*b)` conversion, which stops the compiler from fusing it into a fused multiply-add. Write your callbacks the same way, and route `exp`, `log` and `pow` through `linalg/detmath` (see [Linear Algebra](linalg.md#deterministic-math-linalgdetmath)) rather than `math`. A problem built that way gives identical bits on arm64 and amd64.
 
 ## Checked against R
 
@@ -109,7 +109,7 @@ When a bound binds, `minpack.lm` clamps the whole step and stops short of the bo
 A nonlinear regression in a pack is an `extend.BufferedRegression` (see [Adding a Regression Model](../internals/adding-regression.md)). Inside `Fit`, use `LeastSquares` like this:
 
 1. **Copy the rows first.** `rows` is valid only during the call. Read `rows.At(i)` into plain slices once, then build the residual and Jacobian closures over those slices. Allocate the returned slices once and reuse them.
-2. **Keep the callbacks FMA-free.** Wrap every product that feeds an addition in `float64(…)`, and take `exp`, `log` and `pow` from deterministic kernels (the standard library's `math.Exp` and `math.Log` are assembly whose bits depend on the machine; `contrib/mmmpulse` carries a copy of Pulse's ports for this reason). The solver is serial, so the same rows then give the same bits on every architecture, in serial and parallel compose.
+2. **Keep the callbacks FMA-free.** Wrap every product that feeds an addition in `float64(…)`, and take `exp`, `log` and `pow` from `linalg/detmath` (the standard library's `math.Exp` and `math.Log` are assembly whose bits depend on the machine; `contrib/mmmpulse` calls `detmath.Exp` / `Log` / `Pow` for this reason). The solver is serial, so the same rows then give the same bits on every architecture, in serial and parallel compose.
 3. **Use bounds, not a reparametrization, where a coefficient may reach its limit.** A coefficient bounded at 0 can come back exactly 0, and `Active` says so. A reparametrization such as `exp(θ)` can only approach 0.
 4. **Map the stop to the regression codes.** Return `PROCESSING_REGRESSION_NO_CONVERGE` when `LeastSquares` returns `PULSE_OPTIMIZE_NOT_CONVERGED`. The slot then fails alone, keeping its identity and warning `PULSE_SLOT_FAILED`. Report `res.Iterations` as `Fit.Iterations`.
 5. **Form the uncertainty from `JTJ`.** Use `σ² = 2·Cost/(m − n)`. Drop the rows and columns of the parameters `Active` marks as held, invert the rest with `linalg.InverseSPD`, and leave a held parameter's `StdErr` nil. If the registration declares `Vcov`, return that matrix as `RegressionOutput.Vcov`.

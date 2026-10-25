@@ -252,7 +252,7 @@ func TestSweepRandom_UniformAndLogUniform(t *testing.T) {
 
 // TestSweepRandom_FrozenDraws pins the first draws of a fixed seed to
 // their exact text: the stream is integer PCG words mapped by FMA-free
-// arithmetic and internal/detmath, so these words hold on every
+// arithmetic and linalg/detmath, so these words hold on every
 // architecture (CI runs amd64) — a drift here breaks replay by seed.
 func TestSweepRandom_FrozenDraws(t *testing.T) {
 	for _, tc := range []struct {

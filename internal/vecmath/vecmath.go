@@ -5,14 +5,14 @@
 // cosine, jaccard, dice, hamming, overlap) are not here: they resolve
 // through the one linalg/metric registry.
 //
-// It is a LEAF: the standard library plus internal/detmath (itself
+// It is a LEAF: the standard library plus linalg/detmath (itself
 // stdlib-only), so internal/processing, internal/descriptor and any
 // future caller import it without a cycle. TestVecmathImportBoundary
 // enforces the ceiling.
 //
 // # Transcendental kernels
 //
-// Log, Log1p, Exp, Pow, Sin, Cos, Tan and Atan2 are internal/detmath's
+// Log, Log1p, Exp, Pow, Sin, Cos, Tan and Atan2 are linalg/detmath's
 // portable ports, never math.*: the standard library's answers for
 // them depend on the architecture and, for amd64 Exp, on the CPU, so a
 // formula would give different bits on two machines. Sqrt stays
@@ -49,7 +49,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/frankbardon/pulse/internal/detmath"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // ErrLengthMismatch is the sentinel every *LengthMismatchError matches

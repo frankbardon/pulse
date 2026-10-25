@@ -176,7 +176,7 @@ func ToDayFunc(z *temporal.Zone) func(args ...any) (any, error) {
 }
 
 // log1pBuiltin is log1p(x) = ln(1 + x), accurate for x near 0; nil for
-// a nil x. The kernel is vecmath.Log1p (internal/detmath's portable
+// a nil x. The kernel is vecmath.Log1p (linalg/detmath's portable
 // port), the one FEAT_LOG computes with, so the two agree bit for bit.
 func log1pBuiltin(args ...any) (any, error) {
 	if len(args) != 1 {

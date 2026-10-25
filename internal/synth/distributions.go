@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/detmath"
 	"github.com/frankbardon/pulse/internal/temporal"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // Distribution kind constants.

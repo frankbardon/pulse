@@ -10,7 +10,7 @@ import (
 //
 // sin, cos and tan take one argument in radians, atan2(y, x) two (the
 // angle of the point (x, y), in [-π, π]); every one runs on
-// internal/detmath's portable kernels through internal/vecmath, so a
+// linalg/detmath's portable kernels through internal/vecmath, so a
 // call gives the same bits on every architecture and CPU (as does the
 // `**` / `^` operator, rewritten onto detmath.Pow in pow.go). A
 // null argument (nil) answers nil, the convention log1p and hill share

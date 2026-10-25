@@ -12,6 +12,7 @@ import (
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
 	"github.com/frankbardon/pulse/linalg"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/optimize"
 	"github.com/frankbardon/pulse/types"
 )
@@ -199,7 +200,7 @@ type model struct {
 // hillCurve is x^s/(x^s+k^s) for x ≥ 0, written 1/(1+(k/x)^s) — the
 // hill() expression function's formula and power, bit for bit.
 func hillCurve(x, k, s float64) float64 {
-	return 1 / (1 + detPow(k/x, s))
+	return 1 / (1 + detmath.Pow(k/x, s))
 }
 
 // problem is the least-squares objective over the parameter vector
@@ -222,8 +223,8 @@ func (p *problem) curve(x []float64) (b, k, s, g []float64) {
 	b, g = x[1:1+nc], x[1+nc:1+nc+nz]
 	k, s = make([]float64, nc), make([]float64, nc)
 	for c := range nc {
-		k[c] = float64(p.kRef[c] * detExp(x[1+nc+nz+c]))
-		s[c] = detExp(x[1+2*nc+nz+c])
+		k[c] = float64(p.kRef[c] * detmath.Exp(x[1+nc+nz+c]))
+		s[c] = detmath.Exp(x[1+2*nc+nz+c])
 	}
 	return b, k, s, g
 }
@@ -254,7 +255,7 @@ func (p *problem) residuals(r []float64, jac [][]float64, x []float64) {
 				bs := float64(b[c] * s[c])
 				// dh/dθk = −s·h(1−h); dh/dθs = s·ln(x/k)·h(1−h).
 				row[1+nc+nz+c] = -float64(bs * hh)
-				row[1+2*nc+nz+c] = float64(bs * float64(detLog(p.a[c][i]/k[c])*hh))
+				row[1+2*nc+nz+c] = float64(bs * float64(detmath.Log(p.a[c][i]/k[c])*hh))
 			}
 		}
 		for j := range nz {
@@ -355,8 +356,8 @@ func (p *problem) solve(x0 []float64, nonneg bool, maxIter int) (*optimize.Least
 		if nonneg {
 			lower[1+c] = 0
 		}
-		lower[1+nc+nz+c], upper[1+nc+nz+c] = detLog(kRange[0]), detLog(kRange[1])
-		lower[1+2*nc+nz+c], upper[1+2*nc+nz+c] = detLog(sRange[0]), detLog(sRange[1])
+		lower[1+nc+nz+c], upper[1+nc+nz+c] = detmath.Log(kRange[0]), detmath.Log(kRange[1])
+		lower[1+2*nc+nz+c], upper[1+2*nc+nz+c] = detmath.Log(sRange[0]), detmath.Log(sRange[1])
 	}
 	res, err := optimize.LeastSquares(
 		func(x []float64) []float64 { p.residuals(r, nil, x); return r },

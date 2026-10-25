@@ -8,7 +8,7 @@
 // the runtime (internal/service, Compose / ComposeParallel) and predict
 // (internal/descriptor, PredictCompose), which may not import the
 // engine (TestPredictNoExecutionImports). It therefore imports only the
-// standard library, errors, types, the leaf internal/detmath and
+// standard library, errors, types, the leaf linalg/detmath and
 // internal/regresample (the sampling modes' portable math and shared
 // seed derivation) and — for expansion — the import-fenced
 // internal/template (TestSweep_ImportBoundary).

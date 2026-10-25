@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/frankbardon/pulse/internal/detmath"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // ebm.go is lavaan's lavPredict factor scores of an ordinal fit (DWLS /

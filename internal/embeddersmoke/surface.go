@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"math/rand/v2"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
@@ -12,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/extend"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/linalg"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/mcp/gosdk"
 	"github.com/frankbardon/pulse/mcpserve"
 	"github.com/frankbardon/pulse/optimize"
@@ -304,6 +306,16 @@ var (
 	_                                           = pulse.SkillMetadata{Name: "op-agg-count", Requires: []string{}}
 	_                                           = descriptor.OntologyEdge{Kind: descriptor.OntologyEdgeServesIntent}
 	_                                           = descriptor.OntologyNode{Kind: descriptor.OntologyNodeSkill}
+)
+
+// Deterministic math: the FMA-free transcendental ports whose bits are
+// the same on every architecture, for packs that must match Pulse's own.
+var (
+	_ []func(float64) float64 = []func(float64) float64{detmath.Exp, detmath.Expm1, detmath.Log, detmath.Log1p,
+		detmath.Sin, detmath.Cos, detmath.Tan, detmath.Asin, detmath.Erf, detmath.Erfinv}
+	_ []func(float64, float64) float64 = []func(float64, float64) float64{detmath.Pow, detmath.Atan2}
+	_ func(float64) (float64, int)     = detmath.Lgamma
+	_ []func(*rand.Rand) float64       = []func(*rand.Rand) float64{detmath.NormFloat64, detmath.ExpFloat64}
 )
 
 // Optimization core: bounded Levenberg–Marquardt least squares, and

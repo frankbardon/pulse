@@ -3,7 +3,7 @@ package sem
 import (
 	"math"
 
-	"github.com/frankbardon/pulse/internal/detmath"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // The bivariate-normal CDF: a line-for-line, FMA-free port of Alan

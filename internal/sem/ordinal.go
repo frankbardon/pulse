@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/frankbardon/pulse/internal/detmath"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // Two-step ordinal sample statistics: the first stage of lavaan's

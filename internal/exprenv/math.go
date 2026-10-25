@@ -21,7 +21,7 @@ import (
 // What it returns:
 //
 //   - the [MathNames] built-ins, each with the implementation the
-//     query environment registers (builtinImpls), on internal/detmath
+//     query environment registers (builtinImpls), on linalg/detmath
 //     through internal/vecmath (sqrt is math.Sqrt, correctly rounded);
 //   - the `%` patcher (mod.go): float `%` with math.Mod semantics,
 //     int % int left to expr-lang;

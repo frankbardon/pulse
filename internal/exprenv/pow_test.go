@@ -11,7 +11,7 @@ import (
 	"github.com/expr-lang/expr/vm"
 
 	"github.com/frankbardon/pulse/encoding"
-	"github.com/frankbardon/pulse/internal/detmath"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // powTestSchema: two floats (x nullable), a u32, a nullable decimal, a

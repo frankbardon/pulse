@@ -16,7 +16,7 @@ import (
 // expr-lang's own power operator evaluates through runtime.Exponent,
 // i.e. math.Pow, whose bits depend on the machine (amd64 math.Exp picks
 // an FMA path per CPU, arm64 contracts the pure-Go multiply-adds). The
-// named pow() runs on internal/detmath through vecmath, so `x ** 2` and
+// named pow() runs on linalg/detmath through vecmath, so `x ** 2` and
 // pow(x, 2) gave different bits on one machine and `x ** 2` different
 // bits across machines.
 //

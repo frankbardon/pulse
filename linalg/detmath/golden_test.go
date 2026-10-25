@@ -325,6 +325,42 @@ var goldenCases = []goldenCase{
 	{fn: "Asin", x: -1.5, isNaN: true},
 	{fn: "Asin", x: inf, isNaN: true},
 	{fn: "Asin", x: nan, isNaN: true},
+	// Lgamma (the value; TestDetmath_LgammaSign pins the sign)
+	{fn: "Lgamma", x: 0.5, want: 0x3fe250d048e7a1bd},       // 0.5723649429247001
+	{fn: "Lgamma", x: 1, want: 0x0000000000000000},         // 0
+	{fn: "Lgamma", x: 2, want: 0x0000000000000000},         // 0
+	{fn: "Lgamma", x: 3, want: 0x3fe62e42fefa39ef},         // 0.6931471805599453
+	{fn: "Lgamma", x: 0.1, want: 0x4002058e35f3deed},       // 2.2527126517342055
+	{fn: "Lgamma", x: 0.3, want: 0x3ff188637a6c4196},       // 1.0957979948180756
+	{fn: "Lgamma", x: 0.8, want: 0x3fc376b108e2400f},       // 0.15205967839983756
+	{fn: "Lgamma", x: 0.9, want: 0x3fb0fe0882e465b2},       // 0.06637623973474296
+	{fn: "Lgamma", x: 1.1, want: 0xbfa988e1705d89ea},       // -0.049872441259839764
+	{fn: "Lgamma", x: 1.3, want: 0xbfbbb158251658ad},       // -0.10817480950786047
+	{fn: "Lgamma", x: 1.5, want: 0xbfbeeb95b094c191},       // -0.12078223763524522
+	{fn: "Lgamma", x: 1.8, want: 0xbfb2328d7d70b422},       // -0.07108387291437215
+	{fn: "Lgamma", x: 2.5, want: 0x3fd2383e809a67e8},       // 0.2846828704729192
+	{fn: "Lgamma", x: 4.5, want: 0x4003a140a3a623cb},       // 2.4537365708424423
+	{fn: "Lgamma", x: 7.9, want: 0x4020a6062d049d21},       // 8.32426586800881
+	{fn: "Lgamma", x: 10, want: 0x40299a8921a7f7d0},        // 12.80182748008147
+	{fn: "Lgamma", x: 100.5, want: 0x407696f7f9481308},     // 361.4355404677776
+	{fn: "Lgamma", x: 12345.678, want: 0x40f9617eb7eee0bc}, // 103959.91990554606
+	{fn: "Lgamma", x: 1e+06, want: 0x416871921236750d},     // 1.2815504569147611e+07
+	{fn: "Lgamma", x: 1e+20, want: 0x446e873977d7ba97},     // 4.5051701859880917e+21
+	{fn: "Lgamma", x: 1e-25, want: 0x404cc845b54b54f2},     // 57.564627324851145
+	{fn: "Lgamma", x: -0.5, want: 0x3ff43f89a3f0edd6},      // 1.2655121234846454
+	{fn: "Lgamma", x: -2.5, want: 0xbfaccbf9f5ed0f20},      // -0.05624371649767412
+	{fn: "Lgamma", x: -3.7, want: 0xbff6136a268d07a3},      // -1.3797399049658245
+	{fn: "Lgamma", x: -100.3, want: 0xc076bc42616a0966},    // -363.7662061826762
+	{fn: "Lgamma", x: -1e-25, want: 0x404cc845b54b54f2},    // 57.564627324851145
+	{fn: "Lgamma", x: 5e-324, want: 0x40874385446d71c3},    // 744.4400719213812
+	{fn: "Lgamma", x: 0, want: 0x7ff0000000000000},         // +Inf
+	{fn: "Lgamma", x: nz, want: 0x7ff0000000000000},        // +Inf
+	{fn: "Lgamma", x: -1, want: 0x7ff0000000000000},        // +Inf (-integer)
+	{fn: "Lgamma", x: -2, want: 0x7ff0000000000000},        // +Inf (-integer)
+	{fn: "Lgamma", x: -0x1p53, want: 0x7ff0000000000000},   // +Inf (|x| ≥ 2^52)
+	{fn: "Lgamma", x: inf, want: 0x7ff0000000000000},       // +Inf
+	{fn: "Lgamma", x: ninf, want: 0xfff0000000000000},      // -Inf
+	{fn: "Lgamma", x: nan, isNaN: true},
 }
 
 func eval(c goldenCase) float64 {
@@ -353,6 +389,9 @@ func eval(c goldenCase) float64 {
 		return Erfinv(c.x)
 	case "Asin":
 		return Asin(c.x)
+	case "Lgamma":
+		v, _ := Lgamma(c.x)
+		return v
 	}
 	panic("unknown kernel " + c.fn)
 }
@@ -378,9 +417,27 @@ func TestDetmath_GoldenBits(t *testing.T) {
 				c.fn, c.x, c.y, got, math.Float64bits(got), math.Float64frombits(c.want), c.want)
 		}
 	}
-	for _, fn := range []string{"Exp", "Log", "Log1p", "Sin", "Cos", "Tan", "Atan2", "Pow", "Expm1", "Erf", "Erfinv", "Asin"} {
+	for _, fn := range []string{"Exp", "Log", "Log1p", "Sin", "Cos", "Tan", "Atan2", "Pow", "Expm1", "Erf", "Erfinv", "Asin", "Lgamma"} {
 		if !seen[fn] {
 			t.Errorf("golden table has no %s row", fn)
+		}
+	}
+}
+
+// TestDetmath_LgammaSign pins Lgamma's sign output, which the golden
+// table (values only) cannot see: Gamma is negative on (-1, 0),
+// (-3, -2), …, and math.Lgamma's sign is the reference.
+func TestDetmath_LgammaSign(t *testing.T) {
+	for _, c := range []struct {
+		x    float64
+		want int
+	}{
+		{0.5, 1}, {3, 1}, {1e-25, 1}, {-1e-25, -1}, {-0.5, -1}, {-1.5, 1}, {-2.5, -1}, {-3.7, 1}, {-100.3, -1}, {-1, 1},
+	} {
+		_, got := Lgamma(c.x)
+		_, std := math.Lgamma(c.x)
+		if got != c.want || got != std {
+			t.Errorf("Lgamma(%v) sign = %d, want %d (math.Lgamma %d)", c.x, got, c.want, std)
 		}
 	}
 }

@@ -3639,6 +3639,22 @@ pulse/linalg: type Vec method (*Vec) At(i int) float64
 pulse/linalg: type Vec method (*Vec) Len() int
 pulse/linalg: type Vec method (*Vec) Set(i int, x float64)
 pulse/linalg: type Vec method (*Vec) Slice() []float64
+pulse/linalg/detmath: package detmath
+pulse/linalg/detmath: func Asin(x float64) float64
+pulse/linalg/detmath: func Atan2(y float64, x float64) float64
+pulse/linalg/detmath: func Cos(x float64) float64
+pulse/linalg/detmath: func Erf(x float64) float64
+pulse/linalg/detmath: func Erfinv(x float64) float64
+pulse/linalg/detmath: func Exp(x float64) float64
+pulse/linalg/detmath: func ExpFloat64(r *math/rand/v2.Rand) float64
+pulse/linalg/detmath: func Expm1(x float64) float64
+pulse/linalg/detmath: func Lgamma(x float64) (lgamma float64, sign int)
+pulse/linalg/detmath: func Log(x float64) float64
+pulse/linalg/detmath: func Log1p(x float64) float64
+pulse/linalg/detmath: func NormFloat64(r *math/rand/v2.Rand) float64
+pulse/linalg/detmath: func Pow(x float64, y float64) float64
+pulse/linalg/detmath: func Sin(x float64) float64
+pulse/linalg/detmath: func Tan(x float64) float64
 pulse/linalg/metric: package metric
 pulse/linalg/metric: func Accepted(c pulse/linalg/metric.Consumer) []string
 pulse/linalg/metric: func Accepts(c pulse/linalg/metric.Consumer, name string) bool
@@ -6080,4 +6096,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 964ac8b4615d3bdc5a0aaf04ddef1c6135946bbcce0027090c10d739091bba93
+// golden-hash: fdceecdf02637076a76d243dd0c342d00ea5feb01910cc48b9a0b591b3aa61f3

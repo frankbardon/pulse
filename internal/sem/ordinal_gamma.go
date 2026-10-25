@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/frankbardon/pulse/internal/detmath"
 	"github.com/frankbardon/pulse/linalg"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // The asymptotic covariance (Gamma) of the two-step statistics — the

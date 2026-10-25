@@ -130,6 +130,19 @@ s, err := m.Eval(metric.Similarity, a, b, nil)
 
 Arithmetic is FMA-free and left to right, so results are identical on every architecture; the one exception is `aitchison`, whose logarithm comes from the standard library and may differ in the last bits on amd64.
 
+## Deterministic math (`linalg/detmath`)
+
+`github.com/frankbardon/pulse/linalg/detmath` holds the transcendental functions whose bits are the same on every architecture: `Exp`, `Expm1`, `Log`, `Log1p`, `Pow`, `Sin`, `Cos`, `Tan`, `Atan2`, `Asin`, `Erf`, `Erfinv` and `Lgamma`, plus the ziggurat variates `NormFloat64` / `ExpFloat64`, which consume a `*rand.Rand` (`math/rand/v2`) exactly as its own methods do. The standard library's versions depend on the machine. `math.Exp` and `math.Log` are assembly, and amd64 picks an FMA path at run time. arm64 also fuses multiply-adds in the pure-Go kernels.
+
+```go
+import "github.com/frankbardon/pulse/linalg/detmath"
+
+w := detmath.Exp(-detmath.Pow(lag/scale, shape)) // same bits on arm64 and amd64
+lg, sign := detmath.Lgamma(x)
+```
+
+Each function is a line-for-line port of the Go 1.26 pure-Go source with every product wrapped in `float64(...)`. Special cases (`NaN`, `±Inf`, `±0`, subnormals) follow `math.*`. Results sit within the stdlib's own cross-build spread: 1 ulp for most functions, 2 for `Exp`, `Tan` and `Asin`, 3 for `Lgamma`, and 8 for `Pow` and `Erfinv`. Pulse's expression functions, `FEAT_LOG`, `WIN_DISTRIBUTED_LAG` weights, the Student-t p-values, quantiles and confidence bounds, and `optimize` all run on it. Use it in an extension operator or model pack whose output must match across architectures. Also wrap every product that feeds an addition in `float64(...)` in your own code.
+
 ## Errors
 
 Every failure is an `*errors.CodedError`. Look up its prose with `pulse errors lookup CODE`.

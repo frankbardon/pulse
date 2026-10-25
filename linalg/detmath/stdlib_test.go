@@ -103,6 +103,12 @@ func kernels1() []kernel1 {
 			}
 			return v
 		}},
+		// (0, 2^10] and its negative mirror: every reduction arm (the
+		// three x < 2 polynomials, the 2 ≤ x < 8 rational with its z
+		// product, the Stirling arm) and sinPi's reflection for x < 0.
+		{"Lgamma", lgammaValue, func(x float64) float64 { v, _ := math.Lgamma(x); return v }, func(r *sweepRand) float64 {
+			return r.positive(-8, 10)
+		}},
 	}
 }
 
@@ -188,11 +194,17 @@ const sweepN = 200_000
 //   - Asin 2: arm64 contracts 1 − x·x and satan's rational kernel; the
 //     sqrt argument and the quotient both move (sweep held to |x| < 0.95,
 //     see its input comment).
+//   - Lgamma 3 (x > 0; x < 0 is TestDetmath_LgammaReflectionMatchesStdlib):
+//     arm64 contracts the stdlib's polynomial and rational arms (worst
+//     measured: 3 ulp on arm64; 0 on amd64).
 //   - every other kernel 1.
 var ulpBound = map[string]uint64{
 	"Exp": 2, "Log": 1, "Log1p": 1, "Sin": 1, "Cos": 1, "Tan": 2, "Atan2": 1, "Pow": 8,
-	"Expm1": 1, "Erf": 1, "Erfinv": 8, "Asin": 2,
+	"Expm1": 1, "Erf": 1, "Erfinv": 8, "Asin": 2, "Lgamma": 3,
 }
+
+// lgammaValue is Lgamma's value alone, for the one-argument sweep.
+func lgammaValue(x float64) float64 { v, _ := Lgamma(x); return v }
 
 // exactOnAMD64 are the kernels whose math.* twin is the very pure-Go
 // source detmath ports, compiled without contraction on amd64. There the
@@ -319,6 +331,7 @@ func TestDetmath_SpecialCasesMatchStdlib(t *testing.T) {
 		"Erf":    func(x, _ float64) float64 { return math.Erf(x) },
 		"Erfinv": func(x, _ float64) float64 { return math.Erfinv(x) },
 		"Asin":   func(x, _ float64) float64 { return math.Asin(x) },
+		"Lgamma": func(x, _ float64) float64 { v, _ := math.Lgamma(x); return v },
 	}
 	checked := 0
 	for _, c := range goldenCases {
@@ -357,3 +370,30 @@ func TestDetmath_SpecialCasesMatchStdlib(t *testing.T) {
 
 // twoArg reports the kernels that read goldenCase.y.
 func twoArg(fn string) bool { return fn == "Atan2" || fn == "Pow" }
+
+// TestDetmath_LgammaReflectionMatchesStdlib sweeps Lgamma over x < 0,
+// where the result is nadj − lgamma(|x|) (sinPi reflection). Beside a
+// negative root (−2.457…, −2.747…, …) that difference cancels to a tiny
+// value, so an ulp count measures the cancellation, not the port; the
+// bound is absolute in the operands' scale instead: 4 ulp of
+// max(1, |nadj|, |lgamma(|x|)|) ≥ |result|.
+func TestDetmath_LgammaReflectionMatchesStdlib(t *testing.T) {
+	r := &sweepRand{s: 3000}
+	worst := 0.0
+	for range sweepN {
+		x := -r.positive(-8, 10)
+		if x == math.Trunc(x) {
+			continue
+		}
+		got, gs := Lgamma(x)
+		std, ss := math.Lgamma(x)
+		pos, _ := Lgamma(-x)
+		scale := math.Max(1, math.Max(math.Abs(pos), math.Abs(got-pos)))
+		rel := math.Abs(got-std) / scale
+		worst = math.Max(worst, rel)
+		if gs != ss || rel > 4*0x1p-52 {
+			t.Fatalf("Lgamma(%v) = %v sign %d, math.Lgamma = %v sign %d (|Δ|/scale %g)", x, got, gs, std, ss, rel)
+		}
+	}
+	t.Logf("Lgamma x < 0 on %s: worst |Δ|/scale %g (bound %g)", runtime.GOARCH, worst, 4*0x1p-52)
+}

@@ -7,8 +7,8 @@ import (
 	mrand "math/rand/v2"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/detmath"
 	"github.com/frankbardon/pulse/linalg"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // correlator induces pairwise Pearson correlations between numeric
@@ -97,7 +97,7 @@ type quantileFunc func(u, p float64) float64
 // phi returns Φ(x), the standard normal CDF — the first step of the
 // Gaussian-copula construction, mapping a correlated standard-normal
 // draw to a Uniform(0,1) value every field's own quantile function can
-// invert. Φ(x) = 0.5*(1 + erf(x/√2)), with erf from internal/detmath:
+// invert. Φ(x) = 0.5*(1 + erf(x/√2)), with erf from linalg/detmath:
 // math.Erf is pure Go compiled WITH multiply-add contraction on arm64 and
 // calls the machine-specific math.Exp, so its last bits depend on the
 // machine, and every copula, model and vector draw passes through here.

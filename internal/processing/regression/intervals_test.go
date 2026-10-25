@@ -378,3 +378,34 @@ func TestRegressionCI_InterceptOnlySelection(t *testing.T) {
 		t.Errorf("intercept interval [%.17g, %.17g], R [4.3381289681605733, 4.9285376985060925]", lo, hi)
 	}
 }
+
+// TestRegressionCI_StudentTBoundsBitsPinned: ci_lower / ci_upper on the
+// Student-t basis (attachIntervals and REG_BAYES_LINEAR's
+// credibleInterval) are pinned to exact bits for fixed coefficients and
+// standard errors, so they are the same on every GOARCH: the quantile is
+// statdist's FMA-free StudentTQuantile and the half-width q·se is
+// barriered before the add. The inputs are ones where arm64 would fuse
+// coef ∓ q·se into a different last bit.
+func TestRegressionCI_StudentTBoundsBitsPinned(t *testing.T) {
+	cases := []struct {
+		i            float64
+		lower, upper uint64
+	}{
+		{10, 4603531393914989988, 4616485153321552168},
+		{32, 4595186804565413408, 4622368445460015194},
+		{35, 4592500376520927424, 4622883799090675374},
+		{38, 4587429507367332480, 4623399152721335556},
+	}
+	for _, c := range cases {
+		coef, se := 1+c.i/7, 0.1+c.i/13
+		r := &types.RegressionResult{Coefficients: map[string]float64{"x": coef}, StdErrors: map[string]float64{"x": se}}
+		attachIntervals(r, 0.95, 17, true)
+		if lo, hi := math.Float64bits(r.CILower["x"]), math.Float64bits(r.CIUpper["x"]); lo != c.lower || hi != c.upper {
+			t.Errorf("i=%v: attachIntervals bounds %#016x / %#016x, want %#016x / %#016x", c.i, lo, hi, c.lower, c.upper)
+		}
+		ci := credibleInterval(coef, se, 17, 0.95)
+		if lo, hi := math.Float64bits(ci[0]), math.Float64bits(ci[1]); lo != c.lower || hi != c.upper {
+			t.Errorf("i=%v: credibleInterval bounds %#016x / %#016x, want %#016x / %#016x", c.i, lo, hi, c.lower, c.upper)
+		}
+	}
+}

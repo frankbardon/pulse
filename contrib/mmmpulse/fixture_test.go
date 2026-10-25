@@ -11,6 +11,7 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -53,9 +54,9 @@ func lagKernel(pdf bool, maxLag int, shape, scale float64) []float64 {
 	for l := range w {
 		if pdf {
 			t := float64(l + 1)
-			w[l] = float64(float64(shape/scale*detPow(t/scale, shape-1)) * detExp(-detPow(t/scale, shape)))
+			w[l] = float64(float64(shape/scale*detmath.Pow(t/scale, shape-1)) * detmath.Exp(-detmath.Pow(t/scale, shape)))
 		} else {
-			w[l] = detExp(-detPow(float64(l)/scale, shape))
+			w[l] = detmath.Exp(-detmath.Pow(float64(l)/scale, shape))
 		}
 		sum += w[l]
 	}

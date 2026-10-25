@@ -30,8 +30,8 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/extend"
-	"github.com/frankbardon/pulse/internal/detmath"
 	"github.com/frankbardon/pulse/internal/statdist"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -572,7 +572,7 @@ type parityLog struct {
 	label string
 }
 
-// parityLogValue mirrors FEAT_LOG's kernel, internal/detmath's portable
+// parityLogValue mirrors FEAT_LOG's kernel, linalg/detmath's portable
 // Log1p: the parity compares bytes, and math.Log1p's bits depend on the
 // architecture.
 func parityLogValue(rec extend.Record, field string) (float64, bool) {

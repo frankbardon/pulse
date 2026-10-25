@@ -7,7 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/detmath"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // TestSynthExprMath_EagerAndCompileRefusalsAgree: a Spec that bypasses
@@ -62,7 +62,7 @@ func TestSynthExprMath_EagerAndCompileRefusalsAgree(t *testing.T) {
 }
 
 // TestShapeFit_RunsOnDetmath: the --fit-shape density and likelihood
-// evaluate exp / log through internal/detmath, whose bits are the same
+// evaluate exp / log through linalg/detmath, whose bits are the same
 // on every architecture, not through math.Exp / math.Log, whose are not.
 // Checked over enough inputs that the stdlib kernels disagree with
 // detmath on some of them on this machine (arm64: ~5e-4 of Exp inputs,

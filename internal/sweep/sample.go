@@ -6,8 +6,8 @@ import (
 	"math/rand/v2"
 	"strconv"
 
-	"github.com/frankbardon/pulse/internal/detmath"
 	"github.com/frankbardon/pulse/internal/regresample"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -70,7 +70,7 @@ func (s *sampler) below(n uint64) uint64 {
 
 // rangeValue maps a unit draw u in [0, 1) onto a validated range:
 // min + u·(max − min) under linear, exp(log min + u·(log max − log min))
-// under log (internal/detmath, portable). Every product is rounded
+// under log (linalg/detmath, portable). Every product is rounded
 // before its add (float64(a*b)), so no architecture fuses it; the
 // result is clamped into [min, max] against the final rounding.
 func rangeValue(rg *types.SweepRange, u float64) float64 {

@@ -31,7 +31,7 @@ func TestSweep_ImportBoundary(t *testing.T) {
 		// errors; TestStrictJSON_ImportBoundary).
 		modulePrefix + "/internal/strictjson": true,
 		// Portable exp/log for log-scale draws (stdlib-only leaf).
-		modulePrefix + "/internal/detmath": true,
+		modulePrefix + "/linalg/detmath": true,
 		// The shared rng_seed 0 derivation (leaf: stdlib + types +
 		// errors).
 		modulePrefix + "/internal/regresample": true,
@@ -53,7 +53,7 @@ func TestSweep_ImportBoundary(t *testing.T) {
 		for _, imp := range f.Imports {
 			path, _ := strconv.Unquote(imp.Path.Value)
 			if strings.Contains(path, ".") && !allowedDirect[path] {
-				t.Errorf("%s imports %q; internal/sweep may import only the standard library, types, errors, internal/template, internal/strictjson, internal/detmath and internal/regresample", name, path)
+				t.Errorf("%s imports %q; internal/sweep may import only the standard library, types, errors, internal/template, internal/strictjson, linalg/detmath and internal/regresample", name, path)
 			}
 		}
 	}

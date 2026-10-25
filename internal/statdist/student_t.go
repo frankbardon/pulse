@@ -1,6 +1,10 @@
 package statdist
 
-import "math"
+import (
+	"math"
+
+	"github.com/frankbardon/pulse/linalg/detmath"
+)
 
 // StudentTTwoSidedP returns the two-sided p-value of a Student's t
 // statistic with df degrees of freedom: P(|T| ≥ |t|).
@@ -43,7 +47,7 @@ func StudentTCDF(t, df float64) float64 {
 	}
 	x, y, lx, ly := studentTBetaArgs(t, df)
 	// I_x(df/2, 1/2) is the two-sided tail mass; halve it for one tail.
-	tail := 0.5 * regularizedIncompleteBetaLog(df/2.0, 0.5, x, y, lx, ly)
+	tail := float64(0.5 * regularizedIncompleteBetaLog(df/2.0, 0.5, x, y, lx, ly))
 	if t > 0 {
 		return 1 - tail
 	}
@@ -89,14 +93,14 @@ func StudentTInverseTwoSided(alpha, df float64) float64 {
 	if df <= 0 || math.IsNaN(alpha) || math.IsNaN(df) || alpha <= 0 || alpha >= 1 {
 		return math.NaN()
 	}
-	logAlpha := math.Log(alpha)
+	logAlpha := detmath.Log(alpha)
 	// g(t) = log P(|T| ≥ t) − log alpha, strictly decreasing in t > 0.
-	g := func(t float64) float64 { return math.Log(StudentTTwoSidedP(t, df)) - logAlpha }
+	g := func(t float64) float64 { return detmath.Log(StudentTTwoSidedP(t, df)) - logAlpha }
 	// dg/dt = −2·f(t) / P(|T| ≥ t), f the Student-t density.
-	logCoef := -logBeta(df/2, 0.5) - 0.5*math.Log(df)
+	logCoef := -logBeta(df/2, 0.5) - float64(0.5*detmath.Log(df))
 	dg := func(t, p float64) float64 {
-		logPdf := logCoef - ((df+1)/2)*math.Log1p((t/df)*t)
-		return -2 * math.Exp(logPdf) / p
+		logPdf := logCoef - float64(((df+1)/2)*detmath.Log1p(float64((t/df)*t)))
+		return float64(-2*detmath.Exp(logPdf)) / p
 	}
 	lo, hi := 0.0, 1.0
 	for g(hi) > 0 {
@@ -108,7 +112,7 @@ func StudentTInverseTwoSided(alpha, df float64) float64 {
 	}
 	return newtonBracketed(lo, hi, func(t float64) (float64, float64) {
 		p := StudentTTwoSidedP(t, df)
-		return math.Log(p) - logAlpha, dg(t, p)
+		return detmath.Log(p) - logAlpha, dg(t, p)
 	})
 }
 
@@ -120,13 +124,13 @@ func studentTBetaArgs(t, df float64) (x, y, lx, ly float64) {
 	at := math.Abs(t)
 	if at > math.Sqrt(df) {
 		r := (df / at) / at // df / t², may underflow
-		lr := math.Log(df) - 2*math.Log(at)
-		l1 := math.Log1p(r)
+		lr := detmath.Log(df) - float64(2*detmath.Log(at))
+		l1 := detmath.Log1p(r)
 		return r / (1 + r), 1 / (1 + r), lr - l1, -l1
 	}
-	r := (at / df) * at // t² / df, may underflow
-	lr := 2*math.Log(at) - math.Log(df)
-	l1 := math.Log1p(r)
+	r := float64((at / df) * at) // t² / df, may underflow
+	lr := float64(2*detmath.Log(at)) - detmath.Log(df)
+	l1 := detmath.Log1p(r)
 	return 1 / (1 + r), r / (1 + r), -l1, lr - l1
 }
 
@@ -135,7 +139,7 @@ func studentTBetaArgs(t, df float64) (x, y, lx, ly float64) {
 // bisection whenever a step leaves the bracket. fd returns f and f'.
 // Stops at a relative step of 4 ulp or after the bracket collapses.
 func newtonBracketed(lo, hi float64, fd func(float64) (float64, float64)) float64 {
-	x := 0.5 * (lo + hi)
+	x := float64(0.5 * (lo + hi))
 	for range 200 {
 		f, d := fd(x)
 		if f == 0 {
@@ -148,9 +152,9 @@ func newtonBracketed(lo, hi float64, fd func(float64) (float64, float64)) float6
 		}
 		next := x - f/d
 		if math.IsNaN(next) || next <= lo || next >= hi {
-			next = 0.5 * (lo + hi)
+			next = float64(0.5 * (lo + hi))
 		}
-		if math.Abs(next-x) <= 4*epsilon*math.Abs(next) || hi-lo <= 4*epsilon*math.Abs(hi) {
+		if math.Abs(next-x) <= float64(4*epsilon*math.Abs(next)) || hi-lo <= float64(4*epsilon*math.Abs(hi)) {
 			return next
 		}
 		x = next

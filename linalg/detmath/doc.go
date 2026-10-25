@@ -1,7 +1,17 @@
 // Package detmath holds deterministic, architecture-independent ports of
 // the Go standard library's transcendental kernels: Exp, Expm1, Log,
-// Log1p, Sin, Cos, Tan, Atan2, Asin, Pow, Erf and Erfinv — plus the ziggurat
-// standard normal and exponential variates, NormFloat64 and ExpFloat64.
+// Log1p, Sin, Cos, Tan, Atan2, Asin, Pow, Erf, Erfinv and Lgamma — plus
+// the ziggurat standard normal and exponential variates, NormFloat64 and
+// ExpFloat64.
+//
+// It is public (github.com/frankbardon/pulse/linalg/detmath) so an
+// embedder's extension operator or model pack computes with the same
+// bits Pulse's own expression functions, FEAT_LOG, WIN_DISTRIBUTED_LAG
+// weights, Student-t quantiles and the optimize solvers do: call
+// detmath.Exp / Log / Pow wherever math.Exp / Log / Pow would feed a
+// result that must be identical across architectures, and wrap every
+// product that feeds an add in float64(...). It is a leaf over the
+// standard library (TestDetmath_ImportBoundary).
 //
 // # Why it exists
 //
@@ -40,7 +50,8 @@
 // bit-for-bit math.*; elsewhere results sit within the stdlib's own
 // cross-build spread: 1 ulp, 2 for Exp (amd64's FMA assembly) and Tan
 // (arm64 contraction), 8 for Pow (it compounds Exp∘Log) and Erfinv
-// (arm64 contracts its degree-7 Horner chains). Two amd64 assembly
+// (arm64 contracts its degree-7 Horner chains), 3 for Lgamma (x > 0;
+// arm64 contracts its polynomial arms). Two amd64 assembly
 // defects are not shared: math.Log of a subnormal returns about -709.09,
 // and math.Exp overflows to +Inf from about 709.44 instead of 709.78. The gate is TestDetmath_GoldenBits (exact
 // uint64 pins that must hold on amd64 and arm64 alike) plus

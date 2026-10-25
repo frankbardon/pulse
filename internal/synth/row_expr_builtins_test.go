@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/detmath"
 	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/synth"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // mathCase is one row-environment function: src is an expression over
