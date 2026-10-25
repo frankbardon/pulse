@@ -25,6 +25,9 @@ type Stats struct {
 	AIC, BIC     float64
 	LogLik       float64
 	NParams      int
+	// Scaled is WLSMV's scaled-shifted test and scaled indices (nil on
+	// every other fit).
+	Scaled *ScaledStats
 }
 
 // ComputeStats fills fit.Stats; desc is the model description, used to
@@ -245,39 +248,8 @@ func lavaanCombine(parts []lavaanPart, chi2 []float64, nParams int) Stats {
 	st.AIC = -2*st.LogLik + 2*k
 	st.BIC = -2*st.LogLik + k*math.Log(n)
 
-	if st.DoF > 0 {
-		st.RMSEA = math.Sqrt(math.Max((st.Chi2/n)/st.DoF-1/n, 0))
-		if len(parts) > 1 {
-			st.RMSEA *= math.Sqrt(float64(len(parts)))
-		}
-	}
-	t1 := math.Max(st.Chi2-st.DoF, 0)
-	t2 := math.Max(math.Max(st.Chi2-st.DoF, st.Chi2Baseline-st.DoFBaseline), 0)
-	if nearlyZero(t1) && nearlyZero(t2) {
-		st.CFI = 1
-	} else {
-		st.CFI = 1 - t1/t2
-	}
-	a, b := (st.Chi2-st.DoF)*st.DoFBaseline, (st.Chi2Baseline-st.DoFBaseline)*st.DoF
-	switch {
-	case st.DoF > 0 && math.Abs(b) > 0:
-		st.TLI = 1 - a/b
-	case math.IsInf(a, 0) || math.IsNaN(a) || math.IsInf(b, 0) || math.IsNaN(b):
-		st.TLI = math.NaN()
-	default:
-		st.TLI = 1
-	}
-	// lav_fit_nfi: undefined past the baseline's degrees of freedom (a
-	// model more restricted than independence) or on a zero baseline,
-	// 1 when saturated.
-	switch {
-	case st.DoF > st.DoFBaseline || nearlyZero(st.Chi2Baseline):
-		st.NFI = math.NaN()
-	case st.DoF > 0:
-		st.NFI = (st.Chi2Baseline - st.Chi2) / st.Chi2Baseline
-	default:
-		st.NFI = 1
-	}
+	st.CFI, st.TLI, st.RMSEA = lavaanIndices(st.Chi2, st.DoF, st.Chi2Baseline, st.DoFBaseline, n, len(parts))
+	st.NFI = lavaanNFI(st.Chi2, st.DoF, st.Chi2Baseline, st.DoFBaseline)
 	st.GFI = gfi
 	if st.DoF > 0 {
 		st.AGFI = 1 - nel/st.DoF*(1-st.GFI)
@@ -285,6 +257,48 @@ func lavaanCombine(parts []lavaanPart, chi2 []float64, nParams int) Stats {
 		st.AGFI = 1
 	}
 	return st
+}
+
+// lavaanIndices are lav_fit_cfi, lav_fit_tli and lav_fit_rmsea (divisor
+// n, the multiple-group factor √g) of a test statistic x2 on df against
+// the baseline's x2b on dfb.
+func lavaanIndices(x2, df, x2b, dfb, n float64, g int) (cfi, tli, rmsea float64) {
+	if df > 0 {
+		rmsea = math.Sqrt(math.Max((x2/n)/df-1/n, 0))
+		if g > 1 {
+			rmsea *= math.Sqrt(float64(g))
+		}
+	}
+	t1 := math.Max(x2-df, 0)
+	t2 := math.Max(math.Max(x2-df, x2b-dfb), 0)
+	if nearlyZero(t1) && nearlyZero(t2) {
+		cfi = 1
+	} else {
+		cfi = 1 - t1/t2
+	}
+	a, b := (x2-df)*dfb, (x2b-dfb)*df
+	switch {
+	case df > 0 && math.Abs(b) > 0:
+		tli = 1 - a/b
+	case math.IsInf(a, 0) || math.IsNaN(a) || math.IsInf(b, 0) || math.IsNaN(b):
+		tli = math.NaN()
+	default:
+		tli = 1
+	}
+	return cfi, tli, rmsea
+}
+
+// lavaanNFI is lav_fit_nfi: undefined past the baseline's degrees of
+// freedom (a model more restricted than independence) or on a zero
+// baseline, 1 when saturated.
+func lavaanNFI(x2, df, x2b, dfb float64) float64 {
+	switch {
+	case df > dfb || nearlyZero(x2b):
+		return math.NaN()
+	case df > 0:
+		return (x2b - x2) / x2b
+	}
+	return 1
 }
 
 var errLavaanStats = errors.New("the fit statistics are undefined: a covariance is not positive definite")

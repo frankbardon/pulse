@@ -72,3 +72,14 @@ twostep poly_sparse p,q,r p,q,r poly_sparse "" "" 12
 twostep poly_binary x1,x2,x3,x4,x5,x6 x1,x2,x3,x4,x5,x6 poly_binary "" "" 12
 twostep poly_weighted q1,q2,v1,s1,recommend q1,q2,v1,s1 poly_weighted "" w
 Rscript "$here/bvn_reference.R" > "$here/bvn_reference.json"
+# lavaan's ordinal estimators (DWLS / WLSMV, delta parameterization) on
+# the brand survey with the nine ratings ordered: the measurement model
+# under both, the structural model with the numeric recommend outcome,
+# the mediation model with defined parameters and lavaan's single-group
+# rules, each with every estimator intermediate (fit_lavaan_wlsmv.R)
+wls() { Rscript "$here/fit_lavaan_wlsmv.R" "$here/$1_data.csv" "$here/$2_model.txt" "$3" "$4" > "$here/$5_lavaan.json"; }
+wls brand brand_ord "$q9" WLSMV brand_ord_wlsmv
+wls brand brand_ord "$q9" DWLS brand_ord_dwls
+wls brand brand_ms "$q9" WLSMV brand_ordms_wlsmv
+wls brand brand_def "$q9" WLSMV brand_orddef_wlsmv
+wls brand brand_res "$q9" WLSMV brand_ordres_wlsmv

@@ -62,6 +62,11 @@ type parameter struct {
 	// frees them outside the reference group under group_equal
 	// loadings / intercepts, as lavaan does.
 	auto bool
+	// delta marks an ordered variable's residual variance under the
+	// delta parameterization: no parameter, but the value that sets its
+	// latent response's implied variance to 1 (FitOrdinal sets it at the
+	// estimate).
+	delta bool
 }
 
 type stringSet map[string]struct{}
@@ -120,6 +125,9 @@ type Model struct {
 	// equal and partial are a multi-group model's group_equal values
 	// and group_partial row keys (lavaanRowKey).
 	equal, partial stringSet
+	// ordered are the ordered (ordinal) observed variables of an
+	// ordinal fit (ModelOptions.Ordered); empty otherwise.
+	ordered stringSet
 }
 
 // ModelOptions select the features beyond semopy's default
@@ -141,6 +149,17 @@ type ModelOptions struct {
 	// (Model.Lavaan) with no lavaan-only syntax in the description: a
 	// bootstrap (RunBootstrap) is lavaan's se = "bootstrap".
 	Lavaan bool
+	// Ordered names the ordered (ordinal) observed variables of a DWLS
+	// / WLSMV fit (FitOrdinal), lavaan's ordered =, under the delta
+	// parameterization: each is an indicator or an outcome (no outgoing
+	// arrow) whose latent response has intercept 0 and implied variance
+	// 1 — its residual variance is no parameter (the remainder) and
+	// thresholds replace its mean. The model then follows lavaan's
+	// conventions with a mean structure (lavaan's categorical default).
+	// An observed exogenous variable is refused (lavaan conditions on it,
+	// conditional.x), as are a `x ~ 1` or `x ~~ x` line on an ordered x.
+	// Validated with an *OrdinalSpecError.
+	Ordered []string
 
 	// grouped marks a multi-group specification; level is the group
 	// whose per-group modifiers it reads.
@@ -196,9 +215,14 @@ func newModel(desc string, baseline bool, opt ModelOptions) (*Model, error) {
 	m := &Model{defined: eff.defs, byName: map[string]*parameter{}, firstManif: map[string]string{}, baseline: baseline,
 		desc: desc, opt: opt, arity: arity}
 	_, icpt := eff.byOp[OpIntercept]
-	m.MeanStructure = opt.MeanStructure || icpt
+	m.MeanStructure = opt.MeanStructure || icpt || len(opt.Ordered) > 0
 	m.lavaan = m.MeanStructure || len(eff.defs) > 0 || opt.Lavaan
 	m.classify(eff)
+	if len(opt.Ordered) > 0 && !baseline {
+		if err := m.setOrdered(eff, opt.Ordered); err != nil {
+			return nil, err
+		}
+	}
 	m.preprocessCovariances(eff)
 	for _, op := range eff.ops {
 		var err error
@@ -219,8 +243,98 @@ func newModel(desc string, baseline bool, opt ModelOptions) (*Model, error) {
 			return nil, err
 		}
 	}
+	m.deltaResiduals()
 	return m, nil
 }
+
+// OrdinalSpecError is a refused ordinal specification (ModelOptions.Ordered):
+// Param is the params key at fault ("ordered" or "model"), Var the
+// variable, Reason a short code.
+type OrdinalSpecError struct {
+	Param, Var, Reason, Msg string
+}
+
+func (e *OrdinalSpecError) Error() string { return e.Msg }
+
+// Reasons of an OrdinalSpecError.
+const (
+	OrdinalSpecNotObserved = "not_observed"
+	OrdinalSpecNotOutput   = "not_output"
+	OrdinalSpecExogenous   = "exogenous_observed"
+	OrdinalSpecIntercept   = "ordered_intercept"
+	OrdinalSpecVariance    = "ordered_variance"
+)
+
+// setOrdered validates and records the ordered variables (lavaan's
+// ordered =, delta parameterization, conditional.x unsupported).
+func (m *Model) setOrdered(eff *Effects, ordered []string) error {
+	m.ordered = stringSet{}
+	for _, v := range ordered {
+		if _, ok := m.obsIndex[v]; !ok {
+			return &OrdinalSpecError{Param: "ordered", Var: v, Reason: OrdinalSpecNotObserved,
+				Msg: fmt.Sprintf("ordered variable %q is not an observed variable of the model", v)}
+		}
+		if !m.outputs.has(v) {
+			return &OrdinalSpecError{Param: "ordered", Var: v, Reason: OrdinalSpecNotOutput,
+				Msg: fmt.Sprintf("ordered variable %q has an outgoing arrow (it predicts another variable or is exogenous); an ordered variable must be an indicator or an outcome", v)}
+		}
+		m.ordered.add(v)
+	}
+	for _, v := range m.Observed {
+		if m.isObsExo(v) {
+			return &OrdinalSpecError{Param: "model", Var: v, Reason: OrdinalSpecExogenous,
+				Msg: fmt.Sprintf("observed exogenous variable %q: an ordinal fit conditions on observed covariates (lavaan's conditional.x), which is not supported; model it as an outcome or drop it", v)}
+		}
+	}
+	if l, ok := eff.byOp[OpIntercept]; ok {
+		for _, v := range l.keys {
+			if m.ordered.has(v) {
+				return &OrdinalSpecError{Param: "model", Var: v, Reason: OrdinalSpecIntercept,
+					Msg: fmt.Sprintf("%s ~ 1: an ordered variable's intercept is fixed at 0 (its thresholds carry its location); drop the line", v)}
+			}
+		}
+	}
+	if l, ok := eff.byOp[OpCovariance]; ok {
+		for _, v := range l.keys {
+			if m.ordered.has(v) && l.m[v].has(v) {
+				return &OrdinalSpecError{Param: "model", Var: v, Reason: OrdinalSpecVariance,
+					Msg: fmt.Sprintf("%s ~~ %s: an ordered variable's residual variance is no parameter under the delta parameterization (its latent response's variance is 1); drop the line", v, v)}
+			}
+		}
+	}
+	return nil
+}
+
+// deltaResiduals turns every ordered variable's residual variance into a
+// delta-parameterization remainder: fixed (no parameter), its value set
+// at the estimate (FitOrdinal).
+func (m *Model) deltaResiduals() {
+	if len(m.ordered) == 0 {
+		return
+	}
+	for _, p := range m.params {
+		for _, l := range p.locs {
+			if l.mat == mTheta && l.i == l.j && m.ordered.has(m.Observed[l.i]) {
+				p.active, p.start, p.hasStart, p.delta = false, 1, true, true
+			}
+		}
+	}
+}
+
+// Ordered returns the model's ordered variables in Observed order (nil
+// when the fit is not ordinal).
+func (m *Model) Ordered() []string {
+	var out []string
+	for _, v := range m.Observed {
+		if m.ordered.has(v) {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// IsOrdered reports whether v is an ordered variable of the model.
+func (m *Model) IsOrdered(v string) bool { return m.ordered.has(v) }
 
 // effectMeans adds the mean-structure parameters with lavaan's
 // defaults: the `~ 1` statements first, in their order, then every
@@ -254,6 +368,13 @@ func (m *Model) effectMeans(user *lhsMap) error {
 	}
 	for _, v := range m.Observed {
 		if done.has(v) {
+			continue
+		}
+		if m.ordered.has(v) {
+			// An ordered variable's latent response has intercept 0.
+			if err := add(v, Mult{Set: true, Fixed: true, Value: 0, auto: true}, false, ""); err != nil {
+				return err
+			}
 			continue
 		}
 		// An observed exogenous mean is the sample's (startRule).

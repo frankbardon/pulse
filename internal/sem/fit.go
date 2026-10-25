@@ -166,6 +166,9 @@ type Fit struct {
 	theta   []float64
 	// params are the matrices at the estimate (Params).
 	params *Params
+	// Ordinal is an ordinal (DWLS / WLSMV) fit's stage-1 pieces and
+	// estimator intermediates (FitOrdinal); nil on an ML fit.
+	Ordinal *OrdinalFit
 }
 
 // state holds the model matrices at a parameter vector.

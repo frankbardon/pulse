@@ -41,6 +41,9 @@ const (
 	// a latent variable's mean (lavaan's mean-structure syntax). It
 	// switches the fit to lavaan conventions (Model.Lavaan).
 	OpIntercept = "~1"
+	// OpThreshold is an ordered variable's threshold row ("x | t1"):
+	// never model syntax, only an ordinal fit's estimates (FitOrdinal).
+	OpThreshold = "|"
 )
 
 // Mult is the multiplier written before a right-hand variable: none

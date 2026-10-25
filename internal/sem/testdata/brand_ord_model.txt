@@ -1,0 +1,6 @@
+# Brand survey measurement model for the ordinal estimators: three
+# correlated factors over the nine 1-5 ratings, each rating ordered
+# (WLSMV / DWLS with polychoric correlations).
+quality =~ q1 + q2 + q3
+value =~ v1 + v2 + v3
+service =~ s1 + s2 + s3
