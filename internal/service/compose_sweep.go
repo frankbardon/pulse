@@ -25,6 +25,9 @@ type composeRank struct {
 type composeExpansion struct {
 	rank   *composeRank
 	banner *banner.Layout
+	// seed is a sampling sweep's effective seed (nil without one),
+	// echoed as ComposedResponse.SweepSeed.
+	seed *int64
 }
 
 // expandCompose returns the effective request Compose and
@@ -55,7 +58,7 @@ func (s *Service) expandCompose(composed *types.ComposedRequest) (*types.Compose
 	if err != nil {
 		return nil, nil, err
 	}
-	ext := &composeExpansion{banner: exp.Banner}
+	ext := &composeExpansion{banner: exp.Banner, seed: exp.SweepSeed}
 	if composed.Sweep != nil && composed.Sweep.Rank != nil {
 		ext.rank = &composeRank{spec: composed.Sweep.Rank, explicit: exp.Explicit, count: len(exp.SweepLabels)}
 	}
@@ -93,6 +96,18 @@ func (e *composeExpansion) slotContext(ctx context.Context, i int) context.Conte
 func rankVetoed(ctx context.Context) bool {
 	v, _ := ctx.Value(rankVetoKey{}).(bool)
 	return v
+}
+
+// applyComposeSweep is the finished batch's sweep echo: a sampling
+// sweep's effective seed (ComposedResponse.SweepSeed), then the rank
+// (applyComposeRank). Both orchestrators call it at the same point, so
+// serial and parallel answer identically.
+func applyComposeSweep(ext *composeExpansion, requests []*types.Request, out *types.ComposedResponse) error {
+	if ext.seed != nil {
+		seed := *ext.seed
+		out.SweepSeed = &seed
+	}
+	return applyComposeRank(ext.rank, requests, out)
 }
 
 // applyComposeRank fills out.Ranking from the sweep slots (the slots

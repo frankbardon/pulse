@@ -60,11 +60,16 @@ const fitsKey = "fits"
 // full precision (its cells are copies of the slots' unshaped figures).
 const bannerKey = "banner"
 
+// sweepSeedKey is the ComposedResponse.SweepSeed JSON key: like
+// `ranking`, outside the plan's path space, so a sampling sweep's
+// effective seed is always emitted.
+const sweepSeedKey = "sweep_seed"
+
 // pinnedRootKey reports whether name is a root key the plan never
-// prunes: the `returned` marker, the sweep `ranking`, the Compose
-// `fits` and the stitched `banner`.
+// prunes: the `returned` marker, the sweep `ranking` and `sweep_seed`,
+// the Compose `fits` and the stitched `banner`.
 func pinnedRootKey(name string) bool {
-	return name == returnedKey || name == rankingKey || name == fitsKey || name == bannerKey
+	return name == returnedKey || name == rankingKey || name == sweepSeedKey || name == fitsKey || name == bannerKey
 }
 
 // structuralTypes are the result types whose MarshalJSON is exactly

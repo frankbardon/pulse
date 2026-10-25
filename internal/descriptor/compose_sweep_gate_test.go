@@ -95,8 +95,14 @@ func TestPayloadSchema_SweepShape(t *testing.T) {
 	if vals["minItems"] != float64(1) || !reflect.DeepEqual(vals["items"], map[string]any{"type": []any{"number", "string", "boolean"}}) {
 		t.Errorf("SweepAxis values %v", vals)
 	}
-	if got := doc.Defs["SweepMode"].Enum; !reflect.DeepEqual(got, []string{"grid", "zip"}) {
+	if got := doc.Defs["SweepMode"].Enum; !reflect.DeepEqual(got, []string{"grid", "lhs", "random", "zip"}) {
 		t.Errorf("SweepMode enum %v", got)
+	}
+	if got := doc.Defs["SweepScale"].Enum; !reflect.DeepEqual(got, []string{"linear", "log"}) {
+		t.Errorf("SweepScale enum %v", got)
+	}
+	if prop("SweepSpec", "samples")["type"] != "integer" || prop("SweepAxis", "range") == nil {
+		t.Errorf("SweepSpec samples / SweepAxis range: %v / %v", spec.Properties["samples"], prop("SweepAxis", "range"))
 	}
 	if got := doc.Defs["SweepRankOrder"].Enum; !reflect.DeepEqual(got, []string{"asc", "desc"}) {
 		t.Errorf("SweepRankOrder enum %v", got)

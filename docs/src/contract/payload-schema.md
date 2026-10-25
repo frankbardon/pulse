@@ -1187,9 +1187,13 @@ there is no chain-level block.
 `ComposedRequest.sweep` (`SweepSpec`) is the one slot that expands into
 ordinary Compose slots, so a sweep adds no response shape of its own:
 `responses` carries explicit slots first, then one entry per expansion.
-`SweepSpec` is `{axes, mode, label, request, overlays, rank}`: `axes`
-are `SweepAxis {name, values}` (`values` a non-empty list of scalars),
-`mode` the closed enum `SweepMode` (`grid` default, `zip`), `request` an
+`SweepSpec` is `{axes, mode, samples, rng_seed, label, request,
+overlays, rank}`: `axes` are `SweepAxis {name, values, range}` (`values`
+a non-empty list of scalars under `grid` / `zip`; `range` a
+`SweepRange {min, max, scale}` — `SweepScale` `linear` default, `log` —
+under `random` / `lhs`, never both), `mode` the closed enum `SweepMode`
+(`grid` default, `zip`, `random`, `lhs`; the sampling modes draw
+`samples` slots seeded by `rng_seed`, 0 deriving one from the spec), `request` an
 object in the `Request` shape that may carry `{{axis}}` / `{"$var":
 "axis"}` placeholders (the schema types it as `object`; the substituted
 body is decoded strictly at expansion; a `{{axis}}` inside an
@@ -1200,9 +1204,17 @@ is `omitempty`, so a sweep-free request is byte-identical on the wire.
 It is gated by `capability:compose_sweep`: on an instance that hides it
 the `sweep` property and the `Sweep*` defs are absent. A malformed sweep
 is `PULSE_SWEEP_INVALID` with `details.field` (a `sweep`-rooted path)
-and `details.reason`. `pulse_predict` with `composed` reports the
-expansion as `sweep {axes, mode, expanded_count, labels}` on the predict
-result; that summary is not payload-reachable and is not in this schema.
+and `details.reason`; a mode/axis mix-up is `PULSE_SWEEP_MODE_MISMATCH`,
+a bad range `PULSE_SWEEP_RANGE_INVALID`, a missing or sub-1 `samples`
+`PULSE_SWEEP_SAMPLES_INVALID`. `pulse_predict` with `composed` reports the
+expansion as `sweep {axes, mode, expanded_count, rng_seed, labels}` on the
+predict result; that summary is not payload-reachable and is not in this
+schema.
+
+A sampling sweep (`random` / `lhs`) adds `ComposedResponse.sweep_seed`,
+an `omitempty` integer: the effective seed it drew with, so pinning it as
+`rng_seed` replays the run. Absent for `grid` / `zip`. Like `ranking` it
+is pinned outside the Compose-level `return`.
 
 A sweep with `rank` adds `ComposedResponse.ranking`, an `omitempty` array
 of `RankEntry {label, value, rank}` (1-based, in rank order, `value`

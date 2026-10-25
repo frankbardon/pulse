@@ -461,8 +461,17 @@ func sweepSummary(spec *types.SweepSpec) *descriptor.SweepSummary {
 	axes := make([]descriptor.SweepAxisSummary, len(spec.Axes))
 	for i, ax := range spec.Axes {
 		axes[i] = descriptor.SweepAxisSummary{Name: ax.Name, Count: len(ax.Values)}
+		if mode.Sampled() {
+			axes[i] = descriptor.SweepAxisSummary{Name: ax.Name, Count: spec.Samples, Range: ax.Range}
+		}
 	}
-	return &descriptor.SweepSummary{Axes: axes, Mode: mode, ExpandedCount: sweep.Count(spec)}
+	out := &descriptor.SweepSummary{Axes: axes, Mode: mode, ExpandedCount: sweep.Count(spec)}
+	if mode.Sampled() {
+		// The runtime's seed: one function of the spec (sweep.EffectiveSeed).
+		seed := sweep.EffectiveSeed(spec)
+		out.RNGSeed = &seed
+	}
+	return out
 }
 
 // bannerSummary is ComposeValidationResult.Banner for a banner that

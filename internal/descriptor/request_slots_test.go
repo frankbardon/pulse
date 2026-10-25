@@ -92,7 +92,7 @@ func TestHiddenSlotKeys_Rules(t *testing.T) {
 		{"compose sweep enabled", scopedOnly(featCompose, featComposeSweep, featMultiplicity, "OVERLAY_RANK"), &types.ComposedRequest{}, []string{"banner", "fits", "params"}},
 		{"compose fits enabled", scopedOnly(featCompose, featComposeFits, featComposeSweep, featMultiplicity, "OVERLAY_RANK"), &types.ComposedRequest{}, []string{"banner", "params"}},
 		{"compose banner enabled", scopedOnly(featCompose, featCrosstab, featComposeBanner, featComposeFits, featComposeSweep, featMultiplicity, "OVERLAY_RANK"), &types.ComposedRequest{}, []string{"params"}},
-		{"compose ranking hidden", scopedOnly(featCompose), &types.ComposedResponse{}, []string{"banner", "fits", "overlays", "ranking"}},
+		{"compose ranking hidden", scopedOnly(featCompose), &types.ComposedResponse{}, []string{"banner", "fits", "overlays", "ranking", "sweep_seed"}},
 		{"compose ranking enabled", scopedOnly(featCompose, featComposeSweep), &types.ComposedResponse{}, []string{"banner", "fits", "overlays"}},
 		{"compose fits result enabled", scopedOnly(featCompose, featComposeSweep, featComposeFits, "OVERLAY_RANK"), &types.ComposedResponse{}, []string{"banner"}},
 		{"compose banner result enabled", scopedOnly(featCompose, featCrosstab, featComposeBanner, featComposeSweep, featComposeFits, "OVERLAY_RANK"), &types.ComposedResponse{}, nil},

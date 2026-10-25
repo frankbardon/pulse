@@ -309,8 +309,9 @@ func (s *Service) composeParallel(
 	if err := runDeferredMatrixResultOverlays(deferred); err != nil {
 		return nil, err
 	}
-	// The sweep rank reads the finished, folded, still-unshaped slots.
-	if err := applyComposeRank(ext.rank, requests, out); err != nil {
+	// The sweep seed echo and rank read the finished, folded,
+	// still-unshaped slots.
+	if err := applyComposeSweep(ext, requests, out); err != nil {
 		return nil, err
 	}
 	// The banner stitch reads the same finished, folded, unshaped slots.

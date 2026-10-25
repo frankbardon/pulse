@@ -234,13 +234,14 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "banner", visible: capabilityGate(featComposeBanner)},
 		paramsSlotGate,
 	},
-	// The sweep rank rides capability:compose_sweep with the `sweep`
-	// slot that produces it.
+	// The sweep rank and seed echo ride capability:compose_sweep with
+	// the `sweep` slot that produces them.
 	// The top-level overlay layers of each result root ride the gate
 	// of the request root's `overlays` slot that produces them.
 	reflect.TypeOf(types.ComposedResponse{}): {
 		{key: "overlays", visible: overlayGate(featCompose)},
 		{key: "ranking", visible: capabilityGate(featComposeSweep)},
+		{key: "sweep_seed", visible: capabilityGate(featComposeSweep)},
 		{key: "fits", visible: capabilityGate(featComposeFits)},
 		{key: "banner", visible: capabilityGate(featComposeBanner)},
 	},

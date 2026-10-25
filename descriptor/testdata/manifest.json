@@ -10721,7 +10721,7 @@
         ]
       }
     ],
-    "error_codes_count": 421,
+    "error_codes_count": 424,
     "error_domains": [
       "CLI",
       "DATA",
@@ -11071,7 +11071,10 @@
       "PULSE_SUPPRESS_ADVISORY_UNKNOWN",
       "PULSE_SWEEP_EXPR_SPLICE",
       "PULSE_SWEEP_INVALID",
+      "PULSE_SWEEP_MODE_MISMATCH",
+      "PULSE_SWEEP_RANGE_INVALID",
       "PULSE_SWEEP_RANK_PATH",
+      "PULSE_SWEEP_SAMPLES_INVALID",
       "PULSE_SYNTH_ALREADY_TAGGED",
       "PULSE_SYNTH_CONSTRAINT_INFEASIBLE",
       "PULSE_SYNTH_DISTRIBUTION_UNKNOWN",
@@ -19939,4 +19942,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 0de28423d2a8fd4578f8807b7ae937a452fce927ef78200325bdc181425d641a
+// golden-hash: 7bc276b403864c3e6970947a48c5f578b792cbe3305b99a1aeb98980b120e5de

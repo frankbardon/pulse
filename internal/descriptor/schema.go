@@ -254,10 +254,11 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	// The response-shaping presets: a closed vocabulary on an ungated
 	// slot.
 	m[reflect.TypeFor[types.ReturnPreset]()] = stringify(types.AllReturnPresets())
-	// The sweep modes and rank orders: closed vocabularies (a hidden
+	// The sweep modes, range scales and rank orders: closed vocabularies (a hidden
 	// capability:compose_sweep drops the `sweep` slot, and SweepSpec /
 	// SweepRank with it).
 	m[reflect.TypeFor[types.SweepMode]()] = stringify(types.AllSweepModes())
+	m[reflect.TypeFor[types.SweepScale]()] = stringify(types.AllSweepScales())
 	m[reflect.TypeFor[types.SweepRankOrder]()] = stringify(types.AllSweepRankOrders())
 	// The regression covariance estimators: a closed vocabulary on the
 	// ungated regressions slot.
@@ -513,7 +514,7 @@ var fieldOverrides = map[fieldKey]any{
 		"type":        "array",
 		"minItems":    1,
 		"items":       map[string]any{"type": []any{"number", "string", "boolean"}},
-		"description": "The scalar values the axis takes, in expansion order.",
+		"description": "The scalar values the axis takes, in expansion order (modes grid / zip; a random / lhs axis carries a range instead).",
 	},
 	{reflect.TypeFor[descriptor.Recommendation](), "request"}: map[string]any{
 		"type":        "object",

@@ -38,6 +38,41 @@ written). `mode` `grid` (default) is the Cartesian product, first axis
 slowest, so a 2-value and a 3-value axis give 6 slots. `zip` walks the
 axes in lockstep and every axis must be the same length.
 
+### Sampling modes: `random` and `lhs`
+
+To search a continuous space without enumerating a grid, set `mode` to
+`random` or `lhs`, a `samples` count, and give every axis a `range`
+instead of `values`:
+
+```json
+{"sweep": {"mode": "lhs", "samples": 64, "rng_seed": 7,
+  "axes": [{"name": "decay",  "range": {"min": 0, "max": 0.9}},
+           {"name": "lambda", "range": {"min": 0.001, "max": 10, "scale": "log"}}],
+  "request": {"...": "...", "params": {"decay": {"$var": "decay"}, "lambda": {"$var": "lambda"}}}}}
+```
+
+`random` draws each axis value independently and uniformly from its
+range (`scale: log` draws uniformly in log space, for a parameter that
+spans decades; it needs `min > 0`). `lhs` is a Latin hypercube: each
+axis is cut into `samples` equal-probability strata and every stratum is
+drawn exactly once, so even a small `samples` covers every axis evenly.
+Draws stay inside `[min, max]` and render in their shortest round-trip
+form.
+
+The draws are a pure function of the spec and the seed, so predict lists
+the same slots the runtime runs and a run replays exactly. A non-zero
+`rng_seed` is used as given; `0` (or absent) derives a seed from the
+spec's wire form with `rng_seed` excluded. The effective seed is echoed
+as `ComposedResponse.SweepSeed` (`sweep_seed`) and on predict's summary
+as `rng_seed`; pin it to replay a zero-seed run.
+
+An axis never mixes the two styles: a `range` under `grid` / `zip`, a
+`values` list under `random` / `lhs`, or `samples` / `rng_seed` under
+`grid` / `zip` is `PULSE_SWEEP_MODE_MISMATCH`. A bad range (missing
+bound, `min >= max`, unknown `scale`, log with `min <= 0`) is
+`PULSE_SWEEP_RANGE_INVALID`, and a missing or sub-1 `samples` is
+`PULSE_SWEEP_SAMPLES_INVALID`. An item `for_each` walks values only.
+
 ## Placeholders
 
 `{{axis}}` inside a string splices the value as text; `{"$var":
@@ -80,7 +115,8 @@ fails with `PULSE_SWEEP_INVALID`, reason `request_decode`.
 ## Labels
 
 Without `label`, a slot is named by its `axis=value` pairs joined with
-`_`. An authored pattern may use any axis. The body must not set its own
+`_` — under `random` / `lhs` prefixed `sample=<index>_`, so every drawn
+slot is unique. An authored pattern may use any axis. The body must not set its own
 `label`, and a pattern that renders empty is refused. Labels stay unique
 across explicit and sweep slots (`PULSE_COMPOSE_LABEL_COLLISION`).
 Compose overlays name sweep slots by these labels.
@@ -97,8 +133,10 @@ request's own `Overlays`, in expansion order.
 over-limit batch is `PULSE_LIMIT_EXCEEDED` before any slot runs
 ([Tuning Limits](tuning-limits.md)). `PredictCompose` expands too and
 applies the same limit, slot-gate and label checks as the runtime. It
-adds a `sweep` summary to the result: `axes` (name and value count),
-`mode`, `expanded_count` (sweep slots only) and `labels`. A malformed
+adds a `sweep` summary to the result: `axes` (name and value count —
+the `samples` count and the `range` for a sampled axis), `mode`,
+`expanded_count` (sweep slots only; `samples` under random / lhs), the
+effective `rng_seed` of a sampling sweep, and `labels`. A malformed
 sweep is `PULSE_SWEEP_INVALID` with `details.field` and
 `details.reason`.
 

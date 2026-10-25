@@ -2146,7 +2146,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SWEEP_INVALID: {
-		Message: "The ComposedRequest `sweep` block is malformed, so nothing runs — predict refuses it identically. A sweep needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within the sweep, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default) or `zip`, and zip needs every axis the same length. `request` is the slot request as a JSON object with axis placeholders; `overlays`, when set, is a JSON array. A `rank` needs a non-empty `by`, an `order` of `asc` or `desc`, and a `top` of at least 1 when set. Every axis must be named by a `{{axis}}` or `{\"$var\": \"axis\"}` placeholder in the request, the `label` pattern or the overlays, and every placeholder must name an axis. Each substituted request is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the slot under `slot` and its axis `values` — and must not set `label` (the sweep `label` pattern labels each slot, and may not render empty). The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
+		Message: "The ComposedRequest `sweep` block is malformed, so nothing runs — predict refuses it identically. A sweep needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within the sweep, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default), `zip`, `random` or `lhs`, and zip needs every axis the same length (the sampling modes' own rules are PULSE_SWEEP_MODE_MISMATCH / _RANGE_INVALID / _SAMPLES_INVALID). `request` is the slot request as a JSON object with axis placeholders; `overlays`, when set, is a JSON array. A `rank` needs a non-empty `by`, an `order` of `asc` or `desc`, and a `top` of at least 1 when set. Every axis must be named by a `{{axis}}` or `{\"$var\": \"axis\"}` placeholder in the request, the `label` pattern or the overlays, and every placeholder must name an axis. Each substituted request is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the slot under `slot` and its axis `values` — and must not set `label` (the sweep `label` pattern labels each slot, and may not render empty). The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2157,7 +2157,7 @@ var codeMetadata = map[Code]Metadata{
 				Action:   FixupReplaceField,
 				Path:     []string{"sweep", "mode"},
 				Hint:     "Set `mode` to one of the values under `valid`, or drop it for grid.",
-				Examples: []any{"grid", "zip"},
+				Examples: []any{"grid", "zip", "random", "lhs"},
 			},
 			{
 				Action: FixupReplaceField,
@@ -2517,7 +2517,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FOR_EACH_INVALID: {
-		Message: "A `for_each` on a window, feature or attribute item is malformed, so nothing runs — predict refuses it identically. A for_each needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within it, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default) or `zip`, and zip needs every axis the same length. Every axis must be named by a `{{axis}}` (inside a string such as `label` or `field`) or `{\"$var\": \"axis\"}` (a whole value inside `params`) placeholder in the item, and every placeholder must name an axis. Each substituted item is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the combination under `index` and its axis `values`. A for_each inside a compose `sweep` body is refused (reason `nested_in_sweep`): fan the item out with the sweep's own axes, or move it to an explicit request. The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
+		Message: "A `for_each` on a window, feature or attribute item is malformed, so nothing runs — predict refuses it identically. A for_each needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within it, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default) or `zip` — the sampling modes `random` / `lhs` and a `range` axis are compose-`sweep` only (reasons `mode_unknown` / `range_unsupported`) — and zip needs every axis the same length. Every axis must be named by a `{{axis}}` (inside a string such as `label` or `field`) or `{\"$var\": \"axis\"}` (a whole value inside `params`) placeholder in the item, and every placeholder must name an axis. Each substituted item is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the combination under `index` and its axis `values`. A for_each inside a compose `sweep` body is refused (reason `nested_in_sweep`): fan the item out with the sweep's own axes, or move it to an explicit request. The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2570,6 +2570,50 @@ var codeMetadata = map[Code]Metadata{
 						},
 					},
 				}},
+			},
+		},
+	},
+	PULSE_SWEEP_MODE_MISMATCH: {
+		Message: "The ComposedRequest `sweep` mixes enumeration and sampling, so nothing runs — predict refuses it identically. Modes `grid` and `zip` walk each axis's explicit `values` list; modes `random` and `lhs` draw `samples` slots, each axis from a continuous `range` {min, max, scale}. An axis never mixes the two: a `range` axis under grid / zip (reason `range_under_enumeration`), a `values` axis under random / lhs (`values_under_sampling`), or an axis setting both (`values_and_range`) is refused, and so are `samples` / `rng_seed` under grid / zip (`samples_under_enumeration` / `seed_under_enumeration`). The offending path is under `field`, the rule under `reason`, the mode under `mode` and the axis under `axis` where one is involved.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"sweep", "mode"},
+				Hint:     "Use `random` or `lhs` (with `samples`) to sample range axes, or `grid` / `zip` to walk value lists.",
+				Examples: []any{"lhs", "random", "grid"},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"sweep", "axes", "*", "range"},
+				Hint:     "Under random / lhs give every axis a `range` {\"min\", \"max\"} and no `values`; under grid / zip give every axis `values` and no `range`.",
+				Examples: []any{map[string]any{"name": "decay", "range": map[string]any{"min": 0.0, "max": 0.9}}},
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"sweep", "samples"},
+				Hint:   "Drop `samples` and `rng_seed` from a grid / zip sweep — its slot count is the axis product (grid) or the common axis length (zip), and it draws nothing.",
+			},
+		},
+	},
+	PULSE_SWEEP_RANGE_INVALID: {
+		Message: "A sampled sweep axis's `range` cannot be drawn from, so nothing runs — predict refuses it identically. Under mode random / lhs every axis needs a `range` (reason `range_missing`) with finite `min` and `max` (`bound_missing`, `bound_not_finite`), `min < max` (`range_empty`), a `scale` of `linear` (the default) or `log` (`scale_unknown`), and `min > 0` under scale log (`log_min_not_positive`). The offending path is under `field`, the rule under `reason`, the axis under `axis` and the bounds under `min` / `max` where they apply.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"sweep", "axes", "*", "range"},
+				Hint:     "Set finite bounds with `min` below `max`; under `scale: log` make `min` positive (a log-uniform draw needs log min).",
+				Examples: []any{map[string]any{"min": 0.0001, "max": 10.0, "scale": "log"}},
+			},
+		},
+	},
+	PULSE_SWEEP_SAMPLES_INVALID: {
+		Message: "A sampling sweep (mode `random` or `lhs`) has no usable `samples`, so nothing runs — predict refuses it identically. `samples` is the number of slots drawn and must be at least 1 (reason `samples_missing` when absent, `samples_invalid` when below 1). The drawn slots, plus the explicit ones, still count against MaxComposeSlots (default 1000; PULSE_LIMIT_EXCEEDED). The path is under `field`, the rule under `reason`, the mode under `mode` and the value under `value`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"sweep", "samples"},
+				Hint:     "Set `samples` to the number of slots to draw — at least 1, and within MaxComposeSlots together with the explicit requests (raise Options.Limits.MaxComposeSlots deliberately for a larger search).",
+				Examples: []any{64, 256},
 			},
 		},
 	},

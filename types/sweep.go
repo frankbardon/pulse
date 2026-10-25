@@ -15,6 +15,14 @@ import (
 // Requests. Each expanded slot then runs exactly like a hand-written
 // one.
 //
+// The sampling modes (Mode random / lhs) draw Samples slots instead:
+// every axis carries a continuous Range rather than Values, and each
+// slot takes one seeded draw per axis — uniform (log-uniform under
+// scale log) for random, one draw per equal-probability stratum per
+// axis for lhs. The draws are a pure function of the spec and the
+// effective seed (RNGSeed, or one derived from the spec when zero), so
+// predict lists the same slots the runtime runs.
+//
 // It rides as the optional `sweep` slot on ComposedRequest, gated by
 // capability:compose_sweep. A nil spec is absent: the slot is
 // `omitempty`, so a sweep-free request is byte-identical on the wire and
@@ -27,9 +35,22 @@ type SweepSpec struct {
 	// Mode is how the axes combine (SweepMode*). Empty is grid.
 	Mode SweepMode `json:"mode,omitempty"`
 
+	// Samples is the number of slots a sampling mode (random / lhs)
+	// draws, at least 1; required there and refused under grid / zip.
+	// Zero is absent.
+	Samples int `json:"samples,omitempty"`
+
+	// RNGSeed seeds a sampling mode's draws. Zero derives the seed from
+	// the spec's wire form with rng_seed excluded (never the clock), so
+	// the same spec always draws the same slots; the effective seed is
+	// echoed as ComposedResponse.SweepSeed and predict's
+	// SweepSummary.RNGSeed. Refused under grid / zip.
+	RNGSeed int64 `json:"rng_seed,omitempty"`
+
 	// Label is the per-slot label pattern, `{{axis}}` placeholders
 	// substituted per slot. Empty takes the default `<axis>=<value>`
-	// pairs joined by `_`.
+	// pairs joined by `_` — prefixed `sample=<index>_` under a sampling
+	// mode, so every drawn slot's label is unique.
 	Label string `json:"label,omitempty"`
 
 	// Request is the slot request body as raw JSON — the Request shape
@@ -51,15 +72,51 @@ type SweepSpec struct {
 // takes. Values are JSON scalars — a number, string or boolean. Decoded
 // numbers are kept as json.Number so a `{{axis}}` substitution renders
 // them exactly as written; a Go caller may supply any integer or finite
-// float kind, a json.Number, a string or a bool.
+// float kind, a json.Number, a string or a bool. Under a sampling mode
+// (random / lhs) the axis carries a Range instead of Values; each drawn
+// value is a number rendered in its shortest round-trip form.
 type SweepAxis struct {
 	// Name is the placeholder name: an identifier
 	// (`[A-Za-z_][A-Za-z0-9_]*`), unique within the sweep.
 	Name string `json:"name"`
 
 	// Values is the non-empty list of scalar values the axis takes, in
-	// expansion order.
-	Values []any `json:"values"`
+	// expansion order (grid / zip). Absent on a range axis.
+	Values []any `json:"values,omitempty"`
+
+	// Range is the continuous interval a sampling mode (random / lhs)
+	// draws the axis from. Required there, refused under grid / zip.
+	Range *SweepRange `json:"range,omitempty"`
+}
+
+// SweepRange is a sampled sweep axis's closed interval [Min, Max] —
+// draws never leave it: both bounds finite, Min below Max, and Min
+// above zero under Scale log.
+type SweepRange struct {
+	// Min is the lower bound; required.
+	Min *float64 `json:"min"`
+	// Max is the upper bound; required, above Min.
+	Max *float64 `json:"max"`
+	// Scale is how draws spread over the interval (SweepScale*). Empty
+	// is linear.
+	Scale SweepScale `json:"scale,omitempty"`
+}
+
+// SweepScale names how a sampled axis spreads its draws.
+type SweepScale string
+
+const (
+	// SweepScaleLinear draws uniformly on [min, max]. The default.
+	SweepScaleLinear SweepScale = "linear"
+	// SweepScaleLog draws uniformly on [log min, log max] and
+	// exponentiates — log-uniform, for a parameter spanning decades
+	// (a ridge lambda). Needs min > 0.
+	SweepScaleLog SweepScale = "log"
+)
+
+// AllSweepScales returns every SweepScale value.
+func AllSweepScales() []SweepScale {
+	return []SweepScale{SweepScaleLinear, SweepScaleLog}
 }
 
 // UnmarshalJSON decodes the axis keeping every numeric value as a
@@ -90,11 +147,25 @@ const (
 	// SweepModeZip walks the axes in lockstep; every axis must carry the
 	// same number of values.
 	SweepModeZip SweepMode = "zip"
+	// SweepModeRandom draws SweepSpec.Samples slots, each axis value an
+	// independent seeded draw from the axis Range. Compose sweep only;
+	// an item for_each refuses it.
+	SweepModeRandom SweepMode = "random"
+	// SweepModeLHS draws SweepSpec.Samples slots as a Latin hypercube:
+	// each axis Range is cut into Samples equal-probability strata and
+	// every stratum is drawn exactly once per axis, the strata paired
+	// across axes by a seeded permutation. Compose sweep only.
+	SweepModeLHS SweepMode = "lhs"
 )
 
 // AllSweepModes returns every SweepMode value.
 func AllSweepModes() []SweepMode {
-	return []SweepMode{SweepModeGrid, SweepModeZip}
+	return []SweepMode{SweepModeGrid, SweepModeZip, SweepModeRandom, SweepModeLHS}
+}
+
+// Sampled reports whether m is a sampling mode (random or lhs).
+func (m SweepMode) Sampled() bool {
+	return m == SweepModeRandom || m == SweepModeLHS
 }
 
 // SweepRank orders a sweep's finished slots by one number read off each

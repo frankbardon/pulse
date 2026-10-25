@@ -283,6 +283,14 @@ func apiComposeCmd() *cli.Command {
 				if err := writeStreamWarnings(enc, runtimeWarnings(resp)); err != nil {
 					return err
 				}
+				// A sampling sweep (random / lhs) adds one
+				// {"sweep_seed":N} record — the effective seed, so the
+				// streamed run can be replayed.
+				if resp != nil && resp.SweepSeed != nil {
+					if err := encodeFinite(enc, map[string]any{"sweep_seed": *resp.SweepSeed}); err != nil {
+						return err
+					}
+				}
 				// A ranked sweep ends the stream with one
 				// {"ranking":[...]} record, even when every slot was
 				// left out (an empty list).

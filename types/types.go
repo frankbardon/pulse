@@ -2214,6 +2214,14 @@ type ComposedResponse struct {
 	// rank. Gated by capability:compose_sweep with the `sweep` slot.
 	Ranking []RankEntry `json:"ranking,omitempty"`
 
+	// SweepSeed is the effective seed a sampling sweep (mode random /
+	// lhs) drew its slots with — SweepSpec.RNGSeed when pinned, else the
+	// seed derived from the spec — so the run can be replayed by pinning
+	// it. Omitted for a grid / zip sweep and without a sweep. Like
+	// `ranking` it sits outside the Compose-level `return`: always
+	// emitted. Gated by capability:compose_sweep with the `sweep` slot.
+	SweepSeed *int64 `json:"sweep_seed,omitempty"`
+
 	// Fits carries each ComposedRequest.Fits entry's result, keyed by
 	// the fit's name (JSON keys sort by name): a regression fit's
 	// RegressionResult or a vector fit's VectorFitResult (FitResult — a

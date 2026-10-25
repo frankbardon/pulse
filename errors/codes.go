@@ -1433,7 +1433,8 @@ const (
 
 	// PULSE_SWEEP_INVALID indicates a malformed ComposedRequest `sweep`
 	// block: no axes, an axis name that is not a unique identifier, an
-	// empty or non-scalar values list, an unknown mode, unequal axis
+	// empty or non-scalar values list, an unknown mode (grid, zip,
+	// random and lhs are known), unequal axis
 	// lengths under mode zip, a request body that is not a JSON object,
 	// overlays that are not a JSON array, or a malformed rank (empty
 	// `by`, unknown order, top below 1), an axis no placeholder names or
@@ -1467,6 +1468,33 @@ const (
 	// expression stays allowed. Details carry "field" (the sweep-rooted
 	// path), "placeholder" (the token's name) and "slot" (the slot name).
 	PULSE_SWEEP_EXPR_SPLICE Code = "PULSE_SWEEP_EXPR_SPLICE"
+
+	// PULSE_SWEEP_MODE_MISMATCH indicates a ComposedRequest `sweep`
+	// whose axes or knobs do not fit its mode: a `range` axis under grid
+	// or zip, a `values` axis (or one carrying both `values` and
+	// `range`) under random or lhs, or `samples` / `rng_seed` set under
+	// grid or zip. The enumeration modes walk explicit value lists; the
+	// sampling modes draw from ranges — an axis never mixes the two.
+	// Refused identically by predict and the runtime before any slot
+	// runs. Details carry "field", "reason", "mode" and "axis" where one
+	// is involved.
+	PULSE_SWEEP_MODE_MISMATCH Code = "PULSE_SWEEP_MODE_MISMATCH"
+
+	// PULSE_SWEEP_RANGE_INVALID indicates a sampled sweep axis whose
+	// `range` cannot be drawn from: a missing range, a missing or
+	// non-finite `min` / `max`, `min >= max`, an unknown `scale`, or
+	// scale log with `min <= 0`. Refused identically by predict and the
+	// runtime before any slot runs. Details carry "field", "reason",
+	// "axis" and, where they apply, "min" / "max" / "value" / "valid".
+	PULSE_SWEEP_RANGE_INVALID Code = "PULSE_SWEEP_RANGE_INVALID"
+
+	// PULSE_SWEEP_SAMPLES_INVALID indicates a sampling sweep (mode random
+	// or lhs) without a usable `samples`: missing (zero) or below 1.
+	// Refused identically by predict and the runtime before any slot
+	// runs; the expanded count still meets MaxComposeSlots
+	// (PULSE_LIMIT_EXCEEDED) after this check. Details carry "field",
+	// "reason", "mode" and "value".
+	PULSE_SWEEP_SAMPLES_INVALID Code = "PULSE_SWEEP_SAMPLES_INVALID"
 
 	// PULSE_BANNER_INVALID indicates a malformed ComposedRequest
 	// `banner` block: no base request, a base request that sets `label`,
@@ -1679,8 +1707,9 @@ const (
 	// PULSE_FOR_EACH_INVALID indicates a malformed `for_each` on a
 	// window, feature or attribute item: no axes, an axis name that is
 	// not a unique identifier, an empty or non-scalar values list, an
-	// unknown mode, unequal axis lengths under mode zip, an axis no
-	// placeholder in the item names or a placeholder naming no axis,
+	// unknown mode (the sampling modes random / lhs are compose-sweep
+	// only, as is an axis `range` — reason range_unsupported), unequal
+	// axis lengths under mode zip, an axis no placeholder in the item names or a placeholder naming no axis,
 	// placeholder syntax the substitution refuses, a substituted item
 	// that does not decode strictly, or a `for_each` inside a compose
 	// sweep body (which a sweep cannot expand twice). Refused
@@ -4435,6 +4464,9 @@ var allCodes = []Code{
 	PULSE_SWEEP_INVALID,
 	PULSE_SWEEP_RANK_PATH,
 	PULSE_SWEEP_EXPR_SPLICE,
+	PULSE_SWEEP_MODE_MISMATCH,
+	PULSE_SWEEP_RANGE_INVALID,
+	PULSE_SWEEP_SAMPLES_INVALID,
 	PULSE_BANNER_INVALID,
 	PULSE_FIT_INVALID,
 	PULSE_MODEL_NAME_COLLISION,

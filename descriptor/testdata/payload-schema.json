@@ -1074,6 +1074,9 @@
         "returned": {
           "$ref": "#/$defs/ReturnedMarker"
         },
+        "sweep_seed": {
+          "type": "integer"
+        },
         "warnings": {
           "items": {
             "$ref": "#/$defs/ResponseWarning"
@@ -5420,8 +5423,11 @@
         "name": {
           "type": "string"
         },
+        "range": {
+          "$ref": "#/$defs/SweepRange"
+        },
         "values": {
-          "description": "The scalar values the axis takes, in expansion order.",
+          "description": "The scalar values the axis takes, in expansion order (modes grid / zip; a random / lhs axis carries a range instead).",
           "items": {
             "type": [
               "number",
@@ -5434,17 +5440,37 @@
         }
       },
       "required": [
-        "name",
-        "values"
+        "name"
       ],
       "type": "object"
     },
     "SweepMode": {
       "enum": [
         "grid",
+        "lhs",
+        "random",
         "zip"
       ],
       "type": "string"
+    },
+    "SweepRange": {
+      "additionalProperties": false,
+      "properties": {
+        "max": {
+          "type": "number"
+        },
+        "min": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/SweepScale"
+        }
+      },
+      "required": [
+        "max",
+        "min"
+      ],
+      "type": "object"
     },
     "SweepRank": {
       "additionalProperties": false,
@@ -5468,6 +5494,13 @@
       "enum": [
         "asc",
         "desc"
+      ],
+      "type": "string"
+    },
+    "SweepScale": {
+      "enum": [
+        "linear",
+        "log"
       ],
       "type": "string"
     },
@@ -5502,6 +5535,12 @@
         "request": {
           "description": "The slot request body as wire JSON (the #/$defs/Request shape) with axis placeholders: `{{axis}}` inside a string, `{\"$var\": \"axis\"}` as a whole value. Each expanded body is decoded strictly into a Request.",
           "type": "object"
+        },
+        "rng_seed": {
+          "type": "integer"
+        },
+        "samples": {
+          "type": "integer"
         }
       },
       "required": [
@@ -6024,4 +6063,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 8df218bb83467615bd4ada987c9b0b214c2af571dd21470333e608448dd2f67b
+// golden-hash: 4080be70b9fd208ddc53f8173ff00f218c80ca330b2d4727ff4c5392c1f331cc
