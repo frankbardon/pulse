@@ -57,3 +57,18 @@ score brand brand_ms TRUE brand_score_mg wave loadings,intercepts
 score brand brand_mx TRUE brand_score_mx
 score brand brand_xind TRUE brand_score_xind
 score brand brand_ho TRUE brand_score_ho
+# the two-step ordinal sample statistics (lavCor(..., ordered = ...)):
+# thresholds, polychoric, polyserial and Pearson correlations, with an
+# independent re-derivation and lavaan's casewise scores
+# (fit_lavaan_polychoric.R; the edge datasets from
+# gen_polychoric_data.R), and the bivariate-normal CDF reference table
+# (bvn_reference.R)
+twostep() { Rscript "$here/fit_lavaan_polychoric.R" "$here/$1_data.csv" "$2" "$3" "${5:-}" "${6:-}" "${7:-}" > "$here/$4_lavaan.json" 2>/dev/null; }
+q9=q1,q2,q3,v1,v2,v3,s1,s2,s3
+twostep brand "$q9,recommend" "$q9" brand_twostep "" "" 12
+twostep brand "$q9,recommend" "$q9" brand_twostep_mg wave
+twostep poly_extreme a,b,c,d,e,f,x,xr,y a,b,c,d,e,f poly_extreme "" "" 12
+twostep poly_sparse p,q,r p,q,r poly_sparse "" "" 12
+twostep poly_binary x1,x2,x3,x4,x5,x6 x1,x2,x3,x4,x5,x6 poly_binary "" "" 12
+twostep poly_weighted q1,q2,v1,s1,recommend q1,q2,v1,s1 poly_weighted "" w
+Rscript "$here/bvn_reference.R" > "$here/bvn_reference.json"

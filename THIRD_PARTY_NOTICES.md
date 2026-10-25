@@ -48,7 +48,7 @@ OF SUCH DAMAGE.
 
 `internal/detmath` (deterministic transcendental kernels) is a port of the
 pure-Go `exp`, `expm1`, `log`, `log1p`, `sin`, `cos`, `tan`, `trigReduce`,
-`atan`, `atan2`, `pow`, `erf` and `erfinv` sources of the Go 1.26 standard
+`atan`, `atan2`, `asin`, `pow`, `erf` and `erfinv` sources of the Go 1.26 standard
 library (`src/math/`), and of its ziggurat `NormFloat64` / `ExpFloat64` and
 their `kn` / `wn` / `fn` / `ke` / `we` / `fe` tables (`src/math/rand/v2/normal.go`,
 `exp.go`),
@@ -86,3 +86,17 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
+
+## Genz's bivariate normal distribution (MVBVU, MVPHI)
+
+`internal/sem/bvn.go` and the normal CDF in `internal/sem/normal.go` are
+FMA-free Go translations of Alan Genz's `MVBVU` (after Drezner and
+Wesolowsky, *J. Stat. Comput. Simul.* 35 (1989) pp. 101-107, with
+double-precision extensions by Alan Genz and Yihong Ge) and `MVPHI`
+(after Schonfelder, *Math. Comp.* 32 (1978) pp. 1232-1240), including their
+Gauss-Legendre and Chebyshev coefficient tables, from `mvtdstpack.f`,
+<https://www.math.wsu.edu/faculty/genz/software/fort77/mvtdstpack.f>,
+by Alan Genz, Department of Mathematics, Washington State University.
+`internal/sem/normal.go`'s normal quantile implements Wichura's Algorithm
+AS 241 (*Applied Statistics* 37 (1988) pp. 477-484) from its published
+coefficients.
