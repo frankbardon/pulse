@@ -22,6 +22,7 @@ Maximum likelihood treats a 1-5 rating as continuous and normal. With few catego
 
 - `ordered` lists the ordered members by label (a list or one comma-separated string). Every other member is continuous; a continuous member gets polyserial correlations with the ordered ones.
 - Each ordered member's categories are its distinct observed values in ascending order. A value no row holds is no category. Store ratings as integers or floats; a `packed_bool` member needs a vector with `coerce: "binary"`.
+- At most 32 categories per ordered member. More is a continuous measure: the slot fails with `PULSE_MATRIX_TOO_MANY_CATEGORIES`. Fit it as numeric, or recode it.
 - An ordered member must be an indicator or an outcome, never a predictor of something else.
 - Frequency weights are supported. A probability weight is `PULSE_WEIGHT_UNSUPPORTED`.
 
@@ -30,6 +31,7 @@ Maximum likelihood treats a 1-5 rating as continuous and normal. With few catego
 - Stage 1: each ordered member's thresholds, then every pair's polychoric (ordered × ordered), polyserial (ordered × continuous) or Pearson correlation.
 - Stage 2: the model is fitted to those statistics, weighted by the inverse diagonal of their asymptotic covariance (Gamma, built from per-row scores). It uses Fisher scoring under lavaan's conventions, with lavaan's delta parameterization.
 - Gamma needs every row, so the slot keeps its rows and the request runs the buffered path. Predict reports this.
+- Only lavaan's default delta parameterization is fitted. `parameterization: "theta"` is refused (`parameterization_unsupported`).
 
 ## Reading the outputs
 
@@ -43,10 +45,24 @@ Maximum likelihood treats a 1-5 rating as continuous and normal. With few catego
 - A threshold's p joins the matrix's own `multiplicity` family like every free row. Predict counts one threshold per ordered member as a lower bound, or the exact count for a member with a known category count (`packed_bool`).
 <!-- /feature -->
 
+<!-- feature: capability:sem_groups -->
+## Across groups
+
+- With `group`, each level gets its own thresholds, polychorics and Gamma. The categories are the pooled rows', so a category one level lacks fails the slot (`empty_category`, `details.level`).
+- `group_equal: "thresholds"` holds every threshold equal. As in lavaan it also frees, outside the reference level, each ordered member's intercept and its scale factor (row `x ~*~ x`; a binary member's stays 1). Add `"loadings"` for the usual threshold + loading invariance. Add `"intercepts"` to free the latent means instead.
+- `group_partial` frees one threshold: `"x|t2"`. Naming a threshold the data lack fails the slot (`partial_threshold_absent`).
+- Every level's table carries an `x ~*~ x` row per ordered member.
+<!-- /feature -->
+<!-- feature: capability:sem_bootstrap -->
+## Bootstrap
+
+- `resample: "bootstrap"` refits each replicate's own thresholds and polychorics at the full fit's categories. A replicate that loses a category is skipped. Thresholds get bootstrap SEs too. lavaan bootstraps DWLS only; a `wlsmv` bootstrap has the same estimates.
+<!-- /feature -->
+
 ## Refusals
 
 - `bad_params`: an unknown estimator; `ordered` without an ordinal estimator; an ordinal estimator without `ordered`; a duplicate member; a latent, a predictor or a member the model does not read in `ordered`; `solver: "slsqp"`, `information`, `singular` or `meanstructure: false` with an ordinal estimator; a standardizing vector.
-- Not yet supported with an ordinal estimator (`bad_params`):<!-- feature: capability:sem_groups --> `group`,<!-- /feature --><!-- feature: capability:sem_bootstrap --> `resample`,<!-- /feature --> and a Compose `fits` entry (`PULSE_FIT_INVALID`, reason `sem_ordinal`).
+- Not yet supported: a Compose `fits` entry (`PULSE_FIT_INVALID`, reason `sem_ordinal`).
 - On the data, the slot fails alone: a constant ordered member is `PULSE_MATRIX_SINGULAR`; no rows or an empty category is `PULSE_MATRIX_INSUFFICIENT_N`. `details.reason` and `details.variable` say which.
 
 ## See

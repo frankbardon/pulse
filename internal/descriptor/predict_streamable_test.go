@@ -864,6 +864,12 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		{"MAT_SEM wlsmv buffers", semReq(`{"estimator":"wlsmv","ordered":["x1","x2"]}`, nil), semSchema},
 		{"MAT_SEM dwls buffers", semReq(`{"estimator":"dwls","ordered":"x1"}`, nil), semSchema},
 		{"MAT_SEM estimator ml streams", semReq(`{"estimator":"ml"}`, nil), semSchema},
+		// U59 E4-S3: an ordinal fit across groups keeps every level's
+		// rows (its two-step statistics are per level), and an ordinal
+		// bootstrap redraws them — both buffer.
+		{"MAT_SEM grouped wlsmv buffers", semReq(`{"group":"wave","estimator":"wlsmv","ordered":["x1","x2"],"group_equal":"thresholds,loadings"}`, nil), semSchema},
+		{"MAT_SEM wlsmv bootstrap buffers", semReq(`{"estimator":"wlsmv","ordered":["x1","x2"],"resample":"bootstrap","bootstrap_iters":12}`, nil), semSchema},
+		{"MAT_SEM grouped dwls bootstrap buffers", semReq(`{"group":"wave","estimator":"dwls","ordered":"x1,x2","resample":"bootstrap","bootstrap_iters":12}`, nil), semSchema},
 		{"MAT_SEM grouped beside a two-pass attribute buffers", semReq(`{"group":"wave"}`, func(r *types.Request) {
 			r.Attributes = []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "x1", Label: "z"}}
 		}), semSchema},

@@ -34,13 +34,14 @@ examples_tags: [matrix, multivariate]
 <!-- feature: capability:sem_ordinal -->
 | `estimator` | enum | `ml` | `sem-ordinal`. |
 | `ordered` | list | — | — |
+| `parameterization` | enum | `delta` | — |
 <!-- /feature -->
-| `solver` | enum | `slsqp` | `fisher`: to optimum. |
-| `information` | enum | `dense` | `rank2`: faster. |
-| `ftol` | float | 1e-06 | SLSQP. |
+| `solver` | enum | `slsqp` | `fisher`. |
+| `information` | enum | `dense` | — |
+| `ftol` | float | 1e-06 | — |
 | `max_iter` | int | — | — |
-| `grad_tol` | float | 1e-10 | Fisher. |
-| `singular` | enum | `nearest` | `cov_nearest`. |
+| `grad_tol` | float | 1e-10 | — |
+| `singular` | enum | `nearest` | — |
 | `missing` | enum | `listwise` | Listwise only. |
 | `max_drop_share` | 0–1 | — | Warn. |
 | `fit` | string | — | Bound fit. |

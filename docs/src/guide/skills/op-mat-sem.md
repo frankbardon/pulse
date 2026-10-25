@@ -34,12 +34,13 @@ Questions it answers:
 | `ci_level` | float | 0.95 | — |
 | `estimator` | enum | `ml` | [`sem-ordinal`](sem-ordinal.md). |
 | `ordered` | list | — | — |
-| `solver` | enum | `slsqp` | `fisher`: to optimum. |
-| `information` | enum | `dense` | `rank2`: faster. |
-| `ftol` | float | 1e-06 | SLSQP. |
+| `parameterization` | enum | `delta` | — |
+| `solver` | enum | `slsqp` | `fisher`. |
+| `information` | enum | `dense` | — |
+| `ftol` | float | 1e-06 | — |
 | `max_iter` | int | — | — |
-| `grad_tol` | float | 1e-10 | Fisher. |
-| `singular` | enum | `nearest` | `cov_nearest`. |
+| `grad_tol` | float | 1e-10 | — |
+| `singular` | enum | `nearest` | — |
 | `missing` | enum | `listwise` | Listwise only. |
 | `max_drop_share` | 0–1 | — | Warn. |
 | `fit` | string | — | Bound fit. |

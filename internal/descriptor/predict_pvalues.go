@@ -260,25 +260,32 @@ func semPValueRows(m vectors.Matrix) (int, string) {
 			free++
 		}
 	}
-	if m.SEM.Ordinal() {
-		// The threshold rows (`x | tk`) carry p too: the schema's
-		// category bound (an upper bound, basis dictionary), else the
-		// fewest a fitting member has (a lower bound).
-		th, known := m.SEM.ThresholdRowsBound()
-		if known {
+	// An ordinal fit's threshold rows (`x | tk`) carry p too: the
+	// schema's category bound (an upper bound, basis dictionary), else
+	// the fewest a fitting member has (a lower bound).
+	th, known := m.SEM.ThresholdRowsBound()
+	if !m.SEM.Grouped() {
+		switch {
+		case !m.SEM.Ordinal():
+			return free + defs, descriptor.PValueBasisExact
+		case known:
 			return free + th + defs, descriptor.PValueBasisDictionary
 		}
 		return free + th + defs, descriptor.PValueBasisLowerBound
 	}
-	if !m.SEM.Grouped() {
-		return free + defs, descriptor.PValueBasisExact
-	}
 	if len(m.SEM.GroupLevels) < 2 {
-		return free + defs, descriptor.PValueBasisLowerBound
+		return free + th + defs, descriptor.PValueBasisLowerBound
 	}
-	n, err := sem.GroupFreeRows(m.SEM.Model, len(m.SEM.GroupLevels))
+	levels := len(m.SEM.GroupLevels)
+	n, err := sem.GroupFreeRows(m.SEM.Model, levels)
 	if err != nil {
-		return free + defs, descriptor.PValueBasisLowerBound
+		return free + th + defs, descriptor.PValueBasisLowerBound
+	}
+	// Grouped ordinal: every level's thresholds, and each non-reference
+	// level's free scale factors (group_equal thresholds).
+	n += th*levels + m.SEM.FreeScaleRowsBound()*(levels-1)
+	if !known {
+		return n + defs, descriptor.PValueBasisLowerBound
 	}
 	return n + defs, descriptor.PValueBasisDictionary
 }

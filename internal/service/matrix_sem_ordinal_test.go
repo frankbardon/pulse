@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/fs"
 	"github.com/frankbardon/pulse/internal/sem"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -250,9 +251,10 @@ func TestMatrixSEM_OrdinalWorkersBitIdentical(t *testing.T) {
 }
 
 // TestMatrixSEM_OrdinalRefusals: the params an ordinal fit cannot honour
-// are bad_params; a constant ordered member fails the slot with
-// PULSE_MATRIX_SINGULAR (details.reason constant), and a probability
-// weight stays PULSE_WEIGHT_UNSUPPORTED.
+// are bad_params, parameterization "theta" parameterization_unsupported;
+// a constant ordered member fails the slot with PULSE_MATRIX_SINGULAR
+// (details.reason constant), and a probability weight stays
+// PULSE_WEIGHT_UNSUPPORTED.
 func TestMatrixSEM_OrdinalRefusals(t *testing.T) {
 	cfg, cols := semCohort(t, semTestdata+"brand_data.csv", func(r int) float64 { return 1 + 0.5*float64(r%2) }, nil)
 	ordered := []string{"q1", "q2", "q3"}
@@ -271,7 +273,8 @@ func TestMatrixSEM_OrdinalRefusals(t *testing.T) {
 		{"information", map[string]any{"estimator": "dwls", "ordered": ordered, "information": "rank2"}, "information"},
 		{"singular", map[string]any{"estimator": "dwls", "ordered": ordered, "singular": "refuse"}, "singular"},
 		{"meanstructure false", map[string]any{"estimator": "wlsmv", "ordered": ordered, "meanstructure": false}, "meanstructure"},
-		{"bootstrap", map[string]any{"estimator": "wlsmv", "ordered": ordered, "resample": "bootstrap"}, "resample"},
+		{"parameterization without estimator", map[string]any{"parameterization": "delta"}, "parameterization"},
+		{"parameterization unknown", map[string]any{"estimator": "wlsmv", "ordered": ordered, "parameterization": "logit"}, "parameterization"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			_, ce := semProcessErr(t, cfg, ordinalSpec(t, cols, "brand_ord", c.params))
@@ -279,6 +282,10 @@ func TestMatrixSEM_OrdinalRefusals(t *testing.T) {
 				t.Fatalf("err = %v, want bad_params on %s", ce, c.param)
 			}
 		})
+	}
+	_, ce := semProcessErr(t, cfg, ordinalSpec(t, cols, "brand_ord", map[string]any{"estimator": "wlsmv", "ordered": ordered, "parameterization": "theta"}))
+	if ce == nil || ce.Code != errors.SERVICE_VALIDATION || ce.Details["reason"] != "parameterization_unsupported" || ce.Details["param"] != "parameterization" {
+		t.Fatalf("theta: %v (%v), want parameterization_unsupported", ce, detailsOf(ce))
 	}
 	prob := ordinalSpec(t, cols, "brand_ord", map[string]any{"estimator": "wlsmv", "ordered": ordered})
 	prob.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
@@ -291,7 +298,7 @@ func TestMatrixSEM_OrdinalRefusals(t *testing.T) {
 		rows = append(rows, [3]float64{float64(1 + i%3), 2, float64(1 + (i/3)%4)})
 	}
 	flat := semRowsCohort(t, rows)
-	_, ce := semProcessErr(t, flat, types.MatrixSpec{Name: "sem", Type: types.MAT_SEM, Fields: []string{"a", "b", "c"},
+	_, ce = semProcessErr(t, flat, types.MatrixSpec{Name: "sem", Type: types.MAT_SEM, Fields: []string{"a", "b", "c"},
 		Params: json.RawMessage(`{"model":"f =~ a + b + c","estimator":"wlsmv","ordered":["a","b","c"]}`)})
 	if ce == nil || ce.Code != errors.PULSE_MATRIX_SINGULAR || ce.Details["reason"] != sem.ReasonConstant || ce.Details["variable"] != "b" {
 		t.Fatalf("constant member: %v (details %v), want PULSE_MATRIX_SINGULAR reason constant on b", ce, detailsOf(ce))
@@ -303,4 +310,35 @@ func detailsOf(ce *errors.CodedError) map[string]any {
 		return nil
 	}
 	return ce.Details
+}
+
+// TestMatrixSEM_OrdinalTooManyCategories: an ordered member holding more
+// than sem.MaxOrderedCategories distinct values over the slot's rows
+// fails the slot with PULSE_MATRIX_TOO_MANY_CATEGORIES (details
+// variable, categories, limit); one at the ceiling fits, and the same
+// member declared numeric fits too.
+func TestMatrixSEM_OrdinalTooManyCategories(t *testing.T) {
+	build := func(k int) *fs.Config {
+		var rows [][3]float64
+		for i := range 40 * k {
+			c := float64(1 + (i/2)%3)
+			rows = append(rows, [3]float64{float64(i % k), c, float64(1 + (i/3)%4)})
+		}
+		return semRowsCohort(t, rows)
+	}
+	spec := func(ordered string) types.MatrixSpec {
+		return types.MatrixSpec{Name: "sem", Type: types.MAT_SEM, Fields: []string{"a", "b", "c"},
+			Params: json.RawMessage(`{"model":"f =~ a + b + c","estimator":"wlsmv","ordered":` + ordered + `}`)}
+	}
+	_, ce := semProcessErr(t, build(sem.MaxOrderedCategories+1), spec(`["a","b","c"]`))
+	if ce == nil || ce.Code != errors.PULSE_MATRIX_TOO_MANY_CATEGORIES || ce.Details["variable"] != "a" ||
+		ce.Details["categories"] != sem.MaxOrderedCategories+1 || ce.Details["limit"] != sem.MaxOrderedCategories {
+		t.Fatalf("%d categories: %v (%v), want PULSE_MATRIX_TOO_MANY_CATEGORIES on a", sem.MaxOrderedCategories+1, ce, detailsOf(ce))
+	}
+	if _, ce := semProcessErr(t, build(sem.MaxOrderedCategories+1), spec(`["b","c"]`)); ce != nil && ce.Code == errors.PULSE_MATRIX_TOO_MANY_CATEGORIES {
+		t.Fatalf("a numeric member: %v", ce)
+	}
+	if _, ce := semProcessErr(t, build(sem.MaxOrderedCategories), spec(`["a","b","c"]`)); ce != nil && ce.Code == errors.PULSE_MATRIX_TOO_MANY_CATEGORIES {
+		t.Fatalf("%d categories refused: %v", sem.MaxOrderedCategories, ce)
+	}
 }

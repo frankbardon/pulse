@@ -69,10 +69,12 @@ import (
 // bit for bit. params.group fits one joint
 // multi-group model instead (finalizeSEMGroups, matrix_sem_group.go).
 func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
-	if in.Plan().SEM.Grouped() {
+	switch spec := in.Plan().SEM; {
+	case spec.Ordinal() && spec.Grouped():
+		return finalizeSEMOrdinalGroups(in)
+	case spec.Grouped():
 		return finalizeSEMGroups(in)
-	}
-	if in.Plan().SEM.Ordinal() {
+	case spec.Ordinal():
 		return finalizeSEMOrdinal(in)
 	}
 	m := in.slot
@@ -226,15 +228,23 @@ func semModelRows(rows *matrixRows, order []int) []float64 {
 // alone with PULSE_MATRIX_NOT_CONVERGED (details.reason
 // bootstrap_too_few).
 func semBootstrap(in *matrixFinalizeInput, samples []sem.BootstrapSample, rows []sem.Estimate) (*sem.Bootstrap, error) {
+	return semBootstrapWith(in, samples, samples, rows, nil)
+}
+
+// semBootstrapWith is semBootstrap over samples with the rng_seed 0
+// derivation read off seedSamples (the slot's raw rows) and, ord
+// non-nil, every replicate refitted by the ordinal estimator (samples
+// then hold the category codes).
+func semBootstrapWith(in *matrixFinalizeInput, samples, seedSamples []sem.BootstrapSample, rows []sem.Estimate, ord *sem.BootstrapOrdinal) (*sem.Bootstrap, error) {
 	plan := in.Plan()
 	spec := plan.SEM
 	seed := spec.RNGSeed
 	if seed == 0 {
-		seed = semDeriveSeed(in.slot.semSeedSpec, samples, len(spec.Order))
+		seed = semDeriveSeed(in.slot.semSeedSpec, seedSamples, len(spec.Order))
 	}
 	b, err := sem.RunBootstrap(spec.Model, samples, spec.Options, sem.BootstrapOptions{
 		Iters: spec.BootstrapIters, Seed: uint64(seed), Level: spec.CILevel,
-		Standardize: plan.Members.Standardize != "", Ctx: in.slot.ctx,
+		Standardize: plan.Members.Standardize != "", Ctx: in.slot.ctx, Ordinal: ord,
 	}, rows)
 	if stderrors.Is(err, context.Canceled) || stderrors.Is(err, context.DeadlineExceeded) {
 		return nil, err // the request's deadline or cancel, as is

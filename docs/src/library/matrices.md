@@ -597,10 +597,11 @@ labelled row keeps its label's equality instead of its class's. In the
 model, lavaan's per-group modifiers `c(a1, a2)*x` and `c(0.5, NA)*x` set
 a label or a value per level, in level order (a categorical or
 `packed_bool` group field; one entry per level), and `NA*x` frees a
-parameter. An unknown `group_equal` value, `thresholds` (no ordinal
-estimator yet), a `group_partial` row the model lacks, or a modifier
-whose length is not the level count is refused (`SERVICE_VALIDATION`
-`bad_params`, predict alike).
+parameter. An unknown `group_equal` value, `thresholds` under the ML
+estimator (it needs an ordinal one: `estimator: "wlsmv"` with
+`ordered`, the `sem-ordinal` skill), a `group_partial` row the model
+lacks, or a modifier whose length is not the level count is refused
+(`SERVICE_VALIDATION` `bad_params`, predict alike).
 
 The invariance ladder is one slot per step, or a compose sweep over
 `group_equal` — which also reads one comma-separated string, so a sweep

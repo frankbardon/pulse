@@ -10103,7 +10103,7 @@
             "name": "group_equal",
             "type": "list",
             "required": false,
-            "description": "lavaan's group.equal: the parameter classes held equal across the groups — loadings (=~), intercepts (observed ~1), means (latent ~1), residuals (observed variances), residual.covariances, lv.variances, lv.covariances, regressions (~); observed exogenous (fixed.x) moments are never constrained. A list, or one comma-separated string (\"\" none: configural) for a compose sweep axis. As lavaan: a marker loading stays fixed at 1 in every group, a labelled row keeps its label's equality instead, and equal intercepts (without means) free the latent means outside the reference group. thresholds is refused (no ordinal estimator); any other value is bad_params. params.group only; absent: configural.",
+            "description": "lavaan's group.equal: the parameter classes held equal across the groups — loadings (=~), intercepts (observed ~1), means (latent ~1), residuals (observed variances), residual.covariances, lv.variances, lv.covariances, regressions (~); observed exogenous (fixed.x) moments are never constrained. A list, or one comma-separated string (\"\" none: configural) for a compose sweep axis. As lavaan: a marker loading stays fixed at 1 in every group, a labelled row keeps its label's equality instead, and equal intercepts (without means) free the latent means outside the reference group. thresholds (an ordinal estimator only; bad_params under ml) holds every ordered member's thresholds equal and, as lavaan, frees each one's intercept and its x ~*~ x scale factor (not a binary one's) outside the reference group; any other value is bad_params. params.group only; absent: configural.",
             "enum_values": [
               "loadings",
               "intercepts",
@@ -10112,14 +10112,15 @@
               "residual.covariances",
               "lv.variances",
               "lv.covariances",
-              "regressions"
+              "regressions",
+              "thresholds"
             ]
           },
           {
             "name": "group_partial",
             "type": "list",
             "required": false,
-            "description": "lavaan's group.partial: rows freed from group_equal, spelled as lavaan labels them (f=~x2, x1~1, x1~~x2, y~x; spaces ignored) — a freed marker loading is free outside the reference group. A list or one comma-separated string. A row the model lacks is bad_params. params.group only."
+            "description": "lavaan's group.partial: rows freed from group_equal, spelled as lavaan labels them (f=~x2, x1~1, x1~~x2, y~x, an ordered member's threshold x|t2; spaces ignored) — a freed marker loading is free outside the reference group. A list or one comma-separated string. A row the model lacks is bad_params; a threshold the data lack fails the slot with PULSE_MATRIX_INSUFFICIENT_N (partial_threshold_absent). params.group only."
           },
           {
             "name": "resample",
@@ -10156,7 +10157,7 @@
             "type": "enum",
             "required": false,
             "default": "ml",
-            "description": "ml: maximum likelihood on the members' covariance. dwls / wlsmv: lavaan's ordinal estimators over params.ordered — two-step thresholds and polychoric / polyserial correlations, weighted by the diagonal of their asymptotic covariance (Gamma, from casewise scores), in lavaan's delta parameterization (an ordered member's intercept fixed at 0, its residual variance 1 minus its explained part, reported fixed), Fisher scoring under lavaan conventions with lavaan's robust standard errors; one x | tk row per threshold. wlsmv adds the scaled-shifted test (chi2_scaled, chi2_scaled_p_value, scaling_factor, shift_parameter, chi2_baseline_scaled) and the scaled cfi / tli / rmsea; chi2_p_value, loglik, aic and bic are null. Buffers the slot's rows (predict reports it). Refused with group, resample, solver slsqp, information, singular, meanstructure false and a standardizing vector; frequency weights only. Skill sem-ordinal.",
+            "description": "ml: maximum likelihood on the members' covariance. dwls / wlsmv: lavaan's ordinal estimators over params.ordered — two-step thresholds and polychoric / polyserial correlations, weighted by the diagonal of their asymptotic covariance (Gamma, from casewise scores), in lavaan's delta parameterization (an ordered member's intercept fixed at 0, its residual variance 1 minus its explained part, reported fixed), Fisher scoring under lavaan conventions with lavaan's robust standard errors; one x | tk row per threshold. wlsmv adds the scaled-shifted test (chi2_scaled, chi2_scaled_p_value, scaling_factor, shift_parameter, chi2_baseline_scaled) and the scaled cfi / tli / rmsea; chi2_p_value, loglik, aic and bic are null. Buffers the slot's rows (predict reports it). With params.group a multi-group ordinal fit (thresholds per level, group_equal thresholds, an x ~*~ x scale row per ordered member); with resample every replicate refits the two-step statistics at the full fit's coding. Refused with solver slsqp, information, singular, meanstructure false and a standardizing vector; frequency weights only. Skill sem-ordinal.",
             "enum_values": [
               "ml",
               "dwls",
@@ -10167,7 +10168,17 @@
             "name": "ordered",
             "type": "list",
             "required": false,
-            "description": "The ordered members by label (lavaan's ordered =), a list or one comma-separated string: each one's categories are its distinct observed values in ascending order. Required (non-empty) by estimator dwls / wlsmv, refused under ml. A latent, an observed exogenous member or a member the model does not read is bad_params; a constant member fails the slot with PULSE_MATRIX_SINGULAR, an empty category or no data with PULSE_MATRIX_INSUFFICIENT_N (details.reason)."
+            "description": "The ordered members by label (lavaan's ordered =), a list or one comma-separated string: each one's categories are its distinct observed values in ascending order (over every level's rows under params.group). More than 32 fail the slot with PULSE_MATRIX_TOO_MANY_CATEGORIES. Required (non-empty) by estimator dwls / wlsmv, refused under ml. A latent, an observed exogenous member or a member the model does not read is bad_params; a constant member fails the slot with PULSE_MATRIX_SINGULAR, an empty category (in any level: details.level) or no data with PULSE_MATRIX_INSUFFICIENT_N (details.reason)."
+          },
+          {
+            "name": "parameterization",
+            "type": "enum",
+            "required": false,
+            "default": "delta",
+            "description": "lavaan's parameterization of an ordinal fit: delta (scale factors; the only one fitted). theta is SERVICE_VALIDATION parameterization_unsupported; any other value, or the param without an ordinal estimator, is bad_params.",
+            "enum_values": [
+              "delta"
+            ]
           },
           {
             "name": "missing",
@@ -10682,7 +10693,7 @@
         ]
       }
     ],
-    "error_codes_count": 416,
+    "error_codes_count": 417,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10888,6 +10899,7 @@
       "PULSE_MATRIX_PAIRWISE_N_STAR",
       "PULSE_MATRIX_SHAPE_MISMATCH",
       "PULSE_MATRIX_SINGULAR",
+      "PULSE_MATRIX_TOO_MANY_CATEGORIES",
       "PULSE_MATRIX_UNSUPPORTED_SOURCE",
       "PULSE_MATRIX_ZERO_VARIANCE",
       "PULSE_MODEL_FILE_INVALID",
@@ -19895,4 +19907,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d4f4bd2d7f67320178efcee107101b7a5d5f4803fddac7c7e8576eac9845793d
+// golden-hash: ab666c161cbe6f9a8a191c5234fb56a248f70fa048998d0452d1e5d97cd5ba4c

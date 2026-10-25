@@ -576,21 +576,23 @@ const (
 
 // semEstimateRows is a MAT_SEM spec's estimates rows: the model's
 // parameter-table rows (sem.SpecifiedRows: known from the description
-// alone) — per known level when grouped, an upper bound — an ordinal
-// fit's threshold rows (vectors.SEMPlan.ThresholdRowsEstimate), then one
-// per := line (sem.Model.DefinedCount, never per level).
+// alone) plus an ordinal fit's threshold rows
+// (vectors.SEMPlan.ThresholdRowsEstimate) and a grouped one's scale
+// rows (ScaleRows) — per known level when grouped, an upper bound —
+// then one per := line (sem.Model.DefinedCount, never per level).
 func semEstimateRows(m vectors.Matrix) int64 {
 	if m.SEM == nil || m.SEM.Model == nil {
 		return 0
 	}
-	rows := int64(len(sem.SpecifiedRows(m.SEM.Model)))
+	// An ordinal fit's threshold rows: the schema's category bounds,
+	// else vectors.SEMThresholdRowsDefault per ordered member; a grouped
+	// one's `x ~*~ x` rows, one per ordered member.
+	rows := int64(len(sem.SpecifiedRows(m.SEM.Model))) + int64(m.SEM.ThresholdRowsEstimate()) + int64(m.SEM.ScaleRows())
 	if m.SEM.Grouped() {
 		// every level's rows (the levels the schema knows)
 		rows *= int64(max(len(m.SEM.GroupLevels), 1))
 	}
-	// An ordinal fit's threshold rows: the schema's category bounds,
-	// else vectors.SEMThresholdRowsDefault per ordered member.
-	return rows + int64(m.SEM.ThresholdRowsEstimate()) + int64(m.SEM.Model.DefinedCount())
+	return rows + int64(m.SEM.Model.DefinedCount())
 }
 
 func matrixAuxiliaryNodes(m vectors.Matrix, mp descriptor.MatrixPredict, member bool) []*sizeNode {

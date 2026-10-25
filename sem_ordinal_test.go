@@ -117,7 +117,7 @@ func TestSEM_OrdinalRefusalsMatchPredict(t *testing.T) {
 		{"group": nil, "estimator": "wlsmv"},
 		{"group": nil, "ordered": brandOrdered},
 		{"group": nil, "estimator": "probit"},
-		{"estimator": "wlsmv", "ordered": brandOrdered},
+		{"group_equal": "thresholds"},
 		{"group": nil, "estimator": "dwls", "ordered": brandOrdered, "solver": "slsqp"},
 		{"group": nil, "estimator": "dwls", "ordered": []string{"quality"}},
 	} {

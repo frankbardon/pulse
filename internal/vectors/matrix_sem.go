@@ -83,7 +83,10 @@ type SEMPlan struct {
 	Ordered   []string
 	// OrderedLevels is each Ordered member's category-count bound as the
 	// schema knows it — packed_bool's 2, u4's 16 — 0 when unknown (its categories are its observed
-	// values): predict's estimate of the threshold rows.
+	// values): predict's estimate of the threshold rows. Every known
+	// bound sits below sem.MaxOrderedCategories, so the category ceiling
+	// is a data-dependent refusal predict cannot see
+	// (TestSEM_OrderedBoundsBelowCeiling).
 	OrderedLevels []int
 }
 
@@ -166,6 +169,33 @@ func (p *SEMPlan) ThresholdRowsBound() (n int, known bool) {
 		known = false
 	}
 	return n, known
+}
+
+// ScaleRows is a grouped ordinal fit's `x ~*~ x` rows per level — one
+// per ordered member, free or fixed at 1 — and 0 on any other plan.
+func (p *SEMPlan) ScaleRows() int {
+	if !p.Ordinal() || !p.Grouped() {
+		return 0
+	}
+	return len(p.Ordered)
+}
+
+// FreeScaleRowsBound is a grouped ordinal fit's free scale-factor rows
+// per non-reference level: under group_equal "thresholds" one per
+// ordered member the schema bounds above 2 categories (a binary member's
+// Δ stays fixed; an unknown bound counts none — the fewest, a lower
+// bound, like ThresholdRowsBound's), else none.
+func (p *SEMPlan) FreeScaleRowsBound() int {
+	if p.ScaleRows() == 0 || !slices.Contains(p.GroupEqual, sem.GroupEqualThresholds) {
+		return 0
+	}
+	n := 0
+	for i := range p.Ordered {
+		if i < len(p.OrderedLevels) && p.OrderedLevels[i] > 2 {
+			n++
+		}
+	}
+	return n
 }
 
 // Bootstrap reports whether the plan bootstraps its fit.
@@ -312,6 +342,9 @@ type semParams struct {
 	// comma-separated string).
 	Estimator *string  `json:"estimator"`
 	Ordered   *semList `json:"ordered"`
+	// Parameterization is lavaan's parameterization of an ordinal fit:
+	// "delta" (the default, the only one fitted); "theta" is refused.
+	Parameterization *string `json:"parameterization"`
 	missingParams
 }
 
@@ -407,7 +440,7 @@ func SEMFeatureParams() map[string][]string {
 		SEMFeatureGroups:        {"group", "group_reference", "group_equal", "group_partial"},
 		SEMFeatureDefined:       {},
 		SEMFeatureBootstrap:     {"resample", "bootstrap_iters", "rng_seed", "ci_level"},
-		SEMFeatureOrdinal:       {"estimator", "ordered"},
+		SEMFeatureOrdinal:       {"estimator", "ordered", "parameterization"},
 	}
 }
 
@@ -508,14 +541,22 @@ func decodeSEM(at string, p semParams, m *Matrix) *errors.CodedError {
 		}
 		*lp.out = []string(*lp.v)
 	}
+	ordinal := p.Estimator != nil && sem.Estimator(*p.Estimator).Ordinal()
 	for _, v := range plan.GroupEqual {
+		if v == sem.GroupEqualThresholds && ordinal {
+			continue // an ordinal fit's thresholds (sem.FitOrdinalGroups)
+		}
 		if !slices.Contains(sem.GroupEqualValues(), v) {
 			msg := at + " params.group_equal " + strconv.Quote(v) + " is not a lavaan group.equal value"
-			if v == "thresholds" {
+			valid := sem.GroupEqualValues()
+			if v == sem.GroupEqualThresholds {
 				msg = at + ` params.group_equal "thresholds" needs an ordinal estimator; the ML fit has no thresholds`
 			}
+			if ordinal {
+				valid = append(valid, sem.GroupEqualThresholds)
+			}
 			return matrixInvalid(at, "bad_params", msg,
-				map[string]any{"param": "group_equal", "value": v, "valid": sem.GroupEqualValues()})
+				map[string]any{"param": "group_equal", "value": v, "valid": valid})
 		}
 	}
 	if p.GroupReference != nil {
@@ -607,8 +648,11 @@ func decodeSEM(at string, p semParams, m *Matrix) *errors.CodedError {
 // the knobs an ordinal fit has no use for — solver "slsqp" (it runs
 // Fisher scoring), information, singular (the two-step statistics are
 // no covariance to substitute), meanstructure false (it always models
-// the thresholds), a multi-group fit or a bootstrap (not yet) — are
-// bad_params, never ignored.
+// the thresholds), parameterization without an ordinal estimator — are
+// bad_params, never ignored; parameterization "theta" is
+// parameterization_unsupported. A multi-group fit (params.group,
+// group_equal "thresholds") and a bootstrap (params.resample) are
+// lavaan's under the ordinal estimators too.
 func decodeSEMOrdinal(at string, p semParams, plan *SEMPlan) *errors.CodedError {
 	plan.Estimator = sem.EstimatorML
 	if p.Estimator != nil {
@@ -626,7 +670,22 @@ func decodeSEMOrdinal(at string, p semParams, plan *SEMPlan) *errors.CodedError 
 			return matrixInvalid(at, "bad_params", at+` params.ordered names ordered members, but the ML fit treats every member as continuous; add estimator "wlsmv" (or "dwls"), or drop ordered`,
 				map[string]any{"param": "ordered", "estimator": string(plan.Estimator), "value": plan.Ordered})
 		}
+		if p.Parameterization != nil {
+			return matrixInvalid(at, "bad_params", at+` params.parameterization applies with an ordinal estimator (estimator "dwls" or "wlsmv") only; drop it`,
+				map[string]any{"param": "parameterization", "value": *p.Parameterization, "estimator": string(plan.Estimator)})
+		}
 		return nil
+	}
+	if p.Parameterization != nil {
+		switch v := *p.Parameterization; v {
+		case SEMParameterizationDelta:
+		case SEMParameterizationTheta:
+			return matrixInvalid(at, "parameterization_unsupported", at+` params.parameterization "theta" (lavaan's residual-variance parameterization) is not supported; the ordinal fit uses the delta parameterization — drop parameterization or set "delta"`,
+				map[string]any{"param": "parameterization", "value": v, "valid": SEMParameterizations()})
+		default:
+			return matrixInvalid(at, "bad_params", at+` params.parameterization must be "delta"`,
+				map[string]any{"param": "parameterization", "value": v, "valid": SEMParameterizations()})
+		}
 	}
 	if len(plan.Ordered) == 0 {
 		return matrixInvalid(at, "bad_params", at+" params.estimator "+strconv.Quote(string(plan.Estimator))+" fits ordered members; name them in params.ordered (the members' labels)",
@@ -653,13 +712,20 @@ func decodeSEMOrdinal(at string, p semParams, plan *SEMPlan) *errors.CodedError 
 		return refuse("singular", *p.Singular, "applies to the ML fit's covariance only; drop singular")
 	case p.MeanStructure != nil && !*p.MeanStructure:
 		return refuse("meanstructure", false, "is false, but an ordinal fit always models the thresholds and means; drop meanstructure")
-	case p.Group != nil:
-		return refuse("group", *p.Group, "with an ordinal estimator is not supported yet; fit each group alone or use the ML estimator")
-	case plan.Bootstrap():
-		return refuse("resample", plan.Resample, "with an ordinal estimator is not supported yet; drop resample (the robust standard errors are analytic)")
 	}
 	return nil
 }
+
+// MAT_SEM's params.parameterization values (an ordinal fit): lavaan's
+// delta parameterization (the default, the scale factors Δ) — theta
+// (the residual variances) is refused (parameterization_unsupported).
+const (
+	SEMParameterizationDelta = "delta"
+	SEMParameterizationTheta = "theta"
+)
+
+// SEMParameterizations are the accepted params.parameterization values.
+func SEMParameterizations() []string { return []string{SEMParameterizationDelta} }
 
 // resolveSEMOrdinal judges an ordinal plan once its members and the
 // schema are known (nil schema: the bounds stay unknown): a vector

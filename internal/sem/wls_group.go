@@ -147,9 +147,9 @@ func FitOrdinalGroups(model *Model, groups []OrdinalGroup, est Estimator, opt Op
 	return fitOrdinalGroups(model, groups, est, opt, false)
 }
 
-func fitOrdinalGroups(model *Model, groups []OrdinalGroup, est Estimator, opt Options, pointOnly bool) (*GroupFit, error) {
-	if len(groups) < 2 {
-		return nil, errors.New("a multi-group fit needs at least two groups")
+func fitOrdinalGroups(model *Model, gs []OrdinalGroup, est Estimator, opt Options, pointOnly bool) (*GroupFit, error) {
+	if len(gs) < 2 {
+		return nil, errors.New("a multi-group fit needs at least two gs")
 	}
 	if !model.MeanStructure || !model.lavaan || !model.opt.grouped {
 		return nil, errors.New("a multi-group model is specified by NewGroupModel")
@@ -158,9 +158,9 @@ func fitOrdinalGroups(model *Model, groups []OrdinalGroup, est Estimator, opt Op
 	if err != nil {
 		return nil, err
 	}
-	ref, levels := 0, make([]int, len(groups))
+	ref, levels := 0, make([]int, len(gs))
 	seenRef, seenLevel := false, map[int]bool{}
-	for g, gr := range groups {
+	for g, gr := range gs {
 		levels[g] = g
 		if model.arity > 0 {
 			if gr.Level < 0 || gr.Level >= model.arity || seenLevel[gr.Level] {
@@ -174,11 +174,11 @@ func fitOrdinalGroups(model *Model, groups []OrdinalGroup, est Estimator, opt Op
 			}
 			ref, seenRef = g, true
 		}
-		if len(gr.In.Levels) != len(groups[0].In.Levels) || len(gr.In.Kinds) != len(groups[0].In.Kinds) {
+		if len(gr.In.Levels) != len(gs[0].In.Levels) || len(gr.In.Kinds) != len(gs[0].In.Kinds) {
 			return nil, fmt.Errorf("group %q: its columns differ from the first group's", gr.Label)
 		}
 		for v := range gr.In.Levels {
-			if gr.In.Kinds[v] != groups[0].In.Kinds[v] || (gr.In.Kinds[v] == KindOrdered && gr.In.Levels[v] != groups[0].In.Levels[v]) {
+			if gr.In.Kinds[v] != gs[0].In.Kinds[v] || (gr.In.Kinds[v] == KindOrdered && gr.In.Levels[v] != gs[0].In.Levels[v]) {
 				return nil, fmt.Errorf("group %q: column %d's coding differs from the first group's; every group shares the pooled categories", gr.Label, v)
 			}
 		}
@@ -187,13 +187,13 @@ func fitOrdinalGroups(model *Model, groups []OrdinalGroup, est Estimator, opt Op
 	if err != nil {
 		return nil, err
 	}
-	if err := checkPartialThresholds(model, groups[0].In); err != nil {
+	if err := checkPartialThresholds(model, gs[0].In); err != nil {
 		return nil, err
 	}
-	j := &jointWLS{c: make([]float64, len(groups)), idx: make([][]int, len(groups)), xg: make([][]float64, len(groups))}
-	parts := make([]*wlsPart, len(groups))
+	j := &jointWLS{c: make([]float64, len(gs)), idx: make([][]int, len(gs)), xg: make([][]float64, len(gs))}
+	parts := make([]*wlsPart, len(gs))
 	total := 0.0
-	for g, gr := range groups {
+	for g, gr := range gs {
 		p, err := newWLSPart(models[g], gr.In, g)
 		if err != nil {
 			return nil, err
@@ -254,8 +254,8 @@ func fitOrdinalGroups(model *Model, groups []OrdinalGroup, est Estimator, opt Op
 	}
 	j.split(x)
 	gf := &GroupFit{N: total, Objective: f, Iterations: iters, Converged: conv, Status: status, Options: opt, theta: x}
-	ests := make([][]float64, len(groups))
-	deltas := make([][][]float64, len(groups))
+	ests := make([][]float64, len(gs))
+	deltas := make([][][]float64, len(gs))
 	for g, ws := range j.parts {
 		xg := append([]float64(nil), j.xg[g]...)
 		e, _, _, _ := ws.est(xg)
@@ -302,7 +302,7 @@ func fitOrdinalGroups(model *Model, groups []OrdinalGroup, est Estimator, opt Op
 				Delta: deltas[g], FreeKeys: ws.freeKeys(), Joint: append([]int(nil), j.idx[g]...)}
 		}
 		gf.Groups = append(gf.Groups, fit)
-		gf.Labels = append(gf.Labels, groups[g].Label)
+		gf.Labels = append(gf.Labels, gs[g].Label)
 		gf.Chi2Group = append(gf.Chi2Group, (n-1)*ws.objective(xg))
 	}
 	if len(model.defined) > 0 {

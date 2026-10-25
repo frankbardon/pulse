@@ -243,16 +243,38 @@ func finalizeSEMGroups(in *matrixFinalizeInput) (matrixOutput, error) {
 			samples[g] = sem.BootstrapSample{Rows: semModelRows(gs.rows[c], spec.Order),
 				Label: moments[g].Label, Level: moments[g].Level, Reference: moments[g].Reference}
 		}
-		rows := sem.BootstrapGroupRows(fit)
-		if boot, err = semBootstrap(in, samples, rows); err != nil {
+		if boot, err = semGroupBootstrap(in, fit, samples, samples, nil); err != nil {
 			return matrixOutput{}, err
 		}
-		at := 0
-		for _, gf := range fit.Groups {
-			at += copy(gf.Estimates, rows[at:])
-		}
-		copy(fit.Defined, rows[at:])
 	}
+	semGroupOutputs(in, &out, fit, labels, ref, boot)
+	return out, nil
+}
+
+// semGroupBootstrap bootstraps a grouped fit (semBootstrapWith over its
+// table rows, BootstrapGroupRows) and writes the figures back into
+// every group's estimates and the := rows.
+func semGroupBootstrap(in *matrixFinalizeInput, fit *sem.GroupFit, samples, seedSamples []sem.BootstrapSample, ord *sem.BootstrapOrdinal) (*sem.Bootstrap, error) {
+	rows := sem.BootstrapGroupRows(fit)
+	boot, err := semBootstrapWith(in, samples, seedSamples, rows, ord)
+	if err != nil {
+		return nil, err
+	}
+	at := 0
+	for _, gf := range fit.Groups {
+		at += copy(gf.Estimates, rows[at:])
+	}
+	copy(fit.Defined, rows[at:])
+	return boot, nil
+}
+
+// semGroupOutputs writes a grouped fit's parts into out: the primary
+// (the reference level's implied covariance), the auxiliaries
+// (semGroupAuxiliary), the vectors (parameter, free, group, label) and
+// the scalars (the joint statistics, per-level chi2_group_ / n_group_,
+// the bootstrap's counts).
+func semGroupOutputs(in *matrixFinalizeInput, out *matrixOutput, fit *sem.GroupFit, labels []string, ref int, boot *sem.Bootstrap) {
+	spec := in.Plan().SEM
 	pos := make([]int, len(spec.Order))
 	for a, i := range spec.Order {
 		pos[i] = a
@@ -302,7 +324,6 @@ func finalizeSEMGroups(in *matrixFinalizeInput) (matrixOutput, error) {
 		semBootstrapScalars(sc, boot)
 		out.Scalars = sc
 	}
-	return out, nil
 }
 
 // semGroupEstimateKey is a grouped fit's estimate row key: "[level] "

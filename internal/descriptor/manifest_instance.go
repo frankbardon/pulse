@@ -248,7 +248,7 @@ var semProseTokens = map[string][]string{
 	// "estimator" and "ordered" are everyday words (and other operators'
 	// keys); the estimators' names and the scaled-test scalars name the
 	// ordinal surface alone.
-	featSEMOrdinal: {"dwls", "wlsmv", "DWLS", "WLSMV", "chi2_scaled", "chi2_scaled_p_value", "scaling_factor",
+	featSEMOrdinal: {"dwls", "wlsmv", "DWLS", "WLSMV", "PULSE_MATRIX_TOO_MANY_CATEGORIES", "chi2_scaled", "chi2_scaled_p_value", "scaling_factor",
 		"shift_parameter", "chi2_baseline_scaled", "cfi_scaled", "tli_scaled", "rmsea_scaled"},
 }
 

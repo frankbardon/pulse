@@ -3869,6 +3869,15 @@ const (
 	// "matrix" and "defined" (the names, in model order).
 	PULSE_MATRIX_DEFINED_NONFINITE Code = "PULSE_MATRIX_DEFINED_NONFINITE"
 
+	// PULSE_MATRIX_TOO_MANY_CATEGORIES indicates a MAT_SEM ordinal fit
+	// (params.estimator "dwls" / "wlsmv") whose ordered member holds
+	// more than 32 distinct values (sem.MaxOrderedCategories) over the
+	// slot's rows: one threshold per category boundary and an
+	// asymptotic covariance of matching size, so a continuous measure
+	// declared ordered is refused, never fitted. The slot fails alone.
+	// Details carry "matrix", "variable", "categories" and "limit".
+	PULSE_MATRIX_TOO_MANY_CATEGORIES Code = "PULSE_MATRIX_TOO_MANY_CATEGORIES"
+
 	// PULSE_RETURN_INVALID indicates a `return` block that cannot be
 	// read: an unknown preset, a precision outside 1–17, or a malformed
 	// include / exclude path (an empty segment, `*` anywhere but the end
@@ -4589,6 +4598,7 @@ var allCodes = []Code{
 	PULSE_MATRIX_PAIRWISE_N_STAR,
 	PULSE_MATRIX_NEAREST_PD,
 	PULSE_MATRIX_DEFINED_NONFINITE,
+	PULSE_MATRIX_TOO_MANY_CATEGORIES,
 	PULSE_RETURN_INVALID,
 	PULSE_RETURN_PATH_UNKNOWN,
 	PULSE_RETURN_PATH_UNMATCHED,

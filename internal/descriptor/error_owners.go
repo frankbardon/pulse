@@ -675,6 +675,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_MATRIX_NEAREST_PD: own("MAT_SEM", "ATTR_SEM_SCORE"),
 	// A MAT_SEM := line undefined at the estimate (its row nulled).
 	errors.PULSE_MATRIX_DEFINED_NONFINITE: own(featSEMDefined),
+	// A MAT_SEM ordinal fit's ordered member past the category ceiling.
+	errors.PULSE_MATRIX_TOO_MANY_CATEGORIES: own(featSEMOrdinal),
 
 	// Response shaping: `return` is a plain request slot, not a feature.
 	errors.PULSE_RETURN_INVALID:        shared,

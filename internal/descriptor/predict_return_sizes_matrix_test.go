@@ -432,3 +432,35 @@ func TestMatrixAuxiliaryNodes_SEMMultiplicityTwins(t *testing.T) {
 		}
 	}
 }
+
+// TestMatrixAuxiliaryNodes_SEMOrdinalGrouped: a grouped ordinal MAT_SEM
+// sizes every level's parameter-table rows, thresholds and `x ~*~ x`
+// scale rows. Four packed_bool members (one threshold each) over a
+// two-level wave: 22 rows per level, the 44 the runtime emits
+// (pulse_test TestSEM_OrdinalGroupsPValuesMatchPredict, packed_bool).
+func TestMatrixAuxiliaryNodes_SEMOrdinalGrouped(t *testing.T) {
+	fields := []encoding.Field{{Name: "wave", Type: encoding.FieldTypeCategoricalU8, Dictionary: makeDictionary(t, "1", "2")}}
+	items := []string{"b1", "b2", "b3", "b4"}
+	for _, b := range items {
+		fields = append(fields, encoding.Field{Name: b, Type: encoding.FieldTypePackedBool})
+	}
+	schema := &encoding.Schema{Fields: fields}
+	spec := auxSpec(types.MAT_SEM, nil, `{"model": "f =~ b1 + b2 + b3 + b4", "estimator": "wlsmv", "ordered": ["b1", "b2", "b3", "b4"], "group": "wave", "group_equal": ["thresholds", "loadings"]}`)
+	spec.Vector = "items"
+	req := &types.Request{Vectors: []types.VectorSpec{{Name: "items", Fields: items, Coerce: types.VectorCoerceBinary}},
+		Matrices: []types.MatrixSpec{spec}}
+	result := &descriptor.PredictResult{}
+	plans := predictMatrices(result, req, schema, nil, nil, -1, 0, -1)
+	if len(plans) != 1 || len(result.Matrices) != 1 {
+		t.Fatalf("resolve: %d plans, %d results %+v", len(plans), len(result.Matrices), result.Errors)
+	}
+	for _, n := range matrixAuxiliaryNodes(plans[0], result.Matrices[0], false) {
+		if n.seg.Name == "estimates" {
+			if rows := n.kids[2].kids[0].count; rows != 44 {
+				t.Errorf("estimates rows %d, want 44", rows)
+			}
+			return
+		}
+	}
+	t.Fatal("no estimates node")
+}

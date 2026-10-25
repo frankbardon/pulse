@@ -4902,6 +4902,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_MATRIX_TOO_MANY_CATEGORIES: {
+		Message: "A structural equation model fitted by an ordinal estimator (params.estimator \"dwls\" or \"wlsmv\") declares a member ordered whose rows hold more than 32 distinct values — one threshold per category boundary, and an asymptotic covariance growing with them — so the member is a continuous measure, not a rating scale, and the slot fails alone. Details carry `matrix`, `variable`, `categories` (its distinct values) and `limit` (32).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"matrices", "*", "params", "ordered"},
+				Hint:   "Drop the member from params.ordered so it enters as a numeric variable (polyserial / Pearson correlations), or recode it into at most 32 ordered categories before the fit.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"matrices", "*", "params", "estimator"},
+				Hint:   "Fit every member as continuous with the default \"ml\" estimator (drop estimator and ordered).",
+			},
+		},
+	},
 	PULSE_MATRIX_PAIRWISE_N_STAR: {
 		Message: "An inferential figure over a pairwise matrix needs one sample size, but under pairwise deletion every cell rests on its own rows, so the figure uses the smallest pair's inference size (pair N unweighted, pair sum of weights under frequency weights, scaled to Kish n_eff under probability weights) — the conservative choice: Bartlett's sphericity test, and a factor analysis's empirical chi-square and maximum-likelihood fit figures. Details carry `matrix`, `outputs`, `n_star` and the pair as `row` / `col`.",
 		Fixups: []Fixup{
