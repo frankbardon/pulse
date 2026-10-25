@@ -1065,7 +1065,7 @@ Ships in the next alpha. `format_version` stays `"1.1"`; no `.pulse` byte-layout
 
 ## Changes from U58 (expression maths, lags and params)
 
-Ships in the next alpha. `format_version` stays `"1.1"`; no `.pulse` byte-layout change; one additive payload slot, `params`, on `Request`, `ComposedRequest` and `ChainRequest`.
+Shipped in `v1.0.0-alpha.26`. `format_version` stays `"1.1"`; no `.pulse` byte-layout change; one additive payload slot, `params`, on `Request`, `ComposedRequest` and `ChainRequest`.
 
 | Old | New | Kind | How to adapt | Unit |
 |---|---|---|---|---|
@@ -1086,7 +1086,7 @@ Ships in the next alpha. `format_version` stays `"1.1"`; no `.pulse` byte-layout
 
 ## Changes from U59 (SEM extensions)
 
-Ships in the next alpha. `format_version` stays `"1.1"`; no `.pulse` byte-layout change. M1 (mean structure, multi-group, invariance), M3 (`:=` defined parameters, the bootstrap, the interval level), M2 (`ATTR_SEM_SCORE`, the `sem` fit kind, saved SEM fit files) and M4 (the ordinal DWLS / WLSMV estimator and EBM scores) are below. A `MAT_SEM` slot that uses none of the new features (a single-group covariance-only model) is byte-identical: semopy's conventions, figures and columns are unchanged.
+Shipped in `v1.0.0-alpha.26`. `format_version` stays `"1.1"`; no `.pulse` byte-layout change. M1 (mean structure, multi-group, invariance), M3 (`:=` defined parameters, the bootstrap, the interval level), M2 (`ATTR_SEM_SCORE`, the `sem` fit kind, saved SEM fit files) and M4 (the ordinal DWLS / WLSMV estimator and EBM scores) are below. A `MAT_SEM` slot that uses none of the new features (a single-group covariance-only model) is byte-identical: semopy's conventions, figures and columns are unchanged.
 
 | Old | New | Kind | How to adapt | Unit |
 |---|---|---|---|---|

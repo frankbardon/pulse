@@ -29,7 +29,7 @@ This unit extends `MAT_SEM` in four slices, each validated against lavaan (0.7.3
 - **M2 (E3, done):** `ATTR_SEM_SCORE`, the compose `sem` fit kind and saved `*.pulse-sem.json` fits.
 - **M4 (E4, done):** DWLS / WLSMV with polychoric and polyserial correlations for ordered indicators, ordinal multi-group and bootstrap, and EBM scores.
 
-Status: every story is implemented on branch `sem-extensions`; the unit flips to `done` when its PR merges, and ships in `v1.0.0-alpha.24` (pre-release).
+Status: merged in PR #384 (9241affb); shipped in `v1.0.0-alpha.26` (pre-release, with U58).
 
 ## References
 
@@ -155,7 +155,7 @@ Every FR of the effort PRD, with where it landed. None is deferred.
 
 None. `bootstrap_iters` stays without an `Options.Limits` cap, matching a regression's `resample` (owner decision, E2-S3); a cap for both is a new limit, not a SEM change. The non-goals in Scope (FIML, theta, `.robust` indices, other estimators, modification indices, an invariance-ladder helper) are out of scope by decision, not deferred.
 
-## Release notes (v1.0.0-alpha.24)
+## Release notes (v1.0.0-alpha.26)
 
 Draft from the migration table; behaviour changes first.
 
@@ -165,4 +165,4 @@ Draft from the migration table; behaviour changes first.
 
 ## Human inputs & decisions
 
-- [x] Decided in the effort interview: lavaan is the oracle for every new feature, the legacy semopy path stays byte-identical, M4 ships last so a slip never blocks M1–M3, release `v1.0.0-alpha.24` (pre-release).
+- [x] Decided in the effort interview: lavaan is the oracle for every new feature, the legacy semopy path stays byte-identical, M4 ships last so a slip never blocks M1–M3, release `v1.0.0-alpha.24` (pre-release); alpha.24 and alpha.25 were cut before merge, so it shipped as `v1.0.0-alpha.26`.
