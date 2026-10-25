@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:532f1426ad79f926d20bddb48bf1042911f925eab250075167fc5bda4ca68c3f",
+    "feature_set_digest": "fs1:8534749f9cc37ab1ac446274bb3e3f73122720757184a52f3e0f43d97f257117",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -10152,6 +10152,24 @@
             "description": "The interval level, strictly between 0 and 1 (lavaan's level): the Wald ci_lower / ci_upper of every lavaan-convention fit and, under params.resample bootstrap, the percentile interval. Refused (bad_params) on a semopy-convention fit, which reports no interval."
           },
           {
+            "name": "estimator",
+            "type": "enum",
+            "required": false,
+            "default": "ml",
+            "description": "ml: maximum likelihood on the members' covariance. dwls / wlsmv: lavaan's ordinal estimators over params.ordered — two-step thresholds and polychoric / polyserial correlations, weighted by the diagonal of their asymptotic covariance (Gamma, from casewise scores), in lavaan's delta parameterization (an ordered member's intercept fixed at 0, its residual variance 1 minus its explained part, reported fixed), Fisher scoring under lavaan conventions with lavaan's robust standard errors; one x | tk row per threshold. wlsmv adds the scaled-shifted test (chi2_scaled, chi2_scaled_p_value, scaling_factor, shift_parameter, chi2_baseline_scaled) and the scaled cfi / tli / rmsea; chi2_p_value, loglik, aic and bic are null. Buffers the slot's rows (predict reports it). Refused with group, resample, solver slsqp, information, singular, meanstructure false and a standardizing vector; frequency weights only. Skill sem-ordinal.",
+            "enum_values": [
+              "ml",
+              "dwls",
+              "wlsmv"
+            ]
+          },
+          {
+            "name": "ordered",
+            "type": "list",
+            "required": false,
+            "description": "The ordered members by label (lavaan's ordered =), a list or one comma-separated string: each one's categories are its distinct observed values in ascending order. Required (non-empty) by estimator dwls / wlsmv, refused under ml. A latent, an observed exogenous member or a member the model does not read is bad_params; a constant member fails the slot with PULSE_MATRIX_SINGULAR, an empty category or no data with PULSE_MATRIX_INSUFFICIENT_N (details.reason)."
+          },
+          {
             "name": "missing",
             "type": "enum",
             "required": false,
@@ -10199,10 +10217,14 @@
             "bootstrap_requested",
             "bootstrap_succeeded",
             "cfi",
+            "cfi_scaled",
             "chi2",
             "chi2_baseline",
+            "chi2_baseline_scaled",
             "chi2_group_\u003clevel\u003e",
             "chi2_p_value",
+            "chi2_scaled",
+            "chi2_scaled_p_value",
             "converged",
             "dof",
             "dof_baseline",
@@ -10215,7 +10237,11 @@
             "nfi",
             "objective",
             "rmsea",
-            "tli"
+            "rmsea_scaled",
+            "scaling_factor",
+            "shift_parameter",
+            "tli",
+            "tli_scaled"
           ]
         },
         "streamable": true,
@@ -13571,6 +13597,10 @@
       {
         "name": "sem-modeling",
         "description": "Structural equation modelling with MAT_SEM — which convention a fit follows (semopy's covariance-only default or lavaan's) and how to read the outputs. The meanstructure param and the ~ 1 syntax for intercepts and latent means. Multi-group fits and the invariance ladder (group_equal, group_partial, c(...) modifiers)."
+      },
+      {
+        "name": "sem-ordinal",
+        "description": "Ordinal structural equation models on MAT_SEM — lavaan's DWLS and WLSMV estimators over polychoric and polyserial correlations, for rating-scale, Likert and binary items. When to prefer them over maximum likelihood, how to declare the ordered members, how the threshold rows and the scaled test read, and what is refused."
       },
       {
         "name": "session-bootstrap",
@@ -19865,4 +19895,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 6a3999bf9b133262dd3dcc478617cea2a63726e0aa4a193657de9c265727b16c
+// golden-hash: d4f4bd2d7f67320178efcee107101b7a5d5f4803fddac7c7e8576eac9845793d

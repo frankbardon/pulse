@@ -304,6 +304,7 @@
     - [sem-defined-parameters](skills/sem-defined-parameters.md)
     - [sem-fits](skills/sem-fits.md)
     - [sem-modeling](skills/sem-modeling.md)
+    - [sem-ordinal](skills/sem-ordinal.md)
     - [session-bootstrap](skills/session-bootstrap.md)
     - [session-format-flags](skills/session-format-flags.md)
     - [session-skill-routing](skills/session-skill-routing.md)

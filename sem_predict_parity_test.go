@@ -207,8 +207,9 @@ func TestSEM_HiddenSurfacesRefuseLikeUnknown(t *testing.T) {
 			t.Fatalf("a made-up key: %v", unknownErr)
 		}
 		unknownDetails, _ := json.Marshal(unknown.Details)
-		// capability:sem_bootstrap is never enabled here either.
-		hiddenKeys := []string{"group", "group_reference", "group_equal", "group_partial", "resample", "bootstrap_iters", "rng_seed", "ci_level"}
+		// capability:sem_bootstrap and capability:sem_ordinal are never
+		// enabled here either.
+		hiddenKeys := []string{"group", "group_reference", "group_equal", "group_partial", "resample", "bootstrap_iters", "rng_seed", "ci_level", "estimator", "ordered"}
 		if !means {
 			hiddenKeys = append(hiddenKeys, "meanstructure")
 		}
@@ -224,6 +225,10 @@ func TestSEM_HiddenSurfacesRefuseLikeUnknown(t *testing.T) {
 					v = 10
 				case "ci_level":
 					v = 0.9
+				case "estimator":
+					v = "wlsmv"
+				case "ordered":
+					v = []string{"q1"}
 				}
 				req := func() *types.Request {
 					return semGroupRequest(t, "brand_mgmis", map[string]any{"group": nil, k: v})
@@ -336,7 +341,7 @@ func TestSEM_HiddenSurfacesLeaveTheManifest(t *testing.T) {
 	}
 	full, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	fm := entry(full)
-	for _, k := range []string{"meanstructure", "group", "group_reference", "group_equal", "group_partial", "resample", "bootstrap_iters", "rng_seed", "ci_level"} {
+	for _, k := range []string{"meanstructure", "group", "group_reference", "group_equal", "group_partial", "resample", "bootstrap_iters", "rng_seed", "ci_level", "estimator", "ordered"} {
 		if !slices.Contains(params(fm), k) {
 			t.Errorf("default manifest lacks params.%s", k)
 		}
@@ -350,6 +355,10 @@ func TestSEM_HiddenSurfacesLeaveTheManifest(t *testing.T) {
 			"resample", "bootstrap_iters", "rng_seed", "ci_level", "bootstrap_requested", "bootstrap_succeeded"}, []string{"meanstructure", "model"}},
 		{false, []string{"group", "group_reference", "group_equal", "group_partial", "meanstructure", "implied_means", "observed_means", "PULSE_MATRIX_DEFINED_NONFINITE", ":=",
 			"resample", "bootstrap_iters", "rng_seed", "ci_level", "bootstrap_requested", "bootstrap_succeeded"}, []string{"model", "solver"}},
+		// capability:sem_ordinal (never enabled here): its params, the
+		// estimators' names and the scaled-test scalars.
+		{true, []string{"estimator", "ordered", "wlsmv", "dwls", "WLSMV", "DWLS", "chi2_scaled", "scaling_factor", "shift_parameter",
+			"chi2_baseline_scaled", "cfi_scaled", "tli_scaled", "rmsea_scaled"}, []string{"meanstructure", "model"}},
 	} {
 		t.Run(fmt.Sprintf("means=%v", c.means), func(t *testing.T) {
 			p, _ := semHidingInstance(t, c.means)
@@ -359,7 +368,7 @@ func TestSEM_HiddenSurfacesLeaveTheManifest(t *testing.T) {
 				if slices.Contains(params(m), k) {
 					t.Errorf("params.%s is listed", k)
 				}
-				if k != "group" && strings.Contains(string(raw), k) {
+				if k != "group" && k != "estimator" && k != "ordered" && strings.Contains(string(raw), k) {
 					t.Errorf("the MAT_SEM entry still names %q", k)
 				}
 			}
@@ -387,7 +396,7 @@ func TestSEM_HiddenSurfacesLeaveTheManifest(t *testing.T) {
 			// so the schema names them for the regressions.
 			regression := []string{"resample", "bootstrap_iters", "rng_seed", "bootstrap_requested", "bootstrap_succeeded"}
 			for _, k := range c.hidden {
-				if k != "group" && !slices.Contains(regression, k) && strings.Contains(string(schema), `"`+k) {
+				if k != "group" && k != "estimator" && k != "ordered" && !slices.Contains(regression, k) && strings.Contains(string(schema), `"`+k) {
 					t.Errorf("the payload schema names %q", k)
 				}
 			}

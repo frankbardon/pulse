@@ -859,6 +859,11 @@ func TestPredict_Streamable_MatchesRuntime(t *testing.T) {
 		{"MAT_SEM bootstrap buffers", semReq(`{"resample":"bootstrap","bootstrap_iters":20}`, nil), semSchema},
 		{"MAT_SEM grouped bootstrap buffers", semReq(`{"group":"wave","resample":"bootstrap"}`, nil), semSchema},
 		{"MAT_SEM resample empty streams", semReq(`{"resample":""}`, nil), semSchema},
+		// U59 E4-S2: an ordinal estimator's asymptotic covariance sums
+		// casewise scores, so the slot buffers; estimator "ml" streams.
+		{"MAT_SEM wlsmv buffers", semReq(`{"estimator":"wlsmv","ordered":["x1","x2"]}`, nil), semSchema},
+		{"MAT_SEM dwls buffers", semReq(`{"estimator":"dwls","ordered":"x1"}`, nil), semSchema},
+		{"MAT_SEM estimator ml streams", semReq(`{"estimator":"ml"}`, nil), semSchema},
 		{"MAT_SEM grouped beside a two-pass attribute buffers", semReq(`{"group":"wave"}`, func(r *types.Request) {
 			r.Attributes = []*types.Attribute{{Type: types.ATTR_ZSCORE, Field: "x1", Label: "z"}}
 		}), semSchema},

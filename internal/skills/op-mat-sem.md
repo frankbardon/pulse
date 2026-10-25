@@ -31,23 +31,27 @@ examples_tags: [matrix, multivariate]
 | `rng_seed` | int | 0 | — |
 | `ci_level` | float | 0.95 | — |
 <!-- /feature -->
+<!-- feature: capability:sem_ordinal -->
+| `estimator` | enum | `ml` | `sem-ordinal`. |
+| `ordered` | list | — | — |
+<!-- /feature -->
 | `solver` | enum | `slsqp` | `fisher`: to optimum. |
 | `information` | enum | `dense` | `rank2`: faster. |
-| `ftol` | float | 1e-06 | SLSQP stop. |
-| `max_iter` | int | — | Cap. |
-| `grad_tol` | float | 1e-10 | Fisher stop. |
-| `singular` | enum | `nearest` | `cov_nearest` fallback. |
+| `ftol` | float | 1e-06 | SLSQP. |
+| `max_iter` | int | — | — |
+| `grad_tol` | float | 1e-10 | Fisher. |
+| `singular` | enum | `nearest` | `cov_nearest`. |
 | `missing` | enum | `listwise` | Listwise only. |
-| `max_drop_share` | 0–1 | — | Drop warning. |
+| `max_drop_share` | 0–1 | — | Warn. |
 | `fit` | string | — | Bound fit. |
 
 ## Inputs
 
-Numeric members: the model's observed variables, by label.
+Numeric members: the model's observed variables (labels).
 
 ## Output
 
-`primary`: Σ(θ̂). `auxiliary.estimates`: rows `lval op rval` × `estimate`, `std_estimate`, `std_err`, `z_value`, `p_value` (+ `ci_*`, lavaan); `residual_covariance` S − Σ<!-- feature: capability:sem_meanstructure -->; `implied_means` / `observed_means`<!-- /feature -->. `vectors`: `parameter`, `free`; `scalars`: fit indices.
+`primary`: Σ(θ̂). `auxiliary.estimates`: rows `lval op rval` × estimate, std, SE, z, p (+ `ci_*`, lavaan); `residual_covariance` S − Σ<!-- feature: capability:sem_meanstructure -->; `implied_means` / `observed_means`<!-- /feature -->. `vectors`: `parameter`, `free`; `scalars`: fit indices.
 
 <!-- generated: reading-the-output -->
 
@@ -61,7 +65,7 @@ Numeric members: the model's observed variables, by label.
 
 - Unused / non-member: `bad_params`.
 - lavaan rules: `sem-modeling`<!-- feature: capability:sem_defined -->; `:=`: `sem-defined-parameters`<!-- /feature --><!-- feature: capability:sem_bootstrap -->; `resample`: `sem-bootstrap`<!-- /feature -->.
-- S not factoring: `PULSE_MATRIX_NEAREST_PD`; constant member / `refuse`: fatal `PULSE_MATRIX_SINGULAR`.
+- Non-PD S: `PULSE_MATRIX_NEAREST_PD`; constant member / `refuse`: `PULSE_MATRIX_SINGULAR`.
 
 ## See
 

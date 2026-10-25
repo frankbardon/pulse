@@ -304,7 +304,7 @@ func FitOrdinal(m *Model, in TwoStepInput, est Estimator, opt Options) (*Fit, er
 		return nil, err
 	}
 	// The ordered residual variances at the estimate: 1 − (ΛCΨCᵀΛᵀ)ᵢᵢ.
-	sg, mm, c, err := st.sigma()
+	sg, _, _, err := st.sigma()
 	if err != nil {
 		return nil, err
 	}
@@ -317,7 +317,7 @@ func FitOrdinal(m *Model, in TwoStepInput, est Estimator, opt Options) (*Fit, er
 		st.starts[par] = v
 		st.setParam(par, v)
 	}
-	sg, mm, c, err = st.sigma()
+	sg, mm, c, err := st.sigma()
 	if err != nil {
 		return nil, err
 	}

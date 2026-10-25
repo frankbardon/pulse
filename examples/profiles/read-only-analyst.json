@@ -29,6 +29,7 @@
     "capability:sem_groups",
     "capability:sem_defined",
     "capability:sem_bootstrap",
+    "capability:sem_ordinal",
     "capability:params",
     "capability:recommend",
     "capability:explain",

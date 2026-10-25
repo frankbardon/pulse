@@ -72,6 +72,9 @@ func finalizeSEM(in *matrixFinalizeInput) (matrixOutput, error) {
 	if in.Plan().SEM.Grouped() {
 		return finalizeSEMGroups(in)
 	}
+	if in.Plan().SEM.Ordinal() {
+		return finalizeSEMOrdinal(in)
+	}
 	m := in.slot
 	plan := in.Plan()
 	spec := plan.SEM
@@ -467,7 +470,7 @@ func (m *matrixSlot) semCaptureFit(cm *linalg.CoMoment, converged bool, status s
 		Observed:       append([]string(nil), spec.Model.Observed...),
 		Inner:          append([]string(nil), spec.Model.Inner...),
 		Latents:        spec.Model.Latents(),
-		Estimator:      "ml",
+		Estimator:      string(spec.Estimator),
 		Lavaan:         spec.Model.Lavaan(),
 		MeanStructure:  spec.MeanStructure,
 		Group:          spec.Group,

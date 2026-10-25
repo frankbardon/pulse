@@ -25,6 +25,10 @@ const (
 	// centroids) or folds transformed values (MAT_RELIABILITY
 	// params.reverse).
 	ReasonVectorSource = "vector_source"
+	// ReasonSEMOrdinal: a SEM fit whose MAT_SEM battery fits by an
+	// ordinal estimator (params.estimator dwls / wlsmv): the bound SEM
+	// fit scores continuous members, which an ordinal fit has none of.
+	ReasonSEMOrdinal = "sem_ordinal"
 )
 
 // VectorFitAttributeTypes are the fitted vector attributes a vector fit
@@ -95,6 +99,8 @@ func FitKindOf(req *types.Request) types.FitKind {
 //   - groups or a crosstab                     — PULSE_FIT_INVALID grouped
 //   - a vector battery with no single listwise
 //     state (VectorSourceRefusal)              — PULSE_FIT_INVALID vector_source
+//   - a SEM fit over an ordinal estimator
+//     (SEMOrdinalRefusal)                      — PULSE_FIT_INVALID sem_ordinal
 //   - an invalid `save` path (CheckSavePath on a regression fit's own
 //     and its regression's, CheckPopulationSavePath on a vector
 //     fit's, CheckSEMSavePath on a SEM fit's)  — PULSE_MODEL_SAVE_INVALID
@@ -140,6 +146,11 @@ func CheckFits(fits []types.FitSpec) error {
 		}
 		cerr := (*errors.CodedError)(nil)
 		if IsSEMFitRequest(f.Request) {
+			if est := SEMOrdinalRefusal(f.Request); est != "" {
+				return fitInvalid(i, f.Name, ReasonSEMOrdinal,
+					fmt.Sprintf("takes a SEM fit from a MAT_SEM with params.estimator %q; a bound SEM fit is a maximum-likelihood fit (drop estimator, or run the ordinal fit as a plain matrices entry)", est),
+					map[string]any{"type": string(types.MAT_SEM), "param": "estimator", "estimator": est})
+			}
 			if f.Save != "" {
 				cerr = CheckSEMSavePath(f.Save)
 			}
@@ -234,4 +245,28 @@ func FitRequest(spec types.FitSpec) *types.Request {
 	r := *spec.Request
 	r.Return = nil
 	return &r
+}
+
+// SEMOrdinalRefusal is a SEM fit request's battery's params.estimator
+// when it is an ordinal one ("dwls" / "wlsmv"), else "". Params are
+// read loosely: a malformed params object is the slot resolution's to
+// refuse.
+func SEMOrdinalRefusal(req *types.Request) string {
+	if req == nil || len(req.Matrices) != 1 || req.Matrices[0].Type != types.MAT_SEM {
+		return ""
+	}
+	raw := bytes.TrimSpace(req.Matrices[0].Params)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return ""
+	}
+	var p struct {
+		Estimator *string `json:"estimator"`
+	}
+	if paramread.Probe(raw, &p) != nil || p.Estimator == nil {
+		return ""
+	}
+	if *p.Estimator == "dwls" || *p.Estimator == "wlsmv" {
+		return *p.Estimator
+	}
+	return ""
 }

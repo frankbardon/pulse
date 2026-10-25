@@ -89,6 +89,11 @@ func TestCheckFits(t *testing.T) {
 		{"vector distance", []types.FitSpec{{Name: "v", Request: vec(mat(types.MAT_DISTANCE, `{"between":{"type":"GROUP_CATEGORY","field":"g"}}`))}}, errors.PULSE_FIT_INVALID, ReasonVectorSource, 0, map[string]any{"type": "MAT_DISTANCE"}},
 		{"vector reversed", []types.FitSpec{{Name: "v", Request: vec(mat(types.MAT_RELIABILITY, `{"reverse":["b"],"scale_min":1,"scale_max":5}`))}}, errors.PULSE_FIT_INVALID, ReasonVectorSource, 0, map[string]any{"param": "reverse"}},
 		{"vector scale only", []types.FitSpec{{Name: "v", Request: vec(mat(types.MAT_RELIABILITY, `{"scale_min":1,"scale_max":5}`))}}, "", "", 0, nil},
+		// U59 E4-S2: a bound SEM fit is maximum likelihood; an ordinal
+		// MAT_SEM battery is refused, estimator "ml" is not.
+		{"sem ordinal", []types.FitSpec{{Name: "s", Request: vec(mat(types.MAT_SEM, `{"model":"f =~ a + b","estimator":"wlsmv","ordered":["a","b"]}`))}}, errors.PULSE_FIT_INVALID, ReasonSEMOrdinal, 0, map[string]any{"estimator": "wlsmv"}},
+		{"sem dwls", []types.FitSpec{{Name: "s", Request: vec(mat(types.MAT_SEM, `{"model":"f =~ a + b","estimator":"dwls","ordered":"a"}`))}}, errors.PULSE_FIT_INVALID, ReasonSEMOrdinal, 0, map[string]any{"estimator": "dwls"}},
+		{"sem ml", []types.FitSpec{{Name: "s", Request: vec(mat(types.MAT_SEM, `{"model":"f =~ a + b","estimator":"ml"}`))}}, "", "", 0, nil},
 		// A vector fit saves a population file; a model-file path (or a
 		// regression fit's population path) is the wrong suffix.
 		{"vector save", []types.FitSpec{{Name: "v", Request: attrFit, Save: "pops/v.pulse-population.json"}}, "", "", 0, nil},

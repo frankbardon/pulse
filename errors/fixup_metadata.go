@@ -2174,6 +2174,11 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"fits", "*", "request", "groups"},
 				Hint:   "Drop `groups` / `crosstab` from the fit request — a fit is one ungrouped model. Fit one model per subset with a filter in each fit request instead.",
 			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"fits", "*", "request", "matrices", "*", "params", "estimator"},
+				Hint:   "Under `details.reason` `sem_ordinal`, a SEM fit binds a maximum-likelihood MAT_SEM only: drop the ordinal `estimator` (and `ordered`) from the fit request, or run the DWLS / WLSMV fit as a plain `matrices` entry of a slot.",
+			},
 		},
 	},
 	PULSE_MODEL_NAME_COLLISION: {

@@ -1274,7 +1274,8 @@ inline fit over the same rows). One namespace holds all three kinds: `PULSE_MODE
 malformed entry is `PULSE_FIT_INVALID` with `details.fit` (the entry
 index) and `details.reason` (`name_missing`, `request_missing`,
 `regression_count`, `kind_ambiguous`, `vector_count`, `grouped`,
-`vector_source`); a fit request's own refusal keeps its
+`vector_source`, `sem_ordinal` — a MAT_SEM battery with an ordinal
+`estimator`); a fit request's own refusal keeps its
 code and gains `details.fit`. A fit request's `return` is ignored. The
 fits surface as `ComposedResponse.fits`, an `omitempty` object of
 `FitResult` keyed by fit name: a regression fit's `RegressionResult`

@@ -1,0 +1,54 @@
+```yaml
+name: sem-ordinal
+description: Ordinal structural equation models on MAT_SEM — lavaan's DWLS and WLSMV estimators over polychoric and polyserial correlations, for rating-scale, Likert and binary items. When to prefer them over maximum likelihood, how to declare the ordered members, how the threshold rows and the scaled test read, and what is refused.
+kind: design
+type: guide
+applies_to: process, compose, predict
+covers: [SEM, ordinal, WLSMV, DWLS, polychoric correlation, polyserial correlation, threshold, Likert, scaled chi-square, robust standard error]
+requires: [MAT_SEM, capability:sem_ordinal]
+```
+
+# Ordinal SEM
+
+Maximum likelihood treats a 1-5 rating as continuous and normal. With few categories or skewed answers that biases loadings down and inflates the chi-square. `estimator: "wlsmv"` (or `"dwls"`) fits the model the way lavaan does with `ordered = ...`: each ordered member is a cut-up latent normal response.
+
+## When to use it
+
+- Items with up to about 7 categories, binary items, or answers piled on one end. With 7+ roughly symmetric categories ML is usually close.
+- Prefer `wlsmv`: the same estimates as `dwls`, plus the scaled-shifted test that corrects the chi-square. `dwls` reports the unscaled test only.
+- The two estimators read the same two-step statistics, so they give the same `estimate` and `std_err`.
+
+## Declaring the members
+
+- `ordered` lists the ordered members by label (a list or one comma-separated string). Every other member is continuous; a continuous member gets polyserial correlations with the ordered ones.
+- Each ordered member's categories are its distinct observed values in ascending order. A value no row holds is no category. Store ratings as integers or floats; a `packed_bool` member needs a vector with `coerce: "binary"`.
+- An ordered member must be an indicator or an outcome, never a predictor of something else.
+- Frequency weights are supported. A probability weight is `PULSE_WEIGHT_UNSUPPORTED`.
+
+## How it fits
+
+- Stage 1: each ordered member's thresholds, then every pair's polychoric (ordered × ordered), polyserial (ordered × continuous) or Pearson correlation.
+- Stage 2: the model is fitted to those statistics, weighted by the inverse diagonal of their asymptotic covariance (Gamma, built from per-row scores). It uses Fisher scoring under lavaan's conventions, with lavaan's delta parameterization.
+- Gamma needs every row, so the slot keeps its rows and the request runs the buffered path. Predict reports this.
+
+## Reading the outputs
+
+- An ordered member's intercept is fixed at 0. Its residual variance is `1 −` its explained part and is reported as a fixed row (no SE).
+- Each threshold is a row `x | t1`, `x | t2`, … (one fewer than the member's categories), with an SE, z, p and interval.
+- `std_err` is lavaan's robust sandwich SE. `:=` rows ([`sem-defined-parameters`](sem-defined-parameters.md)) use the same robust covariance.
+- `implied_covariance` has 1 on each ordered member's diagonal. `residual_covariance` is the polychoric / polyserial matrix minus it.
+- Scalars: `chi2` and `dof` are the unscaled test, and its `chi2_p_value` is `null` (lavaan reports none). `loglik`, `aic` and `bic` are `null`: there is no likelihood. `cfi`, `tli`, `rmsea`, `gfi` and `agfi` are lavaan's.
+- Under `wlsmv` the scaled test is added: `chi2_scaled`, `chi2_scaled_p_value`, `scaling_factor`, `shift_parameter`, `chi2_baseline_scaled` and `cfi_scaled`, `tli_scaled`, `rmsea_scaled`. Judge fit by the scaled figures.
+- A threshold's p joins the matrix's own `multiplicity` family like every free row. Predict counts one threshold per ordered member as a lower bound, or the exact count for a member with a known category count (`packed_bool`).
+
+## Refusals
+
+- `bad_params`: an unknown estimator; `ordered` without an ordinal estimator; an ordinal estimator without `ordered`; a duplicate member; a latent, a predictor or a member the model does not read in `ordered`; `solver: "slsqp"`, `information`, `singular` or `meanstructure: false` with an ordinal estimator; a standardizing vector.
+- Not yet supported with an ordinal estimator (`bad_params`): `group`, `resample`, and a Compose `fits` entry (`PULSE_FIT_INVALID`, reason `sem_ordinal`).
+- On the data, the slot fails alone: a constant ordered member is `PULSE_MATRIX_SINGULAR`; no rows or an empty category is `PULSE_MATRIX_INSUFFICIENT_N`. `details.reason` and `details.variable` say which.
+
+## See
+
+- [`op-mat-sem`](op-mat-sem.md)
+- [`sem-modeling`](sem-modeling.md) — the lavaan conventions an ordinal fit runs under.
+- [`multivariate-design`](multivariate-design.md) — choosing the operator.

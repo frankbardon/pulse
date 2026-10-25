@@ -73,6 +73,99 @@ type SEMPlan struct {
 	// reports no interval).
 	CILevel    float64
 	CILevelSet bool
+	// Estimator is params.estimator: sem.EstimatorML (default) or one of
+	// lavaan's ordinal estimators, sem.EstimatorDWLS / EstimatorWLSMV
+	// (sem.FitOrdinal: two-step polychoric / polyserial statistics, the
+	// slot buffers its rows). Ordered is params.ordered — the ordered
+	// members by label, required (non-empty) by an ordinal estimator and
+	// refused without one.
+	Estimator sem.Estimator
+	Ordered   []string
+	// OrderedLevels is each Ordered member's category-count bound as the
+	// schema knows it — packed_bool's 2, u4's 16 — 0 when unknown (its categories are its observed
+	// values): predict's estimate of the threshold rows.
+	OrderedLevels []int
+}
+
+// Ordinal reports whether the plan fits by an ordinal estimator (DWLS /
+// WLSMV).
+func (p *SEMPlan) Ordinal() bool { return p != nil && p.Estimator.Ordinal() }
+
+// SEMEstimators are the accepted params.estimator values, default first.
+func SEMEstimators() []string {
+	return []string{string(sem.EstimatorML), string(sem.EstimatorDWLS), string(sem.EstimatorWLSMV)}
+}
+
+// SpecSEMEstimator is a MAT_SEM spec's params.estimator as written ("" on
+// any other type, when absent, or when the params do not decode).
+func SpecSEMEstimator(spec types.MatrixSpec) string {
+	if spec.Type != types.MAT_SEM || len(spec.Params) == 0 {
+		return ""
+	}
+	var p struct {
+		Estimator *string `json:"estimator"`
+	}
+	if paramread.Probe(spec.Params, &p) != nil || p.Estimator == nil {
+		return ""
+	}
+	return *p.Estimator
+}
+
+// SEMOrdinalScalarKeys are the scalars a WLSMV fit adds: the
+// scaled-shifted test (its statistic, p, scaling factor and shift), the
+// scaled baseline and the scaled indices.
+func SEMOrdinalScalarKeys() []string {
+	return []string{"chi2_scaled", "chi2_scaled_p_value", "scaling_factor", "shift_parameter",
+		"chi2_baseline_scaled", "cfi_scaled", "tli_scaled", "rmsea_scaled"}
+}
+
+// SEMThresholdRowsDefault is predict's estimate of an ordered member's
+// threshold rows when the schema does not bound its categories: a 1-5
+// rating's four.
+const SEMThresholdRowsDefault = 4
+
+// ThresholdRowsEstimate is predict's estimate of an ordinal fit's
+// threshold rows (`x | tk`): per ordered member its schema bound less 1
+// (OrderedLevels), else SEMThresholdRowsDefault. The runtime's count is
+// the data's: each member's observed categories less 1.
+func (p *SEMPlan) ThresholdRowsEstimate() int {
+	if !p.Ordinal() {
+		return 0
+	}
+	n := 0
+	for i := range p.Ordered {
+		l := 0
+		if i < len(p.OrderedLevels) {
+			l = p.OrderedLevels[i]
+		}
+		if l > 1 {
+			n += l - 1
+		} else {
+			n += SEMThresholdRowsDefault
+		}
+	}
+	return n
+}
+
+// ThresholdRowsBound is the threshold-row count p-value predict files:
+// per ordered member its schema bound less 1 when known — an upper
+// bound, a category no row holds is no threshold — else 1, the fewest
+// a fitting member has (a constant one fails the slot). known reports
+// that every member's bound was the schema's.
+func (p *SEMPlan) ThresholdRowsBound() (n int, known bool) {
+	if !p.Ordinal() {
+		return 0, true
+	}
+	known = true
+	for i := range p.Ordered {
+		if i < len(p.OrderedLevels) && p.OrderedLevels[i] > 1 {
+			n += p.OrderedLevels[i] - 1
+			continue
+		}
+		n++
+		known = false
+	}
+	return n, known
 }
 
 // Bootstrap reports whether the plan bootstraps its fit.
@@ -214,6 +307,11 @@ type semParams struct {
 	BootstrapIters *int     `json:"bootstrap_iters"`
 	RNGSeed        *int64   `json:"rng_seed"`
 	CILevel        *float64 `json:"ci_level"`
+	// Estimator is lavaan's estimator (ml | dwls | wlsmv); Ordered
+	// lavaan's ordered = (the ordered members by label: a list, or one
+	// comma-separated string).
+	Estimator *string  `json:"estimator"`
+	Ordered   *semList `json:"ordered"`
 	missingParams
 }
 
@@ -275,6 +373,7 @@ func SEMEstimateColumnsOf(plan *SEMPlan) []string {
 // line — else semopy's SLSQP.
 func semDefaultSolver(p semParams) sem.Solver {
 	if (p.MeanStructure != nil && *p.MeanStructure) || p.Group != nil || (p.Resample != nil && *p.Resample != "") ||
+		(p.Estimator != nil && sem.Estimator(*p.Estimator).Ordinal()) ||
 		(p.Model != nil && (sem.HasIntercepts(*p.Model) || sem.HasDefined(*p.Model))) {
 		return sem.SolverFisher
 	}
@@ -297,6 +396,7 @@ const (
 	SEMFeatureGroups        = "capability:sem_groups"
 	SEMFeatureDefined       = "capability:sem_defined"
 	SEMFeatureBootstrap     = "capability:sem_bootstrap"
+	SEMFeatureOrdinal       = "capability:sem_ordinal"
 )
 
 // SEMFeatureParams returns the MAT_SEM params keys each hideable
@@ -307,6 +407,7 @@ func SEMFeatureParams() map[string][]string {
 		SEMFeatureGroups:        {"group", "group_reference", "group_equal", "group_partial"},
 		SEMFeatureDefined:       {},
 		SEMFeatureBootstrap:     {"resample", "bootstrap_iters", "rng_seed", "ci_level"},
+		SEMFeatureOrdinal:       {"estimator", "ordered"},
 	}
 }
 
@@ -330,6 +431,7 @@ func SEMFeatureOutputs() map[string]map[string][]string {
 		SEMFeatureMeanStructure: {"auxiliary": {"implied_means", "observed_means"}},
 		SEMFeatureGroups:        group,
 		SEMFeatureBootstrap:     {"scalars": SEMBootstrapScalarKeys()},
+		SEMFeatureOrdinal:       {"scalars": SEMOrdinalScalarKeys()},
 	}
 }
 
@@ -488,11 +590,111 @@ func decodeSEM(at string, p semParams, m *Matrix) *errors.CodedError {
 	if err := decodeSEMBootstrap(at, p, plan); err != nil {
 		return err
 	}
+	if err := decodeSEMOrdinal(at, p, plan); err != nil {
+		return err
+	}
 	if p.Missing != nil && *p.Missing == MissingPairwise {
 		return matrixInvalid(at, "pairwise_unsupported", at+` params.missing "pairwise" is not supported on MAT_SEM: the likelihood is one sample's covariance, so use "listwise"`,
 			map[string]any{"param": "missing", "value": *p.Missing, "valid": []string{MissingListwise}})
 	}
 	m.SEM = plan
+	return nil
+}
+
+// decodeSEMOrdinal decodes params.estimator and params.ordered: an
+// estimator outside SEMEstimators, an ordinal estimator without ordered
+// members, ordered members under ML, a duplicate ordered member, and
+// the knobs an ordinal fit has no use for — solver "slsqp" (it runs
+// Fisher scoring), information, singular (the two-step statistics are
+// no covariance to substitute), meanstructure false (it always models
+// the thresholds), a multi-group fit or a bootstrap (not yet) — are
+// bad_params, never ignored.
+func decodeSEMOrdinal(at string, p semParams, plan *SEMPlan) *errors.CodedError {
+	plan.Estimator = sem.EstimatorML
+	if p.Estimator != nil {
+		if !slices.Contains(SEMEstimators(), *p.Estimator) {
+			return matrixInvalid(at, "bad_params", at+` params.estimator must be "ml", "dwls" or "wlsmv"`,
+				map[string]any{"param": "estimator", "value": *p.Estimator, "valid": SEMEstimators()})
+		}
+		plan.Estimator = sem.Estimator(*p.Estimator)
+	}
+	if p.Ordered != nil {
+		plan.Ordered = []string(*p.Ordered)
+	}
+	if !plan.Ordinal() {
+		if p.Ordered != nil {
+			return matrixInvalid(at, "bad_params", at+` params.ordered names ordered members, but the ML fit treats every member as continuous; add estimator "wlsmv" (or "dwls"), or drop ordered`,
+				map[string]any{"param": "ordered", "estimator": string(plan.Estimator), "value": plan.Ordered})
+		}
+		return nil
+	}
+	if len(plan.Ordered) == 0 {
+		return matrixInvalid(at, "bad_params", at+" params.estimator "+strconv.Quote(string(plan.Estimator))+" fits ordered members; name them in params.ordered (the members' labels)",
+			map[string]any{"param": "ordered", "estimator": string(plan.Estimator)})
+	}
+	seen := map[string]bool{}
+	for _, v := range plan.Ordered {
+		if seen[v] {
+			return matrixInvalid(at, "bad_params", at+" params.ordered lists "+strconv.Quote(v)+" twice",
+				map[string]any{"param": "ordered", "value": v})
+		}
+		seen[v] = true
+	}
+	refuse := func(param string, value any, why string) *errors.CodedError {
+		return matrixInvalid(at, "bad_params", at+" params."+param+" "+why,
+			map[string]any{"param": param, "value": value, "estimator": string(plan.Estimator)})
+	}
+	switch {
+	case p.Solver != nil && sem.Solver(*p.Solver) != sem.SolverFisher:
+		return refuse("solver", *p.Solver, `is not available with an ordinal estimator, which runs Fisher scoring; drop solver or set "fisher"`)
+	case p.Information != nil:
+		return refuse("information", *p.Information, "applies to the ML fit only; an ordinal estimator weighs the two-step statistics by their asymptotic variances; drop information")
+	case p.Singular != nil:
+		return refuse("singular", *p.Singular, "applies to the ML fit's covariance only; drop singular")
+	case p.MeanStructure != nil && !*p.MeanStructure:
+		return refuse("meanstructure", false, "is false, but an ordinal fit always models the thresholds and means; drop meanstructure")
+	case p.Group != nil:
+		return refuse("group", *p.Group, "with an ordinal estimator is not supported yet; fit each group alone or use the ML estimator")
+	case plan.Bootstrap():
+		return refuse("resample", plan.Resample, "with an ordinal estimator is not supported yet; drop resample (the robust standard errors are analytic)")
+	}
+	return nil
+}
+
+// resolveSEMOrdinal judges an ordinal plan once its members and the
+// schema are known (nil schema: the bounds stay unknown): a vector
+// standardizing its members is refused (an ordered member's categories
+// are its raw values), and each ordered member's category-count bound
+// is recorded (OrderedLevels).
+func resolveSEMOrdinal(at string, schema *encoding.Schema, m *Matrix) *errors.CodedError {
+	if m.Type != types.MAT_SEM || !m.SEM.Ordinal() {
+		return nil
+	}
+	if m.Members.Standardize != "" {
+		return matrixInvalid(at, "bad_params", at+" params.estimator "+strconv.Quote(string(m.SEM.Estimator))+" reads each ordered member's raw categories, but the members' vector standardizes them; drop standardize",
+			map[string]any{"param": "estimator", "standardize": m.Members.Standardize})
+	}
+	labels := m.FitLabels()
+	m.SEM.OrderedLevels = make([]int, len(m.SEM.Ordered))
+	if schema == nil || m.Members.Refs != nil {
+		return nil
+	}
+	for i, v := range m.SEM.Ordered {
+		k := slices.Index(labels, v)
+		if k < 0 || k >= len(m.Members.Members) {
+			continue
+		}
+		f := schema.Field(m.Members.Members[k])
+		if f == nil {
+			continue
+		}
+		switch f.Type {
+		case encoding.FieldTypePackedBool:
+			m.SEM.OrderedLevels[i] = 2
+		case encoding.FieldTypeU4:
+			m.SEM.OrderedLevels[i] = 16
+		}
+	}
 	return nil
 }
 
@@ -567,7 +769,12 @@ func resolveSEM(at string, m *Matrix) *errors.CodedError {
 		newModel = sem.NewGroupModel
 	}
 	model, err := newModel(m.SEM.Desc, sem.ModelOptions{MeanStructure: m.SEM.MeanStructure,
-		GroupEqual: m.SEM.GroupEqual, GroupPartial: m.SEM.GroupPartial, Lavaan: m.SEM.Bootstrap()})
+		GroupEqual: m.SEM.GroupEqual, GroupPartial: m.SEM.GroupPartial, Lavaan: m.SEM.Bootstrap(), Ordered: m.SEM.Ordered})
+	var oe *sem.OrdinalSpecError
+	if stderrors.As(err, &oe) {
+		return matrixInvalid(at, "bad_params", at+" params."+oe.Param+": "+oe.Error(),
+			map[string]any{"param": oe.Param, "variable": oe.Var, "problem": oe.Reason})
+	}
 	if ge, ok := err.(*sem.GroupSpecError); ok {
 		return matrixInvalid(at, "bad_params", at+" params."+ge.Error(),
 			map[string]any{"param": ge.Param, "value": ge.Value})

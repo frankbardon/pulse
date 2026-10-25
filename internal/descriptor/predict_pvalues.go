@@ -242,8 +242,9 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 }
 
 // semPValueRows is a MAT_SEM spec's p-carrying estimates rows — the
-// free parameter-table rows, every level's when grouped, then one per
-// := line — and the count's basis: exact ungrouped; dictionary when
+// free parameter-table rows, every level's when grouped, an ordinal
+// fit's threshold rows (vectors.SEMPlan.ThresholdRowsBound), then one
+// per := line — and the count's basis: exact ungrouped; dictionary when
 // grouped over the schema's levels (a level without rows lowers the
 // real count); a lower bound on an integer group field, whose levels
 // are its data (one group's rows counted). A free row whose SE is
@@ -258,6 +259,16 @@ func semPValueRows(m vectors.Matrix) (int, string) {
 		if e.Free {
 			free++
 		}
+	}
+	if m.SEM.Ordinal() {
+		// The threshold rows (`x | tk`) carry p too: the schema's
+		// category bound (an upper bound, basis dictionary), else the
+		// fewest a fitting member has (a lower bound).
+		th, known := m.SEM.ThresholdRowsBound()
+		if known {
+			return free + th + defs, descriptor.PValueBasisDictionary
+		}
+		return free + th + defs, descriptor.PValueBasisLowerBound
 	}
 	if !m.SEM.Grouped() {
 		return free + defs, descriptor.PValueBasisExact

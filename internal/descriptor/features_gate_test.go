@@ -24,7 +24,7 @@ var wantCapabilities = []string{
 	"process", "stream", "watch", "compose", "compose_sweep", "compose_fits", "compose_banner", "model_save", "regression_holdout", "models", "for_each", "process_chain", "facet",
 	"sample", "joins", "crosstab", "crosstab_cells", "lookup", "index", "shard", "import",
 	"export", "filter_to_file", "dedup", "materialize", "rake", "widen", "templates", "synth",
-	"labels", "range_tables", "weighting", "multiplicity", "matrices", "sem_meanstructure", "sem_groups", "sem_defined", "sem_bootstrap",
+	"labels", "range_tables", "weighting", "multiplicity", "matrices", "sem_meanstructure", "sem_groups", "sem_defined", "sem_bootstrap", "sem_ordinal",
 	"params", "recommend", "explain",
 }
 

@@ -136,13 +136,6 @@ func wlsStatNames(fit *Fit) []string {
 	return out
 }
 
-func relClose(got, want, tol float64) bool {
-	if math.IsNaN(want) {
-		return math.IsNaN(got)
-	}
-	return math.Abs(got-want) <= tol*math.Max(1, math.Abs(want))
-}
-
 func refFloat(p *float64) float64 {
 	if p == nil {
 		return math.NaN()

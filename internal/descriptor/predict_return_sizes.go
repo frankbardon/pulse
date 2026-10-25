@@ -553,8 +553,8 @@ func matrixNode(name string, rows, cols int64, enc types.MatrixEncoding, fields 
 //     standardize; pooled_covariance p x p under a fitted inverse
 //     covariance metric (mahalanobis).
 //   - MAT_SEM: estimates r x c, r the model's parameter-table rows
-//     (sem.SpecifiedRows: known from the description alone) plus one
-//     per := line (semEstimateRows); p_adjusted / significant_adjusted
+//     (sem.SpecifiedRows: known from the description alone) plus an
+//     ordinal fit's threshold rows plus one per := line (semEstimateRows); p_adjusted / significant_adjusted
 //     r x 1 when member (its own multiplicity block); c
 //     vectors.SEMEstimateColumnsOf (5, or 7 with the Wald interval of a
 //     lavaan-convention fit); residual_covariance p x p; implied_means
@@ -576,8 +576,9 @@ const (
 
 // semEstimateRows is a MAT_SEM spec's estimates rows: the model's
 // parameter-table rows (sem.SpecifiedRows: known from the description
-// alone) — per known level when grouped, an upper bound — then one per
-// := line (sem.Model.DefinedCount, never per level).
+// alone) — per known level when grouped, an upper bound — an ordinal
+// fit's threshold rows (vectors.SEMPlan.ThresholdRowsEstimate), then one
+// per := line (sem.Model.DefinedCount, never per level).
 func semEstimateRows(m vectors.Matrix) int64 {
 	if m.SEM == nil || m.SEM.Model == nil {
 		return 0
@@ -587,7 +588,9 @@ func semEstimateRows(m vectors.Matrix) int64 {
 		// every level's rows (the levels the schema knows)
 		rows *= int64(max(len(m.SEM.GroupLevels), 1))
 	}
-	return rows + int64(m.SEM.Model.DefinedCount())
+	// An ordinal fit's threshold rows: the schema's category bounds,
+	// else vectors.SEMThresholdRowsDefault per ordered member.
+	return rows + int64(m.SEM.ThresholdRowsEstimate()) + int64(m.SEM.Model.DefinedCount())
 }
 
 func matrixAuxiliaryNodes(m vectors.Matrix, mp descriptor.MatrixPredict, member bool) []*sizeNode {

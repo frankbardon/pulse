@@ -984,6 +984,9 @@ func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, o MatrixRe
 		if err := resolveSEMGroup(at, req, schema, &m); err != nil {
 			return nil, err
 		}
+		if err := resolveSEMOrdinal(at, schema, &m); err != nil {
+			return nil, err
+		}
 		if err := resolveDistance(at, req.Vectors, resolved, schema, route, ext, &m); err != nil {
 			return nil, err
 		}
