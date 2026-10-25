@@ -2171,6 +2171,16 @@ type ComposedRequest struct {
 	// these top-level params. Nil declares none. Gated by
 	// capability:params. See Params.
 	Params Params `json:"params,omitempty"`
+
+	// Optimize are the batch's constrained optimisations
+	// (OptimizeSpec): each is solved once, after the fits and with no
+	// record data, over expressions that read its decision variables,
+	// the batch's Params, coef() over the Fits and the expression
+	// built-ins; results land in ComposedResponse.Optimizations. Gated
+	// by capability:compose_optimize. Nil is absent — the slot is
+	// `omitempty`, so an optimize-free request is byte-identical on the
+	// wire and under Hash. See OptimizeSpec.
+	Optimize []OptimizeSpec `json:"optimize,omitempty"`
 }
 
 // ComposedResponse is the structured response shape for ComposedRequest
@@ -2238,6 +2248,14 @@ type ComposedResponse struct {
 	// Compose-level `return`: always emitted, never rounded. Gated by
 	// capability:compose_banner with the `banner` request slot.
 	Banner *BannerResult `json:"banner,omitempty"`
+
+	// Optimizations carries each ComposedRequest.Optimize block's result
+	// (OptimizeResult), in declaration order, each echoing its name.
+	// Omitted when the request declared no optimize block. Like
+	// `ranking` it sits outside the Compose-level `return`: always
+	// emitted, never rounded. Gated by capability:compose_optimize with
+	// the `optimize` request slot.
+	Optimizations []OptimizeResult `json:"optimizations,omitempty"`
 
 	// Warnings carries the batch-level diagnostics no slot owns: today
 	// a fit's PULSE_MODEL_OVERWRITTEN (a `fits` save — or a save on the

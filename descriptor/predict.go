@@ -1017,6 +1017,27 @@ type FitSummary struct {
 	SEM *VectorFitSummary `json:"sem,omitempty"`
 }
 
+// OptimizeSummary is one ComposeValidationResult.Optimize entry: a
+// ComposedRequest `optimize` block as predict reads it, statically —
+// validated, never solved.
+type OptimizeSummary struct {
+	// Name is the block's name.
+	Name string `json:"name"`
+	// Direction is maximize or minimize.
+	Direction types.OptimizeDirection `json:"direction"`
+	// Variables are the decision variable names in block order.
+	Variables []string `json:"variables"`
+	// Constraints counts the block's constraints.
+	Constraints int `json:"constraints"`
+	// Starts is the number of starting points the runtime solves (the
+	// block's `starts`, else the default 8).
+	Starts int `json:"starts"`
+	// RNGSeed is the effective seed of the Latin-hypercube starts — the
+	// seed the runtime draws with and echoes on the block's result (the
+	// pinned rng_seed, else the one derived from the block).
+	RNGSeed int64 `json:"rng_seed"`
+}
+
 // VectorFitSummary is a vector fit's FitSummary: its battery and, when
 // the fit request's schema resolves, the labels a consuming slot aligns
 // to — what the runtime binds, without its figures.

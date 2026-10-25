@@ -1276,6 +1276,11 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	if err := model.CheckFits(composed.Fits); err != nil {
 		return nil, err
 	}
+	// Then the optimize blocks' rules (predict runs the same
+	// descx.OptimizeRefusal at the same point).
+	if err := s.optimizeRefusal(composed); err != nil {
+		return nil, err
+	}
 	// Then the batch's saves and loads (model.CheckComposeBatch — every
 	// slot's save path, every save's uniqueness, every `models` entry)
 	// and every model file read, before any fit or slot runs.

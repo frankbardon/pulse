@@ -105,6 +105,11 @@ func (s *Service) composeParallel(
 	if err := model.CheckFits(composed.Fits); err != nil {
 		return nil, err
 	}
+	// Then the optimize blocks' rules (predict runs the same
+	// descx.OptimizeRefusal at the same point).
+	if err := s.optimizeRefusal(composed); err != nil {
+		return nil, err
+	}
 	// The batch's saves and loads, exactly as on the serial path.
 	pre, err := s.composeModelsPrepass(composed)
 	if err != nil {

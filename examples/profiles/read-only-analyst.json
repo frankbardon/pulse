@@ -34,6 +34,7 @@
     "capability:recommend",
     "capability:explain",
     "capability:compose_sweep_sampling",
+    "capability:compose_optimize",
     "AGG_COUNT",
     "AGG_SUM",
     "AGG_AVERAGE",

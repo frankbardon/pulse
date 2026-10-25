@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:0426f3a27c668caf4aacd42ef452e8c74fd22afd6f2bc7662a1251e5cf5f58a7",
+    "feature_set_digest": "fs1:449b701644aa1be633b397b47f430d2decf9f071c6a2f86ebfa812ac6fabcf8c",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -10721,7 +10721,7 @@
         ]
       }
     ],
-    "error_codes_count": 424,
+    "error_codes_count": 427,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10949,9 +10949,12 @@
       "PULSE_MODEL_WRITE_FAILED",
       "PULSE_MULTIPLICITY_CONFLICT",
       "PULSE_MULTIPLICITY_INVALID",
+      "PULSE_OPTIMIZE_EXPRESSION_INVALID",
       "PULSE_OPTIMIZE_INFEASIBLE",
       "PULSE_OPTIMIZE_INVALID",
       "PULSE_OPTIMIZE_NOT_CONVERGED",
+      "PULSE_OPTIMIZE_SPEC_INVALID",
+      "PULSE_OPTIMIZE_VARIABLE_INVALID",
       "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT",
       "PULSE_OVERLAY_COMPONENTS_REQUIRED",
       "PULSE_OVERLAY_DICT_PREFIX_DRIFT",
@@ -19946,4 +19949,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: ce38120e2790dcce8d935e6fa3043ef016519edbbefbc4f718668735496f8d8e
+// golden-hash: d587c21b631da4be9d29c2ba5a315e8415f22cc0887a58d02d9407e23fbf3d85

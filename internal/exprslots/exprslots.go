@@ -47,16 +47,20 @@ type Slot struct {
 	// stage, a sweep request, a params-borne fit_on filterer list).
 	Tail []string
 	// Sites are the compile sites the engine reads the slot under; nil
-	// for OVERLAY_FORMULA, which compiles through the overlay subset.
+	// for OVERLAY_FORMULA, which compiles through the overlay subset, and
+	// for the optimize slots, which internal/optblock compiles (its own
+	// PULSE_OPTIMIZE_EXPRESSION_INVALID, no exprenv compile site).
 	Sites []string
 }
 
 // The slot names.
 const (
-	SlotExpression     = "expression"
-	SlotHoldout        = "holdout"
-	SlotOverlayFormula = "overlay_formula"
-	SlotFeatureFitOn   = "feature_fit_on"
+	SlotExpression         = "expression"
+	SlotHoldout            = "holdout"
+	SlotOverlayFormula     = "overlay_formula"
+	SlotFeatureFitOn       = "feature_fit_on"
+	SlotOptimizeObjective  = "optimize_objective"
+	SlotOptimizeConstraint = "optimize_constraint"
 )
 
 var slots = []Slot{
@@ -86,6 +90,19 @@ var slots = []Slot{
 		Owners: []string{"Feature"},
 		Tail:   []string{"features", ParamsKey, FeatureFitOnParam},
 		Sites:  []string{SiteFilter},
+	},
+	{
+		// A Compose optimize block's objective, compiled against the
+		// block's decision variables (internal/optblock).
+		Name:   SlotOptimizeObjective,
+		Owners: []string{"OptimizeSpec"},
+		Tail:   []string{"optimize", "objective"},
+	},
+	{
+		// One optimize constraint's expression.
+		Name:   SlotOptimizeConstraint,
+		Owners: []string{"OptimizeConstraint"},
+		Tail:   []string{"optimize", "constraints", "expr"},
 	},
 }
 

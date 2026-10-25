@@ -1838,11 +1838,12 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 			"multiplicity": multiplicitySchema(
 				"Batch-level multiple-comparison correction, inherited by every slot request (below its own request-level block) and every Compose overlay layer that sets none of its own. Family `compose` pools every compose-family member across the slots and the Compose layers.",
 				types.AllMultiplicityFamilies(), true),
-			"return": returnSchema("Shapes the TOP-LEVEL Compose overlays only: paths root at the ComposedResponse and only `overlays…` paths are valid (each slot is shaped by its own requests[i].return). Omit to leave the overlays whole."),
-			"sweep":  sweepSchema(inst),
-			"fits":   fitsSchema(reqSchema, inst),
-			"banner": bannerSchema(reqSchema),
-			"params": inheritedParamsSchema("slot request (sweep and banner slots included) and fit request", " A Compose-level OVERLAY_FORMULA reads them too."),
+			"return":   returnSchema("Shapes the TOP-LEVEL Compose overlays only: paths root at the ComposedResponse and only `overlays…` paths are valid (each slot is shaped by its own requests[i].return). Omit to leave the overlays whole."),
+			"sweep":    sweepSchema(inst),
+			"fits":     fitsSchema(reqSchema, inst),
+			"banner":   bannerSchema(reqSchema),
+			"params":   inheritedParamsSchema("slot request (sweep and banner slots included) and fit request", " A Compose-level OVERLAY_FORMULA and every `optimize` block read them too."),
+			"optimize": optimizeSchema(),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,
@@ -1870,6 +1871,66 @@ func fitsSchema(reqSchema map[string]any, inst *descx.InstanceSnapshot) map[stri
 	}
 	addModelSave(out, inst, "Write the bound fit once it has run, at this path relative to the data root: a regression fit as a model file (ending .pulse-model.json), a vector fit as a population file (ending .pulse-population.json, loaded later with `populations`), a SEM fit as a SEM fit file (ending .pulse-sem.json, loaded later with `models`); overwriting warns PULSE_MODEL_OVERWRITTEN.")
 	return out
+}
+
+// optimizeSchema describes the ComposedRequest `optimize` list
+// (types.OptimizeSpec): constrained optimisations solved after the fits
+// with no record data. Dropped with the slot when
+// capability:compose_optimize is hidden (dropHiddenSlots).
+func optimizeSchema() map[string]any {
+	bound := func(d string) map[string]any {
+		return map[string]any{
+			"description": d,
+			"oneOf": []any{
+				map[string]any{"type": "number"},
+				map[string]any{"type": "string", "pattern": `^params\.[A-Za-z_][A-Za-z0-9_]*$`},
+			},
+		}
+	}
+	return map[string]any{
+		"type":        "array",
+		"description": "Constrained optimisations, each solved once after the fits (no record data): maximise or minimise an expression over decision variables under eq (expr = 0) / ineq (expr >= 0) constraints and bounds. Expressions read the variables, params.<name>, coef(fit, term) over the batch `fits` and the built-ins (hill(), exp(), …). Results are returned under the response `optimizations`, in order.",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string", "description": "The block's name, unique among the blocks."},
+				"variables": map[string]any{
+					"type":        "array",
+					"minItems":    1,
+					"description": "The decision variables.",
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"name":  map[string]any{"type": "string", "description": "Identifier the expressions read; unique, not `params` or a function name."},
+							"lower": bound("Lower bound: a number or \"params.<name>\"."),
+							"upper": bound("Upper bound (>= lower): a number or \"params.<name>\"."),
+							"start": bound("First starting value, within the bounds; omit for the midpoint."),
+						},
+						"required": []string{"name", "lower", "upper"},
+					},
+				},
+				"objective": map[string]any{"type": "string", "description": "The expression to optimise; must yield a number."},
+				"direction": enumStringField([]string{string(types.OptimizeMaximize), string(types.OptimizeMinimize)}, "maximize or minimize (required)."),
+				"constraints": map[string]any{
+					"type":        "array",
+					"description": "General constraints; no more eq than variables.",
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"expr": map[string]any{"type": "string", "description": "A numeric expression over the same names as the objective."},
+							"type": enumStringField([]string{string(types.OptimizeConstraintEq), string(types.OptimizeConstraintIneq)}, "eq: expr = 0; ineq: expr >= 0."),
+						},
+						"required": []string{"expr", "type"},
+					},
+				},
+				"starts":         map[string]any{"type": "integer", "minimum": 1, "maximum": types.OptimizeMaxStarts, "description": "Starting points solved: the start point, then seeded Latin-hypercube points (default 8)."},
+				"rng_seed":       map[string]any{"type": "integer", "description": "Seed of the Latin-hypercube starts; omit (0) to derive one from the block."},
+				"tolerance":      map[string]any{"type": "number", "minimum": 0, "description": "Solver accuracy goal; omit for 1e-6."},
+				"max_iterations": map[string]any{"type": "integer", "minimum": 0, "description": "Major iterations per start; omit for 100."},
+			},
+			"required": []string{"name", "variables", "objective", "direction"},
+		},
+	}
 }
 
 // forEachSchema describes an item `for_each` (types.ForEach): the item

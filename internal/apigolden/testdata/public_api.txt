@@ -160,6 +160,7 @@ pulse: type ComposePredictResult field Advisories []pulse/descriptor.Advisory "j
 pulse: type ComposePredictResult field Banner *pulse/descriptor.BannerSummary "json:\"banner,omitempty\""
 pulse: type ComposePredictResult field Fits []pulse/descriptor.FitSummary "json:\"fits,omitempty\""
 pulse: type ComposePredictResult field LimitFindings []pulse/descriptor.LimitFinding "json:\"limit_findings,omitempty\""
+pulse: type ComposePredictResult field Optimize []pulse/descriptor.OptimizeSummary "json:\"optimize,omitempty\""
 pulse: type ComposePredictResult field OverlayCost map[string]float64 "json:\"overlay_cost\""
 pulse: type ComposePredictResult field OverlaysSchemaDivergence []pulse/descriptor.SlotPair "json:\"overlays_schema_divergence\""
 pulse: type ComposePredictResult field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
@@ -172,6 +173,7 @@ pulse: type ComposedRequest underlying struct
 pulse: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,omitempty\""
 pulse: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
+pulse: type ComposedRequest field Optimize []pulse/types.OptimizeSpec "json:\"optimize,omitempty\""
 pulse: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
 pulse: type ComposedRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
@@ -183,6 +185,7 @@ pulse: type ComposedResponse underlying struct
 pulse: type ComposedResponse field Banner *pulse/types.BannerResult "json:\"banner,omitempty\""
 pulse: type ComposedResponse field Fits map[string]*pulse/types.FitResult "json:\"fits,omitempty\""
 pulse: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
+pulse: type ComposedResponse field Optimizations []pulse/types.OptimizeResult "json:\"optimizations,omitempty\""
 pulse: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse: type ComposedResponse field Ranking []pulse/types.RankEntry "json:\"ranking,omitempty\""
 pulse: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
@@ -1867,6 +1870,13 @@ pulse/descriptor: type OperatorParamMeta field Example any "json:\"example,omite
 pulse/descriptor: type OperatorParamMeta field JSONType string "json:\"json_type\""
 pulse/descriptor: type OperatorParamMeta field Name string "json:\"name\""
 pulse/descriptor: type OperatorParamMeta field Required bool "json:\"required,omitempty\""
+pulse/descriptor: type OptimizeSummary struct
+pulse/descriptor: type OptimizeSummary field Constraints int "json:\"constraints\""
+pulse/descriptor: type OptimizeSummary field Direction pulse/types.OptimizeDirection "json:\"direction\""
+pulse/descriptor: type OptimizeSummary field Name string "json:\"name\""
+pulse/descriptor: type OptimizeSummary field RNGSeed int64 "json:\"rng_seed\""
+pulse/descriptor: type OptimizeSummary field Starts int "json:\"starts\""
+pulse/descriptor: type OptimizeSummary field Variables []string "json:\"variables\""
 pulse/descriptor: type OverlayAppliedDescriptor struct
 pulse/descriptor: type OverlayAppliedDescriptor field Kind pulse/types.OverlayKind "json:\"kind\""
 pulse/descriptor: type OverlayAppliedDescriptor field Name string "json:\"name\""
@@ -2692,9 +2702,12 @@ pulse/errors: const PULSE_MODEL_VERSION_UNSUPPORTED pulse/errors.Code = "PULSE_M
 pulse/errors: const PULSE_MODEL_WRITE_FAILED pulse/errors.Code = "PULSE_MODEL_WRITE_FAILED"
 pulse/errors: const PULSE_MULTIPLICITY_CONFLICT pulse/errors.Code = "PULSE_MULTIPLICITY_CONFLICT"
 pulse/errors: const PULSE_MULTIPLICITY_INVALID pulse/errors.Code = "PULSE_MULTIPLICITY_INVALID"
+pulse/errors: const PULSE_OPTIMIZE_EXPRESSION_INVALID pulse/errors.Code = "PULSE_OPTIMIZE_EXPRESSION_INVALID"
 pulse/errors: const PULSE_OPTIMIZE_INFEASIBLE pulse/errors.Code = "PULSE_OPTIMIZE_INFEASIBLE"
 pulse/errors: const PULSE_OPTIMIZE_INVALID pulse/errors.Code = "PULSE_OPTIMIZE_INVALID"
 pulse/errors: const PULSE_OPTIMIZE_NOT_CONVERGED pulse/errors.Code = "PULSE_OPTIMIZE_NOT_CONVERGED"
+pulse/errors: const PULSE_OPTIMIZE_SPEC_INVALID pulse/errors.Code = "PULSE_OPTIMIZE_SPEC_INVALID"
+pulse/errors: const PULSE_OPTIMIZE_VARIABLE_INVALID pulse/errors.Code = "PULSE_OPTIMIZE_VARIABLE_INVALID"
 pulse/errors: const PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT pulse/errors.Code = "PULSE_OVERLAY_CHAIN_STAGE_SHAPE_DIVERGENT"
 pulse/errors: const PULSE_OVERLAY_COMPONENTS_REQUIRED pulse/errors.Code = "PULSE_OVERLAY_COMPONENTS_REQUIRED"
 pulse/errors: const PULSE_OVERLAY_DICT_PREFIX_DRIFT pulse/errors.Code = "PULSE_OVERLAY_DICT_PREFIX_DRIFT"
@@ -4650,6 +4663,9 @@ pulse/types: func AllMatrixKinds() []pulse/types.MatrixKind
 pulse/types: func AllMatrixTypes() []pulse/types.MatrixType
 pulse/types: func AllMultiplicityFamilies() []pulse/types.MultiplicityFamily
 pulse/types: func AllMultiplicityMethods() []pulse/types.MultiplicityMethod
+pulse/types: func AllOptimizeActiveBounds() []pulse/types.OptimizeActiveBound
+pulse/types: func AllOptimizeConstraintTypes() []pulse/types.OptimizeConstraintType
+pulse/types: func AllOptimizeDirections() []pulse/types.OptimizeDirection
 pulse/types: func AllOverlayKinds() []pulse/types.OverlayKind
 pulse/types: func AllRegressionTypes() []pulse/types.RegressionType
 pulse/types: func AllReturnPresets() []pulse/types.ReturnPreset
@@ -4752,6 +4768,8 @@ pulse/types: type BannerSpec field Request *pulse/types.Request "json:\"request\
 pulse/types: type BannerSpec field Sections []pulse/types.BannerSection "json:\"sections\""
 pulse/types: type BannerSpec field Total bool "json:\"total,omitempty\""
 pulse/types: const BannerTotalLabel untyped string = "Total"
+pulse/types: func BoundParam(name string) pulse/types.OptimizeBound
+pulse/types: func BoundValue(v float64) pulse/types.OptimizeBound
 pulse/types: func CanonicalHash(tag string, v any) string
 pulse/types: type CellsFault struct
 pulse/types: type CellsFault field Details map[string]any
@@ -4810,6 +4828,7 @@ pulse/types: type ComposedRequest struct
 pulse/types: type ComposedRequest field Banner *pulse/types.BannerSpec "json:\"banner,omitempty\""
 pulse/types: type ComposedRequest field Fits []pulse/types.FitSpec "json:\"fits,omitempty\""
 pulse/types: type ComposedRequest field Multiplicity *pulse/types.Multiplicity "json:\"multiplicity,omitempty\""
+pulse/types: type ComposedRequest field Optimize []pulse/types.OptimizeSpec "json:\"optimize,omitempty\""
 pulse/types: type ComposedRequest field Overlays []pulse/types.ComposeOverlaySpec "json:\"overlays,omitempty\""
 pulse/types: type ComposedRequest field Params pulse/types.Params "json:\"params,omitempty\""
 pulse/types: type ComposedRequest field Requests []*pulse/types.Request "json:\"requests\""
@@ -4820,6 +4839,7 @@ pulse/types: type ComposedResponse struct
 pulse/types: type ComposedResponse field Banner *pulse/types.BannerResult "json:\"banner,omitempty\""
 pulse/types: type ComposedResponse field Fits map[string]*pulse/types.FitResult "json:\"fits,omitempty\""
 pulse/types: type ComposedResponse field NormalizedRequest *pulse/types.ComposedRequest "json:\"-\""
+pulse/types: type ComposedResponse field Optimizations []pulse/types.OptimizeResult "json:\"optimizations,omitempty\""
 pulse/types: type ComposedResponse field Overlays []pulse/types.OverlayLayer "json:\"overlays,omitempty\""
 pulse/types: type ComposedResponse field Ranking []pulse/types.RankEntry "json:\"ranking,omitempty\""
 pulse/types: type ComposedResponse field Responses []*pulse/types.Response "json:\"responses\""
@@ -5317,6 +5337,68 @@ pulse/types: func NullSlotWeight() pulse/types.SlotWeight
 pulse/types: type OnPair struct
 pulse/types: type OnPair field LeftField string "json:\"left_field\""
 pulse/types: type OnPair field RightField string "json:\"right_field\""
+pulse/types: type OptimizeActiveBound string
+pulse/types: const OptimizeActiveLower pulse/types.OptimizeActiveBound = "lower"
+pulse/types: const OptimizeActiveUpper pulse/types.OptimizeActiveBound = "upper"
+pulse/types: type OptimizeBound struct
+pulse/types: type OptimizeBound method (*OptimizeBound) UnmarshalJSON(raw []byte) error
+pulse/types: type OptimizeBound method (OptimizeBound) IsParam() bool
+pulse/types: type OptimizeBound method (OptimizeBound) IsZero() bool
+pulse/types: type OptimizeBound method (OptimizeBound) MarshalJSON() ([]byte, error)
+pulse/types: type OptimizeBound method (OptimizeBound) Param() string
+pulse/types: type OptimizeBound method (OptimizeBound) Value() float64
+pulse/types: type OptimizeConstraint struct
+pulse/types: type OptimizeConstraint field Expr string "json:\"expr\""
+pulse/types: type OptimizeConstraint field Type pulse/types.OptimizeConstraintType "json:\"type\""
+pulse/types: const OptimizeConstraintEq pulse/types.OptimizeConstraintType = "eq"
+pulse/types: const OptimizeConstraintIneq pulse/types.OptimizeConstraintType = "ineq"
+pulse/types: type OptimizeConstraintResult struct
+pulse/types: type OptimizeConstraintResult field Expr string "json:\"expr\""
+pulse/types: type OptimizeConstraintResult field Multiplier float64 "json:\"multiplier\""
+pulse/types: type OptimizeConstraintResult field Type pulse/types.OptimizeConstraintType "json:\"type\""
+pulse/types: type OptimizeConstraintResult field Value float64 "json:\"value\""
+pulse/types: type OptimizeConstraintType string
+pulse/types: const OptimizeDefaultStarts untyped int = 8
+pulse/types: type OptimizeDirection string
+pulse/types: const OptimizeMaxStarts untyped int = 1000
+pulse/types: const OptimizeMaximize pulse/types.OptimizeDirection = "maximize"
+pulse/types: const OptimizeMinimize pulse/types.OptimizeDirection = "minimize"
+pulse/types: type OptimizeResult struct
+pulse/types: type OptimizeResult field Constraints []pulse/types.OptimizeConstraintResult "json:\"constraints,omitempty\""
+pulse/types: type OptimizeResult field Converged bool "json:\"converged\""
+pulse/types: type OptimizeResult field Direction pulse/types.OptimizeDirection "json:\"direction\""
+pulse/types: type OptimizeResult field Error *pulse/types.SlotError "json:\"error,omitempty\""
+pulse/types: type OptimizeResult field Iterations int "json:\"iterations\""
+pulse/types: type OptimizeResult field MaxViolation float64 "json:\"max_violation\""
+pulse/types: type OptimizeResult field Name string "json:\"name\""
+pulse/types: type OptimizeResult field Objective float64 "json:\"objective\""
+pulse/types: type OptimizeResult field RNGSeed int64 "json:\"rng_seed\""
+pulse/types: type OptimizeResult field Starts int "json:\"starts\""
+pulse/types: type OptimizeResult field StartsAgreeing int "json:\"starts_agreeing\""
+pulse/types: type OptimizeResult field Status string "json:\"status\""
+pulse/types: type OptimizeResult field Variables []pulse/types.OptimizeVariableResult "json:\"variables\""
+pulse/types: type OptimizeResult method (OptimizeResult) MarshalJSON() ([]byte, error)
+pulse/types: type OptimizeSpec struct
+pulse/types: type OptimizeSpec field Constraints []pulse/types.OptimizeConstraint "json:\"constraints,omitempty\""
+pulse/types: type OptimizeSpec field Direction pulse/types.OptimizeDirection "json:\"direction\""
+pulse/types: type OptimizeSpec field MaxIterations int "json:\"max_iterations,omitempty\""
+pulse/types: type OptimizeSpec field Name string "json:\"name\""
+pulse/types: type OptimizeSpec field Objective string "json:\"objective\""
+pulse/types: type OptimizeSpec field RNGSeed int64 "json:\"rng_seed,omitempty\""
+pulse/types: type OptimizeSpec field Starts *int "json:\"starts,omitempty\""
+pulse/types: type OptimizeSpec field Tolerance float64 "json:\"tolerance,omitempty\""
+pulse/types: type OptimizeSpec field Variables []pulse/types.OptimizeVariable "json:\"variables\""
+pulse/types: type OptimizeSpec method (*OptimizeSpec) EffectiveStarts() int
+pulse/types: type OptimizeVariable struct
+pulse/types: type OptimizeVariable field Lower pulse/types.OptimizeBound "json:\"lower\""
+pulse/types: type OptimizeVariable field Name string "json:\"name\""
+pulse/types: type OptimizeVariable field Start pulse/types.OptimizeBound "json:\"start,omitzero\""
+pulse/types: type OptimizeVariable field Upper pulse/types.OptimizeBound "json:\"upper\""
+pulse/types: type OptimizeVariableResult struct
+pulse/types: type OptimizeVariableResult field Active pulse/types.OptimizeActiveBound "json:\"active,omitempty\""
+pulse/types: type OptimizeVariableResult field Marginal float64 "json:\"marginal\""
+pulse/types: type OptimizeVariableResult field Name string "json:\"name\""
+pulse/types: type OptimizeVariableResult field Value float64 "json:\"value\""
 pulse/types: type OrderKey struct
 pulse/types: type OrderKey field Desc bool "json:\"desc,omitempty\""
 pulse/types: type OrderKey field Field string "json:\"field\""
@@ -5997,4 +6079,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 3d9ebb1470b5196e416c75abc70e5a389d850dcd909e1e777cf8e4538ded0374
+// golden-hash: 7656c218688837eabe768f6ef32624ffe9138b264ab64bcf9350253e2b90e772

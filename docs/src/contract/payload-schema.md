@@ -1322,6 +1322,36 @@ like `ranking` (always emitted, never rounded). Both slots are gated by
 `{name, cohort, sem: {operator, labels, members}}` — on the predict
 result (not payload-reachable).
 
+### Compose optimize
+
+`ComposedRequest.optimize` is an `omitempty` array of `OptimizeSpec
+{name, variables, objective, direction, constraints, starts, rng_seed,
+tolerance, max_iterations}`: a constrained optimisation solved once,
+after the fits, with no record data. `variables` are `{name, lower,
+upper, start}`, each bound an `OptimizeBound` — a number or
+`"params.<name>"` naming a numeric batch param (`start` optional; the
+midpoint when absent). `objective` and every `constraints[i].expr`
+(type `eq`: expr = 0; `ineq`: expr >= 0) are expressions over the
+variables, `params.<name>`, `coef()` over the batch's `fits` and the
+built-ins; `direction` is `maximize` or `minimize` (required); `starts`
+defaults to 8 (1 to 1000). Predict and the runtime refuse a malformed
+block identically before any fit or slot runs:
+`PULSE_OPTIMIZE_SPEC_INVALID`, `PULSE_OPTIMIZE_VARIABLE_INVALID`,
+`PULSE_OPTIMIZE_EXPRESSION_INVALID`, or the shared
+`PULSE_PARAMS_UNDECLARED` / `PULSE_MODEL_*` coef() codes — each with
+`details.optimize` (the block index) and `details.field`. Results land
+in `ComposedResponse.optimizations`, an `omitempty` array of
+`OptimizeResult` in declaration order — `name`, `direction`,
+`objective`, `variables [{name, value, marginal, active}]`,
+`constraints [{expr, type, value, multiplier}]`, `converged`, `status`,
+`iterations`, `max_violation`, `starts`, `starts_agreeing`, `rng_seed`
+— pinned outside the Compose-level `return` (always emitted, never
+rounded); a block that failed on its numbers keeps `{name, direction,
+error}` (see Failed slots). Both slots are gated by
+`capability:compose_optimize`. `pulse_predict` with `composed` lists the
+blocks as `optimize [{name, direction, variables, constraints, starts,
+rng_seed}]` on the predict result (not payload-reachable).
+
 ### Model files (`save`)
 
 `RegressionSpec.save` and `FitSpec.save` are `omitempty` strings: a path,

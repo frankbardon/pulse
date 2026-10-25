@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:0426f3a27c668caf4aacd42ef452e8c74fd22afd6f2bc7662a1251e5cf5f58a7",
+  "$comment": "feature_set_digest: fs1:449b701644aa1be633b397b47f430d2decf9f071c6a2f86ebfa812ac6fabcf8c",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -964,6 +964,15 @@
         "multiplicity": {
           "$ref": "#/$defs/Multiplicity"
         },
+        "optimize": {
+          "items": {
+            "$ref": "#/$defs/OptimizeSpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "overlays": {
           "items": {
             "$ref": "#/$defs/ComposeOverlaySpec"
@@ -1043,6 +1052,15 @@
             "$ref": "#/$defs/FitResult"
           },
           "type": "object"
+        },
+        "optimizations": {
+          "items": {
+            "$ref": "#/$defs/OptimizeResult"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "overlays": {
           "items": {
@@ -3084,6 +3102,275 @@
       "required": [
         "left_field",
         "right_field"
+      ],
+      "type": "object"
+    },
+    "OptimizeActiveBound": {
+      "enum": [
+        "lower",
+        "upper"
+      ],
+      "type": "string"
+    },
+    "OptimizeBound": {
+      "description": "A decision variable's bound or start: a number, or \"params.\u003cname\u003e\" naming a batch param that holds a finite number.",
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^params\\.[A-Za-z_][A-Za-z0-9_]*$",
+          "type": "string"
+        }
+      ]
+    },
+    "OptimizeConstraint": {
+      "additionalProperties": false,
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/OptimizeConstraintType"
+        }
+      },
+      "required": [
+        "expr",
+        "type"
+      ],
+      "type": "object"
+    },
+    "OptimizeConstraintResult": {
+      "additionalProperties": false,
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "multiplier": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "type": {
+          "$ref": "#/$defs/OptimizeConstraintType"
+        },
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "expr",
+        "multiplier",
+        "type",
+        "value"
+      ],
+      "type": "object"
+    },
+    "OptimizeConstraintType": {
+      "enum": [
+        "eq",
+        "ineq"
+      ],
+      "type": "string"
+    },
+    "OptimizeDirection": {
+      "enum": [
+        "maximize",
+        "minimize"
+      ],
+      "type": "string"
+    },
+    "OptimizeResult": {
+      "additionalProperties": false,
+      "if": {
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      },
+      "properties": {
+        "constraints": {
+          "items": {
+            "$ref": "#/$defs/OptimizeConstraintResult"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "converged": {
+          "type": "boolean"
+        },
+        "direction": {
+          "$ref": "#/$defs/OptimizeDirection"
+        },
+        "error": {
+          "$ref": "#/$defs/SlotError"
+        },
+        "iterations": {
+          "type": "integer"
+        },
+        "max_violation": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "objective": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rng_seed": {
+          "type": "integer"
+        },
+        "starts": {
+          "type": "integer"
+        },
+        "starts_agreeing": {
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        },
+        "variables": {
+          "items": {
+            "$ref": "#/$defs/OptimizeVariableResult"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "then": {
+        "required": [
+          "converged",
+          "direction",
+          "iterations",
+          "max_violation",
+          "objective",
+          "rng_seed",
+          "starts",
+          "starts_agreeing",
+          "status",
+          "variables"
+        ]
+      },
+      "type": "object"
+    },
+    "OptimizeSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "constraints": {
+          "items": {
+            "$ref": "#/$defs/OptimizeConstraint"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "direction": {
+          "$ref": "#/$defs/OptimizeDirection"
+        },
+        "max_iterations": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "rng_seed": {
+          "type": "integer"
+        },
+        "starts": {
+          "type": "integer"
+        },
+        "tolerance": {
+          "type": "number"
+        },
+        "variables": {
+          "items": {
+            "$ref": "#/$defs/OptimizeVariable"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "direction",
+        "name",
+        "objective",
+        "variables"
+      ],
+      "type": "object"
+    },
+    "OptimizeVariable": {
+      "additionalProperties": false,
+      "properties": {
+        "lower": {
+          "$ref": "#/$defs/OptimizeBound"
+        },
+        "name": {
+          "type": "string"
+        },
+        "start": {
+          "$ref": "#/$defs/OptimizeBound"
+        },
+        "upper": {
+          "$ref": "#/$defs/OptimizeBound"
+        }
+      },
+      "required": [
+        "lower",
+        "name",
+        "upper"
+      ],
+      "type": "object"
+    },
+    "OptimizeVariableResult": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "$ref": "#/$defs/OptimizeActiveBound"
+        },
+        "marginal": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "marginal",
+        "name",
+        "value"
       ],
       "type": "object"
     },
@@ -6088,4 +6375,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: b682834972dc2f305635ac8c90978c59de198e6ebb6fa129ec84e6f18e874580
+// golden-hash: 6b8c787b4dce8c5540537a88b40fe086a4cea620de8ce7114231963a52e567ba

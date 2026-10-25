@@ -83,6 +83,7 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		"capability:materialize":            {{"capability:process"}},       // runs Process's pre-flight and record pipeline
 		"capability:compose_sweep":          {{"capability:compose"}},       // a sweep expands into Compose slots
 		"capability:compose_sweep_sampling": {{"capability:compose_sweep"}}, // a sampling mode is a sweep mode
+		"capability:compose_optimize":       {{"capability:compose"}},       // an optimize block is a Compose slot
 		"capability:crosstab_cells":         {{"capability:crosstab"}},      // the measures are a crosstab's cells
 		// fits run before Compose slots, and a fit is one regression
 		"capability:compose_fits": {{"capability:compose"}, {"ATTR_FACTOR_SCORE", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "REG_BAYES_LINEAR", "REG_GLM", "REG_OLS", "capability:matrices"}},
@@ -91,7 +92,7 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 		// a holdout scores a regression slot's fit, from any request host
 		"capability:regression_holdout": {requestHosts, {"REG_BAYES_LINEAR", "REG_GLM", "REG_OLS"}},
 		// parameters are read only by an expression, from any request host
-		"capability:params": {requestHosts, {"ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", "capability:regression_holdout"}},
+		"capability:params": {requestHosts, {"ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", "capability:regression_holdout", "capability:compose_optimize"}},
 		// a load feeds a scoring reference, from any request host or a facet
 		"capability:models":            {{"capability:process", "capability:compose", "capability:process_chain", "capability:facet"}, {"ATTR_FACTOR_SCORE", "ATTR_FORMULA", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "ATTR_REG_FITTED", "ATTR_REG_PREDICT", "ATTR_REG_RESIDUAL", "ATTR_SEM_SCORE", "ATTR_VEC_DISTANCE", "FILTER_EXPRESSION", "capability:matrices"}},
 		"ATTR_REG_FITTED":              {requestHosts, {"REG_OLS"}},

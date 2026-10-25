@@ -3650,6 +3650,41 @@ const (
 	// carry "status", "message", "iterations" and "max_violation".
 	PULSE_OPTIMIZE_INFEASIBLE Code = "PULSE_OPTIMIZE_INFEASIBLE"
 
+	// PULSE_OPTIMIZE_SPEC_INVALID indicates a malformed ComposedRequest
+	// `optimize` block: no name or a name another block already took, no
+	// variables, an empty objective, a missing or unknown direction, a
+	// constraint with no expression or a type other than eq / ineq, more
+	// eq constraints than variables, `starts` outside 1..1000, or a
+	// negative or non-finite tolerance or a negative max_iterations.
+	// Refused identically by predict and the runtime before any fit or
+	// slot runs. Details carry "optimize" (the block index), "field"
+	// (the optimize-rooted path), "reason" and, where they apply,
+	// "name", "value" and "valid".
+	PULSE_OPTIMIZE_SPEC_INVALID Code = "PULSE_OPTIMIZE_SPEC_INVALID"
+
+	// PULSE_OPTIMIZE_VARIABLE_INVALID indicates an `optimize` block's
+	// decision variable that cannot be solved over: a missing name, a
+	// name that is not an identifier, is `params` or an expression
+	// function's name, or repeats another variable's; a missing lower or
+	// upper bound; a bound or start whose param is not an identifier
+	// or does not hold a finite number;
+	// a lower bound above the upper; or a start outside the bounds.
+	// Refused identically by predict and the runtime before any fit or
+	// slot runs. Details carry "optimize", "field", "reason", "variable"
+	// and, where they apply, "param", "lower", "upper" and "value".
+	PULSE_OPTIMIZE_VARIABLE_INVALID Code = "PULSE_OPTIMIZE_VARIABLE_INVALID"
+
+	// PULSE_OPTIMIZE_EXPRESSION_INVALID indicates an `optimize` block's
+	// objective or constraint expression that cannot be evaluated: it
+	// reads an identifier that is neither a decision variable nor
+	// `params` (unknown_identifier), it does not compile against the
+	// block's environment (compile_error), or it yields something other
+	// than a number (not_numeric). Refused identically by predict and the
+	// runtime before any fit or slot runs. Details carry "optimize",
+	// "field", "reason", "expression" and, where they apply,
+	// "identifier", "valid", "compile_error" and "result_type".
+	PULSE_OPTIMIZE_EXPRESSION_INVALID Code = "PULSE_OPTIMIZE_EXPRESSION_INVALID"
+
 	// PULSE_MATRIX_SHAPE_MISMATCH indicates linear-algebra operands whose
 	// dimensions disagree (a non-square or ragged matrix, a vector whose
 	// length is not the matrix order, data whose length is not
@@ -4646,6 +4681,9 @@ var allCodes = []Code{
 	PULSE_OPTIMIZE_INVALID,
 	PULSE_OPTIMIZE_NOT_CONVERGED,
 	PULSE_OPTIMIZE_INFEASIBLE,
+	PULSE_OPTIMIZE_SPEC_INVALID,
+	PULSE_OPTIMIZE_VARIABLE_INVALID,
+	PULSE_OPTIMIZE_EXPRESSION_INVALID,
 	PULSE_VECTOR_INVALID,
 	PULSE_VECTOR_EMPTY,
 	PULSE_VECTOR_MEMBER_TYPE,

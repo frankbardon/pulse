@@ -37,6 +37,8 @@ import (
 //     ComposedResponse.SweepSeed echo — capability:compose_sweep_sampling
 //   - ComposedRequest.Banner   — capability:compose_banner (+ the
 //     ComposedResponse.Banner it produces)
+//   - ComposedRequest.Optimize — capability:compose_optimize (+ the
+//     ComposedResponse.Optimizations it produces)
 //   - ComposedRequest.Fits     — capability:compose_fits (each fit
 //     request's own slots are gated like a slot's, details.fit)
 //   - ChainRequest.Overlays    — capability:process_chain
@@ -249,6 +251,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "fits", visible: capabilityGate(featComposeFits)},
 		{key: "banner", visible: capabilityGate(featComposeBanner)},
 		paramsSlotGate,
+		{key: "optimize", visible: capabilityGate(featComposeOpt)},
 	},
 	// The sweep rank rides capability:compose_sweep with the `sweep`
 	// slot that produces it; the seed echo only a sampled sweep writes
@@ -261,6 +264,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "sweep_seed", visible: sweepSamplingGate},
 		{key: "fits", visible: capabilityGate(featComposeFits)},
 		{key: "banner", visible: capabilityGate(featComposeBanner)},
+		{key: "optimizations", visible: capabilityGate(featComposeOpt)},
 	},
 	reflect.TypeOf(types.ChainRequest{}): {
 		{key: "overlays", visible: overlayGate(featProcessChain)},
@@ -477,6 +481,9 @@ func setSlots(v any) []string {
 		}
 		if r != nil && len(r.Params) > 0 {
 			out = append(out, "params")
+		}
+		if r != nil && len(r.Optimize) > 0 {
+			out = append(out, "optimize")
 		}
 	case *types.ChainRequest:
 		if r != nil && len(r.Overlays) > 0 {

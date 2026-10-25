@@ -4586,6 +4586,60 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_OPTIMIZE_SPEC_INVALID: {
+		Message: "A ComposedRequest `optimize` block is malformed, so nothing runs — predict refuses it identically. Every block needs a `name` unique among the blocks (reason `name_missing`, `name_duplicate`), at least one variable (`variables_missing`), a non-empty `objective` (`objective_missing`) and a `direction` of `maximize` or `minimize` (`direction_missing`, `direction_unknown`). Every constraint needs a non-empty `expr` (`constraint_expr_missing`) and a `type` of `eq` (expr = 0) or `ineq` (expr >= 0) (`constraint_type_unknown`), and there may be no more eq constraints than variables (`too_many_equalities`). `starts`, when set, is 1 to 1000 (`starts_invalid`; absent is 8); `tolerance` is a finite number >= 0 (`tolerance_invalid`; 0 is 1e-6) and `max_iterations` >= 0 (`max_iterations_invalid`; 0 is 100). The block index is under `optimize`, the offending path under `field`, the rule under `reason` and, where they apply, the value under `value` and the accepted values under `valid`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"optimize", "*", "direction"},
+				Hint:     "Name the block, give it at least one variable and a non-empty objective, and set `direction` to maximize or minimize.",
+				Examples: []any{"maximize", "minimize"},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"optimize", "*", "constraints", "*", "type"},
+				Hint:     "Give every constraint an `expr` and a `type` of eq (expr = 0) or ineq (expr >= 0); keep the eq constraints no more numerous than the variables.",
+				Examples: []any{"eq", "ineq"},
+			},
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"optimize", "*", "starts"},
+				Hint:     "Drop `starts` for the default 8, or set 1 to 1000; drop `tolerance` / `max_iterations` for the solver defaults.",
+				Examples: []any{8, 32},
+			},
+		},
+	},
+	PULSE_OPTIMIZE_VARIABLE_INVALID: {
+		Message: "A decision variable of a ComposedRequest `optimize` block cannot be solved over, so nothing runs — predict refuses it identically. Every variable needs a `name` (reason `name_missing`) that is an identifier ([A-Za-z_][A-Za-z0-9_]*, `name_invalid`), is not `params` nor an expression function's name (`name_reserved`) and is unique within the block (`name_duplicate`). `lower` and `upper` are both required (`bound_missing`): a number or `\"params.<name>\"` naming a batch param (an identifier, `bound_invalid`) that holds a finite number (`bound_not_numeric`; an undeclared param is PULSE_PARAMS_UNDECLARED). `lower` may not exceed `upper` (`bounds_crossed`; equal fixes the variable), and a `start`, when set, lies within them (`start_out_of_bounds`; absent starts at the midpoint). The block index is under `optimize`, the path under `field`, the rule under `reason`, the variable under `variable` and, where they apply, `param`, `lower`, `upper` and `value`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"optimize", "*", "variables", "*", "name"},
+				Hint:   "Give every variable a unique identifier name that is neither `params` nor a function name (hill, exp, coef, …).",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"optimize", "*", "variables", "*", "lower"},
+				Hint:     "Set both bounds — numbers or \"params.<name>\" references to numeric batch params — with lower <= upper, and keep any start between them.",
+				Examples: []any{0, "params.budget_floor"},
+			},
+		},
+	},
+	PULSE_OPTIMIZE_EXPRESSION_INVALID: {
+		Message: "An `optimize` block's objective or constraint expression cannot be evaluated, so nothing runs — predict refuses it identically. The expressions read the block's decision variables, `params.<name>` (the batch params), coef(fit, term[, stat]) over the batch's `fits` and the expression built-ins (hill(), exp(), log(), pow(), …); no record field is in reach. Reason `unknown_identifier`: the expression reads a name that is none of those (the name is under `identifier`, the decision variables under `valid`). Reason `compile_error`: the expression does not compile (expr-lang's reason under `compile_error`). Reason `not_numeric`: it yields something other than a number (the type under `result_type`). An all-literal coef() call naming an unknown fit, term or stat is PULSE_MODEL_UNKNOWN / PULSE_MODEL_TERM_UNKNOWN / PULSE_MODEL_STAT_UNKNOWN, located the same way. The block index is under `optimize`, the path under `field` and the source under `expression`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"optimize", "*", "objective"},
+				Hint:   "Read only the block's variables, params.<name>, coef() and the built-ins; declare a missing name as a variable, or pass a constant through the batch `params`.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"optimize", "*", "constraints", "*", "expr"},
+				Hint:   "Write every constraint as a numeric expression: eq holds when it is 0, ineq when it is >= 0 (`params.budget - (tv + search)` for a spend cap).",
+			},
+		},
+	},
 	PULSE_MATRIX_SINGULAR: {
 		Message: "A matrix could not be factored, solved against, inverted or decomposed. Usually it is singular or not positive definite: a Cholesky pivot came out zero or negative, or its condition number is past the solver's ceiling. In data terms some variables are exact (or near-exact) linear combinations of others — a duplicated or constant column, a one-hot set with every level included, or fewer usable rows than variables. The same code covers a decomposition (eigen, SVD, QR, rank, condition number) handed a NaN or infinite element (details `reason` = `non_finite`) or whose iteration did not converge (`reason` = `no_convergence`). Details carry `reason` where the routine classifies the failure (also `not_positive_definite`, `ill_conditioned`, `backend_error`), `pivot` for a reference Cholesky failure, `attempts` / `ridge` when a ridge schedule was exhausted, and `condition_number` from the SPD solve / inverse. A failed Cholesky factorisation (reference or SPD) of a finite matrix also carries `rank` (under the rank tolerance), `condition_number` (null when rank-deficient) and, when the matrix is rank-deficient, `dependent_indices` — the axis positions in the linear dependency; a matrix operator adds `matrix` and names those members as `dependent_fields`. An operator whose other outputs stay defined may raise it as a per-matrix WARNING instead, naming the figures it nulls under `outputs`.",
 		Fixups: []Fixup{

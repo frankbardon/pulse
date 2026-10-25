@@ -268,6 +268,13 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	m[reflect.TypeFor[types.SweepMode]()] = stringify(modes)
 	m[reflect.TypeFor[types.SweepScale]()] = stringify(types.AllSweepScales())
 	m[reflect.TypeFor[types.SweepRankOrder]()] = stringify(types.AllSweepRankOrders())
+	// The optimize block's directions, constraint types and active
+	// bounds: closed vocabularies (a hidden capability:compose_optimize
+	// drops the `optimize` / `optimizations` slots, and the defs with
+	// them).
+	m[reflect.TypeFor[types.OptimizeDirection]()] = stringify(types.AllOptimizeDirections())
+	m[reflect.TypeFor[types.OptimizeConstraintType]()] = stringify(types.AllOptimizeConstraintTypes())
+	m[reflect.TypeFor[types.OptimizeActiveBound]()] = stringify(types.AllOptimizeActiveBounds())
 	// The regression covariance estimators: a closed vocabulary on the
 	// ungated regressions slot.
 	m[reflect.TypeFor[types.CovarianceType]()] = stringify(types.AllCovarianceTypes())
@@ -397,6 +404,8 @@ func (b *schemaBuilder) defFor(t reflect.Type) any {
 		return covarianceLagsDef()
 	case reflect.TypeFor[types.PriorPrecision]():
 		return priorPrecisionDef()
+	case reflect.TypeFor[types.OptimizeBound]():
+		return optimizeBoundDef()
 	case reflect.TypeFor[types.FitResult]():
 		return b.fitResultDef()
 	case reflect.TypeFor[types.MatrixValues]():
@@ -870,6 +879,21 @@ func priorPrecisionDef() any {
 		"oneOf": []any{
 			map[string]any{"type": "number", "minimum": 0},
 			map[string]any{"type": "array", "items": map[string]any{"type": "number", "minimum": 0}},
+		},
+	}
+}
+
+// optimizeBoundDef is an optimize variable's lower / upper / start.
+// types.OptimizeBound has no exported fields (its states are behind
+// constructors), so reflection would describe an empty object; on the
+// wire it is a number or a "params.<name>" reference to a numeric batch
+// param.
+func optimizeBoundDef() any {
+	return map[string]any{
+		"description": "A decision variable's bound or start: a number, or \"params.<name>\" naming a batch param that holds a finite number.",
+		"oneOf": []any{
+			map[string]any{"type": "number"},
+			map[string]any{"type": "string", "pattern": `^params\.[A-Za-z_][A-Za-z0-9_]*$`},
 		},
 	}
 }

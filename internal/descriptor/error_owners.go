@@ -363,16 +363,17 @@ var errorOwners = map[errors.Code][]string{
 	// The one model namespace: Compose fits and loaded models bind it.
 	errors.PULSE_FIT_INVALID:          own(featComposeFits),
 	errors.PULSE_MODEL_NAME_COLLISION: own(featComposeFits, featModels),
-	errors.PULSE_MODEL_UNKNOWN:        own(featComposeFits, featModels, "ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_FORMULA", "FILTER_EXPRESSION"),
+	errors.PULSE_MODEL_UNKNOWN:        own(featComposeFits, featModels, "ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_FORMULA", "FILTER_EXPRESSION", featComposeOpt),
 	errors.PULSE_MODEL_KIND_MISMATCH:  own(featComposeFits, featModels),
 	// ATTR_REG_PREDICT's scoring rule (internal/model.CheckScore), an
 	// ATTR_REG_FITTED / RESIDUAL params.fit (CheckFitReference) and
 	// the coef() expression function (internal/model.CheckCoef), which
-	// ATTR_FORMULA and FILTER_EXPRESSION evaluate; a regression holdout
+	// ATTR_FORMULA, FILTER_EXPRESSION and a compose optimize block
+	// evaluate; a regression holdout
 	// over an unscorable type (model.HoldoutScorerRefusal, no_scorer).
 	errors.PULSE_MODEL_SCORE_INVALID:         own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", featRegHoldout),
-	errors.PULSE_MODEL_TERM_UNKNOWN:          own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
-	errors.PULSE_MODEL_STAT_UNKNOWN:          own("ATTR_FORMULA", "FILTER_EXPRESSION"),
+	errors.PULSE_MODEL_TERM_UNKNOWN:          own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION", featComposeOpt),
+	errors.PULSE_MODEL_STAT_UNKNOWN:          own("ATTR_FORMULA", "FILTER_EXPRESSION", featComposeOpt),
 	errors.PULSE_MODEL_INTERVALS_UNAVAILABLE: own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
 	errors.PULSE_MODEL_PREDICTOR_MISSING:     own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
 	// ATTR_FORMULA's total(expr) cohort-total term (internal/totalcall):
@@ -385,7 +386,7 @@ var errorOwners = map[errors.Code][]string{
 	// params.<name> can be refused (undeclared, collision) wherever an
 	// expression compiles, the slot hidden or not.
 	errors.PULSE_PARAMS_INVALID:              own(featParams),
-	errors.PULSE_PARAMS_UNDECLARED:           own("ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", featRegHoldout, featParams),
+	errors.PULSE_PARAMS_UNDECLARED:           own("ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", featRegHoldout, featParams, featComposeOpt),
 	errors.PULSE_PARAMS_FIELD_COLLISION:      own("ATTR_FORMULA", "FILTER_EXPRESSION", featRegHoldout, featParams),
 	errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC: own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
 	// The model file: a `save` writes it (capability:model_save), a
@@ -604,7 +605,11 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_OPTIMIZE_INVALID:       shared,
 	errors.PULSE_OPTIMIZE_NOT_CONVERGED: shared,
 	errors.PULSE_OPTIMIZE_INFEASIBLE:    shared,
-	errors.PULSE_MATRIX_SHAPE_MISMATCH:  shared,
+	// The compose `optimize` block's own rules.
+	errors.PULSE_OPTIMIZE_SPEC_INVALID:       own(featComposeOpt),
+	errors.PULSE_OPTIMIZE_VARIABLE_INVALID:   own(featComposeOpt),
+	errors.PULSE_OPTIMIZE_EXPRESSION_INVALID: own(featComposeOpt),
+	errors.PULSE_MATRIX_SHAPE_MISMATCH:       shared,
 
 	// Virtual vectors are capability:matrices: with it hidden the
 	// `vectors` slot is refused as an unknown field before any vector is
