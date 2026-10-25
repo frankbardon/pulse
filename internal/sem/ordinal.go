@@ -98,7 +98,20 @@ const (
 	// categories of variable are empty in group g", reached when a
 	// category observed in the pooled data is missing from one group.
 	ReasonEmptyCategory = "empty_category"
+	// ReasonTooManyCategories: an ordered variable declaring more than
+	// MaxOrderedCategories categories (Levels) — one threshold per
+	// category boundary and a Γ of matching size, so a high-cardinality
+	// numeric column declared ordered is refused, never fitted.
+	ReasonTooManyCategories = "too_many_categories"
 )
+
+// MaxOrderedCategories is the most categories one ordered variable may
+// declare (Levels; MaxOrderedCategories − 1 thresholds). A rating scale
+// sits far below it — a 0–10 scale has 11, and lavaan already warns
+// above 12 — so a column past it is a continuous measure declared
+// ordered by mistake: its thresholds and Γ (rows and columns per
+// threshold, per group) would grow with its distinct values.
+const MaxOrderedCategories = 32
 
 // OrdinalError is a refused two-step input: Var is the column at fault
 // (-1 for the whole input), Group the group index (-1 ungrouped), Reason
@@ -262,6 +275,9 @@ func twoStep(in TwoStepInput, group int) (*TwoStepStats, error) {
 			if k < 1 {
 				return nil, refuse(v, ReasonInvalidInput, fmt.Sprintf("an ordered column needs at least one level, has %d", k), nil)
 			}
+			if k > MaxOrderedCategories {
+				return nil, refuse(v, ReasonTooManyCategories, fmt.Sprintf("an ordered column with %d categories (at most %d)", k, MaxOrderedCategories), nil)
+			}
 			freq := make([]float64, k)
 			for i, row := range in.Rows {
 				c := row[v]
@@ -422,39 +438,31 @@ type scoreFn func(rho float64) (g, h float64)
 
 // solveRho maximises a bivariate log-likelihood over [-bound, bound] by
 // a safeguarded Newton search on its score g(ρ) = 0 (Newton steps kept
-// inside the sign bracket, bisection otherwise), started at start. A
-// score that does not change sign across the box puts the maximum on the
-// edge it rises toward (bound reported). Deterministic: the iterates are
-// a function of the inputs.
+// inside the sign bracket, bisection otherwise), started at start (0
+// outside the box) — a LOCAL ascent, as lavaan's nlminb from its start
+// is: from a rising start the maximum is a root above it, else
+// the upper edge (bound reported) when the score stays non-negative up
+// to it; from a falling start the root below it, else the lower edge.
+// So a likelihood the probability floors bend upward at the far edge (a
+// sparse table's score turns negative again just inside −0.999) keeps
+// its interior maximum. Deterministic: the iterates are a function of
+// the inputs.
 func solveRho(f scoreFn, start, bound float64) (rho float64, onBound bool) {
 	lo, hi := -bound, bound
 	glo, _ := f(lo)
 	ghi, _ := f(hi)
-	switch {
-	case ghi >= 0 && glo >= 0:
-		if ghi == 0 && glo > 0 {
-			return hi, false
-		}
-		return hi, ghi > 0
-	case glo <= 0 && ghi <= 0:
-		if glo == 0 {
-			return lo, false
-		}
-		return lo, true
-	case glo < 0 && ghi > 0:
-		// a minimum inside: take the better edge is undefined here —
-		// lavaan's local search from start ascends to one edge; follow
-		// the start's slope.
-		if gs, _ := f(start); gs >= 0 {
-			return hi, true
-		}
-		return lo, true
-	}
-	// glo > 0 > ghi: a root inside.
 	x := start
 	if !(x > lo && x < hi) {
 		x = 0
 	}
+	switch gs, _ := f(x); {
+	case gs > 0 && ghi >= 0:
+		return hi, ghi > 0
+	case gs < 0 && glo <= 0:
+		return lo, glo < 0
+	}
+	// A root between the start and the edge it rises toward: the first
+	// step below narrows [lo, hi] to it.
 	for iter := 0; iter < 200; iter++ {
 		g, h := f(x)
 		if g == 0 {

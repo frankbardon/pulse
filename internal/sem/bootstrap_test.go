@@ -86,6 +86,13 @@ func csvRows(t *testing.T, path, group string, labels []string, cols []string) [
 // group's key prefix) within the sampling tolerances.
 func checkBootAgainstLavaan(t *testing.T, rows []Estimate, ref lavaanBootRef, group func(i int) string) {
 	t.Helper()
+	checkBootAgainstLavaanTol(t, rows, ref, group, bootTolSE, bootTolCI)
+}
+
+// checkBootAgainstLavaanTol is checkBootAgainstLavaan at the sampling
+// tolerances tolSE (relative, on the SE) and tolCI (in SEs, on a bound).
+func checkBootAgainstLavaanTol(t *testing.T, rows []Estimate, ref lavaanBootRef, group func(i int) string, tolSE, tolCI float64) {
+	t.Helper()
 	byKey := map[string]lavaanParam{}
 	for _, p := range ref.Params {
 		k := lavaanKey(p.lavaanParam)
@@ -114,12 +121,12 @@ func checkBootAgainstLavaan(t *testing.T, rows []Estimate, ref lavaanBootRef, gr
 		if d := relTol(e.Value, *p.Est); d > lavaanEstTol {
 			t.Errorf("[%s] %s estimate %g, lavaan %g: the point estimate must stay the full data's", g, e.Key(), e.Value, *p.Est)
 		}
-		if d := math.Abs(e.SE-*p.SE) / *p.SE; !(d <= bootTolSE) {
-			t.Errorf("[%s] %s bootstrap SE %g, lavaan %g (rel %.3f > %.2f)", g, e.Key(), e.SE, *p.SE, d, bootTolSE)
+		if d := math.Abs(e.SE-*p.SE) / *p.SE; !(d <= tolSE) {
+			t.Errorf("[%s] %s bootstrap SE %g, lavaan %g (rel %.3f > %.2f)", g, e.Key(), e.SE, *p.SE, d, tolSE)
 		}
 		for what, pair := range map[string][2]float64{"ci_lower": {e.CILower, *p.CILower}, "ci_upper": {e.CIUpper, *p.CIUpper}} {
-			if d := math.Abs(pair[0]-pair[1]) / *p.SE; !(d <= bootTolCI) {
-				t.Errorf("[%s] %s %s %g, lavaan %g (%.2f SE > %.2f)", g, e.Key(), what, pair[0], pair[1], d, bootTolCI)
+			if d := math.Abs(pair[0]-pair[1]) / *p.SE; !(d <= tolCI) {
+				t.Errorf("[%s] %s %s %g, lavaan %g (%.2f SE > %.2f)", g, e.Key(), what, pair[0], pair[1], d, tolCI)
 			}
 		}
 		if z := e.Value / e.SE; e.Z != z || e.P != 2*(1-normCDF(math.Abs(z))) {
@@ -368,7 +375,7 @@ func TestSEM_BootstrapFiguresFromReplicates(t *testing.T) {
 	var reps [][]Estimate
 	for i := 0; i < iters; i++ {
 		drawReplicate(rng, samples, ns, p, draw)
-		rows, ok := bootstrapReplicate(m, samples, draw, ns, Options{}, false)
+		rows, ok := bootstrapReplicate(m, samples, draw, ns, Options{}, BootstrapOptions{})
 		if !ok {
 			t.Fatalf("replicate %d failed", i)
 		}

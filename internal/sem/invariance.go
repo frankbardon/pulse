@@ -3,6 +3,7 @@ package sem
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -58,9 +59,13 @@ func (m *Model) CheckGroupCount(n int) error {
 func (m *Model) specifyEquality(opt ModelOptions) error {
 	m.equal, m.partial = stringSet{}, stringSet{}
 	for _, v := range opt.GroupEqual {
-		if v == "thresholds" {
-			return &GroupSpecError{Param: "group_equal", Value: v,
-				Msg: `group_equal "thresholds" needs an ordinal estimator; the ML fit has no thresholds`}
+		if v == GroupEqualThresholds {
+			if len(m.ordered) == 0 {
+				return &GroupSpecError{Param: "group_equal", Value: v,
+					Msg: `group_equal "thresholds" needs an ordinal estimator; the ML fit has no thresholds`}
+			}
+			m.equal.add(v)
+			continue
 		}
 		if !slices.Contains(GroupEqualValues(), v) {
 			return &GroupSpecError{Param: "group_equal", Value: v,
@@ -81,6 +86,10 @@ func (m *Model) specifyEquality(opt ModelOptions) error {
 	}
 	for _, v := range opt.GroupPartial {
 		k := strings.Join(strings.Fields(v), "")
+		if m.thresholdRowKey(k) {
+			m.partial.add(k)
+			continue
+		}
 		if !rows.has(k) {
 			return &GroupSpecError{Param: "group_partial", Value: v,
 				Msg: fmt.Sprintf("group_partial %q names no parameter of the model; write a row as lavaan does (f=~x2, x1~1, x1~~x2, y~x)", v)}
@@ -91,6 +100,34 @@ func (m *Model) specifyEquality(opt ModelOptions) error {
 		}
 	}
 	return nil
+}
+
+// GroupEqualThresholds is the group_equal value holding every ordered
+// variable's thresholds equal across groups (an ordinal fit only).
+const GroupEqualThresholds = "thresholds"
+
+// thresholdRowKey reports whether k (no spaces) is a threshold row
+// "x|tk" of an ordered variable x, k ≥ 1 — a group_partial row an
+// ordinal fit frees from group_equal thresholds. Whether the data hold
+// a k-th threshold is known only at the fit (FitOrdinalGroups).
+func (m *Model) thresholdRowKey(k string) bool {
+	v, t, ok := strings.Cut(k, OpThreshold)
+	if !ok || !m.ordered.has(v) || len(t) < 2 || t[0] != 't' {
+		return false
+	}
+	n, err := strconv.Atoi(t[1:])
+	return err == nil && n >= 1 && strconv.Itoa(n) == t[1:]
+}
+
+// thresholdClassKey is threshold k (0-based) of ordered variable v's
+// cross-group equality class ("" none): its row under group_equal
+// thresholds unless group_partial frees it.
+func (m *Model) thresholdClassKey(v string, k int) string {
+	row := v + OpThreshold + "t" + strconv.Itoa(k+1)
+	if m.equal.has(GroupEqualThresholds) && !m.partial.has(row) {
+		return "row:" + row
+	}
+	return ""
 }
 
 // lavaanRowKey is a location's lavaan row label "lhs op rhs" (no
@@ -170,15 +207,21 @@ func (m *Model) groupModels(levels []int, ref int) ([]*Model, error) {
 		}
 		mg.equal, mg.partial = m.equal, m.partial
 		if g != ref {
+			// lavaan's lav_pt_flat: equal loadings free the markers,
+			// equal intercepts (without means) the latent means, and
+			// equal thresholds an ordered variable's intercept (its
+			// scale factor is FitOrdinalGroups').
 			freeLoadings := mg.equal.has("loadings")
 			freeMeans := mg.equal.has("intercepts") && !mg.equal.has("means")
+			freeOrdered := mg.equal.has(GroupEqualThresholds)
 			for _, p := range mg.params {
 				if !p.auto {
 					continue
 				}
 				switch l := p.locs[0]; {
 				case l.kind == kindLoading && freeLoadings,
-					l.kind == kindMean && freeMeans && mg.latent.has(mg.Inner[l.i]):
+					l.kind == kindMean && l.mat == mAlpha && freeMeans && mg.latent.has(mg.Inner[l.i]),
+					l.kind == kindMean && l.mat == mNu && freeOrdered && mg.ordered.has(mg.Observed[l.i]):
 					p.active, p.hasStart = true, false
 				}
 			}

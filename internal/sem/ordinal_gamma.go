@@ -122,12 +122,13 @@ func (s *TwoStepStats) Gamma(in TwoStepInput) (*Gamma, error) {
 		g.A21[k] = make([]float64, nu)
 	}
 	sc := make([]float64, size)
+	cache := pairScoreCache{}
 	for r, row := range in.Rows {
 		w := rowWeight(in.Weights, r)
 		if w == 0 {
 			continue
 		}
-		if err := s.Scores(row, sc); err != nil {
+		if err := s.scores(row, sc, cache); err != nil {
 			return nil, &OrdinalError{Var: -1, Group: -1, Reason: ReasonInvalidInput, Msg: err.Error()}
 		}
 		for i, si := range sc {
@@ -144,7 +145,7 @@ func (s *TwoStepStats) Gamma(in TwoStepInput) (*Gamma, error) {
 			if p.Kind != PairPolychoric {
 				continue
 			}
-			ps := s.PairScores(k, row)
+			ps := s.pairScores(k, row, cache)
 			wr := float64(w * ps.Rho)
 			for m, d := range ps.ThI {
 				g.A21[k][l.Th[p.I]+m] += float64(wr * d)

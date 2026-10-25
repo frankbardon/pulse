@@ -66,6 +66,22 @@ type BootstrapOptions struct {
 	// cancel stops the bootstrap between two refits with ctx's own
 	// error.
 	Ctx context.Context
+	// Ordinal, when non-nil, refits every replicate by an ordinal
+	// estimator (FitOrdinal, or FitOrdinalGroups over two or more
+	// samples) from the replicate's own two-step statistics: the
+	// samples' rows hold the category codes of the full fit's coding,
+	// which every replicate keeps, so a replicate that loses a category
+	// (in any group) fails and is skipped — lavaan's bootstrap of a
+	// categorical fit.
+	Ordinal *BootstrapOrdinal
+}
+
+// BootstrapOrdinal is an ordinal bootstrap's refit: the estimator and
+// the full fit's column kinds and category counts.
+type BootstrapOrdinal struct {
+	Estimator Estimator
+	Kinds     []OrdinalKind
+	Levels    []int
 }
 
 // Bootstrap is a bootstrap's per-row figures, index-aligned with the
@@ -151,7 +167,7 @@ func RunBootstrap(m *Model, samples []BootstrapSample, opt Options, bo Bootstrap
 		}
 		attempted++
 		drawReplicate(rng, samples, ns, p, draw)
-		rows, ok := bootstrapReplicate(m, samples, draw, ns, opt, bo.Standardize)
+		rows, ok := bootstrapReplicate(m, samples, draw, ns, opt, bo)
 		if !ok || len(rows) != len(full) {
 			continue
 		}
@@ -221,8 +237,12 @@ func drawReplicate(rng *rand.Rand, samples []BootstrapSample, ns []int, p int, d
 // bootstrapReplicate refits one replicate (draw: every group's drawn
 // rows) and returns its table rows; ok false when the fit fails or
 // does not converge.
-func bootstrapReplicate(m *Model, samples []BootstrapSample, draw [][]float64, ns []int, opt Options, standardize bool) ([]Estimate, bool) {
+func bootstrapReplicate(m *Model, samples []BootstrapSample, draw [][]float64, ns []int, opt Options, bo BootstrapOptions) ([]Estimate, bool) {
 	p := len(m.Observed)
+	standardize := bo.Standardize
+	if bo.Ordinal != nil {
+		return bootstrapOrdinalReplicate(m, samples, draw, ns, opt, bo.Ordinal)
+	}
 	if len(samples) == 1 {
 		mean, s := rowMoments(draw[0], ns[0], p, standardize)
 		var mv []float64
@@ -241,6 +261,37 @@ func bootstrapReplicate(m *Model, samples []BootstrapSample, draw [][]float64, n
 		groups[g] = GroupMoments{Label: smp.Label, S: s, Raw: s, Mean: mean, N: float64(ns[g]), Level: smp.Level, Reference: smp.Reference}
 	}
 	fit, err := FitGroups(m, groups, opt)
+	if err != nil || !fit.Converged {
+		return nil, false
+	}
+	return BootstrapGroupRows(fit), true
+}
+
+// bootstrapOrdinalReplicate refits one replicate by the ordinal
+// estimator: each group's drawn rows (category codes) at the full fit's
+// coding, point estimates only.
+func bootstrapOrdinalReplicate(m *Model, samples []BootstrapSample, draw [][]float64, ns []int, opt Options, ord *BootstrapOrdinal) ([]Estimate, bool) {
+	p := len(m.Observed)
+	inputs := make([]TwoStepInput, len(samples))
+	for g := range samples {
+		in := TwoStepInput{Kinds: ord.Kinds, Levels: ord.Levels, Rows: make([][]float64, ns[g])}
+		for i := range in.Rows {
+			in.Rows[i] = draw[g][i*p : (i+1)*p]
+		}
+		inputs[g] = in
+	}
+	if len(samples) == 1 {
+		fit, err := fitOrdinal(m, inputs[0], ord.Estimator, opt, true)
+		if err != nil || !fit.Converged {
+			return nil, false
+		}
+		return BootstrapRows(fit), true
+	}
+	groups := make([]OrdinalGroup, len(samples))
+	for g, smp := range samples {
+		groups[g] = OrdinalGroup{Label: smp.Label, In: inputs[g], Level: smp.Level, Reference: smp.Reference}
+	}
+	fit, err := fitOrdinalGroups(m, groups, ord.Estimator, opt, true)
 	if err != nil || !fit.Converged {
 		return nil, false
 	}

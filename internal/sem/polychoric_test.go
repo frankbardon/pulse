@@ -679,3 +679,53 @@ func TestPolychoric_Refusals(t *testing.T) {
 		t.Error("a group index shorter than the rows was accepted")
 	}
 }
+
+// TestPolychoric_LocalAscentFromStart: a sparse 5 × 5 table (a
+// bootstrap replicate of the brand survey's v1 × v3) whose probability
+// floors turn the score negative again just inside −0.999 keeps its
+// interior maximum — lavaan's 0.687378420067 (lavCor, nlminb from the
+// Pearson start) — instead of the lower edge a global edge test picks.
+func TestPolychoric_LocalAscentFromStart(t *testing.T) {
+	freq := [][]float64{{49, 56, 14, 1, 0}, {59, 166, 114, 18, 0}, {7, 98, 216, 72, 2}, {1, 41, 92, 87, 16}, {0, 0, 23, 31, 37}}
+	in := TwoStepInput{Kinds: []OrdinalKind{KindOrdered, KindOrdered}, Levels: []int{5, 5}}
+	for a, row := range freq {
+		for b, n := range row {
+			for i := 0; i < int(n); i++ {
+				in.Rows = append(in.Rows, []float64{float64(a), float64(b)})
+			}
+		}
+	}
+	s, err := TwoStep(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pe := s.Pairs[0]
+	if math.Abs(pe.Rho-0.687378420067) > 1e-6 || pe.Bound {
+		t.Fatalf("polychoric %.12f (bound %v), lavaan 0.687378420067", pe.Rho, pe.Bound)
+	}
+	tab := newPolyTable(s.Thresholds[0], s.Thresholds[1], freq)
+	if g, _ := tab.score(-PolychoricBound); !(g < 0) {
+		t.Fatalf("score at the lower edge %v: the table no longer exercises the floor-bent edge", g)
+	}
+}
+
+// TestPolychoric_TooManyCategories: an ordered column declaring more
+// than MaxOrderedCategories categories is refused (ReasonTooManyCategories)
+// before any statistic; one at the ceiling fits.
+func TestPolychoric_TooManyCategories(t *testing.T) {
+	build := func(k int) TwoStepInput {
+		in := TwoStepInput{Kinds: []OrdinalKind{KindOrdered, KindOrdered}, Levels: []int{k, 3}}
+		for i := 0; i < 20*k; i++ {
+			in.Rows = append(in.Rows, []float64{float64(i % k), float64((i / 7) % 3)})
+		}
+		return in
+	}
+	_, err := TwoStep(build(MaxOrderedCategories + 1))
+	var oe *OrdinalError
+	if !stderrors.As(err, &oe) || oe.Reason != ReasonTooManyCategories || oe.Var != 0 {
+		t.Fatalf("%d categories: %v, want too_many_categories on column 0", MaxOrderedCategories+1, err)
+	}
+	if _, err := TwoStep(build(MaxOrderedCategories)); err != nil {
+		t.Fatalf("%d categories: %v", MaxOrderedCategories, err)
+	}
+}

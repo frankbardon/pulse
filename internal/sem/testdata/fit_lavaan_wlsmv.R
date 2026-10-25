@@ -2,20 +2,31 @@
 # parameterization) and dump the parameter table, the fit measures and
 # every intermediate of the estimator as JSON, for the TestWLSMV_* parity
 # tests:
-#   Rscript fit_lavaan_wlsmv.R data.csv model.txt ordered estimator
+#   Rscript fit_lavaan_wlsmv.R data.csv model.txt ordered estimator [group] [group_equal]
 # ordered is the comma-separated ordered columns (the model's other
-# observed variables are numeric); estimator DWLS or WLSMV. Besides the
+# observed variables are numeric); estimator DWLS or WLSMV; group a data
+# column (levels sorted) for a multi-group fit, group_equal its
+# comma-separated group.equal ("" none: configural). Besides the
 # estimates and fit measures it records lavaan's WLS.obs, WLS.est (at
 # the estimate), the diagonal weight WLS.V, Gamma (NACOV), the Jacobian
 # Delta (rows the WLS.obs statistics, columns the free parameters, both
 # named), the free parameters' covariance (vcov) and the scaled-shifted
-# test's trace(U Gamma) and trace((U Gamma)^2).
+# test's trace(U Gamma) and trace((U Gamma)^2). A multi-group fit
+# records the per-group statistics (WLS.obs, WLS.est, WLS.V, Gamma and
+# Delta, in group order) under "groups", every parameter row and free
+# parameter with its group label, and the joint vcov.
 suppressPackageStartupMessages({ library(lavaan); library(jsonlite) })
 args <- commandArgs(trailingOnly = TRUE)
 data <- read.csv(args[1])
 desc <- paste(readLines(args[2]), collapse = "\n")
 ord <- strsplit(args[3], ",")[[1]]
 est <- args[4]
+grp <- if (length(args) >= 5 && nzchar(args[5])) args[5] else NULL
+geq <- if (length(args) >= 6 && nzchar(args[6])) strsplit(args[6], ",")[[1]] else character(0)
+if (!is.null(grp)) {
+  source(file.path(dirname(sub("--file=", "", grep("--file=", commandArgs(FALSE), value = TRUE))), "fit_lavaan_wlsmv_mg.R"))
+  quit(save = "no")
+}
 fit <- sem(desc, data = data, ordered = ord, estimator = est, parameterization = "delta")
 pe <- parameterEstimates(fit, standardized = TRUE, ci = TRUE)
 pt <- parTable(fit)

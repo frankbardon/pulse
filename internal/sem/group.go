@@ -66,7 +66,12 @@ type GroupFit struct {
 	// one is one parameter), in description order; nil without a :=
 	// line.
 	Defined []Estimate
-	theta   []float64
+	// VCov is an ordinal fit's robust covariance of the joint free
+	// vector (each group's OrdinalFit.Joint indexes it), and TraceUG /
+	// TraceUG2 WLSMV's tr(UΓ) and tr((UΓ)²); nil and 0 on an ML fit.
+	VCov              *mat.SymDense
+	TraceUG, TraceUG2 float64
+	theta             []float64
 }
 
 // NewGroupModel specifies desc for a multi-group fit: the model every

@@ -58,6 +58,31 @@ func (s *TwoStepStats) Layout() ScoreLayout {
 // univariate blocks are each column's own score, the correlation block
 // each pair's ρ-score) into out, which must hold Layout().Size values.
 func (s *TwoStepStats) Scores(row, out []float64) error {
+	return s.scores(row, out, nil)
+}
+
+// pairScoreCache memoises the polychoric pairs' casewise scores by
+// (pair, cell): a polychoric row's scores are a function of its cell
+// alone, so Gamma reads each cell's once — the same figures, bit for
+// bit, as computing them row by row.
+type pairScoreCache map[[3]int]PairScore
+
+// pairScores is PairScores through cache (nil: none).
+func (s *TwoStepStats) pairScores(k int, row []float64, cache pairScoreCache) PairScore {
+	pe := s.Pairs[k]
+	if cache == nil || pe.Kind != PairPolychoric {
+		return s.PairScores(k, row)
+	}
+	key := [3]int{k, int(row[pe.I]), int(row[pe.J])}
+	if ps, ok := cache[key]; ok {
+		return ps
+	}
+	ps := s.PairScores(k, row)
+	cache[key] = ps
+	return ps
+}
+
+func (s *TwoStepStats) scores(row, out []float64, cache pairScoreCache) error {
 	l := s.Layout()
 	if len(out) != l.Size || len(row) != len(s.Kinds) {
 		return fmt.Errorf("two-step scores: row has %d values (want %d), out %d (want %d)", len(row), len(s.Kinds), len(out), l.Size)
@@ -76,7 +101,7 @@ func (s *TwoStepStats) Scores(row, out []float64) error {
 		out[l.VarIdx[v]] = -1/float64(2*ev) + float64(float64(1/float64(2*float64(ev*ev))*res)*res)
 	}
 	for k := range s.Pairs {
-		ps := s.PairScores(k, row)
+		ps := s.pairScores(k, row, cache)
 		out[l.Cor+k] = ps.Rho
 	}
 	return nil

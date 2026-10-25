@@ -44,6 +44,10 @@ const (
 	// OpThreshold is an ordered variable's threshold row ("x | t1"):
 	// never model syntax, only an ordinal fit's estimates (FitOrdinal).
 	OpThreshold = "|"
+	// OpScale is an ordered variable's scale-factor row ("x ~*~ x",
+	// the delta parameterization's Δ): never model syntax, only a
+	// multi-group ordinal fit's estimates (FitOrdinalGroups).
+	OpScale = "~*~"
 )
 
 // Mult is the multiplier written before a right-hand variable: none

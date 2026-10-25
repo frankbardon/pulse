@@ -75,8 +75,14 @@ type OrdinalFit struct {
 	// TraceUG and TraceUG2 are tr(UΓ) and tr((UΓ)²) (WLSMV).
 	TraceUG, TraceUG2 float64
 	// FreeKeys are the free vector's row keys (Estimate.Key of each
-	// parameter's first row; the thresholds "x | tk").
+	// parameter's first row; the thresholds "x | tk"; a grouped fit's
+	// free scale factors "x ~*~ x").
 	FreeKeys []string
+	// Joint is a grouped fit's map from this group's free vector to the
+	// joint one (GroupFit.VCov's coordinates; a shared parameter one
+	// joint index); nil ungrouped, where Delta and VCov are the fit's
+	// own.
+	Joint []int
 }
 
 // thresholdRow is one threshold parameter: column v's k-th threshold.
@@ -93,10 +99,30 @@ type wlsState struct {
 	kinds  []OrdinalKind
 	obs, w []float64
 	th     []thresholdRow
+	// sc are the free scale factors (lavaan's `x ~*~ x`, the delta
+	// parameterization's Δ), after the thresholds in the free vector,
+	// each an ordered column index; every other column's Δ is 1. A
+	// single-group fit frees none.
+	sc     []int
 	nModel int
 }
 
-// est returns WLS.est at x (nil when Σ is undefined).
+// scales returns every column's Δ at x: 1, or its free scale factor.
+func (ws *wlsState) scales(x []float64) []float64 {
+	d := make([]float64, len(ws.kinds))
+	for v := range d {
+		d[v] = 1
+	}
+	at := ws.nModel + len(ws.th)
+	for t, v := range ws.sc {
+		d[v] = x[at+t]
+	}
+	return d
+}
+
+// est returns WLS.est at x (nil when Σ is undefined): lavaan's
+// lav_lisrel_th and lav_lisrel_sigma under the delta parameterization —
+// a threshold (τ − μ)·Δ, a covariance Δ_i·Δ_j·σ_ij.
 func (ws *wlsState) est(x []float64) ([]float64, *mat.SymDense, *mat.Dense, *mat.Dense) {
 	st := ws.st
 	st.update(x[:ws.nModel])
@@ -105,10 +131,11 @@ func (ws *wlsState) est(x []float64) ([]float64, *mat.SymDense, *mat.Dense, *mat
 		return nil, nil, nil, nil
 	}
 	mu := st.mu(mm)
+	d := ws.scales(x)
 	l := ws.layout
 	out := make([]float64, l.Size)
 	for t, tr := range ws.th {
-		out[l.Th[tr.v]+tr.k] = x[ws.nModel+t] - mu[tr.v]
+		out[l.Th[tr.v]+tr.k] = (x[ws.nModel+t] - mu[tr.v]) * d[tr.v]
 	}
 	for v, kind := range ws.kinds {
 		if kind == KindNumeric {
@@ -117,7 +144,7 @@ func (ws *wlsState) est(x []float64) ([]float64, *mat.SymDense, *mat.Dense, *mat
 		}
 	}
 	for k, p := range ws.pairs {
-		out[l.Cor+k] = sg.At(p.I, p.J)
+		out[l.Cor+k] = d[p.I] * d[p.J] * sg.At(p.I, p.J)
 	}
 	return out, sg, mm, c
 }
@@ -145,13 +172,14 @@ func (ws *wlsState) delta(x []float64) ([][]float64, error) {
 	l := ws.layout
 	dS := st.sigmaGrad(mm, c)
 	dM := st.meanGrad(mm, c)
+	d := ws.scales(x)
 	out := make([][]float64, l.Size)
 	for i := range out {
 		out[i] = make([]float64, len(x))
 	}
 	for k := 0; k < ws.nModel; k++ {
 		for _, tr := range ws.th {
-			out[l.Th[tr.v]+tr.k][k] = -dM[k][tr.v]
+			out[l.Th[tr.v]+tr.k][k] = -dM[k][tr.v] * d[tr.v]
 		}
 		for v, kind := range ws.kinds {
 			if kind == KindNumeric {
@@ -160,11 +188,36 @@ func (ws *wlsState) delta(x []float64) ([][]float64, error) {
 			}
 		}
 		for q, p := range ws.pairs {
-			out[l.Cor+q][k] = dS[k].At(p.I, p.J)
+			out[l.Cor+q][k] = d[p.I] * d[p.J] * dS[k].At(p.I, p.J)
 		}
 	}
 	for t, tr := range ws.th {
-		out[l.Th[tr.v]+tr.k][ws.nModel+t] = 1
+		out[l.Th[tr.v]+tr.k][ws.nModel+t] = d[tr.v]
+	}
+	if len(ws.sc) == 0 {
+		return out, nil
+	}
+	// A scale factor Δ_v: ∂/∂Δ_v of (τ − μ_v)·Δ_v is τ − μ_v; of
+	// Δ_i·Δ_j·σ_ij the other side's Δ times σ_ij.
+	mu := st.mu(mm)
+	sg, _, _, _ := st.sigma()
+	at := ws.nModel + len(ws.th)
+	col := make(map[int]int, len(ws.sc))
+	for t, v := range ws.sc {
+		col[v] = at + t
+	}
+	for t, tr := range ws.th {
+		if j, ok := col[tr.v]; ok {
+			out[l.Th[tr.v]+tr.k][j] = x[ws.nModel+t] - mu[tr.v]
+		}
+	}
+	for q, p := range ws.pairs {
+		if j, ok := col[p.I]; ok {
+			out[l.Cor+q][j] += d[p.J] * sg.At(p.I, p.J)
+		}
+		if j, ok := col[p.J]; ok {
+			out[l.Cor+q][j] += d[p.I] * sg.At(p.I, p.J)
+		}
 	}
 	return out, nil
 }
@@ -220,12 +273,47 @@ func weightedGram(d [][]float64, w []float64, s float64) *mat.SymDense {
 // m's ordered variables; Weights frequency weights). A refused input is
 // the two-step statistics' *OrdinalError.
 func FitOrdinal(m *Model, in TwoStepInput, est Estimator, opt Options) (*Fit, error) {
+	return fitOrdinal(m, in, est, opt, false)
+}
+
+// ordinalOptions validates an ordinal fit's estimator, model and
+// options and returns the options with their defaults.
+func ordinalOptions(m *Model, est Estimator, opt Options) (Options, error) {
 	if !est.Ordinal() {
-		return nil, fmt.Errorf("estimator %q is not an ordinal estimator", est)
+		return opt, fmt.Errorf("estimator %q is not an ordinal estimator", est)
 	}
 	if len(m.ordered) == 0 {
-		return nil, errors.New("an ordinal fit needs ordered variables (ModelOptions.Ordered)")
+		return opt, errors.New("an ordinal fit needs ordered variables (ModelOptions.Ordered)")
 	}
+	if err := opt.Validate(); err != nil {
+		return opt, err
+	}
+	if opt.Solver == "" {
+		opt.Solver = SolverFisher
+	}
+	if opt.Solver != SolverFisher {
+		return opt, fmt.Errorf("the ordinal estimators run Fisher scoring (solver %q)", SolverFisher)
+	}
+	return opt.withDefaults(), nil
+}
+
+// wlsPart is one group's DWLS problem and its stage-1 pieces: the
+// two-step statistics, Γ (NACOV), the polychoric sample matrix S, the
+// numeric means and the starting values (the model's, then the
+// sample thresholds).
+type wlsPart struct {
+	ws    *wlsState
+	stats *TwoStepStats
+	gamma *Gamma
+	nacov [][]float64
+	s     *mat.SymDense
+	mean  []float64
+	x0    []float64
+}
+
+// newWLSPart computes group's (-1: ungrouped) two-step statistics and Γ
+// from in and builds m's DWLS problem over them.
+func newWLSPart(m *Model, in TwoStepInput, group int) (*wlsPart, error) {
 	if len(in.Kinds) != len(m.Observed) {
 		return nil, fmt.Errorf("the data have %d columns, the model %d observed variables", len(in.Kinds), len(m.Observed))
 	}
@@ -234,22 +322,15 @@ func FitOrdinal(m *Model, in TwoStepInput, est Estimator, opt Options) (*Fit, er
 			return nil, fmt.Errorf("column %d (%s): its kind disagrees with the model's ordered variables", i, v)
 		}
 	}
-	if err := opt.Validate(); err != nil {
-		return nil, err
-	}
-	if opt.Solver == "" {
-		opt.Solver = SolverFisher
-	}
-	if opt.Solver != SolverFisher {
-		return nil, fmt.Errorf("the ordinal estimators run Fisher scoring (solver %q)", SolverFisher)
-	}
-	opt = opt.withDefaults()
-	stats, err := TwoStep(in)
+	stats, err := twoStep(in, group)
 	if err != nil {
 		return nil, err
 	}
 	gamma, err := stats.Gamma(in)
 	if err != nil {
+		if oe, ok := err.(*OrdinalError); ok && group >= 0 {
+			oe.Group = group
+		}
 		return nil, err
 	}
 	nacov := gamma.NACOV()
@@ -286,6 +367,102 @@ func FitOrdinal(m *Model, in TwoStepInput, est Estimator, opt Options) (*Fit, er
 			x0 = append(x0, t)
 		}
 	}
+	return &wlsPart{ws: ws, stats: stats, gamma: gamma, nacov: nacov, s: s, mean: mean, x0: x0}, nil
+}
+
+// setDeltaResiduals sets every ordered variable's residual variance at
+// x to the delta parameterization's remainder 1/Δ² − (ΛCΨCᵀΛᵀ)ᵢᵢ, so
+// its latent response's implied variance is 1/Δ² (Δ·Σ·Δ has a unit
+// diagonal), and returns Σ, the mean matrix and C there.
+func (ws *wlsState) setDeltaResiduals(x []float64) (*mat.SymDense, *mat.Dense, *mat.Dense, error) {
+	st := ws.st
+	st.update(x[:ws.nModel])
+	sg, _, _, err := st.sigma()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	d := ws.scales(x)
+	for _, par := range st.m.params {
+		if !par.delta {
+			continue
+		}
+		i := par.locs[0].i
+		v := 1/(d[i]*d[i]) - (sg.At(i, i) - st.mats[mTheta].At(i, i))
+		st.starts[par] = v
+		st.setParam(par, v)
+	}
+	return st.sigma()
+}
+
+// scaledImplied is Δ·Σ·Δ, the latent responses' implied covariance (Σ
+// itself when every Δ is 1).
+func (ws *wlsState) scaledImplied(x []float64, sg *mat.SymDense) *mat.SymDense {
+	if len(ws.sc) == 0 {
+		return sg
+	}
+	d := ws.scales(x)
+	p := sg.SymmetricDim()
+	out := mat.NewSymDense(p, nil)
+	for i := 0; i < p; i++ {
+		for j := i; j < p; j++ {
+			out.SetSym(i, j, d[i]*d[j]*sg.At(i, j))
+		}
+	}
+	return out
+}
+
+// thresholdRows are a fit's `x | tk` rows: value, robust SE (se[k] the
+// free vector's), z, p and the Wald interval; std_estimate the value
+// over the latent response's implied standard deviation.
+func (ws *wlsState) thresholdRows(x, se []float64, sg *mat.SymDense, crit float64) []Estimate {
+	m := ws.st.m
+	out := make([]Estimate, 0, len(ws.th))
+	for t, tr := range ws.th {
+		k := ws.nModel + t
+		val := x[k]
+		e := Estimate{LVal: m.Observed[tr.v], Op: OpThreshold, RVal: fmt.Sprintf("t%d", tr.k+1),
+			Param: fmt.Sprintf("_t%d", t+1), Free: true, Value: val, StdValue: val / math.Sqrt(sg.At(tr.v, tr.v)),
+			SE: se[k], Z: val / se[k]}
+		e.P = 2 * (1 - normCDF(math.Abs(e.Z)))
+		e.CILower, e.CIUpper = val-crit*se[k], val+crit*se[k]
+		out = append(out, e)
+	}
+	return out
+}
+
+// freeKeys are the free vector's row keys (Estimate.Key): the model's
+// free parameters, the thresholds, then the free scale factors.
+func (ws *wlsState) freeKeys() []string {
+	m := ws.st.m
+	var out []string
+	for _, par := range ws.st.free {
+		l := par.locs[0]
+		lv, rv := m.rowNames(l)
+		out = append(out, Estimate{LVal: lv, Op: matOp[l.mat], RVal: rv}.Key())
+	}
+	for _, tr := range ws.th {
+		out = append(out, Estimate{LVal: m.Observed[tr.v], Op: OpThreshold, RVal: fmt.Sprintf("t%d", tr.k+1)}.Key())
+	}
+	for _, v := range ws.sc {
+		out = append(out, Estimate{LVal: m.Observed[v], Op: OpScale, RVal: m.Observed[v]}.Key())
+	}
+	return out
+}
+
+// fitOrdinal is FitOrdinal; pointOnly (a bootstrap replicate) stops at
+// the estimates — every SE, z, p and interval NaN, no statistics.
+func fitOrdinal(m *Model, in TwoStepInput, est Estimator, opt Options, pointOnly bool) (*Fit, error) {
+	opt, err := ordinalOptions(m, est, opt)
+	if err != nil {
+		return nil, err
+	}
+	part, err := newWLSPart(m, in, -1)
+	if err != nil {
+		return nil, err
+	}
+	ws, stats, gamma, nacov, s, mean := part.ws, part.stats, part.gamma, part.nacov, part.s, part.mean
+	st, w, obs := ws.st, ws.w, ws.obs
+	x0 := part.x0
 	lower := make([]float64, len(x0))
 	for k := range lower {
 		lower[k] = math.Inf(-1)
@@ -304,20 +481,7 @@ func FitOrdinal(m *Model, in TwoStepInput, est Estimator, opt Options) (*Fit, er
 		return nil, err
 	}
 	// The ordered residual variances at the estimate: 1 − (ΛCΨCᵀΛᵀ)ᵢᵢ.
-	sg, _, _, err := st.sigma()
-	if err != nil {
-		return nil, err
-	}
-	for _, par := range m.params {
-		if !par.delta {
-			continue
-		}
-		i := par.locs[0].i
-		v := 1 - (sg.At(i, i) - st.mats[mTheta].At(i, i))
-		st.starts[par] = v
-		st.setParam(par, v)
-	}
-	sg, mm, c, err := st.sigma()
+	sg, mm, c, err := ws.setDeltaResiduals(x)
 	if err != nil {
 		return nil, err
 	}
@@ -325,6 +489,17 @@ func FitOrdinal(m *Model, in TwoStepInput, est Estimator, opt Options) (*Fit, er
 	fit := &Fit{Model: m, N: n, Objective: (n - 1) / n * f, Iterations: iters, Converged: conv, Status: status,
 		Options: opt, Sample: s, Implied: sg, theta: x, SampleMean: mean, ImpliedMean: st.mu(mm)}
 	fit.params = st.snapshot(mean)
+	crit := opt.waldCrit()
+	if pointOnly {
+		se := nanSlice(len(x))
+		fit.Estimates = append(st.estimates(x[:ws.nModel], se[:ws.nModel], sg, c, crit), ws.thresholdRows(x, se, sg, crit)...)
+		if len(m.defined) > 0 {
+			labels := map[string]labelValue{}
+			st.addLabels(labels, fit.Estimates, func(k int) int { return k })
+			fit.Defined = evalDefined(m.defined, labels, x, mat.NewSymDense(len(x), nil), crit)
+		}
+		return fit, nil
+	}
 	info := weightedGram(d, w, 1)
 	_, einv := invertInformation(info, true)
 	hobs, err := ws.observedInformation(x, n)
@@ -348,35 +523,26 @@ func FitOrdinal(m *Model, in TwoStepInput, est Estimator, opt Options) (*Fit, er
 	for i := range se {
 		se[i] = math.Sqrt(vcov.At(i, i))
 	}
-	crit := opt.waldCrit()
-	fit.Estimates = st.estimates(x[:ws.nModel], se[:ws.nModel], sg, c, crit)
-	for t, tr := range ws.th {
-		k := ws.nModel + t
-		val := x[k]
-		e := Estimate{LVal: m.Observed[tr.v], Op: OpThreshold, RVal: fmt.Sprintf("t%d", tr.k+1),
-			Param: fmt.Sprintf("_t%d", t+1), Free: true, Value: val, StdValue: val / math.Sqrt(sg.At(tr.v, tr.v)),
-			SE: se[k], Z: val / se[k]}
-		e.P = 2 * (1 - normCDF(math.Abs(e.Z)))
-		e.CILower, e.CIUpper = val-crit*se[k], val+crit*se[k]
-		fit.Estimates = append(fit.Estimates, e)
-	}
+	fit.Estimates = append(st.estimates(x[:ws.nModel], se[:ws.nModel], sg, c, crit), ws.thresholdRows(x, se, sg, crit)...)
 	if len(m.defined) > 0 {
 		labels := map[string]labelValue{}
 		st.addLabels(labels, fit.Estimates, func(k int) int { return k })
 		fit.Defined = evalDefined(m.defined, labels, x, vcov, crit)
 	}
-	of := &OrdinalFit{Estimator: est, Stats: stats, Gamma: gamma, Obs: obs, Est: e, Weight: w, Delta: d, VCov: vcov}
-	for _, par := range st.free {
-		l := par.locs[0]
-		lv, rv := m.rowNames(l)
-		of.FreeKeys = append(of.FreeKeys, Estimate{LVal: lv, Op: matOp[l.mat], RVal: rv}.Key())
-	}
-	for _, tr := range ws.th {
-		of.FreeKeys = append(of.FreeKeys, Estimate{LVal: m.Observed[tr.v], Op: OpThreshold, RVal: fmt.Sprintf("t%d", tr.k+1)}.Key())
-	}
+	of := &OrdinalFit{Estimator: est, Stats: stats, Gamma: gamma, Obs: obs, Est: e, Weight: w, Delta: d, VCov: vcov,
+		FreeKeys: ws.freeKeys()}
 	fit.Ordinal = of
 	fit.Stats = wlsStats(of, info, einv, nacov, len(x), n, f)
 	return fit, nil
+}
+
+// nanSlice is n NaNs.
+func nanSlice(n int) []float64 {
+	out := make([]float64, n)
+	for i := range out {
+		out[i] = math.NaN()
+	}
+	return out
 }
 
 // observedInformation is lavaan's observed information of a DWLS fit
@@ -386,9 +552,7 @@ func FitOrdinal(m *Model, in TwoStepInput, est Estimator, opt Options) (*Fit, er
 // symmetrized. It differs from the expected ΔᵀVΔ by the residuals'
 // curvature term.
 func (ws *wlsState) observedInformation(x []float64, n float64) (*mat.SymDense, error) {
-	const h = 1e-6
-	k := len(x)
-	grad := func(at []float64) ([]float64, error) {
+	out, err := richardsonInformation(x, func(at []float64) ([]float64, error) {
 		_, g, _, err := ws.derivatives(at, false)
 		if err != nil {
 			return nil, err
@@ -397,7 +561,16 @@ func (ws *wlsState) observedInformation(x []float64, n float64) (*mat.SymDense, 
 			g[i] *= (n - 1) / n / 2
 		}
 		return g, nil
-	}
+	})
+	ws.st.update(x[:ws.nModel])
+	return out, err
+}
+
+// richardsonInformation is the Jacobian of grad at x by Richardson
+// extrapolation with step 1e-6 (lav_model_hessian), symmetrized.
+func richardsonInformation(x []float64, grad func([]float64) ([]float64, error)) (*mat.SymDense, error) {
+	const h = 1e-6
+	k := len(x)
 	cols := make([][]float64, k)
 	xp := make([]float64, k)
 	for j := 0; j < k; j++ {
@@ -417,7 +590,6 @@ func (ws *wlsState) observedInformation(x []float64, n float64) (*mat.SymDense, 
 		}
 		cols[j] = col
 	}
-	ws.st.update(x[:ws.nModel])
 	out := mat.NewSymDense(k, nil)
 	for i := 0; i < k; i++ {
 		for j := i; j < k; j++ {

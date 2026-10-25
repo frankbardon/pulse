@@ -77,9 +77,21 @@ Rscript "$here/bvn_reference.R" > "$here/bvn_reference.json"
 # under both, the structural model with the numeric recommend outcome,
 # the mediation model with defined parameters and lavaan's single-group
 # rules, each with every estimator intermediate (fit_lavaan_wlsmv.R)
-wls() { Rscript "$here/fit_lavaan_wlsmv.R" "$here/$1_data.csv" "$here/$2_model.txt" "$3" "$4" > "$here/$5_lavaan.json"; }
+wls() { Rscript "$here/fit_lavaan_wlsmv.R" "$here/$1_data.csv" "$here/$2_model.txt" "$3" "$4" "${6:-}" "${7:-}" > "$here/$5_lavaan.json"; }
 wls brand brand_ord "$q9" WLSMV brand_ord_wlsmv
 wls brand brand_ord "$q9" DWLS brand_ord_dwls
 wls brand brand_ms "$q9" WLSMV brand_ordms_wlsmv
 wls brand brand_def "$q9" WLSMV brand_orddef_wlsmv
 wls brand brand_res "$q9" WLSMV brand_ordres_wlsmv
+# the multi-group ordinal fits across the waves (fit_lavaan_wlsmv.R with
+# a group: its branch fit_lavaan_wlsmv_mg.R) — configural, lavaan's
+# threshold + loading invariance (wave-2 scale factors and ordered
+# intercepts free), and the structural model on the unequal waves under
+# thresholds, loadings and intercepts (wave-2 latent means free)
+wls brand brand_ord "$q9" WLSMV brand_ordmg_configural wave ""
+wls brand brand_ord "$q9" WLSMV brand_ordmg_thload wave thresholds,loadings
+wls brand_uneq brand_ms "$q9" WLSMV brand_ordmg_scalar wave thresholds,loadings,intercepts
+# lavaan's bootstrap of the ordinal measurement model (500 replicates;
+# DWLS — lavaan refuses se = "bootstrap" under WLSMV, whose estimates
+# are DWLS's): the distributional reference of a resampled ordinal fit
+Rscript "$here/fit_lavaan_boot.R" "$here/brand_data.csv" "$here/brand_ord_model.txt" TRUE "" "" 500 20261024 "$q9" DWLS > "$here/brand_boot_ord_lavaan.json"
