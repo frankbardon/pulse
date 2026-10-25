@@ -92,7 +92,26 @@ type Env struct {
 	// registered LookupTable (lookup() is declared).
 	Extensions []string
 	Lookup     bool
+	// Outer is the namespace a block's `models` entry may not rebind:
+	// the instance's registered populations and the batch's fits
+	// (model.WithinCatalog). Nil checks the entries against each other
+	// only.
+	Outer model.Catalog
+	// Load reads and decodes a block's `models` files (model.LoadFiles
+	// plus the instance's loaded-type checks): predict's and the
+	// runtime's loaders run the same rules. Nil refuses any file as
+	// unreadable.
+	Load Loader
+	// Loaded, when set, are the files an earlier Check already read,
+	// index-aligned with the blocks (nil where a block loads none):
+	// Compile reuses them instead of reading again, so the runtime
+	// solves exactly what it validated.
+	Loaded []*model.Loaded
 }
+
+// Loader reads and decodes one block's `models` (refs passed
+// model.CheckRefs).
+type Loader func(refs model.Refs) (*model.Loaded, *errors.CodedError)
 
 // Compiled is one block ready to solve: the variables in block order
 // with their resolved bounds and start (NaN where the block sets none),
@@ -104,6 +123,11 @@ type Compiled struct {
 	Start        []float64
 	Objective    *vm.Program
 	Constraints  []*vm.Program
+	// Refs and Loaded are the block's `models` entries and their
+	// decoded files (zero / nil when it loads none): the runtime binds
+	// them above the batch's fits for coef().
+	Refs   model.Refs
+	Loaded *model.Loaded
 }
 
 // Vars is the per-iterate expression env binding each decision variable
@@ -120,15 +144,26 @@ func (c *Compiled) Vars(x []float64) map[string]any {
 // when every block passes): Compile against env with every request-bound
 // function declared but never run.
 func Check(specs []types.OptimizeSpec, env Env) *errors.CodedError {
+	_, cerr := CheckLoaded(specs, env)
+	return cerr
+}
+
+// CheckLoaded is Check that also returns each block's decoded `models`
+// files, index-aligned with specs (nil where a block loads none; nil
+// throughout on a refusal) — what Env.Loaded hands a later Compile.
+func CheckLoaded(specs []types.OptimizeSpec, env Env) ([]*model.Loaded, *errors.CodedError) {
 	if cerr := checkNames(specs); cerr != nil {
-		return cerr
+		return nil, cerr
 	}
+	loaded := make([]*model.Loaded, len(specs))
 	for i := range specs {
-		if _, cerr := Compile(&specs[i], i, env, placeholderBound(env)); cerr != nil {
-			return cerr
+		c, cerr := Compile(&specs[i], i, env, placeholderBound(env))
+		if cerr != nil {
+			return nil, cerr
 		}
+		loaded[i] = c.Loaded
 	}
-	return nil
+	return loaded, nil
 }
 
 // placeholderBound declares env's request-bound functions with
@@ -183,6 +218,11 @@ func Compile(spec *types.OptimizeSpec, i int, env Env, bound exprenv.Bound) (*Co
 		Upper: make([]float64, len(spec.Variables)),
 		Start: make([]float64, len(spec.Variables)),
 	}
+	fits, cerr := loadModels(spec, i, at, env, out)
+	if cerr != nil {
+		return nil, cerr
+	}
+	env.Fits = fits
 	reserved := reservedNames(env)
 	seen := map[string]bool{}
 	for j := range spec.Variables {
@@ -233,6 +273,38 @@ func Compile(spec *types.OptimizeSpec, i int, env Env, bound exprenv.Bound) (*Co
 		out.Constraints = append(out.Constraints, prog)
 	}
 	return out, nil
+}
+
+// loadModels is the block's `models` rule — model.CheckRefs against
+// env.Outer, then the files read (env.Loaded[i] when an earlier Check
+// read them, else env.Load) — and the catalog its coef() calls resolve
+// against: the batch's fits plus the loaded models. A refusal keeps its
+// own code and gains details.optimize / details.field.
+func loadModels(spec *types.OptimizeSpec, i int, at string, env Env, out *Compiled) (model.Catalog, *errors.CodedError) {
+	if len(spec.Models) == 0 {
+		return env.Fits, nil
+	}
+	refs := model.Refs{Models: spec.Models}
+	if cerr := model.CheckRefs(refs, env.Outer); cerr != nil {
+		return nil, locate(cerr, i, spec.Name, at+".models")
+	}
+	var loaded *model.Loaded
+	switch {
+	case i < len(env.Loaded) && env.Loaded[i] != nil:
+		loaded = env.Loaded[i]
+	case env.Load != nil:
+		var cerr *errors.CodedError
+		if loaded, cerr = env.Load(refs); cerr != nil {
+			return nil, locate(cerr, i, spec.Name, at+".models")
+		}
+	default:
+		var cerr *errors.CodedError
+		if loaded, cerr = model.LoadFiles(refs, nil); cerr != nil {
+			return nil, locate(cerr, i, spec.Name, at+".models")
+		}
+	}
+	out.Refs, out.Loaded = refs, loaded
+	return model.CatalogWithLoaded(env.Fits, refs, loaded), nil
 }
 
 // checkSpec is the block's structural rule, in field order.

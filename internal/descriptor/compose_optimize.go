@@ -10,24 +10,31 @@ import (
 )
 
 // OptimizeRefusal is the ComposedRequest `optimize` blocks' rule set
-// (optblock.Check) over the batch as it runs — its top-level params
-// (already validated by InheritComposeParams) and its `fits` (the
-// names coef() resolves) — with the instance's embedder ExprFunction
-// names and whether a LookupTable is registered. Predict
-// (validateComposeExpanded) and the runtime (Service.compose /
-// composeParallel) call it at the same point, right after
-// model.CheckFits, so both refuse the same block identically. nil when
-// the batch declares no block or every block passes.
-func OptimizeRefusal(req *types.ComposedRequest, exprFunctions []string, lookup bool) *errors.CodedError {
+// (optblock.CheckLoaded) over the batch as it runs — its top-level
+// params (already validated by InheritComposeParams) and its `fits`
+// (the names coef() resolves) — with the instance's embedder
+// ExprFunction names, whether a LookupTable is registered, the
+// instance's registered populations (outer: the namespace a block's
+// `models` entry may not rebind, with the fits) and the loader that
+// reads a block's `models` files. Predict (validateComposeExpanded) and
+// the runtime (Service.compose / composeParallel) call it at the same
+// point, right after model.CheckFits, so both refuse the same block
+// identically. It returns each block's decoded `models` files
+// (index-aligned; what the runtime solves with) — nil, nil when the
+// batch declares no block.
+func OptimizeRefusal(req *types.ComposedRequest, exprFunctions []string, lookup bool, outer model.Catalog, load optblock.Loader) ([]*model.Loaded, *errors.CodedError) {
 	if req == nil || len(req.Optimize) == 0 {
-		return nil
+		return nil, nil
 	}
 	params, _ := exprenv.NormalizeParams(req.Params)
-	return optblock.Check(req.Optimize, optblock.Env{
+	fits := model.CatalogFromFits(req.Fits)
+	return optblock.CheckLoaded(req.Optimize, optblock.Env{
 		Params:     params,
-		Fits:       model.CatalogFromFits(req.Fits),
+		Fits:       fits,
 		Extensions: exprFunctions,
 		Lookup:     lookup,
+		Outer:      model.WithinCatalog(outer, fits),
+		Load:       load,
 	})
 }
 

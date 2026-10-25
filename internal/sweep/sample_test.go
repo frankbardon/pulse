@@ -408,3 +408,35 @@ func TestSweepRandom_EnumerationWireUnchanged(t *testing.T) {
 		t.Fatalf("hash moved across a wire round trip: %s vs %s", h1, h2)
 	}
 }
+
+// TestSweepRandom_LatinHypercubeIsTheLHSDraw: LatinHypercube is the lhs
+// sweep's own draw — over unit linear ranges the sweep's slot values are
+// its points exactly — and every stratum of every dimension holds one
+// point; nothing is drawn for n or dims below 1.
+func TestSweepRandom_LatinHypercubeIsTheLHSDraw(t *testing.T) {
+	spec := &types.SweepSpec{Mode: types.SweepModeLHS, Samples: 7, Axes: []types.SweepAxis{
+		{Name: "a", Range: &types.SweepRange{Min: fp(0), Max: fp(1)}},
+		{Name: "b", Range: &types.SweepRange{Min: fp(0), Max: fp(1)}},
+	}}
+	pts := LatinHypercube(42, 7, 2)
+	forEachSample(spec, 42, func(slot int, values map[string]any) bool {
+		for a, name := range []string{"a", "b"} {
+			if got, want := values[name], sampledNumber(pts[a][slot]); got != want {
+				t.Fatalf("slot %d axis %s: sweep %v, LatinHypercube %v", slot, name, got, want)
+			}
+		}
+		return true
+	})
+	for a := range pts {
+		seen := map[int]bool{}
+		for _, u := range pts[a] {
+			seen[int(u*7)] = true
+		}
+		if len(seen) != 7 {
+			t.Fatalf("dimension %d strata %v: want each of 7 once", a, seen)
+		}
+	}
+	if LatinHypercube(42, 0, 2) != nil || LatinHypercube(42, 3, 0) != nil {
+		t.Fatal("an empty design drew points")
+	}
+}

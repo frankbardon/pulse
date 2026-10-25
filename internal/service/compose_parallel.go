@@ -107,7 +107,8 @@ func (s *Service) composeParallel(
 	}
 	// Then the optimize blocks' rules (predict runs the same
 	// descx.OptimizeRefusal at the same point).
-	if err := s.optimizeRefusal(composed); err != nil {
+	optLoaded, err := s.optimizeRefusal(composed)
+	if err != nil {
 		return nil, err
 	}
 	// The batch's saves and loads, exactly as on the serial path.
@@ -151,6 +152,13 @@ func (s *Service) composeParallel(
 	if err != nil {
 		return nil, err
 	}
+	// The optimize blocks, once the fits are bound and before any slot:
+	// they read no record (runComposeOptimize).
+	optimizations, optWarnings, err := s.runComposeOptimize(composed, models, optLoaded)
+	if err != nil {
+		return nil, err
+	}
+	fitWarnings = append(fitWarnings, optWarnings...)
 	// Every slot's bound set — the fits plus its own loaded models —
 	// before the pool starts.
 	slotSets := make([]*model.Set, len(requests))
@@ -296,7 +304,7 @@ func (s *Service) composeParallel(
 	// `distributeComposeWarnings` (internal/service/compose_overlay.go) so the
 	// serial `service.Compose` and the parallel path here share the
 	// identical layer-warning routing contract.
-	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Warnings: fitWarnings}
+	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Optimizations: optimizations, Warnings: fitWarnings}
 	if s.echoRequest {
 		out.NormalizedRequest = composed
 	}

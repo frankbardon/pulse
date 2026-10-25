@@ -1,0 +1,21 @@
+{
+  "requests": [
+    {"label": "weeks", "cohort": {"filename": "opt_price.pulse"}, "aggregations": [{"type": "AGG_COUNT", "field": "week", "label": "n"}]}
+  ],
+  "params": {"budget": 120, "cap_social": 30},
+  "optimize": [
+    {
+      "name": "allocation",
+      "direction": "maximize",
+      "variables": [
+        {"name": "tv", "lower": 0, "upper": 100},
+        {"name": "search", "lower": 0, "upper": 100},
+        {"name": "social", "lower": 0, "upper": "params.cap_social"},
+        {"name": "display", "lower": 0, "upper": 100}
+      ],
+      "objective": "120 * hill(tv, 40, 2) + 60 * hill(search, 10, 1) + 150 * hill(social, 60, 1.5) + 30 * hill(display, 50, 1)",
+      "constraints": [{"expr": "tv + search + social + display - params.budget", "type": "eq"}],
+      "starts": 8
+    }
+  ]
+}

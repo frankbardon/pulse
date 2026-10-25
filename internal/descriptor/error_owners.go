@@ -704,8 +704,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_LIMIT_EXCEEDED:        shared,
 
 	// Per-slot partial success: only a regression, test (tier-1 or
-	// post) or matrix slot can fail alone.
-	errors.PULSE_SLOT_FAILED: plus(ownAllRegs, ownAllTests, ownAllMats),
+	// post) or matrix slot, or a Compose optimize block, can fail alone.
+	errors.PULSE_SLOT_FAILED: plus(ownAllRegs, ownAllTests, ownAllMats, own(featComposeOpt)),
 	// Any attribute reading a failed Compose fit (scoring, a literal
 	// coef(), a vector params.fit, a {population}); failed fits exist
 	// only under Compose fits.

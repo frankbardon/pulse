@@ -205,7 +205,7 @@ func apiComposeCmd() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "request", Aliases: []string{"r"}, Usage: "Composed request JSON file path", Required: true},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
-			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}; a batch that warned adds one {\"warnings\":[...]} line after the rows; a ranked sweep ends with one {\"ranking\":[...]} line"},
+			&cli.BoolFlag{Name: "stream", Usage: "Stream rows as NDJSON; each line is {\"index\":N,\"row\":{...}}; a batch that warned adds one {\"warnings\":[...]} line after the rows; a ranked sweep ends with one {\"ranking\":[...]} line; optimize blocks end with one {\"optimizations\":[...]} line"},
 			&cli.IntFlag{Name: "parallel", Usage: "Run requests concurrently with up to N workers (0 = GOMAXPROCS); 1 forces sequential", Value: 1},
 			&cli.BoolFlag{Name: "no-fail-fast", Usage: "Aggregate errors instead of cancelling on first failure (parallel only)"},
 			&cli.BoolFlag{Name: "no-defaults", Usage: "Disable smart operator defaults; require an explicit Type on every aggregation and grouper"},
@@ -307,6 +307,15 @@ func apiComposeCmd() *cli.Command {
 				// record: the stitched tables are a matrix, never rows.
 				if composed.Banner != nil && resp != nil && resp.Banner != nil {
 					if err := encodeFinite(enc, map[string]any{"banner": resp.Banner}); err != nil {
+						return err
+					}
+				}
+				// Optimize blocks end the stream with one
+				// {"optimizations":[...]} record: each block's optimum
+				// is one solve, never rows, so it is written whole (a
+				// failed block as its {name, direction, error}).
+				if len(composed.Optimize) > 0 && resp != nil && len(resp.Optimizations) > 0 {
+					if err := encodeFinite(enc, map[string]any{"optimizations": resp.Optimizations}); err != nil {
 						return err
 					}
 				}

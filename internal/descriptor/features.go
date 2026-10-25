@@ -901,9 +901,11 @@ var hardEdges = map[string][]string{
 	// A loaded model, population or SEM fit file is read only by a
 	// reference: a scoring reference (ATTR_REG_PREDICT, coef()) or a
 	// params.fit (a fitted vector attribute, ATTR_REG_FITTED / RESIDUAL,
-	// ATTR_SEM_SCORE, a MAT_* slot).
+	// ATTR_SEM_SCORE, a MAT_* slot), or an optimize block's coef().
 	featModels: {string(types.ATTR_FACTOR_SCORE), "ATTR_FORMULA", string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
-		"ATTR_REG_FITTED", "ATTR_REG_PREDICT", "ATTR_REG_RESIDUAL", string(types.ATTR_SEM_SCORE), string(types.ATTR_VEC_DISTANCE), "FILTER_EXPRESSION", featMatrices},
+		"ATTR_REG_FITTED", "ATTR_REG_PREDICT", "ATTR_REG_RESIDUAL", string(types.ATTR_SEM_SCORE), string(types.ATTR_VEC_DISTANCE), "FILTER_EXPRESSION", featMatrices,
+		// An optimize block's coef() over its own `models`.
+		featComposeOpt},
 }
 
 // extensionRegressionEdges are the built-in features whose REG_* any-of

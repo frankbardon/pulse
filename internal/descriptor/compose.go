@@ -327,7 +327,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	}
 	// Then the optimize blocks — the runtime's OptimizeRefusal, run
 	// right after its CheckFits; nothing past it runs on a refusal.
-	if oerr := OptimizeRefusal(req, predictExprFunctionNames(opts), predictHasLookup(opts)); oerr != nil {
+	if _, oerr := OptimizeRefusal(req, predictExprFunctionNames(opts), predictHasLookup(opts), opts.populations(), opts.loadModelFiles); oerr != nil {
 		addCodedError(env, oerr)
 		result.Valid = false
 		return env, req

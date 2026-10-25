@@ -9,6 +9,7 @@ import (
 	"github.com/expr-lang/expr"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/exprenv"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/model/coefcall"
 	"github.com/frankbardon/pulse/internal/temporal"
@@ -38,6 +39,17 @@ func (r *ExtensionRegistry) exprOptionsWithModels(models *model.Set, zone *tempo
 	b.Coef = coefBuiltin(models)
 	b.Zone = zone
 	return b.Options()
+}
+
+// ExprBoundWithModels is the request-bound expression declarations a
+// Compose optimize block compiles against at runtime: the embedder's
+// ExprFunctions, lookup() over the LookupTables and coef() over models
+// (the batch's fits plus the block's own loaded `models`). The block's
+// rule set (internal/optblock) sets the params.
+func (r *ExtensionRegistry) ExprBoundWithModels(models *model.Set) exprenv.Bound {
+	b := r.exprBound()
+	b.Coef = coefBuiltin(models)
+	return b
 }
 
 // coefBuiltin is coef() bound to one request's models (nil: none).

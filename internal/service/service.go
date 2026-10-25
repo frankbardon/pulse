@@ -1278,7 +1278,8 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	}
 	// Then the optimize blocks' rules (predict runs the same
 	// descx.OptimizeRefusal at the same point).
-	if err := s.optimizeRefusal(composed); err != nil {
+	optLoaded, err := s.optimizeRefusal(composed)
+	if err != nil {
 		return nil, err
 	}
 	// Then the batch's saves and loads (model.CheckComposeBatch — every
@@ -1323,6 +1324,13 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	if err != nil {
 		return nil, err
 	}
+	// The optimize blocks, once the fits are bound and before any slot:
+	// they read no record (runComposeOptimize).
+	optimizations, optWarnings, err := s.runComposeOptimize(composed, models, optLoaded)
+	if err != nil {
+		return nil, err
+	}
+	fitWarnings = append(fitWarnings, optWarnings...)
 
 	// Observability (no-ops off): the batch's planning is its plan
 	// phase; each slot is a child operation timed under its own
@@ -1374,7 +1382,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// no Compose-only overlays. The `Responses` slot is the SAME slice
 	// that the pre-lift facade returned bare — no per-slot shape
 	// change.
-	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Warnings: fitWarnings}
+	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Optimizations: optimizations, Warnings: fitWarnings}
 	if s.echoRequest {
 		out.NormalizedRequest = composed
 	}

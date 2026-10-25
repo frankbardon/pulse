@@ -3289,6 +3289,15 @@
         "max_iterations": {
           "type": "integer"
         },
+        "models": {
+          "items": {
+            "$ref": "#/$defs/ModelRef"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "name": {
           "type": "string"
         },
@@ -6375,4 +6384,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 6b8c787b4dce8c5540537a88b40fe086a4cea620de8ce7114231963a52e567ba
+// golden-hash: 2c8cd538a57d614c394e4fcdc97f915b07c1d4fd698bf0b50f256ed015ba4bf0

@@ -1843,7 +1843,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 			"fits":     fitsSchema(reqSchema, inst),
 			"banner":   bannerSchema(reqSchema),
 			"params":   inheritedParamsSchema("slot request (sweep and banner slots included) and fit request", " A Compose-level OVERLAY_FORMULA and every `optimize` block read them too."),
-			"optimize": optimizeSchema(),
+			"optimize": optimizeSchema(inst),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,
@@ -1876,8 +1876,17 @@ func fitsSchema(reqSchema map[string]any, inst *descx.InstanceSnapshot) map[stri
 // optimizeSchema describes the ComposedRequest `optimize` list
 // (types.OptimizeSpec): constrained optimisations solved after the fits
 // with no record data. Dropped with the slot when
-// capability:compose_optimize is hidden (dropHiddenSlots).
-func optimizeSchema() map[string]any {
+// capability:compose_optimize is hidden (dropHiddenSlots); a block's
+// `models` key drops when capability:models is.
+func optimizeSchema(inst *descx.InstanceSnapshot) map[string]any {
+	out := optimizeSchemaBase()
+	// A block's own `models` ride capability:models.
+	dropHiddenSlots(out["items"].(map[string]any), &types.OptimizeSpec{}, inst)
+	return out
+}
+
+// optimizeSchemaBase is optimizeSchema before the hidden-slot drop.
+func optimizeSchemaBase() map[string]any {
 	bound := func(d string) map[string]any {
 		return map[string]any{
 			"description": d,
@@ -1889,7 +1898,7 @@ func optimizeSchema() map[string]any {
 	}
 	return map[string]any{
 		"type":        "array",
-		"description": "Constrained optimisations, each solved once after the fits (no record data): maximise or minimise an expression over decision variables under eq (expr = 0) / ineq (expr >= 0) constraints and bounds. Expressions read the variables, params.<name>, coef(fit, term) over the batch `fits` and the built-ins (hill(), exp(), …). Results are returned under the response `optimizations`, in order.",
+		"description": "Constrained optimisations, each solved once after the fits (no record data): maximise or minimise an expression over decision variables under eq (expr = 0) / ineq (expr >= 0) constraints and bounds. Expressions read the variables, params.<name>, coef(fit, term) over the batch `fits` and the block's own `models`, and the built-ins (hill(), exp(), …). Results are returned under the response `optimizations`, in order: x*, f*, each variable's marginal df/dx and active bound, each constraint's multiplier (grad f = sum multiplier * grad expr, in the objective's own direction).",
 		"items": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -1927,6 +1936,7 @@ func optimizeSchema() map[string]any {
 				"rng_seed":       map[string]any{"type": "integer", "description": "Seed of the Latin-hypercube starts; omit (0) to derive one from the block."},
 				"tolerance":      map[string]any{"type": "number", "minimum": 0, "description": "Solver accuracy goal; omit for 1e-6."},
 				"max_iterations": map[string]any{"type": "integer", "minimum": 0, "description": "Major iterations per start; omit for 100."},
+				"models":         modelsSchema("Saved model files loaded by name for this block's coef() calls, above the batch `fits` (no refit). A name a fit already binds is PULSE_MODEL_NAME_COLLISION."),
 			},
 			"required": []string{"name", "variables", "objective", "direction"},
 		},

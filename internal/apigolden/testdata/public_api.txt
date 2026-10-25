@@ -5382,6 +5382,7 @@ pulse/types: type OptimizeSpec struct
 pulse/types: type OptimizeSpec field Constraints []pulse/types.OptimizeConstraint "json:\"constraints,omitempty\""
 pulse/types: type OptimizeSpec field Direction pulse/types.OptimizeDirection "json:\"direction\""
 pulse/types: type OptimizeSpec field MaxIterations int "json:\"max_iterations,omitempty\""
+pulse/types: type OptimizeSpec field Models []pulse/types.ModelRef "json:\"models,omitempty\""
 pulse/types: type OptimizeSpec field Name string "json:\"name\""
 pulse/types: type OptimizeSpec field Objective string "json:\"objective\""
 pulse/types: type OptimizeSpec field RNGSeed int64 "json:\"rng_seed,omitempty\""
@@ -6079,4 +6080,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 7656c218688837eabe768f6ef32624ffe9138b264ab64bcf9350253e2b90e772
+// golden-hash: 964ac8b4615d3bdc5a0aaf04ddef1c6135946bbcce0027090c10d739091bba93

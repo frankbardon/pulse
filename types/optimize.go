@@ -71,6 +71,18 @@ type OptimizeSpec struct {
 	// MaxIterations caps each start's major iterations. Zero is the
 	// solver default 100; negative is refused.
 	MaxIterations int `json:"max_iterations,omitempty"`
+
+	// Models loads saved model files (a regression `save`) by name for
+	// this block's coef() calls — the Request.Models contract (ModelRef):
+	// each name joins the block's model namespace above the batch's
+	// `fits`, so coef() resolves it exactly like a fit of the same name,
+	// and a name a fit (or an earlier entry) already binds is
+	// PULSE_MODEL_NAME_COLLISION. Every file is read and decoded before
+	// any fit or slot runs, by predict and the runtime alike, with the
+	// model-file codes (PULSE_MODEL_REF_INVALID, _FILE_UNREADABLE,
+	// _FILE_INVALID, _VERSION_UNSUPPORTED) located by details.optimize
+	// and details.field. Gated by capability:models.
+	Models []ModelRef `json:"models,omitempty"`
 }
 
 // OptimizeDefaultStarts is the starting-point count of a block that sets
@@ -240,6 +252,13 @@ func AllOptimizeConstraintTypes() []OptimizeConstraintType {
 // best run over its starts, at full precision. Like `fits` it sits
 // outside the Compose `return` — never rounded.
 //
+// Each start is solved by SLSQP (optimize.Minimize) on the objective —
+// negated under maximize — with central finite-difference gradients
+// (step cbrt(ε)·max(|xᵢ|, min(1, upperᵢ − lowerᵢ)), at most a quarter
+// of the bound width; a stencil that would leave the bounds turns
+// one-sided, second order). The best run is the converged start with
+// the best objective, the earliest on a tie.
+//
 // A block that failed on its numbers (no start converged, or the
 // constraints could not be met) keeps its entry: Name, Direction and
 // the error, every figure absent on the wire (see SlotError).
@@ -272,8 +291,11 @@ type OptimizeResult struct {
 	MaxViolation float64 `json:"max_violation"`
 
 	// Starts is the number of starting points solved; StartsAgreeing
-	// how many of them reached the best objective within tolerance
-	// (the best run included).
+	// how many of them converged to the best objective f* within
+	// 10·tolerance·max(1, |f*|) — the solver stops once a step moves
+	// the objective by less than tolerance, so two runs reaching the
+	// same optimum agree to that order — the best run included. Fewer
+	// agreeing starts than starts flags a multi-modal objective.
 	Starts         int `json:"starts"`
 	StartsAgreeing int `json:"starts_agreeing"`
 

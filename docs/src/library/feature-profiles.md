@@ -186,7 +186,7 @@ one name in every group must be enabled:
 | `capability:compose_optimize` | `capability:compose` (the batch `optimize` blocks and the `optimizations` they produce; hidden, a set `optimize` is an unknown field) |
 | `capability:sem_bootstrap` | `MAT_SEM` (its `resample`, `bootstrap_iters`, `rng_seed` and `ci_level` params) |
 | `capability:sem_ordinal` | `ATTR_SEM_SCORE` or `MAT_SEM` (their `estimator`, `ordered` and `parameterization` params: the DWLS / WLSMV ordinal fit, and its EBM scores) |
-| `capability:models` | `ATTR_REG_PREDICT`, `ATTR_REG_FITTED`, `ATTR_REG_RESIDUAL`, `ATTR_FORMULA`, `FILTER_EXPRESSION`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`, `ATTR_SEM_SCORE`, `ATTR_VEC_DISTANCE` or `capability:matrices` (any one; a loaded model is read only by a scoring reference, a loaded population — the `populations` key, which this capability also gates — or a loaded SEM fit file only by a `params.fit`) |
+| `capability:models` | `ATTR_REG_PREDICT`, `ATTR_REG_FITTED`, `ATTR_REG_RESIDUAL`, `ATTR_FORMULA`, `FILTER_EXPRESSION`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`, `ATTR_SEM_SCORE`, `ATTR_VEC_DISTANCE`, `capability:matrices` or `capability:compose_optimize` (any one; a loaded model is read only by a scoring reference, a loaded population — the `populations` key, which this capability also gates — or a loaded SEM fit file only by a `params.fit`) |
 
 `TEST_TUKEY_HSD` does not require `TEST_ANOVA_F`.
 

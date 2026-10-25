@@ -116,22 +116,7 @@ func forEachSample(spec *types.SweepSpec, seed int64, visit func(slot int, value
 	rng := newSampler(seed)
 	var lhs [][]float64
 	if spec.Mode == types.SweepModeLHS {
-		lhs = make([][]float64, len(spec.Axes))
-		for a := range spec.Axes {
-			perm := make([]int, n)
-			for i := range perm {
-				perm[i] = i
-			}
-			for j := n - 1; j > 0; j-- {
-				k := int(rng.below(uint64(j) + 1))
-				perm[j], perm[k] = perm[k], perm[j]
-			}
-			us := make([]float64, n)
-			for i := range us {
-				us[i] = (float64(perm[i]) + rng.unit()) / float64(n)
-			}
-			lhs[a] = us
-		}
+		lhs = rng.latinHypercube(n, len(spec.Axes))
 	}
 	for slot := 0; slot < n; slot++ {
 		values := make(map[string]any, len(spec.Axes))
@@ -148,4 +133,41 @@ func forEachSample(spec *types.SweepSpec, seed int64, visit func(slot int, value
 			return
 		}
 	}
+}
+
+// latinHypercube draws n points of a dims-dimensional Latin hypercube
+// on [0, 1), dimension by dimension (the lhs draw order forEachSample
+// documents): out[a][i] is point i's unit coordinate on dimension a.
+func (s *sampler) latinHypercube(n, dims int) [][]float64 {
+	out := make([][]float64, dims)
+	for a := range out {
+		perm := make([]int, n)
+		for i := range perm {
+			perm[i] = i
+		}
+		for j := n - 1; j > 0; j-- {
+			k := int(s.below(uint64(j) + 1))
+			perm[j], perm[k] = perm[k], perm[j]
+		}
+		us := make([]float64, n)
+		for i := range us {
+			us[i] = (float64(perm[i]) + s.unit()) / float64(n)
+		}
+		out[a] = us
+	}
+	return out
+}
+
+// LatinHypercube is the lhs sweep's draw — the same PCG stream (seed,
+// seed ^ PCGStream) and the same order: dimension by dimension, a
+// Fisher–Yates permutation of the n strata, then one jitter draw per
+// point — for any seeded multi-point design (a Compose optimize block's
+// starts). out[a][i] is point i's coordinate on dimension a, in [0, 1),
+// each stratum [k/n, (k+1)/n) of every dimension drawn exactly once.
+// Bit-identical on every architecture. n < 1 or dims < 1 draws nothing.
+func LatinHypercube(seed int64, n, dims int) [][]float64 {
+	if n < 1 || dims < 1 {
+		return nil
+	}
+	return newSampler(seed).latinHypercube(n, dims)
 }

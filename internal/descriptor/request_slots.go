@@ -55,7 +55,8 @@ import (
 //   - every `save` (RegressionSpec, FitSpec) — capability:model_save
 //   - every regression `holdout` (+ the RegressionResult block) —
 //     capability:regression_holdout
-//   - Request.Models and FacetRequest.Models — capability:models
+//   - Request.Models, FacetRequest.Models and OptimizeSpec.Models —
+//     capability:models
 //   - Request.Populations — capability:models
 //
 // An overlay slot is visible iff at least one of its hosts is enabled
@@ -266,6 +267,9 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "banner", visible: capabilityGate(featComposeBanner)},
 		{key: "optimizations", visible: capabilityGate(featComposeOpt)},
 	},
+	// An optimize block's saved models ride capability:models, like a
+	// slot's `models`.
+	reflect.TypeOf(types.OptimizeSpec{}): {modelsSlotGate},
 	reflect.TypeOf(types.ChainRequest{}): {
 		{key: "overlays", visible: overlayGate(featProcessChain)},
 		paramsSlotGate,
@@ -899,6 +903,14 @@ func SlotRefusal(v any, inst *InstanceSnapshot) error {
 			}
 			if ce := requestSlotRefusal(fit.Request, inst); ce != nil {
 				return RefusalAt(ce, "fit", i)
+			}
+		}
+		// An optimize block's own `models` ride capability:models, as a
+		// slot's do (details.optimize).
+		for i := range r.Optimize {
+			if len(r.Optimize[i].Models) > 0 && !inst.Enabled(featModels) {
+				return RefusalAt(unknownFieldErrorAt(fmt.Sprintf("optimize[%d]", i), []string{"models"},
+					VisibleSlotKeys(&r.Optimize[i], inst)), "optimize", i)
 			}
 		}
 	case *types.ChainRequest:

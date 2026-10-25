@@ -1334,7 +1334,9 @@ midpoint when absent). `objective` and every `constraints[i].expr`
 (type `eq`: expr = 0; `ineq`: expr >= 0) are expressions over the
 variables, `params.<name>`, `coef()` over the batch's `fits` and the
 built-ins; `direction` is `maximize` or `minimize` (required); `starts`
-defaults to 8 (1 to 1000). Predict and the runtime refuse a malformed
+defaults to 8 (1 to 1000); `models` (gated by `capability:models`)
+loads saved model files `{name, path}` for the block's `coef()`, above
+the batch's fits. Predict and the runtime refuse a malformed
 block identically before any fit or slot runs:
 `PULSE_OPTIMIZE_SPEC_INVALID`, `PULSE_OPTIMIZE_VARIABLE_INVALID`,
 `PULSE_OPTIMIZE_EXPRESSION_INVALID`, or the shared
@@ -1347,7 +1349,14 @@ in `ComposedResponse.optimizations`, an `omitempty` array of
 `iterations`, `max_violation`, `starts`, `starts_agreeing`, `rng_seed`
 — pinned outside the Compose-level `return` (always emitted, never
 rounded); a block that failed on its numbers keeps `{name, direction,
-error}` (see Failed slots). Both slots are gated by
+error}` (see Failed slots) and warns `PULSE_SLOT_FAILED` (`slot_kind`
+`optimizations`). Each block is solved from its start point plus
+`starts − 1` seeded Latin-hypercube points with SLSQP and central
+finite-difference gradients; `marginal` is ∂f/∂xᵢ, `multiplier` the
+constraint's Lagrange multiplier in the objective's own direction
+(∇f = Σ multiplier·∇expr on the free variables — for a budget `eq` it
+equals every free variable's `marginal`), `starts_agreeing` the
+converged starts within `10·tolerance·max(1, |f*|)` of the best. Both slots are gated by
 `capability:compose_optimize`. `pulse_predict` with `composed` lists the
 blocks as `optimize [{name, direction, variables, constraints, starts,
 rng_seed}]` on the predict result (not payload-reachable).
