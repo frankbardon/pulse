@@ -1,0 +1,45 @@
+{
+  "_meta": {
+    "category": "compose",
+    "description": "Split a media budget across four channels: each channel's response is a saturating hill() curve, the `optimize` block maximises the total response subject to one `eq` budget constraint (spend sums to params.budget), and the social channel is capped by a bound read from params. In `optimizations`, every channel strictly between its bounds has the same marginal (marginal ROI equalised) and that value is the budget constraint's multiplier, the shadow price of one more unit of budget; a channel with active `upper` has a marginal above it (raise the cap to gain), one at its lower bound below it. No model is fitted; a fitted channel curve would come from coef() over a `fits` entry.",
+    "capabilities": [
+      "capability:compose_optimize"
+    ],
+    "intents": [
+      "drivers"
+    ],
+    "name": "compose-budget-allocation",
+    "operators": [
+      "AGG_COUNT"
+    ],
+    "tags": [
+      "compose",
+      "composed",
+      "financial"
+    ]
+  },
+  "params": {"budget": 120, "cap_social": 30},
+  "requests": [
+    {
+      "label": "weeks",
+      "cohort": {"filename": "mmm_weekly.pulse", "data_dir": ".data"},
+      "aggregations": [{"type": "AGG_COUNT", "field": "week", "label": "n"}]
+    }
+  ],
+  "optimize": [
+    {
+      "name": "allocation",
+      "direction": "maximize",
+      "variables": [
+        {"name": "tv", "lower": 0, "upper": 100},
+        {"name": "search", "lower": 0, "upper": 100},
+        {"name": "social", "lower": 0, "upper": "params.cap_social"},
+        {"name": "display", "lower": 0, "upper": 100}
+      ],
+      "objective": "120 * hill(tv, 40, 2) + 60 * hill(search, 10, 1) + 150 * hill(social, 60, 1.5) + 30 * hill(display, 50, 1)",
+      "constraints": [{"expr": "tv + search + social + display - params.budget", "type": "eq"}],
+      "starts": 8,
+      "rng_seed": 11
+    }
+  ]
+}

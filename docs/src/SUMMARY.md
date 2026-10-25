@@ -58,6 +58,7 @@
     - [cohort-width-overflow](guide/skills/cohort-width-overflow.md)
     - [compose-banner](guide/skills/compose-banner.md)
     - [compose-fits](guide/skills/compose-fits.md)
+    - [compose-optimize](guide/skills/compose-optimize.md)
     - [compose-requests](guide/skills/compose-requests.md)
     - [compose-sweep-sampling](guide/skills/compose-sweep-sampling.md)
     - [compose-sweeps](guide/skills/compose-sweeps.md)

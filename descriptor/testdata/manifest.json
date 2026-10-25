@@ -12617,6 +12617,10 @@
         "description": "ComposedRequest.fits — named regression or vector fits that run once before any Compose slot (sweep slots included) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity."
       },
       {
+        "name": "compose-optimize",
+        "description": "ComposedRequest.optimize — maximise or minimise an expression over bounded decision variables, subject to equality and inequality constraints, using fitted coefficients. How to read the optimum, the marginals (marginal ROI), the multipliers (shadow prices) and the active bounds, the fits-then-optimize pattern, and the failures."
+      },
+      {
         "name": "compose-requests",
         "description": "ComposedRequest batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components."
       },
@@ -14033,7 +14037,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 258,
+    "examples_count": 260,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -19949,4 +19953,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: d587c21b631da4be9d29c2ba5a315e8415f22cc0887a58d02d9407e23fbf3d85
+// golden-hash: fe46c6ac3a80e92332f81dc242f14170356625a5f197a373b00f577fa5eabfbc

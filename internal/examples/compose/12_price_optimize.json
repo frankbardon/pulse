@@ -1,0 +1,53 @@
+{
+  "_meta": {
+    "category": "compose",
+    "description": "Best price on a fitted demand curve: a compose `fits` entry regresses weekly sales on price by OLS ONCE, and an `optimize` block maximises profit (price - params.cost) * demand over price in [8, 40], reading the intercept and slope with coef() so nothing is copied by hand. The response carries `optimizations`: the profit-maximising price (value), its marginal (about zero at an interior optimum), converged and starts_agreeing (how many of the 8 seeded starts reached it). Change params.cost to see the price move; tighten `tolerance` when the price itself must be exact.",
+    "capabilities": [
+      "capability:compose_fits",
+      "capability:compose_optimize"
+    ],
+    "intents": [
+      "drivers"
+    ],
+    "name": "compose-price-optimize",
+    "operators": [
+      "AGG_COUNT",
+      "REG_OLS"
+    ],
+    "tags": [
+      "compose",
+      "composed",
+      "regression",
+      "ols",
+      "financial"
+    ]
+  },
+  "params": {"cost": 6},
+  "fits": [
+    {
+      "name": "demand",
+      "request": {
+        "cohort": {"filename": "mmm_weekly.pulse", "data_dir": ".data"},
+        "regressions": [{"type": "REG_OLS", "name": "demand", "target": "sales", "predictors": ["price"]}]
+      }
+    }
+  ],
+  "requests": [
+    {
+      "label": "weeks",
+      "cohort": {"filename": "mmm_weekly.pulse", "data_dir": ".data"},
+      "aggregations": [{"type": "AGG_COUNT", "field": "week", "label": "n"}]
+    }
+  ],
+  "optimize": [
+    {
+      "name": "price",
+      "direction": "maximize",
+      "variables": [{"name": "p", "lower": 8, "upper": 40}],
+      "objective": "(p - params.cost) * (coef(\"demand\", \"(intercept)\") + coef(\"demand\", \"price\") * p)",
+      "starts": 8,
+      "rng_seed": 7,
+      "tolerance": 1e-9
+    }
+  ]
+}

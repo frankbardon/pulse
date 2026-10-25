@@ -104,7 +104,7 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 - `request`: opt-in echo of the *normalized* request (`Options.EchoRequest` / `--echo-request`), shaped per operation, skipped by streaming.
 - **A slot fails alone.** A regression / test / matrix slot's (or fit's) data-dependent refusal keeps its result (identity + `error` `{code, message, details}`, figures absent, never `nil`) and warns `PULSE_SLOT_FAILED`; `Strict` fails with the slot's own code; config faults stay fatal. Long form: `.claude/reference/response-components.md` (Per-slot failures).
 
-**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, each response echoing its `label`; `--stream` writes bare per-row NDJSON. `sweep` / `rank` / `fits` / `banner` add slots (skills `compose-*`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
+**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, each response echoing its `label`; `--stream` writes bare per-row NDJSON. `sweep` / `rank` / `fits` / `banner` add slots, `optimize` adds `optimizations` (skills `compose-*`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
 
 **Item fan-out.** A `for_each` on a window / feature / attribute item expands in place before validation (absent = byte-identical). Long form: `execution-modes.md` (Item fan-out).
 
