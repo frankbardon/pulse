@@ -296,7 +296,7 @@ func TestPredict_RegressionValidation(t *testing.T) {
 		{
 			name:        "unknown type",
 			regressions: []*types.RegressionSpec{{Type: types.RegressionType("REG_NOT_A_TYPE"), Target: "score", Predictors: []string{"score"}}},
-			wantCode:    "SERVICE_VALIDATION",
+			wantCode:    "PULSE_REGRESSION_INVALID",
 		},
 		{
 			name:        "missing target",

@@ -546,6 +546,14 @@ const (
 	// it alike, before any record is read.
 	PULSE_REGRESSION_WINDOW_UNAVAILABLE Code = "PULSE_REGRESSION_WINDOW_UNAVAILABLE"
 
+	// PULSE_REGRESSION_INVALID indicates a regression slot naming a type
+	// no registry on the instance resolves: never registered, hidden by a
+	// feature profile, or a pack model (REG_<NAMESPACE>_<NAME>) whose
+	// extension is not registered. details carry regression_index (the
+	// slot's position in Regressions) and type. Predict and every runtime
+	// surface raise it alike, with one sentence.
+	PULSE_REGRESSION_INVALID Code = "PULSE_REGRESSION_INVALID"
+
 	// PULSE_ATTRIBUTE_WINDOW_ORDER indicates an attribute slot reading a
 	// same-request window label — directly, or through the label of an
 	// attribute that runs after the windows — that cannot run after the
@@ -4313,6 +4321,7 @@ var allCodes = []Code{
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
 	PULSE_WINDOW_INVALID,
 	PULSE_REGRESSION_WINDOW_UNAVAILABLE,
+	PULSE_REGRESSION_INVALID,
 	PULSE_ATTRIBUTE_WINDOW_ORDER,
 	PULSE_FIELD_TYPE_UNSUPPORTED,
 	PULSE_FEAT_TARGET_LEAKAGE_RISK,

@@ -5,6 +5,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -98,22 +99,36 @@ func Build(specs []*types.RegressionSpec, schema *encoding.Schema) ([]Engine, er
 	return BuildWith(specs, schema, nil)
 }
 
+// CheckTypes refuses the first spec whose type resolve misses with
+// predict's unknown-type refusal (model.UnknownRegressionType: code
+// PULSE_REGRESSION_INVALID, the spec's index in specs). A caller that
+// fits a subset of the request's slots runs it over the request's own
+// Regressions first, so the index is the slot's request position.
+func CheckTypes(specs []*types.RegressionSpec, resolve Resolver) error {
+	for i, s := range specs {
+		if s == nil {
+			continue
+		}
+		if _, ok := resolve.lookup(s.Type); !ok {
+			return model.UnknownRegressionType(i, s.Type)
+		}
+	}
+	return nil
+}
+
 // BuildWith is Build resolving each type through resolve. A type the
-// resolver misses surfaces the same PROCESSING_CONFIG
-// "unknown regression type" error as a type nothing registered.
+// resolver misses surfaces the same PULSE_REGRESSION_INVALID refusal
+// (CheckTypes) as a type nothing registered.
 func BuildWith(specs []*types.RegressionSpec, schema *encoding.Schema, resolve Resolver) ([]Engine, error) {
 	if len(specs) == 0 {
 		return nil, nil
 	}
+	if err := CheckTypes(specs, resolve); err != nil {
+		return nil, err
+	}
 	out := make([]Engine, 0, len(specs))
 	for _, s := range specs {
-		factory, ok := resolve.lookup(s.Type)
-		if !ok {
-			return nil, errors.NewCodedError(
-				errors.PROCESSING_CONFIG,
-				"unknown regression type: "+string(s.Type),
-			)
-		}
+		factory, _ := resolve.lookup(s.Type)
 		if cerr := regressionFieldTypeRefusal(s, schema); cerr != nil {
 			return nil, cerr
 		}

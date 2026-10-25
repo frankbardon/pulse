@@ -59,9 +59,15 @@ func validateOneTest(env *descriptor.Envelope, t *types.Test, schema *encoding.S
 	// type the instance hides is unknown exactly as a never-registered
 	// one.
 	if !isKnownTestType(opRoute(opts.instance(), t.Type)) && !isExtensionTestType(opts, t.Type) {
+		// The runtime's refusal (processing planRowTests /
+		// buildPostTests), sentence and details alike.
+		kind, tier := "post", "post_tests"
+		if tier1 {
+			kind, tier = "row", "tests"
+		}
 		env.AddError(string(errors.PULSE_TEST_UNKNOWN_TYPE),
-			"unknown test type: "+string(t.Type),
-			map[string]any{"type": string(t.Type)})
+			"test type "+string(t.Type)+" is not registered as a "+kind+" test",
+			map[string]any{"type": string(t.Type), "tier": tier})
 		return
 	}
 	// Alpha range.

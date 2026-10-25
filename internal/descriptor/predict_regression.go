@@ -52,18 +52,17 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 	if cerr := model.CheckRequestSaves(req); cerr != nil {
 		env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 	}
-	for _, reg := range req.Regressions {
+	for i, reg := range req.Regressions {
 		if reg == nil {
 			continue
 		}
 		_, builtin := knownRegressionTypes[opRoute(inst, reg.Type)]
 		_, decl, extension := regressionExtensionFor(inst, nil, reg.Type)
 		if !builtin && !extension {
-			env.AddError(
-				string(errors.SERVICE_VALIDATION),
-				"regression references unknown type: "+string(reg.Type),
-				map[string]any{"type": string(reg.Type)},
-			)
+			// The runtime's refusal (model.UnknownRegressionType), code,
+			// sentence and details alike.
+			cerr := model.UnknownRegressionType(i, reg.Type)
+			env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 			continue
 		}
 		// An extension model's shared slots: the declare-or-refuse table,

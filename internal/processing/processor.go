@@ -455,7 +455,7 @@ func (p *Processor) canStream(req *types.Request) bool {
 			}
 			// A hidden type is never streamable, like a type nothing
 			// registered: both route buffered and fail at the same
-			// "unknown regression type" site.
+			// PULSE_REGRESSION_INVALID "unknown regression type" site.
 			if !p.exts.RegressionSpecStreamable(*reg) {
 				return false
 			}

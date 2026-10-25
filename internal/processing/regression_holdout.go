@@ -33,6 +33,11 @@ import (
 // fails it alone (regressionSlotResults); anything else is fatal.
 func (p *Processor) fitRegressions(ctx context.Context, req *types.Request, filtered []*Record) ([]*types.RegressionResult, error) {
 	specs := req.Regressions
+	// An unknown type is refused at its request index before the
+	// holdout split re-slices the specs.
+	if err := regression.CheckTypes(specs, p.exts.LookupRegression); err != nil {
+		return nil, err
+	}
 	holdout := false
 	for _, s := range specs {
 		if s != nil && s.Holdout != "" {

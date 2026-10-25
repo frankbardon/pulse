@@ -928,6 +928,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_REGRESSION_INVALID: {
+		Message: "A regression slot names a type no registry on this instance resolves (never registered, hidden, or a pack model whose extension is not registered); predict and every runtime surface refuse it alike.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Regressions", "*", "Type"},
+				Hint:   "The type (details.type, at details.regression_index) names no registered REG_* model on this instance: pick one from the manifest's regression list.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"Regressions", "*", "Type"},
+				Hint:   "A pack model such as REG_MMM_HILL is an extension: register its pack's regression on pulse.Options.Extensions (Go embedders) before pulse.New, or run on an instance that registers it.",
+			},
+		},
+	},
 	PULSE_ATTRIBUTE_WINDOW_ORDER: {
 		Message: "An attribute reads a window label, but only a row-local expression formula (no total()) or bound-model score runs after the windows, and only when the windows run over the record rows.",
 		Fixups: []Fixup{
