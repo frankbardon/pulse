@@ -1122,7 +1122,7 @@ Shipped in `v1.0.0-alpha.26`. `format_version` stays `"1.1"`; no `.pulse` byte-l
 
 ## Changes from U60 (MMM estimation)
 
-Not yet released (targets `v1.0.0-alpha.27`). `format_version` stays `"1.1"`; no `.pulse` byte-layout change.
+Shipped in `v1.0.0-alpha.27`. `format_version` stays `"1.1"`; no `.pulse` byte-layout change.
 
 | Old | New | Kind | How to adapt | Unit |
 |---|---|---|---|---|

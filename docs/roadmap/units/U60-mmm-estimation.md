@@ -4,7 +4,7 @@ slug: mmm-estimation
 title: "A media-mix analyst jointly fits response curves, searches adstock decays with a seeded sweep and reallocates budget with a constrained optimizer"
 track: Vector & matrix
 size: L
-status: in-progress
+status: done
 depends_on: []
 soft_depends_on: [U40, U53, U57, U58, U59]
 blocks: [U32]
@@ -27,7 +27,7 @@ branch: mmm-estimation
 - **Compose `optimize` (E3).** A block that maximises or minimises an expression over named variables, subject to bounds and constraints, reading fitted coefficients with `coef()`. It returns the optimum, each variable's marginal, each constraint's multiplier and active bounds, and fails alone.
 - **MMM pack (E4).** `contrib/mmmpulse` registers `REG_MMM_HILL`, a joint nonlinear least-squares fit of every channel's effect and saturation curve. The pack's pass bar on a 156-week, four-channel joint-truth fixture is met on the root library, the CLI path and `mcpserve`. `linalg/detmath` was made public so the pack and core share one deterministic maths set.
 
-Status: implemented on branch `mmm-estimation`; targets `v1.0.0-alpha.27` with a lockstep `contrib/mmmpulse` tag. Nothing is released or tagged by this unit's close-out.
+Status: merged in PR #386 (dd26d440); shipped in `v1.0.0-alpha.27` (pre-release) with lockstep `contrib/{mmmpulse,otelpulse,prompulse}/v1.0.0-alpha.27` tags.
 
 ## References
 
@@ -151,7 +151,7 @@ The pre-existing mdBook warning "unclosed HTML tag `<type>`" in `docs/src/contra
 
 ## Release notes (v1.0.0-alpha.27)
 
-Draft from the migration table (Changes from U60); nothing is tagged or published by this unit. Release steps: tag `v1.0.0-alpha.27` and the lockstep `contrib/mmmpulse` tag through `scripts/release-contrib.sh` (without `--push` it is a dry run; that dry run has not been exercised yet, so run it first), and edit v0.39.1 `--latest` afterwards because the release script drops the pre-release flag.
+Published as the `v1.0.0-alpha.27` GitHub release notes. The contrib tags were cut with `scripts/release-contrib.sh` (dry run first, then `--push`), and v0.39.1 was re-marked Latest afterwards.
 
 - **Behaviour changes.**
   - `WIN_ADSTOCK` is gone: it is `WIN_DISTRIBUTED_LAG` (same params, kernels and output, no alias). Replace the name in requests, templates, feature profiles and Go code; the old name is `PULSE_WINDOW_INVALID`, and a feature profile listing it is `PULSE_FEATURE_PROFILE_UNKNOWN`.
