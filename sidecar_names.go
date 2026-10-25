@@ -10,7 +10,7 @@ import (
 )
 
 // pulseSidecarSuffixes lists the filename suffixes Pulse itself writes
-// beside a cohort (and, for a model or population file, wherever a
+// beside a cohort (and, for a model, population or SEM fit file, wherever a
 // `save` puts it). Every entry ends in ".json", so every entry is a
 // file a *.json directory walk would otherwise pick up and try to
 // parse as its own document.
@@ -23,6 +23,7 @@ var pulseSidecarSuffixes = []string{
 	encx.IndexManifestSuffix, // ".indexes.json" — sidecar point-lookup index catalog
 	model.FileSuffix,         // ".pulse-model.json" — a saved regression model file
 	model.PopulationSuffix,   // ".pulse-population.json" — a saved vector-fit population file
+	model.SEMSuffix,          // ".pulse-sem.json" — a saved SEM fit file
 }
 
 // isPulseSidecarName reports whether name is one of Pulse's own

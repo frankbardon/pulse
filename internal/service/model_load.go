@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/vectors"
 )
 
 // model_load.go loads `models` and `populations` entries: a Request's
@@ -92,13 +93,18 @@ func (s *Service) loadModelFiles(refs model.Refs) (*model.Loaded, error) {
 
 // loadFiles is model.LoadFiles through the instance afero.Fs, then
 // model.CheckLoadedTypes against the instance's registered, visible
-// extension regressions — predict's loadModelFiles runs the same two.
+// extension regressions and model.CheckLoadedSEM (a loaded SEM fit
+// file's model rebuilds) — predict's loadModelFiles runs the same
+// three.
 func (s *Service) loadFiles(refs model.Refs) (*model.Loaded, error) {
 	loaded, cerr := model.LoadFiles(refs, s.ReadModelFile)
 	if cerr != nil {
 		return nil, cerr
 	}
 	if cerr := model.CheckLoadedTypes(refs, loaded, s.extensions.RegressionRegistered); cerr != nil {
+		return nil, cerr
+	}
+	if cerr := model.CheckLoadedSEM(refs, loaded, vectors.CheckSEMRebuild); cerr != nil {
 		return nil, cerr
 	}
 	return loaded, nil

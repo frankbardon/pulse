@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -345,7 +346,14 @@ func matrixOutputResolver(name string) OutputResolver {
 		if k, ok := strings.CutPrefix(field, "auxiliary."); ok && aux[k] {
 			return FieldStatic, ""
 		}
-		return FieldUnknown, fmt.Sprintf("%s does not emit %q (want primary.values, a declared scalars.<key> or auxiliary.<key>)", name, field)
+		// A per-level key (MAT_SEM's implied_means.<level>) is read as
+		// auxiliary.<key>.*: every level's matrix.
+		if k, ok := strings.CutPrefix(field, "auxiliary."); ok {
+			if pre, ok := strings.CutSuffix(k, ".*"); ok && aux[pre+"."+vectors.SEMOutputKeyLevel] {
+				return FieldStatic, ""
+			}
+		}
+		return FieldUnknown, fmt.Sprintf("%s does not emit %q (want primary.values, a declared scalars.<key>, auxiliary.<key> or a per-level auxiliary.<key>.*)", name, field)
 	}
 }
 

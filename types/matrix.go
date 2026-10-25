@@ -385,10 +385,24 @@ func (s MatrixSpec) betweenType() (GroupType, bool) {
 }
 
 // bufferedParams reports whether the spec's params select a computation
-// that needs the whole row set (a rank method). Only params.method on
-// MAT_CORRELATION does today: absent or "pearson" folds co-moments;
-// anything else ranks.
+// that needs the whole row set: a rank method (params.method on
+// MAT_CORRELATION: absent or "pearson" folds co-moments, anything else
+// ranks), a bootstrap (a non-empty params.resample on MAT_SEM: every
+// replicate redraws the rows) or an ordinal estimator (params.estimator
+// "dwls" / "wlsmv" on MAT_SEM: the two-step statistics' asymptotic
+// covariance sums casewise scores).
 func (s MatrixSpec) bufferedParams() bool {
+	if s.Type == MAT_SEM && len(s.Params) > 0 {
+		var p struct {
+			Resample  *string `json:"resample"`
+			Estimator *string `json:"estimator"`
+		}
+		if json.Unmarshal(s.Params, &p) != nil {
+			return false
+		}
+		return (p.Resample != nil && *p.Resample != "") ||
+			(p.Estimator != nil && (*p.Estimator == "dwls" || *p.Estimator == "wlsmv"))
+	}
 	if s.Type != MAT_CORRELATION || len(s.Params) == 0 {
 		return false
 	}

@@ -425,6 +425,15 @@ var emitsTypeProbes = map[string]func(t *testing.T) emitted{
 			Params: json.RawMessage(`{"factor":1,"factors":1,"method":"bartlett","extraction":"ml"}`)}, s, mahaRecords(s, mahaRows, mahaGroups))
 		return append(reg, bart...)
 	},
+	string(types.ATTR_SEM_SCORE): func(t *testing.T) emitted {
+		// SEM latent scores: unbounded reals, regression and Bartlett.
+		s := mahaSchema()
+		reg := attrEmitted(t, &types.Attribute{Type: types.ATTR_SEM_SCORE, Label: "out", Fields: []string{"x", "y", "z"},
+			Params: json.RawMessage(`{"model":"f =~ x + y + z"}`)}, s, mahaRecords(s, mahaRows, mahaGroups))
+		bart := attrEmitted(t, &types.Attribute{Type: types.ATTR_SEM_SCORE, Label: "out", Fields: []string{"x", "y", "z"},
+			Params: json.RawMessage(`{"model":"f =~ x + y + z","method":"bartlett"}`)}, s, mahaRecords(s, mahaRows, mahaGroups))
+		return append(reg, bart...)
+	},
 	string(types.ATTR_PC_SCORE): func(t *testing.T) emitted {
 		// Standardized scores: unbounded reals, unrotated and varimax.
 		s := regSchema()

@@ -65,14 +65,16 @@ import (
 // their columns from Vector / Fields, in AllAttributeTypes order.
 func VectorAttributeTypes() []types.AttributeType {
 	return []types.AttributeType{types.ATTR_FACTOR_SCORE, types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE,
-		types.ATTR_PROFILE_SIMILARITY, types.ATTR_SCALE_SCORE, types.ATTR_VEC_DISTANCE}
+		types.ATTR_PROFILE_SIMILARITY, types.ATTR_SCALE_SCORE, types.ATTR_SEM_SCORE, types.ATTR_VEC_DISTANCE}
 }
 
 // FittedAttributeTypes returns the vector-input attribute types that
-// fit before they score (two-pass, params.fit_on), in AllAttributeTypes
-// order: every VectorAttributeTypes entry but the row-local
-// ATTR_SCALE_SCORE and the comparison pair (ATTR_VEC_DISTANCE fits per
-// slot, by its metric: ComparisonFitted).
+// fit a co-moment before they score (two-pass, params.fit_on, a bound
+// vector fit through params.fit), in AllAttributeTypes order: every
+// VectorAttributeTypes entry but the row-local ATTR_SCALE_SCORE, the
+// comparison pair (ATTR_VEC_DISTANCE fits per slot, by its metric:
+// ComparisonFitted) and ATTR_SEM_SCORE (two-pass by type, its own SEM
+// fit: sem_score.go).
 func FittedAttributeTypes() []types.AttributeType {
 	return []types.AttributeType{types.ATTR_FACTOR_SCORE, types.ATTR_MAHALANOBIS, types.ATTR_PC_SCORE}
 }
@@ -98,9 +100,10 @@ func HasAttributeVectorInput(a *types.Attribute) bool {
 // attribute whose route is typ: "<TYPE>_<vector>", or
 // "<TYPE>_<first fields entry as written>" for inline fields, and on
 // ATTR_PC_SCORE a "_PC<component>" suffix (when params.component
-// decodes) and on ATTR_FACTOR_SCORE a "_F<factor>" suffix (when
-// params.factor decodes) so two components or factors of one vector
-// never share a label. ok is false for any other type (the caller's own
+// decodes), on ATTR_FACTOR_SCORE a "_F<factor>" suffix (when
+// params.factor decodes) and on ATTR_SEM_SCORE a "_<latent>" suffix
+// (when params.latent is set) so two components, factors or latents of
+// one vector never share a label. ok is false for any other type (the caller's own
 // label rule applies).
 func VectorAttributeLabel(typ types.AttributeType, a *types.Attribute) (string, bool) {
 	if a == nil || !IsVectorAttribute(typ) {
@@ -115,6 +118,10 @@ func VectorAttributeLabel(typ types.AttributeType, a *types.Attribute) (string, 
 	case types.ATTR_FACTOR_SCORE:
 		if cfg, err := FactorScoreParams("", a.Params); err == nil {
 			suffix = "_F" + strconv.Itoa(cfg.Factor)
+		}
+	case types.ATTR_SEM_SCORE:
+		if cfg, err := SEMScoreParams("", a.Params); err == nil && cfg.Latent != "" {
+			suffix = "_" + cfg.Latent
 		}
 	}
 	if a.Vector != "" {
@@ -149,8 +156,11 @@ func (in AttributeInput) Has() bool { return len(in.Members.Members) > 0 }
 // registered extension attribute (its member set is then judged); nil
 // means none is. The result is index-aligned with req.Attributes (the
 // zero AttributeInput for an attribute that reads no vector); the first
-// refusal is returned. Like Resolve it reads only the schema.
-func ResolveAttributes(req *types.Request, schema *encoding.Schema, route func(types.AttributeType) types.AttributeType, ext func(string) bool) ([]AttributeInput, *errors.CodedError) {
+// refusal is returned. hidden (at most one; nil or absent hides nothing)
+// reports a feature the instance hides: ATTR_SEM_SCORE then refuses the
+// model syntax a hidden MAT_SEM surface owns, like MAT_SEM
+// (semHiddenSyntaxRefusal). Like Resolve it reads only the schema.
+func ResolveAttributes(req *types.Request, schema *encoding.Schema, route func(types.AttributeType) types.AttributeType, ext func(string) bool, hidden ...func(string) bool) ([]AttributeInput, *errors.CodedError) {
 	if req == nil || len(req.Attributes) == 0 {
 		return nil, nil
 	}
@@ -160,6 +170,10 @@ func ResolveAttributes(req *types.Request, schema *encoding.Schema, route func(t
 	resolved, verr := ResolveRequest(req, schema)
 	if verr != nil {
 		return nil, verr
+	}
+	var hid func(string) bool
+	if len(hidden) > 0 {
+		hid = hidden[0]
 	}
 	out := make([]AttributeInput, len(req.Attributes))
 	for i, a := range req.Attributes {
@@ -174,7 +188,7 @@ func ResolveAttributes(req *types.Request, schema *encoding.Schema, route func(t
 			m, err = resolveExtensionMembers(attributePath(i), a.Vector, a.Fields, req.Vectors, resolved, schema, attributeInvalid)
 			in = AttributeInput{Members: m}
 		} else {
-			in, err = resolveAttribute(attributePath(i), a, typ, req.Vectors, resolved, schema)
+			in, err = resolveAttribute(attributePath(i), a, typ, req.Vectors, resolved, schema, hid)
 		}
 		if err != nil {
 			return nil, err
@@ -185,7 +199,7 @@ func ResolveAttributes(req *types.Request, schema *encoding.Schema, route func(t
 }
 
 // resolveAttribute resolves one slot whose built-in route is typ.
-func resolveAttribute(at string, a *types.Attribute, typ types.AttributeType, specs []types.VectorSpec, resolved []Resolved, schema *encoding.Schema) (AttributeInput, *errors.CodedError) {
+func resolveAttribute(at string, a *types.Attribute, typ types.AttributeType, specs []types.VectorSpec, resolved []Resolved, schema *encoding.Schema, hidden func(string) bool) (AttributeInput, *errors.CodedError) {
 	name := string(a.Type)
 	if !IsVectorAttribute(typ) {
 		if HasAttributeVectorInput(a) && slices.Contains(types.AllAttributeTypes(), typ) {
@@ -224,6 +238,19 @@ func resolveAttribute(at string, a *types.Attribute, typ types.AttributeType, sp
 	}
 	if IsFittedAttribute(typ) {
 		if _, err := FittedLabels(at, typ, a.Params, members); err != nil {
+			return AttributeInput{}, err
+		}
+	}
+	if typ == types.ATTR_SEM_SCORE {
+		cfg, err := SEMScoreParams(at, a.Params)
+		if err != nil {
+			return AttributeInput{}, err
+		}
+		m := Matrix{Type: types.MAT_SEM, SEM: cfg.Plan}
+		if err := semHiddenSyntaxRefusal(at, &m, hidden); err != nil {
+			return AttributeInput{}, asAttributeRefusal(err)
+		}
+		if _, err := ResolveSEMScore(at, &cfg, members, schema); err != nil {
 			return AttributeInput{}, err
 		}
 	}
@@ -287,6 +314,9 @@ func fittedParams(at string, typ types.AttributeType, raw json.RawMessage) ([]*t
 		return cfg.FitOn, err
 	case types.ATTR_FACTOR_SCORE:
 		cfg, err := FactorScoreParams(at, raw)
+		return cfg.FitOn, err
+	case types.ATTR_SEM_SCORE:
+		cfg, err := SEMScoreParams(at, raw)
 		return cfg.FitOn, err
 	}
 	return nil, nil
@@ -878,12 +908,13 @@ func AttributeFit(typ types.AttributeType, a *types.Attribute) string {
 // whose reference is a centroid is never bound: its pre-pass remains.
 // An ATTR_REG_FITTED / ATTR_REG_RESIDUAL slot naming a bound regression
 // fit (params.fit — model.FitReferenced) is bound the same way: it
-// scores that fit instead of refitting OLS in a pre-pass.
+// scores that fit instead of refitting OLS in a pre-pass; so is an
+// ATTR_SEM_SCORE naming a bound SEM fit (params.fit, kind sem).
 func FitBound(typ types.AttributeType, a *types.Attribute) bool {
 	if model.FitReferenced(typ, a) {
 		return true
 	}
-	if !IsFittedAttribute(typ) && typ != types.ATTR_VEC_DISTANCE {
+	if !IsFittedAttribute(typ) && typ != types.ATTR_VEC_DISTANCE && typ != types.ATTR_SEM_SCORE {
 		return false
 	}
 	// A centroid reference still folds in a pre-pass, whatever fit the
@@ -898,8 +929,9 @@ func FitBound(typ types.AttributeType, a *types.Attribute) bool {
 // attributes read through inline fields (a named vector's members ride
 // Members(req)) plus every comparison slot's params.reference key_field
 // (ComparisonKeyField — a row whose key column did not decode would read
-// as a missing profile), and whether every one resolved — projection
-// decodes wide otherwise.
+// as a missing profile) and every ATTR_SEM_SCORE params.group field (its
+// groups split the fit and pick each row's parameters), and whether
+// every one resolved — projection decodes wide otherwise.
 func AttributeInputMembers(req *types.Request, schema *encoding.Schema) (members []string, ok bool) {
 	ok = true
 	if req == nil {
@@ -911,6 +943,9 @@ func AttributeInputMembers(req *types.Request, schema *encoding.Schema) (members
 		}
 		if kf := ComparisonKeyField(a.Type, a); kf != "" {
 			members = append(members, kf)
+		}
+		if gf := SEMScoreGroupField(a.Type, a); gf != "" && schema != nil && schema.Field(gf) != nil {
+			members = append(members, gf)
 		}
 		if len(a.Fields) == 0 {
 			continue

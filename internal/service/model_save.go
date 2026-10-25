@@ -18,7 +18,8 @@ import (
 // model_save.go writes model files — a RegressionSpec.Save after the
 // request's run (saveRegressionModels) and a regression FitSpec.Save
 // after the Compose fit pre-pass (saveFitModel) — and population files
-// (a vector FitSpec.Save, saveFitPopulation). The format and the path rule are
+// (a vector FitSpec.Save, saveFitPopulation) and SEM fit files (a SEM
+// FitSpec.Save, saveFitSEM). The format and the path rule are
 // internal/model's (shared with predict); the write is here, through the
 // instance afero.Fs, atomically.
 
@@ -137,11 +138,39 @@ func (s *Service) saveFitPopulation(ctx context.Context, i int, fit types.FitSpe
 	return &types.ResponseWarning{Code: string(w.Code), Message: w.Message, Details: w.Details}, nil
 }
 
-// writeModelFile writes data — a model or population file — to path
+// saveFitSEM writes SEM fit i's SEM fit file (FitSpec.Save) under the
+// fit's name from its bound state. It returns the
+// PULSE_MODEL_OVERWRITTEN warning (details.fit = i) when it replaced a
+// file, nil otherwise.
+func (s *Service) saveFitSEM(ctx context.Context, i int, fit types.FitSpec, sf *model.SEMFit) (*types.ResponseWarning, error) {
+	if fit.Save == "" {
+		return nil, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	f, err := model.NewSEMFile(fit.Name, sf, s.modelProvenance(fit.Request))
+	if err != nil {
+		return nil, err
+	}
+	data, err := f.Encode()
+	if err != nil {
+		return nil, err
+	}
+	overwrote, err := writeModelFile(s.fs.Fs(), fit.Save, fit.Name, data, model.SEMWriteFailed)
+	if err != nil || !overwrote {
+		return nil, err
+	}
+	w := model.SEMOverwritten(fit.Save, fit.Name)
+	w.Details["fit"] = i
+	return &types.ResponseWarning{Code: string(w.Code), Message: w.Message, Details: w.Details}, nil
+}
+
+// writeModelFile writes data — a model, population or SEM fit file — to path
 // via temp + fsync + rename (the shard-admin atomicWrite pattern),
 // creating the parent directory. A failure at any stage is
-// PULSE_MODEL_WRITE_FAILED (built by failed: model.WriteFailed or
-// model.PopulationWriteFailed) and leaves path as it was — absent, or
+// PULSE_MODEL_WRITE_FAILED (built by failed: model.WriteFailed,
+// model.PopulationWriteFailed or model.SEMWriteFailed) and leaves path as it was — absent, or
 // its previous content — with the temp file removed.
 func writeModelFile(fsys afero.Fs, path, name string, data []byte, failed func(path, name, stage string, cause error) *errors.CodedError) (overwrote bool, err error) {
 	fail := func(stage string, cause error) (bool, error) {

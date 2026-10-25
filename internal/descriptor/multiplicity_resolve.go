@@ -59,6 +59,12 @@ type ResolvedMultiplicity struct {
 	// declared MatrixOpRegistration.PValues; "" on every other slot.
 	// The fold writes the adjusted twins beside it (MatrixAdjustedKeys).
 	PValueKey string
+	// PValueColumn, when set, is the column of the rectangular
+	// PValueKey auxiliary holding the p-values (MAT_SEM: SEMPValueColumn
+	// of estimates): each row with a defined p is one hypothesis, and
+	// the twins are p_adjusted / significant_adjusted, one row per
+	// table row. "" files every cell of PValueKey.
+	PValueColumn string
 	// Coefficients is a member regression's family members: the keys of
 	// its RegressionResult.PValues that join the family, in order — its
 	// block's own list, else every predictor in spec order (the
@@ -191,7 +197,7 @@ const (
 	multReasonTukey          = "the Tukey HSD post-test is already corrected for its own comparisons; an explicit correction would correct it twice"
 	multReasonMatrixFamily   = "the matrix family corrects one matrix result's cells and exists only on a matrix spec (matrices[i].multiplicity)"
 	multReasonMatrixSpec     = "a matrix spec corrects its cells as one matrix (matrix) or pooled with the request (request); layer, row and column belong to overlay layers and compose is not offered on a matrix spec"
-	multReasonMatrixType     = "emits no p-values; a multiplicity block applies only to the matrix operators that take params.inference"
+	multReasonMatrixType     = "emits no p-values; a multiplicity block applies only to the matrix operators that take params.inference, and to MAT_SEM"
 	multReasonBayes          = "REG_BAYES_LINEAR emits no p-values (its credible intervals replace them); a regression multiplicity block applies to REG_OLS and REG_GLM"
 	multReasonNoPValues      = "emits no p-values (its registration does not declare PValues); a regression multiplicity block applies to REG_OLS, REG_GLM and the registered models declaring PValues"
 	multReasonCoefficient    = "names no coefficient of this regression; list predictors or (intercept)"
@@ -405,7 +411,9 @@ func (r multResolver) overlay(slot string, s multSurface, kind types.OverlayKind
 // params.inference — an inherited one never turns inference on, so a
 // request- or instance-level block reaches only specs that asked for
 // p-values). A member corrects every off-diagonal p-value of each of
-// its results.
+// its results. MAT_SEM always emits p-values (its estimates' p_value
+// column, free and := rows) and joins a family through its own block
+// only.
 func (r multResolver) matrix(slot string, spec *types.MatrixSpec, chain multChain) (ResolvedMultiplicity, error) {
 	rm := ResolvedMultiplicity{Slot: slot, Operator: string(spec.Type), Name: spec.EffectiveName(),
 		Method: types.MultiplicityMethodNone, Family: types.MultiplicityFamilyMatrix}
@@ -422,7 +430,7 @@ func (r multResolver) matrix(slot string, spec *types.MatrixSpec, chain multChai
 	pkey := matrixPValueKey(r.inst, spec.Type)
 	inferential := pkey != ""
 	if own != nil && (isBuiltinMatrixType(routed) || ext) && !inferential {
-		valid := append(stringsOf(vectors.InferenceTypes()), extensionPValueMatrixNames(r.inst)...)
+		valid := append(append(stringsOf(vectors.InferenceTypes()), string(types.MAT_SEM)), extensionPValueMatrixNames(r.inst)...)
 		return rm, errors.NewCodedErrorWithDetails(errors.PULSE_MULTIPLICITY_INVALID,
 			fmt.Sprintf("%s: %s %s (valid: %v)", where, spec.Type, multReasonMatrixType, valid),
 			map[string]any{"slot": where, "key": "type", "value": string(spec.Type), "reason": multReasonMatrixType, "valid": valid})
@@ -436,6 +444,13 @@ func (r multResolver) matrix(slot string, spec *types.MatrixSpec, chain multChai
 	rm.Alpha = chain.alpha(own)
 	rm.Member = inferential && (ext || own != nil || paramsInference(spec.Params)) && rm.Method != types.MultiplicityMethodNone
 	rm.PValueKey = pkey
+	if routed == types.MAT_SEM {
+		// MAT_SEM always emits its p-values, but only its OWN block
+		// files them (an inherited one never reaches it, as on a
+		// regression): the estimates' p_value column.
+		rm.PValueColumn = SEMPValueColumn
+		rm.Member = own != nil && rm.Method != types.MultiplicityMethodNone
+	}
 	return rm, nil
 }
 

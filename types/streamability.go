@@ -299,7 +299,7 @@ func (t GroupType) Mergeable() bool {
 //     whose model is bound before the row pass) implement processing.RowLocalAttribute
 //     and execute inline with no PrePass.
 //   - Two-pass: ZSCORE, TSCORE, NORMALIZED (and the fitted vector
-//     attributes, MAHALANOBIS, PC_SCORE, FACTOR_SCORE, VEC_DISTANCE
+//     attributes, MAHALANOBIS, PC_SCORE, FACTOR_SCORE, SEM_SCORE, VEC_DISTANCE
 //     over a fitted metric, and either comparison type over a centroid
 //     reference) implement
 //     processing.TwoPassAttribute and need a PrePass over filter-passing
@@ -324,7 +324,7 @@ func (t AttributeType) Streamable() bool {
 		ATTR_SET_POPCOUNT, ATTR_SET_HAS,
 		ATTR_CODE_IN, ATTR_REG_PREDICT, ATTR_SCALE_SCORE,
 		ATTR_PROFILE_SIMILARITY, ATTR_VEC_DISTANCE,
-		ATTR_MAHALANOBIS, ATTR_PC_SCORE, ATTR_FACTOR_SCORE:
+		ATTR_MAHALANOBIS, ATTR_PC_SCORE, ATTR_FACTOR_SCORE, ATTR_SEM_SCORE:
 		return true
 	case ATTR_PERCENTILE, ATTR_PREVIOUS_STATE:
 		return false

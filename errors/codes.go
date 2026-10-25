@@ -3860,6 +3860,24 @@ const (
 	// smallest eigenvalue of S's correlation form before the clip).
 	PULSE_MATRIX_NEAREST_PD Code = "PULSE_MATRIX_NEAREST_PD"
 
+	// PULSE_MATRIX_DEFINED_NONFINITE is a per-matrix WARNING: a MAT_SEM
+	// defined parameter (a `name := expr` model line) is not finite at
+	// the estimate — a division by zero, the log or square root of a
+	// value it does not take — so its row's figures (estimate, SE, z,
+	// p, interval, std_estimate) are null, as are those of every :=
+	// line reading it; the fit and the other rows stand. Details carry
+	// "matrix" and "defined" (the names, in model order).
+	PULSE_MATRIX_DEFINED_NONFINITE Code = "PULSE_MATRIX_DEFINED_NONFINITE"
+
+	// PULSE_MATRIX_TOO_MANY_CATEGORIES indicates a MAT_SEM ordinal fit
+	// (params.estimator "dwls" / "wlsmv") whose ordered member holds
+	// more than 32 distinct values (sem.MaxOrderedCategories) over the
+	// slot's rows: one threshold per category boundary and an
+	// asymptotic covariance of matching size, so a continuous measure
+	// declared ordered is refused, never fitted. The slot fails alone.
+	// Details carry "matrix", "variable", "categories" and "limit".
+	PULSE_MATRIX_TOO_MANY_CATEGORIES Code = "PULSE_MATRIX_TOO_MANY_CATEGORIES"
+
 	// PULSE_RETURN_INVALID indicates a `return` block that cannot be
 	// read: an unknown preset, a precision outside 1–17, or a malformed
 	// include / exclude path (an empty segment, `*` anywhere but the end
@@ -3910,6 +3928,18 @@ const (
 	// Options.Strict the failed fit already failed the whole batch with
 	// its own code.
 	PULSE_FIT_UNAVAILABLE Code = "PULSE_FIT_UNAVAILABLE"
+
+	// PULSE_SEM_SCORE_LEVEL_UNSEEN is a WARNING: an ATTR_SEM_SCORE slot
+	// with params.group scored rows whose group level holds no fit rows
+	// (fit_on excluded them, or no filtered row reached it), so the
+	// joint fit has no parameters for that level; those rows score
+	// null. details: attribute, type, group, levels (the unseen level
+	// labels, in level order), rows (their row counts, aligned) and
+	// fit_levels (the levels the fit holds). On an ordinal fit it also
+	// counts rows whose ordered member value is none of the fit's
+	// categories (details.reason category_unseen, variables, rows,
+	// categories): null too.
+	PULSE_SEM_SCORE_LEVEL_UNSEEN Code = "PULSE_SEM_SCORE_LEVEL_UNSEEN"
 
 	// PULSE_AUC_DELONG_WEIGHTED is a NOTE, never an error or a
 	// warning: it rides an AGG_AUC slot's components as `se_note` when
@@ -4570,11 +4600,14 @@ var allCodes = []Code{
 	PULSE_MATRIX_NOT_IDENTIFIED,
 	PULSE_MATRIX_PAIRWISE_N_STAR,
 	PULSE_MATRIX_NEAREST_PD,
+	PULSE_MATRIX_DEFINED_NONFINITE,
+	PULSE_MATRIX_TOO_MANY_CATEGORIES,
 	PULSE_RETURN_INVALID,
 	PULSE_RETURN_PATH_UNKNOWN,
 	PULSE_RETURN_PATH_UNMATCHED,
 	PULSE_SLOT_FAILED,
 	PULSE_FIT_UNAVAILABLE,
+	PULSE_SEM_SCORE_LEVEL_UNSEEN,
 	PULSE_AUC_DELONG_WEIGHTED,
 	PULSE_LIMIT_INVALID,
 	PULSE_LIMIT_EXCEEDED,

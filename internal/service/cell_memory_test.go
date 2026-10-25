@@ -209,10 +209,18 @@ func (it *cellMemoryIter) Next() bool {
 func (it *cellMemoryIter) Record() *processing.Record { return it.rec }
 func (it *cellMemoryIter) Reset()                     { it.i = 0 }
 
-// peakLive runs fn under GOGC=1 — a collection every 1% of heap growth,
-// so the heap holds little beyond the live set — sampling the heap's
-// object bytes throughout (runtime/metrics: no stop-the-world): the
-// run's peak live heap, garbage all but excluded.
+// peakLive runs fn under GOGC=1 — a collection every 1% of heap growth
+// — sampling the heap the last collection MARKED live throughout
+// (runtime/metrics /gc/heap/live:bytes: no stop-the-world), then once
+// more after a collection at fn's return (what the run retains): the
+// run's peak live heap, garbage excluded. Not the heap's object bytes
+// (/memory/classes/heap/objects:bytes): those count every object not
+// yet swept and every object allocated since the last mark, garbage
+// that grows when the collector shares the CPU — under go test ./...
+// on a 4-core runner the dense 60 x 60 cases measured within 1% of
+// their charge (over it on some runs), against 1.15x alone, the same
+// figures before and after a change that touched no crosstab path. The
+// marked heap measures 1.20x contended and 1.24x alone.
 func peakLive(fn func() error) (uint64, error) {
 	old := debug.SetGCPercent(1)
 	defer debug.SetGCPercent(old)
@@ -222,7 +230,7 @@ func peakLive(fn func() error) (uint64, error) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		sample := []metrics.Sample{{Name: "/memory/classes/heap/objects:bytes"}}
+		sample := []metrics.Sample{{Name: peakLiveMetric}}
 		for {
 			metrics.Read(sample)
 			if v := sample[0].Value.Uint64(); v > peak.Load() {
@@ -238,8 +246,14 @@ func peakLive(fn func() error) (uint64, error) {
 	err := fn()
 	close(done)
 	wg.Wait()
-	return peak.Load(), err
+	runtime.GC()
+	sample := []metrics.Sample{{Name: peakLiveMetric}}
+	metrics.Read(sample)
+	return max(peak.Load(), sample[0].Value.Uint64()), err
 }
+
+// peakLiveMetric is the marked live heap peakLive samples.
+const peakLiveMetric = "/gc/heap/live:bytes"
 
 // cellMemoryFigures are a case's measured bytes beyond the heap before
 // the run: the run's peak live heap (the buffered arm's materialised
@@ -324,9 +338,9 @@ func cellMemoryCharge(t *testing.T, c cellMemoryCase) float64 {
 // exceeds its charge. The sampled peak's noise is one-sided — garbage
 // the GOGC=1 collector has not yet reclaimed only inflates it, never
 // deflates it — and grows when the run shares the CPU (go test ./...
-// runs packages concurrently: dense cases measured 0.75x there, 1.16x
-// alone), so the lowest of a few measures is the honest figure. A
-// charge that misses a term misses on every attempt.
+// runs packages concurrently; peakLive samples the marked heap to keep
+// that garbage out), so the lowest of a few measures is the honest
+// figure. A charge that misses a term misses on every attempt.
 const crosstabMemoryAttempts = 3
 
 // crosstabMemoryCheck measures c and fails when its peak — the lowest

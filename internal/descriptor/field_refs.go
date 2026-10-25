@@ -866,7 +866,7 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	// one refusal at most between them.
 	ains, aerr := vectors.ResolveAttributes(req, schema, func(t types.AttributeType) types.AttributeType {
 		return opRoute(inst, t)
-	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Attributes }))
+	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Attributes }), inst.Hidden)
 	if aerr != nil {
 		w.out = append(w.out, aerr)
 		return w.out
@@ -927,14 +927,28 @@ func vectorFitRefusals(req *types.Request, schema *encoding.Schema, mats []vecto
 			labels, labelsOK = vectors.AttributeFitLabels(typ, attr, ains[i].Members, schema)
 		}
 		if name != "" {
-			if cerr := model.CheckVectorFit(models, name); cerr != nil {
+			check := model.CheckVectorFit
+			if typ == types.ATTR_SEM_SCORE {
+				// ATTR_SEM_SCORE reads a SEM fit (kind sem).
+				check = model.CheckSEMFit
+			}
+			if cerr := check(models, name); cerr != nil {
 				cerr.Details["attribute"] = label
 				cerr.Message = label + ": " + cerr.Message
 				out = append(out, cerr)
 				continue
 			}
-			if sig, _ := models.Signature(name); sig.Members != nil && labelsOK {
+			sig, _ := models.Signature(name)
+			if sig.Members != nil && labelsOK {
 				if _, cerr := vectors.AlignFit("attribute", label, name, sig.Members, labels); cerr != nil {
+					out = append(out, cerr)
+					continue
+				}
+			}
+			if typ == types.ATTR_SEM_SCORE && sig.Ordinal {
+				// An ordinal SEM fit scores by EBM: Bartlett is refused
+				// at bind (vectors.SEMScoreOrdinalMethodRefusal).
+				if cerr := vectors.SEMScoreOrdinalMethodRefusal(label, name, vectors.SEMScoreMethodOf(attr), ""); cerr != nil {
 					out = append(out, cerr)
 					continue
 				}
@@ -1003,6 +1017,9 @@ func resolveMatricesFor(req *types.Request, schema *encoding.Schema, snap *Exten
 		// registration, as the runtime resolves it
 		// (processing.resolveMatrixPlans).
 		Extension: matrixExtensionFor(inst, snap),
+		// A MAT_SEM params surface the instance hides resolves as never
+		// existing, as the runtime resolves it.
+		Hidden: inst.Hidden,
 	})
 }
 

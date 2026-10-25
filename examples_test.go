@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -87,7 +91,7 @@ func TestExamples_RunEndToEnd(t *testing.T) {
 // the anchor-syntax example reads.
 func buildExampleFixtures(t *testing.T, p *pulse.Pulse, fs afero.Fs, tmp string) {
 	t.Helper()
-	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers", "tier_migrations", "survey", "subscribers", "warehouse_orders", "plan_history", "plan_history_wide", "battery", "intake", "mmm_weekly"}
+	cohorts := []string{"transactions", "customers", "orders", "training_data", "all_types", "experiment", "repeated_measures", "card_issuers", "tier_migrations", "survey", "subscribers", "warehouse_orders", "plan_history", "plan_history_wide", "battery", "intake", "mmm_weekly", "brand_survey"}
 	for _, name := range cohorts {
 		csvPath := filepath.Join("internal", "examples", "fixtures", name+".csv")
 		schemaPath := filepath.Join("internal", "examples", "fixtures", "schemas", name+".json")
@@ -566,6 +570,278 @@ func TestExamples_MMMDecaySweepRanksTrueDecayFirst(t *testing.T) {
 	for i := 1; i < len(out.Ranking); i++ {
 		if !(out.Ranking[i-1].Value < out.Ranking[i].Value) {
 			t.Fatalf("ranking not ascending at %d: %+v", i, out.Ranking)
+		}
+	}
+}
+
+// TestExamples_SEMInvarianceLadderSweep runs
+// compose/09_sem_invariance_sweep.json over the brand_survey fixture
+// cohort: predict is clean, the zip sweep expands into the configural /
+// metric / scalar slots in order, each a joint multi-group MAT_SEM fit
+// with no slot error, dof rises step by step, only the scalar step
+// frees wave2's latent means, and those means recover the fixture's
+// planted shift (brand_spec.json: value −0.30 and service +0.70 factor
+// SD, so −0.24 and +0.525 in marker units; quality 0) — each within two
+// SEs of its truth, value and service distinguishable from zero.
+func TestExamples_SEMInvarianceLadderSweep(t *testing.T) {
+	tmp := t.TempDir()
+	osfs := afero.NewOsFs()
+	builder, err := pulse.New(pulse.Options{FS: osfs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	buildExampleFixtures(t, builder, osfs, tmp)
+	p, err := pulse.New(pulse.Options{DataDir: tmp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join("internal", "examples", "compose", "09_sem_invariance_sweep.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	delete(doc["sweep"].(map[string]any)["request"].(map[string]any)["cohort"].(map[string]any), "data_dir")
+	if body, err = json.Marshal(doc); err != nil {
+		t.Fatal(err)
+	}
+	var req pulse.ComposedRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	env, err := p.PredictCompose(context.Background(), &req)
+	if err != nil {
+		t.Fatalf("PredictCompose: %v", err)
+	}
+	if len(env.Errors) != 0 {
+		t.Fatalf("PredictCompose errors: %v", env.Errors)
+	}
+	out, err := p.Compose(context.Background(), &req)
+	if err != nil {
+		t.Fatalf("Compose: %v", err)
+	}
+	steps := []string{"configural", "metric", "scalar"}
+	if len(out.Responses) != len(steps) {
+		t.Fatalf("%d slots, want %d", len(out.Responses), len(steps))
+	}
+	prevDof := -1.0
+	for i, step := range steps {
+		r := out.Responses[i]
+		if r.Label != step || len(r.Matrices) != 1 || r.Matrices[0].Error != nil {
+			t.Fatalf("slot %d: label %q, matrices %+v", i, r.Label, r.Matrices)
+		}
+		m := r.Matrices[0]
+		dof := m.Scalars["dof"]
+		if !(dof > prevDof) {
+			t.Errorf("%s: dof %g does not rise past %g", step, dof, prevDof)
+		}
+		prevDof = dof
+		est := m.Auxiliary["estimates"]
+		if est == nil {
+			t.Fatalf("%s: no estimates", step)
+		}
+		freeMean := false
+		for k, key := range est.RowKeys {
+			if key == "[wave2] service ~1" {
+				freeMean = m.Vectors["free"].([]bool)[k]
+			}
+		}
+		if want := step == "scalar"; freeMean != want {
+			t.Errorf("%s: [wave2] service ~1 free = %v, want %v", step, freeMean, want)
+		}
+		if step != "scalar" {
+			continue
+		}
+		for factor, truth := range map[string]float64{"quality": 0, "value": -0.24, "service": 0.525} {
+			key := "[wave2] " + factor + " ~1"
+			k := slices.Index(est.RowKeys, key)
+			if k < 0 {
+				t.Fatalf("scalar: no %s row", key)
+			}
+			v, se := est.Values[k][0], est.Values[k][2]
+			if !(math.Abs(v-truth) <= 2*se) {
+				t.Errorf("scalar: %s = %.4f (SE %.4f), planted %.3f", key, v, se, truth)
+			}
+			if truth != 0 && !(math.Abs(v/se) > 2) {
+				t.Errorf("scalar: %s = %.4f (SE %.4f) is not distinguishable from zero", key, v, se)
+			}
+		}
+	}
+}
+
+// TestExamples_SEMContributionRecipe runs
+// matrices/17_sem_contribution.json over the brand_survey fixture: the
+// := rows close the table (vectors.group null, vectors.label the name)
+// with a delta-method SE, p and Wald interval; the planted wave-2 shift
+// makes value's contribution negative and service's positive, each
+// distinguishable from zero (p < 0.05, the interval excluding 0); the
+// slot's Holm block adjusts every row with a p, := rows included; and
+// the bootstrap slot keeps the estimates, echoes 200 replicates and
+// replaces the SEs and intervals.
+func TestExamples_SEMContributionRecipe(t *testing.T) {
+	tmp := t.TempDir()
+	osfs := afero.NewOsFs()
+	builder, err := pulse.New(pulse.Options{FS: osfs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	buildExampleFixtures(t, builder, osfs, tmp)
+	p, err := pulse.New(pulse.Options{DataDir: tmp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join("internal", "examples", "matrices", "17_sem_contribution.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var req pulse.Request
+	if err := json.Unmarshal(body, &req); err != nil {
+		t.Fatal(err)
+	}
+	req.Cohort.DataDir = ""
+	resp, err := p.Process(context.Background(), &req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Matrices) != 2 || resp.Matrices[0].Error != nil || resp.Matrices[1].Error != nil {
+		t.Fatalf("matrices %+v", resp.Matrices)
+	}
+	delta, boot := resp.Matrices[0], resp.Matrices[1]
+	est := delta.Auxiliary["estimates"]
+	row := func(name string) (int, []float64) {
+		for i, k := range est.RowKeys {
+			if strings.HasPrefix(k, name+" := ") {
+				return i, est.Values[i]
+			}
+		}
+		t.Fatalf("no %s := row in %v", name, est.RowKeys)
+		return 0, nil
+	}
+	for name, sign := range map[string]float64{"dv": -1, "ds": 1} {
+		i, r := row(name)
+		v, p, lo, hi := r[0], r[4], r[5], r[6]
+		if !(v*sign > 0) || !(p < 0.05) || !(lo*sign > 0 && hi*sign > 0) {
+			t.Errorf("%s = %.4f, p %.3g, interval [%.4f, %.4f]: want a %+g-signed contribution distinguishable from zero", name, v, p, lo, hi, sign)
+		}
+		if g := delta.Vectors["group"].([]any)[i]; g != nil {
+			t.Errorf("%s vectors.group %v, want null", name, g)
+		}
+		if l := delta.Vectors["label"].([]string)[i]; l != name {
+			t.Errorf("%s vectors.label %q", name, l)
+		}
+	}
+	adj := delta.Auxiliary["p_adjusted"]
+	if adj == nil {
+		t.Fatal("no p_adjusted under the slot's Holm block")
+	}
+	var family []float64
+	for _, r := range est.Values {
+		if !math.IsNaN(r[4]) {
+			family = append(family, r[4])
+		}
+	}
+	di, _ := row("dv")
+	if math.IsNaN(adj.Values[di][0]) || !(adj.Values[di][0] >= est.Values[di][4]) || len(family) < 40 {
+		t.Errorf("dv p_adjusted %v vs raw %v over a family of %d", adj.Values[di][0], est.Values[di][4], len(family))
+	}
+	if boot.Scalars["bootstrap_requested"] != 200 || !(boot.Scalars["bootstrap_succeeded"] >= 190) {
+		t.Errorf("bootstrap echoes %v / %v", boot.Scalars["bootstrap_requested"], boot.Scalars["bootstrap_succeeded"])
+	}
+	bv := boot.Auxiliary["estimates"].Values
+	if bv[di][0] != est.Values[di][0] || bv[di][2] == est.Values[di][2] || bv[di][5] == est.Values[di][5] {
+		t.Errorf("bootstrap dv row %v vs delta %v: want the estimate kept, the SE and interval replaced", bv[di], est.Values[di])
+	}
+}
+
+// TestExamples_SEMFitScoresFeedRegression runs
+// compose/10_sem_fit_scores.json over the brand_survey fixture: predict
+// is clean; the SEM fit binds (fits.brand is a SEM fit with no error);
+// the by_wave slot's mean scores track the planted shift (wave1, the
+// reference, near 0; value down and service up in wave2; quality flat);
+// and the drivers slot's OLS of recommend on the three scores finds
+// each a positive driver distinguishable from zero.
+func TestExamples_SEMFitScoresFeedRegression(t *testing.T) {
+	tmp := t.TempDir()
+	osfs := afero.NewOsFs()
+	builder, err := pulse.New(pulse.Options{FS: osfs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	buildExampleFixtures(t, builder, osfs, tmp)
+	p, err := pulse.New(pulse.Options{DataDir: tmp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join("internal", "examples", "compose", "10_sem_fit_scores.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var req pulse.ComposedRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	for i := range req.Fits {
+		req.Fits[i].Request.Cohort.DataDir = ""
+	}
+	for _, r := range req.Requests {
+		r.Cohort.DataDir = ""
+	}
+	env, err := p.PredictCompose(context.Background(), &req)
+	if err != nil {
+		t.Fatalf("PredictCompose: %v", err)
+	}
+	if len(env.Errors) != 0 {
+		t.Fatalf("PredictCompose errors: %v", env.Errors)
+	}
+	out, err := p.Compose(context.Background(), &req)
+	if err != nil {
+		t.Fatalf("Compose: %v", err)
+	}
+	if len(out.Warnings) != 0 {
+		t.Fatalf("compose warnings: %+v", out.Warnings)
+	}
+	fit, ok := out.Fits["brand"]
+	if !ok || fit.SEM == nil || fit.SEM.Error != nil {
+		t.Fatalf("fits.brand = %+v, want a SEM fit without error", fit)
+	}
+	if len(out.Responses) != 2 || out.Responses[0].Label != "by_wave" || out.Responses[1].Label != "drivers" {
+		t.Fatalf("responses %+v", out.Responses)
+	}
+
+	means := map[string]map[string]float64{}
+	for _, row := range out.Responses[0].Data {
+		wave := fmt.Sprint(row["wave"])
+		means[wave] = map[string]float64{}
+		for _, lat := range []string{"quality", "value", "service"} {
+			v, _ := row["mean_"+lat].(float64)
+			means[wave][lat] = v
+		}
+	}
+	w1, w2 := means["wave1"], means["wave2"]
+	if w1 == nil || w2 == nil {
+		t.Fatalf("by_wave rows %v", means)
+	}
+	for lat, planted := range map[string]float64{"quality": 0, "value": -0.24, "service": 0.525} {
+		if math.Abs(w1[lat]) > 0.05 {
+			t.Errorf("wave1 mean %s score %.4f, want near 0 (the reference)", lat, w1[lat])
+		}
+		if shift := w2[lat] - w1[lat]; math.Abs(shift-planted) > 0.15 {
+			t.Errorf("mean %s score shift %.4f, planted %.3f", lat, shift, planted)
+		}
+	}
+
+	regs := out.Responses[1].Regressions
+	if len(regs) != 1 || regs[0].Error != nil {
+		t.Fatalf("drivers regressions %+v", regs)
+	}
+	for _, lat := range []string{"quality", "value", "service"} {
+		name := lat + "_score"
+		b, found := regs[0].Coefficients[name]
+		if !found || !(b > 0) || !(regs[0].PValues[name] < 0.05) {
+			t.Errorf("recommend ~ %s: slope %v (found %v), p %v; want a positive driver distinguishable from zero", name, b, found, regs[0].PValues[name])
 		}
 	}
 }

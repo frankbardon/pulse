@@ -297,6 +297,34 @@ var goldenCases = []goldenCase{
 	{fn: "Erfinv", x: 1.5, isNaN: true},
 	{fn: "Erfinv", x: -1.5, isNaN: true},
 	{fn: "Erfinv", x: nan, isNaN: true},
+	// Asin
+	{fn: "Asin", x: 0, want: 0x0000000000000000},                   // 0
+	{fn: "Asin", x: nz, want: 0x8000000000000000},                  // -0
+	{fn: "Asin", x: 5e-324, want: 0x0000000000000001},              // 5e-324
+	{fn: "Asin", x: 1e-300, want: 0x01a56e1fc2f8f359},              // 1e-300
+	{fn: "Asin", x: 1e-20, want: 0x3bc79ca10c924223},               // 1e-20
+	{fn: "Asin", x: 0.1, want: 0x3fb9a49276037884},                 // 0.1001674211615598
+	{fn: "Asin", x: 0.23195033481076083, want: 0x3fcdf667feeff5d8}, // 0.234082221490026
+	{fn: "Asin", x: 0.2666358693828154, want: 0x3fd1460e2df134ae},  // 0.2699008415846248
+	{fn: "Asin", x: 0.5, want: 0x3fe0c152382d7366},                 // 0.5235987755982989
+	{fn: "Asin", x: -0.5, want: 0xbfe0c152382d7366},                // -0.5235987755982989
+	{fn: "Asin", x: 0.69999, want: 0x3fe8cff10b85e79c},             // 0.7753834939060087
+	{fn: "Asin", x: 0.7, want: 0x3fe8d00e692afd95},                 // 0.775397496610753
+	{fn: "Asin", x: 0.70001, want: 0x3fe8d02bc6ea7dd5},             // 0.7754114995076927
+	{fn: "Asin", x: 0.71792499768851, want: 0x3fe9a04ac875528f},    // 0.8008169093323704
+	{fn: "Asin", x: 0.8160808954098611, want: 0x3fee8c0effbaf9f0},  // 0.9545969958051597
+	{fn: "Asin", x: 0.9, want: 0x3ff1ea93705fa172},                 // 1.1197695149986342
+	{fn: "Asin", x: 0.925, want: 0x3ff2e585943a1802},               // 1.181035593997422
+	{fn: "Asin", x: -0.925, want: 0xbff2e585943a1802},              // -1.181035593997422
+	{fn: "Asin", x: -0.9893726507422578, want: 0xbff6cc4bd0f2f837}, // -1.4248769914697854
+	{fn: "Asin", x: 0.99, want: 0x3ff6de3c6f33d51d},                // 1.4292568534704693
+	{fn: "Asin", x: 0.9999, want: 0x3ff8e80e1a015571},              // 1.5566540733173861
+	{fn: "Asin", x: 1, want: 0x3ff921fb54442d18},                   // 1.5707963267948966
+	{fn: "Asin", x: -1, want: 0xbff921fb54442d18},                  // -1.5707963267948966
+	{fn: "Asin", x: 1 + 0x1p-52, isNaN: true},
+	{fn: "Asin", x: -1.5, isNaN: true},
+	{fn: "Asin", x: inf, isNaN: true},
+	{fn: "Asin", x: nan, isNaN: true},
 }
 
 func eval(c goldenCase) float64 {
@@ -323,6 +351,8 @@ func eval(c goldenCase) float64 {
 		return Erf(c.x)
 	case "Erfinv":
 		return Erfinv(c.x)
+	case "Asin":
+		return Asin(c.x)
 	}
 	panic("unknown kernel " + c.fn)
 }
@@ -348,7 +378,7 @@ func TestDetmath_GoldenBits(t *testing.T) {
 				c.fn, c.x, c.y, got, math.Float64bits(got), math.Float64frombits(c.want), c.want)
 		}
 	}
-	for _, fn := range []string{"Exp", "Log", "Log1p", "Sin", "Cos", "Tan", "Atan2", "Pow", "Expm1", "Erf", "Erfinv"} {
+	for _, fn := range []string{"Exp", "Log", "Log1p", "Sin", "Cos", "Tan", "Atan2", "Pow", "Expm1", "Erf", "Erfinv", "Asin"} {
 		if !seen[fn] {
 			t.Errorf("golden table has no %s row", fn)
 		}

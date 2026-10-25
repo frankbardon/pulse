@@ -1,0 +1,52 @@
+{
+  "_meta": {
+    "name": "sem-ordinal-wlsmv",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "multivariate",
+      "comparison",
+      "buffered-pipeline"
+    ],
+    "operators": [
+      "MAT_SEM"
+    ],
+    "capabilities": [
+      "capability:sem_groups",
+      "capability:sem_meanstructure",
+      "capability:sem_ordinal"
+    ],
+    "description": "The three-factor CFA of brand_survey.pulse (quality =~ q1 + q2 + q3, value =~ v1 + v2 + v3, service =~ s1 + s2 + s3) with its nine 1-5 ratings read two ways. ml is lavaan's maximum likelihood fit with a mean structure: the ratings as continuous, with a log-likelihood, aic and bic. wlsmv sets estimator wlsmv with every rating in ordered: lavaan's two-step fit to the thresholds and polychoric correlations, one x | tk row per threshold (four per 1-5 rating), robust standard errors, the unscaled chi2 with a null p and no log-likelihood, and the scaled-shifted test (chi2_scaled, chi2_scaled_p_value, scaling_factor, shift_parameter) with cfi_scaled, tli_scaled and rmsea_scaled; judge its fit by the scaled figures. waves is the same ordinal model as one joint fit across the two survey waves with thresholds, loadings and intercepts held equal (group_equal), which frees wave2's latent means: the [wave2] value ~1 and [wave2] service ~1 rows recover the fixture's planted shift (value down, service up, quality unchanged), on the scale of each marker's underlying response. Compare the ml and wlsmv std_estimate loadings to see how much the continuous reading costs. The ordinal estimator needs every row (Gamma), so the request runs buffered.",
+    "intents": [
+      "measure_construct",
+      "compare_groups"
+    ]
+  },
+  "cohort": {
+    "filename": "brand_survey.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {"name": "brand", "fields": ["q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3"]}
+  ],
+  "matrices": [
+    {
+      "type": "MAT_SEM",
+      "name": "ml",
+      "vector": "brand",
+      "params": {"model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3", "meanstructure": true}
+    },
+    {
+      "type": "MAT_SEM",
+      "name": "wlsmv",
+      "vector": "brand",
+      "params": {"model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3", "estimator": "wlsmv", "ordered": ["q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3"]}
+    },
+    {
+      "type": "MAT_SEM",
+      "name": "waves",
+      "vector": "brand",
+      "params": {"model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3", "estimator": "wlsmv", "ordered": ["q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3"], "group": "wave", "group_equal": ["thresholds", "loadings", "intercepts"]}
+    }
+  ]
+}

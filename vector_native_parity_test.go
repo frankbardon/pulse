@@ -333,7 +333,7 @@ func vparCases() []vparCase {
 			// std_euclidean — a FITTED metric, so the slot is two-pass;
 			// the routing gates must read the native field's kind.
 			name: "fitted vector attributes",
-			ops:  []string{"ATTR_VEC_DISTANCE", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "ATTR_FACTOR_SCORE"},
+			ops:  []string{"ATTR_VEC_DISTANCE", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "ATTR_FACTOR_SCORE", "ATTR_SEM_SCORE"},
 			req: func(twin bool) *types.Request {
 				return vparReq(twin, &types.Request{
 					Attributes: []*types.Attribute{
@@ -341,8 +341,10 @@ func vparCases() []vparCase {
 						{Type: types.ATTR_MAHALANOBIS, Vector: "emb", Label: "d2"},
 						{Type: types.ATTR_PC_SCORE, Vector: "emb", Label: "pc1", Params: vparRaw(`{"component":1}`)},
 						{Type: types.ATTR_FACTOR_SCORE, Vector: "emb2", Label: "f1", Params: vparRaw(`{"factor":1,"factors":1}`)},
+						// The default one-factor model over the members by label.
+						{Type: types.ATTR_SEM_SCORE, Vector: "emb", Label: "sem1"},
 					},
-					Aggregations: vparAvg("vds", "d2", "pc1", "f1"),
+					Aggregations: vparAvg("vds", "d2", "pc1", "f1", "sem1"),
 				})
 			},
 		},

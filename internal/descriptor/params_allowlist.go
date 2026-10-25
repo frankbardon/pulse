@@ -13,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/strictjson"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -190,6 +191,35 @@ var builtinParamsAllowlist = sync.OnceValue(func() map[paramread.Key]ParamsDecl 
 	return out
 })
 
+// instanceBuiltinDecl is built-in k's allowlist d on inst: a MAT_SEM
+// params surface the instance hides (vectors.SEMFeatureParams: the
+// mean structure, the multi-group fit — on MAT_SEM and on
+// ATTR_SEM_SCORE's inline fit, vectors.SEMScoreFeatureParams) is no key
+// at all — refused, and absent from valid_keys, exactly as a key the
+// operator never read. d itself
+// is never mutated (the built-in table is shared).
+func instanceBuiltinDecl(k paramread.Key, d ParamsDecl, inst *InstanceSnapshot) ParamsDecl {
+	if !inst.Scoped() {
+		return d
+	}
+	var owned map[string][]string
+	switch {
+	case k.Category == paramread.Matrix && k.Op == string(types.MAT_SEM):
+		owned = vectors.SEMFeatureParams()
+	case k.Category == paramread.Attribute && k.Op == string(types.ATTR_SEM_SCORE):
+		// ATTR_SEM_SCORE's inline fit reads the same MAT_SEM surfaces.
+		owned = vectors.SEMScoreFeatureParams()
+	default:
+		return d
+	}
+	for feat, keys := range owned {
+		if inst.Hidden(feat) {
+			d.Keys = slices.DeleteFunc(slices.Clone(d.Keys), func(k string) bool { return slices.Contains(keys, k) })
+		}
+	}
+	return d
+}
+
 // extensionVecAggEngineParams are the engine-owned params keys of an
 // extension vector-input aggregator (vectors.DecodeExtensionVecAggParams).
 var extensionVecAggEngineParams = []string{"expand", "labels"}
@@ -200,7 +230,7 @@ var extensionVecAggEngineParams = []string{"expand", "labels"}
 func ParamsAllowlist(inst *InstanceSnapshot) map[paramread.Key]ParamsDecl {
 	out := make(map[paramread.Key]ParamsDecl, len(builtinParamsAllowlist()))
 	for k, v := range builtinParamsAllowlist() {
-		out[k] = v
+		out[k] = instanceBuiltinDecl(k, v, inst)
 	}
 	snap := inst.Extensions()
 	if snap == nil {
@@ -381,7 +411,7 @@ type paramsChecker struct {
 // name never collides with a built-in), then inst's extensions.
 func (c *paramsChecker) lookup(k paramread.Key) (ParamsDecl, bool) {
 	if d, ok := builtinParamsAllowlist()[k]; ok {
-		return d, true
+		return instanceBuiltinDecl(k, d, c.inst), true
 	}
 	if c.ext == nil {
 		c.ext = ParamsAllowlist(c.inst)

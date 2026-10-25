@@ -9,8 +9,6 @@ applies_to: process, compose, predict
 examples_tags: [matrix, multivariate]
 ```
 
-Members = the model's observed variables, by label.
-
 ## Use when
 
 Whether a theory of how measures hang together holds: the hidden qualities they reflect, how those drive each other, how well it fits.
@@ -25,23 +23,35 @@ Questions it answers:
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `model` | string | — | `f =~ a + b`, `y ~ f`, `a ~~ b`; `l*x`, `0.5*x`. |
-| `solver` | `slsqp` \| `fisher` | `slsqp` | semopy's SLSQP, its early stop included; `fisher` converges. |
-| `information` | `dense` \| `rank2` | `dense` | `rank2`: faster, same figures. |
-| `ftol` | float | 1e-06 | SLSQP stop: the objective moves by less. |
-| `max_iter` | int | — | Iteration cap: 10000 slsqp, 500 fisher. |
-| `grad_tol` | float | 1e-10 | Fisher stop: every free \|gradient\| below it. |
-| `singular` | `nearest` \| `refuse` | `nearest` | semopy's: `cov_nearest` if Cholesky fails. |
-| `missing` | `listwise` | `listwise` | Listwise only. |
-| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
-| `fit` | string | — | Listwise only. |
+| `meanstructure` | bool | false | Means; `x ~ 1` too. |
+| `group` | string | — | Multi-group fit. |
+| `group_reference` | string | — | Primary level. |
+| `group_equal` | list | — | Invariance. |
+| `group_partial` | list | — | Freed rows. |
+| `resample` | `bootstrap` | — | SE, p, CI. |
+| `bootstrap_iters` | int | 1000 | B. |
+| `rng_seed` | int | 0 | — |
+| `ci_level` | float | 0.95 | — |
+| `estimator` | enum | `ml` | Ratings: [`sem-ordinal`](sem-ordinal.md). |
+| `ordered` | list | — | — |
+| `parameterization` | enum | `delta` | — |
+| `solver` | enum | `slsqp` | `fisher`. |
+| `information` | enum | `dense` | — |
+| `ftol` | float | 1e-06 | — |
+| `max_iter` | int | — | — |
+| `grad_tol` | float | 1e-10 | — |
+| `singular` | enum | `nearest` | — |
+| `missing` | enum | `listwise` | Only. |
+| `max_drop_share` | 0–1 | — | Warn. |
+| `fit` | string | — | Bound fit. |
 
 ## Inputs
 
-Integer / float members.
+Numeric members: the model's observed variables (labels).
 
 ## Output
 
-`primary`: Σ(θ̂). `auxiliary.estimates`: rows `lval op rval` × `estimate`, `std_estimate`, `std_err`, `z_value`, `p_value`; `residual_covariance` S − Σ. `vectors`: `parameter`, `free`. `scalars`: fit indices (`chi2`, `cfi`, `rmsea`, …).
+`primary`: Σ(θ̂). `auxiliary.estimates`: rows `lval op rval` × estimate, std, SE, z, p (+ `ci_*`, lavaan); `residual_covariance` S − Σ; `implied_means` / `observed_means`. `vectors`: `parameter`, `free`; `scalars`: fit indices.
 
 ## Reading the output
 
@@ -56,18 +66,17 @@ Integer / float members.
 
 - Member types (`vector`, `fields`): `f32`, `f64`, `packed_bool`, `u16`, `u32`, `u4`, `u64`, `u8` (`packed_bool` only under `coerce: "binary"`; a `vec_*` field's elements are members); any other is `PULSE_VECTOR_MEMBER_TYPE`.
 - Weight: weighted under `frequency` weights only; a `probability` weight is `PULSE_WEIGHT_UNSUPPORTED`.
+- Multiplicity: its own `multiplicity` block (an inherited one never reaches it) adds `p_adjusted` and `significant_adjusted` beside `estimates` `p_value`, every row with a p one hypothesis; families `request`, `matrix` (default).
 - Streaming: streamable; partial states merge; components `mergeable`.
 - Components: `n`, `n_null`, `n_listwise_dropped`; optional `min_pair_n`, `max_pair_n`, `sum_weights`, `n_eff`, `n_weight_invalid`.
 
 ## Gotchas
 
-- Unused member or non-member variable: `bad_params`.
-- Default stops where semopy does.
-- S not factoring: `PULSE_MATRIX_NEAREST_PD`; constant member or `refuse`: fatal `PULSE_MATRIX_SINGULAR`.
-- Standardized fit: vector `standardize: "zscore"` (S = correlation).
-- Derived observed variable: name the request's attribute / feature label as a member.
+- Unused / non-member: `bad_params`.
+- lavaan rules: [`sem-modeling`](sem-modeling.md); `:=`: [`sem-defined-parameters`](sem-defined-parameters.md); `resample`: [`sem-bootstrap`](sem-bootstrap.md).
+- Non-PD S: `PULSE_MATRIX_NEAREST_PD`; constant member / `refuse`: `PULSE_MATRIX_SINGULAR`.
 
 ## See
 
 - `pulse_examples_search tags=[matrix, multivariate]`
-- Skills: [`matrix-results`](matrix-results.md), [`multivariate-design`](multivariate-design.md), [`op-mat-factor`](op-mat-factor.md), [`op-mat-reliability`](op-mat-reliability.md)
+- Skills: [`sem-modeling`](sem-modeling.md), [`matrix-results`](matrix-results.md), [`multivariate-design`](multivariate-design.md), [`op-mat-factor`](op-mat-factor.md)

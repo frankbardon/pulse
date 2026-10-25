@@ -111,6 +111,15 @@ var regParityOps = []regParityOp{
 	// standardized members: the same fit rules, grouped and flat.
 	{name: "attr_factor_score", attr: types.ATTR_FACTOR_SCORE, tol: 1e-10},
 	{name: "attr_factor_score_flat", attr: types.ATTR_FACTOR_SCORE, flat: true, tol: 1e-10, zeroFloor: 1e-12},
+	// ATTR_SEM_SCORE (sem-extensions E3-S1) on (x, y, g), regression
+	// scores of the exactly identified one-factor model f =~ x + y + g
+	// (fisher to grad_tol 1e-14): a frequency weight is a replication
+	// count (N = Σw), so integer weights equal the expanded rows' fit;
+	// grouped and flat. 1e-9: the weighted and expanded moments differ in
+	// the last ulps and each side's iterative ML fit stops on its own
+	// (worst seen 1.6e-10, the flat score's sd).
+	{name: "attr_sem_score", attr: types.ATTR_SEM_SCORE, tol: 1e-9},
+	{name: "attr_sem_score_flat", attr: types.ATTR_SEM_SCORE, flat: true, tol: 1e-9, zeroFloor: 1e-12},
 	// ATTR_VEC_DISTANCE (U27 E3-S2) over std_euclidean on (x, y): the
 	// fitted per-member sds of ATTR_MAHALANOBIS's fit, grouped and flat.
 	{name: "attr_vec_distance", attr: types.ATTR_VEC_DISTANCE, tol: 1e-10},
@@ -162,6 +171,10 @@ func (o regParityOp) build(path string) func() *types.Request {
 		}
 		if o.attr == types.ATTR_PROFILE_SIMILARITY {
 			attr = &types.Attribute{Type: o.attr, Label: "attr", Fields: []string{"x", "y"}, Params: json.RawMessage(`{"metric":"cosine","reference":{"centroid":{}}}`)}
+		}
+		if o.attr == types.ATTR_SEM_SCORE {
+			attr = &types.Attribute{Type: o.attr, Label: "attr", Fields: []string{"x", "y", "g"},
+				Params: json.RawMessage(`{"model":"f =~ x + y + g","solver":"fisher","grad_tol":1e-14,"max_iter":10000}`)}
 		}
 		if o.attr == types.ATTR_FACTOR_SCORE {
 			attr = &types.Attribute{Type: o.attr, Label: "attr", Fields: []string{"x", "y", "g"}, Params: json.RawMessage(`{"factor":1,"factors":1}`)}

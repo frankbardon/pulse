@@ -30,14 +30,16 @@ var interpMatSEM = []descriptor.Interpretation{
 	},
 	{
 		Field: "auxiliary.estimates",
-		Means: "The parameter table, one row per semopy inspect row: lval ~ rval is a loading (an indicator on its quality) or a regression path, lval ~~ rval a variance or covariance. estimate is in the variables' own units; std_estimate rescales it so loadings and paths compare across variables; std_err, z_value and p_value test it against zero.",
+		Means: "The parameter table, one row per semopy inspect row: lval ~ rval is a loading (an indicator on its quality) or a regression path, lval ~~ rval a variance or covariance, and with a mean structure lval ~1 an intercept (a measure) or a latent mean (a quality). estimate is in the variables' own units; std_estimate rescales it so loadings and paths compare across variables; std_err, z_value and p_value test it against zero, and on a lavaan-convention fit ci_lower / ci_upper bound its Wald interval, 95% by default. params.ci_level sets another level. On a multi-group fit every row is prefixed [level]; a quality's latent mean in a level other than the reference is its mean difference from the reference level, whose latent means are fixed at 0. A name := expr row is a defined parameter, a function of labelled parameters such as an indirect effect or a path times a latent mean change, with a delta-method std_err; under resample bootstrap every free and := row's std_err is the replicates' spread and ci_lower / ci_upper the percentile interval. Under estimator dwls or wlsmv each ordered measure adds one x | tk row per threshold: the cut point, on the standard normal scale of the continuous response assumed beneath the ratings, above which category k + 1 begins; a multi-group ordinal fit adds an x ~*~ x row, the measure's scale factor in that level.",
 		Sign: map[string]string{
-			"+": "the left variable rises with the right one",
-			"-": "the left variable falls as the right one rises",
+			"+": "the left variable rises with the right one; for a latent mean, the level sits above the reference level",
+			"-": "the left variable falls as the right one rises; for a latent mean, the level sits below the reference level",
 		},
 		Caveats: []string{
 			"Each quality's first indicator is fixed to 1 to set its scale, so that row has no standard error.",
 			"A variance at 0, or a standardized loading beyond 1, means an improper solution; simplify the model.",
+			"Latent means compare across levels only when the loadings and intercepts are held equal (group_equal loadings, intercepts); without that the qualities need not be measured on the same scale in every level.",
+			"A defined parameter, such as a contribution, differs from zero when its p_value is below alpha and its interval excludes 0; a product or ratio is skewed, so its symmetric delta-method interval can mislead where the bootstrap's percentile interval does not.",
 		},
 	},
 	{
@@ -46,10 +48,11 @@ var interpMatSEM = []descriptor.Interpretation{
 	},
 	{
 		Field: "scalars.chi2",
-		Means: "The likelihood-ratio chi-square of the model against a free covariance, on dof degrees of freedom: N times the minimised discrepancy. A small p says the model leaves covariance unexplained.",
+		Means: "The likelihood-ratio chi-square of the model against a free covariance (and free means, with a mean structure), on dof degrees of freedom: N times the minimised discrepancy. A small p says the model leaves covariance unexplained. On a multi-group fit it is the sum of each level's share, reported per level as chi2_group_<level> beside that level's n_group_<level>.",
 		Caveats: []string{
 			"With many rows it flags even trivial misfit; read cfi, tli and rmsea beside it.",
 			"It assumes multivariate normal measures and rests on N, the rows (the summed weight under a frequency weight).",
+			"Between two nested multi-group fits on the same rows (say equal loadings against none), the difference in chi2 on the difference in dof tests the added equality constraints.",
 		},
 	},
 	{
@@ -72,11 +75,74 @@ var interpMatSEM = []descriptor.Interpretation{
 	},
 	{
 		Field: "scalars.aic",
-		Means: "semopy's AIC, 2(k - F) with k the free parameters and F the minimised discrepancy: for comparing models of the same measures, lower preferred. It is semopy's convention, not the log-likelihood AIC other software reports.",
+		Means: "semopy's AIC, 2(k - F) with k the free parameters and F the minimised discrepancy: for comparing models of the same measures, lower preferred. On a lavaan-convention fit (a mean structure or a group) it is lavaan's log-likelihood AIC, -2 loglik + 2k, instead.",
 	},
 	{
 		Field: "scalars.bic",
-		Means: "semopy's BIC, ln(N)k - 2F: as aic with a heavier penalty per parameter; for comparing models of the same measures, lower preferred.",
+		Means: "semopy's BIC, ln(N)k - 2F: as aic with a heavier penalty per parameter; for comparing models of the same measures, lower preferred. On a lavaan-convention fit it is lavaan's -2 loglik + k ln(N).",
+	},
+	{
+		Field: "scalars.loglik",
+		Means: "On a lavaan-convention fit, the model's log-likelihood (lavaan's logl), the basis of its aic and bic; on a semopy fit, semopy's minimised discrepancy F. For comparing models fitted to the same rows and measures; higher fits better.",
+	},
+	{
+		Field: "scalars.chi2_scaled",
+		Means: "Under estimator wlsmv, the scaled-shifted chi-square: chi2 rescaled and shifted (a times chi2 plus shift_parameter, with 1/a the scaling_factor) so that it follows a chi-square on dof degrees of freedom when the measures are ordinal, which the unscaled chi2 does not. Its p is chi2_scaled_p_value, read like any p-value; a small one says the model leaves the polychoric correlations unexplained.",
+		Caveats: []string{
+			"Under wlsmv, judge fit by chi2_scaled and the _scaled indices; the unscaled chi2 has no p (null), as in lavaan.",
+			"Under wlsmv, chi2_scaled is not additive: the difference between two nested fits' chi2_scaled is not itself a chi-square.",
+		},
+	},
+	{
+		Field: "scalars.scaling_factor",
+		Means: "Under estimator wlsmv, lavaan's scaling factor of the scaled-shifted test: chi2_scaled is chi2 divided by it plus shift_parameter. The further scaling_factor sits from 1, the further the unscaled chi2 is from a chi-square on these ordinal measures.",
+	},
+	{
+		Field: "scalars.shift_parameter",
+		Means: "Under estimator wlsmv, the constant added after rescaling chi2 into chi2_scaled, chosen so that the scaled statistic has the mean and variance of a chi-square on dof.",
+	},
+	{
+		Field: "scalars.chi2_baseline_scaled",
+		Means: "Under estimator wlsmv, the baseline (independence) model's scaled-shifted chi-square, the reference cfi_scaled and tli_scaled compare the model against.",
+	},
+	{
+		Field: "scalars.cfi_scaled",
+		Means: "Under estimator wlsmv, the comparative fit index computed from chi2_scaled and chi2_baseline_scaled, read like cfi: from 0 to 1, higher is better.",
+		Caveats: []string{
+			"Under wlsmv, published cfi cut-offs were set for maximum likelihood on continuous measures and need not carry over to cfi_scaled.",
+		},
+	},
+	{
+		Field: "scalars.tli_scaled",
+		Means: "Under estimator wlsmv, the Tucker-Lewis index computed from chi2_scaled and chi2_baseline_scaled, read like tli: higher is better, and it can leave the 0 to 1 range.",
+	},
+	{
+		Field: "scalars.rmsea_scaled",
+		Means: "Under estimator wlsmv, the root mean square error of approximation computed from chi2_scaled, read like rmsea: misfit per degree of freedom, 0 a perfect fit, smaller is better.",
+	},
+	{
+		Field: "auxiliary.implied_means",
+		Means: "With a mean structure, the mean of each measure the fitted model implies: its intercept plus its loadings times the latent means. Compared with auxiliary.observed_means it shows where the model reproduces the measures' means and where it does not.",
+	},
+	{
+		Field: "auxiliary.observed_means",
+		Means: "With a mean structure, each measure's sample mean over the fitted rows (the weighted mean under a frequency weight): the means the model was fitted to.",
+	},
+	{
+		Field: "auxiliary.implied_means.*",
+		Means: "On a multi-group fit, one matrix per level of the group field: the means the fitted model implies within that level, read like auxiliary.implied_means.",
+	},
+	{
+		Field: "auxiliary.observed_means.*",
+		Means: "On a multi-group fit, one matrix per level: that level's sample means of the measures, read like auxiliary.observed_means.",
+	},
+	{
+		Field: "auxiliary.implied_covariance.*",
+		Means: "On a multi-group fit, one matrix per level: the covariance the fitted model implies within that level (the primary is the reference level's).",
+	},
+	{
+		Field: "auxiliary.residual_covariance.*",
+		Means: "On a multi-group fit, one matrix per level: that level's observed covariance minus its implied covariance, so large cells locate where the model misfits that group.",
 	},
 }
 

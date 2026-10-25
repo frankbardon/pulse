@@ -197,6 +197,8 @@ func TestStreamability_AttributesKnown(t *testing.T) {
 		ATTR_PC_SCORE:     true,
 		ATTR_FACTOR_SCORE: true,
 		ATTR_SCALE_SCORE:  true,
+		// Two-pass: the inline SEM fit, then every row's score.
+		ATTR_SEM_SCORE: true,
 
 		ATTR_PROFILE_SIMILARITY: true,
 		ATTR_VEC_DISTANCE:       true,

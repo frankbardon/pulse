@@ -255,6 +255,7 @@ var acceptanceTemplates = map[string]string{
 	"ATTR_CODE_IN":            `{"attributes":[{"type":"ATTR_CODE_IN","field":"$F","label":"o","params":{"codes":["$V"]}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_MAHALANOBIS":        `{"attributes":[{"type":"ATTR_MAHALANOBIS","fields":["$F","x"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_FACTOR_SCORE":       `{"attributes":[{"type":"ATTR_FACTOR_SCORE","fields":["$F","x","y"],"label":"o","params":{"factor":1,"factors":1}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
+	"ATTR_SEM_SCORE":          `{"attributes":[{"type":"ATTR_SEM_SCORE","fields":["$F","x","y"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_PC_SCORE":           `{"attributes":[{"type":"ATTR_PC_SCORE","fields":["$F","x"],"label":"o","params":{"component":1}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_SCALE_SCORE":        `{"attributes":[{"type":"ATTR_SCALE_SCORE","fields":["$F","x"],"label":"o"}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,
 	"ATTR_PROFILE_SIMILARITY": `{"attributes":[{"type":"ATTR_PROFILE_SIMILARITY","fields":["$F","x"],"label":"o","params":{"metric":"cosine","reference":[1,2]}}],"aggregations":[{"type":"AGG_SUM","field":"o"}]}`,

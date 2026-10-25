@@ -62,6 +62,7 @@ var routes = map[string][]descriptor.Alternative{
 var materializeSteps = map[string]materializeTrigger{
 	"ATTR_PC_SCORE":         {column: "pc_score", model: "REG_OLS", role: "predictors"},
 	"ATTR_FACTOR_SCORE":     {column: "factor_score", model: "REG_OLS", role: "predictors"},
+	"ATTR_SEM_SCORE":        {column: "sem_score", model: "REG_OLS", role: "predictors"},
 	"ATTR_SCALE_SCORE":      {column: "scale_score", model: "REG_OLS", role: "target"},
 	"ATTR_REG_PREDICT":      {column: "predicted", model: "REG_OLS", role: "predictors"},
 	"FEAT_LOG":              {column: "log_value", model: "REG_OLS", role: "predictors"},

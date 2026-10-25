@@ -2,6 +2,7 @@ package service
 
 import (
 	"math"
+	"slices"
 	"strconv"
 
 	descx "github.com/frankbardon/pulse/internal/descriptor"
@@ -75,7 +76,19 @@ func collectMatrixResultSites(fams *multFamilies, scope string, slots []descx.Re
 		}
 		adjKey, sigKey := descx.MatrixAdjustedKeys(pkey)
 		raw := res.Auxiliary[pkey]
-		cells := matrixPCells(raw)
+		var cells []matrixPCell
+		var adj, sig *types.MatrixValues
+		if rm.PValueColumn != "" {
+			// MAT_SEM: the p_value column of its estimates, one
+			// hypothesis per row carrying a p (a free or := row; a
+			// fixed one has none), the twins one column each.
+			adjKey, sigKey = descx.MatrixAdjustedKeys(matrixAuxP)
+			cells = columnPCells(raw, rm.PValueColumn)
+			adj, sig = columnTwin(raw, adjKey), columnTwin(raw, sigKey)
+		} else {
+			cells = matrixPCells(raw)
+			adj, sig = nanTwin(raw), nanTwin(raw)
+		}
 		if len(cells) == 0 {
 			continue
 		}
@@ -86,7 +99,6 @@ func collectMatrixResultSites(fams *multFamilies, scope string, slots []descx.Re
 		default:
 			key = multFamilyKey(scope, rm.Family)
 		}
-		adj, sig := nanTwin(raw), nanTwin(raw)
 		res.Auxiliary[adjKey] = adj
 		res.Auxiliary[sigKey] = sig
 		method, family, alpha := rm.Method, rm.Family, rm.Alpha
@@ -174,6 +186,42 @@ func setMatrixCell(m *types.MatrixValues, r, c int, v float64) {
 	if m.Kind == types.MatrixKindSquareSymmetric && m.Encoding != types.MatrixEncodingUpper && r != c {
 		put(c, r)
 	}
+}
+
+// columnPCells lists the hypotheses of column col of a rectangular
+// table: every row whose cell is a defined p, as (row, 0) cells of the
+// one-column twin (columnTwin). Nil when the table or column is absent.
+func columnPCells(t *types.MatrixValues, col string) []matrixPCell {
+	if t == nil {
+		return nil
+	}
+	c := slices.Index(t.ColumnKeys, col)
+	if c < 0 {
+		return nil
+	}
+	var out []matrixPCell
+	for r, row := range t.Values {
+		if c < len(row) && !math.IsNaN(row[c]) {
+			out = append(out, matrixPCell{r: r, c: 0, p: row[c]})
+		}
+	}
+	return out
+}
+
+// columnTwin is a one-column rectangular matrix (column name) over t's
+// rows, every cell NaN (null): a row joining no family stays null.
+func columnTwin(t *types.MatrixValues, name string) *types.MatrixValues {
+	out := &types.MatrixValues{
+		Kind:       types.MatrixKindRectangular,
+		Encoding:   types.MatrixEncodingFull,
+		RowKeys:    append([]string(nil), t.RowKeys...),
+		ColumnKeys: []string{name},
+		Values:     make([][]float64, len(t.RowKeys)),
+	}
+	for i := range out.Values {
+		out.Values[i] = []float64{math.NaN()}
+	}
+	return out
 }
 
 // nanTwin is a matrix of p's shape, kind, encoding and keys with every

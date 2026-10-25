@@ -159,7 +159,7 @@ func TestResolveMultiplicity_MatrixRefusals(t *testing.T) {
 	t.Run("valid list names the inference operators", func(t *testing.T) {
 		_, err := ResolveMultiplicity(&types.Request{Matrices: []types.MatrixSpec{mspec(types.MAT_COVARIANCE, "", mult(mHolm, "", 0))}}, nil, nil)
 		wantCoded(t, err, errors.PULSE_MULTIPLICITY_INVALID, map[string]any{
-			"value": "MAT_COVARIANCE", "valid": []string{"MAT_CORRELATION", "MAT_PARTIAL_CORRELATION"},
+			"value": "MAT_COVARIANCE", "valid": []string{"MAT_CORRELATION", "MAT_PARTIAL_CORRELATION", "MAT_SEM"},
 		})
 	})
 	t.Run("matrix spec offers matrix and request", func(t *testing.T) {
@@ -244,5 +244,36 @@ func TestPredict_MatrixManyTestsAdvisory(t *testing.T) {
 	spec.Multiplicity = mult(mBH, "", 0)
 	if got, pv := has(&types.Request{Matrices: []types.MatrixSpec{spec}}); got || pv.Uncorrected != 0 || pv.Total != 10 {
 		t.Errorf("corrected matrix: advisory %v, p-values %+v; want none, 10 corrected", got, pv)
+	}
+}
+
+// TestResolveMultiplicity_SEMOwnBlockOnly: MAT_SEM's own block makes it
+// a member over its estimates' p_value column (twins p_adjusted /
+// significant_adjusted); a request-level block or an instance default
+// never reaches it, and a method none keeps it out.
+func TestResolveMultiplicity_SEMOwnBlockOnly(t *testing.T) {
+	own, err := ResolveMultiplicity(&types.Request{Matrices: []types.MatrixSpec{mspec(types.MAT_SEM, "", mult(mHolm, "", 0))}}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rm := own.Matrices[0]
+	if !rm.Member || rm.PValueKey != SEMPValueKey || rm.PValueColumn != SEMPValueColumn || rm.Family != types.MultiplicityFamilyMatrix {
+		t.Errorf("own block: %+v", rm)
+	}
+	for name, c := range map[string]struct {
+		req *types.Request
+		def *types.Multiplicity
+	}{
+		"request block":    {&types.Request{Multiplicity: mult(mHolm, "", 0), Matrices: []types.MatrixSpec{mspec(types.MAT_SEM, "", nil)}}, nil},
+		"instance default": {&types.Request{Matrices: []types.MatrixSpec{mspec(types.MAT_SEM, "", nil)}}, mult(mBH, "", 0)},
+		"own none":         {&types.Request{Matrices: []types.MatrixSpec{mspec(types.MAT_SEM, "", mult(mNone, "", 0))}}, mult(mBH, "", 0)},
+	} {
+		plan, err := ResolveMultiplicity(c.req, c.def, nil)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if plan != nil && len(plan.Matrices) > 0 && plan.Matrices[0].Member {
+			t.Errorf("%s: MAT_SEM is a member", name)
+		}
 	}
 }

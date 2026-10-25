@@ -1,0 +1,17 @@
+# Brand survey mediation with lavaan defined parameters (:=): value
+# mediates quality's effect on recommend. ind is the indirect effect,
+# tot the total, share the mediated share, and the last two exercise
+# the grammar (functions, powers, unary minus, constants, a defined
+# name read by a later line). abs() is left out: lavaan differentiates
+# a := line by complex step, which reads abs' derivative as 0, where
+# Pulse takes its sign (the exact derivative).
+quality =~ q1 + q2 + q3
+value =~ v1 + v2 + v3
+service =~ s1 + s2 + s3
+value ~ a*quality
+recommend ~ bq*quality + bv*value + bs*service
+ind := a*bv
+tot := bq + ind
+share := ind/tot
+grammar := sqrt(sqrt(tot^2))^2 - exp(log(bs)) + -a^2 / 2
+scaled := 1.5e-1*(bq - bs) + 2^-1*ind

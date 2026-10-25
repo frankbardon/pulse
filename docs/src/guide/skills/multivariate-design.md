@@ -10,7 +10,7 @@ requires: [capability:matrices]
 
 # Choosing a multivariate operator
 
-Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-results.md)) and answers with a matrix plus vectors and scalars. Pick by the QUESTION, then set the missing-data mode. For distance or similarity, declare the vector's `kind` first ([`vector-metrics`](vector-metrics.md)).
+Every operator here reads one vector ([`matrix-results`](matrix-results.md)) and answers with a matrix, vectors and scalars. Pick by the QUESTION, then set the missing-data mode. For distance or similarity, declare the vector's `kind` first ([`vector-metrics`](vector-metrics.md)).
 
 ## Which operator answers my question
 
@@ -23,6 +23,8 @@ Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-r
 | How many dimensions carry the variance; is the battery factorable (KMO, Bartlett)? | `MAT_PCA` |
 | Which hidden qualities do the items reflect (factor analysis, rotation)? | `MAT_FACTOR` |
 | Does my CFA / path model fit? | `MAT_SEM` |
+| Does a driver's mean change move the outcome? | `MAT_SEM` `:=` ([`sem-defined-parameters`](sem-defined-parameters.md)) |
+| 1-5 ratings: ML or ordinal (WLSMV)? | `MAT_SEM` `estimator` ([`sem-ordinal`](sem-ordinal.md)) |
 | Are candidate predictors too redundant to fit together (VIF, condition index)? | `MAT_COLLINEARITY` |
 | Which rows are unusual across the fields as a whole? | `ATTR_MAHALANOBIS` (a row score) |
 | Each row's score on a component (a summary column)? | `ATTR_PC_SCORE` (a row score) |
@@ -39,12 +41,12 @@ Every operator here reads one vector (`vectors`, see [`matrix-results`](matrix-r
 
 How uncertain are the coefficients of a fitted model, and how do they co-move? That is not a matrix slot: set `"vcov": true` on the regression ([`regression-inference`](regression-inference.md)).
 
-Rank correlation (`spearman`, `kendall`) suits ordinal data, outliers and monotone curves. It is buffered and serial, takes frequency weights only, and stays off the streaming path. PCA is a variance summary, not a factor model; `MAT_FACTOR` fits one (minres, principal axis or maximum likelihood with fit indices; orthogonal or oblique rotation); `MAT_PCA` takes an orthogonal `rotation` (varimax, …) for a simpler loading pattern.
+Rank correlation (`spearman`, `kendall`) suits ordinal data, outliers and monotone curves. It is buffered, serial, frequency-weighted only. PCA is a variance summary, not a factor model; `MAT_FACTOR` fits one (minres, principal axis or maximum likelihood with fit indices; orthogonal or oblique rotation); `MAT_PCA` takes an orthogonal `rotation` (varimax, …) for a simpler loading pattern.
 
 ## Missing data
 
 - `listwise` (default): one row set for every cell, PSD by construction; required by `standardize: "zscore"`. `max_drop_share` warns when many rows drop.
-- `pairwise`: each cell uses its own rows (`auxiliary.n` has the counts). It keeps more data but the matrix can fail to be PSD.
+- `pairwise`: each cell uses its own rows (`auxiliary.n`); more data, but the matrix can fail to be PSD.
 - Decompositions (partial correlation, PCA, factor analysis, collinearity, the omega of reliability) refuse a non-PSD pairwise input with `PULSE_MATRIX_NOT_PSD`. `params.repair: "nearest"` projects it to the nearest correlation matrix (Higham) and warns with the size of the change; a repair stopped at its cap also warns `PULSE_MATRIX_NOT_CONVERGED`. Reliability keeps alpha and nulls omega instead of refusing.
 - A singular matrix fails its slot alone (`error` `PULSE_MATRIX_SINGULAR`: `rank`, `condition_number`, `dependent_fields`): drop or merge the named fields; never repair.
 - Pairwise inference sizes use a conservative N* (the smallest pair); `PULSE_MATRIX_PAIRWISE_N_STAR` says so on PCA and factor analysis.
@@ -55,14 +57,14 @@ Frequency weights work everywhere. Probability weights work on the co-moment ope
 
 ## Significance
 
-Correlation (any method) and partial correlation give each pair a raw p and interval under `params.inference` ([`op-mat-correlation`](op-mat-correlation.md), [`op-mat-partial-correlation`](op-mat-partial-correlation.md)). Nothing corrects across a matrix's cells: a grid of p = 0.05 cells hides false positives, so read them as screening, not findings. To test whether whole mean profiles differ (one sample against a target, paired before / after sets, or two groups with pooled or unequal covariance), run `TEST_HOTELLING_T2` on the same `vector`; it is a test with a p-value. Across three or more groups run `TEST_MANOVA` (Pillai's trace headline; Wilks, Hotelling–Lawley and Roy beside it). Check their equal-covariance assumption with `TEST_BOX_M`. `TEST_BARTLETT_SPHERICITY` is PCA's Bartlett test as a standalone test. `TEST_MARDIA` checks the joint normality these tests assume.
+Correlation (any method) and partial correlation give each pair a raw p and interval under `params.inference` ([`op-mat-correlation`](op-mat-correlation.md), [`op-mat-partial-correlation`](op-mat-partial-correlation.md)). A grid of p = 0.05 cells hides false positives: read it as screening, not findings. To test whether whole mean profiles differ (one sample against a target, paired before / after sets, or two groups with pooled or unequal covariance), run `TEST_HOTELLING_T2` on the same `vector`; it is a test with a p-value. Across three or more groups run `TEST_MANOVA` (Pillai's trace headline; Wilks, Hotelling–Lawley and Roy beside it). Check their equal-covariance assumption with `TEST_BOX_M`. `TEST_BARTLETT_SPHERICITY` is PCA's Bartlett test as a standalone test. `TEST_MARDIA` checks the joint normality these tests assume.
 Per-test correction on other operators: [`multiplicity-correction`](multiplicity-correction.md).
 
 ## Sanity checks
 
-- Few rows against many members makes every figure unstable; read `components.matrices[i].n` and the pair counts first.
+- Few rows per member makes every figure unstable; read `components.matrices[i].n` and the pair counts first.
 - A `null` cell is undefined (constant member, thin bucket), never 0.
-- Grouped requests return one matrix per bucket; compare them as separate answers. Vector tests run per group; a singular or thin group gets a `null` result + warning, never an abort.
+- Grouped requests return one matrix per bucket. Vector tests run per group; a singular or thin group gets a `null` result + warning, never an abort.
 
 ## See
 

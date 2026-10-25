@@ -3,6 +3,7 @@ package descriptor
 import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -33,7 +34,8 @@ func (o *PredictOptions) populations() model.Catalog {
 
 // loadModelFiles is model.LoadFiles (the request's `models` and
 // `populations`) through opts' ModelLoader (nil: every entry is
-// PULSE_MODEL_FILE_UNREADABLE). No refs reads nothing.
+// PULSE_MODEL_FILE_UNREADABLE), then the runtime's two post-load
+// checks (CheckLoadedTypes, CheckLoadedSEM). No refs reads nothing.
 func (o *PredictOptions) loadModelFiles(refs model.Refs) (*model.Loaded, *errors.CodedError) {
 	if refs.Empty() {
 		return nil, nil
@@ -47,6 +49,9 @@ func (o *PredictOptions) loadModelFiles(refs model.Refs) (*model.Loaded, *errors
 		return nil, cerr
 	}
 	if cerr := model.CheckLoadedTypes(refs, loaded, o.regressionRegistered); cerr != nil {
+		return nil, cerr
+	}
+	if cerr := model.CheckLoadedSEM(refs, loaded, vectors.CheckSEMRebuild); cerr != nil {
 		return nil, cerr
 	}
 	return loaded, nil

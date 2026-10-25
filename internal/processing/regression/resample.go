@@ -457,36 +457,54 @@ func packageResampleResult(
 	return &out
 }
 
-// deriveBootstrapSeed is the rng_seed 0 seed: an FNV-1a hash of the
-// spec's wire form (rng_seed excluded) and of every record's target and
+// deriveBootstrapSeed is the rng_seed 0 seed: DeriveSeed over the
+// spec's wire form (rng_seed excluded) and every record's target and
 // predictor values, in record order. It is a pure function of the
 // request and the cohort rows the fit reads — the same request over the
 // same data always draws the same replicates, a different request (or
 // different data) a different seed. Pin a non-zero rng_seed for a seed
 // that does not move with the data.
 func deriveBootstrapSeed(spec *types.RegressionSpec, records []Record, predictors []string) int64 {
-	h := fnv.New64a()
 	cp := *spec
 	cp.RNGSeed = 0
-	if body, err := types.MarshalFinite(&cp); err == nil {
-		_, _ = h.Write(body)
+	body, err := types.MarshalFinite(&cp)
+	if err != nil {
+		body = nil
 	}
+	fields := append([]string{spec.Target}, predictors...)
+	return DeriveSeed(body, len(records), func(word func(v float64, ok bool)) {
+		for _, r := range records {
+			for _, f := range fields {
+				word(InputValue(r, f))
+			}
+		}
+	})
+}
+
+// DeriveSeed is the ONE rng_seed 0 derivation every seeded resample
+// shares (REG_RESAMPLE's bootstrap and jackknife groups, MAT_SEM's
+// bootstrap): an FNV-1a hash of spec — the slot's wire form with its
+// seed zeroed or dropped — then the row count, then every value cells
+// yields, in row order, as its little-endian float64 bits (a null, ok
+// false, as a NaN payload no value carries). A pure function of the
+// request and the rows: the same request over the same data draws the
+// same replicates whatever the worker or shard count, as long as the
+// rows arrive in record order (a buffered slot's do).
+func DeriveSeed(spec []byte, rows int, cells func(word func(v float64, ok bool))) int64 {
+	h := fnv.New64a()
+	_, _ = h.Write(spec)
 	var buf [8]byte
-	word := func(u uint64) {
+	put := func(u uint64) {
 		binary.LittleEndian.PutUint64(buf[:], u)
 		_, _ = h.Write(buf[:])
 	}
-	word(uint64(len(records)))
-	fields := append([]string{spec.Target}, predictors...)
-	for _, r := range records {
-		for _, f := range fields {
-			v, ok := InputValue(r, f)
-			if !ok {
-				word(0x7ff8000000000001) // a null: a NaN payload no value carries
-				continue
-			}
-			word(math.Float64bits(v))
+	put(uint64(rows))
+	cells(func(v float64, ok bool) {
+		if !ok {
+			put(0x7ff8000000000001) // a null: a NaN payload no value carries
+			return
 		}
-	}
+		put(math.Float64bits(v))
+	})
 	return int64(h.Sum64())
 }

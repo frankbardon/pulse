@@ -647,7 +647,7 @@ var errorOwners = map[errors.Code][]string{
 	// TEST_BARTLETT_SPHERICITY raises it on its result (MAT_PCA's
 	// Bartlett rule, the shared core); ATTR_VEC_DISTANCE's fitted
 	// metrics read the fitted attributes' fit pass.
-	errors.PULSE_MATRIX_INSUFFICIENT_N: plus(ownAllMats, own("TEST_BARTLETT_SPHERICITY", "ATTR_VEC_DISTANCE"), fittedAttributeOwners()),
+	errors.PULSE_MATRIX_INSUFFICIENT_N: plus(ownAllMats, own("TEST_BARTLETT_SPHERICITY", "ATTR_VEC_DISTANCE", "ATTR_SEM_SCORE"), fittedAttributeOwners()),
 	errors.PULSE_MATRIX_ZERO_VARIANCE:  ownAllMats,
 	// Only MAT_DISTANCE resolves a non-negative-domain metric
 	// (hellinger, aitchison) over centroids.
@@ -657,7 +657,8 @@ var errorOwners = map[errors.Code][]string{
 	// warning; the scores stand);
 	// GROUP_KMEANS's best start can stop at max_iter (solver
 	// kmeans_lloyd; its clusters stand as the last iterate).
-	errors.PULSE_MATRIX_NOT_CONVERGED: plus(ownAllMats, own("ATTR_PC_SCORE", "ATTR_FACTOR_SCORE", "GROUP_KMEANS")),
+	// ATTR_SEM_SCORE's inline SEM fit too (scored from the last iterate).
+	errors.PULSE_MATRIX_NOT_CONVERGED: plus(ownAllMats, own("ATTR_PC_SCORE", "ATTR_FACTOR_SCORE", "ATTR_SEM_SCORE", "GROUP_KMEANS")),
 	// The factor-fit warnings: only the operators that fit a factor
 	// model raise them — MAT_RELIABILITY's one-factor omega (withheld)
 	// and MAT_FACTOR's k-factor fit (a Heywood fit kept as fitted, an
@@ -665,12 +666,17 @@ var errorOwners = map[errors.Code][]string{
 	// it (a Heywood fit scored, Bartlett over ψ ≤ 0 nulled; an
 	// unidentified or Kaiser-short count nulled).
 	errors.PULSE_MATRIX_HEYWOOD:        own("MAT_RELIABILITY", "MAT_FACTOR", "ATTR_FACTOR_SCORE"),
-	errors.PULSE_MATRIX_NOT_IDENTIFIED: own("MAT_RELIABILITY", "MAT_FACTOR", "ATTR_FACTOR_SCORE", "MAT_SEM"),
+	errors.PULSE_MATRIX_NOT_IDENTIFIED: own("MAT_RELIABILITY", "MAT_FACTOR", "ATTR_FACTOR_SCORE", "MAT_SEM", "ATTR_SEM_SCORE"),
 	// Bartlett's test (and MAT_FACTOR's empirical chi-square) over a
 	// pairwise matrix reads the smallest pair.
 	errors.PULSE_MATRIX_PAIRWISE_N_STAR: own("MAT_PCA", "MAT_FACTOR"),
-	// MAT_SEM's singular "nearest" fit to semopy's cov_nearest substitute.
-	errors.PULSE_MATRIX_NEAREST_PD: own("MAT_SEM"),
+	// MAT_SEM's singular "nearest" fit to semopy's cov_nearest substitute
+	// (and ATTR_SEM_SCORE's inline fit of it).
+	errors.PULSE_MATRIX_NEAREST_PD: own("MAT_SEM", "ATTR_SEM_SCORE"),
+	// A MAT_SEM := line undefined at the estimate (its row nulled).
+	errors.PULSE_MATRIX_DEFINED_NONFINITE: own(featSEMDefined),
+	// A MAT_SEM ordinal fit's ordered member past the category ceiling.
+	errors.PULSE_MATRIX_TOO_MANY_CATEGORIES: own(featSEMOrdinal),
 
 	// Response shaping: `return` is a plain request slot, not a feature.
 	errors.PULSE_RETURN_INVALID:        shared,
@@ -686,6 +692,9 @@ var errorOwners = map[errors.Code][]string{
 	// coef(), a vector params.fit, a {population}); failed fits exist
 	// only under Compose fits.
 	errors.PULSE_FIT_UNAVAILABLE: own(featComposeFits),
+	// ATTR_SEM_SCORE's grouped fit scores a level it holds no fit rows
+	// for as null.
+	errors.PULSE_SEM_SCORE_LEVEL_UNSEEN: own("ATTR_SEM_SCORE"),
 	// The weighted AGG_AUC's withheld DeLong interval.
 	errors.PULSE_AUC_DELONG_WEIGHTED: own("AGG_AUC"),
 

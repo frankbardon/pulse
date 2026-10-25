@@ -238,6 +238,14 @@ positive target; the `w` / `f` / `p` weight columns):
   exact fit R = llᵀ + diag(1 − l²) asserted. The weights are kind-free
   and z divides by the w* spread, so the kinds differ by one constant
   factor.
+- `ATTR_SEM_SCORE` (sem-extensions E3-S1, frequency only; members x1,
+  y, yb, model `f =~ x1 + y + yb`, regression scores, solver fisher to
+  `grad_tol` 1e-14) — the exactly identified one-factor model of the
+  weighted covariance S in closed form (λ = (1, s₂₃/s₁₃, s₂₃/s₁₂),
+  ψ = s₁₂s₁₃/s₂₃, the exact fit asserted), lavPredict's regression
+  weights S⁻¹λψ and the score wᵀ(x − x̄_w); S cross-checked with
+  statsmodels `DescrStatsW(w, ddof = 0)`. The weights do not depend on
+  S's divisor.
 - `GROUP_KMEANS` (U25 E4-S1, frequency only; members x1, y, k = 2) —
   stock R `kmeans(algorithm = "Lloyd", nstart = 100)` on the `scale()`d
   expanded rows (`reg_reference.R`), cross-checked with scikit-learn

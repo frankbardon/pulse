@@ -55,7 +55,7 @@ var slotModelsObserver func(label string, set *model.Set)
 //
 // A fit's `save` (FitSpec.Save) is written once the fit has run, under
 // the fit's name — a regression fit's model file, a vector fit's
-// population file; a save on the fit request's own regression is
+// population file, a SEM fit's SEM fit file; a save on the fit request's own regression is
 // written by its Process. Each overwrite comes back as a PULSE_MODEL_OVERWRITTEN
 // warning with details.fit, in entry order — ComposedResponse.Warnings.
 func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre *composeModels, workers int) (*model.Set, map[string]*types.FitResult, []*types.ResponseWarning, error) {
@@ -67,6 +67,7 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 	}
 	results := make([]*types.RegressionResult, n)
 	vectorFits := make([]*model.VectorFit, n)
+	semFits := make([]*model.SEMFit, n)
 	// failed[i] is fit i's data failure (nil when it fitted), and
 	// failedOp a failed vector fit's battery operator.
 	failed := make([]*types.SlotError, n)
@@ -82,6 +83,30 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 		fitSet, err := pre.fitSet(i)
 		if err != nil {
 			errs[i] = err
+			return
+		}
+		if model.FitKindOf(fits[i].Request) == types.FitKindSEM {
+			sf, fail, err := s.runSEMFit(ctx, fits[i], fitSet)
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			if fail != nil {
+				failed[i], failedOp[i] = fail.err, fail.operator
+				saveWarnings[i] = append(saveWarnings[i], fail.warnings(i)...)
+				return
+			}
+			semFits[i] = sf
+			// The fit's `save` writes its SEM fit file under the fit's
+			// name (the overwrite warning lifts to the batch).
+			w, err := s.saveFitSEM(ctx, i, fits[i], sf)
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			if w != nil {
+				saveWarnings[i] = append(saveWarnings[i], w)
+			}
 			return
 		}
 		if model.FitKindOf(fits[i].Request) == types.FitKindVector {
@@ -241,11 +266,23 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 			if err := set.AddFailed(failedSignature(f, i), se); err != nil {
 				return nil, nil, nil, fitFailure(fits, i, err)
 			}
-			if results[i] != nil {
+			switch {
+			case results[i] != nil:
 				out[f.Name] = &types.FitResult{RegressionResult: results[i]}
-			} else {
+			case model.FitKindOf(f.Request) == types.FitKindSEM:
+				out[f.Name] = &types.FitResult{SEM: &types.SEMFitResult{Operator: failedOp[i], Error: se}}
+			default:
 				out[f.Name] = &types.FitResult{Vector: &types.VectorFitResult{Operator: failedOp[i], Error: se}}
 			}
+			warnings = append(warnings, saveWarnings[i]...)
+			continue
+		}
+		if sf := semFits[i]; sf != nil {
+			sf.Name, sf.Source = f.Name, model.FitSource(i)
+			if err := set.AddSEM(sf); err != nil {
+				return nil, nil, nil, fitFailure(fits, i, err)
+			}
+			out[f.Name] = &types.FitResult{SEM: sf.Result()}
 			warnings = append(warnings, saveWarnings[i]...)
 			continue
 		}
@@ -321,6 +358,35 @@ func (s *Service) runVectorFit(ctx context.Context, f types.FitSpec, fitSet *mod
 			map[string]any{"name": f.Name, "states": len(got)})
 	}
 	return got[0], nil, nil
+}
+
+// runSEMFit runs a SEM fit request (its one MAT_SEM matrix) with a
+// capture on its bound set and returns the SEM fit its finalizer
+// closed (unnamed: the caller binds it) — or, when the slot failed on
+// its data, that failure (an undefined input fails the slot of a SEM
+// fit request — finalizeSEM — so there is always a fit or a failure).
+// No offer, or more than one, from a slot that did not fail is an
+// engine invariant violation (PROCESSING_INTERNAL).
+func (s *Service) runSEMFit(ctx context.Context, f types.FitSpec, fitSet *model.Set) (*model.SEMFit, *vectorFitFailure, error) {
+	capture := &model.VectorCapture{}
+	resp, err := s.Process(withModelsBound(ctx, fitSet.WithCapture(capture)), model.FitRequest(f))
+	if err != nil {
+		return nil, nil, err
+	}
+	if resp != nil {
+		for k := range resp.Matrices {
+			if se := resp.Matrices[k].Error; se != nil {
+				return nil, &vectorFitFailure{err: se, operator: string(resp.Matrices[k].Type), resp: resp}, nil
+			}
+		}
+	}
+	got := capture.SEMFits()
+	if len(got) == 1 {
+		return got[0], nil, nil
+	}
+	return nil, nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+		fmt.Sprintf("SEM fit %q closed %d fits; a SEM fit closes exactly one", f.Name, len(got)),
+		map[string]any{"name": f.Name, "fits": len(got)})
 }
 
 // slotFailedWarnings are resp's PULSE_SLOT_FAILED warnings — a fit

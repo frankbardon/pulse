@@ -1,0 +1,48 @@
+{
+  "_meta": {
+    "name": "sem-defined-contribution",
+    "category": "matrices",
+    "tags": [
+      "matrix",
+      "multivariate",
+      "comparison"
+    ],
+    "operators": [
+      "MAT_SEM"
+    ],
+    "capabilities": [
+      "capability:multiplicity",
+      "capability:sem_bootstrap",
+      "capability:sem_defined",
+      "capability:sem_groups",
+      "capability:sem_meanstructure"
+    ],
+    "description": "How much of the change in recommend between the two waves of brand_survey.pulse each driver's latent mean shift explains, with an interval and a p. One joint two-wave fit under scalar invariance (group_equal loadings, intercepts): the marker intercepts v1 ~ 0*1 and s1 ~ 0*1 identify the value and service means in both waves, labelled per wave (c(mv1, mv2), c(ms1, ms2)), and the value path is one label bv across waves while service carries one per wave (c(bs1, bs2)). Four lavaan defined parameters (name := expr) follow: dv := bv*(mv2 - mv1) is value's contribution (path times latent mean change), ds := bs2*ms2 - bs1*ms1 service's, dtot their sum and share := dv/dtot value's share of it. Each := row in auxiliary.estimates (key \"dv := bv*(mv2 - mv1)\", vectors.group null, vectors.label the name) carries the estimate, a delta-method std_err from the exact gradient, z_value, p_value and the Wald ci_lower / ci_upper: a p below alpha and an interval excluding 0 say the contribution is distinguishable from zero (the fixture plants value down and service up, so dv reads negative and ds positive). delta corrects every row with a p (the free parameters and the := rows) with its own multiplicity block (Holm): auxiliary.p_adjusted / significant_adjusted beside the raw p_value, which never moves. bootstrap refits the same model on 200 seeded within-wave resamples (resample bootstrap, rng_seed pinned, ci_level 0.9): the estimates stay the full data's, std_err is the replicates' SD with its normal p, ci_lower / ci_upper the 90% percentile interval (the figure to read for a skewed product or ratio like share), and scalars.bootstrap_requested / bootstrap_succeeded echo the replicates. The bootstrap buffers the slot's rows, so the request runs the buffered path.",
+    "intents": [
+      "drivers",
+      "compare_groups"
+    ]
+  },
+  "cohort": {
+    "filename": "brand_survey.pulse",
+    "data_dir": ".data"
+  },
+  "vectors": [
+    {"name": "brand", "fields": ["q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3", "recommend"]}
+  ],
+  "matrices": [
+    {
+      "type": "MAT_SEM",
+      "name": "delta",
+      "vector": "brand",
+      "params": {"model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3\nrecommend ~ quality + bv*value + c(bs1, bs2)*service\nv1 ~ 0*1\ns1 ~ 0*1\nvalue ~ c(mv1, mv2)*1\nservice ~ c(ms1, ms2)*1\ndv := bv*(mv2 - mv1)\nds := bs2*ms2 - bs1*ms1\ndtot := dv + ds\nshare := dv/dtot", "group": "wave", "group_equal": ["loadings", "intercepts"]},
+      "multiplicity": {"method": "holm"}
+    },
+    {
+      "type": "MAT_SEM",
+      "name": "bootstrap",
+      "vector": "brand",
+      "params": {"model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3\nrecommend ~ quality + bv*value + c(bs1, bs2)*service\nv1 ~ 0*1\ns1 ~ 0*1\nvalue ~ c(mv1, mv2)*1\nservice ~ c(ms1, ms2)*1\ndv := bv*(mv2 - mv1)\nds := bs2*ms2 - bs1*ms1\ndtot := dv + ds\nshare := dv/dtot", "group": "wave", "group_equal": ["loadings", "intercepts"], "resample": "bootstrap", "bootstrap_iters": 200, "rng_seed": 20261024, "ci_level": 0.9}
+    }
+  ]
+}

@@ -104,8 +104,9 @@ type weightSlot struct {
 	specTotal bool
 	// reason is a slot-level PERMANENT refusal of a built-in operator
 	// that is otherwise classed by the table: every post-test (it reads
-	// aggregated rows) and a regression carrying a bootstrap resample
-	// or a selection modifier (a jackknife is weighted: JK1).
+	// aggregated rows), a regression carrying a bootstrap resample
+	// or a selection modifier (a jackknife is weighted: JK1) and a
+	// MAT_SEM bootstrap (params.resample).
 	reason string
 }
 
@@ -114,6 +115,9 @@ const (
 	reasonPostTest  = "a post-test reads the aggregated result rows, which carry no row weights"
 	reasonResample  = "a weighted bootstrap is replicate-weight (design-based) territory with no standard form; resample jackknife is weighted (JK1)"
 	reasonSelection = "an information criterion has no standard form under weights (a probability-weighted likelihood is only a pseudo-likelihood)"
+	// reasonSEMBootstrap refuses a MAT_SEM params.resample "bootstrap"
+	// under any weight (a frequency weight's expanded rows included).
+	reasonSEMBootstrap = "a weighted bootstrap is replicate-weight (design-based) territory with no standard form; drop params.resample or the weight"
 )
 
 // overlayWeighting is one overlay kind's weight class: the kinds it
@@ -507,6 +511,12 @@ func weightSlots(req *types.Request, inst *InstanceSnapshot) []weightSlot {
 			s := &slots[len(slots)-1]
 			s.specClass, s.specMethod, s.specSet = c, vectors.SpecMethod(m), true
 		}
+		// A MAT_SEM bootstrap refuses any weight, frequency included
+		// (a hidden bootstrap's params.resample is refused as an unknown
+		// key before weights resolve: TestSEM_HiddenBootstrapUnderWeight).
+		if vectors.SpecSEMResample(m) != "" {
+			slots[len(slots)-1].reason = reasonSEMBootstrap
+		}
 		// A GROUP_KMEANS between is frequency-only
 		// (weighting.DistanceClassOf).
 		if g, ok := vectors.SpecBetween(m); ok {
@@ -598,7 +608,7 @@ func slotOwnWeight(s weightSlot) (spec *types.WeightSpec, null, set bool, err er
 //     (ClassRefuse — a pending inferential operator, or a permanent
 //     refusal carrying details.reason: weighting.RefusalReason, every
 //     built-in post-test, a regression with a bootstrap resample or a
-//     selection modifier) ⇒ PULSE_WEIGHT_UNSUPPORTED under any weight, the
+//     selection modifier, a MAT_SEM params.resample) ⇒ PULSE_WEIGHT_UNSUPPORTED under any weight, the
 //     instance default included; frequency-only ⇒ applied under kind
 //     frequency, PULSE_WEIGHT_UNSUPPORTED naming the kind under kind
 //     probability (the default included); every operator the table

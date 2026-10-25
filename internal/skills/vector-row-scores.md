@@ -25,11 +25,14 @@ A row score reads one vector — exactly one of `vector`<!-- feature: capability
 <!-- feature: ATTR_VEC_DISTANCE -->
 - `ATTR_VEC_DISTANCE` fits only for `std_euclidean` / `mahalanobis`.
 <!-- /feature -->
+<!-- feature: ATTR_SEM_SCORE -->
+- `ATTR_SEM_SCORE` fits a structural equation model and scores one latent (lavaan's `regression` or `bartlett` method), each group with its own parameters. Its `fit` is a SEM fit: a compose `fits` entry over one SEM matrix, or a saved `.pulse-sem.json` loaded by `models: [{name, path}]` (the suffix picks the kind) — scored bit-equal to the inline fit (`sem-fits`).
+<!-- /feature -->
 
-Each fits once, then scores every row:
+Each fits once, then scores every row; a score is an ordinary field (average it by group, use it as a regression predictor):
 
 - `fit_on` — `"filtered"` (default) or an inline filterer array picking the FIT rows; every filtered row is still scored.
-- `fit` — a bound vector fit's name, scored against instead of fitting: a compose `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry<!-- feature: capability:compose_fits --> (`compose-fits`)<!-- /feature -->. XOR `fit_on` (`fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members: a mismatch is `PULSE_VECTOR_REFERENCE_MISMATCH`, an unbound name `PULSE_MODEL_UNKNOWN`, a regression's name `PULSE_MODEL_KIND_MISMATCH`.
+- `fit` — a bound vector fit's name, scored against instead of fitting: a compose `fits` entry over one matrix or fitted-attribute battery, or a loaded `populations` entry<!-- feature: capability:compose_fits --> (`compose-fits`)<!-- /feature -->. XOR `fit_on` (`fit_and_fit_on`); its own weight basis governs. Matched BY LABEL to the members: a mismatch is `PULSE_VECTOR_REFERENCE_MISMATCH`, an unbound name `PULSE_MODEL_UNKNOWN`, another kind's name `PULSE_MODEL_KIND_MISMATCH`.<!-- feature: ATTR_SEM_SCORE --> `ATTR_SEM_SCORE` reads a SEM fit instead (`sem-fits`).<!-- /feature -->
 - `missing` — `listwise` only.
 - `weight` — fits only (N* = Σw or n_eff; the Mahalanobis covariance is M2*/(N* − 1)); a zero-weight row is scored, not fitted.
 

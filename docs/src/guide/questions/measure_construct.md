@@ -29,6 +29,7 @@ The operators that answer it, by kind. Start with a basic one; each name links t
 | [`ATTR_SCALE_SCORE`](../catalog/attribute.md#op-attr_scale_score) | Adds to every row its score on a rating battery: the average of its answered items or a prorated total, reverse-worded items flipped. | intermediate |
 | [`ATTR_FACTOR_SCORE`](../catalog/attribute.md#op-attr_factor_score) | Adds to every row its score on one factor behind several related numeric fields: an estimate of the hidden trait they measure together. | advanced |
 | [`ATTR_PC_SCORE`](../catalog/attribute.md#op-attr_pc_score) | Adds to every row its score on one principal component of several related numeric fields: one number standing in for what they share. | advanced |
+| [`ATTR_SEM_SCORE`](../catalog/attribute.md#op-attr_sem_score) | Adds to every row its score on one hidden quality of a structural equation model you write, estimated from the measures it drives. | advanced |
 
 ### Statistical tests
 
@@ -322,7 +323,7 @@ More on reading it: [MAT_RELIABILITY](../reading/matrix.md#op-mat_reliability).
 - [Describe a measure](describe.md)
 - [Relationship between measures](relationship.md)
 
-**Skills:** [`intents`](../skills/intents.md), [`attribute-composition`](../skills/attribute-composition.md), [`statistical-testing`](../skills/statistical-testing.md), [`test-variant-options`](../skills/test-variant-options.md), [`op-mat-reliability`](../skills/op-mat-reliability.md)
+**Skills:** [`intents`](../skills/intents.md), [`attribute-composition`](../skills/attribute-composition.md), [`sem-fits`](../skills/sem-fits.md), [`statistical-testing`](../skills/statistical-testing.md), [`test-variant-options`](../skills/test-variant-options.md), [`op-mat-reliability`](../skills/op-mat-reliability.md)
 
 **From the command line:**
 

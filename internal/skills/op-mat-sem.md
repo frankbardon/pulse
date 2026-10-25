@@ -9,8 +9,6 @@ applies_to: process, compose, predict
 examples_tags: [matrix, multivariate]
 ---
 
-Members = the model's observed variables, by label.
-
 <!-- generated: use-when -->
 
 ## Params
@@ -18,23 +16,43 @@ Members = the model's observed variables, by label.
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `model` | string | — | `f =~ a + b`, `y ~ f`, `a ~~ b`; `l*x`, `0.5*x`. |
-| `solver` | `slsqp` \| `fisher` | `slsqp` | semopy's SLSQP, its early stop included; `fisher` converges. |
-| `information` | `dense` \| `rank2` | `dense` | `rank2`: faster, same figures. |
-| `ftol` | float | 1e-06 | SLSQP stop: the objective moves by less. |
-| `max_iter` | int | — | Iteration cap: 10000 slsqp, 500 fisher. |
-| `grad_tol` | float | 1e-10 | Fisher stop: every free \|gradient\| below it. |
-| `singular` | `nearest` \| `refuse` | `nearest` | semopy's: `cov_nearest` if Cholesky fails. |
-| `missing` | `listwise` | `listwise` | Listwise only. |
-| `max_drop_share` | 0–1 | — | Listwise drop-share warning. |
-| `fit` | string | — | Listwise only. |
+<!-- feature: capability:sem_meanstructure -->
+| `meanstructure` | bool | false | Means; `x ~ 1` too. |
+<!-- /feature -->
+<!-- feature: capability:sem_groups -->
+| `group` | string | — | Multi-group fit. |
+| `group_reference` | string | — | Primary level. |
+| `group_equal` | list | — | Invariance. |
+| `group_partial` | list | — | Freed rows. |
+<!-- /feature -->
+<!-- feature: capability:sem_bootstrap -->
+| `resample` | `bootstrap` | — | SE, p, CI. |
+| `bootstrap_iters` | int | 1000 | B. |
+| `rng_seed` | int | 0 | — |
+| `ci_level` | float | 0.95 | — |
+<!-- /feature -->
+<!-- feature: capability:sem_ordinal -->
+| `estimator` | enum | `ml` | Ratings: `sem-ordinal`. |
+| `ordered` | list | — | — |
+| `parameterization` | enum | `delta` | — |
+<!-- /feature -->
+| `solver` | enum | `slsqp` | `fisher`. |
+| `information` | enum | `dense` | — |
+| `ftol` | float | 1e-06 | — |
+| `max_iter` | int | — | — |
+| `grad_tol` | float | 1e-10 | — |
+| `singular` | enum | `nearest` | — |
+| `missing` | enum | `listwise` | Only. |
+| `max_drop_share` | 0–1 | — | Warn. |
+| `fit` | string | — | Bound fit. |
 
 ## Inputs
 
-Integer / float members.
+Numeric members: the model's observed variables (labels).
 
 ## Output
 
-`primary`: Σ(θ̂). `auxiliary.estimates`: rows `lval op rval` × `estimate`, `std_estimate`, `std_err`, `z_value`, `p_value`; `residual_covariance` S − Σ. `vectors`: `parameter`, `free`. `scalars`: fit indices (`chi2`, `cfi`, `rmsea`, …).
+`primary`: Σ(θ̂). `auxiliary.estimates`: rows `lval op rval` × estimate, std, SE, z, p (+ `ci_*`, lavaan); `residual_covariance` S − Σ<!-- feature: capability:sem_meanstructure -->; `implied_means` / `observed_means`<!-- /feature -->. `vectors`: `parameter`, `free`; `scalars`: fit indices.
 
 <!-- generated: reading-the-output -->
 
@@ -46,13 +64,11 @@ Integer / float members.
 
 ## Gotchas
 
-- Unused member or non-member variable: `bad_params`.
-- Default stops where semopy does.
-- S not factoring: `PULSE_MATRIX_NEAREST_PD`; constant member or `refuse`: fatal `PULSE_MATRIX_SINGULAR`.
-- Standardized fit: vector `standardize: "zscore"` (S = correlation).
-- Derived observed variable: name the request's attribute / feature label as a member.
+- Unused / non-member: `bad_params`.
+- lavaan rules: `sem-modeling`<!-- feature: capability:sem_defined -->; `:=`: `sem-defined-parameters`<!-- /feature --><!-- feature: capability:sem_bootstrap -->; `resample`: `sem-bootstrap`<!-- /feature -->.
+- Non-PD S: `PULSE_MATRIX_NEAREST_PD`; constant member / `refuse`: `PULSE_MATRIX_SINGULAR`.
 
 ## See
 
 - `pulse_examples_search tags=[matrix, multivariate]`
-- Skills: `matrix-results`, `multivariate-design`, `op-mat-factor`, `op-mat-reliability`
+- Skills: `sem-modeling`, `matrix-results`, `multivariate-design`, `op-mat-factor`

@@ -113,6 +113,9 @@ func (s *Set) LookupVector(name string) (*VectorFit, error) {
 		if _, ok := s.byName[name]; ok {
 			return nil, KindMismatch(name, types.FitKindVector, types.FitKindRegression)
 		}
+		if _, ok := s.sems[name]; ok {
+			return nil, KindMismatch(name, types.FitKindVector, types.FitKindSEM)
+		}
 		if f, ok := s.failed[name]; ok {
 			if k := f.sig.EffectiveKind(); k != types.FitKindVector {
 				return nil, KindMismatch(name, types.FitKindVector, k)
@@ -147,8 +150,9 @@ func (s *Set) bound(name string) bool {
 	}
 	_, reg := s.byName[name]
 	_, vec := s.vectors[name]
+	_, sem := s.sems[name]
 	_, failed := s.failed[name]
-	return reg || vec || failed
+	return reg || vec || sem || failed
 }
 
 func nameCollision(name string) error {
@@ -217,6 +221,29 @@ func NamesOfKind(cat Catalog, kind types.FitKind) []string {
 type VectorCapture struct {
 	mu   sync.Mutex
 	fits []*VectorFit
+	// sems are the SEM fits a SEM fit request's MAT_SEM slot closed
+	// (OfferSEM) — the same handle, the other kind.
+	sems []*SEMFit
+}
+
+// OfferSEM records a closed SEM fit. Nil-receiver-safe.
+func (c *VectorCapture) OfferSEM(f *SEMFit) {
+	if c == nil || f == nil {
+		return
+	}
+	c.mu.Lock()
+	c.sems = append(c.sems, f)
+	c.mu.Unlock()
+}
+
+// SEMFits returns the offered SEM fits in offer order.
+func (c *VectorCapture) SEMFits() []*SEMFit {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]*SEMFit(nil), c.sems...)
 }
 
 // Offer records a closed vector fit. Nil-receiver-safe (a set without a
@@ -245,7 +272,7 @@ func (c *VectorCapture) Fits() []*VectorFit {
 func (s *Set) WithCapture(c *VectorCapture) *Set {
 	out := &Set{capture: c}
 	if s != nil {
-		out.byName, out.vectors, out.records, out.failed = s.byName, s.vectors, s.records, s.failed
+		out.byName, out.vectors, out.sems, out.records, out.failed = s.byName, s.vectors, s.sems, s.records, s.failed
 	}
 	return out
 }

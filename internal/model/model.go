@@ -191,6 +191,8 @@ type Set struct {
 	// vectors are the bound vector fits (vector.go), in the same
 	// namespace: a name is bound as one kind or the other.
 	vectors map[string]*VectorFit
+	// sems are the bound SEM fits (sem.go), in the same namespace.
+	sems map[string]*SEMFit
 	// capture receives the vector fit a fit request's battery closes
 	// (WithCapture); nil on every other set.
 	capture *VectorCapture
@@ -228,6 +230,9 @@ func (s *Set) Lookup(name string) (*Bound, error) {
 		if _, ok := s.vectors[name]; ok {
 			return nil, KindMismatch(name, types.FitKindRegression, types.FitKindVector)
 		}
+		if _, ok := s.sems[name]; ok {
+			return nil, KindMismatch(name, types.FitKindRegression, types.FitKindSEM)
+		}
 		if f, ok := s.failed[name]; ok {
 			if k := f.sig.EffectiveKind(); k != types.FitKindRegression {
 				return nil, KindMismatch(name, types.FitKindRegression, k)
@@ -264,6 +269,9 @@ func (s *Set) Names() []string {
 	for n := range s.vectors {
 		out = append(out, n)
 	}
+	for n := range s.sems {
+		out = append(out, n)
+	}
 	for n := range s.failed {
 		out = append(out, n)
 	}
@@ -291,7 +299,7 @@ func (s *Set) Len() int {
 	if s == nil {
 		return 0
 	}
-	return len(s.byName) + len(s.vectors) + len(s.failed)
+	return len(s.byName) + len(s.vectors) + len(s.sems) + len(s.failed)
 }
 
 // setKey carries a request's bound-model Set on a context.

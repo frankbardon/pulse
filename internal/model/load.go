@@ -4,6 +4,7 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"strings"
 
 	"github.com/frankbardon/pulse/errors"
@@ -106,7 +107,7 @@ func CheckModelRefs(refs []types.ModelRef, outer Catalog) *errors.CodedError {
 		if strings.TrimSpace(r.Name) == "" {
 			return refInvalid(j, r, ReasonRefNameEmpty, "has no name")
 		}
-		if reason, what := checkModelPath(r.Path); reason != "" {
+		if reason, what := checkModelRefPath(r.Path); reason != "" {
 			return refInvalid(j, r, reason, "path "+what)
 		}
 		src := ModelSource(j, r.Path)
@@ -123,17 +124,43 @@ func CheckModelRefs(refs []types.ModelRef, outer Catalog) *errors.CodedError {
 	return nil
 }
 
+// checkModelRefPath is a `models` entry's path rule: the SEM fit
+// file's (SEMSuffix) when the path ends in it — the suffix dispatches
+// the kind — else the model file's. A path ending in neither is reason
+// suffix naming both.
+func checkModelRefPath(p string) (reason, what string) {
+	if isSEMPath(p) {
+		return checkFilePath(p, SEMSuffix)
+	}
+	reason, what = checkModelPath(p)
+	if reason == ReasonSaveSuffix {
+		what = fmt.Sprintf("does not name a %s or %s file", FileSuffix, SEMSuffix)
+	}
+	return reason, what
+}
+
 // LoadModelFiles reads and decodes every `models` entry in order (the
 // refs passed CheckModelRefs): a read error is
 // PULSE_MODEL_FILE_UNREADABLE (missing / unreadable), a decode fault
-// DecodeFile's PULSE_MODEL_FILE_INVALID / _VERSION_UNSUPPORTED — every
-// refusal gaining details.model (the entry index) and details.name. The
-// first fault wins. The files are index-aligned with refs.
+// DecodeFile's (DecodeSEMFile's, for an entry ending .pulse-sem.json)
+// PULSE_MODEL_FILE_INVALID / _VERSION_UNSUPPORTED — every refusal
+// gaining details.model (the entry index) and details.name. The first
+// fault wins. The files are index-aligned with refs, nil at a SEM fit
+// entry (LoadFiles keeps those).
 func LoadModelFiles(refs []types.ModelRef, read ReadFunc) ([]*File, *errors.CodedError) {
+	files, _, cerr := loadModelEntries(refs, read)
+	return files, cerr
+}
+
+// loadModelEntries is LoadModelFiles keeping both kinds: the model files
+// and the SEM fit files, each index-aligned with refs (nil where the
+// entry is the other kind; the SEM slice nil when no entry is one).
+func loadModelEntries(refs []types.ModelRef, read ReadFunc) ([]*File, []*SEMFile, *errors.CodedError) {
 	if len(refs) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	out := make([]*File, len(refs))
+	var sems []*SEMFile
 	for j, r := range refs {
 		var (
 			data []byte
@@ -149,11 +176,20 @@ func LoadModelFiles(refs []types.ModelRef, read ReadFunc) ([]*File, *errors.Code
 			if stderrors.Is(err, fs.ErrNotExist) {
 				reason = ReasonFileMissing
 			}
-			return nil, errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_FILE_UNREADABLE,
+			return nil, nil, errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_FILE_UNREADABLE,
 				fmt.Sprintf("models[%d]: model file %s cannot be read (%s)", j, r.Path, reason),
 				map[string]any{"model": j, "name": r.Name, "path": r.Path, "reason": reason})
 		}
-		f, derr := DecodeFile(r.Path, data)
+		var (
+			f    *File
+			sf   *SEMFile
+			derr error
+		)
+		if isSEMPath(r.Path) {
+			sf, derr = DecodeSEMFile(r.Path, data)
+		} else {
+			f, derr = DecodeFile(r.Path, data)
+		}
 		if derr != nil {
 			var ce *errors.CodedError
 			if !stderrors.As(derr, &ce) {
@@ -165,21 +201,32 @@ func LoadModelFiles(refs []types.ModelRef, read ReadFunc) ([]*File, *errors.Code
 			}
 			details["model"] = j
 			details["name"] = r.Name
-			return nil, errors.NewCodedErrorWithDetails(ce.Code, fmt.Sprintf("models[%d]: %s", j, ce.Message), details)
+			return nil, nil, errors.NewCodedErrorWithDetails(ce.Code, fmt.Sprintf("models[%d]: %s", j, ce.Message), details)
+		}
+		if sf != nil {
+			if sems == nil {
+				sems = make([]*SEMFile, len(refs))
+			}
+			sems[j] = sf
+			continue
 		}
 		out[j] = f
 	}
-	return out, nil
+	return out, sems, nil
 }
 
 // WithModels returns a new Set holding s's bindings plus every loaded
 // file bound under its entry's name (Source models[j]). refs passed
 // CheckModelRefs against s, so no name collides; files are
-// LoadModelFiles' result. s is never mutated; nil s is empty.
+// LoadModelFiles' result — a nil file (a SEM fit entry, bound by
+// WithLoaded) is skipped. s is never mutated; nil s is empty.
 func (s *Set) WithModels(refs []types.ModelRef, files []*File) (*Set, error) {
 	out := &Set{byName: make(map[string]*Bound, s.Len()+len(refs))}
 	if s != nil {
 		out.records, out.failed = s.records, s.failed
+		if len(s.sems) > 0 {
+			out.sems = maps.Clone(s.sems)
+		}
 		for k, b := range s.byName {
 			out.byName[k] = b
 		}
@@ -191,6 +238,9 @@ func (s *Set) WithModels(refs []types.ModelRef, files []*File) (*Set, error) {
 		}
 	}
 	for j, r := range refs {
+		if j >= len(files) || files[j] == nil {
+			continue
+		}
 		b, err := files[j].Bind(r.Name)
 		if err != nil {
 			return nil, err

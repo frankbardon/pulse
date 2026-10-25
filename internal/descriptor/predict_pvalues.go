@@ -11,6 +11,8 @@ import (
 	"github.com/frankbardon/pulse/internal/overlayhost"
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/regpenalty"
+	"github.com/frankbardon/pulse/internal/sem"
+	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -146,6 +148,18 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 		}
 		if plans, err := resolveMatricesFor(req, schema, nil, inst); err == nil {
 			for _, m := range plans {
+				if m.Type == types.MAT_SEM {
+					// A member MAT_SEM (its own block) corrects every
+					// estimates row carrying a p: the free rows of each
+					// level, then the := rows. A non-member's p-values
+					// are not counted (they never were: a parameter
+					// table is no battery of tests).
+					if m.Index < len(matrices) && matrices[m.Index].Member {
+						n, basis := semPValueRows(m)
+						addAt(n*perTest, weakerBasis(basis, perTestBasis), matrices, m.Index)
+					}
+					continue
+				}
 				// An extension operator declaring a p-value key emits
 				// one per output pair, like a built-in under inference.
 				if !m.Inference && !(m.Extension && matrixPValueKey(inst, m.Type) != "") {
@@ -225,6 +239,63 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 		return nil
 	}
 	return out
+}
+
+// semPValueRows is a MAT_SEM spec's p-carrying estimates rows — the
+// free parameter-table rows, every level's when grouped, an ordinal
+// fit's threshold rows (vectors.SEMPlan.ThresholdRowsBound), then one
+// per := line — and the count's basis: exact ungrouped; dictionary when
+// grouped over the schema's levels (a level without rows lowers the
+// real count); a lower bound on an integer group field, whose levels
+// are its data (one group's rows counted). A free row whose SE is
+// undefined has no p and joins no family at run time.
+func semPValueRows(m vectors.Matrix) (int, string) {
+	if m.SEM == nil || m.SEM.Model == nil {
+		return 0, descriptor.PValueBasisLowerBound
+	}
+	defs := m.SEM.Model.DefinedCount()
+	free := 0
+	for _, e := range sem.SpecifiedRows(m.SEM.Model) {
+		if e.Free {
+			free++
+		}
+	}
+	// An ordinal fit's threshold rows (`x | tk`) carry p too: the
+	// schema's category bound (an upper bound, basis dictionary), else
+	// the fewest a fitting member has (a lower bound).
+	th, known := m.SEM.ThresholdRowsBound()
+	if !m.SEM.Grouped() {
+		switch {
+		case !m.SEM.Ordinal():
+			return free + defs, descriptor.PValueBasisExact
+		case known:
+			return free + th + defs, descriptor.PValueBasisDictionary
+		}
+		return free + th + defs, descriptor.PValueBasisLowerBound
+	}
+	if len(m.SEM.GroupLevels) < 2 {
+		return free + th + defs, descriptor.PValueBasisLowerBound
+	}
+	levels := len(m.SEM.GroupLevels)
+	n, err := sem.GroupFreeRows(m.SEM.Model, levels)
+	if err != nil {
+		return free + th + defs, descriptor.PValueBasisLowerBound
+	}
+	// Grouped ordinal: every level's thresholds, and each non-reference
+	// level's free scale factors (group_equal thresholds).
+	n += th*levels + m.SEM.FreeScaleRowsBound()*(levels-1)
+	if !known {
+		return n + defs, descriptor.PValueBasisLowerBound
+	}
+	return n + defs, descriptor.PValueBasisDictionary
+}
+
+// weakerBasis is the weaker of two p-value count bases.
+func weakerBasis(a, b string) string {
+	if pvalueBasisRank[b] > pvalueBasisRank[a] {
+		return b
+	}
+	return a
 }
 
 // groupsPValues is how many times a test runs over groups' buckets and

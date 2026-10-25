@@ -1,0 +1,7 @@
+# Brand survey with an indicator that predicts the outcome: q1 measures
+# quality and has an outgoing arrow (recommend ~ q1), so it is an
+# endogenous observed inner variable (lavaan's ov.y dummy latent).
+quality =~ q1 + q2 + q3
+value =~ v1 + v2 + v3
+service =~ s1 + s2 + s3
+recommend ~ q1 + value + service

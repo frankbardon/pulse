@@ -88,6 +88,21 @@ func kernels1() []kernel1 {
 			}
 			return r.scaled(-40, -1) // (-1, 1): the |x| ≤ 0.85 arm and the start of the tail
 		}},
+		{"Asin", Asin, math.Asin, func(r *sweepRand) float64 {
+			if r.next()%8 == 0 { // the satan(x/√(1-x²)) arm near 0, subnormals included
+				return r.scaled(-1074, -30)
+			}
+			// |x| < 0.95: both the x ≤ 0.7 and the π/2 − satan arms. Nearer
+			// ±1 the stdlib's own builds part by the cancellation in 1 − x²
+			// (arm64 fuses it, amd64 does not; 11 ulp at x = -0.99996),
+			// a spread no ulp bound describes; the golden rows pin
+			// detmath's (amd64's) bits there instead.
+			v := r.scaled(-30, -1)
+			if math.Abs(v) >= 0.5 {
+				v = float64(0.95 * v)
+			}
+			return v
+		}},
 	}
 }
 
@@ -170,17 +185,20 @@ const sweepN = 200_000
 //     agreed with detmath's on every sweep input).
 //   - Erf 1: arm64 contracts the rational arms; on amd64 the |x| ≥ 1.25
 //     arms call the FMA-path exp_amd64.s, 1 ulp from detmath.Exp.
+//   - Asin 2: arm64 contracts 1 − x·x and satan's rational kernel; the
+//     sqrt argument and the quotient both move (sweep held to |x| < 0.95,
+//     see its input comment).
 //   - every other kernel 1.
 var ulpBound = map[string]uint64{
 	"Exp": 2, "Log": 1, "Log1p": 1, "Sin": 1, "Cos": 1, "Tan": 2, "Atan2": 1, "Pow": 8,
-	"Expm1": 1, "Erf": 1, "Erfinv": 8,
+	"Expm1": 1, "Erf": 1, "Erfinv": 8, "Asin": 2,
 }
 
 // exactOnAMD64 are the kernels whose math.* twin is the very pure-Go
 // source detmath ports, compiled without contraction on amd64. There the
 // two must agree BIT FOR BIT: any difference is a mis-ported line, not
 // rounding, so this is the port-fidelity check CI runs on linux/amd64.
-var exactOnAMD64 = map[string]bool{"Expm1": true, "Log1p": true, "Sin": true, "Cos": true, "Tan": true, "Atan2": true}
+var exactOnAMD64 = map[string]bool{"Expm1": true, "Log1p": true, "Sin": true, "Cos": true, "Tan": true, "Atan2": true, "Asin": true}
 
 func boundFor(name string) uint64 {
 	if runtime.GOARCH == "amd64" && exactOnAMD64[name] {
@@ -300,6 +318,7 @@ func TestDetmath_SpecialCasesMatchStdlib(t *testing.T) {
 		"Expm1":  func(x, _ float64) float64 { return math.Expm1(x) },
 		"Erf":    func(x, _ float64) float64 { return math.Erf(x) },
 		"Erfinv": func(x, _ float64) float64 { return math.Erfinv(x) },
+		"Asin":   func(x, _ float64) float64 { return math.Asin(x) },
 	}
 	checked := 0
 	for _, c := range goldenCases {

@@ -416,6 +416,8 @@ func TestRegistryAttributeStreamabilityMatchesTypes(t *testing.T) {
 		case types.ATTR_FACTOR_SCORE:
 			spec.Fields = []string{"y", "p1"}
 			spec.Params = []byte(`{"factor":1,"factors":1}`)
+		case types.ATTR_SEM_SCORE:
+			spec.Fields = []string{"y", "p1"}
 		}
 		instance, err := factory(spec, schema)
 		if err != nil {

@@ -35,8 +35,9 @@ type FitSpec struct {
 	// regression fit writes a model file (the path ends
 	// .pulse-model.json); a vector fit writes a population file (the
 	// path ends .pulse-population.json) that a later request loads with
-	// `populations`. Gated by capability:model_save. Empty writes
-	// nothing.
+	// `populations`; a SEM fit writes a SEM fit file (the path ends
+	// .pulse-sem.json) that a later request loads with `models`. Gated
+	// by capability:model_save. Empty writes nothing.
 	Save string `json:"save,omitempty"`
 }
 
@@ -68,7 +69,8 @@ type PopulationRef struct {
 // model file a `save` wrote, loaded under Name for this request. The
 // name joins the request's bound-model namespace — the one a Compose
 // `fits` list binds — so ATTR_REG_PREDICT `fit` and coef() resolve it
-// exactly like a fit of the same name; a name bound twice (by another
+// exactly like a fit of the same name (a SEM fit file, the path ending
+// .pulse-sem.json, binds a SEM fit ATTR_SEM_SCORE params.fit reads); a name bound twice (by another
 // entry or a fit) is PULSE_MODEL_NAME_COLLISION.
 //
 // The file is read (through the instance filesystem) and decoded before
@@ -82,7 +84,8 @@ type ModelRef struct {
 	Name string `json:"name"`
 
 	// Path is the model file, relative to the data root, ending
-	// .pulse-model.json — the save-path rule.
+	// .pulse-model.json — the save-path rule — or a SEM fit file ending
+	// .pulse-sem.json: the suffix picks the kind.
 	Path string `json:"path"`
 }
 
@@ -100,36 +103,50 @@ const (
 	// co-moment: a fitted vector attribute's or MAT_* slot's params.fit
 	// reads it.
 	FitKindVector FitKind = "vector"
+	// FitKindSEM is a structural equation model fit — a fit request
+	// holding exactly one MAT_SEM matrix: its fitted parameter matrices
+	// per group. ATTR_SEM_SCORE's params.fit reads it.
+	FitKindSEM FitKind = "sem"
 )
 
 // FitResult is one ComposedResponse.Fits entry. Exactly one arm is set:
 // a regression fit's result (the embedded *RegressionResult — its
-// fields promote, so fits[name].Coefficients reads as before), or a
-// vector fit's (Vector).
+// fields promote, so fits[name].Coefficients reads as before), a
+// vector fit's (Vector) or a SEM fit's (SEM).
 //
 // On the wire a regression entry is the RegressionResult object itself,
 // byte-identical to the regression-only shape; a vector entry is
-// {"vector": VectorFitResult}. The `vector` key is the discriminator: a
-// regression entry never carries it.
+// {"vector": VectorFitResult} and a SEM entry {"sem": SEMFitResult}.
+// The `vector` / `sem` key is the discriminator: a regression entry
+// never carries either.
 //
 // A fit that failed on its data keeps its entry: the arm carries
 // `error` (SlotError) beside its identity — {name, type, error} for a
-// regression, {"vector": {operator, error}} for a vector fit — and its
-// name binds no model, so a slot scoring from it reads no state.
+// regression, {"vector": {operator, error}} for a vector fit,
+// {"sem": {operator, error}} for a SEM fit — and its name binds no
+// model, so a slot scoring from it reads no state.
 type FitResult struct {
 	// RegressionResult is a regression fit's result (nil on a vector
-	// fit).
+	// or SEM fit).
 	*RegressionResult
 
-	// Vector is a vector fit's summary (nil on a regression fit).
+	// Vector is a vector fit's summary (nil on any other fit).
 	Vector *VectorFitResult `json:"vector,omitempty"`
+
+	// SEM is a SEM fit's fitted parameters (nil on any other fit).
+	SEM *SEMFitResult `json:"sem,omitempty"`
 }
 
 // MarshalJSON writes the regression arm as its RegressionResult (the
-// regression-only wire shape) and the vector arm as {"vector": …},
-// every non-finite float as null (MarshalFinite).
+// regression-only wire shape), the vector arm as {"vector": …} and the
+// SEM arm as {"sem": …}, every non-finite float as null
+// (MarshalFinite).
 func (f FitResult) MarshalJSON() ([]byte, error) {
 	switch {
+	case f.SEM != nil:
+		return MarshalFinite(struct {
+			SEM *SEMFitResult `json:"sem"`
+		}{f.SEM})
 	case f.Vector != nil:
 		return MarshalFinite(struct {
 			Vector *VectorFitResult `json:"vector"`
@@ -205,5 +222,138 @@ func (v VectorFitResult) MarshalJSON() ([]byte, error) {
 		return MarshalFinite(slotFailureVectorFit{Operator: v.Operator, Error: v.Error})
 	}
 	type alias VectorFitResult
+	return MarshalFinite((*alias)(&v))
+}
+
+// SEMFitResult is a SEM fit's ComposedResponse.Fits entry: everything
+// a scoring slot (ATTR_SEM_SCORE's params.fit) reads, at full
+// precision — the model as fitted, its options, the member labels a
+// consuming slot is aligned to (by label, never by position) and each
+// group's parameter matrices at the estimate. Like every fit it sits
+// outside the Compose `return` — never rounded.
+//
+// The matrices follow the model's own variable orders: Lambda is
+// Observed × Inner, Beta and Psi Inner × Inner, Theta Observed ×
+// Observed, Nu and SampleMean over Observed, Alpha over Inner; fixed
+// values are included. Inner holds the latents and every observed
+// variable a structural (`~`) statement makes an inner variable.
+type SEMFitResult struct {
+	// Operator is the fit request's battery: MAT_SEM.
+	Operator string `json:"operator"`
+
+	// Model is the model description fitted (params.model, or the
+	// one-factor default over every member).
+	Model string `json:"model"`
+
+	// Labels are the member labels in member order — the names the
+	// model's observed variables are — and Members the member columns.
+	Labels  []string `json:"labels"`
+	Members []string `json:"members"`
+
+	// Observed and Inner are the model's variable orders (the matrices'
+	// rows and columns); Latents its latent variables in Inner order.
+	Observed []string `json:"observed"`
+	Inner    []string `json:"inner"`
+	Latents  []string `json:"latents"`
+
+	// Estimator is the fit's estimator ("ml", or an ordinal "dwls" /
+	// "wlsmv"); Conventions "lavaan" or "semopy" — the fit's convention
+	// set.
+	Estimator   string `json:"estimator"`
+	Conventions string `json:"conventions"`
+
+	// Ordered are an ordinal fit's ordered variables in Observed order
+	// (absent on an ML fit); Categories[k] the k-th one's category
+	// values, ascending — the raw member values the fit coded as
+	// categories 0, 1, … (a row holding another value is no category of
+	// the fit). Each group's Thresholds align to them.
+	Ordered    []string    `json:"ordered,omitempty"`
+	Categories [][]float64 `json:"categories,omitempty"`
+
+	// MeanStructure reports params.meanstructure; Group,
+	// GroupReference, GroupEqual and GroupPartial are the multi-group
+	// knobs (absent on an ungrouped fit). Solver and Information are
+	// the solver settings the fit ran under.
+	MeanStructure  bool     `json:"meanstructure"`
+	Group          string   `json:"group,omitempty"`
+	GroupReference string   `json:"group_reference,omitempty"`
+	GroupEqual     []string `json:"group_equal,omitempty"`
+	GroupPartial   []string `json:"group_partial,omitempty"`
+	Solver         string   `json:"solver"`
+	Information    string   `json:"information"`
+
+	// Basis is the weight basis: "unweighted" or "frequency".
+	Basis string `json:"basis"`
+
+	// N counts the listwise-complete fit rows (every group); SumWeights
+	// is Σw over them (N unweighted) — the fit's sample size.
+	N          int64   `json:"n"`
+	SumWeights float64 `json:"sum_weights"`
+
+	// DoF and NParams are the fit's degrees of freedom and free
+	// parameter count; Converged, Status and Iterations its solver's
+	// stop. NearestPDMinEigenvalue is set when the fit used the nearest
+	// positive-definite substitute (params.singular "nearest").
+	DoF                    float64  `json:"dof"`
+	NParams                int      `json:"n_params"`
+	Converged              bool     `json:"converged"`
+	Status                 string   `json:"status"`
+	Iterations             int      `json:"iterations"`
+	NearestPDMinEigenvalue *float64 `json:"nearest_pd_min_eigenvalue,omitempty"`
+
+	// Groups are the fit's groups in level order: one entry ungrouped
+	// (Level absent), one per level with fit rows under params.group.
+	Groups []SEMFitGroup `json:"groups"`
+
+	// Error is set when the fit failed on its data (MAT_SEM's
+	// data-dependent refusal): the entry keeps Operator and the error,
+	// every other figure absent on the wire, and nothing is bound under
+	// the fit's name (see SlotError).
+	Error *SlotError `json:"error,omitempty"`
+}
+
+// SEMFitGroup is one group's parameters in a SEMFitResult.
+type SEMFitGroup struct {
+	// Level is the group's level label (absent on an ungrouped fit).
+	Level string `json:"level,omitempty"`
+
+	// N counts the group's fit rows; SumWeights is Σw over them.
+	N          int64   `json:"n"`
+	SumWeights float64 `json:"sum_weights"`
+
+	// The parameter matrices at the estimate, fixed values included.
+	Lambda [][]float64 `json:"lambda"`
+	Beta   [][]float64 `json:"beta"`
+	Psi    [][]float64 `json:"psi"`
+	Theta  [][]float64 `json:"theta"`
+	Nu     []float64   `json:"nu"`
+	Alpha  []float64   `json:"alpha"`
+
+	// SampleMean is the group's fit-row mean over Observed — the center
+	// of a covariance-only fit's scores.
+	SampleMean []float64 `json:"sample_mean"`
+
+	// Thresholds are an ordinal fit's raw thresholds, one list per
+	// Ordered variable (its categories less one; absent on an ML fit).
+	// Theta's diagonal then holds each ordered variable's residual on
+	// the latent-response scale (the delta parameterization's
+	// remainder).
+	Thresholds [][]float64 `json:"thresholds,omitempty"`
+}
+
+// slotFailureSEMFit is the wire form of a SEMFitResult carrying an
+// Error: its operator and the error, no figure.
+type slotFailureSEMFit struct {
+	Operator string     `json:"operator"`
+	Error    *SlotError `json:"error"`
+}
+
+// MarshalJSON writes the fit with every non-finite float as null; see
+// MarshalFinite. A failed fit writes {operator, error} only.
+func (v SEMFitResult) MarshalJSON() ([]byte, error) {
+	if v.Error != nil {
+		return MarshalFinite(slotFailureSEMFit{Operator: v.Operator, Error: v.Error})
+	}
+	type alias SEMFitResult
 	return MarshalFinite((*alias)(&v))
 }

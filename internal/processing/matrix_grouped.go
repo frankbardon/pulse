@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"context"
 	"reflect"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -58,6 +59,14 @@ func BuildGroupedMatrices(req *types.Request, schema *encoding.Schema, exts *Ext
 		buckets: make(map[string][]*matrixSlot),
 		limits:  l,
 	}, nil
+}
+
+// bindContext hands the buffered run's ctx to every bucket's slots as
+// they are minted (bindMatrixContext's grouped twin; nil g: no-op).
+func (g *GroupedMatrices) bindContext(ctx context.Context) {
+	if g != nil {
+		g.set.ctx = ctx
+	}
 }
 
 // bucket returns key's slots, minting zero-state ones on first sight —
@@ -146,7 +155,7 @@ func mergeSlotSets(dst, src []*matrixSlot) error {
 		// A buffered slot's rows do not merge; the merge gate keeps a
 		// buffered spec serial (MatrixSpec.Mergeable), so reaching here
 		// with one is a routing fault.
-		if s.rows != nil || src[i].rows != nil {
+		if s.rows != nil || src[i].rows != nil || s.semGroups.buffered() || src[i].semGroups.buffered() {
 			return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 				"matrix merge: a buffered matrix slot is not mergeable",
 				map[string]any{"matrix": s.plan.Name, "type": string(s.plan.Type)})
@@ -158,6 +167,16 @@ func mergeSlotSets(dst, src []*matrixSlot) error {
 					map[string]any{"matrix": s.plan.Name})
 			}
 			if err := s.dist.merge(s.plan.Name, src[i].dist); err != nil {
+				return err
+			}
+		}
+		if (s.semGroups == nil) != (src[i].semGroups == nil) {
+			return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+				"matrix merge: partitions differ in grouped MAT_SEM state",
+				map[string]any{"matrix": s.plan.Name})
+		}
+		if s.semGroups != nil {
+			if err := s.semGroups.merge(src[i].semGroups); err != nil {
 				return err
 			}
 		}

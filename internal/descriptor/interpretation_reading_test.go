@@ -159,7 +159,7 @@ func readingListProblems(surfaces []PurposeSurface, needs, self []string) []stri
 // selfReadingOperators, and the needs-reading list is exactly the one
 // agreed for U09 (plus U42's model-based ATTR_REG_PREDICT and its
 // AGG_MAPE / AGG_RMSE / AGG_MAE model-error figures, and U49's relative
-// WIN_SHARE / WIN_LIFT columns).
+// WIN_SHARE / WIN_LIFT columns, and U59's ATTR_SEM_SCORE latent scores).
 func TestDescriptiveReadingLists(t *testing.T) {
 	for _, p := range readingListProblems(PurposeSurfaces(), needsReadingOperators, selfReadingOperators) {
 		t.Error(p)
@@ -168,7 +168,7 @@ func TestDescriptiveReadingLists(t *testing.T) {
 		"AGG_AUC", "AGG_CI_LOWER", "AGG_CI_UPPER", "AGG_KURTOSIS", "AGG_MAE", "AGG_MAPE", "AGG_PERCENTILE", "AGG_RATIO", "AGG_RMSE",
 		"AGG_SKEWNESS", "AGG_STDDEV", "AGG_VARIANCE", "AGG_VEC_SD", "AGG_WEIGHTED_MEAN", "AGG_WELFORD", "AGG_ZSCORE",
 		"ATTR_FACTOR_SCORE", "ATTR_MAHALANOBIS", "ATTR_NORMALIZED", "ATTR_PC_SCORE", "ATTR_PERCENTILE", "ATTR_REG_FITTED", "ATTR_REG_LEVERAGE",
-		"ATTR_REG_PREDICT", "ATTR_REG_RESIDUAL", "ATTR_TSCORE", "ATTR_ZSCORE",
+		"ATTR_REG_PREDICT", "ATTR_REG_RESIDUAL", "ATTR_SEM_SCORE", "ATTR_TSCORE", "ATTR_ZSCORE",
 		"FEAT_FREQUENCY_ENCODE", "FEAT_LOG", "FEAT_POLY", "FEAT_SQRT", "FEAT_TARGET_ENCODE",
 		"WIN_ADSTOCK", "WIN_DELTA", "WIN_DENSE_RANK", "WIN_EWMA", "WIN_LIFT", "WIN_MOVING_AVG", "WIN_PCT_CHANGE",
 		"WIN_RANK", "WIN_RUNNING_AVG", "WIN_SHARE",

@@ -1,0 +1,17 @@
+# Brand survey, two waves, with lavaan defined parameters (:=): marker
+# intercepts fixed at 0 identify the value and service means in both
+# waves (labelled per wave), so a path times a latent mean change is a
+# contribution of the wave shift to recommend. bv is one value across
+# waves, bs1 / bs2 one per wave.
+quality =~ q1 + q2 + q3
+value =~ v1 + v2 + v3
+service =~ s1 + s2 + s3
+recommend ~ quality + bv*value + c(bs1, bs2)*service
+v1 ~ 0*1
+s1 ~ 0*1
+value ~ c(mv1, mv2)*1
+service ~ c(ms1, ms2)*1
+dv := bv*(mv2 - mv1)
+ds := bs2*ms2 - bs1*ms1
+dtot := dv + ds
+share := dv/dtot

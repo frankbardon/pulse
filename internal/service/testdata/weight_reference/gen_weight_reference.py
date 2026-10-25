@@ -142,6 +142,17 @@ rows (reg_reference.R, base R: cor / solve on the expansion), probability
 DescrStatsW(w*, ddof=1) and the exact fit R = ll' + diag(1 - l^2)
 asserted.
 
+ATTR_SEM_SCORE (sem-extensions E3-S1) — the same members as
+ATTR_FACTOR_SCORE, model f =~ x1 + y + yb (the first loading fixed at
+1, no mean structure), regression scores; frequency weights only (its
+weight class). The one-factor model on three indicators is exactly
+identified, so the ML fit reproduces the w* covariance S: λ = (1,
+s_23/s_13, s_23/s_12), ψ = s_12 s_13 / s_23, weights S^-1 λ ψ (lavaan
+lavPredict's regression rule, invariant to the covariance's divisor),
+score w'(x − mean) centered at the fit rows' weighted mean — the closed
+form, its covariance cross-checked with statsmodels DescrStatsW and the
+exact fit Σ(θ) = S asserted.
+
 ATTR_PC_SCORE (U25 E3-S2) — on the same fixture and members: component 1
 of the correlation, every row with x2 present scored; frequency = R
 prcomp(scale. = TRUE) predict() / sdev on the expanded complete rows,
@@ -2394,6 +2405,35 @@ def factor_score_closed_form(ws, kind):
     return out
 
 
+def sem_score_closed_form(ws, kind):
+    """ATTR_SEM_SCORE regression scores of f =~ x1 + y + yb (no mean
+    structure) per row id: the fit rows are every row with a valid
+    positive weight (the members are never null); S the weighted
+    covariance, the exactly identified marker-scaled loadings and factor
+    variance (asserted proper and an exact fit), weights S^-1 lambda psi,
+    score w'(x - mean) with mean the fit rows' weighted mean."""
+    idx = [i for i in range(len(REG_ROWS)) if valid(ws[i], kind) and ws[i] > 0]
+    X = np.array([[REG_ROWS[i][REG_COL[c]] for c in FACTOR_FIELDS] for i in idx])
+    w = np.array([ws[i] for i in idx])
+    sw = float(w.sum())
+    mean = (w[:, None] * X).sum(axis=0) / sw
+    dev = X - mean
+    cov = dev.T @ (w[:, None] * dev) / sw
+    d1 = DescrStatsW(X, weights=w, ddof=0)
+    assert np.allclose(d1.cov, cov, rtol=1e-12), (kind, d1.cov, cov)
+    lam = np.array([1.0, cov[1, 2] / cov[0, 2], cov[1, 2] / cov[0, 1]])
+    psi = cov[0, 1] * cov[0, 2] / cov[1, 2]
+    theta = np.diag(cov) - lam ** 2 * psi
+    assert psi > 0 and all(theta > 0), (kind, psi, theta)
+    assert np.allclose(psi * np.outer(lam, lam) + np.diag(theta), cov, rtol=1e-12), (kind, cov, lam, psi)
+    wts = np.linalg.solve(cov, lam * psi)
+    out = {}
+    for row in REG_ROWS:
+        x = np.array([row[REG_COL[c]] for c in FACTOR_FIELDS])
+        out[row[0]] = float((x - mean) @ wts)
+    return out
+
+
 def pc_score_closed_form(ws, kind):
     """ATTR_PC_SCORE component 1 of the correlation per row id (x2
     present): eigen-decompose the w* correlation of the fit rows
@@ -2628,6 +2668,17 @@ def regression_cases():
                "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
         out.append(dict(weight=wname, kind=kind, name="attr_factor_score", request=req,
                         figs={f"data[{rid}].v": v for rid, v in figs.items()}, src=src))
+        if not prob:
+            figs = sem_score_closed_form(ws, kind)
+            req = {"attributes": [{"type": "ATTR_SEM_SCORE", "fields": FACTOR_FIELDS, "label": "attr",
+                                   "params": {"model": "f =~ x1 + y + yb", "solver": "fisher", "grad_tol": 1e-14, "max_iter": 10000}}],
+                   "groups": [{"type": "GROUP_CATEGORY", "field": "id"}],
+                   "aggregations": [{"type": "AGG_SUM", "field": "attr", "label": "v", "weight": None}]}
+            out.append(dict(weight=wname, kind=kind, name="attr_sem_score", request=req,
+                            figs={f"data[{rid}].v": v for rid, v in figs.items()},
+                            src=("closed form: the exactly identified one-factor model of the weighted covariance, lavPredict "
+                                 "regression weights S^-1 lambda psi; covariance cross-checked with statsmodels "
+                                 + statsmodels.__version__ + " DescrStatsW(w, ddof=0)")))
         for metric in ("std_euclidean", "mahalanobis"):
             figs = vec_distance_closed_form(ws, kind, metric)
             src = ("closed form: ATTR_MAHALANOBIS's fit (w* mean, covariance M2·(N*/Σw)/(N* − 1)) cross-checked with "

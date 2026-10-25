@@ -374,8 +374,8 @@ func TestDetmath_FusedTwinsDiverge(t *testing.T) {
 		}
 		t.Logf("%s: unbarriered twin differs from the pinned bits on %d rows", name, diverged)
 	}
-	// Expm1 / Erf / Erfinv need no hand-copied twin: off s390x (the one
-	// GOARCH with assembly for them) math.Expm1 / Erf / Erfinv ARE the
+	// Expm1 / Erf / Erfinv / Asin need no hand-copied twin: off s390x (the
+	// one GOARCH with assembly for them) math.Expm1 / Erf / Erfinv / Asin ARE the
 	// unbarriered pure-Go sources, so on a contracting build the stdlib
 	// itself is the fused twin. On amd64 it is not fused, and math.Erf
 	// also calls the FMA-path exp assembly, so this half runs only where
@@ -384,7 +384,7 @@ func TestDetmath_FusedTwinsDiverge(t *testing.T) {
 		return
 	}
 	for name, twin := range map[string]func(float64) float64{
-		"Expm1": math.Expm1, "Erf": math.Erf, "Erfinv": math.Erfinv,
+		"Expm1": math.Expm1, "Erf": math.Erf, "Erfinv": math.Erfinv, "Asin": math.Asin,
 	} {
 		diverged := 0
 		for _, c := range goldenCases {

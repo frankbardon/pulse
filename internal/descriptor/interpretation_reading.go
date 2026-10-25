@@ -72,7 +72,7 @@ var needsReadingOperators = []string{
 	string(types.AGG_WELFORD), string(types.AGG_ZSCORE), string(types.AGG_VEC_SD),
 	// attribute
 	string(types.ATTR_FACTOR_SCORE), string(types.ATTR_MAHALANOBIS), string(types.ATTR_NORMALIZED), string(types.ATTR_PC_SCORE), string(types.ATTR_PERCENTILE), string(types.ATTR_REG_FITTED),
-	string(types.ATTR_REG_LEVERAGE), string(types.ATTR_REG_PREDICT), string(types.ATTR_REG_RESIDUAL), string(types.ATTR_TSCORE),
+	string(types.ATTR_REG_LEVERAGE), string(types.ATTR_REG_PREDICT), string(types.ATTR_REG_RESIDUAL), string(types.ATTR_SEM_SCORE), string(types.ATTR_TSCORE),
 	string(types.ATTR_ZSCORE),
 	// window
 	string(types.WIN_ADSTOCK), string(types.WIN_DELTA), string(types.WIN_DENSE_RANK), string(types.WIN_EWMA),

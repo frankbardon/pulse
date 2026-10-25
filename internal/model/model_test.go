@@ -89,6 +89,11 @@ func TestCheckFits(t *testing.T) {
 		{"vector distance", []types.FitSpec{{Name: "v", Request: vec(mat(types.MAT_DISTANCE, `{"between":{"type":"GROUP_CATEGORY","field":"g"}}`))}}, errors.PULSE_FIT_INVALID, ReasonVectorSource, 0, map[string]any{"type": "MAT_DISTANCE"}},
 		{"vector reversed", []types.FitSpec{{Name: "v", Request: vec(mat(types.MAT_RELIABILITY, `{"reverse":["b"],"scale_min":1,"scale_max":5}`))}}, errors.PULSE_FIT_INVALID, ReasonVectorSource, 0, map[string]any{"param": "reverse"}},
 		{"vector scale only", []types.FitSpec{{Name: "v", Request: vec(mat(types.MAT_RELIABILITY, `{"scale_min":1,"scale_max":5}`))}}, "", "", 0, nil},
+		// U59 E4-S4: an ordinal MAT_SEM battery binds a SEM fit (EBM
+		// scores) and may save one, as an ML one does.
+		{"sem ordinal", []types.FitSpec{{Name: "s", Request: vec(mat(types.MAT_SEM, `{"model":"f =~ a + b","estimator":"wlsmv","ordered":["a","b"]}`))}}, "", "", 0, nil},
+		{"sem dwls save", []types.FitSpec{{Name: "s", Request: vec(mat(types.MAT_SEM, `{"model":"f =~ a + b","estimator":"dwls","ordered":"a"}`)), Save: "s.pulse-sem.json"}}, "", "", 0, nil},
+		{"sem ml", []types.FitSpec{{Name: "s", Request: vec(mat(types.MAT_SEM, `{"model":"f =~ a + b","estimator":"ml"}`))}}, "", "", 0, nil},
 		// A vector fit saves a population file; a model-file path (or a
 		// regression fit's population path) is the wrong suffix.
 		{"vector save", []types.FitSpec{{Name: "v", Request: attrFit, Save: "pops/v.pulse-population.json"}}, "", "", 0, nil},

@@ -309,6 +309,10 @@ func TestSkillContract_MultiplicityMatchesResolver(t *testing.T) {
 			// A regression joins only through its own block.
 			req.Regressions[0].Multiplicity = &types.RegressionMultiplicity{Method: types.MultiplicityMethodHolm}
 		}
+		if ok && name == string(types.MAT_SEM) {
+			// MAT_SEM joins only through its own block, as a regression.
+			req.Matrices[0].Multiplicity = &types.Multiplicity{Method: types.MultiplicityMethodHolm}
+		}
 		member, resolved := false, false
 		if ok {
 			plan, err := ResolveMultiplicity(req, def, nil)

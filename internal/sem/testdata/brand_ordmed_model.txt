@@ -1,0 +1,10 @@
+# Brand survey with an observed mediator: the numeric recommend rating
+# is predicted by quality and value and predicts the service factor and
+# one of its ordered indicators (s3), so it is an observed inner
+# variable (lavaan's ov.y dummy latent; s3 becomes one too).
+quality =~ q1 + q2 + q3
+value =~ v1 + v2 + v3
+service =~ s1 + s2 + s3
+recommend ~ quality + value
+service ~ recommend
+s3 ~ recommend

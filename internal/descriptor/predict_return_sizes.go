@@ -3,6 +3,7 @@ package descriptor
 import (
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
@@ -305,11 +306,15 @@ func returnSections(in returnSizeInputs) []returnSection {
 		basis := returnSizeExact
 		known := true
 		for i, m := range in.matrices {
-			if m.EstimatedBuckets == nil {
+			if m.EstimatedBuckets == nil || m.GroupLevelsBasis == vectors.BucketBasisUnknown {
+				// unknown buckets, or a grouped MAT_SEM whose levels are
+				// an integer field's observed values
 				known = false
 				break
 			}
-			if m.BucketBasis != vectors.BucketBasisUngrouped {
+			if m.BucketBasis != vectors.BucketBasisUngrouped || m.GroupLevelsBasis != "" {
+				// the buckets, or a grouped MAT_SEM's levels, are a
+				// schema bound a level without rows never reaches
 				basis = returnSizeUpperBound
 			}
 			p := int64(m.Shape[0])
@@ -547,18 +552,53 @@ func matrixNode(name string, rows, cols int64, enc types.MatrixEncoding, fields 
 //   - MAT_DISTANCE: centroids b x p; centroids_standardized b x p under
 //     standardize; pooled_covariance p x p under a fitted inverse
 //     covariance metric (mahalanobis).
-//   - MAT_SEM: estimates r x 5, r the model's parameter-table rows
-//     (sem.SpecifiedRows: known from the description alone);
-//     residual_covariance p x p.
+//   - MAT_SEM: estimates r x c, r the model's parameter-table rows
+//     (sem.SpecifiedRows: known from the description alone) plus an
+//     ordinal fit's threshold rows plus one per := line (semEstimateRows); p_adjusted / significant_adjusted
+//     r x 1 when member (its own multiplicity block); c
+//     vectors.SEMEstimateColumnsOf (5, or 7 with the Wald interval of a
+//     lavaan-convention fit); residual_covariance p x p; implied_means
+//     and observed_means p x 1 under a mean structure. Grouped
+//     (params.group): estimates r x c per known level (MatrixPredict.
+//     GroupLevels, an upper bound), and per level
+//     implied_covariance.<level> / residual_covariance.<level> p x p,
+//     implied_means.<level> / observed_means.<level> p x 1; an integer
+//     group field's levels are unknown, and so is the section's size.
 //
 // semRecordFields are the fields a MAT_SEM estimates record carries
-// beside its key and figures (processing.semParts).
-const semRecordFields = 5
+// beside its key and figures (processing.semParts); a grouped fit's
+// record adds its group and label (semGroupRecordFields,
+// processing.semGroupAuxiliary).
+const (
+	semRecordFields      = 5
+	semGroupRecordFields = 7
+)
+
+// semEstimateRows is a MAT_SEM spec's estimates rows: the model's
+// parameter-table rows (sem.SpecifiedRows: known from the description
+// alone) plus an ordinal fit's threshold rows
+// (vectors.SEMPlan.ThresholdRowsEstimate) and a grouped one's scale
+// rows (ScaleRows) — per known level when grouped, an upper bound —
+// then one per := line (sem.Model.DefinedCount, never per level).
+func semEstimateRows(m vectors.Matrix) int64 {
+	if m.SEM == nil || m.SEM.Model == nil {
+		return 0
+	}
+	// An ordinal fit's threshold rows: the schema's category bounds,
+	// else vectors.SEMThresholdRowsDefault per ordered member; a grouped
+	// one's `x ~*~ x` rows, one per ordered member.
+	rows := int64(len(sem.SpecifiedRows(m.SEM.Model))) + int64(m.SEM.ThresholdRowsEstimate()) + int64(m.SEM.ScaleRows())
+	if m.SEM.Grouped() {
+		// every level's rows (the levels the schema knows)
+		rows *= int64(max(len(m.SEM.GroupLevels), 1))
+	}
+	return rows + int64(m.SEM.Model.DefinedCount())
+}
 
 func matrixAuxiliaryNodes(m vectors.Matrix, mp descriptor.MatrixPredict, member bool) []*sizeNode {
 	p, k := int64(mp.Shape[0]), int64(mp.Shape[1])
 	keys, _ := m.AuxiliaryKeys()
-	if m.Inference && member {
+	if (m.Inference || m.Type == types.MAT_SEM) && member {
 		keys = append(keys, "p_adjusted", "significant_adjusted")
 	}
 	out := make([]*sizeNode, 0, len(keys))
@@ -580,12 +620,27 @@ func matrixAuxiliaryNodes(m vectors.Matrix, mp descriptor.MatrixPredict, member 
 			members := int64(len(m.Members.Members))
 			out = append(out, matrixNode(name, members, members, m.Encoding, 0))
 		case "estimates":
-			rows := int64(0)
-			if m.SEM != nil && m.SEM.Model != nil {
-				rows = int64(len(sem.SpecifiedRows(m.SEM.Model)))
+			fields := int64(semRecordFields)
+			if m.SEM.Grouped() {
+				fields = semGroupRecordFields
 			}
-			out = append(out, matrixNode(name, rows, int64(len(vectors.SEMEstimateColumns())), m.Encoding, semRecordFields))
-		default: // n and the inference squares: p x p over the output axis
+			out = append(out, matrixNode(name, semEstimateRows(m), int64(len(vectors.SEMEstimateColumnsOf(m.SEM))), m.Encoding, fields))
+		case "p_adjusted", "significant_adjusted":
+			if m.Type == types.MAT_SEM {
+				// a member MAT_SEM's twins: one column over the
+				// estimates rows
+				out = append(out, matrixNode(name, semEstimateRows(m), 1, types.MatrixEncodingFull, 0))
+				break
+			}
+			out = append(out, matrixNode(name, p, p, m.Encoding, 0))
+		case "implied_means", "observed_means":
+			out = append(out, matrixNode(name, p, 1, m.Encoding, 0))
+		default:
+			if strings.HasPrefix(name, "implied_means.") || strings.HasPrefix(name, "observed_means.") {
+				// a grouped MAT_SEM level's means
+				out = append(out, matrixNode(name, p, 1, m.Encoding, 0))
+				break
+			} // n and the inference squares: p x p over the output axis
 			out = append(out, matrixNode(name, p, p, m.Encoding, 0))
 		}
 	}

@@ -78,6 +78,9 @@ func (s *Set) Clone() *Set {
 			out.vectors[k] = v
 		}
 	}
+	if len(s.sems) > 0 {
+		out.sems = maps.Clone(s.sems)
+	}
 	// Resolved records and failed fits are read-only too: shared.
 	out.records = s.records
 	if len(s.failed) > 0 {

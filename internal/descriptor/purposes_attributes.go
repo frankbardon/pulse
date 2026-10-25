@@ -41,6 +41,7 @@ var attributePurposes = map[string]descriptor.Purpose{
 	"ATTR_REG_PREDICT":  purposeAttrRegPredict,
 	"ATTR_REG_RESIDUAL": purposeAttrRegResidual,
 	"ATTR_SCALE_SCORE":  purposeAttrScaleScore,
+	"ATTR_SEM_SCORE":    purposeAttrSEMScore,
 	"ATTR_SET_HAS":      purposeAttrSetHas,
 	"ATTR_SET_POPCOUNT": purposeAttrSetPopcount,
 	"ATTR_TSCORE":       purposeAttrTScore,
@@ -592,6 +593,36 @@ var (
 		Level: descriptor.LevelAdvanced,
 		Glossary: []string{
 			"factor", "loading", "correlation", "z-score", "listwise-deletion",
+		},
+	}
+
+	purposeAttrSEMScore = descriptor.Purpose{
+		Plain:   "Adds to every row its score on one hidden quality of a structural equation model you write, estimated from the measures it drives.",
+		KnownAs: []string{"sem factor score", "latent variable score", "lavPredict", "sem score"},
+		Intents: []string{IntentMeasureConstruct, IntentPrepare},
+		Questions: []string{
+			"What is each respondent's perceived-value score under our brand model, to crosstab it by segment?",
+			"Can every row carry its service-quality score, with each survey wave scored by its own wave's fit, to track the shift?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainSurvey:  "Score each respondent on the qualities a confirmed brand model measures, then compare waves or segments on the scores.",
+			descriptor.DomainScience: "Estimate each subject's standing on a latent construct of a fitted measurement model for a later analysis.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "you do not yet know which measures belong to which quality", Use: "ATTR_FACTOR_SCORE"},
+			{When: "you want the model's fit, paths and latent means rather than per-row scores", Use: "MAT_SEM"},
+			{When: "every item counts equally and you want a plain battery average", Use: "ATTR_SCALE_SCORE"},
+		},
+		Assumptions: []string{
+			"The model is MAT_SEM's with the same settings, fitted once over every row that passed the filters (or the subset fit_on selects), never per request group; every filtered row is scored.",
+			"With a group field each row is scored with its own group's fit; a group without fitted rows gets no score, with a warning.",
+			"With a mean structure (or a group) the scores sit on the latent-mean scale, so group averages compare; without one they are centred at the fitted rows.",
+			"A row missing any of the measures is left out of the fit and gets no score (listwise deletion).",
+			"A fit that fails (too few rows, a redundant measure under singular refuse, a model with more parameters than moments) leaves every score empty, with a warning.",
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"factor", "loading", "listwise-deletion",
 		},
 	}
 )

@@ -61,9 +61,10 @@ func VectorBatteries(req *types.Request) int {
 }
 
 // FitKindOf is the kind a fit request binds: a regression fit (exactly
-// one non-null regression, no vector battery), a vector fit (no
-// regression, exactly one vector battery), or "" for a request CheckFits
-// refuses.
+// one non-null regression, no vector battery), a SEM fit (no
+// regression, exactly one battery, a MAT_SEM matrix — IsSEMFitRequest),
+// a vector fit (no regression, exactly one other vector battery), or ""
+// for a request CheckFits refuses.
 func FitKindOf(req *types.Request) types.FitKind {
 	if req == nil {
 		return ""
@@ -72,6 +73,8 @@ func FitKindOf(req *types.Request) types.FitKind {
 	switch {
 	case len(req.Regressions) == 1 && req.Regressions[0] != nil && nV == 0:
 		return types.FitKindRegression
+	case IsSEMFitRequest(req):
+		return types.FitKindSEM
 	case len(req.Regressions) == 0 && nV == 1:
 		return types.FitKindVector
 	}
@@ -94,7 +97,7 @@ func FitKindOf(req *types.Request) types.FitKind {
 //     state (VectorSourceRefusal)              — PULSE_FIT_INVALID vector_source
 //   - an invalid `save` path (CheckSavePath on a regression fit's own
 //     and its regression's, CheckPopulationSavePath on a vector
-//     fit's)                                   — PULSE_MODEL_SAVE_INVALID
+//     fit's, CheckSEMSavePath on a SEM fit's)  — PULSE_MODEL_SAVE_INVALID
 //   - a name an earlier entry already binds    — PULSE_MODEL_NAME_COLLISION
 //
 // A vector battery is a Matrices spec or a VectorFitAttributeTypes
@@ -136,7 +139,11 @@ func CheckFits(fits []types.FitSpec) error {
 				"is grouped; a fit is one ungrouped model (drop groups / crosstab)", nil)
 		}
 		cerr := (*errors.CodedError)(nil)
-		if nV == 1 {
+		if IsSEMFitRequest(f.Request) {
+			if f.Save != "" {
+				cerr = CheckSEMSavePath(f.Save)
+			}
+		} else if nV == 1 {
 			if what, extra := VectorSourceRefusal(f.Request); what != "" {
 				return fitInvalid(i, f.Name, ReasonVectorSource, what, extra)
 			}
@@ -227,4 +234,29 @@ func FitRequest(spec types.FitSpec) *types.Request {
 	r := *spec.Request
 	r.Return = nil
 	return &r
+}
+
+// SEMOrdinalEstimator is a SEM fit request's battery's params.estimator
+// when it is an ordinal one ("dwls" / "wlsmv"), else "" — the static
+// face of an ordinal SEM fit (Signature.Ordinal), whose scores are
+// empirical Bayes modal. Params are read loosely: a malformed params
+// object is the slot resolution's to refuse.
+func SEMOrdinalEstimator(req *types.Request) string {
+	if req == nil || len(req.Matrices) != 1 || req.Matrices[0].Type != types.MAT_SEM {
+		return ""
+	}
+	raw := bytes.TrimSpace(req.Matrices[0].Params)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return ""
+	}
+	var p struct {
+		Estimator *string `json:"estimator"`
+	}
+	if paramread.Probe(raw, &p) != nil || p.Estimator == nil {
+		return ""
+	}
+	if *p.Estimator == "dwls" || *p.Estimator == "wlsmv" {
+		return *p.Estimator
+	}
+	return ""
 }

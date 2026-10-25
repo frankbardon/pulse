@@ -1,6 +1,8 @@
 package regression
 
 import (
+	"encoding/binary"
+	"hash/fnv"
 	"math"
 	"math/rand/v2"
 	"testing"
@@ -236,4 +238,52 @@ func TestRegOLS_Bootstrap_ZeroSeedDeterministic(t *testing.T) {
 	if deriveBootstrapSeed(spec, otherData, spec.Predictors) == base {
 		t.Error("different data derived the same seed")
 	}
+}
+
+// TestRegOLS_Bootstrap_DerivedSeedStream: the shared DeriveSeed hashes
+// exactly REG_RESAMPLE's pre-sharing byte stream — the spec's wire form
+// at rng_seed 0, the record count, then every target and predictor
+// value's bits in record order (a null as one NaN payload) — so moving
+// the derivation out for MAT_SEM moved no REG_RESAMPLE seed.
+func TestRegOLS_Bootstrap_DerivedSeedStream(t *testing.T) {
+	records := makeLinearRecords(t, 20, []float64{1.5, -0.8}, 0.3, 0.4, 11)
+	records[3] = nullField{records[3], "x2"}
+	spec := &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: predictorNames(2),
+		Resample: "bootstrap", BootstrapIters: 200, RNGSeed: 99}
+	h := fnv.New64a()
+	cp := *spec
+	cp.RNGSeed = 0
+	body, err := types.MarshalFinite(&cp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.Write(body)
+	var buf [8]byte
+	word := func(u uint64) { binary.LittleEndian.PutUint64(buf[:], u); h.Write(buf[:]) }
+	word(uint64(len(records)))
+	for _, r := range records {
+		for _, f := range []string{"y", "x1", "x2"} {
+			if v, ok := InputValue(r, f); ok {
+				word(math.Float64bits(v))
+			} else {
+				word(0x7ff8000000000001)
+			}
+		}
+	}
+	if got, want := deriveBootstrapSeed(spec, records, spec.Predictors), int64(h.Sum64()); got != want {
+		t.Fatalf("derived seed %d, the REG_RESAMPLE stream hashes to %d", got, want)
+	}
+}
+
+// nullField is a record whose one field reads null.
+type nullField struct {
+	Record
+	null string
+}
+
+func (r nullField) NumericValue(name string) (float64, bool) {
+	if name == r.null {
+		return 0, false
+	}
+	return r.Record.NumericValue(name)
 }

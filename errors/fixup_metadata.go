@@ -2174,6 +2174,11 @@ var codeMetadata = map[Code]Metadata{
 				Path:   []string{"fits", "*", "request", "groups"},
 				Hint:   "Drop `groups` / `crosstab` from the fit request — a fit is one ungrouped model. Fit one model per subset with a filter in each fit request instead.",
 			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"fits", "*", "request", "matrices", "*", "params", "estimator"},
+				Hint:   "Under `details.reason` `sem_ordinal`, a SEM fit binds a maximum-likelihood MAT_SEM only: drop the ordinal `estimator` (and `ordered`) from the fit request, or run the DWLS / WLSMV fit as a plain `matrices` entry of a slot.",
+			},
 		},
 	},
 	PULSE_MODEL_NAME_COLLISION: {
@@ -2390,7 +2395,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_SAVE_INVALID: {
-		Message: "A `save` path (on a regression or a `fits` entry) cannot name its file, so nothing runs — predict refuses it identically. A save path is relative to the instance filesystem root, names a file ending in `.pulse-model.json` (a regression or regression fit: a model file) or `.pulse-population.json` (a vector fit: a population file) with a name before the suffix, and never climbs above the root with `..`; one request or Compose batch never saves two fits to the same file (reason `duplicate`, the two writers under `sites`). Every path in a batch is judged before any fit or slot runs. The path is under `path`, the rule under `reason` (`path_empty`, `suffix`, `name_missing`, `escapes_root`, `duplicate`), the offending regression's index under `regression`, the fit's under `fit` and a batch slot's under `request`.",
+		Message: "A `save` path (on a regression or a `fits` entry) cannot name its file, so nothing runs — predict refuses it identically. A save path is relative to the instance filesystem root, names a file ending in `.pulse-model.json` (a regression or regression fit: a model file) `.pulse-population.json` (a vector fit: a population file) or `.pulse-sem.json` (a SEM fit: a SEM fit file) with a name before the suffix, and never climbs above the root with `..`; one request or Compose batch never saves two fits to the same file (reason `duplicate`, the two writers under `sites`). Every path in a batch is judged before any fit or slot runs. The path is under `path`, the rule under `reason` (`path_empty`, `suffix`, `name_missing`, `escapes_root`, `duplicate`), the offending regression's index under `regression`, the fit's under `fit` and a batch slot's under `request`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2400,7 +2405,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"fits", "*", "save"},
-				Hint:   "Give the fit's `save` a path under the data root: `.pulse-model.json` for a regression fit, `.pulse-population.json` for a vector fit (e.g. `pops/brand.pulse-population.json`).",
+				Hint:   "Give the fit's `save` a path under the data root: `.pulse-model.json` for a regression fit, `.pulse-population.json` for a vector fit (e.g. `pops/brand.pulse-population.json`), `.pulse-sem.json` for a SEM fit.",
 			},
 			{
 				Action: FixupReplaceField,
@@ -2430,7 +2435,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_FILE_INVALID: {
-		Message: "A model or population file cannot be parsed: it is not JSON (reason `json`), has no `model_format_version` / `population_format_version` (`version_missing`), or its document has an unknown key, a mistyped value or a structural fault — a predictor without a coefficient; a population whose labels, means or co-moment do not match in shape, whose co-moment is not symmetric, or whose counts or weight sums are impossible (`schema`). The file is under `path`; a `models` entry loading it adds its index under `model`, a `populations` entry under `population`, and either its name under `name`; a registered population (Options.Extensions.Populations or the populations directory, refused at pulse.New) carries its registered name under `registered`.",
+		Message: "A model, population or SEM fit file cannot be parsed: it is not JSON (reason `json`), has no `model_format_version` / `population_format_version` / `sem_format_version` (`version_missing`), or its document has an unknown key, a mistyped value or a structural fault — a predictor without a coefficient; a population whose labels, means or co-moment do not match in shape, whose co-moment is not symmetric, or whose counts or weight sums are impossible; a SEM fit whose matrices do not match its observed and inner variables or whose model does not re-specify them (`schema`). The file is under `path`; a `models` entry loading it adds its index under `model`, a `populations` entry under `population`, and either its name under `name`; a registered population (Options.Extensions.Populations or the populations directory, refused at pulse.New) carries its registered name under `registered`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -2457,12 +2462,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_REF_INVALID: {
-		Message: "A `models` or `populations` entry cannot name its file, so nothing runs — predict refuses it identically. An entry needs a `name` (the name its references use) and a `path` under the instance filesystem root ending in `.pulse-model.json` (a `models` entry) or `.pulse-population.json` (a `populations` entry), with a file name before the suffix and no `..` above the root. The entry's index is under `model` or `population`, the rule under `reason` (`name_empty`, `path_empty`, `suffix`, `name_missing`, `escapes_root`). A blank Options.Extensions.Populations key is refused at pulse.New the same way (reason `name_empty`, under `registered`).",
+		Message: "A `models` or `populations` entry cannot name its file, so nothing runs — predict refuses it identically. An entry needs a `name` (the name its references use) and a `path` under the instance filesystem root ending in `.pulse-model.json` or `.pulse-sem.json` (a `models` entry: the suffix picks a model file or a SEM fit file) or `.pulse-population.json` (a `populations` entry), with a file name before the suffix and no `..` above the root. The entry's index is under `model` or `population`, the rule under `reason` (`name_empty`, `path_empty`, `suffix`, `name_missing`, `escapes_root`). A blank Options.Extensions.Populations key is refused at pulse.New the same way (reason `name_empty`, under `registered`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"models", "*", "path"},
-				Hint:   "Point `path` at the file a `save` wrote, e.g. `models/mmm.pulse-model.json`.",
+				Hint:   "Point `path` at the file a `save` wrote, e.g. `models/mmm.pulse-model.json` or a SEM fit's `fits/brand.pulse-sem.json`.",
 			},
 			{
 				Action: FixupReplaceField,
@@ -4818,8 +4823,13 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MATRIX_NOT_CONVERGED: {
-		Message: "An iterative matrix routine stopped at its documented iteration cap before meeting its convergence tolerance, so the figures it returned are its last iterate, not an optimum. Raised as a per-matrix warning by the one-factor minres fit behind reliability ω, by the nearest-correlation repair (`params.repair` = `nearest`, beside its PULSE_MATRIX_NOT_PSD warning; the repaired matrix is still positive definite but may not be the nearest), by a factor analysis's extraction (`solver` `fa_minres` / `fa_pa` / `fa_ml`; principal axis stops after psych's 50 iterations) and by a loading rotation (`varimax` / `gpa_oblimin`); a fitted factor or component score attribute raises it fit-scoped (`details.scope` `fit`) and still scores every row from the last iterate. A k-means grouper raises it as a response warning (`solver` `kmeans_lloyd`, `group` naming its key column in place of `matrix`) when its best start reaches `params.max_iter`; its clusters are the last iterate — raise `max_iter`. Details carry `matrix`, `solver`, `iterations`, `max_iterations` and `tolerance`. The cap and tolerance are fixed constants, not request knobs.",
+		Message: "An iterative matrix routine stopped at its documented iteration cap before meeting its convergence tolerance, so the figures it returned are its last iterate, not an optimum. Raised as a per-matrix warning by the one-factor minres fit behind reliability ω, by the nearest-correlation repair (`params.repair` = `nearest`, beside its PULSE_MATRIX_NOT_PSD warning; the repaired matrix is still positive definite but may not be the nearest), by a factor analysis's extraction (`solver` `fa_minres` / `fa_pa` / `fa_ml`; principal axis stops after psych's 50 iterations) and by a loading rotation (`varimax` / `gpa_oblimin`); a fitted factor or component score attribute raises it fit-scoped (`details.scope` `fit`) and still scores every row from the last iterate. A k-means grouper raises it as a response warning (`solver` `kmeans_lloyd`, `group` naming its key column in place of `matrix`) when its best start reaches `params.max_iter`; its clusters are the last iterate — raise `max_iter`. Details carry `matrix`, `solver`, `iterations`, `max_iterations` and `tolerance`. The cap and tolerance are fixed constants, not request knobs. A structural-equation bootstrap (`params.resample`) whose replicates refit fewer than 10 times FAILS its slot alone with this code (`details.reason` `bootstrap_too_few`, with `bootstrap_requested`, `bootstrap_attempted`, `bootstrap_succeeded` and `minimum`).",
 		Fixups: []Fixup{
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"matrices", "*", "params", "resample"},
+				Hint:   "Under `details.reason` `bootstrap_too_few`, the model rarely refits on resampled rows: drop `resample` for the analytic standard errors, or simplify the model (fewer free parameters) and rerun.",
+			},
 			{
 				Action: FixupRemoveParam,
 				Path:   []string{"vectors", "*", "fields"},
@@ -4879,6 +4889,31 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"matrices", "*", "params", "singular"},
 				Hint:   "Set params.singular to \"refuse\" to get PULSE_MATRIX_SINGULAR instead of a fit to an adjusted matrix.",
+			},
+		},
+	},
+	PULSE_MATRIX_DEFINED_NONFINITE: {
+		Message: "A structural equation model's defined parameter (a `name := expr` line of params.model) is not finite at the fitted estimate — a division by zero, or the log or square root of a value outside its domain — so its estimate-table row has every figure null (estimate, std_estimate, std_err, z_value, p_value, ci_lower, ci_upper), as does every := line reading it; the fit and every other row stand. Details carry `matrix` and `defined` (the names, in model order).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"matrices", "*", "params", "model"},
+				Hint:   "Rewrite the := expression so it is defined at the estimate: divide by a parameter that is not zero, and take log / sqrt of a positive quantity (abs() or a square first).",
+			},
+		},
+	},
+	PULSE_MATRIX_TOO_MANY_CATEGORIES: {
+		Message: "A structural equation model fitted by an ordinal estimator (params.estimator \"dwls\" or \"wlsmv\") declares a member ordered whose rows hold more than 32 distinct values — one threshold per category boundary, and an asymptotic covariance growing with them — so the member is a continuous measure, not a rating scale, and the slot fails alone. Details carry `matrix`, `variable`, `categories` (its distinct values) and `limit` (32).",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"matrices", "*", "params", "ordered"},
+				Hint:   "Drop the member from params.ordered so it enters as a numeric variable (polyserial / Pearson correlations), or recode it into at most 32 ordered categories before the fit.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"matrices", "*", "params", "estimator"},
+				Hint:   "Fit every member as continuous with the default \"ml\" estimator (drop estimator and ordered).",
 			},
 		},
 	},
@@ -4950,6 +4985,15 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRequiresReschema,
 				Hint:   "When the slot's data cannot carry the fit or test (too few rows, a constant column, perfectly separated or collinear predictors), filter or reshape the input before rerunning the slot.",
+			},
+		},
+	},
+	PULSE_SEM_SCORE_LEVEL_UNSEEN: {
+		Message: "Warning-class — an ATTR_SEM_SCORE slot with params.group scored rows whose group level holds no fit rows (params.fit_on left them out, or no filtered row of that level reached the fit), so the joint multi-group fit has no parameters to score them with: their scores are null, counted in details.rows per level (details.levels), and every other row is scored with its own group's parameters. details.fit_levels lists the levels the fit holds. On an ordinal fit (estimator dwls / wlsmv) the same warning, details.reason category_unseen, counts the rows holding an ordered member value that is none of the fit's categories (details.variables, rows per variable, categories the fit's values): those rows have no category probability and score null.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Widen params.fit_on (or the request filters) so every level — and, on an ordinal fit, every category — you need scored reaches the fit, or filter the unseen rows out of the request when they should not be scored.",
 			},
 		},
 	},

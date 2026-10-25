@@ -2,6 +2,7 @@ package processing
 
 import (
 	"cmp"
+	"context"
 	"math"
 	"slices"
 	"strconv"
@@ -84,6 +85,25 @@ type matrixSlot struct {
 	// capture receives the slot's closed listwise state when it is a
 	// Compose vector fit request's battery (nil otherwise).
 	capture *model.VectorCapture
+	// semGroups is a grouped MAT_SEM slot's per-level state
+	// (params.group; matrix_sem_group.go); nil otherwise. Its base
+	// state (state) then folds every grouped row once.
+	semGroups *semGroupState
+	// ctx is the run's context on the buffered path (bindMatrixContext;
+	// nil elsewhere): a finalizer that loops — MAT_SEM's bootstrap —
+	// reads it between iterations.
+	ctx context.Context
+	// semSeedSpec is a bootstrapped MAT_SEM slot's wire form for the
+	// rng_seed 0 derivation (semSeedSpec); nil on every other slot.
+	semSeedSpec []byte
+}
+
+// bindMatrixContext hands ctx to every slot (the buffered path's
+// finalizers read it).
+func bindMatrixContext(slots []*matrixSlot, ctx context.Context) {
+	for _, s := range slots {
+		s.ctx = ctx
+	}
 }
 
 var _ BlockMerger = (*matrixSlot)(nil)
@@ -136,6 +156,12 @@ type matrixPlanSet struct {
 	// vector fit (bindMatrixFit) and a Compose vector fit request's set
 	// carries the capture. Nil binds nothing.
 	models *model.Set
+	// ctx is the buffered run's context, handed to every slot fresh()
+	// mints (nil: none).
+	ctx context.Context
+	// semSeeds are the bootstrapped MAT_SEM plans' seed wire forms
+	// (semSeedSpec), index-aligned with plans; nil entries elsewhere.
+	semSeeds [][]byte
 }
 
 // resolveMatrixPlans resolves req.Matrices against schema (nil when
@@ -171,6 +197,9 @@ func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *Exten
 			return ok
 		},
 		Extension: exts.matrixExtension,
+		// A MAT_SEM params surface the instance hides resolves as never
+		// existing (predict reads the same instance: resolveMatricesFor).
+		Hidden: exts.isHidden,
 	})
 	if verr != nil {
 		return nil, verr
@@ -178,6 +207,12 @@ func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *Exten
 	set := &matrixPlanSet{plans: plans, weights: make([]*types.WeightSpec, len(plans)), compute: compute, schema: schema, exts: exts}
 	for i := range plans {
 		set.weights[i] = req.Matrices[i].Weight.Spec()
+		if plans[i].Type == types.MAT_SEM && plans[i].SEM.Bootstrap() {
+			if set.semSeeds == nil {
+				set.semSeeds = make([][]byte, len(plans))
+			}
+			set.semSeeds[i] = semSeedSpec(req.Matrices[i])
+		}
 	}
 	if err := set.buildMatrixOps(req); err != nil {
 		return nil, err
@@ -212,6 +247,10 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 			slots[i].extOp, slots[i].extComponents = s.extOps[i], s.extComponents[i]
 		}
 		slots[i].capture = s.models.Capture()
+		slots[i].ctx = s.ctx
+		if s.semSeeds != nil {
+			slots[i].semSeedSpec = s.semSeeds[i]
+		}
 		if plan.Fit != "" {
 			if err := slots[i].bindMatrixFit(s.models); err != nil {
 				return nil, err
@@ -224,6 +263,10 @@ func (s *matrixPlanSet) fresh() ([]*matrixSlot, error) {
 			if slots[i].dist, err = newDistanceState(plan, s.weights[i], s.schema, s.exts); err != nil {
 				return nil, err
 			}
+		case plan.Type == types.MAT_SEM && plan.SEM.Grouped():
+			// A bootstrapped grouped fit (buffered) keeps each level's
+			// rows beside its co-moments, for the within-group draws.
+			slots[i].semGroups = newSEMGroupState(plan, s.schema)
 		case !plan.Streamable:
 			slots[i].rows = newMatrixRows(len(cols), plan.Pairwise)
 		}
@@ -247,6 +290,9 @@ func (m *matrixSlot) UpdateRow(r *Record, _ string) error {
 	}
 	if m.dist != nil {
 		return m.dist.update(m, r)
+	}
+	if m.semGroups != nil {
+		return m.semGroups.update(m, r)
 	}
 	w, err := m.readRow(r)
 	if err != nil {
@@ -469,7 +515,8 @@ func basisWeightSpec(b weighting.Basis) *types.WeightSpec {
 // offerCapture hands a Compose vector fit request's battery state (cm,
 // listwise) to the fit pre-pass, under the slot's fit labels.
 func (m *matrixSlot) offerCapture(cm *linalg.CoMoment) error {
-	if m.capture == nil {
+	if m.capture == nil || m.plan.Type == types.MAT_SEM {
+		// A MAT_SEM battery binds a SEM fit (its finalizer offers it).
 		return nil
 	}
 	vf, err := newFittedState(cm, weighting.BasisOf(m.weight)).vectorFit("", m.plan.FitLabels(), m.cols)

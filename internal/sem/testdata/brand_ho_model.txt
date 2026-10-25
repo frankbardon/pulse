@@ -1,0 +1,7 @@
+# Brand survey with a second-order factor: the three first-order
+# factors load on one brand factor (no direct indicators), so its
+# scores read the ratings through the first-order loadings.
+quality =~ q1 + q2 + q3
+value =~ v1 + v2 + v3
+service =~ s1 + s2 + s3
+brand =~ quality + value + service

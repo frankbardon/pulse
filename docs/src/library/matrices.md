@@ -510,7 +510,275 @@ refuses every rank-deficient covariance that way. A solver stop short
 of success keeps the last iterate with `PULSE_MATRIX_NOT_CONVERGED`; a
 model with more parameters than moments is fitted with
 `PULSE_MATRIX_NOT_IDENTIFIED`. Streamable and mergeable: the fit reads
-only the merged covariance and N.
+only the merged covariance and N (and the merged means under a mean
+structure).
+
+**A mean structure switches to lavaan.** `params.meanstructure: true`,
+or any `~ 1` line in the model, models the means too, as lavaan's
+`meanstructure = TRUE`: every observed intercept free (a pure
+predictor's mean fixed to its sample mean, lavaan's `fixed.x`), every
+latent mean fixed to 0 unless `f ~ 1` frees it; `x ~ 0*1` fixes an
+intercept and `x ~ a*1` labels it (identify a free latent mean by fixing
+its marker's intercept: `f ~ 1` with `x1 ~ 0*1`). The fit then follows
+lavaan's conventions, not semopy's: Fisher scoring to the optimum,
+unbounded variances, lavaan's χ², degrees of freedom (the means
+counted), CFI / TLI / NFI / RMSEA, `gfi` / `agfi` as lavaan's
+`gfi_lisrel` / `agfi_lisrel`, `loglik` the log-likelihood and `aic` /
+`bic` from it — the same covariance model can report a different `chi2`
+on the two paths, so compare fits on one convention. The estimates gain
+`"x ~1"` rows and 95% Wald `ci_lower` / `ci_upper` columns, and
+`auxiliary.implied_means` / `observed_means` (one `mean` column per
+member) are emitted. Parity: lavaan 0.7.3's ML fit within 1e-4 on
+estimates and SEs, 1e-3 on fit indices.
+
+**Multi-group fits.** `params.group` names a categorical, `packed_bool`
+or `u4` / `u8` field whose levels are the groups of ONE joint fit —
+lavaan's `group =`, configural: every parameter free per group, except
+that a labelled parameter (`a*x`) is one value in every group, as lavaan
+reads a label. A group fit always models the means and follows lavaan's
+conventions. The levels are the field's values that hold rows after the
+filters, in dictionary order (else ascending); a row whose group is null
+is dropped (listwise). Each group's mean and covariance merge on their
+own, so the fit stays streamable and mergeable, and a frequency weight
+applies within each group (n_g = Σw).
+
+```json
+{"type": "MAT_SEM", "name": "waves", "vector": "battery",
+ "params": {"model": "service =~ q1 + q2 + q3\nvalue =~ q4 + q5 + q6",
+            "group": "wave", "group_reference": "2"}}
+```
+
+The estimate rows are keyed `"[level] lval op rval"` in level order,
+with `vectors.group` (each row's level) and `vectors.label` (its model
+label, empty when unlabelled) beside `parameter` / `free`. `primary` is
+the `group_reference` level's implied covariance (default the first
+level); per level the auxiliaries are `implied_covariance.<level>`,
+`residual_covariance.<level>`, `implied_means.<level>` and
+`observed_means.<level>`. The scalars are joint — `chi2` sums the
+groups' n_g·F_g, `dof` and the baseline sum over the groups, `rmsea`
+carries lavaan's multiple-group factor √G — plus `chi2_group_<level>` and
+`n_group_<level>`. A request that also sets `groups`, another field
+type, a one-entry dictionary, or a group field that is a member is
+refused (`SERVICE_VALIDATION`); fewer than two levels with rows, a level
+with no more rows than observed variables, or a `group_reference` level
+without rows fails the slot alone with `PULSE_MATRIX_INSUFFICIENT_N`.
+Parity: lavaan 0.7.3's `group = "wave"` fit within the same tolerances.
+
+`Pulse.Predict` names the levels it can see on the matrix entry:
+`group_levels` (a categorical's dictionary entries, `packed_bool`'s `"0"`
+/ `"1"`) with `group_levels_basis` `dictionary` / `boolean`. The list is
+an upper bound — a level without rows after the filters is no group —
+and the per-level auxiliaries are sized over it. On a `u4` / `u8` field
+the levels are the data's: `group_levels_basis` is `unknown`, and the
+`matrices` entry of `sizes` is left out. `estimated_bytes`
+counts one co-moment state per level beside the base state (the
+integer type's value range when the levels are unknown). The manifest
+declares the per-level keys as patterns, `implied_means.<level>` or
+`chi2_group_<level>`: `<level>` stands for a level's label.
+
+A feature profile can hide the two surfaces: `capability:sem_meanstructure`
+(`meanstructure` and `~ 1` lines) and `capability:sem_groups` (`group`,
+`group_reference`, `group_equal`, `group_partial` and `c(...)`
+modifiers; it needs `capability:sem_meanstructure`). Hidden, their keys
+are unknown params keys (`PULSE_REQUEST_UNKNOWN_FIELD`), the model
+syntax they own is `bad_params`, and the manifest lists neither their
+params nor their output keys.
+
+**Invariance.** `params.group_equal` holds lavaan `group.equal` classes
+equal across the groups — `loadings`, `intercepts`, `means`, `residuals`,
+`residual.covariances`, `lv.variances`, `lv.covariances`, `regressions`
+— and `params.group_partial` frees single rows from them, spelled as
+lavaan labels them (`v2~1`, `service=~s2`, `q1~~v1`). Identification
+follows lavaan: a marker loading stays fixed at 1 in every group, and
+equal intercepts (without `means`) free the latent means outside the
+`group_reference` level, whose means stay 0 — so the scalar fit's
+non-reference latent means are each factor's shift in marker units. A
+labelled row keeps its label's equality instead of its class's. In the
+model, lavaan's per-group modifiers `c(a1, a2)*x` and `c(0.5, NA)*x` set
+a label or a value per level, in level order (a categorical or
+`packed_bool` group field; one entry per level), and `NA*x` frees a
+parameter. An unknown `group_equal` value, `thresholds` under the ML
+estimator (it needs an ordinal one: `estimator: "wlsmv"` with
+`ordered`, the `sem-ordinal` skill), a `group_partial` row the model
+lacks, or a modifier whose length is not the level count is refused
+(`SERVICE_VALIDATION` `bad_params`, predict alike).
+
+The invariance ladder is one slot per step, or a compose sweep over
+`group_equal` — which also reads one comma-separated string, so a sweep
+axis (a scalar) can carry it:
+
+```json
+{"sweep": {"mode": "zip", "label": "{{step}}",
+  "axes": [{"name": "step", "values": ["configural", "metric", "scalar"]},
+           {"name": "eq", "values": ["", "loadings", "loadings,intercepts"]}],
+  "request": {"cohort": {"filename": "brand_survey.pulse"},
+    "matrices": [{"type": "MAT_SEM", "name": "waves", "vector": "brand",
+      "params": {"model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3",
+                 "group": "wave", "group_equal": "{{eq}}"}}]}}}
+```
+
+Compare `chi2`, `dof`, `cfi` and `rmsea` step to step; Pulse computes no
+χ² difference test. Parity: lavaan 0.7.3's `group.equal` /
+`group.partial` fits within the same tolerances.
+
+Runnable: `internal/examples/matrices/16_sem_multigroup.json` (mean
+structure, configural, scalar and partial slots across
+`brand_survey.pulse`'s two waves) and
+`internal/examples/compose/09_sem_invariance_sweep.json` (the ladder as
+one sweep). The fixture plants a wave-2 shift in the value and service
+means, which the scalar step recovers.
+
+**Defined parameters.** A model line `name := expr` is lavaan's
+defined parameter: a function of labelled parameters — an indirect
+effect `ind := a*b`, a total, a ratio, or a driver's contribution to a
+change between groups (`dv := bv*(mv2 - mv1)`, a path times a latent
+mean change). The expression takes labels (every level's label of a
+per-group `c(a1, a2)*x`), numeric constants, `+ - * / ^` with R's
+precedence, parentheses, `sqrt` / `exp` / `log` / `abs` and the names
+of earlier `:=` lines. An unknown label, a forward or self reference, a
+repeated name or bad syntax is `SERVICE_VALIDATION` `defined_invalid`
+(`details.problem`); lavaan's `==` / `<` / `>` lines are
+`constraint_unsupported`. A `:=` line switches a covariance-only model
+to lavaan's conventions. Each definition is a row `"name := expr"` after
+the parameter table (under `group`, after every level, with
+`vectors.group` `null` and `vectors.label` the name): the estimate, a
+delta-method `std_err` √(gᵀVg) from the expression's exact gradient,
+`z_value`, the normal `p_value`, the Wald `ci_lower` / `ci_upper` and
+`std_estimate` over the standardized solution. A value that is not
+finite at the estimate nulls the row and its dependents with
+`PULSE_MATRIX_DEFINED_NONFINITE`. `abs()` is differentiated by its sign
+(exact); lavaan's complex-step jacobian reads that slope as 0, so an
+`abs()` row matches lavaan's estimate but not its SE. A contribution is
+distinguishable from zero when its p is below alpha and its interval
+excludes 0. The rows join a correction only through the spec's OWN
+`multiplicity` block, whose family is every estimates row with a p (the
+free parameters and the `:=` rows): `auxiliary.p_adjusted` /
+`significant_adjusted` beside the raw `p_value`, which never moves.
+Parity: lavaan 0.7.3 within 1e-4 on estimates, SEs and intervals.
+
+**Interval level.** `params.ci_level` (default 0.95, strictly between 0
+and 1) is lavaan's `level`: it sets the Wald `ci_lower` / `ci_upper` of
+every lavaan-convention fit, and the percentile interval of a bootstrap.
+A semopy-convention fit reports no interval, so `ci_level` there is
+`bad_params`.
+
+**Bootstrap.** `params.resample: "bootstrap"` is lavaan's
+`se = "bootstrap"`: `bootstrap_iters` replicates (default 1000), each
+drawing the listwise rows with replacement — within each level under
+`group`, so every replicate keeps each group's n — and refitting the
+model. Over the replicates that refit, every free and `:=` row's
+`std_err` is the replicates' standard deviation, `z_value` = estimate /
+`std_err`, `p_value` its normal p (normal theory over the bootstrap SE,
+as lavaan reports it) and `ci_lower` / `ci_upper` the percentile
+interval at `ci_level`; the estimates and fit statistics stay the full
+data's. `scalars.bootstrap_requested` / `bootstrap_succeeded` echo the
+replicates; fewer than 10 successes fail the slot alone
+(`PULSE_MATRIX_NOT_CONVERGED`, `reason: bootstrap_too_few`). The same
+rows and `rng_seed` give the same bits at any worker or shard count;
+without `rng_seed` (or at 0) the seed is derived from the request and
+the slot's rows, as a regression's `resample` derives it. The slot
+buffers its rows (predict reports the buffered path), any weight is
+`PULSE_WEIGHT_UNSUPPORTED`, `params.fit` cannot bind it, and
+`bootstrap_iters` has no instance limit (`Options.Limits.RequestTimeout`
+stops a long run between replicates).
+
+Runnable: `internal/examples/matrices/17_sem_contribution.json` — each
+driver's contribution to the change in `recommend` between the two
+waves of `brand_survey.pulse`, with delta-method and bootstrap
+intervals.
+
+**Latent scores.** `ATTR_SEM_SCORE` turns a fitted model into a field:
+each row's score on one latent (`params.latent`, a higher-order latent
+included), lavaan's `lavPredict` — `method: "regression"` (default, the
+conditional mean of the latent given the row) or `"bartlett"` (the
+unbiased GLS weights). With a mean structure or `group` the scores sit
+on the latent-mean scale (the reference level at 0) and each row is
+scored with its own group's parameters; otherwise they are centered at
+the fit rows. A null member or group scores null; a level with no fit
+rows scores null with `PULSE_SEM_SCORE_LEVEL_UNSEEN`. The fit is one of
+three:
+
+- **inline** — the attribute takes `MAT_SEM`'s fit knobs and fits once,
+  cohort-wide, over the rows its `fit_on` filterers admit (default every
+  filtered row), exactly `MAT_SEM`'s fit over those rows; two-pass, so a
+  grouped request buffers;
+- **bound** — `params.fit` names a Compose `fits` entry holding one
+  `MAT_SEM` (a SEM fit, `fits.<name>` = `{"sem": {...}}`); the slot fits
+  nothing, is row-local (it streams, fuses and merges) and scores bit-equal
+  to the inline fit;
+- **loaded** — a fit entry's `save: "fits/brand.pulse-sem.json"` writes
+  the fit at full precision; a later request's
+  `models: [{"name": "brand", "path": "fits/brand.pulse-sem.json"}]`
+  loads it (the suffix picks the kind) and `params.fit: "brand"` scores
+  from it bit-equal to the in-compose fit.
+
+```json
+{"type": "ATTR_SEM_SCORE", "label": "service_score", "vector": "brand",
+ "params": {"fit": "brand", "latent": "service"}}
+```
+
+A score is an ordinary `f64` column: average it by wave, or use it as a
+regression predictor. A failed fit nulls every score with a warning
+(`PULSE_FIT_UNAVAILABLE` for a compose fit, the `PULSE_MATRIX_*` code
+inline); a frequency weight weights the fit only. Parity: lavaan 0.7.3
+`lavPredict` within 1e-4.
+
+Runnable: `internal/examples/attributes/25_sem_score.json` (inline,
+scores averaged by wave) and
+`internal/examples/compose/10_sem_fit_scores.json` (one compose fit,
+scores averaged by wave and regressed on by `recommend`).
+
+**Ordinal items (DWLS / WLSMV).** `params.estimator: "wlsmv"` (or
+`"dwls"`) with `params.ordered` naming the ordered members fits the model
+as lavaan does with `ordered = ...`: each ordered member is a cut-up
+latent normal response. Stage one estimates each ordered member's
+thresholds and every pair's polychoric (ordered × ordered), polyserial
+(ordered × continuous) or Pearson correlation; stage two fits the model
+to those statistics, weighted by the inverse diagonal of their
+asymptotic covariance (Gamma, from per-row scores), in lavaan's delta
+parameterization with its robust (sandwich) standard errors. The
+estimates gain one `x | tk` row per threshold; an ordered member's
+intercept is fixed at 0 and its residual variance is the remainder of 1.
+`chi2` / `dof` are the unscaled test with a null `chi2_p_value`, and
+`loglik` / `aic` / `bic` are null (there is no likelihood). `wlsmv` adds
+the scaled-shifted test — `chi2_scaled`, `chi2_scaled_p_value`,
+`scaling_factor`, `shift_parameter`, `chi2_baseline_scaled` — and
+`cfi_scaled`, `tli_scaled`, `rmsea_scaled`; judge fit by those. With
+`params.group` each level gets its own thresholds and Gamma, and
+`group_equal: "thresholds"` holds the thresholds equal (add `loadings`
+and `intercepts` to free the latent means); `resample: "bootstrap"`
+refits every replicate's two-step statistics; `:=` rows use the robust
+covariance. Gamma needs every row, so the request runs buffered (predict
+reports it). `ATTR_SEM_SCORE` scores an ordinal fit by lavaan's empirical
+Bayes modal (EBM) scores — each row's posterior mode; `method:
+"bartlett"` is refused there, and a rating value the fit never saw scores
+null with `PULSE_SEM_SCORE_LEVEL_UNSEEN` (reason `category_unseen`).
+Refused: `ordered` under `ml`, an ordinal estimator without `ordered`,
+`parameterization: "theta"` (delta only), `solver: "slsqp"` and
+`meanstructure: false` beside an ordinal estimator, a probability
+weight, and more than 32 categories in one ordered member
+(`PULSE_MATRIX_TOO_MANY_CATEGORIES`). Parity: lavaan 0.7.3 `estimator =
+"WLSMV"` within 1e-4 (estimates, SEs, fit measures); the bootstrap oracle
+is lavaan's DWLS bootstrap, since lavaan refuses `se = "bootstrap"` under
+WLSMV and the two share their estimates.
+
+**ML or WLSMV?** Prefer `wlsmv` for items with five or fewer categories,
+binary items, or answers piled at one end: ML reads them as continuous
+and normal, which biases loadings down and inflates the chi-square. With
+seven or more roughly symmetric categories ML is usually close; prefer
+it then, and whenever you need a log-likelihood (`aic` / `bic` to compare
+non-nested models), a streamed or merged fit, or Bartlett scores.
+`wlsmv` needs more rows — polychorics from sparse tables are unstable
+below a few hundred rows, so merge rare categories first. Unsure, fit
+both in two slots and compare the `std_estimate` loadings. Prefer `wlsmv`
+to `dwls`: the same estimates and SEs plus the corrected test. The
+`sem-ordinal` skill carries the same advice.
+
+Runnable: `internal/examples/matrices/18_sem_ordinal.json` (ML beside
+WLSMV on the brand ratings, then the two-wave ordinal fit whose latent
+means recover the planted shift) and
+`internal/examples/attributes/26_sem_ordinal_score.json` (EBM scores of
+that fit averaged by wave).
 
 ## Groups, cost and refusals
 

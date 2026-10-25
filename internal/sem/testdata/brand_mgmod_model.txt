@@ -1,0 +1,10 @@
+# Brand survey with lavaan per-group modifiers (two groups, level
+# order): a label pair holding one loading equal across groups, a
+# labelled marker (fixed to 1, as lavaan's first indicator), a loading
+# fixed in the first group and free (NA) in the second, a regression
+# labelled apart per group, and a residual covariance.
+quality =~ q1 + q2 + q3
+value =~ v1 + c(lv2, lv2)*v2 + v3
+service =~ m*s1 + s2 + c(0.8, NA)*s3
+recommend ~ c(b1, b2)*quality + value + service
+q2 ~~ v2
