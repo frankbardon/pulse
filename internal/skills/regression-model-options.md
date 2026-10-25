@@ -22,7 +22,7 @@ Reach for these when a plain fit shrinks or signs the wrong things. Model choice
 
 ## `unpenalized` (ridge subset)
 
-Skips the listed predictors on the ridge diagonal (glmnet `penalty.factor` 0). Each name must be a listed predictor, once. `l1` / `elasticnet`, no `penalty`, a GLM, a Bayesian fit or a registered model refuse it `PROCESSING_CONFIG` (predict too).
+Skips the listed predictors on the ridge diagonal. Each name must be a listed predictor, once. `l1` / `elasticnet`, no `penalty`, a GLM, a Bayesian fit or a registered model refuse it `PROCESSING_CONFIG` (predict too).
 
 ## `bounds.nonnegative` (NNLS)
 
@@ -41,6 +41,7 @@ Constrains the listed slopes ≥ 0 (Lawson–Hanson; intercept and other slopes 
 
 A regression may name a same-request window label. Adstock each channel (a window, `partition_by` market, `order_by` week), saturate with `hill(x, half, shape)` in a post-window attribute, then fit OLS with `bounds.nonnegative` on the saturated channels and a `holdout` on the last weeks — one request, no materialize.<!-- feature: capability:compose_sweep, capability:regression_holdout --> Sweep the decay with a `$var` and `rank` on `regressions.<name>.holdout.rmse` (`compose-sweeps`).<!-- /feature -->
 
+- Joint fit (pack `contrib/mmmpulse`): a registered `REG_MMM_HILL` fits each channel's β and Hill `k`, `s` together (`k:<ch>`, `s:<ch>`), no `hill()` attribute.<!-- feature: capability:compose_sweep_sampling --> Call 1: `lhs` decay sweep ranked on holdout RMSE (`compose-sweep-sampling`).<!-- /feature --><!-- feature: capability:compose_optimize --> Call 2: the winner's decays, `fits` + `optimize` (`compose-optimize`).<!-- /feature -->
 - Windows-over-records shape only (no `groups` / `aggregations` / `crosstab`): a grouped shape is `PULSE_REGRESSION_WINDOW_UNAVAILABLE` (`reason: grouped_shape`); a slot `weight` naming a window label is `SERVICE_VALIDATION`. A bootstrap does not re-run windows per replicate.
 - A lag's first rows are `null`: guard a formula with `lag ?? 0` or `x == nil ? nil : …`, else `PROCESSING_RUNTIME`. Null / NaN / ±Inf rows drop listwise.
 
@@ -56,18 +57,17 @@ A regression may name a same-request window label. Adstock each channel (a windo
 
 ## A registered regression
 
-An embedder may register `REG_<NS>_<NAME>`. The manifest lists it under `extensions.regressions` (`params`, `output_schema`, `streamable`); use it like a built-in: `{"type": "REG_ACME_X", "target": .., "predictors": [..], "params": {..}}`.
+An embedder may register `REG_<NS>_<NAME>`. The manifest lists it under `extensions.regressions`; use it like a built-in: `{"type": "REG_ACME_X", "target": .., "predictors": [..], "params": {..}}`.
 
 - `params`: only the declared keys (`PULSE_REQUEST_UNKNOWN_FIELD` otherwise); a wrong JSON type or a missing required one is `PULSE_REQUEST_PARAM_INVALID` (`details.path`, `reason`). A built-in `REG_*` takes no `params`.
-- `outputs`: the model's own figures beside `coefficients` (a Hill `k`, a convergence flag), keyed by the manifest's `output_schema`, kept under every `return` preset and `--no-components`. Read them at `regressions[i].outputs.<key>`; a sweep can `rank` on one.
-- A shared slot the model did not declare (`penalty`, `selection`, `vcov`, `covariance`, `save`, `family`, `prior`, ..) is `PROCESSING_CONFIG` `{regression, slot}` — never silently ignored. Predict refuses exactly as a run does.
+- `outputs`: the model's own figures beside `coefficients`, keyed by the manifest's `output_schema`. Read them at `regressions[i].outputs.<key>`; a sweep can `rank` on one.
+- A shared slot the model did not declare (`penalty`, `selection`, `vcov`, `covariance`, `save`, `family`, `prior`, ..) is `PROCESSING_CONFIG` `{regression, slot}` — never silently ignored.
 - `resample` and `conf_level` always work: intervals are estimate ∓ q·SE (t on the model's `df`, else normal; normal on the replicate SE under `resample`), `null` where the SE is. `selection` needs the model to declare it.
-- `coef("<fit>", "<name>"[, stat])` reads any coefficient the fit reports, the model's own names included, with `lower` / `upper` at `conf_level` and `se`. An unknown name is `PULSE_MODEL_TERM_UNKNOWN`: on a loaded model at predict and run, on a `fits` entry at run only (predict cannot know the names yet). `outputs` are not coefficients — read them at `regressions[i].outputs`.
+- `coef("<fit>", "<name>"[, stat])` reads any coefficient the fit reports, the model's own names included, with `lower` / `upper` at `conf_level` and `se`. An unknown name is `PULSE_MODEL_TERM_UNKNOWN`: on a loaded model at predict and run, on a `fits` entry at run only (predict cannot know the names yet).
 - p-values only where the manifest row's `emits_type_note` says so: otherwise `p_values` is `null` throughout<!-- feature: capability:multiplicity --> and a `multiplicity` method other than `none` is `PULSE_MULTIPLICITY_INVALID`<!-- /feature -->.
 <!-- feature: ATTR_REG_PREDICT -->
 - Scoring (`ATTR_REG_PREDICT`) and `save` need the model to carry a scorer; without one, `PULSE_MODEL_SCORE_INVALID` reason `no_scorer`. A saved model reloaded where its type is not registered is `PULSE_MODEL_REGRESSION_UNREGISTERED`.
 <!-- /feature -->
-- An undefined figure is `null`, key kept, never 0. A data failure fails that slot alone.
 
 ## See
 

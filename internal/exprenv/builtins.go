@@ -9,7 +9,7 @@
 //   - the Hill saturation curve (hill.go);
 //   - trigonometry and the constants pi() / e() (trig.go); every
 //     transcendental (exp, log, log1p, pow, hill's power, the trig set)
-//     runs on internal/detmath's portable kernels via internal/vecmath;
+//     runs on linalg/detmath's portable kernels via internal/vecmath;
 //   - the calendar helpers and log1p (calendar.go): weekday,
 //     month_index and date_trunc over epoch days through
 //     internal/temporal, to_day in the request zone ([Bound.Zone]),

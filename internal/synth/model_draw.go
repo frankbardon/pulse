@@ -7,7 +7,7 @@ import (
 	"sort"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/detmath"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // This file is the generation-time half of the multi-predictor work:

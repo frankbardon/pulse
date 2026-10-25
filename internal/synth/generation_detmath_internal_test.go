@@ -5,11 +5,11 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/frankbardon/pulse/internal/detmath"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // The generation draws and the copula's marginal transforms evaluate
-// exp / expm1 / log / pow / erf / erfinv through internal/detmath, whose
+// exp / expm1 / log / pow / erf / erfinv through linalg/detmath, whose
 // bits are the same on every architecture and CPU, never through math.*,
 // whose are not. Each check below sweeps enough inputs that the stdlib
 // kernel disagrees with detmath on some of them on a contracting machine

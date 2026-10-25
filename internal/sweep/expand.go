@@ -65,15 +65,23 @@ type Expansion struct {
 	// Labels are the sweep slots' labels in expansion order (nil without
 	// a sweep).
 	Labels []string
+
+	// Seed is the effective seed a sampling sweep (mode random / lhs)
+	// drew with (EffectiveSeed); nil without one, and for grid / zip.
+	Seed *int64
 }
 
 // Count returns how many slots a structurally valid spec expands to:
 // the product of the axis lengths under grid, the common axis length
-// under zip, 0 for a nil spec or one without axes. A product past
-// math.MaxInt saturates there, so a limit check on it never wraps.
+// under zip, samples under random / lhs, 0 for a nil spec or one
+// without axes. A product past math.MaxInt saturates there, so a limit
+// check on it never wraps.
 func Count(spec *types.SweepSpec) int {
-	if spec == nil {
+	if spec == nil || len(spec.Axes) == 0 {
 		return 0
+	}
+	if spec.Mode.Sampled() {
+		return max(spec.Samples, 0)
 	}
 	return countAxes(spec.Axes, spec.Mode)
 }
@@ -107,6 +115,11 @@ func countAxes(axes []types.SweepAxis, mode types.SweepMode) int {
 // Compose surface consumes (Compose and ComposeParallel in the runtime,
 // PredictCompose, the overlay resolve, the EchoRequest echo), so their slot
 // lists and label namespaces cannot drift.
+//
+// Under a sampling mode (random / lhs) the combinations are
+// spec.Samples seeded draws (forEachSample, seeded by EffectiveSeed)
+// and the default label leads with `sample=<ordinal>_`; Expansion.Seed
+// carries the effective seed.
 //
 // Order of checks: Validate; then the nested-for_each refusal (an item
 // in the body carrying `for_each` is PULSE_FOR_EACH_INVALID reason
@@ -183,8 +196,20 @@ func Expand(c *types.ComposedRequest, preflight func(slots int) error) (*Expansi
 	overlays := append([]types.ComposeOverlaySpec(nil), c.Overlays...)
 	labels := make([]string, 0, n)
 
+	walk := func(visit func(slot int, values map[string]any) bool) {
+		forEachCombination(spec.Axes, spec.Mode, visit)
+	}
+	var seed *int64
+	if spec.Mode.Sampled() {
+		s := EffectiveSeed(spec)
+		seed = &s
+		walk = func(visit func(slot int, values map[string]any) bool) {
+			forEachSample(spec, s, visit)
+		}
+	}
+
 	var ce *errors.CodedError
-	forEachCombination(spec.Axes, spec.Mode, func(slot int, values map[string]any) bool {
+	walk(func(slot int, values map[string]any) bool {
 		vars := variablesFor(spec.Axes, values)
 		req, fault := renderRequest(spec, vars, values, slot)
 		if fault != nil {
@@ -195,6 +220,11 @@ func Expand(c *types.ComposedRequest, preflight func(slots int) error) (*Expansi
 		if fault != nil {
 			ce = fault
 			return false
+		}
+		// A sampled slot's default label leads with its ordinal, so two
+		// draws can never share a label.
+		if spec.Label == "" && spec.Mode.Sampled() {
+			label = "sample=" + strconv.Itoa(slot) + "_" + label
 		}
 		req.Label = label
 		if overlaysBody != nil {
@@ -220,7 +250,7 @@ func Expand(c *types.ComposedRequest, preflight func(slots int) error) (*Expansi
 		out.Overlays = c.Overlays
 	}
 	out.Sweep = nil
-	return &Expansion{Composed: &out, Explicit: len(c.Requests), Labels: labels}, nil
+	return &Expansion{Composed: &out, Explicit: len(c.Requests), Labels: labels, Seed: seed}, nil
 }
 
 // forEachCombination walks the axes' combinations in expansion order —

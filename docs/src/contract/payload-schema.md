@@ -1187,9 +1187,13 @@ there is no chain-level block.
 `ComposedRequest.sweep` (`SweepSpec`) is the one slot that expands into
 ordinary Compose slots, so a sweep adds no response shape of its own:
 `responses` carries explicit slots first, then one entry per expansion.
-`SweepSpec` is `{axes, mode, label, request, overlays, rank}`: `axes`
-are `SweepAxis {name, values}` (`values` a non-empty list of scalars),
-`mode` the closed enum `SweepMode` (`grid` default, `zip`), `request` an
+`SweepSpec` is `{axes, mode, samples, rng_seed, label, request,
+overlays, rank}`: `axes` are `SweepAxis {name, values, range}` (`values`
+a non-empty list of scalars under `grid` / `zip`; `range` a
+`SweepRange {min, max, scale}` — `SweepScale` `linear` default, `log` —
+under `random` / `lhs`, never both), `mode` the closed enum `SweepMode`
+(`grid` default, `zip`, `random`, `lhs`; the sampling modes draw
+`samples` slots seeded by `rng_seed`, 0 deriving one from the spec), `request` an
 object in the `Request` shape that may carry `{{axis}}` / `{"$var":
 "axis"}` placeholders (the schema types it as `object`; the substituted
 body is decoded strictly at expansion; a `{{axis}}` inside an
@@ -1198,11 +1202,25 @@ expression string is `PULSE_SWEEP_EXPR_SPLICE`), `overlays` an array of
 `SweepRank {by, order, top}` (`SweepRankOrder`: `asc`, `desc`). The slot
 is `omitempty`, so a sweep-free request is byte-identical on the wire.
 It is gated by `capability:compose_sweep`: on an instance that hides it
-the `sweep` property and the `Sweep*` defs are absent. A malformed sweep
+the `sweep` property and the `Sweep*` defs are absent. The sampling modes
+ride `capability:compose_sweep_sampling`: on an instance that hides it
+the `SweepMode` enum is `grid` / `zip`, and `samples`, `rng_seed`, the
+axis `range`, the `SweepRange` def and `ComposedResponse.sweep_seed` are
+absent. An item `for_each`'s `mode` is `grid` / `zip` and its axes carry
+`values` only, on every instance.
+A malformed sweep
 is `PULSE_SWEEP_INVALID` with `details.field` (a `sweep`-rooted path)
-and `details.reason`. `pulse_predict` with `composed` reports the
-expansion as `sweep {axes, mode, expanded_count, labels}` on the predict
-result; that summary is not payload-reachable and is not in this schema.
+and `details.reason`; a mode/axis mix-up is `PULSE_SWEEP_MODE_MISMATCH`,
+a bad range `PULSE_SWEEP_RANGE_INVALID`, a missing or sub-1 `samples`
+`PULSE_SWEEP_SAMPLES_INVALID`. `pulse_predict` with `composed` reports the
+expansion as `sweep {axes, mode, expanded_count, rng_seed, labels}` on the
+predict result; that summary is not payload-reachable and is not in this
+schema.
+
+A sampling sweep (`random` / `lhs`) adds `ComposedResponse.sweep_seed`,
+an `omitempty` integer: the effective seed it drew with, so pinning it as
+`rng_seed` replays the run. Absent for `grid` / `zip`. Like `ranking` it
+is pinned outside the Compose-level `return`.
 
 A sweep with `rank` adds `ComposedResponse.ranking`, an `omitempty` array
 of `RankEntry {label, value, rank}` (1-based, in rank order, `value`
@@ -1303,6 +1321,45 @@ like `ranking` (always emitted, never rounded). Both slots are gated by
 `{name, cohort, vector: {operator, labels, members}}`, a SEM fit as
 `{name, cohort, sem: {operator, labels, members}}` — on the predict
 result (not payload-reachable).
+
+### Compose optimize
+
+`ComposedRequest.optimize` is an `omitempty` array of `OptimizeSpec
+{name, variables, objective, direction, constraints, starts, rng_seed,
+tolerance, max_iterations}`: a constrained optimisation solved once,
+after the fits, with no record data. `variables` are `{name, lower,
+upper, start}`, each bound an `OptimizeBound` — a number or
+`"params.<name>"` naming a numeric batch param (`start` optional; the
+midpoint when absent). `objective` and every `constraints[i].expr`
+(type `eq`: expr = 0; `ineq`: expr >= 0) are expressions over the
+variables, `params.<name>`, `coef()` over the batch's `fits` and the
+built-ins; `direction` is `maximize` or `minimize` (required); `starts`
+defaults to 8 (1 to 1000); `models` (gated by `capability:models`)
+loads saved model files `{name, path}` for the block's `coef()`, above
+the batch's fits. Predict and the runtime refuse a malformed
+block identically before any fit or slot runs:
+`PULSE_OPTIMIZE_SPEC_INVALID`, `PULSE_OPTIMIZE_VARIABLE_INVALID`,
+`PULSE_OPTIMIZE_EXPRESSION_INVALID`, or the shared
+`PULSE_PARAMS_UNDECLARED` / `PULSE_MODEL_*` coef() codes — each with
+`details.optimize` (the block index) and `details.field`. Results land
+in `ComposedResponse.optimizations`, an `omitempty` array of
+`OptimizeResult` in declaration order — `name`, `direction`,
+`objective`, `variables [{name, value, marginal, active}]`,
+`constraints [{expr, type, value, multiplier}]`, `converged`, `status`,
+`iterations`, `max_violation`, `starts`, `starts_agreeing`, `rng_seed`
+— pinned outside the Compose-level `return` (always emitted, never
+rounded); a block that failed on its numbers keeps `{name, direction,
+error}` (see Failed slots) and warns `PULSE_SLOT_FAILED` (`slot_kind`
+`optimizations`). Each block is solved from its start point plus
+`starts − 1` seeded Latin-hypercube points with SLSQP and central
+finite-difference gradients; `marginal` is ∂f/∂xᵢ, `multiplier` the
+constraint's Lagrange multiplier in the objective's own direction
+(∇f = Σ multiplier·∇expr on the free variables — for a budget `eq` it
+equals every free variable's `marginal`), `starts_agreeing` the
+converged starts within `10·tolerance·max(1, |f*|)` of the best. Both slots are gated by
+`capability:compose_optimize`. `pulse_predict` with `composed` lists the
+blocks as `optimize [{name, direction, variables, constraints, starts,
+rng_seed}]` on the predict result (not payload-reachable).
 
 ### Model files (`save`)
 

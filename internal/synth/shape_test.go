@@ -308,7 +308,7 @@ func assertBimodal(t *testing.T, values []float64, mean1, std1, mean2, std2 floa
 
 // TestProfile_FitShapeIsByteReproducible: two --fit-shape captures of one
 // cohort serialize to the same bytes. The fit's exp / log run on
-// internal/detmath (TestShapeFit_RunsOnDetmath), so the document is also
+// linalg/detmath (TestShapeFit_RunsOnDetmath), so the document is also
 // the same on every architecture, not only on one machine.
 func TestProfile_FitShapeIsByteReproducible(t *testing.T) {
 	fs := afero.NewMemMapFs()

@@ -1838,11 +1838,12 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 			"multiplicity": multiplicitySchema(
 				"Batch-level multiple-comparison correction, inherited by every slot request (below its own request-level block) and every Compose overlay layer that sets none of its own. Family `compose` pools every compose-family member across the slots and the Compose layers.",
 				types.AllMultiplicityFamilies(), true),
-			"return": returnSchema("Shapes the TOP-LEVEL Compose overlays only: paths root at the ComposedResponse and only `overlays…` paths are valid (each slot is shaped by its own requests[i].return). Omit to leave the overlays whole."),
-			"sweep":  sweepSchema(),
-			"fits":   fitsSchema(reqSchema, inst),
-			"banner": bannerSchema(reqSchema),
-			"params": inheritedParamsSchema("slot request (sweep and banner slots included) and fit request", " A Compose-level OVERLAY_FORMULA reads them too."),
+			"return":   returnSchema("Shapes the TOP-LEVEL Compose overlays only: paths root at the ComposedResponse and only `overlays…` paths are valid (each slot is shaped by its own requests[i].return). Omit to leave the overlays whole."),
+			"sweep":    sweepSchema(inst),
+			"fits":     fitsSchema(reqSchema, inst),
+			"banner":   bannerSchema(reqSchema),
+			"params":   inheritedParamsSchema("slot request (sweep and banner slots included) and fit request", " A Compose-level OVERLAY_FORMULA and every `optimize` block read them too."),
+			"optimize": optimizeSchema(inst),
 		},
 		"required":             []string{"requests"},
 		"additionalProperties": true,
@@ -1872,6 +1873,76 @@ func fitsSchema(reqSchema map[string]any, inst *descx.InstanceSnapshot) map[stri
 	return out
 }
 
+// optimizeSchema describes the ComposedRequest `optimize` list
+// (types.OptimizeSpec): constrained optimisations solved after the fits
+// with no record data. Dropped with the slot when
+// capability:compose_optimize is hidden (dropHiddenSlots); a block's
+// `models` key drops when capability:models is.
+func optimizeSchema(inst *descx.InstanceSnapshot) map[string]any {
+	out := optimizeSchemaBase()
+	// A block's own `models` ride capability:models.
+	dropHiddenSlots(out["items"].(map[string]any), &types.OptimizeSpec{}, inst)
+	return out
+}
+
+// optimizeSchemaBase is optimizeSchema before the hidden-slot drop.
+func optimizeSchemaBase() map[string]any {
+	bound := func(d string) map[string]any {
+		return map[string]any{
+			"description": d,
+			"oneOf": []any{
+				map[string]any{"type": "number"},
+				map[string]any{"type": "string", "pattern": `^params\.[A-Za-z_][A-Za-z0-9_]*$`},
+			},
+		}
+	}
+	return map[string]any{
+		"type":        "array",
+		"description": "Constrained optimisations, each solved once after the fits (no record data): maximise or minimise an expression over decision variables under eq (expr = 0) / ineq (expr >= 0) constraints and bounds. Expressions read the variables, params.<name>, coef(fit, term) over the batch `fits` and the block's own `models`, and the built-ins (hill(), exp(), …). Results are returned under the response `optimizations`, in order: x*, f*, each variable's marginal df/dx and active bound, each constraint's multiplier (grad f = sum multiplier * grad expr, in the objective's own direction).",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string", "description": "The block's name, unique among the blocks."},
+				"variables": map[string]any{
+					"type":        "array",
+					"minItems":    1,
+					"description": "The decision variables.",
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"name":  map[string]any{"type": "string", "description": "Identifier the expressions read; unique, not `params` or a function name."},
+							"lower": bound("Lower bound: a number or \"params.<name>\"."),
+							"upper": bound("Upper bound (>= lower): a number or \"params.<name>\"."),
+							"start": bound("First starting value, within the bounds; omit for the midpoint."),
+						},
+						"required": []string{"name", "lower", "upper"},
+					},
+				},
+				"objective": map[string]any{"type": "string", "description": "The expression to optimise; must yield a number."},
+				"direction": enumStringField([]string{string(types.OptimizeMaximize), string(types.OptimizeMinimize)}, "maximize or minimize (required)."),
+				"constraints": map[string]any{
+					"type":        "array",
+					"description": "General constraints; no more eq than variables.",
+					"items": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"expr": map[string]any{"type": "string", "description": "A numeric expression over the same names as the objective."},
+							"type": enumStringField([]string{string(types.OptimizeConstraintEq), string(types.OptimizeConstraintIneq)}, "eq: expr = 0; ineq: expr >= 0."),
+						},
+						"required": []string{"expr", "type"},
+					},
+				},
+				"starts":         map[string]any{"type": "integer", "minimum": 1, "maximum": types.OptimizeMaxStarts, "description": "Starting points solved: the start point, then seeded Latin-hypercube points (default 8)."},
+				"rng_seed":       map[string]any{"type": "integer", "description": "Seed of the Latin-hypercube starts; omit (0) to derive one from the block."},
+				"tolerance":      map[string]any{"type": "number", "minimum": 0, "description": "Solver accuracy goal; omit for 1e-6."},
+				"max_iterations": map[string]any{"type": "integer", "minimum": 0, "description": "Major iterations per start; omit for 100."},
+				"models":         modelsSchema("Saved model files loaded by name for this block's coef() calls, above the batch `fits` (no refit). A name a fit already binds is PULSE_MODEL_NAME_COLLISION."),
+			},
+			"required": []string{"name", "variables", "objective", "direction"},
+		},
+	}
+}
+
 // forEachSchema describes an item `for_each` (types.ForEach): the item
 // fanned out over parameter axes before validation. Bound only when
 // capability:for_each is enabled.
@@ -1898,7 +1969,7 @@ func forEachSchema() map[string]any {
 					"required": []string{"name", "values"},
 				},
 			},
-			"mode": enumStringField(stringSlice(types.AllSweepModes()), "grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths) — e.g. a label axis beside a parameter axis."),
+			"mode": enumStringField([]string{string(types.SweepModeGrid), string(types.SweepModeZip)}, "grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths) — e.g. a label axis beside a parameter axis."),
 		},
 		"required": []string{"axes"},
 	}
@@ -1970,8 +2041,13 @@ func bannerSchema(reqSchema map[string]any) map[string]any {
 // sweepSchema describes the ComposedRequest `sweep` block (types.SweepSpec):
 // one request body with axis placeholders expanded over its axes into
 // compose slots. Dropped with the slot when capability:compose_sweep is
-// hidden (dropHiddenSlots).
-func sweepSchema() map[string]any {
+// hidden (dropHiddenSlots). An instance hiding
+// capability:compose_sweep_sampling offers the enumeration modes only:
+// no random / lhs, `samples`, `rng_seed` or axis `range`.
+func sweepSchema(inst *descx.InstanceSnapshot) map[string]any {
+	if !inst.Enabled(descx.FeatureComposeSweepSampling) {
+		return enumerationSweepSchema()
+	}
 	return map[string]any{
 		"type":        "object",
 		"description": "Parameter sweep: one request body with axis placeholders (`{{axis}}` inside a string, {\"$var\": \"axis\"} as a whole value), expanded over the axes into compose slots appended after `requests`, before any slot runs.",
@@ -1987,14 +2063,26 @@ func sweepSchema() map[string]any {
 						"values": map[string]any{
 							"type":        "array",
 							"minItems":    1,
-							"description": "The scalar values the axis takes, in expansion order.",
+							"description": "grid / zip: the scalar values the axis takes, in expansion order.",
 							"items":       map[string]any{"type": []any{"number", "string", "boolean"}},
 						},
+						"range": map[string]any{
+							"type":        "object",
+							"description": "random / lhs: the interval the axis is drawn from (instead of values).",
+							"properties": map[string]any{
+								"min":   map[string]any{"type": "number", "description": "Lower bound (> 0 under scale log)."},
+								"max":   map[string]any{"type": "number", "description": "Upper bound, above min."},
+								"scale": enumStringField(stringSlice(types.AllSweepScales()), "linear (default): uniform; log: log-uniform."),
+							},
+							"required": []string{"min", "max"},
+						},
 					},
-					"required": []string{"name", "values"},
+					"required": []string{"name"},
 				},
 			},
-			"mode":     enumStringField(stringSlice(types.AllSweepModes()), "grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths)."),
+			"mode":     enumStringField(stringSlice(types.AllSweepModes()), "grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths); random: `samples` seeded uniform draws from each axis range; lhs: `samples` Latin-hypercube draws (every axis stratum once)."),
+			"samples":  map[string]any{"type": "integer", "minimum": 1, "description": "random / lhs: the number of slots drawn (counts toward MaxComposeSlots)."},
+			"rng_seed": map[string]any{"type": "integer", "description": "random / lhs: the draw seed; 0 or absent derives one from the spec. The effective seed is echoed as `sweep_seed`."},
 			"label":    map[string]any{"type": "string", "description": "Per-slot label pattern with {{axis}} placeholders; default `<axis>=<value>` pairs joined by `_`."},
 			"request":  map[string]any{"type": "object", "description": "The slot request body (the request shape) with axis placeholders."},
 			"overlays": map[string]any{"type": "array", "items": map[string]any{"type": "object"}, "description": "Compose overlay specs with axis placeholders, substituted per slot and appended to `overlays`."},
@@ -2011,6 +2099,22 @@ func sweepSchema() map[string]any {
 		},
 		"required": []string{"axes", "request"},
 	}
+}
+
+// enumerationSweepSchema is sweepSchema on an instance hiding the
+// sampling modes: grid / zip over explicit axis values, the sampling
+// keys and their prose absent.
+func enumerationSweepSchema() map[string]any {
+	out := sweepSchema(nil)
+	props := out["properties"].(map[string]any)
+	delete(props, "samples")
+	delete(props, "rng_seed")
+	props["mode"] = enumStringField([]string{string(types.SweepModeGrid), string(types.SweepModeZip)},
+		"grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths).")
+	axis := props["axes"].(map[string]any)["items"].(map[string]any)["properties"].(map[string]any)
+	delete(axis, "range")
+	axis["values"].(map[string]any)["description"] = "The scalar values the axis takes, in expansion order."
+	return out
 }
 
 // buildSampleSchema describes the pulse_sample tool params.

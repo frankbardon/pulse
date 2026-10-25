@@ -108,8 +108,14 @@ func TestSweepSpec_WireShape(t *testing.T) {
 }
 
 func TestSweepVocabularies(t *testing.T) {
-	if got := AllSweepModes(); len(got) != 2 || got[0] != "grid" || got[1] != "zip" {
+	if got := AllSweepModes(); len(got) != 4 || got[0] != "grid" || got[1] != "zip" || got[2] != "random" || got[3] != "lhs" {
 		t.Errorf("modes %v", got)
+	}
+	if got := AllSweepScales(); len(got) != 2 || got[0] != "linear" || got[1] != "log" {
+		t.Errorf("scales %v", got)
+	}
+	if !SweepModeRandom.Sampled() || !SweepModeLHS.Sampled() || SweepModeGrid.Sampled() || SweepModeZip.Sampled() || SweepMode("").Sampled() {
+		t.Error("Sampled() is true exactly for random and lhs")
 	}
 	if got := AllSweepRankOrders(); len(got) != 2 || got[0] != "asc" || got[1] != "desc" {
 		t.Errorf("orders %v", got)

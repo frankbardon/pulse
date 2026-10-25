@@ -244,3 +244,43 @@ func TestAPICompose_SweepRankingSurfaces(t *testing.T) {
 		}
 	}
 }
+
+// TestAPICompose_SampledSweepSeedSurfaces: a random sweep carries the
+// effective `sweep_seed` in the --json envelope and, under --stream,
+// one {"sweep_seed":N} record before the ranking record; a grid sweep
+// streams none.
+func TestAPICompose_SampledSweepSeedSurfaces(t *testing.T) {
+	_, write, grid := sweepCLIFixture(t)
+	cohort := grid[strings.Index(grid, `"filename":"`)+len(`"filename":"`):]
+	cohort = cohort[:strings.Index(cohort, `"`)]
+	sampled := `{"sweep":{"mode":"random","samples":3,"rng_seed":21,"axes":[{"name":"cut","range":{"min":0,"max":4}}],
+		"request":{"cohort":{"filename":"` + cohort + `"},"params":{"cut":{"$var":"cut"}},
+		"filterers":[{"type":"FILTER_EXPRESSION","expression":"n > params.cut"}],
+		"aggregations":[{"type":"AGG_COUNT","field":"n","label":"c"}]},"rank":{"by":"components.aggregations.c.n"}}}`
+	path := write("sampled.json", sampled)
+	out, err := runAPI(t, "compose", "--json", "-r", path)
+	if err != nil {
+		t.Fatalf("compose: %v\n%s", err, out)
+	}
+	var env struct {
+		Data struct {
+			SweepSeed *int64 `json:"sweep_seed"`
+		} `json:"data"`
+		Errors []any `json:"errors"`
+	}
+	if err := json.Unmarshal([]byte(out), &env); err != nil || len(env.Errors) != 0 || env.Data.SweepSeed == nil || *env.Data.SweepSeed != 21 {
+		t.Fatalf("envelope: %v %v\n%s", err, env.Errors, out)
+	}
+	stream, err := runAPI(t, "compose", "--stream", "-r", path)
+	if err != nil {
+		t.Fatalf("--stream: %v\n%s", err, stream)
+	}
+	lines := strings.Split(strings.TrimSpace(stream), "\n")
+	if len(lines) < 2 || lines[len(lines)-2] != `{"sweep_seed":21}` || !strings.HasPrefix(lines[len(lines)-1], `{"ranking":`) {
+		t.Fatalf("stream tail %q", lines)
+	}
+	gridStream, err := runAPI(t, "compose", "--stream", "-r", write("grid.json", grid))
+	if err != nil || strings.Contains(gridStream, "sweep_seed") {
+		t.Fatalf("grid stream: %v\n%s", err, gridStream)
+	}
+}

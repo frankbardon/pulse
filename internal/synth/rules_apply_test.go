@@ -321,7 +321,7 @@ func TestRules_ConsumeNoRNG(t *testing.T) {
 // generated exactly as it was.
 //
 // It was safe to pin across architectures when it was taken, before
-// generation's variates and transcendentals moved onto internal/detmath:
+// generation's variates and transcendentals moved onto linalg/detmath:
 // every sampler it uses is comparison or barriered-arithmetic only
 // (monotonic_from, bernoulli, uniform —
 // `u.min + float64(rng.Float64()*(u.max-u.min))`, weighted_categorical,

@@ -15,27 +15,29 @@ import (
 // module. Every entry is a surface the smoke flows exist to prove is
 // reachable from outside: the extension-author core (pulse, extend,
 // types, encoding, errors) plus the public packages the migration
-// guide names (descriptor, io, synth, mcp/gosdk, mcpserve, linalg, linalg/metric, observe) and the two
+// guide names (descriptor, io, synth, mcp/gosdk, mcpserve, linalg, linalg/detmath, linalg/metric, observe, optimize) and the two
 // third-party types their signatures expose (afero.Fs on
 // pulse.Options.FS, *mcp.Server on gosdk.Register). Adding an import
 // outside this set fails the test: either it is a new public surface
 // that belongs here deliberately, or it is a leak.
 var moduleImports = map[string]bool{
-	"github.com/frankbardon/pulse":               true,
-	"github.com/frankbardon/pulse/extend":        true,
-	"github.com/frankbardon/pulse/types":         true,
-	"github.com/frankbardon/pulse/encoding":      true,
-	"github.com/frankbardon/pulse/errors":        true,
-	"github.com/frankbardon/pulse/descriptor":    true,
-	"github.com/frankbardon/pulse/io":            true,
-	"github.com/frankbardon/pulse/linalg":        true,
-	"github.com/frankbardon/pulse/linalg/metric": true,
-	"github.com/frankbardon/pulse/synth":         true,
-	"github.com/frankbardon/pulse/mcp/gosdk":     true,
-	"github.com/frankbardon/pulse/mcpserve":      true,
-	"github.com/frankbardon/pulse/observe":       true,
-	"github.com/modelcontextprotocol/go-sdk/mcp": true,
-	"github.com/spf13/afero":                     true,
+	"github.com/frankbardon/pulse":                true,
+	"github.com/frankbardon/pulse/extend":         true,
+	"github.com/frankbardon/pulse/types":          true,
+	"github.com/frankbardon/pulse/encoding":       true,
+	"github.com/frankbardon/pulse/errors":         true,
+	"github.com/frankbardon/pulse/descriptor":     true,
+	"github.com/frankbardon/pulse/io":             true,
+	"github.com/frankbardon/pulse/linalg":         true,
+	"github.com/frankbardon/pulse/linalg/detmath": true,
+	"github.com/frankbardon/pulse/linalg/metric":  true,
+	"github.com/frankbardon/pulse/synth":          true,
+	"github.com/frankbardon/pulse/mcp/gosdk":      true,
+	"github.com/frankbardon/pulse/mcpserve":       true,
+	"github.com/frankbardon/pulse/observe":        true,
+	"github.com/frankbardon/pulse/optimize":       true,
+	"github.com/modelcontextprotocol/go-sdk/mcp":  true,
+	"github.com/spf13/afero":                      true,
 }
 
 // extensionAuthorImports is the strict set an extension operator needs:

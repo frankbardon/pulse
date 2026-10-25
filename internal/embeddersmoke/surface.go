@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"math/rand/v2"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
@@ -12,8 +13,10 @@ import (
 	"github.com/frankbardon/pulse/extend"
 	pio "github.com/frankbardon/pulse/io"
 	"github.com/frankbardon/pulse/linalg"
+	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/mcp/gosdk"
 	"github.com/frankbardon/pulse/mcpserve"
+	"github.com/frankbardon/pulse/optimize"
 	"github.com/frankbardon/pulse/synth"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
@@ -303,6 +306,35 @@ var (
 	_                                           = pulse.SkillMetadata{Name: "op-agg-count", Requires: []string{}}
 	_                                           = descriptor.OntologyEdge{Kind: descriptor.OntologyEdgeServesIntent}
 	_                                           = descriptor.OntologyNode{Kind: descriptor.OntologyNodeSkill}
+)
+
+// Deterministic math: the FMA-free transcendental ports whose bits are
+// the same on every architecture, for packs that must match Pulse's own.
+var (
+	_ []func(float64) float64 = []func(float64) float64{detmath.Exp, detmath.Expm1, detmath.Log, detmath.Log1p,
+		detmath.Sin, detmath.Cos, detmath.Tan, detmath.Asin, detmath.Erf, detmath.Erfinv}
+	_ []func(float64, float64) float64 = []func(float64, float64) float64{detmath.Pow, detmath.Atan2}
+	_ func(float64) (float64, int)     = detmath.Lgamma
+	_ []func(*rand.Rand) float64       = []func(*rand.Rand) float64{detmath.NormFloat64, detmath.ExpFloat64}
+)
+
+// Optimization core: bounded Levenberg–Marquardt least squares, and
+// SLSQP over bounds and Eq / Ineq constraints.
+var (
+	_ func(func([]float64) []float64, func([]float64) [][]float64, []float64, []float64, []float64, optimize.LeastSquaresOptions) (*optimize.LeastSquaresResult, error) = optimize.LeastSquares
+	_                                                                                                                                                                   = optimize.LeastSquaresOptions{MaxIter: 2000, CostTol: 1e-13, StepTol: 1e-10}
+	_                                                                                                                                                                   = optimize.LeastSquaresResult{X: []float64{}, Cost: 0, JTJ: (*linalg.Sym)(nil), Active: []optimize.ActiveBound{},
+		Status: optimize.LSConvergedCost, Iterations: 0, FuncEvals: 0, JacEvals: 0}
+	_                                                                                                                                 = []optimize.LeastSquaresStatus{optimize.LSConvergedStep, optimize.LSConvergedDamping, optimize.LSIterLimit}
+	_ func(optimize.LeastSquaresStatus) bool                                                                                          = optimize.LeastSquaresStatus.Converged
+	_ func(func([]float64) float64, func([]float64) []float64, []float64, optimize.MinimizeOptions) (*optimize.MinimizeResult, error) = optimize.Minimize
+	_                                                                                                                                 = optimize.MinimizeOptions{Lower: []float64{}, Upper: []float64{}, Acc: 1e-6, MaxIter: 100,
+		Constraints: []optimize.Constraint{{Type: optimize.Eq}, {Type: optimize.Ineq}}}
+	_ = optimize.MinimizeResult{Active: []optimize.ActiveBound{optimize.NotActive, optimize.AtLower, optimize.AtUpper},
+		Status: optimize.StatusSuccess}
+	_ perrors.Code = perrors.PULSE_OPTIMIZE_INVALID
+	_ perrors.Code = perrors.PULSE_OPTIMIZE_NOT_CONVERGED
+	_ perrors.Code = perrors.PULSE_OPTIMIZE_INFEASIBLE
 )
 
 // Linear-algebra core: Pulse-owned matrix types, the FMA-free

@@ -143,11 +143,12 @@ func TestFit_NearestMatchesSemopy(t *testing.T) {
 // exactly L·Lᵀ with l55 = 2^-24, so every Cholesky step is exact on
 // any platform) is fitted raw, as semopy fits it (no cov_nearest), and
 // pinned to semopy's fit on that matrix (fit_semopy_exact.py). SLSQP
-// to convergence and Fisher scoring meet semopy's tight fit at 1e-6;
-// the default ftol 1e-6 early stop is pinned only at 1e-4: on this
-// near-singular S the stopping iterate moves at that level with the
-// summation order (semopy's own default fit does, between two
-// mathematically equal ways of handing it the same matrix).
+// to convergence and Fisher scoring meet semopy's tight fit at 1e-6.
+//
+// The default ftol 1e-6 row is anchored on what an early stop on this
+// near-singular S actually determines — see nearDefaultAnchor. Do not
+// tighten its estimate bar: the stopping POINT is chaotic, the stopping
+// objective is not.
 func TestFit_NearSingularRawMatchesSemopy(t *testing.T) {
 	desc, err := os.ReadFile("testdata/near_model.txt")
 	if err != nil {
@@ -161,10 +162,11 @@ func TestFit_NearSingularRawMatchesSemopy(t *testing.T) {
 		name, ref string
 		opt       Options
 		tol       float64
+		anchor    bool
 	}{
-		{"default", "default", Options{}, 1e-4},
-		{"slsqp_tight", "tight", Options{Ftol: 1e-14, MaxIter: 100000}, 1e-6},
-		{"fisher", "tight", Options{Solver: SolverFisher}, 1e-6},
+		{"default", "default", Options{}, nearDefaultEstimateTol, true},
+		{"slsqp_tight", "tight", Options{Ftol: 1e-14, MaxIter: 100000}, 1e-6, false},
+		{"fisher", "tight", Options{Solver: SolverFisher}, 1e-6, false},
 	} {
 		t.Run(cfg.name, func(t *testing.T) {
 			path := "testdata/near_semopy_" + cfg.ref + ".json"
@@ -174,6 +176,7 @@ func TestFit_NearSingularRawMatchesSemopy(t *testing.T) {
 			}
 			var aux struct {
 				N      float64     `json:"n"`
+				NIter  int         `json:"n_iter"`
 				Sample [][]float64 `json:"sample_cov"`
 			}
 			if err := json.Unmarshal(b, &aux); err != nil {
@@ -200,7 +203,66 @@ func TestFit_NearSingularRawMatchesSemopy(t *testing.T) {
 			if err := ComputeStats(fit, string(desc)); err != nil {
 				t.Fatal(err)
 			}
-			checkAgainstSemopy(t, fit, loadRef(t, path), cfg.tol)
+			ref := loadRef(t, path)
+			checkAgainstSemopy(t, fit, ref, cfg.tol)
+			if cfg.anchor {
+				checkNearDefaultAnchor(t, fit, ref, aux.NIter)
+			}
 		})
+	}
+}
+
+// The near-singular default-ftol fit is anchored, not pinned (U60
+// E1-S1). Its early stop always fires on the same SciPy test (|gᵀs| <
+// ftol right after the QP solve, semopy's 34th iteration), but where it
+// fires is chaotic: the iterates agree to about 1e-12 until the flat
+// valley around iteration 29, where one ulp of rounding picks a
+// different line-search step and a different point along the valley.
+// Evidence, 900 runs with every start value nudged by −1 / 0 / +1 ulp
+// (300 each on arm64, arm64 with every multiply-add contraction off,
+// and amd64):
+//
+//   - estimates up to 9.5e-4 relative from semopy's default (std
+//     estimates 2.8e-4, std errors 3.1e-4, z 5.6e-4, p 2.2e-5 absolute),
+//     on every architecture and with the pre-U60 solver alike;
+//   - the objective within 1.23e-8 relative of semopy's, every fit
+//     statistic within 3.2e-8;
+//   - 33 to 35 iterations (semopy: 34), always "Optimization terminated
+//     successfully".
+//
+// semopy's own default stop is 1.7e-4 from its tight optimum, so a bar
+// below that on the default-stop point measures rounding luck, not
+// correctness: the former 1e-4 bar passed on each machine only by which
+// point its rounding happened to land on. So the estimates are held at
+// 1e-3 and the stop is pinned where it IS determined — status,
+// iteration count and objective / statistics at 1e-7.
+const (
+	nearDefaultEstimateTol = 1e-3
+	nearDefaultObjTol      = 1e-7
+	nearDefaultIterBand    = 1
+)
+
+// checkNearDefaultAnchor asserts what the near-singular default early
+// stop determines (see nearDefaultEstimateTol).
+func checkNearDefaultAnchor(t *testing.T, fit *Fit, ref semopyRef, nIter int) {
+	t.Helper()
+	if fit.Status != "Optimization terminated successfully" {
+		t.Errorf("status %q", fit.Status)
+	}
+	if nIter == 0 || fit.Iterations < nIter-nearDefaultIterBand || fit.Iterations > nIter+nearDefaultIterBand {
+		t.Errorf("%d iterations, semopy %d (±%d)", fit.Iterations, nIter, nearDefaultIterBand)
+	}
+	if d := rel(fit.Objective, ref.Fun); !(d <= nearDefaultObjTol) {
+		t.Errorf("objective %.17g, semopy %.17g (rel %.1e > %g)", fit.Objective, ref.Fun, d, nearDefaultObjTol)
+	}
+	st := fit.Stats
+	for name, v := range map[string]float64{
+		"DoF": st.DoF, "DoF Baseline": st.DoFBaseline, "chi2": st.Chi2, "chi2 p-value": st.Chi2P,
+		"chi2 Baseline": st.Chi2Baseline, "CFI": st.CFI, "GFI": st.GFI, "AGFI": st.AGFI, "NFI": st.NFI,
+		"TLI": st.TLI, "RMSEA": st.RMSEA, "AIC": st.AIC, "BIC": st.BIC, "LogLik": st.LogLik,
+	} {
+		if d := rel(v, ref.Stats[name]); !(d <= nearDefaultObjTol) {
+			t.Errorf("stat %s = %.15g, semopy %.15g (rel %.1e > %g)", name, v, ref.Stats[name], d, nearDefaultObjTol)
+		}
 	}
 }

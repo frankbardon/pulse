@@ -90,7 +90,7 @@ func TestWindowPredictor_ParityMCPComposeSweep(t *testing.T) {
 	}
 	composed := `{"sweep":{"axes":[{"name":"decay","values":[0.2,0.5,0.8]}],"label":"decay_{{decay}}","request":` +
 		`{"cohort":{"filename":"weekly.pulse"},` +
-		`"windows":[{"type":"WIN_ADSTOCK","field":"tv","label":"tv_ad","order_by":[{"field":"week"}],` +
+		`"windows":[{"type":"WIN_DISTRIBUTED_LAG","field":"tv","label":"tv_ad","order_by":[{"field":"week"}],` +
 		`"params":{"kernel":"geometric","decay":{"$var":"decay"},"max_lag":4}}],` +
 		`"attributes":[{"type":"ATTR_FORMULA","label":"tv_sat","expression":"hill(tv_ad, 200, 2)"}],` +
 		`"regressions":[{"type":"REG_OLS","name":"mmm","target":"sales","predictors":["tv_sat"],` +

@@ -5,7 +5,7 @@
 // Its default setup is semopy 2.3.11's default covariance-structure
 // model (semopy.Model, obj="MLW", solver="SLSQP", mimic_lavaan=False):
 // the same variable classification, parameter set and fixings, the same
-// Wishart ML objective minimised by a port of SciPy's SLSQP (slsqp.go)
+// Wishart ML objective minimised by SciPy's SLSQP (package optimize)
 // with semopy's settings, the same expected-information standard errors
 // and the same fit statistics — so a fit over the same data gives
 // semopy's numbers, its early stop at ftol included. Options select a

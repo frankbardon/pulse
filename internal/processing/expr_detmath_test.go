@@ -11,7 +11,7 @@ import (
 // BenchmarkFormulaTranscendental is the hot ATTR_FORMULA path through
 // the scalar transcendental built-ins (exp, log, pow), evaluated per
 // record by a compiled program: the guard that moving them from the
-// standard library onto internal/detmath (portable, FMA-barriered
+// standard library onto linalg/detmath (portable, FMA-barriered
 // kernels) is no gross regression.
 func BenchmarkFormulaTranscendental(b *testing.B) {
 	s := mkSchema("x", "y")
@@ -37,7 +37,7 @@ func BenchmarkFormulaTranscendental(b *testing.B) {
 
 // TestFeatLog_MatchesFormulaLog: FEAT_LOG (log(x + 1), computed as
 // log1p) and the formula built-in log1p(x) run the same kernel —
-// internal/detmath's portable Log1p through vecmath — so on every row
+// linalg/detmath's portable Log1p through vecmath — so on every row
 // the feature column and the formula column are bit-equal, on every
 // architecture. (The formula spelled `log(x + 1)` is NOT bit-equal: the
 // rounded x + 1 loses the precision log1p exists to keep.) The grid is

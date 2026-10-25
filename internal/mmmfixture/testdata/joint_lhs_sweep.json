@@ -1,0 +1,149 @@
+{
+  "sweep": {
+    "mode": "lhs",
+    "samples": 2000,
+    "axes": [
+      {
+        "name": "tv",
+        "range": {
+          "min": 0.3,
+          "max": 0.8
+        }
+      },
+      {
+        "name": "search",
+        "range": {
+          "min": 0.0,
+          "max": 0.4
+        }
+      },
+      {
+        "name": "social",
+        "range": {
+          "min": 0.0,
+          "max": 0.4
+        }
+      },
+      {
+        "name": "display",
+        "range": {
+          "min": 0.0,
+          "max": 0.4
+        }
+      }
+    ],
+    "rank": {
+      "by": "regressions.mmm.holdout.rmse",
+      "order": "asc"
+    },
+    "request": {
+      "cohort": {
+        "filename": "mmm_joint.pulse"
+      },
+      "windows": [
+        {
+          "type": "WIN_DISTRIBUTED_LAG",
+          "field": "tv",
+          "label": "tv_ad",
+          "order_by": [
+            {
+              "field": "week"
+            }
+          ],
+          "params": {
+            "kernel": "geometric",
+            "decay": {
+              "$var": "tv"
+            },
+            "max_lag": 13,
+            "normalize": false
+          }
+        },
+        {
+          "type": "WIN_DISTRIBUTED_LAG",
+          "field": "search",
+          "label": "search_ad",
+          "order_by": [
+            {
+              "field": "week"
+            }
+          ],
+          "params": {
+            "kernel": "geometric",
+            "decay": {
+              "$var": "search"
+            },
+            "max_lag": 13,
+            "normalize": false
+          }
+        },
+        {
+          "type": "WIN_DISTRIBUTED_LAG",
+          "field": "social",
+          "label": "social_ad",
+          "order_by": [
+            {
+              "field": "week"
+            }
+          ],
+          "params": {
+            "kernel": "geometric",
+            "decay": {
+              "$var": "social"
+            },
+            "max_lag": 13,
+            "normalize": false
+          }
+        },
+        {
+          "type": "WIN_DISTRIBUTED_LAG",
+          "field": "display",
+          "label": "display_ad",
+          "order_by": [
+            {
+              "field": "week"
+            }
+          ],
+          "params": {
+            "kernel": "geometric",
+            "decay": {
+              "$var": "display"
+            },
+            "max_lag": 13,
+            "normalize": false
+          }
+        }
+      ],
+      "regressions": [
+        {
+          "type": "REG_MMM_HILL",
+          "name": "mmm",
+          "target": "sales",
+          "predictors": [
+            "tv_ad",
+            "search_ad",
+            "social_ad",
+            "display_ad",
+            "price",
+            "promo"
+          ],
+          "params": {
+            "channels": [
+              "tv_ad",
+              "search_ad",
+              "social_ad",
+              "display_ad"
+            ]
+          },
+          "holdout": "week >= 131"
+        }
+      ],
+      "return": {
+        "preset": "standard",
+        "exclude": [
+          "data"
+        ]
+      }
+    }
+  }
+}

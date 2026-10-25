@@ -41,6 +41,13 @@ func TestApply_UnknownTypeError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unknown window type")
 	}
+	// Predict's refusal: PULSE_WINDOW_INVALID, the slot's index and type.
+	var ce *errors.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_WINDOW_INVALID ||
+		ce.Message != "window[0]: unknown window type WIN_NOPE" ||
+		ce.Details["window_index"] != 0 || ce.Details["type"] != "WIN_NOPE" {
+		t.Fatalf("err = %#v, want PULSE_WINDOW_INVALID window[0] WIN_NOPE", err)
+	}
 }
 
 func TestWindowLabel(t *testing.T) {
@@ -77,10 +84,10 @@ func TestWindowLabel(t *testing.T) {
 // whatever the caller skipped.
 func TestFactories_RefuseSlotConfigAtConstruction(t *testing.T) {
 	params := map[types.WindowType]json.RawMessage{
-		types.WIN_EWMA:    json.RawMessage(`{"alpha": 0.5}`),
-		types.WIN_ADSTOCK: json.RawMessage(`{"kernel": "geometric", "decay": 0.5, "max_lag": 3}`),
-		types.WIN_SHARE:   json.RawMessage(`{"cumulative": true}`),
-		types.WIN_LIFT:    json.RawMessage(`{"base": "y", "cumulative": true}`),
+		types.WIN_EWMA:            json.RawMessage(`{"alpha": 0.5}`),
+		types.WIN_DISTRIBUTED_LAG: json.RawMessage(`{"kernel": "geometric", "decay": 0.5, "max_lag": 3}`),
+		types.WIN_SHARE:           json.RawMessage(`{"cumulative": true}`),
+		types.WIN_LIFT:            json.RawMessage(`{"base": "y", "cumulative": true}`),
 	}
 	one, zero := 1, 0
 	frame := func() *types.FrameSpec { return &types.FrameSpec{Mode: "rows", Preceding: &one, Following: &zero} }

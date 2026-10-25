@@ -975,13 +975,19 @@ type LimitFinding struct {
 type SweepSummary struct {
 	// Axes are the sweep's axes in declared order.
 	Axes []SweepAxisSummary `json:"axes"`
-	// Mode is the resolved combination mode: grid (the default) or zip.
+	// Mode is the resolved combination mode: grid (the default), zip,
+	// random or lhs.
 	Mode types.SweepMode `json:"mode"`
 	// ExpandedCount is the number of slots the sweep adds — the axis
-	// product under grid, the common axis length under zip — excluding
-	// the explicit requests. Explicit plus expanded is what
-	// MaxComposeSlots bounds.
+	// product under grid, the common axis length under zip, samples
+	// under random / lhs — excluding the explicit requests. Explicit plus
+	// expanded is what MaxComposeSlots bounds.
 	ExpandedCount int `json:"expanded_count"`
+	// RNGSeed is a sampling sweep's effective seed — the seed the
+	// runtime draws with and echoes as ComposedResponse.SweepSeed (the
+	// pinned rng_seed, else the one derived from the spec). Absent for
+	// grid / zip.
+	RNGSeed *int64 `json:"rng_seed,omitempty"`
 	// Labels are the sweep slots' labels in expansion order. Absent
 	// when expansion was refused before every slot rendered.
 	Labels []string `json:"labels,omitempty"`
@@ -1009,6 +1015,27 @@ type FitSummary struct {
 	// SEM is a SEM fit's static summary — its MAT_SEM battery's
 	// operator, labels and members (nil on any other fit).
 	SEM *VectorFitSummary `json:"sem,omitempty"`
+}
+
+// OptimizeSummary is one ComposeValidationResult.Optimize entry: a
+// ComposedRequest `optimize` block as predict reads it, statically —
+// validated, never solved.
+type OptimizeSummary struct {
+	// Name is the block's name.
+	Name string `json:"name"`
+	// Direction is maximize or minimize.
+	Direction types.OptimizeDirection `json:"direction"`
+	// Variables are the decision variable names in block order.
+	Variables []string `json:"variables"`
+	// Constraints counts the block's constraints.
+	Constraints int `json:"constraints"`
+	// Starts is the number of starting points the runtime solves (the
+	// block's `starts`, else the default 8).
+	Starts int `json:"starts"`
+	// RNGSeed is the effective seed of the Latin-hypercube starts — the
+	// seed the runtime draws with and echoes on the block's result (the
+	// pinned rng_seed, else the one derived from the block).
+	RNGSeed int64 `json:"rng_seed"`
 }
 
 // VectorFitSummary is a vector fit's FitSummary: its battery and, when
@@ -1113,6 +1140,10 @@ type PValueFamily struct {
 type SweepAxisSummary struct {
 	// Name is the axis's placeholder name.
 	Name string `json:"name"`
-	// Count is how many values the axis carries.
+	// Count is how many values the axis carries — under a sampling mode
+	// (random / lhs), how many it draws (the sweep's samples).
 	Count int `json:"count"`
+	// Range is a sampled axis's interval as written (nil on a values
+	// axis).
+	Range *types.SweepRange `json:"range,omitempty"`
 }

@@ -138,6 +138,13 @@ type ComposeValidationResult struct {
 	// their structural rules (model.CheckFits); omitted without fits.
 	Fits []descriptor.FitSummary `json:"fits,omitempty"`
 
+	// Optimize lists the request's `optimize` blocks in declaration
+	// order — name, direction, variables, constraint count and the
+	// effective starts and seed — validated statically, never solved.
+	// Set once every block passes its rules (optblock.Check, the
+	// runtime's too); omitted without optimize blocks.
+	Optimize []descriptor.OptimizeSummary `json:"optimize,omitempty"`
+
 	// LimitFindings lists every instance resource limit the batch's
 	// predicted figures exceed, graded like PredictResult.LimitFindings:
 	// the slot count (MaxComposeSlots — explicit plus sweep-expanded —
@@ -318,6 +325,14 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 		result.Valid = false
 		return env, req
 	}
+	// Then the optimize blocks — the runtime's OptimizeRefusal, run
+	// right after its CheckFits; nothing past it runs on a refusal.
+	if _, oerr := OptimizeRefusal(req, predictExprFunctionNames(opts), predictHasLookup(opts), opts.populations(), opts.loadModelFiles); oerr != nil {
+		addCodedError(env, oerr)
+		result.Valid = false
+		return env, req
+	}
+	result.Optimize = optimizeSummaries(req.Optimize)
 	// Then the batch's saves and loads — the runtime's
 	// model.CheckComposeBatch and its model-file reads, run before any
 	// fit or slot; nothing past it runs on a refusal.
@@ -461,8 +476,17 @@ func sweepSummary(spec *types.SweepSpec) *descriptor.SweepSummary {
 	axes := make([]descriptor.SweepAxisSummary, len(spec.Axes))
 	for i, ax := range spec.Axes {
 		axes[i] = descriptor.SweepAxisSummary{Name: ax.Name, Count: len(ax.Values)}
+		if mode.Sampled() {
+			axes[i] = descriptor.SweepAxisSummary{Name: ax.Name, Count: spec.Samples, Range: ax.Range}
+		}
 	}
-	return &descriptor.SweepSummary{Axes: axes, Mode: mode, ExpandedCount: sweep.Count(spec)}
+	out := &descriptor.SweepSummary{Axes: axes, Mode: mode, ExpandedCount: sweep.Count(spec)}
+	if mode.Sampled() {
+		// The runtime's seed: one function of the spec (sweep.EffectiveSeed).
+		seed := sweep.EffectiveSeed(spec)
+		out.RNGSeed = &seed
+	}
+	return out
 }
 
 // bannerSummary is ComposeValidationResult.Banner for a banner that

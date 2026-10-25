@@ -105,6 +105,12 @@ func (s *Service) composeParallel(
 	if err := model.CheckFits(composed.Fits); err != nil {
 		return nil, err
 	}
+	// Then the optimize blocks' rules (predict runs the same
+	// descx.OptimizeRefusal at the same point).
+	optLoaded, err := s.optimizeRefusal(composed)
+	if err != nil {
+		return nil, err
+	}
 	// The batch's saves and loads, exactly as on the serial path.
 	pre, err := s.composeModelsPrepass(composed)
 	if err != nil {
@@ -146,6 +152,13 @@ func (s *Service) composeParallel(
 	if err != nil {
 		return nil, err
 	}
+	// The optimize blocks, once the fits are bound and before any slot:
+	// they read no record (runComposeOptimize).
+	optimizations, optWarnings, err := s.runComposeOptimize(composed, models, optLoaded)
+	if err != nil {
+		return nil, err
+	}
+	fitWarnings = append(fitWarnings, optWarnings...)
 	// Every slot's bound set — the fits plus its own loaded models —
 	// before the pool starts.
 	slotSets := make([]*model.Set, len(requests))
@@ -291,7 +304,7 @@ func (s *Service) composeParallel(
 	// `distributeComposeWarnings` (internal/service/compose_overlay.go) so the
 	// serial `service.Compose` and the parallel path here share the
 	// identical layer-warning routing contract.
-	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Warnings: fitWarnings}
+	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Optimizations: optimizations, Warnings: fitWarnings}
 	if s.echoRequest {
 		out.NormalizedRequest = composed
 	}
@@ -309,8 +322,9 @@ func (s *Service) composeParallel(
 	if err := runDeferredMatrixResultOverlays(deferred); err != nil {
 		return nil, err
 	}
-	// The sweep rank reads the finished, folded, still-unshaped slots.
-	if err := applyComposeRank(ext.rank, requests, out); err != nil {
+	// The sweep seed echo and rank read the finished, folded,
+	// still-unshaped slots.
+	if err := applyComposeSweep(ext, requests, out); err != nil {
 		return nil, err
 	}
 	// The banner stitch reads the same finished, folded, unshaped slots.

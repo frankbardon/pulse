@@ -3,7 +3,7 @@ package sem
 import (
 	"math"
 
-	"github.com/frankbardon/pulse/internal/detmath"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // The ordinal (two-step) numerics — normal.go, bvn.go, ordinal.go,

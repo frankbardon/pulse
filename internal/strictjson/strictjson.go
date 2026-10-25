@@ -248,6 +248,7 @@ var walkedUnmarshalers = map[reflect.Type]bool{
 var opaqueUnmarshalers = map[reflect.Type]bool{
 	reflect.TypeFor[types.CovarianceLags](): true, // "auto" | integer | null
 	reflect.TypeFor[types.PriorPrecision](): true, // number | array of numbers | null
+	reflect.TypeFor[types.OptimizeBound]():  true, // number | "params.<name>" | null
 }
 
 // locatedFields are the struct fields holding a nested Request: the

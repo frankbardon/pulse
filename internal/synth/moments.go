@@ -35,7 +35,7 @@ package synth
 // architecture-specific in the standard library, and the pure-Go
 // `math.Pow` / `Expm1` / `Erf` / `Erfinv` are compiled with contraction
 // on arm64. Every transcendental this package evaluates therefore runs on
-// internal/detmath's portable ports, which give identical bits
+// linalg/detmath's portable ports, which give identical bits
 // everywhere: `--fit-shape` (shape.go), the rule / constraint row maths
 // (exprenv.MathOptions, row_expr_builtins.go), the lognormal / pareto /
 // poisson draws (distributions.go) and the copula's Φ / Φ⁻¹ and marginal

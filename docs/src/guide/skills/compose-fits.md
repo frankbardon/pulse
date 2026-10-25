@@ -74,4 +74,4 @@ A fit its data refuses fails alone: its `fits` entry keeps identity + `error`, c
 
 ## See
 
-[`compose-requests`](compose-requests.md) (slots, labels, parallel) · [`compose-sweeps`](compose-sweeps.md) (the slots a sweep adds receive the fits too) · [`regression-modeling`](regression-modeling.md) (choosing the regression a fit runs) · [`regression-inference`](regression-inference.md) (reading its result).
+[`compose-requests`](compose-requests.md) (slots, labels, parallel) · [`compose-sweeps`](compose-sweeps.md) (the slots a sweep adds receive the fits too) · [`regression-modeling`](regression-modeling.md) · [`regression-inference`](regression-inference.md) (reading its result) · [`compose-optimize`](compose-optimize.md).

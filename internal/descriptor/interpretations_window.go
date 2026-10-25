@@ -20,16 +20,16 @@ import "github.com/frankbardon/pulse/descriptor"
 // null on a frame with none; the rank pair ties rows equal on every
 // order_by key and puts missing keys last, sharing the last rank.
 var windowInterpretations = map[string][]descriptor.Interpretation{
-	"WIN_ADSTOCK":     interpWinAdstock,
-	"WIN_DELTA":       interpWinDelta,
-	"WIN_DENSE_RANK":  interpWinDenseRank,
-	"WIN_EWMA":        interpWinEWMA,
-	"WIN_MOVING_AVG":  interpWinMovingAvg,
-	"WIN_PCT_CHANGE":  interpWinPctChange,
-	"WIN_RANK":        interpWinRank,
-	"WIN_RUNNING_AVG": interpWinRunningAvg,
-	"WIN_SHARE":       interpWinShare,
-	"WIN_LIFT":        interpWinLift,
+	"WIN_DISTRIBUTED_LAG": interpWinDistributedLag,
+	"WIN_DELTA":           interpWinDelta,
+	"WIN_DENSE_RANK":      interpWinDenseRank,
+	"WIN_EWMA":            interpWinEWMA,
+	"WIN_MOVING_AVG":      interpWinMovingAvg,
+	"WIN_PCT_CHANGE":      interpWinPctChange,
+	"WIN_RANK":            interpWinRank,
+	"WIN_RUNNING_AVG":     interpWinRunningAvg,
+	"WIN_SHARE":           interpWinShare,
+	"WIN_LIFT":            interpWinLift,
 }
 
 // Shared caveat sentences, so sibling windows say the same thing the same
@@ -151,7 +151,7 @@ var (
 	}
 )
 
-var interpWinAdstock = []descriptor.Interpretation{
+var interpWinDistributedLag = []descriptor.Interpretation{
 	{
 		Field: "value",
 		Means: "The field's carried-over level: the current value plus earlier values, each weighted by the kernel at its distance back, up to max_lag rows. " +

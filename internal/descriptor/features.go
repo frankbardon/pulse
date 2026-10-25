@@ -103,7 +103,9 @@ var (
 	featProcess       = FeatureName(FeatureKindCapability, "process")
 	featCompose       = FeatureName(FeatureKindCapability, "compose")
 	featComposeSweep  = FeatureName(FeatureKindCapability, "compose_sweep")
+	featSweepSampling = FeatureComposeSweepSampling
 	featComposeFits   = FeatureName(FeatureKindCapability, "compose_fits")
+	featComposeOpt    = FeatureComposeOptimize
 	featComposeBanner = FeatureName(FeatureKindCapability, "compose_banner")
 	featModelSave     = FeatureModelSave
 	featRegHoldout    = FeatureRegressionHoldout
@@ -219,6 +221,19 @@ const FeatureRegressionHoldout = "capability:regression_holdout"
 // bound-model namespace. Exported for the MCP bound schema.
 const FeatureModels = "capability:models"
 
+// FeatureComposeSweepSampling is capability:compose_sweep_sampling —
+// the compose sweep's sampling modes (random / lhs) with their
+// `samples`, `rng_seed`, axis `range` and the ComposedResponse
+// `sweep_seed` echo. Exported because the MCP binder (the bound sweep
+// schema) reads it too.
+const FeatureComposeSweepSampling = "capability:compose_sweep_sampling"
+
+// FeatureComposeOptimize is capability:compose_optimize — the
+// ComposedRequest `optimize` blocks and the ComposedResponse
+// `optimizations` they produce. Exported because the MCP binder (the
+// bound compose schema) reads it too.
+const FeatureComposeOptimize = "capability:compose_optimize"
+
 // FeatureWeighting is capability:weighting — the row-weight surface:
 // the request-root `weight`, every per-slot `weight`, and
 // pulse.Options.DefaultWeight (.claude/reference/weighting.md, Feature
@@ -276,6 +291,12 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("params"),             // Request.Params (params.<name> in request expressions)
 	capability("recommend"),          // pulse_recommend, pulse recommend (the facade stays ungated)
 	capability("explain"),            // pulse_explain, pulse explain (the facade stays ungated)
+	// The compose sweep's seeded random / lhs modes: SweepSpec.Samples /
+	// RNGSeed, SweepAxis.Range and ComposedResponse.SweepSeed.
+	capability("compose_sweep_sampling"),
+	// The compose `optimize` blocks: ComposedRequest.Optimize and
+	// ComposedResponse.Optimizations.
+	capability("compose_optimize"),
 
 	// I/O formats — io.Formats(). One name gates import AND export.
 	ioFormat("csv"),
@@ -392,9 +413,10 @@ var builtinFeatures = withDependencies([]Feature{
 	op("GROUP_SET_PER_ELEMENT"),
 	op("GROUP_SET_VALUE"),
 	// Windows — types.AllWindowTypes().
-	op("WIN_ADSTOCK"),
 	op("WIN_DELTA"),
 	op("WIN_DENSE_RANK"),
+	// Renamed from WIN_ADSTOCK before v1.0.0 (no alias); Since unchanged.
+	op("WIN_DISTRIBUTED_LAG"),
 	op("WIN_EWMA"),
 	op("WIN_LAG"),
 	op("WIN_LEAD"),
@@ -605,6 +627,13 @@ var slotTokens = map[string]slotTokenSet{
 	// `sweep` and `ranking` are everyday English; no guidance sentence
 	// names the slot yet.
 	featComposeSweep: {},
+	// `samples`, `range` and `seed` are everyday English, `rng_seed` is
+	// MAT_SEM's and REG_RESAMPLE's key too; no guidance sentence names
+	// the `sweep_seed` echo.
+	featSweepSampling: {},
+	// `optimize` / `optimizations` are everyday English; no guidance
+	// sentence names the slot yet.
+	featComposeOpt: {},
 	// `fits` is everyday English; no guidance sentence names the slot.
 	featComposeFits: {},
 	// `banner` names the slot only; no guidance sentence names it yet.
@@ -848,6 +877,13 @@ var hardEdges = map[string][]string{
 	// A sweep expands into Compose slots: without Compose there is
 	// nothing to expand into.
 	featComposeSweep: {featCompose},
+	// A sampling mode is a sweep mode: without the sweep there is
+	// nothing to draw the slots of.
+	featSweepSampling: {featComposeSweep},
+	// An optimize block is a Compose slot: without Compose there is no
+	// batch to solve it in (its coef() reads the batch's fits, but a
+	// block over params alone needs none).
+	featComposeOpt: {featCompose},
 	// The measures are a crosstab's cells: without the crosstab host
 	// there is no table to fold them into.
 	featCrosstabCells: {featCrosstab},
@@ -859,15 +895,17 @@ var hardEdges = map[string][]string{
 	// A holdout scores the fit of a regression slot: without a
 	// regression there is nothing to hold rows out of.
 	featRegHoldout: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS)},
-	// Parameters are read only by an expression: without one there is
-	// nothing to read them.
-	featParams: {"ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", featRegHoldout},
+	// Parameters are read only by an expression (an optimize block's
+	// included): without one there is nothing to read them.
+	featParams: {"ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", featRegHoldout, featComposeOpt},
 	// A loaded model, population or SEM fit file is read only by a
 	// reference: a scoring reference (ATTR_REG_PREDICT, coef()) or a
 	// params.fit (a fitted vector attribute, ATTR_REG_FITTED / RESIDUAL,
-	// ATTR_SEM_SCORE, a MAT_* slot).
+	// ATTR_SEM_SCORE, a MAT_* slot), or an optimize block's coef().
 	featModels: {string(types.ATTR_FACTOR_SCORE), "ATTR_FORMULA", string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
-		"ATTR_REG_FITTED", "ATTR_REG_PREDICT", "ATTR_REG_RESIDUAL", string(types.ATTR_SEM_SCORE), string(types.ATTR_VEC_DISTANCE), "FILTER_EXPRESSION", featMatrices},
+		"ATTR_REG_FITTED", "ATTR_REG_PREDICT", "ATTR_REG_RESIDUAL", string(types.ATTR_SEM_SCORE), string(types.ATTR_VEC_DISTANCE), "FILTER_EXPRESSION", featMatrices,
+		// An optimize block's coef() over its own `models`.
+		featComposeOpt},
 }
 
 // extensionRegressionEdges are the built-in features whose REG_* any-of

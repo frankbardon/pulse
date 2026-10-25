@@ -7,7 +7,7 @@ import (
 
 	"github.com/expr-lang/expr"
 
-	"github.com/frankbardon/pulse/internal/detmath"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // powProbe is a base where math.Pow(powProbe, 1.7) and detmath.Pow

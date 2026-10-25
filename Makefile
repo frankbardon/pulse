@@ -1,4 +1,4 @@
-.PHONY: build clean dist test smoke contrib contrib-tidy cover fmt fmt-check vet lint bench bench-scale sites tzdata reference docs docs-generate docs-serve docs-clean
+.PHONY: build clean dist test smoke contrib contrib-tidy cover fmt fmt-check vet lint bench bench-scale sites tzdata reference reference-optimize docs docs-generate docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -46,9 +46,10 @@ smoke:
 	cd internal/embeddersmoke && GOFLAGS=-mod=mod $(GO) vet ./... && GOFLAGS=-mod=mod $(GO) test -count=1 ./...
 
 # contrib vets, lints (staticcheck), checks tidiness of and tests every
-# nested adapter module under contrib/ (otelpulse, prompulse): separate Go
-# modules with their own go.mod + go.sum, `require pulse` at the matching
-# root version and `replace => ../..` for in-repo development. Unlike
+# nested module under contrib/ (the otelpulse / prompulse adapters and the
+# mmmpulse model pack): separate Go modules with their own go.mod +
+# go.sum, `require pulse` at the matching root version and
+# `replace => ../..` for in-repo development. Unlike
 # `make smoke` these are PUBLISHED modules, so there is no -mod=mod: a
 # stale go.mod/go.sum fails here (and in CI) instead of reaching a tag or
 # an IDE. A root dependency bump therefore needs `make contrib-tidy` in
@@ -164,6 +165,22 @@ reference:
 	Rscript scripts/reference/gen_reference.R $(REFERENCE_DIR)
 	go run ./internal/tools/refcohorts -dir $(REFERENCE_DIR)/fixtures
 	@for f in $(REFERENCE_DIR)/*.json; do \
+		h=$$(shasum -a 256 "$$f" | cut -d' ' -f1); \
+		printf '\n// golden-hash: %s\n' "$$h" >> "$$f"; \
+	done
+
+# reference-optimize regenerates the optimize package's R oracles
+# (optimize/testdata/least_squares.json vs minpack.lm::nlsLM,
+# minimize.json vs nloptr NLOPT_LD_SLSQP) with
+# optimize/testdata/gen_optimize.R, then appends the `// golden-hash:`
+# footer TestOptimize_OracleGoldensHashed checks. Needs Rscript +
+# jsonlite, minpack.lm 1.2-4 (install with the Homebrew Fortran
+# workaround in docs/src/internals/regenerating-goldens.md) and nloptr
+# 2.2.1. Manual target: CI never runs R.
+OPTIMIZE_REFERENCE_DIR=optimize/testdata
+reference-optimize:
+	Rscript $(OPTIMIZE_REFERENCE_DIR)/gen_optimize.R $(OPTIMIZE_REFERENCE_DIR)
+	@for f in $(OPTIMIZE_REFERENCE_DIR)/*.json; do \
 		h=$$(shasum -a 256 "$$f" | cut -d' ' -f1); \
 		printf '\n// golden-hash: %s\n' "$$h" >> "$$f"; \
 	done

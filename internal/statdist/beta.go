@@ -1,6 +1,10 @@
 package statdist
 
-import "math"
+import (
+	"math"
+
+	"github.com/frankbardon/pulse/linalg/detmath"
+)
 
 // RegularizedIncompleteBetaXY returns I_x(a, b) given x and y = 1 - x
 // computed independently by the caller. Uses the continued-fraction
@@ -14,13 +18,13 @@ func RegularizedIncompleteBetaXY(a, b, x, y float64) float64 {
 	if y <= 0 {
 		return 1
 	}
-	lx := math.Log(x)
+	lx := detmath.Log(x)
 	if x > 0.5 {
-		lx = math.Log1p(-y)
+		lx = detmath.Log1p(-y)
 	}
-	ly := math.Log(y)
+	ly := detmath.Log(y)
 	if y > 0.5 {
-		ly = math.Log1p(-x)
+		ly = detmath.Log1p(-x)
 	}
 	return regularizedIncompleteBetaLog(a, b, x, y, lx, ly)
 }
@@ -35,7 +39,7 @@ func regularizedIncompleteBetaLog(a, b, x, y, lx, ly float64) float64 {
 	if math.IsInf(ly, -1) {
 		return 1
 	}
-	bt := math.Exp(a*lx + b*ly - logBeta(a, b))
+	bt := detmath.Exp(float64(a*lx) + float64(b*ly) - logBeta(a, b))
 	if x < (a+1)/(a+b+2) {
 		return bt * betacf(a, b, x) / a
 	}
@@ -51,16 +55,16 @@ func logBeta(a, b float64) float64 {
 	switch {
 	case p >= 10:
 		corr := LgammaCorrection(p) + LgammaCorrection(q) - LgammaCorrection(p+q)
-		return -0.5*math.Log(q) + lnSqrt2Pi + corr +
-			(p-0.5)*math.Log(p/(p+q)) + q*math.Log1p(-p/(p+q))
+		return -float64(0.5*detmath.Log(q)) + lnSqrt2Pi + corr +
+			float64((p-0.5)*detmath.Log(p/(p+q))) + float64(q*detmath.Log1p(-p/(p+q)))
 	case q >= 10:
 		corr := LgammaCorrection(q) - LgammaCorrection(p+q)
-		lgp, _ := math.Lgamma(p)
-		return lgp + corr + p - p*math.Log(p+q) + (q-0.5)*math.Log1p(-p/(p+q))
+		lgp, _ := detmath.Lgamma(p)
+		return lgp + corr + p - float64(p*detmath.Log(p+q)) + float64((q-0.5)*detmath.Log1p(-p/(p+q)))
 	default:
-		lgp, _ := math.Lgamma(p)
-		lgq, _ := math.Lgamma(q)
-		lgpq, _ := math.Lgamma(p + q)
+		lgp, _ := detmath.Lgamma(p)
+		lgq, _ := detmath.Lgamma(q)
+		lgpq, _ := detmath.Lgamma(p + q)
 		return lgp + lgq - lgpq
 	}
 }
@@ -78,12 +82,12 @@ func LgammaCorrection(x float64) float64 {
 		1.0 / 1188, -691.0 / 360360, 1.0 / 156, -3617.0 / 122400,
 	}
 	inv := 1 / x
-	inv2 := inv * inv
+	inv2 := float64(inv * inv)
 	sum := 0.0
 	for i := len(coef) - 1; i >= 0; i-- {
-		sum = sum*inv2 + coef[i]
+		sum = float64(sum*inv2) + coef[i]
 	}
-	return sum * inv
+	return float64(sum * inv)
 }
 
 // betacf is the Lentz continued-fraction evaluation of the incomplete
@@ -99,7 +103,7 @@ func betacf(a, b, x float64) float64 {
 	qap := a + 1
 	qam := a - 1
 	c := 1.0
-	d := 1 - qab*x/qap
+	d := 1 - float64(qab*x)/qap
 	if math.Abs(d) < tiny {
 		d = tiny
 	}
@@ -109,8 +113,8 @@ func betacf(a, b, x float64) float64 {
 		mf := float64(m)
 		m2 := float64(2 * m)
 		// Even step
-		aa := mf * (b - mf) * x / ((qam + m2) * (a + m2))
-		d = 1 + aa*d
+		aa := float64(float64(mf*(b-mf))*x) / float64((qam+m2)*(a+m2))
+		d = 1 + float64(aa*d)
 		if math.Abs(d) < tiny {
 			d = tiny
 		}
@@ -119,10 +123,10 @@ func betacf(a, b, x float64) float64 {
 			c = tiny
 		}
 		d = 1 / d
-		h *= d * c
+		h = float64(h * float64(d*c))
 		// Odd step
-		aa = -(a + mf) * (qab + mf) * x / ((a + m2) * (qap + m2))
-		d = 1 + aa*d
+		aa = float64(float64(-(a+mf)*(qab+mf))*x) / float64((a+m2)*(qap+m2))
+		d = 1 + float64(aa*d)
 		if math.Abs(d) < tiny {
 			d = tiny
 		}
@@ -131,8 +135,8 @@ func betacf(a, b, x float64) float64 {
 			c = tiny
 		}
 		d = 1 / d
-		del := d * c
-		h *= del
+		del := float64(d * c)
+		h = float64(h * del)
 		if math.Abs(del-1) <= eps {
 			break
 		}

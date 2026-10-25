@@ -1276,6 +1276,12 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	if err := model.CheckFits(composed.Fits); err != nil {
 		return nil, err
 	}
+	// Then the optimize blocks' rules (predict runs the same
+	// descx.OptimizeRefusal at the same point).
+	optLoaded, err := s.optimizeRefusal(composed)
+	if err != nil {
+		return nil, err
+	}
 	// Then the batch's saves and loads (model.CheckComposeBatch — every
 	// slot's save path, every save's uniqueness, every `models` entry)
 	// and every model file read, before any fit or slot runs.
@@ -1318,6 +1324,13 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	if err != nil {
 		return nil, err
 	}
+	// The optimize blocks, once the fits are bound and before any slot:
+	// they read no record (runComposeOptimize).
+	optimizations, optWarnings, err := s.runComposeOptimize(composed, models, optLoaded)
+	if err != nil {
+		return nil, err
+	}
+	fitWarnings = append(fitWarnings, optWarnings...)
 
 	// Observability (no-ops off): the batch's planning is its plan
 	// phase; each slot is a child operation timed under its own
@@ -1369,7 +1382,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// no Compose-only overlays. The `Responses` slot is the SAME slice
 	// that the pre-lift facade returned bare — no per-slot shape
 	// change.
-	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Warnings: fitWarnings}
+	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Optimizations: optimizations, Warnings: fitWarnings}
 	if s.echoRequest {
 		out.NormalizedRequest = composed
 	}
@@ -1393,8 +1406,9 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	if err := runDeferredMatrixResultOverlays(deferred); err != nil {
 		return nil, err
 	}
-	// The sweep rank reads the finished, folded, still-unshaped slots.
-	if err := applyComposeRank(ext.rank, requests, out); err != nil {
+	// The sweep seed echo and rank read the finished, folded,
+	// still-unshaped slots.
+	if err := applyComposeSweep(ext, requests, out); err != nil {
 		return nil, err
 	}
 	// The banner stitch reads the same finished, folded, unshaped slots.

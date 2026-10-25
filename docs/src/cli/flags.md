@@ -140,7 +140,10 @@ Stream result rows as NDJSON (one row per line) instead of buffering
 the full result. For `compose`, each line carries an `{"index": N,
 "row": {...}}` shape so consumers know which sub-request produced
 each row. A run that warned ends with one `{"warnings": [...]}` line
-(compose: after the rows, before a ranked sweep's `ranking` line). See [Streaming & ProcessStream](../library/streaming.md).
+(compose: after the rows, before a ranked sweep's `ranking` line).
+A compose batch with `optimize` blocks ends with one
+`{"optimizations": [...]}` line — each block's optimum is one solve,
+written whole, never as rows. See [Streaming & ProcessStream](../library/streaming.md).
 
 ### `--strict`
 

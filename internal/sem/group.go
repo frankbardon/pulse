@@ -287,8 +287,11 @@ func FitGroups(model *Model, groups []GroupMoments, opt Options) (*GroupFit, err
 				xl[k] = lo
 			}
 		}
-		res := slsqpMinimize(j.objective, j.gradient, x0, xl, xu, opt.Ftol, opt.MaxIter)
-		x, f, iters, conv, status = res.x, res.fun, res.nit, res.mode == slsqpSuccess, slsqpMessages[res.mode]
+		var err error
+		x, f, iters, conv, status, err = slsqpBounded(j.objective, j.gradient, x0, xl, xu, opt)
+		if err != nil {
+			return nil, err
+		}
 	}
 	se, vcov, err := j.standardErrors(x, groups, len(model.defined) > 0)
 	if err != nil {

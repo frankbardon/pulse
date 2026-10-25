@@ -287,7 +287,7 @@ func TestSkillsCoverShardingTopics(t *testing.T) {
 //	internal/mergegate/   >= 100%
 //	internal/crosstabfuse/ >= 90%
 //	internal/vecmath/     >= 95%
-//	internal/detmath/     >= 95%
+//	linalg/detmath/     >= 95%
 //	linalg/      >= 90%
 //	linalg/metric/ >= 95%
 //	cmd/pulse/   >= 75%
@@ -314,7 +314,7 @@ func TestPerPackageCoverageFloors(t *testing.T) {
 		"internal/mergegate":    100,
 		"internal/crosstabfuse": 90,
 		"internal/vecmath":      95,
-		"internal/detmath":      95,
+		"linalg/detmath":        95,
 		"linalg":                90,
 		"linalg/metric":         95,
 		"cmd/pulse":             75,

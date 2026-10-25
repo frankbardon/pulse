@@ -4,7 +4,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/frankbardon/pulse/internal/detmath"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // MinShapeFitObservations is the minimum number of retained samples a

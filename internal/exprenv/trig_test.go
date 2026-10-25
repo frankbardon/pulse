@@ -8,7 +8,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/detmath"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // TestTrigBuiltins_Values: sin / cos / tan / atan2 answer detmath's
@@ -92,7 +92,7 @@ func TestTrigBuiltins_CompileThroughOptions(t *testing.T) {
 
 // TestExprTranscendentals_AreDetmath: every transcendental built-in —
 // exp, log, log1p, pow, hill's power and the trig set — answers
-// internal/detmath's bits over a dense grid, so a formula gives the
+// linalg/detmath's bits over a dense grid, so a formula gives the
 // same value on every architecture and CPU. The grid is wide enough
 // that a kernel reverted to math.* differs somewhere on arm64 (fused
 // multiply-adds) and on amd64 (the Exp / Log assembly).

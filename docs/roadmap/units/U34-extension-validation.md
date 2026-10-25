@@ -8,7 +8,7 @@ status: done
 depends_on: [U02b]
 soft_depends_on: []
 blocks: [U32]
-todo_items: [194, 195, 196, 197, 216, 230, 374, 409, 451, 459]
+todo_items: [194, 195, 196, 197, 216, 230, 374, 409, 451, 459, 559]
 branch: extension-validation
 ---
 

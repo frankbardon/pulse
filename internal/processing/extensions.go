@@ -534,8 +534,8 @@ func (r *ExtensionRegistry) LookupWindow(t types.WindowType) (window.WindowFacto
 // LookupRegression returns the factory for a regression type: an
 // extension REG_* model's adapted factory, else the built-in registry.
 // A type the instance feature set hides misses exactly like one nothing
-// registered, so regression.BuildWith raises its own "unknown
-// regression type" error.
+// registered, so regression.BuildWith raises predict's
+// PULSE_REGRESSION_INVALID unknown-type refusal.
 func (r *ExtensionRegistry) LookupRegression(t types.RegressionType) (regression.Factory, bool) {
 	if r.isHidden(string(t)) {
 		return nil, false

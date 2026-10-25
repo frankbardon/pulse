@@ -10,6 +10,8 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
+	"github.com/frankbardon/pulse/linalg"
+	"github.com/frankbardon/pulse/optimize"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -17,15 +19,15 @@ import (
 // REG_TESTMMM_HILL (U53 E4-S1, reused by the E4-S2 media-mix pipeline):
 // a nonlinear Hill-saturation media-mix model written exactly as an
 // embedder would write it — this file imports only Pulse's public
-// packages (pulse, extend, encoding, errors, types) and the standard
-// library.
+// packages (pulse, extend, encoding, errors, linalg, optimize, types)
+// and the standard library.
 //
 // The model is buffered joint nonlinear least squares,
 //
 //	y = β0 + Σ_c β_c · hill(a_c, k_c, s_c) + Σ_j γ_j · z_j,
 //
 // where every a_c is a channel predictor (an already-adstocked spend
-// column, WIN_ADSTOCK upstream) and every z_j a control predictor
+// column, WIN_DISTRIBUTED_LAG upstream) and every z_j a control predictor
 // entering linearly. hill(x, k, s) = x^s / (x^s + k^s), the same curve
 // as the hill() expression function. It minimises
 //
@@ -35,13 +37,9 @@ import (
 // precision in units of the unit-variance residual — over a
 // reparametrised vector, so k_c = κ_c·exp(θ), s_c = exp(θ) stay
 // positive and, under nonnegative, β_c = exp(θ) stays non-negative,
-// by a hand-written, serial Levenberg–Marquardt (levenbergMarquardt)
+// by Pulse's public Levenberg–Marquardt, optimize.LeastSquares (fit),
 // from a fixed, data-derived start (k at the channel's mean, s = 1, the
-// linear part by least squares). It does not use gonum/optimize:
-// importing that package forces a go.mod change (new indirect
-// golang.org/x/tools plus x/crypto and x/net bumps) — a dependency bump
-// a test model does not justify — and gonum has no least-squares solver
-// anyway.
+// linear part by least squares through linalg.SolveSPD).
 //
 // Coefficients are "(intercept)", then each predictor in spec order
 // (β_c for a channel, γ_j for a control), with no standard error (null
@@ -226,96 +224,33 @@ func (p *hillProblem) residuals(r []float64, jac [][]float64, x []float64) {
 	}
 }
 
-func (p *hillProblem) cost(r []float64) float64 {
-	f := 0.0
-	for _, v := range r {
-		f += float64(v * v)
-	}
-	return 0.5 * f
-}
-
-// levenbergMarquardt minimises ½·Σ r² from x0 with a fixed schedule —
-// damping λ starts at 1e-3 (relative to diag(JᵀJ)), shrinks ×⅓ on an
-// accepted step and grows ×4 on a rejected one — stopping when an
-// accepted step changes the cost by less than 1e-13 relative or moves
-// every parameter by less than 1e-10 relative, or the damping exceeds
-// 1e16. Every operation is serial and its order fixed,
-// so the same rows give the same bits; it returns the iteration count.
-func (p *hillProblem) levenbergMarquardt(x0 []float64) ([]float64, int, error) {
-	dim := len(x0)
+// fit minimises ½·Σ r² from x0 with optimize.LeastSquares, unbounded
+// (positivity rides the θ reparametrisation), and returns the iteration
+// count. The solver's schedule is fixed and serial, so the same rows
+// give the same bits; an iteration-limit stop is
+// PROCESSING_REGRESSION_NO_CONVERGE.
+func (p *hillProblem) fit(x0 []float64) ([]float64, int, error) {
 	m := len(p.y)
 	if p.priorIdx >= 0 {
 		m++
 	}
-	x := slices.Clone(x0)
-	r, rTry := make([]float64, m), make([]float64, m)
+	r, scratch := make([]float64, m), make([]float64, m)
 	jac := make([][]float64, m)
 	for i := range jac {
-		jac[i] = make([]float64, dim)
+		jac[i] = make([]float64, len(x0))
 	}
-	p.residuals(r, jac, x)
-	cost := p.cost(r)
-	lambda := 1e-3
-	const maxIter = 2000
-	for iter := 1; iter <= maxIter; iter++ {
-		jtj := make([][]float64, dim)
-		jtr := make([]float64, dim)
-		for a := range jtj {
-			jtj[a] = make([]float64, dim)
-		}
-		for i, row := range jac {
-			for a := 0; a < dim; a++ {
-				if row[a] == 0 {
-					continue
-				}
-				jtr[a] += float64(row[a] * r[i])
-				for b := a; b < dim; b++ {
-					jtj[a][b] += float64(row[a] * row[b])
-				}
-			}
-		}
-		for a := 0; a < dim; a++ {
-			for b := 0; b < a; b++ {
-				jtj[a][b] = jtj[b][a]
-			}
-		}
-		for {
-			sys := make([][]float64, dim)
-			for a := range sys {
-				sys[a] = append(slices.Clone(jtj[a]), -jtr[a])
-				sys[a][a] += float64(lambda * math.Max(jtj[a][a], 1e-12))
-			}
-			step, ok := solveAugmented(sys)
-			if ok {
-				try := make([]float64, dim)
-				for a := range try {
-					try[a] = x[a] + step[a]
-				}
-				p.residuals(rTry, nil, try)
-				if c := p.cost(rTry); c <= cost && !math.IsNaN(c) {
-					done := cost-c <= 1e-13*math.Max(cost, 1e-300)
-					small := true
-					for a := range step {
-						small = small && math.Abs(step[a]) <= 1e-10*(1+math.Abs(x[a]))
-					}
-					done = done || small
-					x, cost = try, c
-					lambda = math.Max(lambda/3, 1e-12)
-					p.residuals(r, jac, x)
-					if done {
-						return x, iter, nil
-					}
-					break
-				}
-			}
-			lambda *= 4
-			if lambda > 1e16 {
-				return x, iter, nil // no descent left at any damping: a minimum.
-			}
-		}
+	res, err := optimize.LeastSquares(
+		func(x []float64) []float64 { p.residuals(r, nil, x); return r },
+		func(x []float64) [][]float64 { p.residuals(scratch, jac, x); return jac },
+		x0, nil, nil, optimize.LeastSquaresOptions{})
+	switch {
+	case perr.HasCode(err, perr.PULSE_OPTIMIZE_NOT_CONVERGED):
+		return nil, res.Iterations, perr.NewCodedError(perr.PROCESSING_REGRESSION_NO_CONVERGE,
+			fmt.Sprintf("REG_TESTMMM_HILL did not converge in %d iterations", res.Iterations))
+	case err != nil:
+		return nil, 0, err
 	}
-	return nil, maxIter, perr.NewCodedError(perr.PROCESSING_REGRESSION_NO_CONVERGE,
-		fmt.Sprintf("REG_TESTMMM_HILL did not converge in %d iterations", maxIter))
+	return res.X, res.Iterations, nil
 }
 
 func (m *hillModel) Fit(rows extend.Rows) (extend.RegressionOutput, error) {
@@ -365,7 +300,7 @@ func (m *hillModel) Fit(rows extend.Rows) (extend.RegressionOutput, error) {
 	if err != nil {
 		return extend.RegressionOutput{}, err
 	}
-	xHat, iters, err := prob.levenbergMarquardt(x0)
+	xHat, iters, err := prob.fit(x0)
 	if err != nil {
 		return extend.RegressionOutput{}, err
 	}
@@ -452,60 +387,33 @@ func (p *hillProblem) start() ([]float64, error) {
 	return x, nil
 }
 
-// leastSquares solves the normal equations of y on cols
-// (solveAugmented): a small, dependency-free solve.
+// leastSquares solves the normal equations of y on cols through
+// linalg.SolveSPD.
 func leastSquares(cols [][]float64, y []float64) ([]float64, error) {
 	p := len(cols)
-	a := make([][]float64, p)
-	for r := range a {
-		a[r] = make([]float64, p+1)
-		for c := 0; c < p; c++ {
+	packed := make([]float64, 0, p*(p+1)/2)
+	rhs := make([]float64, p)
+	for r := 0; r < p; r++ {
+		for c := r; c < p; c++ {
+			v := 0.0
 			for i := range y {
-				a[r][c] += float64(cols[r][i] * cols[c][i])
+				v += float64(cols[r][i] * cols[c][i])
 			}
+			packed = append(packed, v)
 		}
 		for i := range y {
-			a[r][p] += float64(cols[r][i] * y[i])
+			rhs[r] += float64(cols[r][i] * y[i])
 		}
 	}
-	out, ok := solveAugmented(a)
-	if !ok {
+	a, err := linalg.NewSym(p, packed)
+	if err != nil {
+		return nil, err
+	}
+	out, err := linalg.SolveSPD(a, linalg.NewVec(rhs))
+	if err != nil {
 		return nil, perr.NewCodedError(perr.PROCESSING_REGRESSION_RANK_DEFICIENT, "REG_TESTMMM_HILL: the start design is singular")
 	}
-	return out, nil
-}
-
-// solveAugmented solves the p×(p+1) augmented system a in place by
-// Gaussian elimination with partial pivoting; ok false when singular.
-func solveAugmented(a [][]float64) ([]float64, bool) {
-	p := len(a)
-	for col := 0; col < p; col++ {
-		piv := col
-		for r := col + 1; r < p; r++ {
-			if math.Abs(a[r][col]) > math.Abs(a[piv][col]) {
-				piv = r
-			}
-		}
-		if !(math.Abs(a[piv][col]) > 1e-300) {
-			return nil, false
-		}
-		a[col], a[piv] = a[piv], a[col]
-		for r := col + 1; r < p; r++ {
-			f := a[r][col] / a[col][col]
-			for c := col; c <= p; c++ {
-				a[r][c] -= float64(f * a[col][c])
-			}
-		}
-	}
-	out := make([]float64, p)
-	for r := p - 1; r >= 0; r-- {
-		v := a[r][p]
-		for c := r + 1; c < p; c++ {
-			v -= float64(a[r][c] * out[c])
-		}
-		out[r] = v / a[r][r]
-	}
-	return out, true
+	return out.Slice(), nil
 }
 
 // hillScorer scores β0 + Σ β_c·hill(a_c, k_c, s_c) + Σ γ_j·z_j from a

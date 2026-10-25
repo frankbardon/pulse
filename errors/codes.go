@@ -546,6 +546,14 @@ const (
 	// it alike, before any record is read.
 	PULSE_REGRESSION_WINDOW_UNAVAILABLE Code = "PULSE_REGRESSION_WINDOW_UNAVAILABLE"
 
+	// PULSE_REGRESSION_INVALID indicates a regression slot naming a type
+	// no registry on the instance resolves: never registered, hidden by a
+	// feature profile, or a pack model (REG_<NAMESPACE>_<NAME>) whose
+	// extension is not registered. details carry regression_index (the
+	// slot's position in Regressions) and type. Predict and every runtime
+	// surface raise it alike, with one sentence.
+	PULSE_REGRESSION_INVALID Code = "PULSE_REGRESSION_INVALID"
+
 	// PULSE_ATTRIBUTE_WINDOW_ORDER indicates an attribute slot reading a
 	// same-request window label — directly, or through the label of an
 	// attribute that runs after the windows — that cannot run after the
@@ -1425,7 +1433,8 @@ const (
 
 	// PULSE_SWEEP_INVALID indicates a malformed ComposedRequest `sweep`
 	// block: no axes, an axis name that is not a unique identifier, an
-	// empty or non-scalar values list, an unknown mode, unequal axis
+	// empty or non-scalar values list, an unknown mode (grid, zip,
+	// random and lhs are known), unequal axis
 	// lengths under mode zip, a request body that is not a JSON object,
 	// overlays that are not a JSON array, or a malformed rank (empty
 	// `by`, unknown order, top below 1), an axis no placeholder names or
@@ -1459,6 +1468,33 @@ const (
 	// expression stays allowed. Details carry "field" (the sweep-rooted
 	// path), "placeholder" (the token's name) and "slot" (the slot name).
 	PULSE_SWEEP_EXPR_SPLICE Code = "PULSE_SWEEP_EXPR_SPLICE"
+
+	// PULSE_SWEEP_MODE_MISMATCH indicates a ComposedRequest `sweep`
+	// whose axes or knobs do not fit its mode: a `range` axis under grid
+	// or zip, a `values` axis (or one carrying both `values` and
+	// `range`) under random or lhs, or `samples` / `rng_seed` set under
+	// grid or zip. The enumeration modes walk explicit value lists; the
+	// sampling modes draw from ranges — an axis never mixes the two.
+	// Refused identically by predict and the runtime before any slot
+	// runs. Details carry "field", "reason", "mode" and "axis" where one
+	// is involved.
+	PULSE_SWEEP_MODE_MISMATCH Code = "PULSE_SWEEP_MODE_MISMATCH"
+
+	// PULSE_SWEEP_RANGE_INVALID indicates a sampled sweep axis whose
+	// `range` cannot be drawn from: a missing range, a missing or
+	// non-finite `min` / `max`, `min >= max`, an unknown `scale`, or
+	// scale log with `min <= 0`. Refused identically by predict and the
+	// runtime before any slot runs. Details carry "field", "reason",
+	// "axis" and, where they apply, "min" / "max" / "value" / "valid".
+	PULSE_SWEEP_RANGE_INVALID Code = "PULSE_SWEEP_RANGE_INVALID"
+
+	// PULSE_SWEEP_SAMPLES_INVALID indicates a sampling sweep (mode random
+	// or lhs) without a usable `samples`: missing (zero) or below 1.
+	// Refused identically by predict and the runtime before any slot
+	// runs; the expanded count still meets MaxComposeSlots
+	// (PULSE_LIMIT_EXCEEDED) after this check. Details carry "field",
+	// "reason", "mode" and "value".
+	PULSE_SWEEP_SAMPLES_INVALID Code = "PULSE_SWEEP_SAMPLES_INVALID"
 
 	// PULSE_BANNER_INVALID indicates a malformed ComposedRequest
 	// `banner` block: no base request, a base request that sets `label`,
@@ -1671,8 +1707,9 @@ const (
 	// PULSE_FOR_EACH_INVALID indicates a malformed `for_each` on a
 	// window, feature or attribute item: no axes, an axis name that is
 	// not a unique identifier, an empty or non-scalar values list, an
-	// unknown mode, unequal axis lengths under mode zip, an axis no
-	// placeholder in the item names or a placeholder naming no axis,
+	// unknown mode (the sampling modes random / lhs are compose-sweep
+	// only, as is an axis `range` — reason range_unsupported), unequal
+	// axis lengths under mode zip, an axis no placeholder in the item names or a placeholder naming no axis,
 	// placeholder syntax the substitution refuses, a substituted item
 	// that does not decode strictly, or a `for_each` inside a compose
 	// sweep body (which a sweep cannot expand twice). Refused
@@ -3583,6 +3620,71 @@ const (
 	// members' names as "dependent_fields".
 	PULSE_MATRIX_SINGULAR Code = "PULSE_MATRIX_SINGULAR"
 
+	// PULSE_OPTIMIZE_INVALID indicates a problem the public optimize
+	// package refuses before (or, for a callback returning a gradient of
+	// the wrong length, while) solving: an empty or non-finite start, a
+	// nil objective, gradient or constraint callback, a bound slice of
+	// the wrong length or a lower bound above its upper, a negative or
+	// non-finite accuracy, a negative iteration cap, a constraint with no
+	// type, or more equality constraints than variables. Details carry
+	// "reason" (nil_callback, empty_x0, bounds_length, bounds_crossed,
+	// acc, max_iter, non_finite_x0, constraint_type,
+	// too_many_equalities, gradient_length) plus "index" / "constraint"
+	// / "want" / "got" where they apply. No result is returned.
+	PULSE_OPTIMIZE_INVALID Code = "PULSE_OPTIMIZE_INVALID"
+
+	// PULSE_OPTIMIZE_NOT_CONVERGED indicates an optimize solver run that
+	// stopped before its convergence test passed — the iteration limit,
+	// a positive directional derivative in the line search, an LSQ
+	// subproblem iteration limit or a singular / rank-deficient
+	// subproblem — at a point that still meets the constraints. The
+	// final iterate is returned alongside. Details carry "status" (the
+	// solver's exit mode), "message", "iterations" and "max_violation".
+	PULSE_OPTIMIZE_NOT_CONVERGED Code = "PULSE_OPTIMIZE_NOT_CONVERGED"
+
+	// PULSE_OPTIMIZE_INFEASIBLE indicates an optimize solver run that
+	// could not satisfy its constraints: the linearised constraints were
+	// incompatible, the equality constraints were singular, or the run
+	// stopped with a constraint violated by more than ten times the
+	// accuracy goal. The final iterate is returned alongside. Details
+	// carry "status", "message", "iterations" and "max_violation".
+	PULSE_OPTIMIZE_INFEASIBLE Code = "PULSE_OPTIMIZE_INFEASIBLE"
+
+	// PULSE_OPTIMIZE_SPEC_INVALID indicates a malformed ComposedRequest
+	// `optimize` block: no name or a name another block already took, no
+	// variables, an empty objective, a missing or unknown direction, a
+	// constraint with no expression or a type other than eq / ineq, more
+	// eq constraints than variables, `starts` outside 1..1000, or a
+	// negative or non-finite tolerance or a negative max_iterations.
+	// Refused identically by predict and the runtime before any fit or
+	// slot runs. Details carry "optimize" (the block index), "field"
+	// (the optimize-rooted path), "reason" and, where they apply,
+	// "name", "value" and "valid".
+	PULSE_OPTIMIZE_SPEC_INVALID Code = "PULSE_OPTIMIZE_SPEC_INVALID"
+
+	// PULSE_OPTIMIZE_VARIABLE_INVALID indicates an `optimize` block's
+	// decision variable that cannot be solved over: a missing name, a
+	// name that is not an identifier, is `params` or an expression
+	// function's name, or repeats another variable's; a missing lower or
+	// upper bound; a bound or start whose param is not an identifier
+	// or does not hold a finite number;
+	// a lower bound above the upper; or a start outside the bounds.
+	// Refused identically by predict and the runtime before any fit or
+	// slot runs. Details carry "optimize", "field", "reason", "variable"
+	// and, where they apply, "param", "lower", "upper" and "value".
+	PULSE_OPTIMIZE_VARIABLE_INVALID Code = "PULSE_OPTIMIZE_VARIABLE_INVALID"
+
+	// PULSE_OPTIMIZE_EXPRESSION_INVALID indicates an `optimize` block's
+	// objective or constraint expression that cannot be evaluated: it
+	// reads an identifier that is neither a decision variable nor
+	// `params` (unknown_identifier), it does not compile against the
+	// block's environment (compile_error), or it yields something other
+	// than a number (not_numeric). Refused identically by predict and the
+	// runtime before any fit or slot runs. Details carry "optimize",
+	// "field", "reason", "expression" and, where they apply,
+	// "identifier", "valid", "compile_error" and "result_type".
+	PULSE_OPTIMIZE_EXPRESSION_INVALID Code = "PULSE_OPTIMIZE_EXPRESSION_INVALID"
+
 	// PULSE_MATRIX_SHAPE_MISMATCH indicates linear-algebra operands whose
 	// dimensions disagree (a non-square or ragged matrix, a vector whose
 	// length is not the matrix order, data whose length is not
@@ -4283,6 +4385,7 @@ var allCodes = []Code{
 	PULSE_FIELD_DESCRIPTION_LOW_QUALITY,
 	PULSE_WINDOW_INVALID,
 	PULSE_REGRESSION_WINDOW_UNAVAILABLE,
+	PULSE_REGRESSION_INVALID,
 	PULSE_ATTRIBUTE_WINDOW_ORDER,
 	PULSE_FIELD_TYPE_UNSUPPORTED,
 	PULSE_FEAT_TARGET_LEAKAGE_RISK,
@@ -4396,6 +4499,9 @@ var allCodes = []Code{
 	PULSE_SWEEP_INVALID,
 	PULSE_SWEEP_RANK_PATH,
 	PULSE_SWEEP_EXPR_SPLICE,
+	PULSE_SWEEP_MODE_MISMATCH,
+	PULSE_SWEEP_RANGE_INVALID,
+	PULSE_SWEEP_SAMPLES_INVALID,
 	PULSE_BANNER_INVALID,
 	PULSE_FIT_INVALID,
 	PULSE_MODEL_NAME_COLLISION,
@@ -4572,6 +4678,12 @@ var allCodes = []Code{
 	PULSE_MULTIPLICITY_CONFLICT,
 	PULSE_MATRIX_SINGULAR,
 	PULSE_MATRIX_SHAPE_MISMATCH,
+	PULSE_OPTIMIZE_INVALID,
+	PULSE_OPTIMIZE_NOT_CONVERGED,
+	PULSE_OPTIMIZE_INFEASIBLE,
+	PULSE_OPTIMIZE_SPEC_INVALID,
+	PULSE_OPTIMIZE_VARIABLE_INVALID,
+	PULSE_OPTIMIZE_EXPRESSION_INVALID,
 	PULSE_VECTOR_INVALID,
 	PULSE_VECTOR_EMPTY,
 	PULSE_VECTOR_MEMBER_TYPE,

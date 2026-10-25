@@ -52,11 +52,11 @@ func requestObjects(v any, out *[]map[string]any) {
 // corpus holds: formulas, regression and scoring attributes, vector
 // attributes, previous-state slots).
 //
-// The one exception is the example that teaches the phase: the
-// one-step MMM decay sweep reads its adstock labels in formula
-// attributes, so it MUST classify post-window (checked, not skipped).
+// The exceptions are the examples that teach the phase: the one-step
+// MMM decay sweeps (grid and lhs) read their adstock labels in formula
+// attributes, so they MUST classify post-window (checked, not skipped).
 func TestWindowPredictor_PostWindowPlanInertOverCorpus(t *testing.T) {
-	teaches := map[string]bool{"compose-mmm-decay-sweep": true}
+	teaches := map[string]bool{"compose-mmm-decay-sweep": true, "compose-mmm-decay-lhs-sweep": true}
 	var taught int
 	probe := &types.Window{Type: types.WIN_ROW_NUMBER, Label: "post_window_probe", OrderBy: []types.OrderKey{{Field: "post_window_probe_key"}}}
 	var requests, probed int

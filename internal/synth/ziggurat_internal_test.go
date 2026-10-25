@@ -11,12 +11,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frankbardon/pulse/internal/detmath"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // The standard normal and exponential variates every normal, lognormal,
 // exponential, mixture, copula, model, residual and vector draw consumes
-// come from internal/detmath's ziggurat port, never from math/rand/v2's
+// come from linalg/detmath's ziggurat port, never from math/rand/v2's
 // (*rand.Rand).NormFloat64 / ExpFloat64, whose rare tail branch calls the
 // machine-specific math.Log and (on arm64) fuses `rn + x`. The port pulls
 // the RNG exactly as the stdlib does, so the stream is unchanged; only a

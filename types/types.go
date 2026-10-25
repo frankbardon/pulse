@@ -546,28 +546,28 @@ func AllAttributeTypes() []AttributeType {
 type WindowType string
 
 const (
-	WIN_LAG         WindowType = "WIN_LAG"
-	WIN_LEAD        WindowType = "WIN_LEAD"
-	WIN_ROW_NUMBER  WindowType = "WIN_ROW_NUMBER"
-	WIN_RANK        WindowType = "WIN_RANK"
-	WIN_DENSE_RANK  WindowType = "WIN_DENSE_RANK"
-	WIN_RUNNING_SUM WindowType = "WIN_RUNNING_SUM"
-	WIN_RUNNING_AVG WindowType = "WIN_RUNNING_AVG"
-	WIN_MOVING_AVG  WindowType = "WIN_MOVING_AVG"
-	WIN_EWMA        WindowType = "WIN_EWMA"
-	WIN_PCT_CHANGE  WindowType = "WIN_PCT_CHANGE"
-	WIN_DELTA       WindowType = "WIN_DELTA"
-	WIN_SHARE       WindowType = "WIN_SHARE"
-	WIN_LIFT        WindowType = "WIN_LIFT"
-	WIN_ADSTOCK     WindowType = "WIN_ADSTOCK"
+	WIN_LAG             WindowType = "WIN_LAG"
+	WIN_LEAD            WindowType = "WIN_LEAD"
+	WIN_ROW_NUMBER      WindowType = "WIN_ROW_NUMBER"
+	WIN_RANK            WindowType = "WIN_RANK"
+	WIN_DENSE_RANK      WindowType = "WIN_DENSE_RANK"
+	WIN_RUNNING_SUM     WindowType = "WIN_RUNNING_SUM"
+	WIN_RUNNING_AVG     WindowType = "WIN_RUNNING_AVG"
+	WIN_MOVING_AVG      WindowType = "WIN_MOVING_AVG"
+	WIN_EWMA            WindowType = "WIN_EWMA"
+	WIN_PCT_CHANGE      WindowType = "WIN_PCT_CHANGE"
+	WIN_DELTA           WindowType = "WIN_DELTA"
+	WIN_SHARE           WindowType = "WIN_SHARE"
+	WIN_LIFT            WindowType = "WIN_LIFT"
+	WIN_DISTRIBUTED_LAG WindowType = "WIN_DISTRIBUTED_LAG"
 )
 
 // AllWindowTypes returns all defined window types in alphabetical order.
 func AllWindowTypes() []WindowType {
 	return []WindowType{
-		WIN_ADSTOCK,
 		WIN_DELTA,
 		WIN_DENSE_RANK,
+		WIN_DISTRIBUTED_LAG,
 		WIN_EWMA,
 		WIN_LAG,
 		WIN_LEAD,
@@ -2171,6 +2171,16 @@ type ComposedRequest struct {
 	// these top-level params. Nil declares none. Gated by
 	// capability:params. See Params.
 	Params Params `json:"params,omitempty"`
+
+	// Optimize are the batch's constrained optimisations
+	// (OptimizeSpec): each is solved once, after the fits and with no
+	// record data, over expressions that read its decision variables,
+	// the batch's Params, coef() over the Fits and the expression
+	// built-ins; results land in ComposedResponse.Optimizations. Gated
+	// by capability:compose_optimize. Nil is absent — the slot is
+	// `omitempty`, so an optimize-free request is byte-identical on the
+	// wire and under Hash. See OptimizeSpec.
+	Optimize []OptimizeSpec `json:"optimize,omitempty"`
 }
 
 // ComposedResponse is the structured response shape for ComposedRequest
@@ -2214,6 +2224,14 @@ type ComposedResponse struct {
 	// rank. Gated by capability:compose_sweep with the `sweep` slot.
 	Ranking []RankEntry `json:"ranking,omitempty"`
 
+	// SweepSeed is the effective seed a sampling sweep (mode random /
+	// lhs) drew its slots with — SweepSpec.RNGSeed when pinned, else the
+	// seed derived from the spec — so the run can be replayed by pinning
+	// it. Omitted for a grid / zip sweep and without a sweep. Like
+	// `ranking` it sits outside the Compose-level `return`: always
+	// emitted. Gated by capability:compose_sweep with the `sweep` slot.
+	SweepSeed *int64 `json:"sweep_seed,omitempty"`
+
 	// Fits carries each ComposedRequest.Fits entry's result, keyed by
 	// the fit's name (JSON keys sort by name): a regression fit's
 	// RegressionResult or a vector fit's VectorFitResult (FitResult — a
@@ -2230,6 +2248,14 @@ type ComposedResponse struct {
 	// Compose-level `return`: always emitted, never rounded. Gated by
 	// capability:compose_banner with the `banner` request slot.
 	Banner *BannerResult `json:"banner,omitempty"`
+
+	// Optimizations carries each ComposedRequest.Optimize block's result
+	// (OptimizeResult), in declaration order, each echoing its name.
+	// Omitted when the request declared no optimize block. Like
+	// `ranking` it sits outside the Compose-level `return`: always
+	// emitted, never rounded. Gated by capability:compose_optimize with
+	// the `optimize` request slot.
+	Optimizations []OptimizeResult `json:"optimizations,omitempty"`
 
 	// Warnings carries the batch-level diagnostics no slot owns: today
 	// a fit's PULSE_MODEL_OVERWRITTEN (a `fits` save — or a save on the

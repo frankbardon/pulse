@@ -55,16 +55,18 @@ func TestFit_ModifierContracts(t *testing.T) {
 	}
 }
 
-// TestBuild_UnknownType asserts Build surfaces PROCESSING_CONFIG when a
-// spec references an unregistered RegressionType.
+// TestBuild_UnknownType asserts Build surfaces predict's
+// PULSE_REGRESSION_INVALID refusal when a spec references an
+// unregistered RegressionType.
 func TestBuild_UnknownType(t *testing.T) {
 	spec := &types.RegressionSpec{Type: types.RegressionType("REG_NOT_A_REAL_TYPE"), Target: "y"}
 	_, err := Build([]*types.RegressionSpec{spec}, nil)
 	if err == nil {
 		t.Fatal("Build with unknown type returned nil error")
 	}
-	if !errors.HasCode(err, errors.PROCESSING_CONFIG) {
-		t.Errorf("Build error code = %v, want PROCESSING_CONFIG", err)
+	if !errors.HasCode(err, errors.PULSE_REGRESSION_INVALID) ||
+		err.Error() != "PULSE_REGRESSION_INVALID: regression[0]: unknown regression type REG_NOT_A_REAL_TYPE" {
+		t.Errorf("Build error = %v, want PULSE_REGRESSION_INVALID regression[0]", err)
 	}
 }
 

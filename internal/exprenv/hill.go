@@ -20,7 +20,7 @@ const FuncHill = "hill"
 // which is null on the wire. It is computed as 1 / (1 + (k/x)^s), the
 // same value without the overflow x^s and k^s meet separately: x = 0
 // gives (k/0)^s = +Inf and so 0, x = +Inf gives 1. The power is
-// vecmath.Pow (internal/detmath's portable port), the one pow() uses.
+// vecmath.Pow (linalg/detmath's portable port), the one pow() uses.
 func hillBuiltin(args ...any) (any, error) {
 	if len(args) != 3 {
 		return nil, builtinArityError(FuncHill, 3, len(args))

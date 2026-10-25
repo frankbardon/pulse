@@ -8,7 +8,7 @@ status: done
 depends_on: [U41]
 soft_depends_on: []
 blocks: [U43]
-todo_items: [286, 287, 288, 289]
+todo_items: [286, 287, 288, 289, 549]
 branch: fit-scoring
 ---
 

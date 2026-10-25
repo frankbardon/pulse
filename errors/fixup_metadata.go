@@ -928,6 +928,21 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PULSE_REGRESSION_INVALID: {
+		Message: "A regression slot names a type no registry on this instance resolves (never registered, hidden, or a pack model whose extension is not registered); predict and every runtime surface refuse it alike.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Regressions", "*", "Type"},
+				Hint:   "The type (details.type, at details.regression_index) names no registered REG_* model on this instance: pick one from the manifest's regression list.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"Regressions", "*", "Type"},
+				Hint:   "A pack model such as REG_MMM_HILL is an extension: register its pack's regression on pulse.Options.Extensions (Go embedders) before pulse.New, or run on an instance that registers it.",
+			},
+		},
+	},
 	PULSE_ATTRIBUTE_WINDOW_ORDER: {
 		Message: "An attribute reads a window label, but only a row-local expression formula (no total()) or bound-model score runs after the windows, and only when the windows run over the record rows.",
 		Fixups: []Fixup{
@@ -939,8 +954,13 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_WINDOW_INVALID: {
-		Message: "A window operator's configuration is invalid (bad frame, bad params, no order key, no value field, label collision); predict and every runtime surface refuse it alike.",
+		Message: "A window operator's configuration is invalid (unknown window type, bad frame, bad params, no order key, no value field, label collision); predict and every runtime surface refuse it alike.",
 		Fixups: []Fixup{
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Windows", "*", "Type"},
+				Hint:   "An unknown window type (details.type, at details.window_index) names no registered WIN_* operator on this instance: pick one from the manifest's window list (a retired name such as WIN_ADSTOCK is now WIN_DISTRIBUTED_LAG).",
+			},
 			{
 				Action: FixupSetDefault,
 				Path:   []string{"Windows", "*", "OrderBy"},
@@ -2126,7 +2146,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SWEEP_INVALID: {
-		Message: "The ComposedRequest `sweep` block is malformed, so nothing runs — predict refuses it identically. A sweep needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within the sweep, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default) or `zip`, and zip needs every axis the same length. `request` is the slot request as a JSON object with axis placeholders; `overlays`, when set, is a JSON array. A `rank` needs a non-empty `by`, an `order` of `asc` or `desc`, and a `top` of at least 1 when set. Every axis must be named by a `{{axis}}` or `{\"$var\": \"axis\"}` placeholder in the request, the `label` pattern or the overlays, and every placeholder must name an axis. Each substituted request is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the slot under `slot` and its axis `values` — and must not set `label` (the sweep `label` pattern labels each slot, and may not render empty). The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
+		Message: "The ComposedRequest `sweep` block is malformed, so nothing runs — predict refuses it identically. A sweep needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within the sweep, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default), `zip`, `random` or `lhs`, and zip needs every axis the same length (the sampling modes' own rules are PULSE_SWEEP_MODE_MISMATCH / _RANGE_INVALID / _SAMPLES_INVALID). `request` is the slot request as a JSON object with axis placeholders; `overlays`, when set, is a JSON array. A `rank` needs a non-empty `by`, an `order` of `asc` or `desc`, and a `top` of at least 1 when set. Every axis must be named by a `{{axis}}` or `{\"$var\": \"axis\"}` placeholder in the request, the `label` pattern or the overlays, and every placeholder must name an axis. Each substituted request is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the slot under `slot` and its axis `values` — and must not set `label` (the sweep `label` pattern labels each slot, and may not render empty). The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2137,7 +2157,7 @@ var codeMetadata = map[Code]Metadata{
 				Action:   FixupReplaceField,
 				Path:     []string{"sweep", "mode"},
 				Hint:     "Set `mode` to one of the values under `valid`, or drop it for grid.",
-				Examples: []any{"grid", "zip"},
+				Examples: []any{"grid", "zip", "random", "lhs"},
 			},
 			{
 				Action: FixupReplaceField,
@@ -2497,7 +2517,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_FOR_EACH_INVALID: {
-		Message: "A `for_each` on a window, feature or attribute item is malformed, so nothing runs — predict refuses it identically. A for_each needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within it, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default) or `zip`, and zip needs every axis the same length. Every axis must be named by a `{{axis}}` (inside a string such as `label` or `field`) or `{\"$var\": \"axis\"}` (a whole value inside `params`) placeholder in the item, and every placeholder must name an axis. Each substituted item is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the combination under `index` and its axis `values`. A for_each inside a compose `sweep` body is refused (reason `nested_in_sweep`): fan the item out with the sweep's own axes, or move it to an explicit request. The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
+		Message: "A `for_each` on a window, feature or attribute item is malformed, so nothing runs — predict refuses it identically. A for_each needs at least one axis; every axis `name` is an identifier ([A-Za-z_][A-Za-z0-9_]*) unique within it, and every axis carries a non-empty `values` list of scalars (numbers, strings or booleans). `mode` is `grid` (the default) or `zip` — the sampling modes `random` / `lhs` and a `range` axis are compose-`sweep` only (reasons `mode_unknown` / `range_unsupported`) — and zip needs every axis the same length. Every axis must be named by a `{{axis}}` (inside a string such as `label` or `field`) or `{\"$var\": \"axis\"}` (a whole value inside `params`) placeholder in the item, and every placeholder must name an axis. Each substituted item is decoded strictly — an unknown key (under `unknown_field`) or a mistyped value is refused, naming the combination under `index` and its axis `values`. A for_each inside a compose `sweep` body is refused (reason `nested_in_sweep`): fan the item out with the sweep's own axes, or move it to an explicit request. The offending path is under `field`, the rule under `reason`, the axis name under `axis` and, where one applies, the bad value under `value` and the accepted values under `valid`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2550,6 +2570,50 @@ var codeMetadata = map[Code]Metadata{
 						},
 					},
 				}},
+			},
+		},
+	},
+	PULSE_SWEEP_MODE_MISMATCH: {
+		Message: "The ComposedRequest `sweep` mixes enumeration and sampling, so nothing runs — predict refuses it identically. Modes `grid` and `zip` walk each axis's explicit `values` list; modes `random` and `lhs` draw `samples` slots, each axis from a continuous `range` {min, max, scale}. An axis never mixes the two: a `range` axis under grid / zip (reason `range_under_enumeration`), a `values` axis under random / lhs (`values_under_sampling`), or an axis setting both (`values_and_range`) is refused, and so are `samples` / `rng_seed` under grid / zip (`samples_under_enumeration` / `seed_under_enumeration`). The offending path is under `field`, the rule under `reason`, the mode under `mode` and the axis under `axis` where one is involved.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"sweep", "mode"},
+				Hint:     "Use `random` or `lhs` (with `samples`) to sample range axes, or `grid` / `zip` to walk value lists.",
+				Examples: []any{"lhs", "random", "grid"},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"sweep", "axes", "*", "range"},
+				Hint:     "Under random / lhs give every axis a `range` {\"min\", \"max\"} and no `values`; under grid / zip give every axis `values` and no `range`.",
+				Examples: []any{map[string]any{"name": "decay", "range": map[string]any{"min": 0.0, "max": 0.9}}},
+			},
+			{
+				Action: FixupRemoveParam,
+				Path:   []string{"sweep", "samples"},
+				Hint:   "Drop `samples` and `rng_seed` from a grid / zip sweep — its slot count is the axis product (grid) or the common axis length (zip), and it draws nothing.",
+			},
+		},
+	},
+	PULSE_SWEEP_RANGE_INVALID: {
+		Message: "A sampled sweep axis's `range` cannot be drawn from, so nothing runs — predict refuses it identically. Under mode random / lhs every axis needs a `range` (reason `range_missing`) with finite `min` and `max` (`bound_missing`, `bound_not_finite`), `min < max` (`range_empty`), a `scale` of `linear` (the default) or `log` (`scale_unknown`), and `min > 0` under scale log (`log_min_not_positive`). The offending path is under `field`, the rule under `reason`, the axis under `axis` and the bounds under `min` / `max` where they apply.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"sweep", "axes", "*", "range"},
+				Hint:     "Set finite bounds with `min` below `max`; under `scale: log` make `min` positive (a log-uniform draw needs log min).",
+				Examples: []any{map[string]any{"min": 0.0001, "max": 10.0, "scale": "log"}},
+			},
+		},
+	},
+	PULSE_SWEEP_SAMPLES_INVALID: {
+		Message: "A sampling sweep (mode `random` or `lhs`) has no usable `samples`, so nothing runs — predict refuses it identically. `samples` is the number of slots drawn and must be at least 1 (reason `samples_missing` when absent, `samples_invalid` when below 1). The drawn slots, plus the explicit ones, still count against MaxComposeSlots (default 1000; PULSE_LIMIT_EXCEEDED). The path is under `field`, the rule under `reason`, the mode under `mode` and the value under `value`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"sweep", "samples"},
+				Hint:     "Set `samples` to the number of slots to draw — at least 1, and within MaxComposeSlots together with the explicit requests (raise Options.Limits.MaxComposeSlots deliberately for a larger search).",
+				Examples: []any{64, 256},
 			},
 		},
 	},
@@ -4480,6 +4544,99 @@ var codeMetadata = map[Code]Metadata{
 				Path:     []string{"multiplicity", "family"},
 				Hint:     "Move a member that needs its own method into another family: an overlay can correct per `layer` instead.",
 				Examples: []any{"layer"},
+			},
+		},
+	},
+	PULSE_OPTIMIZE_INVALID: {
+		Message: "The optimize package refused the problem before solving it (or when a callback returned a result of the wrong shape): the start is empty or not finite, a callback is nil, a bound slice is not one entry per variable, a lower bound is above its upper, a tolerance (Acc, CostTol, StepTol) is negative or not finite, the iteration cap is negative, a constraint has no type, there are more equality constraints than variables, or (LeastSquares) the residual is empty, changes length or is not finite at the start, or the Jacobian has the wrong shape or is not finite at the start. Details carry `reason` (`nil_callback`, `empty_x0`, `bounds_length`, `bounds_crossed`, `acc`, `cost_tol`, `step_tol`, `max_iter`, `non_finite_x0`, `constraint_type`, `too_many_equalities`, `gradient_length`, `empty_residual`, `residual_length`, `jacobian_shape`, `non_finite_start`, `non_finite_jacobian`) and, where they apply, `index`, `constraint`, `row`, `want` and `got`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Fix the field named by details.reason: give every variable a finite start, size Lower / Upper to one entry per variable (or nil), keep each lower bound at or below its upper, set every constraint's Type to Eq or Ineq, and return a fixed-length residual and an m×n Jacobian that are finite at the start.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Hint:   "Drop or merge redundant equality constraints so there are no more of them than variables.",
+			},
+		},
+	},
+	PULSE_OPTIMIZE_NOT_CONVERGED: {
+		Message: "The optimize solver stopped before its convergence test passed — the iteration limit, a positive directional derivative in the line search, or a singular or rank-deficient subproblem — at a point that still meets the constraints. The final iterate is returned with the error. Details carry `status` (the solver's exit mode), `message`, `iterations` and `max_violation` (Minimize) or `cost` (LeastSquares, whose only short stop is the iteration limit, status 4).",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Hint:   "Raise MaxIter, or loosen Acc toward its 1e-6 default, when details.status is the iteration limit (9 from Minimize, 4 from LeastSquares).",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "Start from a different x0, rescale the variables to similar magnitudes, or check that the gradient matches the objective: a wrong or noisy gradient is the usual cause of a positive directional derivative (status 8).",
+			},
+		},
+	},
+	PULSE_OPTIMIZE_INFEASIBLE: {
+		Message: "The optimize solver could not satisfy the constraints: the linearised constraints were incompatible, the equality constraints were singular, or the run stopped with a constraint violated by more than ten times the accuracy goal. The final iterate is returned with the error. Details carry `status`, `message`, `iterations` and `max_violation`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Check the constraints and bounds admit a common point: loosen a bound or an inequality, or remove an equality that contradicts another.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "Start nearer the feasible region, or check each constraint's Grad matches its Fn.",
+			},
+		},
+	},
+	PULSE_OPTIMIZE_SPEC_INVALID: {
+		Message: "A ComposedRequest `optimize` block is malformed, so nothing runs — predict refuses it identically. Every block needs a `name` unique among the blocks (reason `name_missing`, `name_duplicate`), at least one variable (`variables_missing`), a non-empty `objective` (`objective_missing`) and a `direction` of `maximize` or `minimize` (`direction_missing`, `direction_unknown`). Every constraint needs a non-empty `expr` (`constraint_expr_missing`) and a `type` of `eq` (expr = 0) or `ineq` (expr >= 0) (`constraint_type_unknown`), and there may be no more eq constraints than variables (`too_many_equalities`). `starts`, when set, is 1 to 1000 (`starts_invalid`; absent is 8); `tolerance` is a finite number >= 0 (`tolerance_invalid`; 0 is 1e-6) and `max_iterations` >= 0 (`max_iterations_invalid`; 0 is 100). The block index is under `optimize`, the offending path under `field`, the rule under `reason` and, where they apply, the value under `value` and the accepted values under `valid`.",
+		Fixups: []Fixup{
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"optimize", "*", "direction"},
+				Hint:     "Name the block, give it at least one variable and a non-empty objective, and set `direction` to maximize or minimize.",
+				Examples: []any{"maximize", "minimize"},
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"optimize", "*", "constraints", "*", "type"},
+				Hint:     "Give every constraint an `expr` and a `type` of eq (expr = 0) or ineq (expr >= 0); keep the eq constraints no more numerous than the variables.",
+				Examples: []any{"eq", "ineq"},
+			},
+			{
+				Action:   FixupSetDefault,
+				Path:     []string{"optimize", "*", "starts"},
+				Hint:     "Drop `starts` for the default 8, or set 1 to 1000; drop `tolerance` / `max_iterations` for the solver defaults.",
+				Examples: []any{8, 32},
+			},
+		},
+	},
+	PULSE_OPTIMIZE_VARIABLE_INVALID: {
+		Message: "A decision variable of a ComposedRequest `optimize` block cannot be solved over, so nothing runs — predict refuses it identically. Every variable needs a `name` (reason `name_missing`) that is an identifier ([A-Za-z_][A-Za-z0-9_]*, `name_invalid`), is not `params` nor an expression function's name (`name_reserved`) and is unique within the block (`name_duplicate`). `lower` and `upper` are both required (`bound_missing`): a number or `\"params.<name>\"` naming a batch param (an identifier, `bound_invalid`) that holds a finite number (`bound_not_numeric`; an undeclared param is PULSE_PARAMS_UNDECLARED). `lower` may not exceed `upper` (`bounds_crossed`; equal fixes the variable), and a `start`, when set, lies within them (`start_out_of_bounds`; absent starts at the midpoint). The block index is under `optimize`, the path under `field`, the rule under `reason`, the variable under `variable` and, where they apply, `param`, `lower`, `upper` and `value`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"optimize", "*", "variables", "*", "name"},
+				Hint:   "Give every variable a unique identifier name that is neither `params` nor a function name (hill, exp, coef, …).",
+			},
+			{
+				Action:   FixupReplaceField,
+				Path:     []string{"optimize", "*", "variables", "*", "lower"},
+				Hint:     "Set both bounds — numbers or \"params.<name>\" references to numeric batch params — with lower <= upper, and keep any start between them.",
+				Examples: []any{0, "params.budget_floor"},
+			},
+		},
+	},
+	PULSE_OPTIMIZE_EXPRESSION_INVALID: {
+		Message: "An `optimize` block's objective or constraint expression cannot be evaluated, so nothing runs — predict refuses it identically. The expressions read the block's decision variables, `params.<name>` (the batch params), coef(fit, term[, stat]) over the batch's `fits` and the expression built-ins (hill(), exp(), log(), pow(), …); no record field is in reach. Reason `unknown_identifier`: the expression reads a name that is none of those (the name is under `identifier`, the decision variables under `valid`). Reason `compile_error`: the expression does not compile (expr-lang's reason under `compile_error`). Reason `not_numeric`: it yields something other than a number (the type under `result_type`). An all-literal coef() call naming an unknown fit, term or stat is PULSE_MODEL_UNKNOWN / PULSE_MODEL_TERM_UNKNOWN / PULSE_MODEL_STAT_UNKNOWN, located the same way. The block index is under `optimize`, the path under `field` and the source under `expression`.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"optimize", "*", "objective"},
+				Hint:   "Read only the block's variables, params.<name>, coef() and the built-ins; declare a missing name as a variable, or pass a constant through the batch `params`.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"optimize", "*", "constraints", "*", "expr"},
+				Hint:   "Write every constraint as a numeric expression: eq holds when it is 0, ineq when it is >= 0 (`params.budget - (tv + search)` for a spend cap).",
 			},
 		},
 	},

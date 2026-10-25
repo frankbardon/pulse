@@ -46,7 +46,7 @@ Between them the rows carry every word `TestUpdateDemandTableCovers` checks; kee
 
 ## Architecture
 
-**Public packages** (frozen at v1.0.0, `TestPublicAPIGolden`): root `pulse`, `types`, `errors`, `encoding` (schema nouns + ungrouped raw-byte primitives), `descriptor` (result/envelope types), `io` + `synth` (alias facades over `internal/io` / `internal/synth`), `mcp/gosdk`, `mcpserve`, `extend` (operator-authoring API), `linalg` (FMA-free kernels, gonum decompositions; `/metric` registry), `observe` (stdlib-only hooks + metrics vocabulary for `Options.Hooks` / `Metrics`). Everything else is under `internal/` — engine `internal/processing`, orchestration `internal/service`, NO-EXECUTE `internal/descriptor`, `internal/io/<fmt>` adapters. **Contract: `.claude/reference/architecture.md` (full tree, facade technique, root aliases, `io` boundary, `linalg` split, MCP split) — load it before moving a package or adding a public symbol.**
+**Public packages** (frozen at v1.0.0, `TestPublicAPIGolden`): root `pulse`, `types`, `errors`, `encoding` (schema nouns + ungrouped raw-byte primitives), `descriptor` (result/envelope types), `io` + `synth` (alias facades over `internal/io` / `internal/synth`), `mcp/gosdk`, `mcpserve`, `extend` (operator-authoring API), `linalg` (FMA-free kernels, gonum decompositions; `/metric` registry; `/detmath` portable math), `observe` (stdlib-only hooks + metrics vocabulary for `Options.Hooks` / `Metrics`), `optimize` (FMA-free solvers: SLSQP `Minimize`, bounded LM `LeastSquares`). Everything else is under `internal/` — engine `internal/processing`, orchestration `internal/service`, NO-EXECUTE `internal/descriptor`, `internal/io/<fmt>` adapters. **Contract: `.claude/reference/architecture.md` (full tree, facade technique, root aliases, `io` boundary, `linalg` split, MCP split) — load it before moving a package or adding a public symbol.**
 
 Docs: <https://frankbardon.github.io/pulse/>.
 
@@ -104,7 +104,7 @@ All `--json` CLI output and every descriptor operation use `descriptor.Envelope`
 - `request`: opt-in echo of the *normalized* request (`Options.EchoRequest` / `--echo-request`), shaped per operation, skipped by streaming.
 - **A slot fails alone.** A regression / test / matrix slot's (or fit's) data-dependent refusal keeps its result (identity + `error` `{code, message, details}`, figures absent, never `nil`) and warns `PULSE_SLOT_FAILED`; `Strict` fails with the slot's own code; config faults stay fatal. Long form: `.claude/reference/response-components.md` (Per-slot failures).
 
-**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, each response echoing its `label`; `--stream` writes bare per-row NDJSON. `sweep` / `rank` / `fits` / `banner` add slots (skills `compose-*`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
+**Compose envelope.** `pulse api compose --json` `data` is a `ComposedResponse` object `{responses, overlays}`, each response echoing its `label`; `--stream` writes bare per-row NDJSON. `sweep` / `rank` / `fits` / `banner` add slots, `optimize` adds `optimizations` (skills `compose-*`). Long form: `.claude/reference/response-components.md` (Opt-out and the Compose surface).
 
 **Item fan-out.** A `for_each` on a window / feature / attribute item expands in place before validation (absent = byte-identical). Long form: `execution-modes.md` (Item fan-out).
 

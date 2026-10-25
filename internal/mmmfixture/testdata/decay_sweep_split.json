@@ -42,7 +42,7 @@
       ],
       "windows": [
         {
-          "type": "WIN_ADSTOCK",
+          "type": "WIN_DISTRIBUTED_LAG",
           "field": "tv",
           "label": "tv_ad",
           "partition_by": [
@@ -63,7 +63,7 @@
           }
         },
         {
-          "type": "WIN_ADSTOCK",
+          "type": "WIN_DISTRIBUTED_LAG",
           "field": "radio",
           "label": "radio_ad",
           "partition_by": [
@@ -84,7 +84,7 @@
           }
         },
         {
-          "type": "WIN_ADSTOCK",
+          "type": "WIN_DISTRIBUTED_LAG",
           "field": "search",
           "label": "search_ad",
           "partition_by": [
@@ -105,7 +105,7 @@
           }
         },
         {
-          "type": "WIN_ADSTOCK",
+          "type": "WIN_DISTRIBUTED_LAG",
           "field": "social",
           "label": "social_ad",
           "partition_by": [

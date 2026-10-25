@@ -46,9 +46,9 @@ OF SUCH DAMAGE.
 
 ## The Go standard library
 
-`internal/detmath` (deterministic transcendental kernels) is a port of the
+`linalg/detmath` (deterministic transcendental kernels) is a port of the
 pure-Go `exp`, `expm1`, `log`, `log1p`, `sin`, `cos`, `tan`, `trigReduce`,
-`atan`, `atan2`, `asin`, `pow`, `erf` and `erfinv` sources of the Go 1.26 standard
+`atan`, `atan2`, `asin`, `pow`, `erf`, `erfinv` and `lgamma` sources of the Go 1.26 standard
 library (`src/math/`), and of its ziggurat `NormFloat64` / `ExpFloat64` and
 their `kn` / `wn` / `fn` / `ke` / `we` / `fe` tables (`src/math/rand/v2/normal.go`,
 `exp.go`),

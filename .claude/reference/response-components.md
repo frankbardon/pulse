@@ -28,6 +28,6 @@ Load it before changing `CrosstabSpec.MarginAggregations` (the auxiliary margin-
 
 | Slice | Sections and bold leads, in file order |
 |---|---|
-| `response-components/margins-and-opt-out.md` | Auxiliary crosstab margin aggregations; Multi-measure crosstabs; Opt-out and the Compose surface; Opt-out; Compute plan (U18); Compose surface (v1.1); Compose envelope (relocated from CLAUDE.md "Output Format Contract" at U18 E1-S1); Sweep (U40); Banner (U47 #326); Fits (U42; vector fits U30 E2-S2) |
+| `response-components/margins-and-opt-out.md` | Auxiliary crosstab margin aggregations; Multi-measure crosstabs; Opt-out and the Compose surface; Opt-out; Compute plan (U18); Compose surface (v1.1); Compose envelope (relocated from CLAUDE.md "Output Format Contract" at U18 E1-S1); Sweep (U40); Banner (U47 #326); Fits (U42; vector fits U30 E2-S2); Optimize (U60) |
 | `response-components/notes-and-undefined.md` | Implementation notes displaced from the skill pack; Undefined figures on the wire; One rule for every JSON payload: a non-finite float (NaN, +Inf, -Inf) is written as JSO…; Under `Return.precision`; Run-time warnings in the envelope and the stream; Promotion (U44 E2-S5); Streams; Per-slot failures |
 | `response-components/matrix-group-attribute.md` | Matrix components; Per-group aggregation components; Attribute components |

@@ -10,7 +10,8 @@ import (
 )
 
 // TestStatdistImportBoundary keeps statdist a LEAF: its non-test files
-// may import only the standard library and gonum. Anything wider (the
+// may import only the standard library, gonum and the stdlib-only
+// linalg/detmath kernels. Anything wider (the
 // engine, types, errors) would put processing and regression one import
 // away from a cycle, which is the reason this package exists.
 func TestStatdistImportBoundary(t *testing.T) {
@@ -33,10 +34,11 @@ func TestStatdistImportBoundary(t *testing.T) {
 		for _, imp := range f.Imports {
 			path, _ := strconv.Unquote(imp.Path.Value)
 			first, _, _ := strings.Cut(path, "/")
-			if !strings.Contains(first, ".") || strings.HasPrefix(path, "gonum.org/v1/gonum/") {
+			if !strings.Contains(first, ".") || strings.HasPrefix(path, "gonum.org/v1/gonum/") ||
+				path == "github.com/frankbardon/pulse/linalg/detmath" {
 				continue
 			}
-			t.Errorf("%s imports %q: statdist may import only the standard library and gonum", name, path)
+			t.Errorf("%s imports %q: statdist may import only the standard library, gonum and linalg/detmath", name, path)
 		}
 	}
 	if seen == 0 {

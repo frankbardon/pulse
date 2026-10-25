@@ -9,11 +9,13 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	descx "github.com/frankbardon/pulse/internal/descriptor"
 	iio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/io/csv"
 	pio "github.com/frankbardon/pulse/io"
@@ -571,6 +573,66 @@ func TestExamples_MMMDecaySweepRanksTrueDecayFirst(t *testing.T) {
 		if !(out.Ranking[i-1].Value < out.Ranking[i].Value) {
 			t.Fatalf("ranking not ascending at %d: %+v", i, out.Ranking)
 		}
+	}
+}
+
+// TestExamples_MMMDecayLHSSweepRanksNearTrueDecay runs
+// compose/11_mmm_decay_lhs_sweep.json over the mmm_weekly fixture
+// cohort: predict is clean and counts the 20 samples with the seed the
+// run echoes, every slot carries its fit and holdout but no data, and
+// the best-ranked slot's drawn decay lies within 0.1 of the data's true
+// decay (0.5).
+func TestExamples_MMMDecayLHSSweepRanksNearTrueDecay(t *testing.T) {
+	tmp := t.TempDir()
+	osfs := afero.NewOsFs()
+	builder, err := pulse.New(pulse.Options{FS: osfs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	buildExampleFixtures(t, builder, osfs, tmp)
+	p, err := pulse.New(pulse.Options{DataDir: tmp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join("internal", "examples", "compose", "11_mmm_decay_lhs_sweep.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	delete(doc["sweep"].(map[string]any)["request"].(map[string]any)["cohort"].(map[string]any), "data_dir")
+	if body, err = json.Marshal(doc); err != nil {
+		t.Fatal(err)
+	}
+	var req pulse.ComposedRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	env, err := p.PredictCompose(context.Background(), &req)
+	if err != nil || len(env.Errors) != 0 {
+		t.Fatalf("PredictCompose: %v %v", err, env.Errors)
+	}
+	out, err := p.Compose(context.Background(), &req)
+	if err != nil {
+		t.Fatalf("Compose: %v", err)
+	}
+	cv, ok := env.Data.(*descx.ComposeValidationResult)
+	if !ok || cv.Sweep == nil || cv.Sweep.ExpandedCount != 20 || cv.Sweep.RNGSeed == nil || out.SweepSeed == nil || *cv.Sweep.RNGSeed != *out.SweepSeed {
+		t.Fatalf("predict sweep %+v, run seed %v; want 20 samples and one seed", env.Data, out.SweepSeed)
+	}
+	if len(out.Responses) != 20 || len(out.Ranking) != 20 {
+		t.Fatalf("%d slots, %d ranked; want 20 each", len(out.Responses), len(out.Ranking))
+	}
+	for _, r := range out.Responses {
+		if len(r.Data) != 0 || len(r.Regressions) != 1 || r.Regressions[0].Error != nil || r.Regressions[0].Holdout == nil {
+			t.Fatalf("slot %s: %d data rows, regressions %+v; want a fit with a holdout and no data", r.Label, len(r.Data), r.Regressions)
+		}
+	}
+	_, v, _ := strings.Cut(out.Ranking[0].Label, "_decay=")
+	if d, err := strconv.ParseFloat(v, 64); err != nil || math.Abs(d-0.5) > 0.1 {
+		t.Fatalf("best slot %q (%v): want a decay within 0.1 of 0.5", out.Ranking[0].Label, err)
 	}
 }
 

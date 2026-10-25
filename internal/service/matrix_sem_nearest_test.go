@@ -127,10 +127,15 @@ func TestMatrixSEM_SingularNearestMatchesSemopy(t *testing.T) {
 // PULSE_MATRIX_SINGULAR) but whose Cholesky factors is fitted raw by
 // default, as semopy fits it — no substitution, no warning, every
 // figure against the data's own S. near_data.csv's rows make that S
-// exact (and its Cholesky exact) on every platform; the default
-// early stop is pinned at 1e-4 (internal/sem
-// TestFit_NearSingularRawMatchesSemopy says why), the converging setup
-// to semopy's tight fit at 1e-6.
+// exact (and its Cholesky exact) on every platform; the converging
+// setup is pinned to semopy's tight fit at 1e-6. The default early stop
+// is ANCHORED, not pinned: estimates at 1e-3, and the stop where it is
+// determined — iterations within ±1 of semopy's, objective and every
+// fit statistic at 1e-7. Its stopping point is chaotic on this flat
+// valley (one ulp of rounding moves estimates up to 9.5e-4 over 900
+// perturbed runs on both architectures, while semopy's own default stop
+// sits 1.7e-4 from its optimum); the evidence is at internal/sem
+// nearDefaultEstimateTol. Do not tighten the estimate bar.
 func TestMatrixSEM_NearSingularFactorsFitsRaw(t *testing.T) {
 	desc, err := os.ReadFile(semTestdata + "near_model.txt")
 	if err != nil {
@@ -145,9 +150,10 @@ func TestMatrixSEM_NearSingularFactorsFitsRaw(t *testing.T) {
 		name, ref string
 		params    map[string]any
 		tol       float64
+		anchor    bool
 	}{
-		{"default", "default", nil, 1e-4},
-		{"fisher_rank2", "tight", map[string]any{"solver": "fisher", "information": "rank2"}, 1e-6},
+		{"default", "default", nil, 1e-3, true},
+		{"fisher_rank2", "tight", map[string]any{"solver": "fisher", "information": "rank2"}, 1e-6, false},
 	} {
 		t.Run(su.name, func(t *testing.T) {
 			raw, err := os.ReadFile(semTestdata + "near_semopy_" + su.ref + ".json")
@@ -156,6 +162,7 @@ func TestMatrixSEM_NearSingularFactorsFitsRaw(t *testing.T) {
 			}
 			var ref struct {
 				semopyFixture
+				NIter    int         `json:"n_iter"`
 				Sample   [][]float64 `json:"sample_cov"`
 				Observed []string    `json:"observed"`
 			}
@@ -183,6 +190,19 @@ func TestMatrixSEM_NearSingularFactorsFitsRaw(t *testing.T) {
 				}
 			}
 			checkSEMAgainstSemopy(t, res, ref.semopyFixture, su.tol)
+			if su.anchor {
+				if it := res.Scalars["iterations"]; ref.NIter == 0 || math.Abs(it-float64(ref.NIter)) > 1 {
+					t.Errorf("%v iterations, semopy %d (±1)", it, ref.NIter)
+				}
+				for sk, pk := range semStatKeys {
+					if d := semRel(res.Scalars[pk], ref.Stats[sk]); !(d <= 1e-7) {
+						t.Errorf("%s = %.15g, semopy %.15g (rel %.1e > 1e-7)", pk, res.Scalars[pk], ref.Stats[sk], d)
+					}
+				}
+				if d := semRel(res.Scalars["objective"], ref.Fun); !(d <= 1e-7) {
+					t.Errorf("objective %.17g, semopy %.17g (rel %.1e > 1e-7)", res.Scalars["objective"], ref.Fun, d)
+				}
+			}
 		})
 	}
 }

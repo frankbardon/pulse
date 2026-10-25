@@ -1,0 +1,17 @@
+{
+  "requests": [
+    {"label": "weeks", "cohort": {"filename": "opt_price.pulse"}, "aggregations": [{"type": "AGG_COUNT", "field": "week", "label": "n"}]}
+  ],
+  "params": {"cost": 5},
+  "optimize": [
+    {
+      "name": "price",
+      "direction": "maximize",
+      "models": [{"name": "demand", "path": "models/demand.pulse-model.json"}],
+      "variables": [{"name": "p", "lower": 1, "upper": 30}],
+      "objective": "(p - params.cost) * (coef(\"demand\", \"(intercept)\") + coef(\"demand\", \"price\") * p)",
+      "starts": 4,
+      "rng_seed": 7
+    }
+  ]
+}

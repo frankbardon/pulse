@@ -9,7 +9,7 @@ import (
 )
 
 // window_predictor_chain_parity_test.go — parity gate A extended to the
-// full media-mix chain (transformed predictors, E2-S2): WIN_ADSTOCK →
+// full media-mix chain (transformed predictors, E2-S2): WIN_DISTRIBUTED_LAG →
 // a post-window ATTR_FORMULA hill() → REG_OLS with bounds.nonnegative in
 // ONE request, in a Compose fit scored by its slot, and in a sweep over
 // the adstock decay — each bit for bit what the multi-step route
@@ -90,7 +90,7 @@ func chainFitted(t *testing.T, single []*types.RegressionResult) {
 	}
 }
 
-// TestWindowPredictor_ParityAdstockHillChain: {WIN_ADSTOCK → ATTR_FORMULA
+// TestWindowPredictor_ParityAdstockHillChain: {WIN_DISTRIBUTED_LAG → ATTR_FORMULA
 // hill() → REG_OLS bounds.nonnegative} in one request fits bit for bit
 // what materialize{windows} → Process{hill attribute, regression} fits.
 func TestWindowPredictor_ParityAdstockHillChain(t *testing.T) {
@@ -262,7 +262,7 @@ func chainSweep(t *testing.T) *ComposedRequest {
 }
 
 // TestWindowPredictor_ParitySweepAdstockDecay: a sweep with decay =
-// {"$var":"decay"} in the WIN_ADSTOCK params runs each slot's own
+// {"$var":"decay"} in the WIN_DISTRIBUTED_LAG params runs each slot's own
 // adstock — every slot equals ITS OWN materialized reference bit for
 // bit, and the slots' coefficients differ (the decay reached the
 // window), serial and parallel alike.

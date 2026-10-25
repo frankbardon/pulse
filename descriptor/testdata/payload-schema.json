@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:8534749f9cc37ab1ac446274bb3e3f73122720757184a52f3e0f43d97f257117",
+  "$comment": "feature_set_digest: fs1:449b701644aa1be633b397b47f430d2decf9f071c6a2f86ebfa812ac6fabcf8c",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -964,6 +964,15 @@
         "multiplicity": {
           "$ref": "#/$defs/Multiplicity"
         },
+        "optimize": {
+          "items": {
+            "$ref": "#/$defs/OptimizeSpec"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "overlays": {
           "items": {
             "$ref": "#/$defs/ComposeOverlaySpec"
@@ -1044,6 +1053,15 @@
           },
           "type": "object"
         },
+        "optimizations": {
+          "items": {
+            "$ref": "#/$defs/OptimizeResult"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "overlays": {
           "items": {
             "$ref": "#/$defs/OverlayLayer"
@@ -1073,6 +1091,9 @@
         },
         "returned": {
           "$ref": "#/$defs/ReturnedMarker"
+        },
+        "sweep_seed": {
+          "type": "integer"
         },
         "warnings": {
           "items": {
@@ -2280,15 +2301,40 @@
       "properties": {
         "axes": {
           "items": {
-            "$ref": "#/$defs/SweepAxis"
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "values": {
+                "description": "The scalar values the axis takes, in expansion order.",
+                "items": {
+                  "type": [
+                    "number",
+                    "string",
+                    "boolean"
+                  ]
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "required": [
+              "name",
+              "values"
+            ],
+            "type": "object"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "minItems": 1,
+          "type": "array"
         },
         "mode": {
-          "$ref": "#/$defs/SweepMode"
+          "description": "How the axes combine: grid (the default; the Cartesian product, first axis slowest) or zip (the axes in lockstep, equal lengths).",
+          "enum": [
+            "grid",
+            "zip"
+          ],
+          "type": "string"
         }
       },
       "required": [
@@ -3056,6 +3102,284 @@
       "required": [
         "left_field",
         "right_field"
+      ],
+      "type": "object"
+    },
+    "OptimizeActiveBound": {
+      "enum": [
+        "lower",
+        "upper"
+      ],
+      "type": "string"
+    },
+    "OptimizeBound": {
+      "description": "A decision variable's bound or start: a number, or \"params.\u003cname\u003e\" naming a batch param that holds a finite number.",
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^params\\.[A-Za-z_][A-Za-z0-9_]*$",
+          "type": "string"
+        }
+      ]
+    },
+    "OptimizeConstraint": {
+      "additionalProperties": false,
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/OptimizeConstraintType"
+        }
+      },
+      "required": [
+        "expr",
+        "type"
+      ],
+      "type": "object"
+    },
+    "OptimizeConstraintResult": {
+      "additionalProperties": false,
+      "properties": {
+        "expr": {
+          "type": "string"
+        },
+        "multiplier": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "type": {
+          "$ref": "#/$defs/OptimizeConstraintType"
+        },
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "expr",
+        "multiplier",
+        "type",
+        "value"
+      ],
+      "type": "object"
+    },
+    "OptimizeConstraintType": {
+      "enum": [
+        "eq",
+        "ineq"
+      ],
+      "type": "string"
+    },
+    "OptimizeDirection": {
+      "enum": [
+        "maximize",
+        "minimize"
+      ],
+      "type": "string"
+    },
+    "OptimizeResult": {
+      "additionalProperties": false,
+      "if": {
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      },
+      "properties": {
+        "constraints": {
+          "items": {
+            "$ref": "#/$defs/OptimizeConstraintResult"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "converged": {
+          "type": "boolean"
+        },
+        "direction": {
+          "$ref": "#/$defs/OptimizeDirection"
+        },
+        "error": {
+          "$ref": "#/$defs/SlotError"
+        },
+        "iterations": {
+          "type": "integer"
+        },
+        "max_violation": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "objective": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "rng_seed": {
+          "type": "integer"
+        },
+        "starts": {
+          "type": "integer"
+        },
+        "starts_agreeing": {
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        },
+        "variables": {
+          "items": {
+            "$ref": "#/$defs/OptimizeVariableResult"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "then": {
+        "required": [
+          "converged",
+          "direction",
+          "iterations",
+          "max_violation",
+          "objective",
+          "rng_seed",
+          "starts",
+          "starts_agreeing",
+          "status",
+          "variables"
+        ]
+      },
+      "type": "object"
+    },
+    "OptimizeSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "constraints": {
+          "items": {
+            "$ref": "#/$defs/OptimizeConstraint"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "direction": {
+          "$ref": "#/$defs/OptimizeDirection"
+        },
+        "max_iterations": {
+          "type": "integer"
+        },
+        "models": {
+          "items": {
+            "$ref": "#/$defs/ModelRef"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "objective": {
+          "type": "string"
+        },
+        "rng_seed": {
+          "type": "integer"
+        },
+        "starts": {
+          "type": "integer"
+        },
+        "tolerance": {
+          "type": "number"
+        },
+        "variables": {
+          "items": {
+            "$ref": "#/$defs/OptimizeVariable"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "direction",
+        "name",
+        "objective",
+        "variables"
+      ],
+      "type": "object"
+    },
+    "OptimizeVariable": {
+      "additionalProperties": false,
+      "properties": {
+        "lower": {
+          "$ref": "#/$defs/OptimizeBound"
+        },
+        "name": {
+          "type": "string"
+        },
+        "start": {
+          "$ref": "#/$defs/OptimizeBound"
+        },
+        "upper": {
+          "$ref": "#/$defs/OptimizeBound"
+        }
+      },
+      "required": [
+        "lower",
+        "name",
+        "upper"
+      ],
+      "type": "object"
+    },
+    "OptimizeVariableResult": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "$ref": "#/$defs/OptimizeActiveBound"
+        },
+        "marginal": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "marginal",
+        "name",
+        "value"
       ],
       "type": "object"
     },
@@ -5420,6 +5744,9 @@
         "name": {
           "type": "string"
         },
+        "range": {
+          "$ref": "#/$defs/SweepRange"
+        },
         "values": {
           "description": "The scalar values the axis takes, in expansion order.",
           "items": {
@@ -5434,17 +5761,37 @@
         }
       },
       "required": [
-        "name",
-        "values"
+        "name"
       ],
       "type": "object"
     },
     "SweepMode": {
       "enum": [
         "grid",
+        "lhs",
+        "random",
         "zip"
       ],
       "type": "string"
+    },
+    "SweepRange": {
+      "additionalProperties": false,
+      "properties": {
+        "max": {
+          "type": "number"
+        },
+        "min": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/SweepScale"
+        }
+      },
+      "required": [
+        "max",
+        "min"
+      ],
+      "type": "object"
     },
     "SweepRank": {
       "additionalProperties": false,
@@ -5468,6 +5815,13 @@
       "enum": [
         "asc",
         "desc"
+      ],
+      "type": "string"
+    },
+    "SweepScale": {
+      "enum": [
+        "linear",
+        "log"
       ],
       "type": "string"
     },
@@ -5502,6 +5856,12 @@
         "request": {
           "description": "The slot request body as wire JSON (the #/$defs/Request shape) with axis placeholders: `{{axis}}` inside a string, `{\"$var\": \"axis\"}` as a whole value. Each expanded body is decoded strictly into a Request.",
           "type": "object"
+        },
+        "rng_seed": {
+          "type": "integer"
+        },
+        "samples": {
+          "type": "integer"
         }
       },
       "required": [
@@ -5948,9 +6308,9 @@
     },
     "WindowType": {
       "enum": [
-        "WIN_ADSTOCK",
         "WIN_DELTA",
         "WIN_DENSE_RANK",
+        "WIN_DISTRIBUTED_LAG",
         "WIN_EWMA",
         "WIN_LAG",
         "WIN_LEAD",
@@ -6024,4 +6384,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 72a496d0035e164c2c003552e999f3337e8f1fcc53d5bc26c5f69ee1f893dd17
+// golden-hash: 2c8cd538a57d614c394e4fcdc97f915b07c1d4fd698bf0b50f256ed015ba4bf0

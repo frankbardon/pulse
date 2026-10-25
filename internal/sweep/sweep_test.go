@@ -66,7 +66,7 @@ func TestValidate_Rules(t *testing.T) {
 		{"bad number text", func(s *types.SweepSpec) { s.Axes[0].Values = []any{json.Number("1x")} }, ReasonValueNotScalar, nil},
 		{"string number text", func(s *types.SweepSpec) { s.Axes[0].Values = []any{json.Number(`"1"`)} }, ReasonValueNotScalar, nil},
 		{"unknown mode", func(s *types.SweepSpec) { s.Mode = "cross" }, ReasonModeUnknown,
-			map[string]any{"field": "sweep.mode", "value": "cross", "valid": []string{"grid", "zip"}}},
+			map[string]any{"field": "sweep.mode", "value": "cross", "valid": []string{"grid", "zip", "random", "lhs"}}},
 		{"zip unequal", func(s *types.SweepSpec) {
 			s.Mode = types.SweepModeZip
 			s.Axes[1].Values = []any{true}

@@ -48,7 +48,6 @@ var (
 	ownRecordRef   = own("ATTR_PROFILE_SIMILARITY", "ATTR_VEC_DISTANCE")
 	ownAllTests    = opsWithPrefix("TEST_")
 	ownAllOverlays = opsWithPrefix("OVERLAY_")
-	ownAllWindows  = opsWithPrefix("WIN_")
 	ownAllRegs     = opsWithPrefix("REG_")
 	// ownAllMats: every matrix operator (and capability:matrices, which
 	// each depends on) — a code only a `matrices` slot can raise.
@@ -198,9 +197,15 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_AGG_NOT_MEANINGFUL_FOR_CATEGORICAL: own(featFacet),
 	errors.PULSE_FACET_VALUES_TRUNCATED:             own(featFacet),
 	errors.PULSE_FIELD_DESCRIPTION_LOW_QUALITY:      shared,
-	errors.PULSE_WINDOW_INVALID:                     ownAllWindows,
+	// Also the unknown-window-type refusal (a hidden WIN_* included), so
+	// shared like every unknown-name code: the windows slot is never
+	// feature-gated.
+	errors.PULSE_WINDOW_INVALID: shared,
 	// Only a regression slot naming a window label raises it.
 	errors.PULSE_REGRESSION_WINDOW_UNAVAILABLE: ownAllRegs,
+	// An unknown regression type: shared, so a hidden REG_* fails exactly
+	// like a never-registered one (see the classification rule).
+	errors.PULSE_REGRESSION_INVALID: shared,
 	// An attribute slot reading a window label raises it.
 	errors.PULSE_ATTRIBUTE_WINDOW_ORDER: opsWithPrefix("ATTR_"),
 	// Every operator the accepted-types table refuses a type for with it.
@@ -349,20 +354,26 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SWEEP_INVALID:           own(featComposeSweep),
 	errors.PULSE_SWEEP_RANK_PATH:         own(featComposeSweep),
 	errors.PULSE_SWEEP_EXPR_SPLICE:       own(featComposeSweep),
-	errors.PULSE_BANNER_INVALID:          own(featComposeBanner),
+	// Only a sampled sweep's keys (samples, rng_seed, range) and modes
+	// reach these: hidden, the request-slot gate refuses those first.
+	errors.PULSE_SWEEP_MODE_MISMATCH:   own(featSweepSampling),
+	errors.PULSE_SWEEP_RANGE_INVALID:   own(featSweepSampling),
+	errors.PULSE_SWEEP_SAMPLES_INVALID: own(featSweepSampling),
+	errors.PULSE_BANNER_INVALID:        own(featComposeBanner),
 	// The one model namespace: Compose fits and loaded models bind it.
 	errors.PULSE_FIT_INVALID:          own(featComposeFits),
 	errors.PULSE_MODEL_NAME_COLLISION: own(featComposeFits, featModels),
-	errors.PULSE_MODEL_UNKNOWN:        own(featComposeFits, featModels, "ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_FORMULA", "FILTER_EXPRESSION"),
+	errors.PULSE_MODEL_UNKNOWN:        own(featComposeFits, featModels, "ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", "ATTR_FORMULA", "FILTER_EXPRESSION", featComposeOpt),
 	errors.PULSE_MODEL_KIND_MISMATCH:  own(featComposeFits, featModels),
 	// ATTR_REG_PREDICT's scoring rule (internal/model.CheckScore), an
 	// ATTR_REG_FITTED / RESIDUAL params.fit (CheckFitReference) and
 	// the coef() expression function (internal/model.CheckCoef), which
-	// ATTR_FORMULA and FILTER_EXPRESSION evaluate; a regression holdout
+	// ATTR_FORMULA, FILTER_EXPRESSION and a compose optimize block
+	// evaluate; a regression holdout
 	// over an unscorable type (model.HoldoutScorerRefusal, no_scorer).
 	errors.PULSE_MODEL_SCORE_INVALID:         own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL", featRegHoldout),
-	errors.PULSE_MODEL_TERM_UNKNOWN:          own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
-	errors.PULSE_MODEL_STAT_UNKNOWN:          own("ATTR_FORMULA", "FILTER_EXPRESSION"),
+	errors.PULSE_MODEL_TERM_UNKNOWN:          own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION", featComposeOpt),
+	errors.PULSE_MODEL_STAT_UNKNOWN:          own("ATTR_FORMULA", "FILTER_EXPRESSION", featComposeOpt),
 	errors.PULSE_MODEL_INTERVALS_UNAVAILABLE: own("ATTR_REG_PREDICT", "ATTR_FORMULA", "FILTER_EXPRESSION"),
 	errors.PULSE_MODEL_PREDICTOR_MISSING:     own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
 	// ATTR_FORMULA's total(expr) cohort-total term (internal/totalcall):
@@ -375,7 +386,7 @@ var errorOwners = map[errors.Code][]string{
 	// params.<name> can be refused (undeclared, collision) wherever an
 	// expression compiles, the slot hidden or not.
 	errors.PULSE_PARAMS_INVALID:              own(featParams),
-	errors.PULSE_PARAMS_UNDECLARED:           own("ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", featRegHoldout, featParams),
+	errors.PULSE_PARAMS_UNDECLARED:           own("ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", featRegHoldout, featParams, featComposeOpt),
 	errors.PULSE_PARAMS_FIELD_COLLISION:      own("ATTR_FORMULA", "FILTER_EXPRESSION", featRegHoldout, featParams),
 	errors.PULSE_MODEL_PREDICTOR_NOT_NUMERIC: own("ATTR_REG_PREDICT", "ATTR_REG_FITTED", "ATTR_REG_RESIDUAL"),
 	// The model file: a `save` writes it (capability:model_save), a
@@ -590,8 +601,15 @@ var errorOwners = map[errors.Code][]string{
 	// The linear-algebra core is reachable from more than one feature
 	// (regression, synthetic data, later matrix operators) and from no
 	// single request slot, so its codes are always listed.
-	errors.PULSE_MATRIX_SINGULAR:       shared,
-	errors.PULSE_MATRIX_SHAPE_MISMATCH: shared,
+	errors.PULSE_MATRIX_SINGULAR:        shared,
+	errors.PULSE_OPTIMIZE_INVALID:       shared,
+	errors.PULSE_OPTIMIZE_NOT_CONVERGED: shared,
+	errors.PULSE_OPTIMIZE_INFEASIBLE:    shared,
+	// The compose `optimize` block's own rules.
+	errors.PULSE_OPTIMIZE_SPEC_INVALID:       own(featComposeOpt),
+	errors.PULSE_OPTIMIZE_VARIABLE_INVALID:   own(featComposeOpt),
+	errors.PULSE_OPTIMIZE_EXPRESSION_INVALID: own(featComposeOpt),
+	errors.PULSE_MATRIX_SHAPE_MISMATCH:       shared,
 
 	// Virtual vectors are capability:matrices: with it hidden the
 	// `vectors` slot is refused as an unknown field before any vector is
@@ -686,8 +704,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_LIMIT_EXCEEDED:        shared,
 
 	// Per-slot partial success: only a regression, test (tier-1 or
-	// post) or matrix slot can fail alone.
-	errors.PULSE_SLOT_FAILED: plus(ownAllRegs, ownAllTests, ownAllMats),
+	// post) or matrix slot, or a Compose optimize block, can fail alone.
+	errors.PULSE_SLOT_FAILED: plus(ownAllRegs, ownAllTests, ownAllMats, own(featComposeOpt)),
 	// Any attribute reading a failed Compose fit (scoring, a literal
 	// coef(), a vector params.fit, a {population}); failed fits exist
 	// only under Compose fits.

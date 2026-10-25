@@ -20,7 +20,7 @@ import (
 // extensions_regression_hill_test.go pins custom-regressions E4-S1:
 // the reference extension REG_TESTMMM_HILL (extensions_testmmm_hill_test.go),
 // registered through the public contract alone, recovers a seeded
-// Weibull-adstock + Hill media-mix truth after WIN_ADSTOCK; its prior
+// Weibull-adstock + Hill media-mix truth after WIN_DISTRIBUTED_LAG; its prior
 // and nonnegative params hold their invariants; its Scorer scores
 // through ATTR_REG_PREDICT exactly as hill() writes the model, saves and
 // reloads; a bootstrap refits it; the manifest describes it and a
@@ -46,7 +46,7 @@ var hillDefaultTruth = hillTruth{
 // per geo over week.
 func hillAdstockWindows() []*types.Window {
 	w := func(field, label, params string) *types.Window {
-		return &types.Window{Type: types.WIN_ADSTOCK, Field: field, Label: label, PartitionBy: []string{"geo"},
+		return &types.Window{Type: types.WIN_DISTRIBUTED_LAG, Field: field, Label: label, PartitionBy: []string{"geo"},
 			OrderBy: []types.OrderKey{{Field: "week"}}, Params: json.RawMessage(params)}
 	}
 	return []*types.Window{
@@ -56,7 +56,7 @@ func hillAdstockWindows() []*types.Window {
 }
 
 // hillKernel is the normalised lag weights the generator applies —
-// written from op-win-adstock's formulas, independently of WIN_ADSTOCK.
+// written from op-win-distributed-lag's formulas, independently of WIN_DISTRIBUTED_LAG.
 func hillKernel(pdf bool, maxLag int, shape, scale float64) []float64 {
 	w := make([]float64, maxLag+1)
 	sum := 0.0
@@ -188,7 +188,7 @@ func hillInstance(t testing.TB, fsys afero.Fs, mut func(*pulse.Options)) *pulse.
 }
 
 // hillCohort writes the generated source cohort mmm.pulse and
-// materializes its WIN_ADSTOCK columns into mmm_ad.pulse — the cohort
+// materializes its WIN_DISTRIBUTED_LAG columns into mmm_ad.pulse — the cohort
 // every fit reads (a regression cannot name a window label of its own
 // request, so the adstock is materialized first, as an embedder would).
 func hillCohort(t testing.TB, p *pulse.Pulse, truth hillTruth, seed uint64) []hillRow {
@@ -277,7 +277,7 @@ func hillRecoveryViolations(t testing.TB, r *types.RegressionResult, truth hillT
 }
 
 // TestExtensions_RegressionHillRecoversTruth: the generated cohort's
-// spend goes through WIN_ADSTOCK (materialized; it equals the
+// spend goes through WIN_DISTRIBUTED_LAG (materialized; it equals the
 // generator's own kernels), then REG_TESTMMM_HILL recovers the
 // intercept, every channel's β, k and s and the control's γ within the
 // stated tolerances. The coefficients carry no standard error, test
@@ -290,7 +290,7 @@ func TestExtensions_RegressionHillRecoversTruth(t *testing.T) {
 	p := hillInstance(t, fsys, nil)
 	rows := hillCohort(t, p, hillDefaultTruth, 7)
 
-	// WIN_ADSTOCK equals the generator's kernels (relative 1e-12: the
+	// WIN_DISTRIBUTED_LAG equals the generator's kernels (relative 1e-12: the
 	// same sums in a possibly different association).
 	c, err := p.Open(ctx, "mmm_ad.pulse")
 	if err != nil {

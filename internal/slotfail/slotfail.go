@@ -29,13 +29,27 @@ import (
 // its Response slice.
 type Kind string
 
-// The four per-slot kinds.
+// The per-slot kinds: the four Response slots, and a Compose `optimize`
+// block (its ComposedResponse.Optimizations entry).
 const (
 	KindRegressions Kind = "regressions"
 	KindTests       Kind = "tests"
 	KindPostTests   Kind = "post_tests"
 	KindMatrices    Kind = "matrices"
+	// KindOptimizations is a Compose optimize block that failed on its
+	// numbers (OptimizeCodes, or a read of a Compose fit that failed on
+	// its data — the fit's own code). internal/optsolve builds its
+	// error; Collect never lists it (it is no Response slot).
+	KindOptimizations Kind = "optimizations"
 )
+
+// OptimizeCodes are the data-dependent refusals an optimize block's
+// solve raises: no start converged, or the constraints could not be
+// met.
+var OptimizeCodes = map[errors.Code]bool{
+	errors.PULSE_OPTIMIZE_NOT_CONVERGED: true,
+	errors.PULSE_OPTIMIZE_INFEASIBLE:    true,
+}
 
 // RegressionCodes are the data-dependent refusals a regression engine's
 // fit raises.
@@ -102,6 +116,8 @@ func codesOf(kind Kind) map[errors.Code]bool {
 		return TestCodes
 	case KindMatrices:
 		return MatrixCodes
+	case KindOptimizations:
+		return OptimizeCodes
 	}
 	return nil
 }

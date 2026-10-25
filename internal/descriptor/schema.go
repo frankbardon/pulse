@@ -254,11 +254,27 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	// The response-shaping presets: a closed vocabulary on an ungated
 	// slot.
 	m[reflect.TypeFor[types.ReturnPreset]()] = stringify(types.AllReturnPresets())
-	// The sweep modes and rank orders: closed vocabularies (a hidden
+	// The sweep modes, range scales and rank orders: closed vocabularies (a hidden
 	// capability:compose_sweep drops the `sweep` slot, and SweepSpec /
 	// SweepRank with it).
-	m[reflect.TypeFor[types.SweepMode]()] = stringify(types.AllSweepModes())
+	// The sampling modes (random / lhs) ride
+	// capability:compose_sweep_sampling: an instance hiding it offers
+	// grid and zip only (the request-slot gate refuses the others as an
+	// unknown mode).
+	modes := types.AllSweepModes()
+	if !inst.Enabled(featSweepSampling) {
+		modes = enumerationSweepModes
+	}
+	m[reflect.TypeFor[types.SweepMode]()] = stringify(modes)
+	m[reflect.TypeFor[types.SweepScale]()] = stringify(types.AllSweepScales())
 	m[reflect.TypeFor[types.SweepRankOrder]()] = stringify(types.AllSweepRankOrders())
+	// The optimize block's directions, constraint types and active
+	// bounds: closed vocabularies (a hidden capability:compose_optimize
+	// drops the `optimize` / `optimizations` slots, and the defs with
+	// them).
+	m[reflect.TypeFor[types.OptimizeDirection]()] = stringify(types.AllOptimizeDirections())
+	m[reflect.TypeFor[types.OptimizeConstraintType]()] = stringify(types.AllOptimizeConstraintTypes())
+	m[reflect.TypeFor[types.OptimizeActiveBound]()] = stringify(types.AllOptimizeActiveBounds())
 	// The regression covariance estimators: a closed vocabulary on the
 	// ungated regressions slot.
 	m[reflect.TypeFor[types.CovarianceType]()] = stringify(types.AllCovarianceTypes())
@@ -388,6 +404,8 @@ func (b *schemaBuilder) defFor(t reflect.Type) any {
 		return covarianceLagsDef()
 	case reflect.TypeFor[types.PriorPrecision]():
 		return priorPrecisionDef()
+	case reflect.TypeFor[types.OptimizeBound]():
+		return optimizeBoundDef()
 	case reflect.TypeFor[types.FitResult]():
 		return b.fitResultDef()
 	case reflect.TypeFor[types.MatrixValues]():
@@ -480,6 +498,23 @@ type fieldKey struct {
 	name string
 }
 
+// enumerationSweepModes are the sweep modes that walk explicit axis
+// values (grid, zip) — every mode an item for_each takes, and every mode
+// a compose sweep takes on an instance hiding the sampling modes.
+var enumerationSweepModes = []types.SweepMode{types.SweepModeGrid, types.SweepModeZip}
+
+// axisValuesSchema is a sweep / for_each axis's `values`: a non-empty
+// list of JSON scalars, in expansion order (a sampled sweep axis carries
+// a range instead).
+func axisValuesSchema() map[string]any {
+	return map[string]any{
+		"type":        "array",
+		"minItems":    1,
+		"items":       map[string]any{"type": []any{"number", "string", "boolean"}},
+		"description": "The scalar values the axis takes, in expansion order.",
+	}
+}
+
 // fieldOverrides replaces the reflected schema of a json.RawMessage
 // field that is not operator params (the generic RawMessage rule
 // describes params). A recommend draft is a request object whose
@@ -509,11 +544,28 @@ var fieldOverrides = map[fieldKey]any{
 		"items":       map[string]any{"type": "object"},
 		"description": "Compose overlay specs (the #/$defs/ComposeOverlaySpec shape) with axis placeholders, substituted per expanded slot and appended to the request's own overlays.",
 	},
-	{reflect.TypeFor[types.SweepAxis](), "values"}: map[string]any{
-		"type":        "array",
-		"minItems":    1,
-		"items":       map[string]any{"type": []any{"number", "string", "boolean"}},
-		"description": "The scalar values the axis takes, in expansion order.",
+	// An item for_each walks explicit values only: its mode is grid or
+	// zip whatever the instance (the sampling modes are compose-sweep
+	// only, refused as mode_unknown).
+	{reflect.TypeFor[types.ForEach](), "mode"}: map[string]any{
+		"type":        "string",
+		"enum":        stringify(enumerationSweepModes),
+		"description": "How the axes combine: grid (the default; the Cartesian product, first axis slowest) or zip (the axes in lockstep, equal lengths).",
+	},
+	{reflect.TypeFor[types.SweepAxis](), "values"}: axisValuesSchema(),
+	// ...and its axes carry values, never a sampled range.
+	{reflect.TypeFor[types.ForEach](), "axes"}: map[string]any{
+		"type":     "array",
+		"minItems": 1,
+		"items": map[string]any{
+			"type":                 "object",
+			"additionalProperties": false,
+			"properties": map[string]any{
+				"name":   map[string]any{"type": "string"},
+				"values": axisValuesSchema(),
+			},
+			"required": []string{"name", "values"},
+		},
 	},
 	{reflect.TypeFor[descriptor.Recommendation](), "request"}: map[string]any{
 		"type":        "object",
@@ -827,6 +879,21 @@ func priorPrecisionDef() any {
 		"oneOf": []any{
 			map[string]any{"type": "number", "minimum": 0},
 			map[string]any{"type": "array", "items": map[string]any{"type": "number", "minimum": 0}},
+		},
+	}
+}
+
+// optimizeBoundDef is an optimize variable's lower / upper / start.
+// types.OptimizeBound has no exported fields (its states are behind
+// constructors), so reflection would describe an empty object; on the
+// wire it is a number or a "params.<name>" reference to a numeric batch
+// param.
+func optimizeBoundDef() any {
+	return map[string]any{
+		"description": "A decision variable's bound or start: a number, or \"params.<name>\" naming a batch param that holds a finite number.",
+		"oneOf": []any{
+			map[string]any{"type": "number"},
+			map[string]any{"type": "string", "pattern": `^params\.[A-Za-z_][A-Za-z0-9_]*$`},
 		},
 	}
 }

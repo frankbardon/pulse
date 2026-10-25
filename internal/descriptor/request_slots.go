@@ -10,6 +10,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/strictjson"
+	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -31,8 +32,13 @@ import (
 //     SERIES host a grouped Process runs)
 //   - ComposedRequest.Overlays — capability:compose
 //   - ComposedRequest.Sweep    — capability:compose_sweep
+//   - the sampled sweep's `samples` / `rng_seed` (SweepSpec), every
+//     axis `range` (SweepAxis), the random / lhs modes and the
+//     ComposedResponse.SweepSeed echo — capability:compose_sweep_sampling
 //   - ComposedRequest.Banner   — capability:compose_banner (+ the
 //     ComposedResponse.Banner it produces)
+//   - ComposedRequest.Optimize — capability:compose_optimize (+ the
+//     ComposedResponse.Optimizations it produces)
 //   - ComposedRequest.Fits     — capability:compose_fits (each fit
 //     request's own slots are gated like a slot's, details.fit)
 //   - ChainRequest.Overlays    — capability:process_chain
@@ -49,7 +55,8 @@ import (
 //   - every `save` (RegressionSpec, FitSpec) — capability:model_save
 //   - every regression `holdout` (+ the RegressionResult block) —
 //     capability:regression_holdout
-//   - Request.Models and FacetRequest.Models — capability:models
+//   - Request.Models, FacetRequest.Models and OptimizeSpec.Models —
+//     capability:models
 //   - Request.Populations — capability:models
 //
 // An overlay slot is visible iff at least one of its hosts is enabled
@@ -145,6 +152,10 @@ var crosstabCellsSlotGate = gatedSlot{key: "cells", visible: capabilityGate(feat
 // with one of its kinds.
 var requestOverlaysSlotGate = gatedSlot{key: "overlays", visible: overlayGate(featCrosstab, featCompose, featMatrices)}
 
+// sweepSamplingGate gates every key only a sampled sweep (mode random /
+// lhs) reads or writes: capability:compose_sweep_sampling.
+var sweepSamplingGate = capabilityGate(featSweepSampling)
+
 // gatedSlots maps each request root (by its Go type) to its gated
 // slots, plus the nested slot objects that carry a gated key of their
 // own (the per-slot `weight`). The nested entries are what the payload
@@ -184,6 +195,14 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	reflect.TypeOf(types.OverlaySpec{}):        {weightSlotGate, multiplicitySlotGate},
 	reflect.TypeOf(types.Group{}):              {weightSlotGate},
 	reflect.TypeOf(types.ComposeOverlaySpec{}): {multiplicitySlotGate},
+	// The sampled sweep's own keys; the random / lhs mode VALUES ride
+	// the same capability (nestedSweepSamplingRefusal, the SweepMode
+	// enum).
+	reflect.TypeOf(types.SweepSpec{}): {
+		{key: "samples", visible: sweepSamplingGate},
+		{key: "rng_seed", visible: sweepSamplingGate},
+	},
+	reflect.TypeOf(types.SweepAxis{}): {{key: "range", visible: sweepSamplingGate}},
 	// The adjusted outputs a correction writes beside a test's raw p
 	// ride the same capability, so a hidden instance's payload schema
 	// names no multiplicity surface at all (no request ever reaches
@@ -233,17 +252,24 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 		{key: "fits", visible: capabilityGate(featComposeFits)},
 		{key: "banner", visible: capabilityGate(featComposeBanner)},
 		paramsSlotGate,
+		{key: "optimize", visible: capabilityGate(featComposeOpt)},
 	},
 	// The sweep rank rides capability:compose_sweep with the `sweep`
-	// slot that produces it.
+	// slot that produces it; the seed echo only a sampled sweep writes
+	// rides capability:compose_sweep_sampling.
 	// The top-level overlay layers of each result root ride the gate
 	// of the request root's `overlays` slot that produces them.
 	reflect.TypeOf(types.ComposedResponse{}): {
 		{key: "overlays", visible: overlayGate(featCompose)},
 		{key: "ranking", visible: capabilityGate(featComposeSweep)},
+		{key: "sweep_seed", visible: sweepSamplingGate},
 		{key: "fits", visible: capabilityGate(featComposeFits)},
 		{key: "banner", visible: capabilityGate(featComposeBanner)},
+		{key: "optimizations", visible: capabilityGate(featComposeOpt)},
 	},
+	// An optimize block's saved models ride capability:models, like a
+	// slot's `models`.
+	reflect.TypeOf(types.OptimizeSpec{}): {modelsSlotGate},
 	reflect.TypeOf(types.ChainRequest{}): {
 		{key: "overlays", visible: overlayGate(featProcessChain)},
 		paramsSlotGate,
@@ -459,6 +485,9 @@ func setSlots(v any) []string {
 		}
 		if r != nil && len(r.Params) > 0 {
 			out = append(out, "params")
+		}
+		if r != nil && len(r.Optimize) > 0 {
+			out = append(out, "optimize")
 		}
 	case *types.ChainRequest:
 		if r != nil && len(r.Overlays) > 0 {
@@ -738,6 +767,35 @@ func nestedCrosstabCellsRefusal(req *types.Request, inst *InstanceSnapshot) *err
 	return unknownFieldErrorAt("crosstab", []string{crosstabCellsSlotGate.key}, VisibleSlotKeys(req.Crosstab, inst))
 }
 
+// nestedSweepSamplingRefusal gates a ComposedRequest's sweep when inst
+// hides capability:compose_sweep_sampling: a set `samples` / `rng_seed`
+// is PULSE_REQUEST_UNKNOWN_FIELD at the sweep (details.path "sweep"),
+// then the first axis `range` at that axis ("sweep.axes[i]") — valid_keys
+// over the object's visible keys — and a mode other than grid / zip is
+// the unknown-mode refusal (sweep.EnumerationModeRefusal), its `valid`
+// naming grid and zip only.
+func nestedSweepSamplingRefusal(spec *types.SweepSpec, inst *InstanceSnapshot) *errors.CodedError {
+	if spec == nil || inst.Enabled(featSweepSampling) {
+		return nil
+	}
+	var keys []string
+	if spec.Samples != 0 {
+		keys = append(keys, "samples")
+	}
+	if spec.RNGSeed != 0 {
+		keys = append(keys, "rng_seed")
+	}
+	if len(keys) > 0 {
+		return unknownFieldErrorAt("sweep", keys, VisibleSlotKeys(spec, inst))
+	}
+	for i := range spec.Axes {
+		if spec.Axes[i].Range != nil {
+			return unknownFieldErrorAt(fmt.Sprintf("sweep.axes[%d]", i), []string{"range"}, VisibleSlotKeys(&spec.Axes[i], inst))
+		}
+	}
+	return sweep.EnumerationModeRefusal(spec.Mode)
+}
+
 // requestSlotRefusal gates one Request: its own top-level slots, then
 // the crosstab `cells` key, then every nested slot `weight`, then every
 // nested `multiplicity`, then every item `for_each`, then every
@@ -830,6 +888,9 @@ func SlotRefusal(v any, inst *InstanceSnapshot) error {
 		if ce := composeOverlayMultiplicityRefusal(r.Overlays, inst); ce != nil {
 			return ce
 		}
+		if ce := nestedSweepSamplingRefusal(r.Sweep, inst); ce != nil {
+			return ce
+		}
 		for i, req := range r.Requests {
 			if ce := requestSlotRefusal(req, inst); ce != nil {
 				return RefusalAt(ce, "request", i)
@@ -842,6 +903,14 @@ func SlotRefusal(v any, inst *InstanceSnapshot) error {
 			}
 			if ce := requestSlotRefusal(fit.Request, inst); ce != nil {
 				return RefusalAt(ce, "fit", i)
+			}
+		}
+		// An optimize block's own `models` ride capability:models, as a
+		// slot's do (details.optimize).
+		for i := range r.Optimize {
+			if len(r.Optimize[i].Models) > 0 && !inst.Enabled(featModels) {
+				return RefusalAt(unknownFieldErrorAt(fmt.Sprintf("optimize[%d]", i), []string{"models"},
+					VisibleSlotKeys(&r.Optimize[i], inst)), "optimize", i)
 			}
 		}
 	case *types.ChainRequest:

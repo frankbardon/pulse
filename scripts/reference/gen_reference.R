@@ -1,4 +1,4 @@
-#!/usr/bin/env Rscript
+# gen_distributed_lag.R — R oracle for WIN_DISTRIBUTED_LAG (custom-regressions E3-S3;
 # gen_reference.R — R oracle for Pulse's shared statistical primitives.
 #
 # Writes one JSON golden per distribution family into the output
@@ -498,8 +498,8 @@ source(file.path(script_dir, "gen_glm_gamma_selection.R"), local = FALSE)
 # rows last.
 source(file.path(script_dir, "gen_overlays.R"), local = FALSE)
 
-# The WIN_ADSTOCK golden (adstock.json: the geometric / Weibull CDF /
+# The WIN_DISTRIBUTED_LAG golden (distributed_lag.json: the geometric / Weibull CDF /
 # Weibull PDF lag kernels, normalised and raw, and their convolution over
 # a two-partition series with nulls, via stats::filter); base stats +
 # jsonlite. Deterministic rows, no RNG.
-source(file.path(script_dir, "gen_adstock.R"), local = FALSE)
+source(file.path(script_dir, "gen_distributed_lag.R"), local = FALSE)

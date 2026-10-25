@@ -71,13 +71,13 @@ func attachIntervals(res *types.RegressionResult, level, df float64, studentT bo
 	}
 	var q float64
 	if studentT {
-		q = statdist.StudentTQuantile(0.5+level/2, df)
+		q = statdist.StudentTQuantile(0.5+float64(level/2), df)
 		res.DF = df
 		if !(df > 0) {
 			res.DF = math.NaN()
 		}
 	} else {
-		q = statdist.NormalQuantile(0.5 + level/2)
+		q = statdist.NormalQuantile(0.5 + float64(level/2))
 	}
 	lower := make(map[string]float64, len(res.StdErrors))
 	upper := make(map[string]float64, len(res.StdErrors))
@@ -87,7 +87,7 @@ func attachIntervals(res *types.RegressionResult, level, df float64, studentT bo
 			lower[key], upper[key] = coef, coef
 			continue
 		}
-		half := q * se
+		half := float64(q * se) // barriered: same bounds on every GOARCH
 		lower[key], upper[key] = coef-half, coef+half
 	}
 	res.CILower, res.CIUpper, res.ConfLevel = lower, upper, level

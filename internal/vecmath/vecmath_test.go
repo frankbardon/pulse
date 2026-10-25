@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frankbardon/pulse/internal/detmath"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 var (
@@ -311,7 +311,7 @@ func TestScalar(t *testing.T) {
 }
 
 // TestScalar_TranscendentalsAreDetmath: every transcendental kernel is
-// internal/detmath's port bit for bit, never math.*. The two edge pins
+// linalg/detmath's port bit for bit, never math.*. The two edge pins
 // are where the standard library is wrong on one architecture or the
 // other — arm64 math.Exp underflows -745.1 to 0, amd64 assembly
 // math.Log reads the smallest subnormal as about -709.09 — so reverting
@@ -365,11 +365,11 @@ func TestFMAFreeOrder(t *testing.T) {
 }
 
 // TestVecmathImportBoundary keeps the package a leaf — the standard
-// library plus internal/detmath, itself stdlib-only — so
+// library plus linalg/detmath, itself stdlib-only — so
 // internal/processing and internal/descriptor can both import it.
 func TestVecmathImportBoundary(t *testing.T) {
 	allowed := map[string]bool{"errors": true, "fmt": true, "math": true,
-		"github.com/frankbardon/pulse/internal/detmath": true}
+		"github.com/frankbardon/pulse/linalg/detmath": true}
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
@@ -390,7 +390,7 @@ func TestVecmathImportBoundary(t *testing.T) {
 		for _, imp := range af.Imports {
 			p, _ := strconv.Unquote(imp.Path.Value)
 			if !allowed[p] {
-				t.Errorf("%s imports %q; vecmath must stay a leaf over the stdlib and internal/detmath", f, p)
+				t.Errorf("%s imports %q; vecmath must stay a leaf over the stdlib and linalg/detmath", f, p)
 			}
 		}
 	}

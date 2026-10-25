@@ -5,7 +5,7 @@ import (
 	"math/rand/v2"
 	"sort"
 
-	"github.com/frankbardon/pulse/internal/detmath"
+	"github.com/frankbardon/pulse/linalg/detmath"
 )
 
 // categoricalPairSampler resamples field B conditioned on field A's

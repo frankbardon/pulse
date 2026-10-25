@@ -16,7 +16,7 @@ import (
 //
 // rowExprOptions appends exprenv.MathOptions — sqrt, exp, log, log1p,
 // pow, hill, sin, cos, tan, atan2, pi(), e(), float `%` and `**` / `^` —
-// the SAME implementations ATTR_FORMULA runs, on internal/detmath, so a
+// the SAME implementations ATTR_FORMULA runs, on linalg/detmath, so a
 // `set_expr` gives identical bits on every architecture and CPU. A rule
 // output feeds later `when` comparisons, so a one-ulp drift there is not
 // a last-bit difference but a different set of fired rows; that is why
