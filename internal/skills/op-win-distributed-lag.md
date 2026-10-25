@@ -1,9 +1,9 @@
 ---
-name: op-win-adstock
-description: Media adstock; a finite lag kernel (geometric, Weibull CDF or Weibull PDF) convolved over the ordered partition.
+name: op-win-distributed-lag
+description: Distributed lag (carry-over, media adstock); a finite lag kernel (geometric, Weibull CDF or Weibull PDF) convolved over the ordered partition.
 kind: operator
 category: WIN
-operator: WIN_ADSTOCK
+operator: WIN_DISTRIBUTED_LAG
 type: reference
 applies_to: process, compose, predict
 examples_tags: [time-series, feature-engineering, window-operator, buffered-pipeline]

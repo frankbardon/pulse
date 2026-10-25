@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:8534749f9cc37ab1ac446274bb3e3f73122720757184a52f3e0f43d97f257117",
+    "feature_set_digest": "fs1:4b485f26aca49e25aff4394e346f98e2c2af975737e7ade3c12344cfb7185bdb",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -6147,9 +6147,60 @@
       ],
       "windows": [
         {
-          "name": "WIN_ADSTOCK",
+          "name": "WIN_DELTA",
           "category": "window",
-          "description": "Media adstock: a finite lag kernel over the ordered partition, value_i = Σ w_l · x_{i−l} for l = 0..max_lag. Kernels: geometric (w_l = decay^l), weibull_cdf (Weibull survival 1 − F(l)), weibull_pdf (Weibull density f(l + 1)); normalised to sum 1 by default.",
+          "description": "Point DIFFERENCE (current minus the row Periods positions earlier in the ordered partition), in the field's own units. The subtraction counterpart of WIN_PCT_CHANGE, which emits a RATIO instead; a zero previous value is a legitimate delta here and is never nulled.",
+          "params": [
+            {
+              "name": "periods",
+              "type": "int",
+              "required": false,
+              "default": 1,
+              "description": "Lookback offset (≥ 1) for the comparison row."
+            }
+          ],
+          "accepts_types": [
+            "date",
+            "f32",
+            "f64",
+            "u16",
+            "u32",
+            "u4",
+            "u64",
+            "u8"
+          ],
+          "emits_type": "f64",
+          "emits_type_note": "one float per row; null (not NaN) when no comparison row exists — the first Periods rows of each partition, or a missing value on either side",
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          },
+          "intents": [
+            "benchmark",
+            "change_over_time"
+          ]
+        },
+        {
+          "name": "WIN_DENSE_RANK",
+          "category": "window",
+          "description": "Dense rank with no gaps after ties (1, 2, 2, 3, …) within the ordered partition.",
+          "params": null,
+          "accepts_types": [],
+          "forbids_field": true,
+          "emits_type": "u32",
+          "emits_type_note": "one integer per row",
+          "streamable": false,
+          "component_schema": {
+            "mergeability": ""
+          },
+          "intents": [
+            "benchmark"
+          ]
+        },
+        {
+          "name": "WIN_DISTRIBUTED_LAG",
+          "category": "window",
+          "description": "Distributed lag (carry-over; media adstock): a finite lag kernel over the ordered partition, value_i = Σ w_l · x_{i−l} for l = 0..max_lag. Kernels: geometric (w_l = decay^l), weibull_cdf (Weibull survival 1 − F(l)), weibull_pdf (Weibull density f(l + 1)); normalised to sum 1 by default.",
           "params": [
             {
               "name": "kernel",
@@ -6212,57 +6263,6 @@
           },
           "intents": [
             "prepare"
-          ]
-        },
-        {
-          "name": "WIN_DELTA",
-          "category": "window",
-          "description": "Point DIFFERENCE (current minus the row Periods positions earlier in the ordered partition), in the field's own units. The subtraction counterpart of WIN_PCT_CHANGE, which emits a RATIO instead; a zero previous value is a legitimate delta here and is never nulled.",
-          "params": [
-            {
-              "name": "periods",
-              "type": "int",
-              "required": false,
-              "default": 1,
-              "description": "Lookback offset (≥ 1) for the comparison row."
-            }
-          ],
-          "accepts_types": [
-            "date",
-            "f32",
-            "f64",
-            "u16",
-            "u32",
-            "u4",
-            "u64",
-            "u8"
-          ],
-          "emits_type": "f64",
-          "emits_type_note": "one float per row; null (not NaN) when no comparison row exists — the first Periods rows of each partition, or a missing value on either side",
-          "streamable": false,
-          "component_schema": {
-            "mergeability": ""
-          },
-          "intents": [
-            "benchmark",
-            "change_over_time"
-          ]
-        },
-        {
-          "name": "WIN_DENSE_RANK",
-          "category": "window",
-          "description": "Dense rank with no gaps after ties (1, 2, 2, 3, …) within the ordered partition.",
-          "params": null,
-          "accepts_types": [],
-          "forbids_field": true,
-          "emits_type": "u32",
-          "emits_type_note": "one integer per row",
-          "streamable": false,
-          "component_schema": {
-            "mergeability": ""
-          },
-          "intents": [
-            "benchmark"
           ]
         },
         {
@@ -11333,8 +11333,8 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
-          "WIN_ADSTOCK",
           "WIN_DELTA",
+          "WIN_DISTRIBUTED_LAG",
           "WIN_EWMA",
           "WIN_LAG",
           "WIN_LEAD",
@@ -11427,8 +11427,8 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
-          "WIN_ADSTOCK",
           "WIN_DELTA",
+          "WIN_DISTRIBUTED_LAG",
           "WIN_EWMA",
           "WIN_LAG",
           "WIN_LEAD",
@@ -11521,8 +11521,8 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
-          "WIN_ADSTOCK",
           "WIN_DELTA",
+          "WIN_DISTRIBUTED_LAG",
           "WIN_EWMA",
           "WIN_LAG",
           "WIN_LEAD",
@@ -11615,8 +11615,8 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
-          "WIN_ADSTOCK",
           "WIN_DELTA",
+          "WIN_DISTRIBUTED_LAG",
           "WIN_EWMA",
           "WIN_LAG",
           "WIN_LEAD",
@@ -11708,8 +11708,8 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
-          "WIN_ADSTOCK",
           "WIN_DELTA",
+          "WIN_DISTRIBUTED_LAG",
           "WIN_EWMA",
           "WIN_LAG",
           "WIN_LEAD",
@@ -11801,8 +11801,8 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
-          "WIN_ADSTOCK",
           "WIN_DELTA",
+          "WIN_DISTRIBUTED_LAG",
           "WIN_EWMA",
           "WIN_LAG",
           "WIN_LEAD",
@@ -11894,8 +11894,8 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
-          "WIN_ADSTOCK",
           "WIN_DELTA",
+          "WIN_DISTRIBUTED_LAG",
           "WIN_EWMA",
           "WIN_LAG",
           "WIN_LEAD",
@@ -11974,8 +11974,8 @@
           "GROUP_ROUNDED"
         ],
         "compatible_windows": [
-          "WIN_ADSTOCK",
           "WIN_DELTA",
+          "WIN_DISTRIBUTED_LAG",
           "WIN_EWMA",
           "WIN_LAG",
           "WIN_LEAD",
@@ -13498,16 +13498,16 @@
         "description": "Two-sample z-test on Field means across two SplitBy groups; identical SE to Welch's t-test but p-value via standard normal Φ."
       },
       {
-        "name": "op-win-adstock",
-        "description": "Media adstock; a finite lag kernel (geometric, Weibull CDF or Weibull PDF) convolved over the ordered partition."
-      },
-      {
         "name": "op-win-delta",
         "description": "Point difference against the row `periods` positions earlier in the ordered partition — the subtraction counterpart of a percent change."
       },
       {
         "name": "op-win-dense-rank",
         "description": "Dense rank with no gaps after ties (1, 2, 2, 3, ...) within the ordered partition."
+      },
+      {
+        "name": "op-win-distributed-lag",
+        "description": "Distributed lag (carry-over, media adstock); a finite lag kernel (geometric, Weibull CDF or Weibull PDF) convolved over the ordered partition."
       },
       {
         "name": "op-win-ewma",
@@ -19938,4 +19938,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: f97a4107dc165da392b914d56e14a447e5c509e0182f12cf0b1f785e90c3d6c5
+// golden-hash: f6189d52adaebf4c150fff43b4ee4c188c4b88cab1987b7b543b8ebaf18ea855

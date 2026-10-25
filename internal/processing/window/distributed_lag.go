@@ -1,25 +1,25 @@
 package window
 
 import (
-	"github.com/frankbardon/pulse/internal/adstockparams"
+	"github.com/frankbardon/pulse/internal/distlagparams"
 	"github.com/frankbardon/pulse/types"
 )
 
-type adstockComputer struct {
+type distributedLagComputer struct {
 	field   string
 	weights []float64
 }
 
 func init() {
-	register(types.WIN_ADSTOCK, func(w *types.Window, _ WindowOptions) (WindowComputer, error) {
-		// The params reading is shared with predict (internal/adstockparams
+	register(types.WIN_DISTRIBUTED_LAG, func(w *types.Window, _ WindowOptions) (WindowComputer, error) {
+		// The params reading is shared with predict (internal/distlagparams
 		// through internal/windowparams), so both refuse the same request
 		// with the same message.
-		spec, ref := adstockparams.Resolve(w.Params)
+		spec, ref := distlagparams.Resolve(w.Params)
 		if ref != nil {
 			return nil, ref.Coded()
 		}
-		return &adstockComputer{field: w.Field, weights: spec.Weights}, nil
+		return &distributedLagComputer{field: w.Field, weights: spec.Weights}, nil
 	})
 }
 
@@ -33,7 +33,7 @@ func init() {
 //
 // The sum runs lag 0 first; each product is an explicit float64 so the
 // kernel never fuses into an FMA and reads the same on every arch.
-func (c *adstockComputer) Compute(rows []map[string]any, partitions [][]int, label string) error {
+func (c *distributedLagComputer) Compute(rows []map[string]any, partitions [][]int, label string) error {
 	var xs []float64
 	var present []bool
 	for _, part := range partitions {

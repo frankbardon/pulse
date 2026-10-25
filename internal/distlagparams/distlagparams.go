@@ -1,4 +1,4 @@
-// Package adstockparams is the one reading of WIN_ADSTOCK's params,
+// Package distlagparams is the one reading of WIN_DISTRIBUTED_LAG's params,
 // shared by the window factory (internal/processing/window) and predict
 // (internal/descriptor, through internal/windowparams) so both refuse the
 // same request with the same message. It resolves the params into the
@@ -14,7 +14,7 @@
 //     lag on, so a shape below 1 stays finite at lag 0.
 //
 // With normalize (default true) every weight is divided by their sum, so
-// the kernel sums to 1 and the adstocked column keeps the input's scale.
+// the kernel sums to 1 and the lagged column keeps the input's scale.
 //
 // Every rule a request can break is refused here: a missing or unknown
 // kernel, max_lag missing, below 1 or above [MaxLagCeiling], decay
@@ -23,7 +23,7 @@
 // and a kernel whose weights are not finite or sum to no positive mass.
 //
 // Leaf: stdlib + the public errors / types packages + paramread.
-package adstockparams
+package distlagparams
 
 import (
 	"encoding/json"
@@ -52,7 +52,7 @@ func Kernels() []string {
 // allocation from a request value. 10000 lags is decades of daily rows.
 const MaxLagCeiling = 10000
 
-// Params is the typed wire shape of WIN_ADSTOCK's params.
+// Params is the typed wire shape of WIN_DISTRIBUTED_LAG's params.
 type Params struct {
 	Kernel    *string  `json:"kernel"`
 	Decay     *float64 `json:"decay"`
@@ -62,7 +62,7 @@ type Params struct {
 	Normalize *bool    `json:"normalize"`
 }
 
-// Spec is a resolved WIN_ADSTOCK slot: the kernel name, whether the
+// Spec is a resolved WIN_DISTRIBUTED_LAG slot: the kernel name, whether the
 // weights were normalised, and the weights themselves, Weights[l] for
 // lag l = 0..max_lag.
 type Spec struct {
@@ -85,7 +85,7 @@ func (r *Refusal) Error() string { return r.Message }
 // runtime prefix — the factory's refusal, predict's code (the window
 // family's one code, internal/windowparams).
 func (r *Refusal) Coded() *errors.CodedError {
-	msg := string(types.WIN_ADSTOCK) + ": " + r.Message
+	msg := string(types.WIN_DISTRIBUTED_LAG) + ": " + r.Message
 	if len(r.Details) == 0 {
 		return errors.NewCodedError(errors.PULSE_WINDOW_INVALID, msg)
 	}
@@ -100,9 +100,9 @@ func refuse(msg string, details map[string]any) (Spec, *Refusal) {
 // rule the params break.
 func Resolve(raw json.RawMessage) (Spec, *Refusal) {
 	var p Params
-	paramread.Declare(paramread.Window, string(types.WIN_ADSTOCK), (*Params)(nil))
+	paramread.Declare(paramread.Window, string(types.WIN_DISTRIBUTED_LAG), (*Params)(nil))
 	if len(raw) > 0 {
-		if err := paramread.Decode(paramread.Window, string(types.WIN_ADSTOCK), raw, &p); err != nil {
+		if err := paramread.Decode(paramread.Window, string(types.WIN_DISTRIBUTED_LAG), raw, &p); err != nil {
 			return refuse("malformed params: "+err.Error(), nil)
 		}
 	}

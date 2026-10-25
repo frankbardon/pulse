@@ -269,9 +269,9 @@ skills/op-test-tukey-hsd.md
 skills/op-test-welch.md
 skills/op-test-wilcoxon-sr.md
 skills/op-test-z-two-sample.md
-skills/op-win-adstock.md
 skills/op-win-delta.md
 skills/op-win-dense-rank.md
+skills/op-win-distributed-lag.md
 skills/op-win-ewma.md
 skills/op-win-lag.md
 skills/op-win-lead.md

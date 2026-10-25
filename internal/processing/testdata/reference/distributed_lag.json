@@ -1,11 +1,11 @@
 {
-  "generator": "scripts/reference/gen_adstock.R (via gen_reference.R)",
+  "generator": "scripts/reference/gen_distributed_lag.R (via gen_reference.R)",
   "r_version": "R version 4.6.1 (2026-06-24)",
   "packages": {
     "stats": "4.6.1",
     "jsonlite": "2.0.0"
   },
-  "primitive": "WIN_ADSTOCK: geometric / Weibull CDF (survival) / Weibull PDF (at l + 1) lag kernels and their per-partition convolution",
+  "primitive": "WIN_DISTRIBUTED_LAG: geometric / Weibull CDF (survival) / Weibull PDF (at l + 1) lag kernels and their per-partition convolution",
   "r_function": "decay^l; pweibull(l, shape, scale, lower.tail = FALSE); dweibull(l + 1, shape, scale); stats::filter(c(rep(0, L), x0), w, method = 'convolution', sides = 1)",
   "note": "Lags l = 0..max_lag; normalised kernels are w / sum(w). A lag before the partition start and a null lagged value add 0; a row whose own value is null reads null. Partitions are given in order_by order.",
   "cases": [
@@ -832,4 +832,4 @@
     }
   ]
 }
-// golden-hash: f54b4984fc9c022fdba25f5e3512b8fd10250dac81f3eafc064027b30ecf4feb
+// golden-hash: 9d88e49f76e76c7b7caedf3d73ff53f2d38e9e7a1b0598433cf6c6895833c60d

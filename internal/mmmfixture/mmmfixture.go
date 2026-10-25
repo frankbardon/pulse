@@ -2,7 +2,7 @@
 // decay-sweep acceptance fixture: a deterministic weekly cohort (two
 // markets × Weeks weeks of four channel spends, two controls and sales)
 // and the canonical one-step Compose request over it — four
-// WIN_ADSTOCK windows with decay {"$var":"decay"}, a post-window hill()
+// WIN_DISTRIBUTED_LAG windows with decay {"$var":"decay"}, a post-window hill()
 // saturation per channel, a REG_OLS with bounds.nonnegative on the
 // saturated channels plus the controls and a holdout predicate, swept
 // over decay 0.0..0.9 and ranked by the fit's holdout RMSE.

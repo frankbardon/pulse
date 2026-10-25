@@ -47,13 +47,13 @@ func windowPredictorCLICohort(t *testing.T) (dir, cohort string) {
 
 // TestWindowPredictor_ParityCLIProcessSmoke (transformed-predictors
 // E1-S2 surface smoke): `pulse api process --json` runs a request whose
-// REG_OLS reads a same-request WIN_ADSTOCK label and returns the fit in
+// REG_OLS reads a same-request WIN_DISTRIBUTED_LAG label and returns the fit in
 // the envelope — no error, the leading-null-free n, a finite slope.
 func TestWindowPredictor_ParityCLIProcessSmoke(t *testing.T) {
 	dir, cohort := windowPredictorCLICohort(t)
 	reqPath := filepath.Join(dir, "req.json")
 	if err := os.WriteFile(reqPath, []byte(`{"cohort":{"filename":"`+cohort+`"},`+
-		`"windows":[{"type":"WIN_ADSTOCK","field":"tv","label":"tv_ad","order_by":[{"field":"week"}],`+
+		`"windows":[{"type":"WIN_DISTRIBUTED_LAG","field":"tv","label":"tv_ad","order_by":[{"field":"week"}],`+
 		`"params":{"kernel":"geometric","decay":0.5,"max_lag":4}}],`+
 		`"regressions":[{"type":"REG_OLS","name":"mmm","target":"sales","predictors":["tv_ad"]}]}`), 0o644); err != nil {
 		t.Fatal(err)
@@ -86,13 +86,13 @@ func TestWindowPredictor_ParityCLIProcessSmoke(t *testing.T) {
 }
 
 // adstockHillSweep is a compose holding only a sweep over the adstock
-// decay of cohort: WIN_ADSTOCK (decay {"$var":"decay"}) → a post-window
+// decay of cohort: WIN_DISTRIBUTED_LAG (decay {"$var":"decay"}) → a post-window
 // hill() attribute → REG_OLS with the saturated term bounded
 // nonnegative.
 func adstockHillSweep(cohort string) string {
 	return `{"sweep":{"axes":[{"name":"decay","values":[0.2,0.5,0.8]}],"label":"decay_{{decay}}","request":` +
 		`{"cohort":{"filename":"` + cohort + `"},` +
-		`"windows":[{"type":"WIN_ADSTOCK","field":"tv","label":"tv_ad","order_by":[{"field":"week"}],` +
+		`"windows":[{"type":"WIN_DISTRIBUTED_LAG","field":"tv","label":"tv_ad","order_by":[{"field":"week"}],` +
 		`"params":{"kernel":"geometric","decay":{"$var":"decay"},"max_lag":4}}],` +
 		`"attributes":[{"type":"ATTR_FORMULA","label":"tv_sat","expression":"hill(tv_ad, 200, 2)"}],` +
 		`"regressions":[{"type":"REG_OLS","name":"mmm","target":"sales","predictors":["tv_sat"],` +

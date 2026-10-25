@@ -28,7 +28,7 @@
 // and a given frame's mode and bounds.
 //
 // Leaf: stdlib + the public errors / types packages + paramread and the
-// three operator-specific leaves (adstockparams, ewmaparams, shareparams).
+// three operator-specific leaves (distlagparams, ewmaparams, shareparams).
 package windowparams
 
 import (
@@ -36,7 +36,7 @@ import (
 	"strconv"
 
 	"github.com/frankbardon/pulse/errors"
-	"github.com/frankbardon/pulse/internal/adstockparams"
+	"github.com/frankbardon/pulse/internal/distlagparams"
 	"github.com/frankbardon/pulse/internal/ewmaparams"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/shareparams"
@@ -63,23 +63,23 @@ var frameRejected = map[types.WindowType]bool{
 	types.WIN_PCT_CHANGE: true,
 	types.WIN_DELTA:      true,
 	// The lag kernel's reach is params.max_lag, never a frame.
-	types.WIN_ADSTOCK: true,
+	types.WIN_DISTRIBUTED_LAG: true,
 }
 
 // fieldRequired lists the value-bearing operators. ROW_NUMBER / RANK /
 // DENSE_RANK have no value field.
 var fieldRequired = map[types.WindowType]bool{
-	types.WIN_LAG:         true,
-	types.WIN_LEAD:        true,
-	types.WIN_RUNNING_SUM: true,
-	types.WIN_RUNNING_AVG: true,
-	types.WIN_MOVING_AVG:  true,
-	types.WIN_EWMA:        true,
-	types.WIN_PCT_CHANGE:  true,
-	types.WIN_DELTA:       true,
-	types.WIN_SHARE:       true,
-	types.WIN_LIFT:        true,
-	types.WIN_ADSTOCK:     true,
+	types.WIN_LAG:             true,
+	types.WIN_LEAD:            true,
+	types.WIN_RUNNING_SUM:     true,
+	types.WIN_RUNNING_AVG:     true,
+	types.WIN_MOVING_AVG:      true,
+	types.WIN_EWMA:            true,
+	types.WIN_PCT_CHANGE:      true,
+	types.WIN_DELTA:           true,
+	types.WIN_SHARE:           true,
+	types.WIN_LIFT:            true,
+	types.WIN_DISTRIBUTED_LAG: true,
 }
 
 // fieldForbidden lists the order-only operators: they read no value
@@ -215,8 +215,8 @@ func paramsRefusal(w *types.Window) *Refusal {
 		if _, ref := ewmaparams.Resolve(w.Params); ref != nil {
 			return &Refusal{Op: w.Type, Message: ref.Message, Details: ref.Details}
 		}
-	case types.WIN_ADSTOCK:
-		if _, ref := adstockparams.Resolve(w.Params); ref != nil {
+	case types.WIN_DISTRIBUTED_LAG:
+		if _, ref := distlagparams.Resolve(w.Params); ref != nil {
 			return &Refusal{Op: w.Type, Message: ref.Message, Details: ref.Details}
 		}
 	case types.WIN_LAG, types.WIN_LEAD:

@@ -4,9 +4,9 @@ The window operators this instance offers: what each is for, the questions it an
 
 | Operator | In plain words | Answers questions like | Level | Instead, when… |
 |---|---|---|---|---|
-| [`WIN_ADSTOCK`](#op-win_adstock) | Adds a carry-over series: each row sums the current and earlier values, weighted by a decaying curve, so spend keeps acting later. | How much of last month's advertising is still working this week, as a column a model can use? | intermediate | [`WIN_EWMA`](#op-win_ewma) when you want a smoothed level of the series itself, seeded from its first value.<br>[`WIN_MOVING_AVG`](#op-win_moving_avg) when you want every row in a fixed window to count equally. |
 | [`WIN_DELTA`](#op-win_delta) | Adds the change from a set number of rows earlier in the field's own units, such as orders this month minus last month. | By how many orders did each month go up or down on the month before? | basic | [`WIN_PCT_CHANGE`](#op-win_pct_change) when you want the change relative to the earlier value.<br>[`OVERLAY_DELTA_VS_PRIOR`](overlay.md#op-overlay_delta_vs_prior) when you want each period's change from the one before as a decoration on the result. |
 | [`WIN_DENSE_RANK`](#op-win_dense_rank) | Ranks rows within each partition in the chosen order; rows with equal values share a rank and the next follows on: 1, 2, 2, 3. | Which price tier is each product in, counting equal prices as one tier? | basic | [`WIN_RANK`](#op-win_rank) when the rank should skip past equal values, as in sports standings.<br>[`WIN_ROW_NUMBER`](#op-win_row_number) when every row needs its own number even when values are equal. |
+| [`WIN_DISTRIBUTED_LAG`](#op-win_distributed_lag) | Adds a carry-over (distributed lag, or adstock) series: each row sums current and earlier values, weighted by a decaying curve. | How much of last month's advertising is still working this week, as a column a model can use? | intermediate | [`WIN_EWMA`](#op-win_ewma) when you want a smoothed level of the series itself, seeded from its first value.<br>[`WIN_MOVING_AVG`](#op-win_moving_avg) when you want every row in a fixed window to count equally. |
 | [`WIN_EWMA`](#op-win_ewma) | Adds a smoothed series: each new value counts for a fixed share w, the previous smoothed level for 1 - w, so older values fade. | What is the underlying level of daily demand once day-to-day noise is damped? | intermediate | [`WIN_MOVING_AVG`](#op-win_moving_avg) when you want every row in a fixed window to count equally.<br>[`OVERLAY_ZSCORE_VS_ROLLING`](overlay.md#op-overlay_zscore_vs_rolling) when you want how unusual each period is against its recent run. |
 | [`WIN_LAG`](#op-win_lag) | Adds to every row the value of a field from a set number of rows earlier in the ordered series, such as last month's sales. | What were each store's sales in the month before, on the same row as this month's? | basic | [`WIN_DELTA`](#op-win_delta) when you want the difference from the earlier row, not its value.<br>[`WIN_LEAD`](#op-win_lead) when you want the value from a later row.<br>[`OVERLAY_INDEX_VS_PRIOR`](overlay.md#op-overlay_index_vs_prior) when you want each period against the period before it as an index. |
 | [`WIN_LEAD`](#op-win_lead) | Adds to every row the value of a field from a set number of rows later in the ordered series, such as next month's sales. | What did each customer spend in the following month, beside this month's spend? | basic | [`WIN_LAG`](#op-win_lag) when you want the value from an earlier row.<br>[`WIN_DELTA`](#op-win_delta) when you want how much the field changed between rows. |
@@ -20,45 +20,6 @@ The window operators this instance offers: what each is for, the questions it an
 | [`WIN_SHARE`](#op-win_share) | Adds each row's share of its partition's total, or the running share down the ordered rows, such as the share of defaults caught so far. | What share of all defaults falls in each score decile, and how much do the riskiest deciles capture together? | basic | [`WIN_RUNNING_SUM`](#op-win_running_sum) when you want the running total itself, not as a share.<br>[`WIN_LIFT`](#op-win_lift) when you want how much richer in the field a row is than its share of another column.<br>[`OVERLAY_SHARE_OF_TOTAL`](overlay.md#op-overlay_share_of_total) when you want each group's share as a decoration on the result. |
 
 ## Operators
-
-<a id="op-win_adstock"></a>
-
-### `WIN_ADSTOCK`
-
-Adds a carry-over series: each row sums the current and earlier values, weighted by a decaying curve, so spend keeps acting later.
-
-**Level:** intermediate
-
-**Also known as:** `adstock`, `carry-over effect`, `lagged media effect`
-
-**Questions it answers:**
-
-- How much of last month's advertising is still working this week, as a column a model can use?
-- What does each channel's spend look like once its lingering effect is spread over later weeks?
-
-**Use cases by domain:**
-
-- *survey:* Carried-over campaign exposure beside each tracking wave, for a model of brand awareness.
-- *ops:* Weekly media spend per channel turned into its lingering effect before a sales model.
-- *science:* A dose given over time turned into its fading cumulative exposure at each reading.
-
-**Assumptions:**
-
-- Runs on the result's rows after grouping: one row per group, or one per filtered record when nothing is grouped.
-- Computed separately within each partition_by slice, in order_by order; with no partition the whole result is one series.
-- Steps are rows, not calendar periods: a period with no row is skipped, not filled, so one row back can span two periods.
-- The curve is set by params.kernel: geometric (each lag back keeps a fixed share, params.decay) or a Weibull curve (params.shape and params.scale), cut off after params.max_lag rows.
-- By default the weights sum to 1, so the column stays on the field's scale; with params.normalize false the raw weights apply.
-- A missing value reads null and adds nothing to later rows; rows before the partition starts add nothing either, so the carry-over starts from zero.
-
-**Use something else:**
-
-- [`WIN_EWMA`](#op-win_ewma) when you want a smoothed level of the series itself, seeded from its first value.
-- [`WIN_MOVING_AVG`](#op-win_moving_avg) when you want every row in a fixed window to count equally.
-
-**Glossary:** [`missing-value`](../glossary.md#term-missing-value)
-
-**Skill:** [`op-win-adstock`](../skills/op-win-adstock.md)
 
 <a id="op-win_delta"></a>
 
@@ -129,6 +90,45 @@ Ranks rows within each partition in the chosen order; rows with equal values sha
 **Glossary:** [`rank`](../glossary.md#term-rank), [`ties`](../glossary.md#term-ties)
 
 **Skill:** [`op-win-dense-rank`](../skills/op-win-dense-rank.md)
+
+<a id="op-win_distributed_lag"></a>
+
+### `WIN_DISTRIBUTED_LAG`
+
+Adds a carry-over (distributed lag, or adstock) series: each row sums current and earlier values, weighted by a decaying curve.
+
+**Level:** intermediate
+
+**Also known as:** `distributed lag`, `adstock`, `carry-over effect`, `lagged media effect`
+
+**Questions it answers:**
+
+- How much of last month's advertising is still working this week, as a column a model can use?
+- What does each channel's spend look like once its lingering effect is spread over later weeks?
+
+**Use cases by domain:**
+
+- *survey:* Carried-over campaign exposure beside each tracking wave, for a model of brand awareness.
+- *ops:* Weekly media spend per channel turned into its lingering effect before a sales model.
+- *science:* A dose given over time turned into its fading cumulative exposure at each reading.
+
+**Assumptions:**
+
+- Runs on the result's rows after grouping: one row per group, or one per filtered record when nothing is grouped.
+- Computed separately within each partition_by slice, in order_by order; with no partition the whole result is one series.
+- Steps are rows, not calendar periods: a period with no row is skipped, not filled, so one row back can span two periods.
+- The curve is set by params.kernel: geometric (each lag back keeps a fixed share, params.decay) or a Weibull curve (params.shape and params.scale), cut off after params.max_lag rows.
+- By default the weights sum to 1, so the column stays on the field's scale; with params.normalize false the raw weights apply.
+- A missing value reads null and adds nothing to later rows; rows before the partition starts add nothing either, so the carry-over starts from zero.
+
+**Use something else:**
+
+- [`WIN_EWMA`](#op-win_ewma) when you want a smoothed level of the series itself, seeded from its first value.
+- [`WIN_MOVING_AVG`](#op-win_moving_avg) when you want every row in a fixed window to count equally.
+
+**Glossary:** [`missing-value`](../glossary.md#term-missing-value)
+
+**Skill:** [`op-win-distributed-lag`](../skills/op-win-distributed-lag.md)
 
 <a id="op-win_ewma"></a>
 

@@ -75,7 +75,7 @@ var needsReadingOperators = []string{
 	string(types.ATTR_REG_LEVERAGE), string(types.ATTR_REG_PREDICT), string(types.ATTR_REG_RESIDUAL), string(types.ATTR_SEM_SCORE), string(types.ATTR_TSCORE),
 	string(types.ATTR_ZSCORE),
 	// window
-	string(types.WIN_ADSTOCK), string(types.WIN_DELTA), string(types.WIN_DENSE_RANK), string(types.WIN_EWMA),
+	string(types.WIN_DELTA), string(types.WIN_DENSE_RANK), string(types.WIN_DISTRIBUTED_LAG), string(types.WIN_EWMA),
 	string(types.WIN_MOVING_AVG), string(types.WIN_PCT_CHANGE), string(types.WIN_RANK),
 	string(types.WIN_RUNNING_AVG), string(types.WIN_SHARE), string(types.WIN_LIFT),
 	// feature

@@ -77,7 +77,7 @@ var windowParityRows = map[types.WindowType]windowParityRow{
 		[]string{`{"periods": -1}`, `{"periods": [1]}`}},
 	types.WIN_SHARE: {`{"type": "WIN_SHARE", "field": "x", "order_by": [{"field": "t"}], "params": {"cumulative": true}}`,
 		[]string{`{"cumulative": "yes"}`}},
-	types.WIN_ADSTOCK: {`{"type": "WIN_ADSTOCK", "field": "x", "order_by": [{"field": "t"}], "params": {"kernel": "geometric", "decay": 0.5, "max_lag": 4}}`,
+	types.WIN_DISTRIBUTED_LAG: {`{"type": "WIN_DISTRIBUTED_LAG", "field": "x", "order_by": [{"field": "t"}], "params": {"kernel": "geometric", "decay": 0.5, "max_lag": 4}}`,
 		[]string{
 			`{}`,
 			`{"kernel": "geometric", "decay": 0.5}`,
@@ -331,5 +331,65 @@ func TestWindowRefusals_ExtensionPredictMatchesRuntime(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestWindowRename_RetiredAdstockNameRefused: WIN_ADSTOCK was renamed to
+// WIN_DISTRIBUTED_LAG with no alias, so the retired name is an unknown
+// window type like any other — predict reports PULSE_WINDOW_INVALID
+// (which carries fixups), and Process, ProcessStream and Materialize
+// all refuse it with the engine's unknown-type PROCESSING_CONFIG. The same slot under
+// the new name runs everywhere.
+func TestWindowRename_RetiredAdstockNameRefused(t *testing.T) {
+	p, fsys := windowParityCohort(t, pulse.Extensions{})
+	ctx := context.Background()
+	req := func(typ string) *types.Request {
+		var r types.Request
+		slot := `{"windows": [{"type": "` + typ + `", "field": "x", "order_by": [{"field": "t"}], "params": {"kernel": "geometric", "decay": 0.5, "max_lag": 4}}]}`
+		if err := json.Unmarshal([]byte(slot), &r); err != nil {
+			t.Fatal(err)
+		}
+		r.Cohort = &types.Cohort{Filename: "series.pulse"}
+		return &r
+	}
+
+	env := predictEnvelope(t, p, fsys, "series.pulse", req("WIN_ADSTOCK"))
+	found := false
+	for _, e := range env.Errors {
+		if e.Code == string(errors.PULSE_WINDOW_INVALID) && strings.Contains(e.Message, "unknown window type WIN_ADSTOCK") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("predict did not refuse WIN_ADSTOCK as an unknown window type: %+v", env.Errors)
+	}
+	if md, ok := errors.MetadataFor(errors.PULSE_WINDOW_INVALID); !ok || len(md.Fixups) == 0 {
+		t.Fatalf("PULSE_WINDOW_INVALID has no fixups: %+v", md)
+	}
+
+	_, perr := p.Process(ctx, req("WIN_ADSTOCK"))
+	_, serr := p.ProcessStream(ctx, req("WIN_ADSTOCK"))
+	_, merr := p.Materialize(ctx, req("WIN_ADSTOCK"), "retired.pulse", pulse.MaterializeOptions{})
+	for _, s := range []struct {
+		name string
+		err  error
+	}{{"Process", perr}, {"ProcessStream", serr}, {"Materialize", merr}} {
+		var ce *errors.CodedError
+		if !stderrors.As(s.err, &ce) {
+			t.Errorf("%s accepted the retired WIN_ADSTOCK: err = %v", s.name, s.err)
+			continue
+		}
+		// The engine's existing unknown-type refusal (every unknown
+		// window type gets the same code and message).
+		if ce.Code != errors.PROCESSING_CONFIG || ce.Message != "unknown window type: WIN_ADSTOCK" {
+			t.Errorf("%s refused WIN_ADSTOCK as %s %q, not the unknown-window-type refusal", s.name, ce.Code, ce.Message)
+		}
+	}
+
+	if env := predictEnvelope(t, p, fsys, "series.pulse", req("WIN_DISTRIBUTED_LAG")); len(env.Errors) != 0 {
+		t.Fatalf("predict refused WIN_DISTRIBUTED_LAG: %+v", env.Errors)
+	}
+	if _, err := p.Process(ctx, req("WIN_DISTRIBUTED_LAG")); err != nil {
+		t.Fatalf("Process refused WIN_DISTRIBUTED_LAG: %v", err)
 	}
 }

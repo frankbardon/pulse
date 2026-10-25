@@ -1,4 +1,4 @@
-package adstockparams
+package distlagparams
 
 import (
 	"encoding/json"
@@ -45,7 +45,7 @@ func TestResolve_Refusals(t *testing.T) {
 			if !strings.Contains(ref.Message, c.want) {
 				t.Errorf("message %q lacks %q", ref.Message, c.want)
 			}
-			if ce := ref.Coded(); ce.Code != errors.PULSE_WINDOW_INVALID || !strings.HasPrefix(ce.Message, "WIN_ADSTOCK: ") {
+			if ce := ref.Coded(); ce.Code != errors.PULSE_WINDOW_INVALID || !strings.HasPrefix(ce.Message, "WIN_DISTRIBUTED_LAG: ") {
 				t.Errorf("coded = %s %q", ce.Code, ce.Message)
 			}
 		})

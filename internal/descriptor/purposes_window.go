@@ -21,20 +21,20 @@ import "github.com/frankbardon/pulse/descriptor"
 // directions. The pinning tests are in
 // internal/processing/window/reading_semantics_test.go.
 var windowPurposes = map[string]descriptor.Purpose{
-	"WIN_ADSTOCK":     purposeWinAdstock,
-	"WIN_DELTA":       purposeWinDelta,
-	"WIN_DENSE_RANK":  purposeWinDenseRank,
-	"WIN_EWMA":        purposeWinEWMA,
-	"WIN_LAG":         purposeWinLag,
-	"WIN_LEAD":        purposeWinLead,
-	"WIN_MOVING_AVG":  purposeWinMovingAvg,
-	"WIN_PCT_CHANGE":  purposeWinPctChange,
-	"WIN_RANK":        purposeWinRank,
-	"WIN_ROW_NUMBER":  purposeWinRowNumber,
-	"WIN_RUNNING_AVG": purposeWinRunningAvg,
-	"WIN_RUNNING_SUM": purposeWinRunningSum,
-	"WIN_SHARE":       purposeWinShare,
-	"WIN_LIFT":        purposeWinLift,
+	"WIN_DISTRIBUTED_LAG": purposeWinDistributedLag,
+	"WIN_DELTA":           purposeWinDelta,
+	"WIN_DENSE_RANK":      purposeWinDenseRank,
+	"WIN_EWMA":            purposeWinEWMA,
+	"WIN_LAG":             purposeWinLag,
+	"WIN_LEAD":            purposeWinLead,
+	"WIN_MOVING_AVG":      purposeWinMovingAvg,
+	"WIN_PCT_CHANGE":      purposeWinPctChange,
+	"WIN_RANK":            purposeWinRank,
+	"WIN_ROW_NUMBER":      purposeWinRowNumber,
+	"WIN_RUNNING_AVG":     purposeWinRunningAvg,
+	"WIN_RUNNING_SUM":     purposeWinRunningSum,
+	"WIN_SHARE":           purposeWinShare,
+	"WIN_LIFT":            purposeWinLift,
 }
 
 // Shared assumption sentences, so sibling windows say the same thing the
@@ -299,9 +299,9 @@ var (
 		Glossary: []string{"mean", "missing-value"},
 	}
 
-	purposeWinAdstock = descriptor.Purpose{
-		Plain:   "Adds a carry-over series: each row sums the current and earlier values, weighted by a decaying curve, so spend keeps acting later.",
-		KnownAs: []string{"adstock", "carry-over effect", "lagged media effect"},
+	purposeWinDistributedLag = descriptor.Purpose{
+		Plain:   "Adds a carry-over (distributed lag, or adstock) series: each row sums current and earlier values, weighted by a decaying curve.",
+		KnownAs: []string{"distributed lag", "adstock", "carry-over effect", "lagged media effect"},
 		Intents: []string{IntentPrepare},
 		Questions: []string{
 			"How much of last month's advertising is still working this week, as a column a model can use?",

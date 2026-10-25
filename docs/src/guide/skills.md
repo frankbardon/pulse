@@ -235,9 +235,9 @@ Every skill this instance serves, as an agent reads it, sorted by name.
 - [`op-test-welch`](skills/op-test-welch.md): Explicit two-sample Welch t-test on a numeric field across a categorical SplitBy partition.
 - [`op-test-wilcoxon-sr`](skills/op-test-wilcoxon-sr.md): Wilcoxon signed-rank test on per-row difference d = Field − Field2; buffered tie-corrected sign-rank.
 - [`op-test-z-two-sample`](skills/op-test-z-two-sample.md): Two-sample z-test on Field means across two SplitBy groups; identical SE to Welch's t-test but p-value via standard normal Φ.
-- [`op-win-adstock`](skills/op-win-adstock.md): Media adstock; a finite lag kernel (geometric, Weibull CDF or Weibull PDF) convolved over the ordered partition.
 - [`op-win-delta`](skills/op-win-delta.md): Point difference against the row `periods` positions earlier in the ordered partition — the subtraction counterpart of a percent change.
 - [`op-win-dense-rank`](skills/op-win-dense-rank.md): Dense rank with no gaps after ties (1, 2, 2, 3, ...) within the ordered partition.
+- [`op-win-distributed-lag`](skills/op-win-distributed-lag.md): Distributed lag (carry-over, media adstock); a finite lag kernel (geometric, Weibull CDF or Weibull PDF) convolved over the ordered partition.
 - [`op-win-ewma`](skills/op-win-ewma.md): Exponentially weighted moving average; s_i = alpha*x_i + (1-alpha)*s_{i-1}.
 - [`op-win-lag`](skills/op-win-lag.md): Per-row value of Field from N rows earlier in the ordered partition.
 - [`op-win-lead`](skills/op-win-lead.md): Per-row value of Field from N rows later in the ordered partition.

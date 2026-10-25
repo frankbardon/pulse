@@ -9,15 +9,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frankbardon/pulse/internal/adstockparams"
+	"github.com/frankbardon/pulse/internal/distlagparams"
 	"github.com/frankbardon/pulse/types"
 )
 
-// adstockOracleCase is one case of testdata/reference/adstock.json,
-// written by scripts/reference/gen_adstock.R (`make reference`). R is the
+// distLagOracleCase is one case of testdata/reference/distributed_lag.json,
+// written by scripts/reference/gen_distributed_lag.R (`make reference`). R is the
 // oracle: the kernel by decay^l / pweibull / dweibull, the series by
 // stats::filter over the zero-padded series — never Pulse's loop.
-type adstockOracleCase struct {
+type distLagOracleCase struct {
 	Name       string          `json:"name"`
 	Params     json.RawMessage `json:"params"`
 	Weights    []float64       `json:"weights"`
@@ -28,20 +28,20 @@ type adstockOracleCase struct {
 	} `json:"partitions"`
 }
 
-type adstockOracleDoc struct {
+type distLagOracleDoc struct {
 	RVersion string              `json:"r_version"`
 	Packages map[string]string   `json:"packages"`
-	Cases    []adstockOracleCase `json:"cases"`
+	Cases    []distLagOracleCase `json:"cases"`
 }
 
-// adstockOracleRelTol is the reference suites' relative tolerance
+// distLagOracleRelTol is the reference suites' relative tolerance
 // (internal/processing/reference_oracle_test.go): a few ulps of drift
 // between R's pweibull / dweibull / pow and Go's math, never a bit match.
-const adstockOracleRelTol = 1e-10
+const distLagOracleRelTol = 1e-10
 
-func loadAdstockOracle(t *testing.T) adstockOracleDoc {
+func loadDistLagOracle(t *testing.T) distLagOracleDoc {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join("..", "testdata", "reference", "adstock.json"))
+	raw, err := os.ReadFile(filepath.Join("..", "testdata", "reference", "distributed_lag.json"))
 	if err != nil {
 		t.Fatalf("read adstock golden: %v (regenerate with `make reference`)", err)
 	}
@@ -49,7 +49,7 @@ func loadAdstockOracle(t *testing.T) adstockOracleDoc {
 	if i := strings.LastIndex(s, "\n// golden-hash: "); i >= 0 {
 		s = s[:i]
 	}
-	var doc adstockOracleDoc
+	var doc distLagOracleDoc
 	if err := json.Unmarshal([]byte(s), &doc); err != nil {
 		t.Fatalf("decode adstock golden: %v", err)
 	}
@@ -60,19 +60,19 @@ func loadAdstockOracle(t *testing.T) adstockOracleDoc {
 }
 
 func oracleClose(got, want float64) bool {
-	return math.Abs(got-want) <= adstockOracleRelTol*math.Max(math.Abs(want), 1e-300)
+	return math.Abs(got-want) <= distLagOracleRelTol*math.Max(math.Abs(want), 1e-300)
 }
 
-// TestReferenceOracle_WinAdstock holds every kernel (geometric, Weibull
+// TestReferenceOracle_WinDistributedLag holds every kernel (geometric, Weibull
 // CDF, Weibull PDF; normalised and raw) to R: the kernel weights through
-// adstockparams, and the series through the full window Apply over two
+// distlagparams, and the series through the full window Apply over two
 // partitions with nulls, the rows handed over shuffled so partition_by
 // and order_by do the ordering.
-func TestReferenceOracle_WinAdstock(t *testing.T) {
-	doc := loadAdstockOracle(t)
+func TestReferenceOracle_WinDistributedLag(t *testing.T) {
+	doc := loadDistLagOracle(t)
 	for _, c := range doc.Cases {
 		t.Run(c.Name, func(t *testing.T) {
-			spec, ref := adstockparams.Resolve(c.Params)
+			spec, ref := distlagparams.Resolve(c.Params)
 			if ref != nil {
 				t.Fatalf("params refused: %s", ref.Message)
 			}
@@ -104,7 +104,7 @@ func TestReferenceOracle_WinAdstock(t *testing.T) {
 				rows[i], rows[j] = rows[j], rows[i]
 			}
 			w := &types.Window{
-				Type: types.WIN_ADSTOCK, Field: "x", Label: "ad",
+				Type: types.WIN_DISTRIBUTED_LAG, Field: "x", Label: "ad",
 				PartitionBy: []string{"g"},
 				OrderBy:     []types.OrderKey{{Field: "t"}},
 				Params:      c.Params,
@@ -131,7 +131,7 @@ func TestReferenceOracle_WinAdstock(t *testing.T) {
 	}
 }
 
-// TestWinAdstock_GeometricApproximatesEWMA: a normalised geometric
+// TestWinDistributedLag_GeometricApproximatesEWMA: a normalised geometric
 // kernel at a long max_lag is WIN_EWMA with alpha = 1 − decay once the
 // start-up has faded. The two differ only in how they begin — EWMA seeds
 // at the first value with full weight, adstock starts from zero and
@@ -139,7 +139,7 @@ func TestReferenceOracle_WinAdstock(t *testing.T) {
 // as decay^i. Tolerance: with decay 0.5 and max_lag 60 the gap at row i
 // is bounded by decay^i · max|x| plus decay^61 (truncation); past row 40
 // both are below 1e-9 relative on this series.
-func TestWinAdstock_GeometricApproximatesEWMA(t *testing.T) {
+func TestWinDistributedLag_GeometricApproximatesEWMA(t *testing.T) {
 	const n, burnIn = 80, 40
 	const relTol = 1e-9
 	rows := make([]map[string]any, n)
@@ -147,7 +147,7 @@ func TestWinAdstock_GeometricApproximatesEWMA(t *testing.T) {
 		rows[i] = map[string]any{"t": float64(i), "x": 50 + 30*math.Sin(float64(i)/3) + float64(i%7)}
 	}
 	ws := []*types.Window{
-		{Type: types.WIN_ADSTOCK, Field: "x", Label: "ad", OrderBy: []types.OrderKey{{Field: "t"}},
+		{Type: types.WIN_DISTRIBUTED_LAG, Field: "x", Label: "ad", OrderBy: []types.OrderKey{{Field: "t"}},
 			Params: json.RawMessage(`{"kernel": "geometric", "decay": 0.5, "max_lag": 60}`)},
 		{Type: types.WIN_EWMA, Field: "x", Label: "ew", OrderBy: []types.OrderKey{{Field: "t"}},
 			Frame: &types.FrameSpec{Mode: "rows"}, Params: json.RawMessage(`{"alpha": 0.5}`)},
@@ -171,11 +171,11 @@ func TestWinAdstock_GeometricApproximatesEWMA(t *testing.T) {
 	}
 }
 
-// TestWinAdstock_NullsAndPartitions pins the row rules by hand: a null
+// TestWinDistributedLag_NullsAndPartitions pins the row rules by hand: a null
 // row reads null and adds nothing later (the carry-over still decays
 // across it — unlike WIN_EWMA), a lag never crosses a partition, and the
 // weights are not renormalised over the values present.
-func TestWinAdstock_NullsAndPartitions(t *testing.T) {
+func TestWinDistributedLag_NullsAndPartitions(t *testing.T) {
 	rows := []map[string]any{
 		{"g": "a", "t": 1.0, "x": 10.0},
 		{"g": "a", "t": 2.0, "x": nil},
@@ -183,7 +183,7 @@ func TestWinAdstock_NullsAndPartitions(t *testing.T) {
 		{"g": "b", "t": 1.0, "x": nil},
 		{"g": "b", "t": 2.0, "x": 4.0},
 	}
-	w := &types.Window{Type: types.WIN_ADSTOCK, Field: "x", Label: "ad",
+	w := &types.Window{Type: types.WIN_DISTRIBUTED_LAG, Field: "x", Label: "ad",
 		PartitionBy: []string{"g"}, OrderBy: []types.OrderKey{{Field: "t"}},
 		Params: json.RawMessage(`{"kernel": "geometric", "decay": 0.5, "max_lag": 2, "normalize": false}`)}
 	if err := Apply(context.Background(), rows, []*types.Window{w}); err != nil {
@@ -197,15 +197,15 @@ func TestWinAdstock_NullsAndPartitions(t *testing.T) {
 	}
 }
 
-// TestWinAdstock_DeterministicAcrossRuns: the same request twice gives
+// TestWinDistributedLag_DeterministicAcrossRuns: the same request twice gives
 // bit-identical columns (the kernel sum order is fixed, lag 0 first).
-func TestWinAdstock_DeterministicAcrossRuns(t *testing.T) {
+func TestWinDistributedLag_DeterministicAcrossRuns(t *testing.T) {
 	run := func() []any {
 		rows := make([]map[string]any, 50)
 		for i := range rows {
 			rows[i] = map[string]any{"t": float64(49 - i), "x": float64((i*37)%11) + 0.1*float64(i)}
 		}
-		w := &types.Window{Type: types.WIN_ADSTOCK, Field: "x", Label: "ad", OrderBy: []types.OrderKey{{Field: "t"}},
+		w := &types.Window{Type: types.WIN_DISTRIBUTED_LAG, Field: "x", Label: "ad", OrderBy: []types.OrderKey{{Field: "t"}},
 			Params: json.RawMessage(`{"kernel": "weibull_pdf", "shape": 2.2, "scale": 3.1, "max_lag": 12}`)}
 		if err := Apply(context.Background(), rows, []*types.Window{w}); err != nil {
 			t.Fatalf("Apply: %v", err)

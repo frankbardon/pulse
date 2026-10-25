@@ -17,7 +17,7 @@ import (
 
 // mmm_holdout_sweep_test.go — the one-step media-mix decay sweep
 // (transformed predictors E3-S3), library surface: the canonical
-// request in internal/mmmfixture (four WIN_ADSTOCK windows with decay
+// request in internal/mmmfixture (four WIN_DISTRIBUTED_LAG windows with decay
 // {"$var":"decay"} → hill() saturations → REG_OLS bounds.nonnegative on
 // the channels + controls with a holdout, swept over decay 0.0..0.9 and
 // ranked by regressions.mmm.holdout.rmse, `return` excluding data) runs

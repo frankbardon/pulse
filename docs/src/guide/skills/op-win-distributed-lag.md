@@ -1,9 +1,9 @@
 ```yaml
-name: op-win-adstock
-description: Media adstock; a finite lag kernel (geometric, Weibull CDF or Weibull PDF) convolved over the ordered partition.
+name: op-win-distributed-lag
+description: Distributed lag (carry-over, media adstock); a finite lag kernel (geometric, Weibull CDF or Weibull PDF) convolved over the ordered partition.
 kind: operator
 category: WIN
-operator: WIN_ADSTOCK
+operator: WIN_DISTRIBUTED_LAG
 type: reference
 applies_to: process, compose, predict
 examples_tags: [time-series, feature-engineering, window-operator, buffered-pipeline]
@@ -13,7 +13,7 @@ Window operators emit row-level values; they do not produce `Response.Components
 
 ## Use when
 
-Adds a carry-over series: each row sums the current and earlier values, weighted by a decaying curve, so spend keeps acting later.
+Adds a carry-over (distributed lag, or adstock) series: each row sums current and earlier values, weighted by a decaying curve.
 
 Questions it answers:
 

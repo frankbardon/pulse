@@ -1,13 +1,13 @@
-# gen_adstock.R — R oracle for WIN_ADSTOCK (custom-regressions E3-S3):
+# gen_distributed_lag.R — R oracle for WIN_DISTRIBUTED_LAG (custom-regressions E3-S3):
 # the lag kernel of each kernel (geometric, Weibull CDF, Weibull PDF),
 # normalised and raw, and the adstocked series it produces over a
 # two-partition series with nulls.
 #
-# Writes <out_dir>/adstock.json. Sourced at the end of gen_reference.R
+# Writes <out_dir>/distributed_lag.json. Sourced at the end of gen_reference.R
 # (`make reference`), reusing its out_dir and write_golden(); runnable on
 # its own too:
 #
-#   Rscript scripts/reference/gen_adstock.R internal/processing/testdata/reference
+#   Rscript scripts/reference/gen_distributed_lag.R internal/processing/testdata/reference
 #
 # (then append the `// golden-hash:` footer the Makefile's reference
 # target writes). CI never runs R: the golden is committed. Base stats +
@@ -98,15 +98,15 @@ for (norm in c(TRUE, FALSE)) {
 ad_case("geometric_long_lag", "geometric", 15, decay = 0.35)
 ad_case("geometric_decay_zero_identity", "geometric", 2, decay = 0)
 
-adstock_doc <- list(
-  generator = "scripts/reference/gen_adstock.R (via gen_reference.R)",
+distlag_doc <- list(
+  generator = "scripts/reference/gen_distributed_lag.R (via gen_reference.R)",
   r_version = R.version.string,
   packages = list(stats = as.character(packageVersion("stats")),
                   jsonlite = as.character(packageVersion("jsonlite"))),
-  primitive = "WIN_ADSTOCK: geometric / Weibull CDF (survival) / Weibull PDF (at l + 1) lag kernels and their per-partition convolution",
+  primitive = "WIN_DISTRIBUTED_LAG: geometric / Weibull CDF (survival) / Weibull PDF (at l + 1) lag kernels and their per-partition convolution",
   r_function = "decay^l; pweibull(l, shape, scale, lower.tail = FALSE); dweibull(l + 1, shape, scale); stats::filter(c(rep(0, L), x0), w, method = 'convolution', sides = 1)",
   note = paste(
     "Lags l = 0..max_lag; normalised kernels are w / sum(w). A lag before the partition start and a null lagged value add 0;",
     "a row whose own value is null reads null. Partitions are given in order_by order."),
   cases = ad_cases)
-write_golden("adstock", adstock_doc)
+write_golden("distributed_lag", distlag_doc)

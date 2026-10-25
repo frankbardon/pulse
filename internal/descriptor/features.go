@@ -392,9 +392,10 @@ var builtinFeatures = withDependencies([]Feature{
 	op("GROUP_SET_PER_ELEMENT"),
 	op("GROUP_SET_VALUE"),
 	// Windows — types.AllWindowTypes().
-	op("WIN_ADSTOCK"),
 	op("WIN_DELTA"),
 	op("WIN_DENSE_RANK"),
+	// Renamed from WIN_ADSTOCK before v1.0.0 (no alias); Since unchanged.
+	op("WIN_DISTRIBUTED_LAG"),
 	op("WIN_EWMA"),
 	op("WIN_LAG"),
 	op("WIN_LEAD"),

@@ -1,13 +1,13 @@
 {
   "_meta": {
     "category": "windows",
-    "description": "Media adstock of revenue over the date-ordered series: a geometric carry-over (decay 0.6) beside a delayed-peak Weibull PDF kernel, both normalised over 8 lags.",
+    "description": "Distributed lag (media adstock) of revenue over the date-ordered series: a geometric carry-over (decay 0.6) beside a delayed-peak Weibull PDF kernel, both normalised over 8 lags.",
     "intents": [
       "prepare"
     ],
-    "name": "win_adstock",
+    "name": "win_distributed_lag",
     "operators": [
-      "WIN_ADSTOCK"
+      "WIN_DISTRIBUTED_LAG"
     ],
     "tags": [
       "time-series",
@@ -27,7 +27,7 @@
   ],
   "windows": [
     {
-      "type": "WIN_ADSTOCK",
+      "type": "WIN_DISTRIBUTED_LAG",
       "field": "revenue",
       "label": "revenue_adstock_geometric",
       "order_by": [
@@ -42,7 +42,7 @@
       }
     },
     {
-      "type": "WIN_ADSTOCK",
+      "type": "WIN_DISTRIBUTED_LAG",
       "field": "revenue",
       "label": "revenue_adstock_weibull",
       "order_by": [

@@ -28,13 +28,13 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `11_delta.json` | `WIN_DELTA` | Point difference vs `params.periods` rows ago (same units as the field) |
 | `12_ewma_for_each.json` | `WIN_EWMA` | One item fanned out by `for_each` (zip of a label axis and a `decay` axis) into three EWMA columns |
 | `13_share_lift_gains.json` | `WIN_SHARE`, `WIN_LIFT` | Gains table on revenue quartiles: share of total, cumulative share and cumulative lift over the subscriber count (`order_by` only for the cumulative forms) |
-| `14_adstock.json` | `WIN_ADSTOCK` | Media adstock: geometric (`decay`) and Weibull PDF (`shape`, `scale`) lag kernels over `max_lag` rows, normalised |
+| `14_distributed_lag.json` | `WIN_DISTRIBUTED_LAG` | Distributed lag (media adstock): geometric (`decay`) and Weibull PDF (`shape`, `scale`) lag kernels over `max_lag` rows, normalised |
 
 ## Frame requirements
 
 | Operator | Frame |
 |---|---|
-| `LAG`, `LEAD`, `PCT_CHANGE`, `DELTA`, `ROW_NUMBER`, `RANK`, `DENSE_RANK`, `SHARE`, `LIFT`, `ADSTOCK` | forbidden (`ADSTOCK` reaches `params.max_lag` rows) |
+| `LAG`, `LEAD`, `PCT_CHANGE`, `DELTA`, `ROW_NUMBER`, `RANK`, `DENSE_RANK`, `SHARE`, `LIFT`, `DISTRIBUTED_LAG` | forbidden (`DISTRIBUTED_LAG` reaches `params.max_lag` rows) |
 | `RUNNING_SUM`, `RUNNING_AVG` | required (`preceding: null` = unbounded) |
 | `MOVING_AVG` | required, both bounds set |
 | `EWMA` | required (typically unbounded preceding to current) |

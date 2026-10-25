@@ -61,10 +61,10 @@ One `float64` per row written to `Label` (default `WIN_EWMA_<field>`). Recurrenc
 - Rows preceding the first non-null emit `null` (no seed).
 - Null values emit `null`; state survives to the next non-null row.
 - Result rows are NOT reordered — use `Request.Sort`.
-- For media adstock use `WIN_ADSTOCK`: carry-over starts from zero, with geometric or Weibull lag kernels.
+- For media adstock use `WIN_DISTRIBUTED_LAG`: it starts from zero, with geometric or Weibull kernels.
 - Regressions and post-window formulas may read the label ([`regression-model-options`](regression-model-options.md)).
 
 ## See
 
 - `pulse_examples_search tags=[time-series]`
-- Skills: [`window-design`](window-design.md), [`op-win-moving-avg`](op-win-moving-avg.md), [`op-win-running-avg`](op-win-running-avg.md), [`op-win-adstock`](op-win-adstock.md)
+- Skills: [`window-design`](window-design.md), [`op-win-moving-avg`](op-win-moving-avg.md), [`op-win-running-avg`](op-win-running-avg.md), [`op-win-distributed-lag`](op-win-distributed-lag.md)

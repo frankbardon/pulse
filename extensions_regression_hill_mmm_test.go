@@ -26,7 +26,7 @@ import (
 //
 //  1. ImportFile the panel CSV;
 //  2. Materialize the fixture's own req/04 (WIN_EWMA adstock grid), then
-//     Materialize WIN_ADSTOCK geometric at the fixture's true decays
+//     Materialize WIN_DISTRIBUTED_LAG geometric at the fixture's true decays
 //     (TV 0.7, search 0.2, social 0.4, display 0.3) plus one geometric
 //     twin per req/04 EWMA column — a regression cannot read a window
 //     label of its own request, so adstock is materialized first;
@@ -55,7 +55,7 @@ var mmmEWMAColumn = regexp.MustCompile(`^(tv|search|social|display)_ad(\d+)$`)
 const mmmMaxLag = 103
 
 func mmmAdstock(field, label string, decay float64) *types.Window {
-	return &types.Window{Type: types.WIN_ADSTOCK, Field: field, Label: label, PartitionBy: []string{"region"},
+	return &types.Window{Type: types.WIN_DISTRIBUTED_LAG, Field: field, Label: label, PartitionBy: []string{"region"},
 		OrderBy: []types.OrderKey{{Field: "week"}},
 		Params: json.RawMessage(fmt.Sprintf(`{"kernel":"geometric","decay":%s,"max_lag":%d,"normalize":false}`,
 			strconv.FormatFloat(decay, 'g', -1, 64), mmmMaxLag))}
@@ -65,7 +65,7 @@ func mmmAdstock(field, label string, decay float64) *types.Window {
 var mmmControls = []string{"email_ksends", "discount_pct", "holiday", "competitor_sov", "category_demand", "week_index",
 	"rg_California", "rg_Mid-Atlantic", "rg_Mountain", "rg_Northeast", "rg_Pacific_NW", "rg_South_Central", "rg_Southeast"}
 
-// mmmChannels are the true-decay WIN_ADSTOCK columns.
+// mmmChannels are the true-decay WIN_DISTRIBUTED_LAG columns.
 var mmmChannels = []string{"tv_adstock", "search_adstock", "social_adstock", "display_adstock"}
 
 // mmmPipeline runs steps 1–2 on a fresh in-memory instance carrying the
@@ -117,7 +117,7 @@ func mmmPipeline(t testing.TB, mut func(*pulse.Options)) (*pulse.Pulse, afero.Fs
 	}
 	if _, err := p.Materialize(ctx, &types.Request{Cohort: &types.Cohort{Filename: "harbor_pine_features.pulse"}, Windows: wins},
 		"mmm_ad.pulse", pulse.MaterializeOptions{}); err != nil {
-		t.Fatalf("Materialize WIN_ADSTOCK: %v", err)
+		t.Fatalf("Materialize WIN_DISTRIBUTED_LAG: %v", err)
 	}
 	return p, fsys, feat
 }
@@ -193,7 +193,7 @@ func mmmNum(t testing.TB, row map[string]any, name string) float64 {
 	return 0
 }
 
-// TestExtensions_RegressionHillMMMAdstockMatchesEWMA: WIN_ADSTOCK
+// TestExtensions_RegressionHillMMMAdstockMatchesEWMA: WIN_DISTRIBUTED_LAG
 // geometric, unnormalised and scaled by (1 − λ), agrees with every one
 // of req/04's 19 WIN_EWMA adstock columns. The two differ only by the
 // EWMA's seed: EWMA_i = Σ_{l<i} (1−λ)λ^l·x_{i−l} + λ^i·x_0 (it seeds on

@@ -275,7 +275,7 @@ func windowParityPulseRows(t *testing.T, opts Options, rows []CohortRow) *Pulse 
 // windowParityDerive is the derived half of every case: a feature
 // (FEAT_LOG over every record), a filter (weeks ≥ 3: the windows see
 // survivors only), an attribute (radio in hundreds) and three windows
-// per market in week order — WIN_ADSTOCK geometric over tv, WIN_LAG
+// per market in week order — WIN_DISTRIBUTED_LAG geometric over tv, WIN_LAG
 // over the attribute (null on each market's first surviving week) and
 // WIN_EWMA over the feature output — plus trend, a row-local attribute.
 func windowParityDerive() *Request {
@@ -290,7 +290,7 @@ func windowParityDerive() *Request {
 			{Type: types.ATTR_FORMULA, Label: "trend", Expression: "week / 52"},
 		},
 		Windows: []*types.Window{
-			{Type: types.WIN_ADSTOCK, Field: "tv", Label: "tv_ad", PartitionBy: byMarket, OrderBy: byWeek,
+			{Type: types.WIN_DISTRIBUTED_LAG, Field: "tv", Label: "tv_ad", PartitionBy: byMarket, OrderBy: byWeek,
 				Params: json.RawMessage(`{"kernel":"geometric","decay":0.6,"max_lag":6}`)},
 			{Type: types.WIN_LAG, Field: "radio_h", Label: "radio_lag", PartitionBy: byMarket, OrderBy: byWeek},
 			{Type: types.WIN_EWMA, Field: "LOG_search", Label: "search_ewma", PartitionBy: byMarket, OrderBy: byWeek,

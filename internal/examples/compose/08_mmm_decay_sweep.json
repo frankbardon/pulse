@@ -1,7 +1,7 @@
 {
   "_meta": {
     "category": "compose",
-    "description": "One-step media-mix model with a decay sweep: four channels are adstocked by WIN_ADSTOCK windows whose geometric decay is a sweep axis, saturated by post-window hill() ATTR_FORMULA attributes, and fed to ONE REG_OLS with non-negative channel slopes and a holdout on weeks 91 and later. The sweep ranks its ten decay slots by the held-out RMSE (regressions.mmm.holdout.rmse), so the true decay (0.5) comes first; the return excludes data, leaving the fit and its holdout figures. No materialize step: the regression reads the window labels in the same request.",
+    "description": "One-step media-mix model with a decay sweep: four channels are adstocked by WIN_DISTRIBUTED_LAG windows whose geometric decay is a sweep axis, saturated by post-window hill() ATTR_FORMULA attributes, and fed to ONE REG_OLS with non-negative channel slopes and a holdout on weeks 91 and later. The sweep ranks its ten decay slots by the held-out RMSE (regressions.mmm.holdout.rmse), so the true decay (0.5) comes first; the return excludes data, leaving the fit and its holdout figures. No materialize step: the regression reads the window labels in the same request.",
     "capabilities": [
       "capability:compose_sweep",
       "capability:regression_holdout"
@@ -13,7 +13,7 @@
     "operators": [
       "ATTR_FORMULA",
       "REG_OLS",
-      "WIN_ADSTOCK"
+      "WIN_DISTRIBUTED_LAG"
     ],
     "tags": [
       "compose",
@@ -54,7 +54,7 @@
       },
       "windows": [
         {
-          "type": "WIN_ADSTOCK",
+          "type": "WIN_DISTRIBUTED_LAG",
           "field": "tv",
           "label": "tv_ad",
           "partition_by": [
@@ -75,7 +75,7 @@
           }
         },
         {
-          "type": "WIN_ADSTOCK",
+          "type": "WIN_DISTRIBUTED_LAG",
           "field": "radio",
           "label": "radio_ad",
           "partition_by": [
@@ -96,7 +96,7 @@
           }
         },
         {
-          "type": "WIN_ADSTOCK",
+          "type": "WIN_DISTRIBUTED_LAG",
           "field": "search",
           "label": "search_ad",
           "partition_by": [
@@ -117,7 +117,7 @@
           }
         },
         {
-          "type": "WIN_ADSTOCK",
+          "type": "WIN_DISTRIBUTED_LAG",
           "field": "social",
           "label": "social_ad",
           "partition_by": [

@@ -546,28 +546,28 @@ func AllAttributeTypes() []AttributeType {
 type WindowType string
 
 const (
-	WIN_LAG         WindowType = "WIN_LAG"
-	WIN_LEAD        WindowType = "WIN_LEAD"
-	WIN_ROW_NUMBER  WindowType = "WIN_ROW_NUMBER"
-	WIN_RANK        WindowType = "WIN_RANK"
-	WIN_DENSE_RANK  WindowType = "WIN_DENSE_RANK"
-	WIN_RUNNING_SUM WindowType = "WIN_RUNNING_SUM"
-	WIN_RUNNING_AVG WindowType = "WIN_RUNNING_AVG"
-	WIN_MOVING_AVG  WindowType = "WIN_MOVING_AVG"
-	WIN_EWMA        WindowType = "WIN_EWMA"
-	WIN_PCT_CHANGE  WindowType = "WIN_PCT_CHANGE"
-	WIN_DELTA       WindowType = "WIN_DELTA"
-	WIN_SHARE       WindowType = "WIN_SHARE"
-	WIN_LIFT        WindowType = "WIN_LIFT"
-	WIN_ADSTOCK     WindowType = "WIN_ADSTOCK"
+	WIN_LAG             WindowType = "WIN_LAG"
+	WIN_LEAD            WindowType = "WIN_LEAD"
+	WIN_ROW_NUMBER      WindowType = "WIN_ROW_NUMBER"
+	WIN_RANK            WindowType = "WIN_RANK"
+	WIN_DENSE_RANK      WindowType = "WIN_DENSE_RANK"
+	WIN_RUNNING_SUM     WindowType = "WIN_RUNNING_SUM"
+	WIN_RUNNING_AVG     WindowType = "WIN_RUNNING_AVG"
+	WIN_MOVING_AVG      WindowType = "WIN_MOVING_AVG"
+	WIN_EWMA            WindowType = "WIN_EWMA"
+	WIN_PCT_CHANGE      WindowType = "WIN_PCT_CHANGE"
+	WIN_DELTA           WindowType = "WIN_DELTA"
+	WIN_SHARE           WindowType = "WIN_SHARE"
+	WIN_LIFT            WindowType = "WIN_LIFT"
+	WIN_DISTRIBUTED_LAG WindowType = "WIN_DISTRIBUTED_LAG"
 )
 
 // AllWindowTypes returns all defined window types in alphabetical order.
 func AllWindowTypes() []WindowType {
 	return []WindowType{
-		WIN_ADSTOCK,
 		WIN_DELTA,
 		WIN_DENSE_RANK,
+		WIN_DISTRIBUTED_LAG,
 		WIN_EWMA,
 		WIN_LAG,
 		WIN_LEAD,

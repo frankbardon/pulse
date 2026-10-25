@@ -544,9 +544,9 @@ var emitsTypeProbes = map[string]func(t *testing.T) emitted{
 			Params:  json.RawMessage(`{"alpha":0.5}`),
 		}, emitsWindowRows())
 	},
-	string(types.WIN_ADSTOCK): func(t *testing.T) emitted {
+	string(types.WIN_DISTRIBUTED_LAG): func(t *testing.T) emitted {
 		return winEmitted(t, &types.Window{
-			Type: types.WIN_ADSTOCK, Field: "x", Label: "out",
+			Type: types.WIN_DISTRIBUTED_LAG, Field: "x", Label: "out",
 			OrderBy: []types.OrderKey{{Field: "ts"}},
 			Params:  json.RawMessage(`{"kernel":"weibull_cdf","shape":1.5,"scale":2,"max_lag":3}`),
 		}, emitsWindowRows())

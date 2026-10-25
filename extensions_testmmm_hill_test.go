@@ -27,7 +27,7 @@ import (
 //	y = β0 + Σ_c β_c · hill(a_c, k_c, s_c) + Σ_j γ_j · z_j,
 //
 // where every a_c is a channel predictor (an already-adstocked spend
-// column, WIN_ADSTOCK upstream) and every z_j a control predictor
+// column, WIN_DISTRIBUTED_LAG upstream) and every z_j a control predictor
 // entering linearly. hill(x, k, s) = x^s / (x^s + k^s), the same curve
 // as the hill() expression function. It minimises
 //

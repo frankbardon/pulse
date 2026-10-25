@@ -52,7 +52,7 @@ func fieldTypeRefusalCases() []fieldTypeRefusalCase {
 		out = append(out, fieldTypeRefusalCase{op: op, body: body, ft: ft, code: code})
 	}
 	// Value windows: 11 ops x 12 types = 132.
-	for _, op := range []string{"WIN_LAG", "WIN_LEAD", "WIN_RUNNING_SUM", "WIN_RUNNING_AVG", "WIN_MOVING_AVG", "WIN_EWMA", "WIN_PCT_CHANGE", "WIN_DELTA", "WIN_SHARE", "WIN_LIFT", "WIN_ADSTOCK"} {
+	for _, op := range []string{"WIN_LAG", "WIN_LEAD", "WIN_RUNNING_SUM", "WIN_RUNNING_AVG", "WIN_MOVING_AVG", "WIN_EWMA", "WIN_PCT_CHANGE", "WIN_DELTA", "WIN_SHARE", "WIN_LIFT", "WIN_DISTRIBUTED_LAG"} {
 		for _, ft := range refusedValueTypes() {
 			fill(op, acceptanceTemplates[op], ft, errors.PULSE_FIELD_TYPE_UNSUPPORTED)
 		}
@@ -240,7 +240,7 @@ func TestFieldTypeRefusal_SafePairsStillRun(t *testing.T) {
 	p, fs, cohort := acceptanceCohort(t)
 	ctx := context.Background()
 	ops := []string{"WIN_LAG", "WIN_LEAD", "WIN_RUNNING_SUM", "WIN_RUNNING_AVG", "WIN_MOVING_AVG", "WIN_EWMA",
-		"WIN_PCT_CHANGE", "WIN_DELTA", "WIN_SHARE", "WIN_LIFT", "WIN_ADSTOCK", "FEAT_POLY", "REG_OLS", "REG_GLM", "REG_BAYES_LINEAR", "TEST_T", "TEST_PEARSON_R"}
+		"WIN_PCT_CHANGE", "WIN_DELTA", "WIN_SHARE", "WIN_LIFT", "WIN_DISTRIBUTED_LAG", "FEAT_POLY", "REG_OLS", "REG_GLM", "REG_BAYES_LINEAR", "TEST_T", "TEST_PEARSON_R"}
 	safe := []encoding.FieldType{encoding.FieldTypeU4, encoding.FieldTypeU8, encoding.FieldTypeU16, encoding.FieldTypeU32,
 		encoding.FieldTypeU64, encoding.FieldTypeF32, encoding.FieldTypeF64, encoding.FieldTypeDate}
 	for _, op := range ops {
