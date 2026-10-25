@@ -7,7 +7,7 @@ import (
 )
 
 // The bivariate-normal CDF: a line-for-line, FMA-free port of Alan
-// Genz's MVBVU (mvtdstpack.f — the routine R's pbivnorm, and through it
+// Genz's MVBVU (mvtdstpack.f, as distributed in SciPy's scipy/stats/mvndst.f — the routine R's pbivnorm, and through it
 // lavaan's polychoric correlations, call), after Drezner & Wesolowsky
 // (1989) with Genz and Ge's double-precision extensions for |ρ| near 1.
 // Gauss–Legendre rules of 6, 12 and 20 points over Sheppard's arcsine

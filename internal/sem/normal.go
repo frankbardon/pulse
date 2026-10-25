@@ -32,7 +32,7 @@ func stdNormPDF(x float64) float64 {
 
 // mvphiA are the Chebyshev coefficients of Genz's MVPHI (Schonfelder,
 // Math. Comp. 32 (1978) pp. 1232-1240), the normal CDF inside the
-// bivariate-normal port (bvn.go), as published in mvtdstpack.f.
+// bivariate-normal port (bvn.go), as published in mvtdstpack.f and SciPy's scipy/stats/mvndst.f.
 var mvphiA = [44]float64{
 	6.10143081923200417926465815756e-1,
 	-4.34841272712577471828182820888e-1,
