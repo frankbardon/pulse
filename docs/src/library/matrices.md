@@ -686,6 +686,47 @@ driver's contribution to the change in `recommend` between the two
 waves of `brand_survey.pulse`, with delta-method and bootstrap
 intervals.
 
+**Latent scores.** `ATTR_SEM_SCORE` turns a fitted model into a field:
+each row's score on one latent (`params.latent`, a higher-order latent
+included), lavaan's `lavPredict` — `method: "regression"` (default, the
+conditional mean of the latent given the row) or `"bartlett"` (the
+unbiased GLS weights). With a mean structure or `group` the scores sit
+on the latent-mean scale (the reference level at 0) and each row is
+scored with its own group's parameters; otherwise they are centered at
+the fit rows. A null member or group scores null; a level with no fit
+rows scores null with `PULSE_SEM_SCORE_LEVEL_UNSEEN`. The fit is one of
+three:
+
+- **inline** — the attribute takes `MAT_SEM`'s fit knobs and fits once,
+  cohort-wide, over the rows its `fit_on` filterers admit (default every
+  filtered row), exactly `MAT_SEM`'s fit over those rows; two-pass, so a
+  grouped request buffers;
+- **bound** — `params.fit` names a Compose `fits` entry holding one
+  `MAT_SEM` (a SEM fit, `fits.<name>` = `{"sem": {...}}`); the slot fits
+  nothing, is row-local (it streams, fuses and merges) and scores bit-equal
+  to the inline fit;
+- **loaded** — a fit entry's `save: "fits/brand.pulse-sem.json"` writes
+  the fit at full precision; a later request's
+  `models: [{"name": "brand", "path": "fits/brand.pulse-sem.json"}]`
+  loads it (the suffix picks the kind) and `params.fit: "brand"` scores
+  from it bit-equal to the in-compose fit.
+
+```json
+{"type": "ATTR_SEM_SCORE", "label": "service_score", "vector": "brand",
+ "params": {"fit": "brand", "latent": "service"}}
+```
+
+A score is an ordinary `f64` column: average it by wave, or use it as a
+regression predictor. A failed fit nulls every score with a warning
+(`PULSE_FIT_UNAVAILABLE` for a compose fit, the `PULSE_MATRIX_*` code
+inline); a frequency weight weights the fit only. Parity: lavaan 0.7.3
+`lavPredict` within 1e-4.
+
+Runnable: `internal/examples/attributes/25_sem_score.json` (inline,
+scores averaged by wave) and
+`internal/examples/compose/10_sem_fit_scores.json` (one compose fit,
+scores averaged by wave and regressed on by `recommend`).
+
 ## Groups, cost and refusals
 
 With `groups`, a matrix is computed per bucket, in `Response.Data` order

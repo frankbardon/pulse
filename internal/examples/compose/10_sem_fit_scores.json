@@ -1,0 +1,79 @@
+{
+  "_meta": {
+    "category": "compose",
+    "description": "Fit a SEM once, use its latent scores as ordinary fields: a compose `fits` entry fits the three-factor CFA of brand_survey.pulse (quality =~ q1 + q2 + q3, value =~ v1 + v2 + v3, service =~ s1 + s2 + s3) as ONE multi-group MAT_SEM across the two waves with loadings and intercepts held equal, before any slot. Both slots then score every respondent from that bound fit with ATTR_SEM_SCORE params.fit (row-local: no refit, each row scored with its own wave's parameters on one latent-mean scale, wave1 at 0). The by_wave slot averages the scores per wave and tracks the latent mean shift (value down, service up, quality flat); the drivers slot regresses recommend on the three scores by OLS, each a positive driver. Add `save: \"fits/brand.pulse-sem.json\"` on the fit to keep it, and `models: [{\"name\": \"brand\", \"path\": \"fits/brand.pulse-sem.json\"}]` on a later request scores from the file bit-equal to this run.",
+    "capabilities": [
+      "capability:compose_fits",
+      "capability:sem_groups",
+      "capability:sem_meanstructure"
+    ],
+    "intents": [
+      "measure_construct",
+      "relationship"
+    ],
+    "name": "compose-sem-fit-scores",
+    "operators": [
+      "AGG_AVERAGE",
+      "ATTR_SEM_SCORE",
+      "GROUP_CATEGORY",
+      "MAT_SEM",
+      "REG_OLS"
+    ],
+    "tags": [
+      "compose",
+      "multivariate",
+      "feature-engineering",
+      "regression",
+      "ols",
+      "comparison"
+    ]
+  },
+  "fits": [
+    {
+      "name": "brand",
+      "request": {
+        "cohort": {"filename": "brand_survey.pulse", "data_dir": ".data"},
+        "vectors": [{"name": "brand", "fields": ["q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3"]}],
+        "matrices": [
+          {
+            "type": "MAT_SEM",
+            "name": "brand_cfa",
+            "vector": "brand",
+            "params": {"model": "quality =~ q1 + q2 + q3\nvalue =~ v1 + v2 + v3\nservice =~ s1 + s2 + s3", "group": "wave", "group_equal": ["loadings", "intercepts"]}
+          }
+        ]
+      }
+    }
+  ],
+  "requests": [
+    {
+      "label": "by_wave",
+      "cohort": {"filename": "brand_survey.pulse", "data_dir": ".data"},
+      "vectors": [{"name": "brand", "fields": ["q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3"]}],
+      "attributes": [
+        {"type": "ATTR_SEM_SCORE", "label": "quality_score", "vector": "brand", "params": {"fit": "brand", "latent": "quality"}},
+        {"type": "ATTR_SEM_SCORE", "label": "value_score", "vector": "brand", "params": {"fit": "brand", "latent": "value"}},
+        {"type": "ATTR_SEM_SCORE", "label": "service_score", "vector": "brand", "params": {"fit": "brand", "latent": "service"}}
+      ],
+      "groups": [{"type": "GROUP_CATEGORY", "field": "wave"}],
+      "aggregations": [
+        {"type": "AGG_AVERAGE", "field": "quality_score", "label": "mean_quality"},
+        {"type": "AGG_AVERAGE", "field": "value_score", "label": "mean_value"},
+        {"type": "AGG_AVERAGE", "field": "service_score", "label": "mean_service"}
+      ]
+    },
+    {
+      "label": "drivers",
+      "cohort": {"filename": "brand_survey.pulse", "data_dir": ".data"},
+      "vectors": [{"name": "brand", "fields": ["q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3"]}],
+      "attributes": [
+        {"type": "ATTR_SEM_SCORE", "label": "quality_score", "vector": "brand", "params": {"fit": "brand", "latent": "quality"}},
+        {"type": "ATTR_SEM_SCORE", "label": "value_score", "vector": "brand", "params": {"fit": "brand", "latent": "value"}},
+        {"type": "ATTR_SEM_SCORE", "label": "service_score", "vector": "brand", "params": {"fit": "brand", "latent": "service"}}
+      ],
+      "regressions": [
+        {"type": "REG_OLS", "name": "recommend_drivers", "target": "recommend", "predictors": ["quality_score", "value_score", "service_score"]}
+      ]
+    }
+  ]
+}

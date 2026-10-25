@@ -13566,7 +13566,7 @@
       },
       {
         "name": "sem-fits",
-        "description": "SEM fits in Compose — a fits entry holding one MAT_SEM matrix fits the structural equation model once and binds its parameters by name; ATTR_SEM_SCORE params.fit scores any slot's rows from it, row-local and bit-equal to the inline fit. The fit request, the response shape, scoring rules, refusals and failures."
+        "description": "SEM fits in Compose — a fits entry holding one MAT_SEM matrix fits the structural equation model once and binds its parameters by name; ATTR_SEM_SCORE params.fit scores any slot's rows from it, row-local and bit-equal to the inline fit. A save writes the fit to a .pulse-sem.json file that a later request loads with models and scores from bit-equal. The fit request, the response shape, saving and loading, scoring rules, refusals and failures."
       },
       {
         "name": "sem-modeling",
@@ -13949,7 +13949,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 254,
+    "examples_count": 255,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -19865,4 +19865,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 36b59eb32e994426710ae3858e70da49593824b2cc00b5773f3e5c1cd59691f7
+// golden-hash: 6a3999bf9b133262dd3dcc478617cea2a63726e0aa4a193657de9c265727b16c

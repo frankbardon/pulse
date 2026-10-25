@@ -176,7 +176,7 @@ one name in every group must be enabled:
 | `ATTR_REG_PREDICT` | `REG_BAYES_LINEAR`, `REG_GLM` or `REG_OLS` (any one) |
 | `OVERLAY_YOY` | `GROUP_DATE` |
 | `capability:filter_to_file` | `FILTER_EXPRESSION` (filter-to-file compiles every filterer into one filter expression) |
-| `capability:model_save` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_OLS`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE` or `capability:matrices` (any one; a `save` writes a fitted regression as a model file or a vector fit as a population file) |
+| `capability:model_save` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_OLS`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE` or `capability:matrices` (any one; a `save` writes a fitted regression as a model file, a vector fit as a population file or a SEM fit as a `.pulse-sem.json` SEM fit file) |
 | `capability:regression_holdout` | `REG_BAYES_LINEAR`, `REG_GLM` or `REG_OLS` (any one; a regression `holdout` scores that slot's fit) |
 | `capability:params` | `ATTR_FORMULA`, `FILTER_EXPRESSION`, `OVERLAY_FORMULA` or `capability:regression_holdout` (any one; a request `params` value is read only by an expression) |
 | `capability:sem_meanstructure` | `MAT_SEM` or `ATTR_SEM_SCORE` (any one; their `meanstructure` param and `~ 1` model lines) |

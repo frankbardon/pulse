@@ -1,10 +1,10 @@
 ---
 name: sem-fits
-description: SEM fits in Compose — a fits entry holding one MAT_SEM matrix fits the structural equation model once and binds its parameters by name; ATTR_SEM_SCORE params.fit scores any slot's rows from it, row-local and bit-equal to the inline fit. The fit request, the response shape, scoring rules, refusals and failures.
+description: SEM fits in Compose — a fits entry holding one MAT_SEM matrix fits the structural equation model once and binds its parameters by name; ATTR_SEM_SCORE params.fit scores any slot's rows from it, row-local and bit-equal to the inline fit. A save writes the fit to a .pulse-sem.json file that a later request loads with models and scores from bit-equal. The fit request, the response shape, saving and loading, scoring rules, refusals and failures.
 kind: design
 type: guide
 applies_to: compose, predict
-covers: [SEM, SEM fit, latent score, factor score, fits, compose, MAT_SEM, ATTR_SEM_SCORE]
+covers: [SEM, SEM fit, latent score, factor score, fits, compose, save, models, .pulse-sem.json, MAT_SEM, ATTR_SEM_SCORE]
 requires: [MAT_SEM, ATTR_SEM_SCORE, capability:compose_fits]
 ---
 
@@ -56,3 +56,4 @@ The inline fit's warnings carry over: too few fit rows or negative degrees of fr
 - `op-attr-sem-score` — the scoring attribute.
 - `sem-modeling` — conventions, means and multi-group fits.
 - `vector-row-scores` — the row-local versus two-pass rule.
+- Scores as fields (wave means, an OLS on the scores): `pulse_examples_search tags=[compose, multivariate, regression]`.

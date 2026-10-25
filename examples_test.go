@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -752,5 +753,95 @@ func TestExamples_SEMContributionRecipe(t *testing.T) {
 	bv := boot.Auxiliary["estimates"].Values
 	if bv[di][0] != est.Values[di][0] || bv[di][2] == est.Values[di][2] || bv[di][5] == est.Values[di][5] {
 		t.Errorf("bootstrap dv row %v vs delta %v: want the estimate kept, the SE and interval replaced", bv[di], est.Values[di])
+	}
+}
+
+// TestExamples_SEMFitScoresFeedRegression runs
+// compose/10_sem_fit_scores.json over the brand_survey fixture: predict
+// is clean; the SEM fit binds (fits.brand is a SEM fit with no error);
+// the by_wave slot's mean scores track the planted shift (wave1, the
+// reference, near 0; value down and service up in wave2; quality flat);
+// and the drivers slot's OLS of recommend on the three scores finds
+// each a positive driver distinguishable from zero.
+func TestExamples_SEMFitScoresFeedRegression(t *testing.T) {
+	tmp := t.TempDir()
+	osfs := afero.NewOsFs()
+	builder, err := pulse.New(pulse.Options{FS: osfs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	buildExampleFixtures(t, builder, osfs, tmp)
+	p, err := pulse.New(pulse.Options{DataDir: tmp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join("internal", "examples", "compose", "10_sem_fit_scores.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var req pulse.ComposedRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	for i := range req.Fits {
+		req.Fits[i].Request.Cohort.DataDir = ""
+	}
+	for _, r := range req.Requests {
+		r.Cohort.DataDir = ""
+	}
+	env, err := p.PredictCompose(context.Background(), &req)
+	if err != nil {
+		t.Fatalf("PredictCompose: %v", err)
+	}
+	if len(env.Errors) != 0 {
+		t.Fatalf("PredictCompose errors: %v", env.Errors)
+	}
+	out, err := p.Compose(context.Background(), &req)
+	if err != nil {
+		t.Fatalf("Compose: %v", err)
+	}
+	if len(out.Warnings) != 0 {
+		t.Fatalf("compose warnings: %+v", out.Warnings)
+	}
+	fit, ok := out.Fits["brand"]
+	if !ok || fit.SEM == nil || fit.SEM.Error != nil {
+		t.Fatalf("fits.brand = %+v, want a SEM fit without error", fit)
+	}
+	if len(out.Responses) != 2 || out.Responses[0].Label != "by_wave" || out.Responses[1].Label != "drivers" {
+		t.Fatalf("responses %+v", out.Responses)
+	}
+
+	means := map[string]map[string]float64{}
+	for _, row := range out.Responses[0].Data {
+		wave := fmt.Sprint(row["wave"])
+		means[wave] = map[string]float64{}
+		for _, lat := range []string{"quality", "value", "service"} {
+			v, _ := row["mean_"+lat].(float64)
+			means[wave][lat] = v
+		}
+	}
+	w1, w2 := means["wave1"], means["wave2"]
+	if w1 == nil || w2 == nil {
+		t.Fatalf("by_wave rows %v", means)
+	}
+	for lat, planted := range map[string]float64{"quality": 0, "value": -0.24, "service": 0.525} {
+		if math.Abs(w1[lat]) > 0.05 {
+			t.Errorf("wave1 mean %s score %.4f, want near 0 (the reference)", lat, w1[lat])
+		}
+		if shift := w2[lat] - w1[lat]; math.Abs(shift-planted) > 0.15 {
+			t.Errorf("mean %s score shift %.4f, planted %.3f", lat, shift, planted)
+		}
+	}
+
+	regs := out.Responses[1].Regressions
+	if len(regs) != 1 || regs[0].Error != nil {
+		t.Fatalf("drivers regressions %+v", regs)
+	}
+	for _, lat := range []string{"quality", "value", "service"} {
+		name := lat + "_score"
+		b, found := regs[0].Coefficients[name]
+		if !found || !(b > 0) || !(regs[0].PValues[name] < 0.05) {
+			t.Errorf("recommend ~ %s: slope %v (found %v), p %v; want a positive driver distinguishable from zero", name, b, found, regs[0].PValues[name])
+		}
 	}
 }

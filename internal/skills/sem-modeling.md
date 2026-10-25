@@ -10,7 +10,7 @@ requires: [MAT_SEM]
 
 # Structural equation modelling
 
-`MAT_SEM` fits a lavaan / semopy model description to one vector's members (`op-mat-sem` for every param). This skill is the why: which convention a fit follows, and how to model means.
+`MAT_SEM` fits a lavaan / semopy model to one vector's members (params: `op-mat-sem`). This skill is the why: which convention a fit follows, and how to model means.
 
 ## Which convention applies
 
@@ -31,7 +31,7 @@ Under lavaan conventions:
 - `nfi` is `null` when `dof` exceeds `dof_baseline` (1 when saturated);
 - a `~~` row between two variables has `std_estimate` = their residual correlation (lavaan's `std.all`).
 
-The same covariance model can report a different `chi2` on the two paths. Compare fits on ONE convention: set `meanstructure` on every slot of a comparison.
+The two paths can report a different `chi2` for one covariance model: compare on ONE convention, `meanstructure` set on every slot.
 
 <!-- feature: capability:sem_meanstructure -->
 ## Modelling means
@@ -83,5 +83,8 @@ The same covariance model can report a different `chi2` on the two paths. Compar
 - `op-mat-sem`
 - `sem-bootstrap` — bootstrap standard errors and percentile intervals.
 - `sem-defined-parameters` — `:=` indirect and contribution effects.
-- `multivariate-design` — which multivariate operator answers which question.
-- `matrix-results` — the slot, encodings and refusals.
+<!-- feature: ATTR_SEM_SCORE -->
+- `op-attr-sem-score`, `sem-fits` — per-row latent scores (regression / Bartlett; inline, compose or saved fit) for group means and regressions.
+<!-- /feature -->
+- `multivariate-design` — which operator answers which question.
+- `matrix-results` — slot, encodings, refusals.

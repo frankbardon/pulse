@@ -46,8 +46,8 @@ This unit extends `MAT_SEM` in four slices, each validated against lavaan (0.7.3
 - [x] **#532** skills, book page, examples and the invariance-ladder recipe
 - [x] **#533** `:=` defined parameters with delta-method SEs, joining the multiplicity family
 - [x] **#534** seeded bootstrap (`resample: "bootstrap"`), percentile CIs, buffered, weight refused; the derived seed and `ci_level` on the Wald interval
-- [ ] **#535** `ATTR_SEM_SCORE` (regression / Bartlett), inline `fit_on` or a bound `fit`
-- [ ] **#536** the compose `sem` fit kind and `*.pulse-sem.json` save / load
+- [x] **#535** `ATTR_SEM_SCORE` (regression / Bartlett), inline `fit_on` or a bound `fit`
+- [x] **#536** the compose `sem` fit kind and `*.pulse-sem.json` save / load
 - [ ] **#537** DWLS / WLSMV with thresholds, polychoric and polyserial correlations
 - [ ] **#538** EBM scores of ordinal SEM fits
 
@@ -82,7 +82,7 @@ This unit extends `MAT_SEM` in four slices, each validated against lavaan (0.7.3
 - [x] Legacy single-group covariance-only output is byte-identical (semopy parity unchanged)
 - [x] The invariance ladder reads from fit indices across fits; a compose sweep over `group_equal` runs it (`compose/09_sem_invariance_sweep.json`)
 - [x] `:=` contributions get delta-method or bootstrap intervals and p (`matrices/17_sem_contribution.json`, `TestExamples_SEMContributionRecipe`)
-- [ ] SEM latent scores are usable downstream; scoring a saved fit is bit-equal to scoring the in-compose fit
+- [x] SEM latent scores are usable downstream; scoring a saved fit is bit-equal to scoring the in-compose fit (`compose/10_sem_fit_scores.json`, `TestExamples_SEMFitScoresFeedRegression`, `TestSEMFit_SaveThenLoadScoresBitEqual`)
 - [ ] DWLS / WLSMV matches lavaan, and the docs say when to prefer it over ML
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit))
 

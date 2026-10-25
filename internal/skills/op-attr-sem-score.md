@@ -31,9 +31,9 @@ Row-level scalars; no `Response.Components`.
 | `max_iter` | int | — | |
 | `grad_tol` | float | 1e-10 | |
 | `singular` | enum | `nearest` | Or `refuse`. |
-| `fit_on` | any | `filtered` | Filterers picking the FIT rows. |
-| `fit` | string | — | A SEM fit; no knobs. |
-| `labels` | list | — | Inline `fields`: one label per member. |
+| `fit_on` | any | `filtered` | Filterers picking FIT rows. |
+| `fit` | string | — | Compose or `.pulse-sem.json` fit; no knobs. |
+| `labels` | list | — | One per inline member. |
 | `missing` | enum | `listwise` | `listwise` only. |
 
 The fit knobs are<!-- feature: MAT_SEM --> `MAT_SEM`'s<!-- /feature -->; no bootstrap. `weight` — frequency only, fit only.
