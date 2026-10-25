@@ -9,7 +9,7 @@ import (
 
 // sem_test.go pins the SEM fit kind in the one namespace (U59 E3-S2):
 // FitKindOf / CatalogFromFits classify a MAT_SEM fit request as sem,
-// CheckFits refuses its save, and the Set binds, copies and resolves a
+// CheckFits judges its save by the SEM fit file's path rule, and the Set binds, copies and resolves a
 // SEMFit beside the other kinds — each reader refusing the others'
 // names with PULSE_MODEL_KIND_MISMATCH.
 
@@ -38,10 +38,24 @@ func TestSEMFit_FitKindOf(t *testing.T) {
 	if err := CheckFits([]types.FitSpec{{Name: "s", Request: semFitReq()}}); err != nil {
 		t.Fatalf("a SEM fit request is refused: %v", err)
 	}
-	err := CheckFits([]types.FitSpec{{Name: "s", Request: semFitReq(), Save: "fits/s.pulse-sem.json"}})
-	ce, ok := err.(*errors.CodedError)
-	if !ok || ce.Code != errors.PULSE_MODEL_SAVE_INVALID || ce.Details["reason"] != ReasonSaveSEMUnsupported || ce.Details["fit"] != 0 {
-		t.Fatalf("save on a SEM fit: %v", err)
+	if err := CheckFits([]types.FitSpec{{Name: "s", Request: semFitReq(), Save: "fits/s.pulse-sem.json"}}); err != nil {
+		t.Fatalf("a SEM fit's .pulse-sem.json save is refused: %v", err)
+	}
+	for _, c := range []struct{ path, reason string }{
+		{"fits/s" + FileSuffix, ReasonSaveSuffix},
+		{"fits/s" + PopulationSuffix, ReasonSaveSuffix},
+		{"../s" + SEMSuffix, ReasonSaveEscapesRoot},
+		{"fits/" + SEMSuffix, ReasonSaveNameMissing},
+	} {
+		err := CheckFits([]types.FitSpec{{Name: "s", Request: semFitReq(), Save: c.path}})
+		ce, ok := err.(*errors.CodedError)
+		if !ok || ce.Code != errors.PULSE_MODEL_SAVE_INVALID || ce.Details["reason"] != c.reason || ce.Details["fit"] != 0 {
+			t.Fatalf("save %q on a SEM fit: %v, want reason %s", c.path, err, c.reason)
+		}
+	}
+	// A regression or vector fit never saves under the SEM suffix.
+	if err := CheckFits([]types.FitSpec{{Name: "r", Request: olsReq(ols()), Save: "r" + SEMSuffix}}); err == nil {
+		t.Fatal("a regression fit saves a .pulse-sem.json")
 	}
 }
 

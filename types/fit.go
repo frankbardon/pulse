@@ -35,8 +35,9 @@ type FitSpec struct {
 	// regression fit writes a model file (the path ends
 	// .pulse-model.json); a vector fit writes a population file (the
 	// path ends .pulse-population.json) that a later request loads with
-	// `populations`. Gated by capability:model_save. Empty writes
-	// nothing.
+	// `populations`; a SEM fit writes a SEM fit file (the path ends
+	// .pulse-sem.json) that a later request loads with `models`. Gated
+	// by capability:model_save. Empty writes nothing.
 	Save string `json:"save,omitempty"`
 }
 
@@ -68,7 +69,8 @@ type PopulationRef struct {
 // model file a `save` wrote, loaded under Name for this request. The
 // name joins the request's bound-model namespace — the one a Compose
 // `fits` list binds — so ATTR_REG_PREDICT `fit` and coef() resolve it
-// exactly like a fit of the same name; a name bound twice (by another
+// exactly like a fit of the same name (a SEM fit file, the path ending
+// .pulse-sem.json, binds a SEM fit ATTR_SEM_SCORE params.fit reads); a name bound twice (by another
 // entry or a fit) is PULSE_MODEL_NAME_COLLISION.
 //
 // The file is read (through the instance filesystem) and decoded before
@@ -82,7 +84,8 @@ type ModelRef struct {
 	Name string `json:"name"`
 
 	// Path is the model file, relative to the data root, ending
-	// .pulse-model.json — the save-path rule.
+	// .pulse-model.json — the save-path rule — or a SEM fit file ending
+	// .pulse-sem.json: the suffix picks the kind.
 	Path string `json:"path"`
 }
 

@@ -50,6 +50,10 @@ func (r Refs) Empty() bool { return len(r.Models) == 0 && len(r.Populations) == 
 type Loaded struct {
 	Models      []*File
 	Populations []*PopulationFile
+	// SEMs are the `models` entries that load a SEM fit file
+	// (.pulse-sem.json), index-aligned with Models (nil where the entry
+	// is a model file; nil when none is).
+	SEMs []*SEMFile
 }
 
 // CheckRefs is the static rule over a request's loads: its `models`
@@ -99,11 +103,11 @@ func LoadFiles(refs Refs, read ReadFunc) (*Loaded, *errors.CodedError) {
 	if refs.Empty() {
 		return nil, nil
 	}
-	models, cerr := LoadModelFiles(refs.Models, read)
+	models, sems, cerr := loadModelEntries(refs.Models, read)
 	if cerr != nil {
 		return nil, cerr
 	}
-	out := &Loaded{Models: models}
+	out := &Loaded{Models: models, SEMs: sems}
 	if len(refs.Populations) > 0 {
 		out.Populations = make([]*PopulationFile, len(refs.Populations))
 	}
@@ -164,6 +168,16 @@ func (s *Set) WithLoaded(refs Refs, l *Loaded) (*Set, error) {
 	if s != nil && out.capture == nil {
 		out.capture = s.capture
 	}
+	for j, r := range refs.Models {
+		if j >= len(l.SEMs) || l.SEMs[j] == nil {
+			continue
+		}
+		sf := l.SEMs[j].SEMFit(r.Name)
+		sf.Source = ModelSource(j, r.Path)
+		if err := out.AddSEM(sf); err != nil {
+			return nil, err
+		}
+	}
 	for k, r := range refs.Populations {
 		if k >= len(l.Populations) || l.Populations[k] == nil {
 			continue
@@ -186,6 +200,17 @@ func CatalogWithLoaded(outer Catalog, refs Refs, l *Loaded) FitCatalog {
 		l = &Loaded{}
 	}
 	out := CatalogWithModels(outer, refs.Models, l.Models)
+	for j, r := range refs.Models {
+		if j >= len(l.SEMs) || l.SEMs[j] == nil {
+			continue
+		}
+		out[r.Name] = Signature{
+			Name:    r.Name,
+			Kind:    types.FitKindSEM,
+			Members: append([]string(nil), l.SEMs[j].Labels...),
+			Source:  ModelSource(j, r.Path),
+		}
+	}
 	for k, r := range refs.Populations {
 		if k >= len(l.Populations) || l.Populations[k] == nil {
 			continue

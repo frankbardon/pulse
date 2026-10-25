@@ -55,7 +55,7 @@ var slotModelsObserver func(label string, set *model.Set)
 //
 // A fit's `save` (FitSpec.Save) is written once the fit has run, under
 // the fit's name — a regression fit's model file, a vector fit's
-// population file; a save on the fit request's own regression is
+// population file, a SEM fit's SEM fit file; a save on the fit request's own regression is
 // written by its Process. Each overwrite comes back as a PULSE_MODEL_OVERWRITTEN
 // warning with details.fit, in entry order — ComposedResponse.Warnings.
 func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre *composeModels, workers int) (*model.Set, map[string]*types.FitResult, []*types.ResponseWarning, error) {
@@ -97,6 +97,16 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 				return
 			}
 			semFits[i] = sf
+			// The fit's `save` writes its SEM fit file under the fit's
+			// name (the overwrite warning lifts to the batch).
+			w, err := s.saveFitSEM(ctx, i, fits[i], sf)
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			if w != nil {
+				saveWarnings[i] = append(saveWarnings[i], w)
+			}
 			return
 		}
 		if model.FitKindOf(fits[i].Request) == types.FitKindVector {

@@ -31,7 +31,7 @@ A **SEM fit** is a Compose `fits` entry (`compose-fits`) whose request holds exa
 
 - Every `MAT_SEM` knob applies (`op-mat-sem`, `sem-modeling`): the model, `meanstructure`, `group` / `group_equal` / `group_partial`, the solver settings. Its own cohort, filters and weight decide the fit rows.
 - The response's `fits.<name>` is `{"sem": {...}}`: `operator`, `model`, member `labels` / `members`, the model's `observed` / `inner` / `latents` orders, `estimator`, `conventions`, the knobs, `basis`, `n`, `sum_weights`, `dof`, `n_params`, the solver's `converged` / `status` / `iterations`, and `groups` — per level its `n`, `sum_weights` and the matrices `lambda` (observed × inner), `beta`, `psi`, `theta`, `nu`, `alpha`, `sample_mean` at full precision. The fit's own estimates table is not repeated; run `MAT_SEM` in a slot to read it.
-- A `save` on a SEM fit is refused (`PULSE_MODEL_SAVE_INVALID`, `reason: sem_unsupported`).
+- A `save` writes a SEM fit file (`fits/brand.pulse-sem.json`; atomic, every figure at full precision; another suffix is `PULSE_MODEL_SAVE_INVALID`, an overwrite warns `PULSE_MODEL_OVERWRITTEN`). A later request loads it with `models: [{"name": "brand", "path": "fits/brand.pulse-sem.json"}]` — the suffix picks the kind — and scores from it bit-equal to the in-compose fit, chain stages included. A file whose model does not rebuild its stored orders is `PULSE_MODEL_FILE_INVALID`.
 
 ## Scoring from it
 

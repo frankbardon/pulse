@@ -124,6 +124,11 @@ func TestLoadRangeTables_SkipsPulseSidecars(t *testing.T) {
 			filename: "brand" + model.PopulationSuffix,
 			body:     populationFileFixture,
 		},
+		{
+			name:     "saved SEM fit file",
+			filename: "brand" + model.SEMSuffix,
+			body:     semFitFileFixture,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

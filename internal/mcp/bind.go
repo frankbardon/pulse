@@ -1156,7 +1156,7 @@ func modelsSchema(desc string) map[string]any {
 			"type": "object",
 			"properties": map[string]any{
 				"name": map[string]any{"type": "string", "description": "The name references use; unique across the request's models and any fit."},
-				"path": map[string]any{"type": "string", "description": "The model file, relative to the data root, ending .pulse-model.json."},
+				"path": map[string]any{"type": "string", "description": "The model file, relative to the data root, ending .pulse-model.json (or .pulse-sem.json: a saved SEM fit)."},
 			},
 			"required":             []string{"name", "path"},
 			"additionalProperties": false,
@@ -1868,7 +1868,7 @@ func fitsSchema(reqSchema map[string]any, inst *descx.InstanceSnapshot) map[stri
 			"required": []string{"name", "request"},
 		},
 	}
-	addModelSave(out, inst, "Write the bound fit once it has run, at this path relative to the data root: a regression fit as a model file (ending .pulse-model.json), a vector fit as a population file (ending .pulse-population.json, loaded later with `populations`); overwriting warns PULSE_MODEL_OVERWRITTEN.")
+	addModelSave(out, inst, "Write the bound fit once it has run, at this path relative to the data root: a regression fit as a model file (ending .pulse-model.json), a vector fit as a population file (ending .pulse-population.json, loaded later with `populations`), a SEM fit as a SEM fit file (ending .pulse-sem.json, loaded later with `models`); overwriting warns PULSE_MODEL_OVERWRITTEN.")
 	return out
 }
 

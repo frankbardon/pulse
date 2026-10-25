@@ -2390,7 +2390,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_SAVE_INVALID: {
-		Message: "A `save` path (on a regression or a `fits` entry) cannot name its file, so nothing runs — predict refuses it identically. A save path is relative to the instance filesystem root, names a file ending in `.pulse-model.json` (a regression or regression fit: a model file) or `.pulse-population.json` (a vector fit: a population file) with a name before the suffix, and never climbs above the root with `..`; one request or Compose batch never saves two fits to the same file (reason `duplicate`, the two writers under `sites`). Every path in a batch is judged before any fit or slot runs. The path is under `path`, the rule under `reason` (`path_empty`, `suffix`, `name_missing`, `escapes_root`, `duplicate`), the offending regression's index under `regression`, the fit's under `fit` and a batch slot's under `request`.",
+		Message: "A `save` path (on a regression or a `fits` entry) cannot name its file, so nothing runs — predict refuses it identically. A save path is relative to the instance filesystem root, names a file ending in `.pulse-model.json` (a regression or regression fit: a model file) `.pulse-population.json` (a vector fit: a population file) or `.pulse-sem.json` (a SEM fit: a SEM fit file) with a name before the suffix, and never climbs above the root with `..`; one request or Compose batch never saves two fits to the same file (reason `duplicate`, the two writers under `sites`). Every path in a batch is judged before any fit or slot runs. The path is under `path`, the rule under `reason` (`path_empty`, `suffix`, `name_missing`, `escapes_root`, `duplicate`), the offending regression's index under `regression`, the fit's under `fit` and a batch slot's under `request`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2400,7 +2400,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"fits", "*", "save"},
-				Hint:   "Give the fit's `save` a path under the data root: `.pulse-model.json` for a regression fit, `.pulse-population.json` for a vector fit (e.g. `pops/brand.pulse-population.json`).",
+				Hint:   "Give the fit's `save` a path under the data root: `.pulse-model.json` for a regression fit, `.pulse-population.json` for a vector fit (e.g. `pops/brand.pulse-population.json`), `.pulse-sem.json` for a SEM fit.",
 			},
 			{
 				Action: FixupReplaceField,
@@ -2430,7 +2430,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_FILE_INVALID: {
-		Message: "A model or population file cannot be parsed: it is not JSON (reason `json`), has no `model_format_version` / `population_format_version` (`version_missing`), or its document has an unknown key, a mistyped value or a structural fault — a predictor without a coefficient; a population whose labels, means or co-moment do not match in shape, whose co-moment is not symmetric, or whose counts or weight sums are impossible (`schema`). The file is under `path`; a `models` entry loading it adds its index under `model`, a `populations` entry under `population`, and either its name under `name`; a registered population (Options.Extensions.Populations or the populations directory, refused at pulse.New) carries its registered name under `registered`.",
+		Message: "A model, population or SEM fit file cannot be parsed: it is not JSON (reason `json`), has no `model_format_version` / `population_format_version` / `sem_format_version` (`version_missing`), or its document has an unknown key, a mistyped value or a structural fault — a predictor without a coefficient; a population whose labels, means or co-moment do not match in shape, whose co-moment is not symmetric, or whose counts or weight sums are impossible; a SEM fit whose matrices do not match its observed and inner variables or whose model does not re-specify them (`schema`). The file is under `path`; a `models` entry loading it adds its index under `model`, a `populations` entry under `population`, and either its name under `name`; a registered population (Options.Extensions.Populations or the populations directory, refused at pulse.New) carries its registered name under `registered`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
@@ -2457,12 +2457,12 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_REF_INVALID: {
-		Message: "A `models` or `populations` entry cannot name its file, so nothing runs — predict refuses it identically. An entry needs a `name` (the name its references use) and a `path` under the instance filesystem root ending in `.pulse-model.json` (a `models` entry) or `.pulse-population.json` (a `populations` entry), with a file name before the suffix and no `..` above the root. The entry's index is under `model` or `population`, the rule under `reason` (`name_empty`, `path_empty`, `suffix`, `name_missing`, `escapes_root`). A blank Options.Extensions.Populations key is refused at pulse.New the same way (reason `name_empty`, under `registered`).",
+		Message: "A `models` or `populations` entry cannot name its file, so nothing runs — predict refuses it identically. An entry needs a `name` (the name its references use) and a `path` under the instance filesystem root ending in `.pulse-model.json` or `.pulse-sem.json` (a `models` entry: the suffix picks a model file or a SEM fit file) or `.pulse-population.json` (a `populations` entry), with a file name before the suffix and no `..` above the root. The entry's index is under `model` or `population`, the rule under `reason` (`name_empty`, `path_empty`, `suffix`, `name_missing`, `escapes_root`). A blank Options.Extensions.Populations key is refused at pulse.New the same way (reason `name_empty`, under `registered`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"models", "*", "path"},
-				Hint:   "Point `path` at the file a `save` wrote, e.g. `models/mmm.pulse-model.json`.",
+				Hint:   "Point `path` at the file a `save` wrote, e.g. `models/mmm.pulse-model.json` or a SEM fit's `fits/brand.pulse-sem.json`.",
 			},
 			{
 				Action: FixupReplaceField,

@@ -60,6 +60,7 @@ func TestLoadPopulations_Dir(t *testing.T) {
 		"country.json":                         `{"US": "United States"}`,
 		"c.pulse.spss.json":                    "{nope",
 		"m" + model.FileSuffix:                 modelFileFixture,
+		"s" + model.SEMSuffix:                  semFitFileFixture,
 		"notes.txt":                            "x",
 		"nested/deep" + model.PopulationSuffix: populationFileFixture,
 		"broken.pulse-population.json.bak":     "{nope",

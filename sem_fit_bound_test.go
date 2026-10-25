@@ -196,9 +196,10 @@ func TestSEMFit_BoundMergesAcrossShards(t *testing.T) {
 
 // TestSEMFit_BoundChainStage: a ProcessChain stage scoring a bound fit
 // passes the chain's mergeability gate (row-local) where its inline twin
-// is PULSE_CHAIN_NOT_MERGEABLE, on predict and runtime alike; no chain
-// binds a SEM fit yet (loading one is the saved-fit file's), so the
-// bound stage's refusal is its unbound name, PULSE_MODEL_UNKNOWN.
+// is PULSE_CHAIN_NOT_MERGEABLE, on predict and runtime alike; a chain
+// binds no compose fit, so a bound stage naming none is its unbound
+// name, PULSE_MODEL_UNKNOWN (one loading a saved SEM fit file runs:
+// TestSEMFit_LoadedChainStage).
 func TestSEMFit_BoundChainStage(t *testing.T) {
 	p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	ctx := context.Background()
@@ -297,8 +298,8 @@ func TestSEMFit_KindMismatchAndUnknown(t *testing.T) {
 // {"sem": {operator, error}}, lifts PULSE_SLOT_FAILED (details.fit) and
 // binds a failed fit: the scoring slot runs, every score null with
 // PULSE_FIT_UNAVAILABLE carrying the fit's code; a vector consumer of it
-// is still the kind mismatch. A `save` on a SEM fit is refused before
-// any fit runs.
+// is still the kind mismatch (its save writes nothing:
+// TestSEMFit_SaveAndLoadRefusals).
 func TestSEMFit_FailedFitScoresNull(t *testing.T) {
 	p, _ := brandGroupCohort{csv: "brand", wave: encoding.FieldTypeCategoricalU8}.build(t, pulse.Options{})
 	ctx := context.Background()
@@ -341,15 +342,6 @@ func TestSEMFit_FailedFitScoresNull(t *testing.T) {
 	}
 	if !unavailable {
 		t.Fatalf("slot warnings %+v lack PULSE_FIT_UNAVAILABLE", resp.Warnings)
-	}
-
-	_, err = p.Compose(ctx, &pulse.ComposedRequest{
-		Fits:     []types.FitSpec{{Name: "brand", Request: semFitRequest(semFitKnobs()), Save: "fits/brand.pulse-sem.json"}},
-		Requests: []*types.Request{semScoreSlotReq(boundParams(), false)},
-	})
-	var ce *errors.CodedError
-	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_MODEL_SAVE_INVALID || ce.Details["reason"] != "sem_unsupported" {
-		t.Fatalf("save on a sem fit: %v", err)
 	}
 }
 

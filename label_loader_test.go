@@ -14,6 +14,7 @@ import (
 	"github.com/frankbardon/pulse/internal/imports"
 	"github.com/frankbardon/pulse/internal/io/spss"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/vectors"
 )
 
 func TestLoadLabelTables_FlatMap(t *testing.T) {
@@ -193,6 +194,52 @@ const populationFileFixture = `{
   "provenance": {"cohort": "c.pulse"}
 }`
 
+// semFitFileFixture is a minimal saved SEM fit file (U59 E3-S3): one
+// factor over three ratings, ungrouped.
+const semFitFileFixture = `{
+  "sem_format_version": 1,
+  "name": "brand",
+  "operator": "MAT_SEM",
+  "model": "f =~ q1 + q2 + q3",
+  "labels": ["q1", "q2", "q3"],
+  "members": ["q1", "q2", "q3"],
+  "observed": ["q1", "q2", "q3"],
+  "inner": ["f"],
+  "latents": ["f"],
+  "estimator": "ml",
+  "conventions": "semopy",
+  "meanstructure": false,
+  "solver": "slsqp",
+  "information": "dense",
+  "basis": "unweighted",
+  "n": 100,
+  "sum_weights": 100,
+  "dof": 0,
+  "n_params": 6,
+  "converged": true,
+  "status": "converged",
+  "iterations": 12,
+  "groups": [{
+    "level": "", "n": 100, "sum_weights": 100,
+    "lambda": [[1], [0.8], [0.7]], "beta": [[0]], "psi": [[0.5]],
+    "theta": [[0.3, 0, 0], [0, 0.4, 0], [0, 0, 0.5]],
+    "nu": [0, 0, 0], "alpha": [0], "sample_mean": [3, 3.1, 2.9]
+  }],
+  "provenance": {"cohort": "c.pulse"}
+}`
+
+// The fixture is a real SEM fit file whose model rebuilds, not a
+// stand-in.
+func TestSEMFitFileFixture_Decodes(t *testing.T) {
+	f, err := model.DecodeSEMFile("fixture", []byte(semFitFileFixture))
+	if err != nil {
+		t.Fatalf("fixture is not a valid SEM fit file: %v", err)
+	}
+	if err := vectors.CheckSEMRebuild(f.SEMFit("brand")); err != nil {
+		t.Fatalf("fixture's model does not rebuild: %v", err)
+	}
+}
+
 // The fixture is a real population file, not a stand-in.
 func TestPopulationFileFixture_Decodes(t *testing.T) {
 	if _, err := model.DecodePopulationFile("fixture", []byte(populationFileFixture)); err != nil {
@@ -232,6 +279,11 @@ func TestLoadLabelTables_SkipsPulseSidecars(t *testing.T) {
 			name:     "saved population file",
 			filename: "brand" + model.PopulationSuffix,
 			body:     populationFileFixture,
+		},
+		{
+			name:     "saved SEM fit file",
+			filename: "brand" + model.SEMSuffix,
+			body:     semFitFileFixture,
 		},
 	}
 	for _, tc := range cases {
@@ -315,6 +367,10 @@ func TestIsPulseSidecarName(t *testing.T) {
 		{name: "pops/a.b.pulse-population.json", want: true},
 		{name: "pulse-population.json", want: false},
 		{name: "brand.pulse-population.json.42.tmp", want: false},
+		{name: "brand.pulse-sem.json", want: true},
+		{name: "fits/a.b.pulse-sem.json", want: true},
+		{name: "pulse-sem.json", want: false},
+		{name: "brand.pulse-sem.json.7.tmp", want: false},
 		{name: "a.b.c.pulse.spss.json", want: true},
 		{name: "regions.json", want: false},
 		{name: "spss.json", want: false},

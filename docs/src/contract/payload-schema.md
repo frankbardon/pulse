@@ -1332,8 +1332,13 @@ population file instead (`population_format_version` 1; the path must end
 `suffix`): the battery's stored listwise state — labels, members, weight
 basis, counts, Σw / Σw², raw mean and raw co-moment — with nothing
 derived, written atomically under the fit's name with the same overwrite
-warning (format: `.claude/reference/byte-layout.md`, "Population file"). A SEM fit's `save` writes no file yet: it is refused before any fit
-runs (`PULSE_MODEL_SAVE_INVALID` reason `sem_unsupported`).
+warning (format: `.claude/reference/byte-layout.md`, "Population file"). A SEM fit's `save` writes a SEM fit file (`sem_format_version` 1; the
+path must end `.pulse-sem.json`, else `PULSE_MODEL_SAVE_INVALID` reason
+`suffix`): the model description and options, member labels, the
+model's variable orders, the solver stop and per group its level,
+counts and parameter matrices at full precision, written atomically
+under the fit's name with the same overwrite warning (format:
+`.claude/reference/byte-layout.md`, "SEM fit file").
 
 ### Loading models (`models`)
 
@@ -1341,7 +1346,11 @@ runs (`PULSE_MODEL_SAVE_INVALID` reason `sem_unsupported`).
 `ModelRef {name, path}`: each loads a model file a `save` wrote, under
 `name`, into the namespace a Compose `fits` list binds, so
 `ATTR_REG_PREDICT` `fit` and `coef()` resolve a loaded name exactly like
-a fit (bit-for-bit the same scores). Every file is read, version-checked
+a fit (bit-for-bit the same scores). The path's suffix picks the kind: a
+`.pulse-sem.json` path loads a SEM fit file as a SEM fit, which
+`ATTR_SEM_SCORE` `params.fit` scores from bit-for-bit like the
+in-compose fit that saved it (a file whose model does not rebuild its
+stored variable orders is `PULSE_MODEL_FILE_INVALID`). Every file is read, version-checked
 and decoded before any record is read — in a Compose batch or a chain,
 before any fit, slot or stage runs, so a load always sees the file as it
 was before the run. Refusals, predict and runtime alike:

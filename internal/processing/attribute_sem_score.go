@@ -88,18 +88,13 @@ type semScoreFit struct {
 // model re-specified from its description and options (one model for
 // every group — a group's own model differs only in the fixed values
 // and labels its matrices already hold) and each group's stored
-// matrices. A model that does not reproduce the fit's variable orders
-// is PROCESSING_INTERNAL: the matrices would be read misaligned.
+// matrices (vectors.RebuildSEMModel). A model that does not reproduce
+// the fit's variable orders is PROCESSING_INTERNAL: the matrices would
+// be read misaligned (a loaded SEM fit file passed the same rebuild at
+// load — model.CheckLoadedSEM — so it is the file's refusal there).
+// Bound and loaded fits score through this one path.
 func semScoreFitFromBound(sf *model.SEMFit) (*semScoreFit, error) {
-	opt := sem.ModelOptions{MeanStructure: sf.MeanStructure, GroupEqual: sf.GroupEqual, GroupPartial: sf.GroupPartial, Lavaan: sf.Lavaan}
-	newModel := sem.NewModelWithOptions
-	if sf.Grouped() {
-		newModel = sem.NewGroupModel
-	}
-	m, err := newModel(sf.Model, opt)
-	if err == nil && (!slices.Equal(m.Observed, sf.Observed) || !slices.Equal(m.Inner, sf.Inner)) {
-		err = fmt.Errorf("its model specifies observed %v and inner %v, the fit stores %v and %v", m.Observed, m.Inner, sf.Observed, sf.Inner)
-	}
+	m, err := vectors.RebuildSEMModel(sf)
 	if err != nil {
 		return nil, errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 			fmt.Sprintf("bound SEM fit %q cannot be rebuilt: %v", sf.Name, err),

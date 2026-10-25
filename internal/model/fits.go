@@ -97,7 +97,7 @@ func FitKindOf(req *types.Request) types.FitKind {
 //     state (VectorSourceRefusal)              — PULSE_FIT_INVALID vector_source
 //   - an invalid `save` path (CheckSavePath on a regression fit's own
 //     and its regression's, CheckPopulationSavePath on a vector
-//     fit's)                                   — PULSE_MODEL_SAVE_INVALID
+//     fit's, CheckSEMSavePath on a SEM fit's)  — PULSE_MODEL_SAVE_INVALID
 //   - a name an earlier entry already binds    — PULSE_MODEL_NAME_COLLISION
 //
 // A vector battery is a Matrices spec or a VectorFitAttributeTypes
@@ -141,7 +141,7 @@ func CheckFits(fits []types.FitSpec) error {
 		cerr := (*errors.CodedError)(nil)
 		if IsSEMFitRequest(f.Request) {
 			if f.Save != "" {
-				cerr = semSaveUnsupported(f.Save)
+				cerr = CheckSEMSavePath(f.Save)
 			}
 		} else if nV == 1 {
 			if what, extra := VectorSourceRefusal(f.Request); what != "" {
@@ -211,19 +211,6 @@ func VectorSourceRefusal(req *types.Request) (string, map[string]any) {
 			map[string]any{"type": string(spec.Type), "param": "reverse"}
 	}
 	return "", nil
-}
-
-// ReasonSaveSEMUnsupported is the PULSE_MODEL_SAVE_INVALID reason of a
-// `save` on a SEM fit, which writes no file yet.
-const ReasonSaveSEMUnsupported = "sem_unsupported"
-
-// semSaveUnsupported refuses a SEM fit's `save` (PULSE_MODEL_SAVE_INVALID
-// reason sem_unsupported): a SEM fit has no file format yet, and a save
-// that wrote nothing would be silent.
-func semSaveUnsupported(p string) *errors.CodedError {
-	return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_SAVE_INVALID,
-		fmt.Sprintf("save path %q: a SEM fit (a MAT_SEM fit request) writes no saved-fit file; drop save", p),
-		map[string]any{"path": p, "reason": ReasonSaveSEMUnsupported})
 }
 
 func fitInvalid(i int, name, reason, what string, extra map[string]any) error {
