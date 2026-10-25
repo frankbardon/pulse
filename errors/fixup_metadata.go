@@ -4484,11 +4484,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OPTIMIZE_INVALID: {
-		Message: "The optimize package refused the problem before solving it (or when a callback returned a gradient of the wrong length): the start is empty or not finite, a callback is nil, a bound slice is not one entry per variable, a lower bound is above its upper, the accuracy is negative or not finite, the iteration cap is negative, a constraint has no type, or there are more equality constraints than variables. Details carry `reason` (`nil_callback`, `empty_x0`, `bounds_length`, `bounds_crossed`, `acc`, `max_iter`, `non_finite_x0`, `constraint_type`, `too_many_equalities`, `gradient_length`) and, where they apply, `index`, `constraint`, `want` and `got`.",
+		Message: "The optimize package refused the problem before solving it (or when a callback returned a result of the wrong shape): the start is empty or not finite, a callback is nil, a bound slice is not one entry per variable, a lower bound is above its upper, a tolerance (Acc, CostTol, StepTol) is negative or not finite, the iteration cap is negative, a constraint has no type, there are more equality constraints than variables, or (LeastSquares) the residual is empty, changes length or is not finite at the start, or the Jacobian has the wrong shape or is not finite at the start. Details carry `reason` (`nil_callback`, `empty_x0`, `bounds_length`, `bounds_crossed`, `acc`, `cost_tol`, `step_tol`, `max_iter`, `non_finite_x0`, `constraint_type`, `too_many_equalities`, `gradient_length`, `empty_residual`, `residual_length`, `jacobian_shape`, `non_finite_start`, `non_finite_jacobian`) and, where they apply, `index`, `constraint`, `row`, `want` and `got`.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Fix the field named by details.reason: give every variable a finite start, size Lower / Upper to one entry per variable (or nil), keep each lower bound at or below its upper, and set every constraint's Type to Eq or Ineq.",
+				Hint:   "Fix the field named by details.reason: give every variable a finite start, size Lower / Upper to one entry per variable (or nil), keep each lower bound at or below its upper, set every constraint's Type to Eq or Ineq, and return a fixed-length residual and an m×n Jacobian that are finite at the start.",
 			},
 			{
 				Action: FixupRemoveParam,
@@ -4497,11 +4497,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_OPTIMIZE_NOT_CONVERGED: {
-		Message: "The optimize solver stopped before its convergence test passed — the iteration limit, a positive directional derivative in the line search, or a singular or rank-deficient subproblem — at a point that still meets the constraints. The final iterate is returned with the error. Details carry `status` (the solver's exit mode), `message`, `iterations` and `max_violation`.",
+		Message: "The optimize solver stopped before its convergence test passed — the iteration limit, a positive directional derivative in the line search, or a singular or rank-deficient subproblem — at a point that still meets the constraints. The final iterate is returned with the error. Details carry `status` (the solver's exit mode), `message`, `iterations` and `max_violation` (Minimize) or `cost` (LeastSquares, whose only short stop is the iteration limit, status 4).",
 		Fixups: []Fixup{
 			{
 				Action: FixupSetDefault,
-				Hint:   "Raise MaxIter, or loosen Acc toward its 1e-6 default, when details.status is the iteration limit (9).",
+				Hint:   "Raise MaxIter, or loosen Acc toward its 1e-6 default, when details.status is the iteration limit (9 from Minimize, 4 from LeastSquares).",
 			},
 			{
 				Action: FixupReplaceField,

@@ -306,8 +306,15 @@ var (
 	_                                           = descriptor.OntologyNode{Kind: descriptor.OntologyNodeSkill}
 )
 
-// Optimization core: SLSQP over bounds and Eq / Ineq constraints.
+// Optimization core: bounded Levenberg–Marquardt least squares, and
+// SLSQP over bounds and Eq / Ineq constraints.
 var (
+	_ func(func([]float64) []float64, func([]float64) [][]float64, []float64, []float64, []float64, optimize.LeastSquaresOptions) (*optimize.LeastSquaresResult, error) = optimize.LeastSquares
+	_                                                                                                                                                                   = optimize.LeastSquaresOptions{MaxIter: 2000, CostTol: 1e-13, StepTol: 1e-10}
+	_                                                                                                                                                                   = optimize.LeastSquaresResult{X: []float64{}, Cost: 0, JTJ: (*linalg.Sym)(nil), Active: []optimize.ActiveBound{},
+		Status: optimize.LSConvergedCost, Iterations: 0, FuncEvals: 0, JacEvals: 0}
+	_                                                                                                                                 = []optimize.LeastSquaresStatus{optimize.LSConvergedStep, optimize.LSConvergedDamping, optimize.LSIterLimit}
+	_ func(optimize.LeastSquaresStatus) bool                                                                                          = optimize.LeastSquaresStatus.Converged
 	_ func(func([]float64) float64, func([]float64) []float64, []float64, optimize.MinimizeOptions) (*optimize.MinimizeResult, error) = optimize.Minimize
 	_                                                                                                                                 = optimize.MinimizeOptions{Lower: []float64{}, Upper: []float64{}, Acc: 1e-6, MaxIter: 100,
 		Constraints: []optimize.Constraint{{Type: optimize.Eq}, {Type: optimize.Ineq}}}

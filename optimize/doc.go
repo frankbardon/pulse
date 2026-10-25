@@ -1,6 +1,13 @@
 // Package optimize is Pulse's public numerical-optimization core: solvers
 // an embedder (and Pulse's own estimators) call with plain Go callbacks.
 //
+// LeastSquares is bounded Levenberg–Marquardt nonlinear least squares:
+// residual and Jacobian callbacks, per-parameter bounds held by
+// projection (a step that crosses a bound lands exactly on it, so a
+// coefficient bounded at 0 can be exactly 0), damped normal equations
+// solved through linalg.SolveSPD, and JᵀJ at the solution for the
+// Gauss–Newton covariance.
+//
 // Minimize is SLSQP — Kraft's Sequential Least Squares Programming, a
 // statement-by-statement port of SciPy 1.18.1's C source (BSD-3-Clause;
 // SCIPY_LICENSE.txt travels with the code) — for a smooth objective
@@ -21,6 +28,6 @@
 //
 // Bad input is a PULSE_OPTIMIZE_INVALID *errors.CodedError and no
 // result. A run that stops short returns its final iterate together with
-// PULSE_OPTIMIZE_NOT_CONVERGED or PULSE_OPTIMIZE_INFEASIBLE; the solver
-// itself never panics.
+// PULSE_OPTIMIZE_NOT_CONVERGED or (Minimize) PULSE_OPTIMIZE_INFEASIBLE;
+// the solvers themselves never panic.
 package optimize

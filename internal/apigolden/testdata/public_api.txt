@@ -3872,6 +3872,27 @@ pulse/optimize: type ConstraintType int
 pulse/optimize: type ConstraintType method (ConstraintType) String() string
 pulse/optimize: const Eq pulse/optimize.ConstraintType = 1
 pulse/optimize: const Ineq pulse/optimize.ConstraintType = 2
+pulse/optimize: const LSConvergedCost pulse/optimize.LeastSquaresStatus = 1
+pulse/optimize: const LSConvergedDamping pulse/optimize.LeastSquaresStatus = 3
+pulse/optimize: const LSConvergedStep pulse/optimize.LeastSquaresStatus = 2
+pulse/optimize: const LSIterLimit pulse/optimize.LeastSquaresStatus = 4
+pulse/optimize: func LeastSquares(residual func(x []float64) []float64, jacobian func(x []float64) [][]float64, x0 []float64, lower []float64, upper []float64, opts pulse/optimize.LeastSquaresOptions) (res *pulse/optimize.LeastSquaresResult, err error)
+pulse/optimize: type LeastSquaresOptions struct
+pulse/optimize: type LeastSquaresOptions field CostTol float64
+pulse/optimize: type LeastSquaresOptions field MaxIter int
+pulse/optimize: type LeastSquaresOptions field StepTol float64
+pulse/optimize: type LeastSquaresResult struct
+pulse/optimize: type LeastSquaresResult field Active []pulse/optimize.ActiveBound
+pulse/optimize: type LeastSquaresResult field Cost float64
+pulse/optimize: type LeastSquaresResult field FuncEvals int
+pulse/optimize: type LeastSquaresResult field Iterations int
+pulse/optimize: type LeastSquaresResult field JTJ *pulse/linalg.Sym
+pulse/optimize: type LeastSquaresResult field JacEvals int
+pulse/optimize: type LeastSquaresResult field Status pulse/optimize.LeastSquaresStatus
+pulse/optimize: type LeastSquaresResult field X []float64
+pulse/optimize: type LeastSquaresStatus int
+pulse/optimize: type LeastSquaresStatus method (LeastSquaresStatus) Converged() bool
+pulse/optimize: type LeastSquaresStatus method (LeastSquaresStatus) String() string
 pulse/optimize: func Minimize(f func(x []float64) float64, grad func(x []float64) []float64, x0 []float64, opts pulse/optimize.MinimizeOptions) (res *pulse/optimize.MinimizeResult, err error)
 pulse/optimize: type MinimizeOptions struct
 pulse/optimize: type MinimizeOptions field Acc float64
@@ -5954,4 +5975,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: ebc534df10c72feb980fdbe3aa518c779b1552cc1b37fa2d5c3ecd2c580aac2a
+// golden-hash: 83c3067c204da815cd07a6571062d934c620c845f0c360cbb445a46fd3c710fb
