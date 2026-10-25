@@ -93,9 +93,10 @@ func TestHiddenSlotKeys_Rules(t *testing.T) {
 		{"compose fits enabled", scopedOnly(featCompose, featComposeFits, featComposeSweep, featMultiplicity, "OVERLAY_RANK"), &types.ComposedRequest{}, []string{"banner", "params"}},
 		{"compose banner enabled", scopedOnly(featCompose, featCrosstab, featComposeBanner, featComposeFits, featComposeSweep, featMultiplicity, "OVERLAY_RANK"), &types.ComposedRequest{}, []string{"params"}},
 		{"compose ranking hidden", scopedOnly(featCompose), &types.ComposedResponse{}, []string{"banner", "fits", "overlays", "ranking", "sweep_seed"}},
-		{"compose ranking enabled", scopedOnly(featCompose, featComposeSweep), &types.ComposedResponse{}, []string{"banner", "fits", "overlays"}},
-		{"compose fits result enabled", scopedOnly(featCompose, featComposeSweep, featComposeFits, "OVERLAY_RANK"), &types.ComposedResponse{}, []string{"banner"}},
-		{"compose banner result enabled", scopedOnly(featCompose, featCrosstab, featComposeBanner, featComposeSweep, featComposeFits, "OVERLAY_RANK"), &types.ComposedResponse{}, nil},
+		{"compose ranking enabled", scopedOnly(featCompose, featComposeSweep), &types.ComposedResponse{}, []string{"banner", "fits", "overlays", "sweep_seed"}},
+		{"compose sweep seed enabled", scopedOnly(featCompose, featComposeSweep, featSweepSampling), &types.ComposedResponse{}, []string{"banner", "fits", "overlays"}},
+		{"compose fits result enabled", scopedOnly(featCompose, featComposeSweep, featSweepSampling, featComposeFits, "OVERLAY_RANK"), &types.ComposedResponse{}, []string{"banner"}},
+		{"compose banner result enabled", scopedOnly(featCompose, featCrosstab, featComposeBanner, featComposeSweep, featSweepSampling, featComposeFits, "OVERLAY_RANK"), &types.ComposedResponse{}, nil},
 		// The overlay results ride the same gate as the request slot
 		// that produces them, on every result root.
 		{"response overlays hidden", scopedOnly(featProcess), &types.Response{}, []string{"matrices", "overlays"}},
@@ -104,7 +105,7 @@ func TestHiddenSlotKeys_Rules(t *testing.T) {
 		{"response overlay kind without its host", scopedOnly(featProcess, featCompose, "OVERLAY_SHARE_OF_ROW"), &types.Response{}, []string{"matrices", "overlays"}},
 		{"response overlays via matrix result", scopedOnly(featProcess, featMatrices, "OVERLAY_MATRIX_GROUP_SUMMARY"), &types.Response{}, nil},
 		{"request overlays via matrix result", scopedOnly(featProcess, featMatrices, "OVERLAY_MATRIX_GROUP_SUMMARY"), &types.Request{}, []string{"crosstab", "joins", "models", "multiplicity", "params", "populations", "weight"}},
-		{"compose overlays result hidden", scopedOnly(featCompose, featComposeSweep, featComposeFits, featCrosstab, "OVERLAY_SHARE_OF_ROW"), &types.ComposedResponse{}, []string{"banner", "overlays"}},
+		{"compose overlays result hidden", scopedOnly(featCompose, featComposeSweep, featSweepSampling, featComposeFits, featCrosstab, "OVERLAY_SHARE_OF_ROW"), &types.ComposedResponse{}, []string{"banner", "overlays"}},
 		{"chain overlays result", scopedOnly(featProcessChain, "OVERLAY_DELTA_VS_STAGE"), &types.ChainResponse{}, nil},
 		{"chain overlays result hidden", scopedOnly(featProcessChain, featCrosstab, "OVERLAY_SHARE_OF_ROW"), &types.ChainResponse{}, []string{"overlays"}},
 		{"facet overlays result", scopedOnly(featFacet, "OVERLAY_INDEX_VS_POP"), &types.FacetResult{}, nil},

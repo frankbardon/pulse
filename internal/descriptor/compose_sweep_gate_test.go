@@ -118,3 +118,138 @@ func TestErrorOwners_SweepCodes(t *testing.T) {
 		}
 	}
 }
+
+// TestSweepRandom_SamplingHiddenRefusal: an instance offering the sweep
+// but not capability:compose_sweep_sampling refuses a set `samples` /
+// `rng_seed` as unknown keys at the sweep, an axis `range` as an
+// unknown key at that axis, and a random / lhs mode as an unknown mode
+// whose `valid` names grid and zip only; grid / zip pass, and the
+// enabled instance refuses nothing.
+func TestSweepRandom_SamplingHiddenRefusal(t *testing.T) {
+	lo, hi := 0.0, 1.0
+	sampled := func(edit func(*types.SweepSpec)) *types.ComposedRequest {
+		spec := &types.SweepSpec{
+			Mode: types.SweepModeLHS, Samples: 4, RNGSeed: 7,
+			Axes:    []types.SweepAxis{{Name: "k", Range: &types.SweepRange{Min: &lo, Max: &hi}}},
+			Request: json.RawMessage(`{}`),
+		}
+		if edit != nil {
+			edit(spec)
+		}
+		return &types.ComposedRequest{Requests: []*types.Request{{}}, Sweep: spec}
+	}
+	hidden := scopedOnly(featCompose, featComposeSweep)
+	enabled := scopedOnly(featCompose, featComposeSweep, featSweepSampling)
+
+	ce := asCoded(t, SlotRefusal(sampled(nil), hidden))
+	if ce.Code != errors.PULSE_REQUEST_UNKNOWN_FIELD || ce.Details["path"] != "sweep.rng_seed" ||
+		!reflect.DeepEqual(ce.Details["unknown_keys"], []string{"rng_seed", "samples"}) {
+		t.Fatalf("samples + rng_seed: got %s %v", ce.Code, ce.Details)
+	}
+	for _, k := range ce.Details["valid_keys"].([]string) {
+		if k == "samples" || k == "rng_seed" {
+			t.Errorf("valid_keys names a hidden key: %v", ce.Details["valid_keys"])
+		}
+	}
+	ce = asCoded(t, SlotRefusal(sampled(func(s *types.SweepSpec) { s.Samples, s.RNGSeed = 0, 0 }), hidden))
+	if ce.Code != errors.PULSE_REQUEST_UNKNOWN_FIELD || ce.Details["path"] != "sweep.axes[0].range" {
+		t.Fatalf("range: got %s %v", ce.Code, ce.Details)
+	}
+	for _, mode := range []types.SweepMode{types.SweepModeRandom, types.SweepModeLHS, "spiral"} {
+		req := sampled(func(s *types.SweepSpec) {
+			s.Mode, s.Samples, s.RNGSeed = mode, 0, 0
+			s.Axes = []types.SweepAxis{{Name: "k", Values: []any{1}}}
+		})
+		ce = asCoded(t, SlotRefusal(req, hidden))
+		if ce.Code != errors.PULSE_SWEEP_INVALID || ce.Details["reason"] != "mode_unknown" ||
+			!reflect.DeepEqual(ce.Details["valid"], []string{"grid", "zip"}) {
+			t.Fatalf("mode %s: got %s %v", mode, ce.Code, ce.Details)
+		}
+	}
+	for _, mode := range []types.SweepMode{"", types.SweepModeGrid, types.SweepModeZip} {
+		req := sampled(func(s *types.SweepSpec) {
+			s.Mode, s.Samples, s.RNGSeed = mode, 0, 0
+			s.Axes = []types.SweepAxis{{Name: "k", Values: []any{1}}}
+		})
+		if err := SlotRefusal(req, hidden); err != nil {
+			t.Errorf("mode %q refused on the hiding instance: %v", mode, err)
+		}
+	}
+	if err := SlotRefusal(sampled(nil), enabled); err != nil {
+		t.Errorf("enabled instance refuses: %v", err)
+	}
+}
+
+// TestSweepRandom_SamplingHiddenSchema: the payload schema of an
+// instance hiding capability:compose_sweep_sampling keeps the sweep but
+// offers grid / zip only, with no `samples`, `rng_seed`, axis `range`,
+// SweepRange def or `sweep_seed` echo; the full registry and the
+// enabled instance carry them all. An item for_each's mode is grid /
+// zip and its axes carry values, never a range, on every instance.
+func TestSweepRandom_SamplingHiddenSchema(t *testing.T) {
+	type def struct {
+		Properties map[string]any `json:"properties"`
+		Enum       []string       `json:"enum"`
+	}
+	for _, c := range []struct {
+		name string
+		inst *InstanceSnapshot
+		want bool
+	}{
+		{"full registry", nil, true},
+		{"enabled", scopedOnly(featCompose, featComposeSweep, featSweepSampling), true},
+		{"hidden", scopedOnly(featCompose, featComposeSweep, featForEach, "ATTR_FORMULA"), false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			b, err := PayloadSchemaForInstance(c.inst)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var doc struct {
+				Defs map[string]def `json:"$defs"`
+			}
+			if err := json.Unmarshal(b, &doc); err != nil {
+				t.Fatal(err)
+			}
+			modes := []string{"grid", "zip"}
+			if c.want {
+				modes = []string{"grid", "lhs", "random", "zip"}
+			}
+			if got := doc.Defs["SweepMode"].Enum; !reflect.DeepEqual(got, modes) {
+				t.Errorf("SweepMode enum %v, want %v", got, modes)
+			}
+			_, samples := doc.Defs["SweepSpec"].Properties["samples"]
+			_, seed := doc.Defs["SweepSpec"].Properties["rng_seed"]
+			_, rng := doc.Defs["SweepAxis"].Properties["range"]
+			_, rangeDef := doc.Defs["SweepRange"]
+			_, echo := doc.Defs["ComposedResponse"].Properties["sweep_seed"]
+			if samples != c.want || seed != c.want || rng != c.want || rangeDef != c.want || echo != c.want {
+				t.Errorf("samples %v rng_seed %v range %v SweepRange %v sweep_seed %v; want all %v", samples, seed, rng, rangeDef, echo, c.want)
+			}
+			if fe, ok := doc.Defs["ForEach"]; ok {
+				mode, _ := fe.Properties["mode"].(map[string]any)
+				if got := mode["enum"]; !reflect.DeepEqual(got, []any{"grid", "zip"}) {
+					t.Errorf("ForEach mode enum %v, want [grid zip]", got)
+				}
+				axes, _ := fe.Properties["axes"].(map[string]any)
+				items, _ := axes["items"].(map[string]any)
+				props, _ := items["properties"].(map[string]any)
+				if _, rng := props["range"]; rng || props["values"] == nil {
+					t.Errorf("ForEach axis items %v, want values and no range", items)
+				}
+			} else if c.name != "enabled" {
+				t.Errorf("no ForEach def")
+			}
+		})
+	}
+}
+
+// TestErrorOwners_SweepSamplingCodes: the codes only a sampled sweep
+// reaches ride capability:compose_sweep_sampling.
+func TestErrorOwners_SweepSamplingCodes(t *testing.T) {
+	for _, c := range []errors.Code{errors.PULSE_SWEEP_MODE_MISMATCH, errors.PULSE_SWEEP_RANGE_INVALID, errors.PULSE_SWEEP_SAMPLES_INVALID} {
+		if !reflect.DeepEqual(errorOwners[c], []string{featSweepSampling}) {
+			t.Errorf("%s owners %v", c, errorOwners[c])
+		}
+	}
+}

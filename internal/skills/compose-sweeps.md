@@ -34,6 +34,9 @@ A **sweep** is one request body plus axes of values. Before any slot runs, Pulse
 
 - An axis is a unique identifier `name` plus a non-empty list of scalar `values` (string, number, boolean). Numbers keep the digits as written.
 - `mode` `grid` (default) is the Cartesian product, first axis slowest: 2 x 3 values => 6 slots. `zip` walks the axes in lockstep and every axis must be the same length: 3 + 3 values => 3 slots.
+<!-- feature: capability:compose_sweep_sampling -->
+- `random` / `lhs` draw `samples` seeded slots from continuous axis ranges instead (`compose-sweep-sampling`).
+<!-- /feature -->
 
 ## Placeholders
 
@@ -78,4 +81,4 @@ Rank one-step fits on held-out error: an adstock window with `decay` `{"$var": "
 
 ## See
 
-`compose-requests` (slots, labels, overlay fold, parallel) · `overlay-system` (overlay hosts)<!-- feature: capability:for_each --> · `item-fan-out` (the same axes on ONE window / feature / attribute item; refused inside a sweep body)<!-- /feature --><!-- feature: capability:templates --> · `request-templating` (the stored-template surface this is not)<!-- /feature -->.
+`compose-requests` (slots, labels, overlay fold, parallel)<!-- feature: capability:compose_sweep_sampling --> · `compose-sweep-sampling` (random / lhs)<!-- /feature --> · `overlay-system` (overlay hosts)<!-- feature: capability:for_each --> · `item-fan-out` (the same axes on ONE window / feature / attribute item; refused inside a sweep body)<!-- /feature --><!-- feature: capability:templates --> · `request-templating` (the stored-template surface this is not)<!-- /feature -->.

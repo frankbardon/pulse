@@ -66,6 +66,17 @@ spec's wire form with `rng_seed` excluded. The effective seed is echoed
 as `ComposedResponse.SweepSeed` (`sweep_seed`) and on predict's summary
 as `rng_seed`; pin it to replay a zero-seed run.
 
+A zero seed derives from the spec alone, never from the data: the same
+request draws the same sample points whatever cohort it runs on. Set an
+explicit `rng_seed` to draw a different set.
+
+The sampling modes are gated by `capability:compose_sweep_sampling`
+(which needs `capability:compose_sweep`). An instance that hides it
+refuses `samples`, `rng_seed` or an axis `range` as
+`PULSE_REQUEST_UNKNOWN_FIELD`, and `random` / `lhs` as an unknown mode
+(`PULSE_SWEEP_INVALID`, reason `mode_unknown`, `valid` grid / zip), the
+same way predict does.
+
 An axis never mixes the two styles: a `range` under `grid` / `zip`, a
 `values` list under `random` / `lhs`, or `samples` / `rng_seed` under
 `grid` / `zip` is `PULSE_SWEEP_MODE_MISMATCH`. A bad range (missing

@@ -257,7 +257,15 @@ func enumValues(inst *InstanceSnapshot) map[reflect.Type][]string {
 	// The sweep modes, range scales and rank orders: closed vocabularies (a hidden
 	// capability:compose_sweep drops the `sweep` slot, and SweepSpec /
 	// SweepRank with it).
-	m[reflect.TypeFor[types.SweepMode]()] = stringify(types.AllSweepModes())
+	// The sampling modes (random / lhs) ride
+	// capability:compose_sweep_sampling: an instance hiding it offers
+	// grid and zip only (the request-slot gate refuses the others as an
+	// unknown mode).
+	modes := types.AllSweepModes()
+	if !inst.Enabled(featSweepSampling) {
+		modes = enumerationSweepModes
+	}
+	m[reflect.TypeFor[types.SweepMode]()] = stringify(modes)
 	m[reflect.TypeFor[types.SweepScale]()] = stringify(types.AllSweepScales())
 	m[reflect.TypeFor[types.SweepRankOrder]()] = stringify(types.AllSweepRankOrders())
 	// The regression covariance estimators: a closed vocabulary on the
@@ -481,6 +489,23 @@ type fieldKey struct {
 	name string
 }
 
+// enumerationSweepModes are the sweep modes that walk explicit axis
+// values (grid, zip) — every mode an item for_each takes, and every mode
+// a compose sweep takes on an instance hiding the sampling modes.
+var enumerationSweepModes = []types.SweepMode{types.SweepModeGrid, types.SweepModeZip}
+
+// axisValuesSchema is a sweep / for_each axis's `values`: a non-empty
+// list of JSON scalars, in expansion order (a sampled sweep axis carries
+// a range instead).
+func axisValuesSchema() map[string]any {
+	return map[string]any{
+		"type":        "array",
+		"minItems":    1,
+		"items":       map[string]any{"type": []any{"number", "string", "boolean"}},
+		"description": "The scalar values the axis takes, in expansion order.",
+	}
+}
+
 // fieldOverrides replaces the reflected schema of a json.RawMessage
 // field that is not operator params (the generic RawMessage rule
 // describes params). A recommend draft is a request object whose
@@ -510,11 +535,28 @@ var fieldOverrides = map[fieldKey]any{
 		"items":       map[string]any{"type": "object"},
 		"description": "Compose overlay specs (the #/$defs/ComposeOverlaySpec shape) with axis placeholders, substituted per expanded slot and appended to the request's own overlays.",
 	},
-	{reflect.TypeFor[types.SweepAxis](), "values"}: map[string]any{
-		"type":        "array",
-		"minItems":    1,
-		"items":       map[string]any{"type": []any{"number", "string", "boolean"}},
-		"description": "The scalar values the axis takes, in expansion order (modes grid / zip; a random / lhs axis carries a range instead).",
+	// An item for_each walks explicit values only: its mode is grid or
+	// zip whatever the instance (the sampling modes are compose-sweep
+	// only, refused as mode_unknown).
+	{reflect.TypeFor[types.ForEach](), "mode"}: map[string]any{
+		"type":        "string",
+		"enum":        stringify(enumerationSweepModes),
+		"description": "How the axes combine: grid (the default; the Cartesian product, first axis slowest) or zip (the axes in lockstep, equal lengths).",
+	},
+	{reflect.TypeFor[types.SweepAxis](), "values"}: axisValuesSchema(),
+	// ...and its axes carry values, never a sampled range.
+	{reflect.TypeFor[types.ForEach](), "axes"}: map[string]any{
+		"type":     "array",
+		"minItems": 1,
+		"items": map[string]any{
+			"type":                 "object",
+			"additionalProperties": false,
+			"properties": map[string]any{
+				"name":   map[string]any{"type": "string"},
+				"values": axisValuesSchema(),
+			},
+			"required": []string{"name", "values"},
+		},
 	},
 	{reflect.TypeFor[descriptor.Recommendation](), "request"}: map[string]any{
 		"type":        "object",

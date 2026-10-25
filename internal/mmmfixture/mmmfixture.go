@@ -5,7 +5,8 @@
 // WIN_DISTRIBUTED_LAG windows with decay {"$var":"decay"}, a post-window hill()
 // saturation per channel, a REG_OLS with bounds.nonnegative on the
 // saturated channels plus the controls and a holdout predicate, swept
-// over decay 0.0..0.9 and ranked by the fit's holdout RMSE.
+// over decay 0.0..0.9 and ranked by the fit's holdout RMSE — plus its
+// seeded lhs twin, drawing the decay from a continuous range.
 //
 // The root, CLI and MCP acceptance tests all build the cohort and read
 // the request from here, so every surface runs the same bytes.
@@ -46,6 +47,21 @@ var DecaySweep []byte
 //
 //go:embed testdata/decay_sweep_split.json
 var DecaySweepSplit []byte
+
+// DecayLHSSweep is the sampled variant of DecaySweep: an `lhs` sweep
+// of LHSSamples slots drawing decay from [0, 0.95] (the seed derived
+// from the spec), ranked by regressions.mmm.holdout.rmse. Its slots
+// carry the default sampled labels (sample=<i>_decay=<value>).
+//
+//go:embed testdata/decay_lhs_sweep.json
+var DecayLHSSweep []byte
+
+// LHSSamples is DecayLHSSweep's `samples`; TrueDecay is the decay the
+// fixture's sales carry (Rows), which a ranked sweep should find.
+const (
+	LHSSamples = 20
+	TrueDecay  = 0.5
+)
 
 // Decays are the swept decay values, in slot order, as the request
 // writes them (the default slot labels are decay_<value>).
@@ -93,7 +109,7 @@ func Rows() [][]any {
 		{50, 30, 2, 100, 90},    // search
 		{80, 60, 5, 160, 70},    // social
 	}
-	const trueDecay = 0.5
+	const trueDecay = TrueDecay
 	var rows [][]any
 	for mi, m := range Markets {
 		ad := make([]float64, len(chans))

@@ -70,19 +70,20 @@ func TestFeatureDependenciesResolve(t *testing.T) {
 
 	requestHosts := []string{"capability:process", "capability:compose", "capability:process_chain"}
 	expect := map[string][][]string{
-		"AGG_SUM":                   {requestHosts},
-		"TEST_TUKEY_HSD":            {requestHosts}, // no TUKEY → ANOVA edge: the pairing is advice
-		"capability:joins":          {requestHosts},
-		"capability:crosstab":       {requestHosts},
-		"capability:weighting":      {requestHosts},
-		"capability:for_each":       {requestHosts}, // an item fan-out rides any request host
-		"capability:multiplicity":   nil,            // every block is a request slot, but Facet overlays carry one too: no host group
-		"capability:stream":         {{"capability:process"}},
-		"capability:watch":          {{"capability:process"}},
-		"capability:filter_to_file": {{"capability:process"}, {"FILTER_EXPRESSION"}},
-		"capability:materialize":    {{"capability:process"}},  // runs Process's pre-flight and record pipeline
-		"capability:compose_sweep":  {{"capability:compose"}},  // a sweep expands into Compose slots
-		"capability:crosstab_cells": {{"capability:crosstab"}}, // the measures are a crosstab's cells
+		"AGG_SUM":                           {requestHosts},
+		"TEST_TUKEY_HSD":                    {requestHosts}, // no TUKEY → ANOVA edge: the pairing is advice
+		"capability:joins":                  {requestHosts},
+		"capability:crosstab":               {requestHosts},
+		"capability:weighting":              {requestHosts},
+		"capability:for_each":               {requestHosts}, // an item fan-out rides any request host
+		"capability:multiplicity":           nil,            // every block is a request slot, but Facet overlays carry one too: no host group
+		"capability:stream":                 {{"capability:process"}},
+		"capability:watch":                  {{"capability:process"}},
+		"capability:filter_to_file":         {{"capability:process"}, {"FILTER_EXPRESSION"}},
+		"capability:materialize":            {{"capability:process"}},       // runs Process's pre-flight and record pipeline
+		"capability:compose_sweep":          {{"capability:compose"}},       // a sweep expands into Compose slots
+		"capability:compose_sweep_sampling": {{"capability:compose_sweep"}}, // a sampling mode is a sweep mode
+		"capability:crosstab_cells":         {{"capability:crosstab"}},      // the measures are a crosstab's cells
 		// fits run before Compose slots, and a fit is one regression
 		"capability:compose_fits": {{"capability:compose"}, {"ATTR_FACTOR_SCORE", "ATTR_MAHALANOBIS", "ATTR_PC_SCORE", "REG_BAYES_LINEAR", "REG_GLM", "REG_OLS", "capability:matrices"}},
 		// a save writes a fitted regression, from any request host

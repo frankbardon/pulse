@@ -1839,7 +1839,7 @@ func buildComposeSchemaWithExtensions(c fieldClassification, inst *descx.Instanc
 				"Batch-level multiple-comparison correction, inherited by every slot request (below its own request-level block) and every Compose overlay layer that sets none of its own. Family `compose` pools every compose-family member across the slots and the Compose layers.",
 				types.AllMultiplicityFamilies(), true),
 			"return": returnSchema("Shapes the TOP-LEVEL Compose overlays only: paths root at the ComposedResponse and only `overlays…` paths are valid (each slot is shaped by its own requests[i].return). Omit to leave the overlays whole."),
-			"sweep":  sweepSchema(),
+			"sweep":  sweepSchema(inst),
 			"fits":   fitsSchema(reqSchema, inst),
 			"banner": bannerSchema(reqSchema),
 			"params": inheritedParamsSchema("slot request (sweep and banner slots included) and fit request", " A Compose-level OVERLAY_FORMULA reads them too."),
@@ -1893,15 +1893,6 @@ func forEachSchema() map[string]any {
 							"minItems":    1,
 							"description": "The scalar values the axis takes, in expansion order.",
 							"items":       map[string]any{"type": []any{"number", "string", "boolean"}},
-						},
-						"range": map[string]any{
-							"type":        "object",
-							"description": "Not allowed here: a sampled range axis (mode random / lhs) is pulse_compose sweep only; a for_each axis lists values.",
-							"properties": map[string]any{
-								"min":   map[string]any{"type": "number"},
-								"max":   map[string]any{"type": "number"},
-								"scale": enumStringField(stringSlice(types.AllSweepScales()), "Sweep only."),
-							},
 						},
 					},
 					"required": []string{"name", "values"},
@@ -1979,8 +1970,13 @@ func bannerSchema(reqSchema map[string]any) map[string]any {
 // sweepSchema describes the ComposedRequest `sweep` block (types.SweepSpec):
 // one request body with axis placeholders expanded over its axes into
 // compose slots. Dropped with the slot when capability:compose_sweep is
-// hidden (dropHiddenSlots).
-func sweepSchema() map[string]any {
+// hidden (dropHiddenSlots). An instance hiding
+// capability:compose_sweep_sampling offers the enumeration modes only:
+// no random / lhs, `samples`, `rng_seed` or axis `range`.
+func sweepSchema(inst *descx.InstanceSnapshot) map[string]any {
+	if !inst.Enabled(descx.FeatureComposeSweepSampling) {
+		return enumerationSweepSchema()
+	}
 	return map[string]any{
 		"type":        "object",
 		"description": "Parameter sweep: one request body with axis placeholders (`{{axis}}` inside a string, {\"$var\": \"axis\"} as a whole value), expanded over the axes into compose slots appended after `requests`, before any slot runs.",
@@ -2032,6 +2028,22 @@ func sweepSchema() map[string]any {
 		},
 		"required": []string{"axes", "request"},
 	}
+}
+
+// enumerationSweepSchema is sweepSchema on an instance hiding the
+// sampling modes: grid / zip over explicit axis values, the sampling
+// keys and their prose absent.
+func enumerationSweepSchema() map[string]any {
+	out := sweepSchema(nil)
+	props := out["properties"].(map[string]any)
+	delete(props, "samples")
+	delete(props, "rng_seed")
+	props["mode"] = enumStringField([]string{string(types.SweepModeGrid), string(types.SweepModeZip)},
+		"grid (default): the Cartesian product, first axis slowest; zip: the axes in lockstep (equal lengths).")
+	axis := props["axes"].(map[string]any)["items"].(map[string]any)["properties"].(map[string]any)
+	delete(axis, "range")
+	axis["values"].(map[string]any)["description"] = "The scalar values the axis takes, in expansion order."
+	return out
 }
 
 // buildSampleSchema describes the pulse_sample tool params.

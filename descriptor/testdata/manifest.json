@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:4b485f26aca49e25aff4394e346f98e2c2af975737e7ade3c12344cfb7185bdb",
+    "feature_set_digest": "fs1:0426f3a27c668caf4aacd42ef452e8c74fd22afd6f2bc7662a1251e5cf5f58a7",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -12618,6 +12618,10 @@
         "description": "ComposedRequest batch semantics — order-preserving slot-by-index dispatch, optional parallel execution, slot labels, post-slot Compose-overlay fold that decorates results without mutating per-slot Components."
       },
       {
+        "name": "compose-sweep-sampling",
+        "description": "The compose sweep's seeded sampling modes — random and lhs (Latin hypercube) draw `samples` slots from continuous axis ranges instead of listing values. When to sample rather than enumerate, the range and scale rules, how the seed is derived, echoed and replayed, the slot limit, predict and the refusals."
+      },
+      {
         "name": "compose-sweeps",
         "description": "ComposedRequest.sweep — one request body with axis placeholders expands into many ordinary Compose slots (grid or zip), with a label pattern, per-slot overlays, limit counting and predict parity."
       },
@@ -14026,7 +14030,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 257,
+    "examples_count": 258,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -19942,4 +19946,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7bc276b403864c3e6970947a48c5f578b792cbe3305b99a1aeb98980b120e5de
+// golden-hash: ce38120e2790dcce8d935e6fa3043ef016519edbbefbc4f718668735496f8d8e

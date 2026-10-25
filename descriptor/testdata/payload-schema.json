@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:4b485f26aca49e25aff4394e346f98e2c2af975737e7ade3c12344cfb7185bdb",
+  "$comment": "feature_set_digest: fs1:0426f3a27c668caf4aacd42ef452e8c74fd22afd6f2bc7662a1251e5cf5f58a7",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -2283,15 +2283,40 @@
       "properties": {
         "axes": {
           "items": {
-            "$ref": "#/$defs/SweepAxis"
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "values": {
+                "description": "The scalar values the axis takes, in expansion order.",
+                "items": {
+                  "type": [
+                    "number",
+                    "string",
+                    "boolean"
+                  ]
+                },
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "required": [
+              "name",
+              "values"
+            ],
+            "type": "object"
           },
-          "type": [
-            "array",
-            "null"
-          ]
+          "minItems": 1,
+          "type": "array"
         },
         "mode": {
-          "$ref": "#/$defs/SweepMode"
+          "description": "How the axes combine: grid (the default; the Cartesian product, first axis slowest) or zip (the axes in lockstep, equal lengths).",
+          "enum": [
+            "grid",
+            "zip"
+          ],
+          "type": "string"
         }
       },
       "required": [
@@ -5427,7 +5452,7 @@
           "$ref": "#/$defs/SweepRange"
         },
         "values": {
-          "description": "The scalar values the axis takes, in expansion order (modes grid / zip; a random / lhs axis carries a range instead).",
+          "description": "The scalar values the axis takes, in expansion order.",
           "items": {
             "type": [
               "number",
@@ -6063,4 +6088,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 4080be70b9fd208ddc53f8173ff00f218c80ca330b2d4727ff4c5392c1f331cc
+// golden-hash: b682834972dc2f305635ac8c90978c59de198e6ebb6fa129ec84e6f18e874580

@@ -205,6 +205,21 @@ type axisRules struct {
 // with the sampling modes.
 var sweepRules = axisRules{root: "sweep", noun: "sweep", code: errors.PULSE_SWEEP_INVALID, sampling: true}
 
+// EnumerationModeRefusal is the compose sweep's mode check on an
+// instance that hides the sampling modes
+// (capability:compose_sweep_sampling): any mode but grid / zip (empty
+// is grid) is PULSE_SWEEP_INVALID reason mode_unknown with `valid`
+// naming grid and zip only — exactly the refusal an unknown mode gets,
+// so a hidden mode reads as one that never existed. Nil otherwise.
+func EnumerationModeRefusal(mode types.SweepMode) *errors.CodedError {
+	rules := sweepRules
+	rules.sampling = false
+	if rules.knownMode(mode) {
+		return nil
+	}
+	return rules.modeUnknown(mode)
+}
+
 // modeName is the resolved mode's name for prose (empty is grid).
 func modeName(m types.SweepMode) string {
 	if m == "" {

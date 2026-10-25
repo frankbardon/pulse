@@ -47,6 +47,7 @@
     - [compose-banner](skills/compose-banner.md)
     - [compose-fits](skills/compose-fits.md)
     - [compose-requests](skills/compose-requests.md)
+    - [compose-sweep-sampling](skills/compose-sweep-sampling.md)
     - [compose-sweeps](skills/compose-sweeps.md)
     - [crosstab-guide](skills/crosstab-guide.md)
     - [crosstab-margin-aggregations](skills/crosstab-margin-aggregations.md)

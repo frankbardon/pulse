@@ -103,6 +103,7 @@ var (
 	featProcess       = FeatureName(FeatureKindCapability, "process")
 	featCompose       = FeatureName(FeatureKindCapability, "compose")
 	featComposeSweep  = FeatureName(FeatureKindCapability, "compose_sweep")
+	featSweepSampling = FeatureComposeSweepSampling
 	featComposeFits   = FeatureName(FeatureKindCapability, "compose_fits")
 	featComposeBanner = FeatureName(FeatureKindCapability, "compose_banner")
 	featModelSave     = FeatureModelSave
@@ -219,6 +220,13 @@ const FeatureRegressionHoldout = "capability:regression_holdout"
 // bound-model namespace. Exported for the MCP bound schema.
 const FeatureModels = "capability:models"
 
+// FeatureComposeSweepSampling is capability:compose_sweep_sampling —
+// the compose sweep's sampling modes (random / lhs) with their
+// `samples`, `rng_seed`, axis `range` and the ComposedResponse
+// `sweep_seed` echo. Exported because the MCP binder (the bound sweep
+// schema) reads it too.
+const FeatureComposeSweepSampling = "capability:compose_sweep_sampling"
+
 // FeatureWeighting is capability:weighting — the row-weight surface:
 // the request-root `weight`, every per-slot `weight`, and
 // pulse.Options.DefaultWeight (.claude/reference/weighting.md, Feature
@@ -276,6 +284,9 @@ var builtinFeatures = withDependencies([]Feature{
 	capability("params"),             // Request.Params (params.<name> in request expressions)
 	capability("recommend"),          // pulse_recommend, pulse recommend (the facade stays ungated)
 	capability("explain"),            // pulse_explain, pulse explain (the facade stays ungated)
+	// The compose sweep's seeded random / lhs modes: SweepSpec.Samples /
+	// RNGSeed, SweepAxis.Range and ComposedResponse.SweepSeed.
+	capability("compose_sweep_sampling"),
 
 	// I/O formats — io.Formats(). One name gates import AND export.
 	ioFormat("csv"),
@@ -606,6 +617,10 @@ var slotTokens = map[string]slotTokenSet{
 	// `sweep` and `ranking` are everyday English; no guidance sentence
 	// names the slot yet.
 	featComposeSweep: {},
+	// `samples`, `range` and `seed` are everyday English, `rng_seed` is
+	// MAT_SEM's and REG_RESAMPLE's key too; no guidance sentence names
+	// the `sweep_seed` echo.
+	featSweepSampling: {},
 	// `fits` is everyday English; no guidance sentence names the slot.
 	featComposeFits: {},
 	// `banner` names the slot only; no guidance sentence names it yet.
@@ -849,6 +864,9 @@ var hardEdges = map[string][]string{
 	// A sweep expands into Compose slots: without Compose there is
 	// nothing to expand into.
 	featComposeSweep: {featCompose},
+	// A sampling mode is a sweep mode: without the sweep there is
+	// nothing to draw the slots of.
+	featSweepSampling: {featComposeSweep},
 	// The measures are a crosstab's cells: without the crosstab host
 	// there is no table to fold them into.
 	featCrosstabCells: {featCrosstab},

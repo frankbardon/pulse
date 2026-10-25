@@ -354,10 +354,12 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_SWEEP_INVALID:           own(featComposeSweep),
 	errors.PULSE_SWEEP_RANK_PATH:         own(featComposeSweep),
 	errors.PULSE_SWEEP_EXPR_SPLICE:       own(featComposeSweep),
-	errors.PULSE_SWEEP_MODE_MISMATCH:     own(featComposeSweep),
-	errors.PULSE_SWEEP_RANGE_INVALID:     own(featComposeSweep),
-	errors.PULSE_SWEEP_SAMPLES_INVALID:   own(featComposeSweep),
-	errors.PULSE_BANNER_INVALID:          own(featComposeBanner),
+	// Only a sampled sweep's keys (samples, rng_seed, range) and modes
+	// reach these: hidden, the request-slot gate refuses those first.
+	errors.PULSE_SWEEP_MODE_MISMATCH:   own(featSweepSampling),
+	errors.PULSE_SWEEP_RANGE_INVALID:   own(featSweepSampling),
+	errors.PULSE_SWEEP_SAMPLES_INVALID: own(featSweepSampling),
+	errors.PULSE_BANNER_INVALID:        own(featComposeBanner),
 	// The one model namespace: Compose fits and loaded models bind it.
 	errors.PULSE_FIT_INVALID:          own(featComposeFits),
 	errors.PULSE_MODEL_NAME_COLLISION: own(featComposeFits, featModels),

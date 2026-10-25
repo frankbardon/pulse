@@ -33,6 +33,7 @@
     "capability:params",
     "capability:recommend",
     "capability:explain",
+    "capability:compose_sweep_sampling",
     "AGG_COUNT",
     "AGG_SUM",
     "AGG_AVERAGE",

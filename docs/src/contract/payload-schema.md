@@ -1202,7 +1202,13 @@ expression string is `PULSE_SWEEP_EXPR_SPLICE`), `overlays` an array of
 `SweepRank {by, order, top}` (`SweepRankOrder`: `asc`, `desc`). The slot
 is `omitempty`, so a sweep-free request is byte-identical on the wire.
 It is gated by `capability:compose_sweep`: on an instance that hides it
-the `sweep` property and the `Sweep*` defs are absent. A malformed sweep
+the `sweep` property and the `Sweep*` defs are absent. The sampling modes
+ride `capability:compose_sweep_sampling`: on an instance that hides it
+the `SweepMode` enum is `grid` / `zip`, and `samples`, `rng_seed`, the
+axis `range`, the `SweepRange` def and `ComposedResponse.sweep_seed` are
+absent. An item `for_each`'s `mode` is `grid` / `zip` and its axes carry
+`values` only, on every instance.
+A malformed sweep
 is `PULSE_SWEEP_INVALID` with `details.field` (a `sweep`-rooted path)
 and `details.reason`; a mode/axis mix-up is `PULSE_SWEEP_MODE_MISMATCH`,
 a bad range `PULSE_SWEEP_RANGE_INVALID`, a missing or sub-1 `samples`
