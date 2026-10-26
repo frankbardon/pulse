@@ -15,7 +15,7 @@ requires: [MAT_SEM, capability:sem_bootstrap]
 ## How it runs
 
 - `bootstrap_iters` replicates (default 1000). Each one draws the listwise rows with replacement and refits the model with the slot's options. Under `group`, rows are drawn WITHIN each level, so every replicate keeps each group's n.
-- `rng_seed` seeds the draws. The same rows and seed give the same figures bit for bit, at any worker or shard count. Absent (or 0), the seed is derived from the request and the slot's rows, as a regression's `resample` derives it ([`op-reg-mod-resample`](op-reg-mod-resample.md)): the same request over the same data draws the same replicates, and a changed request or data draws new ones. Pin a non-zero seed for draws that stay put.
+- `rng_seed` seeds the draws. The same rows and seed give the same figures bit for bit, at any worker or shard count. Absent (or 0), the seed is derived from the request and the slot's rows, as a regression's `resample` derives it ([`op-reg-mod-resample`](op-reg-mod-resample.md); `params` key order and spacing never move it): the same request over the same data draws the same replicates, and a changed request or data draws new ones. Pin a non-zero seed for draws that stay put.
 - The slot keeps its rows, so the request runs the buffered path (predict says so). Each replicate is a full refit: 1000 replicates cost about 1000 fits.
 - The bootstrap switches the fit to lavaan's conventions (Fisher scoring, lavaan's fit indices, `ci_lower` / `ci_upper` columns).
 

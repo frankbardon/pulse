@@ -62,7 +62,11 @@ form.
 The draws are a pure function of the spec and the seed, so predict lists
 the same slots the runtime runs and a run replays exactly. A non-zero
 `rng_seed` is used as given; `0` (or absent) derives a seed from the
-spec's wire form with `rng_seed` excluded. The effective seed is echoed
+spec's wire form with `rng_seed` excluded, its raw `request` and
+`overlays` bodies taken in canonical form (object keys sorted at every
+depth, whitespace dropped, numbers and strings kept as written), so two
+bodies differing only in key order or spacing draw identically while
+any value change draws anew. The effective seed is echoed
 as `ComposedResponse.SweepSeed` (`sweep_seed`) and on predict's summary
 as `rng_seed`; pin it to replay a zero-seed run.
 

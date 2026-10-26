@@ -41,10 +41,12 @@ type SweepSpec struct {
 	Samples int `json:"samples,omitempty"`
 
 	// RNGSeed seeds a sampling mode's draws. Zero derives the seed from
-	// the spec's wire form with rng_seed excluded (never the clock), so
-	// the same spec always draws the same slots; the effective seed is
-	// echoed as ComposedResponse.SweepSeed and predict's
-	// SweepSummary.RNGSeed. Refused under grid / zip.
+	// the spec's wire form with rng_seed excluded (never the clock), the
+	// raw Request / Overlays bodies in canonical form (keys sorted at
+	// every depth, whitespace dropped, scalars as written), so the same
+	// spec — whatever its key order — always draws the same slots; the
+	// effective seed is echoed as ComposedResponse.SweepSeed and
+	// predict's SweepSummary.RNGSeed. Refused under grid / zip.
 	RNGSeed int64 `json:"rng_seed,omitempty"`
 
 	// Label is the per-slot label pattern, `{{axis}}` placeholders

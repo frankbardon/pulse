@@ -49,7 +49,7 @@ Use something else:
 | `vcov` | bool | `false` | Posterior covariance. |
 | `name` | string | — | Result name. |
 
-Prior object: `{family, mu, sigma, alpha, beta, lower, upper}` (normal, halfnormal, lognormal, beta, truncnormal), each family its own keys. Defaults: decay Beta(1,1), s LogNormal(0.3, 0.5), k TruncNormal(1, 1, 0.02, 10), ROI LogNormal(0.2, 0.9). Seed is `rng_seed`; 0 derives it from the request.
+Prior object: `{family, mu, sigma, alpha, beta, lower, upper}` (normal, halfnormal, lognormal, beta, truncnormal), each family its own keys. Defaults: decay Beta(1,1), s LogNormal(0.3, 0.5), k TruncNormal(1, 1, 0.02, 10), ROI LogNormal(0.2, 0.9). `rng_seed` 0 derives a seed from the request, key order ignored.
 
 ## Inputs
 

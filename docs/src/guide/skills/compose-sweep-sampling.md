@@ -38,6 +38,7 @@ A grid lists every value; its size multiplies per axis (30 values on 4 axes is 8
 
 - The draws are a pure function of the spec and the seed, identical across architectures, serial and parallel.
 - `rng_seed` absent or 0: the seed is derived from the spec alone (`rng_seed` excluded), never from the data or the clock. The same request draws the same points on any cohort.
+- The derivation reads the `request` and `overlays` bodies with object keys sorted at every depth and whitespace dropped; numbers and strings keep their text. Bodies differing only in key order or spacing draw identically; any value change (`0.1` vs `0.10` included) draws anew.
 - The effective seed comes back as `sweep_seed` on the response (outside the compose `return`; `--stream` writes one `{"sweep_seed": N}` line) and as `sweep.rng_seed` in predict. Pin it as `rng_seed` to replay a run exactly; set another value to draw a fresh set.
 
 ## Limits and predict

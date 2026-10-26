@@ -43,7 +43,7 @@ Inherits `target` / `predictors` from an OLS or GLM host (any penalty); the Baye
 - Leave-one-out costs n² — `PULSE_ADVISORY_JACKKNIFE_COST` at ≥ 10,000 records; use `jackknife_groups: 50` or a cluster in `jackknife_by`.
 - Every jackknife replicate must refit: one failure (e.g. separation once a group is gone) fails the slot with that refit's code, `details.jackknife_group` naming it. `g` above the fitted rows, or one cluster, is `PROCESSING_REGRESSION_INSUFFICIENT_DATA`.
 - Composes with `selection` — the resample wraps the selected-feature fit.
-- `rng_seed: 0` is deterministic but cohort-dependent; pin non-zero to reproduce across cohorts.
+- `rng_seed: 0` is deterministic but cohort-dependent (key order in `params` never moves it); pin non-zero to reproduce across cohorts.
 - Jackknife is weighted (JK1); bootstrap under a weight → `PULSE_WEIGHT_UNSUPPORTED`.
 
 ## See

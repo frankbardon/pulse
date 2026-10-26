@@ -274,7 +274,7 @@ func Exceeded(n Name, configured, observed int64) *errors.CodedError {
 	msg := "limit " + string(n) + " exceeded: observed " + format(n, observed) +
 		", configured " + format(n, configured) +
 		" (raise " + Option(n) + ", feature profile limits." + string(n) +
-		" or pulse mcp --limit " + string(n) + "=, or reduce the request)"
+		" or the CLI's --limit " + string(n) + "= on any pulse command, or reduce the request)"
 	return errors.NewCodedErrorWithDetails(errors.PULSE_LIMIT_EXCEEDED, msg,
 		map[string]any{
 			"limit":      string(n),

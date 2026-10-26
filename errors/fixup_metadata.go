@@ -5240,7 +5240,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Limits"},
-				Hint:   "Raise the limit on the instance: set Options.Limits.<Field> (named under `option`), the feature profile `limits.<limit>` key, or `pulse mcp --limit <limit>=<value>`; -1 disables it.",
+				Hint:   "Raise the limit on the instance: set Options.Limits.<Field> (named under `option`), the feature profile `limits.<limit>` key, or the CLI's root `--limit <limit>=<value>` flag (accepted by every `pulse` command); -1 disables it.",
 			},
 			{
 				Action: FixupReplaceField,

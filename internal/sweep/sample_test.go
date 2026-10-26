@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -438,5 +439,57 @@ func TestSweepRandom_LatinHypercubeIsTheLHSDraw(t *testing.T) {
 	}
 	if LatinHypercube(42, 0, 2) != nil || LatinHypercube(42, 3, 0) != nil {
 		t.Fatal("an empty design drew points")
+	}
+}
+
+// TestSweepRandom_DerivedSeedIgnoresKeyOrder: at rng_seed 0 two sweep
+// bodies (request and overlays) differing only in key order — at any
+// depth — and whitespace derive the same seed and draw the identical
+// slots under random and lhs; a value change still moves the seed, and
+// a body already in sorted key order keeps the seed it derived before
+// canonicalisation (the json.Marshal of the spec as written).
+func TestSweepRandom_DerivedSeedIgnoresKeyOrder(t *testing.T) {
+	sorted := `{"cohort":{"filename":"c.pulse"},"params":{"d":{"$var":"decay"},"l":{"$var":"lambda"}}}`
+	shuffled := `{ "params" : {"l":{"$var":"lambda"},
+		"d":{"$var":"decay"}}, "cohort":{"filename":"c.pulse"} }`
+	sortedOv := `[{"kind":"OVERLAY_FORMULA","label":"o{{decay}}","params":{"a":1,"b":0.10}}]`
+	shuffledOv := `[{"params":{"b":0.10, "a":1},"label":"o{{decay}}","kind":"OVERLAY_FORMULA"}]`
+	for _, mode := range []types.SweepMode{types.SweepModeRandom, types.SweepModeLHS} {
+		a, b := sampledSpec(mode, 6), sampledSpec(mode, 6)
+		a.Request, a.Overlays = json.RawMessage(sorted), json.RawMessage(sortedOv)
+		b.Request, b.Overlays = json.RawMessage(shuffled), json.RawMessage(shuffledOv)
+		if EffectiveSeed(a) != EffectiveSeed(b) {
+			t.Fatalf("%s: key order moved the derived seed: %d vs %d", mode, EffectiveSeed(a), EffectiveSeed(b))
+		}
+		ea, err := Expand(sampledComposed(a), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		eb, err := Expand(sampledComposed(b), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(ea.Labels, eb.Labels) || !reflect.DeepEqual(ea.Composed, eb.Composed) ||
+			*ea.Seed != *eb.Seed {
+			t.Fatalf("%s: draws differ\n%q\n%q", mode, ea.Labels, eb.Labels)
+		}
+		// Sorted already: the seed is the pre-canonicalisation one.
+		cp := *a
+		cp.RNGSeed = 0
+		body, _ := json.Marshal(&cp)
+		if got, want := EffectiveSeed(a), regresample.DeriveSeed(body, 0, nil); got != want {
+			t.Fatalf("%s: a sorted body's seed moved: %d, want %d", mode, got, want)
+		}
+		moved := sampledSpec(mode, 6)
+		moved.Request = json.RawMessage(strings.Replace(shuffled, "c.pulse", "d.pulse", 1))
+		moved.Overlays = json.RawMessage(shuffledOv)
+		if EffectiveSeed(moved) == EffectiveSeed(b) {
+			t.Fatalf("%s: a value change did not move the seed", mode)
+		}
+		pinned := sampledSpec(mode, 6)
+		pinned.Request, pinned.RNGSeed = json.RawMessage(shuffled), 42
+		if EffectiveSeed(pinned) != 42 {
+			t.Fatalf("%s: an explicit rng_seed must be used as given", mode)
+		}
 	}
 }

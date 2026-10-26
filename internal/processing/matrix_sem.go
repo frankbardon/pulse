@@ -11,6 +11,7 @@ import (
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/processing/regression"
+	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/internal/sem"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/internal/weighting"
@@ -268,7 +269,8 @@ func semBootstrapWith(in *matrixFinalizeInput, samples, seedSamples []sem.Bootst
 // semSeedSpec is the wire form a MAT_SEM bootstrap's rng_seed 0
 // derivation hashes: the slot's spec with params.rng_seed dropped, so
 // an absent seed and an explicit 0 derive alike (REG_RESAMPLE's
-// omitempty RNGSeed does the same).
+// omitempty RNGSeed does the same), in regresample.CanonicalJSON form so
+// key order at any depth never moves the seed.
 func semSeedSpec(spec types.MatrixSpec) []byte {
 	if len(spec.Params) > 0 {
 		var params map[string]json.RawMessage
@@ -280,6 +282,7 @@ func semSeedSpec(spec types.MatrixSpec) []byte {
 				spec.Params = b
 			}
 		}
+		spec.Params = regresample.CanonicalJSON(spec.Params)
 	}
 	body, err := types.MarshalFinite(&spec)
 	if err != nil {

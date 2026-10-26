@@ -743,7 +743,12 @@ func TestMMMBayes_HealthWarnings(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			regmmm.SetBayesSampler(t, func(float64) mcmc.Sampler { return tc.s })
-			r := process(t, p, bayesRequest(regmmm.BayesCohort, regmmm.BayesSpec(regmmm.FastParams))).Regressions[0]
+			// Pinned: the seed FastParams derived before params were
+			// hashed in canonical form (E3-S7); the intercept's R̂ sits
+			// under 1.01 on it, which the doctored cases rely on.
+			spec := regmmm.BayesSpec(regmmm.FastParams)
+			spec.RNGSeed = 8392533999830091673
+			r := process(t, p, bayesRequest(regmmm.BayesCohort, spec)).Regressions[0]
 			if r.Error != nil {
 				t.Fatalf("fit = %s", mustJSON(t, r))
 			}

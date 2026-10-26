@@ -2,11 +2,9 @@ package regmmm
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
-	"hash/fnv"
 	"maps"
 	"math"
 	"slices"
@@ -17,6 +15,7 @@ import (
 	"github.com/frankbardon/pulse/extend"
 	pmodel "github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
+	"github.com/frankbardon/pulse/internal/regresample"
 	"github.com/frankbardon/pulse/mcmc"
 	"github.com/frankbardon/pulse/types"
 )
@@ -441,27 +440,24 @@ func BayesSpecRefusal(spec *types.RegressionSpec) *perr.CodedError {
 	return perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG, err.Error(), map[string]any{"type": string(BayesName)})
 }
 
-// bayesEffectiveSeed is spec.RNGSeed when non-zero, else the FNV-64a of
-// the spec's wire form with rng_seed cleared followed by a zero row
-// count — the derivation every Pulse rng_seed-0 draw shares (a sweep's,
-// a bootstrap's over no data cells), reimplemented because Pulse's is
-// internal. It reads the spec only, never data or the clock.
+// bayesEffectiveSeed is spec.RNGSeed when non-zero, else
+// regresample.DeriveSeed over the spec's wire form with rng_seed cleared
+// (the raw params in regresample.CanonicalJSON form, so their key order
+// never moves it) and a zero row count — the derivation every Pulse
+// rng_seed-0 draw shares. It reads the spec only, never data or the
+// clock.
 func bayesEffectiveSeed(spec *types.RegressionSpec) int64 {
 	if spec.RNGSeed != 0 {
 		return spec.RNGSeed
 	}
 	cp := *spec
 	cp.RNGSeed = 0
+	cp.Params = regresample.CanonicalJSON(cp.Params)
 	body, err := json.Marshal(&cp)
 	if err != nil {
 		body = nil
 	}
-	h := fnv.New64a()
-	_, _ = h.Write(body)
-	var buf [8]byte
-	binary.LittleEndian.PutUint64(buf[:], 0)
-	_, _ = h.Write(buf[:])
-	return int64(h.Sum64())
+	return regresample.DeriveSeed(body, 0, nil)
 }
 
 // bayesRegression is one slot's buffered fit.
