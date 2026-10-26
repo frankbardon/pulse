@@ -1,6 +1,6 @@
 # mmmpulse
 
-`mmmpulse` is Pulse's media-mix modelling pack. It registers one regression, `REG_MMM_HILL`, which fits every channel's effect and saturation curve jointly. The pack lives in its own Go module (`github.com/frankbardon/pulse/contrib/mmmpulse`), versioned in lockstep with Pulse, and imports only Pulse's public packages.
+`mmmpulse` is Pulse's media-mix modelling pack. It registers two regressions: `REG_MMM_HILL`, which fits every channel's effect and saturation curve jointly over already-adstocked channels, and `REG_MMM_BAYES`, which adstocks raw spend inside the model and samples the posterior with NUTS (the public `mcmc` package). The pack lives in its own Go module (`github.com/frankbardon/pulse/contrib/mmmpulse`), versioned in lockstep with Pulse, and imports only Pulse's public packages.
 
 ## Register it
 
@@ -13,7 +13,7 @@ import (
 p, err := pulse.New(pulse.Options{Extensions: mmmpulse.Extensions()})
 ```
 
-`Extensions()` returns the regression and the pack's skills (`op-reg-mmm-hill`, `ext-mmm-workflow`), served by `p.Skills()` and `pulse_skills_list` like the built-in pack. To add your own extensions, append to `Regressions` and keep one `Skills` filesystem that holds both skill sets. The stock `pulse` CLI and `pulse mcp` do not register packs; an embedder, or `mcpserve` with `Options.Extensions`, does. Unregistered, `REG_MMM_HILL` is `PULSE_REGRESSION_INVALID`.
+`Extensions()` returns the regressions and the pack's skills (`op-reg-mmm-hill`, `ext-mmm-workflow`), served by `p.Skills()` and `pulse_skills_list` like the built-in pack. To add your own extensions, append to `Regressions` and keep one `Skills` filesystem that holds both skill sets. The stock `pulse` CLI and `pulse mcp` do not register packs; an embedder, or `mcpserve` with `Options.Extensions`, does. Unregistered, `REG_MMM_HILL` is `PULSE_REGRESSION_INVALID`.
 
 ## The model
 

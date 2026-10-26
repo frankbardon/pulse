@@ -1,5 +1,6 @@
 // Package mmmpulse is Pulse's media-mix modelling pack: the REG_MMM_HILL
-// regression, registered through Pulse's public extension contract.
+// and REG_MMM_BAYES regressions, registered through Pulse's public
+// extension contract.
 //
 // Register it by merging Extensions into the instance's options:
 //
@@ -14,7 +15,9 @@
 // The channels are already-adstocked spend columns (WIN_DISTRIBUTED_LAG
 // upstream, its decay a sweep axis); the model does not adstock. Every
 // other predictor is a linear control. See Registration for the model,
-// its params and its coefficient table.
+// its params and its coefficient table, and BayesRegistration for the
+// Bayesian model, which adstocks raw spend itself and samples its
+// posterior with NUTS.
 //
 // The pack lives in its own Go module, versioned in lockstep with Pulse
 // (tag contrib/mmmpulse/vX.Y.Z = Pulse vX.Y.Z), and imports only Pulse's
@@ -31,9 +34,9 @@ import (
 //go:embed skills/*.md
 var skillFiles embed.FS
 
-// Extensions is the pack's registration set: REG_MMM_HILL and its two
-// skills (the operator's and a media-mix workflow guide), served through
-// Extensions.Skills. Use it as pulse.Options.Extensions; to combine it
+// Extensions is the pack's registration set: REG_MMM_HILL,
+// REG_MMM_BAYES and the pack's two skills (REG_MMM_HILL's and a
+// media-mix workflow guide), served through Extensions.Skills. Use it as pulse.Options.Extensions; to combine it
 // with the embedder's own, append its Regressions to the existing set and
 // keep one Skills filesystem that holds both skill sets. Each call returns
 // a fresh value.
@@ -43,7 +46,7 @@ func Extensions() pulse.Extensions {
 		panic(err) // the embedded directory is fixed at build time
 	}
 	return pulse.Extensions{
-		Regressions: []pulse.RegressionRegistration{Registration()},
+		Regressions: []pulse.RegressionRegistration{Registration(), BayesRegistration()},
 		Skills:      skills,
 	}
 }
