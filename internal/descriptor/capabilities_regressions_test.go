@@ -176,6 +176,9 @@ func TestRegressionCapabilities_DeclareEveryAcceptedKey(t *testing.T) {
 			if c.Name == string(types.REG_GLM) {
 				body["family"] = "binomial"
 			}
+			if c.Name == string(types.REG_MMM_HILL) {
+				body["params"] = map[string]any{"channels": []string{"a"}}
+			}
 			var extra map[string]any
 			if err := json.Unmarshal([]byte(frag), &extra); err != nil {
 				t.Fatalf("probe %s: %v", key, err)

@@ -7,6 +7,7 @@
 package regmmm
 
 import (
+	stderrors "errors"
 	"fmt"
 	"math"
 	"slices"
@@ -171,6 +172,23 @@ func Factory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression,
 		m.prior = &pr
 	}
 	return m, nil
+}
+
+// SpecRefusal is Factory's refusal of spec, or nil when Factory builds:
+// every check Factory makes reads the spec alone (params decode,
+// channels, the k:/s: name collision, the prior), so predict raises the
+// very error the runtime does (internal/descriptor's model-regression
+// declaration calls it).
+func SpecRefusal(spec *types.RegressionSpec) *perr.CodedError {
+	_, err := Factory(spec, nil)
+	if err == nil {
+		return nil
+	}
+	var ce *perr.CodedError
+	if stderrors.As(err, &ce) {
+		return ce
+	}
+	return perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG, err.Error(), map[string]any{"type": string(Name)})
 }
 
 // model is one slot's buffered fit.

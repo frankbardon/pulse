@@ -2,8 +2,10 @@ package descriptor
 
 import (
 	"github.com/frankbardon/pulse/descriptor"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
 	"github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/regmmm"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -22,11 +24,15 @@ import (
 type modelRegression struct {
 	Description string
 	Decl        ExtensionRegression
+	// SpecRefusal is the model factory's spec-only refusal (nil: the
+	// factory builds), which predict raises as the runtime does.
+	SpecRefusal func(*types.RegressionSpec) *errors.CodedError
 }
 
 // modelRegressionTable holds every model regression, keyed by type.
 var modelRegressionTable = map[types.RegressionType]modelRegression{
 	types.REG_MMM_HILL: {
+		SpecRefusal: regmmm.SpecRefusal,
 		Description: "Media-mix model: joint nonlinear least squares over Hill-saturated, already-adstocked channels plus linear controls; coefficients k:<channel> / s:<channel> carry each curve.",
 		Decl: ExtensionRegression{
 			Vcov: true,
@@ -118,4 +124,14 @@ var modelResampleKnobs = []descriptor.Param{
 	{Name: "jackknife_groups", Type: "int", Description: "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out over the fitted rows.", Slot: true},
 	{Name: "jackknife_by", Type: "field", Description: "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups.", Slot: true},
 	{Name: "rng_seed", Type: "int", Description: "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows.", Slot: true},
+}
+
+// modelRegressionSpecRefusal is model regression t's spec-only factory
+// refusal of reg (nil for any other type, or when the factory builds).
+func modelRegressionSpecRefusal(t types.RegressionType, reg *types.RegressionSpec) *errors.CodedError {
+	m, ok := modelRegressionTable[t]
+	if !ok || m.SpecRefusal == nil {
+		return nil
+	}
+	return m.SpecRefusal(reg)
 }

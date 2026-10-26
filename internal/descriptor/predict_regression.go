@@ -75,6 +75,11 @@ func validateRegressions(env *descriptor.Envelope, req *types.Request, schema *e
 				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
 				covRefused = reg.Covariance != nil
 			}
+			// A model regression's factory checks read the spec alone:
+			// its refusal is the runtime's own (regression_models.go).
+			if cerr := modelRegressionSpecRefusal(opRoute(inst, reg.Type), reg); cerr != nil {
+				env.AddError(string(cerr.Code), cerr.Message, cerr.Details)
+			}
 		}
 
 		if reg.Target == "" {

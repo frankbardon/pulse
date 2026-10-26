@@ -107,6 +107,55 @@ func TestMMMHill_SharedSlotsRefusedLikePredict(t *testing.T) {
 	}
 }
 
+// TestMMMHill_SpecRefusalsPredictMatchRuntime: every factory refusal
+// reads the spec alone, so predict raises it with the runtime's code,
+// message and details — no channels, a channel that is not a predictor
+// or is listed twice, an invalid prior (a key typo inside it included).
+// A negative channel value, which only the rows show, stays
+// runtime-only. (A predictor named like a curve coefficient names a
+// field no cohort carries, so the unknown-field rule refuses it first;
+// TestMMMHill_FactoryRefusesCurveNameCollision covers the factory's.)
+func TestMMMHill_SpecRefusalsPredictMatchRuntime(t *testing.T) {
+	ctx := context.Background()
+	p := instance(t, afero.NewMemMapFs(), nil)
+	cohort(t, p, defaultTruth, 7)
+	req := func(predictors []string, params string) *types.Request {
+		return &types.Request{Cohort: &types.Cohort{Filename: "mmm_ad.pulse"}, Regressions: []*types.RegressionSpec{spec(predictors, params)}}
+	}
+	for name, tc := range map[string]struct {
+		predictors []string
+		params     string
+	}{
+		"no params":               {twoChannels, ``},
+		"no channels":             {twoChannels, `{"nonnegative":true}`},
+		"channel not a predictor": {twoChannels, `{"channels":["tv_ad","radio"]}`},
+		"channel twice":           {twoChannels, `{"channels":["tv_ad","tv_ad"]}`},
+		"prior on a control":      {twoChannels, `{"channels":["tv_ad"],"prior":{"channel":"price","mean":1,"precision":1}}`},
+		"prior key typo":          {twoChannels, `{"channels":["tv_ad"],"prior":{"channel":"tv_ad","mean":1,"precison":1}}`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, rerr := p.Process(ctx, req(tc.predictors, tc.params))
+			var ce *perr.CodedError
+			if !stderrors.As(rerr, &ce) || ce.Code != perr.PROCESSING_CONFIG {
+				t.Fatalf("runtime: %v, want PROCESSING_CONFIG", rerr)
+			}
+			pr, err := p.Predict(ctx, req(tc.predictors, tc.params))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(pr.Errors) != 1 || pr.Errors[0].Code != string(ce.Code) || pr.Errors[0].Message != ce.Message ||
+				mustJSON(t, pr.Errors[0].Details) != mustJSON(t, ce.Details) {
+				t.Fatalf("predict errors %s, runtime %s %q %s", mustJSON(t, pr.Errors), ce.Code, ce.Message, mustJSON(t, ce.Details))
+			}
+		})
+	}
+	// Rows only: predict cannot see a negative channel value.
+	pr, err := p.Predict(ctx, req([]string{"tv_ad", "price"}, `{"channels":["tv_ad","price"]}`))
+	if err != nil || len(pr.Errors) != 0 {
+		t.Fatalf("predict on a data-only refusal: %v %+v", err, pr)
+	}
+}
+
 // TestMMMHill_TermCatalogStatic: predict knows a REG_MMM_HILL fit's
 // curve coefficients from its spec alone (k:<channel> / s:<channel> for
 // params.channels), so over a `fits` entry it refuses an unknown curve
