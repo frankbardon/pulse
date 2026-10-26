@@ -789,6 +789,12 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	// margins, normalization, or nested axes all force buffered).
 	if req.Crosstab != nil {
 		reasons = append(reasons, crosstabStreamableReasons(req.Crosstab)...)
+		// A historical-order crosstab with windows is buffered too: the
+		// fused (streaming) arm runs no window (crosstabfuse.Decide
+		// declines it, processing.canStream refuses any window).
+		if len(req.Windows) > 0 && !windowsFirst {
+			reasons = append(reasons, "crosstab with windows runs via the buffered path (the fused crosstab arm runs no window)")
+		}
 		// Crosstab does not require the standard "at least one
 		// aggregation" gate — the cell aggregation lives on
 		// req.Crosstab.Cell, not req.Aggregations.

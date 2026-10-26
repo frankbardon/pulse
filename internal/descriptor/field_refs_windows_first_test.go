@@ -138,6 +138,16 @@ func TestWindowsFirst_PredictStreamableMatchesRuntime(t *testing.T) {
 			Cell:    sumField("lag_n", "c"),
 		}}, "windows-first"},
 		{"historical order", &types.Request{Windows: win, Aggregations: []*types.Aggregation{sumField("n", "s")}}, "post-aggregate rows"},
+		// A crosstab whose slots read no window output keeps the
+		// historical order: the fused (streaming) crosstab arm runs no
+		// window, so the runtime buffers it — and so must predict, even
+		// in the one crosstab shape that streams without windows.
+		{"crosstab historical order", &types.Request{Windows: win, Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
+			Columns: []*types.Group{{Type: types.GROUP_RANGE, Field: "m", Interval: 5}},
+			Cell:    sumField("n", "c"),
+			Shape:   types.CrosstabShapeLong,
+		}}, "crosstab with windows"},
 	}
 	data := buildTestPulseFile(t, schema)
 	for _, c := range cases {
@@ -146,9 +156,33 @@ func TestWindowsFirst_PredictStreamableMatchesRuntime(t *testing.T) {
 			if runtime := processing.CanStreamRequest(c.req, schema); res.Streamable || runtime {
 				t.Fatalf("predict.Streamable=%v runtime=%v, want both buffered", res.Streamable, runtime)
 			}
+			if c.req.Crosstab != nil {
+				fused, _ := processing.CanFuseCrosstab(c.req, schema, nil)
+				if fused || res.CrosstabFusable == nil || *res.CrosstabFusable {
+					t.Fatalf("crosstab fusion: runtime %v, predict %v; want both buffered", fused, res.CrosstabFusable)
+				}
+			}
 			if !strings.Contains(strings.Join(res.StreamableReasons, "|"), c.reason) {
 				t.Fatalf("reasons %v lack %q", res.StreamableReasons, c.reason)
 			}
 		})
+	}
+}
+
+// TestWindowsFirst_CategoricalWindowGroupRefusedByPredict: GROUP_CATEGORY
+// on a WIN_LAG of a categorical field is refused by predict exactly as
+// the engine refuses it (processing's
+// TestWindowsFirst_CategoryGroupOnCategoricalWindowRefused) — the window
+// accepts no categorical field (internal/fieldaccept), so no window
+// yields a category to key by.
+func TestWindowsFirst_CategoricalWindowGroupRefusedByPredict(t *testing.T) {
+	req := &types.Request{
+		Windows:      []*types.Window{{Type: types.WIN_LAG, Field: "cat", Label: "lag_cat", OrderBy: []types.OrderKey{{Field: "m"}}}},
+		Groups:       []*types.Group{{Type: types.GROUP_CATEGORY, Field: "lag_cat"}},
+		Aggregations: []*types.Aggregation{sumField("n", "s")},
+	}
+	env := predictFromBytes(buildTestPulseFile(t, fieldRefSchema()), req, nil)
+	if len(env.Errors) == 0 || env.Errors[0].Code != string(errors.PULSE_FIELD_TYPE_UNSUPPORTED) || env.Errors[0].Details["type"] != "WIN_LAG" {
+		t.Fatalf("predict errors %+v, want PULSE_FIELD_TYPE_UNSUPPORTED for WIN_LAG", env.Errors)
 	}
 }

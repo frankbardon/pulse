@@ -141,34 +141,6 @@ func TestWindowsFirst_WindowColumnAggregatesAsCohortColumn(t *testing.T) {
 	}
 }
 
-// TestWindowsFirst_GroupedAndCrosstabPending: the grouped and crosstab
-// windows-first shapes are not executed yet — PROCESSING_CONFIG
-// windows_first_pending rather than grouping a column no record carries.
-func TestWindowsFirst_GroupedAndCrosstabPending(t *testing.T) {
-	s := windowRegSchema()
-	var recs []*Record
-	for _, r := range windowRegRows(8) {
-		recs = append(recs, NewRecord(s, map[string]float64{"t": r[0], "x": r[1], "y": r[2]}))
-	}
-	win := []*types.Window{{Type: types.WIN_LAG, Field: "x", Label: "lag_x", OrderBy: []types.OrderKey{{Field: "t"}}}}
-	sum := []*types.Aggregation{{Type: types.AGG_SUM, Field: "lag_x", Label: "s"}}
-	for name, req := range map[string]*types.Request{
-		"grouped": {Windows: win, Groups: []*types.Group{{Type: types.GROUP_RANGE, Field: "t", Interval: 4}}, Aggregations: sum},
-		"crosstab": {Windows: win, Crosstab: &types.CrosstabSpec{
-			Rows:    []*types.Group{{Type: types.GROUP_RANGE, Field: "lag_x", Interval: 1}},
-			Columns: []*types.Group{{Type: types.GROUP_RANGE, Field: "t", Interval: 4}},
-		}},
-	} {
-		t.Run(name, func(t *testing.T) {
-			_, err := NewProcessor(s).Process(context.Background(), req, NewSliceIterator(recs))
-			var ce *errors.CodedError
-			if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_CONFIG || ce.Details["reason"] != "windows_first_pending" {
-				t.Fatalf("err = %v, want PROCESSING_CONFIG windows_first_pending", err)
-			}
-		})
-	}
-}
-
 // TestWindowsFirst_NonNumericWindowRefused: a non-numeric window value
 // an aggregation reads is PROCESSING_CONFIG naming the label, as the
 // regression, matrix and post-window attribute copies refuse it.

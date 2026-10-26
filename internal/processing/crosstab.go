@@ -501,7 +501,7 @@ type CrosstabValidationError = errors.CodedError
 // normalization is the only streamable case, and the orchestrator
 // short-circuits to the standard grouped process path before reaching
 // here (handled in internal/service/crosstab.go).
-func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records []*Record) (*types.Response, error) {
+func (p *Processor) RunCrosstab(ctx context.Context, req *types.Request, records []*Record) (*types.Response, error) {
 	if req == nil || req.Crosstab == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"RunCrosstab requires a Crosstab spec")
@@ -536,15 +536,41 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		return nil, err
 	}
 	// A before-filters attribute (ATTR_PREVIOUS_STATE) runs over every
-	// record ahead of the filters; the rest over the survivors.
-	// No attribute runs after windows beside a crosstab: a
-	// window-dependent slot is PULSE_ATTRIBUTE_WINDOW_ORDER.
-	if _, err := p.postWindowPlan(req); err != nil {
-		return nil, err
-	}
-	filtered, _, attrWarnings, attrComps, err := p.filterThenAttributes(req, records)
+	// record ahead of the filters; the rest over the survivors. A
+	// window-dependent slot runs after the windows only windows-first
+	// (an axis, cell or margin aggregation reads a window output — the
+	// crosstab is no record-row shape); otherwise it is
+	// PULSE_ATTRIBUTE_WINDOW_ORDER.
+	post, err := p.postWindowPlan(req)
 	if err != nil {
 		return nil, err
+	}
+	var (
+		filtered     []*Record
+		attrWarnings []*types.ResponseWarning
+		attrComps    []types.AttributeComponents
+	)
+	if post.Any() {
+		var slots []attrSlotOut
+		if filtered, _, slots, err = p.filterThenAttributeSlots(req, records, post); err != nil {
+			return nil, err
+		}
+		if err := p.windowsFirstPass(ctx, req, post, filtered, slots); err != nil {
+			return nil, err
+		}
+		attrWarnings, attrComps = mergeAttrSlots(slots)
+	} else {
+		if filtered, _, attrWarnings, attrComps, err = p.filterThenAttributes(req, records); err != nil {
+			return nil, err
+		}
+		// Windows-first without a post-window attribute: the windows run
+		// over the filtered records and the labels the axes, cell and
+		// margins read land on them before any partition.
+		if post.WindowsFirst {
+			if err := p.windowsFirstPass(ctx, req, post, filtered, nil); err != nil {
+				return nil, err
+			}
+		}
 	}
 	// Whole-set axis groupers (GROUP_QUANTILE / GROUP_KMEANS under
 	// params.fit "global") fit once over the filtered set before any

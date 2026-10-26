@@ -134,7 +134,7 @@ func BuiltinGrouperKeyable(t types.GroupType) (keyable, known bool) {
 // decimal128 field; every margin aggregation mergeable and, for a
 // built-in, not over a decimal128 field (its margin class is
 // deliberately not consulted — an auxiliary has no cells); every axis
-// grouper keyable; no features; no tests or post-tests; no two-pass
+// grouper keyable; no features; no windows; no tests or post-tests; no two-pass
 // attribute; no ATTR_FORMULA expression; no FILTER_EXPRESSION; and no
 // extension operator without a FieldInputs hook. Overlays never block.
 func Decide(req *types.Request, schema *encoding.Schema, facts Facts) (bool, []string) {
@@ -207,6 +207,12 @@ func Decide(req *types.Request, schema *encoding.Schema, facts Facts) (bool, []s
 
 	if len(req.Features) > 0 {
 		decline("features force buffered")
+	}
+	// The fused walk runs no window (AssertCanFuse refuses one): a
+	// windows-first crosstab runs its windows over the filtered records
+	// before any cell, and a historical-order one is buffered too.
+	if len(req.Windows) > 0 {
+		decline("windows force buffered")
 	}
 	if len(req.Tests) > 0 || len(req.PostTests) > 0 {
 		decline("stat tests force buffered")

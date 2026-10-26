@@ -1818,30 +1818,18 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		return nil, err
 	}
 
-	// Windows-first (vectors.WindowsFirst — an aggregation reading a
-	// window or post-window label; postWindowPlan refused the grouped and
-	// crosstab shapes): the windows run HERE, over the filtered record
-	// rows, the window labels the aggregations, matrices, regressions and
-	// post-window attributes read are copied onto the records, and the
-	// post-window attributes run over them — so step 3 aggregates the
-	// records as if the window outputs were columns. The windowed record
-	// rows are scratch: the response row is the aggregation row.
+	// Windows-first (vectors.WindowsFirst — an aggregation, grouper or
+	// crosstab axis reading a window or post-window label): the windows
+	// run HERE, over the filtered record rows, ahead of step 3
+	// (windowsFirstPass) — so the groups and aggregations read the
+	// window outputs off the records as if they were columns. The
+	// response rows are the group / aggregation rows.
 	windowsFirst := post.WindowsFirst
 	if windowsFirst {
-		rows, words, err := recordsToRows(filtered, p.schema)
-		if err != nil {
-			return nil, err
-		}
-		if err := p.applyWindows(ctx, rows, req.Windows, nil, words.copyObserver()); err != nil {
-			return nil, err
-		}
-		if err := p.copyWindowMembers(req, post, filtered, rows); err != nil {
+		if err := p.windowsFirstPass(ctx, req, post, filtered, attrSlots); err != nil {
 			return nil, err
 		}
 		if post.Any() {
-			if err := p.applyPostWindowAttributes(req, post, filtered, nil, attrSlots); err != nil {
-				return nil, err
-			}
 			attrWarnings, attrComps = mergeAttrSlots(attrSlots)
 		}
 	}

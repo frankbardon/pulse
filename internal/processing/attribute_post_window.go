@@ -1,7 +1,8 @@
 package processing
 
 import (
-	"github.com/frankbardon/pulse/errors"
+	"context"
+
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -38,7 +39,10 @@ type attrSlotOut struct {
 // (PULSE_ATTRIBUTE_WINDOW_ORDER — the field-reference walk's refusal,
 // re-raised for a processor driven without the service). Its
 // WindowsFirst reports the windows-first mode (vectors.WindowsFirst,
-// with the bound models): the ungrouped shape runs it in processRecords.
+// with the bound models): every shape runs it (windowsFirstPass) —
+// ungrouped and grouped in processRecords, the buffered crosstab in
+// RunCrosstab; the streaming arms and the fused crosstab never see it
+// (canStream and the fusion gate refuse any window).
 func (p *Processor) postWindowPlan(req *types.Request) (vectors.PostWindow, error) {
 	var cat model.Catalog
 	if p.models != nil {
@@ -48,17 +52,34 @@ func (p *Processor) postWindowPlan(req *types.Request) (vectors.PostWindow, erro
 	if cerr := pw.Refusal(req); cerr != nil {
 		return vectors.PostWindow{}, cerr
 	}
-	if pw.WindowsFirst && (len(req.Groups) > 0 || req.Crosstab != nil) {
-		// The grouped and crosstab windows-first arms (the groups or the
-		// crosstab over the window-carrying records) are not wired into
-		// this engine yet: refuse rather than group a window label no
-		// record carries (an all-null column, a confident wrong answer).
-		// The ungrouped arm runs (processRecords).
-		return vectors.PostWindow{}, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			"windows-first grouping (a grouper, crosstab axis or grouped aggregation reading a window output) is not executed by this engine yet; materialize the windows first, then group the derived cohort",
-			map[string]any{"reason": "windows_first_pending"})
-	}
 	return pw, nil
+}
+
+// windowsFirstPass is the windows-first pre-step every shape runs after
+// the filter and pre-window attribute pass and BEFORE its groups,
+// aggregations or crosstab cells: the windows run over scratch record
+// rows of filtered (no key orders — windows over records, partition_by
+// unchanged), every window label an output slot, matrix, regression or
+// post-window attribute reads is copied onto filtered[i]
+// (copyWindowMembers), then the post-window attributes run over the
+// records (nil rows — the record carries the label), filling outs. The
+// scratch rows are dropped: the response rows are the group,
+// aggregation or crosstab rows.
+func (p *Processor) windowsFirstPass(ctx context.Context, req *types.Request, post vectors.PostWindow, filtered []*Record, outs []attrSlotOut) error {
+	rows, words, err := recordsToRows(filtered, p.schema)
+	if err != nil {
+		return err
+	}
+	if err := p.applyWindows(ctx, rows, req.Windows, nil, words.copyObserver()); err != nil {
+		return err
+	}
+	if err := p.copyWindowMembers(req, post, filtered, rows); err != nil {
+		return err
+	}
+	if post.Any() {
+		return p.applyPostWindowAttributes(req, post, filtered, nil, outs)
+	}
+	return nil
 }
 
 // filterThenAttributeSlots is filterThenAttributes with the post-window
