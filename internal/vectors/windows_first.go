@@ -206,3 +206,58 @@ func aggregationReads(a *types.Aggregation, derived map[string]bool) bool {
 	}
 	return false
 }
+
+// WindowsFirstReads lists the window output labels (WindowLabel, not a
+// schema field, not a named vector of req) that req's aggregations,
+// groupers and crosstab axes / cell / margin aggregations read by name,
+// in first-read order: aggregations (AggregationColumnReads), then
+// groupers, then the crosstab's row and column axes, its cell and its
+// margin aggregations. The windows-first engine copies exactly these
+// onto the records ahead of the aggregation pass; a post-window
+// attribute's label is not listed (the attribute writes it on the
+// record itself). Nil when req is not windows-first-shaped or reads
+// none.
+func WindowsFirstReads(req *types.Request, schema *encoding.Schema) []string {
+	if req == nil || len(req.Windows) == 0 || recordRowShape(req) {
+		return nil
+	}
+	derived := windowDerived(req, schema)
+	var out []string
+	seen := map[string]bool{}
+	add := func(n string) {
+		if n != "" && derived[n] && !seen[n] {
+			seen[n] = true
+			out = append(out, n)
+		}
+	}
+	for _, a := range req.Aggregations {
+		for _, n := range AggregationColumnReads(a) {
+			add(n)
+		}
+	}
+	for _, g := range req.Groups {
+		if g != nil {
+			add(g.Field)
+		}
+	}
+	if spec := req.Crosstab; spec != nil {
+		for _, axis := range [][]*types.Group{spec.Rows, spec.Columns} {
+			for _, g := range axis {
+				if g != nil {
+					add(g.Field)
+				}
+			}
+		}
+		for _, a := range spec.CellAggregations() {
+			for _, n := range AggregationColumnReads(a) {
+				add(n)
+			}
+		}
+		for _, a := range spec.MarginAggregations {
+			for _, n := range AggregationColumnReads(a) {
+				add(n)
+			}
+		}
+	}
+	return out
+}

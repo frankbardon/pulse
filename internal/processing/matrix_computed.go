@@ -21,11 +21,13 @@ import (
 // copy, so its fit reads the materialized column's value too, and so
 // does a post-window attribute (vectors.PostWindowAttributes: a
 // row-local attribute reading a window label), which then runs over the
-// records (applyPostWindowAttributes).
+// records (applyPostWindowAttributes), and — windows-first — so do the
+// aggregations, groupers and crosstab reading a window label
+// (vectors.WindowsFirstReads), which then aggregate the records.
 
 // windowRecordColumn is one window label copied onto the records, and
-// the consumer that reads it there ("matrix", "regression" or
-// "attribute").
+// the consumer that reads it there ("matrix", "regression",
+// "attribute" or "aggregation" — the windows-first output slots).
 type windowRecordColumn struct {
 	label    string
 	consumer string
@@ -56,6 +58,10 @@ func (p *Processor) copyWindowMembers(req *types.Request, post vectors.PostWindo
 					return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 						"post-window attribute input "+l+" holds a non-numeric window value, which an attribute cannot read",
 						map[string]any{"field": l, "value_type": vt})
+				case "aggregation":
+					return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+						"windows-first input "+l+" holds a non-numeric window value, which an aggregation, grouper or crosstab over the records cannot read",
+						map[string]any{"field": l, "value_type": vt})
 				}
 				return errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
 					"matrix computed member "+l+" holds a non-numeric window value, which a matrix cannot read",
@@ -75,8 +81,9 @@ func (p *Processor) copyWindowMembers(req *types.Request, post vectors.PostWindo
 // those req's matrices fold (vectors.MatrixComputedMembers produced by a
 // window), then those its regressions read (vectors.RegressionWindowReads,
 // when the regressions slot computes) not already listed, in first-read
-// order, then those its post-window attributes read (post.WindowReads);
-// nil when none. The first two read vectors.ComputedColumns, the one
+// order, then those its post-window attributes read (post.WindowReads),
+// then — windows-first (post.WindowsFirst) — those its aggregations,
+// groupers and crosstab read (vectors.WindowsFirstReads); nil when none. The first two read vectors.ComputedColumns, the one
 // record-column model of a window label.
 func (p *Processor) windowRecordColumns(req *types.Request, post vectors.PostWindow) []windowRecordColumn {
 	comp := vectors.ComputedColumns(req, p.schema)
@@ -100,6 +107,14 @@ func (p *Processor) windowRecordColumns(req *types.Request, post vectors.PostWin
 		if !seen[l] {
 			seen[l] = true
 			out = append(out, windowRecordColumn{label: l, consumer: "attribute"})
+		}
+	}
+	if post.WindowsFirst {
+		for _, l := range vectors.WindowsFirstReads(req, p.schema) {
+			if !seen[l] {
+				seen[l] = true
+				out = append(out, windowRecordColumn{label: l, consumer: "aggregation"})
+			}
 		}
 	}
 	return out

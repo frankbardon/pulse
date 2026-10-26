@@ -1818,6 +1818,34 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		return nil, err
 	}
 
+	// Windows-first (vectors.WindowsFirst — an aggregation reading a
+	// window or post-window label; postWindowPlan refused the grouped and
+	// crosstab shapes): the windows run HERE, over the filtered record
+	// rows, the window labels the aggregations, matrices, regressions and
+	// post-window attributes read are copied onto the records, and the
+	// post-window attributes run over them — so step 3 aggregates the
+	// records as if the window outputs were columns. The windowed record
+	// rows are scratch: the response row is the aggregation row.
+	windowsFirst := post.WindowsFirst
+	if windowsFirst {
+		rows, words, err := recordsToRows(filtered, p.schema)
+		if err != nil {
+			return nil, err
+		}
+		if err := p.applyWindows(ctx, rows, req.Windows, nil, words.copyObserver()); err != nil {
+			return nil, err
+		}
+		if err := p.copyWindowMembers(req, post, filtered, rows); err != nil {
+			return nil, err
+		}
+		if post.Any() {
+			if err := p.applyPostWindowAttributes(req, post, filtered, nil, attrSlots); err != nil {
+				return nil, err
+			}
+			attrWarnings, attrComps = mergeAttrSlots(attrSlots)
+		}
+	}
+
 	// Step 3: Group if needed, then aggregate
 	var data []map[string]any
 	var aggComponents []types.AggregationComponents
@@ -1884,7 +1912,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		keyOrders = windowKeyOrders(p.groupKeyOrders(req.Groups))
 	}
 
-	if len(req.Windows) > 0 {
+	if len(req.Windows) > 0 && !windowsFirst {
 		if err := p.applyWindows(ctx, data, req.Windows, keyOrders, rowWords.copyObserver()); err != nil {
 			return nil, err
 		}
@@ -1900,7 +1928,8 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// Step 4b: the post-window attributes (only ever over the record
 	// rows), in declared order over the window-copied records; their
 	// warnings and Components entries rejoin the declared slot order.
-	if post.Any() {
+	// Windows-first ran them ahead of step 3.
+	if post.Any() && !windowsFirst {
 		if err := p.applyPostWindowAttributes(req, post, filtered, data, attrSlots); err != nil {
 			return nil, err
 		}

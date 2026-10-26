@@ -36,7 +36,9 @@ type attrSlotOut struct {
 // postWindowPlan classifies req's attributes over the processor's bound
 // models and refuses a window-dependent slot that cannot move
 // (PULSE_ATTRIBUTE_WINDOW_ORDER — the field-reference walk's refusal,
-// re-raised for a processor driven without the service).
+// re-raised for a processor driven without the service). Its
+// WindowsFirst reports the windows-first mode (vectors.WindowsFirst,
+// with the bound models): the ungrouped shape runs it in processRecords.
 func (p *Processor) postWindowPlan(req *types.Request) (vectors.PostWindow, error) {
 	var cat model.Catalog
 	if p.models != nil {
@@ -46,14 +48,14 @@ func (p *Processor) postWindowPlan(req *types.Request) (vectors.PostWindow, erro
 	if cerr := pw.Refusal(req); cerr != nil {
 		return vectors.PostWindow{}, cerr
 	}
-	if pw.WindowsFirst {
-		// The windows-first arm (windows over the record rows, then the
-		// groups / aggregations / crosstab over the records) is not wired
-		// into this engine yet: refuse rather than aggregate a window
-		// label no record carries (an all-null column, a confident wrong
-		// answer).
+	if pw.WindowsFirst && (len(req.Groups) > 0 || req.Crosstab != nil) {
+		// The grouped and crosstab windows-first arms (the groups or the
+		// crosstab over the window-carrying records) are not wired into
+		// this engine yet: refuse rather than group a window label no
+		// record carries (an all-null column, a confident wrong answer).
+		// The ungrouped arm runs (processRecords).
 		return vectors.PostWindow{}, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
-			"windows-first aggregation (an aggregation, grouper or crosstab axis reading a window output) is not executed by this engine yet; materialize the windows first, then aggregate the derived cohort",
+			"windows-first grouping (a grouper, crosstab axis or grouped aggregation reading a window output) is not executed by this engine yet; materialize the windows first, then group the derived cohort",
 			map[string]any{"reason": "windows_first_pending"})
 	}
 	return pw, nil

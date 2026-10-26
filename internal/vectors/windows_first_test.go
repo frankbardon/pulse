@@ -184,3 +184,34 @@ func TestAggregationColumnReads(t *testing.T) {
 		}
 	}
 }
+
+// TestWindowsFirstReads: the window labels the windows-first engine
+// copies onto the records — every aggregation (field and column param),
+// grouper and crosstab axis / cell / margin read of a window output, in
+// first-read order, once each; never a schema field, a post-window
+// attribute label, or anything in the record-row shape.
+func TestWindowsFirstReads(t *testing.T) {
+	wins := []*types.Window{lagOf("x", "lag"), lagOf("t", "lag_t"), lagOf("x", "x")}
+	cases := []struct {
+		name string
+		req  *types.Request
+		want []string
+	}{
+		{"record-row shape", &types.Request{Windows: wins}, nil},
+		{"aggregations then column params", &types.Request{Windows: wins, Attributes: []*types.Attribute{formula("sat", "lag * 2")},
+			Aggregations: []*types.Aggregation{sumOf("x"), sumOf("sat"), {Type: types.AGG_RATIO, Field: "lag_t", Label: "r",
+				Params: json.RawMessage(`{"numerator_field":"lag","denominator_field":"lag_t"}`)}, sumOf("lag")}}, []string{"lag_t", "lag"}},
+		{"groupers", &types.Request{Windows: wins, Groups: []*types.Group{catOf("lag_t")}, Aggregations: []*types.Aggregation{sumOf("lag")}},
+			[]string{"lag", "lag_t"}},
+		{"crosstab", &types.Request{Windows: wins, Crosstab: &types.CrosstabSpec{
+			Rows: []*types.Group{catOf("t")}, Columns: []*types.Group{catOf("lag_t")},
+			Cell: sumOf("lag"), MarginAggregations: []*types.Aggregation{sumOf("lag_t")}}}, []string{"lag_t", "lag"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := WindowsFirstReads(c.req, postWindowSchema()); !reflect.DeepEqual(got, c.want) {
+				t.Fatalf("WindowsFirstReads = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
