@@ -1,6 +1,8 @@
 package extend
 
 import (
+	"context"
+
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/types"
 )
@@ -52,6 +54,24 @@ type StreamingRegression interface {
 // or nonlinear fit). rows is valid only for the duration of the call.
 type BufferedRegression interface {
 	Fit(rows Rows) (RegressionOutput, error)
+}
+
+// ContextRegression is the optional sibling of BufferedRegression for a
+// fit that can run long (a sampler, an iterative search): the engine —
+// the run, every resample / selection refit, and pulse.New's probe —
+// calls FitContext instead of Fit when the model implements it. ctx is
+// the operation's own: it is done when the caller cancels or
+// Options.Limits.RequestTimeout elapses, and FitContext should return
+// promptly then, with ctx.Err() (or an error wrapping it) — the engine
+// reports the cancel or the coded request-timeout refusal exactly as
+// for any other phase. It is implemented beside Fit, never instead of
+// it: Fit is the form Streamable: false declares (a model without it is
+// PULSE_EXTENSION_STREAMABLE_MISMATCH, reason not_buffered), and a
+// model without FitContext is fitted through Fit as before. A
+// Streamable: true model is driven through UpdateRow / Finalize and
+// never reaches FitContext.
+type ContextRegression interface {
+	FitContext(ctx context.Context, rows Rows) (RegressionOutput, error)
 }
 
 // RegressionFactory builds a fresh Regression for one regression slot

@@ -36,10 +36,16 @@ const (
 	// RegressionFieldAccepted: honoured on every extension model by a
 	// path of its own — params (the declared-keys allowlist),
 	// multiplicity (the result's p-valued coefficients; a non-none
-	// method needs PValues, the multiplicity resolver's rule), resample
-	// with its knobs (the engine's refit driver) and conf_level (the
-	// engine's Wald intervals).
+	// method needs PValues, the multiplicity resolver's rule), rng_seed
+	// (the factory's spec.RNGSeed; the resample driver's seed),
+	// conf_level (the engine's Wald intervals) and holdout.
 	RegressionFieldAccepted RegressionFieldClass = "accepted"
+	// RegressionFieldOptOut: a shared slot honoured on every extension
+	// model unless its registration opts out (regressionSlotRules, an
+	// optOut rule) — resample with its knobs (the engine's refit
+	// driver), refused under NoResample with PROCESSING_CONFIG
+	// {regression, slot}.
+	RegressionFieldOptOut RegressionFieldClass = "opt_out"
 	// RegressionFieldWeightClass: weight — the registration's declared
 	// weight class (WeightAware) decides; undeclared, a weight in force
 	// is PULSE_EXTENSION_NOT_WEIGHT_AWARE (the weight resolver's rule).
@@ -67,6 +73,10 @@ type regressionSlotRule struct {
 	// refusal is the custom-specific message tail (after "regression
 	// <TYPE> ") naming the declaration and the fix.
 	refusal func(spec *types.RegressionSpec) string
+	// optOut marks a slot every model honours unless its registration
+	// opts out (RegressionFieldOptOut) — declared then reads the
+	// opt-out's absence.
+	optOut bool
 }
 
 // setKeys returns the keys whose present() is true, in order.
@@ -145,6 +155,22 @@ var regressionSlotRules = []regressionSlotRule{
 		},
 	},
 	{
+		// resample and its knobs: the engine's jackknife / bootstrap
+		// driver refits any model over row subsets
+		// (internal/processing/regression.RunExtensionModifiers), so
+		// every model accepts them unless it opts out (NoResample).
+		slot: "resample", keys: []string{"resample", "jackknife_groups", "jackknife_by", "bootstrap_iters"},
+		set: func(s *types.RegressionSpec) []string {
+			return setKeys("resample", s.Resample != "", "jackknife_groups", s.JackknifeGroups != 0,
+				"jackknife_by", s.JackknifeBy != "", "bootstrap_iters", s.BootstrapIters != 0)
+		},
+		declared: func(d ExtensionRegression, _ *types.RegressionSpec) bool { return !d.NoResample },
+		refusal: func(*types.RegressionSpec) string {
+			return "cannot be resampled (its registration's NoResample is true: the model must not be refit over row subsets); drop resample / jackknife_groups / jackknife_by / bootstrap_iters, or report the model's own uncertainty"
+		},
+		optOut: true,
+	},
+	{
 		slot: "selection", keys: []string{"selection", "criterion"},
 		set: func(s *types.RegressionSpec) []string {
 			return setKeys("selection", s.Selection != "", "criterion", s.Criterion != "")
@@ -197,14 +223,11 @@ var regressionFieldClasses = map[string]RegressionFieldClass{
 	"predictors":   RegressionFieldIdentity,
 	"params":       RegressionFieldAccepted,
 	"multiplicity": RegressionFieldAccepted,
-	// resample and its knobs: the engine's jackknife / bootstrap driver
-	// refits any model over row subsets, so every extension model
-	// accepts them (internal/processing/regression.RunExtensionModifiers).
-	"resample":         RegressionFieldAccepted,
-	"jackknife_groups": RegressionFieldAccepted,
-	"jackknife_by":     RegressionFieldAccepted,
-	"bootstrap_iters":  RegressionFieldAccepted,
-	"rng_seed":         RegressionFieldAccepted,
+	// rng_seed: the factory sees it (spec.RNGSeed) for the model's own
+	// use, and it seeds the resample driver; every model accepts it,
+	// a NoResample one too. resample and its knobs are an optOut rule
+	// (regressionSlotRules).
+	"rng_seed": RegressionFieldAccepted,
 	// conf_level: the engine builds every model's Wald intervals from
 	// the reported (or replicate) standard errors
 	// (regression.AttachExtensionIntervals), so every model accepts it.
@@ -229,6 +252,9 @@ func RegressionFieldClassOf(key string) (class RegressionFieldClass, slot string
 	}
 	for _, r := range regressionSlotRules {
 		if slices.Contains(r.keys, key) {
+			if r.optOut {
+				return RegressionFieldOptOut, r.slot, true
+			}
 			return RegressionFieldDeclared, r.slot, true
 		}
 	}
@@ -291,8 +317,11 @@ func regressionSlotParamsFor(decl ExtensionRegression) []descriptor.Param {
 			descriptor.Param{Name: "l1_ratio", Type: "float", Description: "The model's l1 / l2 mixing parameter, read by the model itself; a top-level key of the regression entry.", Slot: true},
 		)
 	}
-	// resample: every extension model accepts it (an accepted field).
-	out = append(out, descriptor.Param{Name: "resample", Type: "enum", EnumValues: []string{"", "bootstrap", "jackknife"}, Description: "Resampling layer: the engine refits the model over row subsets (jackknife_groups, jackknife_by, bootstrap_iters and rng_seed tune it); a top-level key of the regression entry.", Slot: true})
+	// resample: every extension model accepts it unless it opts out
+	// (NoResample).
+	if accepts("resample", probe) {
+		out = append(out, descriptor.Param{Name: "resample", Type: "enum", EnumValues: []string{"", "bootstrap", "jackknife"}, Description: "Resampling layer: the engine refits the model over row subsets (jackknife_groups, jackknife_by, bootstrap_iters and rng_seed tune it); a top-level key of the regression entry.", Slot: true})
+	}
 	// conf_level: every extension model accepts it (an accepted field).
 	out = append(out, descriptor.Param{Name: "conf_level", Type: "float", Default: 0.95, Description: "Coverage of ci_lower / ci_upper, 0 < conf_level < 1: the engine's Wald interval coefficient ∓ q·SE on the model's reported standard error — q the Student-t quantile on the fit's reported df, else the standard normal; the normal on the replicate SE under resample; null where the SE is. A top-level key of the regression entry.", Slot: true})
 	// multiplicity: an accepted field, listed when the model declares

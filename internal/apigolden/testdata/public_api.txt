@@ -978,6 +978,7 @@ pulse: type RegressionRegistration field Factory pulse/extend.RegressionFactory
 pulse: type RegressionRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type RegressionRegistration field Interpretation []pulse/descriptor.Interpretation
 pulse: type RegressionRegistration field Name pulse/types.RegressionType
+pulse: type RegressionRegistration field NoResample bool
 pulse: type RegressionRegistration field OutputSchema []pulse.RegressionOutputMeta
 pulse: type RegressionRegistration field PValues bool
 pulse: type RegressionRegistration field Params []pulse.ParamMeta
@@ -2925,6 +2926,8 @@ pulse/extend: type AttributeComputer imethod Compute(rows pulse/extend.Rows, fie
 pulse/extend: type AttributeFactory func(spec *pulse/types.Attribute, schema *pulse/encoding.Schema) (pulse/extend.AttributeComputer, error)
 pulse/extend: type BufferedRegression interface
 pulse/extend: type BufferedRegression imethod Fit(rows pulse/extend.Rows) (pulse/extend.RegressionOutput, error)
+pulse/extend: type ContextRegression interface
+pulse/extend: type ContextRegression imethod FitContext(ctx context.Context, rows pulse/extend.Rows) (pulse/extend.RegressionOutput, error)
 pulse/extend: var ErrGrouperKeyNull error
 pulse/extend: type FeatureComputer interface
 pulse/extend: type FeatureComputer imethod Compute(rows pulse/extend.Rows, field string) (map[string]pulse/extend.FeatureOutput, error)
@@ -6162,4 +6165,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 6f8401cf0a6cd3ac07360b9519a7b6f78b73f7b12aaf97fab4a6d6bd57232731
+// golden-hash: 49de46e6dd15cec24ce7c7ce9752f6ddcc86b3d07eefa070bd1802897f6649c2

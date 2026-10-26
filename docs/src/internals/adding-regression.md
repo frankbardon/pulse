@@ -107,6 +107,33 @@ A nonlinear parameter is a coefficient too, named by the model. `Outputs`
 carries what has no coefficient slot: per-channel `k` and `s` objects, a
 convergence flag, a pooled variance.
 
+A fit that can run long (a sampler, a wide search) also implements
+`extend.ContextRegression` beside `Fit`; the engine then calls
+`FitContext` instead — on the run, every resample / selection refit and the
+`pulse.New` probe — with the operation's ctx, done on a caller cancel or
+when `Options.Limits.RequestTimeout` elapses. Check it between iterations
+and return its error:
+
+```go
+func (m *sampler) Fit(rows extend.Rows) (extend.RegressionOutput, error) {
+    return m.FitContext(context.Background(), rows)
+}
+
+func (m *sampler) FitContext(ctx context.Context, rows extend.Rows) (extend.RegressionOutput, error) {
+    for it := 0; it < m.iters; it++ {
+        if err := ctx.Err(); err != nil {
+            return extend.RegressionOutput{}, err // cancel / PULSE_LIMIT_EXCEEDED
+        }
+        // one iteration
+    }
+    // ...
+}
+```
+
+The probe runs `FitContext` under a background ctx, so refuse the eight
+synthetic probe rows cheaply (a coded `PROCESSING_REGRESSION_INSUFFICIENT_DATA`,
+say) rather than run a full fit on them.
+
 A fit that returns figures it does not fully trust (a sampler whose
 chains did not mix, a solver that stopped on a bound) says so in
 `Warnings`, never by failing:
@@ -159,10 +186,12 @@ way).
 | `SupportsSelection` | a refit over a predictor subset is meaningful; every fit reports `Fit.Deviance` | `PROCESSING_CONFIG` `{slot: "selection"}`; a fit without a deviance is `_OUTPUT_MISMATCH` `missing_deviance` |
 | `Scorer` | scores rows from the fit, enabling `ATTR_REG_PREDICT`, `save` and `holdout` | `PULSE_MODEL_SCORE_INVALID` `no_scorer` (`ATTR_REG_PREDICT`, `holdout`); `save` refused |
 | `FieldInputs` | fields the model reads beyond target, predictors and weight | a buffered request decodes every field |
+| `NoResample` | opt OUT of `resample`: a row-subset refit would break the model (it reads row order) or cost too much | set, `resample` and its knobs are `PROCESSING_CONFIG` `{slot: "resample"}` (predict ≡ runtime); `rng_seed` still reaches the factory |
 
 **Declare or refuse.** Every shared `RegressionSpec` slot is either honoured
 or refused with `PROCESSING_CONFIG` `{regression, slot}` — never silently
-ignored. `resample` and `conf_level` are always honoured; `family`,
+ignored. `resample` is honoured unless `NoResample`, `conf_level` and
+`rng_seed` always; `family`,
 `link`, `max_iters`, `tol` and `prior` are always refused (carry the
 model's own settings in `params`).
 
@@ -212,7 +241,10 @@ intervals as the normal ones on the replicate SE, so
 **the factory must be re-entrant** and report the same coefficient names on
 every fit (`_OUTPUT_MISMATCH` `replicate_coefficients`). `selection` needs
 `SupportsSelection` and a `Fit.Deviance`. Both read the request deadline
-before every refit.
+before every refit, and a `ContextRegression` refit gets the ctx too. A
+model a row-subset refit would break, or that is too slow to refit
+`bootstrap_iters` times, sets `NoResample` and the slot is refused
+instead.
 
 ## 7. The registration probe
 

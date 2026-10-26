@@ -45,6 +45,7 @@ func regressionDeclaration(reg RegressionRegistration) descx.ExtensionRegression
 		PValues:           reg.PValues,
 		Penalty:           reg.Penalty,
 		SupportsSelection: reg.SupportsSelection,
+		NoResample:        reg.NoResample,
 		CovarianceTypes:   slices.Clone(reg.CovarianceTypes),
 		Scorer:            reg.Scorer != nil,
 		Accepts:           slices.Clone(reg.Accepts),
@@ -139,9 +140,10 @@ func (d *regressionDriver) updateRow(s extend.StreamingRegression, rec extend.Re
 	return s.UpdateRow(&d.view)
 }
 
-// fitRows fits the model over recs and maps the output (result).
-func (d *regressionDriver) fitRows(recs []extend.Record) (*types.RegressionResult, error) {
-	out, err := d.fitOutput(recs)
+// fitRows fits the model over recs under ctx and maps the output
+// (result).
+func (d *regressionDriver) fitRows(ctx context.Context, recs []extend.Record) (*types.RegressionResult, error) {
+	out, err := d.fitOutput(ctx, recs)
 	if err != nil {
 		return nil, err
 	}
@@ -151,8 +153,9 @@ func (d *regressionDriver) fitRows(recs []extend.Record) (*types.RegressionResul
 // fitOutput fits the model over recs: a streaming model (Streamable
 // declared) is fed every admitted row through UpdateRow, in order, then
 // finalized — the streaming arm's exact fold; a buffered one fits the
-// admitted rows at once.
-func (d *regressionDriver) fitOutput(recs []extend.Record) (extend.RegressionOutput, error) {
+// admitted rows at once, through FitContext under ctx when it
+// implements extend.ContextRegression, else through Fit.
+func (d *regressionDriver) fitOutput(ctx context.Context, recs []extend.Record) (extend.RegressionOutput, error) {
 	if s, ok := d.streaming(); ok {
 		for _, rec := range recs {
 			if err := d.updateRow(s, rec); err != nil {
@@ -181,6 +184,9 @@ func (d *regressionDriver) fitOutput(recs []extend.Record) (extend.RegressionOut
 		}
 		views = append(views, regWeightedRecord{Record: rec, w: w})
 		rows = append(rows, &views[len(views)-1])
+	}
+	if c, ok := d.model.(extend.ContextRegression); ok {
+		return c.FitContext(ctx, rows)
 	}
 	return b.Fit(rows)
 }
@@ -520,11 +526,21 @@ func (s regressionRowScorer) Score(row model.Row) (float64, bool) {
 type regressionEngine struct{ d *regressionDriver }
 
 // Fit fits over no rows (the engine's record-less entry point).
-func (e *regressionEngine) Fit() (*types.RegressionResult, error) { return e.d.fitRows(nil) }
+func (e *regressionEngine) Fit() (*types.RegressionResult, error) {
+	return e.d.fitRows(context.Background(), nil)
+}
 
 // FitBuffered fits over the filtered rows, each wrapped in the extend
 // view (extRecord).
 func (e *regressionEngine) FitBuffered(records []regression.Record) (*types.RegressionResult, error) {
+	return e.FitBufferedContext(context.Background(), records)
+}
+
+// FitBufferedContext is FitBuffered under the operation's ctx
+// (regression.ContextBufferedEngine, which the engine prefers): a model
+// implementing extend.ContextRegression receives it through FitContext,
+// so a caller cancel or Limits.RequestTimeout reaches a long fit.
+func (e *regressionEngine) FitBufferedContext(ctx context.Context, records []regression.Record) (*types.RegressionResult, error) {
 	recs := make([]extend.Record, len(records))
 	for i, rec := range records {
 		view, err := regressionRecordView(rec)
@@ -533,7 +549,7 @@ func (e *regressionEngine) FitBuffered(records []regression.Record) (*types.Regr
 		}
 		recs[i] = view
 	}
-	return e.d.fitRows(recs)
+	return e.d.fitRows(ctx, recs)
 }
 
 // streamingRegressionEngine adds the engine's streaming drive
@@ -645,7 +661,10 @@ func (e *regressionModifierEngine) FitBuffered(records []regression.Record) (*ty
 // (regression.ContextBufferedEngine): a request deadline stops the
 // refit loop between two fits.
 func (e *regressionModifierEngine) FitBufferedContext(ctx context.Context, records []regression.Record) (*types.RegressionResult, error) {
-	return regression.RunExtensionModifiers(ctx, e.spec, e.reg.PValues, records, e.refit,
+	refit := func(recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
+		return e.refit(ctx, recs, predictors)
+	}
+	return regression.RunExtensionModifiers(ctx, e.spec, e.reg.PValues, records, refit,
 		func() error { return regressionSelectionDevianceMismatch(e.reg, false) },
 		func(base, got []string) error {
 			return errors.NewCodedErrorWithDetails(errors.PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH,
@@ -655,8 +674,9 @@ func (e *regressionModifierEngine) FitBufferedContext(ctx context.Context, recor
 		})
 }
 
-// refit is one fresh fit of the model over recs with predictors active.
-func (e *regressionModifierEngine) refit(recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
+// refit is one fresh fit of the model over recs with predictors active,
+// under the operation's ctx (a ContextRegression model's FitContext).
+func (e *regressionModifierEngine) refit(ctx context.Context, recs []regression.Record, predictors []string) (*types.RegressionResult, []string, error) {
 	inner := *e.spec
 	inner.Predictors = slices.Clone(predictors)
 	inner.Resample, inner.JackknifeGroups, inner.JackknifeBy, inner.BootstrapIters, inner.RNGSeed = "", 0, "", 0, 0
@@ -680,7 +700,7 @@ func (e *regressionModifierEngine) refit(recs []regression.Record, predictors []
 		}
 	}
 	d := newRegressionDriver(e.reg, &inner, model)
-	out, err := d.fitOutput(views)
+	out, err := d.fitOutput(ctx, views)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -991,7 +1011,10 @@ func safeFitRegression(reg RegressionRegistration, d *regressionDriver, recs []e
 			out, err = extend.RegressionOutput{}, fail(fmt.Sprintf("panicked: %v", r), map[string]any{"panic": fmt.Sprintf("%v", r)})
 		}
 	}()
-	out, err = d.fitOutput(recs)
+	// The probe has no operation: a ContextRegression model's FitContext
+	// runs under a background ctx, so it must refuse the synthetic rows
+	// cheaply (a coded data refusal) rather than run long.
+	out, err = d.fitOutput(context.Background(), recs)
 	if err != nil {
 		var coded *errors.CodedError
 		if stderrors.As(err, &coded) && regressionDataRefusal(coded.Code) {
