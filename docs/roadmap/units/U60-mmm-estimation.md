@@ -27,7 +27,7 @@ branch: mmm-estimation
 - **Compose `optimize` (E3).** A block that maximises or minimises an expression over named variables, subject to bounds and constraints, reading fitted coefficients with `coef()`. It returns the optimum, each variable's marginal, each constraint's multiplier and active bounds, and fails alone.
 - **MMM pack (E4).** `contrib/mmmpulse` registers `REG_MMM_HILL`, a joint nonlinear least-squares fit of every channel's effect and saturation curve. The pack's pass bar on a 156-week, four-channel joint-truth fixture is met on the root library, the CLI path and `mcpserve`. `linalg/detmath` was made public so the pack and core share one deterministic maths set.
 
-Status: merged in PR #386 (dd26d440); shipped in `v1.0.0-alpha.27` (pre-release) with lockstep `contrib/{mmmpulse,otelpulse,prompulse}/v1.0.0-alpha.27` tags.
+Status: merged in PR #386 (dd26d440); shipped in `v1.0.0-alpha.27` (pre-release) with lockstep `contrib/{mmmpulse,otelpulse,prompulse}/v1.0.0-alpha.27` tags. *(Retired in `v1.0.0-alpha.29` by mmm-followups: `REG_MMM_HILL` and `REG_MMM_BAYES` are built-in regressions in `internal/regmmm`, and the `contrib/mmmpulse` module is removed.)*
 
 ## References
 

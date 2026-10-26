@@ -9,7 +9,7 @@ import (
 
 // UnknownRegressionType is the refusal of a regression slot whose type no
 // registry on the instance resolves — never registered, hidden by a
-// feature profile, or a pack model whose extension is not registered.
+// feature profile, or an embedder model whose extension is not registered.
 // index is the slot's position in Request.Regressions. Predict
 // (internal/descriptor) and the engine (internal/processing/regression)
 // both raise exactly this error: one code, one sentence, one details map.

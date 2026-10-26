@@ -27,7 +27,7 @@ branch: bayesian-mmm
 - **`REG_MMM_BAYES` (E3).** In `contrib/mmmpulse`: geometric adstock (`max_lag` 13, `normalize: false`), Hill, linear controls and Normal noise, with ROI priors by default, internal max-abs scaling and a MAP warm start. Outputs: ROI, analytic mROI and contribution intervals, per-coefficient summaries, sampler diagnostics and a model-owned holdout. A sampler fault is reported as a coded warning, never refused. Pass bar on the joint fixture: all 4 channels covered, max R-hat 1.0037, min bulk ESS 1754, 0 divergences, median ROI error at most 1.4%.
 - **Validation and docs (E4).** A 50-replicate coverage study outside CI (92% of true ROI and contribution covered at the 90% level; tv 86%, search 92%, display 90%, social 100% with wide intervals), the `op-reg-mmm-bayes` skill, the Bayesian-vs-sweep route guide with the lift-test-prior recipe, and this close-out.
 
-Status: implemented on branch `bayesian-mmm`; targets `v1.0.0-alpha.28` with a lockstep `contrib/mmmpulse` tag. Nothing is released or tagged by this unit's close-out.
+Status: implemented on branch `bayesian-mmm`; targets `v1.0.0-alpha.28` with a lockstep `contrib/mmmpulse` tag. Nothing is released or tagged by this unit's close-out. *(Retired in `v1.0.0-alpha.29` by mmm-followups: `REG_MMM_HILL` and `REG_MMM_BAYES` are built-in regressions in `internal/regmmm`, and the `contrib/mmmpulse` module is removed.)*
 
 ## References
 

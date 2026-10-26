@@ -558,7 +558,7 @@ const (
 
 	// PULSE_REGRESSION_INVALID indicates a regression slot naming a type
 	// no registry on the instance resolves: never registered, hidden by a
-	// feature profile, or a pack model (REG_<NAMESPACE>_<NAME>) whose
+	// feature profile, or an embedder model (REG_<NAMESPACE>_<NAME>) whose
 	// extension is not registered. details carry regression_index (the
 	// slot's position in Regressions) and type. Predict and every runtime
 	// surface raise it alike, with one sentence.

@@ -939,7 +939,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_REGRESSION_INVALID: {
-		Message: "A regression slot names a type no registry on this instance resolves (never registered, hidden, or a pack model whose extension is not registered); predict and every runtime surface refuse it alike.",
+		Message: "A regression slot names a type no registry on this instance resolves (never registered, hidden, or an embedder model whose extension is not registered); predict and every runtime surface refuse it alike.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,

@@ -1,6 +1,8 @@
-# mmmpulse
+# Media-Mix Models
 
-`mmmpulse` was Pulse's media-mix modelling pack. Both of its models are now built-in regressions: `REG_MMM_HILL`, which fits every channel's effect and saturation curve jointly over already-adstocked channels, and `REG_MMM_BAYES`, which adstocks raw spend inside the model and samples the posterior with NUTS (the public `mcmc` package). Every instance, the stock `pulse` CLI and `pulse mcp` included, runs them with no registration, and their skills (`op-reg-mmm-hill`, `op-reg-mmm-bayes` and the `mmm-workflow` design guide) ship with Pulse. The module (`github.com/frankbardon/pulse/contrib/mmmpulse`) remains only so existing imports compile: `Extensions()` returns an empty registration set, and registering either name yourself is refused as `PULSE_EXTENSION_NAME_COLLISION`.
+Pulse ships two built-in media-mix regressions: `REG_MMM_HILL`, which fits every channel's effect and saturation curve jointly over already-adstocked channels, and `REG_MMM_BAYES`, which adstocks raw spend inside the model and samples the posterior with NUTS (the public `mcmc` package). Every instance, the stock `pulse` CLI and `pulse mcp` included, runs them with no registration, and their skills (`op-reg-mmm-hill`, `op-reg-mmm-bayes` and the `mmm-workflow` design guide) ship with Pulse. An embedder registering either name is refused as `PULSE_EXTENSION_NAME_COLLISION`.
+
+Before `v1.0.0-alpha.29` both models shipped in a separate contrib pack module registered through `pulse.Options.Extensions`; that module is removed, so drop its import and its `Extensions` entry (see the embedder migration guide).
 
 ## The model
 

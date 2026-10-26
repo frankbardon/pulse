@@ -476,7 +476,7 @@
 - [Linear Algebra (linalg)](library/linalg.md)
 - [Numerical Optimization (optimize)](library/optimize.md)
 - [Bayesian Sampling (mcmc)](library/mcmc.md)
-- [Media-Mix Pack (mmmpulse)](library/mmm-pack.md)
+- [Media-Mix Models](library/mmm.md)
 - [Vectors and Matrices](library/matrices.md)
 
 # .pulse File Format
