@@ -1,0 +1,55 @@
+{
+  "_meta": {
+    "category": "windows",
+    "description": "Aggregate a window column (windows-first): WIN_DELTA writes each order's revenue change from the previous order, and AGG_AVERAGE / AGG_COUNT summarise those changes over the whole cohort. The first order has no predecessor, so its change is null and is skipped.",
+    "intents": [
+      "change_over_time"
+    ],
+    "name": "win_column_aggregate",
+    "operators": [
+      "AGG_COUNT",
+      "AGG_AVERAGE",
+      "WIN_DELTA"
+    ],
+    "tags": [
+      "time-series",
+      "window-operator",
+      "buffered-pipeline"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_AVERAGE",
+      "field": "revenue_change",
+      "label": "mean_change"
+    },
+    {
+      "type": "AGG_COUNT",
+      "field": "revenue_change",
+      "label": "n_changes"
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "windows": [
+    {
+      "type": "WIN_DELTA",
+      "field": "revenue",
+      "label": "revenue_change",
+      "order_by": [
+        {
+          "field": "order_date"
+        },
+        {
+          "field": "id"
+        }
+      ],
+      "params": {
+        "periods": 1
+      }
+    }
+  ]
+
+}

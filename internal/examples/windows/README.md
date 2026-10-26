@@ -2,7 +2,9 @@
 
 Runnable JSON requests demonstrating each `WIN_*` operator. Windows run
 after aggregation (or instead of it, when no groups + aggs are set) and
-emit one output column per window. Every window requires `order_by`,
+emit one output column per window. When a group, aggregation or crosstab
+reads a window label, the windows run first over the records instead
+(windows-first, examples 15 and 16; `pulse skills show windows-first`). Every window requires `order_by`,
 except a non-cumulative `WIN_SHARE` / `WIN_LIFT`.
 
 Setup is documented in [`../README.md`](../README.md). Run all:
@@ -29,6 +31,8 @@ Setup is documented in [`../README.md`](../README.md). Run all:
 | `12_ewma_for_each.json` | `WIN_EWMA` | One item fanned out by `for_each` (zip of a label axis and a `decay` axis) into three EWMA columns |
 | `13_share_lift_gains.json` | `WIN_SHARE`, `WIN_LIFT` | Gains table on revenue quartiles: share of total, cumulative share and cumulative lift over the subscriber count (`order_by` only for the cumulative forms) |
 | `14_distributed_lag.json` | `WIN_DISTRIBUTED_LAG` | Distributed lag (media adstock): geometric (`decay`) and Weibull PDF (`shape`, `scale`) lag kernels over `max_lag` rows, normalised |
+| `15_window_column_aggregate.json` | `WIN_DELTA`, `AGG_AVERAGE`, `AGG_COUNT` | Windows-first, ungrouped: aggregate a window column (the mean order-to-order revenue change; the first order's null change is skipped) |
+| `16_window_column_by_quarter.json` | `WIN_RUNNING_SUM`, `GROUP_DATE`, `AGG_SUM`, `AGG_MAX` | Windows-first, grouped: the running revenue total reached by each quarter's end beside the quarter's own sum |
 
 ## Frame requirements
 

@@ -21,6 +21,12 @@ Goal: per-channel decay, response curve and a budget split that equalises margin
 
 Run order: the sweep slots, the rank, the bound fit, then optimize and the contribution slot. The winning decays are `ranking[0].axes`, typed numbers. At the optimum every free channel's `marginal` equals the budget `multiplier`.
 
+## Contribution by quarter
+
+<!-- feature: GROUP_DATE, AGG_SUM -->
+Add `groups` (`GROUP_DATE` on a date column, `params.component: "quarter"`) and one `AGG_SUM` per channel over its contribution label to the contribution slot. An aggregation reading a post-window label runs the slot windows-first (`windows-first`): the lags, adstock and contribution are computed per week, then summed per quarter, and the rows are quarters. Weight the aggregations, never the request: a window has no weighted form.
+<!-- /feature -->
+
 <!-- feature: REG_MMM_BAYES -->
 ## Bayesian route vs LM/sweep route
 
@@ -42,4 +48,4 @@ Turn an experiment into `priors.<channel>.roi`: a lognormal with `mu = ln(measur
 
 ## See
 
-`op-reg-mmm-hill` · `op-reg-mmm-bayes` · `compose-sweep-sampling` · `compose-sweep-bind` · `compose-optimize` · `item-fan-out` · `regression-model-options`
+`op-reg-mmm-hill` · `op-reg-mmm-bayes` · `compose-sweep-sampling` · `compose-sweep-bind` · `compose-optimize` · `item-fan-out` · `regression-model-options` · `windows-first`

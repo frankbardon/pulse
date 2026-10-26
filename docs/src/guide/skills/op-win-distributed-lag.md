@@ -58,7 +58,7 @@ Weibull kernels: `weibull_cdf` `w_l = exp(−(l/scale)^shape)` (survival, `w_0 =
 - Starts from zero, unlike `WIN_EWMA`; normalised geometric ≈ EWMA (`alpha = 1 − decay`) once `decay^i` is negligible.
 - Missing/unknown `kernel`, bad `max_lag`, `decay`, `shape`, `scale`, a param the kernel does not read → `PULSE_WINDOW_INVALID` (predict and runtime).
 - Not weightable; forces buffered execution.
-- Regressions and post-window formulas may read the label ([`regression-model-options`](regression-model-options.md)).
+- Regressions, post-window formulas, aggregations and groupers may read the label ([`regression-model-options`](regression-model-options.md), [`windows-first`](windows-first.md)).
 
 ## See
 

@@ -405,3 +405,4 @@
     - [vector-row-scores](skills/vector-row-scores.md)
     - [weighting](skills/weighting.md)
     - [window-design](skills/window-design.md)
+    - [windows-first](skills/windows-first.md)

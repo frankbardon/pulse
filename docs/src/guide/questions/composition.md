@@ -378,7 +378,7 @@ The figures these operators return read as their names say; for the ones that ne
 - [Benchmark against a reference](benchmark.md)
 - [Compare groups](compare_groups.md)
 
-**Skills:** [`intents`](../skills/intents.md), [`aggregation-design`](../skills/aggregation-design.md), [`feature-engineering`](../skills/feature-engineering.md), [`grouper-design`](../skills/grouper-design.md), [`overlay-formula-namespace`](../skills/overlay-formula-namespace.md), [`overlay-pairwise`](../skills/overlay-pairwise.md), [`overlay-reference-tests`](../skills/overlay-reference-tests.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`panel-n-sources`](../skills/panel-n-sources.md), [`window-design`](../skills/window-design.md), [`op-agg-count`](../skills/op-agg-count.md), [`op-group-category`](../skills/op-group-category.md)
+**Skills:** [`intents`](../skills/intents.md), [`aggregation-design`](../skills/aggregation-design.md), [`feature-engineering`](../skills/feature-engineering.md), [`grouper-design`](../skills/grouper-design.md), [`overlay-formula-namespace`](../skills/overlay-formula-namespace.md), [`overlay-pairwise`](../skills/overlay-pairwise.md), [`overlay-reference-tests`](../skills/overlay-reference-tests.md), [`overlay-system`](../skills/overlay-system.md), [`pairwise-n-sources`](../skills/pairwise-n-sources.md), [`panel-n-sources`](../skills/panel-n-sources.md), [`window-design`](../skills/window-design.md), [`windows-first`](../skills/windows-first.md), [`op-agg-count`](../skills/op-agg-count.md), [`op-group-category`](../skills/op-group-category.md)
 
 **From the command line:**
 

@@ -107,6 +107,34 @@ At the optimum every free channel's `marginal` (its marginal ROI) equals the bud
 
 Skills carry the detail: `mmm-workflow` (the flow), `op-reg-mmm-hill` (the model), and the core `compose-sweep-bind`, `compose-sweep-sampling` and `compose-optimize`.
 
+## Contribution by quarter
+
+A per-week contribution column is rarely the deliverable; a per-quarter table is. Add `groups` and one `AGG_SUM` per channel to the contribution slot of the recipe above, keeping its windows and attributes as they are:
+
+```jsonc
+{
+  "label": "contribution_by_quarter",
+  "cohort": {"filename": "weekly.pulse"},
+  "windows": [{"...": "the WIN_LAG for_each item of the contribution slot"}],
+  "attributes": [{"...": "the tv_ad adstock formula, per channel"},
+                 {"type": "ATTR_FORMULA", "label": "tv_contrib",
+                  "expression": "coef(\"mmm\", \"tv_ad\") * hill(tv_ad, coef(\"mmm\", \"k:tv_ad\"), coef(\"mmm\", \"s:tv_ad\"))"},
+                 {"...": "the same per channel"}],
+  "groups": [{"type": "GROUP_DATE", "field": "week_start", "params": {"component": "quarter"}}],
+  "aggregations": [{"type": "AGG_SUM", "field": "tv_contrib", "label": "tv_contribution"},
+                   {"type": "AGG_SUM", "field": "sales", "label": "sales"}],
+  "sort": [{"field": "week_start"}]
+}
+```
+
+`week_start` stands for any `date` (or `datetime`) column on the weekly rows. An aggregation that reads `tv_contrib`, a label computed from the window columns, makes the slot run windows-first. The lags, the adstock and the contribution are computed per week, in week order, over every row of the market. The rows are then grouped by quarter and summed. The response has one row per quarter (`week_start` is the quarter key, such as `2024-Q1`), with each channel's contribution beside total sales. The same request over a cohort that stored `tv_contrib` as a column gives the same figures. `pulse api predict-compose` shows the plan in the slot's `post_window` block (`windows_first: true`).
+
+- **Weights.** A request-level `weight` is refused here (`PROCESSING_CONFIG`: a window has no weighted form). To weight the sums, put a `weight` on each aggregation.
+- **Per market.** On a panel, add the market field to each window's `partition_by` so the lags restart per market, and add a second grouper on the market for a market × quarter table.
+- **Sort.** Sort by the group key or an aggregation label. A window or attribute label is not in the output rows, so sorting by one is refused.
+
+The skill `windows-first` covers the general rule, also for ungrouped and crosstab requests.
+
 ## REG_MMM_BAYES: the Bayesian route
 
 `REG_MMM_BAYES` adstocks raw spend (geometric, `max_lag` 13, no normalisation), saturates it with a Hill curve and samples the posterior with NUTS (the public `mcmc` package). Decay is a posterior parameter, so every interval carries decay uncertainty, which the sweep route cannot give. It returns ROI, marginal ROI and contribution intervals per channel, per-coefficient summaries, sampler diagnostics and, with `holdout_from`, a held-out score.

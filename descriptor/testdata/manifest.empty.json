@@ -678,6 +678,10 @@
       {
         "name": "window-design",
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
+      },
+      {
+        "name": "windows-first",
+        "description": "Windows-first — aggregate, group or cross-tabulate a window column (a lag, change, running total or adstock) by running the windows over the records before the groups and aggregations; triggers, weights, refusals and the predict plan."
       }
     ],
     "examples_count": 0,
@@ -873,4 +877,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 589bab9ca8f3179f12e2ba65d39e73587bc97b2927b47e33ff6f320b6cde9f63
+// golden-hash: e0963f8bd41717eafc30e7804c8da4aeec20d08796f24a6878aacc1aa405adbb

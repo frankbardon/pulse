@@ -1,0 +1,72 @@
+{
+  "_meta": {
+    "category": "windows",
+    "description": "Group by a date bucket and aggregate a window column (windows-first): WIN_RUNNING_SUM writes cumulative revenue over the date-ordered orders, then GROUP_DATE buckets by quarter and AGG_MAX reads the running total reached by each quarter's end beside the quarter's own AGG_SUM.",
+    "intents": [
+      "change_over_time"
+    ],
+    "name": "win_column_by_quarter",
+    "operators": [
+      "AGG_MAX",
+      "AGG_SUM",
+      "GROUP_DATE",
+      "WIN_RUNNING_SUM"
+    ],
+    "tags": [
+      "time-series",
+      "window-operator",
+      "buffered-pipeline"
+    ]
+  },
+  "aggregations": [
+    {
+      "type": "AGG_SUM",
+      "field": "revenue",
+      "label": "quarter_revenue"
+    },
+    {
+      "type": "AGG_MAX",
+      "field": "revenue_to_date",
+      "label": "revenue_to_date"
+    }
+  ],
+  "cohort": {
+    "filename": "orders.pulse",
+    "data_dir": ".data"
+  },
+  "groups": [
+    {
+      "type": "GROUP_DATE",
+      "field": "order_date",
+      "params": {
+        "component": "quarter"
+      }
+    }
+  ],
+  "sort": [
+    {
+      "field": "order_date"
+    }
+  ],
+  "windows": [
+    {
+      "type": "WIN_RUNNING_SUM",
+      "field": "revenue",
+      "label": "revenue_to_date",
+      "order_by": [
+        {
+          "field": "order_date"
+        },
+        {
+          "field": "id"
+        }
+      ],
+      "frame": {
+        "mode": "rows",
+        "preceding": null,
+        "following": 0
+      }
+    }
+  ]
+
+}

@@ -417,6 +417,7 @@
     - [vector-row-scores](guide/skills/vector-row-scores.md)
     - [weighting](guide/skills/weighting.md)
     - [window-design](guide/skills/window-design.md)
+    - [windows-first](guide/skills/windows-first.md)
 <!-- docgen:summary end -->
 
 # Concepts

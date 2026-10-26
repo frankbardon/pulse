@@ -21,6 +21,10 @@ Goal: per-channel decay, response curve and a budget split that equalises margin
 
 Run order: the sweep slots, the rank, the bound fit, then optimize and the contribution slot. The winning decays are `ranking[0].axes`, typed numbers. At the optimum every free channel's `marginal` equals the budget `multiplier`.
 
+## Contribution by quarter
+
+Add `groups` (`GROUP_DATE` on a date column, `params.component: "quarter"`) and one `AGG_SUM` per channel over its contribution label to the contribution slot. An aggregation reading a post-window label runs the slot windows-first ([`windows-first`](windows-first.md)): the lags, adstock and contribution are computed per week, then summed per quarter, and the rows are quarters. Weight the aggregations, never the request: a window has no weighted form.
+
 ## Bayesian route vs LM/sweep route
 
 - **LM/sweep** (above): fast (seconds per fit), scores holdout, saves and feeds `compose optimize`. Decay is a sweep axis, so betas, k and s are decay-conditional; there is no decay interval.
@@ -40,4 +44,4 @@ Turn an experiment into `priors.<channel>.roi`: a lognormal with `mu = ln(measur
 
 ## See
 
-[`op-reg-mmm-hill`](op-reg-mmm-hill.md) · [`op-reg-mmm-bayes`](op-reg-mmm-bayes.md) · [`compose-sweep-sampling`](compose-sweep-sampling.md) · [`compose-sweep-bind`](compose-sweep-bind.md) · [`compose-optimize`](compose-optimize.md) · [`item-fan-out`](item-fan-out.md) · [`regression-model-options`](regression-model-options.md)
+[`op-reg-mmm-hill`](op-reg-mmm-hill.md) · [`op-reg-mmm-bayes`](op-reg-mmm-bayes.md) · [`compose-sweep-sampling`](compose-sweep-sampling.md) · [`compose-sweep-bind`](compose-sweep-bind.md) · [`compose-optimize`](compose-optimize.md) · [`item-fan-out`](item-fan-out.md) · [`regression-model-options`](regression-model-options.md) · [`windows-first`](windows-first.md)

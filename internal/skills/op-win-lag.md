@@ -36,7 +36,7 @@ One value per row written to `Label` (default `WIN_LAG_<field>`): a verbatim cop
 
 - `order_by` required, `frame` forbidden, `offset < 0` refused — `PULSE_WINDOW_INVALID` on predict AND runtime.
 - Partitioning by the raw `date` collapses each row to its own partition. Pick a coarser partition (region, account) and order by date.
-- Regressions and post-window formulas may read the label (`regression-model-options`).
+- Regressions, post-window formulas, aggregations and groupers may read the label (`regression-model-options`, `windows-first`).
 
 ## See
 
