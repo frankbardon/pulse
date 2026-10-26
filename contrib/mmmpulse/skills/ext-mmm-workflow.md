@@ -4,8 +4,8 @@ description: Media-mix workflow with the media-mix pack's Hill regression — se
 kind: design
 type: guide
 applies_to: compose
-requires: [REG_MMM_HILL, WIN_DISTRIBUTED_LAG, capability:compose_sweep_sampling, capability:compose_optimize]
-covers: [media mix, MMM, adstock decay, Hill curve, marginal ROI, budget reallocation, two-call recipe]
+requires: [REG_MMM_HILL, REG_MMM_BAYES, WIN_DISTRIBUTED_LAG, capability:compose_sweep_sampling, capability:compose_optimize]
+covers: [Bayesian media mix, lift test prior, media mix, MMM, adstock decay, Hill curve, marginal ROI, budget reallocation, two-call recipe]
 ---
 
 # Media-mix workflow
@@ -20,6 +20,16 @@ An `lhs` sweep (`compose-sweep-sampling`) with one axis per channel decay, a `ra
 
 A winning sweep slot cannot yet be bound as a fit, so template it. Keep call 2 as a request template whose `$var`s are the winner's decays, each channel's steady-state multiplier (the geometric weights summed over `max_lag`, `Σ decay^l` for `normalize: false`: a constant weekly spend settles to that multiple), current spend, bounds and the budget; fill it from call 1 (`pulse.RenderTemplate`). It holds `fits` (the same windows and regression, decays now fixed), a `requests` entry for contributions (`coef(...) * hill(x, coef(.. "k:ch"), coef(.. "s:ch"))`), and an `optimize` block maximising the summed curves at `mult * spend` under `sum(spend) = budget` (`compose-optimize`). At the optimum every free channel's `marginal` equals the budget `multiplier`.
 
+## Bayesian route vs LM/sweep route
+
+- **LM/sweep** (above): fast (seconds per fit), scores holdout, saves and feeds `compose optimize`. Decay is a sweep axis, so betas, k and s are decay-conditional; there is no decay interval.
+- **`REG_MMM_BAYES`** (`op-reg-mmm-bayes`): one fit adstocks raw spend and returns ROI, mROI and contribution intervals that include decay uncertainty; about 35 s per default fit. It has no save, scoring or optimizer: take its ROI intervals to a budget decision by hand. Needs `params.time` as contiguous integers (a date column is refused as `time_gap`).
+- Pick the sweep to allocate budget, Bayes to say how sure you are. Reading an interval: calibration over 50 replicates was 92% at the 90% level (tv 86%, social 100% with wide intervals), so read social's width, not its centre. Check `diagnostics` first; `Strict` turns a sampler warning into a failed slot.
+
+## Lift test as a prior
+
+Turn an experiment into `priors.<channel>.roi`: a lognormal with `mu = ln(measured ROI)` and `sigma` from the experiment's interval (about `ln(upper/lower)/3.3` for a 90% interval). Widen it, never narrow it. As Meridian's own guidance warns, the prior is only as good as the match between estimands: the experiment's window, geography and definition of incrementality must be the model's ROI (outcome over the fitted period against zero spend). A short geo test is not that, so inflate `sigma` for the mismatch. This is a prior, not a likelihood: the data can overrule it.
+
 ## Intervals and trust
 
 - Decay: no SE exists. Report the range of decays among the sweep's near-best ranks, and bootstrap call 2's fit (`resample`) for the betas.
@@ -29,4 +39,4 @@ A winning sweep slot cannot yet be bound as a fit, so template it. Keep call 2 a
 
 ## See
 
-`op-reg-mmm-hill` · `compose-sweep-sampling` · `compose-optimize` · `compose-fits` · `regression-model-options`
+`op-reg-mmm-hill` · `op-reg-mmm-bayes` · `compose-sweep-sampling` · `compose-optimize` · `compose-fits` · `regression-model-options`
