@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:934902bcc4cfce570e3c433c28612a1b19554cb5deea2c51bb572548b60a8f5e",
+  "$comment": "feature_set_digest: fs1:bc94bc0d1daf0bfe43fb41b6c2fe7b6f7e34c9fd7e7d39136fb4eef92a22d02d",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -2245,6 +2245,18 @@
       ],
       "type": "string"
     },
+    "FitFromSweep": {
+      "additionalProperties": false,
+      "properties": {
+        "regression": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "regression"
+      ],
+      "type": "object"
+    },
     "FitResult": {
       "description": "One fit's result: a regression fit's RegressionResult, a vector fit's {vector: VectorFitResult} or a SEM fit's {sem: SEMFitResult}. The vector / sem key discriminates; a regression entry never carries either.",
       "oneOf": [
@@ -2280,6 +2292,9 @@
     "FitSpec": {
       "additionalProperties": false,
       "properties": {
+        "from_sweep": {
+          "$ref": "#/$defs/FitFromSweep"
+        },
         "name": {
           "type": "string"
         },
@@ -2291,8 +2306,7 @@
         }
       },
       "required": [
-        "name",
-        "request"
+        "name"
       ],
       "type": "object"
     },
@@ -6411,4 +6425,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: d074b7c6222055df972cce328e536e57446e3f787c9d02d2d3cd15a8ecedb6dd
+// golden-hash: 74462375890e6280919a15da008ba64d4944956a2a9ddb621b3ad2ec6b59a6c1

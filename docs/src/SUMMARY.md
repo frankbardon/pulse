@@ -60,6 +60,7 @@
     - [compose-fits](guide/skills/compose-fits.md)
     - [compose-optimize](guide/skills/compose-optimize.md)
     - [compose-requests](guide/skills/compose-requests.md)
+    - [compose-sweep-bind](guide/skills/compose-sweep-bind.md)
     - [compose-sweep-sampling](guide/skills/compose-sweep-sampling.md)
     - [compose-sweeps](guide/skills/compose-sweeps.md)
     - [crosstab-guide](guide/skills/crosstab-guide.md)

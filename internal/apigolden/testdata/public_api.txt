@@ -1554,6 +1554,7 @@ pulse/descriptor: type FiltererPredict field Field string "json:\"field,omitempt
 pulse/descriptor: type FiltererPredict field Type pulse/types.FiltererType "json:\"type\""
 pulse/descriptor: type FitSummary struct
 pulse/descriptor: type FitSummary field Cohort string "json:\"cohort,omitempty\""
+pulse/descriptor: type FitSummary field FromSweep *pulse/types.FitFromSweep "json:\"from_sweep,omitempty\""
 pulse/descriptor: type FitSummary field Name string "json:\"name\""
 pulse/descriptor: type FitSummary field Predictors []string "json:\"predictors,omitempty\""
 pulse/descriptor: type FitSummary field SEM *pulse/descriptor.VectorFitSummary "json:\"sem,omitempty\""
@@ -5143,6 +5144,8 @@ pulse/types: type FiltererComponents field NNullInput int "json:\"n_null_input\"
 pulse/types: type FiltererComponents field NOut int "json:\"n_out\""
 pulse/types: type FiltererType string
 pulse/types: type FiltererType method (FiltererType) Streamable() bool
+pulse/types: type FitFromSweep struct
+pulse/types: type FitFromSweep field Regression string "json:\"regression\""
 pulse/types: type FitKind string
 pulse/types: const FitKindRegression pulse/types.FitKind = "regression"
 pulse/types: const FitKindSEM pulse/types.FitKind = "sem"
@@ -5200,8 +5203,9 @@ pulse/types: type FitResult field SEM *pulse/types.SEMFitResult "json:\"sem,omit
 pulse/types: type FitResult field Vector *pulse/types.VectorFitResult "json:\"vector,omitempty\""
 pulse/types: type FitResult method (FitResult) MarshalJSON() ([]byte, error)
 pulse/types: type FitSpec struct
+pulse/types: type FitSpec field FromSweep *pulse/types.FitFromSweep "json:\"from_sweep,omitempty\""
 pulse/types: type FitSpec field Name string "json:\"name\""
-pulse/types: type FitSpec field Request *pulse/types.Request "json:\"request\""
+pulse/types: type FitSpec field Request *pulse/types.Request "json:\"request,omitempty\""
 pulse/types: type FitSpec field Save string "json:\"save,omitempty\""
 pulse/types: type ForEach struct
 pulse/types: type ForEach field Axes []pulse/types.SweepAxis "json:\"axes\""
@@ -6171,4 +6175,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 565c6a46910bd10641db35b67ae1849064307933a837a653886d2ec26dbd15ec
+// golden-hash: be41aab8aedbe01f8ea08816527e643853c36cc38e1d6aa5d83ce176c09e3f73

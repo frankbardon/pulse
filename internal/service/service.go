@@ -1277,8 +1277,12 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 		return nil, err
 	}
 	// The fits' structural rules, before anything else past the slot
-	// gate (predict runs the same model.CheckFits).
-	if err := model.CheckFits(composed.Fits); err != nil {
+	// gate (predict runs the same model.CheckFitsIn); the batch then
+	// runs with every from_sweep fit resolved, the echo keeps the
+	// request as expanded.
+	echoed := composed
+	composed, err = checkComposeFits(composed, ext)
+	if err != nil {
 		return nil, err
 	}
 	// Then the optimize blocks' rules (predict runs the same
@@ -1389,7 +1393,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// change.
 	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Optimizations: optimizations, Warnings: fitWarnings}
 	if s.echoRequest {
-		out.NormalizedRequest = composed
+		out.NormalizedRequest = echoed
 	}
 	if len(layers) > 0 {
 		// distributeComposeWarnings (internal/service/compose_overlay.go) folds

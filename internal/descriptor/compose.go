@@ -318,12 +318,21 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 		result.Valid = false
 		return env, req
 	}
-	// Then the fits' structural rules — the runtime's model.CheckFits,
-	// run right after its slot gate; nothing past it runs on a refusal.
-	if ferr := model.CheckFits(req.Fits); ferr != nil {
+	// Then the fits' structural rules — the runtime's model.CheckFitsIn
+	// over the same sweep scope, run right after its slot gate; nothing
+	// past it runs on a refusal. A from_sweep fit then reads its static
+	// signature off the first sweep slot (model.ResolveSweepFits), so
+	// every pass below sees it as the regression fit the runtime binds.
+	sweepFits := SweepFitScope(written, req, exp.Explicit, len(exp.SweepLabels))
+	if ferr := model.CheckFitsIn(req.Fits, sweepFits); ferr != nil {
 		addCodedError(env, ferr)
 		result.Valid = false
 		return env, req
+	}
+	if resolved := model.ResolveSweepFits(req.Fits, sweepFits); len(resolved) > 0 && &resolved[0] != &req.Fits[0] {
+		withFits := *req
+		withFits.Fits = resolved
+		req = &withFits
 	}
 	// Then the optimize blocks — the runtime's OptimizeRefusal, run
 	// right after its CheckFits; nothing past it runs on a refusal.
@@ -1582,6 +1591,13 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 		}
 		if req.Cohort != nil {
 			out[i].Cohort = cohortPathFor(req.Cohort)
+		}
+		if f.FromSweep != nil {
+			// A sweep-bound fit's request is a sweep slot's rows and
+			// regression (model.SweepFitRequest): the sweep slots are
+			// judged themselves, so it is not judged twice.
+			out[i].FromSweep = &types.FitFromSweep{Regression: f.FromSweep.Regression}
+			continue
 		}
 		// A fit request runs before the batch binds anything: it sees
 		// only the registered populations and its own loaded entries.

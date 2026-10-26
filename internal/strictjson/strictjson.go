@@ -259,6 +259,14 @@ var locatedFields = map[reflect.Type]map[string]string{
 	reflect.TypeFor[types.ChainStage]():      {"request": LocationStage},
 }
 
+// locatedObjects are the array-element objects whose OWN keys are
+// located by their index, as the library's slot gate locates them: a
+// `fits` entry's hidden `save` / `from_sweep` carries details.fit
+// (descx.SlotRefusal's fits loop), not only its nested request's keys.
+var locatedObjects = map[reflect.Type]string{
+	reflect.TypeFor[types.FitSpec](): LocationFit,
+}
+
 // field is one decodable JSON key of a struct.
 type field struct {
 	name string
@@ -492,8 +500,12 @@ func (w *walker) object(t reflect.Type, raw []byte, path, full string, root bool
 		if w.opts.Aliases != nil {
 			aliases = w.opts.Aliases(t)
 		}
+		locKey, locIndex := w.locKey, w.locIndex
+		if loc, ok := locatedObjects[t]; ok && locKey == "" {
+			locKey, locIndex = loc, enclosingIndex(full)
+		}
 		return &Unknown{Path: path, FullPath: full, Keys: unknown, First: first, Valid: valid, Type: t,
-			LocationKey: w.locKey, LocationIndex: w.locIndex, Aliases: aliases}
+			LocationKey: locKey, LocationIndex: locIndex, Aliases: aliases}
 	}
 	if !w.opts.DocumentOrder {
 		if u := refuse(); u != nil {

@@ -57,7 +57,7 @@ The substituted body decodes STRICTLY into a `Request`, like a plain compose slo
 
 ## Decay-sweep pattern
 
-Rank one-step fits on held-out error: an adstock window with `decay` `{"$var": "decay"}`, a post-window formula attribute, one regression with a `holdout`, `rank` `{by: "regressions.<name>.holdout.rmse", order: "asc"}`, `return` excluding `data` (`regression-model-options`).
+Rank fits on held-out error: an adstock window with `decay` `{"$var": "decay"}`, one regression with a `holdout`, `rank` `{by: "regressions.<name>.holdout.rmse"}`, `return` excluding `data` (`regression-model-options`).
 
 ## Overlays
 
@@ -67,7 +67,7 @@ Rank one-step fits on held-out error: an adstock window with `decay` `{"$var": "
 
 - `requests` and `sweep` combine: explicit slots first (indices unchanged), sweep slots after. A request with only a `sweep` is valid.
 - `MaxComposeSlots` counts the EXPANDED total (explicit + sweep); over the limit is `PULSE_LIMIT_EXCEEDED` before anything runs.
-- `pulse_predict` with `composed` (and `PredictCompose`) expands too: the runtime's limit, label and slot checks, plus a `sweep` summary `{axes[{name,count}], mode, expanded_count, labels}`. Predict before running.
+- `pulse_predict` with `composed` (and `PredictCompose`) expands too: the runtime's limit, label and slot checks, plus a `sweep` summary `{axes[{name,count}], mode, expanded_count, labels}`.
 - `--echo-request` / `EchoRequest` echoes the expanded slots the service ran. MCP fills a missing `return` in the sweep body with the `standard` default, never overwriting an authored one.
 
 ## Rank
@@ -77,6 +77,9 @@ Rank one-step fits on held-out error: an adstock window with `decay` `{"$var": "
 - A null (NaN) value, or a path missing in this slot only, EXCLUDES that slot with a `PULSE_SWEEP_RANK_PATH` warning on its own response.
 - A computed regression fit figure (`residual_std_err`, `r2`, `deviance`, …) that is exactly 0 ranks as 0 although the wire omits it; a figure the fit's type does not compute stays missing.
 - `slot`: the 0-based sweep index (`responses[explicit + slot]`); `axes`: each axis's typed value in that slot. Read a winner from `ranking[0].axes`, never its label.
+<!-- feature: capability:compose_sweep_bind -->
+- `fits[].from_sweep` binds the winner's regression as a named fit (`compose-sweep-bind`).
+<!-- /feature -->
 - A ranked slot always computes the ranked part, even if its `return` excludes it. `ranking` sits outside the compose `return`: always emitted, never rounded.
 - `--stream` ends with one `{"ranking":[...]}` line (even `[]`); rank-free sweeps emit none.
 

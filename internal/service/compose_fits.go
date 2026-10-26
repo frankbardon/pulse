@@ -78,6 +78,17 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 		if fitRunObserver != nil {
 			fitRunObserver(fits[i].Name)
 		}
+		if fits[i].FromSweep != nil {
+			// The static surface (CheckFitsIn, the catalog, predict)
+			// accepts a sweep-bound fit; binding the ranked winner needs
+			// the sweep slots to run first, which this build does not
+			// schedule yet — refuse rather than fit a slot that may not
+			// be the winner.
+			errs[i] = errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
+				fmt.Sprintf("fits[%d]: binding a sweep winner as a fit is not scheduled by this build", i),
+				map[string]any{"fit": i, "name": fits[i].Name})
+			return
+		}
 		// The fit request's own `models`, loaded by the pre-pass: a fit
 		// runs before the batch binds anything, so they are all it sees.
 		fitSet, err := pre.fitSet(i)

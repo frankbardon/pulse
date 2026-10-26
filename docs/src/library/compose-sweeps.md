@@ -181,6 +181,21 @@ the fit's regression type computes that figure. A figure the type does
 not compute (`residual_std_err` on a `REG_GLM` fit), any other absent
 figure and a nil entry still read as missing. The wire is unchanged.
 
+### Binding the winner as a fit
+
+A `fits` entry may carry `from_sweep: {"regression": "<name>"}` instead
+of a `request` (`capability:compose_sweep_bind`): it binds the rank-1
+slot's regression of that `name`, refitted on that slot's rows, as an
+ordinary named fit the explicit slots and `optimize` blocks read
+(`coef()`, `ATTR_REG_PREDICT`). It needs `sweep.rank`; the regression's
+type, target and predictors must not depend on an axis (predict reads
+the fit's signature from the sweep body); and no sweep slot may read the
+fit. A malformed binding is `PULSE_FIT_INVALID` with `details.reason`
+`from_sweep_with_request`, `from_sweep_no_sweep`, `from_sweep_no_rank`,
+`from_sweep_regression_unknown`, `from_sweep_signature_varies` or
+`from_sweep_cycle`, judged by predict and the runtime alike before
+anything runs. Skill: `compose-sweep-bind`.
+
 ## Echo and return shaping
 
 With `Options.EchoRequest` / `--echo-request` the echo carries the

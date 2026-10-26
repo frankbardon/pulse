@@ -59,3 +59,27 @@ func TestStaticRefusal(t *testing.T) {
 		t.Fatalf("nil catalog: %v", err)
 	}
 }
+
+// TestNamesFit: a literal first argument of coef() or sweep_axis()
+// naming the fit is a read; a computed name, another fit, another
+// function or an unparsable source is not.
+func TestNamesFit(t *testing.T) {
+	cases := []struct {
+		src  string
+		want bool
+	}{
+		{`coef("best", "x") > 0`, true},
+		{`1 + sweep_axis("best", "decay")`, true},
+		{`abs(coef("best", "x", "se"))`, true},
+		{`coef("other", "x")`, false},
+		{`coef(params.fit, "x")`, false},
+		{`hill(x, "best", 1)`, false},
+		{`coef("best"`, false},
+		{`x > 0`, false},
+	}
+	for _, tc := range cases {
+		if got := NamesFit(tc.src, "best"); got != tc.want {
+			t.Errorf("NamesFit(%q) = %v, want %v", tc.src, got, tc.want)
+		}
+	}
+}

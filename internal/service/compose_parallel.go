@@ -102,7 +102,9 @@ func (s *Service) composeParallel(
 		return nil, err
 	}
 	// The fits' structural rules, exactly as on the serial path.
-	if err := model.CheckFits(composed.Fits); err != nil {
+	echoed := composed
+	composed, err = checkComposeFits(composed, ext)
+	if err != nil {
 		return nil, err
 	}
 	// Then the optimize blocks' rules (predict runs the same
@@ -306,7 +308,7 @@ func (s *Service) composeParallel(
 	// identical layer-warning routing contract.
 	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Optimizations: optimizations, Warnings: fitWarnings}
 	if s.echoRequest {
-		out.NormalizedRequest = composed
+		out.NormalizedRequest = echoed
 	}
 	if len(layers) > 0 {
 		out.Overlays = distributeComposeWarnings(layers, warnings)

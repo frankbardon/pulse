@@ -1331,6 +1331,23 @@ like `ranking` (always emitted, never rounded). Both slots are gated by
 `{name, cohort, sem: {operator, labels, members}}` — on the predict
 result (not payload-reachable).
 
+A `fits` entry may carry `from_sweep {regression}` (`FitFromSweep`)
+instead of `request` — `request` is therefore optional on the wire,
+exactly one of the two — binding the rank-1 slot of the batch's ranked
+`sweep`: the sweep body's regression whose `name` is `regression`,
+refitted on the winning slot's rows as an ordinary regression fit. Its
+static signature (type, target, predictors) is read from the sweep body
+and must be the same in every sweep slot. A malformed binding is
+`PULSE_FIT_INVALID` with `details.fit` and `details.reason`
+`from_sweep_with_request`, `from_sweep_no_sweep`, `from_sweep_no_rank`,
+`from_sweep_regression_unknown` (`details.regression`, `available`),
+`from_sweep_signature_varies` or `from_sweep_cycle` (a sweep slot reads
+the fit; both with `details.slot`, the 0-based sweep index), judged
+before anything runs, identically by predict and the runtime. The key is
+gated by `capability:compose_sweep_bind` (dependencies
+`capability:compose_sweep` AND `capability:compose_fits`); predict's fit
+summary echoes it as `from_sweep`.
+
 ### Compose optimize
 
 `ComposedRequest.optimize` is an `omitempty` array of `OptimizeSpec

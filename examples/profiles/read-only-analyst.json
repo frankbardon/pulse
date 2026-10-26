@@ -35,6 +35,7 @@
     "capability:explain",
     "capability:compose_sweep_sampling",
     "capability:compose_optimize",
+    "capability:compose_sweep_bind",
     "AGG_COUNT",
     "AGG_SUM",
     "AGG_AVERAGE",

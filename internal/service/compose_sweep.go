@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/banner"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/types"
 )
@@ -31,6 +32,9 @@ type composeExpansion struct {
 	// seed is a sampling sweep's effective seed (nil without one),
 	// echoed as ComposedResponse.SweepSeed.
 	seed *int64
+	// sweepFits is the scope a from_sweep fit is judged against and
+	// resolved over (descx.SweepFitScope — predict builds the same).
+	sweepFits model.SweepScope
 }
 
 // expandCompose returns the effective request Compose and
@@ -72,7 +76,31 @@ func (s *Service) expandCompose(composed *types.ComposedRequest) (*types.Compose
 	if cerr != nil {
 		return nil, nil, cerr
 	}
+	ext.sweepFits = descx.SweepFitScope(composed, effective, exp.Explicit, len(exp.SweepLabels))
 	return effective, ext, nil
+}
+
+// checkComposeFits runs the fits' structural rules over the batch's
+// sweep (model.CheckFitsIn — predict runs the same at the same point)
+// and returns the request the batch runs: composed with every
+// from_sweep fit's request resolved off the first sweep slot
+// (model.ResolveSweepFits), composed itself when it has none. The
+// caller's request — what NormalizedRequest echoes — is never mutated.
+func checkComposeFits(composed *types.ComposedRequest, ext *composeExpansion) (*types.ComposedRequest, error) {
+	var scope model.SweepScope
+	if ext != nil {
+		scope = ext.sweepFits
+	}
+	if err := model.CheckFitsIn(composed.Fits, scope); err != nil {
+		return nil, err
+	}
+	resolved := model.ResolveSweepFits(composed.Fits, scope)
+	if len(resolved) == 0 || &resolved[0] == &composed.Fits[0] {
+		return composed, nil
+	}
+	out := *composed
+	out.Fits = resolved
+	return &out, nil
 }
 
 // rankVetoKey marks a ranked sweep slot's ctx: the slot computes every

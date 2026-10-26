@@ -1015,6 +1015,11 @@ type FitSummary struct {
 	// SEM is a SEM fit's static summary — its MAT_SEM battery's
 	// operator, labels and members (nil on any other fit).
 	SEM *VectorFitSummary `json:"sem,omitempty"`
+	// FromSweep echoes a sweep-bound fit's binding (nil on any other
+	// fit). Type, Target, Predictors and Cohort are then read off the
+	// sweep body's named regression — the static signature every sweep
+	// slot shares; which slot wins is known only once the slots run.
+	FromSweep *types.FitFromSweep `json:"from_sweep,omitempty"`
 }
 
 // OptimizeSummary is one ComposeValidationResult.Optimize entry: a

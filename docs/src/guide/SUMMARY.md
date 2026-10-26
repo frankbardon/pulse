@@ -48,6 +48,7 @@
     - [compose-fits](skills/compose-fits.md)
     - [compose-optimize](skills/compose-optimize.md)
     - [compose-requests](skills/compose-requests.md)
+    - [compose-sweep-bind](skills/compose-sweep-bind.md)
     - [compose-sweep-sampling](skills/compose-sweep-sampling.md)
     - [compose-sweeps](skills/compose-sweeps.md)
     - [crosstab-guide](skills/crosstab-guide.md)

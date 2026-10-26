@@ -77,3 +77,36 @@ func StaticRefusal(src string, cat model.Catalog) *errors.CodedError {
 	}
 	return nil
 }
+
+// NamesFit reports whether src calls coef() or sweep_axis()
+// (model.SweepAxisFunc) with fit as a literal first argument — a static
+// read of the bound fit fit. A computed first argument is not one; a
+// source that does not parse reads nothing (the compile reports it).
+func NamesFit(src, fit string) bool {
+	tree, err := exprparser.Parse(src)
+	if err != nil {
+		return false
+	}
+	v := &fitNameVisitor{fit: fit}
+	exprast.Walk(&tree.Node, v)
+	return v.found
+}
+
+type fitNameVisitor struct {
+	fit   string
+	found bool
+}
+
+func (v *fitNameVisitor) Visit(node *exprast.Node) {
+	n, ok := (*node).(*exprast.CallNode)
+	if !ok || v.found || len(n.Arguments) == 0 {
+		return
+	}
+	id, ok := n.Callee.(*exprast.IdentifierNode)
+	if !ok || (id.Value != model.CoefFunc && id.Value != model.SweepAxisFunc) {
+		return
+	}
+	if s, ok := n.Arguments[0].(*exprast.StringNode); ok && s.Value == v.fit {
+		v.found = true
+	}
+}
