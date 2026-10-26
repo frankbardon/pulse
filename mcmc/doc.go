@@ -19,6 +19,23 @@
 // bit for bit on every architecture and for any Workers or GOMAXPROCS.
 // TestNUTS_GoldenHash pins the draw bits of fixed runs.
 //
+// The zero value NUTS{} is usable: a zero Options field takes the exported
+// default (DefaultChains 4, DefaultWarmup 1000, DefaultDraws 1000,
+// DefaultMaxTreeDepth 10, DefaultTargetAccept 0.8), so Warmup cannot be
+// set to 0. The realised MeanAcceptStat sits above the target (about 0.89
+// at 0.8) because the retained step size is the averaged iterate, as in
+// Stan. One deliberate departure from Stan's source: when Warmup < 150,
+// Stan's short-warmup branch never re-initialises the slow adaptation
+// window, so the metric never adapts; NUTS sets the window up as Stan
+// intends so that it does. E-BFMI and per-draw energy are not recorded.
+//
+// Options.Constrain is called concurrently, one goroutine per chain, and
+// the Model must be safe for concurrent use. A panic in the Model is
+// re-raised on the caller's goroutine; ctx is checked every iteration.
+// Refusals are coded errors carrying details["reason"].
+//
+// See the Example for a complete run.
+//
 // # Transforms
 //
 // Positive, Unit and Bounded map an unconstrained x to a constrained y

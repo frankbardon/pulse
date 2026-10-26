@@ -1156,3 +1156,11 @@ Not yet released (targets `v1.0.0-alpha.27`). `format_version` stays `"1.1"`; no
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.
+
+## Changes from U62 (mcmc package)
+
+Not yet released (targets `v1.0.0-alpha.28`). Additive; `format_version` stays `"1.1"`.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| — | NEW public package `github.com/frankbardon/pulse/mcmc`: `Model` (`Dim`, `LogDensityGrad` on the unconstrained space), `Sampler`, `NUTS{MaxTreeDepth, TargetAccept, Workers}` (zero value usable; `DefaultChains` 4, `DefaultWarmup` 1000, `DefaultDraws` 1000, `DefaultMaxTreeDepth` 10, `DefaultTargetAccept` 0.8), `Options{Chains, Warmup, Draws, Init, Constrain}`, `Result` / `Diagnostics` / `ChainStats`, the `Positive` / `Unit` / `Bounded` transforms, and `RHat` / `ESSBulk` / `ESSTail`. Seeded: the same seed gives the same bytes across runs, `Workers` and architectures, provided the model is FMA-free and uses `linalg/detmath`. Docs: `docs/src/library/mcmc.md` | additive (package) | import it to sample a custom model with NUTS; wrap products feeding an add as `float64(a*b)` | U62 (E1) |
