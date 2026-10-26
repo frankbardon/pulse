@@ -268,7 +268,24 @@ func (d *regressionDriver) result(out extend.RegressionOutput) (*types.Regressio
 	if len(out.Outputs) > 0 {
 		res.Outputs = maps.Clone(out.Outputs)
 	}
+	res.Warnings = cloneRegressionWarnings(out.Warnings)
 	return res, nil
+}
+
+// cloneRegressionWarnings copies a model's warnings (each entry and its
+// details) so the result never aliases the model's state; nil when
+// there are none, so a warning-free result is byte-identical.
+func cloneRegressionWarnings(ws []*types.ResponseWarning) []*types.ResponseWarning {
+	if len(ws) == 0 {
+		return nil
+	}
+	out := make([]*types.ResponseWarning, len(ws))
+	for i, w := range ws {
+		c := *w
+		c.Details = maps.Clone(w.Details)
+		out[i] = &c
+	}
+	return out
 }
 
 func figureOrNaN(v *float64) float64 {
@@ -285,7 +302,11 @@ func figureOrNaN(v *float64) float64 {
 // not declaring PValues), undeclared_output_key (an Outputs key OutputSchema
 // does not declare), and — when the spec sets vcov and the
 // registration declares Vcov — missing_vcov / vcov_shape (not square
-// over the coefficients). The probe and every run apply it.
+// over the coefficients); invalid_warning (a nil Warnings entry or one
+// with an empty Message) and unregistered_warning_code (a code
+// errors.ParseCode does not know: an extension warns only in registered
+// Pulse codes, so lookup, the manifest and the Strict refusal all know
+// it). The probe and every run apply it.
 func verifyRegressionOutput(reg RegressionRegistration, spec *types.RegressionSpec, out extend.RegressionOutput, weighted bool) error {
 	mismatch := func(reason, msg string, extra map[string]any) error {
 		details := map[string]any{"category": string(categoryRegression), "name": string(reg.Name), "reason": reason}
@@ -319,6 +340,18 @@ func verifyRegressionOutput(reg RegressionRegistration, spec *types.RegressionSp
 		return mismatch("undeclared_output_key",
 			fmt.Sprintf("filled Outputs keys its OutputSchema does not declare: %v (declared: %v)", extras, declared),
 			map[string]any{"undeclared": extras, "declared_keys": append([]string{}, declared...)})
+	}
+	for i, w := range out.Warnings {
+		if w == nil || w.Message == "" {
+			return mismatch("invalid_warning",
+				fmt.Sprintf("returned Warnings[%d] that is nil or has an empty Message", i),
+				map[string]any{"warning": i})
+		}
+		if _, ok := errors.ParseCode(w.Code); !ok {
+			return mismatch("unregistered_warning_code",
+				fmt.Sprintf("returned Warnings[%d] with code %q, which is not a registered Pulse code (use PROCESSING_REGRESSION_DIAGNOSTIC with a details.reason for the model's own diagnostics)", i, w.Code),
+				map[string]any{"warning": i, "code": w.Code})
+		}
 	}
 	if spec != nil && spec.Vcov && reg.Vcov {
 		q := len(out.Coefficients)

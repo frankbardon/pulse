@@ -159,6 +159,13 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 				saveWarnings[i] = append(saveWarnings[i], fitWarning(w, i))
 			}
 		}
+		// ... and so is the fit's own regression warnings (an extension
+		// model's diagnostics), which the result keeps too.
+		for _, w := range results[i].Warnings {
+			if w != nil {
+				saveWarnings[i] = append(saveWarnings[i], fitWarning(w, i))
+			}
+		}
 		w, err := s.saveFitModel(ctx, i, fits[i], results[i])
 		if err != nil {
 			errs[i] = err

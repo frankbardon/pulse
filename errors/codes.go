@@ -99,6 +99,16 @@ const (
 	// a covariance (the replicate one, or the final refit's).
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED Code = "PROCESSING_REGRESSION_VCOV_UNSUPPORTED"
 
+	// PROCESSING_REGRESSION_DIAGNOSTIC is the generic WARNING code of a
+	// fit whose own diagnostic crossed its threshold while the fit still
+	// returned figures — a sampler whose chains did not mix (R-hat, ESS),
+	// post-warmup divergences, tree-depth saturation. details.reason
+	// names the diagnostic; the rest of details carries its figures. An
+	// extension regression emits it through
+	// extend.RegressionOutput.Warnings; under Strict it fails the slot
+	// with this code.
+	PROCESSING_REGRESSION_DIAGNOSTIC Code = "PROCESSING_REGRESSION_DIAGNOSTIC"
+
 	// PROCESSING_VECTOR_LENGTH_MISMATCH indicates a pairwise vector
 	// expression function (dot, dist, cosine) was handed two vectors of
 	// unequal length. The run fails rather than reading the pair as NaN;
@@ -1215,11 +1225,13 @@ const (
 	// registration's model — fitted at pulse.New over a small synthetic
 	// row set, or on any run — returned a RegressionOutput its
 	// registration does not allow: no coefficient, an empty or repeated
-	// coefficient name, an Outputs key OutputSchema does not declare, or
-	// (when the spec asked for vcov) a missing or misshapen Vcov.
-	// Details carry the category, name, a reason discriminator
-	// (missing_coefficients, invalid_coefficient, undeclared_output_key,
-	// missing_vcov, vcov_shape) and the offending keys. The regression
+	// coefficient name, an Outputs key OutputSchema does not declare,
+	// (when the spec asked for vcov) a missing or misshapen Vcov, or a
+	// Warnings entry that is nil, has an empty message or an
+	// unregistered code. Details carry the category, name, a reason
+	// discriminator (missing_coefficients, invalid_coefficient,
+	// undeclared_output_key, missing_vcov, vcov_shape, invalid_warning,
+	// unregistered_warning_code) and the offending keys. The regression
 	// sibling of PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH. Wired into
 	// extensions_probe_regression.probeRegressions and the regression
 	// adapter.
@@ -4312,6 +4324,7 @@ var allCodes = []Code{
 	PROCESSING_REGRESSION_INVALID_LINK,
 	PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED,
+	PROCESSING_REGRESSION_DIAGNOSTIC,
 	PROCESSING_VECTOR_LENGTH_MISMATCH,
 	PROCESSING_AUC_OUTCOME_NOT_BINARY,
 	// SERVICE

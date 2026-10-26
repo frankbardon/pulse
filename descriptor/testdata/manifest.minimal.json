@@ -378,7 +378,7 @@
     "regressions": [],
     "matrices": null,
     "synth_distributions": [],
-    "error_codes_count": 109,
+    "error_codes_count": 110,
     "error_domains": [
       "CLI",
       "DATA",
@@ -405,6 +405,7 @@
       "PROCESSING_GROUP",
       "PROCESSING_INTERNAL",
       "PROCESSING_PANIC",
+      "PROCESSING_REGRESSION_DIAGNOSTIC",
       "PROCESSING_RUNTIME",
       "PROCESSING_STATE",
       "PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED",
@@ -1404,4 +1405,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 3f11a00a952f991761a044c596dbf17a82644019499e07ed002569d7c11e1bfa
+// golden-hash: 9e328fb02fe2e4e4a8e39e6a71bd753483ef7dc7d4bb8c07ebd5df9a36eedb9d

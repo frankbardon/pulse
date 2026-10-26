@@ -203,6 +203,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PROCESSING_REGRESSION_DIAGNOSTIC: {
+		Message: "A regression fit's own diagnostic crossed its threshold while the fit still reported figures — for a sampler, chains that did not mix (R-hat above, or effective sample size below, its bound), post-warmup divergences or tree-depth saturation. details.reason names the diagnostic and details carries its figures; the figures may not be trustworthy. A warning on the result and the response; under Strict it fails the slot with this code.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Regressions", "*", "Params"},
+				Hint:   "Raise the model's own warmup / draws / iteration params, or tighten its priors or rescale the inputs, until the diagnostic named in details.reason clears; the regression's skill lists its thresholds and params.",
+			},
+		},
+	},
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED: {
 		Message: "The regression cannot report the coefficient covariance it was asked for: vcov: true on lasso / elastic net (with or without a Resample / Selection modifier), or a robust covariance (hc0–hc3, cluster, hac) beside a penalty, a Resample, a Selection or on a type without it, or on rows that span fewer than two clusters or repeat an order_by value. details.reason names which.",
 		Fixups: []Fixup{
@@ -1870,11 +1880,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH: {
-		Message: "A regression registration's model — fitted at pulse.New over a small synthetic row set, or on any run — returned no coefficient, an empty or repeated coefficient name, an Outputs key its OutputSchema does not declare, or (when the spec set vcov) no Vcov or one that is not square over the coefficients.",
+		Message: "A regression registration's model — fitted at pulse.New over a small synthetic row set, or on any run — returned no coefficient, an empty or repeated coefficient name, an Outputs key its OutputSchema does not declare, (when the spec set vcov) no Vcov or one that is not square over the coefficients, or a Warnings entry that is nil, has an empty message (invalid_warning) or a code that is not a registered Pulse code (unregistered_warning_code).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Return at least one RegressionCoefficient, each with a unique non-empty Name; declare every Outputs key the model can fill in the registration's OutputSchema (a declared key left unfilled is fine) or stop filling the undeclared key named in details.undeclared; and when the registration declares Vcov, return a Vcov square over Coefficients, in their order, whenever spec.Vcov is set.",
+				Hint:   "Return at least one RegressionCoefficient, each with a unique non-empty Name; declare every Outputs key the model can fill in the registration's OutputSchema (a declared key left unfilled is fine) or stop filling the undeclared key named in details.undeclared; and when the registration declares Vcov, return a Vcov square over Coefficients, in their order, whenever spec.Vcov is set; give every Warnings entry a non-empty Message and a registered Pulse code (PROCESSING_REGRESSION_DIAGNOSTIC with a details.reason for the model's own diagnostics).",
 			},
 		},
 	},

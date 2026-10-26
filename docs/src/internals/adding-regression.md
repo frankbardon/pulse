@@ -107,6 +107,25 @@ A nonlinear parameter is a coefficient too, named by the model. `Outputs`
 carries what has no coefficient slot: per-channel `k` and `s` objects, a
 convergence flag, a pooled variance.
 
+A fit that returns figures it does not fully trust (a sampler whose
+chains did not mix, a solver that stopped on a bound) says so in
+`Warnings`, never by failing:
+
+```go
+out.Warnings = append(out.Warnings, &types.ResponseWarning{
+    Code:    string(errors.PROCESSING_REGRESSION_DIAGNOSTIC),
+    Message: fmt.Sprintf("max R-hat %.3f exceeds 1.01", rhat),
+    Details: map[string]any{"reason": "rhat", "rhat": rhat, "threshold": 1.01},
+})
+```
+
+The code must be a registered Pulse code and the message non-empty
+(else `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH`). The warning rides
+the result's `warnings`, is lifted onto the response warnings and the
+envelope, and under `Strict` fails the slot with its own code. A data
+refusal that leaves no figure to report is still a coded error
+(`PROCESSING_REGRESSION_NO_CONVERGE`, …), which fails the slot alone.
+
 For the iteration itself, use the public bounded Levenberg–Marquardt
 solver `optimize.LeastSquares`. Its
 [Writing a model pack](../library/optimize.md#writing-a-model-pack)

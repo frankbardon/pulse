@@ -92,7 +92,11 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   `bootstrap_requested` / `bootstrap_succeeded`; a delete-a-group
   jackknife (`RegressionSpec.jackknife_groups` / `jackknife_by`, both
   additive `omitempty`) echoes its replicate count as
-  `jackknife_groups`, absent on leave-one-out. Each
+  `jackknife_groups`, absent on leave-one-out. A `RegressionResult`
+  carries the fit's own coded diagnostics in `warnings` (additive
+  `omitempty`, `#/$defs/ResponseWarning` entries — today an extension
+  regression's, e.g. `PROCESSING_REGRESSION_DIAGNOSTIC`), each also
+  lifted onto the response's `warnings`. Each
   `ComposedResponse.responses[i]` echoes its slot's final `label`
   (absent on a standalone `Response`).
 - **Advisory** — `#/$defs/Advisory`, one entry of a predict result's

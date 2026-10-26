@@ -855,6 +855,24 @@ and per-slot failure (a model error coded
 `_NO_CONVERGE` or `_SEPARATION` fails its slot alone; any other is
 fatal; a panic is `PROCESSING_PANIC`).
 
+**Warnings.** `RegressionOutput.Warnings` (`[]*types.ResponseWarning`,
+coded `{Code, Message, Details}` — the matrix extension shape) carries
+the fit's own diagnostics. A code must be a registered Pulse code
+(`errors.ParseCode`; extensions do not mint codes) — the generic one is
+`PROCESSING_REGRESSION_DIAGNOSTIC` with `details.reason` naming the
+diagnostic — and a message non-empty; anything else is
+`PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` (`unregistered_warning_code`
+/ `invalid_warning`), at the probe and on every run. The engine copies
+them onto `RegressionResult.Warnings` and lifts each onto
+`Response.Warnings` (`details.regression` / `details.index` added; a
+Compose fit's to `ComposedResponse.Warnings` with `details.fit`), so the
+envelope promotes them. Under `Strict` the first warning fails the slot
+with its own code — and, as for every failed slot under Strict, the run
+then fails with that code plus `{slot_kind, index, label}`. Under
+`resample` / `selection` only the reported (base or final) fit's
+warnings ride the result; a replicate's or candidate's are dropped. No
+warnings is byte-identical.
+
 | Registration field | Meaning |
 |---|---|
 | `Streamable` | the form; decides the path at runtime and in predict |

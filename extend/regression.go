@@ -90,6 +90,19 @@ type RegressionOutput struct {
 	// PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH. A non-finite float is
 	// null on the wire. Nil adds none.
 	Outputs map[string]any
+
+	// Warnings are this fit's own coded diagnostics (a sampler that did
+	// not mix, a solver that stopped at a bound): each a
+	// {Code, Message, Details} entry whose Code is a registered Pulse
+	// code (errors.ParseCode; PROCESSING_REGRESSION_DIAGNOSTIC with a
+	// details.reason is the generic one) and whose Message is non-empty
+	// — anything else is PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH
+	// (invalid_warning / unregistered_warning_code). The engine copies
+	// them onto the result's Warnings and lifts each onto
+	// Response.Warnings (details.regression and details.index added), so
+	// they reach the envelope's warnings; under Options.Strict the first
+	// fails the slot with its own code. Nil adds none (byte-identical).
+	Warnings []*types.ResponseWarning
 }
 
 // RegressionCoefficient is one coefficient: its estimate and, when the

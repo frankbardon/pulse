@@ -1316,6 +1316,15 @@
         },
         "vcov": {
           "$ref": "#/$defs/MatrixValues"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/$defs/ResponseWarning"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         }
       },
       "required": [
@@ -2060,4 +2069,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: e78ba2a04dee088424c01b823cae4cae41358644fd698dfe5b10f0a6f9fbb97d
+// golden-hash: 37bc38007390ac5a9f7fa6f4989bea450735db33d392bf082980ccceea73b9d4
