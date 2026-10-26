@@ -10,7 +10,7 @@ requires: [capability:compose_optimize]
 
 # Compose optimize
 
-An **optimize block** answers "what values of these knobs give the best outcome?" over a model you fitted in the same batch. It runs once, before any slot, reads no record, and is independent of the slots.
+An **optimize block** answers "what values of these knobs give the best outcome?" over a model you fitted in the same batch. It runs once, before any slot (after the sweep when a fit binds the sweep's winner), reads no record, and is independent of the slots.
 
 ```jsonc
 {
@@ -36,6 +36,8 @@ An **optimize block** answers "what values of these knobs give the best outcome?
 
 Fit in `fits`, read the coefficients in `objective` with `coef("<fit>", "<term>")`, and the answer is on the same batch's `optimizations` (a response slot outside `return`; `--stream` ends with one `{"optimizations":[...]}` line). Gradients are finite differences, so any smooth expression works; a coefficient that is a regression output needs no hand-copy.
 
+With a ranked `sweep`, bind its winner (`fits[].from_sweep`) and read the winning axis values in `objective` with `sweep_axis("<fit>", "<axis>")`, e.g. an adstock steady-state multiplier `(1 - d ^ L) / (1 - d)`: search, fit and optimize in one call ([`compose-sweep-bind`](compose-sweep-bind.md)).
+
 ## Reading the result
 
 Per block: `variables[{name, value, marginal, active}]`, `constraints[{expr, type, value, multiplier}]`, `converged`, `status`, `iterations`, `max_violation`, `starts`, `starts_agreeing`, `rng_seed`.
@@ -55,4 +57,4 @@ A block fails alone: no converged start (`PULSE_OPTIMIZE_NOT_CONVERGED`, `PULSE_
 
 ## See
 
-`compose-fits` (the fits and `coef()`) · `compose-requests` · `expression-language` (functions, `params`) · `regression-modeling` · `pulse_examples_search tags=[compose, ols]`.
+`compose-fits` (the fits and `coef()`) · `mmm-workflow` (the one-call media-mix allocation) · `compose-requests` · `expression-language` (functions, `params`) · `regression-modeling` · `pulse_examples_search tags=[compose, ols]`.

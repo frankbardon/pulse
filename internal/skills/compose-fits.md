@@ -1,6 +1,6 @@
 ---
 name: compose-fits
-description: ComposedRequest.fits — named regression or vector fits that run once before any Compose slot (sweep slots included) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity.
+description: ComposedRequest.fits — named regression or vector fits that run once before any Compose slot (sweep slots included; a sweep-bound fit after them) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity.
 type: guide
 kind: design
 applies_to: compose, predict
@@ -32,7 +32,7 @@ A **fit** is a named model a Compose batch runs ONCE, before any slot, so every 
 
 - `request` is an ordinary request, no `groups` / `crosstab`, holding exactly ONE regression (a **regression fit**) or ONE vector battery and no regression (a **vector fit**: one fitted vector attribute<!-- feature: capability:matrices --> or one `matrices` entry<!-- /feature -->, its listwise mean + co-moment)<!-- feature: MAT_SEM -->; one `MAT_SEM` entry is a **SEM fit** (`sem-fits`)<!-- /feature -->.
 <!-- feature: capability:compose_sweep_bind -->
-- `from_sweep: {regression}` instead of `request` binds a ranked sweep's winning slot (`compose-sweep-bind`).
+- `from_sweep: {regression}` instead of `request` binds a ranked sweep's winning slot, refitted after the sweep (`compose-sweep-bind`).
 <!-- /feature -->
 - Its own cohort, filters, features and weight decide the fit rows, independent of every slot (fit 0–90, score 91–103). Its `return` is ignored.
 - Each fit runs once; serial and parallel are byte-identical.

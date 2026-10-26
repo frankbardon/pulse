@@ -12973,7 +12973,7 @@
       },
       {
         "name": "compose-fits",
-        "description": "ComposedRequest.fits — named regression or vector fits that run once before any Compose slot (sweep slots included) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity."
+        "description": "ComposedRequest.fits — named regression or vector fits that run once before any Compose slot (sweep slots included; a sweep-bound fit after them) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity."
       },
       {
         "name": "compose-optimize",
@@ -13073,7 +13073,7 @@
       },
       {
         "name": "mmm-workflow",
-        "description": "Media-mix workflow with the built-in media-mix regressions — search adstock decays with an lhs sweep, fit the Hill model at the winner, then reallocate budget with compose optimize; or fit the Bayesian model for intervals. The two-call recipe, decay intervals, lift-test priors, what to trust."
+        "description": "Media-mix workflow with the built-in media-mix regressions — search adstock decays with an lhs sweep, bind the winner as the Hill fit, score contributions and reallocate budget with compose optimize, all in one compose call; or fit the Bayesian model for intervals. The one-call recipe, decay intervals, lift-test priors, what to trust."
       },
       {
         "name": "multiplicity-correction",
@@ -20328,4 +20328,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: a17f8550e04b5efa7c3b7c53c906eeb5b0c8a5beedd4bba98d1befa85c65c0cb
+// golden-hash: ccbd910f6b4cc96bb19956d289d27c8dcf0cd9a69937553cfe37c17aede6cab6

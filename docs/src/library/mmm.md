@@ -47,19 +47,65 @@ The decay is not a parameter of the fit, so it has no standard error. Bound it t
 
 An underfunded channel (spend never reaches its half-saturation) sits on the β/k^s ridge. Its k and s are weakly identified even when its ROI and lift are right: judge it by contribution, not by k.
 
-## The two-call recipe
+## The one-call recipe
 
-**Call 1: search the decays.** A compose `sweep` in `lhs` mode, one axis per channel decay with a `range` (TV-like `[0.3, 0.8]`, digital `[0, 0.4]`), `samples` in the thousands, `rank` on `regressions.mmm.holdout.rmse` ascending. Each slot is one `WIN_DISTRIBUTED_LAG` per channel (`"decay": {"$var": "tv"}`) and one `REG_MMM_HILL`. About 400 samples over four channels did not hold the pass bars; 2,000 did. Raise `Options.Limits.MaxComposeSlots` to the sample count. The winner is `ranking[0]`; its decays are the numbers in `ranking[0].axes`, one key per channel axis.
+One `ComposedRequest` searches the decays, fits the curves at the winner, scores each channel's contribution and reallocates the budget. There is no template, no second call and no label parsing.
 
-**Call 2: fit and optimize.** A sweep winner cannot yet be bound as a fit, so call 2 is a request template whose `$var` placeholders are filled from call 1's winner: each channel's decay (`ranking[0].axes`), its steady-state multiplier (`Σ decay^l` over `max_lag`, the adstock a constant weekly spend of 1 settles to), the current spend, bounds and the total budget. Render it with `pulse.RenderTemplate`. It carries:
+```jsonc
+{
+  "params": {"budget": 256.4, "mean_tv": 102.9, "lo_tv": 51.4, "hi_tv": 154.3, "...": "the same per channel"},
+  "sweep": {
+    "mode": "lhs", "samples": 2000,
+    "axes": [{"name": "tv",     "range": {"min": 0.3, "max": 0.8}},
+             {"name": "search", "range": {"min": 0.0, "max": 0.4}}],
+    "rank": {"by": "regressions.mmm.holdout.rmse", "order": "asc"},
+    "request": {
+      "cohort": {"filename": "weekly.pulse"},
+      "windows": [{"type": "WIN_DISTRIBUTED_LAG", "field": "tv", "label": "tv_ad",
+                   "order_by": [{"field": "week"}],
+                   "params": {"kernel": "geometric", "decay": {"$var": "tv"}, "max_lag": 13, "normalize": false}},
+                  {"...": "one window per channel"}],
+      "regressions": [{"type": "REG_MMM_HILL", "name": "mmm", "target": "sales",
+                       "predictors": ["tv_ad", "search_ad", "price"],
+                       "params": {"channels": ["tv_ad", "search_ad"]}, "holdout": "week >= 131"}],
+      "return": {"preset": "standard", "exclude": ["data"]}}
+  },
+  "fits": [{"name": "mmm", "from_sweep": {"regression": "mmm"}}],
+  "requests": [{
+    "label": "contributions",
+    "cohort": {"filename": "weekly.pulse"},
+    "windows": [{"for_each": {"axes": [{"name": "ch",  "values": ["tv", "search"]},
+                                       {"name": "lag", "values": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]}]},
+                 "type": "WIN_LAG", "field": "{{ch}}", "label": "{{ch}}_l{{lag}}",
+                 "order_by": [{"field": "week"}], "params": {"offset": {"$var": "lag"}, "default": 0}}],
+    "attributes": [
+      {"type": "ATTR_FORMULA", "label": "tv_ad",
+       "expression": "tv + sweep_axis(\"mmm\", \"tv\") * (tv_l1 + sweep_axis(\"mmm\", \"tv\") * (tv_l2 + ... ))"},
+      {"type": "ATTR_FORMULA", "label": "tv_contrib",
+       "expression": "coef(\"mmm\", \"tv_ad\") * hill(tv_ad, coef(\"mmm\", \"k:tv_ad\"), coef(\"mmm\", \"s:tv_ad\"))"},
+      {"...": "the same per channel"}]
+  }],
+  "optimize": [{
+    "name": "allocation", "direction": "maximize", "starts": 8,
+    "variables": [{"name": "tv", "lower": "params.lo_tv", "upper": "params.hi_tv", "start": "params.mean_tv"},
+                  {"...": "one per channel"}],
+    "objective": "coef(\"mmm\", \"tv_ad\") * hill((1 - sweep_axis(\"mmm\", \"tv\") ^ 14) / (1 - sweep_axis(\"mmm\", \"tv\")) * tv, coef(\"mmm\", \"k:tv_ad\"), coef(\"mmm\", \"s:tv_ad\")) + ...",
+    "constraints": [{"expr": "tv + search - params.budget", "type": "eq"}]
+  }]
+}
+```
 
-- `fits`: the same windows and `REG_MMM_HILL`, decays now fixed.
-- `requests`: a contribution slot per channel, `coef("mmm","tv_ad") * hill(tv_ad, coef("mmm","k:tv_ad"), coef("mmm","s:tv_ad"))`.
-- `optimize`: maximize the summed curves at `multiplier × spend` under `sum(spend) = budget`, each channel bounded (say 0.5 to 1.5 × current).
+- **The sweep** is an `lhs` search with one decay axis per channel, each a `range` (TV-like `[0.3, 0.8]`, digital `[0, 0.4]`; keep the maximum below 1). Each slot is one `WIN_DISTRIBUTED_LAG` per channel and one `REG_MMM_HILL` with a `holdout`, ranked by holdout RMSE. About 400 samples over four channels did not hold the pass bars; 2,000 did. The winning decays are `ranking[0].axes`, as typed numbers.
+- **The bound fit** `fits[].from_sweep` refits the winning slot's regression, holdout kept, under the name `mmm`. Explicit slots and `optimize` read it with `coef("mmm", …)` (see the Compose sweeps page).
+- **The contribution slot** cannot set a window's `decay` from the winner, because window params are literals. Instead it rebuilds each adstock: one `WIN_LAG` item fanned out with `for_each` over channel × lag `1..max_lag` (missing history is `0`), then a formula `x + d·(x_l1 + d·(x_l2 + …))` with `d = sweep_axis("mmm", "<channel>")`. That is the same sum `WIN_DISTRIBUTED_LAG` computes, so the result matches it to rounding. A contribution is `coef · hill(adstock, k, s)`.
+- **The optimize block** maximises the summed curves at steady state. The multiplier for a constant weekly spend of 1 is `(1 − d^L) / (1 − d)` with `L = max_lag + 1`, read from `sweep_axis`. It runs under `sum(spend) = budget`, each channel bounded (say 0.5 to 1.5 × current). Current spend, bounds and budget are the caller's figures in `params`.
+- **Slots.** `MaxComposeSlots` counts the sweep's samples plus the explicit slots, so 2,000 samples and the contribution slot need 2,001. Raise `Options.Limits.MaxComposeSlots`, or pass `pulse --limit max_compose_slots=2001 api compose --request mmm.json --json` on the CLI.
 
-At the optimum every free channel's `marginal` (its marginal ROI) equals the budget `multiplier`; a channel on a bound sits above or below it. Trust the answer by `converged` and `starts_agreeing`. On the joint-truth test fixture (one market, 156 weeks, four channels) the flow met: decay error ≤ 0.10, ROI error ≤ 6.3%, free-channel marginal ROI equal to the multiplier within 8e-6, lift error ≤ 13.7%, 8 of 8 starts agreeing.
+The batch runs the sweep slots first, then the rank, the bound fit, `optimize` and the contribution slot. Responses keep index order, so the contribution slot comes first. Serial and parallel runs give the same bytes. A pinned `rng_seed` (or the echoed `sweep_seed`) replays the draws.
 
-Skills carry the detail: `mmm-workflow` (the flow), `op-reg-mmm-hill` (the model), and the core `compose-sweep-sampling` and `compose-optimize`.
+At the optimum every free channel's `marginal` (its marginal ROI) equals the budget `multiplier`. A channel on a bound sits above or below it. Trust the answer by `converged` and `starts_agreeing`. One measurement on a synthetic four-channel cohort with known truth (156 weeks, 2,000 samples, 13 sweep seeds) gave: decay error ≤ 0.10, ROI error ≤ 9%, free-channel marginal ROI equal to the multiplier within 1e-5, lift error ≤ 12%, and 8 of 8 starts agreeing.
+
+Skills carry the detail: `mmm-workflow` (the flow), `op-reg-mmm-hill` (the model), and the core `compose-sweep-bind`, `compose-sweep-sampling` and `compose-optimize`.
 
 ## REG_MMM_BAYES: the Bayesian route
 
@@ -90,4 +136,4 @@ Rows are one market, one row per period, with `params.time` an integer field tha
 go test ./internal/regmmm/
 ```
 
-The models' tests, pass bars (the Hill two-call flow over `mcpserve`, the Bayes default fit against its committed hash) and FMA gates live with them in `internal/regmmm`; the Bayes pass bar takes about 30-70 seconds.
+The models' tests, pass bars (the Hill sweep-then-fit flow over `mcpserve`, the Bayes default fit against its committed hash) and FMA gates live with them in `internal/regmmm`; the Bayes pass bar takes about 30-70 seconds.

@@ -53,7 +53,7 @@ The substituted body decodes STRICTLY into a `Request`, like a plain compose slo
 
 ## Decay-sweep pattern
 
-Rank fits on held-out error: an adstock window with `decay` `{"$var": "decay"}`, one regression with a `holdout`, `rank` `{by: "regressions.<name>.holdout.rmse"}`, `return` excluding `data` ([`regression-model-options`](regression-model-options.md)).
+Rank fits on held-out error: an adstock window with `decay` `{"$var": "decay"}`, one regression with a `holdout`, `rank` `{by: "regressions.<name>.holdout.rmse"}`, `return` excluding `data`. One-call media mix: [`mmm-workflow`](mmm-workflow.md).
 
 ## Overlays
 
@@ -64,7 +64,7 @@ Rank fits on held-out error: an adstock window with `decay` `{"$var": "decay"}`,
 - `requests` and `sweep` combine: explicit slots first (indices unchanged), sweep slots after. A request with only a `sweep` is valid.
 - `MaxComposeSlots` counts the EXPANDED total (explicit + sweep); over the limit is `PULSE_LIMIT_EXCEEDED` before anything runs.
 - `pulse_predict` with `composed` (and `PredictCompose`) expands too: the runtime's limit, label and slot checks, plus a `sweep` summary `{axes[{name,count}], mode, expanded_count, labels}`.
-- `--echo-request` / `EchoRequest` echoes the expanded slots the service ran. MCP fills a missing `return` in the sweep body with the `standard` default, never overwriting an authored one.
+- `--echo-request` / `EchoRequest` echoes the expanded slots. MCP fills a missing `return` in the sweep body with the `standard` default, never overwriting an authored one.
 
 ## Rank
 

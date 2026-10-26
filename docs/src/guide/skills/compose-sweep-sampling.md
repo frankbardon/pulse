@@ -42,7 +42,7 @@ A grid lists every value; its size multiplies per axis (30 values on 4 axes is 8
 
 ## Limits and predict
 
-- `samples` counts toward `MaxComposeSlots` with the explicit slots (default 1000; raise `Limits.MaxComposeSlots` for a large search). Over the limit is `PULSE_LIMIT_EXCEEDED` before anything runs.
+- `samples` counts toward `MaxComposeSlots` with the explicit slots (default 1000; raise `Limits.MaxComposeSlots`, CLI root `--limit max_compose_slots=N`, for a large search). Over the limit is `PULSE_LIMIT_EXCEEDED` before anything runs.
 - Predict expands exactly: `expanded_count` = `samples`, each axis reports `count` and its `range`, and the labels match the run.
 
 ## Refusals
@@ -54,7 +54,7 @@ A grid lists every value; its size multiplies per axis (30 values on 4 axes is 8
 
 ## Decay search pattern
 
-Replace a decay grid with an lhs over `[0, 0.95]` and rank on the holdout error. The best slots cluster around the true decay; read the top few, not only the first, and check the winner is stable under a second `rng_seed`.
+Replace a decay grid with an lhs over `[0, 0.95]` and rank on the holdout error. The best slots cluster around the true decay; read the top few, not only the first, and check the winner is stable under a second `rng_seed`. `fits[].from_sweep` binds the winner as a fit and `sweep_axis()` reads its draws, so the search, the fit and an `optimize` are one call ([`compose-sweep-bind`](compose-sweep-bind.md)); media mix: [`mmm-workflow`](mmm-workflow.md).
 
 ## See
 

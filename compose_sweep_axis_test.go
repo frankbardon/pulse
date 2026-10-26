@@ -181,3 +181,55 @@ func TestComposeSweepAxis_NameReserved(t *testing.T) {
 		t.Fatalf("embedder sweep_axis(): %v, want PULSE_EXTENSION_NAME_RESERVED", err)
 	}
 }
+
+// TestComposeSweepAxis_PostWindowFormula: sweep_axis() in a formula that
+// reads a window label of the same explicit slot (a post-window
+// attribute: an adstock rebuilt from lag columns at the winning decay)
+// resolves per row, on both orchestrators.
+func TestComposeSweepAxis_PostWindowFormula(t *testing.T) {
+	p, err := New(Options{FS: fitsFacadeFS(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	c := sweepAxisBatch(t)
+	c.Optimize = nil
+	c.Requests = []*Request{{
+		Label:  "adstock",
+		Cohort: &types.Cohort{Filename: fitsFacadeCohort},
+		Windows: []*types.Window{{
+			Type: types.WIN_LAG, Field: "x", Label: "x_l1",
+			OrderBy: []types.OrderKey{{Field: "week"}},
+			Params:  json.RawMessage(`{"offset": 1, "default": 0}`),
+		}},
+		Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "ad", Expression: `x + sweep_axis("best", "tv") * x_l1`}},
+	}}
+	if env, err := p.PredictCompose(ctx, c); err != nil || len(env.Errors) > 0 {
+		t.Fatalf("predict: %v %+v", err, env)
+	}
+	for name, run := range map[string]func() (*ComposedResponse, error){
+		"Compose":         func() (*ComposedResponse, error) { return p.Compose(ctx, c) },
+		"ComposeParallel": func() (*ComposedResponse, error) { return p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2}) },
+	} {
+		out, err := run()
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		d, err := out.Ranking[0].Axes["tv"].(json.Number).Float64()
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows := out.Responses[0].Data
+		if len(rows) < 2 {
+			t.Fatalf("%s: %d rows", name, len(rows))
+		}
+		for i, row := range rows {
+			x, _ := row["x"].(float64)
+			lag, _ := row["x_l1"].(float64)
+			got, ok := row["ad"].(float64)
+			if want := x + d*lag; !ok || math.Abs(got-want) > 1e-12*math.Max(1, math.Abs(want)) {
+				t.Fatalf("%s: row %d ad %v, want x + %v·x_l1 = %v", name, i, row["ad"], d, want)
+			}
+		}
+	}
+}
