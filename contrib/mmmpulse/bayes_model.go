@@ -141,8 +141,9 @@ type bayesModel struct {
 	// spendShare is Σ_t spend_ct / yScale: ROI_c · spendShare_c / Σ h_c
 	// is β_c on the scaled outcome.
 	spendShare []float64
-	priors     []prior // per θ coordinate
-	isBeta     []bool  // per channel: β mode
+	spendTotal []float64 // per channel: Σ_t spend_ct
+	priors     []prior   // per θ coordinate
+	isBeta     []bool    // per channel: β mode
 }
 
 func bayesConfigError(msg string, details map[string]any) error {
@@ -171,7 +172,7 @@ func newBayesModel(y []float64, spend, controls [][]float64, maxLag int, pr baye
 	m := &bayesModel{n: n, nc: nc, nz: nz, maxLag: maxLag, spend: spend,
 		ys: make([]float64, n), zs: make([][]float64, nz), xScale: make([]float64, nc),
 		zMean: make([]float64, nz), zScale: make([]float64, nz), spendShare: make([]float64, nc),
-		isBeta: make([]bool, nc)}
+		spendTotal: make([]float64, nc), isBeta: make([]bool, nc)}
 	if dim := m.Dim(); n <= dim {
 		return nil, perr.NewCodedErrorWithDetails(perr.PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 			fmt.Sprintf("REG_MMM_BAYES needs more than %d rows (2 + controls + 4·channels), got %d", dim, n),
@@ -206,7 +207,7 @@ func newBayesModel(y []float64, spend, controls [][]float64, maxLag int, pr baye
 			return nil, perr.NewCodedErrorWithDetails(perr.PROCESSING_REGRESSION_RANK_DEFICIENT,
 				fmt.Sprintf("REG_MMM_BAYES: channel %d never spends", c), map[string]any{"channel": c})
 		}
-		m.spendShare[c] = total / m.yScale
+		m.spendShare[c], m.spendTotal[c] = total/m.yScale, total
 	}
 	for j, z := range controls {
 		if len(z) != n {
@@ -539,24 +540,94 @@ func (m *bayesModel) constrain(theta, out []float64) {
 // (Σ_t contribution_t / Σ_t spend_t), whichever of the two the channel
 // samples. A ROI channel's β is NaN when its curve is 0 in every row.
 func (m *bayesModel) channelEffects(theta []float64) (beta, roi []float64) {
-	beta, roi = make([]float64, m.nc), make([]float64, m.nc)
+	beta, roi, _ = m.effects(theta)
+	return beta, roi
+}
+
+// effects is channelEffects plus each channel's marginal ROI at the
+// fitted spend: the derivative of the summed contribution with respect
+// to a uniform scaling λ of the channel's spend, at λ = 1, over the
+// summed spend — the return on the next unit of spend, spread the way
+// the period's spend was. The derivative is analytic: the adstock is
+// linear in spend, so d/dλ Σ_t β·hill(λ·a_t) at λ = 1 is
+// Σ_t β·a_t·∂h/∂a = β·s·Σ_t h_t·(1 − h_t), holding the response curve
+// (β, decay, k, s) fixed. It is 0 for a channel saturated in every row
+// and approaches s·ROI for one far below its half-saturation.
+func (m *bayesModel) effects(theta []float64) (beta, roi, mroi []float64) {
+	beta, roi, mroi = make([]float64, m.nc), make([]float64, m.nc), make([]float64, m.nc)
 	val := func(i int) float64 { return m.priors[i].transform().Forward(theta[i]).Y }
 	for c := range m.nc {
 		st := m.curve(c, val(m.iDecay(c)), val(m.iK(c)), val(m.iS(c)), false)
 		e := val(m.iEffect(c))
+		b := e // β on the scaled outcome
 		if m.isBeta[c] {
 			beta[c] = float64(m.yScale * e)
 			roi[c] = float64(e*st.hSum) / m.spendShare[c]
-			continue
-		}
-		roi[c] = e
-		if st.hSum > 0 {
-			beta[c] = float64(m.yScale*float64(e*m.spendShare[c])) / st.hSum
 		} else {
-			beta[c] = math.NaN()
+			roi[c] = e
+			if st.hSum > 0 {
+				b = float64(e*m.spendShare[c]) / st.hSum
+				beta[c] = float64(m.yScale*float64(e*m.spendShare[c])) / st.hSum
+			} else {
+				b, beta[c] = math.NaN(), math.NaN()
+			}
+		}
+		slope := 0.0
+		for _, h := range st.h {
+			slope += float64(h * (1 - h))
+		}
+		mroi[c] = float64(b*float64(st.s*slope)) / m.spendShare[c]
+	}
+	return beta, roi, mroi
+}
+
+// predict returns the model's mean outcome at θ, in original units, for
+// rows from..n−1 of a series that extends the fitted one: spend and
+// controls are the full columns (time order, the fitted rows first, n
+// = len(spend[0])). The adstock runs over the full history, so a row
+// past the fitted ones carries the spend before it; the scaling, the
+// control centring and an ROI channel's β are the fitted rows', so
+// nothing past them enters the fit. Rows below m.n reproduce the
+// fitted mean (the adstock is causal).
+func (m *bayesModel) predict(theta []float64, spend, controls [][]float64, from int) []float64 {
+	n := len(spend[0])
+	v := make([]float64, m.Dim())
+	for i := range v {
+		v[i] = m.priors[i].transform().Forward(theta[i]).Y
+	}
+	mu := make([]float64, n-from)
+	for i := range mu {
+		mu[i] = v[m.iIntercept()]
+	}
+	for j := range m.nz {
+		g := v[m.iControl(j)]
+		for t := from; t < n; t++ {
+			mu[t-from] += float64(g * ((controls[j][t] - m.zMean[j]) / m.zScale[j]))
 		}
 	}
-	return beta, roi
+	for c := range m.nc {
+		decay, k, s := v[m.iDecay(c)], v[m.iK(c)], v[m.iS(c)]
+		b := v[m.iEffect(c)]
+		if !m.isBeta[c] {
+			st := m.curve(c, decay, k, s, false)
+			if st.hSum > 0 {
+				b = float64(b*m.spendShare[c]) / st.hSum
+			} else {
+				b = math.NaN()
+			}
+		}
+		w, _ := geometricWeights(decay, m.maxLag)
+		a := make([]float64, n)
+		adstock(spend[c], w, nil, a, nil)
+		for t := from; t < n; t++ {
+			h, _, _, _ := hillGrad(a[t]/m.xScale[c], k, s)
+			mu[t-from] += float64(b * h)
+		}
+	}
+	for i := range mu {
+		mu[i] = float64(m.yScale * mu[i])
+	}
+	return mu
 }
 
 // toTheta maps constrained scaled values onto θ through each prior's

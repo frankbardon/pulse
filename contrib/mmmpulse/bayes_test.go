@@ -199,7 +199,7 @@ func TestMMMBayes_Registration(t *testing.T) {
 		params = append(params, prm.Name)
 	}
 	want := []string{"channels", "time", "max_lag", "adstock", "priors", "intercept_prior", "control_prior", "sigma_prior",
-		"chains", "warmup", "draws", "credible_level", "sampler", "target_accept"}
+		"chains", "warmup", "draws", "credible_level", "sampler", "target_accept", "holdout_from"}
 	if !slices.Equal(params, want) {
 		t.Errorf("params = %v, want %v", params, want)
 	}

@@ -88,16 +88,46 @@ var bayesSampler = func(targetAccept float64) mcmc.Sampler {
 // and "sigma": Estimate the posterior mean, StdErr the posterior
 // standard deviation, over every retained draw of every chain. Vcov is
 // the posterior covariance of the same draws. The engine's Wald
-// ci_lower / ci_upper ride the posterior SD; the model reports no
-// p-value. outputs.seed is the effective sampler seed.
+// ci_lower / ci_upper ride the posterior SD (a normal approximation);
+// the model reports no p-value. The posterior's own answers ride
+// Outputs (bayes_output.go): roi, mroi and contribution per channel and
+// params per coefficient, each {mean, median, sd, lower, upper} with
+// [lower, upper] the equal-tailed credible interval at
+// params.credible_level, in original units; diagnostics (R̂, bulk and
+// tail ESS per coefficient and per channel ROI, divergences, tree-depth
+// hits, step sizes, chains, draws); seed, the effective sampler seed;
+// and, with params.holdout_from, holdout. A channel's ROI per draw is
+// its summed contribution over its summed spend across the fitted
+// rows, against a zero-spend counterfactual; its contribution is the
+// same sum; its marginal ROI is the ANALYTIC derivative of the summed
+// contribution with respect to a uniform scaling of its spend, at the
+// fitted spend, over the summed spend (bayesModel.effects).
+//
+// Sampler health is reported, never refused: a reported parameter's R̂
+// above 1.01 (or undefined, with one chain), a bulk or tail ESS below
+// 400, any post-warmup divergence and any transition at the maximum
+// tree depth each add a PROCESSING_REGRESSION_DIAGNOSTIC warning
+// (details.reason rhat_high, ess_low, divergences,
+// treedepth_saturated) to the result and the response; under Strict
+// the first fails the slot, and so the run, with that code.
+//
+// params.holdout_from is the model-owned holdout: the likelihood sees
+// only the rows whose time is below it, the held-out rows' prediction
+// runs the adstock over the full history (the spend before the cutoff
+// carries in), and outputs.holdout reports the held-out rows' RMSE
+// against the posterior mean prediction and the share inside the
+// posterior predictive interval at credible_level. The ROI, mROI and
+// contribution are then the fitted rows'. A cutoff that leaves no row
+// on one side is PROCESSING_CONFIG.
 //
 // The seed is rng_seed, or when 0 the FNV-64a of the slot's wire form
 // with rng_seed cleared (Pulse's own rng_seed-0 rule), never data or the
 // clock: the same request gives the same draws, bit for bit, on every
 // architecture and for any worker count.
 //
-// No Scorer: an adstocked prediction needs the history, so holdout,
-// save and ATTR_REG_PREDICT are refused; NoResample: resample and its
+// No Scorer: an adstocked prediction needs the history, so the engine's
+// holdout slot (params.holdout_from replaces it), save and
+// ATTR_REG_PREDICT are refused; NoResample: resample and its
 // knobs are refused. Every other built-in knob (penalty, selection,
 // covariance, family, prior*, credible_level as a slot) is refused as on
 // any extension model; the model's own priors and credible level ride
@@ -139,17 +169,17 @@ func BayesRegistration() pulse.RegressionRegistration {
 			{Name: "credible_level", JSONType: "number", Default: defaultCredibleLevel, Description: "Posterior interval level in (0, 1) (default 0.9)."},
 			{Name: "sampler", JSONType: "string", Default: "nuts", Description: "Sampler: nuts (the only one)."},
 			{Name: "target_accept", JSONType: "number", Default: defaultBayesTargetAccept, Description: "NUTS step-size adaptation target in (0, 1) (default 0.8); raise it when the fit diverges."},
+			{Name: "holdout_from", JSONType: "number", Example: 131, Description: "Model-owned holdout: the integer time from which rows are held out — the likelihood sees only the rows before it, the adstock runs over the full history, and outputs.holdout scores the held-out rows. Absent: every row is fitted."},
 		},
-		OutputSchema: []pulse.RegressionOutputMeta{
-			{Key: "seed", JSONType: "number", Description: "The effective sampler seed: rng_seed, or the one derived from the slot when rng_seed is 0."},
-		},
-		FieldInputs: bayesFieldInputs,
-		Factory:     bayesFactory,
-		Streamable:  false,
-		NoResample:  true,
-		Vcov:        true,
-		WeightAware: false,
-		PValues:     false,
+		OutputSchema:   bayesOutputSchema,
+		Interpretation: bayesInterpretation,
+		FieldInputs:    bayesFieldInputs,
+		Factory:        bayesFactory,
+		Streamable:     false,
+		NoResample:     true,
+		Vcov:           true,
+		WeightAware:    false,
+		PValues:        false,
 	}
 }
 
@@ -201,6 +231,7 @@ type bayesParamsWire struct {
 	CredibleLevel  *float64                    `json:"credible_level"`
 	Sampler        *string                     `json:"sampler"`
 	TargetAccept   *float64                    `json:"target_accept"`
+	HoldoutFrom    *int64                      `json:"holdout_from"`
 }
 
 // bayesConfig is one slot's validated configuration.
@@ -215,6 +246,8 @@ type bayesConfig struct {
 	credibleLevel      float64
 	targetAccept       float64
 	seed               int64
+	// holdoutFrom is params.holdout_from (nil: every row is fitted).
+	holdoutFrom *int64
 }
 
 // bayesSlotError is a PROCESSING_CONFIG refusal naming the slot.
@@ -416,6 +449,7 @@ func bayesFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regres
 			*s.dst = p
 		}
 	}
+	cfg.holdoutFrom = w.HoldoutFrom
 	cfg.seed = bayesEffectiveSeed(spec)
 	return &bayesRegression{cfg: cfg}, nil
 }
@@ -497,18 +531,47 @@ func (r *bayesRegression) FitContext(ctx context.Context, rows extend.Rows) (ext
 	if err != nil {
 		return extend.RegressionOutput{}, err
 	}
-	m, err := newBayesModel(data.y, data.spend, data.controls, cfg.maxLag, cfg.priors)
+	nf, err := r.fitRows(data)
+	if err != nil {
+		return extend.RegressionOutput{}, err
+	}
+	fitSpend, fitControls := make([][]float64, len(data.spend)), make([][]float64, len(data.controls))
+	for c, x := range data.spend {
+		fitSpend[c] = x[:nf]
+	}
+	for j, z := range data.controls {
+		fitControls[j] = z[:nf]
+	}
+	m, err := newBayesModel(data.y[:nf], fitSpend, fitControls, cfg.maxLag, cfg.priors)
 	if err != nil {
 		return extend.RegressionOutput{}, r.slotError(err)
 	}
 	if err := ctx.Err(); err != nil {
 		return extend.RegressionOutput{}, err
 	}
-	post, err := r.sample(ctx, m)
+	post, err := r.sample(ctx, m, data, nf)
 	if err != nil {
 		return extend.RegressionOutput{}, err
 	}
 	return r.output(post), nil
+}
+
+// fitRows is the number of leading (time-ordered) rows the likelihood
+// sees: every row, or with params.holdout_from those before it. A cutoff
+// that leaves no fitted row or no held-out row (at or below the first
+// time, above the last) is PROCESSING_CONFIG.
+func (r *bayesRegression) fitRows(data *bayesData) (int, error) {
+	from := r.cfg.holdoutFrom
+	n := len(data.time)
+	if from == nil {
+		return n, nil
+	}
+	first, last := data.time[0], data.time[n-1]
+	if *from <= first || *from > last {
+		return 0, r.configError(fmt.Sprintf("params.holdout_from %d is outside the series: it must leave rows on both sides, in (%d, %d]", *from, first, last),
+			map[string]any{"slot": "params.holdout_from", "reason": "holdout_out_of_range", "holdout_from": *from, "first": first, "last": last})
+	}
+	return int(*from - first), nil
 }
 
 // read copies the admitted rows out and sorts them by params.time,
@@ -598,17 +661,34 @@ type bayesPosterior struct {
 	// coefs is every draw in the coefficient table's order and original
 	// units, [chain][coefficient][draw].
 	coefs [][][]float64
-	// roi is every draw's per-channel ROI, [chain][channel][draw].
-	roi [][][]float64
+	// roi, mroi and contrib are every draw's per-channel ROI, marginal
+	// ROI and summed contribution over the fitted rows,
+	// [chain][channel][draw].
+	roi, mroi, contrib [][][]float64
 	// mapOK reports whether the MAP search supplied the start (false:
 	// the fixed default start).
 	mapOK bool
+	// hold is the held-out rows' posterior, nil without a holdout.
+	hold *bayesHoldout
+}
+
+// bayesHoldout is the held-out rows: their times, outcomes and the
+// posterior mean outcome of every draw, [row][pooled draw] (chain order,
+// then draw order).
+type bayesHoldout struct {
+	from     int64
+	fitRows  int
+	y        []float64
+	mu       [][]float64
+	sigmaIdx int // sigma's index in the coefficient table
 }
 
 // sample runs MAP → NUTS on m and maps every draw onto the coefficient
-// table. A sampler that cannot run on the posterior is
-// PROCESSING_REGRESSION_NO_CONVERGE (details.reason the sampler's).
-func (r *bayesRegression) sample(ctx context.Context, m *bayesModel) (*bayesPosterior, error) {
+// table, the channel figures and, with a holdout, the held-out rows'
+// mean (data is every row, the first nf of them fitted). A sampler that
+// cannot run on the posterior is PROCESSING_REGRESSION_NO_CONVERGE
+// (details.reason the sampler's).
+func (r *bayesRegression) sample(ctx context.Context, m *bayesModel, data *bayesData, nf int) (*bayesPosterior, error) {
 	cfg := r.cfg
 	init, mapOK := m.mapStart(mapMaxIter)
 	if err := ctx.Err(); err != nil {
@@ -619,32 +699,52 @@ func (r *bayesRegression) sample(ctx context.Context, m *bayesModel) (*bayesPost
 	if err != nil {
 		return nil, r.samplerError(err)
 	}
+	nch := len(res.Draws)
 	post := &bayesPosterior{model: m, theta: res, mapOK: mapOK,
-		coefs: make([][][]float64, len(res.Draws)), roi: make([][][]float64, len(res.Draws))}
+		coefs: make([][][]float64, nch), roi: make([][][]float64, nch),
+		mroi: make([][][]float64, nch), contrib: make([][][]float64, nch)}
 	dim := m.Dim()
+	nd := len(res.Draws[0][0])
+	if nf < len(data.y) {
+		post.hold = &bayesHoldout{from: *cfg.holdoutFrom, fitRows: nf, y: data.y[nf:],
+			mu: make([][]float64, len(data.y)-nf), sigmaIdx: dim - 1}
+		for t := range post.hold.mu {
+			post.hold.mu[t] = make([]float64, nch*nd)
+		}
+	}
+	perChannel := func() [][]float64 {
+		out := make([][]float64, m.nc)
+		for c := range out {
+			out[c] = make([]float64, nd)
+		}
+		return out
+	}
 	theta, con := make([]float64, dim), make([]float64, dim)
 	for ch, draws := range res.Draws {
-		nd := len(draws[0])
 		post.coefs[ch] = make([][]float64, dim)
 		for j := range dim {
 			post.coefs[ch][j] = make([]float64, nd)
 		}
-		post.roi[ch] = make([][]float64, m.nc)
-		for c := range m.nc {
-			post.roi[ch][c] = make([]float64, nd)
-		}
+		post.roi[ch], post.mroi[ch], post.contrib[ch] = perChannel(), perChannel(), perChannel()
 		for d := range nd {
 			for j := range dim {
 				theta[j] = draws[j][d]
 			}
 			m.constrain(theta, con)
-			beta, roi := m.channelEffects(theta)
+			beta, roi, mroi := m.effects(theta)
 			row := r.coefRow(m, con, beta)
 			for j, v := range row {
 				post.coefs[ch][j][d] = v
 			}
-			for c, v := range roi {
-				post.roi[ch][c][d] = v
+			for c := range m.nc {
+				post.roi[ch][c][d] = roi[c]
+				post.mroi[ch][c][d] = mroi[c]
+				post.contrib[ch][c][d] = float64(roi[c] * m.spendTotal[c])
+			}
+			if post.hold != nil {
+				for t, v := range m.predict(theta, data.spend, data.controls, nf) {
+					post.hold.mu[t][ch*nd+d] = v
+				}
 			}
 		}
 	}
@@ -752,22 +852,6 @@ func posteriorMoments(coefs [][][]float64) (mean []float64, cov [][]float64) {
 		}
 	}
 	return mean, cov
-}
-
-// output is the regression output: posterior mean and SD per
-// coefficient, the posterior covariance and the effective seed.
-func (r *bayesRegression) output(post *bayesPosterior) extend.RegressionOutput {
-	mean, cov := posteriorMoments(post.coefs)
-	names := r.coefNames()
-	coefs := make([]extend.RegressionCoefficient, len(names))
-	for i, name := range names {
-		coefs[i] = extend.RegressionCoefficient{Name: name, Estimate: mean[i], StdErr: extend.Figure(math.Sqrt(cov[i][i]))}
-	}
-	return extend.RegressionOutput{
-		Coefficients: coefs,
-		Vcov:         cov,
-		Outputs:      map[string]any{"seed": r.cfg.seed},
-	}
 }
 
 var (
