@@ -587,7 +587,7 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#549** A sweep's ranked winner bindable as a fit, so the media-mix flow is one Compose call instead of a rendered second request. Deferred from U60 · [U42](units/U42-fit-scoring.md)
 - [ ] **#550** `optimize` bounds and constraints computed from data aggregates (`total()`-style values); callers pass literals or `params` today. Deferred from U60 · [U43](units/U43-post-aggregation-ratios.md)
 - [ ] **#551** In-model adstock estimation (decay as a fitted parameter with an analytic SE), ordered / gap-aware rows for extensions, and sequence-aware scorers. Today the decay is searched, not fitted, and has no SE. Deferred from U60 · [U57](units/U57-transformed-predictors.md)
-- [ ] **#552** Partial pooling / geo-hierarchical and Bayesian MMM as a pack on the `REG_MMM_HILL` contract. Deferred from U60 · no unit
+- [ ] **#552** *Narrowed by U62.* Partial pooling / geo-hierarchical MMM as a pack on the `REG_MMM_HILL` contract. The Bayesian part is done: `REG_MMM_BAYES` in `contrib/mmmpulse` ([U62](units/U62-bayesian-mmm.md)) samples a single-market posterior with NUTS. What stays open is the geo hierarchy (partial pooling across markets). Deferred from U60 · no unit
 - [ ] **#553** Nonlinear `optimize` constraints with analytic gradients (central finite differences only today). Deferred from U60 · no unit
 - [ ] **#554** Remaining core cross-architecture numeric drift: audit every numeric result path (`NormalQuantile`, the chi-square prefactor, `TEST_T` / paired-t CI inputs, the Aitchison metric, regression SEs via gonum, about 20 unaudited `math.*` sites) and add a repo-wide gate banning stdlib transcendentals and contractible products there. Owner decision at U60 close-out; seed list in the unit doc · [U61](units/U61-cross-arch-determinism.md)
 - [ ] **#555** Flaky CI memory-peak tests: `TestShardStream_CreateMemoryBoundedBySource/remapped` (failed once in U60 CI, passed on rerun) and `TestCrosstabMemory_CellChargeTable` (seen in U59). Harden them or make the budgets deterministic. Found in U60 · [U33](units/U33-v1-release.md)
@@ -596,6 +596,17 @@ Theme documents: see the [roadmap index](README.md).
 - [ ] **#558** No canonical `optimize` tag in `internal/examples/library.go` `CanonicalTags`; the U60 optimize examples carry the `capability:compose_optimize` tag and the `drivers` intent only, so a search for "optimize" finds them only through the skill. Found in U60 (E3-S3) · [U38](units/U38-skill-sync.md)
 - [ ] **#559** Extension factory refusals are runtime-only: an extension regression's factory can refuse a request that predict accepts, because there is no predict-time hook. Found in U60 (E4-S1) · [U34](units/U34-extension-validation.md)
 - [ ] **#560** `make sites` does not cover `ComposedRequest` sub-fields (`sweep`, `optimize`), so a change there lists no skill / example sites. Found in U60 (E2-S1) · [U38](units/U38-skill-sync.md)
+
+#### Follow-ups from U62 (Bayesian MMM)
+- [ ] **#561** Geo-hierarchical MMM: partial pooling of channel effects, decay and curves across markets (a panel input is refused by `REG_MMM_BAYES` today as `duplicate_time`). Deferred from U62 · no unit
+- [ ] **#562** Weibull and delayed adstock kernels for `REG_MMM_BAYES` (`params.adstock` accepts `geometric` only; `WIN_DISTRIBUTED_LAG` already has the Weibull weights). Deferred from U62 · no unit
+- [ ] **#563** Saturation curves other than Hill for `REG_MMM_BAYES` (for example logistic or Michaelis-Menten forms). Deferred from U62 · no unit
+- [ ] **#564** A lift-test likelihood: a measured experiment enters as data, not only as an informative `priors.<channel>.roi` (the estimand-mismatch caveat in `ext-mmm-workflow` applies to the prior route). Deferred from U62 · no unit
+- [ ] **#565** A posterior-aware budget optimizer: Compose `optimize` over `REG_MMM_BAYES` draws, so an allocation carries the posterior uncertainty; today the Bayesian route has no optimizer and the point-estimate `optimize` reads `coef()` means only. Deferred from U62 · no unit
+- [ ] **#566** Raw posterior draws on the wire (`REG_MMM_BAYES` returns summaries and diagnostics only). Deferred from U62 · no unit
+- [ ] **#567** Save and scoring (`ATTR_REG_PREDICT`, engine `holdout`) for `REG_MMM_BAYES` with pre-adstocked inputs, so a Bayesian fit can score new rows without a row-order dependency. Deferred from U62 · no unit
+- [ ] **#568** Samplers other than NUTS behind `mcmc.Sampler` / `params.sampler` (for example HMC with a fixed path length, or variational inference). Deferred from U62 · no unit
+- [ ] **#569** Cross-arch determinism of the shared MMM test fixture: `internal/mmmfixture/joint.go:198` (price generator), `~296-307` (`TrueOptimum`) and `joint_test.go:69` carry products the FMA report flags, and `internal/mmmfixture` has no FMA gate (the pack's `TestMMMPack_NoFMAContraction` does not cover it). Found in U62 (E4) · [U61](units/U61-cross-arch-determinism.md)
 
 ### Owner-unit backlog from the worked example (filed under existing units)
 - [x] **#293** `REG_OLS` `penalty` with an `unpenalized: [..]` predictor list, so ridge can leave a predictor subset unshrunk; add an oracle case · [U53](units/U53-custom-regressions.md). Delivered by U53 (E3-S1): `REG_OLS` `unpenalized` for ridge (glmnet `penalty.factor`-pinned); lasso / elastic-net factors filed as #487.
