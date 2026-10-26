@@ -1381,6 +1381,7 @@ pulse/descriptor: type ComposeSlotPredict struct
 pulse/descriptor: type ComposeSlotPredict field Families []pulse/descriptor.PValueFamily "json:\"families,omitempty\""
 pulse/descriptor: type ComposeSlotPredict field Label string "json:\"label\""
 pulse/descriptor: type ComposeSlotPredict field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
+pulse/descriptor: type ComposeSlotPredict field PostWindow *pulse/descriptor.PostWindowPlan "json:\"post_window,omitempty\""
 pulse/descriptor: type ComposeSlotPredict field Request int "json:\"request\""
 pulse/descriptor: type ComposeSlotPredict field Streamable bool "json:\"streamable\""
 pulse/descriptor: type ComposeSlotPredict field StreamableReasons []string "json:\"streamable_reasons,omitempty\""
@@ -1936,6 +1937,15 @@ pulse/descriptor: type PopulationMeta field Labels []string "json:\"labels\""
 pulse/descriptor: type PopulationMeta field N int64 "json:\"n\""
 pulse/descriptor: type PopulationMeta field Name string "json:\"name\""
 pulse/descriptor: type PopulationMeta field Operator string "json:\"operator,omitempty\""
+pulse/descriptor: type PostWindowAttribute struct
+pulse/descriptor: type PostWindowAttribute field DependsOn string "json:\"depends_on\""
+pulse/descriptor: type PostWindowAttribute field Index int "json:\"index\""
+pulse/descriptor: type PostWindowAttribute field Label string "json:\"label\""
+pulse/descriptor: type PostWindowAttribute field WindowReads []string "json:\"window_reads\""
+pulse/descriptor: type PostWindowPlan struct
+pulse/descriptor: type PostWindowPlan field Attributes []pulse/descriptor.PostWindowAttribute "json:\"attributes\""
+pulse/descriptor: type PostWindowPlan field WindowLabels []string "json:\"window_labels\""
+pulse/descriptor: type PostWindowPlan field WindowsFirst bool "json:\"windows_first\""
 pulse/descriptor: type PredictResult struct
 pulse/descriptor: type PredictResult field Advisories []pulse/descriptor.Advisory "json:\"advisories,omitempty\""
 pulse/descriptor: type PredictResult field Aggregations []pulse/descriptor.AggregationPredict "json:\"aggregations\""
@@ -1953,6 +1963,7 @@ pulse/descriptor: type PredictResult field OverlayCost map[string]float64 "json:
 pulse/descriptor: type PredictResult field OverlaysApplied []pulse/descriptor.OverlayAppliedDescriptor "json:\"overlays_applied\""
 pulse/descriptor: type PredictResult field OverlaysSchemaDivergence []pulse/descriptor.SlotPair "json:\"overlays_schema_divergence\""
 pulse/descriptor: type PredictResult field PValues *pulse/descriptor.PValueCount "json:\"p_values,omitempty\""
+pulse/descriptor: type PredictResult field PostWindow *pulse/descriptor.PostWindowPlan "json:\"post_window,omitempty\""
 pulse/descriptor: type PredictResult field RecordCount int64 "json:\"record_count\""
 pulse/descriptor: type PredictResult field Request *pulse/types.Request "json:\"request\""
 pulse/descriptor: type PredictResult field ResolvedVectors map[string][]string "json:\"resolved_vectors,omitempty\""
@@ -6175,4 +6186,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: be41aab8aedbe01f8ea08816527e643853c36cc38e1d6aa5d83ce176c09e3f73
+// golden-hash: 5098071887da921c24f9668a6a5370b05a86c2e95942e09b0fd2fadbe64e11e2

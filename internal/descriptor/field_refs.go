@@ -262,8 +262,19 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 // columns a chain stage >= 1 inherits (nil: none) — read only by the
 // overlay categorical-code rule.
 func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes map[string]encoding.FieldType, snap *ExtensionsSnapshot, inst *InstanceSnapshot, models model.Catalog) []*errors.CodedError {
+	out, _ := fieldRefWalkPlan(req, schema, codes, snap, inst, models)
+	return out
+}
+
+// fieldRefWalkPlan is fieldRefRefusalsCoded returning, beside the
+// refusals, the post-window plan the walk classified the request by
+// (vectors.PostWindowAttributes over the walk's schema, instance route
+// and models) — the one call predict reports as
+// PredictResult.PostWindow (postWindowDescriptor). A nil request or
+// schema yields no refusal and the zero plan.
+func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[string]encoding.FieldType, snap *ExtensionsSnapshot, inst *InstanceSnapshot, models model.Catalog) ([]*errors.CodedError, vectors.PostWindow) {
 	if req == nil || schema == nil {
-		return nil
+		return nil, vectors.PostWindow{}
 	}
 	w := &fieldRefWalk{cols: make(map[string]bool, len(schema.Fields)), snap: snap, inst: inst, req: req}
 	for i := range schema.Fields {
@@ -888,14 +899,14 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	mats, verr := resolveMatricesFor(req, schema, w.snap, inst)
 	if verr != nil {
 		w.out = append(w.out, verr)
-		return w.out
+		return w.out, pw
 	}
 	// 6b. A vector name equal to a feature, attribute or window output
 	// label (PULSE_VECTOR_NAME_COLLISION) — the schema-field collision's
 	// twin for the derived columns, judged once every vector resolved.
 	if cerr := w.vectorLabelCollision(req); cerr != nil {
 		w.out = append(w.out, cerr)
-		return w.out
+		return w.out, pw
 	}
 	// 8. Test vector inputs — each test's vector / fields (and vector2
 	// / fields2) resolved by the same leaf (vectors.ResolveTests): the
@@ -907,7 +918,7 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 		return opRoute(inst, t)
 	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Tests })); terr != nil {
 		w.out = append(w.out, terr)
-		return w.out
+		return w.out, pw
 	}
 	// 9. Attribute vector inputs — each attribute's vector / fields and
 	// fitted params (fit_on, missing, the operator's own keys) resolved
@@ -918,7 +929,7 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Attributes }), inst.Hidden)
 	if aerr != nil {
 		w.out = append(w.out, aerr)
-		return w.out
+		return w.out, pw
 	}
 	// 10. Grouper vector inputs — every grouper slot's vector / fields
 	// and params resolved by the same leaf (vectors.ResolveGroups).
@@ -927,7 +938,7 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 		return opRoute(inst, t)
 	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Groupers })); gerr != nil {
 		w.out = append(w.out, gerr)
-		return w.out
+		return w.out, pw
 	}
 	// 11. Aggregation vector inputs — every aggregation slot's (the
 	// aggregations, the crosstab cell and its margin aggregations)
@@ -936,11 +947,11 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	// at most between them.
 	if _, aerr := vectors.ResolveAggregations(req, schema, aggregationKinds(inst, w.snap)); aerr != nil {
 		w.out = append(w.out, aerr)
-		return w.out
+		return w.out, pw
 	}
 	// 12. Bound vector fits (params.fit), once every input resolved.
 	w.out = append(w.out, vectorFitRefusals(req, schema, mats, ains, inst, models)...)
-	return w.out
+	return w.out, pw
 }
 
 // vectorFitRefusals is step 12: each fitted attribute's params.fit and

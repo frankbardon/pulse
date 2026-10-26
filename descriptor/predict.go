@@ -271,6 +271,14 @@ type PredictResult struct {
 	// refusal is the predict error).
 	ForEach []ForEachSummary `json:"for_each,omitempty"`
 
+	// PostWindow is the request's post-window plan: whether it runs
+	// windows-first and which attributes run after its windows — the
+	// classification the field-reference pass and the engine order by.
+	// Reported whenever predict reaches that pass (the header and schema
+	// read), also beside refusals. Omitted when the request carries no
+	// window.
+	PostWindow *PostWindowPlan `json:"post_window,omitempty"`
+
 	// Return is the resolved `return` plan — the expanded selection the
 	// runtime will apply, computed by the same resolver it calls.
 	// Omitted when the request carries no `return` block or the block is
@@ -1119,6 +1127,45 @@ type ComposeSlotPredict struct {
 	// p-values join, in first-member order. Absent when none is
 	// corrected.
 	Families []PValueFamily `json:"families,omitempty"`
+	// PostWindow is the slot's post-window plan, as Process predict
+	// reports it (PredictResult.PostWindow) — over the batch's fits as
+	// well as the slot's own models. Omitted when the slot carries no
+	// window or is refused before its field references are judged.
+	PostWindow *PostWindowPlan `json:"post_window,omitempty"`
+}
+
+// PostWindowPlan is a request's post-window plan: the engine's ordering
+// of its windows and attributes, as predict classifies it. Attribute
+// indices address the request's attributes as the runtime runs them
+// (item for_each expanded; the written order when none is).
+type PostWindowPlan struct {
+	// WindowsFirst reports whether the windows run over the record rows
+	// before the groups, aggregations and crosstab, which read the
+	// window outputs. False on the historical order.
+	WindowsFirst bool `json:"windows_first"`
+	// WindowLabels are the request's window output labels in declared
+	// order — every window but one whose label is a schema field or a
+	// named vector (the field or vector wins).
+	WindowLabels []string `json:"window_labels"`
+	// Attributes lists only the attributes that run after the windows,
+	// in declared order. Empty when none does.
+	Attributes []PostWindowAttribute `json:"attributes"`
+}
+
+// PostWindowAttribute is one attribute that runs after the windows.
+type PostWindowAttribute struct {
+	// Index is the attribute's position in the request's attributes.
+	Index int `json:"index"`
+	// Label is its output label (the default label when unset).
+	Label string `json:"label"`
+	// DependsOn is the first window-derived name it reads: a window
+	// label, or an earlier post-window attribute's label.
+	DependsOn string `json:"depends_on"`
+	// WindowReads are the window labels it reads directly, in read
+	// order without repeats — through its expression, or through a
+	// bound model's terms (ATTR_REG_PREDICT). Empty when it reads only
+	// earlier post-window labels.
+	WindowReads []string `json:"window_reads"`
 }
 
 // PValueFamily is one correction family a Compose slot's p-values join.

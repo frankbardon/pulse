@@ -119,14 +119,9 @@ func WindowsOverRecords(req *types.Request, schema *encoding.Schema) bool {
 func windowDerived(req *types.Request, schema *encoding.Schema) map[string]bool {
 	derived := make(map[string]bool, len(req.Windows))
 	for _, w := range req.Windows {
-		if w == nil {
-			continue
+		if l, ok := windowDerivedLabel(req, schema, w); ok {
+			derived[l] = true
 		}
-		l := WindowLabel(w)
-		if (schema != nil && schema.Field(l) != nil) || vectorNamed(req, l) {
-			continue
-		}
-		derived[l] = true
 	}
 	return derived
 }

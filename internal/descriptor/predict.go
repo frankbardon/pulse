@@ -415,8 +415,14 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// Field references — the one rule the runtime refuses with at the
 	// same point (after defaults and zones, against the schema the
 	// request executes over). Every unknown name is reported.
-	for _, ce := range dropUnloadedUnknowns(fieldRefRefusalsWithModels(req, schema, extensionsFromOpts(opts), opts.Instance, models), unloadedModels) {
+	// The walk's post-window plan is reported as PostWindow — the same
+	// classification, also beside any refusal.
+	refs, pw := fieldRefWalkPlan(req, schema, nil, extensionsFromOpts(opts), opts.Instance, models)
+	for _, ce := range dropUnloadedUnknowns(refs, unloadedModels) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
+	}
+	if schema != nil {
+		result.PostWindow = postWindowDescriptor(req, schema, pw)
 	}
 
 	// Virtual vectors — the field-reference pass above refuses a bad

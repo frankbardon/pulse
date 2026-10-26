@@ -1,6 +1,7 @@
 package vectors
 
 import (
+	"slices"
 	"sort"
 
 	"github.com/frankbardon/pulse/encoding"
@@ -47,6 +48,11 @@ type PostWindow struct {
 	// Labels are the post-window attributes' output labels, in declared
 	// order.
 	Labels []string
+	// PostReads[k] are the window labels the k-th post-window attribute
+	// (Labels[k]) reads directly, in read order without repeats — empty
+	// when it reads only earlier post-window labels. Nil when no slot
+	// moves.
+	PostReads [][]string
 	// WindowsFirst reports whether the request runs windows-first
 	// (WindowsFirst over the same schema, route and catalog): its windows
 	// run over the record rows before its groups, aggregations and
@@ -118,14 +124,9 @@ func PostWindowAttributes(req *types.Request, schema *encoding.Schema, route fun
 	derived := make(map[string]bool, len(req.Windows))
 	windows := make(map[string]bool, len(req.Windows))
 	for _, w := range req.Windows {
-		if w == nil {
-			continue
+		if l, ok := windowDerivedLabel(req, schema, w); ok {
+			derived[l], windows[l] = true, true
 		}
-		l := WindowLabel(w)
-		if (schema != nil && schema.Field(l) != nil) || vectorNamed(req, l) {
-			continue
-		}
-		derived[l], windows[l] = true, true
 	}
 	if len(derived) == 0 {
 		return pw
@@ -159,12 +160,20 @@ func PostWindowAttributes(req *types.Request, schema *encoding.Schema, route fun
 			pw.Post = make([]bool, len(req.Attributes))
 		}
 		pw.Post[i] = true
+		own := []string{}
 		for _, n := range reads {
-			if windows[n] && !seenRead[n] {
+			if !windows[n] {
+				continue
+			}
+			if !seenRead[n] {
 				seenRead[n] = true
 				pw.WindowReads = append(pw.WindowReads, n)
 			}
+			if !slices.Contains(own, n) {
+				own = append(own, n)
+			}
 		}
+		pw.PostReads = append(pw.PostReads, own)
 		label := attr.Label
 		if label == "" {
 			label = DefaultAttributeLabel(attr)
@@ -173,6 +182,36 @@ func PostWindowAttributes(req *types.Request, schema *encoding.Schema, route fun
 		derived[label] = true
 	}
 	return pw
+}
+
+// WindowDerivedLabels are req's window output labels that are
+// window-derived names to PostWindowAttributes, in declared order: every
+// window's label but one equal to a schema field or to a named vector of
+// req (the field or vector wins). Nil when req carries no window.
+func WindowDerivedLabels(req *types.Request, schema *encoding.Schema) []string {
+	if req == nil || len(req.Windows) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(req.Windows))
+	for _, w := range req.Windows {
+		if l, ok := windowDerivedLabel(req, schema, w); ok && !slices.Contains(out, l) {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// windowDerivedLabel is w's output label and whether it is a window-derived
+// name of req over schema (WindowDerivedLabels' rule).
+func windowDerivedLabel(req *types.Request, schema *encoding.Schema, w *types.Window) (string, bool) {
+	if w == nil {
+		return "", false
+	}
+	l := WindowLabel(w)
+	if (schema != nil && schema.Field(l) != nil) || vectorNamed(req, l) {
+		return "", false
+	}
+	return l, true
 }
 
 // attributeReads lists the names attr (of type route) reads off a

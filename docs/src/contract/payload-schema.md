@@ -113,6 +113,11 @@ The document is a `$defs` bundle. The root `oneOf` lists the entry points:
   details}` — on Process, Compose, chain and facet predict; `details`
   locates a Compose slot as `request` or a chain stage as `stage`) is a
   predict result field, not part of this schema.
+  So is predict's `post_window` (`{windows_first, window_labels,
+  attributes: [{index, label, depends_on, window_reads}]}` — on Process
+  predict and per Compose slot, additive `omitempty`, absent without a
+  window): the post-window plan, which attributes run after the windows,
+  by index.
 - **Envelope** — `#/$defs/Envelope`, the universal `--json` wrapper. Its
   `data` slot is intentionally open: it carries whatever the operation
   returned (a `Response`, the manifest, a predict result, an inspect
