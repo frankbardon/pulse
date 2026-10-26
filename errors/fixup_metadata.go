@@ -969,7 +969,12 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Windows", "*", "Type"},
-				Hint:   "An unknown window type (details.type, at details.window_index) names no registered WIN_* operator on this instance: pick one from the manifest's window list (a retired name such as WIN_ADSTOCK is now WIN_DISTRIBUTED_LAG).",
+				Hint:   "An unknown window type (details.type, at details.window_index) names no registered WIN_* operator on this instance: pick one from the manifest's window list.",
+			},
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Windows", "*", "Type"},
+				Hint:   "A retired window type (renamed before v1.0.0, no alias) is refused with details.renamed_to naming its replacement — WIN_ADSTOCK is now WIN_DISTRIBUTED_LAG: set Type to the details.renamed_to value; the params are unchanged.",
 			},
 			{
 				Action: FixupSetDefault,

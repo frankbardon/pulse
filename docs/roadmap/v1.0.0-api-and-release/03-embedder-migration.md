@@ -1168,6 +1168,14 @@ Not yet released (targets `v1.0.0-alpha.28`). `format_version` stays `"1.1"`; no
 | — | NEW error codes `PULSE_MCMC_INVALID` (bad options, model shape or `Init`; `reason` `nil_model`, `dim`, `chains`, `warmup`, `draws`, `max_tree_depth`, `workers`, `target_accept`, `init_length`, `init_not_finite`, `init_density_not_finite`) and `PULSE_MCMC_FAILED` (the sampler cannot run the model; `reason` `init_not_found`, `step_size_unbounded`, `step_size_zero`, `metric_not_finite`, plus `chain`), with fixups and the `shared` owner. `NUTS.Sample` returned `PROCESSING_CONFIG` / `PROCESSING_RUNTIME` for these before alpha.28 | additive (error code) | match on the `PULSE_MCMC_*` codes; `details.reason` is unchanged | U62 (E3-S2) |
 | — | NEW pack regression `REG_MMM_BAYES` in `contrib/mmmpulse` (Bayesian media mix: raw spend adstocked in the model, Hill saturation, linear controls, NUTS posterior on `mcmc`). Params `channels`, `time` (required, contiguous integers), `max_lag`, `priors`, `chains` / `warmup` / `draws`, `credible_level`, `target_accept`, `holdout_from`; outputs ROI, analytic mROI and contribution intervals, diagnostics and holdout; sampler health arrives as `PROCESSING_REGRESSION_DIAGNOSTIC` warnings. No save, scoring or resample. Skill `op-reg-mmm-bayes` | additive (pack operator) | register `mmmpulse.Extensions()` as for `REG_MMM_HILL`; use it when decay uncertainty matters, the sweep route to allocate budget | U62 (E3) |
 
+## Changes from mmm-followups
+
+Not yet released (targets `v1.0.0-alpha.29`). `format_version` stays `"1.1"`; no `.pulse` byte-layout change.
+
+| Old | New | Kind | How to adapt | Unit |
+|---|---|---|---|---|
+| the retired window type `WIN_ADSTOCK` was refused as a bare unknown type: `PULSE_WINDOW_INVALID` `window[i]: unknown window type WIN_ADSTOCK`, details `{window_index, type}` | still refused (no alias, the refusal is never removed), now naming the replacement on predict and every runtime surface alike: `window[i]: unknown window type WIN_ADSTOCK (renamed to WIN_DISTRIBUTED_LAG)`, details gain `renamed_to: "WIN_DISTRIBUTED_LAG"`, and the code carries a fixup pointing at it. An instance whose feature profile hides `WIN_DISTRIBUTED_LAG` keeps the plain refusal; a never-registered name never carries `renamed_to` | behaviour change (refusal message + details key) | none; match on the code, not the message — or read `details.renamed_to` to rewrite the type | mmm-followups (E1-S1) |
+
 ## Third-party dependency
 
 - `afero.Fs` is a frozen third-party type in the v1 API (`Options.FS`, the `io` factory). No change; no Pulse-owned filesystem interface replaces it.

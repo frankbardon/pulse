@@ -125,3 +125,20 @@ func TestTables(t *testing.T) {
 		t.Errorf("rank with a field: Check = %q", got)
 	}
 }
+
+// TestUnknownType_RenameHint: only a retired name carries the rename
+// hint, and only when the instance offers its replacement.
+func TestUnknownType_RenameHint(t *testing.T) {
+	msg, d := UnknownType(2, "WIN_ADSTOCK", nil)
+	if msg != "window[2]: unknown window type WIN_ADSTOCK (renamed to WIN_DISTRIBUTED_LAG)" || d["renamed_to"] != "WIN_DISTRIBUTED_LAG" || d["window_index"] != 2 || d["type"] != "WIN_ADSTOCK" {
+		t.Errorf("retired: %q %v", msg, d)
+	}
+	msg, d = UnknownType(0, "WIN_ADSTOCK", func(types.WindowType) bool { return false })
+	if msg != "window[0]: unknown window type WIN_ADSTOCK" || d["renamed_to"] != nil {
+		t.Errorf("retired, replacement hidden: %q %v", msg, d)
+	}
+	msg, d = UnknownType(0, "WIN_NOPE", nil)
+	if msg != "window[0]: unknown window type WIN_NOPE" || len(d) != 2 {
+		t.Errorf("never registered: %q %v", msg, d)
+	}
+}
