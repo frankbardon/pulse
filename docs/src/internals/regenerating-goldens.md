@@ -173,6 +173,17 @@ or package version but the pinned ones. `TestOptimize_*Matches*` hold
 the solvers to `1e-6` relative, at least 50 times the measured
 disagreement. As above, a failure means the solver is wrong.
 
+The public `mcmc` package's diagnostics are held to ArviZ, not R:
+`mcmc/testdata/gen_diagnostics.py` generates seeded fixture chains,
+computes `rhat(method="rank")`, `ess(method="bulk")` and
+`ess(method="tail")` with the pinned arviz-stats 1.3.3, NumPy 2.5.4 and
+SciPy 1.18.1, and writes chains and references together to
+`diagnostics.json`. `PYTHON=<venv>/bin/python3 make reference-mcmc`
+runs it and appends the footer that `TestMCMC_OracleGoldensHashed`
+checks; the script's header has the venv install line. CI never runs
+Python. `TestMCMC_*MatchesArviZ` hold `RHat`, `ESSBulk` and `ESSTail` to
+`1e-9` relative.
+
 ### Multivariate goldens and their fixtures
 
 The same `make reference` run also sources
