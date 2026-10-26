@@ -37,6 +37,7 @@ import (
 func (r *ExtensionRegistry) exprOptionsWithModels(models *model.Set, zone *temporal.Zone) []expr.Option {
 	b := r.exprBound()
 	b.Coef = coefBuiltin(models)
+	b.SweepAxis = sweepAxisBuiltin(models)
 	b.Zone = zone
 	return b.Options()
 }
@@ -49,7 +50,36 @@ func (r *ExtensionRegistry) exprOptionsWithModels(models *model.Set, zone *tempo
 func (r *ExtensionRegistry) ExprBoundWithModels(models *model.Set) exprenv.Bound {
 	b := r.exprBound()
 	b.Coef = coefBuiltin(models)
+	b.SweepAxis = sweepAxisBuiltin(models)
 	return b
+}
+
+// sweepAxisBuiltin is sweep_axis(fit, axis) bound to one request's
+// models (nil: none) — internal/model.SweepAxis: the sweep-bound fit's
+// winning axis value, refused like coef() (PULSE_MODEL_UNKNOWN /
+// _TERM_UNKNOWN reasons not_sweep_bound / axis_unknown, a failed fit's
+// own code).
+func sweepAxisBuiltin(models *model.Set) func(args ...any) (any, error) {
+	return func(args ...any) (any, error) {
+		if len(args) != 2 {
+			return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
+				fmt.Sprintf("sweep_axis() takes 2 arguments (fit, axis), got %d", len(args)))
+		}
+		strs := make([]string, 2)
+		for i, a := range args {
+			s, ok := a.(string)
+			if !ok {
+				return nil, errors.NewCodedError(errors.PROCESSING_RUNTIME,
+					fmt.Sprintf("sweep_axis() argument %d must be a string, got %T", i+1, a))
+			}
+			strs[i] = s
+		}
+		v, cerr := model.SweepAxis(models, strs[0], strs[1])
+		if cerr != nil {
+			return nil, cerr
+		}
+		return v, nil
+	}
 }
 
 // coefBuiltin is coef() bound to one request's models (nil: none).
@@ -94,36 +124,48 @@ func (r *ExtensionRegistry) coefShadowed() bool {
 	return false
 }
 
-// coefStaticRefusal is the build-time coef() check over src: the first
-// all-literal call that model.CheckCoef refuses, nil otherwise (or when
-// an embedder function shadows coef).
+// coefStaticRefusal is the build-time coef() / sweep_axis() check over
+// src: the first all-literal call that model.CheckCoef /
+// CheckSweepAxis refuses, nil otherwise (an embedder function that
+// shadows coef leaves only the sweep_axis() calls judged).
 func (r *ExtensionRegistry) coefStaticRefusal(src string, models *model.Set) error {
-	if r.coefShadowed() || !strings.Contains(src, model.CoefFunc) {
+	if !mayReadModels(src) {
 		return nil
 	}
-	if cerr := coefcall.StaticRefusal(src, models); cerr != nil {
+	check := coefcall.StaticRefusal
+	if r.coefShadowed() {
+		check = coefcall.SweepAxisRefusal
+	}
+	if cerr := check(src, models); cerr != nil {
 		return cerr
 	}
 	return nil
 }
 
+// mayReadModels reports whether src may call coef() or sweep_axis().
+func mayReadModels(src string) bool {
+	return strings.Contains(src, model.CoefFunc) || strings.Contains(src, model.SweepAxisFunc)
+}
+
 // failedCoefFits are the failed fits (model.Set.FailedOfKind — a
-// Compose regression fit that failed on its data) src names in a
-// literal coef() call, each once in first-call order with its error;
-// nil when there is none, or when an embedder function shadows coef.
-// A non-literal fit name is not judged here: a row that evaluates it to
-// a failed fit is refused with the fit's own code (modelRefusal).
+// Compose regression fit that failed on its data, a sweep-bound one
+// with an empty ranking included) src names in a literal coef() call
+// (unless an embedder function shadows coef) or sweep_axis() call,
+// each once in first-call order with its error; nil when there is
+// none. A non-literal fit name is not judged here: a row that
+// evaluates it to a failed fit is refused with the fit's own code
+// (modelRefusal).
 func (r *ExtensionRegistry) failedCoefFits(src string, models *model.Set) []failedCoefFit {
-	if models == nil || r.coefShadowed() || !strings.Contains(src, model.CoefFunc) {
+	if models == nil || !mayReadModels(src) {
 		return nil
 	}
 	var out []failedCoefFit
-	for _, c := range coefcall.LiteralCalls(src) {
-		se, failed := models.FailedOfKind(c.Fit, types.FitKindRegression)
-		if !failed || slices.ContainsFunc(out, func(f failedCoefFit) bool { return f.name == c.Fit }) {
+	for _, name := range coefcall.LiteralFits(src, !r.coefShadowed()) {
+		se, failed := models.FailedOfKind(name, types.FitKindRegression)
+		if !failed || slices.ContainsFunc(out, func(f failedCoefFit) bool { return f.name == name }) {
 			continue
 		}
-		out = append(out, failedCoefFit{name: c.Fit, err: se})
+		out = append(out, failedCoefFit{name: name, err: se})
 	}
 	return out
 }

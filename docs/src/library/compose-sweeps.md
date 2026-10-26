@@ -209,6 +209,22 @@ warning names it under `details.fit`, slots scoring it read null
 (`PULSE_FIT_UNAVAILABLE`), and `Strict` fails the batch. A batch with no
 binding runs and answers exactly as before. Skill: `compose-sweep-bind`.
 
+The winner's axis values are readable in the same batch:
+`sweep_axis("<fit>", "<axis>")` in an explicit slot's formula or filter
+and in an `optimize` expression returns the rank-1 slot's value of that
+axis (a number as a float, a string or bool `values` entry as is) — the
+decay a steady-state multiplier such as
+`(1 - sweep_axis("best", "tv") ^ 8) / (1 - sweep_axis("best", "tv"))`
+needs, which no coefficient carries. Its refusals mirror `coef()` and
+predict raises them too: an unbound name is `PULSE_MODEL_UNKNOWN`; a fit
+not bound from the sweep is `PULSE_MODEL_TERM_UNKNOWN` with
+`details.reason: "not_sweep_bound"`, an axis the sweep lacks the same
+code with `reason: "axis_unknown"` and the sorted `details.axes`. A
+failed bound fit (no winner) nulls a formula with
+`PULSE_FIT_UNAVAILABLE` and refuses a filter with the fit's own code.
+`sweep_axis` is reserved: an embedder `ExprFunctions` entry of that name
+is `PULSE_EXTENSION_NAME_RESERVED`.
+
 ## Echo and return shaping
 
 With `Options.EchoRequest` / `--echo-request` the echo carries the

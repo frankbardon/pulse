@@ -22,7 +22,10 @@ func SweepFitScope(written, effective *types.ComposedRequest, explicit, count in
 	if written == nil || written.Sweep == nil {
 		return model.SweepScope{}
 	}
-	scope := model.SweepScope{Present: true, Ranked: written.Sweep.Rank != nil, Reads: SweepSlotReadsFit}
+	scope := model.SweepScope{Present: true, Ranked: written.Sweep.Rank != nil, Reads: SweepSlotReadsFit, Axes: []string{}}
+	for _, a := range written.Sweep.Axes {
+		scope.Axes = append(scope.Axes, a.Name)
+	}
 	if effective != nil && explicit >= 0 && count > 0 && explicit+count <= len(effective.Requests) {
 		scope.Slots = effective.Requests[explicit : explicit+count]
 	}

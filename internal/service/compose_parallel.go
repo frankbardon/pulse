@@ -109,7 +109,7 @@ func (s *Service) composeParallel(
 	}
 	// Then the optimize blocks' rules (predict runs the same
 	// descx.OptimizeRefusal at the same point).
-	optLoaded, err := s.optimizeRefusal(composed)
+	optLoaded, err := s.optimizeRefusal(composed, ext)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +241,7 @@ func (s *Service) composeParallel(
 	}
 	// The optimize blocks, once the fits are bound and before any slot:
 	// they read no record (runComposeOptimize).
-	optimizations, optWarnings, err := s.runComposeOptimize(composed, models, optLoaded)
+	optimizations, optWarnings, err := s.runComposeOptimize(composed, ext, models, optLoaded)
 	if err != nil {
 		return nil, err
 	}

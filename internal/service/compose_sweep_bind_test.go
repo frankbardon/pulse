@@ -320,3 +320,35 @@ func TestComposeSweepBind_RankReadsSlotLocalAdjustedP(t *testing.T) {
 		t.Fatalf("compose family: %v", err)
 	}
 }
+
+// TestComposeSweepAxis_FailedFitUnavailable: with no ranked slot the
+// bound fit has no winning axes — a formula reading sweep_axis() of it
+// is an all-null column with PULSE_FIT_UNAVAILABLE (as coef() of a
+// failed fit is), and a filter reading it is refused with the fit's own
+// code plus details.fit.
+func TestComposeSweepAxis_FailedFitUnavailable(t *testing.T) {
+	svc := fitsService(t)
+	c := emptyRankBatch()
+	c.Requests[0].Attributes = []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "lo", Expression: `sweep_axis("best", "lo") * 2`}}
+	c.Requests[0].Aggregations = []*types.Aggregation{{Type: types.AGG_MAX, Field: "lo", Label: "max_lo"}}
+	for name, out := range composeBoth(t, svc, c) {
+		scored := out.Responses[0]
+		if v, ok := scored.Data[0]["max_lo"].(float64); ok && !math.IsNaN(v) {
+			t.Errorf("%s: max over the failed fit's axis %v", name, v)
+		}
+		if !slices.ContainsFunc(scored.Warnings, func(w *types.ResponseWarning) bool {
+			return w.Code == string(perr.PULSE_FIT_UNAVAILABLE) && w.Details["fit"] == "best"
+		}) {
+			t.Errorf("%s: no PULSE_FIT_UNAVAILABLE: %+v", name, scored.Warnings)
+		}
+	}
+	c = emptyRankBatch()
+	c.Requests[0].Attributes = nil
+	c.Requests[0].Aggregations = c.Requests[0].Aggregations[:1]
+	c.Requests[0].Filterers = []*types.Filterer{{Type: types.FILTER_EXPRESSION, Expression: `week > sweep_axis("best", "lo")`}}
+	_, err := svc.Compose(context.Background(), c)
+	var ce *perr.CodedError
+	if !stderrors.As(err, &ce) || ce.Code != perr.PULSE_SWEEP_RANK_PATH || ce.Details["fit"] != "best" {
+		t.Fatalf("filter over the failed fit: %v", err)
+	}
+}

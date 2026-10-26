@@ -12,7 +12,9 @@ import (
 // OptimizeRefusal is the ComposedRequest `optimize` blocks' rule set
 // (optblock.CheckLoaded) over the batch as it runs — its top-level
 // params (already validated by InheritComposeParams) and its `fits`
-// (the names coef() resolves) — with the instance's embedder
+// (the names coef() resolves; sweepAxes, the batch's sweep's axis
+// names, are the axes sweep_axis() may read off a sweep-bound one —
+// nil: unknown) — with the instance's embedder
 // ExprFunction names, whether a LookupTable is registered, the
 // instance's registered populations (outer: the namespace a block's
 // `models` entry may not rebind, with the fits) and the loader that
@@ -22,12 +24,12 @@ import (
 // identically. It returns each block's decoded `models` files
 // (index-aligned; what the runtime solves with) — nil, nil when the
 // batch declares no block.
-func OptimizeRefusal(req *types.ComposedRequest, exprFunctions []string, lookup bool, outer model.Catalog, load optblock.Loader) ([]*model.Loaded, *errors.CodedError) {
+func OptimizeRefusal(req *types.ComposedRequest, sweepAxes []string, exprFunctions []string, lookup bool, outer model.Catalog, load optblock.Loader) ([]*model.Loaded, *errors.CodedError) {
 	if req == nil || len(req.Optimize) == 0 {
 		return nil, nil
 	}
 	params, _ := exprenv.NormalizeParams(req.Params)
-	fits := model.CatalogFromFits(req.Fits)
+	fits := model.CatalogFromFits(req.Fits).WithSweepAxes(sweepAxes)
 	return optblock.CheckLoaded(req.Optimize, optblock.Env{
 		Params:     params,
 		Fits:       fits,

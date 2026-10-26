@@ -20,6 +20,12 @@ import (
 // (internal/model.CoefFunc; internal/processing pins the two equal).
 const CoefFunc = "coef"
 
+// SweepAxisFunc is the sweep-bound fit's winning-axis reader,
+// sweep_axis(fit, axis) (internal/model.SweepAxisFunc; internal/
+// processing pins the two equal). Unlike coef it is reserved: no
+// embedder function may take the name.
+const SweepAxisFunc = "sweep_axis"
+
 // LookupFunc is the lookup-table reader's name, lookup(table, keys...),
 // declared only when the instance registers a LookupTable.
 const LookupFunc = "lookup"
@@ -32,6 +38,10 @@ type Bound struct {
 	// Coef is coef()'s implementation; nil leaves coef undeclared (the
 	// overlay formula env, which binds no models).
 	Coef func(args ...any) (any, error)
+	// SweepAxis is sweep_axis()'s implementation; nil leaves it
+	// undeclared. Declared as (string, string) → any: an axis value is
+	// a number (float64) or a string / bool `values` entry.
+	SweepAxis func(args ...any) (any, error)
 	// Extensions are the embedder's ExprFunctions ([ExtensionFunctions]).
 	Extensions []NamedFunc
 	// Lookup is lookup()'s implementation; nil when no LookupTable is
@@ -68,6 +78,9 @@ func (b Bound) Options() []expr.Option {
 			new(func(string, string) float64),
 			new(func(string, string, string) float64),
 		))
+	}
+	if b.SweepAxis != nil {
+		out = append(out, expr.Function(SweepAxisFunc, b.SweepAxis, new(func(string, string) any)))
 	}
 	out = append(out, ExtensionFunctions(b.Extensions)...)
 	if b.Lookup != nil {

@@ -121,6 +121,15 @@ type Signature struct {
 	// always knows them; predict's static FitCatalog never resolves a
 	// battery, so it leaves them nil. Nil on a regression.
 	Members []string
+
+	// SweepBound reports a regression fit bound from a Compose sweep's
+	// winner (a `fits` entry with `from_sweep`): the fit sweep_axis()
+	// reads. SweepAxes are the sweep's axis names (sorted) when known
+	// (SweepAxesKnown): the runtime's Set always knows them, a static
+	// FitCatalog once WithSweepAxes gave it the batch's sweep.
+	SweepBound     bool
+	SweepAxes      []string
+	SweepAxesKnown bool
 }
 
 // EffectiveKind is Kind, types.FitKindRegression when unset.
@@ -170,6 +179,9 @@ func (b *Bound) Signature() Signature {
 	sig := Signature{Name: b.Name, Type: b.Type, Target: b.Target, Terms: append([]string(nil), b.Terms...), Source: b.Source, Kind: types.FitKindRegression}
 	if !BuiltinRegression(b.Type) && b.Result != nil {
 		sig.Coefficients, sig.CoefficientsKnown = sortedKeys(b.Result.Coefficients), true
+	}
+	if b.SweepBound {
+		sig.SweepBound, sig.SweepAxes, sig.SweepAxesKnown = true, sortedAxisNames(b.SweepAxes), true
 	}
 	return sig
 }
@@ -233,6 +245,10 @@ func CatalogFromFits(fits []types.FitSpec) FitCatalog {
 				slices.Sort(terms)
 				sig.Coefficients, sig.CoefficientsKnown = terms, true
 			}
+			// A from_sweep fit (its request resolved off the first
+			// sweep slot) reads its winning axes through sweep_axis();
+			// their names are the batch's sweep's (WithSweepAxes).
+			sig.SweepBound = f.FromSweep != nil
 			out[f.Name] = sig
 		case types.FitKindVector:
 			out[f.Name] = Signature{Name: f.Name, Source: FitSource(i), Kind: types.FitKindVector}

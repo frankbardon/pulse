@@ -83,3 +83,35 @@ func TestNamesFit(t *testing.T) {
 		}
 	}
 }
+
+// TestStaticRefusal_SweepAxis: all-literal sweep_axis() calls are
+// judged beside coef() in walk order; SweepAxisRefusal judges them
+// alone; a computed or wrong-arity call is left to evaluation.
+func TestStaticRefusal_SweepAxis(t *testing.T) {
+	cat := model.FitCatalog{
+		"best":  {Name: "best", Type: types.REG_OLS, Terms: []string{"x"}, SweepBound: true, SweepAxes: []string{"tv"}, SweepAxesKnown: true},
+		"plain": {Name: "plain", Type: types.REG_OLS, Terms: []string{"x"}},
+	}
+	if got := LiteralSweepAxisCalls(`sweep_axis("best", "tv") + coef("best", "x") + sweep_axis(f, "tv") + sweep_axis("a")`); !reflect.DeepEqual(got, []SweepAxisCall{{"best", "tv"}}) {
+		t.Fatalf("calls %v", got)
+	}
+	if cerr := StaticRefusal(`coef("best", "x") * sweep_axis("best", "tv")`, cat); cerr != nil {
+		t.Fatalf("valid: %v", cerr)
+	}
+	cerr := StaticRefusal(`sweep_axis("plain", "tv") + coef("best", "nope")`, cat)
+	if cerr == nil || cerr.Details["reason"] != model.ReasonNotSweepBound {
+		t.Fatalf("walk order: %v", cerr)
+	}
+	if cerr := SweepAxisRefusal(`coef("best", "nope")`, cat); cerr != nil {
+		t.Fatalf("SweepAxisRefusal judged coef(): %v", cerr)
+	}
+	if cerr := SweepAxisRefusal(`sweep_axis("best", "hi")`, cat); cerr == nil || cerr.Code != errors.PULSE_MODEL_TERM_UNKNOWN {
+		t.Fatalf("SweepAxisRefusal: %v", cerr)
+	}
+	if got := LiteralFits(`coef("a", "x") + sweep_axis("b", "tv")`, false); !reflect.DeepEqual(got, []string{"b"}) {
+		t.Fatalf("LiteralFits(no coef) %v", got)
+	}
+	if got := LiteralFits(`coef("a", "x") + sweep_axis("b", "tv")`, true); !reflect.DeepEqual(got, []string{"a", "b"}) {
+		t.Fatalf("LiteralFits %v", got)
+	}
+}

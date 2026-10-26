@@ -1505,19 +1505,21 @@ func (w *fieldRefWalk) checkTotal(expr, site string) {
 	}
 }
 
-// checkCoef records the first refusal of expr's all-literal coef()
-// calls against models (internal/model/coefcall.StaticRefusal — the
-// check the engine's build runs too), unless an embedder ExprFunction
-// named coef owns the name.
+// checkCoef records the first refusal of expr's all-literal coef() and
+// sweep_axis() calls against models (internal/model/coefcall.
+// StaticRefusal — the check the engine's build runs too); an embedder
+// ExprFunction named coef owns that name, leaving only the sweep_axis()
+// calls judged (coefcall.SweepAxisRefusal).
 func (w *fieldRefWalk) checkCoef(expr string, models model.Catalog) {
+	check := coefcall.StaticRefusal
 	if w.snap != nil {
 		for _, fn := range w.snap.ExprFunctions {
 			if fn.Name == model.CoefFunc {
-				return
+				check = coefcall.SweepAxisRefusal
 			}
 		}
 	}
-	if cerr := coefcall.StaticRefusal(expr, models); cerr != nil {
+	if cerr := check(expr, models); cerr != nil {
 		w.out = append(w.out, cerr)
 	}
 }

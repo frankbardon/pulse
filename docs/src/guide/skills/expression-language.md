@@ -67,7 +67,7 @@ Compiled once, predict included: bad syntax, unknown name or type error → `PUL
 
 ## Bound models
 
-`coef(fit, term[, stat])` reads a fit's figure, full precision: `term` a predictor, `"(intercept)"` or a model's own coefficient; `stat` `point` (default), `lower` / `upper` (at `conf_level`) or `se`. E.g. `coef("m", "tv") * tv`. Codes: `PULSE_MODEL_UNKNOWN`, `_TERM_UNKNOWN`, `_STAT_UNKNOWN` (literal args: predict too; a registered model's `fits` term: run only), `_INTERVALS_UNAVAILABLE` (no SEs). Missing: NaN; a failed fit nulls a formula (`PULSE_FIT_UNAVAILABLE`), refuses a filter. An embedder `coef` shadows it.
+`coef(fit, term[, stat])` reads a fit's figure, full precision: `term` a predictor, `"(intercept)"` or a model's own term; `stat` `point` (default), `lower` / `upper` (at `conf_level`) or `se`. Codes: `PULSE_MODEL_UNKNOWN`, `_TERM_UNKNOWN`, `_STAT_UNKNOWN` (literal args: predict too; a registered model's `fits` term: run only), `_INTERVALS_UNAVAILABLE` (no SEs). Missing: NaN; a failed fit nulls a formula (`PULSE_FIT_UNAVAILABLE`), refuses a filter. An embedder `coef` shadows it. `sweep_axis`: [`compose-sweep-bind`](compose-sweep-bind.md).
 
 ## Patterns
 

@@ -87,6 +87,7 @@ func (s *Service) runComposeFitPhases(ctx context.Context, composed *types.Compo
 		return models, results, warnings, nil, err
 	}
 	pass := s.newComposeFitPass(composed.Fits, pre)
+	pass.sweepAxes = ext.sweepAxes()
 	if err := pass.execute(ctx, workers, bind.authored); err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -124,8 +125,8 @@ func (s *Service) runComposeFitPhases(ctx context.Context, composed *types.Compo
 
 // bindWinner resolves each sweep-bound fit over ranking: its request
 // becomes model.SweepFitRequest of the rank-1 slot (the effective
-// request slots[rank.explicit+Slot]) and its models that slot's loaded
-// ones. An empty ranking binds the fit FAILED instead — its result a
+// request slots[rank.explicit+Slot]), its models that slot's loaded
+// ones and its sweep_axis() values that slot's axes. An empty ranking binds the fit FAILED instead — its result a
 // regression result carrying a PULSE_SWEEP_RANK_PATH error (reason
 // sweep.RankReasonEmpty), its PULSE_SLOT_FAILED warning lifted with
 // details.fit — and, under strict, fails the batch with that error.
@@ -138,6 +139,7 @@ func (p *composeFitPass) bindWinner(bind *sweepBinding, ranking []types.RankEntr
 		if len(ranking) > 0 {
 			k := rank.explicit + ranking[0].Slot
 			p.fits[i].Request = model.SweepFitRequest(slots[k], reg)
+			p.winnerAxes[i] = ranking[0].Axes
 			if p.pre != nil && k < len(p.pre.slots) {
 				p.winnerFiles[i] = p.pre.slots[k]
 			}

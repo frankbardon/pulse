@@ -4,7 +4,7 @@ description: fits[].from_sweep — bind the winning slot of a ranked Compose swe
 type: guide
 kind: design
 applies_to: compose, predict
-covers: [FitSpec, FitFromSweep, ComposedRequest]
+covers: [FitSpec, FitFromSweep, ComposedRequest, sweep_axis]
 requires: [capability:compose_sweep_bind]
 ---
 
@@ -50,7 +50,11 @@ The regression's `type`, `target` and `predictors` (and a model regression's ter
 - `from_sweep_no_rank` — the sweep has no `rank`, so no slot wins.
 - `from_sweep_regression_unknown` — no body regression has that `name` (`details.regression`, `available`).
 - `from_sweep_signature_varies` — type, target or predictors differ in a slot (`details.slot`, the 0-based sweep index).
-- `from_sweep_cycle` — a sweep slot reads the fit (a literal `coef("best", …)` or a `params.fit`), but sweep slots run before it exists (`details.slot`).
+- `from_sweep_cycle` — a sweep slot reads the fit (a literal `coef("best", …)`, `sweep_axis("best", …)` or a `params.fit`), but sweep slots run before it exists (`details.slot`).
+
+## Winning axes
+
+`sweep_axis("best", "<axis>")` reads the winner's value of an axis in an explicit slot's formula or filter and in `optimize`: a number as a float (a string / bool `values` entry as is), e.g. the steady-state multiplier `(1 - sweep_axis("best", "tv") ^ 8) / (1 - sweep_axis("best", "tv"))`. Refusals mirror `coef()`, predict too: unknown fit `PULSE_MODEL_UNKNOWN`; `PULSE_MODEL_TERM_UNKNOWN` with `details.reason` `not_sweep_bound` (a fit without `from_sweep`) or `axis_unknown` (`details.axes`, sorted). A failed bound fit (no winner) nulls a formula (`PULSE_FIT_UNAVAILABLE`) and refuses a filter. The name is reserved: no embedder function may take it.
 
 ## Run order
 

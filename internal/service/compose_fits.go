@@ -90,9 +90,15 @@ type composeFitPass struct {
 	// models (the pre-pass read them for that slot), the files its
 	// fit request binds beneath it.
 	winnerFiles []*model.Loaded
-	results     []*types.RegressionResult
-	vectorFits  []*model.VectorFit
-	semFits     []*model.SEMFit
+	// winnerAxes[i] is a from_sweep fit's winning slot's axis values
+	// (RankEntry.Axes) — what its sweep_axis() reads — and sweepAxes
+	// the batch's sweep's axis names, the static axes of a sweep-bound
+	// fit that failed (no winner).
+	winnerAxes []map[string]any
+	sweepAxes  []string
+	results    []*types.RegressionResult
+	vectorFits []*model.VectorFit
+	semFits    []*model.SEMFit
 	// failed[i] is fit i's data failure (nil when it fitted), and
 	// failedOp a failed vector fit's battery operator.
 	failed       []*types.SlotError
@@ -110,6 +116,7 @@ func (s *Service) newComposeFitPass(fits []types.FitSpec, pre *composeModels) *c
 		fits:         slices.Clone(fits),
 		pre:          pre,
 		winnerFiles:  make([]*model.Loaded, n),
+		winnerAxes:   make([]map[string]any, n),
 		results:      make([]*types.RegressionResult, n),
 		vectorFits:   make([]*model.VectorFit, n),
 		semFits:      make([]*model.SEMFit, n),
@@ -360,7 +367,11 @@ func (p *composeFitPass) bind(mask []bool) (*model.Set, map[string]*types.FitRes
 			continue
 		}
 		if se := p.failed[i]; se != nil {
-			if err := set.AddFailed(failedSignature(f, i), se); err != nil {
+			sig := failedSignature(f, i)
+			if sig.SweepBound {
+				sig = model.FitCatalog{f.Name: sig}.WithSweepAxes(p.sweepAxes)[f.Name]
+			}
+			if err := set.AddFailed(sig, se); err != nil {
 				return nil, nil, nil, fitFailure(fits, i, err)
 			}
 			switch {
@@ -401,6 +412,9 @@ func (p *composeFitPass) bind(mask []bool) (*model.Set, map[string]*types.FitRes
 			return nil, nil, nil, fitFailure(fits, i, err)
 		}
 		b.Source = model.FitSource(i)
+		if f.FromSweep != nil {
+			b.SweepBound, b.SweepAxes = true, p.winnerAxes[i]
+		}
 		if err := set.Add(b); err != nil {
 			// CheckFits already refused a duplicate name; reaching
 			// here is an invariant violation, still reported coded.

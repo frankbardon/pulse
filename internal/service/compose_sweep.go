@@ -40,6 +40,15 @@ type composeExpansion struct {
 	sweepFits model.SweepScope
 }
 
+// sweepAxes are the batch's sweep's axis names (the axes sweep_axis()
+// may read off a sweep-bound fit), nil without a sweep. Nil-safe.
+func (e *composeExpansion) sweepAxes() []string {
+	if e == nil {
+		return nil
+	}
+	return e.sweepFits.Axes
+}
+
 // expandCompose returns the effective request Compose and
 // ComposeParallel run: the ComposedRequest with its sweep, then its
 // banner, expanded into slots appended after the explicit ones

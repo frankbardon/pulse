@@ -47,13 +47,16 @@ const SweepAxisFunc = "sweep_axis"
 // request as written carries a sweep and a rank, and the expanded
 // sweep slots (the effective requests, in expansion order). Reads
 // reports whether a slot reads the bound-model name fit (any reference
-// a slot resolves against the batch's fits); nil reads nothing. The
-// zero value is a sweep-free batch.
+// a slot resolves against the batch's fits); nil reads nothing. Axes
+// are the sweep's axis names as written (the names sweep_axis() may
+// read; FitCatalog.WithSweepAxes). The zero value is a sweep-free
+// batch.
 type SweepScope struct {
 	Present bool
 	Ranked  bool
 	Slots   []*types.Request
 	Reads   func(slot *types.Request, fit string) bool
+	Axes    []string
 }
 
 // SweepRegression is the regression of slot whose `name` is name, nil

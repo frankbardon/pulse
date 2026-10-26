@@ -1570,7 +1570,9 @@ const (
 	// model does not have: an ATTR_REG_PREDICT params.terms entry or a
 	// coef() term that is neither one of the fit's predictors nor
 	// "(intercept)". Details carry "fit", "term" and "available" (the
-	// terms it may name).
+	// terms it may name). A sweep_axis(fit, axis) call raises it with
+	// "fit", "axis" and "reason" not_sweep_bound / axis_unknown (+
+	// "axes").
 	PULSE_MODEL_TERM_UNKNOWN Code = "PULSE_MODEL_TERM_UNKNOWN"
 
 	// PULSE_MODEL_STAT_UNKNOWN indicates a coef(fit, term, stat) call

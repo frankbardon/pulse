@@ -170,7 +170,7 @@ func CheckLoaded(specs []types.OptimizeSpec, env Env) ([]*model.Loaded, *errors.
 // exprenv.Placeholder: the typed declaration a runtime compile binds,
 // never run.
 func placeholderBound(env Env) exprenv.Bound {
-	b := exprenv.Bound{Coef: exprenv.Placeholder}
+	b := exprenv.Bound{Coef: exprenv.Placeholder, SweepAxis: exprenv.Placeholder}
 	for _, n := range env.Extensions {
 		b.Extensions = append(b.Extensions, exprenv.NamedFunc{Name: n, Fn: exprenv.Placeholder})
 	}
@@ -386,7 +386,7 @@ func checkVariableName(spec *types.OptimizeSpec, i int, vat, name string, reserv
 // built-ins, coef, lookup, the set helpers, the embedder's functions)
 // and expr-lang's own built-ins.
 func reservedNames(env Env) map[string]bool {
-	out := map[string]bool{exprenv.ParamsName: true, exprenv.CoefFunc: true, exprenv.LookupFunc: true}
+	out := map[string]bool{exprenv.ParamsName: true, exprenv.CoefFunc: true, exprenv.SweepAxisFunc: true, exprenv.LookupFunc: true}
 	for _, n := range exprenv.Names() {
 		out[n] = true
 	}

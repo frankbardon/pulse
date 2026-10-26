@@ -1,6 +1,7 @@
-// Package coefcall finds the coef(fit, term[, stat]) calls an
-// ATTR_FORMULA / FILTER_EXPRESSION expression makes with literal
-// arguments and judges them by internal/model.CheckCoef — the static
+// Package coefcall finds the coef(fit, term[, stat]) and
+// sweep_axis(fit, axis) calls an ATTR_FORMULA / FILTER_EXPRESSION /
+// optimize expression makes with literal arguments and judges them by
+// internal/model.CheckCoef / CheckSweepAxis — the static
 // half of the coef() rule, shared by the engine's build (internal/
 // processing) and the no-execute field-reference pass (internal/
 // descriptor: predict and the runtime's entry check), so both refuse
@@ -67,15 +68,116 @@ func (v *visitor) Visit(node *exprast.Node) {
 }
 
 // StaticRefusal is the first refusal model.CheckCoef raises over src's
-// all-literal coef() calls against the bound names in cat, nil when
-// every such call passes.
+// all-literal coef() calls — or model.CheckSweepAxis over its
+// all-literal sweep_axis() calls — against the bound names in cat, in
+// walk order; nil when every such call passes.
 func StaticRefusal(src string, cat model.Catalog) *errors.CodedError {
-	for _, c := range LiteralCalls(src) {
-		if cerr := model.CheckCoef(cat, c.Fit, c.Term, c.Stat); cerr != nil {
+	return staticRefusal(src, cat, true)
+}
+
+// SweepAxisRefusal is StaticRefusal over src's sweep_axis() calls
+// alone — for a site where an embedder function named coef owns that
+// name (sweep_axis is reserved, so it is always judged).
+func SweepAxisRefusal(src string, cat model.Catalog) *errors.CodedError {
+	return staticRefusal(src, cat, false)
+}
+
+func staticRefusal(src string, cat model.Catalog, coef bool) *errors.CodedError {
+	for _, c := range literalReads(src) {
+		var cerr *errors.CodedError
+		switch {
+		case c.axis:
+			cerr = model.CheckSweepAxis(cat, c.Fit, c.Term)
+		case coef:
+			cerr = model.CheckCoef(cat, c.Fit, c.Term, c.Stat)
+		}
+		if cerr != nil {
 			return cerr
 		}
 	}
 	return nil
+}
+
+// SweepAxisCall is one all-literal sweep_axis(fit, axis) call.
+type SweepAxisCall struct {
+	Fit, Axis string
+}
+
+// LiteralSweepAxisCalls returns src's sweep_axis() calls whose two
+// arguments are string literals, in walk order; nil on a source that
+// does not parse.
+func LiteralSweepAxisCalls(src string) []SweepAxisCall {
+	var out []SweepAxisCall
+	for _, c := range literalReads(src) {
+		if c.axis {
+			out = append(out, SweepAxisCall{Fit: c.Fit, Axis: c.Term})
+		}
+	}
+	return out
+}
+
+// LiteralFits are the fit names src's all-literal sweep_axis() calls —
+// and, with coef set, its all-literal coef() calls — name, in walk
+// order (repeats kept); nil on a source that does not parse.
+func LiteralFits(src string, coef bool) []string {
+	var out []string
+	for _, c := range literalReads(src) {
+		if c.axis || coef {
+			out = append(out, c.Fit)
+		}
+	}
+	return out
+}
+
+// read is one all-literal coef() (axis false) or sweep_axis() (axis
+// true: Term is the axis) call.
+type read struct {
+	Call
+	axis bool
+}
+
+// literalReads are src's all-literal coef() and sweep_axis() calls in
+// walk order.
+func literalReads(src string) []read {
+	tree, err := exprparser.Parse(src)
+	if err != nil {
+		return nil
+	}
+	v := &readVisitor{}
+	exprast.Walk(&tree.Node, v)
+	return v.reads
+}
+
+type readVisitor struct{ reads []read }
+
+func (v *readVisitor) Visit(node *exprast.Node) {
+	n, ok := (*node).(*exprast.CallNode)
+	if !ok {
+		return
+	}
+	id, ok := n.Callee.(*exprast.IdentifierNode)
+	if !ok {
+		return
+	}
+	switch {
+	case id.Value == model.CoefFunc && len(n.Arguments) >= 2 && len(n.Arguments) <= 3:
+	case id.Value == model.SweepAxisFunc && len(n.Arguments) == 2:
+	default:
+		return
+	}
+	lits := make([]string, len(n.Arguments))
+	for i, a := range n.Arguments {
+		s, ok := a.(*exprast.StringNode)
+		if !ok {
+			return
+		}
+		lits[i] = s.Value
+	}
+	r := read{Call: Call{Fit: lits[0], Term: lits[1], Stat: model.StatPoint}, axis: id.Value == model.SweepAxisFunc}
+	if len(lits) == 3 {
+		r.Stat = lits[2]
+	}
+	v.reads = append(v.reads, r)
 }
 
 // NamesFit reports whether src calls coef() or sweep_axis()

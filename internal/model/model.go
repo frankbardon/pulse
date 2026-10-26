@@ -96,6 +96,13 @@ type Bound struct {
 	// entry (the zero value when unknown). A name collision names both
 	// bindings' sources.
 	Source Source
+
+	// SweepBound marks a fit bound from a Compose sweep's winner
+	// (`from_sweep`), and SweepAxes are that winning slot's axis values
+	// (RankEntry.Axes, as the expansion carried them) — what
+	// sweep_axis() reads (SweepAxis).
+	SweepBound bool
+	SweepAxes  map[string]any
 }
 
 // Bind builds the Bound for a finished fit: spec is the regression as

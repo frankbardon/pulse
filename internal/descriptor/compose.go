@@ -336,7 +336,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	}
 	// Then the optimize blocks — the runtime's OptimizeRefusal, run
 	// right after its CheckFits; nothing past it runs on a refusal.
-	if _, oerr := OptimizeRefusal(req, predictExprFunctionNames(opts), predictHasLookup(opts), opts.populations(), opts.loadModelFiles); oerr != nil {
+	if _, oerr := OptimizeRefusal(req, sweepFits.Axes, predictExprFunctionNames(opts), predictHasLookup(opts), opts.populations(), opts.loadModelFiles); oerr != nil {
 		addCodedError(env, oerr)
 		result.Valid = false
 		return env, req
@@ -388,7 +388,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	fitEnv := descriptor.NewEnvelope(nil)
 	var fitFindings []descriptor.LimitFinding
 	result.Fits = validateComposeFits(fitEnv, req.Fits, opts, loaded, &fitFindings)
-	*slots = validateComposeSlots(env, req, opts, loaded, result.Fits, &result.LimitFindings)
+	*slots = validateComposeSlots(env, req, opts, loaded, result.Fits, sweepFits.Axes, &result.LimitFindings)
 	result.LimitFindings = append(result.LimitFindings, fitFindings...)
 	env.Errors = append(env.Errors, fitEnv.Errors...)
 	env.Warnings = append(env.Warnings, fitEnv.Warnings...)
@@ -1323,11 +1323,12 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 // cannot read) the slot resolves schema-less: the field-independent
 // refusals still apply, the field-dependent ones are left to the
 // runtime.
-func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded, summaries []descriptor.FitSummary, findings *[]descriptor.LimitFinding) []*types.Request {
+func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded, summaries []descriptor.FitSummary, sweepAxes []string, findings *[]descriptor.LimitFinding) []*types.Request {
 	// The names every slot's ATTR_REG_PREDICT resolves: the runtime's
 	// fit pre-pass binds each `fits` entry before any slot runs, over
 	// the registered populations, beside the slot's own loaded entries.
-	fits := model.WithinCatalog(opts.populations(), composeFitCatalog(req.Fits, summaries))
+	// A sweep-bound fit's sweep_axis() axes are the batch's sweep's.
+	fits := model.WithinCatalog(opts.populations(), composeFitCatalog(req.Fits, summaries).WithSweepAxes(sweepAxes))
 	normalized := make([]*types.Request, len(req.Requests))
 	for i, slot := range req.Requests {
 		if slot == nil {
