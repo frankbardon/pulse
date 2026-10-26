@@ -9,7 +9,7 @@ The operators this instance offers, one page per category. Each page opens with 
 - [Window operators](catalog/window.md) (14)
 - [Feature operators](catalog/feature.md) (9)
 - [Statistical tests](catalog/test.md) (26)
-- [Regressions](catalog/regression.md) (3)
+- [Regressions](catalog/regression.md) (4)
 - [Matrix operators](catalog/matrix.md) (9)
 - [Overlays](catalog/overlay.md) (54)
 - [Synth distributions](catalog/synth_distribution.md) (15)

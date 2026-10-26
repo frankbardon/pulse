@@ -1,35 +1,39 @@
-package mmmpulse
+// Package regmmm holds Pulse's built-in media-mix regressions, authored
+// on the extension contract (extend.Regression) and registered by the
+// root package as model regressions (internal/model.ModelRegression):
+// REG_MMM_HILL's model, factory and row scorer. The registration's
+// declaration (description, params, outputs, purpose) lives with the
+// root package's registration and the descriptor's static twin.
+package regmmm
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"math"
 	"slices"
 
-	"github.com/frankbardon/pulse"
-	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
+	pmodel "github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/optimize"
 	"github.com/frankbardon/pulse/types"
 )
 
-// Name is the media-mix model's registered regression type.
-const Name types.RegressionType = "REG_MMM_HILL"
+// Name is the media-mix model's regression type.
+const Name = types.REG_MMM_HILL
 
 // The curve-parameter coefficient prefixes: channel c's Hill
-// half-saturation is the coefficient "k:" + c, its shape "s:" + c. A
-// coefficient name is any string coef() is handed, so
-// coef("fit", "k:tv_ad") reads it; ':' cannot clash with a predictor's
-// own coefficient unless a predictor is itself named "k:…" or "s:…",
-// which the factory refuses.
+// half-saturation is the coefficient "k:" + c, its shape "s:" + c
+// (pmodel.ModelRegressionTerms is the static catalog). coef("fit",
+// "k:tv_ad") reads one; ':' cannot clash with a predictor's own
+// coefficient unless a predictor is itself named "k:…" or "s:…", which
+// the factory refuses.
 const (
-	HalfSaturationPrefix = "k:"
-	ShapePrefix          = "s:"
+	HalfSaturationPrefix = pmodel.MMMHalfSaturationPrefix
+	ShapePrefix          = pmodel.MMMShapePrefix
 )
 
 // maxIterations caps the Levenberg–Marquardt outer iterations of one
@@ -52,7 +56,30 @@ var (
 	sRange = [2]float64{0.5, 5}
 )
 
-// Registration is REG_MMM_HILL's registration: a buffered joint
+// hillPrior is params.prior.
+type hillPrior struct {
+	Channel   string  `json:"channel"`
+	Mean      float64 `json:"mean"`
+	Precision float64 `json:"precision"`
+}
+
+// hillParams is the params object.
+type hillParams struct {
+	Channels    []string   `json:"channels"`
+	Nonnegative *bool      `json:"nonnegative"`
+	Prior       *hillPrior `json:"prior"`
+}
+
+// configError is a PROCESSING_CONFIG refusal naming the regression.
+func configError(spec *types.RegressionSpec, msg string, extra map[string]any) error {
+	details := map[string]any{"regression": spec.Name, "type": string(Name)}
+	for k, v := range extra {
+		details[k] = v
+	}
+	return perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG, string(Name)+": "+msg, details)
+}
+
+// Factory builds REG_MMM_HILL's model: a buffered joint
 // nonlinear least-squares media-mix model,
 //
 //	y = β0 + Σ_c β_c · hill(a_c, k_c, s_c) + Σ_j γ_j · z_j,
@@ -102,67 +129,15 @@ var (
 // convergence within the iteration cap
 // (PROCESSING_REGRESSION_NO_CONVERGE). A negative channel value is
 // PROCESSING_CONFIG (the column is not spend).
-func Registration() pulse.RegressionRegistration {
-	return pulse.RegressionRegistration{
-		Name:        Name,
-		Description: "Media-mix model: joint nonlinear least squares over Hill-saturated, already-adstocked channels plus linear controls; coefficients k:<channel> / s:<channel> carry each curve.",
-		Purpose: &descriptor.Purpose{
-			Plain:     "Fit a media-mix model: each channel's response curve (half-saturation and shape) and effect, jointly with linear controls.",
-			Intents:   []string{"drivers"},
-			Questions: []string{"What does each marketing channel contribute to sales?", "Where do the channels saturate?"},
-			UseCases:  map[descriptor.Domain]string{descriptor.DomainOps: "Which channels earn their spend, and where to move budget."},
-			NotFor:    []descriptor.Alternative{{When: "the response is linear in spend, with no saturation", Use: string(types.REG_OLS)}},
-			Level:     descriptor.LevelAdvanced,
-		},
-		Params: []pulse.ParamMeta{
-			{Name: "channels", JSONType: "array", Required: true, Description: "Predictors entering through the Hill curve (adstocked spend, at least one); the other predictors are linear controls."},
-			{Name: "nonnegative", JSONType: "boolean", Default: true, Description: "Bound every channel β below by 0, so an unsupported channel is exactly 0 (default true)."},
-			{Name: "prior", JSONType: "object", Description: "Gaussian MAP prior {channel, mean, precision} on one channel's β (an experiment-measured effect)."},
-		},
-		OutputSchema: []pulse.RegressionOutputMeta{
-			{Key: "k", JSONType: "object", Description: "Hill half-saturation per channel (the coefficient k:<channel>)."},
-			{Key: "s", JSONType: "object", Description: "Hill shape per channel (the coefficient s:<channel>)."},
-		},
-		Factory: factory,
-		Scorer:  scorer,
-		Vcov:    true,
-		// The model reports no p-value itself; under resample the engine
-		// writes the replicate ones.
-		PValues: true,
-	}
-}
-
-// hillPrior is params.prior.
-type hillPrior struct {
-	Channel   string  `json:"channel"`
-	Mean      float64 `json:"mean"`
-	Precision float64 `json:"precision"`
-}
-
-// hillParams is the params object.
-type hillParams struct {
-	Channels    []string   `json:"channels"`
-	Nonnegative *bool      `json:"nonnegative"`
-	Prior       *hillPrior `json:"prior"`
-}
-
-// configError is a PROCESSING_CONFIG refusal naming the regression.
-func configError(spec *types.RegressionSpec, msg string, extra map[string]any) error {
-	details := map[string]any{"regression": spec.Name, "type": string(Name)}
-	for k, v := range extra {
-		details[k] = v
-	}
-	return perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG, string(Name)+": "+msg, details)
-}
-
-func factory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression, error) {
+func Factory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression, error) {
 	var p hillParams
 	if len(spec.Params) > 0 {
-		dec := json.NewDecoder(bytes.NewReader(spec.Params))
-		dec.DisallowUnknownFields() // a prior key typo is refused, never ignored
-		if err := dec.Decode(&p); err != nil {
+		// Strict: a prior key typo is refused, never ignored.
+		if err := paramread.DecodeStrict(paramread.Regression, string(Name), spec.Params, &p); err != nil {
 			return nil, configError(spec, "params: "+err.Error(), map[string]any{"slot": "params"})
 		}
+	} else {
+		paramread.Declare(paramread.Regression, string(Name), &p)
 	}
 	if len(p.Channels) == 0 {
 		return nil, configError(spec, "params.channels needs at least one channel", map[string]any{"slot": "params.channels"})
@@ -617,10 +592,10 @@ func (h hillScorer) Score(row extend.ScoreRow) (float64, bool) {
 	return out, true
 }
 
-// scorer is the registration's Scorer: a predictor with a k:<name>
+// Scorer is the registration's Scorer: a predictor with a k:<name>
 // coefficient is a channel, any other a control. It reads only the
 // fit's coefficients, so a saved model scores from its file alone.
-func scorer(fit extend.FittedRegression) (extend.RowScorer, error) {
+func Scorer(fit extend.FittedRegression) (extend.RowScorer, error) {
 	sc := hillScorer{b0: fit.Coefficients["(intercept)"]}
 	for _, x := range fit.Predictors {
 		kv, isChannel := fit.Coefficients[HalfSaturationPrefix+x]

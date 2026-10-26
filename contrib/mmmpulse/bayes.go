@@ -36,6 +36,14 @@ const BayesName types.RegressionType = "REG_MMM_BAYES"
 // HalfSaturationPrefix and ShapePrefix as in REG_MMM_HILL.
 const DecayPrefix = "decay:"
 
+// The curve-parameter coefficient prefixes, REG_MMM_HILL's (a built-in
+// regression since Pulse's mmm-followups): channel c's Hill
+// half-saturation is the coefficient "k:" + c, its shape "s:" + c.
+const (
+	HalfSaturationPrefix = "k:"
+	ShapePrefix          = "s:"
+)
+
 // The coefficient names REG_MMM_BAYES adds beyond its predictors.
 const (
 	interceptName = "(intercept)"
@@ -151,7 +159,7 @@ func BayesRegistration() pulse.RegressionRegistration {
 			Intents:   []string{"drivers"},
 			Questions: []string{"What return does each marketing channel earn, and how sure are we?", "How long does each channel's effect carry over?"},
 			UseCases:  map[descriptor.Domain]string{descriptor.DomainOps: "Which channels earn their spend, with intervals, before moving budget."},
-			NotFor:    []descriptor.Alternative{{When: "a fast point estimate over already-adstocked channels is enough", Use: string(Name)}},
+			NotFor:    []descriptor.Alternative{{When: "a fast point estimate over already-adstocked channels is enough", Use: string(types.REG_MMM_HILL)}},
 			Level:     descriptor.LevelAdvanced,
 		},
 		Params: []pulse.ParamMeta{

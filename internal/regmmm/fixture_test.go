@@ -1,4 +1,4 @@
-package mmmpulse
+package regmmm_test
 
 import (
 	"context"
@@ -11,17 +11,18 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/internal/regmmm"
 	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
-// fixture_test.go is the pack tests' generated media-mix cohort: per
+// fixture_test.go is the REG_MMM_HILL tests' generated media-mix cohort: per
 // geo, 104 weeks of bursty TV flights, always-on search, an optional
 // display channel and a price control; spend adstocked by the
 // generator's own Weibull kernels (equal to WIN_DISTRIBUTED_LAG's, which
 // the tests run upstream and materialize), y from a known truth plus
 // Gaussian noise. Every product feeding an addition is float64()-wrapped
-// and the transcendental calls are the pack's deterministic ports, so the
+// and the transcendental calls are linalg/detmath's deterministic ports, so the
 // cohort's bits are a function of the seed alone on every architecture.
 
 // truth is the generator's ground truth. A display β of 0 is a channel
@@ -107,9 +108,9 @@ func generate(tr truth, seed uint64) []row {
 		}
 		tvAd, srAd, dpAd := convolve(tv, tvW), convolve(sr, srW), convolve(dp, dpW)
 		for w := range tv {
-			y := tr.intercept + float64(tr.tvBeta*hillCurve(tvAd[w], tr.tvK, tr.tvS)) +
-				float64(tr.srBeta*hillCurve(srAd[w], tr.srK, tr.srS)) +
-				float64(tr.dispBeta*hillCurve(dpAd[w], tr.dispK, tr.dispS)) +
+			y := tr.intercept + float64(tr.tvBeta*regmmm.HillCurve(tvAd[w], tr.tvK, tr.tvS)) +
+				float64(tr.srBeta*regmmm.HillCurve(srAd[w], tr.srK, tr.srS)) +
+				float64(tr.dispBeta*regmmm.HillCurve(dpAd[w], tr.dispK, tr.dispS)) +
 				float64(tr.price*pr[w]) + float64(tr.noise*rng.NormFloat64())
 			rows = append(rows, row{geo: g, week: w, tv: tv[w], search: sr[w], disp: dp[w], price: pr[w],
 				tvAd: tvAd[w], searchAd: srAd[w], dispAd: dpAd[w], y: y})
@@ -157,11 +158,11 @@ func adstockWindows() []*types.Window {
 	}
 }
 
-// instance opens an instance over fsys with the pack registered; mut
-// adjusts the options.
+// instance opens a stock instance over fsys — REG_MMM_HILL is built in,
+// so nothing is registered; mut adjusts the options.
 func instance(t testing.TB, fsys afero.Fs, mut func(*pulse.Options)) *pulse.Pulse {
 	t.Helper()
-	opts := pulse.Options{FS: fsys, Extensions: Extensions(), DisablePanicRecovery: true}
+	opts := pulse.Options{FS: fsys, DisablePanicRecovery: true}
 	if mut != nil {
 		mut(&opts)
 	}
@@ -200,7 +201,7 @@ func cohort(t testing.TB, p *pulse.Pulse, tr truth, seed uint64) []row {
 
 // spec is a REG_MMM_HILL slot over target y.
 func spec(predictors []string, params string) *types.RegressionSpec {
-	return &types.RegressionSpec{Type: Name, Name: "mmm", Target: "y", Predictors: predictors, Params: json.RawMessage(params)}
+	return &types.RegressionSpec{Type: regmmm.Name, Name: "mmm", Target: "y", Predictors: predictors, Params: json.RawMessage(params)}
 }
 
 var (

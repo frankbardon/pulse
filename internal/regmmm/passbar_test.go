@@ -1,4 +1,4 @@
-package mmmpulse
+package regmmm_test
 
 import (
 	"bufio"
@@ -42,8 +42,8 @@ import (
 //     independent of Pulse's solver).
 //
 // It runs through library ComposeParallel (TestMMMPack_PassBar) and
-// through MCP pulse_compose served by mcpserve with the pack registered
-// (TestMMMPack_PassBarMCP, serial — so its byte-identity with the
+// through MCP pulse_compose served by mcpserve over a stock instance —
+// REG_MMM_HILL is built in, nothing registered — (TestMMMPack_PassBarMCP, serial — so its byte-identity with the
 // library run is the serial ≡ parallel check at full size).
 
 // The pass bar. Never loosen these: tune the fixture instead.
@@ -61,8 +61,8 @@ const (
 var passBarSeeds = flag.Int("mmm.passbar-seeds", 0,
 	"also run the MMM pass bar with sweep rng_seed 1..N (evidence across seeds; about 5 s each)")
 
-// jointInstance is an instance with the pack registered and the slot
-// budget raised to the canonical sweep's samples, over a fresh
+// jointInstance is a stock instance (REG_MMM_HILL built in) with the
+// slot budget raised to the canonical sweep's samples, over a fresh
 // filesystem holding the joint-truth cohort.
 func jointInstance(t testing.TB) (*pulse.Pulse, mmmfixture.JointData) {
 	t.Helper()
@@ -391,7 +391,7 @@ func startMCP(t *testing.T, p *pulse.Pulse) *mcpClient {
 		<-done
 	})
 	c := &mcpClient{in: inW, out: bufio.NewReader(outR)}
-	c.rpc(t, "initialize", `{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"mmmpulse-test","version":"0"}}`)
+	c.rpc(t, "initialize", `{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"regmmm-test","version":"0"}}`)
 	if _, err := io.WriteString(inW, `{"jsonrpc":"2.0","method":"notifications/initialized"}`+"\n"); err != nil {
 		t.Fatal(err)
 	}
@@ -445,8 +445,8 @@ func (c *mcpClient) compose(t *testing.T, body []byte) []byte {
 	return []byte(r.Content[0].Text)
 }
 
-// TestMMMPack_PassBarMCP: an MCP client of mcpserve over an instance
-// with the pack registered runs the canonical two-call flow through
+// TestMMMPack_PassBarMCP: an MCP client of mcpserve over a stock
+// instance — no Extensions: REG_MMM_HILL is built in — runs the canonical two-call flow through
 // pulse_compose and meets the pass bar; both results are byte for byte
 // the library ComposeParallel results — MCP compose runs serially, so
 // this is also the full-size serial ≡ parallel check.

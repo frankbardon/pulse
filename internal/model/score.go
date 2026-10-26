@@ -225,7 +225,15 @@ func CatalogFromFits(fits []types.FitSpec) FitCatalog {
 		switch FitKindOf(f.Request) {
 		case types.FitKindRegression:
 			reg := f.Request.Regressions[0]
-			out[f.Name] = Signature{Name: f.Name, Type: reg.Type, Target: reg.Target, Terms: append([]string(nil), reg.Predictors...), Source: FitSource(i), Kind: types.FitKindRegression}
+			sig := Signature{Name: f.Name, Type: reg.Type, Target: reg.Target, Terms: append([]string(nil), reg.Predictors...), Source: FitSource(i), Kind: types.FitKindRegression}
+			if terms, ok := ModelRegressionTerms(reg); ok {
+				// A model regression declares its own coefficient names
+				// (the term catalog), so predict judges a coef() term as
+				// the bound fit will.
+				slices.Sort(terms)
+				sig.Coefficients, sig.CoefficientsKnown = terms, true
+			}
+			out[f.Name] = sig
 		case types.FitKindVector:
 			out[f.Name] = Signature{Name: f.Name, Source: FitSource(i), Kind: types.FitKindVector}
 		case types.FitKindSEM:
@@ -275,10 +283,15 @@ func ScorableType(t types.RegressionType) bool {
 type ScorableFunc func(t types.RegressionType) bool
 
 // BuiltinRegression reports whether t is a built-in regression type
-// (types.AllRegressionTypes) — any other bound type is an extension
-// regression's.
+// with the engine's own coefficient shape — the intercept plus one
+// coefficient per predictor (types.AllRegressionTypes less the model
+// regressions, ModelRegression). Any other bound type names its own
+// coefficients: an extension regression's, or a model regression's,
+// which is authored on the extension contract and so is shaped like
+// one (model file version 3, coef() on its own names, a scorer that
+// scores the whole model).
 func BuiltinRegression(t types.RegressionType) bool {
-	return slices.Contains(types.AllRegressionTypes(), t)
+	return slices.Contains(types.AllRegressionTypes(), t) && !ModelRegression(t)
 }
 
 // CheckScore is the one rule over a scoring reference (an

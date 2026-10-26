@@ -949,7 +949,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRequiresReschema,
 				Path:   []string{"Regressions", "*", "Type"},
-				Hint:   "A pack model such as REG_MMM_HILL is an extension: register its pack's regression on pulse.Options.Extensions (Go embedders) before pulse.New, or run on an instance that registers it.",
+				Hint:   "An embedder model (REG_<NAMESPACE>_<NAME>) is an extension: register its regression on pulse.Options.Extensions (Go embedders) before pulse.New, or run on an instance that registers it.",
 			},
 		},
 	},

@@ -12,6 +12,7 @@ import (
 
 	"github.com/frankbardon/pulse/errors"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -186,6 +187,13 @@ func TestRegressionCI_ConfLevelRefusedByPredictAndRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, typ := range types.AllRegressionTypes() {
+		if model.ModelRegression(typ) {
+			// Registered by the root package's init, so this package's
+			// engine holds only its stub: internal/regmmm's
+			// TestMMMHill_SharedSlotsRefusedLikePredict holds the same
+			// refusal on a stock instance.
+			continue
+		}
 		for _, lv := range []float64{-0.5, 1, 2} {
 			spec := &types.RegressionSpec{Type: typ, Target: "am", Predictors: []string{"wt"}, ConfLevel: lv}
 			if typ == types.REG_GLM {

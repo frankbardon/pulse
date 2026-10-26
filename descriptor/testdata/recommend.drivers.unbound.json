@@ -339,6 +339,44 @@
         ]
       },
       {
+        "operator": "REG_MMM_HILL",
+        "category": "regression",
+        "level": "advanced",
+        "why": "Fits a media-mix model: each marketing channel's effect and response curve (where its spend stops paying off), jointly with linear controls. Fill in each placeholder in the draft before you run it.",
+        "bound": false,
+        "request": {
+          "cohort": {
+            "filename": "\u003ccohort\u003e"
+          },
+          "regressions": [
+            {
+              "params": {
+                "channels": [
+                  "\u003cchannels\u003e"
+                ]
+              },
+              "predictors": [
+                "\u003cpredictors\u003e"
+              ],
+              "target": "\u003ctarget\u003e",
+              "type": "REG_MMM_HILL"
+            }
+          ]
+        },
+        "placeholders": [
+          "channels",
+          "cohort",
+          "predictors",
+          "target"
+        ],
+        "alternatives": [
+          {
+            "when": "the outcome moves in a straight line with spend, with no saturation",
+            "use": "REG_OLS"
+          }
+        ]
+      },
+      {
         "operator": "MAT_PARTIAL_CORRELATION",
         "category": "matrix",
         "level": "advanced",
@@ -375,100 +413,12 @@
             "use": "TEST_PEARSON_R"
           }
         ]
-      },
-      {
-        "operator": "ATTR_REG_PREDICT",
-        "category": "attribute",
-        "level": "advanced",
-        "why": "Adds to every row the value a model fitted once, elsewhere in the request, predicts for it from the row's own predictor values. Fill in each placeholder in the draft before you run it.",
-        "bound": false,
-        "request": {
-          "attributes": [
-            {
-              "field": "\u003cfield\u003e",
-              "params": {
-                "fit": "\u003cfit\u003e"
-              },
-              "type": "ATTR_REG_PREDICT"
-            }
-          ],
-          "cohort": {
-            "filename": "\u003ccohort\u003e"
-          }
-        },
-        "placeholders": [
-          "cohort",
-          "field",
-          "fit"
-        ],
-        "alternatives": [
-          {
-            "when": "the model should be fitted to these same rows inside the slot",
-            "use": "ATTR_REG_FITTED"
-          },
-          {
-            "when": "you want the coefficients, their standard errors and p-values",
-            "use": "REG_OLS"
-          }
-        ],
-        "steps": [
-          {
-            "tool": "pulse_materialize",
-            "request": {
-              "out": "\u003cout\u003e",
-              "request": {
-                "attributes": [
-                  {
-                    "field": "\u003cfield\u003e",
-                    "label": "predicted",
-                    "params": {
-                      "fit": "\u003cfit\u003e"
-                    },
-                    "type": "ATTR_REG_PREDICT"
-                  }
-                ],
-                "cohort": {
-                  "filename": "\u003ccohort\u003e"
-                }
-              }
-            },
-            "placeholders": [
-              "cohort",
-              "field",
-              "fit",
-              "out"
-            ],
-            "why": "A model cannot read a column its own request derives, so write the predicted column to a new cohort first."
-          },
-          {
-            "tool": "pulse_process",
-            "request": {
-              "cohort": {
-                "filename": "\u003cout\u003e"
-              },
-              "regressions": [
-                {
-                  "predictors": [
-                    "predicted"
-                  ],
-                  "target": "\u003ctarget\u003e",
-                  "type": "REG_OLS"
-                }
-              ]
-            },
-            "placeholders": [
-              "out",
-              "target"
-            ],
-            "why": "Then fit the model on the new cohort, reading predicted as a predictor."
-          }
-        ]
       }
     ],
-    "truncated": false,
-    "candidates_considered": 10
+    "truncated": true,
+    "candidates_considered": 11
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4a4ce3dafb31f2ce0f044b77149ca4ca89010a4ea49cca3ee30ce4bbe52d3c27
+// golden-hash: 64efbee9fed08dd3451a8c6386d85ce2e0746656d5571d1882124246a54f06e2

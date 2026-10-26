@@ -335,9 +335,9 @@ func (f *File) check() string {
 	case f.ModelFormatVersion != FileFormatVersion && f.Outputs != nil:
 		return fmt.Sprintf("carries outputs, which model_format_version %d does not have", f.ModelFormatVersion)
 	case f.ModelFormatVersion == FileFormatVersion && BuiltinRegression(f.Type):
-		return fmt.Sprintf("is model_format_version 3, which only an extension regression's fit writes, but its type is the built-in %s", f.Type)
+		return fmt.Sprintf("is model_format_version 3, which only an extension or model regression's fit writes, but its type is the built-in %s", f.Type)
 	case f.ModelFormatVersion != FileFormatVersion && !BuiltinRegression(f.Type):
-		return fmt.Sprintf("has type %s, which is no built-in regression; only model_format_version 3 carries an extension regression's fit", f.Type)
+		return fmt.Sprintf("has type %s, which names its own coefficients; only model_format_version 3 carries an extension or model regression's fit", f.Type)
 	}
 	if c := f.Covariance; c != nil {
 		robust := &types.RegressionCovariance{Type: c.Type}

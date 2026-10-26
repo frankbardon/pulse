@@ -39,6 +39,13 @@ const (
 	// Normal-Inverse-Gamma prior. Streams the same sufficient statistics
 	// as REG_OLS, then applies the closed-form posterior update.
 	REG_BAYES_LINEAR RegressionType = "REG_BAYES_LINEAR"
+
+	// REG_MMM_HILL fits a media-mix model: joint nonlinear least squares
+	// over Hill-saturated, already-adstocked channel predictors plus
+	// linear controls. It names its own curve coefficients
+	// ("k:<channel>", "s:<channel>") beside the intercept and the
+	// predictors. Always buffered.
+	REG_MMM_HILL RegressionType = "REG_MMM_HILL"
 )
 
 // AllRegressionTypes returns every defined regression operator in
@@ -47,6 +54,7 @@ func AllRegressionTypes() []RegressionType {
 	return []RegressionType{
 		REG_BAYES_LINEAR,
 		REG_GLM,
+		REG_MMM_HILL,
 		REG_OLS,
 	}
 }
@@ -643,7 +651,7 @@ func (t RegressionType) Streamable() bool {
 	switch t {
 	case REG_OLS, REG_BAYES_LINEAR:
 		return true
-	case REG_GLM:
+	case REG_GLM, REG_MMM_HILL:
 		return false
 	}
 	return false

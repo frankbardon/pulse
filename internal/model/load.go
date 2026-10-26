@@ -304,10 +304,11 @@ type RegisteredFunc func(t types.RegressionType) bool
 // PULSE_MODEL_REGRESSION_UNREGISTERED with details.model, name, path
 // and type. Without the registration nothing can score the model. A
 // built-in type always passes. The first fault wins; the runtime and
-// predict run it right after the load.
+// predict run it right after the load. A model regression
+// (ModelRegression) is built in, so it always passes too.
 func CheckModelTypes(refs []types.ModelRef, files []*File, registered RegisteredFunc) *errors.CodedError {
 	for j, f := range files {
-		if f == nil || BuiltinRegression(f.Type) || (registered != nil && registered(f.Type)) {
+		if f == nil || BuiltinRegression(f.Type) || ModelRegression(f.Type) || (registered != nil && registered(f.Type)) {
 			continue
 		}
 		r := refs[j]

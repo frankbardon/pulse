@@ -468,6 +468,7 @@ var builtinFeatures = withDependencies([]Feature{
 	// Regressions — types.AllRegressionTypes().
 	op("REG_BAYES_LINEAR"),
 	op("REG_GLM"),
+	op("REG_MMM_HILL"),
 	op("REG_OLS"),
 	// Matrix operators — types.AllMatrixTypes().
 	op("MAT_COLLINEARITY"),
@@ -854,7 +855,7 @@ var hardEdges = map[string][]string{
 	"ATTR_REG_FITTED":                       {"REG_OLS"},
 	"ATTR_REG_LEVERAGE":                     {"REG_OLS"},
 	// Scores a bound fit of any scorable regression type.
-	"ATTR_REG_PREDICT":  {"REG_BAYES_LINEAR", "REG_GLM", "REG_OLS"},
+	"ATTR_REG_PREDICT":  {"REG_BAYES_LINEAR", "REG_GLM", "REG_MMM_HILL", "REG_OLS"},
 	"ATTR_REG_RESIDUAL": {"REG_OLS"},
 	"OVERLAY_YOY":       {"GROUP_DATE"},
 	featFilterToFile:    {"FILTER_EXPRESSION"},
@@ -891,10 +892,10 @@ var hardEdges = map[string][]string{
 	// (a population file): without a regression or a vector battery
 	// there is nothing to save.
 	featModelSave: {string(types.ATTR_FACTOR_SCORE), string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
-		string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS), featMatrices},
+		string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_HILL), string(types.REG_OLS), featMatrices},
 	// A holdout scores the fit of a regression slot: without a
 	// regression there is nothing to hold rows out of.
-	featRegHoldout: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS)},
+	featRegHoldout: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_HILL), string(types.REG_OLS)},
 	// Parameters are read only by an expression (an optimize block's
 	// included): without one there is nothing to read them.
 	featParams: {"ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", featRegHoldout, featComposeOpt},
@@ -955,7 +956,7 @@ var groupEdges = map[string][][]string{
 	featComposeFits: {
 		{featCompose},
 		{string(types.ATTR_FACTOR_SCORE), string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
-			string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS), featMatrices},
+			string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_HILL), string(types.REG_OLS), featMatrices},
 	},
 }
 

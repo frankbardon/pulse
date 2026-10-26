@@ -16,7 +16,7 @@ import (
 // joint.go is the joint-truth scenario (mmm-estimation E4-S2): one
 // market, JointWeeks weeks of four channel spends whose sales carry a
 // known geometric adstock and Hill curve per channel plus two controls —
-// the truth the pack's REG_MMM_HILL acceptance must recover — and the
+// the truth the built-in REG_MMM_HILL's acceptance must recover — and the
 // canonical two-call request bodies over it:
 //
 //  1. JointLHSSweep: an `lhs` sweep over the four channel decays, one

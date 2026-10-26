@@ -356,6 +356,12 @@ var holdoutBuiltinCases = map[types.RegressionType]func() *types.RegressionSpec{
 		s.Type = types.REG_BAYES_LINEAR
 		return s
 	},
+	// A model regression (extension-shaped): the adstocked tv_ad enters
+	// through its Hill curve, the rest are linear controls.
+	types.REG_MMM_HILL: func() *types.RegressionSpec {
+		return &types.RegressionSpec{Name: "reg-mmm-hill", Type: types.REG_MMM_HILL, Target: "sales",
+			Predictors: []string{"tv_ad", "radio_lag", "search_ewma", "trend"}, Params: json.RawMessage(`{"channels":["tv_ad"]}`)}
+	},
 }
 
 // TestHoldout_EveryScorableBuiltin: every built-in regression type has a

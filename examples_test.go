@@ -270,7 +270,7 @@ func TestRegressionExamplesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pulse.New: %v", err)
 	}
-	for _, name := range []string{"customers", "training_data", "experiment", "subscribers"} {
+	for _, name := range []string{"customers", "training_data", "experiment", "subscribers", "mmm_weekly"} {
 		csvPath := filepath.Join("internal", "examples", "fixtures", name+".csv")
 		schemaPath := filepath.Join("internal", "examples", "fixtures", "schemas", name+".json")
 		outPath := filepath.Join(tmp, name+".pulse")
@@ -294,8 +294,8 @@ func TestRegressionExamplesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("glob: %v", err)
 	}
-	if len(matches) != 18 {
-		t.Fatalf("expected exactly 18 regression examples, found %d", len(matches))
+	if len(matches) != 19 {
+		t.Fatalf("expected exactly 19 regression examples, found %d", len(matches))
 	}
 	for _, ex := range matches {
 		t.Run(filepath.Base(ex), func(t *testing.T) {
@@ -328,6 +328,9 @@ func TestRegressionExamplesEndToEnd(t *testing.T) {
 				if r != nil && r.NObs == 0 {
 					t.Errorf("%s: regression result %d has zero n_obs", ex, i)
 				}
+				if r != nil && r.Error != nil {
+					t.Errorf("%s: regression result %d failed: %s %s", ex, i, r.Error.Code, r.Error.Message)
+				}
 			}
 		})
 	}
@@ -338,7 +341,7 @@ func TestRegressionExamplesCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("glob: %v", err)
 	}
-	const want = 18
+	const want = 19
 	if len(matches) != want {
 		t.Errorf("want %d regression examples under examples/regression/, found %d: %v", want, len(matches), matches)
 	}

@@ -27,6 +27,27 @@ func register(t types.RegressionType, f Factory) {
 	regressionRegistry[t] = f
 }
 
+// modelScorers are the model regressions' row-scorer factories
+// (RegisterModel), read by BuiltinScorer.
+var modelScorers = map[types.RegressionType]model.ScorerFactory{}
+
+// RegisterModel installs a model regression's engine factory and row
+// scorer (model.ModelRegression: a built-in authored on the extension
+// contract). The root package adapts each registration onto the engine
+// — the extension adapter, shared — and calls it from its init, so the
+// type's Phase 0 stub (init below) is replaced before any instance
+// exists. A type that is no model regression panics: the wiring drift
+// surfaces at boot.
+func RegisterModel(t types.RegressionType, f Factory, scorer model.ScorerFactory) {
+	if !model.ModelRegression(t) {
+		panic("regression: RegisterModel of " + string(t) + ", which is no model regression")
+	}
+	regressionRegistry[t] = f
+	if scorer != nil {
+		modelScorers[t] = scorer
+	}
+}
+
 // Lookup returns the factory for a regression type, if registered.
 func Lookup(t types.RegressionType) (Factory, bool) {
 	f, ok := regressionRegistry[t]

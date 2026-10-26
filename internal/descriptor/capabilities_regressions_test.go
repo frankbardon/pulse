@@ -17,7 +17,8 @@ import (
 // TestRegressionCapabilities_ParamsAreSlotKeys (#371): a built-in
 // regression reads no params object — every knob is a typed
 // types.RegressionSpec field — so every Param its manifest entry
-// declares must be marked Slot (descriptor.Param.Slot: "every
+// declares must be marked Slot (a model regression's own params keys,
+// its declaration's, excepted) (descriptor.Param.Slot: "every
 // RegressionSpec knob") and must name a top-level RegressionSpec JSON
 // key. A non-slot param, or a key nested under an object (bounds'
 // nonnegative, covariance's type), cannot sneak into the list.
@@ -38,7 +39,13 @@ func TestRegressionCapabilities_ParamsAreSlotKeys(t *testing.T) {
 		if len(c.Params) == 0 {
 			t.Errorf("%s declares no params", c.Name)
 		}
+		own := modelRegressionOwnParams(c.Name)
 		for _, p := range c.Params {
+			if !p.Slot && own[p.Name] {
+				// A model regression's own params-object key (its
+				// declaration's Params), the one exception.
+				continue
+			}
 			if !p.Slot {
 				t.Errorf("%s param %q lacks Slot: true (a RegressionSpec knob, never a params key)", c.Name, p.Name)
 			}
@@ -60,11 +67,17 @@ func TestRegressionParamsAllowlist_FromManifest(t *testing.T) {
 		if !ok || !d.Declared {
 			t.Fatalf("%s: no declared allowlist entry", c.Name)
 		}
-		if len(d.Keys) != 0 {
-			t.Errorf("%s: params keys %v, want none (a built-in reads no params object)", c.Name, d.Keys)
+		own := modelRegressionOwnParams(c.Name)
+		if len(d.Keys) != len(own) {
+			t.Errorf("%s: params keys %v, want %d (a built-in reads no params object; a model regression its declaration's)", c.Name, d.Keys, len(own))
 		}
-		if len(d.Slot) != len(c.Params) {
-			t.Errorf("%s: %d slot keys %v, want the %d declared params", c.Name, len(d.Slot), d.Slot, len(c.Params))
+		for _, k := range d.Keys {
+			if !own[k] {
+				t.Errorf("%s: params key %q is not its declaration's", c.Name, k)
+			}
+		}
+		if len(d.Slot) != len(c.Params)-len(own) {
+			t.Errorf("%s: %d slot keys %v, want the %d declared slot params", c.Name, len(d.Slot), d.Slot, len(c.Params)-len(own))
 		}
 	}
 }
@@ -193,7 +206,9 @@ func TestRegressionCapabilities_DeclareEveryAcceptedKey(t *testing.T) {
 		}
 		declared := map[string]bool{}
 		for _, p := range c.Params {
-			declared[p.Name] = true
+			if p.Slot {
+				declared[p.Name] = true
+			}
 		}
 		for _, k := range slices.Sorted(maps.Keys(accepted)) {
 			if !unread[k] && !declared[k] {
@@ -266,4 +281,18 @@ func TestManifest_RegressionSlotParamsFollowHiddenSlots(t *testing.T) {
 			}
 		}
 	}
+}
+
+// modelRegressionOwnParams are model regression name's own params-object
+// keys (its declaration's Params), empty for every other type.
+func modelRegressionOwnParams(name string) map[string]bool {
+	out := map[string]bool{}
+	decl, ok := ModelRegressionDeclaration(types.RegressionType(name))
+	if !ok {
+		return out
+	}
+	for _, p := range decl.Params {
+		out[p.Name] = true
+	}
+	return out
 }

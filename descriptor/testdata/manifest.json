@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:449b701644aa1be633b397b47f430d2decf9f071c6a2f86ebfa812ac6fabcf8c",
+    "feature_set_digest": "fs1:09532b39e3ada4740785b0509e93a07502f0c3acbff663054c78485ddeb65c04",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -8562,6 +8562,162 @@
         ]
       },
       {
+        "name": "REG_MMM_HILL",
+        "description": "Media-mix model: joint nonlinear least squares over Hill-saturated, already-adstocked channels plus linear controls; coefficients k:\u003cchannel\u003e / s:\u003cchannel\u003e carry each curve.",
+        "accepts_types": [
+          "date",
+          "datetime",
+          "decimal128",
+          "f32",
+          "f64",
+          "packed_bool",
+          "u16",
+          "u32",
+          "u4",
+          "u64",
+          "u8"
+        ],
+        "emits_type_note": "RegressionResult in the built-in shape: coefficients with std_errors / statistics / p_values (null where the model reports none, key kept; a multiplicity block corrects the p-valued ones), the fit statistics it reports, and outputs keyed by output_schema.",
+        "streamable": false,
+        "streamable_hint": "Always buffered: the model fits over every admitted row.",
+        "params": [
+          {
+            "name": "target",
+            "type": "field",
+            "required": true,
+            "description": "Response variable field name; a top-level key of the regression entry.",
+            "field_filter": "numeric",
+            "slot": true
+          },
+          {
+            "name": "predictors",
+            "type": "list",
+            "required": true,
+            "description": "Predictor field names; a top-level key of the regression entry.",
+            "slot": true
+          },
+          {
+            "name": "resample",
+            "type": "enum",
+            "required": false,
+            "description": "Resampling layer: the engine refits the model over row subsets (jackknife_groups, jackknife_by, bootstrap_iters and rng_seed tune it); a top-level key of the regression entry.",
+            "enum_values": [
+              "",
+              "bootstrap",
+              "jackknife"
+            ],
+            "slot": true
+          },
+          {
+            "name": "bootstrap_iters",
+            "type": "int",
+            "required": false,
+            "default": 1000,
+            "description": "Replicate count when resample == bootstrap, used as given; \u003c= 0 means 1000. Echoed as bootstrap_requested beside bootstrap_succeeded (replicates whose refit succeeded).",
+            "slot": true
+          },
+          {
+            "name": "jackknife_groups",
+            "type": "int",
+            "required": false,
+            "description": "resample jackknife only: delete-a-group jackknife over g groups (2 ≤ g ≤ fitted rows) drawn by rng_seed — g refits instead of one per row. Exclusive with jackknife_by (PROCESSING_CONFIG); absent = leave-one-out over the fitted rows.",
+            "slot": true
+          },
+          {
+            "name": "jackknife_by",
+            "type": "field",
+            "required": false,
+            "description": "resample jackknife only: delete-a-cluster jackknife, one replicate per distinct value of this field (≥ 2); a null value drops the row listwise. Exclusive with jackknife_groups.",
+            "slot": true
+          },
+          {
+            "name": "rng_seed",
+            "type": "int",
+            "required": false,
+            "description": "Seed for the bootstrap RNG and the jackknife_groups assignment; 0 derives a deterministic seed from the request and its rows.",
+            "slot": true
+          },
+          {
+            "name": "conf_level",
+            "type": "float",
+            "required": false,
+            "default": 0.95,
+            "description": "Coverage of ci_lower / ci_upper, 0 \u003c conf_level \u003c 1: the engine's Wald interval coefficient ∓ q·SE on the model's reported standard error — q the Student-t quantile on the fit's reported df, else the standard normal; the normal on the replicate SE under resample; null where the SE is. A top-level key of the regression entry.",
+            "slot": true
+          },
+          {
+            "name": "multiplicity",
+            "type": "object",
+            "required": false,
+            "description": "{method, alpha, coefficients}: multiple-comparison correction over the coefficients carrying a p-value (the intercept excluded unless coefficients names it); a top-level key of the regression entry.",
+            "slot": true
+          },
+          {
+            "name": "vcov",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Emit the model's coefficient covariance (vcov) and its correlation; a top-level key of the regression entry.",
+            "slot": true
+          },
+          {
+            "name": "holdout",
+            "type": "string",
+            "required": false,
+            "description": "Boolean expression over the built record (schema, features, attributes, windows, post-window attributes): true rows are held out of the fit and scored after it, null rows join neither. Adds holdout {n, n_null, rmse, mae, r2} on the response scale; forces the buffered path.",
+            "slot": true
+          },
+          {
+            "name": "save",
+            "type": "string",
+            "required": false,
+            "description": "Write the finished fit as a model file (.pulse-model.json); a top-level key of the regression entry.",
+            "slot": true
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "description": "Result alias; also the saved model's name (default: the save file's stem).",
+            "slot": true
+          },
+          {
+            "name": "channels",
+            "type": "list",
+            "required": true,
+            "description": "Predictors entering through the Hill curve (adstocked spend, at least one); the other predictors are linear controls."
+          },
+          {
+            "name": "nonnegative",
+            "type": "bool",
+            "required": false,
+            "default": true,
+            "description": "Bound every channel β below by 0, so an unsupported channel is exactly 0 (default true)."
+          },
+          {
+            "name": "prior",
+            "type": "object",
+            "required": false,
+            "description": "Gaussian MAP prior {channel, mean, precision} on one channel's β (an experiment-measured effect)."
+          }
+        ],
+        "intents": [
+          "drivers"
+        ],
+        "output_schema": [
+          {
+            "key": "k",
+            "json_type": "object",
+            "description": "Hill half-saturation per channel (the coefficient k:\u003cchannel\u003e)."
+          },
+          {
+            "key": "s",
+            "json_type": "object",
+            "description": "Hill shape per channel (the coefficient s:\u003cchannel\u003e)."
+          }
+        ]
+      },
+      {
         "name": "REG_OLS",
         "description": "Ordinary least squares with optional l1/l2/elasticnet regularization; covers simple, multiple, ridge, lasso, and elastic-net regression.",
         "accepts_types": [
@@ -13340,6 +13496,10 @@
         "description": "Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-specific link functions. Always buffered."
       },
       {
+        "name": "op-reg-mmm-hill",
+        "description": "REG_MMM_HILL — media-mix regression fitting every channel's coefficient and Hill curve (half-saturation k, shape s) jointly, plus linear controls. Params, coefficient names, standard-error rule, failures. Always buffered."
+      },
+      {
         "name": "op-reg-mod-resample",
         "description": "Spec-level resampling modifier (jackknife — leave-one-out, grouped or by cluster — / bootstrap) that composes with an OLS or GLM fit; replaces analytical std errors with empirical estimates. Non-empty value forces the buffered path."
       },
@@ -14040,7 +14200,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 260,
+    "examples_count": 261,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -19956,4 +20116,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 125180fd7dbf11c63ea162206656ffc6b0e02c9142b4d47f8bb22694bdf62e8d
+// golden-hash: 1c16b74fc14511d201d5e81e40b906a6bdb38f7327a47aebd4bcd43ec5c9df77

@@ -9,8 +9,9 @@ Pulse exposes regression through a compact, composable surface. A small set of `
 | `REG_OLS`          | Ordinary least squares + optional regularization | Streams sufficient statistics (Phase 1 + 2) |
 | `REG_GLM`          | Generalized linear model via IRLS            | Always buffered (Newton-Raphson refit)     |
 | `REG_BAYES_LINEAR` | Bayesian linear regression (conjugate NIG)   | Streams sufficient statistics (Phase 4)    |
+| `REG_MMM_HILL`     | Media-mix model: joint nonlinear least squares over Hill-saturated, already-adstocked channels plus linear controls | Always buffered |
 
-Two spec-level modifiers compose with any of the three:
+Two spec-level modifiers compose with the first three (`REG_MMM_HILL` takes `Resample` only; its own knobs ride `params`, and it names its own curve coefficients `k:<channel>` / `s:<channel>` — skill `op-reg-mmm-hill`, example `internal/examples/regression/19_mmm_hill.json`):
 
 - `Resample ∈ {jackknife, bootstrap}` — replaces analytical SE / p-values with resample-based estimates. Forces buffered.
 - `Selection ∈ {forward, backward, stepwise}` — drives AIC- or BIC-based greedy subset search. Requires `Criterion`. Forces buffered.

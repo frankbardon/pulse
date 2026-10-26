@@ -15,7 +15,7 @@ import (
 
 // TestRegressionUnknownType_PredictRuntimeParity: a regression type no
 // registry resolves — a never-registered name, a namespaced
-// extension-shaped name whose pack is not registered (REG_MMM_HILL),
+// extension-shaped name whose registration is absent (REG_ACME_FIT),
 // one past a valid slot, one under a holdout — is refused by predict
 // and by every runtime surface that takes a regressions slot (Process,
 // ProcessStream, Compose, a Compose fit; Materialize refuses the slot
@@ -30,7 +30,7 @@ func TestRegressionUnknownType_PredictRuntimeParity(t *testing.T) {
 		index     int
 	}{
 		{name: "never-registered", typ: "REG_NOPE"},
-		{name: "unregistered-pack", typ: "REG_MMM_HILL"},
+		{name: "unregistered-extension", typ: "REG_ACME_FIT"},
 		{name: "second-slot", typ: "REG_NOPE", lead: `{"type": "REG_OLS", "target": "x", "predictors": ["y"]}, `, index: 1},
 		{name: "holdout", typ: "REG_NOPE", lead: `{"type": "REG_OLS", "target": "x", "predictors": ["y"]}, `, extra: `, "holdout": "t > 8"`, index: 1},
 	} {

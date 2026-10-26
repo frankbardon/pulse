@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/types"
 )
@@ -81,6 +82,13 @@ func TestRegressionOutputsHoldAtRuntime(t *testing.T) {
 	}}
 	rows := probeRows()
 	for _, r := range types.AllRegressionTypes() {
+		if model.ModelRegression(r) {
+			// Registered by the root package's init (the extension
+			// adapter), so this package's registry holds only its stub:
+			// internal/regmmm's TestMMMHill_OutputsMatchApplicability
+			// probes it end to end on a stock instance.
+			continue
+		}
 		specs, ok := regressionProbes[r]
 		if !ok {
 			t.Errorf("%s has no runtime probe; add one to regressionProbes", r)

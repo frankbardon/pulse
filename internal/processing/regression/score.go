@@ -53,6 +53,12 @@ func BuiltinScorer(t types.RegressionType) (model.ScorerFactory, bool) {
 	case types.REG_GLM:
 		return newGLMScorer, true
 	}
+	// A model regression scores through its registration's scorer
+	// (RegisterModel); model.ScorableType, the static face of the
+	// coefficient-shaped built-ins, does not list it.
+	if f, ok := modelScorers[t]; ok {
+		return f, true
+	}
 	return nil, false
 }
 

@@ -11,8 +11,9 @@ import (
 )
 
 // TestMMMPack_SkillsServed: the pack's skills pass the embedder skill
-// validation at pulse.New and are served through the facade like the
-// shipped pack (the surface pulse_skills_list reads).
+// validation at pulse.New and are served through the facade beside the
+// shipped pack (the surface pulse_skills_list reads), which carries the
+// built-in REG_MMM_HILL's op-reg-mmm-hill.
 func TestMMMPack_SkillsServed(t *testing.T) {
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: mmmpulse.Extensions()})
 	if err != nil {
@@ -27,6 +28,7 @@ func TestMMMPack_SkillsServed(t *testing.T) {
 			t.Errorf("skill %s not listed", name)
 		}
 	}
+	// op-reg-mmm-hill is the built-in REG_MMM_HILL's, shipped with Pulse.
 	body, ok := p.Skill("op-reg-mmm-hill")
 	if !ok {
 		t.Fatal("op-reg-mmm-hill not served")

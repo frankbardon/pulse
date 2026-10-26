@@ -1,4 +1,4 @@
-package mmmpulse
+package regmmm_test
 
 import (
 	"context"
@@ -16,24 +16,26 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
+	"github.com/frankbardon/pulse/internal/regmmm"
 	"github.com/frankbardon/pulse/linalg/detmath"
 	"github.com/frankbardon/pulse/types"
 )
 
-// mmmpulse_test.go pins REG_MMM_HILL (mmm-estimation E4-S1): the pack
-// registers through the public contract and self-describes; the joint
+// hill_test.go pins REG_MMM_HILL (mmm-estimation E4-S1, built in since
+// mmm-followups E2-S1): a stock instance runs it with no registration
+// and self-describes it among the built-ins; the joint
 // fit recovers a known truth after WIN_DISTRIBUTED_LAG with calibrated
 // standard errors; a no-effect channel is exactly 0 with null standard
 // errors; coef() reads the k:/s: curve coefficients; bootstrap is
 // reproducible; holdout, ATTR_REG_PREDICT and a saved model score
 // through the Scorer; data refusals fail the slot alone.
 
-// TestMMMPack_DetmathGoldenBits: the public linalg/detmath Exp, Log and
-// Pow the pack computes with give exactly the bits pinned here (from
+// TestMMMHill_DetmathGoldenBits: the public linalg/detmath Exp, Log and
+// Pow the model computes with give exactly the bits pinned here (from
 // detmath's own golden, TestDetmath_GoldenBits, which holds them equal
 // on amd64 and arm64), so a fit is bit-identical across architectures
 // and the curve matches hill().
-func TestMMMPack_DetmathGoldenBits(t *testing.T) {
+func TestMMMHill_DetmathGoldenBits(t *testing.T) {
 	cases := []struct {
 		fn   string
 		x, y float64
@@ -77,29 +79,34 @@ func TestMMMPack_DetmathGoldenBits(t *testing.T) {
 			t.Errorf("%s(%v, %v) = %#016x, want %#016x", c.fn, c.x, c.y, b, c.want)
 		}
 	}
-	if h := hillCurve(0, 3, 2); h != 0 {
+	if h := regmmm.HillCurve(0, 3, 2); h != 0 {
 		t.Errorf("hill(0, 3, 2) = %v, want 0", h)
 	}
 }
 
-// TestMMMPack_RegistersAndSelfDescribes: pulse.New accepts the pack; the
-// manifest lists REG_MMM_HILL as a buffered model with its params and
-// k / s outputs; predict accepts a fit as valid and non-streamable, with
-// vcov.
-func TestMMMPack_RegistersAndSelfDescribes(t *testing.T) {
+// TestMMMHill_RegistersAndSelfDescribes: a stock instance (no
+// Extensions) lists REG_MMM_HILL among the BUILT-IN regressions — never
+// under extensions — as a buffered model with its params and k / s
+// outputs; predict accepts a fit as valid and non-streamable, with vcov.
+func TestMMMHill_RegistersAndSelfDescribes(t *testing.T) {
 	ctx := context.Background()
 	p := instance(t, afero.NewMemMapFs(), nil)
 	cohort(t, p, defaultTruth, 7)
 
 	var meta *descriptor.RegressionMeta
 	man := p.Manifest(ctx)
-	for i, m := range man.Extensions.Regressions {
-		if m.Name == string(Name) {
-			meta = &man.Extensions.Regressions[i]
+	for i, m := range man.Regressions {
+		if m.Name == string(regmmm.Name) {
+			meta = &man.Regressions[i]
 		}
 	}
 	if meta == nil {
-		t.Fatalf("manifest extensions.regressions lacks %s", Name)
+		t.Fatalf("manifest regressions lacks %s", regmmm.Name)
+	}
+	for _, m := range man.Extensions.Regressions {
+		if m.Name == string(regmmm.Name) {
+			t.Errorf("manifest lists the built-in %s under extensions", regmmm.Name)
+		}
 	}
 	if meta.Streamable {
 		t.Error("manifest: a buffered model listed as streamable")
@@ -136,7 +143,7 @@ func TestMMMPack_RegistersAndSelfDescribes(t *testing.T) {
 // 5.1% (k), 7.3% (s) and 1.1% (the price control) — sampling error, the
 // solver converging to 1e-13 relative in cost. Each tolerance carries
 // about twice that; every one is far inside what a perturbed truth
-// moves (TestMMMPack_RecoveryFalsified).
+// moves (TestMMMHill_RecoveryFalsified).
 const (
 	tolIntercept = 0.005
 	tolBeta      = 0.12
@@ -170,14 +177,14 @@ func recoveryViolations(r *types.RegressionResult, tr truth) []string {
 	return out
 }
 
-// TestMMMPack_RecoversTruth: after WIN_DISTRIBUTED_LAG (materialized;
+// TestMMMHill_RecoversTruth: after WIN_DISTRIBUTED_LAG (materialized;
 // equal to the generator's kernels) REG_MMM_HILL recovers the intercept,
 // each channel's β, k and s and the control's γ within tolerance; the
 // coefficient table is the documented order, k:/s: equal the k / s
 // outputs, every standard error is finite and positive and the vcov is
 // symmetric with the squared standard errors on its diagonal; the fit is
 // bit-identical across DecodeWorkers.
-func TestMMMPack_RecoversTruth(t *testing.T) {
+func TestMMMHill_RecoversTruth(t *testing.T) {
 	fsys := afero.NewMemMapFs()
 	p := instance(t, fsys, nil)
 	rows := cohort(t, p, defaultTruth, 7)
@@ -225,13 +232,13 @@ func TestMMMPack_RecoversTruth(t *testing.T) {
 	}
 }
 
-// TestMMMPack_RecoversAcrossSeeds: recovery is not one lucky seed —
+// TestMMMHill_RecoversAcrossSeeds: recovery is not one lucky seed —
 // every one of 64 generator seeds recovers the truth within the same
 // tolerances — and the standard errors are calibrated: per coefficient
 // the z-scores (estimate − truth) / SE over the seeds have a standard
 // deviation near 1 (measured 0.81–1.08; the band [0.6, 1.4] is about 4
 // sampling standard errors of a 64-draw SD wide).
-func TestMMMPack_RecoversAcrossSeeds(t *testing.T) {
+func TestMMMHill_RecoversAcrossSeeds(t *testing.T) {
 	z := map[string][]float64{}
 	for seed := uint64(1); seed <= 64; seed++ {
 		p := instance(t, afero.NewMemMapFs(), nil)
@@ -259,10 +266,10 @@ func TestMMMPack_RecoversAcrossSeeds(t *testing.T) {
 	}
 }
 
-// TestMMMPack_RecoveryFalsified: the recovery check bites — data
+// TestMMMHill_RecoveryFalsified: the recovery check bites — data
 // generated from a perturbed truth, fitted the same way, fails recovery
 // against the default truth and recovers its own.
-func TestMMMPack_RecoveryFalsified(t *testing.T) {
+func TestMMMHill_RecoveryFalsified(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		mut  func(*truth)
@@ -288,7 +295,7 @@ func TestMMMPack_RecoveryFalsified(t *testing.T) {
 	}
 }
 
-// TestMMMPack_ZeroChannelExactlyZero: display has no effect (true β 0).
+// TestMMMHill_ZeroChannelExactlyZero: display has no effect (true β 0).
 // Over seeds 1..16 the bound binds on many (measured: 7); on each such
 // seed display's β is exactly 0 with a null standard error, and so are
 // its k and s (the data cannot inform a curve with no effect), its vcov
@@ -296,7 +303,7 @@ func TestMMMPack_RecoveryFalsified(t *testing.T) {
 // standard errors. On every seed the other channels still recover.
 // Under nonnegative: false the same data fits a negative β on the first
 // binding seed — the bound, not the data, made it 0.
-func TestMMMPack_ZeroChannelExactlyZero(t *testing.T) {
+func TestMMMHill_ZeroChannelExactlyZero(t *testing.T) {
 	bound := 0
 	var firstBound uint64
 	for seed := uint64(1); seed <= 16; seed++ {
@@ -392,11 +399,11 @@ func scoreRequest(models ...types.ModelRef) *types.Request {
 	}
 }
 
-// TestMMMPack_CoefReadsCurveCoefficients: in an ATTR_FORMULA,
+// TestMMMHill_CoefReadsCurveCoefficients: in an ATTR_FORMULA,
 // coef("mmm", "k:tv_ad") / ("s:search_ad") / ("k:tv_ad", "se") read the
 // fit's curve coefficients and standard error exactly; predict accepts
 // the batch; an unknown curve name is PULSE_MODEL_TERM_UNKNOWN at run.
-func TestMMMPack_CoefReadsCurveCoefficients(t *testing.T) {
+func TestMMMHill_CoefReadsCurveCoefficients(t *testing.T) {
 	ctx := context.Background()
 	p := instance(t, afero.NewMemMapFs(), nil)
 	cohort(t, p, defaultTruth, 7)
@@ -423,14 +430,14 @@ func TestMMMPack_CoefReadsCurveCoefficients(t *testing.T) {
 	}
 }
 
-// TestMMMPack_ScorerHoldoutSaveReload: ATTR_REG_PREDICT scores through
+// TestMMMHill_ScorerHoldoutSaveReload: ATTR_REG_PREDICT scores through
 // the Scorer exactly as the model written with coef() and hill() (both
 // compute 1/(1+(k/x)^s) through the same deterministic power, so equal
 // to the last bit); the fit saves as a model file and a fresh instance
 // reloads it and scores bit-identically, predict accepting the load; a
 // holdout predicate scores the held-out weeks (RMSE equal to the
 // scorer's residuals on those rows).
-func TestMMMPack_ScorerHoldoutSaveReload(t *testing.T) {
+func TestMMMHill_ScorerHoldoutSaveReload(t *testing.T) {
 	ctx := context.Background()
 	fsys := afero.NewMemMapFs()
 	p := instance(t, fsys, nil)
@@ -473,7 +480,7 @@ func TestMMMPack_ScorerHoldoutSaveReload(t *testing.T) {
 	if h.Holdout == nil || h.Holdout.N != 14*len(geos) || h.NObs != len(rows)-14*len(geos) {
 		t.Fatalf("holdout = %+v, n_obs %d", h.Holdout, h.NObs)
 	}
-	sc, err := scorer(fittedOf(h, s))
+	sc, err := regmmm.Scorer(fittedOf(h, s))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -498,12 +505,12 @@ type scoreRow map[string]float64
 
 func (r scoreRow) NumericValue(name string) (float64, bool) { v, ok := r[name]; return v, ok }
 
-// TestMMMPack_BootstrapReproducible: resample: bootstrap refits the
+// TestMMMHill_BootstrapReproducible: resample: bootstrap refits the
 // model on every replicate — each coefficient (the curve ones included)
 // gains a finite, positive replicate standard error and a p-value, the
 // estimates stay the full fit's — and the same seed gives the same
 // bytes.
-func TestMMMPack_BootstrapReproducible(t *testing.T) {
+func TestMMMHill_BootstrapReproducible(t *testing.T) {
 	p := instance(t, afero.NewMemMapFs(), nil)
 	cohort(t, p, defaultTruth, 7)
 	boot := func() *types.RegressionSpec {
@@ -533,12 +540,12 @@ func TestMMMPack_BootstrapReproducible(t *testing.T) {
 	}
 }
 
-// TestMMMPack_SlotFailsAlone: too few rows for the model fails its slot
+// TestMMMHill_SlotFailsAlone: too few rows for the model fails its slot
 // alone — the result keeps its identity and carries
 // PROCESSING_REGRESSION_INSUFFICIENT_DATA, PULSE_SLOT_FAILED warns, and
 // the request's other slot fits; under Strict the run fails with the
 // slot's code.
-func TestMMMPack_SlotFailsAlone(t *testing.T) {
+func TestMMMHill_SlotFailsAlone(t *testing.T) {
 	fsys := afero.NewMemMapFs()
 	p := instance(t, fsys, nil)
 	cohort(t, p, defaultTruth, 7)
@@ -557,7 +564,7 @@ func TestMMMPack_SlotFailsAlone(t *testing.T) {
 		t.Fatalf("regressions = %s", mustJSON(t, resp.Regressions))
 	}
 	m, ols := resp.Regressions[0], resp.Regressions[1]
-	if m.Error == nil || m.Error.Code != string(perr.PROCESSING_REGRESSION_INSUFFICIENT_DATA) || m.Name != "mmm" || m.Type != Name {
+	if m.Error == nil || m.Error.Code != string(perr.PROCESSING_REGRESSION_INSUFFICIENT_DATA) || m.Name != "mmm" || m.Type != regmmm.Name {
 		t.Fatalf("mmm slot = %s, want its identity and INSUFFICIENT_DATA", mustJSON(t, m))
 	}
 	if ols.Error != nil || len(ols.Coefficients) != 2 {
@@ -576,11 +583,11 @@ func TestMMMPack_SlotFailsAlone(t *testing.T) {
 	}
 }
 
-// TestMMMPack_ParamsRefused: a channel that is not a predictor (or is
+// TestMMMHill_ParamsRefused: a channel that is not a predictor (or is
 // listed twice), an invalid prior (an unknown key included) and a
 // negative channel value are
 // PROCESSING_CONFIG at run — never a silent fit.
-func TestMMMPack_ParamsRefused(t *testing.T) {
+func TestMMMHill_ParamsRefused(t *testing.T) {
 	p := instance(t, afero.NewMemMapFs(), nil)
 	cohort(t, p, defaultTruth, 7)
 	for _, tc := range []struct {
@@ -610,11 +617,11 @@ func fittedOf(r *types.RegressionResult, s *types.RegressionSpec) extend.FittedR
 	return extend.FittedRegression{Type: r.Type, Target: s.Target, Predictors: s.Predictors, Coefficients: r.Coefficients, Outputs: r.Outputs}
 }
 
-// TestMMMPack_FactoryRefusesCurveNameCollision: a predictor named like a
+// TestMMMHill_FactoryRefusesCurveNameCollision: a predictor named like a
 // curve coefficient ("k:…" / "s:…") would collide in the coefficient
 // table, so the factory refuses it with PROCESSING_CONFIG; a missing
 // channels list is refused the same way.
-func TestMMMPack_FactoryRefusesCurveNameCollision(t *testing.T) {
+func TestMMMHill_FactoryRefusesCurveNameCollision(t *testing.T) {
 	for _, tc := range []struct {
 		predictors []string
 		params     string
@@ -623,43 +630,43 @@ func TestMMMPack_FactoryRefusesCurveNameCollision(t *testing.T) {
 		{[]string{"tv", "s:x"}, `{"channels":["tv"]}`},
 		{[]string{"tv"}, `{}`},
 	} {
-		_, err := factory(spec(tc.predictors, tc.params), nil)
+		_, err := regmmm.Factory(spec(tc.predictors, tc.params), nil)
 		if !perr.HasCode(err, perr.PROCESSING_CONFIG) {
 			t.Errorf("predictors %v params %s: %v, want PROCESSING_CONFIG", tc.predictors, tc.params, err)
 		}
 	}
-	if _, err := factory(spec([]string{"tv", "ks"}, `{"channels":["tv"]}`), nil); err != nil {
+	if _, err := regmmm.Factory(spec([]string{"tv", "ks"}, `{"channels":["tv"]}`), nil); err != nil {
 		t.Errorf("a predictor merely starting with k: %v", err)
 	}
 }
 
-// TestMMMPack_IterationCapIsNoConverge: a solve stopped by its iteration
+// TestMMMHill_IterationCapIsNoConverge: a solve stopped by its iteration
 // cap is PROCESSING_REGRESSION_NO_CONVERGE — the code that fails the slot
 // alone — never a silently unconverged fit.
-func TestMMMPack_IterationCapIsNoConverge(t *testing.T) {
-	rows := generate(defaultTruth, 7)
-	prob := &problem{priorIdx: -1, a: make([][]float64, 2), z: make([][]float64, 1), kRef: make([]float64, 2)}
-	for _, r := range rows {
-		prob.y = append(prob.y, r.y)
-		prob.a[0], prob.a[1] = append(prob.a[0], r.tvAd), append(prob.a[1], r.searchAd)
-		prob.z[0] = append(prob.z[0], r.price)
-		prob.kRef[0] += r.tvAd / float64(len(rows))
-		prob.kRef[1] += r.searchAd / float64(len(rows))
-	}
-	x0, err := prob.start(true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := prob.solve(x0, true, 2); !perr.HasCode(err, perr.PROCESSING_REGRESSION_NO_CONVERGE) {
+func TestMMMHill_IterationCapIsNoConverge(t *testing.T) {
+	y, a, z := generatedColumns(generate(defaultTruth, 7))
+	if _, err := regmmm.SolveColumns(twoChannels[:2], twoChannels[2:], y, a, z, 2); !perr.HasCode(err, perr.PROCESSING_REGRESSION_NO_CONVERGE) {
 		t.Fatalf("a 2-iteration cap: %v, want PROCESSING_REGRESSION_NO_CONVERGE", err)
 	}
-	if _, err := prob.solve(x0, true, maxIterations); err != nil {
+	if _, err := regmmm.SolveColumns(twoChannels[:2], twoChannels[2:], y, a, z, regmmm.MaxIterations); err != nil {
 		t.Fatalf("the default cap: %v", err)
 	}
 }
 
-// TestMMMPack_FitBitsPinned: a fit's figures are a function of its rows
-// alone on every architecture — the solver, the curve (the pack's
+// generatedColumns are the generator rows' columns: y, the tv / search
+// adstock channels and the price control.
+func generatedColumns(rows []row) (y []float64, a, z [][]float64) {
+	a, z = make([][]float64, 2), make([][]float64, 1)
+	for _, r := range rows {
+		y = append(y, r.y)
+		a[0], a[1] = append(a[0], r.tvAd), append(a[1], r.searchAd)
+		z[0] = append(z[0], r.price)
+	}
+	return y, a, z
+}
+
+// TestMMMHill_FitBitsPinned: a fit's figures are a function of its rows
+// alone on every architecture — the solver, the curve (detmath's
 // deterministic Exp / Log / Pow) and the covariance are serial and
 // FMA-free, and linalg's Cholesky is Pulse's own kernel. The fit of the
 // seed-7 generator rows (adstock from the generator, so no engine
@@ -667,31 +674,15 @@ func TestMMMPack_IterationCapIsNoConverge(t *testing.T) {
 // standard errors' bits, measured identical on darwin/arm64 and
 // linux/amd64. (The engine's intervals and WIN_DISTRIBUTED_LAG's kernel
 // weights are outside this pin.)
-func TestMMMPack_FitBitsPinned(t *testing.T) {
+func TestMMMHill_FitBitsPinned(t *testing.T) {
 	const want = "bf80809268a6937f174e481096525d856dbaabcdf3d4a0d15ba165957faecf6f"
-	rows := generate(defaultTruth, 7)
-	m := &model{target: "y", channels: []string{"tv_ad", "search_ad"}, controls: []string{"price"}, nonneg: true}
-	prob := &problem{priorIdx: -1, a: make([][]float64, 2), z: make([][]float64, 1), kRef: make([]float64, 2)}
-	for _, r := range rows {
-		prob.y = append(prob.y, r.y)
-		prob.a[0], prob.a[1] = append(prob.a[0], r.tvAd), append(prob.a[1], r.searchAd)
-		prob.z[0] = append(prob.z[0], r.price)
-		prob.kRef[0] += r.tvAd
-		prob.kRef[1] += r.searchAd
-	}
-	for c := range prob.kRef {
-		prob.kRef[c] /= float64(len(rows))
-	}
-	x0, err := prob.start(true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	res, err := prob.solve(x0, true, maxIterations)
+	y, a, z := generatedColumns(generate(defaultTruth, 7))
+	out, err := regmmm.SolveColumns(twoChannels[:2], twoChannels[2:], y, a, z, regmmm.MaxIterations)
 	if err != nil {
 		t.Fatal(err)
 	}
 	h := sha256.New()
-	for _, c := range m.output(prob, res).Coefficients {
+	for _, c := range out.Coefficients {
 		for _, v := range []float64{c.Estimate, *c.StdErr} {
 			_ = binary.Write(h, binary.LittleEndian, math.Float64bits(v))
 		}

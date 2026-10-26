@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:449b701644aa1be633b397b47f430d2decf9f071c6a2f86ebfa812ac6fabcf8c",
+  "$comment": "feature_set_digest: fs1:09532b39e3ada4740785b0509e93a07502f0c3acbff663054c78485ddeb65c04",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -4730,6 +4730,7 @@
       "enum": [
         "REG_BAYES_LINEAR",
         "REG_GLM",
+        "REG_MMM_HILL",
         "REG_OLS"
       ],
       "type": "string"
@@ -6393,4 +6394,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 54635406e8b9c34510f130558bbffe92e5e57645fa518269caf1874d60219462
+// golden-hash: 58e3556db734186f56aa63ea0fb77f978d67e5ccd469fa6686ac49330ce71d4f

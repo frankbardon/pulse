@@ -61,7 +61,7 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 		)
 	}
 
-	return []descriptor.RegressionMeta{
+	builtins := []descriptor.RegressionMeta{
 		{
 			Name:           string(types.REG_OLS),
 			Description:    "Ordinary least squares with optional l1/l2/elasticnet regularization; covers simple, multiple, ridge, lasso, and elastic-net regression.",
@@ -148,4 +148,5 @@ func regressionCapabilities() []descriptor.RegressionMeta {
 			// a request that can only fail.
 		},
 	}
+	return append(builtins, modelRegressionMetas()...)
 }

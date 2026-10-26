@@ -226,6 +226,7 @@
     - [op-overlay-zscore-vs-total](skills/op-overlay-zscore-vs-total.md)
     - [op-reg-bayes-linear](skills/op-reg-bayes-linear.md)
     - [op-reg-glm](skills/op-reg-glm.md)
+    - [op-reg-mmm-hill](skills/op-reg-mmm-hill.md)
     - [op-reg-mod-resample](skills/op-reg-mod-resample.md)
     - [op-reg-mod-selection](skills/op-reg-mod-selection.md)
     - [op-reg-ols](skills/op-reg-ols.md)

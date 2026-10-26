@@ -173,11 +173,11 @@ one name in every group must be enabled:
 | `OVERLAY_T_VS_PRIOR`, `OVERLAY_Z_VS_PRIOR` | `AGG_WELFORD`, `AGG_VARIANCE` or `AGG_STDDEV` (any one) |
 | `OVERLAY_PROP_Z_VS_PRIOR` | `AGG_AVERAGE` |
 | `ATTR_REG_FITTED`, `ATTR_REG_LEVERAGE`, `ATTR_REG_RESIDUAL` | `REG_OLS` |
-| `ATTR_REG_PREDICT` | `REG_BAYES_LINEAR`, `REG_GLM` or `REG_OLS` (any one) |
+| `ATTR_REG_PREDICT` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_HILL` or `REG_OLS` (any one) |
 | `OVERLAY_YOY` | `GROUP_DATE` |
 | `capability:filter_to_file` | `FILTER_EXPRESSION` (filter-to-file compiles every filterer into one filter expression) |
-| `capability:model_save` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_OLS`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE` or `capability:matrices` (any one; a `save` writes a fitted regression as a model file, a vector fit as a population file or a SEM fit as a `.pulse-sem.json` SEM fit file) |
-| `capability:regression_holdout` | `REG_BAYES_LINEAR`, `REG_GLM` or `REG_OLS` (any one; a regression `holdout` scores that slot's fit) |
+| `capability:model_save` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_HILL`, `REG_OLS`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE` or `capability:matrices` (any one; a `save` writes a fitted regression as a model file, a vector fit as a population file or a SEM fit as a `.pulse-sem.json` SEM fit file) |
+| `capability:regression_holdout` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_HILL` or `REG_OLS` (any one; a regression `holdout` scores that slot's fit) |
 | `capability:params` | `ATTR_FORMULA`, `FILTER_EXPRESSION`, `OVERLAY_FORMULA`, `capability:regression_holdout` or `capability:compose_optimize` (any one; a request `params` value is read only by an expression) |
 | `capability:sem_meanstructure` | `MAT_SEM` or `ATTR_SEM_SCORE` (any one; their `meanstructure` param and `~ 1` model lines) |
 | `capability:sem_groups` | `MAT_SEM` or `ATTR_SEM_SCORE`, and `capability:sem_meanstructure` (a multi-group fit always models the means) |
@@ -212,7 +212,7 @@ An enabled extension operator also needs a request host, like a built-in.
 An enabled extension regression also counts as a regression for the
 built-in features that need one. `ATTR_REG_PREDICT`,
 `capability:model_save` and `capability:regression_holdout` normally need one of `REG_BAYES_LINEAR`,
-`REG_GLM` or `REG_OLS`; an enabled extension regression whose
+`REG_GLM`, `REG_MMM_HILL` or `REG_OLS`; an enabled extension regression whose
 registration supplies a `Scorer` meets that need too.
 `capability:compose_fits` accepts any enabled extension regression. So
 a profile that enables only your own model can still fit, score and
