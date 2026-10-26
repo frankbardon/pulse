@@ -80,7 +80,7 @@ One `ComposedRequest` searches the decays, fits the curves at the winner, scores
                  "order_by": [{"field": "week"}], "params": {"offset": {"$var": "lag"}, "default": 0}}],
     "attributes": [
       {"type": "ATTR_FORMULA", "label": "tv_ad",
-       "expression": "tv + sweep_axis(\"mmm\", \"tv\") * (tv_l1 + sweep_axis(\"mmm\", \"tv\") * (tv_l2 + ... ))"},
+       "expression": "tv + sweep_axis(\"mmm\", \"tv\") * (tv_l1 + sweep_axis(\"mmm\", \"tv\") * (tv_l2 + sweep_axis(\"mmm\", \"tv\") * (tv_l3 + sweep_axis(\"mmm\", \"tv\") * (tv_l4 + sweep_axis(\"mmm\", \"tv\") * (tv_l5 + sweep_axis(\"mmm\", \"tv\") * (tv_l6 + sweep_axis(\"mmm\", \"tv\") * (tv_l7 + sweep_axis(\"mmm\", \"tv\") * (tv_l8 + sweep_axis(\"mmm\", \"tv\") * (tv_l9 + sweep_axis(\"mmm\", \"tv\") * (tv_l10 + sweep_axis(\"mmm\", \"tv\") * (tv_l11 + sweep_axis(\"mmm\", \"tv\") * (tv_l12 + sweep_axis(\"mmm\", \"tv\") * (tv_l13)))))))))))))"},
       {"type": "ATTR_FORMULA", "label": "tv_contrib",
        "expression": "coef(\"mmm\", \"tv_ad\") * hill(tv_ad, coef(\"mmm\", \"k:tv_ad\"), coef(\"mmm\", \"s:tv_ad\"))"},
       {"...": "the same per channel"}]

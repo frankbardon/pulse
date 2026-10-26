@@ -73,7 +73,11 @@ func TestExprDocExamples_Compile(t *testing.T) {
 		// Compiled at the formula site: the harvest mixes filter and
 		// formula examples, and only a filter must yield a bool
 		// (exprenv.ResultRefusal).
-		p, err := newExprProgram(ex.src, exprenv.SiteFormula, schema, vecs, exReg.ReferenceVectors, exReg.ExprOptions())
+		// coef and sweep_axis are request-bound (a compose binds them); the
+		// declaration-only placeholders type-check exactly like the real ones.
+		bound := exReg.exprBound()
+		bound.Coef, bound.SweepAxis = exprenv.Placeholder, exprenv.Placeholder
+		p, err := newExprProgram(ex.src, exprenv.SiteFormula, schema, vecs, exReg.ReferenceVectors, bound.Options())
 		if err != nil {
 			t.Errorf("%s: documented expression %q does not compile: %v", ex.where, ex.src, err)
 			continue
@@ -117,6 +121,21 @@ func docExprSchema() *encoding.Schema {
 		num("weight_kg"), num("height_m"), num("score"),
 		num("q1"), num("q2"), num("q3"),
 		num("week"), num("wave"), num("x"), num("y"),
+		// the one-call MMM recipe (mmm.md): a channel, its lag columns, its adstock.
+		num("tv"), num("tv_ad"),
+		num("tv_l1"),
+		num("tv_l2"),
+		num("tv_l3"),
+		num("tv_l4"),
+		num("tv_l5"),
+		num("tv_l6"),
+		num("tv_l7"),
+		num("tv_l8"),
+		num("tv_l9"),
+		num("tv_l10"),
+		num("tv_l11"),
+		num("tv_l12"),
+		num("tv_l13"),
 		set("tags", "a", "b", "c"),
 		set("issuers", "VISA", "MC", "AMEX"),
 	}}
