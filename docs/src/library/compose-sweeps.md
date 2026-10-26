@@ -157,8 +157,14 @@ sweep is `PULSE_SWEEP_INVALID` with `details.field` and
 slot's unshaped response (an object key, or on a list the element whose
 `name` or `label` equals the segment, never an index; for example
 `components.aggregations.rev.n`); `order` is `asc` (default) or `desc`; `top`
-keeps the first N. `ComposedResponse.Ranking` lists `{label, value, rank}`
-in rank order. Explicit slots are never ranked. A null value, or a path
+keeps the first N. `ComposedResponse.Ranking` lists
+`{label, value, rank, slot, axes}` in rank order: `slot` is the entry's
+0-based index among the sweep slots (its response is
+`Responses[explicit+slot]`), `axes` maps every axis name to the value
+that slot ran with, typed as the axis declared it (numbers stay numbers,
+strings and booleans are preserved). Read a winner's axis values from
+`Ranking[0].Axes`, never by parsing its label. Explicit slots are never
+ranked. A null value, or a path
 missing in one slot only, excludes that slot with a `PULSE_SWEEP_RANK_PATH`
 warning on its own response; a non-number, ambiguous or unresolved path
 refuses the batch with the same code (`details.reason` `syntax`, `missing`,

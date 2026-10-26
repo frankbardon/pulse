@@ -5728,8 +5728,10 @@ pulse/types: const REG_MMM_BAYES pulse/types.RegressionType = "REG_MMM_BAYES"
 pulse/types: const REG_MMM_HILL pulse/types.RegressionType = "REG_MMM_HILL"
 pulse/types: const REG_OLS pulse/types.RegressionType = "REG_OLS"
 pulse/types: type RankEntry struct
+pulse/types: type RankEntry field Axes map[string]any "json:\"axes\""
 pulse/types: type RankEntry field Label string "json:\"label\""
 pulse/types: type RankEntry field Rank int "json:\"rank\""
+pulse/types: type RankEntry field Slot int "json:\"slot\""
 pulse/types: type RankEntry field Value float64 "json:\"value\""
 pulse/types: type ReferenceVectorTable struct
 pulse/types: type ReferenceVectorTable field Description string
@@ -6169,4 +6171,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: d8c01b13f885f525db79c74d076cb8a42e56ba47d91d43056a9384a7c4cd4c05
+// golden-hash: 565c6a46910bd10641db35b67ae1849064307933a837a653886d2ec26dbd15ec

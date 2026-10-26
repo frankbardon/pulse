@@ -1227,8 +1227,13 @@ an `omitempty` integer: the effective seed it drew with, so pinning it as
 is pinned outside the Compose-level `return`.
 
 A sweep with `rank` adds `ComposedResponse.ranking`, an `omitempty` array
-of `RankEntry {label, value, rank}` (1-based, in rank order, `value`
-always finite). Only sweep slots are ranked. A slot whose value at
+of `RankEntry {label, value, rank, slot, axes}` (1-based, in rank order,
+`value` always finite). `slot` (always present) is the entry's 0-based
+index among the sweep slots in expansion order; `axes` (always present)
+maps each sweep axis name to the scalar the slot ran with — a number, a
+string or a boolean, as the axis declared it (a drawn `random` / `lhs`
+value is a number in shortest round-trip form). Only sweep slots are
+ranked. A slot whose value at
 `rank.by` is null, or whose path is missing there but resolves elsewhere,
 is left out with a `PULSE_SWEEP_RANK_PATH` warning on its own response;
 a non-number, ambiguous or nowhere-resolving path refuses the batch with

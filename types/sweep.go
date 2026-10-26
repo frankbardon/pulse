@@ -198,7 +198,10 @@ func AllSweepRankOrders() []SweepRankOrder {
 }
 
 // RankEntry is one ranked sweep slot in ComposedResponse.Ranking: the
-// slot's Label, the ranked Value and its 1-based Rank. A slot whose
+// slot's Label, the ranked Value, its 1-based Rank, its 0-based Slot
+// in the sweep's expansion order and the typed Axes values it ran
+// with. Slot and Axes are always set, so a caller reads the winning
+// axis values off the entry and never parses a label. A slot whose
 // value at the rank path is null (undefined) has no entry — it is left
 // out with a PULSE_SWEEP_RANK_PATH warning on its own response — so
 // Value is always finite.
@@ -211,4 +214,16 @@ type RankEntry struct {
 
 	// Rank is the 1-based position in rank order.
 	Rank int `json:"rank"`
+
+	// Slot is the slot's 0-based index in the sweep's expansion order;
+	// its response is ComposedResponse.Responses[explicit + Slot],
+	// explicit being the number of hand-written `requests`.
+	Slot int `json:"slot"`
+
+	// Axes maps each sweep axis name to the value the slot ran with,
+	// typed as the axis declared it: a number stays a number (a drawn
+	// random / lhs value in its shortest round-trip form), a string or
+	// boolean is preserved. Under JSON it reads back as float64 /
+	// string / bool.
+	Axes map[string]any `json:"axes"`
 }

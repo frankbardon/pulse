@@ -196,7 +196,11 @@ func TestAPICompose_SweepRankingSurfaces(t *testing.T) {
 		`"label":"{{op}}","rank":{"by":"components.aggregations.t.n","order":"desc"},"request":`, 1)
 	path := write("ranked.json", ranked)
 
-	wantRanking := `[{"label":"AGG_SUM","value":3,"rank":1},{"label":"AGG_MAX","value":3,"rank":2},{"label":"AGG_MIN","value":3,"rank":3}]`
+	// Each entry carries its sweep slot and typed axes, in the envelope
+	// and in the --stream tail record alike.
+	wantRanking := `[{"label":"AGG_SUM","value":3,"rank":1,"slot":0,"axes":{"op":"AGG_SUM"}},` +
+		`{"label":"AGG_MAX","value":3,"rank":2,"slot":1,"axes":{"op":"AGG_MAX"}},` +
+		`{"label":"AGG_MIN","value":3,"rank":3,"slot":2,"axes":{"op":"AGG_MIN"}}]`
 	for _, args := range [][]string{nil, {"--parallel", "0"}} {
 		out, err := runAPI(t, append([]string{"compose", "--json", "-r", path}, args...)...)
 		if err != nil {

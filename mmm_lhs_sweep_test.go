@@ -66,7 +66,17 @@ func assertLHSDecaySweep(t *testing.T, out *ComposedResponse) float64 {
 			t.Fatalf("ranking not ascending at %d: %+v", i, out.Ranking)
 		}
 	}
-	best := lhsDecayOf(t, out.Ranking[0].Label)
+	// The winner's decay is read off its typed axes, never its label;
+	// the label only cross-checks it.
+	top := out.Ranking[0]
+	num, ok := top.Axes["decay"].(json.Number)
+	if !ok {
+		t.Fatalf("winner %+v carries no number decay axis", top)
+	}
+	best, err := num.Float64()
+	if err != nil || best != lhsDecayOf(t, top.Label) || out.Responses[top.Slot].Label != top.Label {
+		t.Fatalf("winner %+v: axes decay %v disagrees with its slot / label (%v)", top, best, err)
+	}
 	if math.Abs(best-mmmfixture.TrueDecay) > 0.1 {
 		t.Fatalf("best slot %s: decay %v, want within 0.1 of the true %v; ranking %+v", out.Ranking[0].Label, best, mmmfixture.TrueDecay, out.Ranking)
 	}

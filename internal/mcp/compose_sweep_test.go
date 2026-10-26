@@ -142,7 +142,8 @@ func TestPulseCompose_SweepFaultsKeepTheirCodes(t *testing.T) {
 
 // TestPulseCompose_SweepRanking: pulse_compose returns the sweep
 // `ranking` — read off each slot before the MCP `return` default shapes
-// it — ordered, 1-based and trimmed by `top`, every response kept.
+// it — ordered, 1-based and trimmed by `top`, every response kept,
+// each entry carrying its slot and typed axis values.
 func TestPulseCompose_SweepRanking(t *testing.T) {
 	p, _ := newImportTestPulse(t)
 	if _, err := p.ImportFile(context.Background(), pulse.ImportSpec{SourcePath: "data.csv"}); err != nil {
@@ -162,10 +163,15 @@ func TestPulseCompose_SweepRanking(t *testing.T) {
 	if len(ranking) != 2 {
 		t.Fatalf("ranking %v, want the top 2", out["ranking"])
 	}
-	for i, want := range []string{"mu0", "mu20"} {
+	for i, want := range []struct {
+		label string
+		slot  float64
+		mu    float64
+	}{{"mu0", 1, 0}, {"mu20", 2, 20}} {
 		e := ranking[i].(map[string]any)
-		if e["label"] != want || e["rank"] != float64(i+1) {
-			t.Fatalf("ranking[%d] = %v, want %s at rank %d", i, e, want, i+1)
+		axes, _ := e["axes"].(map[string]any)
+		if e["label"] != want.label || e["rank"] != float64(i+1) || e["slot"] != want.slot || axes["mu"] != want.mu {
+			t.Fatalf("ranking[%d] = %v, want %s at rank %d, slot %v, axes mu %v", i, e, want.label, i+1, want.slot, want.mu)
 		}
 	}
 }

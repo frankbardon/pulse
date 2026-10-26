@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -155,7 +156,7 @@ func TestHoldout_MMMDecaySweepRanksByHoldoutRMSE(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ComposeParallel: %v", err)
 			}
-			if got := assertMMMRanking(t, parallel, v.heldN); !slices.Equal(got, want) {
+			if got := assertMMMRanking(t, parallel, v.heldN); !reflect.DeepEqual(got, want) {
 				t.Fatalf("parallel ranking %+v, serial %+v", got, want)
 			}
 		})
@@ -210,7 +211,7 @@ func TestHoldout_MMMRankVetoKeepsHoldout(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Compose: %v", err)
 			}
-			if !slices.Equal(out.Ranking, canon.Ranking) {
+			if !reflect.DeepEqual(out.Ranking, canon.Ranking) {
 				t.Fatalf("ranking under return exclude %v:\n got %+v\nwant %+v", exclude, out.Ranking, canon.Ranking)
 			}
 			for _, resp := range out.Responses {
@@ -243,7 +244,7 @@ func TestHoldout_MMMReturnExcludesData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Compose (no return): %v", err)
 	}
-	if !slices.Equal(shaped.Ranking, full.Ranking) {
+	if !reflect.DeepEqual(shaped.Ranking, full.Ranking) {
 		t.Fatalf("ranking moved with the return: shaped %+v, full %+v", shaped.Ranking, full.Ranking)
 	}
 	for i := range shaped.Responses {

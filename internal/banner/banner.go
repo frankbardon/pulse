@@ -203,6 +203,9 @@ type Expansion struct {
 	Explicit int
 	// SweepLabels are the sweep slots' labels (nil without a sweep).
 	SweepLabels []string
+	// SweepAxes are the sweep slots' axis values, index-aligned with
+	// SweepLabels (sweep.Expansion.Axes; nil without a sweep).
+	SweepAxes []map[string]any
 	// SweepSeed is a sampling sweep's effective seed (nil without one).
 	SweepSeed *int64
 	// Banner is the banner layout (nil without a banner).
@@ -230,7 +233,7 @@ func ExpandCompose(c *types.ComposedRequest, preflight func(slots int) error) (*
 		if err != nil {
 			return nil, err
 		}
-		return &Expansion{Composed: exp.Composed, Explicit: exp.Explicit, SweepLabels: exp.Labels, SweepSeed: exp.Seed}, nil
+		return &Expansion{Composed: exp.Composed, Explicit: exp.Explicit, SweepLabels: exp.Labels, SweepAxes: exp.Axes, SweepSeed: exp.Seed}, nil
 	}
 	if ce := Validate(spec); ce != nil {
 		return nil, ce
@@ -289,7 +292,7 @@ func ExpandCompose(c *types.ComposedRequest, preflight func(slots int) error) (*
 	}
 	scopeLabels(requests[layout.Start:], spec.Request.Labels)
 	out.Requests = requests
-	return &Expansion{Composed: &out, Explicit: exp.Explicit, SweepLabels: exp.Labels, SweepSeed: exp.Seed, Banner: layout}, nil
+	return &Expansion{Composed: &out, Explicit: exp.Explicit, SweepLabels: exp.Labels, SweepAxes: exp.Axes, SweepSeed: exp.Seed, Banner: layout}, nil
 }
 
 // scopeLabels narrows each banner slot's copy of the base `labels` to

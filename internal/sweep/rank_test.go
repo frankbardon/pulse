@@ -43,19 +43,19 @@ func TestRank_OrdersTiesTopAndRank(t *testing.T) {
 		want []types.RankEntry
 	}{
 		{"asc default, ties in expansion order", types.SweepRank{By: "regressions.fit.residual_std_err"},
-			[]types.RankEntry{{Label: "b", Value: 1, Rank: 1}, {Label: "d", Value: 2, Rank: 2}, {Label: "a", Value: 3, Rank: 3}, {Label: "c", Value: 3, Rank: 4}}},
+			[]types.RankEntry{{Label: "b", Value: 1, Rank: 1, Slot: 1}, {Label: "d", Value: 2, Rank: 2, Slot: 3}, {Label: "a", Value: 3, Rank: 3, Slot: 0}, {Label: "c", Value: 3, Rank: 4, Slot: 2}}},
 		{"desc", types.SweepRank{By: "regressions.fit.residual_std_err", Order: types.SweepRankDesc},
-			[]types.RankEntry{{Label: "a", Value: 3, Rank: 1}, {Label: "c", Value: 3, Rank: 2}, {Label: "d", Value: 2, Rank: 3}, {Label: "b", Value: 1, Rank: 4}}},
+			[]types.RankEntry{{Label: "a", Value: 3, Rank: 1, Slot: 0}, {Label: "c", Value: 3, Rank: 2, Slot: 2}, {Label: "d", Value: 2, Rank: 3, Slot: 3}, {Label: "b", Value: 1, Rank: 4, Slot: 1}}},
 		{"top trims the ranking", types.SweepRank{By: "regressions.fit.residual_std_err", Top: intp(2)},
-			[]types.RankEntry{{Label: "b", Value: 1, Rank: 1}, {Label: "d", Value: 2, Rank: 2}}},
+			[]types.RankEntry{{Label: "b", Value: 1, Rank: 1, Slot: 1}, {Label: "d", Value: 2, Rank: 2, Slot: 3}}},
 		{"top past the slot count", types.SweepRank{By: "regressions.fit.residual_std_err", Top: intp(9)},
-			[]types.RankEntry{{Label: "b", Value: 1, Rank: 1}, {Label: "d", Value: 2, Rank: 2}, {Label: "a", Value: 3, Rank: 3}, {Label: "c", Value: 3, Rank: 4}}},
+			[]types.RankEntry{{Label: "b", Value: 1, Rank: 1, Slot: 1}, {Label: "d", Value: 2, Rank: 2, Slot: 3}, {Label: "a", Value: 3, Rank: 3, Slot: 0}, {Label: "c", Value: 3, Rank: 4, Slot: 2}}},
 		{"list segment selects by name in data rows", types.SweepRank{By: "data.north.v"},
-			[]types.RankEntry{{Label: "b", Value: 2, Rank: 1}, {Label: "d", Value: 4, Rank: 2}, {Label: "a", Value: 6, Rank: 3}, {Label: "c", Value: 6, Rank: 4}}},
+			[]types.RankEntry{{Label: "b", Value: 2, Rank: 1, Slot: 1}, {Label: "d", Value: 4, Rank: 2, Slot: 3}, {Label: "a", Value: 6, Rank: 3, Slot: 0}, {Label: "c", Value: 6, Rank: 4, Slot: 2}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := Rank(&tc.r, labels, mk())
+			got, err := Rank(&tc.r, labels, nil, mk())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -71,11 +71,11 @@ func TestRank_OrdersTiesTopAndRank(t *testing.T) {
 // the warning naming it.
 func TestRank_NullSlotExcludedWithWarning(t *testing.T) {
 	resps := []*types.Response{rankResp(2), rankResp(math.NaN()), rankResp(1)}
-	got, err := Rank(&types.SweepRank{By: "regressions.fit.residual_std_err"}, []string{"a", "b", "c"}, resps)
+	got, err := Rank(&types.SweepRank{By: "regressions.fit.residual_std_err"}, []string{"a", "b", "c"}, nil, resps)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []types.RankEntry{{Label: "c", Value: 1, Rank: 1}, {Label: "a", Value: 2, Rank: 2}}
+	want := []types.RankEntry{{Label: "c", Value: 1, Rank: 1, Slot: 2}, {Label: "a", Value: 2, Rank: 2, Slot: 0}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v want %+v", got, want)
 	}
@@ -95,7 +95,7 @@ func TestRank_NullSlotExcludedWithWarning(t *testing.T) {
 // resolved in another excludes that slot with a warning.
 func TestRank_MissingInSomeSlotsWarns(t *testing.T) {
 	resps := []*types.Response{rankResp(2), {Regressions: []*types.RegressionResult{{Name: "other"}}}}
-	got, err := Rank(&types.SweepRank{By: "regressions.fit.residual_std_err"}, []string{"a", "b"}, resps)
+	got, err := Rank(&types.SweepRank{By: "regressions.fit.residual_std_err"}, []string{"a", "b"}, nil, resps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestRank_Refusals(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := Rank(&types.SweepRank{By: tc.by}, []string{"a", "b"}[:len(tc.resps)], tc.resps)
+			_, err := Rank(&types.SweepRank{By: tc.by}, []string{"a", "b"}[:len(tc.resps)], nil, tc.resps)
 			ce := rankCode(t, err)
 			d := ce.Details
 			if d["reason"] != tc.reason || d["label"] != tc.label || d["segment"] != tc.segment || d["by"] != tc.by {
@@ -183,11 +183,11 @@ func olsResp(se float64) *types.Response {
 // absent from the marshalled response.
 func TestRank_ExactZeroFigureRanks(t *testing.T) {
 	resps := []*types.Response{olsResp(2), olsResp(0), olsResp(1)}
-	got, err := Rank(&types.SweepRank{By: "regressions.fit.residual_std_err"}, []string{"a", "b", "c"}, resps)
+	got, err := Rank(&types.SweepRank{By: "regressions.fit.residual_std_err"}, []string{"a", "b", "c"}, nil, resps)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []types.RankEntry{{Label: "b", Value: 0, Rank: 1}, {Label: "c", Value: 1, Rank: 2}, {Label: "a", Value: 2, Rank: 3}}
+	want := []types.RankEntry{{Label: "b", Value: 0, Rank: 1, Slot: 1}, {Label: "c", Value: 1, Rank: 2, Slot: 2}, {Label: "a", Value: 2, Rank: 3, Slot: 0}}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v want %+v", got, want)
 	}
@@ -206,7 +206,7 @@ func TestRank_ExactZeroFigureRanks(t *testing.T) {
 
 	// Every slot exactly zero: previously a "missing in every slot"
 	// refusal, now a full ranking.
-	all, err := Rank(&types.SweepRank{By: "regressions.fit.r2"}, []string{"a", "b"}, []*types.Response{olsResp(0), olsResp(0)})
+	all, err := Rank(&types.SweepRank{By: "regressions.fit.r2"}, []string{"a", "b"}, nil, []*types.Response{olsResp(0), olsResp(0)})
 	if err != nil || len(all) != 2 || all[0].Value != 0 {
 		t.Fatalf("all-zero rank = %+v, %v", all, err)
 	}
@@ -233,7 +233,7 @@ func TestRank_UncomputedZeroStaysMissing(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			ranked := &types.Response{Regressions: []*types.RegressionResult{{Name: "fit", Type: types.REG_OLS, ResidualStdErr: 1, DF: 3}}}
-			got, err := Rank(&types.SweepRank{By: tc.by}, []string{"a", "b"}, []*types.Response{ranked, tc.slot})
+			got, err := Rank(&types.SweepRank{By: tc.by}, []string{"a", "b"}, nil, []*types.Response{ranked, tc.slot})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -258,20 +258,52 @@ func TestRank_ExtensionReportedZeroRanks(t *testing.T) {
 		return &types.Response{Regressions: []*types.RegressionResult{{Name: "fit", Type: "REG_ACME_HILL", ReportedFigures: reported}}}
 	}
 	ranked := &types.Response{Regressions: []*types.RegressionResult{{Name: "fit", Type: "REG_ACME_HILL", ResidualStdErr: 1, ReportedFigures: []string{"residual_std_err"}}}}
-	got, err := Rank(&types.SweepRank{By: "regressions.fit.residual_std_err"}, []string{"a", "b"}, []*types.Response{ranked, ext("residual_std_err", "df")})
+	got, err := Rank(&types.SweepRank{By: "regressions.fit.residual_std_err"}, []string{"a", "b"}, nil, []*types.Response{ranked, ext("residual_std_err", "df")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []types.RankEntry{{Label: "b", Value: 0, Rank: 1}, {Label: "a", Value: 1, Rank: 2}}; !reflect.DeepEqual(got, want) {
+	if want := []types.RankEntry{{Label: "b", Value: 0, Rank: 1, Slot: 1}, {Label: "a", Value: 1, Rank: 2, Slot: 0}}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("reported zero: got %+v want %+v", got, want)
 	}
 	for _, missing := range []*types.Response{ext(), ext("df")} {
-		got, err := Rank(&types.SweepRank{By: "regressions.fit.residual_std_err"}, []string{"a", "b"}, []*types.Response{ranked, missing})
+		got, err := Rank(&types.SweepRank{By: "regressions.fit.residual_std_err"}, []string{"a", "b"}, nil, []*types.Response{ranked, missing})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if len(got) != 1 || got[0].Label != "a" {
 			t.Fatalf("unreported zero ranked: %+v", got)
 		}
+	}
+}
+
+// TestRank_CarriesSlotAndAxes: every entry carries its slot's 0-based
+// expansion index and a copy of its axis values — an excluded slot
+// shifts nothing, and mutating the expansion's map after the rank
+// leaves the entry untouched.
+func TestRank_CarriesSlotAndAxes(t *testing.T) {
+	axes := []map[string]any{
+		{"d": json.Number("0.5"), "ch": "tv"},
+		{"d": json.Number("0.25"), "ch": "tv"},
+		{"d": json.Number("0.75"), "ch": "radio"},
+	}
+	resps := []*types.Response{rankResp(2), rankResp(math.NaN()), rankResp(1)}
+	got, err := Rank(&types.SweepRank{By: "regressions.fit.residual_std_err"}, []string{"a", "b", "c"}, axes, resps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []types.RankEntry{
+		{Label: "c", Value: 1, Rank: 1, Slot: 2, Axes: map[string]any{"d": json.Number("0.75"), "ch": "radio"}},
+		{Label: "a", Value: 2, Rank: 2, Slot: 0, Axes: map[string]any{"d": json.Number("0.5"), "ch": "tv"}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %+v\nwant %+v", got, want)
+	}
+	axes[2]["d"] = json.Number("9")
+	if got[0].Axes["d"] != json.Number("0.75") {
+		t.Fatalf("entry shares the expansion's map: %v", got[0].Axes)
+	}
+	raw, err := json.Marshal(got[0])
+	if err != nil || string(raw) != `{"label":"c","value":1,"rank":1,"slot":2,"axes":{"ch":"radio","d":0.75}}` {
+		t.Fatalf("wire entry %s (%v)", raw, err)
 	}
 }

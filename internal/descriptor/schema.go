@@ -553,6 +553,13 @@ var fieldOverrides = map[fieldKey]any{
 		"description": "How the axes combine: grid (the default; the Cartesian product, first axis slowest) or zip (the axes in lockstep, equal lengths).",
 	},
 	{reflect.TypeFor[types.SweepAxis](), "values"}: axisValuesSchema(),
+	// A ranking entry's axes: the scalar each sweep axis took in the
+	// ranked slot, keyed by axis name.
+	{reflect.TypeFor[types.RankEntry](), "axes"}: map[string]any{
+		"type":                 "object",
+		"additionalProperties": map[string]any{"type": []any{"number", "string", "boolean"}},
+		"description":          "Each sweep axis name mapped to the value the ranked slot ran with — a number, string or boolean, typed as the axis declared it.",
+	},
 	// ...and its axes carry values, never a sampled range.
 	{reflect.TypeFor[types.ForEach](), "axes"}: map[string]any{
 		"type":     "array",

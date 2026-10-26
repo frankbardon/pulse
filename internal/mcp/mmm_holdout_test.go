@@ -3,7 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
-	"slices"
+	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -54,7 +54,7 @@ func TestHoldout_MMMMCPComposeSweep(t *testing.T) {
 			if err != nil {
 				t.Fatalf("library Compose: %v", err)
 			}
-			if len(lib.Ranking) != len(mmmfixture.Decays) || !slices.Equal(resp.Ranking, lib.Ranking) {
+			if len(lib.Ranking) != len(mmmfixture.Decays) || !sameRanking(t, resp.Ranking, lib.Ranking) {
 				t.Fatalf("MCP ranking %+v, library %+v", resp.Ranking, lib.Ranking)
 			}
 			if resp.Ranking[0].Label != "decay_0.5" {
@@ -76,4 +76,22 @@ func TestHoldout_MMMMCPComposeSweep(t *testing.T) {
 			}
 		})
 	}
+}
+
+// sameRanking compares two rankings on the wire: one decoded from JSON
+// holds float64 axis values where the library's hold json.Number (whose
+// text may differ, 0.0 against 0), so both are compared as decoded JSON.
+func sameRanking(t *testing.T, a, b []types.RankEntry) bool {
+	t.Helper()
+	var docs [2]any
+	for i, r := range [][]types.RankEntry{a, b} {
+		raw, err := json.Marshal(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &docs[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return reflect.DeepEqual(docs[0], docs[1])
 }

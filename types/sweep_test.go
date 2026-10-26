@@ -57,7 +57,8 @@ func TestComposedRequest_SweepFreeByteIdentity(t *testing.T) {
 }
 
 // TestComposedResponse_RankingFreeByteIdentity: an unranked response
-// writes no `ranking` key; a ranked one writes it, a NaN value as null.
+// writes no `ranking` key; a ranked one writes it, a NaN value as null,
+// every entry's slot and typed axes always present.
 func TestComposedResponse_RankingFreeByteIdentity(t *testing.T) {
 	b, err := json.Marshal(&ComposedResponse{Responses: []*Response{}})
 	if err != nil {
@@ -68,12 +69,14 @@ func TestComposedResponse_RankingFreeByteIdentity(t *testing.T) {
 	}
 	b, err = json.Marshal(&ComposedResponse{
 		Responses: []*Response{},
-		Ranking:   []RankEntry{{Label: "a", Value: 1.5, Rank: 1}, {Label: "b", Value: math.NaN(), Rank: 2}},
+		Ranking: []RankEntry{{Label: "a", Value: 1.5, Rank: 1, Slot: 1, Axes: map[string]any{"d": json.Number("0.5"), "ch": "tv"}},
+			{Label: "b", Value: math.NaN(), Rank: 2, Axes: map[string]any{"d": json.Number("0.25"), "ch": "tv"}}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"responses":[],"ranking":[{"label":"a","value":1.5,"rank":1},{"label":"b","value":null,"rank":2}]}`
+	want := `{"responses":[],"ranking":[{"label":"a","value":1.5,"rank":1,"slot":1,"axes":{"ch":"tv","d":0.5}},` +
+		`{"label":"b","value":null,"rank":2,"slot":0,"axes":{"ch":"tv","d":0.25}}]}`
 	if string(b) != want {
 		t.Fatalf("got  %s\nwant %s", b, want)
 	}

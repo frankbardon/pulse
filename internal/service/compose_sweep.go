@@ -18,6 +18,9 @@ type composeRank struct {
 	spec     *types.SweepRank
 	explicit int
 	count    int
+	// axes are the sweep slots' axis values (banner.Expansion.SweepAxes),
+	// carried onto every RankEntry.
+	axes []map[string]any
 }
 
 // composeExpansion is what the as-written request hands the finished
@@ -60,7 +63,7 @@ func (s *Service) expandCompose(composed *types.ComposedRequest) (*types.Compose
 	}
 	ext := &composeExpansion{banner: exp.Banner, seed: exp.SweepSeed}
 	if composed.Sweep != nil && composed.Sweep.Rank != nil {
-		ext.rank = &composeRank{spec: composed.Sweep.Rank, explicit: exp.Explicit, count: len(exp.SweepLabels)}
+		ext.rank = &composeRank{spec: composed.Sweep.Rank, explicit: exp.Explicit, count: len(exp.SweepLabels), axes: exp.SweepAxes}
 	}
 	// The top-level params merge into every slot (sweep and banner
 	// slots included) and every fit request, each sub-request's own key
@@ -128,7 +131,7 @@ func applyComposeRank(rank *composeRank, requests []*types.Request, out *types.C
 			labels[i] = r.Label
 		}
 	}
-	ranking, err := sweep.Rank(rank.spec, labels, out.Responses[rank.explicit:rank.explicit+n])
+	ranking, err := sweep.Rank(rank.spec, labels, rank.axes, out.Responses[rank.explicit:rank.explicit+n])
 	if err != nil {
 		return err
 	}

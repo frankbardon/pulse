@@ -49,9 +49,9 @@ An underfunded channel (spend never reaches its half-saturation) sits on the β/
 
 ## The two-call recipe
 
-**Call 1: search the decays.** A compose `sweep` in `lhs` mode, one axis per channel decay with a `range` (TV-like `[0.3, 0.8]`, digital `[0, 0.4]`), `samples` in the thousands, `rank` on `regressions.mmm.holdout.rmse` ascending. Each slot is one `WIN_DISTRIBUTED_LAG` per channel (`"decay": {"$var": "tv"}`) and one `REG_MMM_HILL`. About 400 samples over four channels did not hold the pass bars; 2,000 did. Raise `Options.Limits.MaxComposeSlots` to the sample count. The winner is `ranking[0]`; its decays are in the slot label.
+**Call 1: search the decays.** A compose `sweep` in `lhs` mode, one axis per channel decay with a `range` (TV-like `[0.3, 0.8]`, digital `[0, 0.4]`), `samples` in the thousands, `rank` on `regressions.mmm.holdout.rmse` ascending. Each slot is one `WIN_DISTRIBUTED_LAG` per channel (`"decay": {"$var": "tv"}`) and one `REG_MMM_HILL`. About 400 samples over four channels did not hold the pass bars; 2,000 did. Raise `Options.Limits.MaxComposeSlots` to the sample count. The winner is `ranking[0]`; its decays are the numbers in `ranking[0].axes`, one key per channel axis.
 
-**Call 2: fit and optimize.** A sweep winner cannot yet be bound as a fit, so call 2 is a request template whose `$var` placeholders are filled from call 1's winner: each channel's decay, its steady-state multiplier (`Σ decay^l` over `max_lag`, the adstock a constant weekly spend of 1 settles to), the current spend, bounds and the total budget. Render it with `pulse.RenderTemplate`. It carries:
+**Call 2: fit and optimize.** A sweep winner cannot yet be bound as a fit, so call 2 is a request template whose `$var` placeholders are filled from call 1's winner: each channel's decay (`ranking[0].axes`), its steady-state multiplier (`Σ decay^l` over `max_lag`, the adstock a constant weekly spend of 1 settles to), the current spend, bounds and the total budget. Render it with `pulse.RenderTemplate`. It carries:
 
 - `fits`: the same windows and `REG_MMM_HILL`, decays now fixed.
 - `requests`: a contribution slot per channel, `coef("mmm","tv_ad") * hill(tv_ad, coef("mmm","k:tv_ad"), coef("mmm","s:tv_ad"))`.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -91,7 +92,7 @@ func TestHoldout_MMMCLIComposeSweep(t *testing.T) {
 			if err != nil {
 				t.Fatalf("library Compose: %v", err)
 			}
-			if len(lib.Ranking) != len(mmmfixture.Decays) || !slices.Equal(env.Data.Ranking, lib.Ranking) {
+			if len(lib.Ranking) != len(mmmfixture.Decays) || !sameRanking(t, env.Data.Ranking, lib.Ranking) {
 				t.Fatalf("CLI ranking %+v, library %+v", env.Data.Ranking, lib.Ranking)
 			}
 			if env.Data.Ranking[0].Label != "decay_0.5" {
@@ -171,4 +172,22 @@ func TestHoldout_MMMCLIPredict(t *testing.T) {
 	}) {
 		t.Fatalf("streamable reasons %q lack the holdout reason", penv.Data.StreamableReasons)
 	}
+}
+
+// sameRanking compares two rankings on the wire: one decoded from JSON
+// holds float64 axis values where the library's hold json.Number (whose
+// text may differ, 0.0 against 0), so both are compared as decoded JSON.
+func sameRanking(t *testing.T, a, b []types.RankEntry) bool {
+	t.Helper()
+	var docs [2]any
+	for i, r := range [][]types.RankEntry{a, b} {
+		raw, err := json.Marshal(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &docs[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return reflect.DeepEqual(docs[0], docs[1])
 }

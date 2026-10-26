@@ -3985,10 +3985,24 @@
     "RankEntry": {
       "additionalProperties": false,
       "properties": {
+        "axes": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "string",
+              "boolean"
+            ]
+          },
+          "description": "Each sweep axis name mapped to the value the ranked slot ran with — a number, string or boolean, typed as the axis declared it.",
+          "type": "object"
+        },
         "label": {
           "type": "string"
         },
         "rank": {
+          "type": "integer"
+        },
+        "slot": {
           "type": "integer"
         },
         "value": {
@@ -3999,8 +4013,10 @@
         }
       },
       "required": [
+        "axes",
         "label",
         "rank",
+        "slot",
         "value"
       ],
       "type": "object"
@@ -6395,4 +6411,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 670008308635da0e6a49b3e95d56bbc7f889f534593915f53d86f30dc8aa10dd
+// golden-hash: d074b7c6222055df972cce328e536e57446e3f787c9d02d2d3cd15a8ecedb6dd

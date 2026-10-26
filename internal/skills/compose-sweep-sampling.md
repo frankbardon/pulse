@@ -32,7 +32,7 @@ A grid lists every value; its size multiplies per axis (30 values on 4 axes is 8
 - `random`: every slot draws every axis independently and uniformly.
 - `lhs`: each axis is cut into `samples` equal-probability strata and every stratum is drawn exactly once, paired across axes by a seeded permutation. Even coverage of every axis at any sample count; prefer it to `random`.
 - `samples` (>= 1) is required. Every axis carries a `range` `{min, max, scale}` instead of `values`: finite bounds, `min < max`, draws inside `[min, max]`. `scale` `linear` (default) or `log` (log-uniform, for a parameter spanning decades; needs `min > 0`).
-- Draws are numbers in shortest round-trip form; placeholders substitute them as in a grid. Default labels are `sample=<i>_<axis>=<value>` (`i` from 0), unique by construction.
+- Draws are numbers in shortest round-trip form; placeholders substitute them as in a grid. Default labels are `sample=<i>_<axis>=<value>` (`i` from 0), unique by construction. A ranked slot's draws come back as numbers in its `ranking` entry's `axes` (its index in `slot`): read them there, not off the label.
 
 ## Seed
 
