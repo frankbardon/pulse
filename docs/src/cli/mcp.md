@@ -99,7 +99,10 @@ is [Response shaping](../library/response-shaping.md).
 ## --limit
 
 Sets the served instance's resource limits — the
-`pulse.Options.Limits` layer — one `name=value` per flag, repeatable:
+`pulse.Options.Limits` layer — one `name=value` per flag, repeatable.
+`--limit` is a global flag (every leaf accepts it, see
+[Global flags](flags.md)); under `pulse mcp` it layers over the feature
+profile:
 
 ```bash
 pulse mcp --limit max_groups=1000000 --limit request_timeout=30s
@@ -116,7 +119,7 @@ value is a positive integer
 default. Per key, `--limit` wins over the feature profile's `limits`,
 which wins over the built-in default; a later flag for the same name
 wins. A malformed pair, an unknown name or a bad value aborts startup
-with `CLI_INPUT` (details `{flag, value, limit?}`).
+as a usage error (exit 2) with `CLI_INPUT` (details `{flag, value, limit?}`).
 
 The startup notice echoes the limits that differ from the defaults, in
 the same grammar:

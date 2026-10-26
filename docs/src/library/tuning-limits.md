@@ -79,11 +79,14 @@ A feature-profile file carries the same keys in snake_case;
 Limits are behaviour, not features: they are not in `feature_set_digest`
 and do not hide anything. See [Feature Profiles](feature-profiles.md).
 
-For an MCP server, pass `--limit` once per limit. A bad key or value is a
-`CLI_INPUT` startup error:
+On the CLI, `--limit` is a global flag every leaf accepts: pass it once
+per limit. A bad key or value is a `CLI_INPUT` usage error (exit 2)
+before anything runs. Limits are instance-level only — no request
+carries one:
 
 ```sh
 pulse mcp --limit max_groups=1000000 --limit request_timeout=30s --limit max_estimated_memory=4_000_000_000
+pulse api compose --request batch.json --json --limit max_compose_slots=2000
 ```
 
 ## Manifest and the cache key

@@ -39,9 +39,9 @@ type workersKey struct{}
 
 type workerCaps struct{ shard, decode int }
 
-// GlobalBefore is the root command's Before: the log flags (LogBefore)
-// then the worker flags. A negative worker count is refused before any
-// leaf runs — a usage error (exit 2) carrying CLI_INPUT, the rule
+// GlobalBefore is the root command's Before: the log flags (LogBefore),
+// the worker flags, then the --limit flags (limitsBefore). A negative
+// worker count or a bad --limit is refused before any leaf runs — a usage error (exit 2) carrying CLI_INPUT, the rule
 // pulse.New applies to the Options fields.
 //
 // A shell-completion request skips both: completion must stay silent
@@ -55,7 +55,11 @@ func GlobalBefore(ctx context.Context, cmd *cli.Command) (context.Context, error
 	if err != nil {
 		return ctx, err
 	}
-	return workersBefore(ctx, cmd)
+	ctx, err = workersBefore(ctx, cmd)
+	if err != nil {
+		return ctx, err
+	}
+	return limitsBefore(ctx, cmd)
 }
 
 func workersBefore(ctx context.Context, cmd *cli.Command) (context.Context, error) {
@@ -94,9 +98,9 @@ func withWorkers(ctx context.Context, o pulse.Options) pulse.Options {
 	return o
 }
 
-// withGlobals applies every root persistent flag to o: the logger and
-// the worker caps. Every leaf that builds a Pulse instance routes its
+// withGlobals applies every root persistent flag to o: the logger, the
+// worker caps and the --limit layer. Every leaf that builds a Pulse instance routes its
 // Options through it.
 func withGlobals(ctx context.Context, o pulse.Options) pulse.Options {
-	return withWorkers(ctx, withLogger(ctx, o))
+	return withLimits(ctx, withWorkers(ctx, withLogger(ctx, o)))
 }

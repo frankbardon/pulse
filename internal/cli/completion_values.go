@@ -264,6 +264,7 @@ var flagValues = map[string]valueSource{
 	// root persistent
 	"intent":         vocabBy(pulse.Intents, func(i descriptor.Intent) string { return i.ID }),
 	"log-level":      cliOwned(logLevelNames),
+	"limit":          assignments(pulse.LimitNames),
 	"log-format":     cliOwned(logFormatNames),
 	"shard-workers":  freeValue,
 	"decode-workers": freeValue,
@@ -350,7 +351,7 @@ var flagValues = map[string]valueSource{
 	"tol":               freeValue,
 	"total":             freeValue,
 	"level":             freeValue,
-	"limit":             freeValue,
+	"top":               freeValue,
 }
 
 var flagValuesIn = map[string]map[string]valueSource{
@@ -375,7 +376,6 @@ var flagValuesIn = map[string]map[string]valueSource{
 	},
 	"pulse mcp": {
 		"return": vocab(types.AllReturnPresets),
-		"limit":  assignments(pulse.LimitNames),
 	},
 	"pulse recommend": {
 		"level": vocab(descriptor.Levels),

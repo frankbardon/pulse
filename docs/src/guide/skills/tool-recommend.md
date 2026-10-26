@@ -9,7 +9,7 @@ applies_to: mcp
 ## When to use
 
 CALL WHEN YOU KNOW THE KIND OF QUESTION BUT NOT THE REQUEST.
-Get ranked drafts instead of JSON built from memory. CLI twin: `pulse recommend --intent ID [--cohort C] [--field F …] [--level L] [--limit N] [--json]`.
+Get ranked drafts instead of JSON built from memory. CLI twin: `pulse recommend --intent ID [--cohort C] [--field F …] [--level L] [--top N] [--json]`.
 
 ## Input
 

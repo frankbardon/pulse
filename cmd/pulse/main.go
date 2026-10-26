@@ -51,11 +51,11 @@ func buildApp() *cli.Command {
 			&cli.BoolFlag{Name: "json", Usage: "Output self-describing manifest as JSON"},
 			&cli.BoolFlag{Name: "slim", Usage: "Drop prose descriptions from the manifest payload (smaller for size-sensitive clients)"},
 			&cli.StringFlag{Name: "intent", Usage: "With --json, scope the manifest to one intent-taxonomy ID (e.g. compare_groups): only its operators and skills"},
-		}, append(pcli.LogFlags(), pcli.WorkerFlags()...)...),
+		}, append(append(pcli.LogFlags(), pcli.WorkerFlags()...), pcli.LimitFlags()...)...),
 		// --log-level / --log-format and --shard-workers /
-		// --decode-workers are persistent: every leaf accepts them, and
-		// Before hands the stderr logger and the worker caps to the leaf
-		// via ctx.
+		// --decode-workers and --limit are persistent: every leaf accepts
+		// them, and Before hands the stderr logger, the worker caps and the
+		// limits layer to the leaf via ctx.
 		Before: pcli.GlobalBefore,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.Bool("json") {
