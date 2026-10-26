@@ -587,6 +587,14 @@ type RegressionResult struct {
 	// dropped. Absent when none applies.
 	Advisories []Advisory `json:"advisories,omitempty"`
 
+	// Warnings are the fit's own coded diagnostics — today an extension
+	// regression's extend.RegressionOutput.Warnings (a sampler that did
+	// not mix, …). Each is also lifted onto Response.Warnings (details
+	// regression / index added), so it reaches the envelope; under
+	// Strict the first fails the slot with its own code. Absent when
+	// none (byte-identical).
+	Warnings []*ResponseWarning `json:"warnings,omitempty"`
+
 	// Holdout carries the out-of-sample figures of a spec that set
 	// RegressionSpec.Holdout; absent otherwise (byte-identical).
 	Holdout *RegressionHoldout `json:"holdout,omitempty"`

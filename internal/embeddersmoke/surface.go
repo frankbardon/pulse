@@ -335,6 +335,8 @@ var (
 	_ perrors.Code = perrors.PULSE_OPTIMIZE_INVALID
 	_ perrors.Code = perrors.PULSE_OPTIMIZE_NOT_CONVERGED
 	_ perrors.Code = perrors.PULSE_OPTIMIZE_INFEASIBLE
+	_ perrors.Code = perrors.PULSE_MCMC_INVALID
+	_ perrors.Code = perrors.PULSE_MCMC_FAILED
 )
 
 // Linear-algebra core: Pulse-owned matrix types, the FMA-free

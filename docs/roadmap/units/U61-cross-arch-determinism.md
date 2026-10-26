@@ -8,7 +8,7 @@ status: not-started
 depends_on: []
 soft_depends_on: [U58, U60]
 blocks: [U32]
-todo_items: [554]
+todo_items: [554, 569]
 branch: cross-arch-determinism
 ---
 
@@ -31,6 +31,7 @@ This unit audits every numeric result path, fixes the drift, and adds a repo-wid
 - `linalg/metric/eval.go:280,292` — the Aitchison metric's `math.Log` (a documented residual)
 - `TEST_T` / paired-t CI inputs: `internal/processing/test_t.go:272,273,357,358`, `test_paired.go:107,108`, `welford_bucket.go:24`, `internal/weighting/inference.go:113,117`
 - Regression standard errors via gonum: there is no bit contract today, so this needs its own design call (port the decompositions, or document a tolerance contract)
+- `internal/mmmfixture/joint.go:198` (price generator), `~296-307` (`TrueOptimum`) and `joint_test.go:69`: products the FMA report flags in the shared MMM fixture, which has no FMA gate of its own (#569, found in U62)
 - About 20 unaudited `math.Exp` / `Log` / `Pow` / `Lgamma` / `Erf` call sites in `internal/processing`, `internal/service` and `types`
 
 ## References
@@ -42,6 +43,7 @@ This unit audits every numeric result path, fixes the drift, and adds a repo-wid
 **TODO items delivered** (tick in [`TODO.md`](../TODO.md)):
 
 - [ ] **#554** remaining core cross-architecture numeric drift: full audit, fixes, and a repo-wide gate banning stdlib transcendentals / contractible products on numeric result paths
+- [ ] **#569** the shared MMM test fixture (`internal/mmmfixture`): barrier the flagged products and give the package an FMA gate
 
 ## Scope
 

@@ -203,6 +203,16 @@ var codeMetadata = map[Code]Metadata{
 			},
 		},
 	},
+	PROCESSING_REGRESSION_DIAGNOSTIC: {
+		Message: "A regression fit's own diagnostic crossed its threshold while the fit still reported figures — for a sampler, chains that did not mix (R-hat above, or effective sample size below, its bound), post-warmup divergences or tree-depth saturation. details.reason names the diagnostic and details carries its figures; the figures may not be trustworthy. A warning on the result and the response; under Strict it fails the slot with this code.",
+		Fixups: []Fixup{
+			{
+				Action: FixupSetDefault,
+				Path:   []string{"Regressions", "*", "Params"},
+				Hint:   "Raise the model's own warmup / draws / iteration params, or tighten its priors or rescale the inputs, until the diagnostic named in details.reason clears; the regression's skill lists its thresholds and params.",
+			},
+		},
+	},
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED: {
 		Message: "The regression cannot report the coefficient covariance it was asked for: vcov: true on lasso / elastic net (with or without a Resample / Selection modifier), or a robust covariance (hc0–hc3, cluster, hac) beside a penalty, a Resample, a Selection or on a type without it, or on rows that span fewer than two clusters or repeat an order_by value. details.reason names which.",
 		Fixups: []Fixup{
@@ -1870,11 +1880,11 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH: {
-		Message: "A regression registration's model — fitted at pulse.New over a small synthetic row set, or on any run — returned no coefficient, an empty or repeated coefficient name, an Outputs key its OutputSchema does not declare, or (when the spec set vcov) no Vcov or one that is not square over the coefficients.",
+		Message: "A regression registration's model — fitted at pulse.New over a small synthetic row set, or on any run — returned no coefficient, an empty or repeated coefficient name, an Outputs key its OutputSchema does not declare, (when the spec set vcov) no Vcov or one that is not square over the coefficients, or a Warnings entry that is nil, has an empty message (invalid_warning) or a code that is not a registered Pulse code (unregistered_warning_code).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
-				Hint:   "Return at least one RegressionCoefficient, each with a unique non-empty Name; declare every Outputs key the model can fill in the registration's OutputSchema (a declared key left unfilled is fine) or stop filling the undeclared key named in details.undeclared; and when the registration declares Vcov, return a Vcov square over Coefficients, in their order, whenever spec.Vcov is set.",
+				Hint:   "Return at least one RegressionCoefficient, each with a unique non-empty Name; declare every Outputs key the model can fill in the registration's OutputSchema (a declared key left unfilled is fine) or stop filling the undeclared key named in details.undeclared; and when the registration declares Vcov, return a Vcov square over Coefficients, in their order, whenever spec.Vcov is set; give every Warnings entry a non-empty Message and a registered Pulse code (PROCESSING_REGRESSION_DIAGNOSTIC with a details.reason for the model's own diagnostics).",
 			},
 		},
 	},
@@ -4583,6 +4593,32 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Hint:   "Start nearer the feasible region, or check each constraint's Grad matches its Fn.",
+			},
+		},
+	},
+	PULSE_MCMC_INVALID: {
+		Message: "The mcmc package refused the run before sampling: the model is nil or has dimension below 1, Chains, Warmup, Draws, MaxTreeDepth or Workers is negative, TargetAccept is outside (0, 1), Init is not one finite value per dimension, or the log density or its gradient is not finite at Init. Details carry `reason` (`nil_model`, `dim`, `chains`, `warmup`, `draws`, `max_tree_depth`, `workers`, `target_accept`, `init_length`, `init_not_finite`, `init_density_not_finite`) and, where they apply, `chain`, `index`, `got` and `want`. No result is returned.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Fix the option named by details.reason: leave a count at 0 for its default or make it positive, keep TargetAccept strictly between 0 and 1, and size Init to the model's Dim() with finite values.",
+			},
+			{
+				Action: FixupRemoveParam,
+				Hint:   "Drop Init (or move it inside the model's support) when details.reason is init_density_not_finite, so each chain draws its own finite start.",
+			},
+		},
+	},
+	PULSE_MCMC_FAILED: {
+		Message: "The mcmc sampler could not run on the model: no Uniform(-2, 2) starting point had a finite log density and gradient (`init_not_found`), the step-size heuristic grew without bound (`step_size_unbounded`, an improper posterior) or collapsed to zero (`step_size_zero`, a discontinuous density or a wrong gradient), or the adapted metric was not finite (`metric_not_finite`). Details carry `reason` and `chain`. No result is returned.",
+		Fixups: []Fixup{
+			{
+				Action: FixupReplaceField,
+				Hint:   "Supply Options.Init at a point inside the support when details.reason is init_not_found.",
+			},
+			{
+				Action: FixupReplaceField,
+				Hint:   "Check the model: give every parameter a proper prior (step_size_unbounded) and verify the gradient against finite differences (step_size_zero, metric_not_finite).",
 			},
 		},
 	},

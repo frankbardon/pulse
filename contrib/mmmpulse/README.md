@@ -1,6 +1,6 @@
 # mmmpulse
 
-`mmmpulse` is Pulse's media-mix modelling pack. It registers one regression, `REG_MMM_HILL`, which fits every channel's effect and saturation curve jointly. The pack lives in its own Go module (`github.com/frankbardon/pulse/contrib/mmmpulse`), versioned in lockstep with Pulse, and imports only Pulse's public packages.
+`mmmpulse` is Pulse's media-mix modelling pack. It registers two regressions: `REG_MMM_HILL`, which fits every channel's effect and saturation curve jointly over already-adstocked channels, and `REG_MMM_BAYES`, which adstocks raw spend inside the model and samples the posterior with NUTS (the public `mcmc` package). The pack lives in its own Go module (`github.com/frankbardon/pulse/contrib/mmmpulse`), versioned in lockstep with Pulse, and imports only Pulse's public packages.
 
 ## Register it
 
@@ -13,7 +13,7 @@ import (
 p, err := pulse.New(pulse.Options{Extensions: mmmpulse.Extensions()})
 ```
 
-`Extensions()` returns the regression and the pack's skills (`op-reg-mmm-hill`, `ext-mmm-workflow`), served by `p.Skills()` and `pulse_skills_list` like the built-in pack. To add your own extensions, append to `Regressions` and keep one `Skills` filesystem that holds both skill sets. The stock `pulse` CLI and `pulse mcp` do not register packs; an embedder, or `mcpserve` with `Options.Extensions`, does. Unregistered, `REG_MMM_HILL` is `PULSE_REGRESSION_INVALID`.
+`Extensions()` returns the regressions and the pack's skills (`op-reg-mmm-hill`, `op-reg-mmm-bayes`, `ext-mmm-workflow`), served by `p.Skills()` and `pulse_skills_list` like the built-in pack. To add your own extensions, append to `Regressions` and keep one `Skills` filesystem that holds both skill sets. The stock `pulse` CLI and `pulse mcp` do not register packs; an embedder, or `mcpserve` with `Options.Extensions`, does. Unregistered, `REG_MMM_HILL` and `REG_MMM_BAYES` are each `PULSE_REGRESSION_INVALID`.
 
 ## The model
 
@@ -71,6 +71,29 @@ An underfunded channel (spend never reaches its half-saturation) sits on the β/
 At the optimum every free channel's `marginal` (its marginal ROI) equals the budget `multiplier`; a channel on a bound sits above or below it. Trust the answer by `converged` and `starts_agreeing`. On the pack's joint-truth test fixture (one market, 156 weeks, four channels) the flow met: decay error ≤ 0.10, ROI error ≤ 6.3%, free-channel marginal ROI equal to the multiplier within 8e-6, lift error ≤ 13.7%, 8 of 8 starts agreeing.
 
 Skills carry the detail: `ext-mmm-workflow` (the flow), `op-reg-mmm-hill` (the model), and the core `compose-sweep-sampling` and `compose-optimize`.
+
+## REG_MMM_BAYES: the Bayesian route
+
+`REG_MMM_BAYES` adstocks raw spend (geometric, `max_lag` 13, no normalisation), saturates it with a Hill curve and samples the posterior with NUTS (the public `mcmc` package). Decay is a posterior parameter, so every interval carries decay uncertainty, which the sweep route cannot give. It returns ROI, marginal ROI and contribution intervals per channel, per-coefficient summaries, sampler diagnostics and, with `holdout_from`, a held-out score.
+
+```json
+{"type": "REG_MMM_BAYES", "name": "bayes", "target": "sales",
+ "predictors": ["tv_ad", "search_ad", "price"],
+ "params": {"channels": ["tv_ad", "search_ad"], "time": "week",
+            "holdout_from": 131, "rng_seed": 7}}
+```
+
+Rows are one market, one row per period, with `params.time` an integer field that is contiguous with step 1; a weekly date column is refused as `time_gap`, a panel as `duplicate_time`. `chains` (4), `warmup` (1000), `draws` (1000, per chain), `credible_level` (0.9) and `target_accept` (0.8) are the sampler knobs; the skill `op-reg-mmm-bayes` has the full params table, output keys and priors. `resample`, `save`, the engine `holdout` and scoring are refused; the model owns its holdout.
+
+**Default priors.** The decay prior is Beta(1, 1), uniform on (0, 1). A Beta(1, 3) pulls toward fast decay and, on the ridge decay shares with the half-saturation and the effect, biases a long-memory channel's ROI; uniform lets the data place it, and a practitioner with a belief sets `priors.<channel>.decay`. Hill shape s is LogNormal(0.3, 0.5) (median 1.35, covering concave and S-shaped curves); the half-saturation k is TruncNormal(1, 1, 0.02, 10) on the adstock scaled by peak spend; ROI is LogNormal(0.2, 0.9); a `beta` prior is HalfNormal(1). Intercept, controls and noise are weakly informative on the max-scaled data.
+
+**Lift tests.** An experiment becomes an informative `priors.<channel>.roi`. The prior is only as good as the match between the experiment and the model's ROI (window, geography, definition of incrementality); Meridian's documentation warns of the same mismatch. See `ext-mmm-workflow`.
+
+**Reading a fit.** `outputs.diagnostics` carries max R̂, minimum bulk and tail ESS, divergences and tree-depth hits. A fit that fails them still returns, with a `PROCESSING_REGRESSION_DIAGNOSTIC` warning whose `details.reason` is `rhat_high`, `ess_low`, `divergences` or `treedepth_saturated`; under `Strict` the slot fails with that code. A 2 x 100-draw run always warns `ess_low`. mROI is analytic with the fitted curve held fixed. k and s are individually unidentifiable (the same ridge as the Hill model): judge ROI and contribution.
+
+**Calibration.** The 50-replicate coverage study (fresh data each, 90% intervals) covered the true ROI and contribution 92% of the time overall (target band 80-98%): tv 86%, search 92%, display 90%, social 100% with wide intervals (about 13.6% of the true ROI, against 2.3% for tv) because an always-on channel is the hardest to identify. Median ROI bias was at most 0.5%, with no divergences and max R̂ 1.0047. Detail and the re-run command: `testdata/coverage-study.md`.
+
+**Cost.** About 32-39 s per default fit (4 chains x 2000 iterations) on a laptop-class arm64 core. Same request and seed give the same bytes on any worker count and architecture.
 
 ## Test
 

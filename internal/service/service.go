@@ -771,10 +771,15 @@ func (s *Service) process(ctx context.Context, req *types.Request) (*types.Respo
 	// matrix slot's data-dependent refusal into a result carrying its
 	// error; each one is lifted here, once, to a PULSE_SLOT_FAILED
 	// warning — or, under Strict, fails the run with the slot's own code.
+	// A regression result's own warnings: under Strict each warned slot
+	// fails with its first warning's code (so Apply below refuses the
+	// run); otherwise they are lifted onto Response.Warnings.
+	escalateRegressionWarnings(resp, s.strict)
 	slotfail.Scope(resp, s.scopeRefusal)
 	if err := slotfail.Apply(req, resp, s.strict); err != nil {
 		return nil, err
 	}
+	liftRegressionWarnings(resp)
 	// The advisories a fitted regression carries beside its undefined
 	// figures (never warnings; Options.SuppressAdvisories drops them).
 	attachRegressionAdvisories(req, resp, s.instance)

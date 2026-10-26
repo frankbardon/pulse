@@ -115,6 +115,7 @@ var errorOwners = map[errors.Code][]string{
 	errors.PROCESSING_REGRESSION_INVALID_LINK:      own("REG_GLM"),
 	errors.PROCESSING_REGRESSION_INSUFFICIENT_DATA: ownAllRegs,
 	errors.PROCESSING_REGRESSION_VCOV_UNSUPPORTED:  own("REG_OLS"),
+	errors.PROCESSING_REGRESSION_DIAGNOSTIC:        shared,
 	errors.PROCESSING_VECTOR_LENGTH_MISMATCH:       ownExpr,
 	errors.PROCESSING_AUC_OUTCOME_NOT_BINARY:       own("AGG_AUC"),
 	errors.SERVICE_VALIDATION:                      shared,
@@ -605,6 +606,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_OPTIMIZE_INVALID:       shared,
 	errors.PULSE_OPTIMIZE_NOT_CONVERGED: shared,
 	errors.PULSE_OPTIMIZE_INFEASIBLE:    shared,
+	errors.PULSE_MCMC_INVALID:           shared,
+	errors.PULSE_MCMC_FAILED:            shared,
 	// The compose `optimize` block's own rules.
 	errors.PULSE_OPTIMIZE_SPEC_INVALID:       own(featComposeOpt),
 	errors.PULSE_OPTIMIZE_VARIABLE_INVALID:   own(featComposeOpt),

@@ -833,7 +833,20 @@ matching the registration's `Streamable` declaration:
   `covariance`); otherwise the engine feeds it the buffered rows through
   `UpdateRow`, in record order — never `Fit`.
 - **Buffered** (`Streamable: false`) — `extend.BufferedRegression`:
-  `Fit(rows)` over every admitted row, free to iterate.
+  `Fit(rows)` over every admitted row, free to iterate. A model that
+  can run long also implements the optional sibling
+  `extend.ContextRegression` — `FitContext(ctx, rows)` beside `Fit`
+  (never instead of it: `Fit` is still the declared form the probe
+  checks) — and the engine then calls `FitContext` instead, on the run,
+  on every `resample` / `selection` refit and on the `pulse.New` probe.
+  `ctx` is the operation's: it is done when the caller cancels or
+  `Options.Limits.RequestTimeout` elapses, and a `FitContext` that
+  returns `ctx.Err()` then surfaces exactly as any other phase does
+  (`context.Canceled` for a caller cancel, the coded
+  `PULSE_LIMIT_EXCEEDED` `limit: "request_timeout"` for the deadline).
+  The probe runs it under a background ctx, so a slow model refuses the
+  synthetic probe rows cheaply (a coded data refusal) instead of running
+  long. A model without `FitContext` is fitted through `Fit`, unchanged.
 
 The engine admits rows (listwise on `target` and every predictor; on a
 weighted `WeightAware` slot, only rows whose weight is valid and
@@ -855,6 +868,24 @@ and per-slot failure (a model error coded
 `_NO_CONVERGE` or `_SEPARATION` fails its slot alone; any other is
 fatal; a panic is `PROCESSING_PANIC`).
 
+**Warnings.** `RegressionOutput.Warnings` (`[]*types.ResponseWarning`,
+coded `{Code, Message, Details}` — the matrix extension shape) carries
+the fit's own diagnostics. A code must be a registered Pulse code
+(`errors.ParseCode`; extensions do not mint codes) — the generic one is
+`PROCESSING_REGRESSION_DIAGNOSTIC` with `details.reason` naming the
+diagnostic — and a message non-empty; anything else is
+`PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` (`unregistered_warning_code`
+/ `invalid_warning`), at the probe and on every run. The engine copies
+them onto `RegressionResult.Warnings` and lifts each onto
+`Response.Warnings` (`details.regression` / `details.index` added; a
+Compose fit's to `ComposedResponse.Warnings` with `details.fit`), so the
+envelope promotes them. Under `Strict` the first warning fails the slot
+with its own code — and, as for every failed slot under Strict, the run
+then fails with that code plus `{slot_kind, index, label}`. Under
+`resample` / `selection` only the reported (base or final) fit's
+warnings ride the result; a replicate's or candidate's are dropped. No
+warnings is byte-identical.
+
 | Registration field | Meaning |
 |---|---|
 | `Streamable` | the form; decides the path at runtime and in predict |
@@ -863,6 +894,7 @@ fatal; a panic is `PROCESSING_PANIC`).
 | `PValues` | the model emits coefficient p-values, so its slot takes a `multiplicity` block (family: the coefficients with a defined p, the intercept excluded) and predict counts them. Undeclared, the model emits none: `p_values` is null on every coefficient (under `resample` too), predict counts none, a block resolving to any method but `none` is `PULSE_MULTIPLICITY_INVALID` (`key: "method"`, `valid: ["none"]`) at predict and runtime alike, and a fit reporting a finite p-value is `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` reason `undeclared_p_value` (at `pulse.New` on the probe fit, and on every run) |
 | `Penalty` | the model reads the shared `penalty` / `alpha` / `l1_ratio` slots itself (their values are the model's to judge); undeclared, any of them is `PROCESSING_CONFIG` `{regression, slot: "penalty"}` (`key` names a companion) |
 | `SupportsSelection` | the model can be refit over a predictor subset, so the engine's selection driver (`forward` / `backward` / `stepwise`) may wrap it; each candidate fit must report `Fit.Deviance` (−2·log-likelihood up to a constant every candidate shares), scored AIC = deviance + 2k or BIC = deviance + ln(n)·k with k its coefficient count and n its `n_obs` — a fit without one is `PULSE_EXTENSION_REGRESSION_OUTPUT_MISMATCH` reason `missing_deviance` (at `pulse.New` on the probe fit, and on any candidate). Undeclared, `selection` / `criterion` are `PROCESSING_CONFIG` `{regression, slot: "selection"}` at predict and runtime |
+| `NoResample` | the model opts out of the engine's resample driver (a row-subset refit would break it — it reads row order — or cost `bootstrap_iters` full fits): `resample`, `jackknife_groups`, `jackknife_by` and `bootstrap_iters` are `PROCESSING_CONFIG` `{regression, slot: "resample"}` (`key` names a set knob) at predict and runtime alike, and the manifest row lists no `resample` slot. `rng_seed` still reaches the factory (`spec.RNGSeed`) for the model's own use. Unset, every model accepts resample |
 | `CovarianceTypes` | `[]types.CovarianceType` the model computes itself from `spec.Covariance`: a block whose type (absent = `classical`) is listed reaches the model after the shared shape rule (`cluster` needs `cluster`, `hac` needs `order_by`; a robust type beside `penalty` is `PROCESSING_REGRESSION_VCOV_UNSUPPORTED`); any other type is `PROCESSING_CONFIG` `{regression, slot: "covariance"}`. An unknown or repeated entry fails `pulse.New` (`PULSE_EXTENSION_PARAM_INVALID`, reason `invalid_covariance_type`). A robust type forces the buffered path |
 | `Params` | `[]pulse.ParamMeta` — the keys of the slot's own `params` object (`RegressionSpec.Params`, which the factory reads off the spec); declared, any other key is `PULSE_REQUEST_UNKNOWN_FIELD` at `regressions[i].params.<key>`, and a wrong-typed value, a missing `Required` param or not exactly one member of an `ExactlyOneOf` group is `PULSE_REQUEST_PARAM_INVALID`, at predict and runtime alike; undeclared, params pass through (predict advises `PULSE_ADVISORY_EXTENSION_PARAMS_UNDECLARED`). A built-in `REG_*` declares none, so any `params` key on one is refused |
 | `OutputSchema` | `[]pulse.RegressionOutputMeta{Key, JSONType, Description}` — the `Outputs` keys the model may fill (`invalid_output_key` on an empty, repeated or untyped key). `Outputs` survives `disable_components` and every `return` preset |
@@ -885,7 +917,8 @@ runtime adapter alike:
 | `selection` (`criterion`) | `SupportsSelection` |
 | `vcov` | `Vcov` |
 | `covariance` | the type is in `CovarianceTypes` |
-| `resample` (`jackknife_groups`, `jackknife_by`, `bootstrap_iters`, `rng_seed`) | always honoured — see **Modifiers** |
+| `resample` (`jackknife_groups`, `jackknife_by`, `bootstrap_iters`) | honoured unless `NoResample` — see **Modifiers** |
+| `rng_seed` | always honoured — the resample driver's seed, and the factory's `spec.RNGSeed` for the model's own use |
 | `save` | `Scorer` |
 | `conf_level` | always honoured — the engine's intervals (see **Intervals**) |
 | `family`, `link`, `max_iters`, `tol`, `prior` (`prior_mu`, `prior_precision`, `prior_shape`, `prior_rate`, `credible_level`) | refused: built-in knobs — carry the model's own configuration in `params` |
@@ -966,7 +999,7 @@ shared slot cannot reach an extension model unclassified.
 The manifest lists the model under `extensions.regressions` in the
 built-in `RegressionMeta` shape: the shared slot keys (`target`,
 `predictors`, then every shared slot the declaration accepts — `penalty`
-/ `alpha` / `l1_ratio`, `resample`, `conf_level`, `multiplicity` for a `PValues`
+/ `alpha` / `l1_ratio`, `resample` (absent under `NoResample`), `conf_level`, `multiplicity` for a `PValues`
 model, `vcov`, `covariance` naming its declared types; each marked
 `slot`; `emits_type_note` says whether `p_values` can carry figures), then the
 declared `Params`, the declared form (`streamable`), `weight_kinds` for

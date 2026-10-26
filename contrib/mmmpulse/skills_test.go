@@ -22,7 +22,7 @@ func TestMMMPack_SkillsServed(t *testing.T) {
 	for _, s := range p.Skills() {
 		listed[s.Name] = true
 	}
-	for _, name := range []string{"op-reg-mmm-hill", "ext-mmm-workflow"} {
+	for _, name := range []string{"op-reg-mmm-hill", "op-reg-mmm-bayes", "ext-mmm-workflow"} {
 		if !listed[name] {
 			t.Errorf("skill %s not listed", name)
 		}
@@ -34,6 +34,21 @@ func TestMMMPack_SkillsServed(t *testing.T) {
 	for _, want := range []string{"k:<channel>", "## Use when", "## Contract"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("served op-reg-mmm-hill lacks %q", want)
+		}
+	}
+	bayes, ok := p.Skill("op-reg-mmm-bayes")
+	if !ok {
+		t.Fatal("op-reg-mmm-bayes not served")
+	}
+	for _, want := range []string{"## Use when", "## Contract", "PROCESSING_REGRESSION_DIAGNOSTIC", "time_gap", "holdout_from"} {
+		if !strings.Contains(bayes, want) {
+			t.Errorf("served op-reg-mmm-bayes lacks %q", want)
+		}
+	}
+	flow, _ := p.Skill("ext-mmm-workflow")
+	for _, want := range []string{"Bayesian route vs LM/sweep route", "lift test"} {
+		if !strings.Contains(flow, want) {
+			t.Errorf("served ext-mmm-workflow lacks %q", want)
 		}
 	}
 }

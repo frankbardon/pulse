@@ -31,6 +31,10 @@ type ExtensionRegression struct {
 	// SupportsSelection reports that the model can be refit over a
 	// predictor subset, so the selection driver may wrap it.
 	SupportsSelection bool
+	// NoResample reports that the model opts out of the engine's
+	// resample driver (RegressionRegistration.NoResample): resample and
+	// its knobs are refused, not honoured.
+	NoResample bool
 	// CovarianceTypes are the covariance.type values the model computes
 	// itself; a covariance block naming another type is refused.
 	CovarianceTypes []types.CovarianceType

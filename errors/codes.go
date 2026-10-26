@@ -99,6 +99,16 @@ const (
 	// a covariance (the replicate one, or the final refit's).
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED Code = "PROCESSING_REGRESSION_VCOV_UNSUPPORTED"
 
+	// PROCESSING_REGRESSION_DIAGNOSTIC is the generic WARNING code of a
+	// fit whose own diagnostic crossed its threshold while the fit still
+	// returned figures — a sampler whose chains did not mix (R-hat, ESS),
+	// post-warmup divergences, tree-depth saturation. details.reason
+	// names the diagnostic; the rest of details carries its figures. An
+	// extension regression emits it through
+	// extend.RegressionOutput.Warnings; under Strict it fails the slot
+	// with this code.
+	PROCESSING_REGRESSION_DIAGNOSTIC Code = "PROCESSING_REGRESSION_DIAGNOSTIC"
+
 	// PROCESSING_VECTOR_LENGTH_MISMATCH indicates a pairwise vector
 	// expression function (dot, dist, cosine) was handed two vectors of
 	// unequal length. The run fails rather than reading the pair as NaN;
@@ -1215,11 +1225,13 @@ const (
 	// registration's model — fitted at pulse.New over a small synthetic
 	// row set, or on any run — returned a RegressionOutput its
 	// registration does not allow: no coefficient, an empty or repeated
-	// coefficient name, an Outputs key OutputSchema does not declare, or
-	// (when the spec asked for vcov) a missing or misshapen Vcov.
-	// Details carry the category, name, a reason discriminator
-	// (missing_coefficients, invalid_coefficient, undeclared_output_key,
-	// missing_vcov, vcov_shape) and the offending keys. The regression
+	// coefficient name, an Outputs key OutputSchema does not declare,
+	// (when the spec asked for vcov) a missing or misshapen Vcov, or a
+	// Warnings entry that is nil, has an empty message or an
+	// unregistered code. Details carry the category, name, a reason
+	// discriminator (missing_coefficients, invalid_coefficient,
+	// undeclared_output_key, missing_vcov, vcov_shape, invalid_warning,
+	// unregistered_warning_code) and the offending keys. The regression
 	// sibling of PULSE_EXTENSION_MATRIX_OUTPUT_MISMATCH. Wired into
 	// extensions_probe_regression.probeRegressions and the regression
 	// adapter.
@@ -3650,6 +3662,26 @@ const (
 	// carry "status", "message", "iterations" and "max_violation".
 	PULSE_OPTIMIZE_INFEASIBLE Code = "PULSE_OPTIMIZE_INFEASIBLE"
 
+	// PULSE_MCMC_INVALID indicates a run the public mcmc package refuses
+	// before sampling: a nil model, a model dimension below 1, a negative
+	// Chains / Warmup / Draws / MaxTreeDepth / Workers, a TargetAccept
+	// outside (0, 1), an Init of the wrong length or with a non-finite
+	// value, or an Init at which the log density or its gradient is not
+	// finite. Details carry "reason" (nil_model, dim, chains, warmup,
+	// draws, max_tree_depth, workers, target_accept, init_length,
+	// init_not_finite, init_density_not_finite) plus "chain" / "index" /
+	// "got" / "want" where they apply. No result is returned.
+	PULSE_MCMC_INVALID Code = "PULSE_MCMC_INVALID"
+
+	// PULSE_MCMC_FAILED indicates a sampler run that could not proceed on
+	// the model: no Uniform(−2, 2) starting point with a finite log
+	// density and gradient, a step size that grew without bound or
+	// collapsed to zero, or an adapted metric that is not finite.
+	// Details carry "reason" (init_not_found, step_size_unbounded,
+	// step_size_zero, metric_not_finite) and "chain". No result is
+	// returned.
+	PULSE_MCMC_FAILED Code = "PULSE_MCMC_FAILED"
+
 	// PULSE_OPTIMIZE_SPEC_INVALID indicates a malformed ComposedRequest
 	// `optimize` block: no name or a name another block already took, no
 	// variables, an empty objective, a missing or unknown direction, a
@@ -4312,6 +4344,7 @@ var allCodes = []Code{
 	PROCESSING_REGRESSION_INVALID_LINK,
 	PROCESSING_REGRESSION_INSUFFICIENT_DATA,
 	PROCESSING_REGRESSION_VCOV_UNSUPPORTED,
+	PROCESSING_REGRESSION_DIAGNOSTIC,
 	PROCESSING_VECTOR_LENGTH_MISMATCH,
 	PROCESSING_AUC_OUTCOME_NOT_BINARY,
 	// SERVICE
@@ -4681,6 +4714,8 @@ var allCodes = []Code{
 	PULSE_OPTIMIZE_INVALID,
 	PULSE_OPTIMIZE_NOT_CONVERGED,
 	PULSE_OPTIMIZE_INFEASIBLE,
+	PULSE_MCMC_INVALID,
+	PULSE_MCMC_FAILED,
 	PULSE_OPTIMIZE_SPEC_INVALID,
 	PULSE_OPTIMIZE_VARIABLE_INVALID,
 	PULSE_OPTIMIZE_EXPRESSION_INVALID,

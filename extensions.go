@@ -997,9 +997,10 @@ type RegressionRegistration struct {
 	// Every other shared slot is fixed: the built-ins' own knobs
 	// (family, link, max_iters, tol, prior*, credible_level) are refused
 	// with PROCESSING_CONFIG {regression, slot}; save follows Scorer;
-	// weight follows WeightAware; multiplicity follows PValues; params,
-	// conf_level and resample (with jackknife_groups, jackknife_by,
-	// bootstrap_iters, rng_seed) are always honoured. conf_level (0 < c
+	// weight follows WeightAware; multiplicity follows PValues; resample
+	// (with jackknife_groups, jackknife_by, bootstrap_iters) is honoured
+	// unless NoResample opts out; params, conf_level and rng_seed are
+	// always honoured. conf_level (0 < c
 	// < 1, 0.95 unset) sets the engine's Wald intervals ci_lower /
 	// ci_upper = estimate ∓ q·SE on every coefficient with a standard
 	// error (null where it is null): q the Student-t quantile on the
@@ -1019,6 +1020,17 @@ type RegressionRegistration struct {
 	// replicate_coefficients). Limits.RequestTimeout is read before
 	// every refit.
 	CovarianceTypes []types.CovarianceType
+	// NoResample opts the model out of the engine's resample driver —
+	// for a model a row-subset refit would break (one that reads row
+	// order, say) or make prohibitively slow (a sampler refit
+	// bootstrap_iters times). Set, resample and its knobs
+	// (jackknife_groups, jackknife_by, bootstrap_iters) are refused
+	// with PROCESSING_CONFIG {regression, slot: "resample"} (key names a
+	// set knob) at predict and at runtime alike, and the manifest row
+	// lists no resample slot; rng_seed still reaches the factory
+	// (spec.RNGSeed) for the model's own use. Unset (false), every
+	// model accepts resample.
+	NoResample bool
 	// Params declares the keys of the slot's own params object
 	// (types.RegressionSpec.Params), which the factory reads off the
 	// spec. Declared, a params key outside the list is refused

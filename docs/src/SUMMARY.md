@@ -472,6 +472,7 @@
 - [Guided-Analysis Vocabulary](library/guided-analysis.md)
 - [Linear Algebra (linalg)](library/linalg.md)
 - [Numerical Optimization (optimize)](library/optimize.md)
+- [Bayesian Sampling (mcmc)](library/mcmc.md)
 - [Media-Mix Pack (mmmpulse)](library/mmm-pack.md)
 - [Vectors and Matrices](library/matrices.md)
 

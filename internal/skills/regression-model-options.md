@@ -62,7 +62,7 @@ An embedder may register `REG_<NS>_<NAME>`. The manifest lists it under `extensi
 - `params`: only the declared keys (`PULSE_REQUEST_UNKNOWN_FIELD` otherwise); a wrong JSON type or a missing required one is `PULSE_REQUEST_PARAM_INVALID` (`details.path`, `reason`). A built-in `REG_*` takes no `params`.
 - `outputs`: the model's own figures beside `coefficients`, keyed by the manifest's `output_schema`. Read them at `regressions[i].outputs.<key>`; a sweep can `rank` on one.
 - A shared slot the model did not declare (`penalty`, `selection`, `vcov`, `covariance`, `save`, `family`, `prior`, ..) is `PROCESSING_CONFIG` `{regression, slot}` — never silently ignored.
-- `resample` and `conf_level` always work: intervals are estimate ∓ q·SE (t on the model's `df`, else normal; normal on the replicate SE under `resample`), `null` where the SE is. `selection` needs the model to declare it.
+- `conf_level` always works, `resample` unless the row lists no `resample` slot (then `PROCESSING_CONFIG`): intervals are estimate ∓ q·SE (t on the model's `df`, else normal; normal on the replicate SE under `resample`), `null` where the SE is. `selection` needs the model to declare it.
 - `coef("<fit>", "<name>"[, stat])` reads any coefficient the fit reports, the model's own names included, with `lower` / `upper` at `conf_level` and `se`. An unknown name is `PULSE_MODEL_TERM_UNKNOWN`: on a loaded model at predict and run, on a `fits` entry at run only (predict cannot know the names yet).
 - p-values only where the manifest row's `emits_type_note` says so: otherwise `p_values` is `null` throughout<!-- feature: capability:multiplicity --> and a `multiplicity` method other than `none` is `PULSE_MULTIPLICITY_INVALID`<!-- /feature -->.
 <!-- feature: ATTR_REG_PREDICT -->

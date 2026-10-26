@@ -978,6 +978,7 @@ pulse: type RegressionRegistration field Factory pulse/extend.RegressionFactory
 pulse: type RegressionRegistration field FieldInputs pulse.FieldInputsFunc
 pulse: type RegressionRegistration field Interpretation []pulse/descriptor.Interpretation
 pulse: type RegressionRegistration field Name pulse/types.RegressionType
+pulse: type RegressionRegistration field NoResample bool
 pulse: type RegressionRegistration field OutputSchema []pulse.RegressionOutputMeta
 pulse: type RegressionRegistration field PValues bool
 pulse: type RegressionRegistration field Params []pulse.ParamMeta
@@ -2502,6 +2503,7 @@ pulse/errors: const PROCESSING_CONFIG pulse/errors.Code = "PROCESSING_CONFIG"
 pulse/errors: const PROCESSING_GROUP pulse/errors.Code = "PROCESSING_GROUP"
 pulse/errors: const PROCESSING_INTERNAL pulse/errors.Code = "PROCESSING_INTERNAL"
 pulse/errors: const PROCESSING_PANIC pulse/errors.Code = "PROCESSING_PANIC"
+pulse/errors: const PROCESSING_REGRESSION_DIAGNOSTIC pulse/errors.Code = "PROCESSING_REGRESSION_DIAGNOSTIC"
 pulse/errors: const PROCESSING_REGRESSION_INSUFFICIENT_DATA pulse/errors.Code = "PROCESSING_REGRESSION_INSUFFICIENT_DATA"
 pulse/errors: const PROCESSING_REGRESSION_INVALID_FAMILY pulse/errors.Code = "PROCESSING_REGRESSION_INVALID_FAMILY"
 pulse/errors: const PROCESSING_REGRESSION_INVALID_LINK pulse/errors.Code = "PROCESSING_REGRESSION_INVALID_LINK"
@@ -2683,6 +2685,8 @@ pulse/errors: const PULSE_MATRIX_SINGULAR pulse/errors.Code = "PULSE_MATRIX_SING
 pulse/errors: const PULSE_MATRIX_TOO_MANY_CATEGORIES pulse/errors.Code = "PULSE_MATRIX_TOO_MANY_CATEGORIES"
 pulse/errors: const PULSE_MATRIX_UNSUPPORTED_SOURCE pulse/errors.Code = "PULSE_MATRIX_UNSUPPORTED_SOURCE"
 pulse/errors: const PULSE_MATRIX_ZERO_VARIANCE pulse/errors.Code = "PULSE_MATRIX_ZERO_VARIANCE"
+pulse/errors: const PULSE_MCMC_FAILED pulse/errors.Code = "PULSE_MCMC_FAILED"
+pulse/errors: const PULSE_MCMC_INVALID pulse/errors.Code = "PULSE_MCMC_INVALID"
 pulse/errors: const PULSE_MODEL_FILE_INVALID pulse/errors.Code = "PULSE_MODEL_FILE_INVALID"
 pulse/errors: const PULSE_MODEL_FILE_UNREADABLE pulse/errors.Code = "PULSE_MODEL_FILE_UNREADABLE"
 pulse/errors: const PULSE_MODEL_INTERVALS_UNAVAILABLE pulse/errors.Code = "PULSE_MODEL_INTERVALS_UNAVAILABLE"
@@ -2924,6 +2928,8 @@ pulse/extend: type AttributeComputer imethod Compute(rows pulse/extend.Rows, fie
 pulse/extend: type AttributeFactory func(spec *pulse/types.Attribute, schema *pulse/encoding.Schema) (pulse/extend.AttributeComputer, error)
 pulse/extend: type BufferedRegression interface
 pulse/extend: type BufferedRegression imethod Fit(rows pulse/extend.Rows) (pulse/extend.RegressionOutput, error)
+pulse/extend: type ContextRegression interface
+pulse/extend: type ContextRegression imethod FitContext(ctx context.Context, rows pulse/extend.Rows) (pulse/extend.RegressionOutput, error)
 pulse/extend: var ErrGrouperKeyNull error
 pulse/extend: type FeatureComputer interface
 pulse/extend: type FeatureComputer imethod Compute(rows pulse/extend.Rows, field string) (map[string]pulse/extend.FeatureOutput, error)
@@ -3025,6 +3031,7 @@ pulse/extend: type RegressionOutput field Coefficients []pulse/extend.Regression
 pulse/extend: type RegressionOutput field Fit pulse/extend.RegressionFit
 pulse/extend: type RegressionOutput field Outputs map[string]any
 pulse/extend: type RegressionOutput field Vcov [][]float64
+pulse/extend: type RegressionOutput field Warnings []*pulse/types.ResponseWarning
 pulse/extend: type RegressionScorerFactory func(fit pulse/extend.FittedRegression) (pulse/extend.RowScorer, error)
 pulse/extend: type RichAggregator interface
 pulse/extend: type RichAggregator imethod Rich() (any, error)
@@ -3754,6 +3761,68 @@ pulse/linalg/metric: type StatsError field Reason string
 pulse/linalg/metric: type StatsError field Stat pulse/linalg/metric.Fit
 pulse/linalg/metric: type StatsError method (*StatsError) Error() string
 pulse/linalg/metric: type StatsError method (*StatsError) Is(target error) bool
+pulse/mcmc: package mcmc
+pulse/mcmc: type Bounded struct
+pulse/mcmc: type Bounded field Hi float64
+pulse/mcmc: type Bounded field Lo float64
+pulse/mcmc: type Bounded method (Bounded) Forward(x float64) pulse/mcmc.Mapped
+pulse/mcmc: type Bounded method (Bounded) Inverse(y float64) float64
+pulse/mcmc: type ChainStats struct
+pulse/mcmc: type ChainStats field Divergences int
+pulse/mcmc: type ChainStats field Divergent []bool
+pulse/mcmc: type ChainStats field GradientEvals int
+pulse/mcmc: type ChainStats field MeanAcceptStat float64
+pulse/mcmc: type ChainStats field Metric []float64
+pulse/mcmc: type ChainStats field StepSize float64
+pulse/mcmc: type ChainStats field TreeDepth []int
+pulse/mcmc: type ChainStats field TreeDepthSaturated int
+pulse/mcmc: const DefaultChains untyped int = 4
+pulse/mcmc: const DefaultDraws untyped int = 1000
+pulse/mcmc: const DefaultMaxTreeDepth untyped int = 10
+pulse/mcmc: const DefaultTargetAccept untyped float = 4/5
+pulse/mcmc: const DefaultWarmup untyped int = 1000
+pulse/mcmc: type Diagnostics struct
+pulse/mcmc: type Diagnostics field Chains []pulse/mcmc.ChainStats
+pulse/mcmc: type Diagnostics field ESSBulk []float64
+pulse/mcmc: type Diagnostics field ESSTail []float64
+pulse/mcmc: type Diagnostics field RHat []float64
+pulse/mcmc: func ESSBulk(chains [][]float64) float64
+pulse/mcmc: func ESSTail(chains [][]float64) float64
+pulse/mcmc: type Mapped struct
+pulse/mcmc: type Mapped field DLogJac float64
+pulse/mcmc: type Mapped field DyDx float64
+pulse/mcmc: type Mapped field LogJac float64
+pulse/mcmc: type Mapped field Y float64
+pulse/mcmc: type Model interface
+pulse/mcmc: type Model imethod Dim() int
+pulse/mcmc: type Model imethod LogDensityGrad(theta []float64, grad []float64) float64
+pulse/mcmc: type NUTS struct
+pulse/mcmc: type NUTS field MaxTreeDepth int
+pulse/mcmc: type NUTS field TargetAccept float64
+pulse/mcmc: type NUTS field Workers int
+pulse/mcmc: type NUTS method (NUTS) Sample(ctx context.Context, model pulse/mcmc.Model, seed uint64, opts pulse/mcmc.Options) (pulse/mcmc.Result, error)
+pulse/mcmc: type Options struct
+pulse/mcmc: type Options field Chains int
+pulse/mcmc: type Options field Constrain func(theta []float64, out []float64)
+pulse/mcmc: type Options field Draws int
+pulse/mcmc: type Options field Init []float64
+pulse/mcmc: type Options field Warmup int
+pulse/mcmc: type Positive struct
+pulse/mcmc: type Positive method (Positive) Forward(x float64) pulse/mcmc.Mapped
+pulse/mcmc: type Positive method (Positive) Inverse(y float64) float64
+pulse/mcmc: func RHat(chains [][]float64) float64
+pulse/mcmc: type Result struct
+pulse/mcmc: type Result field Diagnostics pulse/mcmc.Diagnostics
+pulse/mcmc: type Result field Draws [][][]float64
+pulse/mcmc: type Result method (Result) Param(j int) [][]float64
+pulse/mcmc: type Sampler interface
+pulse/mcmc: type Sampler imethod Sample(ctx context.Context, model pulse/mcmc.Model, seed uint64, opts pulse/mcmc.Options) (pulse/mcmc.Result, error)
+pulse/mcmc: type Transform interface
+pulse/mcmc: type Transform imethod Forward(x float64) pulse/mcmc.Mapped
+pulse/mcmc: type Transform imethod Inverse(y float64) float64
+pulse/mcmc: type Unit struct
+pulse/mcmc: type Unit method (Unit) Forward(x float64) pulse/mcmc.Mapped
+pulse/mcmc: type Unit method (Unit) Inverse(y float64) float64
 pulse/mcp/gosdk: package gosdk
 pulse/mcp/gosdk: const CohortURIScheme untyped string = "pulse://"
 pulse/mcp/gosdk: const CohortURITemplate untyped string = "pulse://{+path}"
@@ -5126,6 +5195,7 @@ pulse/types: type FitResult field RegressionResult.StdErrors map[string]float64 
 pulse/types: type FitResult field RegressionResult.SumWeights float64 "json:\"sum_weights,omitempty\""
 pulse/types: type FitResult field RegressionResult.Type pulse/types.RegressionType "json:\"type\""
 pulse/types: type FitResult field RegressionResult.Vcov *pulse/types.MatrixValues "json:\"vcov,omitempty\""
+pulse/types: type FitResult field RegressionResult.Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
 pulse/types: type FitResult field SEM *pulse/types.SEMFitResult "json:\"sem,omitempty\""
 pulse/types: type FitResult field Vector *pulse/types.VectorFitResult "json:\"vector,omitempty\""
 pulse/types: type FitResult method (FitResult) MarshalJSON() ([]byte, error)
@@ -5738,6 +5808,7 @@ pulse/types: type RegressionResult field StdErrors map[string]float64 "json:\"st
 pulse/types: type RegressionResult field SumWeights float64 "json:\"sum_weights,omitempty\""
 pulse/types: type RegressionResult field Type pulse/types.RegressionType "json:\"type\""
 pulse/types: type RegressionResult field Vcov *pulse/types.MatrixValues "json:\"vcov,omitempty\""
+pulse/types: type RegressionResult field Warnings []*pulse/types.ResponseWarning "json:\"warnings,omitempty\""
 pulse/types: type RegressionResult method (RegressionResult) MarshalJSON() ([]byte, error)
 pulse/types: type RegressionSpec struct
 pulse/types: type RegressionSpec field Alpha float64 "json:\"alpha,omitempty\""
@@ -6096,4 +6167,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: fdceecdf02637076a76d243dd0c342d00ea5feb01910cc48b9a0b591b3aa61f3
+// golden-hash: 4f30222e8157e25b0508e8fbfd1577ab809b654cbb0c978cda955f9a6c63f4cb

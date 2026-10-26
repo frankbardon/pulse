@@ -1,4 +1,4 @@
-.PHONY: build clean dist test smoke contrib contrib-tidy cover fmt fmt-check vet lint bench bench-scale sites tzdata reference reference-optimize docs docs-generate docs-serve docs-clean
+.PHONY: build clean dist test smoke contrib contrib-tidy cover fmt fmt-check vet lint bench bench-scale sites tzdata reference reference-optimize reference-mcmc docs docs-generate docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -181,6 +181,23 @@ OPTIMIZE_REFERENCE_DIR=optimize/testdata
 reference-optimize:
 	Rscript $(OPTIMIZE_REFERENCE_DIR)/gen_optimize.R $(OPTIMIZE_REFERENCE_DIR)
 	@for f in $(OPTIMIZE_REFERENCE_DIR)/*.json; do \
+		h=$$(shasum -a 256 "$$f" | cut -d' ' -f1); \
+		printf '\n// golden-hash: %s\n' "$$h" >> "$$f"; \
+	done
+
+# reference-mcmc regenerates the mcmc package's ArviZ oracles
+# (mcmc/testdata/diagnostics.json: RHat / ESSBulk / ESSTail vs
+# arviz_stats rhat(method="rank") / ess(method="bulk" | "tail")) with
+# mcmc/testdata/gen_diagnostics.py, then appends the `// golden-hash:`
+# footer TestMCMC_OracleGoldensHashed checks. Needs a Python with the
+# pinned arviz-stats 1.3.3, numpy 2.5.4 and scipy 1.18.1 (set PYTHON to a
+# venv's interpreter; the script's header has the install line). Manual
+# target: CI never runs Python.
+PYTHON ?= python3
+MCMC_REFERENCE_DIR=mcmc/testdata
+reference-mcmc:
+	$(PYTHON) -I $(MCMC_REFERENCE_DIR)/gen_diagnostics.py $(MCMC_REFERENCE_DIR)
+	@for f in $(MCMC_REFERENCE_DIR)/*.json; do \
 		h=$$(shasum -a 256 "$$f" | cut -d' ' -f1); \
 		printf '\n// golden-hash: %s\n' "$$h" >> "$$f"; \
 	done
