@@ -253,6 +253,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	if serr := SlotRefusal(req, opts.instance()); serr != nil {
 		result := newPredictResult(req)
 		result.Valid = false
+		result.PostWindow = earlyPostWindow(req, opts)
 		env := descriptor.NewEnvelope(result)
 		addCodedError(env, serr)
 		return env
@@ -264,7 +265,13 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	written := req
 	expanded, fan, finding, xerr := ExpandRequestItems(req, opts.instance().Limits())
 	if xerr != nil {
-		return predictForEachRefusal(req, xerr, finding)
+		// The items did not expand: the plan indexes the request as
+		// written.
+		env := predictForEachRefusal(req, xerr, finding)
+		if result, ok := env.Data.(*descriptor.PredictResult); ok {
+			result.PostWindow = earlyPostWindow(req, opts)
+		}
+		return env
 	}
 	var env *descriptor.Envelope
 	if src, ok := sniffArchive(fileData); ok {
@@ -272,10 +279,15 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	} else {
 		env = predictSingle(fileData, expanded, opts, nil, nil, 0)
 	}
-	if len(fan) > 0 {
-		if result, ok := env.Data.(*descriptor.PredictResult); ok {
+	if result, ok := env.Data.(*descriptor.PredictResult); ok {
+		if len(fan) > 0 {
 			result.Request = written
 			result.ForEach = forEachSummaries(fan)
+		}
+		// Stopped before the field-reference walk (an unreadable header
+		// or schema): the plan still reports, schema-free.
+		if result.PostWindow == nil {
+			result.PostWindow = earlyPostWindow(expanded, opts)
 		}
 	}
 	return env

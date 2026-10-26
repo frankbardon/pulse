@@ -274,9 +274,10 @@ type PredictResult struct {
 	// PostWindow is the request's post-window plan: whether it runs
 	// windows-first and which attributes run after its windows — the
 	// classification the field-reference pass and the engine order by.
-	// Reported whenever predict reaches that pass (the header and schema
-	// read), also beside refusals. Omitted when the request carries no
-	// window.
+	// Reported on every decoded request, refused ones included: when
+	// predict stops before that pass (a hidden slot, an item for_each
+	// refusal, an unreadable cohort header or schema) the same classifier
+	// runs without a schema. Omitted when the request carries no window.
 	PostWindow *PostWindowPlan `json:"post_window,omitempty"`
 
 	// Return is the resolved `return` plan — the expanded selection the
@@ -1129,15 +1130,17 @@ type ComposeSlotPredict struct {
 	Families []PValueFamily `json:"families,omitempty"`
 	// PostWindow is the slot's post-window plan, as Process predict
 	// reports it (PredictResult.PostWindow) — over the batch's fits as
-	// well as the slot's own models. Omitted when the slot carries no
-	// window or is refused before its field references are judged.
+	// well as the slot's own models; schema-free when the slot is refused
+	// before its field references are judged (or has no schema). Omitted
+	// when the slot carries no window.
 	PostWindow *PostWindowPlan `json:"post_window,omitempty"`
 }
 
 // PostWindowPlan is a request's post-window plan: the engine's ordering
 // of its windows and attributes, as predict classifies it. Attribute
 // indices address the request's attributes as the runtime runs them
-// (item for_each expanded; the written order when none is).
+// (item for_each expanded; the written order when none is, or when the
+// for_each expansion itself is refused).
 type PostWindowPlan struct {
 	// WindowsFirst reports whether the windows run over the record rows
 	// before the groups, aggregations and crosstab, which read the

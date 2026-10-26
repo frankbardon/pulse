@@ -1333,7 +1333,8 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 // It also returns each slot's post-window plan (ComposeSlotPredict.PostWindow,
 // index-aligned with req.Requests): the classification its
 // field-reference walk made over the batch's fits and the slot's own
-// models; nil for a slot refused before that walk, or with no window.
+// models (schema-free when refused before that walk); nil for a slot
+// with no window.
 func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded, summaries []descriptor.FitSummary, sweepAxes []string, findings *[]descriptor.LimitFinding) ([]*types.Request, []*descriptor.PostWindowPlan) {
 	// The names every slot's ATTR_REG_PREDICT resolves: the runtime's
 	// fit pre-pass binds each `fits` entry before any slot runs, over
@@ -1438,16 +1439,26 @@ func loadComposeModels(req *types.ComposedRequest, opts *PredictOptions) (*compo
 // checks (validateComposeSlots' order) and records each refusal located
 // under key = idx — details.request for a slot, details.fit for a fit.
 // models are the names its ATTR_REG_PREDICT slots resolve (nil: none).
-// postWindow (nil: not wanted) receives the request's post-window plan
-// from its field-reference walk, when the request reaches it.
+// postWindow (nil: not wanted) receives the request's post-window plan:
+// its field-reference walk's, or — refused before the walk, or with no
+// schema — classifyPostWindow's over the same models.
 // It returns the schema the request executes over (nil when
 // unresolvable) and whether every check passed.
 func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts *PredictOptions, key string, idx int, models model.Catalog, normalized **types.Request, postWindow **descriptor.PostWindowPlan, findings *[]descriptor.LimitFinding) (*encoding.Schema, bool) {
 	l := opts.instance().Limits()
+	// early sets the post-window plan of a request refused before its
+	// field-reference walk (classifyPostWindow: the same classifier over
+	// what is known — the models, the schema once read).
+	early := func(r *types.Request, s *encoding.Schema) {
+		if postWindow != nil {
+			*postWindow = classifyPostWindow(r, s, opts.instance(), models)
+		}
+	}
 	// The request's Process expands its item for_each first (right
 	// after the slot gate the whole batch already passed).
 	expanded, _, _, xerr := ExpandRequestItems(slot, l)
 	if xerr != nil {
+		early(slot, nil) // not expanded: indexes the slot as written
 		located := RefusalAt(xerr, key, idx)
 		addCodedError(env, located)
 		if f, ok := limitRefusalFinding(located); ok && findings != nil {
@@ -1462,17 +1473,20 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 	// The request's Process refuses a second JoinSpec before it
 	// resolves a zone; Compose locates it like a zone refusal.
 	if jerr := JoinCountRefusal(slot); jerr != nil {
+		early(slot, nil)
 		addCodedError(env, RefusalAt(jerr, key, idx))
 		return nil, false
 	}
 	// Then the matrix-host rule (matrices with joins or a crosstab).
 	if merr := mergegate.MatrixRefusal(slot); merr != nil {
+		early(slot, nil)
 		addCodedError(env, RefusalAt(merr, key, idx))
 		return nil, false
 	}
 	// Then the request's `return` block (ResolveReturn — the pass its
 	// Process runs before dispatch).
 	if _, rerr := ResolveReturn(slot, opts.instance()); rerr != nil {
+		early(slot, nil)
 		addCodedError(env, RefusalAt(rerr, key, idx))
 		return nil, false
 	}
@@ -1486,12 +1500,14 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 	// leakage warning, and under Strict refuses with it (#309).
 	addTargetLeakageAt(env, slot, opts.instance(), key, idx)
 	if len(keyRefusals) > 0 {
+		early(slot, schema)
 		for _, ce := range keyRefusals {
 			addCodedError(env, RefusalAt(ce, key, idx))
 		}
 		return schema, false
 	}
 	if _, err := resolveRequestZones(slot, schema, opts); err != nil {
+		early(slot, schema)
 		addCodedError(env, RefusalAt(err, key, idx))
 		return schema, false
 	}
@@ -1500,7 +1516,9 @@ func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts 
 		*normalized = defaulted
 	}
 	refs, pw := fieldRefWalkPlan(defaulted, schema, nil, extensionsFromOpts(opts), opts.instance(), models)
-	if postWindow != nil && schema != nil {
+	if schema == nil {
+		early(defaulted, nil) // schema-less: the walk judged nothing
+	} else if postWindow != nil {
 		*postWindow = postWindowDescriptor(defaulted, schema, pw)
 	}
 	for _, ce := range refs {

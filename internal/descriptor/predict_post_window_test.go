@@ -265,3 +265,129 @@ func TestPredictPostWindow_ComposeSlotsReadFits(t *testing.T) {
 		t.Fatalf("slot 1 post_window %+v, want %+v", res.Slots[1].PostWindow, want)
 	}
 }
+
+// earlyStopRequest is a draft with a post-window formula (attribute 1
+// reads the window label lag_n).
+func earlyStopRequest() *types.Request {
+	return &types.Request{Windows: []*types.Window{lagWindow("lag_n")}, Attributes: []*types.Attribute{
+		postFormula("pre", "n * 2"), postFormula("sat", "lag_n * 2"),
+	}}
+}
+
+// processEarlyCodes / composeEarlyCodes pin each early-stop case to the
+// refusal family it exercises ("" none: a schema-less slot is admitted).
+var processEarlyCodes = map[string]string{
+	"hidden slot":       string(errors.PULSE_REQUEST_UNKNOWN_FIELD),
+	"for_each refusal":  string(errors.PULSE_FOR_EACH_INVALID),
+	"unreadable header": string(errors.ENCODING_INVALID),
+}
+
+var composeEarlyCodes = map[string]string{
+	"for_each":    string(errors.PULSE_FOR_EACH_INVALID),
+	"join count":  string(errors.PULSE_JOIN_TOO_MANY),
+	"matrix host": string(errors.PULSE_MATRIX_UNSUPPORTED_SOURCE),
+	"return":      string(errors.PULSE_RETURN_INVALID),
+	"join keys":   string(errors.PULSE_JOIN_FIELD_UNKNOWN),
+	"zones":       string(errors.PULSE_TIMEZONE_UNKNOWN),
+	"no schema":   "",
+}
+
+// TestPredictPostWindow_ProcessEarlyStops: Process predict stopped
+// before its field-reference walk still reports the plan, schema-free —
+// a hidden slot, an item for_each refusal (indexing the request as
+// written) and an unreadable cohort header.
+func TestPredictPostWindow_ProcessEarlyStops(t *testing.T) {
+	want := &descriptor.PostWindowPlan{WindowLabels: []string{"lag_n"}, Attributes: []descriptor.PostWindowAttribute{
+		{Index: 1, Label: "sat", DependsOn: "lag_n", WindowReads: []string{"lag_n"}},
+	}}
+	cohort := buildTestPulseFile(t, fieldRefSchema())
+	hidden := earlyStopRequest()
+	hidden.Joins = []*types.JoinSpec{{Right: "r.pulse", On: []types.OnPair{{LeftField: "n", RightField: "n"}}}}
+	forEach := earlyStopRequest()
+	forEach.Attributes[0].ForEach = &types.ForEach{}
+	// The hidden-slot instance hides the joins capability only.
+	var enabled []string
+	for _, f := range FeatureNames() {
+		if f != featJoins {
+			enabled = append(enabled, f)
+		}
+	}
+	cases := map[string]struct {
+		data []byte
+		req  *types.Request
+		opts *PredictOptions
+	}{
+		"hidden slot":       {cohort, hidden, &PredictOptions{Instance: scopedOnly(enabled...)}},
+		"for_each refusal":  {cohort, forEach, &PredictOptions{}},
+		"unreadable header": {[]byte("not a pulse file"), earlyStopRequest(), &PredictOptions{}},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			env := Predict(bytes.NewReader(c.data), c.req, c.opts)
+			if len(env.Errors) == 0 || env.Errors[0].Code != processEarlyCodes[name] {
+				t.Fatalf("want the %s refusal (%s), got %+v", name, processEarlyCodes[name], env.Errors)
+			}
+			res := env.Data.(*descriptor.PredictResult)
+			if res.Valid {
+				t.Fatal("predicted valid")
+			}
+			if !reflect.DeepEqual(res.PostWindow, want) {
+				t.Fatalf("post_window %+v, want %+v (errors %+v)", res.PostWindow, want, env.Errors)
+			}
+		})
+	}
+}
+
+// TestPredictPostWindow_ComposeEarlyStops: a Compose slot refused before
+// its field references — item for_each, join count, matrix host,
+// `return`, join keys, zones — or with no schema to walk still reports
+// its plan, classified over the batch's fits (the ATTR_REG_PREDICT
+// moves through the fit's window term).
+func TestPredictPostWindow_ComposeEarlyStops(t *testing.T) {
+	cohort := buildTestPulseFile(t, fieldRefSchema())
+	opts := &PredictOptions{SchemaLoader: composeSchemaLoader(t, map[string][]byte{"c.pulse": cohort})}
+	at := &types.Cohort{Filename: "c.pulse"}
+	fit := &types.Request{Cohort: at, Windows: []*types.Window{lagWindow("lag_n")},
+		Regressions: []*types.RegressionSpec{{Type: types.REG_OLS, Name: "fm", Target: "m", Predictors: []string{"lag_n"}}}}
+	slot := func(mut func(*types.Request)) *types.Request {
+		r := &types.Request{Cohort: at, Windows: []*types.Window{lagWindow("lag_n")}, Attributes: []*types.Attribute{
+			{Type: types.ATTR_REG_PREDICT, Label: "p", Params: json.RawMessage(`{"fit":"fm"}`)},
+			postFormula("x", "n * 2"),
+		}}
+		mut(r)
+		return r
+	}
+	join := func(left string) *types.JoinSpec {
+		return &types.JoinSpec{Right: "c.pulse", On: []types.OnPair{{LeftField: left, RightField: "n"}}, As: "r_"}
+	}
+	cases := map[string]*types.Request{
+		"for_each":   slot(func(r *types.Request) { r.Attributes[1].ForEach = &types.ForEach{} }),
+		"join count": slot(func(r *types.Request) { r.Joins = []*types.JoinSpec{join("n"), join("n")} }),
+		"matrix host": slot(func(r *types.Request) {
+			r.Matrices = []types.MatrixSpec{{Type: "MAT_CORRELATION"}}
+			r.Joins = []*types.JoinSpec{join("n")}
+		}),
+		"return":    slot(func(r *types.Request) { r.Return = &types.Return{Preset: "bogus"} }),
+		"join keys": slot(func(r *types.Request) { r.Joins = []*types.JoinSpec{join("nope")} }),
+		"zones":     slot(func(r *types.Request) { r.TimeZone = "Not/AZone" }),
+		"no schema": slot(func(r *types.Request) { r.Cohort = &types.Cohort{Filename: "missing.pulse"} }),
+	}
+	want := &descriptor.PostWindowPlan{WindowLabels: []string{"lag_n"}, Attributes: []descriptor.PostWindowAttribute{
+		{Index: 0, Label: "p", DependsOn: "lag_n", WindowReads: []string{"lag_n"}},
+	}}
+	for name, s := range cases {
+		t.Run(name, func(t *testing.T) {
+			env := ValidateComposeWithOptions(&types.ComposedRequest{Fits: []types.FitSpec{{Name: "fm", Request: fit}}, Requests: []*types.Request{s}}, opts)
+			if want := composeEarlyCodes[name]; (want == "") != (len(env.Errors) == 0) || (want != "" && env.Errors[0].Code != want) {
+				t.Fatalf("want the %s refusal (%q), got %+v", name, want, env.Errors)
+			}
+			res := env.Data.(*ComposeValidationResult)
+			if len(res.Slots) != 1 {
+				t.Fatalf("slots %+v (errors %+v)", res.Slots, env.Errors)
+			}
+			if !reflect.DeepEqual(res.Slots[0].PostWindow, want) {
+				t.Fatalf("post_window %+v, want %+v (errors %+v)", res.Slots[0].PostWindow, want, env.Errors)
+			}
+		})
+	}
+}
