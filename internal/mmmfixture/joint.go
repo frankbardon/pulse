@@ -170,8 +170,16 @@ func SteadyState(decay float64) float64 {
 }
 
 // Joint generates the joint-truth cohort (deterministic: JointSeed).
-func Joint() JointData {
-	rng := rand.New(rand.NewPCG(JointSeed, JointSeed^0x9E3779B97F4A7C15))
+func Joint() JointData { return JointWithSeed(JointSeed) }
+
+// JointWithSeed generates the joint-truth scenario — the same channels,
+// curves, controls and noise — from generator seed seed: fresh spend,
+// price, promo and noise draws over the same truth. JointWithSeed(
+// JointSeed) is Joint(). A repeated-simulation study draws its
+// replicates from it; the bits are a function of seed alone on every
+// architecture, as Joint's are.
+func JointWithSeed(seed uint64) JointData {
+	rng := rand.New(rand.NewPCG(seed, seed^0x9E3779B97F4A7C15))
 	n := JointWeeks
 	d := JointData{Spend: map[string][]float64{}, Contribution: map[string][]float64{}}
 	for _, c := range JointChannels {

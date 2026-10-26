@@ -66,8 +66,14 @@ var passBarSeeds = flag.Int("mmm.passbar-seeds", 0,
 // filesystem holding the joint-truth cohort.
 func jointInstance(t testing.TB) (*pulse.Pulse, mmmfixture.JointData) {
 	t.Helper()
+	return jointInstanceFor(t, mmmfixture.Joint())
+}
+
+// jointInstanceFor is jointInstance over the generated cohort d (a
+// mmmfixture.JointWithSeed replicate, or Joint()).
+func jointInstanceFor(t testing.TB, d mmmfixture.JointData) (*pulse.Pulse, mmmfixture.JointData) {
+	t.Helper()
 	p := instance(t, afero.NewMemMapFs(), func(o *pulse.Options) { o.Limits.MaxComposeSlots = mmmfixture.JointLHSSamples })
-	d := mmmfixture.Joint()
 	b, err := p.NewCohortBuilder(context.Background(), mmmfixture.JointCohortFile, mmmfixture.JointSchema(), pulse.CohortBuilderOptions{})
 	if err != nil {
 		t.Fatal(err)
