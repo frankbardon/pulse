@@ -3769,6 +3769,11 @@ pulse/mcmc: type ChainStats field Metric []float64
 pulse/mcmc: type ChainStats field StepSize float64
 pulse/mcmc: type ChainStats field TreeDepth []int
 pulse/mcmc: type ChainStats field TreeDepthSaturated int
+pulse/mcmc: const DefaultChains untyped int = 4
+pulse/mcmc: const DefaultDraws untyped int = 1000
+pulse/mcmc: const DefaultMaxTreeDepth untyped int = 10
+pulse/mcmc: const DefaultTargetAccept untyped float = 4/5
+pulse/mcmc: const DefaultWarmup untyped int = 1000
 pulse/mcmc: type Diagnostics struct
 pulse/mcmc: type Diagnostics field Chains []pulse/mcmc.ChainStats
 pulse/mcmc: type Diagnostics field ESSBulk []float64
@@ -3784,6 +3789,11 @@ pulse/mcmc: type Mapped field Y float64
 pulse/mcmc: type Model interface
 pulse/mcmc: type Model imethod Dim() int
 pulse/mcmc: type Model imethod LogDensityGrad(theta []float64, grad []float64) float64
+pulse/mcmc: type NUTS struct
+pulse/mcmc: type NUTS field MaxTreeDepth int
+pulse/mcmc: type NUTS field TargetAccept float64
+pulse/mcmc: type NUTS field Workers int
+pulse/mcmc: type NUTS method (NUTS) Sample(ctx context.Context, model pulse/mcmc.Model, seed uint64, opts pulse/mcmc.Options) (pulse/mcmc.Result, error)
 pulse/mcmc: type Options struct
 pulse/mcmc: type Options field Chains int
 pulse/mcmc: type Options field Constrain func(theta []float64, out []float64)
@@ -6148,4 +6158,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 3cd6f5bf14a215bfc0eaca837069c300e95560954de0cf406901372a6dd1545c
+// golden-hash: f1a10140033e2df80b095aa964946f5432ea3089072a352a0f4d65b4a1d994ca

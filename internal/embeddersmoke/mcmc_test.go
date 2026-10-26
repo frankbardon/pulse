@@ -78,3 +78,43 @@ func TestMCMCFlow(t *testing.T) {
 	}
 	_ = mcmc.Unit{}
 }
+
+// TestMCMCNUTSFlow runs the package's own NUTS sampler on the embedder
+// model through the public spellings: the Sampler interface, the tuning
+// knobs on the NUTS value, Options.Constrain, and the per-chain stats.
+func TestMCMCNUTSFlow(t *testing.T) {
+	var s mcmc.Sampler = mcmc.NUTS{TargetAccept: 0.9, MaxTreeDepth: 8, Workers: 2}
+	opts := mcmc.Options{
+		Chains: 2, Warmup: 300, Draws: 300,
+		Constrain: func(theta, out []float64) { out[0] = mcmc.Positive{}.Forward(theta[0]).Y },
+	}
+	res, err := s.Sample(context.Background(), halfNormalScale{}, 42, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := s.Sample(context.Background(), halfNormalScale{}, 42, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sum float64
+	n := 0
+	for c, chain := range res.Draws {
+		for i, y := range chain[0] {
+			if !(y > 0) || y != again.Draws[c][0][i] {
+				t.Fatalf("chain %d draw %d: %g (rerun %g)", c, i, y, again.Draws[c][0][i])
+			}
+			sum += y
+			n++
+		}
+	}
+	// E[σ] for HalfNormal(1) is √(2/π) ≈ 0.798.
+	if mean := sum / float64(n); math.Abs(mean-math.Sqrt(2/math.Pi)) > 0.1 {
+		t.Errorf("posterior mean σ %.3f, want ≈ 0.798", mean)
+	}
+	if st := res.Diagnostics.Chains[0]; st.StepSize <= 0 || len(st.TreeDepth) != 300 || len(st.Metric) != 1 {
+		t.Errorf("chain stats %+v", st)
+	}
+	if r := res.Diagnostics.RHat[0]; !(r < 1.05) {
+		t.Errorf("R̂ %g", r)
+	}
+}
