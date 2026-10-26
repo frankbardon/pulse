@@ -24,7 +24,7 @@ branch: bayesian-mmm
 
 - **Sampler (E1).** A public `mcmc` package: `Model` / `Sampler`, the `Positive` / `Unit` / `Bounded` transforms, rank-normalised split R-hat and bulk / tail ESS, and a seeded multinomial NUTS (Stan-style warmup, windowed diagonal metric). Byte-identical across runs, worker counts and architectures (confirmed on CI amd64). Codes `PULSE_MCMC_INVALID` / `PULSE_MCMC_FAILED`.
 - **Extension contract (E2).** Three additive `extend` additions: `RegressionOutput.Warnings` (coded, lifted to `RegressionResult.Warnings` and the envelope, escalated by `Strict`; the new code `PROCESSING_REGRESSION_DIAGNOSTIC`), `ContextRegression.FitContext` (a caller cancel and `RequestTimeout` reach a long fit), and `RegressionRegistration.NoResample` (refused identically on predict and at runtime; the resample keys moved to the `opt_out` field class).
-- **`REG_MMM_BAYES` (E3).** In `contrib/mmmpulse`: geometric adstock (`max_lag` 13, `normalize: false`), Hill, linear controls and Normal noise, with ROI priors by default, internal max-abs scaling and a MAP warm start. Outputs: ROI, analytic mROI and contribution intervals, per-coefficient summaries, sampler diagnostics and a model-owned holdout. A sampler fault is reported as a coded warning, never refused. Pass bar on the joint fixture: all 4 channels covered, max R-hat 1.0037, min bulk ESS 1754, 0 divergences, median ROI error at most 1.4%.
+- **`REG_MMM_BAYES` (E3).** In `contrib/mmmpulse`: geometric adstock (`max_lag` 13, `normalize: false`), Hill, linear controls and Normal noise, with ROI priors by default, internal max-abs scaling and a MAP warm start. Outputs: ROI, analytic mROI and contribution intervals, per-coefficient summaries, sampler diagnostics and a model-owned holdout. A sampler fault is reported as a coded warning, never refused.
 - **Validation and docs (E4).** A coverage study outside CI (its figures were removed by mmm-followups: no harness reproduces them), the `op-reg-mmm-bayes` skill, the Bayesian-vs-sweep route guide with the lift-test-prior recipe, and this close-out.
 
 Status: implemented on branch `bayesian-mmm`; targets `v1.0.0-alpha.28` with a lockstep `contrib/mmmpulse` tag. Nothing is released or tagged by this unit's close-out. *(Retired in `v1.0.0-alpha.29` by mmm-followups: `REG_MMM_HILL` and `REG_MMM_BAYES` are built-in regressions in `internal/regmmm`, and the `contrib/mmmpulse` module is removed.)*
@@ -83,7 +83,7 @@ Status: implemented on branch `bayesian-mmm`; targets `v1.0.0-alpha.28` with a l
 
 - [x] An embedder samples a custom model with `mcmc` NUTS; the same seed gives the same bytes across runs, workers and architectures (CI amd64)
 - [x] An extension regression returns coded warnings that reach the result and the envelope, escalated by `Strict`; honours ctx; and refuses `resample` identically on predict and at runtime
-- [x] `REG_MMM_BAYES` on the joint fixture covers all 4 channels, max R-hat <= 1.01, min ESS >= 400, 0 divergences, median ROI error <= 20% (met: 1.0037, 1754, 0, 1.4%), with a pinned golden hash
+- [x] `REG_MMM_BAYES` met its joint-fixture pass bar, with a pinned golden hash (both removed by mmm-followups E3-S6)
 - [x] A coverage study ran outside CI (removed by mmm-followups E3-S6; no calibration figure is published)
 - [x] Skill, route guide, lift-test recipe, README and book page document the route, defaults and caveats
 - [ ] Unit Definition of Done met (see [units index](README.md#definition-of-done-every-unit)) — the full gate set and CI run at the PR; `status` flips to `done` at merge
@@ -133,5 +133,5 @@ Draft from the migration table (Changes from U62); nothing is tagged or publishe
 - **New.**
   - Public package `mcmc`: `Model`, `Sampler`, `NUTS`, the transforms, `RHat` / `ESSBulk` / `ESSTail`; seeded and byte-identical across runs, workers and architectures. Book page `library/mcmc.md`.
   - `extend`: `RegressionOutput.Warnings` (lifted to `RegressionResult.Warnings` and the envelope; `Strict` fails the slot with the warning's code), `ContextRegression.FitContext`, `RegressionRegistration.NoResample`.
-- **`contrib/mmmpulse` (tagged alongside).** `REG_MMM_BAYES`: raw spend adstocked in the model, Hill saturation, NUTS posterior; ROI, analytic mROI and contribution intervals, diagnostics, model-owned holdout. Needs `params.time` as contiguous integers. About 32-39 s per default fit. New pack skill `op-reg-mmm-bayes`.
+- **`contrib/mmmpulse` (tagged alongside).** `REG_MMM_BAYES`: raw spend adstocked in the model, Hill saturation, NUTS posterior; ROI, analytic mROI and contribution intervals, diagnostics, model-owned holdout. Needs `params.time` as contiguous integers. New pack skill `op-reg-mmm-bayes`.
 - **Not in this release.** Geo hierarchy, other kernels and curves, a lift likelihood, a posterior optimizer, raw draws, save / scoring and other samplers (#561-#568); `internal/mmmfixture` FMA hygiene is [U61](U61-cross-arch-determinism.md) (#569).

@@ -156,7 +156,7 @@ Rows are one market, one row per period, with `params.time` an integer field tha
 
 **Interval width.** An always-on channel is the hardest to identify, so its interval is wide: read the width of each channel's interval, not only its centre. Pulse publishes no calibration figure for the intervals; judge a fit by its `diagnostics` and by whether the intervals you rely on are tight enough to act on.
 
-**Cost.** About 32-39 s per default fit (4 chains x 2000 iterations) on a laptop-class arm64 core. Same request and seed give the same bytes on any worker count and architecture.
+**Cost.** A default fit runs 4 chains x 2000 NUTS iterations, so it is usually the slowest slot in a request. Same request and seed give the same bytes on any worker count and architecture.
 
 ## Test
 

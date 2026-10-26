@@ -64,7 +64,7 @@ Status: merged in PR #386 (dd26d440); shipped in `v1.0.0-alpha.27` (pre-release)
 - **Optimize block**: `direction` is required; `starts` is 1..1000, default 8; a bound is a number or a bare `params.<name>`; `coef()` reads Compose fits AND saved models (`optimize[i].models`); gradients are central finite differences.
 - **`REG_MMM_HILL` standard errors are per parameter**, not all-or-nothing: a parameter on a bound, and the `k` / `s` of a zero-effect channel, are `null`; every other parameter gets its error from the inverse over the free block. This differs deliberately from `REG_OLS`, where one binding bound nulls every SE. The decay has no SE (it is not a fitted parameter): bound it by the near-best sweep spread or a bootstrap at fixed decays.
 - **`internal/detmath` became public as `linalg/detmath`**, with `Lgamma` and the ziggurat added; `WIN_DISTRIBUTED_LAG` weights and the Student-t quantile chain run on it, bit-identical on arm64 and amd64. The remaining core numeric drift is a separate unit ([U61](U61-cross-arch-determinism.md)).
-- **Pack acceptance.** Pass bar met at 2,000 `lhs` samples (about 400 did not hold): decay worst 0.103 (bar ±0.15), ROI 6.3% (±20%), marginal-ROI equalisation 7.8e-6, lift 13.7% (25%), 8 of 8 starts agreeing. The MCP pass adds about 22 s to `make contrib`; kept, because it is the only gate that proves the pack over `mcpserve`.
+- **Pack acceptance.** A pass bar on the joint-truth fixture gated the pack, over the library, the CLI and `mcpserve` (removed by mmm-followups E3-S6; Pulse tests operators one operation at a time).
 - **Packs are industry-specific; core stays general.** Recorded in [Model extensions](../v1.0.0-api-and-release/04-model-extensions.md).
 - **`REG_TESTMMM_HILL` stays in root** as the contract proof (rewritten onto `optimize.LeastSquares`; its negative-effect nonnegative case now ends finite).
 
@@ -101,7 +101,7 @@ Status: merged in PR #386 (dd26d440); shipped in `v1.0.0-alpha.27` (pre-release)
 ## Acceptance criteria
 
 - [x] `optimize.LeastSquares` matches `minpack.lm::nlsLM` and `optimize.Minimize` matches `nloptr` SLSQP on committed oracle problems (`TestOptimize_LeastSquaresMatchesNLSLM`, `TestOptimize_MinimizeMatchesNLoptrSLSQP`); `MAT_SEM` is unchanged on amd64
-- [x] A seeded `lhs` sweep of about 2,000 samples recovers each channel's decay within ±0.15 and ROI within ±20% on the joint-truth fixture (`TestMMMPack_PassBar`)
+- [x] A seeded `lhs` sweep recovers each channel's decay and ROI on the joint-truth fixture (`TestMMMPack_PassBar`, removed by mmm-followups E3-S6)
 - [x] A compose `optimize` block equalises marginal ROI across channels not at a bound and predicts lift within 25% of the true-parameter optimum (`TestMMMPack_PassBar`, `compose/13_budget_allocation.json`)
 - [x] The same seed gives byte-identical results serially, in parallel and over `mcpserve` (`TestMMMPack_PassBarDeterministic`, `TestMMMPack_PassBarMCP`); arm64 and amd64 agree on the pack fit and the sweep
 - [x] `random` / `lhs` sweeps and `optimize` blocks work for non-MMM users with no pack (`compose/12_price_optimize.json`)
