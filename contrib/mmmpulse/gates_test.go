@@ -13,7 +13,22 @@ import (
 // compiler's contraction report on and returns the report lines.
 func fmahashReport(t *testing.T, dir, importPath string) []string {
 	t.Helper()
-	cmd := exec.Command("go", "build", "-o", os.DevNull, "-gcflags="+importPath+"=-d=fmahash=vy", ".")
+	return fmahashRun(t, dir, "build", importPath)
+}
+
+// fmahashTest is fmahashReport over the package's test binary, so the
+// in-package test files are compiled (and reported) too.
+func fmahashTest(t *testing.T, dir, importPath string) []string {
+	t.Helper()
+	return fmahashRun(t, dir, "test -c", importPath)
+}
+
+// fmahashRun runs `go <verb>` (build, or test -c) with the contraction
+// report on and returns the report lines.
+func fmahashRun(t *testing.T, dir, verb, importPath string) []string {
+	t.Helper()
+	args := append(strings.Fields(verb), "-o", os.DevNull, "-gcflags="+importPath+"=-d=fmahash=vy", ".")
+	cmd := exec.Command("go", args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64", "CGO_ENABLED=0", "GOFLAGS=")
 	var out bytes.Buffer
