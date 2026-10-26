@@ -35,6 +35,12 @@ const (
 	// RankReasonNull: the path ends on null — an undefined figure (NaN
 	// on the wire). A warning on the slot; never ranked last.
 	RankReasonNull = "null"
+	// RankReasonEmpty: no sweep slot was ranked — every slot's value was
+	// null, or missing there while another slot resolved it. Never a
+	// refusal of the rank itself: it is the error a sweep-bound fit
+	// (`fits[].from_sweep`) carries when it binds failed for want of a
+	// winner.
+	RankReasonEmpty = "empty"
 )
 
 // ParseRankPath splits a rank `by` path into its dotted segments,

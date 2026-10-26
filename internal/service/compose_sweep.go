@@ -7,7 +7,6 @@ import (
 	"github.com/frankbardon/pulse/internal/banner"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/model"
-	"github.com/frankbardon/pulse/internal/sweep"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -22,6 +21,10 @@ type composeRank struct {
 	// axes are the sweep slots' axis values (banner.Expansion.SweepAxes),
 	// carried onto every RankEntry.
 	axes []map[string]any
+	// ranked is the ranking a sweep-bound batch computed in phase 0
+	// (done set): the one the response reports, never recomputed.
+	ranked []types.RankEntry
+	done   bool
 }
 
 // composeExpansion is what the as-written request hands the finished
@@ -149,17 +152,13 @@ func applyComposeRank(rank *composeRank, requests []*types.Request, out *types.C
 	if rank == nil {
 		return nil
 	}
-	n := rank.count
-	if rank.explicit+n > len(out.Responses) {
-		n = max(len(out.Responses)-rank.explicit, 0)
+	if rank.done {
+		// A sweep-bound batch ranked in phase 0, and bound its fits
+		// from that ranking: report it as computed.
+		out.Ranking = rank.ranked
+		return nil
 	}
-	labels := make([]string, n)
-	for i := range labels {
-		if r := requests[rank.explicit+i]; r != nil {
-			labels[i] = r.Label
-		}
-	}
-	ranking, err := sweep.Rank(rank.spec, labels, rank.axes, out.Responses[rank.explicit:rank.explicit+n])
+	ranking, err := rankComposeSweep(rank, requests, out.Responses)
 	if err != nil {
 		return err
 	}

@@ -194,7 +194,20 @@ fit. A malformed binding is `PULSE_FIT_INVALID` with `details.reason`
 `from_sweep_with_request`, `from_sweep_no_sweep`, `from_sweep_no_rank`,
 `from_sweep_regression_unknown`, `from_sweep_signature_varies` or
 `from_sweep_cycle`, judged by predict and the runtime alike before
-anything runs. Skill: `compose-sweep-bind`.
+anything runs.
+
+A batch with a binding runs sweep-first: the authored fits, then the
+sweep slots (once — their responses are the batch's) and the rank, then
+the bound fit refitted over `ranking[0]`'s slot exactly as an authored
+fit of that body would be (same figures, same `save` file), then
+`optimize` and the explicit slots. Responses keep index order. The rank
+reads each sweep slot after its own multiplicity families fold; a
+`compose`-family adjusted figure is not ready yet, so ranking by one is
+refused. When no slot is ranked, the fit binds failed: its entry carries
+`PULSE_SWEEP_RANK_PATH` (`reason: "empty"`), a `PULSE_SLOT_FAILED`
+warning names it under `details.fit`, slots scoring it read null
+(`PULSE_FIT_UNAVAILABLE`), and `Strict` fails the batch. A batch with no
+binding runs and answers exactly as before. Skill: `compose-sweep-bind`.
 
 ## Echo and return shaping
 

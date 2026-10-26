@@ -52,6 +52,14 @@ The regression's `type`, `target` and `predictors` (and a model regression's ter
 - `from_sweep_signature_varies` — type, target or predictors differ in a slot (`details.slot`, the 0-based sweep index).
 - `from_sweep_cycle` — a sweep slot reads the fit (a literal `coef("best", …)` or a `params.fit`), but sweep slots run before it exists (`details.slot`).
 
+## Run order
+
+A batch with a binding runs sweep-first: authored fits, then the sweep slots (once; their responses are the batch's), then the rank, then the bound fit refitted on the winner — figures and `save` file identical to an authored fit of that body — then `optimize` and the explicit slots. Responses keep index order.<!-- feature: capability:multiplicity --> The rank reads each sweep slot after its own `multiplicity` folds; a `compose`-family `p_adjusted` is not ready then, so ranking by it is refused.<!-- /feature -->
+
+## No winner
+
+When no slot is ranked (every value null), the fit binds failed: `fits.best` carries `error` `PULSE_SWEEP_RANK_PATH` (`reason: "empty"`), a `PULSE_SLOT_FAILED` warning names it in `details.fit`, and a slot scoring it reads null (`PULSE_FIT_UNAVAILABLE`). `Strict` fails the batch. There is no fallback to rank 2.
+
 ## Predict
 
 `pulse_predict` with `composed` (`PredictCompose`) lists the entry as `{name, type, target, predictors, cohort, from_sweep: {regression}}`. Which slot wins is unknown until the slots run.

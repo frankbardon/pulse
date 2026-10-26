@@ -1,6 +1,7 @@
 package guide
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
@@ -117,5 +118,26 @@ func TestExplainComposedResponse_ReadsRegressionFits(t *testing.T) {
 		for _, h := range descx.LintGuidanceText(s) {
 			t.Errorf("lint %s on %q in %q", h.Rule, h.Span, s)
 		}
+	}
+}
+
+// TestExplainComposedResponse_SweepBoundFitReadsSweepBody: a fit bound
+// from the sweep (`from_sweep`) has no request of its own; its subject
+// is read off the sweep body's regression of that name, whose
+// placeholders elsewhere in the body do not hide it.
+func TestExplainComposedResponse_SweepBoundFitReadsSweepBody(t *testing.T) {
+	resp := &types.ComposedResponse{
+		Responses: []*types.Response{{Data: []map[string]any{{"n": 3.0}}}},
+		Fits:      map[string]*types.FitResult{"best": {RegressionResult: selectedResult()}},
+	}
+	req := &types.ComposedRequest{
+		Fits:     []types.FitSpec{{Name: "best", FromSweep: &types.FitFromSweep{Regression: "m"}}},
+		Requests: []*types.Request{{}},
+		Sweep: &types.SweepSpec{Request: json.RawMessage(`{"filterers":[{"type":"FILTER_RANGE","field":"week","values":["0","{{hi}}"]}],
+			"regressions":[{"type":"REG_OLS","name":"other","target":"y","predictors":["z"]},{"type":"REG_GLM","name":"m","target":"score","predictors":["hours"]}]}`)},
+	}
+	res := readResult(t, nil, descriptor.ExplainRequest{ComposedResponse: resp, Composed: req, Detail: descriptor.ExplainFull}, descriptor.ExplainRootComposedResponse)
+	if model, ok := findingAt(res, "fits.best"); !ok || model.Subject != "predicting `score` from `hours`" {
+		t.Fatalf("fit finding = %+v (found %v)", model, ok)
 	}
 }

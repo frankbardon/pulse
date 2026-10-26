@@ -19,8 +19,9 @@ import (
 // the same coded error in PredictCompose, Compose and ComposeParallel;
 // a valid binding predicts valid with the fit summarised from the sweep
 // body and its name resolvable by ATTR_REG_PREDICT, coef() and an
-// optimize block; and an instance hiding capability:compose_sweep_bind
-// refuses the key as an unknown field.
+// optimize block; the batch binds the winner at run time; and an
+// instance hiding capability:compose_sweep_bind refuses the key as an
+// unknown field.
 
 // sweepBindBody is a sweep body over the fits facade cohort: the rows
 // up to week {{hi}} and a regression named "m" of y on predictors.
@@ -171,24 +172,38 @@ func TestPredictCompose_SweepBoundFit(t *testing.T) {
 	}
 }
 
-// TestComposeSweepBind_RuntimeNotScheduledYet: until the sweep-first
-// schedule binds the ranked winner, a valid sweep-bound fit is refused
-// at run time on both orchestrators (located by details.fit) rather than
-// fitted on a slot that may not be the winner.
-func TestComposeSweepBind_RuntimeNotScheduledYet(t *testing.T) {
+// TestComposeSweepBind_BindsWinnerAtFacade: at the facade a valid
+// sweep-bound batch runs on both orchestrators — fits.best is the
+// rank-1 slot's regression refitted (its coefficients those of an
+// authored fit of the winning window) and the explicit slot scores it.
+func TestComposeSweepBind_BindsWinnerAtFacade(t *testing.T) {
 	p, err := New(Options{FS: fitsFacadeFS(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := sweepBindBatch(t, []types.FitSpec{sweepBound("best", "m")}, sweepBindBody(t, `["x"]`, ""), nil)
+	c := sweepBindBatch(t, []types.FitSpec{sweepBound("best", "m"), {Name: "w60", Request: facadeFitRequest("0", "60")}, {Name: "w90", Request: facadeFitRequest("0", "90")}},
+		sweepBindBody(t, `["x"]`, ""), nil)
+	c.Requests[0].Attributes = []*types.Attribute{{Type: types.ATTR_REG_PREDICT, Label: "yhat", Params: json.RawMessage(`{"fit":"best"}`)}}
+	c.Requests[0].Aggregations = append(c.Requests[0].Aggregations, &types.Aggregation{Type: types.AGG_SUM, Field: "yhat", Label: "sum_yhat"})
 	ctx := context.Background()
-	for name, run := range map[string]func() error{
-		"Compose":         func() error { _, err := p.Compose(ctx, c); return err },
-		"ComposeParallel": func() error { _, err := p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2}); return err },
+	for name, run := range map[string]func() (*ComposedResponse, error){
+		"Compose":         func() (*ComposedResponse, error) { return p.Compose(ctx, c) },
+		"ComposeParallel": func() (*ComposedResponse, error) { return p.ComposeParallel(ctx, c, ComposeOptions{MaxWorkers: 2}) },
 	} {
-		var ce *perr.CodedError
-		if err := run(); !stderrors.As(err, &ce) || ce.Code != perr.PROCESSING_INTERNAL || ce.Details["fit"] != 0 {
+		out, err := run()
+		if err != nil {
 			t.Fatalf("%s: %v", name, err)
+		}
+		if len(out.Ranking) != 2 {
+			t.Fatalf("%s: ranking %+v", name, out.Ranking)
+		}
+		want := map[string]string{"hi_60": "w60", "hi_90": "w90"}[out.Ranking[0].Label]
+		best, hand := out.Fits["best"], out.Fits[want]
+		if best == nil || hand == nil || best.Error != nil || !reflect.DeepEqual(best.Coefficients, hand.Coefficients) {
+			t.Fatalf("%s: fits.best %+v, authored %s %+v", name, best, want, hand)
+		}
+		if v, ok := out.Responses[0].Data[0]["sum_yhat"].(float64); !ok || v == 0 {
+			t.Errorf("%s: the scoring slot read %v", name, out.Responses[0].Data[0]["sum_yhat"])
 		}
 	}
 }
@@ -230,8 +245,8 @@ func TestHiddenSweepBind_RefusedAsUnknownField(t *testing.T) {
 	if env, err := on.PredictCompose(ctx, c); err != nil || len(env.Errors) > 0 {
 		t.Fatalf("enabling profile: %v %+v", err, env)
 	}
-	if _, err := on.Compose(ctx, c); slotGateFromErr(err) != nil && slotGateFromErr(err).code == perr.PULSE_REQUEST_UNKNOWN_FIELD {
-		t.Fatalf("enabling profile refused the key: %v", err)
+	if _, err := on.Compose(ctx, c); err != nil {
+		t.Fatalf("enabling profile: %v", err)
 	}
 	entries := map[string]func(*Pulse) *slotGateOutcome{
 		"Compose": func(p *Pulse) *slotGateOutcome { _, err := p.Compose(ctx, c); return slotGateFromErr(err) },
