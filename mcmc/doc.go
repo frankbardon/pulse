@@ -32,7 +32,11 @@
 // Options.Constrain is called concurrently, one goroutine per chain, and
 // the Model must be safe for concurrent use. A panic in the Model is
 // re-raised on the caller's goroutine; ctx is checked every iteration.
-// Refusals are coded errors carrying details["reason"].
+// Refusals are coded errors carrying details["reason"]: invalid options,
+// model shape or Init are PULSE_MCMC_INVALID, a model the sampler cannot
+// run (no finite start, a step size that collapses or grows without
+// bound, a non-finite adapted metric) is PULSE_MCMC_FAILED with
+// details["chain"].
 //
 // See the Example for a complete run.
 //

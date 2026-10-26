@@ -45,7 +45,7 @@ res, err := mcmc.NUTS{}.Sample(ctx, model, 42, mcmc.Options{Chains: 4, Warmup: 5
 
 One deliberate departure from Stan's source: when warmup is under 150 iterations, Stan's short-warmup branch never re-initialises the slow adaptation window, so the metric never adapts. Pulse sets the window up as intended, so the metric adapts.
 
-A cancelled `ctx` is honoured at every iteration and returns `ctx.Err()`. A panic in the model or in `Constrain` is re-raised on the caller's goroutine. Invalid options and models the sampler cannot run are coded errors carrying `details.reason`.
+A cancelled `ctx` is honoured at every iteration and returns `ctx.Err()`. A panic in the model or in `Constrain` is re-raised on the caller's goroutine. Invalid options, model shape or `Init` are `PULSE_MCMC_INVALID` (`reason` `nil_model`, `dim`, `chains`, `warmup`, `draws`, `max_tree_depth`, `workers`, `target_accept`, `init_length`, `init_not_finite`, `init_density_not_finite`); a model the sampler cannot run is `PULSE_MCMC_FAILED` (`reason` `init_not_found`, `step_size_unbounded`, `step_size_zero`, `metric_not_finite`, plus `details.chain`). Both are coded errors carrying `details.reason`, and neither returns a result.
 
 ## Seeding and reproducibility
 

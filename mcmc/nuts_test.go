@@ -462,20 +462,20 @@ func TestNUTS_Refusals(t *testing.T) {
 		code   perr.Code
 		reason string
 	}{
-		{"nil model", mcmc.NUTS{}, nil, mcmc.Options{}, perr.PROCESSING_CONFIG, "nil_model"},
-		{"zero dim", mcmc.NUTS{}, flat{0}, mcmc.Options{}, perr.PROCESSING_CONFIG, "dim"},
-		{"negative chains", mcmc.NUTS{}, flat{1}, mcmc.Options{Chains: -1}, perr.PROCESSING_CONFIG, "chains"},
-		{"negative warmup", mcmc.NUTS{}, flat{1}, mcmc.Options{Warmup: -1}, perr.PROCESSING_CONFIG, "warmup"},
-		{"negative draws", mcmc.NUTS{}, flat{1}, mcmc.Options{Draws: -1}, perr.PROCESSING_CONFIG, "draws"},
-		{"negative depth", mcmc.NUTS{MaxTreeDepth: -1}, flat{1}, mcmc.Options{}, perr.PROCESSING_CONFIG, "max_tree_depth"},
-		{"negative workers", mcmc.NUTS{Workers: -2}, flat{1}, mcmc.Options{}, perr.PROCESSING_CONFIG, "workers"},
-		{"target accept 1", mcmc.NUTS{TargetAccept: 1}, flat{1}, mcmc.Options{}, perr.PROCESSING_CONFIG, "target_accept"},
-		{"target accept NaN", mcmc.NUTS{TargetAccept: math.NaN()}, flat{1}, mcmc.Options{}, perr.PROCESSING_CONFIG, "target_accept"},
-		{"init length", mcmc.NUTS{}, flat{2}, mcmc.Options{Init: []float64{1}}, perr.PROCESSING_CONFIG, "init_length"},
-		{"init NaN", mcmc.NUTS{}, flat{1}, mcmc.Options{Init: []float64{math.NaN()}}, perr.PROCESSING_CONFIG, "init_not_finite"},
-		{"init density", mcmc.NUTS{}, nowhere{}, mcmc.Options{Init: []float64{0}}, perr.PROCESSING_CONFIG, "init_density_not_finite"},
-		{"no finite start", mcmc.NUTS{}, nowhere{}, mcmc.Options{Chains: 1}, perr.PROCESSING_RUNTIME, "init_not_found"},
-		{"improper", mcmc.NUTS{}, flat{1}, mcmc.Options{Chains: 1}, perr.PROCESSING_RUNTIME, "step_size_unbounded"},
+		{"nil model", mcmc.NUTS{}, nil, mcmc.Options{}, perr.PULSE_MCMC_INVALID, "nil_model"},
+		{"zero dim", mcmc.NUTS{}, flat{0}, mcmc.Options{}, perr.PULSE_MCMC_INVALID, "dim"},
+		{"negative chains", mcmc.NUTS{}, flat{1}, mcmc.Options{Chains: -1}, perr.PULSE_MCMC_INVALID, "chains"},
+		{"negative warmup", mcmc.NUTS{}, flat{1}, mcmc.Options{Warmup: -1}, perr.PULSE_MCMC_INVALID, "warmup"},
+		{"negative draws", mcmc.NUTS{}, flat{1}, mcmc.Options{Draws: -1}, perr.PULSE_MCMC_INVALID, "draws"},
+		{"negative depth", mcmc.NUTS{MaxTreeDepth: -1}, flat{1}, mcmc.Options{}, perr.PULSE_MCMC_INVALID, "max_tree_depth"},
+		{"negative workers", mcmc.NUTS{Workers: -2}, flat{1}, mcmc.Options{}, perr.PULSE_MCMC_INVALID, "workers"},
+		{"target accept 1", mcmc.NUTS{TargetAccept: 1}, flat{1}, mcmc.Options{}, perr.PULSE_MCMC_INVALID, "target_accept"},
+		{"target accept NaN", mcmc.NUTS{TargetAccept: math.NaN()}, flat{1}, mcmc.Options{}, perr.PULSE_MCMC_INVALID, "target_accept"},
+		{"init length", mcmc.NUTS{}, flat{2}, mcmc.Options{Init: []float64{1}}, perr.PULSE_MCMC_INVALID, "init_length"},
+		{"init NaN", mcmc.NUTS{}, flat{1}, mcmc.Options{Init: []float64{math.NaN()}}, perr.PULSE_MCMC_INVALID, "init_not_finite"},
+		{"init density", mcmc.NUTS{}, nowhere{}, mcmc.Options{Init: []float64{0}}, perr.PULSE_MCMC_INVALID, "init_density_not_finite"},
+		{"no finite start", mcmc.NUTS{}, nowhere{}, mcmc.Options{Chains: 1}, perr.PULSE_MCMC_FAILED, "init_not_found"},
+		{"improper", mcmc.NUTS{}, flat{1}, mcmc.Options{Chains: 1}, perr.PULSE_MCMC_FAILED, "step_size_unbounded"},
 	}
 	for _, tc := range cases {
 		_, err := tc.nuts.Sample(context.Background(), tc.model, 1, tc.opts)

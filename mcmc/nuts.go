@@ -91,10 +91,10 @@ type NUTS struct {
 //
 // ctx is checked before every iteration of every chain; once it is done
 // Sample returns ctx.Err() and no Result. Invalid options or model shape
-// are a PROCESSING_CONFIG *errors.CodedError; a model the sampler cannot
-// run (no finite starting point, a step size that collapses to zero or
-// grows without bound, a non-finite adapted metric) is a
-// PROCESSING_RUNTIME one. Both carry details["reason"]. A panic in the
+// are a PULSE_MCMC_INVALID *errors.CodedError; a model the sampler
+// cannot run (no finite starting point, a step size that collapses to
+// zero or grows without bound, a non-finite adapted metric) is a
+// PULSE_MCMC_FAILED one. Both carry details["reason"]. A panic in the
 // model or in Constrain is re-raised on the caller's goroutine.
 func (s NUTS) Sample(ctx context.Context, model Model, seed uint64, opts Options) (Result, error) {
 	cfg, err := s.resolve(model, opts)
@@ -167,11 +167,11 @@ func configErr(reason, msg string, details map[string]any) error {
 		details = map[string]any{}
 	}
 	details["reason"] = reason
-	return perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG, "mcmc: "+msg, details)
+	return perr.NewCodedErrorWithDetails(perr.PULSE_MCMC_INVALID, "mcmc: "+msg, details)
 }
 
 func runtimeErr(reason, msg string, chain int) error {
-	return perr.NewCodedErrorWithDetails(perr.PROCESSING_RUNTIME, "mcmc: "+msg,
+	return perr.NewCodedErrorWithDetails(perr.PULSE_MCMC_FAILED, "mcmc: "+msg,
 		map[string]any{"reason": reason, "chain": chain})
 }
 
@@ -437,7 +437,7 @@ func (ch *chain) initPoint(init []float64) error {
 		copy(ch.z.q, init)
 		ch.eval(&ch.z)
 		if !finitePoint(&ch.z) {
-			return perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG,
+			return perr.NewCodedErrorWithDetails(perr.PULSE_MCMC_INVALID,
 				"mcmc: the log density or its gradient is not finite at Init",
 				map[string]any{"reason": "init_density_not_finite", "chain": ch.index})
 		}

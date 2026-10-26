@@ -606,6 +606,8 @@ var errorOwners = map[errors.Code][]string{
 	errors.PULSE_OPTIMIZE_INVALID:       shared,
 	errors.PULSE_OPTIMIZE_NOT_CONVERGED: shared,
 	errors.PULSE_OPTIMIZE_INFEASIBLE:    shared,
+	errors.PULSE_MCMC_INVALID:           shared,
+	errors.PULSE_MCMC_FAILED:            shared,
 	// The compose `optimize` block's own rules.
 	errors.PULSE_OPTIMIZE_SPEC_INVALID:       own(featComposeOpt),
 	errors.PULSE_OPTIMIZE_VARIABLE_INVALID:   own(featComposeOpt),

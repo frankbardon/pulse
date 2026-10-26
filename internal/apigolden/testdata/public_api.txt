@@ -2685,6 +2685,8 @@ pulse/errors: const PULSE_MATRIX_SINGULAR pulse/errors.Code = "PULSE_MATRIX_SING
 pulse/errors: const PULSE_MATRIX_TOO_MANY_CATEGORIES pulse/errors.Code = "PULSE_MATRIX_TOO_MANY_CATEGORIES"
 pulse/errors: const PULSE_MATRIX_UNSUPPORTED_SOURCE pulse/errors.Code = "PULSE_MATRIX_UNSUPPORTED_SOURCE"
 pulse/errors: const PULSE_MATRIX_ZERO_VARIANCE pulse/errors.Code = "PULSE_MATRIX_ZERO_VARIANCE"
+pulse/errors: const PULSE_MCMC_FAILED pulse/errors.Code = "PULSE_MCMC_FAILED"
+pulse/errors: const PULSE_MCMC_INVALID pulse/errors.Code = "PULSE_MCMC_INVALID"
 pulse/errors: const PULSE_MODEL_FILE_INVALID pulse/errors.Code = "PULSE_MODEL_FILE_INVALID"
 pulse/errors: const PULSE_MODEL_FILE_UNREADABLE pulse/errors.Code = "PULSE_MODEL_FILE_UNREADABLE"
 pulse/errors: const PULSE_MODEL_INTERVALS_UNAVAILABLE pulse/errors.Code = "PULSE_MODEL_INTERVALS_UNAVAILABLE"
@@ -6165,4 +6167,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 49de46e6dd15cec24ce7c7ce9752f6ddcc86b3d07eefa070bd1802897f6649c2
+// golden-hash: 4f30222e8157e25b0508e8fbfd1577ab809b654cbb0c978cda955f9a6c63f4cb

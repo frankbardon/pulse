@@ -10721,7 +10721,7 @@
         ]
       }
     ],
-    "error_codes_count": 428,
+    "error_codes_count": 430,
     "error_domains": [
       "CLI",
       "DATA",
@@ -10931,6 +10931,8 @@
       "PULSE_MATRIX_TOO_MANY_CATEGORIES",
       "PULSE_MATRIX_UNSUPPORTED_SOURCE",
       "PULSE_MATRIX_ZERO_VARIANCE",
+      "PULSE_MCMC_FAILED",
+      "PULSE_MCMC_INVALID",
       "PULSE_MODEL_FILE_INVALID",
       "PULSE_MODEL_FILE_UNREADABLE",
       "PULSE_MODEL_INTERVALS_UNAVAILABLE",
@@ -19954,4 +19956,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 7d4942c4fdfd5e0f6fa1e64f0ff5f25d36500fa18cab770632b13e956d1aaa4a
+// golden-hash: 125180fd7dbf11c63ea162206656ffc6b0e02c9142b4d47f8bb22694bdf62e8d
