@@ -25,8 +25,7 @@ import (
 // the projection and refused when unknown, at predict and at runtime
 // alike; every spec refusal is predict's too; the engine's output keys
 // are the descriptor's applicability row and every one has a built-in
-// Interpretation; an embedder can no longer register the name; it runs
-// over pulse mcp with nothing registered.
+// Interpretation; an embedder can no longer register the name.
 
 // TestMMMBayes_Registration: the stock manifest lists REG_MMM_BAYES
 // among the built-in regressions (never among extensions): buffered,
@@ -251,41 +250,5 @@ func TestMMMBayes_EmbedderCannotRegisterName(t *testing.T) {
 	}})
 	if !perr.HasCode(err, perr.PULSE_EXTENSION_NAME_COLLISION) {
 		t.Fatalf("pulse.New: %v, want PULSE_EXTENSION_NAME_COLLISION", err)
-	}
-}
-
-// TestMMMBayes_RunsOverMCP: an MCP client of mcpserve over a stock
-// instance — nothing registered — fits REG_MMM_BAYES through
-// pulse_process, with the library's coefficients (pinned seed).
-func TestMMMBayes_RunsOverMCP(t *testing.T) {
-	p := bayesInstance(t, nil)
-	s := regmmm.BayesSpec(regmmm.FastParams)
-	s.RNGSeed = 3
-	req := bayesRequest(regmmm.BayesCohort, s)
-	lib := process(t, p, req).Regressions[0]
-	c := startMCP(t, p)
-	res := c.rpc(t, "tools/call", `{"name":"pulse_process","arguments":`+mustJSON(t, req)+`}`)
-	var out struct {
-		Content []struct {
-			Text string `json:"text"`
-		} `json:"content"`
-		IsError bool `json:"isError"`
-	}
-	if err := json.Unmarshal(res, &out); err != nil || len(out.Content) != 1 || out.IsError {
-		t.Fatalf("pulse_process: %v %.2000s", err, res)
-	}
-	var resp struct {
-		Regressions []struct {
-			Type         string             `json:"type"`
-			Coefficients map[string]float64 `json:"coefficients"`
-			Error        any                `json:"error"`
-		} `json:"regressions"`
-	}
-	if err := json.Unmarshal([]byte(out.Content[0].Text), &resp); err != nil || len(resp.Regressions) != 1 {
-		t.Fatalf("pulse_process result: %v %.2000s", err, out.Content[0].Text)
-	}
-	got := resp.Regressions[0]
-	if got.Error != nil || got.Type != string(regmmm.BayesName) || mustJSON(t, got.Coefficients) != mustJSON(t, lib.Coefficients) {
-		t.Errorf("MCP fit %s, library %s", mustJSON(t, got), mustJSON(t, lib.Coefficients))
 	}
 }

@@ -20,7 +20,7 @@ import (
 // coefficient-name collision, a short input that never samples and the
 // sampler-error mapping. The registration, the refusals at predict and
 // at runtime, the seed and the posterior through the engine are
-// bayes_e2e_test.go's.
+// bayes_engine_test.go's.
 
 // probeRow is an extend.Record over a name → value map (absent = null).
 type probeRow map[string]float64

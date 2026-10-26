@@ -12,7 +12,7 @@ import (
 // contribution / analytic mROI per draw match an independent oracle,
 // and predict carries the adstock history across the holdout cutoff.
 // The outputs through the engine (summaries, diagnostics, health
-// warnings, the model-owned holdout) are bayes_e2e_test.go's.
+// warnings, the model-owned holdout) are bayes_engine_test.go's.
 
 // TestMMMBayes_Quantile7: summaries are R's quantile(type = 7) and sd().
 func TestMMMBayes_Quantile7(t *testing.T) {

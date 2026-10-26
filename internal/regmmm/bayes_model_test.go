@@ -17,7 +17,7 @@ import (
 // finite-difference one, the back-transforms reproduce the scaled
 // model in original units and the MAP start is deterministic with a
 // fallback. The adstock's bit-equality with WIN_DISTRIBUTED_LAG, which
-// needs the engine, is bayes_e2e_test.go's.
+// needs the engine, is bayes_engine_test.go's.
 
 // jointModelData is the joint-truth cohort as the model reads it: sales,
 // the four channel spends and the price and promo controls, week order.

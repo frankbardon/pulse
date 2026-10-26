@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"strings"
@@ -173,5 +174,44 @@ func TestPulseCompose_SweepRanking(t *testing.T) {
 		if e["label"] != want.label || e["rank"] != float64(i+1) || e["slot"] != want.slot || axes["mu"] != want.mu {
 			t.Fatalf("ranking[%d] = %v, want %s at rank %d, slot %v, axes mu %v", i, e, want.label, i+1, want.slot, want.mu)
 		}
+	}
+}
+
+// TestPulseCompose_SampledSweepMatchesLibrary: pulse_compose runs a
+// seeded lhs sweep to the library's ComposedResponse byte for byte —
+// the same drawn slots, the echoed sweep_seed, the ranking — when the
+// sweep body carries its own `return` (which the MCP default never
+// overrides).
+func TestPulseCompose_SampledSweepMatchesLibrary(t *testing.T) {
+	p, _ := newImportTestPulse(t)
+	if _, err := p.ImportFile(context.Background(), pulse.ImportSpec{SourcePath: "data.csv"}); err != nil {
+		t.Fatalf("ImportFile: %v", err)
+	}
+	body := `{"cohort":{"filename":"imports/data.pulse"},"return":{"preset":"full"},
+		"tests":[{"type":"TEST_T","field":"amount","label":"t","params":{"mu":{"$var":"mu"}}}]}`
+	args := `{"sweep":{"mode":"lhs","samples":5,"rng_seed":13,"axes":[{"name":"mu","range":{"min":0,"max":40}}],
+		"request":` + body + `,"rank":{"by":"tests.t.statistic"}}}`
+	out := invokeTool(t, p, Config{}, "pulse_compose", args)
+	var req pulse.ComposedRequest
+	if err := json.Unmarshal([]byte(args), &req); err != nil {
+		t.Fatal(err)
+	}
+	lib, err := p.Compose(context.Background(), &req)
+	if err != nil {
+		t.Fatalf("library Compose: %v", err)
+	}
+	if len(lib.Responses) != 5 || len(lib.Ranking) != 5 || lib.SweepSeed == nil || *lib.SweepSeed != 13 {
+		t.Fatalf("library: %d responses, ranking %d, seed %v; want 5, 5 and 13", len(lib.Responses), len(lib.Ranking), lib.SweepSeed)
+	}
+	want, err := types.MarshalFinite(lib)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got bytes.Buffer
+	if err := json.Compact(&got, out); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got.Bytes(), want) {
+		t.Fatalf("MCP result differs from the library response:\n mcp %s\n lib %s", got.Bytes(), want)
 	}
 }

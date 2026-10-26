@@ -87,17 +87,17 @@ must match across amd64 and arm64.
 
 An iterative fit sees `rows extend.Rows` (`Len`, `At(i)`), valid only for the
 call, and may loop over them as often as it needs. The reference extension
-used by Pulse's own tests, `REG_TESTMMM_HILL`
-(`extensions_testmmm_hill_test.go`), is a joint nonlinear least-squares fit
-of Hill-saturated channels plus linear controls — it is the pattern to copy
-for anything iterative:
+used by Pulse's own tests, `REG_TESTNLS_EXP`
+(`extensions_testnls_exp_test.go`), is a nonlinear least-squares fit of an
+exponential approach to an asymptote, `y = a + Σ b_j·(1 − exp(−x_j/τ))`, on
+`optimize.LeastSquares` — it is the pattern to copy for anything iterative:
 
 ```go
-type hill struct{ target string; predictors, channels []string }
+type nlsExp struct{ target string; predictors []string }
 
-func (m *hill) Fit(rows extend.Rows) (extend.RegressionOutput, error) {
+func (m *nlsExp) Fit(rows extend.Rows) (extend.RegressionOutput, error) {
     // read rows.At(i).NumericValue(name), iterate to convergence, then
-    // return one coefficient per parameter and the Hill k / s as Outputs.
+    // return one coefficient per parameter and τ as an Output.
     // Report Fit.Iterations; return a coded PROCESSING_REGRESSION_NO_CONVERGE
     // when the iteration fails, which fails the slot alone.
 }
@@ -294,9 +294,9 @@ Mirror the in-repo suites, which import only public packages:
 - `extensions_regression_test.go` — an OLS clone matching `REG_OLS` within
   1e-9 (unweighted, frequency, probability), byte-identical across
   `DecodeWorkers` / `ShardWorkers`.
-- `extensions_regression_hill_test.go` / `_hill_mmm_test.go` — a nonlinear
-  fit recovering a seeded truth, a scorer through `ATTR_REG_PREDICT`, save
-  and reload, bootstrap, manifest and profile hiding.
+- `extensions_regression_nls_test.go` — a nonlinear fit recovering its
+  generating curve, a scorer through `ATTR_REG_PREDICT`, save and reload,
+  bootstrap, manifest and profile hiding.
 - `TestExtensions_*` — the parity suites: predict equals runtime for every
   refusal, and the manifest, schema and MCP enum list the model.
 

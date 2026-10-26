@@ -96,6 +96,7 @@ Status: implemented on branch `bayesian-mmm`; targets `v1.0.0-alpha.28` with a l
 - E3: `TestMMMBayes_*`, the pass bar and its golden hash `testdata/bayes_passbar.sha256`
 - E4: `TestMMMBayes_CoverageStudy` (build tag `mmmcoverage`, outside CI), `contrib/mmmpulse` skills test
 - Nested module: `make contrib`
+- Later (mmm-followups E3-S6): the pass bar, its hash and the coverage study harness were removed — Pulse tests operators one operation at a time. `REG_MMM_BAYES` keeps its operator tests in `internal/regmmm`; the study's figures stay in `docs/src/library/mmm.md` as a recorded measurement.
 
 ## Update Demand companions
 

@@ -116,6 +116,7 @@ Status: merged in PR #386 (dd26d440); shipped in `v1.0.0-alpha.27` (pre-release)
 - E3: the optimize predict / runtime / fails-alone suites and `TestExamples_*` for the three new examples
 - E4: `TestMMMPack_PassBar`, `TestMMMPack_PassBarDeterministic`, `TestMMMPack_PassBarMCP`, the pack's arm64 FMA gate, `contrib/mmmpulse` skill coverage
 - Nested module: `make contrib` (runs the pack suite, about 31 s of which the MCP pass is about 22 s)
+- Later (mmm-followups E3-S6): the E4 pass bars, the root / CLI / MCP decay-sweep suites (`TestHoldout_MMM*`, `TestSweepRandom_MMM*`) and `REG_TESTMMM_HILL` were removed — Pulse tests operators one operation at a time. `REG_MMM_HILL` keeps its operator tests in `internal/regmmm`; the generic sweep × holdout × rank path is `TestComposeSweep_HoldoutRank*`, the reference nonlinear extension `REG_TESTNLS_EXP`.
 
 ## Update Demand companions
 

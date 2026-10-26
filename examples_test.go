@@ -9,13 +9,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/encoding"
-	descx "github.com/frankbardon/pulse/internal/descriptor"
 	iio "github.com/frankbardon/pulse/internal/io"
 	"github.com/frankbardon/pulse/internal/io/csv"
 	pio "github.com/frankbardon/pulse/io"
@@ -511,134 +509,6 @@ func TestExamples_VectorFitPopulationRoundTrip(t *testing.T) {
 	}
 }
 
-// TestExamples_MMMDecaySweepRanksTrueDecayFirst runs
-// compose/08_mmm_decay_sweep.json over the mmm_weekly fixture cohort
-// (built from the same rows the acceptance suites use): predict is
-// clean, ten decay slots come back ranked ascending by the fit's own
-// holdout RMSE, the data's true decay (0.5) ranks first, and the
-// return excludes data.
-func TestExamples_MMMDecaySweepRanksTrueDecayFirst(t *testing.T) {
-	tmp := t.TempDir()
-	osfs := afero.NewOsFs()
-	builder, err := pulse.New(pulse.Options{FS: osfs})
-	if err != nil {
-		t.Fatal(err)
-	}
-	buildExampleFixtures(t, builder, osfs, tmp)
-	p, err := pulse.New(pulse.Options{DataDir: tmp})
-	if err != nil {
-		t.Fatal(err)
-	}
-	body, err := os.ReadFile(filepath.Join("internal", "examples", "compose", "08_mmm_decay_sweep.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	// The instance is rooted at tmp, so the sweep body's data_dir goes.
-	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	delete(doc["sweep"].(map[string]any)["request"].(map[string]any)["cohort"].(map[string]any), "data_dir")
-	if body, err = json.Marshal(doc); err != nil {
-		t.Fatal(err)
-	}
-	var req pulse.ComposedRequest
-	if err := json.Unmarshal(body, &req); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-
-	env, err := p.PredictCompose(context.Background(), &req)
-	if err != nil {
-		t.Fatalf("PredictCompose: %v", err)
-	}
-	if len(env.Errors) != 0 {
-		t.Fatalf("PredictCompose errors: %v", env.Errors)
-	}
-	out, err := p.Compose(context.Background(), &req)
-	if err != nil {
-		t.Fatalf("Compose: %v", err)
-	}
-	if len(out.Responses) != 10 || len(out.Ranking) != 10 {
-		t.Fatalf("%d slots, %d ranked; want 10 each", len(out.Responses), len(out.Ranking))
-	}
-	for _, r := range out.Responses {
-		if len(r.Data) != 0 {
-			t.Fatalf("slot %s carries data; its return excludes it", r.Label)
-		}
-		if len(r.Regressions) != 1 || r.Regressions[0].Error != nil || r.Regressions[0].Holdout == nil {
-			t.Fatalf("slot %s: regressions %+v, want one fit with a holdout", r.Label, r.Regressions)
-		}
-	}
-	if out.Ranking[0].Label != "decay_0.5" {
-		t.Fatalf("best slot %q, want decay_0.5; ranking %+v", out.Ranking[0].Label, out.Ranking)
-	}
-	for i := 1; i < len(out.Ranking); i++ {
-		if !(out.Ranking[i-1].Value < out.Ranking[i].Value) {
-			t.Fatalf("ranking not ascending at %d: %+v", i, out.Ranking)
-		}
-	}
-}
-
-// TestExamples_MMMDecayLHSSweepRanksNearTrueDecay runs
-// compose/11_mmm_decay_lhs_sweep.json over the mmm_weekly fixture
-// cohort: predict is clean and counts the 20 samples with the seed the
-// run echoes, every slot carries its fit and holdout but no data, and
-// the best-ranked slot's drawn decay lies within 0.1 of the data's true
-// decay (0.5).
-func TestExamples_MMMDecayLHSSweepRanksNearTrueDecay(t *testing.T) {
-	tmp := t.TempDir()
-	osfs := afero.NewOsFs()
-	builder, err := pulse.New(pulse.Options{FS: osfs})
-	if err != nil {
-		t.Fatal(err)
-	}
-	buildExampleFixtures(t, builder, osfs, tmp)
-	p, err := pulse.New(pulse.Options{DataDir: tmp})
-	if err != nil {
-		t.Fatal(err)
-	}
-	body, err := os.ReadFile(filepath.Join("internal", "examples", "compose", "11_mmm_decay_lhs_sweep.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var doc map[string]any
-	if err := json.Unmarshal(body, &doc); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	delete(doc["sweep"].(map[string]any)["request"].(map[string]any)["cohort"].(map[string]any), "data_dir")
-	if body, err = json.Marshal(doc); err != nil {
-		t.Fatal(err)
-	}
-	var req pulse.ComposedRequest
-	if err := json.Unmarshal(body, &req); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	env, err := p.PredictCompose(context.Background(), &req)
-	if err != nil || len(env.Errors) != 0 {
-		t.Fatalf("PredictCompose: %v %v", err, env.Errors)
-	}
-	out, err := p.Compose(context.Background(), &req)
-	if err != nil {
-		t.Fatalf("Compose: %v", err)
-	}
-	cv, ok := env.Data.(*descx.ComposeValidationResult)
-	if !ok || cv.Sweep == nil || cv.Sweep.ExpandedCount != 20 || cv.Sweep.RNGSeed == nil || out.SweepSeed == nil || *cv.Sweep.RNGSeed != *out.SweepSeed {
-		t.Fatalf("predict sweep %+v, run seed %v; want 20 samples and one seed", env.Data, out.SweepSeed)
-	}
-	if len(out.Responses) != 20 || len(out.Ranking) != 20 {
-		t.Fatalf("%d slots, %d ranked; want 20 each", len(out.Responses), len(out.Ranking))
-	}
-	for _, r := range out.Responses {
-		if len(r.Data) != 0 || len(r.Regressions) != 1 || r.Regressions[0].Error != nil || r.Regressions[0].Holdout == nil {
-			t.Fatalf("slot %s: %d data rows, regressions %+v; want a fit with a holdout and no data", r.Label, len(r.Data), r.Regressions)
-		}
-	}
-	_, v, _ := strings.Cut(out.Ranking[0].Label, "_decay=")
-	if d, err := strconv.ParseFloat(v, 64); err != nil || math.Abs(d-0.5) > 0.1 {
-		t.Fatalf("best slot %q (%v): want a decay within 0.1 of 0.5", out.Ranking[0].Label, err)
-	}
-}
-
 // TestExamples_SEMInvarianceLadderSweep runs
 // compose/09_sem_invariance_sweep.json over the brand_survey fixture
 // cohort: predict is clean, the zip sweep expands into the configural /
@@ -908,5 +778,92 @@ func TestExamples_SEMFitScoresFeedRegression(t *testing.T) {
 		if !found || !(b > 0) || !(regs[0].PValues[name] < 0.05) {
 			t.Errorf("recommend ~ %s: slope %v (found %v), p %v; want a positive driver distinguishable from zero", name, b, found, regs[0].PValues[name])
 		}
+	}
+}
+
+// TestExamples_ComposeRunClean runs every compose example over the
+// shared fixture cohorts: predict reports no error and the batch
+// compiles and runs to a response per slot with no slot failure. It is
+// the compose twin of TestExamples_RunEndToEnd — example bitrot and
+// operator regressions — and asserts nothing about any one domain's
+// figures.
+func TestExamples_ComposeRunClean(t *testing.T) {
+	tmp := t.TempDir()
+	osfs := afero.NewOsFs()
+	builder, err := pulse.New(pulse.Options{FS: osfs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	buildExampleFixtures(t, builder, osfs, tmp)
+	// Rooted at tmp: every cohort, save and population path resolves
+	// from the data root, so each example drops its data_dir.
+	p, err := pulse.New(pulse.Options{DataDir: tmp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var dropDataDir func(v any)
+	dropDataDir = func(v any) {
+		switch x := v.(type) {
+		case map[string]any:
+			if c, ok := x["cohort"].(map[string]any); ok {
+				delete(c, "data_dir")
+			}
+			for _, e := range x {
+				dropDataDir(e)
+			}
+		case []any:
+			for _, e := range x {
+				dropDataDir(e)
+			}
+		}
+	}
+	matches, err := filepath.Glob(filepath.Join("internal", "examples", "compose", "*.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(matches) < 13 {
+		t.Fatalf("found %d compose examples, want at least 13", len(matches))
+	}
+	for _, path := range matches {
+		t.Run(filepath.Base(path), func(t *testing.T) {
+			body, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var doc map[string]any
+			if err := json.Unmarshal(body, &doc); err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+			delete(doc, "_meta")
+			dropDataDir(doc)
+			if body, err = json.Marshal(doc); err != nil {
+				t.Fatal(err)
+			}
+			var req pulse.ComposedRequest
+			if err := json.Unmarshal(body, &req); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			env, err := p.PredictCompose(context.Background(), &req)
+			if err != nil {
+				t.Fatalf("PredictCompose: %v", err)
+			}
+			if len(env.Errors) != 0 {
+				t.Fatalf("PredictCompose errors: %s", mustJSON(t, env.Errors))
+			}
+			out, err := p.Compose(context.Background(), &req)
+			if err != nil {
+				t.Fatalf("Compose: %v", err)
+			}
+			if len(out.Responses) == 0 {
+				t.Fatal("no responses")
+			}
+			for _, r := range out.Responses {
+				for _, w := range r.Warnings {
+					if w.Code == "PULSE_SLOT_FAILED" {
+						t.Fatalf("slot %q: %s", r.Label, w.Message)
+					}
+				}
+			}
+		})
 	}
 }

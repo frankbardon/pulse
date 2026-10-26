@@ -499,7 +499,7 @@ All `--json` output is wrapped in a `descriptor.Envelope`:
 
 ```bash
 make build    # Binary at ./bin/pulse
-make test     # go test ./... (as make test-main + make test-heavy, CI's two test steps)
+make test     # go test ./...
 make fmt      # gofmt -w .
 make vet      # go vet
 make lint     # gofmt check (fmt-check) + go vet + staticcheck (auto-installed via go run); CI runs it

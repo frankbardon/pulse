@@ -66,7 +66,7 @@ branch: transformed-predictors
 
 ## Gates & tests
 
-- `TestWindowPredictor_*`, `TestHoldout_*`, `TestExamples_MMMDecaySweepRanksTrueDecayFirst`, `TestExplain_PostWindowAttributeOrder`
+- `TestWindowPredictor_*`, `TestHoldout_*`, `TestExamples_MMMDecaySweepRanksTrueDecayFirst` (later replaced by `TestExamples_ComposeRunClean`, mmm-followups E3-S6), `TestExplain_PostWindowAttributeOrder`
 - `TestPayloadSchemaGolden`, `TestPublicAPIGolden`, `TestCodesHaveFixups`, `TestErrorOwners_Complete`, `TestSkillTokenBudget`
 
 ## Update Demand companions

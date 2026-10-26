@@ -26,15 +26,17 @@ import (
 	"github.com/frankbardon/pulse/types"
 )
 
-// bayes_e2e_test.go holds the built-in REG_MMM_BAYES to its contract
-// through the engine, on a stock instance (nothing registered): the
-// manifest row, every params / input refusal, the spec refusals and
-// shared-slot refusals identical in predict and at runtime, params.time
-// decoded by the projection and refused when unknown, the rng_seed-0
-// derivation, the posterior coefficient table and covariance, the
-// outputs and their diagnostics, the coded sampler-health warnings,
-// the model-owned holdout, cancellation through RequestTimeout, a
-// sampler failure that fails its slot alone, and a fit over pulse mcp.
+// bayes_engine_test.go holds the built-in REG_MMM_BAYES operator to
+// its contract through the engine, on a stock instance (nothing
+// registered) and a small one-channel cohort: every params / input
+// refusal, the shared-slot refusals identical in predict and at
+// runtime, the rng_seed-0 derivation, the posterior coefficient table
+// and covariance, the outputs and their diagnostics, the coded
+// sampler-health warnings, the model-owned holdout, cancellation
+// through RequestTimeout, a sampler failure that fails its slot alone,
+// and the model's adstock equal to WIN_DISTRIBUTED_LAG. These are
+// operator tests: no media-mix workflow (sweep, budget allocation,
+// ROI pass bar) is tested here.
 
 func bayesSchema(weekType encoding.FieldType) encoding.Schema {
 	geo := encoding.NewDictionary()

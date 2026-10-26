@@ -27,15 +27,8 @@ jobs:
       - name: Build
         run: make build
 
-      # make test = test-main + test-heavy, split into two steps so the
-      # heavy packages' pass-bar fits (HEAVY_TEST_PKGS) never share the
-      # runner's CPUs with root / internal/service under go test's
-      # 10-minute per-package timeout.
       - name: Test
-        run: make test-main
-
-      - name: Heavy tests (MMM pass bars)
-        run: make test-heavy
+        run: make test
 
       - name: Embedder smoke module
         run: make smoke
