@@ -183,15 +183,15 @@ func TestMembers(t *testing.T) {
 		{Name: "a", Fields: []string{"score", "q_1"}},
 		{Name: "b", Pattern: "^q_[23]$"},
 	}}
-	got, ok := Members(req, testSchema())
+	got, ok := Members(req, testSchema(), nil)
 	if !ok || !slices.Equal(got, []string{"score", "q_1", "q_3", "q_2"}) {
 		t.Errorf("Members = %v %v", got, ok)
 	}
 	req.Vectors = append(req.Vectors, types.VectorSpec{Name: "c", Fields: []string{"region"}})
-	if _, ok := Members(req, testSchema()); ok {
+	if _, ok := Members(req, testSchema(), nil); ok {
 		t.Error("an unresolvable vector must report ok=false")
 	}
-	if got, ok := Members(&types.Request{}, testSchema()); got != nil || !ok {
+	if got, ok := Members(&types.Request{}, testSchema(), nil); got != nil || !ok {
 		t.Errorf("no vectors: %v %v", got, ok)
 	}
 }
@@ -210,25 +210,25 @@ func TestNormalize_HashesResolvedMembers(t *testing.T) {
 	if byPattern.Hash() == byFields.Hash() {
 		t.Fatal("vacuous: raw pattern and field list already hash alike")
 	}
-	h := Normalize(byFields, schema).Hash()
-	if got := Normalize(byPattern, schema).Hash(); got != h {
+	h := Normalize(byFields, schema, nil).Hash()
+	if got := Normalize(byPattern, schema, nil).Hash(); got != h {
 		t.Errorf("pattern normalizes to %s, fields to %s", got, h)
 	}
-	if got := Normalize(byGlob, schema).Hash(); got != h {
+	if got := Normalize(byGlob, schema, nil).Hash(); got != h {
 		t.Errorf("glob normalizes to %s, fields to %s", got, h)
 	}
-	if Normalize(reordered, schema).Hash() == h {
+	if Normalize(reordered, schema, nil).Hash() == h {
 		t.Error("a different member order must hash differently (order is axis order)")
 	}
 	if byPattern.Vectors[0].Pattern == "" || byPattern.Vectors[0].Fields != nil {
 		t.Error("Normalize mutated the caller's request")
 	}
 	plain := &types.Request{Label: "x"}
-	if Normalize(plain, schema) != plain {
+	if Normalize(plain, schema, nil) != plain {
 		t.Error("a vector-free request must be returned as is")
 	}
 	bad := &types.Request{Vectors: []types.VectorSpec{{Name: "v", Pattern: "^nope"}}}
-	if Normalize(bad, schema) != bad {
+	if Normalize(bad, schema, nil) != bad {
 		t.Error("an unresolvable request must be returned as is")
 	}
 }

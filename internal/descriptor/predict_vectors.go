@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/internal/limits"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
 )
@@ -16,13 +17,14 @@ import (
 // PULSE_VECTOR_METRIC_UNSUITED issue (vectors.MetricUnsuitedIssues, the
 // list the runtime reads) as a warning — an error under strict. A
 // refused vector is reported by the field-reference pass, so nothing is
-// echoed for it.
-func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, strict bool) {
+// echoed for it. models is the request's bound-model catalog (the
+// walk's; nil none).
+func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, strict bool, models model.Catalog) {
 	if req == nil {
 		return
 	}
 	if len(req.Vectors) > 0 {
-		resolved, err := vectors.ResolveRequest(req, schema)
+		resolved, err := vectors.ResolveRequest(req, schema, models)
 		if err != nil {
 			return
 		}
@@ -56,14 +58,14 @@ func predictVectors(env *descriptor.Envelope, result *descriptor.PredictResult, 
 // and a ref() whose labels are not the compared vector's. The named
 // vectors bind as the runtime binds them; a request whose vectors do not
 // resolve is judged without them (the field-reference pass reports
-// that).
-func predictReferences(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot) {
+// that). models is the request's bound-model catalog (nil none).
+func predictReferences(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, models model.Catalog) {
 	if req == nil || (len(req.Filterers) == 0 && len(req.Attributes) == 0) {
 		return
 	}
 	// Resolve also yields the schema's native vector fields (nil, nil
 	// when there are no vectors at all).
-	resolved, _ := vectors.ResolveRequest(req, schema)
+	resolved, _ := vectors.ResolveRequest(req, schema, models)
 	for _, ce := range vectors.ReferenceIssues(req, schema, resolved, snap.ReferenceTables()) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}
@@ -79,12 +81,13 @@ func predictReferences(env *descriptor.Envelope, req *types.Request, schema *enc
 // PROCESSING_VECTOR_LENGTH_MISMATCH {function, left, right}; code,
 // message and details are the runtime's. A request whose vectors do not
 // resolve is judged without them (the field-reference pass reports
-// that); any other argument is unknown and never refused.
-func predictVectorLengths(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema) {
+// that); any other argument is unknown and never refused. models is
+// the request's bound-model catalog (nil none).
+func predictVectorLengths(env *descriptor.Envelope, req *types.Request, schema *encoding.Schema, models model.Catalog) {
 	if req == nil || (len(req.Filterers) == 0 && len(req.Attributes) == 0) {
 		return
 	}
-	resolved, _ := vectors.ResolveRequest(req, schema)
+	resolved, _ := vectors.ResolveRequest(req, schema, models)
 	for _, ce := range vectors.StaticIssues(req, schema, resolved) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
 	}
@@ -111,11 +114,12 @@ func predictVectorLengths(env *descriptor.Envelope, req *types.Request, schema *
 //
 // It returns the resolved plans, one per result.Matrices entry in the
 // same order (nil when nothing was echoed), for the response size model.
-func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, blocks, buffered, records int64) []vectors.Matrix {
+// models is the request's bound-model catalog (nil none).
+func predictMatrices(result *descriptor.PredictResult, req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, models model.Catalog, blocks, buffered, records int64) []vectors.Matrix {
 	if req == nil || len(req.Matrices) == 0 {
 		return nil
 	}
-	plans, err := resolveMatricesFor(req, schema, snap, inst)
+	plans, err := resolveMatricesFor(req, schema, snap, inst, models)
 	if err != nil {
 		return nil
 	}

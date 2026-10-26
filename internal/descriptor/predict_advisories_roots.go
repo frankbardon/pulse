@@ -7,6 +7,7 @@ import (
 
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -114,8 +115,9 @@ func facetAdvisories(plan []ResolvedMultiplicity, pv *descriptor.PValueCount, op
 // correction families its corrected p-values join (countPValuesVisit, so
 // the families never drift from the count). PULSE_ADVISORY_COMPOSE_FAMILIES_SPLIT
 // reads them, after the slot advisories and before the host many-tests
-// note.
-func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan, planOK bool, hostPV *descriptor.PValueCount, opts *PredictOptions) ([]descriptor.Advisory, []descriptor.ComposeSlotPredict) {
+// note. slotModels are the slots' bound-model catalogs (validateComposeSlots,
+// index-aligned; nil none): each slot's verdict reads its own.
+func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan, planOK bool, hostPV *descriptor.PValueCount, opts *PredictOptions, slotModels []model.Catalog) ([]descriptor.Advisory, []descriptor.ComposeSlotPredict) {
 	if req == nil {
 		return nil, nil
 	}
@@ -144,10 +146,14 @@ func composeAdvisories(req *types.ComposedRequest, plan *ComposeMultiplicityPlan
 		if entry.Label == "" {
 			entry.Label = composeDescriptorDefaultLabel(i)
 		}
-		entry.Streamable, entry.StreamableReasons = computeStreamable(defaulted, schema, opts)
+		slotOpts := opts
+		if i < len(slotModels) && slotModels[i] != nil {
+			slotOpts = opts.withModels(slotModels[i])
+		}
+		entry.Streamable, entry.StreamableReasons = computeStreamable(defaulted, schema, slotOpts)
 		var pv *descriptor.PValueCount
 		if planOK && inst.Enabled(featMultiplicity) {
-			pv = countPValuesVisit(defaulted, schema, slotPlan, opts, func(n int, basis string, rm ResolvedMultiplicity) {
+			pv = countPValuesVisit(defaulted, schema, slotPlan, slotOpts, func(n int, basis string, rm ResolvedMultiplicity) {
 				entry.Families = addFamily(entry.Families, pvalueFamilyID(at, rm), rm, n, basis)
 			})
 		}

@@ -3,7 +3,10 @@ package vectors
 import (
 	"encoding/json"
 
+	"strconv"
+
 	"github.com/frankbardon/pulse/encoding"
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
@@ -101,17 +104,48 @@ func WindowsFirst(req *types.Request, schema *encoding.Schema, route func(types.
 
 // WindowsOverRecords reports whether req's windows run over the record
 // rows: req has windows and either no groups, aggregations or crosstab,
-// or runs windows-first (WindowsFirst, catalog- and route-free — the
-// view of every site that holds no model catalog: computed columns,
-// regression window reads, the walk's regression and holdout checks).
-// Only then is a window label a per-record column. A windows-first
-// request turned on solely by a bound model's terms (an aggregation over
-// an ATTR_REG_PREDICT label whose model reads a window) is windows-first
-// for its attributes (PostWindowAttributes takes the catalog) but not
-// here: a regression or vector reading a window label in it is refused
-// on both sides alike.
-func WindowsOverRecords(req *types.Request, schema *encoding.Schema) bool {
-	return req != nil && len(req.Windows) > 0 && (recordRowShape(req) || WindowsFirst(req, schema, nil, nil))
+// or runs windows-first (WindowsFirst over cat, the site's bound-model
+// catalog, nil none). Only then is a window label a per-record column.
+// It is the ONE windows-first decision of every site that reads window
+// labels off the records — computed columns (ComputedColumns, so vector
+// resolution, projection and the matrix copy), regression window reads,
+// the walk's regression and holdout checks — and each passes the
+// catalog it holds, the one the post-window attribute plan
+// (PostWindowAttributes) classifies with: a request windows-first only
+// through a bound model's terms (an aggregation over an
+// ATTR_REG_PREDICT label whose model reads a window) is windows-first
+// for its regressions, holdouts and vector members too.
+func WindowsOverRecords(req *types.Request, schema *encoding.Schema, cat model.Catalog) bool {
+	return req != nil && len(req.Windows) > 0 && (recordRowShape(req) || WindowsFirst(req, schema, nil, cat))
+}
+
+// CrosstabWindowRefusal is PULSE_WINDOW_INVALID details.reason
+// "crosstab_window_unread" {window_index} for the first window of a
+// crosstab request that does not run windows-first (windowsFirst: the
+// request's plan, PostWindow.WindowsFirst over the site's catalog). On
+// the historical order a window runs over the output rows — a grouped or
+// aggregated request's, which may lack the names it reads (then
+// refused) — but a crosstab writes no row a window could run over, so
+// its windows run only windows-first: one no axis, cell or margin
+// aggregation reads (directly or through a post-window attribute) would
+// be silently dropped. Nil for any other request. The field-reference
+// walk (predict and the service's entry check) and RunCrosstab refuse
+// with it.
+func CrosstabWindowRefusal(req *types.Request, windowsFirst bool) *errors.CodedError {
+	if req == nil || req.Crosstab == nil || windowsFirst {
+		return nil
+	}
+	for i, w := range req.Windows {
+		if w == nil {
+			continue
+		}
+		idx := strconv.Itoa(i)
+		return errors.NewCodedErrorWithDetails(errors.PULSE_WINDOW_INVALID,
+			"window["+idx+"] ("+string(w.Type)+") output "+strconv.Quote(WindowLabel(w))+
+				" is read by no crosstab axis, cell or margin aggregation; a crosstab writes no output row for a window to run over, so its windows run first over the records only when the crosstab reads one: read the window label from an axis grouper, the cell or a margin aggregation, or drop the window",
+			map[string]any{"window_index": i, "reason": "crosstab_window_unread"})
+	}
+	return nil
 }
 
 // windowDerived is the set of req's window labels that name a window

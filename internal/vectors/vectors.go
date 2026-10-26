@@ -64,6 +64,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprident"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -454,12 +455,14 @@ func UnreferencedWarning(name string) *errors.CodedError {
 // resolved. Projection calls it: a vector that fails to resolve is
 // refused before any record is read, so ok == false only tells the
 // caller to decode wide rather than guess.
-func Members(req *types.Request, schema *encoding.Schema) (members []string, ok bool) {
+// cat is the site's bound-model catalog, read by the windows-first
+// decision (ResolveRequest; nil none).
+func Members(req *types.Request, schema *encoding.Schema, cat model.Catalog) (members []string, ok bool) {
 	if req == nil || len(req.Vectors) == 0 {
 		return nil, true
 	}
 	ok = true
-	computed := ComputedColumns(req, schema)
+	computed := ComputedColumns(req, schema, cat)
 	for i, spec := range req.Vectors {
 		r, err := resolveSpec(slotPath(i), spec, schema, computed)
 		if err != nil {
@@ -480,11 +483,13 @@ func Members(req *types.Request, schema *encoding.Schema) (members []string, ok 
 // resolve (that request is refused anyway). Request.Hash() alone is
 // schema-free and hashes vectors as written; hash the normalized request
 // wherever a schema is in hand and resolved-member identity is wanted.
-func Normalize(req *types.Request, schema *encoding.Schema) *types.Request {
+// cat is the site's bound-model catalog, read by the windows-first
+// decision (ResolveRequest; nil none).
+func Normalize(req *types.Request, schema *encoding.Schema, cat model.Catalog) *types.Request {
 	if req == nil || len(req.Vectors) == 0 {
 		return req
 	}
-	resolved, err := ResolveRequest(req, schema)
+	resolved, err := ResolveRequest(req, schema, cat)
 	if err != nil {
 		return req
 	}

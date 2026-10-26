@@ -109,7 +109,7 @@ func TestMaxGroups_GroupedMatricesMint(t *testing.T) {
 		Groups:   []*types.Group{{Type: types.GROUP_CATEGORY, Field: "cat"}},
 		Matrices: []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "cov", Fields: []string{"x", "y"}}},
 	}
-	g, err := BuildGroupedMatrices(req, schema, nil, FullComputePlan(), maxGroups(2))
+	g, err := BuildGroupedMatrices(req, schema, nil, FullComputePlan(), maxGroups(2), nil)
 	if err != nil || g == nil {
 		t.Fatalf("BuildGroupedMatrices = %v, %v", g, err)
 	}

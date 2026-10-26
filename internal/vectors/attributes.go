@@ -160,14 +160,16 @@ func (in AttributeInput) Has() bool { return len(in.Members.Members) > 0 }
 // reports a feature the instance hides: ATTR_SEM_SCORE then refuses the
 // model syntax a hidden MAT_SEM surface owns, like MAT_SEM
 // (semHiddenSyntaxRefusal). Like Resolve it reads only the schema.
-func ResolveAttributes(req *types.Request, schema *encoding.Schema, route func(types.AttributeType) types.AttributeType, ext func(string) bool, hidden ...func(string) bool) ([]AttributeInput, *errors.CodedError) {
+// cat is the site's bound-model catalog, read by the windows-first
+// decision (ResolveRequest; nil none).
+func ResolveAttributes(req *types.Request, schema *encoding.Schema, cat model.Catalog, route func(types.AttributeType) types.AttributeType, ext func(string) bool, hidden ...func(string) bool) ([]AttributeInput, *errors.CodedError) {
 	if req == nil || len(req.Attributes) == 0 {
 		return nil, nil
 	}
 	if route == nil {
 		route = func(t types.AttributeType) types.AttributeType { return t }
 	}
-	resolved, verr := ResolveRequest(req, schema)
+	resolved, verr := ResolveRequest(req, schema, cat)
 	if verr != nil {
 		return nil, verr
 	}

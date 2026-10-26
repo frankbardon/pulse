@@ -128,7 +128,7 @@ func buildMatrixSlotsFor(req *types.Request, schema *encoding.Schema, exts *Exte
 // fit there; a Compose vector fit request's set carries the capture) —
 // shared by the Processor and the parallel reducers (BuildMatrixSlots).
 func buildMatrixSlotsWith(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, compute ComputePlan, models *model.Set) ([]*matrixSlot, error) {
-	set, err := resolveMatrixPlans(req, schema, exts, compute)
+	set, err := resolveMatrixPlans(req, schema, exts, compute, models)
 	if err != nil || set == nil {
 		return nil, err
 	}
@@ -170,8 +170,9 @@ type matrixPlanSet struct {
 // `matrices` slot and components.matrices both excluded) resolves to
 // nil too: no slot is minted, so no record is ever folded — the
 // request-derived Request.Vectors warnings are raised elsewhere and
-// stay.
-func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, compute ComputePlan) (*matrixPlanSet, error) {
+// stay. models are the run's bound models: the windows-first decision a
+// window-label member reads (vectors.ResolveMatricesWith's catalog).
+func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, compute ComputePlan, models *model.Set) (*matrixPlanSet, error) {
 	if req == nil || len(req.Matrices) == 0 || !compute.AccumulatesMatrices() {
 		return nil, nil
 	}
@@ -180,7 +181,7 @@ func resolveMatrixPlans(req *types.Request, schema *encoding.Schema, exts *Exten
 	// buffer, never an unknown_type refusal. An offered extension
 	// operator resolves through its registration (declared tier,
 	// opaque params, Accepts).
-	plans, verr := vectors.ResolveMatricesWith(req, schema, vectors.MatrixResolve{
+	plans, verr := vectors.ResolveMatricesWith(req, schema, catalogOf(models), vectors.MatrixResolve{
 		Known: func(t types.MatrixType) bool {
 			return slices.Contains(types.AllMatrixTypes(), t) && !exts.isHidden(string(t))
 		},

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
@@ -83,39 +84,87 @@ func TestWindowsFirst_Classification(t *testing.T) {
 	}
 }
 
-// TestWindowsFirst_WindowsOverRecords: the catalog-free view — the
-// record-row shape and every windows-first request run their windows
-// over the records; the historical order does not; a request
-// windows-first only through a bound model's terms does not here (it
-// does for its attributes, which take the catalog).
+// TestWindowsFirst_WindowsOverRecords: the record-row shape and every
+// windows-first request run their windows over the records; the
+// historical order does not. The decision reads the site's catalog: a
+// request windows-first only through a bound model's terms runs them
+// over the records for its computed columns, regression reads and
+// vector members exactly as for its attributes (mmm-followups E4-S6);
+// without the catalog that binds the model it is the historical order
+// everywhere.
 func TestWindowsFirst_WindowsOverRecords(t *testing.T) {
 	cat := model.FitCatalog{"m": {Name: "m", Type: types.REG_OLS, Terms: []string{"lag"}, Kind: types.FitKindRegression}}
 	lag := []*types.Window{lagOf("x", "lag")}
 	s := postWindowSchema()
-	if !WindowsOverRecords(&types.Request{Windows: lag}, s) {
+	if !WindowsOverRecords(&types.Request{Windows: lag}, s, nil) {
 		t.Error("record-row shape: windows not over the records")
 	}
-	if WindowsOverRecords(&types.Request{Windows: lag, Aggregations: []*types.Aggregation{sumOf("x")}}, s) {
+	if WindowsOverRecords(&types.Request{Windows: lag, Aggregations: []*types.Aggregation{sumOf("x")}}, s, cat) {
 		t.Error("historical order: windows over the records")
 	}
 	wf := &types.Request{Windows: lag, Aggregations: []*types.Aggregation{sumOf("lag")}}
-	if !WindowsOverRecords(wf, s) {
+	if !WindowsOverRecords(wf, s, nil) {
 		t.Error("windows-first: windows not over the records")
 	}
-	if comp := ComputedColumns(wf, s); comp["lag"].Slot != "window" {
+	if comp := ComputedColumns(wf, s, nil); comp["lag"].Slot != "window" {
 		t.Errorf("windows-first: the window label is no computed record column (%v)", comp)
 	}
 	scored := &types.Request{Windows: lag,
 		Attributes:   []*types.Attribute{{Type: types.ATTR_REG_PREDICT, Label: "p", Params: json.RawMessage(`{"fit":"m"}`)}},
-		Aggregations: []*types.Aggregation{sumOf("p")}}
-	if WindowsOverRecords(scored, s) {
-		t.Error("catalog-only windows-first: the catalog-free view moved")
+		Aggregations: []*types.Aggregation{sumOf("p")},
+		Regressions:  []*types.RegressionSpec{{Type: types.REG_OLS, Target: "y", Predictors: []string{"lag"}}},
+		Vectors:      []types.VectorSpec{{Name: "v", Fields: []string{"x", "lag"}}},
+		Matrices:     []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Vector: "v"}},
+	}
+	if !WindowsOverRecords(scored, s, cat) {
+		t.Error("catalog-triggered windows-first: windows not over the records")
 	}
 	if pw := PostWindowAttributes(scored, s, nil, cat); !pw.WindowsFirst || !pw.IsPost(0) || pw.Refusal(scored) != nil {
-		t.Errorf("catalog-only windows-first: attribute plan %+v", pw)
+		t.Errorf("catalog-triggered windows-first: attribute plan %+v", pw)
 	}
-	if WindowsOverRecords(nil, s) || WindowsOverRecords(&types.Request{}, s) {
+	if comp := ComputedColumns(scored, s, cat); comp["lag"].Slot != "window" {
+		t.Errorf("catalog-triggered: the window label is no computed record column (%v)", comp)
+	}
+	if got := RegressionWindowReads(scored, s, cat); !reflect.DeepEqual(got, []string{"lag"}) {
+		t.Errorf("catalog-triggered regression window reads %v, want [lag]", got)
+	}
+	if got := MatrixComputedMembers(scored, s, cat); !reflect.DeepEqual(got, []string{"lag"}) {
+		t.Errorf("catalog-triggered matrix computed members %v, want [lag]", got)
+	}
+	if r, err := ResolveRequest(scored, s, cat); err != nil || !reflect.DeepEqual(r[0].Computed, []string{"lag"}) {
+		t.Errorf("catalog-triggered ResolveRequest %+v, %v; want v resolved with computed member lag", r, err)
+	}
+	// Without the binding catalog the model reads nothing: the
+	// historical order, the window label no record column.
+	if WindowsOverRecords(scored, s, nil) || RegressionWindowReads(scored, s, nil) != nil {
+		t.Error("no catalog: windows over the records")
+	}
+	if _, err := ResolveRequest(scored, s, nil); err == nil {
+		t.Error("no catalog: vector v resolved its window member")
+	}
+	if WindowsOverRecords(nil, s, cat) || WindowsOverRecords(&types.Request{}, s, cat) {
 		t.Error("no window: windows over the records")
+	}
+}
+
+// TestCrosstabWindowRefusal: a crosstab whose windows do not run
+// windows-first is refused at its first window (crosstab_window_unread);
+// a windows-first crosstab and every other shape are not.
+func TestCrosstabWindowRefusal(t *testing.T) {
+	ct := &types.CrosstabSpec{Rows: []*types.Group{catOf("t")}, Cell: sumOf("x")}
+	req := &types.Request{Windows: []*types.Window{nil, lagOf("x", "lag")}, Crosstab: ct}
+	ce := CrosstabWindowRefusal(req, false)
+	if ce == nil || ce.Code != errors.PULSE_WINDOW_INVALID || ce.Details["window_index"] != 1 || ce.Details["reason"] != "crosstab_window_unread" {
+		t.Fatalf("refusal %v, want PULSE_WINDOW_INVALID at window 1", ce)
+	}
+	if CrosstabWindowRefusal(req, true) != nil {
+		t.Error("windows-first crosstab refused")
+	}
+	if CrosstabWindowRefusal(&types.Request{Crosstab: ct}, false) != nil {
+		t.Error("crosstab without windows refused")
+	}
+	if CrosstabWindowRefusal(&types.Request{Windows: req.Windows, Aggregations: []*types.Aggregation{sumOf("x")}}, false) != nil {
+		t.Error("non-crosstab request refused")
 	}
 }
 

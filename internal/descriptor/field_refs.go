@@ -276,7 +276,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 	if req == nil || schema == nil {
 		return nil, vectors.PostWindow{}
 	}
-	w := &fieldRefWalk{cols: make(map[string]bool, len(schema.Fields)), snap: snap, inst: inst, req: req}
+	w := &fieldRefWalk{cols: make(map[string]bool, len(schema.Fields)), snap: snap, inst: inst, req: req, models: models}
 	for i := range schema.Fields {
 		w.cols[schema.Fields[i].Name] = true
 	}
@@ -397,7 +397,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 	// not refused twice.
 	route := func(t types.AttributeType) types.AttributeType { return opRoute(inst, t) }
 	pw := vectors.PostWindowAttributes(req, schema, route, models)
-	w.windowsFirst, w.overRecords = pw.WindowsFirst, vectors.WindowsOverRecords(req, schema)
+	w.windowsFirst, w.overRecords = pw.WindowsFirst, vectors.WindowsOverRecords(req, schema, models)
 	for _, win := range req.Windows {
 		if win == nil {
 			continue
@@ -850,6 +850,12 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 		w.cols = out
 	}
 	if !pw.WindowsFirst {
+		// A crosstab writes no output row: a window it does not read
+		// windows-first is refused (vectors.CrosstabWindowRefusal, the
+		// engine's RunCrosstab refusal), never silently dropped.
+		if cerr := vectors.CrosstabWindowRefusal(req, false); cerr != nil {
+			w.out = append(w.out, cerr)
+		}
 		judgeWindowsAndPost()
 	}
 	// An array-valued aggregation's bare label (AGG_VEC_*: w.arrayCols)
@@ -896,7 +902,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 	// vector-XOR-fields shape, encoding, result-name uniqueness, params,
 	// the named vector (PULSE_VECTOR_UNKNOWN) or the inline fields (the
 	// vector rules). A type the instance hides is an unknown type.
-	mats, verr := resolveMatricesFor(req, schema, w.snap, inst)
+	mats, verr := resolveMatricesFor(req, schema, w.snap, inst, models)
 	if verr != nil {
 		w.out = append(w.out, verr)
 		return w.out, pw
@@ -914,7 +920,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 	// fields (the vector rules), the equal-length pairing and the
 	// listwise-only missing mode. Steps 6-8 contribute one refusal at
 	// most between them.
-	if _, terr := vectors.ResolveTests(req, schema, func(t types.TestType) types.TestType {
+	if _, terr := vectors.ResolveTests(req, schema, models, func(t types.TestType) types.TestType {
 		return opRoute(inst, t)
 	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Tests })); terr != nil {
 		w.out = append(w.out, terr)
@@ -924,7 +930,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 	// fitted params (fit_on, missing, the operator's own keys) resolved
 	// by the same leaf (vectors.ResolveAttributes). Steps 6-9 contribute
 	// one refusal at most between them.
-	ains, aerr := vectors.ResolveAttributes(req, schema, func(t types.AttributeType) types.AttributeType {
+	ains, aerr := vectors.ResolveAttributes(req, schema, models, func(t types.AttributeType) types.AttributeType {
 		return opRoute(inst, t)
 	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Attributes }), inst.Hidden)
 	if aerr != nil {
@@ -934,7 +940,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 	// 10. Grouper vector inputs — every grouper slot's vector / fields
 	// and params resolved by the same leaf (vectors.ResolveGroups).
 	// Steps 6-10 contribute one refusal at most between them.
-	if _, gerr := vectors.ResolveGroups(req, schema, func(t types.GroupType) types.GroupType {
+	if _, gerr := vectors.ResolveGroups(req, schema, models, func(t types.GroupType) types.GroupType {
 		return opRoute(inst, t)
 	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Groupers })); gerr != nil {
 		w.out = append(w.out, gerr)
@@ -945,7 +951,7 @@ func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[str
 	// vector / fields and params resolved by the same leaf
 	// (vectors.ResolveAggregations). Steps 6-11 contribute one refusal
 	// at most between them.
-	if _, aerr := vectors.ResolveAggregations(req, schema, aggregationKinds(inst, w.snap)); aerr != nil {
+	if _, aerr := vectors.ResolveAggregations(req, schema, models, aggregationKinds(inst, w.snap)); aerr != nil {
 		w.out = append(w.out, aerr)
 		return w.out, pw
 	}
@@ -1057,7 +1063,10 @@ func vectorFitRefusals(req *types.Request, schema *encoding.Schema, mats []vecto
 // (a hidden grouper is unknown); a registered extension grouper (snap,
 // else the instance's own projection) is accepted as a between, as the
 // runtime accepts it.
-func resolveMatricesFor(req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot) ([]vectors.Matrix, *errors.CodedError) {
+//
+// models is the site's bound-model catalog, read by the windows-first
+// decision a window-label member resolves through (nil none).
+func resolveMatricesFor(req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, models model.Catalog) ([]vectors.Matrix, *errors.CodedError) {
 	if snap == nil {
 		snap = inst.Extensions()
 	}
@@ -1065,7 +1074,7 @@ func resolveMatricesFor(req *types.Request, schema *encoding.Schema, snap *Exten
 	if snap != nil {
 		ext = func(name string) bool { return snapshotHasName(snap.Groupers, name) }
 	}
-	return vectors.ResolveMatricesWith(req, schema, vectors.MatrixResolve{
+	return vectors.ResolveMatricesWith(req, schema, models, vectors.MatrixResolve{
 		Known: func(t types.MatrixType) bool {
 			return isBuiltinMatrixType(opRoute(inst, t))
 		},
@@ -1146,11 +1155,14 @@ type fieldRefWalk struct {
 	// step 3: the windows run over the record rows before the groups,
 	// aggregations and crosstab.
 	windowsFirst bool
-	// overRecords is vectors.WindowsOverRecords — the catalog-free view
-	// the engine's regression window copy reads too
-	// (vectors.RegressionWindowReads) — seeded at step 3: a regression
-	// or holdout may read a window label only then.
+	// overRecords is vectors.WindowsOverRecords over the walk's models —
+	// the decision the engine's regression window copy reads too
+	// (vectors.RegressionWindowReads over its bound models) — seeded at
+	// step 3: a regression or holdout may read a window label only then.
 	overRecords bool
+	// models is the walk's bound-model catalog: every vector resolution
+	// below reads the windows-first decision through it.
+	models model.Catalog
 }
 
 // windowsFirstAggregationLabels is the set of output labels a

@@ -13,6 +13,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/mergegate"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/linalg"
 	"github.com/frankbardon/pulse/types"
@@ -69,6 +70,11 @@ type LimitInputs struct {
 	// (JoinRowsBound). The runtime pre-flight judges a Joins-stripped
 	// clone, so the spec rides here rather than on the request.
 	JoinSpec *types.JoinSpec
+	// Models is the request's bound-model catalog (predict: the walk's;
+	// the runtime: the set its ctx carries) — the windows-first
+	// decision a window-label vector member resolves through in the
+	// matrix, vector-aggregation, grouper and test estimates. Nil none.
+	Models model.Catalog
 	// Extensions and FusionDisabled feed the arm decision (streamable,
 	// fused) exactly as predict's computeStreamable / CrosstabFusion
 	// and the engine's dispatch read them.
@@ -161,7 +167,7 @@ func RequestLimitFindings(req *types.Request, schema *encoding.Schema, inst *Ins
 		}
 	}
 	if len(req.Matrices) > 0 {
-		plans, err := resolveMatricesFor(req, schema, nil, inst)
+		plans, err := resolveMatricesFor(req, schema, nil, inst, in.Models)
 		if err == nil {
 			for _, m := range plans {
 				if f, ok := limits.Evaluate(l, limits.MaxMatrixDim, int64(len(m.Columns())), limits.Certain); ok {
@@ -196,7 +202,7 @@ func MemoryArm(req *types.Request, schema *encoding.Schema, inst *InstanceSnapsh
 		}
 		return limits.ArmBuffered
 	}
-	if ok, _ := computeStreamable(req, schema, &PredictOptions{Extensions: in.Extensions, Instance: inst}); ok {
+	if ok, _ := computeStreamable(req, schema, &PredictOptions{Extensions: in.Extensions, Instance: inst, models: in.Models}); ok {
 		return limits.ArmStreaming
 	}
 	return limits.ArmBuffered
@@ -471,7 +477,7 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 		var members int64
 		if vectors.IsVectorAggregation(a.Type) {
 			if vecInputs == nil {
-				vecInputs, _ = vectors.ResolveAggregations(req, schema, aggregationKinds(inst, nil))
+				vecInputs, _ = vectors.ResolveAggregations(req, schema, in.Models, aggregationKinds(inst, nil))
 			}
 			members = vectorAggregationMembers(a, vecInputs, schema)
 			if elementOf(a) {
@@ -486,9 +492,9 @@ func estimateMemoryWindow(req *types.Request, schema *encoding.Schema, inst *Ins
 		mi.SetMembers = addSaturating(mi.SetMembers, setMembers(a, schema))
 	}
 	mi.DerivedColumns = int64(len(req.Attributes) + len(req.Features) + len(req.Windows))
-	mi.TestInstances, mi.TestLevels, mi.TestValues = testMemory(req, schema, inst, records, mi.Buckets, mi.FanOut)
+	mi.TestInstances, mi.TestLevels, mi.TestValues = testMemory(req, schema, inst, in.Models, records, mi.Buckets, mi.FanOut)
 	mi.MatrixBytes = matrixMemory(req, schema, inst, matrixIn)
-	for _, b := range GroupBufferBytes(req, schema, inst, records) {
+	for _, b := range GroupBufferBytes(req, schema, inst, records, in.Models) {
 		mi.GrouperBytes = addSaturating(mi.GrouperBytes, b)
 	}
 	return limits.EstimateMemory(mi), true
@@ -719,13 +725,13 @@ func JoinFanOutRefusal(req *types.Request, schema *encoding.Schema, inst *Instan
 // and both crosstab axes. Nil when no slot is a GROUP_KMEANS that
 // resolves, or records is unknown (< 0). The memory estimate sums it;
 // predict reports it per groups[i] slot (GroupPredict.RowBufferBytes).
-func GroupBufferBytes(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, records int64) map[*types.Group]int64 {
+func GroupBufferBytes(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, records int64, models model.Catalog) map[*types.Group]int64 {
 	if req == nil || records < 0 {
 		return nil
 	}
 	// No extension predicate: an extension grouper's store is its own,
 	// so only the built-in GROUP_KMEANS slots resolve here.
-	inputs, err := vectors.ResolveGroups(req, schema, func(t types.GroupType) types.GroupType {
+	inputs, err := vectors.ResolveGroups(req, schema, models, func(t types.GroupType) types.GroupType {
 		return opRoute(inst, t)
 	}, nil)
 	if err != nil || len(inputs) == 0 {
@@ -957,7 +963,7 @@ func matrixMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSna
 	if len(req.Matrices) == 0 {
 		return 0
 	}
-	plans, err := resolveMatricesFor(req, schema, nil, inst)
+	plans, err := resolveMatricesFor(req, schema, nil, inst, in.Models)
 	if err != nil {
 		return 0
 	}
@@ -1146,12 +1152,12 @@ func requestFanOut(req *types.Request, schema *encoding.Schema) int64 {
 // streamable built-in keeps its values — the predict mirror of the
 // buffered-only tier (types.TestType.Streamable); an extension test's
 // state is its own (instances only).
-func testMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, records, buckets, fanOut int64) (instances, levels, values int64) {
+func testMemory(req *types.Request, schema *encoding.Schema, inst *InstanceSnapshot, models model.Catalog, records, buckets, fanOut int64) (instances, levels, values int64) {
 	if len(req.Tests) == 0 {
 		return 0, 0, 0
 	}
 	admitted := mulSaturating(records, max(fanOut, 1))
-	inputs, _ := vectors.ResolveTests(req, schema, func(t types.TestType) types.TestType {
+	inputs, _ := vectors.ResolveTests(req, schema, models, func(t types.TestType) types.TestType {
 		return opRoute(inst, t)
 	}, nil)
 	for i, t := range req.Tests {
@@ -1425,6 +1431,7 @@ func requestFindings(req *types.Request, schema *encoding.Schema, opts *PredictO
 		// pulse.Options.DisableComponents: resolved per request with its
 		// disable_components, as the runtime's components gate is.
 		DisableComponents: opts.DisableComponents,
+		Models:            opts.boundModels(),
 	}
 	// The mmap probe runs only when it can change the answer: a memory
 	// limit set, a single file at or past the threshold, decode not

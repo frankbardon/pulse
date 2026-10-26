@@ -231,7 +231,7 @@ func (p *Processor) planRowTests(req *types.Request) ([]rowTestPlan, error) {
 	if len(tests) == 0 {
 		return nil, nil
 	}
-	inputs, verr := vectors.ResolveTests(req, p.schema, func(t types.TestType) types.TestType {
+	inputs, verr := vectors.ResolveTests(req, p.schema, p.catalog(), func(t types.TestType) types.TestType {
 		if p.exts.isHidden(string(t)) {
 			return ""
 		}

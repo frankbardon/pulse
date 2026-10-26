@@ -545,6 +545,12 @@ func (p *Processor) RunCrosstab(ctx context.Context, req *types.Request, records
 	if err != nil {
 		return nil, err
 	}
+	// A window no axis, cell or margin aggregation reads has no row to
+	// run over (the walk's refusal, re-raised for a processor driven
+	// without the service).
+	if cerr := vectors.CrosstabWindowRefusal(req, post.WindowsFirst); cerr != nil {
+		return nil, cerr
+	}
 	var (
 		filtered     []*Record
 		attrWarnings []*types.ResponseWarning
@@ -697,12 +703,27 @@ func (p *Processor) RunCrosstab(ctx context.Context, req *types.Request, records
 		return nil, err
 	}
 
+	// Regression fits over the filtered records, exactly as the record
+	// arm fits them (processRecords): a holdout slot fits its train rows
+	// and scores its held-out rows, every other slot the filtered set as
+	// one batch. A crosstab's regressions run only here — the fused gate
+	// declines them (crosstabfuse.Decide). An excluded regressions slot
+	// (ComputePlan) fits nothing.
+	var regressionResults []*types.RegressionResult
+	if p.compute.Regressions && len(req.Regressions) > 0 {
+		workRegressionFits.Add(int64(len(req.Regressions)))
+		if regressionResults, err = p.fitRegressions(ctx, req, filtered); err != nil {
+			return nil, err
+		}
+	}
+
 	resp := &types.Response{
 		Metadata: &types.ResponseMetadata{
 			TotalRows:    totalRows,
 			FilteredRows: filteredRows,
 		},
-		Tests: testResults,
+		Tests:       testResults,
+		Regressions: regressionResults,
 		// Fit warnings from the attribute pass (declared order).
 		Warnings: append(attrWarnings, refitWarns...),
 	}

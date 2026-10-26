@@ -3,7 +3,6 @@ package processing
 import (
 	"context"
 
-	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -44,11 +43,7 @@ type attrSlotOut struct {
 // RunCrosstab; the streaming arms and the fused crosstab never see it
 // (canStream and the fusion gate refuse any window).
 func (p *Processor) postWindowPlan(req *types.Request) (vectors.PostWindow, error) {
-	var cat model.Catalog
-	if p.models != nil {
-		cat = p.models
-	}
-	pw := vectors.PostWindowAttributes(req, p.schema, nil, cat)
+	pw := vectors.PostWindowAttributes(req, p.schema, nil, p.catalog())
 	if cerr := pw.Refusal(req); cerr != nil {
 		return vectors.PostWindow{}, cerr
 	}

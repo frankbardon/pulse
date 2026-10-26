@@ -36,6 +36,14 @@ type PredictOptions struct {
 	// Strict upgrades warnings to errors.
 	Strict bool
 
+	// models is the bound-model catalog of the request being judged
+	// (withModels: the request's loaded `models` and populations, a
+	// Compose slot's fits) — the catalog every windows-first site
+	// downstream of the model load reads (vectors.WindowsOverRecords
+	// through the vector resolvers, the limit estimates, streamability),
+	// so each judges the request the walk judged. Nil before the load.
+	models model.Catalog
+
 	// Extensions is the read-only snapshot of embedder-registered
 	// operators + expression-side state. Nil takes the built-in-only
 	// path. The snapshot adds every custom operator name to the
@@ -185,6 +193,27 @@ const CrosstabFusionDisabledReason = "crosstab fusion disabled on this instance 
 // request's disable_components when set, else the engine default.
 func (o *PredictOptions) componentsDisabled(req *types.Request) bool {
 	return EffectiveDisableComponents(req, o != nil && o.DisableComponents)
+}
+
+// withModels returns a copy of o carrying the request's bound-model
+// catalog (o itself is never written: the caller's options are shared
+// across Compose slots and chain stages). Nil-receiver-safe.
+func (o *PredictOptions) withModels(models model.Catalog) *PredictOptions {
+	var c PredictOptions
+	if o != nil {
+		c = *o
+	}
+	c.models = models
+	return &c
+}
+
+// boundModels is the catalog withModels installed (nil none).
+// Nil-receiver-safe.
+func (o *PredictOptions) boundModels() model.Catalog {
+	if o == nil {
+		return nil
+	}
+	return o.models
 }
 
 // instance returns the options' instance feature set (nil — hide
@@ -360,6 +389,11 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	if lerr != nil {
 		addCodedError(env, lerr)
 	}
+	// Every windows-first site below reads the windows-first decision
+	// over the catalog the walk judges with (vectors.WindowsOverRecords).
+	if models != nil {
+		opts = opts.withModels(models)
+	}
 
 	// Multiplicity resolution — the same single pass the runtime runs
 	// right after the join-count rule, before any dispatch
@@ -452,8 +486,8 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 		}
 	}
 
-	predictVectors(env, result, req, schema, opts.Strict)
-	predictReferences(env, req, schema, extensionsFromOpts(opts))
+	predictVectors(env, result, req, schema, opts.Strict, models)
+	predictReferences(env, req, schema, extensionsFromOpts(opts), models)
 	// The merge-fragment count the matrix state scales with: over the
 	// per-shard counts for an archive (plus the rows non-head fragments
 	// buffer), else over the record count; unknown without one.
@@ -479,7 +513,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 		}
 		sizeIn.regressionMembers = multPlan.Regressions
 	}
-	sizeIn.matrixPlans = predictMatrices(result, req, schema, extensionsFromOpts(opts), opts.Instance, blocks, buffered, matrixRecords)
+	sizeIn.matrixPlans = predictMatrices(result, req, schema, extensionsFromOpts(opts), opts.Instance, models, blocks, buffered, matrixRecords)
 	// Instance resource limits — the rule the process pre-flight
 	// refuses with (LimitRefusal), on the defaults-resolved request over
 	// the schema it executes over. A certain finding is a predict error.
@@ -557,7 +591,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	populateGroupPredicts(result, req, opts)
 	// A buffered vector grouper's point store (GROUP_KMEANS), the
 	// grouper term of the memory estimate, per groups[i] slot.
-	if buf := GroupBufferBytes(req, schema, opts.Instance, matrixRecords); len(buf) > 0 {
+	if buf := GroupBufferBytes(req, schema, opts.Instance, matrixRecords, models); len(buf) > 0 {
 		i := 0
 		for _, grp := range req.Groups {
 			if grp == nil {
@@ -682,7 +716,7 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 
 	// Static vector lengths of the pair built-ins (dot / dist / cosine)
 	// in the request's expressions — the runtime build's refusal.
-	predictVectorLengths(env, req, schema)
+	predictVectorLengths(env, req, schema, opts.boundModels())
 
 	// Validate tier-1 and tier-2 statistical tests against the schema +
 	// projected column set. Tier-1 catches missing fields and type
@@ -794,10 +828,10 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	// over every filtered record before the groups, aggregations and
 	// crosstab: buffered on every shape (processing.canStream refuses
 	// any window), the crosstab one included — judged ahead of the
-	// crosstab gate below. The static classification takes no model
-	// catalog: a request windows-first only through a bound model's
-	// terms keeps the historical reasons.
-	windowsFirst := vectors.WindowsFirst(req, schema, func(t types.AttributeType) types.AttributeType { return opRoute(opts.instance(), t) }, nil)
+	// crosstab gate below. The classification reads the request's bound
+	// models (opts.boundModels — the walk's catalog), so a request
+	// windows-first only through a bound model's terms is named so too.
+	windowsFirst := vectors.WindowsFirst(req, schema, func(t types.AttributeType) types.AttributeType { return opRoute(opts.instance(), t) }, opts.boundModels())
 	if windowsFirst {
 		reasons = append(reasons, "windows run first over every filtered record (windows-first: an aggregation, grouper or crosstab axis reads a window output), so the request runs via the buffered path")
 	}
@@ -812,6 +846,11 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		// declines it, processing.canStream refuses any window).
 		if len(req.Windows) > 0 && !windowsFirst {
 			reasons = append(reasons, "crosstab with windows runs via the buffered path (the fused crosstab arm runs no window)")
+		}
+		// Its regressions fit on the buffered arm too (crosstabfuse.Decide
+		// declines them: the fused walk fits none).
+		if len(req.Regressions) > 0 {
+			reasons = append(reasons, "crosstab with regressions runs via the buffered path (the fused crosstab arm fits no regression)")
 		}
 		// Crosstab does not require the standard "at least one
 		// aggregation" gate — the cell aggregation lives on

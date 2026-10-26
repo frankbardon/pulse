@@ -712,7 +712,10 @@ func newOnlineCell(factory AggregatorFactory, agg *types.Aggregation, schema *en
 // error rather than producing a divergent fused result.
 //
 // Returns nil when the request is structurally compatible with the
-// fused path. Returns a typed CodedError otherwise.
+// fused path. Returns a typed CodedError otherwise. Every condition it
+// refuses, crosstabfuse.Decide declines first (TestAssertCanFuse_
+// RejectionsDeclinedByGate walks each one), so a valid request never
+// reaches the PROCESSING_INTERNAL here.
 func (s *FusedCrosstabState) AssertCanFuse(req *types.Request) error {
 	if req == nil {
 		return errors.NewCodedError(errors.PROCESSING_INTERNAL,
@@ -757,7 +760,11 @@ func (s *FusedCrosstabState) AssertCanFuse(req *types.Request) error {
 		if attr == nil {
 			continue
 		}
-		if s.exts.attrRequiresTwoPass(attr) {
+		// Over the request's vectors and the schema — the per-slot
+		// two-pass rule Decide's AttributeSlotTwoPass reads — so a
+		// comparison slot whose metric its named vector's kind decides
+		// is judged as the gate judged it.
+		if s.exts.attrRequiresTwoPassIn(attr, req.Vectors, s.schema) {
 			return errors.NewCodedErrorWithDetails(errors.PROCESSING_INTERNAL,
 				fmt.Sprintf("fused crosstab path does not implement two-pass attribute %s; gate should have rejected", attr.Type),
 				map[string]any{"attribute": string(attr.Type)})

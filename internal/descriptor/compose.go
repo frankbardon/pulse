@@ -389,7 +389,8 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	var fitFindings []descriptor.LimitFinding
 	result.Fits = validateComposeFits(fitEnv, req.Fits, opts, loaded, &fitFindings)
 	var postWindows []*descriptor.PostWindowPlan
-	*slots, postWindows = validateComposeSlots(env, req, opts, loaded, result.Fits, sweepFits.Axes, &result.LimitFindings)
+	var slotModels []model.Catalog
+	*slots, postWindows, slotModels = validateComposeSlots(env, req, opts, loaded, result.Fits, sweepFits.Axes, &result.LimitFindings)
 	result.LimitFindings = append(result.LimitFindings, fitFindings...)
 	env.Errors = append(env.Errors, fitEnv.Errors...)
 	env.Warnings = append(env.Warnings, fitEnv.Warnings...)
@@ -400,7 +401,7 @@ func validateComposeExpanded(req *types.ComposedRequest, opts *PredictOptions, s
 	if merr == nil && opts.instance().Enabled(featMultiplicity) {
 		result.PValues = countComposeHostPValues(req, multPlan, opts)
 	}
-	result.Advisories, result.Slots = composeAdvisories(req, multPlan, merr == nil, result.PValues, opts)
+	result.Advisories, result.Slots = composeAdvisories(req, multPlan, merr == nil, result.PValues, opts, slotModels)
 	for k := range result.Slots {
 		if i := result.Slots[k].Request; i < len(postWindows) {
 			result.Slots[k].PostWindow = postWindows[i]
@@ -1334,8 +1335,9 @@ func appendComposeSlotPair(result *ComposeValidationResult, ref, target, reason 
 // index-aligned with req.Requests): the classification its
 // field-reference walk made over the batch's fits and the slot's own
 // models (schema-free when refused before that walk); nil for a slot
-// with no window.
-func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded, summaries []descriptor.FitSummary, sweepAxes []string, findings *[]descriptor.LimitFinding) ([]*types.Request, []*descriptor.PostWindowPlan) {
+// with no window. The third result is each slot's bound-model catalog
+// (index-aligned), the one its walk judged with.
+func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, opts *PredictOptions, loaded *composeLoaded, summaries []descriptor.FitSummary, sweepAxes []string, findings *[]descriptor.LimitFinding) ([]*types.Request, []*descriptor.PostWindowPlan, []model.Catalog) {
 	// The names every slot's ATTR_REG_PREDICT resolves: the runtime's
 	// fit pre-pass binds each `fits` entry before any slot runs, over
 	// the registered populations, beside the slot's own loaded entries.
@@ -1343,13 +1345,15 @@ func validateComposeSlots(env *descriptor.Envelope, req *types.ComposedRequest, 
 	fits := model.WithinCatalog(opts.populations(), composeFitCatalog(req.Fits, summaries).WithSweepAxes(sweepAxes))
 	normalized := make([]*types.Request, len(req.Requests))
 	postWindows := make([]*descriptor.PostWindowPlan, len(req.Requests))
+	catalogs := make([]model.Catalog, len(req.Requests))
 	for i, slot := range req.Requests {
 		if slot == nil {
 			continue
 		}
-		validateComposeRequest(env, slot, opts, "request", i, loadedCatalog(fits, model.RequestRefs(slot), loaded.slot(i)), &normalized[i], &postWindows[i], findings)
+		catalogs[i] = loadedCatalog(fits, model.RequestRefs(slot), loaded.slot(i))
+		validateComposeRequest(env, slot, opts, "request", i, catalogs[i], &normalized[i], &postWindows[i], findings)
 	}
-	return normalized, postWindows
+	return normalized, postWindows, catalogs
 }
 
 // composeFitCatalog is model.CatalogFromFits with each vector fit's
@@ -1445,6 +1449,11 @@ func loadComposeModels(req *types.ComposedRequest, opts *PredictOptions) (*compo
 // It returns the schema the request executes over (nil when
 // unresolvable) and whether every check passed.
 func validateComposeRequest(env *descriptor.Envelope, slot *types.Request, opts *PredictOptions, key string, idx int, models model.Catalog, normalized **types.Request, postWindow **descriptor.PostWindowPlan, findings *[]descriptor.LimitFinding) (*encoding.Schema, bool) {
+	// Every windows-first site below reads the slot's catalog (the
+	// walk's), as Predict's do.
+	if models != nil {
+		opts = opts.withModels(models)
+	}
 	l := opts.instance().Limits()
 	// early sets the post-window plan of a request refused before its
 	// field-reference walk (classifyPostWindow: the same classifier over
@@ -1637,7 +1646,8 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 		}
 		// A fit request runs before the batch binds anything: it sees
 		// only the registered populations and its own loaded entries.
-		schema, ok := validateComposeRequest(env, req, opts, "fit", i, loadedCatalog(opts.populations(), model.RequestRefs(req), loaded.fit(i)), nil, nil, findings)
+		fitModels := loadedCatalog(opts.populations(), model.RequestRefs(req), loaded.fit(i))
+		schema, ok := validateComposeRequest(env, req, opts, "fit", i, fitModels, nil, nil, findings)
 		if !ok || schema == nil {
 			continue
 		}
@@ -1648,7 +1658,7 @@ func validateComposeFits(env *descriptor.Envelope, fits []types.FitSpec, opts *P
 			if sum == nil {
 				sum = out[i].SEM
 			}
-			sum.Labels, sum.Members = vectorFitAxis(req, schema, opts)
+			sum.Labels, sum.Members = vectorFitAxis(req, schema, opts, fitModels)
 		}
 	}
 	return out
@@ -1673,15 +1683,16 @@ func vectorFitOperator(req *types.Request) string {
 // columns, in axis order — what the runtime captures (a matrix's
 // FitLabels / Columns; a fitted attribute's FittedLabels / members). Nil
 // when the battery does not resolve (the walk already refused it).
-func vectorFitAxis(req *types.Request, schema *encoding.Schema, opts *PredictOptions) (labels, members []string) {
+// models is the fit request's catalog (the walk's).
+func vectorFitAxis(req *types.Request, schema *encoding.Schema, opts *PredictOptions, models model.Catalog) (labels, members []string) {
 	if len(req.Matrices) == 1 {
-		mats, err := resolveMatricesFor(req, schema, nil, opts.instance())
+		mats, err := resolveMatricesFor(req, schema, nil, opts.instance(), models)
 		if err != nil || len(mats) != 1 {
 			return nil, nil
 		}
 		return mats[0].FitLabels(), append([]string(nil), mats[0].Columns()...)
 	}
-	inputs, err := vectors.ResolveAttributes(req, schema, func(t types.AttributeType) types.AttributeType {
+	inputs, err := vectors.ResolveAttributes(req, schema, models, func(t types.AttributeType) types.AttributeType {
 		return opRoute(opts.instance(), t)
 	}, nil)
 	if err != nil {

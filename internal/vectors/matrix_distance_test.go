@@ -45,7 +45,7 @@ func TestResolveMatrices_Distance(t *testing.T) {
 		if !Referenced(req)["seg"] {
 			t.Error("a vector named by a between is unreferenced")
 		}
-		if m, ok := MatrixMembers(&types.Request{Matrices: req.Matrices[:1]}, testSchema()); !ok || !slices.Contains(m, "region") {
+		if m, ok := MatrixMembers(&types.Request{Matrices: req.Matrices[:1]}, testSchema(), nil); !ok || !slices.Contains(m, "region") {
 			t.Errorf("MatrixMembers = %v, %v; want the between field", m, ok)
 		}
 	})

@@ -53,7 +53,7 @@ func TestResolveGroups_Rules(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			_, err := ResolveGroups(c.req, groupSchema(), nil, nil)
+			_, err := ResolveGroups(c.req, groupSchema(), nil, nil, nil)
 			if c.code == "" {
 				if err != nil {
 					t.Fatalf("refused: %v", err)

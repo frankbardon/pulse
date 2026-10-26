@@ -123,6 +123,21 @@ func (p *Processor) SetModels(models *model.Set) {
 	p.models = models
 }
 
+// catalog is the processor's bound models as the catalog every
+// windows-first site reads (vectors.WindowsOverRecords through
+// ComputedColumns, ResolveRequest and the per-slot resolvers; the
+// post-window plan): nil when none is bound.
+func (p *Processor) catalog() model.Catalog { return catalogOf(p.models) }
+
+// catalogOf is models as a model.Catalog, nil (not a typed nil) when
+// models is nil.
+func catalogOf(models *model.Set) model.Catalog {
+	if models == nil {
+		return nil
+	}
+	return models
+}
+
 // PhaseLapper receives a processor's phase boundaries: Lap(ph) closes
 // the segment since the previous boundary as phase ph. Boundaries sit
 // between stages, never per row. The service installs its
@@ -1037,7 +1052,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	}
 	// Per-bucket matrix slots, minted with the bucket (nil without
 	// matrices).
-	matrices, err := BuildGroupedMatrices(req, p.schema, p.exts, p.compute, p.limits)
+	matrices, err := BuildGroupedMatrices(req, p.schema, p.exts, p.compute, p.limits, p.models)
 	if err != nil {
 		return nil, err
 	}
@@ -1861,7 +1876,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// u64 field.
 	var rowWords *u64RowWords
 	if len(req.Groups) > 0 {
-		if groupedMatrices, err = BuildGroupedMatrices(req, p.schema, p.exts, p.compute, p.limits); err != nil {
+		if groupedMatrices, err = BuildGroupedMatrices(req, p.schema, p.exts, p.compute, p.limits, p.models); err != nil {
 			return nil, err
 		}
 		groupedMatrices.bindContext(ctx)

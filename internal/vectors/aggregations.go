@@ -9,6 +9,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/types"
 )
@@ -403,7 +404,9 @@ func DecodeVecAggParams(at string, typ types.AggregationType, raw json.RawMessag
 // The result is keyed by the slot's *types.Aggregation and holds only
 // the slots that resolved a vector input; the first refusal is
 // returned. Like Resolve it reads only the schema.
-func ResolveAggregations(req *types.Request, schema *encoding.Schema, kinds AggregationKinds) (map[*types.Aggregation]AggregationInput, *errors.CodedError) {
+// cat is the site's bound-model catalog, read by the windows-first
+// decision (ResolveRequest; nil none).
+func ResolveAggregations(req *types.Request, schema *encoding.Schema, cat model.Catalog, kinds AggregationKinds) (map[*types.Aggregation]AggregationInput, *errors.CodedError) {
 	// Nothing to judge when no slot reads a vector or is a vector
 	// aggregator: return before building the slot list (the common
 	// request allocates nothing here).
@@ -413,7 +416,7 @@ func ResolveAggregations(req *types.Request, schema *encoding.Schema, kinds Aggr
 		return nil, nil
 	}
 	slots := AggregationSlots(req)
-	resolved, verr := ResolveRequest(req, schema)
+	resolved, verr := ResolveRequest(req, schema, cat)
 	if verr != nil {
 		return nil, verr
 	}
@@ -593,7 +596,12 @@ func AggregationExpands(a *types.Aggregation, kinds AggregationKinds) bool {
 // resolve (the resolver refuses the request); the label is returned
 // then. Predict (return planning, chain stage columns, the per-slot
 // columns) and the field-reference walk share it, so they name the
-// columns the runtime writes.
+// columns the runtime writes. It reads no windows-first decision: every
+// window label is admitted as a computed member (resolveListing), which
+// resolves a valid request's vectors exactly as ResolveRequest does
+// under any catalog (a schema field still wins), so the listing needs
+// no model catalog — a vector naming a window label its windows do not
+// put on the records is refused by ResolveRequest at its own site.
 func AggregationOutputColumns(req *types.Request, a *types.Aggregation, schema *encoding.Schema, kinds AggregationKinds) ([]string, bool) {
 	label := types.AggregationLabelOf(a)
 	if !AggregationExpands(a, kinds) {
@@ -603,7 +611,7 @@ func AggregationOutputColumns(req *types.Request, a *types.Aggregation, schema *
 	if req != nil {
 		specs = req.Vectors
 	}
-	resolved, verr := ResolveRequest(req, schema)
+	resolved, verr := resolveListing(req, schema)
 	if verr != nil || schema == nil {
 		return []string{label}, false
 	}

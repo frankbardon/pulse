@@ -205,7 +205,7 @@ func TestSlots_AcceptNativeName(t *testing.T) {
 		}
 	})
 	t.Run("test", func(t *testing.T) {
-		ins, err := ResolveTests(&types.Request{Tests: []*types.Test{{Type: types.TEST_BARTLETT_SPHERICITY, Vector: "emb"}}}, s, nil, nil)
+		ins, err := ResolveTests(&types.Request{Tests: []*types.Test{{Type: types.TEST_BARTLETT_SPHERICITY, Vector: "emb"}}}, s, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -214,7 +214,7 @@ func TestSlots_AcceptNativeName(t *testing.T) {
 		}
 	})
 	t.Run("attribute", func(t *testing.T) {
-		ins, err := ResolveAttributes(&types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_SCALE_SCORE, Vector: "emb"}}}, s, nil, nil)
+		ins, err := ResolveAttributes(&types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_SCALE_SCORE, Vector: "emb"}}}, s, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -224,7 +224,7 @@ func TestSlots_AcceptNativeName(t *testing.T) {
 	})
 	t.Run("group", func(t *testing.T) {
 		g := &types.Group{Type: types.GROUP_KMEANS, Vector: "emb", Params: json.RawMessage(`{"k":2}`)}
-		ins, err := ResolveGroups(&types.Request{Groups: []*types.Group{g}}, s, nil, nil)
+		ins, err := ResolveGroups(&types.Request{Groups: []*types.Group{g}}, s, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -234,7 +234,7 @@ func TestSlots_AcceptNativeName(t *testing.T) {
 	})
 	t.Run("aggregation", func(t *testing.T) {
 		a := &types.Aggregation{Type: types.AGG_VEC_MEAN, Vector: "emb"}
-		ins, err := ResolveAggregations(&types.Request{Aggregations: []*types.Aggregation{a}}, s, AggregationKinds{})
+		ins, err := ResolveAggregations(&types.Request{Aggregations: []*types.Aggregation{a}}, s, nil, AggregationKinds{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -266,7 +266,7 @@ func TestProjection_NativeSourceFields(t *testing.T) {
 		Aggregations: []*types.Aggregation{{Type: types.AGG_VEC_SUM, Fields: []string{"emb[1]", "emb1"}}},
 		Matrices:     []types.MatrixSpec{{Type: types.MAT_CORRELATION, Vector: "emb"}},
 	}
-	if got, ok := Members(req, s); !ok || !slices.Equal(got, []string{"x", "raw"}) {
+	if got, ok := Members(req, s, nil); !ok || !slices.Equal(got, []string{"x", "raw"}) {
 		t.Errorf("Members = %v, %v", got, ok)
 	}
 	if got, ok := AggregationInputMembers(req, s); !ok || !slices.Equal(got, []string{"emb", "emb1"}) {

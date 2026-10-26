@@ -93,11 +93,11 @@ func (s *Service) reduceParallelBuffered(
 	req = processing.StampWeightsWith(req, s.defaultWeight, s.extensions)
 	// A vector aggregator's factory reads its resolved members (the
 	// rewrite Processor.prepare applies on every other arm).
-	req = processing.ResolveAggregationInputs(req, schema, s.extensions)
+	req = processing.ResolveAggregationInputs(req, schema, s.extensions, catalogOf(model.SetFrom(ctx)))
 	// So does a vector-input attribute (a fitted attribute bound to a
 	// prebuilt fit is row-local, so it reaches this arm): its literal
 	// members, default label and written-out labels.
-	req = processing.ResolveAttributeInputs(req, schema, s.extensions)
+	req = processing.ResolveAttributeInputs(req, schema, s.extensions, catalogOf(model.SetFrom(ctx)))
 
 	// Pre-resolve aggregator factories once; the per-worker factory
 	// closure re-uses these so we do not pay an extensions.LookupAggregator
@@ -165,7 +165,7 @@ func (s *Service) reduceParallelBuffered(
 			out           *shardPartial
 		)
 
-		vecs := processing.ExprVectors(req, schema)
+		vecs := processing.ExprVectors(req, schema, catalogOf(model.SetFrom(ctx)))
 		filterFns, buildErr = processing.BuildFiltersWithVectors(req.Filterers, schema, s.extensions, model.SetFrom(ctx), vecs)
 		if buildErr == nil {
 			rowLocalAttrs, buildErr = buildRowLocalAttrSpecs(req.Attributes, schema, s.extensions, partitionModels(ctx), vecs, totals, compute)
