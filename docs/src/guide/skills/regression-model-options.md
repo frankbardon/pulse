@@ -41,7 +41,7 @@ Constrains the listed slopes ≥ 0 (Lawson–Hanson; intercept and other slopes 
 
 A regression may name a same-request window label. Adstock each channel (a window, `partition_by` market, `order_by` week), saturate with `hill(x, half, shape)` in a post-window attribute, then fit OLS with `bounds.nonnegative` on the saturated channels and a `holdout` on the last weeks — one request, no materialize. Sweep the decay with a `$var` and `rank` on `regressions.<name>.holdout.rmse` ([`compose-sweeps`](compose-sweeps.md)).
 
-- Joint fit: `REG_MMM_HILL` ([`op-reg-mmm-hill`](op-reg-mmm-hill.md)) fits each channel's β and Hill `k`, `s` together (`k:<ch>`, `s:<ch>`), no `hill()` attribute. Call 1: `lhs` decay sweep ranked on holdout RMSE ([`compose-sweep-sampling`](compose-sweep-sampling.md)). Call 2: the winner's decays, `fits` + `optimize` ([`compose-optimize`](compose-optimize.md)).
+- Joint fit: `REG_MMM_HILL` ([`op-reg-mmm-hill`](op-reg-mmm-hill.md)) fits each channel's β and Hill `k`, `s` together, no `hill()` attribute. `REG_MMM_BAYES` ([`op-reg-mmm-bayes`](op-reg-mmm-bayes.md)) adds decay and ROI intervals. Decay sweep, fit, `optimize`: [`mmm-workflow`](mmm-workflow.md).
 - Windows-over-records shape only (no `groups` / `aggregations` / `crosstab`): a grouped shape is `PULSE_REGRESSION_WINDOW_UNAVAILABLE` (`reason: grouped_shape`); a slot `weight` naming a window label is `SERVICE_VALIDATION`. A bootstrap does not re-run windows per replicate.
 - A lag's first rows are `null`: guard a formula with `lag ?? 0` or `x == nil ? nil : …`, else `PROCESSING_RUNTIME`. Null / NaN / ±Inf rows drop listwise.
 

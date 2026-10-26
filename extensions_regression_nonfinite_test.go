@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/frankbardon/pulse/extend"
+	"github.com/frankbardon/pulse/internal/regadapt"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -70,7 +71,7 @@ func (s countingScorer) Score(row extend.ScoreRow) (float64, bool) {
 // scorer; a finite row still reaches it.
 func TestExtensions_RegressionScorerNonFiniteIsNull(t *testing.T) {
 	calls := 0
-	s := regressionRowScorer{rs: countingScorer{calls: &calls}, cols: []string{"x"}}
+	s := regadapt.NewRegressionRowScorer(countingScorer{calls: &calls}, []string{"x"})
 	for _, v := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
 		if got, ok := s.Score(nonFiniteScoreRow{"x": v}); ok {
 			t.Errorf("x=%v: score %v, want null", v, got)

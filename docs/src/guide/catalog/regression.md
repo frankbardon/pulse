@@ -6,6 +6,7 @@ The regressions this instance offers: what each is for, the questions it answers
 |---|---|---|---|---|
 | [`REG_BAYES_LINEAR`](#op-reg_bayes_linear) | Fits a straight-line model of a numeric outcome under a prior, reporting each coefficient's posterior mean and credible interval. | Given the data and our prior belief, what range of values is plausible for the price coefficient? | advanced | [`REG_OLS`](#op-reg_ols) when you want p-values, resampled standard errors or stepwise predictor selection (none run on this type).<br>[`REG_GLM`](#op-reg_glm) when the outcome is yes/no (0/1) or a count.<br>[`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you only want how closely two numeric fields follow a straight line together. |
 | [`REG_GLM`](#op-reg_glm) | Fits a generalized linear model: logistic regression for yes/no outcomes, Poisson for counts, gamma for positive skewed amounts. | Which customer traits are associated with the chance of churning, holding the others fixed? | advanced | [`REG_OLS`](#op-reg_ols) when the outcome is a numeric measure with roughly symmetric, constant-spread residuals.<br>[`TEST_PROP_Z`](test.md#op-test_prop_z) when you only want to know whether a yes/no rate differs between two groups.<br>[`TEST_CHISQ`](test.md#op-test_chisq) when the outcome and the single predictor are both categories. |
+| [`REG_MMM_BAYES`](#op-reg_mmm_bayes) | Fits a media-mix model with intervals: each channel's carry-over, response curve and return on spend, beside linear controls. | What return does each marketing channel earn, and how sure are we? | advanced | [`REG_MMM_HILL`](#op-reg_mmm_hill) when a fast point estimate over already-adstocked channels is enough, or the fit must be saved, scored or optimised. |
 | [`REG_MMM_HILL`](#op-reg_mmm_hill) | Fits a media-mix model: each marketing channel's effect and response curve (where its spend stops paying off), jointly with linear controls. | What does each marketing channel contribute to sales, holding price and the other channels fixed? | advanced | [`REG_OLS`](#op-reg_ols) when the outcome moves in a straight line with spend, with no saturation. |
 | [`REG_OLS`](#op-reg_ols) | Fits a straight-line model that predicts a numeric outcome from one or more numeric predictors, by least squares. | Which of price, discount and season are associated with weekly sales, holding the others fixed? | intermediate | [`REG_GLM`](#op-reg_glm) when the outcome is yes/no (0/1) or a count.<br>[`REG_BAYES_LINEAR`](#op-reg_bayes_linear) when you want intervals that combine the data with prior knowledge about the coefficients.<br>[`TEST_PEARSON_R`](test.md#op-test_pearson_r) when you only want how closely two numeric fields follow a straight line together.<br>[`TEST_ANOVA_F`](test.md#op-test_anova_f) when the predictor is a set of groups and you want to know whether the group averages differ.<br>[`ATTR_REG_RESIDUAL`](attribute.md#op-attr_reg_residual) when you want each row's residual, to check the residual assumptions or find rows the model fits badly. |
 
@@ -96,6 +97,42 @@ Fits a generalized linear model: logistic regression for yes/no outcomes, Poisso
 **Glossary:** [`deviance`](../glossary.md#term-deviance), [`generalized-linear-model`](../glossary.md#term-generalized-linear-model), [`independence`](../glossary.md#term-independence), [`link-function`](../glossary.md#term-link-function), [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`logistic-regression`](../glossary.md#term-logistic-regression), [`multicollinearity`](../glossary.md#term-multicollinearity), [`null-hypothesis`](../glossary.md#term-null-hypothesis), [`odds-ratio`](../glossary.md#term-odds-ratio), [`overdispersion`](../glossary.md#term-overdispersion), [`p-value`](../glossary.md#term-p-value), [`pseudo-r-squared`](../glossary.md#term-pseudo-r-squared), [`regression-coefficient`](../glossary.md#term-regression-coefficient), [`skew`](../glossary.md#term-skew), [`standard-error`](../glossary.md#term-standard-error)
 
 **Skill:** [`op-reg-glm`](../skills/op-reg-glm.md)
+
+<a id="op-reg_mmm_bayes"></a>
+
+### `REG_MMM_BAYES`
+
+Fits a media-mix model with intervals: each channel's carry-over, response curve and return on spend, beside linear controls.
+
+**Level:** advanced
+
+**Also known as:** `bayesian media mix model`, `bayesian marketing mix model`, `bayesian mmm`
+
+**Questions it answers:**
+
+- What return does each marketing channel earn, and how sure are we?
+- How long does each channel's effect carry over?
+
+**Use cases by domain:**
+
+- *ops:* Which channels earn their spend, with intervals, before moving budget.
+
+**Assumptions:**
+
+- The rows are one market's series, one row per period with contiguous integer times: a gap or a repeated period is refused. Each period's noise is independent of the others once the carry-over is modelled: leftover dependence over time makes the intervals too narrow.
+- Each channel is raw spend, carried over geometrically inside the model over max_lag periods, so the decay is estimated with everything else.
+- Each channel's effect follows one Hill curve, rising from 0 and flattening toward its coefficient; the controls enter in a straight line.
+- The priors shape the answer where the data are thin: an experiment's ROI is the honest prior to set.
+- A coefficient describes association with the outcome, holding the other predictors fixed; it shows a causal effect only when the design supports one (for example random assignment), never from the fit alone, and a predictor left out of the model can drive both.
+- Rows with a null target or predictor are dropped before fitting (listwise deletion); n_obs counts the rows used.
+
+**Use something else:**
+
+- [`REG_MMM_HILL`](#op-reg_mmm_hill) when a fast point estimate over already-adstocked channels is enough, or the fit must be saved, scored or optimised.
+
+**Glossary:** [`listwise-deletion`](../glossary.md#term-listwise-deletion), [`regression-coefficient`](../glossary.md#term-regression-coefficient)
+
+**Skill:** [`op-reg-mmm-bayes`](../skills/op-reg-mmm-bayes.md)
 
 <a id="op-reg_mmm_hill"></a>
 

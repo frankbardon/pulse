@@ -227,6 +227,91 @@ Iteratively reweighted least squares steps taken before the coefficients stopped
 
 - A fit that cannot converge within max_iters is refused rather than reported.
 
+<a id="op-reg_mmm_bayes"></a>
+
+### `REG_MMM_BAYES`
+
+Fits a media-mix model with intervals: each channel's carry-over, response curve and return on spend, beside linear controls. See its [catalog entry](../catalog/regression.md#op-reg_mmm_bayes).
+
+#### `coefficients.*`
+
+Each coefficient's posterior mean in original units: a channel's coefficient is the most its curve can add to the outcome (the effect at full saturation) and a control's the change in the outcome per unit of the control, each holding the other predictors fixed; decay:&lt;channel&gt;, k:&lt;channel&gt; and s:&lt;channel&gt; are each channel's carry-over, half-saturation spend and curve shape, and sigma the noise SD.
+
+**Sign:**
+
+- `+`: higher values of the predictor are associated with a higher outcome, other predictors held fixed
+- `-`: higher values of the predictor are associated with a lower outcome, other predictors held fixed
+
+**Caveats:**
+
+- Association, not causation: the coefficient shows how the outcome moves with this predictor in these rows, holding the other predictors fixed; a causal reading needs a design that supports it, and a predictor left out of the model can drive both.
+- An experiment-measured prior on a channel's ROI anchors its effect.
+- k and s trade off against each other on a channel whose spend never reaches its k: judge it by its ROI and contribution, not by k or s.
+- (intercept) is the prediction when every predictor is 0, which may lie outside the data and mean nothing.
+
+#### `std_errors.*`
+
+The posterior standard deviation of each coefficient over every retained draw of every chain: the spread of what the data and the priors allow.
+
+**Caveats:**
+
+- It includes the carry-over decay's uncertainty, which a fit over already-adstocked channels cannot.
+
+#### `p_values.*`
+
+**Caveats:**
+
+- Always null: the model reports no p-value; read the credible intervals in outputs instead.
+
+Follows the shared reading: see [Reading a p-value](test.md#shared-p-value).
+
+#### `statistics.*`
+
+Always null: the model reports no test statistic.
+
+#### `outputs.*`
+
+The posterior's own answers, each summary {mean, median, sd, lower, upper} with [lower, upper] the credible interval at credible_level: roi per channel, the outcome each unit of spend returned over the fitted period against spending nothing on it; mroi per channel, the return on the next unit of spend at the fitted level (below the ROI when the channel saturates); contribution per channel, the outcome it produced over the fitted period; params per coefficient; diagnostics, whether the chains agree and explored the posterior (R-hat at most 1.01, effective sample sizes of at least 400, no divergences or tree-depth hits); holdout, with params.holdout_from, the held-out periods' rmse and the share inside the predictive interval (near credible_level when the intervals are honest); and seed, the seed the sampler ran with.
+
+**Caveats:**
+
+- A credible interval is conditional on the model and the priors: a wrong adstock window, a missing control or a seasonal confounder moves it without widening it.
+- An ROI below 1 means the channel returned less outcome than it cost only when the outcome and the spend are in the same currency.
+- mroi is a local slope: it holds the fitted response curve fixed and is not the return of a large budget shift.
+- Contributions are attributed by the model; they are not observed.
+- A fit that fails a diagnostics check carries a PROCESSING_REGRESSION_DIAGNOSTIC warning naming it; its intervals may be too narrow or off-centre.
+- A short holdout gives a noisy coverage: with ten periods each one moves it by a tenth.
+
+#### `ci_lower.*`
+
+Lower bound of the coefficient's two-sided confidence interval at conf_level: the posterior mean minus (lower) or plus (upper) a normal critical value times the posterior SD, a normal approximation to the posterior.
+
+**Caveats:**
+
+- For a skewed posterior (a decay near 0 or 1, a k on its floor) it can leave the parameter's range: read the credible intervals in outputs.params instead.
+- Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
+
+#### `ci_upper.*`
+
+Upper bound of the coefficient's two-sided confidence interval at conf_level: the posterior mean minus (lower) or plus (upper) a normal critical value times the posterior SD, a normal approximation to the posterior.
+
+**Caveats:**
+
+- For a skewed posterior (a decay near 0 or 1, a k on its floor) it can leave the parameter's range: read the credible intervals in outputs.params instead.
+- Each interval covers one coefficient on its own; several intervals read together do not jointly cover at conf_level.
+
+#### `conf_level`
+
+The coverage ci_lower and ci_upper were built at (the request's conf_level, 0.95 by default).
+
+#### `n_obs`
+
+Rows used in the fit, after rows with a null target or predictor were dropped; with params.holdout_from, the held-out rows are counted too.
+
+**Caveats:**
+
+- A dropped row leaves a gap in the series, which the model refuses: the series must stay contiguous.
+
 <a id="op-reg_mmm_hill"></a>
 
 ### `REG_MMM_HILL`

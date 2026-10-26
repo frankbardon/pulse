@@ -4,7 +4,7 @@
     "format_version": "1.0",
     "pulse_version": "v0.0.0-test",
     "tzdata_version": "2026c",
-    "feature_set_digest": "fs1:09532b39e3ada4740785b0509e93a07502f0c3acbff663054c78485ddeb65c04",
+    "feature_set_digest": "fs1:934902bcc4cfce570e3c433c28612a1b19554cb5deea2c51bb572548b60a8f5e",
     "limits_digest": "lim1:ace12be491d5cbb818420290f766f22ccfa23f25884067d037dfeb9f50b9fb16",
     "commands": [
       {
@@ -8562,6 +8562,206 @@
         ]
       },
       {
+        "name": "REG_MMM_BAYES",
+        "description": "Bayesian media-mix model: in-model geometric adstock and Hill saturation per channel plus linear controls, sampled by NUTS; coefficients are posterior means with posterior SDs.",
+        "accepts_types": [
+          "date",
+          "datetime",
+          "decimal128",
+          "f32",
+          "f64",
+          "packed_bool",
+          "u16",
+          "u32",
+          "u4",
+          "u64",
+          "u8"
+        ],
+        "emits_type_note": "RegressionResult in the built-in shape: coefficients with std_errors / statistics / p_values (null on every coefficient: the model declares no PValues, so a multiplicity block takes only method none), the fit statistics it reports, and outputs keyed by output_schema.",
+        "streamable": false,
+        "streamable_hint": "Always buffered: the model fits over every admitted row.",
+        "params": [
+          {
+            "name": "target",
+            "type": "field",
+            "required": true,
+            "description": "Response variable field name; a top-level key of the regression entry.",
+            "field_filter": "numeric",
+            "slot": true
+          },
+          {
+            "name": "predictors",
+            "type": "list",
+            "required": true,
+            "description": "Predictor field names; a top-level key of the regression entry.",
+            "slot": true
+          },
+          {
+            "name": "conf_level",
+            "type": "float",
+            "required": false,
+            "default": 0.95,
+            "description": "Coverage of ci_lower / ci_upper, 0 \u003c conf_level \u003c 1: the engine's Wald interval coefficient ∓ q·SE on the model's reported standard error — q the Student-t quantile on the fit's reported df, else the standard normal; the normal on the replicate SE under resample; null where the SE is. A top-level key of the regression entry.",
+            "slot": true
+          },
+          {
+            "name": "vcov",
+            "type": "bool",
+            "required": false,
+            "default": false,
+            "description": "Emit the model's coefficient covariance (vcov) and its correlation; a top-level key of the regression entry.",
+            "slot": true
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": false,
+            "description": "Result alias; also the saved model's name (default: the save file's stem).",
+            "slot": true
+          },
+          {
+            "name": "channels",
+            "type": "list",
+            "required": true,
+            "description": "Raw spend predictors (≥ 0) the model adstocks and saturates, at least one; the other predictors are linear controls."
+          },
+          {
+            "name": "time",
+            "type": "string",
+            "required": true,
+            "description": "Integer time field (one row per period, contiguous); the rows are sorted by it, and a gap or a repeat is refused.",
+            "example": "week"
+          },
+          {
+            "name": "max_lag",
+            "type": "float",
+            "required": false,
+            "default": 13,
+            "description": "Adstock window in periods (an integer ≥ 1; default 13)."
+          },
+          {
+            "name": "adstock",
+            "type": "string",
+            "required": false,
+            "default": "geometric",
+            "description": "Adstock kernel: geometric (the only one)."
+          },
+          {
+            "name": "priors",
+            "type": "object",
+            "required": false,
+            "description": "Per-channel priors keyed by channel: {roi | beta, decay, k, s}, each {family, ...} (normal mu/sigma, halfnormal sigma, lognormal mu/sigma, beta alpha/beta, truncnormal mu/sigma/lower/upper). A beta prior samples β instead of the ROI; k is in peak-week units of the channel's adstock."
+          },
+          {
+            "name": "intercept_prior",
+            "type": "object",
+            "required": false,
+            "description": "Intercept prior on the max-scaled outcome (default normal 0, 2)."
+          },
+          {
+            "name": "control_prior",
+            "type": "object",
+            "required": false,
+            "description": "Prior of every control's coefficient on the centred, scaled control (default normal 0, 1)."
+          },
+          {
+            "name": "sigma_prior",
+            "type": "object",
+            "required": false,
+            "description": "Noise SD prior on the max-scaled outcome (default halfnormal 1)."
+          },
+          {
+            "name": "chains",
+            "type": "float",
+            "required": false,
+            "default": 4,
+            "description": "Sampler chains (1–16; default 4)."
+          },
+          {
+            "name": "warmup",
+            "type": "float",
+            "required": false,
+            "default": 1000,
+            "description": "Adaptation iterations per chain (1–20000; default 1000)."
+          },
+          {
+            "name": "draws",
+            "type": "float",
+            "required": false,
+            "default": 1000,
+            "description": "Retained draws per chain (1–20000; default 1000)."
+          },
+          {
+            "name": "credible_level",
+            "type": "float",
+            "required": false,
+            "default": 0.9,
+            "description": "Posterior interval level in (0, 1) (default 0.9)."
+          },
+          {
+            "name": "sampler",
+            "type": "string",
+            "required": false,
+            "default": "nuts",
+            "description": "Sampler: nuts (the only one)."
+          },
+          {
+            "name": "target_accept",
+            "type": "float",
+            "required": false,
+            "default": 0.8,
+            "description": "NUTS step-size adaptation target in (0, 1) (default 0.8); raise it when the fit diverges."
+          },
+          {
+            "name": "holdout_from",
+            "type": "float",
+            "required": false,
+            "description": "Model-owned holdout: the integer time from which rows are held out — the likelihood sees only the rows before it, the adstock runs over the full history, and outputs.holdout scores the held-out rows. Absent: every row is fitted.",
+            "example": 131
+          }
+        ],
+        "intents": [
+          "drivers"
+        ],
+        "output_schema": [
+          {
+            "key": "seed",
+            "json_type": "number",
+            "description": "The effective sampler seed: rng_seed, or the one derived from the slot when rng_seed is 0."
+          },
+          {
+            "key": "roi",
+            "json_type": "object",
+            "description": "Per channel: the posterior of its ROI — summed contribution over summed spend across the fitted rows, against a zero-spend counterfactual — as {mean, median, sd, lower, upper} at credible_level, in outcome units per unit of spend."
+          },
+          {
+            "key": "mroi",
+            "json_type": "object",
+            "description": "Per channel: the posterior of its marginal ROI at the fitted spend — the analytic derivative of the summed contribution with respect to a uniform scaling of the channel's spend, over the summed spend — as {mean, median, sd, lower, upper} at credible_level."
+          },
+          {
+            "key": "contribution",
+            "json_type": "object",
+            "description": "Per channel: the posterior of its contribution summed over the fitted rows, in outcome units, as {mean, median, sd, lower, upper} at credible_level."
+          },
+          {
+            "key": "params",
+            "json_type": "object",
+            "description": "Per coefficient (the coefficient table's names): its posterior as {mean, median, sd, lower, upper} at credible_level, in original units."
+          },
+          {
+            "key": "diagnostics",
+            "json_type": "object",
+            "description": "Sampler health: parameters and roi (per coefficient / channel {rhat, ess_bulk, ess_tail}), max_rhat, min_ess_bulk, min_ess_tail, divergences, treedepth_saturated, max_tree_depth, step_size and accept_stat (per chain), chains, warmup, draws (per chain) and map_start."
+          },
+          {
+            "key": "holdout",
+            "json_type": "object",
+            "description": "With params.holdout_from: from, fit_rows, holdout_rows, credible_level, rmse (held-out outcome against the posterior mean prediction) and coverage (the share of held-out rows inside the posterior predictive interval at credible_level). Absent without a holdout."
+          }
+        ]
+      },
+      {
         "name": "REG_MMM_HILL",
         "description": "Media-mix model: joint nonlinear least squares over Hill-saturated, already-adstocked channels plus linear controls; coefficients k:\u003cchannel\u003e / s:\u003cchannel\u003e carry each curve.",
         "accepts_types": [
@@ -12868,6 +13068,10 @@
         "description": "Vectors and matrices on a Request — naming a battery of numeric fields once, getting a covariance or correlation matrix back, the encodings, missing-data modes, warnings, per-group matrices, predict's cost estimate and what is refused."
       },
       {
+        "name": "mmm-workflow",
+        "description": "Media-mix workflow with the built-in media-mix regressions — search adstock decays with an lhs sweep, fit the Hill model at the winner, then reallocate budget with compose optimize; or fit the Bayesian model for intervals. The two-call recipe, decay intervals, lift-test priors, what to trust."
+      },
+      {
         "name": "multiplicity-correction",
         "description": "Multiple-comparison correction on a Request — the multiplicity block (method, family, alpha), which p-values are corrected together, the per-surface family table and its refusals, precedence, the additive adjusted outputs, row and column geometry on pairwise overlays, and what is never corrected."
       },
@@ -13494,6 +13698,10 @@
       {
         "name": "op-reg-glm",
         "description": "Generalized linear model via IRLS; supports binomial (logistic), poisson, and gamma families with family-specific link functions. Always buffered."
+      },
+      {
+        "name": "op-reg-mmm-bayes",
+        "description": "REG_MMM_BAYES — Bayesian media-mix regression that adstocks raw spend inside the model and samples the posterior with NUTS, returning ROI, marginal ROI and contribution intervals with sampler diagnostics."
       },
       {
         "name": "op-reg-mmm-hill",
@@ -14200,7 +14408,7 @@
         "description": "Window slot semantics — partition / order / frame, what window operators share conceptually, streamability per window. Topical design; per-WIN detail lives in atomic op-win-* skills."
       }
     ],
-    "examples_count": 261,
+    "examples_count": 262,
     "example_categories": [
       "aggregations",
       "attributes",
@@ -20116,4 +20324,4 @@
   "errors": [],
   "warnings": []
 }
-// golden-hash: 1c16b74fc14511d201d5e81e40b906a6bdb38f7327a47aebd4bcd43ec5c9df77
+// golden-hash: 551f09c26431ccd55e41e2f7be54be4583da7bb9dcefcc0a5db7a34ecdc1cdbc

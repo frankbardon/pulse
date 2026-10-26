@@ -25,8 +25,8 @@ import (
 // no longer register the name itself.
 
 // TestMMMHill_OutputsMatchApplicability is the end-to-end twin of the
-// engine's TestRegressionOutputsHoldAtRuntime (whose package registry
-// holds only REG_MMM_HILL's stub): on a stock instance a plain fit
+// engine's TestRegressionOutputsHoldAtRuntime over the stock
+// instance's full path (materialize, predict, envelope): on a stock instance a plain fit
 // emits exactly the fit-output keys its applicability row lists (the
 // echoes name and type aside).
 func TestMMMHill_OutputsMatchApplicability(t *testing.T) {

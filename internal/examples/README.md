@@ -24,7 +24,7 @@ internal/examples/
 ├── groupers/                  # GROUP_* partitioning (11)
 ├── matrices/                  # MAT_* matrix operators over virtual vectors (16)
 ├── overlays/                  # OVERLAY_* layers on Request / Compose / Facet hosts (48)
-├── regression/                # REG_* regressions (19)
+├── regression/                # REG_* regressions (20)
 ├── synth/                     # synth specs (7)
 ├── tests/                     # TEST_* tier-1 and tier-2 statistical tests (37)
 ├── windows/                   # WIN_* per-row analytics (12)

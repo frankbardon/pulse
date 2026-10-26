@@ -23,7 +23,9 @@ import (
 // inferential overlays are built here.
 func inferentialRefusalRequests(t *testing.T, cohort string, w types.SlotWeight) map[string]*types.Request {
 	t.Helper()
-	field := map[string]string{"TEST_CHISQ": "subj", "TEST_FISHER_EXACT": "g", "TEST_PROP_Z": "g", "TEST_PAIRED_T": "y"}
+	// REG_MMM_BAYES: a control distinct from its channel x (each predictor
+	// names one coefficient; a repeat is refused).
+	field := map[string]string{"TEST_CHISQ": "subj", "TEST_FISHER_EXACT": "g", "TEST_PROP_Z": "g", "TEST_PAIRED_T": "y", "REG_MMM_BAYES": "t_f64"}
 	var ops []string
 	for _, tt := range types.AllTestTypes() {
 		if weighting.IsAware(string(tt)) {

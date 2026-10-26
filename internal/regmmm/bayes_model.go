@@ -1,4 +1,4 @@
-package mmmpulse
+package regmmm
 
 import (
 	"fmt"

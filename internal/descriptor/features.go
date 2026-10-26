@@ -468,6 +468,7 @@ var builtinFeatures = withDependencies([]Feature{
 	// Regressions — types.AllRegressionTypes().
 	op("REG_BAYES_LINEAR"),
 	op("REG_GLM"),
+	op("REG_MMM_BAYES"),
 	op("REG_MMM_HILL"),
 	op("REG_OLS"),
 	// Matrix operators — types.AllMatrixTypes().
@@ -956,7 +957,7 @@ var groupEdges = map[string][][]string{
 	featComposeFits: {
 		{featCompose},
 		{string(types.ATTR_FACTOR_SCORE), string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
-			string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_HILL), string(types.REG_OLS), featMatrices},
+			string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_BAYES), string(types.REG_MMM_HILL), string(types.REG_OLS), featMatrices},
 	},
 }
 

@@ -5724,6 +5724,7 @@ pulse/types: type PriorPrecision method (PriorPrecision) Scalar() float64
 pulse/types: type PriorPrecision method (PriorPrecision) Vector() []float64
 pulse/types: const REG_BAYES_LINEAR pulse/types.RegressionType = "REG_BAYES_LINEAR"
 pulse/types: const REG_GLM pulse/types.RegressionType = "REG_GLM"
+pulse/types: const REG_MMM_BAYES pulse/types.RegressionType = "REG_MMM_BAYES"
 pulse/types: const REG_MMM_HILL pulse/types.RegressionType = "REG_MMM_HILL"
 pulse/types: const REG_OLS pulse/types.RegressionType = "REG_OLS"
 pulse/types: type RankEntry struct
@@ -6168,4 +6169,4 @@ pulse/types: type Window field Type pulse/types.WindowType "json:\"type\""
 pulse/types: type WindowType string
 pulse/types: type WindowType method (WindowType) Streamable() bool
 
-// golden-hash: 08214c387fc371ac82d60e7211f4f28d64d0542c8a624ae96da511ede1f77aad
+// golden-hash: d8c01b13f885f525db79c74d076cb8a42e56ba47d91d43056a9384a7c4cd4c05

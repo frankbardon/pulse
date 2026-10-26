@@ -3,7 +3,6 @@ package pulse
 import (
 	stderrors "errors"
 	"fmt"
-	"math"
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
@@ -32,70 +31,15 @@ import (
 // path. Embedding the small concrete forwarders below is safe: a
 // struct's promoted methods are its full method set.
 
-// extRecord is the extend.Record view of an engine row: every handoff
-// to an extend operator wraps its *processing.Record in it. It is a
-// one-pointer struct, so converting it to the interface allocates
-// nothing and a per-row adapter costs nothing.
-//
-// It overrides two reads so an element member "f[k]" of a native
-// vector field f (vec_f32 / vec_f64) — the literal member names a
-// VectorInput slot hands its factory — reads like the scalar twin's
-// column: NumericValue resolves it through the shared member reader
-// (processing.Record.MemberValue, the fill's own rule: a NaN element
-// and a null vector are a null member) and IsNull agrees. A plain name
-// is looked up first, so a real column spelled "x[2]" and every
-// non-element name behave exactly as on the engine row. Built-ins never
-// see this view; they keep the concrete *processing.Record path.
-type extRecord struct{ *processing.Record }
+// extRecord is the extend.Record view of an engine row
+// (processing.ExtRecord, shared with the engine's regression adapter):
+// every handoff to an extend operator wraps its *processing.Record in
+// it.
+type extRecord = processing.ExtRecord
 
-var _ extend.Record = extRecord{}
-
-// NumericValue is the engine row's, plus native element members.
-func (r extRecord) NumericValue(field string) (float64, bool) {
-	return r.Record.MemberValue(field)
-}
-
-// Uint64Value is the engine row's exact read (a u64 field's stored
-// word on every decode path), plus native element members, which read
-// their element's float through echoToUint64 — so it is (0, false)
-// exactly when NumericValue is.
-func (r extRecord) Uint64Value(field string) (uint64, bool) {
-	if u, ok := r.Record.Uint64Value(field); ok {
-		return u, true
-	}
-	v, ok := r.Record.MemberValue(field)
-	if !ok {
-		return 0, false
-	}
-	return echoToUint64(v), true
-}
-
-// echoToUint64 converts a float64 echo to uint64 as
-// processing.Record.Uint64Value's fallback does: uint64(v), except that
-// an echo at or above 2^64 saturates to math.MaxUint64.
-func echoToUint64(v float64) uint64 {
-	if v >= 1<<64 {
-		return math.MaxUint64
-	}
-	return uint64(v)
-}
-
-// StringValue is the engine row's CHECKED label read under the extend
-// signature, which has no error: a categorical code its dictionary has
-// no entry for (corrupt record data) reads ("", false) to the embedder
-// AND is latched on the row (processing.Record.NoteReadFault). The
-// adapter that handed the row over takes it when the extension call
-// returns (readFault / readFaultRows) and returns the ENCODING_INVALID
-// refusal in place of the call's own result — so a corrupt code is never
-// a silent null, on any extension category (U51 E5-S10).
-func (r extRecord) StringValue(field string) (string, bool) {
-	s, ok, err := r.Record.StringValueChecked(field)
-	if err != nil {
-		r.Record.NoteReadFault(err)
-		return "", false
-	}
-	return s, ok
-}
+// echoToUint64 is processing.EchoToUint64: a float64 echo as uint64,
+// saturating at math.MaxUint64.
+var echoToUint64 = processing.EchoToUint64
 
 // readFault is the result error of an extension call over rec: the
 // fault its StringValue latched on rec (taken, so a reused row never
@@ -123,23 +67,13 @@ func readFaultRows(records []*processing.Record, err error) error {
 	return err
 }
 
-// IsNull is the engine row's, except that a native element member
-// holding a value is not null.
-func (r extRecord) IsNull(field string) bool {
-	if !r.Record.IsNull(field) {
-		return false
-	}
-	_, ok := r.Record.MemberValue(field)
-	return !ok
-}
-
 // recordRows is the zero-copy extend.Rows view over the engine's
 // buffered row slice. Converting the slice header to recordRows copies
 // no rows.
 type recordRows []*processing.Record
 
 func (r recordRows) Len() int               { return len(r) }
-func (r recordRows) At(i int) extend.Record { return extRecord{r[i]} }
+func (r recordRows) At(i int) extend.Record { return extRecord{Record: r[i]} }
 
 // ---- row weights -------------------------------------------------------
 
@@ -193,7 +127,7 @@ func (s *slotWeighting) validWeightRows(records []*processing.Record) weightedRo
 	out := make(weightedRows, 0, len(records))
 	for _, rec := range records {
 		if w, ok := s.judge(rec); ok {
-			out = append(out, weightedRecord{extRecord: extRecord{rec}, w: w})
+			out = append(out, weightedRecord{extRecord: extRecord{Record: rec}, w: w})
 		}
 	}
 	return out
@@ -214,11 +148,11 @@ func (s *slotWeighting) allRows(records []*processing.Record) mixedRows {
 	out := make(mixedRows, len(records))
 	for i, rec := range records {
 		if w, ok := s.judge(rec); ok {
-			views[i] = weightedRecord{extRecord: extRecord{rec}, w: w}
+			views[i] = weightedRecord{extRecord: extRecord{Record: rec}, w: w}
 			out[i] = &views[i]
 			continue
 		}
-		out[i] = extRecord{rec}
+		out[i] = extRecord{Record: rec}
 	}
 	return out
 }
@@ -235,9 +169,9 @@ type rowView struct {
 func (v *rowView) of(rec *processing.Record) (extend.Record, bool) {
 	w, ok := v.s.judge(rec)
 	if !ok {
-		return extRecord{rec}, false
+		return extRecord{Record: rec}, false
 	}
-	v.view = weightedRecord{extRecord: extRecord{rec}, w: w}
+	v.view = weightedRecord{extRecord: extRecord{Record: rec}, w: w}
 	return &v.view, true
 }
 
@@ -347,7 +281,7 @@ func (a aggOnline) UpdateRow(rec *processing.Record, field string) error {
 		}
 		return readFault(rec, a.online.UpdateRow(v, field))
 	}
-	return readFault(rec, a.online.UpdateRow(extRecord{rec}, field))
+	return readFault(rec, a.online.UpdateRow(extRecord{Record: rec}, field))
 }
 
 func (a aggOnline) Finalize() (float64, error) { return a.online.Finalize() }
@@ -656,7 +590,7 @@ func (g grpStreaming) KeyForRow(rec *processing.Record, field string) (string, b
 	if field == "" {
 		field = g.field
 	}
-	key, ok, err := g.streaming.KeyForRow(extRecord{rec}, field)
+	key, ok, err := g.streaming.KeyForRow(extRecord{Record: rec}, field)
 	if err = readFault(rec, err); err != nil {
 		if stderrors.Is(err, extend.ErrGrouperKeyNull) {
 			return "", false, nil
@@ -687,7 +621,7 @@ type grpMulti struct {
 }
 
 func (g grpMulti) KeysForRow(rec *processing.Record, field string) ([]string, bool, error) {
-	keys, ok, err := g.multi.KeysForRow(extRecord{rec}, field)
+	keys, ok, err := g.multi.KeysForRow(extRecord{Record: rec}, field)
 	if err = readFault(rec, err); err != nil {
 		if stderrors.Is(err, extend.ErrGrouperKeyNull) {
 			return nil, false, nil
@@ -939,7 +873,7 @@ func (f fltCore) Build(spec *types.Filterer, schema *encoding.Schema) (processin
 		return nil, err
 	}
 	return func(rec *processing.Record) (bool, error) {
-		ok, err := fn(extRecord{rec})
+		ok, err := fn(extRecord{Record: rec})
 		if err = readFault(rec, err); err != nil {
 			return false, err
 		}
@@ -1041,7 +975,7 @@ type extendAttributeWrapper interface {
 // or the record as-is when view is nil.
 func attrView(view *rowView, rec *processing.Record) extend.Record {
 	if view == nil {
-		return extRecord{rec}
+		return extRecord{Record: rec}
 	}
 	v, _ := view.of(rec)
 	return v
@@ -1241,7 +1175,7 @@ func (t *rowTestAdapted) UpdateRow(rec *processing.Record) error {
 		}
 		return readFault(rec, t.inner.UpdateRow(v))
 	}
-	return readFault(rec, t.inner.UpdateRow(extRecord{rec}))
+	return readFault(rec, t.inner.UpdateRow(extRecord{Record: rec}))
 }
 
 func (t *rowTestAdapted) Finalize() (*types.TestResult, error) { return t.inner.Finalize() }
@@ -1309,7 +1243,7 @@ func adaptWindowFactory(reg WindowRegistration) window.WindowFactory {
 // than panicking.
 func featureRecord(r feature.Record) extend.Record {
 	if rec, ok := r.(*processing.Record); ok {
-		return extRecord{rec}
+		return extRecord{Record: rec}
 	}
 	if rec, ok := r.(extend.Record); ok {
 		return rec

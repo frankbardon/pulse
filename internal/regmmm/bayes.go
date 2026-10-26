@@ -1,7 +1,6 @@
-package mmmpulse
+package regmmm
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -13,41 +12,34 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/frankbardon/pulse"
-	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/encoding"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
+	pmodel "github.com/frankbardon/pulse/internal/model"
+	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/mcmc"
 	"github.com/frankbardon/pulse/types"
 )
 
-// bayes.go is REG_MMM_BAYES's registration and fit: the params wire
-// format, the time key and row order, the refusals, the seed, and the
-// MAP → NUTS run that turns a request into a posterior. The model maths
-// (log posterior, gradient, MAP start) is bayes_model.go's.
+// bayes.go is REG_MMM_BAYES's factory and fit: the params wire format,
+// the time key and row order, the refusals, the seed, and the MAP → NUTS
+// run that turns a request into a posterior. The model maths (log
+// posterior, gradient, MAP start) is bayes_model.go's; the outputs are
+// bayes_output.go's. The registration (params, outputs, flags) is the
+// root package's, its static twin internal/descriptor's.
 
-// BayesName is the Bayesian media-mix model's registered regression
-// type.
-const BayesName types.RegressionType = "REG_MMM_BAYES"
+// BayesName is the Bayesian media-mix model's regression type.
+const BayesName = types.REG_MMM_BAYES
 
 // DecayPrefix names a channel's adstock decay coefficient in
 // REG_MMM_BAYES's table: "decay:" + channel. Its Hill curve rides
 // HalfSaturationPrefix and ShapePrefix as in REG_MMM_HILL.
-const DecayPrefix = "decay:"
-
-// The curve-parameter coefficient prefixes, REG_MMM_HILL's (a built-in
-// regression since Pulse's mmm-followups): channel c's Hill
-// half-saturation is the coefficient "k:" + c, its shape "s:" + c.
-const (
-	HalfSaturationPrefix = "k:"
-	ShapePrefix          = "s:"
-)
+const DecayPrefix = pmodel.MMMDecayPrefix
 
 // The coefficient names REG_MMM_BAYES adds beyond its predictors.
 const (
 	interceptName = "(intercept)"
-	sigmaName     = "sigma"
+	sigmaName     = pmodel.MMMSigmaName
 )
 
 // The sampler settings' defaults and hard caps. A cap keeps one slot's
@@ -63,16 +55,27 @@ const (
 	maxBayesDraws            = 20000
 )
 
+// The params defaults the registration declares (the root package's
+// RegressionRegistration and internal/descriptor's static twin read
+// them, so the manifest's Default is the factory's).
+const (
+	BayesDefaultMaxLag       = defaultMaxLag
+	BayesDefaultChains       = defaultBayesChains
+	BayesDefaultWarmup       = defaultBayesWarmup
+	BayesDefaultDraws        = defaultBayesDraws
+	BayesDefaultCredible     = defaultCredibleLevel
+	BayesDefaultTargetAccept = defaultBayesTargetAccept
+)
+
 // bayesSampler builds the sampler a fit runs (NUTS at the request's
-// target_accept). It is a variable only so the pack's tests can count
+// target_accept). It is a variable only so the package's tests can count
 // and fail sampler runs; nothing else sets it.
 var bayesSampler = func(targetAccept float64) mcmc.Sampler {
 	return mcmc.NUTS{TargetAccept: targetAccept}
 }
 
-// BayesRegistration is REG_MMM_BAYES's registration: a Bayesian
-// media-mix model sampled by NUTS (the public mcmc package) from a MAP
-// warm start,
+// BayesFactory is REG_MMM_BAYES's factory: a Bayesian media-mix model
+// sampled by NUTS (the public mcmc package) from a MAP warm start,
 //
 //	y_t ~ Normal(α + Σ_j γ_j·z_jt + Σ_c β_c·hill(adstock_c(spend_c)_t, k_c, s_c), σ),
 //
@@ -88,6 +91,8 @@ var bayesSampler = func(targetAccept float64) mcmc.Sampler {
 // field the fit sorts the rows by; a gap or a repeated value (a panel
 // — several markets or geos per period) is PROCESSING_CONFIG. A null in
 // the target or a predictor drops its row listwise and so leaves a gap.
+// params.time is the one field read beyond the target and predictors
+// (pmodel.ModelRegressionFieldInputs, which the projection decodes).
 //
 // The coefficient table is "(intercept)", each channel's β on the raw
 // outcome (contribution_t = β·hill(raw adstock_t, k, s); predictor
@@ -133,75 +138,26 @@ var bayesSampler = func(targetAccept float64) mcmc.Sampler {
 // clock: the same request gives the same draws, bit for bit, on every
 // architecture and for any worker count.
 //
-// No Scorer: an adstocked prediction needs the history, so the engine's
+// No scorer: an adstocked prediction needs the history, so the engine's
 // holdout slot (params.holdout_from replaces it), save and
-// ATTR_REG_PREDICT are refused; NoResample: resample and its
-// knobs are refused. Every other built-in knob (penalty, selection,
-// covariance, family, prior*, credible_level as a slot) is refused as on
-// any extension model; the model's own priors and credible level ride
-// params.
+// ATTR_REG_PREDICT are refused; NoResample: resample and its knobs are
+// refused. Every other built-in knob (penalty, selection, covariance,
+// family, prior*, credible_level as a slot) is refused as on any
+// extension-shaped model; the model's own priors and credible level
+// ride params.
 //
 // Data refusals fail the slot alone: too few rows
 // (PROCESSING_REGRESSION_INSUFFICIENT_DATA, checked before anything else
-// is read, so pulse.New's 8-row probe never samples), an all-zero
-// outcome, a channel that never spends or a constant control
-// (PROCESSING_REGRESSION_RANK_DEFICIENT), and a sampler that cannot run
-// on the posterior — no finite start, a collapsing or unbounded step
-// size, a non-finite metric (PROCESSING_REGRESSION_NO_CONVERGE). A
-// negative spend, a bad time key, an unknown or ill-typed params key and
-// an invalid prior are PROCESSING_CONFIG.
-func BayesRegistration() pulse.RegressionRegistration {
-	return pulse.RegressionRegistration{
-		Name:        BayesName,
-		Description: "Bayesian media-mix model: in-model geometric adstock and Hill saturation per channel plus linear controls, sampled by NUTS; coefficients are posterior means with posterior SDs.",
-		Purpose: &descriptor.Purpose{
-			Plain:     "Fit a media-mix model with uncertainty: each channel's carry-over, response curve and return on spend, jointly with linear controls.",
-			Intents:   []string{"drivers"},
-			Questions: []string{"What return does each marketing channel earn, and how sure are we?", "How long does each channel's effect carry over?"},
-			UseCases:  map[descriptor.Domain]string{descriptor.DomainOps: "Which channels earn their spend, with intervals, before moving budget."},
-			NotFor:    []descriptor.Alternative{{When: "a fast point estimate over already-adstocked channels is enough", Use: string(types.REG_MMM_HILL)}},
-			Level:     descriptor.LevelAdvanced,
-		},
-		Params: []pulse.ParamMeta{
-			{Name: "channels", JSONType: "array", Required: true, Description: "Raw spend predictors (≥ 0) the model adstocks and saturates, at least one; the other predictors are linear controls."},
-			{Name: "time", JSONType: "string", Required: true, Example: "week", Description: "Integer time field (one row per period, contiguous); the rows are sorted by it, and a gap or a repeat is refused."},
-			{Name: "max_lag", JSONType: "number", Default: defaultMaxLag, Description: "Adstock window in periods (an integer ≥ 1; default 13)."},
-			{Name: "adstock", JSONType: "string", Default: "geometric", Description: "Adstock kernel: geometric (the only one)."},
-			{Name: "priors", JSONType: "object", Description: "Per-channel priors keyed by channel: {roi | beta, decay, k, s}, each {family, ...} (normal mu/sigma, halfnormal sigma, lognormal mu/sigma, beta alpha/beta, truncnormal mu/sigma/lower/upper). A beta prior samples β instead of the ROI; k is in peak-week units of the channel's adstock."},
-			{Name: "intercept_prior", JSONType: "object", Description: "Intercept prior on the max-scaled outcome (default normal 0, 2)."},
-			{Name: "control_prior", JSONType: "object", Description: "Prior of every control's coefficient on the centred, scaled control (default normal 0, 1)."},
-			{Name: "sigma_prior", JSONType: "object", Description: "Noise SD prior on the max-scaled outcome (default halfnormal 1)."},
-			{Name: "chains", JSONType: "number", Default: defaultBayesChains, Description: "Sampler chains (1–16; default 4)."},
-			{Name: "warmup", JSONType: "number", Default: defaultBayesWarmup, Description: "Adaptation iterations per chain (1–20000; default 1000)."},
-			{Name: "draws", JSONType: "number", Default: defaultBayesDraws, Description: "Retained draws per chain (1–20000; default 1000)."},
-			{Name: "credible_level", JSONType: "number", Default: defaultCredibleLevel, Description: "Posterior interval level in (0, 1) (default 0.9)."},
-			{Name: "sampler", JSONType: "string", Default: "nuts", Description: "Sampler: nuts (the only one)."},
-			{Name: "target_accept", JSONType: "number", Default: defaultBayesTargetAccept, Description: "NUTS step-size adaptation target in (0, 1) (default 0.8); raise it when the fit diverges."},
-			{Name: "holdout_from", JSONType: "number", Example: 131, Description: "Model-owned holdout: the integer time from which rows are held out — the likelihood sees only the rows before it, the adstock runs over the full history, and outputs.holdout scores the held-out rows. Absent: every row is fitted."},
-		},
-		OutputSchema:   bayesOutputSchema,
-		Interpretation: bayesInterpretation,
-		FieldInputs:    bayesFieldInputs,
-		Factory:        bayesFactory,
-		Streamable:     false,
-		NoResample:     true,
-		Vcov:           true,
-		WeightAware:    false,
-		PValues:        false,
-	}
-}
-
-// bayesFieldInputs declares params.time, the one field the model reads
-// beyond its target and predictors.
-func bayesFieldInputs(raw json.RawMessage) []string {
-	var p struct {
-		Time string `json:"time"`
-	}
-	if json.Unmarshal(raw, &p) != nil || p.Time == "" {
-		return nil
-	}
-	return []string{p.Time}
-}
+// is read), an all-zero outcome, a channel that never spends or a
+// constant control (PROCESSING_REGRESSION_RANK_DEFICIENT), and a
+// sampler that cannot run on the posterior — no finite start, a
+// collapsing or unbounded step size, a non-finite metric
+// (PROCESSING_REGRESSION_NO_CONVERGE). A negative spend, a bad time key,
+// an unknown or ill-typed params key and an invalid prior are
+// PROCESSING_CONFIG.
+//
+// Every factory refusal reads the spec alone and runs before any row is
+// read (BayesSpecRefusal lets predict raise it).
 
 // priorWire is one prior on the wire: a family and that family's keys.
 type priorWire struct {
@@ -314,16 +270,15 @@ func toPrior(w *priorWire, s support) (prior, error) {
 	return p, nil
 }
 
-// bayesFactory decodes and validates the slot: every refusal here is
-// PROCESSING_CONFIG and runs before any row is read.
-func bayesFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression, error) {
+func BayesFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regression, error) {
 	var w bayesParamsWire
 	if len(spec.Params) > 0 {
-		dec := json.NewDecoder(bytes.NewReader(spec.Params))
-		dec.DisallowUnknownFields() // a typo in a prior is refused, never ignored
-		if err := dec.Decode(&w); err != nil {
+		// Strict: a typo in a prior is refused, never ignored.
+		if err := paramread.DecodeStrict(paramread.Regression, string(BayesName), spec.Params, &w); err != nil {
 			return nil, bayesSlotError(spec, "params", "params: "+err.Error(), nil)
 		}
+	} else {
+		paramread.Declare(paramread.Regression, string(BayesName), &w)
 	}
 	cfg := &bayesConfig{name: spec.Name, target: spec.Target, time: w.Time, maxLag: defaultMaxLag,
 		chains: defaultBayesChains, warmup: defaultBayesWarmup, draws: defaultBayesDraws,
@@ -342,7 +297,14 @@ func bayesFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regres
 		}
 		isChannel[c] = true
 	}
+	seen := map[string]bool{}
 	for _, x := range spec.Predictors {
+		if seen[x] {
+			// Each predictor names one coefficient in the table.
+			return nil, bayesSlotError(spec, "predictors", fmt.Sprintf("predictor %q is listed twice", x),
+				map[string]any{"predictor": x})
+		}
+		seen[x] = true
 		if x == interceptName || x == sigmaName || strings.HasPrefix(x, DecayPrefix) ||
 			strings.HasPrefix(x, HalfSaturationPrefix) || strings.HasPrefix(x, ShapePrefix) {
 			return nil, bayesSlotError(spec, "predictors",
@@ -462,6 +424,23 @@ func bayesFactory(spec *types.RegressionSpec, _ *encoding.Schema) (extend.Regres
 	return &bayesRegression{cfg: cfg}, nil
 }
 
+// BayesSpecRefusal is BayesFactory's refusal of spec, or nil when it
+// builds: every check the factory makes reads the spec alone (params
+// decode, channels, the coefficient-name collision, the sampler
+// settings, the priors), so predict raises the very error the runtime
+// does (internal/descriptor's model-regression declaration calls it).
+func BayesSpecRefusal(spec *types.RegressionSpec) *perr.CodedError {
+	_, err := BayesFactory(spec, nil)
+	if err == nil {
+		return nil
+	}
+	var ce *perr.CodedError
+	if stderrors.As(err, &ce) {
+		return ce
+	}
+	return perr.NewCodedErrorWithDetails(perr.PROCESSING_CONFIG, err.Error(), map[string]any{"type": string(BayesName)})
+}
+
 // bayesEffectiveSeed is spec.RNGSeed when non-zero, else the FNV-64a of
 // the spec's wire form with rng_seed cleared followed by a zero row
 // count — the derivation every Pulse rng_seed-0 draw shares (a sweep's,
@@ -526,7 +505,7 @@ type bayesData struct {
 
 // FitContext reads the rows, orders them by time, builds the posterior
 // and samples it. The row count is checked first, before any value is
-// read, so a short input (pulse.New's probe) is a cheap coded refusal.
+// read, so a short input is a cheap coded refusal.
 func (r *bayesRegression) FitContext(ctx context.Context, rows extend.Rows) (extend.RegressionOutput, error) {
 	cfg := r.cfg
 	n, nc, nz := rows.Len(), len(cfg.channels), len(cfg.controls)

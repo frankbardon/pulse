@@ -294,8 +294,8 @@ func TestRegressionExamplesEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("glob: %v", err)
 	}
-	if len(matches) != 19 {
-		t.Fatalf("expected exactly 19 regression examples, found %d", len(matches))
+	if len(matches) != 20 {
+		t.Fatalf("expected exactly 20 regression examples, found %d", len(matches))
 	}
 	for _, ex := range matches {
 		t.Run(filepath.Base(ex), func(t *testing.T) {
@@ -341,7 +341,7 @@ func TestRegressionExamplesCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("glob: %v", err)
 	}
-	const want = 19
+	const want = 20
 	if len(matches) != want {
 		t.Errorf("want %d regression examples under examples/regression/, found %d: %v", want, len(matches), matches)
 	}

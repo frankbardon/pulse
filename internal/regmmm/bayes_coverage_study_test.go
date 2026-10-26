@@ -1,6 +1,6 @@
 //go:build mmmcoverage
 
-package mmmpulse
+package regmmm_test
 
 import (
 	"flag"

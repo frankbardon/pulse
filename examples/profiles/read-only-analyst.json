@@ -166,6 +166,7 @@
     "TEST_Z_TWO_SAMPLE",
     "REG_BAYES_LINEAR",
     "REG_GLM",
+    "REG_MMM_BAYES",
     "REG_MMM_HILL",
     "REG_OLS",
     "MAT_COLLINEARITY",

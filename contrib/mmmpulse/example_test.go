@@ -3,6 +3,7 @@ package mmmpulse_test
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/spf13/afero"
 
@@ -10,17 +11,23 @@ import (
 	"github.com/frankbardon/pulse/contrib/mmmpulse"
 )
 
-// Register the pack on an instance: REG_MMM_BAYES then runs, predicts
-// and self-describes like a built-in regression (REG_MMM_HILL is one).
+// The pack registers nothing: both media-mix models are built in, listed
+// among the manifest's regressions on any instance.
 func ExampleExtensions() {
 	p, err := pulse.New(pulse.Options{FS: afero.NewMemMapFs(), Extensions: mmmpulse.Extensions()})
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	for _, m := range p.Manifest(context.Background()).Extensions.Regressions {
-		fmt.Println(m.Name)
+	m := p.Manifest(context.Background())
+	fmt.Println(len(m.Extensions.Regressions))
+	for _, r := range m.Regressions {
+		if slices.Contains([]string{"REG_MMM_BAYES", "REG_MMM_HILL"}, r.Name) {
+			fmt.Println(r.Name)
+		}
 	}
 	// Output:
+	// 0
 	// REG_MMM_BAYES
+	// REG_MMM_HILL
 }

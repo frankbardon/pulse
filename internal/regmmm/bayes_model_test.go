@@ -1,32 +1,23 @@
-package mmmpulse
+package regmmm
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
 	"math"
 	"math/rand/v2"
-	"os"
 	"slices"
-	"strings"
 	"sync"
 	"testing"
 
-	"github.com/spf13/afero"
-
-	"github.com/frankbardon/pulse"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/mmmfixture"
-	"github.com/frankbardon/pulse/types"
 )
 
 // bayes_model_test.go holds REG_MMM_BAYES's model maths to its
-// contract: the adstock is WIN_DISTRIBUTED_LAG's to the bit, the
-// density is an independently written oracle's (Jacobians, derived ROI
+// contract: the density is an independently written oracle's (Jacobians, derived ROI
 // β and every prior family included), the analytic gradient is the
 // finite-difference one, the back-transforms reproduce the scaled
 // model in original units and the MAP start is deterministic with a
-// fallback.
+// fallback. The adstock's bit-equality with WIN_DISTRIBUTED_LAG, which
+// needs the engine, is bayes_e2e_test.go's.
 
 // jointModelData is the joint-truth cohort as the model reads it: sales,
 // the four channel spends and the price and promo controls, week order.
@@ -66,64 +57,6 @@ func mixedPriors() bayesPriors {
 	p.Channels[0].Decay = betaPrior(3, 3)
 	p.Intercept = truncNormalPrior(0.5, 1, -3, 3)
 	return p
-}
-
-// TestMMMBayes_AdstockMatchesDistributedLag: the model's adstock of
-// each joint-fixture channel at its true decay is bit-equal to
-// WIN_DISTRIBUTED_LAG geometric with max_lag 13 and normalize false, run
-// by the engine over the same cohort.
-func TestMMMBayes_AdstockMatchesDistributedLag(t *testing.T) {
-	p := instance(t, afero.NewMemMapFs(), nil)
-	d := mmmfixture.Joint()
-	b, err := p.NewCohortBuilder(context.Background(), mmmfixture.JointCohortFile, mmmfixture.JointSchema(), pulse.CohortBuilderOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, r := range d.Rows {
-		if err := b.Append(pulse.CohortRow(r)); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if _, err := b.Close(); err != nil {
-		t.Fatal(err)
-	}
-	req := &types.Request{Cohort: &types.Cohort{Filename: mmmfixture.JointCohortFile}}
-	for _, c := range mmmfixture.JointChannels {
-		req.Windows = append(req.Windows, &types.Window{Type: types.WIN_DISTRIBUTED_LAG, Field: c.Name, Label: c.Name + "_ad",
-			OrderBy: []types.OrderKey{{Field: "week"}},
-			Params:  json.RawMessage(fmt.Sprintf(`{"kernel":"geometric","decay":%v,"max_lag":%d,"normalize":false}`, c.Decay, defaultMaxLag))})
-	}
-	resp := process(t, p, req)
-	if len(resp.Data) != mmmfixture.JointWeeks {
-		t.Fatalf("got %d rows, want %d", len(resp.Data), mmmfixture.JointWeeks)
-	}
-	slices.SortFunc(resp.Data, func(a, b map[string]any) int { return int(toF(a["week"]) - toF(b["week"])) })
-	for _, c := range mmmfixture.JointChannels {
-		w, dw := geometricWeights(c.Decay, defaultMaxLag)
-		a := make([]float64, mmmfixture.JointWeeks)
-		adstock(d.Spend[c.Name], w, dw, a, make([]float64, len(a)))
-		for i, row := range resp.Data {
-			want := toF(row[c.Name+"_ad"])
-			if math.Float64bits(a[i]) != math.Float64bits(want) {
-				t.Fatalf("%s week %d: model adstock %v (%#x), WIN_DISTRIBUTED_LAG %v (%#x)",
-					c.Name, i+1, a[i], math.Float64bits(a[i]), want, math.Float64bits(want))
-			}
-		}
-	}
-}
-
-func toF(v any) float64 {
-	switch x := v.(type) {
-	case float64:
-		return x
-	case uint64:
-		return float64(x)
-	case int64:
-		return float64(x)
-	case int:
-		return float64(x)
-	}
-	panic(fmt.Sprintf("not a number: %T", v))
 }
 
 // randomPoint is a θ near the default start: each coordinate moved by
@@ -527,39 +460,5 @@ func TestMMMBayes_ConcurrentSafe(t *testing.T) {
 				t.Fatalf("point %d entry %d: concurrent %v, serial %v", i, j, got[i][j], want[i][j])
 			}
 		}
-	}
-}
-
-// TestMMMBayes_NoFMAContraction holds the model's files — production and
-// test — to the FMA-free rule with the pack's test binary cross-compiled
-// for arm64: E3-S2 pins sampler draws computed through the model, so a
-// contraction anywhere in a bayes*.go file would make them arm64-only.
-// TestMMMPack_NoFMAContraction's probe proves the flag still reports.
-func TestMMMBayes_NoFMAContraction(t *testing.T) {
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	files, _ := os.ReadDir(wd)
-	var bayes []string
-	for _, f := range files {
-		if strings.HasPrefix(f.Name(), "bayes") && strings.HasSuffix(f.Name(), ".go") {
-			bayes = append(bayes, f.Name())
-		}
-	}
-	if len(bayes) < 2 {
-		t.Fatalf("found bayes files %v: the gate scans nothing", bayes)
-	}
-	var hit []string
-	for _, l := range fmahashTest(t, wd, "github.com/frankbardon/pulse/contrib/mmmpulse") {
-		for _, f := range bayes {
-			if strings.Contains(l, f+":") {
-				hit = append(hit, l)
-			}
-		}
-	}
-	if len(hit) > 0 {
-		t.Errorf("the arm64 compiler contracted %d multiply-adds in the bayes model; wrap each product in float64(...):\n%s",
-			len(hit), strings.Join(hit, "\n"))
 	}
 }

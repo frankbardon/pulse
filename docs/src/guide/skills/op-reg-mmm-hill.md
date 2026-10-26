@@ -9,7 +9,7 @@ applies_to: process, compose, predict
 examples_tags: [regression, time-series, buffered-pipeline]
 ```
 
-`REG_MMM_HILL` models `y = β0 + Σ βc·hill(ac, kc, sc) + Σ γj·zj`: `ac` are already-adstocked spend columns (adstocked upstream by `WIN_DISTRIBUTED_LAG`, decay a sweep axis), `zj` linear controls. It does not adstock. Fits ride `Response.Regressions[i]`.
+`REG_MMM_HILL` models `y = β0 + Σ βc·hill(ac, kc, sc) + Σ γj·zj`: `ac` are already-adstocked spend columns (adstocked upstream by `WIN_DISTRIBUTED_LAG`, decay a sweep axis), `zj` linear controls. It does not adstock.
 
 ## Use when
 
@@ -78,4 +78,4 @@ Numeric `target`; channels ≥ 0 (a negative value is `PROCESSING_CONFIG`). Null
 
 ## See
 
-[`regression-model-options`](regression-model-options.md) · [`regression-spec`](regression-spec.md) · [`compose-sweep-sampling`](compose-sweep-sampling.md) · [`compose-optimize`](compose-optimize.md)
+[`mmm-workflow`](mmm-workflow.md) · [`op-reg-mmm-bayes`](op-reg-mmm-bayes.md) · [`regression-model-options`](regression-model-options.md) · [`regression-spec`](regression-spec.md) · [`compose-sweep-sampling`](compose-sweep-sampling.md) · [`compose-optimize`](compose-optimize.md)

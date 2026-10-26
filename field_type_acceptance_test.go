@@ -75,7 +75,8 @@ func acceptanceCell(ft encoding.FieldType, i int) string {
 
 // acceptanceCohort imports a cohort with one column per field type plus
 // the helper columns the operator templates reference: x / y (f64),
-// g (two-level categorical, a split_by) and subj (an ANOVA_RM subject).
+// g (two-level categorical, a split_by), subj (an ANOVA_RM subject) and
+// week (u16, 1..48 contiguous: a REG_MMM_BAYES time field).
 func acceptanceCohort(t *testing.T) (*pulse.Pulse, afero.Fs, string) {
 	t.Helper()
 	fs := afero.NewMemMapFs()
@@ -114,6 +115,7 @@ func acceptanceCohort(t *testing.T) (*pulse.Pulse, afero.Fs, string) {
 	add("y", encoding.FieldTypeF64)
 	add("g", encoding.FieldTypeCategoricalU8)
 	add("subj", encoding.FieldTypeCategoricalU8)
+	add("week", encoding.FieldTypeU16)
 	off := 0
 	for i := range fields {
 		fields[i].ByteOffset = off
@@ -137,7 +139,7 @@ func acceptanceCohort(t *testing.T) (*pulse.Pulse, afero.Fs, string) {
 			b.WriteString(acceptanceCell(ft, i))
 			b.WriteByte(',')
 		}
-		fmt.Fprintf(&b, "%.3f,%.3f,%s,s%d\n", float64(i)*1.1+float64(i%5), float64((i*13)%17)+0.5, []string{"a", "b"}[i%2], i/2)
+		fmt.Fprintf(&b, "%.3f,%.3f,%s,s%d,%d\n", float64(i)*1.1+float64(i%5), float64((i*13)%17)+0.5, []string{"a", "b"}[i%2], i/2, i+1)
 	}
 	if err := afero.WriteFile(fs, "acc.csv", []byte(b.String()), 0o644); err != nil {
 		t.Fatal(err)
@@ -350,6 +352,8 @@ var acceptanceTemplates = map[string]string{
 	// A model regression: the field under judgement is a linear control
 	// beside the channel x.
 	"REG_MMM_HILL": `{"regressions":[{"type":"REG_MMM_HILL","name":"r","target":"y","predictors":["x","$F"],"params":{"channels":["x"]}}]}`,
+	// The same shape over the contiguous week, with a minimal sampler run.
+	"REG_MMM_BAYES": `{"regressions":[{"type":"REG_MMM_BAYES","name":"r","target":"y","predictors":["x","$F"],"rng_seed":1,"params":{"channels":["x"],"time":"week","chains":1,"warmup":20,"draws":20}}]}`,
 }
 
 // acceptanceValues are the filter literals per field type (the

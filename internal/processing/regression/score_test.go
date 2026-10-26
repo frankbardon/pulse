@@ -202,11 +202,21 @@ func TestScorer_SelectionDroppedTermScoresZero(t *testing.T) {
 
 // TestBuiltinScorer_MatchesScorableType: the engine's built-in scorer
 // table and model.ScorableType (its static face, which predict reads)
-// are one set over every registered regression type — a type predict
-// admits always builds a RowScorer, and one it refuses has none.
+// are one set over every coefficient-shaped built-in — a type predict
+// admits always builds a RowScorer, and one it refuses has none. A
+// model regression is never in model.ScorableType (predict reads its
+// declaration's Scorer instead); its BuiltinScorer is its registration's
+// (internal/regadapt, whose TestModelRegressions_RegisteredByEngine holds
+// it to the declaration), never a nil factory reported present.
 func TestBuiltinScorer_MatchesScorableType(t *testing.T) {
 	for _, rt := range types.AllRegressionTypes() {
 		f, ok := BuiltinScorer(rt)
+		if model.ModelRegression(rt) {
+			if model.ScorableType(rt) || ok != (f != nil) {
+				t.Errorf("%s: model regression ScorableType %v, BuiltinScorer ok=%v (factory nil %v)", rt, model.ScorableType(rt), ok, f == nil)
+			}
+			continue
+		}
 		if ok != model.ScorableType(rt) || ok != (f != nil) {
 			t.Errorf("%s: BuiltinScorer ok=%v (factory nil %v), model.ScorableType %v", rt, ok, f == nil, model.ScorableType(rt))
 		}

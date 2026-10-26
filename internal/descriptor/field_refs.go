@@ -569,6 +569,15 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 			})
 		}
 		w.checkInputs("regression", string(reg.Type), reg.Params, "type")
+		// A model regression's declared reads beyond its target and
+		// predictors (REG_MMM_BAYES's params.time), which the runtime
+		// projection decodes from the same source.
+		for _, f := range model.ModelRegressionFieldInputs(reg) {
+			w.checkRegression(req, reg, f, func() *errors.CodedError {
+				return refusal("regression references unknown field: "+f,
+					map[string]any{"field": f, "type": string(reg.Type), "field_inputs": true})
+			})
+		}
 		w.checkHoldout(req, reg, models)
 	}
 	for _, grp := range req.Groups {

@@ -10,5 +10,13 @@ import (
 // profile-dependency handler scan attributes each type to its factory
 // through this map).
 var Factories = map[types.RegressionType]extend.RegressionFactory{
-	types.REG_MMM_HILL: Factory,
+	types.REG_MMM_BAYES: BayesFactory,
+	types.REG_MMM_HILL:  Factory,
+}
+
+// Scorers are the package's row-scorer factories keyed by type: a model
+// regression without one (REG_MMM_BAYES, whose adstocked prediction
+// needs the history) is absent.
+var Scorers = map[types.RegressionType]extend.RegressionScorerFactory{
+	types.REG_MMM_HILL: Scorer,
 }

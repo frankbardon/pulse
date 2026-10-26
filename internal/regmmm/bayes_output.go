@@ -1,4 +1,4 @@
-package mmmpulse
+package regmmm
 
 import (
 	"fmt"
@@ -6,7 +6,6 @@ import (
 	"math/rand/v2"
 	"slices"
 
-	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
@@ -52,8 +51,11 @@ const (
 // seed.
 const holdoutNoiseStream = 0x686f6c646f7574 // "holdout"
 
-// bayesOutputSchema is REG_MMM_BAYES's declared Outputs.
-var bayesOutputSchema = []pulse.RegressionOutputMeta{
+// BayesOutputSchema is REG_MMM_BAYES's declared Outputs, which the
+// root package's registration and internal/descriptor's static twin
+// both declare (each output's reading is the descriptor's built-in
+// Interpretation).
+var BayesOutputSchema = []descriptor.RegressionOutputMeta{
 	{Key: "seed", JSONType: "number", Description: "The effective sampler seed: rng_seed, or the one derived from the slot when rng_seed is 0."},
 	{Key: "roi", JSONType: "object", Description: "Per channel: the posterior of its ROI — summed contribution over summed spend across the fitted rows, against a zero-spend counterfactual — as {mean, median, sd, lower, upper} at credible_level, in outcome units per unit of spend."},
 	{Key: "mroi", JSONType: "object", Description: "Per channel: the posterior of its marginal ROI at the fitted spend — the analytic derivative of the summed contribution with respect to a uniform scaling of the channel's spend, over the summed spend — as {mean, median, sd, lower, upper} at credible_level."},
@@ -61,24 +63,6 @@ var bayesOutputSchema = []pulse.RegressionOutputMeta{
 	{Key: "params", JSONType: "object", Description: "Per coefficient (the coefficient table's names): its posterior as {mean, median, sd, lower, upper} at credible_level, in original units."},
 	{Key: "diagnostics", JSONType: "object", Description: "Sampler health: parameters and roi (per coefficient / channel {rhat, ess_bulk, ess_tail}), max_rhat, min_ess_bulk, min_ess_tail, divergences, treedepth_saturated, max_tree_depth, step_size and accept_stat (per chain), chains, warmup, draws (per chain) and map_start."},
 	{Key: "holdout", JSONType: "object", Description: "With params.holdout_from: from, fit_rows, holdout_rows, credible_level, rmse (held-out outcome against the posterior mean prediction) and coverage (the share of held-out rows inside the posterior predictive interval at credible_level). Absent without a holdout."},
-}
-
-// bayesInterpretation reads REG_MMM_BAYES's figures.
-var bayesInterpretation = []descriptor.Interpretation{
-	{Field: "coefficients.*", Means: "Each coefficient's posterior mean in original units: a channel's effect at full saturation, a control's effect per unit, the decay, half-saturation and shape of each channel's curve, the intercept and the noise SD.",
-		Caveats: []string{"A channel's effect is associational unless its spend varied for reasons unrelated to the outcome; an experiment-measured prior anchors it."}},
-	{Field: "outputs.roi", Means: "The outcome each unit of a channel's spend returned over the fitted period, against spending nothing on it; lower and upper bound the credible interval at credible_level.",
-		Caveats: []string{"A credible interval is conditional on the model and the priors: a wrong adstock window, a missing control or a seasonal confounder moves it without widening it.", "An ROI below 1 means the channel returned less outcome than it cost only when the outcome and the spend are in the same currency."}},
-	{Field: "outputs.mroi", Means: "The return on the next unit of a channel's spend at the fitted spend level; below the channel's ROI when it is saturating.",
-		Caveats: []string{"It is a local slope: it holds the fitted response curve and spread of spend fixed, and is not the return of a large budget shift."}},
-	{Field: "outputs.contribution", Means: "The outcome a channel produced over the fitted period, summed, against spending nothing on it.",
-		Caveats: []string{"Contributions are attributed by the model; they are not observed."}},
-	{Field: "outputs.params", Means: "Each coefficient's posterior median, SD and credible interval at credible_level, beside the coefficient table's mean."},
-	{Field: "outputs.diagnostics", Means: "Whether the sampler's chains agree and explored the posterior: R-hat near 1 (at most 1.01), effective sample sizes of at least 400, and no divergences or tree-depth hits.",
-		Caveats: []string{"A fit that fails any of them carries a PROCESSING_REGRESSION_DIAGNOSTIC warning naming it; its intervals may be too narrow or off-centre."}},
-	{Field: "outputs.holdout", Means: "How well the fit predicts the held-out periods: rmse in outcome units, and coverage, the share of held-out periods inside the predictive interval — near credible_level when the intervals are honest.",
-		Caveats: []string{"A short holdout gives a noisy coverage: with ten periods each one moves it by a tenth."}},
-	{Field: "outputs.seed", Means: "The seed the sampler ran with; the same seed and request reproduce the same draws."},
 }
 
 // pool concatenates per-chain draws, chain order.

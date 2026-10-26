@@ -71,3 +71,41 @@ func TestCatalogFromFits_ModelRegressionTerms(t *testing.T) {
 		t.Errorf("unknown catalog: %v, want any term accepted", cerr)
 	}
 }
+
+// TestModelRegression_BayesTermsAndInputs: REG_MMM_BAYES is a model
+// regression whose term catalog is decay:<channel>, k:<channel>,
+// s:<channel> (each over params.channels, in order) then sigma, and
+// whose only field read beyond its target and predictors is params.time
+// (ModelRegressionFieldInputs, the projection's and predict's one
+// source); every other type reads none.
+func TestModelRegression_BayesTermsAndInputs(t *testing.T) {
+	if !ModelRegression(types.REG_MMM_BAYES) || BuiltinRegression(types.REG_MMM_BAYES) {
+		t.Fatal("REG_MMM_BAYES is a model regression")
+	}
+	spec := func(rt types.RegressionType, params string) *types.RegressionSpec {
+		return &types.RegressionSpec{Type: rt, Params: json.RawMessage(params)}
+	}
+	got, ok := ModelRegressionTerms(spec(types.REG_MMM_BAYES, `{"channels":["tv","search"],"time":"week"}`))
+	if want := []string{"decay:tv", "decay:search", "k:tv", "k:search", "s:tv", "s:search", "sigma"}; !ok || !slices.Equal(got, want) {
+		t.Fatalf("terms %v (%v), want %v", got, ok, want)
+	}
+	for _, params := range []string{``, `{}`, `{"channels":[]}`, `not json`} {
+		if got, ok := ModelRegressionTerms(spec(types.REG_MMM_BAYES, params)); ok {
+			t.Errorf("params %q: terms %v known, want unknown", params, got)
+		}
+	}
+	if got := ModelRegressionFieldInputs(spec(types.REG_MMM_BAYES, `{"channels":["tv"],"time":"week"}`)); !slices.Equal(got, []string{"week"}) {
+		t.Errorf("Bayes field inputs %v, want [week]", got)
+	}
+	for _, s := range []*types.RegressionSpec{
+		spec(types.REG_MMM_BAYES, `{"channels":["tv"]}`),
+		spec(types.REG_MMM_BAYES, `not json`),
+		spec(types.REG_MMM_HILL, `{"channels":["tv"],"time":"week"}`),
+		spec(types.REG_OLS, `{"time":"week"}`),
+		nil,
+	} {
+		if got := ModelRegressionFieldInputs(s); got != nil {
+			t.Errorf("%+v: field inputs %v, want none", s, got)
+		}
+	}
+}

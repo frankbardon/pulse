@@ -229,7 +229,13 @@ func buildContractIndex() map[string]contractFacts {
 		if len(f.types) == 0 && len(r.AcceptsTypes) > 0 {
 			f.types = []contractTypes{declaredContractTypes([]string{"target", "predictor"}, r.AcceptsTypes)}
 		}
-		if r.Name != string(types.REG_BAYES_LINEAR) {
+		emitsP := r.Name != string(types.REG_BAYES_LINEAR)
+		if _, d, ok := modelRegressionFor(types.RegressionType(r.Name)); ok {
+			// A model regression joins a family only when it declares
+			// p-values, exactly as an extension model.
+			emitsP = d.PValues
+		}
+		if emitsP {
 			f.mult = contractMult{set: true, surface: surfaceRegression}
 		}
 		idx[r.Name] = f

@@ -46,6 +46,14 @@ const (
 	// ("k:<channel>", "s:<channel>") beside the intercept and the
 	// predictors. Always buffered.
 	REG_MMM_HILL RegressionType = "REG_MMM_HILL"
+
+	// REG_MMM_BAYES fits a Bayesian media-mix model: raw spend per
+	// channel geometrically adstocked inside the model, Hill-saturated,
+	// plus linear controls, its posterior sampled by NUTS. It names its
+	// own coefficients ("decay:<channel>", "k:<channel>",
+	// "s:<channel>", "sigma") beside the intercept and the predictors.
+	// Always buffered.
+	REG_MMM_BAYES RegressionType = "REG_MMM_BAYES"
 )
 
 // AllRegressionTypes returns every defined regression operator in
@@ -54,6 +62,7 @@ func AllRegressionTypes() []RegressionType {
 	return []RegressionType{
 		REG_BAYES_LINEAR,
 		REG_GLM,
+		REG_MMM_BAYES,
 		REG_MMM_HILL,
 		REG_OLS,
 	}
@@ -651,7 +660,7 @@ func (t RegressionType) Streamable() bool {
 	switch t {
 	case REG_OLS, REG_BAYES_LINEAR:
 		return true
-	case REG_GLM, REG_MMM_HILL:
+	case REG_GLM, REG_MMM_BAYES, REG_MMM_HILL:
 		return false
 	}
 	return false

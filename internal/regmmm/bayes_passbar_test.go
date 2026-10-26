@@ -1,4 +1,4 @@
-package mmmpulse
+package regmmm_test
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/frankbardon/pulse/internal/mmmfixture"
+	"github.com/frankbardon/pulse/internal/regmmm"
 	"github.com/frankbardon/pulse/mcmc"
 	"github.com/frankbardon/pulse/types"
 )
@@ -77,7 +78,7 @@ func jointBayesSpec(t testing.TB, extra string) *types.RegressionSpec {
 		names[i] = c.Name
 	}
 	params := `{"channels":` + mustJSON(t, names) + `,"time":"week"` + extra + `}`
-	return &types.RegressionSpec{Type: BayesName, Name: "mmm", Target: "sales",
+	return &types.RegressionSpec{Type: regmmm.BayesName, Name: "mmm", Target: "sales",
 		Predictors: append(names, "price", "promo"), Params: json.RawMessage(params), RNGSeed: passBayesSeed}
 }
 

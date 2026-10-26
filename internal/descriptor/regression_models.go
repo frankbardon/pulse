@@ -1,6 +1,8 @@
 package descriptor
 
 import (
+	"slices"
+
 	"github.com/frankbardon/pulse/descriptor"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
@@ -11,12 +13,13 @@ import (
 
 // regression_models.go is the no-execute declaration of the model
 // regressions (model.ModelRegression): built-in REG_* types authored on
-// the extension contract. The root package registers each one through
-// the extension adapter on the engine's built-in registry, so every
-// predict decision a registered extension regression takes from its
-// snapshot declaration a model regression takes from this table —
+// the extension contract. internal/regadapt registers each one
+// through the shared extension adapter on the engine's built-in registry
+// driven by THIS declaration (regadapt.ModelRegressionAdapter), so
+// every predict decision a registered extension regression takes from
+// its snapshot declaration a model regression takes from this table —
 // regressionExtensionFor answers it — and the runtime adapter judges the
-// same declaration (the root parity test pins the registration to it).
+// very same declaration.
 // The manifest lists it among the built-ins (regressionCapabilities).
 
 // modelRegression is one model regression's static declaration: the
@@ -31,6 +34,36 @@ type modelRegression struct {
 
 // modelRegressionTable holds every model regression, keyed by type.
 var modelRegressionTable = map[types.RegressionType]modelRegression{
+	types.REG_MMM_BAYES: {
+		SpecRefusal: regmmm.BayesSpecRefusal,
+		Description: "Bayesian media-mix model: in-model geometric adstock and Hill saturation per channel plus linear controls, sampled by NUTS; coefficients are posterior means with posterior SDs.",
+		Decl: ExtensionRegression{
+			Vcov: true,
+			// No scorer (an adstocked prediction needs the history:
+			// params.holdout_from is the model's own holdout), no
+			// engine resample, no p-values.
+			NoResample:   true,
+			OutputKeys:   bayesOutputKeys(),
+			OutputSchema: slices.Clone(regmmm.BayesOutputSchema),
+			Params: []descriptor.Param{
+				{Name: "channels", Type: "list", Required: true, Description: "Raw spend predictors (≥ 0) the model adstocks and saturates, at least one; the other predictors are linear controls."},
+				{Name: "time", Type: "string", Required: true, Example: "week", Description: "Integer time field (one row per period, contiguous); the rows are sorted by it, and a gap or a repeat is refused."},
+				{Name: "max_lag", Type: "float", Default: regmmm.BayesDefaultMaxLag, Description: "Adstock window in periods (an integer ≥ 1; default 13)."},
+				{Name: "adstock", Type: "string", Default: "geometric", Description: "Adstock kernel: geometric (the only one)."},
+				{Name: "priors", Type: "object", Description: "Per-channel priors keyed by channel: {roi | beta, decay, k, s}, each {family, ...} (normal mu/sigma, halfnormal sigma, lognormal mu/sigma, beta alpha/beta, truncnormal mu/sigma/lower/upper). A beta prior samples β instead of the ROI; k is in peak-week units of the channel's adstock."},
+				{Name: "intercept_prior", Type: "object", Description: "Intercept prior on the max-scaled outcome (default normal 0, 2)."},
+				{Name: "control_prior", Type: "object", Description: "Prior of every control's coefficient on the centred, scaled control (default normal 0, 1)."},
+				{Name: "sigma_prior", Type: "object", Description: "Noise SD prior on the max-scaled outcome (default halfnormal 1)."},
+				{Name: "chains", Type: "float", Default: regmmm.BayesDefaultChains, Description: "Sampler chains (1–16; default 4)."},
+				{Name: "warmup", Type: "float", Default: regmmm.BayesDefaultWarmup, Description: "Adaptation iterations per chain (1–20000; default 1000)."},
+				{Name: "draws", Type: "float", Default: regmmm.BayesDefaultDraws, Description: "Retained draws per chain (1–20000; default 1000)."},
+				{Name: "credible_level", Type: "float", Default: regmmm.BayesDefaultCredible, Description: "Posterior interval level in (0, 1) (default 0.9)."},
+				{Name: "sampler", Type: "string", Default: "nuts", Description: "Sampler: nuts (the only one)."},
+				{Name: "target_accept", Type: "float", Default: regmmm.BayesDefaultTargetAccept, Description: "NUTS step-size adaptation target in (0, 1) (default 0.8); raise it when the fit diverges."},
+				{Name: "holdout_from", Type: "float", Example: 131, Description: "Model-owned holdout: the integer time from which rows are held out — the likelihood sees only the rows before it, the adstock runs over the full history, and outputs.holdout scores the held-out rows. Absent: every row is fitted."},
+			},
+		},
+	},
 	types.REG_MMM_HILL: {
 		SpecRefusal: regmmm.SpecRefusal,
 		Description: "Media-mix model: joint nonlinear least squares over Hill-saturated, already-adstocked channels plus linear controls; coefficients k:<channel> / s:<channel> carry each curve.",
@@ -52,6 +85,15 @@ var modelRegressionTable = map[types.RegressionType]modelRegression{
 			},
 		},
 	},
+}
+
+// bayesOutputKeys are REG_MMM_BAYES's declared Outputs keys, in order.
+func bayesOutputKeys() []string {
+	keys := make([]string, 0, len(regmmm.BayesOutputSchema))
+	for _, o := range regmmm.BayesOutputSchema {
+		keys = append(keys, o.Key)
+	}
+	return keys
 }
 
 // ModelRegressionDeclaration returns model regression t's static

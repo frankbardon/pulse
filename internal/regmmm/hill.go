@@ -1,9 +1,12 @@
 // Package regmmm holds Pulse's built-in media-mix regressions, authored
-// on the extension contract (extend.Regression) and registered by the
-// root package as model regressions (internal/model.ModelRegression):
-// REG_MMM_HILL's model, factory and row scorer. The registration's
-// declaration (description, params, outputs, purpose) lives with the
-// root package's registration and the descriptor's static twin.
+// on the extension contract (extend.Regression) and registered by
+// internal/regadapt as model regressions (internal/model.ModelRegression):
+// REG_MMM_HILL's model, factory and row scorer, and REG_MMM_BAYES's
+// model, factory and outputs (bayes*.go). The declaration
+// (description, params, outputs) is internal/descriptor's
+// model-regression table, which both predict and the engine adapter
+// read; purpose and interpretation are the descriptor's built-in
+// guidance.
 package regmmm
 
 import (

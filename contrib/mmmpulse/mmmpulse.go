@@ -1,44 +1,17 @@
-// Package mmmpulse is Pulse's media-mix modelling pack: the REG_MMM_BAYES
-// regression, registered through Pulse's public extension contract.
-// REG_MMM_HILL, the pack's other model, is now a built-in regression:
-// every instance runs it with no registration.
+// Package mmmpulse is Pulse's retired media-mix modelling pack. Both of
+// its models — REG_MMM_HILL and REG_MMM_BAYES — and their skills are
+// built into Pulse: every instance runs them with no registration, and
+// registering either name is refused (PULSE_EXTENSION_NAME_COLLISION).
 //
-// Register it by merging Extensions into the instance's options:
-//
-//	p, err := pulse.New(pulse.Options{Extensions: mmmpulse.Extensions()})
-//
-// Then name it on a regression slot like any built-in. See
-// BayesRegistration for the Bayesian model, which adstocks raw spend
-// itself and samples its posterior with NUTS.
-//
-// The pack lives in its own Go module, versioned in lockstep with Pulse
-// (tag contrib/mmmpulse/vX.Y.Z = Pulse vX.Y.Z), and imports only Pulse's
-// public packages; Pulse itself never imports it.
+// The module remains only so existing imports compile; Extensions
+// returns an empty registration set.
 package mmmpulse
 
-import (
-	"embed"
-	"io/fs"
+import "github.com/frankbardon/pulse"
 
-	"github.com/frankbardon/pulse"
-)
-
-//go:embed skills/*.md
-var skillFiles embed.FS
-
-// Extensions is the pack's registration set: REG_MMM_BAYES and the
-// pack's two skills (REG_MMM_BAYES's and a media-mix workflow guide),
-// served through Extensions.Skills. Use it as pulse.Options.Extensions; to combine it
-// with the embedder's own, append its Regressions to the existing set and
-// keep one Skills filesystem that holds both skill sets. Each call returns
-// a fresh value.
+// Extensions returns an empty registration set: the pack's models and
+// skills are built into Pulse. Merging it into pulse.Options.Extensions
+// changes nothing.
 func Extensions() pulse.Extensions {
-	skills, err := fs.Sub(skillFiles, "skills")
-	if err != nil {
-		panic(err) // the embedded directory is fixed at build time
-	}
-	return pulse.Extensions{
-		Regressions: []pulse.RegressionRegistration{BayesRegistration()},
-		Skills:      skills,
-	}
+	return pulse.Extensions{}
 }
