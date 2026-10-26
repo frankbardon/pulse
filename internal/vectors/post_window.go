@@ -22,9 +22,10 @@ import (
 // is WINDOW-DEPENDENT. A window-dependent ROW-LOCAL attribute
 // (PostWindowEligible: ATTR_FORMULA without total(), ATTR_REG_PREDICT)
 // runs in the post-window phase when the windows run over the record
-// rows (WindowsOverRecords): after the windows, over the filtered
-// records the window labels it reads were copied onto, in declared
-// order. Any other window-dependent attribute — a non-row-local type,
+// rows — the record-row shape, or a windows-first request
+// (WindowsFirst, windows_first.go): after the windows, over the
+// filtered records the window labels it reads were copied onto, in
+// declared order. Any other window-dependent attribute — a non-row-local type,
 // or any type outside that shape — is PULSE_ATTRIBUTE_WINDOW_ORDER
 // (AttributeWindowOrderRefusal). An attribute reading no window label
 // stays where it always ran: a request with none moves nothing.
@@ -46,6 +47,12 @@ type PostWindow struct {
 	// Labels are the post-window attributes' output labels, in declared
 	// order.
 	Labels []string
+	// WindowsFirst reports whether the request runs windows-first
+	// (WindowsFirst over the same schema, route and catalog): its windows
+	// run over the record rows before its groups, aggregations and
+	// crosstab, which read the window outputs. False on the historical
+	// order.
+	WindowsFirst bool
 }
 
 // Any reports whether any attribute runs after the windows.
@@ -70,7 +77,7 @@ func (pw PostWindow) Refusal(req *types.Request) *errors.CodedError {
 		if dep == "" || pw.IsPost(i) {
 			continue
 		}
-		return AttributeWindowOrderRefusal(req, req.Attributes[i], dep)
+		return AttributeWindowOrderRefusal(req, pw.WindowsFirst, req.Attributes[i], dep)
 	}
 	return nil
 }
@@ -95,11 +102,17 @@ func PostWindowEligible(route types.AttributeType, attr *types.Attribute) bool {
 // A window label equal to a schema field or to a named vector of req is
 // no window-derived name (the field wins and the walk refuses the
 // shadowing window; the vector collision is
-// PULSE_VECTOR_NAME_COLLISION's). Allocation-free —
-// the zero plan — when req carries no window or no attribute.
+// PULSE_VECTOR_NAME_COLLISION's). The plan's WindowsFirst is
+// WindowsFirst(req, schema, route, cat). Allocation-free — the zero
+// plan — when req carries no window, or no attribute and no group,
+// aggregation or crosstab.
 func PostWindowAttributes(req *types.Request, schema *encoding.Schema, route func(types.AttributeType) types.AttributeType, cat model.Catalog) PostWindow {
 	var pw PostWindow
-	if req == nil || len(req.Windows) == 0 || len(req.Attributes) == 0 {
+	if req == nil || len(req.Windows) == 0 {
+		return pw
+	}
+	pw.WindowsFirst = WindowsFirst(req, schema, route, cat)
+	if len(req.Attributes) == 0 {
 		return pw
 	}
 	derived := make(map[string]bool, len(req.Windows))
@@ -117,7 +130,7 @@ func PostWindowAttributes(req *types.Request, schema *encoding.Schema, route fun
 	if len(derived) == 0 {
 		return pw
 	}
-	overRecords := WindowsOverRecords(req)
+	overRecords := recordRowShape(req) || pw.WindowsFirst
 	seenRead := map[string]bool{}
 	for i, attr := range req.Attributes {
 		if attr == nil {
@@ -236,15 +249,20 @@ func routeOf(route func(types.AttributeType) types.AttributeType, t types.Attrib
 // a post-window attribute: the slot cannot run after the windows —
 // it is not row-local, or the windows run over grouped / aggregated
 // output rows (or beside a crosstab), where no record carries a window
-// value. details {attribute, field}.
-func AttributeWindowOrderRefusal(req *types.Request, attr *types.Attribute, field string) *errors.CodedError {
+// value. windowsFirst is the request's plan (PostWindow.WindowsFirst):
+// a windows-first request runs its windows over the record rows. The
+// message names both routes — windows-first (an aggregation, grouper
+// or crosstab axis reading the window label, or a row-local formula
+// over it) and materialize-first. details {attribute, field}.
+func AttributeWindowOrderRefusal(req *types.Request, windowsFirst bool, attr *types.Attribute, field string) *errors.CodedError {
 	var why string
-	if !WindowsOverRecords(req) {
-		why = "the windows run over the grouped or aggregated output rows, where no record carries a window value"
-	} else {
+	if req != nil && len(req.Windows) > 0 && (recordRowShape(req) || windowsFirst) {
 		why = "only a row-local expression formula (no total()) or bound-model score runs after the windows"
+	} else {
+		why = "the windows run over the grouped or aggregated output rows, where no record carries a window value"
 	}
 	return errors.NewCodedErrorWithDetails(errors.PULSE_ATTRIBUTE_WINDOW_ORDER,
-		"attribute "+string(attr.Type)+" reads window output "+field+", but "+why+"; materialize the window first",
+		"attribute "+string(attr.Type)+" reads window output "+field+", but "+why+
+			"; rewrite it as a row-local formula and aggregate, group or cross-tabulate that label (the windows then run first over the records), or materialize the window first",
 		map[string]any{"attribute": string(attr.Type), "field": field})
 }

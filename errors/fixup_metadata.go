@@ -954,12 +954,17 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_ATTRIBUTE_WINDOW_ORDER: {
-		Message: "An attribute reads a window label, but only a row-local expression formula (no total()) or bound-model score runs after the windows, and only when the windows run over the record rows.",
+		Message: "An attribute reads a window label, but only a row-local expression formula (no total()) or bound-model score runs after the windows, and only when the windows run over the record rows (no groups, aggregations or crosstab, or windows-first: one of them reads a window output).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
 				Path:   []string{"Attributes"},
-				Hint:   "Materialize the window first (pulse api materialize with the windows and their filters), then run the attribute over the derived cohort, naming the window's column; or rewrite the step as a row-local expression formula and drop the groups, aggregations and crosstab so the windows run over the record rows.",
+				Hint:   "Windows-first: rewrite the step as a row-local expression formula (no total()) or ATTR_REG_PREDICT and name its label (or the window label itself) in an aggregation, grouper or crosstab axis — the windows then run first over the record rows and the aggregations read the values off each record; or drop the groups, aggregations and crosstab so the windows run over the record rows.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"Attributes"},
+				Hint:   "Materialize the window first (pulse api materialize with the windows and their filters), then run the attribute over the derived cohort, naming the window's column.",
 			},
 		},
 	},
@@ -985,6 +990,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRemoveParam,
 				Path:   []string{"Windows", "*", "Frame"},
 				Hint:   "Drop Frame for ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, PCT_CHANGE, DELTA, SHARE, LIFT; supply Frame (mode \"rows\") for MOVING_AVG (both bounds), EWMA, RUNNING_*.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"Windows", "*"},
+				Hint:   "details.reason windows_first_reads_aggregate: an aggregation, grouper or crosstab axis reads a window output, so the windows run first over the records and no aggregation label exists yet — drop the window-output read from the aggregations (the windows then run over the aggregated rows again), or materialize the windows first and aggregate the derived cohort in a second request.",
 			},
 		},
 	},

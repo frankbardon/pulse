@@ -44,14 +44,6 @@ type ComputedColumn struct {
 // Computed maps a computed column's name to its producer.
 type Computed map[string]ComputedColumn
 
-// WindowsOverRecords reports whether req's windows run over the record
-// rows (no groups, no aggregations, no crosstab): only then is a window
-// label a per-record column.
-func WindowsOverRecords(req *types.Request) bool {
-	return req != nil && len(req.Windows) > 0 && len(req.Groups) == 0 &&
-		len(req.Aggregations) == 0 && req.Crosstab == nil
-}
-
 // ComputedColumns names the columns req computes per record, first
 // producer wins: built-in feature outputs (FeatureOutputLabels; an
 // extension feature's outputs are unknown before it runs), attribute
@@ -100,7 +92,7 @@ func ComputedColumns(req *types.Request, schema *encoding.Schema) Computed {
 		}
 		add(label, c)
 	}
-	if WindowsOverRecords(req) {
+	if WindowsOverRecords(req, schema) {
 		for i, w := range req.Windows {
 			if w != nil {
 				add(WindowLabel(w), ComputedColumn{Slot: "window", Index: i, Type: encoding.FieldTypeF64})
@@ -167,7 +159,7 @@ func holdoutReadsWholeEnv(reg *types.RegressionSpec) bool {
 // first-read order without repeats; nil when none. The engine copies
 // exactly these onto the records before the fit.
 func RegressionWindowReads(req *types.Request, schema *encoding.Schema) []string {
-	if !WindowsOverRecords(req) || len(req.Regressions) == 0 {
+	if !WindowsOverRecords(req, schema) || len(req.Regressions) == 0 {
 		return nil
 	}
 	comp := ComputedColumns(req, schema)

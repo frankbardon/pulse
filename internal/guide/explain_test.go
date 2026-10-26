@@ -369,6 +369,28 @@ func TestExplain_ProseLint_Falsifier(t *testing.T) {
 	}
 }
 
+// TestExplain_WindowsFirstAttributeOrder: in a windows-first request
+// (an aggregation reads a post-window formula label) the formula is
+// described after the windows, as the engine orders it.
+func TestExplain_WindowsFirstAttributeOrder(t *testing.T) {
+	r := &types.Request{
+		Windows:      []*types.Window{{Type: types.WIN_LAG, Field: "score", Label: "prev", OrderBy: []types.OrderKey{{Field: "taken_on"}}}},
+		Attributes:   []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "sat", Expression: "(prev ?? 0) * 2"}},
+		Aggregations: []*types.Aggregation{{Type: types.AGG_SUM, Field: "sat", Label: "total_sat"}},
+	}
+	res := explain(t, nil, descriptor.ExplainRequest{Request: r}, Checks{})
+	var got []string
+	for _, st := range res.Steps {
+		got = append(got, st.Slot)
+	}
+	if want := []string{"windows[0]", "attributes[0]", "aggregations[0]"}; !slices.Equal(got, want) {
+		t.Fatalf("slots = %v, want %v", got, want)
+	}
+	if txt := res.Steps[1].Text; !strings.Contains(txt, "after the windows") {
+		t.Errorf("post-window step text = %q", txt)
+	}
+}
+
 // TestExplain_PostWindowAttributeOrder: an attribute reading a window
 // label is described after the windows (the post-window phase), one
 // reading none stays before them, and a regression naming a window

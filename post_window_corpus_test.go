@@ -52,6 +52,10 @@ func requestObjects(v any, out *[]map[string]any) {
 // corpus holds: formulas, regression and scoring attributes, vector
 // attributes, previous-state slots).
 //
+// The same gate holds the windows-first classification
+// (vectors.WindowsFirst): no shipped request turns it on, so no example
+// changes classification.
+//
 // The exceptions are the examples that teach the phase: the one-step
 // MMM decay sweeps (grid and lhs) read their adstock labels in formula
 // attributes, so they MUST classify post-window (checked, not skipped).
@@ -90,6 +94,11 @@ func TestWindowPredictor_PostWindowPlanInertOverCorpus(t *testing.T) {
 				pw := vectors.PostWindowAttributes(r, nil, nil, nil)
 				if pw.Any() || pw.Dep != nil || pw.WindowReads != nil || pw.Refusal(r) != nil {
 					t.Errorf("%s (%s): attributes classify post-window (%+v): the example now runs a reordered pipeline", ex.Name, how, pw)
+				}
+				// Windows-first (mmm-followups E4-S1): no shipped
+				// request runs its windows ahead of its aggregations.
+				if pw.WindowsFirst || vectors.WindowsFirst(r, nil, nil, nil) {
+					t.Errorf("%s (%s): the request classifies windows-first: the example now runs a reordered pipeline", ex.Name, how)
 				}
 			}
 			inert(&req, "as written")

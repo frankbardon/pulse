@@ -1,6 +1,7 @@
 package processing
 
 import (
+	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
@@ -44,6 +45,16 @@ func (p *Processor) postWindowPlan(req *types.Request) (vectors.PostWindow, erro
 	pw := vectors.PostWindowAttributes(req, p.schema, nil, cat)
 	if cerr := pw.Refusal(req); cerr != nil {
 		return vectors.PostWindow{}, cerr
+	}
+	if pw.WindowsFirst {
+		// The windows-first arm (windows over the record rows, then the
+		// groups / aggregations / crosstab over the records) is not wired
+		// into this engine yet: refuse rather than aggregate a window
+		// label no record carries (an all-null column, a confident wrong
+		// answer).
+		return vectors.PostWindow{}, errors.NewCodedErrorWithDetails(errors.PROCESSING_CONFIG,
+			"windows-first aggregation (an aggregation, grouper or crosstab axis reading a window output) is not executed by this engine yet; materialize the windows first, then aggregate the derived cohort",
+			map[string]any{"reason": "windows_first_pending"})
 	}
 	return pw, nil
 }

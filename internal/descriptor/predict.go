@@ -771,6 +771,19 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		}
 	}
 
+	// A windows-first request (vectors.WindowsFirst: an aggregation,
+	// grouper or crosstab axis reads a window output) runs its windows
+	// over every filtered record before the groups, aggregations and
+	// crosstab: buffered on every shape (processing.canStream refuses
+	// any window), the crosstab one included — judged ahead of the
+	// crosstab gate below. The static classification takes no model
+	// catalog: a request windows-first only through a bound model's
+	// terms keeps the historical reasons.
+	windowsFirst := vectors.WindowsFirst(req, schema, func(t types.AttributeType) types.AttributeType { return opRoute(opts.instance(), t) }, nil)
+	if windowsFirst {
+		reasons = append(reasons, "windows run first over every filtered record (windows-first: an aggregation, grouper or crosstab axis reads a window output), so the request runs via the buffered path")
+	}
+
 	// Crosstab dispatch overrides the regular streamable gate: when set,
 	// crosstabStreamableReasons is the authoritative list (matrix shape,
 	// margins, normalization, or nested axes all force buffered).
@@ -825,7 +838,7 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	if tp := firstTwoPassAttribute(req, schema, opts); tp != "" && (len(req.Groups) > 0 || len(req.Features) > 0) {
 		reasons = append(reasons, "two-pass attribute "+string(tp)+" with groupers or features runs via the buffered path")
 	}
-	if len(req.Windows) > 0 {
+	if len(req.Windows) > 0 && !windowsFirst {
 		reasons = append(reasons, "windows run over the whole row set (every filtered record, or the post-aggregate rows when grouped)")
 	}
 

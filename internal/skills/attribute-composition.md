@@ -18,7 +18,7 @@ Pipeline order: `features → filterers → attributes → groups → aggregatio
 - Filterers see source fields only — never an attribute label.
 - Groupers / aggregators / windows CAN reference an attribute label as `field`.
 <!-- feature: ATTR_FORMULA, ATTR_REG_PREDICT -->
-- **Post-window phase.** A row-local formula or `ATTR_REG_PREDICT` reading a window label (or an earlier post-window attribute) runs AFTER windows, so a saturation `hill(tv_ad, 800, 1.5)` can feed a regression. Any other attribute reading a window, a `total()` formula, or any outside the windows-over-records shape: `PULSE_ATTRIBUTE_WINDOW_ORDER` (`attribute`, `field`; materialize first). A lag's first rows are null: guard with `?? 0`.
+- **Post-window phase.** A row-local formula or `ATTR_REG_PREDICT` reading a window label (or an earlier post-window attribute) runs AFTER windows, so a saturation `hill(tv_ad, 800, 1.5)` can feed a regression. Other window readers (`total()` too): `PULSE_ATTRIBUTE_WINDOW_ORDER` (`attribute`, `field`). Beside groups / aggregations / crosstab it moves only windows-first (one reads a window / post-window label); else materialize. A lag's first rows are null: guard with `?? 0`.
 <!-- /feature -->
 
 Entry shape: `{type, field?, label, params?, expression?}`. `type` is the attribute constant; `field` is the source for single-source attributes; `label` names the new column.

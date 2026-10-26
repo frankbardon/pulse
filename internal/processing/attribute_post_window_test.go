@@ -115,6 +115,38 @@ func TestWindowPredictor_ProcessorRefusesWindowOrder(t *testing.T) {
 	}
 }
 
+// TestWindowsFirst_ProcessorRefusesUntilWired: a windows-first request
+// (an aggregation reading a window label — mmm-followups E4-S1) is
+// refused by the engine, ungrouped, grouped and crosstab alike, rather
+// than aggregating a column no record carries; the field-reference walk
+// admits it. The windows-first arm lands in E4-S2, which replaces this
+// test with the engine's own.
+func TestWindowsFirst_ProcessorRefusesUntilWired(t *testing.T) {
+	s := windowRegSchema()
+	var recs []*Record
+	for _, r := range windowRegRows(8) {
+		recs = append(recs, NewRecord(s, map[string]float64{"t": r[0], "x": r[1], "y": r[2]}))
+	}
+	win := []*types.Window{{Type: types.WIN_LAG, Field: "x", Label: "lag_x", OrderBy: []types.OrderKey{{Field: "t"}}}}
+	sum := []*types.Aggregation{{Type: types.AGG_SUM, Field: "lag_x", Label: "s"}}
+	for name, req := range map[string]*types.Request{
+		"ungrouped": {Windows: win, Aggregations: sum},
+		"grouped":   {Windows: win, Groups: []*types.Group{{Type: types.GROUP_RANGE, Field: "t", Interval: 4}}, Aggregations: sum},
+		"crosstab": {Windows: win, Crosstab: &types.CrosstabSpec{
+			Rows:    []*types.Group{{Type: types.GROUP_RANGE, Field: "lag_x", Interval: 1}},
+			Columns: []*types.Group{{Type: types.GROUP_RANGE, Field: "t", Interval: 4}},
+		}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := NewProcessor(s).Process(context.Background(), req, NewSliceIterator(recs))
+			var ce *errors.CodedError
+			if !stderrors.As(err, &ce) || ce.Code != errors.PROCESSING_CONFIG || ce.Details["reason"] != "windows_first_pending" {
+				t.Fatalf("err = %v, want PROCESSING_CONFIG windows_first_pending", err)
+			}
+		})
+	}
+}
+
 // TestWindowPredictor_PostWindowNonNumericWindowRefused: a non-numeric
 // window value a post-window attribute reads is PROCESSING_CONFIG naming
 // the label, as the regression and matrix copies refuse it.
