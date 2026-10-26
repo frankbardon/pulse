@@ -29,7 +29,9 @@ first run via `go run`.
 | Command | What it does |
 |---|---|
 | `make build` | Builds the CLI binary to `bin/pulse` (default goal) |
-| `make test`  | Runs `go test ./...` |
+| `make test`  | Runs every package's tests: `make test-main`, then `make test-heavy` |
+| `make test-main` | Runs `go test` on every package except `HEAVY_TEST_PKGS` (the CI `Test` step) |
+| `make test-heavy` | Runs `go test` on `HEAVY_TEST_PKGS` — `internal/regmmm`'s MCMC / LHS pass bars — alone (the CI `Heavy tests` step) |
 | `make fmt`   | Runs `gofmt -w .` |
 | `make fmt-check` | Fails listing any Go file `gofmt` would rewrite |
 | `make vet`   | Runs `go vet ./...` |

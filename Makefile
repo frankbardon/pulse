@@ -1,4 +1,4 @@
-.PHONY: build clean dist test smoke contrib contrib-tidy cover fmt fmt-check vet lint bench bench-scale sites tzdata reference reference-optimize reference-mcmc docs docs-generate docs-serve docs-clean
+.PHONY: build clean dist test test-main test-heavy smoke contrib contrib-tidy cover fmt fmt-check vet lint bench bench-scale sites tzdata reference reference-optimize reference-mcmc docs docs-generate docs-serve docs-clean
 
 BINARY_NAME=pulse
 BUILD_DIR=bin
@@ -33,8 +33,21 @@ clean:
 dist:
 	LDFLAGS="$(LDFLAGS)" GO="$(GO)" ./scripts/release-dist.sh "$(VERSION)" "$(DIST_DIR)"
 
-test:
-	$(GO) test ./...
+# test runs every package: test-main (all but HEAVY_TEST_PKGS), then
+# test-heavy. CI runs the two as separate steps of the `test (1.26)` job,
+# so the heavy packages' MCMC / LHS pass-bar fits never contend for CPU
+# with the main module's slowest packages (root, internal/service) under
+# go test's 10-minute per-package timeout. HEAVY_TEST_PKGS are import
+# paths; `go test -count=1 ./...` still covers them.
+HEAVY_TEST_PKGS=github.com/frankbardon/pulse/internal/regmmm
+
+test: test-main test-heavy
+
+test-main:
+	$(GO) test $$($(GO) list ./... | grep -vxF $(foreach p,$(HEAVY_TEST_PKGS),-e $(p)))
+
+test-heavy:
+	$(GO) test $(HEAVY_TEST_PKGS)
 
 # smoke builds, vets and tests internal/embeddersmoke: a separate Go
 # module (own go.mod, replace => ../..) that embeds Pulse through the

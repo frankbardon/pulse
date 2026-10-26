@@ -18,6 +18,17 @@ go test ./...
 Runs everything. Slow but exhaustive. The recommended pre-push
 default.
 
+`make test` runs the same packages in two passes: `make test-main`
+(every package except `HEAVY_TEST_PKGS`), then `make test-heavy`
+(`HEAVY_TEST_PKGS` alone — today `internal/regmmm`, whose media-mix
+pass bars run full NUTS and Latin-hypercube fits). CI's `test (1.26)`
+job runs the two as separate steps (`Test`, `Heavy tests (MMM pass
+bars)`): run concurrently with the main module, the pass-bar fits starve
+the root and `internal/service` packages on a shared runner until they
+hit `go test`'s 10-minute per-package timeout. To reproduce one CI step
+locally, run its target. A package whose tests need the same isolation
+joins `HEAVY_TEST_PKGS` in the `Makefile`.
+
 ## Descriptor contract gates
 
 The descriptor surface (predict, manifest, inspect, envelope) has

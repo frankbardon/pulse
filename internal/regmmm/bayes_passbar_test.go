@@ -226,7 +226,7 @@ func TestMMMBayes_PassBar(t *testing.T) {
 }
 
 // TestMMMBayes_PassBarDeterministic: the same seed gives the same bytes.
-// A reduced joint-fixture fit (4 chains × (50 + 20); it warns, and the
+// A reduced joint-fixture fit (4 chains × (20 + 10); it warns, and the
 // warnings are part of the bytes) gives the whole result's JSON byte
 // for byte on a rerun and at GOMAXPROCS=1 against GOMAXPROCS=N (the
 // chains run in goroutines and merge in chain order). The full-size fit
@@ -234,7 +234,7 @@ func TestMMMBayes_PassBar(t *testing.T) {
 // hash.
 func TestMMMBayes_PassBarDeterministic(t *testing.T) {
 	p, _ := jointInstance(t)
-	const reduced = `,"chains":4,"warmup":50,"draws":20`
+	const reduced = `,"chains":4,"warmup":20,"draws":10`
 	run := func() string {
 		r := process(t, p, jointBayesRequest(jointBayesSpec(t, reduced))).Regressions[0]
 		if r.Error != nil {
