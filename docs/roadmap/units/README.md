@@ -32,7 +32,7 @@ These files were generated once from the theme documents and `TODO.md`, and are 
 
 ## Suggested order
 
-The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U38 (skill sync, appended after U21) lands after U21 and before U32. U39 (code-in attribute, appended after U38) is done and has no dependencies. U40 (compose sweep, added after U39) is done and lands before U32; U41 (derived cohort), U42 (fit scoring) and U43 (post-aggregation ratios) are done; U41, U42 and U43 follow it in a chain (derived cohort, fit scoring, post-aggregation ratios) and ship in v1.0.0 (owner decision 2026-10-10). U44–U52 (from the [showcase examples](https://github.com/frankbardon/pulse-casebook/tree/main/showcase)) also ship in v1.0.0 and land before U32; they have no hard dependencies on each other, so they can run in parallel sessions, with the soft dependencies in each unit's frontmatter. U53 (custom regressions, appended after U52) ships in v1.0.0 (owner decision 2026-10-10) and lands before U32; it has no hard dependency, with U34, U36 and U42 soft. U57 (transformed predictors, from U53's backlog item #490) follows U53, ships in v1.0.0 and lands before U32. U58 (expression maths, lags and params, appended after U57) follows U53, owns #509–#520, ships in v1.0.0 and lands before U32. U59 (SEM extensions, appended after U58) has no hard dependency (U24, U40 and U42 soft), owns #528–#538, ships in v1.0.0 and lands before U32. U60 (MMM estimation, appended after U59) has no hard dependency (U40, U53, U57, U58 and U59 soft), owns #539–#547 and the narrowed #489 (its follow-ups #548–#560 are filed under their owner units), ships in v1.0.0 and lands before U32; U61 (cross-architecture determinism, created at U60's close-out) owns #554, has U58 and U60 soft, and lands before U32; U62 (Bayesian MMM, appended after U61) has no hard dependency (U60 soft), owns the narrowed #552 and its follow-ups #561–#568, ships in v1.0.0 and lands before U32. U56 (operation panic recovery, split out of U34 on 2026-10-19) owns #231 and follows U20; it ships in v1.0.0 and lands before U32. U55 (previous state, appended after U50 on 2026-10-18) owns #452 and follows U50; it ships in v1.0.0 and lands before U32. U54 (multi-grouper, appended after U53 on 2026-10-11) runs NEXT, immediately after U27 (owner decision): plain `groups` has only ever executed its first grouper, silently; it takes #200 from U35 and #318 from U46, and U46 now depends on it. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
+The IDs are in a valid dependency order, except the units appended later: U35 lands before U32, and U36 (from U08's findings) lands after U08. U37 (shell completion) has no hard dependency and can land any time before U32. U38 (skill sync, appended after U21) lands after U21 and before U32. U39 (code-in attribute, appended after U38) is done and has no dependencies. U40 (compose sweep, added after U39) is done and lands before U32; U41 (derived cohort), U42 (fit scoring) and U43 (post-aggregation ratios) are done; U41, U42 and U43 follow it in a chain (derived cohort, fit scoring, post-aggregation ratios) and ship in v1.0.0 (owner decision 2026-10-10). U44–U52 (from the [showcase examples](https://github.com/frankbardon/pulse-casebook/tree/main/showcase)) also ship in v1.0.0 and land before U32; they have no hard dependencies on each other, so they can run in parallel sessions, with the soft dependencies in each unit's frontmatter. U53 (custom regressions, appended after U52) ships in v1.0.0 (owner decision 2026-10-10) and lands before U32; it has no hard dependency, with U34, U36 and U42 soft. U57 (transformed predictors, from U53's backlog item #490) follows U53, ships in v1.0.0 and lands before U32. U58 (expression maths, lags and params, appended after U57) follows U53, owns #509–#520, ships in v1.0.0 and lands before U32. U59 (SEM extensions, appended after U58) has no hard dependency (U24, U40 and U42 soft), owns #528–#538, ships in v1.0.0 and lands before U32. U60 (MMM estimation, appended after U59) has no hard dependency (U40, U53, U57, U58 and U59 soft), owns #539–#547 and the narrowed #489 (its follow-ups #548–#560 are filed under their owner units), ships in v1.0.0 and lands before U32; U61 (cross-architecture determinism, created at U60's close-out) owns #554, has U58 and U60 soft, and lands before U32; U62 (Bayesian MMM, appended after U61) has no hard dependency (U60 soft), owns the narrowed #552 and its follow-ups #561–#568, ships in v1. U63 (MMM follow-ups, appended after U62) has no hard dependency (U40, U53, U57, U60 and U62 soft), owns #549, #297 and the follow-ups #570–#581 (filed under their owner units), ships in v1.0.0 and lands before U32. U56 (operation panic recovery, split out of U34 on 2026-10-19) owns #231 and follows U20; it ships in v1.0.0 and lands before U32. U55 (previous state, appended after U50 on 2026-10-18) owns #452 and follows U50; it ships in v1.0.0 and lands before U32. U54 (multi-grouper, appended after U53 on 2026-10-11) runs NEXT, immediately after U27 (owner decision): plain `groups` has only ever executed its first grouper, silently; it takes #200 from U35 and #318 from U46, and U46 now depends on it. U09 is done and no longer waits on U36 (soft dependency). Units on different tracks with no dependency between them can run in parallel sessions.
 
 | # | Unit | Track | Size | Depends on | TODO items |
 |---|---|---|---|---|---|
@@ -100,6 +100,7 @@ The IDs are in a valid dependency order, except the units appended later: U35 la
 | U60 | [mmm-estimation](U60-mmm-estimation.md): A media-mix analyst jointly fits response curves, searches adstock decays with a seeded sweep and reallocates budget with a constrained optimizer | Vector & matrix | L | — (U40, U53, U57, U58, U59 soft) | 489 (narrowed), 539–547 |
 | U61 | [cross-arch-determinism](U61-cross-arch-determinism.md): Every numeric result path gives identical bits on arm64 and amd64, and a repo-wide gate keeps it that way | API & release | L | — (U58, U60 soft) | 554, 569 |
 | U62 | [bayesian-mmm](U62-bayesian-mmm.md): A media-mix practitioner fits a Bayesian model and gets return-on-spend intervals that include adstock uncertainty | Vector & matrix | L | — (U60 soft) | 552 (narrowed), 561–568 |
+| U63 | [mmm-followups](U63-mmm-followups.md): A media-mix run is one Compose call on the stock CLI, and a request aggregates window-derived columns | Vector & matrix | L | — (U40, U53, U57, U60, U62 soft) | 549, 297, 570–581 |
 
 ## Dependency graph
 
@@ -169,6 +170,7 @@ graph TD
   U60["U60 mmm-estimation"]
   U61["U61 cross-arch-determinism"]
   U62["U62 bayesian-mmm"]
+  U63["U63 mmm-followups"]
   U02 --> U02b
   U02 --> U02c
   U02 --> U04
@@ -263,6 +265,7 @@ graph TD
   U60 --> U32
   U61 --> U32
   U62 --> U32
+  U63 --> U32
   U53 --> U57
   U53 --> U58
   U20 --> U56
@@ -300,6 +303,8 @@ graph TD
   U58 -.-> U61
   U60 -.-> U61
   U60 -.-> U62
+  U60 -.-> U63
+  U62 -.-> U63
 ```
 
 ## Human inputs that gate units

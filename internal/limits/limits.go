@@ -91,7 +91,7 @@ type Limits struct {
 }
 
 // Name is a limit's snake_case key — the spelling the feature profile
-// `limits` section, `pulse mcp --limit` and every PULSE_LIMIT_* error's
+// `limits` section, the root `--limit` flag and every PULSE_LIMIT_* error's
 // `limit` detail use.
 type Name string
 

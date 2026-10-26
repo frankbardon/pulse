@@ -95,7 +95,7 @@ One `ComposedRequest` searches the decays, fits the curves at the winner, scores
 }
 ```
 
-- **The sweep** is an `lhs` search with one decay axis per channel, each a `range` (TV-like `[0.3, 0.8]`, digital `[0, 0.4]`; keep the maximum below 1). Each slot is one `WIN_DISTRIBUTED_LAG` per channel and one `REG_MMM_HILL` with a `holdout`, ranked by holdout RMSE. In one recorded measurement on four channels, about 400 samples did not recover decay and ROI reliably; 2,000 did. The winning decays are `ranking[0].axes`, as typed numbers.
+- **The sweep** is an `lhs` search with one decay axis per channel, each a `range` (TV-like `[0.3, 0.8]`, digital `[0, 0.4]`; keep the maximum below 1). Each slot is one `WIN_DISTRIBUTED_LAG` per channel and one `REG_MMM_HILL` with a `holdout`, ranked by holdout RMSE. Use enough samples for the number of channels: the space grows with every axis, so check that the best slots agree on the decays before trusting one winner. The winning decays are `ranking[0].axes`, as typed numbers.
 - **The bound fit** `fits[].from_sweep` refits the winning slot's regression, holdout kept, under the name `mmm`. Explicit slots and `optimize` read it with `coef("mmm", …)` (see the Compose sweeps page).
 - **The contribution slot** cannot set a window's `decay` from the winner, because window params are literals. Instead it rebuilds each adstock: one `WIN_LAG` item fanned out with `for_each` over channel × lag `1..max_lag` (missing history is `0`), then a formula `x + d·(x_l1 + d·(x_l2 + …))` with `d = sweep_axis("mmm", "<channel>")`. That is the same sum `WIN_DISTRIBUTED_LAG` computes, so the result matches it to rounding. A contribution is `coef · hill(adstock, k, s)`.
 - **The optimize block** maximises the summed curves at steady state. The multiplier for a constant weekly spend of 1 is `(1 − d^L) / (1 − d)` with `L = max_lag + 1`, read from `sweep_axis`. It runs under `sum(spend) = budget`, each channel bounded (say 0.5 to 1.5 × current). Current spend, bounds and budget are the caller's figures in `params`.
@@ -103,7 +103,7 @@ One `ComposedRequest` searches the decays, fits the curves at the winner, scores
 
 The batch runs the sweep slots first, then the rank, the bound fit, `optimize` and the contribution slot. Responses keep index order, so the contribution slot comes first. Serial and parallel runs give the same bytes. A pinned `rng_seed` (or the echoed `sweep_seed`) replays the draws.
 
-At the optimum every free channel's `marginal` (its marginal ROI) equals the budget `multiplier`. A channel on a bound sits above or below it. Trust the answer by `converged` and `starts_agreeing`. One measurement on a synthetic four-channel cohort with known truth (156 weeks, 2,000 samples, 13 sweep seeds) gave: decay error ≤ 0.10, ROI error ≤ 9%, free-channel marginal ROI equal to the multiplier within 1e-5, lift error ≤ 12%, and 8 of 8 starts agreeing.
+At the optimum every free channel's `marginal` (its marginal ROI) equals the budget `multiplier`. A channel on a bound sits above or below it. Trust the answer by `converged` and `starts_agreeing`.
 
 Skills carry the detail: `mmm-workflow` (the flow), `op-reg-mmm-hill` (the model), and the core `compose-sweep-bind`, `compose-sweep-sampling` and `compose-optimize`.
 
@@ -154,7 +154,7 @@ Rows are one market, one row per period, with `params.time` an integer field tha
 
 **Reading a fit.** `outputs.diagnostics` carries max R̂, minimum bulk and tail ESS, divergences and tree-depth hits. A fit that fails them still returns, with a `PROCESSING_REGRESSION_DIAGNOSTIC` warning whose `details.reason` is `rhat_high`, `ess_low`, `divergences` or `treedepth_saturated`; under `Strict` the slot fails with that code. A 2 x 100-draw run always warns `ess_low`. mROI is analytic with the fitted curve held fixed. k and s are individually unidentifiable (the same ridge as the Hill model): judge ROI and contribution.
 
-**Calibration.** A 50-replicate coverage study, run once when the model shipped (fresh data each, 90% intervals), covered the true ROI and contribution 92% of the time overall (target band 80-98%): tv 86%, search 92%, display 90%, social 100% with wide intervals (about 13.6% of the true ROI, against 2.3% for tv) because an always-on channel is the hardest to identify. Median ROI bias was at most 0.5%, with no divergences and max R̂ 1.0047. It is a recorded measurement, not a test.
+**Interval width.** An always-on channel is the hardest to identify, so its interval is wide: read the width of each channel's interval, not only its centre. Pulse publishes no calibration figure for the intervals; judge a fit by its `diagnostics` and by whether the intervals you rely on are tight enough to act on.
 
 **Cost.** About 32-39 s per default fit (4 chains x 2000 iterations) on a laptop-class arm64 core. Same request and seed give the same bytes on any worker count and architecture.
 

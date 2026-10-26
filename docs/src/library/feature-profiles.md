@@ -83,7 +83,7 @@ unknown preset or a precision outside 1–17 is refused with
 `PULSE_FEATURE_PROFILE_INVALID`, reason `invalid_return`.
 
 `limits` sets the instance resource limits with the same snake_case
-names `pulse mcp --limit` and every `PULSE_LIMIT_*` error's `limit`
+names the root `--limit` flag and every `PULSE_LIMIT_*` error's `limit`
 detail use: `request_timeout`, `max_groups`, `max_crosstab_cells`,
 `max_estimated_memory`, `max_matrix_dim`, `max_compose_slots`,
 `max_chain_stages`, `max_join_build_rows`, `max_derived_columns`.

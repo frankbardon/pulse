@@ -71,7 +71,7 @@ func ParseName(s string) (Name, error) {
 }
 
 // ParseValue parses one input-layer value of limit n as written in a
-// text form (`pulse mcp --limit`, the feature profile's request_timeout
+// text form (the root `--limit` flag, the feature profile's request_timeout
 // string): "unlimited" or "-1" is Unlimited, "0" is "use the default";
 // request_timeout takes a Go duration ("30s", "2m"), every other limit
 // a base-10 integer (underscores allowed: "10_000_000"). A malformed
