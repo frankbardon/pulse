@@ -40,8 +40,8 @@ Each rule's reason comes from a failure this repo already shipped.
 
 ## Test tiers and parallelism
 
-- Every top-level test starts with `t.Parallel()`, or says why not with `// serial: <reason>` above or inside it (`TestTestsParallelByDefault`). *Why: a serial test stalls its package.*
-- A test that takes 1 s or more goes in a `*_heavy_test.go` file (`//go:build heavy`), or is made cheaper. `make test` runs the fast tier and fails on a test of 1 s or more; `make test-heavy` runs both tiers with no budget.
+- Every top-level test starts with `t.Parallel()`, or says why not with `// serial: <reason>` above or inside it (`TestTestsParallelByDefault`).
+- A test of 1 s or more goes in a `*_heavy_test.go` file (`//go:build heavy`), or is made cheaper. `make test` = fast tier, `-parallel 1`, 1 s budget (subtests charge their parent); `make test-heavy` = both tiers. Worker-invariance: `internal/testutil/invariance`.
 
 ## Local gate set
 

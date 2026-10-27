@@ -218,7 +218,7 @@ Each shard runs only the heavy tests it owns, with `go test -tags heavy
 `.github/heavy-shards.txt` assigns heavy tests to shards with one
 `<shard> <package> <Test>` line per test. A heavy test the file does not
 name runs in the `catchall` shard, so a new heavy test is never skipped.
-To rebalance the shards, add the test to the file.
+To rebalance the shards, add the test to the file (a new heavy test needs a line there to run in a chosen shard).
 `internal/tools/citest` does the work:
 
 ```bash
