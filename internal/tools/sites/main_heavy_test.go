@@ -466,3 +466,39 @@ func TestSlotReport_ImportPathIsNotASlot(t *testing.T) {
 		}
 	}
 }
+
+// TestTypeCheck_OncePerRepo pins the typeCheck memo: every struct's view
+// shares one type-checked module (the same file set), so the slot tests
+// pay for one module type-check per process, not one per call.
+func TestTypeCheck_OncePerRepo(t *testing.T) {
+	t.Parallel()
+
+	r := sharedRepo(t)
+	req, err := r.typeCheck("Request")
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := r.typeCheck("Request")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := r.typeCheck("Response")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.fset != again.fset || req.fset != resp.fset {
+		t.Fatal("typeCheck re-type-checked the module: the views do not share one file set")
+	}
+	if len(req.refs) == 0 || len(resp.refs) == 0 || len(req.files) == 0 {
+		t.Fatalf("empty view: %d Request refs, %d Response refs, %d files", len(req.refs), len(resp.refs), len(req.files))
+	}
+	if len(again.refs) != len(req.refs) {
+		t.Errorf("a repeat Request view has %d refs, want %d", len(again.refs), len(req.refs))
+	}
+	for _, ref := range resp.refs {
+		if ref.Field == "Vectors" {
+			t.Errorf("Response view holds a Request-only field reference %+v", ref)
+			break
+		}
+	}
+}

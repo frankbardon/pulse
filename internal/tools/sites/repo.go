@@ -26,10 +26,10 @@ const selfDir = "internal/tools/sites/"
 // repo is the tracked tree (plus untracked, non-ignored files, so a
 // story's freshly created files are visible) with lazily loaded
 // contents and parsed Go files. The lazy caches each take their own
-// mutex, so one repo is safe to share across goroutines (the parallel
-// tests share one); a cache's fill only ever calls into lower caches
-// (consts / calls / testFuncs -> parsed -> content), so the locks never
-// cycle.
+// mutex (the type-checked module its own sync.Once), so one repo is
+// safe to share across goroutines (the parallel tests share one); a
+// cache's fill only ever calls into lower caches (consts / calls /
+// testFuncs -> parsed -> content), so the locks never cycle.
 type repo struct {
 	root  string
 	files []string // repo-relative, slash-separated, sorted
@@ -46,6 +46,10 @@ type repo struct {
 	calls     map[string][]callSite // callee name -> non-test calls (callIndex)
 	constsMu  sync.Mutex
 	consts    map[string]map[string]string // dir -> const name -> string value
+
+	typedOnce sync.Once // typeCheck: the module type-checked once
+	typed     *typedModule
+	typedErr  error
 }
 
 func openRepo(root string) (*repo, error) {

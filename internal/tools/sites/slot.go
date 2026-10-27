@@ -85,10 +85,31 @@ func goList(root string, args ...string) ([]listPkg, error) {
 	return pkgs, nil
 }
 
-// typeCheck type-checks every module package (with its in-package and
-// external tests) and records each reference to a field of the named
-// struct in the types package.
+// typedModule is the module type-checked once per repo: the shared
+// file set and ASTs plus every field reference, keyed by the
+// types-package struct that declares the field.
+type typedModule struct {
+	fset  *token.FileSet
+	files map[string]*ast.File
+	refs  map[string][]slotRef
+}
+
+// typeCheck returns the module's references to fields of the named
+// struct in the types package. The module is type-checked once per repo
+// (typeCheckAll, memoised) whatever the struct; every typedTree shares
+// its read-only file set and ASTs.
 func (r *repo) typeCheck(structName string) (*typedTree, error) {
+	r.typedOnce.Do(func() { r.typed, r.typedErr = r.typeCheckAll() })
+	if r.typedErr != nil {
+		return nil, r.typedErr
+	}
+	return &typedTree{fset: r.typed.fset, files: r.typed.files, refs: r.typed.refs[structName]}, nil
+}
+
+// typeCheckAll type-checks every module package (with its in-package and
+// external tests) and records each reference to a field of any struct
+// in the types package, in source order per struct.
+func (r *repo) typeCheckAll() (*typedModule, error) {
 	pkgs, err := goList(r.root, "-deps", "./...")
 	if err != nil {
 		return nil, err
@@ -103,7 +124,7 @@ func (r *repo) typeCheck(structName string) (*typedTree, error) {
 			mine = append(mine, p)
 		}
 	}
-	t := &typedTree{fset: token.NewFileSet(), files: map[string]*ast.File{}}
+	t := &typedModule{fset: token.NewFileSet(), files: map[string]*ast.File{}, refs: map[string][]slotRef{}}
 	parse := func(dir string, names []string) []*ast.File {
 		var out []*ast.File
 		for _, n := range names {
@@ -191,18 +212,22 @@ func (r *repo) typeCheck(structName string) (*typedTree, error) {
 					if sel == nil || sel.Kind() != types.FieldVal {
 						return true
 					}
-					if owner(sel) == structName {
-						t.refs = append(t.refs, slotRef{rel, int(n.Sel.Pos()) - base, sel.Obj().Name()})
+					if name := owner(sel); name != "" {
+						t.refs[name] = append(t.refs[name], slotRef{rel, int(n.Sel.Pos()) - base, sel.Obj().Name()})
 					}
 				case *ast.CompositeLit:
 					tv, ok := info.Types[n]
-					if !ok || namedIn(tv.Type) != structName {
+					if !ok {
+						return true
+					}
+					name := namedIn(tv.Type)
+					if name == "" {
 						return true
 					}
 					for _, e := range n.Elts {
 						if kv, ok := e.(*ast.KeyValueExpr); ok {
 							if id, ok := kv.Key.(*ast.Ident); ok {
-								t.refs = append(t.refs, slotRef{rel, int(id.Pos()) - base, id.Name})
+								t.refs[name] = append(t.refs[name], slotRef{rel, int(id.Pos()) - base, id.Name})
 							}
 						}
 					}
