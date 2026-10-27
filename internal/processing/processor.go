@@ -1058,19 +1058,17 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	}
 
 	// Track null count on the primary aggregation field for
-	// RunComponents.NullRecords. Resolution mirrors the package-level
-	// "primary field" convention: first aggregator's Field, else the
-	// grouper's Field. Counter increments on every post-filter row
-	// where the primary field is null (the streaming-grouped path has
-	// no per-aggregator nNull counter — buckets allocate lazily on
+	// RunComponents.NullRecords. Resolution is the package-level
+	// "primary field" convention (primaryNullFieldName): the first
+	// aggregation that names a Field — a vector aggregator names none —
+	// else the first grouper's. It once read only Aggregations[0], so a
+	// vector-first grouped request scanned the GROUPER here while the
+	// buffered exit and both parallel reducers scanned the next slot's
+	// field. Counter increments on every post-filter row where the
+	// primary field is null (the streaming-grouped path has no
+	// per-aggregator nNull counter — buckets allocate lazily on
 	// non-null key matches — so the orchestrator tracks it inline).
-	primaryField := ""
-	if len(req.Aggregations) > 0 && req.Aggregations[0] != nil {
-		primaryField = req.Aggregations[0].Field
-	}
-	if primaryField == "" {
-		primaryField = grp.Field
-	}
+	primaryField := primaryNullFieldName(req)
 	var primaryNullRecords int64
 	weights := NewWeightRowTally(req)
 
@@ -2119,7 +2117,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		case len(aggComponents) > 0:
 			nullRecords = int64(aggComponents[0].NNull)
 		case len(req.Groups) == 0 && len(req.Aggregations) > 0:
-			nullRecords = countAbsentBuffered(filtered, req.Aggregations[0].Field)
+			nullRecords = countAbsentBuffered(filtered, req.Aggregations[0])
 		case primaryVectorGroup(req) != nil:
 			// A vector grouper (GROUP_KMEANS) keys no single column: a
 			// row is null when any member is.

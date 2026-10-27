@@ -164,17 +164,6 @@ func vecInvFamily(cohorts map[invariance.Layout]invCohort, s vecInvShape, groups
 				t.Fatalf("%s: Process: %v", k, err)
 			}
 			out := invariance.LayoutFree(resp)
-			if s.name == "aggregates" && out.Components != nil && out.Components.Run != nil {
-				// KNOWN DIVERGENCE (not pinned here): with a vector
-				// aggregator first and no grouper, the serial arms take
-				// Run.NullRecords from the first slot's floor n_null while
-				// both parallel reducers resolve a primary FIELD
-				// (primaryNullFieldFor), which a vector slot does not name,
-				// and report 0. Blanked until the owner picks the figure.
-				run := *out.Components.Run
-				run.NullRecords = 0
-				out.Components.Run = &run
-			}
 			return invariance.Result[*types.Response]{Answer: out, Arm: arm()}
 		},
 		Check: func(t *testing.T, _ invariance.Knobs, resp *types.Response) {
@@ -196,10 +185,12 @@ func vecInvFamily(cohorts map[invariance.Layout]invCohort, s vecInvShape, groups
 	}
 }
 
-// vecInvSmokeShapes run in the fast tier: the grouped aggregates (a
-// weighted and an unweighted slot per operator, the covariance per
-// bucket) and the weighted crosstab (both crosstab arms).
-var vecInvSmokeShapes = map[string]bool{"aggregates_grouped": true, "crosstab_element_weighted": true}
+// vecInvSmokeShapes run in the fast tier: the ungrouped and grouped
+// aggregates (a weighted and an unweighted slot per operator, the
+// covariance per bucket; ungrouped, Run.NullRecords is the vector-first
+// slot's floor n_null on the shard reducer too) and the weighted
+// crosstab (both crosstab arms).
+var vecInvSmokeShapes = map[string]bool{"aggregates": true, "aggregates_grouped": true, "crosstab_element_weighted": true}
 
 // TestVectorInvariance_Archive is the fast-tier smoke of the vector
 // family (vecInvSmokeShapes); TestVectorInvariance_Heavy runs every

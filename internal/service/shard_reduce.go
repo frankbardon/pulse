@@ -333,9 +333,10 @@ type shardPartial struct {
 	filteredRows int64
 
 	// nullRecords counts post-filter records where the primary
-	// aggregation field (first agg's Field, else first grouper's Field)
-	// was null. Used by finalizeMergedPartial to populate
-	// Response.Components.Run.NullRecords. Merger sums across shards.
+	// aggregation field (first agg naming a Field, else first grouper's
+	// Field) was null. The grouped tail's Response.Components.Run.
+	// NullRecords; an ungrouped run with aggregations reads aggFloor[0]
+	// instead (attachMergedRunComponents). Merger sums across shards.
 	nullRecords int64
 
 	// aggFloor carries the UNIVERSAL FLOOR of
@@ -921,8 +922,10 @@ func (sp *shardPartial) route(key string, rec *processing.Record) error {
 }
 
 // primaryNullFieldFor resolves the field whose per-record null tally
-// feeds Response.Components.Run.NullRecords: the first aggregator's
-// Field, else the first grouper's Field, else empty (no tally).
+// feeds Response.Components.Run.NullRecords on a GROUPED run (an
+// ungrouped one reads the first slot's floor n_null instead,
+// attachMergedRunComponents): the first aggregator naming a Field,
+// else the first grouper's Field, else empty (no tally).
 // Convention matches internal/processing/run_components.go's
 // primaryNullFieldName. Shared by BOTH parallel reducers — the
 // per-shard one (shard_reduce.go) and the per-segment one
@@ -1508,10 +1511,18 @@ func attachMergedRunComponents(resp *types.Response, merged *shardPartial, shard
 	if resp == nil || merged == nil || !build {
 		return
 	}
+	// The serial ungrouped rule: the FIRST aggregation slot's floor
+	// n_null (processStreaming's finalized[0].nNull), not a primary
+	// field's null scan — a vector aggregator names no field, so the
+	// scan reported 0, or a later slot's field, on this arm only.
+	nullRecords := merged.nullRecords
+	if len(merged.aggFloor) > 0 {
+		nullRecords = int64(merged.aggFloor[0].NNull())
+	}
 	processing.AttachRunComponents(resp, processing.RunCountersInput{
 		TotalRecords:    merged.totalRows,
 		FilteredRecords: merged.filteredRows,
-		NullRecords:     merged.nullRecords,
+		NullRecords:     nullRecords,
 		ShardCount:      shardCount,
 	})
 }
