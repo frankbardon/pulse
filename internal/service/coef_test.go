@@ -13,6 +13,8 @@ import (
 // attributes) resolves coef() against the slot's bound fits exactly as
 // the same slot over the concatenated single file does.
 func TestCoef_ShardArchiveSlotReadsBoundFit(t *testing.T) {
+	t.Parallel()
+
 	recs := fitsRecords()
 	shards := []struct {
 		Name    string

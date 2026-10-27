@@ -69,6 +69,8 @@ func rankSpec(name, method, missing, weight string) types.MatrixSpec {
 // the test keeps; under listwise the cohort has no nulls, so the row
 // sets agree too.
 func TestMatrixRankCorrelation_TestParity(t *testing.T) {
+	t.Parallel()
+
 	members := []string{"x1", "x2", "x3"}
 	methods := map[string]types.TestType{"spearman": types.TEST_SPEARMAN_R, "kendall": types.TEST_KENDALL_TAU}
 	for _, missing := range []string{"listwise", "pairwise"} {
@@ -134,6 +136,8 @@ func TestMatrixRankCorrelation_TestParity(t *testing.T) {
 // TestMatrixRankCorrelation_DiffersFromPearson guards against a rank
 // method silently running the Pearson co-moment path.
 func TestMatrixRankCorrelation_DiffersFromPearson(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "rank.pulse", rankRows(200))
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "rank.pulse"},
@@ -152,6 +156,8 @@ func TestMatrixRankCorrelation_DiffersFromPearson(t *testing.T) {
 // and column, diagonal included, are NaN under a rank method too, and
 // top_pairs skips them.
 func TestMatrixRankCorrelation_ZeroSpreadIsNull(t *testing.T) {
+	t.Parallel()
+
 	rows := rankRows(80)
 	for i := range rows {
 		rows[i][1] = 3 // x2 constant (nulls overwritten)
@@ -186,6 +192,8 @@ func TestMatrixRankCorrelation_ZeroSpreadIsNull(t *testing.T) {
 // is PULSE_WEIGHT_UNSUPPORTED with supported_kinds [frequency] and the
 // method named; Pearson keeps both kinds; a slot opting out runs.
 func TestMatrixRankCorrelation_ProbabilityWeightRefused(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "rank.pulse", rankRows(60))
 	probability := types.WeightSpec{Field: "p", Kind: types.WeightKindProbability}
 	for _, method := range []string{"spearman", "kendall"} {
@@ -235,6 +243,8 @@ type rankOracle struct {
 // against R on the rep()-expanded rows (zero-weight rows included in the
 // fixture). Unweighted pairwise also pins auxiliary.n to R's pair n.
 func TestMatrixRankCorrelation_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	refDir, err := filepath.Abs("../processing/testdata/reference")
 	if err != nil {
 		t.Fatal(err)

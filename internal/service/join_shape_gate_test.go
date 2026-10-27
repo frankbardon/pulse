@@ -65,6 +65,8 @@ func loadJoinShapeFixture(t testing.TB) (afero.Fs, string, *encoding.Schema, int
 // the committed schema + seed and asserts the structural shape the
 // gates depend on.
 func TestJoinShapeFixture_MatchesGenerator(t *testing.T) {
+	t.Parallel()
+
 	_, want, err := buildJoinShapeCohort(joinShapeFixtureParents)
 	if err != nil {
 		t.Fatalf("generate: %v", err)
@@ -163,6 +165,8 @@ func TestJoinShapeFixture_MatchesGenerator(t *testing.T) {
 // back, through every public accessor, exactly as the map-backed record
 // decoded from the same bytes does — full decode and projected.
 func TestJoinShapeFixture_PositionalMatchesMapDecode(t *testing.T) {
+	t.Parallel()
+
 	fsys, path, schema, rows := loadJoinShapeFixture(t)
 	for _, tc := range []struct {
 		name  string
@@ -254,6 +258,8 @@ func retainedPerRecord(t *testing.T, passes int, materialize func() (any, int, e
 // a buffered record — the figure that decides whether a cohort fits in
 // memory — as a ratio against the map-backed record.
 func TestJoinShapeFixture_BufferedRetainedRatio(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	fsys, path, schema, rows := loadJoinShapeFixture(t)
 	const passes = 16 // 16 x 400 = 6,400 records per attempt
 	for _, tc := range []struct {
@@ -297,6 +303,8 @@ func TestJoinShapeFixture_BufferedRetainedRatio(t *testing.T) {
 // (the schema and dictionary parse, which dominates a 400-row fixture)
 // cancels out instead of diluting both arms toward a ratio of 1.
 func TestJoinShapeFixture_DecodeAllocsRatio(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	fsys, path, schema, rows := loadJoinShapeFixture(t)
 	allocs := func(fn func(limit int) (int, error), limit int) float64 {
 		var err error

@@ -15,6 +15,8 @@ import (
 )
 
 func TestCrosstab_ParallelDecode_ByteEqualToSerial(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = parallelDecodeRecordThreshold + 1024 // just above floor
 
 	dir := t.TempDir()

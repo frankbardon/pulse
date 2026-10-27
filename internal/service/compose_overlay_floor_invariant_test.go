@@ -17,6 +17,8 @@ import (
 // (silently unweighted p-values). The gate refusal and the Compose veto
 // exist so this never fires on a correct engine.
 func TestComposeOverlayFloorsPresent(t *testing.T) {
+	t.Parallel()
+
 	svc := New(crosstabJoinFixture(t))
 	slot := func(label string, weighted bool) *types.Request {
 		r := skipCrosstabRequest(false)
@@ -70,6 +72,8 @@ func TestComposeOverlayFloorsPresent(t *testing.T) {
 // refuses with PROCESSING_INTERNAL instead of reading Σw as n. Under the
 // real rule the same Compose succeeds.
 func TestComposeOverlayFloorsPresent_CatchesMisvetoedFloorKind(t *testing.T) {
+	// serial: swaps the package-level service.composeOverlaySlotVetoRule test hook
+
 	svc := New(crosstabJoinFixture(t))
 	compose := func() *types.ComposedRequest {
 		slot := func(label string) *types.Request {

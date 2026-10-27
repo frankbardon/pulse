@@ -28,6 +28,8 @@ import (
 //     strip the orphan bytes; the resulting archive is byte-shorter
 //     than the input.
 func TestShardArchiveCompactReclaimsOrphans(t *testing.T) {
+	t.Parallel()
+
 	t.Run("removes_then_compacts", func(t *testing.T) {
 		cfg := fs.NewMemMap()
 		fsys := cfg.Fs()

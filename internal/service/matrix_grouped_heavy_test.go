@@ -16,6 +16,8 @@ import (
 // DecodeWorkers arm of TestMatrixGrouped_ParallelArms: the decode
 // reducer returns the serial per-bucket matrices bit for bit.
 func TestMatrixGrouped_ParallelArms_DecodeWorkers(t *testing.T) {
+	t.Parallel()
+
 	schema := coMomentSchema()
 	B := linalg.MergeBlockSize
 	v := matrixInvarianceVariant{weighted: true, withVehicle: true, typ: types.MAT_CORRELATION}

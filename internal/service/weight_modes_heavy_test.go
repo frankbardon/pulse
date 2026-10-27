@@ -12,6 +12,8 @@ import (
 )
 
 func TestDecodeWorkers_WeightedParity(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = parallelDecodeRecordThreshold + 4096
 	recs, nullAt := weightModesRows(rowCount, 0)
 	payload := writeNullablePulse(t, weightModesSchema(), recs, nullAt)

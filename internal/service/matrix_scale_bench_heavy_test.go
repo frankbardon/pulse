@@ -21,6 +21,8 @@ import (
 // exact per-state bytes are pinned by TestAccumulatorBytes (vectors) and
 // TestAccumulatorBytesMatchesCoMomentLayout (linalg).
 func TestMatrixScale_EstimatedBytesRatio(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	const p = 50
 	rows := 25 * linalg.MergeBlockSize
 	dir := t.TempDir()

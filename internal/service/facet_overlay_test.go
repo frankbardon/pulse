@@ -80,6 +80,8 @@ func buildFacetOverlayCohort(t *testing.T) (*Service, string) {
 }
 
 func TestFacetWithOverlays_HostByteIdenticalToNoOverlays(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildFacetOverlayCohort(t)
 	ctx := context.Background()
 
@@ -127,6 +129,8 @@ func TestFacetWithOverlays_HostByteIdenticalToNoOverlays(t *testing.T) {
 // the FacetSchema service-layer entry. The dedicated processing tests
 // cover per-kind numerics; this test verifies the wiring.
 func TestFacetWithOverlays_EndToEndAllFourKinds(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildFacetOverlayCohort(t)
 	ctx := context.Background()
 
@@ -203,6 +207,8 @@ func TestFacetWithOverlays_EndToEndAllFourKinds(t *testing.T) {
 // streamability. The buffered exit hook runs every kind through the same
 // dispatch loop, so the layer order is purely spec-driven.
 func TestFacetWithOverlays_LayerOrderPreserved(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildFacetOverlayCohort(t)
 	ctx := context.Background()
 
@@ -252,6 +258,8 @@ func TestFacetWithOverlays_LayerOrderPreserved(t *testing.T) {
 // buffered kinds (the host FacetSchema path is structurally buffered);
 // the streamability flag is informational at the wiring level.
 func TestFacetWithOverlays_StreamingPathEngagesStreamableKinds(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildFacetOverlayCohort(t)
 	ctx := context.Background()
 
@@ -284,6 +292,8 @@ func TestFacetWithOverlays_StreamingPathEngagesStreamableKinds(t *testing.T) {
 // The buffered FACET path is the canonical engagement surface for the
 // inferential kinds.
 func TestFacetWithOverlays_BufferedPathEngagesBufferedKinds(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildFacetOverlayCohort(t)
 	ctx := context.Background()
 
@@ -314,6 +324,8 @@ func TestFacetWithOverlays_BufferedPathEngagesBufferedKinds(t *testing.T) {
 // FacetRequest declares exactly one Field, an OverlaySpec without
 // Params["field"] resolves to that single field automatically.
 func TestFacetWithOverlays_SingleFieldDefaultsToHost(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildFacetOverlayCohort(t)
 	ctx := context.Background()
 
@@ -343,6 +355,8 @@ func TestFacetWithOverlays_SingleFieldDefaultsToHost(t *testing.T) {
 // Params["field"], the service-side dispatch surfaces a coded error
 // (the runtime mirror of the predict-time PULSE_OVERLAY_PARAM_MISSING).
 func TestFacetWithOverlays_MultiFieldRequiresParamsField(t *testing.T) {
+	t.Parallel()
+
 	svc, path := buildFacetOverlayCohort(t)
 	ctx := context.Background()
 

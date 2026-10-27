@@ -40,6 +40,8 @@ func setupGroupableCohort(t *testing.T) (*Service, string) {
 }
 
 func TestProcess_GroupKey_Replace(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupGroupableCohort(t)
 	attachLabelExtensions(t, svc, map[string]processing.LabelTable{
 		"country_names": {Rows: map[string]string{
@@ -88,6 +90,8 @@ func TestProcess_GroupKey_Replace(t *testing.T) {
 }
 
 func TestProcess_GroupKey_Augment(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupGroupableCohort(t)
 	attachLabelExtensions(t, svc, map[string]processing.LabelTable{
 		"country_names": {Rows: map[string]string{"US": "United States", "CA": "Canada"}},
@@ -125,6 +129,8 @@ func TestProcess_GroupKey_Augment(t *testing.T) {
 }
 
 func TestProcess_Labels_UnknownTable(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupGroupableCohort(t)
 	_, err := svc.Process(context.Background(), &types.Request{
 		Cohort:       &types.Cohort{Filename: path},
@@ -138,6 +144,8 @@ func TestProcess_Labels_UnknownTable(t *testing.T) {
 }
 
 func TestProcess_Labels_AugmentCollisionWithAggLabel(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupGroupableCohort(t)
 	attachLabelExtensions(t, svc, map[string]processing.LabelTable{
 		"country_names": {Rows: map[string]string{"US": "United States"}},

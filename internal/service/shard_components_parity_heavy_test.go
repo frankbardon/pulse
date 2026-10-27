@@ -19,6 +19,8 @@ import (
 // GROUP_SET_PER_ELEMENT refused). Same whole-document parity, single
 // file above the parallel-decode threshold.
 func TestDecodeWorkers_GroupedAnswersParity(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = parallelDecodeRecordThreshold + 4096
 	schema := componentsParitySchema()
 	recs, nullAt := componentsParityRows(rowCount, 0)

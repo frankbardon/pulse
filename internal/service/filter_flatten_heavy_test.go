@@ -16,6 +16,8 @@ import (
 // not grow with the archive — a whole-output buffer (the 32-shard
 // output is ~15 MB) would.
 func TestShardStream_FlattenMemoryBoundedByShard(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	const recs = 40_000 // 12-byte records: ~480 KB per shard
 	shardBytes := uint64(recs * 12)
 	fixed := uint64(2 << 20)

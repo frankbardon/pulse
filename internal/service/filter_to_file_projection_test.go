@@ -23,6 +23,8 @@ func (stubMemberSet) Kind() string { return "stub" }
 // filter built from a FILTER_EXPRESSION predicate keeps only identifiers
 // the expression references.
 func TestFieldFilterForPlan_NarrowsToExprIdents(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema() // fields: id, score
 	cfg := setupTestFS(t, "src.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -43,6 +45,8 @@ func TestFieldFilterForPlan_NarrowsToExprIdents(t *testing.T) {
 // error in the predicate widens the field set so the caller falls back
 // to the full-decode path (signalled by a nil FieldFilter).
 func TestFieldFilterForPlan_MalformedExpressionFallsBack(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "src.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -57,6 +61,8 @@ func TestFieldFilterForPlan_MalformedExpressionFallsBack(t *testing.T) {
 // (the field tested for membership in a MemberSet predicate) joins the
 // projected set even though it isn't referenced in filterExpr.
 func TestFieldFilterForPlan_IncludesMemberSetField(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "src.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -83,6 +89,8 @@ func TestFieldFilterForPlan_IncludesMemberSetField(t *testing.T) {
 // yield byte-identical output regardless of projection — projection is
 // a decode-time optimisation, not a semantic change.
 func TestFilterToFile_ProjectionPreservesOutput(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "src.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -122,6 +130,8 @@ func TestFilterToFile_ProjectionPreservesOutput(t *testing.T) {
 // helper itself should not produce an empty-set FieldFilter that would
 // reject every field at decode.
 func TestFieldFilterForPlan_EmptyPlanReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "src.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -135,6 +145,8 @@ func TestFieldFilterForPlan_EmptyPlanReturnsNil(t *testing.T) {
 // returned filter satisfies the encoding.FieldFilter type so it slots
 // into ReadRecordWithWideProjected without a wrapper.
 func TestFieldFilterForPlan_PassesThroughEncodingFieldFilter(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "src.pulse", schema, testRecords())
 	svc := New(cfg)

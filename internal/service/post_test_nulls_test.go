@@ -16,6 +16,8 @@ import (
 // here from the fixture. A default of 0 would instead pair x[0] with 0
 // and bias r.
 func TestPostTest_LagColumnNaturalNull(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := overlayFoldService(t)
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "m.pulse"},

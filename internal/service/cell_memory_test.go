@@ -372,6 +372,8 @@ func crosstabMemoryCheck(t *testing.T, name string, c cellMemoryCase) {
 // A layout change moves the expected figure and fails here; the heap
 // gate is TestCrosstabMemory_CellChargeTable's sparse cases.
 func TestCrosstabMemory_GridPositionBytes(t *testing.T) {
+	t.Parallel()
+
 	var (
 		cell   types.MatrixCell
 		count  int

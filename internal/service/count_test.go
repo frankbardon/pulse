@@ -20,6 +20,8 @@ import (
 // same value as the existing payload-decoding RecordCount() helper on
 // a single-file cohort.
 func TestCountRecords_SingleFile(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -36,6 +38,8 @@ func TestCountRecords_SingleFile(t *testing.T) {
 // TestCountRecords_ShardArchive verifies that the SHRD trailer's
 // aggregate_record_count drives the result on a multi-shard archive.
 func TestCountRecords_ShardArchive(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, _ := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, [][]uint64{})
 
@@ -51,6 +55,8 @@ func TestCountRecords_ShardArchive(t *testing.T) {
 // TestCountRecords_Anchor validates that an anchor path returns the
 // named shard's record count alone.
 func TestCountRecords_Anchor(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, _ := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, [][]uint64{})
 
@@ -69,6 +75,8 @@ func TestCountRecords_Anchor(t *testing.T) {
 // fewer bytes than a small constant (header + schema bytes), even
 // against a payload-heavy file.
 func TestCountRecords_HeaderOnly(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
@@ -124,6 +132,8 @@ func TestCountRecords_HeaderOnly(t *testing.T) {
 
 // TestCountRecords_MissingFile validates error path on stat failure.
 func TestCountRecords_MissingFile(t *testing.T) {
+	t.Parallel()
+
 	svc := New(fs.NewMemMap())
 	_, err := svc.CountRecords(context.Background(), "nope.pulse")
 	if err == nil {
@@ -188,6 +198,8 @@ func (cf *countingFile) ReadAt(p []byte, off int64) (int, error) {
 // naming the leftover bytes, because it has an envelope and its whole
 // job is to describe the file.
 func TestCountRecords_TruncatedTailAgreesWithInspect(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	stride := int64(schema.RecordByteSize())
 	whole := writePulseFile(t, schema, testRecords())
@@ -250,6 +262,8 @@ func TestCountRecords_TruncatedTailAgreesWithInspect(t *testing.T) {
 // Falsified by dropping payloadOffset from Open's Cohort (the helper
 // then falls back and opens the file again).
 func TestOpenedRecordCount_NoSecondSchemaRead(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	dict := encoding.NewDictionary()
 	for i := range 50_000 {

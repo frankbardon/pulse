@@ -28,6 +28,8 @@ func composeFiveAvgRequests() *types.ComposedRequest {
 }
 
 func TestComposeParallel_PreservesOrder(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -57,6 +59,8 @@ func TestComposeParallel_PreservesOrder(t *testing.T) {
 }
 
 func TestComposeParallel_DefaultsApplied(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -74,6 +78,8 @@ func TestComposeParallel_DefaultsApplied(t *testing.T) {
 }
 
 func TestComposeParallel_RespectsWorkerCap(t *testing.T) {
+	t.Parallel()
+
 	// Verify MaxWorkers caps in-flight goroutines. We can't observe the
 	// worker count directly without instrumentation, so use atomic
 	// counters around Process via a mid-flight sleep request.
@@ -127,6 +133,8 @@ func TestComposeParallel_RespectsWorkerCap(t *testing.T) {
 }
 
 func TestComposeParallel_FailFastCancelsSiblings(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -159,6 +167,8 @@ func TestComposeParallel_FailFastCancelsSiblings(t *testing.T) {
 }
 
 func TestComposeParallel_NoFailFastAggregatesErrors(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -198,6 +208,8 @@ func TestComposeParallel_NoFailFastAggregatesErrors(t *testing.T) {
 }
 
 func TestComposeParallel_NilRequestErrors(t *testing.T) {
+	t.Parallel()
+
 	svc := New(setupTestFS(t, "test.pulse", testSchema(), testRecords()))
 	_, err := svc.ComposeParallel(context.Background(), nil, ComposeOptions{})
 	if err == nil {
@@ -214,6 +226,8 @@ func TestComposeParallel_NilRequestErrors(t *testing.T) {
 // same results. Stateful aggregator drift would manifest as either a
 // race detector trip (run with -race) or wrong values.
 func TestComposeParallel_FreshOperatorsPerRequest(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 

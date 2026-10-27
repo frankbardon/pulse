@@ -26,6 +26,8 @@ import (
 // (512 + 256 x aggs) was half the measured peak here: an under-estimate
 // a MaxEstimatedMemory cap could not trust.
 func TestGroupMemory_EstimateBoundsPeak(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	const keys = 50_000
 	mem := afero.NewMemMapFs()
 	var buf bytes.Buffer

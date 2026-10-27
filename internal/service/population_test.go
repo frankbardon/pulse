@@ -98,8 +98,12 @@ func responseBits(t *testing.T, resp *types.Response) []uint64 {
 // population file, the fit's `fits` entry is unchanged by the save,
 // and serial and parallel Compose write identically.
 func TestPopulation_SaveThenLoadMatchesFit(t *testing.T) {
+	t.Parallel()
+
 	for _, battery := range []string{"matrix", "attribute"} {
 		t.Run(battery, func(t *testing.T) {
+			t.Parallel()
+
 			svc, fsys := popService(t)
 			fitReq := vecWeeks("", "0", "59")
 			if battery == "matrix" {
@@ -181,6 +185,8 @@ func TestPopulation_SaveThenLoadMatchesFit(t *testing.T) {
 // replaces it and warns PULSE_MODEL_OVERWRITTEN with details.fit, in the
 // batch warnings.
 func TestPopulation_OverwriteWarns(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := popService(t)
 	fitReq := vecWeeks("", "0", "59")
 	fitReq.Matrices = []types.MatrixSpec{vecMatrix(types.MAT_CORRELATION, "corr", "")}
@@ -217,6 +223,8 @@ func TestPopulation_OverwriteWarns(t *testing.T) {
 // `models`; params.fit naming an unloaded name lists the populations as
 // available vector fits.
 func TestPopulation_LoadRefusals(t *testing.T) {
+	t.Parallel()
+
 	svc, fsys := popService(t)
 	fitReq := vecWeeks("", "0", "59")
 	fitReq.Matrices = []types.MatrixSpec{vecMatrix(types.MAT_COVARIANCE, "cov", "")}

@@ -34,6 +34,8 @@ func result(tt types.TestType, p float64) *types.TestResult {
 }
 
 func TestFoldRequestMultiplicity(t *testing.T) {
+	t.Parallel()
+
 	holm, bh := types.MultiplicityMethodHolm, types.MultiplicityMethodBH
 	nan := math.NaN()
 	cases := []struct {
@@ -146,6 +148,8 @@ func TestFoldRequestMultiplicity(t *testing.T) {
 // Compose (E3) builds on: `request` families stay inside their scope,
 // `compose` members pool across scopes.
 func TestMultiplicitySites_ScopeKeysFamilies(t *testing.T) {
+	t.Parallel()
+
 	bonf := types.MultiplicityMethodBonferroni
 	plan := func(family types.MultiplicityFamily) *descx.MultiplicityPlan {
 		return &descx.MultiplicityPlan{Tests: []descx.ResolvedMultiplicity{
@@ -383,6 +387,8 @@ func multArchive(t testing.TB, shardRows []int) []byte {
 }
 
 func TestMultiplicityFold_ProcessArms(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	if err := afero.WriteFile(cfg.Fs(), "m.pulse", writeNullablePulse(t, multSchema(), multRows(80, 0), nil), 0o644); err != nil {
 		t.Fatal(err)

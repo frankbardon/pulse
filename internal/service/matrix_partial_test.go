@@ -90,6 +90,8 @@ func partialSpec(name string, fields []string, params map[string]any, weight str
 // agree: the controls OUTSIDE the vector (they join the fold) and the
 // controls INSIDE it (they leave the output axis).
 func TestMatrixPartialCorrelation_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []partialOracle `json:"cases"`
 	}
@@ -154,6 +156,8 @@ func TestMatrixPartialCorrelation_MatchesROracle(t *testing.T) {
 // on the same input keeps the detection-only warning and refuses
 // params.repair (decomposition operators only).
 func TestMatrixPartialCorrelation_NotPSDGuard(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []struct {
 			Do2Eigen  bool        `json:"do2eigen"`
@@ -263,6 +267,8 @@ func gonumPartials(t *testing.T, rows [][]float64) [][]float64 {
 // list that leaves the dependency among the controls and outputs
 // refuses the same way.
 func TestMatrixPartialCorrelation_Singular(t *testing.T) {
+	t.Parallel()
+
 	rows := make([][5]float64, 30)
 	for i := range rows {
 		a, b := float64(i%7)+0.25*float64(i), float64((i*i)%11)
@@ -293,6 +299,8 @@ func TestMatrixPartialCorrelation_Singular(t *testing.T) {
 // same set in the same order). The output axis never carries a control,
 // and an "all" request differs (it controls for every member).
 func TestMatrixPartialCorrelation_ControlJoinsFold(t *testing.T) {
+	t.Parallel()
+
 	rows := matrixRows(400)
 	nulls := 0
 	for i := range rows {
@@ -332,6 +340,8 @@ func TestMatrixPartialCorrelation_ControlJoinsFold(t *testing.T) {
 // params.repair are checked at resolution (SERVICE_VALIDATION
 // bad_params, or the vector rules for an outside control).
 func TestMatrixPartialCorrelation_Refusals(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "r.pulse", matrixRows(50))
 	for _, c := range []struct {
 		params string

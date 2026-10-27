@@ -58,6 +58,8 @@ func ordinalSpec(t *testing.T, cols []string, model string, params map[string]an
 // measure, the scaled-shifted test included. The plan sizes the
 // threshold rows predict estimates (four per 1-5 rating) exactly.
 func TestMatrixSEM_OrdinalMatchesLavaan(t *testing.T) {
+	t.Parallel()
+
 	cfg, cols := semCohort(t, semTestdata+"brand_data.csv", nil, nil)
 	for _, c := range []struct{ ref, model string }{
 		{"brand_ord_wlsmv", "brand_ord"},
@@ -190,6 +192,8 @@ func TestMatrixSEM_OrdinalMatchesLavaan(t *testing.T) {
 // is the expanded rows — the same thresholds, correlations, Gamma and
 // so every figure.
 func TestMatrixSEM_OrdinalFrequencyWeightIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	w := func(r int) float64 { return float64(1 + r%3) }
 	weighted, cols := semCohort(t, semTestdata+"brand_data.csv", w, nil)
 	expanded, _ := semCohort(t, semTestdata+"brand_data.csv", nil, func(r int) int { return 1 + r%3 })
@@ -220,6 +224,8 @@ func TestMatrixSEM_OrdinalFrequencyWeightIsExpansion(t *testing.T) {
 // TestMatrixSEM_OrdinalWorkersBitIdentical: the buffered slot runs
 // serially in record order, so DecodeWorkers never moves a bit.
 func TestMatrixSEM_OrdinalWorkersBitIdentical(t *testing.T) {
+	t.Parallel()
+
 	cfg, cols := semCohort(t, semTestdata+"brand_data.csv", nil, nil)
 	spec := ordinalSpec(t, cols, "brand_ms", map[string]any{"estimator": "wlsmv", "ordered": []string{"q1", "q2", "q3", "v1", "v2", "v3", "s1", "s2", "s3"}})
 	req := &types.Request{Cohort: &types.Cohort{Filename: "sem.pulse"}, Matrices: []types.MatrixSpec{spec}}
@@ -256,6 +262,8 @@ func TestMatrixSEM_OrdinalWorkersBitIdentical(t *testing.T) {
 // (details.reason constant), and a probability weight stays
 // PULSE_WEIGHT_UNSUPPORTED.
 func TestMatrixSEM_OrdinalRefusals(t *testing.T) {
+	t.Parallel()
+
 	cfg, cols := semCohort(t, semTestdata+"brand_data.csv", func(r int) float64 { return 1 + 0.5*float64(r%2) }, nil)
 	ordered := []string{"q1", "q2", "q3"}
 	for _, c := range []struct {
@@ -318,6 +326,8 @@ func detailsOf(ce *errors.CodedError) map[string]any {
 // variable, categories, limit); one at the ceiling fits, and the same
 // member declared numeric fits too.
 func TestMatrixSEM_OrdinalTooManyCategories(t *testing.T) {
+	t.Parallel()
+
 	build := func(k int) *fs.Config {
 		var rows [][3]float64
 		for i := range 40 * k {

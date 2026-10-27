@@ -35,6 +35,8 @@ func attributeSlotsRequest(path string, k int) *types.Request {
 // (applyProjection → SetExtras). Before, every output landed in a
 // per-record overflow map that grew with the attribute count.
 func TestAttributeSlots_AllocsFlatInAttributeCount(t *testing.T) {
+	// serial: testing.AllocsPerRun counts process-wide allocations, which concurrent tests inflate
+
 	dir := t.TempDir()
 	path := retentionShapeArchive(t, dir, 4, 500, 300)
 	svc := New(matrixScaleOSConfig(t, dir))
@@ -87,6 +89,8 @@ func TestAttributeSlots_AllocsFlatInAttributeCount(t *testing.T) {
 // not grow with the attribute count: every arm's binding reserves the
 // labels (U51 E5-S4 (a)).
 func TestAttributeSlots_ProcessAllocsFlat(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	dir := t.TempDir()
 	archive := retentionShapeArchive(t, dir, 4, 30_000, 2_000)
 	single := retentionShapeCohort(t, dir, 120_000, 2_000)

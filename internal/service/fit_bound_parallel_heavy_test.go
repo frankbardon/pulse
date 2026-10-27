@@ -19,6 +19,8 @@ import (
 // ONCE (not once per worker) in the serial arm's place, and offers a
 // Compose capture once — every worker count matches the serial run.
 func TestFitBound_ParallelDecodeMatchesSerial(t *testing.T) {
+	t.Parallel()
+
 	path, cfg := writeParallelXYCohort(t, "fit_bound_parallel.pulse")
 	fit := func(name string, n int64) *model.VectorFit {
 		return &model.VectorFit{Name: name, Labels: []string{"x", "y"}, Members: []string{"x", "y"},
@@ -102,6 +104,8 @@ func TestFitBound_ParallelDecodeMatchesSerial(t *testing.T) {
 // request's bound-model set on every parallel-decode worker, so each
 // worker count keeps exactly the rows the serial run keeps.
 func TestCoefFilter_ParallelDecodeMatchesSerial(t *testing.T) {
+	t.Parallel()
+
 	path, cfg := writeParallelXYCohort(t, "coef_filter_parallel.pulse")
 	b, err := model.Bind("m", &types.RegressionSpec{Type: types.REG_OLS, Target: "y", Predictors: []string{"x"}},
 		&types.RegressionResult{Type: types.REG_OLS, Coefficients: map[string]float64{model.InterceptKey: 0, "x": 25}})

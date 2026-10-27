@@ -77,6 +77,8 @@ func assertEmptyServingUseful(t *testing.T, req *types.Request, resp *types.Resp
 }
 
 func TestDecodeWorkers_EmptyCohortMatchesSerial(t *testing.T) {
+	t.Parallel()
+
 	schema := componentsParitySchema()
 	dir := t.TempDir()
 	osFs := afero.NewOsFs()
@@ -132,6 +134,8 @@ func TestDecodeWorkers_EmptyCohortMatchesSerial(t *testing.T) {
 }
 
 func TestShardWorkers_ZeroRecordShardsMatchSerial(t *testing.T) {
+	t.Parallel()
+
 	schema := componentsParitySchema()
 	archives := map[string][]int{
 		"all_empty":  {0, 0, 0},
@@ -182,6 +186,8 @@ func TestShardWorkers_ZeroRecordShardsMatchSerial(t *testing.T) {
 // Data + Components the serial path emits for zero records, grouped
 // and ungrouped, components on and off.
 func TestFinalizeMergedPartial_EmptyPartialMatchesSerial(t *testing.T) {
+	t.Parallel()
+
 	schema := componentsParitySchema()
 	cfg := fs.NewMemMap()
 	path := "empty.pulse"

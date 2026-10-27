@@ -43,6 +43,8 @@ func allocatedBytes(t *testing.T, fn func()) uint64 {
 // far less than the large archive's size (a whole-archive read — the
 // pre-U51 afero.ReadFile — allocates at least its length).
 func TestArchiveOpen_AllocsIndependentOfBytes(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	mem := afero.NewMemMapFs()
 	smallSize := writeDictArchive(t, mem, "small.pulse", 4, 2_000, 4)
 	largeSize := writeDictArchive(t, mem, "large.pulse", 4, 20_000, 4)
@@ -142,6 +144,8 @@ func TestArchiveOpen_AllocsIndependentOfBytes(t *testing.T) {
 // the scan reads each shard's payload through its own section. The
 // pre-U51 path slurped the archive in Open and again in the scan (2x).
 func TestArchiveOpen_ScanReadsByRandomAccess(t *testing.T) {
+	t.Parallel()
+
 	mem := afero.NewMemMapFs()
 	size := writeDictArchive(t, mem, "large.pulse", 4, 20_000, 4)
 	req := &types.Request{
@@ -217,6 +221,8 @@ func deflateEntry(t *testing.T, mem afero.Fs, path, name string) {
 // record reader's rule — instead of decoding its compressed bytes as
 // records.
 func TestArchiveOpen_DeflatedShardRefused(t *testing.T) {
+	t.Parallel()
+
 	mem := afero.NewMemMapFs()
 	writeDictArchive(t, mem, "d.pulse", 3, 50, 4)
 	deflateEntry(t, mem, "d.pulse", "s01.pulse")
@@ -244,6 +250,8 @@ func TestArchiveOpen_DeflatedShardRefused(t *testing.T) {
 // NIL error; the concurrency-safe wrapper restores the io.ReaderAt
 // contract (n < len(p) ⇒ err != nil, io.EOF at the end).
 func TestArchiveOpen_LockedReaderAtShortReadAtEOF(t *testing.T) {
+	t.Parallel()
+
 	mem := afero.NewMemMapFs()
 	if err := afero.WriteFile(mem, "f", []byte("0123456789"), 0o644); err != nil {
 		t.Fatal(err)
@@ -285,6 +293,8 @@ func TestArchiveOpen_LockedReaderAtShortReadAtEOF(t *testing.T) {
 // buffer and, like the *bytes.Reader it replaces, treats a seek past
 // the end as positioning at EOF rather than an error.
 func TestArchiveOpen_SectionScannerSeeksForward(t *testing.T) {
+	t.Parallel()
+
 	payload := bytes.Repeat([]byte("abcdefghij"), 50_000) // 500 KB > one buffer
 	sc := newSectionScanner(io.NewSectionReader(bytes.NewReader(payload), 0, int64(len(payload))))
 	if pos, err := sc.Seek(300_003, io.SeekCurrent); err != nil || pos != 300_003 {
@@ -309,6 +319,8 @@ func TestArchiveOpen_SectionScannerSeeksForward(t *testing.T) {
 // is served from a section of the archive (no shard bytes copied at
 // open) and scans to the same answer as the shard alone.
 func TestArchiveOpen_AnchorServesSection(t *testing.T) {
+	t.Parallel()
+
 	mem := afero.NewMemMapFs()
 	writeDictArchive(t, mem, "a.pulse", 3, 40, 4)
 	cfg, err := fs.New(fs.WithFs(mem))

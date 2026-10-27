@@ -97,6 +97,8 @@ func (c pcaRotationCase) orthogonalRuns() []pcaRotationRun {
 // shares, communalities, KMO, Bartlett) bit-identical to the unrotated
 // run.
 func TestMatrixPCA_VarimaxMatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []pcaRotationCase `json:"cases"`
 	}
@@ -192,6 +194,8 @@ func TestMatrixPCA_VarimaxMatchesROracle(t *testing.T) {
 // reports unrotated + rotated_variance; the undefined-input branch
 // nulls the rotation parts too.
 func TestMatrixPCA_RotationNoneByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	cases, dir := loadPCAOracle(t)
 	cfg := fixtureFS(t, dir)
 	c := cases[0]
@@ -263,6 +267,8 @@ func TestMatrixPCA_RotationNoneByteIdentical(t *testing.T) {
 // null-fit branch; TestMatrixFactor_MatchesROracle covers the fitted
 // one per criterion.
 func TestRotation_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "r.pulse", matrixRows(200))
 	data, err := afero.ReadFile(cfg.Fs(), "r.pulse")
 	if err != nil {
@@ -347,6 +353,8 @@ func TestRotation_PredictMatchesRuntime(t *testing.T) {
 // decoded and dropped — while an explicit 0.01 is the default bit for
 // bit.
 func TestRotation_EpsilonReachesTheEngine(t *testing.T) {
+	t.Parallel()
+
 	cases, dir := loadFactorOracle(t)
 	cfg := fixtureFS(t, dir)
 	c := cases[2] // attitude k = 3

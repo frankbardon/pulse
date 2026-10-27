@@ -37,6 +37,8 @@ func jackknifeMtcars(t *testing.T) (svc *Service, cohort string, data []byte) {
 }
 
 func TestJackknife_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	svc, cohort, data := jackknifeMtcars(t)
 	ols := types.RegressionSpec{Name: "fit", Type: types.REG_OLS, Target: "mpg", Predictors: []string{"wt", "hp"}, Resample: "jackknife"}
 	cases := []struct {
@@ -84,6 +86,8 @@ func TestJackknife_PredictRuntimeParity(t *testing.T) {
 // the result carries sum_weights and the cluster count), and
 // jackknife_groups above the fitted rows fails the slot alone.
 func TestJackknife_WeightedAndGroupedRun(t *testing.T) {
+	t.Parallel()
+
 	svc, cohort, data := jackknifeMtcars(t)
 	spec := &types.RegressionSpec{Name: "fit", Type: types.REG_OLS, Target: "mpg", Predictors: []string{"wt", "hp"},
 		Resample: "jackknife", JackknifeBy: "cyl",

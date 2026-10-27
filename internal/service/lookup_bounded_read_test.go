@@ -61,6 +61,8 @@ func lookupBoundedReadRecords(n int) [][]uint64 {
 // header+schema prefix, the bucket-data-free index prefix, one
 // bucket's data, and one matched record's bytes.
 func TestLookup_BoundedReadBytes_DoesNotScaleWithCohortSize(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	schema := lookupBoundedReadSchema()
 

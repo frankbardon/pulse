@@ -198,6 +198,8 @@ func assertFiltererSlot(t *testing.T, label string, got types.FiltererComponents
 //     the empty record set still flows.
 //   - FILTER_SET_*: nulls drop for ANY / ALL / EQUALS and pass for NONE.
 func TestService_Process_FiltererComponents(t *testing.T) {
+	t.Parallel()
+
 	t.Run("FILTER_INCLUDE/small", func(t *testing.T) {
 		svc := nullableScoreCohort(t, "fcomp_include_small.pulse")
 		req := &types.Request{
@@ -611,6 +613,8 @@ func TestService_Process_FiltererComponents(t *testing.T) {
 //  2. FILTER_EXCLUDE {10}   — rejects 10 → NOut = 3.
 //  3. FILTER_INCLUDE {20, 40} — admits {20, 40} → NOut = 2.
 func TestService_Process_FiltererComponents_PipelineNInInvariant(t *testing.T) {
+	t.Parallel()
+
 	svc := nullableScoreCohort(t, "fcomp_pipeline.pulse")
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "fcomp_pipeline.pulse"},
@@ -645,6 +649,8 @@ func TestService_Process_FiltererComponents_PipelineNInInvariant(t *testing.T) {
 }
 
 func TestService_Process_FiltererComponents_NoFilterers(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := componentsScoreCohort(t)
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "scores.pulse"},

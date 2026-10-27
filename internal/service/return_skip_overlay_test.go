@@ -37,6 +37,8 @@ func overlayRuns(t *testing.T, run func()) int64 {
 // excluded Fisher layer builds no component map while `standard` alone
 // does.
 func TestReturnSkipsComputation_Overlays(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	fused, buffered := overlayFoldService(t)
 	for name, svc := range map[string]*Service{"fused": fused, "buffered": buffered} {
 		t.Run(name, func(t *testing.T) {
@@ -94,6 +96,8 @@ func TestReturnSkipsComputation_Overlays(t *testing.T) {
 // the run (fold counter aside) tells the arms apart — the control
 // request with the overlay REMOVED streams and differs.
 func TestReturnSkipsOverlays_SeriesArmUnchanged(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	_, svc := overlayFoldService(t)
 	mk := func(ret *types.Return, overlays bool) *types.Request {
 		r := &types.Request{
@@ -148,6 +152,8 @@ func TestReturnSkipsOverlays_SeriesArmUnchanged(t *testing.T) {
 // skipped) and every kept test's p_adjusted and m equal the full run's.
 // Without the block the same selection folds nothing.
 func TestReturnSkipsOverlays_MultiplicityVeto(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	fused, buffered := overlayFoldService(t)
 	block := &types.Multiplicity{Method: types.MultiplicityMethodHolm, Family: types.MultiplicityFamilyRequest}
 	for name, svc := range map[string]*Service{"fused": fused, "buffered": buffered} {
@@ -191,6 +197,8 @@ func TestReturnSkipsOverlays_MultiplicityVeto(t *testing.T) {
 // not computed, so the refusal it would raise is not raised (predict
 // stays the validator); kept, the same request still refuses.
 func TestReturnSkipsOverlays_ErrorRule(t *testing.T) {
+	t.Parallel()
+
 	build := func(ret *types.Return) *types.Request {
 		r := skipCrosstabRequest(false)
 		r.Crosstab.Cell = &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"}
@@ -228,6 +236,8 @@ func TestReturnSkipsOverlays_ErrorRule(t *testing.T) {
 // a Compose-host spec may emit several layers) and every slot member,
 // and every kept p_adjusted equals the full run's. Serial and parallel.
 func TestReturnSkipsOverlays_Compose(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	svc := composeMultService(t)
 	compose := func(slotRet, composeRet *types.Return, mult *types.Multiplicity) *types.ComposedRequest {
 		c := composeMultRequest()
@@ -314,6 +324,8 @@ func TestReturnSkipsOverlays_Compose(t *testing.T) {
 // exactly the layers a resolved multiplicity family claims — the
 // request's own plan, or a Compose slot's share carried on ctx.
 func TestResolveComputePlan_OverlayLayers(t *testing.T) {
+	t.Parallel()
+
 	svc := &Service{}
 	ctx := context.Background()
 	req := &types.Request{Overlays: make([]types.OverlaySpec, 3)}

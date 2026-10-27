@@ -35,6 +35,8 @@ func createFixture(t *testing.T, aRung, bRung encoding.FieldType, aVals, bVals [
 // an archive when fed one after the other and an error when fed
 // together.
 func TestCreateShardArchive_WidensOnSetDictOverflow(t *testing.T) {
+	t.Parallel()
+
 	svc, _, paths := createFixture(t,
 		encoding.FieldTypeSetU8, encoding.FieldTypeSetU8,
 		[]string{"tv", "radio", "print", "web", "mail"},
@@ -97,6 +99,8 @@ func TestCreateShardArchive_WidensOnSetDictOverflow(t *testing.T) {
 // exists to prevent, and the shards inside the archive are no longer
 // byte-identical to the files the caller named.
 func TestCreateShardArchive_WidenEmitsMandatoryWarning(t *testing.T) {
+	t.Parallel()
+
 	svc, _, paths := createFixture(t,
 		encoding.FieldTypeSetU8, encoding.FieldTypeSetU8,
 		[]string{"tv", "radio", "print", "web", "mail"},
@@ -134,6 +138,8 @@ func TestCreateShardArchive_WidenEmitsMandatoryWarning(t *testing.T) {
 // Rung divergence between two seeded shards resolves the same way it
 // does on add: up to the wider rung, never down.
 func TestCreateShardArchive_WidensOnRungDivergence(t *testing.T) {
+	t.Parallel()
+
 	svc, _, paths := createFixture(t,
 		encoding.FieldTypeSetU8, encoding.FieldTypeSetU64,
 		[]string{"tv", "radio"},
@@ -172,6 +178,8 @@ func TestCreateShardArchive_WidensOnRungDivergence(t *testing.T) {
 // A shard seeded at a NARROWER rung than the accumulated canonical must
 // be promoted, never narrow the archive.
 func TestCreateShardArchive_NarrowerLaterShardNeverNarrowsTheArchive(t *testing.T) {
+	t.Parallel()
+
 	svc, _, paths := createFixture(t,
 		encoding.FieldTypeSetU64, encoding.FieldTypeSetU8,
 		[]string{"tv", "radio"},
@@ -205,6 +213,8 @@ func TestCreateShardArchive_NarrowerLaterShardNeverNarrowsTheArchive(t *testing.
 // Above set_u256 there is nowhere to widen to, so create stays fatal and
 // writes nothing.
 func TestCreateShardArchive_UnionAboveWidestRungStaysFatal(t *testing.T) {
+	t.Parallel()
+
 	aVals := make([]string, 200)
 	for i := range aVals {
 		aVals[i] = "a" + string(rune('a'+i%26)) + string(rune('0'+i/26))
@@ -231,6 +241,8 @@ func TestCreateShardArchive_UnionAboveWidestRungStaysFatal(t *testing.T) {
 // warning-free and plan-free. Auto-widen must not turn every create into
 // a rewrite.
 func TestCreateShardArchive_OrdinaryCreateWidensNothing(t *testing.T) {
+	t.Parallel()
+
 	svc, _, paths := createFixture(t,
 		encoding.FieldTypeSetU64, encoding.FieldTypeSetU64,
 		[]string{"tv", "radio"},
@@ -254,6 +266,8 @@ func TestCreateShardArchive_OrdinaryCreateWidensNothing(t *testing.T) {
 
 // Structural cohesion stays strict on the create path too.
 func TestCreateShardArchive_CohesionStaysStrictOffTheRungDimension(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
 	svc := New(cfg)
@@ -276,6 +290,8 @@ func TestCreateShardArchive_CohesionStaysStrictOffTheRungDimension(t *testing.T)
 // A widened create must produce an archive `pulse shard verify` accepts:
 // one rung across the canonical block and every shard.
 func TestCreateShardArchive_WidenedArchiveVerifiesClean(t *testing.T) {
+	t.Parallel()
+
 	svc, _, paths := createFixture(t,
 		encoding.FieldTypeSetU8, encoding.FieldTypeSetU64,
 		[]string{"tv", "radio"},

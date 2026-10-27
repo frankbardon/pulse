@@ -224,6 +224,8 @@ func aggMemoryBufferedRows(perPart int) int64 {
 // until finalize; each costs at most limits.VectorAggregationBytes' row
 // figure, at 3, 16 and 64 members, weighted (the widest row).
 func TestGroupMemory_VectorBufferedRows(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	const rows = limits.MergeBlockSize - 1
 	schema := aggMemorySchema()
 	vals := map[string]float64{"w": 1.25}

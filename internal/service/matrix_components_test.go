@@ -38,6 +38,8 @@ func componentRows() [][5]float64 {
 func floatp(v float64) *float64 { return &v }
 
 func TestMatrixComponents_Floor(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		typ    types.MatrixType
@@ -109,6 +111,8 @@ func TestMatrixComponents_Floor(t *testing.T) {
 // of the filtered rows, whichever path folded them, and its order
 // follows Response.Matrices.
 func TestMatrixComponents_StreamingEqualsBuffered(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "big.pulse", matrixRows(2*4096+77))
 	specs := []types.MatrixSpec{
 		missingSpec(types.MAT_CORRELATION, x123, "p", `{"missing": "pairwise"}`),
@@ -137,6 +141,8 @@ func TestMatrixComponents_StreamingEqualsBuffered(t *testing.T) {
 // Components nil on both arms, and the response is otherwise
 // byte-identical to the enabled one with its Components removed.
 func TestMatrixComponents_OptOut(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "c.pulse", componentRows())
 	for _, buffered := range []bool{false, true} {
 		mk := func(disable bool) *types.Request {
@@ -173,6 +179,8 @@ func TestMatrixComponents_OptOut(t *testing.T) {
 // Members x1 / x2 are both null on some rows, so n_null is non-zero on
 // both modes.
 func TestMatrixComponents_ShardWorkerInvariant(t *testing.T) {
+	t.Parallel()
+
 	schema := coMomentSchema()
 	cfg := fs.NewMemMap()
 	if err := afero.WriteFile(cfg.Fs(), "archive.pulse", coMomentArchive(t, schema, []int{900, 1300, 77, 2000}), 0o644); err != nil {

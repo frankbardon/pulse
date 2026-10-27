@@ -17,6 +17,8 @@ import (
 )
 
 func TestCrosstab_DecodePlanEquivalence_HugeRequestShape(t *testing.T) {
+	// serial: wall-clock bound; CPU contention from parallel tests would make it flaky
+
 	const (
 		fieldCount = 200
 		rowCount   = 10_000

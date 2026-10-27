@@ -17,6 +17,8 @@ import (
 // shares with the shard reducer, with no partial result; the serial
 // arm trips identically.
 func TestMaxGroups_ParallelDecode(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = parallelDecodeRecordThreshold + 4096
 	d := encoding.NewDictionary()
 	for _, v := range []string{"a", "b", "c", "d"} {

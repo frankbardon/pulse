@@ -59,6 +59,8 @@ func assertBitEqualBartlett(t *testing.T, res *types.TestResult, sc map[string]f
 // the test's statistic, df and p equal MAT_PCA's bartlett_* scalars bit
 // for bit and psych::cortest.bartlett within the PCA oracle tolerance.
 func TestBartlettSphericity_EqualsPCABartlett(t *testing.T) {
+	t.Parallel()
+
 	cases, dir := loadPCAOracle(t)
 	cfg := fixtureFS(t, dir)
 	ran := map[string]int{}
@@ -92,6 +94,8 @@ func TestBartlettSphericity_EqualsPCABartlett(t *testing.T) {
 // probability weights, the test still folds the matrix slot's blocks
 // and so stays bit-equal to MAT_PCA, unweighted and weighted.
 func TestBartlettSphericity_EqualsPCABartlettManyBlocks(t *testing.T) {
+	t.Parallel()
+
 	cfg := groupedMatrixCohort(t, 2*linalg.MergeBlockSize+31)
 	for name, w := range map[string]*types.WeightSpec{
 		"none":        nil,

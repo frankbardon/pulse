@@ -215,6 +215,8 @@ func skipSelections() []skipSelection {
 }
 
 func TestReturnSkipsComputation(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	runReturnSkipsComputation(t, false)
 }
 
@@ -289,6 +291,8 @@ func runReturnSkipsComputation(t *testing.T, long bool) {
 // drops its auxiliary / scalars / vectors); tests, post-tests and
 // regressions follow the selection (minimal keeps them).
 func TestResolveComputePlan_VetoAndGate(t *testing.T) {
+	t.Parallel()
+
 	full := processing.FullComputePlan()
 	svc := &Service{}
 	ctx := context.Background()
@@ -373,6 +377,8 @@ func TestResolveComputePlan_VetoAndGate(t *testing.T) {
 // its reference and its targets (no targets: every slot). A kind that
 // is not a weight-aware floor kind keeps every sub-part.
 func TestComposeSlotVetoes(t *testing.T) {
+	t.Parallel()
+
 	svc := &Service{}
 	reqs := []*types.Request{{Label: "a"}, {Label: "b"}, {Label: "c"}, nil}
 	if got := svc.composeSlotVetoes(nil, reqs); got != nil {
@@ -400,6 +406,8 @@ func TestComposeSlotVetoes(t *testing.T) {
 // over the overlays naming a slot wins. The basis is the runtime's:
 // cell weight, request weight, or the instance default alone.
 func TestComposeSlotVetoes_WeightBasis(t *testing.T) {
+	t.Parallel()
+
 	freq := &types.WeightSpec{Field: "w", Kind: types.WeightKindFrequency}
 	prob := &types.WeightSpec{Field: "w", Kind: types.WeightKindProbability}
 	slot := func(label string, w *types.WeightSpec) *types.Request {

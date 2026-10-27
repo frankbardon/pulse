@@ -27,6 +27,8 @@ import (
 // carrying every streaming built-in at once bounds the slice and
 // size-class growth of a wide bucket.
 func TestGroupMemory_AggregatorStateTable(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	const keys = aggMemoryKeys
 	type variant struct {
 		weighted, off bool
@@ -114,6 +116,8 @@ func TestGroupMemory_AggregatorStateTable(t *testing.T) {
 // the retention stage's 15 slots and for every streaming built-in in one
 // bucket. The merged state alone must not exceed the state charge.
 func TestGroupMemory_FinalizedRowBytes(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	const keys = aggMemoryKeys
 	check := func(name string, c aggMemoryCase) {
 		t.Helper()
@@ -168,6 +172,8 @@ func TestGroupMemory_FinalizedRowBytes(t *testing.T) {
 // before it is released) and off; held is what the partial keeps a key
 // once the response exists, against the state it held before finalize.
 func TestGroupMemory_FinalizeReleasesBuckets(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	for _, off := range []bool{false, true} {
 		f := measureAggMemory(t, aggMemoryCase{aggs: retentionStageAggregations(), off: off, rows: 2, merge: true}, aggMemoryKeys)
 		held := f.finalized - f.response

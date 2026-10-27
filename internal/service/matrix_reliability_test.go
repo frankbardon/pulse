@@ -83,6 +83,8 @@ func relFloats(t *testing.T, v any) []float64 {
 // (the rep() expansion) and probability weights. omega is the model form (Σλ)²/((Σλ)²+Σψ) —
 // omega_total_model — null at p = 2 and on a Heywood fit.
 func TestMatrixReliability_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []reliabilityOracle `json:"cases"`
 	}
@@ -168,6 +170,8 @@ func TestMatrixReliability_MatchesROracle(t *testing.T) {
 // run that keeps components but excludes the matrices slot — and omits
 // them when no fit ran (p = 2).
 func TestMatrixReliability_ComponentsReportFit(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []reliabilityOracle `json:"cases"`
 	}
@@ -205,6 +209,8 @@ func TestMatrixReliability_ComponentsReportFit(t *testing.T) {
 // reverse names outside the items and a battery of one item are
 // bad_params.
 func TestMatrixReliability_ReverseScoring(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []reliabilityOracle `json:"cases"`
 	}
@@ -293,6 +299,8 @@ func TestMatrixReliability_ReverseScoring(t *testing.T) {
 // and under params.repair "nearest" omega fits the nearest correlation
 // matrix with the repair warning.
 func TestMatrixReliability_NotPSDNullsOmegaOnly(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []struct {
 			Do2Eigen bool     `json:"do2eigen"`

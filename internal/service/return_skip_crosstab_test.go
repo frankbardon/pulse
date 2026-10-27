@@ -56,6 +56,8 @@ var crosstabSkipArms = []crosstabSkipArm{
 }
 
 func TestReturnSkipsComputation_Crosstab(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	ex := func(paths ...string) *types.Return { return &types.Return{Exclude: paths} }
 	both := map[string]bool{"maps": true, "aux": true}
 	auxOnly := map[string]bool{"aux": true}
@@ -202,6 +204,8 @@ func assertKeptCrosstabEqual(t *testing.T, base *types.CrosstabComponents, resp 
 // AuxMargins gate (TestCrosstab_BufferedAuxMarginUnresolvableTypeRefused
 // pins the ungated half).
 func TestReturnSkipsComputation_CrosstabUnknownAuxStillRefused(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name   string
 		ret    *types.Return
@@ -219,6 +223,8 @@ func TestReturnSkipsComputation_CrosstabUnknownAuxStillRefused(t *testing.T) {
 		{name: "join_exclude_components", ret: &types.Return{Exclude: []string{"components"}}, joined: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			svc := New(crosstabJoinFixture(t))
 			svc.SetDisableComponents(tc.gated)
 			req := skipCrosstabRequest(tc.joined)

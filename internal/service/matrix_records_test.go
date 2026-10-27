@@ -146,6 +146,8 @@ func compareRecordsPart(t *testing.T, part string, got, want *types.MatrixValues
 // records wire, read back, carries exactly the full encoding's keys and
 // bits in every part; every other figure is untouched.
 func TestMatrixRecords_RoundTripsFull(t *testing.T) {
+	t.Parallel()
+
 	cfg := recordsCohort(t)
 	specs := recordsSpecs()
 	for _, typ := range types.AllMatrixTypes() {
@@ -226,6 +228,8 @@ func TestMatrixRecords_RoundTripsFull(t *testing.T) {
 // Regenerate with
 // `go test ./internal/service/ -run TestMatrixRecords_Golden -update-records-golden`.
 func TestMatrixRecords_Golden(t *testing.T) {
+	t.Parallel()
+
 	cfg := recordsCohort(t)
 	specs := recordsSpecs()
 	for _, typ := range types.AllMatrixTypes() {
@@ -381,6 +385,8 @@ func normalizeRecordsWire(t *testing.T, wire []byte) []byte {
 // full and upper keep their wire layout (row_keys / column_keys /
 // values, no rows).
 func TestMatrixRecords_FullAndUpperUnchanged(t *testing.T) {
+	t.Parallel()
+
 	cfg := recordsCohort(t)
 	spec := recordsSpecs()[types.MAT_CORRELATION]
 	for _, enc := range []types.MatrixEncoding{"", types.MatrixEncodingFull, types.MatrixEncodingUpper} {
@@ -406,6 +412,8 @@ func TestMatrixRecords_FullAndUpperUnchanged(t *testing.T) {
 // before the run (predict and process alike); a data-derived column of
 // that name (a MAT_DISTANCE bucket label) fails the slot alone.
 func TestMatrixRecords_KeyCollision(t *testing.T) {
+	t.Parallel()
+
 	grp := encoding.NewDictionary()
 	for _, v := range []string{"key", "other"} {
 		if _, err := grp.Add(v); err != nil {
@@ -457,6 +465,8 @@ func TestMatrixRecords_KeyCollision(t *testing.T) {
 // same resolution the run makes; a member named "key" is refused by
 // both.
 func TestMatrixRecords_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	cfg := recordsCohort(t)
 	data, err := afero.ReadFile(cfg.Fs(), "r.pulse")
 	if err != nil {

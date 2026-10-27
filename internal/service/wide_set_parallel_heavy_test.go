@@ -20,6 +20,8 @@ import (
 // because the eligibility predicate needs BOTH (record count >=
 // threshold, and mmap via RealPather) and bails silently on either.
 func TestWideSet_DecodeWorkersParity(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = parallelDecodeRecordThreshold + 4096
 
 	dir := t.TempDir()

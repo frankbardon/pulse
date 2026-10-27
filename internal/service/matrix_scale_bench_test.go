@@ -420,6 +420,8 @@ func BenchmarkArchiveWorkerScaling(b *testing.B) {
 // does, and its archive holds the same rows — so the benchmarks read
 // real, decodable cohorts.
 func TestMatrixScaleCohort_MatchesReferenceWriter(t *testing.T) {
+	t.Parallel()
+
 	const rows, p = 37, 9
 	dir := t.TempDir()
 	got, err := os.ReadFile(matrixScaleCohort(t, dir, rows, p, 0))

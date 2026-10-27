@@ -42,6 +42,8 @@ func distanceSvcSpec(params string) types.MatrixSpec {
 // between columns (a missing region column would put every row in no
 // bucket).
 func TestMatrixDistance_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	cfg := groupedMatrixCohort(t, 2*linalg.MergeBlockSize+31)
 	data, err := afero.ReadFile(cfg.Fs(), "g.pulse")
 	if err != nil {
@@ -87,6 +89,8 @@ func TestMatrixDistance_PredictMatchesRuntime(t *testing.T) {
 // (GROUP_CATEGORY) gives the same bits on the streaming arm and the
 // buffered arm (an AGG_MEDIAN beside it), weighted and standardized.
 func TestMatrixDistance_StreamingEqualsBuffered(t *testing.T) {
+	t.Parallel()
+
 	cfg := groupedMatrixCohort(t, 2*linalg.MergeBlockSize+31)
 	spec := distanceSvcSpec(`{"between": {"type": "GROUP_CATEGORY", "field": "region"}, "standardize": true, "metric": "mahalanobis"}`)
 	spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
@@ -115,6 +119,8 @@ func TestMatrixDistance_StreamingEqualsBuffered(t *testing.T) {
 // between), at predict and at run time alike; under a frequency weight
 // it runs.
 func TestMatrixDistance_KMeansBetweenFrequencyOnly(t *testing.T) {
+	t.Parallel()
+
 	cfg := groupedMatrixCohort(t, 300)
 	spec := distanceSvcSpec(`{"between": {"type": "GROUP_KMEANS", "fields": ["x2"], "params": {"k": 2}}}`)
 	spec.Weight = types.SlotWeightOf(types.WeightSpec{Field: "w", Kind: types.WeightKindProbability})
@@ -135,6 +141,8 @@ func TestMatrixDistance_KMeansBetweenFrequencyOnly(t *testing.T) {
 // resolves to the same clusters as its inline fields; rows the buffered
 // between keys to no cluster are counted in n_null_key.
 func TestMatrixDistance_VectorBetweenIsReferenced(t *testing.T) {
+	t.Parallel()
+
 	cfg := groupedMatrixCohort(t, 300)
 	data, err := afero.ReadFile(cfg.Fs(), "g.pulse")
 	if err != nil {

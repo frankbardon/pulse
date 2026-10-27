@@ -86,9 +86,13 @@ func warningsWithCode(ws []*types.ResponseWarning, code errors.Code) []*types.Re
 // crosstab arms — while every cell, margin and p-value stays exactly
 // the unlabelled run's (only key text moves, never a coordinate).
 func TestCrosstab_LabelsReachAxesAndPairKeys(t *testing.T) {
+	t.Parallel()
+
 	for _, fused := range []bool{true, false} {
 		name := map[bool]string{true: "fused", false: "buffered"}[fused]
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx := context.Background()
 			base, err := labelledCrosstabService(t, fused).Process(ctx, pairwiseCrosstabRequest(nil))
 			if err != nil {
@@ -155,6 +159,8 @@ func TestCrosstab_LabelsReachAxesAndPairKeys(t *testing.T) {
 // says so with PULSE_LABEL_NOT_APPLIED instead of accepting and ignoring
 // the binding.
 func TestCrosstab_AugmentOnMatrixAxisWarns(t *testing.T) {
+	t.Parallel()
+
 	svc := labelledCrosstabService(t, true)
 	got, err := svc.Process(context.Background(), pairwiseCrosstabRequest([]*types.LabelBinding{
 		{Field: "region", Table: "region_names", Mode: types.LabelModeAugment},
@@ -182,6 +188,8 @@ func TestCrosstab_AugmentOnMatrixAxisWarns(t *testing.T) {
 // (AutoLabels), which is offered to every request whose schema carries
 // the field.
 func TestProcess_LabelNotApplied(t *testing.T) {
+	t.Parallel()
+
 	binding := &types.LabelBinding{Field: "country", Table: "country_names", Mode: types.LabelModeReplace}
 	cases := []struct {
 		name    string
@@ -232,6 +240,8 @@ func TestProcess_LabelNotApplied(t *testing.T) {
 // them too — the Data row and its components entry keep naming the same
 // bucket.
 func TestProcess_LabelsReachGroupKeys(t *testing.T) {
+	t.Parallel()
+
 	svc, path := setupGroupableCohort(t)
 	attachLabelExtensions(t, svc, map[string]processing.LabelTable{
 		"country_names": {Rows: map[string]string{"US": "United States", "CA": "Canada", "USA": "USofA"}},
@@ -262,6 +272,8 @@ func TestProcess_LabelsReachGroupKeys(t *testing.T) {
 // TestFacet_LabelNotApplied: a facet binding on a field the facet did
 // not tally warns instead of vanishing.
 func TestFacet_LabelNotApplied(t *testing.T) {
+	t.Parallel()
+
 	svc := labelledCrosstabService(t, true)
 	got, err := svc.FacetSchema(context.Background(), &types.FacetRequest{
 		Cohort: &types.Cohort{Filename: "xt.pulse"},
@@ -309,6 +321,8 @@ func chainAutoLabelRequest(path string) *types.ChainRequest {
 //     the same labels and totals as without the injection, with no
 //     PULSE_LABEL_LOOKUP_MISS from translating a label a second time.
 func TestChain_AutoLabelsEveryStage(t *testing.T) {
+	t.Parallel()
+
 	table := map[string]string{"US": "United States", "CA": "Canada", "USA": "USofA"}
 	wantTotals := map[string]float64{"US": 50, "CA": 70, "USA": 90}
 	for _, mode := range []types.LabelMode{types.LabelModeAugment, types.LabelModeReplace} {
@@ -377,6 +391,8 @@ func TestChain_AutoLabelsEveryStage(t *testing.T) {
 // PULSE_OVERLAY_KEY_SET_DIVERGENT naming both key spellings — never an
 // empty or partial layer. Binding both slots the same way folds clean.
 func TestCompose_OverlayAcrossLabelledAndUnlabelledSlot(t *testing.T) {
+	t.Parallel()
+
 	bind := []*types.LabelBinding{{Field: "region", Table: "region_names", Mode: types.LabelModeReplace}}
 	slot := func(label string, labels []*types.LabelBinding) *types.Request {
 		r := pairwiseCrosstabRequest(labels)

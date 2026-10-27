@@ -11,6 +11,8 @@ import (
 )
 
 func TestProcess_ParallelDecode_ByteEqualToSerial(t *testing.T) {
+	t.Parallel()
+
 	path, cfg := writeOsFsCohort(t, parallelDecodeRecordThreshold+2048)
 	mkReq := func() *types.Request {
 		return &types.Request{
@@ -88,6 +90,8 @@ func TestProcess_ParallelDecode_ByteEqualToSerial(t *testing.T) {
 // the threshold, the resolveRealPath probe misses on MemMapFs and
 // Process drops to the serial scanIter path. Correctness == serial.
 func TestProcess_ParallelDecode_MemMapFsBails(t *testing.T) {
+	t.Parallel()
+
 	path, cfg := writeMemMapCohort(t, parallelDecodeRecordThreshold+512)
 	ctx := context.Background()
 
@@ -118,6 +122,8 @@ func TestProcess_ParallelDecode_MemMapFsBails(t *testing.T) {
 // merge median state, so the gate must reject and Process must take
 // the serial scanIter path.
 func TestProcess_ParallelDecode_NonMergeableBails(t *testing.T) {
+	t.Parallel()
+
 	path, cfg := writeOsFsCohort(t, parallelDecodeRecordThreshold+512)
 	ctx := context.Background()
 
@@ -156,6 +162,8 @@ func TestProcess_ParallelDecode_NonMergeableBails(t *testing.T) {
 // DecodeWorkers=1 forces the serial path at the Process level, same
 // behaviour as ShardWorkers=1.
 func TestProcess_ParallelDecode_WorkersOneBails(t *testing.T) {
+	t.Parallel()
+
 	path, cfg := writeOsFsCohort(t, parallelDecodeRecordThreshold+512)
 	ctx := context.Background()
 

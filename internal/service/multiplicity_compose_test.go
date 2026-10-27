@@ -134,6 +134,8 @@ func composePSites(t *testing.T, out *types.ComposedResponse) []composePSite {
 // baseline's raw p-values, raw figures stay untouched, and Compose and
 // ComposeParallel answer byte-identically.
 func TestMultiplicityFold_Compose(t *testing.T) {
+	t.Parallel()
+
 	svc := composeMultService(t)
 	ctx := context.Background()
 	holm, bh := types.MultiplicityMethodHolm, types.MultiplicityMethodBH
@@ -326,6 +328,8 @@ func TestMultiplicityFold_Compose(t *testing.T) {
 // and one whose every block resolves to `none`, answer byte-identically
 // — serial and parallel.
 func TestMultiplicityFold_ComposeNoneIsIdentity(t *testing.T) {
+	t.Parallel()
+
 	svc := composeMultService(t)
 	ctx := context.Background()
 	base, err := svc.Compose(ctx, composeMultRequest())

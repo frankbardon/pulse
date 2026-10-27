@@ -21,6 +21,8 @@ import (
 // for bit, on a single file above the parallel-decode threshold and on
 // a shard archive of the same rows.
 func TestMatrixRankCorrelation_SerialUnderParallelKnobs(t *testing.T) {
+	t.Parallel()
+
 	schema := coMomentSchema()
 	dir := t.TempDir()
 	osFs := afero.NewOsFs()

@@ -142,6 +142,8 @@ func factorKeys(k int) []string {
 // minres or ml within GPA's stopping band, factorGPATol. The Heywood
 // fixture's minres run is the subject of TestMatrixFactor_Guards.
 func TestMatrixFactor_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	cases, dir := loadFactorOracle(t)
 	cfg := fixtureFS(t, dir)
 	for _, c := range cases {
@@ -295,6 +297,8 @@ func TestMatrixFactor_MatchesROracle(t *testing.T) {
 //     interval) and bic while the likelihood chi-square stays.
 //   - Kaiser: the default count equals the eigenvalues above 1.
 func TestMatrixFactor_Guards(t *testing.T) {
+	t.Parallel()
+
 	cases, dir := loadFactorOracle(t)
 	cfg := fixtureFS(t, dir)
 	att := cases[0].Fields
@@ -355,6 +359,8 @@ func TestMatrixFactor_Guards(t *testing.T) {
 // refused with the fatal PULSE_MATRIX_NOT_PSD unless params.repair is
 // "nearest", which factors the repaired matrix with the repair warning.
 func TestMatrixFactor_UndefinedAndNotPSD(t *testing.T) {
+	t.Parallel()
+
 	rows := make([][5]float64, 20)
 	for i := range rows {
 		rows[i] = [5]float64{float64(i), float64(i * i % 7), 3, 1, 1}
@@ -392,6 +398,8 @@ func TestMatrixFactor_UndefinedAndNotPSD(t *testing.T) {
 // SERVICE_VALIDATION bad_params, so a misspelt or misplaced knob never
 // silently takes its default.
 func TestMatrixFactor_Refusals(t *testing.T) {
+	t.Parallel()
+
 	cases, dir := loadFactorOracle(t)
 	cfg := fixtureFS(t, dir)
 	for _, params := range []string{
@@ -434,6 +442,8 @@ func TestMatrixFactor_Refusals(t *testing.T) {
 //     the likelihood figures are null with PULSE_MATRIX_INSUFFICIENT_N
 //     scope "likelihood" while Bartlett's test and the loadings compute.
 func TestMatrixFactor_MLGuards(t *testing.T) {
+	t.Parallel()
+
 	rows := make([][5]float64, 12)
 	for i := range rows {
 		a, b := float64(i), float64(i*i%7)
@@ -483,6 +493,8 @@ func TestMatrixFactor_MLGuards(t *testing.T) {
 // and 0.5 sits inside it, while rmsea and the other fit figures do not
 // move.
 func TestMatrixFactor_ConfLevelWidensRMSEAInterval(t *testing.T) {
+	t.Parallel()
+
 	cases, dir := loadFactorOracle(t)
 	cfg := fixtureFS(t, dir)
 	seen := 0

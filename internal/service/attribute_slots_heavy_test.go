@@ -17,6 +17,8 @@ import (
 // over an archive, serial vs parallel decode over a single file, each
 // with and without the attribute slots (attributeSlotsOff).
 func TestBitExact_RetentionShapeChain(t *testing.T) {
+	// serial: swaps the package-level service.attributeSlotsOff test hook
+
 	dir := t.TempDir()
 	archive := retentionShapeArchive(t, dir, 12, 1_500, 800)
 	single := retentionShapeCohort(t, dir, 110_000, 4_000)

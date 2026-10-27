@@ -25,6 +25,8 @@ import (
 // warning; Strict still runs; Options.SuppressAdvisories drops it from
 // both.
 func TestRegPenalty_InferenceAdvisoryPredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []vcovOracle `json:"cases"`
 	}
@@ -149,6 +151,8 @@ func TestRegPenalty_InferenceAdvisoryPredictRuntimeParity(t *testing.T) {
 // counted in excluded instead). Ridge, unpenalized and resampled l1 fits
 // keep one defined p-value per predictor in both places.
 func TestRegPenalty_PValueCountPredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []vcovOracle `json:"cases"`
 	}

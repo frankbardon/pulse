@@ -26,6 +26,8 @@ import (
 // Falsified by narrowing decodeProjection's keep filter to drop one
 // needed field (the projected answer then differs).
 func TestShardParallel_ProjectionTransparent(t *testing.T) {
+	t.Parallel()
+
 	shards := parityShards()
 	files := map[string][]byte{}
 	var flatNames, groupedNames []string
@@ -108,6 +110,8 @@ func TestShardParallel_ProjectionTransparent(t *testing.T) {
 // Falsified by building shardDecodeFor with a nil plan and keep (the
 // full decode): both runs then allocate alike.
 func TestShardParallel_ProjectedDecodeAllocatesLess(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	const p, rows = 50, 4 * linalg.MergeBlockSize
 	dir := t.TempDir()
 	path := matrixScaleCohort(t, dir, rows, p, 4)
@@ -150,6 +154,8 @@ func TestShardParallel_ProjectedDecodeAllocatesLess(t *testing.T) {
 // Falsified by deleting the anchorSectionSize branch in
 // streamingIterator.initFromFile.
 func TestShardStream_AnchoredShardStreamsSection(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	const p, rows = 50, 4 * linalg.MergeBlockSize
 	dir := t.TempDir()
 	path := matrixScaleCohort(t, dir, rows, p, 4)

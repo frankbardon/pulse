@@ -200,6 +200,8 @@ func assertBucketLayout(t *testing.T, resp *types.Response, specs []types.Matrix
 // PULSE_MATRIX_INSUFFICIENT_N; an ungrouped result omits group_key /
 // group_header on the wire.
 func TestMatrixGrouped_OneResultPerBucket(t *testing.T) {
+	t.Parallel()
+
 	cfg := groupedMatrixCohort(t, 3*linalg.MergeBlockSize+700)
 	specs := groupedMatrixSpecs()
 	resp := processMatrices2(t, cfg, groupedMatrixRequest(&types.Group{Type: types.GROUP_CATEGORY, Field: "region"}))
@@ -297,6 +299,8 @@ func processMatrices2(t *testing.T, cfg *fs.Config, req *types.Request) *types.R
 // tuple and every grouper in the header) all emit the matrix buckets in
 // the Data rows' order with their keys.
 func TestMatrixGrouped_BucketOrderFollowsData(t *testing.T) {
+	t.Parallel()
+
 	cfg := groupedMatrixCohort(t, 2*linalg.MergeBlockSize+31)
 	specs := groupedMatrixSpecs()
 	region := types.AxisHeader{Fields: []string{"region"}, Types: []string{"GROUP_CATEGORY"}}
@@ -348,6 +352,8 @@ func TestMatrixGrouped_BucketOrderFollowsData(t *testing.T) {
 // the sort variants of TestMatrixGrouped_WorkerInvariant; Compose and
 // chain stage 0, TestMatrices_ComposeAndChainStageZero.)
 func TestMatrixGrouped_BucketOrderFollowsSort(t *testing.T) {
+	t.Parallel()
+
 	cfg := groupedMatrixCohort(t, 2*linalg.MergeBlockSize+31)
 	schema := groupedMatrixSchema(t)
 	specs := groupedMatrixSpecs()
@@ -417,6 +423,8 @@ func TestMatrixGrouped_BucketOrderFollowsSort(t *testing.T) {
 // same per-bucket matrices bit for bit, with the same warnings and
 // Components entries — and a matrix-only grouped request streams too.
 func TestMatrixGrouped_StreamingEqualsBuffered(t *testing.T) {
+	t.Parallel()
+
 	cfg := groupedMatrixCohort(t, 3*linalg.MergeBlockSize+9)
 	schema := groupedMatrixSchema(t)
 	for _, grp := range []*types.Group{
@@ -525,6 +533,8 @@ func assertGroupedRunsEqual(t *testing.T, label string, got, want groupedRun) {
 // grouped invariance matrix; this pins the wiring). The DecodeWorkers
 // arm is the heavy-tier TestMatrixGrouped_ParallelArms_DecodeWorkers.
 func TestMatrixGrouped_ParallelArms(t *testing.T) {
+	t.Parallel()
+
 	schema := coMomentSchema()
 	B := linalg.MergeBlockSize
 	v := matrixInvarianceVariant{weighted: true, withVehicle: true, typ: types.MAT_CORRELATION}

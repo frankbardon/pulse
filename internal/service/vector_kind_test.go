@@ -49,6 +49,8 @@ func unsuitedWarnings(ws []*types.ResponseWarning) int {
 // normalized request carries the fill; the caller's matrices backing
 // array is never written.
 func TestVectorKind_MetricDefaultMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	cfg := groupedMatrixCohort(t, 120)
 	data, err := afero.ReadFile(cfg.Fs(), "g.pulse")
 	if err != nil {
@@ -121,6 +123,8 @@ func TestVectorKind_MetricDefaultMatchesRuntime(t *testing.T) {
 // predict warning and a Response warning; under strict a predict error
 // and a refused run carrying the code; a fitting metric is neither.
 func TestVectorKind_UnsuitedPredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	cfg := groupedMatrixCohort(t, 120)
 	data, err := afero.ReadFile(cfg.Fs(), "g.pulse")
 	if err != nil {
@@ -199,6 +203,8 @@ func TestVectorKind_UnsuitedPredictRuntimeParity(t *testing.T) {
 // declared bounds when it sets none of its own (a value outside is
 // PROCESSING_CONFIG, never clamped); explicit params win.
 func TestVectorKind_ReliabilityTakesVectorBounds(t *testing.T) {
+	t.Parallel()
+
 	cfg := groupedMatrixCohort(t, 120)
 	lo, hi := 0.0, 1e-9
 	run := func(params string) error {

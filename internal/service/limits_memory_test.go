@@ -76,8 +76,12 @@ func memoryHosts() map[string]memoryHost {
 // — for a join whose right key repeats, at the build-side backstop's
 // figure, which refuses the pre-flight's estimate after the build.
 func TestLimitsPreflight_MaxEstimatedMemoryRefusesBeforeDecode(t *testing.T) {
+	t.Parallel()
+
 	for name, h := range memoryHosts() {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			run := func(max int64) (fsCounts, map[string]int64, error) {
 				mem := afero.NewMemMapFs()
 				h.seed(t, mem)
@@ -158,6 +162,8 @@ func TestLimitsPreflight_MaxEstimatedMemoryRefusesBeforeDecode(t *testing.T) {
 // not refuse it, and it still drains nothing; the same limit refuses
 // the streamed (numeric) path.
 func TestFacet_DictionaryPathSkipsMemoryPreflight(t *testing.T) {
+	t.Parallel()
+
 	mem := afero.NewMemMapFs()
 	makeSyntheticCohort(t, mem, "bench.pulse")
 	wrapped := newCountingFs(mem)
@@ -189,6 +195,8 @@ func TestFacet_DictionaryPathSkipsMemoryPreflight(t *testing.T) {
 // extra header open of the scanned cohort, no build-side count — so an
 // unset limit costs nothing; a set one reads each once.
 func TestMaxEstimatedMemory_DefaultReadsNoCount(t *testing.T) {
+	// serial: swaps the package-level service.joinBuildCount test hook
+
 	orig := joinBuildCount
 	calls := 0
 	joinBuildCount = func(ctx context.Context, s *Service, path string) (uint64, error) {
@@ -237,6 +245,8 @@ func TestMaxEstimatedMemory_DefaultReadsNoCount(t *testing.T) {
 // — so a stage whose state outgrows the limit its source stage fits is
 // refused at that stage (details.stage), before it runs.
 func TestMaxEstimatedMemory_ChainStage(t *testing.T) {
+	t.Parallel()
+
 	mem := afero.NewMemMapFs()
 	makeSyntheticCohort(t, mem, "bench.pulse")
 	cfg, err := fs.New(fs.WithFs(mem))
@@ -299,6 +309,8 @@ func TestMaxEstimatedMemory_ChainStage(t *testing.T) {
 // charges the components-off output, exactly descx.EstimateMemory's
 // figure on the stage's input rows.
 func TestMaxEstimatedMemory_ChainStageComponentsOff(t *testing.T) {
+	t.Parallel()
+
 	mem := afero.NewMemMapFs()
 	makeSyntheticCohort(t, mem, "bench.pulse")
 	cfg, err := fs.New(fs.WithFs(mem))

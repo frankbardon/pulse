@@ -27,6 +27,8 @@ import (
 // cannot silently degrade to serial, closed for the non-mergeable
 // GROUP_DATE.
 func TestTimeZone_ParallelDecodeLocalDay(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	osFs := afero.NewOsFs()
 	cfg, err := fs.New(fs.WithFs(osFs), fs.WithDataDir(dir))

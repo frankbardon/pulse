@@ -106,6 +106,8 @@ func undefCell(t *testing.T, resp *types.Response, label string, g int) (float64
 // unweighted and (weight-aware operators) under a request weight, where
 // a group whose every weight is 0 is undefined too.
 func TestUndefinedFigures_NoValueIsNull(t *testing.T) {
+	t.Parallel()
+
 	store := newParityStore(t, "undef", undefRows)
 	sources := []*paritySource{nil}
 	for _, s := range paritySources() {

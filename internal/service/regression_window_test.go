@@ -62,6 +62,8 @@ func onlyRegression(t *testing.T, resp *types.Response) *types.RegressionResult 
 // a WIN_LAG label (the null first lag dropped listwise) and predict
 // accepts the same request.
 func TestWindowPredictor_ServiceFitsOnWindowLabel(t *testing.T) {
+	t.Parallel()
+
 	svc, _, data := derivedRegCohort(t)
 	req := &types.Request{
 		Cohort:      &types.Cohort{Filename: "reg.pulse"},
@@ -86,6 +88,8 @@ func TestWindowPredictor_ServiceFitsOnWindowLabel(t *testing.T) {
 // slot weight (SERVICE_VALIDATION) are refused by Process and by
 // predict with the same code and message.
 func TestWindowPredictor_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	svc, _, data := derivedRegCohort(t)
 	cases := map[string]struct {
 		req  *types.Request
@@ -127,6 +131,8 @@ func TestWindowPredictor_PredictRuntimeParity(t *testing.T) {
 // TestWindowPredictor_RegressionOnFeatureOutput pins REG_OLS on a
 // FEAT_LOG output label end to end: the fit recovers ylog = 1 + 3·log1p x.
 func TestWindowPredictor_RegressionOnFeatureOutput(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := derivedRegCohort(t)
 	resp, err := svc.Process(context.Background(), &types.Request{
 		Cohort:      &types.Cohort{Filename: "reg.pulse"},
@@ -146,6 +152,8 @@ func TestWindowPredictor_RegressionOnFeatureOutput(t *testing.T) {
 // ATTR_FORMULA hill() label end to end: the fit recovers
 // yhill = 2 + 5·hill(x, 3, 2).
 func TestWindowPredictor_RegressionOnFormulaLabel(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := derivedRegCohort(t)
 	resp, err := svc.Process(context.Background(), &types.Request{
 		Cohort:      &types.Cohort{Filename: "reg.pulse"},

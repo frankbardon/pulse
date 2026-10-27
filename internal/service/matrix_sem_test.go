@@ -169,6 +169,8 @@ func checkSEMAgainstSemopy(t *testing.T, res types.MatrixResult, ref semopyFixtu
 // finalizer — and pins the default setup to semopy's default fit
 // (early stop included) and the converging setup to its tight fit.
 func TestMatrixSEM_MatchesSemopy(t *testing.T) {
+	t.Parallel()
+
 	models := []struct{ name, data string }{{"hier", "hier"}, {"poldem", "poldem"}, {"hz", "hz"}, {"hz_ext", "hz"}}
 	setups := []struct {
 		name, ref string
@@ -246,6 +248,8 @@ func semModelMembers(t *testing.T, cols []string, desc string) []string {
 // the fit's flat directions amplify at the solver's stop: 1e-6, the
 // converged-fit tolerance.
 func TestMatrixSEM_FrequencyWeightIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	desc, _ := os.ReadFile(semTestdata + "hz_model.txt")
 	w := func(r int) float64 { return float64(1 + r%3) }
 	weighted, cols := semCohort(t, semTestdata+"hz_data.csv", w, nil)
@@ -288,6 +292,8 @@ func semProcessErr(t *testing.T, cfg *fs.Config, spec types.MatrixSpec) (*types.
 // TestMatrixSEM_Refusals: a probability weight (no design-based form)
 // and pairwise deletion are refused with their codes.
 func TestMatrixSEM_Refusals(t *testing.T) {
+	t.Parallel()
+
 	cfg, _ := semCohort(t, semTestdata+"hz_data.csv", func(r int) float64 { return 1 + 0.5*float64(r%2) }, nil)
 	model, _ := json.Marshal(map[string]any{"model": "f =~ x1 + x2 + x3"})
 	base := types.MatrixSpec{Name: "sem", Type: types.MAT_SEM, Fields: []string{"x1", "x2", "x3"}, Params: model}
@@ -329,6 +335,8 @@ func semRowsCohort(t *testing.T, rows [][3]float64) *fs.Config {
 // singular — refused with PULSE_MATRIX_SINGULAR naming the dependent
 // fields.
 func TestMatrixSEM_SingularRefused(t *testing.T) {
+	t.Parallel()
+
 	var rows [][3]float64
 	for i := range 50 {
 		a, b := float64(i%7)+0.3*float64(i%5), float64(i%11)
@@ -348,6 +356,8 @@ func TestMatrixSEM_SingularRefused(t *testing.T) {
 // every figure null, the estimate rows still listed, the co-moment
 // warning saying why.
 func TestMatrixSEM_UndefinedInputNulls(t *testing.T) {
+	t.Parallel()
+
 	cfg := semRowsCohort(t, [][3]float64{{1, 2, 3}})
 	resp := processMatrices(t, cfg, &types.Request{
 		Cohort: &types.Cohort{Filename: "sem.pulse"},
@@ -379,6 +389,8 @@ func TestMatrixSEM_UndefinedInputNulls(t *testing.T) {
 // fitted (as semopy fits it) with PULSE_MATRIX_NOT_IDENTIFIED; an
 // iteration cap keeps the last iterate with PULSE_MATRIX_NOT_CONVERGED.
 func TestMatrixSEM_Warnings(t *testing.T) {
+	t.Parallel()
+
 	cfg, _ := semCohort(t, semTestdata+"hz_data.csv", nil, nil)
 	run := func(params string) types.MatrixResult {
 		t.Helper()

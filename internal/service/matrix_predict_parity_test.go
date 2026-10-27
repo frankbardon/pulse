@@ -41,6 +41,8 @@ func pairCovNotPSDRows() [][5]float64 {
 // shared rule, vectors.Matrix.PSDRisk). Each fixture's NOT_PSD shapes
 // are asserted to really fire, so the parity is not vacuous.
 func TestMatrixPredict_MatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	fixtures := []struct {
 		name  string
 		rows  [][5]float64
@@ -154,6 +156,8 @@ func TestMatrixPredict_MatchesRuntime(t *testing.T) {
 // estimated_bytes scale with it, and a data-dependent grouper reports
 // "unknown" with no figures.
 func TestMatrixPredict_BucketEstimateMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	cfg := groupedMatrixCohort(t, 2*linalg.MergeBlockSize+31)
 	data, err := afero.ReadFile(cfg.Fs(), "g.pulse")
 	if err != nil {

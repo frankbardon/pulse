@@ -31,6 +31,8 @@ func marginAggBaseReq() *types.Request {
 // entry point, and a refusal that only fired on the buffered path would
 // let a malformed request through on every fusable Visa-shaped scan.
 func TestCrosstab_MarginAggregationsMalformedRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := distinctMarginSchema()
 	cfg := setupTestFS(t, "distinct.pulse", schema, distinctMarginRecords())
 	ctx := context.Background()
@@ -98,6 +100,8 @@ func TestCrosstab_MarginAggregationsMalformedRejected(t *testing.T) {
 // be refused, or the tests above would pass against a validator that
 // rejects the slot outright.
 func TestCrosstab_MarginAggregationsWellFormedAccepted(t *testing.T) {
+	t.Parallel()
+
 	schema := distinctMarginSchema()
 	cfg := setupTestFS(t, "distinct.pulse", schema, distinctMarginRecords())
 	ctx := context.Background()
@@ -154,6 +158,8 @@ var auxWireKeys = []string{
 // well-formed, plausible response: an auxiliary aggregation leaking into
 // a cell or shifting a margin.
 func TestCrosstab_MarginAggregationsInertAtRequestSurface(t *testing.T) {
+	t.Parallel()
+
 	schema := distinctMarginSchema()
 	cfg := setupTestFS(t, "distinct.pulse", schema, distinctMarginRecords())
 	ctx := context.Background()
@@ -263,6 +269,8 @@ func remarshal(t *testing.T, v any) string {
 // ran, so a sample-size figure that differed between them would move for
 // reasons a caller cannot see and cannot ask about.
 func TestCrosstab_MarginAggregationsOnTheWire(t *testing.T) {
+	t.Parallel()
+
 	schema := distinctMarginSchema()
 	cfg := setupTestFS(t, "distinct.pulse", schema, distinctMarginRecords())
 	ctx := context.Background()

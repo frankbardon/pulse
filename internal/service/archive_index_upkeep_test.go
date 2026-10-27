@@ -132,6 +132,8 @@ func cohesionCodes(ws []encx.CohesionWarning) []string {
 // byte what a fresh build writes. The mandatory warning names each
 // index kept.
 func TestArchiveIndexUpkeep_AddExtendsEveryIndex(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, fsys := setupArchiveLookup(t, upkeepKeySets...)
 	writeUpkeepShard(t, fsys, "e.pulse", 80)
@@ -191,6 +193,8 @@ func TestArchiveIndexUpkeep_AddExtendsEveryIndex(t *testing.T) {
 // the kept shards' sidecars, the twin's index, the sources — is
 // byte-identical.
 func TestArchiveIndexUpkeep_RemovePrunesOnlyTheOrphan(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, fsys := setupArchiveLookup(t, upkeepKeySets...)
 	before := snapshotFiles(t, fsys)
@@ -229,6 +233,8 @@ func TestArchiveIndexUpkeep_RemovePrunesOnlyTheOrphan(t *testing.T) {
 // leaves the manifest alone and warns nothing; an archive without
 // indexes warns nothing either.
 func TestArchiveIndexUpkeep_RemoveOfUnindexedShard(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, fsys := setupArchiveLookup(t)
 	res, err := svc.RemoveShard(ctx, "arch.pulse", "a.pulse")
@@ -279,6 +285,8 @@ func (f *failingUpkeepRenameFs) Rename(oldname, newname string) error {
 // manifest aborts the whole add — the archive, every sidecar and the
 // manifest stay byte-identical and no stage is left behind.
 func TestArchiveIndexUpkeep_BuildFailureAbortsTheAdd(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	second := encx.ArchiveShardIndexPath("arch.pulse", "e.pulse", upkeepKeySets[1])
 	for _, c := range []struct {
@@ -311,6 +319,8 @@ func TestArchiveIndexUpkeep_BuildFailureAbortsTheAdd(t *testing.T) {
 // remove cannot keep an index it cannot read, so an invalid manifest
 // refuses both before anything is written.
 func TestArchiveIndexUpkeep_UnreadableManifestAbortsTheMutation(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, op := range []string{"add", "remove"} {
 		t.Run(op, func(t *testing.T) {
@@ -341,6 +351,8 @@ func TestArchiveIndexUpkeep_UnreadableManifestAbortsTheMutation(t *testing.T) {
 // add stands, warns PULSE_INDEX_STALE naming the uncovered shard, leaves
 // no stage, and lookups refuse loudly rather than miss the shard.
 func TestArchiveIndexUpkeep_PublishFailureAfterTheArchiveWarns(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, fsys := setupArchiveLookup(t, upkeepKeySets...)
 	writeUpkeepShard(t, fsys, "e.pulse", 80)
@@ -378,6 +390,8 @@ func TestArchiveIndexUpkeep_PublishFailureAfterTheArchiveWarns(t *testing.T) {
 // stored shard raw (same bytes, size, CRC32), so every sidecar and the
 // manifest stay valid and untouched.
 func TestArchiveIndexUpkeep_CompactKeepsSidecarsValid(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, fsys := setupArchiveLookup(t, upkeepKeySets...)
 	before := snapshotFiles(t, fsys)
@@ -402,6 +416,8 @@ func TestArchiveIndexUpkeep_CompactKeepsSidecarsValid(t *testing.T) {
 // same-size replacement by a path that does not keep the index is
 // refused, never served.
 func TestArchiveIndexUpkeep_ReplacementAfterUpkeepDetectedByCRC(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, fsys := setupArchiveLookup(t, upkeepKeySets...)
 	writeUpkeepShard(t, fsys, "e.pulse", 80)
@@ -428,6 +444,8 @@ func TestArchiveIndexUpkeep_ReplacementAfterUpkeepDetectedByCRC(t *testing.T) {
 // warning — and reports every per-shard sidecar as invalidated, the
 // list Pulse.InvalidatedSidecars derives; lookups refuse until rebuilt.
 func TestArchiveIndexUpkeep_ReencodingAddReportsInvalidatedSidecars(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, fsys := setWidenFixture(t)
 	if _, err := svc.BuildIndex(ctx, "arch.pulse", []string{"id"}); err != nil {

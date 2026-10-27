@@ -66,6 +66,8 @@ func fourShardScoreCohort(t *testing.T) (*fs.Config, *encoding.Schema, [][]uint6
 //     and the binned reproducible sum — AVERAGE is that sum over an
 //     exact integer n).
 func TestShardArchiveProcessParallel(t *testing.T) {
+	t.Parallel()
+
 	cfg, _, _ := fourShardScoreCohort(t)
 
 	cases := []struct {
@@ -145,6 +147,8 @@ func TestShardArchiveProcessParallel(t *testing.T) {
 // single-file cohort exactly. Regression guard for the
 // shouldFanOut() gate.
 func TestShardArchiveProcessParallel_NonMergeableFallsThrough(t *testing.T) {
+	t.Parallel()
+
 	cfg, _, _ := fourShardScoreCohort(t)
 	svc := New(cfg)
 	svc.SetShardWorkers(4)
@@ -177,6 +181,8 @@ func TestShardArchiveProcessParallel_NonMergeableFallsThrough(t *testing.T) {
 }
 
 func TestShardArchiveProcessParallel_SerialEqualsOne(t *testing.T) {
+	t.Parallel()
+
 	cfg, _, _ := fourShardScoreCohort(t)
 
 	req := &types.Request{
@@ -212,6 +218,8 @@ func TestShardArchiveProcessParallel_SerialEqualsOne(t *testing.T) {
 // result as the concatenated single-file cohort. This is the parity
 // guarantee for two-pass attribute composability with sharding.
 func TestShardArchiveProcessParallel_TwoPassZScore(t *testing.T) {
+	t.Parallel()
+
 	cfg, _, _ := fourShardScoreCohort(t)
 	svc := New(cfg)
 	svc.SetShardWorkers(4)
@@ -258,6 +266,8 @@ func TestShardArchiveProcessParallel_TwoPassZScore(t *testing.T) {
 // vs the serial path. Group merge unions per-key buckets across shards;
 // associative+commutative sum within each bucket must be order-stable.
 func TestShardArchiveProcessParallel_Grouped(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "region", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},
@@ -338,6 +348,8 @@ func TestShardArchiveProcessParallel_Grouped(t *testing.T) {
 // worker fan-out. Filtered + sum counts in the worker pool must match
 // the serial baseline byte-equal.
 func TestShardArchiveProcessParallel_FilteredCount(t *testing.T) {
+	t.Parallel()
+
 	cfg, _, _ := fourShardScoreCohort(t)
 
 	req := &types.Request{
@@ -383,6 +395,8 @@ func TestShardArchiveProcessParallel_FilteredCount(t *testing.T) {
 // and the concatenated single file. Before #391 the gate refused them
 // (a slower serial fallback, never a wrong number).
 func TestShardArchiveProcessParallel_RowLocalReadAttributes(t *testing.T) {
+	t.Parallel()
+
 	dict := func(entries ...string) *encoding.Dictionary {
 		d := encoding.NewDictionary()
 		for _, e := range entries {

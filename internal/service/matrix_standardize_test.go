@@ -126,6 +126,8 @@ func assertValuesClose(t *testing.T, label string, got, want *types.MatrixValues
 // covariance is the raw members' correlation; the components floor is
 // the unstandardized run's.
 func TestMatrixStandardize_EqualsMaterializedZScore(t *testing.T) {
+	t.Parallel()
+
 	cols, rows := readF64CSV(t, semTestdata+"std_data.csv")
 	desc, err := os.ReadFile(semTestdata + "std_model.txt")
 	if err != nil {
@@ -216,6 +218,8 @@ func semScalarKeys() []string {
 // member is left as folded — its covariance row stays the raw run's
 // zeros, its correlation null — never a division by zero.
 func TestMatrixStandardize_ListwiseSampleAndZeroSpread(t *testing.T) {
+	t.Parallel()
+
 	var rows [][]float64
 	for i := 0; i < 40; i++ {
 		x := float64(i)
@@ -279,6 +283,8 @@ func TestMatrixStandardize_ListwiseSampleAndZeroSpread(t *testing.T) {
 // to the same battery z-scored externally (population SD) — the
 // default setup its default fit, the converging setup its tight fit.
 func TestMatrixSEM_StandardizedMatchesSemopy(t *testing.T) {
+	t.Parallel()
+
 	desc, err := os.ReadFile(semTestdata + "std_model.txt")
 	if err != nil {
 		t.Fatal(err)

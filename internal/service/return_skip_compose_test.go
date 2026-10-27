@@ -19,6 +19,8 @@ import (
 // arms. The service never shapes, so a slot's Components block is
 // present iff it was computed.
 func TestReturnSkipsComputation_Compose(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	standard := &types.Return{Preset: types.ReturnPresetStandard}
 	compose := func(ret *types.Return, overlaid bool) *types.ComposedRequest {
 		slot := func(label string) *types.Request {
@@ -120,6 +122,8 @@ func TestReturnSkipsComputation_Compose(t *testing.T) {
 // what its `return` excludes — and a chain overlay, which reads its
 // stages' data only, vetoes no skip: its layer is unchanged.
 func TestReturnSkipsComputation_Chain(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	svc, _ := skipArms()[0].build(t)
 	zero, one := 0, 1
 	chain := func(ret0, ret1 *types.Return, overlaid bool) *types.ChainRequest {
@@ -213,6 +217,8 @@ func TestReturnSkipsComputation_Chain(t *testing.T) {
 // figures, which no overlay reads, still skip (fused: setCompute is the
 // one guard). A payload-only overlay vetoes nothing.
 func TestReturnSkipsComputation_CrosstabOverlayVeto(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	build := func(kind types.OverlayKind, scope types.OverlayScope, ret *types.Return) *types.Request {
 		r := skipCrosstabRequest(false)
 		r.Crosstab.Cell = &types.Aggregation{Type: types.AGG_COUNT, Field: "value", Label: "n"}

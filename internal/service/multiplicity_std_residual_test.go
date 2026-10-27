@@ -78,6 +78,8 @@ func refMatrix(m [][]*float64, label string) *types.MatrixPayload {
 // ride payload.p_adjusted, while the residual matrix and the raw p part
 // stay byte-identical.
 func TestFoldOverlayMultiplicity_StdResidualRowMatchesPAdjust(t *testing.T) {
+	t.Parallel()
+
 	methods := map[types.MultiplicityMethod]func(stdResidualRef) [][]*float64{
 		types.MultiplicityMethodHolm: func(c stdResidualRef) [][]*float64 { return c.PRowHolm },
 		types.MultiplicityMethodBH:   func(c stdResidualRef) [][]*float64 { return c.PRowBH },
@@ -142,6 +144,8 @@ func TestFoldOverlayMultiplicity_StdResidualRowMatchesPAdjust(t *testing.T) {
 // baseline (no multiplicity) carries no adjusted slot; the raw p part
 // and the residuals never move; fused and buffered agree byte for byte.
 func TestMultiplicityFold_CrosstabStdResidual(t *testing.T) {
+	t.Parallel()
+
 	fused, buffered := overlayFoldService(t)
 	ctx := context.Background()
 	mk := func(m *types.Multiplicity) *types.Request {

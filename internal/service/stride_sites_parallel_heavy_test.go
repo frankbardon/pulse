@@ -21,6 +21,8 @@ import (
 // cohort and its grouped and constant-elided twins. Every run must equal
 // the absolute answer computed from the generator.
 func TestStrideSites_ParallelDecodeSplitsOnPhysicalRecords(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	osFs := afero.NewOsFs()
 	cfg, err := fs.New(fs.WithFs(osFs), fs.WithDataDir(dir))

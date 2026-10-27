@@ -40,6 +40,8 @@ func computedInvarianceRequest(path string, typ types.MatrixType, std types.Vect
 // computed member's variance exactly 1 — and its null rows (the formula
 // returns nil) are dropped before the z-score.
 func TestMatrixComputedMember_StandardizedZScoresComputedValues(t *testing.T) {
+	t.Parallel()
+
 	var rows [][]float64
 	for i := 0; i < 60; i++ {
 		x := float64(i)

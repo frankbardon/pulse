@@ -87,6 +87,8 @@ func assertNullableMismatch(t *testing.T, where string, err error) {
 // #207 the reader admitted it (equal strides) and the shard's null id
 // decoded as the placeholder 777.
 func TestShardNullableCohesion_ReaderRefuses(t *testing.T) {
+	t.Parallel()
+
 	canonical, seed, arriving := nullableShards(t)
 	data := synthesizeArchiveWithRawPayload(t, canonical,
 		[]rawShard{{Name: "a.pulse", Payload: seed}, {Name: "x.pulse", Payload: arriving}})
@@ -109,6 +111,8 @@ func TestShardNullableCohesion_ReaderRefuses(t *testing.T) {
 // TestShardNullableCohesion_VerifyRefuses: shard verify reports the
 // same refusal against the offending shard.
 func TestShardNullableCohesion_VerifyRefuses(t *testing.T) {
+	t.Parallel()
+
 	canonical, seed, arriving := nullableShards(t)
 	data := synthesizeArchiveWithRawPayload(t, canonical,
 		[]rawShard{{Name: "a.pulse", Payload: seed}, {Name: "x.pulse", Payload: arriving}})
@@ -129,6 +133,8 @@ func TestShardNullableCohesion_VerifyRefuses(t *testing.T) {
 // TestShardNullableCohesion_AddShardRefuses: AddShard refuses the
 // nullable arrival and leaves the archive byte-identical.
 func TestShardNullableCohesion_AddShardRefuses(t *testing.T) {
+	t.Parallel()
+
 	_, seed, arriving := nullableShards(t)
 	svc, fsys := gEnv(t, map[string][]byte{"a.pulse": seed, "x.pulse": arriving})
 	ctx := context.Background()
@@ -160,6 +166,8 @@ func TestShardNullableCohesion_AddShardRefuses(t *testing.T) {
 // flags; once the shard's bitmap disappears the strides disagree and it
 // is refused.
 func TestShardNullableCohesion_ReverseDirection(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	t.Run("bitmap width equal is admitted", func(t *testing.T) {
 		nullableArch := writeSinglePulseNulls(t, nullableCohesionSchema(true),

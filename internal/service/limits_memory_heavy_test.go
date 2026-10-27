@@ -30,6 +30,8 @@ import (
 // shrink the real footprint the schema-width model cannot see, to
 // 3.4-4.9x.
 func TestMemoryEstimate_Calibration(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	const rows = 200_000
 	mem := afero.NewMemMapFs()
 	// writeWide writes a buildWideCohort file onto dst; allIssuers

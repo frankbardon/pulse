@@ -100,6 +100,8 @@ func pcaNear(t *testing.T, where string, got, want float64) {
 // Bartlett's chi-square, df and p. The kaiser default is checked
 // against the oracle's kaiser_components and communalities.
 func TestMatrixPCA_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	cases, dir := loadPCAOracle(t)
 	cfg := fixtureFS(t, dir)
 	pairwise := 0
@@ -197,6 +199,8 @@ func TestMatrixPCA_MatchesROracle(t *testing.T) {
 // and checks the eigen-decomposition against R exactly in sign, order
 // and shape: the convention the operator inherits.
 func TestMatrixPCA_SpectrumKernelMatchesOracle(t *testing.T) {
+	t.Parallel()
+
 	cases, _ := loadPCAOracle(t)
 	for n, c := range cases {
 		s, err := linalg.NewSymFromRows(c.Input)
@@ -225,6 +229,8 @@ func TestMatrixPCA_SpectrumKernelMatchesOracle(t *testing.T) {
 // share) on the attitude correlation, whose eigenvalues are 3.716,
 // 1.141, 0.847, … (cumulative 0.531, 0.694, 0.815, …).
 func TestMatrixPCA_RetentionRules(t *testing.T) {
+	t.Parallel()
+
 	cases, dir := loadPCAOracle(t)
 	cfg := fixtureFS(t, dir)
 	c := cases[0]
@@ -264,6 +270,8 @@ func TestMatrixPCA_RetentionRules(t *testing.T) {
 // TestMatrixPCA_Refusals: the params rules — every refusal
 // SERVICE_VALIDATION bad_params.
 func TestMatrixPCA_Refusals(t *testing.T) {
+	t.Parallel()
+
 	cases, dir := loadPCAOracle(t)
 	cfg := fixtureFS(t, dir)
 	fields := cases[0].Fields
@@ -301,6 +309,8 @@ func TestMatrixPCA_Refusals(t *testing.T) {
 // decomposes the repaired matrix with the repair warning, and KMO /
 // Bartlett read the repaired correlation.
 func TestMatrixPCA_NotPSDGuard(t *testing.T) {
+	t.Parallel()
+
 	_, dir := loadPCAOracle(t)
 	cfg := fixtureFS(t, dir)
 	fields := []string{"x", "y", "z"}
@@ -336,6 +346,8 @@ func TestMatrixPCA_NotPSDGuard(t *testing.T) {
 // and Bartlett are null with a PULSE_MATRIX_SINGULAR warning naming the
 // dependency.
 func TestMatrixPCA_SingularNullsKMO(t *testing.T) {
+	t.Parallel()
+
 	rows := make([][5]float64, 40)
 	for i := range rows {
 		a, b := float64(i%7)+0.3*float64(i%3), float64((i*5)%11)

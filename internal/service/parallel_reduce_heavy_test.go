@@ -17,6 +17,8 @@ import (
 )
 
 func TestParallelDecode_MergeableByteEqualVsSerial(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = parallelDecodeRecordThreshold + 4096
 
 	dir := t.TempDir()
@@ -138,6 +140,8 @@ func TestParallelDecode_MergeableByteEqualVsSerial(t *testing.T) {
 // path runs the same code so the per-cohort answer is equivalent to
 // within 1 ULP of the serial single-pass answer.
 func TestParallelDecode_MergeableULPEquivalent(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = parallelDecodeRecordThreshold + 2048
 
 	dir := t.TempDir()
@@ -239,6 +243,8 @@ func TestParallelDecode_MergeableULPEquivalent(t *testing.T) {
 }
 
 func TestParallelDecode_MergeableZeroRecordSegments(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = 256
 
 	dir := t.TempDir()
@@ -334,6 +340,8 @@ func TestParallelDecode_MergeableZeroRecordSegments(t *testing.T) {
 // order. We assert one row per dictionary value matching the serial
 // Process output.
 func TestParallelDecode_MergeableGroupedByteEqualVsSerial(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = parallelDecodeRecordThreshold + 1024
 
 	dir := t.TempDir()

@@ -9,6 +9,8 @@ import (
 )
 
 func TestCompose_MultipleRequests(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "data.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -69,6 +71,8 @@ func TestCompose_MultipleRequests(t *testing.T) {
 }
 
 func TestCompose_SharedCohort(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	records := [][]uint64{
 		{1, math.Float64bits(100.0)},

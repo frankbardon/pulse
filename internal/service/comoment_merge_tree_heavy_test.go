@@ -17,6 +17,8 @@ import (
 // worker count, through the real parallel-decode and shard dispatch,
 // listwise and pairwise, weighted and unweighted.
 func TestCoMomentMergeTree_WorkerInvariant(t *testing.T) {
+	t.Parallel()
+
 	schema := coMomentSchema()
 	B := linalg.MergeBlockSize
 

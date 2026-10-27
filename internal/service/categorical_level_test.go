@@ -77,6 +77,8 @@ func wantSlotFailedWarning(t *testing.T, resp *types.Response, kind string) {
 // read as absent: no error), and by dropping slotfail.From's
 // CorruptRecordData admission (the run fails instead of the slot).
 func TestCorruptLevel_TestSlotsFailAlone(t *testing.T) {
+	t.Parallel()
+
 	const small = 64
 	big := int(parallelDecodeRecordThreshold) + 1024
 	svc, dir := ciEnv(t, map[string][]byte{
@@ -191,6 +193,8 @@ func TestCorruptLevel_TestSlotsFailAlone(t *testing.T) {
 // FitEachBufferedWithContext (the fit answers, the corrupt row dropped
 // listwise).
 func TestCorruptLevel_RegressionClusterFailsAlone(t *testing.T) {
+	t.Parallel()
+
 	svc, dir := ciEnv(t, map[string][]byte{
 		"cat.pulse":   ciFile(t, 64, 5, ciRegionOff, 7),
 		"clean.pulse": ciFile(t, 64, -1, 0, 0),
@@ -229,6 +233,8 @@ func TestCorruptLevel_RegressionClusterFailsAlone(t *testing.T) {
 // (the streaming FEAT_ONE_HOT / AGG_SUM case then answers an all-zero
 // row for the corrupt record).
 func TestCorruptLevel_EncodersRefuse(t *testing.T) {
+	t.Parallel()
+
 	svc, dir := ciEnv(t, map[string][]byte{
 		"cat.pulse":   ciFile(t, 64, 5, ciRegionOff, 7),
 		"clean.pulse": ciFile(t, 64, -1, 0, 0),
@@ -264,6 +270,8 @@ func TestCorruptLevel_EncodersRefuse(t *testing.T) {
 // base chain (base_filter answers with the row dropped) and for the
 // additive scope (additive_scope answers).
 func TestCorruptLevel_FacetFilterRefuses(t *testing.T) {
+	t.Parallel()
+
 	svc, dir := ciEnv(t, map[string][]byte{
 		"cat.pulse":   ciFile(t, 64, 5, ciRegionOff, 7),
 		"clean.pulse": ciFile(t, 64, -1, 0, 0),

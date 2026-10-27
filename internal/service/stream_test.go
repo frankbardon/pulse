@@ -14,6 +14,8 @@ import (
 // TestStreamingIterator_LazyRead verifies that the streaming iterator reads
 // records lazily without loading the entire file into a record slice upfront.
 func TestStreamingIterator_LazyRead(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 
 	schema := &encoding.Schema{
@@ -61,6 +63,8 @@ func TestStreamingIterator_LazyRead(t *testing.T) {
 
 // TestStreamingIterator_Reset verifies that Reset allows re-reading.
 func TestStreamingIterator_Reset(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 
 	schema := &encoding.Schema{
@@ -102,6 +106,8 @@ func TestStreamingIterator_Reset(t *testing.T) {
 // (no readAllRecords). This is a behavioral test — same results as before the
 // streaming refactor.
 func TestProcess_UsesStreaming(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 
 	schema := &encoding.Schema{
@@ -161,6 +167,8 @@ func TestProcess_UsesStreaming(t *testing.T) {
 
 // TestSample_StopsEarly verifies that Sample only reads n records, not the full file.
 func TestSample_StopsEarly(t *testing.T) {
+	t.Parallel()
+
 	memFs := afero.NewMemMapFs()
 
 	schema := &encoding.Schema{

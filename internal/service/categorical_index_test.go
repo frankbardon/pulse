@@ -170,6 +170,8 @@ func ciGrouped(path string, grp types.GroupType, field string, agg types.Aggrega
 // "7" group) and the encx.SetMemberFault check in setValueGrouper.KeyFor
 // / setPerElementGrouper.KeysForRow (the set cases then answer).
 func TestCorruptCategorical_RefusedOnEveryArm(t *testing.T) {
+	t.Parallel()
+
 	const small = 64
 	big := int(parallelDecodeRecordThreshold) + 1024
 	files := map[string][]byte{
@@ -279,6 +281,8 @@ func TestCorruptCategorical_RefusedOnEveryArm(t *testing.T) {
 // Falsified by deleting the encx.CategoricalIndexFault check in
 // joinKeyOf (both join cases then answer, keying the corrupt row "").
 func TestCorruptCategorical_ChainAndJoin(t *testing.T) {
+	t.Parallel()
+
 	svc, dir := ciEnv(t, map[string][]byte{
 		"cat.pulse":   ciFile(t, 64, 5, ciRegionOff, 7),
 		"clean.pulse": ciFile(t, 64, -1, 0, 0),
@@ -332,6 +336,8 @@ func TestCorruptCategorical_ChainAndJoin(t *testing.T) {
 // formula answers), and the check in categoricalAccumulator.update (the
 // facet answers with value "7").
 func TestCorruptCategorical_RenderedOutputsRefuse(t *testing.T) {
+	t.Parallel()
+
 	svc, dir := ciEnv(t, map[string][]byte{
 		"cat.pulse":   ciFile(t, 64, 5, ciRegionOff, 7),
 		"clean.pulse": ciFile(t, 64, -1, 0, 0),
@@ -394,6 +400,8 @@ func TestCorruptCategorical_RenderedOutputsRefuse(t *testing.T) {
 // Falsified by deleting the encx.SetMemberFault check on the narrow set
 // rungs in exactValue (the set row then reads as ["VISA"]).
 func TestCorruptCategorical_CohortReaderRefuses(t *testing.T) {
+	t.Parallel()
+
 	svc, dir := ciEnv(t, map[string][]byte{
 		"cat.pulse":  ciFile(t, 8, 5, ciRegionOff, 7),
 		"set.pulse":  ciFile(t, 8, 5, ciTagsOff, 0x40),

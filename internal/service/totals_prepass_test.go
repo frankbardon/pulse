@@ -77,6 +77,8 @@ func retainedNames(schema *encoding.Schema, keep encx.FieldFilter) []string {
 // row expression (a) or the aggregations (b, pw) read — strictly fewer
 // than the reduce's own projection of the same request.
 func TestTotalsPrepass_ProjectionNarrowsToTotalInputs(t *testing.T) {
+	// serial: swaps the package-level service.prepassProjectionHook test hook
+
 	ctx := context.Background()
 	schema := prepassSchema()
 

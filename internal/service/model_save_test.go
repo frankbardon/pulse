@@ -117,6 +117,8 @@ func saveRequest(spec *types.RegressionSpec) *types.Request {
 // grouped request (whose regression is cohort-wide) — the saved file
 // loads back to exactly the Bound the in-request result binds to.
 func TestModelSave_ProcessRoundTripsBitExact(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		spec *types.RegressionSpec
@@ -196,6 +198,8 @@ func TestModelSave_ProcessRoundTripsBitExact(t *testing.T) {
 // the file and reports PULSE_MODEL_OVERWRITTEN (details.path, name,
 // regression).
 func TestModelSave_OverwriteWarns(t *testing.T) {
+	t.Parallel()
+
 	svc := fitsService(t)
 	first := saveRequest(&types.RegressionSpec{Type: types.REG_OLS, Name: "m", Target: "y", Predictors: []string{"x"}})
 	if _, err := svc.Process(context.Background(), first); err != nil {
@@ -222,6 +226,8 @@ func TestModelSave_OverwriteWarns(t *testing.T) {
 // TestModelSave_ReturnNeverSkipsASave: a `return` that drops the
 // regressions still fits (and saves) a regression that sets save.
 func TestModelSave_ReturnNeverSkipsASave(t *testing.T) {
+	t.Parallel()
+
 	svc := fitsService(t)
 	req := saveRequest(&types.RegressionSpec{Type: types.REG_OLS, Name: "m", Target: "y", Predictors: []string{"x"}})
 	req.Aggregations = []*types.Aggregation{{Type: types.AGG_SUM, Field: "y", Label: "s"}}
@@ -235,6 +241,8 @@ func TestModelSave_ReturnNeverSkipsASave(t *testing.T) {
 // TestModelSave_PathRefusedBeforeRun: an invalid path is
 // PULSE_MODEL_SAVE_INVALID before any record is read, and writes nothing.
 func TestModelSave_PathRefusedBeforeRun(t *testing.T) {
+	t.Parallel()
+
 	svc := fitsService(t)
 	req := saveRequest(&types.RegressionSpec{Type: types.REG_OLS, Name: "m", Target: "y", Predictors: []string{"x"}})
 	req.Regressions[0].Save = "../escape" + model.FileSuffix
@@ -317,8 +325,12 @@ func listAll(t *testing.T, fsys afero.Fs) []string {
 // the atomic write is PULSE_MODEL_WRITE_FAILED naming the stage; the
 // existing file keeps its bytes and no temp file is left behind.
 func TestModelSave_FailedWriteLeavesTargetIntact(t *testing.T) {
+	t.Parallel()
+
 	for _, stage := range []string{"create", "write", "sync", "rename"} {
 		t.Run(stage, func(t *testing.T) {
+			t.Parallel()
+
 			base := setupTestFS(t, fitsCohort, fitsSchema(), fitsRecords()).Fs()
 			const old = "previous model bytes"
 			if err := base.MkdirAll("models", 0o755); err != nil {
@@ -356,6 +368,8 @@ func TestModelSave_FailedWriteLeavesTargetIntact(t *testing.T) {
 // (details.fit), serial and parallel alike — a save on the fit
 // request's own regression included.
 func TestModelSave_FitsSave(t *testing.T) {
+	// serial: swaps the package-level service.fitRunObserver test hook; swaps the package-level service.slotModelsObserver test hook
+
 	o := observeFits(t)
 	svc := fitsService(t)
 	regSave := fitRequest("0", "103")
@@ -410,6 +424,8 @@ func TestModelSave_FitsSave(t *testing.T) {
 // path refuses the batch before any fit runs, so the earlier fit writes
 // nothing.
 func TestModelSave_FitsPathRefusedBeforeAnyFit(t *testing.T) {
+	// serial: swaps the package-level service.fitRunObserver test hook; swaps the package-level service.slotModelsObserver test hook
+
 	o := observeFits(t)
 	svc := fitsService(t)
 	c := &types.ComposedRequest{

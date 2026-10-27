@@ -72,6 +72,8 @@ func squareAt(t *testing.T, v *types.MatrixValues, r, c string) float64 {
 // correlation form's smallest eigenvalue, and reports
 // residual_covariance against the adjusted matrix.
 func TestMatrixSEM_SingularNearestMatchesSemopy(t *testing.T) {
+	t.Parallel()
+
 	desc, err := os.ReadFile(semTestdata + "singular_model.txt")
 	if err != nil {
 		t.Fatal(err)
@@ -137,6 +139,8 @@ func TestMatrixSEM_SingularNearestMatchesSemopy(t *testing.T) {
 // sits 1.7e-4 from its optimum); the evidence is at internal/sem
 // nearDefaultEstimateTol. Do not tighten the estimate bar.
 func TestMatrixSEM_NearSingularFactorsFitsRaw(t *testing.T) {
+	t.Parallel()
+
 	desc, err := os.ReadFile(semTestdata + "near_model.txt")
 	if err != nil {
 		t.Fatal(err)
@@ -214,6 +218,8 @@ func TestMatrixSEM_NearSingularFactorsFitsRaw(t *testing.T) {
 // standardized, has no nearest substitute (semopy raises LinAlgError):
 // the slot fails with PULSE_MATRIX_SINGULAR and PULSE_SLOT_FAILED.
 func TestMatrixSEM_SingularRefuse(t *testing.T) {
+	t.Parallel()
+
 	cfg, cols := semCohort(t, semTestdata+"singular_data.csv", nil, nil)
 	_, ce := semProcessErr(t, cfg, types.MatrixSpec{Name: "sem", Type: types.MAT_SEM, Fields: cols, Params: json.RawMessage(`{"singular": "refuse"}`)})
 	if ce == nil || ce.Code != errors.PULSE_MATRIX_SINGULAR {

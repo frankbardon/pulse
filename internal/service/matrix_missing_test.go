@@ -90,8 +90,12 @@ func findWarning(res types.MatrixResult, code errors.Code) *types.ResponseWarnin
 // statsmodels oracle, unweighted and under both weight kinds, with the
 // pairwise N in auxiliary.n.
 func TestMatrixPairwise_MatchesReference(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range matrixRefPairwiseCases {
 		t.Run(fmt.Sprintf("%s/weight=%q/ddof=%d", c.typ, c.weight, c.ddof), func(t *testing.T) {
+			t.Parallel()
+
 			params := `{"missing": "pairwise"}`
 			if c.typ == string(types.MAT_COVARIANCE) {
 				params = fmt.Sprintf(`{"missing": "pairwise", "ddof": %d}`, c.ddof)
@@ -126,6 +130,8 @@ func TestMatrixPairwise_MatchesReference(t *testing.T) {
 // under pairwise, with the primary's kind, encoding, keys and labels;
 // an explicit "listwise" equals the default bit for bit.
 func TestMatrixPairwise_AuxiliaryNShape(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "m.pulse", matrixRefRows)
 	for _, typ := range types.AllMatrixTypes() {
 		if pairwiseRefused(typ) {
@@ -245,6 +251,8 @@ func nonPSDRows() [][5]float64 {
 // non-PSD on both operators with the failing pivot named; a collinear
 // (singular but PSD) pairwise matrix and the listwise mode are not.
 func TestMatrixWarnings_NotPSD(t *testing.T) {
+	t.Parallel()
+
 	for _, typ := range types.AllMatrixTypes() {
 		if vectors.IsDecomposition(typ) || pairwiseRefused(typ) {
 			continue // fatal or repaired: TestMatrixPartialCorrelation_NotPSDGuard
@@ -288,6 +296,8 @@ func TestMatrixWarnings_NotPSD(t *testing.T) {
 // warning agrees for every weight column; the pairwise covariances are
 // positive definite and carry no warning.
 func TestMatrixWarnings_NotPSDOnReferenceCorrelation(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range matrixRefPairwiseCases {
 		params := `{"missing": "pairwise"}`
 		res := runOneMatrix(t, matrixRefRows, missingSpec(types.MatrixType(c.typ), x123, c.weight, params))
@@ -302,6 +312,8 @@ func TestMatrixWarnings_NotPSDOnReferenceCorrelation(t *testing.T) {
 // rows listwise (share 0.25). max_drop_share 0.2 warns with the counts;
 // 0.25 (not exceeded) and no max_drop_share do not.
 func TestMatrixWarnings_ListwiseHeavyDrop(t *testing.T) {
+	t.Parallel()
+
 	for _, typ := range types.AllMatrixTypes() {
 		for _, c := range []struct {
 			params string
@@ -341,8 +353,12 @@ func TestMatrixWarnings_ListwiseHeavyDrop(t *testing.T) {
 // weight column warn at matrix scope; a pairwise pair with one row warns
 // at pair scope naming the pair.
 func TestMatrixWarnings_InsufficientN(t *testing.T) {
+	t.Parallel()
+
 	for _, typ := range types.AllMatrixTypes() {
 		t.Run(string(typ), func(t *testing.T) {
+			t.Parallel()
+
 			one := runOneMatrix(t, matrixRefRows[:1], missingSpec(typ, x123, "", ""))
 			w := findWarning(one, errors.PULSE_MATRIX_INSUFFICIENT_N)
 			if w == nil || w.Details["scope"] != "matrix" || w.Details["n"] != int64(1) {
@@ -413,6 +429,8 @@ func TestMatrixWarnings_InsufficientN(t *testing.T) {
 // "nearest", semopy's) has no substitute for it and fails the slot, as
 // semopy raises; its "refuse" names and nulls it like the others.
 func TestMatrixWarnings_ZeroVariance(t *testing.T) {
+	t.Parallel()
+
 	rows := pearsonParityRows(40)
 	for i := range rows {
 		rows[i][1] = 3.5 // x2 constant
@@ -488,6 +506,8 @@ func TestMatrixWarnings_ZeroVariance(t *testing.T) {
 // TestMatrixWarnings_WireShape: matrix warnings marshal as the
 // {code, message, details} entries of every other warning slot.
 func TestMatrixWarnings_WireShape(t *testing.T) {
+	t.Parallel()
+
 	res := runOneMatrix(t, nonPSDRows(), missingSpec(types.MAT_CORRELATION, x123, "", `{"missing": "pairwise"}`))
 	var wire struct {
 		Warnings []map[string]json.RawMessage `json:"warnings"`

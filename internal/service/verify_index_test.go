@@ -12,6 +12,8 @@ import (
 )
 
 func TestVerifyIndex_Fresh_FallsThroughToFullHashConfirmation(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -40,6 +42,8 @@ func TestVerifyIndex_Fresh_FallsThroughToFullHashConfirmation(t *testing.T) {
 }
 
 func TestVerifyIndex_StaleViaSizeMismatch_SkipsFullHash(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -92,6 +96,8 @@ func TestVerifyIndex_StaleViaSizeMismatch_SkipsFullHash(t *testing.T) {
 // the old fast-path verdict could only disagree with that by not
 // hashing at all.
 func TestVerifyIndex_MTimeDriftFallsThroughToTheFingerprint(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -144,6 +150,8 @@ func TestVerifyIndex_MTimeDriftFallsThroughToTheFingerprint(t *testing.T) {
 // stale index fresh. Same size (so the size fast-path cannot answer),
 // moved mtime, mutated content.
 func TestVerifyIndex_MTimeDriftWithChangedContentIsStale(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -190,6 +198,8 @@ func TestVerifyIndex_MTimeDriftWithChangedContentIsStale(t *testing.T) {
 // full-hash confirmation the match case always performs catches the
 // divergence.
 func TestVerifyIndex_MatchingStatButChangedContent_FullHashCatchesIt(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -242,6 +252,8 @@ func TestVerifyIndex_MatchingStatButChangedContent_FullHashCatchesIt(t *testing.
 }
 
 func TestVerifyIndex_MissingIndex(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -256,6 +268,8 @@ func TestVerifyIndex_MissingIndex(t *testing.T) {
 }
 
 func TestVerifyIndex_EmptyKeyFieldsRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -270,6 +284,8 @@ func TestVerifyIndex_EmptyKeyFieldsRejected(t *testing.T) {
 }
 
 func TestVerifyIndex_ShardArchiveWithoutIndexIsMissing(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, _ := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, [][]uint64{})
 

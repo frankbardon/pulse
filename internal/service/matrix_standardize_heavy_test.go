@@ -18,6 +18,8 @@ import (
 // function of the merged co-moment, so the streamed, buffered,
 // decode-parallel and sharded runs emit the same bits.
 func TestMatrixStandardize_PathInvariant(t *testing.T) {
+	t.Parallel()
+
 	schema := coMomentSchema()
 	B := linalg.MergeBlockSize
 	dir := t.TempDir()

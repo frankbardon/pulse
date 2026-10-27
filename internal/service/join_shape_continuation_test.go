@@ -14,6 +14,8 @@ import (
 // measurements use — on both the sorted join-shape fixture and its
 // scattered copy, and each field's rate must agree with the overall.
 func TestJoinShapeContinuation_ProfilePredictsRunSkip(t *testing.T) {
+	t.Parallel()
+
 	fsys, path, schema, rows := loadJoinShapeFixture(t)
 	sorted, err := afero.ReadFile(fsys, path)
 	if err != nil {

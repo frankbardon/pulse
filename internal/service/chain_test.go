@@ -21,6 +21,8 @@ import (
 // produces the same numeric result as running stage 1 to a manual
 // intermediate map and re-running stage 2 against it.
 func TestProcessChain_TwoStageByteEqualToManual(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -81,6 +83,8 @@ func TestProcessChain_TwoStageByteEqualToManual(t *testing.T) {
 // runs against the on-disk schema; later stages against the synthesized
 // stage-output schema. Both must show defaults resolved.
 func TestProcessChain_NormalizedRequest_PerStage(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	ctx := context.Background()
@@ -157,6 +161,8 @@ func TestProcessChain_NormalizedRequest_PerStage(t *testing.T) {
 // the chain executor refuses a non-mergeable stage and surfaces the
 // offending stage index.
 func TestProcessChain_NonMergeableMiddleStageReturnsError(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -200,6 +206,8 @@ func TestProcessChain_NonMergeableMiddleStageReturnsError(t *testing.T) {
 // as one single-file cohort. Per-shard modes differ from the global
 // mode, so a wrong merge changes the numbers.
 func TestProcessChain_ModeCountAggregatorAccepted(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "grp", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},
 		{Name: "v", Type: encoding.FieldTypeU8, ByteOffset: 1, CsvColumnIdx: 1},
@@ -277,6 +285,8 @@ func TestProcessChain_ModeCountAggregatorAccepted(t *testing.T) {
 // alone says 9 (the first value seen), shard b says 4, so a first-seen
 // or per-shard-mode merge returns 9 where the smallest-tie mode is 4.
 func TestProcessChain_ModeAggregatorAccepted(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "grp", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},
 		{Name: "v", Type: encoding.FieldTypeU8, ByteOffset: 1, CsvColumnIdx: 1},
@@ -349,6 +359,8 @@ func TestProcessChain_ModeAggregatorAccepted(t *testing.T) {
 
 // TestProcessChain_EmptyStagesError validates the empty-chain guard.
 func TestProcessChain_EmptyStagesError(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 	ctx := context.Background()
@@ -367,6 +379,8 @@ func TestProcessChain_EmptyStagesError(t *testing.T) {
 // rows. Builds confidence that the synth-schema + slice-iterator
 // machinery handles repeated re-materialization.
 func TestProcessChain_FiveStageScalarPipeline(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "region", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},
@@ -458,6 +472,8 @@ func TestProcessChain_FiveStageScalarPipeline(t *testing.T) {
 }
 
 func TestProcessChain_NoOverlaysByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	ctx := context.Background()
 
@@ -510,6 +526,8 @@ func containsKey(haystack, needle string) bool {
 }
 
 func TestProcessChain_StubOverlayRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	ctx := context.Background()
 
@@ -579,6 +597,8 @@ func TestProcessChain_StubOverlayRoundTrip(t *testing.T) {
 }
 
 func TestOverlay_ChainPerStage_Piggyback(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "region", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},
@@ -819,6 +839,8 @@ func seriesLayerValuesByKey(t *testing.T, layer *types.OverlayLayer) map[string]
 }
 
 func TestOverlay_ChainWholeChain_IndexVsStage(t *testing.T) {
+	t.Parallel()
+
 	cfg := build3StageCohort(t)
 	ctx := context.Background()
 
@@ -917,6 +939,8 @@ func TestOverlay_ChainWholeChain_IndexVsStage(t *testing.T) {
 }
 
 func TestOverlay_ChainWholeChain_DeltaVsStage(t *testing.T) {
+	t.Parallel()
+
 	cfg := build3StageCohort(t)
 	ctx := context.Background()
 
@@ -1001,6 +1025,8 @@ func TestOverlay_ChainWholeChain_DeltaVsStage(t *testing.T) {
 }
 
 func TestChain_OverlayLayerWarnings_ReachServiceReturn(t *testing.T) {
+	t.Parallel()
+
 	// Cohort: 3 regions × 2 rows each. Region=2's score sums to 0 so
 	// stage 1's FILTER_RANGE v>0.5 drops it before re-aggregation, and
 	// stage 2 never sees region=2 — the missing-row trigger for

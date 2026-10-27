@@ -17,6 +17,8 @@ import (
 // row's declared weight-only keys — and must then marshal to the same
 // bytes, so every float matches bit for bit.
 func TestWeightUnityParity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("coverage", assertParityCoverage)
 	aware := manifestAware()
 	store := newParityStore(t, "unity", func(n int) []parityRow { return parityRows(n, unityWeight) })
@@ -60,6 +62,8 @@ func TestWeightUnityParity(t *testing.T) {
 // percentile (scaleNormalized), whose probability weights are rescaled
 // to sum to n, so only their frequency arm expands.
 func TestWeightFrequencyExpansionParity(t *testing.T) {
+	t.Parallel()
+
 	t.Run("coverage", assertParityCoverage)
 	weighted := newParityStore(t, "weighted", func(n int) []parityRow { return parityRows(n, freqWeight) })
 	expanded := newParityStore(t, "expanded", func(n int) []parityRow { return expandRows(parityRows(n, freqWeight)) })

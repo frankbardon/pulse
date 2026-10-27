@@ -33,6 +33,8 @@ func joinSetKeyHeaderBytes(t *testing.T, fields []encoding.Field) []byte {
 // `pulse predict` and then `pulse api process` must not be told two
 // different stories about the same request.
 func TestValidateJoin_SetKeyRejectedMessageMatchesProcessing(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	for _, v := range []string{"a", "b", "c"} {
 		_, _ = dict.Add(v)
@@ -98,11 +100,15 @@ func TestValidateJoin_SetKeyRejectedMessageMatchesProcessing(t *testing.T) {
 // rule (exact or nothing, #458): predict and runtime raise the same
 // code, reason and sentence, in both pair orders.
 func TestValidateJoin_U64FloatKeyRefusedMessageMatchesProcessing(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct{ left, right encoding.FieldType }{
 		{encoding.FieldTypeU64, encoding.FieldTypeF64},
 		{encoding.FieldTypeF32, encoding.FieldTypeU64},
 	} {
 		t.Run(c.left.String()+"_"+c.right.String(), func(t *testing.T) {
+			t.Parallel()
+
 			leftFields := []encoding.Field{{Name: "id", Type: c.left, ByteOffset: 0}}
 			rightFields := []encoding.Field{{Name: "id", Type: c.right, ByteOffset: 0}}
 			spec := &types.JoinSpec{Right: "right.pulse", Kind: "inner", As: "r_",

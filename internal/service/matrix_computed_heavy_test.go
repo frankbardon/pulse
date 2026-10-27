@@ -18,6 +18,8 @@ import (
 // keeps the request streamable and mergeable, and every path emits the
 // same bits, standardized or not.
 func TestMatrixComputedMember_PathInvariant(t *testing.T) {
+	t.Parallel()
+
 	schema := coMomentSchema()
 	B := linalg.MergeBlockSize
 	dir := t.TempDir()

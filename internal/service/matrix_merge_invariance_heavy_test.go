@@ -24,6 +24,8 @@ import (
 // merge-tree contract). Listwise and pairwise (params.missing),
 // the pairwise N (auxiliary.n) and the matrix warnings included.
 func TestMatrixCovariance_WorkerInvariant(t *testing.T) {
+	t.Parallel()
+
 	schema := coMomentSchema()
 	B := linalg.MergeBlockSize
 

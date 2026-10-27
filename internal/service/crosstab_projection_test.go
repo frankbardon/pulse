@@ -93,6 +93,8 @@ func narrowCrosstabRecords(wide [][]uint64) [][]uint64 {
 // Failure here means projection drops or corrupts data needed by
 // aggregation, partitioning, or margin recompute.
 func TestCrosstabProjection_BehavioralEquivalenceOnWideCohort(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	wideSchema := wideCrosstabSchema(t, 50)
@@ -141,6 +143,8 @@ func TestCrosstabProjection_BehavioralEquivalenceOnWideCohort(t *testing.T) {
 // the cell field would silently break this. Run the same logical
 // request against a wide cohort and assert the expected median margin.
 func TestCrosstabProjection_MedianMarginUnchangedOnWideCohort(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	wideSchema := wideCrosstabSchema(t, 25)
@@ -188,6 +192,8 @@ func TestCrosstabProjection_MedianMarginUnchangedOnWideCohort(t *testing.T) {
 // complete (unparseable). The implementation must fall through to the
 // full-decode path silently and still return a correct matrix.
 func TestCrosstabProjection_FilterExpressionFallsBackToFullDecode(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	schema := wideCrosstabSchema(t, 10)
@@ -240,6 +246,8 @@ func TestCrosstabProjection_FilterExpressionFallsBackToFullDecode(t *testing.T) 
 // cell field along a SplitBy field that lives outside the axes; the
 // test result must surface and match a standalone-test run.
 func TestCrosstabProjection_TestsReferenceExtraField(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	// Schema: region, segment, value, group, pad_*.

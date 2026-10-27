@@ -29,6 +29,8 @@ func corrSpec(name string, fields []string, weight string) types.MatrixSpec {
 // (frequency and probability weights): listwise over null cells, a
 // zero-weight row kept.
 func TestMatrixCorrelation_MatchesReference(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "ref.pulse", matrixRefRows)
 	for _, c := range matrixRefCorrCases {
 		t.Run(fmt.Sprintf("weight=%q", c.weight), func(t *testing.T) {
@@ -91,6 +93,8 @@ func pearsonParityRows(n int) [][5]float64 {
 // last bits differ; its bits must not change, so the tolerance leg is
 // what holds on every architecture.
 func TestMatrixCorrelation_PearsonParity(t *testing.T) {
+	t.Parallel()
+
 	members := []string{"x1", "x2", "x3"}
 	pearsonUnfused := runtime.GOARCH == "amd64"
 	if !pearsonUnfused {
@@ -158,6 +162,8 @@ func TestMatrixCorrelation_PearsonParity(t *testing.T) {
 // are NaN in Go and null on the wire (keys kept), the determinant is
 // null, and every other cell is still defined.
 func TestMatrixCorrelation_ZeroSpreadIsNull(t *testing.T) {
+	t.Parallel()
+
 	rows := pearsonParityRows(60)
 	for i := range rows {
 		rows[i][2] = 7.25 // x3 constant

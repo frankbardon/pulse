@@ -203,6 +203,8 @@ func buildNullableShardArchive(t testing.TB, schema *encoding.Schema, shardRows 
 // per-slot floor — the same request answering two different shapes
 // depending on worker count.
 func TestShardWorkers_AggregationComponentsParity(t *testing.T) {
+	t.Parallel()
+
 	schema := componentsParitySchema()
 	archive := buildNullableShardArchive(t, schema, []int{40, 37, 41})
 
@@ -263,6 +265,8 @@ func TestShardWorkers_AggregationComponentsParity(t *testing.T) {
 // ran serially; a reducer emitting per-shard figures would report one
 // shard's counts (or one warning per shard).
 func TestShardWorkers_AttributeComponentsParity(t *testing.T) {
+	t.Parallel()
+
 	schema := componentsParitySchema()
 	archive := buildNullableShardArchive(t, schema, []int{40, 37, 41})
 	cfg := fs.NewMemMap()
@@ -319,6 +323,8 @@ func TestShardWorkers_AttributeComponentsParity(t *testing.T) {
 // disabled the wire form stays byte-identical to the pre-Components
 // baseline, i.e. Components is nil, not a floor-only shell.
 func TestShardWorkers_AggregationComponentsRespectOptOut(t *testing.T) {
+	t.Parallel()
+
 	schema := componentsParitySchema()
 	archive := buildNullableShardArchive(t, schema, []int{20, 21, 19})
 
@@ -350,6 +356,8 @@ func TestShardWorkers_AggregationComponentsRespectOptOut(t *testing.T) {
 // Two filterers, so the n_in invariant is load-bearing: slot 1's n_in
 // must equal slot 0's n_out, not the cohort total.
 func TestShardWorkers_FiltererComponentsParity(t *testing.T) {
+	t.Parallel()
+
 	schema := componentsParitySchema()
 	archive := buildNullableShardArchive(t, schema, []int{40, 37, 41})
 

@@ -123,6 +123,8 @@ func closeTo(got, want, rel float64) bool {
 // probability weights, ddof 0 and 1, listwise over null cells, a
 // zero-weight row kept.
 func TestMatrixCovariance_MatchesReference(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "ref.pulse", matrixRefRows)
 	for _, c := range matrixRefCases {
 		t.Run(fmt.Sprintf("weight=%q/ddof=%d", c.weight, c.ddof), func(t *testing.T) {
@@ -158,6 +160,8 @@ func TestMatrixCovariance_MatchesReference(t *testing.T) {
 // AGG_MEDIAN forces it) are bit-identical, over a cohort spanning three
 // merge blocks, every weight kind and ddof, both encodings.
 func TestMatrixCovariance_StreamingEqualsBuffered(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "big.pulse", matrixRows(2*4096+1234))
 	schema := matrixSchema()
 	var specs []types.MatrixSpec
@@ -236,6 +240,8 @@ func TestMatrixCovariance_StreamingEqualsBuffered(t *testing.T) {
 // present: they add no mass on either side (the co-moment counts them
 // toward n, the weighted aggregators skip them).
 func TestMatrixCovariance_DiagonalMatchesVarianceAggregators(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "diag.pulse", matrixRows(5000))
 	for _, w := range []string{"", "f", "p"} {
 		for _, field := range []string{"x1", "x2", "x3"} {
@@ -280,6 +286,8 @@ func TestMatrixCovariance_DiagonalMatchesVarianceAggregators(t *testing.T) {
 // ddof allows, every cell and the determinant are NaN in Go and null on
 // the wire, keys kept.
 func TestMatrixCovariance_UndefinedIsNullOnTheWire(t *testing.T) {
+	t.Parallel()
+
 	nan := math.NaN()
 	cfg := writeMatrixCohort(t, "one.pulse", [][5]float64{{1, 2, 3, 1, 1}, {nan, 2, 3, 1, 1}})
 	req := &types.Request{

@@ -36,6 +36,8 @@ func filterStreamFixture(t *testing.T, svc *Service, fsys afero.Fs, dir string, 
 // absent one absent, and leaves no stage behind — on the single-file
 // and the anchored arm, with a predicate and without.
 func TestShardStream_FilterSingleFileFailureLeavesDestination(t *testing.T) {
+	t.Parallel()
+
 	for _, arm := range []string{"single", "anchored"} {
 		for _, stage := range []string{"write", "sync", "rename"} {
 			for _, expr := range []string{"score >= 0.0", ""} {
@@ -91,6 +93,8 @@ func TestShardStream_FilterSingleFileFailureLeavesDestination(t *testing.T) {
 // not grow with the input — reading the 4.8 MB input whole, or buffering
 // the output, would.
 func TestShardStream_FilterSingleFileMemoryBounded(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	const small, large = 40_000, 400_000 // 12-byte records
 	fixed := uint64(2 << 20)
 	for _, arm := range []string{"single", "anchored"} {

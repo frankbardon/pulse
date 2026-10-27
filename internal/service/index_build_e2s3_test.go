@@ -51,6 +51,8 @@ func singleKeyLookupRequest(cohort, field, value string, returnColumns []string)
 // two must land on the exact same on-wire bytes for the hash probe to
 // hit.
 func TestBuildIndexAndLookup_DateKey_ExactMatch(t *testing.T) {
+	t.Parallel()
+
 	schema := dateIndexTestSchema()
 	records := [][]uint64{
 		{1, epochDays(t, "2006-01-02", "2024-01-01")},
@@ -129,6 +131,8 @@ func setupDecimalIndexTestFS(t *testing.T, path string, mantissas []int64) *fs.C
 // two must land on byte-identical mantissa bytes for the hash probe to
 // hit.
 func TestBuildIndexAndLookup_Decimal128Key_ExactMatch(t *testing.T) {
+	t.Parallel()
+
 	// mantissa 1234 -> "12.34"; 999999 -> "9999.99"; 100 -> "1.00".
 	cfg := setupDecimalIndexTestFS(t, "cohort.pulse", []int64{1234, 999999, 100})
 	svc := New(cfg)

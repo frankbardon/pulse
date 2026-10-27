@@ -742,6 +742,8 @@ func fracWeight(i int) float64 { return float64((i*7919)%997+1) / 331.0 }
 // — dyadic, non-dyadic, tiny — answers BYTE-identically (Data and the
 // operator components) on every arm the operator runs on.
 func TestWeightProbabilityQuantileScaleInvariance(t *testing.T) {
+	t.Parallel()
+
 	base := newParityStore(t, "base", func(n int) []parityRow { return parityRows(n, fracWeight) })
 	scales := map[string]float64{"x1/1024": 1.0 / 1024, "x1/3": 1.0 / 3, "x1e-6": 1e-6, "x7.3": 7.3}
 	stores := map[string]*parityStore{}

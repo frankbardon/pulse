@@ -84,6 +84,8 @@ func writeMemMapCohort(t *testing.T, rowCount int) (string, *fs.Config) {
 // OsFs (so resolveRealPath succeeds), with workers=4 ⇒ canParallelDecode
 // returns true and the reason string is empty.
 func TestCanParallelDecode_Eligible(t *testing.T) {
+	t.Parallel()
+
 	path, cfg := writeOsFsCohort(t, parallelDecodeRecordThreshold+1024)
 	svc := New(cfg)
 
@@ -106,6 +108,8 @@ func TestCanParallelDecode_Eligible(t *testing.T) {
 // strictly-serial knob: workers==1 ⇒ bail regardless of every other
 // condition. Mirrors the ShardWorkers==1 semantics in shouldFanOut.
 func TestCanParallelDecode_WorkersOneBails(t *testing.T) {
+	t.Parallel()
+
 	path, cfg := writeOsFsCohort(t, parallelDecodeRecordThreshold+1024)
 	svc := New(cfg)
 
@@ -129,6 +133,8 @@ func TestCanParallelDecode_WorkersOneBails(t *testing.T) {
 // check. Reason string should include both the actual count and the
 // floor so downstream debug consumers can spot the cause at a glance.
 func TestCanParallelDecode_BelowThreshold(t *testing.T) {
+	t.Parallel()
+
 	path, cfg := writeOsFsCohort(t, 1024)
 	svc := New(cfg)
 
@@ -151,6 +157,8 @@ func TestCanParallelDecode_BelowThreshold(t *testing.T) {
 // a MemMapFs-backed cohort cannot mmap (no RealPath), so the gate
 // rejects even when every other condition holds.
 func TestCanParallelDecode_MemMapFsBails(t *testing.T) {
+	t.Parallel()
+
 	path, cfg := writeMemMapCohort(t, parallelDecodeRecordThreshold+1024)
 	svc := New(cfg)
 
@@ -174,6 +182,8 @@ func TestCanParallelDecode_MemMapFsBails(t *testing.T) {
 // percentile aggregator, requires buffered sort) must bail even on an
 // otherwise-eligible cohort.
 func TestCanParallelDecode_NonMergeableBails(t *testing.T) {
+	t.Parallel()
+
 	path, cfg := writeOsFsCohort(t, parallelDecodeRecordThreshold+1024)
 	svc := New(cfg)
 
@@ -204,6 +214,8 @@ func TestCanParallelDecode_NonMergeableBails(t *testing.T) {
 // shard_reduce.go (ShardWorkers); the per-cohort parallel decode would
 // double-spawn on the same CPUs and must bail.
 func TestCanParallelDecode_ShardArchiveBails(t *testing.T) {
+	t.Parallel()
+
 	cfg, _, _ := fourShardScoreCohort(t)
 	svc := New(cfg)
 
@@ -236,6 +248,8 @@ func TestCanParallelDecode_ShardArchiveBails(t *testing.T) {
 // call. The dispatch site never passes nil today, but the predicate
 // must stay safe.
 func TestCanParallelDecode_NilCohortBails(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	svc := New(cfg)
 	req := mergeableRequest("dummy")
@@ -255,6 +269,8 @@ func TestCanParallelDecode_NilCohortBails(t *testing.T) {
 // The gate itself must not reject zero — only an explicit 1 forces
 // serial.
 func TestCanParallelDecode_AutoWorkersTreatedAsParallel(t *testing.T) {
+	t.Parallel()
+
 	path, cfg := writeOsFsCohort(t, parallelDecodeRecordThreshold+1024)
 	svc := New(cfg)
 
@@ -276,6 +292,8 @@ func TestCanParallelDecode_AutoWorkersTreatedAsParallel(t *testing.T) {
 // shape correctness against a forced-serial baseline so any drift
 // signals a dispatch leak.
 func TestProcess_ParallelDecode_BelowThresholdBails(t *testing.T) {
+	t.Parallel()
+
 	path, cfg := writeOsFsCohort(t, 1024)
 	ctx := context.Background()
 

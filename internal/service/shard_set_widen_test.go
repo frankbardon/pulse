@@ -97,6 +97,8 @@ func setWidenFixture(t *testing.T) (*Service, afero.Fs) {
 // core case: the merged dictionary (9 members) does not fit set_u8, so
 // the archive widens to set_u16 instead of refusing the shard.
 func TestAddShard_WidensArchiveWhenMergedDictOutgrowsSetRung(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := setWidenFixture(t)
 	ctx := context.Background()
 
@@ -184,6 +186,8 @@ func TestAddShard_WidensArchiveWhenMergedDictOutgrowsSetRung(t *testing.T) {
 // The widen warning is MANDATORY. An archive-wide rewrite that happens
 // silently is indistinguishable from a cheap append.
 func TestAddShard_WidenEmitsMandatoryWarning(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := setWidenFixture(t)
 
 	res, err := svc.AddShard(context.Background(), "arch.pulse", "add.pulse")
@@ -221,6 +225,8 @@ func TestAddShard_WidenEmitsMandatoryWarning(t *testing.T) {
 // aggregate_record_count and shard_count in the SHRD trailer must still
 // be right after the whole-archive re-stride.
 func TestAddShard_WidenKeepsSchemaDocTrailerCorrect(t *testing.T) {
+	t.Parallel()
+
 	svc, fsys := setWidenFixture(t)
 	if _, err := svc.AddShard(context.Background(), "arch.pulse", "add.pulse"); err != nil {
 		t.Fatalf("AddShard: %v", err)
@@ -237,6 +243,8 @@ func TestAddShard_WidenKeepsSchemaDocTrailerCorrect(t *testing.T) {
 
 // Cohesion must still hold post-widen, and `shard verify` must pass.
 func TestAddShard_WidenedArchiveVerifiesClean(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := setWidenFixture(t)
 	ctx := context.Background()
 	if _, err := svc.AddShard(ctx, "arch.pulse", "add.pulse"); err != nil {
@@ -253,6 +261,8 @@ func TestAddShard_WidenedArchiveVerifiesClean(t *testing.T) {
 
 // The anchor open must resolve a widened shard as a one-shard cohort.
 func TestAddShard_WidenedArchiveOpensByAnchor(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := setWidenFixture(t)
 	ctx := context.Background()
 	if _, err := svc.AddShard(ctx, "arch.pulse", "add.pulse"); err != nil {
@@ -276,6 +286,8 @@ func TestAddShard_WidenedArchiveOpensByAnchor(t *testing.T) {
 
 // A union above 256 has nowhere left to widen to.
 func TestAddShard_UnionAboveTheWidestRungStaysFatal(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
 	svc := New(cfg)
@@ -321,6 +333,8 @@ func TestAddShard_UnionAboveTheWidestRungStaysFatal(t *testing.T) {
 // openable — a half-widened archive opens fine and decodes every field
 // after the widened one at the wrong offset.
 func TestAddShard_WidenIsAtomicUnderRenameFailure(t *testing.T) {
+	t.Parallel()
+
 	svc, fsys := setWidenFixture(t)
 	ctx := context.Background()
 	before, err := afero.ReadFile(fsys, "arch.pulse")
@@ -355,6 +369,8 @@ func TestAddShard_WidenIsAtomicUnderRenameFailure(t *testing.T) {
 
 // Verify reports per-set-field headroom so a widen is foreseeable.
 func TestVerifyShardArchive_ReportsSetWidthHeadroom(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := setWidenFixture(t)
 	res, err := svc.VerifyShardArchive(context.Background(), "arch.pulse")
 	if err != nil {
@@ -378,6 +394,8 @@ func TestVerifyShardArchive_ReportsSetWidthHeadroom(t *testing.T) {
 // An add that does NOT overflow must not widen, must not warn, and must
 // leave the rung alone — the widen is the exception, not the path.
 func TestAddShard_NoWidenWhenTheUnionFits(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
 	svc := New(cfg)

@@ -75,8 +75,12 @@ func materializeScores(t *testing.T, svc *Service, ctx context.Context, models [
 // what the Compose slot scored, and a Materialize loading it scores
 // every row bit for bit like a Materialize under the in-compose fit.
 func TestModelLoad_ScoresBitEqualToFit(t *testing.T) {
+	t.Parallel()
+
 	for name, spec := range scorers() {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			svc := fitsService(t)
 			ctx := context.Background()
 			fit := fitRequest("0", "90")
@@ -132,6 +136,8 @@ func saveModel(t *testing.T, svc *Service) {
 // FILTER_EXPRESSION coef(), a Compose slot and a fit request — each
 // scoring what a standalone Process scores.
 func TestModelLoad_Surfaces(t *testing.T) {
+	t.Parallel()
+
 	svc := fitsService(t)
 	ctx := context.Background()
 	saveModel(t, svc)
@@ -231,6 +237,8 @@ func loadedBound(t *testing.T, svc *Service) *model.Bound {
 // cohort holding the same predictor columns — the provenance names the
 // training cohort, and nothing compares it.
 func TestModelLoad_CrossCohort(t *testing.T) {
+	t.Parallel()
+
 	svc := fitsService(t)
 	ctx := context.Background()
 	saveModel(t, svc)
@@ -271,6 +279,8 @@ func TestModelLoad_CrossCohort(t *testing.T) {
 // before any record is read (Process), and inside a Compose batch before
 // any fit or slot runs, so the fit's own save is never written.
 func TestModelLoad_Refusals(t *testing.T) {
+	t.Parallel()
+
 	svc := fitsService(t)
 	ctx := context.Background()
 	saveModel(t, svc)

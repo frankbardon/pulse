@@ -258,6 +258,8 @@ func testRobustGLMBayesOracle(t *testing.T) {
 // classical} give the same wire bytes (no "covariance" key), with and
 // without vcov; a robust type moves the standard errors only.
 func TestRegressionCovariance_GLMBayesClassicalByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	g := loadGLMRobust(t)
 	svc := glmRobustCohort(t, g.Rows)
 	for _, fam := range []glmRobustCase{{Family: "binomial", Target: "y_bin"}, {Family: "poisson", Target: "y_count"}, {Family: "gamma", Target: "y_gamma"}, {Family: "bayes", Target: "y"}} {

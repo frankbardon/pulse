@@ -511,6 +511,8 @@ func assertMatrixCloseToReference(t *testing.T, got matrixRun, ref []uint64) {
 // serial and both parallel arms alike, and the record counters are the
 // cohort's — the parallel reducers must not assume a first aggregator.
 func TestMatrixOnly_RunComponents(t *testing.T) {
+	t.Parallel()
+
 	schema := coMomentSchema()
 	B := linalg.MergeBlockSize
 	shardRows := []int{B + 3, 700, 2 * B}

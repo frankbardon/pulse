@@ -104,6 +104,8 @@ func collNear(t *testing.T, where string, got, want float64) {
 // population sd over its own rows — scale-free, so both kinds agree;
 // auxiliary.n stays the raw row count.
 func TestMatrixCollinearity_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	cases, dir := loadCollinearityOracle(t)
 	cfg := fixtureFS(t, dir)
 	pairwise, weightedPairwise := 0, 0
@@ -182,6 +184,8 @@ func TestMatrixCollinearity_MatchesROracle(t *testing.T) {
 // rep() expansion — the weighted run equals the unweighted run over
 // rows repeated w times (VIF, both Belsley variants).
 func TestMatrixCollinearity_FrequencyIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	var weighted, expanded [][5]float64
 	for i := 0; i < 30; i++ {
 		a, b := float64(i%7)+0.25*float64(i%4), float64((i*5)%11)-0.5*float64(i%3)
@@ -221,6 +225,8 @@ func TestMatrixCollinearity_FrequencyIsExpansion(t *testing.T) {
 // two others has no R⁻¹, so the matrix is refused with
 // PULSE_MATRIX_SINGULAR naming the dependency.
 func TestMatrixCollinearity_SingularRefused(t *testing.T) {
+	t.Parallel()
+
 	rows := make([][5]float64, 40)
 	for i := range rows {
 		a, b := float64(i%7)+0.3*float64(i%3), float64((i*5)%11)
@@ -249,6 +255,8 @@ func TestMatrixCollinearity_SingularRefused(t *testing.T) {
 // undefined, so every figure is null (the co-moment warning says why)
 // and nothing is refused.
 func TestMatrixCollinearity_UndefinedNulls(t *testing.T) {
+	t.Parallel()
+
 	rows := make([][5]float64, 20)
 	for i := range rows {
 		rows[i] = [5]float64{float64(i % 5), float64((i * 3) % 7), 4, 1, 1}
@@ -283,6 +291,8 @@ func TestMatrixCollinearity_UndefinedNulls(t *testing.T) {
 // reads VIF and Belsley's figures off the repaired R (the primary), with
 // the repair warning.
 func TestMatrixCollinearity_NotPSDGuard(t *testing.T) {
+	t.Parallel()
+
 	_, dir := loadCollinearityOracle(t)
 	cfg := fixtureFS(t, dir)
 	req := func(params string) *types.Request {
@@ -319,6 +329,8 @@ func TestMatrixCollinearity_NotPSDGuard(t *testing.T) {
 // (there is no response key: the members are the predictors) is
 // PULSE_REQUEST_UNKNOWN_FIELD at the params allowlist.
 func TestMatrixCollinearity_Refusals(t *testing.T) {
+	t.Parallel()
+
 	cases, dir := loadCollinearityOracle(t)
 	cfg := fixtureFS(t, dir)
 	for _, params := range []string{

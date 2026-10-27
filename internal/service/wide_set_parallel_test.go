@@ -146,6 +146,8 @@ func assertWideSetRowNonDegenerate(t *testing.T, row map[string]any) {
 // ShardWorkers != 1" — so a small in-memory fixture is enough, but the
 // gate is asserted here too rather than assumed.
 func TestWideSet_ShardWorkersParity(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	svc := New(cfg)
 

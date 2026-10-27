@@ -14,6 +14,8 @@ import (
 // adjusts the two raw p-values; a `layer` family of one leaves p_adjusted
 // = p; the raw p never moves; fused and buffered arms agree.
 func TestMultiplicityFold_CrosstabSymmetry(t *testing.T) {
+	t.Parallel()
+
 	fused, buffered := overlayFoldService(t)
 	ctx := context.Background()
 	mk := func(m *types.Multiplicity) *types.Request {

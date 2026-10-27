@@ -121,8 +121,12 @@ func recordCountStrideCases() []struct {
 // bit-packed cohort got a silently inflated aggregate_record_count
 // baked into `_schema.pulse`.
 func TestRecordCountFromBytes_MatchesCanonicalStride(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range recordCountStrideCases() {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			const want = 19
 			if got := tc.schema.RecordByteSize(); got != tc.stride {
 				t.Fatalf("Schema.RecordByteSize() = %d, want the hand-computed %d",
@@ -149,8 +153,12 @@ func TestRecordCountFromBytes_MatchesCanonicalStride(t *testing.T) {
 // A divergence here means a cohort reports one record count when
 // created and another when opened.
 func TestRecordCountFromBytes_ParityWithPeekShardRecordCount(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range recordCountStrideCases() {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			const want = 17
 			payload := strideExactPayload(t, tc.schema, tc.stride, want)
 			archBytes := oneShardArchive(t, tc.schema, payload, want)
@@ -184,6 +192,8 @@ func TestRecordCountFromBytes_ParityWithPeekShardRecordCount(t *testing.T) {
 // that still opens and still processes. `pulse shard verify` is the
 // diagnostic arm that owns reporting a short tail.
 func TestRecordCountFromBytes_TruncatedTailFloorsSilently(t *testing.T) {
+	t.Parallel()
+
 	tc := recordCountStrideCases()[1] // nullable, bitmap-bearing
 	schema := tc.schema
 	payload := strideExactPayload(t, schema, tc.stride, 4)

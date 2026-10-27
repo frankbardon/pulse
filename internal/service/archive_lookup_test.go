@@ -171,6 +171,8 @@ func lk(pairs ...string) []types.LookupKey {
 // answers exactly as on the single-file twin, and the archive build
 // wrote one sidecar per shard (the empty one included).
 func TestArchiveLookup_ParityWithSingleFileTwin(t *testing.T) {
+	t.Parallel()
+
 	svc, fsys := setupArchiveLookup(t, []string{"id"}, []string{"region"}, []string{"region", "id"})
 	lo, loNext := strconv.FormatUint(alU64Lo, 10), strconv.FormatUint(alU64LoNext, 10)
 	cases := []struct {
@@ -237,6 +239,8 @@ func replaceArchive(t *testing.T, svc *Service, fsys afero.Fs, sources []string)
 // with PULSE_INDEX_STALE and details.shards_uncovered, and verify
 // reports the same shards on its fast-path.
 func TestArchiveLookup_UncoveredShardRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	base := []string{"a.pulse", "b.pulse", "c.pulse", "d.pulse"}
 	for _, c := range []struct {
@@ -309,6 +313,8 @@ func alJSON(t *testing.T, v any) string {
 // is byte-identical to the one an anchored build of that shard writes,
 // and an anchored lookup reads it with no build of its own.
 func TestArchiveLookup_ShardSidecarIsTheAnchorSidecar(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, fsys := setupArchiveLookup(t, []string{"id"})
 	res, err := svc.Lookup(ctx, &types.LookupRequest{Cohort: &types.Cohort{Filename: "arch.pulse#b.pulse"}, Field: "id", Value: "7", ReturnColumns: []string{"score"}})
@@ -342,6 +348,8 @@ func TestArchiveLookup_ShardSidecarIsTheAnchorSidecar(t *testing.T) {
 // per-shard files, a missing per-shard file is PULSE_INDEX_MANIFEST_STALE,
 // and drop removes the entry and every per-shard sidecar.
 func TestArchiveLookup_VerifyListDrop(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, fsys := setupArchiveLookup(t, []string{"id"}, []string{"region"})
 

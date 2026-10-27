@@ -107,6 +107,8 @@ func parityRequests(path string) map[string]*types.Request {
 }
 
 func TestShardWorkers_ComponentsParity_GroupedAndFlatArchives(t *testing.T) {
+	t.Parallel()
+
 	shards := parityShards()
 	files := map[string][]byte{}
 	var flatNames, groupedNames []string

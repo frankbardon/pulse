@@ -55,6 +55,8 @@ func assertNoStages(t *testing.T, fsys afero.Fs, dir string) {
 // are byte-equal to the single-file twin's, in archive order, and
 // whose schema is the canonical one.
 func TestShardStream_FlattenRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	svc, cfg, _ := filterArchiveFixture(t, "src.pulse")
 	fsys := cfg.Fs()
 
@@ -84,6 +86,8 @@ func TestShardStream_FlattenRoundTrip(t *testing.T) {
 // keeps exactly the rows Process keeps under the same filter, and the
 // flat file answers as the filtered archive does.
 func TestShardStream_FlattenFilteredMatchesProcess(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := filterArchiveFixture(t, "src.pulse")
 	ctx := context.Background()
 	const expr = "score > 50.0"
@@ -121,6 +125,8 @@ func TestShardStream_FlattenFilteredMatchesProcess(t *testing.T) {
 // rung and the union dictionary; its records equal a set_u16 file
 // written directly over the union.
 func TestShardStream_FlattenWidenedSetFields(t *testing.T) {
+	t.Parallel()
+
 	svc, fsys := setWidenFixture(t)
 	if _, err := svc.AddShard(context.Background(), "arch.pulse", "add.pulse"); err != nil {
 		t.Fatalf("AddShard: %v", err)
@@ -153,6 +159,8 @@ func TestShardStream_FlattenWidenedSetFields(t *testing.T) {
 // unfiltered and through a filtered flatten — equals the flat-layout
 // archive built from the same data.
 func TestShardStream_FlattenGroupedArchive(t *testing.T) {
+	t.Parallel()
+
 	a1, a2, aRows := gShardA().build(t, nil)
 	b1, b2, bRows := gShardB().build(t, nil)
 	svc, fsys := gEnv(t, map[string][]byte{"a.pulse": a2, "b.pulse": b2, "fa/a.pulse": a1, "fb/b.pulse": b1})
@@ -224,6 +232,8 @@ func TestShardStream_FlattenGroupedArchive(t *testing.T) {
 // the non-flatten output, without one it is the input; Flattened stays
 // false.
 func TestShardStream_FlattenSingleFileIsNoOp(t *testing.T) {
+	t.Parallel()
+
 	svc, cfg, _ := filterArchiveFixture(t, "src.pulse")
 	fsys := cfg.Fs()
 	ctx := context.Background()
@@ -255,6 +265,8 @@ func TestShardStream_FlattenSingleFileIsNoOp(t *testing.T) {
 // TestShardStream_FilterToFileNeedsPredicateWithoutFlatten: the options
 // form keeps FilterToFileBySetAndExpr's refusal unless Flatten is set.
 func TestShardStream_FilterToFileNeedsPredicateWithoutFlatten(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := filterArchiveFixture(t, "src.pulse")
 	_, err := svc.FilterToFileWithOptions(context.Background(), "src.pulse", "dst.pulse", FilterToFileOptions{})
 	if !errors.HasCode(err, errors.SERVICE_VALIDATION) {
@@ -266,8 +278,12 @@ func TestShardStream_FilterToFileNeedsPredicateWithoutFlatten(t *testing.T) {
 // after the stage is open (a cancelled context) leaves an existing
 // destination byte-identical and no stage behind — the archive arm too.
 func TestShardStream_FlattenFailureLeavesDestination(t *testing.T) {
+	t.Parallel()
+
 	for _, flat := range []bool{true, false} {
 		t.Run(fmt.Sprintf("flatten=%v", flat), func(t *testing.T) {
+			t.Parallel()
+
 			svc, cfg, _ := filterArchiveFixture(t, "src.pulse")
 			fsys := cfg.Fs()
 			old := []byte("previous output")
@@ -292,6 +308,8 @@ func TestShardStream_FlattenFailureLeavesDestination(t *testing.T) {
 // arm publishes the same archive the per-shard contract describes and
 // removes its spool.
 func TestShardStream_FilterArchiveArmLeavesNoSpool(t *testing.T) {
+	t.Parallel()
+
 	svc, cfg, _ := filterArchiveFixture(t, "src.pulse")
 	if _, err := svc.FilterToFile(context.Background(), "src.pulse", "dst.pulse", "score > 50.0"); err != nil {
 		t.Fatal(err)

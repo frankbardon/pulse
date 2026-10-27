@@ -28,6 +28,8 @@ import (
 // AGG_SUM / AGG_AVERAGE) is order-free, so the three shapes are
 // compared bit for bit.
 func TestShardParity_SingleFileVsArchiveVsAnchor(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, concat := canonicalThreeShards()
 
 	cfg := fs.NewMemMap()

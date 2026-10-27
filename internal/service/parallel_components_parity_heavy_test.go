@@ -19,6 +19,8 @@ import (
 // its per-record callback never incremented nullRecords at all, so
 // Run.NullRecords came back 0 where serial reported the real count.
 func TestDecodeWorkers_ComponentsParity(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = parallelDecodeRecordThreshold + 4096
 
 	schema := componentsParitySchema()

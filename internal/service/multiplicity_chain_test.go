@@ -90,6 +90,8 @@ func runStage(t *testing.T, svc *Service, req *types.Request) *types.Response {
 // to the uncorrected run's raw p-values; with no block anywhere the
 // stage answers byte-identically.
 func TestMultiplicityChain_StageHook(t *testing.T) {
+	t.Parallel()
+
 	holm := &types.Multiplicity{Method: types.MultiplicityMethodHolm}
 	bh := &types.Multiplicity{Method: types.MultiplicityMethodBH}
 	cases := []struct {
@@ -157,6 +159,8 @@ func TestMultiplicityChain_StageHook(t *testing.T) {
 // family of 2 and a family of 3, never one of 5 — exactly as each
 // stage request run alone.
 func TestMultiplicityChain_NoFamilySpansStages(t *testing.T) {
+	t.Parallel()
+
 	holm := &types.Multiplicity{Method: types.MultiplicityMethodHolm}
 	svc := New(nil)
 	first := runStage(t, svc, chainStageRequest(2, holm))
@@ -187,6 +191,8 @@ func TestMultiplicityChain_NoFamilySpansStages(t *testing.T) {
 // block-free chain, and stage 0 byte-identically to a standalone
 // Process of its request.
 func TestMultiplicityChain_WholeChain(t *testing.T) {
+	t.Parallel()
+
 	_, buffered := overlayFoldService(t)
 	cfg := buffered.fs
 	ctx := context.Background()

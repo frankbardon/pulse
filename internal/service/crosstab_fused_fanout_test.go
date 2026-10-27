@@ -58,6 +58,8 @@ func setFanoutRecords() [][]uint64 {
 // rather than erroring or silently dropping the buckets a record fans
 // into, which is what the E2-S2 first-key shim did.
 func TestCrosstabFused_SetPerElementRoutesThroughFusedPath(t *testing.T) {
+	t.Parallel()
+
 	schema := setFanoutSchema(t)
 	cfg := setupTestFS(t, "sets.pulse", schema, setFanoutRecords())
 	ctx := context.Background()

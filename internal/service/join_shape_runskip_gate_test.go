@@ -183,6 +183,8 @@ func joinShapeGatePair(t *testing.T) (*encoding.Schema, int, map[string][]byte) 
 // counts. MEASURED values (5,000-row gate cohort, any architecture —
 // the counts are deterministic) are recorded next to each bound.
 func TestJoinShapeRunSkip_WorkCounts(t *testing.T) {
+	t.Parallel()
+
 	schema, rows, payloads := joinShapeGatePair(t)
 	for _, tc := range []struct {
 		order string
@@ -294,6 +296,8 @@ func (p joinShapePlainIter) Reset()                     { p.it.Reset() }
 // to be byte-identical JSON. Correctness before performance: row order
 // and run-skip are both invisible in the output.
 func TestJoinShapeRunSkip_ProcessOutputOrderIndependent(t *testing.T) {
+	t.Parallel()
+
 	fsys, schema, _, paths := joinShapeOrders(t)
 	aggs := func() []*types.Aggregation {
 		return []*types.Aggregation{

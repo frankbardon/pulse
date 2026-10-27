@@ -676,6 +676,8 @@ func checkParity(t *testing.T, f *limitsFixture, c parityCase, l limits.Limits) 
 // runtime refusal carries the measured multiplicity (each brand twice)
 // at the same location.
 func TestLimits_JoinFanOut_PossibleAndBackstop(t *testing.T) {
+	t.Parallel()
+
 	f := buildLimitsFixture(t, 16, limitsFields)
 	byName := map[string]parityCase{}
 	for _, c := range parityCases(f) {

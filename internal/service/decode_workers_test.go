@@ -7,6 +7,8 @@ import (
 )
 
 func TestService_DecodeWorkers_DefaultZero(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	svc := New(cfg)
 	if got := svc.DecodeWorkers(); got != 0 {
@@ -19,6 +21,8 @@ func TestService_DecodeWorkers_DefaultZero(t *testing.T) {
 // reads return the same value. Mirrors the SetShardWorkers /
 // ShardWorkers round-trip pattern.
 func TestService_DecodeWorkers_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	svc := New(cfg)
 
@@ -36,6 +40,8 @@ func TestService_DecodeWorkers_RoundTrip(t *testing.T) {
 // Guards against accidental aliasing if a future refactor consolidates
 // the worker-pool plumbing.
 func TestService_DecodeWorkers_IndependentOfShardWorkers(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	svc := New(cfg)
 
@@ -63,6 +69,8 @@ func TestService_DecodeWorkers_IndependentOfShardWorkers(t *testing.T) {
 // constant lives at the dispatch site; this test pins the value so
 // changes require touching both the constant and the test together.
 func TestParallelDecodeRecordThreshold(t *testing.T) {
+	t.Parallel()
+
 	const want = 100_000
 	if parallelDecodeRecordThreshold != want {
 		t.Fatalf("parallelDecodeRecordThreshold: got %d, want %d", parallelDecodeRecordThreshold, want)

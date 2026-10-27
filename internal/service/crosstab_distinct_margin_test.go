@@ -78,6 +78,8 @@ func distinctMarginRecords() [][]uint64 {
 // gate token and a regression that moved the request to the buffered
 // path would leave a fused-only assertion green.
 func TestCrosstab_DistinctCountMarginIsUnionNotCellSum(t *testing.T) {
+	t.Parallel()
+
 	schema := distinctMarginSchema()
 	cfg := setupTestFS(t, "distinct.pulse", schema, distinctMarginRecords())
 	ctx := context.Background()

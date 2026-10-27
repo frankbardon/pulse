@@ -293,6 +293,8 @@ func chiSqVsPopFacetLayer(t *testing.T) types.OverlayLayer {
 // emitted layer: CHISQ_VS_POP carries summary.parameters.df, and a key
 // it does not carry (or a malformed path) does not resolve.
 func TestOverlayParametersPathResolves(t *testing.T) {
+	t.Parallel()
+
 	layer := chiSqVsPopFacetLayer(t)
 	cases := []struct {
 		field string
@@ -337,6 +339,8 @@ func TestOverlayParametersPathResolves(t *testing.T) {
 // TestOverlayInterpretationFieldsHoldAtRuntime proves every deferred
 // overlay Interpretation field is really emitted by its kind.
 func TestOverlayInterpretationFieldsHoldAtRuntime(t *testing.T) {
+	t.Parallel()
+
 	declared := map[string]map[string]bool{}
 	for _, d := range descx.DeclaredInterpretationFields() {
 		if !d.Deferred || d.Category != "overlay" {

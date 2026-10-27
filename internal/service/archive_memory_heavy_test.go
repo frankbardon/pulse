@@ -27,6 +27,8 @@ import (
 // far below it the peak lands — and catches a dropped term, not a few
 // percent.
 func TestArchiveMemory_EstimatedBytesRatio(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	mem := afero.NewMemMapFs()
 	writeDictArchive(t, mem, "dict.pulse", 4, 4096, 100_000)
 	memCfg, err := fs.New(fs.WithFs(mem))

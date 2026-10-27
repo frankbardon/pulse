@@ -24,6 +24,8 @@ import (
 // selection that the runtime refused.
 
 func TestRegShrinkage_PredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []vcovOracle `json:"cases"`
 	}
@@ -92,6 +94,8 @@ func TestRegShrinkage_PredictRuntimeParity(t *testing.T) {
 // unpenalized wt escapes the ridge shrinkage the fully penalised fit
 // applies.
 func TestRegShrinkage_WireRequestsRun(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []vcovOracle `json:"cases"`
 	}

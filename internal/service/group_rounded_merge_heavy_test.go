@@ -22,6 +22,8 @@ import (
 // the same width (both floor to the interval and emit in numeric key
 // order), so the matrix also equals the GROUP_RANGE-between twin.
 func TestGroupRounded_DistanceBetweenMerges(t *testing.T) {
+	t.Parallel()
+
 	schema := coMomentSchema()
 	B := linalg.MergeBlockSize
 	v := matrixInvarianceVariant{withVehicle: true, typ: types.MAT_DISTANCE}

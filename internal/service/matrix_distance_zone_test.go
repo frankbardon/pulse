@@ -132,6 +132,8 @@ func distZoneReq(between, tz string) *types.Request {
 // Berlin column; with no zone it is the UTC-day answer, which differs.
 // The caller's request stays as written (the zone rides a copy).
 func TestMatrixDistance_DateBetweenReadsTheZone(t *testing.T) {
+	t.Parallel()
+
 	cfg := distZoneCohort(t)
 	run := func(req *types.Request) string {
 		t.Helper()
@@ -172,6 +174,8 @@ func TestMatrixDistance_DateBetweenReadsTheZone(t *testing.T) {
 // refuses — a tz on a between that is not zone-capable, an unknown
 // zone, a GROUP_DATE hour component — with the same code and message.
 func TestMatrixDistance_DateBetweenPredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	cfg := distZoneCohort(t)
 	data, err := afero.ReadFile(cfg.Fs(), "z.pulse")
 	if err != nil {

@@ -9,6 +9,8 @@ import (
 )
 
 func TestListIndexes_EmptyWhenNoneBuilt(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -23,6 +25,8 @@ func TestListIndexes_EmptyWhenNoneBuilt(t *testing.T) {
 }
 
 func TestListIndexes_EnumeratesEveryBuiltSidecar(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -75,6 +79,8 @@ func TestListIndexes_EnumeratesEveryBuiltSidecar(t *testing.T) {
 }
 
 func TestListIndexes_ShardArchiveWithoutIndexIsEmpty(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, _ := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, [][]uint64{})
 
@@ -88,6 +94,8 @@ func TestListIndexes_ShardArchiveWithoutIndexIsEmpty(t *testing.T) {
 }
 
 func TestDropIndex_RemovesSidecar(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -115,6 +123,8 @@ func TestDropIndex_RemovesSidecar(t *testing.T) {
 }
 
 func TestDropIndex_DoesNotAffectOtherSidecars(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -141,6 +151,8 @@ func TestDropIndex_DoesNotAffectOtherSidecars(t *testing.T) {
 }
 
 func TestDropIndex_MissingIndex(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -155,6 +167,8 @@ func TestDropIndex_MissingIndex(t *testing.T) {
 }
 
 func TestDropIndex_EmptyKeyFieldsRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -169,6 +183,8 @@ func TestDropIndex_EmptyKeyFieldsRejected(t *testing.T) {
 }
 
 func TestDropIndex_ShardArchiveWithoutIndexIsMissing(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, _ := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, [][]uint64{})
 

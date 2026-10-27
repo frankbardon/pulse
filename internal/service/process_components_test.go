@@ -153,6 +153,8 @@ func manifestAggOperatorKeys(t *testing.T, name string) []string {
 // TestService_Process_Components_Scalar_AGG_SUM covers the scalar
 // family. AGG_SUM emits {sum}. The 5-row cohort sums to 150.
 func TestService_Process_Components_Scalar_AGG_SUM(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := componentsScoreCohort(t)
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "scores.pulse"},
@@ -184,6 +186,8 @@ func TestService_Process_Components_Scalar_AGG_SUM(t *testing.T) {
 // score cohort {10,20,30,40,50} has population mean 30 and population
 // variance 200.
 func TestService_Process_Components_Welford_AGG_VARIANCE(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := componentsScoreCohort(t)
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "scores.pulse"},
@@ -218,6 +222,8 @@ func TestService_Process_Components_Welford_AGG_VARIANCE(t *testing.T) {
 // mode_count}. Every score is distinct so every value ties at count=1
 // — the smallest-value tie-break picks 10.
 func TestService_Process_Components_MapState_AGG_MODE_COUNT(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := componentsScoreCohort(t)
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "scores.pulse"},
@@ -246,6 +252,8 @@ func TestService_Process_Components_MapState_AGG_MODE_COUNT(t *testing.T) {
 // composite family. AGG_RATIO emits {numerator, denominator, ratio}.
 // num sums to 150; den sums to 30; ratio is 5.0.
 func TestService_Process_Components_Composite_AGG_RATIO(t *testing.T) {
+	t.Parallel()
+
 	svc := componentsRatioCohort(t)
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "ratio.pulse"},
@@ -288,6 +296,8 @@ func TestService_Process_Components_Composite_AGG_RATIO(t *testing.T) {
 // order-stat family. AGG_MEDIAN emits {position_low, position_high,
 // median}. Five rows {10,20,30,40,50} → median 30 at sorted index 2.
 func TestService_Process_Components_OrderStat_AGG_MEDIAN(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := componentsScoreCohort(t)
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "scores.pulse"},
@@ -317,6 +327,8 @@ func TestService_Process_Components_OrderStat_AGG_MEDIAN(t *testing.T) {
 // family. AGG_SET_UNION emits {mask_union, popcount, labels}. The 5
 // row masks OR to 0b1111 = {VISA, MC, AMEX, DISC}.
 func TestService_Process_Components_Set_AGG_SET_UNION(t *testing.T) {
+	t.Parallel()
+
 	svc := componentsSetCohort(t)
 	req := &types.Request{
 		Cohort: &types.Cohort{Filename: "tags.pulse"},
@@ -352,6 +364,8 @@ func TestService_Process_Components_Set_AGG_SET_UNION(t *testing.T) {
 }
 
 func TestPredict_ComponentSchemaMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	fixtures := allAggServiceFixtures(t)
 	for _, op := range types.AllAggregationTypes() {
 		op := op

@@ -15,6 +15,8 @@ import (
 // TestMatrixGrouped_WorkerInvariant is the grouped worker-invariance
 // gate (the per-bucket twin of TestMatrixCovariance_WorkerInvariant).
 func TestMatrixGrouped_WorkerInvariant(t *testing.T) {
+	t.Parallel()
+
 	schema := groupedInvSchema(t)
 	B := linalg.MergeBlockSize
 

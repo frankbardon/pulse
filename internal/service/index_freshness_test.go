@@ -69,6 +69,8 @@ func driftMTime(t *testing.T, fsys afero.Fs, path string) time.Time {
 // PULSE_INDEX_STALE, which made point lookup unusable through any
 // object-storage backend (an S3 LastModified is whole seconds).
 func TestLookup_MTimeDriftServesRowsWhenContentIsIdentical(t *testing.T) {
+	t.Parallel()
+
 	svc, counting, _ := freshnessCohort(t, 400)
 
 	if _, err := svc.BuildIndex(context.Background(), "cohort.pulse", []string{"id"}); err != nil {
@@ -104,6 +106,8 @@ func TestLookup_MTimeDriftServesRowsWhenContentIsIdentical(t *testing.T) {
 // moved mtime plus mutated content is exactly the case the fingerprint
 // has to catch.
 func TestLookup_MTimeDriftWithChangedContentIsStillStale(t *testing.T) {
+	t.Parallel()
+
 	svc, counting, _ := freshnessCohort(t, 400)
 
 	if _, err := svc.BuildIndex(context.Background(), "cohort.pulse", []string{"id"}); err != nil {
@@ -147,6 +151,8 @@ func TestLookup_MTimeDriftWithChangedContentIsStillStale(t *testing.T) {
 // built for. Measured in bytes off the cohort file, which is the only
 // way to tell the two apart from outside.
 func TestLookup_MTimeDriftHashesOnceAcrossManyLookups(t *testing.T) {
+	t.Parallel()
+
 	svc, counting, size := freshnessCohort(t, 4000)
 
 	if _, err := svc.BuildIndex(context.Background(), "cohort.pulse", []string{"id"}); err != nil {
@@ -196,6 +202,8 @@ func TestLookup_MTimeDriftHashesOnceAcrossManyLookups(t *testing.T) {
 // drifted lookup, the content is then rewritten at the same size and
 // the same drifted mtime, and verify must still catch it.
 func TestVerifyIndex_NeverServesItsHashFromTheLookupMemo(t *testing.T) {
+	t.Parallel()
+
 	svc, counting, _ := freshnessCohort(t, 400)
 
 	if _, err := svc.BuildIndex(context.Background(), "cohort.pulse", []string{"id"}); err != nil {

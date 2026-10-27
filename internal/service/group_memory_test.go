@@ -98,6 +98,8 @@ func groupMemoryPartition(t *testing.T, svc *Service) (*shardPartial, func(from,
 // inline 128-byte WeightFloor in every slot's floor even unweighted, a
 // second per-key floor table, and a key-order list.
 func TestGroupMemory_PartitionBytesPerGroup(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	svc := New(nil)
 	before := liveHeap()
 	p, fold := groupMemoryPartition(t, svc)
@@ -120,6 +122,8 @@ func TestGroupMemory_PartitionBytesPerGroup(t *testing.T) {
 // the absorbed partitions are released: a bucket moves into the merged
 // map whole, and nothing of the source partition outlives its merge.
 func TestGroupMemory_MergedBytesPerGroup(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	svc := New(nil)
 	before := liveHeap()
 	m := partialMerger{req: groupMemoryRequest()}
@@ -184,6 +188,8 @@ func manyShardRequest() *types.Request {
 // the merged head are counted. Keeping every partial until one final
 // merge (the pre-E2-S4 arm) leaves all of them alive.
 func TestGroupMemory_LivePartialsBoundedByWindow(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate; swaps the package-level service.shardMergeHook test hook
+
 	cfg := manyShardArchive(t)
 	for _, workers := range []int{2, 3} {
 		t.Run(fmt.Sprintf("workers=%d", workers), func(t *testing.T) {
@@ -233,6 +239,8 @@ func TestGroupMemory_LivePartialsBoundedByWindow(t *testing.T) {
 // mode slots included) is identical under every worker count: the merge
 // folds in shard index order whichever worker finishes first.
 func TestGroupMemory_ManyShardsWorkerInvariant(t *testing.T) {
+	t.Parallel()
+
 	cfg := manyShardArchive(t)
 	var want *types.Response
 	for _, workers := range []int{2, 3, 5, 8} {
@@ -266,6 +274,8 @@ func TestGroupMemory_ManyShardsWorkerInvariant(t *testing.T) {
 // budget below one partial is refused on both sides with the same
 // figure.
 func TestGroupMemory_MergeWindowFitsBudget(t *testing.T) {
+	// serial: swaps the package-level service.shardWindowHook test hook
+
 	cfg := manyShardArchive(t)
 	const workers = 3
 	full := limits.ShardMergeWindow(workers)

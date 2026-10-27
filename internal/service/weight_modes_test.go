@@ -174,6 +174,8 @@ func assertWeightedUseful(t *testing.T, resp *types.Response) {
 }
 
 func TestShardWorkers_WeightedParity(t *testing.T) {
+	t.Parallel()
+
 	archive := weightModesArchive(t, []int{90, 77, 101})
 	cfg := fs.NewMemMap()
 	if err := afero.WriteFile(cfg.Fs(), "w.pulse", archive, 0o644); err != nil {

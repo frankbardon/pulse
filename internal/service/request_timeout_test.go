@@ -102,6 +102,8 @@ func isLimitCode(err error) bool {
 // configured, observed: elapsed} on every entry FR-23 names — the whole
 // Compose / ComposeParallel (both FailFast modes) / chain call included.
 func TestRequestTimeout_TripsOnEveryEntry(t *testing.T) {
+	t.Parallel()
+
 	svc := ctxPollFixture(t, requestTimeoutRows, 10)
 	const d = time.Millisecond
 	svc.SetLimits(withRequestTimeout(d))
@@ -132,6 +134,8 @@ func TestRequestTimeout_TripsOnEveryEntry(t *testing.T) {
 // that fires first — under a 1h RequestTimeout — returns
 // context.DeadlineExceeded, never the limit code.
 func TestRequestTimeout_CallerDeadlinePassesThrough(t *testing.T) {
+	t.Parallel()
+
 	svc := ctxPollFixture(t, requestTimeoutRows, 10)
 	svc.SetLimits(withRequestTimeout(time.Hour))
 	svc.entryHook = waitOutShortDeadlines
@@ -150,6 +154,8 @@ func TestRequestTimeout_CallerDeadlinePassesThrough(t *testing.T) {
 // TestRequestTimeout_CallerCancelPassesThrough: a caller cancel returns
 // context.Canceled under a set RequestTimeout.
 func TestRequestTimeout_CallerCancelPassesThrough(t *testing.T) {
+	t.Parallel()
+
 	svc := ctxPollFixture(t, requestTimeoutRows, 10)
 	svc.SetLimits(withRequestTimeout(time.Hour))
 	for name, run := range timeoutEntries(svc) {
@@ -168,6 +174,8 @@ func TestRequestTimeout_CallerCancelPassesThrough(t *testing.T) {
 // RequestTimeout hands every entry the caller's ctx untouched — no
 // deadline — and the run succeeds.
 func TestRequestTimeout_DefaultAddsNoDeadline(t *testing.T) {
+	t.Parallel()
+
 	svc := ctxPollFixture(t, requestTimeoutRows, 10)
 	var seen atomic.Int64
 	svc.entryHook = func(ctx context.Context) {
@@ -191,6 +199,8 @@ func TestRequestTimeout_DefaultAddsNoDeadline(t *testing.T) {
 // chain stage, ProcessStream's Process) sees that call's deadline, not
 // a fresh one, and the count proves the outer entry bounded at all.
 func TestRequestTimeout_NestedEntriesShareOneBudget(t *testing.T) {
+	t.Parallel()
+
 	svc := ctxPollFixture(t, requestTimeoutRows, 10)
 	svc.SetLimits(withRequestTimeout(time.Hour))
 	entries := timeoutEntries(svc)
@@ -230,6 +240,8 @@ func TestRequestTimeout_NestedEntriesShareOneBudget(t *testing.T) {
 // per-slot PerRequestTimeout is unchanged — its DeadlineExceeded is not
 // relabelled as the limit, and FailFast reports the timed-out slot.
 func TestRequestTimeout_PerRequestTimeoutStaysRaw(t *testing.T) {
+	t.Parallel()
+
 	svc := ctxPollFixture(t, requestTimeoutRows, 10)
 	svc.SetLimits(withRequestTimeout(time.Hour))
 	svc.entryHook = waitOutShortDeadlines
@@ -244,6 +256,8 @@ func TestRequestTimeout_PerRequestTimeoutStaysRaw(t *testing.T) {
 // slot error is the limit (the slot's Process maps it) and the winner is
 // the lowest index; a PerRequestTimeout slot beats a sibling cancel.
 func TestFailFastWinner_RequestTimeout(t *testing.T) {
+	t.Parallel()
+
 	c := &requestTimeoutCause{configured: time.Millisecond, start: time.Now()}
 	ctx, cancel := context.WithTimeoutCause(context.Background(), time.Nanosecond, c)
 	defer cancel()
@@ -265,6 +279,8 @@ func TestFailFastWinner_RequestTimeout(t *testing.T) {
 // TestMapRequestTimeout_OnlyInnerCause: a caller's deadline or cancel
 // (context.Cause at the caller's error) and a nil err pass through.
 func TestMapRequestTimeout_OnlyInnerCause(t *testing.T) {
+	t.Parallel()
+
 	past, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 	defer cancel()
 	if err := MapRequestTimeout(past, past.Err()); err != context.DeadlineExceeded {
@@ -290,6 +306,8 @@ func TestMapRequestTimeout_OnlyInnerCause(t *testing.T) {
 // each slot's Process — reach the Compose / ComposeParallel / chain
 // aggregation, which still reports the limit code.
 func TestRequestTimeout_TripsInsideSlots(t *testing.T) {
+	t.Parallel()
+
 	svc := ctxPollFixture(t, requestTimeoutRows, 10)
 	svc.SetLimits(withRequestTimeout(time.Millisecond))
 	entries := timeoutEntries(svc)
@@ -316,6 +334,8 @@ func TestRequestTimeout_TripsInsideSlots(t *testing.T) {
 // never polls (an empty cohort folds no row) trips in stage 1, which
 // runs outside any Process entry — the chain call maps it itself.
 func TestRequestTimeout_TripsInLaterChainStage(t *testing.T) {
+	t.Parallel()
+
 	svc := ctxPollFixture(t, 0, 10)
 	svc.SetLimits(withRequestTimeout(time.Millisecond))
 	svc.entryHook = waitOutShortDeadlines

@@ -29,6 +29,8 @@ import (
 //     bound — no longer trips that limit, and every case under the
 //     built-in defaults has no finding and runs clean.
 func TestLimitsPredictRuntimeParity(t *testing.T) {
+	t.Parallel()
+
 	f := buildLimitsFixture(t, limitsRows, limitsFields)
 	sites := map[string]bool{}
 	for _, c := range parityCases(f) {
@@ -102,6 +104,8 @@ func TestLimitsPredictRuntimeParity(t *testing.T) {
 // the control that holds one record-sized byte per row reads well
 // above it.
 func TestLimitsReleaseMemory(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	const (
 		passes      = 2
 		maxRetained = 2.0 // B/record; a leaked materialization is ~100+

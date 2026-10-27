@@ -143,6 +143,8 @@ func totalArchiveRequest(path string, grouped bool, expr string) *types.Request 
 // the dispatch Service.shouldFanOut takes, for every ShardWorkers cap
 // and request shape, on a multi-shard and a one-shard archive.
 func TestShardFanOut_PredictMatchesRuntime(t *testing.T) {
+	t.Parallel()
+
 	mem := afero.NewMemMapFs()
 	writeDictArchive(t, mem, "multi.pulse", 3, 10, 4)
 	writeDictArchive(t, mem, "one.pulse", 1, 10, 4)
@@ -271,6 +273,8 @@ const (
 // inflated by 2x, the ceiling one that no longer covers the
 // directory.
 func TestArchiveMemory_DirectoryTermBoundsOpen(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	for _, shards := range []int{500, 4000} {
 		t.Run(fmt.Sprintf("shards=%d", shards), func(t *testing.T) {
 			mem := afero.NewMemMapFs()
@@ -335,6 +339,8 @@ const (
 // directory (8 x its extra bytes) — on the parallel arm too, whose
 // probe (a 1-byte budget) runs a one-partial merge window.
 func TestMaxEstimatedMemory_RefusesArchiveOverCap(t *testing.T) {
+	t.Parallel()
+
 	mem := afero.NewMemMapFs()
 	small := writeDictArchive(t, mem, "dict.pulse", 4, 512, 20_000)
 	large := writeDictArchive(t, mem, "dict8.pulse", 8, 512, 20_000)
@@ -391,6 +397,8 @@ func TestMaxEstimatedMemory_RefusesArchiveOverCap(t *testing.T) {
 // Record — ~58 allocations a row at p = 50 before, ~3 after. The bound
 // leaves room for the run's fixed allocations and the runtime's own.
 func TestShardParallel_DecodeAllocsPerRow(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	const p, rows = 50, 4 * linalg.MergeBlockSize
 	dir := t.TempDir()
 	path := matrixScaleCohort(t, dir, rows, p, 4)
@@ -433,6 +441,8 @@ func mustOpen(t *testing.T, svc *Service, path string) *Cohort {
 // the archive bytes Open and the scan read, where a full decode per
 // shard added four more.
 func TestShardScan_SkipsShardDictionaries(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	const shards, entries = 4, 100_000
 	mem := afero.NewMemMapFs()
 	size := writeDictArchive(t, mem, "dict.pulse", shards, 256, entries)

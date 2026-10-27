@@ -16,6 +16,8 @@ import (
 // has rows (id=1, score=10), (id=2, score=20). Right has rows (id=1,
 // bonus=100), (id=2, bonus=200). Joined sum(score+bonus) per row.
 func TestJoin_InnerByteEqualToManual(t *testing.T) {
+	t.Parallel()
+
 	leftSchema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
@@ -80,6 +82,8 @@ func TestJoin_InnerByteEqualToManual(t *testing.T) {
 }
 
 func TestJoin_UnmatchedLeftDropped(t *testing.T) {
+	t.Parallel()
+
 	leftSchema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
@@ -125,6 +129,8 @@ func TestJoin_UnmatchedLeftDropped(t *testing.T) {
 }
 
 func TestJoin_KindOuterRejected(t *testing.T) {
+	t.Parallel()
+
 	leftSchema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
@@ -151,6 +157,8 @@ func TestJoin_KindOuterRejected(t *testing.T) {
 }
 
 func TestJoin_TypeMismatchRejected(t *testing.T) {
+	t.Parallel()
+
 	leftSchema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},
@@ -185,6 +193,8 @@ func TestJoin_TypeMismatchRejected(t *testing.T) {
 }
 
 func TestJoin_TooManyRejected(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	schema := testSchema()
 	afero.WriteFile(cfg.Fs(), "left.pulse", writePulseFile(t, schema, testRecords()), 0o644)
@@ -208,6 +218,8 @@ func TestJoin_TooManyRejected(t *testing.T) {
 }
 
 func TestJoin_FieldCollisionRejected(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0, CsvColumnIdx: 0},

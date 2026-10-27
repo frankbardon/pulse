@@ -47,6 +47,8 @@ func multFacetRequest(path string, own ...*types.Multiplicity) *types.FacetReque
 // a descriptive or `none` layer is untouched and the host facet payload
 // is byte-identical.
 func TestFacetMultiplicity_LayerFold(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	plain, path := buildFacetOverlayCohort(t)
 	base, err := plain.FacetSchema(ctx, multFacetRequest(path))
@@ -138,6 +140,8 @@ func TestFacetMultiplicity_LayerFold(t *testing.T) {
 // TestFacetMultiplicity_NoneIsIdentity: no block, a `none` instance
 // default and `none` on every slot all answer byte-identically.
 func TestFacetMultiplicity_NoneIsIdentity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	plain, path := buildFacetOverlayCohort(t)
 	base, err := plain.FacetSchema(ctx, multFacetRequest(path))
@@ -170,6 +174,8 @@ func TestFacetMultiplicity_NoneIsIdentity(t *testing.T) {
 // code, message and details ValidateFacet reports, whether the slot or
 // the instance default names the family.
 func TestFacetMultiplicity_RefusalsMatchPredict(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	_, path := buildFacetOverlayCohort(t)
 	for _, family := range []types.MultiplicityFamily{

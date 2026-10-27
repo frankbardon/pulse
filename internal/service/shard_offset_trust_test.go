@@ -60,6 +60,8 @@ func offsetTrustShard(t *testing.T, fsys afero.Fs, path string, fields []encodin
 // Trusting the stored offset wrote the remapped index over a
 // neighbouring field and left the categorical untouched.
 func TestShardArchiveAdd_DictRewriteIgnoresStoredOffsets(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		fields []encoding.Field

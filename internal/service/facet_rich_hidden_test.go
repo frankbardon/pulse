@@ -17,6 +17,8 @@ import (
 // error a never-registered name gets. Before the fix the scope filters
 // were built against a nil registry, so a hidden built-in compiled.
 func TestBuildAdditiveAccumulators_ScopeFiltersUseInstanceRegistry(t *testing.T) {
+	t.Parallel()
+
 	region := encoding.NewDictionary()
 	_, _ = region.Add("north")
 	schema := &encoding.Schema{Fields: []encoding.Field{

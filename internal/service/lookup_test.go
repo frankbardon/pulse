@@ -25,6 +25,8 @@ func buildLookupFixture(t *testing.T) *Service {
 }
 
 func TestLookup_Hit_ReturnsRequestedColumns(t *testing.T) {
+	t.Parallel()
+
 	svc := buildLookupFixture(t)
 
 	res, err := svc.Lookup(context.Background(), &types.LookupRequest{
@@ -53,6 +55,8 @@ func TestLookup_Hit_ReturnsRequestedColumns(t *testing.T) {
 }
 
 func TestLookup_Hit_NoReturnColumnsProjectsEveryField(t *testing.T) {
+	t.Parallel()
+
 	svc := buildLookupFixture(t)
 
 	res, err := svc.Lookup(context.Background(), &types.LookupRequest{
@@ -79,6 +83,8 @@ func TestLookup_Hit_NoReturnColumnsProjectsEveryField(t *testing.T) {
 }
 
 func TestLookup_CategoricalKey_Hit(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -102,6 +108,8 @@ func TestLookup_CategoricalKey_Hit(t *testing.T) {
 }
 
 func TestLookup_Miss_NoMatchingKey(t *testing.T) {
+	t.Parallel()
+
 	svc := buildLookupFixture(t)
 
 	_, err := svc.Lookup(context.Background(), &types.LookupRequest{
@@ -118,6 +126,8 @@ func TestLookup_Miss_NoMatchingKey(t *testing.T) {
 }
 
 func TestLookup_FreshIndex_PassesUnchanged(t *testing.T) {
+	t.Parallel()
+
 	// A fresh index (no mutation to the cohort since BuildIndex) must
 	// pass Lookup unchanged — the staleness check must never reject a
 	// genuinely fresh sidecar.
@@ -138,6 +148,8 @@ func TestLookup_FreshIndex_PassesUnchanged(t *testing.T) {
 }
 
 func TestLookup_StaleIndex_ErrorsIndexStale(t *testing.T) {
+	t.Parallel()
+
 	// Mutating the .pulse file after BuildIndex must make the next
 	// Lookup against it hard-error rather than silently returning
 	// (possibly wrong) rows scanned via stale row-ids. The read-path
@@ -184,6 +196,8 @@ func TestLookup_StaleIndex_ErrorsIndexStale(t *testing.T) {
 // the contract are asserted so the intentional gap can never silently
 // widen or close without a test change.
 func TestLookup_StaleIndex_ResidualGap_InPlaceEditSameSizeAndMTime(t *testing.T) {
+	t.Parallel()
+
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
 	svc := New(cfg)
@@ -234,6 +248,8 @@ func TestLookup_StaleIndex_ResidualGap_InPlaceEditSameSizeAndMTime(t *testing.T)
 }
 
 func TestLookup_MissingIndex(t *testing.T) {
+	t.Parallel()
+
 	// Cohort exists but no BuildIndex call was made for "id".
 	schema := indexTestSchema()
 	cfg := setupTestFS(t, "cohort.pulse", schema, indexTestRecords())
@@ -253,6 +269,8 @@ func TestLookup_MissingIndex(t *testing.T) {
 }
 
 func TestLookup_UnknownKeyField(t *testing.T) {
+	t.Parallel()
+
 	svc := buildLookupFixture(t)
 
 	_, err := svc.Lookup(context.Background(), &types.LookupRequest{
@@ -269,6 +287,8 @@ func TestLookup_UnknownKeyField(t *testing.T) {
 }
 
 func TestLookup_UnknownReturnColumn(t *testing.T) {
+	t.Parallel()
+
 	svc := buildLookupFixture(t)
 
 	_, err := svc.Lookup(context.Background(), &types.LookupRequest{
@@ -286,6 +306,8 @@ func TestLookup_UnknownReturnColumn(t *testing.T) {
 }
 
 func TestLookup_NilRequest(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "cohort.pulse", indexTestSchema(), indexTestRecords())
 	svc := New(cfg)
 
@@ -313,6 +335,8 @@ func buildCompositeLookupFixture(t *testing.T, keyFields []string) *Service {
 }
 
 func TestLookup_CompositeTwoColumn_Hit(t *testing.T) {
+	t.Parallel()
+
 	svc := buildCompositeLookupFixture(t, []string{"region", "period"})
 
 	// (region=east, period=2023) matches only row index 3 -> id 4.
@@ -333,6 +357,8 @@ func TestLookup_CompositeTwoColumn_Hit(t *testing.T) {
 }
 
 func TestLookup_CompositeThreeColumn_Hit(t *testing.T) {
+	t.Parallel()
+
 	svc := buildCompositeLookupFixture(t, []string{"id", "region", "period"})
 
 	res, err := svc.Lookup(context.Background(), &types.LookupRequest{
@@ -353,6 +379,8 @@ func TestLookup_CompositeThreeColumn_Hit(t *testing.T) {
 }
 
 func TestLookup_CompositeKeyOrderSignificant(t *testing.T) {
+	t.Parallel()
+
 	// Build the index on (region, period) only — NOT (period, region).
 	svc := buildCompositeLookupFixture(t, []string{"region", "period"})
 
@@ -391,6 +419,8 @@ func TestLookup_CompositeKeyOrderSignificant(t *testing.T) {
 }
 
 func TestLookup_SingleKeyPath_StillWorks(t *testing.T) {
+	t.Parallel()
+
 	// E1 single-key shape (Field/Value, no Keys) must still behave
 	// unchanged after the composite generalization.
 	svc := buildLookupFixture(t)
@@ -410,6 +440,8 @@ func TestLookup_SingleKeyPath_StillWorks(t *testing.T) {
 }
 
 func TestLookup_WrongArity_MismatchesIndexKeySpec(t *testing.T) {
+	t.Parallel()
+
 	// Build a real composite index on (region, period) via BuildIndex,
 	// so its on-disk key-spec (idx.Keys) genuinely has 2 entries at the
 	// naturally-derived sidecar path. Then overwrite that same path with
@@ -470,6 +502,8 @@ func buildRegionIndexFixture(t *testing.T) *Service {
 }
 
 func TestLookup_Multiplicity(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		multiplicity types.LookupMultiplicity
@@ -577,6 +611,8 @@ func TestLookup_Multiplicity(t *testing.T) {
 }
 
 func TestLookup_MultiplicityAll_ReturnColumnProjectionApplies(t *testing.T) {
+	t.Parallel()
+
 	svc := buildRegionIndexFixture(t)
 
 	res, err := svc.Lookup(context.Background(), &types.LookupRequest{
@@ -613,6 +649,8 @@ func TestLookup_MultiplicityAll_ReturnColumnProjectionApplies(t *testing.T) {
 }
 
 func TestLookup_UnknownMultiplicityMode(t *testing.T) {
+	t.Parallel()
+
 	svc := buildRegionIndexFixture(t)
 
 	_, err := svc.Lookup(context.Background(), &types.LookupRequest{
@@ -630,6 +668,8 @@ func TestLookup_UnknownMultiplicityMode(t *testing.T) {
 }
 
 func TestLookup_CategoricalValueNotInDictionary(t *testing.T) {
+	t.Parallel()
+
 	svc := buildLookupFixture(t)
 	if _, err := svc.BuildIndex(context.Background(), "cohort.pulse", []string{"region"}); err != nil {
 		t.Fatalf("BuildIndex(region): %v", err)
@@ -655,6 +695,8 @@ func TestLookup_CategoricalValueNotInDictionary(t *testing.T) {
 // cohort (the archive itself is indexed per shard — see
 // archive_lookup_test.go).
 func TestLookup_AnchorSyntaxSingleShardWorkaround(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, _ := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, [][]uint64{})
 
@@ -681,6 +723,8 @@ func TestLookup_AnchorSyntaxSingleShardWorkaround(t *testing.T) {
 }
 
 func TestLookup_ShardArchiveWithoutIndexIsMissing(t *testing.T) {
+	t.Parallel()
+
 	schema, shards, _ := canonicalThreeShards()
 	svc, _ := setupShardArchive(t, "arch.pulse", schema, shards, [][]uint64{})
 

@@ -108,6 +108,8 @@ func (c *sliceCancelIter) Next() bool {
 // and joined alike — stops within CtxPollInterval rows of a mid-run
 // cancel and returns the caller's ctx error unchanged.
 func TestCtxPoll_MaterializeRecords(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "v", Type: encoding.FieldTypeF64}}}
 	recs := make([]*processing.Record, 40_000)
 	for i := range recs {
@@ -130,6 +132,8 @@ func TestCtxPoll_MaterializeRecords(t *testing.T) {
 // buffered crosstab polls nowhere else, so a run that ignored ctx
 // would succeed.
 func TestCtxPoll_BufferedCrosstabCancelled(t *testing.T) {
+	t.Parallel()
+
 	for _, join := range []bool{false, true} {
 		name := "plain"
 		if join {
@@ -155,6 +159,8 @@ func TestCtxPoll_BufferedCrosstabCancelled(t *testing.T) {
 // record allocations never happen) — and the joined Process returns the
 // caller's error unchanged.
 func TestCtxPoll_JoinBuildCancelled(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	svc := ctxPollFixture(t, 10, ctxPollBuildRows)
 	req := func() *types.Request {
 		return &types.Request{
@@ -188,6 +194,8 @@ func TestCtxPoll_JoinBuildCancelled(t *testing.T) {
 // another slot's error never hides that error — while a caller-done ctx
 // keeps the lowest-index failure, cancellation included.
 func TestFailFastWinner(t *testing.T) {
+	t.Parallel()
+
 	refusal := stderrors.New("refused")
 	errs := []error{context.Canceled, refusal, context.Canceled}
 	failed := []int{0, 1, 2}

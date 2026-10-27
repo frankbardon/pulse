@@ -29,6 +29,8 @@ const servicePanicValue = "svc_panic_row_value_5521"
 // is the per-instance knob. Falsified by deleting the TestMain
 // assignment or the New seeding.
 func TestPanicRecovery_ServiceOverride(t *testing.T) {
+	t.Parallel()
+
 	if !New(nil).PanicRecoveryDisabled() {
 		t.Fatal("TestMain's override did not reach New: pool panics would be recovered in ordinary tests")
 	}
@@ -44,6 +46,8 @@ func TestPanicRecovery_ServiceOverride(t *testing.T) {
 // rethrow re-panics with the original value. Falsified by dropping the
 // rethrow branch (the second half sees an error, not a panic).
 func TestPanicRecovery_RecoverInto(t *testing.T) {
+	t.Parallel()
+
 	run := func(rethrow bool) (err error) {
 		defer recoverInto(panicOpShardParallel, rethrow, &err)
 		panic(servicePanicValue)
@@ -69,6 +73,8 @@ func TestPanicRecovery_RecoverInto(t *testing.T) {
 // exits. Falsified by deleting the recoverInto defer in the g.Go func
 // (the binary crashes).
 func TestPanicRecovery_ParallelDecodeWorker(t *testing.T) {
+	// serial: its runtime.NumGoroutine leak check counts every concurrent test's goroutines
+
 	const workers, records = 4, 4 * 8192
 	schema := &encoding.Schema{Fields: []encoding.Field{{Name: "v", Type: encoding.FieldTypeU32}}}
 	stride := schema.RecordByteSize()
@@ -108,6 +114,8 @@ func TestPanicRecovery_ParallelDecodeWorker(t *testing.T) {
 // TestPanicRecovery_PoolRepanics hit in CI with a deferred wg.Done.
 // Falsified by deferring the wg.Done in joinOnReturn (Wait returns).
 func TestPanicRecovery_JoinOnReturnSkipsJoinOnPanic(t *testing.T) {
+	t.Parallel()
+
 	var wg sync.WaitGroup
 	wg.Add(1)
 	func() {
@@ -136,6 +144,8 @@ func TestPanicRecovery_JoinOnReturnSkipsJoinOnPanic(t *testing.T) {
 // dropping the cancel in Go (the sibling never sees ctx done) or the
 // once (a later error overwrites the first).
 func TestPanicRecovery_WorkerGroup(t *testing.T) {
+	t.Parallel()
+
 	first := stderrors.New("first")
 	g, gctx := newWorkerGroup(context.Background())
 	failed := make(chan struct{})
@@ -169,6 +179,8 @@ func TestPanicRecovery_WorkerGroup(t *testing.T) {
 // so the caller returns before the crash. Pools join via joinOnReturn /
 // workerGroup. Falsified by restoring `defer wg.Done()` in any pool.
 func TestPanicRecovery_PoolsNeverDeferJoin(t *testing.T) {
+	t.Parallel()
+
 	deferredJoin := regexp.MustCompile(`defer\s+[\w.]+\.Done\(\)`)
 	files, err := filepath.Glob("*.go")
 	if err != nil {

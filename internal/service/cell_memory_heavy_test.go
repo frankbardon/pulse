@@ -30,6 +30,8 @@ import (
 // n x n grid (U51 E5-S11): the dense grid's empty positions, charged
 // by limits.CrosstabGridPositionBytes.
 func TestCrosstabMemory_CellChargeTable(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	ext := New(nil).extensions
 	const side = 60
 	for _, at := range types.AllAggregationTypes() {

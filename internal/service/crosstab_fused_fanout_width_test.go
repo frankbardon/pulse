@@ -150,6 +150,8 @@ func setWidthMaskValue(ft encoding.FieldType, bits ...int) any {
 // truncates the mask to a narrower integer loses that label on the
 // fused path only.
 func TestCrosstabFused_SetWidthFanOutMatchesBuffered(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		typ  encoding.FieldType
@@ -288,6 +290,8 @@ func assertResponseSlotsEqual(t *testing.T, want, got *types.Response) {
 // this drives both through Service.Process over a real cohort rather
 // than through the processing-level orchestrator.
 func TestCrosstabFused_SetFanOutWithOverlaysThroughService(t *testing.T) {
+	t.Parallel()
+
 	schema := setFanoutSchema(t)
 	cfg := setupTestFS(t, "sets.pulse", schema, setFanoutRecords())
 	ctx := context.Background()

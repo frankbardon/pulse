@@ -14,6 +14,8 @@ import (
 )
 
 func TestMultiplicityFold_ParallelDecodeArm(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = parallelDecodeRecordThreshold + 4096
 	dir := t.TempDir()
 	osFs := afero.NewOsFs()

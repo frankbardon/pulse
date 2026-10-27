@@ -18,6 +18,8 @@ import (
 // Parallel materialisation must reproduce the serial record stream, so
 // overlay, Components and matrix match serial buffered and fused.
 func TestCrosstab_WeightedTwoMeansZ_DecodeWorkersParity(t *testing.T) {
+	t.Parallel()
+
 	const rowCount = parallelDecodeRecordThreshold + 4096
 	schema := wzsSchema()
 	recs, nullAt := wzsRows(rowCount, 0)

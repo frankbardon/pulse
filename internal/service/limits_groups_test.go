@@ -72,6 +72,8 @@ func countryCount(path string) *types.Request {
 // breaches MaxGroups inside foldGroupedRow — the partition refuses
 // without help from the merge.
 func TestMaxGroups_ParallelShardPartition(t *testing.T) {
+	t.Parallel()
+
 	svc, path := groupsArchive(t)
 	ctx := context.Background()
 	cohort, err := svc.Open(ctx, path)
@@ -104,6 +106,8 @@ func TestMaxGroups_ParallelShardPartition(t *testing.T) {
 // four — and only mergeShardPartials' merged count can catch it. The
 // serial arm (ShardWorkers=1) trips on the same requests.
 func TestMaxGroups_ParallelShardRuns(t *testing.T) {
+	t.Parallel()
+
 	svc, path := groupsArchive(t)
 	ctx := context.Background()
 	cohort, err := svc.Open(ctx, path)
@@ -139,6 +143,8 @@ func TestMaxGroups_ParallelShardRuns(t *testing.T) {
 // TestMaxGroups_GroupedMatrixRun: a grouped request carrying a matrix
 // trips MaxGroups on the serial and both parallel-shard arms.
 func TestMaxGroups_GroupedMatrixRun(t *testing.T) {
+	t.Parallel()
+
 	svc, path := groupsArchive(t)
 	req := countryCount(path)
 	req.Matrices = []types.MatrixSpec{{Type: types.MAT_COVARIANCE, Name: "cov", Fields: []string{"id"}}}
@@ -164,6 +170,8 @@ func TestMaxGroups_GroupedMatrixRun(t *testing.T) {
 // categorical fast path returns the resident dictionary and mints
 // nothing, so it is not counted.
 func TestMaxGroups_Facet(t *testing.T) {
+	t.Parallel()
+
 	svc, path := groupsArchive(t)
 	ctx := context.Background()
 	rich := func(req *types.FacetRequest) error {
@@ -207,6 +215,8 @@ func TestMaxGroups_Facet(t *testing.T) {
 // TestMaxGroups_FacetBool: the boolean accumulator counts its two
 // values against MaxGroups.
 func TestMaxGroups_FacetBool(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "id", Type: encoding.FieldTypeU32, ByteOffset: 0},
 	}}
@@ -228,6 +238,8 @@ func TestMaxGroups_FacetBool(t *testing.T) {
 // handed (the reducers bypass newProcessor), so it refuses a mint past
 // MaxGroups on its own.
 func TestMaxGroups_PartitionMatricesCarryLimits(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "x", Type: encoding.FieldTypeF64, ByteOffset: 0},
 	}}

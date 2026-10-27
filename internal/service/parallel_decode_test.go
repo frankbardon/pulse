@@ -18,6 +18,8 @@ import (
 // is the first line of defence against per-worker spawn overhead
 // dominating the parallel win on small inputs.
 func TestShouldFanOutDecode_BelowThreshold(t *testing.T) {
+	t.Parallel()
+
 	if _, ok := shouldFanOutDecode(8, parallelDecodeRecordThreshold-1); ok {
 		t.Fatal("expected fan-out to bail below threshold")
 	}
@@ -31,6 +33,8 @@ func TestShouldFanOutDecode_BelowThreshold(t *testing.T) {
 // cohort size. Mirrors the ShardWorkers==1 semantics so the two knobs
 // stay legible.
 func TestShouldFanOutDecode_WorkersOneForcesSerial(t *testing.T) {
+	t.Parallel()
+
 	if _, ok := shouldFanOutDecode(1, parallelDecodeRecordThreshold*10); ok {
 		t.Fatal("expected DecodeWorkers=1 to force serial")
 	}
@@ -41,6 +45,8 @@ func TestShouldFanOutDecode_WorkersOneForcesSerial(t *testing.T) {
 // floor (>=), not the strictly-greater bar, so equality should engage
 // the parallel path.
 func TestShouldFanOutDecode_AtThresholdAcceptsParallel(t *testing.T) {
+	t.Parallel()
+
 	got, ok := shouldFanOutDecode(4, parallelDecodeRecordThreshold)
 	if !ok {
 		t.Fatalf("expected fan-out to engage at threshold; got ok=false")
@@ -55,6 +61,8 @@ func TestShouldFanOutDecode_AtThresholdAcceptsParallel(t *testing.T) {
 // CPU count (CI varies); just that the resolved worker count is >= 1
 // and that the threshold gate is still enforced atop it.
 func TestShouldFanOutDecode_DefaultZeroResolvesNumCPU(t *testing.T) {
+	t.Parallel()
+
 	resolved, ok := shouldFanOutDecode(0, parallelDecodeRecordThreshold)
 	if !ok {
 		t.Fatalf("expected default workers above threshold to engage")
@@ -70,6 +78,8 @@ func TestShouldFanOutDecode_DefaultZeroResolvesNumCPU(t *testing.T) {
 // nothing but spawn overhead. Even after capping the count must remain
 // >= 2 for the parallel path to be worth taking.
 func TestShouldFanOutDecode_CapsAtRecordCount(t *testing.T) {
+	t.Parallel()
+
 	// 1 record above threshold + workers cap > 1 means the resolved
 	// count clamps to 1 → fails the >=2 check → bails to serial.
 	if _, ok := shouldFanOutDecode(16, 1); ok {
@@ -85,6 +95,8 @@ func TestShouldFanOutDecode_CapsAtRecordCount(t *testing.T) {
 // configured to a parallelism-eligible value; correctness equals the
 // known-good serial output.
 func TestCrosstab_ParallelDecode_BailOnMemMapFs(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	svc := New(cfg)
 	svc.SetDecodeWorkers(4)
@@ -130,6 +142,8 @@ func TestCrosstab_ParallelDecode_BailOnMemMapFs(t *testing.T) {
 // 100K floor so shouldFanOutDecode rejects. Crosstab still completes
 // via the serial materializeRecords arm.
 func TestCrosstab_ParallelDecode_BailBelowThreshold(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	osFs := afero.NewOsFs()
 	path := dir + "/below_threshold.pulse"
@@ -180,6 +194,8 @@ func TestCrosstab_ParallelDecode_BailBelowThreshold(t *testing.T) {
 // branch specifically by detecting cohort.Shards() before falling
 // through to threshold.
 func TestCrosstab_ParallelDecode_BailOnShardArchive(t *testing.T) {
+	t.Parallel()
+
 	cfg, _, _ := fourShardScoreCohort(t)
 	svc := New(cfg)
 	svc.SetDecodeWorkers(4)

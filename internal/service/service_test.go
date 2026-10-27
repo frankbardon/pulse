@@ -70,6 +70,8 @@ func floatClose(a, b, eps float64) bool {
 }
 
 func TestService_OpenCohort(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -95,6 +97,8 @@ func TestService_OpenCohort(t *testing.T) {
 }
 
 func TestService_OpenCohort_NotFound(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	svc := New(cfg)
 
@@ -108,6 +112,8 @@ func TestService_OpenCohort_NotFound(t *testing.T) {
 }
 
 func TestService_OpenCohort_InvalidFormat(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	// Write garbage data
 	if err := afero.WriteFile(cfg.Fs(), "bad.pulse", []byte("not a pulse file"), 0644); err != nil {
@@ -122,6 +128,8 @@ func TestService_OpenCohort_InvalidFormat(t *testing.T) {
 }
 
 func TestService_Process(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -160,6 +168,8 @@ func TestService_Process(t *testing.T) {
 }
 
 func TestService_Process_WithFilter(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -189,6 +199,8 @@ func TestService_Process_WithFilter(t *testing.T) {
 }
 
 func TestService_Process_WithGroup(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "region", Type: encoding.FieldTypeU8, ByteOffset: 0, CsvColumnIdx: 0},
@@ -224,6 +236,8 @@ func TestService_Process_WithGroup(t *testing.T) {
 }
 
 func TestService_Process_ComposedRequest(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -266,6 +280,8 @@ func TestService_Process_ComposedRequest(t *testing.T) {
 }
 
 func TestService_Process_CategoricalCohort(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	dict.Add("red")
 	dict.Add("green")
@@ -308,6 +324,8 @@ func TestService_Process_CategoricalCohort(t *testing.T) {
 }
 
 func TestService_Process_NilCohort(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	svc := New(cfg)
 
@@ -327,6 +345,8 @@ func TestService_Process_NilCohort(t *testing.T) {
 }
 
 func TestService_Sample(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -351,6 +371,8 @@ func TestService_Sample(t *testing.T) {
 }
 
 func TestService_Sample_MoreThanAvailable(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -366,6 +388,8 @@ func TestService_Sample_MoreThanAvailable(t *testing.T) {
 }
 
 func TestService_Facet(t *testing.T) {
+	t.Parallel()
+
 	dict := encoding.NewDictionary()
 	dict.Add("red")
 	dict.Add("green")
@@ -407,6 +431,8 @@ func TestService_Facet(t *testing.T) {
 }
 
 func TestService_Facet_NumericField(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -423,6 +449,8 @@ func TestService_Facet_NumericField(t *testing.T) {
 }
 
 func TestService_Facet_UnknownField(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -437,6 +465,8 @@ func TestService_Facet_UnknownField(t *testing.T) {
 }
 
 func TestCohort_Records(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -465,6 +495,8 @@ func TestCohort_Records(t *testing.T) {
 }
 
 func TestCohort_RecordCount(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -484,6 +516,8 @@ func TestCohort_RecordCount(t *testing.T) {
 }
 
 func TestCohort_RecordCount_EmptySchema(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{Fields: nil}
 	cfg := setupTestFS(t, "empty.pulse", schema, nil)
 	svc := New(cfg)
@@ -503,6 +537,8 @@ func TestCohort_RecordCount_EmptySchema(t *testing.T) {
 }
 
 func TestService_Process_WithDataDir(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := fs.NewMemMap()
 
@@ -535,6 +571,8 @@ func TestService_Process_WithDataDir(t *testing.T) {
 }
 
 func TestService_Compose_Empty(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	svc := New(cfg)
 
@@ -545,6 +583,8 @@ func TestService_Compose_Empty(t *testing.T) {
 }
 
 func TestService_Compose_Nil(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	svc := New(cfg)
 
@@ -559,6 +599,8 @@ func TestService_Compose_Nil(t *testing.T) {
 // processor runs (defaulted Type otherwise causes registry lookup to
 // fail).
 func TestService_Process_AppliesDefaults(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -591,6 +633,8 @@ func TestService_Process_AppliesDefaults(t *testing.T) {
 // stops the defaults pass, so a request with a missing operator Type
 // surfaces a processing error instead of silently being filled in.
 func TestService_Process_DisableDefaults(t *testing.T) {
+	t.Parallel()
+
 	schema := testSchema()
 	cfg := setupTestFS(t, "test.pulse", schema, testRecords())
 	svc := New(cfg)
@@ -612,6 +656,8 @@ func TestService_Process_DisableDefaults(t *testing.T) {
 }
 
 func TestService_Process_F32Field(t *testing.T) {
+	t.Parallel()
+
 	schema := &encoding.Schema{
 		Fields: []encoding.Field{
 			{Name: "val", Type: encoding.FieldTypeF32, ByteOffset: 0, CsvColumnIdx: 0},

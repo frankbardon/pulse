@@ -88,6 +88,8 @@ func wideSetGrouperCohort(t *testing.T, path string) (*encoding.Schema, []wideSe
 // on both the fused and the buffered arm, and asserts each against
 // per-bit totals derived from the source rows.
 func TestWideSetGrouper_PerElementAxisThroughService(t *testing.T) {
+	t.Parallel()
+
 	schema, rows, _, _ := wideSetGrouperCohort(t, "wide_sets.pulse")
 	_, _, _, svcFused := wideSetGrouperCohort(t, "wide_sets.pulse")
 	ctx := context.Background()
@@ -189,6 +191,8 @@ func TestWideSetGrouper_PerElementAxisThroughService(t *testing.T) {
 // mask grouper on the COLUMN axis. Two rows whose masks differ only at
 // bits 200 and 201 must occupy two different columns.
 func TestWideSetGrouper_SetValueOnColumnAxisThroughService(t *testing.T) {
+	t.Parallel()
+
 	schema, rows, _, svcFused := wideSetGrouperCohort(t, "wide_sets.pulse")
 	ctx := context.Background()
 
@@ -276,6 +280,8 @@ func TestWideSetGrouper_SetValueOnColumnAxisThroughService(t *testing.T) {
 // wide-set grouped request — and the run must actually take the
 // streaming path.
 func TestWideSetGrouper_PredictStreamableAgreesWithRuntime(t *testing.T) {
+	t.Parallel()
+
 	for _, ft := range []encoding.FieldType{
 		encoding.FieldTypeSetU8, encoding.FieldTypeSetU64,
 		encoding.FieldTypeSetU128, encoding.FieldTypeSetU256,

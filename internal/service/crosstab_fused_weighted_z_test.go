@@ -179,6 +179,8 @@ func wzsCrosstabRequest(path string) *types.Request {
 // ShardWorkers/DecodeWorkers forced serial (1) and turned up (4). Every
 // combination must match the serial single-file fused reference.
 func TestCrosstabFused_WeightedTwoMeansZ_WorkerKnobsParity(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	wzsArchive(t, cfg, "wz.pulse", []int{37, 29, 41})
 	schema := wzsSchema()
@@ -237,6 +239,8 @@ func TestCrosstabFused_WeightedTwoMeansZ_WorkerKnobsParity(t *testing.T) {
 // overlay reads could drift. Reduction order differs from the serial
 // fold, so this is the comparison the tolerance exists for.
 func TestShardWorkers_WeightedMeanMomentsParity(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	wzsArchive(t, cfg, "wzg.pulse", []int{37, 29, 41})
 	ctx := context.Background()
@@ -432,6 +436,8 @@ func wzsNearDiff(path string, want, got any) string {
 // (frequency slot weight) host's: the same weighted moments, read the
 // same way.
 func TestCrosstab_WeightedTwoMeansZ_WeightedAverageHost(t *testing.T) {
+	t.Parallel()
+
 	cfg := fs.NewMemMap()
 	wzsArchive(t, cfg, "wz.pulse", []int{37, 29, 41})
 	ctx := context.Background()

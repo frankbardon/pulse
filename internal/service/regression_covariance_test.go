@@ -182,6 +182,8 @@ func processOne(t *testing.T, svc *Service, specs ...*types.RegressionSpec) []*t
 // count and the resolved lag; a cluster keyed by an integer id is the
 // same fit to the bit as the categorical one.
 func TestRegressionCovariance_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	t.Run("REG_OLS", testRobustOLSOracle)
 	t.Run("REG_GLM+REG_BAYES_LINEAR", testRobustGLMBayesOracle)
 }
@@ -255,6 +257,8 @@ func testRobustOLSOracle(t *testing.T) {
 // vcov; a robust type moves the standard errors and never the
 // coefficients.
 func TestRegressionCovariance_ClassicalByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	g := loadRobust(t)
 	svc, _ := robustCohort(t, g.Rows)
 	for _, vcov := range []bool{false, true} {
@@ -289,6 +293,8 @@ func TestRegressionCovariance_ClassicalByteIdentical(t *testing.T) {
 // one rule, internal/regcov); the data-dependent ones (one cluster, a
 // repeated order_by) fire at runtime; field-type faults in predict.
 func TestRegressionCovariance_Refusals(t *testing.T) {
+	t.Parallel()
+
 	g := loadRobust(t)
 	svc, data := robustCohort(t, g.Rows)
 	hc1 := func(s *types.RegressionSpec) { s.Covariance = &types.RegressionCovariance{Type: types.CovarianceHC1} }
@@ -390,6 +396,8 @@ func TestRegressionCovariance_Refusals(t *testing.T) {
 // passes through the buffered second pass; a streamed robust fit would
 // fail with PROCESSING_INTERNAL).
 func TestRegressionCovariance_PredictBuffered(t *testing.T) {
+	t.Parallel()
+
 	g := loadRobust(t)
 	_, data := robustCohort(t, g.Rows)
 	agg := []*types.Aggregation{{Type: types.AGG_COUNT, Field: "y"}}

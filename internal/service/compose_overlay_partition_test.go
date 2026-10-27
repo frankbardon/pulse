@@ -77,6 +77,8 @@ func panelSlabComposed(inner types.GroupType, params map[string]any) (*types.Com
 }
 
 func TestApplyComposeOverlays_PanelSlabGateIsWiredIntoTheServiceFold(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 
@@ -107,6 +109,8 @@ func TestApplyComposeOverlays_PanelSlabGateIsWiredIntoTheServiceFold(t *testing.
 // runs. Without this the test above would pass just as happily against
 // a gate that refused every panel spec.
 func TestApplyComposeOverlays_PanelSlabGateLetsAPartitioningAxisThrough(t *testing.T) {
+	t.Parallel()
+
 	cfg := setupTestFS(t, "test.pulse", testSchema(), testRecords())
 	svc := New(cfg)
 

@@ -23,6 +23,8 @@ import (
 //  4. Description divergence — warning only, no error.
 //  5. Corrupt shard header bytes — PULSE_SHARD_HEADER_INVALID error.
 func TestShardArchiveVerify(t *testing.T) {
+	t.Parallel()
+
 	t.Run("healthy_archive", func(t *testing.T) {
 		cfg := fs.NewMemMap()
 		fsys := cfg.Fs()

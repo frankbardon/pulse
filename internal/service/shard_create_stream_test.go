@@ -159,6 +159,8 @@ func expectedRows(fields []encoding.Field, country int, dict []string, rows [][]
 // arriving dictionary diverges, so the dictionary rewrite (which used
 // to refuse on the stored offsets) runs on the legacy side too.
 func TestShardStream_LegacyOffsetCohortsInteroperate(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	for _, shape := range legacyShapes() {
 		layouts := map[string][]encoding.Field{
@@ -245,6 +247,8 @@ func assertVerifiesClean(t *testing.T, svc *Service, archive string) {
 // promoted to the archive's rung (d), whose re-laid-out record count
 // must be the source's even though the fold only saw its header.
 func TestShardStream_CreateMatchesSequentialAdd(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	cfg := fs.NewMemMap()
 	fsys := cfg.Fs()
@@ -375,6 +379,8 @@ func peakHeapDuring(t *testing.T, fn func() error) uint64 {
 //
 // The resident create allocated, and held, every source at once.
 func TestShardStream_CreateMemoryBoundedBySource(t *testing.T) {
+	// serial: measures process-wide heap (runtime.ReadMemStats / GC), which concurrent tests inflate
+
 	const recs = 40_000
 	ctx := context.Background()
 
@@ -447,6 +453,8 @@ func TestShardStream_CreateMemoryBoundedBySource(t *testing.T) {
 // than 65535 shards is refused with PULSE_SHARD_COUNT_LIMIT before
 // anything is written — never stored truncated.
 func TestShardStream_ShardCountLimitRefused(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	assertLimit := func(t *testing.T, err error, want int) {
 		t.Helper()

@@ -67,6 +67,8 @@ func matrixSkipSelections() []skipSelection {
 }
 
 func TestReturnSkipsComputation_Matrices(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	runReturnSkipsComputationMatrices(t, false)
 }
 

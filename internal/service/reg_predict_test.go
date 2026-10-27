@@ -41,6 +41,8 @@ func scoreSlot(label, lo, hi string, fitted []string, spec types.RegressionSpec)
 // FITTED given the selected features), under serial and parallel
 // compose; the holdout slot scores the 13 unseen weeks.
 func TestRegPredict_ComposeEqualsFittedBitForBit(t *testing.T) {
+	t.Parallel()
+
 	svc := fitsService(t)
 	cases := []struct {
 		name string
@@ -112,6 +114,8 @@ func (v *valueSink) Row(_ int64, derived []any) error {
 // model's score as a derived column — one value per record — equal to
 // the score a Process slot reads.
 func TestRegPredict_MaterializeAdmitsBoundScore(t *testing.T) {
+	t.Parallel()
+
 	svc := fitsService(t)
 	ctx := context.Background()
 	set, _, _, err := svc.runComposeFits(ctx, []types.FitSpec{{Name: "m", Request: fitRequest("0", "90")}}, nil, 1)

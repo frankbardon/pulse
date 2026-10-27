@@ -84,6 +84,8 @@ func checkMatrixCells(t *testing.T, what string, got [][]float64, want [][]*floa
 // all / a list, listwise / pairwise, df = N* − 2 − g), at alpha 0.05,
 // 0.1 and 0.01.
 func TestMatrixInference_MatchesROracle(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []inferenceOracle `json:"cases"`
 	}
@@ -134,6 +136,8 @@ func auxKeys(res types.MatrixResult) []string {
 // TestMatrixInference_PartialMatchesPpcorP: every mv_partial_correlation.json
 // case's ppcor p-value (n = N*, min pair n pairwise) is auxiliary.p.
 func TestMatrixInference_PartialMatchesPpcorP(t *testing.T) {
+	t.Parallel()
+
 	var golden struct {
 		Cases []struct {
 			partialOracle
@@ -165,6 +169,8 @@ func TestMatrixInference_PartialMatchesPpcorP(t *testing.T) {
 // shared arithmetic, correlationInference), unweighted and under both
 // weight kinds, one block and several, listwise and pairwise.
 func TestMatrixInference_PearsonParity(t *testing.T) {
+	t.Parallel()
+
 	members := []string{"x1", "x2", "x3"}
 	for _, n := range []int{40, 3*4096 + 17} {
 		for _, missing := range []string{"listwise", "pairwise"} {
@@ -221,6 +227,8 @@ func TestMatrixInference_PearsonParity(t *testing.T) {
 // warning, no new component); on adds exactly the three auxiliaries
 // and leaves every other part's bytes alone.
 func TestMatrixInference_OffIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "m.pulse", matrixRows(300))
 	run := func(typ types.MatrixType, params string) (map[string]any, *types.Response) {
 		t.Helper()
@@ -297,6 +305,8 @@ func TestMatrixInference_OffIsByteIdentical(t *testing.T) {
 // "inference" naming the null outputs; a probability-weighted fold
 // whose Kish n_eff is below 3 adds PULSE_WEIGHT_LOW_NEFF.
 func TestMatrixInference_SizeNulls(t *testing.T) {
+	t.Parallel()
+
 	// Three complete rows, then x1 only on more rows: listwise n = 3.
 	rows := [][5]float64{
 		{1, 2, 4, 1, 1}, {2, 1, 5, 1, 1}, {3, 5, 3, 1, 1},
@@ -405,6 +415,8 @@ func TestMatrixInference_SizeNulls(t *testing.T) {
 // keeps the inference keys a spec asked for (E4-G1), so it runs; a
 // partial selection naming none of this spec's keys skips it.
 func TestMatrixInference_ReturnGate(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	cfg := writeMatrixCohort(t, "m.pulse", matrixRows(200))
 	spec := missingSpec(types.MAT_CORRELATION, []string{"x1", "x2", "x3"}, "", `{"inference": true}`)
 	for _, c := range []struct {
@@ -446,6 +458,8 @@ func TestMatrixInference_ReturnGate(t *testing.T) {
 // on adds exactly auxiliary.p / ci_lower / ci_upper (the primary, n,
 // determinant and every other part keep their bytes).
 func TestMatrixInference_RankOffIsByteIdentical(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "m.pulse", matrixRows(300))
 	run := func(params string) (map[string]any, *types.Response) {
 		t.Helper()
@@ -500,6 +514,8 @@ func TestMatrixInference_RankOffIsByteIdentical(t *testing.T) {
 // p and both bounds equal the unweighted run over the rows repeated w
 // times (weight-0 rows dropped), the cor.test oracle's rule.
 func TestMatrixInference_RankWeightRules(t *testing.T) {
+	t.Parallel()
+
 	cfg := writeMatrixCohort(t, "rank.pulse", rankRows(60))
 	for _, method := range []string{"spearman", "kendall"} {
 		spec := missingSpec(types.MAT_CORRELATION, []string{"x1", "x2", "x3"}, "p", `{"inference": true, "method": "`+method+`"}`)
@@ -555,6 +571,8 @@ func TestMatrixInference_RankWeightRules(t *testing.T) {
 // 3) or collapses its interval (below 4), and equals the test's figure
 // elsewhere; the matrix's own n still counts the weight-0 rows.
 func TestMatrixInference_ZeroWeightRowsFloorLikeTest(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name           string
 		rows           [][5]float64 // x1, x2, x3, f, p
@@ -685,6 +703,8 @@ func untiedRankRows(n, m, a, b int) [][5]float64 {
 // (pairwise), unit frequency weights (exact) and integer frequency
 // weights with weight-0 rows (ties).
 func TestMatrixInference_RankTestParity(t *testing.T) {
+	t.Parallel()
+
 	members := []string{"x1", "x2", "x3"}
 	cases := []struct {
 		name    string
@@ -739,6 +759,8 @@ func TestMatrixInference_RankTestParity(t *testing.T) {
 // interval of the unweighted run on the rep()-expanded rows — the
 // fixtures the raw-row floor used to null.
 func TestMatrixInference_FrequencyFloorIsExpansion(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name, params string
 		rows         [][5]float64
@@ -753,6 +775,8 @@ func TestMatrixInference_FrequencyFloorIsExpansion(t *testing.T) {
 		{"spearman_ci", `{"inference": true, "method": "spearman"}`, [][5]float64{{1, 2, 4, 2, 1}, {2, 1, 5, 2, 1}, {3, 5, 3, 2, 1}}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			var expanded [][5]float64
 			for _, r := range c.rows {
 				for range int(r[3]) {

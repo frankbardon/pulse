@@ -51,6 +51,8 @@ func regMember(slot string, method types.MultiplicityMethod, explicit bool, coef
 // TestFoldRegressionMultiplicity is the unit table over hand-built plans
 // and results.
 func TestFoldRegressionMultiplicity(t *testing.T) {
+	t.Parallel()
+
 	holm, bonf := types.MultiplicityMethodHolm, types.MultiplicityMethodBonferroni
 	t.Run("holm pools a test with two coefficients", func(t *testing.T) {
 		test := result(types.TEST_T, 0.01)
@@ -154,6 +156,8 @@ func regressionMultRequest(block bool) *types.Request {
 // matches Holm written out by hand over the baseline's raw p-values, and
 // no raw figure moves.
 func TestRegressionMultiplicity_HolmMatchesHandComputation(t *testing.T) {
+	t.Parallel()
+
 	_, svc := overlayFoldService(t)
 	base := mustProcess(t, svc, regressionMultRequest(false))
 	got := mustProcess(t, svc, regressionMultRequest(true))
@@ -197,6 +201,8 @@ func TestRegressionMultiplicity_HolmMatchesHandComputation(t *testing.T) {
 // p_adjusted and m are the full run's; without the block the same
 // selection fits nothing.
 func TestReturnSkipsRegressions_MultiplicityVeto(t *testing.T) {
+	// serial: reads deltas of process-wide internal/processing work counters, which concurrent tests bump
+
 	_, svc := overlayFoldService(t)
 	exclude := &types.Return{Exclude: []string{"regressions"}}
 	full := mustProcess(t, svc, regressionMultRequest(true))
@@ -222,6 +228,8 @@ func TestReturnSkipsRegressions_MultiplicityVeto(t *testing.T) {
 // family stays inside its slot (m = 1), and Compose and ComposeParallel
 // answer byte for byte.
 func TestRegressionMultiplicity_Compose(t *testing.T) {
+	t.Parallel()
+
 	svc := composeMultService(t)
 	ctx := context.Background()
 	slot := func(cohort string, family types.MultiplicityFamily) *types.Request {
