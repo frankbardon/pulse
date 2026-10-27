@@ -29,7 +29,7 @@ func TestExtRecord_Uint64Value(t *testing.T) {
 			map[string]bool{"nk": true},
 			map[string]any{"emb": []float64{12, math.NaN()}})
 		rec.SetExactU64("k", want)
-		var r extend.Record = extRecord{rec}
+		var r extend.Record = extRecord{Record: rec}
 		if got, ok := r.Uint64Value("k"); !ok || got != want {
 			t.Errorf("Uint64Value(k) = (%d, %v), want (%d, true)", got, ok, want)
 		}

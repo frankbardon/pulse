@@ -20,8 +20,6 @@ requires: [capability:crosstab]
 }}
 ```
 
-Result: `Response.Crosstab.Matrix` (keys, cells, margins).
-
 ## Choosing a crosstab
 
 - Need margins (row / column / grand totals) or shares (row %, column %)? → crosstab.
@@ -69,9 +67,9 @@ One decode pass into per-cell / per-margin state — memory `O(cells + margins)`
 
 - the cell aggregator is not in `crosstab.recompute_aggregators`, and every `margin_aggregations` entry is mergeable;
 - every axis grouper keys one record at a time — all but the rank-based quantile one, fan-out included, any axis (extension: declared `Streamable` / `FansOut`);
-- nothing needs whole-cohort context: no join, no tests, features, formula attributes or expression filters, no decimal cell field.
+- nothing needs whole-cohort context: no join, windows, regressions, tests, features, formula attributes or expression filters, no decimal cell field.
 
-Overlays never prevent fusing. Fan-out margins are non-additive (3 options count 3×).
+Overlays never prevent fusing.
 
 **Grid cap.** Rows × columns over `max_crosstab_cells` refuses with `PULSE_LIMIT_EXCEEDED`; predict flags it `possible`.
 
@@ -83,7 +81,7 @@ Mirrors the matrix coordinate-for-coordinate: `CellComponents[r][c]` ↔ `Cells[
 
 ## Tests + overlays compose
 
-Row-level `tests` / `post_tests` run on raw rows beside a crosstab. Crosstab is the MATRIX overlay host; shares / indices of a weighted host are weighted; the cell t / z overlays read `{n, mean, variance}` from `CellComponents` ([`overlay-system`](overlay-system.md)).
+Row-level `tests`, `post_tests` and `regressions` run on raw rows beside a crosstab; a window must feed an axis, cell or margin (`crosstab_window_unread`). Crosstab is the MATRIX overlay host; shares / indices of a weighted host are weighted; the cell t / z overlays read `{n, mean, variance}` from `CellComponents` ([`overlay-system`](overlay-system.md)).
 
 ## See
 

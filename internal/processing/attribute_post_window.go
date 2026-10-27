@@ -1,7 +1,8 @@
 package processing
 
 import (
-	"github.com/frankbardon/pulse/internal/model"
+	"context"
+
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -35,17 +36,45 @@ type attrSlotOut struct {
 // postWindowPlan classifies req's attributes over the processor's bound
 // models and refuses a window-dependent slot that cannot move
 // (PULSE_ATTRIBUTE_WINDOW_ORDER — the field-reference walk's refusal,
-// re-raised for a processor driven without the service).
+// re-raised for a processor driven without the service). Its
+// WindowsFirst reports the windows-first mode (vectors.WindowsFirst,
+// with the bound models): every shape runs it (windowsFirstPass) —
+// ungrouped and grouped in processRecords, the buffered crosstab in
+// RunCrosstab; the streaming arms and the fused crosstab never see it
+// (canStream and the fusion gate refuse any window).
 func (p *Processor) postWindowPlan(req *types.Request) (vectors.PostWindow, error) {
-	var cat model.Catalog
-	if p.models != nil {
-		cat = p.models
-	}
-	pw := vectors.PostWindowAttributes(req, p.schema, nil, cat)
+	pw := vectors.PostWindowAttributes(req, p.schema, nil, p.catalog())
 	if cerr := pw.Refusal(req); cerr != nil {
 		return vectors.PostWindow{}, cerr
 	}
 	return pw, nil
+}
+
+// windowsFirstPass is the windows-first pre-step every shape runs after
+// the filter and pre-window attribute pass and BEFORE its groups,
+// aggregations or crosstab cells: the windows run over scratch record
+// rows of filtered (no key orders — windows over records, partition_by
+// unchanged), every window label an output slot, matrix, regression or
+// post-window attribute reads is copied onto filtered[i]
+// (copyWindowMembers), then the post-window attributes run over the
+// records (nil rows — the record carries the label), filling outs. The
+// scratch rows are dropped: the response rows are the group,
+// aggregation or crosstab rows.
+func (p *Processor) windowsFirstPass(ctx context.Context, req *types.Request, post vectors.PostWindow, filtered []*Record, outs []attrSlotOut) error {
+	rows, words, err := recordsToRows(filtered, p.schema)
+	if err != nil {
+		return err
+	}
+	if err := p.applyWindows(ctx, rows, req.Windows, nil, words.copyObserver()); err != nil {
+		return err
+	}
+	if err := p.copyWindowMembers(req, post, filtered, rows); err != nil {
+		return err
+	}
+	if post.Any() {
+		return p.applyPostWindowAttributes(req, post, filtered, nil, outs)
+	}
+	return nil
 }
 
 // filterThenAttributeSlots is filterThenAttributes with the post-window

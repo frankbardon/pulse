@@ -143,7 +143,7 @@ func TestResolveTests_Rules(t *testing.T) {
 			if c.post != nil {
 				req.PostTests = []*types.Test{c.post}
 			}
-			got, err := ResolveTests(req, testInputSchema(), nil, nil)
+			got, err := ResolveTests(req, testInputSchema(), nil, nil, nil)
 			if c.code != "" {
 				if err == nil {
 					t.Fatalf("want %s, resolved %+v", c.code, got)
@@ -182,7 +182,7 @@ func TestResolveTests_SecondSetOnlyOnPairedTypes(t *testing.T) {
 		Vectors: []types.VectorSpec{{Name: "vb", Fields: []string{"b1", "b2"}}},
 		Tests:   []*types.Test{hot(func(t *types.Test) { t.Fields, t.Vector2 = []string{"a1", "a2"}, "vb" })},
 	}
-	_, err := ResolveTests(req, testInputSchema(), nil, nil)
+	_, err := ResolveTests(req, testInputSchema(), nil, nil, nil)
 	if err == nil || err.Details["reason"] != "vector2_not_accepted" {
 		t.Fatalf("refusal = %v", err)
 	}
@@ -233,7 +233,7 @@ func TestResolveTests_SecondSet(t *testing.T) {
 		Vectors: []types.VectorSpec{{Name: "vb", Fields: []string{"b1", "b2"}}},
 		Tests:   []*types.Test{hot(func(t *types.Test) { t.Fields, t.Vector2 = []string{"a1", "a2"}, "vb" })},
 	}
-	got, err := ResolveTests(req, testInputSchema(), nil, nil)
+	got, err := ResolveTests(req, testInputSchema(), nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +241,7 @@ func TestResolveTests_SecondSet(t *testing.T) {
 		t.Fatalf("second set = %+v", got[0])
 	}
 	req.Tests[0].Fields = []string{"a1", "a2", "a3"}
-	_, err = ResolveTests(req, testInputSchema(), nil, nil)
+	_, err = ResolveTests(req, testInputSchema(), nil, nil, nil)
 	if err == nil || err.Details["reason"] != "vector2_length_mismatch" || err.Details["p"] != 3 || err.Details["p2"] != 2 {
 		t.Fatalf("mismatch refusal = %v", err)
 	}
@@ -252,10 +252,10 @@ func TestResolveTests_SecondSet(t *testing.T) {
 // unknown-type refusal.
 func TestResolveTests_HiddenRoutesUnjudged(t *testing.T) {
 	req := &types.Request{Tests: []*types.Test{hot(func(t *types.Test) {})}}
-	if _, err := ResolveTests(req, testInputSchema(), nil, nil); err == nil {
+	if _, err := ResolveTests(req, testInputSchema(), nil, nil, nil); err == nil {
 		t.Fatal("visible type: want no_vector_or_fields")
 	}
-	got, err := ResolveTests(req, testInputSchema(), func(types.TestType) types.TestType { return "" }, nil)
+	got, err := ResolveTests(req, testInputSchema(), nil, func(types.TestType) types.TestType { return "" }, nil)
 	if err != nil || got[0].Has() {
 		t.Fatalf("hidden type judged: %v %+v", err, got)
 	}
@@ -351,19 +351,19 @@ func TestResolve_ExtensionVectorInputs(t *testing.T) {
 			case c.test != nil:
 				req.Tests = []*types.Test{c.test}
 				var got []TestInput
-				if got, err = ResolveTests(req, testInputSchema(), nil, c.ext); err == nil {
+				if got, err = ResolveTests(req, testInputSchema(), nil, nil, c.ext); err == nil {
 					m1, m2 = got[0].Members.Members, got[0].Members2.Members
 				}
 			case c.attr != nil:
 				req.Attributes = []*types.Attribute{c.attr}
 				var got []AttributeInput
-				if got, err = ResolveAttributes(req, testInputSchema(), nil, c.ext); err == nil {
+				if got, err = ResolveAttributes(req, testInputSchema(), nil, nil, c.ext); err == nil {
 					m1 = got[0].Members.Members
 				}
 			default:
 				req.Groups = []*types.Group{c.group}
 				var got map[*types.Group]GroupInput
-				if got, err = ResolveGroups(req, testInputSchema(), nil, c.ext); err == nil {
+				if got, err = ResolveGroups(req, testInputSchema(), nil, nil, c.ext); err == nil {
 					in := got[c.group]
 					m1 = in.Members.Members
 					if in.Has() && !in.Extension {

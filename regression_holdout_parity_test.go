@@ -10,6 +10,7 @@ import (
 
 	perr "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/extend"
+	"github.com/frankbardon/pulse/internal/processing/regression"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -356,13 +357,29 @@ var holdoutBuiltinCases = map[types.RegressionType]func() *types.RegressionSpec{
 		s.Type = types.REG_BAYES_LINEAR
 		return s
 	},
+	// A model regression (extension-shaped): the adstocked tv_ad enters
+	// through its Hill curve, the rest are linear controls.
+	types.REG_MMM_HILL: func() *types.RegressionSpec {
+		return &types.RegressionSpec{Name: "reg-mmm-hill", Type: types.REG_MMM_HILL, Target: "sales",
+			Predictors: []string{"tv_ad", "radio_lag", "search_ewma", "trend"}, Params: json.RawMessage(`{"channels":["tv_ad"]}`)}
+	},
 }
 
-// TestHoldout_EveryScorableBuiltin: every built-in regression type has a
-// scorer and takes a holdout; each passes gates A and B.
+// TestHoldout_EveryScorableBuiltin: every built-in regression type with
+// a scorer takes a holdout and passes gates A and B; the one without
+// (REG_MMM_BAYES, whose adstocked prediction needs the history and whose
+// holdout is its own params.holdout_from) has no case — its holdout slot
+// is refused alike by predict and the runtime
+// (internal/regmmm TestMMMBayes_SharedSlotsRefusedLikePredict).
 func TestHoldout_EveryScorableBuiltin(t *testing.T) {
 	p := windowParityPulse(t, Options{})
 	for _, typ := range types.AllRegressionTypes() {
+		if _, scorable := regression.BuiltinScorer(typ); !scorable {
+			if _, listed := holdoutBuiltinCases[typ]; listed || typ != types.REG_MMM_BAYES {
+				t.Errorf("%s has no scorer: only REG_MMM_BAYES is expected to, without a holdout parity case", typ)
+			}
+			continue
+		}
 		mk, ok := holdoutBuiltinCases[typ]
 		if !ok {
 			t.Errorf("%s has no holdout parity case: add one to holdoutBuiltinCases", typ)

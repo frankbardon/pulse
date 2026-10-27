@@ -939,7 +939,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_REGRESSION_INVALID: {
-		Message: "A regression slot names a type no registry on this instance resolves (never registered, hidden, or a pack model whose extension is not registered); predict and every runtime surface refuse it alike.",
+		Message: "A regression slot names a type no registry on this instance resolves (never registered, hidden, or an embedder model whose extension is not registered); predict and every runtime surface refuse it alike.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceOperator,
@@ -949,17 +949,22 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupRequiresReschema,
 				Path:   []string{"Regressions", "*", "Type"},
-				Hint:   "A pack model such as REG_MMM_HILL is an extension: register its pack's regression on pulse.Options.Extensions (Go embedders) before pulse.New, or run on an instance that registers it.",
+				Hint:   "An embedder model (REG_<NAMESPACE>_<NAME>) is an extension: register its regression on pulse.Options.Extensions (Go embedders) before pulse.New, or run on an instance that registers it.",
 			},
 		},
 	},
 	PULSE_ATTRIBUTE_WINDOW_ORDER: {
-		Message: "An attribute reads a window label, but only a row-local expression formula (no total()) or bound-model score runs after the windows, and only when the windows run over the record rows.",
+		Message: "An attribute reads a window label, but only a row-local expression formula (no total()) or bound-model score runs after the windows, and only when the windows run over the record rows (no groups, aggregations or crosstab, or windows-first: one of them reads a window output).",
 		Fixups: []Fixup{
 			{
 				Action: FixupRequiresReschema,
 				Path:   []string{"Attributes"},
-				Hint:   "Materialize the window first (pulse api materialize with the windows and their filters), then run the attribute over the derived cohort, naming the window's column; or rewrite the step as a row-local expression formula and drop the groups, aggregations and crosstab so the windows run over the record rows.",
+				Hint:   "Windows-first: rewrite the step as a row-local expression formula (no total()) or ATTR_REG_PREDICT and name its label (or the window label itself) in an aggregation, grouper or crosstab axis — the windows then run first over the record rows and the aggregations read the values off each record; or drop the groups, aggregations and crosstab so the windows run over the record rows.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"Attributes"},
+				Hint:   "Materialize the window first (pulse api materialize with the windows and their filters), then run the attribute over the derived cohort, naming the window's column.",
 			},
 		},
 	},
@@ -969,7 +974,12 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceOperator,
 				Path:   []string{"Windows", "*", "Type"},
-				Hint:   "An unknown window type (details.type, at details.window_index) names no registered WIN_* operator on this instance: pick one from the manifest's window list (a retired name such as WIN_ADSTOCK is now WIN_DISTRIBUTED_LAG).",
+				Hint:   "An unknown window type (details.type, at details.window_index) names no registered WIN_* operator on this instance: pick one from the manifest's window list.",
+			},
+			{
+				Action: FixupReplaceOperator,
+				Path:   []string{"Windows", "*", "Type"},
+				Hint:   "A retired window type (renamed before v1.0.0, no alias) is refused with details.renamed_to naming its replacement — WIN_ADSTOCK is now WIN_DISTRIBUTED_LAG: set Type to the details.renamed_to value; the params are unchanged.",
 			},
 			{
 				Action: FixupSetDefault,
@@ -980,6 +990,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupRemoveParam,
 				Path:   []string{"Windows", "*", "Frame"},
 				Hint:   "Drop Frame for ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, PCT_CHANGE, DELTA, SHARE, LIFT; supply Frame (mode \"rows\") for MOVING_AVG (both bounds), EWMA, RUNNING_*.",
+			},
+			{
+				Action: FixupRequiresReschema,
+				Path:   []string{"Windows", "*"},
+				Hint:   "details.reason windows_first_reads_aggregate: an aggregation, grouper or crosstab axis reads a window output, so the windows run first over the records and no aggregation label exists yet — drop the window-output read from the aggregations (the windows then run over the aggregated rows again), or materialize the windows first and aggregate the derived cohort in a second request.",
 			},
 		},
 	},
@@ -2276,7 +2291,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_MODEL_TERM_UNKNOWN: {
-		Message: "A reference names a term the bound model does not have. A scoring attribute's params.terms and the coef() term argument may name the fit's predictors (as the fit request wrote them) and `(intercept)`. The fit is under `fit`, the term under `term`, the terms it may name under `available`.",
+		Message: "A reference names a term the bound model does not have. A scoring attribute's params.terms and the coef() term argument may name the fit's predictors (as the fit request wrote them) and `(intercept)`. The fit is under `fit`, the term under `term`, the terms it may name under `available`. A sweep_axis(fit, axis) call raises it too, with `reason`: `not_sweep_bound` (the fit has no `from_sweep`, so no winning axes) or `axis_unknown` (the sweep has no such axis; its axes under `axes`).",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -2287,6 +2302,11 @@ var codeMetadata = map[Code]Metadata{
 				Action: FixupReplaceField,
 				Path:   []string{"attributes", "*", "expression"},
 				Hint:   "Pass coef() a term under `available` as its second argument.",
+			},
+			{
+				Action: FixupReplaceField,
+				Path:   []string{"attributes", "*", "expression"},
+				Hint:   "Pass sweep_axis() a fit bound with `from_sweep` and an axis under `axes`.",
 			},
 		},
 	},
@@ -2628,7 +2648,7 @@ var codeMetadata = map[Code]Metadata{
 		},
 	},
 	PULSE_SWEEP_RANK_PATH: {
-		Message: "The sweep `rank.by` path does not parse, or does not resolve to one number in a slot's response. The rank reads each sweep slot's unshaped response JSON at that path: dotted segments, where a segment on an object is a key and a segment on a list selects the one element whose `name` or `label` equals it (never an index). The batch is refused when the path ends on a non-number, is ambiguous (two elements match, or the match's name and label differ) or resolves in no sweep slot (reason `syntax`, `not_number`, `ambiguous` or `missing`). As a WARNING on a slot's own response it means that slot is left out of the ranking: its value is null (undefined) or the path is missing there only. The path is under `by`, the slot under `label`, the failing segment under `segment`.",
+		Message: "The sweep `rank.by` path does not parse, or does not resolve to one number in a slot's response. The rank reads each sweep slot's unshaped response JSON at that path: dotted segments, where a segment on an object is a key and a segment on a list selects the one element whose `name` or `label` equals it (never an index). The batch is refused when the path ends on a non-number, is ambiguous (two elements match, or the match's name and label differ) or resolves in no sweep slot (reason `syntax`, `not_number`, `ambiguous` or `missing`). As a WARNING on a slot's own response it means that slot is left out of the ranking: its value is null (undefined) or the path is missing there only. The path is under `by`, the slot under `label`, the failing segment under `segment`. As the `error` of a sweep-bound fit (`fits[].from_sweep`, reason `empty`) it means no sweep slot was ranked, so the fit binds failed and readers see PULSE_FIT_UNAVAILABLE.",
 		Fixups: []Fixup{
 			{
 				Action: FixupReplaceField,
@@ -5230,7 +5250,7 @@ var codeMetadata = map[Code]Metadata{
 			{
 				Action: FixupReplaceField,
 				Path:   []string{"Limits"},
-				Hint:   "Raise the limit on the instance: set Options.Limits.<Field> (named under `option`), the feature profile `limits.<limit>` key, or `pulse mcp --limit <limit>=<value>`; -1 disables it.",
+				Hint:   "Raise the limit on the instance: set Options.Limits.<Field> (named under `option`), the feature profile `limits.<limit>` key, or the CLI's root `--limit <limit>=<value>` flag (accepted by every `pulse` command); -1 disables it.",
 			},
 			{
 				Action: FixupReplaceField,

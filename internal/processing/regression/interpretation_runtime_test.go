@@ -11,6 +11,11 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/processing/regression"
+	// internal/regadapt registers the model regressions (REG_MMM_HILL,
+	// REG_MMM_BAYES) on this package's built-in registry at its init —
+	// the same import every engine binary carries (internal/service) —
+	// so FitBuffered below runs them as every engine does.
+	_ "github.com/frankbardon/pulse/internal/regadapt"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -37,6 +42,15 @@ var regressionProbes = map[types.RegressionType][]types.RegressionSpec{
 	types.REG_BAYES_LINEAR: {
 		{Type: types.REG_BAYES_LINEAR, Target: "y", Predictors: []string{"x1", "x2"}},
 	},
+	// The model regressions: a saturating spend channel c and a control
+	// x2 over the target m; REG_MMM_BAYES reads the contiguous time t.
+	types.REG_MMM_HILL: {
+		{Type: types.REG_MMM_HILL, Target: "m", Predictors: []string{"c", "x2"}, Params: json.RawMessage(`{"channels":["c"]}`)},
+	},
+	types.REG_MMM_BAYES: {
+		{Type: types.REG_MMM_BAYES, Target: "m", Predictors: []string{"c", "x2"}, RNGSeed: 1,
+			Params: json.RawMessage(`{"channels":["c"],"time":"t","chains":2,"warmup":100,"draws":50}`)},
+	},
 }
 
 // probeRows is a deterministic noisy fixture: a numeric target with
@@ -54,8 +68,10 @@ func probeRows() []regression.Record {
 		if -0.5+1.2*x1+0.8*x2+noise > 0 {
 			b = 1
 		}
+		c := 60 + 50*math.Sin(0.53*float64(i))
 		out[i] = probeRecord{"x1": x1, "x2": x2, "y": 3 + 2*x1 - x2 + noise, "b": b,
-			"g": 1 / (0.8 + 0.05*x1 + 0.1*x2) * (1 + 0.3*noise)}
+			"g": 1 / (0.8 + 0.05*x1 + 0.1*x2) * (1 + 0.3*noise),
+			"c": c, "t": float64(i + 1), "m": 5 + 8*c/(c+40) - 0.5*x2 + 0.3*noise}
 	}
 	return out
 }
@@ -77,7 +93,8 @@ func TestRegressionOutputsHoldAtRuntime(t *testing.T) {
 	schema := &encoding.Schema{Fields: []encoding.Field{
 		{Name: "y", Type: encoding.FieldTypeF64}, {Name: "b", Type: encoding.FieldTypeF64},
 		{Name: "x1", Type: encoding.FieldTypeF64}, {Name: "x2", Type: encoding.FieldTypeF64},
-		{Name: "g", Type: encoding.FieldTypeF64},
+		{Name: "g", Type: encoding.FieldTypeF64}, {Name: "c", Type: encoding.FieldTypeF64},
+		{Name: "t", Type: encoding.FieldTypeF64}, {Name: "m", Type: encoding.FieldTypeF64},
 	}}
 	rows := probeRows()
 	for _, r := range types.AllRegressionTypes() {

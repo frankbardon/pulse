@@ -162,6 +162,9 @@ func TestDecide(t *testing.T) {
 			"ATTR_FORMULA bail",
 			"FILTER_EXPRESSION bail",
 		}},
+		{"windows", func(r *types.Request) {
+			r.Windows = []*types.Window{{Type: types.WIN_LAG, Field: "score", Label: "lag"}}
+		}, []string{"windows force buffered"}},
 		{"missing cell", func(r *types.Request) { r.Crosstab.Cell = nil }, []string{"missing cell aggregator"}},
 	}
 	for _, c := range cases {

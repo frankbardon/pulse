@@ -19,6 +19,8 @@ import "github.com/frankbardon/pulse/descriptor"
 var regressionPurposes = map[string]descriptor.Purpose{
 	"REG_BAYES_LINEAR": purposeRegBayesLinear,
 	"REG_GLM":          purposeRegGLM,
+	"REG_MMM_BAYES":    purposeRegMMMBayes,
+	"REG_MMM_HILL":     purposeRegMMMHill,
 	"REG_OLS":          purposeRegOLS,
 }
 
@@ -163,6 +165,65 @@ var (
 			"credible-interval", "heteroscedasticity", "independence", "listwise-deletion",
 			"multicollinearity", "normal-distribution", "posterior", "prior", "r-squared",
 			"regression-coefficient", "residual",
+		},
+	}
+
+	purposeRegMMMHill = descriptor.Purpose{
+		Plain:   "Fits a media-mix model: each marketing channel's effect and response curve (where its spend stops paying off), jointly with linear controls.",
+		KnownAs: []string{"media mix model", "marketing mix model", "mmm"},
+		Intents: []string{IntentDrivers},
+		Questions: []string{
+			"What does each marketing channel contribute to sales, holding price and the other channels fixed?",
+			"At what weekly spend does each channel saturate?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainOps: "Estimate which channels earn their spend, as the curves a budget split is then optimised over.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "the outcome moves in a straight line with spend, with no saturation", Use: "REG_OLS"},
+		},
+		Assumptions: []string{
+			regIndependentRows,
+			"Each channel is spend already carried over from earlier periods (adstocked upstream, for example by WIN_DISTRIBUTED_LAG): " +
+				"the model does not carry spend over itself, so the carry-over decay is searched outside it.",
+			"Each channel's effect follows one Hill curve, rising from 0 and flattening toward its coefficient; the controls enter in a straight line.",
+			"A channel's coefficient is held at 0 or above by default, so a channel the data do not support comes back exactly 0.",
+			regAssociationOnly,
+			"A channel whose spend never reaches its half-saturation leaves its curve weakly pinned down even when its total contribution is right.",
+			regNullsDropped,
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"independence", "listwise-deletion", "regression-coefficient", "standard-error",
+		},
+	}
+
+	purposeRegMMMBayes = descriptor.Purpose{
+		Plain:   "Fits a media-mix model with intervals: each channel's carry-over, response curve and return on spend, beside linear controls.",
+		KnownAs: []string{"bayesian media mix model", "bayesian marketing mix model", "bayesian mmm"},
+		Intents: []string{IntentDrivers},
+		Questions: []string{
+			"What return does each marketing channel earn, and how sure are we?",
+			"How long does each channel's effect carry over?",
+		},
+		UseCases: map[descriptor.Domain]string{
+			descriptor.DomainOps: "Which channels earn their spend, with intervals, before moving budget.",
+		},
+		NotFor: []descriptor.Alternative{
+			{When: "a fast point estimate over already-adstocked channels is enough, or the fit must be saved, scored or optimised", Use: "REG_MMM_HILL"},
+		},
+		Assumptions: []string{
+			"The rows are one market's series, one row per period with contiguous integer times: a gap or a repeated period is refused. " +
+				"Each period's noise is independent of the others once the carry-over is modelled: leftover dependence over time makes the intervals too narrow.",
+			"Each channel is raw spend, carried over geometrically inside the model over max_lag periods, so the decay is estimated with everything else.",
+			"Each channel's effect follows one Hill curve, rising from 0 and flattening toward its coefficient; the controls enter in a straight line.",
+			"The priors shape the answer where the data are thin: an experiment's ROI is the honest prior to set.",
+			regAssociationOnly,
+			regNullsDropped,
+		},
+		Level: descriptor.LevelAdvanced,
+		Glossary: []string{
+			"listwise-deletion", "regression-coefficient",
 		},
 	}
 )

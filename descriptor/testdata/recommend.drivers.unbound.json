@@ -339,136 +339,88 @@
         ]
       },
       {
-        "operator": "MAT_PARTIAL_CORRELATION",
-        "category": "matrix",
+        "operator": "REG_MMM_BAYES",
+        "category": "regression",
         "level": "advanced",
-        "why": "How closely each pair of numeric fields moves together once other fields are held fixed, as one square table of values from -1 to 1. Fill in each placeholder in the draft before you run it.",
+        "why": "Fits a media-mix model with intervals: each channel's carry-over, response curve and return on spend, beside linear controls. Fill in each placeholder in the draft before you run it.",
         "bound": false,
         "request": {
           "cohort": {
             "filename": "\u003ccohort\u003e"
           },
-          "matrices": [
+          "regressions": [
             {
-              "fields": [
-                "\u003cfields\u003e"
+              "params": {
+                "channels": [
+                  "\u003cchannels\u003e"
+                ],
+                "time": "\u003ctime\u003e"
+              },
+              "predictors": [
+                "\u003cpredictors\u003e"
               ],
-              "type": "MAT_PARTIAL_CORRELATION"
+              "target": "\u003ctarget\u003e",
+              "type": "REG_MMM_BAYES"
             }
           ]
         },
         "placeholders": [
+          "channels",
           "cohort",
-          "fields"
+          "predictors",
+          "target",
+          "time"
         ],
         "alternatives": [
           {
-            "when": "you want each pair's link with nothing held fixed",
-            "use": "MAT_CORRELATION"
-          },
-          {
-            "when": "you want how much each field moves the outcome, in its own units",
-            "use": "REG_OLS"
-          },
-          {
-            "when": "you need a p-value for one pair",
-            "use": "TEST_PEARSON_R"
+            "when": "a fast point estimate over already-adstocked channels is enough, or the fit must be saved, scored or optimised",
+            "use": "REG_MMM_HILL"
           }
         ]
       },
       {
-        "operator": "ATTR_REG_PREDICT",
-        "category": "attribute",
+        "operator": "REG_MMM_HILL",
+        "category": "regression",
         "level": "advanced",
-        "why": "Adds to every row the value a model fitted once, elsewhere in the request, predicts for it from the row's own predictor values. Fill in each placeholder in the draft before you run it.",
+        "why": "Fits a media-mix model: each marketing channel's effect and response curve (where its spend stops paying off), jointly with linear controls. Fill in each placeholder in the draft before you run it.",
         "bound": false,
         "request": {
-          "attributes": [
-            {
-              "field": "\u003cfield\u003e",
-              "params": {
-                "fit": "\u003cfit\u003e"
-              },
-              "type": "ATTR_REG_PREDICT"
-            }
-          ],
           "cohort": {
             "filename": "\u003ccohort\u003e"
-          }
+          },
+          "regressions": [
+            {
+              "params": {
+                "channels": [
+                  "\u003cchannels\u003e"
+                ]
+              },
+              "predictors": [
+                "\u003cpredictors\u003e"
+              ],
+              "target": "\u003ctarget\u003e",
+              "type": "REG_MMM_HILL"
+            }
+          ]
         },
         "placeholders": [
+          "channels",
           "cohort",
-          "field",
-          "fit"
+          "predictors",
+          "target"
         ],
         "alternatives": [
           {
-            "when": "the model should be fitted to these same rows inside the slot",
-            "use": "ATTR_REG_FITTED"
-          },
-          {
-            "when": "you want the coefficients, their standard errors and p-values",
+            "when": "the outcome moves in a straight line with spend, with no saturation",
             "use": "REG_OLS"
-          }
-        ],
-        "steps": [
-          {
-            "tool": "pulse_materialize",
-            "request": {
-              "out": "\u003cout\u003e",
-              "request": {
-                "attributes": [
-                  {
-                    "field": "\u003cfield\u003e",
-                    "label": "predicted",
-                    "params": {
-                      "fit": "\u003cfit\u003e"
-                    },
-                    "type": "ATTR_REG_PREDICT"
-                  }
-                ],
-                "cohort": {
-                  "filename": "\u003ccohort\u003e"
-                }
-              }
-            },
-            "placeholders": [
-              "cohort",
-              "field",
-              "fit",
-              "out"
-            ],
-            "why": "A model cannot read a column its own request derives, so write the predicted column to a new cohort first."
-          },
-          {
-            "tool": "pulse_process",
-            "request": {
-              "cohort": {
-                "filename": "\u003cout\u003e"
-              },
-              "regressions": [
-                {
-                  "predictors": [
-                    "predicted"
-                  ],
-                  "target": "\u003ctarget\u003e",
-                  "type": "REG_OLS"
-                }
-              ]
-            },
-            "placeholders": [
-              "out",
-              "target"
-            ],
-            "why": "Then fit the model on the new cohort, reading predicted as a predictor."
           }
         ]
       }
     ],
-    "truncated": false,
-    "candidates_considered": 10
+    "truncated": true,
+    "candidates_considered": 12
   },
   "errors": [],
   "warnings": []
 }
-// golden-hash: 4a4ce3dafb31f2ce0f044b77149ca4ca89010a4ea49cca3ee30ce4bbe52d3c27
+// golden-hash: 8e7b27a4d1e3ed0a9aaa9095d74fd10d0fbeea6f04600bf3c0ac56b701ad036b

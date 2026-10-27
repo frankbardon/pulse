@@ -102,11 +102,11 @@ func (s *Service) processShardArchiveParallel(ctx context.Context, req *types.Re
 	schema := cohort.Schema()
 	// A vector aggregator's factory reads its resolved members (the
 	// rewrite Processor.prepare applies on every other arm).
-	req = processing.ResolveAggregationInputs(req, schema, s.extensions)
+	req = processing.ResolveAggregationInputs(req, schema, s.extensions, catalogOf(model.SetFrom(ctx)))
 	// So does a vector-input attribute (a fitted attribute bound to a
 	// prebuilt fit is row-local, so it reaches this arm): its literal
 	// members, default label and written-out labels.
-	req = processing.ResolveAttributeInputs(req, schema, s.extensions)
+	req = processing.ResolveAttributeInputs(req, schema, s.extensions, catalogOf(model.SetFrom(ctx)))
 
 	// Open the archive once. Every worker reads its shards through its
 	// own SectionReader over one concurrency-safe ReaderAt (a pread on
@@ -565,7 +565,7 @@ func (s *Service) processOneShard(ctx context.Context, req *types.Request, schem
 
 	// Pre-build per-shard operators. Each shard worker gets its own
 	// instance set so there's no shared mutable state across workers.
-	vecs := processing.ExprVectors(req, schema)
+	vecs := processing.ExprVectors(req, schema, catalogOf(model.SetFrom(ctx)))
 	filterFns, err := processing.BuildFiltersWithVectors(req.Filterers, schema, s.extensions, model.SetFrom(ctx), vecs)
 	if err != nil {
 		return nil, err
@@ -760,7 +760,7 @@ func lookupAggSpecs(req *types.Request, exts *processing.ExtensionRegistry) ([]a
 func (sp *shardPartial) buildMatrices(req *types.Request, schema *encoding.Schema, exts *processing.ExtensionRegistry, grouped bool, compute processing.ComputePlan, models *model.Set) error {
 	var err error
 	if grouped {
-		sp.groupedMats, err = processing.BuildGroupedMatrices(req, schema, exts, compute, sp.limits)
+		sp.groupedMats, err = processing.BuildGroupedMatrices(req, schema, exts, compute, sp.limits, models)
 		return err
 	}
 	sp.mats, err = processing.BuildMatrixSlots(req, schema, exts, compute, models)
@@ -1034,7 +1034,7 @@ func boundAttributes(req *types.Request, schema *encoding.Schema, exts *processi
 	if len(req.Attributes) == 0 {
 		return nil, nil
 	}
-	return buildRowLocalAttrSpecs(req.Attributes, schema, exts, models, processing.ExprVectors(req, schema), nil, compute)
+	return buildRowLocalAttrSpecs(req.Attributes, schema, exts, models, processing.ExprVectors(req, schema, catalogOf(models)), nil, compute)
 }
 
 // mergePartitionAttributes folds src's attribute slots into dst's, slot

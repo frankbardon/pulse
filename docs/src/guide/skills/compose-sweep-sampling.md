@@ -32,17 +32,18 @@ A grid lists every value; its size multiplies per axis (30 values on 4 axes is 8
 - `random`: every slot draws every axis independently and uniformly.
 - `lhs`: each axis is cut into `samples` equal-probability strata and every stratum is drawn exactly once, paired across axes by a seeded permutation. Even coverage of every axis at any sample count; prefer it to `random`.
 - `samples` (>= 1) is required. Every axis carries a `range` `{min, max, scale}` instead of `values`: finite bounds, `min < max`, draws inside `[min, max]`. `scale` `linear` (default) or `log` (log-uniform, for a parameter spanning decades; needs `min > 0`).
-- Draws are numbers in shortest round-trip form; placeholders substitute them as in a grid. Default labels are `sample=<i>_<axis>=<value>` (`i` from 0), unique by construction.
+- Draws are numbers in shortest round-trip form; placeholders substitute them as in a grid. Default labels are `sample=<i>_<axis>=<value>` (`i` from 0), unique by construction. A ranked slot's draws come back as numbers in its `ranking` entry's `axes` (its index in `slot`): read them there, not off the label.
 
 ## Seed
 
 - The draws are a pure function of the spec and the seed, identical across architectures, serial and parallel.
 - `rng_seed` absent or 0: the seed is derived from the spec alone (`rng_seed` excluded), never from the data or the clock. The same request draws the same points on any cohort.
+- The derivation reads the `request` and `overlays` bodies with object keys sorted at every depth and whitespace dropped; numbers and strings keep their text. Bodies differing only in key order or spacing draw identically; any value change (`0.1` vs `0.10` included) draws anew.
 - The effective seed comes back as `sweep_seed` on the response (outside the compose `return`; `--stream` writes one `{"sweep_seed": N}` line) and as `sweep.rng_seed` in predict. Pin it as `rng_seed` to replay a run exactly; set another value to draw a fresh set.
 
 ## Limits and predict
 
-- `samples` counts toward `MaxComposeSlots` with the explicit slots (default 1000; raise `Limits.MaxComposeSlots` for a large search). Over the limit is `PULSE_LIMIT_EXCEEDED` before anything runs.
+- `samples` counts toward `MaxComposeSlots` with the explicit slots (default 1000; raise `Limits.MaxComposeSlots`, CLI root `--limit max_compose_slots=N`, for a large search). Over the limit is `PULSE_LIMIT_EXCEEDED` before anything runs.
 - Predict expands exactly: `expanded_count` = `samples`, each axis reports `count` and its `range`, and the labels match the run.
 
 ## Refusals
@@ -54,7 +55,7 @@ A grid lists every value; its size multiplies per axis (30 values on 4 axes is 8
 
 ## Decay search pattern
 
-Replace a decay grid with an lhs over `[0, 0.95]` and rank on the holdout error. The best slots cluster around the true decay; read the top few, not only the first, and check the winner is stable under a second `rng_seed`.
+Replace a decay grid with an lhs over `[0, 0.95]` and rank on the holdout error. The best slots cluster around the true decay; read the top few, not only the first, and check the winner is stable under a second `rng_seed`. `fits[].from_sweep` binds the winner as a fit and `sweep_axis()` reads its draws, so the search, the fit and an `optimize` are one call ([`compose-sweep-bind`](compose-sweep-bind.md)); media mix: [`mmm-workflow`](mmm-workflow.md).
 
 ## See
 

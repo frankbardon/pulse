@@ -15,7 +15,9 @@ import (
 // with: spec.RNGSeed when non-zero, else regresample.DeriveSeed — the
 // one rng_seed 0 derivation every seeded draw shares — over the spec's
 // wire form with rng_seed excluded (never the clock), so the same spec
-// draws the same slots on every run and every surface. It reads the
+// draws the same slots on every run and every surface. The raw request
+// and overlays bodies are hashed in regresample.CanonicalJSON form, so
+// key order and whitespace inside them never move the seed. It reads the
 // spec only; predict and the runtime call it on the same spec and
 // report the same seed. Meaningless for an enumeration mode.
 func EffectiveSeed(spec *types.SweepSpec) int64 {
@@ -27,6 +29,8 @@ func EffectiveSeed(spec *types.SweepSpec) int64 {
 	}
 	cp := *spec
 	cp.RNGSeed = 0
+	cp.Request = regresample.CanonicalJSON(cp.Request)
+	cp.Overlays = regresample.CanonicalJSON(cp.Overlays)
 	body, err := json.Marshal(&cp)
 	if err != nil {
 		body = nil

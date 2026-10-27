@@ -124,3 +124,31 @@ func TestWindowPredictor_PostWindowZeroPlanAllocationFree(t *testing.T) {
 		}
 	}
 }
+
+// TestWindowPredictor_PostWindowPerSlotReads: each moved slot records
+// the window labels it reads directly, in read order without repeats —
+// empty when it reads only an earlier post-window label — and
+// WindowDerivedLabels lists every window label but a schema-field or
+// vector-named one, in declared order.
+func TestWindowPredictor_PostWindowPerSlotReads(t *testing.T) {
+	req := &types.Request{
+		Vectors: []types.VectorSpec{{Name: "vec", Fields: []string{"t", "x"}}},
+		Windows: []*types.Window{lagOf("x", "lag"), lagOf("x", "x"), lagOf("t", "lag_t"), lagOf("x", "vec")},
+		Attributes: []*types.Attribute{
+			formula("a", "lag_t + lag + lag_t"),
+			formula("b", "a * 2"),
+			formula("c", "lag + b"),
+		},
+	}
+	pw := PostWindowAttributes(req, postWindowSchema(), nil, nil)
+	want := [][]string{{"lag_t", "lag"}, {}, {"lag"}}
+	if !reflect.DeepEqual(pw.PostReads, want) || !reflect.DeepEqual(pw.WindowReads, []string{"lag_t", "lag"}) {
+		t.Fatalf("per-slot reads %v (union %v), want %v", pw.PostReads, pw.WindowReads, want)
+	}
+	if got := WindowDerivedLabels(req, postWindowSchema()); !reflect.DeepEqual(got, []string{"lag", "lag_t"}) {
+		t.Fatalf("window-derived labels %v, want [lag lag_t]", got)
+	}
+	if got := WindowDerivedLabels(&types.Request{}, postWindowSchema()); got != nil {
+		t.Fatalf("no window: %v", got)
+	}
+}

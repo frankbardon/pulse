@@ -2,7 +2,6 @@ package window
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/windowparams"
@@ -110,9 +109,11 @@ func ApplyObserved(ctx context.Context, rows []map[string]any, windows []*types.
 			// Predict's refusal, code, sentence and details alike
 			// (internal/descriptor/predict_window.go): windows is the
 			// request's Windows slice, so i is the slot's index.
-			return errors.NewCodedErrorWithDetails(errors.PULSE_WINDOW_INVALID,
-				fmt.Sprintf("window[%d]: unknown window type %s", i, w.Type),
-				map[string]any{"window_index": i, "type": string(w.Type)})
+			msg, details := windowparams.UnknownType(i, w.Type, func(t types.WindowType) bool {
+				_, ok := resolve.lookup(t)
+				return ok
+			})
+			return errors.NewCodedErrorWithDetails(errors.PULSE_WINDOW_INVALID, msg, details)
 		}
 		computer, err := factory(w, WindowOptions{})
 		if err != nil {

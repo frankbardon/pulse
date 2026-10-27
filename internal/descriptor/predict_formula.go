@@ -126,9 +126,9 @@ func (w *fieldRefWalk) initCompile(req *types.Request, schema *encoding.Schema) 
 			c.vecNames[v.Name] = true
 		}
 	}
-	vecs, err := vectors.ResolveRequest(req, schema)
+	vecs, err := vectors.ResolveRequest(req, schema, w.models)
 	c.vecs, c.vecsFailed = vecs, err != nil
-	c.bound = exprenv.Bound{Coef: exprenv.Placeholder}
+	c.bound = exprenv.Bound{Coef: exprenv.Placeholder, SweepAxis: exprenv.Placeholder}
 	// The request's params, folded exactly as the engine folds them (an
 	// invalid block is refused once, at the walk's head — paramsRefusal —
 	// and declares nothing here).

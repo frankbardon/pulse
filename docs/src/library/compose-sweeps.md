@@ -62,7 +62,11 @@ form.
 The draws are a pure function of the spec and the seed, so predict lists
 the same slots the runtime runs and a run replays exactly. A non-zero
 `rng_seed` is used as given; `0` (or absent) derives a seed from the
-spec's wire form with `rng_seed` excluded. The effective seed is echoed
+spec's wire form with `rng_seed` excluded, its raw `request` and
+`overlays` bodies taken in canonical form (object keys sorted at every
+depth, whitespace dropped, numbers and strings kept as written), so two
+bodies differing only in key order or spacing draw identically while
+any value change draws anew. The effective seed is echoed
 as `ComposedResponse.SweepSeed` (`sweep_seed`) and on predict's summary
 as `rng_seed`; pin it to replay a zero-seed run.
 
@@ -157,8 +161,14 @@ sweep is `PULSE_SWEEP_INVALID` with `details.field` and
 slot's unshaped response (an object key, or on a list the element whose
 `name` or `label` equals the segment, never an index; for example
 `components.aggregations.rev.n`); `order` is `asc` (default) or `desc`; `top`
-keeps the first N. `ComposedResponse.Ranking` lists `{label, value, rank}`
-in rank order. Explicit slots are never ranked. A null value, or a path
+keeps the first N. `ComposedResponse.Ranking` lists
+`{label, value, rank, slot, axes}` in rank order: `slot` is the entry's
+0-based index among the sweep slots (its response is
+`Responses[explicit+slot]`), `axes` maps every axis name to the value
+that slot ran with, typed as the axis declared it (numbers stay numbers,
+strings and booleans are preserved). Read a winner's axis values from
+`Ranking[0].Axes`, never by parsing its label. Explicit slots are never
+ranked. A null value, or a path
 missing in one slot only, excludes that slot with a `PULSE_SWEEP_RANK_PATH`
 warning on its own response; a non-number, ambiguous or unresolved path
 refuses the batch with the same code (`details.reason` `syntax`, `missing`,
@@ -174,6 +184,50 @@ whose `residual_std_err`, `r2`, `adj_r2`, `deviance`, `null_deviance` or
 the fit's regression type computes that figure. A figure the type does
 not compute (`residual_std_err` on a `REG_GLM` fit), any other absent
 figure and a nil entry still read as missing. The wire is unchanged.
+
+### Binding the winner as a fit
+
+A `fits` entry may carry `from_sweep: {"regression": "<name>"}` instead
+of a `request` (`capability:compose_sweep_bind`): it binds the rank-1
+slot's regression of that `name`, refitted on that slot's rows, as an
+ordinary named fit the explicit slots and `optimize` blocks read
+(`coef()`, `ATTR_REG_PREDICT`). It needs `sweep.rank`; the regression's
+type, target and predictors must not depend on an axis (predict reads
+the fit's signature from the sweep body); and no sweep slot may read the
+fit. A malformed binding is `PULSE_FIT_INVALID` with `details.reason`
+`from_sweep_with_request`, `from_sweep_no_sweep`, `from_sweep_no_rank`,
+`from_sweep_regression_unknown`, `from_sweep_signature_varies` or
+`from_sweep_cycle`, judged by predict and the runtime alike before
+anything runs.
+
+A batch with a binding runs sweep-first: the authored fits, then the
+sweep slots (once — their responses are the batch's) and the rank, then
+the bound fit refitted over `ranking[0]`'s slot exactly as an authored
+fit of that body would be (same figures, same `save` file), then
+`optimize` and the explicit slots. Responses keep index order. The rank
+reads each sweep slot after its own multiplicity families fold; a
+`compose`-family adjusted figure is not ready yet, so ranking by one is
+refused. When no slot is ranked, the fit binds failed: its entry carries
+`PULSE_SWEEP_RANK_PATH` (`reason: "empty"`), a `PULSE_SLOT_FAILED`
+warning names it under `details.fit`, slots scoring it read null
+(`PULSE_FIT_UNAVAILABLE`), and `Strict` fails the batch. A batch with no
+binding runs and answers exactly as before. Skill: `compose-sweep-bind`.
+
+The winner's axis values are readable in the same batch:
+`sweep_axis("<fit>", "<axis>")` in an explicit slot's formula or filter
+and in an `optimize` expression returns the rank-1 slot's value of that
+axis (a number as a float, a string or bool `values` entry as is) — the
+decay a steady-state multiplier such as
+`(1 - sweep_axis("best", "tv") ^ 8) / (1 - sweep_axis("best", "tv"))`
+needs, which no coefficient carries. Its refusals mirror `coef()` and
+predict raises them too: an unbound name is `PULSE_MODEL_UNKNOWN`; a fit
+not bound from the sweep is `PULSE_MODEL_TERM_UNKNOWN` with
+`details.reason: "not_sweep_bound"`, an axis the sweep lacks the same
+code with `reason: "axis_unknown"` and the sorted `details.axes`. A
+failed bound fit (no winner) nulls a formula with
+`PULSE_FIT_UNAVAILABLE` and refuses a filter with the fit's own code.
+`sweep_axis` is reserved: an embedder `ExprFunctions` entry of that name
+is `PULSE_EXTENSION_NAME_RESERVED`.
 
 ## Echo and return shaping
 

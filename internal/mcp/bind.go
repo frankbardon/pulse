@@ -1870,7 +1870,29 @@ func fitsSchema(reqSchema map[string]any, inst *descx.InstanceSnapshot) map[stri
 		},
 	}
 	addModelSave(out, inst, "Write the bound fit once it has run, at this path relative to the data root: a regression fit as a model file (ending .pulse-model.json), a vector fit as a population file (ending .pulse-population.json, loaded later with `populations`), a SEM fit as a SEM fit file (ending .pulse-sem.json, loaded later with `models`); overwriting warns PULSE_MODEL_OVERWRITTEN.")
+	addFitFromSweep(out, inst)
 	return out
+}
+
+// addFitFromSweep adds a `fits` entry's `from_sweep` binding when
+// capability:compose_sweep_bind is enabled; the entry then needs a
+// request OR from_sweep (exactly one — the runtime refuses both), so
+// only `name` stays required.
+func addFitFromSweep(fits map[string]any, inst *descx.InstanceSnapshot) {
+	if !inst.Enabled(descx.FeatureComposeSweepBind) {
+		return
+	}
+	items := fits["items"].(map[string]any)
+	items["properties"].(map[string]any)["from_sweep"] = map[string]any{
+		"type":        "object",
+		"description": "Bind the fit from the batch's ranked sweep instead of a request (set exactly one): the rank-1 sweep slot's regression named `regression`, refitted on that slot's rows. Needs sweep.rank; the regression's type, target and predictors must not depend on an axis, and no sweep slot may read this fit.",
+		"properties": map[string]any{
+			"regression": map[string]any{"type": "string", "description": "The `name` of the sweep body's regression to bind."},
+		},
+		"required":             []string{"regression"},
+		"additionalProperties": false,
+	}
+	items["required"] = []string{"name"}
 }
 
 // optimizeSchema describes the ComposedRequest `optimize` list

@@ -882,6 +882,16 @@ func validateExprFunctions(fns []ExprFunction) error {
 				map[string]any{"category": "expr_function", "name": fn.Name, "index": i, "reserved": []string{totalcall.Func}},
 			)
 		}
+		if fn.Name == exprenv.SweepAxisFunc {
+			// sweep_axis(fit, axis) reads a sweep-bound fit's winning
+			// axis value: predict and the runtime judge every literal
+			// call by the bound names, so an embedder may not redefine it.
+			return errors.NewCodedErrorWithDetails(
+				errors.PULSE_EXTENSION_NAME_RESERVED,
+				fmt.Sprintf("extension expr function name %q is reserved for the sweep-bound fit's axis reader", fn.Name),
+				map[string]any{"category": "expr_function", "name": fn.Name, "index": i, "reserved": []string{exprenv.SweepAxisFunc}},
+			)
+		}
 		if exprenv.IsReserved(fn.Name) {
 			// A reserved vector / scalar-maths built-in (vsum, dot,
 			// sqrt, ...): filter precompute assumes it pure and the docs

@@ -25,7 +25,7 @@ func RecommendCommand() *cli.Command {
 			&cli.StringFlag{Name: "cohort", Usage: "A .pulse cohort to bind the drafts to; each bound draft has passed predict. Omit for unbound placeholder skeletons"},
 			&cli.StringSliceFlag{Name: "field", Usage: "A field hint (needs --cohort): pins the field to the first role of the intent it fits. Repeatable"},
 			&cli.StringFlag{Name: "level", Usage: "Rank operators at this level first: " + orList(descriptor.Levels())},
-			&cli.IntFlag{Name: "limit", Usage: "Maximum recommendations returned (0 = the default, 10)"},
+			&cli.IntFlag{Name: "top", Usage: "Maximum recommendations returned (0 = the default, 10); sets RecommendRequest.Limit"},
 			&cli.BoolFlag{Name: "json", Usage: "Output result as JSON envelope"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -34,11 +34,11 @@ func RecommendCommand() *cli.Command {
 				Intent: cmd.String("intent"),
 				Fields: cmd.StringSlice("field"),
 				Level:  descriptor.Level(cmd.String("level")),
-				Limit:  int(cmd.Int("limit")),
+				Limit:  int(cmd.Int("top")),
 			}
 			if req.Intent == "" {
 				return cliError(cmd, jsonOut, "CLI_INPUT",
-					"usage: pulse recommend --intent ID [--cohort COHORT [--field F ...]] [--level LEVEL] [--limit N]")
+					"usage: pulse recommend --intent ID [--cohort COHORT [--field F ...]] [--level LEVEL] [--top N]")
 			}
 			if c := cmd.String("cohort"); c != "" {
 				req.Cohort = &types.Cohort{Filename: c}

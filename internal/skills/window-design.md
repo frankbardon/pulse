@@ -9,11 +9,11 @@ covers: [WIN, windows]
 
 # Window design
 
-`windows` adds per-row values that depend on OTHER rows in the same partition under a defined order — time-series and ranked queries. Per-operator detail: atomic `op-win-*` skills.
+`windows` adds per-row values that depend on OTHER rows in the same partition under a defined order — time-series and ranked queries. Per-operator detail: `op-win-*`.
 
 ## Slot position
 
-Pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`. Windows run AFTER aggregation on the post-aggregate row set; with empty `groups` and `aggregations` they see one row per filtered record: the full record plus window columns.
+Pipeline order: `features → filterers → attributes → groups → aggregations → windows → sort`. Windows run AFTER aggregation on the post-aggregate row set; with empty `groups` and `aggregations` they see one row per filtered record: the full record plus window columns. A group, aggregation or crosstab reading a window label runs them first, over the records: `windows-first`.
 
 Entry shape:
 
@@ -82,13 +82,13 @@ For a percentage metric, 97.9 vs 90.0 is 7.9 points (delta) or 8.8% (pct-change)
 
 ## Streamability per window
 
-Any `windows` entry forces the BUFFERED path (a sort over the row set); predict marks the request `Streamable=false` (`WindowType.Streamable()` is `false` for every window).
+Any `windows` entry forces the BUFFERED path (a sort over the row set); predict says `streamable: false`.
 
 ## Components
 
 **Windows emit row-level values, not `Response.Components`.**
 
-Windowed-Process overlays (index vs prior, year-over-year, …) DO produce typed payloads keyed to host coordinates — `overlay-system`.
+Windowed-Process overlays (index vs prior, year-over-year) DO produce typed payloads keyed to host coordinates: `overlay-system`.
 
 ## Lag autocorrelation
 
@@ -99,7 +99,7 @@ Windowed-Process overlays (index vs prior, year-over-year, …) DO produce typed
 ## Gotchas
 
 - A weekday STRING column (not a grouper key) sorts byte-wise. Order on epoch days or a year-bearing key.
-- Partitioning by the raw `date` field collapses every row into its own partition. Partition by a coarser key (region, product) and order by the date.
+- Partitioning by the raw `date` field puts every row in its own partition: partition by a coarser key (region, product), order by the date.
 
 ## See
 
@@ -108,3 +108,4 @@ Windowed-Process overlays (index vs prior, year-over-year, …) DO produce typed
 - `overlay-system` — windowed-Process overlays vs window columns.
 - `request-envelope` — slot keys, sort + streamability.
 - `streaming-and-watching` — buffered execution mode + sort cost.
+- `windows-first` — aggregate a window column.

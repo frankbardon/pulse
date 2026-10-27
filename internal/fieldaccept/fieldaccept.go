@@ -349,7 +349,7 @@ func init() {
 	add(windowValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotField, SlotBase}, "WIN_LIFT")
 	add(polyValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, field, "FEAT_POLY")
 	add(analyticsValue, errors.PULSE_FIELD_TYPE_UNSUPPORTED, []Slot{SlotTarget, SlotPredictor},
-		"REG_OLS", "REG_GLM", "REG_BAYES_LINEAR")
+		"REG_OLS", "REG_GLM", "REG_BAYES_LINEAR", "REG_MMM_BAYES", "REG_MMM_HILL")
 	add(testValue, errors.PULSE_TEST_FIELD_NOT_NUMERIC, field,
 		"TEST_T", "TEST_WELCH", "TEST_ANOVA_F", "TEST_ANOVA_RM", "TEST_ANOVA_WELCH",
 		"TEST_BROWN_FORSYTHE", "TEST_KS", "TEST_KRUSKAL_WALLIS", "TEST_MANN_WHITNEY_U",

@@ -1,0 +1,51 @@
+{
+  "_meta": {
+    "name": "mmm_bayes",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "time-series",
+      "buffered-pipeline"
+    ],
+    "operators": [
+      "REG_MMM_BAYES",
+      "FILTER_INCLUDE"
+    ],
+    "description": "Bayesian media-mix model over one market's weekly series: FILTER_INCLUDE keeps the east market (the model fits one contiguous series; several markets per week are refused as duplicate_time), and ONE REG_MMM_BAYES adstocks the four raw spend channels inside the model (geometric, 13-week window), fits each channel's Hill curve, ROI and decay jointly with price and promo as linear controls, and samples the posterior with NUTS. The chains are kept short for a quick run (2 chains of 100 warmup + 100 draws, so the fit carries ess_low diagnostic warnings; drop them for the 4 × (1000 + 1000) default), rng_seed pins the draws, and holdout_from 92 holds the last 13 weeks out of the likelihood while the adstock still runs over the full history. The coefficients are posterior means with posterior SDs; outputs.roi / mroi / contribution give each channel's credible intervals, outputs.diagnostics the sampler health and outputs.holdout the held-out RMSE and interval coverage.",
+    "intents": [
+      "drivers"
+    ]
+  },
+  "cohort": {
+    "filename": "mmm_weekly.pulse",
+    "data_dir": ".data"
+  },
+  "filterers": [
+    {
+      "type": "FILTER_INCLUDE",
+      "field": "market",
+      "values": ["east"]
+    }
+  ],
+  "regressions": [
+    {
+      "type": "REG_MMM_BAYES",
+      "name": "mmm",
+      "target": "sales",
+      "predictors": ["tv", "radio", "search", "social", "price", "promo"],
+      "rng_seed": 1,
+      "params": {
+        "channels": ["tv", "radio", "search", "social"],
+        "time": "week",
+        "chains": 2,
+        "warmup": 100,
+        "draws": 100,
+        "holdout_from": 92
+      }
+    }
+  ],
+  "return": {
+    "preset": "standard",
+    "exclude": ["data"]
+  }
+}

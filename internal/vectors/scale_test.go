@@ -62,7 +62,7 @@ func TestResolveAttributes_ScaleScoreRules(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			req := &types.Request{Vectors: vecs, Attributes: []*types.Attribute{c.attr}}
-			got, err := ResolveAttributes(req, testInputSchema(), nil, nil)
+			got, err := ResolveAttributes(req, testInputSchema(), nil, nil, nil)
 			if c.code != "" {
 				if err == nil {
 					t.Fatalf("want %s, resolved %+v", c.code, got)

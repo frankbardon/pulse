@@ -517,7 +517,7 @@ func TestFittedState_NamedVectorLabels(t *testing.T) {
 	if _, ce := vectors.ResolveAttributes(&types.Request{
 		Vectors:    []types.VectorSpec{{Name: "battery", Fields: c.fields, Labels: labels}},
 		Attributes: []*types.Attribute{{Type: c.typ, Label: "s", Vector: "battery", Params: json.RawMessage(`{"fit":"pop","labels":["a","b","c","d"]}`)}},
-	}, fixtureSchema(t, c.fixture), nil, nil); ce == nil || ce.Details["reason"] != "labels_on_vector" {
+	}, fixtureSchema(t, c.fixture), nil, nil, nil); ce == nil || ce.Details["reason"] != "labels_on_vector" {
 		t.Fatalf("labels beside a named vector: %v", ce)
 	}
 }

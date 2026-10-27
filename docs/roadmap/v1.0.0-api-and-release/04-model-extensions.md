@@ -1,6 +1,6 @@
 # Model extensions: custom regressions, model packs, and the casebook
 
-**Status:** design intent, decided 2026-10-10 by the owner. The committed v1.0.0 part is [U53 custom-regressions](../units/U53-custom-regressions.md), extended by [U60 mmm-estimation](../units/U60-mmm-estimation.md) (decided 2026-10-25: the solver and general optimizer are core, the MMM pack is `contrib/mmmpulse`; see "What U60 changed"). Everything under "After v1.0.0" is out of v1 scope.
+**Status:** design intent, decided 2026-10-10 by the owner. The committed v1.0.0 part is [U53 custom-regressions](../units/U53-custom-regressions.md), extended by [U60 mmm-estimation](../units/U60-mmm-estimation.md) (decided 2026-10-25: the solver and general optimizer are core, the MMM pack is `contrib/mmmpulse`; see "What U60 changed"; mmm-followups then moved both MMM models into core and removed the pack, see "What mmm-followups changed"). Everything under "After v1.0.0" is out of v1 scope.
 
 ## Motivation
 
@@ -13,7 +13,7 @@ The worked [MMM example](../fixtures/mmm-harbor-pine/README.md) and a review of 
 | Non-negative coefficients on `REG_OLS` | Model option | U53 (v1) |
 | Weibull (delayed-peak) adstock | Window primitive | U53 (v1) |
 | A Hill saturation curve | Expression function | U53 (v1). A compose `sweep` already splices `{{axis}}` into formula strings, so a shape/half-saturation grid works today with a written-out formula |
-| Hill parameters estimated jointly with the coefficients (nonlinear least squares) | Model | Model pack `contrib/mmmpulse` (`REG_MMM_HILL`), on the core `optimize` solvers (U60) |
+| Hill parameters estimated jointly with the coefficients (nonlinear least squares) | Model | Model pack `contrib/mmmpulse` (`REG_MMM_HILL`), on the core `optimize` solvers (U60); a built-in regression since `v1.0.0-alpha.29` (mmm-followups) |
 | Hierarchical / partially pooled coefficients across regions | Model | Model pack, via the U53 contract (buffered, iterative) |
 | Budget allocation to equal marginal ROI under constraints | Post-fit operation | Core: the Compose `optimize` block over `coef()` and `hill()` (U60); the general post-fit slot (#489) stays a v1.x backlog item |
 
@@ -42,9 +42,13 @@ R keeps its current role as the reference oracle ([U36](../units/U36-reference-o
 - **The rule: industry-specific goes in a pack, general goes in core.** A capability another field would use unchanged (a constrained solver, a seeded sweep, a window kernel, a deterministic maths set) belongs in core, named for what it does, not for the industry that asked for it (`WIN_ADSTOCK` became `WIN_DISTRIBUTED_LAG`, with "adstock" kept as a search keyword). A model whose structure is one industry's convention (Hill-saturated media channels with non-negative betas) is a pack.
 - **The general post-fit slot (#489) is narrowed, not delivered.** Curve evaluation and budget allocation need no registered post-fit operator, because a request reads `coef()` and the `optimize` block solves; the slot remains a v1.x item for embedder-registered computations over fitted results.
 
+## What mmm-followups changed
+
+The pack did not stay a pack. In `v1.0.0-alpha.29` `REG_MMM_HILL` and `REG_MMM_BAYES` became built-in regressions (`internal/regmmm`, registered for every instance, the stock `pulse` CLI and `pulse mcp` included), their skills joined the core pack, and the `contrib/mmmpulse` module was deleted with no shim. The stock CLI and MCP server never register packs, so a pack model was out of their reach. The general/industry rule above still governs new primitives; the remaining contrib modules are the observability adapters.
+
 ## Where code and examples live
 
-- **Model packs:** nested modules under `contrib/` (the `contrib/otelpulse` / `contrib/prompulse` pattern: root Pulse never imports them, they version with Pulse), or a separate `pulse-extensions` repository if they should release on their own schedule. Decided (U60): `contrib/mmmpulse`.
+- **Model packs:** nested modules under `contrib/` (the `contrib/otelpulse` / `contrib/prompulse` pattern: root Pulse never imports them, they version with Pulse), or a separate `pulse-extensions` repository if they should release on their own schedule. Decided (U60): `contrib/mmmpulse`; reversed by mmm-followups, which made both MMM models built-ins and removed the module.
 - **Worked examples:** a companion repository, `frankbardon/pulse-casebook`, published as its own mdBook. It depends on Pulse through the CLI and public library only. No importable Go code lives there: anything reusable belongs in a pack.
 
 ## After v1.0.0 (not committed)
@@ -53,5 +57,5 @@ R keeps its current role as the reference oracle ([U36](../units/U36-reference-o
   - Each example: a narrative README, data or its generator, `req/`, `run.sh`, expected numbers, and a `GAPS.md` ledger of what was still done by hand, each line pointing at a Pulse TODO item (the existing "Still outside Pulse" table).
   - CI: a pinned-version run that must pass, and a nightly run against Pulse `main` that reports regressions and closed gaps.
   - The gap ladder: by hand → in a pack → in core.
-- **MMM pack, further models** on the U53 contract: partial pooling across a group field and Bayesian MMM. The Hill NLS regression and the budget allocator already ship (`contrib/mmmpulse`, the Compose `optimize` block; U60).
+- **MMM pack, further models** on the U53 contract: partial pooling across a group field and Bayesian MMM. The Hill NLS regression and the budget allocator already ship (built-ins since `v1.0.0-alpha.29`, the Compose `optimize` block; U60, U62, mmm-followups).
 - **R bridge pack** on the U53 contract.

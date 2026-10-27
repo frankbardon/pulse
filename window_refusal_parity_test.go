@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
+	"maps"
 	"strings"
 	"testing"
 
@@ -335,11 +336,12 @@ func TestWindowRefusals_ExtensionPredictMatchesRuntime(t *testing.T) {
 }
 
 // TestWindowRename_RetiredAdstockNameRefused: WIN_ADSTOCK was renamed to
-// WIN_DISTRIBUTED_LAG with no alias, so the retired name is an unknown
-// window type like any other — predict, Process, ProcessStream,
+// WIN_DISTRIBUTED_LAG with no alias, so the retired name is still refused
+// as an unknown window type — predict, Process, ProcessStream,
 // Materialize and Compose all refuse it with PULSE_WINDOW_INVALID (which
-// carries fixups) and the one sentence. The same slot under the new
-// name runs everywhere.
+// carries fixups) and the one sentence — but the refusal names the
+// replacement, in the sentence and as details.renamed_to. The same slot
+// under the new name runs everywhere. The refusal is never removed.
 func TestWindowRename_RetiredAdstockNameRefused(t *testing.T) {
 	p, fsys := windowParityCohort(t, pulse.Extensions{})
 	ctx := context.Background()
@@ -353,7 +355,7 @@ func TestWindowRename_RetiredAdstockNameRefused(t *testing.T) {
 		return &r
 	}
 
-	assertUnknownWindowTypeParity(t, p, fsys, "WIN_ADSTOCK", func() *types.Request { return req("WIN_ADSTOCK") })
+	assertUnknownWindowTypeParity(t, p, fsys, "WIN_ADSTOCK", "WIN_DISTRIBUTED_LAG", func() *types.Request { return req("WIN_ADSTOCK") })
 	if md, ok := errors.MetadataFor(errors.PULSE_WINDOW_INVALID); !ok || len(md.Fixups) == 0 {
 		t.Fatalf("PULSE_WINDOW_INVALID has no fixups: %+v", md)
 	}
@@ -369,16 +371,18 @@ func TestWindowRename_RetiredAdstockNameRefused(t *testing.T) {
 // TestWindowUnknownType_PredictRuntimeParity: any window type no
 // registry resolves — a never-registered name, the retired WIN_ADSTOCK,
 // one past a valid slot — is refused by predict and by every runtime
-// surface with the same code (PULSE_WINDOW_INVALID) and the same
-// sentence, indexed by the slot's position in the request.
+// surface with the same code (PULSE_WINDOW_INVALID), the same sentence
+// and the same details, indexed by the slot's position in the request.
+// Only the retired name carries the rename hint (details.renamed_to).
 func TestWindowUnknownType_PredictRuntimeParity(t *testing.T) {
 	p, fsys := windowParityCohort(t, pulse.Extensions{})
 	for _, tc := range []struct {
 		name, typ string
 		lead      string // a valid slot placed before the unknown one
+		renamedTo string // the rename hint, "" = none
 	}{
 		{name: "never-registered", typ: "WIN_NOPE"},
-		{name: "retired", typ: "WIN_ADSTOCK"},
+		{name: "retired", typ: "WIN_ADSTOCK", renamedTo: "WIN_DISTRIBUTED_LAG"},
 		{name: "second-slot", typ: "WIN_NOPE", lead: `{"type": "WIN_ROW_NUMBER", "order_by": [{"field": "t"}]}, `},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -391,16 +395,18 @@ func TestWindowUnknownType_PredictRuntimeParity(t *testing.T) {
 				r.Cohort = &types.Cohort{Filename: "series.pulse"}
 				return &r
 			}
-			assertUnknownWindowTypeParity(t, p, fsys, tc.typ, req)
+			assertUnknownWindowTypeParity(t, p, fsys, tc.typ, tc.renamedTo, req)
 		})
 	}
 }
 
 // assertUnknownWindowTypeParity: predict reports the unknown window type
-// as exactly one PULSE_WINDOW_INVALID error, and Process, ProcessStream,
-// Materialize and Compose each refuse the same request with that code
-// and that message, as a *errors.CodedError.
-func assertUnknownWindowTypeParity(t *testing.T, p *pulse.Pulse, fsys afero.Fs, typ string, req func() *types.Request) {
+// as exactly one PULSE_WINDOW_INVALID error — naming renamedTo in the
+// sentence and as details.renamed_to when it is set, carrying no
+// renamed_to when it is "" — and Process, ProcessStream, Materialize and
+// Compose each refuse the same request with that code, that message and
+// byte-identical details, as a *errors.CodedError.
+func assertUnknownWindowTypeParity(t *testing.T, p *pulse.Pulse, fsys afero.Fs, typ, renamedTo string, req func() *types.Request) {
 	t.Helper()
 	ctx := context.Background()
 	env := predictEnvelope(t, p, fsys, "series.pulse", req())
@@ -408,6 +414,17 @@ func assertUnknownWindowTypeParity(t *testing.T, p *pulse.Pulse, fsys afero.Fs, 
 		t.Fatalf("predict did not refuse %s as one unknown window type: %+v", typ, env.Errors)
 	}
 	want := env.Errors[0].Message
+	got, hinted := env.Errors[0].Details["renamed_to"]
+	switch {
+	case renamedTo == "" && hinted:
+		t.Fatalf("predict hinted a rename for never-renamed %s: %+v", typ, env.Errors[0])
+	case renamedTo != "" && (got != renamedTo || !strings.HasSuffix(want, " (renamed to "+renamedTo+")")):
+		t.Fatalf("predict refused %s without naming %s: %+v", typ, renamedTo, env.Errors[0])
+	}
+	wantDetails, err := json.Marshal(env.Errors[0].Details)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	_, perr := p.Process(ctx, req())
 	_, serr := p.ProcessStream(ctx, req())
@@ -424,6 +441,13 @@ func assertUnknownWindowTypeParity(t *testing.T, p *pulse.Pulse, fsys afero.Fs, 
 		}
 		if ce.Code != errors.PULSE_WINDOW_INVALID || ce.Message != want {
 			t.Errorf("%s refused %s as %s %q, want predict's %s %q", s.name, typ, ce.Code, ce.Message, errors.PULSE_WINDOW_INVALID, want)
+		}
+		details := maps.Clone(ce.Details)
+		if s.name == "Compose" {
+			delete(details, "request") // Compose stamps the failing request's index
+		}
+		if gotDetails, err := json.Marshal(details); err != nil || string(gotDetails) != string(wantDetails) {
+			t.Errorf("%s refused %s with details %s, want predict's %s", s.name, typ, gotDetails, wantDetails)
 		}
 	}
 }
@@ -480,5 +504,20 @@ func TestWindowUnknownType_HiddenFamilyStillListsCode(t *testing.T) {
 	var ce *errors.CodedError
 	if !stderrors.As(err, &ce) || ce.Code != errors.PULSE_WINDOW_INVALID || ce.Message != "window[0]: unknown window type WIN_LAG" {
 		t.Errorf("hidden WIN_LAG: err = %v, want PULSE_WINDOW_INVALID window[0]", err)
+	}
+
+	// The retired WIN_ADSTOCK's replacement is hidden too, so the
+	// refusal never names it: no rename hint, on either side.
+	if err := json.Unmarshal([]byte(`{"windows": [{"type": "WIN_ADSTOCK", "field": "x", "order_by": [{"field": "t"}]}]}`), &req); err != nil {
+		t.Fatal(err)
+	}
+	req.Cohort = &types.Cohort{Filename: "series.pulse"}
+	_, err = p.Process(context.Background(), &req)
+	if !stderrors.As(err, &ce) || ce.Message != "window[0]: unknown window type WIN_ADSTOCK" || ce.Details["renamed_to"] != nil {
+		t.Errorf("WIN_ADSTOCK with WIN_DISTRIBUTED_LAG hidden: err = %v (details %v), want the plain unknown-type refusal", err, ce.Details)
+	}
+	env := predictEnvelope(t, p, fsys, "series.pulse", &req)
+	if len(env.Errors) != 1 || env.Errors[0].Message != "window[0]: unknown window type WIN_ADSTOCK" || env.Errors[0].Details["renamed_to"] != nil {
+		t.Errorf("predict WIN_ADSTOCK with WIN_DISTRIBUTED_LAG hidden: %+v, want the plain unknown-type refusal", env.Errors)
 	}
 }

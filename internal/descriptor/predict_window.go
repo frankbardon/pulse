@@ -94,11 +94,10 @@ func validateWindows(env *descriptor.Envelope, req *types.Request, schema *encod
 		// Unknown type — a type the instance hides included, exactly
 		// as a never-registered one.
 		if !validTypes[opRoute(opts.instance(), w.Type)] && !isExtensionWindowType(opts, w.Type) {
-			env.AddError(
-				string(errors.PULSE_WINDOW_INVALID),
-				"window["+idx+"]: unknown window type "+string(w.Type),
-				map[string]any{"window_index": i, "type": string(w.Type)},
-			)
+			msg, details := windowparams.UnknownType(i, w.Type, func(t types.WindowType) bool {
+				return validTypes[opRoute(opts.instance(), t)] || isExtensionWindowType(opts, t)
+			})
+			env.AddError(string(errors.PULSE_WINDOW_INVALID), msg, details)
 			continue
 		}
 

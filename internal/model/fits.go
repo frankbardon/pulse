@@ -106,11 +106,43 @@ func FitKindOf(req *types.Request) types.FitKind {
 // save path is judged here, before any fit runs, so no fit writes a
 // model or population file in a batch a later entry's path would
 // refuse.
+//
+// CheckFits judges a sweep-free batch: a from_sweep entry is refused
+// from_sweep_no_sweep (or from_sweep_with_request). CheckFitsIn takes
+// the batch's sweep.
 func CheckFits(fits []types.FitSpec) error {
+	return CheckFitsIn(fits, SweepScope{})
+}
+
+// CheckFitsIn is CheckFits over a batch whose sweep is scope. A
+// from_sweep entry (types.FitFromSweep), after the name, is judged by
+// the from_sweep rules instead of the request rules — PULSE_FIT_INVALID
+// from_sweep_with_request, _no_sweep, _no_rank, _regression_unknown,
+// _signature_varies, _cycle (details.regression, and details.slot — the
+// 0-based sweep slot — on the last two) — then its `save` as a
+// regression fit's (CheckSavePath) and its name's uniqueness.
+func CheckFitsIn(fits []types.FitSpec, scope SweepScope) error {
 	seen := make(map[string]bool, len(fits))
 	for i, f := range fits {
 		if f.Name == "" {
 			return fitInvalid(i, f.Name, ReasonNameMissing, "has no name", nil)
+		}
+		if f.FromSweep != nil {
+			if err := checkSweepFit(i, f, scope); err != nil {
+				return err
+			}
+			if f.Save != "" {
+				if cerr := CheckSavePath(f.Save); cerr != nil {
+					cerr.Details["fit"] = i
+					cerr.Details["name"] = f.Name
+					return cerr
+				}
+			}
+			if seen[f.Name] {
+				return fitNameCollision(i, f.Name)
+			}
+			seen[f.Name] = true
+			continue
 		}
 		if f.Request == nil {
 			return fitInvalid(i, f.Name, ReasonRequestMissing, "has no request", nil)
@@ -164,13 +196,19 @@ func CheckFits(fits []types.FitSpec) error {
 			return cerr
 		}
 		if seen[f.Name] {
-			return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_NAME_COLLISION,
-				fmt.Sprintf("fits[%d]: model name %q is bound twice", i, f.Name),
-				map[string]any{"fit": i, "name": f.Name})
+			return fitNameCollision(i, f.Name)
 		}
 		seen[f.Name] = true
 	}
 	return nil
+}
+
+// fitNameCollision is the PULSE_MODEL_NAME_COLLISION refusal of fits[i],
+// whose name an earlier entry already binds.
+func fitNameCollision(i int, name string) error {
+	return errors.NewCodedErrorWithDetails(errors.PULSE_MODEL_NAME_COLLISION,
+		fmt.Sprintf("fits[%d]: model name %q is bound twice", i, name),
+		map[string]any{"fit": i, "name": name})
 }
 
 // VectorSourceRefusal judges a vector fit request's one Matrices

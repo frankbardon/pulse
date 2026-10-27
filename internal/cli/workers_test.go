@@ -17,7 +17,7 @@ func runWorkersBefore(t *testing.T, args ...string) (context.Context, error) {
 	var got context.Context
 	root := &cli.Command{
 		Name:   "pulse",
-		Flags:  append(LogFlags(), WorkerFlags()...),
+		Flags:  append(append(LogFlags(), WorkerFlags()...), LimitFlags()...),
 		Before: GlobalBefore,
 		Action: func(ctx context.Context, _ *cli.Command) error { got = ctx; return nil },
 	}
@@ -41,10 +41,7 @@ func TestWorkerFlags_ThreadIntoOptions(t *testing.T) {
 	if o.ShardWorkers != 3 || o.DecodeWorkers != 1 {
 		t.Errorf("withGlobals: ShardWorkers/DecodeWorkers = %d/%d, want 3/1", o.ShardWorkers, o.DecodeWorkers)
 	}
-	mo, err := mcpPulseOptions(ctx, t.TempDir(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	mo := mcpPulseOptions(ctx, t.TempDir())
 	if mo.ShardWorkers != 3 || mo.DecodeWorkers != 1 {
 		t.Errorf("pulse mcp options: ShardWorkers/DecodeWorkers = %d/%d, want 3/1", mo.ShardWorkers, mo.DecodeWorkers)
 	}

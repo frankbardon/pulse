@@ -66,6 +66,14 @@ type Expansion struct {
 	// a sweep).
 	Labels []string
 
+	// Axes are the sweep slots' axis values in expansion order,
+	// index-aligned with Labels: one axis name → value map per slot,
+	// each value the typed scalar the slot was rendered with (a
+	// json.Number for a decoded or drawn number, a string or a bool, or
+	// a Go caller's own scalar). Nil without a sweep. The rank carries
+	// them on every RankEntry, so no caller parses a label.
+	Axes []map[string]any
+
 	// Seed is the effective seed a sampling sweep (mode random / lhs)
 	// drew with (EffectiveSeed); nil without one, and for grid / zip.
 	Seed *int64
@@ -195,6 +203,7 @@ func Expand(c *types.ComposedRequest, preflight func(slots int) error) (*Expansi
 	requests = append(requests, c.Requests...)
 	overlays := append([]types.ComposeOverlaySpec(nil), c.Overlays...)
 	labels := make([]string, 0, n)
+	axes := make([]map[string]any, 0, n)
 
 	walk := func(visit func(slot int, values map[string]any) bool) {
 		forEachCombination(spec.Axes, spec.Mode, visit)
@@ -237,6 +246,7 @@ func Expand(c *types.ComposedRequest, preflight func(slots int) error) (*Expansi
 		}
 		requests = append(requests, req)
 		labels = append(labels, label)
+		axes = append(axes, values)
 		return true
 	})
 	if ce != nil {
@@ -250,7 +260,7 @@ func Expand(c *types.ComposedRequest, preflight func(slots int) error) (*Expansi
 		out.Overlays = c.Overlays
 	}
 	out.Sweep = nil
-	return &Expansion{Composed: &out, Explicit: len(c.Requests), Labels: labels, Seed: seed}, nil
+	return &Expansion{Composed: &out, Explicit: len(c.Requests), Labels: labels, Axes: axes, Seed: seed}, nil
 }
 
 // forEachCombination walks the axes' combinations in expansion order —

@@ -5,6 +5,7 @@ import (
 	stderrors "errors"
 	"math"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -445,5 +446,50 @@ func TestExpand_HashAsWritten(t *testing.T) {
 	raw, _ := json.Marshal(free)
 	if strings.Contains(string(raw), "sweep") {
 		t.Fatalf("sweep-free wire carries sweep: %s", raw)
+	}
+}
+
+// TestExpand_AxesPerSlot: Expansion.Axes carries each sweep slot's typed
+// axis values, index-aligned with Labels, under grid, zip, random and
+// lhs — a number stays a json.Number (as written, or a drawn value in
+// the text its label renders), strings and booleans are preserved —
+// and is nil without a sweep.
+func TestExpand_AxesPerSlot(t *testing.T) {
+	grid := mustExpand(t, decodeComposed(t, `{"requests":[],"sweep":{
+		"axes":[{"name":"tv","values":[10,1.50]},{"name":"flag","values":[true]},{"name":"tag","values":["s","t"]}],
+		"request":{"cohort":{"filename":"c{{tv}}{{flag}}{{tag}}.pulse"}}}}`))
+	wantGrid := []map[string]any{
+		{"tv": num("10"), "flag": true, "tag": "s"}, {"tv": num("10"), "flag": true, "tag": "t"},
+		{"tv": num("1.50"), "flag": true, "tag": "s"}, {"tv": num("1.50"), "flag": true, "tag": "t"},
+	}
+	if !reflect.DeepEqual(grid.Axes, wantGrid) || len(grid.Axes) != len(grid.Labels) {
+		t.Fatalf("grid axes %v, want %v", grid.Axes, wantGrid)
+	}
+	zip := mustExpand(t, decodeComposed(t, `{"requests":[],"sweep":{"mode":"zip",
+		"axes":[{"name":"a","values":[1,2]},{"name":"b","values":["x",false]}],
+		"request":{"cohort":{"filename":"c{{a}}{{b}}.pulse"}}}}`))
+	if want := []map[string]any{{"a": num("1"), "b": "x"}, {"a": num("2"), "b": false}}; !reflect.DeepEqual(zip.Axes, want) {
+		t.Fatalf("zip axes %v, want %v", zip.Axes, want)
+	}
+	for _, mode := range []types.SweepMode{types.SweepModeRandom, types.SweepModeLHS} {
+		spec := sampledSpec(mode, 5)
+		spec.RNGSeed = 42
+		exp, err := Expand(sampledComposed(spec), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(exp.Axes) != 5 || len(exp.Labels) != 5 {
+			t.Fatalf("%s: %d axes for %d labels", mode, len(exp.Axes), len(exp.Labels))
+		}
+		for i, ax := range exp.Axes {
+			want := "sample=" + strconv.Itoa(i) + "_decay=" + string(ax["decay"].(json.Number)) +
+				"_lambda=" + string(ax["lambda"].(json.Number))
+			if exp.Labels[i] != want {
+				t.Fatalf("%s slot %d: axes %v disagree with label %q", mode, i, ax, exp.Labels[i])
+			}
+		}
+	}
+	if none := mustExpand(t, &types.ComposedRequest{Requests: []*types.Request{{}}}); none.Axes != nil {
+		t.Fatalf("sweep-free expansion carries axes %v", none.Axes)
 	}
 }

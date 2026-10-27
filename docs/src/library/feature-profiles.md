@@ -83,7 +83,7 @@ unknown preset or a precision outside 1–17 is refused with
 `PULSE_FEATURE_PROFILE_INVALID`, reason `invalid_return`.
 
 `limits` sets the instance resource limits with the same snake_case
-names `pulse mcp --limit` and every `PULSE_LIMIT_*` error's `limit`
+names the root `--limit` flag and every `PULSE_LIMIT_*` error's `limit`
 detail use: `request_timeout`, `max_groups`, `max_crosstab_cells`,
 `max_estimated_memory`, `max_matrix_dim`, `max_compose_slots`,
 `max_chain_stages`, `max_join_build_rows`, `max_derived_columns`.
@@ -113,7 +113,7 @@ Full guide: [Tuning Limits](tuning-limits.md).
 | Kind | Spelling | Examples |
 |---|---|---|
 | operator | bare registered name | `AGG_SUM`, `GROUP_DATE`, `TEST_T`, `REG_OLS`, `OVERLAY_YOY`, and your extension operators |
-| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:compose_sweep`, `capability:compose_sweep_sampling`, `capability:compose_optimize`, `capability:compose_fits`, `capability:compose_banner`, `capability:model_save`, `capability:regression_holdout`, `capability:sem_meanstructure`, `capability:sem_groups`, `capability:sem_defined`, `capability:sem_bootstrap`, `capability:sem_ordinal`, `capability:models`, `capability:for_each`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:crosstab_cells`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:materialize`, `capability:rake`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:params`, `capability:recommend`, `capability:explain` |
+| capability | `capability:<name>` | `capability:process`, `capability:compose`, `capability:compose_sweep`, `capability:compose_sweep_sampling`, `capability:compose_optimize`, `capability:compose_fits`, `capability:compose_sweep_bind`, `capability:compose_banner`, `capability:model_save`, `capability:regression_holdout`, `capability:sem_meanstructure`, `capability:sem_groups`, `capability:sem_defined`, `capability:sem_bootstrap`, `capability:sem_ordinal`, `capability:models`, `capability:for_each`, `capability:process_chain`, `capability:facet`, `capability:sample`, `capability:crosstab`, `capability:crosstab_cells`, `capability:joins`, `capability:stream`, `capability:watch`, `capability:filter_to_file`, `capability:lookup`, `capability:index`, `capability:shard`, `capability:import`, `capability:export`, `capability:dedup`, `capability:materialize`, `capability:rake`, `capability:widen`, `capability:templates`, `capability:synth`, `capability:labels`, `capability:range_tables`, `capability:weighting`, `capability:multiplicity`, `capability:matrices`, `capability:params`, `capability:recommend`, `capability:explain` |
 | I/O format | `io_format:<name>` | `io_format:csv`, `io_format:parquet`, `io_format:spss`. One name covers both import and export |
 | MCP extra | `mcp_extra:<name>` | `mcp_extra:cohort_resources`, `mcp_extra:prompt_bootstrap`, `mcp_extra:prompt_author_request`, and one `mcp_extra:prompt_<intent>` per analytic intent (`mcp_extra:prompt_describe`, `mcp_extra:prompt_compare_groups`, …) for the `pulse-<intent>` prompts |
 
@@ -173,17 +173,18 @@ one name in every group must be enabled:
 | `OVERLAY_T_VS_PRIOR`, `OVERLAY_Z_VS_PRIOR` | `AGG_WELFORD`, `AGG_VARIANCE` or `AGG_STDDEV` (any one) |
 | `OVERLAY_PROP_Z_VS_PRIOR` | `AGG_AVERAGE` |
 | `ATTR_REG_FITTED`, `ATTR_REG_LEVERAGE`, `ATTR_REG_RESIDUAL` | `REG_OLS` |
-| `ATTR_REG_PREDICT` | `REG_BAYES_LINEAR`, `REG_GLM` or `REG_OLS` (any one) |
+| `ATTR_REG_PREDICT` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_HILL` or `REG_OLS` (any one) |
 | `OVERLAY_YOY` | `GROUP_DATE` |
 | `capability:filter_to_file` | `FILTER_EXPRESSION` (filter-to-file compiles every filterer into one filter expression) |
-| `capability:model_save` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_OLS`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE` or `capability:matrices` (any one; a `save` writes a fitted regression as a model file, a vector fit as a population file or a SEM fit as a `.pulse-sem.json` SEM fit file) |
-| `capability:regression_holdout` | `REG_BAYES_LINEAR`, `REG_GLM` or `REG_OLS` (any one; a regression `holdout` scores that slot's fit) |
+| `capability:model_save` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_HILL`, `REG_OLS`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE` or `capability:matrices` (any one; a `save` writes a fitted regression as a model file, a vector fit as a population file or a SEM fit as a `.pulse-sem.json` SEM fit file) |
+| `capability:regression_holdout` | `REG_BAYES_LINEAR`, `REG_GLM`, `REG_MMM_HILL` or `REG_OLS` (any one; a regression `holdout` scores that slot's fit) |
 | `capability:params` | `ATTR_FORMULA`, `FILTER_EXPRESSION`, `OVERLAY_FORMULA`, `capability:regression_holdout` or `capability:compose_optimize` (any one; a request `params` value is read only by an expression) |
 | `capability:sem_meanstructure` | `MAT_SEM` or `ATTR_SEM_SCORE` (any one; their `meanstructure` param and `~ 1` model lines) |
 | `capability:sem_groups` | `MAT_SEM` or `ATTR_SEM_SCORE`, and `capability:sem_meanstructure` (a multi-group fit always models the means) |
 | `capability:sem_defined` | `MAT_SEM` or `ATTR_SEM_SCORE` (any one; their `name := expr` defined-parameter model lines) |
 | `capability:compose_sweep_sampling` | `capability:compose_sweep` (the sweep's seeded `random` / `lhs` modes, `samples`, `rng_seed`, axis `range` and the `sweep_seed` echo; hidden, a sweep offers `grid` / `zip` only and refuses `lhs` as an unknown mode) |
 | `capability:compose_optimize` | `capability:compose` (the batch `optimize` blocks and the `optimizations` they produce; hidden, a set `optimize` is an unknown field) |
+| `capability:compose_sweep_bind` | `capability:compose_sweep` and `capability:compose_fits` (a `fits` entry's `from_sweep`, binding the ranked sweep winner as a named fit; hidden, a set `from_sweep` is an unknown field) |
 | `capability:sem_bootstrap` | `MAT_SEM` (its `resample`, `bootstrap_iters`, `rng_seed` and `ci_level` params) |
 | `capability:sem_ordinal` | `ATTR_SEM_SCORE` or `MAT_SEM` (their `estimator`, `ordered` and `parameterization` params: the DWLS / WLSMV ordinal fit, and its EBM scores) |
 | `capability:models` | `ATTR_REG_PREDICT`, `ATTR_REG_FITTED`, `ATTR_REG_RESIDUAL`, `ATTR_FORMULA`, `FILTER_EXPRESSION`, `ATTR_MAHALANOBIS`, `ATTR_PC_SCORE`, `ATTR_FACTOR_SCORE`, `ATTR_SEM_SCORE`, `ATTR_VEC_DISTANCE`, `capability:matrices` or `capability:compose_optimize` (any one; a loaded model is read only by a scoring reference, a loaded population — the `populations` key, which this capability also gates — or a loaded SEM fit file only by a `params.fit`) |
@@ -212,7 +213,7 @@ An enabled extension operator also needs a request host, like a built-in.
 An enabled extension regression also counts as a regression for the
 built-in features that need one. `ATTR_REG_PREDICT`,
 `capability:model_save` and `capability:regression_holdout` normally need one of `REG_BAYES_LINEAR`,
-`REG_GLM` or `REG_OLS`; an enabled extension regression whose
+`REG_GLM`, `REG_MMM_HILL` or `REG_OLS`; an enabled extension regression whose
 registration supplies a `Scorer` meets that need too.
 `capability:compose_fits` accepts any enabled extension regression. So
 a profile that enables only your own model can still fit, score and

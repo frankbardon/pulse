@@ -301,3 +301,29 @@ func Periods(w *types.Window) (int, *Refusal) {
 	}
 	return *p.Periods, nil
 }
+
+// retiredTypes maps a window type renamed before v1.0.0 to its
+// replacement. The rename is a hard break — the retired name is never an
+// alias and is refused as an unknown window type — but the refusal names
+// the replacement so an old request learns the new spelling. Keep this
+// map to renames only.
+var retiredTypes = map[types.WindowType]types.WindowType{
+	"WIN_ADSTOCK": types.WIN_DISTRIBUTED_LAG,
+}
+
+// UnknownType is the ONE PULSE_WINDOW_INVALID refusal of window slot i
+// naming type t, which no registry on the instance resolves: predict
+// (internal/descriptor) and the engine (internal/processing/window) both
+// raise exactly this sentence and these details. A retired name whose
+// replacement the instance offers (available reports it; nil = always)
+// adds " (renamed to NEW)" to the sentence and details.renamed_to; a
+// replacement the instance hides is never named.
+func UnknownType(i int, t types.WindowType, available func(types.WindowType) bool) (string, map[string]any) {
+	msg := "window[" + strconv.Itoa(i) + "]: unknown window type " + string(t)
+	details := map[string]any{"window_index": i, "type": string(t)}
+	if to, ok := retiredTypes[t]; ok && (available == nil || available(to)) {
+		msg += " (renamed to " + string(to) + ")"
+		details["renamed_to"] = string(to)
+	}
+	return msg, details
+}

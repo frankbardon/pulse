@@ -63,6 +63,12 @@ func TestDecode_UnknownKeyAtEveryDepth(t *testing.T) {
 			body:    `{"requests":[],"fits":[{"name":"a","request":{}},{"name":"b","request":{"cohrt":{}}}]}`,
 			unknown: []string{"cohrt"}, suggest: map[string]any{"cohrt": "cohort"},
 			location: map[string]int{LocationFit: 1}},
+		// A fit entry's OWN key is located by its index too, as the
+		// library's slot gate locates a hidden `save` / `from_sweep`.
+		{name: "compose fit entry", decode: decodeAs[types.ComposedRequest],
+			body: `{"requests":[],"fits":[{"name":"a","request":{}},{"name":"b","from_swep":{}}]}`,
+			path: "fits[1].from_swep", unknown: []string{"from_swep"}, suggest: map[string]any{"from_swep": "from_sweep"},
+			location: map[string]int{LocationFit: 1}},
 		{name: "compose root", decode: decodeAs[types.ComposedRequest],
 			body:    `{"requests":[{"bogus":1}],"overlay":[]}`,
 			unknown: []string{"overlay"}, suggest: map[string]any{"overlay": "overlays"}},

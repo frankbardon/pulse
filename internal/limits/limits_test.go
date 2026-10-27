@@ -164,10 +164,14 @@ func TestExceeded(t *testing.T) {
 			t.Errorf("details[%s] = %v, want %v", k, ce.Details[k], v)
 		}
 	}
-	for _, sub := range []string{"10,000,000", "10,000,001", "Options.Limits.MaxGroups", "limits.max_groups", "--limit max_groups="} {
+	for _, sub := range []string{"10,000,000", "10,000,001", "Options.Limits.MaxGroups", "limits.max_groups", "--limit max_groups= on any pulse command"} {
 		if !strings.Contains(ce.Message, sub) {
 			t.Errorf("message %q lacks %q", ce.Message, sub)
 		}
+	}
+	// --limit is a root flag on every command, not a pulse mcp one.
+	if strings.Contains(ce.Message, "pulse mcp") {
+		t.Errorf("message %q names pulse mcp for the root --limit flag", ce.Message)
 	}
 	tm := Exceeded(RequestTimeout, int64(2*time.Second), int64(3*time.Second))
 	if !strings.Contains(tm.Message, "configured 2s") {

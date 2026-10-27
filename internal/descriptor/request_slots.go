@@ -41,6 +41,7 @@ import (
 //     ComposedResponse.Optimizations it produces)
 //   - ComposedRequest.Fits     — capability:compose_fits (each fit
 //     request's own slots are gated like a slot's, details.fit)
+//   - a `fits` entry's `from_sweep` (FitSpec) — capability:compose_sweep_bind
 //   - ChainRequest.Overlays    — capability:process_chain
 //   - FacetRequest.Overlays    — capability:facet
 //   - Request.Weight and every nested per-slot `weight` (Aggregation —
@@ -187,7 +188,7 @@ var gatedSlots = map[reflect.Type][]gatedSlot{
 	},
 	reflect.TypeOf(types.Test{}):               {weightSlotGate, multiplicitySlotGate},
 	reflect.TypeOf(types.RegressionSpec{}):     {weightSlotGate, modelSaveSlotGate, multiplicitySlotGate, holdoutSlotGate},
-	reflect.TypeOf(types.FitSpec{}):            {modelSaveSlotGate},
+	reflect.TypeOf(types.FitSpec{}):            {modelSaveSlotGate, {key: "from_sweep", visible: capabilityGate(featSweepBind)}},
 	reflect.TypeOf(types.MatrixSpec{}):         {weightSlotGate, multiplicitySlotGate},
 	reflect.TypeOf(types.Attribute{}):          {weightSlotGate, forEachSlotGate},
 	reflect.TypeOf(types.Window{}):             {forEachSlotGate},
@@ -899,6 +900,10 @@ func SlotRefusal(v any, inst *InstanceSnapshot) error {
 		for i, fit := range r.Fits {
 			if fit.Save != "" && !inst.Enabled(featModelSave) {
 				return RefusalAt(unknownFieldErrorAt(fmt.Sprintf("fits[%d]", i), []string{saveKey},
+					VisibleSlotKeys(&r.Fits[i], inst)), "fit", i)
+			}
+			if fit.FromSweep != nil && !inst.Enabled(featSweepBind) {
+				return RefusalAt(unknownFieldErrorAt(fmt.Sprintf("fits[%d]", i), []string{"from_sweep"},
 					VisibleSlotKeys(&r.Fits[i], inst)), "fit", i)
 			}
 			if ce := requestSlotRefusal(fit.Request, inst); ce != nil {

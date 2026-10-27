@@ -455,7 +455,9 @@ func packageResampleResult(
 }
 
 // deriveBootstrapSeed is the rng_seed 0 seed: DeriveSeed over the
-// spec's wire form (rng_seed excluded) and every record's target and
+// spec's wire form (rng_seed excluded; the raw params in
+// regresample.CanonicalJSON form, so their key order never moves it)
+// and every record's target and
 // predictor values, in record order. It is a pure function of the
 // request and the cohort rows the fit reads — the same request over the
 // same data always draws the same replicates, a different request (or
@@ -464,6 +466,7 @@ func packageResampleResult(
 func deriveBootstrapSeed(spec *types.RegressionSpec, records []Record, predictors []string) int64 {
 	cp := *spec
 	cp.RNGSeed = 0
+	cp.Params = regresample.CanonicalJSON(cp.Params)
 	body, err := types.MarshalFinite(&cp)
 	if err != nil {
 		body = nil

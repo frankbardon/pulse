@@ -53,11 +53,11 @@ Omit `label` for the default: the `axis=value` pairs joined by `_`. An authored 
 
 ## Strict body
 
-The substituted body decodes STRICTLY into a `Request`, like a plain compose slot: an unknown key is `PULSE_REQUEST_UNKNOWN_FIELD` (`details.path`, suggestion, plus the sweep `slot` / `values`); a wrong-typed value is `PULSE_SWEEP_INVALID` `request_decode`. The failure is found at expansion, before any slot runs.
+The substituted body decodes STRICTLY into a `Request`, like a plain compose slot: an unknown key is `PULSE_REQUEST_UNKNOWN_FIELD` (`details.path`, suggestion, plus the sweep `slot` / `values`); a wrong-typed value is `PULSE_SWEEP_INVALID` `request_decode`. Found at expansion, before any slot runs.
 
 ## Decay-sweep pattern
 
-Rank one-step fits on held-out error: an adstock window with `decay` `{"$var": "decay"}`, a post-window formula attribute, one regression with a `holdout`, `rank` `{by: "regressions.<name>.holdout.rmse", order: "asc"}`, `return` excluding `data`. The true decay ranks first (`regression-model-options`).
+Rank fits on held-out error: an adstock window with `decay` `{"$var": "decay"}`, one regression with a `holdout`, `rank` `{by: "regressions.<name>.holdout.rmse"}`, `return` excluding `data`.<!-- feature: REG_MMM_HILL,capability:compose_sweep_bind --> One-call media mix: `mmm-workflow`.<!-- /feature -->
 
 ## Overlays
 
@@ -66,16 +66,20 @@ Rank one-step fits on held-out error: an adstock window with `decay` `{"$var": "
 ## With explicit requests, limits, predict
 
 - `requests` and `sweep` combine: explicit slots first (indices unchanged), sweep slots after. A request with only a `sweep` is valid.
-- `MaxComposeSlots` counts the EXPANDED total (explicit + sweep); an over-limit batch is `PULSE_LIMIT_EXCEEDED` before anything runs, serial and parallel alike.
-- `pulse_predict` with `composed` (and `PredictCompose`) expands too: the runtime's limit, label and slot checks, plus a `sweep` summary `{axes[{name,count}], mode, expanded_count, labels}`. Predict a sweep before running it.
-- `--echo-request` / `EchoRequest` echoes the expanded slots the service ran. MCP fills a missing `return` in the sweep body with the `standard` default, never overwriting an authored one.
+- `MaxComposeSlots` counts the EXPANDED total (explicit + sweep); over the limit is `PULSE_LIMIT_EXCEEDED` before anything runs.
+- `pulse_predict` with `composed` (and `PredictCompose`) expands too: the runtime's limit, label and slot checks, plus a `sweep` summary `{axes[{name,count}], mode, expanded_count, labels}`.
+- `--echo-request` / `EchoRequest` echoes the expanded slots. MCP fills a missing `return` in the sweep body with the `standard` default, never overwriting an authored one.
 
 ## Rank
 
-`sweep.rank {by, order, top}` orders the SWEEP slots (never explicit ones) by one number and reports `ranking: [{label, value, rank}]` on the ComposedResponse, 1-based, `order` `asc` (default) or `desc`, `top` keeps the first N (>= 1). `by` is a dot path into each slot's unshaped response: an object key, or on a list the element whose `name` or `label` equals the segment (never an index), ending on a number, e.g. `components.aggregations.rev.n` or `regressions.fit.residual_std_err`. Two matching elements, or a `name` and `label` that differ, are ambiguous.
+`sweep.rank {by, order, top}` orders the SWEEP slots (never explicit ones) by one number and reports `ranking: [{label, value, rank, slot, axes}]` on the ComposedResponse, 1-based, `order` `asc` (default) or `desc`, `top` keeps the first N (>= 1). `by` is a dot path into each slot's unshaped response: an object key, or on a list the element whose `name` or `label` equals the segment (never an index), ending on a number, e.g. `components.aggregations.rev.n` or `regressions.fit.residual_std_err`. Two matching elements, or a `name` and `label` that differ, are ambiguous.
 - The batch is refused `PULSE_SWEEP_RANK_PATH` (`details.reason` `syntax`, `missing`, `not_number`, `ambiguous`) when `by` resolves in no slot, hits a non-number or is ambiguous; an empty segment is `syntax`.
 - A null (NaN) value, or a path missing in this slot only, EXCLUDES that slot with a `PULSE_SWEEP_RANK_PATH` warning on its own response.
 - A computed regression fit figure (`residual_std_err`, `r2`, `deviance`, …) that is exactly 0 ranks as 0 although the wire omits it; a figure the fit's type does not compute stays missing.
+- `slot`: the 0-based sweep index (`responses[explicit + slot]`); `axes`: each axis's typed value in that slot. Read a winner from `ranking[0].axes`, never its label.
+<!-- feature: capability:compose_sweep_bind -->
+- `fits[].from_sweep` binds the winner's regression as a named fit (`compose-sweep-bind`).
+<!-- /feature -->
 - A ranked slot always computes the ranked part, even if its `return` excludes it. `ranking` sits outside the compose `return`: always emitted, never rounded.
 - `--stream` ends with one `{"ranking":[...]}` line (even `[]`); rank-free sweeps emit none.
 

@@ -112,7 +112,7 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 	// its members (exprProgram.bindVectors): appendExprIdents expands it,
 	// or the members would decode as null and the expression would
 	// silently fold NaN.
-	vecMembers := exprVectorMembers(req, schema)
+	vecMembers := exprVectorMembers(req, schema, catalogOf(models))
 
 	addKnown := func(name string) {
 		if _, ok := known[name]; ok {
@@ -361,6 +361,9 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 		}
 		addKnown(r.Target)
 		addAllKnown(r.Predictors)
+		// A model regression's declared reads beyond them (REG_MMM_BAYES's
+		// params.time): a built-in's twin of an extension's FieldInputs.
+		addAllKnown(model.ModelRegressionFieldInputs(r))
 		if c := r.Covariance; c != nil {
 			addKnown(c.Cluster)
 			addKnown(c.OrderBy)
@@ -379,7 +382,7 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 	// resolver predict and the runtime refuse with). A vector that does
 	// not resolve is refused before any record is read; decode wide
 	// rather than guess.
-	members, ok := vectors.Members(req, schema)
+	members, ok := vectors.Members(req, schema, catalogOf(models))
 	if !ok {
 		out.Widen()
 		return out
@@ -389,7 +392,7 @@ func NeededFieldsWithModels(req *types.Request, schema *encoding.Schema, ext *Ex
 	// entry) decodes whole.
 	addAllKnown(vectors.ReferencedNatives(req, schema))
 	// A matrix spec's inline fields resolve by the same rules.
-	matMembers, ok := vectors.MatrixMembers(req, schema)
+	matMembers, ok := vectors.MatrixMembers(req, schema, catalogOf(models))
 	if !ok {
 		out.Widen()
 		return out
@@ -726,8 +729,8 @@ func schemaFieldSet(schema *encoding.Schema) map[string]struct{} {
 // exprVectorMembers maps each of req's named vectors to its resolved
 // members (nil when the request defines none or one fails to resolve —
 // that request is refused before any decode).
-func exprVectorMembers(req *types.Request, schema *encoding.Schema) map[string][]string {
-	resolved := ExprVectors(req, schema)
+func exprVectorMembers(req *types.Request, schema *encoding.Schema, cat model.Catalog) map[string][]string {
+	resolved := ExprVectors(req, schema, cat)
 	if len(resolved) == 0 {
 		return nil
 	}

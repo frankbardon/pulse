@@ -68,7 +68,7 @@ func TestCliRecommend(t *testing.T) {
 		t.Errorf("unbound draft carries no placeholder: %s", env.Data.Recommendations[0].Request)
 	}
 
-	text, err = runApp(t, "recommend", "--intent", "describe", "--cohort", cohort, "--field", "qty", "--limit", "3", "--json")
+	text, err = runApp(t, "recommend", "--intent", "describe", "--cohort", cohort, "--field", "qty", "--top", "3", "--json")
 	if err != nil {
 		t.Fatalf("bound: %v\n%s", err, text)
 	}

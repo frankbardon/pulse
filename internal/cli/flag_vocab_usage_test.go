@@ -62,7 +62,7 @@ func TestFlagVocab_UsageNamesEveryLibraryValue(t *testing.T) {
 		{RecommendCommand(), "level", strs(descriptor.Levels())},
 		{RakeCommand(), "missing", pulse.RakeMissingPolicies()},
 		{MCPCommand("test"), "return", strs(types.AllReturnPresets())},
-		{MCPCommand("test"), "limit", pulse.LimitNames()},
+		{&cli.Command{Name: "root", Flags: LimitFlags()}, "limit", pulse.LimitNames()},
 		{WidenCommand(), "to", pulse.WidenSetFieldTargets()},
 		{ErrorsCommand(), "domain", perr.AllDomains()},
 		{&cli.Command{Name: "root", Flags: LogFlags()}, "log-level", logLevelNames},

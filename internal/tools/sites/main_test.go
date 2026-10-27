@@ -540,7 +540,7 @@ func TestOpReport_DerivedSites(t *testing.T) {
 		// array-valued consumers: ArrayValued (names it) <- IsArrayValued <- AggregationExpands
 		{"AGG_VEC_MEAN", map[string]string{
 			"internal/vectors/aggregations.go":            "func AggregationOutputColumns",
-			"internal/descriptor/field_refs.go":           "func fieldRefRefusalsCoded",
+			"internal/descriptor/field_refs.go":           "func fieldRefWalkPlan",
 			"internal/descriptor/overlay_array_valued.go": "func scoredValueReason",
 			"internal/descriptor/return_resolve.go":       "func returnOutputColumns",
 		}, nil},

@@ -36,6 +36,14 @@ type PredictOptions struct {
 	// Strict upgrades warnings to errors.
 	Strict bool
 
+	// models is the bound-model catalog of the request being judged
+	// (withModels: the request's loaded `models` and populations, a
+	// Compose slot's fits) — the catalog every windows-first site
+	// downstream of the model load reads (vectors.WindowsOverRecords
+	// through the vector resolvers, the limit estimates, streamability),
+	// so each judges the request the walk judged. Nil before the load.
+	models model.Catalog
+
 	// Extensions is the read-only snapshot of embedder-registered
 	// operators + expression-side state. Nil takes the built-in-only
 	// path. The snapshot adds every custom operator name to the
@@ -187,6 +195,27 @@ func (o *PredictOptions) componentsDisabled(req *types.Request) bool {
 	return EffectiveDisableComponents(req, o != nil && o.DisableComponents)
 }
 
+// withModels returns a copy of o carrying the request's bound-model
+// catalog (o itself is never written: the caller's options are shared
+// across Compose slots and chain stages). Nil-receiver-safe.
+func (o *PredictOptions) withModels(models model.Catalog) *PredictOptions {
+	var c PredictOptions
+	if o != nil {
+		c = *o
+	}
+	c.models = models
+	return &c
+}
+
+// boundModels is the catalog withModels installed (nil none).
+// Nil-receiver-safe.
+func (o *PredictOptions) boundModels() model.Catalog {
+	if o == nil {
+		return nil
+	}
+	return o.models
+}
+
 // instance returns the options' instance feature set (nil — hide
 // nothing — on a nil receiver). Nil-receiver-safe.
 func (o *PredictOptions) instance() *InstanceSnapshot {
@@ -253,6 +282,7 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	if serr := SlotRefusal(req, opts.instance()); serr != nil {
 		result := newPredictResult(req)
 		result.Valid = false
+		result.PostWindow = earlyPostWindow(req, opts)
 		env := descriptor.NewEnvelope(result)
 		addCodedError(env, serr)
 		return env
@@ -264,7 +294,13 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	written := req
 	expanded, fan, finding, xerr := ExpandRequestItems(req, opts.instance().Limits())
 	if xerr != nil {
-		return predictForEachRefusal(req, xerr, finding)
+		// The items did not expand: the plan indexes the request as
+		// written.
+		env := predictForEachRefusal(req, xerr, finding)
+		if result, ok := env.Data.(*descriptor.PredictResult); ok {
+			result.PostWindow = earlyPostWindow(req, opts)
+		}
+		return env
 	}
 	var env *descriptor.Envelope
 	if src, ok := sniffArchive(fileData); ok {
@@ -272,10 +308,15 @@ func Predict(fileData io.ReadSeeker, req *types.Request, opts *PredictOptions) *
 	} else {
 		env = predictSingle(fileData, expanded, opts, nil, nil, 0)
 	}
-	if len(fan) > 0 {
-		if result, ok := env.Data.(*descriptor.PredictResult); ok {
+	if result, ok := env.Data.(*descriptor.PredictResult); ok {
+		if len(fan) > 0 {
 			result.Request = written
 			result.ForEach = forEachSummaries(fan)
+		}
+		// Stopped before the field-reference walk (an unreadable header
+		// or schema): the plan still reports, schema-free.
+		if result.PostWindow == nil {
+			result.PostWindow = earlyPostWindow(expanded, opts)
 		}
 	}
 	return env
@@ -348,6 +389,11 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	if lerr != nil {
 		addCodedError(env, lerr)
 	}
+	// Every windows-first site below reads the windows-first decision
+	// over the catalog the walk judges with (vectors.WindowsOverRecords).
+	if models != nil {
+		opts = opts.withModels(models)
+	}
 
 	// Multiplicity resolution — the same single pass the runtime runs
 	// right after the join-count rule, before any dispatch
@@ -415,8 +461,14 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	// Field references — the one rule the runtime refuses with at the
 	// same point (after defaults and zones, against the schema the
 	// request executes over). Every unknown name is reported.
-	for _, ce := range dropUnloadedUnknowns(fieldRefRefusalsWithModels(req, schema, extensionsFromOpts(opts), opts.Instance, models), unloadedModels) {
+	// The walk's post-window plan is reported as PostWindow — the same
+	// classification, also beside any refusal.
+	refs, pw := fieldRefWalkPlan(req, schema, nil, extensionsFromOpts(opts), opts.Instance, models)
+	for _, ce := range dropUnloadedUnknowns(refs, unloadedModels) {
 		env.AddError(string(ce.Code), ce.Message, ce.Details)
+	}
+	if schema != nil {
+		result.PostWindow = postWindowDescriptor(req, schema, pw)
 	}
 
 	// Virtual vectors — the field-reference pass above refuses a bad
@@ -434,8 +486,8 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 		}
 	}
 
-	predictVectors(env, result, req, schema, opts.Strict)
-	predictReferences(env, req, schema, extensionsFromOpts(opts))
+	predictVectors(env, result, req, schema, opts.Strict, models)
+	predictReferences(env, req, schema, extensionsFromOpts(opts), models)
 	// The merge-fragment count the matrix state scales with: over the
 	// per-shard counts for an archive (plus the rows non-head fragments
 	// buffer), else over the record count; unknown without one.
@@ -461,7 +513,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 		}
 		sizeIn.regressionMembers = multPlan.Regressions
 	}
-	sizeIn.matrixPlans = predictMatrices(result, req, schema, extensionsFromOpts(opts), opts.Instance, blocks, buffered, matrixRecords)
+	sizeIn.matrixPlans = predictMatrices(result, req, schema, extensionsFromOpts(opts), opts.Instance, models, blocks, buffered, matrixRecords)
 	// Instance resource limits — the rule the process pre-flight
 	// refuses with (LimitRefusal), on the defaults-resolved request over
 	// the schema it executes over. A certain finding is a predict error.
@@ -539,7 +591,7 @@ func predictSingle(fileData io.ReadSeeker, req *types.Request, opts *PredictOpti
 	populateGroupPredicts(result, req, opts)
 	// A buffered vector grouper's point store (GROUP_KMEANS), the
 	// grouper term of the memory estimate, per groups[i] slot.
-	if buf := GroupBufferBytes(req, schema, opts.Instance, matrixRecords); len(buf) > 0 {
+	if buf := GroupBufferBytes(req, schema, opts.Instance, matrixRecords, models); len(buf) > 0 {
 		i := 0
 		for _, grp := range req.Groups {
 			if grp == nil {
@@ -664,7 +716,7 @@ func validateRequestBody(env *descriptor.Envelope, req *types.Request, schema *e
 
 	// Static vector lengths of the pair built-ins (dot / dist / cosine)
 	// in the request's expressions — the runtime build's refusal.
-	predictVectorLengths(env, req, schema)
+	predictVectorLengths(env, req, schema, opts.boundModels())
 
 	// Validate tier-1 and tier-2 statistical tests against the schema +
 	// projected column set. Tier-1 catches missing fields and type
@@ -771,11 +823,35 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 		}
 	}
 
+	// A windows-first request (vectors.WindowsFirst: an aggregation,
+	// grouper or crosstab axis reads a window output) runs its windows
+	// over every filtered record before the groups, aggregations and
+	// crosstab: buffered on every shape (processing.canStream refuses
+	// any window), the crosstab one included — judged ahead of the
+	// crosstab gate below. The classification reads the request's bound
+	// models (opts.boundModels — the walk's catalog), so a request
+	// windows-first only through a bound model's terms is named so too.
+	windowsFirst := vectors.WindowsFirst(req, schema, func(t types.AttributeType) types.AttributeType { return opRoute(opts.instance(), t) }, opts.boundModels())
+	if windowsFirst {
+		reasons = append(reasons, "windows run first over every filtered record (windows-first: an aggregation, grouper or crosstab axis reads a window output), so the request runs via the buffered path")
+	}
+
 	// Crosstab dispatch overrides the regular streamable gate: when set,
 	// crosstabStreamableReasons is the authoritative list (matrix shape,
 	// margins, normalization, or nested axes all force buffered).
 	if req.Crosstab != nil {
 		reasons = append(reasons, crosstabStreamableReasons(req.Crosstab)...)
+		// A historical-order crosstab with windows is buffered too: the
+		// fused (streaming) arm runs no window (crosstabfuse.Decide
+		// declines it, processing.canStream refuses any window).
+		if len(req.Windows) > 0 && !windowsFirst {
+			reasons = append(reasons, "crosstab with windows runs via the buffered path (the fused crosstab arm runs no window)")
+		}
+		// Its regressions fit on the buffered arm too (crosstabfuse.Decide
+		// declines them: the fused walk fits none).
+		if len(req.Regressions) > 0 {
+			reasons = append(reasons, "crosstab with regressions runs via the buffered path (the fused crosstab arm fits no regression)")
+		}
 		// Crosstab does not require the standard "at least one
 		// aggregation" gate — the cell aggregation lives on
 		// req.Crosstab.Cell, not req.Aggregations.
@@ -825,7 +901,7 @@ func computeStreamable(req *types.Request, schema *encoding.Schema, opts *Predic
 	if tp := firstTwoPassAttribute(req, schema, opts); tp != "" && (len(req.Groups) > 0 || len(req.Features) > 0) {
 		reasons = append(reasons, "two-pass attribute "+string(tp)+" with groupers or features runs via the buffered path")
 	}
-	if len(req.Windows) > 0 {
+	if len(req.Windows) > 0 && !windowsFirst {
 		reasons = append(reasons, "windows run over the whole row set (every filtered record, or the post-aggregate rows when grouped)")
 	}
 

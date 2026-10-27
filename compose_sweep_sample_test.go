@@ -81,6 +81,46 @@ func TestSweepRandom_ComposeSerialParallelIdentical(t *testing.T) {
 	}
 }
 
+// TestSweepRandom_KeyOrderSameDraws: at rng_seed 0 a sweep body that
+// differs only in key order (any depth) and whitespace derives the same
+// sweep_seed and byte-identical ComposedResponse JSON — ranking
+// included — from Compose and ComposeParallel, and predict reports
+// that seed.
+func TestSweepRandom_KeyOrderSameDraws(t *testing.T) {
+	ctx := context.Background()
+	p := sweepPulse(t, Options{})
+	shuffled := `{"tests":[{"params":{"mu":{"$var":"mu"}},"label":"t","field":"age","type":"TEST_T"}],
+		"aggregations":[{"label":"v","field":"age","type":"AGG_AVERAGE"}], "cohort":{"filename":"` + parityCohort + `"}}`
+	for _, mode := range []string{"lhs", "random"} {
+		var wires []string
+		for _, body := range []string{rankSweepBody, shuffled} {
+			c := decodeComposedJSON(t, `{"sweep":{"mode":"`+mode+`","samples":6,
+				"axes":[{"name":"mu","range":{"min":10,"max":60}}],
+				"request":`+body+`,"rank":{"by":"tests.t.statistic"}}}`)
+			for _, name := range []string{"Compose", "ComposeParallel"} {
+				resp, err := composeRuns(p)[name](c)
+				if err != nil {
+					t.Fatalf("%s %s: %v", mode, name, err)
+				}
+				raw, _ := json.Marshal(resp)
+				wires = append(wires, string(raw))
+				env, err := p.PredictCompose(ctx, c)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if s := env.Data.(*ComposePredictResult).Sweep; s == nil || s.RNGSeed == nil || resp.SweepSeed == nil || *s.RNGSeed != *resp.SweepSeed {
+					t.Fatalf("%s %s: predict seed %+v, runtime %v", mode, name, s, resp.SweepSeed)
+				}
+			}
+		}
+		for i := 1; i < len(wires); i++ {
+			if wires[i] != wires[0] {
+				t.Fatalf("%s: run %d differs:\n%s\n%s", mode, i, wires[0], wires[i])
+			}
+		}
+	}
+}
+
 // TestSweepRandom_SeedEchoAndReplay: a pinned rng_seed is echoed as is;
 // a zero seed is echoed as the derived one, and pinning that value
 // replays the run byte for byte. A grid sweep echoes no seed (the wire

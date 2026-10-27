@@ -113,7 +113,18 @@ func TestWindowPredictor_WalkRefusesWindowOrder(t *testing.T) {
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			got := windowOrderRefusals(t, fieldRefRefusalsWithModels(c.req, fieldRefSchema(), nil, nil, cat))
+			refs := fieldRefRefusalsWithModels(c.req, fieldRefSchema(), nil, nil, cat)
+			if c.req.Crosstab != nil {
+				// The crosstab reads no window output, so its window is
+				// also refused (crosstab_window_unread, after the
+				// attribute's refusal — the one the runtime raises first).
+				last := refs[len(refs)-1]
+				if last.Code != errors.PULSE_WINDOW_INVALID || last.Details["reason"] != "crosstab_window_unread" {
+					t.Fatalf("crosstab refusals %v, want crosstab_window_unread last", refs)
+				}
+				refs = refs[:len(refs)-1]
+			}
+			got := windowOrderRefusals(t, refs)
 			if !reflect.DeepEqual(got, c.want) {
 				t.Fatalf("refusals %v, want %v", got, c.want)
 			}

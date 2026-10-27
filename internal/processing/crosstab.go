@@ -501,7 +501,7 @@ type CrosstabValidationError = errors.CodedError
 // normalization is the only streamable case, and the orchestrator
 // short-circuits to the standard grouped process path before reaching
 // here (handled in internal/service/crosstab.go).
-func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records []*Record) (*types.Response, error) {
+func (p *Processor) RunCrosstab(ctx context.Context, req *types.Request, records []*Record) (*types.Response, error) {
 	if req == nil || req.Crosstab == nil {
 		return nil, errors.NewCodedError(errors.PROCESSING_INTERNAL,
 			"RunCrosstab requires a Crosstab spec")
@@ -536,15 +536,47 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		return nil, err
 	}
 	// A before-filters attribute (ATTR_PREVIOUS_STATE) runs over every
-	// record ahead of the filters; the rest over the survivors.
-	// No attribute runs after windows beside a crosstab: a
-	// window-dependent slot is PULSE_ATTRIBUTE_WINDOW_ORDER.
-	if _, err := p.postWindowPlan(req); err != nil {
-		return nil, err
-	}
-	filtered, _, attrWarnings, attrComps, err := p.filterThenAttributes(req, records)
+	// record ahead of the filters; the rest over the survivors. A
+	// window-dependent slot runs after the windows only windows-first
+	// (an axis, cell or margin aggregation reads a window output — the
+	// crosstab is no record-row shape); otherwise it is
+	// PULSE_ATTRIBUTE_WINDOW_ORDER.
+	post, err := p.postWindowPlan(req)
 	if err != nil {
 		return nil, err
+	}
+	// A window no axis, cell or margin aggregation reads has no row to
+	// run over (the walk's refusal, re-raised for a processor driven
+	// without the service).
+	if cerr := vectors.CrosstabWindowRefusal(req, post.WindowsFirst); cerr != nil {
+		return nil, cerr
+	}
+	var (
+		filtered     []*Record
+		attrWarnings []*types.ResponseWarning
+		attrComps    []types.AttributeComponents
+	)
+	if post.Any() {
+		var slots []attrSlotOut
+		if filtered, _, slots, err = p.filterThenAttributeSlots(req, records, post); err != nil {
+			return nil, err
+		}
+		if err := p.windowsFirstPass(ctx, req, post, filtered, slots); err != nil {
+			return nil, err
+		}
+		attrWarnings, attrComps = mergeAttrSlots(slots)
+	} else {
+		if filtered, _, attrWarnings, attrComps, err = p.filterThenAttributes(req, records); err != nil {
+			return nil, err
+		}
+		// Windows-first without a post-window attribute: the windows run
+		// over the filtered records and the labels the axes, cell and
+		// margins read land on them before any partition.
+		if post.WindowsFirst {
+			if err := p.windowsFirstPass(ctx, req, post, filtered, nil); err != nil {
+				return nil, err
+			}
+		}
 	}
 	// Whole-set axis groupers (GROUP_QUANTILE / GROUP_KMEANS under
 	// params.fit "global") fit once over the filtered set before any
@@ -671,12 +703,27 @@ func (p *Processor) RunCrosstab(_ context.Context, req *types.Request, records [
 		return nil, err
 	}
 
+	// Regression fits over the filtered records, exactly as the record
+	// arm fits them (processRecords): a holdout slot fits its train rows
+	// and scores its held-out rows, every other slot the filtered set as
+	// one batch. A crosstab's regressions run only here — the fused gate
+	// declines them (crosstabfuse.Decide). An excluded regressions slot
+	// (ComputePlan) fits nothing.
+	var regressionResults []*types.RegressionResult
+	if p.compute.Regressions && len(req.Regressions) > 0 {
+		workRegressionFits.Add(int64(len(req.Regressions)))
+		if regressionResults, err = p.fitRegressions(ctx, req, filtered); err != nil {
+			return nil, err
+		}
+	}
+
 	resp := &types.Response{
 		Metadata: &types.ResponseMetadata{
 			TotalRows:    totalRows,
 			FilteredRows: filteredRows,
 		},
-		Tests: testResults,
+		Tests:       testResults,
+		Regressions: regressionResults,
 		// Fit warnings from the attribute pass (declared order).
 		Warnings: append(attrWarnings, refitWarns...),
 	}

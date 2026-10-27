@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -160,7 +161,9 @@ func TestComposeSweep_RankReadsUnshapedSlots(t *testing.T) {
 			if err := json.Unmarshal(raw, &wire); err != nil {
 				t.Fatal(err)
 			}
-			if len(wire.Ranking) != 2 || wire.Ranking[0] != resp.Ranking[0] || wire.Ranking[1] != resp.Ranking[1] {
+			got, _ := json.Marshal(wire.Ranking)
+			want, _ := json.Marshal(resp.Ranking)
+			if len(wire.Ranking) != 2 || string(got) != string(want) {
 				t.Fatalf("compose return shaped the ranking:\n%s", raw)
 			}
 		})
@@ -178,5 +181,97 @@ func TestComposeSweep_RankFreeByteIdentical(t *testing.T) {
 	raw, _ := json.Marshal(resp)
 	if resp.Ranking != nil || bytes.Contains(raw, []byte(`"ranking"`)) {
 		t.Fatalf("rank-free sweep carries a ranking: %s", raw)
+	}
+}
+
+// TestComposeSweep_RankCarriesSlotAndAxes: every ranking entry carries
+// its 0-based sweep Slot (its response is responses[explicit+slot]) and
+// the typed Axes values the slot ran with — under grid, zip, random and
+// lhs, serial and parallel byte-identical, a pinned seed replaying the
+// same bytes. On the wire a number axis stays a number, string and
+// boolean axes are preserved; nothing is parsed off a label.
+func TestComposeSweep_RankCarriesSlotAndAxes(t *testing.T) {
+	p := sweepPulse(t, Options{})
+	zip := decodeComposedJSON(t, `{"requests":[{"label":"base","cohort":{"filename":"`+parityCohort+`"},
+		"tests":[{"type":"TEST_T","field":"age","label":"t"}]}],
+		"sweep":{"mode":"zip","axes":[{"name":"mu","values":[30,10.5,50]},{"name":"tag","values":["x","y","z"]},
+		{"name":"flag","values":[true,false,true]}],
+		"label":"{{tag}}_{{flag}}","request":`+rankSweepBody+`,"rank":{"by":"tests.t.statistic","order":"desc"}}}`)
+	cases := map[string]struct {
+		c        *ComposedRequest
+		explicit int
+	}{
+		"grid":   {rankedSweep(t, `{"by":"tests.t.statistic"}`), 1},
+		"zip":    {zip, 1},
+		"random": {sampledSweep(t, "random", 6, `,"rng_seed":11`), 0},
+		"lhs":    {sampledSweep(t, "lhs", 6, `,"rng_seed":11`), 0},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			var wires []string
+			for _, run := range []string{"Compose", "ComposeParallel", "Compose"} {
+				resp, err := composeRuns(p)[run](tc.c)
+				if err != nil {
+					t.Fatalf("%s: %v", run, err)
+				}
+				if len(resp.Ranking) == 0 {
+					t.Fatalf("%s: empty ranking", run)
+				}
+				seen := map[int]bool{}
+				for _, e := range resp.Ranking {
+					slot := resp.Responses[tc.explicit+e.Slot]
+					if seen[e.Slot] || slot.Label != e.Label || e.Value != tStat(t, slot) {
+						t.Fatalf("%s: entry %+v does not point at its slot %q", run, e, slot.Label)
+					}
+					seen[e.Slot] = true
+					mu, ok := e.Axes["mu"].(json.Number)
+					if !ok {
+						t.Fatalf("%s: mu axis %T %v, want a number", run, e.Axes["mu"], e.Axes["mu"])
+					}
+					// The label renders mu (grid mu{{mu}}_…, sampled
+					// sample=<i>_mu=<value>): the axes name the value the
+					// slot ran with, in the same text.
+					if name != "zip" && !strings.Contains(slot.Label, "mu"+string(mu)) && !strings.HasSuffix(slot.Label, "mu="+string(mu)) {
+						t.Fatalf("%s: slot %q ran with mu %s", run, slot.Label, mu)
+					}
+					if name == "zip" {
+						tag, _ := e.Axes["tag"].(string)
+						flag, ok := e.Axes["flag"].(bool)
+						if !ok || slot.Label != tag+"_"+strconv.FormatBool(flag) {
+							t.Fatalf("%s: zip axes %v for slot %q", run, e.Axes, slot.Label)
+						}
+					}
+				}
+				raw, err := json.Marshal(resp.Ranking)
+				if err != nil {
+					t.Fatal(err)
+				}
+				wires = append(wires, string(raw))
+			}
+			if wires[0] != wires[1] || wires[0] != wires[2] {
+				t.Fatalf("ranking differs across serial / parallel / rerun:\n%s\n%s\n%s", wires[0], wires[1], wires[2])
+			}
+			var wire []map[string]any
+			if err := json.Unmarshal([]byte(wires[0]), &wire); err != nil {
+				t.Fatal(err)
+			}
+			for _, e := range wire {
+				axes, ok := e["axes"].(map[string]any)
+				if _, num := axes["mu"].(float64); !ok || !num {
+					t.Fatalf("wire entry %v: mu is not a JSON number", e)
+				}
+				if _, ok := e["slot"].(float64); !ok {
+					t.Fatalf("wire entry %v carries no slot", e)
+				}
+				if name == "zip" {
+					if _, ok := axes["tag"].(string); !ok {
+						t.Fatalf("wire entry %v: tag not a string", e)
+					}
+					if _, ok := axes["flag"].(bool); !ok {
+						t.Fatalf("wire entry %v: flag not a boolean", e)
+					}
+				}
+			}
+		})
 	}
 }

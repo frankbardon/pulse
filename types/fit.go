@@ -26,8 +26,19 @@ type FitSpec struct {
 	Name string `json:"name"`
 
 	// Request is the request the fit runs: exactly one regression, no
-	// groups, no crosstab.
-	Request *Request `json:"request"`
+	// groups, no crosstab. Absent when FromSweep is set (exactly one of
+	// the two).
+	Request *Request `json:"request,omitempty"`
+
+	// FromSweep binds the fit from the batch's sweep instead of a
+	// Request: the top-ranked sweep slot's named regression, refitted
+	// as an ordinary regression fit on that slot's rows. It requires a
+	// ranked `sweep` on the same ComposedRequest, and the regression's
+	// type, target and predictors must not depend on a sweep axis —
+	// predict derives the fit's static signature from the sweep body.
+	// No sweep slot may read the fit it binds. Gated by
+	// capability:compose_sweep_bind; nil is absent.
+	FromSweep *FitFromSweep `json:"from_sweep,omitempty"`
 
 	// Save writes the bound fit to a file at this path once the fit has
 	// run, under the fit's Name — the RegressionSpec.Save contract
@@ -39,6 +50,17 @@ type FitSpec struct {
 	// .pulse-sem.json) that a later request loads with `models`. Gated
 	// by capability:model_save. Empty writes nothing.
 	Save string `json:"save,omitempty"`
+}
+
+// FitFromSweep is a FitSpec's `from_sweep` binding: the sweep slot
+// ranked first by the batch's `sweep.rank` supplies the fit, through
+// the regression the sweep body names Regression (its `name`). Ties
+// rank by expansion order, so the earliest slot wins; a slot that
+// failed on its data is not ranked.
+type FitFromSweep struct {
+	// Regression is the `name` of the sweep body's regression the fit
+	// binds. Required.
+	Regression string `json:"regression"`
 }
 
 // PopulationRef is one entry of Request.Populations: a population file

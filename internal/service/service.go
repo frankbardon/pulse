@@ -1277,13 +1277,17 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 		return nil, err
 	}
 	// The fits' structural rules, before anything else past the slot
-	// gate (predict runs the same model.CheckFits).
-	if err := model.CheckFits(composed.Fits); err != nil {
+	// gate (predict runs the same model.CheckFitsIn); the batch then
+	// runs with every from_sweep fit resolved, the echo keeps the
+	// request as expanded.
+	echoed := composed
+	composed, err = checkComposeFits(composed, ext)
+	if err != nil {
 		return nil, err
 	}
 	// Then the optimize blocks' rules (predict runs the same
 	// descx.OptimizeRefusal at the same point).
-	optLoaded, err := s.optimizeRefusal(composed)
+	optLoaded, err := s.optimizeRefusal(composed, ext)
 	if err != nil {
 		return nil, err
 	}
@@ -1323,42 +1327,50 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	if foldOverlays {
 		vetoes = s.composeSlotVetoes(composed.Overlays, requests)
 	}
+	// Observability (no-ops off): the batch's planning is its plan
+	// phase; each slot is a child operation timed under its own
+	// carrier, so the parent's clock skips the slots (Mark).
+	ei := execInfoFrom(ctx)
+	responses := make([]*types.Response, len(requests))
+	deferred := make([]func() error, len(requests))
+	runSlots := func(idx []int, models *model.Set) error {
+		ei.Lap(observe.PhasePlan)
+		defer ei.Mark()
+		for _, i := range idx {
+			req := requests[i]
+			slotSet, err := pre.slotSet(models, i)
+			if err != nil {
+				return err
+			}
+			slotCtx, end := startChild(bindSlotModels(ext.slotContext(deferMatrixResultOverlays(composeSlotContext(ctx, vetoes, multPlan, i), &deferred[i]), i), slotSet, req), i, req)
+			resp, err := s.Process(slotCtx, req)
+			end(err)
+			if err != nil {
+				return fmt.Errorf("request %d: %w", i, locate(err, "request", i))
+			}
+			echoSlotLabel(resp, req)
+			responses[i] = resp
+		}
+		return nil
+	}
 	// The fit pre-pass: every fit runs once, as a standalone request,
-	// before any slot; every slot then carries the bound models.
-	models, fitResults, fitWarnings, err := s.runComposeFits(fitCtx, composed.Fits, pre, 1)
+	// before any slot; every slot then carries the bound models. A fit
+	// bound from the sweep runs the sweep slots and their rank first
+	// (runComposeFitPhases — ran marks them).
+	models, fitResults, fitWarnings, ran, err := s.runComposeFitPhases(fitCtx, composed, pre, 1, ext, requests, responses, multPlan, runSlots)
 	if err != nil {
 		return nil, err
 	}
 	// The optimize blocks, once the fits are bound and before any slot:
 	// they read no record (runComposeOptimize).
-	optimizations, optWarnings, err := s.runComposeOptimize(composed, models, optLoaded)
+	optimizations, optWarnings, err := s.runComposeOptimize(composed, ext, models, optLoaded)
 	if err != nil {
 		return nil, err
 	}
 	fitWarnings = append(fitWarnings, optWarnings...)
-
-	// Observability (no-ops off): the batch's planning is its plan
-	// phase; each slot is a child operation timed under its own
-	// carrier, so the parent's clock skips the slots (Mark).
-	ei := execInfoFrom(ctx)
-	ei.Lap(observe.PhasePlan)
-	responses := make([]*types.Response, len(requests))
-	deferred := make([]func() error, len(requests))
-	for i, req := range requests {
-		slotSet, err := pre.slotSet(models, i)
-		if err != nil {
-			return nil, err
-		}
-		slotCtx, end := startChild(bindSlotModels(ext.slotContext(deferMatrixResultOverlays(composeSlotContext(ctx, vetoes, multPlan, i), &deferred[i]), i), slotSet, req), i, req)
-		resp, err := s.Process(slotCtx, req)
-		end(err)
-		if err != nil {
-			return nil, fmt.Errorf("request %d: %w", i, locate(err, "request", i))
-		}
-		echoSlotLabel(resp, req)
-		responses[i] = resp
+	if err := runSlots(unranSlots(len(requests), ran), models); err != nil {
+		return nil, err
 	}
-	ei.Mark()
 
 	// Compose-only overlay barrier. Runs AFTER every slot has
 	// produced a finalised *Response and BEFORE the response is
@@ -1389,7 +1401,7 @@ func (s *Service) compose(ctx context.Context, composed *types.ComposedRequest, 
 	// change.
 	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Optimizations: optimizations, Warnings: fitWarnings}
 	if s.echoRequest {
-		out.NormalizedRequest = composed
+		out.NormalizedRequest = echoed
 	}
 	if len(layers) > 0 {
 		// distributeComposeWarnings (internal/service/compose_overlay.go) folds

@@ -1,5 +1,5 @@
 {
-  "$comment": "feature_set_digest: fs1:449b701644aa1be633b397b47f430d2decf9f071c6a2f86ebfa812ac6fabcf8c",
+  "$comment": "feature_set_digest: fs1:bc94bc0d1daf0bfe43fb41b6c2fe7b6f7e34c9fd7e7d39136fb4eef92a22d02d",
   "$defs": {
     "Advisory": {
       "additionalProperties": false,
@@ -2245,6 +2245,18 @@
       ],
       "type": "string"
     },
+    "FitFromSweep": {
+      "additionalProperties": false,
+      "properties": {
+        "regression": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "regression"
+      ],
+      "type": "object"
+    },
     "FitResult": {
       "description": "One fit's result: a regression fit's RegressionResult, a vector fit's {vector: VectorFitResult} or a SEM fit's {sem: SEMFitResult}. The vector / sem key discriminates; a regression entry never carries either.",
       "oneOf": [
@@ -2280,6 +2292,9 @@
     "FitSpec": {
       "additionalProperties": false,
       "properties": {
+        "from_sweep": {
+          "$ref": "#/$defs/FitFromSweep"
+        },
         "name": {
           "type": "string"
         },
@@ -2291,8 +2306,7 @@
         }
       },
       "required": [
-        "name",
-        "request"
+        "name"
       ],
       "type": "object"
     },
@@ -3985,10 +3999,24 @@
     "RankEntry": {
       "additionalProperties": false,
       "properties": {
+        "axes": {
+          "additionalProperties": {
+            "type": [
+              "number",
+              "string",
+              "boolean"
+            ]
+          },
+          "description": "Each sweep axis name mapped to the value the ranked slot ran with — a number, string or boolean, typed as the axis declared it.",
+          "type": "object"
+        },
         "label": {
           "type": "string"
         },
         "rank": {
+          "type": "integer"
+        },
+        "slot": {
           "type": "integer"
         },
         "value": {
@@ -3999,8 +4027,10 @@
         }
       },
       "required": [
+        "axes",
         "label",
         "rank",
+        "slot",
         "value"
       ],
       "type": "object"
@@ -4730,6 +4760,8 @@
       "enum": [
         "REG_BAYES_LINEAR",
         "REG_GLM",
+        "REG_MMM_BAYES",
+        "REG_MMM_HILL",
         "REG_OLS"
       ],
       "type": "string"
@@ -6393,4 +6425,4 @@
   ],
   "title": "Pulse payload contract"
 }
-// golden-hash: 54635406e8b9c34510f130558bbffe92e5e57645fa518269caf1874d60219462
+// golden-hash: 74462375890e6280919a15da008ba64d4944956a2a9ddb621b3ad2ec6b59a6c1

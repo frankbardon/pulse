@@ -102,12 +102,14 @@ func (s *Service) composeParallel(
 		return nil, err
 	}
 	// The fits' structural rules, exactly as on the serial path.
-	if err := model.CheckFits(composed.Fits); err != nil {
+	echoed := composed
+	composed, err = checkComposeFits(composed, ext)
+	if err != nil {
 		return nil, err
 	}
 	// Then the optimize blocks' rules (predict runs the same
 	// descx.OptimizeRefusal at the same point).
-	optLoaded, err := s.optimizeRefusal(composed)
+	optLoaded, err := s.optimizeRefusal(composed, ext)
 	if err != nil {
 		return nil, err
 	}
@@ -146,28 +148,6 @@ func (s *Service) composeParallel(
 	o := opts.resolved()
 	n := len(requests)
 
-	// The fit pre-pass, exactly as on the serial path but with the fits
-	// themselves running concurrently on the same worker cap.
-	models, fitResults, fitWarnings, err := s.runComposeFits(fitCtx, composed.Fits, pre, o.MaxWorkers)
-	if err != nil {
-		return nil, err
-	}
-	// The optimize blocks, once the fits are bound and before any slot:
-	// they read no record (runComposeOptimize).
-	optimizations, optWarnings, err := s.runComposeOptimize(composed, models, optLoaded)
-	if err != nil {
-		return nil, err
-	}
-	fitWarnings = append(fitWarnings, optWarnings...)
-	// Every slot's bound set — the fits plus its own loaded models —
-	// before the pool starts.
-	slotSets := make([]*model.Set, len(requests))
-	for i := range requests {
-		if slotSets[i], err = pre.slotSet(models, i); err != nil {
-			return nil, err
-		}
-	}
-
 	// Per-slot result and error storage; never shared across slots so no
 	// inter-slot synchronization is required beyond the slot itself.
 	responses := make([]*types.Response, n)
@@ -192,84 +172,89 @@ func (s *Service) composeParallel(
 	// phase; each slot is a child operation timed under its own
 	// carrier, so the parent's clock skips the pool (Mark).
 	ei := execInfoFrom(ctx)
-	ei.Lap(observe.PhasePlan)
-
-	sem := make(chan struct{}, o.MaxWorkers)
-	var wg sync.WaitGroup
 
 	launched := 0
-	for i, req := range requests {
-		// Bail before launching when ctx is already cancelled.
-		if runCtx.Err() != nil {
-			break
-		}
-		launched++
-		i, req := i, req
-		wg.Add(1)
-		sem <- struct{}{}
-		// joinOnReturn, never a deferred wg.Done: a slot re-panicking
-		// under DisablePanicRecovery must not release wg.Wait (nil
-		// error, nil slot) before the crash.
-		go joinOnReturn(&wg, func() {
-			defer func() { <-sem }()
-
-			reqCtx := bindSlotModels(ext.slotContext(deferMatrixResultOverlays(composeSlotContext(runCtx, vetoes, multPlan, i), &deferred[i]), i), slotSets[i], req)
-			if o.PerRequestTimeout > 0 {
-				var reqCancel context.CancelFunc
-				reqCtx, reqCancel = context.WithTimeout(reqCtx, o.PerRequestTimeout)
-				defer reqCancel()
-			}
-
-			reqCtx, end := startChild(reqCtx, i, req)
-			resp, err := s.processSlotRecovered(reqCtx, req)
-			end(err)
+	// pool runs the slots at idx on the worker pool, each over its bound
+	// set (models plus the slot's own loaded models, all resolved before
+	// the pool starts), then reports the run's failure exactly as the
+	// whole batch would (slotPoolFailure).
+	pool := func(idx []int, models *model.Set) error {
+		// Every slot's bound set — the fits plus its own loaded models —
+		// before the pool starts.
+		slotSets := make(map[int]*model.Set, len(idx))
+		for _, i := range idx {
+			set, err := pre.slotSet(models, i)
 			if err != nil {
-				errs[i] = err
-				triggerFailFast()
-				return
+				return err
 			}
-			echoSlotLabel(resp, req)
-			responses[i] = resp
-		})
-	}
-	wg.Wait()
-	ei.Mark()
-
-	// Aggregate errors if any. FailFast surfaces the lowest-index error
-	// that is not a sibling cancellation (failFastWinner); non-FailFast
-	// wraps every error with its slot index so callers see the full
-	// picture.
-	var firstErr error
-	var failed []int
-	for i, e := range errs {
-		if e != nil {
-			failed = append(failed, i)
-			if firstErr == nil {
-				firstErr = e
-			}
+			slotSets[i] = set
 		}
+		ei.Lap(observe.PhasePlan)
+		sem := make(chan struct{}, o.MaxWorkers)
+		var wg sync.WaitGroup
+		for _, i := range idx {
+			// Bail before launching when ctx is already cancelled.
+			if runCtx.Err() != nil {
+				break
+			}
+			launched++
+			req := requests[i]
+			wg.Add(1)
+			sem <- struct{}{}
+			// joinOnReturn, never a deferred wg.Done: a slot re-panicking
+			// under DisablePanicRecovery must not release wg.Wait (nil
+			// error, nil slot) before the crash.
+			go joinOnReturn(&wg, func() {
+				defer func() { <-sem }()
+
+				reqCtx := bindSlotModels(ext.slotContext(deferMatrixResultOverlays(composeSlotContext(runCtx, vetoes, multPlan, i), &deferred[i]), i), slotSets[i], req)
+				if o.PerRequestTimeout > 0 {
+					var reqCancel context.CancelFunc
+					reqCtx, reqCancel = context.WithTimeout(reqCtx, o.PerRequestTimeout)
+					defer reqCancel()
+				}
+
+				reqCtx, end := startChild(reqCtx, i, req)
+				resp, err := s.processSlotRecovered(reqCtx, req)
+				end(err)
+				if err != nil {
+					errs[i] = err
+					triggerFailFast()
+					return
+				}
+				echoSlotLabel(resp, req)
+				responses[i] = resp
+			})
+		}
+		wg.Wait()
+		ei.Mark()
+		return slotPoolFailure(ctx, errs, o.FailFast)
+	}
+
+	// The fit pre-pass, exactly as on the serial path but with the fits
+	// themselves running concurrently on the same worker cap; a fit
+	// bound from the sweep runs the sweep slots on the pool, and their
+	// rank, first (runComposeFitPhases — ran marks them).
+	models, fitResults, fitWarnings, ran, err := s.runComposeFitPhases(fitCtx, composed, pre, o.MaxWorkers, ext, requests, responses, multPlan, pool)
+	if err != nil {
+		return nil, err
+	}
+	// The optimize blocks, once the fits are bound and before any slot:
+	// they read no record (runComposeOptimize).
+	optimizations, optWarnings, err := s.runComposeOptimize(composed, ext, models, optLoaded)
+	if err != nil {
+		return nil, err
+	}
+	fitWarnings = append(fitWarnings, optWarnings...)
+	rest := unranSlots(n, ran)
+	if err := pool(rest, models); err != nil {
+		return nil, err
 	}
 	// A done ctx that stopped the launch loop before every slot ran,
 	// with no slot error to report, is the ctx's own error — never a
 	// "successful" response with unrun (nil) slots.
-	if firstErr == nil && launched < n {
+	if launched < n {
 		return nil, runCtx.Err()
-	}
-	if firstErr != nil {
-		if o.FailFast {
-			// FailFast=true + any-slot-failed: SKIP the overlay
-			// barrier entirely. When ComposeOptions.FailFast is true
-			// and any slot fails, overlays are skipped — no
-			// applyComposeOverlays call, no partial emission. The
-			// failing call returns immediately with the error that
-			// tripped FailFast.
-			w := failFastWinner(ctx, errs, failed)
-			return nil, fmt.Errorf("compose parallel: request %d: %w", w, locate(errs[w], "request", w))
-		}
-		details := map[string]any{"failed_indices": failed, "first_error": firstErr.Error()}
-		return nil, errors.NewCodedErrorWithDetails(errors.SERVICE_INTERNAL,
-			fmt.Sprintf("compose parallel: %d/%d requests failed", len(failed), n),
-			details)
 	}
 
 	// Compose-only overlay barrier. Runs AFTER the worker
@@ -306,7 +291,7 @@ func (s *Service) composeParallel(
 	// identical layer-warning routing contract.
 	out := &types.ComposedResponse{Responses: responses, Fits: fitResults, Optimizations: optimizations, Warnings: fitWarnings}
 	if s.echoRequest {
-		out.NormalizedRequest = composed
+		out.NormalizedRequest = echoed
 	}
 	if len(layers) > 0 {
 		out.Overlays = distributeComposeWarnings(layers, warnings)
@@ -361,4 +346,35 @@ func failFastWinner(ctx context.Context, errs []error, failed []int) int {
 func (s *Service) processSlotRecovered(ctx context.Context, req *types.Request) (resp *types.Response, err error) {
 	defer recoverInto(panicOpComposeParallel, s.disablePanicRecovery, &err)
 	return s.Process(ctx, req)
+}
+
+// slotPoolFailure is a ComposeParallel pool run's failure, nil when no
+// slot failed. FailFast surfaces the lowest-index error that is not a
+// sibling cancellation (failFastWinner); non-FailFast wraps every error
+// with its slot index so callers see the full picture. FailFast=true +
+// any-slot-failed SKIPS the overlay barrier entirely: no
+// applyComposeOverlays call, no partial emission — the failing call
+// returns immediately with the error that tripped FailFast.
+func slotPoolFailure(ctx context.Context, errs []error, failFast bool) error {
+	var firstErr error
+	var failed []int
+	for i, e := range errs {
+		if e != nil {
+			failed = append(failed, i)
+			if firstErr == nil {
+				firstErr = e
+			}
+		}
+	}
+	if firstErr == nil {
+		return nil
+	}
+	if failFast {
+		w := failFastWinner(ctx, errs, failed)
+		return fmt.Errorf("compose parallel: request %d: %w", w, locate(errs[w], "request", w))
+	}
+	details := map[string]any{"failed_indices": failed, "first_error": firstErr.Error()}
+	return errors.NewCodedErrorWithDetails(errors.SERVICE_INTERNAL,
+		fmt.Sprintf("compose parallel: %d/%d requests failed", len(failed), len(errs)),
+		details)
 }

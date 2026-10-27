@@ -1,0 +1,75 @@
+{
+  "_meta": {
+    "name": "mmm_hill",
+    "category": "regression",
+    "tags": [
+      "regression",
+      "window-operator",
+      "time-series",
+      "buffered-pipeline"
+    ],
+    "operators": [
+      "REG_MMM_HILL",
+      "WIN_DISTRIBUTED_LAG"
+    ],
+    "capabilities": [
+      "capability:regression_holdout"
+    ],
+    "description": "Media-mix model fitted in one request: four channels are adstocked by WIN_DISTRIBUTED_LAG windows (geometric decay 0.5, per market, ordered by week), and ONE REG_MMM_HILL fits every channel's effect and Hill curve jointly over those window labels, with price and promo as linear controls and a holdout on weeks 91 and later. The fit reports the coefficients in table order — (intercept), the channel betas, the controls, then k:<channel> and s:<channel> for each channel — with Gauss-Newton standard errors and the held-out RMSE; outputs.k / outputs.s repeat the curves keyed by channel. A compose sweep over the decay (as compose/11_mmm_decay_lhs_sweep.json searches it for REG_OLS) picks the decay this request fixes.",
+    "intents": [
+      "drivers"
+    ]
+  },
+  "cohort": {
+    "filename": "mmm_weekly.pulse",
+    "data_dir": ".data"
+  },
+  "windows": [
+    {
+      "type": "WIN_DISTRIBUTED_LAG",
+      "field": "tv",
+      "label": "tv_ad",
+      "partition_by": ["market"],
+      "order_by": [{"field": "week"}],
+      "params": {"kernel": "geometric", "decay": 0.5, "max_lag": 13, "normalize": false}
+    },
+    {
+      "type": "WIN_DISTRIBUTED_LAG",
+      "field": "radio",
+      "label": "radio_ad",
+      "partition_by": ["market"],
+      "order_by": [{"field": "week"}],
+      "params": {"kernel": "geometric", "decay": 0.5, "max_lag": 13, "normalize": false}
+    },
+    {
+      "type": "WIN_DISTRIBUTED_LAG",
+      "field": "search",
+      "label": "search_ad",
+      "partition_by": ["market"],
+      "order_by": [{"field": "week"}],
+      "params": {"kernel": "geometric", "decay": 0.5, "max_lag": 13, "normalize": false}
+    },
+    {
+      "type": "WIN_DISTRIBUTED_LAG",
+      "field": "social",
+      "label": "social_ad",
+      "partition_by": ["market"],
+      "order_by": [{"field": "week"}],
+      "params": {"kernel": "geometric", "decay": 0.5, "max_lag": 13, "normalize": false}
+    }
+  ],
+  "regressions": [
+    {
+      "type": "REG_MMM_HILL",
+      "name": "mmm",
+      "target": "sales",
+      "predictors": ["tv_ad", "radio_ad", "search_ad", "social_ad", "price", "promo"],
+      "params": {"channels": ["tv_ad", "radio_ad", "search_ad", "social_ad"]},
+      "holdout": "week >= 91"
+    }
+  ],
+  "return": {
+    "preset": "standard",
+    "exclude": ["data"]
+  }
+}

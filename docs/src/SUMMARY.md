@@ -60,6 +60,7 @@
     - [compose-fits](guide/skills/compose-fits.md)
     - [compose-optimize](guide/skills/compose-optimize.md)
     - [compose-requests](guide/skills/compose-requests.md)
+    - [compose-sweep-bind](guide/skills/compose-sweep-bind.md)
     - [compose-sweep-sampling](guide/skills/compose-sweep-sampling.md)
     - [compose-sweeps](guide/skills/compose-sweeps.md)
     - [crosstab-guide](guide/skills/crosstab-guide.md)
@@ -81,6 +82,7 @@
     - [join-design](guide/skills/join-design.md)
     - [label-display](guide/skills/label-display.md)
     - [matrix-results](guide/skills/matrix-results.md)
+    - [mmm-workflow](guide/skills/mmm-workflow.md)
     - [multiplicity-correction](guide/skills/multiplicity-correction.md)
     - [multivariate-design](guide/skills/multivariate-design.md)
     - [multivariate-outputs](guide/skills/multivariate-outputs.md)
@@ -238,6 +240,8 @@
     - [op-overlay-zscore-vs-total](guide/skills/op-overlay-zscore-vs-total.md)
     - [op-reg-bayes-linear](guide/skills/op-reg-bayes-linear.md)
     - [op-reg-glm](guide/skills/op-reg-glm.md)
+    - [op-reg-mmm-bayes](guide/skills/op-reg-mmm-bayes.md)
+    - [op-reg-mmm-hill](guide/skills/op-reg-mmm-hill.md)
     - [op-reg-mod-resample](guide/skills/op-reg-mod-resample.md)
     - [op-reg-mod-selection](guide/skills/op-reg-mod-selection.md)
     - [op-reg-ols](guide/skills/op-reg-ols.md)
@@ -413,6 +417,7 @@
     - [vector-row-scores](guide/skills/vector-row-scores.md)
     - [weighting](guide/skills/weighting.md)
     - [window-design](guide/skills/window-design.md)
+    - [windows-first](guide/skills/windows-first.md)
 <!-- docgen:summary end -->
 
 # Concepts
@@ -473,7 +478,7 @@
 - [Linear Algebra (linalg)](library/linalg.md)
 - [Numerical Optimization (optimize)](library/optimize.md)
 - [Bayesian Sampling (mcmc)](library/mcmc.md)
-- [Media-Mix Pack (mmmpulse)](library/mmm-pack.md)
+- [Media-Mix Models](library/mmm.md)
 - [Vectors and Matrices](library/matrices.md)
 
 # .pulse File Format

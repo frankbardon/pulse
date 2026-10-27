@@ -84,8 +84,14 @@ func regressionShaped(op opInfo) bool {
 // topLevelParam reports whether op's declared param p is a top-level
 // key of the slot entry rather than a member of its params object: a
 // param the manifest marks Slot (ATTR_PREVIOUS_STATE's subject_field /
-// order_field), or one the tables above place there.
+// order_field; every regression knob — a regression's unmarked params,
+// a model or extension regression's own, sit under params), a
+// regression attribute's target / predictors, or one the tables above
+// place there.
 func topLevelParam(op opInfo, p param) bool {
+	if op.category == catRegression {
+		return p.slot
+	}
 	return p.slot || regressionShaped(op) || topLevelParams[op.category][p.name]
 }
 

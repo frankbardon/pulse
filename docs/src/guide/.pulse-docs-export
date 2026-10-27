@@ -49,6 +49,7 @@ skills/compose-banner.md
 skills/compose-fits.md
 skills/compose-optimize.md
 skills/compose-requests.md
+skills/compose-sweep-bind.md
 skills/compose-sweep-sampling.md
 skills/compose-sweeps.md
 skills/crosstab-guide.md
@@ -70,6 +71,7 @@ skills/item-fan-out.md
 skills/join-design.md
 skills/label-display.md
 skills/matrix-results.md
+skills/mmm-workflow.md
 skills/multiplicity-correction.md
 skills/multivariate-design.md
 skills/multivariate-outputs.md
@@ -227,6 +229,8 @@ skills/op-overlay-zscore-vs-rolling.md
 skills/op-overlay-zscore-vs-total.md
 skills/op-reg-bayes-linear.md
 skills/op-reg-glm.md
+skills/op-reg-mmm-bayes.md
+skills/op-reg-mmm-hill.md
 skills/op-reg-mod-resample.md
 skills/op-reg-mod-selection.md
 skills/op-reg-ols.md
@@ -402,3 +406,4 @@ skills/vector-metrics.md
 skills/vector-row-scores.md
 skills/weighting.md
 skills/window-design.md
+skills/windows-first.md

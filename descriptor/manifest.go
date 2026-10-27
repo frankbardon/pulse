@@ -267,7 +267,7 @@ type Manifest struct {
 	// max_crosstab_cells, max_estimated_memory, max_matrix_dim,
 	// max_compose_slots, max_chain_stages, max_join_build_rows). Always
 	// present: an instance without Options.Limits, a profile `limits`
-	// section or `pulse mcp --limit` reports the built-in defaults.
+	// section or the root `--limit` flag reports the built-in defaults.
 	// Limits are behaviour, not features — they never enter
 	// feature_set_digest; LimitsDigest identifies them.
 	Limits []LimitMeta `json:"limits"`
@@ -353,7 +353,7 @@ func (m Manifest) MarshalJSON() ([]byte, error) {
 // LimitMeta is one effective resource limit as the manifest lists it.
 type LimitMeta struct {
 	// Name is the snake_case limit key — the spelling of the feature
-	// profile `limits` section, `pulse mcp --limit` and every
+	// profile `limits` section, the root `--limit` flag and every
 	// PULSE_LIMIT_* error's `limit` detail.
 	Name string `json:"name"`
 	// Value is the effective limit in Unit; -1 means no limit.

@@ -3,6 +3,7 @@ package sweep
 import (
 	"bytes"
 	"encoding/json"
+	"maps"
 	"math"
 	"sort"
 	"strconv"
@@ -34,6 +35,12 @@ const (
 	// RankReasonNull: the path ends on null — an undefined figure (NaN
 	// on the wire). A warning on the slot; never ranked last.
 	RankReasonNull = "null"
+	// RankReasonEmpty: no sweep slot was ranked — every slot's value was
+	// null, or missing there while another slot resolved it. Never a
+	// refusal of the rank itself: it is the error a sweep-bound fit
+	// (`fits[].from_sweep`) carries when it binds failed for want of a
+	// winner.
+	RankReasonEmpty = "empty"
 )
 
 // ParseRankPath splits a rank `by` path into its dotted segments,
@@ -53,9 +60,11 @@ func ParseRankPath(by string) ([]string, *errors.CodedError) {
 }
 
 // Rank orders the finished sweep slots by the number each one carries at
-// r.By and returns the ranking (never nil). labels and responses are the
-// SWEEP slots only, index-aligned, in expansion order; explicit
-// `requests` are never ranked.
+// r.By and returns the ranking (never nil). labels, axes and responses
+// are the SWEEP slots only, index-aligned, in expansion order (axes is
+// Expansion.Axes; a slot past its end carries no axes); explicit
+// `requests` are never ranked. Every entry carries its slot's 0-based
+// expansion index as Slot and a copy of its axis values as Axes.
 //
 // Each slot is read in its wire form — the response marshalled as JSON
 // (non-finite floats written as null) BEFORE any `return` shaping — so a
@@ -78,7 +87,7 @@ func ParseRankPath(by string) ([]string, *errors.CodedError) {
 //
 // Ties keep expansion order; Rank is 1-based; Top trims the ranking
 // only.
-func Rank(r *types.SweepRank, labels []string, responses []*types.Response) ([]types.RankEntry, error) {
+func Rank(r *types.SweepRank, labels []string, axes []map[string]any, responses []*types.Response) ([]types.RankEntry, error) {
 	if r == nil {
 		return nil, nil
 	}
@@ -114,7 +123,7 @@ func Rank(r *types.SweepRank, labels []string, responses []*types.Response) ([]t
 		switch res.reason {
 		case "":
 			resolved = true
-			entries = append(entries, types.RankEntry{Label: labels[i], Value: res.value})
+			entries = append(entries, types.RankEntry{Label: labels[i], Value: res.value, Slot: i, Axes: slotAxes(axes, i)})
 		case RankReasonNull:
 			resolved = true
 			nulls = append(nulls, i)
@@ -123,7 +132,7 @@ func Rank(r *types.SweepRank, labels []string, responses []*types.Response) ([]t
 				// A computed figure that is exactly 0: `omitempty` hid
 				// it from the wire, the typed value still carries it.
 				resolved = true
-				entries = append(entries, types.RankEntry{Label: labels[i], Value: 0})
+				entries = append(entries, types.RankEntry{Label: labels[i], Value: 0, Slot: i, Axes: slotAxes(axes, i)})
 				continue
 			}
 			misses = append(misses, miss{slot: i, seg: res.seg})
@@ -161,6 +170,18 @@ func Rank(r *types.SweepRank, labels []string, responses []*types.Response) ([]t
 		out[i] = e
 	}
 	return out, nil
+}
+
+// slotAxes is a copy of slot i's axis values, nil when axes has no
+// entry for it. The copy keeps a ranking entry independent of the
+// expansion it was read from.
+func slotAxes(axes []map[string]any, i int) map[string]any {
+	if i >= len(axes) || axes[i] == nil {
+		return nil
+	}
+	out := make(map[string]any, len(axes[i]))
+	maps.Copy(out, axes[i])
+	return out
 }
 
 // rankResolution is one slot's answer for the path: the value, or the

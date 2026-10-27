@@ -3,6 +3,7 @@ package pulse_test
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/frankbardon/pulse"
@@ -76,12 +77,14 @@ func TestExtensions_RegressionSweepRank(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []types.RankEntry{{Label: "s2", Value: 0, Rank: 1}, {Label: "s3", Value: 1, Rank: 2}, {Label: "s1", Value: 1, Rank: 3}, {Label: "s0", Value: 4, Rank: 4}}
+		ax := func(s string) map[string]any { return map[string]any{"s": json.Number(s)} }
+		want := []types.RankEntry{{Label: "s2", Value: 0, Rank: 1, Slot: 2, Axes: ax("2")}, {Label: "s3", Value: 1, Rank: 2, Slot: 1, Axes: ax("3")},
+			{Label: "s1", Value: 1, Rank: 3, Slot: 3, Axes: ax("1")}, {Label: "s0", Value: 4, Rank: 4, Slot: 0, Axes: ax("0")}}
 		if len(resp.Ranking) != len(want) {
 			t.Fatalf("ranking = %+v, want %+v", resp.Ranking, want)
 		}
 		for i := range want {
-			if resp.Ranking[i] != want[i] {
+			if !reflect.DeepEqual(resp.Ranking[i], want[i]) {
 				t.Errorf("ranking[%d] = %+v, want %+v", i, resp.Ranking[i], want[i])
 			}
 		}

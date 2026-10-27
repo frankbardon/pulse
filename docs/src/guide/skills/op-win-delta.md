@@ -60,4 +60,4 @@ One `float64` per row on `Label` (default `WIN_DELTA_<field>`). `cur - prev` at 
 
 ## See
 
-- Skills: [`window-design`](window-design.md), [`op-win-pct-change`](op-win-pct-change.md), [`op-win-lag`](op-win-lag.md)
+- Skills: [`window-design`](window-design.md), [`op-win-pct-change`](op-win-pct-change.md), [`op-win-lag`](op-win-lag.md), [`windows-first`](windows-first.md) (aggregate the change)

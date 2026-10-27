@@ -2,8 +2,8 @@
 # release-contrib.sh TAG [--push]
 #
 # Cuts the lockstep contrib tags for a root release tag TAG (vX.Y.Z or
-# vX.Y.Z-pre). Every nested module under contrib/ (otelpulse, prompulse,
-# mmmpulse) is released at exactly the root version:
+# vX.Y.Z-pre). Every nested module under contrib/ (otelpulse, prompulse)
+# is released at exactly the root version:
 #
 #   1. root tag TAG                    (pushed by a human; triggers release.yml)
 #   2. release commit on top of TAG    (each contrib go.mod: require pulse TAG, tidied)

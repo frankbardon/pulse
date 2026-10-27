@@ -9,6 +9,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/exprident"
 	"github.com/frankbardon/pulse/internal/fieldaccept"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/internal/prevstate"
 	"github.com/frankbardon/pulse/internal/windowparams"
@@ -44,22 +45,23 @@ type ComputedColumn struct {
 // Computed maps a computed column's name to its producer.
 type Computed map[string]ComputedColumn
 
-// WindowsOverRecords reports whether req's windows run over the record
-// rows (no groups, no aggregations, no crosstab): only then is a window
-// label a per-record column.
-func WindowsOverRecords(req *types.Request) bool {
-	return req != nil && len(req.Windows) > 0 && len(req.Groups) == 0 &&
-		len(req.Aggregations) == 0 && req.Crosstab == nil
-}
-
 // ComputedColumns names the columns req computes per record, first
 // producer wins: built-in feature outputs (FeatureOutputLabels; an
 // extension feature's outputs are unknown before it runs), attribute
 // labels (the slot's, else DefaultAttributeLabel) and, when
-// WindowsOverRecords, window labels (WindowLabel). A name that is a
-// schema field is left out: the field wins, and the walk refuses the
-// shadowing slot. Nil when req computes nothing.
-func ComputedColumns(req *types.Request, schema *encoding.Schema) Computed {
+// WindowsOverRecords(req, schema, cat), window labels (WindowLabel). cat
+// is the bound-model catalog of the site (nil: none) — the one
+// windows-first decision every request-holding site reads with its
+// catalog. A name that is a schema field is left out: the field wins,
+// and the walk refuses the shadowing slot. Nil when req computes
+// nothing.
+func ComputedColumns(req *types.Request, schema *encoding.Schema, cat model.Catalog) Computed {
+	return computedColumns(req, schema, WindowsOverRecords(req, schema, cat))
+}
+
+// computedColumns is ComputedColumns with the windows-first decision
+// given: windows admits every window label.
+func computedColumns(req *types.Request, schema *encoding.Schema, windows bool) Computed {
 	if req == nil || (len(req.Features) == 0 && len(req.Attributes) == 0 && len(req.Windows) == 0) {
 		return nil
 	}
@@ -100,7 +102,7 @@ func ComputedColumns(req *types.Request, schema *encoding.Schema) Computed {
 		}
 		add(label, c)
 	}
-	if WindowsOverRecords(req) {
+	if windows {
 		for i, w := range req.Windows {
 			if w != nil {
 				add(WindowLabel(w), ComputedColumn{Slot: "window", Index: i, Type: encoding.FieldTypeF64})
@@ -163,14 +165,14 @@ func holdoutReadsWholeEnv(reg *types.RegressionSpec) bool {
 // RegressionWindowReads returns the window labels req's regressions
 // read (RegressionReads; every window label when a holdout predicate
 // reads $env) that are computed record columns
-// (ComputedColumns, slot "window": only when WindowsOverRecords), in
-// first-read order without repeats; nil when none. The engine copies
-// exactly these onto the records before the fit.
-func RegressionWindowReads(req *types.Request, schema *encoding.Schema) []string {
-	if !WindowsOverRecords(req) || len(req.Regressions) == 0 {
+// (ComputedColumns, slot "window": only when WindowsOverRecords over the
+// same catalog), in first-read order without repeats; nil when none. The
+// engine copies exactly these onto the records before the fit.
+func RegressionWindowReads(req *types.Request, schema *encoding.Schema, cat model.Catalog) []string {
+	if !WindowsOverRecords(req, schema, cat) || len(req.Regressions) == 0 {
 		return nil
 	}
-	comp := ComputedColumns(req, schema)
+	comp := ComputedColumns(req, schema, cat)
 	var out []string
 	seen := map[string]bool{}
 	for _, reg := range req.Regressions {
@@ -193,14 +195,28 @@ func RegressionWindowReads(req *types.Request, schema *encoding.Schema) []string
 }
 
 // ResolveRequest is Resolve over req.Vectors with req's computed columns
-// (ComputedColumns) admitted as literal members — the resolution every
-// request-holding site reads, so predict, the walk, projection and the
-// engine agree on a computed member.
-func ResolveRequest(req *types.Request, schema *encoding.Schema) ([]Resolved, *errors.CodedError) {
+// (ComputedColumns over the site's bound-model catalog cat) admitted as
+// literal members — the resolution every request-holding site reads, so
+// predict, the walk, projection and the engine agree on a computed
+// member.
+func ResolveRequest(req *types.Request, schema *encoding.Schema, cat model.Catalog) ([]Resolved, *errors.CodedError) {
 	if req == nil {
 		return Resolve(nil, schema)
 	}
-	return resolveIn(req.Vectors, schema, ComputedColumns(req, schema))
+	return resolveIn(req.Vectors, schema, ComputedColumns(req, schema, cat))
+}
+
+// resolveListing is ResolveRequest with every window label admitted as
+// a computed member, whatever the windows-first decision: the
+// resolution an output-column listing (AggregationOutputColumns) reads.
+// A schema field still wins and a glob or pattern still matches schema
+// fields only, so every vector of a request ResolveRequest admits
+// resolves to the same members here.
+func resolveListing(req *types.Request, schema *encoding.Schema) ([]Resolved, *errors.CodedError) {
+	if req == nil {
+		return Resolve(nil, schema)
+	}
+	return resolveIn(req.Vectors, schema, computedColumns(req, schema, len(req.Windows) > 0))
 }
 
 // ComputedRefusal returns the first slot of req, other than a MAT_*
@@ -243,12 +259,13 @@ func ComputedRefusal(req *types.Request, resolved []Resolved) *errors.CodedError
 // columns (ComputedColumns) req's MAT_* slots read: an entry of a
 // matrix's vector or inline fields, or a MAT_PARTIAL_CORRELATION
 // params.control — always by its literal name, the only way a member
-// names a computed column. Nil when none.
-func MatrixComputedMembers(req *types.Request, schema *encoding.Schema) []string {
+// names a computed column. cat is the site's bound-model catalog
+// (ComputedColumns). Nil when none.
+func MatrixComputedMembers(req *types.Request, schema *encoding.Schema, cat model.Catalog) []string {
 	if req == nil || len(req.Matrices) == 0 {
 		return nil
 	}
-	comp := ComputedColumns(req, schema)
+	comp := ComputedColumns(req, schema, cat)
 	if len(comp) == 0 {
 		return nil
 	}

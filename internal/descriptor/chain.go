@@ -429,7 +429,7 @@ func validateChainWithOptions(fileData io.ReadSeeker, req *types.ChainRequest, o
 			if len(refs) == 0 && colsOK {
 				if _, werr := ResolveWeights(fieldReq, fieldSchema, opts.DefaultWeight, opts.instance()); werr != nil {
 					addCodedError(env, RefusalAt(werr, "stage", i))
-				} else if !chainStageLimits(env, result, fieldReq, fieldSchema, opts, i, stage0Counts) {
+				} else if !chainStageLimits(env, result, fieldReq, fieldSchema, opts.withModels(stageModels[i]), i, stage0Counts) {
 					// The stage's limit pre-flight refused it (a certain
 					// finding), right after its weights — the runtime's
 					// order; nothing past it runs.

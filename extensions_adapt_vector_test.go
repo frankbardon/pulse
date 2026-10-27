@@ -40,7 +40,7 @@ func extVecRecord() (*processing.Record, *processing.Record) {
 // every other name keeps the plain lookup.
 func TestExtRecord_NativeElementMembers(t *testing.T) {
 	rec, nullCol := extVecRecord()
-	var r extend.Record = extRecord{rec}
+	var r extend.Record = extRecord{Record: rec}
 	cases := []struct {
 		name   string
 		want   float64
@@ -78,7 +78,7 @@ func TestExtRecord_NativeElementMembers(t *testing.T) {
 	}
 	// A null real column "x[2]" stays null: the element fallback reads
 	// a vector named "x", which does not exist.
-	nr := extRecord{nullCol}
+	nr := extRecord{Record: nullCol}
 	if _, ok := nr.NumericValue("x[2]"); ok || !nr.IsNull("x[2]") {
 		t.Error(`null column "x[2]" reads as present`)
 	}

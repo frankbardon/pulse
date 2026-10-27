@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/frankbardon/pulse/errors"
@@ -28,6 +29,8 @@ var slotModelsObserver func(label string, set *model.Set)
 // concurrently (ComposeParallel); the bound set and the results are
 // identical either way, since each fit is an independent, deterministic
 // Process. The structural rules (model.CheckFits) have already passed.
+// A batch with a sweep-bound fit runs the same pass in two halves
+// around its sweep slots instead (runComposeFitPhases).
 //
 // A fit that fails on its DATA (a data-dependent refusal its fit
 // request's Process turned into a failed slot — slotfail) fails alone:
@@ -59,241 +62,339 @@ var slotModelsObserver func(label string, set *model.Set)
 // written by its Process. Each overwrite comes back as a PULSE_MODEL_OVERWRITTEN
 // warning with details.fit, in entry order — ComposedResponse.Warnings.
 func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre *composeModels, workers int) (*model.Set, map[string]*types.FitResult, []*types.ResponseWarning, error) {
-	n := len(fits)
-	if n == 0 {
+	if len(fits) == 0 {
 		// Nothing fitted: every slot layers over the registered
 		// populations alone.
 		return s.populations, nil, nil, nil
 	}
-	results := make([]*types.RegressionResult, n)
-	vectorFits := make([]*model.VectorFit, n)
-	semFits := make([]*model.SEMFit, n)
+	pass := s.newComposeFitPass(fits, pre)
+	all := pass.every()
+	if err := pass.execute(ctx, workers, all); err != nil {
+		return nil, nil, nil, err
+	}
+	return pass.bind(all)
+}
+
+// composeFitPass is one batch's fit pre-pass, split so a sweep-bound
+// batch (compose_sweep_bind.go) can run its authored fits, then its
+// sweep slots, then the fits bound from the sweep's winner: execute
+// runs the fits a mask selects, bind binds every fit a mask selects
+// into a fresh set. runComposeFits runs and binds every fit at once.
+// Each per-fit slice is index-aligned with fits; a fit's state is
+// written by its own execution only, so the pool needs no lock.
+type composeFitPass struct {
+	s    *Service
+	fits []types.FitSpec
+	pre  *composeModels
+	// winnerFiles[i] is a from_sweep fit's winning slot's loaded
+	// models (the pre-pass read them for that slot), the files its
+	// fit request binds beneath it.
+	winnerFiles []*model.Loaded
+	// winnerAxes[i] is a from_sweep fit's winning slot's axis values
+	// (RankEntry.Axes) — what its sweep_axis() reads — and sweepAxes
+	// the batch's sweep's axis names, the static axes of a sweep-bound
+	// fit that failed (no winner).
+	winnerAxes []map[string]any
+	sweepAxes  []string
+	results    []*types.RegressionResult
+	vectorFits []*model.VectorFit
+	semFits    []*model.SEMFit
 	// failed[i] is fit i's data failure (nil when it fitted), and
 	// failedOp a failed vector fit's battery operator.
-	failed := make([]*types.SlotError, n)
-	failedOp := make([]string, n)
-	saveWarnings := make([][]*types.ResponseWarning, n)
-	errs := make([]error, n)
-	run := func(ctx context.Context, i int) {
-		if fitRunObserver != nil {
-			fitRunObserver(fits[i].Name)
-		}
-		// The fit request's own `models`, loaded by the pre-pass: a fit
-		// runs before the batch binds anything, so they are all it sees.
-		fitSet, err := pre.fitSet(i)
+	failed       []*types.SlotError
+	failedOp     []string
+	saveWarnings [][]*types.ResponseWarning
+	errs         []error
+}
+
+// newComposeFitPass is the pass over fits — a copy, so resolving a
+// sweep-bound fit's request never touches the caller's list.
+func (s *Service) newComposeFitPass(fits []types.FitSpec, pre *composeModels) *composeFitPass {
+	n := len(fits)
+	return &composeFitPass{
+		s:            s,
+		fits:         slices.Clone(fits),
+		pre:          pre,
+		winnerFiles:  make([]*model.Loaded, n),
+		winnerAxes:   make([]map[string]any, n),
+		results:      make([]*types.RegressionResult, n),
+		vectorFits:   make([]*model.VectorFit, n),
+		semFits:      make([]*model.SEMFit, n),
+		failed:       make([]*types.SlotError, n),
+		failedOp:     make([]string, n),
+		saveWarnings: make([][]*types.ResponseWarning, n),
+		errs:         make([]error, n),
+	}
+}
+
+// every is the mask selecting every fit.
+func (p *composeFitPass) every() []bool {
+	m := make([]bool, len(p.fits))
+	for i := range m {
+		m[i] = true
+	}
+	return m
+}
+
+// fitSet is fit i's bound-model set: the pre-pass's, or — for a
+// sweep-bound fit — the registered populations plus the winning slot's
+// own loaded models and populations.
+func (p *composeFitPass) fitSet(i int) (*model.Set, error) {
+	if p.fits[i].FromSweep == nil || p.pre == nil {
+		return p.pre.fitSet(i)
+	}
+	refs := model.RequestRefs(p.fits[i].Request)
+	if refs.Empty() {
+		return p.pre.base, nil
+	}
+	return p.pre.base.WithLoaded(refs, p.winnerFiles[i])
+}
+
+// run executes fit i into the pass's per-fit state.
+func (p *composeFitPass) run(ctx context.Context, i int) {
+	s, fits := p.s, p.fits
+	if fitRunObserver != nil {
+		fitRunObserver(fits[i].Name)
+	}
+	// The fit request's own `models`, loaded by the pre-pass: a fit
+	// runs before the batch binds anything, so they are all it sees.
+	fitSet, err := p.fitSet(i)
+	if err != nil {
+		p.errs[i] = err
+		return
+	}
+	if model.FitKindOf(fits[i].Request) == types.FitKindSEM {
+		sf, fail, err := s.runSEMFit(ctx, fits[i], fitSet)
 		if err != nil {
-			errs[i] = err
+			p.errs[i] = err
 			return
 		}
-		if model.FitKindOf(fits[i].Request) == types.FitKindSEM {
-			sf, fail, err := s.runSEMFit(ctx, fits[i], fitSet)
-			if err != nil {
-				errs[i] = err
-				return
-			}
-			if fail != nil {
-				failed[i], failedOp[i] = fail.err, fail.operator
-				saveWarnings[i] = append(saveWarnings[i], fail.warnings(i)...)
-				return
-			}
-			semFits[i] = sf
-			// The fit's `save` writes its SEM fit file under the fit's
-			// name (the overwrite warning lifts to the batch).
-			w, err := s.saveFitSEM(ctx, i, fits[i], sf)
-			if err != nil {
-				errs[i] = err
-				return
-			}
-			if w != nil {
-				saveWarnings[i] = append(saveWarnings[i], w)
-			}
+		if fail != nil {
+			p.failed[i], p.failedOp[i] = fail.err, fail.operator
+			p.saveWarnings[i] = append(p.saveWarnings[i], fail.warnings(i)...)
 			return
 		}
-		if model.FitKindOf(fits[i].Request) == types.FitKindVector {
-			vf, fail, err := s.runVectorFit(ctx, fits[i], fitSet)
-			if err != nil {
-				errs[i] = err
-				return
-			}
-			if fail != nil {
-				failed[i], failedOp[i] = fail.err, fail.operator
-				saveWarnings[i] = append(saveWarnings[i], fail.warnings(i)...)
-				return
-			}
-			vectorFits[i] = vf
-			// The fit's `save` writes its population file under the
-			// fit's name (the overwrite warning lifts to the batch).
-			w, err := s.saveFitPopulation(ctx, i, fits[i], vf)
-			if err != nil {
-				errs[i] = err
-				return
-			}
-			if w != nil {
-				saveWarnings[i] = append(saveWarnings[i], w)
-			}
-			return
-		}
-		resp, err := s.Process(withModelsBound(ctx, fitSet), model.FitRequest(fits[i]))
+		p.semFits[i] = sf
+		// The fit's `save` writes its SEM fit file under the fit's
+		// name (the overwrite warning lifts to the batch).
+		w, err := s.saveFitSEM(ctx, i, fits[i], sf)
 		if err != nil {
-			errs[i] = err
-			return
-		}
-		if resp == nil || len(resp.Regressions) != 1 || resp.Regressions[0] == nil {
-			errs[i] = errors.NewCodedError(errors.PROCESSING_INTERNAL,
-				fmt.Sprintf("fit %q produced no regression result", fits[i].Name))
-			return
-		}
-		results[i] = resp.Regressions[0]
-		if se := resp.Regressions[0].Error; se != nil {
-			// Failed on its data: no model to bind or save; the fit's
-			// own PULSE_SLOT_FAILED warning lifts to the batch.
-			failed[i] = se
-			saveWarnings[i] = append(saveWarnings[i], slotFailedWarnings(resp, i)...)
-			return
-		}
-		// The fit's own response is not returned, so a model-file
-		// overwrite its regression's `save` reported is lifted to the
-		// batch (details.fit), then the fit's own `save` runs.
-		for _, w := range resp.Warnings {
-			if w != nil && w.Code == string(errors.PULSE_MODEL_OVERWRITTEN) {
-				saveWarnings[i] = append(saveWarnings[i], fitWarning(w, i))
-			}
-		}
-		// ... and so is the fit's own regression warnings (an extension
-		// model's diagnostics), which the result keeps too.
-		for _, w := range results[i].Warnings {
-			if w != nil {
-				saveWarnings[i] = append(saveWarnings[i], fitWarning(w, i))
-			}
-		}
-		w, err := s.saveFitModel(ctx, i, fits[i], results[i])
-		if err != nil {
-			errs[i] = err
+			p.errs[i] = err
 			return
 		}
 		if w != nil {
-			saveWarnings[i] = append(saveWarnings[i], w)
+			p.saveWarnings[i] = append(p.saveWarnings[i], w)
+		}
+		return
+	}
+	if model.FitKindOf(fits[i].Request) == types.FitKindVector {
+		vf, fail, err := s.runVectorFit(ctx, fits[i], fitSet)
+		if err != nil {
+			p.errs[i] = err
+			return
+		}
+		if fail != nil {
+			p.failed[i], p.failedOp[i] = fail.err, fail.operator
+			p.saveWarnings[i] = append(p.saveWarnings[i], fail.warnings(i)...)
+			return
+		}
+		p.vectorFits[i] = vf
+		// The fit's `save` writes its population file under the
+		// fit's name (the overwrite warning lifts to the batch).
+		w, err := s.saveFitPopulation(ctx, i, fits[i], vf)
+		if err != nil {
+			p.errs[i] = err
+			return
+		}
+		if w != nil {
+			p.saveWarnings[i] = append(p.saveWarnings[i], w)
+		}
+		return
+	}
+	resp, err := s.Process(withModelsBound(ctx, fitSet), model.FitRequest(fits[i]))
+	if err != nil {
+		p.errs[i] = err
+		return
+	}
+	if resp == nil || len(resp.Regressions) != 1 || resp.Regressions[0] == nil {
+		p.errs[i] = errors.NewCodedError(errors.PROCESSING_INTERNAL,
+			fmt.Sprintf("fit %q produced no regression result", fits[i].Name))
+		return
+	}
+	p.results[i] = resp.Regressions[0]
+	if se := resp.Regressions[0].Error; se != nil {
+		// Failed on its data: no model to bind or save; the fit's
+		// own PULSE_SLOT_FAILED warning lifts to the batch.
+		p.failed[i] = se
+		p.saveWarnings[i] = append(p.saveWarnings[i], slotFailedWarnings(resp, i)...)
+		return
+	}
+	// The fit's own response is not returned, so a model-file
+	// overwrite its regression's `save` reported is lifted to the
+	// batch (details.fit), then the fit's own `save` runs.
+	for _, w := range resp.Warnings {
+		if w != nil && w.Code == string(errors.PULSE_MODEL_OVERWRITTEN) {
+			p.saveWarnings[i] = append(p.saveWarnings[i], fitWarning(w, i))
 		}
 	}
+	// ... and so is the fit's own regression warnings (an extension
+	// model's diagnostics), which the result keeps too.
+	for _, w := range p.results[i].Warnings {
+		if w != nil {
+			p.saveWarnings[i] = append(p.saveWarnings[i], fitWarning(w, i))
+		}
+	}
+	w, err := s.saveFitModel(ctx, i, fits[i], p.results[i])
+	if err != nil {
+		p.errs[i] = err
+		return
+	}
+	if w != nil {
+		p.saveWarnings[i] = append(p.saveWarnings[i], w)
+	}
+}
 
+// execute runs every fit mask selects, each once; workers > 1 runs
+// them concurrently. The first failure — by entry index, serial and
+// parallel alike — is returned located by details.fit.
+func (p *composeFitPass) execute(ctx context.Context, workers int, mask []bool) error {
+	fits, errs := p.fits, p.errs
+	n := len(fits)
 	// runRecovered is run with a panic recovered into PROCESSING_PANIC
 	// as fit i's error (recoverInto): on the pool it must be (a worker
 	// goroutine panic escapes every other recover), and the serial arm
 	// uses it too so a panicking fit fails identically under any worker
 	// count.
 	runRecovered := func(ctx context.Context, i int) {
-		defer recoverInto(panicOpComposeFits, s.disablePanicRecovery, &errs[i])
-		run(ctx, i)
+		defer recoverInto(panicOpComposeFits, p.s.disablePanicRecovery, &errs[i])
+		p.run(ctx, i)
 	}
 
 	if workers <= 1 {
 		for i := range fits {
+			if !mask[i] {
+				continue
+			}
 			if err := ctx.Err(); err != nil {
-				return nil, nil, nil, err
+				return err
 			}
 			if runRecovered(ctx, i); errs[i] != nil {
-				return nil, nil, nil, fitFailure(fits, i, errs[i])
+				return fitFailure(fits, i, errs[i])
 			}
 		}
-	} else {
-		// Fail-fast, yet the serial loop's winner: fit i's failure
-		// cancels (and stops launching) only the fits AFTER it, so
-		// every earlier fit runs to completion and the lowest-index
-		// failure is the one reported (failFastWinner) — never a race
-		// between two fits that both fail on their data under Strict.
-		ctxs := make([]context.Context, n)
-		cancels := make([]context.CancelFunc, n)
-		for i := range fits {
-			ctxs[i], cancels[i] = context.WithCancel(ctx)
+		return nil
+	}
+	// Fail-fast, yet the serial loop's winner: fit i's failure cancels
+	// (and stops launching) only the fits AFTER it, so every earlier
+	// fit runs to completion and the lowest-index failure is the one
+	// reported (failFastWinner) — never a race between two fits that
+	// both fail on their data under Strict.
+	ctxs := make([]context.Context, n)
+	cancels := make([]context.CancelFunc, n)
+	for i := range fits {
+		ctxs[i], cancels[i] = context.WithCancel(ctx)
+	}
+	defer func() {
+		for _, c := range cancels {
+			c()
 		}
-		defer func() {
-			for _, c := range cancels {
-				c()
-			}
-		}()
-		var mu sync.Mutex
-		stopAt := n // no fit at or after stopAt is launched
-		fail := func(i int) {
-			mu.Lock()
-			defer mu.Unlock()
-			if i >= stopAt {
-				return
-			}
-			stopAt = i
-			for j := i + 1; j < n; j++ {
-				cancels[j]()
-			}
+	}()
+	var mu sync.Mutex
+	stopAt := n // no fit at or after stopAt is launched
+	fail := func(i int) {
+		mu.Lock()
+		defer mu.Unlock()
+		if i >= stopAt {
+			return
 		}
-		launchable := func(i int) bool {
-			mu.Lock()
-			defer mu.Unlock()
-			return i < stopAt
-		}
-		sem := make(chan struct{}, workers)
-		var wg sync.WaitGroup
-		for i := range fits {
-			if ctx.Err() != nil || !launchable(i) {
-				break
-			}
-			wg.Add(1)
-			sem <- struct{}{}
-			// joinOnReturn, never a deferred wg.Done: a fit re-panicking
-			// under DisablePanicRecovery must not release wg.Wait before
-			// the crash.
-			go joinOnReturn(&wg, func() {
-				defer func() { <-sem }()
-				if runRecovered(ctxs[i], i); errs[i] != nil {
-					fail(i)
-				}
-			})
-		}
-		wg.Wait()
-		var failed []int
-		for i, e := range errs {
-			if e != nil {
-				failed = append(failed, i)
-			}
-		}
-		if len(failed) > 0 {
-			w := failFastWinner(ctx, errs, failed)
-			return nil, nil, nil, fitFailure(fits, w, errs[w])
-		}
-		if err := ctx.Err(); err != nil {
-			return nil, nil, nil, err
+		stopAt = i
+		for j := i + 1; j < n; j++ {
+			cancels[j]()
 		}
 	}
+	launchable := func(i int) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return i < stopAt
+	}
+	sem := make(chan struct{}, workers)
+	var wg sync.WaitGroup
+	for i := range fits {
+		if ctx.Err() != nil || !launchable(i) {
+			break
+		}
+		if !mask[i] {
+			continue
+		}
+		wg.Add(1)
+		sem <- struct{}{}
+		// joinOnReturn, never a deferred wg.Done: a fit re-panicking
+		// under DisablePanicRecovery must not release wg.Wait before
+		// the crash.
+		go joinOnReturn(&wg, func() {
+			defer func() { <-sem }()
+			if runRecovered(ctxs[i], i); errs[i] != nil {
+				fail(i)
+			}
+		})
+	}
+	wg.Wait()
+	var failed []int
+	for i, e := range errs {
+		if e != nil && mask[i] {
+			failed = append(failed, i)
+		}
+	}
+	if len(failed) > 0 {
+		w := failFastWinner(ctx, errs, failed)
+		return fitFailure(fits, w, errs[w])
+	}
+	return ctx.Err()
+}
 
-	// The fits bind over the instance's registered populations
-	// (CheckComposeBatch refused a fit name one already binds).
-	set := s.populations.Clone()
-	out := make(map[string]*types.FitResult, n)
+// bind binds every fit mask selects — each executed (or, a sweep-bound
+// fit with no winner, failed) — in entry order over the instance's
+// registered populations (CheckComposeBatch refused a fit name one
+// already binds), and returns the set, the ComposedResponse.Fits
+// entries and the lifted warnings, entry order.
+func (p *composeFitPass) bind(mask []bool) (*model.Set, map[string]*types.FitResult, []*types.ResponseWarning, error) {
+	fits := p.fits
+	set := p.s.populations.Clone()
+	out := make(map[string]*types.FitResult, len(fits))
 	var warnings []*types.ResponseWarning
 	for i, f := range fits {
-		if se := failed[i]; se != nil {
-			if err := set.AddFailed(failedSignature(f, i), se); err != nil {
+		if !mask[i] {
+			continue
+		}
+		if se := p.failed[i]; se != nil {
+			sig := failedSignature(f, i)
+			if sig.SweepBound {
+				sig = model.FitCatalog{f.Name: sig}.WithSweepAxes(p.sweepAxes)[f.Name]
+			}
+			if err := set.AddFailed(sig, se); err != nil {
 				return nil, nil, nil, fitFailure(fits, i, err)
 			}
 			switch {
-			case results[i] != nil:
-				out[f.Name] = &types.FitResult{RegressionResult: results[i]}
+			case p.results[i] != nil:
+				out[f.Name] = &types.FitResult{RegressionResult: p.results[i]}
 			case model.FitKindOf(f.Request) == types.FitKindSEM:
-				out[f.Name] = &types.FitResult{SEM: &types.SEMFitResult{Operator: failedOp[i], Error: se}}
+				out[f.Name] = &types.FitResult{SEM: &types.SEMFitResult{Operator: p.failedOp[i], Error: se}}
 			default:
-				out[f.Name] = &types.FitResult{Vector: &types.VectorFitResult{Operator: failedOp[i], Error: se}}
+				out[f.Name] = &types.FitResult{Vector: &types.VectorFitResult{Operator: p.failedOp[i], Error: se}}
 			}
-			warnings = append(warnings, saveWarnings[i]...)
+			warnings = append(warnings, p.saveWarnings[i]...)
 			continue
 		}
-		if sf := semFits[i]; sf != nil {
+		if sf := p.semFits[i]; sf != nil {
 			sf.Name, sf.Source = f.Name, model.FitSource(i)
 			if err := set.AddSEM(sf); err != nil {
 				return nil, nil, nil, fitFailure(fits, i, err)
 			}
 			out[f.Name] = &types.FitResult{SEM: sf.Result()}
-			warnings = append(warnings, saveWarnings[i]...)
+			warnings = append(warnings, p.saveWarnings[i]...)
 			continue
 		}
-		if vf := vectorFits[i]; vf != nil {
+		if vf := p.vectorFits[i]; vf != nil {
 			vf.Name, vf.Source = f.Name, model.FitSource(i)
 			summary, err := processing.VectorFitResult(vf)
 			if err != nil {
@@ -303,22 +404,25 @@ func (s *Service) runComposeFits(ctx context.Context, fits []types.FitSpec, pre 
 				return nil, nil, nil, fitFailure(fits, i, err)
 			}
 			out[f.Name] = &types.FitResult{Vector: summary}
-			warnings = append(warnings, saveWarnings[i]...)
+			warnings = append(warnings, p.saveWarnings[i]...)
 			continue
 		}
-		b, err := model.Bind(f.Name, f.Request.Regressions[0], results[i])
+		b, err := model.Bind(f.Name, f.Request.Regressions[0], p.results[i])
 		if err != nil {
 			return nil, nil, nil, fitFailure(fits, i, err)
 		}
 		b.Source = model.FitSource(i)
+		if f.FromSweep != nil {
+			b.SweepBound, b.SweepAxes = true, p.winnerAxes[i]
+		}
 		if err := set.Add(b); err != nil {
 			// CheckFits already refused a duplicate name; reaching
 			// here is an invariant violation, still reported coded.
 			return nil, nil, nil, fitFailure(fits, i, err)
 		}
-		out[f.Name] = &types.FitResult{RegressionResult: results[i]}
+		out[f.Name] = &types.FitResult{RegressionResult: p.results[i]}
 		// Entry order, serial and parallel alike.
-		warnings = append(warnings, saveWarnings[i]...)
+		warnings = append(warnings, p.saveWarnings[i]...)
 	}
 	return set, out, warnings, nil
 }

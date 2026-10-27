@@ -1,6 +1,6 @@
 ---
 name: compose-fits
-description: ComposedRequest.fits — named regression or vector fits that run once before any Compose slot (sweep slots included) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity.
+description: ComposedRequest.fits — named regression or vector fits that run once before any Compose slot (sweep slots included; a sweep-bound fit after them) and bind into every slot by name, with their own rows, the response `fits` map, refusals and predict parity.
 type: guide
 kind: design
 applies_to: compose, predict
@@ -30,7 +30,10 @@ A **fit** is a named model a Compose batch runs ONCE, before any slot, so every 
 
 ## The fit request
 
-- `request` is an ordinary request, no `groups` / `crosstab`, holding exactly ONE regression (a **regression fit**) or ONE vector battery and no regression (a **vector fit**: one fitted vector attribute<!-- feature: capability:matrices --> or one `matrices` entry<!-- /feature -->, its listwise mean + co-moment)<!-- feature: MAT_SEM -->; one `MAT_SEM` entry is a **SEM fit** (`sem-fits`)<!-- /feature -->. Another model is another entry.
+- `request` is an ordinary request, no `groups` / `crosstab`, holding exactly ONE regression (a **regression fit**) or ONE vector battery and no regression (a **vector fit**: one fitted vector attribute<!-- feature: capability:matrices --> or one `matrices` entry<!-- /feature -->, its listwise mean + co-moment)<!-- feature: MAT_SEM -->; one `MAT_SEM` entry is a **SEM fit** (`sem-fits`)<!-- /feature -->.
+<!-- feature: capability:compose_sweep_bind -->
+- `from_sweep: {regression}` instead of `request` binds a ranked sweep's winning slot, refitted after the sweep (`compose-sweep-bind`).
+<!-- /feature -->
 - Its own cohort, filters, features and weight decide the fit rows, independent of every slot (fit 0–90, score 91–103). Its `return` is ignored.
 - Each fit runs once; serial and parallel are byte-identical.
 
@@ -39,7 +42,7 @@ A fit's regression may read same-request window labels (windows-over-records sha
 ## Names
 
 - `name` is required and unique. All kinds share ONE namespace; a duplicate is `PULSE_MODEL_NAME_COLLISION`, an unbound name `PULSE_MODEL_UNKNOWN` (`details.available`: bound names of that kind), a name of another kind `PULSE_MODEL_KIND_MISMATCH` (`details.fit`, `kind`, `expected`).
-- Every slot, sweep-expanded too, receives every fit; a sweep axis varies the slot, not the model.
+- Every slot, sweep-expanded too, receives every fit.
 - A regression's predictor list is authoritative: a scoring slot supplies those columns; an absent one-hot column is the reference level.
 <!-- feature: ATTR_REG_PREDICT -->
 - A slot scores a fit per row with `ATTR_REG_PREDICT` (`params: {fit: "<name>"}`, optional `terms` / `scale` / `bound`): no refit, full precision, null on a null predictor; see `op-attr-reg-predict`.
@@ -71,7 +74,7 @@ A fit its data refuses fails alone: its `fits` entry keeps identity + `error`, c
 
 ## Refusals
 
-- `PULSE_FIT_INVALID` with `details.reason`: `name_missing`, `request_missing`, `regression_count` (`count`), `kind_ambiguous` (regression AND battery), `vector_count`, `grouped`, `vector_source` (pairwise, a between-group distance, reverse-keyed reliability). Checked before anything runs.
+- `PULSE_FIT_INVALID` with `details.reason`: `name_missing`, `request_missing`, `regression_count` (`count`), `kind_ambiguous` (regression AND battery), `vector_count`, `grouped`, `vector_source` (pairwise, a between-group distance, reverse-keyed reliability).
 - A fit request's own refusal keeps its code and gains `details.fit` (0-based entry index; the lowest when several fail).
 
 ## Validate before executing

@@ -106,7 +106,7 @@ func TestMatrixAuxiliaryNodes_PerOperator(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			req := &types.Request{Matrices: []types.MatrixSpec{c.spec}}
 			result := &descriptor.PredictResult{}
-			plans := predictMatrices(result, req, schema, nil, nil, -1, 0, -1)
+			plans := predictMatrices(result, req, schema, nil, nil, nil, -1, 0, -1)
 			if len(plans) != 1 || len(result.Matrices) != 1 {
 				t.Fatalf("resolve: %d plans, %d results", len(plans), len(result.Matrices))
 			}
@@ -143,7 +143,7 @@ func TestMatrixAuxiliaryNodes_PerOperator(t *testing.T) {
 func TestMatrixAuxiliaryNodes_SEMGrouped(t *testing.T) {
 	spec := auxSpec(types.MAT_SEM, []string{"x1", "x2", "x3"}, `{"group": "region"}`)
 	result := &descriptor.PredictResult{}
-	plans := predictMatrices(result, &types.Request{Matrices: []types.MatrixSpec{spec}}, auxSizesSchema(t), nil, nil, -1, 0, -1)
+	plans := predictMatrices(result, &types.Request{Matrices: []types.MatrixSpec{spec}}, auxSizesSchema(t), nil, nil, nil, -1, 0, -1)
 	if len(plans) != 1 || len(result.Matrices) != 1 {
 		t.Fatalf("resolve: %d plans, %d results", len(plans), len(result.Matrices))
 	}
@@ -231,7 +231,7 @@ func TestSEM_PredictGroupLevels(t *testing.T) {
 			}
 			// The grouped records carry group and label beside the
 			// ungrouped five fields.
-			plans := predictMatrices(&descriptor.PredictResult{}, req, schema, nil, nil, -1, 0, -1)
+			plans := predictMatrices(&descriptor.PredictResult{}, req, schema, nil, nil, nil, -1, 0, -1)
 			for _, n := range matrixAuxiliaryNodes(plans[0], mp, false) {
 				if n.seg.Name != "estimates" {
 					continue
@@ -410,7 +410,7 @@ func TestMatrixAuxiliaryNodes_SEMMultiplicityTwins(t *testing.T) {
 	} {
 		spec := auxSpec(types.MAT_SEM, []string{"x1", "x2", "x3"}, c.params)
 		result := &descriptor.PredictResult{}
-		plans := predictMatrices(result, &types.Request{Matrices: []types.MatrixSpec{spec}}, auxSizesSchema(t), nil, nil, -1, 0, -1)
+		plans := predictMatrices(result, &types.Request{Matrices: []types.MatrixSpec{spec}}, auxSizesSchema(t), nil, nil, nil, -1, 0, -1)
 		if len(plans) != 1 {
 			t.Fatalf("%s: %d plans", c.params, len(plans))
 		}
@@ -450,7 +450,7 @@ func TestMatrixAuxiliaryNodes_SEMOrdinalGrouped(t *testing.T) {
 	req := &types.Request{Vectors: []types.VectorSpec{{Name: "items", Fields: items, Coerce: types.VectorCoerceBinary}},
 		Matrices: []types.MatrixSpec{spec}}
 	result := &descriptor.PredictResult{}
-	plans := predictMatrices(result, req, schema, nil, nil, -1, 0, -1)
+	plans := predictMatrices(result, req, schema, nil, nil, nil, -1, 0, -1)
 	if len(plans) != 1 || len(result.Matrices) != 1 {
 		t.Fatalf("resolve: %d plans, %d results %+v", len(plans), len(result.Matrices), result.Errors)
 	}

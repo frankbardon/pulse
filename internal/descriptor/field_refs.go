@@ -125,7 +125,14 @@ func FacetFieldRefRefusals(req *types.FacetRequest, schema *encoding.Schema, sna
 //     PULSE_ATTRIBUTE_WINDOW_ORDER {attribute, field};
 //  4. tier-1 tests, regressions, groups, aggregations and the crosstab
 //     axes / cell / margin aggregations — the record columns: schema,
-//     features and every attribute label;
+//     features and every attribute label. In a windows-first request
+//     (vectors.WindowsFirst: an aggregation, grouper or crosstab axis
+//     reads a window or post-window label) step 5's windows and 5b run
+//     between the regressions and the groups, against the record
+//     columns, so the groups, aggregations and crosstab also see every
+//     window and post-window label; a window there reading an
+//     aggregation output label is PULSE_WINDOW_INVALID
+//     details.reason "windows_first_reads_aggregate";
 //  5. windows (order_by, partition_by, and Field on a value-bearing
 //     operator), sort and tier-2 post-tests — the OUTPUT row columns: the
 //     group fields and aggregation labels (or, with neither, the record
@@ -255,10 +262,21 @@ func fieldRefRefusalsWithModels(req *types.Request, schema *encoding.Schema, sna
 // columns a chain stage >= 1 inherits (nil: none) — read only by the
 // overlay categorical-code rule.
 func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes map[string]encoding.FieldType, snap *ExtensionsSnapshot, inst *InstanceSnapshot, models model.Catalog) []*errors.CodedError {
+	out, _ := fieldRefWalkPlan(req, schema, codes, snap, inst, models)
+	return out
+}
+
+// fieldRefWalkPlan is fieldRefRefusalsCoded returning, beside the
+// refusals, the post-window plan the walk classified the request by
+// (vectors.PostWindowAttributes over the walk's schema, instance route
+// and models) — the one call predict reports as
+// PredictResult.PostWindow (postWindowDescriptor). A nil request or
+// schema yields no refusal and the zero plan.
+func fieldRefWalkPlan(req *types.Request, schema *encoding.Schema, codes map[string]encoding.FieldType, snap *ExtensionsSnapshot, inst *InstanceSnapshot, models model.Catalog) ([]*errors.CodedError, vectors.PostWindow) {
 	if req == nil || schema == nil {
-		return nil
+		return nil, vectors.PostWindow{}
 	}
-	w := &fieldRefWalk{cols: make(map[string]bool, len(schema.Fields)), snap: snap, inst: inst, req: req}
+	w := &fieldRefWalk{cols: make(map[string]bool, len(schema.Fields)), snap: snap, inst: inst, req: req, models: models}
 	for i := range schema.Fields {
 		w.cols[schema.Fields[i].Name] = true
 	}
@@ -379,6 +397,7 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	// not refused twice.
 	route := func(t types.AttributeType) types.AttributeType { return opRoute(inst, t) }
 	pw := vectors.PostWindowAttributes(req, schema, route, models)
+	w.windowsFirst, w.overRecords = pw.WindowsFirst, vectors.WindowsOverRecords(req, schema, models)
 	for _, win := range req.Windows {
 		if win == nil {
 			continue
@@ -512,7 +531,7 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 			continue
 		}
 		if dep := pw.DepOf(i); dep != "" {
-			w.out = append(w.out, vectors.AttributeWindowOrderRefusal(req, attr, dep))
+			w.out = append(w.out, vectors.AttributeWindowOrderRefusal(req, pw.WindowsFirst, attr, dep))
 			addAttrLabel(attr)
 			continue
 		}
@@ -569,7 +588,118 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 			})
 		}
 		w.checkInputs("regression", string(reg.Type), reg.Params, "type")
+		// A model regression's declared reads beyond its target and
+		// predictors (REG_MMM_BAYES's params.time), which the runtime
+		// projection decodes from the same source.
+		for _, f := range model.ModelRegressionFieldInputs(reg) {
+			w.checkRegression(req, reg, f, func() *errors.CodedError {
+				return refusal("regression references unknown field: "+f,
+					map[string]any{"field": f, "type": string(reg.Type), "field_inputs": true})
+			})
+		}
 		w.checkHoldout(req, reg, models)
+	}
+	// The windows (judged at step 5 on the historical order, against the
+	// output-row columns) and the post-window attributes right after
+	// them (step 5b). A windows-first request (pw.WindowsFirst,
+	// vectors.WindowsFirst — an aggregation, grouper or crosstab axis
+	// reads a window output) judges them here instead, between the
+	// regressions and the groups: its windows run over the record rows
+	// before the groups, aggregations and crosstab, which then read the
+	// window and post-window labels as record columns. A window there
+	// reading an aggregation's output label (not a record column) is
+	// PULSE_WINDOW_INVALID details.reason "windows_first_reads_aggregate"
+	// (aggregations run after the windows in that mode), judged before
+	// an extension feature's open column set admits the name.
+	var aggLabels map[string]bool
+	if pw.WindowsFirst {
+		aggLabels = windowsFirstAggregationLabels(req)
+	}
+	winCheck := func(i int, name string, mk func() *errors.CodedError) {
+		if aggLabels[name] && !w.cols[name] {
+			w.out = append(w.out, windowsFirstReadsAggregate(i, name))
+			return
+		}
+		w.check(name, mk)
+	}
+	judgeWindowsAndPost := func() {
+		for i, win := range req.Windows {
+			if win == nil {
+				continue
+			}
+			idx := strconv.Itoa(i)
+			for _, ok := range win.OrderBy {
+				if ok.Field == "" || w.arrayRef(ok.Field, "window["+idx+"] order_by", map[string]any{"window_index": i}) {
+					continue
+				}
+				winCheck(i, ok.Field, func() *errors.CodedError {
+					return errors.NewCodedErrorWithDetails(errors.PULSE_WINDOW_INVALID,
+						"window["+idx+"]: order_by field "+ok.Field+" does not exist in schema or upstream pipeline output",
+						map[string]any{"window_index": i, "field": ok.Field})
+				})
+				// Orderability (IsOrderableType) is judged by the schema
+				// type; a derived output column carries none.
+				// A vector field is step 0's refusal (vectorScalarRefusals).
+				if f := schema.Field(ok.Field); f != nil && !f.Type.IsVector() && !IsOrderableType(f.Type) {
+					w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PULSE_WINDOW_INVALID,
+						"window["+idx+"]: order_by field "+ok.Field+" is not orderable (type "+f.Type.String()+")",
+						map[string]any{"window_index": i, "field": ok.Field, "field_type": f.Type.String()}))
+				}
+			}
+			for _, p := range win.PartitionBy {
+				if p == "" || w.arrayRef(p, "window["+idx+"] partition_by", map[string]any{"window_index": i}) {
+					continue
+				}
+				winCheck(i, p, func() *errors.CodedError {
+					return errors.NewCodedErrorWithDetails(errors.PULSE_WINDOW_INVALID,
+						"window["+idx+"]: partition_by field "+p+" does not exist in schema or upstream pipeline output",
+						map[string]any{"window_index": i, "field": p})
+				})
+			}
+			// Only a value-bearing operator reads Field (WIN_ROW_NUMBER /
+			// RANK / DENSE_RANK name none, and an extension window's Field
+			// is its own business).
+			if win.Field != "" && windowparams.FieldRequired(opRoute(inst, win.Type)) &&
+				!w.arrayRef(win.Field, "window["+idx+"] ("+string(win.Type)+") field", map[string]any{"window_index": i, "type": string(win.Type)}) {
+				winCheck(i, win.Field, func() *errors.CodedError {
+					return refusal("window["+idx+"] ("+string(win.Type)+"): field "+win.Field+" does not exist in schema or upstream pipeline output",
+						map[string]any{"window_index": i, "field": win.Field, "type": string(win.Type)})
+				})
+			}
+			// WIN_LIFT's params.base names a column like its field does.
+			if opRoute(inst, win.Type) == types.WIN_LIFT {
+				if base := paramString(win.Params, "base"); base != "" &&
+					!w.arrayRef(base, "window["+idx+"] (WIN_LIFT) params.base", map[string]any{"window_index": i, "type": string(win.Type)}) {
+					winCheck(i, base, func() *errors.CodedError {
+						return refusal("window["+idx+"] ("+string(win.Type)+"): params.base "+base+" does not exist in schema or upstream pipeline output",
+							map[string]any{"window_index": i, "field": base, "type": string(win.Type), "param": "base"})
+					})
+				}
+			}
+			w.checkInputs("window", string(win.Type), win.Params, "window")
+			label := windowLabel(win)
+			w.shadow(label, func() *errors.CodedError {
+				return refusal("window["+idx+"] label "+label+" shadows an existing column",
+					map[string]any{"window_index": i, "label": label, "type": string(win.Type)})
+			})
+			w.cols[label] = true
+			w.claim(label, map[string]any{"slot": "window[" + idx + "] " + string(win.Type), "window_index": i, "window": string(win.Type)})
+		}
+		// 5b. Post-window attributes (vectors.PostWindowAttributes: a
+		// row-local attribute reading a window label, directly or through an
+		// earlier post-window attribute) — judged as at step 3, in declared
+		// order, against the record columns plus every window label and each
+		// earlier post-window label. Only the windows-over-records shape has
+		// any, where w.cols is still the record column set.
+		for i, attr := range req.Attributes {
+			if pw.IsPost(i) {
+				judgeAttr(attr)
+			}
+		}
+	}
+
+	if pw.WindowsFirst {
+		judgeWindowsAndPost()
 	}
 	for _, grp := range req.Groups {
 		if grp == nil {
@@ -719,78 +849,14 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 		}
 		w.cols = out
 	}
-	for i, win := range req.Windows {
-		if win == nil {
-			continue
+	if !pw.WindowsFirst {
+		// A crosstab writes no output row: a window it does not read
+		// windows-first is refused (vectors.CrosstabWindowRefusal, the
+		// engine's RunCrosstab refusal), never silently dropped.
+		if cerr := vectors.CrosstabWindowRefusal(req, false); cerr != nil {
+			w.out = append(w.out, cerr)
 		}
-		idx := strconv.Itoa(i)
-		for _, ok := range win.OrderBy {
-			if ok.Field == "" || w.arrayRef(ok.Field, "window["+idx+"] order_by", map[string]any{"window_index": i}) {
-				continue
-			}
-			w.check(ok.Field, func() *errors.CodedError {
-				return errors.NewCodedErrorWithDetails(errors.PULSE_WINDOW_INVALID,
-					"window["+idx+"]: order_by field "+ok.Field+" does not exist in schema or upstream pipeline output",
-					map[string]any{"window_index": i, "field": ok.Field})
-			})
-			// Orderability (IsOrderableType) is judged by the schema
-			// type; a derived output column carries none.
-			// A vector field is step 0's refusal (vectorScalarRefusals).
-			if f := schema.Field(ok.Field); f != nil && !f.Type.IsVector() && !IsOrderableType(f.Type) {
-				w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PULSE_WINDOW_INVALID,
-					"window["+idx+"]: order_by field "+ok.Field+" is not orderable (type "+f.Type.String()+")",
-					map[string]any{"window_index": i, "field": ok.Field, "field_type": f.Type.String()}))
-			}
-		}
-		for _, p := range win.PartitionBy {
-			if p == "" || w.arrayRef(p, "window["+idx+"] partition_by", map[string]any{"window_index": i}) {
-				continue
-			}
-			w.check(p, func() *errors.CodedError {
-				return errors.NewCodedErrorWithDetails(errors.PULSE_WINDOW_INVALID,
-					"window["+idx+"]: partition_by field "+p+" does not exist in schema or upstream pipeline output",
-					map[string]any{"window_index": i, "field": p})
-			})
-		}
-		// Only a value-bearing operator reads Field (WIN_ROW_NUMBER /
-		// RANK / DENSE_RANK name none, and an extension window's Field
-		// is its own business).
-		if win.Field != "" && windowparams.FieldRequired(opRoute(inst, win.Type)) &&
-			!w.arrayRef(win.Field, "window["+idx+"] ("+string(win.Type)+") field", map[string]any{"window_index": i, "type": string(win.Type)}) {
-			w.check(win.Field, func() *errors.CodedError {
-				return refusal("window["+idx+"] ("+string(win.Type)+"): field "+win.Field+" does not exist in schema or upstream pipeline output",
-					map[string]any{"window_index": i, "field": win.Field, "type": string(win.Type)})
-			})
-		}
-		// WIN_LIFT's params.base names a column like its field does.
-		if opRoute(inst, win.Type) == types.WIN_LIFT {
-			if base := paramString(win.Params, "base"); base != "" &&
-				!w.arrayRef(base, "window["+idx+"] (WIN_LIFT) params.base", map[string]any{"window_index": i, "type": string(win.Type)}) {
-				w.check(base, func() *errors.CodedError {
-					return refusal("window["+idx+"] ("+string(win.Type)+"): params.base "+base+" does not exist in schema or upstream pipeline output",
-						map[string]any{"window_index": i, "field": base, "type": string(win.Type), "param": "base"})
-				})
-			}
-		}
-		w.checkInputs("window", string(win.Type), win.Params, "window")
-		label := windowLabel(win)
-		w.shadow(label, func() *errors.CodedError {
-			return refusal("window["+idx+"] label "+label+" shadows an existing column",
-				map[string]any{"window_index": i, "label": label, "type": string(win.Type)})
-		})
-		w.cols[label] = true
-		w.claim(label, map[string]any{"slot": "window[" + idx + "] " + string(win.Type), "window_index": i, "window": string(win.Type)})
-	}
-	// 5b. Post-window attributes (vectors.PostWindowAttributes: a
-	// row-local attribute reading a window label, directly or through an
-	// earlier post-window attribute) — judged as at step 3, in declared
-	// order, against the record columns plus every window label and each
-	// earlier post-window label. Only the windows-over-records shape has
-	// any, where w.cols is still the record column set.
-	for i, attr := range req.Attributes {
-		if pw.IsPost(i) {
-			judgeAttr(attr)
-		}
+		judgeWindowsAndPost()
 	}
 	// An array-valued aggregation's bare label (AGG_VEC_*: w.arrayCols)
 	// names no single number to order by; an expanded per-element
@@ -836,17 +902,17 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	// vector-XOR-fields shape, encoding, result-name uniqueness, params,
 	// the named vector (PULSE_VECTOR_UNKNOWN) or the inline fields (the
 	// vector rules). A type the instance hides is an unknown type.
-	mats, verr := resolveMatricesFor(req, schema, w.snap, inst)
+	mats, verr := resolveMatricesFor(req, schema, w.snap, inst, models)
 	if verr != nil {
 		w.out = append(w.out, verr)
-		return w.out
+		return w.out, pw
 	}
 	// 6b. A vector name equal to a feature, attribute or window output
 	// label (PULSE_VECTOR_NAME_COLLISION) — the schema-field collision's
 	// twin for the derived columns, judged once every vector resolved.
 	if cerr := w.vectorLabelCollision(req); cerr != nil {
 		w.out = append(w.out, cerr)
-		return w.out
+		return w.out, pw
 	}
 	// 8. Test vector inputs — each test's vector / fields (and vector2
 	// / fields2) resolved by the same leaf (vectors.ResolveTests): the
@@ -854,44 +920,44 @@ func fieldRefRefusalsCoded(req *types.Request, schema *encoding.Schema, codes ma
 	// fields (the vector rules), the equal-length pairing and the
 	// listwise-only missing mode. Steps 6-8 contribute one refusal at
 	// most between them.
-	if _, terr := vectors.ResolveTests(req, schema, func(t types.TestType) types.TestType {
+	if _, terr := vectors.ResolveTests(req, schema, models, func(t types.TestType) types.TestType {
 		return opRoute(inst, t)
 	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Tests })); terr != nil {
 		w.out = append(w.out, terr)
-		return w.out
+		return w.out, pw
 	}
 	// 9. Attribute vector inputs — each attribute's vector / fields and
 	// fitted params (fit_on, missing, the operator's own keys) resolved
 	// by the same leaf (vectors.ResolveAttributes). Steps 6-9 contribute
 	// one refusal at most between them.
-	ains, aerr := vectors.ResolveAttributes(req, schema, func(t types.AttributeType) types.AttributeType {
+	ains, aerr := vectors.ResolveAttributes(req, schema, models, func(t types.AttributeType) types.AttributeType {
 		return opRoute(inst, t)
 	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Attributes }), inst.Hidden)
 	if aerr != nil {
 		w.out = append(w.out, aerr)
-		return w.out
+		return w.out, pw
 	}
 	// 10. Grouper vector inputs — every grouper slot's vector / fields
 	// and params resolved by the same leaf (vectors.ResolveGroups).
 	// Steps 6-10 contribute one refusal at most between them.
-	if _, gerr := vectors.ResolveGroups(req, schema, func(t types.GroupType) types.GroupType {
+	if _, gerr := vectors.ResolveGroups(req, schema, models, func(t types.GroupType) types.GroupType {
 		return opRoute(inst, t)
 	}, w.extensionNamed(func(s *ExtensionsSnapshot) []descriptor.OperatorMeta { return s.Groupers })); gerr != nil {
 		w.out = append(w.out, gerr)
-		return w.out
+		return w.out, pw
 	}
 	// 11. Aggregation vector inputs — every aggregation slot's (the
 	// aggregations, the crosstab cell and its margin aggregations)
 	// vector / fields and params resolved by the same leaf
 	// (vectors.ResolveAggregations). Steps 6-11 contribute one refusal
 	// at most between them.
-	if _, aerr := vectors.ResolveAggregations(req, schema, aggregationKinds(inst, w.snap)); aerr != nil {
+	if _, aerr := vectors.ResolveAggregations(req, schema, models, aggregationKinds(inst, w.snap)); aerr != nil {
 		w.out = append(w.out, aerr)
-		return w.out
+		return w.out, pw
 	}
 	// 12. Bound vector fits (params.fit), once every input resolved.
 	w.out = append(w.out, vectorFitRefusals(req, schema, mats, ains, inst, models)...)
-	return w.out
+	return w.out, pw
 }
 
 // vectorFitRefusals is step 12: each fitted attribute's params.fit and
@@ -997,7 +1063,10 @@ func vectorFitRefusals(req *types.Request, schema *encoding.Schema, mats []vecto
 // (a hidden grouper is unknown); a registered extension grouper (snap,
 // else the instance's own projection) is accepted as a between, as the
 // runtime accepts it.
-func resolveMatricesFor(req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot) ([]vectors.Matrix, *errors.CodedError) {
+//
+// models is the site's bound-model catalog, read by the windows-first
+// decision a window-label member resolves through (nil none).
+func resolveMatricesFor(req *types.Request, schema *encoding.Schema, snap *ExtensionsSnapshot, inst *InstanceSnapshot, models model.Catalog) ([]vectors.Matrix, *errors.CodedError) {
 	if snap == nil {
 		snap = inst.Extensions()
 	}
@@ -1005,7 +1074,7 @@ func resolveMatricesFor(req *types.Request, schema *encoding.Schema, snap *Exten
 	if snap != nil {
 		ext = func(name string) bool { return snapshotHasName(snap.Groupers, name) }
 	}
-	return vectors.ResolveMatricesWith(req, schema, vectors.MatrixResolve{
+	return vectors.ResolveMatricesWith(req, schema, models, vectors.MatrixResolve{
 		Known: func(t types.MatrixType) bool {
 			return isBuiltinMatrixType(opRoute(inst, t))
 		},
@@ -1081,6 +1150,56 @@ type fieldRefWalk struct {
 	// req is the request walked (the shape a window-order refusal
 	// names).
 	req *types.Request
+	// windowsFirst is the request's post-window plan's WindowsFirst
+	// (vectors.WindowsFirst over the walk's route and models), seeded at
+	// step 3: the windows run over the record rows before the groups,
+	// aggregations and crosstab.
+	windowsFirst bool
+	// overRecords is vectors.WindowsOverRecords over the walk's models —
+	// the decision the engine's regression window copy reads too
+	// (vectors.RegressionWindowReads over its bound models) — seeded at
+	// step 3: a regression or holdout may read a window label only then.
+	overRecords bool
+	// models is the walk's bound-model catalog: every vector resolution
+	// below reads the windows-first decision through it.
+	models model.Catalog
+}
+
+// windowsFirstAggregationLabels is the set of output labels a
+// windows-first request's aggregations write (types.AggregationLabelOf:
+// req.Aggregations and the crosstab's cell and margin aggregations) —
+// the names a window may not read in that mode, the aggregations
+// running after the windows.
+func windowsFirstAggregationLabels(req *types.Request) map[string]bool {
+	out := map[string]bool{}
+	add := func(a *types.Aggregation) {
+		if a != nil {
+			if l := types.AggregationLabelOf(a); l != "" {
+				out[l] = true
+			}
+		}
+	}
+	for _, a := range req.Aggregations {
+		add(a)
+	}
+	if spec := req.Crosstab; spec != nil {
+		for _, a := range spec.CellAggregations() {
+			add(a)
+		}
+		for _, a := range spec.MarginAggregations {
+			add(a)
+		}
+	}
+	return out
+}
+
+// windowsFirstReadsAggregate is PULSE_WINDOW_INVALID for window i of a
+// windows-first request reading the aggregation output label field:
+// details {window_index, field, reason: "windows_first_reads_aggregate"}.
+func windowsFirstReadsAggregate(i int, field string) *errors.CodedError {
+	return errors.NewCodedErrorWithDetails(errors.PULSE_WINDOW_INVALID,
+		"window["+strconv.Itoa(i)+"] reads aggregation output "+field+", but an aggregation, grouper or crosstab axis of this request reads a window output, so the windows run first over the records, before any aggregation; drop the window-output read from the aggregations, or materialize the windows first",
+		map[string]any{"window_index": i, "field": field, "reason": "windows_first_reads_aggregate"})
 }
 
 // arrayRef refuses a downstream read (a Sort key, a window's field /
@@ -1156,15 +1275,9 @@ func (w *fieldRefWalk) extensionNamed(metas func(*ExtensionsSnapshot) []descript
 // addAggParamFields decodes). Unjudged, an unknown name there read as
 // an all-null column and the operator answered a confident empty or
 // zero result.
-var aggParamFieldKeys = map[types.AggregationType][]string{
-	types.AGG_WEIGHTED_MEAN: {"weight_field"},
-	types.AGG_RATIO:         {"numerator_field", "denominator_field"},
-	types.AGG_DISTINCT_SUM:  {"distinct_by"},
-	types.AGG_MAPE:          {"prediction_field"},
-	types.AGG_RMSE:          {"prediction_field"},
-	types.AGG_MAE:           {"prediction_field"},
-	types.AGG_AUC:           {"outcome"},
-}
+// The table lives in internal/vectors (AggregationParamFieldKeys),
+// where the windows-first classification reads the same keys.
+var aggParamFieldKeys = vectors.AggregationParamFieldKeys
 
 // postTestParamFieldKeys lists, per built-in tier-2 test, the Params
 // keys that name an OUTPUT row column. TEST_TUKEY_HSD's n_column
@@ -1216,7 +1329,7 @@ func (w *fieldRefWalk) checkInputs(category, name string, raw json.RawMessage, s
 		if category == "attribute" && (w.winLabels[in] || w.postLabels[in]) && !w.cols[in] {
 			// An extension attribute is never row-local here: it cannot
 			// run after the windows (PULSE_ATTRIBUTE_WINDOW_ORDER).
-			w.out = append(w.out, vectors.AttributeWindowOrderRefusal(w.req, &types.Attribute{Type: types.AttributeType(name)}, in))
+			w.out = append(w.out, vectors.AttributeWindowOrderRefusal(w.req, w.windowsFirst, &types.Attribute{Type: types.AttributeType(name)}, in))
 			continue
 		}
 		w.check(in, func() *errors.CodedError {
@@ -1252,7 +1365,7 @@ func (w *fieldRefWalk) checkRegression(req *types.Request, reg *types.Regression
 		w.check(name, mk)
 		return
 	}
-	if vectors.WindowsOverRecords(req) {
+	if w.overRecords {
 		return
 	}
 	w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PULSE_REGRESSION_WINDOW_UNAVAILABLE,
@@ -1291,7 +1404,7 @@ func (w *fieldRefWalk) checkHoldout(req *types.Request, reg *types.RegressionSpe
 		if !(w.winLabels[name] || w.postLabels[name]) || w.cols[name] {
 			continue
 		}
-		if !vectors.WindowsOverRecords(req) {
+		if !w.overRecords {
 			w.out = append(w.out, errors.NewCodedErrorWithDetails(errors.PULSE_REGRESSION_WINDOW_UNAVAILABLE,
 				"regression "+string(reg.Type)+" holdout reads window output "+name+", which only the grouped or aggregated output rows carry, not the records the fit reads",
 				map[string]any{"regression": string(reg.Type), "field": name, "reason": "grouped_shape", "slot": model.HoldoutKey}))
@@ -1496,19 +1609,21 @@ func (w *fieldRefWalk) checkTotal(expr, site string) {
 	}
 }
 
-// checkCoef records the first refusal of expr's all-literal coef()
-// calls against models (internal/model/coefcall.StaticRefusal — the
-// check the engine's build runs too), unless an embedder ExprFunction
-// named coef owns the name.
+// checkCoef records the first refusal of expr's all-literal coef() and
+// sweep_axis() calls against models (internal/model/coefcall.
+// StaticRefusal — the check the engine's build runs too); an embedder
+// ExprFunction named coef owns that name, leaving only the sweep_axis()
+// calls judged (coefcall.SweepAxisRefusal).
 func (w *fieldRefWalk) checkCoef(expr string, models model.Catalog) {
+	check := coefcall.StaticRefusal
 	if w.snap != nil {
 		for _, fn := range w.snap.ExprFunctions {
 			if fn.Name == model.CoefFunc {
-				return
+				check = coefcall.SweepAxisRefusal
 			}
 		}
 	}
-	if cerr := coefcall.StaticRefusal(expr, models); cerr != nil {
+	if cerr := check(expr, models); cerr != nil {
 		w.out = append(w.out, cerr)
 	}
 }

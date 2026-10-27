@@ -7,6 +7,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/limits"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/processing/window"
 	"github.com/frankbardon/pulse/internal/vectors"
 	"github.com/frankbardon/pulse/types"
@@ -45,12 +46,14 @@ type GroupedMatrices struct {
 // must be the STAMPED request and compute the run's plan, as for
 // BuildMatrixSlots (nil when compute accumulates no matrix). l is the
 // run's effective limits: minting a bucket past MaxGroups raises
-// PULSE_LIMIT_EXCEEDED.
-func BuildGroupedMatrices(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, compute ComputePlan, l limits.Limits) (*GroupedMatrices, error) {
+// PULSE_LIMIT_EXCEEDED. models are the run's bound models, read by the
+// windows-first decision a window-label member resolves through (nil
+// none).
+func BuildGroupedMatrices(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, compute ComputePlan, l limits.Limits, models *model.Set) (*GroupedMatrices, error) {
 	if req == nil || len(req.Groups) == 0 || req.Groups[0] == nil {
 		return nil, nil
 	}
-	set, err := resolveMatrixPlans(req, schema, exts, compute)
+	set, err := resolveMatrixPlans(req, schema, exts, compute, models)
 	if err != nil || set == nil {
 		return nil, err
 	}

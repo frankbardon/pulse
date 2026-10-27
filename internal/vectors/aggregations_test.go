@@ -57,7 +57,7 @@ func TestResolveAggregations_Rules(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			_, err := ResolveAggregations(c.req, groupSchema(), AggregationKinds{})
+			_, err := ResolveAggregations(c.req, groupSchema(), nil, AggregationKinds{})
 			if c.code == "" {
 				if err != nil {
 					t.Fatalf("refused: %v", err)
@@ -124,7 +124,7 @@ func TestResolveAggregations_Extension(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			in, err := ResolveAggregations(c.req, groupSchema(), c.kinds)
+			in, err := ResolveAggregations(c.req, groupSchema(), nil, c.kinds)
 			if c.code == "" {
 				if err != nil || len(in) != c.n {
 					t.Fatalf("resolved %d (%v), want %d", len(in), err, c.n)
@@ -249,7 +249,7 @@ func TestAggregationKinds_Code(t *testing.T) {
 func TestAggregationSlotRewrite_ExtensionKeepsParams(t *testing.T) {
 	a := &types.Aggregation{Type: "AGG_ACME_A", Fields: []string{"q_*"}, Params: json.RawMessage(`{"k":3,"expand":true}`)}
 	req := &types.Request{Aggregations: []*types.Aggregation{a}}
-	in, err := ResolveAggregations(req, groupSchema(), extKinds())
+	in, err := ResolveAggregations(req, groupSchema(), nil, extKinds())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +270,7 @@ func TestAggregationSlotRewrite_ExtensionKeepsParams(t *testing.T) {
 // resolves nothing (its unknown-type refusal is elsewhere).
 func TestResolveAggregations_RouteHidesType(t *testing.T) {
 	req := &types.Request{Aggregations: []*types.Aggregation{{Type: types.AGG_VEC_SUM}}}
-	in, err := ResolveAggregations(req, groupSchema(), AggregationKinds{Route: func(types.AggregationType) types.AggregationType { return "" }})
+	in, err := ResolveAggregations(req, groupSchema(), nil, AggregationKinds{Route: func(types.AggregationType) types.AggregationType { return "" }})
 	if err != nil || len(in) != 0 {
 		t.Fatalf("hidden type resolved: %v %v", in, err)
 	}
@@ -284,7 +284,7 @@ func TestAggregationSlotRewrite(t *testing.T) {
 		Vectors:      []types.VectorSpec{{Name: "v", Fields: []string{"q_*"}, Labels: []string{"first", "second"}}},
 		Aggregations: []*types.Aggregation{{Type: types.AGG_VEC_SUM, Vector: "v"}, {Type: types.AGG_VEC_MEAN, Fields: []string{"q_2", "q_1"}, Label: "m"}},
 	}
-	in, err := ResolveAggregations(req, groupSchema(), AggregationKinds{})
+	in, err := ResolveAggregations(req, groupSchema(), nil, AggregationKinds{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -405,7 +405,7 @@ func TestAggregationOutputColumns(t *testing.T) {
 	// expand survives the factory rewrite (the runtime reads it there).
 	a := &types.Aggregation{Type: types.AGG_VEC_MEAN, Vector: "v", Params: exp}
 	req := &types.Request{Vectors: vecs, Aggregations: []*types.Aggregation{a}}
-	in, err := ResolveAggregations(req, groupSchema(), AggregationKinds{})
+	in, err := ResolveAggregations(req, groupSchema(), nil, AggregationKinds{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -418,12 +418,12 @@ func TestAggregationOutputColumns(t *testing.T) {
 
 	// Duplicate element labels: refused under expand only.
 	dup := &types.Aggregation{Type: types.AGG_VEC_MEAN, Fields: []string{"q_*"}, Params: json.RawMessage(`{"expand":true,"labels":["x","x"]}`)}
-	if _, err := ResolveAggregations(&types.Request{Aggregations: []*types.Aggregation{dup}}, groupSchema(), AggregationKinds{}); err == nil ||
+	if _, err := ResolveAggregations(&types.Request{Aggregations: []*types.Aggregation{dup}}, groupSchema(), nil, AggregationKinds{}); err == nil ||
 		err.Details["reason"] != "expand_duplicate_labels" {
 		t.Errorf("duplicate labels under expand = %v, want expand_duplicate_labels", err)
 	}
 	dup.Params = json.RawMessage(`{"labels":["x","x"]}`)
-	if _, err := ResolveAggregations(&types.Request{Aggregations: []*types.Aggregation{dup}}, groupSchema(), AggregationKinds{}); err != nil {
+	if _, err := ResolveAggregations(&types.Request{Aggregations: []*types.Aggregation{dup}}, groupSchema(), nil, AggregationKinds{}); err != nil {
 		t.Errorf("duplicate labels on an array slot refused: %v", err)
 	}
 }
@@ -474,7 +474,7 @@ func TestAggregationColumns(t *testing.T) {
 
 	// The prepared slot (the factory rewrite the runtime holds) lists,
 	// with no schema, the columns the authored one does over it.
-	in, err := ResolveAggregations(req, groupSchema(), AggregationKinds{})
+	in, err := ResolveAggregations(req, groupSchema(), nil, AggregationKinds{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -513,7 +513,7 @@ func TestElementSelection(t *testing.T) {
 
 	a := mk(types.AGG_VEC_MEAN, `{"labels":["first","second"],"element":"second"}`)
 	req := &types.Request{Crosstab: &types.CrosstabSpec{Cell: a}}
-	in, err := ResolveAggregations(req, groupSchema(), AggregationKinds{})
+	in, err := ResolveAggregations(req, groupSchema(), nil, AggregationKinds{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -530,7 +530,7 @@ func TestElementSelection(t *testing.T) {
 	}
 	// A slot without element keeps every member.
 	b := mk(types.AGG_VEC_MEAN, `{}`)
-	in, _ = ResolveAggregations(&types.Request{Crosstab: &types.CrosstabSpec{Cell: b}}, groupSchema(), AggregationKinds{})
+	in, _ = ResolveAggregations(&types.Request{Crosstab: &types.CrosstabSpec{Cell: b}}, groupSchema(), nil, AggregationKinds{})
 	if in[b].HasElement || len(AggregationSlotRewrite(b, in[b]).Fields) != len(in[b].Members.Members) {
 		t.Errorf("a slot without element was narrowed: %+v", in[b])
 	}

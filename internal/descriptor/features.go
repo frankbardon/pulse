@@ -106,6 +106,7 @@ var (
 	featSweepSampling = FeatureComposeSweepSampling
 	featComposeFits   = FeatureName(FeatureKindCapability, "compose_fits")
 	featComposeOpt    = FeatureComposeOptimize
+	featSweepBind     = FeatureComposeSweepBind
 	featComposeBanner = FeatureName(FeatureKindCapability, "compose_banner")
 	featModelSave     = FeatureModelSave
 	featRegHoldout    = FeatureRegressionHoldout
@@ -234,6 +235,12 @@ const FeatureComposeSweepSampling = "capability:compose_sweep_sampling"
 // bound compose schema) reads it too.
 const FeatureComposeOptimize = "capability:compose_optimize"
 
+// FeatureComposeSweepBind is capability:compose_sweep_bind — a `fits`
+// entry's `from_sweep`, which binds the ranked sweep winner's
+// regression as a named fit. Exported because the MCP binder (the bound
+// fits schema) reads it too.
+const FeatureComposeSweepBind = "capability:compose_sweep_bind"
+
 // FeatureWeighting is capability:weighting — the row-weight surface:
 // the request-root `weight`, every per-slot `weight`, and
 // pulse.Options.DefaultWeight (.claude/reference/weighting.md, Feature
@@ -297,6 +304,9 @@ var builtinFeatures = withDependencies([]Feature{
 	// The compose `optimize` blocks: ComposedRequest.Optimize and
 	// ComposedResponse.Optimizations.
 	capability("compose_optimize"),
+	// A `fits` entry's `from_sweep`: the ranked sweep winner bound as a
+	// named fit (FitSpec.FromSweep).
+	capability("compose_sweep_bind"),
 
 	// I/O formats — io.Formats(). One name gates import AND export.
 	ioFormat("csv"),
@@ -468,6 +478,8 @@ var builtinFeatures = withDependencies([]Feature{
 	// Regressions — types.AllRegressionTypes().
 	op("REG_BAYES_LINEAR"),
 	op("REG_GLM"),
+	op("REG_MMM_BAYES"),
+	op("REG_MMM_HILL"),
 	op("REG_OLS"),
 	// Matrix operators — types.AllMatrixTypes().
 	op("MAT_COLLINEARITY"),
@@ -636,6 +648,9 @@ var slotTokens = map[string]slotTokenSet{
 	featComposeOpt: {},
 	// `fits` is everyday English; no guidance sentence names the slot.
 	featComposeFits: {},
+	// `from_sweep` names the key only; no guidance sentence names it
+	// yet.
+	featSweepBind: {},
 	// `banner` names the slot only; no guidance sentence names it yet.
 	featComposeBanner: {},
 	// `save` is everyday English; no guidance sentence names the slot.
@@ -854,7 +869,7 @@ var hardEdges = map[string][]string{
 	"ATTR_REG_FITTED":                       {"REG_OLS"},
 	"ATTR_REG_LEVERAGE":                     {"REG_OLS"},
 	// Scores a bound fit of any scorable regression type.
-	"ATTR_REG_PREDICT":  {"REG_BAYES_LINEAR", "REG_GLM", "REG_OLS"},
+	"ATTR_REG_PREDICT":  {"REG_BAYES_LINEAR", "REG_GLM", "REG_MMM_HILL", "REG_OLS"},
 	"ATTR_REG_RESIDUAL": {"REG_OLS"},
 	"OVERLAY_YOY":       {"GROUP_DATE"},
 	featFilterToFile:    {"FILTER_EXPRESSION"},
@@ -891,10 +906,10 @@ var hardEdges = map[string][]string{
 	// (a population file): without a regression or a vector battery
 	// there is nothing to save.
 	featModelSave: {string(types.ATTR_FACTOR_SCORE), string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
-		string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS), featMatrices},
+		string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_HILL), string(types.REG_OLS), featMatrices},
 	// A holdout scores the fit of a regression slot: without a
 	// regression there is nothing to hold rows out of.
-	featRegHoldout: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS)},
+	featRegHoldout: {string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_HILL), string(types.REG_OLS)},
 	// Parameters are read only by an expression (an optimize block's
 	// included): without one there is nothing to read them.
 	featParams: {"ATTR_FORMULA", "FILTER_EXPRESSION", "OVERLAY_FORMULA", featRegHoldout, featComposeOpt},
@@ -949,13 +964,17 @@ var groupEdges = map[string][][]string{
 	// Compose there is nothing to expand into, without the crosstab host
 	// there is no table to stitch.
 	featComposeBanner: {{featCompose}, {featCrosstab}},
+	// A sweep-bound fit is a `fits` entry bound from the sweep's ranked
+	// winner: without the sweep there is no winner, without fits no
+	// entry to bind it as.
+	featSweepBind: {{featComposeSweep}, {featComposeFits}},
 	// A multi-group fit is an inline SEM fit (MAT_SEM's or
 	// ATTR_SEM_SCORE's) that always models the means.
 	featSEMGroups: {{string(types.ATTR_SEM_SCORE), string(types.MAT_SEM)}, {featSEMMeans}},
 	featComposeFits: {
 		{featCompose},
 		{string(types.ATTR_FACTOR_SCORE), string(types.ATTR_MAHALANOBIS), string(types.ATTR_PC_SCORE),
-			string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_OLS), featMatrices},
+			string(types.REG_BAYES_LINEAR), string(types.REG_GLM), string(types.REG_MMM_BAYES), string(types.REG_MMM_HILL), string(types.REG_OLS), featMatrices},
 	},
 }
 

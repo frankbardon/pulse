@@ -38,14 +38,21 @@ func withModelsBound(ctx context.Context, set *model.Set) context.Context {
 // request's bound-model set. Called once, by pulse.New.
 func (s *Service) SetPopulations(set *model.Set) { s.populations = set }
 
+// catalogOf is models as a model.Catalog, nil (not a typed nil) when
+// models is nil — the catalog the windows-first sites read
+// (vectors.WindowsOverRecords).
+func catalogOf(models *model.Set) model.Catalog {
+	if models == nil {
+		return nil
+	}
+	return models
+}
+
 // populationCatalog is the registered populations as the static rule's
 // outer Catalog — nil (not a typed nil) when none are registered, so a
 // rule judging against it is exactly the one judging against nothing.
 func (s *Service) populationCatalog() model.Catalog {
-	if s.populations == nil {
-		return nil
-	}
-	return s.populations
+	return catalogOf(s.populations)
 }
 
 // ReadModelFile reads a model file's bytes at path (relative to the

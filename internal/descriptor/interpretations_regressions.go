@@ -20,6 +20,8 @@ import (
 var regressionInterpretations = map[string][]descriptor.Interpretation{
 	"REG_BAYES_LINEAR": interpRegBayesLinear,
 	"REG_GLM":          interpRegGLM,
+	"REG_MMM_BAYES":    interpRegMMMBayes,
+	"REG_MMM_HILL":     interpRegMMMHill,
 	"REG_OLS":          interpRegOLS,
 }
 
@@ -316,3 +318,141 @@ var interpRegBayesLinear = slices.Concat([]descriptor.Interpretation{
 	},
 	regNObs,
 })
+
+var interpRegMMMHill = slices.Concat([]descriptor.Interpretation{
+	{
+		Field: "coefficients.*",
+		Means: "A channel's coefficient is the most its curve can add to the outcome (the effect at full saturation), in outcome units, " +
+			"holding the other predictors fixed; a control's is the change in the outcome per unit of the control, holding the other predictors fixed; " +
+			"k:<channel> is the spend at which the channel delivers half its maximum and s:<channel> how sharply its curve bends there.",
+		Sign: regLinearSign,
+		Caveats: []string{
+			regCoefCausal,
+			"A channel's coefficient is held at 0 or above by default: exactly 0 means the data do not support an effect, not a proven absence of one.",
+			"A channel whose spend never reaches its k sits on a ridge where only the ratio of its coefficient to k^s is pinned down: " +
+				"judge it by its contribution, not by k or s.",
+			regInterceptAtZero,
+		},
+	},
+	{
+		Field: "std_errors.*",
+		Means: "How much the parameter would vary from sample to sample, from the curvature of the least-squares fit at its optimum " +
+			"(Gauss-Newton), mapped onto k and s.",
+		Caveats: []string{
+			"Null for a parameter that ends on its bound, and for the k and s of a channel whose coefficient is held at 0: the data cannot inform the shape of a curve that adds nothing.",
+			"It treats the carry-over decay as known; a decay chosen by a search makes the true uncertainty larger.",
+			"With rows ordered in time it is usually too small (see the independence assumption); resample bootstrap gives replicate ones.",
+		},
+	},
+	{
+		Field:  "p_values.*",
+		Shared: SharedPValue,
+		Caveats: []string{
+			"Null on a plain fit: the model reports none itself; under resample each comes from the replicate fits.",
+		},
+	},
+	{
+		Field: "statistics.*",
+		Means: "The Wald statistic: the parameter divided by its standard error, null where the standard error is.",
+		Caveats: []string{
+			"It is not converted to a p-value on a plain fit; a k or s statistic tests a value of 0 the curve never takes, so read it only as precision.",
+		},
+	},
+	{
+		Field: "outputs.*",
+		Means: "outputs.k and outputs.s repeat each channel's k:<channel> and s:<channel> coefficients as objects keyed by channel.",
+	},
+}, append(regCI("the parameter minus (lower) or plus (upper) a Student-t critical value on df times its standard error.",
+	regCIRepeated,
+	regCIOneAtATime,
+	"Null where the standard error is; under resample the critical value is the normal one on the replicate standard error.",
+), regConfLevel, descriptor.Interpretation{
+	Field: "df",
+	Means: "Residual degrees of freedom n minus every fitted parameter (intercept, channel coefficients, controls, and each channel's k and s).",
+}), []descriptor.Interpretation{
+	{
+		Field: "r2",
+		Means: "R-squared: the share of the outcome's variation around its mean that the fitted curves and controls account for in these rows.",
+		Caveats: []string{
+			"It is measured on the rows the model was fitted to; a holdout on the last periods shows how well the curves predict.",
+			"There are no published bands for a nonlinear model's R-squared, so none are attached.",
+		},
+	},
+	{
+		Field: "residual_std_err",
+		Means: regRSE + " It divides the residual sum of squares by df.",
+	},
+	{
+		Field: "deviance",
+		Means: "The residual sum of squares at the fit: lower is closer; compare it only across fits of the same rows and outcome.",
+	},
+	regNObs,
+	{
+		Field: "converged_iters",
+		Means: "Least-squares solver iterations taken before the fit settled.",
+		Caveats: []string{
+			"A fit that cannot converge within the iteration cap fails its slot alone rather than being reported.",
+		},
+	},
+})
+
+var interpRegMMMBayes = slices.Concat([]descriptor.Interpretation{
+	{
+		Field: "coefficients.*",
+		Means: "Each coefficient's posterior mean in original units: a channel's coefficient is the most its curve can add to the outcome (the effect at full saturation) " +
+			"and a control's the change in the outcome per unit of the control, each holding the other predictors fixed; " +
+			"decay:<channel>, k:<channel> and s:<channel> are each channel's carry-over, half-saturation spend and curve shape, and sigma the noise SD.",
+		Sign: regLinearSign,
+		Caveats: []string{
+			regCoefCausal,
+			"An experiment-measured prior on a channel's ROI anchors its effect.",
+			"k and s trade off against each other on a channel whose spend never reaches its k: judge it by its ROI and contribution, not by k or s.",
+			regInterceptAtZero,
+		},
+	},
+	{
+		Field: "std_errors.*",
+		Means: "The posterior standard deviation of each coefficient over every retained draw of every chain: the spread of what the data and the priors allow.",
+		Caveats: []string{
+			"It includes the carry-over decay's uncertainty, which a fit over already-adstocked channels cannot.",
+		},
+	},
+	{
+		Field:  "p_values.*",
+		Shared: SharedPValue,
+		Caveats: []string{
+			"Always null: the model reports no p-value; read the credible intervals in outputs instead.",
+		},
+	},
+	{
+		Field: "statistics.*",
+		Means: "Always null: the model reports no test statistic.",
+	},
+	{
+		Field: "outputs.*",
+		Means: "The posterior's own answers, each summary {mean, median, sd, lower, upper} with [lower, upper] the credible interval at credible_level: " +
+			"roi per channel, the outcome each unit of spend returned over the fitted period against spending nothing on it; " +
+			"mroi per channel, the return on the next unit of spend at the fitted level (below the ROI when the channel saturates); " +
+			"contribution per channel, the outcome it produced over the fitted period; params per coefficient; " +
+			"diagnostics, whether the chains agree and explored the posterior (R-hat at most 1.01, effective sample sizes of at least 400, no divergences or tree-depth hits); " +
+			"holdout, with params.holdout_from, the held-out periods' rmse and the share inside the predictive interval (near credible_level when the intervals are honest); " +
+			"and seed, the seed the sampler ran with.",
+		Caveats: []string{
+			"A credible interval is conditional on the model and the priors: a wrong adstock window, a missing control or a seasonal confounder moves it without widening it.",
+			"An ROI below 1 means the channel returned less outcome than it cost only when the outcome and the spend are in the same currency.",
+			"mroi is a local slope: it holds the fitted response curve fixed and is not the return of a large budget shift.",
+			"Contributions are attributed by the model; they are not observed.",
+			"A fit that fails a diagnostics check carries a PROCESSING_REGRESSION_DIAGNOSTIC warning naming it; its intervals may be too narrow or off-centre.",
+			"A short holdout gives a noisy coverage: with ten periods each one moves it by a tenth.",
+		},
+	},
+}, append(regCI("the posterior mean minus (lower) or plus (upper) a normal critical value times the posterior SD, a normal approximation to the posterior.",
+	"For a skewed posterior (a decay near 0 or 1, a k on its floor) it can leave the parameter's range: read the credible intervals in outputs.params instead.",
+	regCIOneAtATime,
+), regConfLevel, descriptor.Interpretation{
+	Field: "n_obs",
+	Means: "Rows used in the fit, after rows with a null target or predictor were dropped; with params.holdout_from, the held-out rows are counted too.",
+	Caveats: []string{
+		"A dropped row leaves a gap in the series, which the model refuses: the series must stay contiguous.",
+	},
+}))

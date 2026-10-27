@@ -46,8 +46,8 @@ smoke:
 	cd internal/embeddersmoke && GOFLAGS=-mod=mod $(GO) vet ./... && GOFLAGS=-mod=mod $(GO) test -count=1 ./...
 
 # contrib vets, lints (staticcheck), checks tidiness of and tests every
-# nested module under contrib/ (the otelpulse / prompulse adapters and the
-# mmmpulse model pack): separate Go modules with their own go.mod +
+# nested module under contrib/ (the otelpulse / prompulse observability
+# adapters): separate Go modules with their own go.mod +
 # go.sum, `require pulse` at the matching root version and
 # `replace => ../..` for in-repo development. Unlike
 # `make smoke` these are PUBLISHED modules, so there is no -mod=mod: a

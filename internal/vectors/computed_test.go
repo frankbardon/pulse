@@ -27,7 +27,7 @@ func computedRequest() *types.Request {
 // a categorical keeps the state field's type.
 func TestComputedColumns(t *testing.T) {
 	s := testSchema()
-	got := ComputedColumns(computedRequest(), s)
+	got := ComputedColumns(computedRequest(), s, nil)
 	want := Computed{
 		"LOG_q_2":         {Slot: "feature", Index: 0, Type: encoding.FieldTypeF64},
 		"imp":             {Slot: "attribute", Index: 0, Type: encoding.FieldTypeF64},
@@ -39,18 +39,18 @@ func TestComputedColumns(t *testing.T) {
 	}
 	grouped := computedRequest()
 	grouped.Aggregations = []*types.Aggregation{{Type: types.AGG_COUNT, Field: "q_1"}}
-	if _, ok := ComputedColumns(grouped, s)["lag"]; ok {
+	if _, ok := ComputedColumns(grouped, s, nil)["lag"]; ok {
 		t.Error("a window over aggregated rows is no record column")
 	}
 	shadow := &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_FORMULA, Label: "q_1", Expression: "q_2"}}}
-	if c := ComputedColumns(shadow, s); c != nil {
+	if c := ComputedColumns(shadow, s, nil); c != nil {
 		t.Errorf("a label equal to a schema field is computed: %+v", c)
 	}
-	if ComputedColumns(&types.Request{}, s) != nil || ComputedColumns(nil, s) != nil {
+	if ComputedColumns(&types.Request{}, s, nil) != nil || ComputedColumns(nil, s, nil) != nil {
 		t.Error("a request computing nothing has computed columns")
 	}
 	prev := &types.Request{Attributes: []*types.Attribute{{Type: types.ATTR_PREVIOUS_STATE, Field: "region", Label: "was"}}}
-	if c := ComputedColumns(prev, s)["was"]; c.Type != encoding.FieldTypeCategoricalU8 {
+	if c := ComputedColumns(prev, s, nil)["was"]; c.Type != encoding.FieldTypeCategoricalU8 {
 		t.Errorf("previous-state column type %v, want the state field's", c.Type)
 	}
 }
@@ -68,7 +68,7 @@ func TestResolveRequest_ComputedMembers(t *testing.T) {
 		{Name: "g", Fields: []string{"q_*", "im*"}},
 		{Name: "plain", Fields: []string{"q_1", "q_2"}},
 	}
-	got, err := ResolveRequest(req, s)
+	got, err := ResolveRequest(req, s, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,21 +88,21 @@ func TestResolveRequest_ComputedMembers(t *testing.T) {
 		t.Errorf("Resolve without the request admits a computed member: %v", err)
 	}
 	req.Vectors = []types.VectorSpec{{Name: "v", Fields: []string{"q_1", "nosuch"}}}
-	if _, err := ResolveRequest(req, s); err == nil || err.Code != errors.SERVICE_VALIDATION || err.Details["field"] != "nosuch" {
+	if _, err := ResolveRequest(req, s, nil); err == nil || err.Code != errors.SERVICE_VALIDATION || err.Details["field"] != "nosuch" {
 		t.Errorf("unknown literal: %v", err)
 	}
 	prev := &types.Request{
 		Attributes: []*types.Attribute{{Type: types.ATTR_PREVIOUS_STATE, Field: "region", Label: "was"}},
 		Vectors:    []types.VectorSpec{{Name: "v", Fields: []string{"q_1", "was"}}},
 	}
-	if _, err := ResolveRequest(prev, s); err == nil || err.Code != errors.PULSE_VECTOR_MEMBER_TYPE || err.Details["field"] != "was" {
+	if _, err := ResolveRequest(prev, s, nil); err == nil || err.Code != errors.PULSE_VECTOR_MEMBER_TYPE || err.Details["field"] != "was" {
 		t.Errorf("categorical computed member: %v", err)
 	}
 	// Members (projection) resolves the computed vector and adds no
 	// computed name as a source field it could not decode.
 	req = computedRequest()
 	req.Vectors = []types.VectorSpec{{Name: "v", Fields: []string{"q_1", "imp"}}}
-	if m, ok := Members(req, s); !ok || !slices.Equal(m, []string{"q_1", "imp"}) {
+	if m, ok := Members(req, s, nil); !ok || !slices.Equal(m, []string{"q_1", "imp"}) {
 		t.Errorf("Members = %v, %v", m, ok)
 	}
 }
@@ -127,10 +127,10 @@ func TestResolveMatrices_ComputedMembers(t *testing.T) {
 		!slices.Equal(mats[2].Extra, []string{"LOG_q_2"}) {
 		t.Errorf("matrices = %+v", mats)
 	}
-	if got := MatrixComputedMembers(req, s); !slices.Equal(got, []string{"imp", "lag", "LOG_q_2"}) {
+	if got := MatrixComputedMembers(req, s, nil); !slices.Equal(got, []string{"imp", "lag", "LOG_q_2"}) {
 		t.Errorf("MatrixComputedMembers = %v", got)
 	}
-	if m, ok := MatrixMembers(req, s); !ok || slices.Contains(m, "LOG_q_2") {
+	if m, ok := MatrixMembers(req, s, nil); !ok || slices.Contains(m, "LOG_q_2") {
 		t.Errorf("MatrixMembers = %v, %v", m, ok)
 	}
 }

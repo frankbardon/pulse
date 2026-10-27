@@ -123,6 +123,21 @@ func (p *Processor) SetModels(models *model.Set) {
 	p.models = models
 }
 
+// catalog is the processor's bound models as the catalog every
+// windows-first site reads (vectors.WindowsOverRecords through
+// ComputedColumns, ResolveRequest and the per-slot resolvers; the
+// post-window plan): nil when none is bound.
+func (p *Processor) catalog() model.Catalog { return catalogOf(p.models) }
+
+// catalogOf is models as a model.Catalog, nil (not a typed nil) when
+// models is nil.
+func catalogOf(models *model.Set) model.Catalog {
+	if models == nil {
+		return nil
+	}
+	return models
+}
+
 // PhaseLapper receives a processor's phase boundaries: Lap(ph) closes
 // the segment since the previous boundary as phase ph. Boundaries sit
 // between stages, never per row. The service installs its
@@ -1037,7 +1052,7 @@ func (p *Processor) processStreamingGrouped(ctx context.Context, req *types.Requ
 	}
 	// Per-bucket matrix slots, minted with the bucket (nil without
 	// matrices).
-	matrices, err := BuildGroupedMatrices(req, p.schema, p.exts, p.compute, p.limits)
+	matrices, err := BuildGroupedMatrices(req, p.schema, p.exts, p.compute, p.limits, p.models)
 	if err != nil {
 		return nil, err
 	}
@@ -1818,6 +1833,22 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		return nil, err
 	}
 
+	// Windows-first (vectors.WindowsFirst — an aggregation, grouper or
+	// crosstab axis reading a window or post-window label): the windows
+	// run HERE, over the filtered record rows, ahead of step 3
+	// (windowsFirstPass) — so the groups and aggregations read the
+	// window outputs off the records as if they were columns. The
+	// response rows are the group / aggregation rows.
+	windowsFirst := post.WindowsFirst
+	if windowsFirst {
+		if err := p.windowsFirstPass(ctx, req, post, filtered, attrSlots); err != nil {
+			return nil, err
+		}
+		if post.Any() {
+			attrWarnings, attrComps = mergeAttrSlots(attrSlots)
+		}
+	}
+
 	// Step 3: Group if needed, then aggregate
 	var data []map[string]any
 	var aggComponents []types.AggregationComponents
@@ -1845,7 +1876,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// u64 field.
 	var rowWords *u64RowWords
 	if len(req.Groups) > 0 {
-		if groupedMatrices, err = BuildGroupedMatrices(req, p.schema, p.exts, p.compute, p.limits); err != nil {
+		if groupedMatrices, err = BuildGroupedMatrices(req, p.schema, p.exts, p.compute, p.limits, p.models); err != nil {
 			return nil, err
 		}
 		groupedMatrices.bindContext(ctx)
@@ -1884,7 +1915,7 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 		keyOrders = windowKeyOrders(p.groupKeyOrders(req.Groups))
 	}
 
-	if len(req.Windows) > 0 {
+	if len(req.Windows) > 0 && !windowsFirst {
 		if err := p.applyWindows(ctx, data, req.Windows, keyOrders, rowWords.copyObserver()); err != nil {
 			return nil, err
 		}
@@ -1900,7 +1931,8 @@ func (p *Processor) processRecords(ctx context.Context, req *types.Request, reco
 	// Step 4b: the post-window attributes (only ever over the record
 	// rows), in declared order over the window-copied records; their
 	// warnings and Components entries rejoin the declared slot order.
-	if post.Any() {
+	// Windows-first ran them ahead of step 3.
+	if post.Any() && !windowsFirst {
 		if err := p.applyPostWindowAttributes(req, post, filtered, data, attrSlots); err != nil {
 			return nil, err
 		}

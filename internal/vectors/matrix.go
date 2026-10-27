@@ -10,6 +10,7 @@ import (
 
 	"github.com/frankbardon/pulse/encoding"
 	"github.com/frankbardon/pulse/errors"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/internal/paramread"
 	"github.com/frankbardon/pulse/linalg/metric"
 	"github.com/frankbardon/pulse/types"
@@ -832,7 +833,7 @@ func ResolveMatrices(req *types.Request, schema *encoding.Schema, known func(typ
 // extension grouper (ResolveGroups' ext: it is then accepted, its
 // member set judged); nil means none is.
 func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known func(types.MatrixType) bool, route func(types.GroupType) types.GroupType, ext func(string) bool) ([]Matrix, *errors.CodedError) {
-	return ResolveMatricesWith(req, schema, MatrixResolve{Known: known, Route: route, BetweenExt: ext})
+	return ResolveMatricesWith(req, schema, nil, MatrixResolve{Known: known, Route: route, BetweenExt: ext})
 }
 
 // ResolveMatricesWith is ResolveMatricesRouted plus the extension MAT_*
@@ -841,8 +842,11 @@ func ResolveMatricesRouted(req *types.Request, schema *encoding.Schema, known fu
 // missing / max_drop_share — with its other params kept opaque
 // (Matrix.ExtParams), its declared tier as Streamable / Mergeable, and
 // a member whose column type its non-empty Accepts does not list
-// refused with PULSE_VECTOR_MEMBER_TYPE.
-func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, o MatrixResolve) ([]Matrix, *errors.CodedError) {
+// refused with PULSE_VECTOR_MEMBER_TYPE. cat is the site's bound-model
+// catalog, read by the windows-first decision a window-label member
+// resolves through (ResolveRequest; nil none) — a parameter, not an
+// o field, so o's callbacks never escape with it.
+func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, cat model.Catalog, o MatrixResolve) ([]Matrix, *errors.CodedError) {
 	known, route, ext := o.Known, o.Route, o.BetweenExt
 	if route == nil {
 		route = func(t types.GroupType) types.GroupType { return t }
@@ -850,7 +854,7 @@ func ResolveMatricesWith(req *types.Request, schema *encoding.Schema, o MatrixRe
 	if req == nil {
 		return nil, nil
 	}
-	computed := ComputedColumns(req, schema)
+	computed := ComputedColumns(req, schema, cat)
 	resolved, verr := resolveIn(req.Vectors, schema, computed)
 	if verr != nil {
 		return nil, verr
@@ -1976,12 +1980,14 @@ func decodeStrict(raw []byte, v any) error {
 // MAT_PARTIAL_CORRELATION params.control entry (a control outside the
 // members joins the fold) — and whether every one resolved (projection
 // decodes wide otherwise).
-func MatrixMembers(req *types.Request, schema *encoding.Schema) (members []string, ok bool) {
+// cat is the site's bound-model catalog, read by the windows-first
+// decision (ResolveRequest; nil none).
+func MatrixMembers(req *types.Request, schema *encoding.Schema, cat model.Catalog) (members []string, ok bool) {
 	if req == nil || len(req.Matrices) == 0 {
 		return nil, true
 	}
 	ok = true
-	computed := ComputedColumns(req, schema)
+	computed := ComputedColumns(req, schema, cat)
 	for i, spec := range req.Matrices {
 		if spec.Type == types.MAT_PARTIAL_CORRELATION {
 			members, ok = appendControlFields(members, ok, matrixPath(i), spec, schema, computed)

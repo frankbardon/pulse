@@ -6,6 +6,7 @@ import (
 	"github.com/frankbardon/pulse/encoding"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
 	"github.com/frankbardon/pulse/internal/limits"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -53,6 +54,9 @@ func (s *Service) limitInputs(ctx context.Context, cohort *Cohort, path string) 
 		// with the request's disable_components (componentsGateClosed's
 		// rule), so the pre-flight charges the output the run builds.
 		DisableComponents: s.DisableComponents(),
+		// The run's bound models: the windows-first decision the
+		// estimates' vector resolution reads (predict's walk catalog).
+		Models: catalogOf(model.SetFrom(ctx)),
 	}
 	if !s.memoryBounded() {
 		return in, nil

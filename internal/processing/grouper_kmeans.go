@@ -646,7 +646,7 @@ func (p *Processor) resolveGroupInputs(req *types.Request) *types.Request {
 	if !has {
 		return req
 	}
-	inputs, err := vectors.ResolveGroups(req, p.schema, func(t types.GroupType) types.GroupType {
+	inputs, err := vectors.ResolveGroups(req, p.schema, p.catalog(), func(t types.GroupType) types.GroupType {
 		if p.exts.isHidden(string(t)) {
 			return ""
 		}

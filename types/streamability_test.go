@@ -385,6 +385,8 @@ func TestRegressionTypesKnown(t *testing.T) {
 		REG_OLS:          true,
 		REG_GLM:          false,
 		REG_BAYES_LINEAR: true,
+		REG_MMM_BAYES:    false,
+		REG_MMM_HILL:     false,
 	}
 	for _, rt := range AllRegressionTypes() {
 		want, ok := expected[rt]

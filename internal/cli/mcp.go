@@ -8,7 +8,6 @@ import (
 
 	"github.com/frankbardon/pulse"
 	"github.com/frankbardon/pulse/descriptor"
-	perrors "github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/limits"
 	"github.com/frankbardon/pulse/internal/obsprom"
 	"github.com/frankbardon/pulse/mcp/gosdk"
@@ -57,12 +56,6 @@ func MCPCommand(version string) *cli.Command {
 				Usage: "Response preset (" + pipeList(types.AllReturnPresets()) + ") for a tool request without its own return block. " +
 					"Unset: the instance or feature-profile return default, else standard. full serves the unshaped library output.",
 			},
-			&cli.StringSliceFlag{
-				Name: "limit",
-				Usage: "Instance resource limit as name=value (repeatable; names: " + commaList(pulse.LimitNames()) + "). " +
-					"Values: a positive integer, a Go duration for request_timeout (30s), unlimited (or -1), or 0 for the default. " +
-					"Overrides the feature profile's limits section per key; an unknown name or bad value fails startup with CLI_INPUT.",
-			},
 			&cli.StringFlag{
 				Name: "metrics-addr",
 				Usage: "Serve Prometheus text-format metrics on GET /metrics at this host:port (e.g. 127.0.0.1:9090; :0 picks a free port). " +
@@ -80,10 +73,7 @@ func MCPCommand(version string) *cli.Command {
 				return fmt.Errorf("data directory required: set PULSE_DATA_DIR or pass --data-dir")
 			}
 
-			opts, err := mcpPulseOptions(ctx, dataDir, cmd.StringSlice("limit"))
-			if err != nil {
-				return err
-			}
+			opts := mcpPulseOptions(ctx, dataDir)
 			// Logs go to stderr only (stdout is the JSON-RPC transport);
 			// metrics are recorded only when an exporter is asked for.
 			metricsAddr := cmd.String("metrics-addr")
@@ -208,54 +198,10 @@ func tunedLimits(effective []descriptor.LimitMeta) string {
 }
 
 // mcpPulseOptions builds the pulse.Options `pulse mcp` constructs its
-// instance from: the data directory, the --limit layer and the root
-// persistent flags in ctx (withGlobals: the stderr logger and the
-// --shard-workers / --decode-workers caps).
-func mcpPulseOptions(ctx context.Context, dataDir string, limitSpecs []string) (pulse.Options, error) {
-	lims, err := parseLimitFlags(limitSpecs)
-	if err != nil {
-		return pulse.Options{}, err
-	}
-	return withGlobals(ctx, pulse.Options{DataDir: dataDir, Limits: lims}), nil
-}
-
-// parseLimitFlags turns repeated `--limit name=value` flags into the
-// Options.Limits input layer (0 = default, so an unset key defers to the
-// feature profile and then the built-in default). A later flag for the
-// same name wins. A malformed pair, an unknown name or a bad value is
-// CLI_INPUT with details {flag, value} (+ limit when the name parsed).
-func parseLimitFlags(specs []string) (pulse.Limits, error) {
-	var out pulse.Limits
-	for _, spec := range specs {
-		key, raw, ok := strings.Cut(spec, "=")
-		key = strings.TrimSpace(key)
-		if !ok || key == "" {
-			return pulse.Limits{}, limitFlagError(spec, "",
-				"--limit "+spec+": want name=value (e.g. max_groups=1000000, request_timeout=30s)")
-		}
-		n, err := limits.ParseName(key)
-		if err != nil {
-			return pulse.Limits{}, limitFlagError(spec, "",
-				"--limit "+spec+": unknown limit "+key+"; known: "+limitNameList())
-		}
-		v, err := limits.ParseValue(n, raw)
-		if err != nil {
-			return pulse.Limits{}, limitFlagError(spec, n,
-				"--limit "+spec+": bad value for "+key+": "+err.Error())
-		}
-		limits.Set(&out, n, v)
-	}
-	return out, nil
-}
-
-func limitNameList() string {
-	return commaList(pulse.LimitNames())
-}
-
-func limitFlagError(spec string, n limits.Name, msg string) error {
-	details := map[string]any{"flag": "limit", "value": spec}
-	if n != "" {
-		details["limit"] = string(n)
-	}
-	return perrors.NewCodedErrorWithDetails(perrors.CLI_INPUT, msg, details)
+// instance from: the data directory and the root persistent flags in ctx
+// (withGlobals: the stderr logger, the --shard-workers / --decode-workers
+// caps and the --limit layer, which mcpserve.NewPulse then layers over
+// the feature profile's limits section per key).
+func mcpPulseOptions(ctx context.Context, dataDir string) pulse.Options {
+	return withGlobals(ctx, pulse.Options{DataDir: dataDir})
 }

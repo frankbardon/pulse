@@ -83,6 +83,15 @@ func (f *multFamilies) add(key string, family types.MultiplicityFamily, method t
 	fam.sites = append(fam.sites, site)
 }
 
+// drop removes the family keyed key (a no-op when none was collected).
+func (f *multFamilies) drop(key string) {
+	if _, ok := f.byKey[key]; !ok {
+		return
+	}
+	delete(f.byKey, key)
+	f.order = slices.DeleteFunc(f.order, func(k string) bool { return k == key })
+}
+
 // fold adjusts every collected family once and writes each site's
 // adjusted figure. NaN p-values are excluded from m, come back NaN and
 // are counted as the family's excluded members.

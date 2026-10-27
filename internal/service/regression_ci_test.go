@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	stderrors "errors"
 	"fmt"
 	"os"
@@ -188,8 +189,13 @@ func TestRegressionCI_ConfLevelRefusedByPredictAndRuntime(t *testing.T) {
 	for _, typ := range types.AllRegressionTypes() {
 		for _, lv := range []float64{-0.5, 1, 2} {
 			spec := &types.RegressionSpec{Type: typ, Target: "am", Predictors: []string{"wt"}, ConfLevel: lv}
-			if typ == types.REG_GLM {
+			switch typ {
+			case types.REG_GLM:
 				spec.Family = "binomial"
+			case types.REG_MMM_HILL:
+				spec.Params = json.RawMessage(`{"channels":["wt"]}`)
+			case types.REG_MMM_BAYES:
+				spec.Params = json.RawMessage(`{"channels":["wt"],"time":"gear"}`)
 			}
 			req := &types.Request{
 				Cohort:      &types.Cohort{Filename: filepath.Join(dir, "mtcars.pulse")},

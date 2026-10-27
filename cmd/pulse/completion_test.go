@@ -397,6 +397,8 @@ func TestCompletion_FlagValues(t *testing.T) {
 		{[]string{"pulse", "features", "init", "--from"}, sortedCopy(pulse.ExampleFeatureProfiles())},
 		{[]string{"pulse", "mcp", "--return"}, sortedStrs(types.AllReturnPresets())},
 		{[]string{"pulse", "mcp", "--limit"}, limitAssignments()},
+		{[]string{"pulse", "--limit"}, limitAssignments()},
+		{[]string{"pulse", "api", "compose", "--limit"}, limitAssignments()},
 	} {
 		t.Run(strings.Join(tc.words[1:], " "), func(t *testing.T) {
 			out, stderr, st := completeWords(t, tc.words...)

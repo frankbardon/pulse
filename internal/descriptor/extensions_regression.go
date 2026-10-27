@@ -74,10 +74,13 @@ func (s *ExtensionsSnapshot) regression(name string) (descriptor.OperatorMeta, E
 	return descriptor.OperatorMeta{}, ExtensionRegression{}, false
 }
 
-// regressionExtensionFor returns t's extension REG_* entry when the
-// instance registers t and does not hide it (snap, else the instance's
-// own projection). A built-in type, an unknown one and a hidden one all
-// report false.
+// regressionExtensionFor returns t's extension-shaped REG_* entry when
+// the instance offers t and does not hide it: a registered extension
+// model (snap, else the instance's own projection) or a model
+// regression (model.ModelRegression — a built-in authored on the
+// extension contract, declared in regression_models.go, which the
+// runtime drives through the same adapter). A coefficient-shaped
+// built-in, an unknown type and a hidden one all report false.
 func regressionExtensionFor(inst *InstanceSnapshot, snap *ExtensionsSnapshot, t types.RegressionType) (descriptor.OperatorMeta, ExtensionRegression, bool) {
 	if snap == nil {
 		snap = inst.Extensions()
@@ -85,7 +88,10 @@ func regressionExtensionFor(inst *InstanceSnapshot, snap *ExtensionsSnapshot, t 
 	if inst.Hidden(string(t)) {
 		return descriptor.OperatorMeta{}, ExtensionRegression{}, false
 	}
-	return snap.regression(string(t))
+	if m, d, ok := snap.regression(string(t)); ok {
+		return m, d, true
+	}
+	return modelRegressionFor(t)
 }
 
 // isRegisteredRegression reports whether t is an extension REG_* model

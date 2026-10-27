@@ -6,7 +6,7 @@ import (
 	"github.com/frankbardon/pulse/errors"
 	"github.com/frankbardon/pulse/internal/banner"
 	descx "github.com/frankbardon/pulse/internal/descriptor"
-	"github.com/frankbardon/pulse/internal/sweep"
+	"github.com/frankbardon/pulse/internal/model"
 	"github.com/frankbardon/pulse/types"
 )
 
@@ -18,6 +18,13 @@ type composeRank struct {
 	spec     *types.SweepRank
 	explicit int
 	count    int
+	// axes are the sweep slots' axis values (banner.Expansion.SweepAxes),
+	// carried onto every RankEntry.
+	axes []map[string]any
+	// ranked is the ranking a sweep-bound batch computed in phase 0
+	// (done set): the one the response reports, never recomputed.
+	ranked []types.RankEntry
+	done   bool
 }
 
 // composeExpansion is what the as-written request hands the finished
@@ -28,6 +35,18 @@ type composeExpansion struct {
 	// seed is a sampling sweep's effective seed (nil without one),
 	// echoed as ComposedResponse.SweepSeed.
 	seed *int64
+	// sweepFits is the scope a from_sweep fit is judged against and
+	// resolved over (descx.SweepFitScope — predict builds the same).
+	sweepFits model.SweepScope
+}
+
+// sweepAxes are the batch's sweep's axis names (the axes sweep_axis()
+// may read off a sweep-bound fit), nil without a sweep. Nil-safe.
+func (e *composeExpansion) sweepAxes() []string {
+	if e == nil {
+		return nil
+	}
+	return e.sweepFits.Axes
 }
 
 // expandCompose returns the effective request Compose and
@@ -60,7 +79,7 @@ func (s *Service) expandCompose(composed *types.ComposedRequest) (*types.Compose
 	}
 	ext := &composeExpansion{banner: exp.Banner, seed: exp.SweepSeed}
 	if composed.Sweep != nil && composed.Sweep.Rank != nil {
-		ext.rank = &composeRank{spec: composed.Sweep.Rank, explicit: exp.Explicit, count: len(exp.SweepLabels)}
+		ext.rank = &composeRank{spec: composed.Sweep.Rank, explicit: exp.Explicit, count: len(exp.SweepLabels), axes: exp.SweepAxes}
 	}
 	// The top-level params merge into every slot (sweep and banner
 	// slots included) and every fit request, each sub-request's own key
@@ -69,7 +88,31 @@ func (s *Service) expandCompose(composed *types.ComposedRequest) (*types.Compose
 	if cerr != nil {
 		return nil, nil, cerr
 	}
+	ext.sweepFits = descx.SweepFitScope(composed, effective, exp.Explicit, len(exp.SweepLabels))
 	return effective, ext, nil
+}
+
+// checkComposeFits runs the fits' structural rules over the batch's
+// sweep (model.CheckFitsIn — predict runs the same at the same point)
+// and returns the request the batch runs: composed with every
+// from_sweep fit's request resolved off the first sweep slot
+// (model.ResolveSweepFits), composed itself when it has none. The
+// caller's request — what NormalizedRequest echoes — is never mutated.
+func checkComposeFits(composed *types.ComposedRequest, ext *composeExpansion) (*types.ComposedRequest, error) {
+	var scope model.SweepScope
+	if ext != nil {
+		scope = ext.sweepFits
+	}
+	if err := model.CheckFitsIn(composed.Fits, scope); err != nil {
+		return nil, err
+	}
+	resolved := model.ResolveSweepFits(composed.Fits, scope)
+	if len(resolved) == 0 || &resolved[0] == &composed.Fits[0] {
+		return composed, nil
+	}
+	out := *composed
+	out.Fits = resolved
+	return &out, nil
 }
 
 // rankVetoKey marks a ranked sweep slot's ctx: the slot computes every
@@ -118,17 +161,13 @@ func applyComposeRank(rank *composeRank, requests []*types.Request, out *types.C
 	if rank == nil {
 		return nil
 	}
-	n := rank.count
-	if rank.explicit+n > len(out.Responses) {
-		n = max(len(out.Responses)-rank.explicit, 0)
+	if rank.done {
+		// A sweep-bound batch ranked in phase 0, and bound its fits
+		// from that ranking: report it as computed.
+		out.Ranking = rank.ranked
+		return nil
 	}
-	labels := make([]string, n)
-	for i := range labels {
-		if r := requests[rank.explicit+i]; r != nil {
-			labels[i] = r.Label
-		}
-	}
-	ranking, err := sweep.Rank(rank.spec, labels, out.Responses[rank.explicit:rank.explicit+n])
+	ranking, err := rankComposeSweep(rank, requests, out.Responses)
 	if err != nil {
 		return err
 	}

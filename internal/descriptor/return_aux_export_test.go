@@ -36,7 +36,7 @@ func PredictedMatrixAuxiliaryKeys(cohort []byte, req *types.Request) ([][]string
 		return nil, err
 	}
 	result := &descriptor.PredictResult{}
-	plans := predictMatrices(result, req, schema, nil, nil, -1, 0, -1)
+	plans := predictMatrices(result, req, schema, nil, nil, nil, -1, 0, -1)
 	elem := []returnplan.Segment{returnplan.Key("matrices"), returnplan.Elem()}
 	out := make([][]string, len(plans))
 	for i, m := range plans {

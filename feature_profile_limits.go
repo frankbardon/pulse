@@ -8,7 +8,7 @@ import (
 
 // FeatureProfileLimits is a feature profile's `limits` section: the
 // instance resource limits the profile supplies. Keys are the
-// snake_case limit names (the spelling `pulse mcp --limit` and every
+// snake_case limit names (the spelling the root `--limit` flag and every
 // PULSE_LIMIT_* error's `limit` detail use). The encoding matches
 // Options.Limits: an absent or 0 key means "use the built-in default",
 // -1 (pulse.Unlimited) means no limit, and any other negative value is
@@ -54,7 +54,7 @@ type FeatureProfileLimits struct {
 // any value below Unlimited, returning the offending limit name and its
 // value as written; ok is false on a refusal.
 func featureProfileLimitsValue(fl *FeatureProfileLimits) (l limits.Limits, bad limits.Name, value any, ok bool) {
-	// The same text grammar as `pulse mcp --limit request_timeout=`.
+	// The same text grammar as the root `--limit request_timeout=`.
 	if fl.RequestTimeout != "" {
 		v, err := limits.ParseValue(limits.RequestTimeout, fl.RequestTimeout)
 		if err != nil {

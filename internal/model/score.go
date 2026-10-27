@@ -121,6 +121,15 @@ type Signature struct {
 	// always knows them; predict's static FitCatalog never resolves a
 	// battery, so it leaves them nil. Nil on a regression.
 	Members []string
+
+	// SweepBound reports a regression fit bound from a Compose sweep's
+	// winner (a `fits` entry with `from_sweep`): the fit sweep_axis()
+	// reads. SweepAxes are the sweep's axis names (sorted) when known
+	// (SweepAxesKnown): the runtime's Set always knows them, a static
+	// FitCatalog once WithSweepAxes gave it the batch's sweep.
+	SweepBound     bool
+	SweepAxes      []string
+	SweepAxesKnown bool
 }
 
 // EffectiveKind is Kind, types.FitKindRegression when unset.
@@ -170,6 +179,9 @@ func (b *Bound) Signature() Signature {
 	sig := Signature{Name: b.Name, Type: b.Type, Target: b.Target, Terms: append([]string(nil), b.Terms...), Source: b.Source, Kind: types.FitKindRegression}
 	if !BuiltinRegression(b.Type) && b.Result != nil {
 		sig.Coefficients, sig.CoefficientsKnown = sortedKeys(b.Result.Coefficients), true
+	}
+	if b.SweepBound {
+		sig.SweepBound, sig.SweepAxes, sig.SweepAxesKnown = true, sortedAxisNames(b.SweepAxes), true
 	}
 	return sig
 }
@@ -225,7 +237,19 @@ func CatalogFromFits(fits []types.FitSpec) FitCatalog {
 		switch FitKindOf(f.Request) {
 		case types.FitKindRegression:
 			reg := f.Request.Regressions[0]
-			out[f.Name] = Signature{Name: f.Name, Type: reg.Type, Target: reg.Target, Terms: append([]string(nil), reg.Predictors...), Source: FitSource(i), Kind: types.FitKindRegression}
+			sig := Signature{Name: f.Name, Type: reg.Type, Target: reg.Target, Terms: append([]string(nil), reg.Predictors...), Source: FitSource(i), Kind: types.FitKindRegression}
+			if terms, ok := ModelRegressionTerms(reg); ok {
+				// A model regression declares its own coefficient names
+				// (the term catalog), so predict judges a coef() term as
+				// the bound fit will.
+				slices.Sort(terms)
+				sig.Coefficients, sig.CoefficientsKnown = terms, true
+			}
+			// A from_sweep fit (its request resolved off the first
+			// sweep slot) reads its winning axes through sweep_axis();
+			// their names are the batch's sweep's (WithSweepAxes).
+			sig.SweepBound = f.FromSweep != nil
+			out[f.Name] = sig
 		case types.FitKindVector:
 			out[f.Name] = Signature{Name: f.Name, Source: FitSource(i), Kind: types.FitKindVector}
 		case types.FitKindSEM:
@@ -275,10 +299,15 @@ func ScorableType(t types.RegressionType) bool {
 type ScorableFunc func(t types.RegressionType) bool
 
 // BuiltinRegression reports whether t is a built-in regression type
-// (types.AllRegressionTypes) — any other bound type is an extension
-// regression's.
+// with the engine's own coefficient shape — the intercept plus one
+// coefficient per predictor (types.AllRegressionTypes less the model
+// regressions, ModelRegression). Any other bound type names its own
+// coefficients: an extension regression's, or a model regression's,
+// which is authored on the extension contract and so is shaped like
+// one (model file version 3, coef() on its own names, a scorer that
+// scores the whole model).
 func BuiltinRegression(t types.RegressionType) bool {
-	return slices.Contains(types.AllRegressionTypes(), t)
+	return slices.Contains(types.AllRegressionTypes(), t) && !ModelRegression(t)
 }
 
 // CheckScore is the one rule over a scoring reference (an

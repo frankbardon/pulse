@@ -53,4 +53,4 @@ One `float64` per row written to `Label` (default `WIN_RUNNING_SUM_<field>`). Su
 ## See
 
 - `pulse_examples_search tags=[time-series]`
-- Skills: [`window-design`](window-design.md), [`op-win-running-avg`](op-win-running-avg.md), [`op-win-moving-avg`](op-win-moving-avg.md)
+- Skills: [`window-design`](window-design.md), [`op-win-running-avg`](op-win-running-avg.md), [`op-win-moving-avg`](op-win-moving-avg.md), [`windows-first`](windows-first.md) (aggregate the total)

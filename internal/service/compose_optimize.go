@@ -19,11 +19,11 @@ import (
 // block's decoded `models` files (index-aligned) when every block
 // passes, nil without any block. It runs right after model.CheckFits,
 // before any fit or slot.
-func (s *Service) optimizeRefusal(composed *types.ComposedRequest) ([]*model.Loaded, error) {
+func (s *Service) optimizeRefusal(composed *types.ComposedRequest, ext *composeExpansion) ([]*model.Loaded, error) {
 	if len(composed.Optimize) == 0 {
 		return nil, nil
 	}
-	loaded, cerr := descx.OptimizeRefusal(composed, s.exprFunctionNames(), s.hasLookup(), s.populationCatalog(), s.optimizeLoader)
+	loaded, cerr := descx.OptimizeRefusal(composed, ext.sweepAxes(), s.exprFunctionNames(), s.hasLookup(), s.populationCatalog(), s.optimizeLoader)
 	if cerr != nil {
 		return nil, cerr
 	}
@@ -76,12 +76,12 @@ func (s *Service) optimizeLoader(refs model.Refs) (*model.Loaded, *errors.CodedE
 // the block's own code instead. Any other fault is fatal. Serial and
 // ComposeParallel call it identically, so both answer the same bytes.
 // No block returns all nils.
-func (s *Service) runComposeOptimize(composed *types.ComposedRequest, fits *model.Set, loaded []*model.Loaded) ([]types.OptimizeResult, []*types.ResponseWarning, error) {
+func (s *Service) runComposeOptimize(composed *types.ComposedRequest, ext *composeExpansion, fits *model.Set, loaded []*model.Loaded) ([]types.OptimizeResult, []*types.ResponseWarning, error) {
 	if len(composed.Optimize) == 0 {
 		return nil, nil, nil
 	}
 	params, _ := exprenv.NormalizeParams(composed.Params)
-	catalog := model.CatalogFromFits(composed.Fits)
+	catalog := model.CatalogFromFits(composed.Fits).WithSweepAxes(ext.sweepAxes())
 	env := optblock.Env{
 		Params:     params,
 		Fits:       catalog,

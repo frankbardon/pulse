@@ -712,7 +712,7 @@ func attributeSlotLabel(attr *types.Attribute) string {
 // field-reference pass has refused that request; the factory refuses an
 // unresolved Vector). The caller's request is never mutated.
 func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
-	return ResolveAttributeInputs(req, p.schema, p.exts)
+	return ResolveAttributeInputs(req, p.schema, p.exts, p.catalog())
 }
 
 // ResolveAttributeInputs is resolveAttributeInputs without a Processor:
@@ -720,8 +720,8 @@ func (p *Processor) resolveAttributeInputs(req *types.Request) *types.Request {
 // attributes off a request without one (the parallel decode and shard
 // reducers, whose row-local attributes include a fitted vector
 // attribute bound to a prebuilt fit). The caller's request is never
-// mutated.
-func ResolveAttributeInputs(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) *types.Request {
+// mutated. cat is the run's bound-model catalog (nil none).
+func ResolveAttributeInputs(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, cat model.Catalog) *types.Request {
 	if req == nil {
 		return req
 	}
@@ -735,7 +735,7 @@ func ResolveAttributeInputs(req *types.Request, schema *encoding.Schema, exts *E
 	if !has {
 		return req
 	}
-	inputs, err := vectors.ResolveAttributes(req, schema, func(t types.AttributeType) types.AttributeType {
+	inputs, err := vectors.ResolveAttributes(req, schema, cat, func(t types.AttributeType) types.AttributeType {
 		if exts.isHidden(string(t)) {
 			return ""
 		}
@@ -800,12 +800,12 @@ func ResolveAttributeInputs(req *types.Request, schema *encoding.Schema, exts *E
 // and grouper vector inputs. It also resolves the run's named vectors
 // for the expression operators (Processor.exprVectors).
 func (p *Processor) prepare(req *types.Request) *types.Request {
-	p.exprVectors = ExprVectors(req, p.schema)
+	p.exprVectors = ExprVectors(req, p.schema, p.catalog())
 	p.keySchema = nil
 	if req != nil {
 		p.keySchema = prevstate.KeySchema(req.Attributes, p.schema)
 	}
-	return ResolveAggregationInputs(p.resolveGroupInputs(p.resolveAttributeInputs(p.stampWeights(req))), p.schema, p.exts)
+	return ResolveAggregationInputs(p.resolveGroupInputs(p.resolveAttributeInputs(p.stampWeights(req))), p.schema, p.exts, p.catalog())
 }
 
 // ResolveAggregationInputs returns req with every vector aggregator
@@ -819,15 +819,16 @@ func (p *Processor) prepare(req *types.Request) *types.Request {
 // and shard reducers). req itself is returned when no slot reads a
 // vector or resolution fails (the field-reference pass has refused
 // that request; the factory refuses an unresolved Vector). The
-// caller's request is never mutated.
-func ResolveAggregationInputs(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry) *types.Request {
+// caller's request is never mutated. cat is the run's bound-model
+// catalog (nil none).
+func ResolveAggregationInputs(req *types.Request, schema *encoding.Schema, exts *ExtensionRegistry, cat model.Catalog) *types.Request {
 	if req == nil {
 		return req
 	}
 	if !vectors.AnyAggregationVectorInput(req) {
 		return req
 	}
-	inputs, err := vectors.ResolveAggregations(req, schema, exts.AggregationKinds())
+	inputs, err := vectors.ResolveAggregations(req, schema, cat, exts.AggregationKinds())
 	if err != nil || len(inputs) == 0 {
 		return req
 	}

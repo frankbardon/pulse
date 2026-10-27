@@ -1,6 +1,7 @@
 package guide
 
 import (
+	"encoding/json"
 	"slices"
 	"sort"
 	"strconv"
@@ -87,7 +88,8 @@ func (e *explainer) explainComposedResponse(resp *types.ComposedResponse, req *t
 // readComposeFits reads each regression fit of a ComposedResponse —
 // in the batch request's declaration order when it rides beside the
 // result, else by name — as a regression at wire path "fits.<name>",
-// with the fit request's regression as its spec. A vector fit carries
+// with the fit request's regression as its spec — a sweep-bound fit's
+// (`from_sweep`) read off the sweep body. A vector fit carries
 // no coefficient and is not read. It returns the fits read.
 func (e *explainer) readComposeFits(rr *responseReader, fits map[string]*types.FitResult, req *types.ComposedRequest) int {
 	specs := map[string]*types.RegressionSpec{}
@@ -98,8 +100,11 @@ func (e *explainer) readComposeFits(rr *responseReader, fits map[string]*types.F
 				continue
 			}
 			names = append(names, f.Name)
-			if f.Request != nil && len(f.Request.Regressions) == 1 {
+			switch {
+			case f.Request != nil && len(f.Request.Regressions) == 1:
 				specs[f.Name] = f.Request.Regressions[0]
+			case f.FromSweep != nil && req.Sweep != nil:
+				specs[f.Name] = sweepBodyRegression(req.Sweep.Request, f.FromSweep.Regression)
 			}
 		}
 	}
@@ -120,6 +125,31 @@ func (e *explainer) readComposeFits(rr *responseReader, fits map[string]*types.F
 		e.regressionFindings(rr, "fits."+name, "Fit "+tick(name), f.RegressionResult, specs[name])
 	}
 	return n
+}
+
+// sweepBodyRegression is the identity of the sweep body's regression
+// named name — type, name, target and predictors, which a sweep-bound
+// fit keeps axis-invariant (model.CheckFitsIn) — read loosely off the
+// unrendered body: nil when the body does not decode (a placeholder in
+// a typed field) or holds no such regression.
+func sweepBodyRegression(body []byte, name string) *types.RegressionSpec {
+	var b struct {
+		Regressions []struct {
+			Type       types.RegressionType `json:"type"`
+			Name       string               `json:"name"`
+			Target     string               `json:"target"`
+			Predictors []string             `json:"predictors"`
+		} `json:"regressions"`
+	}
+	if json.Unmarshal(body, &b) != nil {
+		return nil
+	}
+	for _, r := range b.Regressions {
+		if r.Name == name {
+			return &types.RegressionSpec{Type: r.Type, Name: r.Name, Target: r.Target, Predictors: r.Predictors}
+		}
+	}
+	return nil
 }
 
 // explainChainResponse reads a ChainResponse stage by stage, then its

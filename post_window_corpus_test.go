@@ -52,12 +52,19 @@ func requestObjects(v any, out *[]map[string]any) {
 // corpus holds: formulas, regression and scoring attributes, vector
 // attributes, previous-state slots).
 //
+// The same gate holds the windows-first classification
+// (vectors.WindowsFirst): no shipped request turns it on, so no example
+// changes classification.
+//
 // The exceptions are the examples that teach the phase: the one-step
 // MMM decay sweeps (grid and lhs) read their adstock labels in formula
-// attributes, so they MUST classify post-window (checked, not skipped).
+// attributes, so they MUST classify post-window (checked, not skipped);
+// and the window-column aggregation examples (mmm-followups E4-S5)
+// aggregate a window label, so they MUST classify windows-first.
 func TestWindowPredictor_PostWindowPlanInertOverCorpus(t *testing.T) {
 	teaches := map[string]bool{"compose-mmm-decay-sweep": true, "compose-mmm-decay-lhs-sweep": true}
-	var taught int
+	teachesWindowsFirst := map[string]bool{"win_column_aggregate": true, "win_column_by_quarter": true}
+	var taught, taughtWindowsFirst int
 	probe := &types.Window{Type: types.WIN_ROW_NUMBER, Label: "post_window_probe", OrderBy: []types.OrderKey{{Field: "post_window_probe_key"}}}
 	var requests, probed int
 	for _, ex := range examples.All() {
@@ -86,10 +93,22 @@ func TestWindowPredictor_PostWindowPlanInertOverCorpus(t *testing.T) {
 				}
 				continue
 			}
+			if teachesWindowsFirst[ex.Name] {
+				if !vectors.WindowsFirst(&req, nil, nil, nil) {
+					t.Errorf("%s: the example that teaches windows-first does not classify windows-first", ex.Name)
+				}
+				taughtWindowsFirst++
+				continue
+			}
 			inert := func(r *types.Request, how string) {
 				pw := vectors.PostWindowAttributes(r, nil, nil, nil)
 				if pw.Any() || pw.Dep != nil || pw.WindowReads != nil || pw.Refusal(r) != nil {
 					t.Errorf("%s (%s): attributes classify post-window (%+v): the example now runs a reordered pipeline", ex.Name, how, pw)
+				}
+				// Windows-first (mmm-followups E4-S1): no shipped
+				// request runs its windows ahead of its aggregations.
+				if pw.WindowsFirst || vectors.WindowsFirst(r, nil, nil, nil) {
+					t.Errorf("%s (%s): the request classifies windows-first: the example now runs a reordered pipeline", ex.Name, how)
 				}
 			}
 			inert(&req, "as written")
@@ -103,6 +122,9 @@ func TestWindowPredictor_PostWindowPlanInertOverCorpus(t *testing.T) {
 	}
 	if taught == 0 {
 		t.Fatal("the post-window teaching example was not found in the corpus")
+	}
+	if taughtWindowsFirst != len(teachesWindowsFirst) {
+		t.Fatalf("found %d of the %d windows-first teaching examples in the corpus", taughtWindowsFirst, len(teachesWindowsFirst))
 	}
 	if requests == 0 || probed == 0 {
 		t.Fatalf("corpus scanned %d requests, %d with attributes; the gate judged nothing", requests, probed)

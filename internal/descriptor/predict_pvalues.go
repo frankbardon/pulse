@@ -146,7 +146,7 @@ func countPValuesVisit(req *types.Request, schema *encoding.Schema, plan *Multip
 		if plan != nil {
 			matrices = plan.Matrices
 		}
-		if plans, err := resolveMatricesFor(req, schema, nil, inst); err == nil {
+		if plans, err := resolveMatricesFor(req, schema, nil, inst, opts.boundModels()); err == nil {
 			for _, m := range plans {
 				if m.Type == types.MAT_SEM {
 					// A member MAT_SEM (its own block) corrects every

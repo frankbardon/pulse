@@ -558,7 +558,7 @@ const (
 
 	// PULSE_REGRESSION_INVALID indicates a regression slot naming a type
 	// no registry on the instance resolves: never registered, hidden by a
-	// feature profile, or a pack model (REG_<NAMESPACE>_<NAME>) whose
+	// feature profile, or an embedder model (REG_<NAMESPACE>_<NAME>) whose
 	// extension is not registered. details carry regression_index (the
 	// slot's position in Regressions) and type. Predict and every runtime
 	// surface raise it alike, with one sentence.
@@ -1570,7 +1570,9 @@ const (
 	// model does not have: an ATTR_REG_PREDICT params.terms entry or a
 	// coef() term that is neither one of the fit's predictors nor
 	// "(intercept)". Details carry "fit", "term" and "available" (the
-	// terms it may name).
+	// terms it may name). A sweep_axis(fit, axis) call raises it with
+	// "fit", "axis" and "reason" not_sweep_bound / axis_unknown (+
+	// "axes").
 	PULSE_MODEL_TERM_UNKNOWN Code = "PULSE_MODEL_TERM_UNKNOWN"
 
 	// PULSE_MODEL_STAT_UNKNOWN indicates a coef(fit, term, stat) call

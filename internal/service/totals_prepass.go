@@ -31,7 +31,7 @@ var prepassProjectionHook func(keep encx.FieldFilter, projected int)
 // accumulator, its filter chain and scratch filter counters (the
 // reduce counts the filters; the pre-pass only asks pass / fail).
 func (s *Service) newPrepassWorker(ctx context.Context, req *types.Request, schema *encoding.Schema) (*prepassWorker, error) {
-	vecs := processing.ExprVectors(req, schema)
+	vecs := processing.ExprVectors(req, schema, catalogOf(model.SetFrom(ctx)))
 	acc, err := processing.NewTotalsPrepass(req.Attributes, schema, s.extensions, partitionModels(ctx), vecs)
 	if err != nil {
 		return nil, err
